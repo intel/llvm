@@ -6976,8 +6976,7 @@ GenerateStringLiteral(llvm::Constant *C, llvm::GlobalValue::LinkageTypes LT,
 ConstantAddress
 CodeGenModule::GetAddrOfConstantStringFromLiteral(const StringLiteral *S,
                                                   StringRef Name) {
-  CharUnits Alignment =
-      getContext().getAlignOfGlobalVarInChars(S->getType(), /*VD=*/nullptr);
+  CharUnits Alignment = getContext().getAlignOfGlobalVarInChars(S->getType());
 
   llvm::Constant *C = GetConstantArrayFromStringLiteral(S);
   llvm::GlobalVariable **Entry = nullptr;
@@ -7040,8 +7039,8 @@ CodeGenModule::GetAddrOfConstantStringFromObjCEncode(const ObjCEncodeExpr *E) {
 ConstantAddress CodeGenModule::GetAddrOfConstantCString(
     const std::string &Str, const char *GlobalName) {
   StringRef StrWithNull(Str.c_str(), Str.size() + 1);
-  CharUnits Alignment = getContext().getAlignOfGlobalVarInChars(
-      getContext().CharTy, /*VD=*/nullptr);
+  CharUnits Alignment =
+    getContext().getAlignOfGlobalVarInChars(getContext().CharTy);
 
   llvm::Constant *C =
       llvm::ConstantDataArray::getString(getLLVMContext(), StrWithNull, false);

@@ -577,8 +577,11 @@ void JumpScopeChecker::BuildScopeInformation(Stmt *S,
     // automatic storage duration.
     MaterializeTemporaryExpr *MTE = cast<MaterializeTemporaryExpr>(S);
     if (MTE->getStorageDuration() == SD_Automatic) {
+      SmallVector<const Expr *, 4> CommaLHS;
+      SmallVector<SubobjectAdjustment, 4> Adjustments;
       const Expr *ExtendedObject =
-          MTE->getSubExpr()->skipRValueSubobjectAdjustments();
+          MTE->getSubExpr()->skipRValueSubobjectAdjustments(CommaLHS,
+                                                            Adjustments);
       if (ExtendedObject->getType().isDestructedType()) {
         Scopes.push_back(GotoScope(ParentScope, 0,
                                    diag::note_exits_temporary_dtor,

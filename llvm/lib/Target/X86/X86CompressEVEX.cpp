@@ -225,25 +225,21 @@ static bool CompressEVEXImpl(MachineInstr &MI, const X86Subtarget &ST) {
   //
   // For AVX512 cases, EVEX prefix is needed in order to carry this information
   // thus preventing the transformation to VEX encoding.
-  unsigned Opc = MI.getOpcode();
   bool IsND = X86II::hasNewDataDest(TSFlags);
-  if (TSFlags & X86II::EVEX_B && !IsND)
-    return false;
-  // MOVBE*rr is special because it has semantic of NDD but not set EVEX_B.
-  bool IsNDLike = IsND || Opc == X86::MOVBE32rr || Opc == X86::MOVBE64rr;
-  if (IsNDLike && !isRedundantNewDataDest(MI, ST))
-    return false;
+  if (TSFlags & X86II::EVEX_B)
+    if (!IsND || !isRedundantNewDataDest(MI, ST))
+      return false;
 
   ArrayRef<X86CompressEVEXTableEntry> Table = ArrayRef(X86CompressEVEXTable);
 
-  Opc = MI.getOpcode();
+  unsigned Opc = MI.getOpcode();
   const auto *I = llvm::lower_bound(Table, Opc);
   if (I == Table.end() || I->OldOpc != Opc) {
-    assert(!IsNDLike && "Missing entry for ND-like instruction");
+    assert(!IsND && "Missing entry for ND instruction");
     return false;
   }
 
-  if (!IsNDLike) {
+  if (!IsND) {
     if (usesExtendedRegister(MI) || !checkPredicate(I->NewOpc, &ST) ||
         !performCustomAdjustments(MI, I->NewOpc))
       return false;
@@ -268,7 +264,7 @@ static bool CompressEVEXImpl(MachineInstr &MI, const X86Subtarget &ST) {
     llvm_unreachable("Unknown EVEX compression");
   }
   MI.setAsmPrinterFlag(AsmComment);
-  if (IsNDLike)
+  if (IsND)
     MI.tieOperands(0, 1);
 
   return true;

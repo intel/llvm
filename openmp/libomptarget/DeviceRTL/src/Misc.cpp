@@ -62,8 +62,9 @@ double getWTick() {
 }
 
 double getWTime() {
-  uint64_t nsecs = __nvvm_read_ptx_sreg_globaltimer();
-  return static_cast<double>(nsecs) * getWTick();
+  unsigned long long nsecs;
+  asm volatile("mov.u64  %0, %%globaltimer;" : "=l"(nsecs));
+  return (double)nsecs * getWTick();
 }
 
 #pragma omp end declare variant

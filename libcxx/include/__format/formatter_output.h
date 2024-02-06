@@ -35,9 +35,6 @@
 #  pragma GCC system_header
 #endif
 
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
-
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 #if _LIBCPP_STD_VER >= 20
@@ -327,7 +324,5 @@ _LIBCPP_HIDE_FROM_ABI int __truncate(basic_string_view<_CharT>& __str, int __pre
 #endif //_LIBCPP_STD_VER >= 20
 
 _LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___FORMAT_FORMATTER_OUTPUT_H

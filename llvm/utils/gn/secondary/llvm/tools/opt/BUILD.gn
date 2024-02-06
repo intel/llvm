@@ -1,5 +1,4 @@
-static_library("lib") {
-  output_name = "LLVMOptDriver"
+executable("opt") {
   deps = [
     "//llvm/include/llvm/Config:llvm-config",
     "//llvm/lib/Analysis",
@@ -24,13 +23,8 @@ static_library("lib") {
   ]
   sources = [
     "NewPMDriver.cpp",
-    "optdriver.cpp",
+    "opt.cpp",
   ]
-}
-
-executable("opt") {
-  sources = [ "opt.cpp" ]
-  deps = [ ":lib" ]
 
   # Support plugins.
   # FIXME: Disable dead stripping once other binaries are dead-stripped.

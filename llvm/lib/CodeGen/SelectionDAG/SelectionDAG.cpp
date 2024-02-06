@@ -36,6 +36,7 @@
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/RuntimeLibcalls.h"
 #include "llvm/CodeGen/SelectionDAGAddressAnalysis.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
@@ -45,7 +46,6 @@
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/CodeGen/ValueTypes.h"
-#include "llvm/CodeGenTypes/MachineValueType.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/Constants.h"
@@ -909,9 +909,10 @@ static void AddNodeIDCustom(FoldingSetNodeID &ID, const SDNode *N) {
     break;
   }
   case ISD::VECTOR_SHUFFLE: {
-    ArrayRef<int> Mask = cast<ShuffleVectorSDNode>(N)->getMask();
-    for (int M : Mask)
-      ID.AddInteger(M);
+    const ShuffleVectorSDNode *SVN = cast<ShuffleVectorSDNode>(N);
+    for (unsigned i = 0, e = N->getValueType(0).getVectorNumElements();
+         i != e; ++i)
+      ID.AddInteger(SVN->getMaskElt(i));
     break;
   }
   case ISD::TargetBlockAddress:
@@ -3902,9 +3903,9 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     break;
   }
   case ISD::USUBSAT: {
-    Known = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
-    Known2 = computeKnownBits(Op.getOperand(1), DemandedElts, Depth + 1);
-    Known = KnownBits::usub_sat(Known, Known2);
+    // The result of usubsat will never be larger than the LHS.
+    Known2 = computeKnownBits(Op.getOperand(0), DemandedElts, Depth + 1);
+    Known.Zero.setHighBits(Known2.countMinLeadingZeros());
     break;
   }
   case ISD::UMIN: {

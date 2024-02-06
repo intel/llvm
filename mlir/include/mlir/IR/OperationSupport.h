@@ -1316,10 +1316,10 @@ LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
 //===----------------------------------------------------------------------===//
 
 /// A unique fingerprint for a specific operation, and all of it's internal
-/// operations (if `includeNested` is set).
+/// operations.
 class OperationFingerPrint {
 public:
-  OperationFingerPrint(Operation *topOp, bool includeNested = true);
+  OperationFingerPrint(Operation *topOp);
   OperationFingerPrint(const OperationFingerPrint &) = default;
   OperationFingerPrint &operator=(const OperationFingerPrint &) = default;
 

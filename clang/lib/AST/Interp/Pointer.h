@@ -134,8 +134,7 @@ public:
 
     // Pointer to an array of base types - enter block.
     if (Base == RootPtrMark)
-      return Pointer(Pointee, sizeof(InlineDescriptor),
-                     Offset == 0 ? Offset : PastEndMark);
+      return Pointer(Pointee, 0, Offset == 0 ? Offset : PastEndMark);
 
     // Pointer is one past end - magic offset marks that.
     if (isOnePastEnd())
@@ -180,7 +179,7 @@ public:
       return *this;
 
     // If at base, point to an array of base types.
-    if (Base == 0 || Base == sizeof(InlineDescriptor))
+    if (Base == 0)
       return Pointer(Pointee, RootPtrMark, 0);
 
     // Step into the containing array, if inside one.
@@ -197,10 +196,7 @@ public:
   /// Checks if the pointer is live.
   bool isLive() const { return Pointee && !Pointee->IsDead; }
   /// Checks if the item is a field in an object.
-  bool isField() const {
-    return Base != 0 && Base != sizeof(InlineDescriptor) &&
-           Base != RootPtrMark && getFieldDesc()->asDecl();
-  }
+  bool isField() const { return Base != 0 && Base != RootPtrMark; }
 
   /// Accessor for information about the declaration site.
   const Descriptor *getDeclDesc() const {
@@ -231,21 +227,15 @@ public:
 
   /// Accessors for information about the innermost field.
   const Descriptor *getFieldDesc() const {
-    if (Base == 0 || Base == sizeof(InlineDescriptor) || Base == RootPtrMark)
+    if (Base == 0 || Base == RootPtrMark)
       return getDeclDesc();
     return getInlineDesc()->Desc;
   }
 
   /// Returns the type of the innermost field.
   QualType getType() const {
-    if (inPrimitiveArray() && Offset != Base) {
-      // Unfortunately, complex types are not array types in clang, but they are
-      // for us.
-      if (const auto *AT = getFieldDesc()->getType()->getAsArrayTypeUnsafe())
-        return AT->getElementType();
-      if (const auto *CT = getFieldDesc()->getType()->getAs<ComplexType>())
-        return CT->getElementType();
-    }
+    if (inPrimitiveArray() && Offset != Base)
+      return getFieldDesc()->getType()->getAsArrayTypeUnsafe()->getElementType();
     return getFieldDesc()->getType();
   }
 
@@ -294,8 +284,6 @@ public:
   bool isRoot() const {
     return (Base == 0 || Base == RootPtrMark) && Offset == 0;
   }
-  /// If this pointer has an InlineDescriptor we can use to initialize.
-  bool canBeInitialized() const { return Pointee && Base > 0; }
 
   /// Returns the record descriptor of a class.
   const Record *getRecord() const { return getFieldDesc()->ElemRecord; }
@@ -327,16 +315,12 @@ public:
 
   /// Checks if the field is mutable.
   bool isMutable() const {
-    return Base != 0 && Base != sizeof(InlineDescriptor) &&
-           getInlineDesc()->IsFieldMutable;
+    return Base != 0 && getInlineDesc()->IsFieldMutable;
   }
   /// Checks if an object was initialized.
   bool isInitialized() const;
   /// Checks if the object is active.
-  bool isActive() const {
-    return Base == 0 || Base == sizeof(InlineDescriptor) ||
-           getInlineDesc()->IsActive;
-  }
+  bool isActive() const { return Base == 0 || getInlineDesc()->IsActive; }
   /// Checks if a structure is a base class.
   bool isBaseClass() const { return isField() && getInlineDesc()->IsBase; }
   /// Checks if the pointer pointers to a dummy value.
@@ -344,9 +328,7 @@ public:
 
   /// Checks if an object or a subfield is mutable.
   bool isConst() const {
-    return (Base == 0 || Base == sizeof(InlineDescriptor))
-               ? getDeclDesc()->IsConst
-               : getInlineDesc()->IsConst;
+    return Base == 0 ? getDeclDesc()->IsConst : getInlineDesc()->IsConst;
   }
 
   /// Returns the declaration ID.
@@ -371,7 +353,7 @@ public:
       return 1;
 
     // narrow()ed element in a composite array.
-    if (Base > sizeof(InlineDescriptor) && Base == Offset)
+    if (Base > 0 && Base == Offset)
       return 0;
 
     if (auto ElemSize = elemSize())

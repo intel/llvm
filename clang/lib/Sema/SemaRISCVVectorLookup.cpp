@@ -43,7 +43,7 @@ struct RVVIntrinsicDef {
 
 struct RVVOverloadIntrinsicDef {
   // Indexes of RISCVIntrinsicManagerImpl::IntrinsicList.
-  SmallVector<uint16_t, 8> Indexes;
+  SmallVector<uint32_t, 8> Indexes;
 };
 
 } // namespace
@@ -162,7 +162,7 @@ private:
   // List of all RVV intrinsic.
   std::vector<RVVIntrinsicDef> IntrinsicList;
   // Mapping function name to index of IntrinsicList.
-  StringMap<uint16_t> Intrinsics;
+  StringMap<uint32_t> Intrinsics;
   // Mapping function name to RVVOverloadIntrinsicDef.
   StringMap<RVVOverloadIntrinsicDef> OverloadIntrinsics;
 
@@ -379,16 +379,14 @@ void RISCVIntrinsicManagerImpl::InitRVVIntrinsic(
     OverloadedName += "_" + OverloadedSuffixStr.str();
 
   // clang built-in function name, e.g. __builtin_rvv_vadd.
-  std::string BuiltinName = std::string(Record.Name);
+  std::string BuiltinName = "__builtin_rvv_" + std::string(Record.Name);
 
   RVVIntrinsic::updateNamesAndPolicy(IsMasked, HasPolicy, Name, BuiltinName,
                                      OverloadedName, PolicyAttrs,
                                      Record.HasFRMRoundModeOp);
 
   // Put into IntrinsicList.
-  uint16_t Index = IntrinsicList.size();
-  assert(IntrinsicList.size() == (size_t)Index &&
-         "Intrinsics indices overflow.");
+  uint32_t Index = IntrinsicList.size();
   IntrinsicList.push_back({BuiltinName, Signature});
 
   // Creating mapping to Intrinsics.
@@ -453,8 +451,7 @@ void RISCVIntrinsicManagerImpl::CreateRVVIntrinsicDecl(LookupResult &LR,
     RVVIntrinsicDecl->addAttr(OverloadableAttr::CreateImplicit(Context));
 
   // Setup alias to __builtin_rvv_*
-  IdentifierInfo &IntrinsicII =
-      PP.getIdentifierTable().get("__builtin_rvv_" + IDef.BuiltinName);
+  IdentifierInfo &IntrinsicII = PP.getIdentifierTable().get(IDef.BuiltinName);
   RVVIntrinsicDecl->addAttr(
       BuiltinAliasAttr::CreateImplicit(S.Context, &IntrinsicII));
 
@@ -466,8 +463,6 @@ bool RISCVIntrinsicManagerImpl::CreateIntrinsicIfFound(LookupResult &LR,
                                                        IdentifierInfo *II,
                                                        Preprocessor &PP) {
   StringRef Name = II->getName();
-  if (!Name.consume_front("__riscv_"))
-    return false;
 
   // Lookup the function name from the overload intrinsics first.
   auto OvIItr = OverloadIntrinsics.find(Name);

@@ -393,45 +393,53 @@ RT_API_ATTRS static void Assign(
     // Copy the data components (incl. the parent) first.
     const Descriptor &componentDesc{updatedToDerived->component()};
     std::size_t numComponents{componentDesc.Elements()};
-    for (std::size_t j{0}; j < toElements;
-         ++j, to.IncrementSubscripts(toAt), from.IncrementSubscripts(fromAt)) {
-      for (std::size_t k{0}; k < numComponents; ++k) {
-        const auto &comp{
-            *componentDesc.ZeroBasedIndexedElement<typeInfo::Component>(
-                k)}; // TODO: exploit contiguity here
-        // Use PolymorphicLHS for components so that the right things happen
-        // when the components are polymorphic; when they're not, they're both
-        // not, and their declared types will match.
-        int nestedFlags{MaybeReallocate | PolymorphicLHS};
-        if (flags & ComponentCanBeDefinedAssignment) {
-          nestedFlags |=
-              CanBeDefinedAssignment | ComponentCanBeDefinedAssignment;
-        }
-        switch (comp.genre()) {
-        case typeInfo::Component::Genre::Data:
-          if (comp.category() == TypeCategory::Derived) {
-            StaticDescriptor<maxRank, true, 10 /*?*/> statDesc[2];
-            Descriptor &toCompDesc{statDesc[0].descriptor()};
-            Descriptor &fromCompDesc{statDesc[1].descriptor()};
+    for (std::size_t k{0}; k < numComponents; ++k) {
+      const auto &comp{
+          *componentDesc.ZeroBasedIndexedElement<typeInfo::Component>(
+              k)}; // TODO: exploit contiguity here
+      // Use PolymorphicLHS for components so that the right things happen
+      // when the components are polymorphic; when they're not, they're both
+      // not, and their declared types will match.
+      int nestedFlags{MaybeReallocate | PolymorphicLHS};
+      if (flags & ComponentCanBeDefinedAssignment) {
+        nestedFlags |= CanBeDefinedAssignment | ComponentCanBeDefinedAssignment;
+      }
+      switch (comp.genre()) {
+      case typeInfo::Component::Genre::Data:
+        if (comp.category() == TypeCategory::Derived) {
+          StaticDescriptor<maxRank, true, 10 /*?*/> statDesc[2];
+          Descriptor &toCompDesc{statDesc[0].descriptor()};
+          Descriptor &fromCompDesc{statDesc[1].descriptor()};
+          for (std::size_t j{0}; j < toElements; ++j,
+               to.IncrementSubscripts(toAt), from.IncrementSubscripts(fromAt)) {
             comp.CreatePointerDescriptor(toCompDesc, to, terminator, toAt);
             comp.CreatePointerDescriptor(
                 fromCompDesc, from, terminator, fromAt);
             Assign(toCompDesc, fromCompDesc, terminator, nestedFlags);
-          } else { // Component has intrinsic type; simply copy raw bytes
-            std::size_t componentByteSize{comp.SizeInBytes(to)};
+          }
+        } else { // Component has intrinsic type; simply copy raw bytes
+          std::size_t componentByteSize{comp.SizeInBytes(to)};
+          for (std::size_t j{0}; j < toElements; ++j,
+               to.IncrementSubscripts(toAt), from.IncrementSubscripts(fromAt)) {
             Fortran::runtime::memmove(to.Element<char>(toAt) + comp.offset(),
                 from.Element<const char>(fromAt) + comp.offset(),
                 componentByteSize);
           }
-          break;
-        case typeInfo::Component::Genre::Pointer: {
-          std::size_t componentByteSize{comp.SizeInBytes(to)};
+        }
+        break;
+      case typeInfo::Component::Genre::Pointer: {
+        std::size_t componentByteSize{comp.SizeInBytes(to)};
+        for (std::size_t j{0}; j < toElements; ++j,
+             to.IncrementSubscripts(toAt), from.IncrementSubscripts(fromAt)) {
           Fortran::runtime::memmove(to.Element<char>(toAt) + comp.offset(),
               from.Element<const char>(fromAt) + comp.offset(),
               componentByteSize);
-        } break;
-        case typeInfo::Component::Genre::Allocatable:
-        case typeInfo::Component::Genre::Automatic: {
+        }
+      } break;
+      case typeInfo::Component::Genre::Allocatable:
+      case typeInfo::Component::Genre::Automatic:
+        for (std::size_t j{0}; j < toElements; ++j,
+             to.IncrementSubscripts(toAt), from.IncrementSubscripts(fromAt)) {
           auto *toDesc{reinterpret_cast<Descriptor *>(
               to.Element<char>(toAt) + comp.offset())};
           const auto *fromDesc{reinterpret_cast<const Descriptor *>(
@@ -462,16 +470,18 @@ RT_API_ATTRS static void Assign(
           // The actual deallocation may be avoided, if the existing
           // location can be reoccupied.
           Assign(*toDesc, *fromDesc, terminator, nestedFlags | DeallocateLHS);
-        } break;
         }
+        break;
       }
-      // Copy procedure pointer components
-      const Descriptor &procPtrDesc{updatedToDerived->procPtr()};
-      std::size_t numProcPtrs{procPtrDesc.Elements()};
-      for (std::size_t k{0}; k < numProcPtrs; ++k) {
-        const auto &procPtr{
-            *procPtrDesc.ZeroBasedIndexedElement<typeInfo::ProcPtrComponent>(
-                k)};
+    }
+    // Copy procedure pointer components
+    const Descriptor &procPtrDesc{updatedToDerived->procPtr()};
+    std::size_t numProcPtrs{procPtrDesc.Elements()};
+    for (std::size_t k{0}; k < numProcPtrs; ++k) {
+      const auto &procPtr{
+          *procPtrDesc.ZeroBasedIndexedElement<typeInfo::ProcPtrComponent>(k)};
+      for (std::size_t j{0}; j < toElements; ++j, to.IncrementSubscripts(toAt),
+           from.IncrementSubscripts(fromAt)) {
         Fortran::runtime::memmove(to.Element<char>(toAt) + procPtr.offset,
             from.Element<const char>(fromAt) + procPtr.offset,
             sizeof(typeInfo::ProcedurePointer));

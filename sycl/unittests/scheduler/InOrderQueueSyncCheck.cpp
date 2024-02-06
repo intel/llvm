@@ -56,14 +56,43 @@ TEST_F(SchedulerTest, InOrderQueueSyncCheck) {
       sycl::detail::getSyclObjImpl(Dev), sycl::async_handler{},
       sycl::property::queue::in_order());
 
-  // Check that tasks submitted to an in-order queue implicitly depend_on the
-  // previous task, this is needed to properly sync blocking & blocked tasks.
+  // What we are testing here:
+  // Task type  | Must depend on
+  //  host      | yes - always, separate sync management
+  //  host      | yes - always, separate sync management
+  //  kernel    | yes - change of sync approach
+  //  kernel    | yes - sync between pi calls must be done by backend, but we
+  //  still add dependency to handle the right order due to host task. This
+  //  dependency will not be sent to backend. It is checked in
+  //  SchedulerTest.InOrderQueueCrossDeps
+  //  host      | yes - always, separate sync management
+
   sycl::event Event;
+  // host task
   {
     LimitedHandlerSimulation MockCGH;
     EXPECT_CALL(MockCGH, depends_on).Times(0);
     Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, Event);
   }
+  // host task
+  {
+    LimitedHandlerSimulation MockCGH;
+    EXPECT_CALL(MockCGH, depends_on).Times(1);
+    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, Event);
+  }
+  // kernel task
+  {
+    LimitedHandlerSimulation MockCGH;
+    EXPECT_CALL(MockCGH, depends_on).Times(1);
+    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, Event);
+  }
+  // kernel task
+  {
+    LimitedHandlerSimulation MockCGH;
+    EXPECT_CALL(MockCGH, depends_on).Times(1);
+    Queue->finalizeHandler<LimitedHandlerSimulation>(MockCGH, Event);
+  }
+  // host task
   {
     LimitedHandlerSimulation MockCGH;
     EXPECT_CALL(MockCGH, depends_on).Times(1);

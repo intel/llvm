@@ -36,7 +36,6 @@ static_library("lib") {
     "PerfHelper.cpp",
     "RegisterAliasing.cpp",
     "RegisterValue.cpp",
-    "ResultAggregator.cpp",
     "SchedClassResolution.cpp",
     "SerialSnippetGenerator.cpp",
     "SnippetFile.cpp",

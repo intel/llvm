@@ -55,8 +55,9 @@ define half @copysign_fabs_y(half %x, half %y) {
 
 define half @copysign_fneg_fabs_y(half %x, half %y) {
 ; CHECK-LABEL: @copysign_fneg_fabs_y(
-; CHECK-NEXT:    [[TMP1:%.*]] = call half @llvm.fabs.f16(half [[X:%.*]])
-; CHECK-NEXT:    [[COPYSIGN:%.*]] = fneg half [[TMP1]]
+; CHECK-NEXT:    [[FABS_Y:%.*]] = call half @llvm.fabs.f16(half [[Y:%.*]])
+; CHECK-NEXT:    [[FNEG_FABS_Y:%.*]] = fneg half [[FABS_Y]]
+; CHECK-NEXT:    [[COPYSIGN:%.*]] = call half @llvm.copysign.f16(half [[X:%.*]], half [[FNEG_FABS_Y]])
 ; CHECK-NEXT:    ret half [[COPYSIGN]]
 ;
   %fabs.y = call half @llvm.fabs.f16(half %y)

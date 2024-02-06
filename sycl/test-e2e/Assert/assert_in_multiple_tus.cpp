@@ -3,9 +3,6 @@
 // https://github.com/intel/llvm/issues/7634
 // UNSUPPORTED: hip
 //
-// https://github.com/intel/llvm/issues/8832
-// UNSUPPORTED: cuda
-//
 // FIXME: Remove XFAIL one intel/llvm#11364 is resolved
 // XFAIL: (opencl && gpu)
 

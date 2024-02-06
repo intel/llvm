@@ -34,7 +34,6 @@ class SMLoc;
 class StringInit;
 class CodeExpansions;
 class CodeGenInstruction;
-struct CodeGenIntrinsic;
 
 namespace gi {
 
@@ -397,7 +396,7 @@ private:
   StringMap<InstructionPattern *> Table;
 };
 
-//===- MIFlagsInfo --------------------------------------------------------===//
+//===- CodeGenInstructionPattern ------------------------------------------===//
 
 /// Helper class to contain data associated with a MIFlags operand.
 class MIFlagsInfo {
@@ -414,17 +413,7 @@ private:
   SetVector<StringRef> SetF, UnsetF, CopyF;
 };
 
-//===- CodeGenInstructionPattern ------------------------------------------===//
-
-/// Matches an instruction or intrinsic:
-///    e.g. `G_ADD $x, $y, $z` or `int_amdgcn_cos $a`
-///
-/// Intrinsics are just normal instructions with a special operand for intrinsic
-/// ID. Despite G_INTRINSIC opcodes being variadic, we consider that the
-/// Intrinsic's info takes priority. This means we return:
-///   - false for isVariadic() and other variadic-related queries.
-///   - getNumInstDefs and getNumInstOperands use the intrinsic's in/out
-///   operands.
+/// Matches an instruction, e.g. `G_ADD $x, $y, $z`.
 class CodeGenInstructionPattern : public InstructionPattern {
 public:
   CodeGenInstructionPattern(const CodeGenInstruction &I, StringRef Name)
@@ -435,10 +424,6 @@ public:
   }
 
   bool is(StringRef OpcodeName) const;
-
-  void setIntrinsic(const CodeGenIntrinsic *I) { IntrinInfo = I; }
-  const CodeGenIntrinsic *getIntrinsic() const { return IntrinInfo; }
-  bool isIntrinsic() const { return IntrinInfo; }
 
   bool hasVariadicDefs() const;
   bool isVariadic() const override;
@@ -455,7 +440,6 @@ private:
   void printExtras(raw_ostream &OS) const override;
 
   const CodeGenInstruction &I;
-  const CodeGenIntrinsic *IntrinInfo = nullptr;
   std::unique_ptr<MIFlagsInfo> FI;
 };
 

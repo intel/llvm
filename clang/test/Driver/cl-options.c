@@ -207,10 +207,6 @@
 // RUN: %clang_cl --target=i686-pc-win32 -Werror -Wno-msvc-not-found /O2 /O2 -### -- %s 2>&1 | FileCheck -check-prefix=O2O2 %s
 // O2O2: "-O2"
 
-// RUN: %clang_cl --target=i686-pc-win32 -Werror -Wno-msvc-not-found /O3 -### -- %s 2>&1 | FileCheck -check-prefix=O3 %s
-// O3: -mframe-pointer=none
-// O3: -O3
-
 // RUN: %clang_cl /Zs -Werror /Oy -- %s 2>&1
 
 // RUN: %clang_cl --target=i686-pc-win32 -Werror -Wno-msvc-not-found /Oy- -### -- %s 2>&1 | FileCheck -check-prefix=Oy_ %s

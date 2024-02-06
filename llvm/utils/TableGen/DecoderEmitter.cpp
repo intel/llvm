@@ -676,13 +676,8 @@ static void resolveTableFixups(DecoderTable &Table, const FixupList &Fixups,
 // Emit table entries to decode instructions given a segment or segments
 // of bits.
 void Filter::emitTableEntry(DecoderTableInfo &TableInfo) const {
-  assert((NumBits < (1u << 8)) && "NumBits overflowed uint8 table entry!");
   TableInfo.Table.push_back(MCD::OPC_ExtractField);
-
-  SmallString<16> SBytes;
-  raw_svector_ostream S(SBytes);
-  encodeULEB128(StartBit, S);
-  TableInfo.Table.insert(TableInfo.Table.end(), SBytes.begin(), SBytes.end());
+  TableInfo.Table.push_back(StartBit);
   TableInfo.Table.push_back(NumBits);
 
   // A new filter entry begins a new scope for fixup resolution.
@@ -791,20 +786,10 @@ void DecoderEmitter::emitTable(formatted_raw_ostream &OS, DecoderTable &Table,
       PrintFatalError("invalid decode table opcode");
     case MCD::OPC_ExtractField: {
       ++I;
-      OS.indent(Indentation) << "MCD::OPC_ExtractField, ";
-
-      // ULEB128 encoded start value.
-      uint8_t Buffer[16], *P = Buffer;
-      while ((*P++ = *I++) >= 128)
-        assert((P - Buffer) <= (ptrdiff_t)sizeof(Buffer) &&
-               "ULEB128 value too large!");
-      unsigned Start = decodeULEB128(Buffer);
-      for (P = Buffer; *P >= 128; ++P)
-        OS << (unsigned)*P << ", ";
-      OS << (unsigned)*P << ", ";
-
+      unsigned Start = *I++;
       unsigned Len = *I++;
-      OS << Len << ",  // Inst{";
+      OS.indent(Indentation) << "MCD::OPC_ExtractField, " << Start << ", "
+        << Len << ",  // Inst{";
       if (Len > 1)
         OS << (Start + Len - 1) << "-";
       OS << Start << "} ...\n";
@@ -833,14 +818,10 @@ void DecoderEmitter::emitTable(formatted_raw_ostream &OS, DecoderTable &Table,
     }
     case MCD::OPC_CheckField: {
       ++I;
-      OS.indent(Indentation) << "MCD::OPC_CheckField, ";
-      // ULEB128 encoded start value.
-      for (; *I >= 128; ++I)
-        OS << (unsigned)*I << ", ";
-      OS << (unsigned)*I++ << ", ";
-      // 8-bit length.
+      unsigned Start = *I++;
       unsigned Len = *I++;
-      OS << Len << ", ";
+      OS.indent(Indentation) << "MCD::OPC_CheckField, " << Start << ", "
+        << Len << ", ";// << Val << ", " << NumToSkip << ",\n";
       // ULEB128 encoded field value.
       for (; *I >= 128; ++I)
         OS << (unsigned)*I << ", ";
@@ -1435,19 +1416,15 @@ void FilterChooser::emitSingletonTableEntry(DecoderTableInfo &TableInfo,
 
   // Check any additional encoding fields needed.
   for (unsigned I = Size; I != 0; --I) {
-    unsigned NumBits = EndBits[I - 1] - StartBits[I - 1] + 1;
-    assert((NumBits < (1u << 8)) && "NumBits overflowed uint8 table entry!");
+    unsigned NumBits = EndBits[I-1] - StartBits[I-1] + 1;
     TableInfo.Table.push_back(MCD::OPC_CheckField);
-    uint8_t Buffer[16], *P;
-    encodeULEB128(StartBits[I - 1], Buffer);
-    for (P = Buffer; *P >= 128; ++P)
-      TableInfo.Table.push_back(*P);
-    TableInfo.Table.push_back(*P);
+    TableInfo.Table.push_back(StartBits[I-1]);
     TableInfo.Table.push_back(NumBits);
-    encodeULEB128(FieldVals[I - 1], Buffer);
-    for (P = Buffer; *P >= 128; ++P)
-      TableInfo.Table.push_back(*P);
-    TableInfo.Table.push_back(*P);
+    uint8_t Buffer[16], *p;
+    encodeULEB128(FieldVals[I-1], Buffer);
+    for (p = Buffer; *p >= 128 ; ++p)
+      TableInfo.Table.push_back(*p);
+    TableInfo.Table.push_back(*p);
     // Push location for NumToSkip backpatching.
     TableInfo.FixupStack.back().push_back(TableInfo.Table.size());
     // The fixup is always 24-bits, so go ahead and allocate the space
@@ -2250,11 +2227,9 @@ static void emitDecodeInstruction(formatted_raw_ostream &OS,
      << "      errs() << Loc << \": Unexpected decode table opcode!\\n\";\n"
      << "      return MCDisassembler::Fail;\n"
      << "    case MCD::OPC_ExtractField: {\n"
-     << "      // Decode the start value.\n"
-     << "      unsigned DecodedLen;\n"
-     << "      unsigned Start = decodeULEB128(++Ptr, &DecodedLen);\n"
-     << "      Ptr += DecodedLen;\n"
-     << "      unsigned Len = *Ptr++;\n";
+     << "      unsigned Start = *++Ptr;\n"
+     << "      unsigned Len = *++Ptr;\n"
+     << "      ++Ptr;\n";
   if (IsVarLenInst)
     OS << "      makeUp(insn, Start + Len);\n";
   OS << "      CurFieldValue = fieldFromInstruction(insn, Start, Len);\n"
@@ -2286,11 +2261,8 @@ static void emitDecodeInstruction(formatted_raw_ostream &OS,
      << "      break;\n"
      << "    }\n"
      << "    case MCD::OPC_CheckField: {\n"
-     << "      // Decode the start value.\n"
-     << "      unsigned Len;\n"
-     << "      unsigned Start = decodeULEB128(++Ptr, &Len);\n"
-     << "      Ptr += Len;\n"
-     << "      Len = *Ptr;\n";
+     << "      unsigned Start = *++Ptr;\n"
+     << "      unsigned Len = *++Ptr;\n";
   if (IsVarLenInst)
     OS << "      makeUp(insn, Start + Len);\n";
   OS << "      uint64_t FieldValue = fieldFromInstruction(insn, Start, Len);\n"

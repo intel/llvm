@@ -132,10 +132,7 @@ void tools::MinGW::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("thumb2pe");
     break;
   case llvm::Triple::aarch64:
-    if (TC.getEffectiveTriple().isWindowsArm64EC())
-      CmdArgs.push_back("arm64ecpe");
-    else
-      CmdArgs.push_back("arm64pe");
+    CmdArgs.push_back("arm64pe");
     break;
   default:
     D.Diag(diag::err_target_unknown_triple) << TC.getEffectiveTriple().str();

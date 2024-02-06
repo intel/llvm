@@ -10,7 +10,6 @@ add_object_library(
     time_utils.h
   DEPENDS
     libc.include.time
-    libc.src.__support.CPP.limits
     libc.src.errno.errno
 )
 

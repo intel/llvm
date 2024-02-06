@@ -246,8 +246,18 @@ public:
     });
     queue.wait_and_throw();
 
-    // Verify the the fill constructor.
-    for (size_t i = 0; i < result.size(); ++i) {
+    // Verify the base value was passed as-is
+    if (!are_bitwise_equal(result[0], base_value)) {
+      passed = false;
+      log::fail(TestDescriptionT(data_type, BaseVal, Step),
+                "Unexpected value at index 0, retrieved: ", result[0],
+                ", expected: ", base_value);
+    }
+
+    // Verify the step value works as expected being passed to the fill
+    // constructor.
+    DataT expected_value = base_value;
+    for (size_t i = 1; i < result.size(); ++i) {
       if constexpr (BaseVal == init_val::nan || Step == init_val::nan) {
 
         if (!std::isnan(result[i])) {
@@ -258,7 +268,7 @@ public:
         }
       } else {
 
-        DataT expected_value = base_value + (DataT)i * step_value;
+        expected_value += step_value;
         if (!are_bitwise_equal(result[i], expected_value)) {
           passed = false;
           log::fail(TestDescriptionT(data_type, BaseVal, Step),

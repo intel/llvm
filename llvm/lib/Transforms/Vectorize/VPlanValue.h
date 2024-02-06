@@ -350,7 +350,6 @@ public:
     VPInterleaveSC,
     VPReductionSC,
     VPReplicateSC,
-    VPScalarCastSC,
     VPScalarIVStepsSC,
     VPVectorPointerSC,
     VPWidenCallSC,

@@ -123,11 +123,26 @@ bool lldb_private::formatters::LibcxxStdVectorSyntheticFrontEnd::Update() {
   if (!data_type_finder_sp)
     return false;
 
-  data_type_finder_sp =
-      GetFirstValueOfLibCXXCompressedPair(*data_type_finder_sp);
+  switch (data_type_finder_sp->GetCompilerType().GetNumDirectBaseClasses()) {
+  case 1:
+    // Assume a pre llvm r300140 __compressed_pair implementation:
+    data_type_finder_sp =
+        data_type_finder_sp->GetChildMemberWithName("__first_");
+    break;
+  case 2: {
+    // Assume a post llvm r300140 __compressed_pair implementation:
+    ValueObjectSP first_elem_parent_sp =
+      data_type_finder_sp->GetChildAtIndex(0);
+    data_type_finder_sp =
+        first_elem_parent_sp->GetChildMemberWithName("__value_");
+    break;
+  }
+  default:
+    return false;
+  }
+
   if (!data_type_finder_sp)
     return false;
-
   m_element_type = data_type_finder_sp->GetCompilerType().GetPointeeType();
   if (std::optional<uint64_t> size = m_element_type.GetByteSize(nullptr)) {
     m_element_size = *size;

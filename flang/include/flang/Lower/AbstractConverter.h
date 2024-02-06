@@ -47,7 +47,6 @@ class CharBlock;
 }
 namespace semantics {
 class Symbol;
-class Scope;
 class DerivedTypeSpec;
 } // namespace semantics
 
@@ -60,7 +59,7 @@ struct Variable;
 using SomeExpr = Fortran::evaluate::Expr<Fortran::evaluate::SomeType>;
 using SymbolRef = Fortran::common::Reference<const Fortran::semantics::Symbol>;
 using TypeConstructionStack =
-    llvm::DenseMap<const Fortran::semantics::Scope *, mlir::Type>;
+    llvm::SmallVector<std::pair<const Fortran::lower::SymbolRef, mlir::Type>>;
 class StatementContext;
 
 using ExprToValueMap = llvm::DenseMap<const SomeExpr *, mlir::Value>;

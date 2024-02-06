@@ -234,9 +234,6 @@ public:
     RValue Res = CGF.EmitAtomicExpr(E);
     EmitFinalDestCopy(E->getType(), Res);
   }
-  void VisitPackIndexingExpr(PackIndexingExpr *E) {
-    Visit(E->getSelectedExpr());
-  }
 };
 }  // end anonymous namespace.
 

@@ -17,7 +17,6 @@ set(exegesis_sources
   ClusteringTest.cpp
   ProgressMeterTest.cpp
   RegisterValueTest.cpp
-  ResultAggregatorTest.cpp
   )
 
 set(exegesis_link_libraries LLVMExegesis)

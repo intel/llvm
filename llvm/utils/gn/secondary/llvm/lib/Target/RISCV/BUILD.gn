@@ -14,15 +14,6 @@ tablegen("RISCVGenCompressInstEmitter") {
   td_file = "RISCV.td"
 }
 
-tablegen("RISCVGenMacroFusion") {
-  visibility = [
-    ":LLVMRISCVCodeGen",
-    "//llvm/unittests/Target/RISCV:RISCVTests",
-  ]
-  args = [ "-gen-macro-fusion-pred" ]
-  td_file = "RISCV.td"
-}
-
 tablegen("RISCVGenDAGISel") {
   visibility = [ ":LLVMRISCVCodeGen" ]
   args = [ "-gen-dag-isel" ]
@@ -80,7 +71,6 @@ static_library("LLVMRISCVCodeGen") {
     ":RISCVGenDAGISel",
     ":RISCVGenGlobalISel",
     ":RISCVGenMCPseudoLowering",
-    ":RISCVGenMacroFusion",
     ":RISCVGenO0PreLegalizeGICombiner",
     ":RISCVGenPostLegalizeGICombiner",
     ":RISCVGenPreLegalizeGICombiner",
@@ -126,6 +116,7 @@ static_library("LLVMRISCVCodeGen") {
     "RISCVInsertWriteVXRM.cpp",
     "RISCVInstrInfo.cpp",
     "RISCVMachineFunctionInfo.cpp",
+    "RISCVMacroFusion.cpp",
     "RISCVMakeCompressible.cpp",
     "RISCVMergeBaseOffset.cpp",
     "RISCVMoveMerger.cpp",

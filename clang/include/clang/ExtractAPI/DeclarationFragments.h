@@ -429,7 +429,8 @@ DeclarationFragmentsBuilder::getFunctionSignature(const FunctionT *Function) {
                                    Function->getASTContext(), After);
   if (isa<FunctionDecl>(Function) &&
       dyn_cast<FunctionDecl>(Function)->getDescribedFunctionTemplate() &&
-      StringRef(ReturnType.begin()->Spelling).starts_with("type-parameter")) {
+      ReturnType.begin()->Spelling.substr(0, 14).compare("type-parameter") ==
+          0) {
     std::string ProperArgName =
         getNameForTemplateArgument(dyn_cast<FunctionDecl>(Function)
                                        ->getDescribedFunctionTemplate()

@@ -2796,7 +2796,10 @@ AMDGPUMachineCFGStructurizer::initializeSelectRegisters(MRT *MRT, unsigned Selec
 
 static void checkRegOnlyPHIInputs(MachineFunction &MF) {
   for (auto &MBBI : MF) {
-    for (MachineInstr &Instr : MBBI.instrs()) {
+    for (MachineBasicBlock::instr_iterator I = MBBI.instr_begin(),
+                                           E = MBBI.instr_end();
+         I != E; ++I) {
+      MachineInstr &Instr = *I;
       if (Instr.isPHI()) {
         int numPreds = getPHINumInputs(Instr);
         for (int i = 0; i < numPreds; ++i) {

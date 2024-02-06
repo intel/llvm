@@ -21,14 +21,14 @@
 #include "test_macros.h"
 #include "../types.h"
 
-template <class Iter, class ValueType = int, class Sent = sentinel_wrapper<Iter>>
+template <class Iterator, class ValueType = int, class Sentinel = sentinel_wrapper<Iterator>>
 constexpr void test() {
-  using View = minimal_view<Iter, Sent>;
+  using View = minimal_view<Iterator, Sentinel>;
   using FilterView = std::ranges::filter_view<View, AlwaysTrue>;
   using FilterIterator = std::ranges::iterator_t<FilterView>;
 
   auto make_filter_view = [](auto begin, auto end, auto pred) {
-    View view{Iter(begin), Sent(Iter(end))};
+    View view{Iterator(begin), Sentinel(Iterator(end))};
     return FilterView(std::move(view), pred);
   };
 
@@ -36,7 +36,7 @@ constexpr void test() {
   FilterView view = make_filter_view(array.data(), array.data() + array.size(), AlwaysTrue{});
 
   for (std::size_t n = 0; n != array.size(); ++n) {
-    FilterIterator const iter(view, Iter(array.data() + n));
+    FilterIterator const iter(view, Iterator(array.data() + n));
     ValueType& result = *iter;
     ASSERT_SAME_TYPE(ValueType&, decltype(*iter));
     assert(&result == array.data() + n);

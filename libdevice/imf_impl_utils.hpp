@@ -216,10 +216,6 @@ public:
       return (this->bits[0] > x.bits[0]);
   }
 
-  bool operator>=(const __iml_ui128 &x) {
-    return operator==(x) || operator>(x);
-  }
-
   bool operator>(const uint64_t &x) {
     if (this->bits[1] > 0)
       return true;

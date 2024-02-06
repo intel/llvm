@@ -1124,17 +1124,14 @@ Expr<T> RewriteSpecificMINorMAX(
   intrinsic.characteristics.value().functionResult.value().SetType(*resultType);
   auto insertConversion{[&](const auto &x) -> Expr<T> {
     using TR = ResultType<decltype(x)>;
-    FunctionRef<TR> maxRef{
-        ProcedureDesignator{funcRef.proc()}, ActualArguments{args}};
+    FunctionRef<TR> maxRef{std::move(funcRef.proc()), std::move(args)};
     return Fold(context, ConvertToType<T>(AsCategoryExpr(std::move(maxRef))));
   }};
   if (auto *sx{UnwrapExpr<Expr<SomeReal>>(*resultTypeArg)}) {
     return common::visit(insertConversion, sx->u);
-  } else if (auto *sx{UnwrapExpr<Expr<SomeInteger>>(*resultTypeArg)}) {
-    return common::visit(insertConversion, sx->u);
-  } else {
-    return Expr<T>{std::move(funcRef)}; // error recovery
   }
+  auto &sx{DEREF(UnwrapExpr<Expr<SomeInteger>>(*resultTypeArg))};
+  return common::visit(insertConversion, sx.u);
 }
 
 // FoldIntrinsicFunction()
@@ -1927,7 +1924,7 @@ Expr<T> FoldOperation(FoldingContext &context, Multiply<T> &&x) {
       x.left() = Expr<T>{std::move(*c)};
     }
     if (auto c{GetScalarConstantValue<T>(x.left())}) {
-      if (c->IsZero() && x.right().Rank() == 0) {
+      if (c->IsZero()) {
         return std::move(x.left());
       } else if (c->CompareSigned(Scalar<T>{1}) == Ordering::Equal) {
         if (IsVariable(x.right())) {

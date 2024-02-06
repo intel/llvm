@@ -816,19 +816,20 @@ Loop *UnloopUpdater::getNearestLoop(BasicBlock *BB, Loop *BBLoop) {
     NearLoop = SubloopParents.insert({Subloop, &Unloop}).first->second;
   }
 
-  if (succ_empty(BB)) {
+  succ_iterator I = succ_begin(BB), E = succ_end(BB);
+  if (I == E) {
     assert(!Subloop && "subloop blocks must have a successor");
     NearLoop = nullptr; // unloop blocks may now exit the function.
   }
-  for (BasicBlock *Succ : successors(BB)) {
-    if (Succ == BB)
+  for (; I != E; ++I) {
+    if (*I == BB)
       continue; // self loops are uninteresting
 
-    Loop *L = LI->getLoopFor(Succ);
+    Loop *L = LI->getLoopFor(*I);
     if (L == &Unloop) {
       // This successor has not been processed. This path must lead to an
       // irreducible backedge.
-      assert((FoundIB || !DFS.hasPostorder(Succ)) && "should have seen IB");
+      assert((FoundIB || !DFS.hasPostorder(*I)) && "should have seen IB");
       FoundIB = true;
     }
     if (L != &Unloop && Unloop.contains(L)) {

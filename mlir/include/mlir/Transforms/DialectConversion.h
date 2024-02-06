@@ -713,8 +713,7 @@ public:
   void eraseBlock(Block *block) override;
 
   /// PatternRewriter hook creating a new block.
-  void notifyBlockInserted(Block *block, Region *previous,
-                           Region::iterator previousIt) override;
+  void notifyBlockCreated(Block *block) override;
 
   /// PatternRewriter hook for splitting a block into two parts.
   Block *splitBlock(Block *block, Block::iterator before) override;
@@ -723,6 +722,11 @@ public:
   void inlineBlockBefore(Block *source, Block *dest, Block::iterator before,
                          ValueRange argValues = std::nullopt) override;
   using PatternRewriter::inlineBlockBefore;
+
+  /// PatternRewriter hook for moving blocks out of a region.
+  void inlineRegionBefore(Region &region, Region &parent,
+                          Region::iterator before) override;
+  using PatternRewriter::inlineRegionBefore;
 
   /// PatternRewriter hook for cloning blocks of one region into another. The
   /// given region to clone *must* not have been modified as part of conversion
@@ -733,7 +737,7 @@ public:
   using PatternRewriter::cloneRegionBefore;
 
   /// PatternRewriter hook for inserting a new operation.
-  void notifyOperationInserted(Operation *op, InsertPoint previous) override;
+  void notifyOperationInserted(Operation *op) override;
 
   /// PatternRewriter hook for updating the given operation in-place.
   /// Note: These methods only track updates to the given operation itself,
@@ -757,14 +761,8 @@ public:
   detail::ConversionPatternRewriterImpl &getImpl();
 
 private:
-  // Hide unsupported pattern rewriter API.
   using OpBuilder::getListener;
   using OpBuilder::setListener;
-
-  void moveOpBefore(Operation *op, Block *block,
-                    Block::iterator iterator) override;
-  void moveOpAfter(Operation *op, Block *block,
-                   Block::iterator iterator) override;
 
   std::unique_ptr<detail::ConversionPatternRewriterImpl> impl;
 };

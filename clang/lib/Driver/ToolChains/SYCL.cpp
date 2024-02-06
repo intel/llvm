@@ -401,9 +401,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
           LibPostfix = ".cubin";
       }
       StringRef LibSyclPrefix("libsycl-");
-      if (!InputFilename.starts_with(LibSyclPrefix) ||
-          !InputFilename.ends_with(LibPostfix) ||
-          (InputFilename.count('-') < 2))
+      if (!InputFilename.startswith(LibSyclPrefix) ||
+          !InputFilename.endswith(LibPostfix) || (InputFilename.count('-') < 2))
         return false;
       // Skip the prefix "libsycl-"
       std::string PureLibName =
@@ -420,7 +419,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
             PureLibName.substr(0, FinalDashPos) + PureLibName.substr(DotPos);
       }
       for (const auto &L : SYCLDeviceLibList) {
-        if (StringRef(PureLibName).starts_with(L))
+        if (StringRef(PureLibName).startswith(L))
           return true;
       }
       return false;
@@ -1355,7 +1354,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
       for (auto *A : Args) {
         if (!A->getOption().matches(options::OPT_Xsycl_backend_EQ))
           continue;
-        if (StringRef(A->getValue()).starts_with("intel_gpu"))
+        if (StringRef(A->getValue()).startswith("intel_gpu"))
           TargArgs.push_back(A->getValue(1));
       }
       if (llvm::find_if(TargArgs, [&](auto Cur) {

@@ -8,13 +8,11 @@
 
 ; CHECK-NOT: .str
 ; CHECK-NOT: <str>
-; CHECK-NOT: another-str
 ; CHECK-NOT: .function.
 
 ; CHECK-DAG: _$_str
 ; CHECK-DAG: _$_str_$_
 ; CHECK-DAG: _$_str1
-; CHECK-DAG: another_$_str
 
 ; CHECK-DAG: _$_function_$_
 ; CHECK-DAG: _$_function_$_2
@@ -26,7 +24,6 @@ target triple = "nvptx64-unknown-unknown"
 @.str = private unnamed_addr constant [13 x i8] c"%d %f %c %d\0A\00", align 1
 @"<str>" = private unnamed_addr constant [13 x i8] c"%d %f %c %d\0A\00", align 1
 @_$_str = private unnamed_addr constant [13 x i8] c"%d %f %c %d\0A\00", align 1
-@another-str = private unnamed_addr constant [13 x i8] c"%d %f %c %d\0A\00", align 1
 
 
 ; Function Attrs: nounwind
@@ -41,7 +38,7 @@ entry:
 define internal void @_$_function_$_() {
 entry:
   %call = call i32 (ptr, ...) @printf(ptr @_$_str)
-  %call2 = call i32 (ptr, ...) @printf(ptr @another-str)
+  %call2 = call i32 (ptr, ...) @printf(ptr @"<str>")
   ret void
 }
 

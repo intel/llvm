@@ -37,6 +37,7 @@
 #include "llvm/CodeGen/ISDOpcodes.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
+#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/RuntimeLibcalls.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 #include "llvm/CodeGen/SelectionDAGAddressAnalysis.h"
@@ -46,7 +47,6 @@
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
 #include "llvm/CodeGen/ValueTypes.h"
-#include "llvm/CodeGenTypes/MachineValueType.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/DataLayout.h"
@@ -478,7 +478,6 @@ namespace {
     SDValue visitCTPOP(SDNode *N);
     SDValue visitSELECT(SDNode *N);
     SDValue visitVSELECT(SDNode *N);
-    SDValue visitVP_SELECT(SDNode *N);
     SDValue visitSELECT_CC(SDNode *N);
     SDValue visitSETCC(SDNode *N);
     SDValue visitSETCCCARRY(SDNode *N);
@@ -928,9 +927,6 @@ public:
     assert(Root->isVPOpcode());
     if (auto RootMaskPos = ISD::getVPMaskIdx(Root->getOpcode()))
       RootMaskOp = Root->getOperand(*RootMaskPos);
-    else if (Root->getOpcode() == ISD::VP_SELECT)
-      RootMaskOp = DAG.getAllOnesConstant(SDLoc(Root),
-                                          Root->getOperand(0).getValueType());
 
     if (auto RootVLenPos =
             ISD::getVPExplicitVectorLengthIdx(Root->getOpcode()))
@@ -11424,42 +11420,35 @@ SDValue DAGCombiner::foldSelectOfConstants(SDNode *N) {
   return SDValue();
 }
 
-template <class MatchContextClass>
 static SDValue foldBoolSelectToLogic(SDNode *N, SelectionDAG &DAG) {
-  assert((N->getOpcode() == ISD::SELECT || N->getOpcode() == ISD::VSELECT ||
-          N->getOpcode() == ISD::VP_SELECT) &&
-         "Expected a (v)(vp.)select");
+  assert((N->getOpcode() == ISD::SELECT || N->getOpcode() == ISD::VSELECT) &&
+         "Expected a (v)select");
   SDValue Cond = N->getOperand(0);
   SDValue T = N->getOperand(1), F = N->getOperand(2);
   EVT VT = N->getValueType(0);
-  const TargetLowering &TLI = DAG.getTargetLoweringInfo();
-  MatchContextClass matcher(DAG, TLI, N);
-
   if (VT != Cond.getValueType() || VT.getScalarSizeInBits() != 1)
     return SDValue();
 
   // select Cond, Cond, F --> or Cond, F
   // select Cond, 1, F    --> or Cond, F
   if (Cond == T || isOneOrOneSplat(T, /* AllowUndefs */ true))
-    return matcher.getNode(ISD::OR, SDLoc(N), VT, Cond, F);
+    return DAG.getNode(ISD::OR, SDLoc(N), VT, Cond, F);
 
   // select Cond, T, Cond --> and Cond, T
   // select Cond, T, 0    --> and Cond, T
   if (Cond == F || isNullOrNullSplat(F, /* AllowUndefs */ true))
-    return matcher.getNode(ISD::AND, SDLoc(N), VT, Cond, T);
+    return DAG.getNode(ISD::AND, SDLoc(N), VT, Cond, T);
 
   // select Cond, T, 1 --> or (not Cond), T
   if (isOneOrOneSplat(F, /* AllowUndefs */ true)) {
-    SDValue NotCond = matcher.getNode(ISD::XOR, SDLoc(N), VT, Cond,
-                                      DAG.getAllOnesConstant(SDLoc(N), VT));
-    return matcher.getNode(ISD::OR, SDLoc(N), VT, NotCond, T);
+    SDValue NotCond = DAG.getNOT(SDLoc(N), Cond, VT);
+    return DAG.getNode(ISD::OR, SDLoc(N), VT, NotCond, T);
   }
 
   // select Cond, 0, F --> and (not Cond), F
   if (isNullOrNullSplat(T, /* AllowUndefs */ true)) {
-    SDValue NotCond = matcher.getNode(ISD::XOR, SDLoc(N), VT, Cond,
-                                      DAG.getAllOnesConstant(SDLoc(N), VT));
-    return matcher.getNode(ISD::AND, SDLoc(N), VT, NotCond, F);
+    SDValue NotCond = DAG.getNOT(SDLoc(N), Cond, VT);
+    return DAG.getNode(ISD::AND, SDLoc(N), VT, NotCond, F);
   }
 
   return SDValue();
@@ -11535,7 +11524,7 @@ SDValue DAGCombiner::visitSELECT(SDNode *N) {
   if (SDValue V = DAG.simplifySelect(N0, N1, N2))
     return V;
 
-  if (SDValue V = foldBoolSelectToLogic<EmptyMatchContext>(N, DAG))
+  if (SDValue V = foldBoolSelectToLogic(N, DAG))
     return V;
 
   // select (not Cond), N1, N2 -> select Cond, N2, N1
@@ -12149,13 +12138,6 @@ SDValue DAGCombiner::foldVSelectOfConstants(SDNode *N) {
   return SDValue();
 }
 
-SDValue DAGCombiner::visitVP_SELECT(SDNode *N) {
-  if (SDValue V = foldBoolSelectToLogic<VPMatchContext>(N, DAG))
-    return V;
-
-  return SDValue();
-}
-
 SDValue DAGCombiner::visitVSELECT(SDNode *N) {
   SDValue N0 = N->getOperand(0);
   SDValue N1 = N->getOperand(1);
@@ -12166,7 +12148,7 @@ SDValue DAGCombiner::visitVSELECT(SDNode *N) {
   if (SDValue V = DAG.simplifySelect(N0, N1, N2))
     return V;
 
-  if (SDValue V = foldBoolSelectToLogic<EmptyMatchContext>(N, DAG))
+  if (SDValue V = foldBoolSelectToLogic(N, DAG))
     return V;
 
   // vselect (not Cond), N1, N2 -> vselect Cond, N2, N1
@@ -23860,7 +23842,7 @@ SDValue DAGCombiner::visitCONCAT_VECTORS(SDNode *N) {
     }
 
     // concat_vectors(scalar, undef) -> scalar_to_vector(scalar)
-    if (!Scalar.getValueType().isVector() && In.hasOneUse()) {
+    if (!Scalar.getValueType().isVector()) {
       // If the bitcast type isn't legal, it might be a trunc of a legal type;
       // look through the trunc so we can still do the transform:
       //   concat_vectors(trunc(scalar), undef) -> scalar_to_vector(scalar)
@@ -26419,8 +26401,6 @@ SDValue DAGCombiner::visitVPOp(SDNode *N) {
       return visitVP_FSUB(N);
     case ISD::VP_FMA:
       return visitFMA<VPMatchContext>(N);
-    case ISD::VP_SELECT:
-      return visitVP_SELECT(N);
     }
     return SDValue();
   }

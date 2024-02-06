@@ -7951,8 +7951,7 @@ public:
       // Overloaded operator calls to member functions are represented as normal
       // calls with '*this' as the first argument.
       const CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(FD);
-      if (MD &&
-          (MD->isImplicitObjectMemberFunction() || (OCE && MD->isStatic()))) {
+      if (MD && MD->isImplicitObjectMemberFunction()) {
         // FIXME: When selecting an implicit conversion for an overloaded
         // operator delete, we sometimes try to evaluate calls to conversion
         // operators without a 'this' parameter!
@@ -7961,11 +7960,7 @@ public:
 
         if (!EvaluateObjectArgument(Info, Args[0], ThisVal))
           return false;
-
-        // If we are calling a static operator, the 'this' argument needs to be
-        // ignored after being evaluated.
-        if (MD->isInstance())
-          This = &ThisVal;
+        This = &ThisVal;
 
         // If this is syntactically a simple assignment using a trivial
         // assignment operator, start the lifetimes of union members as needed,
@@ -8257,10 +8252,6 @@ public:
     }
 
     llvm_unreachable("Return from function from the loop above.");
-  }
-
-  bool VisitPackIndexingExpr(const PackIndexingExpr *E) {
-    return StmtVisitorTy::Visit(E->getSelectedExpr());
   }
 
   /// Visit a value which is evaluated, but whose value is ignored.
@@ -16103,9 +16094,6 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
   case Expr::GNUNullExprClass:
   case Expr::SourceLocExprClass:
     return NoDiag();
-
-  case Expr::PackIndexingExprClass:
-    return CheckICE(cast<PackIndexingExpr>(E)->getSelectedExpr(), Ctx);
 
   case Expr::SubstNonTypeTemplateParmExprClass:
     return

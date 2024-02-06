@@ -21,6 +21,13 @@
 using namespace llvm;
 using namespace llvm::object;
 
+// Used to skip LLVM_BB_ADDR_MAP tests on windows platforms due to
+// https://github.com/llvm/llvm-project/issues/60013.
+bool IsHostWindows() {
+  Triple Host(Triple::normalize(sys::getProcessTriple()));
+  return Host.isOSWindows();
+}
+
 namespace {
 
 // A struct to initialize a buffer to represent an ELF object file.
@@ -501,6 +508,8 @@ Sections:
 
 // Tests for error paths of the ELFFile::decodeBBAddrMap API.
 TEST(ELFObjectFileTest, InvalidDecodeBBAddrMap) {
+  if (IsHostWindows())
+    GTEST_SKIP();
   StringRef CommonYamlString(R"(
 --- !ELF
 FileHeader:
@@ -647,6 +656,8 @@ Sections:
 
 // Test for the ELFObjectFile::readBBAddrMap API.
 TEST(ELFObjectFileTest, ReadBBAddrMap) {
+  if (IsHostWindows())
+    GTEST_SKIP();
   StringRef CommonYamlString(R"(
 --- !ELF
 FileHeader:
@@ -805,6 +816,8 @@ Sections:
 // Tests for error paths of the ELFFile::decodeBBAddrMap with PGOAnalysisMap
 // API.
 TEST(ELFObjectFileTest, InvalidDecodePGOAnalysisMap) {
+  if (IsHostWindows())
+    GTEST_SKIP();
   StringRef CommonYamlString(R"(
 --- !ELF
 FileHeader:
@@ -935,6 +948,8 @@ Sections:
 
 // Test for the ELFObjectFile::readBBAddrMap API with PGOAnalysisMap.
 TEST(ELFObjectFileTest, ReadPGOAnalysisMap) {
+  if (IsHostWindows())
+    GTEST_SKIP();
   StringRef CommonYamlString(R"(
 --- !ELF
 FileHeader:

@@ -487,7 +487,7 @@ std::string ModularizeUtilities::getDirectoryFromPath(StringRef Path) {
   sys::path::remove_filename(Directory);
   if (Directory.size() == 0)
     return ".";
-  return std::string(Directory);
+  return std::string(Directory.str());
 }
 
 // Add unique problem file.

@@ -24,6 +24,7 @@
 #include "llvm/Analysis/MemoryLocation.h"
 #include "llvm/AsmParser/Parser.h"
 #include "llvm/AsmParser/SlotMapping.h"
+#include "llvm/CodeGen/LowLevelType.h"
 #include "llvm/CodeGen/MIRFormatter.h"
 #include "llvm/CodeGen/MIRPrinter.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
@@ -40,7 +41,6 @@
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
-#include "llvm/CodeGenTypes/LowLevelType.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
@@ -2181,10 +2181,10 @@ static bool parseGlobalValue(const MIToken &Token,
     unsigned GVIdx;
     if (getUnsigned(Token, GVIdx, ErrCB))
       return true;
-    GV = PFS.IRSlots.GlobalValues.get(GVIdx);
-    if (!GV)
+    if (GVIdx >= PFS.IRSlots.GlobalValues.size())
       return ErrCB(Token.location(), Twine("use of undefined global value '@") +
                                          Twine(GVIdx) + "'");
+    GV = PFS.IRSlots.GlobalValues[GVIdx];
     break;
   }
   default:

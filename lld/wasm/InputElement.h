@@ -76,9 +76,7 @@ private:
 class InputTag : public InputElement {
 public:
   InputTag(const WasmSignature &s, const WasmTag &t, ObjFile *f)
-      : InputElement(t.SymbolName, f), signature(s) {
-    assert(s.Kind == WasmSignature::Tag);
-  }
+      : InputElement(t.SymbolName, f), signature(s) {}
 
   const WasmSignature &signature;
 };

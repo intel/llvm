@@ -17,7 +17,7 @@
 // _LIBCPP_BUILDING_LIBRARY to change the definition in the headers.
 
 #include <__config>
-#include <__thread/support.h>
+#include <__threading_support>
 
 #if _LIBCPP_ABI_VERSION == 1 || !defined(_LIBCPP_HAS_TRIVIAL_MUTEX_DESTRUCTION)
 #  define NEEDS_MUTEX_DESTRUCTOR

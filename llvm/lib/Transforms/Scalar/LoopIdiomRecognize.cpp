@@ -294,10 +294,6 @@ bool LoopIdiomRecognize::runOnLoop(Loop *L) {
   if (Name == "memset" || Name == "memcpy")
     return false;
 
-  // Prevent from asan interception in kernel
-  if (Name == "__asan_set_shadow_local_memory")
-    return false;
-
   // Determine if code size heuristics need to be applied.
   ApplyCodeSizeHeuristics =
       L->getHeader()->getParent()->hasOptSize() && UseLIRCodeSizeHeurs;

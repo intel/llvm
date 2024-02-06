@@ -642,33 +642,27 @@ void Preprocessor::Directive(const TokenSequence &dir, Prescanner &prescanner) {
           "#include: missing name of file to include"_err_en_US);
       return;
     }
+    std::string include;
     std::optional<std::string> prependPath;
-    TokenSequence path{dir, j, tokens - j};
-    std::string include{path.TokenAt(0).ToString()};
-    if (include != "<" && include.substr(0, 1) != "\"" &&
-        include.substr(0, 1) != "'") {
-      path = ReplaceMacros(path, prescanner);
-      include = path.empty() ? ""s : path.TokenAt(0).ToString();
-    }
-    auto pathTokens{path.SizeInTokens()};
-    std::size_t k{0};
-    if (include == "<") { // #include <foo>
-      k = 1;
-      if (k >= pathTokens) {
-        prescanner.Say(dir.GetIntervalProvenanceRange(j, pathTokens),
+    if (dir.TokenAt(j).ToString() == "<") { // #include <foo>
+      std::size_t k{j + 1};
+      if (k >= tokens) {
+        prescanner.Say(dir.GetIntervalProvenanceRange(j, tokens - j),
             "#include: file name missing"_err_en_US);
         return;
       }
-      while (k < pathTokens && path.TokenAt(k) != ">") {
+      while (k < tokens && dir.TokenAt(k) != ">") {
         ++k;
       }
-      if (k >= pathTokens) {
+      if (k >= tokens) {
         prescanner.Say(dir.GetIntervalProvenanceRange(j, tokens - j),
             "#include: expected '>' at end of included file"_port_en_US);
       }
-      TokenSequence braced{path, 1, k - 1};
+      TokenSequence braced{dir, j + 1, k - j - 1};
       include = braced.ToString();
-    } else if ((include.substr(0, 1) == "\"" || include.substr(0, 1) == "'") &&
+      j = k;
+    } else if (((include = dir.TokenAt(j).ToString()).substr(0, 1) == "\"" ||
+                   include.substr(0, 1) == "'") &&
         include.substr(include.size() - 1, 1) == include.substr(0, 1)) {
       // #include "foo" and #include 'foo'
       include = include.substr(1, include.size() - 2);
@@ -679,17 +673,16 @@ void Preprocessor::Directive(const TokenSequence &dir, Prescanner &prescanner) {
       }
     } else {
       prescanner.Say(dir.GetTokenProvenanceRange(j < tokens ? j : tokens - 1),
-          "#include %s: expected name of file to include"_err_en_US,
-          path.ToString());
+          "#include: expected name of file to include"_err_en_US);
       return;
     }
     if (include.empty()) {
       prescanner.Say(dir.GetTokenProvenanceRange(dirOffset),
-          "#include %s: empty include file name"_err_en_US, path.ToString());
+          "#include: empty include file name"_err_en_US);
       return;
     }
-    k = path.SkipBlanks(k + 1);
-    if (k < pathTokens && path.TokenAt(k).ToString() != "!") {
+    j = dir.SkipBlanks(j + 1);
+    if (j < tokens && dir.TokenAt(j).ToString() != "!") {
       prescanner.Say(dir.GetIntervalProvenanceRange(j, tokens - j),
           "#include: extra stuff ignored after file name"_port_en_US);
     }
@@ -698,8 +691,8 @@ void Preprocessor::Directive(const TokenSequence &dir, Prescanner &prescanner) {
     const SourceFile *included{
         allSources_.Open(include, error, std::move(prependPath))};
     if (!included) {
-      prescanner.Say(dir.GetTokenProvenanceRange(j), "#include: %s"_err_en_US,
-          error.str());
+      prescanner.Say(dir.GetTokenProvenanceRange(dirOffset),
+          "#include: %s"_err_en_US, error.str());
     } else if (included->bytes() > 0) {
       ProvenanceRange fileRange{
           allSources_.AddIncludedFile(*included, dir.GetProvenanceRange())};

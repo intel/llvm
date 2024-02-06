@@ -70,19 +70,8 @@ public:
   /// Return the size of T in bits.
   uint32_t getBitWidth(QualType T) const { return Ctx.getIntWidth(T); }
 
-  /// Classifies a type.
-  std::optional<PrimType> classify(QualType T) const;
-
   /// Classifies an expression.
-  std::optional<PrimType> classify(const Expr *E) const {
-    if (E->isGLValue()) {
-      if (E->getType()->isFunctionType())
-        return PT_FnPtr;
-      return PT_Ptr;
-    }
-
-    return classify(E->getType());
-  }
+  std::optional<PrimType> classify(QualType T) const;
 
   const CXXMethodDecl *
   getOverridingFunction(const CXXRecordDecl *DynamicDecl,

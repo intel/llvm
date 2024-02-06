@@ -1,4 +1,4 @@
-! RUN: %python %S/test_errors.py %s %flang_fc1 -pedantic
+! RUN: %python %S/test_errors.py %s %flang_fc1
 ! Test restrictions on what subprograms can be used for defined assignment.
 
 module m1

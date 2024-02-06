@@ -801,8 +801,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
     if (!F.isDeclaration())
       continue;
 
-    if (!F.getName().starts_with(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) &&
-        !F.getName().starts_with(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL))
+    if (!F.getName().startswith(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) &&
+        !F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL))
       continue;
 
     SmallVector<CallInst *, 32> SCIntrCalls;
@@ -1014,8 +1014,8 @@ bool SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
 
 bool llvm::checkModuleContainsSpecConsts(const Module &M) {
   for (const Function &F : M.functions()) {
-    if (F.getName().starts_with(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) ||
-        F.getName().starts_with(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL))
+    if (F.getName().startswith(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) ||
+        F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL))
       return true;
   }
 

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <__thread/support/windows.h>
+#include <__threading_support>
 #include <chrono>
 
 #define NOMINMAX

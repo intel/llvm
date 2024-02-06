@@ -905,9 +905,6 @@ public:
   }
   Value *VisitAsTypeExpr(AsTypeExpr *CE);
   Value *VisitAtomicExpr(AtomicExpr *AE);
-  Value *VisitPackIndexingExpr(PackIndexingExpr *E) {
-    return Visit(E->getSelectedExpr());
-  }
 };
 }  // end anonymous namespace.
 

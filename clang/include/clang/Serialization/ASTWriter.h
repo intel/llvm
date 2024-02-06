@@ -467,10 +467,10 @@ private:
   std::vector<SourceRange> NonAffectingRanges;
   std::vector<SourceLocation::UIntTy> NonAffectingOffsetAdjustments;
 
-  /// Computes input files that didn't affect compilation of the current module,
+  /// Collects input files that didn't affect compilation of the current module,
   /// and initializes data structures necessary for leaving those files out
   /// during \c SourceManager serialization.
-  void computeNonAffectingInputFiles();
+  void collectNonAffectingInputFiles();
 
   /// Returns an adjusted \c FileID, accounting for any non-affecting input
   /// files.

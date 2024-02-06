@@ -1,5 +1,3 @@
-.. _code_review_policy:
-
 =====================================
 LLVM Code-Review Policy and Practices
 =====================================

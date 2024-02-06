@@ -31,9 +31,6 @@
 #  pragma GCC system_header
 #endif
 
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
-
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 // Type traits.
@@ -134,7 +131,5 @@ __dispatch_copy_or_move(_InIter __first, _Sent __last, _OutIter __out_first) {
 }
 
 _LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___ALGORITHM_COPY_MOVE_COMMON_H

@@ -402,7 +402,8 @@ void AMDGPUMCCodeEmitter::encodeInstruction(const MCInst &MI,
     else if (Op.isExpr()) {
       if (const auto *C = dyn_cast<MCConstantExpr>(Op.getExpr()))
         Imm = C->getValue();
-    } else // Exprs will be replaced with a fixup value.
+
+    } else if (!Op.isExpr()) // Exprs will be replaced with a fixup value.
       llvm_unreachable("Must be immediate or expr");
 
     if (Desc.operands()[i].OperandType == AMDGPU::OPERAND_REG_IMM_FP64)

@@ -114,12 +114,12 @@ subroutine acc_serial_loop
     a(i) = b(i)
   END DO
 
-! CHECK:      acc.serial wait {
+! CHECK:      acc.serial {
 ! CHECK:        acc.loop {{.*}} {
 ! CHECK:          acc.yield
 ! CHECK-NEXT:   }{{$}}
 ! CHECK:        acc.yield
-! CHECK-NEXT: }
+! CHECK-NEXT: } attributes {waitOnly = [#acc.device_type<none>]}
 
   !$acc serial loop wait(1)
   DO i = 1, n

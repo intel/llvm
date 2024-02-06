@@ -16,6 +16,7 @@ add_llvm_library(LLVMBOLTPasses
   FixRelaxationPass.cpp
   FixRISCVCallsPass.cpp
   HFSort.cpp
+  HFSortPlus.cpp
   Hugify.cpp
   IdenticalCodeFolding.cpp
   IndirectCallPromotion.cpp

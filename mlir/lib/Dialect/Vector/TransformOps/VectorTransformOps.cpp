@@ -162,7 +162,6 @@ void transform::ApplyLowerTransposePatternsOp::populatePatterns(
 void transform::ApplyRewriteNarrowTypePatternsOp::populatePatterns(
     RewritePatternSet &patterns) {
   populateVectorNarrowTypeRewritePatterns(patterns);
-  populateVectorTransposeNarrowTypeRewritePatterns(patterns);
 }
 
 void transform::ApplySplitTransferFullPartialPatternsOp::populatePatterns(

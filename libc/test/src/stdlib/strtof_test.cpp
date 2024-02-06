@@ -14,6 +14,7 @@
 #include "test/UnitTest/RoundingModeUtils.h"
 #include "test/UnitTest/Test.h"
 
+#include <limits.h>
 #include <stddef.h>
 
 using LIBC_NAMESPACE::fputil::testing::ForceRoundingModeTest;
@@ -48,7 +49,7 @@ public:
 
     EXPECT_EQ(str_end - inputString, expectedStrLen);
     EXPECT_FP_EQ(result, expected_fp.get_val());
-    ASSERT_ERRNO_EQ(expectedErrno);
+    EXPECT_EQ(libc_errno, expectedErrno);
   }
 };
 

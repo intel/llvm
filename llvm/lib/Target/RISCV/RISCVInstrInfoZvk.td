@@ -15,7 +15,17 @@
 // Operand and SDNode transformation definitions.
 //===----------------------------------------------------------------------===//
 
-def tuimm5 : RISCVOp, TImmLeaf<XLenVT, [{return isUInt<5>(Imm);}]>;
+def tuimm5 : Operand<XLenVT>, TImmLeaf<XLenVT, [{return isUInt<5>(Imm);}]> {
+  let ParserMatchClass = UImmAsmOperand<5>;
+  let EncoderMethod = "getUImmOpValue";
+  let DecoderMethod = "decodeUImmOperand<5>";
+  let MCOperandPredicate = [{
+    int64_t UImm;
+    if (MCOp.evaluateAsConstantImm(UImm))
+      return isUInt<5>(UImm);
+    return MCOp.isBareSymbolRef();
+  }];
+}
 
 //===----------------------------------------------------------------------===//
 // Instruction class templates

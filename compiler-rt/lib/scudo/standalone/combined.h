@@ -691,12 +691,10 @@ public:
     Quarantine.disable();
     Primary.disable();
     Secondary.disable();
-    Depot.disable();
   }
 
   void enable() NO_THREAD_SAFETY_ANALYSIS {
     initThreadMaybe();
-    Depot.enable();
     Secondary.enable();
     Primary.enable();
     Quarantine.enable();

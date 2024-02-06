@@ -804,10 +804,8 @@ void ASTDeclReader::VisitEnumDecl(EnumDecl *ED) {
   ED->setScopedUsingClassTag(EnumDeclBits.getNextBit());
   ED->setFixed(EnumDeclBits.getNextBit());
 
-  if (!shouldSkipCheckingODR(ED)) {
-    ED->setHasODRHash(true);
-    ED->ODRHash = Record.readInt();
-  }
+  ED->setHasODRHash(true);
+  ED->ODRHash = Record.readInt();
 
   // If this is a definition subject to the ODR, and we already have a
   // definition, merge this one into it.
@@ -829,10 +827,7 @@ void ASTDeclReader::VisitEnumDecl(EnumDecl *ED) {
       Reader.MergedDeclContexts.insert(std::make_pair(ED, OldDef));
       ED->demoteThisDefinitionToDeclaration();
       Reader.mergeDefinitionVisibility(OldDef, ED);
-      // We don't want to check the ODR hash value for declarations from global
-      // module fragment.
-      if (!shouldSkipCheckingODR(ED) &&
-          OldDef->getODRHash() != ED->getODRHash())
+      if (OldDef->getODRHash() != ED->getODRHash())
         Reader.PendingEnumOdrMergeFailures[OldDef].push_back(ED);
     } else {
       OldDef = ED;
@@ -871,9 +866,6 @@ ASTDeclReader::VisitRecordDeclImpl(RecordDecl *RD) {
 
 void ASTDeclReader::VisitRecordDecl(RecordDecl *RD) {
   VisitRecordDeclImpl(RD);
-  // We should only reach here if we're in C/Objective-C. There is no
-  // global module fragment.
-  assert(!shouldSkipCheckingODR(RD));
   RD->setODRHash(Record.readInt());
 
   // Maintain the invariant of a redeclaration chain containing only
@@ -1102,10 +1094,8 @@ void ASTDeclReader::VisitFunctionDecl(FunctionDecl *FD) {
   if (FD->isExplicitlyDefaulted())
     FD->setDefaultLoc(readSourceLocation());
 
-  if (!shouldSkipCheckingODR(FD)) {
-    FD->ODRHash = Record.readInt();
-    FD->setHasODRHash(true);
-  }
+  FD->ODRHash = Record.readInt();
+  FD->setHasODRHash(true);
 
   if (FD->isDefaulted()) {
     if (unsigned NumLookups = Record.readInt()) {
@@ -1981,12 +1971,9 @@ void ASTDeclReader::ReadCXXDefinitionData(
 #include "clang/AST/CXXRecordDeclDefinitionBits.def"
 #undef FIELD
 
-  // We only perform ODR checks for decls not in GMF.
-  if (!shouldSkipCheckingODR(D)) {
-    // Note: the caller has deserialized the IsLambda bit already.
-    Data.ODRHash = Record.readInt();
-    Data.HasODRHash = true;
-  }
+  // Note: the caller has deserialized the IsLambda bit already.
+  Data.ODRHash = Record.readInt();
+  Data.HasODRHash = true;
 
   if (Record.readInt()) {
     Reader.DefinitionSource[D] =
@@ -2146,10 +2133,6 @@ void ASTDeclReader::MergeDefinitionData(
       Lambda1.AddCaptureList(Reader.getContext(), Lambda2.Captures.front());
     }
   }
-
-  // We don't want to check ODR for decls in the global module fragment.
-  if (shouldSkipCheckingODR(MergeDD.Definition))
-    return;
 
   if (D->getODRHash() != MergeDD.ODRHash) {
     DetectedOdrViolation = true;
@@ -3515,14 +3498,11 @@ ASTDeclReader::FindExistingResult ASTDeclReader::findExisting(NamedDecl *D) {
   // If this declaration is from a merged context, make a note that we need to
   // check that the canonical definition of that context contains the decl.
   //
-  // Note that we don't perform ODR checks for decls from the global module
-  // fragment.
-  //
   // FIXME: We should do something similar if we merge two definitions of the
   // same template specialization into the same CXXRecordDecl.
   auto MergedDCIt = Reader.MergedDeclContexts.find(D->getLexicalDeclContext());
   if (MergedDCIt != Reader.MergedDeclContexts.end() &&
-      !shouldSkipCheckingODR(D) && MergedDCIt->second == D->getDeclContext())
+      MergedDCIt->second == D->getDeclContext())
     Reader.PendingOdrMergeChecks.push_back(D);
 
   return FindExistingResult(Reader, D, /*Existing=*/nullptr,

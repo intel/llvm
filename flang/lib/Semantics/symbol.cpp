@@ -192,10 +192,12 @@ void GenericDetails::AddSpecificProc(
 }
 void GenericDetails::set_specific(Symbol &specific) {
   CHECK(!specific_);
+  CHECK(!derivedType_);
   specific_ = &specific;
 }
 void GenericDetails::clear_specific() { specific_ = nullptr; }
 void GenericDetails::set_derivedType(Symbol &derivedType) {
+  CHECK(!specific_);
   CHECK(!derivedType_);
   derivedType_ = &derivedType;
 }
@@ -209,7 +211,7 @@ const Symbol *GenericDetails::CheckSpecific() const {
   return const_cast<GenericDetails *>(this)->CheckSpecific();
 }
 Symbol *GenericDetails::CheckSpecific() {
-  if (specific_ && !specific_->has<UseErrorDetails>()) {
+  if (specific_) {
     for (const Symbol &proc : specificProcs_) {
       if (&proc == specific_) {
         return nullptr;

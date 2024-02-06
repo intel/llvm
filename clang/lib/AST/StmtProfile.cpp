@@ -594,8 +594,6 @@ void OMPClauseProfiler::VisitOMPReleaseClause(const OMPReleaseClause *) {}
 
 void OMPClauseProfiler::VisitOMPRelaxedClause(const OMPRelaxedClause *) {}
 
-void OMPClauseProfiler::VisitOMPWeakClause(const OMPWeakClause *) {}
-
 void OMPClauseProfiler::VisitOMPThreadsClause(const OMPThreadsClause *) {}
 
 void OMPClauseProfiler::VisitOMPSIMDClause(const OMPSIMDClause *) {}
@@ -2246,12 +2244,6 @@ void StmtProfiler::VisitSizeOfPackExpr(const SizeOfPackExpr *S) {
   } else {
     ID.AddInteger(0);
   }
-}
-
-void StmtProfiler::VisitPackIndexingExpr(const PackIndexingExpr *E) {
-  VisitExpr(E);
-  VisitExpr(E->getPackIdExpression());
-  VisitExpr(E->getIndexExpr());
 }
 
 void StmtProfiler::VisitSubstNonTypeTemplateParmPackExpr(

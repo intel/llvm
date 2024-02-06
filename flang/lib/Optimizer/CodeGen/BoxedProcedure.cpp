@@ -19,7 +19,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/MapVector.h"
 
 namespace fir {
 #define GEN_PASS_DEF_BOXEDPROCEDUREPASS
@@ -133,16 +133,13 @@ public:
     addConversion([&](RecordType ty) -> mlir::Type {
       if (!needsConversion(ty))
         return ty;
-      if (auto converted = convertedTypes.lookup(ty))
+      if (auto converted = typeInConversion.lookup(ty))
         return converted;
       auto rec = RecordType::get(ty.getContext(),
                                  ty.getName().str() + boxprocSuffix.str());
       if (rec.isFinalized())
         return rec;
-      auto it = convertedTypes.try_emplace(ty, rec);
-      if (!it.second) {
-        llvm::errs() << "failed\n" << ty << "\n";
-      }
+      auto it = typeInConversion.try_emplace(ty, rec);
       std::vector<RecordType::TypePair> ps = ty.getLenParamList();
       std::vector<RecordType::TypePair> cs;
       for (auto t : ty.getTypeList()) {
@@ -152,6 +149,7 @@ public:
           cs.emplace_back(t.first, t.second);
       }
       rec.finalize(ps, cs);
+      typeInConversion.erase(it.first);
       return rec;
     });
     addArgumentMaterialization(materializeProcedure);
@@ -172,11 +170,7 @@ public:
 
 private:
   llvm::SmallVector<mlir::Type> visitedTypes;
-  // Map to deal with recursive derived types (avoid infinite loops).
-  // Caching is also beneficial for apps with big types (dozens of
-  // components and or parent types), so the lifetime of the cache
-  // is the whole pass.
-  llvm::DenseMap<mlir::Type, mlir::Type> convertedTypes;
+  llvm::SmallMapVector<mlir::Type, mlir::Type, 8> typeInConversion;
   mlir::Location loc;
 };
 
@@ -213,8 +207,8 @@ public:
         if (auto addr = mlir::dyn_cast<BoxAddrOp>(op)) {
           mlir::Type ty = addr.getVal().getType();
           mlir::Type resTy = addr.getResult().getType();
-          if (llvm::isa<mlir::FunctionType>(ty) ||
-              llvm::isa<fir::BoxProcType>(ty)) {
+          if (typeConverter.needsConversion(ty) ||
+              ty.isa<mlir::FunctionType>()) {
             // Rewrite all `fir.box_addr` ops on values of type `!fir.boxproc`
             // or function type to be `fir.convert` ops.
             rewriter.setInsertionPoint(addr);

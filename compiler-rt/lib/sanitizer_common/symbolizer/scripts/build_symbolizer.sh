@@ -191,10 +191,8 @@ $OPT -passes=internalize -internalize-public-api-list=${SYMBOLIZER_API_LIST} all
 $CC $FLAGS -fno-lto -c opt.bc -o symbolizer.o
 
 echo "Checking undefined symbols..."
-export LC_ALL=C
-nm -f posix -g symbolizer.o | cut -f 1,2 -d \  | sort -u > undefined.new
-grep -Ev "^#|^$" $SCRIPT_DIR/global_symbols.txt | sort -u > expected.new
-(diff -u expected.new undefined.new | grep -E "^\+[^+]") && \
+nm -f posix -g symbolizer.o | cut -f 1,2 -d \  | LC_COLLATE=C sort -u > undefined.new
+(diff -u $SCRIPT_DIR/global_symbols.txt undefined.new | grep -E "^\+[^+]") && \
   (echo "Failed: unexpected symbols"; exit 1)
 
 cp -f symbolizer.o $OUTPUT

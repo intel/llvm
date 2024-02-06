@@ -9,7 +9,6 @@
 #ifndef _LIBCPP___CONDITION_VARIABLE_CONDITION_VARIABLE_H
 #define _LIBCPP___CONDITION_VARIABLE_CONDITION_VARIABLE_H
 
-#include <__chrono/duration.h>
 #include <__chrono/steady_clock.h>
 #include <__chrono/system_clock.h>
 #include <__chrono/time_point.h>
@@ -17,7 +16,7 @@
 #include <__mutex/mutex.h>
 #include <__mutex/unique_lock.h>
 #include <__system_error/system_error.h>
-#include <__thread/support.h>
+#include <__threading_support>
 #include <__type_traits/enable_if.h>
 #include <__type_traits/is_floating_point.h>
 #include <__utility/move.h>

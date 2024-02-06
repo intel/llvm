@@ -170,18 +170,6 @@ jit_compiler::FusedNDRange::get(ArrayRef<NDRange> NDRanges) {
                                "Cannot fuse kernels whose fusion would "
                                "yield non-uniform work-group sizes");
     }
-
-    // Work-items in the same work-group in the original ND-ranges must be in
-    // the same work-group in the fused one.
-    if (LocalSize && any_of(NDRanges, [&Fused](const NDRange &NDR) {
-          return NDR.hasSpecificLocalSize() && requireIDRemapping(Fused, NDR);
-        })) {
-      return createStringError(
-          inconvertibleErrorCode(),
-          "Cannot fuse kernels when any of the fused kernels with a specific "
-          "local size has different global sizes in dimensions [2, N) or "
-          "different number of dimensions");
-    }
   }
 
   return FusedNDRange{Fused, IsHeterogeneousList, NDRanges};

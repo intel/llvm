@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/CodeGen/MachinePassManager.h"
-#include "llvm/CodeGen/FreeMachineFunction.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/IR/PassManagerImpl.h"
@@ -95,13 +94,8 @@ Error MachineFunctionPassManager::run(Module &M,
 
         // TODO: EmitSizeRemarks
         PreservedAnalyses PassPA = P->run(MF, MFAM);
-
-        // MF is dangling after FreeMachineFunctionPass
-        if (P->name() != FreeMachineFunctionPass::name()) {
-          MFAM.invalidate(MF, PassPA);
-
-          PI.runAfterPass(*P, MF, PassPA);
-        }
+        MFAM.invalidate(MF, PassPA);
+        PI.runAfterPass(*P, MF, PassPA);
       }
     }
   } while (true);

@@ -135,11 +135,10 @@ def ExecuteRegionOp : SCF_Op<"execute_region", [
 
 def ForOp : SCF_Op<"for",
       [AutomaticAllocationScope, DeclareOpInterfaceMethods<LoopLikeOpInterface,
-       ["getInitsMutable", "getLoopResults", "getRegionIterArgs",
-        "getSingleInductionVar", "getSingleLowerBound", "getSingleStep",
-        "getSingleUpperBound", "getYieldedValuesMutable",
-        "promoteIfSingleIteration", "replaceWithAdditionalYields",
-        "yieldTiledValuesAndReplace"]>,
+       ["getInitsMutable", "getSingleInductionVar", "getSingleLowerBound",
+        "getSingleStep", "getSingleUpperBound", "getYieldedValuesMutable",
+        "getLoopResults", "promoteIfSingleIteration",
+        "replaceWithAdditionalYields"]>,
        AllTypesMatch<["lowerBound", "upperBound", "step"]>,
        ConditionallySpeculatable,
        DeclareOpInterfaceMethods<RegionBranchOpInterface,
@@ -260,6 +259,10 @@ def ForOp : SCF_Op<"for",
 
     Value getInductionVar() { return getBody()->getArgument(0); }
 
+    Block::BlockArgListType getRegionIterArgs() {
+      return getBody()->getArguments().drop_front(getNumInductionVars());
+    }
+
     /// Return the `index`-th region iteration argument.
     BlockArgument getRegionIterArg(unsigned index) {
       assert(index < getNumRegionIterArgs() &&
@@ -301,9 +304,8 @@ def ForallOp : SCF_Op<"forall", [
        AttrSizedOperandSegments,
        AutomaticAllocationScope,
        DeclareOpInterfaceMethods<LoopLikeOpInterface,
-          ["getInitsMutable", "getRegionIterArgs", "getSingleInductionVar", 
-           "getSingleLowerBound", "getSingleUpperBound", "getSingleStep",
-           "promoteIfSingleIteration", "yieldTiledValuesAndReplace"]>,
+          ["promoteIfSingleIteration", "getSingleInductionVar",
+          "getSingleLowerBound", "getSingleUpperBound", "getSingleStep"]>,
        RecursiveMemoryEffects,
        SingleBlockImplicitTerminator<"scf::InParallelOp">,
        DeclareOpInterfaceMethods<RegionBranchOpInterface>,
@@ -581,6 +583,10 @@ def ForallOp : SCF_Op<"forall", [
 
       return getBody()->getArgument(opOperand->getOperandNumber() -
                                     getNumDynamicControlOperands() + getRank());
+    }
+
+    ArrayRef<BlockArgument> getOutputBlockArguments() {
+      return getBody()->getArguments().drop_front(getRank());
     }
 
     ::mlir::ValueRange getInductionVars() {

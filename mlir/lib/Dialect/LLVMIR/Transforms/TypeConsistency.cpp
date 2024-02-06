@@ -488,8 +488,7 @@ static void splitVectorStore(const DataLayout &dataLayout, Location loc,
     // Other patterns will turn this into a type-consistent GEP.
     auto gepOp = rewriter.create<GEPOp>(
         loc, address.getType(), rewriter.getI8Type(), address,
-        ArrayRef<GEPArg>{
-            static_cast<int32_t>(storeOffset + index * elementSize)});
+        ArrayRef<GEPArg>{storeOffset + index * elementSize});
 
     rewriter.create<StoreOp>(loc, extractOp, gepOp);
   }
@@ -525,9 +524,9 @@ static void splitIntegerStore(const DataLayout &dataLayout, Location loc,
 
     // We create an `i8` indexed GEP here as that is the easiest (offset is
     // already known). Other patterns turn this into a type-consistent GEP.
-    auto gepOp = rewriter.create<GEPOp>(
-        loc, address.getType(), rewriter.getI8Type(), address,
-        ArrayRef<GEPArg>{static_cast<int32_t>(currentOffset)});
+    auto gepOp =
+        rewriter.create<GEPOp>(loc, address.getType(), rewriter.getI8Type(),
+                               address, ArrayRef<GEPArg>{currentOffset});
     rewriter.create<StoreOp>(loc, valueToStore, gepOp);
 
     // No need to care about padding here since we already checked previously

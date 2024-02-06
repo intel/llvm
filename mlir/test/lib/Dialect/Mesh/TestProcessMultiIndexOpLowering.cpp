@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Mesh/IR/MeshOps.h"
 #include "mlir/Dialect/Mesh/Transforms/Transforms.h"
 #include "mlir/Dialect/Utils/IndexingUtils.h"
 #include "mlir/IR/SymbolTable.h"
@@ -23,6 +24,7 @@ struct TestMultiIndexOpLoweringPass
 
   void runOnOperation() override;
   void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<mesh::MeshDialect>();
     mesh::processMultiIndexOpLoweringRegisterDialects(registry);
   }
   StringRef getArgument() const final {

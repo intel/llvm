@@ -104,7 +104,7 @@ public:
 
   /// Optimization {
 
-  bool foldImmediate(MachineInstr &UseMI, MachineInstr &DefMI, Register Reg,
+  bool FoldImmediate(MachineInstr &UseMI, MachineInstr &DefMI, Register Reg,
                      MachineRegisterInfo *MRI) const override;
 
   /// } Optimization

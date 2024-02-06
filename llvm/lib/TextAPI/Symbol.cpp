@@ -28,16 +28,16 @@ LLVM_DUMP_METHOD void Symbol::dump(raw_ostream &OS) const {
   if (isThreadLocalValue())
     Result += "(tlv) ";
   switch (Kind) {
-  case EncodeKind::GlobalSymbol:
+  case SymbolKind::GlobalSymbol:
     Result += Name.str();
     break;
-  case EncodeKind::ObjectiveCClass:
+  case SymbolKind::ObjectiveCClass:
     Result += "(ObjC Class) " + Name.str();
     break;
-  case EncodeKind::ObjectiveCClassEHType:
+  case SymbolKind::ObjectiveCClassEHType:
     Result += "(ObjC Class EH) " + Name.str();
     break;
-  case EncodeKind::ObjectiveCInstanceVariable:
+  case SymbolKind::ObjectiveCInstanceVariable:
     Result += "(ObjC IVar) " + Name.str();
     break;
   }
@@ -72,23 +72,30 @@ bool Symbol::operator==(const Symbol &O) const {
          std::tie(O.Name, O.Kind, O.Targets, RHSFlags);
 }
 
-SimpleSymbol parseSymbol(StringRef SymName) {
+SimpleSymbol parseSymbol(StringRef SymName, const SymbolFlags Flags) {
   if (SymName.starts_with(ObjC1ClassNamePrefix))
     return {SymName.drop_front(ObjC1ClassNamePrefix.size()),
-            EncodeKind::ObjectiveCClass, ObjCIFSymbolKind::Class};
+            SymbolKind::ObjectiveCClass};
   if (SymName.starts_with(ObjC2ClassNamePrefix))
     return {SymName.drop_front(ObjC2ClassNamePrefix.size()),
-            EncodeKind::ObjectiveCClass, ObjCIFSymbolKind::Class};
+            SymbolKind::ObjectiveCClass};
   if (SymName.starts_with(ObjC2MetaClassNamePrefix))
     return {SymName.drop_front(ObjC2MetaClassNamePrefix.size()),
-            EncodeKind::ObjectiveCClass, ObjCIFSymbolKind::MetaClass};
-  if (SymName.starts_with(ObjC2EHTypePrefix))
+            SymbolKind::ObjectiveCClass};
+  if (SymName.starts_with(ObjC2EHTypePrefix)) {
+    // When classes without ehtype are used in try/catch blocks
+    // a weak-defined symbol is exported. In those cases, treat these as a
+    // global instead.
+    if ((Flags & SymbolFlags::WeakDefined) == SymbolFlags::WeakDefined)
+      return {SymName, SymbolKind::GlobalSymbol};
     return {SymName.drop_front(ObjC2EHTypePrefix.size()),
-            EncodeKind::ObjectiveCClassEHType, ObjCIFSymbolKind::EHType};
+            SymbolKind::ObjectiveCClassEHType};
+  }
+
   if (SymName.starts_with(ObjC2IVarPrefix))
     return {SymName.drop_front(ObjC2IVarPrefix.size()),
-            EncodeKind::ObjectiveCInstanceVariable, ObjCIFSymbolKind::None};
-  return {SymName, EncodeKind::GlobalSymbol, ObjCIFSymbolKind::None};
+            SymbolKind::ObjectiveCInstanceVariable};
+  return {SymName, SymbolKind::GlobalSymbol};
 }
 
 } // end namespace MachO.

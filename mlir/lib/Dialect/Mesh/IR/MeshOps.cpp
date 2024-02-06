@@ -7,9 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Mesh/IR/MeshOps.h"
-
 #include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/Mesh/IR/MeshDialect.h"
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -43,7 +41,25 @@
 using namespace mlir;
 using namespace mlir::mesh;
 
-#include "mlir/Dialect/Mesh/IR/MeshDialect.cpp.inc"
+#include "mlir/Dialect/Mesh/IR/MeshOpsDialect.cpp.inc"
+
+template <typename It>
+static It canonicalizeSetAsArray(It begin, It end) {
+  llvm::sort(begin, end);
+  return std::unique(begin, end);
+}
+
+template <typename R>
+static auto canonicalizeSetAsArray(R &&range) {
+  return canonicalizeSetAsArray(adl_begin(range), adl_end(range));
+}
+
+template <typename T>
+static SmallVector<T> &canonicalizeSetAsVector(SmallVector<T> &vec) {
+  auto newEnd = canonicalizeSetAsArray(vec);
+  vec.resize(newEnd - vec.begin());
+  return vec;
+}
 
 namespace {
 
@@ -85,7 +101,7 @@ void MeshDialect::initialize() {
       >();
   addAttributes<
 #define GET_ATTRDEF_LIST
-#include "mlir/Dialect/Mesh/IR/MeshAttributes.cpp.inc"
+#include "mlir/Dialect/Mesh/IR/MeshOpsAttributes.cpp.inc"
       >();
 }
 
@@ -98,10 +114,10 @@ Operation *MeshDialect::materializeConstant(OpBuilder &builder, Attribute value,
 // Mesh utilities
 //===----------------------------------------------------------------------===//
 
-static FailureOr<MeshOp> getMeshAndVerify(Operation *op,
-                                          FlatSymbolRefAttr meshSymbol,
-                                          SymbolTableCollection &symbolTable) {
-  mesh::MeshOp mesh = getMesh(op, meshSymbol, symbolTable);
+static FailureOr<ClusterOp> getMesh(Operation *op, FlatSymbolRefAttr meshSymbol,
+                                    SymbolTableCollection &symbolTable) {
+  mesh::ClusterOp mesh =
+      symbolTable.lookupNearestSymbolFrom<mesh::ClusterOp>(op, meshSymbol);
   if (!mesh) {
     return op->emitError() << "Undefined required mesh symbol \""
                            << meshSymbol.getValue() << "\".";
@@ -128,7 +144,7 @@ bool isUnique(It begin, It end) {
 }
 
 static LogicalResult verifyMeshAxes(Location loc, ArrayRef<MeshAxis> axes,
-                                    MeshOp mesh) {
+                                    ClusterOp mesh) {
   SmallVector<MeshAxis> sorted = llvm::to_vector(axes);
   llvm::sort(sorted);
   if (!isUnique(sorted.begin(), sorted.end())) {
@@ -176,18 +192,22 @@ Partial mesh::getPartialTypeFromReduction(IteratorType iType) {
 }
 
 //===----------------------------------------------------------------------===//
-// mesh.mesh op
+// mesh.cluster op
 //===----------------------------------------------------------------------===//
 
-LogicalResult MeshOp::verify() {
+LogicalResult ClusterOp::verify() {
   int64_t rank = getRank();
 
   if (rank <= 0)
-    return emitOpError("rank of mesh is expected to be a positive integer");
+    return emitOpError("rank of cluster is expected to be a positive integer");
+
+  if (getShape().size() > size_t(rank))
+    return emitOpError(
+        "rank of shape is not expected to be larger than rank of cluster");
 
   for (int64_t dimSize : getShape()) {
     if (dimSize < 0 && !ShapedType::isDynamic(dimSize))
-      return emitOpError("dimension size of a mesh is expected to be "
+      return emitOpError("dimension size of a mesh cluster is expected to be "
                          "non-negative or dynamic");
   }
 
@@ -195,12 +215,12 @@ LogicalResult MeshOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
-// mesh.mesh_shape op
+// mesh.cluster_shape op
 //===----------------------------------------------------------------------===//
 
 LogicalResult
-MeshShapeOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
-  auto mesh = ::getMeshAndVerify(getOperation(), getMeshAttr(), symbolTable);
+ClusterShapeOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
+  auto mesh = ::getMesh(getOperation(), getMeshAttr(), symbolTable);
   if (failed(mesh)) {
     return failure();
   }
@@ -218,16 +238,16 @@ MeshShapeOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
   return success();
 }
 
-void MeshShapeOp::build(OpBuilder &odsBuilder, OperationState &odsState,
-                        MeshOp mesh) {
+void ClusterShapeOp::build(OpBuilder &odsBuilder, OperationState &odsState,
+                           ClusterOp mesh) {
   build(odsBuilder, odsState,
         SmallVector<Type>(mesh.getRank(), odsBuilder.getIndexType()),
         mesh.getSymName(),
         MeshAxesAttr::get(odsBuilder.getContext(), SmallVector<MeshAxis>()));
 }
 
-void MeshShapeOp::build(OpBuilder &odsBuilder, OperationState &odsState,
-                        StringRef mesh, ArrayRef<MeshAxis> axes) {
+void ClusterShapeOp::build(OpBuilder &odsBuilder, OperationState &odsState,
+                           StringRef mesh, ArrayRef<MeshAxis> axes) {
   build(odsBuilder, odsState,
         SmallVector<Type>(axes.size(), odsBuilder.getIndexType()), mesh,
         MeshAxesAttr::get(odsBuilder.getContext(), axes));
@@ -241,7 +261,7 @@ LogicalResult
 MeshShardingAttr::verify(function_ref<InFlightDiagnostic()> emitError,
                          FlatSymbolRefAttr, ArrayRef<MeshAxesAttr> splitAxes,
                          ArrayRef<MeshAxis> partialAxes, Partial) {
-  // TODO: At present mesh symbol ref is not verified. This is due to the
+  // TODO: At present cluster symbol ref is not verified. This is due to the
   // difficulty in fetching the corresponding symbol op based on an attribute.
 
   llvm::SmallSet<MeshAxis, 4> visitedAxes;
@@ -272,7 +292,8 @@ bool MeshShardingAttr::operator==(Attribute rhs) const {
 }
 
 bool MeshShardingAttr::operator==(MeshShardingAttr rhs) const {
-  if (getMesh() != rhs.getMesh() || getPartialAxes() != rhs.getPartialAxes()) {
+  if (getCluster() != rhs.getCluster() ||
+      getPartialAxes() != rhs.getPartialAxes()) {
     return false;
   }
 
@@ -302,7 +323,7 @@ bool MeshShardingAttr::operator==(MeshShardingAttr rhs) const {
 
 LogicalResult
 ProcessMultiIndexOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
-  auto mesh = ::getMeshAndVerify(getOperation(), getMeshAttr(), symbolTable);
+  auto mesh = ::getMesh(getOperation(), getMeshAttr(), symbolTable);
   if (failed(mesh)) {
     return failure();
   }
@@ -321,7 +342,7 @@ ProcessMultiIndexOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
 }
 
 void ProcessMultiIndexOp::build(OpBuilder &odsBuilder, OperationState &odsState,
-                                MeshOp mesh) {
+                                ClusterOp mesh) {
   build(odsBuilder, odsState,
         SmallVector<Type>(mesh.getRank(), odsBuilder.getIndexType()),
         mesh.getSymName(), ArrayRef<MeshAxis>());
@@ -340,7 +361,7 @@ void ProcessMultiIndexOp::build(OpBuilder &odsBuilder, OperationState &odsState,
 
 LogicalResult
 ProcessLinearIndexOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
-  auto mesh = ::getMeshAndVerify(getOperation(), getMeshAttr(), symbolTable);
+  auto mesh = ::getMesh(getOperation(), getMeshAttr(), symbolTable);
   if (failed(mesh)) {
     return failure();
   }
@@ -348,7 +369,7 @@ ProcessLinearIndexOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
 }
 
 void ProcessLinearIndexOp::build(OpBuilder &odsBuilder,
-                                 OperationState &odsState, MeshOp mesh) {
+                                 OperationState &odsState, ClusterOp mesh) {
   build(odsBuilder, odsState, mesh.getSymName());
 }
 
@@ -406,10 +427,9 @@ static LogicalResult verifyInGroupDevice(Location loc, StringRef deviceName,
 }
 
 template <typename Op>
-static FailureOr<MeshOp>
+static FailureOr<ClusterOp>
 getMeshAndVerifyAxes(Op op, SymbolTableCollection &symbolTable) {
-  auto mesh =
-      ::getMeshAndVerify(op.getOperation(), op.getMeshAttr(), symbolTable);
+  auto mesh = ::getMesh(op.getOperation(), op.getMeshAttr(), symbolTable);
   if (failed(mesh)) {
     return failure();
   }
@@ -429,6 +449,21 @@ static auto product(It begin, It end) {
 template <typename R>
 static auto product(R &&range) {
   return product(adl_begin(range), adl_end(range));
+}
+
+static int64_t collectiveDeviceGroupSize(ArrayRef<MeshAxis> meshAxes,
+                                         ArrayRef<int64_t> meshShape) {
+  int64_t res = 1;
+
+  for (MeshAxis axis : meshAxes) {
+    if (ShapedType::isDynamic(meshShape[axis])) {
+      return ShapedType::kDynamic;
+    }
+    assert(size_t(axis) < meshShape.size());
+    res *= meshShape[axis];
+  }
+
+  return res;
 }
 
 static LogicalResult verifyDimensionCompatibility(Location loc,
@@ -461,7 +496,7 @@ static LogicalResult verifyGatherOperandAndResultShape(
   ShapedType operandType = operand.getType().cast<ShapedType>();
   ShapedType resultType = result.getType().cast<ShapedType>();
   auto deviceGroupSize =
-      DimensionSize(collectiveProcessGroupSize(meshAxes, meshShape));
+      DimensionSize(collectiveDeviceGroupSize(meshAxes, meshShape));
   for (int64_t axis = 0; axis < operandType.getRank(); ++axis) {
     auto operandDimSize = DimensionSize(operandType.getDimSize(axis));
     auto resultDimSize = DimensionSize(resultType.getDimSize(axis));
@@ -495,7 +530,7 @@ static LogicalResult verifyAllToAllOperandAndResultShape(
   }
 
   auto deviceGroupSize =
-      DimensionSize(collectiveProcessGroupSize(meshAxes, meshShape));
+      DimensionSize(collectiveDeviceGroupSize(meshAxes, meshShape));
   auto operandConcatDimSize = DimensionSize(operandType.getDimSize(concatAxis));
   auto operandSplitDimSize = DimensionSize(operandType.getDimSize(splitAxis));
   DimensionSize expectedResultConcatDimSize =
@@ -536,7 +571,7 @@ static LogicalResult verifyScatterOperandAndResultShape(
   }
 
   auto deviceGroupSize =
-      DimensionSize(collectiveProcessGroupSize(meshAxes, meshShape));
+      DimensionSize(collectiveDeviceGroupSize(meshAxes, meshShape));
   auto operandScatterDimSize =
       DimensionSize(operandType.getDimSize(scatterAxis));
   if (!operandScatterDimSize.isDynamic() && !deviceGroupSize.isDynamic() &&
@@ -812,6 +847,6 @@ void ShiftOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 #include "mlir/Dialect/Mesh/IR/MeshOps.cpp.inc"
 
 #define GET_ATTRDEF_CLASSES
-#include "mlir/Dialect/Mesh/IR/MeshAttributes.cpp.inc"
+#include "mlir/Dialect/Mesh/IR/MeshOpsAttributes.cpp.inc"
 
-#include "mlir/Dialect/Mesh/IR/MeshEnums.cpp.inc"
+#include "mlir/Dialect/Mesh/IR/MeshOpsEnums.cpp.inc"

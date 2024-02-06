@@ -42,7 +42,7 @@ if(NATIVECPU_USE_OCK)
     FetchContent_Populate(oneapi-ck)
     message(STATUS "oneAPI Construction Kit cloned in ${oneapi-ck_SOURCE_DIR}")
     set(CA_NATIVE_CPU 1)
-    add_subdirectory(${oneapi-ck_SOURCE_DIR} ${oneapi-ck_BINARY_DIR} EXCLUDE_FROM_ALL)
+    add_subdirectory(${oneapi-ck_SOURCE_DIR} ${oneapi-ck_BINARY_DIR})
   endif()
   target_compile_definitions(LLVMSYCLLowerIR PRIVATE  NATIVECPU_USE_OCK)
   target_include_directories(LLVMSYCLLowerIR PRIVATE 

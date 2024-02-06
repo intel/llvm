@@ -10,7 +10,6 @@
 #include "llvm/ExecutionEngine/JITLink/EHFrameSupport.h"
 #include "llvm/ExecutionEngine/JITLink/aarch32.h"
 #include "llvm/ExecutionEngine/Orc/DebugObjectManagerPlugin.h"
-#include "llvm/ExecutionEngine/Orc/DebugUtils.h"
 #include "llvm/ExecutionEngine/Orc/ObjectFileInterface.h"
 #include "llvm/ExecutionEngine/Orc/Shared/ObjectFormats.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -217,13 +216,16 @@ public:
       }
     };
 
+    for (auto &KV : InternalNamedSymbolDeps) {
+      SymbolDependenceMap InternalDeps;
+      InternalDeps[&MR->getTargetJITDylib()] = std::move(KV.second);
+      MR->addDependencies(KV.first, InternalDeps);
+    }
+
     ES.lookup(LookupKind::Static, LinkOrder, std::move(LookupSet),
               SymbolState::Resolved, std::move(OnResolve),
               [this](const SymbolDependenceMap &Deps) {
-                // Translate LookupDeps map to SymbolSourceJD.
-                for (auto &[DepJD, Deps] : Deps)
-                  for (auto &DepSym : Deps)
-                    SymbolSourceJDs[NonOwningSymbolStringPtr(DepSym)] = DepJD;
+                registerDependencies(Deps);
               });
   }
 
@@ -327,7 +329,7 @@ public:
       MR->failMaterialization();
       return;
     }
-    if (auto Err = MR->notifyEmitted(SymbolDepGroups)) {
+    if (auto Err = MR->notifyEmitted()) {
       Layer.getExecutionSession().reportError(std::move(Err));
       MR->failMaterialization();
     }
@@ -346,8 +348,8 @@ public:
 
     Layer.modifyPassConfig(*MR, LG, Config);
 
-    Config.PreFixupPasses.push_back(
-        [this](LinkGraph &G) { return registerDependencies(G); });
+    Config.PostPrunePasses.push_back(
+        [this](LinkGraph &G) { return computeNamedSymbolDependencies(G); });
 
     return Error::success();
   }
@@ -411,10 +413,9 @@ private:
       for (auto &E : B.edges()) {
         auto &Tgt = E.getTarget();
         if (Tgt.getScope() != Scope::Local) {
-          if (Tgt.isExternal()) {
-            if (Tgt.getAddress() || !Tgt.isWeaklyReferenced())
-              BIDCacheVal.External.insert(getInternedName(Tgt));
-          } else
+          if (Tgt.isExternal())
+            BIDCacheVal.External.insert(getInternedName(Tgt));
+          else
             BIDCacheVal.Internal.insert(getInternedName(Tgt));
         }
       }
@@ -480,46 +481,29 @@ private:
     return Error::success();
   }
 
-  Error registerDependencies(LinkGraph &G) {
-    auto &TargetJD = MR->getTargetJITDylib();
-    auto &ES = TargetJD.getExecutionSession();
+  Error computeNamedSymbolDependencies(LinkGraph &G) {
+    auto &ES = MR->getTargetJITDylib().getExecutionSession();
     auto BlockDeps = computeBlockNonLocalDeps(G);
-
-    DenseSet<Block *> BlockDepsProcessed;
-    DenseMap<Block *, SymbolDependenceGroup> DepGroupForBlock;
 
     // Compute dependencies for symbols defined in the JITLink graph.
     for (auto *Sym : G.defined_symbols()) {
 
-      // Skip local symbols.
+      // Skip local symbols: we do not track dependencies for these.
       if (Sym->getScope() == Scope::Local)
         continue;
       assert(Sym->hasName() &&
              "Defined non-local jitlink::Symbol should have a name");
 
-      auto &BDeps = BlockDeps[Sym->getBlock()];
-
-      // Skip symbols in blocks that don't depend on anything.
-      if (BDeps.Internal.empty() && BDeps.External.empty())
+      auto &SymDeps = BlockDeps[Sym->getBlock()];
+      if (SymDeps.External.empty() && SymDeps.Internal.empty())
         continue;
 
-      SymbolDependenceGroup &SDG = DepGroupForBlock[&Sym->getBlock()];
-      SDG.Symbols.insert(ES.intern(Sym->getName()));
-
-      if (!BlockDepsProcessed.count(&Sym->getBlock())) {
-        BlockDepsProcessed.insert(&Sym->getBlock());
-
-        if (!BDeps.Internal.empty())
-          SDG.Dependencies[&TargetJD] = BDeps.Internal;
-        for (auto &Dep : BDeps.External) {
-          auto DepSrcItr = SymbolSourceJDs.find(NonOwningSymbolStringPtr(Dep));
-          if (DepSrcItr != SymbolSourceJDs.end())
-            SDG.Dependencies[DepSrcItr->second].insert(Dep);
-        }
-      }
+      auto SymName = ES.intern(Sym->getName());
+      if (!SymDeps.External.empty())
+        ExternalNamedSymbolDeps[SymName] = SymDeps.External;
+      if (!SymDeps.Internal.empty())
+        InternalNamedSymbolDeps[SymName] = SymDeps.Internal;
     }
-
-    SymbolDependenceGroup SynthSDG;
 
     for (auto &P : Layer.Plugins) {
       auto SynthDeps = P->getSyntheticSymbolDependencies(*MR);
@@ -527,44 +511,27 @@ private:
         continue;
 
       DenseSet<Block *> BlockVisited;
-      for (auto &[Name, DepSyms] : SynthDeps) {
-        SynthSDG.Symbols.insert(Name);
-        for (auto *Sym : DepSyms) {
+      for (auto &KV : SynthDeps) {
+        auto &Name = KV.first;
+        auto &DepsForName = KV.second;
+        for (auto *Sym : DepsForName) {
           if (Sym->getScope() == Scope::Local) {
             auto &BDeps = BlockDeps[Sym->getBlock()];
             for (auto &S : BDeps.Internal)
-              SynthSDG.Dependencies[&TargetJD].insert(S);
-            for (auto &S : BDeps.External) {
-              auto DepSrcItr =
-                  SymbolSourceJDs.find(NonOwningSymbolStringPtr(S));
-              if (DepSrcItr != SymbolSourceJDs.end())
-                SynthSDG.Dependencies[DepSrcItr->second].insert(S);
-            }
+              InternalNamedSymbolDeps[Name].insert(S);
+            for (auto &S : BDeps.External)
+              ExternalNamedSymbolDeps[Name].insert(S);
           } else {
-            auto SymName = ES.intern(Sym->getName());
-            if (Sym->isExternal()) {
-              assert(SymbolSourceJDs.count(NonOwningSymbolStringPtr(SymName)) &&
-                     "External symbol source entry missing");
-              SynthSDG
-                  .Dependencies[SymbolSourceJDs[NonOwningSymbolStringPtr(
-                      SymName)]]
-                  .insert(SymName);
-            } else
-              SynthSDG.Dependencies[&TargetJD].insert(SymName);
+            if (Sym->isExternal())
+              ExternalNamedSymbolDeps[Name].insert(
+                  BlockDeps.getInternedName(*Sym));
+            else
+              InternalNamedSymbolDeps[Name].insert(
+                  BlockDeps.getInternedName(*Sym));
           }
         }
       }
     }
-
-    // Transfer SDGs to SymbolDepGroups.
-    DepGroupForBlock.reserve(DepGroupForBlock.size() + 1);
-    for (auto &[B, SDG] : DepGroupForBlock) {
-      assert(!SDG.Symbols.empty() && "SymbolDependenceGroup covers no symbols");
-      if (!SDG.Dependencies.empty())
-        SymbolDepGroups.push_back(std::move(SDG));
-    }
-    if (!SynthSDG.Symbols.empty() && !SynthSDG.Dependencies.empty())
-      SymbolDepGroups.push_back(std::move(SynthSDG));
 
     return Error::success();
   }
@@ -634,13 +601,34 @@ private:
                                 std::move(BlockDeps));
   }
 
+  void registerDependencies(const SymbolDependenceMap &QueryDeps) {
+    for (auto &NamedDepsEntry : ExternalNamedSymbolDeps) {
+      auto &Name = NamedDepsEntry.first;
+      auto &NameDeps = NamedDepsEntry.second;
+      SymbolDependenceMap SymbolDeps;
+
+      for (const auto &QueryDepsEntry : QueryDeps) {
+        JITDylib &SourceJD = *QueryDepsEntry.first;
+        const SymbolNameSet &Symbols = QueryDepsEntry.second;
+        auto &DepsForJD = SymbolDeps[&SourceJD];
+
+        for (const auto &S : Symbols)
+          if (NameDeps.count(S))
+            DepsForJD.insert(S);
+
+        if (DepsForJD.empty())
+          SymbolDeps.erase(&SourceJD);
+      }
+
+      MR->addDependencies(Name, SymbolDeps);
+    }
+  }
+
   ObjectLinkingLayer &Layer;
   std::unique_ptr<MaterializationResponsibility> MR;
   std::unique_ptr<MemoryBuffer> ObjBuffer;
-  DenseMap<Block *, SymbolNameSet> ExternalBlockDeps;
-  DenseMap<Block *, SymbolNameSet> InternalBlockDeps;
-  DenseMap<NonOwningSymbolStringPtr, JITDylib *> SymbolSourceJDs;
-  std::vector<SymbolDependenceGroup> SymbolDepGroups;
+  DenseMap<SymbolStringPtr, SymbolNameSet> ExternalNamedSymbolDeps;
+  DenseMap<SymbolStringPtr, SymbolNameSet> InternalNamedSymbolDeps;
 };
 
 ObjectLinkingLayer::Plugin::~Plugin() = default;

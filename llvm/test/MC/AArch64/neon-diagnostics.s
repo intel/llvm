@@ -4877,7 +4877,7 @@
 // CHECK-ERROR:                        ^
 
 //----------------------------------------------------------------------
-// Scalar Unsigned Rounding Shift Right (Immediate)
+// Scalar Unigned Rounding Shift Right (Immediate)
 //----------------------------------------------------------------------
 
         urshr d20, d23, #99

@@ -16,7 +16,7 @@
 
 namespace llvm {
 struct ExportedSymbol {
-  MachO::EncodeKind Kind = MachO::EncodeKind::GlobalSymbol;
+  MachO::SymbolKind Kind = MachO::SymbolKind::GlobalSymbol;
   std::string Name = {};
   bool Weak = false;
   bool ThreadLocalValue = false;

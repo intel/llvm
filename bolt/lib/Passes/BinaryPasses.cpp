@@ -1417,9 +1417,9 @@ void PrintProgramStats::runOnFunctions(BinaryContext &BC) {
            << (NumNonSimpleProfiledFunctions == 1 ? "" : "s")
            << " with profile could not be optimized\n";
   }
-  if (NumAllStaleFunctions) {
+  if (NumStaleProfileFunctions) {
     const float PctStale =
-        NumAllStaleFunctions / (float)NumAllProfiledFunctions * 100.0f;
+        NumStaleProfileFunctions / (float)NumAllProfiledFunctions * 100.0f;
     auto printErrorOrWarning = [&]() {
       if (PctStale > opts::StaleThreshold)
         errs() << "BOLT-ERROR: ";
@@ -1427,18 +1427,16 @@ void PrintProgramStats::runOnFunctions(BinaryContext &BC) {
         errs() << "BOLT-WARNING: ";
     };
     printErrorOrWarning();
-    errs() << NumAllStaleFunctions
+    errs() << NumStaleProfileFunctions
            << format(" (%.1f%% of all profiled)", PctStale) << " function"
-           << (NumAllStaleFunctions == 1 ? "" : "s")
+           << (NumStaleProfileFunctions == 1 ? "" : "s")
            << " have invalid (possibly stale) profile."
               " Use -report-stale to see the list.\n";
     if (TotalSampleCount > 0) {
       printErrorOrWarning();
-      errs() << (StaleSampleCount + InferredSampleCount) << " out of "
-             << TotalSampleCount << " samples in the binary ("
-             << format("%.1f",
-                       ((100.0f * (StaleSampleCount + InferredSampleCount)) /
-                        TotalSampleCount))
+      errs() << StaleSampleCount << " out of " << TotalSampleCount
+             << " samples in the binary ("
+             << format("%.1f", ((100.0f * StaleSampleCount) / TotalSampleCount))
              << "%) belong to functions with invalid"
                 " (possibly stale) profile.\n";
     }

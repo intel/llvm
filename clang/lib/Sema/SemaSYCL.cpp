@@ -4295,7 +4295,7 @@ static void CheckSYCL2020SubGroupSizes(Sema &S, FunctionDecl *SYCLKernel,
   // No need to validate __spirv routines here since they
   // are mapped to the equivalent SPIRV operations.
   const IdentifierInfo *II = FD->getIdentifier();
-  if (II && II->getName().starts_with("__spirv_"))
+  if (II && II->getName().startswith("__spirv_"))
     return;
 
   // Else we need to figure out why they don't match.

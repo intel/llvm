@@ -33,12 +33,9 @@ TEST(TAPIRecord, Simple) {
 }
 
 TEST(TAPIRecord, SimpleObjC) {
-  const ObjCIFSymbolKind CompleteInterface =
-      ObjCIFSymbolKind::Class | ObjCIFSymbolKind::MetaClass;
-  ObjCInterfaceRecord Class{"NSObject", RecordLinkage::Exported,
-                            CompleteInterface};
+  ObjCInterfaceRecord Class{"NSObject", RecordLinkage::Exported};
   ObjCInterfaceRecord ClassEH{"NSObject", RecordLinkage::Exported,
-                              CompleteInterface | ObjCIFSymbolKind::EHType};
+                              /*HasEHType=*/true};
 
   EXPECT_TRUE(Class.isExported());
   EXPECT_EQ(Class.isExported(), ClassEH.isExported());
@@ -46,31 +43,6 @@ TEST(TAPIRecord, SimpleObjC) {
   EXPECT_TRUE(ClassEH.hasExceptionAttribute());
   EXPECT_EQ(ObjCIVarRecord::createScopedName("NSObject", "var"),
             "NSObject.var");
-  EXPECT_TRUE(Class.isCompleteInterface());
-  EXPECT_TRUE(ClassEH.isCompleteInterface());
-  EXPECT_TRUE(Class.isExportedSymbol(ObjCIFSymbolKind::MetaClass));
-  EXPECT_EQ(ClassEH.getLinkageForSymbol(ObjCIFSymbolKind::EHType),
-            RecordLinkage::Exported);
-}
-
-TEST(TAPIRecord, IncompleteObjC) {
-  ObjCInterfaceRecord Class{"NSObject", RecordLinkage::Rexported,
-                            ObjCIFSymbolKind::MetaClass};
-  EXPECT_EQ(Class.getLinkageForSymbol(ObjCIFSymbolKind::EHType),
-            RecordLinkage::Unknown);
-  EXPECT_EQ(Class.getLinkageForSymbol(ObjCIFSymbolKind::MetaClass),
-            RecordLinkage::Rexported);
-  EXPECT_TRUE(Class.isExportedSymbol(ObjCIFSymbolKind::MetaClass));
-  EXPECT_FALSE(Class.isCompleteInterface());
-  EXPECT_TRUE(Class.isExported());
-
-  Class.updateLinkageForSymbols(ObjCIFSymbolKind::Class,
-                                RecordLinkage::Internal);
-  EXPECT_TRUE(Class.isExported());
-  EXPECT_FALSE(Class.isCompleteInterface());
-  EXPECT_FALSE(Class.isExportedSymbol(ObjCIFSymbolKind::Class));
-  EXPECT_EQ(Class.getLinkageForSymbol(ObjCIFSymbolKind::Class),
-            RecordLinkage::Internal);
 }
 
 TEST(TAPIRecord, SimpleSlice) {

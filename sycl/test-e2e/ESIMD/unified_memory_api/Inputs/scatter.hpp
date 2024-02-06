@@ -133,9 +133,9 @@ bool testUSM(queue Q, uint32_t MaskStride,
                else if (GlobalID % 4 == 1)
                  scatter(Out, ByteOffsetsView, Vals, Pred);
                else if (GlobalID % 4 == 2)
-                 scatter<T, N>(Out, ByteOffsets, ValsView, Pred);
+                 scatter(Out, ByteOffsets, ValsView, Pred);
                else if (GlobalID % 4 == 3)
-                 scatter<T, N>(Out, ByteOffsetsView, ValsView, Pred);
+                 scatter(Out, ByteOffsetsView, ValsView, Pred);
              }
            } else { // UseMask == false
              if constexpr (UseProperties) {
@@ -182,24 +182,19 @@ template <typename T, TestFeatures Features> bool testUSM(queue Q) {
 
   bool Passed = true;
 
-  // Test scatter() that is available on Gen12 and PVC.
+  // // Test scatter() that is available on Gen12 and PVC.
   Passed &= testUSM<T, 1, 1, !CheckMask, CheckProperties>(Q, 2, EmptyProps);
   Passed &= testUSM<T, 2, 1, !CheckMask, CheckProperties>(Q, 1, EmptyProps);
-  Passed &= testUSM<T, 4, 1, !CheckMask, CheckProperties>(Q, 2, EmptyProps);
+  Passed &= testUSM<T, 1, 1, !CheckMask, CheckProperties>(Q, 2, EmptyProps);
   Passed &= testUSM<T, 8, 1, !CheckMask, CheckProperties>(Q, 2, EmptyProps);
+  Passed &= testUSM<T, 16, 1, !CheckMask, CheckProperties>(Q, 2, EmptyProps);
   Passed &= testUSM<T, 16, 1, !CheckMask, CheckProperties>(Q, 2, EmptyProps);
 
   Passed &= testUSM<T, 32, 1, !CheckMask, CheckProperties>(Q, 2, EmptyProps);
 
-  // Test scatter() without passing compile-time properties argument.
+  // // Test scatter() without passing compile-time properties argument.
   Passed &= testUSM<T, 16, 1, !CheckMask, !CheckProperties>(Q, 2, EmptyProps);
   Passed &= testUSM<T, 32, 1, !CheckMask, !CheckProperties>(Q, 2, EmptyProps);
-
-  // Test scatter() with mask
-  Passed &= testUSM<T, 2, 1, CheckMask, CheckProperties>(Q, 2, EmptyProps);
-  Passed &= testUSM<T, 4, 1, CheckMask, CheckProperties>(Q, 2, EmptyProps);
-  Passed &= testUSM<T, 8, 1, CheckMask, CheckProperties>(Q, 2, EmptyProps);
-  Passed &= testUSM<T, 16, 1, CheckMask, !CheckProperties>(Q, 2, EmptyProps);
 
   if constexpr (Features == TestFeatures::PVC ||
                 Features == TestFeatures::DG2) {
@@ -224,7 +219,7 @@ template <typename T, TestFeatures Features> bool testUSM(queue Q) {
       Passed &=
           testUSM<T, 32, 2, CheckMask, CheckProperties>(Q, 2, AlignElemProps);
       Passed &=
-          testUSM<T, 32, 2, CheckMask, !CheckProperties>(Q, 2, AlignElemProps);
+          testUSM<T, 32, 2, CheckMask, CheckProperties>(Q, 2, AlignElemProps);
     }
   } // TestPVCFeatures
 

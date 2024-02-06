@@ -1009,15 +1009,12 @@ bool Environment::allows(const Formula &F) const {
 }
 
 void Environment::dump(raw_ostream &OS) const {
-  llvm::DenseMap<const StorageLocation *, std::string> LocToName;
-  if (ThisPointeeLoc != nullptr)
-    LocToName[ThisPointeeLoc] = "this";
-
+  // FIXME: add printing for remaining fields and allow caller to decide what
+  // fields are printed.
   OS << "DeclToLoc:\n";
-  for (auto [D, L] : DeclToLoc) {
-    auto Iter = LocToName.insert({L, D->getNameAsString()}).first;
-    OS << "  [" << Iter->second << ", " << L << "]\n";
-  }
+  for (auto [D, L] : DeclToLoc)
+    OS << "  [" << D->getNameAsString() << ", " << L << "]\n";
+
   OS << "ExprToLoc:\n";
   for (auto [E, L] : ExprToLoc)
     OS << "  [" << E << ", " << L << "]\n";
@@ -1028,28 +1025,7 @@ void Environment::dump(raw_ostream &OS) const {
 
   OS << "LocToVal:\n";
   for (auto [L, V] : LocToVal) {
-    OS << "  [" << L;
-    if (auto Iter = LocToName.find(L); Iter != LocToName.end())
-      OS << " (" << Iter->second << ")";
-    OS << ", " << V << ": " << *V << "]\n";
-  }
-
-  if (const FunctionDecl *Func = getCurrentFunc()) {
-    if (Func->getReturnType()->isReferenceType()) {
-      OS << "ReturnLoc: " << ReturnLoc;
-      if (auto Iter = LocToName.find(ReturnLoc); Iter != LocToName.end())
-        OS << " (" << Iter->second << ")";
-      OS << "\n";
-    } else if (!Func->getReturnType()->isVoidType()) {
-      if (ReturnVal == nullptr)
-        OS << "ReturnVal: nullptr\n";
-      else
-        OS << "ReturnVal: " << *ReturnVal << "\n";
-    }
-
-    if (isa<CXXMethodDecl>(Func)) {
-      OS << "ThisPointeeLoc: " << ThisPointeeLoc << "\n";
-    }
+    OS << "  [" << L << ", " << V << ": " << *V << "]\n";
   }
 
   OS << "\n";

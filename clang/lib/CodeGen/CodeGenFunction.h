@@ -4434,10 +4434,9 @@ public:
   RValue EmitIntelSYCLPtrAnnotationBuiltin(const CallExpr *E);
 
   llvm::CallInst *
-  MaybeEmitFPBuiltinofFD(llvm::FunctionType *IRFuncTy,
-                         const SmallVectorImpl<llvm::Value *> &IRArgs,
-                         llvm::Value *FnPtr, StringRef Name,
-                         unsigned FDBuiltinID);
+  EmitFPBuiltinIndirectCall(llvm::FunctionType *IRFuncTy,
+                            const SmallVectorImpl<llvm::Value *> &IRArgs,
+                            llvm::Value *FnPtr, const FunctionDecl *FD);
 
   enum class MSVCIntrin;
   llvm::Value *EmitMSVCBuiltinExpr(MSVCIntrin BuiltinID, const CallExpr *E);

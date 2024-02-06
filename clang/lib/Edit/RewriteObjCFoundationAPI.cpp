@@ -697,7 +697,11 @@ static bool getLiteralInfo(SourceRange literalRange,
 
   struct Suff {
     static bool has(StringRef suff, StringRef &text) {
-      return text.consume_back(suff);
+      if (text.ends_with(suff)) {
+        text = text.substr(0, text.size()-suff.size());
+        return true;
+      }
+      return false;
     }
   };
 

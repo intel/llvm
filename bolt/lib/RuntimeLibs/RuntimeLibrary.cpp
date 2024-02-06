@@ -42,7 +42,7 @@ std::string RuntimeLibrary::getLibPath(StringRef ToolPath,
     errs() << "BOLT-ERROR: library not found: " << LibPath << "\n";
     exit(1);
   }
-  return std::string(LibPath);
+  return std::string(LibPath.str());
 }
 
 void RuntimeLibrary::loadLibrary(StringRef LibPath, BOLTLinker &Linker,

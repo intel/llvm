@@ -458,7 +458,7 @@ bool llvm::consumeSignedInteger(StringRef &Str, unsigned Radix,
   unsigned long long ULLVal;
 
   // Handle positive strings first.
-  if (!Str.starts_with("-")) {
+  if (Str.empty() || Str.front() != '-') {
     if (consumeUnsignedInteger(Str, Radix, ULLVal) ||
         // Check for value so large it overflows a signed value.
         (long long)ULLVal < 0)

@@ -243,6 +243,18 @@ Instruction::cloneDebugInfoFrom(const Instruction *From,
   return DbgMarker->cloneDebugInfoFrom(From->DbgMarker, FromHere, InsertAtHead);
 }
 
+iterator_range<DPValue::self_iterator>
+Instruction::getDbgValueRange() const {
+  BasicBlock *Parent = const_cast<BasicBlock *>(getParent());
+  assert(Parent && "Instruction must be inserted to have DPValues");
+  (void)Parent;
+
+  if (!DbgMarker)
+    return DPMarker::getEmptyDPValueRange();
+
+  return DbgMarker->getDbgValueRange();
+}
+
 std::optional<DPValue::self_iterator> Instruction::getDbgReinsertionPosition() {
   // Is there a marker on the next instruction?
   DPMarker *NextMarker = getParent()->getNextMarker(this);
@@ -1167,7 +1179,9 @@ void Instruction::copyMetadata(const Instruction &SrcInst,
   if (!SrcInst.hasMetadata())
     return;
 
-  SmallDenseSet<unsigned, 4> WLS(WL.begin(), WL.end());
+  DenseSet<unsigned> WLS;
+  for (unsigned M : WL)
+    WLS.insert(M);
 
   // Otherwise, enumerate and copy over metadata from the old instruction to the
   // new one.

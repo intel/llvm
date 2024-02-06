@@ -3471,19 +3471,17 @@ bool MemProfContextDisambiguation::applyImport(Module &M) {
             auto *MIBMD = cast<const MDNode>(MDOp);
             MDNode *StackMDNode = getMIBStackNode(MIBMD);
             assert(StackMDNode);
+            SmallVector<unsigned> StackIdsFromMetadata;
             CallStack<MDNode, MDNode::op_iterator> StackContext(StackMDNode);
-            auto ContextIterBegin =
-                StackContext.beginAfterSharedPrefix(CallsiteContext);
-            // Skip the checking on the first iteration.
-            uint64_t LastStackContextId = *ContextIterBegin == 0 ? 1 : 0;
-            for (auto ContextIter = ContextIterBegin;
+            for (auto ContextIter =
+                     StackContext.beginAfterSharedPrefix(CallsiteContext);
                  ContextIter != StackContext.end(); ++ContextIter) {
               // If this is a direct recursion, simply skip the duplicate
               // entries, to be consistent with how the summary ids were
               // generated during ModuleSummaryAnalysis.
-              if (LastStackContextId == *ContextIter)
+              if (!StackIdsFromMetadata.empty() &&
+                  StackIdsFromMetadata.back() == *ContextIter)
                 continue;
-              LastStackContextId = *ContextIter;
               assert(StackIdIndexIter != MIBIter->StackIdIndices.end());
               assert(ImportSummary->getStackIdAtIndex(*StackIdIndexIter) ==
                      *ContextIter);

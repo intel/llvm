@@ -308,8 +308,7 @@ bool CSKYTargetInfo::validateAsmConstraint(
   }
 }
 
-unsigned CSKYTargetInfo::getMinGlobalAlign(uint64_t Size,
-                                           bool HasNonWeakDef) const {
+unsigned CSKYTargetInfo::getMinGlobalAlign(uint64_t Size) const {
   if (Size >= 32)
     return 32;
   return 0;

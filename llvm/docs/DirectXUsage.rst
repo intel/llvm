@@ -13,8 +13,6 @@ User Guide for the DirectX Target
 .. toctree::
    :hidden:
 
-   DirectX/DXILArchitecture
-
 Introduction
 ============
 

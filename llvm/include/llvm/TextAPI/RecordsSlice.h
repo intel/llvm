@@ -62,10 +62,10 @@ public:
   ///
   /// \param Name The name of class, not symbol.
   /// \param Linkage The linkage of symbol.
-  /// \param SymType The symbols this class represents.
+  /// \param HasEHType Whether symbol represents an eh_type.
   /// \return The non-owning pointer to added record in slice.
   ObjCInterfaceRecord *addObjCInterface(StringRef Name, RecordLinkage Linkage,
-                                        ObjCIFSymbolKind SymType);
+                                        bool HasEHType = false);
 
   /// Add ObjC IVar record.
   ///
@@ -179,9 +179,9 @@ private:
 
   /// Update set flags of requested record.
   ///
-  /// \param R The record to update.
+  /// \param R The global record to update.
   /// \param F Flags to update to.
-  void updateFlags(Record *R, SymbolFlags F) { R->Flags |= F; }
+  void updateFlags(GlobalRecord *R, SymbolFlags F) { R->Flags = F; }
 
   RecordMap<GlobalRecord> Globals;
   RecordMap<ObjCInterfaceRecord> Classes;

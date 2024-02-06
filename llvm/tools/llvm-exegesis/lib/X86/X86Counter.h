@@ -33,7 +33,7 @@ public:
 
 class X86LbrCounter : public pfm::CounterGroup {
 public:
-  static Error checkLbrSupport();
+  static llvm::Error checkLbrSupport();
 
   explicit X86LbrCounter(pfm::PerfEvent &&Event);
 
@@ -41,12 +41,12 @@ public:
 
   void start() override;
 
-  Expected<SmallVector<int64_t, 4>>
+  llvm::Expected<llvm::SmallVector<int64_t, 4>>
   readOrError(StringRef FunctionBytes) const override;
 
 private:
-  Expected<SmallVector<int64_t, 4>> doReadCounter(const void *From,
-                                                  const void *To) const;
+  llvm::Expected<llvm::SmallVector<int64_t, 4>>
+  doReadCounter(const void *From, const void *To) const;
 
   void *MMappedBuffer = nullptr;
 };

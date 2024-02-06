@@ -84,7 +84,6 @@ class LLVM_LIBRARY_VISIBILITY AArch64TargetInfo : public TargetInfo {
   bool HasGCS = false;
   bool HasRCPC3 = false;
   bool HasSMEFA64 = false;
-  bool HasPAuthLR = false;
 
   const llvm::AArch64::ArchInfo *ArchInfo = &llvm::AArch64::ARMV8A;
 
@@ -237,8 +236,7 @@ public:
   TargetInfo::CallingConvKind
   getCallingConvKind(bool ClangABICompat4) const override;
 
-  unsigned getMinGlobalAlign(uint64_t TypeSize,
-                             bool HasNonWeakDef) const override;
+  unsigned getMinGlobalAlign(uint64_t TypeSize) const override;
 };
 
 // ARM64 MinGW target

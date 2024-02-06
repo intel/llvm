@@ -332,8 +332,6 @@ public:
   void setUp();
 
   static constexpr llvm::StringLiteral symbolPrefix = "_objc_msgSend$";
-  static bool isObjCStubSymbol(Symbol *sym);
-  static StringRef getMethname(Symbol *sym);
 
 private:
   std::vector<Defined *> symbols;

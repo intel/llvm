@@ -3081,14 +3081,13 @@ inline pi_result piMemBufferPartition(pi_mem Buffer, pi_mem_flags Flags,
   return PI_SUCCESS;
 }
 
-inline pi_result piextMemGetNativeHandle(pi_mem Mem, pi_device Dev,
+inline pi_result piextMemGetNativeHandle(pi_mem Mem,
                                          pi_native_handle *NativeHandle) {
   PI_ASSERT(Mem, PI_ERROR_INVALID_MEM_OBJECT);
 
   ur_mem_handle_t UrMem = reinterpret_cast<ur_mem_handle_t>(Mem);
-  ur_device_handle_t UrDev = reinterpret_cast<ur_device_handle_t>(Dev);
   ur_native_handle_t NativeMem{};
-  HANDLE_ERRORS(urMemGetNativeHandle(UrMem, UrDev, &NativeMem));
+  HANDLE_ERRORS(urMemGetNativeHandle(UrMem, &NativeMem));
 
   *NativeHandle = reinterpret_cast<pi_native_handle>(NativeMem);
 
@@ -3374,12 +3373,6 @@ inline pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   }
   if (Advice & PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST) {
     UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_HOST;
-  }
-  if (Advice & PI_MEM_ADVICE_HIP_SET_COARSE_GRAINED) {
-    UrAdvice |= UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY;
-  }
-  if (Advice & PI_MEM_ADVICE_HIP_UNSET_COARSE_GRAINED) {
-    UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY;
   }
   if (Advice & PI_MEM_ADVICE_RESET) {
     UrAdvice |= UR_USM_ADVICE_FLAG_DEFAULT;

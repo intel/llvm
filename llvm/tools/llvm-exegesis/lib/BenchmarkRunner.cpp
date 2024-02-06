@@ -63,8 +63,8 @@ BenchmarkRunner::BenchmarkRunner(const LLVMState &State, Benchmark::ModeE Mode,
 BenchmarkRunner::~BenchmarkRunner() = default;
 
 void BenchmarkRunner::FunctionExecutor::accumulateCounterValues(
-    const SmallVectorImpl<int64_t> &NewValues,
-    SmallVectorImpl<int64_t> *Result) {
+    const llvm::SmallVectorImpl<int64_t> &NewValues,
+    llvm::SmallVectorImpl<int64_t> *Result) {
   const size_t NumValues = std::max(NewValues.size(), Result->size());
   if (NumValues > Result->size())
     Result->resize(NumValues, 0);
@@ -72,13 +72,13 @@ void BenchmarkRunner::FunctionExecutor::accumulateCounterValues(
     (*Result)[I] += NewValues[I];
 }
 
-Expected<SmallVector<int64_t, 4>>
+Expected<llvm::SmallVector<int64_t, 4>>
 BenchmarkRunner::FunctionExecutor::runAndSample(
     const char *Counters, ArrayRef<const char *> ValidationCounters,
     SmallVectorImpl<int64_t> &ValidationCounterValues) const {
   // We sum counts when there are several counters for a single ProcRes
   // (e.g. P23 on SandyBridge).
-  SmallVector<int64_t, 4> CounterValues;
+  llvm::SmallVector<int64_t, 4> CounterValues;
   SmallVector<StringRef, 2> CounterNames;
   StringRef(Counters).split(CounterNames, '+');
   for (auto &CounterName : CounterNames) {
@@ -114,8 +114,9 @@ private:
                                 BenchmarkRunner::ScratchSpace *Scratch)
       : State(State), Function(std::move(Function)), Scratch(Scratch) {}
 
-  static void accumulateCounterValues(const SmallVector<int64_t, 4> &NewValues,
-                                      SmallVector<int64_t, 4> *Result) {
+  static void
+  accumulateCounterValues(const llvm::SmallVector<int64_t, 4> &NewValues,
+                          llvm::SmallVector<int64_t, 4> *Result) {
     const size_t NumValues = std::max(NewValues.size(), Result->size());
     if (NumValues > Result->size())
       Result->resize(NumValues, 0);
@@ -123,7 +124,7 @@ private:
       (*Result)[I] += NewValues[I];
   }
 
-  Expected<SmallVector<int64_t, 4>> runWithCounter(
+  Expected<llvm::SmallVector<int64_t, 4>> runWithCounter(
       StringRef CounterName, ArrayRef<const char *> ValidationCounters,
       SmallVectorImpl<int64_t> &ValidationCounterValues) const override {
     const ExegesisTarget &ET = State.getExegesisTarget();
@@ -313,7 +314,7 @@ private:
       close(PipeFiles[1]);
       // Unregister handlers, signal handling is now handled through ptrace in
       // the host process
-      sys::unregisterHandlers();
+      llvm::sys::unregisterHandlers();
       prepareAndRunBenchmark(PipeFiles[0], Key);
       // The child process terminates in the above function, so we should never
       // get to this point.
@@ -483,7 +484,7 @@ private:
     exit(0);
   }
 
-  Expected<SmallVector<int64_t, 4>> runWithCounter(
+  Expected<llvm::SmallVector<int64_t, 4>> runWithCounter(
       StringRef CounterName, ArrayRef<const char *> ValidationCounters,
       SmallVectorImpl<int64_t> &ValidationCounterValues) const override {
     SmallVector<int64_t, 4> Value(1, 0);
@@ -522,7 +523,7 @@ Expected<SmallString<0>> BenchmarkRunner::assembleSnippet(
 
 Expected<BenchmarkRunner::RunnableConfiguration>
 BenchmarkRunner::getRunnableConfiguration(
-    const BenchmarkCode &BC, unsigned MinInstructions, unsigned LoopBodySize,
+    const BenchmarkCode &BC, unsigned NumRepetitions, unsigned LoopBodySize,
     const SnippetRepetitor &Repetitor) const {
   RunnableConfiguration RC;
 
@@ -532,7 +533,7 @@ BenchmarkRunner::getRunnableConfiguration(
       std::string(State.getTargetMachine().getTargetCPU());
   BenchmarkResult.LLVMTriple =
       State.getTargetMachine().getTargetTriple().normalize();
-  BenchmarkResult.MinInstructions = MinInstructions;
+  BenchmarkResult.NumRepetitions = NumRepetitions;
   BenchmarkResult.Info = BC.Info;
 
   const std::vector<MCInst> &Instructions = BC.Key.Instructions;
@@ -558,12 +559,12 @@ BenchmarkRunner::getRunnableConfiguration(
       return std::move(Err);
   }
 
-  // Assemble enough repetitions of the snippet so we have at least
-  // MinInstructios instructions.
+  // Assemble NumRepetitions instructions repetitions of the snippet for
+  // measurements.
   if (BenchmarkPhaseSelector >
       BenchmarkPhaseSelectorE::PrepareAndAssembleSnippet) {
     auto Snippet =
-        assembleSnippet(BC, Repetitor, BenchmarkResult.MinInstructions,
+        assembleSnippet(BC, Repetitor, BenchmarkResult.NumRepetitions,
                         LoopBodySize, GenerateMemoryInstructions);
     if (Error E = Snippet.takeError())
       return std::move(E);
@@ -634,13 +635,13 @@ std::pair<Error, Benchmark> BenchmarkRunner::runConfiguration(
   if (Error E = NewMeasurements.takeError()) {
     return {std::move(E), std::move(BenchmarkResult)};
   }
-  assert(BenchmarkResult.MinInstructions > 0 && "invalid MinInstructions");
+  assert(BenchmarkResult.NumRepetitions > 0 && "invalid NumRepetitions");
   for (BenchmarkMeasure &BM : *NewMeasurements) {
     // Scale the measurements by instruction.
-    BM.PerInstructionValue /= BenchmarkResult.MinInstructions;
+    BM.PerInstructionValue /= BenchmarkResult.NumRepetitions;
     // Scale the measurements by snippet.
     BM.PerSnippetValue /=
-        std::ceil(BenchmarkResult.MinInstructions /
+        std::ceil(BenchmarkResult.NumRepetitions /
                   static_cast<double>(BenchmarkResult.Key.Instructions.size()));
   }
   BenchmarkResult.Measurements = std::move(*NewMeasurements);

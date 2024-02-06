@@ -568,8 +568,7 @@ list of boolean expressions. The values in each expression may be:
 | ``UNSUPPORTED`` disables the test if any expression is true.
 | ``XFAIL`` expects the test to fail if any expression is true.
 
-Use, ``XFAIL: *`` if the test is expected to fail everywhere. Similarly, use
-``UNSUPPORTED: target={{.*}}`` to disable the test everywhere.
+As a special case, ``XFAIL: *`` is expected to fail everywhere.
 
 .. code-block:: llvm
 

@@ -1422,8 +1422,6 @@ func.func @ops_flags(%arg0: i64, %arg1: i64) {
   %1 = arith.subi %arg0, %arg1 overflow<nuw> : i64
   // CHECK: %{{.*}} = spirv.IMul %{{.*}}, %{{.*}} {no_signed_wrap, no_unsigned_wrap} : i64
   %2 = arith.muli %arg0, %arg1 overflow<nsw, nuw> : i64
-  // CHECK: %{{.*}} = spirv.ShiftLeftLogical %{{.*}}, %{{.*}} {no_signed_wrap, no_unsigned_wrap} : i64
-  %3 = arith.shli %arg0, %arg1 overflow<nsw, nuw> : i64
   return
 }
 
@@ -1445,8 +1443,6 @@ func.func @ops_flags(%arg0: i64, %arg1: i64) {
   %1 = arith.subi %arg0, %arg1 overflow<nuw> : i64
   // CHECK: %{{.*}} = spirv.IMul %{{.*}}, %{{.*}} : i64
   %2 = arith.muli %arg0, %arg1 overflow<nsw, nuw> : i64
-  // CHECK: %{{.*}} = spirv.IMul %{{.*}}, %{{.*}} : i64
-  %3 = arith.muli %arg0, %arg1 overflow<nsw, nuw> : i64
   return
 }
 

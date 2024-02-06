@@ -11,7 +11,6 @@
 
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/Status.h"
-#include "llvm/Support/Error.h"
 #include "llvm/Support/JSON.h"
 #include <map>
 #include <mutex>

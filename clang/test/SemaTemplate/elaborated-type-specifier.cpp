@@ -23,7 +23,6 @@ namespace PR6915 {
 template<typename T>
 struct DeclOrDef {
   enum T::foo; // expected-error{{nested name specifier for a declaration cannot depend on a template parameter}}
-               // expected-error@-1{{forward declaration of enum cannot have a nested name specifier}}
   enum T::bar { // expected-error{{nested name specifier for a declaration cannot depend on a template parameter}}
     value 
   };
@@ -32,7 +31,6 @@ struct DeclOrDef {
 namespace PR6649 {
   template <typename T> struct foo { 
     class T::bar;  // expected-error{{nested name specifier for a declaration cannot depend on a template parameter}}
-                   // expected-error@-1{{forward declaration of class cannot have a nested name specifier}}
     class T::bar { int x; }; // expected-error{{nested name specifier for a declaration cannot depend on a template parameter}}
   };
 }

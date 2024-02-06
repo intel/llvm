@@ -116,10 +116,25 @@ lldb::ValueObjectSP lldb_private::formatters::
         if (!p1_sp)
           return nullptr;
 
-        ValueObjectSP first_sp = GetFirstValueOfLibCXXCompressedPair(*p1_sp);
+        ValueObjectSP first_sp = nullptr;
+        switch (p1_sp->GetCompilerType().GetNumDirectBaseClasses()) {
+        case 1:
+          // Assume a pre llvm r300140 __compressed_pair implementation:
+          first_sp = p1_sp->GetChildMemberWithName("__first_");
+          break;
+        case 2: {
+          // Assume a post llvm r300140 __compressed_pair implementation:
+          ValueObjectSP first_elem_parent_sp =
+            p1_sp->GetChildAtIndex(0);
+          first_sp = p1_sp->GetChildMemberWithName("__value_");
+          break;
+        }
+        default:
+          return nullptr;
+        }
+
         if (!first_sp)
           return nullptr;
-
         m_element_type = first_sp->GetCompilerType();
         m_element_type = m_element_type.GetTypeTemplateArgument(0);
         m_element_type = m_element_type.GetPointeeType();
@@ -203,30 +218,37 @@ bool lldb_private::formatters::LibcxxStdUnorderedMapSyntheticFrontEnd::
     return false;
 
   ValueObjectSP p2_sp = table_sp->GetChildMemberWithName("__p2_");
-  if (!p2_sp)
+  ValueObjectSP num_elements_sp = nullptr;
+  llvm::SmallVector<llvm::StringRef, 3> next_path;
+  switch (p2_sp->GetCompilerType().GetNumDirectBaseClasses()) {
+  case 1:
+    // Assume a pre llvm r300140 __compressed_pair implementation:
+    num_elements_sp = p2_sp->GetChildMemberWithName("__first_");
+    next_path.append({"__p1_", "__first_", "__next_"});
+    break;
+  case 2: {
+    // Assume a post llvm r300140 __compressed_pair implementation:
+    ValueObjectSP first_elem_parent = p2_sp->GetChildAtIndex(0);
+    num_elements_sp = first_elem_parent->GetChildMemberWithName("__value_");
+    next_path.append({"__p1_", "__value_", "__next_"});
+    break;
+  }
+  default:
     return false;
+  }
 
-  ValueObjectSP num_elements_sp = GetFirstValueOfLibCXXCompressedPair(*p2_sp);
   if (!num_elements_sp)
     return false;
 
-  ValueObjectSP p1_sp = table_sp->GetChildMemberWithName("__p1_");
-  if (!p1_sp)
-    return false;
-
-  ValueObjectSP value_sp = GetFirstValueOfLibCXXCompressedPair(*p1_sp);
-  if (!value_sp)
-    return false;
-
-  m_tree = value_sp->GetChildMemberWithName("__next_").get();
+  m_tree = table_sp->GetChildAtNamePath(next_path).get();
   if (m_tree == nullptr)
     return false;
 
   m_num_elements = num_elements_sp->GetValueAsUnsigned(0);
 
   if (m_num_elements > 0)
-    m_next_element = m_tree;
-
+    m_next_element =
+        table_sp->GetChildAtNamePath(next_path).get();
   return false;
 }
 

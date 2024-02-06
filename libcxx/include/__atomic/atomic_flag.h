@@ -15,7 +15,7 @@
 #include <__atomic/memory_order.h>
 #include <__chrono/duration.h>
 #include <__config>
-#include <__thread/support.h>
+#include <__threading_support>
 #include <cstdint>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)

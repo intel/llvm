@@ -29,10 +29,6 @@ def FIRToLLVMLowering : Pass<"fir-to-llvm-ir", "mlir::ModuleOp"> {
            "Override module's target triple.">,
     Option<"forcedDataLayout", "datalayout", "std::string", /*default=*/"",
            "Override module's data layout.">,
-    Option<"forcedTargetCPU", "target-cpu", "std::string", /*default=*/"",
-           "Override module's target CPU.">,
-    Option<"forcedTargetFeatures", "target-features", "std::string",
-           /*default=*/"", "Override module's target features.">,
     Option<"applyTBAA", "apply-tbaa", "bool", /*default=*/"false",
            "Attach TBAA tags to memory accessing operations.">
   ];
@@ -64,10 +60,6 @@ def TargetRewritePass : Pass<"target-rewrite", "mlir::ModuleOp"> {
   let options = [
     Option<"forcedTargetTriple", "target", "std::string", /*default=*/"",
            "Override module's target triple.">,
-    Option<"forcedTargetCPU", "target-cpu", "std::string", /*default=*/"",
-           "Override module's target CPU.">,
-    Option<"forcedTargetFeatures", "target-features", "std::string",
-           /*default=*/"", "Override module's target features.">,
     Option<"noCharacterConversion", "no-character-conversion",
            "bool", /*default=*/"false",
            "Disable target-specific conversion of CHARACTER.">,

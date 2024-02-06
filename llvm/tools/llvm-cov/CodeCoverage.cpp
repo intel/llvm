@@ -343,14 +343,17 @@ void CodeCoverageTool::attachBranchSubViews(SourceCoverageView &View,
 
   // Group branches that have the same line number into the same subview.
   while (NextBranch != EndBranch) {
-    SmallVector<CountedRegion, 0> ViewBranches;
+    std::vector<CountedRegion> ViewBranches;
     unsigned CurrentLine = NextBranch->LineStart;
+
     while (NextBranch != EndBranch && CurrentLine == NextBranch->LineStart)
       ViewBranches.push_back(*NextBranch++);
 
-    View.addBranch(CurrentLine, std::move(ViewBranches),
-                   SourceCoverageView::create(SourceName, File, ViewOpts,
-                                              std::move(CoverageInfo)));
+    if (!ViewBranches.empty()) {
+      auto SubView = SourceCoverageView::create(SourceName, File, ViewOpts,
+                                                std::move(CoverageInfo));
+      View.addBranch(CurrentLine, ViewBranches, std::move(SubView));
+    }
   }
 }
 
@@ -368,15 +371,20 @@ void CodeCoverageTool::attachMCDCSubViews(SourceCoverageView &View,
   // Group and process MCDC records that have the same line number into the
   // same subview.
   while (NextRecord != EndRecord) {
-    SmallVector<MCDCRecord, 0> ViewMCDCRecords;
+    std::vector<MCDCRecord> ViewMCDCRecords;
     unsigned CurrentLine = NextRecord->getDecisionRegion().LineEnd;
-    while (NextRecord != EndRecord &&
-           CurrentLine == NextRecord->getDecisionRegion().LineEnd)
-      ViewMCDCRecords.push_back(*NextRecord++);
 
-    View.addMCDCRecord(CurrentLine, std::move(ViewMCDCRecords),
-                       SourceCoverageView::create(SourceName, File, ViewOpts,
-                                                  std::move(CoverageInfo)));
+    while (NextRecord != EndRecord &&
+           CurrentLine == NextRecord->getDecisionRegion().LineEnd) {
+      ViewMCDCRecords.push_back(*NextRecord++);
+    }
+
+    if (ViewMCDCRecords.empty())
+      continue;
+
+    auto SubView = SourceCoverageView::create(SourceName, File, ViewOpts,
+                                              std::move(CoverageInfo));
+    View.addMCDCRecord(CurrentLine, ViewMCDCRecords, std::move(SubView));
   }
 }
 

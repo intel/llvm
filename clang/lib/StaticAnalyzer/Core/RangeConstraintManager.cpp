@@ -3270,10 +3270,6 @@ void RangeConstraintManager::printJson(raw_ostream &Out, ProgramStateRef State,
 void RangeConstraintManager::printValue(raw_ostream &Out, ProgramStateRef State,
                                         SymbolRef Sym) {
   const RangeSet RS = getRange(State, Sym);
-  if (RS.isEmpty()) {
-    Out << "<empty rangeset>";
-    return;
-  }
   Out << RS.getBitWidth() << (RS.isUnsigned() ? "u:" : "s:");
   RS.dump(Out);
 }

@@ -212,8 +212,7 @@ These restrictions can be simplified to:
 
 - No two local sizes specified by the nd-ranges will be different;
 - No global id remapping is needed ([see](#work-item-remapping)) or all input offsets are 0;
-- All the fused nd-ranges must have the same offset;
-- No global id remapping is needed for kernels specifying a local size.
+- All the fused nd-ranges must have the same offset.
 
 As we can see, there is no restrictions in the number of dimensions or global sizes of the input nd-ranges.
 

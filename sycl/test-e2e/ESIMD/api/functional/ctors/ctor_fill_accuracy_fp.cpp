@@ -15,7 +15,8 @@
 // The test verifies that simd fill constructor has no precision differences.
 // The test do the following actions:
 //  - call simd with predefined base and step values
-//  - bitwise comparing that output[i] is equal to base + i * step_value.
+//  - bitwise comparing that output[0] value is equal to base value and
+//    output[i] is equal to output[i -1] + step_value
 
 #include "ctor_fill.hpp"
 

@@ -199,7 +199,6 @@ def : ReadAdvance<ReadSFBALU, 0>;
 //===----------------------------------------------------------------------===//
 // Unsupported extensions
 defm : UnsupportedSchedV;
-defm : UnsupportedSchedZabha;
 defm : UnsupportedSchedZba;
 defm : UnsupportedSchedZbb;
 defm : UnsupportedSchedZbc;

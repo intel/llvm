@@ -625,8 +625,10 @@ cc_binary(
 
 cc_library(
     name = "TableGenGlobalISel",
-    srcs = [
-        "utils/TableGen/GlobalISel/CodeExpander.cpp",
+    srcs = glob([
+        "utils/TableGen/GlobalISel/*.cpp",
+    ]) + [
+        "utils/TableGen/CodeGenInstruction.h",
     ],
     hdrs = glob([
         # We have to include these headers here as well as in the `hdrs` below
@@ -634,8 +636,7 @@ cc_library(
         # them, even though consumers of this library use inclusion relative to
         # `utils/TableGen` with the `strip_includes_prefix` of this library.
         # This mixture appears to be incompatible with header modules.
-        "utils/TableGen/GlobalISel/CodeExpander.h",
-        "utils/TableGen/GlobalISel/CodeExpansions.h",
+        "utils/TableGen/GlobalISel/*.h",
     ]),
     copts = llvm_copts,
     features = ["-header_modules"],
@@ -655,22 +656,17 @@ cc_library(
 
 cc_binary(
     name = "llvm-tblgen",
-    srcs = glob(
-        [
-            "utils/TableGen/*.cpp",
-            "utils/TableGen/*.inc",
-            "utils/TableGen/*.h",
-            "utils/TableGen/GlobalISel/*.cpp",
-            "utils/TableGen/GlobalISel/*.h",
+    srcs = glob([
+        "utils/TableGen/*.cpp",
+        "utils/TableGen/*.inc",
+        "utils/TableGen/*.h",
 
-            # Some tablegen sources include headers from MC, so these have to be
-            # listed here. MC uses headers produced by tablegen, so it cannot be a
-            # regular dependency.
-            "include/llvm/MC/*.h",
-            "include/llvm/TargetParser/SubtargetFeature.h",
-        ],
-        exclude = ["utils/TableGen/GlobalISel/CodeExpander.cpp"],
-    ),
+        # Some tablegen sources include headers from MC, so these have to be
+        # listed here. MC uses headers produced by tablegen, so it cannot be a
+        # regular dependency.
+        "include/llvm/MC/*.h",
+        "include/llvm/TargetParser/SubtargetFeature.h",
+    ]),
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -1789,12 +1785,13 @@ cc_library(
 
 cc_library(
     name = "CodeGenTypes",
-    srcs = glob([
-        "lib/CodeGenTypes/**/*.cpp",
-    ]),
-    hdrs = glob([
-        "include/llvm/CodeGenTypes/**/*.h",
-    ]),
+    srcs = [
+        "lib/CodeGen/LowLevelType.cpp",
+    ],
+    hdrs = [
+        "include/llvm/CodeGen/LowLevelType.h",
+        "include/llvm/CodeGen/MachineValueType.h",
+    ],
     copts = llvm_copts,
     deps = [
         ":Support",
@@ -1810,6 +1807,9 @@ cc_library(
             "lib/CodeGen/**/*.h",
             "lib/CodeGen/SelectionDAG/*.cpp",
             "lib/CodeGen/SelectionDAG/*.h",
+        ],
+        exclude = [
+            "lib/CodeGen/LowLevelType.cpp",
         ],
     ),
     hdrs = [
@@ -2131,7 +2131,6 @@ llvm_target_lib_list = [lib for lib in [
             ("-gen-dag-isel", "lib/Target/RISCV/RISCVGenDAGISel.inc"),
             ("-gen-disassembler", "lib/Target/RISCV/RISCVGenDisassemblerTables.inc"),
             ("-gen-instr-info", "lib/Target/RISCV/RISCVGenInstrInfo.inc"),
-            ("-gen-macro-fusion-pred", "lib/Target/RISCV/RISCVGenMacroFusion.inc"),
             ("-gen-emitter", "lib/Target/RISCV/RISCVGenMCCodeEmitter.inc"),
             ("-gen-pseudo-lowering", "lib/Target/RISCV/RISCVGenMCPseudoLowering.inc"),
             ("-gen-register-bank", "lib/Target/RISCV/RISCVGenRegisterBank.inc"),
@@ -4968,36 +4967,6 @@ py_binary(
     name = "lit",
     testonly = True,
     srcs = ["utils/lit/lit.py"] + glob(["utils/lit/lit/**/*.py"]),
-)
-
-py_binary(
-    name = "extract_ir",
-    srcs = [
-        "utils/mlgo-utils/mlgo/__init__.py",
-        "utils/mlgo-utils/mlgo/corpus/extract_ir.py",
-        "utils/mlgo-utils/mlgo/corpus/extract_ir_lib.py"
-    ],
-    imports = ["utils/mlgo-utils"]
-)
-
-py_binary(
-    name = "combine_training_corpus",
-    srcs = [
-        "utils/mlgo-utils/mlgo/__init__.py",
-        "utils/mlgo-utils/mlgo/corpus/combine_training_corpus.py",
-        "utils/mlgo-utils/mlgo/corpus/combine_training_corpus_lib.py"
-    ],
-    imports = ["utils/mlgo-utils"]
-)
-
-py_binary(
-    name = "make_corpus",
-    srcs = [
-        "utils/mlgo-utils/mlgo/__init__.py",
-        "utils/mlgo-utils/mlgo/corpus/make_corpus.py",
-        "utils/mlgo-utils/mlgo/corpus/make_corpus_lib.py"
-    ],
-    imports = ["utils/mlgo-utils"]
 )
 
 cc_library(

@@ -254,8 +254,8 @@ bool LLParser::validateEndOfModule(bool UpgradeDebugInfo) {
     GlobalValue *GV = nullptr;
     if (GVRef.Kind == ValID::t_GlobalName) {
       GV = M->getNamedValue(GVRef.StrVal);
-    } else {
-      GV = NumberedVals.get(GVRef.UIntVal);
+    } else if (GVRef.UIntVal < NumberedVals.size()) {
+      GV = dyn_cast<GlobalValue>(NumberedVals[GVRef.UIntVal]);
     }
 
     if (!GV)
@@ -303,7 +303,15 @@ bool LLParser::validateEndOfModule(bool UpgradeDebugInfo) {
                  "use of undefined comdat '$" +
                      ForwardRefComdats.begin()->first + "'");
 
+  // Automatically create declarations for intrinsics. Intrinsics can only be
+  // called directly, so the call function type directly determines the
+  // declaration function type.
   for (const auto &[Name, Info] : make_early_inc_range(ForwardRefVals)) {
+    if (!StringRef(Name).starts_with("llvm."))
+      continue;
+
+    // Don't do anything if the intrinsic is called with different function
+    // types. This would result in a verifier error anyway.
     auto GetCommonFunctionType = [](Value *V) -> FunctionType * {
       FunctionType *FTy = nullptr;
       for (User *U : V->users()) {
@@ -314,38 +322,10 @@ bool LLParser::validateEndOfModule(bool UpgradeDebugInfo) {
       }
       return FTy;
     };
-
-    auto GetDeclarationType = [&](StringRef Name, Value *V) -> Type * {
-      // Automatically create declarations for intrinsics. Intrinsics can only
-      // be called directly, so the call function type directly determines the
-      // declaration function type.
-      if (Name.starts_with("llvm."))
-        // Don't do anything if the intrinsic is called with different function
-        // types. This would result in a verifier error anyway.
-        return GetCommonFunctionType(V);
-
-      if (AllowIncompleteIR) {
-        // If incomplete IR is allowed, also add declarations for
-        // non-intrinsics. First check whether this global is only used in
-        // calls with the same type, in which case we'll insert a function.
-        if (auto *Ty = GetCommonFunctionType(V))
-          return Ty;
-
-        // Otherwise, fall back to using a dummy i8 type.
-        return Type::getInt8Ty(Context);
-      }
-      return nullptr;
-    };
-
-    if (Type *Ty = GetDeclarationType(Name, Info.first)) {
-      GlobalValue *GV;
-      if (auto *FTy = dyn_cast<FunctionType>(Ty))
-        GV = Function::Create(FTy, GlobalValue::ExternalLinkage, Name, M);
-      else
-        GV = new GlobalVariable(*M, Ty, /*isConstant*/ false,
-                                GlobalValue::ExternalLinkage,
-                                /*Initializer*/ nullptr, Name);
-      Info.first->replaceAllUsesWith(GV);
+    if (FunctionType *FTy = GetCommonFunctionType(Info.first)) {
+      Function *Fn =
+          Function::Create(FTy, GlobalValue::ExternalLinkage, Name, M);
+      Info.first->replaceAllUsesWith(Fn);
       Info.first->eraseFromParent();
       ForwardRefVals.erase(Name);
     }
@@ -684,9 +664,8 @@ bool LLParser::parseDeclare() {
   }
 
   Function *F;
-  unsigned FunctionNumber = -1;
   SmallVector<unsigned> UnnamedArgNums;
-  if (parseFunctionHeader(F, false, FunctionNumber, UnnamedArgNums))
+  if (parseFunctionHeader(F, false, UnnamedArgNums))
     return true;
   for (auto &MD : MDs)
     F->addMetadata(MD.first, *MD.second);
@@ -700,11 +679,10 @@ bool LLParser::parseDefine() {
   Lex.Lex();
 
   Function *F;
-  unsigned FunctionNumber = -1;
   SmallVector<unsigned> UnnamedArgNums;
-  return parseFunctionHeader(F, true, FunctionNumber, UnnamedArgNums) ||
+  return parseFunctionHeader(F, true, UnnamedArgNums) ||
          parseOptionalFunctionMetadata(*F) ||
-         parseFunctionBody(*F, FunctionNumber, UnnamedArgNums);
+         parseFunctionBody(*F, UnnamedArgNums);
 }
 
 /// parseGlobalType
@@ -745,21 +723,19 @@ bool LLParser::parseOptionalUnnamedAddr(
 ///                OptionalDLLStorageClass
 ///                                                     ...   -> global variable
 bool LLParser::parseUnnamedGlobal() {
-  unsigned VarID;
+  unsigned VarID = NumberedVals.size();
   std::string Name;
   LocTy NameLoc = Lex.getLoc();
 
   // Handle the GlobalID form.
   if (Lex.getKind() == lltok::GlobalID) {
-    VarID = Lex.getUIntVal();
-    if (checkValueID(NameLoc, "global", "@", NumberedVals.getNext(), VarID))
-      return true;
-
+    if (Lex.getUIntVal() != VarID)
+      return error(Lex.getLoc(),
+                   "variable expected to be numbered '%" + Twine(VarID) + "'");
     Lex.Lex(); // eat GlobalID;
+
     if (parseToken(lltok::equal, "expected '=' after name"))
       return true;
-  } else {
-    VarID = NumberedVals.getNext();
   }
 
   bool HasLinkage;
@@ -774,11 +750,11 @@ bool LLParser::parseUnnamedGlobal() {
 
   switch (Lex.getKind()) {
   default:
-    return parseGlobal(Name, VarID, NameLoc, Linkage, HasLinkage, Visibility,
+    return parseGlobal(Name, NameLoc, Linkage, HasLinkage, Visibility,
                        DLLStorageClass, DSOLocal, TLM, UnnamedAddr);
   case lltok::kw_alias:
   case lltok::kw_ifunc:
-    return parseAliasOrIFunc(Name, VarID, NameLoc, Linkage, Visibility,
+    return parseAliasOrIFunc(Name, NameLoc, Linkage, Visibility,
                              DLLStorageClass, DSOLocal, TLM, UnnamedAddr);
   }
 }
@@ -807,11 +783,11 @@ bool LLParser::parseNamedGlobal() {
 
   switch (Lex.getKind()) {
   default:
-    return parseGlobal(Name, -1, NameLoc, Linkage, HasLinkage, Visibility,
+    return parseGlobal(Name, NameLoc, Linkage, HasLinkage, Visibility,
                        DLLStorageClass, DSOLocal, TLM, UnnamedAddr);
   case lltok::kw_alias:
   case lltok::kw_ifunc:
-    return parseAliasOrIFunc(Name, -1, NameLoc, Linkage, Visibility,
+    return parseAliasOrIFunc(Name, NameLoc, Linkage, Visibility,
                              DLLStorageClass, DSOLocal, TLM, UnnamedAddr);
   }
 }
@@ -1107,8 +1083,8 @@ static void maybeSetDSOLocal(bool DSOLocal, GlobalValue &GV) {
 ///
 /// Everything through OptionalUnnamedAddr has already been parsed.
 ///
-bool LLParser::parseAliasOrIFunc(const std::string &Name, unsigned NameID,
-                                 LocTy NameLoc, unsigned L, unsigned Visibility,
+bool LLParser::parseAliasOrIFunc(const std::string &Name, LocTy NameLoc,
+                                 unsigned L, unsigned Visibility,
                                  unsigned DLLStorageClass, bool DSOLocal,
                                  GlobalVariable::ThreadLocalMode TLM,
                                  GlobalVariable::UnnamedAddr UnnamedAddr) {
@@ -1177,7 +1153,7 @@ bool LLParser::parseAliasOrIFunc(const std::string &Name, unsigned NameID,
       return error(NameLoc, "redefinition of global '@" + Name + "'");
     }
   } else {
-    auto I = ForwardRefValIDs.find(NameID);
+    auto I = ForwardRefValIDs.find(NumberedVals.size());
     if (I != ForwardRefValIDs.end()) {
       GVal = I->second.first;
       ForwardRefValIDs.erase(I);
@@ -1221,7 +1197,7 @@ bool LLParser::parseAliasOrIFunc(const std::string &Name, unsigned NameID,
   }
 
   if (Name.empty())
-    NumberedVals.add(NameID, GV);
+    NumberedVals.push_back(GV);
 
   if (GVal) {
     // Verify that types agree.
@@ -1298,8 +1274,8 @@ bool LLParser::parseSanitizer(GlobalVariable *GV) {
 /// Everything up to and including OptionalUnnamedAddr has been parsed
 /// already.
 ///
-bool LLParser::parseGlobal(const std::string &Name, unsigned NameID,
-                           LocTy NameLoc, unsigned Linkage, bool HasLinkage,
+bool LLParser::parseGlobal(const std::string &Name, LocTy NameLoc,
+                           unsigned Linkage, bool HasLinkage,
                            unsigned Visibility, unsigned DLLStorageClass,
                            bool DSOLocal, GlobalVariable::ThreadLocalMode TLM,
                            GlobalVariable::UnnamedAddr UnnamedAddr) {
@@ -1349,12 +1325,7 @@ bool LLParser::parseGlobal(const std::string &Name, unsigned NameID,
       return error(NameLoc, "redefinition of global '@" + Name + "'");
     }
   } else {
-    // Handle @"", where a name is syntactically specified, but semantically
-    // missing.
-    if (NameID == (unsigned)-1)
-      NameID = NumberedVals.getNext();
-
-    auto I = ForwardRefValIDs.find(NameID);
+    auto I = ForwardRefValIDs.find(NumberedVals.size());
     if (I != ForwardRefValIDs.end()) {
       GVal = I->second.first;
       ForwardRefValIDs.erase(I);
@@ -1366,7 +1337,7 @@ bool LLParser::parseGlobal(const std::string &Name, unsigned NameID,
       GlobalVariable::NotThreadLocal, AddrSpace);
 
   if (Name.empty())
-    NumberedVals.add(NameID, GV);
+    NumberedVals.push_back(GV);
 
   // Set the parsed properties on the global.
   if (Init)
@@ -1753,7 +1724,7 @@ GlobalValue *LLParser::getGlobalVal(unsigned ID, Type *Ty, LocTy Loc) {
     return nullptr;
   }
 
-  GlobalValue *Val = NumberedVals.get(ID);
+  GlobalValue *Val = ID < NumberedVals.size() ? NumberedVals[ID] : nullptr;
 
   // If this is a forward reference for the value, see if we already created a
   // forward ref record.
@@ -3809,7 +3780,8 @@ bool LLParser::parseValID(ValID &ID, PerFunctionState *PFS, Type *ExpectedTy) {
     // Try to find the function (but skip it if it's forward-referenced).
     GlobalValue *GV = nullptr;
     if (Fn.Kind == ValID::t_GlobalID) {
-      GV = NumberedVals.get(Fn.UIntVal);
+      if (Fn.UIntVal < NumberedVals.size())
+        GV = NumberedVals[Fn.UIntVal];
     } else if (!ForwardRefVals.count(Fn.StrVal)) {
       GV = M->getNamedValue(Fn.StrVal);
     }
@@ -3898,7 +3870,8 @@ bool LLParser::parseValID(ValID &ID, PerFunctionState *PFS, Type *ExpectedTy) {
     // Try to find the function (but skip it if it's forward-referenced).
     GlobalValue *GV = nullptr;
     if (Fn.Kind == ValID::t_GlobalID) {
-      GV = NumberedVals.get(Fn.UIntVal);
+      if (Fn.UIntVal < NumberedVals.size())
+        GV = NumberedVals[Fn.UIntVal];
     } else if (!ForwardRefVals.count(Fn.StrVal)) {
       GV = M->getNamedValue(Fn.StrVal);
     }
@@ -6045,7 +6018,6 @@ bool LLParser::parseTypeAndBasicBlock(BasicBlock *&BB, LocTy &Loc,
 ///       '(' ArgList ')' OptAddrSpace OptFuncAttrs OptSection OptionalAlign
 ///       OptGC OptionalPrefix OptionalPrologue OptPersonalityFn
 bool LLParser::parseFunctionHeader(Function *&Fn, bool IsDefine,
-                                   unsigned &FunctionNumber,
                                    SmallVectorImpl<unsigned> &UnnamedArgNums) {
   // parse the linkage.
   LocTy LinkageLoc = Lex.getLoc();
@@ -6104,10 +6076,11 @@ bool LLParser::parseFunctionHeader(Function *&Fn, bool IsDefine,
   if (Lex.getKind() == lltok::GlobalVar) {
     FunctionName = Lex.getStrVal();
   } else if (Lex.getKind() == lltok::GlobalID) {     // @42 is ok.
-    FunctionNumber = Lex.getUIntVal();
-    if (checkValueID(NameLoc, "function", "@", NumberedVals.getNext(),
-                     FunctionNumber))
-      return true;
+    unsigned NameID = Lex.getUIntVal();
+
+    if (NameID != NumberedVals.size())
+      return tokError("function expected to be numbered '%" +
+                      Twine(NumberedVals.size()) + "'");
   } else {
     return tokError("expected function name");
   }
@@ -6205,19 +6178,14 @@ bool LLParser::parseFunctionHeader(Function *&Fn, bool IsDefine,
     }
 
   } else {
-    // Handle @"", where a name is syntactically specified, but semantically
-    // missing.
-    if (FunctionNumber == (unsigned)-1)
-      FunctionNumber = NumberedVals.getNext();
-
     // If this is a definition of a forward referenced function, make sure the
     // types agree.
-    auto I = ForwardRefValIDs.find(FunctionNumber);
+    auto I = ForwardRefValIDs.find(NumberedVals.size());
     if (I != ForwardRefValIDs.end()) {
       FwdFn = I->second.first;
       if (FwdFn->getType() != PFT)
         return error(NameLoc, "type of definition and forward reference of '@" +
-                                  Twine(FunctionNumber) +
+                                  Twine(NumberedVals.size()) +
                                   "' disagree: "
                                   "expected '" +
                                   getTypeString(PFT) + "' but was '" +
@@ -6232,7 +6200,7 @@ bool LLParser::parseFunctionHeader(Function *&Fn, bool IsDefine,
   assert(Fn->getAddressSpace() == AddrSpace && "Created function in wrong AS");
 
   if (FunctionName.empty())
-    NumberedVals.add(FunctionNumber, Fn);
+    NumberedVals.push_back(Fn);
 
   Fn->setLinkage((GlobalValue::LinkageTypes)Linkage);
   maybeSetDSOLocal(DSOLocal, *Fn);
@@ -6278,7 +6246,7 @@ bool LLParser::parseFunctionHeader(Function *&Fn, bool IsDefine,
   ValID ID;
   if (FunctionName.empty()) {
     ID.Kind = ValID::t_GlobalID;
-    ID.UIntVal = FunctionNumber;
+    ID.UIntVal = NumberedVals.size() - 1;
   } else {
     ID.Kind = ValID::t_GlobalName;
     ID.StrVal = FunctionName;
@@ -6333,11 +6301,14 @@ bool LLParser::PerFunctionState::resolveForwardRefBlockAddresses() {
 
 /// parseFunctionBody
 ///   ::= '{' BasicBlock+ UseListOrderDirective* '}'
-bool LLParser::parseFunctionBody(Function &Fn, unsigned FunctionNumber,
+bool LLParser::parseFunctionBody(Function &Fn,
                                  ArrayRef<unsigned> UnnamedArgNums) {
   if (Lex.getKind() != lltok::lbrace)
     return tokError("expected '{' in function body");
   Lex.Lex();  // eat the {.
+
+  int FunctionNumber = -1;
+  if (!Fn.hasName()) FunctionNumber = NumberedVals.size()-1;
 
   PerFunctionState PFS(*this, Fn, FunctionNumber, UnnamedArgNums);
 
@@ -8273,7 +8244,7 @@ bool LLParser::parseUseListOrderBB() {
   if (Fn.Kind == ValID::t_GlobalName)
     GV = M->getNamedValue(Fn.StrVal);
   else if (Fn.Kind == ValID::t_GlobalID)
-    GV = NumberedVals.get(Fn.UIntVal);
+    GV = Fn.UIntVal < NumberedVals.size() ? NumberedVals[Fn.UIntVal] : nullptr;
   else
     return error(Fn.Loc, "expected function name in uselistorder_bb");
   if (!GV)

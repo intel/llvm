@@ -16,7 +16,6 @@
 #define LLVM_CLANG_FRONTEND_TEXTDIAGNOSTIC_H
 
 #include "clang/Frontend/DiagnosticRenderer.h"
-#include "llvm/Support/raw_ostream.h"
 
 namespace clang {
 
@@ -34,21 +33,13 @@ namespace clang {
 /// printing coming out of libclang.
 class TextDiagnostic : public DiagnosticRenderer {
   raw_ostream &OS;
-  const Preprocessor *PP;
 
 public:
-  TextDiagnostic(raw_ostream &OS, const LangOptions &LangOpts,
-                 DiagnosticOptions *DiagOpts, const Preprocessor *PP = nullptr);
+  TextDiagnostic(raw_ostream &OS,
+                 const LangOptions &LangOpts,
+                 DiagnosticOptions *DiagOpts);
 
   ~TextDiagnostic() override;
-
-  struct StyleRange {
-    unsigned Start;
-    unsigned End;
-    enum llvm::raw_ostream::Colors Color;
-    StyleRange(unsigned S, unsigned E, enum llvm::raw_ostream::Colors C)
-        : Start(S), End(E), Color(C){};
-  };
 
   /// Print the diagonstic level to a raw_ostream.
   ///
@@ -113,8 +104,7 @@ private:
                            ArrayRef<FixItHint> Hints);
 
   void emitSnippet(StringRef SourceLine, unsigned MaxLineNoDisplayWidth,
-                   unsigned LineNo, unsigned DisplayLineNo,
-                   ArrayRef<StyleRange> Styles);
+                   unsigned LineNo);
 
   void emitParseableFixits(ArrayRef<FixItHint> Hints, const SourceManager &SM);
 };

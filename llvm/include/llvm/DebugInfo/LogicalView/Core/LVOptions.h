@@ -510,14 +510,14 @@ class LVPatterns final {
   template <typename T, typename U>
   void resolveGenericPatternMatch(T *Element, const U &Requests) {
     assert(Element && "Element must not be nullptr");
-    auto CheckPattern = [this, Element]() -> bool {
+    auto CheckPattern = [=]() -> bool {
       return (Element->isNamed() &&
               (matchGenericPattern(Element->getName()) ||
                matchGenericPattern(Element->getLinkageName()))) ||
              (Element->isTyped() &&
               matchGenericPattern(Element->getTypeName()));
     };
-    auto CheckOffset = [this, Element]() -> bool {
+    auto CheckOffset = [=]() -> bool {
       return matchOffsetPattern(Element->getOffset());
     };
     if ((options().getSelectGenericPattern() && CheckPattern()) ||
@@ -530,12 +530,12 @@ class LVPatterns final {
   template <typename U>
   void resolveGenericPatternMatch(LVLine *Line, const U &Requests) {
     assert(Line && "Line must not be nullptr");
-    auto CheckPattern = [this, Line]() -> bool {
+    auto CheckPattern = [=]() -> bool {
       return matchGenericPattern(Line->lineNumberAsStringStripped()) ||
              matchGenericPattern(Line->getName()) ||
              matchGenericPattern(Line->getPathname());
     };
-    auto CheckOffset = [this, Line]() -> bool {
+    auto CheckOffset = [=]() -> bool {
       return matchOffsetPattern(Line->getAddress());
     };
     if ((options().getSelectGenericPattern() && CheckPattern()) ||

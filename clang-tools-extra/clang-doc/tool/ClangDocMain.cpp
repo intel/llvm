@@ -197,7 +197,7 @@ Example usage for a project using a compile commands database:
     llvm::sys::path::native(AssetsPath, IndexJS);
     llvm::sys::path::append(IndexJS, "index.js");
     CDCtx.UserStylesheets.insert(CDCtx.UserStylesheets.begin(),
-                                 std::string(DefaultStylesheet));
+                                 std::string(DefaultStylesheet.str()));
     CDCtx.FilesToCopy.emplace_back(IndexJS.str());
   }
 

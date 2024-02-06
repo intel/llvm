@@ -1584,7 +1584,7 @@ bool GCNHazardRecognizer::fixVALUPartialForwardingHazard(MachineInstr *MI) {
       if (DefVALUs != std::numeric_limits<int>::max()) {
         if (DefVALUs >= State.ExecPos)
           PreExecPos = std::min(PreExecPos, DefVALUs);
-        else
+        else if (DefVALUs < State.ExecPos)
           PostExecPos = std::min(PostExecPos, DefVALUs);
       }
     }

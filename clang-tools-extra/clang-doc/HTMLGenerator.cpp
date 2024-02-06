@@ -280,7 +280,7 @@ genStylesheetsHTML(StringRef InfoPath, const ClangDocContext &CDCtx) {
                             llvm::sys::path::filename(FilePath));
     // Paths in HTML must be in posix-style
     llvm::sys::path::native(StylesheetPath, llvm::sys::path::Style::posix);
-    LinkNode->Attributes.emplace_back("href", std::string(StylesheetPath));
+    LinkNode->Attributes.emplace_back("href", std::string(StylesheetPath.str()));
     Out.emplace_back(std::move(LinkNode));
   }
   return Out;
@@ -295,7 +295,7 @@ genJsScriptsHTML(StringRef InfoPath, const ClangDocContext &CDCtx) {
     llvm::sys::path::append(ScriptPath, llvm::sys::path::filename(FilePath));
     // Paths in HTML must be in posix-style
     llvm::sys::path::native(ScriptPath, llvm::sys::path::Style::posix);
-    ScriptNode->Attributes.emplace_back("src", std::string(ScriptPath));
+    ScriptNode->Attributes.emplace_back("src", std::string(ScriptPath.str()));
     Out.emplace_back(std::move(ScriptNode));
   }
   return Out;

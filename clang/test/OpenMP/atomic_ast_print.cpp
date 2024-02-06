@@ -232,8 +232,6 @@ T foo(T argc) {
   { if (a < c) { a = c; } }
 #pragma omp atomic compare fail(seq_cst)
   { if (a < c) { a = c; } }
-#pragma omp atomic compare seq_cst weak
-  { if(a == b) { a = c; } }
 #endif
   return T();
 }
@@ -1113,8 +1111,6 @@ int main(int argc, char **argv) {
   if(a < b) { a = b; }
 #pragma omp atomic compare fail(seq_cst)
   if(a < b) { a = b; }
-#pragma omp atomic compare seq_cst weak
-  if(a == b) { a = c; }
 #endif
   // CHECK-NEXT: #pragma omp atomic
   // CHECK-NEXT: a++;
@@ -1456,10 +1452,6 @@ int main(int argc, char **argv) {
   // CHECK-51-NEXT: #pragma omp atomic compare fail(seq_cst)
   // CHECK-51-NEXT: if (a < b) {
   // CHECK-51-NEXT: a = b;
-  // CHECK-51-NEXT: }
-  // CHECK-51-NEXT: #pragma omp atomic compare seq_cst weak
-  // CHECK-51-NEXT: if (a == b) {
-  // CHECK-51-NEXT: a = c;
   // CHECK-51-NEXT: }
   // expect-note@+1 {{in instantiation of function template specialization 'foo<int>' requested here}}
   return foo(a);

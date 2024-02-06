@@ -29,7 +29,6 @@
 #include "mlir/Conversion/ControlFlowToSPIRV/ControlFlowToSPIRV.h"
 #include "mlir/Conversion/ControlFlowToSPIRV/ControlFlowToSPIRVPass.h"
 #include "mlir/Conversion/ConvertToLLVM/ToLLVMPass.h"
-#include "mlir/Conversion/FuncToEmitC/FuncToEmitCPass.h"
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVMPass.h"
 #include "mlir/Conversion/FuncToSPIRV/FuncToSPIRVPass.h"
 #include "mlir/Conversion/GPUCommon/GPUCommonPass.h"

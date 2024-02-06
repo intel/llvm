@@ -18,12 +18,6 @@ _SPIRV_OP_INTERNAL(JointMatrixGetElementCoordINTEL,
                    internal::OpJointMatrixGetElementCoordINTEL)
 _SPIRV_OP_INTERNAL(CooperativeMatrixPrefetchINTEL,
                    internal::OpCooperativeMatrixPrefetchINTEL)
-_SPIRV_OP_INTERNAL(CooperativeMatrixLoadCheckedINTEL,
-                   internal::OpCooperativeMatrixLoadCheckedINTEL)
-_SPIRV_OP_INTERNAL(CooperativeMatrixStoreCheckedINTEL,
-                   internal::OpCooperativeMatrixStoreCheckedINTEL)
-_SPIRV_OP_INTERNAL(CooperativeMatrixConstructCheckedINTEL,
-                   internal::OpCooperativeMatrixConstructCheckedINTEL)
 _SPIRV_OP_INTERNAL(CooperativeMatrixApplyFunctionINTEL,
                    internal::OpCooperativeMatrixApplyFunctionINTEL)
 _SPIRV_OP_INTERNAL(ComplexFMulINTEL, internal::ComplexFMulINTEL)

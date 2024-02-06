@@ -28,9 +28,6 @@
 #  pragma GCC system_header
 #endif
 
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
-
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 template <class _AlgPolicy,
@@ -100,7 +97,5 @@ inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 _RandomAccessIterator
 }
 
 _LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___ALGORITHM_PARTIAL_SORT_COPY_H

@@ -254,7 +254,8 @@ static void writeLatencySnippetHtml(raw_ostream &OS,
   }
 }
 
-void Analysis::printPointHtml(const Benchmark &Point, raw_ostream &OS) const {
+void Analysis::printPointHtml(const Benchmark &Point,
+                              llvm::raw_ostream &OS) const {
   OS << "<li><span class=\"mono\" title=\"";
   writeSnippet<EscapeTag, kEscapeHtmlString>(OS, Point.AssembledSnippet, "\n");
   OS << "\">";
@@ -409,9 +410,9 @@ void Analysis::printSchedClassDescHtml(const ResolvedSchedClass &RSC,
   OS << "</table>";
 }
 
-void Analysis::printClusterRawHtml(const BenchmarkClustering::ClusterId &Id,
-                                   StringRef display_name,
-                                   raw_ostream &OS) const {
+void Analysis::printClusterRawHtml(
+    const BenchmarkClustering::ClusterId &Id, StringRef display_name,
+    llvm::raw_ostream &OS) const {
   const auto &Points = Clustering_.getPoints();
   const auto &Cluster = Clustering_.getCluster(Id);
   if (Cluster.PointIndices.empty())
@@ -524,9 +525,6 @@ Error Analysis::run<Analysis::PrintSchedClassInconsistencies>(
   OS << "</span></h3><h3>Cpu: <span class=\"mono\">";
   writeEscaped<kEscapeHtml>(OS, FirstPoint.CpuName);
   OS << "</span></h3>";
-  OS << "<h3>Epsilon: <span class=\"mono\">"
-     << format("%0.2f", std::sqrt(AnalysisInconsistencyEpsilonSquared_))
-     << "</span></h3>";
 
   const auto &SI = State_.getSubtargetInfo();
   for (const auto &RSCAndPoints : makePointsPerSchedClass()) {
@@ -540,8 +538,8 @@ Error Analysis::run<Analysis::PrintSchedClassInconsistencies>(
         continue; // Ignore noise and errors. FIXME: take noise into account ?
       if (ClusterId.isUnstable() ^ AnalysisDisplayUnstableOpcodes_)
         continue; // Either display stable or unstable clusters only.
-      auto SchedClassClusterIt =
-          find_if(SchedClassClusters, [ClusterId](const SchedClassCluster &C) {
+      auto SchedClassClusterIt = llvm::find_if(
+          SchedClassClusters, [ClusterId](const SchedClassCluster &C) {
             return C.id() == ClusterId;
           });
       if (SchedClassClusterIt == SchedClassClusters.end()) {

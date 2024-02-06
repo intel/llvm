@@ -351,11 +351,9 @@ public:
   ///
   /// \param Kind The kind of global symbol to record.
   /// \param Name The name of the symbol.
-  /// \param ObjCIF The ObjCInterface symbol type, if applicable.
-  std::optional<const Symbol *>
-  getSymbol(EncodeKind Kind, StringRef Name,
-            ObjCIFSymbolKind ObjCIF = ObjCIFSymbolKind::None) const {
-    if (auto *Sym = SymbolsSet->findSymbol(Kind, Name, ObjCIF))
+  std::optional<const Symbol *> getSymbol(SymbolKind Kind,
+                                          StringRef Name) const {
+    if (auto *Sym = SymbolsSet->findSymbol(Kind, Name))
       return Sym;
     return std::nullopt;
   }
@@ -363,7 +361,7 @@ public:
   /// Add a symbol to the symbols list or extend an existing one.
   template <typename RangeT, typename ElT = std::remove_reference_t<
                                  decltype(*std::begin(std::declval<RangeT>()))>>
-  void addSymbol(EncodeKind Kind, StringRef Name, RangeT &&Targets,
+  void addSymbol(SymbolKind Kind, StringRef Name, RangeT &&Targets,
                  SymbolFlags Flags = SymbolFlags::None) {
     SymbolsSet->addGlobal(Kind, Name, Flags, Targets);
   }
@@ -374,7 +372,7 @@ public:
   /// \param Name The name of the symbol.
   /// \param Targets The list of targets the symbol is defined in.
   /// \param Flags The properties the symbol holds.
-  void addSymbol(EncodeKind Kind, StringRef Name, TargetList &&Targets,
+  void addSymbol(SymbolKind Kind, StringRef Name, TargetList &&Targets,
                  SymbolFlags Flags = SymbolFlags::None) {
     SymbolsSet->addGlobal(Kind, Name, Flags, Targets);
   }
@@ -385,7 +383,7 @@ public:
   /// \param Name The name of the symbol.
   /// \param Target The target the symbol is defined in.
   /// \param Flags The properties the symbol holds.
-  void addSymbol(EncodeKind Kind, StringRef Name, Target &Target,
+  void addSymbol(SymbolKind Kind, StringRef Name, Target &Target,
                  SymbolFlags Flags = SymbolFlags::None) {
     SymbolsSet->addGlobal(Kind, Name, Flags, Target);
   }

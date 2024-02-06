@@ -354,7 +354,7 @@ static Value genSubscript(CodegenEnv &env, OpBuilder &builder, OpOperand *t,
   const auto stt = getSparseTensorType(t->get());
   if (stt.hasEncoding()) {
     // For sparse tensors we only push the last-level's position onto `args`.
-    const auto pos = env.emitter().getValPosits(tid);
+    const auto pos = env.emitter().getPosits()[tid].back();
     assert(pos);
     args.push_back(pos);
   } else {
@@ -815,7 +815,8 @@ static Operation *genCoIteration(CodegenEnv &env, OpBuilder &builder,
   Operation *loop = *env.genLoopBoundary([&](MutableArrayRef<Value> reduc) {
     // Construct while-loop with a parameter for each index.
     return env.emitter().enterCoIterationOverTensorsAtLvls(
-        builder, env.op().getLoc(), tidLvls, reduc, tryParallel, needsUniv);
+        builder, env.op().getLoc(), tidLvls, reduc, tryParallel,
+        /*genDedup=*/true, needsUniv);
   });
   assert(loop);
   return loop;
@@ -893,7 +894,7 @@ static scf::IfOp genIf(CodegenEnv &env, OpBuilder &builder, LoopId curr,
         if (isCompressedLT(lt) || isSingletonLT(lt) ||
             isLooseCompressedLT(lt) || is2OutOf4LT(lt)) {
           assert(lvl.has_value());
-          const Value crd = env.emitter().getCoord(tid, *lvl);
+          const Value crd = env.emitter().getCoords()[tid][*lvl];
           const Value lvar = env.getLoopVar(curr);
           clause = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::eq,
                                                  crd, lvar);
@@ -1031,14 +1032,10 @@ static bool getAllTidLvlsInLatPoints(
       });
 
   if (isDenseLT(env.lt(outTid, curr))) {
-    auto stt = getSparseTensorType(env.op().getOutputs().front());
-    // Note that we generate dense indices of the output tensor unconditionally,
-    // since they may not appear in the lattice, but may be needed for
-    // linearized env.
-    // TODO: we should avoid introducing corner cases for all-dense sparse
-    // tensors.
-    if (stt.hasEncoding() && stt.isAllDense())
-      callback(env.makeTensorLevel(outTid, *outLvl), nullptr);
+    // Note that we generate dense indices of the output tensor
+    // unconditionally, since they may not appear in the lattice, but may be
+    // needed for linearized env.
+    callback(env.makeTensorLevel(outTid, *outLvl), nullptr);
   }
 
   if (numloopCond == 0) {
@@ -1067,11 +1064,6 @@ static bool startLoopSeq(CodegenEnv &env, OpBuilder &builder, ExprId exp,
 
   SmallVector<TensorLevel> tidLvls;
   getAllTidLvlsInLatPoints(env, l0, curr, [&](TensorLevel tl, AffineExpr) {
-    // TODO: remove this! The same tensor level might be added for multiple
-    // times due to the special handling for all-dense "sparse" output tensor
-    // (see L1038).
-    if (llvm::find(tidLvls, tl) != tidLvls.end())
-      return;
     tidLvls.emplace_back(tl);
   });
 
@@ -1104,7 +1096,7 @@ static void genConstantDenseAddressFromLevel(CodegenEnv &env,
     for (Level l = startLvl; l < lvlRank; l++) {
       AffineExpr lvlExpr = lvlExprs[l];
       if (enc.isDenseLvl(l) && isa<AffineConstantExpr>(lvlExpr))
-        env.emitter().locateLvlAtAffineAddress(
+        env.emitter().genDenseAffineAddress(
             builder, loc, env.makeTensorLevel(tid, l), lvlExpr);
       else
         return; // break on first non-dense non-constant level
@@ -1153,7 +1145,7 @@ static std::pair<Operation *, bool> startLoop(CodegenEnv &env,
   Operation *loop = genLoop(env, builder, curr, needsUniv, tidLvls);
   Location loc = env.op().getLoc();
   for (auto [tidLvl, exp] : affineTidLvls) {
-    env.emitter().locateLvlAtAffineAddress(builder, loc, tidLvl, exp);
+    env.emitter().genDenseAffineAddress(builder, loc, tidLvl, exp);
   }
 
   // Until now, we have entered every <tid, lvl> pair in {cond, extra,

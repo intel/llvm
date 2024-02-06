@@ -1206,7 +1206,7 @@ mlir::affine::makeComposedFoldedAffineApply(OpBuilder &b, Location loc,
   if (failed(applyOp->fold(constOperands, foldResults)) ||
       foldResults.empty()) {
     if (OpBuilder::Listener *listener = b.getListener())
-      listener->notifyOperationInserted(applyOp, /*previous=*/{});
+      listener->notifyOperationInserted(applyOp);
     return applyOp.getResult();
   }
 
@@ -1274,7 +1274,7 @@ static OpFoldResult makeComposedFoldedMinMax(OpBuilder &b, Location loc,
   if (failed(minMaxOp->fold(constOperands, foldResults)) ||
       foldResults.empty()) {
     if (OpBuilder::Listener *listener = b.getListener())
-      listener->notifyOperationInserted(minMaxOp, /*previous=*/{});
+      listener->notifyOperationInserted(minMaxOp);
     return minMaxOp.getResult();
   }
 
@@ -2127,8 +2127,7 @@ unsigned AffineForOp::getNumIterOperands() {
   return getNumOperands() - lbMap.getNumInputs() - ubMap.getNumInputs();
 }
 
-std::optional<MutableArrayRef<OpOperand>>
-AffineForOp::getYieldedValuesMutable() {
+MutableArrayRef<OpOperand> AffineForOp::getYieldedValuesMutable() {
   return cast<AffineYieldOp>(getBody()->getTerminator()).getOperandsMutable();
 }
 

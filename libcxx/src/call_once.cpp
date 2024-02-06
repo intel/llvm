@@ -10,7 +10,7 @@
 #include <__utility/exception_guard.h>
 
 #ifndef _LIBCPP_HAS_NO_THREADS
-#  include <__thread/support.h>
+#  include <__threading_support>
 #endif
 
 #include "include/atomic_support.h"

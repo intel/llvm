@@ -308,9 +308,9 @@ public:
                                SmallPtrSetImpl<MachineInstr *> &SeenMIs,
                                bool) const override;
 
-  /// foldImmediate - 'Reg' is known to be defined by a move immediate
+  /// FoldImmediate - 'Reg' is known to be defined by a move immediate
   /// instruction, try to fold the immediate into the use instruction.
-  bool foldImmediate(MachineInstr &UseMI, MachineInstr &DefMI, Register Reg,
+  bool FoldImmediate(MachineInstr &UseMI, MachineInstr &DefMI, Register Reg,
                      MachineRegisterInfo *MRI) const override;
 
   unsigned getNumMicroOps(const InstrItineraryData *ItinData,

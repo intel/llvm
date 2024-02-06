@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// XFAIL: !has-128-bit-atomics
+// XFAIL: !is-lockfree-runtime-function
 
 // <atomic>
 

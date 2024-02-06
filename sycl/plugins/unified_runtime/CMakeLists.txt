@@ -56,15 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit c0b1f13d94966090a1bb982b3bd747b30b9ef9d3
-  # Merge: 475ce8b4 cf806c37
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Feb 5 13:41:50 2024 +0000
-  #     Merge pull request #1240 from cppchedy/chedy/fix-bi-copy-image
-  #     
-  #     [Bindless][exp] 1D Image copy fix
-  set(UNIFIED_RUNTIME_TAG c0b1f13d94966090a1bb982b3bd747b30b9ef9d3)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime")
+  # commit 3225b822b5d8cbfa85d7fc1bd5a5bf96e5bb8c1a
+  # Merge: edb281f3 5fc41099
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Tue Jan 30 12:31:44 2024 +0000
+  #     Merge pull request #1168 from Seanst98/sean/unique-addr-mode-per-dim-adapters
+  #     [Bindless][CUDA] Unique addressing modes per dimension
+  set(UNIFIED_RUNTIME_TAG 3225b822b5d8cbfa85d7fc1bd5a5bf96e5bb8c1a)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -203,13 +202,6 @@ endif()
 
 if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_opencl)
-
-    # Install the UR adapters too
-    install(TARGETS ur_adapter_opencl
-      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-      ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-      RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
-    )
 endif()
 
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)

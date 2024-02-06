@@ -45,9 +45,9 @@ template <typename ...T> struct A {
   template <T ...x[3]> struct B {};
 };
 
-// CHECK1-LABEL: template <typename ...T> void f() {
+// CHECK1-LABEL: template <typename ...T> void f(T ...[3]) {
 // CHECK1-NEXT:    A<T[3]...> a;
-template <typename ...T> void f() {
+template <typename ...T> void f(T ...[3]) {
   A<T[3]...> a;
 }
 

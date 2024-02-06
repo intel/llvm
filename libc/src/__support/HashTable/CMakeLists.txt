@@ -3,7 +3,7 @@ add_header_library(
   HDRS
     bitmask.h
   FLAGS
-    EXPLICIT_SIMD_OPT
+    PREFER_GENERIC
   DEPENDS
     libc.src.__support.common
     libc.src.__support.CPP.bit

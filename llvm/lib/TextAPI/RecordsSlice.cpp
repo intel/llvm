@@ -22,22 +22,16 @@ using namespace llvm::MachO;
 Record *RecordsSlice::addRecord(StringRef Name, SymbolFlags Flags,
                                 GlobalRecord::Kind GV, RecordLinkage Linkage) {
   // Find a specific Record type to capture.
-  auto [APIName, SymKind, InterfaceType] = parseSymbol(Name);
+  auto [APIName, SymKind] = parseSymbol(Name, Flags);
   Name = APIName;
   switch (SymKind) {
-  case EncodeKind::GlobalSymbol:
+  case SymbolKind::GlobalSymbol:
     return addGlobal(Name, Linkage, GV, Flags);
-  case EncodeKind::ObjectiveCClass:
-    return addObjCInterface(Name, Linkage, InterfaceType);
-  case EncodeKind::ObjectiveCClassEHType: {
-    ObjCInterfaceRecord *Rec = addObjCInterface(Name, Linkage, InterfaceType);
-    // When classes without ehtype are used in try/catch blocks
-    // a weak-defined symbol is exported.
-    if ((Flags & SymbolFlags::WeakDefined) == SymbolFlags::WeakDefined)
-      updateFlags(Rec, SymbolFlags::WeakDefined);
-    return Rec;
-  }
-  case EncodeKind::ObjectiveCInstanceVariable: {
+  case SymbolKind::ObjectiveCClass:
+    return addObjCInterface(Name, Linkage);
+  case SymbolKind::ObjectiveCClassEHType:
+    return addObjCInterface(Name, Linkage, /*HasEHType=*/true);
+  case SymbolKind::ObjectiveCInstanceVariable: {
     auto [Super, IVar] = Name.split('.');
     // Attempt to find super class.
     ObjCContainerRecord *Container = findContainer(/*isIVar=*/false, Super);
@@ -92,39 +86,6 @@ GlobalRecord *RecordsSlice::findGlobal(StringRef Name,
   }
 
   return Record;
-}
-
-RecordLinkage
-ObjCInterfaceRecord::getLinkageForSymbol(ObjCIFSymbolKind CurrType) const {
-  assert(CurrType <= ObjCIFSymbolKind::EHType &&
-         "expected single ObjCIFSymbolKind enum value");
-  if (CurrType == ObjCIFSymbolKind::Class)
-    return Linkages.Class;
-
-  if (CurrType == ObjCIFSymbolKind::MetaClass)
-    return Linkages.MetaClass;
-
-  if (CurrType == ObjCIFSymbolKind::EHType)
-    return Linkages.EHType;
-
-  llvm_unreachable("unexpected ObjCIFSymbolKind");
-}
-
-void ObjCInterfaceRecord::updateLinkageForSymbols(ObjCIFSymbolKind SymType,
-                                                  RecordLinkage Link) {
-  if ((SymType & ObjCIFSymbolKind::Class) == ObjCIFSymbolKind::Class)
-    Linkages.Class = std::max(Link, Linkages.Class);
-  if ((SymType & ObjCIFSymbolKind::MetaClass) == ObjCIFSymbolKind::MetaClass)
-    Linkages.MetaClass = std::max(Link, Linkages.MetaClass);
-  if ((SymType & ObjCIFSymbolKind::EHType) == ObjCIFSymbolKind::EHType)
-    Linkages.EHType = std::max(Link, Linkages.EHType);
-
-  // Obj-C Classes represent multiple symbols that could have competing
-  // linkages, in this case assign the largest one, when querying the linkage of
-  // the record itself. This allows visitors pick whether they want to account
-  // for complete symbol information.
-  Linkage =
-      std::max(Linkages.Class, std::max(Linkages.MetaClass, Linkages.EHType));
 }
 
 ObjCInterfaceRecord *RecordsSlice::findObjCInterface(StringRef Name) const {
@@ -191,17 +152,21 @@ GlobalRecord *RecordsSlice::addGlobal(StringRef Name, RecordLinkage Linkage,
 
 ObjCInterfaceRecord *RecordsSlice::addObjCInterface(StringRef Name,
                                                     RecordLinkage Linkage,
-                                                    ObjCIFSymbolKind SymType) {
+                                                    bool HasEHType) {
   Name = copyString(Name);
   auto Result = Classes.insert({Name, nullptr});
-  if (Result.second)
+  if (Result.second) {
     Result.first->second =
-        std::make_unique<ObjCInterfaceRecord>(Name, Linkage, SymType);
-  else
-    Result.first->second->updateLinkageForSymbols(SymType, Linkage);
+        std::make_unique<ObjCInterfaceRecord>(Name, Linkage, HasEHType);
+  } else {
+    // ObjC classes represent multiple symbols that could have competing
+    // linkages, in those cases assign the largest one.
+    if (Linkage >= RecordLinkage::Rexported)
+      updateLinkage(Result.first->second.get(), Linkage);
+  }
+
   return Result.first->second.get();
 }
-
 SymbolFlags Record::mergeFlags(SymbolFlags Flags, RecordLinkage Linkage) {
   // Add Linkage properties into Flags.
   switch (Linkage) {

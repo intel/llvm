@@ -82,7 +82,7 @@ struct SubobjectAdjustment {
 
   union {
     struct DTB DerivedToBase;
-    const FieldDecl *Field;
+    FieldDecl *Field;
     struct P Ptr;
   };
 
@@ -93,7 +93,8 @@ struct SubobjectAdjustment {
     DerivedToBase.DerivedClass = DerivedClass;
   }
 
-  SubobjectAdjustment(const FieldDecl *Field) : Kind(FieldAdjustment) {
+  SubobjectAdjustment(FieldDecl *Field)
+    : Kind(FieldAdjustment) {
     this->Field = Field;
   }
 

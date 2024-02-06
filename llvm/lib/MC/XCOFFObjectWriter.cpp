@@ -533,15 +533,9 @@ CsectGroup &XCOFFObjectWriter::getCsectGroup(const MCSectionXCOFF *MCSec) {
     return TOCCsects;
   case XCOFF::XMC_TC:
   case XCOFF::XMC_TE:
-    assert(XCOFF::XTY_SD == MCSec->getCSectType() &&
-           "A TOC symbol must be an initialized csect.");
-    assert(!TOCCsects.empty() &&
-           "We should at least have a TOC-base in this CsectGroup.");
-    return TOCCsects;
   case XCOFF::XMC_TD:
-    assert((XCOFF::XTY_SD == MCSec->getCSectType() ||
-            XCOFF::XTY_CM == MCSec->getCSectType()) &&
-           "Symbol type incompatible with toc-data.");
+    assert(XCOFF::XTY_SD == MCSec->getCSectType() &&
+           "Only an initialized csect can contain TC entry.");
     assert(!TOCCsects.empty() &&
            "We should at least have a TOC-base in this CsectGroup.");
     return TOCCsects;

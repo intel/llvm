@@ -58,8 +58,6 @@ enum NodeType : unsigned {
 
   CALL_BTI, // Function call followed by a BTI instruction.
 
-  COALESCER_BARRIER,
-
   SMSTART,
   SMSTOP,
   RESTORE_ZA,
@@ -218,7 +216,6 @@ enum NodeType : unsigned {
   SQSHLU_I,
   SRSHR_I,
   URSHR_I,
-  URSHR_I_PRED,
 
   // Vector narrowing shift by immediate (bottom)
   RSHRNB_I,
@@ -1029,7 +1026,7 @@ private:
                           const SmallVectorImpl<CCValAssign> &RVLocs,
                           const SDLoc &DL, SelectionDAG &DAG,
                           SmallVectorImpl<SDValue> &InVals, bool isThisReturn,
-                          SDValue ThisVal, bool RequiresSMChange) const;
+                          SDValue ThisVal) const;
 
   SDValue LowerLOAD(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSTORE(SDValue Op, SelectionDAG &DAG) const;

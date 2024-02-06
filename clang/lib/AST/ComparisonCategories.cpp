@@ -48,7 +48,7 @@ bool ComparisonCategoryInfo::ValueInfo::hasValidIntValue() const {
 
   // Before we attempt to get the value of the first field, ensure that we
   // actually have one (and only one) field.
-  const auto *Record = VD->getType()->getAsCXXRecordDecl();
+  auto *Record = VD->getType()->getAsCXXRecordDecl();
   if (std::distance(Record->field_begin(), Record->field_end()) != 1 ||
       !Record->field_begin()->getType()->isIntegralOrEnumerationType())
     return false;
@@ -98,13 +98,13 @@ static const NamespaceDecl *lookupStdNamespace(const ASTContext &Ctx,
   return StdNS;
 }
 
-static const CXXRecordDecl *lookupCXXRecordDecl(const ASTContext &Ctx,
-                                                const NamespaceDecl *StdNS,
-                                                ComparisonCategoryType Kind) {
+static CXXRecordDecl *lookupCXXRecordDecl(const ASTContext &Ctx,
+                                          const NamespaceDecl *StdNS,
+                                          ComparisonCategoryType Kind) {
   StringRef Name = ComparisonCategories::getCategoryString(Kind);
   DeclContextLookupResult Lookup = StdNS->lookup(&Ctx.Idents.get(Name));
   if (!Lookup.empty())
-    if (const CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(Lookup.front()))
+    if (CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(Lookup.front()))
       return RD;
   return nullptr;
 }
@@ -116,7 +116,7 @@ ComparisonCategories::lookupInfo(ComparisonCategoryType Kind) const {
     return &It->second;
 
   if (const NamespaceDecl *NS = lookupStdNamespace(Ctx, StdNS))
-    if (const CXXRecordDecl *RD = lookupCXXRecordDecl(Ctx, NS, Kind))
+    if (CXXRecordDecl *RD = lookupCXXRecordDecl(Ctx, NS, Kind))
       return &Data.try_emplace((char)Kind, Ctx, RD, Kind).first->second;
 
   return nullptr;
@@ -126,13 +126,13 @@ const ComparisonCategoryInfo *
 ComparisonCategories::lookupInfoForType(QualType Ty) const {
   assert(!Ty.isNull() && "type must be non-null");
   using CCT = ComparisonCategoryType;
-  const auto *RD = Ty->getAsCXXRecordDecl();
+  auto *RD = Ty->getAsCXXRecordDecl();
   if (!RD)
     return nullptr;
 
   // Check to see if we have information for the specified type cached.
   const auto *CanonRD = RD->getCanonicalDecl();
-  for (const auto &KV : Data) {
+  for (auto &KV : Data) {
     const ComparisonCategoryInfo &Info = KV.second;
     if (CanonRD == Info.Record->getCanonicalDecl())
       return &Info;

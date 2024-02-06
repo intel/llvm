@@ -281,11 +281,7 @@ protected:
   /// Register a set of type classes with this dialect.
   template <typename... Args>
   void addTypes() {
-    // This initializer_list argument pack expansion is essentially equal to
-    // using a fold expression with a comma operator. Clang however, refuses
-    // to compile a fold expression with a depth of more than 256 by default.
-    // There seem to be no such limitations for initializer_list.
-    (void)std::initializer_list<int>{0, (addType<Args>(), 0)...};
+    (addType<Args>(), ...);
   }
 
   /// Register a type instance with this dialect.
@@ -296,11 +292,7 @@ protected:
   /// Register a set of attribute classes with this dialect.
   template <typename... Args>
   void addAttributes() {
-    // This initializer_list argument pack expansion is essentially equal to
-    // using a fold expression with a comma operator. Clang however, refuses
-    // to compile a fold expression with a depth of more than 256 by default.
-    // There seem to be no such limitations for initializer_list.
-    (void)std::initializer_list<int>{0, (addAttribute<Args>(), 0)...};
+    (addAttribute<Args>(), ...);
   }
 
   /// Register an attribute instance with this dialect.

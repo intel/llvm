@@ -55,19 +55,20 @@ namespace {
 // DialectFoldInterface, because it needs a SymbolTableCollection to cache the
 // symbol tables.
 // We can't use DialectFoldInterface since the cache may be invalidated by some
-// pass changing the referenced MeshOp ops.
-struct MeshShapeFolder : OpRewritePattern<MeshShapeOp> {
+// pass changing the referenced ClusterOp ops.
+struct ClusterShapeFolder : OpRewritePattern<ClusterShapeOp> {
   template <typename... OpRewritePatternArgs>
-  MeshShapeFolder(SymbolTableCollection &symbolTableCollection,
-                  OpRewritePatternArgs &&...opRewritePatternArgs)
+  ClusterShapeFolder(SymbolTableCollection &symbolTableCollection,
+                     OpRewritePatternArgs &&...opRewritePatternArgs)
       : OpRewritePattern(
             std::forward<OpRewritePatternArgs...>(opRewritePatternArgs)...),
         symbolTableCollection(symbolTableCollection) {}
-  LogicalResult matchAndRewrite(MeshShapeOp op,
+  LogicalResult matchAndRewrite(ClusterShapeOp op,
                                 PatternRewriter &rewriter) const override {
     ImplicitLocOpBuilder builder(op->getLoc(), rewriter);
-    MeshOp mesh = symbolTableCollection.lookupNearestSymbolFrom<mesh::MeshOp>(
-        op.getOperation(), op.getMeshAttr());
+    ClusterOp mesh =
+        symbolTableCollection.lookupNearestSymbolFrom<mesh::ClusterOp>(
+            op.getOperation(), op.getMeshAttr());
     if (!mesh) {
       return failure();
     }
@@ -103,8 +104,8 @@ struct MeshShapeFolder : OpRewritePattern<MeshShapeOp> {
 
     // Leave only the dynamic mesh axes to be queried.
     if (!newShapeOpMeshAxes.empty()) {
-      MeshShapeOp newShapeOp =
-          builder.create<MeshShapeOp>(mesh.getSymName(), newShapeOpMeshAxes);
+      ClusterShapeOp newShapeOp =
+          builder.create<ClusterShapeOp>(mesh.getSymName(), newShapeOpMeshAxes);
       for (size_t i = 0; i < newShapeOp->getResults().size(); ++i) {
         newResults[newToOldResultsIndexMap[i]] = newShapeOp->getResults()[i];
       }
@@ -122,7 +123,8 @@ private:
 
 void populateFoldingPatterns(RewritePatternSet &patterns,
                              SymbolTableCollection &symbolTableCollection) {
-  patterns.add<MeshShapeFolder>(symbolTableCollection, patterns.getContext());
+  patterns.add<ClusterShapeFolder>(symbolTableCollection,
+                                   patterns.getContext());
 }
 
 } // namespace mesh

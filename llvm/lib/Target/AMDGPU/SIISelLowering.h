@@ -80,7 +80,6 @@ private:
   SDValue lowerStructBufferAtomicIntrin(SDValue Op, SelectionDAG &DAG,
                                         unsigned NewOpcode) const;
 
-  SDValue lowerWaveID(SelectionDAG &DAG, SDValue Op) const;
   SDValue lowerWorkitemID(SelectionDAG &DAG, SDValue Op, unsigned Dim,
                           const ArgDescriptor &ArgDesc) const;
 

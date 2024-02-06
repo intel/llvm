@@ -321,6 +321,31 @@ void SPIRVRegularizeLLVMBase::expandSYCLTypeUsing(Module *M) {
     expandVIDWithSYCLTypeByValComp(F);
 }
 
+Value *SPIRVRegularizeLLVMBase::extendBitInstBoolArg(Instruction *II) {
+  IRBuilder<> Builder(II);
+  auto *ArgTy = II->getOperand(0)->getType();
+  Type *NewArgType = nullptr;
+  if (ArgTy->isIntegerTy()) {
+    NewArgType = Builder.getInt32Ty();
+  } else if (ArgTy->isVectorTy() &&
+             cast<VectorType>(ArgTy)->getElementType()->isIntegerTy()) {
+    unsigned NumElements = cast<FixedVectorType>(ArgTy)->getNumElements();
+    NewArgType = VectorType::get(Builder.getInt32Ty(), NumElements, false);
+  } else {
+    llvm_unreachable("Unexpected type");
+  }
+  auto *NewBase = Builder.CreateZExt(II->getOperand(0), NewArgType);
+  auto *NewShift = Builder.CreateZExt(II->getOperand(1), NewArgType);
+  switch (II->getOpcode()) {
+  case Instruction::LShr:
+    return Builder.CreateLShr(NewBase, NewShift);
+  case Instruction::Shl:
+    return Builder.CreateShl(NewBase, NewShift);
+  default:
+    return II;
+  }
+}
+
 bool SPIRVRegularizeLLVMBase::runRegularizeLLVM(Module &Module) {
   M = &Module;
   Ctx = &M->getContext();
@@ -433,53 +458,19 @@ bool SPIRVRegularizeLLVMBase::regularize() {
           }
         }
 
-        if (II.isLogicalShift()) {
-          // Translator treats i1 as boolean, but bit instructions take
-          // a scalar/vector integers, so we have to extend such arguments.
-          // shl i1 %a %b and lshr i1 %a %b are now converted on:
-          // %0 = select i1 %a, i32 1, i32 0
-          // %1 = select i1 %b, i32 1, i32 0
-          // %2 = lshr i32 %0, %1
-          // if any other instruction other than zext was dependant:
-          // %3 = icmp ne i32 %2, 0
-          // which converts it back to i1 and replace original result with %3
-          // to dependant instructions.
-          if (II.getOperand(0)->getType()->isIntOrIntVectorTy(1)) {
-            IRBuilder<> Builder(&II);
-            Value *CmpNEInst = nullptr;
-            Constant *ConstZero = ConstantInt::get(Builder.getInt32Ty(), 0);
-            Constant *ConstOne = ConstantInt::get(Builder.getInt32Ty(), 1);
-            if (auto *VecTy =
-                    dyn_cast<FixedVectorType>(II.getOperand(0)->getType())) {
-              const unsigned NumElements = VecTy->getNumElements();
-              ConstZero = ConstantVector::getSplat(
-                  ElementCount::getFixed(NumElements), ConstZero);
-              ConstOne = ConstantVector::getSplat(
-                  ElementCount::getFixed(NumElements), ConstOne);
+        // Translator treats i1 as boolean, but bit instructions take
+        // a scalar/vector integers, so we have to extend such arguments
+        if (II.isLogicalShift() &&
+            II.getOperand(0)->getType()->isIntOrIntVectorTy(1)) {
+          auto *NewInst = extendBitInstBoolArg(&II);
+          for (auto *U : II.users()) {
+            if (cast<Instruction>(U)->getOpcode() == Instruction::ZExt) {
+              U->dropAllReferences();
+              U->replaceAllUsesWith(NewInst);
+              ToErase.push_back(cast<Instruction>(U));
             }
-            Value *ExtendedBase =
-                Builder.CreateSelect(II.getOperand(0), ConstOne, ConstZero);
-            Value *ExtendedShift =
-                Builder.CreateSelect(II.getOperand(1), ConstOne, ConstZero);
-            Value *ExtendedShiftedVal =
-                Builder.CreateLShr(ExtendedBase, ExtendedShift);
-            SmallVector<User *, 8> Users(II.users());
-            for (User *U : Users) {
-              if (auto *UI = dyn_cast<Instruction>(U)) {
-                if (UI->getOpcode() == Instruction::ZExt) {
-                  UI->dropAllReferences();
-                  UI->replaceAllUsesWith(ExtendedShiftedVal);
-                  ToErase.push_back(UI);
-                  continue;
-                }
-              }
-              if (!CmpNEInst) {
-                CmpNEInst = Builder.CreateICmpNE(ExtendedShiftedVal, ConstZero);
-              }
-              U->replaceUsesOfWith(&II, CmpNEInst);
-            }
-            ToErase.push_back(&II);
           }
+          ToErase.push_back(&II);
         }
 
         // Remove optimization info not supported by SPIRV

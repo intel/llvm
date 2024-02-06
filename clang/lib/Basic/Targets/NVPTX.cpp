@@ -61,7 +61,7 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
   // Define available target features
   // These must be defined in sorted order!
   NoAsmVariants = true;
-  GPU = CudaArch::UNUSED;
+  GPU = CudaArch::SM_20;
 
   if (TargetPointerWidth == 32)
     resetDataLayout("e-p:32:32-i64:64-i128:128-v16:16-v32:32-n16:32:64");
@@ -117,8 +117,7 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
   LongAlign = HostTarget->getLongAlign();
   LongLongWidth = HostTarget->getLongLongWidth();
   LongLongAlign = HostTarget->getLongLongAlign();
-  MinGlobalAlign = HostTarget->getMinGlobalAlign(/* TypeSize = */ 0,
-                                                 /* HasNonWeakDef = */ true);
+  MinGlobalAlign = HostTarget->getMinGlobalAlign(/* TypeSize = */ 0);
   NewAlign = HostTarget->getNewAlign();
   DefaultAlignForAttributeAligned =
       HostTarget->getDefaultAlignForAttributeAligned();
@@ -171,14 +170,9 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
                                        MacroBuilder &Builder) const {
   Builder.defineMacro("__PTX__");
   Builder.defineMacro("__NVPTX__");
-
-  // Skip setting architecture dependent macros if undefined.
-  if (GPU == CudaArch::UNUSED && !HostTarget)
-    return;
-
   if (Opts.CUDAIsDevice || Opts.OpenMPIsTargetDevice || Opts.SYCLIsDevice ||
       !HostTarget) {
-    // Set __CUDA_ARCH__ for the GPU specified.
+    // Set __CUDA_ARCH__ or __SYCL_CUDA_ARCH__ for the GPU specified.
     // The SYCL-specific macro is used to distinguish the SYCL and CUDA APIs.
     std::string CUDAArchCode = [this] {
       switch (GPU) {
@@ -229,10 +223,10 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
       case CudaArch::Generic:
       case CudaArch::LAST:
         break;
+      case CudaArch::UNUSED:
       case CudaArch::UNKNOWN:
         assert(false && "No GPU arch when compiling CUDA device code.");
         return "";
-      case CudaArch::UNUSED:
       case CudaArch::SM_20:
         return "200";
       case CudaArch::SM_21:

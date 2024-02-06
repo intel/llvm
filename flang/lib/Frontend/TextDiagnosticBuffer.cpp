@@ -35,20 +35,20 @@ void TextDiagnosticBuffer::HandleDiagnostic(
     llvm_unreachable("Diagnostic not handled during diagnostic buffering!");
   case clang::DiagnosticsEngine::Note:
     all.emplace_back(level, notes.size());
-    notes.emplace_back(info.getLocation(), std::string(buf));
+    notes.emplace_back(info.getLocation(), std::string(buf.str()));
     break;
   case clang::DiagnosticsEngine::Warning:
     all.emplace_back(level, warnings.size());
-    warnings.emplace_back(info.getLocation(), std::string(buf));
+    warnings.emplace_back(info.getLocation(), std::string(buf.str()));
     break;
   case clang::DiagnosticsEngine::Remark:
     all.emplace_back(level, remarks.size());
-    remarks.emplace_back(info.getLocation(), std::string(buf));
+    remarks.emplace_back(info.getLocation(), std::string(buf.str()));
     break;
   case clang::DiagnosticsEngine::Error:
   case clang::DiagnosticsEngine::Fatal:
     all.emplace_back(level, errors.size());
-    errors.emplace_back(info.getLocation(), std::string(buf));
+    errors.emplace_back(info.getLocation(), std::string(buf.str()));
     break;
   }
 }

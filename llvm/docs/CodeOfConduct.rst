@@ -2,8 +2,6 @@
    This work is licensed under a Creative Commons Attribution 3.0 Unported License.
    SPDX-License-Identifier: CC-BY-3.0
 
-.. _LLVM Community Code of Conduct:
-
 ==============================
 LLVM Community Code of Conduct
 ==============================

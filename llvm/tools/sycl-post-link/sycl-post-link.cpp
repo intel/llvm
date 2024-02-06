@@ -313,9 +313,8 @@ std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
 }
 
 bool isModuleUsingAsan(const Module &M) {
-  return llvm::any_of(M.functions(), [](const Function &F) {
-    return F.getName().starts_with("__asan_");
-  });
+  auto *AsanInitFunction = M.getFunction("__asan_init");
+  return AsanInitFunction;
 }
 
 // Gets reqd_work_group_size information for function Func.
@@ -341,7 +340,7 @@ std::string makeResultFileName(Twine Ext, int I, StringRef Suffix) {
                              : sys::path::parent_path(OutputFilename);
   const StringRef Sep = sys::path::get_separator();
   std::string Dir = Dir0.str();
-  if (!Dir0.empty() && !Dir0.ends_with(Sep))
+  if (!Dir0.empty() && !Dir0.endswith(Sep))
     Dir += Sep.str();
   return Dir + sys::path::stem(OutputFilename).str() + Suffix.str() + "_" +
          std::to_string(I) + Ext.str();

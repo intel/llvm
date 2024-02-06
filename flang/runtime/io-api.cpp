@@ -1401,19 +1401,6 @@ void IONAME(GetIoMsg)(Cookie cookie, char *msg, std::size_t length) {
   }
 }
 
-AsynchronousId IONAME(GetAsynchronousId)(Cookie cookie) {
-  IoStatementState &io{*cookie};
-  IoErrorHandler &handler{io.GetIoErrorHandler()};
-  if (auto *ext{io.get_if<ExternalIoStatementBase>()}) {
-    return ext->asynchronousID();
-  } else if (!io.get_if<NoopStatementState>() &&
-      !io.get_if<ErroneousIoStatementState>()) {
-    handler.Crash(
-        "GetAsynchronousId() called when not in an external I/O statement");
-  }
-  return 0;
-}
-
 bool IONAME(InquireCharacter)(Cookie cookie, InquiryKeywordHash inquiry,
     char *result, std::size_t length) {
   IoStatementState &io{*cookie};
@@ -1426,7 +1413,7 @@ bool IONAME(InquireLogical)(
   return io.Inquire(inquiry, result);
 }
 
-bool IONAME(InquirePendingId)(Cookie cookie, AsynchronousId id, bool &result) {
+bool IONAME(InquirePendingId)(Cookie cookie, std::int64_t id, bool &result) {
   IoStatementState &io{*cookie};
   return io.Inquire(HashInquiryKeyword("PENDING"), id, result);
 }

@@ -23,9 +23,8 @@ int main() {
   auto intrinsics{Fortran::evaluate::IntrinsicProcTable::Configure(defaults)};
   TargetCharacteristics targetCharacteristics;
   Fortran::common::LanguageFeatureControl languageFeatures;
-  std::set<std::string> tempNames;
   FoldingContext context{Fortran::parser::ContextualMessages{nullptr}, defaults,
-      intrinsics, targetCharacteristics, languageFeatures, tempNames};
+      intrinsics, targetCharacteristics, languageFeatures};
   ex1 = Fold(context, std::move(ex1));
   MATCH("-10_4", ex1.AsFortran());
   MATCH("1_4/2_4", (DefaultIntegerExpr{1} / DefaultIntegerExpr{2}).AsFortran());

@@ -49,7 +49,7 @@ std::string getDeviceTypeName(const device &Device) {
   case info::device_type::host:
     return "host";
   case info::device_type::accelerator:
-    return "fpga";
+    return "acc";
   default:
     return "unknown";
   }

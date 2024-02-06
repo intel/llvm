@@ -56,11 +56,11 @@ TapiFile::TapiFile(MemoryBufferRef Source, const InterfaceFile &Interface,
       continue;
 
     switch (Symbol->getKind()) {
-    case EncodeKind::GlobalSymbol:
+    case SymbolKind::GlobalSymbol:
       Symbols.emplace_back(StringRef(), Symbol->getName(), getFlags(Symbol),
                            ::getType(Symbol));
       break;
-    case EncodeKind::ObjectiveCClass:
+    case SymbolKind::ObjectiveCClass:
       if (Interface.getPlatforms().count(PLATFORM_MACOS) && Arch == AK_i386) {
         Symbols.emplace_back(ObjC1ClassNamePrefix, Symbol->getName(),
                              getFlags(Symbol), ::getType(Symbol));
@@ -71,11 +71,11 @@ TapiFile::TapiFile(MemoryBufferRef Source, const InterfaceFile &Interface,
                              getFlags(Symbol), ::getType(Symbol));
       }
       break;
-    case EncodeKind::ObjectiveCClassEHType:
+    case SymbolKind::ObjectiveCClassEHType:
       Symbols.emplace_back(ObjC2EHTypePrefix, Symbol->getName(),
                            getFlags(Symbol), ::getType(Symbol));
       break;
-    case EncodeKind::ObjectiveCInstanceVariable:
+    case SymbolKind::ObjectiveCInstanceVariable:
       Symbols.emplace_back(ObjC2IVarPrefix, Symbol->getName(), getFlags(Symbol),
                            ::getType(Symbol));
       break;

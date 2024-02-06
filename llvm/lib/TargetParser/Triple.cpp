@@ -726,7 +726,7 @@ static Triple::SubArchType parseSubArch(StringRef SubArchName) {
       (SubArchName.ends_with("r6el") || SubArchName.ends_with("r6")))
     return Triple::MipsSubArch_r6;
 
-  if (SubArchName.starts_with("spir")) {
+  if (SubArchName.startswith("spir")) {
     StringRef SA(SubArchName);
     if (SA.consume_front("spir64_") || SA.consume_front("spir_")) {
       if (SA == "fpga")

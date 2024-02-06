@@ -30,7 +30,7 @@ std::string getShardPathFromFilePath(llvm::StringRef ShardRoot,
   llvm::sys::path::append(ShardRootSS, llvm::sys::path::filename(FilePath) +
                                            "." + llvm::toHex(digest(FilePath)) +
                                            ".idx");
-  return std::string(ShardRootSS);
+  return std::string(ShardRootSS.str());
 }
 
 // Uses disk as a storage for index shards.

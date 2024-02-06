@@ -30,9 +30,6 @@
 #  pragma GCC system_header
 #endif
 
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
-
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 namespace __formatter {
@@ -220,7 +217,5 @@ __format_escaped_string(basic_string_view<_CharT> __values,
 } // namespace __formatter
 
 _LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___FORMAT_WRITE_ESCAPED_H

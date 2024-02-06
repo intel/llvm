@@ -2470,7 +2470,8 @@ void MCAsmStreamer::emitAddrsigSym(const MCSymbol *Sym) {
 /// the specified string in the output .s file.  This capability is
 /// indicated by the hasRawTextSupport() predicate.
 void MCAsmStreamer::emitRawTextImpl(StringRef String) {
-  String.consume_back("\n");
+  if (!String.empty() && String.back() == '\n')
+    String = String.substr(0, String.size()-1);
   OS << String;
   EmitEOL();
 }

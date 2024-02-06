@@ -9,10 +9,11 @@
 // Implementation of HFSort algorithm for function ordering:
 // https://research.fb.com/wp-content/uploads/2017/01/cgo2017-hfsort-final1.pdf
 //
-// Cluster functions by hotness.  There are three clustering algorithms:
+// Cluster functions by hotness.  There are four clustering algorithms:
 // 1. clusterize
-// 2. pettisAndHansen
-// 3. randomClusters
+// 2. HFsort+
+// 3. pettisAndHansen
+// 4. randomClusters
 //
 //===----------------------------------------------------------------------===//
 
@@ -79,6 +80,11 @@ inline bool compareClustersDensity(const Cluster &C1, const Cluster &C2) {
  * Cluster functions in order to minimize call distance.
  */
 std::vector<Cluster> clusterize(const CallGraph &Cg);
+
+/*
+ * Optimize function placement prioritizing i-TLB and i-cache performance.
+ */
+std::vector<Cluster> hfsortPlus(CallGraph &Cg);
 
 /*
  * Pettis-Hansen code layout algorithm

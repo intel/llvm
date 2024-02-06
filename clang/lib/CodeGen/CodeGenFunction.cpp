@@ -2686,7 +2686,6 @@ void CodeGenFunction::EmitVariablyModifiedType(QualType type) {
     case Type::Decltype:
     case Type::Auto:
     case Type::DeducedTemplateSpecialization:
-    case Type::PackIndexing:
       // Stop walking: nothing to do.
       return;
 

@@ -3314,7 +3314,6 @@ OMPClause *Parser::ParseOpenMPClause(OpenMPDirectiveKind DKind,
   case OMPC_acquire:
   case OMPC_release:
   case OMPC_relaxed:
-  case OMPC_weak:
   case OMPC_threads:
   case OMPC_simd:
   case OMPC_nogroup:

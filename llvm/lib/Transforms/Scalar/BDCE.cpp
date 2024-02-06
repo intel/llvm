@@ -23,13 +23,10 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
-#include "llvm/IR/PatternMatch.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/Local.h"
-
 using namespace llvm;
-using namespace PatternMatch;
 
 #define DEBUG_TYPE "bdce"
 
@@ -45,17 +42,15 @@ static void clearAssumptionsOfUsers(Instruction *I, DemandedBits &DB) {
   assert(I->getType()->isIntOrIntVectorTy() &&
          "Trivializing a non-integer value?");
 
-  // If all bits of a user are demanded, then we know that nothing below that
-  // in the def-use chain needs to be changed.
-  if (DB.getDemandedBits(I).isAllOnes())
-    return;
-
   // Initialize the worklist with eligible direct users.
   SmallPtrSet<Instruction *, 16> Visited;
   SmallVector<Instruction *, 16> WorkList;
   for (User *JU : I->users()) {
-    auto *J = cast<Instruction>(JU);
-    if (J->getType()->isIntOrIntVectorTy()) {
+    // If all bits of a user are demanded, then we know that nothing below that
+    // in the def-use chain needs to be changed.
+    auto *J = dyn_cast<Instruction>(JU);
+    if (J && J->getType()->isIntOrIntVectorTy() &&
+        !DB.getDemandedBits(J).isAllOnes()) {
       Visited.insert(J);
       WorkList.push_back(J);
     }
@@ -75,19 +70,18 @@ static void clearAssumptionsOfUsers(Instruction *I, DemandedBits &DB) {
     Instruction *J = WorkList.pop_back_val();
 
     // NSW, NUW, and exact are based on operands that might have changed.
-    J->dropPoisonGeneratingFlagsAndMetadata();
+    J->dropPoisonGeneratingFlags();
 
-    // We do not have to worry about llvm.assume, because it demands its
-    // operand, so trivializing can't change it.
-
-    // If all bits of a user are demanded, then we know that nothing below
-    // that in the def-use chain needs to be changed.
-    if (DB.getDemandedBits(J).isAllOnes())
-      continue;
+    // We do not have to worry about llvm.assume or range metadata:
+    // 1. llvm.assume demands its operand, so trivializing can't change it.
+    // 2. range metadata only applies to memory accesses which demand all bits.
 
     for (User *KU : J->users()) {
-      auto *K = cast<Instruction>(KU);
-      if (Visited.insert(K).second && K->getType()->isIntOrIntVectorTy())
+      // If all bits of a user are demanded, then we know that nothing below
+      // that in the def-use chain needs to be changed.
+      auto *K = dyn_cast<Instruction>(KU);
+      if (K && Visited.insert(K).second && K->getType()->isIntOrIntVectorTy() &&
+          !DB.getDemandedBits(K).isAllOnes())
         WorkList.push_back(K);
     }
   }
@@ -128,38 +122,6 @@ static bool bitTrackingDCE(Function &F, DemandedBits &DB) {
         Changed = true;
         NumSExt2ZExt++;
         continue;
-      }
-    }
-
-    // Simplify and, or, xor when their mask does not affect the demanded bits.
-    if (auto *BO = dyn_cast<BinaryOperator>(&I)) {
-      APInt Demanded = DB.getDemandedBits(BO);
-      if (!Demanded.isAllOnes()) {
-        const APInt *Mask;
-        if (match(BO->getOperand(1), m_APInt(Mask))) {
-          bool CanBeSimplified = false;
-          switch (BO->getOpcode()) {
-          case Instruction::Or:
-          case Instruction::Xor:
-            CanBeSimplified = !Demanded.intersects(*Mask);
-            break;
-          case Instruction::And:
-            CanBeSimplified = Demanded.isSubsetOf(*Mask);
-            break;
-          default:
-            // TODO: Handle more cases here.
-            break;
-          }
-
-          if (CanBeSimplified) {
-            clearAssumptionsOfUsers(BO, DB);
-            BO->replaceAllUsesWith(BO->getOperand(0));
-            Worklist.push_back(BO);
-            ++NumSimplified;
-            Changed = true;
-            continue;
-          }
-        }
       }
     }
 

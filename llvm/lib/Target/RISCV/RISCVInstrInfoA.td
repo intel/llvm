@@ -47,13 +47,10 @@ multiclass AMO_rr_aq_rl<bits<5> funct5, bits<3> funct3, string opcodestr> {
 // Instructions
 //===----------------------------------------------------------------------===//
 
-let Predicates = [HasStdExtAOrZalrsc], IsSignExtendingOpW = 1 in {
+let Predicates = [HasStdExtA], IsSignExtendingOpW = 1 in {
 defm LR_W       : LR_r_aq_rl<0b010, "lr.w">, Sched<[WriteAtomicLDW, ReadAtomicLDW]>;
 defm SC_W       : AMO_rr_aq_rl<0b00011, 0b010, "sc.w">,
                   Sched<[WriteAtomicSTW, ReadAtomicSTW, ReadAtomicSTW]>;
-} // Predicates = [HasStdExtAOrZalrsc], IsSignExtendingOpW = 1
-
-let Predicates = [HasStdExtAOrZaamo], IsSignExtendingOpW = 1 in {
 defm AMOSWAP_W  : AMO_rr_aq_rl<0b00001, 0b010, "amoswap.w">,
                   Sched<[WriteAtomicW, ReadAtomicWA, ReadAtomicWD]>;
 defm AMOADD_W   : AMO_rr_aq_rl<0b00000, 0b010, "amoadd.w">,
@@ -72,15 +69,12 @@ defm AMOMINU_W  : AMO_rr_aq_rl<0b11000, 0b010, "amominu.w">,
                   Sched<[WriteAtomicW, ReadAtomicWA, ReadAtomicWD]>;
 defm AMOMAXU_W  : AMO_rr_aq_rl<0b11100, 0b010, "amomaxu.w">,
                   Sched<[WriteAtomicW, ReadAtomicWA, ReadAtomicWD]>;
-} // Predicates = [HasStdExtAOrZaamo], IsSignExtendingOpW = 1
+} // Predicates = [HasStdExtA]
 
-let Predicates = [HasStdExtAOrZalrsc, IsRV64] in {
+let Predicates = [HasStdExtA, IsRV64] in {
 defm LR_D       : LR_r_aq_rl<0b011, "lr.d">, Sched<[WriteAtomicLDD, ReadAtomicLDD]>;
 defm SC_D       : AMO_rr_aq_rl<0b00011, 0b011, "sc.d">,
                   Sched<[WriteAtomicSTD, ReadAtomicSTD, ReadAtomicSTD]>;
-} // Predicates = [HasStdExtAOrZalrsc, IsRV64]
-
-let Predicates = [HasStdExtAOrZaamo, IsRV64] in {
 defm AMOSWAP_D  : AMO_rr_aq_rl<0b00001, 0b011, "amoswap.d">,
                   Sched<[WriteAtomicD, ReadAtomicDA, ReadAtomicDD]>;
 defm AMOADD_D   : AMO_rr_aq_rl<0b00000, 0b011, "amoadd.d">,
@@ -99,7 +93,7 @@ defm AMOMINU_D  : AMO_rr_aq_rl<0b11000, 0b011, "amominu.d">,
                   Sched<[WriteAtomicD, ReadAtomicDA, ReadAtomicDD]>;
 defm AMOMAXU_D  : AMO_rr_aq_rl<0b11100, 0b011, "amomaxu.d">,
                   Sched<[WriteAtomicD, ReadAtomicDA, ReadAtomicDD]>;
-} // Predicates = [HasStdExtAOrZaamo, IsRV64]
+} // Predicates = [HasStdExtA, IsRV64]
 
 //===----------------------------------------------------------------------===//
 // Pseudo-instructions and codegen patterns

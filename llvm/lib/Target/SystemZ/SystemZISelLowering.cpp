@@ -1067,8 +1067,7 @@ bool SystemZTargetLowering::isLegalAddressingMode(const DataLayout &DL,
   if (!isInt<20>(AM.BaseOffs))
     return false;
 
-  bool RequireD12 =
-      Subtarget.hasVector() && (Ty->isVectorTy() || Ty->isIntegerTy(128));
+  bool RequireD12 = Subtarget.hasVector() && Ty->isVectorTy();
   AddressingMode SupportedAM(!RequireD12, true);
   if (I != nullptr)
     SupportedAM = supportedAddressingMode(I, Subtarget.hasVector());
@@ -1302,7 +1301,7 @@ SystemZTargetLowering::getRegForInlineAsmConstraint(
       break;
     }
   }
-  if (Constraint.starts_with("{")) {
+  if (Constraint.size() > 0 && Constraint[0] == '{') {
 
     // A clobber constraint (e.g. ~{f0}) will have MVT::Other which is illegal
     // to check the size on.

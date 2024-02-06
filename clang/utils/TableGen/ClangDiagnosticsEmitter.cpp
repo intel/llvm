@@ -873,12 +873,16 @@ struct DiagTextDocPrinter : DiagTextVisitor<DiagTextDocPrinter> {
     auto &S = RST.back();
 
     StringRef T = P->Text;
-    while (T.consume_front(" "))
+    while (!T.empty() && T.front() == ' ') {
       RST.back() += " |nbsp| ";
+      T = T.drop_front();
+    }
 
     std::string Suffix;
-    while (T.consume_back(" "))
+    while (!T.empty() && T.back() == ' ') {
       Suffix += " |nbsp| ";
+      T = T.drop_back();
+    }
 
     if (!T.empty()) {
       S += ':';
@@ -1117,8 +1121,9 @@ Piece *DiagnosticTextBuilder::DiagText::parseDiagText(StringRef &Text,
           if (!isdigit(Text[0]))
             break;
           Sub->Modifiers.push_back(parseModifier(Text));
-          if (!Text.consume_front(","))
+          if (Text.empty() || Text[0] != ',')
             break;
+          Text = Text.drop_front(); // ','
           assert(!Text.empty() && isdigit(Text[0]) &&
                  "expected another modifier");
         }

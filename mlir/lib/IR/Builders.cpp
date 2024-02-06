@@ -412,7 +412,7 @@ Operation *OpBuilder::insert(Operation *op) {
     block->getOperations().insert(insertPoint, op);
 
   if (listener)
-    listener->notifyOperationInserted(op, /*previous=*/{});
+    listener->notifyOperationInserted(op);
   return op;
 }
 
@@ -429,7 +429,7 @@ Block *OpBuilder::createBlock(Region *parent, Region::iterator insertPt,
   setInsertionPointToEnd(b);
 
   if (listener)
-    listener->notifyBlockInserted(b, /*previous=*/nullptr, /*previousIt=*/{});
+    listener->notifyBlockCreated(b);
   return b;
 }
 
@@ -530,7 +530,7 @@ Operation *OpBuilder::clone(Operation &op, IRMapping &mapper) {
   // about any ops that got inserted inside those regions as part of cloning.
   if (listener) {
     auto walkFn = [&](Operation *walkedOp) {
-      listener->notifyOperationInserted(walkedOp, /*previous=*/{});
+      listener->notifyOperationInserted(walkedOp);
     };
     for (Region &region : newOp->getRegions())
       region.walk<WalkOrder::PreOrder>(walkFn);

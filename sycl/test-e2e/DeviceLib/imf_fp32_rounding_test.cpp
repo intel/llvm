@@ -180,35 +180,5 @@ int main(int, char **) {
     std::cout << "sycl::ext::intel::math::fmaf_rz passes." << std::endl;
   }
 
-  {
-    std::initializer_list<float> input_vals = {
-        0x1.ba90e6p+1, 0x1.4p+1,       0x1.ea77e6p-2, 0x1.e8330ap+19,
-        0x1.4ffd68p+5, 0x1.443084p-15, 0x1.605fb2p+6, 0x1.2eb718p-7};
-    std::initializer_list<unsigned> ref_vals_rd = {
-        0x3fee0264, 0x3fca62c1, 0x3f312c12, 0x4479faa2,
-        0x40cf616d, 0x3bcbb4d0, 0x41162c48, 0x3dc4d80e};
-    std::initializer_list<unsigned> ref_vals_rn = {
-        0x3fee0265, 0x3fca62c2, 0x3f312c13, 0x4479faa2,
-        0x40cf616d, 0x3bcbb4d0, 0x41162c48, 0x3dc4d80e};
-    std::initializer_list<unsigned> ref_vals_ru = {
-        0x3fee0265, 0x3fca62c2, 0x3f312c13, 0x4479faa3,
-        0x40cf616e, 0x3bcbb4d1, 0x41162c49, 0x3dc4d80f};
-    std::initializer_list<unsigned> ref_vals_rz = {
-        0x3fee0264, 0x3fca62c1, 0x3f312c12, 0x4479faa2,
-        0x40cf616d, 0x3bcbb4d0, 0x41162c48, 0x3dc4d80e};
-    test(device_queue, input_vals, ref_vals_rd,
-         FT(unsigned, sycl::ext::intel::math::fsqrt_rd));
-    std::cout << "sycl::ext::intel::math::fsqrt_rd passes." << std::endl;
-    test(device_queue, input_vals, ref_vals_rn,
-         FT(unsigned, sycl::ext::intel::math::fsqrt_rn));
-    std::cout << "sycl::ext::intel::math::fsqrt_rn passes." << std::endl;
-    test(device_queue, input_vals, ref_vals_ru,
-         FT(unsigned, sycl::ext::intel::math::fsqrt_ru));
-    std::cout << "sycl::ext::intel::math::fsqrt_ru passes." << std::endl;
-    test(device_queue, input_vals, ref_vals_rz,
-         FT(unsigned, sycl::ext::intel::math::fsqrt_rz));
-    std::cout << "sycl::ext::intel::math::fsqrt_rz passes." << std::endl;
-  }
-
   return 0;
 }

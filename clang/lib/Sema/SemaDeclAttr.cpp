@@ -9477,10 +9477,13 @@ validateSwiftFunctionName(Sema &S, const ParsedAttr &AL, SourceLocation Loc,
 
   // Check whether this will be mapped to a getter or setter of a property.
   bool IsGetter = false, IsSetter = false;
-  if (Name.consume_front("getter:"))
+  if (Name.starts_with("getter:")) {
     IsGetter = true;
-  else if (Name.consume_front("setter:"))
+    Name = Name.substr(7);
+  } else if (Name.starts_with("setter:")) {
     IsSetter = true;
+    Name = Name.substr(7);
+  }
 
   if (Name.back() != ')') {
     S.Diag(Loc, diag::warn_attr_swift_name_function) << AL;

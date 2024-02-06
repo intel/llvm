@@ -16,7 +16,7 @@
 
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/MachineFunction.h"
-#include "llvm/CodeGenTypes/MachineValueType.h"
+#include "llvm/CodeGen/MachineValueType.h"
 
 namespace llvm {
 

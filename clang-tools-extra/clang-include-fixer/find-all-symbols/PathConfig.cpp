@@ -35,7 +35,7 @@ std::string getIncludePath(const SourceManager &SM, SourceLocation Loc,
   SmallString<256> CleanedFilePath = FilePath;
   llvm::sys::path::remove_dots(CleanedFilePath, /*remove_dot_dot=*/false);
 
-  return std::string(CleanedFilePath);
+  return std::string(CleanedFilePath.str());
 }
 
 } // namespace find_all_symbols

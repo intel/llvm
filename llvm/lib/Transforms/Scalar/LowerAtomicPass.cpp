@@ -20,7 +20,7 @@
 #include "llvm/Transforms/Utils/LowerAtomic.h"
 using namespace llvm;
 
-#define DEBUG_TYPE "lower-atomic"
+#define DEBUG_TYPE "loweratomic"
 
 static bool LowerFenceInst(FenceInst *FI) {
   FI->eraseFromParent();

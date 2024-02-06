@@ -1,5 +1,4 @@
 add_mlir_dialect_library(MLIRMLProgramTransforms
-  BufferizableOpInterfaceImpl.cpp
   PipelineGlobalOps.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -9,7 +8,6 @@ add_mlir_dialect_library(MLIRMLProgramTransforms
   MLIRMLProgramPassIncGen
 
   LINK_LIBS PUBLIC
-  MLIRBufferizationDialect
   MLIRIR
   MLIRMLProgramDialect
   MLIRPass

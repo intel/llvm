@@ -1041,14 +1041,13 @@ Value ConvertLaunchFuncOpToGpuRuntimeCallPattern::generateParamsArray(
   auto arrayPtr = builder.create<LLVM::AllocaOp>(
       loc, llvmPointerType, llvmPointerType, arraySize, /*alignment=*/0);
   for (const auto &en : llvm::enumerate(arguments)) {
-    const auto index = static_cast<int32_t>(en.index());
     Value fieldPtr =
         builder.create<LLVM::GEPOp>(loc, llvmPointerType, structType, structPtr,
-                                    ArrayRef<LLVM::GEPArg>{0, index});
+                                    ArrayRef<LLVM::GEPArg>{0, en.index()});
     builder.create<LLVM::StoreOp>(loc, en.value(), fieldPtr);
-    auto elementPtr =
-        builder.create<LLVM::GEPOp>(loc, llvmPointerType, llvmPointerType,
-                                    arrayPtr, ArrayRef<LLVM::GEPArg>{index});
+    auto elementPtr = builder.create<LLVM::GEPOp>(
+        loc, llvmPointerType, llvmPointerType, arrayPtr,
+        ArrayRef<LLVM::GEPArg>{en.index()});
     builder.create<LLVM::StoreOp>(loc, fieldPtr, elementPtr);
   }
   return arrayPtr;

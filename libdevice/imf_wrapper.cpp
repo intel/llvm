@@ -1992,28 +1992,4 @@ DEVICE_EXTERN_C_INLINE
 float __imf_fmaf_rz(float x, float y, float z) {
   return __devicelib_imf_fmaf_rz(x, y, z);
 }
-
-DEVICE_EXTERN_C_INLINE
-float __devicelib_imf_sqrtf_rd(float);
-
-DEVICE_EXTERN_C_INLINE
-float __imf_sqrtf_rd(float x) { return __devicelib_imf_sqrtf_rd(x); }
-
-DEVICE_EXTERN_C_INLINE
-float __devicelib_imf_sqrtf_rn(float);
-
-DEVICE_EXTERN_C_INLINE
-float __imf_sqrtf_rn(float x) { return __devicelib_imf_sqrtf_rn(x); }
-
-DEVICE_EXTERN_C_INLINE
-float __devicelib_imf_sqrtf_ru(float);
-
-DEVICE_EXTERN_C_INLINE
-float __imf_sqrtf_ru(float x) { return __devicelib_imf_sqrtf_ru(x); }
-
-DEVICE_EXTERN_C_INLINE
-float __devicelib_imf_sqrtf_rz(float);
-
-DEVICE_EXTERN_C_INLINE
-float __imf_sqrtf_rz(float x) { return __devicelib_imf_sqrtf_rz(x); }
 #endif // __LIBDEVICE_IMF_ENABLED__

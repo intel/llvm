@@ -371,11 +371,7 @@ protected:
     toMemrefOps.erase(op);
   }
 
-  void notifyOperationInserted(Operation *op, InsertPoint previous) override {
-    // We only care about newly created ops.
-    if (previous.isSet())
-      return;
-
+  void notifyOperationInserted(Operation *op) override {
     erasedOps.erase(op);
 
     // Gather statistics about allocs.
@@ -497,10 +493,6 @@ LogicalResult bufferization::bufferizeOp(Operation *op,
                << *op
                << "\n//===-------------------------------------------===//\n");
   }
-
-  // Return early if the top-level op is entirely gone.
-  if (erasedOps.contains(op))
-    return success();
 
   // Fold all to_memref(to_tensor(x)) pairs.
   for (Operation *op : toMemrefOps) {

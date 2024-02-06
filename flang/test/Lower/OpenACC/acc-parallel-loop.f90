@@ -95,12 +95,12 @@ subroutine acc_parallel_loop
     a(i) = b(i)
   END DO
 
-! CHECK:      acc.parallel wait {
+! CHECK:      acc.parallel {
 ! CHECK:        acc.loop {{.*}} {
 ! CHECK:          acc.yield
 ! CHECK-NEXT:   }{{$}}
 ! CHECK:        acc.yield
-! CHECK-NEXT: }
+! CHECK-NEXT: } attributes {waitOnly = [#acc.device_type<none>]}
 
   !$acc parallel loop wait(1)
   DO i = 1, n

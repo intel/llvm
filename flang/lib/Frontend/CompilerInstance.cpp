@@ -80,7 +80,7 @@ static std::string getOutputFilePath(llvm::StringRef outputFilename,
   if (!extension.empty() && (inputFilename != "-")) {
     llvm::SmallString<128> path(inputFilename);
     llvm::sys::path::replace_extension(path, extension);
-    outFile = std::string(path);
+    outFile = std::string(path.str());
   }
 
   return outFile;

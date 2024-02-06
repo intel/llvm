@@ -22,7 +22,6 @@
 namespace clang {
 
 class IdentifierInfo;
-class LangOptions;
 
 /// Token - This structure provides full information about a lexed token.
 /// It is not intended to be space efficient, it is intended to return as much
@@ -288,8 +287,6 @@ public:
 
   /// Return the ObjC keyword kind.
   tok::ObjCKeywordKind getObjCKeywordID() const;
-
-  bool isSimpleTypeSpecifier(const LangOptions &LangOpts) const;
 
   /// Return true if this token has trigraphs or escaped newlines in it.
   bool needsCleaning() const { return getFlag(NeedsCleaning); }

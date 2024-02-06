@@ -160,7 +160,8 @@ int TreeView::run(unsigned int argc, char **argv, llvm::raw_ostream &out) {
     break;
   case 1:
     RootGroup = argv[0];
-    RootGroup.consume_front("-W");
+    if (RootGroup.starts_with("-W"))
+      RootGroup = RootGroup.substr(2);
     if (RootGroup == "everything")
       ShowAll = true;
     // FIXME: Handle other special warning flags, like -pedantic.

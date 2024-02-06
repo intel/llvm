@@ -523,10 +523,6 @@ ParseResult ForOp::parse(OpAsmParser &parser, OperationState &result) {
 
 SmallVector<Region *> ForOp::getLoopRegions() { return {&getRegion()}; }
 
-Block::BlockArgListType ForOp::getRegionIterArgs() {
-  return getBody()->getArguments().drop_front(getNumInductionVars());
-}
-
 MutableArrayRef<OpOperand> ForOp::getInitsMutable() {
   return getInitArgsMutable();
 }
@@ -620,14 +616,6 @@ LogicalResult scf::ForallOp::promoteIfSingleIteration(RewriterBase &rewriter) {
 
   promote(rewriter, *this);
   return success();
-}
-
-Block::BlockArgListType ForallOp::getRegionIterArgs() {
-  return getBody()->getArguments().drop_front(getRank());
-}
-
-MutableArrayRef<OpOperand> ForallOp::getInitsMutable() {
-  return getOutputsMutable();
 }
 
 /// Promotes the loop body of a scf::ForallOp to its containing block.
@@ -1104,7 +1092,7 @@ std::optional<APInt> ForOp::getConstantStep() {
   return {};
 }
 
-std::optional<MutableArrayRef<OpOperand>> ForOp::getYieldedValuesMutable() {
+MutableArrayRef<OpOperand> ForOp::getYieldedValuesMutable() {
   return cast<scf::YieldOp>(getBody()->getTerminator()).getResultsMutable();
 }
 
@@ -1363,6 +1351,11 @@ void ForallOp::build(
     return;
   }
   bodyBuilderFn(b, result.location, bodyBlock.getArguments());
+#ifndef NDEBUG
+  auto terminator = llvm::dyn_cast<InParallelOp>(bodyBlock.getTerminator());
+  assert(terminator &&
+         "expected bodyBuilderFn to create InParallelOp terminator");
+#endif // NDEBUG
 }
 
 // Builder that takes loop bounds.
@@ -1633,8 +1626,9 @@ struct FoldTensorCastOfOutputIntoForallOp
     // mapped to the tensor.cast old-typed results of the output bbArgs. The
     // destination have to be updated to point to the output bbArgs directly.
     auto terminator = newForallOp.getTerminator();
-    for (auto [yieldingOp, outputBlockArg] : llvm::zip(
-             terminator.getYieldingOps(), newForallOp.getRegionIterArgs())) {
+    for (auto [yieldingOp, outputBlockArg] :
+         llvm::zip(terminator.getYieldingOps(),
+                   newForallOp.getOutputBlockArguments())) {
       auto insertSliceOp = cast<tensor::ParallelInsertSliceOp>(yieldingOp);
       insertSliceOp.getDestMutable().assign(outputBlockArg);
     }
@@ -3114,7 +3108,7 @@ YieldOp WhileOp::getYieldOp() {
   return cast<YieldOp>(getAfterBody()->getTerminator());
 }
 
-std::optional<MutableArrayRef<OpOperand>> WhileOp::getYieldedValuesMutable() {
+MutableArrayRef<OpOperand> WhileOp::getYieldedValuesMutable() {
   return getYieldOp().getResultsMutable();
 }
 

@@ -22,9 +22,6 @@
 #  pragma GCC system_header
 #endif
 
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
-
 #if _LIBCPP_STD_VER >= 20
 
 _LIBCPP_BEGIN_NAMESPACE_STD
@@ -60,7 +57,5 @@ inline constexpr auto clamp = __clamp::__fn{};
 _LIBCPP_END_NAMESPACE_STD
 
 #endif // _LIBCPP_STD_VER >= 20
-
-_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___ALGORITHM_RANGES_CLAMP_H

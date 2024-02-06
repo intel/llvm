@@ -921,7 +921,7 @@ DWARFDebugNames::ValueIterator::findEntryOffsetInCurrentIndex() {
   if (Hdr.BucketCount == 0) {
     // No Hash Table, We need to search through all names in the Name Index.
     for (const NameTableEntry &NTE : *CurrentIndex) {
-      if (NTE.sameNameAs(Key))
+      if (NTE.getString() == Key)
         return NTE.getEntryOffset();
     }
     return std::nullopt;
@@ -937,15 +937,12 @@ DWARFDebugNames::ValueIterator::findEntryOffsetInCurrentIndex() {
     return std::nullopt; // Empty bucket
 
   for (; Index <= Hdr.NameCount; ++Index) {
-    uint32_t HashAtIndex = CurrentIndex->getHashArrayEntry(Index);
-    if (HashAtIndex % Hdr.BucketCount != Bucket)
+    uint32_t Hash = CurrentIndex->getHashArrayEntry(Index);
+    if (Hash % Hdr.BucketCount != Bucket)
       return std::nullopt; // End of bucket
-    // Only compare names if the hashes match.
-    if (HashAtIndex != Hash)
-      continue;
 
     NameTableEntry NTE = CurrentIndex->getNameTableEntry(Index);
-    if (NTE.sameNameAs(Key))
+    if (NTE.getString() == Key)
       return NTE.getEntryOffset();
   }
   return std::nullopt;

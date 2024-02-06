@@ -21,6 +21,7 @@
 
 using namespace llvm;
 using namespace llvm::dxil;
+using namespace llvm::hlsl;
 
 template <typename T> void ResourceTable<T>::collect(Module &M) {
   NamedMDNode *Entry = M.getNamedMetadata(MDName);
@@ -29,7 +30,7 @@ template <typename T> void ResourceTable<T>::collect(Module &M) {
 
   uint32_t Counter = 0;
   for (auto *Res : Entry->operands()) {
-    Data.push_back(T(Counter++, hlsl::FrontendResource(cast<MDNode>(Res))));
+    Data.push_back(T(Counter++, FrontendResource(cast<MDNode>(Res))));
   }
 }
 
@@ -41,7 +42,7 @@ template <> void ResourceTable<ConstantBuffer>::collect(Module &M) {
   uint32_t Counter = 0;
   for (auto *Res : Entry->operands()) {
     Data.push_back(
-        ConstantBuffer(Counter++, hlsl::FrontendResource(cast<MDNode>(Res))));
+        ConstantBuffer(Counter++, FrontendResource(cast<MDNode>(Res))));
   }
   // FIXME: share CBufferDataLayout with CBuffer load lowering.
   //   See https://github.com/llvm/llvm-project/issues/58381
@@ -55,7 +56,7 @@ void Resources::collect(Module &M) {
   CBuffers.collect(M);
 }
 
-ResourceBase::ResourceBase(uint32_t I, hlsl::FrontendResource R)
+ResourceBase::ResourceBase(uint32_t I, FrontendResource R)
     : ID(I), GV(R.getGlobalVariable()), Name(""), Space(R.getSpace()),
       LowerBound(R.getResourceIndex()), RangeSize(1) {
   if (auto *ArrTy = dyn_cast<ArrayType>(GV->getValueType()))
@@ -106,84 +107,83 @@ StringRef ResourceBase::getElementTypeName(ElementType ElTy) {
   llvm_unreachable("All ElementType enums are handled in switch");
 }
 
-void ResourceBase::printElementType(ResourceKind Kind, ElementType ElTy,
+void ResourceBase::printElementType(Kinds Kind, ElementType ElTy,
                                     unsigned Alignment, raw_ostream &OS) {
   switch (Kind) {
   default:
     // TODO: add vector size.
     OS << right_justify(getElementTypeName(ElTy), Alignment);
     break;
-  case ResourceKind::RawBuffer:
+  case Kinds::RawBuffer:
     OS << right_justify("byte", Alignment);
     break;
-  case ResourceKind::StructuredBuffer:
+  case Kinds::StructuredBuffer:
     OS << right_justify("struct", Alignment);
     break;
-  case ResourceKind::CBuffer:
-  case ResourceKind::Sampler:
+  case Kinds::CBuffer:
+  case Kinds::Sampler:
     OS << right_justify("NA", Alignment);
     break;
-  case ResourceKind::Invalid:
-  case ResourceKind::NumEntries:
+  case Kinds::Invalid:
+  case Kinds::NumEntries:
     break;
   }
 }
 
-StringRef ResourceBase::getKindName(ResourceKind Kind) {
+StringRef ResourceBase::getKindName(Kinds Kind) {
   switch (Kind) {
-  case ResourceKind::NumEntries:
-  case ResourceKind::Invalid:
+  case Kinds::NumEntries:
+  case Kinds::Invalid:
     return "invalid";
-  case ResourceKind::Texture1D:
+  case Kinds::Texture1D:
     return "1d";
-  case ResourceKind::Texture2D:
+  case Kinds::Texture2D:
     return "2d";
-  case ResourceKind::Texture2DMS:
+  case Kinds::Texture2DMS:
     return "2dMS";
-  case ResourceKind::Texture3D:
+  case Kinds::Texture3D:
     return "3d";
-  case ResourceKind::TextureCube:
+  case Kinds::TextureCube:
     return "cube";
-  case ResourceKind::Texture1DArray:
+  case Kinds::Texture1DArray:
     return "1darray";
-  case ResourceKind::Texture2DArray:
+  case Kinds::Texture2DArray:
     return "2darray";
-  case ResourceKind::Texture2DMSArray:
+  case Kinds::Texture2DMSArray:
     return "2darrayMS";
-  case ResourceKind::TextureCubeArray:
+  case Kinds::TextureCubeArray:
     return "cubearray";
-  case ResourceKind::TypedBuffer:
+  case Kinds::TypedBuffer:
     return "buf";
-  case ResourceKind::RawBuffer:
+  case Kinds::RawBuffer:
     return "rawbuf";
-  case ResourceKind::StructuredBuffer:
+  case Kinds::StructuredBuffer:
     return "structbuf";
-  case ResourceKind::CBuffer:
+  case Kinds::CBuffer:
     return "cbuffer";
-  case ResourceKind::Sampler:
+  case Kinds::Sampler:
     return "sampler";
-  case ResourceKind::TBuffer:
+  case Kinds::TBuffer:
     return "tbuffer";
-  case ResourceKind::RTAccelerationStructure:
+  case Kinds::RTAccelerationStructure:
     return "ras";
-  case ResourceKind::FeedbackTexture2D:
+  case Kinds::FeedbackTexture2D:
     return "fbtex2d";
-  case ResourceKind::FeedbackTexture2DArray:
+  case Kinds::FeedbackTexture2DArray:
     return "fbtex2darray";
   }
-  llvm_unreachable("All ResourceKind enums are handled in switch");
+  llvm_unreachable("All Kinds enums are handled in switch");
 }
 
-void ResourceBase::printKind(ResourceKind Kind, unsigned Alignment,
-                             raw_ostream &OS, bool SRV, bool HasCounter,
-                             uint32_t SampleCount) {
+void ResourceBase::printKind(Kinds Kind, unsigned Alignment, raw_ostream &OS,
+                             bool SRV, bool HasCounter, uint32_t SampleCount) {
   switch (Kind) {
   default:
     OS << right_justify(getKindName(Kind), Alignment);
     break;
 
-  case ResourceKind::RawBuffer:
-  case ResourceKind::StructuredBuffer:
+  case Kinds::RawBuffer:
+  case Kinds::StructuredBuffer:
     if (SRV)
       OS << right_justify("r/o", Alignment);
     else {
@@ -193,22 +193,22 @@ void ResourceBase::printKind(ResourceKind Kind, unsigned Alignment,
         OS << right_justify("r/w+cnt", Alignment);
     }
     break;
-  case ResourceKind::TypedBuffer:
+  case Kinds::TypedBuffer:
     OS << right_justify("buf", Alignment);
     break;
-  case ResourceKind::Texture2DMS:
-  case ResourceKind::Texture2DMSArray: {
+  case Kinds::Texture2DMS:
+  case Kinds::Texture2DMSArray: {
     std::string DimName = getKindName(Kind).str();
     if (SampleCount)
       DimName += std::to_string(SampleCount);
     OS << right_justify(DimName, Alignment);
   } break;
-  case ResourceKind::CBuffer:
-  case ResourceKind::Sampler:
+  case Kinds::CBuffer:
+  case Kinds::Sampler:
     OS << right_justify("NA", Alignment);
     break;
-  case ResourceKind::Invalid:
-  case ResourceKind::NumEntries:
+  case Kinds::Invalid:
+  case Kinds::NumEntries:
     break;
   }
 }
@@ -258,9 +258,9 @@ void ConstantBuffer::print(raw_ostream &OS) const {
 
   OS << right_justify("cbuffer", 10);
 
-  printElementType(ResourceKind::CBuffer, ElementType::Invalid, 8, OS);
+  printElementType(Kinds::CBuffer, ElementType::Invalid, 8, OS);
 
-  printKind(ResourceKind::CBuffer, 12, OS, /*SRV*/ false, /*HasCounter*/ false);
+  printKind(Kinds::CBuffer, 12, OS, /*SRV*/ false, /*HasCounter*/ false);
   // Print the binding part.
   ResourceBase::print(OS, "CB", "cb");
 }

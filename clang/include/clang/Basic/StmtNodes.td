@@ -155,7 +155,6 @@ def UnresolvedMemberExpr : StmtNode<OverloadExpr>;
 def CXXNoexceptExpr : StmtNode<Expr>;
 def PackExpansionExpr : StmtNode<Expr>;
 def SizeOfPackExpr : StmtNode<Expr>;
-def PackIndexingExpr : StmtNode<Expr>;
 def SubstNonTypeTemplateParmExpr : StmtNode<Expr>;
 def SubstNonTypeTemplateParmPackExpr : StmtNode<Expr>;
 def FunctionParmPackExpr : StmtNode<Expr>;

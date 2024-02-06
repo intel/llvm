@@ -524,7 +524,7 @@ Error DataAggregator::preprocessProfile(BinaryContext &BC) {
       ErrorCallback(ReturnCode, ErrBuf);
   };
 
-  if (BC.IsLinuxKernel) {
+  if (opts::LinuxKernelMode) {
     // Current MMap parsing logic does not work with linux kernel.
     // MMap entries for linux kernel uses PERF_RECORD_MMAP
     // format instead of typical PERF_RECORD_MMAP2 format.
@@ -1056,7 +1056,7 @@ ErrorOr<DataAggregator::PerfBranchSample> DataAggregator::parseBranchSample() {
   if (std::error_code EC = PIDRes.getError())
     return EC;
   auto MMapInfoIter = BinaryMMapInfo.find(*PIDRes);
-  if (!BC->IsLinuxKernel && MMapInfoIter == BinaryMMapInfo.end()) {
+  if (!opts::LinuxKernelMode && MMapInfoIter == BinaryMMapInfo.end()) {
     consumeRestOfLine();
     return make_error_code(errc::no_such_process);
   }
@@ -1277,7 +1277,7 @@ std::error_code DataAggregator::printLBRHeatMap() {
   NamedRegionTimer T("parseBranch", "Parsing branch events", TimerGroupName,
                      TimerGroupDesc, opts::TimeAggregator);
 
-  if (BC->IsLinuxKernel) {
+  if (opts::LinuxKernelMode) {
     opts::HeatmapMaxAddress = 0xffffffffffffffff;
     opts::HeatmapMinAddress = KernelBaseAddr;
   }

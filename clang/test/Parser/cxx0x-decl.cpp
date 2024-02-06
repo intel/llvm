@@ -213,13 +213,8 @@ struct MemberComponentOrder : Base {
 
 void NoMissingSemicolonHere(struct S
                             [3]);
-template<int ...N> void NoMissingSemicolonHereEither(struct S... [N]);
-// expected-error@-1 {{'S' does not refer to the name of a parameter pack}} \
-// expected-error@-1 {{declaration of anonymous struct must be a definition}} \
-// expected-error@-1 {{expected parameter declarator}} \
-// expected-error@-1 {{pack indexing is a C++2c extension}} \
-
-
+template<int ...N> void NoMissingSemicolonHereEither(struct S
+                                                     ... [N]);
 
 // This must be at the end of the file; we used to look ahead past the EOF token here.
 // expected-error@+1 {{expected unqualified-id}} expected-error@+1{{expected ';'}}

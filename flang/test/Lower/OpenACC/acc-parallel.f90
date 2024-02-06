@@ -83,9 +83,9 @@ subroutine acc_parallel
   !$acc parallel wait
   !$acc end parallel
 
-! CHECK:      acc.parallel wait {
+! CHECK:      acc.parallel {
 ! CHECK:        acc.yield
-! CHECK-NEXT: }
+! CHECK-NEXT: } attributes {waitOnly = [#acc.device_type<none>]}
 
   !$acc parallel wait(1)
   !$acc end parallel

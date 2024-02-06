@@ -137,14 +137,6 @@ constexpr TypeBuilderFunc getModel<void *>() {
   };
 }
 template <>
-constexpr TypeBuilderFunc getModel<void (*)(int)>() {
-  return [](mlir::MLIRContext *context) -> mlir::Type {
-    return fir::LLVMPointerType::get(
-        context,
-        mlir::FunctionType::get(context, /*inputs=*/{}, /*results*/ {}));
-  };
-}
-template <>
 constexpr TypeBuilderFunc getModel<void **>() {
   return [](mlir::MLIRContext *context) -> mlir::Type {
     return fir::ReferenceType::get(

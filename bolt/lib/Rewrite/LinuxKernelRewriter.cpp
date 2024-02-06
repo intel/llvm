@@ -95,7 +95,7 @@ class LinuxKernelRewriter final : public MetadataRewriter {
         return 1;
       if (IP > Other.IP)
         return 0;
-      return ORC == NullORC && Other.ORC != NullORC;
+      return ORC == NullORC;
     }
   };
 
@@ -163,15 +163,11 @@ public:
     return Error::success();
   }
 
-  Error preEmitFinalizer() override {
-    if (Error E = rewriteORCTables())
-      return E;
-
-    return Error::success();
-  }
-
   Error postEmitFinalizer() override {
     updateLKMarkers();
+
+    if (Error E = rewriteORCTables())
+      return E;
 
     return Error::success();
   }
@@ -207,7 +203,9 @@ void LinuxKernelRewriter::insertLKMarker(uint64_t PC, uint64_t SectionOffset,
 }
 
 void LinuxKernelRewriter::processLKSections() {
-  assert(BC.IsLinuxKernel && "Linux kernel binary expected.");
+  assert(opts::LinuxKernelMode &&
+         "process Linux Kernel special sections and their relocations only in "
+         "linux kernel mode.\n");
 
   processLKExTable();
   processLKPCIFixup();
@@ -288,9 +286,8 @@ void LinuxKernelRewriter::processLKExTable() {
 void LinuxKernelRewriter::processLKPCIFixup() {
   ErrorOr<BinarySection &> SectionOrError =
       BC.getUniqueSectionByName(".pci_fixup");
-  if (!SectionOrError)
-    return;
-
+  assert(SectionOrError &&
+         ".pci_fixup section not found in Linux Kernel binary");
   const uint64_t SectionSize = SectionOrError->getSize();
   const uint64_t SectionAddress = SectionOrError->getAddress();
   assert((SectionSize % 16) == 0 && ".pci_fixup size is not a multiple of 16");

@@ -27,8 +27,7 @@ struct TestConstantFold : public PassWrapper<TestConstantFold, OperationPass<>>,
   void foldOperation(Operation *op, OperationFolder &helper);
   void runOnOperation() override;
 
-  void notifyOperationInserted(Operation *op,
-                               OpBuilder::InsertPoint previous) override {
+  void notifyOperationInserted(Operation *op) override {
     existingConstants.push_back(op);
   }
   void notifyOperationRemoved(Operation *op) override {

@@ -1,9 +1,6 @@
 // REQUIRES: level_zero
 // RUN: %{build} -o %t.out
 
-// https://github.com/intel/llvm/issues/12397
-// UNSUPPORTED: gpu-intel-dg2
-
 // Allocate 2 items of 2MB. Free 2. Allocate 3 more of 2MB.
 
 // With no pooling: 1,2,3,4,5 allocs lead to ZE call.

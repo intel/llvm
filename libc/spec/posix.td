@@ -289,26 +289,6 @@ def POSIX : StandardSpec<"POSIX"> {
              ArgSpec<SizeTType>,
              ArgSpec<IntType>]
         >,
-        FunctionSpec<
-          "mlock",
-          RetValSpec<IntType>,
-          [ArgSpec<VoidPtr>, ArgSpec<SizeTType>]
-        >,
-        FunctionSpec<
-          "munlock",
-          RetValSpec<IntType>,
-          [ArgSpec<VoidPtr>, ArgSpec<SizeTType>]
-        >,
-        FunctionSpec<
-          "mlockall",
-          RetValSpec<IntType>,
-          [ArgSpec<IntType>]
-        >,
-        FunctionSpec<
-          "munlockall",
-          RetValSpec<IntType>,
-          [ArgSpec<VoidType>]
-        >,
       ]
   >;
 

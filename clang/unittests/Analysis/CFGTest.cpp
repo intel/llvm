@@ -276,6 +276,14 @@ TEST(CFG, Worklists) {
                            ForwardNodes.begin()));
   }
 
+  // RPO: 876321054
+  // WTO: 876534210
+  // So, we construct the WTO order accordingly from the reference order.
+  std::vector<const CFGBlock *> WTOOrder = {
+      ReferenceOrder[0], ReferenceOrder[1], ReferenceOrder[2],
+      ReferenceOrder[7], ReferenceOrder[3], ReferenceOrder[8],
+      ReferenceOrder[4], ReferenceOrder[5], ReferenceOrder[6]};
+
   {
     using ::testing::ElementsAreArray;
     std::optional<WeakTopologicalOrdering> WTO = getIntervalWTO(*CFG);
@@ -289,7 +297,7 @@ TEST(CFG, Worklists) {
     while (const CFGBlock *B = WTOWorklist.dequeue())
       WTONodes.push_back(B);
 
-    EXPECT_THAT(WTONodes, ElementsAreArray(*WTO));
+    EXPECT_THAT(WTONodes, ElementsAreArray(WTOOrder));
   }
 
   std::reverse(ReferenceOrder.begin(), ReferenceOrder.end());

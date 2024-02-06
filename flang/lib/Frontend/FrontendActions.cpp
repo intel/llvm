@@ -285,6 +285,8 @@ bool CodeGenAction::beginSourceFileAction() {
       ci.getSemanticsContext().defaultKinds();
   fir::KindMapping kindMap(mlirCtx.get(), llvm::ArrayRef<fir::KindTy>{
                                               fir::fromDefaultKinds(defKinds)});
+  const llvm::DataLayout &dl = targetMachine.createDataLayout();
+
   lower::LoweringBridge lb = Fortran::lower::LoweringBridge::create(
       *mlirCtx, ci.getSemanticsContext(), defKinds,
       ci.getSemanticsContext().intrinsics(),
@@ -292,7 +294,7 @@ bool CodeGenAction::beginSourceFileAction() {
       ci.getParsing().allCooked(), ci.getInvocation().getTargetOpts().triple,
       kindMap, ci.getInvocation().getLoweringOpts(),
       ci.getInvocation().getFrontendOpts().envDefaults,
-      ci.getInvocation().getFrontendOpts().features, targetMachine);
+      ci.getInvocation().getFrontendOpts().features, &dl);
 
   // Fetch module from lb, so we can set
   mlirModule = std::make_unique<mlir::ModuleOp>(lb.getModule());

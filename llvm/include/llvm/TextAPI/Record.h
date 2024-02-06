@@ -164,42 +164,15 @@ private:
 class ObjCInterfaceRecord : public ObjCContainerRecord {
 public:
   ObjCInterfaceRecord(StringRef Name, RecordLinkage Linkage,
-                      ObjCIFSymbolKind SymType)
-      : ObjCContainerRecord(Name, Linkage) {
-    updateLinkageForSymbols(SymType, Linkage);
-  }
+                      bool HasEHType = false)
+      : ObjCContainerRecord(Name, Linkage), HasEHType(HasEHType) {}
 
-  bool hasExceptionAttribute() const {
-    return Linkages.EHType != RecordLinkage::Unknown;
-  }
-  bool isCompleteInterface() const {
-    return Linkages.Class >= RecordLinkage::Rexported &&
-           Linkages.MetaClass >= RecordLinkage::Rexported;
-  }
-  bool isExportedSymbol(ObjCIFSymbolKind CurrType) const {
-    return getLinkageForSymbol(CurrType) >= RecordLinkage::Rexported;
-  }
-
-  RecordLinkage getLinkageForSymbol(ObjCIFSymbolKind CurrType) const;
-  void updateLinkageForSymbols(ObjCIFSymbolKind SymType, RecordLinkage Link);
-
+  bool hasExceptionAttribute() const { return HasEHType; }
   bool addObjCCategory(ObjCCategoryRecord *Record);
   std::vector<ObjCCategoryRecord *> getObjCCategories() const;
 
 private:
-  /// Linkage level for each symbol represented in ObjCInterfaceRecord.
-  struct Linkages {
-    RecordLinkage Class = RecordLinkage::Unknown;
-    RecordLinkage MetaClass = RecordLinkage::Unknown;
-    RecordLinkage EHType = RecordLinkage::Unknown;
-    bool operator==(const Linkages &other) const {
-      return std::tie(Class, MetaClass, EHType) ==
-             std::tie(other.Class, other.MetaClass, other.EHType);
-    }
-    bool operator!=(const Linkages &other) const { return !(*this == other); }
-  };
-  Linkages Linkages;
-
+  bool HasEHType;
   // Non-owning containers of categories that extend the class.
   llvm::MapVector<StringRef, ObjCCategoryRecord *> Categories;
 };

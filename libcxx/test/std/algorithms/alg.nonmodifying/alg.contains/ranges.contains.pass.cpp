@@ -19,7 +19,6 @@
 //     constexpr bool ranges::contains(R&& r, const T& value, Proj proj = {});                 // since C++23
 
 #include <algorithm>
-#include <array>
 #include <cassert>
 #include <list>
 #include <ranges>
@@ -90,8 +89,8 @@ constexpr void test_iterators() {
   }
 
   { // check that an empty range works
-    std::array<ValueT, 0> a = {};
-    auto whole              = std::ranges::subrange(Iter(a.data()), Sent(Iter(a.data())));
+    ValueT a[] = {};
+    auto whole = std::ranges::subrange(Iter(a), Sent(Iter(a)));
     {
       bool ret = std::ranges::contains(whole.begin(), whole.end(), 1);
       assert(!ret);
@@ -165,7 +164,7 @@ constexpr bool test() {
     });
   });
 
-  { // count invocations of the projection for contiguous iterators
+  { // count invocations of the projection for continuous iterators
     int a[]              = {1, 9, 0, 13, 25};
     int projection_count = 0;
     {
@@ -216,22 +215,22 @@ constexpr bool test() {
     }
   }
 
-  { // check invocations of the projection for non-contiguous iterators
+  { // check invocations of the projection for non-continuous iterators
     std::vector<bool> whole{false, false, true, false};
     int projection_count = 0;
     {
-      bool ret = std::ranges::contains(whole.begin(), whole.end(), true, [&](bool b) {
+      bool ret = std::ranges::contains(whole.begin(), whole.end(), true, [&](int i) {
         ++projection_count;
-        return b;
+        return i;
       });
       assert(ret);
       assert(projection_count == 3);
       projection_count = 0;
     }
     {
-      bool ret = std::ranges::contains(whole, true, [&](bool b) {
+      bool ret = std::ranges::contains(whole, true, [&](int i) {
         ++projection_count;
-        return b;
+        return i;
       });
       assert(ret);
       assert(projection_count == 3);

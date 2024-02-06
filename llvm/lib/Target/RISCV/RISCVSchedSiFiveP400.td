@@ -345,7 +345,6 @@ def : ReadAdvance<ReadSingleBitImm, 0>;
 
 //===----------------------------------------------------------------------===//
 // Unsupported extensions
-defm : UnsupportedSchedZabha;
 defm : UnsupportedSchedZbc;
 defm : UnsupportedSchedZbkb;
 defm : UnsupportedSchedZbkx;

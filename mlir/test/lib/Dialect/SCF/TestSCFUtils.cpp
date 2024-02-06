@@ -159,8 +159,8 @@ struct TestSCFPipeliningPass
     auto ifOp =
         rewriter.create<scf::IfOp>(loc, op->getResultTypes(), pred, true);
     // True branch.
-    rewriter.moveOpBefore(op, &ifOp.getThenRegion().front(),
-                          ifOp.getThenRegion().front().begin());
+    op->moveBefore(&ifOp.getThenRegion().front(),
+                   ifOp.getThenRegion().front().begin());
     rewriter.setInsertionPointAfter(op);
     if (op->getNumResults() > 0)
       rewriter.create<scf::YieldOp>(loc, op->getResults());

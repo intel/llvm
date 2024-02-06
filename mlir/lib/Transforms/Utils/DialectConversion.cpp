@@ -250,10 +250,10 @@ enum class BlockActionKind {
 };
 
 /// Original position of the given block in its parent region. During undo
-/// actions, the block needs to be placed before `insertBeforeBlock`.
+/// actions, the block needs to be placed after `insertAfterBlock`.
 struct BlockPosition {
   Region *region;
-  Block *insertBeforeBlock;
+  Block *insertAfterBlock;
 };
 
 /// Information needed to undo inlining actions.
@@ -910,8 +910,7 @@ struct ConversionPatternRewriterImpl {
   void notifyBlockIsBeingErased(Block *block);
 
   /// Notifies that a block was created.
-  void notifyInsertedBlock(Block *block, Region *previous,
-                           Region::iterator previousIt);
+  void notifyCreatedBlock(Block *block);
 
   /// Notifies that a block was split.
   void notifySplitBlock(Block *block, Block *continuation);
@@ -919,6 +918,10 @@ struct ConversionPatternRewriterImpl {
   /// Notifies that a block is being inlined into another block.
   void notifyBlockBeingInlined(Block *block, Block *srcBlock,
                                Block::iterator before);
+
+  /// Notifies that the blocks of a region are about to be moved.
+  void notifyRegionIsBeingInlinedBefore(Region &region, Region &parent,
+                                        Region::iterator before);
 
   /// Notifies that a pattern match failed for the given reason.
   LogicalResult
@@ -1170,9 +1173,10 @@ void ConversionPatternRewriterImpl::undoBlockActions(
     // Put the block (owned by action) back into its original position.
     case BlockActionKind::Erase: {
       auto &blockList = action.originalPosition.region->getBlocks();
-      Block *insertBeforeBlock = action.originalPosition.insertBeforeBlock;
-      blockList.insert((insertBeforeBlock ? Region::iterator(insertBeforeBlock)
-                                          : blockList.end()),
+      Block *insertAfterBlock = action.originalPosition.insertAfterBlock;
+      blockList.insert((insertAfterBlock
+                            ? std::next(Region::iterator(insertAfterBlock))
+                            : blockList.begin()),
                        action.block);
       break;
     }
@@ -1192,10 +1196,10 @@ void ConversionPatternRewriterImpl::undoBlockActions(
     // Move the block back to its original position.
     case BlockActionKind::Move: {
       Region *originalRegion = action.originalPosition.region;
-      Block *insertBeforeBlock = action.originalPosition.insertBeforeBlock;
+      Block *insertAfterBlock = action.originalPosition.insertAfterBlock;
       originalRegion->getBlocks().splice(
-          (insertBeforeBlock ? Region::iterator(insertBeforeBlock)
-                             : originalRegion->end()),
+          (insertAfterBlock ? std::next(Region::iterator(insertAfterBlock))
+                            : originalRegion->end()),
           action.block->getParent()->getBlocks(), action.block);
       break;
     }
@@ -1394,19 +1398,12 @@ void ConversionPatternRewriterImpl::notifyOpReplaced(Operation *op,
 
 void ConversionPatternRewriterImpl::notifyBlockIsBeingErased(Block *block) {
   Region *region = block->getParent();
-  Block *origNextBlock = block->getNextNode();
-  blockActions.push_back(BlockAction::getErase(block, {region, origNextBlock}));
+  Block *origPrevBlock = block->getPrevNode();
+  blockActions.push_back(BlockAction::getErase(block, {region, origPrevBlock}));
 }
 
-void ConversionPatternRewriterImpl::notifyInsertedBlock(
-    Block *block, Region *previous, Region::iterator previousIt) {
-  if (!previous) {
-    // This is a newly created block.
-    blockActions.push_back(BlockAction::getCreate(block));
-    return;
-  }
-  Block *prevBlock = previousIt == previous->end() ? nullptr : &*previousIt;
-  blockActions.push_back(BlockAction::getMove(block, {previous, prevBlock}));
+void ConversionPatternRewriterImpl::notifyCreatedBlock(Block *block) {
+  blockActions.push_back(BlockAction::getCreate(block));
 }
 
 void ConversionPatternRewriterImpl::notifySplitBlock(Block *block,
@@ -1417,6 +1414,19 @@ void ConversionPatternRewriterImpl::notifySplitBlock(Block *block,
 void ConversionPatternRewriterImpl::notifyBlockBeingInlined(
     Block *block, Block *srcBlock, Block::iterator before) {
   blockActions.push_back(BlockAction::getInline(block, srcBlock, before));
+}
+
+void ConversionPatternRewriterImpl::notifyRegionIsBeingInlinedBefore(
+    Region &region, Region &parent, Region::iterator before) {
+  if (region.empty())
+    return;
+  Block *laterBlock = &region.back();
+  for (auto &earlierBlock : llvm::drop_begin(llvm::reverse(region), 1)) {
+    blockActions.push_back(
+        BlockAction::getMove(laterBlock, {&region, &earlierBlock}));
+    laterBlock = &earlierBlock;
+  }
+  blockActions.push_back(BlockAction::getMove(laterBlock, {&region, nullptr}));
 }
 
 LogicalResult ConversionPatternRewriterImpl::notifyMatchFailure(
@@ -1541,14 +1551,13 @@ ConversionPatternRewriter::getRemappedValues(ValueRange keys,
                            results);
 }
 
-void ConversionPatternRewriter::notifyBlockInserted(
-    Block *block, Region *previous, Region::iterator previousIt) {
-  impl->notifyInsertedBlock(block, previous, previousIt);
+void ConversionPatternRewriter::notifyBlockCreated(Block *block) {
+  impl->notifyCreatedBlock(block);
 }
 
 Block *ConversionPatternRewriter::splitBlock(Block *block,
                                              Block::iterator before) {
-  auto *continuation = block->splitBlock(before);
+  auto *continuation = PatternRewriter::splitBlock(block, before);
   impl->notifySplitBlock(block, continuation);
   return continuation;
 }
@@ -1573,6 +1582,13 @@ void ConversionPatternRewriter::inlineBlockBefore(Block *source, Block *dest,
   eraseBlock(source);
 }
 
+void ConversionPatternRewriter::inlineRegionBefore(Region &region,
+                                                   Region &parent,
+                                                   Region::iterator before) {
+  impl->notifyRegionIsBeingInlinedBefore(region, parent, before);
+  PatternRewriter::inlineRegionBefore(region, parent, before);
+}
+
 void ConversionPatternRewriter::cloneRegionBefore(Region &region,
                                                   Region &parent,
                                                   Region::iterator before,
@@ -1584,15 +1600,13 @@ void ConversionPatternRewriter::cloneRegionBefore(Region &region,
 
   for (Block &b : ForwardDominanceIterator<>::makeIterable(region)) {
     Block *cloned = mapping.lookup(&b);
-    impl->notifyInsertedBlock(cloned, /*previous=*/nullptr, /*previousIt=*/{});
+    impl->notifyCreatedBlock(cloned);
     cloned->walk<WalkOrder::PreOrder, ForwardDominanceIterator<>>(
-        [&](Operation *op) { notifyOperationInserted(op, /*previous=*/{}); });
+        [&](Operation *op) { notifyOperationInserted(op); });
   }
 }
 
-void ConversionPatternRewriter::notifyOperationInserted(Operation *op,
-                                                        InsertPoint previous) {
-  assert(!previous.isSet() && "expected newly created op");
+void ConversionPatternRewriter::notifyOperationInserted(Operation *op) {
   LLVM_DEBUG({
     impl->logger.startLine()
         << "** Insert  : '" << op->getName() << "'(" << op << ")\n";
@@ -1635,18 +1649,6 @@ void ConversionPatternRewriter::cancelOpModification(Operation *op) {
 LogicalResult ConversionPatternRewriter::notifyMatchFailure(
     Location loc, function_ref<void(Diagnostic &)> reasonCallback) {
   return impl->notifyMatchFailure(loc, reasonCallback);
-}
-
-void ConversionPatternRewriter::moveOpBefore(Operation *op, Block *block,
-                                             Block::iterator iterator) {
-  llvm_unreachable(
-      "moving single ops is not supported in a dialect conversion");
-}
-
-void ConversionPatternRewriter::moveOpAfter(Operation *op, Block *block,
-                                            Block::iterator iterator) {
-  llvm_unreachable(
-      "moving single ops is not supported in a dialect conversion");
 }
 
 detail::ConversionPatternRewriterImpl &ConversionPatternRewriter::getImpl() {

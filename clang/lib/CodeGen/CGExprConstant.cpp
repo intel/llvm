@@ -1388,10 +1388,6 @@ public:
     return nullptr;
   }
 
-  llvm::Constant *VisitPackIndexingExpr(PackIndexingExpr *E, QualType T) {
-    return Visit(E->getSelectedExpr(), T);
-  }
-
   // Utility methods
   llvm::Type *ConvertType(QualType T) {
     return CGM.getTypes().ConvertType(T);
@@ -2080,7 +2076,10 @@ ConstantLValue
 ConstantLValueEmitter::VisitMaterializeTemporaryExpr(
                                             const MaterializeTemporaryExpr *E) {
   assert(E->getStorageDuration() == SD_Static);
-  const Expr *Inner = E->getSubExpr()->skipRValueSubobjectAdjustments();
+  SmallVector<const Expr *, 2> CommaLHSs;
+  SmallVector<SubobjectAdjustment, 2> Adjustments;
+  const Expr *Inner =
+      E->getSubExpr()->skipRValueSubobjectAdjustments(CommaLHSs, Adjustments);
   return CGM.GetAddrOfGlobalTemporary(E, Inner);
 }
 

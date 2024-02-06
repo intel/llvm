@@ -16,7 +16,6 @@
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/Stmt.h"
-#include "clang/Basic/SourceLocation.h"
 #include "llvm/Support/Debug.h"
 
 namespace clang {
@@ -99,13 +98,8 @@ public:
 #endif
 
 public:
-  /// \return true iff buffer safety is opt-out at `Loc`; false otherwise.
+  /// Returns a reference to the `Preprocessor`:
   virtual bool isSafeBufferOptOut(const SourceLocation &Loc) const = 0;
-
-  /// \return true iff unsafe uses in containers should NOT be reported at
-  /// `Loc`; false otherwise.
-  virtual bool
-  ignoreUnsafeBufferInContainer(const SourceLocation &Loc) const = 0;
 
   virtual std::string
   getUnsafeBufferUsageAttributeTextAt(SourceLocation Loc,

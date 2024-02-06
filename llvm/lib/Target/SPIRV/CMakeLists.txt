@@ -26,7 +26,6 @@ add_llvm_target(SPIRVCodeGen
   SPIRVISelLowering.cpp
   SPIRVLegalizerInfo.cpp
   SPIRVMCInstLower.cpp
-  SPIRVMetadata.cpp
   SPIRVModuleAnalysis.cpp
   SPIRVPreLegalizer.cpp
   SPIRVPrepareFunctions.cpp

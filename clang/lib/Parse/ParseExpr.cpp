@@ -1065,24 +1065,14 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
     if (getLangOpts().CPlusPlus) {
       // Avoid the unnecessary parse-time lookup in the common case
       // where the syntax forbids a type.
-      Token Next = NextToken();
-
-      if (Next.is(tok::ellipsis) && Tok.is(tok::identifier) &&
-          GetLookAheadToken(2).is(tok::l_square)) {
-        // Annotate the token and tail recurse.
-        // If the token is not annotated, then it might be an expression pack
-        // indexing
-        if (!TryAnnotateTypeOrScopeToken() &&
-            Tok.is(tok::annot_pack_indexing_type))
-          return ParseCastExpression(ParseKind, isAddressOfOperand, isTypeCast,
-                                     isVectorLiteral, NotPrimaryExpression);
-      }
+      const Token &Next = NextToken();
 
       // If this identifier was reverted from a token ID, and the next token
       // is a parenthesis, this is likely to be a use of a type trait. Check
       // those tokens.
-      else if (Next.is(tok::l_paren) && Tok.is(tok::identifier) &&
-               Tok.getIdentifierInfo()->hasRevertedTokenIDToIdentifier()) {
+      if (Next.is(tok::l_paren) &&
+          Tok.is(tok::identifier) &&
+          Tok.getIdentifierInfo()->hasRevertedTokenIDToIdentifier()) {
         IdentifierInfo *II = Tok.getIdentifierInfo();
         // Build up the mapping of revertible type traits, for future use.
         if (RevertibleTypeTraits.empty()) {
@@ -1169,9 +1159,9 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
         }
       }
 
-      else if ((!ColonIsSacred && Next.is(tok::colon)) ||
-               Next.isOneOf(tok::coloncolon, tok::less, tok::l_paren,
-                            tok::l_brace)) {
+      if ((!ColonIsSacred && Next.is(tok::colon)) ||
+          Next.isOneOf(tok::coloncolon, tok::less, tok::l_paren,
+                       tok::l_brace)) {
         // If TryAnnotateTypeOrScopeToken annotates the token, tail recurse.
         if (TryAnnotateTypeOrScopeToken())
           return ExprError();
@@ -1299,7 +1289,6 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
                                  /*isVectorLiteral=*/false,
                                  NotPrimaryExpression);
     }
-    Res = tryParseCXXPackIndexingExpression(Res);
     if (!Res.isInvalid() && Tok.is(tok::less))
       checkPotentialAngleBracket(Res);
     break;
@@ -1563,7 +1552,6 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
     [[fallthrough]];
 
   case tok::annot_decltype:
-  case tok::annot_pack_indexing_type:
   case tok::kw_char:
   case tok::kw_wchar_t:
   case tok::kw_char8_t:
@@ -1612,7 +1600,7 @@ ExprResult Parser::ParseCastExpression(CastParseKind ParseKind,
       if (TryAnnotateTypeOrScopeToken())
         return ExprError();
 
-      if (!Tok.isSimpleTypeSpecifier(getLangOpts()))
+      if (!Actions.isSimpleTypeSpecifier(Tok.getKind()))
         // We are trying to parse a simple-type-specifier but might not get such
         // a token after error recovery.
         return ExprError();

@@ -18,9 +18,6 @@
 #  pragma GCC system_header
 #endif
 
-_LIBCPP_PUSH_MACROS
-#include <__undef_macros>
-
 _LIBCPP_BEGIN_NAMESPACE_STD
 
 // 2+2 iterators: the shorter size will be used.
@@ -56,7 +53,5 @@ swap_ranges(_ForwardIterator1 __first1, _ForwardIterator1 __last1, _ForwardItera
 }
 
 _LIBCPP_END_NAMESPACE_STD
-
-_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___ALGORITHM_SWAP_RANGES_H

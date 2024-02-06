@@ -71,7 +71,6 @@ add_libc_unittest(
     TmMatcher.h
   DEPENDS
     libc.src.time.gmtime
-    libc.src.__support.CPP.limits
 )
 
 add_libc_unittest(
@@ -99,7 +98,6 @@ add_libc_unittest(
     20
   DEPENDS
     libc.src.time.mktime
-    libc.src.__support.CPP.limits
 )
 
 # Sleeping is not supported on older NVPTX architectures.

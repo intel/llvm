@@ -131,7 +131,7 @@ int main(int argc, const char **argv) {
                              Twine(EC.message()));
 
   move::ClangMoveContext Context{Spec, Tool.getReplacements(),
-                                 std::string(InitialDirectory), Style,
+                                 std::string(InitialDirectory.str()), Style,
                                  DumpDecls};
   move::DeclarationReporter Reporter;
   move::ClangMoveActionFactory Factory(&Context, &Reporter);

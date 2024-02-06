@@ -201,19 +201,6 @@ LLVM_DUMP_METHOD void Type::dump(llvm::raw_ostream &OS,
 }
 
 //===----------------------------------------------------------------------===//
-// TypeLoc method implementations
-//===----------------------------------------------------------------------===//
-
-LLVM_DUMP_METHOD void TypeLoc::dump() const {
-  ASTDumper(llvm::errs(), /*ShowColors=*/false).Visit(*this);
-}
-
-LLVM_DUMP_METHOD void TypeLoc::dump(llvm::raw_ostream &OS,
-                                    const ASTContext &Context) const {
-  ASTDumper(OS, Context, Context.getDiagnostics().getShowColors()).Visit(*this);
-}
-
-//===----------------------------------------------------------------------===//
 // Decl method implementations
 //===----------------------------------------------------------------------===//
 

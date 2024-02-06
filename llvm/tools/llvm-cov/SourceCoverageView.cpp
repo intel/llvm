@@ -175,15 +175,15 @@ void SourceCoverageView::addExpansion(
 }
 
 void SourceCoverageView::addBranch(unsigned Line,
-                                   SmallVector<CountedRegion, 0> Regions,
+                                   ArrayRef<CountedRegion> Regions,
                                    std::unique_ptr<SourceCoverageView> View) {
-  BranchSubViews.emplace_back(Line, std::move(Regions), std::move(View));
+  BranchSubViews.emplace_back(Line, Regions, std::move(View));
 }
 
 void SourceCoverageView::addMCDCRecord(
-    unsigned Line, SmallVector<MCDCRecord, 0> Records,
+    unsigned Line, ArrayRef<MCDCRecord> Records,
     std::unique_ptr<SourceCoverageView> View) {
-  MCDCSubViews.emplace_back(Line, std::move(Records), std::move(View));
+  MCDCSubViews.emplace_back(Line, Records, std::move(View));
 }
 
 void SourceCoverageView::addInstantiation(

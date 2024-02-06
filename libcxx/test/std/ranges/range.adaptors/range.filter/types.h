@@ -31,9 +31,9 @@ struct AlwaysTrue {
   constexpr bool operator()(T const&) const { return true; }
 };
 
-template <class Iter, class Sent>
+template <class Iterator, class Sentinel>
 struct minimal_view : std::ranges::view_base {
-  constexpr explicit minimal_view(Iter it, Sent sent)
+  constexpr explicit minimal_view(Iterator it, Sentinel sent)
     : it_(base(std::move(it)))
     , sent_(base(std::move(sent)))
   { }
@@ -41,12 +41,12 @@ struct minimal_view : std::ranges::view_base {
   minimal_view(minimal_view&&) = default;
   minimal_view& operator=(minimal_view&&) = default;
 
-  constexpr Iter begin() const { return Iter(it_); }
-  constexpr Sent end() const { return Sent(sent_); }
+  constexpr Iterator begin() const { return Iterator(it_); }
+  constexpr Sentinel end() const { return Sentinel(sent_); }
 
 private:
-  decltype(base(std::declval<Iter>())) it_;
-  decltype(base(std::declval<Sent>())) sent_;
+  decltype(base(std::declval<Iterator>())) it_;
+  decltype(base(std::declval<Sentinel>())) sent_;
 };
 
 template <bool IsNoexcept>

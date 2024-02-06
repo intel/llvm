@@ -80,22 +80,11 @@ int main() {
     test<const half, const half, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N,
          32, 16, 8>(Q);
 
-    // test different layout combinations for one case
-
-    test<const half, const half, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N,
-         32, 16, 8, layout::row_major, layout::row_major, layout::col_major>(Q);
-    test<const half, const half, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N,
-         32, 16, 8, layout::row_major, layout::col_major, layout::row_major>(Q);
-    test<const half, const half, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N,
-         32, 16, 8, layout::col_major, layout::row_major, layout::row_major>(Q);
-    test<const half, const half, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N,
-         32, 16, 8, layout::col_major, layout::col_major, layout::row_major>(Q);
-
-    // joint_matrix_apply tests
-
     auto apply_add = [](auto &x) { x = x + 2; };
     float D[MATRIX_M][MATRIX_N];
     big_matrix<float, MATRIX_M, MATRIX_N> MD_f((float *)&D);
+
+    // joint_matrix_apply tests
 
     matrix_verify_lambda<half, float, M, 16, N>(Q, MD_f, 0.0, apply_add);
   }

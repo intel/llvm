@@ -983,7 +983,7 @@ struct ParallelInsertSliceOpInterface
     for (Operation *user : srcBuffer->getUsers()) {
       if (hasEffect<MemoryEffects::Free>(user)) {
         if (user->getBlock() == parallelCombiningParent->getBlock())
-          rewriter.moveOpBefore(user, user->getBlock()->getTerminator());
+          user->moveBefore(user->getBlock()->getTerminator());
         break;
       }
     }

@@ -230,13 +230,7 @@ Type *VPTypeAnalysis::inferScalarType(const VPValue *V) {
             return V->getUnderlyingValue()->getType();
           })
           .Case<VPWidenCastRecipe>(
-              [](const VPWidenCastRecipe *R) { return R->getResultType(); })
-          .Case<VPScalarCastRecipe>(
-              [](const VPScalarCastRecipe *R) { return R->getResultType(); })
-          .Case<VPExpandSCEVRecipe>([](const VPExpandSCEVRecipe *R) {
-            return R->getSCEV()->getType();
-          });
-
+              [](const VPWidenCastRecipe *R) { return R->getResultType(); });
   assert(ResultTy && "could not infer type for the given VPValue");
   CachedTypes[V] = ResultTy;
   return ResultTy;

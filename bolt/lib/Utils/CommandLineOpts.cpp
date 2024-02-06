@@ -29,6 +29,7 @@ const char *BoltRevision =
 namespace opts {
 
 bool HeatmapMode = false;
+bool LinuxKernelMode = false;
 
 cl::OptionCategory BoltCategory("BOLT generic options");
 cl::OptionCategory BoltDiffCategory("BOLTDIFF generic options");

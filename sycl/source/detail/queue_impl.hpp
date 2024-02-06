@@ -108,9 +108,7 @@ public:
              const async_handler &AsyncHandler, const property_list &PropList)
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList), MHostQueue(MDevice->is_host()),
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
         MAssertHappenedBuffer(range<1>{1}),
-#endif
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
@@ -285,9 +283,7 @@ public:
   queue_impl(sycl::detail::pi::PiQueue PiQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler)
       : MContext(Context), MAsyncHandler(AsyncHandler), MHostQueue(false),
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
         MAssertHappenedBuffer(range<1>{1}),
-#endif
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
@@ -309,10 +305,7 @@ public:
   queue_impl(sycl::detail::pi::PiQueue PiQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler, const property_list &PropList)
       : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(PropList),
-        MHostQueue(false),
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-        MAssertHappenedBuffer(range<1>{1}),
-#endif
+        MHostQueue(false), MAssertHappenedBuffer(range<1>{1}),
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
@@ -680,11 +673,9 @@ public:
   /// \return a native handle.
   pi_native_handle getNative(int32_t &NativeHandleDesc) const;
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   buffer<AssertHappened, 1> &getAssertHappenedBuffer() {
     return MAssertHappenedBuffer;
   }
-#endif
 
   void registerStreamServiceEvent(const EventImplPtr &Event) {
     std::lock_guard<std::mutex> Lock(MMutex);
@@ -927,10 +918,8 @@ protected:
   /// need to emulate it with multiple native in-order queues.
   bool MEmulateOOO = false;
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // Buffer to store assert failure descriptor
   buffer<AssertHappened, 1> MAssertHappenedBuffer;
-#endif
 
   // This event is employed for enhanced dependency tracking with in-order queue
   // Access to the event should be guarded with MMutex

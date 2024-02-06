@@ -29,7 +29,7 @@ public:
 private:
   LogicalResult buildGlobalMap(ModuleOp op);
 
-  void processBlock(Block &block, llvm::DenseSet<SymbolRefAttr> &symbolLoad,
+  void ProcessBlock(Block &block, llvm::DenseSet<SymbolRefAttr> &symbolLoad,
                     llvm::DenseSet<SymbolRefAttr> &symbolStore);
 
   llvm::DenseMap<SymbolRefAttr, llvm::DenseSet<SymbolRefAttr>> loadSymbolsMap;
@@ -38,8 +38,8 @@ private:
 
 // Traverses upwards searchign for the operation mapped by the symbol.
 static Operation *getFromSymbol(Operation *baseOp, SymbolRefAttr symbol) {
-  for (auto *op = baseOp; op; op = op->getParentOp()) {
-    auto *lookup = SymbolTable::lookupNearestSymbolFrom(op, symbol);
+  for (auto op = baseOp; op; op = op->getParentOp()) {
+    auto lookup = SymbolTable::lookupNearestSymbolFrom(op, symbol);
     if (lookup)
       return lookup;
   }
@@ -59,7 +59,7 @@ LogicalResult MLProgramPipelineGlobals::buildGlobalMap(ModuleOp module) {
       }
 
       auto symbol = mlir::dyn_cast<SymbolRefAttr>(callable);
-      auto *func = getFromSymbol(op, symbol);
+      auto func = getFromSymbol(op, symbol);
       callableMap[symbol] = func;
     }
     return WalkResult::advance();
@@ -122,7 +122,7 @@ LogicalResult MLProgramPipelineGlobals::buildGlobalMap(ModuleOp module) {
 
 // Process each operation in the block deleting unneeded loads / stores,
 // recursing on subblocks and checking function calls.
-void MLProgramPipelineGlobals::processBlock(
+void MLProgramPipelineGlobals::ProcessBlock(
     Block &block, llvm::DenseSet<SymbolRefAttr> &symbolLoad,
     llvm::DenseSet<SymbolRefAttr> &symbolStore) {
 
@@ -184,7 +184,7 @@ void MLProgramPipelineGlobals::processBlock(
     llvm::DenseSet<SymbolRefAttr> opSymbolStore;
     for (auto &region : op.getRegions()) {
       for (auto &block : region) {
-        processBlock(block, opSymbolLoad, opSymbolStore);
+        ProcessBlock(block, opSymbolLoad, opSymbolStore);
       }
     }
 
@@ -201,7 +201,7 @@ void MLProgramPipelineGlobals::processBlock(
     }
   }
 
-  for (auto *op : toDelete) {
+  for (auto op : toDelete) {
     op->erase();
   }
 }
@@ -217,7 +217,7 @@ void MLProgramPipelineGlobals::runOnOperation() {
       for (auto &block : region.getBlocks()) {
         llvm::DenseSet<SymbolRefAttr> symbolsLoaded;
         llvm::DenseSet<SymbolRefAttr> symbolsStored;
-        processBlock(block, symbolsLoaded, symbolsStored);
+        ProcessBlock(block, symbolsLoaded, symbolsStored);
       }
     }
   }
