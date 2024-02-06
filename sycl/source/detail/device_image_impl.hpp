@@ -180,19 +180,20 @@ public:
 
   void get_specialization_constant_raw_value(const char *SpecName,
                                              void *ValueRet) const noexcept {
-    assert(is_specialization_constant_set(SpecName));
+    bool IsSet = is_specialization_constant_set(SpecName);
     // Lock the mutex to prevent when one thread in the middle of writing a
     // new value while another thread is reading the value to pass it to
     // JIT compiler.
     const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
-
+    assert(IsSet || MSpecConstsDefValBlob.size());
     // operator[] can't be used here, since it's not marked as const
     const std::vector<SpecConstDescT> &Descs =
         MSpecConstSymMap.at(std::string{SpecName});
     for (const SpecConstDescT &Desc : Descs) {
-
+      auto Blob =
+          IsSet ? MSpecConstsBlob.data() : MSpecConstsDefValBlob.begin();
       std::memcpy(static_cast<char *>(ValueRet) + Desc.CompositeOffset,
-                  MSpecConstsBlob.data() + Desc.BlobOffset, Desc.Size);
+                  Blob + Desc.BlobOffset, Desc.Size);
     }
   }
 
@@ -404,7 +405,7 @@ private:
   std::vector<unsigned char> MSpecConstsBlob;
   // Binary blob which can have default values of all specialization constants
   // in the image.
-  ByteArray MSpecConstsDefValBlob;
+  const ByteArray MSpecConstsDefValBlob;
   // Buffer containing binary blob which can have values of all specialization
   // constants in the image, it is using for storing non-native specialization
   // constants
