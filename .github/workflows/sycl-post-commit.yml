@@ -44,6 +44,7 @@ jobs:
         include:
           - name: Intel GEN12 Graphics with Level Zero
             runner: '["Linux", "gen12"]'
+	    extra_lit_opts: --param gpu-intel-gen12=True
           - name: Intel Arc A-Series Graphics with Level Zero
             runner: '["Linux", "arc"]'
             extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
@@ -56,7 +57,7 @@ jobs:
           - name: Perf tests on Intel GEN12 Graphics system
             runner: '["Linux", "gen12"]'
             env: '{"LIT_FILTER":"PerformanceTests/"}'
-            extra_lit_opts: -a -j 1 --param enable-perf-tests=True
+            extra_lit_opts: -a -j 1 --param enable-perf-tests=True --param gpu-intel-gen12=True
             target_devices: all
           - name: Perf tests on Intel Arc A-Series Graphics system
             runner: '["Linux", "arc"]'
@@ -101,6 +102,7 @@ jobs:
       name: Intel GEN12 Graphics with Level Zero
       runner: '["Windows","gen12"]'
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
+      extra_lit_opts: --param gpu-intel-gen12=True
 
   macos_default:
     name: macOS
