@@ -64,7 +64,7 @@ template <typename T> struct test_pow_cplx_cplx {
         cplx_out[0] = experimental::pow<T>(cplx_input1, cplx_input2);
       });
     });
-    sycl::accessor cplx_out_acc{cplx_out_buf};
+    sycl::host_accessor cplx_out_acc{cplx_out_buf};
     pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ true);
 
     // Check cplx::complex output from host

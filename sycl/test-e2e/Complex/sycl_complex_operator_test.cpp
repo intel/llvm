@@ -49,11 +49,11 @@ test_op(test_div, /);
       experimental::complex<T> cplx_input{init_re1, init_im1};                 \
                                                                                \
       auto std_inout = init_std_complex(init_re2, init_im2);                   \
-      sycl::buffer<experimental::complex<T>> cplx_out_buf{sycl::range{1}};     \
-      sycl::host_accessor cplx_inout{cplx_out_buf};                            \
-      cplx_inout[0].real(init_re2);                                            \
-      cplx_inout[0].imag(init_im2);                                            \
-                                                                               \
+      experimental::complex<T> cplx;                                           \
+      cplx.real(init_re2);                                                     \
+      cplx.imag(init_im2);                                                     \
+      sycl::buffer<experimental::complex<T>> cplx_out_buf{&cplx,               \
+                                                          sycl::range{1}};     \
       std_inout op_assign std_in;                                              \
       Q.submit([&](sycl::handler &h) {                                         \
         sycl::accessor cplx_out{cplx_out_buf, h};                              \
