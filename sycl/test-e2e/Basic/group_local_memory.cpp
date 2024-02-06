@@ -8,9 +8,8 @@ constexpr int N = 5;
 int main() {
   sycl::queue q;
   sycl::buffer<int> buf{sycl::range{N}};
-  sycl::accessor acc{buf};
   q.submit([&](sycl::handler &h) {
-    h.require(acc);
+    sycl::accessor acc{buf, h};
     h.parallel_for(sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1> it) {
       auto g = it.get_group();
       auto mem =

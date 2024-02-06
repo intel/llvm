@@ -36,7 +36,10 @@ void test_regular(std::string_view desc, queue &q, size_t B, RangeT range) {
       ++ref;
     });
   });
-  sycl::host_accessor host_accessor{accumulator_buf};
+  sycl::host_accessor host_acc{accumulator_buf};
+  for (int i = 0; i < accumulators_v.size(); ++i) {
+    accumulators_v[i] = host_acc[i];
+  }
   check_sum(desc, accumulators_v, N);
 }
 
@@ -55,7 +58,10 @@ void test_spec_constant(std::string_view desc, queue &q, size_t B,
       ref += h.get_specialization_constant<C>();
     });
   });
-  sycl::host_accessor host_accessor{accumulators_buf};
+  sycl::host_accessor host_acc{accumulators_buf};
+  for (int i = 0; i < accumulators_v.size(); ++i) {
+    accumulators_v[i] = host_acc[i];
+  }
   check_sum(desc, accumulators_v, N * 2);
 }
 
