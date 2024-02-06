@@ -8,20 +8,20 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 
 bool find_combination(const combination &comb,
                       const std::vector<combination> &expected_combinations) {
-  return (std::find_if(expected_combinations.begin(),
-                       expected_combinations.end(),
-                       [&comb](const auto &expected_comb) {
-                         return (comb.max_msize == expected_comb.max_msize &&
-                                 comb.max_nsize == expected_comb.max_nsize &&
-                                 comb.max_ksize == expected_comb.max_ksize &&
-                                 comb.msize == expected_comb.msize &&
-                                 comb.nsize == expected_comb.nsize &&
-                                 comb.ksize == expected_comb.ksize &&
-                                 comb.atype == expected_comb.atype &&
-                                 comb.btype == expected_comb.btype &&
-                                 comb.ctype == expected_comb.ctype &&
-                                 comb.dtype == expected_comb.dtype);
-                       }) != expected_combinations.end());
+  return std::find_if(expected_combinations.begin(),
+                      expected_combinations.end(),
+                      [&comb](const auto &expected_comb) {
+                        return (comb.max_msize == expected_comb.max_msize &&
+                                comb.max_nsize == expected_comb.max_nsize &&
+                                comb.max_ksize == expected_comb.max_ksize &&
+                                comb.msize == expected_comb.msize &&
+                                comb.nsize == expected_comb.nsize &&
+                                comb.ksize == expected_comb.ksize &&
+                                comb.atype == expected_comb.atype &&
+                                comb.btype == expected_comb.btype &&
+                                comb.ctype == expected_comb.ctype &&
+                                comb.dtype == expected_comb.dtype);
+                      }) != expected_combinations.end();
 }
 
 int main() {
