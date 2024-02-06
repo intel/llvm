@@ -25,7 +25,7 @@ public:
   string() noexcept = default;
   ~string() { delete[] str; }
 
-  string(const std::string_view strn) {
+  string(std::string_view strn) {
     size_t len = strn.length();
     str = new char[len + 1];
     strn.copy(str, len);
@@ -48,7 +48,7 @@ public:
     return *this;
   }
   string &operator=(const string &other) {
-    *this = string{other.str};
+    *this = string{other};
     return *this;
   }
 
