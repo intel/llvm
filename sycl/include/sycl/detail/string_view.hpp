@@ -24,7 +24,7 @@ class string_view {
 public:
   string_view() noexcept = default;
   string_view(const string_view &strn) noexcept = default;
-  string_view(const std::string_view strn) noexcept : str(strn.data()) {}
+  string_view(std::string_view strn) noexcept : str(strn.data()) {}
   string_view(string_view &&strn) noexcept : str(strn.data()) {}
 
   string_view &operator=(string_view &&strn) noexcept {
@@ -45,7 +45,7 @@ public:
     return *this;
   }
 
-  string_view &operator=(const std::string_view strn) noexcept {
+  string_view &operator=(std::string_view strn) noexcept {
     str = strn.data();
     return *this;
   }
@@ -53,10 +53,10 @@ public:
   const char *data() const noexcept { return str; }
 
   friend bool operator==(const string_view &lhs,
-                         const std::string_view rhs) noexcept {
+                         std::string_view rhs) noexcept {
     return rhs == lhs.data();
   }
-  friend bool operator==(const std::string_view lhs,
+  friend bool operator==(std::string_view lhs,
                          const string_view &rhs) noexcept {
     return lhs == rhs.data();
   }

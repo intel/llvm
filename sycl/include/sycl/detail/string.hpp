@@ -52,19 +52,17 @@ public:
     return *this;
   }
 
-  string &operator=(const std::string_view strn) {
+  string &operator=(std::string_view strn) {
     *this = string{strn};
     return *this;
   }
 
   const char *c_str() const noexcept { return str; }
 
-  friend bool operator==(const string &lhs,
-                         const std::string_view rhs) noexcept {
+  friend bool operator==(const string &lhs, std::string_view rhs) noexcept {
     return rhs == lhs.c_str();
   }
-  friend bool operator==(const std::string_view lhs,
-                         const string &rhs) noexcept {
+  friend bool operator==(std::string_view lhs, const string &rhs) noexcept {
     return lhs == rhs.c_str();
   }
 };
