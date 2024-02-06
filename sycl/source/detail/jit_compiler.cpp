@@ -672,7 +672,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   for (auto &RawCmd : InputKernels) {
     auto *KernelCmd = static_cast<ExecCGCommand *>(RawCmd);
     auto &CG = KernelCmd->getCG();
-    assert(CG.getType() == CG::Kernel);
+    assert(KernelCmd->isFusable());
     auto *KernelCG = static_cast<CGExecKernel *>(&CG);
 
     auto KernelName = KernelCG->MKernelName;
