@@ -732,10 +732,12 @@ scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
     return detail::scatter_impl<T, VS, detail::lsc_data_size::default_size,
                                 L1Hint, L2Hint>(p, byte_offsets, vals, mask);
   } else if constexpr (detail::isMaskedGatherScatterLLVMAvailable()) {
+    simd<uint64_t, N> Addrs(reinterpret_cast<uint64_t>(p));
+    Addrs = Addrs + convert<uint64_t>(byte_offsets);
     using MsgT = detail::__raw_t<T>;
     __esimd_scatter_st<MsgT, N, Alignment>(
         sycl::bit_cast<__ESIMD_DNS::vector_type_t<MsgT, N>>(vals.data()),
-        byte_offsets.data(), mask.data());
+        Addrs.data(), mask.data());
   } else {
     using Tx = detail::__raw_t<T>;
     simd<uint64_t, N> byte_offsets_i = convert<uint64_t>(byte_offsets);
