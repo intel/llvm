@@ -1313,6 +1313,12 @@ piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
 
+  ur_adapter_handle_t adapter = nullptr;
+  if (auto res = PiGetAdapter(adapter); res != PI_SUCCESS) {
+    return res;
+  }
+  (void)adapter;
+
   ur_native_handle_t UrNativeDevice =
       reinterpret_cast<ur_native_handle_t>(NativeHandle);
   ur_platform_handle_t UrPlatform =
