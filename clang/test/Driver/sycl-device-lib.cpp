@@ -224,6 +224,8 @@
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_SANITIZER
 // RUN: %clangxx -fsycl %s --sysroot=%S/Inputs/SYCL -Xarch_device "-fsanitize=address -DUSE_SYCL_DEVICE_ASAN" -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_SANITIZER
+// RUN: %clangxx -fsycl %s --sysroot=%S/Inputs/SYCL -Xarch_device "-fsanitize=address -DUSE_SYCL_DEVICE_ASAN" -### 2>&1 \
+// RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_ASAN_MACRO
 // SYCL_DEVICE_LIB_SANITIZER: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-crt.o" "-output={{.*}}libsycl-crt-{{.*}}.o" "-unbundle"
 // SYCL_DEVICE_LIB_SANITIZER-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-complex.o" "-output={{.*}}libsycl-complex-{{.*}}.o" "-unbundle"
 // SYCL_DEVICE_LIB_SANITIZER-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-complex-fp64.o" "-output={{.*}}libsycl-complex-fp64-{{.*}}.o" "-unbundle"
@@ -245,3 +247,7 @@
 // SYCL_DEVICE_LIB_SANITIZER-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-itt-compiler-wrappers.o" "-output={{.*}}libsycl-itt-compiler-wrappers-{{.*}}.o" "-unbundle"
 // SYCL_DEVICE_LIB_SANITIZER-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-itt-stubs.o" "-output={{.*}}libsycl-itt-stubs-{{.*}}.o" "-unbundle"
 // SYCL_DEVICE_LIB_SANITIZER-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-sanitizer.o" "-output={{.*}}libsycl-sanitizer-{{.*}}.o" "-unbundle"
+// SYCL_DEVICE_ASAN_MACRO: "-cc1"
+// SYCL_DEVICE_ASAN_MACRO-SAME: "USE_SYCL_DEVICE_ASAN"
+// SYCL_DEVICE_ASAN_MACRO-NEXT: llvm-link{{.*}}
+// SYCL_DEVICE_ASAN_MACRO:  clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-sanitizer.o" "-output={{.*}}libsycl-sanitizer-{{.*}}.o" "-unbundle"
