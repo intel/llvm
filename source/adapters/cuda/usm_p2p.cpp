@@ -13,24 +13,28 @@
 
 UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
     ur_device_handle_t commandDevice, ur_device_handle_t peerDevice) {
+
+  ur_result_t result = UR_RESULT_SUCCESS;
   try {
     ScopedContext active(commandDevice->getContext());
     UR_CHECK_ERROR(cuCtxEnablePeerAccess(peerDevice->getContext(), 0));
   } catch (ur_result_t err) {
-    return err;
+    result = err;
   }
-  return UR_RESULT_SUCCESS;
+  return result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
     ur_device_handle_t commandDevice, ur_device_handle_t peerDevice) {
+
+  ur_result_t result = UR_RESULT_SUCCESS;
   try {
     ScopedContext active(commandDevice->getContext());
     UR_CHECK_ERROR(cuCtxDisablePeerAccess(peerDevice->getContext()));
   } catch (ur_result_t err) {
-    return err;
+    result = err;
   }
-  return UR_RESULT_SUCCESS;
+  return result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
@@ -41,16 +45,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   int value;
-  CUdevice_P2PAttribute cuAttr;
+  CUdevice_P2PAttribute cu_attr;
   try {
     ScopedContext active(commandDevice->getContext());
     switch (propName) {
     case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED: {
-      cuAttr = CU_DEVICE_P2P_ATTRIBUTE_ACCESS_SUPPORTED;
+      cu_attr = CU_DEVICE_P2P_ATTRIBUTE_ACCESS_SUPPORTED;
       break;
     }
     case UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED: {
-      cuAttr = CU_DEVICE_P2P_ATTRIBUTE_NATIVE_ATOMIC_SUPPORTED;
+      cu_attr = CU_DEVICE_P2P_ATTRIBUTE_NATIVE_ATOMIC_SUPPORTED;
       break;
     }
     default: {
@@ -58,8 +62,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
     }
     }
 
-    UR_CHECK_ERROR(cuDeviceGetP2PAttribute(&value, cuAttr, commandDevice->get(),
-                                           peerDevice->get()));
+    UR_CHECK_ERROR(cuDeviceGetP2PAttribute(
+        &value, cu_attr, commandDevice->get(), peerDevice->get()));
   } catch (ur_result_t err) {
     return err;
   }
