@@ -1154,7 +1154,7 @@ test_gather_scatter(AccType &acc, float *ptrf, int byte_offset32,
   acc_res = gather<float, 32, 2>(acc, ioffset_n16_view, mask_n16,
                                  pass_thru_view, props_align4);
 
-  // CHECK-COUNT-4: call void @llvm.genx.svm.scatter.v32i1.v32i64.v32f32(<32 x i1> {{[^)]+}}, i32 0, <32 x i64> {{[^)]+}}, <32 x float> {{[^)]+}})
+  // CHECK-COUNT-4: call void @llvm.masked.scatter.v32f32.v32p4(<32 x float> {{[^)]+}}, <32 x ptr addrspace(4)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}})
   scatter(ptrf, ioffset_n32, usm, mask_n32);
 
   scatter(ptrf, ioffset_n32, usm);
