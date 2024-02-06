@@ -54,7 +54,7 @@ int main() {
 
     // CHECK: Test2
     // CHECK: ---> piEnqueueEventsWaitWithBarrier(
-    // CHECK: ZE ---> zeEventCreate
+    // CHECK: ZE ---> {{zeEventCreate|zeEventHostReset}}
     // CHECK: ZE ---> zeCommandListAppendWaitOnEvents
     // CHECK: ZE ---> zeCommandListAppendSignalEvent
     // CHECK: ) ---> 	pi_result : PI_SUCCESS

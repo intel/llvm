@@ -411,6 +411,9 @@ public:
   ext::oneapi::experimental::queue_state
   ext_oneapi_get_state() const;
 
+  ext::oneapi::experimental::command_graph<graph_state::modifiable> 
+  ext_oneapi_get_graph() const;
+
   /* -- graph convenience shortcuts -- */
 
   event ext_oneapi_graph(command_graph<graph_state::executable>& graph);
@@ -1019,6 +1022,22 @@ Returns: If the queue is in the default state where commands are scheduled
 immediately for execution, `queue_state::executing` is returned. Otherwise,
 `queue_state::recording` is returned where commands are redirected to a `command_graph`
 object.
+|
+[source,c++]
+----
+command_graph<graph_state::modifiable>
+queue::ext_oneapi_get_graph() const;
+----
+
+| Query the underlying command graph of a queue when recording.
+
+Returns: The graph object that the queue is recording commands into.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if the queue is not in `queue_state::recording`
+state.
+
 |
 [source,c++]
 ----

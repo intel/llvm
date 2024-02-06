@@ -384,44 +384,8 @@ __SYCL_EXPORT sampled_image_handle
 create_image(image_mem_handle memHandle, const bindless_image_sampler &sampler,
              const image_descriptor &desc, const sycl::device &syclDevice,
              const sycl::context &syclContext) {
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(syclContext);
-  pi_context C = CtxImpl->getHandleRef();
-  std::shared_ptr<sycl::detail::device_impl> DevImpl =
-      sycl::detail::getSyclObjImpl(syclDevice);
-  pi_device Device = DevImpl->getHandleRef();
-  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-
-  const pi_sampler_properties sProps[] = {
-      PI_SAMPLER_INFO_NORMALIZED_COORDS,
-      static_cast<pi_sampler_properties>(sampler.coordinate),
-      PI_SAMPLER_INFO_ADDRESSING_MODE,
-      static_cast<pi_sampler_properties>(sampler.addressing),
-      PI_SAMPLER_INFO_FILTER_MODE,
-      static_cast<pi_sampler_properties>(sampler.filtering),
-      PI_SAMPLER_INFO_MIP_FILTER_MODE,
-      static_cast<pi_sampler_properties>(sampler.mipmap_filtering),
-      0};
-
-  pi_sampler piSampler = {};
-  Plugin->call<sycl::errc::runtime,
-               sycl::detail::PiApiKind::piextBindlessImageSamplerCreate>(
-      C, sProps, sampler.min_mipmap_level_clamp, sampler.max_mipmap_level_clamp,
-      sampler.max_anisotropy, &piSampler);
-
-  pi_image_desc piDesc;
-  pi_image_format piFormat;
-  populate_pi_structs(desc, piDesc, piFormat);
-
-  // Call impl.
-  pi_image_handle piImageHandle;
-  pi_mem piImage;
-  Plugin->call<sycl::errc::runtime,
-               sycl::detail::PiApiKind::piextMemSampledImageCreate>(
-      C, Device, memHandle.raw_handle, &piFormat, &piDesc, piSampler, &piImage,
-      &piImageHandle);
-
-  return sampled_image_handle{piImageHandle};
+  return create_image(memHandle.raw_handle, 0 /*pitch*/, sampler, desc,
+                      syclDevice, syclContext);
 }
 
 __SYCL_EXPORT sampled_image_handle
@@ -460,13 +424,17 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
   const pi_sampler_properties sProps[] = {
-      PI_SAMPLER_INFO_NORMALIZED_COORDS,
+      PI_SAMPLER_PROPERTIES_NORMALIZED_COORDS,
       static_cast<pi_sampler_properties>(sampler.coordinate),
-      PI_SAMPLER_INFO_ADDRESSING_MODE,
-      static_cast<pi_sampler_properties>(sampler.addressing),
-      PI_SAMPLER_INFO_FILTER_MODE,
+      PI_SAMPLER_PROPERTIES_ADDRESSING_MODE,
+      static_cast<pi_sampler_properties>(sampler.addressing[0]),
+      PI_SAMPLER_PROPERTIES_ADDRESSING_MODE,
+      static_cast<pi_sampler_properties>(sampler.addressing[1]),
+      PI_SAMPLER_PROPERTIES_ADDRESSING_MODE,
+      static_cast<pi_sampler_properties>(sampler.addressing[2]),
+      PI_SAMPLER_PROPERTIES_FILTER_MODE,
       static_cast<pi_sampler_properties>(sampler.filtering),
-      PI_SAMPLER_INFO_MIP_FILTER_MODE,
+      PI_SAMPLER_PROPERTIES_MIP_FILTER_MODE,
       static_cast<pi_sampler_properties>(sampler.mipmap_filtering),
       0};
 
