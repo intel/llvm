@@ -310,7 +310,7 @@ public:
 
 private:
   // Get the specialization constant default value blob.
-  ByteArray getSpecConstsDefValBlob() {
+  ByteArray getSpecConstsDefValBlob() const {
     if (!MBinImage)
       return ByteArray(nullptr, 0);
 
