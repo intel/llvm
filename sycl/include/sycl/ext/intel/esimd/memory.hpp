@@ -724,11 +724,18 @@ scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
 
   // Use LSC lowering if L1/L2 or VS > 1.
   if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
-                VS > 1 || !__ESIMD_DNS::isPowerOf2(N, 32)) {
+                VS > 1 ||
+                (!__ESIMD_DNS::isPowerOf2(N, 32) &&
+                 !detail::isMaskedGatherScatterLLVMAvailable())) {
     static_assert(VS == 1 || sizeof(T) >= 4,
                   "VS > 1 is supprted only for 4- and 8-byte elements");
     return detail::scatter_impl<T, VS, detail::lsc_data_size::default_size,
                                 L1Hint, L2Hint>(p, byte_offsets, vals, mask);
+  } else if constexpr (detail::isMaskedGatherScatterLLVMAvailable()) {
+    using MsgT = detail::__raw_t<T>;
+    __esimd_scatter_st<MsgT, N, Alignment>(
+        sycl::bit_cast<__ESIMD_DNS::vector_type_t<MsgT, N>>(vals.data()),
+        byte_offsets.data(), mask.data());
   } else {
     using Tx = detail::__raw_t<T>;
     simd<uint64_t, N> byte_offsets_i = convert<uint64_t>(byte_offsets);

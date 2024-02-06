@@ -213,6 +213,20 @@ __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<T, N> __esimd_slm_gather_ld(
     __ESIMD_DNS::simd_mask_storage_t<N> pred,
     __ESIMD_DNS::vector_type_t<T, N> pass_thru) __ESIMD_INTRIN_END;
 
+// Scatter data to given global or private addresses.
+template <typename T, int N, size_t Align>
+__ESIMD_INTRIN void
+__esimd_scatter_st(__ESIMD_DNS::vector_type_t<T, N> vals,
+                   __ESIMD_DNS::vector_type_t<uint64_t, N> vptr,
+                   __ESIMD_DNS::simd_mask_storage_t<N> pred) __ESIMD_INTRIN_END;
+
+// Scatter data to given SLM addresses.
+template <typename T, int N, size_t Align>
+__ESIMD_INTRIN void __esimd_slm_scatter_st(
+    __ESIMD_DNS::vector_type_t<T, N> vals,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> vptr,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred) __ESIMD_INTRIN_END;
+
 /// Surface-based gather.
 /// Supported platforms: DG2, PVC
 ///
@@ -262,11 +276,10 @@ __esimd_lsc_load_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 
 // flat_read4 does flat-address gather4
 template <typename Ty, int N, __ESIMD_NS::rgba_channel_mask Mask>
-__ESIMD_DNS::vector_type_t<Ty,
-                           N * get_num_channels_enabled(Mask)> __ESIMD_INTRIN
-__esimd_svm_gather4_scaled(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
-                           __ESIMD_DNS::simd_mask_storage_t<N> pred = 1)
-    __ESIMD_INTRIN_END;
+__ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
+    __ESIMD_INTRIN __esimd_svm_gather4_scaled(
+        __ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
+        __ESIMD_DNS::simd_mask_storage_t<N> pred = 1) __ESIMD_INTRIN_END;
 
 // flat_write does flat-address scatter
 template <typename Ty, int N, __ESIMD_NS::rgba_channel_mask Mask>
