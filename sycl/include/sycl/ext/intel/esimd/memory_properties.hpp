@@ -132,21 +132,18 @@ namespace ext::oneapi::experimental {
 template <__ESIMD_NS::cache_hint Hint>
 struct property_value<__ESIMD_NS::cache_hint_L1_key,
                       std::integral_constant<__ESIMD_NS::cache_hint, Hint>> {
-  using key_t = __ESIMD_NS::cache_hint_L1_key;
   static constexpr __ESIMD_NS::cache_level level = __ESIMD_NS::cache_level::L1;
   static constexpr __ESIMD_NS::cache_hint hint = Hint;
 };
 template <__ESIMD_NS::cache_hint Hint>
 struct property_value<__ESIMD_NS::cache_hint_L2_key,
                       std::integral_constant<__ESIMD_NS::cache_hint, Hint>> {
-  using key_t = __ESIMD_NS::cache_hint_L2_key;
   static constexpr __ESIMD_NS::cache_level level = __ESIMD_NS::cache_level::L2;
   static constexpr __ESIMD_NS::cache_hint hint = Hint;
 };
 template <__ESIMD_NS::cache_hint Hint>
 struct property_value<__ESIMD_NS::cache_hint_L3_key,
                       std::integral_constant<__ESIMD_NS::cache_hint, Hint>> {
-  using key_t = __ESIMD_NS::cache_hint_L3_key;
   static constexpr __ESIMD_NS::cache_level level = __ESIMD_NS::cache_level::L3;
   static constexpr __ESIMD_NS::cache_hint hint = Hint;
 };

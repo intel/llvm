@@ -99,8 +99,7 @@ The intention is to provide a robust mechanism with which to pass compile-time-c
 property:: A property is represented by a key and value. Properties can be used to provide extra values to classes or functions.
 
 property value:: An object of the property value class. A property value has zero or more property parameters.
-For runtime properties the value type is the same as the key type.
-For compile time properties the value type is given by the `value_t` type alias of the key type.
+The value type is given by the `value_t` type alias of the key type.
 
 property key:: A class representing the property key. It is used to query properties.
 
@@ -138,27 +137,32 @@ value to determine which of the extension's APIs the implementation supports.
 
 Properties have a value and key type,
 and by convention, these classes are declared in the root of the
-`sycl::ext::oneapi::experimental` namespace. For a runtime property the key and value types are the same and the name of the property value
-class has no suffix. A runtime property value typically has a constructor
+`sycl::ext::oneapi::experimental` namespace. 
+The value type is a template specialization of `property_value`. 
+The property key class contains a `value_t` alias which is templated on the property parameters.
+
+A runtime property value typically has a constructor
 which takes the value(s) of the properties and member function(s) which return those values. 
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
 
+// The runtime property key
+struct foo_key {
+  using value_t = property_value<foo_key>;
+};
 // This is a runtime property value with one integer parameter.
 // The name of the property value class is the the name of the property without any suffix.
-struct foo {
-  foo(int);
+using foo = property_value<foo_key>;
+template <> struct property_value<foo_key> {
+  constexpr property_value(int v) : value(v) {}
   int value;
 };
-// A runtime property key is an alias to the value type.
-using foo_key = foo;
 
 } // namespace experimental::oneapi::ext::sycl
 ```
 
-For compile-time constant parameters the value type is a template specialization of `property_value`. 
-The property key class contains a `value_t` alias which is templated on the property parameters. The `property_value` class holds the
+For compile-time constant parameters the `property_value` class holds the
 values of the compile-time parameters as template arguments. The parameters to a compile-
 time-constant property can be either types or non-type values.
 The implementation provides a variable with the property value type. The variable has the name of the property without a suffix.
@@ -228,10 +232,10 @@ template<typename V, typename O, typename=void> struct is_property_value_of;
 template<typename V> struct is_property_value<V, std::enable_if_t<(sizeof(V)>0)>> : is_property_key<V> {};
 template<typename V, typename O> struct is_property_value_of<V, O, std::enable_if_t<(sizeof(V)>0)>> : is_property_key_of<V,O> {};
 // Specialization for compile-time-constant properties
-template<typename V> struct is_property_value<V, std::void_t<typename V::key_t>> :
-  is_property_key<typename V::key_t> {};
-template<typename V, typename O> struct is_property_value_of<V, O, std::void_t<typename V::key_t>> :
-  is_property_key_of<typename V::key_t, O> {};
+template<typename V> struct is_property_value<V, std::void_t<key_from_value<V>>> : //key_from_value is exposition only
+  is_property_key<key_from_value<V>> {};
+template<typename V, typename O> struct is_property_value_of<V, O, std::void_t<key_from_value<V>>> :
+  is_property_key_of<key_from_value<V>, O> {};
 
 } // namespace experimental::oneapi::ext::sycl
 ```
@@ -250,9 +254,6 @@ namespace sycl::ext::oneapi::experimental {
 
 template<typename Property, typename First, typename...Others>
 struct property_value {
-  // Alias of the property key type
-  using key_t = Property;
-
   // Each property with multi-parameter property_value must define template 
   // specializations for accessing the parameters.
 
@@ -285,11 +286,6 @@ using value_t = First;
 | Available only when there is exactly one parameter.  When the parameter's value is a type, `value_t`
 is that type.  When the parameter's value is a non-type, `value_t` is an implementation-defined type
 with a member constant `value` equal to the value.
-a|
-```c++
-using key_t = property;
-```
-| The property key type.
 |===
 --
 
