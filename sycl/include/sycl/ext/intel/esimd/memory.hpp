@@ -4184,10 +4184,10 @@ template <typename T> __ESIMD_API T slm_scalar_load(uint32_t offset) {
 /// and were added only to support simd_view instead of simd for byte_offsets.
 /// template <typename T, int N, int VS = 1, typename OffsetObjT,
 ///           typename OffsetRegionT, typename PropertyListT = empty_props_t>
-/// void slm_scatter(simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
+/// void slm_scatter(OffsetSimdViewT byte_offsets,
 ///             simd<T, N> vals, simd_mask<N / VS> mask,
 ///             PropertyListT props = {});                         // (slm-sc-3)
-/// void slm_scatter(simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
+/// void slm_scatter(OffsetSimdViewT byte_offsets,
 ///             simd<T, N> vals, PropertyListT props = {});        // (slm-sc-4)
 
 /// template <typename T, int N, int VS = 1,
@@ -4307,7 +4307,7 @@ slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// @tparam N Number of elements to read.
 /// @tparam VS Vector size. It can also be read as the number of reads per each
 /// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
-/// only on DG2 and PVC.
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
 /// @param byte_offsets the vector of 32-bit offsets in bytes.
 /// For each i, (byte_offsets[i]) must be element size aligned.
 /// @param vals The vector of values to store.
