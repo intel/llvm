@@ -1,5 +1,5 @@
-// Test fusion works with reductions. Some algorithms will lead to fusion being
-// cancelled in some devices. These should work properly anyway.
+// Test fusion works with reductions. Only algorithms automatically selected by
+// `sycl::reduction` are supported.
 
 #include <sycl/sycl.hpp>
 
