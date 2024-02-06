@@ -44,7 +44,7 @@ jobs:
         include:
           - name: Intel GEN12 Graphics with Level Zero
             runner: '["Linux", "gen12"]'
-	    extra_lit_opts: --param gpu-intel-gen12=True
+            extra_lit_opts: --param gpu-intel-gen12=True
           - name: Intel Arc A-Series Graphics with Level Zero
             runner: '["Linux", "arc"]'
             extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
