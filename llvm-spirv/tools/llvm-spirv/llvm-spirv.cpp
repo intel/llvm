@@ -837,7 +837,7 @@ int main(int Ac, char **Av) {
     std::optional<SPIRV::SPIRVModuleReport> BinReport =
         SPIRV::getSpirvReport(IFS, ErrCode);
     if (!BinReport) {
-      std::cerr << "Invalid SPIR-V binary, error code is " << ErrCode << "\n";
+      std::cerr << "Invalid SPIR-V binary: \"" << SPIRV::getErrorMessage(ErrCode) << "\"\n";
       return -1;
     }
 
