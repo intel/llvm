@@ -59,6 +59,8 @@ int main() {
     valid_advices.emplace_back(PI_MEM_ADVICE_HIP_UNSET_PREFERRED_LOCATION_HOST);
     valid_advices.emplace_back(PI_MEM_ADVICE_HIP_SET_ACCESSED_BY_HOST);
     valid_advices.emplace_back(PI_MEM_ADVICE_HIP_UNSET_ACCESSED_BY_HOST);
+    valid_advices.emplace_back(PI_MEM_ADVICE_HIP_SET_COARSE_GRAINED);
+    valid_advices.emplace_back(PI_MEM_ADVICE_HIP_UNSET_COARSE_GRAINED);
   } else {
     // Skip
     return 0;
