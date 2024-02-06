@@ -11,6 +11,7 @@
 // When NATIVECPU_USE_OCK is set, adds passes from the oneAPI Construction Kit.
 //
 //===----------------------------------------------------------------------===//
+#include "llvm/Passes/OptimizationLevel.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/SYCLLowerIR/ConvertToMuxBuiltinsSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
@@ -52,13 +53,13 @@ static cl::opt<bool>
 
 void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
     llvm::ModulePassManager &MPM, ModuleAnalysisManager &MAM,
-    unsigned OptLevel) {
+    OptimizationLevel OptLevel) {
   MPM.addPass(ConvertToMuxBuiltinsSYCLNativeCPUPass());
 #ifdef NATIVECPU_USE_OCK
   // Always enable vectorizer, unless explictly disabled or -O0 is set.
-  if (OptLevel != 0 && !SYCLNativeCPUNoVecz) {
-    MAM.registerPass([&] { return vecz::TargetInfoAnalysis(); });
-    MAM.registerPass([&] { return compiler::utils::DeviceInfoAnalysis(); });
+  if (OptLevel != OptimizationLevel::O0 && !SYCLNativeCPUNoVecz) {
+    MAM.registerPass([] { return vecz::TargetInfoAnalysis(); });
+    MAM.registerPass([] { return compiler::utils::DeviceInfoAnalysis(); });
     auto QueryFunc =
         [](const llvm::Function &F, const llvm::ModuleAnalysisManager &,
            llvm::SmallVectorImpl<vecz::VeczPassOptions> &Opts) -> bool {
@@ -91,22 +92,5 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
   // Todo: maybe we could find a set of relevant passes instead of re-running
   // the full optimization pipeline.
   PassBuilder PB;
-  OptimizationLevel Level;
-  switch (OptLevel) {
-  case 0:
-    Level = OptimizationLevel::O0;
-    break;
-  case 1:
-    Level = OptimizationLevel::O1;
-    break;
-  case 2:
-    Level = OptimizationLevel::O2;
-    break;
-  case 3:
-    Level = OptimizationLevel::O3;
-    break;
-  default:
-    llvm_unreachable("Unsupported opt level");
-  }
-  MPM.addPass(PB.buildPerModuleDefaultPipeline(Level));
+  MPM.addPass(PB.buildPerModuleDefaultPipeline(OptLevel));
 }
