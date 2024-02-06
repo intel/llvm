@@ -118,8 +118,12 @@ BUILTIN_REL(ONE_ARG, signbit, __spirv_SignBitSet)
 #undef BUILTIN_REL
 
 #ifdef __SYCL_DEVICE_ONLY__
-DEVICE_IMPL_TEMPLATE(THREE_ARGS, bitselect, builtin_enable_generic_t,
-                     __spirv_ocl_bitselect)
+DEVICE_IMPL_TEMPLATE(
+    THREE_ARGS, bitselect, builtin_enable_generic_t, [](auto... xs) {
+      using ret_ty = detail::builtin_enable_generic_t<THREE_ARGS_TEMPLATE_TYPE>;
+      using detail::builtins::convert_result;
+      return convert_result<ret_ty>(__spirv_ocl_bitselect(xs...));
+    })
 #else
 HOST_IMPL_TEMPLATE(THREE_ARGS, bitselect, builtin_enable_generic_t, rel,
                    default_ret_type)

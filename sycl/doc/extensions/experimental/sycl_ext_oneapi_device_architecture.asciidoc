@@ -973,7 +973,7 @@ int main() {
     syclex::if_architecture_is<syclex::architecture::intel_gpu_pvc>([&]{
       // Code for PVC
     }).otherwise([&]{
-      // Fallback code
+      // Generic code
     });
   });
 
@@ -987,7 +987,7 @@ int main() {
                                        syclex::architecture::amd_gpu_gfx1013>([&]{
       // Code for AMD devices between gfx1010 and gfx1013 (inclusive)
     }).otherwise([&]{
-      // Fallback code
+      // Generic code
     });
   });
 }
