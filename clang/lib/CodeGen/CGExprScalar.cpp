@@ -905,6 +905,9 @@ public:
   }
   Value *VisitAsTypeExpr(AsTypeExpr *CE);
   Value *VisitAtomicExpr(AtomicExpr *AE);
+  Value *VisitPackIndexingExpr(PackIndexingExpr *E) {
+    return Visit(E->getSelectedExpr());
+  }
 };
 }  // end anonymous namespace.
 
@@ -4986,6 +4989,13 @@ VisitAbstractConditionalOperator(const AbstractConditionalOperator *E) {
                            CGF.getProfileCount(lhsExpr));
 
   CGF.EmitBlock(LHSBlock);
+
+  // If the top of the logical operator nest, update the MCDC bitmap for the
+  // ConditionalOperator prior to visiting its LHS and RHS blocks, since they
+  // may also contain a boolean expression.
+  if (CGF.MCDCLogOpStack.empty())
+    CGF.maybeUpdateMCDCTestVectorBitmap(condExpr);
+
   CGF.incrementProfileCounter(E);
   eval.begin(CGF);
   Value *LHS = Visit(lhsExpr);
@@ -4995,6 +5005,13 @@ VisitAbstractConditionalOperator(const AbstractConditionalOperator *E) {
   Builder.CreateBr(ContBlock);
 
   CGF.EmitBlock(RHSBlock);
+
+  // If the top of the logical operator nest, update the MCDC bitmap for the
+  // ConditionalOperator prior to visiting its LHS and RHS blocks, since they
+  // may also contain a boolean expression.
+  if (CGF.MCDCLogOpStack.empty())
+    CGF.maybeUpdateMCDCTestVectorBitmap(condExpr);
+
   eval.begin(CGF);
   Value *RHS = Visit(rhsExpr);
   eval.end(CGF);
@@ -5012,10 +5029,6 @@ VisitAbstractConditionalOperator(const AbstractConditionalOperator *E) {
   llvm::PHINode *PN = Builder.CreatePHI(LHS->getType(), 2, "cond");
   PN->addIncoming(LHS, LHSBlock);
   PN->addIncoming(RHS, RHSBlock);
-
-  // If the top of the logical operator nest, update the MCDC bitmap.
-  if (CGF.MCDCLogOpStack.empty())
-    CGF.maybeUpdateMCDCTestVectorBitmap(condExpr);
 
   return PN;
 }

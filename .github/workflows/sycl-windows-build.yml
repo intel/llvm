@@ -1,0 +1,150 @@
+name: Reusable SYCL Windows build workflow
+
+on:
+  workflow_call:
+    inputs:
+      build_cache_suffix:
+        type: string
+        required: false
+        default: "default"
+      build_ref:
+        type: string
+        required: false
+      changes:
+        type: string
+        description: 'Filter matches for the changed files in the PR'
+        default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
+        required: false
+      artifact_archive_name:
+        type: string
+        default: llvm_sycl.tar.gz
+      retention-days:
+        description: 'Artifacts retention period'
+        type: string
+        default: 3
+
+    outputs:
+      build_conclusion:
+        value: ${{ jobs.build.outputs.build_conclusion }}
+      artifact_archive_name:
+        value: ${{ inputs.artifact_archive_name }}
+
+  workflow_dispatch:
+    inputs:
+      changes:
+        description: 'Filter matches for the changed files in the PR'
+        type: choice
+        options:
+          - "[]"
+          - '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
+      build_cache_suffix:
+        type: choice
+        options:
+          - "default"
+      artifact_archive_name:
+        type: choice
+        options:
+          - 'llvm_sycl.tar.gz'
+        default:
+      retention-days:
+        type: choice
+        options:
+          - 3
+
+jobs:
+  build:
+    name: Build + LIT
+    runs-on: [Windows, build]
+    environment: WindowsCILock
+    # TODO use cached checkout
+    outputs:
+      build_conclusion: ${{ steps.build.conclusion }}
+    steps:
+    - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756
+      with:
+        arch: amd64
+    - name: Set env
+      run: |
+        git config --system core.longpaths true
+        git config --global core.autocrlf false
+        echo "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        echo "SCCACHE_DIR=D:\github\_work\cache\${{ inputs.build_cache_suffix }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    - uses: actions/checkout@v4
+      with:
+        path: src
+        ref: ${{ inputs.build_ref || github.sha }}
+        fetch-depth: 1
+    - name: Register cleanup after job is finished
+      uses: ./src/devops/actions/cleanup
+    - name: Configure
+      shell: cmd
+      # TODO switch to clang-cl and lld when this is fixed https://github.com/oneapi-src/level-zero/issues/83
+      run: |
+        mkdir build
+        mkdir install
+        IF NOT EXIST D:\github\_work\cache MKDIR D:\github\_work\cache
+        IF NOT EXIST D:\github\_work\cache\${{inputs.build_cache_suffix}} MKDIR D:\github\_work\cache\${{inputs.build_cache_suffix}}
+        python.exe src/buildbot/configure.py -o build ^
+          --ci-defaults ^
+          --cmake-opt="-DCMAKE_C_COMPILER=cl" ^
+          --cmake-opt="-DCMAKE_CXX_COMPILER=cl" ^
+          --cmake-opt="-DCMAKE_INSTALL_PREFIX=%GITHUB_WORKSPACE%\install" ^
+          --cmake-opt="-DCMAKE_CXX_COMPILER_LAUNCHER=sccache" ^
+          --cmake-opt="-DCMAKE_C_COMPILER_LAUNCHER=sccache" ^
+          --cmake-opt="-DLLVM_INSTALL_UTILS=ON"
+    - name: Build
+      id: build
+      shell: bash
+      run: |
+        cmake --build build --target sycl-toolchain
+    - name: check-llvm
+      if: always() && !cancelled() && contains(inputs.changes, 'llvm')
+      run: |
+        cmake --build build --target check-llvm
+    - name: check-clang
+      if: always() && !cancelled() && contains(inputs.changes, 'clang')
+      run: |
+        cmake --build build --target check-clang
+    - name: check-sycl
+      if: always() && !cancelled() && contains(inputs.changes, 'sycl')
+      run: |
+        cmake --build build --target check-sycl
+    - name: check-llvm-spirv
+      if: always() && !cancelled() && contains(inputs.changes, 'llvm_spirv')
+      run: |
+        cmake --build build --target check-llvm-spirv
+    - name: check-xptifw
+      if: always() && !cancelled() && contains(inputs.changes, 'xptifw')
+      run: |
+        cmake --build build --target check-xptifw
+    - name: check-libdevice
+      if: always() && !cancelled() && contains(inputs.changes, 'libdevice')
+      run: |
+        cmake --build build --target check-libdevice
+    - name: Install
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+      shell: bash
+      # TODO replace utility installation with a single CMake target
+      run: |
+        cmake --build build --target deploy-sycl-toolchain
+        cmake --build build --target utils/FileCheck/install
+        cmake --build build --target utils/count/install
+        cmake --build build --target utils/not/install
+        cmake --build build --target utils/lit/install
+        cmake --build build --target utils/llvm-lit/install
+        cmake --build build --target install-llvm-size
+        cmake --build build --target install-llvm-cov
+        cmake --build build --target install-llvm-profdata
+        cmake --build build --target install-compiler-rt
+    - name: Pack toolchain
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+      shell: bash
+      run: |
+        tar -czf ${{ inputs.artifact_archive_name }} -C install .
+    - name: Upload toolchain
+      if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: sycl_windows_default
+        path: ${{ inputs.artifact_archive_name }}
+        retention-days: ${{ inputs.retention-days }}

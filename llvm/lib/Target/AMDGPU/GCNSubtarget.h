@@ -638,6 +638,9 @@ public:
     return GFX10_BEncoding;
   }
 
+  // BUFFER/FLAT/GLOBAL_ATOMIC_ADD/MIN/MAX_F64
+  bool hasBufferFlatGlobalAtomicsF64() const { return hasGFX90AInsts(); }
+
   bool hasMultiDwordFlatScratchAddressing() const {
     return getGeneration() >= GFX9;
   }
@@ -856,8 +859,6 @@ public:
   }
 
   bool hasInstPrefetch() const {
-    // GFX12 can still encode the s_set_inst_prefetch_distance instruction but
-    // it has no effect.
     return getGeneration() == GFX10 || getGeneration() == GFX11;
   }
 
