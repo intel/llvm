@@ -12,6 +12,7 @@
  */
 
 #include "common.hpp"
+#include "ur_sanitizer_layer.hpp"
 
 #include <asm/param.h>
 #include <dlfcn.h>
@@ -22,7 +23,7 @@ extern "C" __attribute__((weak)) void __asan_init(void);
 
 namespace ur_sanitizer_layer {
 
-bool IsInASanContext() { return __asan_init != nullptr; }
+bool IsInASanContext() { return (void *)__asan_init != nullptr; }
 
 static bool ReserveShadowMem(uptr Addr, uptr Size) {
     Size = RoundUpTo(Size, EXEC_PAGESIZE);
@@ -71,13 +72,14 @@ bool DestroyShadowMem() {
 }
 
 void *GetMemFunctionPointer(const char *FuncName) {
-    void *handle = dlopen(LIBC_SO, RTLD_LAZY);
+    void *handle = dlopen(LIBC_SO, RTLD_LAZY | RTLD_NOLOAD);
     if (!handle) {
-        return (void *)nullptr;
+        context.logger.error("Failed to dlopen {}", LIBC_SO);
+        return nullptr;
     }
-    void *ptr = dlsym(handle, FuncName);
+    auto ptr = dlsym(handle, FuncName);
     if (!ptr) {
-        return (void *)nullptr;
+        context.logger.error("Failed to get '{}' from {}", FuncName, LIBC_SO);
     }
     return ptr;
 }

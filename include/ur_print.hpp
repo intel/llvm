@@ -6277,6 +6277,12 @@ inline std::ostream &operator<<(std::ostream &os, ur_usm_advice_flag_t value) {
     case UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST:
         os << "UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST";
         break;
+    case UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY:
+        os << "UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY";
+        break;
+    case UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY:
+        os << "UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -6440,6 +6446,26 @@ inline ur_result_t printFlag<ur_usm_advice_flag_t>(std::ostream &os, uint32_t fl
             first = false;
         }
         os << UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST;
+    }
+
+    if ((val & UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY) == (uint32_t)UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY) {
+        val ^= (uint32_t)UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY;
+    }
+
+    if ((val & UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY) == (uint32_t)UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY) {
+        val ^= (uint32_t)UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY;
     }
     if (val != 0) {
         std::bitset<32> bits(val);
@@ -10878,6 +10904,192 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_get_info_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_get_info_params_t *params) {
+
+    os << ".hQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->phQueue));
+
+    os << ", ";
+    os << ".propName = ";
+
+    os << *(params->ppropName);
+
+    os << ", ";
+    os << ".propSize = ";
+
+    os << *(params->ppropSize);
+
+    os << ", ";
+    os << ".pPropValue = ";
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+
+    os << ", ";
+    os << ".pPropSizeRet = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_create_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_create_params_t *params) {
+
+    os << ".hContext = ";
+
+    ur::details::printPtr(os,
+                          *(params->phContext));
+
+    os << ", ";
+    os << ".hDevice = ";
+
+    ur::details::printPtr(os,
+                          *(params->phDevice));
+
+    os << ", ";
+    os << ".pProperties = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
+
+    os << ", ";
+    os << ".phQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->pphQueue));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_retain_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_retain_params_t *params) {
+
+    os << ".hQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->phQueue));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_release_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_release_params_t *params) {
+
+    os << ".hQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->phQueue));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_get_native_handle_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_get_native_handle_params_t *params) {
+
+    os << ".hQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->phQueue));
+
+    os << ", ";
+    os << ".pDesc = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppDesc));
+
+    os << ", ";
+    os << ".phNativeQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->pphNativeQueue));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_create_with_native_handle_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_create_with_native_handle_params_t *params) {
+
+    os << ".hNativeQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->phNativeQueue));
+
+    os << ", ";
+    os << ".hContext = ";
+
+    ur::details::printPtr(os,
+                          *(params->phContext));
+
+    os << ", ";
+    os << ".hDevice = ";
+
+    ur::details::printPtr(os,
+                          *(params->phDevice));
+
+    os << ", ";
+    os << ".pProperties = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
+
+    os << ", ";
+    os << ".phQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->pphQueue));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_finish_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_finish_params_t *params) {
+
+    os << ".hQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->phQueue));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_flush_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_flush_params_t *params) {
+
+    os << ".hQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->phQueue));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_sampler_create_params_t type
 /// @returns
 ///     std::ostream &
@@ -13190,192 +13402,6 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     ur::details::printPtr(os,
                           *(params->pphEvent));
-
-    return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_queue_get_info_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_get_info_params_t *params) {
-
-    os << ".hQueue = ";
-
-    ur::details::printPtr(os,
-                          *(params->phQueue));
-
-    os << ", ";
-    os << ".propName = ";
-
-    os << *(params->ppropName);
-
-    os << ", ";
-    os << ".propSize = ";
-
-    os << *(params->ppropSize);
-
-    os << ", ";
-    os << ".pPropValue = ";
-    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
-
-    os << ", ";
-    os << ".pPropSizeRet = ";
-
-    ur::details::printPtr(os,
-                          *(params->ppPropSizeRet));
-
-    return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_queue_create_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_create_params_t *params) {
-
-    os << ".hContext = ";
-
-    ur::details::printPtr(os,
-                          *(params->phContext));
-
-    os << ", ";
-    os << ".hDevice = ";
-
-    ur::details::printPtr(os,
-                          *(params->phDevice));
-
-    os << ", ";
-    os << ".pProperties = ";
-
-    ur::details::printPtr(os,
-                          *(params->ppProperties));
-
-    os << ", ";
-    os << ".phQueue = ";
-
-    ur::details::printPtr(os,
-                          *(params->pphQueue));
-
-    return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_queue_retain_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_retain_params_t *params) {
-
-    os << ".hQueue = ";
-
-    ur::details::printPtr(os,
-                          *(params->phQueue));
-
-    return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_queue_release_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_release_params_t *params) {
-
-    os << ".hQueue = ";
-
-    ur::details::printPtr(os,
-                          *(params->phQueue));
-
-    return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_queue_get_native_handle_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_get_native_handle_params_t *params) {
-
-    os << ".hQueue = ";
-
-    ur::details::printPtr(os,
-                          *(params->phQueue));
-
-    os << ", ";
-    os << ".pDesc = ";
-
-    ur::details::printPtr(os,
-                          *(params->ppDesc));
-
-    os << ", ";
-    os << ".phNativeQueue = ";
-
-    ur::details::printPtr(os,
-                          *(params->pphNativeQueue));
-
-    return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_queue_create_with_native_handle_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_create_with_native_handle_params_t *params) {
-
-    os << ".hNativeQueue = ";
-
-    ur::details::printPtr(os,
-                          *(params->phNativeQueue));
-
-    os << ", ";
-    os << ".hContext = ";
-
-    ur::details::printPtr(os,
-                          *(params->phContext));
-
-    os << ", ";
-    os << ".hDevice = ";
-
-    ur::details::printPtr(os,
-                          *(params->phDevice));
-
-    os << ", ";
-    os << ".pProperties = ";
-
-    ur::details::printPtr(os,
-                          *(params->ppProperties));
-
-    os << ", ";
-    os << ".phQueue = ";
-
-    ur::details::printPtr(os,
-                          *(params->pphQueue));
-
-    return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_queue_finish_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_finish_params_t *params) {
-
-    os << ".hQueue = ";
-
-    ur::details::printPtr(os,
-                          *(params->phQueue));
-
-    return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_queue_flush_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_flush_params_t *params) {
-
-    os << ".hQueue = ";
-
-    ur::details::printPtr(os,
-                          *(params->phQueue));
 
     return os;
 }
@@ -16061,6 +16087,30 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     case UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP: {
         os << (const struct ur_kernel_suggest_max_cooperative_group_count_exp_params_t *)params;
     } break;
+    case UR_FUNCTION_QUEUE_GET_INFO: {
+        os << (const struct ur_queue_get_info_params_t *)params;
+    } break;
+    case UR_FUNCTION_QUEUE_CREATE: {
+        os << (const struct ur_queue_create_params_t *)params;
+    } break;
+    case UR_FUNCTION_QUEUE_RETAIN: {
+        os << (const struct ur_queue_retain_params_t *)params;
+    } break;
+    case UR_FUNCTION_QUEUE_RELEASE: {
+        os << (const struct ur_queue_release_params_t *)params;
+    } break;
+    case UR_FUNCTION_QUEUE_GET_NATIVE_HANDLE: {
+        os << (const struct ur_queue_get_native_handle_params_t *)params;
+    } break;
+    case UR_FUNCTION_QUEUE_CREATE_WITH_NATIVE_HANDLE: {
+        os << (const struct ur_queue_create_with_native_handle_params_t *)params;
+    } break;
+    case UR_FUNCTION_QUEUE_FINISH: {
+        os << (const struct ur_queue_finish_params_t *)params;
+    } break;
+    case UR_FUNCTION_QUEUE_FLUSH: {
+        os << (const struct ur_queue_flush_params_t *)params;
+    } break;
     case UR_FUNCTION_SAMPLER_CREATE: {
         os << (const struct ur_sampler_create_params_t *)params;
     } break;
@@ -16210,30 +16260,6 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     } break;
     case UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP: {
         os << (const struct ur_enqueue_cooperative_kernel_launch_exp_params_t *)params;
-    } break;
-    case UR_FUNCTION_QUEUE_GET_INFO: {
-        os << (const struct ur_queue_get_info_params_t *)params;
-    } break;
-    case UR_FUNCTION_QUEUE_CREATE: {
-        os << (const struct ur_queue_create_params_t *)params;
-    } break;
-    case UR_FUNCTION_QUEUE_RETAIN: {
-        os << (const struct ur_queue_retain_params_t *)params;
-    } break;
-    case UR_FUNCTION_QUEUE_RELEASE: {
-        os << (const struct ur_queue_release_params_t *)params;
-    } break;
-    case UR_FUNCTION_QUEUE_GET_NATIVE_HANDLE: {
-        os << (const struct ur_queue_get_native_handle_params_t *)params;
-    } break;
-    case UR_FUNCTION_QUEUE_CREATE_WITH_NATIVE_HANDLE: {
-        os << (const struct ur_queue_create_with_native_handle_params_t *)params;
-    } break;
-    case UR_FUNCTION_QUEUE_FINISH: {
-        os << (const struct ur_queue_finish_params_t *)params;
-    } break;
-    case UR_FUNCTION_QUEUE_FLUSH: {
-        os << (const struct ur_queue_flush_params_t *)params;
     } break;
     case UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP: {
         os << (const struct ur_bindless_images_unsampled_image_handle_destroy_exp_params_t *)params;

@@ -231,7 +231,7 @@ class type_traits:
             return True if re.match(cls.RE_ARRAY, name) else False
         except:
             return False
-        
+
     @classmethod
     def get_array_length(cls, name):
         if not cls.is_array(name):
@@ -239,7 +239,7 @@ class type_traits:
 
         match = re.match(cls.RE_ARRAY, name)
         return match.groups()[1]
-    
+
     @classmethod
     def get_array_element_type(cls, name):
         if not cls.is_array(name):
@@ -247,6 +247,14 @@ class type_traits:
 
         match = re.match(cls.RE_ARRAY, name)
         return match.groups()[0]
+
+    @staticmethod
+    def get_struct_members(type_name, meta):
+        struct_type = _remove_const_ptr(type_name)
+        if not struct_type in meta['struct']:
+            raise Exception(
+                f"Cannot return members of non-struct type {struct_type}")
+        return meta['struct'][struct_type]['members']
 
 """
     Extracts traits from a value name
@@ -427,7 +435,7 @@ class param_traits:
             return True if re.match(cls.RE_BOUNDS, item['desc']) else False
         except:
             return False
-    
+
     @classmethod
     def tagged_member(cls, item):
         try:
@@ -1265,6 +1273,120 @@ def get_loader_prologue(namespace, tags, obj, meta):
                 })
 
     return prologue
+
+
+"""
+Private:
+    Takes a list of struct members and recursively searches for class handles.
+    Returns a list of class handles with access chains to reach them (e.g.
+    "struct_a->struct_b.handle"). Also handles ranges of class handles and
+    ranges of structs with class handle members, although the latter only works
+    to one level of recursion i.e. a range of structs with a range of structs
+    with a handle member will not work.
+"""
+def get_struct_handle_members(namespace,
+                              tags,
+                              meta,
+                              members,
+                              parent='',
+                              is_struct_range=False):
+    handle_members = []
+    for m in members:
+        if type_traits.is_class_handle(m['type'], meta):
+            m_tname = _remove_const_ptr(subt(namespace, tags, m['type']))
+            m_objname = re.sub(r"(\w+)_handle_t", r"\1_object_t", m_tname)
+            # We can deal with a range of handles, but not if it's in a range of structs
+            if param_traits.is_range(m) and not is_struct_range:
+                handle_members.append({
+                    'parent': parent,
+                    'name': m['name'],
+                    'obj_name': m_objname,
+                    'type': m_tname,
+                    'range_start': param_traits.range_start(m),
+                    'range_end': param_traits.range_end(m)
+                })
+            else:
+                handle_members.append({
+                    'parent': parent,
+                    'name': m['name'],
+                    'obj_name': m_objname,
+                    'optional': param_traits.is_optional(m)
+                })
+        elif type_traits.is_struct(m['type'], meta):
+            member_struct_members = type_traits.get_struct_members(
+                m['type'], meta)
+            if param_traits.is_range(m):
+                # If we've hit a range of structs we need to start a new recursion looking
+                # for handle members. We do not support range within range, so skip that
+                if is_struct_range:
+                    continue
+                range_handle_members = get_struct_handle_members(
+                    namespace, tags, meta, member_struct_members, '', True)
+                if range_handle_members:
+                    handle_members.append({
+                        'parent': parent,
+                        'name': m['name'],
+                        'type': subt(namespace, tags, _remove_const_ptr(m['type'])),
+                        'range_start': param_traits.range_start(m),
+                        'range_end': param_traits.range_end(m),
+                        'handle_members': range_handle_members
+                    })
+            else:
+                # If it's just a struct we can keep recursing in search of handles
+                m_is_pointer = type_traits.is_pointer(m['type'])
+                new_parent_deref = '->' if m_is_pointer else '.'
+                new_parent = m['name'] + new_parent_deref
+                handle_members += get_struct_handle_members(
+                    namespace, tags, meta, member_struct_members, new_parent,
+                    is_struct_range)
+
+    return handle_members
+
+
+"""
+Public:
+    Strips a string of all dereferences.
+
+    This is useful in layer templates for creating unique variable names. For
+    instance if we need to copy pMyStruct->member.hObject out of a function
+    parameter into a local variable we use this to get the unique (or at least
+    distinct from any other parameter we might copy) variable name
+    pMyStructmemberhObject.
+"""
+def strip_deref(string_to_strip):
+    string_to_strip = string_to_strip.replace('.', '')
+    return string_to_strip.replace('->', '')
+
+
+"""
+Public:
+    Takes a function object and recurses through its struct parameters to return
+    a list of structs that have handle object members the loader will need to
+    convert.
+"""
+def get_object_handle_structs_to_convert(namespace, tags, obj, meta):
+    structs = []
+    params = _filter_param_list(obj['params'], ["[in]"])
+
+    for item in params:
+        if type_traits.is_struct(item['type'], meta):
+            members = type_traits.get_struct_members(item['type'], meta)
+            handle_members = get_struct_handle_members(namespace, tags, meta,
+                                                       members)
+            if handle_members:
+                name = subt(namespace, tags, item['name'])
+                tname = _remove_const_ptr(subt(namespace, tags, item['type']))
+                struct = {
+                    'name': name,
+                    'type': tname,
+                    'optional': param_traits.is_optional(item),
+                    'members': handle_members
+                }
+
+                structs.append(struct)
+
+    return structs
+
 
 """
 Public:
