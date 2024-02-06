@@ -205,6 +205,8 @@ protected:
   void get_specialization_constant_impl(const char *SpecName,
                                         void *Value) const noexcept;
 
+  // \returns a bool value which indicates if specialization constant was set to
+  // a value different from default value.
   bool is_specialization_constant_set(const char *SpecName) const noexcept;
 
   detail::KernelBundleImplPtr impl;
