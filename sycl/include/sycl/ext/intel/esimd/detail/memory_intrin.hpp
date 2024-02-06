@@ -276,12 +276,11 @@ __esimd_lsc_load_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 
 // flat_read4 does flat-address gather4
 template <typename Ty, int N, __ESIMD_NS::rgba_channel_mask Mask>
-__ESIMD_DNS::vector_type_t<Ty, 
-			    N * get_num_channels_enabled(Mask)>
-__ESIMD_INTRIN
+__ESIMD_DNS::vector_type_t<Ty,
+                           N * get_num_channels_enabled(Mask)> __ESIMD_INTRIN
 __esimd_svm_gather4_scaled(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
-                           __ESIMD_DNS::simd_mask_storage_t<N> pred = 1) 
-     __ESIMD_INTRIN_END;
+                           __ESIMD_DNS::simd_mask_storage_t<N> pred = 1)
+    __ESIMD_INTRIN_END;
 
 // flat_write does flat-address scatter
 template <typename Ty, int N, __ESIMD_NS::rgba_channel_mask Mask>
