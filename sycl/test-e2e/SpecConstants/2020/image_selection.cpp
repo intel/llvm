@@ -23,12 +23,22 @@
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-MIX %s
 // clang-format on
 
+// Check the behaviour when -fsycl-add-default-spec-consts-image option is used
+// and default value is overriden with the same value - we are supposed to
+// choose images with inlined values in this case.
+
+// clang-format off
+// RUN: %clangxx  -fsycl-add-default-spec-consts-image -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %s -o %t3.out
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-DEFAULT-OVERRIDEN %s
+// clang-format on
+
 #include <sycl/sycl.hpp>
 
 constexpr sycl::specialization_id<int> int_id(3);
 
 class Kernel1;
 class Kernel2;
+class Kernel3;
 
 int main() {
   sycl::queue Q;
@@ -189,5 +199,33 @@ int main() {
   else
     std::cout << "Default value of specialization constant was used."
               << std::endl;
+
+  // Test that if user calls set_specialization_constant with the value equal to
+  // default then we choose image with inlined default values of specialization
+  // constants.
+  // CHECK-DEFAULT-OVERRIDEN: Default value overriden
+  // CHECK-DEFAULT-OVERRIDEN: ---> piextKernelSetArgMemObj(
+  // CHECK-DEFAULT-OVERRIDEN-NEXT:	<unknown> : {{.*}}
+  // CHECK-DEFAULT-OVERRIDEN-NEXT:	<unknown> : {{.*}}
+  // CHECK-DEFAULT-OVERRIDEN-NEXT:	<unknown> : {{.*}}
+  // CHECK-DEFAULT-OVERRIDEN-NEXT:	<unknown> : 0
+  // CHECK-DEFAULT-OVERRIDEN-NEXT: ) ---> 	pi_result : PI_SUCCESS
+  // CHECK-DEFAULT-OVERRIDEN: Default value of specialization constant was used.
+  std::cout << "Default value overriden" << std::endl;
+  Q.submit([&](sycl::handler &cgh) {
+     cgh.set_specialization_constant<int_id>(3);
+
+     cgh.single_task<Kernel3>([=](sycl::kernel_handler h) {
+       auto SpecConst = h.get_specialization_constant<int_id>();
+       *Res = SpecConst == 3 ? 0 : 1;
+     });
+   }).wait();
+
+  if (*Res)
+    std::cout << "New specialization constant value was set." << std::endl;
+  else
+    std::cout << "Default value of specialization constant was used."
+              << std::endl;
+
   return 0;
 }

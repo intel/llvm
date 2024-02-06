@@ -149,13 +149,35 @@ public:
     if (MSpecConstSymMap.count(std::string{SpecName}) == 0)
       return;
 
+    const uint8_t *DefVals = nullptr;
+    if (MBinImage) {
+      // get default values for specialization constants
+      const RTDeviceBinaryImage::PropertyRange &SCDefValRange =
+          MBinImage->getSpecConstantsDefaultValues();
+      bool HasDefaultValues = SCDefValRange.begin() != SCDefValRange.end();
+      if (HasDefaultValues) {
+        ByteArray DefValDescriptors =
+            DeviceBinaryProperty(*SCDefValRange.begin()).asByteArray();
+        assert(DefValDescriptors.size() - 8 == MSpecConstsBlob.size() &&
+               "Specialization constant default value blob do not have the "
+               "expected size.");
+        DefVals = &DefValDescriptors[8];
+      }
+    }
+
     std::vector<SpecConstDescT> &Descs =
         MSpecConstSymMap[std::string{SpecName}];
     for (SpecConstDescT &Desc : Descs) {
-      Desc.IsSet = true;
-      std::memcpy(MSpecConstsBlob.data() + Desc.BlobOffset,
-                  static_cast<const char *>(Value) + Desc.CompositeOffset,
-                  Desc.Size);
+      if (DefVals) {
+        if (std::memcmp(DefVals + Desc.BlobOffset,
+                        static_cast<const char *>(Value) + Desc.CompositeOffset,
+                        Desc.Size) != 0) {
+          Desc.IsSet = true;
+          std::memcpy(MSpecConstsBlob.data() + Desc.BlobOffset,
+                      static_cast<const char *>(Value) + Desc.CompositeOffset,
+                      Desc.Size);
+        }
+      }
     }
   }
 
