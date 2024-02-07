@@ -57,15 +57,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit c0b1f13d94966090a1bb982b3bd747b30b9ef9d3
-  # Merge: 475ce8b4 cf806c37
+  # commit 1cd402ead34a54459a6acb85777fbec105a178a0
+  # Merge: 5b89ee8b c8e150c5
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Feb 5 13:41:50 2024 +0000
-  #     Merge pull request #1240 from cppchedy/chedy/fix-bi-copy-image
-  #     
-  #     [Bindless][exp] 1D Image copy fix
-  set(UNIFIED_RUNTIME_TAG c0b1f13d94966090a1bb982b3bd747b30b9ef9d3)
-
+  # Date:   Tue Feb 6 14:48:55 2024 +0000
+  #     Merge pull request #1218 from Bensuo/maxime/imm-cmd-list-support
+  #     [EXP][CMDBUF] L0 Immediate command-list support
+  set(UNIFIED_RUNTIME_TAG 1cd402ead34a54459a6acb85777fbec105a178a0)
+  
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
   endif()
