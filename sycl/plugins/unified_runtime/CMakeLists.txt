@@ -57,7 +57,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ceba4a5f8952c7045c7818fb3bef4b439aa47df3 (HEAD, intel/origin/main)
+  # commit ceba4a5f8952c7045c7818fb3bef4b439aa47df3
   # Merge: b76d9078 81b75993
   # Author: aarongreig <aaron.greig@codeplay.com>
   # Date:   Wed Feb 7 14:55:22 2024 +0000
