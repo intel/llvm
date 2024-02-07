@@ -830,14 +830,16 @@ struct get_device_info_impl<
           {9.0, oneapi_exp_arch::nvidia_gpu_sm_90},
       };
       auto GetArchNum = [&](const architecture &arch) {
-        for (const auto &Item : NvidiaArchNumbs) {
+        for (const auto &Item : NvidiaArchNumbs)
           if (Item.second == arch)
             return Item.first;
-        }
-        throw;
+        throw sycl::exception(
+            make_error_code(errc::runtime),
+            "The current device architecture is not supported by "
+            "sycl_ext_oneapi_matrix.");
       };
       float ComputeCapability = GetArchNum(DeviceArch);
-      std::vector<combination> sm_70_combinations = {
+      constexpr std::vector<combination> sm_70_combinations = {
           {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
            matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 8, 32, 16, matrix_type::fp16, matrix_type::fp16,
@@ -862,7 +864,7 @@ struct get_device_info_impl<
            matrix_type::fp16, matrix_type::fp32},
           {0, 0, 0, 32, 8, 16, matrix_type::fp16, matrix_type::fp16,
            matrix_type::fp16, matrix_type::fp32}};
-      std::vector<combination> sm_72_combinations = {
+      constexpr std::vector<combination> sm_72_combinations = {
           {0, 0, 0, 16, 16, 16, matrix_type::sint8, matrix_type::sint8,
            matrix_type::sint32, matrix_type::sint32},
           {0, 0, 0, 8, 32, 16, matrix_type::sint8, matrix_type::sint8,
@@ -875,7 +877,7 @@ struct get_device_info_impl<
            matrix_type::sint32, matrix_type::sint32},
           {0, 0, 0, 32, 8, 16, matrix_type::uint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32}};
-      std::vector<combination> sm_80_combinations = {
+      constexpr std::vector<combination> sm_80_combinations = {
           {0, 0, 0, 16, 16, 8, matrix_type::tf32, matrix_type::tf32,
            matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 16, 16, 16, matrix_type::bf16, matrix_type::bf16,

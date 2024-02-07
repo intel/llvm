@@ -50,8 +50,10 @@ sycl/plugins/**/hip/ @intel/llvm-reviewers-cuda
 # CUDA specific runtime implementations
 sycl/include/sycl/ext/oneapi/experimental/cuda/ @intel/llvm-reviewers-cuda
 
-# CUDA device code tests
+# CUDA and HIP device code tests
 sycl/test/check_device_code/cuda/ @intel/llvm-reviewers-cuda
+sycl/test/check_device_code/cuda/matrix @intel/llvm-reviewers-cuda
+sycl/test/check_device_code/hip/matrix @intel/llvm-reviewers-cuda
 
 # XPTI instrumentation utilities
 xpti/ @intel/llvm-reviewers-runtime
