@@ -427,7 +427,7 @@ if len(config.sycl_devices) > 1:
 config.sycl_devices = [x.replace("ext_oneapi_", "") for x in config.sycl_devices]
 
 available_devices = {
-    "opencl": ("cpu", "gpu", "acc"),
+    "opencl": ("cpu", "gpu", "fpga"),
     "cuda": "gpu",
     "level_zero": "gpu",
     "hip": "gpu",

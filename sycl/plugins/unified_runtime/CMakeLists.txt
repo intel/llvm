@@ -57,13 +57,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit cd97e172cbbfc411fccb0b80e0fff6f9126574f4
-  # Merge: bd745d10 2a9ded6f
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Feb 2 14:24:16 2024 +0000
-  #     Merge pull request #1249 from GeorgeWeb/georgi/hip_memadvise_coarse_grained
-  #     [HIP] Implement coarse-grained memory advice for the HIP adapter
-  set(UNIFIED_RUNTIME_TAG cd97e172cbbfc411fccb0b80e0fff6f9126574f4)
+  # commit c0b1f13d94966090a1bb982b3bd747b30b9ef9d3
+  # Merge: 475ce8b4 cf806c37
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Mon Feb 5 13:41:50 2024 +0000
+  #     Merge pull request #1240 from cppchedy/chedy/fix-bi-copy-image
+  #     
+  #     [Bindless][exp] 1D Image copy fix
+  set(UNIFIED_RUNTIME_TAG c0b1f13d94966090a1bb982b3bd747b30b9ef9d3)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
