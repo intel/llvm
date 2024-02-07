@@ -5,8 +5,10 @@
 
 // E2E tests for annotated USM allocation functions with alignment arguments
 // that are not powers of 2. Note this test does not work on gpu because some
-// tests expect to return nullptr, e.g. when the alignment argument is not a
-// power of 2, while the gpu runtime has different behavior
+// tests expect non-templated aligned_alloc_xxx functions to return nullptr,
+// e.g. when the alignment argument is not a power of 2, while they fail to do
+// so when run on gpu. This maybe because the gpu runtime has different
+// behavior. Therefore, GPU is unsupported until issue #12638 gets resolved.
 
 #include <sycl/sycl.hpp>
 
@@ -54,8 +56,7 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
   // Test cases that are expected to return null
   auto check_null = [&q](auto AllocFn, int Line, int Case) {
     decltype(AllocFn()) Ptr = AllocFn();
-    auto v = reinterpret_cast<uintptr_t>(Ptr);
-    if (v != 0) {
+    if (Ptr != nullptr) {
       free(Ptr, q);
       std::cout << "Failed at line " << Line << ", case " << Case << std::endl;
       assert(false && "The return is not null!");
@@ -82,8 +83,7 @@ template <typename T> void testAlign(sycl::queue &q, unsigned align) {
       [&]() { return AAnnotated(15, q, alloc::device); },
       [&]() { return AAnnotated(17, dev, Ctx, alloc::host); }
       // Case: aligned_alloc_xxx<T> with no alignment property, and the
-      // alignment
-      // argument is not a power of 2, the result is nullptr
+      // alignment argument is not a power of 2, the result is nullptr
       ,
       [&]() { return ATDevice(3, q); }, [&]() { return ATDevice(5, dev, Ctx); },
       [&]() { return ATHost(7, q); }, [&]() { return ATHost(9, Ctx); },
