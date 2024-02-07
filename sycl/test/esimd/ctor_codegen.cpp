@@ -24,20 +24,60 @@ SYCL_EXTERNAL auto foo(double i) SYCL_ESIMD_FUNCTION {
 // CHECK-NEXT: }
 }
 
-// Base + step constructor, FP element type, loops exected - don't check.
-SYCL_EXTERNAL auto bar() SYCL_ESIMD_FUNCTION {
-  simd<double, 2> val(17, 3);
-  return val;
+// Const base + step constructor, FP element type.
+SYCL_EXTERNAL auto double_base_step_const() SYCL_ESIMD_FUNCTION {
+  // CHECK: define dso_local spir_func void @_Z22double_base_step_constv({{.*}} %[[RES:[a-zA-Z0-9_\.]+]]){{.*}} {
+  return simd<double, 64>{1.0, 3.0};
+  // CHECK: store <64 x double> <double 1.000000e+00, double 4.000000e+00, double 7.000000e+00, double 1.000000e+01, double 1.300000e+01, double 1.600000e+01, double 1.900000e+01, double 2.200000e+01, double 2.500000e+01, double 2.800000e+01, double 3.100000e+01, double 3.400000e+01, double 3.700000e+01, double 4.000000e+01, double 4.300000e+01, double 4.600000e+01, double 4.900000e+01, double 5.200000e+01, double 5.500000e+01, double 5.800000e+01, double 6.100000e+01, double 6.400000e+01, double 6.700000e+01, double 7.000000e+01, double 7.300000e+01, double 7.600000e+01, double 7.900000e+01, double 8.200000e+01, double 8.500000e+01, double 8.800000e+01, double 9.100000e+01, double 9.400000e+01, double 9.700000e+01, double 1.000000e+02, double 1.030000e+02, double 1.060000e+02, double 1.090000e+02, double 1.120000e+02, double 1.150000e+02, double 1.180000e+02, double 1.210000e+02, double 1.240000e+02, double 1.270000e+02, double 1.300000e+02, double 1.330000e+02, double 1.360000e+02, double 1.390000e+02, double 1.420000e+02, double 1.450000e+02, double 1.480000e+02, double 1.510000e+02, double 1.540000e+02, double 1.570000e+02, double 1.600000e+02, double 1.630000e+02, double 1.660000e+02, double 1.690000e+02, double 1.720000e+02, double 1.750000e+02, double 1.780000e+02, double 1.810000e+02, double 1.840000e+02, double 1.870000e+02, double 1.900000e+02>, ptr addrspace(4) %[[RES]]
+  // CHECK-NEXT: ret void
 }
 
-// Base + step constructor, integer element type, no loops exected - check.
-SYCL_EXTERNAL auto baz() SYCL_ESIMD_FUNCTION {
-  // CHECK: define dso_local spir_func void @_Z3bazv({{.*}} %[[RES:[a-zA-Z0-9_\.]+]]){{.*}} {
-  simd<int, 2> val(17, 3);
+// Variable base + step constructor, FP element type.
+SYCL_EXTERNAL auto double_base_step_var(double base, double step) SYCL_ESIMD_FUNCTION {
+  // CHECK: define dso_local spir_func void @_Z20double_base_step_vardd({{.*}} %[[RES:[a-zA-Z0-9_\.]+]], double noundef %[[BASE:[a-zA-Z0-9_\.]+]], double noundef %[[STEP:[a-zA-Z0-9_\.]+]]){{.*}} {
+  return simd<double, 32>{base, step};
+  // CHECK: %[[BASE_VEC_TMP:[a-zA-Z0-9_\.]+]] = insertelement <32 x double> poison, double %[[BASE]], i64 0
+  // CHECK: %[[BASE_VEC:[a-zA-Z0-9_\.]+]] = shufflevector <32 x double> %[[BASE_VEC_TMP]], <32 x double> poison, <32 x i32> zeroinitializer
+  // CHECK: %[[STEP_VEC_TMP:[a-zA-Z0-9_\.]+]] = insertelement <32 x double> poison, double %[[STEP]], i64 0
+  // CHECK: %[[STEP_VEC:[a-zA-Z0-9_\.]+]] = shufflevector <32 x double> %[[STEP_VEC_TMP]], <32 x double> poison, <32 x i32> zeroinitializer
+  // CHECK: %[[FMA_VEC:[a-zA-Z0-9_\.]+]] = tail call noundef <32 x double> @llvm.fmuladd.v32f64(<32 x double> %[[STEP_VEC]], <32 x double> <double 0.000000e+00, double 1.000000e+00, double 2.000000e+00, double 3.000000e+00, double 4.000000e+00, double 5.000000e+00, double 6.000000e+00, double 7.000000e+00, double 8.000000e+00, double 9.000000e+00, double 1.000000e+01, double 1.100000e+01, double 1.200000e+01, double 1.300000e+01, double 1.400000e+01, double 1.500000e+01, double 1.600000e+01, double 1.700000e+01, double 1.800000e+01, double 1.900000e+01, double 2.000000e+01, double 2.100000e+01, double 2.200000e+01, double 2.300000e+01, double 2.400000e+01, double 2.500000e+01, double 2.600000e+01, double 2.700000e+01, double 2.800000e+01, double 2.900000e+01, double 3.000000e+01, double 3.100000e+01>, <32 x double> %[[BASE_VEC]])
+  // CHECK: store <32 x double> %[[FMA_VEC]], ptr addrspace(4) %[[RES]]
+  // CHECK-NEXT: ret void
+}
+
+// Const base + step constructor, integer element type.
+SYCL_EXTERNAL auto int_base_step_const() SYCL_ESIMD_FUNCTION {
+  // CHECK: define dso_local spir_func void @_Z19int_base_step_constv({{.*}} %[[RES:[a-zA-Z0-9_\.]+]]){{.*}} {
+  simd<int, 16> val(17, 3);
   return val;
-  // CHECK: store <2 x i32> <i32 17, i32 20>, ptr addrspace(4) %[[RES]]
+  // CHECK: store <16 x i32> <i32 17, i32 20, i32 23, i32 26, i32 29, i32 32, i32 35, i32 38, i32 41, i32 44, i32 47, i32 50, i32 53, i32 56, i32 59, i32 62>, ptr addrspace(4) %[[RES]]
   // CHECK-NEXT: ret void
   // CHECK-NEXT: }
+}
+
+// Variable base + step constructor, integer element type.
+SYCL_EXTERNAL auto int_base_step_var(int base, int step) SYCL_ESIMD_FUNCTION {
+  // CHECK: define dso_local spir_func void @_Z17int_base_step_varii({{.*}} %[[RES:[a-zA-Z0-9_\.]+]], i32 noundef %[[BASE:[a-zA-Z0-9_\.]+]], i32 noundef %[[STEP:[a-zA-Z0-9_\.]+]]){{.*}} {
+  return simd<int, 32>{base, step};
+  // CHECK: %[[BASE_VEC_TMP:[a-zA-Z0-9_\.]+]] = insertelement <32 x i32> poison, i32 %[[BASE]], i64 0
+  // CHECK: %[[BASE_VEC:[a-zA-Z0-9_\.]+]] = shufflevector <32 x i32> %[[BASE_VEC_TMP]], <32 x i32> poison, <32 x i32> zeroinitializer
+  // CHECK: %[[STEP_VEC_TMP:[a-zA-Z0-9_\.]+]] = insertelement <32 x i32> poison, i32 %[[STEP]], i64 0
+  // CHECK: %[[STEP_VEC:[a-zA-Z0-9_\.]+]] = shufflevector <32 x i32> %[[STEP_VEC_TMP]], <32 x i32> poison, <32 x i32> zeroinitializer
+  // CHECK: %[[MUL_VEC:[a-zA-Z0-9_\.]+]] = mul <32 x i32> %[[STEP_VEC]], <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 6, i32 7, i32 8, i32 9, i32 10, i32 11, i32 12, i32 13, i32 14, i32 15, i32 16, i32 17, i32 18, i32 19, i32 20, i32 21, i32 22, i32 23, i32 24, i32 25, i32 26, i32 27, i32 28, i32 29, i32 30, i32 31>
+  // CHECK: %[[ADD_VEC:[a-zA-Z0-9_\.]+]] = add <32 x i32> %[[BASE_VEC]], %[[MUL_VEC]]
+  // CHECK: store <32 x i32> %[[ADD_VEC]], ptr addrspace(4) %[[RES]]
+  // CHECK-NEXT: ret void
+}
+
+// Variable base + step constructor, integer element type.
+SYCL_EXTERNAL auto int_base_step_var_n2(int base, int step) SYCL_ESIMD_FUNCTION {
+  // CHECK: define dso_local spir_func void @_Z20int_base_step_var_n2ii({{.*}} %[[RES:[a-zA-Z0-9_\.]+]], i32 noundef %[[BASE:[a-zA-Z0-9_\.]+]], i32 noundef %[[STEP:[a-zA-Z0-9_\.]+]]){{.*}} {
+  return simd<int, 2>{base, step};
+  // CHECK: %[[BASE_VEC_TMP1:[a-zA-Z0-9_\.]+]] = insertelement <2 x i32> poison, i32 %[[BASE]], i64 0
+  // CHECK: %[[BASE_INC:[a-zA-Z0-9_\.]+]] = add nsw i32 %[[BASE]], %[[STEP]]
+  // CHECK: %[[RESULT_VEC:[a-zA-Z0-9_\.]+]] = insertelement <2 x i32> %[[BASE_VEC_TMP1]], i32 %[[BASE_INC]], i64 1
+  // CHECK: store <2 x i32> %[[RESULT_VEC]], ptr addrspace(4) %[[RES]]
+  // CHECK-NEXT: ret void
 }
 
 // Broadcast constructor, FP element type, no loops exected - check.

@@ -1313,6 +1313,12 @@ piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
 
+  ur_adapter_handle_t adapter = nullptr;
+  if (auto res = PiGetAdapter(adapter); res != PI_SUCCESS) {
+    return res;
+  }
+  (void)adapter;
+
   ur_native_handle_t UrNativeDevice =
       reinterpret_cast<ur_native_handle_t>(NativeHandle);
   ur_platform_handle_t UrPlatform =
@@ -3374,6 +3380,12 @@ inline pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   }
   if (Advice & PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST) {
     UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_HOST;
+  }
+  if (Advice & PI_MEM_ADVICE_HIP_SET_COARSE_GRAINED) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY;
+  }
+  if (Advice & PI_MEM_ADVICE_HIP_UNSET_COARSE_GRAINED) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY;
   }
   if (Advice & PI_MEM_ADVICE_RESET) {
     UrAdvice |= UR_USM_ADVICE_FLAG_DEFAULT;

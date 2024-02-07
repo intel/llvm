@@ -57,7 +57,7 @@ jobs:
           - name: OCL CPU (Intel/GEN12)
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-            image_options: -u 1001
+            image_options: -u 1001 --privileged --cap-add SYS_ADMIN
             target_devices: opencl:cpu
 
           - name: OCL CPU (Intel/Arc)

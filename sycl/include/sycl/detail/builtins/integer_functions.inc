@@ -122,6 +122,15 @@ min(T x, detail::get_elem_type_t<T> y) {
              detail::simplify_if_swizzle_t<T>{y});
 }
 
+BUILTIN_GENINT_SU(THREE_ARGS, clamp)
+template <typename T>
+detail::builtin_enable_integer_non_scalar_t<T>
+clamp(T x, detail::get_elem_type_t<T> y, detail::get_elem_type_t<T> z) {
+  return clamp(detail::simplify_if_swizzle_t<T>{x},
+               detail::simplify_if_swizzle_t<T>{y},
+               detail::simplify_if_swizzle_t<T>{z});
+}
+
 BUILTIN_GENINT(ONE_ARG, clz)
 BUILTIN_GENINT(ONE_ARG, ctz)
 BUILTIN_GENINT(ONE_ARG, popcount)
