@@ -216,7 +216,7 @@ struct sub_group {
 
   template <typename T> T shuffle(T x, id_type local_id) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::SubgroupShuffle(x, local_id);
+    return sycl::detail::spirv::Shuffle(*this, x, local_id);
 #else
     (void)x;
     (void)local_id;
@@ -227,7 +227,7 @@ struct sub_group {
 
   template <typename T> T shuffle_down(T x, uint32_t delta) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::SubgroupShuffleDown(x, delta);
+    return sycl::detail::spirv::ShuffleDown(*this, x, delta);
 #else
     (void)x;
     (void)delta;
@@ -238,7 +238,7 @@ struct sub_group {
 
   template <typename T> T shuffle_up(T x, uint32_t delta) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::SubgroupShuffleUp(x, delta);
+    return sycl::detail::spirv::ShuffleUp(*this, x, delta);
 #else
     (void)x;
     (void)delta;
@@ -249,7 +249,7 @@ struct sub_group {
 
   template <typename T> T shuffle_xor(T x, id_type value) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::SubgroupShuffleXor(x, value);
+    return sycl::detail::spirv::ShuffleXor(*this, x, value);
 #else
     (void)x;
     (void)value;

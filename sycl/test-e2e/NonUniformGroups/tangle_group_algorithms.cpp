@@ -3,7 +3,8 @@
 //
 // REQUIRES: gpu
 // REQUIRES: sg-32
-// UNSUPPORTED: cuda || hip || windows
+// REQUIRES: aspect-ext_oneapi_tangle_group
+// UNSUPPORTED: cuda || windows
 // Tangle groups exhibit unpredictable behavior on Windows.
 // The test is disabled while we investigate the root cause.
 
@@ -27,6 +28,10 @@ int main() {
   sycl::buffer<bool, 1> ReduceBuf{sycl::range{SGSize}};
   sycl::buffer<bool, 1> ExScanBuf{sycl::range{SGSize}};
   sycl::buffer<bool, 1> IncScanBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> ShiftLeftBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> ShiftRightBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> SelectBuf{sycl::range{SGSize}};
+  sycl::buffer<bool, 1> PermuteXorBuf{sycl::range{SGSize}};
 
   const auto NDR = sycl::nd_range<1>{SGSize, SGSize};
   Q.submit([&](sycl::handler &CGH) {
@@ -39,6 +44,10 @@ int main() {
     sycl::accessor ReduceAcc{ReduceBuf, CGH, sycl::write_only};
     sycl::accessor ExScanAcc{ExScanBuf, CGH, sycl::write_only};
     sycl::accessor IncScanAcc{IncScanBuf, CGH, sycl::write_only};
+    sycl::accessor ShiftLeftAcc{ShiftLeftBuf, CGH, sycl::write_only};
+    sycl::accessor ShiftRightAcc{ShiftRightBuf, CGH, sycl::write_only};
+    sycl::accessor SelectAcc{SelectBuf, CGH, sycl::write_only};
+    sycl::accessor PermuteXorAcc{PermuteXorBuf, CGH, sycl::write_only};
     const auto KernelFunc =
         [=](sycl::nd_item<1> item) [[sycl::reqd_sub_group_size(SGSize)]] {
           auto WI = item.get_global_id();
@@ -85,6 +94,21 @@ int main() {
             uint32_t IncScanResult =
                 sycl::inclusive_scan_over_group(Tangle, 1, sycl::plus<>());
             IncScanAcc[WI] = (IncScanResult == LID + 1);
+
+            uint32_t ShiftLeftResult = sycl::shift_group_left(Tangle, LID, 2);
+            ShiftLeftAcc[WI] = (ShiftLeftResult == (LID + 2) % TangleSize);
+
+            uint32_t ShiftRightResult = sycl::shift_group_right(Tangle, LID, 2);
+            ShiftRightAcc[WI] =
+                (ShiftRightResult == (LID + TangleSize - 2) % TangleSize);
+
+            uint32_t SelectResult = sycl::select_from_group(
+                Tangle, LID, (Tangle.get_local_id() + 2) % TangleSize);
+            SelectAcc[WI] = (SelectResult == (LID + 2) % TangleSize);
+
+            uint32_t PermuteXorResult =
+                sycl::permute_group_by_xor(Tangle, LID, 2);
+            PermuteXorAcc[WI] = (PermuteXorResult == (LID ^ 2));
           };
 
           // Split into three groups of different sizes, using control flow
@@ -125,6 +149,10 @@ int main() {
   sycl::host_accessor ReduceAcc{ReduceBuf, sycl::read_only};
   sycl::host_accessor ExScanAcc{ExScanBuf, sycl::read_only};
   sycl::host_accessor IncScanAcc{IncScanBuf, sycl::read_only};
+  sycl::host_accessor ShiftLeftAcc{ShiftLeftBuf, sycl::read_only};
+  sycl::host_accessor ShiftRightAcc{ShiftRightBuf, sycl::read_only};
+  sycl::host_accessor SelectAcc{SelectBuf, sycl::read_only};
+  sycl::host_accessor PermuteXorAcc{PermuteXorBuf, sycl::read_only};
   for (int WI = 0; WI < SGSize; ++WI) {
     assert(BarrierAcc[WI] == true);
     assert(BroadcastAcc[WI] == true);
@@ -134,6 +162,10 @@ int main() {
     assert(ReduceAcc[WI] == true);
     assert(ExScanAcc[WI] == true);
     assert(IncScanAcc[WI] == true);
+    assert(ShiftLeftAcc[WI] == true);
+    assert(ShiftRightAcc[WI] == true);
+    assert(SelectAcc[WI] == true);
+    assert(PermuteXorAcc[WI] == true);
   }
   return 0;
 }

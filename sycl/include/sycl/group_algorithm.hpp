@@ -539,14 +539,17 @@ joint_none_of(Group g, Ptr first, Ptr last, Predicate pred) {
 // TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
 // copyable.
 template <typename Group, typename T>
-std::enable_if_t<(std::is_same_v<std::decay_t<Group>, sub_group> &&
+std::enable_if_t<((std::is_same_v<std::decay_t<Group>, sub_group> ||
+                   sycl::ext::oneapi::experimental::is_user_constructed_group_v<
+                       std::decay_t<Group>>) &&
                   (std::is_trivially_copyable_v<T> ||
                    detail::is_vec<T>::value)),
                  T>
-shift_group_left(Group, T x, typename Group::linear_id_type delta = 1) {
+shift_group_left(Group g, T x, typename Group::linear_id_type delta = 1) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::spirv::SubgroupShuffleDown(x, delta);
+  return sycl::detail::spirv::ShuffleDown(g, x, delta);
 #else
+  (void)g;
   (void)x;
   (void)delta;
   throw sycl::exception(make_error_code(errc::feature_not_supported),
@@ -558,14 +561,17 @@ shift_group_left(Group, T x, typename Group::linear_id_type delta = 1) {
 // TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
 // copyable.
 template <typename Group, typename T>
-std::enable_if_t<(std::is_same_v<std::decay_t<Group>, sub_group> &&
+std::enable_if_t<((std::is_same_v<std::decay_t<Group>, sub_group> ||
+                   sycl::ext::oneapi::experimental::is_user_constructed_group_v<
+                       std::decay_t<Group>>) &&
                   (std::is_trivially_copyable_v<T> ||
                    detail::is_vec<T>::value)),
                  T>
-shift_group_right(Group, T x, typename Group::linear_id_type delta = 1) {
+shift_group_right(Group g, T x, typename Group::linear_id_type delta = 1) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::spirv::SubgroupShuffleUp(x, delta);
+  return sycl::detail::spirv::ShuffleUp(g, x, delta);
 #else
+  (void)g;
   (void)x;
   (void)delta;
   throw sycl::exception(make_error_code(errc::feature_not_supported),
@@ -577,14 +583,17 @@ shift_group_right(Group, T x, typename Group::linear_id_type delta = 1) {
 // TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
 // copyable.
 template <typename Group, typename T>
-std::enable_if_t<(std::is_same_v<std::decay_t<Group>, sub_group> &&
+std::enable_if_t<((std::is_same_v<std::decay_t<Group>, sub_group> ||
+                   sycl::ext::oneapi::experimental::is_user_constructed_group_v<
+                       std::decay_t<Group>>) &&
                   (std::is_trivially_copyable_v<T> ||
                    detail::is_vec<T>::value)),
                  T>
-permute_group_by_xor(Group, T x, typename Group::linear_id_type mask) {
+permute_group_by_xor(Group g, T x, typename Group::linear_id_type mask) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::spirv::SubgroupShuffleXor(x, mask);
+  return sycl::detail::spirv::ShuffleXor(g, x, mask);
 #else
+  (void)g;
   (void)x;
   (void)mask;
   throw sycl::exception(make_error_code(errc::feature_not_supported),
@@ -596,14 +605,17 @@ permute_group_by_xor(Group, T x, typename Group::linear_id_type mask) {
 // TODO: remove check for detail::is_vec<T> once sycl::vec is trivially
 // copyable.
 template <typename Group, typename T>
-std::enable_if_t<(std::is_same_v<std::decay_t<Group>, sub_group> &&
+std::enable_if_t<((std::is_same_v<std::decay_t<Group>, sub_group> ||
+                   sycl::ext::oneapi::experimental::is_user_constructed_group_v<
+                       std::decay_t<Group>>) &&
                   (std::is_trivially_copyable_v<T> ||
                    detail::is_vec<T>::value)),
                  T>
-select_from_group(Group, T x, typename Group::id_type local_id) {
+select_from_group(Group g, T x, typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::spirv::SubgroupShuffle(x, local_id);
+  return sycl::detail::spirv::Shuffle(g, x, local_id);
 #else
+  (void)g;
   (void)x;
   (void)local_id;
   throw sycl::exception(make_error_code(errc::feature_not_supported),
