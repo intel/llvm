@@ -22,12 +22,13 @@ int main() {
   // Submitting command group(work) to queue
   Queue.submit([&](sycl::handler &cgh) {
     // Executing kernel
-    cgh.parallel_for<no_operands_kernel>(
-        NumOfWorkItems,
+    // clang-format off
+    cgh.parallel_for<no_operands_kernel>(NumOfWorkItems,
         [=](sycl::id<1> WIid) [[sycl::reqd_sub_group_size(16)]] {
 #if defined(__SYCL_DEVICE_ONLY__)
-          asm("barrier");
+      asm("barrier");
 #endif
-        });
+    });
+    // clang-format on
   });
 }
