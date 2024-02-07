@@ -6,7 +6,7 @@
 // RUN: %if level_zero && linux %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 //
 // Post-commit test failed https://github.com/intel/llvm/actions/runs/7814201804/job/21315560479
-// Temporary disable the tests while investigating the bug.
+// Temporarily disable the tests while investigating the bug.
 // UNSUPPORTED: gpu-intel-dg2
 
 // This test attempts recording a set of kernels after they have already been
