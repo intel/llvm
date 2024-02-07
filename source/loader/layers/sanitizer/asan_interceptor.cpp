@@ -27,7 +27,11 @@ constexpr int kUsmDeviceRedzoneMagic = (char)0x81;
 constexpr int kUsmHostRedzoneMagic = (char)0x82;
 constexpr int kUsmSharedRedzoneMagic = (char)0x83;
 constexpr int kMemBufferRedzoneMagic = (char)0x84;
-constexpr int kUsmFreedMagic = (char)0x85;
+
+const int kUsmDeviceDeallocatedMagic = (char)0x91;
+const int kUsmHostDeallocatedMagic = (char)0x92;
+const int kUsmSharedDeallocatedMagic = (char)0x93;
+const int kMemBufferDeallocatedMagic = (char)0x93;
 
 constexpr auto kSPIR_AsanShadowMemoryGlobalStart =
     "__AsanShadowMemoryGlobalStart";
@@ -133,7 +137,6 @@ const char *getFormatString(MemoryType MemoryType) {
 
 void ReportBadFree(uptr Addr, StackTrace stack,
                    std::shared_ptr<USMAllocInfo> AllocInfo) {
-    // attempting free on address which was not malloc()-ed: 0x511000023184 in thread T0
     context.logger.always(
         "\n====ERROR: DeviceSanitizer: attempting free on address which "
         "was not malloc()-ed: {} in thread T0",
@@ -146,10 +149,8 @@ void ReportBadFree(uptr Addr, StackTrace stack,
         exit(1);
     }
 
-    assert(AllocInfo->Type != MemoryType::RELEASED);
+    assert(!AllocInfo->IsReleased && "Chunk must be not released");
 
-    // 0x511000023184 is located 4 bytes inside of 256-byte region [0x511000023180,0x511000023280)
-    // allocated by thread T0 here:
     context.logger.always("{} is located inside of {} region [{}, {}]",
                           (void *)Addr, getFormatString(AllocInfo->Type),
                           (void *)AllocInfo->UserBegin,
@@ -165,13 +166,14 @@ void ReportDoubleFree(uptr Addr, StackTrace Stack,
     context.logger.always("\n====ERROR: DeviceSanitizer: double-free on {}",
                           (void *)Addr);
     Stack.Print();
+    AllocInfo->AllocStack.Print();
+    AllocInfo->ReleaseStack.Print();
     exit(1);
 }
 
-void ReportUseAfterFree(uptr Addr, std::shared_ptr<USMAllocInfo> AllocInfo) {}
-
 void ReportGenericError(DeviceSanitizerReport &Report,
-                        ur_kernel_handle_t Kernel) {
+                        ur_kernel_handle_t Kernel, ur_context_handle_t Context,
+                        ur_device_handle_t Device) {
     const char *File = Report.File[0] ? Report.File : "<unknown file>";
     const char *Func = Report.Func[0] ? Report.Func : "<unknown func>";
     auto KernelName = getKernelName(Kernel);
@@ -185,10 +187,31 @@ void ReportGenericError(DeviceSanitizerReport &Report,
         Report.IsWrite ? "WRITE" : "READ", Report.AccessSize,
         KernelName.c_str(), Report.LID0, Report.LID1, Report.LID2, Report.GID0,
         Report.GID1, Report.GID2);
-    context.logger.always("  #0 {} {}:{}", Func, File, Report.Line);
-    if (!Report.IsRecover) {
-        exit(1);
+    context.logger.always("  #0 {} {}:{}\n", Func, File, Report.Line);
+
+    if (Report.ErrorType == DeviceSanitizerErrorType::USE_AFTER_FREE) {
+        auto AllocInfos = context.interceptor->findAllocInfoByAddress(
+            Report.Addr, Context, Device);
+        if (!AllocInfos.size()) {
+            context.logger.always("can't find which chunck {} is allocated",
+                                  (void *)Report.Addr);
+        }
+        for (auto &AllocInfo : AllocInfos) {
+            if (!AllocInfo->IsReleased) {
+                continue;
+            }
+            context.logger.always(
+                "{} is located inside of {} region [{}, {}]",
+                (void *)Report.Addr, getFormatString(AllocInfo->Type),
+                (void *)AllocInfo->UserBegin, (void *)AllocInfo->UserEnd);
+            context.logger.always("allocated by thread T0 here:");
+            AllocInfo->AllocStack.Print();
+            context.logger.always("released by thread T0 here:");
+            AllocInfo->ReleaseStack.Print();
+        }
     }
+
+    exit(1);
 }
 
 } // namespace
@@ -268,6 +291,9 @@ ur_result_t SanitizerInterceptor::allocateMemory(
                                                     UserEnd,
                                                     NeededSize,
                                                     Type,
+                                                    false,
+                                                    Context,
+                                                    Device,
                                                     GetCurrentBacktrace(),
                                                     {}});
 
@@ -285,8 +311,8 @@ ur_result_t SanitizerInterceptor::allocateMemory(
 
     // For memory release
     {
-        std::scoped_lock<ur_shared_mutex> Guard(ContextInfo->Mutex);
-        ContextInfo->AllocatedUSMMap[AllocBegin] = std::move(AllocInfo);
+        std::scoped_lock<ur_shared_mutex> Guard(m_AllocationsMapMutex);
+        m_AllocationsMap.emplace(std::move(AllocInfo));
     }
 
     context.logger.info(
@@ -304,52 +330,51 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
     std::shared_lock<ur_shared_mutex> Guard(ContextInfo->Mutex);
 
     auto Addr = reinterpret_cast<uptr>(Ptr);
-    // Find the last element is not greater than key
-    auto AllocInfoIt = ContextInfo->AllocatedUSMMap.upper_bound(Addr);
-    if (AllocInfoIt == ContextInfo->AllocatedUSMMap.begin()) {
+    auto AllocInfos = findAllocInfoByAddress(Addr, Context, nullptr);
+
+    if (!AllocInfos.size()) {
         ReportBadFree(Addr, GetCurrentBacktrace(), nullptr);
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
-    --AllocInfoIt;
-    auto &AllocInfo = AllocInfoIt->second;
-    context.logger.debug("AllocInfo(AllocBegin={}, UserBegin={})",
-                         (void *)AllocInfo->AllocBegin,
-                         (void *)AllocInfo->UserBegin);
 
-    auto AllocType = AllocInfo->Type;
+    for (auto AllocInfo : AllocInfos) {
+        context.logger.debug("AllocInfo(AllocBegin={}, UserBegin={})",
+                             (void *)AllocInfo->AllocBegin,
+                             (void *)AllocInfo->UserBegin);
 
-    if (AllocType == MemoryType::RELEASED) {
-        ReportDoubleFree(Addr, GetCurrentBacktrace(), AllocInfo);
-        return UR_RESULT_ERROR_INVALID_ARGUMENT;
-    }
+        if (AllocInfo->IsReleased) {
+            ReportDoubleFree(Addr, GetCurrentBacktrace(), AllocInfo);
+            return UR_RESULT_ERROR_INVALID_ARGUMENT;
+        }
 
-    if (Addr != AllocInfo->UserBegin) {
-        ReportBadFree(Addr, GetCurrentBacktrace(), AllocInfo);
-        return UR_RESULT_ERROR_INVALID_ARGUMENT;
-    }
+        if (Addr != AllocInfo->UserBegin) {
+            ReportBadFree(Addr, GetCurrentBacktrace(), AllocInfo);
+            return UR_RESULT_ERROR_INVALID_ARGUMENT;
+        }
 
-    AllocInfo->Type = MemoryType::RELEASED;
-    AllocInfo->ReleaseStack = GetCurrentBacktrace();
+        AllocInfo->IsReleased = true;
+        AllocInfo->ReleaseStack = GetCurrentBacktrace();
 
-    auto Device =
-        getUSMAllocDevice(Context, (const void *)AllocInfo->AllocBegin);
+        auto Device =
+            getUSMAllocDevice(Context, (const void *)AllocInfo->AllocBegin);
 
-    // auto Res =
-    //     context.urDdiTable.USM.pfnFree(Context, (void *)AllocInfo->AllocBegin);
-    // if (Res != UR_RESULT_SUCCESS) {
-    //     return Res;
-    // }
+        // auto Res =
+        //     context.urDdiTable.USM.pfnFree(Context, (void *)AllocInfo->AllocBegin);
+        // if (Res != UR_RESULT_SUCCESS) {
+        //     return Res;
+        // }
 
-    if (AllocType == MemoryType::HOST_USM) {
-        for (auto &pair : ContextInfo->DeviceMap) {
-            auto DeviceInfo = pair.second;
+        if (AllocInfo->Type == MemoryType::HOST_USM) {
+            for (auto &pair : ContextInfo->DeviceMap) {
+                auto DeviceInfo = pair.second;
+                std::scoped_lock<ur_shared_mutex> Guard(DeviceInfo->Mutex);
+                DeviceInfo->AllocInfos.emplace_back(AllocInfo);
+            }
+        } else {
+            auto DeviceInfo = ContextInfo->getDeviceInfo(Device);
             std::scoped_lock<ur_shared_mutex> Guard(DeviceInfo->Mutex);
             DeviceInfo->AllocInfos.emplace_back(AllocInfo);
         }
-    } else {
-        auto DeviceInfo = ContextInfo->getDeviceInfo(Device);
-        std::scoped_lock<ur_shared_mutex> Guard(DeviceInfo->Mutex);
-        DeviceInfo->AllocInfos.emplace_back(AllocInfo);
     }
 
     return UR_RESULT_SUCCESS;
@@ -398,7 +423,7 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
         if (!AH->Flag) {
             return;
         }
-        ReportGenericError(*AH, Kernel);
+        ReportGenericError(*AH, Kernel, getContext(Queue), getDevice(Queue));
     }
 }
 
@@ -585,10 +610,28 @@ ur_result_t SanitizerInterceptor::enqueueAllocInfo(
     ur_context_handle_t Context, ur_device_handle_t Device,
     ur_queue_handle_t Queue, std::shared_ptr<USMAllocInfo> &AllocInfo,
     ur_event_handle_t &LastEvent) {
-    if (AllocInfo->Type == MemoryType::RELEASED) {
+    if (AllocInfo->IsReleased) {
+        int ShadowByte;
+        switch (AllocInfo->Type) {
+        case MemoryType::HOST_USM:
+            ShadowByte = kUsmHostDeallocatedMagic;
+            break;
+        case MemoryType::DEVICE_USM:
+            ShadowByte = kUsmDeviceDeallocatedMagic;
+            break;
+        case MemoryType::SHARED_USM:
+            ShadowByte = kUsmSharedDeallocatedMagic;
+            break;
+        case MemoryType::MEM_BUFFER:
+            ShadowByte = kMemBufferDeallocatedMagic;
+            break;
+        default:
+            ShadowByte = 0xff;
+            assert(false && "Unknow AllocInfo Type");
+        }
         UR_CALL(enqueueMemSetShadow(Context, Device, Queue,
                                     AllocInfo->AllocBegin, AllocInfo->AllocSize,
-                                    kUsmFreedMagic, LastEvent, &LastEvent));
+                                    ShadowByte, LastEvent, &LastEvent));
         return UR_RESULT_SUCCESS;
     }
 
@@ -844,6 +887,36 @@ ur_result_t SanitizerInterceptor::prepareLaunch(ur_queue_handle_t Queue,
 
     QueueInfo->LastEvent = LastEvent;
     return UR_RESULT_SUCCESS;
+}
+
+std::vector<std::shared_ptr<USMAllocInfo>>
+SanitizerInterceptor::findAllocInfoByAddress(uptr Address,
+                                             ur_context_handle_t Context,
+                                             ur_device_handle_t Device) {
+    std::vector<std::shared_ptr<USMAllocInfo>> Result;
+    auto current = std::make_shared<USMAllocInfo>(USMAllocInfo{Address});
+
+    std::shared_lock<ur_shared_mutex> Guard(m_AllocationsMapMutex);
+
+    auto It = std::lower_bound(
+        m_AllocationsMap.begin(), m_AllocationsMap.end(), Address,
+        [](const std::shared_ptr<USMAllocInfo> &AllocInfo, uptr Addr) {
+            return (AllocInfo->AllocBegin + AllocInfo->AllocSize) < Addr;
+        });
+    for (; It != m_AllocationsMap.end(); ++It) {
+        auto AI = *It;
+        if (AI->AllocBegin > Address) {
+            break;
+        }
+        if (Context && AI->Context != Context) {
+            continue;
+        }
+        if (Device && AI->Device != Device) {
+            continue;
+        }
+        Result.emplace_back(*It);
+    }
+    return Result;
 }
 
 LaunchInfo::~LaunchInfo() {

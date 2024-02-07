@@ -18,19 +18,26 @@
 
 #include <map>
 #include <memory>
+#include <set>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace ur_sanitizer_layer {
 
-enum MemoryType { DEVICE_USM, SHARED_USM, HOST_USM, MEM_BUFFER, RELEASED };
+enum MemoryType { DEVICE_USM, SHARED_USM, HOST_USM, MEM_BUFFER };
 
 struct USMAllocInfo {
-    uptr AllocBegin;
-    uptr UserBegin;
-    uptr UserEnd;
-    size_t AllocSize;
-    MemoryType Type;
+    uptr AllocBegin = 0;
+    uptr UserBegin = 0;
+    uptr UserEnd = 0;
+    size_t AllocSize = 0;
+
+    MemoryType Type = MemoryType::DEVICE_USM;
+    bool IsReleased = false;
+
+    ur_context_handle_t Context = nullptr;
+    ur_device_handle_t Device = nullptr;
 
     StackTrace AllocStack;
     StackTrace ReleaseStack;
@@ -68,21 +75,10 @@ struct ContextInfo {
         return QueueMap[Queue];
     }
 
-    std::shared_ptr<USMAllocInfo> getUSMAllocInfo(uptr Address) {
-        std::shared_lock<ur_shared_mutex> Guard(Mutex);
-        assert(AllocatedUSMMap.find(Address) != AllocatedUSMMap.end());
-        return AllocatedUSMMap[Address];
-    }
-
     ur_shared_mutex Mutex;
     std::unordered_map<ur_device_handle_t, std::shared_ptr<DeviceInfo>>
         DeviceMap;
     std::unordered_map<ur_queue_handle_t, std::shared_ptr<QueueInfo>> QueueMap;
-
-    /// key: USMAllocInfo.AllocBegin
-    /// value: USMAllocInfo
-    /// Use AllocBegin as key can help to detect underflow pointer
-    std::map<uptr, std::shared_ptr<USMAllocInfo>> AllocatedUSMMap;
 };
 
 struct LaunchInfo {
@@ -130,6 +126,10 @@ class SanitizerInterceptor {
     ur_result_t eraseQueue(ur_context_handle_t Context,
                            ur_queue_handle_t Queue);
 
+    std::vector<std::shared_ptr<USMAllocInfo>>
+    findAllocInfoByAddress(uptr Address, ur_context_handle_t Context,
+                           ur_device_handle_t Device);
+
   private:
     ur_result_t updateShadowMemory(ur_queue_handle_t Queue);
     ur_result_t enqueueAllocInfo(ur_context_handle_t Context,
@@ -162,6 +162,23 @@ class SanitizerInterceptor {
     std::unordered_map<ur_context_handle_t, std::shared_ptr<ContextInfo>>
         m_ContextMap;
     ur_shared_mutex m_ContextMapMutex;
+
+    struct USMAllocInfoCompare {
+        bool operator()(const std::shared_ptr<USMAllocInfo> &lhs,
+                        const std::shared_ptr<USMAllocInfo> &rhs) const {
+            auto p1 = std::make_pair(lhs->AllocBegin,
+                                     lhs->AllocBegin + lhs->AllocSize);
+            auto p2 = std::make_pair(rhs->AllocBegin,
+                                     rhs->AllocBegin + rhs->AllocSize);
+            return p1 < p2;
+        }
+    };
+
+    using AllocaionRangSet =
+        std::multiset<std::shared_ptr<USMAllocInfo>, USMAllocInfoCompare>;
+
+    AllocaionRangSet m_AllocationsMap;
+    ur_shared_mutex m_AllocationsMapMutex;
 
     bool m_IsInASanContext;
     bool m_ShadowMemInited;
