@@ -364,6 +364,9 @@ _Returns_: An `id` representing the index of the current sub-group within the
 template <execution_scope Scope>
 size_t get_linear_id() const;
 ----
+_Constraints_: `Scope` must be of a lower hierarchy than
+`execution_scope::root_group`.
+
 _Returns_: A linearized number of the current work-group or work-item at `Scope` hierarchy
 level within the `root_group` object.
 
@@ -392,12 +395,11 @@ object.
 template <execution_scope Scope>
 size_t get_linear_range() const;
 ----
+_Constraints_: `Scope` must be of a lower hierarchy than
+`execution_scope::root_group`.
+
 _Returns_: The number of work-groups or work-items of `Scope` hierarchy level within the
 `root_group` object.
-
-NOTE: Functions accepting `Scope` template parameter accept `Scope` of a lower
-hierarchy than `execution_scope::root_group`. Otherwise it results in a
-compilation error.
 
 
 === Using a `root_group`
