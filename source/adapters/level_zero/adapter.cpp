@@ -13,15 +13,92 @@
 
 ur_adapter_handle_t_ Adapter{};
 
-ur_result_t adapterStateTeardown() {
-  // reclaim ur_platform_handle_t objects here since we don't have
-  // urPlatformRelease.
-  for (ur_platform_handle_t Platform : *URPlatformsCache) {
-    delete Platform;
+ur_result_t initPlatforms(PlatformVec &platforms) noexcept try {
+  uint32_t ZeDriverCount = 0;
+  ZE2UR_CALL(zeDriverGet, (&ZeDriverCount, nullptr));
+  if (ZeDriverCount == 0) {
+    return UR_RESULT_SUCCESS;
   }
-  delete URPlatformsCache;
-  delete URPlatformsCacheMutex;
 
+  std::vector<ze_driver_handle_t> ZeDrivers;
+  ZeDrivers.resize(ZeDriverCount);
+
+  ZE2UR_CALL(zeDriverGet, (&ZeDriverCount, ZeDrivers.data()));
+  for (uint32_t I = 0; I < ZeDriverCount; ++I) {
+    auto platform = std::make_unique<ur_platform_handle_t_>(ZeDrivers[I]);
+    UR_CALL(platform->initialize());
+
+    // Save a copy in the cache for future uses.
+    platforms.push_back(std::move(platform));
+  }
+  return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+ur_result_t adapterStateInit() {
+  static std::once_flag ZeCallCountInitialized;
+  try {
+    std::call_once(ZeCallCountInitialized, []() {
+      if (UrL0LeaksDebug) {
+        ZeCallCount = new std::map<std::string, int>;
+      }
+    });
+  } catch (const std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  // initialize level zero only once.
+  if (Adapter.ZeResult == std::nullopt) {
+    // Setting these environment variables before running zeInit will enable the
+    // validation layer in the Level Zero loader.
+    if (UrL0Debug & UR_L0_DEBUG_VALIDATION) {
+      setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
+      setEnvVar("ZE_ENABLE_PARAMETER_VALIDATION", "1");
+    }
+
+    if (getenv("SYCL_ENABLE_PCI") != nullptr) {
+      urPrint("WARNING: SYCL_ENABLE_PCI is deprecated and no longer needed.\n");
+    }
+
+    // TODO: We can still safely recover if something goes wrong during the
+    // init. Implement handling segfault using sigaction.
+
+    // We must only initialize the driver once, even if urPlatformGet() is
+    // called multiple times.  Declaring the return value as "static" ensures
+    // it's only called once.
+    Adapter.ZeResult = ZE_CALL_NOCHECK(zeInit, (ZE_INIT_FLAG_GPU_ONLY));
+  }
+
+  Adapter.PlatformCache.Compute = [](Result<PlatformVec> &result) {
+    assert(Adapter.ZeResult !=
+           std::nullopt); // verify that level-zero is initialized
+    PlatformVec platforms;
+
+    // Absorb the ZE_RESULT_ERROR_UNINITIALIZED and just return 0 Platforms.
+    if (*Adapter.ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
+      result = std::move(platforms);
+      return;
+    }
+    if (*Adapter.ZeResult != ZE_RESULT_SUCCESS) {
+      urPrint("zeInit: Level Zero initialization failure\n");
+      result = ze2urResult(*Adapter.ZeResult);
+      return;
+    }
+
+    ur_result_t err = initPlatforms(platforms);
+    if (err == UR_RESULT_SUCCESS) {
+      result = std::move(platforms);
+    } else {
+      result = err;
+    }
+  };
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t adapterStateTeardown() {
   bool LeakFound = false;
 
   // Print the balance of various create/destroy native calls.
@@ -126,9 +203,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
 ) {
   if (NumEntries > 0 && Adapters) {
     std::lock_guard<std::mutex> Lock{Adapter.Mutex};
-    // TODO: Some initialization that happens in urPlatformsGet could be moved
-    // here for when RefCount reaches 1
-    Adapter.RefCount++;
+    if (Adapter.RefCount++ == 0) {
+      adapterStateInit();
+    }
     *Adapters = &Adapter;
   }
 

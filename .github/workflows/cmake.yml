@@ -213,15 +213,7 @@ jobs:
       working-directory: ${{github.workspace}}/build
       run: ctest -C ${{matrix.build_type}} --output-on-failure -L "adapter-specific" --timeout 180
 
-    # Temporarily disabling platform test for L0, because of hang
-    # See issue: #824
-    - name: Test L0 adapter
-      if: matrix.adapter.name == 'L0'
-      working-directory: ${{github.workspace}}/build
-      run: ctest -C ${{matrix.build_type}} --output-on-failure -L "conformance" -E "platform-adapter_level_zero" --timeout 180
-
     - name: Test adapters
-      if: matrix.adapter.name != 'L0'
       working-directory: ${{github.workspace}}/build
       run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --output-on-failure -L "conformance" --timeout 180
 
