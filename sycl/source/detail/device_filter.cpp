@@ -93,13 +93,12 @@ static void Parse_ODS_Device(ods_target &Target,
   std::string_view TopDeviceStr = DeviceSubTuple[0];
 
   // Handle explicit device type (e.g. 'gpu').
-  auto DeviceTypeMap =
-      getSyclDeviceTypeMap(
-        #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-          true /*Enable 'acc'*/
-        #endif
-      ); // <-- std::array<std::pair<std::string,
-                              // info::device::type>>
+  auto DeviceTypeMap = getSyclDeviceTypeMap(
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+      true /*Enable 'acc'*/
+#endif
+  ); // <-- std::array<std::pair<std::string,
+     // info::device::type>>
 
   auto It =
       std::find_if(std::begin(DeviceTypeMap), std::end(DeviceTypeMap),
@@ -268,9 +267,9 @@ std::ostream &operator<<(std::ostream &Out, const ods_target &Target) {
   Out << Target.Backend;
   if (Target.DeviceType) {
     auto DeviceTypeMap = getSyclDeviceTypeMap(
-      #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-          true /*Enable 'acc'*/
-      #endif
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+        true /*Enable 'acc'*/
+#endif
     );
     auto Match = std::find_if(
         DeviceTypeMap.begin(), DeviceTypeMap.end(),
@@ -344,8 +343,9 @@ device_filter::device_filter(const std::string &FilterString) {
   if (TripleValueID >= Tokens.size()) {
     DeviceType = info::device_type::all;
   } else {
-    auto Iter = std::find_if(std::begin(getSyclDeviceTypeMap(true /*Enable 'acc'*/)),
-                             std::end(getSyclDeviceTypeMap(true /*Enable 'acc'*/)), FindElement);
+    auto Iter = std::find_if(
+        std::begin(getSyclDeviceTypeMap(true /*Enable 'acc'*/)),
+        std::end(getSyclDeviceTypeMap(true /*Enable 'acc'*/)), FindElement);
     // If no match is found, set device_type 'all',
     // which actually means 'any device_type' will be a match.
     if (Iter == getSyclDeviceTypeMap(true /*Enable 'acc'*/).end())
