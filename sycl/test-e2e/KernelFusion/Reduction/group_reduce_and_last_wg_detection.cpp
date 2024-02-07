@@ -2,6 +2,9 @@
 // RUN: %{run} %t.out
 // UNSUPPORTED: hip || cuda
 
+// COM: When ran on HIP and CUDA, this algorithm launches 'memcpy' commands
+// leading to an infinite loop due to a bug in kernel fusion.
+
 #include "./reduction.hpp"
 
 int main() {
