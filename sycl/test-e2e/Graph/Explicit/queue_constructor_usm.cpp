@@ -5,7 +5,8 @@
 //
 // CHECK-NOT: LEAK
 //
-// Post-commit test failed https://github.com/intel/llvm/actions/runs/7814201804/job/21315560479
+// Post-commit test failed
+// https://github.com/intel/llvm/actions/runs/7814201804/job/21315560479
 // Temporarily disable the tests while investigating the bug.
 // UNSUPPORTED: gpu-intel-dg2
 

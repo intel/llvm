@@ -7,7 +7,8 @@
 //
 //
 // Temporarily disabled until failure is addressed.
-// Post-commit test failed https://github.com/intel/llvm/actions/runs/7814201804/job/21315560479
+// Post-commit test failed
+// https://github.com/intel/llvm/actions/runs/7814201804/job/21315560479
 // Temporarily disable USM based tests while investigating the bug.
 // UNSUPPORTED: windows, gpu-intel-dg2
 
