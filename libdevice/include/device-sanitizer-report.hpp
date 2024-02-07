@@ -15,10 +15,10 @@
 
 enum class DeviceSanitizerErrorType : int32_t {
   UNKNOWN,
-  OUT_OF_BOUND,
+  OUT_OF_BOUNDS,
   MISALIGNED,
   USE_AFTER_FREE,
-  OUT_OF_SHADOW_BOUND,
+  OUT_OF_SHADOW_BOUNDS,
 };
 
 enum class DeviceSanitizerMemoryType : int32_t {
@@ -49,6 +49,7 @@ struct DeviceSanitizerReport {
   uint64_t LID1 = 0;
   uint64_t LID2 = 0;
 
+  uint64_t Addr = 0;
   bool IsWrite = false;
   uint32_t AccessSize = 0;
   DeviceSanitizerMemoryType MemoryType = DeviceSanitizerMemoryType::UNKNOWN;

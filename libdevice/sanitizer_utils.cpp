@@ -177,6 +177,9 @@ inline uptr MemToShadow_PVC(uptr addr, int32_t as) {
   return shadow_ptr;
 }
 
+static const __SYCL_CONSTANT__ char __asan_shadow_value[] =
+    "%p(%d) -> %p: %02X\n";
+
 inline uptr MemToShadow(uptr addr, int32_t as) {
   uptr shadow_ptr = 0;
 
@@ -188,6 +191,9 @@ inline uptr MemToShadow(uptr addr, int32_t as) {
     __spirv_ocl_printf(__unsupport_device_type, (int)__DeviceType);
     return shadow_ptr;
   }
+
+  // __spirv_ocl_printf(__asan_shadow_value, addr, as, shadow_ptr,
+  //                    shadow_ptr ? *(u8 *)shadow_ptr : 0xff);
 
   return shadow_ptr;
 }
@@ -295,6 +301,7 @@ static void __asan_internal_report_save(
     __DeviceSanitizerReportMem.get().LID1 = __spirv_LocalInvocationId_y();
     __DeviceSanitizerReportMem.get().LID2 = __spirv_LocalInvocationId_z();
 
+    __DeviceSanitizerReportMem.get().Addr = ptr;
     __DeviceSanitizerReportMem.get().IsWrite = is_write;
     __DeviceSanitizerReportMem.get().AccessSize = access_size;
     __DeviceSanitizerReportMem.get().ErrorType = error_type;
@@ -330,15 +337,15 @@ void __asan_report_access_error(uptr addr, int32_t as, size_t size,
   switch (shadow_value) {
   case kUsmDeviceRedzoneMagic:
     memory_type = DeviceSanitizerMemoryType::USM_DEVICE;
-    error_type = DeviceSanitizerErrorType::OUT_OF_BOUND;
+    error_type = DeviceSanitizerErrorType::OUT_OF_BOUNDS;
     break;
   case kUsmHostRedzoneMagic:
     memory_type = DeviceSanitizerMemoryType::USM_HOST;
-    error_type = DeviceSanitizerErrorType::OUT_OF_BOUND;
+    error_type = DeviceSanitizerErrorType::OUT_OF_BOUNDS;
     break;
   case kUsmSharedRedzoneMagic:
     memory_type = DeviceSanitizerMemoryType::USM_SHARED;
-    error_type = DeviceSanitizerErrorType::OUT_OF_BOUND;
+    error_type = DeviceSanitizerErrorType::OUT_OF_BOUNDS;
     break;
   case kUsmDeviceDeallocatedMagic:
     memory_type = DeviceSanitizerMemoryType::USM_DEVICE;
@@ -356,15 +363,15 @@ void __asan_report_access_error(uptr addr, int32_t as, size_t size,
   case kPrivateMidRedzoneMagic:
   case kPrivateRightRedzoneMagic:
     memory_type = DeviceSanitizerMemoryType::PRIVATE;
-    error_type = DeviceSanitizerErrorType::OUT_OF_BOUND;
+    error_type = DeviceSanitizerErrorType::OUT_OF_BOUNDS;
     break;
   case kMemBufferRedzoneMagic:
     memory_type = DeviceSanitizerMemoryType::MEM_BUFFER;
-    error_type = DeviceSanitizerErrorType::OUT_OF_BOUND;
+    error_type = DeviceSanitizerErrorType::OUT_OF_BOUNDS;
     break;
   case kSharedLocalRedzoneMagic:
     memory_type = DeviceSanitizerMemoryType::LOCAL;
-    error_type = DeviceSanitizerErrorType::OUT_OF_BOUND;
+    error_type = DeviceSanitizerErrorType::OUT_OF_BOUNDS;
     break;
   default:
     memory_type = DeviceSanitizerMemoryType::UNKNOWN;
