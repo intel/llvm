@@ -232,7 +232,7 @@ public:
   template <execution_scope Scope>
   std::enable_if_t<(Scope == execution_scope::work_item ||
                     Scope == execution_scope::work_group),
-                    id<Dimensions>>
+                   id<Dimensions>>
   get_id() const;
 
   template <execution_scope Scope>
@@ -244,7 +244,7 @@ public:
   template <execution_scope Scope>
   std::enable_if_t<(Scope == execution_scope::work_item ||
                     Scope == execution_scope::work_group),
-                    range<Dimensions>>
+                   range<Dimensions>>
   get_range() const;
 
   template <execution_scope Scope>
@@ -345,7 +345,7 @@ work-item for which `get_local_id()` returns 0.
 template <execution_scope Scope>
 std::enable_if_t<(Scope == execution_scope::work_item ||
                   Scope == execution_scope::work_group),
-                  id<Dimensions>>
+                 id<Dimensions>>
 get_id() const;
 ----
 _Returns_: An id representing the index of the current group or item at `Scope`
@@ -372,7 +372,7 @@ level within the root_group object.
 template <execution_scope Scope>
 std::enable_if_t<(Scope == execution_scope::work_item ||
                   Scope == execution_scope::work_group),
-                  range<Dimensions>>
+                 range<Dimensions>>
 get_range() const;
 ----
 _Returns_: A range representing the number of groups or items of `Scope`
