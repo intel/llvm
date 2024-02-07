@@ -42,6 +42,13 @@ template <> struct detail::PropertyToKind<use_root_sync_key> {
 template <>
 struct detail::IsCompileTimeProperty<use_root_sync_key> : std::true_type {};
 
+enum class execution_scope {
+  work_item,
+  sub_group,
+  work_group,
+  root_group,
+};
+
 template <int Dimensions> class root_group {
 public:
   using id_type = id<Dimensions>;
@@ -77,6 +84,75 @@ public:
   size_t get_local_linear_range() const { return get_local_range().size(); };
 
   bool leader() const { return get_local_id() == 0; };
+
+  template <execution_scope Scope, typename RetTy>
+  using checkScopeTy = std::enable_if_t<(Scope == execution_scope::work_item ||
+                                         Scope == execution_scope::sub_group ||
+                                         Scope == execution_scope::work_group),
+                                        RetTy>;
+
+  template <execution_scope Scope>
+  std::enable_if_t<(Scope == execution_scope::work_item ||
+                    Scope == execution_scope::work_group),
+                   id<Dimensions>>
+  get_id() const {
+    if constexpr (Scope == execution_scope::work_item)
+      return it.get_global_id();
+    else if constexpr (Scope == execution_scope::work_group)
+      return it.get_group().get_group_id();
+  }
+
+  template <execution_scope Scope>
+  std::enable_if_t<Scope == execution_scope::sub_group, id<1>> get_id() const {
+    return get_linear_id<execution_scope::sub_group>();
+  }
+
+  template <execution_scope Scope>
+  checkScopeTy<Scope, size_t> get_linear_id() const {
+    if constexpr (Scope == execution_scope::work_item) {
+      return it.get_global_linear_id();
+    } else if constexpr (Scope == execution_scope::sub_group) {
+      size_t WIId = it.get_global_linear_id();
+      size_t SGSize = it.get_sub_group().get_local_linear_range();
+      return WIId / SGSize;
+    } else if constexpr (Scope == execution_scope::work_group) {
+      return it.get_group().get_group_linear_id();
+    }
+  }
+
+  template <execution_scope Scope>
+  std::enable_if_t<(Scope == execution_scope::work_item ||
+                    Scope == execution_scope::work_group),
+                   range<Dimensions>>
+  get_range() const {
+    if constexpr (Scope == execution_scope::work_item)
+      return it.get_global_range();
+    else if constexpr (Scope == execution_scope::work_group)
+      return it.get_group().get_group_range();
+  }
+
+  template <execution_scope Scope>
+  std::enable_if_t<Scope == execution_scope::sub_group, range<1>>
+  get_range() const {
+    return get_linear_range<execution_scope::sub_group>();
+  }
+
+  template <execution_scope Scope>
+  checkScopeTy<Scope, size_t> get_linear_range() const {
+    if constexpr (Scope == execution_scope::work_item) {
+      range<Dimensions> Range = it.get_global_range();
+      size_t linRange = 1;
+      for (int i = 0; i < Dimensions; ++i)
+        linRange *= Range[i];
+      return linRange;
+    } else if constexpr (Scope == execution_scope::sub_group) {
+      uint32_t NumWG = it.get_group().get_group_linear_range();
+      uint32_t NumSGPerWG = it.get_sub_group().get_group_linear_range();
+      return NumWG * NumSGPerWG;
+    } else if constexpr (Scope == execution_scope::work_group) {
+      return it.get_group().get_group_linear_range();
+    }
+  }
 
 private:
   friend root_group<Dimensions>

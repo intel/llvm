@@ -75,7 +75,7 @@ void testRootGroupFunctions() {
   const auto props = sycl::ext::oneapi::experimental::properties{
       sycl::ext::oneapi::experimental::use_root_sync};
 
-  constexpr int testCount = 10;
+  constexpr int testCount = 22;
   bool *testResults = sycl::malloc_shared<bool>(testCount, q);
   const auto range = sycl::nd_range<1>{maxWGs * WorkGroupSize, WorkGroupSize};
   q.parallel_for<class RootGroupFunctionsKernel>(
@@ -106,6 +106,57 @@ void testRootGroupFunctions() {
               std::is_same_v<std::remove_cv<decltype(grandchild)>::type,
                              sycl::sub_group>,
               "get_child_group(sycl::group) must return a sycl::sub_group");
+        }
+
+        auto SG = it.get_sub_group();
+        size_t SGSize = SG.get_local_linear_range();
+        using execution_scope =
+            sycl::ext::oneapi::experimental::execution_scope;
+
+        if (root.leader()) {
+          size_t NumSGPerWG = SG.get_group_linear_range();
+
+          testResults[10] =
+              root.template get_range<execution_scope::work_group>()[0] ==
+              maxWGs;
+          testResults[11] =
+              root.template get_range<execution_scope::sub_group>()[0] ==
+              NumSGPerWG * maxWGs;
+          testResults[12] =
+              root.template get_range<execution_scope::work_item>()[0] ==
+              maxWGs * WorkGroupSize;
+
+          testResults[13] =
+              root.template get_linear_range<execution_scope::work_group>() ==
+              maxWGs;
+          testResults[14] =
+              root.template get_linear_range<execution_scope::sub_group>() ==
+              NumSGPerWG * maxWGs;
+          testResults[15] =
+              root.template get_linear_range<execution_scope::work_item>() ==
+              maxWGs * WorkGroupSize;
+        }
+
+        if (root.get_local_id() == 3) {
+          testResults[16] =
+              root.template get_id<execution_scope::work_group>() ==
+              it.get_global_linear_id() / WorkGroupSize;
+          testResults[17] =
+              root.template get_id<execution_scope::sub_group>() ==
+              it.get_global_linear_id() / SGSize;
+          testResults[18] =
+              root.template get_id<execution_scope::work_item>() ==
+              it.get_global_linear_id();
+
+          testResults[19] =
+              root.template get_linear_id<execution_scope::work_group>() ==
+              it.get_global_linear_id() / WorkGroupSize;
+          testResults[20] =
+              root.template get_linear_id<execution_scope::sub_group>() ==
+              it.get_global_linear_id() / SGSize;
+          testResults[21] =
+              root.template get_linear_id<execution_scope::work_item>() ==
+              it.get_global_linear_id();
         }
       });
   q.wait();
