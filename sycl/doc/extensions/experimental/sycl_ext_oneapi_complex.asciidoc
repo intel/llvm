@@ -101,7 +101,7 @@ available only in host code as noted below.
 The complex type is trivially copyable and type trait `is_device_copyable`
 should resolve to `std::true_type`.
 
-Constraints: The `T` template parameter must be one of the types `float`,
+_Constraints_: The `T` template parameter must be one of the types `float`,
 `double`, or `sycl::half`.
 
 Note: When performing operations between complex numbers and decimals,
