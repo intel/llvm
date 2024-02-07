@@ -1,5 +1,6 @@
 ; RUN: sycl-post-link -spec-const=emulation < %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files_0.prop
+; RUN: sycl-post-link -debug-only=SpecConst -spec-const=emulation < %s 2>&1 | FileCheck %s --check-prefix=CHECK-LOG
 ;
 ; This test checks that composite specialization constants with padding gets the
 ; correct padding in their default values to prevent values being inserted at
@@ -98,6 +99,9 @@ attributes #5 = { nounwind }
 ; CHECK: [SYCL/specialization constants]
 ; CHECK-NEXT: 9d329ad59055e972____ZL12StructSpecId=2|gBAAAAAAAAAAAAAAAAAAAgAAAAA
 ; CHECK-NEXT: 9d329ad59055e972____ZL10BoolSpecId=2|gBAAAAAAAAQAAAAAAAAAAEAAAAA
+; CHECK-LOG: sycl.specialization-constants
+; CHECK-LOG:[[UNIQUE_PREFIX:[a-z0-9]+]]____ZL12StructSpecId={0, 0, 8}
+; CHECK-LOG:[[UNIQUE_PREFIX]]____ZL10BoolSpecId={1, 0, 1}
 
 ; Ensure that the default values are correct.
 ; IBAAAAAAAAAFAAAAjBAAAEA is decoded to "0x48 0x0 0x0 0x0 0x0 0x0 0x0 0x0 0x14
@@ -112,3 +116,7 @@ attributes #5 = { nounwind }
 ;     value being true.
 ; CHECK: [SYCL/specialization constants default values]
 ; CHECK-NEXT: all=2|IBAAAAAAAAAFAAAAjBAAAEA
+; CHECK-LOG: sycl.specialization-constants-default-values
+; CHECK-LOG:{0, 4, 20}
+; CHECK-LOG:{4, 1, 99}
+; CHECK-LOG:{8, 1, 1}
