@@ -42,6 +42,34 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
   // Filter available devices based on input DeviceType.
   std::vector<ur_device_handle_t> MatchedDevices;
   std::shared_lock<ur_shared_mutex> Lock(Platform->URDevicesCacheMutex);
+  // We need to filter out composite devices when
+  // ZE_FLAT_DEVICE_HIERARCHY=COMBINED. We can know if we are in combined
+  // mode depending on the return value of zeDeviceGetRootDevice:
+  //   - If COMPOSITE, L0 returns cards as devices. Since we filter out
+  //     subdevices early, zeDeviceGetRootDevice must return nullptr, because we
+  //     only query for root-devices and they don't have any device higher up in
+  //     the hierarchy.
+  //   - If FLAT,  according to L0 spec, zeDeviceGetRootDevice always returns
+  //     nullptr in this mode.
+  //   - If COMBINED, L0 returns tiles as devices, and zeDeviceGetRootdevice
+  //     returns the card containing a given tile.
+  bool isCombinedMode =
+      std::any_of(Platform->URDevicesCache.begin(),
+                  Platform->URDevicesCache.end(), [](const auto &D) {
+                    if (D->isSubDevice())
+                      return false;
+                    ze_device_handle_t RootDev = nullptr;
+                    // Query Root Device for root-devices.
+                    // We cannot use ZE2UR_CALL because under some circumstances
+                    // this call may return ZE_RESULT_ERROR_UNSUPPORTED_FEATURE,
+                    // and ZE2UR_CALL will abort because it's not
+                    // UR_RESULT_SUCCESS. Instead, we use ZE_CALL_NOCHECK and we
+                    // check manually that the result is either
+                    // ZE_RESULT_SUCCESS or ZE_RESULT_ERROR_UNSUPPORTED_FEATURE.
+                    auto errc = ZE_CALL_NOCHECK(zeDeviceGetRootDevice,
+                                                (D->ZeDevice, &RootDev));
+                    return (errc == ZE_RESULT_SUCCESS && RootDev != nullptr);
+                  });
   for (auto &D : Platform->URDevicesCache) {
     // Only ever return root-devices from urDeviceGet, but the
     // devices cache also keeps sub-devices.
@@ -71,8 +99,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
       urPrint("Unknown device type");
       break;
     }
-    if (Matched)
-      MatchedDevices.push_back(D.get());
+
+    if (Matched) {
+      bool isComposite =
+          isCombinedMode && (D->ZeDeviceProperties->flags &
+                             ZE_DEVICE_PROPERTY_FLAG_SUBDEVICE) == 0;
+      if (!isComposite)
+        MatchedDevices.push_back(D.get());
+    }
   }
 
   uint32_t ZeDeviceCount = MatchedDevices.size();
@@ -824,6 +858,62 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     uint32_t result = Device->ZeDeviceProperties->type == ZE_DEVICE_TYPE_GPU &&
                       Device->ZeDeviceProperties->vendorId == 0x8086;
     return ReturnValue(result);
+  }
+
+  case UR_DEVICE_INFO_COMPONENT_DEVICES: {
+    ze_device_handle_t DevHandle = Device->ZeDevice;
+    uint32_t SubDeviceCount = 0;
+    // First call to get SubDeviceCount.
+    ZE2UR_CALL(zeDeviceGetSubDevices, (DevHandle, &SubDeviceCount, nullptr));
+    if (SubDeviceCount == 0)
+      return ReturnValue(0);
+
+    std::vector<ze_device_handle_t> SubDevs(SubDeviceCount);
+    // Second call to get the actual list of devices.
+    ZE2UR_CALL(zeDeviceGetSubDevices,
+               (DevHandle, &SubDeviceCount, SubDevs.data()));
+
+    size_t SubDeviceCount_s{SubDeviceCount};
+    auto ResSize =
+        std::min(SubDeviceCount_s, propSize / sizeof(ur_device_handle_t));
+    std::vector<ur_device_handle_t> Res;
+    for (const auto &d : SubDevs) {
+      // We can only reach this code if ZE_FLAT_DEVICE_HIERARCHY != FLAT,
+      // because in flat mode we directly get tiles, and those don't have any
+      // further divisions, so zeDeviceGetSubDevices always will return an empty
+      // list. Thus, there's only two options left: (a) composite mode, and (b)
+      // combined mode. In (b), zeDeviceGet returns tiles as devices, and those
+      // are presented as root devices (i.e. isSubDevice() returns false). In
+      // contrast, in (a), zeDeviceGet returns cards as devices, so tiles are
+      // not root devices (i.e. isSubDevice() returns true). Since we only reach
+      // this code if there are tiles returned by zeDeviceGetSubDevices, we
+      // can know if we are in (a) or (b) by checking if a tile is root device
+      // or not.
+      ur_device_handle_t URDev = Device->Platform->getDeviceFromNativeHandle(d);
+      if (URDev->isSubDevice())
+        // We are in COMPOSITE mode, return an empty list.
+        return ReturnValue(0);
+
+      Res.push_back(URDev);
+    }
+    if (pSize)
+      *pSize = SubDeviceCount * sizeof(ur_device_handle_t);
+    if (ParamValue) {
+      return ReturnValue(Res.data(), ResSize);
+    }
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_COMPOSITE_DEVICE: {
+    ur_device_handle_t UrRootDev = nullptr;
+    ze_device_handle_t DevHandle = Device->ZeDevice;
+    ze_device_handle_t RootDev;
+    // Query Root Device.
+    auto errc = ZE_CALL_NOCHECK(zeDeviceGetRootDevice, (DevHandle, &RootDev));
+    UrRootDev = Device->Platform->getDeviceFromNativeHandle(RootDev);
+    if (errc != ZE_RESULT_SUCCESS &&
+        errc != ZE_RESULT_ERROR_UNSUPPORTED_FEATURE)
+      return ze2urResult(errc);
+    return ReturnValue(UrRootDev);
   }
 
   default:

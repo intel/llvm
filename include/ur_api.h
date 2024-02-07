@@ -1530,6 +1530,10 @@ typedef enum ur_device_info_t {
                                                                     ///< version than older devices.
     UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT = 114,                    ///< [::ur_bool_t] return true if the device supports virtual memory.
     UR_DEVICE_INFO_ESIMD_SUPPORT = 115,                             ///< [::ur_bool_t] return true if the device supports ESIMD.
+    UR_DEVICE_INFO_COMPONENT_DEVICES = 116,                         ///< [::ur_device_handle_t[]] The set of component devices contained by
+                                                                    ///< this composite device.
+    UR_DEVICE_INFO_COMPOSITE_DEVICE = 117,                          ///< [::ur_device_handle_t] The composite device containing this component
+                                                                    ///< device.
     UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP = 0x2000,            ///< [::ur_bool_t] returns true if the device supports the creation of
                                                                     ///< bindless images
     UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP = 0x2001, ///< [::ur_bool_t] returns true if the device supports the creation of
