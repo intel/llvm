@@ -486,7 +486,7 @@ Error ModuleSplitterBase::verifyNoCrossModuleDeviceGlobalUsage() {
       if (auto *F = dyn_cast<const Function>(U)) {
         if (EntryPointModules.count(F)) {
           auto E = CheckEntryPointModule(F);
-          if (!E)
+          if (E)
             return E;
         }
       }

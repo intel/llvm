@@ -1011,7 +1011,8 @@ processInputModule(std::unique_ptr<Module> M) {
   // FIXME: this check is not performed for ESIMD splits
   if (DeviceGlobals) {
     auto E = Splitter->verifyNoCrossModuleDeviceGlobalUsage();
-    CHECK_AND_EXIT(E);
+    if (E)
+      error(toString(std::move(E)));
   }
 
   // It is important that we *DO NOT* preserve all the splits in memory at the
