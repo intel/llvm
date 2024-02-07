@@ -161,53 +161,21 @@ void dumpConfig() {
 #undef CONFIG
 }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-// Array is used by ONEAPI_DEVICE_SELECTOR.
-// TODO: host device type will be removed once sycl_ext_oneapi_filter_selector
-// is removed.
-// TODO: At some point, we should also align the inputs of SYCL_DEVICE_ALLOWLIST
-// and ONEAPI_DEVICE_SELECTOR. Currently, SYCL_DEVICE_ALLOWLIST accepts 'acc'
-// while ONEAPI_DEVICE_SELECTOR accepts 'fpga'.
-const std::array<std::pair<std::string, info::device_type>, 5> &
-getODSDeviceTypeMap() {
-  static const std::array<std::pair<std::string, info::device_type>, 5>
-      SyclDeviceTypeMap = {{{"host", info::device_type::host},
-                            {"cpu", info::device_type::cpu},
-                            {"gpu", info::device_type::gpu},
-                            {"fpga", info::device_type::accelerator},
-                            {"*", info::device_type::all}}};
-  return SyclDeviceTypeMap;
-}
-
-// Array is used by SYCL_DEVICE_ALLOWLIST.
-// TODO: host device type will be removed once sycl_ext_oneapi_filter_selector
-// is removed.
-const std::array<std::pair<std::string, info::device_type>, 5> &
-getSyclDeviceTypeMap() {
-  static const std::array<std::pair<std::string, info::device_type>, 5>
-      SyclDeviceTypeMap = {{{"host", info::device_type::host},
-                            {"cpu", info::device_type::cpu},
-                            {"gpu", info::device_type::gpu},
-                            {"acc", info::device_type::accelerator},
-                            {"*", info::device_type::all}}};
-  return SyclDeviceTypeMap;
-}
-#else
 // Array is used by SYCL_DEVICE_ALLOWLIST and ONEAPI_DEVICE_SELECTOR.
 // TODO: host device type will be removed once sycl_ext_oneapi_filter_selector
 // is removed.
 const std::array<std::pair<std::string, info::device_type>, 6> &
-getSyclDeviceTypeMap() {
+getSyclDeviceTypeMap(bool supportAcc) {
   static const std::array<std::pair<std::string, info::device_type>, 6>
       SyclDeviceTypeMap = {{{"host", info::device_type::host},
                             {"cpu", info::device_type::cpu},
                             {"gpu", info::device_type::gpu},
-                            {"acc", info::device_type::accelerator},
+                            /* Duplicate entries is fine as this map is one-directional.*/
+                            {supportAcc ? "acc":"fpga", info::device_type::accelerator},
                             {"fpga", info::device_type::accelerator},
                             {"*", info::device_type::all}}};
   return SyclDeviceTypeMap;
 }
-#endif
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
 // ONEAPI_DEVICE_SELECTOR

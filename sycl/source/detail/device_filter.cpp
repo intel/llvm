@@ -92,17 +92,14 @@ static void Parse_ODS_Device(ods_target &Target,
 
   std::string_view TopDeviceStr = DeviceSubTuple[0];
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   // Handle explicit device type (e.g. 'gpu').
   auto DeviceTypeMap =
-      getODSDeviceTypeMap(); // <-- std::array<std::pair<std::string,
-                             // info::device::type>>
-#else
-  // Handle explicit device type (e.g. 'gpu').
-  auto DeviceTypeMap =
-      getSyclDeviceTypeMap(); // <-- std::array<std::pair<std::string,
+      getSyclDeviceTypeMap(
+        #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+          true /*Enable 'acc'*/
+        #endif
+      ); // <-- std::array<std::pair<std::string,
                               // info::device::type>>
-#endif
 
   auto It =
       std::find_if(std::begin(DeviceTypeMap), std::end(DeviceTypeMap),
@@ -270,11 +267,11 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envString) {
 std::ostream &operator<<(std::ostream &Out, const ods_target &Target) {
   Out << Target.Backend;
   if (Target.DeviceType) {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-    auto DeviceTypeMap = getODSDeviceTypeMap();
-#else
-    auto DeviceTypeMap = getSyclDeviceTypeMap();
-#endif
+    auto DeviceTypeMap = getSyclDeviceTypeMap(
+      #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+          true /*Enable 'acc'*/
+      #endif
+    );
     auto Match = std::find_if(
         DeviceTypeMap.begin(), DeviceTypeMap.end(),
         [&](auto Pair) { return (Pair.second == Target.DeviceType); });
@@ -347,11 +344,11 @@ device_filter::device_filter(const std::string &FilterString) {
   if (TripleValueID >= Tokens.size()) {
     DeviceType = info::device_type::all;
   } else {
-    auto Iter = std::find_if(std::begin(getSyclDeviceTypeMap()),
-                             std::end(getSyclDeviceTypeMap()), FindElement);
+    auto Iter = std::find_if(std::begin(getSyclDeviceTypeMap(true /*Enable 'acc'*/)),
+                             std::end(getSyclDeviceTypeMap(true /*Enable 'acc'*/)), FindElement);
     // If no match is found, set device_type 'all',
     // which actually means 'any device_type' will be a match.
-    if (Iter == getSyclDeviceTypeMap().end())
+    if (Iter == getSyclDeviceTypeMap(true /*Enable 'acc'*/).end())
       DeviceType = info::device_type::all;
     else {
       DeviceType = Iter->second;
