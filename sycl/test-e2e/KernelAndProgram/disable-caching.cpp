@@ -74,16 +74,15 @@ int main() {
   // CHECK-CACHE: piKernelRelease
   // CHECK-CACHE: piProgramRelease
   // CHECK-CACHE: piEventsWait
-  auto *p = malloc_shared<int>(1, q);
+  sycl::buffer<int> p_buf{sycl::range{1}};
   for (int i = 0; i < 2; ++i)
     q.submit([&](handler &cgh) {
+       sycl::accessor p{p_buf, cgh};
        cgh.set_specialization_constant<spec_id>(i);
        cgh.parallel_for(1, [=](auto, kernel_handler kh) {
-         *p = kh.get_specialization_constant<spec_id>();
+         p[0] = kh.get_specialization_constant<spec_id>();
        });
      }).wait();
-
-  free(p, q);
 }
 
 // (Program cache releases)

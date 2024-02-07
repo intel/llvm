@@ -2,7 +2,7 @@
 // https://github.com/intel/llvm/issues/7330.
 // UNSUPPORTED: opencl && gpu
 // RUN: %{build} -o %t.out
-
+// REQUIRES: aspect-usm_shared_allocations
 // RUN: %{run} %t.out
 
 // The test checks that each PI call to the queue returns a discarded event
