@@ -4236,9 +4236,15 @@ slm_scatter(simd<uint32_t, N / VS> byte_offsets, simd<T, N> vals,
                 "slm_scatter() requires at least element-size alignment");
 
   // Use LSC lowering if VS > 1.
-  if constexpr (VS > 1 || !(detail::isPowerOf2(N, 32) && sizeof(T) <= 4)) {
+  if constexpr (VS > 1 || (!(detail::isPowerOf2(N, 32) && sizeof(T) <= 4) &&
+                           !detail::isMaskedGatherScatterLLVMAvailable())) {
     __ESIMD_DNS::slm_scatter_impl<T, VS, detail::lsc_data_size::default_size>(
         byte_offsets, vals, mask);
+  } else if constexpr (detail::isMaskedGatherScatterLLVMAvailable()) {
+    using MsgT = detail::__raw_t<T>;
+    __esimd_slm_scatter_st<MsgT, N, Alignment>(
+        sycl::bit_cast<__ESIMD_DNS::vector_type_t<MsgT, N>>(vals.data()),
+        byte_offsets.data(), mask.data());
   } else {
     detail::LocalAccessorMarker acc;
     detail::scatter_impl<T, N>(acc, vals, byte_offsets, 0, mask);
