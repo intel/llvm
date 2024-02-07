@@ -348,7 +348,7 @@ std::enable_if_t<(Scope == execution_scope::work_item ||
                   id<Dimensions>>
 get_id() const;
 ----
-_Returns_: An id representing the index of the current group or item at 'Scope'
+_Returns_: An id representing the index of the current group or item at `Scope`
 hierarchy level within the root_group object.
 
 [source,c++]
@@ -364,7 +364,7 @@ root_group object.
 template <execution_scope Scope>
 size_t get_linear_id() const;
 ----
-_Returns_: A linearized number of the current group or item at 'Scope' hierarchy
+_Returns_: A linearized number of the current group or item at `Scope` hierarchy
 level within the root_group object.
 
 [source,c++]
@@ -375,7 +375,7 @@ std::enable_if_t<(Scope == execution_scope::work_item ||
                   range<Dimensions>>
 get_range() const;
 ----
-_Returns_: A range representing the number of groups or items of 'Scope'
+_Returns_: A range representing the number of groups or items of `Scope`
 hierarchy level within the root_group object.
 
 [source,c++]
@@ -392,8 +392,12 @@ object.
 template <execution_scope Scope>
 size_t get_linear_range() const;
 ----
-_Returns_: The number of groups or items of 'Scope' hierarchy level within the
+_Returns_: The number of groups or items of `Scope` hierarchy level within the
 root_group object.
+
+NOTE: Functions accepting `Scope` template parameter accept `Scope` of a lower
+hierarchy than `execution_scope::root_group`. Otherwise it results in a
+compilation error.
 
 
 === Using a `root_group`
