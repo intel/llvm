@@ -37,7 +37,6 @@ void test_regular(std::string_view desc, queue &q, size_t B, RangeT range) {
         ++ref;
       });
     });
-    sycl::host_accessor host_acc{accumulator_buf};
   } // destruction of accumulator_buf here writes back data to accumulators_v
   check_sum(desc, accumulators_v, N);
 }
@@ -58,7 +57,6 @@ void test_spec_constant(std::string_view desc, queue &q, size_t B,
         ref += h.get_specialization_constant<C>();
       });
     });
-    sycl::host_accessor host_acc{accumulators_buf};
   } // destruction of accumulators_buf here writes data back to accumulators_v
   check_sum(desc, accumulators_v, N * 2);
 }
