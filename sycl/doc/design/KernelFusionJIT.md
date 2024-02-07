@@ -317,8 +317,8 @@ by the range rounding transformation.
 
 Kernel fusion of reductions is partially supported. In order to preserve the
 legality of the fused kernel, i.e., the fact that fused kernel must perform the
-same work as the graph of kernels to be fused, only the fusion of following
-reduction strategies at the time of writing is supported:
+same work as the graph of kernels to be fused, only the fusion of the following
+reduction strategies is supported at the time of writing:
 
 - `group_reduce_and_last_wg_detection`
 - `local_atomic_and_atomic_cross_wg`
@@ -329,9 +329,12 @@ reduction strategies at the time of writing is supported:
 Other strategies require implicit inter-work-group synchronization, not
 supported in kernel fusion.
 
-This way, users should not use `sycl::reduction` directly when performing kernel
-fusion in their code, as an unsupported algorithm might be chosen. They should
-instead use `sycl::detail::reduction_parallel_for`, forcing a supported fusion
+Users may encounters errors, e.g., fusion being aborted or incorrect results due
+to race conditions or any other cause, when using the `sycl::reduction`
+interface. The SYCL runtime will choose different algorithms depending on the
+reduction operator, data type and hardware capabilities, so strategy selection
+is not possible through the regular interface. In this case, users can instead
+use `sycl::detail::reduction_parallel_for`, forcing a supported fusion
 strategy. Reductions implementation in
 [`sycl/reduction.hpp`](../../include/sycl/reduction.hpp) might give users an
 insight into which kind of reductions to use for their purposes:
