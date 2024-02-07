@@ -839,7 +839,7 @@ struct get_device_info_impl<
             "sycl_ext_oneapi_matrix.");
       };
       float ComputeCapability = GetArchNum(DeviceArch);
-      constexpr std::vector<combination> sm_70_combinations = {
+      std::vector<combination> sm_70_combinations = {
           {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
            matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 8, 32, 16, matrix_type::fp16, matrix_type::fp16,
@@ -864,7 +864,7 @@ struct get_device_info_impl<
            matrix_type::fp16, matrix_type::fp32},
           {0, 0, 0, 32, 8, 16, matrix_type::fp16, matrix_type::fp16,
            matrix_type::fp16, matrix_type::fp32}};
-      constexpr std::vector<combination> sm_72_combinations = {
+      std::vector<combination> sm_72_combinations = {
           {0, 0, 0, 16, 16, 16, matrix_type::sint8, matrix_type::sint8,
            matrix_type::sint32, matrix_type::sint32},
           {0, 0, 0, 8, 32, 16, matrix_type::sint8, matrix_type::sint8,
@@ -877,7 +877,7 @@ struct get_device_info_impl<
            matrix_type::sint32, matrix_type::sint32},
           {0, 0, 0, 32, 8, 16, matrix_type::uint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32}};
-      constexpr std::vector<combination> sm_80_combinations = {
+      std::vector<combination> sm_80_combinations = {
           {0, 0, 0, 16, 16, 8, matrix_type::tf32, matrix_type::tf32,
            matrix_type::fp32, matrix_type::fp32},
           {0, 0, 0, 16, 16, 16, matrix_type::bf16, matrix_type::bf16,
@@ -889,14 +889,17 @@ struct get_device_info_impl<
           {0, 0, 0, 8, 8, 4, matrix_type::fp64, matrix_type::fp64,
            matrix_type::fp64, matrix_type::fp64}};
       if (ComputeCapability >= 8.0) {
-        std::move(sm_70_combinations.begin(), sm_70_combinations.end(),
-                  std::back_inserter(sm_80_combinations));
-        std::move(sm_72_combinations.begin(), sm_72_combinations.end(),
-                  std::back_inserter(sm_80_combinations));
+        sm_80_combinations.insert(sm_80_combinations.end(),
+                                  sm_72_combinations.begin(),
+                                  sm_72_combinations.end());
+        sm_80_combinations.insert(sm_80_combinations.end(),
+                                  sm_70_combinations.begin(),
+                                  sm_70_combinations.end());
         return sm_80_combinations;
       } else if (ComputeCapability >= 7.2) {
-        std::move(sm_70_combinations.begin(), sm_70_combinations.end(),
-                  std::back_inserter(sm_72_combinations));
+        sm_72_combinations.insert(sm_72_combinations.end(),
+                                  sm_70_combinations.begin(),
+                                  sm_70_combinations.end());
         return sm_72_combinations;
       } else if (ComputeCapability >= 7.0)
         return sm_70_combinations;
