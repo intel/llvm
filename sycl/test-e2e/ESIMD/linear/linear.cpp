@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: gpu-intel-pvc
+// REQUIRES: aspect-ext_intel_legacy_image
 // Use -O2 to avoid huge stack usage under -O0.
 // RUN: %{build} -O2 -I%S/.. -o %t.out
 // RUN: %{run} %t.out %S/linear_in.bmp %S/linear_gold_hw.bmp

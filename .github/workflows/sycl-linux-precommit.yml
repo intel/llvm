@@ -20,6 +20,7 @@ on:
     - '**.rst'
     - '.github/workflows/sycl-windows-*.yml'
     - '.github/workflows/sycl-macos-*.yml'
+    - '.github/workflows/sycl-nightly.yml'
     - 'devops/containers/**'
     - 'devops/actions/build_container/**'
 
