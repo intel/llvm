@@ -56,13 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/maarquitos14/unified-runtime.git")
-  # commit 5d322ee7656232313c8a3019df1785817c083450
-  # Merge: 75648295 6032f6fd
-  # Author: Maronas, Marcos <marcos.maronas@intel.com>
-  # Date:   Mon Jan 22 07:18:52 2024 -0800
-  #    Merge remote-tracking branch 'intel/origin/main' into maronas/ext_composite_device
-  set(UNIFIED_RUNTIME_TAG 5d322ee7656232313c8a3019df1785817c083450)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit ceba4a5f8952c7045c7818fb3bef4b439aa47df3 (HEAD, intel/origin/main)
+  # Merge: b76d9078 81b75993
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Wed Feb 7 14:55:22 2024 +0000
+  #    Merge pull request #1320 from aarongreig/aaron/hotfix1192
+  #    Fix CI regression by generating missing bits in nullddi and ldrddi
+  set(UNIFIED_RUNTIME_TAG ceba4a5f8952c7045c7818fb3bef4b439aa47df3)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
