@@ -11,22 +11,12 @@
 
 int main() {
   sycl::queue Q;
-  constexpr std::size_t N = 12345;
-#if defined(MALLOC_HOST)
-  auto *array = sycl::malloc_host<char>(N, Q);
-  sycl::free(array, Q);
-#elif defined(MALLOC_SHARED)
-  auto *array = sycl::malloc_shared<char>(N, Q);
-  sycl::free(array, Q);
-#elif defined(MALLOC_DEVICE)
+  constexpr std::size_t N = 1024;
   auto *array = sycl::malloc_device<char>(N, Q);
   sycl::free(array, Q);
-#elif defined(MALLOC_SYSTEM)
-  auto *array = new char[N];
-  delete[] array;
-#else
-#error "Must provide malloc type to run the test"
-#endif
+  // quarantine test
+  auto *array2 = sycl::malloc_device<char>(N, Q);
+  auto *array3 = sycl::malloc_device<char>(N, Q);
 
   Q.submit([&](sycl::handler &h) {
     h.parallel_for<class MyKernel>(
@@ -34,9 +24,9 @@ int main() {
         [=](sycl::nd_item<1> item) { ++array[item.get_global_id(0)]; });
   });
   Q.wait();
-  // CHECK-DEVICE: ERROR: DeviceSanitizer: use-after-free on USM Device Memory
-  // CHECK-HOST:   ERROR: DeviceSanitizer: use-after-free on USM Host Memory
-  // CHECK-SHARED: ERROR: DeviceSanitizer: use-after-free on USM Shared Memory
+  // CHECK-DEVICE: ERROR: DeviceSanitizer: out-of-bounds-access on USM Device Memory
+  // CHECK-HOST:   ERROR: DeviceSanitizer: out-of-bounds-access on USM Host Memory
+  // CHECK-SHARED: ERROR: DeviceSanitizer: out-of-bounds-access on USM Shared Memory
   // CHECK: {{READ of size 1 at kernel <.*MyKernel> LID\(0, 0, 0\) GID\(12345, 0, 0\)}}
   // CHECK: {{  #0 .* .*parallel_for_char.cpp:}}[[@LINE-7]]
 

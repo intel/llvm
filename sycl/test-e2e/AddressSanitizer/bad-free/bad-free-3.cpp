@@ -8,6 +8,6 @@ constexpr size_t N = 64;
 int main() {
   sycl::queue Q;
   auto *data = new int[N];
-  sycl::free(data - 1, Q);
+  sycl::free(data, Q);
   return 0;
 }
