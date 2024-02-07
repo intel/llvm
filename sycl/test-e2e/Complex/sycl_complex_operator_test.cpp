@@ -103,7 +103,7 @@ test_op_assign(test_div_assign, /=);
       std_out = op std_in;                                                     \
       Q.submit([&](sycl::handler &h) {                                         \
         sycl::accessor cplx_out{cplx_out_buf, h};                              \
-        h.single_task([=]() { cplx_out[0] op cplx_input; });                   \
+        h.single_task([=]() { cplx_out[0] = op cplx_input; });                 \
       });                                                                      \
       sycl::host_accessor cplx_out_acc{cplx_out_buf};                          \
       pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ true);     \
