@@ -396,6 +396,10 @@ etors:
       desc: "[$x_bool_t] return true if the device supports virtual memory."
     - name: ESIMD_SUPPORT
       desc: "[$x_bool_t] return true if the device supports ESIMD."
+    - name: COMPONENT_DEVICES
+      desc: "[$x_device_handle_t[]] The set of component devices contained by this composite device."
+    - name: COMPOSITE_DEVICE
+      desc: "[$x_device_handle_t] The composite device containing this component device."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"

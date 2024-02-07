@@ -2401,6 +2401,12 @@ inline std::ostream &operator<<(std::ostream &os, ur_device_info_t value) {
     case UR_DEVICE_INFO_ESIMD_SUPPORT:
         os << "UR_DEVICE_INFO_ESIMD_SUPPORT";
         break;
+    case UR_DEVICE_INFO_COMPONENT_DEVICES:
+        os << "UR_DEVICE_INFO_COMPONENT_DEVICES";
+        break;
+    case UR_DEVICE_INFO_COMPOSITE_DEVICE:
+        os << "UR_DEVICE_INFO_COMPOSITE_DEVICE";
+        break;
     case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP";
         break;
@@ -3806,6 +3812,34 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         os << (const void *)(tptr) << " (";
 
         os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_COMPONENT_DEVICES: {
+
+        const ur_device_handle_t *tptr = (const ur_device_handle_t *)ptr;
+        os << "{";
+        size_t nelems = size / sizeof(ur_device_handle_t);
+        for (size_t i = 0; i < nelems; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
+
+            ur::details::printPtr(os,
+                                  tptr[i]);
+        }
+        os << "}";
+    } break;
+    case UR_DEVICE_INFO_COMPOSITE_DEVICE: {
+        const ur_device_handle_t *tptr = (const ur_device_handle_t *)ptr;
+        if (sizeof(ur_device_handle_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_device_handle_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        ur::details::printPtr(os,
+                              *tptr);
 
         os << ")";
     } break;

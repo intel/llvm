@@ -337,6 +337,35 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
       }
       delete[] ZeSubdevices;
 
+      // When using ZE_FLAT_DEVICE_HIERARCHY=COMBINED, zeDeviceGet will
+      // return tiles as devices, but we can get the card device handle
+      // through zeDeviceGetRootDevice. We need to cache the card device
+      // handle too, such that it is readily visible to the
+      // urDeviceCreateWithNativeHandle.
+      ze_device_handle_t RootDevice = nullptr;
+      // We cannot use ZE2UR_CALL because under some circumstances this call may
+      // return ZE_RESULT_ERROR_UNSUPPORTED_FEATURE, and ZE2UR_CALL will abort
+      // because it's not UR_RESULT_SUCCESS. Instead, we use ZE_CALL_NOCHECK and
+      // we check manually that the result is either ZE_RESULT_SUCCESS or
+      // ZE_RESULT_ERROR_UNSUPPORTED_FEATURE.
+      auto errc = ZE_CALL_NOCHECK(zeDeviceGetRootDevice,
+                                  (Device->ZeDevice, &RootDevice));
+      if (errc != ZE_RESULT_SUCCESS &&
+          errc != ZE_RESULT_ERROR_UNSUPPORTED_FEATURE)
+        return ze2urResult(errc);
+
+      if (RootDevice) {
+        if (std::find_if(URDevicesCache.begin(), URDevicesCache.end(),
+                         [&](auto &Dev) {
+                           return Dev->ZeDevice == RootDevice;
+                         }) == URDevicesCache.end()) {
+          std::unique_ptr<ur_device_handle_t_> UrRootDevice(
+              new ur_device_handle_t_(RootDevice, (ur_platform_handle_t)this));
+          UR_CALL(UrRootDevice->initialize());
+          URDevicesCache.push_back(std::move(UrRootDevice));
+        }
+      }
+
       // Save the root device in the cache for future uses.
       URDevicesCache.push_back(std::move(Device));
     }
