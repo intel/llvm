@@ -2256,6 +2256,14 @@ CGDebugInfo::CollectTemplateParams(std::optional<TemplateArgs> OArgs,
       TemplateParams.push_back(DBuilder.createTemplateValueParameter(
           TheCU, Name, TTy, defaultParameter, V));
     } break;
+    case TemplateArgument::StructuralValue: {
+      QualType T = TA.getStructuralValueType();
+      llvm::DIType *TTy = getOrCreateType(T, Unit);
+      llvm::Constant *V = ConstantEmitter(CGM).emitAbstract(
+          SourceLocation(), TA.getAsStructuralValue(), T);
+      TemplateParams.push_back(DBuilder.createTemplateValueParameter(
+          TheCU, Name, TTy, defaultParameter, V));
+    } break;
     case TemplateArgument::Template: {
       std::string QualName;
       llvm::raw_string_ostream OS(QualName);
@@ -3530,6 +3538,10 @@ static QualType UnwrapTypeForDebugInfo(QualType T, const ASTContext &C) {
       T = DT;
       break;
     }
+    case Type::PackIndexing: {
+      T = cast<PackIndexingType>(T)->getSelectedType();
+      break;
+    }
     case Type::Adjusted:
     case Type::Decayed:
       // Decayed and adjusted types use the adjusted type in LLVM and DWARF.
@@ -3713,6 +3725,7 @@ llvm::DIType *CGDebugInfo::CreateTypeNode(QualType Ty, llvm::DIFile *Unit) {
   case Type::TypeOfExpr:
   case Type::TypeOf:
   case Type::Decltype:
+  case Type::PackIndexing:
   case Type::UnaryTransform:
     break;
   }
@@ -5457,6 +5470,8 @@ std::string CGDebugInfo::GetName(const Decl *D, bool Qualified) const {
             // feasible some day.
             return TA.getAsIntegral().getBitWidth() <= 64 &&
                    IsReconstitutableType(TA.getIntegralType());
+          case TemplateArgument::StructuralValue:
+            return false;
           case TemplateArgument::Type:
             return IsReconstitutableType(TA.getAsType());
           default:

@@ -108,10 +108,11 @@ Expected<std::unique_ptr<Module>> helper::FusionHelper::addFusedKernel(
 
       // Attach ND-range of the fused kernel
       assert(!F->hasMetadata(SYCLKernelFusion::NDRangeMDKey));
-      F->setMetadata(SYCLKernelFusion::NDRangeMDKey, MDFromND(FF.FusedNDRange));
+      F->setMetadata(SYCLKernelFusion::NDRangeMDKey,
+                     MDFromND(FF.FusedNDRange.getNDR()));
 
       // Attach ND-ranges of each kernel to be fused
-      const auto SrcNDRanges = FF.NDRanges;
+      const auto SrcNDRanges = FF.FusedNDRange.getNDRanges();
       SmallVector<Metadata *> Nodes;
       std::transform(SrcNDRanges.begin(), SrcNDRanges.end(),
                      std::back_inserter(Nodes), MDFromND);

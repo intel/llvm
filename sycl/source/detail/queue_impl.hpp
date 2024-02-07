@@ -108,7 +108,9 @@ public:
              const async_handler &AsyncHandler, const property_list &PropList)
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList), MHostQueue(MDevice->is_host()),
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
         MAssertHappenedBuffer(range<1>{1}),
+#endif
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
@@ -283,7 +285,9 @@ public:
   queue_impl(sycl::detail::pi::PiQueue PiQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler)
       : MContext(Context), MAsyncHandler(AsyncHandler), MHostQueue(false),
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
         MAssertHappenedBuffer(range<1>{1}),
+#endif
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
@@ -305,7 +309,10 @@ public:
   queue_impl(sycl::detail::pi::PiQueue PiQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler, const property_list &PropList)
       : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(PropList),
-        MHostQueue(false), MAssertHappenedBuffer(range<1>{1}),
+        MHostQueue(false),
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+        MAssertHappenedBuffer(range<1>{1}),
+#endif
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
@@ -673,9 +680,11 @@ public:
   /// \return a native handle.
   pi_native_handle getNative(int32_t &NativeHandleDesc) const;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   buffer<AssertHappened, 1> &getAssertHappenedBuffer() {
     return MAssertHappenedBuffer;
   }
+#endif
 
   void registerStreamServiceEvent(const EventImplPtr &Event) {
     std::lock_guard<std::mutex> Lock(MMutex);
@@ -744,8 +753,7 @@ protected:
 
   // template is needed for proper unit testing
   template <typename HandlerType = handler>
-  void finalizeHandler(HandlerType &Handler, const CG::CGTYPE &Type,
-                       event &EventRet) {
+  void finalizeHandler(HandlerType &Handler, event &EventRet) {
     if (MIsInorder) {
       // Accessing and changing of an event isn't atomic operation.
       // Hence, here is the lock for thread-safety.
@@ -831,11 +839,11 @@ protected:
             !(Handler.MKernel && Handler.MKernel->isInterop()) &&
             ProgramManager::getInstance().kernelUsesAssert(Handler.MKernelName);
 
-      finalizeHandler(Handler, Type, Event);
+      finalizeHandler(Handler, Event);
 
       (*PostProcess)(IsKernel, KernelUsesAssert, Event);
     } else
-      finalizeHandler(Handler, Type, Event);
+      finalizeHandler(Handler, Event);
 
     addEvent(Event);
     return Event;
@@ -919,8 +927,10 @@ protected:
   /// need to emulate it with multiple native in-order queues.
   bool MEmulateOOO = false;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // Buffer to store assert failure descriptor
   buffer<AssertHappened, 1> MAssertHappenedBuffer;
+#endif
 
   // This event is employed for enhanced dependency tracking with in-order queue
   // Access to the event should be guarded with MMutex

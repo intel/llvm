@@ -56,14 +56,15 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime")
-  # commit 51d7180c344bbc2f942533e5fc51b0b04871f8d5
-  # Merge: b66cf9b1 0e37380e
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Jan 26 12:20:20 2024 +0000
-  #     Merge pull request #1205 from ykhatav/ur_dependentload
-  #     [UR] add dependent-load flag to exclude CWD from default search path …
-  set(UNIFIED_RUNTIME_TAG 51d7180c344bbc2f942533e5fc51b0b04871f8d5)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit c0b1f13d94966090a1bb982b3bd747b30b9ef9d3
+  # Merge: 475ce8b4 cf806c37
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Mon Feb 5 13:41:50 2024 +0000
+  #     Merge pull request #1240 from cppchedy/chedy/fix-bi-copy-image
+  #     
+  #     [Bindless][exp] 1D Image copy fix
+  set(UNIFIED_RUNTIME_TAG c0b1f13d94966090a1bb982b3bd747b30b9ef9d3)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -202,6 +203,13 @@ endif()
 
 if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_opencl)
+
+    # Install the UR adapters too
+    install(TARGETS ur_adapter_opencl
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+      ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+      RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+    )
 endif()
 
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)

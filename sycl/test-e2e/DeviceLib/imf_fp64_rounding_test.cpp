@@ -210,5 +210,34 @@ int main(int, char **) {
     std::cout << "sycl::ext::intel::math::fmaf_rz passes." << std::endl;
   }
 
+  {
+    std::initializer_list<double> input_vals1 = {
+        0x1p+2, 0x1.fbd37afb0f8edp-1, 0x1.9238e38e38e35p+6, 0x1.7p+3};
+    std::initializer_list<unsigned long long> ref_vals_rd = {
+        0x4000000000000000, 0x3fefde8a59acb0bb, 0x40240e33d899cd1b,
+        0x400b211b1c70d023};
+    std::initializer_list<unsigned long long> ref_vals_rn = {
+        0x4000000000000000, 0x3fefde8a59acb0bc, 0x40240e33d899cd1c,
+        0x400b211b1c70d023};
+    std::initializer_list<unsigned long long> ref_vals_ru = {
+        0x4000000000000000, 0x3fefde8a59acb0bc, 0x40240e33d899cd1c,
+        0x400b211b1c70d024};
+    std::initializer_list<unsigned long long> ref_vals_rz = {
+        0x4000000000000000, 0x3fefde8a59acb0bb, 0x40240e33d899cd1b,
+        0x400b211b1c70d023};
+    test(device_queue, input_vals1, ref_vals_rd,
+         FT(unsigned long long, sycl::ext::intel::math::dsqrt_rd));
+    std::cout << "sycl::ext::intel::math::dsqrt_rd passes." << std::endl;
+    test(device_queue, input_vals1, ref_vals_rn,
+         FT(unsigned long long, sycl::ext::intel::math::dsqrt_rn));
+    std::cout << "sycl::ext::intel::math::dsqrt_rn passes." << std::endl;
+    test(device_queue, input_vals1, ref_vals_ru,
+         FT(unsigned long long, sycl::ext::intel::math::dsqrt_ru));
+    std::cout << "sycl::ext::intel::math::dsqrt_ru passes." << std::endl;
+    test(device_queue, input_vals1, ref_vals_rz,
+         FT(unsigned long long, sycl::ext::intel::math::dsqrt_rz));
+    std::cout << "sycl::ext::intel::math::dsqrt_rz passes." << std::endl;
+  }
+
   return 0;
 }
