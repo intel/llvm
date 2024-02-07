@@ -33,12 +33,11 @@ public:
         llvm::ArrayRef<jit_compiler::ParameterInternalization>
             ParameterInternalization,
         llvm::ArrayRef<jit_compiler::JITConstant> Constants,
-        llvm::ArrayRef<jit_compiler::NDRange> NDRanges)
+        const jit_compiler::FusedNDRange &FusedNDRange)
         : FusedName{FusedName}, FusedKernels{FusedKernels},
           ParameterIdentities{ParameterIdentities},
           ParameterInternalization{ParameterInternalization},
-          Constants{Constants}, NDRanges{NDRanges},
-          FusedNDRange{jit_compiler::combineNDRanges(NDRanges)} {}
+          Constants{Constants}, FusedNDRange{FusedNDRange} {}
 
     const char *FusedName;
     llvm::ArrayRef<std::string> FusedKernels;
@@ -46,8 +45,7 @@ public:
     llvm::ArrayRef<jit_compiler::ParameterInternalization>
         ParameterInternalization;
     llvm::ArrayRef<jit_compiler::JITConstant> Constants;
-    llvm::ArrayRef<jit_compiler::NDRange> NDRanges;
-    jit_compiler::NDRange FusedNDRange;
+    jit_compiler::FusedNDRange FusedNDRange;
   };
 
   ///

@@ -342,8 +342,8 @@ llvm::Type *CodeGenTypes::ConvertSYCLJointMatrixINTELType(RecordDecl *RD) {
   if (CompTy->isStructTy()) {
     StringRef LlvmTyName = CompTy->getStructName();
     // Emit half/int16/float for sycl[::*]::{half,bfloat16,tf32}
-    if (LlvmTyName.startswith("class.sycl::") ||
-        LlvmTyName.startswith("class.__sycl_internal::"))
+    if (LlvmTyName.starts_with("class.sycl::") ||
+        LlvmTyName.starts_with("class.__sycl_internal::"))
       LlvmTyName = LlvmTyName.rsplit("::").second;
     if (LlvmTyName == "half") {
       CompTy = llvm::Type::getHalfTy(getLLVMContext());

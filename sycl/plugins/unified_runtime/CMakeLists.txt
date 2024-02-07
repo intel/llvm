@@ -57,14 +57,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8d3233af35ed5515dd966c08d1af04b76113d3a8
-  # Merge: eddda123 2bd41d7b
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jan 24 14:27:54 2024 +0000
-  #     Merge pull request #1247 from PietroGhg/pietro/empty_cmd_buffer_fill
-  #     [NATIVECPU] Empty implementation for command buffer fill
-  set(UNIFIED_RUNTIME_TAG 8d3233af35ed5515dd966c08d1af04b76113d3a8)
-
+  # commit 1cd402ead34a54459a6acb85777fbec105a178a0
+  # Merge: 5b89ee8b c8e150c5
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Tue Feb 6 14:48:55 2024 +0000
+  #     Merge pull request #1218 from Bensuo/maxime/imm-cmd-list-support
+  #     [EXP][CMDBUF] L0 Immediate command-list support
+  set(UNIFIED_RUNTIME_TAG 1cd402ead34a54459a6acb85777fbec105a178a0)
+  
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
   endif()
@@ -202,6 +202,13 @@ endif()
 
 if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_opencl)
+
+    # Install the UR adapters too
+    install(TARGETS ur_adapter_opencl
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+      ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+      RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+    )
 endif()
 
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)

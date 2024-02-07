@@ -62,6 +62,11 @@ __spirv_AtomicCompareExchange(int SPIR_GLOBAL *, __spv::Scope::Flag,
                               __spv::MemorySemanticsMask::Flag,
                               __spv::MemorySemanticsMask::Flag, int, int);
 
+extern DEVICE_EXTERNAL int
+__spirv_AtomicCompareExchange(int *, __spv::Scope::Flag,
+                              __spv::MemorySemanticsMask::Flag,
+                              __spv::MemorySemanticsMask::Flag, int, int);
+
 extern DEVICE_EXTERNAL int __spirv_AtomicLoad(const int SPIR_GLOBAL *,
                                               __spv::Scope::Flag,
                                               __spv::MemorySemanticsMask::Flag);
@@ -70,10 +75,21 @@ extern DEVICE_EXTERNAL void
 __spirv_AtomicStore(int SPIR_GLOBAL *, __spv::Scope::Flag,
                     __spv::MemorySemanticsMask::Flag, int);
 
+extern DEVICE_EXTERNAL void
+__spirv_AtomicStore(int *, __spv::Scope::Flag, __spv::MemorySemanticsMask::Flag,
+                    int);
+
 /// Atomically set the value in *Ptr with Desired if and only if it is Expected
 /// Return the value which already was in *Ptr
 static inline int atomicCompareAndSet(SPIR_GLOBAL int *Ptr, int Desired,
                                       int Expected) {
+  return __spirv_AtomicCompareExchange(
+      Ptr, __spv::Scope::Device,
+      __spv::MemorySemanticsMask::SequentiallyConsistent,
+      __spv::MemorySemanticsMask::SequentiallyConsistent, Desired, Expected);
+}
+
+static inline int atomicCompareAndSet(int *Ptr, int Desired, int Expected) {
   return __spirv_AtomicCompareExchange(
       Ptr, __spv::Scope::Device,
       __spv::MemorySemanticsMask::SequentiallyConsistent,
@@ -86,6 +102,11 @@ static inline int atomicLoad(SPIR_GLOBAL int *Ptr) {
 }
 
 static inline void atomicStore(SPIR_GLOBAL int *Ptr, int V) {
+  __spirv_AtomicStore(Ptr, __spv::Scope::Device,
+                      __spv::MemorySemanticsMask::SequentiallyConsistent, V);
+}
+
+static inline void atomicStore(int *Ptr, int V) {
   __spirv_AtomicStore(Ptr, __spv::Scope::Device,
                       __spv::MemorySemanticsMask::SequentiallyConsistent, V);
 }

@@ -325,6 +325,18 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       IsDeviceAsanEnabled = (std::count(SyclFEArgEq.begin(), SyclFEArgEq.end(),
                                         "-fsanitize=address") > 0);
     }
+
+    // User can also enable asan for SYCL device via -Xarch_device option.
+    if (!IsDeviceAsanEnabled) {
+      auto DeviceArchVals = Args.getAllArgValues(options::OPT_Xarch_device);
+      for (auto DArchVal : DeviceArchVals) {
+        if (DArchVal.find("-fsanitize=address") != std::string::npos) {
+          IsDeviceAsanEnabled = true;
+          break;
+        }
+      }
+    }
+
     if (IsDeviceAsanEnabled)
       addLibraries(SYCLDeviceSanitizerLibs);
   }
@@ -401,8 +413,9 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
           LibPostfix = ".cubin";
       }
       StringRef LibSyclPrefix("libsycl-");
-      if (!InputFilename.startswith(LibSyclPrefix) ||
-          !InputFilename.endswith(LibPostfix) || (InputFilename.count('-') < 2))
+      if (!InputFilename.starts_with(LibSyclPrefix) ||
+          !InputFilename.ends_with(LibPostfix) ||
+          (InputFilename.count('-') < 2))
         return false;
       // Skip the prefix "libsycl-"
       std::string PureLibName =
@@ -419,7 +432,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
             PureLibName.substr(0, FinalDashPos) + PureLibName.substr(DotPos);
       }
       for (const auto &L : SYCLDeviceLibList) {
-        if (StringRef(PureLibName).startswith(L))
+        if (StringRef(PureLibName).starts_with(L))
           return true;
       }
       return false;
@@ -1354,7 +1367,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
       for (auto *A : Args) {
         if (!A->getOption().matches(options::OPT_Xsycl_backend_EQ))
           continue;
-        if (StringRef(A->getValue()).startswith("intel_gpu"))
+        if (StringRef(A->getValue()).starts_with("intel_gpu"))
           TargArgs.push_back(A->getValue(1));
       }
       if (llvm::find_if(TargArgs, [&](auto Cur) {
