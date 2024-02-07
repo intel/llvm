@@ -56,14 +56,15 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime")
-  # commit 9363574db721d2388c7d76a10edb128764872352
-  # Merge: 553a6b82 5e513738
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Feb 1 11:50:16 2024 +0000
-  #     Merge pull request #1302 from kbenzie/benie/cl-binary-type-intermediate
-  #     [CL] Handle INTERMEDIATE binary type
-  set(UNIFIED_RUNTIME_TAG 9363574db721d2388c7d76a10edb128764872352)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit c0b1f13d94966090a1bb982b3bd747b30b9ef9d3
+  # Merge: 475ce8b4 cf806c37
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Mon Feb 5 13:41:50 2024 +0000
+  #     Merge pull request #1240 from cppchedy/chedy/fix-bi-copy-image
+  #     
+  #     [Bindless][exp] 1D Image copy fix
+  set(UNIFIED_RUNTIME_TAG c0b1f13d94966090a1bb982b3bd747b30b9ef9d3)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

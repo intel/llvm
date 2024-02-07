@@ -49,7 +49,7 @@ struct DeviceSanitizerReport {
   uint64_t LID1 = 0;
   uint64_t LID2 = 0;
 
-  uint64_t Addr = 0;
+  uint64_t Address = 0;
   bool IsWrite = false;
   uint32_t AccessSize = 0;
   DeviceSanitizerMemoryType MemoryType = DeviceSanitizerMemoryType::UNKNOWN;

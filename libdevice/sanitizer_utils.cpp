@@ -301,7 +301,7 @@ static void __asan_internal_report_save(
     __DeviceSanitizerReportMem.get().LID1 = __spirv_LocalInvocationId_y();
     __DeviceSanitizerReportMem.get().LID2 = __spirv_LocalInvocationId_z();
 
-    __DeviceSanitizerReportMem.get().Addr = ptr;
+    __DeviceSanitizerReportMem.get().Address = ptr;
     __DeviceSanitizerReportMem.get().IsWrite = is_write;
     __DeviceSanitizerReportMem.get().AccessSize = access_size;
     __DeviceSanitizerReportMem.get().ErrorType = error_type;
