@@ -137,7 +137,7 @@ createGenISAFpToFp(GENX::FpToFpOp op, llvm::IRBuilderBase &builder,
   llvm::Intrinsic::ID id =
       srcTySizeInBits > resTySizeInBits
           ? llvm::Intrinsic::experimental_constrained_fptrunc
-          : id = llvm::Intrinsic::experimental_constrained_fpext;
+          : llvm::Intrinsic::experimental_constrained_fpext;
 
   return builder.CreateConstrainedFPCast(id, args[0], resTy, nullptr, "",
                                          nullptr, rounding);
@@ -155,7 +155,8 @@ createGenISADPAS(GENX::MatrixDPASOp op, llvm::IRBuilderBase &builder,
 
   llvm::Value *a = moduleTranslation.lookupValue(op.getA());
   auto *aOrigTy = cast<llvm::FixedVectorType>(a->getType());
-  auto bitWidth = aOrigTy->getNumElements() * aOrigTy->getElementType()->getScalarSizeInBits();
+  auto bitWidth = aOrigTy->getNumElements() *
+                  aOrigTy->getElementType()->getScalarSizeInBits();
   auto *aTy = llvm::FixedVectorType::get(builder.getInt32Ty(), bitWidth / 32);
   if (a->getType() != aTy)
     a = builder.CreateBitCast(a, aTy);
@@ -163,7 +164,8 @@ createGenISADPAS(GENX::MatrixDPASOp op, llvm::IRBuilderBase &builder,
   llvm::Value *b = moduleTranslation.lookupValue(op.getB());
 
   auto *bOrigTy = cast<llvm::FixedVectorType>(b->getType());
-  bitWidth = bOrigTy->getNumElements() * bOrigTy->getElementType()->getScalarSizeInBits();
+  bitWidth = bOrigTy->getNumElements() *
+             bOrigTy->getElementType()->getScalarSizeInBits();
   auto *bTy = llvm::FixedVectorType::get(builder.getInt32Ty(), bitWidth / 32);
   if (b->getType() != bTy)
     b = builder.CreateBitCast(b, bTy);
