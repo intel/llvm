@@ -22,7 +22,6 @@ int main() {
   });
   sycl::host_accessor result{buf};
   for (int i = 0; i < N; ++i) {
-    std::cout << result[i] << std::endl;
     assert(result[i] == (i + 1));
   }
 }

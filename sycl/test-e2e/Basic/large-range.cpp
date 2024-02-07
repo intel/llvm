@@ -27,19 +27,18 @@ template <typename RangeT>
 void test_regular(std::string_view desc, queue &q, size_t B, RangeT range) {
   auto N = range.size();
   std::vector accumulators_v(B, 0);
-  sycl::buffer accumulator_buf{accumulators_v};
-  q.submit([&](sycl::handler &h) {
-    sycl::accessor accumulators{accumulator_buf, h};
-    h.parallel_for(range, [=](auto it) {
-      atomic_ref<int, memory_order::relaxed, memory_scope::device> ref(
-          accumulators[it.get_linear_id() % B]);
-      ++ref;
+  {
+    sycl::buffer accumulator_buf{accumulators_v};
+    q.submit([&](sycl::handler &h) {
+      sycl::accessor accumulators{accumulator_buf, h};
+      h.parallel_for(range, [=](auto it) {
+        atomic_ref<int, memory_order::relaxed, memory_scope::device> ref(
+            accumulators[it.get_linear_id() % B]);
+        ++ref;
+      });
     });
-  });
-  sycl::host_accessor host_acc{accumulator_buf};
-  for (int i = 0; i < accumulators_v.size(); ++i) {
-    accumulators_v[i] = host_acc[i];
-  }
+    sycl::host_accessor host_acc{accumulator_buf};
+  } // destruction of accumulator_buf here writes back data to accumulators_v
   check_sum(desc, accumulators_v, N);
 }
 
@@ -48,20 +47,19 @@ void test_spec_constant(std::string_view desc, queue &q, size_t B,
                         RangeT range) {
   auto N = range.size();
   std::vector accumulators_v(B, 0);
-  sycl::buffer accumulators_buf{accumulators_v};
-  q.submit([&](handler &cgh) {
-    sycl::accessor accumulators{accumulators_buf, cgh};
-    cgh.set_specialization_constant<C>(2);
-    cgh.parallel_for(range, [=](auto it, kernel_handler h) {
-      atomic_ref<int, memory_order::relaxed, memory_scope::device> ref(
-          accumulators[it.get_linear_id() % B]);
-      ref += h.get_specialization_constant<C>();
+  {
+    sycl::buffer accumulators_buf{accumulators_v};
+    q.submit([&](handler &cgh) {
+      sycl::accessor accumulators{accumulators_buf, cgh};
+      cgh.set_specialization_constant<C>(2);
+      cgh.parallel_for(range, [=](auto it, kernel_handler h) {
+        atomic_ref<int, memory_order::relaxed, memory_scope::device> ref(
+            accumulators[it.get_linear_id() % B]);
+        ref += h.get_specialization_constant<C>();
+      });
     });
-  });
-  sycl::host_accessor host_acc{accumulators_buf};
-  for (int i = 0; i < accumulators_v.size(); ++i) {
-    accumulators_v[i] = host_acc[i];
-  }
+    sycl::host_accessor host_acc{accumulators_buf};
+  } // destruction of accumulators_buf here writes data back to accumulators_v
   check_sum(desc, accumulators_v, N * 2);
 }
 

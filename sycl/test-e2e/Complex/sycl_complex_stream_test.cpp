@@ -7,9 +7,7 @@
 
 template <typename T> struct test_sycl_stream_operator {
   bool operator()(sycl::queue &Q, cmplx<T> init) {
-    experimental::complex<T> cplx;
-    cplx.real(init.re);
-    cplx.imag(init.im);
+    experimental::complex<T> cplx(init.re, init.im);
     sycl::buffer<experimental::complex<T>> cplx_out_buf{&cplx, sycl::range{1}};
     Q.submit([&](sycl::handler &CGH) {
        sycl::accessor cplx_out{cplx_out_buf, CGH};
