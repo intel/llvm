@@ -1019,7 +1019,9 @@ public:
     Lhs = Lhs BINOP vec(Rhs);                                                  \
     return Lhs;                                                                \
   }
-#else // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+#endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+
+#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 #define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
   template <typename Ty = vec>                                                 \
   vec operator BINOP(const EnableIfNotUsingArrayOnDevice<Ty> &Rhs) const {     \
@@ -1057,7 +1059,7 @@ public:
     *this = *this BINOP vec(Rhs);                                              \
     return *this;                                                              \
   }
-#endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+#endif // !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
 #else // __SYCL_USE_EXT_VECTOR_TYPE__
 
@@ -1089,7 +1091,9 @@ public:
     Lhs = Lhs BINOP vec(Rhs);                                                  \
     return Lhs;                                                                \
   }
-#else // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+#endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+
+#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 #define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
   vec operator BINOP(const vec &Rhs) const {                                   \
     vec Ret;                                                                   \
@@ -1117,7 +1121,7 @@ public:
     *this = *this BINOP vec(Rhs);                                              \
     return *this;                                                              \
   }
-#endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+#endif // !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
 #endif // __SYCL_USE_EXT_VECTOR_TYPE__
 
@@ -1183,7 +1187,9 @@ public:
                                                    const vec & Rhs) {          \
     return vec(Lhs) RELLOGOP Rhs;                                              \
   }
-#else // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+#endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+
+#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 #define __SYCL_RELLOGOP(RELLOGOP)                                              \
   vec<rel_t, NumElements> operator RELLOGOP(const vec & Rhs) const {           \
     vec<rel_t, NumElements> Ret{};                                             \
@@ -1215,7 +1221,7 @@ public:
   operator RELLOGOP(const T & Rhs) const {                                     \
     return *this RELLOGOP vec(static_cast<const DataT &>(Rhs));                \
   }
-#endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+#endif // !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 #else
 #if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 #define __SYCL_RELLOGOP(RELLOGOP)                                              \
