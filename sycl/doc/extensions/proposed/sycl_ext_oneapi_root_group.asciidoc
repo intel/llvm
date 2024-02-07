@@ -348,24 +348,24 @@ std::enable_if_t<(Scope == execution_scope::work_item ||
                  id<Dimensions>>
 get_id() const;
 ----
-_Returns_: An id representing the index of the current group or item at `Scope`
-hierarchy level within the root_group object.
+_Returns_: An `id` representing the index of the current work-group or work-item at `Scope`
+hierarchy level within the `root_group` object.
 
 [source,c++]
 ----
 template <execution_scope Scope>
 std::enable_if_t<Scope == execution_scope::sub_group, id<1>> get_id() const;
 ----
-_Returns_: An id representing the index of the current sub_group within the
-root_group object.
+_Returns_: An `id` representing the index of the current sub-group within the
+`root_group` object.
 
 [source,c++]
 ----
 template <execution_scope Scope>
 size_t get_linear_id() const;
 ----
-_Returns_: A linearized number of the current group or item at `Scope` hierarchy
-level within the root_group object.
+_Returns_: A linearized number of the current work-group or work-item at `Scope` hierarchy
+level within the `root_group` object.
 
 [source,c++]
 ----
@@ -375,8 +375,8 @@ std::enable_if_t<(Scope == execution_scope::work_item ||
                  range<Dimensions>>
 get_range() const;
 ----
-_Returns_: A range representing the number of groups or items of `Scope`
-hierarchy level within the root_group object.
+_Returns_: A `range` representing the number of work-groups or work-items of `Scope`
+hierarchy level within the `root_group` object.
 
 [source,c++]
 ----
@@ -384,7 +384,7 @@ template <execution_scope Scope>
 std::enable_if_t<Scope == execution_scope::sub_group, range<1>>
 get_range() const;
 ----
-_Returns_: A range representing the number of sub_group's within the root_group
+_Returns_: A `range` representing the number of sub-groups within the `root_group`
 object.
 
 [source,c++]
@@ -392,8 +392,8 @@ object.
 template <execution_scope Scope>
 size_t get_linear_range() const;
 ----
-_Returns_: The number of groups or items of `Scope` hierarchy level within the
-root_group object.
+_Returns_: The number of work-groups or work-items of `Scope` hierarchy level within the
+`root_group` object.
 
 NOTE: Functions accepting `Scope` template parameter accept `Scope` of a lower
 hierarchy than `execution_scope::root_group`. Otherwise it results in a
