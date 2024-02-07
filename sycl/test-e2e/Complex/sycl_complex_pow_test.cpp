@@ -130,7 +130,7 @@ template <typename T> struct test_pow_deci_cplx {
 
     // Check cplx::complex output from device
     Q.submit([&](sycl::handler &h) {
-      sycl::accessor cplx_out{cplx_out_buf};
+      sycl::accessor cplx_out{cplx_out_buf, h};
       h.single_task(
           [=]() { cplx_out[0] = experimental::pow(deci_input, cplx_input); });
     });
