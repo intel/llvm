@@ -171,7 +171,7 @@ getSyclDeviceTypeMap(bool supportAcc) {
           {{"host", info::device_type::host},
            {"cpu", info::device_type::cpu},
            {"gpu", info::device_type::gpu},
-           /* Duplicate entries is fine as this map is one-directional.*/
+           /* Duplicate entries are fine as this map is one-directional.*/
            {supportAcc ? "acc" : "fpga", info::device_type::accelerator},
            {"fpga", info::device_type::accelerator},
            {"*", info::device_type::all}}};
