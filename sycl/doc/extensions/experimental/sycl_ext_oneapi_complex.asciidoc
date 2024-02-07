@@ -10,6 +10,7 @@
 :encoding: utf-8
 :lang: en
 :dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
@@ -335,11 +336,12 @@ Additionally, this extension introduces support for the `real` and `imag` free
 functions, which returns the real and imaginary component of a number,
 respectively.
 
-Note: The overload of the functions `real(T)` and `imag(T)` matches the
+[_Note:_ The overloads of the functions `real(T)` and `imag(T)` match the
 behavior in ISO C++ where `T` would be treated as a complex number with a zero
 imaginary component. This is subject to the constraint that `T` must be one of
 the types `float`, `double`, `sycl::half`, or evaluate to `true` for
 `std::is_integral`.
+_{endnote}_]
 
 These functions are available in both host and device code, and each math
 function should follow the C++ standard for handling `NaN` and `Inf` values.
