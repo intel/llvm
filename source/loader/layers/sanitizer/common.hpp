@@ -93,11 +93,15 @@ inline constexpr uptr ComputeRZLog(uptr user_requested_size) {
             return Result;                                                     \
     }
 
-#ifndef NDEBUG
-#define UR_ASSERT_EQ(Call, Result) assert(Call == Result)
-#else
-#define UR_ASSERT_EQ(Call, Result) (void)Call
-#endif
+struct AddressInfo {
+    uptr offset;
+    std::string module;
+    std::string file;
+    std::string function;
+    int line;
+    int column;
+    std::string debug;
+};
 
 bool IsInASanContext();
 

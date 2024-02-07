@@ -12,6 +12,8 @@
 
 #pragma once
 
+#include "common.hpp"
+
 #include <string>
 #include <vector>
 
@@ -19,12 +21,10 @@ namespace ur_sanitizer_layer {
 
 #define MAX_BACKTRACE_FRAMES 64
 
-using BacktraceLine = std::string;
-
 struct StackTrace {
-    std::vector<BacktraceLine> stack;
+    std::vector<AddressInfo> stack;
 
-    void Print() const;
+    void Print();
 };
 
 StackTrace GetCurrentBacktrace();
