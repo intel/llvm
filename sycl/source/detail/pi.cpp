@@ -718,6 +718,14 @@ getBinaryImageFormat(const unsigned char *ImgData, size_t ImgSize) {
       return PI_DEVICE_BINARY_TYPE_NATIVE;
   }
 
+  if (MatchMagicNumber(std::array{'!', '<', 'a', 'r', 'c', 'h', '>', '\n'}))
+    // "ar" format is used to pack binaries for multiple devices, e.g. via
+    //
+    //   -Xsycl-target-backend=spir64_gen "-device acm-g10,acm-g11"
+    //
+    // option.
+    return PI_DEVICE_BINARY_TYPE_NATIVE;
+
   return PI_DEVICE_BINARY_TYPE_NONE;
 }
 

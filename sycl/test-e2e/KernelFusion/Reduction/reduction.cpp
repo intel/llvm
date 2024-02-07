@@ -1,6 +1,9 @@
 // RUN: %{build} -fsycl-embed-ir -o %t.out
 // RUN: %{run} %t.out
-// XFAIL: cpu
+//
+// The test fails on opencl:cpu when running on AMD runner and passes when
+// running on Intel Arc GPU runner.
+// UNSUPPORTED: cpu
 
 // Test fusion works with reductions.
 
