@@ -1321,6 +1321,12 @@ piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
 
+  ur_adapter_handle_t adapter = nullptr;
+  if (auto res = PiGetAdapter(adapter); res != PI_SUCCESS) {
+    return res;
+  }
+  (void)adapter;
+
   ur_native_handle_t UrNativeDevice =
       reinterpret_cast<ur_native_handle_t>(NativeHandle);
   ur_platform_handle_t UrPlatform =
@@ -1521,6 +1527,12 @@ inline pi_result piextContextCreateWithNativeHandle(
     const pi_device *Devices, bool OwnNativeHandle, pi_context *RetContext) {
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(RetContext, PI_ERROR_INVALID_VALUE);
+
+  ur_adapter_handle_t adapter = nullptr;
+  if (auto res = PiGetAdapter(adapter); res != PI_SUCCESS) {
+    return res;
+  }
+  (void)adapter;
 
   ur_native_handle_t NativeContext =
       reinterpret_cast<ur_native_handle_t>(NativeHandle);
@@ -3083,13 +3095,14 @@ inline pi_result piMemBufferPartition(pi_mem Buffer, pi_mem_flags Flags,
   return PI_SUCCESS;
 }
 
-inline pi_result piextMemGetNativeHandle(pi_mem Mem,
+inline pi_result piextMemGetNativeHandle(pi_mem Mem, pi_device Dev,
                                          pi_native_handle *NativeHandle) {
   PI_ASSERT(Mem, PI_ERROR_INVALID_MEM_OBJECT);
 
   ur_mem_handle_t UrMem = reinterpret_cast<ur_mem_handle_t>(Mem);
+  ur_device_handle_t UrDev = reinterpret_cast<ur_device_handle_t>(Dev);
   ur_native_handle_t NativeMem{};
-  HANDLE_ERRORS(urMemGetNativeHandle(UrMem, &NativeMem));
+  HANDLE_ERRORS(urMemGetNativeHandle(UrMem, UrDev, &NativeMem));
 
   *NativeHandle = reinterpret_cast<pi_native_handle>(NativeMem);
 
@@ -3375,6 +3388,12 @@ inline pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
   }
   if (Advice & PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST) {
     UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_ACCESSED_BY_HOST;
+  }
+  if (Advice & PI_MEM_ADVICE_HIP_SET_COARSE_GRAINED) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY;
+  }
+  if (Advice & PI_MEM_ADVICE_HIP_UNSET_COARSE_GRAINED) {
+    UrAdvice |= UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY;
   }
   if (Advice & PI_MEM_ADVICE_RESET) {
     UrAdvice |= UR_USM_ADVICE_FLAG_DEFAULT;
@@ -4860,6 +4879,11 @@ inline pi_result piextBindlessImageSamplerCreate(
   UrMipProps.maxAnisotropy = MaxAnisotropy;
   UrProps.pNext = &UrMipProps;
 
+  ur_exp_sampler_addr_modes_t UrAddrModes{};
+  UrAddrModes.stype = UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES;
+  UrMipProps.pNext = &UrAddrModes;
+
+  int addrIndex = 0;
   const pi_sampler_properties *CurProperty = SamplerProperties;
   while (*CurProperty != 0) {
     switch (*CurProperty) {
@@ -4872,17 +4896,22 @@ inline pi_result piextBindlessImageSamplerCreate(
           ur_cast<pi_sampler_addressing_mode>(
               ur_cast<pi_uint32>(*(++CurProperty)));
 
-      if (CurValueAddressingMode == PI_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT)
-        UrProps.addressingMode = UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT;
-      else if (CurValueAddressingMode == PI_SAMPLER_ADDRESSING_MODE_REPEAT)
-        UrProps.addressingMode = UR_SAMPLER_ADDRESSING_MODE_REPEAT;
-      else if (CurValueAddressingMode ==
-               PI_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE)
-        UrProps.addressingMode = UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE;
-      else if (CurValueAddressingMode == PI_SAMPLER_ADDRESSING_MODE_CLAMP)
-        UrProps.addressingMode = UR_SAMPLER_ADDRESSING_MODE_CLAMP;
-      else if (CurValueAddressingMode == PI_SAMPLER_ADDRESSING_MODE_NONE)
-        UrProps.addressingMode = UR_SAMPLER_ADDRESSING_MODE_NONE;
+      if (CurValueAddressingMode ==
+          PI_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT) {
+        UrAddrModes.addrModes[addrIndex] =
+            UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT;
+      } else if (CurValueAddressingMode == PI_SAMPLER_ADDRESSING_MODE_REPEAT) {
+        UrAddrModes.addrModes[addrIndex] = UR_SAMPLER_ADDRESSING_MODE_REPEAT;
+      } else if (CurValueAddressingMode ==
+                 PI_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE) {
+        UrAddrModes.addrModes[addrIndex] =
+            UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE;
+      } else if (CurValueAddressingMode == PI_SAMPLER_ADDRESSING_MODE_CLAMP) {
+        UrAddrModes.addrModes[addrIndex] = UR_SAMPLER_ADDRESSING_MODE_CLAMP;
+      } else if (CurValueAddressingMode == PI_SAMPLER_ADDRESSING_MODE_NONE) {
+        UrAddrModes.addrModes[addrIndex] = UR_SAMPLER_ADDRESSING_MODE_NONE;
+      }
+      addrIndex++;
     } break;
 
     case PI_SAMPLER_PROPERTIES_FILTER_MODE: {
@@ -4910,6 +4939,7 @@ inline pi_result piextBindlessImageSamplerCreate(
     }
     CurProperty++;
   }
+  UrProps.addressingMode = UrAddrModes.addrModes[0];
 
   ur_sampler_handle_t *UrSampler =
       reinterpret_cast<ur_sampler_handle_t *>(RetSampler);

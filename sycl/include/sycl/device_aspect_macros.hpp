@@ -298,13 +298,18 @@
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_tangle_group__ 0
 #endif
 
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_intel_matrix__
+// __SYCL_ASPECT(ext_intel_matrix, 58)
+#define __SYCL_ALL_DEVICES_HAVE_ext_intel_matrix__ 0
+#endif
+
 #ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_is_composite__
-// __SYCL_ASPECT(ext_oneapi_is_composite, 58)
+// __SYCL_ASPECT(ext_oneapi_is_composite, 59)
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_is_composite__ 0
 #endif
 
 #ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_is_component__
-// __SYCL_ASPECT(ext_oneapi_is_component, 59)
+// __SYCL_ASPECT(ext_oneapi_is_component, 60)
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_is_component__ 0
 #endif
 
@@ -598,12 +603,17 @@
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_tangle_group__ 0
 #endif
 
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_matrix__
+// __SYCL_ASPECT(ext_intel_matrix, 58)
+#define __SYCL_ANY_DEVICE_HAS_ext_intel_matrix__ 0
+#endif
+
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_is_composite__
-// __SYCL_ASPECT(ext_oneapi_is_composite, 58)
+// __SYCL_ASPECT(ext_oneapi_is_composite, 59)
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_is_composite__ 0
 #endif
 
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_is_component__
-// __SYCL_ASPECT(ext_oneapi_is_component, 59)
+// __SYCL_ASPECT(ext_oneapi_is_component, 60)
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_is_component__ 0
 #endif

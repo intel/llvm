@@ -298,6 +298,11 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
       CanPrefixQualifiers = AttrTy->getAttrKind() == attr::AddressSpace;
       break;
     }
+    case Type::PackIndexing: {
+      return canPrefixQualifiers(
+          cast<PackIndexingType>(UnderlyingType)->getPattern().getTypePtr(),
+          NeedARCStrongQualifier);
+    }
   }
 
   return CanPrefixQualifiers;
@@ -704,6 +709,7 @@ void TypePrinter::printVectorBefore(const VectorType *T, raw_ostream &OS) {
     printBefore(T->getElementType(), OS);
     break;
   case VectorKind::RVVFixedLengthData:
+  case VectorKind::RVVFixedLengthMask:
     // FIXME: We prefer to print the size directly here, but have no way
     // to get the size of the type.
     OS << "__attribute__((__riscv_rvv_vector_bits__(";
@@ -783,6 +789,7 @@ void TypePrinter::printDependentVectorBefore(
     printBefore(T->getElementType(), OS);
     break;
   case VectorKind::RVVFixedLengthData:
+  case VectorKind::RVVFixedLengthMask:
     // FIXME: We prefer to print the size directly here, but have no way
     // to get the size of the type.
     OS << "__attribute__((__riscv_rvv_vector_bits__(";
@@ -961,6 +968,14 @@ void TypePrinter::printFunctionProtoAfter(const FunctionProtoType *T,
     OS << " __arm_out(\"za\")";
   if (FunctionType::getArmZAState(SMEBits) == FunctionType::ARM_InOut)
     OS << " __arm_inout(\"za\")";
+  if (FunctionType::getArmZT0State(SMEBits) == FunctionType::ARM_Preserves)
+    OS << " __arm_preserves(\"zt0\")";
+  if (FunctionType::getArmZT0State(SMEBits) == FunctionType::ARM_In)
+    OS << " __arm_in(\"zt0\")";
+  if (FunctionType::getArmZT0State(SMEBits) == FunctionType::ARM_Out)
+    OS << " __arm_out(\"zt0\")";
+  if (FunctionType::getArmZT0State(SMEBits) == FunctionType::ARM_InOut)
+    OS << " __arm_inout(\"zt0\")";
 
   printFunctionAfter(Info, OS);
 
@@ -1186,6 +1201,18 @@ void TypePrinter::printDecltypeBefore(const DecltypeType *T, raw_ostream &OS) {
   OS << ')';
   spaceBeforePlaceHolder(OS);
 }
+
+void TypePrinter::printPackIndexingBefore(const PackIndexingType *T,
+                                          raw_ostream &OS) {
+  if (T->isInstantiationDependentType())
+    OS << T->getPattern() << "...[" << T->getIndexExpr() << "]";
+  else
+    OS << T->getSelectedType();
+  spaceBeforePlaceHolder(OS);
+}
+
+void TypePrinter::printPackIndexingAfter(const PackIndexingType *T,
+                                         raw_ostream &OS) {}
 
 void TypePrinter::printDecltypeAfter(const DecltypeType *T, raw_ostream &OS) {}
 
@@ -2256,7 +2283,7 @@ printTo(raw_ostream &OS, ArrayRef<TA> Args, const PrintingPolicy &Policy,
     // If this is the first argument and its string representation
     // begins with the global scope specifier ('::foo'), add a space
     // to avoid printing the diagraph '<:'.
-    if (FirstArg && !ArgString.empty() && ArgString[0] == ':')
+    if (FirstArg && ArgString.starts_with(":"))
       OS << ' ';
 
     OS << ArgString;

@@ -100,6 +100,7 @@ inline namespace _V1 {
 #define SYCL_EXT_INTEL_FP_CONTROL 1
 #define SYCL_EXT_ONEAPI_NON_UNIFORM_GROUPS 1
 #define SYCL_EXT_ONEAPI_IN_ORDER_QUEUE_EVENTS 1
+#define SYCL_EXT_INTEL_MATRIX 1
 
 #ifndef __has_include
 #define __has_include(x) 0
