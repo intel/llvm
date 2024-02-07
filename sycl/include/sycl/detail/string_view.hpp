@@ -30,15 +30,6 @@ public:
   string_view &operator=(string_view &&strn) noexcept = default;
   string_view &operator=(const string_view &strn) noexcept = default;
 
-  string_view &operator=(string &&strn) noexcept {
-    str = strn.c_str();
-    return *this;
-  }
-  string_view &operator=(const string &strn) noexcept {
-    str = strn.c_str();
-    return *this;
-  }
-
   string_view &operator=(std::string_view strn) noexcept {
     str = strn.data();
     return *this;
