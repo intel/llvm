@@ -546,6 +546,30 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
                     }
                 }
             } break;
+            case UR_DEVICE_INFO_COMPONENT_DEVICES: {
+                ur_device_handle_t *handles =
+                    reinterpret_cast<ur_device_handle_t *>(pPropValue);
+                size_t nelements = *pPropSizeRet / sizeof(ur_device_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    if (handles[i] != nullptr) {
+                        handles[i] = reinterpret_cast<ur_device_handle_t>(
+                            ur_device_factory.getInstance(handles[i],
+                                                          dditable));
+                    }
+                }
+            } break;
+            case UR_DEVICE_INFO_COMPOSITE_DEVICE: {
+                ur_device_handle_t *handles =
+                    reinterpret_cast<ur_device_handle_t *>(pPropValue);
+                size_t nelements = *pPropSizeRet / sizeof(ur_device_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    if (handles[i] != nullptr) {
+                        handles[i] = reinterpret_cast<ur_device_handle_t>(
+                            ur_device_factory.getInstance(handles[i],
+                                                          dditable));
+                    }
+                }
+            } break;
             default: {
             } break;
             }
