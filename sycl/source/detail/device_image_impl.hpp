@@ -163,8 +163,11 @@ public:
       if (MSpecConstsDefValBlob.size() &&
           (std::memcmp(MSpecConstsDefValBlob.begin() + Desc.BlobOffset,
                        static_cast<const char *>(Value) + Desc.CompositeOffset,
-                       Desc.Size) == 0))
+                       Desc.Size) == 0)) {
+        // Now we have default value, so reset to false.
+        Desc.IsSet = false;
         continue;
+      }
 
       // Value of the specialization constant is set to a value which is
       // different from the default value.
