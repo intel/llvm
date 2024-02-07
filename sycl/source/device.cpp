@@ -156,6 +156,8 @@ detail::string device::get_device_info(detail::string_view Type) const {
     Info = impl->template get_info<info::device::version>();
   } else if (Type == typeid(info::device::profile).name()) {
     Info = impl->template get_info<info::device::profile>();
+  } else if (Type == typeid(info::device::opencl_c_version).name()) {
+    Info = impl->template get_info<info::device::opencl_c_version>();
   } else {
     throw sycl::invalid_parameter_error("unsupported device info requested",
                                         PI_ERROR_INVALID_OPERATION);

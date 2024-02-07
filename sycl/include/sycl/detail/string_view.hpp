@@ -24,13 +24,10 @@ class string_view {
 public:
   string_view() noexcept = default;
   string_view(const string_view &strn) noexcept = default;
+  string_view(string_view &&strn) noexcept = default;
   string_view(std::string_view strn) noexcept : str(strn.data()) {}
-  string_view(string_view &&strn) noexcept : str(strn.data()) {}
 
-  string_view &operator=(string_view &&strn) noexcept {
-    str = strn.str;
-    return *this;
-  }
+  string_view &operator=(string_view &&strn) noexcept = default;
   string_view &operator=(const string_view &strn) noexcept {
     str = strn.str;
     return *this;
