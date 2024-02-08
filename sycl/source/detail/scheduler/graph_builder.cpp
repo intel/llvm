@@ -1615,6 +1615,9 @@ Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
   auto FusedKernelCmd =
       std::make_unique<ExecCGCommand>(std::move(FusedCG), Queue);
 
+  // Inherit auxiliary resources from fused command groups
+  Scheduler::getInstance().takeAuxiliaryResources(FusedKernelCmd->getEvent(),
+                                                  PlaceholderCmd->getEvent());
   assert(PlaceholderCmd->MDeps.empty());
   // Next, backwards iterate over all the commands in the fusion list and remove
   // them from the graph to restore the state before starting fusion, so we can
