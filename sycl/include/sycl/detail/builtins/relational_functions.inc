@@ -15,10 +15,12 @@ inline namespace _V1 {
 namespace detail {
 template <typename T>
 struct bitselect_elem_type
-    : std::bool_constant<check_type_in_v<
-          get_elem_type_t<T>, float, double, half, char, signed char, short,
-          int, long, long long, unsigned char, unsigned short, unsigned int,
-          unsigned long, unsigned long long>> {};
+    : std::bool_constant<
+          check_type_in_v<get_elem_type_t<T>, FP_TYPES> ||
+          (is_vec_or_swizzle_v<T> &&
+           check_type_in_v<get_elem_type_t<T>, FIXED_WIDTH_INTEGER_TYPES>) ||
+          (!is_vec_or_swizzle_v<T> &&
+           check_type_in_v<get_elem_type_t<T>, INTEGER_TYPES>)> {};
 
 template <typename T>
 struct rel_ret_traits
