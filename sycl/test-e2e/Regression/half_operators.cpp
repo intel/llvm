@@ -29,7 +29,7 @@ template <typename T> bool test(sycl::queue &queue) {
   static const T inexact = static_cast<T>(0.1);
 
   std::vector<T> result_source_vec(NumElems);
-  std::vector<T> input_vec(NumElems);;
+  std::vector<T> input_vec(NumElems);
 
   for (size_t i = 0; i < NumElems; ++i) {
     input_vec[i] = inexact * i;
