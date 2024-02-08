@@ -61,14 +61,16 @@ int main() {
          "Queue should not be in fusion mode anymore");
 
   fw.complete_fusion({ext::codeplay::experimental::property::no_barriers{}});
-
+  int host_out[dataSize];
+  q.memcpy(host_out, out, dataSize * sizeof(int));
+  q.wait();
   for (size_t i = 0; i < dataSize; ++i) {
-    std::cout << out[i] << ", ";
+    std::cout << host_out[i] << ", ";
   }
   std::cout << "\n";
   // Check the results
   for (size_t i = 0; i < dataSize; ++i) {
-    assert(out[i] == (20 * i * i) && "Computation error");
+    assert(host_out[i] == (20 * i * i) && "Computation error");
     assert(dst[i] == (5 * i) && "Computation error");
   }
 

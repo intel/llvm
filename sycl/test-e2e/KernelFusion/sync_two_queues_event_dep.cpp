@@ -73,9 +73,12 @@ int main() {
 
   q1.wait();
   q2.wait();
+  int host_out[dataSize];
+  q1.memcpy(host_out, out, dataSize * sizeof(int));
+  q1.wait();
   // Check the results
   for (size_t i = 0; i < dataSize; ++i) {
-    assert(out[i] == (40 * i * i) && "Computation error");
+    assert(host_out[i] == (40 * i * i) && "Computation error");
   }
   sycl::free(in1, q1);
   sycl::free(in2, q1);
