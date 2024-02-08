@@ -63,7 +63,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Thu Nov 30 16:11:56 2023 +0000
   # - Merge pull request #1072 from omarahmed1111/merge-some-main-changes-into-adapters-third-patch
   # - Merge main into adapters branch
-  set(UNIFIED_RUNTIME_TAG d9e1eeed7fe6cc26ed0b887d0a71918794cd2d09)
+  set(UNIFIED_RUNTIME_TAG 9bfbf6e654ed3813926e041f9470689b46569907)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
