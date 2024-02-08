@@ -1,3 +1,4 @@
+// REQUIRES: native_cpu_be
 // RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -mllvm -inline-threshold=500 -S -emit-llvm  -o %t_temp.ll %s
 // RUN: %clangxx -O2 -mllvm -sycl-native-cpu-backend -S -emit-llvm -o - %t_temp.ll | FileCheck %s --check-prefix=CHECK-DEFAULT
 // RUN: %clangxx -O2 -mllvm -sycl-native-cpu-backend -mllvm -sycl-native-cpu-vecz-width=16 -S -emit-llvm -o - %t_temp.ll | FileCheck %s --check-prefix=CHECK-16
