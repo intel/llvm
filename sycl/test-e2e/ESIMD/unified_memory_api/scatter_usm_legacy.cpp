@@ -12,7 +12,7 @@
 // The test verifies esimd::scatter() functions accepting USM pointer
 // and optional compile-time esimd::properties.
 // The scatter() calls in this test do not use cache-hint properties
-// or VS > 1 (number of loads per offset) to not impose using PVC features.
+// or VS > 1 (number of stores per offset) to not impose using PVC features.
 //
 // TODO: Remove this test when GPU driver issue with llvm.masked.scatter is
 // resolved and ESIMD starts using llvm.masked.scatter by default.

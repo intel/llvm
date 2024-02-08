@@ -10,8 +10,8 @@
 
 // The test verifies esimd::scatter() functions accepting USM pointer
 // and optional compile-time esimd::properties.
-// The scatter() calls in this test do not use cache-hint
-// properties to not impose using DG2/PVC features.
+// The scatter() calls in this test do not use cache-hint properties
+// or VS > 1 (number of stores per offset) to not impose using PVC features.
 
 #include "Inputs/scatter.hpp"
 

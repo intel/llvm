@@ -1011,9 +1011,9 @@ static void translateScatterStore(CallInst &CI, bool IsSLM) {
                                ESIMDIntrinDesc::GenXArgConversion::TO_I64);
   Align AlignValue(Val.getZExtValue());
 
+  auto ValsOp = CI.getArgOperand(0);
   auto OffsetsOp = CI.getArgOperand(1);
   auto MaskOp = CI.getArgOperand(2);
-  auto ValsOp = CI.getArgOperand(0);
   auto DataType = ValsOp->getType();
 
   // Convert the mask from <N x i16> to <N x i1>.

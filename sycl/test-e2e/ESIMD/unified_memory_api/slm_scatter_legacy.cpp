@@ -9,9 +9,9 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
-// The test verifies esimd::scatter() functions accepting  optional compile-time
-// esimd::properties. The scatter() calls in this test do not use VS > 1 (number
-// of loads per offset) to not impose using PVC features.
+// The test verifies esimd::slm_scatter() functions accepting  optional
+// compile-time esimd::properties. The slm_scatter() calls in this test do not
+// use VS > 1 (number of stores per offset) to not impose using PVC features.
 //
 // TODO: Remove this test when GPU driver issue with llvm.masked.scatter is
 // resolved and ESIMD starts using llvm.masked.scatter by default.

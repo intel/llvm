@@ -1281,6 +1281,14 @@ test_gather_scatter(AccType &acc, LocalAccType &local_acc, float *ptrf,
   scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm_view, mask_n16);
 
   scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm_view);
+
+  simd<uint32_t, 10> ioffset_n10(byte_offset32, 8);
+  simd<float, 10> usm_n10;
+
+  // Check special case to verify that for cases when N is not power of 2 llvm
+  // intrinsic is used
+  // CHECK-COUNT-1: call void @llvm.masked.scatter.v10f32.v10p4(<10 x float> {{[^)]+}}, <10 x ptr addrspace(4)> {{[^)]+}}, i32 4, <10 x i1> {{[^)]+}})
+  scatter(ptrf, ioffset_n10, usm_n10);
 }
 
 // CHECK-LABEL: define {{.*}} @_Z23test_slm_gather_scatter{{.*}}
@@ -1429,4 +1437,11 @@ test_slm_gather_scatter(int byte_offset32) {
   slm_scatter<float, 32, 2>(ioffset_n16_view, slm, mask_n16, props_align4);
   slm_scatter<float, 32, 2>(ioffset_n16, slm_view, mask_n16, props_align4);
   slm_scatter<float, 32, 2>(ioffset_n16_view, slm_view, mask_n16, props_align4);
+
+  simd<uint32_t, 10> ioffset_n10(byte_offset32, 8);
+  simd<float, 10> usm_n10;
+  // Check special case to verify that for cases when N is not power of 2 llvm
+  // intrinsic is used
+  // CHECK-COUNT-1: call void @llvm.masked.scatter.v10f32.v10p3(<10 x float> {{[^)]+}}, <10 x ptr addrspace(3)> {{[^)]+}}, i32 4, <10 x i1> {{[^)]+}})
+  slm_scatter(ioffset_n10, usm_n10);
 }

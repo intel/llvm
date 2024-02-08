@@ -8,9 +8,9 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -D__ESIMD_GATHER_SCATTER_LLVM_IR -o %t.out
 // RUN: %{run} %t.out
 
-// The test verifies esimd::slm_scatter() functions accepting
-// optional compile-time esimd::properties.
-// The scatter() calls in this test do not use DG2/PVC features.
+// The test verifies esimd::slm_scatter() functions accepting  optional
+// compile-time esimd::properties. The slm_scatter() calls in this test do not
+// use VS > 1 (number of stores per offset) to not impose using PVC features.
 
 #include "Inputs/scatter.hpp"
 
