@@ -189,6 +189,21 @@ static void updateInternalizationMD(Function *F, StringRef Kind,
 }
 
 ///
+/// If \p GEPI represents a constant offset in bytes, return it, otherwise
+/// return an empty value.
+static std::optional<unsigned> getConstantByteOffset(GetElementPtrInst *GEPI,
+                                                     const DataLayout &DL) {
+  MapVector<Value *, APInt> VariableOffsets;
+  auto IW = DL.getIndexSizeInBits(GEPI->getPointerAddressSpace());
+  APInt ConstantOffset = APInt::getZero(IW);
+  if (GEPI->collectOffset(DL, IW, VariableOffsets, ConstantOffset) &&
+      VariableOffsets.empty()) {
+    return ConstantOffset.getZExtValue();
+  }
+  return {};
+}
+
+///
 /// When performing internalization, GEP instructions must be remapped, as the
 /// address space has changed from N to N / LocalSize.
 static void remap(GetElementPtrInst *GEPI, const PromotionInfo &PromInfo) {
@@ -198,6 +213,25 @@ static void remap(GetElementPtrInst *GEPI, const PromotionInfo &PromInfo) {
     // Squash the index and let instcombine clean-up afterwards.
     GEPI->idx_begin()->set(Builder.getInt64(0));
     return;
+  }
+
+  // GEPs with constant offset may be marked for remapping even if their element
+  // size differs from the accessor's element size. However we know that the
+  // offset is a multiple of the latter. Rewrite the instruction to represent a
+  // number of _elements_ to make it compatible with other GEPs in the current
+  // chain.
+  auto &DL = GEPI->getModule()->getDataLayout();
+  auto SrcElemTySz = DL.getTypeAllocSize(GEPI->getSourceElementType());
+  if (SrcElemTySz != PromInfo.ElemSize) {
+    auto COff = getConstantByteOffset(GEPI, DL);
+    // This is special case #2 in `getGEPKind`.
+    assert(COff.has_value() && *COff % PromInfo.ElemSize == 0 &&
+           GEPI->getNumIndices() == 1);
+    auto *IntTypeWithSameWidthAsAccessorElementType =
+        Builder.getIntNTy(PromInfo.ElemSize * 8);
+    GEPI->setSourceElementType(IntTypeWithSameWidthAsAccessorElementType);
+    GEPI->setResultElementType(IntTypeWithSameWidthAsAccessorElementType);
+    GEPI->idx_begin()->set(Builder.getInt64(*COff / PromInfo.ElemSize));
   }
 
   // An individual `GEP(ptr, offset)` is rewritten as
@@ -302,15 +336,19 @@ static int getGEPKind(GetElementPtrInst *GEPI, const PromotionInfo &PromInfo) {
     return Kind;
   }
 
-  // Check whether `GEPI` adds a constant offset, e.g. a byte offset to address
-  // into a padded structure, smaller than the element size.
-  MapVector<Value *, APInt> VariableOffsets;
-  auto IW = DL.getIndexSizeInBits(GEPI->getPointerAddressSpace());
-  APInt ConstantOffset = APInt::getZero(IW);
-  if (GEPI->collectOffset(DL, IW, VariableOffsets, ConstantOffset) &&
-      VariableOffsets.empty() &&
-      ConstantOffset.getZExtValue() < PromInfo.ElemSize) {
-    return ADDRESSES_INTO_AGGREGATE;
+  // We can handle a mismatch between `GEPI`'s element size and the accessors
+  // element size if `GEPI` represents a constant offset.
+  if (auto COff = getConstantByteOffset(GEPI, DL)) {
+    if (*COff < PromInfo.ElemSize) {
+      // Special case #1: The offset is less than the element size, hence we're
+      // addressing into an aggregrate and no remapping is required.
+      return ADDRESSES_INTO_AGGREGATE;
+    }
+    if (*COff % PromInfo.ElemSize == 0 && GEPI->getNumIndices() == 1) {
+      // Special case #2: The offset is a multiple of the element size, meaning
+      // `GEPI` selects an element and is subject to remapping.
+      return NEEDS_REMAPPING;
+    }
   }
 
   // We don't know what `GEPI` addresses; bail out.
@@ -664,7 +702,7 @@ static void moduleCleanup(Module &M, ModuleAnalysisManager &AM,
     // Use the argument usage mask to provide feedback to the runtime which
     // arguments have been promoted to private or local memory and which have
     // been eliminated in the process (private promotion).
-    jit_compiler::ArgUsageMask NewArgInfo;
+    SmallVector<jit_compiler::ArgUsageUT> NewArgInfo;
     for (auto I : enumerate(MD->operands())) {
       const auto &MDS = cast<MDString>(I.value().get())->getString();
       if (MDS == PrivatePromotion) {

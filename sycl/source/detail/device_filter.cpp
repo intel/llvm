@@ -288,20 +288,19 @@ ods_target_list::ods_target_list(const std::string &envStr) {
   TargetList = Parse_ONEAPI_DEVICE_SELECTOR(envStr);
 }
 
-// Backend is compatible with the SYCL_DEVICE_FILTER in the following cases.
+// Backend is compatible with the ONEAPI_DEVICE_SELECTOR in the following cases.
 // 1. Filter backend is '*' which means ANY backend.
 // 2. Filter backend match exactly with the given 'Backend'
 bool ods_target_list::backendCompatible(backend Backend) {
 
-  bool isESIMD = Backend == backend::ext_intel_esimd_emulator;
   return std::any_of(
       TargetList.begin(), TargetList.end(), [&](ods_target &Target) {
         backend TargetBackend = Target.Backend.value_or(backend::all);
-        return (TargetBackend == Backend) ||
-               (TargetBackend == backend::all && !isESIMD);
+        return (TargetBackend == Backend) || (TargetBackend == backend::all);
       });
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // ---------------------------------------
 // SYCL_DEVICE_FILTER support
 
@@ -363,7 +362,7 @@ device_filter::device_filter(const std::string &FilterString) {
       std::string Message =
           std::string("Invalid device filter: ") + FilterString +
           "\nPossible backend values are "
-          "{opencl,level_zero,cuda,hip,esimd_emulator,*}.\n"
+          "{opencl,level_zero,cuda,hip,*}.\n"
           "Possible device types are {cpu,gpu,acc,*}.\n"
           "Device number should be an non-negative integer.\n";
       throw sycl::invalid_parameter_error(Message, PI_ERROR_INVALID_VALUE);
@@ -426,6 +425,7 @@ bool device_filter_list::deviceNumberCompatible(int DeviceNum) {
         return (!Filter.DeviceNum) || (Filter.DeviceNum.value() == DeviceNum);
       });
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 } // namespace detail
 } // namespace _V1

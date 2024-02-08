@@ -373,18 +373,6 @@ SPIRVValue *addDecorations(SPIRVValue *Target,
   return Target;
 }
 
-std::string getPostfix(Decoration Dec, unsigned Value) {
-  switch (Dec) {
-  default:
-    llvm_unreachable("not implemented");
-    return "unknown";
-  case spv::DecorationSaturatedConversion:
-    return kSPIRVPostfix::Sat;
-  case spv::DecorationFPRoundingMode:
-    return rmap<std::string>(static_cast<SPIRVFPRoundingModeKind>(Value));
-  }
-}
-
 std::string getPostfixForReturnType(CallInst *CI, bool IsSigned) {
   return getPostfixForReturnType(CI->getType(), IsSigned);
 }
@@ -883,6 +871,46 @@ bool getParameterTypes(Function *F, SmallVectorImpl<Type *> &ArgTys,
   return DemangledSuccessfully;
 }
 
+bool getRetParamSignedness(Function *F, ParamSignedness &RetSignedness,
+                           SmallVectorImpl<ParamSignedness> &ArgSignedness) {
+  using namespace llvm::itanium_demangle;
+  StringRef Name = F->getName();
+  if (!Name.starts_with("_Z") || F->arg_empty())
+    return false;
+
+  ManglingParser<DefaultAllocator> Demangler(Name.begin(), Name.end());
+  // If it's not a function name encoding, bail out.
+  auto *RootNode = dyn_cast_or_null<FunctionEncoding>(Demangler.parse());
+  if (!RootNode)
+    return false;
+
+  auto GetSignedness = [](const itanium_demangle::Node *N) {
+    if (!N)
+      return ParamSignedness::Unknown;
+    if (const auto *Vec = dyn_cast<itanium_demangle::VectorType>(N))
+      N = Vec->getBaseType();
+    if (const auto *Name = dyn_cast<NameType>(N)) {
+      StringRef Arg(stringify(Name));
+      if (Arg.starts_with("unsigned"))
+        return ParamSignedness::Unsigned;
+      if (Arg.equals("char") || Arg.equals("short") || Arg.equals("int") ||
+          Arg.equals("long"))
+        return ParamSignedness::Signed;
+    }
+    return ParamSignedness::Unknown;
+  };
+  RetSignedness = GetSignedness(RootNode->getReturnType());
+  ArgSignedness.resize(F->arg_size());
+  for (const auto &[I, ParamType] : llvm::enumerate(RootNode->getParams())) {
+    if (F->getArg(I)->getType()->isIntOrIntVectorTy())
+      ArgSignedness[I] = GetSignedness(ParamType);
+    else
+      ArgSignedness[I] = ParamSignedness::Unknown;
+  }
+
+  return true;
+}
+
 CallInst *mutateCallInst(
     Module *M, CallInst *CI,
     std::function<std::string(CallInst *, std::vector<Value *> &)> ArgMutate,
@@ -1022,14 +1050,6 @@ Value *castToInt8Ptr(Value *V, Instruction *Pos) {
 IntegerType *getSizetType(Module *M) {
   return IntegerType::getIntNTy(M->getContext(),
                                 M->getDataLayout().getPointerSizeInBits(0));
-}
-
-Type *getVoidFuncType(Module *M) {
-  return FunctionType::get(Type::getVoidTy(M->getContext()), false);
-}
-
-Type *getVoidFuncPtrType(Module *M, unsigned AddrSpace) {
-  return PointerType::get(getVoidFuncType(M), AddrSpace);
 }
 
 ConstantInt *getInt64(Module *M, int64_t Value) {
@@ -1505,35 +1525,6 @@ bool isSPIRVConstantName(StringRef TyName) {
   return false;
 }
 
-std::string getSPIRVImageSampledTypeName(SPIRVType *Ty) {
-  switch (Ty->getOpCode()) {
-  case OpTypeVoid:
-    return kSPIRVImageSampledTypeName::Void;
-  case OpTypeInt:
-    if (Ty->getIntegerBitWidth() == 32) {
-      if (static_cast<SPIRVTypeInt *>(Ty)->isSigned())
-        return kSPIRVImageSampledTypeName::Int;
-      else
-        return kSPIRVImageSampledTypeName::UInt;
-    }
-    break;
-  case OpTypeFloat:
-    switch (Ty->getFloatBitWidth()) {
-    case 16:
-      return kSPIRVImageSampledTypeName::Half;
-    case 32:
-      return kSPIRVImageSampledTypeName::Float;
-    default:
-      break;
-    }
-    break;
-  default:
-    break;
-  }
-  llvm_unreachable("Invalid sampled type for image");
-  return std::string();
-}
-
 // ToDo: Find a way to represent uint sampled type in LLVM, maybe an
 //      opaque type.
 Type *getLLVMTypeForSPIRVImageSampledTypePostfix(StringRef Postfix,
@@ -1647,20 +1638,6 @@ bool eraseIfNoUse(Function *F) {
     Changed = true;
   }
   return Changed;
-}
-
-void eraseIfNoUse(Value *V) {
-  if (!V->use_empty())
-    return;
-  if (Constant *C = dyn_cast<Constant>(V)) {
-    C->destroyConstant();
-    return;
-  }
-  if (Instruction *I = dyn_cast<Instruction>(V)) {
-    if (!I->mayHaveSideEffects())
-      I->eraseFromParent();
-  }
-  eraseIfNoUse(dyn_cast<Function>(V));
 }
 
 bool eraseUselessFunctions(Module *M) {
@@ -2538,15 +2515,6 @@ std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
                                            ArrayRef<SPIRVValue *> Ops) {
   SPIRVFriendlyIRMangleInfo MangleInfo(OC, ArgTys, Ops);
   return mangleBuiltin(UniqName, ArgTys, &MangleInfo);
-}
-
-template <typename T>
-MetadataAsValue *map2MDString(LLVMContext &C, SPIRVValue *V) {
-  if (V->getOpCode() != OpConstant)
-    return nullptr;
-  uint64_t Const = static_cast<SPIRVConstant *>(V)->getZExtIntValue();
-  std::string Str = SPIRVMap<T, std::string>::map(static_cast<T>(Const));
-  return MetadataAsValue::get(C, MDString::get(C, Str));
 }
 
 } // namespace SPIRV

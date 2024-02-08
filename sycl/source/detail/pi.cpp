@@ -291,9 +291,9 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
   // search is done for libpi_opencl.so/pi_opencl.dll file in LD_LIBRARY_PATH
   // env only.
   //
-
-  device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
   ods_target_list *OdsTargetList = SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+  device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
 
   // Will we be filtering with SYCL_DEVICE_FILTER or ONEAPI_DEVICE_SELECTOR ?
   // We do NOT attempt to support both simultaneously.
@@ -301,16 +301,8 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "ONEAPI_DEVICE_SELECTOR cannot be used in "
                           "conjunction with SYCL_DEVICE_FILTER");
-  } else if (!FilterList && !OdsTargetList) {
-    PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
-    PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
-                             backend::ext_oneapi_level_zero);
-    PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::ext_oneapi_cuda);
-    PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
-    PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
-    PluginNames.emplace_back(__SYCL_NATIVE_CPU_PLUGIN_NAME,
-                             backend::ext_oneapi_native_cpu);
-  } else if (FilterList) {
+  }
+  if (FilterList) {
     std::vector<device_filter> Filters = FilterList->get();
     bool OpenCLFound = false;
     bool LevelZeroFound = false;
@@ -355,6 +347,19 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
       }
       PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
     }
+    return PluginNames;
+  }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+  if (!OdsTargetList) {
+    PluginNames.emplace_back(__SYCL_OPENCL_PLUGIN_NAME, backend::opencl);
+    PluginNames.emplace_back(__SYCL_LEVEL_ZERO_PLUGIN_NAME,
+                             backend::ext_oneapi_level_zero);
+    PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME, backend::ext_oneapi_cuda);
+    PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
+    PluginNames.emplace_back(__SYCL_UR_PLUGIN_NAME, backend::all);
+    PluginNames.emplace_back(__SYCL_NATIVE_CPU_PLUGIN_NAME,
+                             backend::ext_oneapi_native_cpu);
+
   } else {
     ods_target_list &list = *OdsTargetList;
     if (list.backendCompatible(backend::opencl)) {
@@ -368,10 +373,12 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
       PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME,
                                backend::ext_oneapi_cuda);
     }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     if (list.backendCompatible(backend::ext_intel_esimd_emulator)) {
       PluginNames.emplace_back(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME,
                                backend::ext_intel_esimd_emulator);
     }
+#endif
     if (list.backendCompatible(backend::ext_oneapi_hip)) {
       PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
     }
@@ -678,45 +685,47 @@ static uint16_t getELFHeaderType(const unsigned char *ImgData, size_t ImgSize) {
 sycl::detail::pi::PiDeviceBinaryType
 getBinaryImageFormat(const unsigned char *ImgData, size_t ImgSize) {
   // Top-level magic numbers for the recognized binary image formats.
-  struct {
-    sycl::detail::pi::PiDeviceBinaryType Fmt;
-    const uint32_t Magic;
-  } Fmts[] = {{PI_DEVICE_BINARY_TYPE_SPIRV, 0x07230203},
-              {PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE, 0xDEC04342},
-              // 'I', 'N', 'T', 'C' ; Intel native
-              {PI_DEVICE_BINARY_TYPE_NATIVE, 0x43544E49}};
+  auto MatchMagicNumber = [&](auto Number) {
+    return ImgSize >= sizeof(Number) &&
+           std::memcmp(ImgData, &Number, sizeof(Number)) == 0;
+  };
 
-  if (ImgSize >= sizeof(Fmts[0].Magic)) {
-    std::remove_const_t<decltype(Fmts[0].Magic)> Hdr = 0;
-    std::copy(ImgData, ImgData + sizeof(Hdr), reinterpret_cast<char *>(&Hdr));
+  if (MatchMagicNumber(uint32_t{0x07230203}))
+    return PI_DEVICE_BINARY_TYPE_SPIRV;
 
-    // Check headers for direct formats.
-    for (const auto &Fmt : Fmts) {
-      if (Hdr == Fmt.Magic)
-        return Fmt.Fmt;
-    }
+  if (MatchMagicNumber(uint32_t{0xDEC04342}))
+    return PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
 
-    // ELF e_type for recognized binary image formats.
-    struct {
-      sycl::detail::pi::PiDeviceBinaryType Fmt;
-      const uint16_t Magic;
-    } ELFFmts[] = {{PI_DEVICE_BINARY_TYPE_NATIVE, 0xFF04},  // OpenCL executable
-                   {PI_DEVICE_BINARY_TYPE_NATIVE, 0xFF12}}; // ZEBIN executable
+  if (MatchMagicNumber(uint32_t{0x43544E49}))
+    // 'I', 'N', 'T', 'C' ; Intel native
+    return PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE;
 
-    // ELF files need to be parsed separately. The header type ends after 18
-    // bytes.
-    if (Hdr == 0x464c457F && ImgSize >= 18) {
-      uint16_t HdrType = getELFHeaderType(ImgData, ImgSize);
-      for (const auto &ELFFmt : ELFFmts) {
-        if (HdrType == ELFFmt.Magic)
-          return ELFFmt.Fmt;
-      }
-      // Newer ZEBIN format does not have a special header type, but can instead
-      // be identified by having a required .ze_info section.
-      if (checkELFSectionPresent(".ze_info", ImgData, ImgSize))
-        return PI_DEVICE_BINARY_TYPE_NATIVE;
-    }
+  // Check for ELF format, size requirements include data we'll read in case of
+  // succesful match.
+  if (ImgSize >= 18 && MatchMagicNumber(uint32_t{0x464c457F})) {
+    uint16_t ELFHdrType = getELFHeaderType(ImgData, ImgSize);
+    if (ELFHdrType == 0xFF04)
+      // OpenCL executable.
+      return PI_DEVICE_BINARY_TYPE_NATIVE;
+
+    if (ELFHdrType == 0xFF12)
+      // ZEBIN executable.
+      return PI_DEVICE_BINARY_TYPE_NATIVE;
+
+    // Newer ZEBIN format does not have a special header type, but can instead
+    // be identified by having a required .ze_info section.
+    if (checkELFSectionPresent(".ze_info", ImgData, ImgSize))
+      return PI_DEVICE_BINARY_TYPE_NATIVE;
   }
+
+  if (MatchMagicNumber(std::array{'!', '<', 'a', 'r', 'c', 'h', '>', '\n'}))
+    // "ar" format is used to pack binaries for multiple devices, e.g. via
+    //
+    //   -Xsycl-target-backend=spir64_gen "-device acm-g10,acm-g11"
+    //
+    // option.
+    return PI_DEVICE_BINARY_TYPE_NATIVE;
+
   return PI_DEVICE_BINARY_TYPE_NONE;
 }
 

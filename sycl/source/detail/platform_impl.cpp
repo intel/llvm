@@ -206,10 +206,6 @@ std::vector<platform> platform_impl::get_platforms() {
   return Platforms;
 }
 
-// Filter out the devices that are not compatible with SYCL_DEVICE_FILTER or
-// ONEAPI_DEVICE_SELECTOR This function matches devices in the order of backend,
-// device_type, and device_num. The device_filter and ods_target structs pun for
-// each other, as do device_filter_list and ods_target_list.
 // Since ONEAPI_DEVICE_SELECTOR admits negative filters, we use type traits
 // to distinguish the case where we are working with ONEAPI_DEVICE_SELECTOR
 // in the places where the functionality diverges between these two
@@ -222,9 +218,6 @@ std::vector<int> platform_impl::filterDeviceFilter(
     ListT *FilterList) const {
 
   constexpr bool is_ods_target = std::is_same_v<FilterT, ods_target>;
-  // There are some differences in implementation between SYCL_DEVICE_FILTER
-  // and ONEAPI_DEVICE_SELECTOR so we use if constexpr to select the
-  // appropriate execution path if we are dealing with the latter variable.
 
   if constexpr (is_ods_target) {
 
@@ -476,10 +469,13 @@ static std::vector<device> amendDeviceAndSubDevices(
 std::vector<device>
 platform_impl::get_devices(info::device_type DeviceType) const {
   std::vector<device> Res;
+
+  ods_target_list *OdsTargetList = SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // Will we be filtering with SYCL_DEVICE_FILTER or ONEAPI_DEVICE_SELECTOR ?
   // We do NOT attempt to support both simultaneously.
-  ods_target_list *OdsTargetList = SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
   device_filter_list *FilterList = SYCLConfig<SYCL_DEVICE_FILTER>::get();
+#endif
 
   if (is_host() && (DeviceType == info::device_type::host ||
                     DeviceType == info::device_type::all)) {
@@ -535,21 +531,25 @@ platform_impl::get_devices(info::device_type DeviceType) const {
     applyAllowList(PiDevices, MPlatform, MPlugin);
 
   // The first step is to filter out devices that are not compatible with
-  // SYCL_DEVICE_FILTER or ONEAPI_DEVICE_SELECTOR. This is also the mechanism by
-  // which top level device ids are assigned.
+  // ONEAPI_DEVICE_SELECTOR. This is also the mechanism by which top level
+  // device ids are assigned.
   std::vector<int> PlatformDeviceIndices;
   if (OdsTargetList) {
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
     if (FilterList) {
       throw sycl::exception(sycl::make_error_code(errc::invalid),
                             "ONEAPI_DEVICE_SELECTOR cannot be used in "
                             "conjunction with SYCL_DEVICE_FILTER");
     }
+#endif
     PlatformDeviceIndices = filterDeviceFilter<ods_target_list, ods_target>(
         PiDevices, OdsTargetList);
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   } else if (FilterList) {
     PlatformDeviceIndices =
         filterDeviceFilter<device_filter_list, device_filter>(PiDevices,
                                                               FilterList);
+#endif
   }
 
   // The next step is to inflate the filtered PIDevices into SYCL Device
