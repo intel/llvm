@@ -29,7 +29,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
 ) {
   // Platform handles are cached for reuse. This is to ensure consistent
   // handle pointers across invocations and to improve retrieval performance.
-  if (const auto *cached_platforms = Adapter.PlatformCache->get_value()) {
+  if (const auto *cached_platforms = Adapter.PlatformCache->get_value();
+      cached_platforms) {
     uint32_t nplatforms = (uint32_t)cached_platforms->size();
     if (NumPlatforms) {
       *NumPlatforms = nplatforms;
