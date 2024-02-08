@@ -249,7 +249,7 @@ void foo() {
 int main() {
   sycl::queue q;
   foo(); // Verify host.
-  q.submit([&](cl::sycl::handler &cgh) {
+  q.submit([&](sycl::handler &cgh) {
     cgh.single_task<class test>([]() {
       foo(); // verify device
     });
