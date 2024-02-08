@@ -3,7 +3,7 @@
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
-
+// REQUIRES: aspect-usm_shared_allocations
 // This test performs basic checks of reductions initialized with a sycl::span
 
 #include <sycl/sycl.hpp>
