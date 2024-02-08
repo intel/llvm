@@ -4,7 +4,7 @@
 // NOTE: Compile the test fully to ensure the library exports the right host
 // symbols.
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 // Some helper macros to verify return type of the builtins. To be used like
 // this
@@ -19,15 +19,15 @@ template <class... Args> struct CheckHelper {
   template <class F> static auto call(F f) { return f(Args()...); }
 };
 
-#define CHECK(EXPECTED, FUNC, ...)                            \
+#define CHECK(EXPECTED, FUNC, ...)                                             \
   {                                                                            \
     auto ret = CheckHelper<__VA_ARGS__>::call(                                 \
-        [](auto... args) { return cl::sycl::FUNC(args...); });                 \
-    static_assert(std::is_same_v<decltype(ret), EXPECTED>);                \
+        [](auto... args) { return sycl::FUNC(args...); });                     \
+    static_assert(std::is_same_v<decltype(ret), EXPECTED>);                    \
   }
 
 void foo() {
-  using namespace cl::sycl;
+  using namespace sycl;
   using boolm = marray<bool, 2>;
 
   using int16v = vec<int16_t, 2>;
@@ -247,7 +247,7 @@ void foo() {
 }
 
 int main() {
-  cl::sycl::queue q;
+  sycl::queue q;
   foo(); // Verify host.
   q.submit([&](cl::sycl::handler &cgh) {
     cgh.single_task<class test>([]() {
