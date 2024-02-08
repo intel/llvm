@@ -7817,8 +7817,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
         *pGlobalWorkOffset, ///< [in] Offset to use when executing kernel.
     const size_t *
         pGlobalWorkSize, ///< [in] Global work size to use when executing kernel.
-    const size_t
-        *pLocalWorkSize, ///< [in] Local work size to use when executing kernel.
+    const size_t *
+        pLocalWorkSize, ///< [in][optional] Local work size to use when executing kernel.
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
@@ -7849,10 +7849,6 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
         }
 
         if (NULL == pGlobalWorkSize) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-
-        if (NULL == pLocalWorkSize) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 

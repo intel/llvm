@@ -6106,6 +6106,8 @@ ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
 ///         + `NULL == phCommandBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///         + If `pCommandBufferDesc->isUpdatable` is true and `hDevice` does not support UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urCommandBufferCreateExp(
@@ -6199,7 +6201,6 @@ ur_result_t UR_APICALL urCommandBufferFinalizeExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pGlobalWorkOffset`
 ///         + `NULL == pGlobalWorkSize`
-///         + `NULL == pLocalWorkSize`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
@@ -6220,8 +6221,8 @@ ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
         *pGlobalWorkOffset, ///< [in] Offset to use when executing kernel.
     const size_t *
         pGlobalWorkSize, ///< [in] Global work size to use when executing kernel.
-    const size_t
-        *pLocalWorkSize, ///< [in] Local work size to use when executing kernel.
+    const size_t *
+        pLocalWorkSize, ///< [in][optional] Local work size to use when executing kernel.
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
@@ -6825,6 +6826,10 @@ ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///         + If ::ur_exp_command_buffer_desc_t::isUpdatable was not set to true on creation of the command buffer `hCommand` belongs to.
 ///         + If the command-buffer `hCommand` belongs to has not been finalized.
+///         + If `pUpdateKernellaunch->newWorkDim` is non-zero and different from the work-dim used on creation of `hCommand`.
+///         + If `pUpdateKernellaunch->newWorkDim` is non-zero and `pUpdateKernelLaunch->pNewLocalWorkSize` is set to a non-NULL value and `pUpdateKernelLaunch->pNewGlobalWorkSize` is NULL.
+///         + If `pUpdateKernellaunch->newWorkDim` is non-zero and `pUpdateKernelLaunch->pNewLocalWorkSize` is set to a non-NULL value when `hCommand` was created with a NULL local work size.
+///         + If `pUpdateKernellaunch->newWorkDim` is non-zero and `pUpdateKernelLaunch->pNewLocalWorkSize` is set to a NULL value when `hCommand` was created with a non-NULL local work size.
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
