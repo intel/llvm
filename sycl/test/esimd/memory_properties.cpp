@@ -31,7 +31,7 @@ test_block_store(AccType &, LocalAccType &local_acc, float *, int byte_offset32,
                  size_t byte_offset64);
 
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
-test_gather_scatter(AccType &, float *, int byte_offset32,
+test_gather_scatter(AccType &, LocalAccType &, float *, int byte_offset32,
                     size_t byte_offset64);
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
 test_slm_gather_scatter(int byte_offset32);
@@ -48,7 +48,7 @@ public:
     test_block_load(acc, local_acc, ptr, byte_offset32, byte_offset64);
     test_atomic_update(acc, local_acc_int, ptr, byte_offset32, byte_offset64);
     test_block_store(acc, local_acc, ptr, byte_offset32, byte_offset64);
-    test_gather_scatter(acc, ptr, byte_offset32, byte_offset64);
+    test_gather_scatter(acc, local_acc, ptr, byte_offset32, byte_offset64);
     test_slm_gather_scatter(byte_offset32);
   }
 };
@@ -939,8 +939,8 @@ test_block_store(AccType &acc, LocalAccType &local_acc, float *ptrf,
 
 // CHECK-LABEL: define {{.*}} @_Z19test_gather_scatter{{.*}}
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
-test_gather_scatter(AccType &acc, float *ptrf, int byte_offset32,
-                    size_t byte_offset64) {
+test_gather_scatter(AccType &acc, LocalAccType &local_acc, float *ptrf,
+                    int byte_offset32, size_t byte_offset64) {
   properties props_cache_load{cache_hint_L1<cache_hint::uncached>,
                               cache_hint_L2<cache_hint::uncached>,
                               alignment<8>};
@@ -969,6 +969,8 @@ test_gather_scatter(AccType &acc, float *ptrf, int byte_offset32,
   simd<float, 32> pass_thru;
   auto pass_thru_view = pass_thru.select<32, 1>();
 
+  auto usm_view = usm.select<32, 1>();
+
   // Test USM and ACC gather using this plan:
   // 1) gather(usm, offsets): offsets is simd or simd_view
   // 2) gather(usm, offsets, mask): offsets is simd or simd_view
@@ -978,6 +980,10 @@ test_gather_scatter(AccType &acc, float *ptrf, int byte_offset32,
   // 6) gather(acc, offsets, mask): offsets is simd or simd_view
   // 7) gather(acc, offsets, mask, pass_thru)
   // 8) gather(acc, ...): same as (5), (6), (7) above, but with VS > 1.
+  // 9) gather(lacc, offsets): offsets is simd or simd_view
+  // 10) gather(lacc, offsets, mask): offsets is simd or simd_view
+  // 11) gather(lacc, offsets, mask, pass_thru)
+  // 12) gather(lacc, ...): same as (9), (10), (11) above, but with VS > 1.
 
   // 1) gather(usm, offsets): offsets is simd or simd_view
   // CHECK-COUNT-4: call <32 x float> @llvm.masked.gather.v32f32.v32p4(<32 x ptr addrspace(4)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
@@ -1151,6 +1157,130 @@ test_gather_scatter(AccType &acc, float *ptrf, int byte_offset32,
                                  props_align4);
   acc_res = gather<float, 32, 2>(acc, ioffset_n16_view, mask_n16,
                                  pass_thru_view, props_align4);
+
+  // 9) gather(lacc, offsets): offsets is simd or simd_view
+  // CHECK-COUNT-16: call <32 x float> @llvm.masked.gather.v32f32.v32p3(<32 x ptr addrspace(3)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
+  acc_res = gather<float>(local_acc, ioffset_n32);
+  acc_res = gather<float, 32>(local_acc, ioffset_n32_view);
+  acc_res = gather<float>(local_acc, ioffset_n32, props_align4);
+  acc_res = gather<float, 32>(local_acc, ioffset_n32_view, props_align4);
+
+  // 10) gather(lacc, offsets, mask): offsets is simd or simd_view
+  acc_res = gather<float>(local_acc, ioffset_n32, mask_n32);
+  acc_res = gather<float, 32>(local_acc, ioffset_n32_view, mask_n32);
+  acc_res = gather<float>(local_acc, ioffset_n32, mask_n32, props_align4);
+  acc_res =
+      gather<float, 32>(local_acc, ioffset_n32_view, mask_n32, props_align4);
+
+  // 11) gather(lacc, offsets, mask, pass_thru)
+  acc_res = gather<float>(local_acc, ioffset_n32, mask_n32, pass_thru);
+  acc_res = gather<float, 32>(local_acc, ioffset_n32_view, mask_n32, pass_thru);
+  acc_res =
+      gather<float>(local_acc, ioffset_n32, mask_n32, pass_thru, props_align4);
+  acc_res = gather<float, 32>(local_acc, ioffset_n32_view, mask_n32, pass_thru,
+                              props_align4);
+
+  acc_res = gather<float, 32>(local_acc, ioffset_n32, mask_n32, pass_thru_view);
+  acc_res =
+      gather<float, 32>(local_acc, ioffset_n32_view, mask_n32, pass_thru_view);
+  acc_res = gather<float, 32>(local_acc, ioffset_n32, mask_n32, pass_thru_view,
+                              props_align4);
+  acc_res = gather<float, 32>(local_acc, ioffset_n32_view, mask_n32,
+                              pass_thru_view, props_align4);
+
+  // 12) gather(lacc, ...): same as (9), (10), (11) above, but with VS > 1.
+  // CHECK-COUNT-16: call <32 x i32> @llvm.genx.lsc.load.merge.slm.v32i32.v16i1.v16i32(<16 x i1> {{[^)]+}}, i8 0, i8 0, i8 0, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i32> {{[^)]+}}, i32 0, <32 x i32> {{[^)]+}})
+  acc_res = gather<float, 32, 2>(local_acc, ioffset_n16);
+  acc_res = gather<float, 32, 2>(local_acc, ioffset_n16_view);
+  acc_res = gather<float, 32, 2>(local_acc, ioffset_n16, props_align4);
+  acc_res = gather<float, 32, 2>(local_acc, ioffset_n16_view, props_align4);
+
+  acc_res = gather<float, 32, 2>(local_acc, ioffset_n16, mask_n16);
+  acc_res = gather<float, 32, 2>(local_acc, ioffset_n16_view, mask_n16);
+  acc_res =
+      gather<float, 32, 2>(local_acc, ioffset_n16, mask_n16, props_align4);
+  acc_res =
+      gather<float, 32, 2>(local_acc, ioffset_n16_view, mask_n16, props_align4);
+
+  acc_res = gather<float, 32, 2>(local_acc, ioffset_n16, mask_n16, pass_thru);
+  acc_res =
+      gather<float, 32, 2>(local_acc, ioffset_n16_view, mask_n16, pass_thru);
+  acc_res = gather<float, 32, 2>(local_acc, ioffset_n16, mask_n16, pass_thru,
+                                 props_align4);
+  acc_res = gather<float, 32, 2>(local_acc, ioffset_n16_view, mask_n16,
+                                 pass_thru, props_align4);
+
+  acc_res =
+      gather<float, 32, 2>(local_acc, ioffset_n16, mask_n16, pass_thru_view);
+  acc_res = gather<float, 32, 2>(local_acc, ioffset_n16_view, mask_n16,
+                                 pass_thru_view);
+  acc_res = gather<float, 32, 2>(local_acc, ioffset_n16, mask_n16,
+                                 pass_thru_view, props_align4);
+  acc_res = gather<float, 32, 2>(local_acc, ioffset_n16_view, mask_n16,
+                                 pass_thru_view, props_align4);
+
+  // Validate that a new API doesn't conflict with the old API.
+  // CHECK-COUNT-2: call <32 x float> @llvm.masked.gather.v32f32.v32p3(<32 x ptr addrspace(3)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}}, <32 x float> {{[^)]+}})
+  acc_res = gather<float, 32>(local_acc, ioffset_n32, 0);
+  acc_res = gather<float, 32>(local_acc, ioffset_n32, 0, mask_n32);
+
+  // CHECK-COUNT-4: call void @llvm.genx.svm.scatter.v32i1.v32i64.v32f32(<32 x i1> {{[^)]+}}, i32 0, <32 x i64> {{[^)]+}}, <32 x float> {{[^)]+}})
+  scatter(ptrf, ioffset_n32, usm, mask_n32);
+
+  scatter(ptrf, ioffset_n32, usm);
+
+  scatter(ptrf, ioffset_n32, usm, mask_n32, props_align4);
+
+  scatter(ptrf, ioffset_n32, usm, props_align4);
+
+  // CHECK-COUNT-8: call void @llvm.genx.lsc.store.stateless.v32i1.v32i64.v32i32(<32 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <32 x i64> {{[^)]+}}, <32 x i32> {{[^)]+}}, i32 0)
+  scatter(ptrf, ioffset_n32, usm, mask_n32, props_cache_load);
+  scatter(ptrf, ioffset_n32, usm, props_cache_load);
+
+  scatter(ptrf, ioffset_n32_view, usm, mask_n32, props_cache_load);
+  scatter(ptrf, ioffset_n32_view, usm, props_cache_load);
+
+  scatter<float, 32>(ptrf, ioffset_n32, usm_view, mask_n32, props_cache_load);
+  scatter<float, 32>(ptrf, ioffset_n32, usm_view, props_cache_load);
+
+  scatter<float, 32>(ptrf, ioffset_n32_view, usm_view, mask_n32,
+                     props_cache_load);
+  scatter<float, 32>(ptrf, ioffset_n32_view, usm_view, props_cache_load);
+
+  // VS > 1
+  // CHECK-COUNT-8: call void @llvm.genx.lsc.store.stateless.v16i1.v16i64.v32i32(<16 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, <32 x i32> {{[^)]+}}, i32 0)
+  scatter<float, 32, 2>(ptrf, ioffset_n16, usm, mask_n16, props_cache_load);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16, usm, props_cache_load);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm, mask_n16,
+                        props_cache_load);
+  scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm, props_cache_load);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16, usm_view, mask_n16,
+                        props_cache_load);
+  scatter<float, 32, 2>(ptrf, ioffset_n16, usm_view, props_cache_load);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm_view, mask_n16,
+                        props_cache_load);
+  scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm_view, props_cache_load);
+
+  // CHECK-COUNT-8: call void @llvm.genx.lsc.store.stateless.v16i1.v16i64.v32i32(<16 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, <32 x i32> {{[^)]+}}, i32 0)
+  scatter<float, 32, 2>(ptrf, ioffset_n16, usm, mask_n16);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16, usm);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm, mask_n16);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16, usm_view, mask_n16);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16, usm_view);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm_view, mask_n16);
+
+  scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm_view);
 }
 
 // CHECK-LABEL: define {{.*}} @_Z23test_slm_gather_scatter{{.*}}

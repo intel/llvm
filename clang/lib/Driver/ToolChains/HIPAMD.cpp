@@ -383,6 +383,7 @@ Tool *HIPAMDToolChain::SelectTool(const JobAction &JA) const {
 }
 
 void HIPAMDToolChain::addClangWarningOptions(ArgStringList &CC1Args) const {
+  AMDGPUToolChain::addClangWarningOptions(CC1Args);
   HostTC.addClangWarningOptions(CC1Args);
 }
 

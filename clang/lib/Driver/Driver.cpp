@@ -1803,15 +1803,16 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   const ToolChain &TC = getToolChain(
       *UArgs, computeTargetTriple(*this, TargetTriple, *UArgs));
 
-  if (TC.getTriple().isAndroid()) {
-    llvm::Triple Triple = TC.getTriple();
-    StringRef TripleVersionName = Triple.getEnvironmentVersionString();
-
-    if (Triple.getEnvironmentVersion().empty() && TripleVersionName != "") {
-      Diags.Report(diag::err_drv_triple_version_invalid)
-          << TripleVersionName << TC.getTripleString();
-      ContainsError = true;
-    }
+  // Check if the environment version is valid.
+  llvm::Triple Triple = TC.getTriple();
+  StringRef TripleVersionName = Triple.getEnvironmentVersionString();
+  StringRef TripleObjectFormat =
+      Triple.getObjectFormatTypeName(Triple.getObjectFormat());
+  if (Triple.getEnvironmentVersion().empty() && TripleVersionName != "" &&
+      TripleVersionName != TripleObjectFormat) {
+    Diags.Report(diag::err_drv_triple_version_invalid)
+        << TripleVersionName << TC.getTripleString();
+    ContainsError = true;
   }
 
   // Report warning when arm64EC option is overridden by specified target
@@ -3518,7 +3519,7 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
   // manner than the OpenMP processing.  We should try and refactor this
   // to use the OpenMP flow (adding -l<name> to the llvm-link step)
   auto resolveStaticLib = [&](StringRef LibName, bool IsStatic) -> bool {
-    if (!LibName.startswith("-l"))
+    if (!LibName.starts_with("-l"))
       return false;
     for (auto &LPath : LibPaths) {
       if (!IsStatic) {
@@ -3663,7 +3664,7 @@ static bool IsSYCLDeviceLibObj(std::string ObjFilePath, bool isMSVCEnv) {
   StringRef ObjFileName = llvm::sys::path::filename(ObjFilePath);
   StringRef ObjSuffix = isMSVCEnv ? ".obj" : ".o";
   bool Ret =
-      (ObjFileName.startswith("libsycl-") && ObjFileName.endswith(ObjSuffix))
+      (ObjFileName.starts_with("libsycl-") && ObjFileName.ends_with(ObjSuffix))
           ? true
           : false;
   return Ret;

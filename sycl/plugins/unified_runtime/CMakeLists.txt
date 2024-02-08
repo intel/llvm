@@ -56,14 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime")
-  # commit 73d85ef9f48ec4d1f213066a31ed7e4402b5499b
-  # Merge: e46dc359 7985d3ee
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit cd97e172cbbfc411fccb0b80e0fff6f9126574f4
+  # Merge: bd745d10 2a9ded6f
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Jan 29 14:26:08 2024 +0000
-  #     Merge pull request #1289 from nrspruit/fix_multiDevice
-  #     [L0] Fix native kernel usage, multi device kernel pointer and WorkSize
-  set(UNIFIED_RUNTIME_TAG 73d85ef9f48ec4d1f213066a31ed7e4402b5499b)
+  # Date:   Fri Feb 2 14:24:16 2024 +0000
+  #     Merge pull request #1249 from GeorgeWeb/georgi/hip_memadvise_coarse_grained
+  #     [HIP] Implement coarse-grained memory advice for the HIP adapter
+  set(UNIFIED_RUNTIME_TAG cd97e172cbbfc411fccb0b80e0fff6f9126574f4)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -202,6 +202,13 @@ endif()
 
 if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_opencl)
+
+    # Install the UR adapters too
+    install(TARGETS ur_adapter_opencl
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+      ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+      RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+    )
 endif()
 
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
