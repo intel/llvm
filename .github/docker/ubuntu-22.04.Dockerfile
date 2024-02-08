@@ -67,7 +67,8 @@ RUN /opt/install_dpcpp.sh
 COPY install_libbacktrace.sh /opt/install_libbacktrace.sh
 RUN /opt/install_libbacktrace.sh
 
-# Add a new (non-root) 'user'
-ENV USER user
+# Add a new (non-root) 'test_user' and switch to it
+ENV USER test_user
 ENV USERPASS pass
 RUN useradd -m "${USER}" -g sudo -p "$(mkpasswd ${USERPASS})"
+USER test_user
