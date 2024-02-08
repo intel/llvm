@@ -56,14 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/JackAKirk/unified-runtime.git")
   # commit 749d8e51ea8e56726a9fb57949d7a3f81b47b15c
   # Merge: 810a5774 34831f4b
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
   # Date:   Wed Jan 3 13:27:16 2024 +0000
   #     Merge pull request #1198 from al42and/aa-rocm6
   #     [HIP] Fix build with ROCm 6.0.0
-  set(UNIFIED_RUNTIME_TAG 749d8e51ea8e56726a9fb57949d7a3f81b47b15c)
+  set(UNIFIED_RUNTIME_TAG 0dc0d83)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

@@ -5,7 +5,7 @@ set(SYCL_BUILD_PI_HIP_PLATFORM "AMD" CACHE STRING "PI HIP platform, AMD or NVIDI
 message(STATUS "Including the PI API HIP backend for ${SYCL_BUILD_PI_HIP_PLATFORM}.")
 
 # Set default ROCm installation directory
-set(SYCL_BUILD_PI_HIP_ROCM_DIR "/opt/rocm" CACHE STRING "ROCm installation dir")
+set(SYCL_BUILD_PI_HIP_ROCM_DIR "/opt/rocm-5.5.1" CACHE STRING "ROCm installation dir")
 
 # Set HIP include and lib dirs
 set(SYCL_BUILD_PI_HIP_INCLUDE_DIR "" CACHE STRING "Override HIP include dir path (set to \"\" for default behavior)")
