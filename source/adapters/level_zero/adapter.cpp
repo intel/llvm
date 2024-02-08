@@ -11,8 +11,6 @@
 #include "adapter.hpp"
 #include "ur_level_zero.hpp"
 
-ur_adapter_handle_t_ Adapter{};
-
 ur_result_t initPlatforms(PlatformVec &platforms) noexcept try {
   uint32_t ZeDriverCount = 0;
   ZE2UR_CALL(zeDriverGet, (&ZeDriverCount, nullptr));
@@ -36,43 +34,45 @@ ur_result_t initPlatforms(PlatformVec &platforms) noexcept try {
   return exceptionToResult(std::current_exception());
 }
 
-ur_result_t adapterStateInit() {
-  static std::once_flag ZeCallCountInitialized;
-  try {
-    std::call_once(ZeCallCountInitialized, []() {
-      if (UrL0LeaksDebug) {
-        ZeCallCount = new std::map<std::string, int>;
-      }
-    });
-  } catch (const std::bad_alloc &) {
-    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-  } catch (...) {
-    return UR_RESULT_ERROR_UNKNOWN;
-  }
+ur_result_t adapterStateInit() { return UR_RESULT_SUCCESS; }
 
-  // initialize level zero only once.
-  if (Adapter.ZeResult == std::nullopt) {
-    // Setting these environment variables before running zeInit will enable the
-    // validation layer in the Level Zero loader.
-    if (UrL0Debug & UR_L0_DEBUG_VALIDATION) {
-      setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
-      setEnvVar("ZE_ENABLE_PARAMETER_VALIDATION", "1");
-    }
-
-    if (getenv("SYCL_ENABLE_PCI") != nullptr) {
-      urPrint("WARNING: SYCL_ENABLE_PCI is deprecated and no longer needed.\n");
-    }
-
-    // TODO: We can still safely recover if something goes wrong during the
-    // init. Implement handling segfault using sigaction.
-
-    // We must only initialize the driver once, even if urPlatformGet() is
-    // called multiple times.  Declaring the return value as "static" ensures
-    // it's only called once.
-    Adapter.ZeResult = ZE_CALL_NOCHECK(zeInit, (ZE_INIT_FLAG_GPU_ONLY));
-  }
+ur_adapter_handle_t_::ur_adapter_handle_t_() {
 
   Adapter.PlatformCache.Compute = [](Result<PlatformVec> &result) {
+    static std::once_flag ZeCallCountInitialized;
+    try {
+      std::call_once(ZeCallCountInitialized, []() {
+        if (UrL0LeaksDebug) {
+          ZeCallCount = new std::map<std::string, int>;
+        }
+      });
+    } catch (...) {
+      result = exceptionToResult(std::current_exception());
+      return;
+    }
+
+    // initialize level zero only once.
+    if (Adapter.ZeResult == std::nullopt) {
+      // Setting these environment variables before running zeInit will enable
+      // the validation layer in the Level Zero loader.
+      if (UrL0Debug & UR_L0_DEBUG_VALIDATION) {
+        setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
+        setEnvVar("ZE_ENABLE_PARAMETER_VALIDATION", "1");
+      }
+
+      if (getenv("SYCL_ENABLE_PCI") != nullptr) {
+        urPrint(
+            "WARNING: SYCL_ENABLE_PCI is deprecated and no longer needed.\n");
+      }
+
+      // TODO: We can still safely recover if something goes wrong during the
+      // init. Implement handling segfault using sigaction.
+
+      // We must only initialize the driver once, even if urPlatformGet() is
+      // called multiple times.  Declaring the return value as "static" ensures
+      // it's only called once.
+      Adapter.ZeResult = ZE_CALL_NOCHECK(zeInit, (ZE_INIT_FLAG_GPU_ONLY));
+    }
     assert(Adapter.ZeResult !=
            std::nullopt); // verify that level-zero is initialized
     PlatformVec platforms;
@@ -95,8 +95,9 @@ ur_result_t adapterStateInit() {
       result = err;
     }
   };
-  return UR_RESULT_SUCCESS;
 }
+
+ur_adapter_handle_t_ Adapter{};
 
 ur_result_t adapterStateTeardown() {
   bool LeakFound = false;
