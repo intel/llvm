@@ -50,6 +50,12 @@ enum class execution_scope {
 };
 
 template <int Dimensions> class root_group {
+  template <execution_scope Scope, typename RetTy>
+  using checkScopeTy = std::enable_if_t<(Scope == execution_scope::work_item ||
+                                         Scope == execution_scope::sub_group ||
+                                         Scope == execution_scope::work_group),
+                                        RetTy>;
+
 public:
   using id_type = id<Dimensions>;
   using range_type = range<Dimensions>;
@@ -84,12 +90,6 @@ public:
   size_t get_local_linear_range() const { return get_local_range().size(); };
 
   bool leader() const { return get_local_id() == 0; };
-
-  template <execution_scope Scope, typename RetTy>
-  using checkScopeTy = std::enable_if_t<(Scope == execution_scope::work_item ||
-                                         Scope == execution_scope::sub_group ||
-                                         Scope == execution_scope::work_group),
-                                        RetTy>;
 
   template <execution_scope Scope>
   std::enable_if_t<(Scope == execution_scope::work_item ||
