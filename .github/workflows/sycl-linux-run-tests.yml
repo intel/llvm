@@ -100,7 +100,7 @@ on:
         options:
           - 'opencl:cpu'
           - 'opencl:gpu'
-          - 'opencl:acc'
+          - 'opencl:fpga'
           - 'ext_oneapi_level_zero:gpu'
           - 'ext_oneapi_hip:gpu'
       tests_selector:
