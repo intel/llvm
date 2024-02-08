@@ -24,12 +24,12 @@
 // clang-format on
 
 // Check the behaviour when -fsycl-add-default-spec-consts-image option is used
-// and default value is overriden with the same value - we are supposed to
+// and default value is explicitly set with the same value - we are supposed to
 // choose images with inlined values in this case.
 
 // clang-format off
 // RUN: %clangxx  -fsycl-add-default-spec-consts-image -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %s -o %t3.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-DEFAULT-OVERRIDEN %s
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-DEFAULT-EXPLICIT-SET %s
 // clang-format on
 
 #include <sycl/sycl.hpp>
@@ -203,15 +203,15 @@ int main() {
   // Test that if user calls set_specialization_constant with the value equal to
   // default then we choose image with inlined default values of specialization
   // constants.
-  // CHECK-DEFAULT-OVERRIDEN: Default value overriden
-  // CHECK-DEFAULT-OVERRIDEN: ---> piextKernelSetArgMemObj(
-  // CHECK-DEFAULT-OVERRIDEN-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-OVERRIDEN-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-OVERRIDEN-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-OVERRIDEN-NEXT:	<unknown> : 0
-  // CHECK-DEFAULT-OVERRIDEN-NEXT: ) ---> 	pi_result : PI_SUCCESS
-  // CHECK-DEFAULT-OVERRIDEN: Default value of specialization constant was used.
-  std::cout << "Default value overriden" << std::endl;
+  // CHECK-DEFAULT-EXPLICIT-SET: Default value was explicitly set
+  // CHECK-DEFAULT-EXPLICIT-SET: ---> piextKernelSetArgMemObj(
+  // CHECK-DEFAULT-EXPLICIT-SET-NEXT:	<unknown> : {{.*}}
+  // CHECK-DEFAULT-EXPLICIT-SET-NEXT:	<unknown> : {{.*}}
+  // CHECK-DEFAULT-EXPLICIT-SET-NEXT:	<unknown> : {{.*}}
+  // CHECK-DEFAULT-EXPLICIT-SET-NEXT:	<unknown> : 0
+  // CHECK-DEFAULT-EXPLICIT-SET-NEXT: ) ---> 	pi_result : PI_SUCCESS
+  // CHECK-DEFAULT-EXPLICIT-SET: Default value of specialization constant was used.
+  std::cout << "Default value was explicitly set" << std::endl;
   Q.submit([&](sycl::handler &cgh) {
      cgh.set_specialization_constant<int_id>(3);
 
