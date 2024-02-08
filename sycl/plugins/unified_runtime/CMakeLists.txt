@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1cd402ead34a54459a6acb85777fbec105a178a0
-  # Merge: 5b89ee8b c8e150c5
+  # commit 9babc4d092a92c1036791d26ef328e5eeaf19803
+  # Merge: 3be8f205 90498ec5
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Tue Feb 6 14:48:55 2024 +0000
-  #     Merge pull request #1218 from Bensuo/maxime/imm-cmd-list-support
-  #     [EXP][CMDBUF] L0 Immediate command-list support
-  set(UNIFIED_RUNTIME_TAG 1cd402ead34a54459a6acb85777fbec105a178a0)
+  # Date:   Thu Feb 8 15:44:54 2024 +0000
+  #     Merge pull request #1321 from pbalcer/adapter-compute-constructor
+  #     [L0] move adapter init into its constructor from urAdapterGet
+  set(UNIFIED_RUNTIME_TAG 9babc4d092a92c1036791d26ef328e5eeaf19803)
   
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
