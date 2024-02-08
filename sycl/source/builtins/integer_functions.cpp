@@ -214,6 +214,10 @@ BUILTIN_GENINT_SU(TWO_ARGS, max,
 BUILTIN_GENINT_SU(TWO_ARGS, min,
                   [](auto x, auto y) -> decltype(x) { return y < x ? y : x; })
 
+BUILTIN_GENINT_SU(THREE_ARGS, clamp, [](auto x, auto y, auto z) -> decltype(x) {
+  return std::min(std::max(x, y), z);
+})
+
 template <typename T> static inline constexpr T __clz_impl(T x, T m, T n = 0) {
   return (x & m) ? n : __clz_impl(x, T(m >> 1), ++n);
 }
