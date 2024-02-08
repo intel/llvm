@@ -151,6 +151,7 @@ bool isPartitionRoot(std::shared_ptr<node_impl> Node) {
 std::vector<node> createNodesFromImpls(
     const std::vector<std::weak_ptr<detail::node_impl>> &Impls) {
   std::vector<node> Nodes{};
+  Nodes.reserve(Impls.size());
 
   for (std::weak_ptr<detail::node_impl> Impl : Impls) {
     Nodes.push_back(sycl::detail::createSyclObjFromImpl<node>(Impl.lock()));
@@ -164,6 +165,7 @@ std::vector<node> createNodesFromImpls(
 std::vector<node> createNodesFromImpls(
     const std::vector<std::shared_ptr<detail::node_impl>> &Impls) {
   std::vector<node> Nodes{};
+  Nodes.reserve(Impls.size());
 
   for (std::shared_ptr<detail::node_impl> Impl : Impls) {
     Nodes.push_back(sycl::detail::createSyclObjFromImpl<node>(Impl));

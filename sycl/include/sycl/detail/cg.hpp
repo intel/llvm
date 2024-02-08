@@ -582,8 +582,8 @@ public:
 
   CGExecCommandBuffer(
       const sycl::detail::pi::PiExtCommandBuffer &CommandBuffer,
-      std::shared_ptr<sycl::ext::oneapi::experimental::detail::exec_graph_impl>
-          ExecGraph,
+      const std::shared_ptr<
+          sycl::ext::oneapi::experimental::detail::exec_graph_impl> &ExecGraph,
       CG::StorageInitHelper CGData)
       : CG(CGTYPE::ExecCommandBuffer, std::move(CGData)),
         MCommandBuffer(CommandBuffer), MExecGraph(ExecGraph) {}

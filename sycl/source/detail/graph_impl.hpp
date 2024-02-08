@@ -149,14 +149,10 @@ public:
 
   /// Construct a node from another node. This will perform a deep-copy of the
   /// command group object associated with this node.
-  node_impl(node_impl &Other) {
-    this->MSuccessors = Other.MSuccessors;
-    this->MPredecessors = Other.MPredecessors;
-    this->MCGType = Other.MCGType;
-    this->MNodeType = Other.MNodeType;
-    this->MCommandGroup = Other.getCGCopy();
-    this->MSubGraphImpl = Other.MSubGraphImpl;
-  }
+  node_impl(node_impl &Other)
+      : MSuccessors(Other.MSuccessors), MPredecessors(Other.MPredecessors),
+        MCGType(Other.MCGType), MNodeType(Other.MNodeType),
+        MCommandGroup(Other.getCGCopy()), MSubGraphImpl(Other.MSubGraphImpl) {}
 
   /// Checks if this node has a given requirement.
   /// @param Requirement Requirement to lookup.
