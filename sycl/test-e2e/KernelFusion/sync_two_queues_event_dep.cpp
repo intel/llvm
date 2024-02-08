@@ -13,37 +13,29 @@ int main() {
 
   queue q1{ext::codeplay::experimental::property::queue::enable_fusion{}};
   queue q2{ext::codeplay::experimental::property::queue::enable_fusion{}};
-  int in1_arr[dataSize];
-  int in2_arr[dataSize];
-  int in3_arr[dataSize];
-  int tmp_arr[dataSize];
-  int out_arr[dataSize];
-  for (size_t i = 0; i < dataSize; ++i) {
-    in1_arr[i] = i * 2;
-    in2_arr[i] = i * 3;
-    in3_arr[i] = i * 4;
-    tmp_arr[i] = -1;
-    out_arr[i] = -1;
-  }
-  sycl::buffer<int> in1_buf{&in1_arr[0], sycl::range{dataSize}};
-  sycl::buffer<int> in2_buf{&in2_arr[0], sycl::range{dataSize}};
-  sycl::buffer<int> in3_buf{&in3_arr[0], sycl::range{dataSize}};
-  sycl::buffer<int> tmp_buf{&tmp_arr[0], sycl::range{dataSize}};
-  sycl::buffer<int> out_buf{&out_arr[0], sycl::range{dataSize}};
-  sycl::accessor in1{in1_buf};
-  sycl::accessor in2{in2_buf};
-  sycl::accessor in3{in3_buf};
-  sycl::accessor tmp{tmp_buf};
-  sycl::accessor out{out_buf};
+
+  int *in1 = sycl::malloc_device<int>(dataSize, q1);
+  int *in2 = sycl::malloc_device<int>(dataSize, q1);
+  int *in3 = sycl::malloc_device<int>(dataSize, q1);
+  int *tmp = sycl::malloc_device<int>(dataSize, q1);
+  int *out = sycl::malloc_device<int>(dataSize, q1);
+
+  q1.single_task<class InitKernel>([=]() {
+      for (size_t i = 0; i < dataSize; ++i) {
+        in1[i] = i * 2;
+        in2[i] = i * 3;
+        in3[i] = i * 4;
+        tmp[i] = -1;
+        out[i] = -1;
+      }
+    }).wait();
+
   ext::codeplay::experimental::fusion_wrapper fw1{q1};
   fw1.start_fusion();
 
   assert(fw1.is_in_fusion_mode() && "Queue should be in fusion mode");
 
   auto kernel1 = q1.submit([&](handler &cgh) {
-    cgh.require(in1);
-    cgh.require(in2);
-    cgh.require(tmp);
     cgh.parallel_for<class KernelOne>(
         dataSize, [=](id<1> i) { tmp[i] = in1[i] + in2[i]; });
   });
@@ -52,7 +44,6 @@ int main() {
   fw2.start_fusion();
 
   auto kernel3 = q2.submit([&](handler &cgh) {
-    cgh.require(tmp);
     cgh.depends_on(kernel1);
     cgh.parallel_for<class KernelThree>(dataSize,
                                         [=](id<1> i) { tmp[i] *= 2; });
@@ -66,9 +57,6 @@ int main() {
   assert(fw2.is_in_fusion_mode() && "Queue should be in fusion mode");
 
   auto kernel2 = q1.submit([&](handler &cgh) {
-    cgh.require(tmp);
-    cgh.require(in3);
-    cgh.require(out);
     cgh.depends_on(kernel3);
     cgh.parallel_for<class KernelTwo>(
         dataSize, [=](id<1> i) { out[i] = tmp[i] * in3[i]; });
@@ -85,11 +73,15 @@ int main() {
 
   q1.wait();
   q2.wait();
-  sycl::host_accessor out_host{out_buf};
   // Check the results
   for (size_t i = 0; i < dataSize; ++i) {
-    assert(out_host[i] == (40 * i * i) && "Computation error");
+    assert(out[i] == (40 * i * i) && "Computation error");
   }
+  sycl::free(in1, q1);
+  sycl::free(in2, q1);
+  sycl::free(in3, q1);
+  sycl::free(tmp, q1);
+  sycl::free(out, q1);
   return 0;
 }
 

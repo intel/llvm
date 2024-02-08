@@ -1,6 +1,5 @@
 // RUN: %{build} -fsycl-embed-ir -o %t.out
 // RUN: env SYCL_RT_WARNING_LEVEL=1 %{run} %t.out 2>&1 | FileCheck %s
-// REQUIRES: aspect-usm_shared_allocations
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
 
@@ -16,21 +15,24 @@ int main() {
 
   queue q{ext::codeplay::experimental::property::queue::enable_fusion{}};
 
-  int *in1 = sycl::malloc_shared<int>(dataSize, q);
-  int *in2 = sycl::malloc_shared<int>(dataSize, q);
-  int *in3 = sycl::malloc_shared<int>(dataSize, q);
-  int *tmp = sycl::malloc_shared<int>(dataSize, q);
-  int *out = sycl::malloc_shared<int>(dataSize, q);
+  int *in1 = sycl::malloc_device<int>(dataSize, q);
+  int *in2 = sycl::malloc_device<int>(dataSize, q);
+  int *in3 = sycl::malloc_device<int>(dataSize, q);
+  int *tmp = sycl::malloc_device<int>(dataSize, q);
+  int *out = sycl::malloc_device<int>(dataSize, q);
   int dst[dataSize];
-
   for (size_t i = 0; i < dataSize; ++i) {
-    in1[i] = i * 2;
-    in2[i] = i * 3;
-    in3[i] = i * 4;
-    tmp[i] = -1;
-    out[i] = -1;
     dst[i] = -1;
   }
+  q.single_task<class InitKernel>([=]() {
+     for (size_t i = 0; i < dataSize; ++i) {
+       in1[i] = i * 2;
+       in2[i] = i * 3;
+       in3[i] = i * 4;
+       tmp[i] = -1;
+       out[i] = -1;
+     }
+   }).wait();
 
   ext::codeplay::experimental::fusion_wrapper fw{q};
   fw.start_fusion();
