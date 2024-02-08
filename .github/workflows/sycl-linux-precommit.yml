@@ -64,7 +64,7 @@ jobs:
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-            target_devices: ext_oneapi_level_zero:gpu;opencl:gpu;opencl:cpu
+            target_devices: ext_oneapi_level_zero:gpu;opencl:gpu;opencl:cpu;opencl:acc
             reset_gpu: true
             install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
             extra_lit_opts: --param gpu-intel-gen12=True
