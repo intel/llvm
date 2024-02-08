@@ -36,10 +36,12 @@ int main(int argc, char *argv[]) {
   std::cout << "p = " << p << std::endl;
   if (p != nullptr)
     return 3;
-  p = malloc(-1, q, usm::alloc::shared);
-  std::cout << "p = " << p << std::endl;
-  if (p != nullptr)
-    return 4;
+  if (q.get_device().has(aspect::usm_shared_allocations)) {
+    p = malloc(-1, q, usm::alloc::shared);
+    std::cout << "p = " << p << std::endl;
+    if (p != nullptr)
+      return 4;
+  }
   p = malloc(-1, q, usm::alloc::unknown);
   std::cout << "p = " << p << std::endl;
   if (p != nullptr)
@@ -54,10 +56,12 @@ int main(int argc, char *argv[]) {
   std::cout << "p = " << p << std::endl;
   if (p != nullptr)
     return 7;
-  p = aligned_alloc(0, -1, q, usm::alloc::shared);
-  std::cout << "p = " << p << std::endl;
-  if (p != nullptr)
-    return 8;
+  if (q.get_device().has(aspect::usm_shared_allocations)) {
+    p = aligned_alloc(0, -1, q, usm::alloc::shared);
+    std::cout << "p = " << p << std::endl;
+    if (p != nullptr)
+      return 8;
+  }
   p = aligned_alloc(0, -1, q, usm::alloc::unknown);
   std::cout << "p = " << p << std::endl;
   if (p != nullptr)

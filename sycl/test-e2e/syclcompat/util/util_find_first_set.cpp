@@ -30,6 +30,7 @@
 //
 // ===----------------------------------------------------------------------===//
 
+// REQUIRES: usm_shared_allocations
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
