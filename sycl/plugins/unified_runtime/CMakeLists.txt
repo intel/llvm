@@ -65,6 +65,10 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   #     [EXP][CMDBUF] Move event reset commands to dedicated cmd-list
   set(UNIFIED_RUNTIME_TAG 418ad5354ca24a6dfbd01df803949855b7a6c3dd)
 
+  # DO NOT MERGE
+  set(UNIFIED_RUNTIME_REPO "https://github.com/hdelan/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG refactor-guess-local-worksize)
+
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
   endif()
