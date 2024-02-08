@@ -2670,10 +2670,6 @@ inline pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags,
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(RetMem, PI_ERROR_INVALID_VALUE);
 
-  if (properties != nullptr) {
-    die("piMemBufferCreate: no mem properties goes to Level-Zero RT yet");
-  }
-
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
 
@@ -2697,6 +2693,44 @@ inline pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags,
   ur_buffer_properties_t UrProps{};
   UrProps.stype = UR_STRUCTURE_TYPE_BUFFER_PROPERTIES;
   UrProps.pHost = HostPtr;
+
+  ur_buffer_channel_properties_t bufferChannelProperties{};
+  bufferChannelProperties.stype = UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES;
+  ur_buffer_alloc_location_properties_t bufferLocationProperties{};
+  bufferLocationProperties.stype =
+      UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES;
+  if (properties != nullptr) {
+    bool bufferLocationPropertySet = false;
+    bool bufferMemChannelPropertySet = false;
+    uint64_t allocBufferLocation = 0;
+    uint32_t allocBufferMemChannel = 0;
+    // pi mem properties must ended by 0
+    size_t I = 0;
+    while (properties[I] != 0) {
+      if (properties[I] == PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION) {
+        allocBufferLocation = properties[I + 1];
+        bufferLocationPropertySet = true;
+      } else if (properties[I] == PI_MEM_PROPERTIES_CHANNEL) {
+        allocBufferMemChannel = properties[I + 1];
+        bufferMemChannelPropertySet = true;
+      }
+      I += 2;
+    }
+    void *extensionProperties = nullptr;
+    if (bufferLocationPropertySet) {
+      bufferLocationProperties.location = allocBufferLocation;
+      extensionProperties = &bufferLocationProperties;
+    }
+    if (bufferMemChannelPropertySet) {
+      bufferChannelProperties.channel = allocBufferMemChannel;
+      extensionProperties = &bufferChannelProperties;
+    }
+    if (bufferLocationPropertySet && bufferMemChannelPropertySet) {
+      bufferLocationProperties.pNext = &bufferChannelProperties;
+      extensionProperties = &bufferLocationProperties;
+    }
+    UrProps.pNext = extensionProperties;
+  }
   ur_mem_handle_t *UrBuffer = reinterpret_cast<ur_mem_handle_t *>(RetMem);
   HANDLE_ERRORS(
       urMemBufferCreate(UrContext, UrBufferFlags, Size, &UrProps, UrBuffer));
