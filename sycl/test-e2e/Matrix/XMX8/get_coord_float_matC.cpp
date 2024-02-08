@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix-xmx8
+// REQUIRES-INTEL-DRIVER: lin: 28267
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

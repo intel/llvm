@@ -2876,9 +2876,10 @@ OpenMPIRBuilder::applyWorkshareLoopTarget(DebugLoc DL, CanonicalLoopInfo *CLI,
   // We need to model loop body region as the function f(cnt, loop_arg).
   // That's why we replace loop induction variable by the new counter
   // which will be one of loop body function argument
-  for (auto Use = CLI->getIndVar()->user_begin();
-       Use != CLI->getIndVar()->user_end(); ++Use) {
-    if (Instruction *Inst = dyn_cast<Instruction>(*Use)) {
+  SmallVector<User *> Users(CLI->getIndVar()->user_begin(),
+                            CLI->getIndVar()->user_end());
+  for (auto Use : Users) {
+    if (Instruction *Inst = dyn_cast<Instruction>(Use)) {
       if (ParallelRegionBlockSet.count(Inst->getParent())) {
         Inst->replaceUsesOfWith(CLI->getIndVar(), NewLoopCntLoad);
       }
@@ -6026,6 +6027,17 @@ OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::createAtomicCompare(
     omp::OMPAtomicCompareOp Op, bool IsXBinopExpr, bool IsPostfixUpdate,
     bool IsFailOnly) {
 
+  AtomicOrdering Failure = AtomicCmpXchgInst::getStrongestFailureOrdering(AO);
+  return createAtomicCompare(Loc, X, V, R, E, D, AO, Op, IsXBinopExpr,
+                             IsPostfixUpdate, IsFailOnly, Failure);
+}
+
+OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::createAtomicCompare(
+    const LocationDescription &Loc, AtomicOpValue &X, AtomicOpValue &V,
+    AtomicOpValue &R, Value *E, Value *D, AtomicOrdering AO,
+    omp::OMPAtomicCompareOp Op, bool IsXBinopExpr, bool IsPostfixUpdate,
+    bool IsFailOnly, AtomicOrdering Failure) {
+
   if (!updateToLocation(Loc))
     return Loc.IP;
 
@@ -6040,7 +6052,6 @@ OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::createAtomicCompare(
   bool IsInteger = E->getType()->isIntegerTy();
 
   if (Op == OMPAtomicCompareOp::EQ) {
-    AtomicOrdering Failure = AtomicCmpXchgInst::getStrongestFailureOrdering(AO);
     AtomicCmpXchgInst *Result = nullptr;
     if (!IsInteger) {
       IntegerType *IntCastTy =
@@ -6240,8 +6251,10 @@ OpenMPIRBuilder::createTeams(const LocationDescription &Loc,
   BasicBlock *AllocaBB =
       splitBB(Builder, /*CreateBranch=*/true, "teams.alloca");
 
+  bool SubClausesPresent =
+      (NumTeamsLower || NumTeamsUpper || ThreadLimit || IfExpr);
   // Push num_teams
-  if (NumTeamsLower || NumTeamsUpper || ThreadLimit || IfExpr) {
+  if (!Config.isTargetDevice() && SubClausesPresent) {
     assert((NumTeamsLower == nullptr || NumTeamsUpper != nullptr) &&
            "if lowerbound is non-null, then upperbound must also be non-null "
            "for bounds on num_teams");
@@ -6294,7 +6307,8 @@ OpenMPIRBuilder::createTeams(const LocationDescription &Loc,
   OI.ExcludeArgsFromAggregate.push_back(createFakeIntVal(
       Builder, OuterAllocaIP, ToBeDeleted, AllocaIP, "tid", true));
 
-  OI.PostOutlineCB = [this, Ident, ToBeDeleted](Function &OutlinedFn) mutable {
+  auto HostPostOutlineCB = [this, Ident,
+                            ToBeDeleted](Function &OutlinedFn) mutable {
     // The stale call instruction will be replaced with a new call instruction
     // for runtime call with the outlined function.
 
@@ -6330,6 +6344,9 @@ OpenMPIRBuilder::createTeams(const LocationDescription &Loc,
       ToBeDeleted.pop();
     }
   };
+
+  if (!Config.isTargetDevice())
+    OI.PostOutlineCB = HostPostOutlineCB;
 
   addOutlineInfo(std::move(OI));
 

@@ -506,6 +506,7 @@ namespace sycl::ext::oneapi::experimental {
 struct unsampled_image_handle {
   using raw_image_handle_type = /* Implementation defined */;
 
+  unsampled_image_handle();
   unsampled_image_handle(raw_image_handle_type raw_handle);
 
   raw_image_handle_type raw_handle;
@@ -515,6 +516,7 @@ struct unsampled_image_handle {
 struct sampled_image_handle {
   using raw_image_handle_type = /* Implementation defined */;
 
+  sampled_image_handle();
   sampled_image_handle(raw_image_handle_type raw_image_handle);
 
   raw_image_handle_type raw_handle;
@@ -618,7 +620,10 @@ If the creation of an image fails, `create_image` will throw a `sycl::exception`
 with error code `sycl::errc::runtime`.
 
 The `unsampled_image_handle` and `sampled_image_handle` types shall be 
-default-constructible, copy-constructible, and device-copyable.
+default-constructible, copy-constructible, and device-copyable. When default 
+constructed, image handles are not valid until a user manually assigns a valid 
+`raw_image_handle_type` to the `raw_handle` field of the handle struct. The 
+default value of the `raw_handle` is implementation defined.
 
 The `unsampled_image_handle` and `sampled_image_handle` types have a 
 constructor to allow creation of the types from a `raw_image_handle_type`
@@ -647,6 +652,7 @@ namespace sycl::ext::oneapi::experimental {
 
 struct bindless_image_sampler {
 
+  // Assign addressing mode to all dimensions
   bindless_image_sampler(sycl::addressing_mode addressing,
                          sycl::coordinate_normalization_mode coordinate,
                          sycl::filtering_mode filtering);
@@ -658,7 +664,20 @@ struct bindless_image_sampler {
                          float minMipmapLevelClamp, float maxMipmapLevelClamp,
                          float maxAnisotropy);
 
-  sycl::addressing_mode addressing = sycl::addressing_mode::none;
+  // Specific addressing modes per dimension
+  bindless_image_sampler(sycl::addressing_mode addressing[3],
+                         sycl::coordinate_normalization_mode coordinate,
+                         sycl::filtering_mode filtering);
+
+  bindless_image_sampler(sycl::addressing_mode addressing[3],
+                         sycl::coordinate_normalization_mode coordinate,
+                         sycl::filtering_mode filtering,
+                         sycl::filtering_mode mipmapFiltering,
+                         float minMipmapLevelClamp, float maxMipmapLevelClamp,
+                         float maxAnisotropy);
+
+
+  sycl::addressing_mode addressing[3] = {sycl::addressing_mode::none};
   sycl::coordinate_normalization_mode coordinate =
       sycl::coordinate_normalization_mode::unnormalized;
   sycl::filtering_mode filtering = sycl::filtering_mode::nearest;
@@ -675,6 +694,10 @@ The `bindless_image_sampler` shall be default constructible and follow by-value
 semantics. The value for the addressing mode, `addressing_mode::none`, 
 represents the backend's default addressing mode. On CUDA this is `Wrap`, i.e. 
 `addressing_mode::repeat`.
+
+`addressing[3]` defines the addressing mode per texture dimension. A 
+`bindless_image_sampler` can be constructed with a singular 
+`sycl::addressing_mode`, where this parameter will define all dimensions.
 
 `mipmap_filtering` dictates the method in which sampling between mipmap 
 levels is performed.
@@ -2055,4 +2078,6 @@ These features still need to be handled:
                    wording around what types are allowed to be read or written.
                  - Allow `read_image` and `read_mipmap` to return a 
                    user-defined type.
+|5.1|2023-12-06| - Added unique addressing modes per dimension to the 
+                   `bindless_image_sampler`
 |======================

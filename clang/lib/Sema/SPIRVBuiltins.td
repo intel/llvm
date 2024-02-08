@@ -844,6 +844,9 @@ foreach Ty = [Void, ConstType<Void>, VolatileType<Void>, VolatileType<ConstType<
   def : SPVBuiltin<"GenericCastToPtrExplicit_ToGlobal", [PointerType<Ty, GlobalAS>, PointerType<Ty, DefaultAS>, Int], Attr.Const>;
   def : SPVBuiltin<"GenericCastToPtrExplicit_ToLocal", [PointerType<Ty, LocalAS>, PointerType<Ty, DefaultAS>, Int], Attr.Const>;
   def : SPVBuiltin<"GenericCastToPtrExplicit_ToPrivate", [PointerType<Ty, PrivateAS>, PointerType<Ty, DefaultAS>, Int], Attr.Const>;
+  def : SPVBuiltin<"GenericCastToPtr_ToGlobal", [PointerType<Ty, GlobalAS>, PointerType<Ty, DefaultAS>, Int], Attr.Const>;
+  def : SPVBuiltin<"GenericCastToPtr_ToLocal", [PointerType<Ty, LocalAS>, PointerType<Ty, DefaultAS>, Int], Attr.Const>;
+  def : SPVBuiltin<"GenericCastToPtr_ToPrivate", [PointerType<Ty, PrivateAS>, PointerType<Ty, DefaultAS>, Int], Attr.Const>;
 }
 
 foreach Type = TLFloat.List in {

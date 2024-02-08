@@ -57,14 +57,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit c311fe82256a7bc7f6ddd19cb86c8d555ce401bc
-  # Merge: eee75a29 d398d4ae
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Jan 4 15:12:54 2024 +0000
-  #     Merge pull request #1222 from sommerlukas/lukas/comgr-include-rocm4
-  #     [UR][HIP] Fix include for AMD COMGR
-  set(UNIFIED_RUNTIME_TAG c311fe82256a7bc7f6ddd19cb86c8d555ce401bc)
-
+  # commit 1cd402ead34a54459a6acb85777fbec105a178a0
+  # Merge: 5b89ee8b c8e150c5
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Tue Feb 6 14:48:55 2024 +0000
+  #     Merge pull request #1218 from Bensuo/maxime/imm-cmd-list-support
+  #     [EXP][CMDBUF] L0 Immediate command-list support
+  set(UNIFIED_RUNTIME_TAG 1cd402ead34a54459a6acb85777fbec105a178a0)
+  
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
   endif()
@@ -119,6 +119,8 @@ message(STATUS
   "Using Unified Runtime source directory: ${UNIFIED_RUNTIME_SOURCE_DIR}")
 
 set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
+set(UNIFIED_RUNTIME_SRC_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source")
+set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/common")
 
 add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 add_library(UnifiedRuntimeCommon ALIAS ur_common)
@@ -148,6 +150,10 @@ set(UNIFIED_RUNTIME_PLUGIN_ARGS
     Threads::Threads
     UnifiedRuntimeLoader
     UnifiedRuntime-Headers
+    UnifiedRuntimeCommon
+  INCLUDE_DIRS
+    "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
+    "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
 )
 
 # We need for #include <ze_api.h> in common.h
@@ -196,8 +202,25 @@ endif()
 
 if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_opencl)
+
+    # Install the UR adapters too
+    install(TARGETS ur_adapter_opencl
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+      ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+      RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+    )
 endif()
 
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
+
+  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
+
+  if(NATIVECPU_USE_OCK)
+    message(STATUS "Compiling Native CPU adapter with OCK support.")
+    target_compile_definitions(ur_adapter_native_cpu PRIVATE NATIVECPU_USE_OCK)
+  else()
+    message(WARNING "Compiling Native CPU adapter without OCK support.
+    Some valid SYCL programs may not build or may have low performance.")
+  endif()
 endif()
