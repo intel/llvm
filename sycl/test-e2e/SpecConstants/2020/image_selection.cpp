@@ -202,7 +202,8 @@ int main() {
 
   // Test that if user calls set_specialization_constant with the value equal to
   // default then we choose image with inlined default values of specialization
-  // constants. We are verifying that by checking the 4th parameter is set to zero.
+  // constants. We are verifying that by checking the 4th parameter is set to
+  // zero.
   // CHECK-DEFAULT-EXPLICIT-SET: Default value was explicitly set
   // CHECK-DEFAULT-EXPLICIT-SET: ---> piextKernelSetArgMemObj(
   // CHECK-DEFAULT-EXPLICIT-SET-NEXT:	<unknown> : {{.*}}
