@@ -67,11 +67,11 @@ void SPIRVLowerSaddWithOverflowBase::visitIntrinsicInst(CallInst &I) {
   assert(IntrinsicFunc && "Missing function");
   StringRef IntrinsicName = IntrinsicFunc->getName();
   std::string FuncName = "llvm_sadd_with_overflow_i";
-  if (IntrinsicName.endswith(".i16"))
+  if (IntrinsicName.ends_with(".i16"))
     FuncName += "16";
-  else if (IntrinsicName.endswith(".i32"))
+  else if (IntrinsicName.ends_with(".i32"))
     FuncName += "32";
-  else if (IntrinsicName.endswith(".i64"))
+  else if (IntrinsicName.ends_with(".i64"))
     FuncName += "64";
   else {
     assert(false &&

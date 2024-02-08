@@ -1,6 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
+// REQUIRES: aspect-usm_shared_allocations
 
 #include "common.hpp"
 
@@ -65,6 +65,17 @@ template <typename T> struct MyThirdStruct {
   T &&operator-(T &&rhs) const { return std::move(rhs); }
 
   float operator==(const T &rhs) const { return data == rhs.data ? 3.0 : 1.0; }
+};
+
+template <typename T> struct MyFourthStruct {
+  T p;
+
+  template <typename T2> MyFourthStruct(const T2 &p_) : p(p_) {}
+
+  template <typename T2> void operator=(const T2 &p_) {}
+
+  int operator+(const int &rhs) const { return 0; }
+  int operator+=(const int &rhs) const { return 0; }
 };
 
 MySecondStruct::operator MyStruct<int>() const { return MyStruct<int>(0); }
@@ -180,6 +191,11 @@ int main() {
   annotated_ptr<MySecondStruct> p(pp);
 
   auto *r10 = malloc_shared<int>(1, Q);
+
+  auto *r11 = malloc_shared<MyFourthStruct<int>>(1, Q);
+  annotated_ptr r11_ptr{r11};
+  auto r11_add = *r11_ptr + 1;
+  *r11_ptr += 1;
 
   // testing return type of operators
   int o1 = 0;

@@ -332,7 +332,7 @@ bool testLocalAccSLM(queue Q, uint32_t Groups,
 
   constexpr size_t Alignment = getAlignment<T, N, UseMask>(StoreProperties);
 
-  shared_vector Out(GroupSize, shared_allocator{Q});
+  shared_vector Out(Size, shared_allocator{Q});
   T OutVal = esimd_test::getRandomValue<T>();
   for (int i = 0; i < Size; i++)
     Out[i] = OutVal;
@@ -637,6 +637,10 @@ bool test_block_store_slm(queue Q) {
   //
   // These test case may compute wrong values for some of elements
   // if the driver is not new enough.
+#if 0
+  // TODO: Enable these cases when GPU driver is fixed. It seems the issue with
+  // non-power-of-2 N values was resolved for slm_block_load(), but not for
+  // slm_block_store().
   if (esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
                                 "27556", "win.just.skip.test", false)) {
     Passed &= testSLM<T, 3, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
@@ -646,6 +650,7 @@ bool test_block_store_slm(queue Q) {
     Passed &=
         testSLM<T, 113, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
   }
+#endif
 
   if constexpr (Features == TestFeatures::PVC ||
                 Features == TestFeatures::DG2) {
@@ -729,6 +734,10 @@ bool test_block_store_local_acc_slm(queue Q) {
   //
   // These test case may compute wrong values for some of elements
   // if the driver is not new enough.
+#if 0
+  // TODO: Enable these cases when GPU driver is fixed. It seems the issue with
+  // non-power-of-2 N values was resolved for slm_block_load(), but not for
+  // slm_block_store().
   if (esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
                                 "27556", "win.just.skip.test", false)) {
     Passed &= testLocalAccSLM<T, 3, !CheckMask, CheckProperties>(
@@ -740,6 +749,7 @@ bool test_block_store_local_acc_slm(queue Q) {
     Passed &= testLocalAccSLM<T, 113, !CheckMask, CheckProperties>(
         Q, 2, AlignElemProps);
   }
+#endif
 
   if constexpr (Features == TestFeatures::PVC ||
                 Features == TestFeatures::DG2) {

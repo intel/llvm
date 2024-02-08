@@ -39,7 +39,7 @@ target triple = "spir64-unknown-unknown"
 ; CHECK:   NULL
 ; CHECK: NULL
 
-@x = external global i32
+@x = external addrspace(1) global i32
 
 ; Function Attrs: uwtable
 define i32 @main() #0 !dbg !4 {
@@ -47,7 +47,7 @@ entry:
   %i.addr.i = alloca i32, align 4
   %retval = alloca i32, align 4
   store i32 0, ptr %retval
-  %0 = load i32, ptr @x, align 4, !dbg !16
+  %0 = load i32, ptr addrspace(1) @x, align 4, !dbg !16
   store i32 %0, ptr %i.addr.i, align 4
   call void @llvm.dbg.declare(metadata ptr %i.addr.i, metadata !117, metadata !DIExpression()), !dbg !18
   %1 = load i32, ptr %i.addr.i, align 4, !dbg !18

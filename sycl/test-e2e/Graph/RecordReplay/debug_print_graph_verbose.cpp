@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out
-// RUN: %if linux && (ext_oneapi_level_zero || ext_oneapi_cuda) %{ %{run} %t.out ; FileCheck %s --input-file graph_verbose.dot %} %else %{ %{run} %t.out %}
+// RUN: %if linux && (level_zero || cuda) %{ %{run} %t.out ; FileCheck %s --implicit-check-not=LEAK --input-file graph_verbose.dot %} %else %{ %{run} %t.out %}
 // Windows output format differs from linux format.
 // The filecheck-based output checking is suited to linux standards.
 // On Windows, we only test that printing takes place correctly and does not
@@ -33,8 +33,10 @@
 // CHECK-DAG: "0x[[#NODE4]]" -> "0x[[#NODE5]]
 // CHECK-NEXT: "0x[[#%x,NODE6:]]"
 // CHECK-SAME: [style=bold, label="ID = 0x[[#NODE6]]\nTYPE = CGCopy Device-to-Host \nSrc: 0x[[#%x,ADDR27:]] Dst: 0x[[#%x,ADDR28:]]\n"];
+// CHECK-DAG: "0x[[#NODE4]]" -> "0x[[#NODE6]]"
 // CHECK-NEXT: "0x[[#%x,NODE7:]]"
 // CHECK-SAME: [style=bold, label="ID = 0x[[#NODE7]]\nTYPE = None \n"];
+// CHECK-DAG: "0x[[#NODE6]]" -> "0x[[#NODE7]]"
 
 #define GRAPH_E2E_RECORD_REPLAY
 

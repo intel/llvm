@@ -1,15 +1,15 @@
 {
   "linux": {
     "compute_runtime": {
-      "github_tag": "23.30.26918.9",
-      "version": "23.30.26918.9",
-      "url": "https://github.com/intel/compute-runtime/releases/tag/23.30.26918.9",
+      "github_tag": "23.52.28202.14",
+      "version": "23.52.28202.14",
+      "url": "https://github.com/intel/compute-runtime/releases/tag/23.52.28202.14",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "igc": {
-      "github_tag": "igc-1.0.14828.8",
-      "version": "1.0.14828.8",
-      "url": "https://github.com/intel/intel-graphics-compiler/releases/tag/igc-1.0.14828.8",
+      "github_tag": "igc-1.0.15770.11",
+      "version": "1.0.15770.11",
+      "url": "https://github.com/intel/intel-graphics-compiler/releases/tag/igc-1.0.15770.11",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "cm": {
@@ -19,9 +19,9 @@
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "level_zero": {
-      "github_tag": "v1.14.0",
-      "version": "v1.14.0",
-      "url": "https://github.com/oneapi-src/level-zero/releases/tag/v1.14.0",
+      "github_tag": "v1.15.8",
+      "version": "v1.15.8",
+      "url": "https://github.com/oneapi-src/level-zero/releases/tag/v1.15.8",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "tbb": {
@@ -31,15 +31,15 @@
       "root": "{DEPS_ROOT}/tbb/lin"
     },
     "oclcpu": {
-      "github_tag": "2023-WW27",
-      "version": "2023.16.6.0.28",
-      "url": "https://github.com/intel/llvm/releases/download/2023-WW27/oclcpuexp-2023.16.6.0.28_rel.tar.gz",
+      "github_tag": "2023-WW46",
+      "version": "2023.16.10.0.17",
+      "url": "https://github.com/intel/llvm/releases/download/2023-WW46/oclcpuexp-2023.16.10.0.17_rel.tar.gz",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclcpu"
     },
     "fpgaemu": {
-      "github_tag": "2023-WW27",
-      "version": "2023.16.6.0.28",
-      "url": "https://github.com/intel/llvm/releases/download/2023-WW27/fpgaemu-2023.16.6.0.28_rel.tar.gz",
+      "github_tag": "2023-WW46",
+      "version": "2023.16.10.0.17",
+      "url": "https://github.com/intel/llvm/releases/download/2023-WW46/fpgaemu-2023.16.10.0.17_rel.tar.gz",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclfpgaemu"
     },
     "fpga": {
@@ -59,15 +59,15 @@
       "root": "{DEPS_ROOT}/tbb/win"
     },
     "oclcpu": {
-      "github_tag": "2023-WW27",
-      "version": "2023.16.6.0.28",
-      "url": "https://github.com/intel/llvm/releases/download/2023-WW27/win-oclcpuexp-2023.16.6.0.28_rel.zip",
+      "github_tag": "2023-WW46",
+      "version": "2023.16.10.0.17",
+      "url": "https://github.com/intel/llvm/releases/download/2023-WW46/win-oclcpuexp-2023.16.10.0.17_rel.zip",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclcpu"
     },
     "fpgaemu": {
-      "github_tag": "2023-WW27",
-      "version": "2023.16.6.0.28",
-      "url": "https://github.com/intel/llvm/releases/download/2023-WW27/win-fpgaemu-2023.16.6.0.28_rel.zip",
+      "github_tag": "2023-WW46",
+      "version": "2023.16.10.0.17",
+      "url": "https://github.com/intel/llvm/releases/download/2023-WW46/win-fpgaemu-2023.16.10.0.17_rel.zip",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclfpgaemu"
     },
     "fpga": {

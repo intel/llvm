@@ -424,6 +424,8 @@ Returns an `annotated_ref` reference wrapper which can be used to read or write
 to the underlying pointer. Reads/Writes using the reference will retain the
 annotations.
 
+Operator might be disabled when certain properties are applied. Please check the property specification.
+
 // --- ROW BREAK ---
 a|
 [source,c++]
@@ -432,6 +434,8 @@ reference operator[](std::ptrdiff_t Index) const;
 ----
 |
 Returns an `annotated_ref` reference wrapper to the object at offset `Index`.
+
+Operator might be disabled when certain properties are applied. Please check the property specification.
 
 // --- ROW BREAK ---
 a|
@@ -442,6 +446,8 @@ annotated_ptr operator+(size_t Offset) const;
 |
 Returns an `annotated_ptr` that points to `this[Offset]`.
 
+Operator might be disabled when certain properties are applied. Please check the property specification.
+
 // --- ROW BREAK ---
 a|
 [source,c++]
@@ -451,6 +457,8 @@ std::ptrdiff_t operator-(annotated_ptr FromPtr) const;
 |
 Returns the distance between the underlying pointer and the pointer encapsulated
 by `FromPtr`.
+
+Operator might be disabled when certain properties are applied. Please check the property specification.
 
 // --- ROW BREAK ---
 a|
@@ -480,6 +488,8 @@ annotated_ptr& operator++() noexcept;
 |
 Prefix increment operator.
 
+Operator might be disabled when certain properties are applied. Please check the property specification.
+
 // --- ROW BREAK ---
 a|
 [source,c++]
@@ -488,6 +498,8 @@ annotated_ptr operator++(int) noexcept;
 ----
 |
 Postfix increment operator.
+
+Operator might be disabled when certain properties are applied. Please check the property specification.
 
 // --- ROW BREAK ---
 a|
@@ -498,6 +510,8 @@ annotated_ptr& operator--() noexcept;
 |
 Prefix decrement operator.
 
+Operator might be disabled when certain properties are applied. Please check the property specification.
+
 // --- ROW BREAK ---
 a|
 [source,c++]
@@ -506,6 +520,8 @@ annotated_ptr operator--(int) noexcept;
 ----
 |
 Postfix decrement operator.
+
+Operator might be disabled when certain properties are applied. Please check the property specification.
 
 // --- ROW BREAK ---
 a|
@@ -617,8 +633,8 @@ T operator=(const annotated_ref& other) const;
 a|
 Equivalent to:
 ```c++
-T tmp = other;   // Reads from memory
-                 // with annotations
+T tmp = other.operator T();   // Reads from memory
+                              // with annotations
 *this = tmp;     // Writes to memory
                  // with annotations
 return T;
@@ -642,8 +658,8 @@ Return result by value.
 Available only if the corresponding assignment operator OP is available for `T` taking a type of `O`.
 Equivalent to:
 ```c++
-T tmp = *this;     // Reads from memory
-                   // with annotations
+T tmp = this->operator T();     // Reads from memory
+                                // with annotations
 tmp OP std::forward<O>(a);
 *this = tmp;       // Writes to memory
                    // with annotations
@@ -665,8 +681,8 @@ Return result by value.
 Available only if the corresponding assignment operator OP is available for `T`.
 Equivalent to:
 ```c++
-T tmp = *this;     // Reads from memory
-                   // with annotations
+T tmp = this->operator T();     // Reads from memory
+                                // with annotations
 T tmp2 = b;        // Reads from memory
                    // with annotations
 tmp OP b;

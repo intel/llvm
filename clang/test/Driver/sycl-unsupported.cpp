@@ -35,6 +35,12 @@
 // RUN:    -check-prefixes=UNSUPPORTED_OPT_DIAG,UNSUPPORTED_OPT
 // RUN: %clangxx -fsycl -forder-file-instrumentation -### %s 2>&1 \
 // RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-forder-file-instrumentation
+// Check to make sure our '-fsanitize=address' exception isn't triggered by a
+// different option
+// RUN: %clangxx -fsycl -fprofile-instr-generate=address -### %s 2>&1 \
+// RUN:  | FileCheck %s -DARCH=spir64 -DOPT=-fprofile-instr-generate=address \
+// RUN:    -DOPT_CC1=-fprofile-instrument=clang \
+// RUN:    -check-prefixes=UNSUPPORTED_OPT_DIAG,UNSUPPORTED_OPT
 
 // CHECK: ignoring '[[OPT]]' option as it is not currently supported for target '[[ARCH]]{{.*}}' [-Woption-ignored]
 // CHECK-NOT: clang{{.*}} "-fsycl-is-device"{{.*}} "[[OPT]]{{.*}}"

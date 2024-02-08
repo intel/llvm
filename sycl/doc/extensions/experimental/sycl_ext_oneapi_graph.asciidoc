@@ -53,7 +53,9 @@ Erik Tomusk, Codeplay +
 Bjoern Knafla, Codeplay +
 Lukas Sommer, Codeplay +
 Maxime France-Pillois, Codeplay +
+Jack Kirk, Codeplay +
 Ronan Keryell, AMD +
+Andrey Alekseenko, KTH Royal Institute of Technology +
 
 == Dependencies
 
@@ -371,6 +373,9 @@ public:
   command_graph(const context& syclContext, const device& syclDevice,
                 const property_list& propList = {});
 
+  command_graph(const queue& syclQueue,
+                const property_list& propList = {});
+
   command_graph<graph_state::executable>
   finalize(const property_list& propList = {}) const;
 
@@ -405,6 +410,9 @@ public:
 
   ext::oneapi::experimental::queue_state
   ext_oneapi_get_state() const;
+
+  ext::oneapi::experimental::command_graph<graph_state::modifiable> 
+  ext_oneapi_get_graph() const;
 
   /* -- graph convenience shortcuts -- */
 
@@ -610,8 +618,34 @@ associated with `syclContext`.
 * Throws synchronously with error code `invalid` if `syclDevice`
   <<device-info-query, reports this extension as unsupported>>.
 
-* Throws synchronously with error code `invalid` if the backend associated
-with `syclDevice` is not supported.
+|
+[source,c++]
+----
+command_graph(const queue& syclQueue,
+              const property_list& propList = {});
+----
+|Simplified constructor form where `syclQueue` provides the device and context.
+Zero or more properties can be provided to the constructed SYCL `command_graph`
+via an instance of `property_list`.
+
+Preconditions:
+
+* This constructor is only available when the `command_graph` state is
+  `graph_state::modifiable`.
+
+Parameters:
+
+* `syclQueue` - Queue which provides the SYCL device and context for the graph,
+  which are immutable characteristics of the graph. All other properties of the
+  queue are ignored for the purposes of graph creation.
+
+* `propList` - Optional parameter for passing properties. Valid `command_graph`
+  constructor properties are listed in Section <<graph-properties, Graph Properties>>.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if the device associated with
+ `syclQueue` <<device-info-query, reports this extension as unsupported>>.
 
 |===
 
@@ -991,6 +1025,22 @@ object.
 |
 [source,c++]
 ----
+command_graph<graph_state::modifiable>
+queue::ext_oneapi_get_graph() const;
+----
+
+| Query the underlying command graph of a queue when recording.
+
+Returns: The graph object that the queue is recording commands into.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if the queue is not in `queue_state::recording`
+state.
+
+|
+[source,c++]
+----
 event
 queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph)
 ----
@@ -1292,11 +1342,8 @@ which is layered ontop of `sycl_ext_oneapi_graph`.
 
 The new handler methods, and queue shortcuts, defined by
 link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties]
-cannot be used in graph nodes. A synchronous exception will be thrown with error
-code `invalid` if a user tries to add them to a graph.
-
-Removing this restriction is something we may look at for future revisions of
-`sycl_ext_oneapi_graph`.
+can be used in graph nodes in the same way as they are used in normal queue
+submission. 
 
 ==== sycl_ext_oneapi_prod
 
@@ -1776,18 +1823,10 @@ or layered as a separate extension proposal.
 The following features are not yet supported, and an exception will be thrown
 if used in application code.
 
-. Using `handler::fill` in a graph node implemented for USM only.
-. Using `handler::memset` in a graph node.
-. Using `handler::prefetch` in a graph node.
-. Using `handler::memadvise` in a graph node.
 . Using reductions in a graph node.
 . Using sycl streams in a graph node.
 . Profiling an event returned from graph submission with
   `event::get_profiling_info()`.
-. Level Zero immediate command-lists are not supported, and
-  `sycl::ext::intel::property::queue::no_immediate_command_list`
-  should be set on construction to any queues an executable
-  graph is submitted to.
 . Synchronization between multiple executions of the same command-buffer 
   must be handled in the host for level-zero backend, which may involve 
   extra latency for subsequent submissions.

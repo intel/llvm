@@ -84,13 +84,7 @@ __ESIMD_INTRIN
                                N * __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk)>
     __esimd_svm_gather(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
                        __ESIMD_DNS::simd_mask_storage_t<N> pred = 1)
-#ifdef __SYCL_DEVICE_ONLY__
-        ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+        __ESIMD_INTRIN_END;
 
 // flat_write does flat-address scatter
 template <typename Ty, int N, int NumBlk = 0, int ElemsPerAddr = 0>
@@ -99,63 +93,30 @@ __ESIMD_INTRIN void __esimd_svm_scatter(
     __ESIMD_DNS::vector_type_t<Ty,
                                N * __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk)>
         vals,
-    __ESIMD_DNS::simd_mask_storage_t<N> pred = 1)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_DNS::simd_mask_storage_t<N> pred = 1) __ESIMD_INTRIN_END;
 
 // Reads a block of data from given surface at given offset.
 template <typename Ty, int N, typename SurfIndAliasTy, int32_t IsModified = 0>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_oword_ld_unaligned(SurfIndAliasTy surf_ind, uint32_t offset)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__esimd_oword_ld_unaligned(SurfIndAliasTy surf_ind,
+                           uint32_t offset) __ESIMD_INTRIN_END;
 
 // Writes given block of data to a surface with given index at given offset.
 template <typename Ty, int N, typename SurfIndAliasTy>
-__ESIMD_INTRIN void __esimd_oword_st(SurfIndAliasTy surf_ind,
-                                     uint32_t owords_offset,
-                                     __ESIMD_DNS::vector_type_t<Ty, N> vals)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN void
+__esimd_oword_st(SurfIndAliasTy surf_ind, uint32_t owords_offset,
+                 __ESIMD_DNS::vector_type_t<Ty, N> vals) __ESIMD_INTRIN_END;
 
 // Read a block of data from the given address.
 template <typename Ty, int N, size_t Align>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_svm_block_ld(const __ESIMD_DNS::vector_type_t<Ty, N> *addr)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N> __esimd_svm_block_ld(
+    const __ESIMD_DNS::vector_type_t<Ty, N> *addr) __ESIMD_INTRIN_END;
 
 // flat_block_write writes a block of data using one flat address
 template <typename Ty, int N, size_t Align>
-__ESIMD_INTRIN void __esimd_slm_block_st(uint32_t offset,
-                                         __ESIMD_DNS::vector_type_t<Ty, N> vals)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN void
+__esimd_slm_block_st(uint32_t offset,
+                     __ESIMD_DNS::vector_type_t<Ty, N> vals) __ESIMD_INTRIN_END;
 
 /// SLM block_store/scatter.
 /// Supported platforms: DG2, PVC
@@ -182,38 +143,18 @@ __ESIMD_INTRIN void __esimd_lsc_store_slm(
     __ESIMD_DNS::simd_mask_storage_t<N> pred,
     __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
     __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> vals)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_INTRIN_END;
 
 // Read a block of data from SLM at the given offset.
 template <typename Ty, int N, size_t Align>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_slm_block_ld(uint32_t offset)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__esimd_slm_block_ld(uint32_t offset) __ESIMD_INTRIN_END;
 
 // flat_block_write writes a block of data using one flat address
 template <typename Ty, int N, size_t Align>
 __ESIMD_INTRIN void
 __esimd_svm_block_st(__ESIMD_DNS::vector_type_t<Ty, N> *addr,
-                     __ESIMD_DNS::vector_type_t<Ty, N> vals)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+                     __ESIMD_DNS::vector_type_t<Ty, N> vals) __ESIMD_INTRIN_END;
 
 /// SLM gather/block_load.
 /// Supported platforms: DG2, PVC
@@ -244,13 +185,7 @@ __esimd_lsc_load_merge_slm(
     __ESIMD_DNS::simd_mask_storage_t<N> pred,
     __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
     __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> pass_thru)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_INTRIN_END;
 
 /// Similar to __esimd_lsc_load_merge_slm(), but the argument pass_thru is not
 /// explicitly specified, which results into random values in those elements of
@@ -262,13 +197,21 @@ template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
 __esimd_lsc_load_slm(__ESIMD_DNS::simd_mask_storage_t<N> pred,
                      __ESIMD_DNS::vector_type_t<uint32_t, N> offsets)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_INTRIN_END;
+
+// Gather data from the given global or private addresses.
+template <typename T, int N, size_t Align>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<T, N> __esimd_gather_ld(
+    __ESIMD_DNS::vector_type_t<uint64_t, N> vptr,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<T, N> pass_thru) __ESIMD_INTRIN_END;
+
+// Gather data from the given SLM addresses.
+template <typename T, int N, size_t Align>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<T, N> __esimd_slm_gather_ld(
+    __ESIMD_DNS::vector_type_t<uint32_t, N> vptr,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<T, N> pass_thru) __ESIMD_INTRIN_END;
 
 /// Surface-based gather.
 /// Supported platforms: DG2, PVC
@@ -283,8 +226,10 @@ __esimd_lsc_load_slm(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 /// @tparam ImmOffset is the immediate offset added to each address.
 /// @tparam DS is the data size.
 /// @tparam VS is the number of elements to load per address.
-/// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @tparam Transposed indicates if the data is transposed during the
+/// transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to
+/// access)
 /// @tparam SurfIndAliasT is the \ref sycl::accessor type.
 /// @param pred is predicates.
 /// @param offsets is the zero-based offsets in bytes.
@@ -301,13 +246,7 @@ __esimd_lsc_load_merge_bti(
     __ESIMD_DNS::simd_mask_storage_t<N> pred,
     __ESIMD_DNS::vector_type_t<uint32_t, N> offsets, SurfIndAliasT surf_ind,
     __ESIMD_DNS::vector_type_t<T, N * __ESIMD_DNS::to_int<VS>()> PassThru)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_INTRIN_END;
 
 /// Similar to __esimd_lsc_load_merge_bti(), but the argument PassThru is not
 /// explicitly specified, which results into random values in those elements of
@@ -319,42 +258,22 @@ template <typename T, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<T, N * __ESIMD_DNS::to_int<VS>()>
 __esimd_lsc_load_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
                      __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
-                     SurfIndAliasT surf_ind)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+                     SurfIndAliasT surf_ind) __ESIMD_INTRIN_END;
 
 // flat_read4 does flat-address gather4
 template <typename Ty, int N, __ESIMD_NS::rgba_channel_mask Mask>
-__ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
-    __ESIMD_INTRIN
-    __esimd_svm_gather4_scaled(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
-                               __ESIMD_DNS::simd_mask_storage_t<N> pred = 1)
-#ifdef __SYCL_DEVICE_ONLY__
-        ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_DNS::vector_type_t<Ty,
+                           N * get_num_channels_enabled(Mask)> __ESIMD_INTRIN
+__esimd_svm_gather4_scaled(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
+                           __ESIMD_DNS::simd_mask_storage_t<N> pred = 1)
+    __ESIMD_INTRIN_END;
 
 // flat_write does flat-address scatter
 template <typename Ty, int N, __ESIMD_NS::rgba_channel_mask Mask>
 __ESIMD_INTRIN void __esimd_svm_scatter4_scaled(
     __ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
     __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> vals,
-    __ESIMD_DNS::simd_mask_storage_t<N> pred = 1)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_DNS::simd_mask_storage_t<N> pred = 1) __ESIMD_INTRIN_END;
 
 // Low-level surface-based scatter. Writes elements of a \ref simd object into a
 // surface at given offsets. Element can be a 1, 2 or 4-byte value, but it is
@@ -380,61 +299,30 @@ __ESIMD_INTRIN void __esimd_svm_scatter4_scaled(
 //
 template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
           int16_t Scale = 0>
-__ESIMD_INTRIN void
-__esimd_scatter_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
-                       SurfIndAliasTy surf_ind, uint32_t global_offset,
-                       __ESIMD_DNS::vector_type_t<uint32_t, N> elem_offsets,
-                       __ESIMD_DNS::vector_type_t<Ty, N> vals)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  static_assert(N == 1 || N == 8 || N == 16 || N == 32);
-  static_assert(TySizeLog2 <= 2);
-  static_assert(std::is_integral_v<Ty> || TySizeLog2 == 2);
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN void __esimd_scatter_scaled(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred, SurfIndAliasTy surf_ind,
+    uint32_t global_offset,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> elem_offsets,
+    __ESIMD_DNS::vector_type_t<Ty, N> vals) __ESIMD_INTRIN_END;
 
 // flat_atomic: flat-address atomic
 template <__ESIMD_NS::atomic_op Op, typename Ty, int N>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_svm_atomic0(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
-                    __ESIMD_DNS::simd_mask_storage_t<N> pred)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N> __esimd_svm_atomic0(
+    __ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred) __ESIMD_INTRIN_END;
 
 template <__ESIMD_NS::atomic_op Op, typename Ty, int N>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_svm_atomic1(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
-                    __ESIMD_DNS::vector_type_t<Ty, N> src0,
-                    __ESIMD_DNS::simd_mask_storage_t<N> pred)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N> __esimd_svm_atomic1(
+    __ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
+    __ESIMD_DNS::vector_type_t<Ty, N> src0,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred) __ESIMD_INTRIN_END;
 
 template <__ESIMD_NS::atomic_op Op, typename Ty, int N>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_svm_atomic2(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
-                    __ESIMD_DNS::vector_type_t<Ty, N> src0,
-                    __ESIMD_DNS::vector_type_t<Ty, N> src1,
-                    __ESIMD_DNS::simd_mask_storage_t<N> pred)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N> __esimd_svm_atomic2(
+    __ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
+    __ESIMD_DNS::vector_type_t<Ty, N> src0,
+    __ESIMD_DNS::vector_type_t<Ty, N> src1,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred) __ESIMD_INTRIN_END;
 
 /// USM pointer atomic.
 /// Supported platforms: DG2, PVC
@@ -458,13 +346,7 @@ template <typename Ty, int InternalOp, __ESIMD_NS::cache_hint L1H,
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
 __esimd_lsc_xatomic_stateless_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
                                 __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_INTRIN_END;
 
 /// USM pointer atomic.
 /// Supported platforms: DG2, PVC
@@ -492,13 +374,7 @@ __esimd_lsc_xatomic_stateless_1(
     __ESIMD_DNS::simd_mask_storage_t<N> pred,
     __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs,
     __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> src0)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_INTRIN_END;
 
 /// USM pointer atomic.
 /// Supported platforms: DG2, PVC
@@ -527,13 +403,7 @@ __esimd_lsc_xatomic_stateless_2(
     __ESIMD_DNS::vector_type_t<uintptr_t, N> Addrs,
     __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> src0,
     __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> src1)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_INTRIN_END;
 
 /// Accessor-based atomic.
 /// Supported platforms: DG2, PVC
@@ -560,14 +430,7 @@ template <typename Ty, int InternalOp, __ESIMD_NS::cache_hint L1H,
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
 __esimd_lsc_xatomic_bti_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
                           __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
-                          SurfIndAliasTy surf_ind)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+                          SurfIndAliasTy surf_ind) __ESIMD_INTRIN_END;
 
 /// Accessor-based atomic.
 /// Supported platforms: DG2, PVC
@@ -597,14 +460,7 @@ __esimd_lsc_xatomic_bti_1(
     __ESIMD_DNS::simd_mask_storage_t<N> pred,
     __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
     __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> src0,
-    SurfIndAliasTy surf_ind)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    SurfIndAliasTy surf_ind) __ESIMD_INTRIN_END;
 
 /// Accessor-based atomic.
 /// Supported platforms: DG2, PVC
@@ -636,14 +492,7 @@ __esimd_lsc_xatomic_bti_2(
     __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
     __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> src0,
     __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> src1,
-    SurfIndAliasTy surf_ind)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    SurfIndAliasTy surf_ind) __ESIMD_INTRIN_END;
 
 /// SLM atomic.
 /// Supported platforms: DG2, PVC
@@ -667,13 +516,7 @@ template <typename Ty, int InternalOpOp, __ESIMD_NS::cache_hint L1H,
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
 __esimd_lsc_xatomic_slm_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
                           __ESIMD_DNS::vector_type_t<uint32_t, N> offsets)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_INTRIN_END;
 
 /// SLM atomic.
 /// Supported platforms: DG2, PVC
@@ -700,13 +543,7 @@ __esimd_lsc_xatomic_slm_1(
     __ESIMD_DNS::simd_mask_storage_t<N> pred,
     __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
     __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> src0)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_INTRIN_END;
 
 /// SLM atomic.
 /// Supported platforms: DG2, PVC
@@ -735,42 +572,15 @@ __esimd_lsc_xatomic_slm_2(
     __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
     __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> src0,
     __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> src1)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_INTRIN_END;
 
-__ESIMD_INTRIN void __esimd_slm_init(uint32_t size)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // ifndef __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN void __esimd_slm_init(uint32_t size) __ESIMD_INTRIN_END;
 
 // esimd_barrier, generic group barrier
-__ESIMD_INTRIN void __esimd_barrier()
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN void __esimd_barrier() __ESIMD_INTRIN_END;
 
 // slm_fence sets the SLM read/write order
-__ESIMD_INTRIN void __esimd_fence(uint8_t cntl)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN void __esimd_fence(uint8_t cntl) __ESIMD_INTRIN_END;
 
 /// Memory fence.
 /// Supported platforms: DG2, PVC
@@ -781,14 +591,8 @@ __ESIMD_INTRIN void __esimd_fence(uint8_t cntl)
 /// @tparam N is the SIMD size of operation (the number of addresses to access)
 /// @param pred is predicates.
 template <uint8_t Kind, uint8_t FenceOp, uint8_t Scope, int N>
-__ESIMD_INTRIN void __esimd_lsc_fence(__ESIMD_DNS::simd_mask_storage_t<N> pred)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN void
+__esimd_lsc_fence(__ESIMD_DNS::simd_mask_storage_t<N> pred) __ESIMD_INTRIN_END;
 
 // Predicated (masked) scaled gather from a surface.
 //
@@ -812,31 +616,17 @@ __ESIMD_INTRIN void __esimd_lsc_fence(__ESIMD_DNS::simd_mask_storage_t<N> pred)
 
 template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
           int16_t Scale = 0>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
-                              __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
-                              __ESIMD_DNS::simd_mask_storage_t<N> pred)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  static_assert(Scale == 0);
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N> __esimd_gather_masked_scaled2(
+    SurfIndAliasTy surf_ind, uint32_t global_offset,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred) __ESIMD_INTRIN_END;
 
 // Reads a block of data from given surface at given `offset` counted
 // in 16-byte chunks.
 template <typename Ty, int N, typename SurfIndAliasTy, int32_t IsModified = 0>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_oword_ld(SurfIndAliasTy surf_ind, uint32_t owords_offset)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__esimd_oword_ld(SurfIndAliasTy surf_ind,
+                 uint32_t owords_offset) __ESIMD_INTRIN_END;
 
 // gather4 scaled masked from a surface/SLM
 template <typename Ty, int N, __ESIMD_NS::rgba_channel_mask Mask,
@@ -846,14 +636,7 @@ __ESIMD_INTRIN
     __esimd_gather4_masked_scaled2(
         SurfIndAliasTy surf_ind, int global_offset,
         __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
-        __ESIMD_DNS::simd_mask_storage_t<N> pred)
-#ifdef __SYCL_DEVICE_ONLY__
-        ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+        __ESIMD_DNS::simd_mask_storage_t<N> pred) __ESIMD_INTRIN_END;
 
 // scatter4 scaled to a surface/SLM
 template <typename Ty, int N, typename SurfIndAliasTy,
@@ -862,56 +645,26 @@ __ESIMD_INTRIN void __esimd_scatter4_scaled(
     __ESIMD_DNS::simd_mask_storage_t<N> pred, SurfIndAliasTy surf_ind,
     int global_offset, __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
     __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> vals)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_INTRIN_END;
 
 // Surface-based atomic operations
 template <__ESIMD_NS::atomic_op Op, typename Ty, int N, typename SurfIndAliasTy>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_dword_atomic0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
-                      SurfIndAliasTy surf_ind,
-                      __ESIMD_DNS::vector_type_t<uint32_t, N> addrs)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N> __esimd_dword_atomic0(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred, SurfIndAliasTy surf_ind,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> addrs) __ESIMD_INTRIN_END;
 
 template <__ESIMD_NS::atomic_op Op, typename Ty, int N, typename SurfIndAliasTy>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_dword_atomic1(__ESIMD_DNS::simd_mask_storage_t<N> pred,
-                      SurfIndAliasTy surf_ind,
-                      __ESIMD_DNS::vector_type_t<uint32_t, N> addrs,
-                      __ESIMD_DNS::vector_type_t<Ty, N> src0)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N> __esimd_dword_atomic1(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred, SurfIndAliasTy surf_ind,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> addrs,
+    __ESIMD_DNS::vector_type_t<Ty, N> src0) __ESIMD_INTRIN_END;
 
 template <__ESIMD_NS::atomic_op Op, typename Ty, int N, typename SurfIndAliasTy>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_dword_atomic2(__ESIMD_DNS::simd_mask_storage_t<N> pred,
-                      SurfIndAliasTy surf_ind,
-                      __ESIMD_DNS::vector_type_t<uint32_t, N> addrs,
-                      __ESIMD_DNS::vector_type_t<Ty, N> src0,
-                      __ESIMD_DNS::vector_type_t<Ty, N> src1)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N> __esimd_dword_atomic2(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred, SurfIndAliasTy surf_ind,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> addrs,
+    __ESIMD_DNS::vector_type_t<Ty, N> src0,
+    __ESIMD_DNS::vector_type_t<Ty, N> src1) __ESIMD_INTRIN_END;
 
 // Media block load.
 //
@@ -931,14 +684,7 @@ __esimd_dword_atomic2(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 template <typename Ty, int M, int N, int Modifier, typename TACC, int Plane,
           int BlockWidth>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, M * N>
-__esimd_media_ld(TACC handle, unsigned x, unsigned y)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__esimd_media_ld(TACC handle, unsigned x, unsigned y) __ESIMD_INTRIN_END;
 
 // Media block store
 //
@@ -956,15 +702,9 @@ __esimd_media_ld(TACC handle, unsigned x, unsigned y)
 //
 template <typename Ty, int M, int N, int Modifier, typename TACC, int Plane,
           int BlockWidth>
-__ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
-                                     __ESIMD_DNS::vector_type_t<Ty, M * N> vals)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN void
+__esimd_media_st(TACC handle, unsigned x, unsigned y,
+                 __ESIMD_DNS::vector_type_t<Ty, M * N> vals) __ESIMD_INTRIN_END;
 
 // \brief Converts given value to a surface index.
 // The input must always be a result of
@@ -987,16 +727,13 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
 // @param acc the SYCL accessor.
 // Returns the binding table index value.
 template <typename MemObjTy>
-ESIMD_INLINE __ESIMD_NS::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
+ESIMD_INLINE __ESIMD_NS::SurfaceIndex __esimd_get_surface_index(MemObjTy obj) {
 #ifdef __SYCL_DEVICE_ONLY__
-{
   return __spirv_ConvertPtrToU<MemObjTy, uint32_t>(obj);
-}
 #else  // __SYCL_DEVICE_ONLY__
-{
   __ESIMD_UNSUPPORTED_ON_HOST;
-}
 #endif // __SYCL_DEVICE_ONLY__
+}
 
 /// USM pointer gather.
 /// Supported platforms: DG2, PVC
@@ -1027,13 +764,7 @@ __esimd_lsc_load_merge_stateless(
     __ESIMD_DNS::simd_mask_storage_t<N> pred,
     __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs,
     __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> pass_thru = 0)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_INTRIN_END;
 
 /// USM pointer gather.
 /// Supported platforms: DG2, PVC
@@ -1060,13 +791,7 @@ template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
 __esimd_lsc_load_stateless(__ESIMD_DNS::simd_mask_storage_t<N> pred,
                            __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_INTRIN_END;
 
 /// USM pointer scatter.
 /// Supported platforms: DG2, PVC
@@ -1093,13 +818,7 @@ __ESIMD_INTRIN void __esimd_lsc_store_stateless(
     __ESIMD_DNS::simd_mask_storage_t<N> pred,
     __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs,
     __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> vals)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_INTRIN_END;
 
 /// Surface-based scatter.
 /// Supported platforms: DG2, PVC
@@ -1129,14 +848,7 @@ __ESIMD_INTRIN void __esimd_lsc_store_bti(
     __ESIMD_DNS::simd_mask_storage_t<N> pred,
     __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
     __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> vals,
-    SurfIndAliasTy surf_ind)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else  // __SYCL_DEVICE_ONLY__
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    SurfIndAliasTy surf_ind) __ESIMD_INTRIN_END;
 
 // \brief Raw sends.
 //
@@ -1171,21 +883,13 @@ __ESIMD_INTRIN void __esimd_lsc_store_bti(
 //
 template <typename Ty1, int N1, typename Ty2, int N2, typename Ty3, int N3,
           int N = 16>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty1, N1>
-__esimd_raw_sends2(uint8_t modifier, uint8_t execSize,
-                   __ESIMD_DNS::simd_mask_storage_t<N> pred, uint8_t numSrc0,
-                   uint8_t numSrc1, uint8_t numDst, uint8_t sfid,
-                   uint32_t exDesc, uint32_t msgDesc,
-                   __ESIMD_DNS::vector_type_t<Ty2, N2> msgSrc0,
-                   __ESIMD_DNS::vector_type_t<Ty3, N3> msgSrc1,
-                   __ESIMD_DNS::vector_type_t<Ty1, N1> msgDst)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty1, N1> __esimd_raw_sends2(
+    uint8_t modifier, uint8_t execSize,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred, uint8_t numSrc0, uint8_t numSrc1,
+    uint8_t numDst, uint8_t sfid, uint32_t exDesc, uint32_t msgDesc,
+    __ESIMD_DNS::vector_type_t<Ty2, N2> msgSrc0,
+    __ESIMD_DNS::vector_type_t<Ty3, N3> msgSrc1,
+    __ESIMD_DNS::vector_type_t<Ty1, N1> msgDst) __ESIMD_INTRIN_END;
 
 // \brief Raw send.
 //
@@ -1214,19 +918,12 @@ __esimd_raw_sends2(uint8_t modifier, uint8_t execSize,
 // Returns a simd vector of type Ty1 and size N1.
 //
 template <typename Ty1, int N1, typename Ty2, int N2, int N = 16>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty1, N1>
-__esimd_raw_send2(uint8_t modifier, uint8_t execSize,
-                  __ESIMD_DNS::simd_mask_storage_t<N> pred, uint8_t numSrc0,
-                  uint8_t numDst, uint8_t sfid, uint32_t exDesc,
-                  uint32_t msgDesc, __ESIMD_DNS::vector_type_t<Ty2, N2> msgSrc0,
-                  __ESIMD_DNS::vector_type_t<Ty1, N1> msgDst)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty1, N1> __esimd_raw_send2(
+    uint8_t modifier, uint8_t execSize,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred, uint8_t numSrc0, uint8_t numDst,
+    uint8_t sfid, uint32_t exDesc, uint32_t msgDesc,
+    __ESIMD_DNS::vector_type_t<Ty2, N2> msgSrc0,
+    __ESIMD_DNS::vector_type_t<Ty1, N1> msgDst) __ESIMD_INTRIN_END;
 
 // \brief Raw sends.
 //
@@ -1253,20 +950,12 @@ __esimd_raw_send2(uint8_t modifier, uint8_t execSize,
 // @param msgSrc1 the second source operand of send message.
 //
 template <typename Ty1, int N1, typename Ty2, int N2, int N = 16>
-__ESIMD_INTRIN void
-__esimd_raw_sends2_noresult(uint8_t modifier, uint8_t execSize,
-                            __ESIMD_DNS::simd_mask_storage_t<N> pred,
-                            uint8_t numSrc0, uint8_t numSrc1, uint8_t sfid,
-                            uint32_t exDesc, uint32_t msgDesc,
-                            __ESIMD_DNS::vector_type_t<Ty1, N1> msgSrc0,
-                            __ESIMD_DNS::vector_type_t<Ty2, N2> msgSrc1)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN void __esimd_raw_sends2_noresult(
+    uint8_t modifier, uint8_t execSize,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred, uint8_t numSrc0, uint8_t numSrc1,
+    uint8_t sfid, uint32_t exDesc, uint32_t msgDesc,
+    __ESIMD_DNS::vector_type_t<Ty1, N1> msgSrc0,
+    __ESIMD_DNS::vector_type_t<Ty2, N2> msgSrc1) __ESIMD_INTRIN_END;
 
 // \brief Raw send.
 //
@@ -1288,18 +977,10 @@ __esimd_raw_sends2_noresult(uint8_t modifier, uint8_t execSize,
 // @param msgSrc0 the first source operand of send message.
 //
 template <typename Ty1, int N1, int N = 16>
-__ESIMD_INTRIN void
-__esimd_raw_send2_noresult(uint8_t modifier, uint8_t execSize,
-                           __ESIMD_DNS::simd_mask_storage_t<N> pred,
-                           uint8_t numSrc0, uint8_t sfid, uint32_t exDesc,
-                           uint32_t msgDesc,
-                           __ESIMD_DNS::vector_type_t<Ty1, N1> msgSrc0)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN void __esimd_raw_send2_noresult(
+    uint8_t modifier, uint8_t execSize,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred, uint8_t numSrc0, uint8_t sfid,
+    uint32_t exDesc, uint32_t msgDesc,
+    __ESIMD_DNS::vector_type_t<Ty1, N1> msgSrc0) __ESIMD_INTRIN_END;
 
 /// @endcond ESIMD_DETAIL

@@ -1,9 +1,10 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
-// RUN: %if ext_oneapi_level_zero %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s %}
+// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// Extra run to check for immediate-command-list in Level Zero
+// RUN: %if level_zero && linux %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 //
-// CHECK-NOT: LEAK
 
 // Tests a dotp operation using device USM and an in-order queue with empty
 // nodes. The second run is to check that there are no leaks reported with the
@@ -24,6 +25,7 @@ int main() {
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
   int *Dotp = malloc_device<int>(1, Queue);
+  Queue.memset(Dotp, 0, sizeof(int)).wait();
 
   const size_t N = 10;
   int *X = malloc_device<int>(N, Queue);

@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "../../esimd_test_utils.hpp"
+#include "common.hpp"
 
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
@@ -395,16 +395,19 @@ template <class T, int N, class C, C Op> struct ImplLoadBase {
 template <class T, int N, class C, C Op> struct ImplStoreBase {
   static constexpr C atomic_op = Op;
   static constexpr int n_args = 1;
-  static constexpr T base = (T)(2 + FPDELTA);
 
   static T init(int i) { return 0; }
 
   static T gold(int i, bool use_mask) {
+    T base = (T)(2 + FPDELTA);
     T gold = is_updated(i, N, use_mask) ? base : init(i);
     return gold;
   }
 
-  static T arg0(int i) { return base; }
+  static T arg0(int i) {
+    T base = (T)(2 + FPDELTA);
+    return base;
+  }
 };
 
 template <class T, int N, class C, C Op> struct ImplAdd {
@@ -426,13 +429,14 @@ template <class T, int N, class C, C Op> struct ImplAdd {
 template <class T, int N, class C, C Op> struct ImplSub {
   static constexpr C atomic_op = Op;
   static constexpr int n_args = 1;
-  static constexpr T base = (T)(5 + FPDELTA);
 
   static T init(int i) {
+    T base = (T)(5 + FPDELTA);
     return (T)(repeat * threads_per_group * n_groups * (T)(1 + FPDELTA) + base);
   }
 
   static T gold(int i, bool use_mask) {
+    T base = (T)(5 + FPDELTA);
     T gold = is_updated(i, N, use_mask) ? base : init(i);
     return gold;
   }
@@ -553,27 +557,32 @@ auto run_test(queue q) {
 }
 
 template <int N, template <class, int> class Op, bool UseMask,
-          bool UsePVCFeatures, bool UseAcc, int SignMask = (Signed | Unsigned)>
+          TestFeatures Features, bool UseAcc,
+          int SignMask = (Signed | Unsigned)>
 bool test_int_types(queue q) {
   bool passed = true;
   if constexpr (SignMask & Signed) {
-    if constexpr (UsePVCFeatures)
+    if constexpr (Features == TestFeatures::DG2 ||
+                  Features == TestFeatures::PVC)
       passed &= run_test<UseAcc, int16_t, N, Op, UseMask>(q);
 
     passed &= run_test<UseAcc, int32_t, N, Op, UseMask>(q);
 
-    if constexpr (UsePVCFeatures) {
+    // int64_t not supported on DG2
+    if constexpr (Features == TestFeatures::PVC) {
       passed &= run_test<UseAcc, int64_t, N, Op, UseMask>(q);
     }
   }
 
   if constexpr (SignMask & Unsigned) {
-    if constexpr (UsePVCFeatures)
+    if constexpr (Features == TestFeatures::DG2 ||
+                  Features == TestFeatures::PVC)
       passed &= run_test<UseAcc, uint16_t, N, Op, UseMask>(q);
 
     passed &= run_test<UseAcc, uint32_t, N, Op, UseMask>(q);
 
-    if constexpr (UsePVCFeatures) {
+    // uint64_t not supported on DG2
+    if constexpr (Features == TestFeatures::PVC) {
       passed &= run_test<UseAcc, uint64_t, N, Op, UseMask>(q);
     }
   }
@@ -581,10 +590,11 @@ bool test_int_types(queue q) {
 }
 
 template <int N, template <class, int> class Op, bool UseMask,
-          bool UsePVCFeatures, bool UseAcc>
+          TestFeatures Features, bool UseAcc>
 bool test_fp_types(queue q) {
   bool passed = true;
-  if constexpr (UsePVCFeatures) {
+  if constexpr (Features == TestFeatures::DG2 ||
+                Features == TestFeatures::PVC) {
     if constexpr (std::is_same_v<Op<sycl::half, N>,
                                  ImplLSCFmax<sycl::half, N>> ||
                   std::is_same_v<Op<sycl::half, N>,
@@ -600,157 +610,132 @@ bool test_fp_types(queue q) {
 
   passed &= run_test<UseAcc, float, N, Op, UseMask>(q);
 
-  if constexpr (UsePVCFeatures) {
-    // TODO: fmin/max for double does not pass validation likely due to
-    // a driver bug. fcmpwr is hanging.
-    if constexpr (!std::is_same_v<Op<double, N>, ImplLSCFmax<double, N>> &&
-                  !std::is_same_v<Op<double, N>, ImplLSCFmin<double, N>> &&
-                  !std::is_same_v<Op<double, N>, ImplLSCFcmpwr<double, N>>) {
-      if (q.get_device().has(sycl::aspect::atomic64) &&
-          q.get_device().has(sycl::aspect::fp64)) {
-        passed &= run_test<UseAcc, double, N, Op, UseMask>(q);
-      }
+  if constexpr (Features == TestFeatures::DG2 ||
+                Features == TestFeatures::PVC) {
+    if (q.get_device().has(sycl::aspect::atomic64) &&
+        q.get_device().has(sycl::aspect::fp64)) {
+      passed &= run_test<UseAcc, double, N, Op, UseMask>(q);
     }
   }
   return passed;
 }
 
-template <template <class, int> class Op, bool UseMask, bool UsePVCFeatures,
+template <template <class, int> class Op, bool UseMask, TestFeatures Features,
           bool UseAcc, int SignMask = (Signed | Unsigned)>
 bool test_int_types_and_sizes(queue q) {
   bool passed = true;
-  passed &= test_int_types<1, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
-  passed &= test_int_types<2, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
-  passed &= test_int_types<4, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
-  passed &= test_int_types<8, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
-  // TODO: N=16 and N=32 does not pass on Gen12 with mask due to older driver.
-  if (UseMask && !UsePVCFeatures &&
+  passed &= test_int_types<1, Op, UseMask, Features, UseAcc, SignMask>(q);
+  passed &= test_int_types<2, Op, UseMask, Features, UseAcc, SignMask>(q);
+  passed &= test_int_types<4, Op, UseMask, Features, UseAcc, SignMask>(q);
+  passed &= test_int_types<8, Op, UseMask, Features, UseAcc, SignMask>(q);
+  if (UseMask && Features == TestFeatures::Generic &&
       esimd_test::isGPUDriverGE(q, esimd_test::GPUDriverOS::LinuxAndWindows,
                                 "26918", "101.4953", false)) {
-    passed &=
-        test_int_types<16, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
-    passed &=
-        test_int_types<32, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
+    passed &= test_int_types<16, Op, UseMask, Features, UseAcc, SignMask>(q);
+    passed &= test_int_types<32, Op, UseMask, Features, UseAcc, SignMask>(q);
   }
 
   // Supported by LSC atomic:
-  if constexpr (UsePVCFeatures) {
-    passed &=
-        test_int_types<64, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
-    // non power of two values are supported only in newer driver.
-    // TODO: Enable this when the new driver reaches test infrastructure
-    // (v27556).
-#if 0
-    passed &= test_int_types<12, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
-    passed &= test_int_types<33, Op, UseMask, UsePVCFeatures, UseAcc, SignMask>(q);
-#endif
+  if constexpr (Features == TestFeatures::DG2 ||
+                Features == TestFeatures::PVC) {
+    passed &= test_int_types<64, Op, UseMask, Features, UseAcc, SignMask>(q);
+    passed &= test_int_types<12, Op, UseMask, Features, UseAcc, SignMask>(q);
+    passed &= test_int_types<33, Op, UseMask, Features, UseAcc, SignMask>(q);
   }
 
   return passed;
 }
 
-template <template <class, int> class Op, bool UseMask, bool UsePVCFeatures,
+template <template <class, int> class Op, bool UseMask, TestFeatures Features,
           bool UseAcc>
 bool test_fp_types_and_sizes(queue q) {
   bool passed = true;
-  passed &= test_fp_types<1, Op, UseMask, UsePVCFeatures, UseAcc>(q);
-  passed &= test_fp_types<2, Op, UseMask, UsePVCFeatures, UseAcc>(q);
-  passed &= test_fp_types<4, Op, UseMask, UsePVCFeatures, UseAcc>(q);
-  passed &= test_fp_types<8, Op, UseMask, UsePVCFeatures, UseAcc>(q);
-  passed &= test_fp_types<16, Op, UseMask, UsePVCFeatures, UseAcc>(q);
-  passed &= test_fp_types<32, Op, UseMask, UsePVCFeatures, UseAcc>(q);
+  passed &= test_fp_types<1, Op, UseMask, Features, UseAcc>(q);
+  passed &= test_fp_types<2, Op, UseMask, Features, UseAcc>(q);
+  passed &= test_fp_types<4, Op, UseMask, Features, UseAcc>(q);
+  passed &= test_fp_types<8, Op, UseMask, Features, UseAcc>(q);
+  passed &= test_fp_types<16, Op, UseMask, Features, UseAcc>(q);
+  passed &= test_fp_types<32, Op, UseMask, Features, UseAcc>(q);
 
   // Supported by LSC atomic:
-  if constexpr (UsePVCFeatures) {
-    passed &= test_fp_types<64, Op, UseMask, UsePVCFeatures, UseAcc>(q);
-    // non power of two values are supported only in newer driver.
-    // TODO: Enable this when the new driver reaches test infrastructure
-    // (v27556).
-#if 0
-    passed &= test_fp_types<33, Op, UseMask, UsePVCFeatures, UseAcc>(q);
-    passed &= test_fp_types<65, Op, UseMask, UsePVCFeatures, UseAcc>(q);
-#endif
+  if constexpr (Features == TestFeatures::DG2 ||
+                Features == TestFeatures::PVC) {
+    passed &= test_fp_types<64, Op, UseMask, Features, UseAcc>(q);
+    passed &= test_fp_types<33, Op, UseMask, Features, UseAcc>(q);
+    passed &= test_fp_types<65, Op, UseMask, Features, UseAcc>(q);
   }
   return passed;
 }
 
-template <bool UseMask, bool UsePVCFeatures, bool UseAcc>
+template <bool UseMask, TestFeatures Features, bool UseAcc>
 int test_with_mask(queue q) {
   bool passed = true;
 #ifndef CMPXCHG_TEST
-  passed &=
-      test_int_types_and_sizes<ImplInc, UseMask, UsePVCFeatures, UseAcc>(q);
-  passed &=
-      test_int_types_and_sizes<ImplDec, UseMask, UsePVCFeatures, UseAcc>(q);
+  passed &= test_int_types_and_sizes<ImplInc, UseMask, Features, UseAcc>(q);
+  passed &= test_int_types_and_sizes<ImplDec, UseMask, Features, UseAcc>(q);
+
+  passed &= test_int_types_and_sizes<ImplIntAdd, UseMask, Features, UseAcc>(q);
+  passed &= test_int_types_and_sizes<ImplIntSub, UseMask, Features, UseAcc>(q);
 
   passed &=
-      test_int_types_and_sizes<ImplIntAdd, UseMask, UsePVCFeatures, UseAcc>(q);
+      test_int_types_and_sizes<ImplSMax, UseMask, Features, UseAcc, Signed>(q);
   passed &=
-      test_int_types_and_sizes<ImplIntSub, UseMask, UsePVCFeatures, UseAcc>(q);
+      test_int_types_and_sizes<ImplSMin, UseMask, Features, UseAcc, Signed>(q);
 
-  passed &= test_int_types_and_sizes<ImplSMax, UseMask, UsePVCFeatures, UseAcc,
-                                     Signed>(q);
-  passed &= test_int_types_and_sizes<ImplSMin, UseMask, UsePVCFeatures, UseAcc,
-                                     Signed>(q);
+  passed &=
+      test_int_types_and_sizes<ImplUMax, UseMask, Features, UseAcc, Unsigned>(
+          q);
+  passed &=
+      test_int_types_and_sizes<ImplUMin, UseMask, Features, UseAcc, Unsigned>(
+          q);
 
-  passed &= test_int_types_and_sizes<ImplUMax, UseMask, UsePVCFeatures, UseAcc,
-                                     Unsigned>(q);
-  passed &= test_int_types_and_sizes<ImplUMin, UseMask, UsePVCFeatures, UseAcc,
-                                     Unsigned>(q);
-
-  if constexpr (UsePVCFeatures) {
+  if constexpr (Features == TestFeatures::DG2 ||
+                Features == TestFeatures::PVC) {
     passed &=
-        test_fp_types_and_sizes<ImplLSCFmax, UseMask, UsePVCFeatures, UseAcc>(
-            q);
+        test_fp_types_and_sizes<ImplLSCFmax, UseMask, Features, UseAcc>(q);
     passed &=
-        test_fp_types_and_sizes<ImplLSCFmin, UseMask, UsePVCFeatures, UseAcc>(
-            q);
+        test_fp_types_and_sizes<ImplLSCFmin, UseMask, Features, UseAcc>(q);
 
     // TODO: fadd/fsub are emulated in the newer driver, but do not pass
     // validation.
 #if 0
-    passed &= test_fp_types_and_sizes<ImplFadd, UseMask, UsePVCFeatures, UseAcc>(q);
-    passed &= test_fp_types_and_sizes<ImplFsub, UseMask, UsePVCFeatures, UseAcc>(q);
+    passed &= test_fp_types_and_sizes<ImplFadd, UseMask, Features, UseAcc>(q);
+    passed &= test_fp_types_and_sizes<ImplFsub, UseMask, Features, UseAcc>(q);
 #endif
 
     // Check load/store operations.
-    passed &=
-        test_int_types_and_sizes<ImplLoad, UseMask, UsePVCFeatures, UseAcc>(q);
-    passed &=
-        test_int_types_and_sizes<ImplStore, UseMask, UsePVCFeatures, UseAcc>(q);
-    passed &=
-        test_fp_types_and_sizes<ImplStore, UseMask, UsePVCFeatures, UseAcc>(q);
+    passed &= test_int_types_and_sizes<ImplLoad, UseMask, Features, UseAcc>(q);
+    passed &= test_int_types_and_sizes<ImplStore, UseMask, Features, UseAcc>(q);
+    passed &= test_fp_types_and_sizes<ImplStore, UseMask, Features, UseAcc>(q);
   }
 #else
+  passed &= test_int_types_and_sizes<ImplCmpxchg, UseMask, Features, UseAcc>(q);
   passed &=
-      test_int_types_and_sizes<ImplCmpxchg, UseMask, UsePVCFeatures, UseAcc>(q);
-  passed &=
-      test_fp_types_and_sizes<ImplLSCFcmpwr, UseMask, UsePVCFeatures, UseAcc>(
-          q);
+      test_fp_types_and_sizes<ImplLSCFcmpwr, UseMask, Features, UseAcc>(q);
 #endif
   return passed;
 }
 
-template <bool UsePVCFeatures> bool test_main(queue q) {
+template <TestFeatures Features> bool test_main(queue q) {
   bool passed = true;
 
   constexpr const bool UseMask = true;
   constexpr const bool UseAcc = true;
 
-  passed &= test_with_mask<UseMask, UsePVCFeatures, !UseAcc>(q);
-  passed &= test_with_mask<!UseMask, UsePVCFeatures, !UseAcc>(q);
+  passed &= test_with_mask<UseMask, Features, !UseAcc>(q);
+  passed &= test_with_mask<!UseMask, Features, !UseAcc>(q);
 
   return passed;
 }
 
-template <bool UsePVCFeatures> bool test_main_acc(queue q) {
+template <TestFeatures Features> bool test_main_acc(queue q) {
   bool passed = true;
 
   constexpr const bool UseMask = true;
   constexpr const bool UseAcc = true;
 
-  passed &= test_with_mask<UseMask, UsePVCFeatures, UseAcc>(q);
-  passed &= test_with_mask<!UseMask, UsePVCFeatures, UseAcc>(q);
+  passed &= test_with_mask<UseMask, Features, UseAcc>(q);
+  passed &= test_with_mask<!UseMask, Features, UseAcc>(q);
 
   return passed;
 }

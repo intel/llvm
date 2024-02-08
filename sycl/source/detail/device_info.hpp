@@ -588,7 +588,12 @@ constexpr std::pair<const char *, oneapi_exp_arch> NvidiaAmdGPUArchitectures[] =
         {"gfx904", oneapi_exp_arch::amd_gpu_gfx904},
         {"gfx906", oneapi_exp_arch::amd_gpu_gfx906},
         {"gfx908", oneapi_exp_arch::amd_gpu_gfx908},
+        {"gfx909", oneapi_exp_arch::amd_gpu_gfx909},
         {"gfx90a", oneapi_exp_arch::amd_gpu_gfx90a},
+        {"gfx90c", oneapi_exp_arch::amd_gpu_gfx90c},
+        {"gfx940", oneapi_exp_arch::amd_gpu_gfx940},
+        {"gfx941", oneapi_exp_arch::amd_gpu_gfx941},
+        {"gfx942", oneapi_exp_arch::amd_gpu_gfx942},
         {"gfx1010", oneapi_exp_arch::amd_gpu_gfx1010},
         {"gfx1011", oneapi_exp_arch::amd_gpu_gfx1011},
         {"gfx1012", oneapi_exp_arch::amd_gpu_gfx1012},
@@ -596,7 +601,18 @@ constexpr std::pair<const char *, oneapi_exp_arch> NvidiaAmdGPUArchitectures[] =
         {"gfx1030", oneapi_exp_arch::amd_gpu_gfx1030},
         {"gfx1031", oneapi_exp_arch::amd_gpu_gfx1031},
         {"gfx1032", oneapi_exp_arch::amd_gpu_gfx1032},
+        {"gfx1033", oneapi_exp_arch::amd_gpu_gfx1033},
         {"gfx1034", oneapi_exp_arch::amd_gpu_gfx1034},
+        {"gfx1035", oneapi_exp_arch::amd_gpu_gfx1035},
+        {"gfx1036", oneapi_exp_arch::amd_gpu_gfx1036},
+        {"gfx1100", oneapi_exp_arch::amd_gpu_gfx1100},
+        {"gfx1101", oneapi_exp_arch::amd_gpu_gfx1101},
+        {"gfx1102", oneapi_exp_arch::amd_gpu_gfx1102},
+        {"gfx1103", oneapi_exp_arch::amd_gpu_gfx1103},
+        {"gfx1150", oneapi_exp_arch::amd_gpu_gfx1150},
+        {"gfx1151", oneapi_exp_arch::amd_gpu_gfx1151},
+        {"gfx1200", oneapi_exp_arch::amd_gpu_gfx1200},
+        {"gfx1201", oneapi_exp_arch::amd_gpu_gfx1201},
 };
 
 // Only for Intel GPU architectures
@@ -1122,8 +1138,13 @@ struct get_device_info_impl<
 #if SYCL_EXT_CODEPLAY_KERNEL_FUSION
     // Currently fusion is only supported for SPIR-V based backends,
     // CUDA and HIP.
+    if (Dev->getBackend() == backend::opencl) {
+      // Exclude all non-CPU or non-GPU devices on OpenCL, in particular
+      // accelerators.
+      return Dev->is_cpu() || Dev->is_gpu();
+    }
+
     return (Dev->getBackend() == backend::ext_oneapi_level_zero) ||
-           (Dev->getBackend() == backend::opencl) ||
            (Dev->getBackend() == backend::ext_oneapi_cuda) ||
            (Dev->getBackend() == backend::ext_oneapi_hip);
 #else  // SYCL_EXT_CODEPLAY_KERNEL_FUSION

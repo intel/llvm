@@ -15,8 +15,8 @@ int main(void) {
 
   esimd_test::printTestLabel(q);
 
-  constexpr bool TestCacheHintProperties = true;
-  bool passed = test_main<!TestCacheHintProperties>(q);
+  constexpr auto Features = TestFeatures::Generic;
+  bool passed = test_main<Features>(q);
 
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;

@@ -58,10 +58,6 @@ struct PluginAdaptorTy {
   /// user.
   int32_t getNumberOfUserDevices() const { return NumberOfUserDevices; }
 
-  /// Add all offload entries described by \p DI to the devices managed by this
-  /// plugin.
-  void addOffloadEntries(DeviceImageTy &DI);
-
   /// RTL index, index is the number of devices of other RTLs that were
   /// registered before, i.e. the OpenMP index of the first device to be
   /// registered with this RTL.
@@ -81,11 +77,6 @@ struct PluginAdaptorTy {
 #undef PLUGIN_API_HANDLE
 
   llvm::DenseSet<const __tgt_device_image *> UsedImages;
-
-  // Mutex for thread-safety when calling RTL interface functions.
-  // It is easier to enforce thread-safety at the libomptarget level,
-  // so that developers of new RTLs do not have to worry about it.
-  std::mutex Mtx;
 
 private:
   /// Number of devices the underling plugins sees.

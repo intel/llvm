@@ -12,7 +12,7 @@ target triple = "spir64-unknown-unknown"
 
 $handler = comdat any
 
-@__profn__ = weak_odr hidden constant [7 x i8] c"handler"
+@__profn__ = weak_odr hidden addrspace(1) constant [7 x i8] c"handler"
 
 ; CHECK-SPIRV-NOT: llvm.instrprof.increment
 ; CHECK-SPIRV-NOT: llvm.instrprof.increment.step
@@ -28,9 +28,11 @@ $handler = comdat any
 ; Function Attrs: convergent mustprogress norecurse
 define weak_odr dso_local spir_kernel void @handler() #0 comdat !kernel_arg_buffer_location !1 {
 entry:
-  call void @llvm.instrprof.increment(ptr @__profn__, i64 0, i32 1, i32 0)
-  call void @llvm.instrprof.increment.step(ptr @__profn__, i64 0, i32 1, i32 0, i64 0)
-  call void @llvm.instrprof.value.profile(ptr @__profn__, i64 0, i64 0, i32 1, i32 0)
+  %tmp1 = alloca [7 x i8]
+  call void @llvm.memcpy.p0.p1.i64(ptr %tmp1, ptr addrspace(1) @__profn__, i64 7, i1 false)
+  call void @llvm.instrprof.increment(ptr %tmp1, i64 0, i32 1, i32 0)
+  call void @llvm.instrprof.increment.step(ptr %tmp1, i64 0, i32 1, i32 0, i64 0)
+  call void @llvm.instrprof.value.profile(ptr %tmp1, i64 0, i64 0, i32 1, i32 0)
   ret void
 }
 
@@ -42,6 +44,9 @@ declare void @llvm.instrprof.increment.step(ptr, i64, i32, i32, i64) #1
 
 ; Function Attrs: nounwind
 declare void @llvm.instrprof.value.profile(ptr, i64, i64, i32, i32) #1
+
+; Function Attrs: nounwind
+declare void @llvm.memcpy.p0.p1.i64(ptr nocapture, ptr addrspace(1) nocapture readonly, i64, i1) #1
 
 attributes #0 = { convergent mustprogress norecurse }
 attributes #1 = { nounwind }
