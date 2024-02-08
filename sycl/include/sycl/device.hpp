@@ -227,7 +227,8 @@ public:
                   std::is_same_v<Param, info::device::driver_version> ||
                   std::is_same_v<Param, info::device::version> ||
                   std::is_same_v<Param, info::device::profile> ||
-                  std::is_same_v<Param, info::device::opencl_c_version>) {
+                  std::is_same_v<Param, info::device::opencl_c_version> ||
+                  std::is_same_v<Param, info::device::ext_intel_pci_address>) {
       detail::string_view PropertyName(typeid(Param).name());
       detail::string Info = get_device_info(PropertyName);
       return Info.c_str();

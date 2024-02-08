@@ -19,8 +19,10 @@ inline namespace _V1 {
 exception::exception(std::error_code EC, const char *Msg)
     : exception(EC, nullptr, Msg) {}
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 exception::exception(std::error_code EC, const std::string &Msg)
     : exception(EC, nullptr, Msg) {}
+#endif
 
 // new SYCL 2020 constructors
 exception::exception(std::error_code EC) : exception(EC, nullptr, "") {}

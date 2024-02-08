@@ -74,7 +74,12 @@ public:
 
   exception(std::error_code, const char *Msg);
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  exception(std::error_code ec, const std::string &Msg)
+      : exception(ec, nullptr, Msg.c_str()) {}
+#else
   exception(std::error_code, const std::string &Msg);
+#endif
 
   // new SYCL 2020 constructors
   exception(std::error_code);
