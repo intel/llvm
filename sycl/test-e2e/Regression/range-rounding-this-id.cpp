@@ -35,7 +35,7 @@ template <int D> void test(queue &q) {
     sycl::buffer<T> p_buf{vec};
     q.submit([&](sycl::handler &h) {
        sycl::accessor p{p_buf, h};
-       q.parallel_for(range, [=](auto it) {
+       h.parallel_for(range, [=](auto it) {
          p[it.get_linear_id()] = {sycl::ext::oneapi::experimental::this_id<D>(),
                                   it.get_id()};
        });
