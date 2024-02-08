@@ -30,13 +30,17 @@ template <int D> void test(queue &q) {
     id<D> this_id;
     id<D> ref_id;
   };
-  std::vector<T, usm_allocator<T, usm::alloc::shared>> vec(range.size(), q);
-  auto *p = vec.data();
-  q.parallel_for(range, [=](auto it) {
-     p[it.get_linear_id()] = {sycl::ext::oneapi::experimental::this_id<D>(),
-                              it.get_id()};
-   }).wait_and_throw();
-
+  std::vector<T> vec(range.size());
+  {
+    sycl::buffer<T> p_buf{vec};
+    q.submit([&](sycl::handler &h) {
+       sycl::accessor p{p_buf, h};
+       q.parallel_for(range, [=](auto it) {
+         p[it.get_linear_id()] = {sycl::ext::oneapi::experimental::this_id<D>(),
+                                  it.get_id()};
+       });
+     }).wait_and_throw();
+  } // p_buf goes out of scope here and writed back to vec
   for (const auto &[this_item, ref_item] : vec) {
     if (this_item != ref_item) {
       std::cout << "fail: " << this_item << " != " << ref_item << "\n";

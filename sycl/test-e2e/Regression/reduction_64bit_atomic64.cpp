@@ -2,7 +2,7 @@
 // RUN: %{build} -o %t.out
 //
 // RUN: %{run} %t.out
-
+// REQUIRES: aspect-usm_shared_allocations
 // Tests that a previously known case for reduction doesn't cause a requirement
 // for atomic64.
 // TODO: When aspect requirements are added to testing, this test could be set
