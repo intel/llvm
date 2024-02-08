@@ -72,7 +72,8 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
       Opts.emplace_back(std::move(VPO));
       return true;
     };
-    MAM.registerPass([QueryFunc] { return vecz::VeczPassOptionsAnalysis(QueryFunc); });
+    MAM.registerPass(
+        [QueryFunc] { return vecz::VeczPassOptionsAnalysis(QueryFunc); });
     MPM.addPass(vecz::RunVeczPass());
   }
   compiler::utils::WorkItemLoopsPassOptions Opts;
