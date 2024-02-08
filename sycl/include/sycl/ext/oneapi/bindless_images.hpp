@@ -1063,10 +1063,10 @@ DataT read_image_array(const unsampled_image_handle &imageHandle
   return __invoke__ImageArrayRead<DataT>(imageHandle.raw_handle, coords,
                                          arrayLayer);
 #else
-  // TODO: add SPIRV part for unsampled image array read
+  // TODO: add SPIRV part for unsampled image array read.
 #endif
 #else
-  assert(false); // Bindless images not yet implemented on host
+  assert(false); // Bindless images not yet implemented on host.
 #endif
 }
 
@@ -1129,13 +1129,13 @@ void write_image_array(const unsampled_image_handle &imageHandle
 
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
-  __invoke__ImageArrayWrite((uint64_t)imageHandle.raw_handle, coords,
-                            arrayLayer, detail::convert_color(color));
+  __invoke__ImageArrayWrite(static_cast<uint64_t>(imageHandle.raw_handle),
+                            coords, arrayLayer, detail::convert_color(color));
 #else
-  // TODO: add SPIRV part for unsampled image array write
+  // TODO: add SPIRV part for unsampled image array write.
 #endif
 #else
-  assert(false); // Bindless images not yet implemented on host
+  assert(false); // Bindless images not yet implemented on host.
 #endif
 }
 

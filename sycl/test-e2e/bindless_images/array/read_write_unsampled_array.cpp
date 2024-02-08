@@ -1,8 +1,7 @@
-// REQUIRES: linux
 // REQUIRES: cuda
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
-// RUN: %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include "../bindless_helpers.hpp"
 #include <iostream>
@@ -17,9 +16,9 @@ static sycl::device dev;
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
-// Helpers and utilities
+// Helpers and utilities.
 struct util {
-  // parallel_for 3D
+  // parallel_for 3D.
   template <int NDims, typename DType, int NChannels, typename KernelName,
             typename = std::enable_if_t<NDims == 3>>
   static void run_ndim_test(sycl::queue q, sycl::range<3> globalSize,
@@ -69,7 +68,7 @@ struct util {
     }
   }
 
-  // parallel_for 2D
+  // parallel_for 2D.
   template <int NDims, typename DType, int NChannels, typename KernelName,
             typename = std::enable_if_t<NDims == 2>>
   static void run_ndim_test(sycl::queue q, sycl::range<2> globalSize,
@@ -129,7 +128,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   sycl::queue q(dev);
   auto ctxt = q.get_context();
 
-  // skip half tests if not supported
+  // skip half tests if not supported.
   if constexpr (std::is_same_v<DType, sycl::half>) {
     if (!dev.has(sycl::aspect::fp16)) {
 #ifdef VERBOSE_PRINT
@@ -156,7 +155,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
                                    CType, syclexp::image_type::array, 1,
                                    NDims > 2 ? dims[2] : dims[1]);
 
-    // Extension: allocate memory on device and create the handle
+    // Extension: allocate memory on device and create the handle.
     syclexp::image_mem img_mem_0(desc, q);
     syclexp::image_mem img_mem_1(desc, q);
     syclexp::image_mem img_mem_2(desc, q);
@@ -165,7 +164,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
     auto img_input_1 = syclexp::create_image(img_mem_1, desc, q);
     auto img_output = syclexp::create_image(img_mem_2, desc, q);
 
-    // Extension: copy over data to device
+    // Extension: copy over data to device.
     q.ext_oneapi_copy(input_0.data(), img_mem_0.get_handle(), desc);
     q.ext_oneapi_copy(input_1.data(), img_mem_1.get_handle(), desc);
     q.wait();
@@ -181,7 +180,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
       q.wait();
     }
 
-    // Cleanup
+    // Cleanup.
     syclexp::destroy_image_handle(img_input_0, q);
     syclexp::destroy_image_handle(img_input_1, q);
     syclexp::destroy_image_handle(img_output, q);
@@ -193,7 +192,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
     exit(-1);
   }
 
-  // collect and validate output
+  // collect and validate output.
   bool validated = true;
   for (int i = 0; i < num_elems; i++) {
     for (int j = 0; j < NChannels; ++j) {

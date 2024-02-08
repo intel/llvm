@@ -102,58 +102,67 @@ struct image_descriptor {
   }
 
   void verify() const {
-    if (this->type == image_type::standard) {
+    switch (this->type) {
+    case image_type::standard:
       if (this->array_size > 1) {
-        // Not a standard image
+        // Not a standard image.
         throw sycl::exception(
             sycl::errc::invalid,
             "Standard images cannot have array_size greater than 1! Use "
             "image_type::array for image arrays.");
       }
       if (this->num_levels > 1) {
-        // Image arrays cannot be mipmaps
+        // Image arrays cannot be mipmaps.
         throw sycl::exception(
             sycl::errc::invalid,
             "Standard images cannot have num_levels greater than 1! Use "
             "image_type::mipmap for mipmap images.");
       }
-    } else if (this->type == image_type::array) {
+      return;
+
+    case image_type::array:
       if (this->array_size <= 1) {
-        // Not an image array
+        // Not an image array.
         throw sycl::exception(sycl::errc::invalid,
                               "Image array must have array_size greater than "
                               "1! Use image_type::standard otherwise.");
       }
       if (this->depth != 0) {
-        // Image arrays must only be 1D or 2D
+        // Image arrays must only be 1D or 2D.
         throw sycl::exception(sycl::errc::invalid,
                               "Cannot have 3D image arrays! Either depth must "
                               "be 0 or array_size must be 1.");
       }
       if (this->num_levels != 1) {
-        // Image arrays cannot be mipmaps
+        // Image arrays cannot be mipmaps.
         throw sycl::exception(sycl::errc::invalid,
                               "Cannot have mipmap image arrays! Either "
                               "num_levels or array_size must be 1.");
       }
-    } else if (this->type == image_type::mipmap) {
+      return;
+
+    case image_type::mipmap:
       if (this->array_size > 1) {
-        // Mipmap images cannot be arrays
+        // Mipmap images cannot be arrays.
         throw sycl::exception(
             sycl::errc::invalid,
             "Mipmap images cannot have array_size greater than 1! Use "
             "image_type::array for image arrays.");
       }
       if (this->num_levels <= 1) {
-        // Mipmaps must have more than one level
+        // Mipmaps must have more than one level.
         throw sycl::exception(sycl::errc::invalid,
                               "Mipmap images must have num_levels greater than "
                               "1! Use image_type::standard otherwise.");
       }
-    } else if (this->type == image_type::interop) {
+      return;
+
+    case image_type::interop:
       // No checks to be made.
-    } else {
-      // Invalid image type
+      return;
+
+    default:
+      // Invalid image type.
       throw sycl::exception(sycl::errc::invalid,
                             "Invalid image descriptor image type");
     }

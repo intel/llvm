@@ -30,12 +30,7 @@ void populate_pi_structs(const image_descriptor &desc, pi_image_desc &piDesc,
   piDesc.image_depth = desc.depth;
 
   if (desc.array_size > 1) {
-    // Image Array
-    if (desc.depth > 0) {
-      // Image arrays must be 1D or 2D
-      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                            "No support for 3D image arrays.");
-    }
+    // Image array.
     piDesc.image_type =
         desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
   } else {
@@ -160,6 +155,8 @@ __SYCL_EXPORT void destroy_image_handle(sampled_image_handle &imageHandle,
 __SYCL_EXPORT image_mem_handle
 alloc_image_mem(const image_descriptor &desc, const sycl::device &syclDevice,
                 const sycl::context &syclContext) {
+  desc.verify();
+
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
   pi_context C = CtxImpl->getHandleRef();
@@ -167,8 +164,6 @@ alloc_image_mem(const image_descriptor &desc, const sycl::device &syclDevice,
       sycl::detail::getSyclObjImpl(syclDevice);
   pi_device Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-
-  desc.verify();
 
   pi_image_desc piDesc;
   pi_image_format piFormat;
@@ -194,6 +189,8 @@ __SYCL_EXPORT_DEPRECATED("Distinct mipmap allocs are deprecated. "
 image_mem_handle alloc_mipmap_mem(const image_descriptor &desc,
                                   const sycl::device &syclDevice,
                                   const sycl::context &syclContext) {
+  desc.verify();
+
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
   pi_context C = CtxImpl->getHandleRef();
@@ -201,11 +198,6 @@ image_mem_handle alloc_mipmap_mem(const image_descriptor &desc,
       sycl::detail::getSyclObjImpl(syclDevice);
   pi_device Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-
-  // Mipmaps must have more than one level
-  if (desc.num_levels <= 1)
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "Mipmap number of levels must be 2 or more");
 
   pi_image_desc piDesc;
   pi_image_format piFormat;
@@ -350,6 +342,8 @@ create_image(image_mem &imgMem, const image_descriptor &desc,
 __SYCL_EXPORT unsampled_image_handle
 create_image(image_mem_handle memHandle, const image_descriptor &desc,
              const sycl::device &syclDevice, const sycl::context &syclContext) {
+  desc.verify();
+
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
   pi_context C = CtxImpl->getHandleRef();
@@ -414,6 +408,7 @@ __SYCL_EXPORT sampled_image_handle
 create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
              const image_descriptor &desc, const sycl::device &syclDevice,
              const sycl::context &syclContext) {
+  desc.verify();
 
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
@@ -500,6 +495,8 @@ image_mem_handle map_external_image_memory(interop_mem_handle memHandle,
                                            const image_descriptor &desc,
                                            const sycl::device &syclDevice,
                                            const sycl::context &syclContext) {
+  desc.verify();
+
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
   pi_context C = CtxImpl->getHandleRef();

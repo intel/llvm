@@ -959,6 +959,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  Desc.verify();
+
   MSrcPtr = Src;
   MDstPtr = Dest.raw_handle;
 
@@ -969,13 +971,7 @@ void handler::ext_oneapi_copy(
   PiDesc.image_array_size = Desc.array_size;
 
   if (Desc.array_size > 1) {
-    // Image Array
-    if (Desc.depth > 0) {
-      // Image arrays must be 1D or 2D
-      throw sycl::exception(
-          sycl::make_error_code(sycl::errc::invalid),
-          "Image descriptor malformed - cannot copy 3D image arrays.");
-    }
+    // Image Array.
     PiDesc.image_type =
         Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
   } else {
@@ -1010,6 +1006,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  DestImgDesc.verify();
+
   MSrcPtr = Src;
   MDstPtr = Dest.raw_handle;
 
@@ -1020,13 +1018,7 @@ void handler::ext_oneapi_copy(
   PiDesc.image_array_size = DestImgDesc.array_size;
 
   if (DestImgDesc.array_size > 1) {
-    // Image Array
-    if (DestImgDesc.depth > 0) {
-      // Image arrays must be 1D or 2D
-      throw sycl::exception(
-          sycl::make_error_code(sycl::errc::invalid),
-          "Image descriptor malformed - cannot copy 3D image arrays.");
-    }
+    // Image Array.
     PiDesc.image_type = DestImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
                                                : PI_MEM_TYPE_IMAGE1D_ARRAY;
   } else {
@@ -1059,6 +1051,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  Desc.verify();
+
   MSrcPtr = Src.raw_handle;
   MDstPtr = Dest;
 
@@ -1069,13 +1063,7 @@ void handler::ext_oneapi_copy(
   PiDesc.image_array_size = Desc.array_size;
 
   if (Desc.array_size > 1) {
-    // Image Array
-    if (Desc.depth > 0) {
-      // Image arrays must be 1D or 2D
-      throw sycl::exception(
-          sycl::make_error_code(sycl::errc::invalid),
-          "Image descriptor malformed - cannot copy 3D image arrays.");
-    }
+    // Image Array.
     PiDesc.image_type =
         Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
   } else {
@@ -1110,6 +1098,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  SrcImgDesc.verify();
+
   MSrcPtr = Src.raw_handle;
   MDstPtr = Dest;
 
@@ -1120,13 +1110,7 @@ void handler::ext_oneapi_copy(
   PiDesc.image_array_size = SrcImgDesc.array_size;
 
   if (SrcImgDesc.array_size > 1) {
-    // Image Array
-    if (SrcImgDesc.depth > 0) {
-      // Image arrays must be 1D or 2D
-      throw sycl::exception(
-          sycl::make_error_code(sycl::errc::invalid),
-          "Image descriptor malformed - cannot copy 3D image arrays.");
-    }
+    // Image Array.
     PiDesc.image_type = SrcImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
                                               : PI_MEM_TYPE_IMAGE1D_ARRAY;
   } else {
@@ -1159,6 +1143,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  Desc.verify();
+
   MSrcPtr = Src;
   MDstPtr = Dest;
 
@@ -1169,13 +1155,7 @@ void handler::ext_oneapi_copy(
   PiDesc.image_array_size = Desc.array_size;
 
   if (Desc.array_size > 1) {
-    // Image Array
-    if (Desc.depth > 0) {
-      // Image arrays must be 1D or 2D
-      throw sycl::exception(
-          sycl::make_error_code(sycl::errc::invalid),
-          "Image descriptor malformed - cannot copy 3D image arrays.");
-    }
+    // Image Array.
     PiDesc.image_type =
         Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
   } else {
@@ -1212,6 +1192,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  DeviceImgDesc.verify();
+
   MSrcPtr = Src;
   MDstPtr = Dest;
 
@@ -1222,13 +1204,7 @@ void handler::ext_oneapi_copy(
   PiDesc.image_array_size = DeviceImgDesc.array_size;
 
   if (DeviceImgDesc.array_size > 1) {
-    // Image Array
-    if (DeviceImgDesc.depth > 0) {
-      // Image arrays must be 1D or 2D
-      throw sycl::exception(
-          sycl::make_error_code(sycl::errc::invalid),
-          "Image descriptor malformed - cannot copy 3D image arrays.");
-    }
+    // Image Array.
     PiDesc.image_type = DeviceImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
                                                  : PI_MEM_TYPE_IMAGE1D_ARRAY;
   } else {
