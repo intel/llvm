@@ -8,9 +8,11 @@
 
 // The test checks that the types can be used to pass kernel parameters by value
 // RUN: %clangxx -fsycl -fsyntax-only %s -Wno-sycl-strict -Xclang -verify-ignore-unexpected=note,warning
+// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fsyntax-only -fpreview-breaking-changes %s -Wno-sycl-strict -Xclang -verify-ignore-unexpected=note,warning %}
 
 // Check that the test can be compiled with device compiler as well.
 // RUN: %clangxx -fsycl-device-only -fsyntax-only %s -Wno-sycl-strict
+// RUN: %if preview-breaking-changes-supported %{%clangxx -fsycl-device-only -fsyntax-only -fpreview-breaking-changes %s -Wno-sycl-strict%}
 
 #include <sycl/sycl.hpp>
 
@@ -35,11 +37,22 @@ template <typename T> void check() {
 }
 
 SYCL_EXTERNAL void foo() {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 
   check<int>();
   check<sycl::vec<sycl::opencl::cl_uchar, 4>>();
   check<SomeStructure>();
   check<sycl::int4>();
   check<sycl::long16>();
+
+#else // __INTEL_PREVIEW_BREAKING_CHANGES
+
+#ifdef __SYCL_DEVICE_ONLY__
+  check<int>();
+  check<sycl::vec<sycl::opencl::cl_uchar, 4>>();
+  check<SomeStructure>();
+#endif // __SYCL_DEVICE_ONLY
+#endif //__INTEL_PREVIEW_BREAKING_CHANGES
+
   check<SomeMarrayStructure>();
 }

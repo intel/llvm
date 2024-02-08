@@ -552,7 +552,7 @@ public:
   template <typename ElementType,
             typename = typename std::enable_if_t<std::is_const_v<ElementType>>>
   explicit operator multi_ptr<ElementType, Space, DecorateAddress>() const {
-    multi_ptr<ElementType, Space, DecorateAddress>{
+    return multi_ptr<ElementType, Space, DecorateAddress>{
         detail::cast_AS<typename multi_ptr<ElementType, Space,
                                            access::decorated::yes>::pointer>(
             m_Pointer)};

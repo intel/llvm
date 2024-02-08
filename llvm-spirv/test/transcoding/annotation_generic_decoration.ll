@@ -9,31 +9,31 @@ target triple = "spir64-unknown-unknown"
 
 %struct.S = type { ptr }
 
-@.str = private unnamed_addr constant [114 x i8] c"{5825}{5826:\22testmem\22}{5828:42}{5827:\2241\22}{5829:3}{5831}{5830}{5832:2}{5834:str1,\22str2\22}{5835:\221\22,3,\222\22}{5836:24}\00", section "llvm.metadata"
-@.str.1 = private unnamed_addr constant [14 x i8] c"<invalid loc>\00", section "llvm.metadata"
+@.str = private unnamed_addr addrspace(1) constant [114 x i8] c"{5825}{5826:\22testmem\22}{5828:42}{5827:\2241\22}{5829:3}{5831}{5830}{5832:2}{5834:str1,\22str2\22}{5835:\221\22,3,\222\22}{5836:24}\00", section "llvm.metadata"
+@.str.1 = private unnamed_addr addrspace(1) constant [14 x i8] c"<invalid loc>\00", section "llvm.metadata"
 
 define dso_local noundef i32 @main() {
   %1 = alloca i32, align 4
   %2 = alloca %struct.S, align 8
   store i32 0, ptr %1, align 4
-  %3 = call ptr @llvm.ptr.annotation.p0(ptr %2, ptr @.str, ptr @.str.1, i32 3, ptr null)
+  %3 = call ptr @llvm.ptr.annotation.p0.p1(ptr %2, ptr addrspace(1) @.str, ptr addrspace(1) @.str.1, i32 3, ptr addrspace(1) null)
   %4 = load ptr, ptr %3, align 8
   ret i32 0
 }
 
-declare ptr @llvm.ptr.annotation.p0(ptr, ptr, ptr, i32, ptr)
+declare ptr @llvm.ptr.annotation.p0.p1(ptr, ptr addrspace(1), ptr addrspace(1), i32, ptr addrspace(1))
 
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 RegisterINTEL
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 MemoryINTEL "testmem"
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 BankwidthINTEL 42
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 NumbanksINTEL 41
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 MaxPrivateCopiesINTEL 3
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 DoublepumpINTEL
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 SinglepumpINTEL
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 MaxReplicatesINTEL 2
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 MergeINTEL "str1" "str2"
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 BankBitsINTEL 1 3 2
-; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 ForcePow2DepthINTEL 24
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} RegisterINTEL
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} MemoryINTEL "testmem"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} BankwidthINTEL 42
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} NumbanksINTEL 41
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} MaxPrivateCopiesINTEL 3
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} DoublepumpINTEL
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} SinglepumpINTEL
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} MaxReplicatesINTEL 2
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} MergeINTEL "str1" "str2"
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} BankBitsINTEL 1 3 2
+; CHECK-SPIRV-DAG: Decorate {{[0-9]+}} ForcePow2DepthINTEL 24
 
 ; CHECK-LLVM: @{{.*}} = private unnamed_addr constant [163 x i8] c"
 ; CHECK-LLVM-DAG: {register:1}

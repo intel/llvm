@@ -58,12 +58,17 @@
 // CHECK-HELP:   --help-list             - Display list of available options (--help-list-hidden for more)
 // CHECK-HELP:   --version               - Display the version of this program
 // CHECK-HELP: clang-offload-wrapper options:
-// CHECK-HELP:   --batch                 - All input files are provided as cells in a file table file,
-// CHECK-HELP:                             other command-line input files are not allowed.
-// CHECK-HELP:                             Example input file table in batch mode:
-// CHECK-HELP:                             [Code|Symbols|Properties|Manifest]
-// CHECK-HELP:                             a_0.bc|a_0.sym|a_0.props|a_0.mnf
-// CHECK-HELP:                             a_1.bin|||
+// CHECK-HELP:   --batch                 - All input files are treated as a table file.  One table file per target.
+// CHECK-HELP:                             Table files consist of a table of filenames that provide
+// CHECK-HELP:                             Code, Symbols, Properties, etc.
+// CHECK-HELP:                             Example input table file in batch mode:
+// CHECK-HELP:                               [Code|Symbols|Properties|Manifest]
+// CHECK-HELP:                               a_0.bc|a_0.sym|a_0.props|a_0.mnf
+// CHECK-HELP:                               a_1.bin|||
+// CHECK-HELP:                             Example usage:
+// CHECK-HELP:                               clang-offload-wrapper -batch -host=x86_64-unknown-linux-gnu
+// CHECK-HELP:                                 -kind=openmp -target=spir64_gen table1.txt
+// CHECK-HELP:                                 -kind=openmp -target=spir64     table2.txt
 // CHECK-HELP:   --compile-opts=<string> - compile options passed to the offload runtime
 // CHECK-HELP:   --desc-name=<name>      - Specifies offload descriptor symbol name: '.<offload kind>.<name>',
 // CHECK-HELP:                             and makes it globally visible

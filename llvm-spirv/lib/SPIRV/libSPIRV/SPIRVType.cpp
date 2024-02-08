@@ -142,9 +142,6 @@ SPIRVType *SPIRVType::getScalarType() const {
     return getVectorComponentType();
   case OpTypeMatrix:
     return getMatrixColumnType()->getVectorComponentType();
-  case OpTypeCooperativeMatrixKHR:
-    return static_cast<const SPIRVTypeCooperativeMatrixKHR *>(this)
-        ->getCompType();
   case OpTypeInt:
   case OpTypeFloat:
   case OpTypeBool:
@@ -334,6 +331,24 @@ void SPIRVTypeCooperativeMatrixKHR::encode(spv_ostream &O) const {
 void SPIRVTypeCooperativeMatrixKHR::decode(std::istream &I) {
   auto Decoder = getDecoder(I);
   Decoder >> Id >> CompType >> Args;
+}
+
+void SPIRVTypeCooperativeMatrixKHR::validate() const {
+  SPIRVEntry::validate();
+  SPIRVErrorLog &SPVErrLog = this->getModule()->getErrorLog();
+  SPIRVConstant *UseConst = static_cast<SPIRVConstant *>(this->getUse());
+  auto InstName = OpCodeNameMap::map(OC);
+  uint64_t UseValue = UseConst->getZExtIntValue();
+  SPVErrLog.checkError(
+      (UseValue <= CooperativeMatrixUseMatrixAccumulatorKHR),
+      SPIRVEC_InvalidInstruction,
+      InstName + "\nIncorrect Use parameter, should be MatrixA, MatrixB or "
+                 "Accumulator\n");
+  SPIRVConstant *ScopeConst = static_cast<SPIRVConstant *>(this->getScope());
+  uint64_t ScopeValue = ScopeConst->getZExtIntValue();
+  SPVErrLog.checkError((ScopeValue <= ScopeInvocation),
+                       SPIRVEC_InvalidInstruction,
+                       InstName + "\nUnsupported Scope parameter\n");
 }
 
 } // namespace SPIRV

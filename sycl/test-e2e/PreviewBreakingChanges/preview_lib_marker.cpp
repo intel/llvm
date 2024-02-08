@@ -1,6 +1,6 @@
 // REQUIRES: preview-breaking-changes-supported
 
-// RUN: %clangxx -fsycl -fpreview-breaking-changes %s -o %t
+// RUN: %clangxx -fsycl -fpreview-breaking-changes %s -o %t.out
 // RUN: %{run} %t.out
 
 // Test to help identify that E2E testing correctly detects and uses the preview

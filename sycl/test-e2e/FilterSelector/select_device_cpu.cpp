@@ -18,16 +18,14 @@ int main() {
   const char *envVal = std::getenv("ONEAPI_DEVICE_SELECTOR");
   std::string forcedPIs;
   if (envVal) {
-    std::cout << "ONEAPI_DEVICE_SELECTOR=" << envVal << std::endl;
     forcedPIs = envVal;
   }
   {
     default_selector ds;
     device d = ds.select_device();
     string name = d.get_platform().get_info<info::platform::name>();
-    assert(name.find("OpenCL") != string::npos);
-    std::cout << "CPU Device is found: " << std::boolalpha << d.is_cpu()
-              << std::endl;
+    assert(name.find("OpenCL") != string::npos &&
+           "default_selector failed to find cpu device");
   }
   {
     gpu_selector gs;
@@ -37,13 +35,11 @@ int main() {
                 << std::endl;
       return -1;
     } catch (...) {
-      std::cout << "Expectedly, GPU device is not found." << std::endl;
     }
   }
   {
     cpu_selector cs;
     device d = cs.select_device();
-    std::cout << "CPU device is found: " << d.is_cpu() << std::endl;
   }
   {
     accelerator_selector as;
@@ -53,7 +49,6 @@ int main() {
                 << std::endl;
       return -1;
     } catch (...) {
-      std::cout << "Expectedly, ACC device is not found." << std::endl;
     }
   }
 

@@ -125,7 +125,7 @@ constexpr char AmdGPU[] = "amd_gpu_";
 template <auto GPUArh> std::optional<StringRef> isGPUTarget(StringRef Target) {
   // Handle target specifications that resemble '(intel, nvidia, amd)_gpu_*'
   // here.
-  if (Target.startswith(GPUArh)) {
+  if (Target.starts_with(GPUArh)) {
     return resolveGenDevice(Target);
   }
   return  std::nullopt;
@@ -173,7 +173,7 @@ public:
   void AddImpliedTargetArgs(const llvm::Triple &Triple,
                             const llvm::opt::ArgList &Args,
                             llvm::opt::ArgStringList &CmdArgs,
-                            const JobAction &JA) const;
+                            const JobAction &JA, const ToolChain &HostTC) const;
   void TranslateBackendTargetArgs(const llvm::Triple &Triple,
                                   const llvm::opt::ArgList &Args,
                                   llvm::opt::ArgStringList &CmdArgs,
@@ -214,6 +214,8 @@ public:
   void AddClangCXXStdlibIncludeArgs(
       const llvm::opt::ArgList &Args,
       llvm::opt::ArgStringList &CC1Args) const override;
+
+  SanitizerMask getSupportedSanitizers() const override;
 
   const ToolChain &HostTC;
   const bool IsSYCLNativeCPU;

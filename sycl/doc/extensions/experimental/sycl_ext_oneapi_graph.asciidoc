@@ -53,7 +53,9 @@ Erik Tomusk, Codeplay +
 Bjoern Knafla, Codeplay +
 Lukas Sommer, Codeplay +
 Maxime France-Pillois, Codeplay +
+Jack Kirk, Codeplay +
 Ronan Keryell, AMD +
+Andrey Alekseenko, KTH Royal Institute of Technology +
 
 == Dependencies
 
@@ -336,6 +338,11 @@ class depends_on {
     depends_on(NodeTN... nodes);
 };
 
+class depends_on_all_leaves {
+  public:
+    depends_on_all_leaves() = default;
+};
+
 } // namespace node
 } // namespace property
 
@@ -366,6 +373,9 @@ public:
   command_graph(const context& syclContext, const device& syclDevice,
                 const property_list& propList = {});
 
+  command_graph(const queue& syclQueue,
+                const property_list& propList = {});
+
   command_graph<graph_state::executable>
   finalize(const property_list& propList = {}) const;
 
@@ -382,6 +392,8 @@ public:
   node add(T cgf, const property_list& propList = {});
 
   void make_edge(node& src, node& dest);
+
+  void print_graph(std::string path, bool verbose = false) const;
 };
 
 template<>
@@ -398,6 +410,9 @@ public:
 
   ext::oneapi::experimental::queue_state
   ext_oneapi_get_state() const;
+
+  ext::oneapi::experimental::command_graph<graph_state::modifiable> 
+  ext_oneapi_get_graph() const;
 
   /* -- graph convenience shortcuts -- */
 
@@ -475,6 +490,21 @@ class depends_on {
   public:
     template<typename... NodeTN>
     depends_on(NodeTN... nodes);
+};
+}
+----
+
+==== Depends-On-All-Leaves Property
+The API for explicitly adding nodes to a `command_graph` includes a
+`property_list` parameter. This extension defines the `depends_on_all_leaves`
+property to be passed here. `depends_on_all_leaves` provides a shortcut for
+adding all the current leaves of a graph as dependencies.
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::property::node {
+class depends_on_all_leaves {
+  public:
+    depends_on_all_leaves();
 };
 }
 ----
@@ -588,8 +618,34 @@ associated with `syclContext`.
 * Throws synchronously with error code `invalid` if `syclDevice`
   <<device-info-query, reports this extension as unsupported>>.
 
-* Throws synchronously with error code `invalid` if the backend associated
-with `syclDevice` is not supported.
+|
+[source,c++]
+----
+command_graph(const queue& syclQueue,
+              const property_list& propList = {});
+----
+|Simplified constructor form where `syclQueue` provides the device and context.
+Zero or more properties can be provided to the constructed SYCL `command_graph`
+via an instance of `property_list`.
+
+Preconditions:
+
+* This constructor is only available when the `command_graph` state is
+  `graph_state::modifiable`.
+
+Parameters:
+
+* `syclQueue` - Queue which provides the SYCL device and context for the graph,
+  which are immutable characteristics of the graph. All other properties of the
+  queue are ignored for the purposes of graph creation.
+
+* `propList` - Optional parameter for passing properties. Valid `command_graph`
+  constructor properties are listed in Section <<graph-properties, Graph Properties>>.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if the device associated with
+ `syclQueue` <<device-info-query, reports this extension as unsupported>>.
 
 |===
 
@@ -726,6 +782,32 @@ Parameters:
   properties are defined by this extension.
 
 Returns: A new executable graph object which can be submitted to a queue.
+
+|
+[source,c++]
+----
+void
+print_graph(std::string path, bool verbose = false) const;
+----
+
+|Synchronous operation that writes a DOT formatted description of the graph to the
+provided path. By default, this includes the graph topology, node types, node id,
+and kernel names.
+Verbose can be set to true to write more detailed information about each node type
+such as kernel arguments, copy source, and destination addresses.
+At the moment DOT format is the only supported format. The name of the output file
+must therefore match this extension, i.e. "<filename>.dot".
+
+Parameters:
+
+* `path` - The path to write the DOT file to.
+* `verbose` - If true, print additional information about the nodes such as kernel args
+or memory access where applicable.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if the path is invalid or
+the file extension is not supported or if the write operation failed.
 
 |===
 
@@ -943,6 +1025,22 @@ object.
 |
 [source,c++]
 ----
+command_graph<graph_state::modifiable>
+queue::ext_oneapi_get_graph() const;
+----
+
+| Query the underlying command graph of a queue when recording.
+
+Returns: The graph object that the queue is recording commands into.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if the queue is not in `queue_state::recording`
+state.
+
+|
+[source,c++]
+----
 event
 queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph)
 ----
@@ -1011,9 +1109,10 @@ void
 handler::ext_oneapi_graph(command_graph<graph_state::executable>& graph)
 ----
 
-|Invokes the execution of a graph. Only one instance of `graph` may be executing,
-or pending execution, at any time. Concurrent graph execution can be achieved by
-finalizing a graph in modifiable state into multiple graphs in executable state.
+|Invokes the execution of a graph. Only one instance of `graph` will
+execute at any time. If `graph` is submitted multiple times, dependencies
+are automatically added by the runtime to prevent concurrent executions of 
+an identical graph.
 
 Parameters:
 
@@ -1025,8 +1124,6 @@ Exceptions:
   to a queue which is associated with a device or context that is different
   from the device and context used on creation of the graph.
 
-* Throws synchronously with error code `invalid` if a previous submission of
-  `graph` has yet to complete execution.
 |===
 
 === Thread Safety
@@ -1063,10 +1160,21 @@ modifiable graph will perform this action, useful in RAII pattern usage.
 
 :host-task: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#subsec:interfaces.hosttasks
 
-It is not yet supported to have a host task inside a `command_graph`, and an
-exception will be thrown if used by application code. Support will be added
-subsequently as detailed in the <<future-host-tasks, host tasks>> part from the
-<<future-direction, future direction>> section of this specification.
+A {host-task}[host task] is a native C++ callable, scheduled according to SYCL
+dependency rules. It is valid to record a host task as part of a graph, though it
+may lead to sub-optimal graph performance because a host task node may prevent
+the SYCL runtime from submitting the entire executable `command_graph` to the
+device at once.
+
+[source,c++]
+----
+auto node = graph.add([&](sycl::handler& cgh){
+  // Host code here is evaluated during the call to add()
+  cgh.host_task([=](){
+    // Code here is evaluated as part of executing the command graph node
+  });
+});
+----
 
 === Queue Behavior In Recording Mode
 
@@ -1080,20 +1188,28 @@ they do in non-recording mode.
 
 ==== Event Limitations
 
-Events returned from queue submissions when a queue is in the recording state
-may only be used as parameters to `handler::depends_on()` or as dependent
-events for queue shortcuts like `queue::parallel_for()` for submissions which
-are being recorded to the same modifiable `command_graph`.
+For queue submissions that are being recorded to a modifiable `command_graph`,
+the only events that can be used as parameters to `handler::depends_on()`, or
+as dependent events for queue shortcuts like `queue::parallel_for()`, are events
+that have been returned from queue submissions recorded to the same modifiable
+`command_graph`.
+
+Other limitations on the events returned from a submission to a queue in the
+recording state are:
 
 - Calling `event::get_info<info::event::command_execution_status>()` or
-`event::get_profiling_info()` on an event returned from a queue submission
-recorded to a graph will throw synchronously with error code `invalid`.
+`event::get_profiling_info()` will throw synchronously with error code `invalid`.
 
-- Waiting on an event returned from a queue submission recorded to a graph
-will throw synchronously with error code `invalid`.
+- A host-side wait on the event will throw synchronously with error
+code `invalid`.
 
-- Waiting on a queue in the recording state is an error and will throw
-synchronously with error code `invalid`.
+- Using the event outside of the recording scope will throw synchronously with error code
+`invalid`.
+
+==== Queue Limitations
+
+A host-side wait on a queue in the recording state is an error and will
+throw synchronously with error code `invalid`.
 
 ==== Buffer Limitations
 
@@ -1164,11 +1280,12 @@ passed an invalid event.
 
 The new handler methods, and queue shortcuts, defined by
 link:../supported/sycl_ext_oneapi_enqueue_barrier.asciidoc[sycl_ext_oneapi_enqueue_barrier]
-cannot be used in graph nodes. A synchronous exception will be thrown with
-error code `invalid` if a user tries to add them to a graph.
-
-Removing this restriction is something we may look at for future revisions of
-`sycl_ext_oneapi_graph`.
+can only be used in graph nodes created using the Record & Replay API, as
+barriers rely on events to enforce dependencies. A synchronous exception will be
+thrown with error code `invalid` if a user tries to add them to a graph using
+the Explicit API. Empty nodes created with the `node::depends_on_all_leaves`
+property can be used instead of barriers when a user is building a graph with
+the explicit API.
 
 ==== sycl_ext_oneapi_memcpy2d
 
@@ -1225,11 +1342,8 @@ which is layered ontop of `sycl_ext_oneapi_graph`.
 
 The new handler methods, and queue shortcuts, defined by
 link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties]
-cannot be used in graph nodes. A synchronous exception will be thrown with error
-code `invalid` if a user tries to add them to a graph.
-
-Removing this restriction is something we may look at for future revisions of
-`sycl_ext_oneapi_graph`.
+can be used in graph nodes in the same way as they are used in normal queue
+submission. 
 
 ==== sycl_ext_oneapi_prod
 
@@ -1513,27 +1627,6 @@ if all the commands accessing this buffer use `access_mode::write` or the
 Note, however, that these cases require the application to disable copy-back
 as described in <<buffer-limitations, Buffer Limitations>>.
 
-==== Host Tasks [[future-host-tasks]]
-
-A {host-task}[host task] is a native C++ callable, scheduled according to SYCL
-dependency rules. It is valid to record a host task as part of graph, though it
-may lead to sub-optimal graph performance because a host task node may prevent
-the SYCL runtime from submitting the entire executable `command_graph` to the
-device at once.
-
-Host tasks can be updated as part of <<executable-graph-update, executable graph update>>
-by replacing the whole node with the new callable.
-
-[source,c++]
-----
-auto node = graph.add([&](sycl::handler& cgh){
-  // Host code here is evaluated during the call to add()
-  cgh.host_task([=](){
-    // Code here is evaluated as part of executing the command graph node
-  });
-});
-----
-
 ==== Executable Graph Update
 
 A graph in the executable state can have each nodes inputs & outputs updated
@@ -1543,6 +1636,12 @@ outputs of the modifiable graph, a technique called _Whole Graph Update_. The
 modifiable graph must have the same topology as the graph originally used to
 create the executable graphs, with the nodes targeting the same devices and
 added in the same order.
+If a graph has been updated since its last submission, the sequential 
+execution constraint is no longer required.
+The automatic addition of dependencies is disabled and updated graphs 
+can be submitted simultaneously.
+Users are therefore responsible for explicitly managing potential dependencies
+between these executions to avoid data races.
 
 :sycl-kernel-function: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sycl-kernel-function
 
@@ -1672,15 +1771,6 @@ runtime.
 
 == Issues
 
-=== Simultaneous Graph Submission
-
-Enable an instance of a graph in executable state to be submitted for execution
-when a previous submission of the same graph has yet to complete execution.
-
-**UNRESOLVED:** Trending "yes". Backend support for this is inconsistent, but
-the runtime could schedule the submissions sequentially for backends which don't
-support it.
-
 === Multi Device Graph
 
 Allow an executable graph to contain nodes targeting different devices.
@@ -1733,16 +1823,13 @@ or layered as a separate extension proposal.
 The following features are not yet supported, and an exception will be thrown
 if used in application code.
 
-. Using `handler::fill` in a graph node implemented for USM only.
-. Using `handler::memset` in a graph node.
-. Using `handler::prefetch` in a graph node.
-. Using `handler::memadvise` in a graph node.
-. Using specialization constants in a graph node.
 . Using reductions in a graph node.
 . Using sycl streams in a graph node.
-. Using a kernel bundle in a graph node.
 . Profiling an event returned from graph submission with
   `event::get_profiling_info()`.
+. Synchronization between multiple executions of the same command-buffer 
+  must be handled in the host for level-zero backend, which may involve 
+  extra latency for subsequent submissions.
 
 == Revision History
 

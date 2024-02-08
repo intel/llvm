@@ -1,13 +1,12 @@
-// REQUIRES: level_zero, gpu
 // RUN: %{build_pthread_inc} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck %s %}
+// RUN: %if level_zero %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s %}
 //
 // CHECK-NOT: LEAK
 
 // Test submitting a graph in a threaded situation.
 // The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
+// UR_L0_LEAKS_DEBUG=1 testing capability.
 
 // Note that we do not check the outputs becuse multiple concurrent executions
 // is indeterministic (and depends on the backend command management).
@@ -20,6 +19,10 @@
 
 int main() {
   queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
 
   using T = int;
 

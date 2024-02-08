@@ -438,6 +438,10 @@ private:
   /// Global annotations.
   std::vector<llvm::Constant*> Annotations;
 
+  // Store deferred function annotations so they can be emitted at the end with
+  // most up to date ValueDecl that will have all the inherited annotations.
+  llvm::DenseMap<StringRef, const ValueDecl *> DeferredAnnotations;
+
   /// Map used to get unique annotation strings.
   llvm::StringMap<llvm::Constant*> AnnotationStrings;
 
@@ -1586,15 +1590,23 @@ public:
                                    llvm::Metadata *&MDs, unsigned ID,
                                    const llvm::Type *FuncType);
   /// Emit the IR encoding to attach the CUDA launch bounds attribute to \p F.
+  /// If \p MaxThreadsVal is not nullptr, the max threads value is stored in it,
+  /// if a valid one was found.
   void handleCUDALaunchBoundsAttr(llvm::Function *F,
-                                  const CUDALaunchBoundsAttr *A);
+                                  const CUDALaunchBoundsAttr *A,
+                                  int32_t *MaxThreadsVal = nullptr,
+                                  int32_t *MinBlocksVal = nullptr,
+                                  int32_t *MaxClusterRankVal = nullptr);
 
   /// Emit the IR encoding to attach the AMD GPU flat-work-group-size attribute
   /// to \p F. Alternatively, the work group size can be taken from a \p
-  /// ReqdWGS.
+  /// ReqdWGS. If \p MinThreadsVal is not nullptr, the min threads value is
+  /// stored in it, if a valid one was found. If \p MaxThreadsVal is not
+  /// nullptr, the max threads value is stored in it, if a valid one was found.
   void handleAMDGPUFlatWorkGroupSizeAttr(
       llvm::Function *F, const AMDGPUFlatWorkGroupSizeAttr *A,
-      const ReqdWorkGroupSizeAttr *ReqdWGS = nullptr);
+      const ReqdWorkGroupSizeAttr *ReqdWGS = nullptr,
+      int32_t *MinThreadsVal = nullptr, int32_t *MaxThreadsVal = nullptr);
 
   /// Emit the IR encoding to attach the AMD GPU waves-per-eu attribute to \p F.
   void handleAMDGPUWavesPerEUAttr(llvm::Function *F,
@@ -1604,6 +1616,13 @@ public:
   GetOrCreateLLVMGlobal(StringRef MangledName, llvm::Type *Ty, LangAS AddrSpace,
                         const VarDecl *D,
                         ForDefinition_t IsForDefinition = NotForDefinition);
+
+  // FIXME: Hardcoding priority here is gross.
+  void AddGlobalCtor(llvm::Function *Ctor, int Priority = 65535,
+                     unsigned LexOrder = ~0U,
+                     llvm::Constant *AssociatedData = nullptr);
+  void AddGlobalDtor(llvm::Function *Dtor, int Priority = 65535,
+                     bool IsDtorAttrFunc = false);
 
 private:
   llvm::Constant *GetOrCreateLLVMFunction(
@@ -1675,13 +1694,6 @@ private:
 
   void EmitPointerToInitFunc(const VarDecl *VD, llvm::GlobalVariable *Addr,
                              llvm::Function *InitFunc, InitSegAttr *ISA);
-
-  // FIXME: Hardcoding priority here is gross.
-  void AddGlobalCtor(llvm::Function *Ctor, int Priority = 65535,
-                     unsigned LexOrder = ~0U,
-                     llvm::Constant *AssociatedData = nullptr);
-  void AddGlobalDtor(llvm::Function *Dtor, int Priority = 65535,
-                     bool IsDtorAttrFunc = false);
 
   /// EmitCtorList - Generates a global array of functions and priorities using
   /// the given list and name. This array will have appending linkage and is

@@ -29,9 +29,11 @@
 // add the device lib instrumentation (itt_compiler_wrapper)
 // >> ---- unbundle compiler wrapper device object
 // RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-itt-compiler-wrappers%obj_ext -output=compiler_wrappers.bc -unbundle
+// RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-itt-stubs%obj_ext -output=itt_stubs.bc -unbundle
+// RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-itt-user-wrappers%obj_ext -output=user_wrappers.bc -unbundle
 //
 // >> ---- link device code
-// RUN: llvm-link -o=app.bc a_kernel.bc b_kernel.bc compiler_wrappers.bc
+// RUN: llvm-link -o=app.bc a_kernel.bc b_kernel.bc compiler_wrappers.bc itt_stubs.bc user_wrappers.bc
 //
 // >> ---- produce entries data
 // RUN: sycl-post-link -split=auto -emit-param-info -symbols -emit-exported-symbols  -o test.table app.bc

@@ -240,4 +240,26 @@ is to show the basic ESIMD APIs in well known examples.
    }).wait_and_throw();
    ```
 
+5) Using BFN API to efficiently compute a binary function of three parameters.
+   Please see the full source code here: ["bfn"]("bfn.md").
+
+   Illustrates using a special API to compute a binary function of three operands.
+   The function is computed for every bit in the integral input.
+
+   ```c++
+   // Let's compute f(x, y, z) = ~x | y ^ z.
+   constexpr esimd::bfn_t F = ~bfn_t::x | bfn_t::y ^ bfn_t::z;
+
+   q.parallel_for(Size / VL, [=](id<1> i) [[intel::sycl_explicit_simd]] {
+     using namespace esimd;
+     auto offset = i * VL;
+     simd<unsigned, VL> X(in1 + offset);
+     simd<unsigned, VL> Y(in2 + offset);
+     simd<unsigned, VL> Z(in3 + offset);
+
+     simd<unsigned, VL> val = bfn<F>(X, Y, Z);
+     val.copy_to(res + offset);
+   }).wait();
+   ```
+
 6) TODO: Add more examples here.

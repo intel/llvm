@@ -1,38 +1,56 @@
+# Plugin for SYCL Native CPU
+# Create shared library for libpi_nativecpu.so
+
+# Get the Native CPU adapter sources so they can be shared with the Native CPU PI plugin
+get_target_property(UR_NATIVE_CPU_ADAPTER_SOURCES ur_adapter_native_cpu SOURCES)
+
 add_sycl_plugin(native_cpu
   SOURCES
-    "pi_native_cpu.cpp"
+    ${UR_NATIVE_CPU_ADAPTER_SOURCES}
+    # Some code is shared with the UR adapter
     "../unified_runtime/pi2ur.hpp"
-    "../unified_runtime/pi2ur.cpp"
-    "../unified_runtime/ur/ur.hpp"
-    "../unified_runtime/ur/ur.cpp"
-    "../unified_runtime/ur/adapters/native_cpu/adapter.cpp"
-    "../unified_runtime/ur/adapters/native_cpu/command_buffer.cpp"
-    "../unified_runtime/ur/adapters/native_cpu/common.cpp"
-    "../unified_runtime/ur/adapters/native_cpu/common.hpp"
-    "../unified_runtime/ur/adapters/native_cpu/context.cpp"
-    "../unified_runtime/ur/adapters/native_cpu/context.hpp"
-    "../unified_runtime/ur/adapters/native_cpu/device.cpp"
-    "../unified_runtime/ur/adapters/native_cpu/device.hpp"
-    "../unified_runtime/ur/adapters/native_cpu/enqueue.cpp"
-    "../unified_runtime/ur/adapters/native_cpu/event.cpp"
-    "../unified_runtime/ur/adapters/native_cpu/image.cpp"
-    "../unified_runtime/ur/adapters/native_cpu/kernel.cpp"
-    "../unified_runtime/ur/adapters/native_cpu/kernel.hpp"
-    "../unified_runtime/ur/adapters/native_cpu/memory.cpp"
-    "../unified_runtime/ur/adapters/native_cpu/memory.hpp"
-    "../unified_runtime/ur/adapters/native_cpu/platform.cpp"
-    "../unified_runtime/ur/adapters/native_cpu/platform.hpp"
-    "../unified_runtime/ur/adapters/native_cpu/program.cpp"
-    "../unified_runtime/ur/adapters/native_cpu/program.hpp"
-    "../unified_runtime/ur/adapters/native_cpu/queue.cpp"
-    "../unified_runtime/ur/adapters/native_cpu/queue.hpp"
-    "../unified_runtime/ur/adapters/native_cpu/sampler.cpp"
-    "../unified_runtime/ur/adapters/native_cpu/ur_interface_loader.cpp"
-    "../unified_runtime/ur/adapters/native_cpu/usm.cpp"
-    "../unified_runtime/ur/adapters/native_cpu/usm_p2p.cpp"
+    "${sycl_inc_dir}/sycl/detail/pi.h"
+    "${sycl_inc_dir}/sycl/detail/pi.hpp"
+    "pi_native_cpu.cpp"
+    "pi_native_cpu.hpp"
   INCLUDE_DIRS
-    ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime
+    ${sycl_inc_dir}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime # for Unified Runtime
+    ${UNIFIED_RUNTIME_SOURCE_DIR}/source/ # for adapters/native_cpu
   LIBRARIES
     sycl
     UnifiedRuntime-Headers
+    UnifiedRuntimeCommon
 )
+
+
+if(NATIVECPU_USE_OCK)
+  include(FetchContent)
+  FetchContent_Declare(oneapi-ck
+   GIT_REPOSITORY https://github.com/codeplaysoftware/oneapi-construction-kit.git
+   # commit 558b76cd6080107a2d65f7e37468f3d01eef80f7
+   # Merge: a5ec372f 542ee121
+   # Author: PietroGhg <38155419+PietroGhg@users.noreply.github.com>
+   # Date:   Tue Jan 30 12:53:39 2024 +0100
+   # Merge pull request #322 from PietroGhg/pietro/update_30_jan
+   # Update sycl_native_experimental branch
+   GIT_TAG 558b76cd6080107a2d65f7e37468f3d01eef80f7
+  )
+  FetchContent_GetProperties(oneapi-ck)
+  if(NOT oneapi-ck_POPULATED)
+    message(STATUS "Cloning oneAPI Construction Kit")
+    FetchContent_Populate(oneapi-ck)
+    message(STATUS "oneAPI Construction Kit cloned in ${oneapi-ck_SOURCE_DIR}")
+    set(CA_NATIVE_CPU 1)
+    add_subdirectory(${oneapi-ck_SOURCE_DIR} ${oneapi-ck_BINARY_DIR} EXCLUDE_FROM_ALL)
+  endif()
+  target_compile_definitions(LLVMSYCLLowerIR PRIVATE  NATIVECPU_USE_OCK)
+  target_include_directories(LLVMSYCLLowerIR PRIVATE 
+    ${oneapi-ck_SOURCE_DIR}/modules/compiler/multi_llvm/include
+    ${oneapi-ck_SOURCE_DIR}/modules/cargo/include
+    ${oneapi-ck_SOURCE_DIR}/modules/compiler/utils/include)
+  target_link_libraries(LLVMSYCLLowerIR PRIVATE compiler-pipeline)
+  target_compile_definitions(pi_native_cpu PRIVATE NATIVECPU_USE_OCK)
+
+endif()
+set_target_properties(pi_native_cpu PROPERTIES LINKER_LANGUAGE CXX)

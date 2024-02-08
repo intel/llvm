@@ -24,7 +24,11 @@ int reference(size_t i) {
 } // namespace
 
 int main() {
-  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+  queue Queue{};
+
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
   exp_ext::command_graph SubGraph{Queue.get_context(), Queue.get_device()};

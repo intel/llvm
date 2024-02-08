@@ -14,6 +14,7 @@
 #include <llvm/ADT/BitVector.h>
 #include <llvm/ADT/TypeSwitch.h>
 #include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/PatternMatch.h>
 #include <llvm/Support/WithColor.h>
 #include <llvm/Transforms/Utils/Cloning.h>
 
@@ -25,10 +26,18 @@
 #define DEBUG_TYPE "sycl-fusion"
 
 using namespace llvm;
+using namespace PatternMatch;
 
 constexpr static StringLiteral PrivatePromotion{"private"};
 constexpr static StringLiteral LocalPromotion{"local"};
 constexpr static StringLiteral NoPromotion{"none"};
+
+///
+/// Helper struct to capture number of elements and their size in bytes.
+struct PromotionInfo {
+  std::size_t LocalSize;
+  std::size_t ElemSize;
+};
 
 ///
 /// Helper function implementing private and public internalization.
@@ -59,12 +68,14 @@ struct SYCLInternalizerImpl {
   ///   - Promote the function and call the new function instead,
   ///   keeping the original function.
   /// - The value appears in a load/store operation: Do nothing
-  void promoteValue(Value *Val, std::size_t LocalSize, bool InAggregate) const;
+  void promoteValue(Value *Val, const PromotionInfo &PromInfo,
+                    bool InAggregate) const;
 
   void promoteGEPI(GetElementPtrInst *GEPI, const Value *Val,
-                   std::size_t LocalSize, bool InAggregate) const;
+                   const PromotionInfo &PromInfo, bool InAggregate) const;
 
-  void promoteCall(CallBase *C, const Value *Val, std::size_t LocalSize) const;
+  void promoteCall(CallBase *C, const Value *Val,
+                   const PromotionInfo &PromInfo) const;
 
   ///
   /// Function to promote a set of arguments from a function.
@@ -74,8 +85,7 @@ struct SYCLInternalizerImpl {
   /// 1. Declare the new promoted function with the updated signature.
   /// 2. Clone the function with the desired promoted arguments.
   /// 3. If required, erase the old function.
-  Function *promoteFunctionArgs(Function *F,
-                                ArrayRef<std::size_t> PromoteToLocal,
+  Function *promoteFunctionArgs(Function *F, ArrayRef<PromotionInfo> PromInfos,
                                 bool CreateAllocas,
                                 bool KeepOriginal = false) const;
 
@@ -87,41 +97,44 @@ struct SYCLInternalizerImpl {
   /// pure offset computation on the original candidate argument.
   /// For address-space casts, pointer-to-int conversions and unknown users,
   /// return an error.
-  Error canPromoteValue(Value *Val, size_t LocalSize, bool InAggregate) const;
+  Error canPromoteValue(Value *Val, const PromotionInfo &PromInfo,
+                        bool InAggregate) const;
 
   ///
   /// Check that the operand of a GEP can be promoted to its users, and
   /// propagate whether it represents a pointer into an aggregate object.
   Error canPromoteGEP(GetElementPtrInst *GEPI, const Value *Val,
-                      size_t LocalSize, bool InAggregate) const;
+                      const PromotionInfo &PromInfo, bool InAggregate) const;
 
   ///
   /// Check if operand to a function call can be promoted.
   /// If the function returns a pointer, or the operand points into an aggregate
   /// object, return an error. Otherwise, check if the corresponding formal
   /// parameter can be promoted in the function body.
-  Error canPromoteCall(CallBase *C, const Value *Val, size_t LocalSize,
-                       bool InAggregate) const;
+  Error canPromoteCall(CallBase *C, const Value *Val,
+                       const PromotionInfo &PromInfo, bool InAggregate) const;
 
   Error checkArgsPromotable(Function *F,
-                            SmallVectorImpl<size_t> &PromoteArgSizes) const;
+                            SmallVectorImpl<PromotionInfo> &PromInfos) const;
 };
 
 constexpr StringLiteral SYCLInternalizer::Key;
 constexpr StringLiteral SYCLInternalizer::LocalSizeKey;
+constexpr StringLiteral SYCLInternalizer::ElemSizeKey;
 
-static Expected<SmallVector<std::size_t>>
+static Expected<SmallVector<PromotionInfo>>
 getInternalizationFromMD(Function *F, StringRef Kind) {
-  SmallVector<std::size_t> Info;
+  SmallVector<PromotionInfo> Info;
   MDNode *MD = F->getMetadata(SYCLInternalizer::Key);
   MDNode *LSMD = F->getMetadata(SYCLInternalizer::LocalSizeKey);
-  if (!MD || !LSMD) {
+  MDNode *ESMD = F->getMetadata(SYCLInternalizer::ElemSizeKey);
+  if (!MD || !LSMD || !ESMD) {
     return createStringError(inconvertibleErrorCode(),
                              "Promotion metadata not available");
   }
-  for (auto I : zip(MD->operands(), LSMD->operands())) {
+  for (auto I : zip(MD->operands(), LSMD->operands(), ESMD->operands())) {
     const auto *MDS = cast<MDString>(std::get<0>(I));
-    const auto Val = [&]() -> std::size_t {
+    const auto Val = [&]() -> PromotionInfo {
       if (MDS->getString() == Kind) {
         auto LS = metadataToUInt<std::size_t>(std::get<1>(I));
         if (auto Err = LS.takeError()) {
@@ -129,11 +142,19 @@ getInternalizationFromMD(Function *F, StringRef Kind) {
           handleAllErrors(std::move(Err), [](const StringError &SE) {
             FUSION_DEBUG(llvm::dbgs() << SE.message() << "\n");
           });
-          return 0;
+          return {};
         }
-        return *LS;
+        auto ES = metadataToUInt<std::size_t>(std::get<2>(I));
+        if (auto Err = ES.takeError()) {
+          // Do nothing
+          handleAllErrors(std::move(Err), [](const StringError &SE) {
+            FUSION_DEBUG(llvm::dbgs() << SE.message() << "\n");
+          });
+          return {};
+        }
+        return {*LS, *ES};
       }
-      return 0;
+      return {};
     }();
     Info.emplace_back(Val);
   }
@@ -141,51 +162,76 @@ getInternalizationFromMD(Function *F, StringRef Kind) {
 }
 
 static void updateInternalizationMD(Function *F, StringRef Kind,
-                                    ArrayRef<size_t> LocalSizes) {
+                                    ArrayRef<PromotionInfo> PromInfos) {
   MDNode *MD = F->getMetadata(SYCLInternalizer::Key);
   MDNode *LSMD = F->getMetadata(SYCLInternalizer::LocalSizeKey);
+  MDNode *ESMD = F->getMetadata(SYCLInternalizer::ElemSizeKey);
   assert(MD && LSMD && "Promotion metadata not available");
-  assert(MD->getNumOperands() == LocalSizes.size() &&
-         LSMD->getNumOperands() == LocalSizes.size() &&
+  assert(MD->getNumOperands() == PromInfos.size() &&
+         LSMD->getNumOperands() == PromInfos.size() &&
+         ESMD->getNumOperands() == PromInfos.size() &&
          "Size mismatch in promotion metadata");
-  for (auto I : enumerate(LocalSizes)) {
+  for (auto I : enumerate(PromInfos)) {
     const auto *CurMDS = cast<MDString>(MD->getOperand(I.index()));
     if (CurMDS->getString() == Kind) {
-      if (I.value() == 0) {
+      if (I.value().LocalSize == 0) {
         // The metadata indicates that this argument should be promoted, but the
         // analysis has deemed this infeasible (local size after analysis is 0).
         // Update the metadata-entry for this argument.
         auto *NewMDS = MDString::get(F->getContext(), NoPromotion);
         MD->replaceOperandWith(I.index(), NewMDS);
-        auto *NewLS = MDString::get(F->getContext(), "");
-        LSMD->replaceOperandWith(I.index(), NewLS);
+        auto *EmptyStr = MDString::get(F->getContext(), "");
+        LSMD->replaceOperandWith(I.index(), EmptyStr);
+        ESMD->replaceOperandWith(I.index(), EmptyStr);
       }
     }
   }
 }
 
 ///
+/// If \p GEPI represents a constant offset in bytes, return it, otherwise
+/// return an empty value.
+static std::optional<unsigned> getConstantByteOffset(GetElementPtrInst *GEPI,
+                                                     const DataLayout &DL) {
+  MapVector<Value *, APInt> VariableOffsets;
+  auto IW = DL.getIndexSizeInBits(GEPI->getPointerAddressSpace());
+  APInt ConstantOffset = APInt::getZero(IW);
+  if (GEPI->collectOffset(DL, IW, VariableOffsets, ConstantOffset) &&
+      VariableOffsets.empty()) {
+    return ConstantOffset.getZExtValue();
+  }
+  return {};
+}
+
+///
 /// When performing internalization, GEP instructions must be remapped, as the
 /// address space has changed from N to N / LocalSize.
-static void remap(GetElementPtrInst *GEPI, std::size_t LocalSize) {
+static void remap(GetElementPtrInst *GEPI, const PromotionInfo &PromInfo) {
   IRBuilder<> Builder{GEPI};
-  Value *C0 = Builder.getInt64(0);
 
-  auto NIdx = GEPI->getNumIndices();
-  if (NIdx > 1) {
-    // `GEPI` indexes into an aggregate. If the first index is 0, the base
-    // pointer is used as-is and we do not need to perform remapping. This is
-    // the common case.
-    // TODO: Support non-zero pointer offset, too. If the pointer operand is
-    //       a GEP as well, we must check if the source element types match.
-    assert(GEPI->idx_begin()->get() == C0);
+  if (PromInfo.LocalSize == 1) {
+    // Squash the index and let instcombine clean-up afterwards.
+    GEPI->idx_begin()->set(Builder.getInt64(0));
     return;
   }
 
-  if (LocalSize == 1) {
-    // Squash the index and let instcombine clean-up afterwards.
-    GEPI->idx_begin()->set(C0);
-    return;
+  // GEPs with constant offset may be marked for remapping even if their element
+  // size differs from the accessor's element size. However we know that the
+  // offset is a multiple of the latter. Rewrite the instruction to represent a
+  // number of _elements_ to make it compatible with other GEPs in the current
+  // chain.
+  auto &DL = GEPI->getModule()->getDataLayout();
+  auto SrcElemTySz = DL.getTypeAllocSize(GEPI->getSourceElementType());
+  if (SrcElemTySz != PromInfo.ElemSize) {
+    auto COff = getConstantByteOffset(GEPI, DL);
+    // This is special case #2 in `getGEPKind`.
+    assert(COff.has_value() && *COff % PromInfo.ElemSize == 0 &&
+           GEPI->getNumIndices() == 1);
+    auto *IntTypeWithSameWidthAsAccessorElementType =
+        Builder.getIntNTy(PromInfo.ElemSize * 8);
+    GEPI->setSourceElementType(IntTypeWithSameWidthAsAccessorElementType);
+    GEPI->setResultElementType(IntTypeWithSameWidthAsAccessorElementType);
+    GEPI->idx_begin()->set(Builder.getInt64(*COff / PromInfo.ElemSize));
   }
 
   // An individual `GEP(ptr, offset)` is rewritten as
@@ -223,22 +269,25 @@ static void remap(GetElementPtrInst *GEPI, std::size_t LocalSize) {
             return Builder.CreateAdd(*Pred->idx_begin(), *GEPI->idx_begin());
           })
           .Default(GEPI->idx_begin()->get());
-  Value *Remainder = Builder.CreateURem(Dividend, Builder.getInt64(LocalSize));
+  Value *Remainder =
+      Builder.CreateURem(Dividend, Builder.getInt64(PromInfo.LocalSize));
   GEPI->idx_begin()->set(Remainder);
 }
 
 ///
 /// Function to get the indices of a user in which a value appears.
-static SmallVector<std::size_t>
-getUsagesInternalization(const User *U, const Value *V, std::size_t LocalSize) {
-  SmallVector<std::size_t> InternInfo;
-  std::transform(U->op_begin(), U->op_end(), std::back_inserter(InternInfo),
-                 [&](const Use &Us) { return Us == V ? LocalSize : 0; });
+static SmallVector<PromotionInfo>
+getUsagesInternalization(const User *U, const Value *V,
+                         const PromotionInfo &PromInfo) {
+  SmallVector<PromotionInfo> InternInfo;
+  std::transform(
+      U->op_begin(), U->op_end(), std::back_inserter(InternInfo),
+      [&](const Use &Us) { return Us == V ? PromInfo : PromotionInfo{}; });
   return InternInfo;
 }
 
 Error SYCLInternalizerImpl::canPromoteCall(CallBase *C, const Value *Val,
-                                           size_t LocalSize,
+                                           const PromotionInfo &PromInfo,
                                            bool InAggregate) const {
   if (isa<PointerType>(C->getType())) {
     // With opaque pointers, we do not have the necessary information to compare
@@ -256,7 +305,8 @@ Error SYCLInternalizerImpl::canPromoteCall(CallBase *C, const Value *Val,
         "is currently not supported.");
   }
 
-  SmallVector<size_t> InternInfo = getUsagesInternalization(C, Val, LocalSize);
+  SmallVector<PromotionInfo> InternInfo =
+      getUsagesInternalization(C, Val, PromInfo);
   assert(!InternInfo.empty() && "Value must be used at least once");
   if (auto Err = checkArgsPromotable(C->getCalledFunction(), InternInfo)) {
     return Err;
@@ -264,23 +314,71 @@ Error SYCLInternalizerImpl::canPromoteCall(CallBase *C, const Value *Val,
   return Error::success();
 }
 
+enum GEPKind { INVALID = 0, NEEDS_REMAPPING, ADDRESSES_INTO_AGGREGATE };
+
+static int getGEPKind(GetElementPtrInst *GEPI, const PromotionInfo &PromInfo) {
+  assert(GEPI->getNumIndices() >= 1 && "No-op GEP encountered");
+
+  // Inspect the GEP's source element type.
+  auto &DL = GEPI->getModule()->getDataLayout();
+  auto SrcElemTySz = DL.getTypeAllocSize(GEPI->getSourceElementType());
+
+  // `GEPI`'s first index is selecting elements. Unless it is constant zero, we
+  // have to remap. If there are more indices, we start to address into an
+  // aggregate type.
+  if (SrcElemTySz == PromInfo.ElemSize) {
+    int Kind = INVALID;
+    if (!match(GEPI->idx_begin()->get(), m_ZeroInt()))
+      Kind |= NEEDS_REMAPPING;
+    if (GEPI->getNumIndices() >= 2)
+      Kind |= ADDRESSES_INTO_AGGREGATE;
+    assert(Kind != INVALID && "No-op GEP encountered");
+    return Kind;
+  }
+
+  // We can handle a mismatch between `GEPI`'s element size and the accessors
+  // element size if `GEPI` represents a constant offset.
+  if (auto COff = getConstantByteOffset(GEPI, DL)) {
+    if (*COff < PromInfo.ElemSize) {
+      // Special case #1: The offset is less than the element size, hence we're
+      // addressing into an aggregrate and no remapping is required.
+      return ADDRESSES_INTO_AGGREGATE;
+    }
+    if (*COff % PromInfo.ElemSize == 0 && GEPI->getNumIndices() == 1) {
+      // Special case #2: The offset is a multiple of the element size, meaning
+      // `GEPI` selects an element and is subject to remapping.
+      return NEEDS_REMAPPING;
+    }
+  }
+
+  // We don't know what `GEPI` addresses; bail out.
+  return INVALID;
+}
+
 Error SYCLInternalizerImpl::canPromoteGEP(GetElementPtrInst *GEPI,
-                                          const Value *Val, size_t LocalSize,
+                                          const Value *Val,
+                                          const PromotionInfo &PromInfo,
                                           bool InAggregate) const {
   if (cast<PointerType>(GEPI->getType())->getAddressSpace() == AS) {
     // If the GEPI is already using the correct address-space, no change is
     // required.
     return Error::success();
   }
-  // Recurse to check all users of the GEP. We are either already in
-  // `InAggregate` mode, or inspect the current instruction. Recall that a GEP's
-  // first index is used to step through the base pointer, whereas any
-  // additional indices represent addressing into an aggregrate type.
-  return canPromoteValue(GEPI, LocalSize,
-                         InAggregate || GEPI->getNumIndices() >= 2);
+
+  // Inspect the current instruction.
+  auto Kind = getGEPKind(GEPI, PromInfo);
+  if (Kind == INVALID) {
+    return createStringError(inconvertibleErrorCode(),
+                             "Unsupported pointer arithmetic");
+  }
+
+  // Recurse to check all users of the GEP.
+  return canPromoteValue(GEPI, PromInfo,
+                         InAggregate || (Kind & ADDRESSES_INTO_AGGREGATE));
 }
 
-Error SYCLInternalizerImpl::canPromoteValue(Value *Val, size_t LocalSize,
+Error SYCLInternalizerImpl::canPromoteValue(Value *Val,
+                                            const PromotionInfo &PromInfo,
                                             bool InAggregate) const {
   for (auto *U : Val->users()) {
     auto *I = dyn_cast<Instruction>(U);
@@ -302,12 +400,12 @@ Error SYCLInternalizerImpl::canPromoteValue(Value *Val, size_t LocalSize,
     case Instruction::Invoke:
     case Instruction::CallBr:
       if (auto Err =
-              canPromoteCall(cast<CallBase>(I), Val, LocalSize, InAggregate)) {
+              canPromoteCall(cast<CallBase>(I), Val, PromInfo, InAggregate)) {
         return Err;
       }
       break;
     case Instruction::GetElementPtr:
-      if (auto Err = canPromoteGEP(cast<GetElementPtrInst>(I), Val, LocalSize,
+      if (auto Err = canPromoteGEP(cast<GetElementPtrInst>(I), Val, PromInfo,
                                    InAggregate)) {
         return Err;
       }
@@ -331,11 +429,11 @@ Error SYCLInternalizerImpl::canPromoteValue(Value *Val, size_t LocalSize,
 }
 
 Error SYCLInternalizerImpl::checkArgsPromotable(
-    Function *F, SmallVectorImpl<size_t> &PromoteArgSizes) const {
+    Function *F, SmallVectorImpl<PromotionInfo> &PromInfos) const {
   Error DeferredErrs = Error::success();
-  for (auto I : enumerate(PromoteArgSizes)) {
-    const size_t LocalSize = I.value();
-    if (LocalSize == 0) {
+  for (auto I : enumerate(PromInfos)) {
+    const auto &PromInfo = I.value();
+    if (PromInfo.LocalSize == 0) {
       continue;
     }
     const size_t Index = I.index();
@@ -343,13 +441,13 @@ Error SYCLInternalizerImpl::checkArgsPromotable(
     if (!isa<PointerType>(Arg->getType()) ||
         cast<Argument>(Arg)->hasByValAttr()) {
       // Omit non-pointer and byval arguments.
-      PromoteArgSizes[Index] = 0;
+      PromInfos[Index].LocalSize = 0;
       continue;
     }
-    if (auto Err = canPromoteValue(Arg, LocalSize, /*InAggregate=*/false)) {
+    if (auto Err = canPromoteValue(Arg, PromInfo, /*InAggregate=*/false)) {
       // Set the local size to 0 to indicate that this argument should not be
       // promoted.
-      PromoteArgSizes[Index] = 0;
+      PromInfos[Index].LocalSize = 0;
       std::stringstream ErrorMessage;
       handleAllErrors(std::move(Err), [&](const StringError &SE) {
         ErrorMessage << "Failed to promote argument " << Index
@@ -377,10 +475,10 @@ static void cleanup(Function *OldF, Function *NewF, bool KeepOriginal,
 }
 
 void SYCLInternalizerImpl::promoteCall(CallBase *C, const Value *Val,
-                                       std::size_t LocalSize) const {
+                                       const PromotionInfo &PromInfo) const {
 
-  const SmallVector<size_t> InternInfo =
-      getUsagesInternalization(C, Val, LocalSize);
+  const SmallVector<PromotionInfo> InternInfo =
+      getUsagesInternalization(C, Val, PromInfo);
   assert(!InternInfo.empty() && "Value must be used at least once");
   Function *NewF = promoteFunctionArgs(C->getCalledFunction(), InternInfo,
                                        /* CreateAllocas */ false,
@@ -390,25 +488,27 @@ void SYCLInternalizerImpl::promoteCall(CallBase *C, const Value *Val,
 }
 
 void SYCLInternalizerImpl::promoteGEPI(GetElementPtrInst *GEPI,
-                                       const Value *Val, std::size_t LocalSize,
+                                       const Value *Val,
+                                       const PromotionInfo &PromInfo,
                                        bool InAggregate) const {
-  // Not PointerType is unreachable. Other case is catched in caller.
+  // Not PointerType is unreachable. Other case is caught in caller.
   if (cast<PointerType>(GEPI->getType())->getAddressSpace() != AS) {
-    if (!InAggregate)
-      remap(GEPI, LocalSize);
-    auto *ValTy = cast<PointerType>(Val->getType());
-    GEPI->mutateType(PointerType::getWithSamePointeeType(
-        cast<PointerType>(GEPI->getType()), ValTy->getAddressSpace()));
-    // Recurse to promote to all users of the GEP. We are either already in
-    // `InAggregate` mode, or inspect the current instruction. Recall that a
-    // GEP's first index is used to step through the base pointer, whereas any
-    // additional indices represent addressing into an aggregrate type.
-    return promoteValue(GEPI, LocalSize,
-                        InAggregate || GEPI->getNumIndices() >= 2);
+    auto Kind = getGEPKind(GEPI, PromInfo);
+    assert(Kind != INVALID);
+
+    if (!InAggregate && (Kind & NEEDS_REMAPPING)) {
+      remap(GEPI, PromInfo);
+    }
+    GEPI->mutateType(PointerType::get(GEPI->getContext(), AS));
+
+    // Recurse to promote to all users of the GEP.
+    return promoteValue(GEPI, PromInfo,
+                        InAggregate || (Kind & ADDRESSES_INTO_AGGREGATE));
   }
 }
 
-void SYCLInternalizerImpl::promoteValue(Value *Val, std::size_t LocalSize,
+void SYCLInternalizerImpl::promoteValue(Value *Val,
+                                        const PromotionInfo &PromInfo,
                                         bool InAggregate) const {
   // Freeze the current list of users, as promoteGEPI re-links the elements in a
   // GEP chain, and hence may introduce new users to `Val`.
@@ -420,10 +520,10 @@ void SYCLInternalizerImpl::promoteValue(Value *Val, std::size_t LocalSize,
     case Instruction::Invoke:
     case Instruction::CallBr:
       assert(!InAggregate);
-      promoteCall(cast<CallBase>(I), Val, LocalSize);
+      promoteCall(cast<CallBase>(I), Val, PromInfo);
       break;
     case Instruction::GetElementPtr:
-      promoteGEPI(cast<GetElementPtrInst>(I), Val, LocalSize, InAggregate);
+      promoteGEPI(cast<GetElementPtrInst>(I), Val, PromInfo, InAggregate);
       break;
     case Instruction::Load:
     case Instruction::Store:
@@ -437,19 +537,19 @@ void SYCLInternalizerImpl::promoteValue(Value *Val, std::size_t LocalSize,
 
 ///
 /// Get promoted function type.
-static FunctionType *
-getPromotedFunctionType(FunctionType *OrigTypes,
-                        ArrayRef<std::size_t> PromoteToLocal, unsigned AS) {
+static FunctionType *getPromotedFunctionType(FunctionType *OrigTypes,
+                                             ArrayRef<PromotionInfo> PromInfos,
+                                             unsigned AS) {
   SmallVector<Type *> Types{OrigTypes->param_begin(), OrigTypes->param_end()};
-  for (auto Arg : enumerate(PromoteToLocal)) {
+  for (auto Arg : enumerate(PromInfos)) {
     // No internalization.
-    if (Arg.value() == 0) {
+    if (Arg.value().LocalSize == 0) {
       continue;
     }
     Type *&Ty = Types[Arg.index()];
     // TODO: Catch this case earlier
-    if (auto *PtrTy = dyn_cast<PointerType>(Ty)) {
-      Ty = PointerType::getWithSamePointeeType(PtrTy, AS);
+    if (isa<PointerType>(Ty)) {
+      Ty = PointerType::get(Ty->getContext(), AS);
     }
   }
   return FunctionType::get(OrigTypes->getReturnType(), Types,
@@ -457,92 +557,39 @@ getPromotedFunctionType(FunctionType *OrigTypes,
 }
 
 static Function *
-getPromotedFunctionDeclaration(Function *F,
-                               ArrayRef<std::size_t> PromoteToLocal,
+getPromotedFunctionDeclaration(Function *F, ArrayRef<PromotionInfo> PromInfos,
                                unsigned AS, bool ChangeTypes) {
   FunctionType *Ty = F->getFunctionType();
   // If we do not need to change the types, we just copy the function
   // declaration.
   FunctionType *NewTy =
-      ChangeTypes ? getPromotedFunctionType(Ty, PromoteToLocal, AS) : Ty;
+      ChangeTypes ? getPromotedFunctionType(Ty, PromInfos, AS) : Ty;
   return Function::Create(NewTy, F->getLinkage(), F->getAddressSpace(),
                           F->getName(), F->getParent());
 }
 
 ///
-/// Determine the element type of a pointer value by inspecting its uses. This
-/// is to determine the underlying type of a opaque pointer, whose element type
-/// is determined by its uses.
-static Type *getElementTypeFromUses(Value *PtrVal) {
-  assert(PtrVal->getType()->isPointerTy() && "Not a pointer type");
-  for (const auto &U : PtrVal->uses()) {
-    if (auto *I = dyn_cast<Instruction>(U.getUser())) {
-      Type *InferredTy = nullptr;
-      switch (I->getOpcode()) {
-      case Instruction::Call:
-      case Instruction::Invoke:
-      case Instruction::CallBr: {
-        auto *Call = cast<CallBase>(I);
-        auto Index = Call->getArgOperandNo(&U);
-        InferredTy =
-            getElementTypeFromUses(Call->getCalledFunction()->getArg(Index));
-        break;
-      }
-      case Instruction::AddrSpaceCast: {
-        InferredTy = getElementTypeFromUses(I);
-        break;
-      }
-      case Instruction::GetElementPtr:
-        InferredTy = cast<GetElementPtrInst>(I)->getSourceElementType();
-        break;
-      case Instruction::Load:
-        InferredTy = cast<LoadInst>(I)->getType();
-        break;
-      case Instruction::Store: {
-        auto *Store = cast<StoreInst>(I);
-        if (Store->getPointerOperand() == PtrVal) {
-          InferredTy = Store->getValueOperand()->getType();
-        }
-        break;
-      }
-      default:
-        // Unhandled case, rely on one of the following users to get type.
-        break;
-      }
-      if (InferredTy) {
-        return InferredTy;
-      }
-    }
-  }
-  return nullptr;
-}
-
-///
 /// For private promotion, we want to replace each argument by an alloca.
-Value *replaceByNewAlloca(Argument *Arg, unsigned AS, std::size_t LocalSize) {
+Value *replaceByNewAlloca(Argument *Arg, unsigned AS,
+                          const PromotionInfo &PromInfo) {
   IRBuilder<> Builder{
       &*Arg->getParent()->getEntryBlock().getFirstInsertionPt()};
-  auto *PtrTy = cast<PointerType>(Arg->getType());
-  Type *Ty = getElementTypeFromUses(Arg);
-  assert(Ty && "Could not determine pointer element type");
-  auto *ArrTy = ArrayType::get(Ty, LocalSize);
-  auto *Alloca = Builder.CreateAlloca(ArrTy, PtrTy->getAddressSpace());
-  auto *Ptr = Builder.CreateInBoundsGEP(
-      ArrTy, Alloca, {Builder.getInt64(0), Builder.getInt64(0)});
-  Arg->replaceAllUsesWith(Ptr);
-  Alloca->mutateType(PointerType::getWithSamePointeeType(
-      cast<PointerType>(Alloca->getType()), AS));
-  Ptr->mutateType(PointerType::getWithSamePointeeType(
-      cast<PointerType>(Ptr->getType()), AS));
-  return Ptr;
+  auto ArgAS = cast<PointerType>(Arg->getType())->getAddressSpace();
+  auto *Alloca = Builder.CreateAlloca(
+      Builder.getInt8Ty(), ArgAS,
+      Builder.getInt64(PromInfo.LocalSize * PromInfo.ElemSize));
+  Alloca->setAlignment(Arg->getParamAlign().valueOrOne());
+  Arg->replaceAllUsesWith(Alloca);
+  Alloca->mutateType(Builder.getPtrTy(AS));
+  return Alloca;
 }
 
 Function *SYCLInternalizerImpl::promoteFunctionArgs(
-    Function *OldF, ArrayRef<std::size_t> PromoteToLocal, bool CreateAllocas,
+    Function *OldF, ArrayRef<PromotionInfo> PromInfos, bool CreateAllocas,
     bool KeepOriginal) const {
   // We first declare the promoted function with the new signature.
   Function *NewF =
-      getPromotedFunctionDeclaration(OldF, PromoteToLocal, AS,
+      getPromotedFunctionDeclaration(OldF, PromInfos, AS,
                                      /*ChangeTypes*/ !CreateAllocas);
 
   // Clone the old function into the new function.
@@ -560,25 +607,27 @@ Function *SYCLInternalizerImpl::promoteFunctionArgs(
   }
 
   // Update each of the values to promote.
-  for (auto I : enumerate(PromoteToLocal)) {
-    const auto LocalSize = I.value();
-    if (LocalSize == 0) {
+  SmallVector<bool> ArgIsPromoted(PromInfos.size());
+  for (auto I : enumerate(PromInfos)) {
+    const auto &PromInfo = I.value();
+    if (PromInfo.LocalSize == 0) {
       continue;
     }
     const auto Index = I.index();
     Value *Arg{NewF->getArg(Index)};
+    ArgIsPromoted[Index] = true;
     if (!isa<PointerType>(Arg->getType()) ||
         cast<Argument>(Arg)->hasByValAttr()) {
       // Omit non-pointer and byval arguments.
       continue;
     }
     if (CreateAllocas) {
-      Arg = replaceByNewAlloca(cast<Argument>(Arg), AS, LocalSize);
+      Arg = replaceByNewAlloca(cast<Argument>(Arg), AS, PromInfo);
     }
-    promoteValue(Arg, LocalSize, /*InAggregate=*/false);
+    promoteValue(Arg, PromInfo, /*InAggregate=*/false);
   }
 
-  TargetInfo.updateAddressSpaceMetadata(NewF, PromoteToLocal, AS);
+  TargetInfo.updateAddressSpaceMetadata(NewF, ArgIsPromoted, AS);
 
   cleanup(OldF, NewF, KeepOriginal, TargetInfo);
 
@@ -595,22 +644,22 @@ SYCLInternalizerImpl::operator()(Module &M, ModuleAnalysisManager &AM) const {
     }
   }
   for (auto *F : ToUpdate) {
-    Expected<SmallVector<size_t>> IndicesOrErr =
+    Expected<SmallVector<PromotionInfo>> PromInfosOrErr =
         getInternalizationFromMD(F, Kind);
-    if (auto E = IndicesOrErr.takeError()) {
+    if (auto E = PromInfosOrErr.takeError()) {
       handleAllErrors(std::move(E), [](const StringError &SE) {
         FUSION_DEBUG(llvm::dbgs() << SE.message() << "\n");
       });
       continue;
     }
-    SmallVector<size_t> &Indices = *IndicesOrErr;
+    SmallVector<PromotionInfo> &PromInfos = *PromInfosOrErr;
 
     // Analysis phase. Check which arguments, for which promotion was requested
     // by the user/runtime, can actually be promoted. The analysis will not
     // perform any modifications to the code. Instead, it sets the local size of
     // arguments, for which promotion would fail, to 0, so no promotion is
     // performned for this argument in the transformation phase.
-    if (auto Err = checkArgsPromotable(F, Indices)) {
+    if (auto Err = checkArgsPromotable(F, PromInfos)) {
       FUSION_DEBUG(llvm::dbgs()
                    << "Unable to perform all promotions for function "
                    << F->getName() << ". Detailed information: \n");
@@ -622,9 +671,11 @@ SYCLInternalizerImpl::operator()(Module &M, ModuleAnalysisManager &AM) const {
     // Update the internalization metadata after the analysis phase to remove
     // the internalization MD for arguments for which the analysis has deemed
     // the promotion infeasible.
-    updateInternalizationMD(F, Kind, Indices);
+    updateInternalizationMD(F, Kind, PromInfos);
 
-    if (llvm::none_of(Indices, [](size_t LS) { return LS > 0; })) {
+    if (llvm::none_of(PromInfos, [](const auto &PromInfo) {
+          return PromInfo.LocalSize > 0;
+        })) {
       // If no arguments is requested & eligible for promotion after analysis,
       // skip the transformation phase.
       continue;
@@ -632,7 +683,7 @@ SYCLInternalizerImpl::operator()(Module &M, ModuleAnalysisManager &AM) const {
 
     // Transformation phase. Promote the arguments for which it is actually safe
     // to perform promotion.
-    promoteFunctionArgs(F, Indices, CreateAllocas);
+    promoteFunctionArgs(F, PromInfos, CreateAllocas);
     Changed = true;
   }
   return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
@@ -651,7 +702,7 @@ static void moduleCleanup(Module &M, ModuleAnalysisManager &AM,
     // Use the argument usage mask to provide feedback to the runtime which
     // arguments have been promoted to private or local memory and which have
     // been eliminated in the process (private promotion).
-    jit_compiler::ArgUsageMask NewArgInfo;
+    SmallVector<jit_compiler::ArgUsageUT> NewArgInfo;
     for (auto I : enumerate(MD->operands())) {
       const auto &MDS = cast<MDString>(I.value().get())->getString();
       if (MDS == PrivatePromotion) {
@@ -665,7 +716,8 @@ static void moduleCleanup(Module &M, ModuleAnalysisManager &AM,
       }
     }
     fullCleanup(NewArgInfo, F, AM, TFI,
-                {SYCLInternalizer::Key, SYCLInternalizer::LocalSizeKey});
+                {SYCLInternalizer::Key, SYCLInternalizer::LocalSizeKey,
+                 SYCLInternalizer::ElemSizeKey});
   }
 }
 

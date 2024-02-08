@@ -805,6 +805,11 @@ private:
                            llvm::MDTuple *&TemplateParameters,
                            llvm::DIScope *&VDContext);
 
+  /// Create a DIExpression representing the constant corresponding
+  /// to the specified 'Val'. Returns nullptr on failure.
+  llvm::DIExpression *createConstantValueExpression(const clang::ValueDecl *VD,
+                                                    const APValue &Val);
+
   /// Allocate a copy of \p A using the DebugInfoNames allocator
   /// and return a reference to it. If multiple arguments are given the strings
   /// are concatenated.
@@ -895,6 +900,8 @@ public:
   /// Restore everything back to the original state.
   ~ApplyInlineDebugLocation();
 };
+
+bool noSystemDebugInfo(const Decl *D, const CodeGenModule &CGM);
 
 } // namespace CodeGen
 } // namespace clang

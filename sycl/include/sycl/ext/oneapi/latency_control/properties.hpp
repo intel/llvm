@@ -17,11 +17,11 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::intel::experimental {
 
-enum class latency_control_type : int {
-  none = 0, // default
-  exact = 1,
-  max = 2,
-  min = 3
+enum class latency_control_type {
+  none, // default
+  exact,
+  max,
+  min
 };
 
 struct latency_anchor_id_key {
@@ -83,22 +83,6 @@ struct IsCompileTimeProperty<intel::experimental::latency_anchor_id_key>
 template <>
 struct IsCompileTimeProperty<intel::experimental::latency_constraint_key>
     : std::true_type {};
-
-template <int Anchor>
-struct PropertyMetaInfo<
-    intel::experimental::latency_anchor_id_key::value_t<Anchor>> {
-  static constexpr const char *name = "sycl-latency-anchor-id";
-  static constexpr int value = Anchor;
-};
-
-template <int Target, intel::experimental::latency_control_type Type, int Cycle>
-struct PropertyMetaInfo<
-    intel::experimental::latency_constraint_key::value_t<Target, Type, Cycle>> {
-  static constexpr const char *name = "sycl-latency-constraint";
-  static constexpr const char *value =
-      SizeListToStr<static_cast<size_t>(Target), static_cast<size_t>(Type),
-                    static_cast<size_t>(Cycle)>::value;
-};
 
 } // namespace detail
 } // namespace ext::oneapi::experimental

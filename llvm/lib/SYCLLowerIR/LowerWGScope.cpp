@@ -156,7 +156,7 @@ template <typename T> static unsigned asUInt(T val) {
 
 static IntegerType *getSizeTTy(Module &M) {
   LLVMContext &Ctx = M.getContext();
-  auto PtrSize = M.getDataLayout().getPointerTypeSize(Type::getInt8PtrTy(Ctx));
+  auto PtrSize = M.getDataLayout().getPointerTypeSize(PointerType::getUnqual(Ctx));
   return PtrSize == 8 ? Type::getInt64Ty(Ctx) : Type::getInt32Ty(Ctx);
 }
 

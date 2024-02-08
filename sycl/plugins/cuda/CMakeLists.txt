@@ -36,7 +36,6 @@ add_sycl_plugin(cuda
     ${UR_CUDA_ADAPTER_SOURCES}
     # Some code is shared with the UR adapter
     "../unified_runtime/pi2ur.hpp"
-    "../unified_runtime/pi2ur.cpp"
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "${sycl_inc_dir}/sycl/detail/pi.hpp"
     "pi_cuda.hpp"
@@ -61,6 +60,11 @@ if (SYCL_ENABLE_XPTI_TRACING)
     XPTI_ENABLE_INSTRUMENTATION
     XPTI_STATIC_LIBRARY
   )
+endif()
+
+if(CUDA_cupti_LIBRARY)
+  target_compile_definitions(pi_cuda PRIVATE
+    "-DCUPTI_LIB_PATH=\"${CUDA_cupti_LIBRARY}\"")
 endif()
 
 set_target_properties(pi_cuda PROPERTIES LINKER_LANGUAGE CXX)

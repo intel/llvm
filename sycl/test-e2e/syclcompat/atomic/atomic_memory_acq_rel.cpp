@@ -32,7 +32,7 @@
 
 // UNSUPPORTED: hip
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %if any-device-is-cuda %{ -Xsycl-target-backend --cuda-gpu-arch=sm_70 %} %s -o %t.out
 // RUN: %{run} %t.out
 
 #include <iostream>
@@ -48,8 +48,7 @@ using namespace sycl;
 
 using address_space = sycl::access::address_space;
 
-template <memory_order order, bool orderArg = false>
-void test_acquire_global() {
+template <memory_order order> void test_acquire_global() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   const size_t N_items = 256;
@@ -77,13 +76,9 @@ void test_acquire_global() {
                         address_space::global_space>(val[1]);
          for (int i = 0; i < N_iters; i++) {
            if (it.get_id(0) == 0) {
-             if constexpr (orderArg) {
-               syclcompat::atomic_fetch_add<int, address_space::global_space>(
-                   &val[0], 1, order);
-             } else {
-               syclcompat::atomic_fetch_add<int, address_space::global_space,
-                                            order>(&val[0], 1);
-             }
+
+             syclcompat::atomic_fetch_add<address_space::global_space, order>(
+                 &val[0], 1);
              val_p[1]++;
            } else {
              // syclcompat:: doesn't offer load/store so using sycl::atomic_ref
@@ -101,7 +96,7 @@ void test_acquire_global() {
   assert(error == 0);
 }
 
-template <memory_order order, bool orderArg = false> void test_acquire_local() {
+template <memory_order order> void test_acquire_local() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   const size_t local_size = 256;
@@ -136,17 +131,12 @@ template <memory_order order, bool orderArg = false> void test_acquire_local() {
                         address_space::local_space>(val[1]);
          for (int i = 0; i < N_iters; i++) {
            if (it.get_local_id(0) == 0) {
-             if constexpr (orderArg) {
-               syclcompat::atomic_fetch_add<int, address_space::local_space>(
-                   &val[0], 1, order);
-             } else {
-               syclcompat::atomic_fetch_add<int, address_space::local_space,
-                                            order>(&val[0], 1);
-             }
+             syclcompat::atomic_fetch_add<address_space::local_space, order>(
+                 &val[0], 1);
              val_p[1]++;
            } else {
-             // syclcompat:: doesn't offer load/store so using sycl::atomic_ref
-             // here
+             // syclcompat:: doesn't offer load/store so using
+             // sycl::atomic_ref here
              int tmp1 = atm1.load(memory_order::acquire);
              int tmp0 = atm0.load(memory_order::relaxed);
              if (tmp0 < tmp1) {
@@ -160,8 +150,7 @@ template <memory_order order, bool orderArg = false> void test_acquire_local() {
   assert(error == 0);
 }
 
-template <memory_order order, bool orderArg = false>
-void test_release_global() {
+template <memory_order order> void test_release_global() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   const size_t N_items = 256;
@@ -190,13 +179,8 @@ void test_release_global() {
          for (int i = 0; i < N_iters; i++) {
            if (it.get_id(0) == 0) {
              val_p[0]++;
-             if constexpr (orderArg) {
-               syclcompat::atomic_fetch_add<int, address_space::global_space>(
-                   &val[1], 1, order);
-             } else {
-               syclcompat::atomic_fetch_add<int, address_space::global_space,
-                                            order>(&val[1], 1);
-             }
+             syclcompat::atomic_fetch_add<address_space::global_space, order>(
+                 &val[1], 1);
            } else {
              // syclcompat:: doesn't offer load/store so using sycl::atomic_ref
              // here
@@ -213,7 +197,7 @@ void test_release_global() {
   assert(error == 0);
 }
 
-template <memory_order order, bool orderArg = false> void test_release_local() {
+template <memory_order order> void test_release_local() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   const size_t local_size = 256;
@@ -249,16 +233,11 @@ template <memory_order order, bool orderArg = false> void test_release_local() {
          for (int i = 0; i < N_iters; i++) {
            if (it.get_local_id(0) == 0) {
              val_p[0]++;
-             if constexpr (orderArg) {
-               syclcompat::atomic_fetch_add<int, address_space::local_space>(
-                   &val[1], 1, order);
-             } else {
-               syclcompat::atomic_fetch_add<int, address_space::local_space,
-                                            order>(&val[1], 1);
-             }
+             syclcompat::atomic_fetch_add<address_space::local_space, order>(
+                 &val[1], 1);
            } else {
-             // syclcompat:: doesn't offer load/store so using sycl::atomic_ref
-             // here
+             // syclcompat:: doesn't offer load/store so using
+             // sycl::atomic_ref here
              int tmp1 = atm1.load(memory_order::acquire);
              int tmp0 = atm0.load(memory_order::relaxed);
              if (tmp0 < tmp1) {
@@ -287,11 +266,6 @@ int main() {
     test_acquire_local<memory_order::acq_rel>();
     test_release_global<memory_order::acq_rel>();
     test_release_local<memory_order::acq_rel>();
-    // Test alternative API
-    test_acquire_global<memory_order::acq_rel, true>();
-    test_acquire_local<memory_order::acq_rel, true>();
-    test_release_global<memory_order::acq_rel, true>();
-    test_release_local<memory_order::acq_rel, true>();
   }
 
   if (is_supported(supported_memory_orders, memory_order::seq_cst)) {
@@ -299,11 +273,6 @@ int main() {
     test_acquire_local<memory_order::seq_cst>();
     test_release_global<memory_order::seq_cst>();
     test_release_local<memory_order::seq_cst>();
-    // Test alternative API
-    test_acquire_global<memory_order::seq_cst, true>();
-    test_acquire_local<memory_order::seq_cst, true>();
-    test_release_global<memory_order::seq_cst, true>();
-    test_release_local<memory_order::seq_cst, true>();
   }
 
   return 0;

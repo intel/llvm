@@ -26,117 +26,117 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-SPIRV: CompositeConstruct [[#MatrixTypeFloat]] [[#MatrixIn:]] [[#]] {{$}}
 ; CHECK-SPIRV: ConvertFToU [[#MatrixTypeInt32]] [[#]] [[#MatrixIn]]
 
-; CHECK-LLVM: %[[#Matrix:]] = call spir_func target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 3) @_Z26__spirv_CompositeConstructf(float 0.000000e+00)
-; CHECK-LLVM: call spir_func target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3) @_Z77__spirv_ConvertFToU_RPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_3_rtpPU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_3(target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 3) %[[#Matrix]])
+; CHECK-LLVM: %[[#Matrix:]] = call spir_func target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructf(float 0.000000e+00)
+; CHECK-LLVM: call spir_func target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) @_Z77__spirv_ConvertFToU_RPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_2_rtpPU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_2(target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 2) %[[#Matrix]])
 
 define void @convert_f_to_u() {
 entry:
-  %0 = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 3) @_Z26__spirv_CompositeConstructFloat(float 0.000000e+00)
-  %call = call spir_func target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3) @_Z77__spirv_ConvertFToU_RPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_3_rtpPU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_3(target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 3) %0)
+  %0 = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructFloat(float 0.000000e+00)
+  %call = call spir_func target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) @_Z77__spirv_ConvertFToU_RPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_2_rtpPU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_2(target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 2) %0)
   ret void
 }
 
 ; CHECK-SPIRV: CompositeConstruct [[#MatrixTypeFloat]] [[#MatrixIn:]] [[#]] {{$}}
 ; CHECK-SPIRV: ConvertFToS [[#MatrixTypeInt32]] [[#]] [[#MatrixIn]]
 
-; CHECK-LLVM: %[[#Matrix:]] = call spir_func target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 3) @_Z26__spirv_CompositeConstructf(float 0.000000e+00)
-; CHECK-LLVM: call spir_func target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3) @_Z77__spirv_ConvertFToS_RPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_3_rtpPU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_3(target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 3) %[[#Matrix]])
+; CHECK-LLVM: %[[#Matrix:]] = call spir_func target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructf(float 0.000000e+00)
+; CHECK-LLVM: call spir_func target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) @_Z77__spirv_ConvertFToS_RPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_2_rtpPU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_2(target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 2) %[[#Matrix]])
 
 define void @convert_f_to_s() {
 entry:
-  %0 = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 3) @_Z26__spirv_CompositeConstructFloat(float 0.000000e+00)
-  %call = call spir_func target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3) @_Z77__spirv_ConvertFToS_RPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_3_rtpPU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_3(target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 3) %0)
+  %0 = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructFloat(float 0.000000e+00)
+  %call = call spir_func target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) @_Z77__spirv_ConvertFToS_RPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_2_rtpPU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_2(target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 2) %0)
   ret void
 }
 
 ; CHECK-SPIRV: CompositeConstruct [[#MatrixTypeInt16]] [[#MatrixIn:]] [[#]] {{$}}
 ; CHECK-SPIRV: ConvertSToF [[#MatrixTypeFloat16]] [[#]] [[#MatrixIn]]
 
-; CHECK-LLVM: %[[#Matrix:]] = call spir_func target("spirv.CooperativeMatrixKHR", i16, 3, 12, 12, 3) @_Z26__spirv_CompositeConstructs(i16 0)
-; CHECK-LLVM: call spir_func target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 3) @_Z77__spirv_ConvertSToF_RPU3AS144__spirv_CooperativeMatrixKHR__half_3_12_12_3_rtpPU3AS145__spirv_CooperativeMatrixKHR__short_3_12_12_3(target("spirv.CooperativeMatrixKHR", i16, 3, 12, 12, 3) %[[#Matrix]])
+; CHECK-LLVM: %[[#Matrix:]] = call spir_func target("spirv.CooperativeMatrixKHR", i16, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructs(i16 0)
+; CHECK-LLVM: call spir_func target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 2) @_Z77__spirv_ConvertSToF_RPU3AS144__spirv_CooperativeMatrixKHR__half_3_12_12_2_rtpPU3AS145__spirv_CooperativeMatrixKHR__short_3_12_12_2(target("spirv.CooperativeMatrixKHR", i16, 3, 12, 12, 2) %[[#Matrix]])
 
 define void @convert_s_to_f() {
 entry:
-  %0 = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", i16, 3, 12, 12, 3) @_Z26__spirv_CompositeConstructInt16(i16 0)
-  %call = call spir_func target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 3) @_Z77__spirv_ConvertSToF_RPU3AS144__spirv_CooperativeMatrixKHR__half_3_12_12_3_rtpPU3AS145__spirv_CooperativeMatrixKHR__short_3_12_12_3(target("spirv.CooperativeMatrixKHR", i16, 3, 12, 12, 3) %0)
+  %0 = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", i16, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructInt16(i16 0)
+  %call = call spir_func target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 2) @_Z77__spirv_ConvertSToF_RPU3AS144__spirv_CooperativeMatrixKHR__half_3_12_12_2_rtpPU3AS145__spirv_CooperativeMatrixKHR__short_3_12_12_2(target("spirv.CooperativeMatrixKHR", i16, 3, 12, 12, 2) %0)
   ret void
 }
 
 ; CHECK-SPIRV: CompositeConstruct [[#MatrixTypeInt16]] [[#MatrixIn:]] [[#]] {{$}}
 ; CHECK-SPIRV: ConvertUToF [[#MatrixTypeFloat16]] [[#]] [[#MatrixIn]]
 
-; CHECK-LLVM: %[[#Matrix:]] = call spir_func target("spirv.CooperativeMatrixKHR", i16, 3, 12, 12, 3) @_Z26__spirv_CompositeConstructs(i16 0)
-; CHECK-LLVM: call spir_func target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 3) @_Z77__spirv_ConvertUToF_RPU3AS144__spirv_CooperativeMatrixKHR__half_3_12_12_3_rtpPU3AS145__spirv_CooperativeMatrixKHR__short_3_12_12_3(target("spirv.CooperativeMatrixKHR", i16, 3, 12, 12, 3) %[[#Matrix]])
+; CHECK-LLVM: %[[#Matrix:]] = call spir_func target("spirv.CooperativeMatrixKHR", i16, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructs(i16 0)
+; CHECK-LLVM: call spir_func target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 2) @_Z77__spirv_ConvertUToF_RPU3AS144__spirv_CooperativeMatrixKHR__half_3_12_12_2_rtpPU3AS145__spirv_CooperativeMatrixKHR__short_3_12_12_2(target("spirv.CooperativeMatrixKHR", i16, 3, 12, 12, 2) %[[#Matrix]])
 
 define void @convert_u_to_f() {
 entry:
-  %0 = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", i16, 3, 12, 12, 3) @_Z26__spirv_CompositeConstructInt16(i16 0)
-  %call = call spir_func target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 3) @_Z77__spirv_ConvertUToF_RPU3AS144__spirv_CooperativeMatrixKHR__half_3_12_12_3_rtpPU3AS145__spirv_CooperativeMatrixKHR__short_3_12_12_3(target("spirv.CooperativeMatrixKHR", i16, 3, 12, 12, 3) %0)
+  %0 = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", i16, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructInt16(i16 0)
+  %call = call spir_func target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 2) @_Z77__spirv_ConvertUToF_RPU3AS144__spirv_CooperativeMatrixKHR__half_3_12_12_2_rtpPU3AS145__spirv_CooperativeMatrixKHR__short_3_12_12_2(target("spirv.CooperativeMatrixKHR", i16, 3, 12, 12, 2) %0)
   ret void
 }
 
 ; CHECK-SPIRV: CompositeConstruct [[#MatrixTypeInt32]] [[#MatrixIn:]] [[#]] {{$}}
 ; CHECK-SPIRV: UConvert [[#MatrixTypeInt8]] [[#]] [[#MatrixIn]]
 
-; CHECK-LLVM: %[[#Matrix:]] = call spir_func target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3) @_Z26__spirv_CompositeConstructi(i32 0)
-; CHECK-LLVM: call spir_func target("spirv.CooperativeMatrixKHR", i8, 3, 12, 12, 3) @_Z74__spirv_UConvert_RPU3AS144__spirv_CooperativeMatrixKHR__char_3_12_12_3_satPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_3(target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3) %[[#Matrix]])
+; CHECK-LLVM: %[[#Matrix:]] = call spir_func target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructi(i32 0)
+; CHECK-LLVM: call spir_func target("spirv.CooperativeMatrixKHR", i8, 3, 12, 12, 2) @_Z74__spirv_UConvert_RPU3AS144__spirv_CooperativeMatrixKHR__char_3_12_12_2_satPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_2(target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) %[[#Matrix]])
 
 define void @u_convert() {
 entry:
-  %0 = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3) @_Z26__spirv_CompositeConstructInt32(i32 0)
-  %call = call spir_func target("spirv.CooperativeMatrixKHR", i8, 3, 12, 12, 3) @_Z74__spirv_UConvert_RPU3AS144__spirv_CooperativeMatrixKHR__char_3_12_12_3_satPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_3(target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3) %0)
+  %0 = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructInt32(i32 0)
+  %call = call spir_func target("spirv.CooperativeMatrixKHR", i8, 3, 12, 12, 2) @_Z74__spirv_UConvert_RPU3AS144__spirv_CooperativeMatrixKHR__char_3_12_12_2_satPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_2(target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) %0)
   ret void
 }
 
 ; CHECK-SPIRV: CompositeConstruct [[#MatrixTypeInt8]] [[#MatrixIn:]] [[#]] {{$}}
 ; CHECK-SPIRV: SConvert [[#MatrixTypeInt32]] [[#]] [[#MatrixIn]]
 
-; CHECK-LLVM: %[[#Matrix:]] = call spir_func target("spirv.CooperativeMatrixKHR", i8, 3, 12, 12, 3) @_Z26__spirv_CompositeConstructc(i8 0)
-; CHECK-LLVM: call spir_func target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3) @_Z74__spirv_SConvert_RPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_3_satPU3AS144__spirv_CooperativeMatrixKHR__char_3_12_12_3(target("spirv.CooperativeMatrixKHR", i8, 3, 12, 12, 3) %[[#Matrix]])
+; CHECK-LLVM: %[[#Matrix:]] = call spir_func target("spirv.CooperativeMatrixKHR", i8, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructc(i8 0)
+; CHECK-LLVM: call spir_func target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) @_Z74__spirv_SConvert_RPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_2_satPU3AS144__spirv_CooperativeMatrixKHR__char_3_12_12_2(target("spirv.CooperativeMatrixKHR", i8, 3, 12, 12, 2) %[[#Matrix]])
 
 define void @s_convert() {
 entry:
-  %0 = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", i8, 3, 12, 12, 3) @_Z26__spirv_CompositeConstructInt8(i8 0)
-  %call = call spir_func target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3) @_Z74__spirv_SConvert_RPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_3_satPU3AS144__spirv_CooperativeMatrixKHR__char_3_12_12_3(target("spirv.CooperativeMatrixKHR", i8, 3, 12, 12, 3) %0)
+  %0 = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", i8, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructInt8(i8 0)
+  %call = call spir_func target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) @_Z74__spirv_SConvert_RPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_2_satPU3AS144__spirv_CooperativeMatrixKHR__char_3_12_12_2(target("spirv.CooperativeMatrixKHR", i8, 3, 12, 12, 2) %0)
   ret void
 }
 
 ; CHECK-SPIRV: CompositeConstruct [[#MatrixTypeFloat16]] [[#MatrixIn:]] [[#]] {{$}}
 ; CHECK-SPIRV: FConvert [[#MatrixTypeFloat]] [[#]] [[#MatrixIn]]
 
-; CHECK-LLVM: %[[#Matrix:]] = call spir_func target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 3) @_Z26__spirv_CompositeConstructDh(half 0xH0000)
-; CHECK-LLVM: call spir_func target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 3) @_Z75__spirv_FConvert_RPU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_3_satPU3AS144__spirv_CooperativeMatrixKHR__half_3_12_12_3(target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 3) %[[#Matrix]])
+; CHECK-LLVM: %[[#Matrix:]] = call spir_func target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructDh(half 0xH0000)
+; CHECK-LLVM: call spir_func target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 2) @_Z75__spirv_FConvert_RPU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_2_satPU3AS144__spirv_CooperativeMatrixKHR__half_3_12_12_2(target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 2) %[[#Matrix]])
 
 define void @f_convert() {
 entry:
-  %0 = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 3) @_Z26__spirv_CompositeConstructHalf(half 0xH0000)
-  %call = call spir_func target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 3) @_Z75__spirv_FConvert_RPU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_3_satPU3AS144__spirv_CooperativeMatrixKHR__half_3_12_12_3(target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 3) %0)
+  %0 = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructHalf(half 0xH0000)
+  %call = call spir_func target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 2) @_Z75__spirv_FConvert_RPU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_2_satPU3AS144__spirv_CooperativeMatrixKHR__half_3_12_12_2(target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 2) %0)
   ret void
 }
 
-declare spir_func noundef target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 3) @_Z26__spirv_CompositeConstructFloat(float noundef)
+declare spir_func noundef target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructFloat(float noundef)
 
-declare spir_func noundef target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 3) @_Z26__spirv_CompositeConstructHalf(half noundef)
+declare spir_func noundef target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructHalf(half noundef)
 
-declare spir_func noundef target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3) @_Z26__spirv_CompositeConstructInt32(i32 noundef)
+declare spir_func noundef target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructInt32(i32 noundef)
 
-declare spir_func noundef target("spirv.CooperativeMatrixKHR", i16, 3, 12, 12, 3) @_Z26__spirv_CompositeConstructInt16(i16 noundef)
+declare spir_func noundef target("spirv.CooperativeMatrixKHR", i16, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructInt16(i16 noundef)
 
-declare spir_func noundef target("spirv.CooperativeMatrixKHR", i8, 3, 12, 12, 3) @_Z26__spirv_CompositeConstructInt8(i8 noundef)
+declare spir_func noundef target("spirv.CooperativeMatrixKHR", i8, 3, 12, 12, 2) @_Z26__spirv_CompositeConstructInt8(i8 noundef)
 
-declare spir_func noundef target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3) @_Z77__spirv_ConvertFToU_RPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_3_rtpPU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_3(target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 3) noundef)
+declare spir_func noundef target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) @_Z77__spirv_ConvertFToU_RPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_2_rtpPU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_2(target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 2) noundef)
 
-declare spir_func noundef target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3) @_Z77__spirv_ConvertFToS_RPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_3_rtpPU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_3(target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 3) noundef)
+declare spir_func noundef target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) @_Z77__spirv_ConvertFToS_RPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_2_rtpPU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_2(target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 2) noundef)
 
-declare spir_func noundef target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 3) @_Z77__spirv_ConvertSToF_RPU3AS144__spirv_CooperativeMatrixKHR__half_3_12_12_3_rtpPU3AS145__spirv_CooperativeMatrixKHR__short_3_12_12_3(target("spirv.CooperativeMatrixKHR", i16, 3, 12, 12, 3) noundef)
+declare spir_func noundef target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 2) @_Z77__spirv_ConvertSToF_RPU3AS144__spirv_CooperativeMatrixKHR__half_3_12_12_2_rtpPU3AS145__spirv_CooperativeMatrixKHR__short_3_12_12_2(target("spirv.CooperativeMatrixKHR", i16, 3, 12, 12, 2) noundef)
 
-declare spir_func noundef target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 3) @_Z77__spirv_ConvertUToF_RPU3AS144__spirv_CooperativeMatrixKHR__half_3_12_12_3_rtpPU3AS145__spirv_CooperativeMatrixKHR__short_3_12_12_3(target("spirv.CooperativeMatrixKHR", i16, 3, 12, 12, 3) noundef)
+declare spir_func noundef target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 2) @_Z77__spirv_ConvertUToF_RPU3AS144__spirv_CooperativeMatrixKHR__half_3_12_12_2_rtpPU3AS145__spirv_CooperativeMatrixKHR__short_3_12_12_2(target("spirv.CooperativeMatrixKHR", i16, 3, 12, 12, 2) noundef)
 
-declare spir_func noundef target("spirv.CooperativeMatrixKHR", i8, 3, 12, 12, 3) @_Z74__spirv_UConvert_RPU3AS144__spirv_CooperativeMatrixKHR__char_3_12_12_3_satPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_3(target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3) noundef)
+declare spir_func noundef target("spirv.CooperativeMatrixKHR", i8, 3, 12, 12, 2) @_Z74__spirv_UConvert_RPU3AS144__spirv_CooperativeMatrixKHR__char_3_12_12_2_satPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_2(target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) noundef)
 
-declare spir_func noundef target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3) @_Z74__spirv_SConvert_RPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_3_satPU3AS144__spirv_CooperativeMatrixKHR__char_3_12_12_3(target("spirv.CooperativeMatrixKHR", i8, 3, 12, 12, 3) noundef)
+declare spir_func noundef target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 2) @_Z74__spirv_SConvert_RPU3AS144__spirv_CooperativeMatrixKHR__uint_3_12_12_2_satPU3AS144__spirv_CooperativeMatrixKHR__char_3_12_12_2(target("spirv.CooperativeMatrixKHR", i8, 3, 12, 12, 2) noundef)
 
-declare spir_func noundef target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 3) @_Z75__spirv_FConvert_RPU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_3_satPU3AS144__spirv_CooperativeMatrixKHR__half_3_12_12_3(target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 3) noundef)
+declare spir_func noundef target("spirv.CooperativeMatrixKHR", float, 3, 12, 12, 2) @_Z75__spirv_FConvert_RPU3AS145__spirv_CooperativeMatrixKHR__float_3_12_12_2_satPU3AS144__spirv_CooperativeMatrixKHR__half_3_12_12_2(target("spirv.CooperativeMatrixKHR", half, 3, 12, 12, 2) noundef)
 
 !llvm.module.flags = !{!0, !1, !2, !3, !4}
 !llvm.ident = !{!5}

@@ -127,6 +127,8 @@ typedef SPIRVMap<OCLMemOrderKind, unsigned, MemorySemanticsMask> OCLMemOrderMap;
 
 typedef SPIRVMap<OCLScopeKind, Scope> OCLMemScopeMap;
 
+typedef SPIRVMap<std::string, Scope> OCLStrMemScopeMap;
+
 typedef SPIRVMap<std::string, SPIRVGroupOperationKind>
     SPIRSPIRVGroupOperationMap;
 

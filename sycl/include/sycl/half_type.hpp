@@ -249,7 +249,7 @@ using Vec3StorageT = StorageT __attribute__((ext_vector_type(3)));
 using Vec4StorageT = StorageT __attribute__((ext_vector_type(4)));
 using Vec8StorageT = StorageT __attribute__((ext_vector_type(8)));
 using Vec16StorageT = StorageT __attribute__((ext_vector_type(16)));
-#else
+#else // SYCL_DEVICE_ONLY
 using StorageT = detail::host_half_impl::half;
 // No need to extract underlying data type for built-in functions operating on
 // host
@@ -259,13 +259,37 @@ using BIsRepresentationT = half;
 // for vec because they are actually defined as an integer type under the
 // hood. As a result half values will be converted to the integer and passed
 // as a kernel argument which is expected to be floating point number.
-
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 using Vec2StorageT = std::array<StorageT, 2>;
 using Vec3StorageT = std::array<StorageT, 3>;
 using Vec4StorageT = std::array<StorageT, 4>;
 using Vec8StorageT = std::array<StorageT, 8>;
 using Vec16StorageT = std::array<StorageT, 16>;
-#endif
+#else  // __INTEL_PREVIEW_BREAKING_CHANGES
+template <int NumElements> struct half_vec {
+  alignas(
+      vector_alignment<StorageT, NumElements>::value) StorageT s[NumElements];
+
+  __SYCL_CONSTEXPR_HALF half_vec() : s{0.0f} { initialize_data(); }
+  template <typename... Ts,
+            typename = std::enable_if_t<(sizeof...(Ts) == NumElements) &&
+                                        (std::is_same_v<half, Ts> && ...)>>
+  __SYCL_CONSTEXPR_HALF half_vec(const Ts &...hs) : s{hs...} {}
+
+  constexpr void initialize_data() {
+    for (size_t i = 0; i < NumElements; ++i) {
+      s[i] = StorageT(0.0f);
+    }
+  }
+};
+
+using Vec2StorageT = half_vec<2>;
+using Vec3StorageT = half_vec<3>;
+using Vec4StorageT = half_vec<4>;
+using Vec8StorageT = half_vec<8>;
+using Vec16StorageT = half_vec<16>;
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+#endif // SYCL_DEVICE_ONLY
 
 #ifndef __SYCL_DEVICE_ONLY__
 class half {

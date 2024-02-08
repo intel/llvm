@@ -44,9 +44,9 @@
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/ValueTypes.h"
+#include "llvm/CodeGenTypes/MachineValueType.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
@@ -789,14 +789,17 @@ bool NVPTXAsmPrinter::doInitialization(Module &M) {
   if (M.alias_size() && (STI.getPTXVersion() < 63 || STI.getSmVersion() < 30))
     report_fatal_error(".alias requires PTX version >= 6.3 and sm_30");
 
+  // OpenMP supports NVPTX global constructors and destructors.
+  bool IsOpenMP = M.getModuleFlag("openmp") != nullptr;
+
   if (!isEmptyXXStructor(M.getNamedGlobal("llvm.global_ctors")) &&
-      !LowerCtorDtor) {
+      !LowerCtorDtor && !IsOpenMP) {
     report_fatal_error(
         "Module has a nontrivial global ctor, which NVPTX does not support.");
     return true;  // error
   }
   if (!isEmptyXXStructor(M.getNamedGlobal("llvm.global_dtors")) &&
-      !LowerCtorDtor) {
+      !LowerCtorDtor && !IsOpenMP) {
     report_fatal_error(
         "Module has a nontrivial global dtor, which NVPTX does not support.");
     return true;  // error
@@ -1013,8 +1016,8 @@ void NVPTXAsmPrinter::printModuleLevelGV(const GlobalVariable *GVar,
   }
 
   // Skip LLVM intrinsic global variables
-  if (GVar->getName().startswith("llvm.") ||
-      GVar->getName().startswith("nvvm."))
+  if (GVar->getName().starts_with("llvm.") ||
+      GVar->getName().starts_with("nvvm."))
     return;
 
   const DataLayout &DL = getDataLayout();
@@ -1289,10 +1292,21 @@ void NVPTXAsmPrinter::AggBuffer::printSymbol(unsigned nSym, raw_ostream &os) {
 
 void NVPTXAsmPrinter::AggBuffer::printBytes(raw_ostream &os) {
   unsigned int ptrSize = AP.MAI->getCodePointerSize();
-  symbolPosInBuffer.push_back(size);
+  // Do not emit trailing zero initializers. They will be zero-initialized by
+  // ptxas. This saves on both space requirements for the generated PTX and on
+  // memory use by ptxas. (See:
+  // https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#global-state-space)
+  unsigned int InitializerCount = size;
+  // TODO: symbols make this harder, but it would still be good to trim trailing
+  // 0s for aggs with symbols as well.
+  if (numSymbols() == 0)
+    while (InitializerCount >= 1 && !buffer[InitializerCount - 1])
+      InitializerCount--;
+
+  symbolPosInBuffer.push_back(InitializerCount);
   unsigned int nSym = 0;
   unsigned int nextSymbolPos = symbolPosInBuffer[nSym];
-  for (unsigned int pos = 0; pos < size;) {
+  for (unsigned int pos = 0; pos < InitializerCount;) {
     if (pos)
       os << ", ";
     if (pos != nextSymbolPos) {
@@ -1980,35 +1994,16 @@ NVPTXAsmPrinter::lowerConstantForGV(const Constant *CV, bool ProcessingGeneric) 
   }
 
   switch (CE->getOpcode()) {
-  default: {
-    // If the code isn't optimized, there may be outstanding folding
-    // opportunities. Attempt to fold the expression using DataLayout as a
-    // last resort before giving up.
-    Constant *C = ConstantFoldConstant(CE, getDataLayout());
-    if (C != CE)
-      return lowerConstantForGV(C, ProcessingGeneric);
-
-    // Otherwise report the problem to the user.
-    std::string S;
-    raw_string_ostream OS(S);
-    OS << "Unsupported expression in static initializer: ";
-    CE->printAsOperand(OS, /*PrintType=*/false,
-                   !MF ? nullptr : MF->getFunction().getParent());
-    report_fatal_error(Twine(OS.str()));
-  }
+  default:
+    break; // Error
 
   case Instruction::AddrSpaceCast: {
     // Strip the addrspacecast and pass along the operand
     PointerType *DstTy = cast<PointerType>(CE->getType());
-    if (DstTy->getAddressSpace() == 0) {
+    if (DstTy->getAddressSpace() == 0)
       return lowerConstantForGV(cast<const Constant>(CE->getOperand(0)), true);
-    }
-    std::string S;
-    raw_string_ostream OS(S);
-    OS << "Unsupported expression in static initializer: ";
-    CE->printAsOperand(OS, /*PrintType=*/ false,
-                       !MF ? nullptr : MF->getFunction().getParent());
-    report_fatal_error(Twine(OS.str()));
+
+    break; // Error
   }
 
   case Instruction::GetElementPtr: {
@@ -2043,9 +2038,12 @@ NVPTXAsmPrinter::lowerConstantForGV(const Constant *CV, bool ProcessingGeneric) 
     // Handle casts to pointers by changing them into casts to the appropriate
     // integer type.  This promotes constant folding and simplifies this code.
     Constant *Op = CE->getOperand(0);
-    Op = ConstantExpr::getIntegerCast(Op, DL.getIntPtrType(CV->getType()),
-                                      false/*ZExt*/);
-    return lowerConstantForGV(Op, ProcessingGeneric);
+    Op = ConstantFoldIntegerCast(Op, DL.getIntPtrType(CV->getType()),
+                                 /*IsSigned*/ false, DL);
+    if (Op)
+      return lowerConstantForGV(Op, ProcessingGeneric);
+
+    break; // Error
   }
 
   case Instruction::PtrToInt: {
@@ -2082,6 +2080,21 @@ NVPTXAsmPrinter::lowerConstantForGV(const Constant *CV, bool ProcessingGeneric) 
     }
   }
   }
+
+  // If the code isn't optimized, there may be outstanding folding
+  // opportunities. Attempt to fold the expression using DataLayout as a
+  // last resort before giving up.
+  Constant *C = ConstantFoldConstant(CE, getDataLayout());
+  if (C != CE)
+    return lowerConstantForGV(C, ProcessingGeneric);
+
+  // Otherwise report the problem to the user.
+  std::string S;
+  raw_string_ostream OS(S);
+  OS << "Unsupported expression in static initializer: ";
+  CE->printAsOperand(OS, /*PrintType=*/false,
+                 !MF ? nullptr : MF->getFunction().getParent());
+  report_fatal_error(Twine(OS.str()));
 }
 
 // Copy of MCExpr::print customized for NVPTX

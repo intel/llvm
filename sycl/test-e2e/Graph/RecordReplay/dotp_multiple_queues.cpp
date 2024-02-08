@@ -1,26 +1,31 @@
-// REQUIRES: level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// Extra run to check for leaks in Level Zero using ZE_DEBUG
-// RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck %s %}
+// Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
+// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// Extra run to check for immediate-command-list in Level Zero
+// RUN: %if level_zero && linux %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 //
-// CHECK-NOT: LEAK
 
 // Tests a dotp operation split between 2 in-order queues using device USM.
 
 #include "../graph_common.hpp"
 
 int main() {
-
   property_list Properties{
       property::queue::in_order{},
       sycl::ext::intel::property::queue::no_immediate_command_list{}};
   queue QueueA{Properties};
+
+  if (!are_graphs_supported(QueueA)) {
+    return 0;
+  }
+
   queue QueueB{QueueA.get_context(), QueueA.get_device(), Properties};
 
   exp_ext::command_graph Graph{QueueA.get_context(), QueueA.get_device()};
 
   int *Dotp = malloc_device<int>(1, QueueA);
+  QueueA.memset(Dotp, 0, sizeof(int)).wait();
 
   const size_t N = 10;
   int *X = malloc_device<int>(N, QueueA);

@@ -19,6 +19,7 @@
 
 #include <cstring>
 #include <deque>
+#include <fstream>
 #include <functional>
 #include <list>
 #include <set>
@@ -52,6 +53,11 @@ public:
 
   /// Used for tracking visited status during cycle checks.
   bool MVisited = false;
+
+  /// Partition number needed to assign a Node to a a partition.
+  /// Note : This number is only used during the partitionning process and
+  /// cannot be used to find out the partion of a node outside of this process.
+  int MPartitionNum = -1;
 
   /// Add successor to the node.
   /// @param Node Node to add as a successor.
@@ -144,13 +150,31 @@ public:
       return createCGCopy<sycl::detail::CGFill2DUSM>();
     case sycl::detail::CG::Memset2DUSM:
       return createCGCopy<sycl::detail::CGMemset2DUSM>();
-    case sycl::detail::CG::CodeplayHostTask:
-      assert(false);
-      break;
-      // TODO: Uncomment this once we implement support for host task so we can
-      // test required changes to the CG class.
+    case sycl::detail::CG::CodeplayHostTask: {
+      // The unique_ptr to the `sycl::detail::HostTask` in the HostTask CG
+      // prevents from copying the CG.
+      // We overcome this restriction by creating a new CG with the same data.
+      auto CommandGroupPtr =
+          static_cast<sycl::detail::CGHostTask *>(MCommandGroup.get());
+      sycl::detail::HostTask HostTask = *CommandGroupPtr->MHostTask.get();
+      auto HostTaskUPtr = std::make_unique<sycl::detail::HostTask>(HostTask);
 
-      // return createCGCopy<sycl::detail::CGHostTask>();
+      sycl::detail::CG::StorageInitHelper Data(
+          CommandGroupPtr->getArgsStorage(), CommandGroupPtr->getAccStorage(),
+          CommandGroupPtr->getSharedPtrStorage(),
+          CommandGroupPtr->getRequirements(), CommandGroupPtr->getEvents());
+
+      sycl::detail::code_location Loc(CommandGroupPtr->MFileName.data(),
+                                      CommandGroupPtr->MFunctionName.data(),
+                                      CommandGroupPtr->MLine,
+                                      CommandGroupPtr->MColumn);
+
+      return std::make_unique<sycl::detail::CGHostTask>(
+          sycl::detail::CGHostTask(
+              std::move(HostTaskUPtr), CommandGroupPtr->MQueue,
+              CommandGroupPtr->MContext, CommandGroupPtr->MArgs, Data,
+              CommandGroupPtr->getType(), Loc));
+    }
     case sycl::detail::CG::Barrier:
     case sycl::detail::CG::BarrierWaitlist:
       return createCGCopy<sycl::detail::CGBarrier>();
@@ -228,7 +252,228 @@ public:
     }
   }
 
+  /// Recursive Depth first traversal of linked nodes.
+  /// to print node information and connection to Stream.
+  /// @param Stream Where to print node information.
+  /// @param Visited Vector of the already visited nodes.
+  /// @param Verbose If true, print additional information about the nodes such
+  /// as kernel args or memory access where applicable.
+  void printDotRecursive(std::fstream &Stream,
+                         std::vector<node_impl *> &Visited, bool Verbose) {
+    // if Node has been already visited, we skip it
+    if (std::find(Visited.begin(), Visited.end(), this) != Visited.end())
+      return;
+
+    Visited.push_back(this);
+
+    printDotCG(Stream, Verbose);
+    for (const auto &Dep : MPredecessors) {
+      auto NodeDep = Dep.lock();
+      Stream << "  \"" << NodeDep.get() << "\" -> \"" << this << "\""
+             << std::endl;
+    }
+
+    for (std::weak_ptr<node_impl> Succ : MSuccessors) {
+      if (MPartitionNum == Succ.lock()->MPartitionNum)
+        Succ.lock()->printDotRecursive(Stream, Visited, Verbose);
+    }
+  }
+
 private:
+  /// Prints Node information to Stream.
+  /// @param Stream Where to print the Node information
+  /// @param Verbose If true, print additional information about the nodes such
+  /// as kernel args or memory access where applicable.
+  void printDotCG(std::ostream &Stream, bool Verbose) {
+    Stream << "\"" << this << "\" [style=bold, label=\"";
+
+    Stream << "ID = " << this << "\\n";
+    Stream << "TYPE = ";
+
+    switch (MCGType) {
+    case sycl::detail::CG::CGTYPE::None:
+      Stream << "None \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::Kernel: {
+      Stream << "CGExecKernel \\n";
+      sycl::detail::CGExecKernel *Kernel =
+          static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
+      Stream << "NAME = " << Kernel->MKernelName << "\\n";
+      if (Verbose) {
+        Stream << "ARGS = \\n";
+        for (size_t i = 0; i < Kernel->MArgs.size(); i++) {
+          auto Arg = Kernel->MArgs[i];
+          std::string Type = "Undefined";
+          if (Arg.MType == sycl::detail::kernel_param_kind_t::kind_accessor) {
+            Type = "Accessor";
+          } else if (Arg.MType ==
+                     sycl::detail::kernel_param_kind_t::kind_std_layout) {
+            Type = "STD_Layout";
+          } else if (Arg.MType ==
+                     sycl::detail::kernel_param_kind_t::kind_sampler) {
+            Type = "Sampler";
+          } else if (Arg.MType ==
+                     sycl::detail::kernel_param_kind_t::kind_pointer) {
+            Type = "Pointer";
+          } else if (Arg.MType == sycl::detail::kernel_param_kind_t::
+                                      kind_specialization_constants_buffer) {
+            Type = "Specialization Constants Buffer";
+          } else if (Arg.MType ==
+                     sycl::detail::kernel_param_kind_t::kind_stream) {
+            Type = "Stream";
+          } else if (Arg.MType ==
+                     sycl::detail::kernel_param_kind_t::kind_invalid) {
+            Type = "Invalid";
+          }
+          Stream << i << ") Type: " << Type << " Ptr: " << Arg.MPtr << "\\n";
+        }
+      }
+      break;
+    }
+    case sycl::detail::CG::CGTYPE::CopyAccToPtr:
+      Stream << "CGCopy Device-to-Host \\n";
+      if (Verbose) {
+        sycl::detail::CGCopy *Copy =
+            static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
+        Stream << "Src: " << Copy->getSrc() << " Dst: " << Copy->getDst()
+               << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::CopyPtrToAcc:
+      Stream << "CGCopy Host-to-Device \\n";
+      if (Verbose) {
+        sycl::detail::CGCopy *Copy =
+            static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
+        Stream << "Src: " << Copy->getSrc() << " Dst: " << Copy->getDst()
+               << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::CopyAccToAcc:
+      Stream << "CGCopy Device-to-Device \\n";
+      if (Verbose) {
+        sycl::detail::CGCopy *Copy =
+            static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
+        Stream << "Src: " << Copy->getSrc() << " Dst: " << Copy->getDst()
+               << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::Fill:
+      Stream << "CGFill \\n";
+      if (Verbose) {
+        sycl::detail::CGFill *Fill =
+            static_cast<sycl::detail::CGFill *>(MCommandGroup.get());
+        Stream << "Ptr: " << Fill->MPtr << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::UpdateHost:
+      Stream << "CGCUpdateHost \\n";
+      if (Verbose) {
+        sycl::detail::CGUpdateHost *Host =
+            static_cast<sycl::detail::CGUpdateHost *>(MCommandGroup.get());
+        Stream << "Ptr: " << Host->getReqToUpdate() << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::CopyUSM:
+      Stream << "CGCopyUSM \\n";
+      if (Verbose) {
+        sycl::detail::CGCopyUSM *CopyUSM =
+            static_cast<sycl::detail::CGCopyUSM *>(MCommandGroup.get());
+        Stream << "Src: " << CopyUSM->getSrc() << " Dst: " << CopyUSM->getDst()
+               << " Length: " << CopyUSM->getLength() << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::FillUSM:
+      Stream << "CGFillUSM \\n";
+      if (Verbose) {
+        sycl::detail::CGFillUSM *FillUSM =
+            static_cast<sycl::detail::CGFillUSM *>(MCommandGroup.get());
+        Stream << "Dst: " << FillUSM->getDst()
+               << " Length: " << FillUSM->getLength()
+               << " Pattern: " << FillUSM->getFill() << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::PrefetchUSM:
+      Stream << "CGPrefetchUSM \\n";
+      if (Verbose) {
+        sycl::detail::CGPrefetchUSM *Prefetch =
+            static_cast<sycl::detail::CGPrefetchUSM *>(MCommandGroup.get());
+        Stream << "Dst: " << Prefetch->getDst()
+               << " Length: " << Prefetch->getLength() << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::AdviseUSM:
+      Stream << "CGAdviseUSM \\n";
+      if (Verbose) {
+        sycl::detail::CGAdviseUSM *AdviseUSM =
+            static_cast<sycl::detail::CGAdviseUSM *>(MCommandGroup.get());
+        Stream << "Dst: " << AdviseUSM->getDst()
+               << " Length: " << AdviseUSM->getLength() << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::CodeplayHostTask:
+      Stream << "CGHostTask \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::Barrier:
+      Stream << "CGBarrier \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::Copy2DUSM:
+      Stream << "CGCopy2DUSM \\n";
+      if (Verbose) {
+        sycl::detail::CGCopy2DUSM *Copy2DUSM =
+            static_cast<sycl::detail::CGCopy2DUSM *>(MCommandGroup.get());
+        Stream << "Src:" << Copy2DUSM->getSrc()
+               << " Dst: " << Copy2DUSM->getDst() << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::Fill2DUSM:
+      Stream << "CGFill2DUSM \\n";
+      if (Verbose) {
+        sycl::detail::CGFill2DUSM *Fill2DUSM =
+            static_cast<sycl::detail::CGFill2DUSM *>(MCommandGroup.get());
+        Stream << "Dst: " << Fill2DUSM->getDst() << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::Memset2DUSM:
+      Stream << "CGMemset2DUSM \\n";
+      if (Verbose) {
+        sycl::detail::CGMemset2DUSM *Memset2DUSM =
+            static_cast<sycl::detail::CGMemset2DUSM *>(MCommandGroup.get());
+        Stream << "Dst: " << Memset2DUSM->getDst() << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::ReadWriteHostPipe:
+      Stream << "CGReadWriteHostPipe \\n";
+      break;
+    case sycl::detail::CG::CGTYPE::CopyToDeviceGlobal:
+      Stream << "CGCopyToDeviceGlobal \\n";
+      if (Verbose) {
+        sycl::detail::CGCopyToDeviceGlobal *CopyToDeviceGlobal =
+            static_cast<sycl::detail::CGCopyToDeviceGlobal *>(
+                MCommandGroup.get());
+        Stream << "Src: " << CopyToDeviceGlobal->getSrc()
+               << " Dst: " << CopyToDeviceGlobal->getDeviceGlobalPtr() << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::CopyFromDeviceGlobal:
+      Stream << "CGCopyFromDeviceGlobal \\n";
+      if (Verbose) {
+        sycl::detail::CGCopyFromDeviceGlobal *CopyFromDeviceGlobal =
+            static_cast<sycl::detail::CGCopyFromDeviceGlobal *>(
+                MCommandGroup.get());
+        Stream << "Src: " << CopyFromDeviceGlobal->getDeviceGlobalPtr()
+               << " Dst: " << CopyFromDeviceGlobal->getDest() << "\\n";
+      }
+      break;
+    case sycl::detail::CG::CGTYPE::ExecCommandBuffer:
+      Stream << "CGExecCommandBuffer \\n";
+      break;
+    default:
+      Stream << "Other \\n";
+      break;
+    }
+    Stream << "\"];" << std::endl;
+  }
+
   /// Creates a copy of the node's CG by casting to it's actual type, then using
   /// that to copy construct and create a new unique ptr from that copy.
   /// @tparam CGT The derived type of the CG.
@@ -236,6 +481,30 @@ private:
   template <typename CGT> std::unique_ptr<CGT> createCGCopy() const {
     return std::make_unique<CGT>(*static_cast<CGT *>(MCommandGroup.get()));
   }
+};
+
+class partition {
+public:
+  /// Constructor.
+  partition() : MSchedule(), MPiCommandBuffers() {}
+
+  /// List of root nodes.
+  std::set<std::weak_ptr<node_impl>, std::owner_less<std::weak_ptr<node_impl>>>
+      MRoots;
+  /// Execution schedule of nodes in the graph.
+  std::list<std::shared_ptr<node_impl>> MSchedule;
+  /// Map of devices to command buffers.
+  std::unordered_map<sycl::device, sycl::detail::pi::PiExtCommandBuffer>
+      MPiCommandBuffers;
+
+  /// @return True if the partition contains a host task
+  bool isHostTask() const {
+    return (MRoots.size() && ((*MRoots.begin()).lock()->MCGType ==
+                              sycl::detail::CG::CGTYPE::CodeplayHostTask));
+  }
+
+  /// Add nodes to MSchedule.
+  void schedule();
 };
 
 /// Implementation details of command_graph<modifiable>.
@@ -410,6 +679,25 @@ public:
     MInorderQueueMap[QueueWeakPtr] = Node;
   }
 
+  /// Prints the contents of the graph to a text file in DOT format.
+  /// @param FilePath Path to the output file.
+  /// @param Verbose If true, print additional information about the nodes such
+  /// as kernel args or memory access where applicable.
+  void printGraphAsDot(const std::string FilePath, bool Verbose) const {
+    /// Vector of nodes visited during the graph printing
+    std::vector<node_impl *> VisitedNodes;
+
+    std::fstream Stream(FilePath, std::ios::out);
+    Stream << "digraph dot {" << std::endl;
+
+    for (std::weak_ptr<node_impl> Node : MRoots)
+      Node.lock()->printDotRecursive(Stream, VisitedNodes, Verbose);
+
+    Stream << "}" << std::endl;
+
+    Stream.close();
+  }
+
   /// Make an edge between two nodes in the graph. Performs some mandatory
   /// error checks as well as an optional check for cycles introduced by making
   /// this edge.
@@ -544,6 +832,24 @@ public:
   /// @return vector of events associated to exit nodes.
   std::vector<sycl::detail::EventImplPtr> getExitNodesEvents();
 
+  /// Removes all Barrier nodes from the list of extra dependencies
+  /// MExtraDependencies.
+  /// @return vector of events associated to previous barrier nodes.
+  std::vector<sycl::detail::EventImplPtr>
+  removeBarriersFromExtraDependencies() {
+    std::vector<sycl::detail::EventImplPtr> Events;
+    for (auto It = MExtraDependencies.begin();
+         It != MExtraDependencies.end();) {
+      if ((*It)->MCGType == sycl::detail::CG::Barrier) {
+        Events.push_back(getEventForNode(*It));
+        It = MExtraDependencies.erase(It);
+      } else {
+        ++It;
+      }
+    }
+    return Events;
+  }
+
 private:
   /// Iterate over the graph depth-first and run \p NodeFunc on each node.
   /// @param NodeFunc A function which receives as input a node in the graph to
@@ -621,7 +927,7 @@ private:
   /// added to this graph.
   /// This list is mainly used by barrier nodes which must be considered
   /// as predecessors for all nodes subsequently added to the graph.
-  std::vector<std::shared_ptr<node_impl>> MExtraDependencies;
+  std::list<std::shared_ptr<node_impl>> MExtraDependencies;
 };
 
 /// Class representing the implementation of command_graph<executable>.
@@ -638,17 +944,19 @@ public:
   /// @param GraphImpl Modifiable graph implementation to create with.
   exec_graph_impl(sycl::context Context,
                   const std::shared_ptr<graph_impl> &GraphImpl)
-      : MSchedule(), MGraphImpl(GraphImpl), MPiCommandBuffers(),
-        MPiSyncPoints(), MContext(Context), MRequirements(),
-        MExecutionEvents() {}
+      : MSchedule(), MGraphImpl(GraphImpl), MPiSyncPoints(), MContext(Context),
+        MRequirements(), MExecutionEvents() {}
 
   /// Destructor.
   ///
   /// Releases any PI command-buffers the object has created.
   ~exec_graph_impl();
 
-  /// Add nodes to MSchedule.
-  void schedule();
+  /// Partition the graph nodes and put the partition in MPartitions.
+  /// The partitioning splits the graph to allow synchronization between
+  /// device events and events that do not run on the same device such as
+  /// host_task.
+  void makePartitions();
 
   /// Called by handler::ext_oneapi_command_graph() to schedule graph for
   /// execution.
@@ -661,7 +969,10 @@ public:
   /// Turns the internal graph representation into UR command-buffers for a
   /// device.
   /// @param Device Device to create backend command-buffers for.
-  void createCommandBuffers(sycl::device Device);
+  /// @param Partion Partition to which the created command-buffer should be
+  /// attached.
+  void createCommandBuffers(sycl::device Device,
+                            std::shared_ptr<partition> &Partition);
 
   /// Query for the context tied to this graph.
   /// @return Context associated with graph.
@@ -676,6 +987,12 @@ public:
   /// Query the graph_impl.
   /// @return pointer to the graph_impl MGraphImpl
   const std::shared_ptr<graph_impl> &getGraphImpl() const { return MGraphImpl; }
+
+  /// Query the vector of the partitions composing the exec_graph.
+  /// @return Vector of partitions in execution order.
+  const std::vector<std::shared_ptr<partition>> &getPartitions() const {
+    return MPartitions;
+  }
 
   /// Checks if the previous submissions of this graph have been completed
   /// This function checks the status of events associated to the previous graph
@@ -719,8 +1036,12 @@ private:
   /// Iterates back through predecessors to find the real dependency.
   /// @param[out] Deps Found dependencies.
   /// @param[in] CurrentNode Node to find dependencies for.
+  /// @param[in] ReferencePartitionNum Number of the partition containing the
+  /// SyncPoint for CurrentNode, otherwise we need to
+  /// synchronize on the host with the completion of previous partitions.
   void findRealDeps(std::vector<sycl::detail::pi::PiExtSyncPoint> &Deps,
-                    std::shared_ptr<node_impl> CurrentNode);
+                    std::shared_ptr<node_impl> CurrentNode,
+                    int ReferencePartitionNum);
 
   /// Execution schedule of nodes in the graph.
   std::list<std::shared_ptr<node_impl>> MSchedule;
@@ -731,14 +1052,14 @@ private:
   /// This specificity must be taken into account when trying to lock
   /// the graph_impl mutex from an exec_graph_impl to avoid deadlock.
   std::shared_ptr<graph_impl> MGraphImpl;
-  /// Map of devices to command buffers.
-  std::unordered_map<sycl::device, sycl::detail::pi::PiExtCommandBuffer>
-      MPiCommandBuffers;
   /// Map of nodes in the exec graph to the sync point representing their
   /// execution in the command graph.
   std::unordered_map<std::shared_ptr<node_impl>,
                      sycl::detail::pi::PiExtSyncPoint>
       MPiSyncPoints;
+  /// Map of nodes in the exec graph to the partition number to which they
+  /// belong.
+  std::unordered_map<std::shared_ptr<node_impl>, int> MPartitionNodes;
   /// Context associated with this executable graph.
   sycl::context MContext;
   /// List of requirements for enqueueing this command graph, accumulated from
@@ -749,6 +1070,8 @@ private:
   std::vector<sycl::detail::AccessorImplPtr> MAccessors;
   /// List of all execution events returned from command buffer enqueue calls.
   std::vector<sycl::detail::EventImplPtr> MExecutionEvents;
+  /// List of the partitions that compose the exec graph.
+  std::vector<std::shared_ptr<partition>> MPartitions;
 };
 
 } // namespace detail

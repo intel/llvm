@@ -8,13 +8,13 @@
 
 #include <pi2ur.hpp>
 
-#include <ur/adapters/native_cpu/context.hpp>
-#include <ur/adapters/native_cpu/device.hpp>
-#include <ur/adapters/native_cpu/kernel.hpp>
-#include <ur/adapters/native_cpu/memory.hpp>
-#include <ur/adapters/native_cpu/platform.hpp>
-#include <ur/adapters/native_cpu/program.hpp>
-#include <ur/adapters/native_cpu/queue.hpp>
+#include <adapters/native_cpu/context.hpp>
+#include <adapters/native_cpu/device.hpp>
+#include <adapters/native_cpu/kernel.hpp>
+#include <adapters/native_cpu/memory.hpp>
+#include <adapters/native_cpu/platform.hpp>
+#include <adapters/native_cpu/program.hpp>
+#include <adapters/native_cpu/queue.hpp>
 
 struct _pi_context : ur_context_handle_t_ {
   using ur_context_handle_t_::ur_context_handle_t_;

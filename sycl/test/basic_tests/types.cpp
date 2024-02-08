@@ -1,4 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -fsyntax-only
+// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes -fsycl-targets=%sycl_triple %s -fsyntax-only %}
 
 //==--------------- types.cpp - SYCL types test ----------------------------==//
 //
@@ -21,6 +22,7 @@ template <typename T, int N> inline void checkVectorSizeAndAlignment() {
   using VectorT = s::vec<T, N>;
   constexpr auto RealLength = (N != 3 ? N : 4);
   static_assert(sizeof(VectorT) == (sizeof(T) * RealLength), "");
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 
   // SYCL 2020 spec says that alignment is supposed to be same as size,
   // but MSVC won't allow an alignment of anything larger than 64 for
@@ -32,6 +34,19 @@ template <typename T, int N> inline void checkVectorSizeAndAlignment() {
   else
     static_assert(alignof(VectorT) == 64,
                   "huge vectors should have a maximum alignment of 64");
+
+#else // __INTEL_PREVIEW_BREAKING_CHANGES
+
+#if defined(_WIN32) && (_MSC_VER) &&                                           \
+    defined(__NO_EXT_VECTOR_TYPE_ON_HOST__) && !defined(__SYCL_DEVICE_ONLY__)
+  // See comments around __SYCL_ALIGNED_VAR macro definition in types.hpp
+  // We can't enforce proper alignment of "huge" vectors (>64 bytes) on Windows
+  // and the test exposes this limitation.
+  if constexpr (alignof(T) * RealLength < 64)
+#endif
+    static_assert(alignof(VectorT) == (alignof(T) * RealLength), "");
+
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 }
 
 template <typename T> inline void checkVectorsWithN() {
@@ -111,6 +126,22 @@ std::string vec2string(const sycl::vec<vecType, numOfElems> &vec) {
   return str;
 }
 
+// vec::operator! might return a different type as described in Table 143 of the
+// SYCL 2020 specification. This function checks that the result type matches
+// the expected type.
+template <typename T, typename Expected> inline void checkVecNotReturnType() {
+  constexpr int N = 4;
+  using Vector = sycl::vec<T, N>;
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+  using ExpectedVector = sycl::vec<Expected, N>;
+#else
+  using ExpectedVector = sycl::vec<T, N>;
+#endif
+  using OpNotResult = decltype(std::declval<Vector>().operator!());
+  static_assert(std::is_same_v<OpNotResult, ExpectedVector>,
+                "Incorrect vec::operator! return type");
+}
+
 // the math built-in testing ensures that the vec binary ops get tested,
 // but the unary ops are only tested by the CTS tests. Here we do some
 // basic testing of the unary ops, ensuring they compile correctly.
@@ -130,8 +161,21 @@ template <typename T> void checkVecUnaryOps(T &v) {
     std::cout << vec2string(g) << std::endl;
   }
 
-  T f = !v;
+  auto f = !v;
   std::cout << vec2string(f) << std::endl;
+
+  // Check operator! return type
+  checkVecNotReturnType<int8_t, int8_t>();
+  checkVecNotReturnType<uint8_t, int8_t>();
+  checkVecNotReturnType<int16_t, int16_t>();
+  checkVecNotReturnType<uint16_t, int16_t>();
+  checkVecNotReturnType<sycl::half, int16_t>();
+  checkVecNotReturnType<int32_t, int32_t>();
+  checkVecNotReturnType<uint32_t, int32_t>();
+  checkVecNotReturnType<float, int32_t>();
+  checkVecNotReturnType<int64_t, int64_t>();
+  checkVecNotReturnType<uint64_t, int64_t>();
+  checkVecNotReturnType<double, int64_t>();
 }
 
 void checkVariousVecUnaryOps() {
@@ -160,6 +204,18 @@ void checkVariousVecUnaryOps() {
   checkVecUnaryOps(vd1);
   sycl::vec<double, 16> vd{0, 4, 5, -9, 0, 4, 5, -9, 0, 4, 5, -9, 0, 4, 5, -9};
   checkVecUnaryOps(vd);
+
+  sycl::vec<sycl::half, 1> vh1{1};
+  checkVecUnaryOps(vh1);
+  sycl::vec<sycl::half, 16> vh{0, 4, 5, -9, 0, 4, 5, -9,
+                               0, 4, 5, -9, 0, 4, 5, -9};
+  checkVecUnaryOps(vh);
+
+  sycl::vec<sycl::ext::oneapi::bfloat16, 1> vbf1{1};
+  checkVecUnaryOps(vbf1);
+  sycl::vec<sycl::ext::oneapi::bfloat16, 16> vbf{0, 4, 5, -9, 0, 4, 5, -9,
+                                                 0, 4, 5, -9, 0, 4, 5, -9};
+  checkVecUnaryOps(vbf);
 }
 
 int main() {

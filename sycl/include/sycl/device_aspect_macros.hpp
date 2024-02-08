@@ -278,9 +278,29 @@
 #define __SYCL_ALL_DEVICES_HAVE_ext_intel_esimd__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_non_uniform_groups__
-// __SYCL_ASPECT(ext_oneapi_non_uniform_groups, 54)
-#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_non_uniform_groups__ 0
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_ballot_group__
+// __SYCL_ASPECT(ext_oneapi_ballot_group, 54)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_ballot_group__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_fixed_size_group__
+// __SYCL_ASPECT(ext_oneapi_fixed_size_group, 55)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_fixed_size_group__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_opportunistic_group__
+// __SYCL_ASPECT(ext_oneapi_opportunistic_group, 56)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_opportunistic_group__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_tangle_group__
+// __SYCL_ASPECT(ext_oneapi_tangle_group, 57)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_tangle_group__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_intel_matrix__
+// __SYCL_ASPECT(ext_intel_matrix, 58)
+#define __SYCL_ALL_DEVICES_HAVE_ext_intel_matrix__ 0
 #endif
 
 #ifndef __SYCL_ANY_DEVICE_HAS_host__
@@ -553,7 +573,27 @@
 #define __SYCL_ANY_DEVICE_HAS_ext_intel_esimd__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_non_uniform_groups__
-// __SYCL_ASPECT(ext_oneapi_non_uniform_groups, 54)
-#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_non_uniform_groups__ 0
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_ballot_group__
+// __SYCL_ASPECT(ext_oneapi_ballot_group, 54)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_ballot_group__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_fixed_size_group__
+// __SYCL_ASPECT(ext_oneapi_fixed_size_group, 55)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_fixed_size_group__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_opportunistic_group__
+// __SYCL_ASPECT(ext_oneapi_opportunistic_group, 56)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_opportunistic_group__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_tangle_group__
+// __SYCL_ASPECT(ext_oneapi_tangle_group, 57)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_tangle_group__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_matrix__
+// __SYCL_ASPECT(ext_intel_matrix, 58)
+#define __SYCL_ANY_DEVICE_HAS_ext_intel_matrix__ 0
 #endif

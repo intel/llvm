@@ -200,6 +200,8 @@ int main(int argc, char *argv[]) {
   std::cout << "total time: " << diff.count() << std::endl;
 #endif
 
+  delete queueLock;
+
   if (passed) {
     std::cout << "Passed" << std::endl;
   } else {

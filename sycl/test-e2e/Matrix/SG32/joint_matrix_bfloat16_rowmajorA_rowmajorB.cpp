@@ -6,8 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix
+// REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // This tests support of row major layout for matrix B which does automatic VNNI

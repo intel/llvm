@@ -22,21 +22,6 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi;
 
-// Spec constant for testing.
-constexpr specialization_id<int> SpecConst1{7};
-
-namespace sycl {
-inline namespace _V1 {
-namespace detail {
-
-// Necessary for get_specialization_constant() to work in unit tests.
-template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {
-  return "SC1";
-}
-} // namespace detail
-} // namespace _V1
-} // namespace sycl
-
 // anonymous namespace used to avoid code redundancy by defining functions
 // used by multiple times by unitests.
 // Defining anonymous namespace prevents from function naming conflits
@@ -118,146 +103,6 @@ bool checkExecGraphSchedule(
 /// Shortcut is a sub-type of Record&Replay using Queue shortcut
 /// instead of standard kernel submitions.
 enum OperationPath { Explicit, RecordReplay, Shortcut };
-
-/// Function types and classes for testing Kernel with properties extension
-enum class Variant { Function, Functor, FunctorAndProperty };
-
-template <Variant KernelVariant, bool IsShortcut, size_t... Is>
-class ReqdWGSizePositiveA;
-template <Variant KernelVariant, bool IsShortcut> class ReqPositiveA;
-
-template <size_t Dims> range<Dims> repeatRange(size_t Val);
-template <> range<1> repeatRange<1>(size_t Val) { return range<1>{Val}; }
-template <> range<2> repeatRange<2>(size_t Val) { return range<2>{Val, Val}; }
-template <> range<3> repeatRange<3>(size_t Val) {
-  return range<3>{Val, Val, Val};
-}
-
-template <size_t... Is> struct KernelFunctorWithWGSizeProp {
-  void operator()(nd_item<sizeof...(Is)>) const {}
-  void operator()(item<sizeof...(Is)>) const {}
-
-  auto get(sycl::ext::oneapi::experimental::properties_tag) {
-    return sycl::ext::oneapi::experimental::properties{
-        sycl::ext::oneapi::experimental::work_group_size<Is...>};
-  }
-};
-
-/// Tries to add a Parallel_for node with kernel properties to the graph G
-/// It tests that an invalid exception has been thrown
-/// Since sycl_ext_oneapi_kernel_properties extension can not be used
-/// along with SYCL Graph.
-///
-/// @param G Modifiable graph to add commands to.
-/// @param Q Queue to submit nodes to.
-/// @param Props Properties associated to the submitted kernel
-/// @param KernelFunc pointer to the kernel
-template <OperationPath PathKind, Variant KernelVariant, size_t... Is,
-          typename PropertiesT, typename KernelType>
-void addKernelWithProperties(
-    sycl::ext::oneapi::experimental::detail::modifiable_command_graph &G,
-    queue &Q, PropertiesT Props, KernelType KernelFunc) {
-  constexpr size_t Dims = sizeof...(Is);
-
-  // Test Parallel_for
-  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    if constexpr (PathKind == OperationPath::RecordReplay) {
-      Q.submit([&](handler &CGH) {
-        CGH.parallel_for<ReqdWGSizePositiveA<KernelVariant, false, Is...>>(
-            nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(Is...)), Props,
-            KernelFunc);
-      });
-    }
-    if constexpr (PathKind == OperationPath::Shortcut) {
-      Q.parallel_for<ReqdWGSizePositiveA<KernelVariant, true, Is...>>(
-          nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(Is...)), Props,
-          KernelFunc);
-    }
-    if constexpr (PathKind == OperationPath::Explicit) {
-      G.add([&](handler &CGH) {
-        CGH.parallel_for<ReqdWGSizePositiveA<KernelVariant, false, Is...>>(
-            nd_range<Dims>(repeatRange<Dims>(8), range<Dims>(Is...)), Props,
-            KernelFunc);
-      });
-    }
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-}
-
-/// Tries to add a Single task node with kernel properties to the graph G
-/// It tests that an invalid exception has been thrown
-/// Since sycl_ext_oneapi_kernel_properties extension can not be used
-/// along with SYCL Graph.
-///
-/// @param G Modifiable graph to add commands to.
-/// @param Q Queue to submit nodes to.
-/// @param Props Properties associated to the submitted kernel
-/// @param KernelFunc pointer to the kernel
-template <OperationPath PathKind, typename PropertiesT, typename KernelType>
-void testSingleTaskProperties(experimental::detail::modifiable_command_graph &G,
-                              queue &Q, PropertiesT Props,
-                              KernelType KernelFunc) {
-
-  // Test Single_task
-  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    if constexpr (PathKind == OperationPath::RecordReplay) {
-      G.begin_recording(Q);
-      Q.submit([&](sycl::handler &CGH) {
-        CGH.single_task<ReqPositiveA<Variant::Function, false>>(Props,
-                                                                KernelFunc);
-      });
-      G.end_recording();
-    }
-    if constexpr (PathKind == OperationPath::Explicit) {
-      G.add([&](sycl::handler &CGH) {
-        CGH.single_task<ReqPositiveA<Variant::Function, false>>(Props,
-                                                                KernelFunc);
-      });
-    }
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-}
-
-/// This function groups all the different test cases
-/// when adding a Parallel_for node with kernel properties to the graph G
-///
-/// @param G Modifiable graph to add commands to.
-/// @param Q Queue to submit nodes to.
-template <size_t... Is>
-void testParallelForProperties(
-    queue &Q, experimental::detail::modifiable_command_graph &G) {
-  auto Props = ext::oneapi::experimental::properties{
-      experimental::work_group_size<Is...>};
-  auto KernelFunction = [](auto) {};
-
-  KernelFunctorWithWGSizeProp<Is...> KernelFunctor;
-
-  G.begin_recording(Q);
-
-  addKernelWithProperties<OperationPath::RecordReplay, Variant::Function,
-                          Is...>(G, Q, Props, KernelFunction);
-  addKernelWithProperties<OperationPath::RecordReplay,
-                          Variant::FunctorAndProperty, Is...>(G, Q, Props,
-                                                              KernelFunctor);
-
-  addKernelWithProperties<OperationPath::Shortcut, Variant::Function, Is...>(
-      G, Q, Props, KernelFunction);
-  addKernelWithProperties<OperationPath::Shortcut, Variant::FunctorAndProperty,
-                          Is...>(G, Q, Props, KernelFunctor);
-
-  G.end_recording();
-
-  addKernelWithProperties<OperationPath::Explicit, Variant::Function, Is...>(
-      G, Q, Props, KernelFunction);
-  addKernelWithProperties<OperationPath::Explicit, Variant::FunctorAndProperty,
-                          Is...>(G, Q, Props, KernelFunctor);
-}
 
 /// Tries to add a memcpy2D node to the graph G
 /// It tests that an invalid exception has been thrown
@@ -1230,6 +1075,288 @@ TEST_F(CommandGraphTest, InOrderQueueWithEmptyLast) {
   ASSERT_EQ(InOrderQueue.get_context(), GraphExecImpl->getContext());
 }
 
+TEST_F(CommandGraphTest, InOrderQueueWithPreviousHostTask) {
+  sycl::property_list Properties{sycl::property::queue::in_order()};
+  sycl::queue InOrderQueue{Dev, Properties};
+  experimental::command_graph<experimental::graph_state::modifiable>
+      InOrderGraph{InOrderQueue.get_context(), InOrderQueue.get_device()};
+
+  auto EventInitial =
+      InOrderQueue.submit([&](handler &CGH) { CGH.host_task([=]() {}); });
+  auto EventInitialImpl = sycl::detail::getSyclObjImpl(EventInitial);
+
+  // Record in-order queue with three nodes.
+  InOrderGraph.begin_recording(InOrderQueue);
+  auto Node1Graph = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto PtrNode1 =
+      sycl::detail::getSyclObjImpl(InOrderGraph)
+          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode1, nullptr);
+  ASSERT_TRUE(PtrNode1->MPredecessors.empty());
+
+  auto Node2Graph = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto PtrNode2 =
+      sycl::detail::getSyclObjImpl(InOrderGraph)
+          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode2, nullptr);
+  ASSERT_NE(PtrNode2, PtrNode1);
+  ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
+  ASSERT_EQ(PtrNode1->MSuccessors.front().lock(), PtrNode2);
+  ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
+  ASSERT_EQ(PtrNode2->MPredecessors.front().lock(), PtrNode1);
+
+  auto Node3Graph = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto PtrNode3 =
+      sycl::detail::getSyclObjImpl(InOrderGraph)
+          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode3, nullptr);
+  ASSERT_NE(PtrNode3, PtrNode2);
+  ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
+  ASSERT_EQ(PtrNode2->MSuccessors.front().lock(), PtrNode3);
+  ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
+  ASSERT_EQ(PtrNode3->MPredecessors.front().lock(), PtrNode2);
+
+  InOrderGraph.end_recording(InOrderQueue);
+
+  auto EventLast = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto EventLastImpl = sycl::detail::getSyclObjImpl(EventLast);
+  auto WaitList = EventLastImpl->getWaitList();
+  // Previous task is a host task. Explicit dependency is needed to enforce the
+  // execution order.
+  ASSERT_EQ(WaitList.size(), 1lu);
+  ASSERT_EQ(WaitList[0], EventInitialImpl);
+}
+
+TEST_F(CommandGraphTest, InOrderQueueHostTaskAndGraph) {
+  sycl::property_list Properties{sycl::property::queue::in_order()};
+  sycl::queue InOrderQueue{Dev, Properties};
+  experimental::command_graph<experimental::graph_state::modifiable>
+      InOrderGraph{InOrderQueue.get_context(), InOrderQueue.get_device()};
+
+  auto EventInitial =
+      InOrderQueue.submit([&](handler &CGH) { CGH.host_task([=]() {}); });
+  auto EventInitialImpl = sycl::detail::getSyclObjImpl(EventInitial);
+
+  // Record in-order queue with three nodes.
+  InOrderGraph.begin_recording(InOrderQueue);
+  auto Node1Graph = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto PtrNode1 =
+      sycl::detail::getSyclObjImpl(InOrderGraph)
+          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode1, nullptr);
+  ASSERT_TRUE(PtrNode1->MPredecessors.empty());
+
+  auto Node2Graph = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto PtrNode2 =
+      sycl::detail::getSyclObjImpl(InOrderGraph)
+          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode2, nullptr);
+  ASSERT_NE(PtrNode2, PtrNode1);
+  ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
+  ASSERT_EQ(PtrNode1->MSuccessors.front().lock(), PtrNode2);
+  ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
+  ASSERT_EQ(PtrNode2->MPredecessors.front().lock(), PtrNode1);
+
+  auto Node3Graph = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto PtrNode3 =
+      sycl::detail::getSyclObjImpl(InOrderGraph)
+          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode3, nullptr);
+  ASSERT_NE(PtrNode3, PtrNode2);
+  ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
+  ASSERT_EQ(PtrNode2->MSuccessors.front().lock(), PtrNode3);
+  ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
+  ASSERT_EQ(PtrNode3->MPredecessors.front().lock(), PtrNode2);
+
+  InOrderGraph.end_recording(InOrderQueue);
+
+  auto InOrderGraphExec = InOrderGraph.finalize();
+  auto EventGraph = InOrderQueue.submit(
+      [&](sycl::handler &CGH) { CGH.ext_oneapi_graph(InOrderGraphExec); });
+
+  auto EventGraphImpl = sycl::detail::getSyclObjImpl(EventGraph);
+  auto EventGraphWaitList = EventGraphImpl->getWaitList();
+  // Previous task is a host task. Explicit dependency is needed to enforce the
+  // execution order.
+  ASSERT_EQ(EventGraphWaitList.size(), 1lu);
+  ASSERT_EQ(EventGraphWaitList[0], EventInitialImpl);
+
+  auto EventLast = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto EventLastImpl = sycl::detail::getSyclObjImpl(EventLast);
+  auto EventLastWaitList = EventLastImpl->getWaitList();
+  // Previous task is not a host task. Explicit dependency is still needed
+  // to properly handle blocked tasks (the event will be filtered out before
+  // submission to the backend).
+  ASSERT_EQ(EventLastWaitList.size(), 1lu);
+  ASSERT_EQ(EventLastWaitList[0], EventGraphImpl);
+}
+
+TEST_F(CommandGraphTest, InOrderQueueMemsetAndGraph) {
+  sycl::property_list Properties{sycl::property::queue::in_order()};
+  sycl::queue InOrderQueue{Dev, Properties};
+  experimental::command_graph<experimental::graph_state::modifiable>
+      InOrderGraph{InOrderQueue.get_context(), InOrderQueue.get_device()};
+
+  // Check if device has usm shared allocation.
+  if (!InOrderQueue.get_device().has(sycl::aspect::usm_shared_allocations))
+    return;
+  size_t Size = 128;
+  std::vector<int> TestDataHost(Size);
+  int *TestData = sycl::malloc_shared<int>(Size, InOrderQueue);
+
+  auto EventInitial = InOrderQueue.memset(TestData, 1, Size * sizeof(int));
+  auto EventInitialImpl = sycl::detail::getSyclObjImpl(EventInitial);
+
+  // Record in-order queue with three nodes.
+  InOrderGraph.begin_recording(InOrderQueue);
+  auto Node1Graph = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto PtrNode1 =
+      sycl::detail::getSyclObjImpl(InOrderGraph)
+          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode1, nullptr);
+  ASSERT_TRUE(PtrNode1->MPredecessors.empty());
+
+  auto Node2Graph = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto PtrNode2 =
+      sycl::detail::getSyclObjImpl(InOrderGraph)
+          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode2, nullptr);
+  ASSERT_NE(PtrNode2, PtrNode1);
+  ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
+  ASSERT_EQ(PtrNode1->MSuccessors.front().lock(), PtrNode2);
+  ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
+  ASSERT_EQ(PtrNode2->MPredecessors.front().lock(), PtrNode1);
+
+  auto Node3Graph = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto PtrNode3 =
+      sycl::detail::getSyclObjImpl(InOrderGraph)
+          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode3, nullptr);
+  ASSERT_NE(PtrNode3, PtrNode2);
+  ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
+  ASSERT_EQ(PtrNode2->MSuccessors.front().lock(), PtrNode3);
+  ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
+  ASSERT_EQ(PtrNode3->MPredecessors.front().lock(), PtrNode2);
+
+  InOrderGraph.end_recording(InOrderQueue);
+
+  auto InOrderGraphExec = InOrderGraph.finalize();
+  auto EventGraph = InOrderQueue.submit(
+      [&](sycl::handler &CGH) { CGH.ext_oneapi_graph(InOrderGraphExec); });
+
+  auto EventGraphImpl = sycl::detail::getSyclObjImpl(EventGraph);
+  auto EventGraphWaitList = EventGraphImpl->getWaitList();
+  // Previous task is a memset. Explicit dependency is needed to enforce the
+  // execution order.
+  ASSERT_EQ(EventGraphWaitList.size(), 1lu);
+  ASSERT_EQ(EventGraphWaitList[0], EventInitialImpl);
+
+  auto EventLast =
+      InOrderQueue.memcpy(TestData, TestDataHost.data(), Size * sizeof(int));
+  auto EventLastImpl = sycl::detail::getSyclObjImpl(EventLast);
+  auto EventLastWaitList = EventLastImpl->getWaitList();
+  // Previous task is not a host task. In Order queue dependency is managed by
+  // the backend for non-host kernels.
+  ASSERT_EQ(EventLastWaitList.size(), 0lu);
+}
+
+TEST_F(CommandGraphTest, InOrderQueueMemcpyAndGraph) {
+  sycl::property_list Properties{sycl::property::queue::in_order()};
+  sycl::queue InOrderQueue{Dev, Properties};
+  experimental::command_graph<experimental::graph_state::modifiable>
+      InOrderGraph{InOrderQueue.get_context(), InOrderQueue.get_device()};
+
+  // Check if device has usm shared allocation.
+  if (!InOrderQueue.get_device().has(sycl::aspect::usm_shared_allocations))
+    return;
+  size_t Size = 128;
+  std::vector<int> TestDataHost(Size);
+  int *TestData = sycl::malloc_shared<int>(Size, InOrderQueue);
+
+  auto EventInitial =
+      InOrderQueue.memcpy(TestData, TestDataHost.data(), Size * sizeof(int));
+  auto EventInitialImpl = sycl::detail::getSyclObjImpl(EventInitial);
+
+  // Record in-order queue with three nodes.
+  InOrderGraph.begin_recording(InOrderQueue);
+  auto Node1Graph = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto PtrNode1 =
+      sycl::detail::getSyclObjImpl(InOrderGraph)
+          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode1, nullptr);
+  ASSERT_TRUE(PtrNode1->MPredecessors.empty());
+
+  auto Node2Graph = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto PtrNode2 =
+      sycl::detail::getSyclObjImpl(InOrderGraph)
+          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode2, nullptr);
+  ASSERT_NE(PtrNode2, PtrNode1);
+  ASSERT_EQ(PtrNode1->MSuccessors.size(), 1lu);
+  ASSERT_EQ(PtrNode1->MSuccessors.front().lock(), PtrNode2);
+  ASSERT_EQ(PtrNode2->MPredecessors.size(), 1lu);
+  ASSERT_EQ(PtrNode2->MPredecessors.front().lock(), PtrNode1);
+
+  auto Node3Graph = InOrderQueue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto PtrNode3 =
+      sycl::detail::getSyclObjImpl(InOrderGraph)
+          ->getLastInorderNode(sycl::detail::getSyclObjImpl(InOrderQueue));
+  ASSERT_NE(PtrNode3, nullptr);
+  ASSERT_NE(PtrNode3, PtrNode2);
+  ASSERT_EQ(PtrNode2->MSuccessors.size(), 1lu);
+  ASSERT_EQ(PtrNode2->MSuccessors.front().lock(), PtrNode3);
+  ASSERT_EQ(PtrNode3->MPredecessors.size(), 1lu);
+  ASSERT_EQ(PtrNode3->MPredecessors.front().lock(), PtrNode2);
+
+  InOrderGraph.end_recording(InOrderQueue);
+
+  auto InOrderGraphExec = InOrderGraph.finalize();
+  auto EventGraph = InOrderQueue.submit(
+      [&](sycl::handler &CGH) { CGH.ext_oneapi_graph(InOrderGraphExec); });
+
+  auto EventGraphImpl = sycl::detail::getSyclObjImpl(EventGraph);
+  auto EventGraphWaitList = EventGraphImpl->getWaitList();
+  // Previous task is a memcpy. Explicit dependency is needed to enforce the
+  // execution order
+  ASSERT_EQ(EventGraphWaitList.size(), 1lu);
+  ASSERT_EQ(EventGraphWaitList[0], EventInitialImpl);
+
+  auto EventLast =
+      InOrderQueue.memcpy(TestData, TestDataHost.data(), Size * sizeof(int));
+  auto EventLastImpl = sycl::detail::getSyclObjImpl(EventLast);
+  auto EventLastWaitList = EventLastImpl->getWaitList();
+  // Previous task is not a host task. In Order queue dependency is managed by
+  // the backend for non-host kernels.
+  ASSERT_EQ(EventLastWaitList.size(), 0lu);
+}
+
 TEST_F(CommandGraphTest, ExplicitBarrierException) {
 
   std::error_code ExceptionCode = make_error_code(sycl::errc::success);
@@ -1473,7 +1600,7 @@ TEST_F(CommandGraphTest, EnqueueMultipleBarrier) {
   //     (B2)
   //     /|\
   //    / | \
-  // (6) (7) (8) (those nodes also have B1 as a predecessor)
+  // (6) (7) (8)
   ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
   for (auto Root : GraphImpl->MRoots) {
     auto Node = Root.lock();
@@ -1483,7 +1610,7 @@ TEST_F(CommandGraphTest, EnqueueMultipleBarrier) {
       ASSERT_EQ(GraphImpl->getEventForNode(SuccNode),
                 sycl::detail::getSyclObjImpl(Barrier1));
       ASSERT_EQ(SuccNode->MPredecessors.size(), 2lu);
-      ASSERT_EQ(SuccNode->MSuccessors.size(), 6lu);
+      ASSERT_EQ(SuccNode->MSuccessors.size(), 3lu);
       for (auto Succ1 : SuccNode->MSuccessors) {
         auto SuccBarrier1 = Succ1.lock();
         if (SuccBarrier1->MCGType == sycl::detail::CG::Barrier) {
@@ -1494,7 +1621,7 @@ TEST_F(CommandGraphTest, EnqueueMultipleBarrier) {
           for (auto Succ2 : SuccBarrier1->MSuccessors) {
             auto SuccBarrier2 = Succ2.lock();
             // Nodes 6, 7, 8
-            ASSERT_EQ(SuccBarrier2->MPredecessors.size(), 2lu);
+            ASSERT_EQ(SuccBarrier2->MPredecessors.size(), 1lu);
             ASSERT_EQ(SuccBarrier2->MSuccessors.size(), 0lu);
           }
         } else {
@@ -1515,8 +1642,180 @@ TEST_F(CommandGraphTest, EnqueueMultipleBarrier) {
   }
 }
 
+TEST_F(CommandGraphTest, DependencyLeavesKeyword1) {
+  auto Node1Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node2Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node3Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  auto EmptyNode =
+      Graph.add([&](sycl::handler &cgh) { /*empty node */ },
+                {experimental::property::node::depends_on_all_leaves()});
+
+  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+
+  // Check the graph structure
+  // (1) (2) (3)
+  //   \  |  /
+  //    \ | /
+  //     (E)
+  ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
+  auto EmptyImpl = sycl::detail::getSyclObjImpl(EmptyNode);
+  ASSERT_EQ(EmptyImpl->MPredecessors.size(), 3lu);
+  ASSERT_EQ(EmptyImpl->MSuccessors.size(), 0lu);
+
+  auto Node1Impl = sycl::detail::getSyclObjImpl(Node1Graph);
+  ASSERT_EQ(Node1Impl->MSuccessors.size(), 1lu);
+  ASSERT_EQ(Node1Impl->MSuccessors[0].lock(), EmptyImpl);
+  auto Node2Impl = sycl::detail::getSyclObjImpl(Node2Graph);
+  ASSERT_EQ(Node2Impl->MSuccessors.size(), 1lu);
+  ASSERT_EQ(Node2Impl->MSuccessors[0].lock(), EmptyImpl);
+  auto Node3Impl = sycl::detail::getSyclObjImpl(Node3Graph);
+  ASSERT_EQ(Node3Impl->MSuccessors.size(), 1lu);
+  ASSERT_EQ(Node3Impl->MSuccessors[0].lock(), EmptyImpl);
+}
+
+TEST_F(CommandGraphTest, DependencyLeavesKeyword2) {
+  auto Node1Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node2Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node3Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node4Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      {experimental::property::node::depends_on(Node3Graph)});
+
+  auto EmptyNode =
+      Graph.add([&](sycl::handler &cgh) { /*empty node */ },
+                {experimental::property::node::depends_on_all_leaves()});
+
+  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+
+  // Check the graph structure
+  // (1) (2) (3)
+  //   \  |  /
+  //    \ | (4)
+  //     \| /
+  //     (E)
+  ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
+  auto EmptyImpl = sycl::detail::getSyclObjImpl(EmptyNode);
+  ASSERT_EQ(EmptyImpl->MPredecessors.size(), 3lu);
+  ASSERT_EQ(EmptyImpl->MSuccessors.size(), 0lu);
+
+  auto Node1Impl = sycl::detail::getSyclObjImpl(Node1Graph);
+  ASSERT_EQ(Node1Impl->MSuccessors.size(), 1lu);
+  ASSERT_EQ(Node1Impl->MSuccessors[0].lock(), EmptyImpl);
+  auto Node2Impl = sycl::detail::getSyclObjImpl(Node2Graph);
+  ASSERT_EQ(Node2Impl->MSuccessors.size(), 1lu);
+  ASSERT_EQ(Node2Impl->MSuccessors[0].lock(), EmptyImpl);
+  auto Node3Impl = sycl::detail::getSyclObjImpl(Node3Graph);
+  ASSERT_EQ(Node3Impl->MSuccessors.size(), 1lu);
+
+  auto Node4Impl = sycl::detail::getSyclObjImpl(Node4Graph);
+  ASSERT_EQ(Node4Impl->MPredecessors.size(), 1lu);
+  ASSERT_EQ(Node4Impl->MSuccessors.size(), 1lu);
+  ASSERT_EQ(Node4Impl->MSuccessors[0].lock(), EmptyImpl);
+}
+
+TEST_F(CommandGraphTest, DependencyLeavesKeyword3) {
+  auto Node1Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node2Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto EmptyNode =
+      Graph.add([&](sycl::handler &cgh) { /*empty node */ },
+                {experimental::property::node::depends_on_all_leaves()});
+  auto Node3Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      {experimental::property::node::depends_on(Node1Graph)});
+  auto Node4Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      {experimental::property::node::depends_on(EmptyNode)});
+
+  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+
+  // Check the graph structure
+  // (1)(2)
+  //  |\ |
+  //  | (E)
+  // (3) |
+  //    (4)
+  ASSERT_EQ(GraphImpl->MRoots.size(), 2lu);
+  auto EmptyImpl = sycl::detail::getSyclObjImpl(EmptyNode);
+  ASSERT_EQ(EmptyImpl->MPredecessors.size(), 2lu);
+  ASSERT_EQ(EmptyImpl->MSuccessors.size(), 1lu);
+
+  auto Node1Impl = sycl::detail::getSyclObjImpl(Node1Graph);
+  auto Node2Impl = sycl::detail::getSyclObjImpl(Node2Graph);
+  ASSERT_EQ(Node1Impl->MSuccessors.size(), 2lu);
+  ASSERT_EQ(Node2Impl->MSuccessors.size(), 1lu);
+  ASSERT_EQ(Node2Impl->MSuccessors[0].lock(), EmptyImpl);
+
+  auto Node3Impl = sycl::detail::getSyclObjImpl(Node3Graph);
+  ASSERT_EQ(Node3Impl->MPredecessors.size(), 1lu);
+  ASSERT_EQ(Node3Impl->MPredecessors[0].lock(), Node1Impl);
+
+  auto Node4Impl = sycl::detail::getSyclObjImpl(Node4Graph);
+  ASSERT_EQ(Node4Impl->MPredecessors.size(), 1lu);
+  ASSERT_EQ(Node4Impl->MPredecessors[0].lock(), EmptyImpl);
+}
+
+TEST_F(CommandGraphTest, DependencyLeavesKeyword4) {
+  auto Node1Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Node2Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto EmptyNode =
+      Graph.add([&](sycl::handler &cgh) { /*empty node */ },
+                {experimental::property::node::depends_on_all_leaves()});
+  auto Node3Graph = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto EmptyNode2 =
+      Graph.add([&](sycl::handler &cgh) { /*empty node */ },
+                {experimental::property::node::depends_on_all_leaves()});
+
+  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+
+  // Check the graph structure
+  // (1)(2)
+  //   \/
+  //  (E1) (3)
+  //    \  /
+  //    (E2)
+  ASSERT_EQ(GraphImpl->MRoots.size(), 3lu);
+  auto EmptyImpl = sycl::detail::getSyclObjImpl(EmptyNode);
+  ASSERT_EQ(EmptyImpl->MPredecessors.size(), 2lu);
+  ASSERT_EQ(EmptyImpl->MSuccessors.size(), 1lu);
+
+  auto Node1Impl = sycl::detail::getSyclObjImpl(Node1Graph);
+  ASSERT_EQ(Node1Impl->MSuccessors.size(), 1lu);
+  ASSERT_EQ(Node1Impl->MSuccessors[0].lock(), EmptyImpl);
+  auto Node2Impl = sycl::detail::getSyclObjImpl(Node2Graph);
+  ASSERT_EQ(Node2Impl->MSuccessors.size(), 1lu);
+  ASSERT_EQ(Node2Impl->MSuccessors[0].lock(), EmptyImpl);
+
+  auto EmptyImpl2 = sycl::detail::getSyclObjImpl(EmptyNode2);
+  auto Node3Impl = sycl::detail::getSyclObjImpl(Node3Graph);
+  ASSERT_EQ(Node3Impl->MPredecessors.size(), 0lu);
+  ASSERT_EQ(Node3Impl->MSuccessors.size(), 1lu);
+  ASSERT_EQ(Node3Impl->MSuccessors[0].lock(), EmptyImpl2);
+
+  ASSERT_EQ(EmptyImpl2->MPredecessors.size(), 2lu);
+}
+
 TEST_F(CommandGraphTest, FusionExtensionExceptionCheck) {
-  queue Q{ext::codeplay::experimental::property::queue::enable_fusion{}};
+  device D;
+  if (!D.get_info<
+          ext::codeplay::experimental::info::device::supports_fusion>()) {
+    // Skip this test if the device does not support fusion. Otherwise, the
+    // queue construction in the next step would fail.
+    GTEST_SKIP();
+  }
+
+  queue Q{D, ext::codeplay::experimental::property::queue::enable_fusion{}};
 
   experimental::command_graph<experimental::graph_state::modifiable> Graph{
       Q.get_context(), Q.get_device()};
@@ -1549,26 +1848,23 @@ TEST_F(CommandGraphTest, FusionExtensionExceptionCheck) {
   ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
 }
 
-TEST_F(CommandGraphTest, KernelPropertiesExceptionCheck) {
+TEST_F(CommandGraphTest, USMMemsetShortcutExceptionCheck) {
 
-  // Test Parallel for entry point
-  testParallelForProperties<4>(Queue, Graph);
-  testParallelForProperties<4, 4>(Queue, Graph);
-  testParallelForProperties<8, 4>(Queue, Graph);
-  testParallelForProperties<4, 8>(Queue, Graph);
-  testParallelForProperties<4, 4, 4>(Queue, Graph);
-  testParallelForProperties<4, 4, 8>(Queue, Graph);
-  testParallelForProperties<8, 4, 4>(Queue, Graph);
-  testParallelForProperties<4, 8, 4>(Queue, Graph);
+  const size_t N = 10;
+  unsigned char *Arr = malloc_device<unsigned char>(N, Queue);
+  int Value = 77;
 
-  // Test Single Task entry point
-  auto Props = ext::oneapi::experimental::properties{
-      ext::oneapi::experimental::work_group_size<4>};
-  auto KernelFunction = [](auto) {};
-  testSingleTaskProperties<OperationPath::Explicit>(Graph, Queue, Props,
-                                                    KernelFunction);
-  testSingleTaskProperties<OperationPath::RecordReplay>(Graph, Queue, Props,
-                                                        KernelFunction);
+  Graph.begin_recording(Queue);
+
+  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    Queue.memset(Arr, Value, N);
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+
+  Graph.end_recording(Queue);
 }
 
 TEST_F(CommandGraphTest, Memcpy2DExceptionCheck) {
@@ -1600,36 +1896,6 @@ TEST_F(CommandGraphTest, Memcpy2DExceptionCheck) {
 
   sycl::free(USMMemSrc, Queue);
   sycl::free(USMMemDst, Queue);
-}
-
-// Tests that using specialization constants in a graph will throw.
-TEST_F(CommandGraphTest, SpecializationConstant) {
-
-  ASSERT_THROW(
-      {
-        try {
-          Graph.add([&](handler &CGH) {
-            CGH.set_specialization_constant<SpecConst1>(8);
-          });
-        } catch (const sycl::exception &e) {
-          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
-          throw;
-        }
-      },
-      sycl::exception);
-  ASSERT_THROW(
-      {
-        try {
-          Graph.add([&](handler &CGH) {
-            int Value = CGH.get_specialization_constant<SpecConst1>();
-            (void)Value;
-          });
-        } catch (const sycl::exception &e) {
-          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
-          throw;
-        }
-      },
-      sycl::exception);
 }
 
 // Tests that using reductions in a graph will throw.
@@ -1688,76 +1954,6 @@ TEST_F(CommandGraphTest, BindlessExceptionCheck) {
                                            ImgMemUSM, Pitch, Desc);
 
   sycl::free(ImgMemUSM, Ctxt);
-}
-
-TEST_F(CommandGraphTest, GetProfilingInfoExceptionCheck) {
-  sycl::context Ctx{Dev};
-  sycl::queue QueueProfile{
-      Ctx, Dev, sycl::property_list{sycl::property::queue::enable_profiling{}}};
-  experimental::command_graph<experimental::graph_state::modifiable>
-      GraphProfile{QueueProfile.get_context(), Dev};
-
-  GraphProfile.begin_recording(QueueProfile);
-  auto Event = QueueProfile.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
-
-  // Checks that exception is thrown when get_profile_info is called on "event"
-  // returned by a queue in recording mode.
-  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    Event.get_profiling_info<sycl::info::event_profiling::command_submit>();
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-
-  ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    Event.get_profiling_info<sycl::info::event_profiling::command_start>();
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-
-  ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    Event.get_profiling_info<sycl::info::event_profiling::command_end>();
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-
-  GraphProfile.end_recording();
-
-  auto GraphExec = GraphProfile.finalize();
-  auto EventSub = QueueProfile.submit(
-      [&](sycl::handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
-
-  // Checks that exception is thrown when get_profile_info is called on "event"
-  // returned by a graph submission.
-  ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    EventSub.get_profiling_info<sycl::info::event_profiling::command_submit>();
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-
-  ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    EventSub.get_profiling_info<sycl::info::event_profiling::command_start>();
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-
-  ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    EventSub.get_profiling_info<sycl::info::event_profiling::command_end>();
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
 }
 
 TEST_F(CommandGraphTest, MakeEdgeErrors) {
@@ -1916,6 +2112,64 @@ TEST_F(CommandGraphTest, InvalidHostAccessor) {
   }
   // Graph is now out of scope so we should be able to create a host_accessor
   ASSERT_NO_THROW({ host_accessor HostAcc{Buffer}; });
+}
+
+TEST_F(CommandGraphTest, GraphPartitionsMerging) {
+  // Tests that the parition merging algo works as expected in case of backward
+  // dependencies
+  auto NodeA = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto NodeB = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      {experimental::property::node::depends_on(NodeA)});
+  auto NodeHT1 = Graph.add([&](sycl::handler &cgh) { cgh.host_task([=]() {}); },
+                           {experimental::property::node::depends_on(NodeB)});
+  auto NodeC = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      {experimental::property::node::depends_on(NodeHT1)});
+  auto NodeD = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      {experimental::property::node::depends_on(NodeB)});
+  auto NodeHT2 = Graph.add([&](sycl::handler &cgh) { cgh.host_task([=]() {}); },
+                           {experimental::property::node::depends_on(NodeD)});
+  auto NodeE = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      {experimental::property::node::depends_on(NodeHT2)});
+  auto NodeF = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+      {experimental::property::node::depends_on(NodeHT2)});
+
+  // Backward dependency
+  Graph.make_edge(NodeE, NodeHT1);
+
+  auto GraphExec = Graph.finalize();
+  auto GraphExecImpl = sycl::detail::getSyclObjImpl(GraphExec);
+  auto PartitionsList = GraphExecImpl->getPartitions();
+  ASSERT_EQ(PartitionsList.size(), 5ul);
+  ASSERT_FALSE(PartitionsList[0]->isHostTask());
+  ASSERT_TRUE(PartitionsList[1]->isHostTask());
+  ASSERT_FALSE(PartitionsList[2]->isHostTask());
+  ASSERT_TRUE(PartitionsList[3]->isHostTask());
+  ASSERT_FALSE(PartitionsList[4]->isHostTask());
+}
+
+TEST_F(CommandGraphTest, ProfilingException) {
+  Graph.begin_recording(Queue);
+  auto Event1 = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto Event2 = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  Graph.end_recording(Queue);
+
+  try {
+    Event1.get_profiling_info<sycl::info::event_profiling::command_start>();
+  } catch (exception &Exception) {
+    ASSERT_FALSE(
+        std::string(Exception.what())
+            .find("Profiling information is unavailable for events returned "
+                  "from a submission to a queue in the recording state.") ==
+        std::string::npos);
+  }
 }
 
 class MultiThreadGraphTest : public CommandGraphTest {
@@ -2134,5 +2388,67 @@ TEST_F(MultiThreadGraphTest, Finalize) {
         sycl::detail::getSyclObjImpl(GraphsExecMap.find(i)->second);
     auto GraphExecRefImpl = sycl::detail::getSyclObjImpl(GraphExecRef);
     ASSERT_EQ(checkExecGraphSchedule(GraphExecImpl, GraphExecRefImpl), true);
+  }
+}
+
+// Test adding fill and memset nodes to a graph
+TEST_F(CommandGraphTest, FillMemsetNodes) {
+  const int Value = 7;
+  // Buffer fill
+  buffer<int> Buffer{range<1>{1}};
+  Buffer.set_write_back(false);
+
+  {
+    ext::oneapi::experimental::command_graph Graph{
+        Queue.get_context(),
+        Queue.get_device(),
+        {experimental::property::graph::assume_buffer_outlives_graph{}}};
+
+    auto NodeA = Graph.add([&](handler &CGH) {
+      auto Acc = Buffer.get_access(CGH);
+      CGH.fill(Acc, Value);
+    });
+    auto NodeB = Graph.add([&](handler &CGH) {
+      auto Acc = Buffer.get_access(CGH);
+      CGH.fill(Acc, Value);
+    });
+
+    auto NodeAImpl = sycl::detail::getSyclObjImpl(NodeA);
+    auto NodeBImpl = sycl::detail::getSyclObjImpl(NodeB);
+
+    // Check Operator==
+    EXPECT_EQ(NodeAImpl, NodeAImpl);
+    EXPECT_NE(NodeAImpl, NodeBImpl);
+  }
+
+  // USM
+  {
+    int *USMPtr = malloc_device<int>(1, Queue);
+
+    // We need to create some differences between nodes because unlike buffer
+    // fills they are not differentiated on accessor ptr value.
+    auto FillNodeA =
+        Graph.add([&](handler &CGH) { CGH.fill(USMPtr, Value, 1); });
+    auto FillNodeB =
+        Graph.add([&](handler &CGH) { CGH.fill(USMPtr, Value + 1, 1); });
+    auto MemsetNodeA =
+        Graph.add([&](handler &CGH) { CGH.memset(USMPtr, Value, 1); });
+    auto MemsetNodeB =
+        Graph.add([&](handler &CGH) { CGH.memset(USMPtr, Value, 2); });
+
+    auto FillNodeAImpl = sycl::detail::getSyclObjImpl(FillNodeA);
+    auto FillNodeBImpl = sycl::detail::getSyclObjImpl(FillNodeB);
+    auto MemsetNodeAImpl = sycl::detail::getSyclObjImpl(MemsetNodeA);
+    auto MemsetNodeBImpl = sycl::detail::getSyclObjImpl(MemsetNodeB);
+
+    // Check Operator==
+    EXPECT_EQ(FillNodeAImpl, FillNodeAImpl);
+    EXPECT_EQ(FillNodeBImpl, FillNodeBImpl);
+    EXPECT_NE(FillNodeAImpl, FillNodeBImpl);
+
+    EXPECT_EQ(MemsetNodeAImpl, MemsetNodeAImpl);
+    EXPECT_EQ(MemsetNodeBImpl, MemsetNodeBImpl);
+    EXPECT_NE(MemsetNodeAImpl, MemsetNodeBImpl);
+    sycl::free(USMPtr, Queue);
   }
 }

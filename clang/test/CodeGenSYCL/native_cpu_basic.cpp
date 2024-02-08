@@ -1,25 +1,10 @@
 // This test checks for some basic Front End features for Native CPU:
-// * Kernel name mangling
 // * is-native-cpu module flag
 // RUN: %clang_cc1 -fsycl-is-device -S -emit-llvm -internal-isystem %S/Inputs -fsycl-is-native-cpu -o %t.ll %s 
 // RUN: FileCheck -input-file=%t.ll %s 
 
 #include "sycl.hpp"
-typedef __typeof__(sizeof(int)) size_t;
-struct __nativecpu_state {
-  alignas(16) size_t MGlobal_id[3];
-};
-#define __SYCL_HC_ATTRS                                                        \
-  __attribute__((weak)) __attribute((alwaysinline))                            \
-  [[intel::device_indirectly_callable]]
-
-extern "C" __SYCL_HC_ATTRS __attribute((address_space(0))) size_t *
-__dpcpp_nativecpu_global_id(__attribute((address_space(0)))
-                            __nativecpu_state *s) {
-  return &(s->MGlobal_id[0]);
-}
-
-
+typedef long unsigned int size_t;
 
 using namespace sycl;
 const size_t N = 10;
@@ -48,10 +33,6 @@ void gen() {
   test<int>(q);
   test<float>(q);
 }
-
-// Check name mangling 
-// CHECK-DAG: @_ZTS6init_aIiE.NativeCPUKernel({{.*}})
-// CHECK-DAG: @_ZTS6init_aIfE.NativeCPUKernel({{.*}})
 
 // Check Native CPU module flag
 // CHECK-DAG: !{{[0-9]*}} = !{i32 1, !"is-native-cpu", i32 1}

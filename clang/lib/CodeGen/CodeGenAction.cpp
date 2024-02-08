@@ -50,6 +50,7 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Transforms/IPO/Internalize.h"
+#include "llvm/Transforms/Utils/Cloning.h"
 
 #include <memory>
 #include <optional>
@@ -57,6 +58,10 @@ using namespace clang;
 using namespace llvm;
 
 #define DEBUG_TYPE "codegenaction"
+
+namespace llvm {
+extern cl::opt<bool> ClRelinkBuiltinBitcodePostop;
+}
 
 namespace clang {
   class BackendConsumer;
@@ -281,22 +286,36 @@ namespace clang {
         CurLinkModule = LM.Module.get();
 
         bool Err;
-        if (LM.Internalize) {
-          Err = Linker::linkModules(
-              *M, std::move(LM.Module), LM.LinkFlags,
-              [](llvm::Module &M, const llvm::StringSet<> &GVS) {
-                internalizeModule(M, [&GVS](const llvm::GlobalValue &GV) {
-                  return !GV.hasName() || (GVS.count(GV.getName()) == 0);
+        auto DoLink = [&](auto &Mod) {
+          if (LM.Internalize) {
+            Err = Linker::linkModules(
+                *M, std::move(Mod), LM.LinkFlags,
+                [](llvm::Module &M, const llvm::StringSet<> &GVS) {
+                  internalizeModule(M, [&GVS](const llvm::GlobalValue &GV) {
+                    return !GV.hasName() || (GVS.count(GV.getName()) == 0);
+                  });
                 });
-              });
-        } else {
-          Err = Linker::linkModules(*M, std::move(LM.Module), LM.LinkFlags);
-        }
+          } else
+            Err = Linker::linkModules(*M, std::move(Mod), LM.LinkFlags);
+        };
 
-        if (Err)
-          return true;
+        // Create a Clone to move to the linker, which preserves the original
+        // linking modules, allowing them to be linked again in the future
+        if (ClRelinkBuiltinBitcodePostop) {
+          // TODO: If CloneModule() is updated to support cloning of
+          // unmaterialized modules, we can remove this
+          if (Error E = CurLinkModule->materializeAll())
+            return false;
+
+          std::unique_ptr<llvm::Module> Clone = llvm::CloneModule(*LM.Module);
+
+          DoLink(Clone);
+        }
+        // Otherwise we can link (and clean up) the original modules
+        else {
+          DoLink(LM.Module);
+        }
       }
-      LinkModules.clear();
       return false; // success
     }
 
@@ -1219,8 +1238,7 @@ CodeGenAction::loadModule(MemoryBufferRef MBRef) {
 
   // Strip off a leading diagnostic code if there is one.
   StringRef Msg = Err.getMessage();
-  if (Msg.startswith("error: "))
-    Msg = Msg.substr(7);
+  Msg.consume_front("error: ");
 
   unsigned DiagID =
       CI.getDiagnostics().getCustomDiagID(DiagnosticsEngine::Error, "%0");

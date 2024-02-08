@@ -1,7 +1,6 @@
 // REQUIRES: gpu-intel-gen11
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// XFAIL: esimd_emulator
 //==- rol_ror_compilation_test.cpp - Test for compilation of rol/ror functions
 // functions -==//
 //

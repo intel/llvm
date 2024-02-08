@@ -1582,6 +1582,11 @@ bool CursorVisitor::VisitTemplateArgumentLoc(const TemplateArgumentLoc &TAL) {
       return Visit(MakeCXCursor(E, StmtParent, TU, RegionOfInterest));
     return false;
 
+  case TemplateArgument::StructuralValue:
+    if (Expr *E = TAL.getSourceStructuralValueExpression())
+      return Visit(MakeCXCursor(E, StmtParent, TU, RegionOfInterest));
+    return false;
+
   case TemplateArgument::NullPtr:
     if (Expr *E = TAL.getSourceNullPtrExpression())
       return Visit(MakeCXCursor(E, StmtParent, TU, RegionOfInterest));
@@ -1889,6 +1894,12 @@ bool CursorVisitor::VisitDecltypeTypeLoc(DecltypeTypeLoc TL) {
     return Visit(MakeCXCursor(E, StmtParent, TU));
 
   return false;
+}
+
+bool CursorVisitor::VisitPackIndexingTypeLoc(PackIndexingTypeLoc TL) {
+  if (Visit(TL.getPatternLoc()))
+    return true;
+  return Visit(MakeCXCursor(TL.getIndexExpr(), StmtParent, TU));
 }
 
 bool CursorVisitor::VisitInjectedClassNameTypeLoc(InjectedClassNameTypeLoc TL) {
@@ -2407,6 +2418,8 @@ void OMPClauseEnqueue::VisitOMPCaptureClause(const OMPCaptureClause *) {}
 
 void OMPClauseEnqueue::VisitOMPCompareClause(const OMPCompareClause *) {}
 
+void OMPClauseEnqueue::VisitOMPFailClause(const OMPFailClause *) {}
+
 void OMPClauseEnqueue::VisitOMPSeqCstClause(const OMPSeqCstClause *) {}
 
 void OMPClauseEnqueue::VisitOMPAcqRelClause(const OMPAcqRelClause *) {}
@@ -2416,6 +2429,8 @@ void OMPClauseEnqueue::VisitOMPAcquireClause(const OMPAcquireClause *) {}
 void OMPClauseEnqueue::VisitOMPReleaseClause(const OMPReleaseClause *) {}
 
 void OMPClauseEnqueue::VisitOMPRelaxedClause(const OMPRelaxedClause *) {}
+
+void OMPClauseEnqueue::VisitOMPWeakClause(const OMPWeakClause *) {}
 
 void OMPClauseEnqueue::VisitOMPThreadsClause(const OMPThreadsClause *) {}
 
@@ -3880,8 +3895,8 @@ enum CXErrorCode clang_createTranslationUnit2(CXIndex CIdx,
   std::unique_ptr<ASTUnit> AU = ASTUnit::LoadFromASTFile(
       ast_filename, CXXIdx->getPCHContainerOperations()->getRawReader(),
       ASTUnit::LoadEverything, Diags, FileSystemOpts, HSOpts,
-      /*UseDebugInfo=*/false, CXXIdx->getOnlyLocalDecls(),
-      CaptureDiagsKind::All, /*AllowASTWithCompilerErrors=*/true,
+      CXXIdx->getOnlyLocalDecls(), CaptureDiagsKind::All,
+      /*AllowASTWithCompilerErrors=*/true,
       /*UserFilesAreVolatile=*/true);
   *out_TU = MakeCXTranslationUnit(CXXIdx, std::move(AU));
   return *out_TU ? CXError_Success : CXError_Failure;
@@ -5716,6 +5731,8 @@ CXString clang_getCursorKindSpelling(enum CXCursorKind Kind) {
     return cxstring::createRef("PackExpansionExpr");
   case CXCursor_SizeOfPackExpr:
     return cxstring::createRef("SizeOfPackExpr");
+  case CXCursor_PackIndexingExpr:
+    return cxstring::createRef("PackIndexingExpr");
   case CXCursor_LambdaExpr:
     return cxstring::createRef("LambdaExpr");
   case CXCursor_UnexposedExpr:
@@ -8251,15 +8268,17 @@ CXLinkageKind clang_getCursorLinkage(CXCursor cursor) {
   const Decl *D = cxcursor::getCursorDecl(cursor);
   if (const NamedDecl *ND = dyn_cast_or_null<NamedDecl>(D))
     switch (ND->getLinkageInternal()) {
-    case NoLinkage:
-    case VisibleNoLinkage:
+    case Linkage::Invalid:
+      return CXLinkage_Invalid;
+    case Linkage::None:
+    case Linkage::VisibleNone:
       return CXLinkage_NoLinkage;
-    case InternalLinkage:
+    case Linkage::Internal:
       return CXLinkage_Internal;
-    case UniqueExternalLinkage:
+    case Linkage::UniqueExternal:
       return CXLinkage_UniqueExternal;
-    case ModuleLinkage:
-    case ExternalLinkage:
+    case Linkage::Module:
+    case Linkage::External:
       return CXLinkage_External;
     };
 
@@ -8767,7 +8786,8 @@ unsigned clang_Cursor_isObjCOptional(CXCursor C) {
   if (const ObjCPropertyDecl *PD = dyn_cast<ObjCPropertyDecl>(D))
     return PD->getPropertyImplementation() == ObjCPropertyDecl::Optional;
   if (const ObjCMethodDecl *MD = dyn_cast<ObjCMethodDecl>(D))
-    return MD->getImplementationControl() == ObjCMethodDecl::Optional;
+    return MD->getImplementationControl() ==
+           ObjCImplementationControl::Optional;
 
   return 0;
 }
@@ -9007,7 +9027,7 @@ unsigned clang_CXXMethod_isPureVirtual(CXCursor C) {
   const Decl *D = cxcursor::getCursorDecl(C);
   const CXXMethodDecl *Method =
       D ? dyn_cast_or_null<CXXMethodDecl>(D->getAsFunction()) : nullptr;
-  return (Method && Method->isVirtual() && Method->isPure()) ? 1 : 0;
+  return (Method && Method->isPureVirtual()) ? 1 : 0;
 }
 
 unsigned clang_CXXMethod_isConst(CXCursor C) {

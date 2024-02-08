@@ -109,7 +109,8 @@ public:
   /// after type conversion and the imaginary part is zero.
   mlir::Value convertWithSemantics(mlir::Location loc, mlir::Type toTy,
                                    mlir::Value val,
-                                   bool allowCharacterConversion = false);
+                                   bool allowCharacterConversion = false,
+                                   bool allowRebox = false);
 
   /// Get the entry block of the current Function
   mlir::Block *getEntryBlock() { return &getFunction().front(); }
@@ -490,7 +491,11 @@ public:
   LLVM_DUMP_METHOD void dumpFunc();
 
   /// FirOpBuilder hook for creating new operation.
-  void notifyOperationInserted(mlir::Operation *op) override {
+  void notifyOperationInserted(mlir::Operation *op,
+                               mlir::OpBuilder::InsertPoint previous) override {
+    // We only care about newly created operations.
+    if (previous.isSet())
+      return;
     setCommonAttributes(op);
   }
 
@@ -677,6 +682,10 @@ mlir::Value genCPtrOrCFunptrValue(fir::FirOpBuilder &builder,
 /// to keep all the lower bound and explicit parameter information.
 fir::BoxValue createBoxValue(fir::FirOpBuilder &builder, mlir::Location loc,
                              const fir::ExtendedValue &exv);
+
+/// Generate Null BoxProc for procedure pointer null initialization.
+mlir::Value createNullBoxProc(fir::FirOpBuilder &builder, mlir::Location loc,
+                              mlir::Type boxType);
 } // namespace fir::factory
 
 #endif // FORTRAN_OPTIMIZER_BUILDER_FIRBUILDER_H

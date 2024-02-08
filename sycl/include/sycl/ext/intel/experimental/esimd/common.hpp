@@ -27,7 +27,8 @@ namespace ext::intel::experimental::esimd {
 
 /// The scope that lsc_fence operation should apply to
 /// Supported platforms: DG2, PVC
-enum class lsc_scope : uint8_t {
+enum class __SYCL_DEPRECATED(
+    "use sycl::ext::intel::esimd::fence_scope") lsc_scope : uint8_t {
   group = 0,  /// flush out to the threadgroup's scope
   local = 1,  /// flush out to the local scope
   tile = 2,   /// tile, flush out to several DSSs
@@ -39,24 +40,26 @@ enum class lsc_scope : uint8_t {
 
 /// The lsc_fence operation to apply to caches
 /// Supported platforms: DG2, PVC
-enum class lsc_fence_op : uint8_t {
-  none = 0,       /// no operation
-  evict = 1,      /// dirty lines evicted and invalidated from L1
-  invalidate = 2, /// invalidate all clean lines
-  discard = 3,    /// direct and clean lines are discarded w/o eviction
-  clean = 4,      /// dirty lines are written to memory, but retained in cache
-                  /// in clean state
-  flushl3 = 5,    /// flush only L3
-};
+enum class __SYCL_DEPRECATED("use sycl::ext::intel::esimd::fence_flush_op")
+    lsc_fence_op : uint8_t {
+      none = 0,       /// no operation
+      evict = 1,      /// dirty lines evicted and invalidated from L1
+      invalidate = 2, /// invalidate all clean lines
+      discard = 3,    /// direct and clean lines are discarded w/o eviction
+      clean = 4,   /// dirty lines are written to memory, but retained in cache
+                   /// in clean state
+      flushl3 = 5, /// flush only L3
+    };
 
 /// The specific LSC shared function to fence with lsc_fence
 /// Supported platforms: DG2, PVC
-enum class lsc_memory_kind : uint8_t {
-  untyped_global = 0,         /// untyped global memory
-  untyped_global_low_pri = 1, /// low-priority untyped global memory
-  typed_global = 2,           /// typed global memory
-  shared_local = 3,           /// shared local memory
-};
+enum class __SYCL_DEPRECATED("use sycl::ext::intel::esimd::memory_kind")
+    lsc_memory_kind : uint8_t {
+      untyped_global = 0,         /// untyped global memory
+      untyped_global_low_pri = 1, /// low-priority untyped global memory
+      typed_global = 2,           /// typed global memory
+      shared_local = 3,           /// shared local memory
+    };
 
 using lsc_data_size = __ESIMD_DNS::lsc_data_size;
 
@@ -92,28 +95,11 @@ constexpr lsc_data_size finalize_data_size() {
 }
 
 constexpr lsc_data_size expand_data_size(lsc_data_size DS) {
-  if (DS == lsc_data_size::u8)
-    return lsc_data_size::u8u32;
-  if (DS == lsc_data_size::u16)
-    return lsc_data_size::u16u32;
-  return DS;
+  return __ESIMD_DNS::expand_data_size(DS);
 }
 
 template <typename T> struct lsc_expand_type {
-  using type = std::conditional_t<
-      sizeof(T) <= 4,
-      std::conditional_t<std::is_signed_v<T>, int32_t, uint32_t>,
-      std::conditional_t<std::is_signed_v<T>, int64_t, uint64_t>>;
-};
-
-template <typename T> struct lsc_bitcast_type {
-public:
-  using type = std::conditional_t<
-      sizeof(T) == 1, uint8_t,
-      std::conditional_t<
-          sizeof(T) == 2, uint16_t,
-          std::conditional_t<sizeof(T) == 4, uint32_t,
-                             std::conditional_t<sizeof(T) == 8, uint64_t, T>>>>;
+  using type = __ESIMD_DNS::lsc_expand_type<T>::type;
 };
 
 } // namespace detail

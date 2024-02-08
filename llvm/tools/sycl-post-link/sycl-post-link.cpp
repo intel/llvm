@@ -312,6 +312,12 @@ std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
   return SPIRKernelNames;
 }
 
+bool isModuleUsingAsan(const Module &M) {
+  return llvm::any_of(M.functions(), [](const Function &F) {
+    return F.getName().starts_with("__asan_");
+  });
+}
+
 // Gets reqd_work_group_size information for function Func.
 std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
   MDNode *ReqdWorkGroupSizeMD = Func.getMetadata("reqd_work_group_size");
@@ -335,7 +341,7 @@ std::string makeResultFileName(Twine Ext, int I, StringRef Suffix) {
                              : sys::path::parent_path(OutputFilename);
   const StringRef Sep = sys::path::get_separator();
   std::string Dir = Dir0.str();
-  if (!Dir0.empty() && !Dir0.endswith(Sep))
+  if (!Dir0.empty() && !Dir0.ends_with(Sep))
     Dir += Sep.str();
   return Dir + sys::path::stem(OutputFilename).str() + Suffix.str() + "_" +
          std::to_string(I) + Ext.str();
@@ -535,6 +541,11 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     std::vector<StringRef> FuncNames = getKernelNamesUsingAssert(M);
     for (const StringRef &FName : FuncNames)
       PropSet[PropSetRegTy::SYCL_ASSERT_USED].insert({FName, true});
+  }
+
+  {
+    if (isModuleUsingAsan(M))
+      PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"asanUsed", true});
   }
 
   if (GlobProps.EmitDeviceGlobalPropSet) {

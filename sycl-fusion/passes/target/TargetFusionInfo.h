@@ -66,7 +66,7 @@ public:
   unsigned getLocalAddressSpace() const;
 
   void updateAddressSpaceMetadata(Function *KernelFunc,
-                                  ArrayRef<size_t> LocalSize,
+                                  ArrayRef<bool> ArgIsPromoted,
                                   unsigned AddressSpace) const;
 
   ///
@@ -79,6 +79,12 @@ public:
   bool shouldRemap(jit_compiler::BuiltinKind K,
                    const jit_compiler::NDRange &SrcNDRange,
                    const jit_compiler::NDRange &FusedNDRange) const;
+
+  ///
+  /// Scan function for instructions to remap.
+  Error scanForBuiltinsToRemap(Function *F, jit_compiler::Remapper &R,
+                               const jit_compiler::NDRange &SrcNDRange,
+                               const jit_compiler::NDRange &FusedNDRange) const;
 
   ///
   /// Returns true if calls to \p F can be safely ignored in the remapping
@@ -107,8 +113,7 @@ public:
   /// FusedNDRange.
   Function *
   createRemapperFunction(const jit_compiler::Remapper &R,
-                         jit_compiler::BuiltinKind K, StringRef OrigName,
-                         StringRef Name, Module *M,
+                         jit_compiler::BuiltinKind K, Function *F, Module *M,
                          const jit_compiler::NDRange &SrcNDRange,
                          const jit_compiler::NDRange &FusedNDRange) const;
 

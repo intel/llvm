@@ -256,8 +256,8 @@ template <intel::experimental::resource_enum Value>
 struct PropertyMetaInfo<intel::experimental::resource_key::value_t<Value>> {
   static constexpr const char *name = "sycl-resource";
   static constexpr const char *value =
-      ((Value == intel::experimental::resource_enum::mlab) ? "mlab"
-                                                           : "block_ram");
+      ((Value == intel::experimental::resource_enum::mlab) ? "MLAB"
+                                                           : "BLOCK_RAM");
 };
 template <size_t Value>
 struct PropertyMetaInfo<intel::experimental::num_banks_key::value_t<Value>> {
@@ -296,8 +296,8 @@ struct PropertyMetaInfo<
   static constexpr const char *name = "sycl-ram-stitching";
   // enum to bool conversion to match with the SPIR-V decoration
   // ForcePow2DepthINTEL
-  static constexpr bool value =
-      (Value == intel::experimental::ram_stitching_enum::max_fmax);
+  static constexpr size_t value = static_cast<size_t>(
+      Value == intel::experimental::ram_stitching_enum::max_fmax);
 };
 template <size_t Value>
 struct PropertyMetaInfo<

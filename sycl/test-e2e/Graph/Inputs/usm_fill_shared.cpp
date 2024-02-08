@@ -3,8 +3,11 @@
 #include "../graph_common.hpp"
 
 int main() {
+  queue Queue{};
 
-  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
 
   if (!Queue.get_device().has(sycl::aspect::usm_shared_allocations)) {
     return 0;
@@ -15,7 +18,7 @@ int main() {
   const size_t N = 10;
   int *Arr = malloc_shared<int>(N, Queue);
 
-  int Pattern = 3.14f;
+  int Pattern = 3;
   auto NodeA =
       add_node(Graph, Queue, [&](handler &CGH) { CGH.fill(Arr, Pattern, N); });
 

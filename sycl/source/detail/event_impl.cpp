@@ -238,7 +238,7 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   void *TelemetryEvent = nullptr;
-  uint64_t IId;
+  uint64_t IId = 0;
   std::string Name;
   int32_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
   TelemetryEvent = instrumentationProlog(Name, StreamID, IId);
@@ -278,17 +278,33 @@ void event_impl::checkProfilingPreconditions() const {
         "Profiling information is unavailable as the queue associated with "
         "the event does not have the 'enable_profiling' property.");
   }
-  if (MEventFromSubmitedExecCommandBuffer) {
-    throw sycl::exception(make_error_code(sycl::errc::invalid),
-                          "Profiling information is unavailable for events "
-                          "returned by a graph submission.");
-  }
 }
 
 template <>
 uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
+  // The delay between the submission and the actual start of a CommandBuffer
+  // can be short. Consequently, the submission time, which is based on
+  // an estimated clock and not on the real device clock, may be ahead of the
+  // start time, which is based on the actual device clock.
+  // MSubmitTime is set in a critical performance path.
+  // Force reading the device clock when setting MSubmitTime may deteriorate
+  // the performance.
+  // Since submit time is an estimated time, we implement this little hack
+  // that allows all profiled time to be meaningful.
+  // (Note that the observed time deviation between the estimated clock and
+  // the real device clock is typically less than 0.5ms. The approximation we
+  // made by forcing the re-sync of submit time to start time is less than
+  // 0.5ms. These timing values were obtained empirically using an integrated
+  // Intel GPU).
+  if (MEventFromSubmittedExecCommandBuffer && !MHostEvent && MEvent) {
+    uint64_t StartTime =
+        get_event_profiling_info<info::event_profiling::command_start>(
+            this->getHandleRef(), this->getPlugin());
+    if (StartTime < MSubmitTime)
+      MSubmitTime = StartTime;
+  }
   return MSubmitTime;
 }
 
@@ -464,11 +480,13 @@ void event_impl::setSubmissionTime() {
     if (QueueImplPtr Queue = MQueue.lock()) {
       try {
         MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
-      } catch (feature_not_supported &e) {
-        throw sycl::exception(
-            make_error_code(errc::profiling),
-            std::string("Unable to get command group submission time: ") +
-                e.what());
+      } catch (sycl::exception &e) {
+        if (e.code() == sycl::errc::feature_not_supported)
+          throw sycl::exception(
+              make_error_code(errc::profiling),
+              std::string("Unable to get command group submission time: ") +
+                  e.what());
+        std::rethrow_exception(std::current_exception());
       }
     }
   } else {

@@ -13,10 +13,10 @@ endif()
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
-    # Author: Jinsong Ji <jinsong.ji@intel.com>
-    # Date:   Thu Aug 10 14:41:52 2023 +0000
-    #    Guard removed typed pointer enum within version macro
-    set(LLVMGenXIntrinsics_GIT_TAG 17a53f4304463b8e7e639d57ef17479040a8a2ad)
+
+    # Date:   Dec 14, 2023
+    # Add support for XeHPCVG platform
+    set(LLVMGenXIntrinsics_GIT_TAG da892e1982b6c25b9a133f85b4ac97142d8a3def)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
@@ -73,6 +73,8 @@ add_llvm_component_library(LLVMSYCLLowerIR
   TargetHelpers.cpp
   PrepareSYCLNativeCPU.cpp
   RenameKernelSYCLNativeCPU.cpp
+  ConvertToMuxBuiltinsSYCLNativeCPU.cpp
+  PipelineSYCLNativeCPU.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR

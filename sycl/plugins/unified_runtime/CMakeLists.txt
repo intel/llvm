@@ -30,9 +30,12 @@ if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 if("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
   set(UR_BUILD_ADAPTER_OPENCL ON)
-  set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL-ICD)
+  set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL-ICD CACHE FILEPATH
+    "Path of the OpenCL ICD Loader library" FORCE)
 endif()
-# TODO: Set UR_BUILD_ADAPTER_NATIVE_CPU once adapter moved
+if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(UR_BUILD_ADAPTER_NATIVE_CPU ON)
+endif()
 
 # Disable errors from warnings while building the UR.
 # And remember origin flags before doing that.
@@ -54,14 +57,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 036b9cfcd8fb4be9394449b5406e6402580a63c9
-  # Merge: 2ab0734 86f96f0
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Oct 27 16:36:23 2023 +0100
-  #     Merge pull request #961 from hdelan/change-unions-to-stdvariant
-  #     [HIP][CUDA] Change unions in ur_mem_handle_t_ to stdvariant
-  set(UNIFIED_RUNTIME_TAG 036b9cfcd8fb4be9394449b5406e6402580a63c9)
-
+  # commit 1cd402ead34a54459a6acb85777fbec105a178a0
+  # Merge: 5b89ee8b c8e150c5
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Tue Feb 6 14:48:55 2024 +0000
+  #     Merge pull request #1218 from Bensuo/maxime/imm-cmd-list-support
+  #     [EXP][CMDBUF] L0 Immediate command-list support
+  set(UNIFIED_RUNTIME_TAG 1cd402ead34a54459a6acb85777fbec105a178a0)
+  
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
   endif()
@@ -93,10 +96,10 @@ elseif(SYCL_PI_UR_SOURCE_DIR)
 else()
   # SYCL_PI_UR_USE_FETCH_CONTENT is OFF and SYCL_PI_UR_SOURCE_DIR has not been
   # set, check if the fallback local directory exists.
-  if(NOT ${CMAKE_CURRENT_SOURCE_DIR}/unified-runtime)
+  if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unified-runtime)
     message(FATAL_ERROR
-      "SYCL_PI_UR_USE_FETCH_CONTENT is disabled but no alternative Unified
-      Runtime source directory has be proivided, either:
+      "SYCL_PI_UR_USE_FETCH_CONTENT is disabled but no alternative Unified \
+      Runtime source directory has been provided, either:
 
       * Set -DSYCL_PI_UR_SOURCE_DIR=/path/to/unified-runtime
       * Clone the UR repo in ${CMAKE_CURRENT_SOURCE_DIR}/unified-runtime")
@@ -116,6 +119,8 @@ message(STATUS
   "Using Unified Runtime source directory: ${UNIFIED_RUNTIME_SOURCE_DIR}")
 
 set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
+set(UNIFIED_RUNTIME_SRC_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source")
+set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/common")
 
 add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 add_library(UnifiedRuntimeCommon ALIAS ur_common)
@@ -138,7 +143,6 @@ set(UNIFIED_RUNTIME_PLUGIN_ARGS
     # their "ur_bindings.hpp" files.
     "ur_bindings.hpp"
     "pi2ur.hpp"
-    "pi2ur.cpp"
     # These below belong to Unified Runtime PI Plugin only
     "pi_unified_runtime.hpp"
     "pi_unified_runtime.cpp"
@@ -146,6 +150,10 @@ set(UNIFIED_RUNTIME_PLUGIN_ARGS
     Threads::Threads
     UnifiedRuntimeLoader
     UnifiedRuntime-Headers
+    UnifiedRuntimeCommon
+  INCLUDE_DIRS
+    "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
+    "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
 )
 
 # We need for #include <ze_api.h> in common.h
@@ -158,52 +166,6 @@ if("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 
 add_sycl_plugin(unified_runtime ${UNIFIED_RUNTIME_PLUGIN_ARGS})
-
-if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
-  add_sycl_library("ur_adapter_native_cpu" SHARED
-    SOURCES
-      "ur/ur.cpp"
-      "ur/ur.hpp"
-      "ur/adapters/native_cpu/adapter.cpp"
-      "ur/adapters/native_cpu/command_buffer.cpp"
-      "ur/adapters/native_cpu/common.cpp"
-      "ur/adapters/native_cpu/common.hpp"
-      "ur/adapters/native_cpu/context.cpp"
-      "ur/adapters/native_cpu/context.hpp"
-      "ur/adapters/native_cpu/device.cpp"
-      "ur/adapters/native_cpu/device.hpp"
-      "ur/adapters/native_cpu/enqueue.cpp"
-      "ur/adapters/native_cpu/event.cpp"
-      "ur/adapters/native_cpu/image.cpp"
-      "ur/adapters/native_cpu/kernel.cpp"
-      "ur/adapters/native_cpu/kernel.hpp"
-      "ur/adapters/native_cpu/memory.cpp"
-      "ur/adapters/native_cpu/memory.hpp"
-      "ur/adapters/native_cpu/platform.cpp"
-      "ur/adapters/native_cpu/platform.hpp"
-      "ur/adapters/native_cpu/program.cpp"
-      "ur/adapters/native_cpu/program.hpp"
-      "ur/adapters/native_cpu/queue.cpp"
-      "ur/adapters/native_cpu/queue.hpp"
-      "ur/adapters/native_cpu/sampler.cpp"
-      "ur/adapters/native_cpu/ur_interface_loader.cpp"
-      "ur/adapters/native_cpu/usm.cpp"
-      "ur/adapters/native_cpu/usm_p2p.cpp"
-    INCLUDE_DIRS
-      ${sycl_inc_dir}
-    LIBRARIES
-      UnifiedRuntime-Headers
-      Threads::Threads
-      sycl
-      OpenCL-Headers
-  )
-
-  set_target_properties("ur_adapter_native_cpu" PROPERTIES
-    VERSION "0.0.0"
-    SOVERSION "0"
-  )
-endif()
-
 
 if(TARGET UnifiedRuntimeLoader)
   set_target_properties(hello_world PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
@@ -240,4 +202,25 @@ endif()
 
 if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_opencl)
+
+    # Install the UR adapters too
+    install(TARGETS ur_adapter_opencl
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+      ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+      RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+    )
+endif()
+
+if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+    add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
+
+  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
+
+  if(NATIVECPU_USE_OCK)
+    message(STATUS "Compiling Native CPU adapter with OCK support.")
+    target_compile_definitions(ur_adapter_native_cpu PRIVATE NATIVECPU_USE_OCK)
+  else()
+    message(WARNING "Compiling Native CPU adapter without OCK support.
+    Some valid SYCL programs may not build or may have low performance.")
+  endif()
 endif()

@@ -5,7 +5,11 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+  queue Queue{};
+
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
 
   using T = unsigned int;
 
@@ -59,19 +63,15 @@ int main() {
 
   event Event;
   for (unsigned n = 0; n < Iterations; n++) {
-    Event = Queue.submit([&](handler &CGH) {
-      CGH.depends_on(Event);
-      CGH.ext_oneapi_graph(GraphExec);
-    });
-    Event.wait();
+    Event =
+        Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
   }
 
   for (unsigned n = 0; n < Iterations; n++) {
-    Event = Queue.submit([&](handler &CGH) {
+    Queue.submit([&](handler &CGH) {
       CGH.depends_on(Event);
       CGH.ext_oneapi_graph(GraphExecAdditional);
     });
-    Event.wait();
   }
 
   Queue.wait_and_throw();

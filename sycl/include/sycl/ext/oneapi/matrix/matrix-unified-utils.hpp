@@ -7,6 +7,10 @@
 // ===--------------------------------------------------------------------=== //
 
 #pragma once
+
+#include <CL/__spirv/spirv_types.hpp> // __spv namespace
+#include <optional>                   // std::optional
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext {
@@ -38,20 +42,44 @@ namespace detail {
 using UseToUseStringPair =
     std::pair<ext::oneapi::experimental::matrix::use, const char *>;
 
-constexpr const char *
-convertMatrixUseToString(ext::oneapi::experimental::matrix::use Use) {
-  constexpr UseToUseStringPair UseToUseStringMap[] = {
-      {ext::oneapi::experimental::matrix::use::a, "use::a"},
-      {ext::oneapi::experimental::matrix::use::b, "use::b"},
-      {ext::oneapi::experimental::matrix::use::accumulator, "use::accumulator"},
-  };
+constexpr UseToUseStringPair UseToUseStringMap[] = {
+    {ext::oneapi::experimental::matrix::use::a, "use::a"},
+    {ext::oneapi::experimental::matrix::use::b, "use::b"},
+    {ext::oneapi::experimental::matrix::use::accumulator, "use::accumulator"},
+};
 
+constexpr const char *
+convertMatrixUseEnumToString(ext::oneapi::experimental::matrix::use Use) {
   for (const auto &Item : UseToUseStringMap) {
     if (Item.first == Use)
       return Item.second;
   }
   return "";
 }
+
+constexpr std::optional<ext::oneapi::experimental::matrix::use>
+convertMatrixUseStringToEnum(const char *UseString) {
+  for (const auto &Item : UseToUseStringMap) {
+    if (std::string_view(Item.second) == UseString)
+      return Item.first;
+  }
+  return std::nullopt;
+}
+
+inline __SYCL_ALWAYS_INLINE __spv::MatrixLayout joint_matrix_layout_to_spv(
+    sycl::ext::oneapi::experimental::matrix::layout Layout) {
+  switch (Layout) {
+  case sycl::ext::oneapi::experimental::matrix::layout::row_major:
+    return __spv::MatrixLayout::RowMajor;
+  case sycl::ext::oneapi::experimental::matrix::layout::col_major:
+    return __spv::MatrixLayout::ColumnMajor;
+  case sycl::ext::oneapi::experimental::matrix::layout::ext_intel_packed:
+    return __spv::MatrixLayout::Packed;
+  case sycl::ext::oneapi::experimental::matrix::layout::dynamic:
+    return __spv::MatrixLayout::Dynamic;
+  }
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

@@ -384,6 +384,62 @@ enum class cache_hint : uint8_t {
   const_cached = 7
 };
 
+/// The scope that fence() operation should apply to.
+/// Supported platforms: DG2, PVC
+enum class fence_scope : uint8_t {
+  /// Wait until all previous memory transactions from this thread are observed
+  /// within the local thread-group.
+  group = 0,
+
+  /// Wait until all previous memory transactions from this thread are observed
+  /// within the local sub-slice.
+  local = 1,
+
+  /// Wait until all previous memory transactions from this thread are observed
+  /// in the local tile.
+  tile = 2,
+
+  /// Wait until all previous memory transactions from this thread are observed
+  /// in the local GPU.
+  gpu = 3,
+
+  /// Wait until all previous memory transactions from this thread are observed
+  /// across all GPUs in the system.
+  gpus = 4,
+
+  /// Global memory data-port only: wait until all previous memory transactions
+  /// from this thread are observed at the "system" level.
+  system = 5,
+
+  /// Global memory data-port only: for GPUs that do not follow
+  /// PCIe Write ordering for downstream writes targeting device memory,
+  /// this op will commit to device memory all downstream and peer writes that
+  /// have reached the device.
+  system_acquire = 6
+};
+
+/// The cache flush operation to apply to caches after fence() is complete.
+/// Supported platforms: DG2, PVC
+enum class fence_flush_op : uint8_t {
+  none = 0,       /// no operation;
+  evict = 1,      /// R/W: evict dirty lines; R/W and RO: invalidate clean lines
+  invalidate = 2, /// R/W and RO: invalidate all clean lines;
+
+  // enum with the value 3 is reserved;
+
+  clean = 4 /// R/W: dirty lines are written to memory, but retained in
+            /// cache in clean state; RO: no effect.
+};
+
+/// The target memory kind for fence() operation.
+/// Supported platforms: DG2, PVC
+enum class memory_kind : uint8_t {
+  global = 0, /// untyped global memory
+  // enum with the value 1 is reserved;
+  image = 2, /// image (also known as typed global memory)
+  local = 3, /// shared local memory
+};
+
 /// L1, L2 or L3 cache hint levels. L3 is reserved for future use.
 enum class cache_level : uint8_t { L1 = 1, L2 = 2, L3 = 3 };
 
@@ -575,6 +631,21 @@ void check_cache_hint() {
                   "unsupported cache hint");
   }
 }
+
+constexpr lsc_data_size expand_data_size(lsc_data_size DS) {
+  if (DS == lsc_data_size::u8)
+    return lsc_data_size::u8u32;
+  if (DS == lsc_data_size::u16)
+    return lsc_data_size::u16u32;
+  return DS;
+}
+
+template <typename T> struct lsc_expand_type {
+  using type = std::conditional_t<
+      sizeof(T) <= 4,
+      std::conditional_t<std::is_signed_v<T>, int32_t, uint32_t>,
+      std::conditional_t<std::is_signed_v<T>, int64_t, uint64_t>>;
+};
 
 } // namespace detail
 

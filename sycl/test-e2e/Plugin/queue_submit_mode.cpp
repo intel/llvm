@@ -1,7 +1,7 @@
 // REQUIRES: gpu, level_zero
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env ZE_DEBUG=4 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out 0 2>&1 | FileCheck %s --check-prefixes=CHECK-STD
-// RUN: env ZE_DEBUG=4 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out 1 2>&1 | FileCheck %s --check-prefixes=CHECK-IMM
+// RUN: env UR_L0_LEAKS_DEBUG=1 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out 0 2>&1 | FileCheck %s --check-prefixes=CHECK-STD
+// RUN: env UR_L0_LEAKS_DEBUG=1 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out 1 2>&1 | FileCheck %s --check-prefixes=CHECK-IMM
 //
 // Check that queue submission mode is honored when creating queue.
 //

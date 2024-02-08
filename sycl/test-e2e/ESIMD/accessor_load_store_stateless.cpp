@@ -10,7 +10,6 @@
 // intrinsics when stateless memory accesses are enforced, i.e. accessor
 // based accesses are automatically converted to stateless accesses.
 
-// UNSUPPORTED: esimd_emulator
 // RUN: %{build} -fsycl-esimd-force-stateless-mem -o %t.out
 // RUN: %{run} %t.out
 

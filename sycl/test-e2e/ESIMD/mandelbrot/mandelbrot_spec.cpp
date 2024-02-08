@@ -9,8 +9,6 @@
 // TODO enable on Windows
 // REQUIRES: linux && gpu
 // REQUIRES: aspect-ext_intel_legacy_image
-// TODO online_compiler check fails for esimd_emulator
-// XFAIL: esimd_emulator
 // TODO: remove fno-fast-math option once the issue is investigated and the test
 // is fixed.
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}

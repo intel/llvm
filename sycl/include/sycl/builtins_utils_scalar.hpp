@@ -32,13 +32,6 @@ namespace __sycl_std = __host_std;
 #endif
 
 namespace detail {
-// Get the element type of T. If T is a scalar, the element type is considered
-// the type of the scalar.
-template <typename T> struct get_elem_type {
-  using type = T;
-};
-
-template <typename T> using get_elem_type_t = typename get_elem_type<T>::type;
 #ifdef __FAST_MATH__
 template <typename T>
 struct use_fast_math
@@ -76,20 +69,6 @@ using select_scalar_by_size_t = std::conditional_t<
         Size == 2, T16,
         std::conditional_t<Size == 4, T32,
                            std::conditional_t<Size == 8, T64, void>>>>;
-
-template <typename T, typename... Ts> constexpr bool CheckTypeIn() {
-  constexpr bool SameType[] = {
-      std::is_same_v<std::remove_cv_t<T>, std::remove_cv_t<Ts>>...};
-  // Replace with std::any_of with C++20.
-  for (size_t I = 0; I < sizeof...(Ts); ++I)
-    if (SameType[I])
-      return true;
-  return false;
-}
-
-// NOTE: We need a constexpr variable definition for the constexpr functions
-//       as MSVC thinks function definitions are the same otherwise.
-template <typename... Ts> constexpr bool check_type_in_v = CheckTypeIn<Ts...>();
 
 template <size_t N, size_t... Ns> constexpr bool CheckSizeIn() {
   constexpr bool SameSize[] = {(N == Ns)...};
@@ -213,7 +192,6 @@ template <typename T> struct nan_return_unswizzled {
 
 template <typename T>
 using nan_return_unswizzled_t = typename nan_return_unswizzled<T>::type;
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

@@ -7,8 +7,10 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix, gpu
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -DINIT_LIST
+// RUN: %{build} -o %t.out -DINIT_LIST -ffp-model=precise
 // RUN: %{run} %t.out
+
+// -ffp-model=precise is added to not depend on compiler defaults.
 
 #include "common.hpp"
 #include <cstddef>

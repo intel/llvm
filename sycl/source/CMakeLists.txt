@@ -75,10 +75,16 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   if (WIN32)
     include_directories(${LLVM_EXTERNAL_SYCL_SOURCE_DIR}/pi_win_proxy_loader)
     if(WIN_DUPE)
-      target_link_libraries(${LIB_NAME} PUBLIC pi_win_proxy_loaderd)
-    else()
-      target_link_libraries(${LIB_NAME} PUBLIC pi_win_proxy_loader)
-    endif()
+    target_link_libraries(${LIB_NAME} PUBLIC pi_win_proxy_loaderd)
+      set(MANIFEST_FILE_NAME "sycld.manifest")
+  else()
+    target_link_libraries(${LIB_NAME} PUBLIC pi_win_proxy_loader)
+      set(MANIFEST_FILE_NAME "sycl.manifest")
+  endif()
+    # Embed manifest into the sycl.dll where pi_win_proxy_loader.dll is described as sycl.dll's private dll and will always be loaded from the same directory.
+    # 0x2000: LOAD_LIBRARY_SAFE_CURRENT_DIRS flag. Using this flag means that loading dependency DLLs (of sycl.dll)
+    # from the current directory is only allowed if it is under a directory in the Safe load list.
+    target_link_options(${LIB_NAME} PRIVATE /DEPENDENTLOADFLAG:0x2000 /MANIFEST:NO /MANIFEST:EMBED /MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/${MANIFEST_FILE_NAME})
   endif()
 
   target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_INTERNAL_API )
@@ -94,12 +100,12 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   else()
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
                            -fvisibility=hidden -fvisibility-inlines-hidden)
-
+                           
     # Sycl math built-in macros cause a GCC 4.6 'note' to be output repeatedly.
     # => note: the ABI for passing parameters with 32-byte alignment has changed in GCC 4.6
     # Seems to be no way to suppress it except use -Wno-psabi
     target_compile_options(${LIB_OBJ_NAME} PUBLIC -Wno-psabi)
-    
+
     if (UNIX AND NOT APPLE)
       set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
       target_link_libraries(
@@ -155,7 +161,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   endif()
 endfunction(add_sycl_rt_library)
 
-set(SYCL_SOURCES
+set(SYCL_COMMON_SOURCES
     "backend/opencl.cpp"
     "backend/level_zero.cpp"
     "backend.cpp"
@@ -163,11 +169,6 @@ set(SYCL_SOURCES
     "detail/allowlist.cpp"
     "detail/bindless_images.cpp"
     "detail/buffer_impl.cpp"
-    "detail/builtins_common.cpp"
-    "detail/builtins_geometric.cpp"
-    "detail/builtins_integer.cpp"
-    "detail/builtins_math.cpp"
-    "detail/builtins_relational.cpp"
     "detail/pi.cpp"
     "detail/common.cpp"
     "detail/config.cpp"
@@ -191,6 +192,7 @@ set(SYCL_SOURCES
     "detail/image_impl.cpp"
     "detail/jit_compiler.cpp"
     "detail/jit_device_binaries.cpp"
+    "detail/kernel_compiler/kernel_compiler_opencl.cpp"
     "detail/kernel_impl.cpp"
     "detail/kernel_program_cache.cpp"
     "detail/memory_manager.cpp"
@@ -240,6 +242,25 @@ set(SYCL_SOURCES
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_pi.cpp>"
 )
 
+set(SYCL_NON_PREVIEW_SOURCES "${SYCL_COMMON_SOURCES}"
+    "detail/builtins_common.cpp"
+    "detail/builtins_geometric.cpp"
+    "detail/builtins_integer.cpp"
+    "detail/builtins_math.cpp"
+    "detail/builtins_relational.cpp"
+)
+
+
+set(SYCL_PREVIEW_SOURCES "${SYCL_COMMON_SOURCES}"
+    "builtins/common_functions.cpp"
+    "builtins/geometric_functions.cpp"
+    "builtins/half_precision_math_functions.cpp"
+    "builtins/integer_functions.cpp"
+    "builtins/math_functions.cpp"
+    "builtins/native_math_functions.cpp"
+    "builtins/relational_functions.cpp"
+)
+
 if (MSVC)
   # MSVC provides two incompatible build variants for its CRT: release and debug
   # To avoid potential issues in user code we also need to provide two kinds
@@ -255,14 +276,14 @@ if (MSVC)
 
   set(WIN_DUPE "1")
   if (SYCL_ENABLE_XPTI_TRACING)
-    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
+    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_NON_PREVIEW_SOURCES})
     if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-      add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}-previewd sycl-previewd_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" "/D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_SOURCES})
+      add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}-previewd sycl-previewd_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" "/D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES})
     endif()
   else()
-    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_SOURCES})
+    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_NON_PREVIEW_SOURCES})
     if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-      add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}-previewd sycl-previewd_object COMPILE_OPTIONS "/MDd" "/D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_SOURCES})
+      add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}-previewd sycl-previewd_object COMPILE_OPTIONS "/MDd" "/D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES})
     endif()
   endif()
   unset(WIN_DUPE)
@@ -287,14 +308,14 @@ set(LIB_NAME "sycl")
 endif()
 
 if (SYCL_ENABLE_XPTI_TRACING)
-  add_sycl_rt_library(${LIB_NAME} sycl_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS}  SOURCES ${SYCL_SOURCES})
+  add_sycl_rt_library(${LIB_NAME} sycl_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS}  SOURCES ${SYCL_NON_PREVIEW_SOURCES})
   if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-    add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_SOURCES})
+    add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES})
   endif()
 else()
-  add_sycl_rt_library(${LIB_NAME} sycl_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_SOURCES})
+  add_sycl_rt_library(${LIB_NAME} sycl_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_NON_PREVIEW_SOURCES})
   if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-    add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_SOURCES})
+    add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES})
   endif()
 endif()
 

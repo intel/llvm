@@ -17,4 +17,4 @@
 // RUN:     -ftarget-compile-fast %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=TARGET_COMPILE_FAST_JIT %s
 
-// TARGET_COMPILE_FAST_JIT: clang-offload-wrapper{{.*}} "-compile-opts=-ftarget-compile-fast
+// TARGET_COMPILE_FAST_JIT: clang-offload-wrapper{{.*}} "-compile-opts={{.*}}-ftarget-compile-fast

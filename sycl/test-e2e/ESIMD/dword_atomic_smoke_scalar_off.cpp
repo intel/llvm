@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 // This test checks LSC atomic operations.
 //===----------------------------------------------------------------------===//
-// TODO: esimd_emulator fails due to random timeouts (_XFAIL_: esimd_emulator)
-// UNSUPPORTED: esimd_emulator
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //

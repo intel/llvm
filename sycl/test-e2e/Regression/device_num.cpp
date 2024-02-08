@@ -19,17 +19,14 @@ using namespace std;
 const std::map<info::device_type, std::string> DeviceTypeStringMap = {
     {info::device_type::cpu, "cpu"},
     {info::device_type::gpu, "gpu"},
-    {info::device_type::host, "host"},
     {info::device_type::accelerator, "acc"}};
 
 const std::map<backend, std::string> BackendStringMap = {
     {backend::opencl, "opencl"},
-    {backend::host, "host"},
     {backend::ext_oneapi_level_zero, "ext_oneapi_level_zero"},
-    {backend::ext_intel_esimd_emulator, "ext_intel_esimd_emulator"},
     {backend::ext_oneapi_cuda, "ext_oneapi_cuda"},
     {backend::ext_oneapi_hip, "ext_oneapi_hip"},
-    {backend::ext_native_cpu, "ext_native_cpu"}};
+    {backend::ext_oneapi_native_cpu, "ext_oneapi_native_cpu"}};
 
 std::string getDeviceTypeName(const device &d) {
   auto DeviceType = d.get_info<info::device::device_type>();
@@ -112,8 +109,7 @@ int GetPreferredDeviceIndex(const std::vector<device> &devices,
   const std::map<info::device_type, int> scoreByType = {
       {info::device_type::cpu, 300},
       {info::device_type::gpu, 500},
-      {info::device_type::accelerator, 75},
-      {info::device_type::host, 100}};
+      {info::device_type::accelerator, 75}};
   int score = -1;
   int index = -1;
   int devCount = devices.size();

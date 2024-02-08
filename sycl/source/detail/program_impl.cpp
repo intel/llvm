@@ -36,10 +36,10 @@ program_impl::program_impl(ContextImplPtr Context,
                            const property_list &PropList)
     : MContext(Context), MDevices(DeviceList), MPropList(PropList) {
   if (Context->getDevices().size() > 1) {
-    throw feature_not_supported(
+    throw sycl::exception(
+        sycl::errc::feature_not_supported,
         "multiple devices within a context are not supported with "
-        "sycl::program and sycl::kernel",
-        PI_ERROR_INVALID_OPERATION);
+        "sycl::program and sycl::kernel");
   }
 }
 
@@ -65,10 +65,10 @@ program_impl::program_impl(
 
   MContext = ProgramList[0]->MContext;
   if (MContext->getDevices().size() > 1) {
-    throw feature_not_supported(
+    throw sycl::exception(
+        sycl::errc::feature_not_supported,
         "multiple devices within a context are not supported with "
-        "sycl::program and sycl::kernel",
-        PI_ERROR_INVALID_OPERATION);
+        "sycl::program and sycl::kernel");
   }
   MDevices = ProgramList[0]->MDevices;
   std::vector<device> DevicesSorted;

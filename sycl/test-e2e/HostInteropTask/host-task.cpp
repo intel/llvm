@@ -44,7 +44,7 @@ void test2(queue &Q) {
     auto Acc = Buffer1.template get_access<mode::write>(CGH);
 
     auto Kernel = [=](item<1> Id) { Acc[Id] = 123; };
-    CGH.parallel_for<NameGen<class Test6Init, true>>(Acc.get_count(), Kernel);
+    CGH.parallel_for<NameGen<class Test6Init, true>>(Acc.size(), Kernel);
   });
 
   Q.submit([&](handler &CGH) {
@@ -52,7 +52,7 @@ void test2(queue &Q) {
     auto AccDst = Buffer2.template get_access<mode::write>(CGH);
 
     auto Func = [=] {
-      for (size_t Idx = 0; Idx < AccDst.get_count(); ++Idx)
+      for (size_t Idx = 0; Idx < AccDst.size(); ++Idx)
         AccDst[Idx] = AccSrc[Idx];
     };
     CGH.host_task(Func);
@@ -61,7 +61,7 @@ void test2(queue &Q) {
   {
     auto Acc = Buffer2.get_host_access();
 
-    for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx) {
+    for (size_t Idx = 0; Idx < Acc.size(); ++Idx) {
       std::cout << "Second buffer [" << Idx << "] = " << Acc[Idx] << std::endl;
       assert(Acc[Idx] == 123);
     }

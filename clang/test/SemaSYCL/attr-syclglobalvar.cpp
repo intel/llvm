@@ -67,7 +67,7 @@ __attribute__((sycl_global_var)) void HppF(
     (void)HppGlobalWithAttributeArg; // expected-error {{SYCL kernel cannot use a non-const global variable}}
     (void)HppStructTemplate<int>::StaticMember; // ok
     (void)HppGlobalWithAttrMacro; // ok
-    (void)HppGlobalNoAttribute; // expected-error {{SYCL kernel cannot use a non-const global variable}} expected-note@Inputs/sycl.hpp:* {{called by}}
+    (void)HppGlobalNoAttribute; // expected-error {{SYCL kernel cannot use a non-const global variable}} expected-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<kernel_name, (lambda at}}
   });
 }
 
@@ -145,6 +145,6 @@ __attribute__((sycl_global_var)) void F(
     (void)HppStructTemplate<int>::StaticMember; // ok
     (void)CppGlobalTemplateStructWithAttribute.InstanceMember; // expected-error {{SYCL kernel cannot use a non-const global variable}}
     (void)CppGlobalTemplateStructNoAttribute.InstanceMember; // expected-error {{SYCL kernel cannot use a non-const global variable}}
-    (void)GlobalNoAttribute; // expected-error {{SYCL kernel cannot use a non-const global variable}} expected-note@Inputs/sycl.hpp:* {{called by}}
+    (void)GlobalNoAttribute; // expected-error {{SYCL kernel cannot use a non-const global variable}} expected-note@#KernelSingleTaskKernelFuncCall {{called by 'kernel_single_task<kernel_name, (lambda at}}
   });
 }

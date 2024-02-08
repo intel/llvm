@@ -45,7 +45,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
 * `ninja` -
 [Download](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages)
 * C++ compiler
-  * See LLVM's [host compiler toolchain requirements](../../llvm/docs/GettingStarted.rst#host-c-toolchain-both-compiler-and-standard-library)
+  * See LLVM's [host compiler toolchain requirements](https://github.com/intel/llvm/blob/sycl/llvm/docs/GettingStarted.rst#host-c-toolchain-both-compiler-and-standard-library)
 
 Alternatively, you can use a Docker image that has everything you need for
 building pre-installed:
@@ -125,8 +125,6 @@ flags can be found by launching the script with `--help`):
 * `--hip-platform` -> select the platform used by the hip backend, `AMD` or
   `NVIDIA` (see [HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd) or see
   [HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia))
-* `--enable-esimd-emulator` -> enable ESIMD CPU emulation (see
-  [ESIMD CPU emulation](#build-dpc-toolchain-with-support-for-esimd-cpu-emulation))
 * `--enable-all-llvm-targets` -> build compiler (but not a runtime) with all
   supported targets
 * `--shared-libs` -> Build shared libraries
@@ -263,6 +261,17 @@ variable `SYCL_BUILD_PI_HIP_ROCM_DIR` which can be passed using the
 python $DPCPP_HOME/llvm/buildbot/configure.py --hip \
   --cmake-opt=-DSYCL_BUILD_PI_HIP_ROCM_DIR=/usr/local/rocm
 ```
+If further customization is required — for instance when the layout of
+individual directories can not be inferred from `SYCL_BUILD_PI_HIP_ROCM_DIR` —
+it is possible to specify the location of HIP include, HSA include and HIP
+library directories, using the following CMake variables:
+* `SYCL_BUILD_PI_HIP_INCLUDE_DIR`,
+* `SYCL_BUILD_PI_HIP_HSA_INCLUDE_DIR`,
+* `SYCL_BUILD_PI_HIP_LIB_DIR`.
+Please note that a similar customization would also be required for Unified
+Runtime, see [the list of options provided by its
+CMake](https://github.com/oneapi-src/unified-runtime#cmake-standard-options)
+for details.
 
 [LLD](https://llvm.org/docs/AMDGPUUsage.html) is necessary for the AMDGPU
 compilation chain. The AMDGPU backend generates a standard ELF relocatable code
@@ -378,6 +387,21 @@ control which revision of Unified Runtime should be used when building DPC++:
     exists. This can be used as-if an in-tree build.
 * `SYCL_PI_UR_SOURCE_DIR` is a variable used to specify the path to the Unified
   Runtime repository when `SYCL_PI_UR_USE_FETCH_CONTENT` is set of `OFF`.
+
+### Build DPC++ libclc with a custom toolchain
+
+libclc is an implementation of the OpenCL required libraries, as described in
+the [OpenCL C specification](https://www.khronos.org/registry/OpenCL/specs/3.0-unified/html/OpenCL_C.html),
+additionally providing definitions of SPIR-V builtins. It is built to
+target-specific bitcode, that is linked against SYCL binaries. By default, the
+built system uses the SYCL toolchain currently being built to create libclc
+bitcode. This can be suboptimal in case of debug builds, in which case debug
+tools are used to build non-debug libclc bitcode (the notion of debug builds
+doesn't really apply to libclc), resulting in very long compilation time. In
+order to specify a directory containing custom toolchain users can set:
+`LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR` variable. Care is required, as the
+changes to the local SYCL tree might not be reflected in the custom location
+during the build time.
 
 ### Deployment
 
@@ -543,7 +567,7 @@ AOT compiler for each device type:
 #### CPU
 
 * CPU AOT compiler `opencl-aot` is enabled by default. For more, see
-[opencl-aot documentation](../../opencl/opencl-aot/README.md).
+[opencl-aot documentation](https://github.com/intel/llvm/blob/sycl/opencl/opencl-aot/README.md).
 
 #### Accelerator
 
@@ -709,7 +733,7 @@ ONEAPI_DEVICE_SELECTOR=cuda:* ./simple-sycl-app-cuda.exe
 
 **NOTE**: oneAPI DPC++/SYCL developers can specify SYCL device for execution
 using device selectors (e.g. `sycl::cpu_selector_v`, `sycl::gpu_selector_v`,
-[Intel FPGA selector(s)](extensions/supported/sycl_ext_intel_fpga_device_selector.md))
+[Intel FPGA selector(s)](extensions/supported/sycl_ext_intel_fpga_device_selector.asciidoc))
 as explained in following section
 [Code the program for a specific GPU](#code-the-program-for-a-specific-gpu).
 

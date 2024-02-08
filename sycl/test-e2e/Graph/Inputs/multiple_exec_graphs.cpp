@@ -4,7 +4,11 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+  queue Queue{};
+
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
 
   using T = int;
 
@@ -38,10 +42,8 @@ int main() {
   event Event;
   for (unsigned n = 0; n < Iterations; n++) {
     auto GraphExec = Graph.finalize();
-    Event = Queue.submit([&](handler &CGH) {
-      CGH.depends_on(Event);
-      CGH.ext_oneapi_graph(GraphExec);
-    });
+    Event =
+        Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
   }
   Queue.wait_and_throw();
 

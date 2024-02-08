@@ -1,6 +1,6 @@
-// RUN: %{build} -DLAMBDA_KERNEL=1 -o %t1.out
+// RUN: %{build} -DLAMBDA_KERNEL=1 -DSYCL2020_DISABLE_DEPRECATION_WARNINGS -o %t1.out
 // RUN: %{run} %t1.out
-// RUN: %{build} -DLAMBDA_KERNEL=0 -o %t2.out
+// RUN: %{build} -DLAMBDA_KERNEL=0 -DSYCL2020_DISABLE_DEPRECATION_WARNINGS -o %t2.out
 // RUN: %{run} %t2.out
 
 #include <sycl/sycl.hpp>

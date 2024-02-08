@@ -90,8 +90,6 @@ bool getDisableTailCalls();
 
 bool getStackSymbolOrdering();
 
-unsigned getOverrideStackAlignment();
-
 bool getStackRealign();
 
 std::string getTrapFuncName();
@@ -118,6 +116,9 @@ unsigned getTLSSize();
 
 bool getEmulatedTLS();
 std::optional<bool> getExplicitEmulatedTLS();
+
+bool getEnableTLSDESC();
+std::optional<bool> getExplicitEnableTLSDESC();
 
 bool getUniqueSectionNames();
 

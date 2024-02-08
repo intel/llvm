@@ -405,7 +405,10 @@ readBinaryFile(std::string FileName) {
 
 bool isFileEndsWithGivenExtentionName(const std::string &FileName,
                                       const char *Ext) {
-  return FileName.substr(FileName.find_last_of('.')) == Ext;
+  std::size_t LastCharPosition = FileName.find_last_of('.');
+  if (LastCharPosition == std::string::npos)
+    return false;
+  return FileName.substr(LastCharPosition) == Ext;
 }
 
 bool isFileStartsWithGivenMagicNumber(const std::vector<char> &BinaryData,

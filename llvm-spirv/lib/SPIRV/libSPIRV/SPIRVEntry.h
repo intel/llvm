@@ -521,23 +521,24 @@ protected:
   SPIRVId Target;
 };
 
-template <Op OC> class SPIRVAnnotation : public SPIRVAnnotationGeneric {
+class SPIRVAnnotation : public SPIRVAnnotationGeneric {
 public:
   // Complete constructor
-  SPIRVAnnotation(const SPIRVEntry *TheTarget, unsigned TheWordCount)
+  SPIRVAnnotation(Op OC, const SPIRVEntry *TheTarget, unsigned TheWordCount)
       : SPIRVAnnotationGeneric(TheTarget->getModule(), TheWordCount, OC,
                                TheTarget->getId()) {}
-  // Incomplete constructor
-  SPIRVAnnotation() : SPIRVAnnotationGeneric(OC) {}
+  // Incomplete constructors
+  SPIRVAnnotation(Op OC) : SPIRVAnnotationGeneric(OC) {}
+  SPIRVAnnotation() : SPIRVAnnotationGeneric(OpNop) {}
 };
 
-class SPIRVEntryPoint : public SPIRVAnnotation<OpEntryPoint> {
+class SPIRVEntryPoint : public SPIRVAnnotation {
 public:
   static const SPIRVWord FixedWC = 4;
   SPIRVEntryPoint(SPIRVModule *TheModule, SPIRVExecutionModelKind,
                   SPIRVId TheId, const std::string &TheName,
                   std::vector<SPIRVId> Variables);
-  SPIRVEntryPoint() {}
+  SPIRVEntryPoint() : SPIRVAnnotation(OpEntryPoint) {}
 
   _SPIRV_DCL_ENCDEC
 protected:
@@ -548,12 +549,12 @@ private:
   std::vector<SPIRVId> Variables;
 };
 
-class SPIRVName : public SPIRVAnnotation<OpName> {
+class SPIRVName : public SPIRVAnnotation {
 public:
   // Complete constructor
   SPIRVName(const SPIRVEntry *TheTarget, const std::string &TheStr);
   // Incomplete constructor
-  SPIRVName() {}
+  SPIRVName() : SPIRVAnnotation(OpName) {}
 
 protected:
   _SPIRV_DCL_ENCDEC
@@ -562,18 +563,18 @@ protected:
   std::string Str;
 };
 
-class SPIRVMemberName : public SPIRVAnnotation<OpName> {
+class SPIRVMemberName : public SPIRVAnnotation {
 public:
   static const SPIRVWord FixedWC = 3;
   // Complete constructor
   SPIRVMemberName(const SPIRVEntry *TheTarget, SPIRVWord TheMemberNumber,
                   const std::string &TheStr)
-      : SPIRVAnnotation(TheTarget, FixedWC + getSizeInWords(TheStr)),
+      : SPIRVAnnotation(OpName, TheTarget, FixedWC + getSizeInWords(TheStr)),
         MemberNumber(TheMemberNumber), Str(TheStr) {
     validate();
   }
   // Incomplete constructor
-  SPIRVMemberName() : MemberNumber(SPIRVWORD_MAX) {}
+  SPIRVMemberName() : SPIRVAnnotation(OpName), MemberNumber(SPIRVWORD_MAX) {}
 
 protected:
   _SPIRV_DCL_ENCDEC
@@ -649,31 +650,33 @@ protected:
   SPIRVWord Column;
 };
 
-class SPIRVExecutionMode : public SPIRVAnnotation<OpExecutionMode> {
+class SPIRVExecutionMode : public SPIRVAnnotation {
 public:
   // Complete constructor for LocalSize, LocalSizeHint
-  SPIRVExecutionMode(SPIRVEntry *TheTarget, SPIRVExecutionModeKind TheExecMode,
-                     SPIRVWord X, SPIRVWord Y, SPIRVWord Z)
-      : SPIRVAnnotation(TheTarget, 6), ExecMode(TheExecMode) {
+  SPIRVExecutionMode(Op OC, SPIRVEntry *TheTarget,
+                     SPIRVExecutionModeKind TheExecMode, SPIRVWord X,
+                     SPIRVWord Y, SPIRVWord Z)
+      : SPIRVAnnotation(OC, TheTarget, 6), ExecMode(TheExecMode) {
     WordLiterals.push_back(X);
     WordLiterals.push_back(Y);
     WordLiterals.push_back(Z);
     updateModuleVersion();
   }
   // Complete constructor for VecTypeHint, SubgroupSize, SubgroupsPerWorkgroup
-  SPIRVExecutionMode(SPIRVEntry *TheTarget, SPIRVExecutionModeKind TheExecMode,
-                     SPIRVWord Code)
-      : SPIRVAnnotation(TheTarget, 4), ExecMode(TheExecMode) {
+  SPIRVExecutionMode(Op OC, SPIRVEntry *TheTarget,
+                     SPIRVExecutionModeKind TheExecMode, SPIRVWord Code)
+      : SPIRVAnnotation(OC, TheTarget, 4), ExecMode(TheExecMode) {
     WordLiterals.push_back(Code);
-    updateModuleVersion();
   }
   // Complete constructor for ContractionOff
-  SPIRVExecutionMode(SPIRVEntry *TheTarget, SPIRVExecutionModeKind TheExecMode)
-      : SPIRVAnnotation(TheTarget, 3), ExecMode(TheExecMode) {
+  SPIRVExecutionMode(Op OC, SPIRVEntry *TheTarget,
+                     SPIRVExecutionModeKind TheExecMode)
+      : SPIRVAnnotation(OC, TheTarget, 3), ExecMode(TheExecMode) {
     updateModuleVersion();
   }
   // Incomplete constructor
-  SPIRVExecutionMode() : ExecMode(ExecutionModeInvocations) {}
+  SPIRVExecutionMode()
+      : SPIRVAnnotation(OpExecutionMode), ExecMode(ExecutionModeInvocations) {}
   SPIRVExecutionModeKind getExecutionMode() const { return ExecMode; }
   const std::vector<SPIRVWord> &getLiterals() const { return WordLiterals; }
   SPIRVCapVec getRequiredCapability() const override {
@@ -697,6 +700,28 @@ protected:
   _SPIRV_DCL_ENCDEC
   SPIRVExecutionModeKind ExecMode;
   std::vector<SPIRVWord> WordLiterals;
+};
+
+class SPIRVExecutionModeId : public SPIRVExecutionMode {
+public:
+  // Complete constructor for LocalSizeId, LocalSizeHintId
+  SPIRVExecutionModeId(SPIRVEntry *TheTarget,
+                       SPIRVExecutionModeKind TheExecMode, SPIRVWord X,
+                       SPIRVWord Y, SPIRVWord Z)
+      : SPIRVExecutionMode(OpExecutionModeId, TheTarget, TheExecMode, X, Y, Z) {
+    updateModuleVersion();
+  }
+  // Complete constructor for SubgroupsPerWorkgroupId
+  SPIRVExecutionModeId(SPIRVEntry *TheTarget,
+                       SPIRVExecutionModeKind TheExecMode, SPIRVWord Code)
+      : SPIRVExecutionMode(OpExecutionModeId, TheTarget, TheExecMode, Code) {
+    updateModuleVersion();
+  }
+  // Incomplete constructor
+  SPIRVExecutionModeId() : SPIRVExecutionMode() {}
+  SPIRVWord getRequiredSPIRVVersion() const override {
+    return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_2);
+  }
 };
 
 class SPIRVComponentExecutionModes {
@@ -908,7 +933,7 @@ public:
   }
 
   SPIRVCapVec getRequiredCapability() const override {
-    return getVec(CapabilityLongConstantCompositeINTEL);
+    return getVec(CapabilityLongCompositesINTEL);
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {

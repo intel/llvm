@@ -74,18 +74,21 @@ buffer_impl::getNativeVector(backend BackendName) const {
     auto Platform = Ctx->getPlatformImpl();
     // If Host Shared Memory is not supported then there is alloca for host that
     // doesn't have platform
-    if (!Platform)
+    if (!Platform || (Platform->getBackend() != BackendName))
       continue;
+
     auto Plugin = Platform->getPlugin();
 
-    if (Platform->getBackend() != BackendName)
-      continue;
     if (Platform->getBackend() == backend::opencl) {
       Plugin->call<PiApiKind::piMemRetain>(NativeMem);
     }
 
     pi_native_handle Handle;
-    Plugin->call<PiApiKind::piextMemGetNativeHandle>(NativeMem, &Handle);
+    // When doing buffer interop we don't know what device the memory should be
+    // resident on, so pass nullptr for Device param. Buffer interop may not be
+    // supported by all backends.
+    Plugin->call<PiApiKind::piextMemGetNativeHandle>(NativeMem, /*Dev*/ nullptr,
+                                                     &Handle);
     Handles.push_back(Handle);
   }
 

@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR='*:acc' %{run-unfiltered-devices} %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='*:fpga' %{run-unfiltered-devices} %t.out
 //
 // Checks if only specified device types can be acquired from select_device
 // when ONEAPI_DEVICE_SELECTOR is set
@@ -18,16 +18,14 @@ int main() {
   const char *envVal = std::getenv("ONEAPI_DEVICE_SELECTOR");
   std::string forcedPIs;
   if (envVal) {
-    std::cout << "ONEAPI_DEVICE_SELECTOR=" << envVal << std::endl;
     forcedPIs = envVal;
   }
   {
     default_selector ds;
     device d = ds.select_device();
     string name = d.get_platform().get_info<info::platform::name>();
-    assert(name.find("OpenCL") != string::npos);
-    std::cout << "ACC Device is found: " << std::boolalpha << d.is_accelerator()
-              << std::endl;
+    assert(name.find("OpenCL") != string::npos &&
+           "default selector failed to find acc device");
   }
   {
     gpu_selector gs;
@@ -37,7 +35,6 @@ int main() {
                 << d.is_gpu() << std::endl;
       return -1;
     } catch (...) {
-      std::cout << "Expectedly, GPU device is not found." << std::endl;
     }
   }
   {
@@ -48,15 +45,14 @@ int main() {
                 << d.is_cpu() << std::endl;
       return -1;
     } catch (...) {
-      std::cout << "Expectedly, CPU device is not found." << std::endl;
     }
   }
   {
     accelerator_selector as;
     device d = as.select_device();
     string name = d.get_platform().get_info<info::platform::name>();
-    assert(name.find("OpenCL") != string::npos);
-    std::cout << "ACC device is found: " << d.is_accelerator() << std::endl;
+    assert(name.find("OpenCL") != string::npos &&
+           "accelerator_selector failed to find acc device");
   }
 
   return 0;

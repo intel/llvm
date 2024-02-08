@@ -1,10 +1,6 @@
-// REQUIRES: accelerator
-//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// https://github.com/intel/llvm/issues/11224
-// UNSUPPORTED: windows
 
 #include "common.hpp"
 
@@ -100,29 +96,27 @@ int main() {
     d_ptr[i] = i;
 
   // testing arithmetic overloaded operators
-  annotated_arg<MyStruct<int>, decltype(properties{conduit})> e = MyStruct(5);
-  annotated_arg<MyStruct<int>, decltype(properties{conduit})> f = MyStruct(6);
-  annotated_arg<MyStruct<int>, decltype(properties{conduit})> g = MyStruct(3);
-  annotated_arg<MyStruct<int>, decltype(properties{conduit})> h = MyStruct(2);
+  annotated_arg<MyStruct<int>> e = MyStruct(5);
+  annotated_arg<MyStruct<int>> f = MyStruct(6);
+  annotated_arg<MyStruct<int>> g = MyStruct(3);
+  annotated_arg<MyStruct<int>> h = MyStruct(2);
 
   auto *r1 = malloc_shared<MyStruct<int>>(5, Q);
   auto *r2 = malloc_shared<MyStruct<int>>(5, Q);
   auto *r3 = malloc_shared<MyStruct<int>>(5, Q);
 
   // testing logical overloaded operators
-  annotated_arg<MyStruct<bool>, decltype(properties{conduit})> m =
-      MyStruct(true);
-  annotated_arg<MyStruct<bool>, decltype(properties{conduit})> n =
-      MyStruct(false);
+  annotated_arg<MyStruct<bool>> m = MyStruct(true);
+  annotated_arg<MyStruct<bool>> n = MyStruct(false);
 
   auto *r4 = malloc_shared<MyStruct<bool>>(3, Q);
   auto *r5 = malloc_shared<MyStruct<bool>>(3, Q);
   auto *r6 = malloc_shared<MyStruct<bool>>(3, Q);
 
   // testing bit shift overloaded operators
-  annotated_arg<MyStruct<int>, decltype(properties{conduit})> x = MyStruct(1);
-  annotated_arg<MyStruct<int>, decltype(properties{conduit})> y = MyStruct(2);
-  annotated_arg<MyStruct<int>, decltype(properties{conduit})> z = MyStruct(4);
+  annotated_arg<MyStruct<int>> x = MyStruct(1);
+  annotated_arg<MyStruct<int>> y = MyStruct(2);
+  annotated_arg<MyStruct<int>> z = MyStruct(4);
 
   auto *r7 = malloc_shared<MyStruct<int>>(2, Q);
   auto *r8 = malloc_shared<MyStruct<int>>(2, Q);
@@ -262,7 +256,7 @@ int main() {
   assert(is_device_copyable<device_copyable_annotated_arg>::value &&
          "annotated_arg<device_copyable_class> is not device copyable.");
   using device_copyable_annotated_arg_with_properties =
-      annotated_arg<device_copyable_class, decltype(properties{conduit})>;
+      annotated_arg<device_copyable_class>;
   assert(is_device_copyable<
              device_copyable_annotated_arg_with_properties>::value &&
          "annotated_arg<device_copyable_class, properties> is not device "

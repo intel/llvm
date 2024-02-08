@@ -1,5 +1,7 @@
 // RUN: %clangxx -fsycl %s -o %t_default.out
 // RUN: %t_default.out
+// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fpreview-breaking-changes %s -o %t_vec.out %}
+// RUN: %if preview-breaking-changes-supported %{ %t_vec.out %}
 
 //==--------------- vectors.cpp - SYCL vectors test ------------------------==//
 //
@@ -24,10 +26,17 @@ void check_vectors(sycl::int4 a, sycl::int4 b, sycl::int4 c, sycl::int4 gold) {
 template <typename From, typename To> void check_convert() {
   sycl::vec<From, 4> vec{1, 2, 3, 4};
   sycl::vec<To, 4> result = vec.template convert<To>();
-  assert((int)result.x() == (int)vec.x());
-  assert((int)result.y() == (int)vec.y());
-  assert((int)result.z() == (int)vec.z());
-  assert((int)result.w() == (int)vec.w());
+  if constexpr (std::is_same_v<To, bool>) {
+    assert((bool)result.x() == (bool)vec.x());
+    assert((bool)result.y() == (bool)vec.y());
+    assert((bool)result.z() == (bool)vec.z());
+    assert((bool)result.w() == (bool)vec.w());
+  } else {
+    assert((int)result.x() == (int)vec.x());
+    assert((int)result.y() == (int)vec.y());
+    assert((int)result.z() == (int)vec.z());
+    assert((int)result.w() == (int)vec.w());
+  }
 }
 
 template <class T>
@@ -50,7 +59,9 @@ template <typename From> void check_convert_from() {
   check_signed_unsigned_convert_to<From, int16_t>();
   check_signed_unsigned_convert_to<From, int32_t>();
   check_signed_unsigned_convert_to<From, int64_t>();
+  check_signed_unsigned_convert_to<From, bool>();
   check_signed_unsigned_convert_to<From, char>();
+  check_signed_unsigned_convert_to<From, signed char>();
   check_signed_unsigned_convert_to<From, short>();
   check_signed_unsigned_convert_to<From, int>();
   check_signed_unsigned_convert_to<From, long>();
@@ -175,6 +186,7 @@ int main() {
   check_convert_from<int32_t>();
   check_convert_from<int64_t>();
   check_convert_from<char>();
+  check_convert_from<signed char>();
   check_convert_from<short>();
   check_convert_from<int>();
   check_convert_from<long>();

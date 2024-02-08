@@ -15,7 +15,6 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/SetVector.h"
@@ -502,7 +501,7 @@ static ConstantInt *GetConstantInt(Value *V, const DataLayout &DL) {
           return CI;
         else
           return cast<ConstantInt>(
-              ConstantExpr::getIntegerCast(CI, PtrTy, /*isSigned=*/false));
+              ConstantFoldIntegerCast(CI, PtrTy, /*isSigned=*/false, DL));
       }
   return nullptr;
 }
@@ -822,7 +821,7 @@ BasicBlock *SimplifyCFGOpt::GetValueEqualityComparisonCases(
 static void
 EliminateBlockCases(BasicBlock *BB,
                     std::vector<ValueEqualityComparisonCase> &Cases) {
-  llvm::erase_value(Cases, BB);
+  llvm::erase(Cases, BB);
 }
 
 /// Return true if there are any keys in C1 that exist in C2 as well.
@@ -1101,12 +1100,13 @@ static void CloneInstructionsIntoPredecessorBlockAndUpdateSSAUses(
   // Note that there may be multiple predecessor blocks, so we cannot move
   // bonus instructions to a predecessor block.
   for (Instruction &BonusInst : *BB) {
-    if (isa<DbgInfoIntrinsic>(BonusInst) || BonusInst.isTerminator())
+    if (BonusInst.isTerminator())
       continue;
 
     Instruction *NewBonusInst = BonusInst.clone();
 
-    if (PTI->getDebugLoc() != NewBonusInst->getDebugLoc()) {
+    if (!isa<DbgInfoIntrinsic>(BonusInst) &&
+        PTI->getDebugLoc() != NewBonusInst->getDebugLoc()) {
       // Unless the instruction has the same !dbg location as the original
       // branch, drop it. When we fold the bonus instructions we want to make
       // sure we reset their debug locations in order to avoid stepping on
@@ -1116,7 +1116,6 @@ static void CloneInstructionsIntoPredecessorBlockAndUpdateSSAUses(
 
     RemapInstruction(NewBonusInst, VMap,
                      RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
-    VMap[&BonusInst] = NewBonusInst;
 
     // If we speculated an instruction, we need to drop any metadata that may
     // result in undefined behavior, as the metadata might have been valid
@@ -1126,8 +1125,16 @@ static void CloneInstructionsIntoPredecessorBlockAndUpdateSSAUses(
     NewBonusInst->dropUBImplyingAttrsAndMetadata();
 
     NewBonusInst->insertInto(PredBlock, PTI->getIterator());
+    auto Range = NewBonusInst->cloneDebugInfoFrom(&BonusInst);
+    RemapDPValueRange(NewBonusInst->getModule(), Range, VMap,
+                      RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
+
+    if (isa<DbgInfoIntrinsic>(BonusInst))
+      continue;
+
     NewBonusInst->takeName(&BonusInst);
     BonusInst.setName(NewBonusInst->getName() + ".old");
+    VMap[&BonusInst] = NewBonusInst;
 
     // Update (liveout) uses of bonus instructions,
     // now that the bonus instruction has been cloned into predecessor.
@@ -1763,6 +1770,11 @@ bool SimplifyCFGOpt::hoistSuccIdenticalTerminatorToSwitchOrIf(
   Locs.push_back(I1->getDebugLoc());
   for (auto *OtherSuccTI : OtherSuccTIs)
     Locs.push_back(OtherSuccTI->getDebugLoc());
+  // Also clone DPValues from the existing terminator, and all others (to
+  // duplicate existing hoisting behaviour).
+  NT->cloneDebugInfoFrom(I1);
+  for (Instruction *OtherSuccTI : OtherSuccTIs)
+    NT->cloneDebugInfoFrom(OtherSuccTI);
   NT->setDebugLoc(DILocation::getMergedLocations(Locs));
 
   // PHIs created below will adopt NT's merged DebugLoc.
@@ -3094,10 +3106,12 @@ bool SimplifyCFGOpt::SpeculativelyExecuteBB(BranchInst *BI,
     //   %merge = select %cond, %two, %one
     //   store %merge, %x.dest, !DIAssignID !2
     //   dbg.assign %merge, "x", ..., !2
-    for (auto *DAI : at::getAssignmentMarkers(SpeculatedStore)) {
-      if (llvm::is_contained(DAI->location_ops(), OrigV))
-        DAI->replaceVariableLocationOp(OrigV, S);
-    }
+    auto replaceVariable = [OrigV, S](auto *DbgAssign) {
+      if (llvm::is_contained(DbgAssign->location_ops(), OrigV))
+        DbgAssign->replaceVariableLocationOp(OrigV, S);
+    };
+    for_each(at::getAssignmentMarkers(SpeculatedStore), replaceVariable);
+    for_each(at::getDPVAssignmentMarkers(SpeculatedStore), replaceVariable);
   }
 
   // Metadata can be dependent on the condition we are hoisting above.
@@ -3122,6 +3136,13 @@ bool SimplifyCFGOpt::SpeculativelyExecuteBB(BranchInst *BI,
   }
 
   // Hoist the instructions.
+  // In "RemoveDIs" non-instr debug-info mode, drop DPValues attached to these
+  // instructions, in the same way that dbg.value intrinsics are dropped at the
+  // end of this block.
+  for (auto &It : make_range(ThenBB->begin(), ThenBB->end()))
+    for (DPValue &DPV : make_early_inc_range(It.getDbgValueRange()))
+      if (!DPV.isDbgAssign())
+        It.dropOneDbgValue(&DPV);
   BB->splice(BI->getIterator(), ThenBB, ThenBB->begin(),
              std::prev(ThenBB->end()));
 
@@ -3293,6 +3314,10 @@ FoldCondBranchOnValueKnownInPredecessorImpl(BranchInst *BI, DomTreeUpdater *DTU,
     BasicBlock::iterator InsertPt = EdgeBB->getFirstInsertionPt();
     DenseMap<Value *, Value *> TranslateMap; // Track translated values.
     TranslateMap[Cond] = CB;
+
+    // RemoveDIs: track instructions that we optimise away while folding, so
+    // that we can copy DPValues from them later.
+    BasicBlock::iterator SrcDbgCursor = BB->begin();
     for (BasicBlock::iterator BBI = BB->begin(); &*BBI != BI; ++BBI) {
       if (PHINode *PN = dyn_cast<PHINode>(BBI)) {
         TranslateMap[PN] = PN->getIncomingValueForBlock(EdgeBB);
@@ -3327,12 +3352,25 @@ FoldCondBranchOnValueKnownInPredecessorImpl(BranchInst *BI, DomTreeUpdater *DTU,
           TranslateMap[&*BBI] = N;
       }
       if (N) {
+        // Copy all debug-info attached to instructions from the last we
+        // successfully clone, up to this instruction (they might have been
+        // folded away).
+        for (; SrcDbgCursor != BBI; ++SrcDbgCursor)
+          N->cloneDebugInfoFrom(&*SrcDbgCursor);
+        SrcDbgCursor = std::next(BBI);
+        // Clone debug-info on this instruction too.
+        N->cloneDebugInfoFrom(&*BBI);
+
         // Register the new instruction with the assumption cache if necessary.
         if (auto *Assume = dyn_cast<AssumeInst>(N))
           if (AC)
             AC->registerAssumption(Assume);
       }
     }
+
+    for (; &*SrcDbgCursor != BI; ++SrcDbgCursor)
+      InsertPt->cloneDebugInfoFrom(&*SrcDbgCursor);
+    InsertPt->cloneDebugInfoFrom(BI);
 
     BB->removePredecessor(EdgeBB);
     BranchInst *EdgeBI = cast<BranchInst>(EdgeBB->getTerminator());
@@ -3738,21 +3776,21 @@ static bool performBranchToCommonDestFolding(BranchInst *BI, BranchInst *PBI,
   ValueToValueMapTy VMap; // maps original values to cloned values
   CloneInstructionsIntoPredecessorBlockAndUpdateSSAUses(BB, PredBlock, VMap);
 
+  Module *M = BB->getModule();
+
+  if (PredBlock->IsNewDbgInfoFormat) {
+    PredBlock->getTerminator()->cloneDebugInfoFrom(BB->getTerminator());
+    for (DPValue &DPV : PredBlock->getTerminator()->getDbgValueRange()) {
+      RemapDPValue(M, &DPV, VMap,
+                   RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
+    }
+  }
+
   // Now that the Cond was cloned into the predecessor basic block,
   // or/and the two conditions together.
   Value *BICond = VMap[BI->getCondition()];
   PBI->setCondition(
       createLogicalOp(Builder, Opc, PBI->getCondition(), BICond, "or.cond"));
-
-  // Copy any debug value intrinsics into the end of PredBlock.
-  for (Instruction &I : *BB) {
-    if (isa<DbgInfoIntrinsic>(I)) {
-      Instruction *NewI = I.clone();
-      RemapInstruction(NewI, VMap,
-                       RF_NoModuleLevelChanges | RF_IgnoreMissingLocals);
-      NewI->insertBefore(PBI);
-    }
-  }
 
   ++NumFoldBranchToCommonDest;
   return true;
@@ -4346,6 +4384,21 @@ static bool SimplifyCondBranchToCondBranch(BranchInst *PBI, BranchInst *BI,
   // keep getting unwound.
   if (PBI->getSuccessor(PBIOp) == BB)
     return false;
+
+  // If predecessor's branch probability to BB is too low don't merge branches.
+  SmallVector<uint32_t, 2> PredWeights;
+  if (!PBI->getMetadata(LLVMContext::MD_unpredictable) &&
+      extractBranchWeights(*PBI, PredWeights) &&
+      (static_cast<uint64_t>(PredWeights[0]) + PredWeights[1]) != 0) {
+
+    BranchProbability CommonDestProb = BranchProbability::getBranchProbability(
+        PredWeights[PBIOp],
+        static_cast<uint64_t>(PredWeights[0]) + PredWeights[1]);
+
+    BranchProbability Likely = TTI.getPredictableBranchThreshold();
+    if (CommonDestProb >= Likely)
+      return false;
+  }
 
   // Do not perform this transformation if it would require
   // insertion of a large number of select instructions. For targets
@@ -5179,6 +5232,15 @@ bool SimplifyCFGOpt::simplifyUnreachable(UnreachableInst *UI) {
 
   bool Changed = false;
 
+  // Ensure that any debug-info records that used to occur after the Unreachable
+  // are moved to in front of it -- otherwise they'll "dangle" at the end of
+  // the block.
+  BB->flushTerminatorDbgValues();
+
+  // Debug-info records on the unreachable inst itself should be deleted, as
+  // below we delete everything past the final executable instruction.
+  UI->dropDbgValues();
+
   // If there are any instructions immediately before the unreachable that can
   // be removed, do so.
   while (UI->getIterator() != BB->begin()) {
@@ -5194,6 +5256,10 @@ bool SimplifyCFGOpt::simplifyUnreachable(UnreachableInst *UI) {
     // of subtle reasoning. If this inst is an EH, all the predecessors of this
     // block will be the unwind edges of Invoke/CatchSwitch/CleanupReturn,
     // and we can therefore guarantee this block will be erased.
+
+    // If we're deleting this, we're deleting any subsequent dbg.values, so
+    // delete DPValue records of variable information.
+    BBI->dropDbgValues();
 
     // Delete this instruction (any uses are guaranteed to be dead)
     BBI->replaceAllUsesWith(PoisonValue::get(BBI->getType()));
@@ -6236,7 +6302,7 @@ Value *SwitchLookupTable::BuildLookup(Value *Index, IRBuilder<> &Builder) {
   }
   case BitMapKind: {
     // Type of the bitmap (e.g. i59).
-    IntegerType *MapTy = BitMap->getType();
+    IntegerType *MapTy = BitMap->getIntegerType();
 
     // Cast Index to the same type as the bitmap.
     // Note: The Index is <= the number of elements in the table, so
@@ -6598,9 +6664,8 @@ static bool SwitchToLookupTable(SwitchInst *SI, IRBuilder<> &Builder,
   // If the default destination is unreachable, or if the lookup table covers
   // all values of the conditional variable, branch directly to the lookup table
   // BB. Otherwise, check that the condition is within the case range.
-  const bool DefaultIsReachable =
+  bool DefaultIsReachable =
       !isa<UnreachableInst>(SI->getDefaultDest()->getFirstNonPHIOrDbg());
-  const bool GeneratingCoveredLookupTable = (MaxTableSize == TableSize);
 
   // Create the BB that does the lookups.
   Module &Mod = *CommonDest->getParent()->getParent();
@@ -6612,7 +6677,7 @@ static bool SwitchToLookupTable(SwitchInst *SI, IRBuilder<> &Builder,
   Value *TableIndex;
   ConstantInt *TableIndexOffset;
   if (UseSwitchConditionAsTableIndex) {
-    TableIndexOffset = ConstantInt::get(MaxCaseVal->getType(), 0);
+    TableIndexOffset = ConstantInt::get(MaxCaseVal->getIntegerType(), 0);
     TableIndex = SI->getCondition();
   } else {
     TableIndexOffset = MinCaseVal;
@@ -6631,6 +6696,28 @@ static bool SwitchToLookupTable(SwitchInst *SI, IRBuilder<> &Builder,
 
   BranchInst *RangeCheckBranch = nullptr;
 
+  // Grow the table to cover all possible index values to avoid the range check.
+  // It will use the default result to fill in the table hole later, so make
+  // sure it exist.
+  if (UseSwitchConditionAsTableIndex && HasDefaultResults) {
+    ConstantRange CR = computeConstantRange(TableIndex, /* ForSigned */ false);
+    // Grow the table shouldn't have any size impact by checking
+    // WouldFitInRegister.
+    // TODO: Consider growing the table also when it doesn't fit in a register
+    // if no optsize is specified.
+    const uint64_t UpperBound = CR.getUpper().getLimitedValue();
+    if (!CR.isUpperWrapped() && all_of(ResultTypes, [&](const auto &KV) {
+          return SwitchLookupTable::WouldFitInRegister(
+              DL, UpperBound, KV.second /* ResultType */);
+        })) {
+      // The default branch is unreachable after we enlarge the lookup table.
+      // Adjust DefaultIsReachable to reuse code path.
+      TableSize = UpperBound;
+      DefaultIsReachable = false;
+    }
+  }
+
+  const bool GeneratingCoveredLookupTable = (MaxTableSize == TableSize);
   if (!DefaultIsReachable || GeneratingCoveredLookupTable) {
     Builder.CreateBr(LookupBB);
     if (DTU)
@@ -6674,7 +6761,7 @@ static bool SwitchToLookupTable(SwitchInst *SI, IRBuilder<> &Builder,
     // Get the TableIndex'th bit of the bitmask.
     // If this bit is 0 (meaning hole) jump to the default destination,
     // else continue with table lookup.
-    IntegerType *MapTy = TableMask->getType();
+    IntegerType *MapTy = TableMask->getIntegerType();
     Value *MaskIndex =
         Builder.CreateZExtOrTrunc(TableIndex, MapTy, "switch.maskindex");
     Value *Shifted = Builder.CreateLShr(TableMask, MaskIndex, "switch.shifted");
@@ -6792,9 +6879,6 @@ static bool ReduceSwitchRange(SwitchInst *SI, IRBuilder<> &Builder,
 
   // This transform can be done speculatively because it is so cheap - it
   // results in a single rotate operation being inserted.
-  // FIXME: It's possible that optimizing a switch on powers of two might also
-  // be beneficial - flag values are often powers of two and we could use a CLZ
-  // as the key function.
 
   // countTrailingZeros(0) returns 64. As Values is guaranteed to have more than
   // one element and LLVM disallows duplicate cases, Shift is guaranteed to be
@@ -6823,19 +6907,92 @@ static bool ReduceSwitchRange(SwitchInst *SI, IRBuilder<> &Builder,
 
   auto *Ty = cast<IntegerType>(SI->getCondition()->getType());
   Builder.SetInsertPoint(SI);
-  auto *ShiftC = ConstantInt::get(Ty, Shift);
-  auto *Sub = Builder.CreateSub(SI->getCondition(), ConstantInt::get(Ty, Base));
-  auto *LShr = Builder.CreateLShr(Sub, ShiftC);
-  auto *Shl = Builder.CreateShl(Sub, Ty->getBitWidth() - Shift);
-  auto *Rot = Builder.CreateOr(LShr, Shl);
+  Value *Sub =
+      Builder.CreateSub(SI->getCondition(), ConstantInt::get(Ty, Base));
+  Value *Rot = Builder.CreateIntrinsic(
+      Ty, Intrinsic::fshl,
+      {Sub, Sub, ConstantInt::get(Ty, Ty->getBitWidth() - Shift)});
   SI->replaceUsesOfWith(SI->getCondition(), Rot);
 
   for (auto Case : SI->cases()) {
     auto *Orig = Case.getCaseValue();
     auto Sub = Orig->getValue() - APInt(Ty->getBitWidth(), Base);
-    Case.setValue(
-        cast<ConstantInt>(ConstantInt::get(Ty, Sub.lshr(ShiftC->getValue()))));
+    Case.setValue(cast<ConstantInt>(ConstantInt::get(Ty, Sub.lshr(Shift))));
   }
+  return true;
+}
+
+/// Tries to transform switch of powers of two to reduce switch range.
+/// For example, switch like:
+/// switch (C) { case 1: case 2: case 64: case 128: }
+/// will be transformed to:
+/// switch (count_trailing_zeros(C)) { case 0: case 1: case 6: case 7: }
+///
+/// This transformation allows better lowering and could allow transforming into
+/// a lookup table.
+static bool simplifySwitchOfPowersOfTwo(SwitchInst *SI, IRBuilder<> &Builder,
+                                        const DataLayout &DL,
+                                        const TargetTransformInfo &TTI) {
+  Value *Condition = SI->getCondition();
+  LLVMContext &Context = SI->getContext();
+  auto *CondTy = cast<IntegerType>(Condition->getType());
+
+  if (CondTy->getIntegerBitWidth() > 64 ||
+      !DL.fitsInLegalInteger(CondTy->getIntegerBitWidth()))
+    return false;
+
+  const auto CttzIntrinsicCost = TTI.getIntrinsicInstrCost(
+      IntrinsicCostAttributes(Intrinsic::cttz, CondTy,
+                              {Condition, ConstantInt::getTrue(Context)}),
+      TTI::TCK_SizeAndLatency);
+
+  if (CttzIntrinsicCost > TTI::TCC_Basic)
+    // Inserting intrinsic is too expensive.
+    return false;
+
+  // Only bother with this optimization if there are more than 3 switch cases.
+  // SDAG will only bother creating jump tables for 4 or more cases.
+  if (SI->getNumCases() < 4)
+    return false;
+
+  // We perform this optimization only for switches with
+  // unreachable default case.
+  // This assumtion will save us from checking if `Condition` is a power of two.
+  if (!isa<UnreachableInst>(SI->getDefaultDest()->getFirstNonPHIOrDbg()))
+    return false;
+
+  // Check that switch cases are powers of two.
+  SmallVector<uint64_t, 4> Values;
+  for (const auto &Case : SI->cases()) {
+    uint64_t CaseValue = Case.getCaseValue()->getValue().getZExtValue();
+    if (llvm::has_single_bit(CaseValue))
+      Values.push_back(CaseValue);
+    else
+      return false;
+  }
+
+  // isSwichDense requires case values to be sorted.
+  llvm::sort(Values);
+  if (!isSwitchDense(Values.size(), llvm::countr_zero(Values.back()) -
+                                        llvm::countr_zero(Values.front()) + 1))
+    // Transform is unable to generate dense switch.
+    return false;
+
+  Builder.SetInsertPoint(SI);
+
+  // Replace each case with its trailing zeros number.
+  for (auto &Case : SI->cases()) {
+    auto *OrigValue = Case.getCaseValue();
+    Case.setValue(ConstantInt::get(OrigValue->getIntegerType(),
+                                   OrigValue->getValue().countr_zero()));
+  }
+
+  // Replace condition with its trailing zeros number.
+  auto *ConditionTrailingZeros = Builder.CreateIntrinsic(
+      Intrinsic::cttz, {CondTy}, {Condition, ConstantInt::getTrue(Context)});
+
+  SI->setCondition(ConditionTrailingZeros);
+
   return true;
 }
 
@@ -6884,6 +7041,9 @@ bool SimplifyCFGOpt::simplifySwitch(SwitchInst *SI, IRBuilder<> &Builder) {
   // optimisation pipeline.
   if (Options.ConvertSwitchToLookupTable &&
       SwitchToLookupTable(SI, Builder, DTU, DL, TTI))
+    return requestResimplify();
+
+  if (simplifySwitchOfPowersOfTwo(SI, Builder, DL, TTI))
     return requestResimplify();
 
   if (ReduceSwitchRange(SI, Builder, DL, TTI))
@@ -7235,10 +7395,33 @@ static bool passingValueIsAlwaysUndefined(Value *V, Instruction *I, bool PtrValu
     // Look through GEPs. A load from a GEP derived from NULL is still undefined
     if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(Use))
       if (GEP->getPointerOperand() == I) {
-        if (!GEP->isInBounds() || !GEP->hasAllZeroIndices())
+        // The current base address is null, there are four cases to consider:
+        // getelementptr (TY, null, 0)                 -> null
+        // getelementptr (TY, null, not zero)          -> may be modified
+        // getelementptr inbounds (TY, null, 0)        -> null
+        // getelementptr inbounds (TY, null, not zero) -> poison iff null is
+        // undefined?
+        if (!GEP->hasAllZeroIndices() &&
+            (!GEP->isInBounds() ||
+             NullPointerIsDefined(GEP->getFunction(),
+                                  GEP->getPointerAddressSpace())))
           PtrValueMayBeModified = true;
         return passingValueIsAlwaysUndefined(V, GEP, PtrValueMayBeModified);
       }
+
+    // Look through return.
+    if (ReturnInst *Ret = dyn_cast<ReturnInst>(Use)) {
+      bool HasNoUndefAttr =
+          Ret->getFunction()->hasRetAttribute(Attribute::NoUndef);
+      // Return undefined to a noundef return value is undefined.
+      if (isa<UndefValue>(C) && HasNoUndefAttr)
+        return true;
+      // Return null to a nonnull+noundef return value is undefined.
+      if (C->isNullValue() && HasNoUndefAttr &&
+          Ret->getFunction()->hasRetAttribute(Attribute::NonNull)) {
+        return !PtrValueMayBeModified;
+      }
+    }
 
     // Look through bitcasts.
     if (BitCastInst *BC = dyn_cast<BitCastInst>(Use))

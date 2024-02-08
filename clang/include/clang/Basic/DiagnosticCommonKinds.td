@@ -70,6 +70,10 @@ def warn_pragma_debug_missing_argument : Warning<
 def warn_pragma_debug_unexpected_argument : Warning<
   "unexpected argument to debug command">, InGroup<IgnoredPragmas>;
 
+def warn_fp_nan_inf_when_disabled : Warning<
+  "use of %select{infinity|NaN}0%select{| via a macro}1 is undefined behavior "
+  "due to the currently enabled floating-point options">,
+  InGroup<DiagGroup<"nan-infinity-disabled">>;
 }
 
 // Parse && Sema
@@ -260,8 +264,6 @@ def ext_clang_diagnose_if : Extension<"'diagnose_if' is a clang extension">,
                             InGroup<GccCompat>;
 def err_too_large_for_fixed_point : Error<
   "this value is too large for this fixed point type">;
-def err_fixed_point_not_enabled : Error<"compile with "
-  "'-ffixed-point' to enable fixed point types">;
 def err_unimplemented_conversion_with_fixed_point_type : Error<
   "conversion between fixed point and %0 is not yet supported">;
 
@@ -349,19 +351,23 @@ def err_opt_not_valid_on_target : Error<
   "option '%0' cannot be specified on this target">;
 def err_invalid_feature_combination : Error<
   "invalid feature combination: %0">;
+def warn_invalid_feature_combination : Warning<
+  "invalid feature combination: %0">, InGroup<DiagGroup<"invalid-feature-combination">>;
 def warn_target_unrecognized_env : Warning<
   "mismatch between architecture and environment in target triple '%0'; did you mean '%1'?">,
   InGroup<InvalidCommandLineArgument>;
+def warn_knl_knm_isa_support_removed : Warning<
+  "KNL, KNM related Intel Xeon Phi CPU's specific ISA's supports will be removed in LLVM 19.">,
+  InGroup<DiagGroup<"knl-knm-isa-support-removed">>;
 
 // Source manager
 def err_cannot_open_file : Error<"cannot open file '%0': %1">, DefaultFatal;
 def err_file_modified : Error<
   "file '%0' modified since it was first processed">, DefaultFatal;
 def err_file_too_large : Error<
-  "sorry, unsupported: file '%0' is too large for Clang to process">;
-def err_include_too_large : Error<
-  "sorry, this include generates a translation unit too large for"
-  " Clang to process.">, DefaultFatal;
+  "file '%0' is too large for Clang to process">;
+def err_sloc_space_too_large : Error<
+  "translation unit is too large for Clang to process: ran out of source locations">, DefaultFatal;
 def err_unsupported_bom : Error<"%0 byte order mark detected in '%1', but "
   "encoding is not supported">, DefaultFatal;
 def err_unable_to_rename_temp : Error<
@@ -393,6 +399,19 @@ def note_mt_message : Note<"[rewriter] %0">;
 // ARCMigrate
 def warn_arcmt_nsalloc_realloc : Warning<"[rewriter] call returns pointer to GC managed memory; it will become unmanaged in ARC">;
 def err_arcmt_nsinvocation_ownership : Error<"NSInvocation's %0 is not safe to be used with an object with ownership other than __unsafe_unretained">;
+
+// API notes
+def err_apinotes_message : Error<"%0">;
+def warn_apinotes_message : Warning<"%0">, InGroup<DiagGroup<"apinotes">>;
+def note_apinotes_message : Note<"%0">;
+
+class NonportablePrivateAPINotesPath  : Warning<
+  "private API notes file for module '%0' should be named "
+  "'%0_private.apinotes', not '%1'">;
+def warn_apinotes_private_case : NonportablePrivateAPINotesPath,
+  InGroup<DiagGroup<"nonportable-private-apinotes-path">>;
+def warn_apinotes_private_case_system : NonportablePrivateAPINotesPath,
+  DefaultIgnore, InGroup<DiagGroup<"nonportable-private-system-apinotes-path">>;
 
 // C++ for OpenCL.
 def err_openclcxx_not_supported : Error<
@@ -437,4 +456,10 @@ def warn_try_not_valid_on_target : Warning<
   "target '%0' does not support exception handling;"
   " 'catch' block is ignored">,
   InGroup<OpenMPTargetException>;
+
+// Launch bound
+def warn_launch_bounds_missing_attr: Warning<
+  "%0 attribute ignored, as it requires: maximum work group size"
+  "%select{| and minimum work groups per compute unit}1 to be also specified">,
+  InGroup<IgnoredAttributes>;
 }

@@ -14,6 +14,7 @@
 ///
 //===----------------------------------------------------------------------===//
 
+#include "SymPropReader.h"
 #include "clang/Basic/Version.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
@@ -37,6 +38,7 @@
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
+#include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/EndianStream.h"
 #include "llvm/Support/Errc.h"
@@ -123,6 +125,13 @@ static cl::opt<std::string> Output("o", cl::Required,
                                    cl::value_desc("filename"),
                                    cl::cat(ClangOffloadWrapperCategory));
 
+static cl::opt<std::string>
+    SymPropBCFiles("sym-prop-bc-files", cl::Optional,
+                   cl::desc("File with list of wrapped BC input files that "
+                            "will be used to supply symbols and properties."),
+                   cl::value_desc("filename"),
+                   cl::cat(ClangOffloadWrapperCategory));
+
 static cl::opt<bool> Verbose("v", cl::desc("verbose output"),
                              cl::cat(ClangOffloadWrapperCategory));
 
@@ -208,16 +217,25 @@ static cl::opt<std::string> DescriptorName(
         "and makes it globally visible"),
     cl::value_desc("name"), cl::cat(ClangOffloadWrapperCategory));
 
-/// batch mode - all input files are grouped in file table files
+// clang-format off
+/// batch mode - All input files are treated as a table file.  One table file per target.
+///            - Table files consist of a table of filenames that provide
+///            - Code, Symbols, Properties, etc.
 static cl::opt<bool> BatchMode(
     "batch", cl::NotHidden, cl::init(false), cl::Optional,
-    cl::desc("All input files are provided as cells in a file table file,\n"
-             "other command-line input files are not allowed.\n"
-             "Example input file table in batch mode:\n"
-             "[Code|Symbols|Properties|Manifest]\n"
-             "a_0.bc|a_0.sym|a_0.props|a_0.mnf\n"
-             "a_1.bin|||"),
+    cl::desc("All input files are treated as a table file.  One table file per target.\n"
+             "Table files consist of a table of filenames that provide\n"
+             "Code, Symbols, Properties, etc.\n"
+             "Example input table file in batch mode:\n"
+             "  [Code|Symbols|Properties|Manifest]\n"
+             "  a_0.bc|a_0.sym|a_0.props|a_0.mnf\n"
+             "  a_1.bin|||\n"
+             "Example usage:\n"
+             "  clang-offload-wrapper -batch -host=x86_64-unknown-linux-gnu\n"
+             "    -kind=openmp -target=spir64_gen table1.txt\n"
+             "    -kind=openmp -target=spir64     table2.txt"),
     cl::cat(ClangOffloadWrapperCategory));
+// clang-format on
 
 static StringRef offloadKindToString(OffloadKind Kind) {
   switch (Kind) {
@@ -346,8 +364,10 @@ public:
   std::vector<std::string> TempFiles;
 
 private:
+  std::unique_ptr<SymPropReader> MySymPropReader;
+
   IntegerType *getSizeTTy() {
-    switch (M.getDataLayout().getPointerTypeSize(Type::getInt8PtrTy(C))) {
+    switch (M.getDataLayout().getPointerTypeSize(PointerType::getUnqual(C))) {
     case 4u:
       return Type::getInt32Ty(C);
     case 8u:
@@ -396,8 +416,8 @@ private:
   // };
   StructType *getEntryTy() {
     if (!EntryTy)
-      EntryTy = StructType::create("__tgt_offload_entry", Type::getInt8PtrTy(C),
-                                   Type::getInt8PtrTy(C), getSizeTTy(),
+      EntryTy = StructType::create("__tgt_offload_entry", PointerType::getUnqual(C),
+                                   PointerType::getUnqual(C), getSizeTTy(),
                                    Type::getInt32Ty(C), Type::getInt32Ty(C));
     return EntryTy;
   }
@@ -412,8 +432,8 @@ private:
   // };
   StructType *getDeviceImageTy() {
     if (!ImageTy)
-      ImageTy = StructType::create("__tgt_device_image", Type::getInt8PtrTy(C),
-                                   Type::getInt8PtrTy(C), getEntryPtrTy(),
+      ImageTy = StructType::create("__tgt_device_image", PointerType::getUnqual(C),
+                                   PointerType::getUnqual(C), getEntryPtrTy(),
                                    getEntryPtrTy());
     return ImageTy;
   }
@@ -460,8 +480,8 @@ private:
     if (!SyclPropTy) {
       SyclPropTy = StructType::create(
           {
-              Type::getInt8PtrTy(C), // Name
-              Type::getInt8PtrTy(C), // ValAddr
+              PointerType::getUnqual(C), // Name
+              PointerType::getUnqual(C), // ValAddr
               Type::getInt32Ty(C),   // Type
               Type::getInt64Ty(C)    // ValSize
           },
@@ -484,7 +504,7 @@ private:
     if (!SyclPropSetTy) {
       SyclPropSetTy = StructType::create(
           {
-              Type::getInt8PtrTy(C), // Name
+              PointerType::getUnqual(C), // Name
               getSyclPropPtrTy(),    // PropertiesBegin
               getSyclPropPtrTy()     // PropertiesEnd
           },
@@ -539,13 +559,13 @@ private:
               Type::getInt16Ty(C),   // Version
               Type::getInt8Ty(C),    // OffloadKind
               Type::getInt8Ty(C),    // Format
-              Type::getInt8PtrTy(C), // DeviceTargetSpec
-              Type::getInt8PtrTy(C), // CompileOptions
-              Type::getInt8PtrTy(C), // LinkOptions
-              Type::getInt8PtrTy(C), // ManifestStart
-              Type::getInt8PtrTy(C), // ManifestEnd
-              Type::getInt8PtrTy(C), // ImageStart
-              Type::getInt8PtrTy(C), // ImageEnd
+              PointerType::getUnqual(C), // DeviceTargetSpec
+              PointerType::getUnqual(C), // CompileOptions
+              PointerType::getUnqual(C), // LinkOptions
+              PointerType::getUnqual(C), // ManifestStart
+              PointerType::getUnqual(C), // ManifestEnd
+              PointerType::getUnqual(C), // ImageStart
+              PointerType::getUnqual(C), // ImageEnd
               getEntryPtrTy(),       // EntriesBegin
               getEntryPtrTy(),       // EntriesEnd
               getSyclPropSetPtrTy(), // PropertySetBegin
@@ -744,28 +764,37 @@ private:
   // specified.
   Expected<std::pair<Constant *, Constant *>>
   addSYCLOffloadEntriesToModule(StringRef EntriesFile) {
-    if (EntriesFile.empty()) {
+    if (EntriesFile.empty() && !MySymPropReader) {
       auto *NullPtr = Constant::getNullValue(getEntryPtrTy());
       return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
     }
 
     auto *Zero = ConstantInt::get(getSizeTTy(), 0u);
     auto *i32Zero = ConstantInt::get(Type::getInt32Ty(C), 0u);
-    auto *NullPtr = Constant::getNullValue(Type::getInt8PtrTy(C));
-
-    Expected<MemoryBuffer *> MBOrErr = loadFile(EntriesFile);
-    if (!MBOrErr)
-      return MBOrErr.takeError();
-    MemoryBuffer *MB = *MBOrErr;
+    auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
 
     std::vector<Constant *> EntriesInits;
     // Only the name field is used for SYCL now, others are for future OpenMP
     // compatibility and new SYCL features
-    for (line_iterator LI(*MB); !LI.is_at_eof(); ++LI)
-      EntriesInits.push_back(ConstantStruct::get(
-          getEntryTy(), NullPtr,
-          addStringToModule(*LI, "__sycl_offload_entry_name"), Zero, i32Zero,
-          i32Zero));
+    if (MySymPropReader) {
+      for (uint64_t i = 0; i < MySymPropReader->getNumEntries(); i++)
+        EntriesInits.push_back(ConstantStruct::get(
+            getEntryTy(), NullPtr,
+            addStringToModule(MySymPropReader->getEntryName(i),
+                              "__sycl_offload_entry_name"),
+            Zero, i32Zero, i32Zero));
+    } else {
+      Expected<MemoryBuffer *> MBOrErr = loadFile(EntriesFile);
+      if (!MBOrErr)
+        return MBOrErr.takeError();
+      MemoryBuffer *MB = *MBOrErr;
+
+      for (line_iterator LI(*MB); !LI.is_at_eof(); ++LI)
+        EntriesInits.push_back(ConstantStruct::get(
+            getEntryTy(), NullPtr,
+            addStringToModule(*LI, "__sycl_offload_entry_name"), Zero, i32Zero,
+            i32Zero));
+    }
 
     auto *Arr = ConstantArray::get(
         ArrayType::get(getEntryTy(), EntriesInits.size()), EntriesInits);
@@ -797,7 +826,7 @@ private:
       switch (Prop.second.getType()) {
       case llvm::util::PropertyValue::UINT32: {
         // for known scalar types ValAddr is null, ValSize keeps the value
-        PropValAddr = Constant::getNullValue(Type::getInt8PtrTy(C));
+        PropValAddr = Constant::getNullValue(PointerType::getUnqual(C));
         PropValSize =
             ConstantInt::get(Type::getInt64Ty(C), Prop.second.asUint32());
         break;
@@ -856,21 +885,31 @@ private:
   // array, or a pair of nullptrs in case the properties file wasn't specified.
   Expected<std::pair<Constant *, Constant *>>
   tformSYCLPropertySetRegistryFileToIR(StringRef PropRegistryFile) {
-    if (PropRegistryFile.empty()) {
-      auto *NullPtr =
-          Constant::getNullValue(getSyclPropSetTy()->getPointerTo());
-      return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
+
+    std::unique_ptr<llvm::util::PropertySetRegistry> PropRegistry;
+
+    if (MySymPropReader) {
+      PropRegistry = MySymPropReader->getPropRegistry();
+    } else {
+      if (PropRegistryFile.empty()) {
+        auto *NullPtr =
+            Constant::getNullValue(getSyclPropSetTy()->getPointerTo());
+        return std::pair<Constant *, Constant *>(NullPtr, NullPtr);
+      }
+      // load the property registry file
+      Expected<MemoryBuffer *> MBOrErr = loadFile(PropRegistryFile);
+      if (!MBOrErr)
+        return MBOrErr.takeError();
+      MemoryBuffer *MB = *MBOrErr;
+      Expected<std::unique_ptr<llvm::util::PropertySetRegistry>> PropRegistryE =
+          llvm::util::PropertySetRegistry::read(MB);
+      if (!PropRegistryE)
+        return PropRegistryE.takeError();
+      std::unique_ptr<llvm::util::PropertySetRegistry> &PropRegistryFromFile =
+          PropRegistryE.get();
+      PropRegistry = std::move(PropRegistryFromFile);
     }
-    // load the property registry file
-    Expected<MemoryBuffer *> MBOrErr = loadFile(PropRegistryFile);
-    if (!MBOrErr)
-      return MBOrErr.takeError();
-    MemoryBuffer *MB = *MBOrErr;
-    Expected<std::unique_ptr<llvm::util::PropertySetRegistry>> PropRegistryE =
-        llvm::util::PropertySetRegistry::read(MB);
-    if (!PropRegistryE)
-      return PropRegistryE.takeError();
-    auto &PropRegistry = PropRegistryE.get();
+
     std::vector<Constant *> PropSetsInits;
 
     // transform all property sets to IR and get the middle column image into
@@ -978,7 +1017,7 @@ private:
     }
 
     auto *Zero = ConstantInt::get(getSizeTTy(), 0u);
-    auto *NullPtr = Constant::getNullValue(Type::getInt8PtrTy(C));
+    auto *NullPtr = Constant::getNullValue(PointerType::getUnqual(C));
     Constant *ZeroZero[] = {Zero, Zero};
 
     // Create initializer for the images array.
@@ -1003,6 +1042,9 @@ private:
                                                            Twine("opts.link.") +
                                                            Twine(ImgId));
       std::pair<Constant *, Constant *> FMnf;
+
+      if (MySymPropReader)
+        MySymPropReader->getNextDeviceImageInitializer();
 
       if (Img.Manif.empty()) {
         // no manifest - zero out the fields
@@ -1195,8 +1237,14 @@ private:
   }
 
 public:
-  BinaryWrapper(StringRef Target, StringRef ToolName)
+  BinaryWrapper(StringRef Target, StringRef ToolName,
+                StringRef SymPropBCFiles = "")
       : M("offload.wrapper.object", C), ToolName(ToolName) {
+
+    if (!SymPropBCFiles.empty())
+      MySymPropReader =
+          std::make_unique<SymPropReader>(SymPropBCFiles, ToolName);
+
     M.setTargetTriple(Target);
     // Look for llvm-objcopy in the same directory, from which
     // clang-offload-wrapper is invoked. This helps OpenMP offload
@@ -1690,12 +1738,6 @@ int main(int argc, const char **argv) {
   auto reportError = [argv](Error E) {
     logAllUnhandledErrors(std::move(E), WithColor::error(errs(), argv[0]));
   };
-  if (BatchMode && Inputs.size() != 1) {
-    reportError(
-        createStringError(errc::invalid_argument,
-                          "batch job table file must be the only input file"));
-    return 1;
-  }
   if (Target.empty()) {
     Target = sys::getProcessTriple();
     if (Verbose)
@@ -1707,11 +1749,23 @@ int main(int argc, const char **argv) {
         errc::invalid_argument, "'" + Target + "': unsupported target triple"));
     return 1;
   }
+  if (!SymPropBCFiles.empty() && Entries.size()) {
+    reportError(createStringError(errc::invalid_argument,
+                                  "Entry points cannot be provided by both "
+                                  "-sym-prop-bc-files and -entries"));
+    return 1;
+  }
+  if (!SymPropBCFiles.empty() && Properties.size()) {
+    reportError(createStringError(errc::invalid_argument,
+                                  "Properties cannot be provided by both "
+                                  "-sym-prop-bc-files and -properties"));
+    return 1;
+  }
 
   // Construct BinaryWrapper::Image instances based on command line args and
   // add them to the wrapper
 
-  BinaryWrapper Wr(Target, argv[0]);
+  BinaryWrapper Wr(Target, argv[0], SymPropBCFiles);
   OffloadKind Knd = OffloadKind::Unknown;
   llvm::StringRef Tgt = "";
   BinaryImageFormat Fmt = BinaryImageFormat::none;

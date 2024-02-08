@@ -266,7 +266,7 @@ non-FPGA users may want to use the `device_global` property
 [`device_image_scope`][5], which requires even non-FPGA users to have precise
 control over the way kernels are bundled into device images.
 
-[5]: <../extensions/proposed/sycl_ext_oneapi_device_global.asciidoc#properties-for-device-global-variables>
+[5]: <../extensions/experimental/sycl_ext_oneapi_device_global.asciidoc#properties-for-device-global-variables>
 
 The new definition of `-fsycl-device-code-split` is as follows:
 
@@ -1091,10 +1091,10 @@ The "name" column in this table lists the possible target names.  Since not all
 targets have a corresponding enumerator in the `architecture` enumeration, the
 second column tells when there is such an enumerator.  The last row in this
 table corresponds to all of the architecture names listed in the
-[sycl\_ext\_intel\_device\_architecture][8] extension whose name starts with
+[sycl\_ext\_oneapi\_device\_architecture][8] extension whose name starts with
 `intel_gpu_`.
 
-[8]: <../extensions/proposed/sycl_ext_intel_device_architecture.asciidoc>
+[8]: <../extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc>
 
 TODO: This table needs to be filled out for the CPU variants supported by the
 `opencl-aot` tool (avx512, avx2, avx, sse4.2) and for the FPGA targets.  We

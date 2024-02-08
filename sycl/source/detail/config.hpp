@@ -231,8 +231,7 @@ public:
   }
 };
 
-// Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
-// ONEAPI_DEVICE_SELECTOR
+// Array is used by SYCL_DEVICE_ALLOWLIST and ONEAPI_DEVICE_SELECTOR.
 const std::array<std::pair<std::string, info::device_type>, 6> &
 getSyclDeviceTypeMap();
 
@@ -265,6 +264,7 @@ public:
   }
 };
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // ---------------------------------------
 // SYCL_DEVICE_FILTER support
 
@@ -306,6 +306,7 @@ public:
     return FilterList;
   }
 };
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 template <> class SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS> {
   using BaseT = SYCLConfigBase<SYCL_ENABLE_DEFAULT_CONTEXTS>;
@@ -611,6 +612,34 @@ private:
     if (ResetCache)
       ValStr = BaseT::getRawValue();
     return ValStr;
+  }
+};
+
+template <> class SYCLConfig<SYCL_CACHE_IN_MEM> {
+  using BaseT = SYCLConfigBase<SYCL_CACHE_IN_MEM>;
+
+public:
+  static constexpr bool Default = true; // default is true
+  static bool get() { return getCachedValue(); }
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static bool parseValue() {
+    const char *ValStr = BaseT::getRawValue();
+    if (!ValStr)
+      return Default;
+    if (strlen(ValStr) != 1 || (ValStr[0] != '0' && ValStr[0] != '1')) {
+      std::string Msg =
+          std::string{"Invalid value for bool configuration variable "} +
+          getName() + std::string{": "} + ValStr;
+      throw runtime_error(Msg, PI_ERROR_INVALID_OPERATION);
+    }
+    return ValStr[0] == '1';
+  }
+
+  static bool getCachedValue() {
+    static bool Val = parseValue();
+    return Val;
   }
 };
 

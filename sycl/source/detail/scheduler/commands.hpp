@@ -31,7 +31,7 @@ namespace detail {
 bool CurrentCodeLocationValid();
 void emitInstrumentationGeneral(uint32_t StreamID, uint64_t InstanceID,
                                 xpti_td *TraceEvent, uint16_t Type,
-                                const char *Txt);
+                                const void *Addr);
 #endif
 
 class queue_impl;
@@ -243,6 +243,8 @@ public:
   getPiEventsBlocking(const std::vector<EventImplPtr> &EventImpls) const;
 
   bool isHostTask() const;
+
+  bool isFusable() const;
 
 protected:
   QueueImplPtr MQueue;
@@ -648,6 +650,7 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() final;
+  std::string_view getTypeString() const;
 
   detail::CG &getCG() const { return *MCommandGroup; }
 

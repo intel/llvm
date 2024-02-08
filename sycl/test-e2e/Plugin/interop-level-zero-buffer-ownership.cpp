@@ -3,7 +3,7 @@
 // account direct calls to L0 API.
 // UNSUPPORTED: ze_debug
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR=1 ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR=1 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 
 // Test for Level Zero buffer interop API.
 // Check the following cases:
@@ -13,7 +13,7 @@
 // "transfer" ownership is specified.
 
 // NOTE: SYCL RT will see unbalanced count of alloc/free,
-// so this test will fail with ZE_DEBUG=4.
+// so this test will fail with UR_L0_LEAKS_DEBUG=1.
 
 // Keep ownership
 // CHECK: zeMemFree

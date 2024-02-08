@@ -72,7 +72,7 @@ public:
                  sycl::queue q = syclcompat::get_default_queue())
       : grid_{grid}, threads_{threads}, q_{q},
         skip_{should_skip<T>(q.get_device())} {
-    data_ = (T *)syclcompat::malloc(sizeof(T));
+    data_ = (T *)syclcompat::malloc(sizeof(T), q_);
   };
   ~AtomicLauncher() { syclcompat::free(data_); }
   template <typename... Args>
@@ -80,10 +80,10 @@ public:
     if (skip_)
       return;
 
-    syclcompat::memcpy(data_, &init_val, sizeof(T));
-    syclcompat::launch<F>(grid_, threads_, data_, args...);
+    syclcompat::memcpy(data_, &init_val, sizeof(T), q_);
+    syclcompat::launch<F>(grid_, threads_, q_, data_, args...);
     T result_val;
-    syclcompat::memcpy(&result_val, data_, sizeof(T));
+    syclcompat::memcpy(&result_val, data_, sizeof(T), q_);
     syclcompat::wait();
     assert(result_val == expected_result);
   }

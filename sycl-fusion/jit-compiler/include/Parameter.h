@@ -9,9 +9,10 @@
 #ifndef SYCL_FUSION_JIT_COMPILER_PARAMETER_H
 #define SYCL_FUSION_JIT_COMPILER_PARAMETER_H
 
+#include "DynArray.h"
+
+#include <algorithm>
 #include <cstdint>
-#include <string>
-#include <vector>
 
 namespace jit_compiler {
 ///
@@ -58,8 +59,6 @@ struct ParameterIdentity {
   }
 };
 
-using ParamIdentList = std::vector<ParameterIdentity>;
-
 ///
 /// Express how a parameter can be lowered using promotion to local or global
 /// memory.
@@ -78,15 +77,17 @@ struct ParameterInternalization {
   Parameter Param;
   Internalization Intern;
   std::size_t LocalSize;
+  std::size_t ElemSize;
   ParameterInternalization() = default;
   ParameterInternalization(const Parameter &Param, Internalization Intern,
-                           std::size_t LocalSize)
-      : Param{Param}, Intern{Intern}, LocalSize{LocalSize} {}
+                           std::size_t LocalSize, std::size_t ElemSize)
+      : Param{Param}, Intern{Intern}, LocalSize{LocalSize}, ElemSize(ElemSize) {
+  }
 
   friend bool operator==(const ParameterInternalization &LHS,
                          const ParameterInternalization &RHS) noexcept {
-    return LHS.LocalSize == RHS.LocalSize && LHS.Intern == RHS.Intern &&
-           LHS.Param == RHS.Param;
+    return LHS.LocalSize == RHS.LocalSize && LHS.ElemSize == RHS.ElemSize &&
+           LHS.Intern == RHS.Intern && LHS.Param == RHS.Param;
   }
 
   friend bool operator!=(const ParameterInternalization &LHS,
@@ -101,10 +102,13 @@ struct ParameterInternalization {
 /// Client of the API owns the data held by `ValPtr`.
 struct JITConstant {
   Parameter Param;
-  std::string Value;
+  DynArray<char> Value;
   JITConstant() = default;
   JITConstant(const Parameter &Parameter, void *Ptr, size_t Size)
-      : Param{Parameter}, Value{reinterpret_cast<const char *>(Ptr), Size} {}
+      : Param{Parameter}, Value{Size} {
+    auto *CPtr = reinterpret_cast<const char *>(Ptr);
+    std::copy(CPtr, CPtr + Size, Value.begin());
+  }
 
   friend bool operator==(const JITConstant &LHS,
                          const JITConstant &RHS) noexcept {

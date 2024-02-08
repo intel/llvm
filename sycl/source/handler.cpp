@@ -111,9 +111,10 @@ bool handler::isStateExplicitKernelBundle() const {
 std::shared_ptr<detail::kernel_bundle_impl>
 handler::getOrInsertHandlerKernelBundle(bool Insert) const {
   if (!MImpl->MKernelBundle && Insert) {
-    MImpl->MKernelBundle =
-        detail::getSyclObjImpl(get_kernel_bundle<bundle_state::input>(
-            MQueue->get_context(), {MQueue->get_device()}, {}));
+    auto Ctx = MGraph ? MGraph->getContext() : MQueue->get_context();
+    auto Dev = MGraph ? MGraph->getDevice() : MQueue->get_device();
+    MImpl->MKernelBundle = detail::getSyclObjImpl(
+        get_kernel_bundle<bundle_state::input>(Ctx, {Dev}, {}));
   }
   return MImpl->MKernelBundle;
 }
@@ -179,10 +180,10 @@ event handler::finalize() {
       // Make sure implicit non-interop kernel bundles have the kernel
       if (!KernelBundleImpPtr->isInterop() &&
           !MImpl->isStateExplicitKernelBundle()) {
+        auto Dev = MGraph ? MGraph->getDevice() : MQueue->get_device();
         kernel_id KernelID =
             detail::ProgramManager::getInstance().getSYCLKernelID(MKernelName);
-        bool KernelInserted =
-            KernelBundleImpPtr->add_kernel(KernelID, MQueue->get_device());
+        bool KernelInserted = KernelBundleImpPtr->add_kernel(KernelID, Dev);
         // If kernel was not inserted and the bundle is in input mode we try
         // building it and trying to find the kernel in executable mode
         if (!KernelInserted &&
@@ -194,8 +195,7 @@ event handler::finalize() {
               build(KernelBundle);
           KernelBundleImpPtr = detail::getSyclObjImpl(ExecKernelBundle);
           setHandlerKernelBundle(KernelBundleImpPtr);
-          KernelInserted =
-              KernelBundleImpPtr->add_kernel(KernelID, MQueue->get_device());
+          KernelInserted = KernelBundleImpPtr->add_kernel(KernelID, Dev);
         }
         // If the kernel was not found in executable mode we throw an exception
         if (!KernelInserted)
@@ -217,6 +217,7 @@ event handler::finalize() {
         // Nothing to do
         break;
       case bundle_state::object:
+      case bundle_state::ext_oneapi_source:
         assert(0 && "Expected that the bundle is either in input or executable "
                     "states.");
         break;
@@ -242,10 +243,11 @@ event handler::finalize() {
       auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
           StreamID, MKernel, MCodeLoc, MKernelName, MQueue, MNDRDesc,
           KernelBundleImpPtr, MArgs);
-#endif
-
       auto EnqueueKernel = [&, CmdTraceEvent = CmdTraceEvent,
                             InstanceID = InstanceID]() {
+#else
+      auto EnqueueKernel = [&]() {
+#endif
         // 'Result' for single point of return
         pi_int32 Result = PI_ERROR_INVALID_VALUE;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -277,6 +279,12 @@ event handler::finalize() {
           }
         }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+        // Emit signal only when event is created
+        if (NewEvent != nullptr) {
+          detail::emitInstrumentationGeneral(
+              StreamID, InstanceID, CmdTraceEvent, xpti::trace_signal,
+              static_cast<const void *>(NewEvent->getHandleRef()));
+        }
         detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
                                            xpti::trace_task_end, nullptr);
 #endif
@@ -298,6 +306,7 @@ event handler::finalize() {
                               PI_ERROR_INVALID_OPERATION);
       } else {
         NewEvent = std::make_shared<detail::event_impl>(MQueue);
+        NewEvent->setWorkerQueue(MQueue);
         NewEvent->setContextImpl(MQueue->getContextImplPtr());
         NewEvent->setStateIncomplete();
         NewEvent->setSubmissionTime();
@@ -375,11 +384,14 @@ event handler::finalize() {
         MPattern[0], MDstPtr, MImpl->MDstPitch, MImpl->MWidth, MImpl->MHeight,
         std::move(CGData), MCodeLoc));
     break;
-  case detail::CG::CodeplayHostTask:
+  case detail::CG::CodeplayHostTask: {
+    auto context = MGraph ? detail::getSyclObjImpl(MGraph->getContext())
+                          : MQueue->getContextImplPtr();
     CommandGroup.reset(new detail::CGHostTask(
-        std::move(MHostTask), MQueue, MQueue->getContextImplPtr(),
-        std::move(MArgs), std::move(CGData), MCGType, MCodeLoc));
+        std::move(MHostTask), MQueue, context, std::move(MArgs),
+        std::move(CGData), MCGType, MCodeLoc));
     break;
+  }
   case detail::CG::Barrier:
   case detail::CG::BarrierWaitlist: {
     if (auto GraphImpl = getCommandGraph(); GraphImpl != nullptr) {
@@ -387,6 +399,14 @@ event handler::finalize() {
       // nodes/events of the graph
       if (MEventsWaitWithBarrier.size() == 0) {
         MEventsWaitWithBarrier = GraphImpl->getExitNodesEvents();
+        // Graph-wide barriers take precedence over previous one.
+        // We therefore remove the previous ones from ExtraDependencies list.
+        // The current barrier is then added to this list in the graph_impl.
+        std::vector<detail::EventImplPtr> EventsBarriers =
+            GraphImpl->removeBarriersFromExtraDependencies();
+        MEventsWaitWithBarrier.insert(std::end(MEventsWaitWithBarrier),
+                                      std::begin(EventsBarriers),
+                                      std::end(EventsBarriers));
       }
       CGData.MEvents.insert(std::end(CGData.MEvents),
                             std::begin(MEventsWaitWithBarrier),
@@ -834,7 +854,7 @@ void handler::verifyUsedKernelBundle(const std::string &KernelName) {
 
   kernel_id KernelID = detail::get_kernel_id_impl(KernelName);
   device Dev =
-      (MGraph) ? MGraph->getDevice() : detail::getDeviceFromHandler(*this);
+      MGraph ? MGraph->getDevice() : detail::getDeviceFromHandler(*this);
   if (!UsedKernelBundleImplPtr->has_kernel(KernelID, Dev))
     throw sycl::exception(
         make_error_code(errc::kernel_not_supported),
@@ -1436,6 +1456,13 @@ std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
     return PiResult;
   }
   return {};
+}
+
+std::tuple<std::array<size_t, 3>, bool> handler::getMaxWorkGroups_v2() {
+  auto ImmRess = getMaxWorkGroups();
+  if (ImmRess)
+    return {*ImmRess, true};
+  return {std::array<size_t, 3>{0, 0, 0}, false};
 }
 
 } // namespace _V1

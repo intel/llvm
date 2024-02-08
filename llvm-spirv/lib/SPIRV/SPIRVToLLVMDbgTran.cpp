@@ -702,13 +702,19 @@ SPIRVToLLVMDbgTran::transTypeMemberOpenCL(const SPIRVExtInst *DebugInst) {
   }
   if (SPIRVFlags & SPIRVDebug::FlagIsStaticMember)
     Flags |= DINode::FlagStaticMember;
-  if (Flags & DINode::FlagStaticMember && Ops.size() > MinOperandCount) {
-    SPIRVValue *ConstVal = BM->get<SPIRVValue>(Ops[ValueIdx]);
-    assert(isConstantOpCode(ConstVal->getOpCode()) &&
-           "Static member must be a constant");
-    llvm::Value *Val = SPIRVReader->transValue(ConstVal, nullptr, nullptr);
+  if (Flags & DINode::FlagStaticMember) {
+    llvm::Value *Val = nullptr;
+    if (Ops.size() > MinOperandCount) {
+      SPIRVValue *ConstVal = BM->get<SPIRVValue>(Ops[ValueIdx]);
+      assert(isConstantOpCode(ConstVal->getOpCode()) &&
+             "Static member must be a constant");
+      Val = SPIRVReader->transValue(ConstVal, nullptr, nullptr);
+    }
+    auto Tag = M->getDwarfVersion() >= 5 ? llvm::dwarf::DW_TAG_variable
+                                         : llvm::dwarf::DW_TAG_member;
     return getDIBuilder(DebugInst).createStaticMemberType(
-        Scope, Name, File, LineNo, BaseType, Flags, cast<llvm::Constant>(Val));
+        Scope, Name, File, LineNo, BaseType, Flags,
+        cast_or_null<llvm::Constant>(Val), Tag);
   }
   uint64_t Size = BM->get<SPIRVConstant>(Ops[SizeIdx])->getZExtIntValue();
   uint64_t Alignment = 0;
@@ -752,13 +758,19 @@ SPIRVToLLVMDbgTran::transTypeMemberNonSemantic(const SPIRVExtInst *DebugInst,
   if (SPIRVFlags & SPIRVDebug::FlagBitField)
     Flags |= DINode::FlagBitField;
 
-  if (Flags & DINode::FlagStaticMember && Ops.size() > MinOperandCount) {
-    SPIRVValue *ConstVal = BM->get<SPIRVValue>(Ops[ValueIdx]);
-    assert(isConstantOpCode(ConstVal->getOpCode()) &&
-           "Static member must be a constant");
-    llvm::Value *Val = SPIRVReader->transValue(ConstVal, nullptr, nullptr);
+  if (Flags & DINode::FlagStaticMember) {
+    llvm::Value *Val = nullptr;
+    if (Ops.size() > MinOperandCount) {
+      SPIRVValue *ConstVal = BM->get<SPIRVValue>(Ops[ValueIdx]);
+      assert(isConstantOpCode(ConstVal->getOpCode()) &&
+             "Static member must be a constant");
+      Val = SPIRVReader->transValue(ConstVal, nullptr, nullptr);
+    }
+    auto Tag = M->getDwarfVersion() >= 5 ? llvm::dwarf::DW_TAG_variable
+                                         : llvm::dwarf::DW_TAG_member;
     return getDIBuilder(DebugInst).createStaticMemberType(
-        Scope, Name, File, LineNo, BaseType, Flags, cast<llvm::Constant>(Val));
+        Scope, Name, File, LineNo, BaseType, Flags,
+        cast_or_null<llvm::Constant>(Val), Tag);
   }
   uint64_t Size = BM->get<SPIRVConstant>(Ops[SizeIdx])->getZExtIntValue();
   uint64_t Alignment = 0;
@@ -800,7 +812,7 @@ DINode *SPIRVToLLVMDbgTran::transTypeEnum(const SPIRVExtInst *DebugInst) {
       UnderlyingType = transDebugInst<DIType>(static_cast<SPIRVExtInst *>(E));
     return getDIBuilder(DebugInst).createEnumerationType(
         Scope, Name, File, LineNo, SizeInBits, AlignInBits, Enumerators,
-        UnderlyingType, "", UnderlyingType);
+        UnderlyingType, 0, "", UnderlyingType);
   }
 }
 
@@ -1116,6 +1128,15 @@ MDNode *SPIRVToLLVMDbgTran::transGlobalVariable(const SPIRVExtInst *DebugInst) {
     StaticMemberDecl = transDebugInst<DIDerivedType>(
         BM->get<SPIRVExtInst>(Ops[StaticMemberDeclarationIdx]));
   }
+
+  DIExpression *DIExpr = nullptr;
+  // Check if Ops[VariableIdx] is not being used to hold a variable operand.
+  // Instead it is being used to hold an Expression that holds the initial
+  // value of the GlobalVariable.
+  if (getDbgInst<SPIRVDebug::Expression>(Ops[VariableIdx]))
+    DIExpr =
+        transDebugInst<DIExpression>(BM->get<SPIRVExtInst>(Ops[VariableIdx]));
+
   SPIRVWord Flags =
       getConstantValueOrLiteral(Ops, FlagsIdx, DebugInst->getExtSetKind());
   bool IsLocal = Flags & SPIRVDebug::FlagIsLocal;
@@ -1124,7 +1145,7 @@ MDNode *SPIRVToLLVMDbgTran::transGlobalVariable(const SPIRVExtInst *DebugInst) {
   if (IsDefinition) {
     VarDecl = getDIBuilder(DebugInst).createGlobalVariableExpression(
         Parent, Name, LinkageName, File, LineNo, Ty, IsLocal, IsDefinition,
-        nullptr, StaticMemberDecl);
+        DIExpr, StaticMemberDecl);
   } else {
     VarDecl = getDIBuilder(DebugInst).createTempGlobalVariableFwdDecl(
         Parent, Name, LinkageName, File, LineNo, Ty, IsLocal, StaticMemberDecl);
@@ -1133,15 +1154,20 @@ MDNode *SPIRVToLLVMDbgTran::transGlobalVariable(const SPIRVExtInst *DebugInst) {
     llvm::TempMDNode TMP(VarDecl);
     VarDecl = getDIBuilder(DebugInst).replaceTemporary(std::move(TMP), VarDecl);
   }
-  // If the variable has no initializer Ops[VariableIdx] is OpDebugInfoNone.
-  // Otherwise Ops[VariableIdx] may be a global variable or a constant(C++
-  // static const).
-  if (VarDecl && !getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[VariableIdx])) {
-    SPIRVValue *V = BM->get<SPIRVValue>(Ops[VariableIdx]);
-    Value *Var = SPIRVReader->transValue(V, nullptr, nullptr);
-    llvm::GlobalVariable *GV = dyn_cast_or_null<llvm::GlobalVariable>(Var);
-    if (GV && !GV->hasMetadata("dbg"))
-      GV->addMetadata("dbg", *VarDecl);
+
+  // Ops[VariableIdx] was not used to hold an Expression with the initial value
+  // for the GlobalVariable
+  if (!DIExpr) {
+    // If the variable has no initializer Ops[VariableIdx] is OpDebugInfoNone.
+    // Otherwise Ops[VariableIdx] may be a global variable or a constant(C++
+    // static const).
+    if (VarDecl && !getDbgInst<SPIRVDebug::DebugInfoNone>(Ops[VariableIdx])) {
+      SPIRVValue *V = BM->get<SPIRVValue>(Ops[VariableIdx]);
+      Value *Var = SPIRVReader->transValue(V, nullptr, nullptr);
+      llvm::GlobalVariable *GV = dyn_cast_or_null<llvm::GlobalVariable>(Var);
+      if (GV && !GV->hasMetadata("dbg"))
+        GV->addMetadata("dbg", *VarDecl);
+    }
   }
   return VarDecl;
 }
