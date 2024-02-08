@@ -6,6 +6,7 @@
 // RUN: | FileCheck %s
 // RUN: env ZE_DEBUG=-6 SYCL_PI_TRACE=-1 %{run} %t.out \
 // RUN: | FileCheck %s --check-prefixes=CHECK-CACHE
+// REQUIRES: aspect-usm_shared_allocations
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
@@ -74,15 +75,16 @@ int main() {
   // CHECK-CACHE: piKernelRelease
   // CHECK-CACHE: piProgramRelease
   // CHECK-CACHE: piEventsWait
-  sycl::buffer<int> p_buf{sycl::range{1}};
+  auto *p = malloc_shared<int>(1, q);
   for (int i = 0; i < 2; ++i)
     q.submit([&](handler &cgh) {
-       sycl::accessor p{p_buf, cgh};
        cgh.set_specialization_constant<spec_id>(i);
        cgh.parallel_for(1, [=](auto, kernel_handler kh) {
-         p[0] = kh.get_specialization_constant<spec_id>();
+         *p = kh.get_specialization_constant<spec_id>();
        });
      }).wait();
+
+  free(p, q);
 }
 
 // (Program cache releases)
