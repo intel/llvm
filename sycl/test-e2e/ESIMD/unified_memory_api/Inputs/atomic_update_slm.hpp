@@ -612,9 +612,14 @@ bool test_fp_types(queue q) {
 
   if constexpr (Features == TestFeatures::DG2 ||
                 Features == TestFeatures::PVC) {
-    if (q.get_device().has(sycl::aspect::atomic64) &&
-        q.get_device().has(sycl::aspect::fp64)) {
-      passed &= run_test<UseAcc, double, N, Op, UseMask>(q);
+    // TODO: fmin/fmax/fcmpxchg for double requires a newer GPU driver.
+    if constexpr (!std::is_same_v<Op<double, N>, ImplLSCFmax<double, N>> &&
+                  !std::is_same_v<Op<double, N>, ImplLSCFmin<double, N>> &&
+                  !std::is_same_v<Op<double, N>, ImplLSCFcmpwr<double, N>>) {
+      if (q.get_device().has(sycl::aspect::atomic64) &&
+          q.get_device().has(sycl::aspect::fp64)) {
+        passed &= run_test<UseAcc, double, N, Op, UseMask>(q);
+      }
     }
   }
   return passed;
@@ -628,6 +633,7 @@ bool test_int_types_and_sizes(queue q) {
   passed &= test_int_types<2, Op, UseMask, Features, UseAcc, SignMask>(q);
   passed &= test_int_types<4, Op, UseMask, Features, UseAcc, SignMask>(q);
   passed &= test_int_types<8, Op, UseMask, Features, UseAcc, SignMask>(q);
+  // TODO: N=16 and N=32 does not pass on Gen12 with mask due to older driver.
   if (UseMask && Features == TestFeatures::Generic &&
       esimd_test::isGPUDriverGE(q, esimd_test::GPUDriverOS::LinuxAndWindows,
                                 "26918", "101.4953", false)) {
@@ -639,8 +645,13 @@ bool test_int_types_and_sizes(queue q) {
   if constexpr (Features == TestFeatures::DG2 ||
                 Features == TestFeatures::PVC) {
     passed &= test_int_types<64, Op, UseMask, Features, UseAcc, SignMask>(q);
+    // non power of two values are supported only in newer driver.
+    // TODO: Enable this when the new driver reaches test infrastructure
+    // (v27556).
+#if 0
     passed &= test_int_types<12, Op, UseMask, Features, UseAcc, SignMask>(q);
     passed &= test_int_types<33, Op, UseMask, Features, UseAcc, SignMask>(q);
+#endif
   }
 
   return passed;
@@ -661,8 +672,13 @@ bool test_fp_types_and_sizes(queue q) {
   if constexpr (Features == TestFeatures::DG2 ||
                 Features == TestFeatures::PVC) {
     passed &= test_fp_types<64, Op, UseMask, Features, UseAcc>(q);
+    // non power of two values are supported only in newer driver.
+    // TODO: Enable this when the new driver reaches test infrastructure
+    // (v27556).
+#if 0
     passed &= test_fp_types<33, Op, UseMask, Features, UseAcc>(q);
     passed &= test_fp_types<65, Op, UseMask, Features, UseAcc>(q);
+#endif
   }
   return passed;
 }
