@@ -7,11 +7,6 @@
 
 using namespace sycl;
 
-template <typename T>
-using shared_allocator = sycl::usm_allocator<T, sycl::usm::alloc::shared>;
-
-template <typename T> using shared_vector = std::vector<T, shared_allocator<T>>;
-
 template <typename T> bool are_bitwise_equal(T lhs, T rhs) {
   constexpr size_t size{sizeof(T)};
 
@@ -33,33 +28,34 @@ template <typename T> bool test(sycl::queue &queue) {
 
   static const T inexact = static_cast<T>(0.1);
 
-  shared_vector<T> result_source{NumElems, shared_allocator<T>{queue}};
-  shared_vector<T> input{NumElems, shared_allocator<T>{queue}};
+  std::vector<T> result_source_vec{NumElems};
+  std::vector<T> input_vec{NumElems};
 
   for (size_t i = 0; i < NumElems; ++i) {
-    input[i] = inexact * i;
+    input_vec[i] = inexact * i;
   }
-
-  queue.submit([&](sycl::handler &cgh) {
-    auto out_source = result_source.data();
-    auto in = input.data();
-
-    cgh.single_task<>([=]() {
-      for (size_t i = 0; i < NumElems; ++i) {
-        auto source = in[i];
-        ++source;
-        out_source[i] = source;
-      }
+  {
+    sycl::buffer<T> result_source_buf{result_source_vec};
+    sycl::buffer<T> input_buf{input_vec};
+    queue.submit([&](sycl::handler &cgh) {
+      sycl::accessor out_source{result_source_buf, cgh};
+      sycl::accessor in{input_buf, cgh};
+      cgh.single_task<>([=]() {
+        for (size_t i = 0; i < NumElems; ++i) {
+          auto source = in[i];
+          ++source;
+          out_source[i] = source;
+        }
+      });
     });
-  });
-  queue.wait_and_throw();
-
+    queue.wait_and_throw();
+  } // buffers go out of scope here and write back to the vectors
   for (size_t i = 0; i < NumElems; ++i) {
-    T expected_value = input[i] + 1;
+    T expected_value = input_vec[i] + 1;
 
-    if (!are_bitwise_equal(expected_value, result_source[i])) {
+    if (!are_bitwise_equal(expected_value, result_source_vec[i])) {
       pass = false;
-      std::cout << "Sample failed retrieved value: " << result_source[i]
+      std::cout << "Sample failed retrieved value: " << result_source_vec[i]
                 << ", but expected: " << expected_value << ", at index: " << i
                 << std::endl;
     }

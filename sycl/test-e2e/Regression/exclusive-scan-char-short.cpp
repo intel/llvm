@@ -16,27 +16,24 @@ int n_fail = 0;
 template <typename T, typename OpT> void test() {
   auto op = OpT();
   auto init = sycl::known_identity_v<decltype(op), T>;
-  T p_val = 0;
-  sycl::buffer<T> p_buf{&p_val, sycl::range{1}};
-  sycl::accessor p{p_buf};
+  auto *p = malloc_shared<T>(1, q);
+  *p = 0;
   T ref;
-  emu::exclusive_scan(p.begin(), p.end(), &ref, init, op);
+  emu::exclusive_scan(p, p + 1, &ref, init, op);
   range r(1);
-  q.submit([&](sycl::handler &h) {
-    h.require(p);
-    h.parallel_for(nd_range(r, r), [=](nd_item<1> it) {
-      auto g = it.get_group();
-      p[0] = exclusive_scan_over_group(g, p[0], op);
-    });
-  });
-  sycl::host_accessor p_host{p_buf};
-  if (p_host[0] != ref) {
+  q.parallel_for(nd_range(r, r), [=](nd_item<1> it) {
+     auto g = it.get_group();
+     *p = exclusive_scan_over_group(g, *p, op);
+   }).wait();
+
+  if (*p != ref) {
     std::cout << "test " << cur_test << " fail\n";
-    std::cout << "got:      " << int(p_host[0]) << "\n";
+    std::cout << "got:      " << int(*p) << "\n";
     std::cout << "expected: " << int(ref) << "\n\n";
     ++n_fail;
   }
   ++cur_test;
+  free(p, q);
 }
 
 int main() {
