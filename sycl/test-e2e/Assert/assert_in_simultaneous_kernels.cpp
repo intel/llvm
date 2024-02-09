@@ -2,7 +2,7 @@
 // FIXME: Flaky on HIP and cuda
 // UNSUPPORTED: hip || cuda
 // RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out %threads_lib
-//
+// TODO: Remove unsupported after fixing https://github.com/intel/llvm/issues/12683
 // UNSUPPORTED: accelerator
 //
 // FIXME: Remove XFAIL one intel/llvm#11364 is resolved

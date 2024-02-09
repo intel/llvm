@@ -1,7 +1,7 @@
 // UNSUPPORTED: hip
 // RUN: %{build} -fno-builtin -o %t.out
 // RUN: %{run} %t.out
-//
+// TODO: Remove unsupported after fixing https://github.com/intel/llvm/issues/12683
 // UNSUPPORTED: accelerator
 //
 // RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t.out
