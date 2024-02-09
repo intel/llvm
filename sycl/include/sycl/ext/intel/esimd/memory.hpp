@@ -724,11 +724,20 @@ scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
 
   // Use LSC lowering if L1/L2 or VS > 1.
   if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
-                VS > 1 || !__ESIMD_DNS::isPowerOf2(N, 32)) {
+                VS > 1 ||
+                (!__ESIMD_DNS::isPowerOf2(N, 32) &&
+                 !detail::isMaskedGatherScatterLLVMAvailable())) {
     static_assert(VS == 1 || sizeof(T) >= 4,
                   "VS > 1 is supprted only for 4- and 8-byte elements");
     return detail::scatter_impl<T, VS, detail::lsc_data_size::default_size,
                                 L1Hint, L2Hint>(p, byte_offsets, vals, mask);
+  } else if constexpr (detail::isMaskedGatherScatterLLVMAvailable()) {
+    simd<uint64_t, N> Addrs(reinterpret_cast<uint64_t>(p));
+    Addrs = Addrs + convert<uint64_t>(byte_offsets);
+    using MsgT = detail::__raw_t<T>;
+    __esimd_scatter_st<MsgT, N, Alignment>(
+        sycl::bit_cast<__ESIMD_DNS::vector_type_t<MsgT, N>>(vals.data()),
+        Addrs.data(), mask.data());
   } else {
     using Tx = detail::__raw_t<T>;
     simd<uint64_t, N> byte_offsets_i = convert<uint64_t>(byte_offsets);
@@ -4227,9 +4236,15 @@ slm_scatter(simd<uint32_t, N / VS> byte_offsets, simd<T, N> vals,
                 "slm_scatter() requires at least element-size alignment");
 
   // Use LSC lowering if VS > 1.
-  if constexpr (VS > 1 || !(detail::isPowerOf2(N, 32) && sizeof(T) <= 4)) {
+  if constexpr (VS > 1 || (!(detail::isPowerOf2(N, 32) && sizeof(T) <= 4) &&
+                           !detail::isMaskedGatherScatterLLVMAvailable())) {
     __ESIMD_DNS::slm_scatter_impl<T, VS, detail::lsc_data_size::default_size>(
         byte_offsets, vals, mask);
+  } else if constexpr (detail::isMaskedGatherScatterLLVMAvailable()) {
+    using MsgT = detail::__raw_t<T>;
+    __esimd_slm_scatter_st<MsgT, N, Alignment>(
+        sycl::bit_cast<__ESIMD_DNS::vector_type_t<MsgT, N>>(vals.data()),
+        byte_offsets.data(), mask.data());
   } else {
     detail::LocalAccessorMarker acc;
     detail::scatter_impl<T, N>(acc, vals, byte_offsets, 0, mask);

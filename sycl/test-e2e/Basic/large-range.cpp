@@ -26,15 +26,18 @@ void check_sum(std::string_view desc, const ContainerT &data, size_t N) {
 template <typename RangeT>
 void test_regular(std::string_view desc, queue &q, size_t B, RangeT range) {
   auto N = range.size();
-  std::vector accumulators_v(B, 0, usm_allocator<int, usm::alloc::shared>(q));
-  auto *accumulators = accumulators_v.data();
-
-  q.parallel_for(range, [=](auto it) {
-     atomic_ref<int, memory_order::relaxed, memory_scope::device> ref(
-         accumulators[it.get_linear_id() % B]);
-     ++ref;
-   }).wait();
-
+  std::vector accumulators_v(B, 0);
+  {
+    sycl::buffer accumulator_buf{accumulators_v};
+    q.submit([&](sycl::handler &h) {
+      sycl::accessor accumulators{accumulator_buf, h};
+      h.parallel_for(range, [=](auto it) {
+        atomic_ref<int, memory_order::relaxed, memory_scope::device> ref(
+            accumulators[it.get_linear_id() % B]);
+        ++ref;
+      });
+    });
+  } // destruction of accumulator_buf here writes back data to accumulators_v
   check_sum(desc, accumulators_v, N);
 }
 
@@ -42,18 +45,19 @@ template <typename RangeT>
 void test_spec_constant(std::string_view desc, queue &q, size_t B,
                         RangeT range) {
   auto N = range.size();
-  std::vector accumulators_v(B, 0, usm_allocator<int, usm::alloc::shared>(q));
-  auto *accumulators = accumulators_v.data();
-
-  q.submit([&](handler &cgh) {
-     cgh.set_specialization_constant<C>(2);
-     cgh.parallel_for(range, [=](auto it, kernel_handler h) {
-       atomic_ref<int, memory_order::relaxed, memory_scope::device> ref(
-           accumulators[it.get_linear_id() % B]);
-       ref += h.get_specialization_constant<C>();
-     });
-   }).wait();
-
+  std::vector accumulators_v(B, 0);
+  {
+    sycl::buffer accumulators_buf{accumulators_v};
+    q.submit([&](handler &cgh) {
+      sycl::accessor accumulators{accumulators_buf, cgh};
+      cgh.set_specialization_constant<C>(2);
+      cgh.parallel_for(range, [=](auto it, kernel_handler h) {
+        atomic_ref<int, memory_order::relaxed, memory_scope::device> ref(
+            accumulators[it.get_linear_id() % B]);
+        ref += h.get_specialization_constant<C>();
+      });
+    });
+  } // destruction of accumulators_buf here writes data back to accumulators_v
   check_sum(desc, accumulators_v, N * 2);
 }
 
