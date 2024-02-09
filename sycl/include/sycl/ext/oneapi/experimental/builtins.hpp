@@ -95,9 +95,9 @@ inline __SYCL_ALWAYS_INLINE std::enable_if_t<
     sycl::detail::is_svgenfloatf_v<T> || sycl::detail::is_svgenfloath_v<T>, T>
 tanh(T x) __NOEXC {
 #if defined(__NVPTX__)
-  using _ocl_T = sycl::detail::ConvertToOpenCLType_t<T>;
-  return sycl::detail::convertDataToType<_ocl_T, T>(
+  return sycl::detail::convertFromOpenCLTypeFor<T>(
       __clc_native_tanh(sycl::detail::convertToOpenCLType(x)));
+);
 #else
   return __sycl_std::__invoke_tanh<T>(x);
 #endif
@@ -145,8 +145,7 @@ inline __SYCL_ALWAYS_INLINE
     std::enable_if_t<sycl::detail::is_svgenfloath_v<T>, T>
     exp2(T x) __NOEXC {
 #if defined(__NVPTX__)
-  using _ocl_T = sycl::detail::ConvertToOpenCLType_t<T>;
-  return sycl::detail::convertDataToType<_ocl_T, T>(
+  return sycl::detail::convertFromOpenCLTypeFor<T>(
       __clc_native_exp2(sycl::detail::convertToOpenCLType(x)));
 #else
   return __sycl_std::__invoke_exp2<T>(x);
