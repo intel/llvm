@@ -192,24 +192,13 @@ device::get_info() const {
 #endif
 
 // Explicit override. Not fulfilled by #include device_traits.def below.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_EXPORT device
 device::get_info_internal<info::device::parent_device>() const {
-  // With ONEAPI_DEVICE_SELECTOR the impl.MRootDevice is preset and may be
-  // overridden (ie it may be nullptr on a sub-device) The PI of the sub-devices
-  // have parents, but we don't want to return them. They must pretend to be
-  // parentless root devices.
-  if (impl->isRootDevice())
-    throw invalid_object_error(
-        "No parent for device because it is not a subdevice",
-        PI_ERROR_INVALID_DEVICE);
-  else
-    return impl->template get_info<info::device::parent_device>();
-}
 #else
-template <>
 __SYCL_EXPORT device device::get_info<info::device::parent_device>() const {
+#endif
   // With ONEAPI_DEVICE_SELECTOR the impl.MRootDevice is preset and may be
   // overridden (ie it may be nullptr on a sub-device) The PI of the sub-devices
   // have parents, but we don't want to return them. They must pretend to be
@@ -221,15 +210,12 @@ __SYCL_EXPORT device device::get_info<info::device::parent_device>() const {
   else
     return impl->template get_info<info::device::parent_device>();
 }
-#endif
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 __SYCL_EXPORT std::vector<sycl::aspect>
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 device::get_info_internal<info::device::aspects>() const {
 #else
-template <>
-__SYCL_EXPORT std::vector<sycl::aspect>
 device::get_info<info::device::aspects>() const {
 #endif
   std::vector<sycl::aspect> DeviceAspects{
@@ -254,18 +240,18 @@ device::get_info<info::device::aspects>() const {
   return DeviceAspects;
 }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_EXPORT bool
 device::get_info_internal<info::device::image_support>() const {
 #else
-template <>
 __SYCL_EXPORT bool device::get_info<info::device::image_support>() const {
 #endif
   // Explicit specialization is needed due to the class of info handle. The
   // implementation is done in get_device_info_impl.
   return impl->template get_info<info::device::image_support>();
 }
+
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template __SYCL_EXPORT ReturnT                                               \

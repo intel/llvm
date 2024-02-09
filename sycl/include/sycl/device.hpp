@@ -237,6 +237,7 @@ public:
       detail::string_view PropertyName(typeid(Param).name());
       std::vector<detail::string> Info = get_device_info_vector(PropertyName);
       std::vector<std::string> Res;
+      Res.reserve(Info.size());
       for (detail::string &Str : Info) {
         Res.push_back(Str.c_str());
       }

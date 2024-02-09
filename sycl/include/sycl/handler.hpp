@@ -905,11 +905,7 @@ private:
       extractArgsAndReqsFromLambda(reinterpret_cast<char *>(KernelPtr),
                                    KI::getNumParams(), &KI::getParamDesc(0),
                                    KI::isESIMD());
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-      MKernelName = detail::string(KI::getName());
-#else
       MKernelName = KI::getName();
-#endif
     } else {
       // In case w/o the integration header it is necessary to process
       // accessors from the list(which are associated with this handler) as
