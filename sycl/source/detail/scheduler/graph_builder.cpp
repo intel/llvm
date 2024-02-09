@@ -967,7 +967,7 @@ Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
           continue;
         }
         // Handle event dependencies on any commands part of another active
-        // fusion.
+        // fusion by aborting it.
         if (EvDepCmd->getQueue() != Queue && isPartOfActiveFusion(EvDepCmd)) {
           printFusionWarning(
               "Aborting fusion because of event dependency from a "
