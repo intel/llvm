@@ -342,7 +342,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
     // handler rather than by-passing the scheduler.
     if (!MGraph.lock() &&
         areEventsSafeForSchedulerBypass(ExpandedDepEvents, MContext)) {
-      if (MHasDiscardEventsSupport) {
+      if (MSupportsDiscardingPiEvents) {
         MemOpFunc(MemOpArgs..., getPIEvents(ExpandedDepEvents),
                   /*PiEvent*/ nullptr, /*EventImplPtr*/ nullptr);
         return createDiscardedEvent();
