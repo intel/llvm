@@ -98,8 +98,6 @@ enum InternalDecoration {
   IDecInitModeINTEL = 6148,
   IDecImplementInCSRINTEL = 6149,
   IDecArgumentAttributeINTEL = 6409,
-  IDecCacheControlLoadINTEL = 6442,
-  IDecCacheControlStoreINTEL = 6443,
   IDecFuncParamKindINTEL = 9624,
   IDecFuncParamDescINTEL = 9625
 };
@@ -159,21 +157,6 @@ enum InternalJointMatrixCTI {
 enum InternalBuiltIn {
   IBuiltInSubDeviceIDINTEL = 6135,
   IBuiltInGlobalHWThreadIDINTEL = 6136,
-};
-
-enum class LoadCacheControlINTEL {
-  Uncached = 0,
-  Cached = 1,
-  Streaming = 2,
-  InvalidateAfterRead = 3,
-  ConstCached = 4
-};
-
-enum class StoreCacheControlINTEL {
-  Uncached = 0,
-  WriteThrough = 1,
-  WriteBack = 2,
-  Streaming = 3
 };
 
 #define _SPIRV_OP(x, y) constexpr x x##y = static_cast<x>(I##x##y);
@@ -296,10 +279,6 @@ constexpr Decoration DecorationFuncParamKindINTEL =
     static_cast<Decoration>(IDecFuncParamKindINTEL);
 constexpr Decoration DecorationFuncParamDescINTEL =
     static_cast<Decoration>(IDecFuncParamDescINTEL);
-constexpr Decoration DecorationCacheControlLoadINTEL =
-    static_cast<Decoration>(IDecCacheControlLoadINTEL);
-constexpr Decoration DecorationCacheControlStoreINTEL =
-    static_cast<Decoration>(IDecCacheControlStoreINTEL);
 
 constexpr Capability CapabilityFastCompositeINTEL =
     static_cast<Capability>(ICapFastCompositeINTEL);
