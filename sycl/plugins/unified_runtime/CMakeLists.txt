@@ -57,14 +57,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ceba4a5f8952c7045c7818fb3bef4b439aa47df3
-  # Merge: b76d9078 81b75993
+  # commit 9babc4d092a92c1036791d26ef328e5eeaf19803
+  # Merge: 3be8f205 90498ec5
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Feb 7 14:55:22 2024 +0000
-  #    Merge pull request #1320 from aarongreig/aaron/hotfix1192
-  #    Fix CI regression by generating missing bits in nullddi and ldrddi
-  set(UNIFIED_RUNTIME_TAG ceba4a5f8952c7045c7818fb3bef4b439aa47df3)
-
+  # Date:   Thu Feb 8 15:44:54 2024 +0000
+  #     Merge pull request #1321 from pbalcer/adapter-compute-constructor
+  #     [L0] move adapter init into its constructor from urAdapterGet
+  set(UNIFIED_RUNTIME_TAG 9babc4d092a92c1036791d26ef328e5eeaf19803)
+  
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
   endif()

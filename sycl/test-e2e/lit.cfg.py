@@ -669,7 +669,7 @@ for sycl_device in config.sycl_devices:
     features.update(sg_size_features)
 
     be, dev = sycl_device.split(":")
-    features.add(dev.replace("acc", "accelerator"))
+    features.add(dev.replace("fpga", "accelerator"))
     # Use short names for LIT rules.
     features.add(be)
 
