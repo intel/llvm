@@ -97,7 +97,6 @@ tanh(T x) __NOEXC {
 #if defined(__NVPTX__)
   return sycl::detail::convertFromOpenCLTypeFor<T>(
       __clc_native_tanh(sycl::detail::convertToOpenCLType(x)));
-);
 #else
   return __sycl_std::__invoke_tanh<T>(x);
 #endif
