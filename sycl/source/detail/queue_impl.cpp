@@ -354,7 +354,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
         getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
 
     if (areEventsSafeForSchedulerBypass(ExpandedDepEvents, MContext)) {
-      if (MHasDiscardEventsSupport) {
+      if (MSupportsDiscardingPiEvents) {
         MemOpFunc(MemOpArgs..., getPIEvents(ExpandedDepEvents),
                   /*PiEvent*/ nullptr, /*EventImplPtr*/ nullptr);
         return createDiscardedEvent();

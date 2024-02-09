@@ -1,5 +1,5 @@
 // UNSUPPORTED: cuda, hip
-// REQUIRES: gpu,linux
+// REQUIRES: gpu,linux,sg-16
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -29,7 +29,7 @@ struct KernelFunctor : WithInputBuffers<T, 2>, WithOutputBuffer<T> {
             CGH);
     CGH.parallel_for<KernelFunctor<T>>(
         sycl::range<1>{this->getOutputBufferSize()},
-        [=](sycl::id<1> wiID) [[intel::reqd_sub_group_size(16)]] {
+        [=](sycl::id<1> wiID) [[sycl::reqd_sub_group_size(16)]] {
 #if defined(__SYCL_DEVICE_ONLY__)
           asm volatile("{\n"
                        ".decl P1 v_type=P num_elts=16\n"
@@ -67,7 +67,7 @@ int main() {
   }
 
   KernelFunctor<> Functor(InputA, InputB);
-  if (!launchInlineASMTest(Functor))
+  if (!launchInlineASMTest(Functor, {16}))
     return 0;
 
   auto &C = Functor.getOutputBufferData();

@@ -137,7 +137,14 @@ auto builtin_marray_impl(FuncTy F, const Ts &...x) {
   marray<ret_elem_type, T::size()> Res;
   constexpr auto N = T::size();
   for (size_t I = 0; I < N / 2; ++I) {
-    auto PartialRes = F(to_vec2(x, I * 2)...);
+    auto PartialRes = [&]() {
+      using elem_ty = get_elem_type_t<T>;
+      if constexpr (std::is_integral_v<elem_ty>)
+        return F(to_vec2(x, I * 2)
+                     .template as<vec<get_fixed_sized_int_t<elem_ty>, 2>>()...);
+      else
+        return F(to_vec2(x, I * 2)...);
+    }();
     std::memcpy(&Res[I * 2], &PartialRes, sizeof(decltype(PartialRes)));
   }
   if (N % 2)
@@ -176,28 +183,12 @@ auto builtin_delegate_to_scalar(FuncTy F, const Ts &...x) {
 }
 
 template <typename T>
-struct any_elem_type
-    : std::bool_constant<check_type_in_v<
-          get_elem_type_t<T>, float, double, half, char, signed char, short,
-          int, long, long long, unsigned char, unsigned short, unsigned int,
-          unsigned long, unsigned long long>> {};
-template <typename T>
 struct fp_elem_type
     : std::bool_constant<
           check_type_in_v<get_elem_type_t<T>, float, double, half>> {};
 template <typename T>
 struct float_elem_type
     : std::bool_constant<check_type_in_v<get_elem_type_t<T>, float>> {};
-template <typename T>
-struct integer_elem_type
-    : std::bool_constant<
-          check_type_in_v<get_elem_type_t<T>, char, signed char, short, int,
-                          long, long long, unsigned char, unsigned short,
-                          unsigned int, unsigned long, unsigned long long>> {};
-template <typename T>
-struct suint32_elem_type
-    : std::bool_constant<
-          check_type_in_v<get_elem_type_t<T>, int32_t, uint32_t>> {};
 
 template <typename... Ts>
 struct same_basic_shape : std::bool_constant<builtin_same_shape_v<Ts...>> {};
@@ -244,13 +235,6 @@ struct builtin_enable
                               SHAPE_CHECKER, EXTRA_CONDITIONS, Ts...>::type;   \
   }
 } // namespace detail
-
-BUILTIN_CREATE_ENABLER(builtin_enable_generic, default_ret_type, any_elem_type,
-                       any_shape, same_elem_type)
-BUILTIN_CREATE_ENABLER(builtin_enable_generic_scalar, default_ret_type,
-                       any_elem_type, scalar_only, same_elem_type)
-BUILTIN_CREATE_ENABLER(builtin_enable_generic_non_scalar, default_ret_type,
-                       any_elem_type, non_scalar_only, same_elem_type)
 } // namespace _V1
 } // namespace sycl
 

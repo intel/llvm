@@ -76,7 +76,8 @@ namespace sycl {
 inline namespace _V1 {
 #define BUILTIN_GENINT(NUM_ARGS, NAME, IMPL)                                   \
   HOST_IMPL(NAME, IMPL)                                                        \
-  EXPORT_SCALAR_AND_VEC_1_16(NUM_ARGS, NAME, INTEGER_TYPES)
+  FOR_EACH2(EXPORT_SCALAR, NUM_ARGS, NAME, INTEGER_TYPES)                      \
+  EXPORT_VEC_1_16(NUM_ARGS, NAME, FIXED_WIDTH_INTEGER_TYPES)
 #define BUILTIN_GENINT_SU(NUM_ARGS, NAME, IMPL)                                \
   BUILTIN_GENINT(NUM_ARGS, NAME, IMPL)
 
