@@ -150,9 +150,10 @@ static RetType __invoke__ImageReadSampler(ImageT Img, CoordT Coords,
   enum ImageOperands { Lod = 0x2 };
 
   // Lod value is zero as mipmap is not supported.
-  TempRetT Ret = __spirv_ImageSampleExplicitLod<SampledT, TempRetT, decltype(TmpCoords)>(
-      __spirv_SampledImage<ImageT, SampledT>(Img, Smpl), TmpCoords,
-      ImageOperands::Lod, 0.0f);
+  TempRetT Ret =
+      __spirv_ImageSampleExplicitLod<SampledT, TempRetT, decltype(TmpCoords)>(
+          __spirv_SampledImage<ImageT, SampledT>(Img, Smpl), TmpCoords,
+          ImageOperands::Lod, 0.0f);
   return sycl::detail::convertDataToType<TempRetT, RetType>(Ret);
 }
 

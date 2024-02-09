@@ -319,8 +319,8 @@ GroupBroadcast(ext::oneapi::experimental::tangle_group<ParentGroup> g, T x,
   WidenOpenCLTypeTo32_t<decltype(OCLX)> WideOCLX = OCLX;
   auto OCLId = detail::convertToOpenCLType(GroupLocalId);
 
-  return __spirv_GroupNonUniformBroadcast(group_scope<ParentGroup>::value, WideOCLX,
-                                          OCLId);
+  return __spirv_GroupNonUniformBroadcast(group_scope<ParentGroup>::value,
+                                          WideOCLX, OCLId);
 }
 template <typename T, typename IdT>
 EnableIfNativeBroadcast<T, IdT>
