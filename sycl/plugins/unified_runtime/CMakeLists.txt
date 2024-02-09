@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 9babc4d092a92c1036791d26ef328e5eeaf19803
-  # Merge: 3be8f205 90498ec5
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Thu Feb 8 15:44:54 2024 +0000
-  #     Merge pull request #1321 from pbalcer/adapter-compute-constructor
-  #     [L0] move adapter init into its constructor from urAdapterGet
-  set(UNIFIED_RUNTIME_TAG 9babc4d092a92c1036791d26ef328e5eeaf19803)
+  # commit 32e2533fef84f48a2cf2db292d40c7c8d321780d
+  # Merge: 9babc4d0 24066e4a
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Fri Feb 9 08:39:25 2024 +0100
+  #     Merge pull request #1300 from nrspruit/queue_release_cleanup
+  #     [L0] Cleanup Queue at Release unconditionally and reset command list after failure
+  set(UNIFIED_RUNTIME_TAG 32e2533fef84f48a2cf2db292d40c7c8d321780d)
   
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
