@@ -2745,10 +2745,9 @@ __ESIMD_API std::enable_if_t<
 gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
             simd_mask<N> mask) {
   static_assert(detail::isPowerOf2(N, 32), "Unexpected vector length");
-  using Treal = __raw_t<T>;
 
   if constexpr (sizeof(T) == 8) {
-    simd<Treal, N> Res;
+    simd<T, N> Res;
     Res.template bit_cast_view<uint32_t>().template select<N, 2>(0) =
         gather_impl<uint32_t, N>(acc, offsets, glob_offset, mask);
     Res.template bit_cast_view<uint32_t>().template select<N, 2>(1) =
@@ -2756,7 +2755,7 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
                                  mask);
     return Res;
   } else {
-
+    using Treal = __raw_t<T>;
     constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
     // TODO (performance) use hardware-supported scale once BE supports it
     constexpr uint32_t scale = 0;
