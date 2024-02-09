@@ -57,9 +57,9 @@ struct MemorySemanticsMask {
 };
 } // namespace __spv
 
-extern DEVICE_EXTERNAL void
-__spirv_ControlBarrier(__spv::Scope::Flag, __spv::Scope::Flag Memory,
-                       uint32_t Semantics);
+extern DEVICE_EXTERNAL void __spirv_ControlBarrier(__spv::Scope::Flag,
+                                                   __spv::Scope::Flag Memory,
+                                                   uint32_t Semantics);
 
 extern DEVICE_EXTERNAL int
 __spirv_AtomicCompareExchange(int SPIR_GLOBAL *, __spv::Scope::Flag,

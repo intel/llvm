@@ -6,8 +6,8 @@
 //
 //==------------------------------------------------------------------------==//
 #pragma once
-#include "spirv_vars.h"
 #include "spirv_decls.hpp"
+#include "spirv_vars.h"
 #include <cstdint>
 #if defined(__SPIR__)
 
