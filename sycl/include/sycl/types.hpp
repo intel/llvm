@@ -1813,20 +1813,7 @@ public:
   // TODO: Check that Rhs arg is suitable.
 #ifdef __SYCL_OPASSIGN
 #error "Undefine __SYCL_OPASSIGN macro."
-#endif
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-#define __SYCL_OPASSIGN(OPASSIGN, OP)                                          \
-  friend SwizzleOp &operator OPASSIGN(SwizzleOp & Lhs, const DataT & Rhs) {    \
-    Lhs.operatorHelper<OP>(vec_t(Rhs));                                        \
-    return Lhs;                                                                \
-  }                                                                            \
-  template <typename RhsOperation>                                             \
-  friend SwizzleOp &operator OPASSIGN(SwizzleOp & Lhs,                         \
-                                      const RhsOperation & Rhs) {              \
-    Lhs.operatorHelper<OP>(Rhs);                                               \
-    return Lhs;                                                                \
-  }
-#else // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+#endifW
 #define __SYCL_OPASSIGN(OPASSIGN, OP)                                          \
   SwizzleOp &operator OPASSIGN(const DataT & Rhs) {                            \
     operatorHelper<OP>(vec_t(Rhs));                                            \
@@ -1837,7 +1824,6 @@ public:
     operatorHelper<OP>(Rhs);                                                   \
     return *this;                                                              \
   }
-#endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
   __SYCL_OPASSIGN(+=, std::plus)
   __SYCL_OPASSIGN(-=, std::minus)
@@ -1854,18 +1840,6 @@ public:
 #ifdef __SYCL_UOP
 #error "Undefine __SYCL_UOP macro"
 #endif
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-#define __SYCL_UOP(UOP, OPASSIGN)                                              \
-  friend SwizzleOp &operator UOP(SwizzleOp & Rhs) {                            \
-    Rhs OPASSIGN static_cast<DataT>(1);                                        \
-    return Rhs;                                                                \
-  }                                                                            \
-  friend vec_t operator UOP(SwizzleOp &Lhs, int) {                             \
-    vec_t Ret = Lhs;                                                           \
-    Lhs OPASSIGN static_cast<DataT>(1);                                        \
-    return Ret;                                                                \
-  }
-#else // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 #define __SYCL_UOP(UOP, OPASSIGN)                                              \
   SwizzleOp &operator UOP() {                                                  \
     *this OPASSIGN static_cast<DataT>(1);                                      \
@@ -1876,7 +1850,6 @@ public:
     *this OPASSIGN static_cast<DataT>(1);                                      \
     return Ret;                                                                \
   }
-#endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
   __SYCL_UOP(++, +=)
   __SYCL_UOP(--, -=)
