@@ -51,7 +51,7 @@
 
             ┌─────────────────────────────────────────────┐──────────────┐
   Suffix    │Barrier waiting on sync-point event,         │  Query CMD   │
-            │signalling the UR command-buffer signal event│  Timestamps  │
+            │signaling the UR command-buffer signal event │  Timestamps  │
             └─────────────────────────────────────────────┘──────────────┘
 
   For a call to `urCommandBufferEnqueueExp` with an event_list `EL`,
@@ -559,7 +559,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 
   LaunchEvent->CommandData = (void *)Kernel;
   // Increment the reference count of the Kernel and indicate that the Kernel
-  // is in use. Once the event has been signalled, the code in
+  // is in use. Once the event has been signaled, the code in
   // CleanupCompletedEvent(Event) will do a urKernelRelease to update the
   // reference count on the kernel, using the kernel saved in CommandData.
   UR_CALL(urKernelRetain(Kernel));
@@ -875,7 +875,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   // Create a list of events of all the events that compose the command buffer
   // workload.
   // This loop also resets the L0 events we use for command-buffer internal
-  // sync-points to the non-signalled state.
+  // sync-points to the non-signaled state.
   // This is required for multiple submissions.
   const size_t NumEvents = CommandBuffer->SyncPoints.size();
   std::vector<ze_event_handle_t> WaitEventList{NumEvents};
@@ -904,14 +904,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
                  (WaitCommandList->first, CommandBuffer->WaitEvent->ZeEvent,
                   CommandBuffer->WaitEvent->WaitList.Length,
                   CommandBuffer->WaitEvent->WaitList.ZeEventList));
-      Queue->executeCommandList(WaitCommandList, false, false);
       MustSignalWaitEvent = false;
     }
   }
-
   if (MustSignalWaitEvent) {
-    ZE2UR_CALL(zeEventHostSignal, (CommandBuffer->WaitEvent->ZeEvent));
+    ZE2UR_CALL(zeCommandListAppendSignalEvent,
+               (WaitCommandList->first, CommandBuffer->WaitEvent->ZeEvent));
   }
+  Queue->executeCommandList(WaitCommandList, false, false);
 
   // Submit main command-list. This command-list is of a batch command-list
   // type, regardless of the UR Queue type. We therefore need to submit the list
@@ -927,7 +927,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   ur_command_list_ptr_t SignalCommandList{};
   UR_CALL(Queue->Context->getAvailableCommandList(Queue, SignalCommandList,
                                                   false, false));
-  // Reset the wait-event for the UR command-buffer that is signalled when its
+  // Reset the wait-event for the UR command-buffer that is signaled when its
   // submission dependencies have been satisfied.
   ZE2UR_CALL(zeCommandListAppendEventReset,
              (SignalCommandList->first, CommandBuffer->WaitEvent->ZeEvent));
