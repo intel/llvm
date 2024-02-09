@@ -2,7 +2,8 @@
 
 // https://github.com/intel/llvm/issues/7634
 // UNSUPPORTED: hip
-// TODO: Remove unsupported after fixing https://github.com/intel/llvm/issues/12683
+// TODO: Remove unsupported after fixing
+// https://github.com/intel/llvm/issues/12683
 // UNSUPPORTED: accelerator
 //
 // FIXME: Remove XFAIL one intel/llvm#11364 is resolved

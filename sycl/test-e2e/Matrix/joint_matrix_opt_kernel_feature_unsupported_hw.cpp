@@ -1,5 +1,6 @@
 // REQUIRES: gpu-intel-gen12
-// TODO: Remove unsupported after fixing https://github.com/intel/llvm/issues/12683
+// TODO: Remove unsupported after fixing
+// https://github.com/intel/llvm/issues/12683
 // UNSUPPORTED: accelerator
 
 // RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
