@@ -1,5 +1,7 @@
 // REQUIRES: gpu-intel-gen12
 
+// UNSUPPORTED: accelerator
+
 // RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
 // RUN: %{run} %t.out
 

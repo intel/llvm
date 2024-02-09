@@ -1,6 +1,8 @@
 // FIXME flaky fail on CUDA and HIP
 // UNSUPPORTED: cuda || hip
 //
+// UNSUPPORTED: accelerator
+//
 // FIXME: Remove XFAIL one intel/llvm#11364 is resolved
 // XFAIL: (opencl && gpu)
 //

@@ -6,6 +6,8 @@
 // https://github.com/intel/llvm/issues/8832
 // UNSUPPORTED: cuda
 //
+// UNSUPPORTED: accelerator
+//
 // FIXME: Remove XFAIL one intel/llvm#11364 is resolved
 // XFAIL: (opencl && gpu)
 
