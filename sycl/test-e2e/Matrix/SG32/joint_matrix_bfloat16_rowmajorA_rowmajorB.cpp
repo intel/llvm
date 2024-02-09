@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
-// VNNI transform is not supported yet on DG2
+// VNNI transform and sub-group size 32 are not supported yet on DG2 by IGC
 // UNSUPPORTED: gpu-intel-dg2
 
 // RUN: %{build} -o %t.out
@@ -23,6 +23,6 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-constexpr size_t SG_SZ = 32;
+#define SG_SZ 32
 
 #include "../joint_matrix_bfloat16_rowmajorA_rowmajorB_impl.hpp"

@@ -41,7 +41,6 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
            sub_group sg = spmd_item.get_sub_group();
            joint_matrix<sub_group, bfloat16, use::a, TM, TK, layout::row_major>
                sub_a;
-           // For B, we assume B has been already VNNIed.
            joint_matrix<sub_group, bfloat16, use::b, TK, TN, layout::row_major>
                sub_b;
            joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
@@ -117,13 +116,10 @@ int main() {
         gemm_row_major<16, class gemm_16>();
         break;
       }
-      // SG size = 32 is not supported on DG2
-#if (SG_SZ != 32)
       if (combinations[i].nsize == 8) {
         gemm_row_major<8, class gemm_8>();
         break;
       }
-#endif
     }
   }
   return 0;

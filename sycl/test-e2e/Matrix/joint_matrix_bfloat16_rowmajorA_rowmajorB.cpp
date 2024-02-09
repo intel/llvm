@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
-// VNNI transform is not supported yet on DG2
+// VNNI transform is not supported yet by IGC on DG2
 // UNSUPPORTED: gpu-intel-dg2
 
 // RUN: %{build} -o %t.out
