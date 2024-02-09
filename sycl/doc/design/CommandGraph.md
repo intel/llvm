@@ -213,7 +213,7 @@ we want to know when the graph execution has finished.
 To cope with this issue, the events associated to the completion of 
 each partition are linked to the event returned to users. 
 Hence, when the returned event is complete, we can guarantee that 
-all works associated with the graph has been completed.  
+all work associated with the graph has been completed.  
 
 ![Multiple roots graph partition execution flow.](images/SYCL-Graph-partition_execution_flow.jpg)
 
