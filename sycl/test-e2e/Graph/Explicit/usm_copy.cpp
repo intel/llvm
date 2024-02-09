@@ -7,10 +7,7 @@
 //
 //
 // USM copy command not supported for OpenCL
-// Post-commit test failed
-// https://github.com/intel/llvm/actions/runs/7814201804/job/21315560479
-// Temporarily disable USM based tests while investigating the bug.
-// UNSUPPORTED: opencl, gpu-intel-dg2
+// UNSUPPORTED: opencl
 
 #define GRAPH_E2E_EXPLICIT
 

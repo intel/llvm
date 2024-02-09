@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 32e2533fef84f48a2cf2db292d40c7c8d321780d
-  # Merge: 9babc4d0 24066e4a
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Fri Feb 9 08:39:25 2024 +0100
-  #     Merge pull request #1300 from nrspruit/queue_release_cleanup
-  #     [L0] Cleanup Queue at Release unconditionally and reset command list after failure
-  set(UNIFIED_RUNTIME_TAG 32e2533fef84f48a2cf2db292d40c7c8d321780d)
+  # commit 47102cb2b275472054803a9399b5b977ef210b23
+  # Merge: 186bfb9d 2390664d
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Fri Feb 9 12:21:47 2024 +0000
+  #     Merge pull request #1328 from Bensuo/maxime/events-reset-bugfix
+  #     [EXP][CMDBUF] Reset events for multiple submissions (bugfix)
+  set(UNIFIED_RUNTIME_TAG 47102cb2b275472054803a9399b5b977ef210b23)
   
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
