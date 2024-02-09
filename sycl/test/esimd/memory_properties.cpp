@@ -1281,6 +1281,67 @@ test_gather_scatter(AccType &acc, LocalAccType &local_acc, float *ptrf,
   scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm_view, mask_n16);
 
   scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm_view);
+
+  // CHECK-COUNT-4: call void @llvm.genx.scatter.scaled.v32i1.v32i32.v32f32(<32 x i1> {{[^)]+}}, i32 2, i16 0, i32 {{[^)]+}}, i32 {{[^)]+}}, <32 x i32> {{[^)]+}}, <32 x float> {{[^)]+}})
+  scatter(local_acc, ioffset_n32, usm, mask_n32);
+
+  scatter(local_acc, ioffset_n32, usm);
+
+  scatter(local_acc, ioffset_n32, usm, mask_n32, props_align4);
+
+  scatter(local_acc, ioffset_n32, usm, props_align4);
+
+  // CHECK-COUNT-8: call void @llvm.genx.scatter.scaled.v32i1.v32i32.v32f32(<32 x i1> {{[^)]+}}, i32 2, i16 0, i32 {{[^)]+}}, i32 {{[^)]+}}, <32 x i32> {{[^)]+}}, <32 x float> {{[^)]+}})
+  scatter(local_acc, ioffset_n32, usm, mask_n32, props_cache_load);
+  scatter(local_acc, ioffset_n32, usm, props_cache_load);
+
+  scatter(local_acc, ioffset_n32_view, usm, mask_n32, props_cache_load);
+  scatter(local_acc, ioffset_n32_view, usm, props_cache_load);
+
+  scatter<float, 32>(local_acc, ioffset_n32, usm_view, mask_n32,
+                     props_cache_load);
+  scatter<float, 32>(local_acc, ioffset_n32, usm_view, props_cache_load);
+
+  scatter<float, 32>(local_acc, ioffset_n32_view, usm_view, mask_n32,
+                     props_cache_load);
+  scatter<float, 32>(local_acc, ioffset_n32_view, usm_view, props_cache_load);
+
+  // VS > 1
+  // CHECK-COUNT-8: call void @llvm.genx.lsc.store.slm.v16i1.v16i32.v32i32(<16 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i32> {{[^)]+}}, <32 x i32>{{[^)]+}}, i32 0)
+  scatter<float, 32, 2>(local_acc, ioffset_n16, usm, mask_n16,
+                        props_cache_load);
+
+  scatter<float, 32, 2>(local_acc, ioffset_n16, usm, props_cache_load);
+
+  scatter<float, 32, 2>(local_acc, ioffset_n16_view, usm, mask_n16,
+                        props_cache_load);
+  scatter<float, 32, 2>(local_acc, ioffset_n16_view, usm, props_cache_load);
+
+  scatter<float, 32, 2>(local_acc, ioffset_n16, usm_view, mask_n16,
+                        props_cache_load);
+  scatter<float, 32, 2>(local_acc, ioffset_n16, usm_view, props_cache_load);
+
+  scatter<float, 32, 2>(local_acc, ioffset_n16_view, usm_view, mask_n16,
+                        props_cache_load);
+  scatter<float, 32, 2>(local_acc, ioffset_n16_view, usm_view,
+                        props_cache_load);
+
+  // CHECK-COUNT-8: call void @llvm.genx.lsc.store.slm.v16i1.v16i32.v32i32(<16 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i32> {{[^)]+}}, <32 x i32>{{[^)]+}}, i32 0)
+  scatter<float, 32, 2>(local_acc, ioffset_n16, usm, mask_n16);
+
+  scatter<float, 32, 2>(local_acc, ioffset_n16, usm);
+
+  scatter<float, 32, 2>(local_acc, ioffset_n16_view, usm, mask_n16);
+
+  scatter<float, 32, 2>(local_acc, ioffset_n16_view, usm);
+
+  scatter<float, 32, 2>(local_acc, ioffset_n16, usm_view, mask_n16);
+
+  scatter<float, 32, 2>(local_acc, ioffset_n16, usm_view);
+
+  scatter<float, 32, 2>(local_acc, ioffset_n16_view, usm_view, mask_n16);
+
+  scatter<float, 32, 2>(local_acc, ioffset_n16_view, usm_view);
 }
 
 // CHECK-LABEL: define {{.*}} @_Z23test_slm_gather_scatter{{.*}}

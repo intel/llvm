@@ -449,3 +449,226 @@ template <typename T, TestFeatures Features> bool testSLM(queue Q) {
 
   return Passed;
 }
+
+template <typename T, uint16_t N, uint16_t VS, bool UseMask, bool UseProperties,
+          typename ScatterPropertiesT>
+bool testLACC(queue Q, uint32_t MaskStride,
+              ScatterPropertiesT ScatterProperties) {
+  constexpr uint32_t Groups = 8;
+  constexpr uint32_t Threads = 1;
+  constexpr size_t Size = Groups * Threads * N;
+  static_assert(VS > 0 && N % VS == 0,
+                "Incorrect VS parameter. N must be divisible by VS.");
+  constexpr int NOffsets = N / VS;
+  using Tuint = sycl::_V1::ext::intel::esimd::detail::uint_type_t<sizeof(T)>;
+
+  std::cout << "Local Accessor case: T=" << esimd_test::type_name<T>()
+            << ",N=" << N << ", VS=" << VS << ",UseMask=" << UseMask
+            << ",UseProperties=" << UseProperties << std::endl;
+
+  sycl::range<1> GlobalRange{Groups};
+  sycl::range<1> LocalRange{Threads};
+  sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
+
+  T *Out = static_cast<T *>(sycl::malloc_shared(Size * sizeof(T), Q));
+  for (size_t i = 0; i < Size; i++)
+    Out[i] = i;
+
+  try {
+    Q.submit([&](handler &cgh) {
+       constexpr uint32_t SLMSize = (Threads * N + 8) * sizeof(T);
+       auto InAcc = local_accessor<T, 1>(SLMSize, cgh);
+
+       cgh.parallel_for(Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+         ScatterPropertiesT Props{};
+         uint16_t GlobalID = ndi.get_global_id(0);
+         uint16_t LocalID = ndi.get_local_id(0);
+         uint32_t GlobalElemOffset = GlobalID * N;
+         uint32_t LocalElemOffset = LocalID * N;
+
+         slm_init<SLMSize>();
+
+         if (LocalID == 0) {
+           for (int I = 0; I < Threads * N; I += 8) {
+             simd<T, 8> InVec(Out + GlobalElemOffset + I);
+             simd<uint32_t, 8> Offsets(I * sizeof(T), sizeof(T));
+             scatter<T>(InAcc, Offsets, InVec);
+           }
+         }
+         barrier();
+
+         simd<uint32_t, NOffsets> ByteOffsets(LocalElemOffset * sizeof(T),
+                                              VS * sizeof(T));
+         auto ByteOffsetsView = ByteOffsets.template select<NOffsets, 1>();
+
+         simd<T, N> Vals = gather<T, N, VS>(InAcc, ByteOffsets, Props);
+         Vals *= 2;
+
+         auto ValsView = Vals.template select<N, 1>();
+         simd_mask<NOffsets> Pred = 0;
+         for (int I = 0; I < NOffsets; I++)
+           Pred[I] = (I % MaskStride == 0) ? 1 : 0;
+         if constexpr (VS > 1) { // VS > 1 requires specifying <T, N, VS>
+           if constexpr (UseMask) {
+             if constexpr (UseProperties) {
+               if (GlobalID % 4 == 0)
+                 scatter<T, N, VS>(InAcc, ByteOffsets, Vals, Pred, Props);
+               else if (GlobalID % 4 == 1)
+                 scatter<T, N, VS>(InAcc, ByteOffsetsView, Vals, Pred, Props);
+               else if (GlobalID % 4 == 2)
+                 scatter<T, N, VS>(InAcc, ByteOffsets, ValsView, Pred, Props);
+               else if (GlobalID % 4 == 3)
+                 scatter<T, N, VS>(InAcc, ByteOffsetsView, ValsView, Pred,
+                                   Props);
+             } else { // UseProperties == false
+               if (GlobalID % 4 == 0)
+                 scatter<T, N, VS>(InAcc, ByteOffsets, Vals, Pred);
+               else if (GlobalID % 4 == 1)
+                 scatter<T, N, VS>(InAcc, ByteOffsetsView, Vals, Pred);
+               else if (GlobalID % 4 == 2)
+                 scatter<T, N, VS>(InAcc, ByteOffsets, ValsView, Pred);
+               else if (GlobalID % 4 == 3)
+                 scatter<T, N, VS>(InAcc, ByteOffsetsView, ValsView, Pred);
+             }
+           } else { // UseMask == false
+             if constexpr (UseProperties) {
+               if (GlobalID % 4 == 0)
+                 scatter<T, N, VS>(InAcc, ByteOffsets, Vals, Props);
+               else if (GlobalID % 4 == 1)
+                 scatter<T, N, VS>(InAcc, ByteOffsetsView, Vals, Props);
+               else if (GlobalID % 4 == 2)
+                 scatter<T, N, VS>(InAcc, ByteOffsets, ValsView, Props);
+               else if (GlobalID % 4 == 3)
+                 scatter<T, N, VS>(InAcc, ByteOffsetsView, ValsView, Props);
+             } else { // UseProperties == false
+               if (GlobalID % 4 == 0)
+                 scatter<T, N, VS>(InAcc, ByteOffsets, Vals);
+               else if (GlobalID % 4 == 1)
+                 scatter<T, N, VS>(InAcc, ByteOffsetsView, Vals);
+               else if (GlobalID % 4 == 2)
+                 scatter<T, N, VS>(InAcc, ByteOffsets, ValsView);
+               else if (GlobalID % 4 == 3)
+                 scatter<T, N, VS>(InAcc, ByteOffsetsView, ValsView);
+             }
+           }
+         } else { // VS == 1
+           if constexpr (UseMask) {
+             if constexpr (UseProperties) {
+               if (GlobalID % 4 == 0)
+                 scatter(InAcc, ByteOffsets, Vals, Pred, Props);
+               else if (GlobalID % 4 == 1)
+                 scatter(InAcc, ByteOffsetsView, Vals, Pred, Props);
+               else if (GlobalID % 4 == 2)
+                 scatter<T, N>(InAcc, ByteOffsets, ValsView, Pred, Props);
+               else if (GlobalID % 4 == 3)
+                 scatter<T, N>(InAcc, ByteOffsetsView, ValsView, Pred, Props);
+             } else { // UseProperties == false
+               if (GlobalID % 4 == 0)
+                 scatter(InAcc, ByteOffsets, Vals, Pred);
+               else if (GlobalID % 4 == 1)
+                 scatter<T, N>(InAcc, ByteOffsetsView, Vals, Pred);
+               else if (GlobalID % 4 == 2)
+                 scatter<T, N>(InAcc, ByteOffsets, ValsView, Pred);
+               else if (GlobalID % 4 == 3)
+                 scatter<T, N>(InAcc, ByteOffsetsView, ValsView, Pred);
+             }
+           } else { // UseMask == false
+             if constexpr (UseProperties) {
+               if (GlobalID % 4 == 0)
+                 scatter(InAcc, ByteOffsets, Vals, Props);
+               else if (GlobalID % 4 == 1)
+                 scatter(InAcc, ByteOffsetsView, Vals, Props);
+               else if (GlobalID % 4 == 2)
+                 scatter<T, N>(InAcc, ByteOffsets, ValsView, Props);
+               else if (GlobalID % 4 == 3)
+                 scatter<T, N>(InAcc, ByteOffsetsView, ValsView, Props);
+             } else { // UseProperties == false
+               if (GlobalID % 4 == 0)
+                 scatter(InAcc, ByteOffsets, Vals);
+               else if (GlobalID % 4 == 1)
+                 scatter(InAcc, ByteOffsetsView, Vals);
+               else if (GlobalID % 4 == 2)
+                 scatter<T, N>(InAcc, ByteOffsets, ValsView);
+               else if (GlobalID % 4 == 3)
+                 scatter<T, N>(InAcc, ByteOffsetsView, ValsView);
+             }
+           }
+         }
+         barrier();
+         if (LocalID == 0) {
+           for (int I = 0; I < Threads * N; I++) {
+             simd<uint32_t, 1> Offsets(I * sizeof(T), sizeof(T));
+             simd<T, 1> OutVec = gather<T>(InAcc, Offsets);
+             OutVec.copy_to(Out + GlobalElemOffset + I);
+           }
+         }
+       });
+     }).wait();
+  } catch (sycl::exception const &e) {
+    std::cout << "SYCL exception caught: " << e.what() << '\n';
+    sycl::free(Out, Q);
+    return false;
+  }
+
+  bool Passed = verify(Out, N, Size, VS, MaskStride, UseMask);
+
+  sycl::free(Out, Q);
+
+  return Passed;
+}
+
+template <typename T, TestFeatures Features> bool testLACC(queue Q) {
+  constexpr bool CheckMask = true;
+  constexpr bool CheckProperties = true;
+  properties EmptyProps;
+  properties AlignElemProps{alignment<sizeof(T)>};
+
+  bool Passed = true;
+
+  // Test scatter() that is available on Gen12 and PVC.
+  Passed &= testLACC<T, 1, 1, !CheckMask, CheckProperties>(Q, 2, EmptyProps);
+  Passed &= testLACC<T, 2, 1, !CheckMask, CheckProperties>(Q, 1, EmptyProps);
+  Passed &= testLACC<T, 4, 1, !CheckMask, CheckProperties>(Q, 2, EmptyProps);
+  Passed &= testLACC<T, 8, 1, !CheckMask, CheckProperties>(Q, 2, EmptyProps);
+  Passed &= testLACC<T, 16, 1, !CheckMask, CheckProperties>(Q, 2, EmptyProps);
+  Passed &= testLACC<T, 32, 1, !CheckMask, CheckProperties>(Q, 2, EmptyProps);
+  Passed &= testLACC<T, 2, 1, CheckMask, CheckProperties>(Q, 1, EmptyProps);
+  Passed &= testLACC<T, 4, 1, CheckMask, CheckProperties>(Q, 2, EmptyProps);
+  Passed &= testLACC<T, 8, 1, CheckMask, CheckProperties>(Q, 2, EmptyProps);
+  Passed &= testLACC<T, 16, 1, CheckMask, CheckProperties>(Q, 2, EmptyProps);
+  Passed &= testLACC<T, 32, 1, CheckMask, CheckProperties>(Q, 2, EmptyProps);
+
+  // // Test scatter() without passing compile-time properties argument.
+  Passed &= testLACC<T, 16, 1, !CheckMask, !CheckProperties>(Q, 2, EmptyProps);
+  Passed &= testLACC<T, 32, 1, !CheckMask, !CheckProperties>(Q, 2, EmptyProps);
+  Passed &= testLACC<T, 16, 1, CheckMask, !CheckProperties>(Q, 2, EmptyProps);
+  Passed &= testLACC<T, 32, 1, CheckMask, !CheckProperties>(Q, 2, EmptyProps);
+
+  if constexpr (Features == TestFeatures::PVC ||
+                Features == TestFeatures::DG2) {
+    properties LSCProps{alignment<sizeof(T)>};
+    Passed &= testLACC<T, 1, 1, !CheckMask, CheckProperties>(Q, 2, LSCProps);
+    Passed &= testLACC<T, 2, 1, CheckMask, CheckProperties>(Q, 2, LSCProps);
+    Passed &= testLACC<T, 4, 1, CheckMask, CheckProperties>(Q, 2, LSCProps);
+    Passed &= testLACC<T, 8, 1, CheckMask, CheckProperties>(Q, 2, LSCProps);
+
+    Passed &= testLACC<T, 32, 1, CheckMask, CheckProperties>(Q, 2, LSCProps);
+
+    // Check VS > 1. GPU supports only dwords and qwords in this mode.
+    if constexpr (sizeof(T) >= 4) {
+      // TODO: This test case causes flaky fail. Enable it after the issue
+      // in GPU driver is fixed.
+      // Passed &=
+      //     testLACC<T, 16, 2, CheckMask, CheckProperties>(Q, 2,
+      //     AlignElemProps)
+      Passed &=
+          testLACC<T, 32, 2, !CheckMask, CheckProperties>(Q, 2, AlignElemProps);
+      Passed &=
+          testLACC<T, 32, 2, CheckMask, CheckProperties>(Q, 2, AlignElemProps);
+      Passed &=
+          testLACC<T, 32, 2, CheckMask, !CheckProperties>(Q, 2, AlignElemProps);
+    }
+  } // TestPVCFeatures
+
+  return Passed;
+}

@@ -4300,9 +4300,8 @@ slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// void slm_scatter(
 ///             OffsetSimdViewT byte_offsets, simd<T, N> vals,
 ///             PropertyListT props = {});                         // (slm-sc-4)
-/// Loads ("gathers") elements of the type 'T' from Shared Local Memory
-/// locations addressed by byte offsets \p byte_offsets, and returns the loaded
-/// elements.
+/// Stores ("scatters") elements of the type 'T' to Shared Local Memory
+/// locations addressed by byte offsets \p byte_offsets.
 /// @tparam T Element type.
 /// @tparam N Number of elements to read.
 /// @tparam VS Vector size. It can also be read as the number of reads per each
@@ -7899,6 +7898,173 @@ __ESIMD_API
 }
 
 /// Variant of scatter that uses local accessor as a parameter
+/// template <typename T, int N, int VS = 1, typename AccessorT,
+/// 	  typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc, simd<uint32_t, N / VS> byte_offsets, simd<T, N>
+/// vals, 	simd_mask<N / VS> mask, PropertyListT props = {}); //
+/// (lacc-sc-1)
+
+/// template <typename T, int N, int VS = 1, typename AccessorT,
+/// 	  typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc, simd<uint32_t, N / VS> byte_offsets, simd<T, N>
+/// vals, PropertyListT props = {});                         // (lacc-sc-2)
+
+/// The next two functions are similar to lacc-sc-{1,2} with the 'byte_offsets'
+/// parameter represerented as 'simd_view'.
+
+/// template <typename T, int N, int VS = 1, typename AccessorT,
+///     typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+/// simd_mask<N / VS> mask, PropertyListT props = {}); // (lacc-sc-3)
+
+/// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+/// 	  typename AccessorT, typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+///      PropertyListT props = {});                         // (lacc-sc-4)
+
+/// template <typename T, int N, int VS = 1, typename AccessorT,
+/// 	  typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc, simd<uint32_t, N / VS> byte_offsets, simd<T, N>
+/// vals, simd_mask<N / VS> mask, PropertyListT props = {}); // (lacc-sc-1)
+///
+/// Writes ("scatters") elements of the input vector to memory locations
+/// addressed by the local accessor \p acc and byte offsets \p byte_offsets.
+/// Access to any element's memory location can be disabled via
+/// the input mask.
+/// @tparam T Element type.
+/// @tparam N Number of elements to write.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc The accessor to scatter to.
+/// @param byte_offsets the vector of 32-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param vals The vector to scatter.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// property is used.
+template <typename T, int N, int VS = 1, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT,
+                                     detail::accessor_mode_cap::can_write> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorT acc, simd<uint32_t, N / VS> byte_offsets, simd<T, N> vals,
+        simd_mask<N / VS> mask, PropertyListT props = {}) {
+  slm_scatter<T, N, VS>(byte_offsets + __ESIMD_DNS::localAccessorToOffset(acc),
+                        vals, mask, props);
+}
+
+/// template <typename T, int N, int VS = 1, typename AccessorT,
+/// 	  typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc, simd<uint32_t, N / VS> byte_offsets, simd<T, N>
+/// vals, 	PropertyListT props = {});                        // (lacc-sc-2)
+///
+/// Writes ("scatters") elements of the input vector to memory locations
+/// addressed by the local accessor \p acc and byte offsets \p byte_offsets.
+/// @tparam T Element type.
+/// @tparam N Number of elements to write.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc The accessor to scatter to.
+/// @param byte_offsets the vector of 32-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param vals The vector to scatter.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// property is used.
+template <typename T, int N, int VS = 1, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT,
+                                     detail::accessor_mode_cap::can_write> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorT acc, simd<uint32_t, N / VS> byte_offsets, simd<T, N> vals,
+        PropertyListT props = {}) {
+  simd_mask<N / VS> Mask = 1;
+  scatter<T, N, VS>(acc, byte_offsets, vals, Mask, props);
+}
+
+// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+// 	  typename AccessorT, typename PropertyListT = empty_properties_t>
+// void scatter(AccessorT acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+// 	simd_mask<N / VS> mask, PropertyListT props = {}); // (lacc-sc-3)
+///
+/// Writes ("scatters") elements of the input vector to memory locations
+/// addressed by the local accessor \p acc and byte offsets \p byte_offsets.
+/// Access to any element's memory location can be disabled via the input mask.
+/// @tparam T Element type.
+/// @tparam N Number of elements to write.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc The accessor to scatter to.
+/// @param byte_offsets the vector of 32-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param vals The vector to scatter.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+          typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT,
+                                     detail::accessor_mode_cap::can_write> &&
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorT acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+        simd_mask<N / VS> mask, PropertyListT props = {}) {
+  scatter<T, N, VS>(acc, byte_offsets.read(), vals, mask, props);
+}
+
+/// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+/// 	  typename AccessorT, typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+///      PropertyListT props = {});                         // (lacc-sc-4)
+///
+/// Writes ("scatters") elements of the input vector to memory locations
+/// addressed by the local accessor \p acc and byte offsets \p byte_offsets.
+/// @tparam T Element type.
+/// @tparam N Number of elements to write.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc The accessor to scatter to.
+/// @param byte_offsets the vector of 32-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param vals The vector to scatter.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// property is used.
+template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+          typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT,
+                                     detail::accessor_mode_cap::can_write> &&
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorT acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+        PropertyListT props = {}) {
+  simd_mask<N / VS> Mask = 1;
+  scatter<T, N, VS>(acc, byte_offsets.read(), vals, Mask, props);
+}
+
+/// Variant of scatter that uses local accessor as a parameter
 ///
 /// Writes elements of a \ref simd object into an accessor at given offsets.
 /// An element can be a 1, 2 or 4-byte value.
@@ -7920,7 +8086,7 @@ template <typename T, int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<detail::is_local_accessor_with_v<
     AccessorTy, detail::accessor_mode_cap::can_write>>
 scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> vals,
-        uint32_t glob_offset = 0, simd_mask<N> mask = 1) {
+        uint32_t glob_offset, simd_mask<N> mask = 1) {
   slm_scatter<T, N>(offsets + glob_offset +
                         __ESIMD_DNS::localAccessorToOffset(acc),
                     vals, mask);
