@@ -37,7 +37,7 @@ etors:
             if the queue was created with the `ON_DEVICE` queue flag, otherwise
             `$xQueueGetInfo` will return `$X_RESULT_ERROR_INVALID_QUEUE`.
     - name: EMPTY
-      desc: "[$x_bool_t] return true if the queue was empty at the time of the query"
+      desc: "[$x_bool_t][optional-query] return true if the queue was empty at the time of the query."
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Queue property flags"

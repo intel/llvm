@@ -536,7 +536,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
           cl_adapter::cast<cl_device_id>(hDevice), {"cl_khr_fp16"}, Supported));
 
       if (!Supported) {
-        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+        // If we don't support the extension then our capabilities are 0.
+        ur_device_fp_capability_flags_t halfCapabilities = 0;
+        return ReturnValue(halfCapabilities);
       }
     }
 
@@ -779,9 +781,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(true);
   }
 
-  case UR_DEVICE_INFO_BFLOAT16: {
-    return ReturnValue(false);
-  }
   case UR_DEVICE_INFO_ATOMIC_64: {
     bool Supported = false;
     UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
@@ -1126,7 +1125,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(UUID);
   }
 
-  case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS: {
+  // We can't query to check if these are supported, they will need to be
+  // manually updated if support is ever implemented.
+  case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
+  case UR_DEVICE_INFO_BFLOAT16:
+  case UR_DEVICE_INFO_ASYNC_BARRIER: {
     return ReturnValue(false);
   }
 
@@ -1138,8 +1141,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
    * EU device-specific information extensions. Some of the queries are
    * enabled by cl_intel_device_attribute_query extension, but it's not yet in
    * the Registry. */
-  case UR_DEVICE_INFO_COMPONENT_DEVICES:
-  case UR_DEVICE_INFO_COMPOSITE_DEVICE:
   case UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
   case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH:
   /* This enums have no equivalent in OpenCL */
@@ -1147,7 +1148,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GLOBAL_MEM_FREE:
   case UR_DEVICE_INFO_MEMORY_CLOCK_RATE:
   case UR_DEVICE_INFO_MEMORY_BUS_WIDTH:
-  case UR_DEVICE_INFO_ASYNC_BARRIER:
+  case UR_DEVICE_INFO_COMPONENT_DEVICES:
+  case UR_DEVICE_INFO_COMPOSITE_DEVICE:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP: {
     bool Is2DBlockIOSupported = false;

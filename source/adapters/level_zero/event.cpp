@@ -470,7 +470,7 @@ ur_result_t urEventGetInfo(
   }
   case UR_EVENT_INFO_COMMAND_TYPE: {
     std::shared_lock<ur_shared_mutex> EventLock(Event->Mutex);
-    return ReturnValue(ur_cast<uint64_t>(Event->CommandType));
+    return ReturnValue(ur_cast<ur_command_t>(Event->CommandType));
   }
   case UR_EVENT_INFO_COMMAND_EXECUTION_STATUS: {
     // Check to see if the event's Queue has an open command list due to

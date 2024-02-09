@@ -200,7 +200,7 @@ etors:
     - name: VENDOR_ID
       desc: "[uint32_t] vendor Id of the device"
     - name: DEVICE_ID
-      desc: "[uint32_t] Id of the device"
+      desc: "[uint32_t][optional-query] Id of the device"
     - name: MAX_COMPUTE_UNITS
       desc: "[uint32_t] the number of compute units"
     - name: MAX_WORK_ITEM_DIMENSIONS
@@ -248,7 +248,7 @@ etors:
     - name: MAX_CLOCK_FREQUENCY
       desc: "[uint32_t] max clock frequency in MHz"
     - name: MEMORY_CLOCK_RATE
-      desc: "[uint32_t] memory clock frequency in MHz"
+      desc: "[uint32_t][optional-query] memory clock frequency in MHz"
     - name: ADDRESS_BITS
       desc: "[uint32_t] address bits"
     - name: MAX_MEM_ALLOC_SIZE
@@ -290,7 +290,7 @@ etors:
     - name: GLOBAL_MEM_SIZE
       desc: "[uint64_t] size of global memory in bytes"
     - name: GLOBAL_MEM_FREE
-      desc: "[uint64_t] size of global memory which is free in bytes"
+      desc: "[uint64_t][optional-query] size of global memory which is free in bytes"
     - name: MAX_CONSTANT_BUFFER_SIZE
       desc: "[uint64_t] max constant buffer size in bytes"
     - name: MAX_CONSTANT_ARGS
@@ -377,23 +377,23 @@ etors:
     - name: USM_SYSTEM_SHARED_SUPPORT
       desc: "[$x_device_usm_access_capability_flags_t] support USM system wide shared memory access"
     - name: UUID
-      desc: "[uint8_t[]] return device UUID"
+      desc: "[uint8_t[]][optional-query] return device UUID"
     - name: PCI_ADDRESS
-      desc: "[char[]] return device PCI address"
+      desc: "[char[]][optional-query] return device PCI address"
     - name: GPU_EU_COUNT
-      desc: "[uint32_t] return Intel GPU EU count"
+      desc: "[uint32_t][optional-query] return Intel GPU EU count"
     - name: GPU_EU_SIMD_WIDTH
-      desc: "[uint32_t] return Intel GPU EU SIMD width"
+      desc: "[uint32_t][optional-query] return Intel GPU EU SIMD width"
     - name: GPU_EU_SLICES
-      desc: "[uint32_t] return Intel GPU number of slices"
+      desc: "[uint32_t][optional-query] return Intel GPU number of slices"
     - name: GPU_EU_COUNT_PER_SUBSLICE
-      desc: "[uint32_t] return Intel GPU EU count per subslice"
+      desc: "[uint32_t][optional-query] return Intel GPU EU count per subslice"
     - name: GPU_SUBSLICES_PER_SLICE
-      desc: "[uint32_t] return Intel GPU number of subslices per slice"
+      desc: "[uint32_t][optional-query] return Intel GPU number of subslices per slice"
     - name: GPU_HW_THREADS_PER_EU
-      desc: "[uint32_t] return Intel GPU number of threads per EU"
+      desc: "[uint32_t][optional-query] return Intel GPU number of threads per EU"
     - name: MAX_MEMORY_BANDWIDTH
-      desc: "[uint32_t] return max memory bandwidth in Mb/s"
+      desc: "[uint32_t][optional-query] return max memory bandwidth in Mb/s"
     - name: IMAGE_SRGB
       desc: "[$x_bool_t] device supports sRGB images"
     - name: BUILD_ON_SUBDEVICE
@@ -418,7 +418,7 @@ etors:
     - name: KERNEL_SET_SPECIALIZATION_CONSTANTS
       desc: "[$x_bool_t] support the $xKernelSetSpecializationConstants entry point"
     - name: MEMORY_BUS_WIDTH
-      desc: "[uint32_t] return the width in bits of the memory bus interface of the device."
+      desc: "[uint32_t][optional-query] return the width in bits of the memory bus interface of the device."
     - name: MAX_WORK_GROUPS_3D
       desc: "[size_t[3]] return max 3D work groups"
     - name: ASYNC_BARRIER
@@ -428,17 +428,17 @@ etors:
     - name: HOST_PIPE_READ_WRITE_SUPPORTED
       desc: "[$x_bool_t] Return true if the device supports enqueueing commands to read and write pipes from the host."
     - name: MAX_REGISTERS_PER_WORK_GROUP
-      desc: "[uint32_t] The maximum number of registers available per block."
+      desc: "[uint32_t][optional-query] The maximum number of registers available per block."
     - name: IP_VERSION
-      desc: "[uint32_t] The device IP version. The meaning of the device IP version is implementation-defined, but newer devices should have a higher version than older devices."
+      desc: "[uint32_t][optional-query] The device IP version. The meaning of the device IP version is implementation-defined, but newer devices should have a higher version than older devices."
     - name: VIRTUAL_MEMORY_SUPPORT
       desc: "[$x_bool_t] return true if the device supports virtual memory."
     - name: ESIMD_SUPPORT
       desc: "[$x_bool_t] return true if the device supports ESIMD."
     - name: COMPONENT_DEVICES
-      desc: "[$x_device_handle_t[]] The set of component devices contained by this composite device."
+      desc: "[$x_device_handle_t[]][optional-query] The set of component devices contained by this composite device."
     - name: COMPOSITE_DEVICE
-      desc: "[$x_device_handle_t] The composite device containing this component device."
+      desc: "[$x_device_handle_t][optional-query] The composite device containing this component device."
     - name: GLOBAL_VARIABLE_SUPPORT
       desc: "[$x_bool_t] return true if the device supports the `EnqueueDeviceGlobalVariableWrite` and `EnqueueDeviceGlobalVariableRead` entry points."
     - name: USM_POOL_SUPPORT

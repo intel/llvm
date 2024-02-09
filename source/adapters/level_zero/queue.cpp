@@ -456,7 +456,7 @@ ur_result_t urQueueGetInfo(
     logger::error(
         "Unsupported ParamName in urQueueGetInfo: ParamName=ParamName={}(0x{})",
         ParamName, logger::toHex(ParamName));
-    return UR_RESULT_ERROR_INVALID_VALUE;
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
 
   return UR_RESULT_SUCCESS;

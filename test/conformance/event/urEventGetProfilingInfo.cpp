@@ -12,8 +12,9 @@ TEST_P(urEventGetProfilingInfoTest, Success) {
 
     ur_profiling_info_t info_type = getParam();
     size_t size;
-    ASSERT_SUCCESS(
-        urEventGetProfilingInfo(event, info_type, 0, nullptr, &size));
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urEventGetProfilingInfo(event, info_type, 0, nullptr, &size),
+        info_type);
     ASSERT_EQ(size, 8);
 
     std::vector<uint8_t> data(size);

@@ -1098,6 +1098,12 @@ struct urUSMDeviceAllocTestWithParam : urQueueTestWithParam<T> {
             GTEST_SKIP() << "Device USM in not supported";
         }
         if (use_pool) {
+            ur_bool_t poolSupport = false;
+            ASSERT_SUCCESS(
+                uur::GetDeviceUSMPoolSupport(this->device, poolSupport));
+            if (!poolSupport) {
+                GTEST_SKIP() << "USM pools are not supported.";
+            }
             ur_usm_pool_desc_t pool_desc = {};
             ASSERT_SUCCESS(urUSMPoolCreate(this->context, &pool_desc, &pool));
         }
