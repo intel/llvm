@@ -16,9 +16,10 @@ namespace detail {
 template <typename T>
 struct integer_elem_type
     : std::bool_constant<
-          check_type_in_v<get_elem_type_t<T>, char, signed char, short, int,
-                          long, long long, unsigned char, unsigned short,
-                          unsigned int, unsigned long, unsigned long long>> {};
+          (is_vec_or_swizzle_v<T> &&
+           check_type_in_v<get_elem_type_t<T>, FIXED_WIDTH_INTEGER_TYPES>) ||
+          (!is_vec_or_swizzle_v<T> &&
+           check_type_in_v<get_elem_type_t<T>, INTEGER_TYPES>)> {};
 template <typename T>
 struct suint32_elem_type
     : std::bool_constant<
