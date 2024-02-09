@@ -699,8 +699,9 @@ convertDataToType(FROM t) {
 
 // Now fuse the above into a simpler helper that's easy to use.
 // TODO: That should probably be moved outside of "type_traits".
-template <typename T> auto convertToOpenCLType(T &&x) {
-  using OpenCLType = ConvertToOpenCLType_t<T>;
+template <typename T>
+auto convertToOpenCLType(T &&x) {
+  using OpenCLType = ConvertToOpenCLType_t<std::remove_reference_t<T>>;
   return convertDataToType<T, OpenCLType>(std::forward<T>(x));
 }
 
