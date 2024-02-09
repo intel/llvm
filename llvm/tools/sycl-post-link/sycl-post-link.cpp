@@ -434,8 +434,7 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
       // so they won't make it into the export list. Should the check be
       // F->getCallingConv() != CallingConv::SPIR_KERNEL?
       if (F->getCallingConv() == CallingConv::SPIR_FUNC) {
-        PropSet[PropSetRegTy::SYCL_EXPORTED_SYMBOLS].insert(
-            {F->getName(), true});
+        PropSet.add(PropSetRegTy::SYCL_EXPORTED_SYMBOLS, F->getName(), true);
       }
     }
   }
@@ -444,8 +443,6 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   SmallVector<std::string, 4> MetadataNames;
 
   if (GlobProps.EmitProgramMetadata) {
-    auto &ProgramMetadata = PropSet[PropSetRegTy::SYCL_PROGRAM_METADATA];
-
     // Add reqd_work_group_size information to program metadata
     for (const Function &Func : M.functions()) {
       std::vector<uint32_t> KernelReqdWorkGroupSize =
@@ -453,8 +450,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
       if (KernelReqdWorkGroupSize.empty())
         continue;
       MetadataNames.push_back(Func.getName().str() + "@reqd_work_group_size");
-      ProgramMetadata.insert_or_assign(MetadataNames.back(),
-                                       KernelReqdWorkGroupSize);
+      PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
+                  KernelReqdWorkGroupSize);
     }
 
     // Add global_id_mapping information with mapping between device-global
@@ -465,12 +462,12 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
 
       StringRef GlobalID = getGlobalVariableUniqueId(GV);
       MetadataNames.push_back(GlobalID.str() + "@global_id_mapping");
-      ProgramMetadata.insert_or_assign(MetadataNames.back(), GV.getName());
+      PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
+                  GV.getName());
     }
   }
   if (MD.isESIMD()) {
-    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert_or_assign("isEsimdImage",
-                                                           true);
+    PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "isEsimdImage", true);
   }
   {
     StringRef RegAllocModeAttr = "sycl-register-alloc-mode";
@@ -484,8 +481,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
       return true;
     });
     if (HasRegAllocMode) {
-      PropSet[PropSetRegTy::SYCL_MISC_PROP].insert(
-          {RegAllocModeAttr, RegAllocModeVal});
+      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, RegAllocModeAttr,
+                  RegAllocModeVal);
     }
   }
 
@@ -501,7 +498,7 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
       return true;
     });
     if (HasGRFSize) {
-      PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({GRFSizeAttr, GRFSizeVal});
+      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, GRFSizeAttr, GRFSizeVal);
     }
   }
 
@@ -536,18 +533,17 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     }
 
     if (OptLevel != -1)
-      PropSet[PropSetRegTy::SYCL_MISC_PROP].insert_or_assign("optLevel",
-                                                             OptLevel);
+      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "optLevel", OptLevel);
   }
   {
     std::vector<StringRef> FuncNames = getKernelNamesUsingAssert(M);
     for (const StringRef &FName : FuncNames)
-      PropSet[PropSetRegTy::SYCL_ASSERT_USED].insert_or_assign(FName, true);
+      PropSet.add(PropSetRegTy::SYCL_ASSERT_USED, FName, true);
   }
 
   {
     if (isModuleUsingAsan(M))
-      PropSet[PropSetRegTy::SYCL_MISC_PROP].insert_or_assign("asanUsed", true);
+      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "asanUsed", true);
   }
 
   if (GlobProps.EmitDeviceGlobalPropSet) {
@@ -563,8 +559,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   }
 
   if (MD.isSpecConstantDefault())
-    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert_or_assign(
-        "specConstsReplacedWithDefault", 1);
+    PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "specConstsReplacedWithDefault",
+                1);
 
   std::error_code EC;
   std::string SCFile = makeResultFileName(".prop", I, Suff);

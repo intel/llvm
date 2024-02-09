@@ -266,15 +266,15 @@ attributes #3 = { nounwind }
 ; CHECK-RT-SAME: i32 [[#SCID17]], i32 4, i32 4}
 
 ; CHECK-PROPS: [SYCL/specialization constants]
+; CHECK-PROPS-NEXT: _ZTS14name_generatorIL_Z9id_halfEE=2|
+; CHECK-PROPS-NEXT: _ZTS14name_generatorIL_Z6id_intEE=2|
+; CHECK-PROPS-NEXT: _ZTS14name_generatorIL_Z9id_composEE=2|
 ; CHECK-PROPS-NEXT: _ZTS14name_generatorIL_Z10id_compos2EE=2|
 ; CHECK-PROPS-NEXT: _ZTS14name_generatorIL_Z10id_compos3EE=2|
+; CHECK-PROPS-NEXT: _ZTS14name_generatorIL_Z10id_vectorEE=2|
+; CHECK-PROPS-NEXT: _ZTS14name_generatorIL_Z10id_marrayEE=2|
 ; CHECK-PROPS-NEXT: _ZTS14name_generatorIL_Z10id_marray2EE=2|
 ; CHECK-PROPS-NEXT: _ZTS14name_generatorIL_Z10id_marray3EE=2|
 ; CHECK-PROPS-NEXT: _ZTS14name_generatorIL_Z10id_marray4EE=2|
-; CHECK-PROPS-NEXT: _ZTS14name_generatorIL_Z10id_marrayEE=2|
-; CHECK-PROPS-NEXT: _ZTS14name_generatorIL_Z10id_vectorEE=2|
-; CHECK-PROPS-NEXT: _ZTS14name_generatorIL_Z6id_intEE=2|
-; CHECK-PROPS-NEXT: _ZTS14name_generatorIL_Z9id_composEE=2|
-; CHECK-PROPS-NEXT: _ZTS14name_generatorIL_Z9id_halfEE=2|
 ; CHECK-PROPS-DEF: [SYCL/specialization constants default values]
 ; CHECK-PROPS-DEF: all=2|

@@ -122,23 +122,11 @@ raw_ostream &operator<<(raw_ostream &Out, const PropertyValue &Prop) {
 } // namespace llvm
 
 void PropertySetRegistry::write(raw_ostream &Out) const {
-  SmallVector<StringRef, 16> Keys1(PropSetMap.size());
-  for (const auto &[I, PS] : enumerate(PropSetMap))
-    Keys1[I] = PS.first();
+  for (const auto &PropSet : PropSetMap) {
+    Out << "[" << PropSet.first << "]\n";
 
-  sort(Keys1.begin(), Keys1.end());
-  for (auto K1 : Keys1) {
-    const auto &PropSet = PropSetMap.at(K1);
-    Out << "[" << K1 << "]\n";
-
-    SmallVector<StringRef, 16> Keys2(PropSet.size());
-    for (const auto &[I, Props] : enumerate(PropSet))
-      Keys2[I] = Props.first();
-
-    sort(Keys2.begin(), Keys2.end());
-    for (auto K2 : Keys2) {
-      const auto &Prop = PropSet.at(K2);
-      Out << K2 << "=" << Prop << "\n";
+    for (const auto &Props : PropSet.second) {
+      Out << Props.first << "=" << Props.second << "\n";
     }
   }
 }
