@@ -803,8 +803,7 @@ EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, uint32_t delta);
 template <typename T>
 EnableIfNativeShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
 #ifndef __NVPTX__
-  using OCLT = detail::ConvertToOpenCLType_t<T>;
-  return __spirv_SubgroupShuffleINTEL(OCLT(x),
+  return __spirv_SubgroupShuffleINTEL(convertToOpenCLType(x),
                                       static_cast<uint32_t>(local_id.get(0)));
 #else
   return __nvvm_shfl_sync_idx_i32(membermask(), x, local_id.get(0), 0x1f);
@@ -814,9 +813,8 @@ EnableIfNativeShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
 template <typename T>
 EnableIfNativeShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
 #ifndef __NVPTX__
-  using OCLT = detail::ConvertToOpenCLType_t<T>;
   return __spirv_SubgroupShuffleXorINTEL(
-      OCLT(x), static_cast<uint32_t>(local_id.get(0)));
+      convertToOpenCLType(x), static_cast<uint32_t>(local_id.get(0)));
 #else
   return __nvvm_shfl_sync_bfly_i32(membermask(), x, local_id.get(0), 0x1f);
 #endif
@@ -825,8 +823,8 @@ EnableIfNativeShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
 template <typename T>
 EnableIfNativeShuffle<T> SubgroupShuffleDown(T x, uint32_t delta) {
 #ifndef __NVPTX__
-  using OCLT = detail::ConvertToOpenCLType_t<T>;
-  return __spirv_SubgroupShuffleDownINTEL(OCLT(x), OCLT(x), delta);
+  return __spirv_SubgroupShuffleDownINTEL(convertToOpenCLType(x), OCLT(x),
+                                          delta);
 #else
   return __nvvm_shfl_sync_down_i32(membermask(), x, delta, 0x1f);
 #endif
@@ -835,8 +833,7 @@ EnableIfNativeShuffle<T> SubgroupShuffleDown(T x, uint32_t delta) {
 template <typename T>
 EnableIfNativeShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
 #ifndef __NVPTX__
-  using OCLT = detail::ConvertToOpenCLType_t<T>;
-  return __spirv_SubgroupShuffleUpINTEL(OCLT(x), OCLT(x), delta);
+  return __spirv_SubgroupShuffleUpINTEL(convertToOpenCLType(x), OCLT(x), delta);
 #else
   return __nvvm_shfl_sync_up_i32(membermask(), x, delta, 0);
 #endif

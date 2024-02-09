@@ -34,11 +34,9 @@ inline sycl::vec<unsigned, 4> ExtractMask(ext::oneapi::sub_group_mask Mask) {
 // TODO: This may need to be generalized beyond uint32_t for big masks
 inline uint32_t CallerPositionInMask(ext::oneapi::sub_group_mask Mask) {
   sycl::vec<unsigned, 4> MemberMask = ExtractMask(Mask);
-  auto OCLMask =
-      sycl::detail::ConvertToOpenCLType_t<sycl::vec<unsigned, 4>>(MemberMask);
   return __spirv_GroupNonUniformBallotBitCount(
       __spv::Scope::Subgroup, (int)__spv::GroupOperation::ExclusiveScan,
-      OCLMask);
+      sycl::detail::convertToOpenCLType(MemberMask));
 }
 #endif
 
