@@ -192,6 +192,32 @@ illustrated in the following diagrams:
 ![Graph partition illustration step 10b.](images/SYCL-Graph-partitions_step11.jpg)
 ![Graph partition illustration step 11b.](images/SYCL-Graph-partitions_step12.jpg)
 
+### Multiple Roots Execution Flow
+The following diagram shows the partitions of a graph with two roots 
+and a host-task in each branch.
+
+![Multiple roots graph partition illustration.](images/SYCL-Graph-multiple_roots_partitions.jpg)
+
+When executing this graph, the partitions were enqueued one after the other, 
+with each partition waiting for the previous one to complete 
+(see top of the following diagram).
+However, for multi-root graph, this behavior adds unnecessary dependency 
+between partitions, slowing down the execution of the whole graph.
+Now, we keep track of the actual predecessors of each partition and 
+only enforce dependencies between partitions when necessary.
+In our example, the extra dependency is therefore removed and 
+both branches can be executed concurrently.
+But as we can see on this diagram, this new approach can involve 
+multiple execution tails, which leads to difficulties when 
+we want to know when the graph execution has finished.
+To cope with this issue, the events associated to the completion of 
+each partition are linked to the event returned to users. 
+Hence, when the returned event is complete, we can guarantee that 
+all works associated with the graph has been completed.  
+
+![Multiple roots graph partition execution flow.](images/SYCL-Graph-partition_execution_flow.jpg)
+
+
 ## Memory handling: Buffer and Accessor
 
 There is no extra support for graph-specific USM allocations in the current
