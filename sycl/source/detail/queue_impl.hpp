@@ -108,13 +108,15 @@ public:
              const async_handler &AsyncHandler, const property_list &PropList)
       : MDevice(Device), MContext(Context), MAsyncHandler(AsyncHandler),
         MPropList(PropList), MHostQueue(MDevice->is_host()),
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
         MAssertHappenedBuffer(range<1>{1}),
+#endif
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MHasDiscardEventsSupport(MDiscardEvents &&
-                                 (MHostQueue ? true : MIsInorder)),
+        MSupportsDiscardingPiEvents(MDiscardEvents &&
+                                    (MHostQueue ? true : MIsInorder)),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
     if (has_property<property::queue::enable_profiling>()) {
@@ -283,13 +285,15 @@ public:
   queue_impl(sycl::detail::pi::PiQueue PiQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler)
       : MContext(Context), MAsyncHandler(AsyncHandler), MHostQueue(false),
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
         MAssertHappenedBuffer(range<1>{1}),
+#endif
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MHasDiscardEventsSupport(MDiscardEvents &&
-                                 (MHostQueue ? true : MIsInorder)),
+        MSupportsDiscardingPiEvents(MDiscardEvents &&
+                                    (MHostQueue ? true : MIsInorder)),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
     queue_impl_interop(PiQueue);
@@ -305,13 +309,16 @@ public:
   queue_impl(sycl::detail::pi::PiQueue PiQueue, const ContextImplPtr &Context,
              const async_handler &AsyncHandler, const property_list &PropList)
       : MContext(Context), MAsyncHandler(AsyncHandler), MPropList(PropList),
-        MHostQueue(false), MAssertHappenedBuffer(range<1>{1}),
+        MHostQueue(false),
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+        MAssertHappenedBuffer(range<1>{1}),
+#endif
         MIsInorder(has_property<property::queue::in_order>()),
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MHasDiscardEventsSupport(MDiscardEvents &&
-                                 (MHostQueue ? true : MIsInorder)) {
+        MSupportsDiscardingPiEvents(MDiscardEvents &&
+                                    (MHostQueue ? true : MIsInorder)) {
     queue_impl_interop(PiQueue);
   }
 
@@ -367,7 +374,9 @@ public:
   bool is_host() const { return MHostQueue; }
 
   /// \return true if this queue has discard_events support.
-  bool has_discard_events_support() const { return MHasDiscardEventsSupport; }
+  bool supportsDiscardingPiEvents() const {
+    return MSupportsDiscardingPiEvents;
+  }
 
   bool isInOrder() const { return MIsInorder; }
 
@@ -673,9 +682,11 @@ public:
   /// \return a native handle.
   pi_native_handle getNative(int32_t &NativeHandleDesc) const;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   buffer<AssertHappened, 1> &getAssertHappenedBuffer() {
     return MAssertHappenedBuffer;
   }
+#endif
 
   void registerStreamServiceEvent(const EventImplPtr &Event) {
     std::lock_guard<std::mutex> Lock(MMutex);
@@ -918,8 +929,10 @@ protected:
   /// need to emulate it with multiple native in-order queues.
   bool MEmulateOOO = false;
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   // Buffer to store assert failure descriptor
   buffer<AssertHappened, 1> MAssertHappenedBuffer;
+#endif
 
   // This event is employed for enhanced dependency tracking with in-order queue
   // Access to the event should be guarded with MMutex
@@ -959,12 +972,11 @@ public:
   const bool MIsProfilingEnabled;
 
 protected:
-  // This flag says if we can discard events based on a queue "setup" which will
-  // be common for all operations submitted to the queue. This is a must
-  // condition for discarding, but even if it's true, in some cases, we won't be
-  // able to discard events, because the final decision is made right before the
-  // operation itself.
-  const bool MHasDiscardEventsSupport;
+  // Indicates whether the queue supports discarding PI events for tasks
+  // submitted to it. This condition is necessary but not sufficient, PI events
+  // should be discarded only if they also don't represent potential implicit
+  // dependencies for future tasks in other queues.
+  const bool MSupportsDiscardingPiEvents;
 
   // Command graph which is associated with this queue for the purposes of
   // recording commands to it.

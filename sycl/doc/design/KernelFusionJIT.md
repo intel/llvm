@@ -212,7 +212,8 @@ These restrictions can be simplified to:
 
 - No two local sizes specified by the nd-ranges will be different;
 - No global id remapping is needed ([see](#work-item-remapping)) or all input offsets are 0;
-- All the fused nd-ranges must have the same offset.
+- All the fused nd-ranges must have the same offset;
+- No global id remapping is needed for kernels specifying a local size.
 
 As we can see, there is no restrictions in the number of dimensions or global sizes of the input nd-ranges.
 
@@ -312,12 +313,47 @@ computing the private memory size. As range rounding only applies to basic
 kernels (parametrized by a `sycl::range`), local internalization is not affected
 by the range rounding transformation.
 
+### Reductions
+
+Kernel fusion of reductions is partially supported. In order to preserve the
+legality of the fused kernel, i.e., the fact that fused kernel must perform the
+same work as the graph of kernels to be fused, only the fusion of the following
+reduction strategies is supported at the time of writing:
+
+- `group_reduce_and_last_wg_detection`
+- `local_atomic_and_atomic_cross_wg`
+- `range_basic`
+- `group_reduce_and_atomic_cross_wg`
+- `local_mem_tree_and_atomic_cross_wg`
+
+Other strategies require implicit inter-work-group synchronization, not
+supported in kernel fusion.
+
+Users may encounters errors, e.g., fusion being aborted or incorrect results due
+to race conditions or any other cause, when using the `sycl::reduction`
+interface. The SYCL runtime will choose different algorithms depending on the
+reduction operator, data type and hardware capabilities, so strategy selection
+is not possible through the regular interface. In this case, users can instead
+use `sycl::detail::reduction_parallel_for`, forcing a supported fusion
+strategy. Reductions implementation in
+[`sycl/reduction.hpp`](../../include/sycl/reduction.hpp) might give users an
+insight into which kind of reductions to use for their purposes:
+
+```c++
+q.submit([&](sycl::handler &cgh) {
+  sycl::accessor in(dataBuf, cgh, sycl::read_only);
+  sycl::reduction sum(sumBuf, cgh, sycl::plus<>{});
+  // Force supported 'group_reduce_and_last_wg_detection' strategy
+  sycl::detail::reduction_parallel_for<sycl::detail::auto_name,
+      sycl::detail::strategy::group_reduce_and_last_wg_detection>(...);
+});
+```
+
 ### Unsupported SYCL constructs
 
 The following SYCL API constructs are currently not officially supported for
 kernel fusion and should be considered untested/unsupported: 
 
-- Reductions
 - `sycl::stream`
 - Specialization constants and `sycl::kernel_handler`
 - Images (`sycl::unsampled_image` and `sycl::sampled_image`)

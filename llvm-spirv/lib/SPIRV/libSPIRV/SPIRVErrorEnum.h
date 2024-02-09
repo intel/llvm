@@ -1,5 +1,5 @@
 /* The error code name should be meaningful since it is part of error message */
-_SPIRV_OP(Success, "")
+_SPIRV_OP(Success, "Success")
 _SPIRV_OP(InvalidTargetTriple,
           "Expects spir-unknown-unknown or spir64-unknown-unknown.")
 _SPIRV_OP(InvalidSubArch, "Expecting v1.0-v1.4.")
@@ -28,3 +28,6 @@ _SPIRV_OP(InvalidVersionNumber,
           "Invalid Version Number.")
 _SPIRV_OP(UnspecifiedMemoryModel, "Unspecified Memory Model.")
 _SPIRV_OP(RepeatedMemoryModel, "Expects a single OpMemoryModel instruction.")
+
+/* This is the last error code to have a maximum valid value to compare to */
+_SPIRV_OP(InternalMaxErrorCode, "Unknown error code")
