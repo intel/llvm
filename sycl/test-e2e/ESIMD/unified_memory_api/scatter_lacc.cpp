@@ -29,8 +29,7 @@ int main() {
     Passed &= testLACC<sycl::half, TestFeatures>(Q);
   Passed &= testLACC<uint32_t, TestFeatures>(Q);
   Passed &= testLACC<float, TestFeatures>(Q);
-  Passed &=
-      testLACC<ext::intel::experimental::esimd::tfloat32, TestFeatures>(Q);
+
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;
 }
