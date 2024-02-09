@@ -41,10 +41,10 @@ void testRootGroup() {
           max_num_work_group_sync>(q);
   const auto props = sycl::ext::oneapi::experimental::properties{
       sycl::ext::oneapi::experimental::use_root_sync};
-  sycl::buffer<int> data_buf{sycl::range{maxWGs * WorkGroupSize}};
+  sycl::buffer<int> dataBuf{sycl::range{maxWGs * WorkGroupSize}};
   const auto range = sycl::nd_range<1>{maxWGs * WorkGroupSize, WorkGroupSize};
   q.submit([&](sycl::handler &h) {
-    sycl::accessor data{data_buf, h};
+    sycl::accessor data{dataBuf, h};
     h.parallel_for<class RootGroupKernel>(
         range, props, [=](sycl::nd_item<1> it) {
           auto root = it.ext_oneapi_get_root_group();
@@ -59,7 +59,7 @@ void testRootGroup() {
           data[root.get_local_id()] = sum;
         });
   });
-  sycl::host_accessor data{data_buf};
+  sycl::host_accessor data{dataBuf};
   const int workItemCount = static_cast<int>(range.get_global_range().size());
   for (int i = 0; i < workItemCount; i++) {
     assert(data[i] == (workItemCount - 1));
@@ -78,10 +78,10 @@ void testRootGroupFunctions() {
       sycl::ext::oneapi::experimental::use_root_sync};
 
   constexpr int testCount = 10;
-  sycl::buffer<bool> testResults_buf{sycl::range{testCount}};
+  sycl::buffer<bool> testResultsBuf{sycl::range{testCount}};
   const auto range = sycl::nd_range<1>{maxWGs * WorkGroupSize, WorkGroupSize};
   q.submit([&](sycl::handler &h) {
-    sycl::accessor testResults{testResults_buf, h};
+    sycl::accessor testResults{testResultsBuf, h};
     h.parallel_for<class RootGroupFunctionsKernel>(
         range, props, [=](sycl::nd_item<1> it) {
           const auto root = it.ext_oneapi_get_root_group();
@@ -113,7 +113,7 @@ void testRootGroupFunctions() {
           }
         });
   });
-  sycl::host_accessor testResults{testResults_buf};
+  sycl::host_accessor testResults{testResultsBuf};
   for (int i = 0; i < testCount; i++) {
     assert(testResults[i]);
   }

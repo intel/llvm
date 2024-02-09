@@ -15,8 +15,8 @@ int main() {
   sycl::queue Q1{Ctx, Dev, {sycl::property::queue::in_order{}}};
   sycl::queue Q2{Ctx, Dev, {sycl::property::queue::in_order{}}};
 
-  sycl::buffer<int> DevDatabuf{sycl::range{N}};
-  sycl::accessor DevData{DevDatabuf};
+  sycl::buffer<int> DevDataBuf{sycl::range{N}};
+  sycl::accessor DevData{DevDataBuf};
   int *HostData = (int *)malloc(N * sizeof(int) * 10);
 
   for (size_t I = 0; I < 10; ++I) {
@@ -52,6 +52,6 @@ int main() {
       }
     }
   }
-
+  free(HostData);
   return Failures;
 }
