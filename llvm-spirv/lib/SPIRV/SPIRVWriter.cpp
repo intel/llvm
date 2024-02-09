@@ -621,6 +621,8 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
           Args.emplace_back(transConstant(getUInt32(M, Op)));
         return mapType(T, BM->addCooperativeMatrixKHRType(ElemTy, Args));
       }
+      case internal::OpTypeTaskSequenceINTEL:
+        return mapType(T, BM->addTaskSequenceINTELType());
       default:
         if (isSubgroupAvcINTELTypeOpCode(Opcode))
           return mapType(T, BM->addSubgroupAvcINTELType(Opcode));

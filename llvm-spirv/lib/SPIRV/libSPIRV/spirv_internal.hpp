@@ -69,11 +69,16 @@ enum InternalOp {
   IOpJointMatrixUSMadINTEL = 6129,
   IOpJointMatrixUUMadINTEL = 6130,
   IOpArithmeticFenceINTEL = 6145,
+  IOpTaskSequenceCreateINTEL = 6163,
+  IOpTaskSequenceAsyncINTEL = 6164,
+  IOpTaskSequenceGetINTEL = 6165,
+  IOpTaskSequenceReleaseINTEL = 6166,
   IOpTypeJointMatrixINTELv2 = 6184,
   IOpCooperativeMatrixLoadCheckedINTEL = 6193,
   IOpCooperativeMatrixStoreCheckedINTEL = 6194,
   IOpCooperativeMatrixConstructCheckedINTEL = 6195,
   IOpJointMatrixWorkItemLengthINTEL = 6410,
+  IOpTypeTaskSequenceINTEL = 6411,
   IOpComplexFMulINTEL = 6415,
   IOpComplexFDivINTEL = 6416,
   IOpRoundFToTF32INTEL = 6426,
@@ -108,6 +113,7 @@ enum InternalCapability {
   ICapabilityHWThreadQueryINTEL = 6134,
   ICapFPArithmeticFenceINTEL = 6144,
   ICapGlobalVariableDecorationsINTEL = 6146,
+  ICapabilityTaskSequenceINTEL = 6162,
   ICapabilityCooperativeMatrixCheckedInstructionsINTEL = 6192,
   ICapabilityCooperativeMatrixPrefetchINTEL = 6411,
   ICapabilityComplexFloatMulDivINTEL = 6414,
@@ -217,6 +223,14 @@ _SPIRV_OP(Op, RoundFToTF32INTEL)
 _SPIRV_OP(Capability, CacheControlsINTEL)
 
 _SPIRV_OP(Capability, SubgroupRequirementsINTEL)
+
+_SPIRV_OP(Capability, TaskSequenceINTEL)
+_SPIRV_OP(Op, TaskSequenceCreateINTEL)
+_SPIRV_OP(Op, TaskSequenceAsyncINTEL)
+_SPIRV_OP(Op, TaskSequenceGetINTEL)
+_SPIRV_OP(Op, TaskSequenceReleaseINTEL)
+_SPIRV_OP(Op, TypeTaskSequenceINTEL)
+
 #undef _SPIRV_OP
 
 constexpr SourceLanguage SourceLanguagePython =
