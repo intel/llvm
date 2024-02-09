@@ -37,7 +37,8 @@ INSTANTIATE_TEST_SUITE_P(
 TEST_P(urAdapterGetInfoTest, Success) {
     size_t size = 0;
     ur_adapter_info_t info_type = GetParam();
-    ASSERT_SUCCESS(urAdapterGetInfo(adapter, info_type, 0, nullptr, &size));
+    ASSERT_SUCCESS_OR_OPTIONAL_QUERY(
+        urAdapterGetInfo(adapter, info_type, 0, nullptr, &size), info_type);
     ASSERT_NE(size, 0);
 
     if (const auto expected_size = adapter_info_size_map.find(info_type);
