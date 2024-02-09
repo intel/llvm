@@ -848,8 +848,7 @@ private:
   ///                   kernel bundle contains.
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   void verifyUsedKernelBundle(const std::string &KernelName) {
-    detail::string_view Name(KernelName);
-    verifyUsedKernelBundleInternal(Name);
+    verifyUsedKernelBundleInternal(detail::string_view{KernelName});
   }
   void verifyUsedKernelBundleInternal(detail::string_view KernelName);
 #else
