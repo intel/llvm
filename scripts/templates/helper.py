@@ -1,5 +1,5 @@
 """
- Copyright (C) 2022-2023 Intel Corporation
+ Copyright (C) 2022-2024 Intel Corporation
 
  Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
  See LICENSE.TXT
@@ -1486,38 +1486,6 @@ def get_loader_epilogue(specs, namespace, tags, obj, meta):
 
     return epilogue
 
-"""
-Public:
-    returns a dictionary with lists of create, retain and release functions
-"""
-def get_create_retain_release_functions(specs, namespace, tags):
-    funcs = []
-    for s in specs:
-        for obj in s['objects']:
-            if re.match(r"function", obj['type']):
-                funcs.append(make_func_name(namespace, tags, obj))
-
-    create_suffixes = r"(Create[A-Za-z]*){1}"
-    retain_suffixes = r"(Retain){1}"
-    release_suffixes = r"(Release){1}"
-
-    create_exp = namespace + r"([A-Za-z]+)" + create_suffixes
-    retain_exp = namespace + r"([A-Za-z]+)" + retain_suffixes
-    release_exp = namespace + r"([A-Za-z]+)" + release_suffixes
-
-    create_funcs, retain_funcs, release_funcs = (
-        list(filter(lambda f: re.match(create_exp, f), funcs)),
-        list(filter(lambda f: re.match(retain_exp, f), funcs)),
-        list(filter(lambda f: re.match(release_exp, f), funcs)),
-    )
-
-    create_funcs, retain_funcs = (
-        list(filter(lambda f: re.sub(create_suffixes, "Release", f) in release_funcs, create_funcs)),
-        list(filter(lambda f: re.sub(retain_suffixes, "Release", f) in release_funcs, retain_funcs)),
-    )
-
-    return {"create": create_funcs, "retain": retain_funcs, "release": release_funcs}
-
 
 def get_event_wait_list_functions(specs, namespace, tags):
     funcs = []
@@ -1528,3 +1496,69 @@ def get_event_wait_list_functions(specs, namespace, tags):
                         x['name'] == 'numEventsInWaitList' for x in obj['params']):
                     funcs.append(make_func_name(namespace, tags, obj))
     return funcs
+
+
+"""
+Private:
+    returns a dictionary with lists of create, get, retain and release functions
+"""
+def _get_create_get_retain_release_functions(specs, namespace, tags):
+    funcs = []
+    for s in specs:
+        for obj in s['objects']:
+            if re.match(r"function", obj['type']):
+                funcs.append(make_func_name(namespace, tags, obj))
+
+    create_suffixes = r"(Create[A-Za-z]*){1}$"
+    get_suffixes = r"(Get){1}$"
+    retain_suffixes = r"(Retain){1}$"
+    release_suffixes = r"(Release){1}$"
+    common_prefix = r"^" + namespace
+
+    create_exp = common_prefix + r"[A-Za-z]+" + create_suffixes
+    get_exp = common_prefix + r"[A-Za-z]+" + get_suffixes
+    retain_exp = common_prefix + r"[A-Za-z]+" + retain_suffixes
+    release_exp = common_prefix + r"[A-Za-z]+" + release_suffixes
+
+    create_funcs, get_funcs, retain_funcs, release_funcs = (
+        list(filter(lambda f: re.match(create_exp, f), funcs)),
+        list(filter(lambda f: re.match(get_exp, f), funcs)),
+        list(filter(lambda f: re.match(retain_exp, f), funcs)),
+        list(filter(lambda f: re.match(release_exp, f), funcs)),
+    )
+
+    return {"create": create_funcs, "get": get_funcs, "retain": retain_funcs, "release": release_funcs}
+
+
+"""
+Public:
+    returns a list of dictionaries containing handle types and the corresponding create, get, retain and release functions
+"""
+def get_handle_create_get_retain_release_functions(specs, namespace, tags):
+    # Handles without release function
+    excluded_handles = ["$x_platform_handle_t", "$x_native_handle_t"]
+    # Handles from experimental features
+    exp_prefix = "$x_exp"
+
+    funcs = _get_create_get_retain_release_functions(specs, namespace, tags)
+    records = []
+    for h in get_adapter_handles(specs):
+        if h['name'] in excluded_handles or h['name'].startswith(exp_prefix):
+            continue
+
+        class_type = subt(namespace, tags, h['class'])
+        create_funcs = list(filter(lambda f: class_type in f, funcs['create']))
+        get_funcs = list(filter(lambda f: class_type in f, funcs['get']))
+        retain_funcs = list(filter(lambda f: class_type in f, funcs['retain']))
+        release_funcs = list(filter(lambda f: class_type in f, funcs['release']))
+
+        record = {}
+        record['handle'] = subt(namespace, tags, h['name'])
+        record['create'] = create_funcs
+        record['get'] = get_funcs
+        record['retain'] = retain_funcs
+        record['release'] = release_funcs
+
+        records.append(record)
+
+    return records
