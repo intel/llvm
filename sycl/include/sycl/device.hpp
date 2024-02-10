@@ -222,17 +222,15 @@ public:
   typename detail::is_device_info_desc<Param>::return_type get_info() const {
     // For C++11_ABI compatibility, we handle these string Param types
     // separately.
-    if constexpr (std::is_same_v<Param, info::device::name> ||
-                  std::is_same_v<Param, info::device::vendor> ||
-                  std::is_same_v<Param, info::device::driver_version> ||
-                  std::is_same_v<Param, info::device::version> ||
-                  std::is_same_v<Param, info::device::profile> ||
-                  std::is_same_v<Param, info::device::opencl_c_version> ||
-                  std::is_same_v<Param, info::device::ext_intel_pci_address>) {
+    if constexpr (std::is_same_v<std::string,
+                                 typename detail::is_device_info_desc<
+                                     Param>::return_type>) {
       detail::string_view PropertyName(typeid(Param).name());
       detail::string Info = get_device_info(PropertyName);
       return Info.c_str();
-    } else if constexpr (std::is_same_v<Param, info::device::extensions>) {
+    } else if constexpr (std::is_same_v<std::vector<std::string>,
+                                        typename detail::is_device_info_desc<
+                                            Param>::return_type>) {
       // return value is std::vector<std::string>
       detail::string_view PropertyName(typeid(Param).name());
       std::vector<detail::string> Info = get_device_info_vector(PropertyName);
