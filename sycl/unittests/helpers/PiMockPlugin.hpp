@@ -203,27 +203,6 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
   }
   case PI_DEVICE_INFO_USM_HOST_SUPPORT:
   case PI_DEVICE_INFO_USM_DEVICE_SUPPORT:
-  case PI_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT: {
-    if (param_value)
-      *static_cast<pi_bool *>(param_value) = PI_TRUE;
-    if (param_value_size_ret)
-      *param_value_size_ret = sizeof(PI_TRUE);
-    return PI_SUCCESS;
-  }
-  case PI_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT: {
-    if (param_value)
-      *static_cast<pi_bool *>(param_value) = PI_TRUE;
-    if (param_value_size_ret)
-      *param_value_size_ret = sizeof(PI_TRUE);
-    return PI_SUCCESS;
-  }
-  case PI_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT: {
-    if (param_value)
-      *static_cast<pi_bool *>(param_value) = PI_TRUE;
-    if (param_value_size_ret)
-      *param_value_size_ret = sizeof(PI_TRUE);
-    return PI_SUCCESS;
-  }
   case PI_DEVICE_INFO_HOST_UNIFIED_MEMORY:
   case PI_DEVICE_INFO_AVAILABLE:
   case PI_DEVICE_INFO_LINKER_AVAILABLE:
@@ -448,8 +427,8 @@ inline pi_result mock_piMemImageCreate(pi_context context, pi_mem_flags flags,
                                        const pi_image_format *image_format,
                                        const pi_image_desc *image_desc,
                                        void *host_ptr, pi_mem *ret_mem) {
-  assert(false && "TODO: mock_piMemImageCreate handle allocation "
-                  "size correctly");
+  assert(false &&
+         "TODO: mock_piMemImageCreate handle allocation size correctly");
   *ret_mem = createDummyHandle<pi_mem>(/*size=*/1024 * 16);
   return PI_SUCCESS;
 }
@@ -706,10 +685,8 @@ inline pi_result mock_piProgramGetInfo(pi_program program,
     return PI_SUCCESS;
   }
   default: {
-    // TODO: Buildlog requires this but not any actual data
-    // afterwards.
-    //       This should be investigated. Should this be moved to
-    //       that test?
+    // TODO: Buildlog requires this but not any actual data afterwards.
+    //       This should be investigated. Should this be moved to that test?
     if (param_value_size_ret)
       *param_value_size_ret = sizeof(size_t);
     return PI_SUCCESS;
@@ -1445,8 +1422,7 @@ inline pi_result mock_piPluginGetBackendOption(pi_platform platform,
   return PI_SUCCESS;
 }
 
-// Returns the wall-clock timestamp of host for deviceTime and
-// hostTime
+// Returns the wall-clock timestamp of host for deviceTime and hostTime
 inline pi_result mock_piGetDeviceAndHostTimer(pi_device device,
                                               uint64_t *deviceTime,
                                               uint64_t *hostTime) {
