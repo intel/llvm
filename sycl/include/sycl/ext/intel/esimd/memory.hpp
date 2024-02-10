@@ -3928,7 +3928,7 @@ slm_gather(simd<uint32_t, N / VS> byte_offsets, simd_mask<N / VS> mask,
                   .data());
       simd<uint32_t, N / VS> Offset = byte_offsets + sizeof(uint32_t);
       Res.template bit_cast_view<uint32_t>().template select<N, 2>(1) =
-          __esimd_slm_gather_ld<uint32_t, N, Alignment>(
+          __esimd_slm_gather_ld<uint32_t, N, sizeof(uint32_t)>(
               Offset.data(), mask.data(),
               (pass_thru.template bit_cast_view<uint32_t>()
                    .template select<N, 2>(1))
@@ -3992,7 +3992,7 @@ slm_gather(simd<uint32_t, N / VS> byte_offsets, simd_mask<N / VS> mask,
               byte_offsets.data(), mask.data(), PassThru.data());
       simd<uint32_t, N / VS> Offset = byte_offsets + sizeof(uint32_t);
       Res.template bit_cast_view<uint32_t>().template select<N, 2>(1) =
-          __esimd_slm_gather_ld<uint32_t, N, Alignment>(
+          __esimd_slm_gather_ld<uint32_t, N, sizeof(uint32_t)>(
               Offset.data(), mask.data(), PassThru.data());
       return Res;
     } else {
@@ -4296,7 +4296,7 @@ slm_scatter(simd<uint32_t, N / VS> byte_offsets, simd<T, N> vals,
               .data(),
           byte_offsets.data(), mask.data());
       simd<uint32_t, N / VS> Offset = byte_offsets + sizeof(uint32_t);
-      __esimd_slm_scatter_st<uint32_t, N, Alignment>(
+      __esimd_slm_scatter_st<uint32_t, N, sizeof(uint32_t)>(
           vals.template bit_cast_view<uint32_t>()
               .template select<N, 2>(1)
               .data(),
