@@ -11,9 +11,12 @@ int main() {
   queue q;
   auto *RedMem = malloc_device<int>(1, q);
   auto *Success = malloc_device<bool>(1, q);
-  *Success = true;
-
-  *RedMem = 0;
+  int RedMemHost;
+  bool SuccessHost;
+  RedMemHost = 0;
+  SuccessHost = true;
+  q.memcpy(RedMem, &RedMemHost, sizeof(int)).wait();
+  q.memcpy(Success, &SuccessHost, sizeof(bool)).wait();
   q.parallel_for(range<1>{7}, reduction(RedMem, std::plus<int>{}),
                  [=](item<1> Item, auto &Red) {
                    Red += 1;
@@ -23,8 +26,6 @@ int main() {
                      *Success = false;
                  })
       .wait();
-  int RedMemHost;
-  bool SuccessHost;
   q.memcpy(&RedMemHost, RedMem, sizeof(int)).wait();
   q.memcpy(&SuccessHost, Success, sizeof(bool)).wait();
   assert(RedMemHost == 7);

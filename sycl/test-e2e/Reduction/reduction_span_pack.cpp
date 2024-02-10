@@ -89,7 +89,9 @@ void test1(queue Q, Range Rng, T Identity, T Value) {
       Passed &= (OutputHost[I] == ExpectedRemainder);
     }
   }
-  Passed &= (*Sum == Size);
+  int SumHost;
+  Q.memcpy(&SumHost, Sum, sizeof(int)).wait();
+  Passed &= (SumHost == Size);
 
   free(Output, Q);
   free(Sum, Q);
