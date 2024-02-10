@@ -203,27 +203,27 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
   }
   case PI_DEVICE_INFO_USM_HOST_SUPPORT:
   case PI_DEVICE_INFO_USM_DEVICE_SUPPORT:
-  case PI_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT:
+  case PI_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT: {
     if (param_value)
       *static_cast<pi_bool *>(param_value) = PI_TRUE;
-    if (param_value_size_ret) {
+    if (param_value_size_ret)
       *param_value_size_ret = sizeof(PI_TRUE);
-      return PI_SUCCESS;
-    }
-  case PI_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT:
+    return PI_SUCCESS;
+  }
+  case PI_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT: {
     if (param_value)
       *static_cast<pi_bool *>(param_value) = PI_TRUE;
-    if (param_value_size_ret) {
+    if (param_value_size_ret)
       *param_value_size_ret = sizeof(PI_TRUE);
-      return PI_SUCCESS;
-    }
-  case PI_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT:
+    return PI_SUCCESS;
+  }
+  case PI_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT: {
     if (param_value)
       *static_cast<pi_bool *>(param_value) = PI_TRUE;
-    if (param_value_size_ret) {
+    if (param_value_size_ret)
       *param_value_size_ret = sizeof(PI_TRUE);
-      return PI_SUCCESS;
-    }
+    return PI_SUCCESS;
+  }
   case PI_DEVICE_INFO_HOST_UNIFIED_MEMORY:
   case PI_DEVICE_INFO_AVAILABLE:
   case PI_DEVICE_INFO_LINKER_AVAILABLE:
