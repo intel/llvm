@@ -160,6 +160,8 @@ detail::string device::get_device_info(detail::string_view Type) const {
     Info = impl->template get_info<info::device::opencl_c_version>();
   } else if (Type == typeid(info::device::ext_intel_pci_address).name()) {
     Info = impl->template get_info<info::device::ext_intel_pci_address>();
+  } else if (Type == typeid(info::device::backend_version).name()) {
+    Info = impl->template get_info<info::device::backend_version>();
   } else {
     throw sycl::invalid_parameter_error("unsupported device info requested",
                                         PI_ERROR_INVALID_OPERATION);
@@ -170,7 +172,9 @@ detail::string device::get_device_info(detail::string_view Type) const {
 std::vector<detail::string>
 device::get_device_info_vector(detail::string_view Type) const {
   std::vector<std::string> Info;
-  if (Type == typeid(info::device::extensions).name()) {
+  if (Type == typeid(info::device::built_in_kernels).name()) {
+    Info = impl->template get_info<info::device::built_in_kernels>();
+  } else if (Type == typeid(info::device::extensions).name()) {
     Info = impl->template get_info<info::device::extensions>();
   } else {
     throw sycl::invalid_parameter_error(

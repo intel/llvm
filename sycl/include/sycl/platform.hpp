@@ -151,13 +151,24 @@ public:
   typename detail::is_platform_info_desc<Param>::return_type get_info() const {
     // For C++11-ABI compatibility, we handle these string Param types
     // separately.
-    if constexpr (std::is_same_v<Param, info::platform::name> ||
-                  std::is_same_v<Param, info::platform::vendor> ||
-                  std::is_same_v<Param, info::platform::version> ||
-                  std::is_same_v<Param, info::platform::profile>) {
+    if constexpr (std::is_same_v<std::string,
+                                 typename detail::is_platform_info_desc<
+                                     Param>::return_type>) {
       detail::string_view PropertyName(typeid(Param).name());
       detail::string Info = get_platform_info(PropertyName);
       return Info.c_str();
+    } else if constexpr (std::is_same_v<std::vector<std::string>,
+                                        typename detail::is_platform_info_desc<
+                                            Param>::return_type>) {
+      // The return value is std::vector<std::string>
+      detail::string_view PropertyName(typeid(Param).name());
+      std::vector<detail::string> Info = get_platform_info_vector(PropertyName);
+      std::vector<std::string> Res;
+      Res.reserve(Info.size());
+      for (detail::string &Str : Info) {
+        Res.push_back(Str.c_str());
+      }
+      return Res;
     }
     return get_info_internal<Param>();
   }
@@ -229,6 +240,8 @@ private:
   get_info_internal() const;
   // proxy of get_info_internal() to handle C++11-ABI compatibility separately.
   detail::string get_platform_info(detail::string_view Type) const;
+  std::vector<detail::string>
+  get_platform_info_vector(detail::string_view Type) const;
 #endif
 }; // class platform
 } // namespace _V1

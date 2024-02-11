@@ -231,7 +231,7 @@ public:
     } else if constexpr (std::is_same_v<std::vector<std::string>,
                                         typename detail::is_device_info_desc<
                                             Param>::return_type>) {
-      // return value is std::vector<std::string>
+      // The return value is std::vector<std::string>
       detail::string_view PropertyName(typeid(Param).name());
       std::vector<detail::string> Info = get_device_info_vector(PropertyName);
       std::vector<std::string> Res;

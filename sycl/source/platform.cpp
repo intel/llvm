@@ -74,10 +74,28 @@ detail::string platform::get_platform_info(detail::string_view Type) const {
   } else if (Type == typeid(info::platform::profile).name()) {
     Info = impl->get_info<info::platform::profile>();
   } else {
-    throw sycl::invalid_parameter_error("unsupported device info requested",
+    throw sycl::invalid_parameter_error("unsupported platform info requested",
                                         PI_ERROR_INVALID_OPERATION);
   }
   return detail::string(Info);
+}
+
+std::vector<detail::string>
+platform::get_platform_info_vector(detail::string_view Type) const {
+  std::vector<std::string> Info;
+  if (Type == typeid(info::platform::extensions).name()) {
+    Info = impl->template get_info<info::platform::extensions>();
+  } else {
+    throw sycl::invalid_parameter_error(
+        "unsupported platform info vector requested",
+        PI_ERROR_INVALID_OPERATION);
+  }
+
+  std::vector<detail::string> Result;
+  for (std::string &Str : Info) {
+    Result.push_back(detail::string(Str.c_str()));
+  }
+  return Result;
 }
 #else
 template <typename Param>
