@@ -129,6 +129,9 @@ private_alloca(kernel_handler &kh);
 _Mandates_: `ElementType` must be a cv-unqualified trivial type and `SpecName`
 must be a reference to a specialization constant of integral `value_type`.
 
+_Preconditions_: `SpecName` has a default value of at least 1 and is not set to
+a value less than 1 during program execution.
+
 _Effects_: `h.get_specialization_constant<size>()` elements of type
 `ElementType` are allocated and default initialized in the stack.
 
@@ -137,10 +140,10 @@ _Returns_: A pointer to a default initialized region of private memory of
 `ElementType`. `DecorateAddress` defines whether the returned `multi_ptr` is
 decorated.
 
-_Remarks_: In case of private memory exhaustion, the backend should notify the
-user in the same way as if a statically sized vector of private memory lead to
-memory exhaustion. In case of a successful call, memory is freed automatically
-when the function which called `private_alloca` returns to its caller.
+_Remarks_: In case of private memory exhaustion, the underlying backend must
+report an error in the same fashion as if the allocation size were static.. In
+case of a successful call, memory is freed automatically when the function which
+called `private_alloca` returns to its caller.
 
 == Example usage
 
