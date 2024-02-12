@@ -823,8 +823,8 @@ EnableIfNativeShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
 template <typename T>
 EnableIfNativeShuffle<T> SubgroupShuffleDown(T x, uint32_t delta) {
 #ifndef __NVPTX__
-  return __spirv_SubgroupShuffleDownINTEL(convertToOpenCLType(x), OCLT(x),
-                                          delta);
+  return __spirv_SubgroupShuffleDownINTEL(convertToOpenCLType(x),
+                                          convertToOpenCLType(x), delta);
 #else
   return __nvvm_shfl_sync_down_i32(membermask(), x, delta, 0x1f);
 #endif
@@ -833,7 +833,8 @@ EnableIfNativeShuffle<T> SubgroupShuffleDown(T x, uint32_t delta) {
 template <typename T>
 EnableIfNativeShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
 #ifndef __NVPTX__
-  return __spirv_SubgroupShuffleUpINTEL(convertToOpenCLType(x), OCLT(x), delta);
+  return __spirv_SubgroupShuffleUpINTEL(convertToOpenCLType(x),
+                                        convertToOpenCLType(x), delta);
 #else
   return __nvvm_shfl_sync_up_i32(membermask(), x, delta, 0);
 #endif
