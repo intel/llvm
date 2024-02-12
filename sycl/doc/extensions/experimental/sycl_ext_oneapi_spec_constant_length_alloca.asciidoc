@@ -179,6 +179,38 @@ of the underlying memory region was a concern too, but the current design
 automatically freeing the memory when the caller is returned is in line with
 similar constructs in other platforms.
 
+== Issues
+
+=== Default `DecorateAddress` Value
+
+At the time this extension was first proposed, there was no consensus for a
+default value for `sycl::access::decorate` in SYCL. The SYCL specification
+chooses `sycl::access::decorate::legacy` to avoid making breaking changes, but
+this would not justify using that value in this extension.
+
+Although it would be desirable to have one, the SCLA extension will not commit
+to a default value until the SYCL community has come to an agreement.
+
+=== Passing Size as an Argument
+
+Initial design passes size as a `sycl::specialization_id<Integral> &` template
+argument and receives a `sycl::kernel_handler &` as an argument. This decision
+comes from the current situation in which `sycl::specialization_id` is a unique
+identifier to represent a specialization constant and `sycl::kernel_handler` is
+used to query the **value** of specialization constants with
+`sycl::kernel_handler::get_specialization_constant`. Having a
+`sycl::specialization_constant` class representing specialization constants
+would enable cleaner interfaces to this function like:
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+template <typename ElementType, access::decorated DecorateAddress>
+private_ptr<ElementType, DecorateAddress>
+private_alloca(const specialization_constant<std::size_t> &size);
+} // namespace sycl::ext::oneapi::experimental
+----
+
 == Revision History
 
 [cols="5,15,15,70"]
