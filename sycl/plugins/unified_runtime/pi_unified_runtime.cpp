@@ -437,24 +437,24 @@ __SYCL_EXPORT pi_result piQueueGetInfo(pi_queue Queue, pi_queue_info ParamName,
                                ParamValueSizeRet);
 }
 
-/// USM Memset API
+/// USM Fill API
 ///
-/// @param Queue is the queue to submit to
-/// @param Ptr is the ptr to memset
-/// @param Value is value to set.  It is interpreted as an 8-bit value and the
-/// upper
-///        24 bits are ignored
-/// @param Count is the size in bytes to memset
-/// @param NumEventsInWaitlist is the number of events to wait on
-/// @param EventsWaitlist is an array of events to wait on
-/// @param Event is the event that represents this operation
-__SYCL_EXPORT pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr,
-                                              pi_int32 Value, size_t Count,
-                                              pi_uint32 NumEventsInWaitlist,
-                                              const pi_event *EventsWaitlist,
-                                              pi_event *Event) {
-  return pi2ur::piextUSMEnqueueMemset(
-      Queue, Ptr, Value, Count, NumEventsInWaitlist, EventsWaitlist, Event);
+/// \param queue is the queue to submit to
+/// \param ptr is the ptr to fill
+/// \param pattern is the ptr with the bytes of the pattern to set
+/// \param patternSize is the size in bytes of the pattern to set
+/// \param count is the size in bytes to fill
+/// \param num_events_in_waitlist is the number of events to wait on
+/// \param events_waitlist is an array of events to wait on
+/// \param event is the event that represents this operation
+__SYCL_EXPORT pi_result piextUSMEnqueueFill(pi_queue Queue, void *Ptr,
+                                            const void *Pattern,
+                                            size_t PatternSize, size_t Count,
+                                            pi_uint32 NumEventsInWaitlist,
+                                            const pi_event *EventsWaitlist,
+                                            pi_event *Event) {
+  return pi2ur::piextUSMEnqueueFill(Queue, Ptr, Pattern, PatternSize, Count,
+                                    NumEventsInWaitlist, EventsWaitlist, Event);
 }
 
 __SYCL_EXPORT pi_result piEnqueueMemBufferCopyRect(
@@ -1472,7 +1472,7 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piEnqueueMemBufferMap)
   _PI_API(piEnqueueMemUnmap)
   _PI_API(piEnqueueMemBufferFill)
-  _PI_API(piextUSMEnqueueMemset)
+  _PI_API(piextUSMEnqueueFill)
   _PI_API(piEnqueueMemBufferCopyRect)
   _PI_API(piEnqueueMemBufferCopy)
   _PI_API(piextUSMEnqueueMemcpy)

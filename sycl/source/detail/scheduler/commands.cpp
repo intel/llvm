@@ -2847,7 +2847,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
     CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
     MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
         MQueue->getContextImplPtr(), MCommandBuffer, Fill->getDst(),
-        Fill->getLength(), Fill->getFill(), std::move(MSyncPointDeps),
+        Fill->getLength(), Fill->getPattern(), std::move(MSyncPointDeps),
         &OutSyncPoint);
     MEvent->setSyncPoint(OutSyncPoint);
     return PI_SUCCESS;
@@ -3041,7 +3041,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   case CG::CGTYPE::FillUSM: {
     CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
     MemoryManager::fill_usm(Fill->getDst(), MQueue, Fill->getLength(),
-                            Fill->getFill(), std::move(RawEvents), Event,
+                            Fill->getPattern(), std::move(RawEvents), Event,
                             MEvent);
 
     return PI_SUCCESS;

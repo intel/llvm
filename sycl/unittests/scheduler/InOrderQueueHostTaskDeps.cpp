@@ -61,7 +61,8 @@ inline pi_result customEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
   ExecutedCommands.push_back({CommandType::KERNEL, EventsCount});
   return PI_SUCCESS;
 }
-inline pi_result customextUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t,
+inline pi_result customextUSMEnqueueMemset(pi_queue, void *, const void *,
+                                           size_t, size_t,
                                            pi_uint32 EventsCount,
                                            const pi_event *, pi_event *) {
   ExecutedCommands.push_back({CommandType::MEMSET, EventsCount});
@@ -73,7 +74,7 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
   sycl::unittest::PiMock Mock;
   Mock.redefineBefore<detail::PiApiKind::piEnqueueKernelLaunch>(
       customEnqueueKernelLaunch);
-  Mock.redefineBefore<detail::PiApiKind::piextUSMEnqueueMemset>(
+  Mock.redefineBefore<detail::PiApiKind::piextUSMEnqueueFill>(
       customextUSMEnqueueMemset);
 
   sycl::platform Plt = Mock.getPlatform();
@@ -126,7 +127,7 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
   sycl::unittest::PiMock Mock;
   Mock.redefineBefore<detail::PiApiKind::piEnqueueKernelLaunch>(
       customEnqueueKernelLaunch);
-  Mock.redefineBefore<detail::PiApiKind::piextUSMEnqueueMemset>(
+  Mock.redefineBefore<detail::PiApiKind::piextUSMEnqueueFill>(
       customextUSMEnqueueMemset);
 
   sycl::platform Plt = Mock.getPlatform();

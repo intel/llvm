@@ -2796,14 +2796,9 @@ public:
   /// device copyable.
   /// \param Count is the number of times to fill Pattern into Ptr.
   template <typename T> void fill(void *Ptr, const T &Pattern, size_t Count) {
-    throwIfActionIsCreated();
-    setUserFacingNodeType(ext::oneapi::experimental::node_type::memfill);
     static_assert(is_device_copyable<T>::value,
                   "Pattern must be device copyable");
-    parallel_for<__usmfill<T>>(range<1>(Count), [=](id<1> Index) {
-      T *CastedPtr = static_cast<T *>(Ptr);
-      CastedPtr[Index] = Pattern;
-    });
+    this->fill_impl(Ptr, &Pattern, sizeof(T), Count);
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -3612,6 +3607,9 @@ private:
       }
     });
   }
+
+  // Implementation of USM fill using command for native fill.
+  void fill_impl(void *Dest, const void *Value, size_t ValueSize, size_t Count);
 
   // Implementation of ext_oneapi_memcpy2d using command for native 2D memcpy.
   void ext_oneapi_memcpy2d_impl(void *Dest, size_t DestPitch, const void *Src,

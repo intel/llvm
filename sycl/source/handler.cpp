@@ -971,6 +971,16 @@ void handler::mem_advise(const void *Ptr, size_t Count, int Advice) {
   setType(detail::CG::AdviseUSM);
 }
 
+void handler::fill_impl(void *Dest, const void *Value, size_t ValueSize,
+                        size_t Count) {
+  throwIfActionIsCreated();
+  MDstPtr = Dest;
+  MPattern.resize(ValueSize);
+  std::memcpy(MPattern.data(), Value, ValueSize);
+  MLength = Count * ValueSize;
+  setType(detail::CG::FillUSM);
+}
+
 void handler::ext_oneapi_memcpy2d_impl(void *Dest, size_t DestPitch,
                                        const void *Src, size_t SrcPitch,
                                        size_t Width, size_t Height) {
