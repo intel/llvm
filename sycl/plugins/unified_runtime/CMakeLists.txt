@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1cd402ead34a54459a6acb85777fbec105a178a0
-  # Merge: 5b89ee8b c8e150c5
+  # commit be849b2f745fc525cf77bc2fe42c469751093706
+  # Merge: 47102cb2 92a02504
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Tue Feb 6 14:48:55 2024 +0000
-  #     Merge pull request #1218 from Bensuo/maxime/imm-cmd-list-support
-  #     [EXP][CMDBUF] L0 Immediate command-list support
-  set(UNIFIED_RUNTIME_TAG 1cd402ead34a54459a6acb85777fbec105a178a0)
+  # Date:   Mon Feb 12 10:01:50 2024 +0000
+  #     Merge pull request #1324 from raiyanla/event-opt
+  #     [L0] Allocate event pools efficiently in multi-device scenarios
+  set(UNIFIED_RUNTIME_TAG be849b2f745fc525cf77bc2fe42c469751093706)
   
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

@@ -715,10 +715,13 @@ bool test_int_types_and_sizes(queue q, const Config &cfg) {
         q, cfg);
     passed &= test_int_types<64, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(
         q, cfg);
-    passed &= test_int_types<12, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(
-        q, cfg);
-    passed &= test_int_types<33, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(
-        q, cfg);
+    // non power of two values are supported only in newer driver.
+    // TODO: Enable this when the new driver reaches test infrastructure
+    // (v27556).
+#if 0
+    passed &= test_int_types<12, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(q, cfg);
+    passed &= test_int_types<33, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(q, cfg);
+#endif
   }
 
   return passed;
@@ -739,8 +742,13 @@ bool test_fp_types_and_sizes(queue q, const Config &cfg) {
     passed &= test_fp_types<32, Op, UseMask, UseLSCFeatures, UseAcc>(q, cfg);
     passed &= test_fp_types<64, Op, UseMask, UseLSCFeatures, UseAcc>(q, cfg);
 
+    // non power of two values are supported only in newer driver.
+    // TODO: Enable this when the new driver reaches test infrastructure
+    // (v27556).
+#if 0
     passed &= test_fp_types<12, Op, UseMask, UseLSCFeatures, UseAcc>(q, cfg);
     passed &= test_fp_types<35, Op, UseMask, UseLSCFeatures, UseAcc>(q, cfg);
+#endif
   }
   return passed;
 }

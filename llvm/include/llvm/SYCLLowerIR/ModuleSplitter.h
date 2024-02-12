@@ -10,7 +10,8 @@
 // of the split is new modules containing corresponding callgraph.
 //===----------------------------------------------------------------------===//
 
-#pragma once
+#ifndef LLVM_SYCLLOWERIR_MODULE_SPLITTER_H
+#define LLVM_SYCLLOWERIR_MODULE_SPLITTER_H
 
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -18,6 +19,7 @@
 #include "llvm/Support/Error.h"
 
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace llvm {
@@ -229,8 +231,8 @@ public:
   // For device global variables with the 'device_image_scope' property,
   // the function checks that there are no usages of a single device global
   // variable from kernels grouped to different modules. Otherwise, an error is
-  // issued and the tool is aborted.
-  void verifyNoCrossModuleDeviceGlobalUsage();
+  // returned.
+  Error verifyNoCrossModuleDeviceGlobalUsage();
 
   virtual ~ModuleSplitterBase() = default;
 
@@ -262,3 +264,5 @@ void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints = false,
 } // namespace module_split
 
 } // namespace llvm
+
+#endif // LLVM_SYCLLOWERIR_MODULE_SPLITTER_H

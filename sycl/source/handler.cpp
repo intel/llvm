@@ -283,7 +283,7 @@ event handler::finalize() {
       };
 
       bool DiscardEvent = false;
-      if (MQueue->has_discard_events_support()) {
+      if (MQueue->supportsDiscardingPiEvents()) {
         // Kernel only uses assert if it's non interop one
         bool KernelUsesAssert =
             !(MKernel && MKernel->isInterop()) &&
