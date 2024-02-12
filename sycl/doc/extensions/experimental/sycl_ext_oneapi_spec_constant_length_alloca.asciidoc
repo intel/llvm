@@ -50,6 +50,15 @@ change incompatibly in future versions of {dpcpp} without prior notice.
 *Shipping software products should not rely on APIs defined in this
 specification.*
 
+== Backend support status
+
+The APIs in this extension may be used only on a device that has
+`aspect::ext_oneapi_scla`. The application must check that the device has this
+aspect before submitting a kernel using any of the APIs in this extension. If
+the application fails to do this, the implementation throws a synchronous
+exception with the `errc::kernel_not_supported` error code when the kernel is
+submitted to the queue.
+
 == Overview
 
 C++ arrays and `std::array` can be used in SYCL code to represent fixed-size
@@ -64,16 +73,9 @@ application, but that will not change when a SYCL kernel function is
 invoked. This way, specialization constants could be used to implement SYCL
 private arrays whose size is given during the execution of the SYCL
 application. There is no possible way of implementing this using `std::array`,
-as the size of such container must be known at compile time, so we propose to
+as the size of such containers must be known at compile time, so we propose to
 define a new `private_alloca` function whose size is specified using SYCL
 specialization constants.
-
-[NOTE]
-====
-This extension only supports SPIR-V backends for now, as it relies on
-SPIR-V-specific capabilities,
-such as specialization constants.
-====
 
 == Specification
 
@@ -97,6 +99,22 @@ implementation supports.
  feature-test macro always has this value.
 |===
 
+=== New Aspect for Specification Constant-Length Allocations
+
+This extension adds a new device aspect:
+
+[source,c++]
+----
+namespace sycl {
+enum class aspect : /*unspecified*/ {
+  ext_oneapi_scla
+};
+} // namespace sycl
+----
+
+The `ext_oneapi_scla` aspect indicates that the device is capable of using the
+`private_alloca` API defined in the following sections.
+
 === The `private_alloca` function
 
 [source,c++]
@@ -105,49 +123,24 @@ namespace sycl::ext::oneapi::experimental {
 template <typename ElementType, auto &SpecName,
           access::decorated DecorateAddress>
 private_ptr<ElementType, DecorateAddress>
-private_alloca(kernel_handler &h);
+private_alloca(kernel_handler &kh);
 } // namespace sycl::ext::oneapi::experimental
 ----
+_Mandates_: `ElementType` must be a cv-unqualified trivial type and `SpecName`
+must be a reference to a specialization constant of integral `value_type`.
 
-This extension adds a new `private_alloca` function that can be used to allocate
-a private memory region with capacity for
-`h.get_specialization_constant<SpecName>()` elements of type `ElementType`. The
-returned pointer will be aligned for `ElementType`.
+_Effects_: `h.get_specialization_constant<size>()` elements of type
+`ElementType` are allocated and default initialized in the stack.
 
-The underlying memory region is automatically freed when the caller to
-`private_alloca` is returned.
+_Returns_: A pointer to a default initialized region of private memory of
+`h.get_specialization_constant<size>()` elements of type
+`ElementType`. `DecorateAddress` defines whether the returned `multi_ptr` is
+decorated.
 
-In case of private memory exhaustion, the underlying backend must report an
-error in the same fashion as if the allocation size were static.
-
-If this function is called from host context or an unsupported backend, an
-`exception` with the `errc::feature_not_supported` error code must be thrown.
-
-`ElementType` must be a cv-unqualified trivial type. The return memory is
-default initialized.
-
-==== Parameters
-
-`h`:: `sycl::kernel_handler` used to obtain the value of `SpecName`
-
-==== Template Parameters
-
-`ElementType`:: Cv-unqualified trivial type serving as `value_type` of the
-  returned `sycl::multi_ptr`.
-`SpecName`:: `sycl::specialization_id` of integral `value_type`. The allocated
-  memory region has capacity for `h.get_specialization_constant<SpecName>`
-  `ElementType` elements. The default value for the specialization constant must
-  be at least one and the specialization constant must not be set to a value
-  less than one. Setting the specialization constant to a value less than 1 or
-  providing a default value less than 1 is undefined behaviour.
-`DecorateAddress`:: Whether the returned `sycl::multi_ptr` is decorated or not.
-
-==== Return Value
-
-`sycl::private_ptr` to a region of `h.get_specialization_constant<SpecName>()`
-elements of type `ElementType` aligned for such type. The underlying memory
-region will be automatically deallocated when the function from which
-`private_alloca` is called returns.
+_Remarks_: In case of private memory exhaustion, the backend should notify the
+user in the same way as if a statically sized vector of private memory lead to
+memory exhaustion. In case of a successful call, memory is freed automatically
+when the function which called `private_alloca` returns to its caller.
 
 == Example usage
 
@@ -165,11 +158,11 @@ SYCL_EXTERNAL void impl(const float *in, float *out, size_t n,
 void run(queue q, const float *in, float *out, size_t n) {
   q.submit([&](handler &h) {
     h.set_specialization_constant<size>(n);
-    h.parallel_for<Kernel>(n, [=](id<1> i, kernel_handler h) {
+    h.parallel_for<Kernel>(n, [=](id<1> i, kernel_handler kh) {
       // Allocate memory for 'n' 'float's
-      auto ptr = private_alloca<float, size, access::decorated::yes>(h);
+      auto ptr = private_alloca<float, size, access::decorated::yes>(kh);
       // Use pointer in implementation
-      impl(in, out, h.get_specialization_constant<size>(), ptr);
+      impl(in, out, kh.get_specialization_constant<size>(), ptr);
     });
   });
 ----
