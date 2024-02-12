@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// This tests support of row major layout for matrix B which does automatic VNNI
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 // VNNI transform and sub-group size 32 are not supported yet on DG2 by IGC
@@ -13,9 +14,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// This tests support of row major layout for matrix B which does automatic VNNI
-// transform. This is currently only available on AMX
-
+// Sub-group size 32 support for this test is not currently available in IGC
 // XFAIL: gpu
 
 #include "../common.hpp"
