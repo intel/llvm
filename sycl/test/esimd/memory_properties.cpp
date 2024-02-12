@@ -1342,6 +1342,10 @@ test_gather_scatter(AccType &acc, LocalAccType &local_acc, float *ptrf,
   simd<uint32_t, 10> ioffset_n10(byte_offset32, 8);
   simd<float, 10> usm_n10;
 
+  // Check special case involving glbal offset and mask
+  // CHECK-COUNT-1: call void @llvm.masked.scatter.v32f32.v32p3(<32 x float> {{[^)]+}}, <32 x ptr addrspace(3)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}})
+  scatter<float, 32>(local_acc, ioffset_n32, usm, 0, 1);
+
   // Check special case to verify that for cases when N is not power of 2 llvm
   // intrinsic is used
   // CHECK-COUNT-1: call void @llvm.masked.scatter.v10f32.v10p4(<10 x float> {{[^)]+}}, <10 x ptr addrspace(4)> {{[^)]+}}, i32 4, <10 x i1> {{[^)]+}})

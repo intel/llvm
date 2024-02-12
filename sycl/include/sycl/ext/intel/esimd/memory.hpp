@@ -7914,33 +7914,47 @@ __ESIMD_API
 
 /// Variant of scatter that uses local accessor as a parameter
 /// template <typename T, int N, int VS = 1, typename AccessorT,
-/// 	  typename PropertyListT = empty_properties_t>
-/// void scatter(AccessorT acc, simd<uint32_t, N / VS> byte_offsets, simd<T, N>
-/// vals, 	simd_mask<N / VS> mask, PropertyListT props = {}); //
-/// (lacc-sc-1)
+/// 	        typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              simd<uint32_t, N / VS> byte_offsets,
+///              simd<T, N> vals,
+///              simd_mask<N / VS> mask,
+///              PropertyListT props = {});                  // (lacc-sc-1)
 
 /// template <typename T, int N, int VS = 1, typename AccessorT,
-/// 	  typename PropertyListT = empty_properties_t>
-/// void scatter(AccessorT acc, simd<uint32_t, N / VS> byte_offsets, simd<T, N>
-/// vals, PropertyListT props = {});                         // (lacc-sc-2)
+/// 	        typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              simd<uint32_t, N / VS> byte_offsets,
+///              simd<T, N> vals,
+///              PropertyListT props = {});                 // (lacc-sc-2)
 
 /// The next two functions are similar to lacc-sc-{1,2} with the 'byte_offsets'
 /// parameter represerented as 'simd_view'.
 
 /// template <typename T, int N, int VS = 1, typename AccessorT,
-///     typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
-/// void scatter(AccessorT acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
-/// simd_mask<N / VS> mask, PropertyListT props = {}); // (lacc-sc-3)
+///           typename OffsetSimdViewT,
+///           typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              OffsetSimdViewT byte_offsets,
+///              simd<T, N> vals,
+///              simd_mask<N / VS> mask,
+///              PropertyListT props = {});                 // (lacc-sc-3)
 
 /// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
-/// 	  typename AccessorT, typename PropertyListT = empty_properties_t>
-/// void scatter(AccessorT acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
-///      PropertyListT props = {});                         // (lacc-sc-4)
+/// 	        typename AccessorT,
+///           typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              OffsetSimdViewT byte_offsets,
+///              simd<T, N> vals,
+///              PropertyListT props = {});                // (lacc-sc-4)
 
 /// template <typename T, int N, int VS = 1, typename AccessorT,
-/// 	  typename PropertyListT = empty_properties_t>
-/// void scatter(AccessorT acc, simd<uint32_t, N / VS> byte_offsets, simd<T, N>
-/// vals, simd_mask<N / VS> mask, PropertyListT props = {}); // (lacc-sc-1)
+/// 	        typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              simd<uint32_t, N / VS> byte_offsets,
+///              simd<T, N> vals,
+///              simd_mask<N / VS> mask,
+///              PropertyListT props = {});               // (lacc-sc-1)
 ///
 /// Writes ("scatters") elements of the input vector to memory locations
 /// addressed by the local accessor \p acc and byte offsets \p byte_offsets.
@@ -7974,9 +7988,11 @@ scatter(AccessorT acc, simd<uint32_t, N / VS> byte_offsets, simd<T, N> vals,
 }
 
 /// template <typename T, int N, int VS = 1, typename AccessorT,
-/// 	  typename PropertyListT = empty_properties_t>
-/// void scatter(AccessorT acc, simd<uint32_t, N / VS> byte_offsets, simd<T, N>
-/// vals, 	PropertyListT props = {});                        // (lacc-sc-2)
+/// 	        typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              simd<uint32_t, N / VS> byte_offsets,
+///              simd<T, N> vals,
+///              PropertyListT props = {});                 // (lacc-sc-2)
 ///
 /// Writes ("scatters") elements of the input vector to memory locations
 /// addressed by the local accessor \p acc and byte offsets \p byte_offsets.
@@ -8006,10 +8022,14 @@ scatter(AccessorT acc, simd<uint32_t, N / VS> byte_offsets, simd<T, N> vals,
   scatter<T, N, VS>(acc, byte_offsets, vals, Mask, props);
 }
 
-// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
-// 	  typename AccessorT, typename PropertyListT = empty_properties_t>
-// void scatter(AccessorT acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
-// 	simd_mask<N / VS> mask, PropertyListT props = {}); // (lacc-sc-3)
+/// template <typename T, int N, int VS = 1, typename AccessorT,
+///           typename OffsetSimdViewT,
+///           typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              OffsetSimdViewT byte_offsets,
+///              simd<T, N> vals,
+///              simd_mask<N / VS> mask,
+///              PropertyListT props = {});                 // (lacc-sc-3)
 ///
 /// Writes ("scatters") elements of the input vector to memory locations
 /// addressed by the local accessor \p acc and byte offsets \p byte_offsets.
@@ -8044,9 +8064,12 @@ scatter(AccessorT acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 }
 
 /// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
-/// 	  typename AccessorT, typename PropertyListT = empty_properties_t>
-/// void scatter(AccessorT acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
-///      PropertyListT props = {});                         // (lacc-sc-4)
+/// 	        typename AccessorT,
+///           typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              OffsetSimdViewT byte_offsets,
+///              simd<T, N> vals,
+///              PropertyListT props = {});                // (lacc-sc-4)
 ///
 /// Writes ("scatters") elements of the input vector to memory locations
 /// addressed by the local accessor \p acc and byte offsets \p byte_offsets.

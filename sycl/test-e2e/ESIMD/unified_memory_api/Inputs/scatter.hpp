@@ -477,7 +477,7 @@ bool testLACC(queue Q, uint32_t MaskStride,
   try {
     Q.submit([&](handler &cgh) {
        constexpr uint32_t SLMSize = (Threads * N + 8) * sizeof(T);
-       auto InAcc = local_accessor<T, 1>(SLMSize, cgh);
+       auto LocalAcc = local_accessor<T, 1>(SLMSize, cgh);
 
        cgh.parallel_for(Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
          ScatterPropertiesT Props{};
@@ -486,13 +486,11 @@ bool testLACC(queue Q, uint32_t MaskStride,
          uint32_t GlobalElemOffset = GlobalID * N;
          uint32_t LocalElemOffset = LocalID * N;
 
-         slm_init<SLMSize>();
-
          if (LocalID == 0) {
            for (int I = 0; I < Threads * N; I += 8) {
              simd<T, 8> InVec(Out + GlobalElemOffset + I);
              simd<uint32_t, 8> Offsets(I * sizeof(T), sizeof(T));
-             scatter<T>(InAcc, Offsets, InVec);
+             scatter<T>(LocalAcc, Offsets, InVec);
            }
          }
          barrier();
@@ -501,7 +499,7 @@ bool testLACC(queue Q, uint32_t MaskStride,
                                               VS * sizeof(T));
          auto ByteOffsetsView = ByteOffsets.template select<NOffsets, 1>();
 
-         simd<T, N> Vals = gather<T, N, VS>(InAcc, ByteOffsets, Props);
+         simd<T, N> Vals = gather<T, N, VS>(LocalAcc, ByteOffsets, Props);
          Vals *= 2;
 
          auto ValsView = Vals.template select<N, 1>();
@@ -512,85 +510,88 @@ bool testLACC(queue Q, uint32_t MaskStride,
            if constexpr (UseMask) {
              if constexpr (UseProperties) {
                if (GlobalID % 4 == 0)
-                 scatter<T, N, VS>(InAcc, ByteOffsets, Vals, Pred, Props);
+                 scatter<T, N, VS>(LocalAcc, ByteOffsets, Vals, Pred, Props);
                else if (GlobalID % 4 == 1)
-                 scatter<T, N, VS>(InAcc, ByteOffsetsView, Vals, Pred, Props);
+                 scatter<T, N, VS>(LocalAcc, ByteOffsetsView, Vals, Pred,
+                                   Props);
                else if (GlobalID % 4 == 2)
-                 scatter<T, N, VS>(InAcc, ByteOffsets, ValsView, Pred, Props);
+                 scatter<T, N, VS>(LocalAcc, ByteOffsets, ValsView, Pred,
+                                   Props);
                else if (GlobalID % 4 == 3)
-                 scatter<T, N, VS>(InAcc, ByteOffsetsView, ValsView, Pred,
+                 scatter<T, N, VS>(LocalAcc, ByteOffsetsView, ValsView, Pred,
                                    Props);
              } else { // UseProperties == false
                if (GlobalID % 4 == 0)
-                 scatter<T, N, VS>(InAcc, ByteOffsets, Vals, Pred);
+                 scatter<T, N, VS>(LocalAcc, ByteOffsets, Vals, Pred);
                else if (GlobalID % 4 == 1)
-                 scatter<T, N, VS>(InAcc, ByteOffsetsView, Vals, Pred);
+                 scatter<T, N, VS>(LocalAcc, ByteOffsetsView, Vals, Pred);
                else if (GlobalID % 4 == 2)
-                 scatter<T, N, VS>(InAcc, ByteOffsets, ValsView, Pred);
+                 scatter<T, N, VS>(LocalAcc, ByteOffsets, ValsView, Pred);
                else if (GlobalID % 4 == 3)
-                 scatter<T, N, VS>(InAcc, ByteOffsetsView, ValsView, Pred);
+                 scatter<T, N, VS>(LocalAcc, ByteOffsetsView, ValsView, Pred);
              }
            } else { // UseMask == false
              if constexpr (UseProperties) {
                if (GlobalID % 4 == 0)
-                 scatter<T, N, VS>(InAcc, ByteOffsets, Vals, Props);
+                 scatter<T, N, VS>(LocalAcc, ByteOffsets, Vals, Props);
                else if (GlobalID % 4 == 1)
-                 scatter<T, N, VS>(InAcc, ByteOffsetsView, Vals, Props);
+                 scatter<T, N, VS>(LocalAcc, ByteOffsetsView, Vals, Props);
                else if (GlobalID % 4 == 2)
-                 scatter<T, N, VS>(InAcc, ByteOffsets, ValsView, Props);
+                 scatter<T, N, VS>(LocalAcc, ByteOffsets, ValsView, Props);
                else if (GlobalID % 4 == 3)
-                 scatter<T, N, VS>(InAcc, ByteOffsetsView, ValsView, Props);
+                 scatter<T, N, VS>(LocalAcc, ByteOffsetsView, ValsView, Props);
              } else { // UseProperties == false
                if (GlobalID % 4 == 0)
-                 scatter<T, N, VS>(InAcc, ByteOffsets, Vals);
+                 scatter<T, N, VS>(LocalAcc, ByteOffsets, Vals);
                else if (GlobalID % 4 == 1)
-                 scatter<T, N, VS>(InAcc, ByteOffsetsView, Vals);
+                 scatter<T, N, VS>(LocalAcc, ByteOffsetsView, Vals);
                else if (GlobalID % 4 == 2)
-                 scatter<T, N, VS>(InAcc, ByteOffsets, ValsView);
+                 scatter<T, N, VS>(LocalAcc, ByteOffsets, ValsView);
                else if (GlobalID % 4 == 3)
-                 scatter<T, N, VS>(InAcc, ByteOffsetsView, ValsView);
+                 scatter<T, N, VS>(LocalAcc, ByteOffsetsView, ValsView);
              }
            }
          } else { // VS == 1
            if constexpr (UseMask) {
              if constexpr (UseProperties) {
                if (GlobalID % 4 == 0)
-                 scatter(InAcc, ByteOffsets, Vals, Pred, Props);
+                 scatter(LocalAcc, ByteOffsets, Vals, Pred, Props);
                else if (GlobalID % 4 == 1)
-                 scatter(InAcc, ByteOffsetsView, Vals, Pred, Props);
+                 scatter(LocalAcc, ByteOffsetsView, Vals, Pred, Props);
                else if (GlobalID % 4 == 2)
-                 scatter<T, N>(InAcc, ByteOffsets, ValsView, Pred, Props);
+                 scatter<T, N>(LocalAcc, ByteOffsets, ValsView, Pred, Props);
                else if (GlobalID % 4 == 3)
-                 scatter<T, N>(InAcc, ByteOffsetsView, ValsView, Pred, Props);
+                 scatter<T, N>(LocalAcc, ByteOffsetsView, ValsView, Pred,
+                               Props);
              } else { // UseProperties == false
                if (GlobalID % 4 == 0)
-                 scatter(InAcc, ByteOffsets, Vals, Pred);
+                 scatter(LocalAcc, ByteOffsets, Vals, Pred);
                else if (GlobalID % 4 == 1)
-                 scatter<T, N>(InAcc, ByteOffsetsView, Vals, Pred);
+                 scatter<T, N>(LocalAcc, ByteOffsetsView, Vals, Pred);
                else if (GlobalID % 4 == 2)
-                 scatter<T, N>(InAcc, ByteOffsets, ValsView, Pred);
+                 scatter<T, N>(LocalAcc, ByteOffsets, ValsView, Pred);
                else if (GlobalID % 4 == 3)
-                 scatter<T, N>(InAcc, ByteOffsetsView, ValsView, Pred);
+                 scatter<T, N>(LocalAcc, ByteOffsetsView, ValsView, Pred);
              }
            } else { // UseMask == false
              if constexpr (UseProperties) {
                if (GlobalID % 4 == 0)
-                 scatter(InAcc, ByteOffsets, Vals, Props);
+                 scatter(LocalAcc, ByteOffsets, Vals, Props);
                else if (GlobalID % 4 == 1)
-                 scatter(InAcc, ByteOffsetsView, Vals, Props);
+                 scatter(LocalAcc, ByteOffsetsView, Vals, Props);
                else if (GlobalID % 4 == 2)
-                 scatter<T, N>(InAcc, ByteOffsets, ValsView, Props);
+                 scatter<T, N>(LocalAcc, ByteOffsets, ValsView, Props);
                else if (GlobalID % 4 == 3)
-                 scatter<T, N>(InAcc, ByteOffsetsView, ValsView, Props);
+                 scatter<T, N>(LocalAcc, ByteOffsetsView, ValsView, Props);
              } else { // UseProperties == false
                if (GlobalID % 4 == 0)
-                 scatter(InAcc, ByteOffsets, Vals);
+                 scatter(LocalAcc, ByteOffsets, Vals);
                else if (GlobalID % 4 == 1)
-                 scatter(InAcc, ByteOffsetsView, Vals);
+                 scatter(LocalAcc, ByteOffsetsView, Vals);
                else if (GlobalID % 4 == 2)
-                 scatter<T, N>(InAcc, ByteOffsets, ValsView);
+                 scatter<T, N>(LocalAcc, ByteOffsets, ValsView);
                else if (GlobalID % 4 == 3)
-                 scatter<T, N>(InAcc, ByteOffsetsView, ValsView);
+                 scatter<T, N>(LocalAcc, ByteOffsetsView, ValsView);
              }
            }
          }
@@ -598,7 +599,7 @@ bool testLACC(queue Q, uint32_t MaskStride,
          if (LocalID == 0) {
            for (int I = 0; I < Threads * N; I++) {
              simd<uint32_t, 1> Offsets(I * sizeof(T), sizeof(T));
-             simd<T, 1> OutVec = gather<T>(InAcc, Offsets);
+             simd<T, 1> OutVec = gather<T>(LocalAcc, Offsets);
              OutVec.copy_to(Out + GlobalElemOffset + I);
            }
          }
