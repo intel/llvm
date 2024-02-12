@@ -114,7 +114,14 @@ if(UR_ENABLE_SANITIZER)
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanitizer_layer.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/ur_sanddi.cpp
     )
+
+    target_sources(ur_loader
+        PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/linux/san_utils.cpp
+    )
+
     target_include_directories(ur_loader PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer"
         "${CMAKE_CURRENT_SOURCE_DIR}/../"
     )
 endif()

@@ -67,7 +67,7 @@ ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
   bool IsInternal = OutEvent == nullptr;
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
   UR_CALL(createEventAndAssociateQueue(Queue, Event, CommandType, CommandList,
-                                       IsInternal));
+                                       IsInternal, false));
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
 
@@ -117,7 +117,7 @@ ur_result_t enqueueMemCopyRectHelper(
   bool IsInternal = OutEvent == nullptr;
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
   UR_CALL(createEventAndAssociateQueue(Queue, Event, CommandType, CommandList,
-                                       IsInternal));
+                                       IsInternal, false));
 
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
@@ -227,7 +227,7 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
   bool IsInternal = OutEvent == nullptr;
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
   UR_CALL(createEventAndAssociateQueue(Queue, Event, CommandType, CommandList,
-                                       IsInternal));
+                                       IsInternal, false));
 
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
@@ -361,7 +361,7 @@ static ur_result_t enqueueMemImageCommandHelper(
   bool IsInternal = OutEvent == nullptr;
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
   UR_CALL(createEventAndAssociateQueue(Queue, Event, CommandType, CommandList,
-                                       IsInternal));
+                                       IsInternal, false));
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
 
@@ -911,9 +911,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
     UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
         NumEventsInWaitList, EventWaitList, Queue, UseCopyEngine));
 
-    UR_CALL(
-        createEventAndAssociateQueue(Queue, Event, UR_COMMAND_MEM_BUFFER_MAP,
-                                     Queue->CommandListMap.end(), IsInternal));
+    UR_CALL(createEventAndAssociateQueue(
+        Queue, Event, UR_COMMAND_MEM_BUFFER_MAP, Queue->CommandListMap.end(),
+        IsInternal, false));
 
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
@@ -1071,7 +1071,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
 
     UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_MEM_UNMAP,
                                          Queue->CommandListMap.end(),
-                                         IsInternal));
+                                         IsInternal, false));
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
   }
@@ -1262,7 +1262,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   bool IsInternal = OutEvent == nullptr;
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
   UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_USM_PREFETCH,
-                                       CommandList, IsInternal));
+                                       CommandList, IsInternal, false));
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
 
@@ -1318,7 +1318,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
   bool IsInternal = OutEvent == nullptr;
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
   UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_USM_ADVISE,
-                                       CommandList, IsInternal));
+                                       CommandList, IsInternal, false));
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
 
@@ -1856,6 +1856,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
 
 UR_APIEXPORT ur_result_t UR_APICALL urMemGetNativeHandle(
     ur_mem_handle_t Mem, ///< [in] handle of the mem.
+    ur_device_handle_t,  ///< [in] handle of the device.
     ur_native_handle_t
         *NativeMem ///< [out] a pointer to the native handle of the mem.
 ) {

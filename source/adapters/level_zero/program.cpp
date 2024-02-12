@@ -462,8 +462,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
         new ur_program_handle_t_(State, hContext, ZeModuleMap.begin()->second,
                                  ZeBuildLogMap.begin()->second);
     *phProgram = reinterpret_cast<ur_program_handle_t>(UrProgram);
-    (*phProgram)->ZeModuleMap = ZeModuleMap;
-    (*phProgram)->ZeBuildLogMap = ZeBuildLogMap;
+    (*phProgram)->ZeModuleMap = std::move(ZeModuleMap);
+    (*phProgram)->ZeBuildLogMap = std::move(ZeBuildLogMap);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -529,16 +529,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
     void **FunctionPointerRet ///< [out] Returns the pointer to the function if
                               ///< it is found in the program.
 ) {
-  std::ignore = Device;
-
   std::shared_lock<ur_shared_mutex> Guard(Program->Mutex);
   if (Program->State != ur_program_handle_t_::Exe) {
     return UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE;
   }
 
-  ze_result_t ZeResult =
-      ZE_CALL_NOCHECK(zeModuleGetFunctionPointer,
-                      (Program->ZeModule, FunctionName, FunctionPointerRet));
+  ze_module_handle_t ZeModule{};
+  auto It = Program->ZeModuleMap.find(Device->ZeDevice);
+  if (It != Program->ZeModuleMap.end()) {
+    ZeModule = It->second;
+  } else {
+    ZeModule = Program->ZeModule;
+  }
+  ze_result_t ZeResult = ZE_CALL_NOCHECK(
+      zeModuleGetFunctionPointer, (ZeModule, FunctionName, FunctionPointerRet));
 
   // zeModuleGetFunctionPointer currently fails for all
   // kernels regardless of if the kernel exist or not

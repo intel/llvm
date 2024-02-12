@@ -300,6 +300,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_ESIMD_SUPPORT:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_COMPONENT_DEVICES:
+  case UR_DEVICE_INFO_COMPOSITE_DEVICE:
+    // These two are exclusive of L0.
+    return ReturnValue(0);
 
     CASE_UR_UNSUPPORTED(UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH);
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:

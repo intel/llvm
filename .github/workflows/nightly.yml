@@ -19,14 +19,14 @@ jobs:
     runs-on: 'ubuntu-22.04'
 
     steps:
-    - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
+    - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
     - name: Install pip packages
       run: pip install -r third_party/requirements.txt
 
     - name: Download DPC++
       run: |
-        wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2023-08-31/sycl_linux.tar.gz
+        wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2024-01-29/sycl_linux.tar.gz
         mkdir dpcpp_compiler
         tar -xvf ${{github.workspace}}/dpcpp_compiler.tar.gz -C dpcpp_compiler
 

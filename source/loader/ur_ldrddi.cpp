@@ -546,6 +546,30 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
                     }
                 }
             } break;
+            case UR_DEVICE_INFO_COMPONENT_DEVICES: {
+                ur_device_handle_t *handles =
+                    reinterpret_cast<ur_device_handle_t *>(pPropValue);
+                size_t nelements = *pPropSizeRet / sizeof(ur_device_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    if (handles[i] != nullptr) {
+                        handles[i] = reinterpret_cast<ur_device_handle_t>(
+                            ur_device_factory.getInstance(handles[i],
+                                                          dditable));
+                    }
+                }
+            } break;
+            case UR_DEVICE_INFO_COMPOSITE_DEVICE: {
+                ur_device_handle_t *handles =
+                    reinterpret_cast<ur_device_handle_t *>(pPropValue);
+                size_t nelements = *pPropSizeRet / sizeof(ur_device_handle_t);
+                for (size_t i = 0; i < nelements; ++i) {
+                    if (handles[i] != nullptr) {
+                        handles[i] = reinterpret_cast<ur_device_handle_t>(
+                            ur_device_factory.getInstance(handles[i],
+                                                          dditable));
+                    }
+                }
+            } break;
             default: {
             } break;
             }
@@ -1231,6 +1255,8 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
 /// @brief Intercept function for urMemGetNativeHandle
 __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
     ur_mem_handle_t hMem, ///< [in] handle of the mem.
+    ur_device_handle_t
+        hDevice, ///< [in] handle of the device that the native handle will be resident on.
     ur_native_handle_t
         *phNativeMem ///< [out] a pointer to the native handle of the mem.
 ) {
@@ -1246,8 +1272,11 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
     // convert loader handle to platform handle
     hMem = reinterpret_cast<ur_mem_object_t *>(hMem)->handle;
 
+    // convert loader handle to platform handle
+    hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
+
     // forward to device-platform
-    result = pfnGetNativeHandle(hMem, phNativeMem);
+    result = pfnGetNativeHandle(hMem, hDevice, phNativeMem);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;

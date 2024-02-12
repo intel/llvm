@@ -1,4 +1,4 @@
-# Copyright (C) 2023 Intel Corporation
+# Copyright (C) 2023-2024 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -52,3 +52,4 @@ endfunction()
 add_validation_test(parameters parameters.cpp)
 add_validation_match_test(leaks leaks.out.match leaks.cpp)
 add_validation_match_test(leaks_mt leaks_mt.out.match leaks_mt.cpp)
+add_validation_match_test(lifetime lifetime.out.match lifetime.cpp)
