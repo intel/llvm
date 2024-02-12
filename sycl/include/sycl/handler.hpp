@@ -1307,6 +1307,7 @@ private:
       StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
       setType(detail::CG::Kernel);
+      setNDRangeUsed(false);
 #endif
     } else
 #endif // !__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ &&
@@ -1324,6 +1325,7 @@ private:
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
           std::move(KernelFunc));
       setType(detail::CG::Kernel);
+      setNDRangeUsed(false);
 #endif
     }
   }
@@ -1378,6 +1380,7 @@ private:
     StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
         std::move(KernelFunc));
     setType(detail::CG::Kernel);
+    setNDRangeUsed(true);
 #endif
   }
 
@@ -1395,6 +1398,7 @@ private:
     detail::checkValueRange<Dims>(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
     setType(detail::CG::Kernel);
+    setNDRangeUsed(false);
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -1433,6 +1437,7 @@ private:
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
     setType(detail::CG::Kernel);
+    setNDRangeUsed(false);
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -1986,6 +1991,7 @@ public:
     StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
         std::move(KernelFunc));
     setType(detail::CG::Kernel);
+    setNDRangeUsed(false);
 #endif
   }
 
@@ -2078,6 +2084,7 @@ public:
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     setType(detail::CG::Kernel);
+    setNDRangeUsed(false);
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -2096,6 +2103,7 @@ public:
     detail::checkValueRange<Dims>(NDRange);
     MNDRDesc.set(std::move(NDRange));
     setType(detail::CG::Kernel);
+    setNDRangeUsed(true);
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -2158,6 +2166,7 @@ public:
     MNDRDesc.set(std::move(NumWorkItems));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CG::Kernel);
+    setNDRangeUsed(false);
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -2197,6 +2206,7 @@ public:
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CG::Kernel);
+    setNDRangeUsed(false);
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -2235,6 +2245,7 @@ public:
     MNDRDesc.set(std::move(NDRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CG::Kernel);
+    setNDRangeUsed(true);
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -3421,6 +3432,7 @@ private:
   void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
                                  size_t Size, bool Block = false);
   friend class ext::oneapi::experimental::detail::graph_impl;
+  friend class ext::oneapi::experimental::detail::dynamic_parameter_impl;
 
   bool DisableRangeRounding();
 
@@ -3644,6 +3656,9 @@ private:
                                 "for use with the SYCL Graph extension.");
     }
   }
+
+  // Set that an ND Range was used during a call to parallel_for
+  void setNDRangeUsed(bool Value);
 };
 } // namespace _V1
 } // namespace sycl

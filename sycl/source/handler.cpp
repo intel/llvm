@@ -564,6 +564,8 @@ event handler::finalize() {
     // Associate an event with this new node and return the event.
     GraphImpl->addEventForNode(GraphImpl, EventImpl, NodeImpl);
 
+    NodeImpl->MNDRangeUsed = MImpl->MNDRangeUsed;
+
     return detail::createSyclObjFromImpl<event>(EventImpl);
   }
 
@@ -1523,6 +1525,8 @@ std::tuple<std::array<size_t, 3>, bool> handler::getMaxWorkGroups_v2() {
     return {*ImmRess, true};
   return {std::array<size_t, 3>{0, 0, 0}, false};
 }
+
+void handler::setNDRangeUsed(bool Value) { MImpl->MNDRangeUsed = Value; }
 
 } // namespace _V1
 } // namespace sycl

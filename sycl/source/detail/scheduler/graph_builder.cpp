@@ -14,6 +14,7 @@
 #if SYCL_EXT_CODEPLAY_KERNEL_FUSION
 #include <detail/jit_compiler.hpp>
 #endif
+#include <detail/graph_impl.hpp>
 #include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
@@ -1677,6 +1678,96 @@ bool Scheduler::GraphBuilder::isInFusionMode(QueueIdT Id) {
     return false;
   }
   return FusionList->second->isActive();
+}
+
+Command *Scheduler::GraphBuilder::addCommandGraphUpdate(
+    ext::oneapi::experimental::detail::exec_graph_impl *Graph,
+    std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
+        Nodes,
+    const QueueImplPtr &Queue, std::vector<Requirement *> Requirements,
+    std::vector<detail::EventImplPtr> &Events,
+    std::vector<Command *> &ToEnqueue) {
+  auto NewCmd =
+      std::make_unique<UpdateCommandBufferCommand>(Queue, Graph, Nodes);
+  // If there are multiple requirements for the same memory object, its
+  // AllocaCommand creation will be dependent on the access mode of the first
+  // requirement. Combine these access modes to take all of them into account.
+  combineAccessModesOfReqs(Requirements);
+  std::vector<Command *> ToCleanUp;
+  for (Requirement *Req : Requirements) {
+    MemObjRecord *Record = nullptr;
+    AllocaCommandBase *AllocaCmd = nullptr;
+
+    bool isSameCtx = false;
+
+    {
+
+      Record = getOrInsertMemObjRecord(Queue, Req, ToEnqueue);
+      markModifiedIfWrite(Record, Req);
+
+      AllocaCmd = getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
+
+      isSameCtx = sameCtx(Queue->getContextImplPtr(), Record->MCurContext);
+    }
+
+    if (!isSameCtx) {
+      // Cannot directly copy memory from OpenCL device to OpenCL device -
+      // create two copies: device->host and host->device.
+      bool NeedMemMoveToHost = false;
+      auto MemMoveTargetQueue = Queue;
+
+      if (!Queue->is_host() && !Record->MCurContext->is_host())
+        NeedMemMoveToHost = true;
+
+      if (NeedMemMoveToHost)
+        insertMemoryMove(Record, Req,
+                         Scheduler::getInstance().getDefaultHostQueue(),
+                         ToEnqueue);
+      insertMemoryMove(Record, Req, MemMoveTargetQueue, ToEnqueue);
+    }
+    std::set<Command *> Deps =
+        findDepsForReq(Record, Req, Queue->getContextImplPtr());
+
+    for (Command *Dep : Deps) {
+      if (Dep != NewCmd.get()) {
+        Command *ConnCmd =
+            NewCmd->addDep(DepDesc{Dep, Req, AllocaCmd}, ToCleanUp);
+        if (ConnCmd)
+          ToEnqueue.push_back(ConnCmd);
+      }
+    }
+  }
+
+  // Set new command as user for dependencies and update leaves.
+  // Node dependencies can be modified further when adding the node to leaves,
+  // iterate over their copy.
+  // FIXME employ a reference here to eliminate copying of a vector
+  std::vector<DepDesc> Deps = NewCmd->MDeps;
+  for (DepDesc &Dep : Deps) {
+    const Requirement *Req = Dep.MDepRequirement;
+    MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
+    updateLeaves({Dep.MDepCommand}, Record, Req->MAccessMode, ToCleanUp);
+    addNodeToLeaves(Record, NewCmd.get(), Req->MAccessMode, ToEnqueue);
+  }
+
+  // Register all the events as dependencies
+  for (detail::EventImplPtr e : Events) {
+    if (e->getCommand() &&
+        e->getCommand() == static_cast<Command *>(NewCmd.get())) {
+      continue;
+    }
+    if (Command *ConnCmd = NewCmd->addDep(e, ToCleanUp))
+      ToEnqueue.push_back(ConnCmd);
+  }
+
+  if (MPrintOptionsArray[AfterAddCG])
+    printGraphAsDot("after_addCG");
+
+  for (Command *Cmd : ToCleanUp) {
+    cleanupCommand(Cmd);
+  }
+
+  return NewCmd.release();
 }
 
 } // namespace detail
