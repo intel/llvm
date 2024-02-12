@@ -142,6 +142,9 @@ struct ur_context_handle_t_ : _ur_object {
   //
   // Cache of event pools to which host-visible events are added to.
   std::vector<std::list<ze_event_pool_handle_t>> ZeEventPoolCache{4};
+  std::vector<std::unordered_map<ze_device_handle_t,
+                                 std::list<ze_event_pool_handle_t> *>>
+      ZeEventPoolCacheDeviceMap{4};
 
   // This map will be used to determine if a pool is full or not
   // by storing number of empty slots available in the pool.
@@ -163,6 +166,9 @@ struct ur_context_handle_t_ : _ur_object {
 
   // Caches for events.
   std::vector<std::list<ur_event_handle_t>> EventCaches{4};
+  std::vector<
+      std::unordered_map<ur_device_handle_t, std::list<ur_event_handle_t> *>>
+      EventCachesDeviceMap{4};
 
   // Initialize the PI context.
   ur_result_t initialize();
@@ -188,20 +194,46 @@ struct ur_context_handle_t_ : _ur_object {
   // slot for an event with profiling capabilities.
   ur_result_t getFreeSlotInExistingOrNewPool(ze_event_pool_handle_t &, size_t &,
                                              bool HostVisible,
-                                             bool ProfilingEnabled);
+                                             bool ProfilingEnabled,
+                                             ur_device_handle_t Device);
 
   // Get ur_event_handle_t from cache.
   ur_event_handle_t getEventFromContextCache(bool HostVisible,
-                                             bool WithProfiling);
+                                             bool WithProfiling,
+                                             ur_device_handle_t Device);
 
   // Add ur_event_handle_t to cache.
   void addEventToContextCache(ur_event_handle_t);
 
-  auto getZeEventPoolCache(bool HostVisible, bool WithProfiling) {
-    if (HostVisible)
-      return WithProfiling ? &ZeEventPoolCache[0] : &ZeEventPoolCache[1];
-    else
-      return WithProfiling ? &ZeEventPoolCache[2] : &ZeEventPoolCache[3];
+  auto getZeEventPoolCache(bool HostVisible, bool WithProfiling,
+                           ze_device_handle_t ZeDevice) {
+    if (HostVisible) {
+      if (ZeDevice) {
+        auto ZeEventPoolCacheMap = WithProfiling
+                                       ? &ZeEventPoolCacheDeviceMap[0]
+                                       : &ZeEventPoolCacheDeviceMap[1];
+        if (ZeEventPoolCacheMap->find(ZeDevice) == ZeEventPoolCacheMap->end()) {
+          ZeEventPoolCache.emplace_back();
+          (*ZeEventPoolCacheMap)[ZeDevice] = &ZeEventPoolCache.back();
+        }
+        return (*ZeEventPoolCacheMap)[ZeDevice];
+      } else {
+        return WithProfiling ? &ZeEventPoolCache[0] : &ZeEventPoolCache[1];
+      }
+    } else {
+      if (ZeDevice) {
+        auto ZeEventPoolCacheMap = WithProfiling
+                                       ? &ZeEventPoolCacheDeviceMap[2]
+                                       : &ZeEventPoolCacheDeviceMap[3];
+        if (ZeEventPoolCacheMap->find(ZeDevice) == ZeEventPoolCacheMap->end()) {
+          ZeEventPoolCache.emplace_back();
+          (*ZeEventPoolCacheMap)[ZeDevice] = &ZeEventPoolCache.back();
+        }
+        return (*ZeEventPoolCacheMap)[ZeDevice];
+      } else {
+        return WithProfiling ? &ZeEventPoolCache[2] : &ZeEventPoolCache[3];
+      }
+    }
   }
 
   // Decrement number of events living in the pool upon event destroy
@@ -240,11 +272,33 @@ struct ur_context_handle_t_ : _ur_object {
 
 private:
   // Get the cache of events for a provided scope and profiling mode.
-  auto getEventCache(bool HostVisible, bool WithProfiling) {
-    if (HostVisible)
-      return WithProfiling ? &EventCaches[0] : &EventCaches[1];
-    else
-      return WithProfiling ? &EventCaches[2] : &EventCaches[3];
+  auto getEventCache(bool HostVisible, bool WithProfiling,
+                     ur_device_handle_t Device) {
+    if (HostVisible) {
+      if (Device) {
+        auto EventCachesMap =
+            WithProfiling ? &EventCachesDeviceMap[0] : &EventCachesDeviceMap[1];
+        if (EventCachesMap->find(Device) == EventCachesMap->end()) {
+          EventCaches.emplace_back();
+          (*EventCachesMap)[Device] = &EventCaches.back();
+        }
+        return (*EventCachesMap)[Device];
+      } else {
+        return WithProfiling ? &EventCaches[0] : &EventCaches[1];
+      }
+    } else {
+      if (Device) {
+        auto EventCachesMap =
+            WithProfiling ? &EventCachesDeviceMap[2] : &EventCachesDeviceMap[3];
+        if (EventCachesMap->find(Device) == EventCachesMap->end()) {
+          EventCaches.emplace_back();
+          (*EventCachesMap)[Device] = &EventCaches.back();
+        }
+        return (*EventCachesMap)[Device];
+      } else {
+        return WithProfiling ? &EventCaches[2] : &EventCaches[3];
+      }
+    }
   }
 };
 

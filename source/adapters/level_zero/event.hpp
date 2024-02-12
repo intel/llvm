@@ -30,7 +30,8 @@
 extern "C" {
 ur_result_t urEventReleaseInternal(ur_event_handle_t Event);
 ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
-                        bool HostVisible, ur_event_handle_t *RetEvent);
+                        bool IsMultiDevice, bool HostVisible,
+                        ur_event_handle_t *RetEvent);
 } // extern "C"
 
 // This is an experimental option that allows to disable caching of events in
@@ -189,6 +190,11 @@ struct ur_event_handle_t_ : _ur_object {
   // Indicates that this event is discarded, i.e. it is not visible outside of
   // plugin.
   bool IsDiscarded = {false};
+
+  // Indicates that this event is needed to be visible by multiple devices.
+  // When possible, allocate Event from single device pool for optimal
+  // performance
+  bool IsMultiDevice = {false};
 
   // Besides each PI object keeping a total reference count in
   // _ur_object::RefCount we keep special track of the event *external*
