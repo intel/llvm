@@ -62,13 +62,11 @@ template <typename ImageT, typename CoordT, typename ValT>
 static void __invoke__ImageWrite(ImageT Img, CoordT Coords, ValT Val) {
 
   // Convert from sycl types to builtin types to get correct function mangling.
-  using TmpValT = sycl::detail::ConvertToOpenCLType_t<ValT>;
-  using TmpCoordT = sycl::detail::ConvertToOpenCLType_t<CoordT>;
+  auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
+  auto TmpVal = sycl::detail::convertToOpenCLType(Val);
 
-  TmpCoordT TmpCoord =
-      sycl::detail::convertDataToType<CoordT, TmpCoordT>(Coords);
-  TmpValT TmpVal = sycl::detail::convertDataToType<ValT, TmpValT>(Val);
-  __spirv_ImageWrite<ImageT, TmpCoordT, TmpValT>(Img, TmpCoord, TmpVal);
+  __spirv_ImageWrite<ImageT, decltype(TmpCoords), decltype(TmpVal)>(
+      Img, TmpCoords, TmpVal);
 }
 
 template <typename RetType, typename ImageT, typename CoordT>
@@ -76,10 +74,11 @@ static RetType __invoke__ImageRead(ImageT Img, CoordT Coords) {
 
   // Convert from sycl types to builtin types to get correct function mangling.
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
-  using TempArgT = sycl::detail::ConvertToOpenCLType_t<CoordT>;
 
-  TempArgT Arg = sycl::detail::convertDataToType<CoordT, TempArgT>(Coords);
-  TempRetT Ret = __spirv_ImageRead<TempRetT, ImageT, TempArgT>(Img, Arg);
+  auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
+
+  TempRetT Ret =
+      __spirv_ImageRead<TempRetT, ImageT, decltype(TmpCoords)>(Img, TmpCoords);
   return sycl::detail::convertDataToType<TempRetT, RetType>(Ret);
 }
 
@@ -89,10 +88,7 @@ static RetType __invoke__ImageReadLod(SmpImageT SmpImg, CoordT Coords,
 
   // Convert from sycl types to builtin types to get correct function mangling.
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
-  using TempArgT = sycl::detail::ConvertToOpenCLType_t<CoordT>;
-
-  TempArgT TmpCoords =
-      sycl::detail::convertDataToType<CoordT, TempArgT>(Coords);
+  auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
 
   enum ImageOperands { Lod = 0x2 };
 
@@ -102,8 +98,9 @@ static RetType __invoke__ImageReadLod(SmpImageT SmpImg, CoordT Coords,
   // Sampled Image must be an object whose type is OpTypeSampledImage
   // Image Operands encodes what operands follow. Either Lod
   // or Grad image operands must be present
-  TempRetT Ret = __spirv_ImageSampleExplicitLod<SmpImageT, TempRetT, TempArgT>(
-      SmpImg, TmpCoords, ImageOperands::Lod, Level);
+  TempRetT Ret =
+      __spirv_ImageSampleExplicitLod<SmpImageT, TempRetT, decltype(TmpCoords)>(
+          SmpImg, TmpCoords, ImageOperands::Lod, Level);
   return sycl::detail::convertDataToType<TempRetT, RetType>(Ret);
 }
 
@@ -113,12 +110,9 @@ static RetType __invoke__ImageReadGrad(SmpImageT SmpImg, CoordT Coords,
 
   // Convert from sycl types to builtin types to get correct function mangling.
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
-  using TempArgT = sycl::detail::ConvertToOpenCLType_t<CoordT>;
-
-  TempArgT TmpCoords =
-      sycl::detail::convertDataToType<CoordT, TempArgT>(Coords);
-  TempArgT TmpGraddX = sycl::detail::convertDataToType<CoordT, TempArgT>(Dx);
-  TempArgT TmpGraddY = sycl::detail::convertDataToType<CoordT, TempArgT>(Dy);
+  auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
+  auto TmpGraddX = sycl::detail::convertToOpenCLType(Dx);
+  auto TmpGraddY = sycl::detail::convertToOpenCLType(Dy);
 
   enum ImageOperands { Grad = 0x3 };
 
@@ -128,8 +122,9 @@ static RetType __invoke__ImageReadGrad(SmpImageT SmpImg, CoordT Coords,
   // Sampled Image must be an object whose type is OpTypeSampledImage
   // Image Operands encodes what operands follow. Either Lod
   // or Grad image operands must be present
-  TempRetT Ret = __spirv_ImageSampleExplicitLod<SmpImageT, TempRetT, TempArgT>(
-      SmpImg, TmpCoords, ImageOperands::Grad, TmpGraddX, TmpGraddY);
+  TempRetT Ret =
+      __spirv_ImageSampleExplicitLod<SmpImageT, TempRetT, decltype(TmpCoords)>(
+          SmpImg, TmpCoords, ImageOperands::Grad, TmpGraddX, TmpGraddY);
   return sycl::detail::convertDataToType<TempRetT, RetType>(Ret);
 }
 
@@ -139,12 +134,10 @@ static RetType __invoke__ImageReadSampler(ImageT Img, CoordT Coords,
 
   // Convert from sycl types to builtin types to get correct function mangling.
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
-  using TempArgT = sycl::detail::ConvertToOpenCLType_t<CoordT>;
   using SampledT =
       typename sycl::detail::sampled_opencl_image_type<ImageT>::type;
 
-  TempArgT TmpCoords =
-      sycl::detail::convertDataToType<CoordT, TempArgT>(Coords);
+  auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
   // According to validation rules(SPIR-V specification, section 2.16.1) result
   // of __spirv_SampledImage is allowed to be an operand of image lookup
   // and query instructions explicitly specified to take an operand whose
@@ -157,9 +150,10 @@ static RetType __invoke__ImageReadSampler(ImageT Img, CoordT Coords,
   enum ImageOperands { Lod = 0x2 };
 
   // Lod value is zero as mipmap is not supported.
-  TempRetT Ret = __spirv_ImageSampleExplicitLod<SampledT, TempRetT, TempArgT>(
-      __spirv_SampledImage<ImageT, SampledT>(Img, Smpl), TmpCoords,
-      ImageOperands::Lod, 0.0f);
+  TempRetT Ret =
+      __spirv_ImageSampleExplicitLod<SampledT, TempRetT, decltype(TmpCoords)>(
+          __spirv_SampledImage<ImageT, SampledT>(Img, Smpl), TmpCoords,
+          ImageOperands::Lod, 0.0f);
   return sycl::detail::convertDataToType<TempRetT, RetType>(Ret);
 }
 

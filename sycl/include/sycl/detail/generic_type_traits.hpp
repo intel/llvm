@@ -697,6 +697,13 @@ convertDataToType(FROM t) {
     return ConvertNonVectorType<TO>(t);
 }
 
+// Now fuse the above into a simpler helper that's easy to use.
+// TODO: That should probably be moved outside of "type_traits".
+template <typename T> auto convertToOpenCLType(T &&x) {
+  using OpenCLType = ConvertToOpenCLType_t<std::remove_reference_t<T>>;
+  return convertDataToType<T, OpenCLType>(std::forward<T>(x));
+}
+
 // Used for all, any and select relational built-in functions
 template <typename T> inline constexpr T msbMask(T) {
   using UT = make_unsigned_t<T>;
