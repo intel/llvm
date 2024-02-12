@@ -8,7 +8,7 @@
 #include <sycl/sycl.hpp>
 
 // Uncomment to print additional test information
-#define VERBOSE_PRINT
+// #define VERBOSE_PRINT
 
 class kernel_sampled_fetch;
 
