@@ -81,8 +81,8 @@ piSamplerGetInfo
 piSamplerRelease
 piSamplerRetain
 piTearDown
-piextCommandBufferAdviseUSM
 piextBindlessImageSamplerCreate
+piextCommandBufferAdviseUSM
 piextCommandBufferCreate
 piextCommandBufferFillUSM
 piextCommandBufferFinalize
@@ -147,11 +147,11 @@ piextQueueCreateWithNativeHandle
 piextQueueGetNativeHandle
 piextSignalExternalSemaphore
 piextUSMDeviceAlloc
+piextUSMEnqueueFill
 piextUSMEnqueueFill2D
 piextUSMEnqueueMemAdvise
 piextUSMEnqueueMemcpy
 piextUSMEnqueueMemcpy2D
-piextUSMEnqueueMemset
 piextUSMEnqueueMemset2D
 piextUSMEnqueuePrefetch
 piextUSMFree

@@ -75,9 +75,9 @@ pi_result redefinedEventGetInfo(pi_event event, pi_event_info param_name,
   return PI_SUCCESS;
 }
 
-static pi_result redefinedUSMEnqueueMemset(pi_queue, void *, pi_int32, size_t,
-                                           pi_uint32, const pi_event *,
-                                           pi_event *event) {
+static pi_result redefinedUSMEnqueueMemset(pi_queue, void *, const void *,
+                                           size_t, size_t, pi_uint32,
+                                           const pi_event *, pi_event *event) {
   *event = reinterpret_cast<pi_event>(new int{});
   return PI_SUCCESS;
 }
@@ -97,7 +97,7 @@ TEST(GetNative, GetNativeHandle) {
   Mock.redefineBefore<detail::PiApiKind::piMemRetain>(redefinedMemRetain);
   Mock.redefineBefore<sycl::detail::PiApiKind::piMemBufferCreate>(
       redefinedMemBufferCreate);
-  Mock.redefineBefore<detail::PiApiKind::piextUSMEnqueueMemset>(
+  Mock.redefineBefore<detail::PiApiKind::piextUSMEnqueueFill>(
       redefinedUSMEnqueueMemset);
 
   context Context(Plt);

@@ -123,11 +123,11 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                           "The memset feature is not yet available "
                           "for use with the SYCL Graph extension.");
   }
-
+  const std::vector<char> Pattern{Value};
   return submitMemOpHelper(
       Self, DepEvents, [&](handler &CGH) { CGH.memset(Ptr, Value, Count); },
       [](const auto &...Args) { MemoryManager::fill_usm(Args...); }, Ptr, Self,
-      Count, Value);
+      Count, Pattern);
 }
 
 void report(const code_location &CodeLoc) {
