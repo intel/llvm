@@ -70,7 +70,7 @@
          %29 = OpExtInst %void %2 DebugSource %27 %28
          %30 = OpExtInst %void %2 DebugCompilationUnit 65536 5 %29 OpenCL_C
          %34 = OpExtInst %void %2 DebugTypeBasic %32 %uint_16 Signed
-         %35 = OpExtInst %void %2 DebugTypeVector %34 4
+         %35 = OpExtInst %void %2 DebugTypeVector %15 4
          %38 = OpExtInst %void %2 DebugSource %36 %37
          %39 = OpExtInst %void %2 DebugTypedef %31 %35 %38 0 0 %30
          %40 = OpExtInst %void %2 DebugTypePointer %39 CrossWorkgroup None
