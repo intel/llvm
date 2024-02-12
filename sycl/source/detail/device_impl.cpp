@@ -633,6 +633,26 @@ bool device_impl::has(aspect Aspect) const {
       return false;
     }
   }
+  case aspect::ext_oneapi_is_composite: {
+    auto components = get_info<
+        sycl::ext::oneapi::experimental::info::device::component_devices>();
+    // Any device with ext_oneapi_is_composite aspect will have at least two
+    // constituent component devices.
+    return components.size() >= 2;
+  }
+  case aspect::ext_oneapi_is_component: {
+    if (getBackend() != backend::ext_oneapi_level_zero)
+      return false;
+
+    typename sycl_to_pi<device>::type Result;
+    getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+        getHandleRef(),
+        PiInfoCode<
+            ext::oneapi::experimental::info::device::composite_device>::value,
+        sizeof(Result), &Result, nullptr);
+
+    return Result != nullptr;
+  }
   }
   throw runtime_error("This device aspect has not been implemented yet.",
                       PI_ERROR_INVALID_DEVICE);

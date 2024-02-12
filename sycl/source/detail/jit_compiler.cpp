@@ -667,12 +667,12 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   unsigned KernelIndex = 0;
   ParamList FusedParams;
   PromotionMap PromotedAccs;
-  // TODO(Lukas, ONNX-399): Collect information about streams and auxiliary
-  // resources (which contain reductions) and figure out how to fuse them.
+  // TODO: Collect information about streams and figure out how
+  // to fuse them.
   for (auto &RawCmd : InputKernels) {
     auto *KernelCmd = static_cast<ExecCGCommand *>(RawCmd);
     auto &CG = KernelCmd->getCG();
-    assert(CG.getType() == CG::Kernel);
+    assert(KernelCmd->isFusable());
     auto *KernelCG = static_cast<CGExecKernel *>(&CG);
 
     auto KernelName = KernelCG->MKernelName;
@@ -760,8 +760,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       }
     }
 
-    // TODO(Lukas, ONNX-399): Check for the correct kernel bundle state of the
-    // device image?
+    // TODO: Check for the correct kernel bundle state of the device image?
     auto &RawDeviceImage = DeviceImage->getRawData();
     auto DeviceImageSize = static_cast<size_t>(RawDeviceImage.BinaryEnd -
                                                RawDeviceImage.BinaryStart);
@@ -803,8 +802,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       // Not all overloads of parallel_for_work_group only specify the number of
       // work-groups, so the above mechanism might not detect all hierarchical
       // parallelism.
-      // TODO(Lukas, CRD-6): Find a more reliable way to detect hierarchical
-      // parallelism.
+      // TODO: Find a more reliable way to detect hierarchical parallelism.
     }
 
     // We need to copy the storages here. The input CGs might be eliminated
@@ -815,9 +813,9 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
                        KernelCG->getArgsStorage().end());
     AccStorage.insert(AccStorage.end(), KernelCG->getAccStorage().begin(),
                       KernelCG->getAccStorage().end());
-    // TODO(Lukas, ONNX-399): Does the MSharedPtrStorage contain any
-    // information about actual shared pointers beside the kernel bundle and
-    // handler impl? If yes, we might need to copy it here.
+    // TODO: Does the MSharedPtrStorage contain any information about actual
+    // shared pointers beside the kernel bundle and handler impl? If yes, we
+    // might need to copy it here.
     Requirements.insert(Requirements.end(), KernelCG->getRequirements().begin(),
                         KernelCG->getRequirements().end());
     Events.insert(Events.end(), KernelCG->getEvents().begin(),
