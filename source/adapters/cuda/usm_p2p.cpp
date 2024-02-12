@@ -45,16 +45,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   int value;
-  CUdevice_P2PAttribute cu_attr;
+  CUdevice_P2PAttribute cuAttr;
   try {
     ScopedContext active(commandDevice->getContext());
     switch (propName) {
     case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED: {
-      cu_attr = CU_DEVICE_P2P_ATTRIBUTE_ACCESS_SUPPORTED;
+      cuAttr = CU_DEVICE_P2P_ATTRIBUTE_ACCESS_SUPPORTED;
       break;
     }
     case UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED: {
-      cu_attr = CU_DEVICE_P2P_ATTRIBUTE_NATIVE_ATOMIC_SUPPORTED;
+      cuAttr = CU_DEVICE_P2P_ATTRIBUTE_NATIVE_ATOMIC_SUPPORTED;
       break;
     }
     default: {
@@ -62,8 +62,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
     }
     }
 
-    UR_CHECK_ERROR(cuDeviceGetP2PAttribute(
-        &value, cu_attr, commandDevice->get(), peerDevice->get()));
+    UR_CHECK_ERROR(cuDeviceGetP2PAttribute(&value, cuAttr, commandDevice->get(),
+                                           peerDevice->get()));
   } catch (ur_result_t err) {
     return err;
   }

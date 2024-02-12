@@ -27,101 +27,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
     uint32_t *NumPlatforms ///< [out][optional] returns the total number of
                            ///< platforms available.
 ) {
-  static std::once_flag ZeCallCountInitialized;
-  try {
-    std::call_once(ZeCallCountInitialized, []() {
-      if (UrL0LeaksDebug) {
-        ZeCallCount = new std::map<std::string, int>;
-      }
-    });
-  } catch (const std::bad_alloc &) {
-    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-  } catch (...) {
-    return UR_RESULT_ERROR_UNKNOWN;
-  }
-
-  // Setting these environment variables before running zeInit will enable the
-  // validation layer in the Level Zero loader.
-  if (UrL0Debug & UR_L0_DEBUG_VALIDATION) {
-    setEnvVar("ZE_ENABLE_VALIDATION_LAYER", "1");
-    setEnvVar("ZE_ENABLE_PARAMETER_VALIDATION", "1");
-  }
-
-  if (getenv("SYCL_ENABLE_PCI") != nullptr) {
-    urPrint("WARNING: SYCL_ENABLE_PCI is deprecated and no longer needed.\n");
-  }
-
-  // TODO: We can still safely recover if something goes wrong during the init.
-  // Implement handling segfault using sigaction.
-
-  // We must only initialize the driver once, even if urPlatformGet() is called
-  // multiple times.  Declaring the return value as "static" ensures it's only
-  // called once.
-  static ze_result_t ZeResult =
-      ZE_CALL_NOCHECK(zeInit, (ZE_INIT_FLAG_GPU_ONLY));
-
-  // Absorb the ZE_RESULT_ERROR_UNINITIALIZED and just return 0 Platforms.
-  if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
-    UR_ASSERT(NumEntries == 0, UR_RESULT_ERROR_INVALID_VALUE);
-    if (NumPlatforms)
-      *NumPlatforms = 0;
-    return UR_RESULT_SUCCESS;
-  }
-
-  if (ZeResult != ZE_RESULT_SUCCESS) {
-    urPrint("zeInit: Level Zero initialization failure\n");
-    return ze2urResult(ZeResult);
-  }
-
-  // Cache ur_platform_handle_t for reuse in the future
-  // It solves two problems;
-  // 1. sycl::platform equality issue; we always return the same
-  // ur_platform_handle_t
-  // 2. performance; we can save time by immediately return from cache.
-  //
-
-  const std::lock_guard<SpinLock> Lock{*URPlatformsCacheMutex};
-  if (!URPlatformCachePopulated) {
-    try {
-      // Level Zero does not have concept of Platforms, but Level Zero driver is
-      // the closest match.
-      uint32_t ZeDriverCount = 0;
-      ZE2UR_CALL(zeDriverGet, (&ZeDriverCount, nullptr));
-      if (ZeDriverCount == 0) {
-        URPlatformCachePopulated = true;
-      } else {
-        std::vector<ze_driver_handle_t> ZeDrivers;
-        ZeDrivers.resize(ZeDriverCount);
-
-        ZE2UR_CALL(zeDriverGet, (&ZeDriverCount, ZeDrivers.data()));
-        for (uint32_t I = 0; I < ZeDriverCount; ++I) {
-          auto Platform = new ur_platform_handle_t_(ZeDrivers[I]);
-          // Save a copy in the cache for future uses.
-          URPlatformsCache->push_back(Platform);
-
-          UR_CALL(Platform->initialize());
-        }
-        URPlatformCachePopulated = true;
-      }
-    } catch (const std::bad_alloc &) {
-      return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    } catch (...) {
-      return UR_RESULT_ERROR_UNKNOWN;
+  // Platform handles are cached for reuse. This is to ensure consistent
+  // handle pointers across invocations and to improve retrieval performance.
+  if (const auto *cached_platforms = Adapter.PlatformCache->get_value();
+      cached_platforms) {
+    uint32_t nplatforms = (uint32_t)cached_platforms->size();
+    if (NumPlatforms) {
+      *NumPlatforms = nplatforms;
     }
-  }
-
-  // Populate returned platforms from the cache.
-  if (Platforms) {
-    UR_ASSERT(NumEntries <= URPlatformsCache->size(),
-              UR_RESULT_ERROR_INVALID_PLATFORM);
-    std::copy_n(URPlatformsCache->begin(), NumEntries, Platforms);
-  }
-
-  if (NumPlatforms) {
-    if (*NumPlatforms == 0)
-      *NumPlatforms = URPlatformsCache->size();
-    else
-      *NumPlatforms = (std::min)(URPlatformsCache->size(), (size_t)NumEntries);
+    if (Platforms) {
+      for (uint32_t i = 0; i < std::min(nplatforms, NumEntries); ++i) {
+        Platforms[i] = cached_platforms->at(i).get();
+      }
+    }
+  } else {
+    return Adapter.PlatformCache->get_error();
   }
 
   return UR_RESULT_SUCCESS;
@@ -417,6 +337,35 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
         URDevicesCache.push_back(std::move(UrSubDevice));
       }
       delete[] ZeSubdevices;
+
+      // When using ZE_FLAT_DEVICE_HIERARCHY=COMBINED, zeDeviceGet will
+      // return tiles as devices, but we can get the card device handle
+      // through zeDeviceGetRootDevice. We need to cache the card device
+      // handle too, such that it is readily visible to the
+      // urDeviceCreateWithNativeHandle.
+      ze_device_handle_t RootDevice = nullptr;
+      // We cannot use ZE2UR_CALL because under some circumstances this call may
+      // return ZE_RESULT_ERROR_UNSUPPORTED_FEATURE, and ZE2UR_CALL will abort
+      // because it's not UR_RESULT_SUCCESS. Instead, we use ZE_CALL_NOCHECK and
+      // we check manually that the result is either ZE_RESULT_SUCCESS or
+      // ZE_RESULT_ERROR_UNSUPPORTED_FEATURE.
+      auto errc = ZE_CALL_NOCHECK(zeDeviceGetRootDevice,
+                                  (Device->ZeDevice, &RootDevice));
+      if (errc != ZE_RESULT_SUCCESS &&
+          errc != ZE_RESULT_ERROR_UNSUPPORTED_FEATURE)
+        return ze2urResult(errc);
+
+      if (RootDevice) {
+        if (std::find_if(URDevicesCache.begin(), URDevicesCache.end(),
+                         [&](auto &Dev) {
+                           return Dev->ZeDevice == RootDevice;
+                         }) == URDevicesCache.end()) {
+          std::unique_ptr<ur_device_handle_t_> UrRootDevice(
+              new ur_device_handle_t_(RootDevice, (ur_platform_handle_t)this));
+          UR_CALL(UrRootDevice->initialize());
+          URDevicesCache.push_back(std::move(UrRootDevice));
+        }
+      }
 
       // Save the root device in the cache for future uses.
       URDevicesCache.push_back(std::move(Device));

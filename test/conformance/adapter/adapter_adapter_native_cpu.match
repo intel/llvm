@@ -1,0 +1,4 @@
+urAdapterGetLastErrorTest.Success
+urAdapterGetLastErrorTest.InvalidHandle
+urAdapterGetLastErrorTest.InvalidMessagePtr
+urAdapterGetLastErrorTest.InvalidErrorPtr

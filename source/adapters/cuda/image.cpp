@@ -239,29 +239,38 @@ ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
 
   try {
     /// pi_sampler_properties
+    /// Layout of UR samplers for CUDA
+    ///
+    /// Sampler property layout:
     /// |     <bits>     | <usage>
     /// -----------------------------------
-    /// |  31 30 ... 6   | N/A
-    /// |       5        | mip filter mode
-    /// |     4 3 2      | addressing mode
+    /// |  31 30 ... 12  | N/A
+    /// |       11       | mip filter mode
+    /// |    10 9 8      | addressing mode 3
+    /// |     7 6 5      | addressing mode 2
+    /// |     4 3 2      | addressing mode 1
     /// |       1        | filter mode
     /// |       0        | normalize coords
     CUDA_TEXTURE_DESC ImageTexDesc = {};
-    CUaddress_mode AddrMode = {};
-    ur_sampler_addressing_mode_t AddrModeProp = hSampler->getAddressingMode();
-    if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE -
-                         UR_SAMPLER_ADDRESSING_MODE_NONE)) {
-      AddrMode = CU_TR_ADDRESS_MODE_CLAMP;
-    } else if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_CLAMP -
-                                UR_SAMPLER_ADDRESSING_MODE_NONE)) {
-      AddrMode = CU_TR_ADDRESS_MODE_BORDER;
-    } else if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_REPEAT -
-                                UR_SAMPLER_ADDRESSING_MODE_NONE)) {
-      AddrMode = CU_TR_ADDRESS_MODE_WRAP;
-    } else if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT -
-                                UR_SAMPLER_ADDRESSING_MODE_NONE)) {
-      AddrMode = CU_TR_ADDRESS_MODE_MIRROR;
+    CUaddress_mode AddrMode[3] = {};
+    for (size_t i = 0; i < 3; i++) {
+      ur_sampler_addressing_mode_t AddrModeProp =
+          hSampler->getAddressingModeDim(i);
+      if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE -
+                           UR_SAMPLER_ADDRESSING_MODE_NONE)) {
+        AddrMode[i] = CU_TR_ADDRESS_MODE_CLAMP;
+      } else if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_CLAMP -
+                                  UR_SAMPLER_ADDRESSING_MODE_NONE)) {
+        AddrMode[i] = CU_TR_ADDRESS_MODE_BORDER;
+      } else if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_REPEAT -
+                                  UR_SAMPLER_ADDRESSING_MODE_NONE)) {
+        AddrMode[i] = CU_TR_ADDRESS_MODE_WRAP;
+      } else if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT -
+                                  UR_SAMPLER_ADDRESSING_MODE_NONE)) {
+        AddrMode[i] = CU_TR_ADDRESS_MODE_MIRROR;
+      }
     }
+
     CUfilter_mode FilterMode;
     ur_sampler_filter_mode_t FilterModeProp = hSampler->getFilterMode();
     FilterMode =
@@ -278,14 +287,15 @@ ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
     ImageTexDesc.minMipmapLevelClamp = hSampler->MinMipmapLevelClamp;
     ImageTexDesc.maxAnisotropy = static_cast<unsigned>(hSampler->MaxAnisotropy);
 
-    // The address modes can interfere with other dimensionsenqueueEventsWait
+    // The address modes can interfere with other dimensions
     // e.g. 1D texture sampling can be interfered with when setting other
     // dimension address modes despite their nonexistence.
-    ImageTexDesc.addressMode[0] = AddrMode; // 1D
-    ImageTexDesc.addressMode[1] =
-        pImageDesc->height > 0 ? AddrMode : ImageTexDesc.addressMode[1]; // 2D
+    ImageTexDesc.addressMode[0] = AddrMode[0]; // 1D
+    ImageTexDesc.addressMode[1] = pImageDesc->height > 0
+                                      ? AddrMode[1]
+                                      : ImageTexDesc.addressMode[1]; // 2D
     ImageTexDesc.addressMode[2] =
-        pImageDesc->depth > 0 ? AddrMode : ImageTexDesc.addressMode[2]; // 3D
+        pImageDesc->depth > 0 ? AddrMode[2] : ImageTexDesc.addressMode[2]; // 3D
 
     // flags takes the normalized coordinates setting -- unnormalized is default
     ImageTexDesc.flags = (hSampler->isNormalizedCoords())
@@ -618,15 +628,37 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     ScopedContext Active(hQueue->getContext());
     CUstream Stream = hQueue->getNextTransferStream();
     enqueueEventsWait(hQueue, Stream, numEventsInWaitList, phEventWaitList);
+
     // We have to use a different copy function for each image dimensionality.
 
     if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
       if (pImageDesc->type == UR_MEM_TYPE_IMAGE1D) {
+        CUmemorytype memType;
+
+        // Check what type of memory is pDst. If cuPointerGetAttribute returns
+        // somthing different from CUDA_SUCCESS then we know that pDst memory
+        // type is a CuArray. Otherwise, it's CU_MEMORYTYPE_DEVICE.
+        bool isCudaArray =
+            cuPointerGetAttribute(&memType, CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
+                                  (CUdeviceptr)pDst) != CUDA_SUCCESS;
+
         size_t CopyExtentBytes = PixelSizeBytes * copyExtent.width;
         char *SrcWithOffset = (char *)pSrc + (srcOffset.x * PixelSizeBytes);
-        UR_CHECK_ERROR(
-            cuMemcpyHtoAAsync((CUarray)pDst, dstOffset.x * PixelSizeBytes,
-                              (void *)SrcWithOffset, CopyExtentBytes, Stream));
+
+        if (isCudaArray) {
+          UR_CHECK_ERROR(cuMemcpyHtoAAsync(
+              (CUarray)pDst, dstOffset.x * PixelSizeBytes,
+              (void *)SrcWithOffset, CopyExtentBytes, Stream));
+        } else if (memType == CU_MEMORYTYPE_DEVICE) {
+          void *DstWithOffset =
+              (void *)((char *)pDst + (PixelSizeBytes * dstOffset.x));
+          UR_CHECK_ERROR(cuMemcpyHtoDAsync((CUdeviceptr)DstWithOffset,
+                                           (void *)SrcWithOffset,
+                                           CopyExtentBytes, Stream));
+        } else {
+          // This should be unreachable.
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
       } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
         CUDA_MEMCPY2D cpy_desc = {};
         cpy_desc.srcMemoryType = CUmemorytype_enum::CU_MEMORYTYPE_HOST;
@@ -669,13 +701,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
       }
     } else if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
       if (pImageDesc->type == UR_MEM_TYPE_IMAGE1D) {
+        CUmemorytype memType;
+        // Check what type of memory is pSrc. If cuPointerGetAttribute returns
+        // somthing different from CUDA_SUCCESS then we know that pSrc memory
+        // type is a CuArray. Otherwise, it's CU_MEMORYTYPE_DEVICE.
+        bool isCudaArray =
+            cuPointerGetAttribute(&memType, CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
+                                  (CUdeviceptr)pSrc) != CUDA_SUCCESS;
+
         size_t CopyExtentBytes = PixelSizeBytes * copyExtent.width;
-        size_t src_offset_bytes = PixelSizeBytes * srcOffset.x;
-        void *dst_with_offset =
+        void *DstWithOffset =
             (void *)((char *)pDst + (PixelSizeBytes * dstOffset.x));
-        UR_CHECK_ERROR(cuMemcpyAtoHAsync(dst_with_offset, (CUarray)pSrc,
-                                         src_offset_bytes, CopyExtentBytes,
-                                         Stream));
+
+        if (isCudaArray) {
+          UR_CHECK_ERROR(cuMemcpyAtoHAsync(DstWithOffset, (CUarray)pSrc,
+                                           PixelSizeBytes * srcOffset.x,
+                                           CopyExtentBytes, Stream));
+        } else if (memType == CU_MEMORYTYPE_DEVICE) {
+          char *SrcWithOffset = (char *)pSrc + (srcOffset.x * PixelSizeBytes);
+          UR_CHECK_ERROR(cuMemcpyDtoHAsync(DstWithOffset,
+                                           (CUdeviceptr)SrcWithOffset,
+                                           CopyExtentBytes, Stream));
+        } else {
+          // This should be unreachable.
+          return UR_RESULT_ERROR_INVALID_VALUE;
+        }
       } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE2D) {
         CUDA_MEMCPY2D cpy_desc = {};
         cpy_desc.srcXInBytes = srcOffset.x;

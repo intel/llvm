@@ -268,6 +268,8 @@ Layers currently included with the runtime are as follows:
      - Enables non-adapter-specific parameter validation (e.g. checking for null values).
    * - UR_LAYER_LEAK_CHECKING
      - Performs some leak checking for API calls involving object creation/destruction.
+   * - UR_LAYER_LIFETIME_VALIDATION
+     - Performs lifetime validation on objects (check if it was used within the scope of its creation and destruction) used in API calls. Automatically enables UR_LAYER_LEAK_CHECKING.
    * - UR_LAYER_FULL_VALIDATION
      - Enables UR_LAYER_PARAMETER_VALIDATION and UR_LAYER_LEAK_CHECKING.
    * - UR_LAYER_TRACING

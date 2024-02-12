@@ -1022,6 +1022,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(true);
   case UR_DEVICE_INFO_ESIMD_SUPPORT:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_COMPONENT_DEVICES:
+  case UR_DEVICE_INFO_COMPOSITE_DEVICE:
+    // These two are exclusive of L0.
+    return ReturnValue(0);
   case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS:
   case UR_DEVICE_INFO_GPU_EU_COUNT:
   case UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH:

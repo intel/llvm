@@ -112,6 +112,8 @@ static std::unordered_map<ur_device_info_t, size_t> device_info_size_map = {
     {UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT, sizeof(ur_bool_t)},
     {UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED, sizeof(ur_bool_t)},
     {UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_COMPONENT_DEVICES, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_COMPOSITE_DEVICE, sizeof(ur_device_handle_t)},
 };
 
 struct urDeviceGetInfoTest : uur::urAllDevicesTest,
