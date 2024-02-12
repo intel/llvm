@@ -170,16 +170,22 @@ auto builtin_default_host_impl(FuncTy F, const Ts &...x) {
 template <typename FuncTy, typename... Ts>
 auto builtin_delegate_to_scalar(FuncTy F, const Ts &...x) {
   using T = typename first_type<Ts...>::type;
-  if constexpr (is_vec_or_swizzle_v<T>) {
-    using ret_elem_type = decltype(F(x[0]...));
-    // TODO: using r{} to avoid Werror. Not sure if ok.
-    vec<ret_elem_type, T::size()> r{};
-    loop<T::size()>([&](auto idx) { r[idx] = F(x[idx]...); });
-    return r;
+  static_assert(is_vec_or_swizzle_v<T> || is_marray_v<T>);
+
+  constexpr auto N = T::size();
+  using ret_elem_type = decltype(F(x[0]...));
+  std::conditional_t<is_marray_v<T>, marray<ret_elem_type, N>,
+                     vec<ret_elem_type, N>>
+      r{};
+
+  if constexpr (is_marray_v<T>) {
+    for (size_t i = 0; i < T::size(); ++i)
+      r[i] = F(x[i]...);
   } else {
-    static_assert(is_marray_v<T>);
-    return builtin_marray_impl(F, x...);
+    loop<T::size()>([&](auto idx) { r[idx] = F(x[idx]...); });
   }
+
+  return r;
 }
 
 template <typename T>
