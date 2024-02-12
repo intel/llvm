@@ -700,8 +700,29 @@ convertDataToType(FROM t) {
 // Now fuse the above into a simpler helper that's easy to use.
 // TODO: That should probably be moved outside of "type_traits".
 template <typename T> auto convertToOpenCLType(T &&x) {
-  using OpenCLType = ConvertToOpenCLType_t<std::remove_reference_t<T>>;
-  return convertDataToType<T, OpenCLType>(std::forward<T>(x));
+  using no_ref = std::remove_reference_t<T>;
+  if constexpr (is_multi_ptr_v<no_ref>) {
+    return convertToOpenCLType(x.get_decorated());
+  } else if constexpr (std::is_pointer_v<no_ref>) {
+    using elem_type = remove_decoration_t<std::remove_pointer_t<no_ref>>;
+    using converted_elem_type_no_cv = ConvertToOpenCLType_t<elem_type>;
+    // TODO: Below ignores volatile, but we didn't have a need for it yet.
+    using converted_elem_type =
+        std::conditional_t<std::is_const_v<elem_type>,
+                           const converted_elem_type_no_cv,
+                           converted_elem_type_no_cv>;
+#ifdef __SYCL_DEVICE_ONLY__
+    using result_type =
+        typename DecoratedType<converted_elem_type,
+                               deduce_AS<no_ref>::value>::type *;
+#else
+    using result_type = converted_elem_type *;
+#endif
+    return reinterpret_cast<result_type>(x);
+  } else {
+    using OpenCLType = ConvertToOpenCLType_t<no_ref>;
+    return convertDataToType<T, OpenCLType>(std::forward<T>(x));
+  }
 }
 
 template <typename To, typename From> auto convertFromOpenCLTypeFor(From &&x) {

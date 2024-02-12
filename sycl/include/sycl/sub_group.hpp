@@ -42,6 +42,23 @@ namespace sub_group {
 template <typename T>
 using SelectBlockT = select_cl_scalar_integral_unsigned_t<T>;
 
+template <typename MultiPtrTy> auto convertToBlockPtr(MultiPtrTy MultiPtr) {
+  static_assert(is_multi_ptr_v<MultiPtrTy>);
+  auto DecoratedPtr = convertToOpenCLType(MultiPtr);
+  using DecoratedPtrTy = decltype(DecoratedPtr);
+  using ElemTy = remove_decoration_t<std::remove_pointer_t<DecoratedPtrTy>>;
+
+  using TargetElemTy = SelectBlockT<ElemTy>;
+#ifdef __SYCL_DEVICE_ONLY__
+  using ResultTy =
+      typename DecoratedType<TargetElemTy,
+                             deduce_AS<DecoratedPtrTy>::value>::type *;
+#else
+  using ResultTy = TargetElemTy *;
+#endif
+  return reinterpret_cast<ResultTy>(DecoratedPtr);
+}
+
 template <typename T, access::address_space Space>
 using AcceptableForGlobalLoadStore =
     std::bool_constant<!std::is_same_v<void, SelectBlockT<T>> &&
@@ -57,11 +74,7 @@ template <typename T, access::address_space Space,
           access::decorated DecorateAddress>
 T load(const multi_ptr<T, Space, DecorateAddress> src) {
   using BlockT = SelectBlockT<T>;
-  using PtrT = sycl::detail::ConvertToOpenCLType_t<
-      const multi_ptr<BlockT, Space, DecorateAddress>>;
-
-  BlockT Ret =
-      __spirv_SubgroupBlockReadINTEL<BlockT>(reinterpret_cast<PtrT>(src.get()));
+  BlockT Ret = __spirv_SubgroupBlockReadINTEL<BlockT>(convertToBlockPtr(src));
 
   return sycl::bit_cast<T>(Ret);
 }
@@ -71,11 +84,7 @@ template <int N, typename T, access::address_space Space,
 vec<T, N> load(const multi_ptr<T, Space, DecorateAddress> src) {
   using BlockT = SelectBlockT<T>;
   using VecT = sycl::detail::ConvertToOpenCLType_t<vec<BlockT, N>>;
-  using PtrT = sycl::detail::ConvertToOpenCLType_t<
-      const multi_ptr<BlockT, Space, DecorateAddress>>;
-
-  VecT Ret =
-      __spirv_SubgroupBlockReadINTEL<VecT>(reinterpret_cast<PtrT>(src.get()));
+  VecT Ret = __spirv_SubgroupBlockReadINTEL<VecT>(convertToBlockPtr(src));
 
   return sycl::bit_cast<typename vec<T, N>::vector_t>(Ret);
 }
@@ -84,10 +93,8 @@ template <typename T, access::address_space Space,
           access::decorated DecorateAddress>
 void store(multi_ptr<T, Space, DecorateAddress> dst, const T &x) {
   using BlockT = SelectBlockT<T>;
-  using PtrT = sycl::detail::ConvertToOpenCLType_t<
-      multi_ptr<BlockT, Space, DecorateAddress>>;
 
-  __spirv_SubgroupBlockWriteINTEL(reinterpret_cast<PtrT>(dst.get()),
+  __spirv_SubgroupBlockWriteINTEL(convertToBlockPtr(dst),
                                   sycl::bit_cast<BlockT>(x));
 }
 
@@ -96,10 +103,8 @@ template <int N, typename T, access::address_space Space,
 void store(multi_ptr<T, Space, DecorateAddress> dst, const vec<T, N> &x) {
   using BlockT = SelectBlockT<T>;
   using VecT = sycl::detail::ConvertToOpenCLType_t<vec<BlockT, N>>;
-  using PtrT = sycl::detail::ConvertToOpenCLType_t<
-      const multi_ptr<BlockT, Space, DecorateAddress>>;
 
-  __spirv_SubgroupBlockWriteINTEL(reinterpret_cast<PtrT>(dst.get()),
+  __spirv_SubgroupBlockWriteINTEL(convertToBlockPtr(dst),
                                   sycl::bit_cast<VecT>(x));
 }
 #endif // __SYCL_DEVICE_ONLY__
