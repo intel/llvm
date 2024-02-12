@@ -63,16 +63,17 @@ platform::get_info_internal() const {
   return impl->get_info<Param>();
 }
 
-detail::string platform::get_platform_info(detail::string_view Type) const {
+detail::string
+platform::get_platform_info(PlatformProperty PropertyName) const {
   std::string Info;
-  if (Type == typeid(info::platform::name).name()) {
+  if (PropertyName == PlatformProperty::NAME) {
     Info = impl->get_info<info::platform::name>();
-  } else if (Type == typeid(info::platform::vendor).name()) {
-    Info = impl->get_info<info::platform::vendor>();
-  } else if (Type == typeid(info::platform::version).name()) {
-    Info = impl->get_info<info::platform::version>();
-  } else if (Type == typeid(info::platform::profile).name()) {
+  } else if (PropertyName == PlatformProperty::PROFILE) {
     Info = impl->get_info<info::platform::profile>();
+  } else if (PropertyName == PlatformProperty::VENDOR) {
+    Info = impl->get_info<info::platform::vendor>();
+  } else if (PropertyName == PlatformProperty::VERSION) {
+    Info = impl->get_info<info::platform::version>();
   } else {
     throw sycl::invalid_parameter_error("unsupported platform info requested",
                                         PI_ERROR_INVALID_OPERATION);
@@ -81,9 +82,9 @@ detail::string platform::get_platform_info(detail::string_view Type) const {
 }
 
 std::vector<detail::string>
-platform::get_platform_info_vector(detail::string_view Type) const {
+platform::get_platform_info_vector(PlatformProperty PropertyName) const {
   std::vector<std::string> Info;
-  if (Type == typeid(info::platform::extensions).name()) {
+  if (PropertyName == PlatformProperty::EXTENSIONS) {
     Info = impl->template get_info<info::platform::extensions>();
   } else {
     throw sycl::invalid_parameter_error(

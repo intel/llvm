@@ -59,6 +59,10 @@ namespace ext::oneapi {
 class filter_selector;
 } // namespace ext::oneapi
 
+// Platform properties that returns std::string
+// These need special handling to deal with ABI incompatibility
+enum class PlatformProperty { EXTENSIONS, NAME, PROFILE, VENDOR, VERSION };
+
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///
 /// \ingroup sycl_api
@@ -154,14 +158,26 @@ public:
     if constexpr (std::is_same_v<std::string,
                                  typename detail::is_platform_info_desc<
                                      Param>::return_type>) {
-      detail::string_view PropertyName(typeid(Param).name());
+      auto *Map = getMap();
+      auto iter = Map->find(typeid(Param).name());
+      if (iter == Map->end()) {
+        throw sycl::invalid_parameter_error(
+            "unsupported platform info requested", PI_ERROR_INVALID_OPERATION);
+      }
+      PlatformProperty PropertyName = iter->second;
       detail::string Info = get_platform_info(PropertyName);
       return Info.c_str();
     } else if constexpr (std::is_same_v<std::vector<std::string>,
                                         typename detail::is_platform_info_desc<
                                             Param>::return_type>) {
       // The return value is std::vector<std::string>
-      detail::string_view PropertyName(typeid(Param).name());
+      auto *Map = getMap();
+      auto iter = Map->find(typeid(Param).name());
+      if (iter == Map->end()) {
+        throw sycl::invalid_parameter_error(
+            "unsupported platform info requested", PI_ERROR_INVALID_OPERATION);
+      }
+      PlatformProperty PropertyName = iter->second;
       std::vector<detail::string> Info = get_platform_info_vector(PropertyName);
       std::vector<std::string> Res;
       Res.reserve(Info.size());
@@ -239,9 +255,22 @@ private:
   typename detail::is_platform_info_desc<Param>::return_type
   get_info_internal() const;
   // proxy of get_info_internal() to handle C++11-ABI compatibility separately.
-  detail::string get_platform_info(detail::string_view Type) const;
+  detail::string get_platform_info(PlatformProperty Type) const;
   std::vector<detail::string>
-  get_platform_info_vector(detail::string_view Type) const;
+  get_platform_info_vector(PlatformProperty Type) const;
+
+  static const std::unordered_map<const char *, PlatformProperty> *getMap() {
+    static const auto *map =
+        new std::unordered_map<const char *, PlatformProperty>{
+            {typeid(info::platform::extensions).name(),
+             PlatformProperty::EXTENSIONS},
+            {typeid(info::platform::name).name(), PlatformProperty::NAME},
+            {typeid(info::platform::profile).name(), PlatformProperty::PROFILE},
+            {typeid(info::platform::vendor).name(), PlatformProperty::VENDOR},
+            { typeid(info::platform::version).name(),
+              PlatformProperty::VERSION }};
+    return map;
+  }
 #endif
 }; // class platform
 } // namespace _V1

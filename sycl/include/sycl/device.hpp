@@ -55,6 +55,21 @@ enum class peer_access {
 
 } // namespace ext::oneapi
 
+// Device properties that returns std::string
+// These need special handling to deal with ABI incompatibility
+enum class DeviceProperty {
+  BACKEND_VERSION,
+  BUILT_IN_KERNELS,
+  DRIVER_VERSION,
+  EXTENSIONS,
+  EXT_INTEL_PCI_ADDRESS,
+  NAME,
+  OPENCL_C_VERSION,
+  PROFILE,
+  VENDOR,
+  VERSION
+};
+
 /// The SYCL device class encapsulates a single SYCL device on which kernels
 /// may be executed.
 ///
@@ -225,14 +240,26 @@ public:
     if constexpr (std::is_same_v<std::string,
                                  typename detail::is_device_info_desc<
                                      Param>::return_type>) {
-      detail::string_view PropertyName(typeid(Param).name());
+      auto *Map = getMap();
+      auto iter = Map->find(typeid(Param).name());
+      if (iter == Map->end()) {
+        throw sycl::invalid_parameter_error("unsupported device info requested",
+                                            PI_ERROR_INVALID_OPERATION);
+      }
+      DeviceProperty PropertyName = iter->second;
       detail::string Info = get_device_info(PropertyName);
       return Info.c_str();
     } else if constexpr (std::is_same_v<std::vector<std::string>,
                                         typename detail::is_device_info_desc<
                                             Param>::return_type>) {
-      // The return value is std::vector<std::string>
-      detail::string_view PropertyName(typeid(Param).name());
+      // return value is std::vector<std::string>
+      auto *Map = getMap();
+      auto iter = Map->find(typeid(Param).name());
+      if (iter == Map->end()) {
+        throw sycl::invalid_parameter_error("unsupported device info requested",
+                                            PI_ERROR_INVALID_OPERATION);
+      }
+      DeviceProperty PropertyName = iter->second;
       std::vector<detail::string> Info = get_device_info_vector(PropertyName);
       std::vector<std::string> Res;
       Res.reserve(Info.size());
@@ -327,10 +354,36 @@ private:
   template <typename Param>
   typename detail::is_device_info_desc<Param>::return_type
   get_info_internal() const;
+
   // proxy of get_info_internal() to handle C++11-ABI compatibility separately.
-  detail::string get_device_info(detail::string_view Type) const;
+  detail::string get_device_info(DeviceProperty PropertyName) const;
   std::vector<detail::string>
-  get_device_info_vector(detail::string_view Type) const;
+  get_device_info_vector(DeviceProperty PropertyName) const;
+
+  static const std::unordered_map<const char *, DeviceProperty> *getMap() {
+    static const auto *map =
+        new std::unordered_map<const char *, DeviceProperty>{
+            {typeid(info::device::backend_version).name(),
+             DeviceProperty::BACKEND_VERSION},
+            {typeid(info::device::backend_version).name(),
+             DeviceProperty::BACKEND_VERSION},
+            {typeid(info::device::built_in_kernels).name(),
+             DeviceProperty::BUILT_IN_KERNELS},
+            {typeid(info::device::driver_version).name(),
+             DeviceProperty::DRIVER_VERSION},
+            {typeid(info::device::extensions).name(),
+             DeviceProperty::EXTENSIONS},
+            {typeid(info::device::ext_intel_pci_address).name(),
+             DeviceProperty::EXT_INTEL_PCI_ADDRESS},
+            {typeid(info::device::name).name(), DeviceProperty::NAME},
+            {typeid(info::device::opencl_c_version).name(),
+             DeviceProperty::OPENCL_C_VERSION},
+            {typeid(info::device::profile).name(), DeviceProperty::PROFILE},
+            {typeid(info::device::vendor).name(), DeviceProperty::VENDOR},
+            { typeid(info::device::version).name(),
+              DeviceProperty::VERSION }};
+    return map;
+  }
 #endif
 };
 

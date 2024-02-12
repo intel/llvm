@@ -15,11 +15,6 @@
 #include <sycl/device_selector.hpp>
 #include <sycl/info/info_desc.hpp>
 
-#include <algorithm>
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-#include <typeinfo>
-#endif
-
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -31,6 +26,7 @@ void force_type(info::device_type &t, const info::device_type &ft) {
                                         PI_ERROR_INVALID_OPERATION);
   }
 }
+
 } // namespace detail
 
 device::device() : device(default_selector_v) {}
@@ -144,24 +140,24 @@ device::get_info_internal() const {
   return impl->template get_info<Param>();
 }
 
-detail::string device::get_device_info(detail::string_view Type) const {
+detail::string device::get_device_info(DeviceProperty PropertyName) const {
   std::string Info;
-  if (Type == typeid(info::device::name).name()) {
-    Info = impl->template get_info<info::device::name>();
-  } else if (Type == typeid(info::device::vendor).name()) {
-    Info = impl->template get_info<info::device::vendor>();
-  } else if (Type == typeid(info::device::driver_version).name()) {
-    Info = impl->template get_info<info::device::driver_version>();
-  } else if (Type == typeid(info::device::version).name()) {
-    Info = impl->template get_info<info::device::version>();
-  } else if (Type == typeid(info::device::profile).name()) {
-    Info = impl->template get_info<info::device::profile>();
-  } else if (Type == typeid(info::device::opencl_c_version).name()) {
-    Info = impl->template get_info<info::device::opencl_c_version>();
-  } else if (Type == typeid(info::device::ext_intel_pci_address).name()) {
-    Info = impl->template get_info<info::device::ext_intel_pci_address>();
-  } else if (Type == typeid(info::device::backend_version).name()) {
+  if (PropertyName == DeviceProperty::BACKEND_VERSION) {
     Info = impl->template get_info<info::device::backend_version>();
+  } else if (PropertyName == DeviceProperty::DRIVER_VERSION) {
+    Info = impl->template get_info<info::device::driver_version>();
+  } else if (PropertyName == DeviceProperty::EXT_INTEL_PCI_ADDRESS) {
+    Info = impl->template get_info<info::device::ext_intel_pci_address>();
+  } else if (PropertyName == DeviceProperty::NAME) {
+    Info = impl->template get_info<info::device::name>();
+  } else if (PropertyName == DeviceProperty::OPENCL_C_VERSION) {
+    Info = impl->template get_info<info::device::opencl_c_version>();
+  } else if (PropertyName == DeviceProperty::PROFILE) {
+    Info = impl->template get_info<info::device::profile>();
+  } else if (PropertyName == DeviceProperty::VENDOR) {
+    Info = impl->template get_info<info::device::vendor>();
+  } else if (PropertyName == DeviceProperty::VERSION) {
+    Info = impl->template get_info<info::device::version>();
   } else {
     throw sycl::invalid_parameter_error("unsupported device info requested",
                                         PI_ERROR_INVALID_OPERATION);
@@ -170,11 +166,11 @@ detail::string device::get_device_info(detail::string_view Type) const {
 }
 
 std::vector<detail::string>
-device::get_device_info_vector(detail::string_view Type) const {
+device::get_device_info_vector(DeviceProperty PropertyName) const {
   std::vector<std::string> Info;
-  if (Type == typeid(info::device::built_in_kernels).name()) {
+  if (PropertyName == DeviceProperty::BUILT_IN_KERNELS) {
     Info = impl->template get_info<info::device::built_in_kernels>();
-  } else if (Type == typeid(info::device::extensions).name()) {
+  } else if (PropertyName == DeviceProperty::EXTENSIONS) {
     Info = impl->template get_info<info::device::extensions>();
   } else {
     throw sycl::invalid_parameter_error(
