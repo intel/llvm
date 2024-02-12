@@ -5,6 +5,9 @@
 // RUN: %{build} -fsycl-range-rounding=force -o %t.out
 // RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t.out | FileCheck %s --check-prefix=CHECK-DEFAULT
 
+// RUN: %{build} -fsycl-exp-range-rounding -o %t.out
+// RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t.out | FileCheck %s --check-prefix=CHECK-EXP
+//
 // These tests test 3 things:
 //
 // 1. The user range is the same as the in kernel range (using BufRange) as
@@ -243,3 +246,56 @@ int main() {
 // CHECK-DEFAULT-NEXT:  Counter = 540672
 // CHECK-DEFAULT-NEXT:  Correct kernel indexes used
 // CHECK-DEFAULT-NEXT:  Counter = 540672
+
+// CHECK-EXP:       parallel_for range adjusted using experimental range rounding from (1500) to 1D range: (1504)
+// CHECK-EXP-NEXT:  Size seen by user at Dim 0 = 1500
+// CHECK-EXP-NEXT:  Counter = 1500
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  parallel_for range adjusted using experimental range rounding from (1500) to 1D range: (1504)
+// CHECK-EXP-NEXT:  Counter = 1500
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  parallel_for range adjusted using experimental range rounding from (1500, 33) to 1D range: (49504)
+// CHECK-EXP-NEXT:  Size seen by user at Dim 0 = 1500
+// CHECK-EXP-NEXT:  Size seen by user at Dim 1 = 33
+// CHECK-EXP-NEXT:  Counter = 49500
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  parallel_for range adjusted using experimental range rounding from (1500, 33) to 1D range: (49504)
+// CHECK-EXP-NEXT:  Counter = 49500
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  parallel_for range adjusted using experimental range rounding from (1500, 33, 64) to 1D range: (3168000)
+// CHECK-EXP-NEXT:  Size seen by user at Dim 0 = 1500
+// CHECK-EXP-NEXT:  Size seen by user at Dim 1 = 33
+// CHECK-EXP-NEXT:  Size seen by user at Dim 2 = 64
+// CHECK-EXP-NEXT:  Counter = 3168000
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  parallel_for range adjusted using experimental range rounding from (1500, 33, 64) to 1D range: (3168000)
+// CHECK-EXP-NEXT:  Counter = 3168000
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  parallel_for range adjusted using experimental range rounding from (1500, 33, 64) to 1D range: (3168000)
+// CHECK-EXP-NEXT:  Counter = 3168000
+// CHECK-EXP-NEXT:  parallel_for range adjusted using experimental range rounding from (256) to 1D range: (256)
+// CHECK-EXP-NEXT:  Size seen by user at Dim 0 = 256
+// CHECK-EXP-NEXT:  Counter = 256
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  parallel_for range adjusted using experimental range rounding from (256) to 1D range: (256)
+// CHECK-EXP-NEXT:  Counter = 256
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  parallel_for range adjusted using experimental range rounding from (256, 33) to 1D range: (8448)
+// CHECK-EXP-NEXT:  Size seen by user at Dim 0 = 256
+// CHECK-EXP-NEXT:  Size seen by user at Dim 1 = 33
+// CHECK-EXP-NEXT:  Counter = 8448
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  parallel_for range adjusted using experimental range rounding from (256, 33) to 1D range: (8448)
+// CHECK-EXP-NEXT:  Counter = 8448
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  parallel_for range adjusted using experimental range rounding from (256, 33, 64) to 1D range: (540672)
+// CHECK-EXP-NEXT:  Size seen by user at Dim 0 = 256
+// CHECK-EXP-NEXT:  Size seen by user at Dim 1 = 33
+// CHECK-EXP-NEXT:  Size seen by user at Dim 2 = 64
+// CHECK-EXP-NEXT:  Counter = 540672
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  parallel_for range adjusted using experimental range rounding from (256, 33, 64) to 1D range: (540672)
+// CHECK-EXP-NEXT:  Counter = 540672
+// CHECK-EXP-NEXT:  Correct kernel indexes used
+// CHECK-EXP-NEXT:  parallel_for range adjusted using experimental range rounding from (256, 33, 64) to 1D range: (540672)
+// CHECK-EXP-NEXT:  Counter = 540672
