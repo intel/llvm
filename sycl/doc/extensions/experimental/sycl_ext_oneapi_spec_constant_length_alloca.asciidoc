@@ -142,7 +142,7 @@ report an error in the same fashion as if the allocation size were static. In
 case of a successful call, memory is freed automatically when the function which
 called `private_alloca` returns to its caller. Additionally, `SpecName` must
 have a default value of at least 1 and not be set to a value less than 1 during
-program execution. Violation of these conditions lead to undefined behavior.
+program execution. Violation of these conditions results in undefined behavior.
 
 == Example usage
 
