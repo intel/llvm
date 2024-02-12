@@ -206,7 +206,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
 
   UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_KERNEL_LAUNCH,
-                                       CommandList, IsInternal));
+                                       CommandList, IsInternal, false));
   ZeEvent = (*Event)->ZeEvent;
   (*Event)->WaitList = TmpWaitList;
 
