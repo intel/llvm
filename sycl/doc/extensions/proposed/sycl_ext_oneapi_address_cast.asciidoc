@@ -93,14 +93,14 @@ implementation supports.
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <access::address_space Space, access::decorated DecorateAddress,
+template <access::address_space Space,
           typename ElementType>
-multi_ptr<ElementType, Space, DecorateAddress>
+multi_ptr<ElementType, Space, access::decorated::no>
 static_address_cast(ElementType* ptr);
 
-template <access::address_space Space, access::decorated DecorateAddress,
+template <access::address_space Space,
           typename ElementType>
-multi_ptr<ElementType, Space, DecorateAddress>
+multi_ptr<ElementType, Space, access::decorated::no>
 dynamic_address_cast(ElementType* ptr);
 
 } // namespace sycl::ext::oneapi::experimental
@@ -108,16 +108,16 @@ dynamic_address_cast(ElementType* ptr);
 
 [source,c++]
 ----
-template <access::address_space Space, access::decorated DecorateAddress,
+template <access::address_space Space,
           typename ElementType>
-multi_ptr<ElementType, Space, DecorateAddress>
+multi_ptr<ElementType, Space, access::decorated::no>
 static_address_cast(ElementType* ptr);
 ----
 _Preconditions_: `ptr` points to an object allocated in the address space
 designated by `Space`.
 
-_Returns_: A `multi_ptr` with the specified address space and decoration that
-points to the same object as `ptr`.
+_Returns_: A `multi_ptr` with the specified address space that points to the
+same object as `ptr`.
 
 [NOTE]
 ====
@@ -129,16 +129,16 @@ does not point to an object allocated in the address space designated by
 
 [source,c++]
 ----
-template <access::address_space Space, access::decorated DecorateAddress,
+template <access::address_space Space,
           typename ElementType>
-multi_ptr<ElementType, Space, DecorateAddress>
+multi_ptr<ElementType, Space, access::decorated::no>
 dynamic_address_cast(ElementType* ptr);
 ----
 _Preconditions_: The memory at `ptr` is accessible to the calling work-item.
 
-_Returns_: A `multi_ptr` with the specified address space and decoration that
-points to the same object as `ptr` if `ptr` points to an object allocated in
-the address space designated by `Space`, and `nullptr` otherwise.
+_Returns_: A `multi_ptr` with the specified address space that points to the
+same object as `ptr` if `ptr` points to an object allocated in the address
+space designated by `Space`, and `nullptr` otherwise.
 
 [NOTE]
 ====
