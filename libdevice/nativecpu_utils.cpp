@@ -76,13 +76,56 @@ struct __nativecpu_state {
 #undef DEVICE_EXTERNAL
 #undef DEVICE_EXTERN_C
 #define DEVICE_EXTERN_C extern "C" SYCL_EXTERNAL
+#define DEVICE_EXTERNAL_C DEVICE_EXTERN_C __attribute__((always_inline))
 #define DEVICE_EXTERNAL SYCL_EXTERNAL __attribute__((always_inline))
 
-// i1 @__mux_sub_group_any_i1(i1 %x)
-// i1 @__mux_work_group_any_i1(i32 %id, i1 %x)
-// i1 @__mux_vec_group_any_v4i1(<4 x i1> %x)
+#define OCL_LOCAL __attribute__((opencl_local))
+#define OCL_GLOBAL __attribute__((opencl_global))
 
-DEVICE_EXTERN_C bool __mux_work_group_any_i1(unsigned, bool);
+OCL_LOCAL void *__spirv_GenericCastToPtrExplicit_ToLocal(void *p, int) {
+  return (OCL_LOCAL void *)p;
+}
+
+OCL_GLOBAL void *__spirv_GenericCastToPtrExplicit_ToGlobal(void *p, int) {
+  return (OCL_GLOBAL void *)p;
+}
+
+#define DefSubgroupBlockINTEL1(Type, PType)                                    \
+  template <>                                                                  \
+  __SYCL_CONVERGENT__ DEVICE_EXTERNAL Type                                     \
+  __spirv_SubgroupBlockReadINTEL<Type>(const OCL_GLOBAL PType *Ptr) noexcept { \
+    return *Ptr;                                                               \
+  }                                                                            \
+  template <>                                                                  \
+  __SYCL_CONVERGENT__ DEVICE_EXTERNAL void                                     \
+  __spirv_SubgroupBlockWriteINTEL<Type>(PType OCL_GLOBAL * ptr,                \
+                                        Type v) noexcept {                     \
+    *(Type *)ptr = v;                                                          \
+  }
+
+#define DefSubgroupBlockINTEL_vt(Type, VT_name)                                \
+  DefSubgroupBlockINTEL1(ncpu_types::vtypes<Type>::VT_name, Type)
+
+#define DefSubgroupBlockINTEL(Type)                                            \
+  DefSubgroupBlockINTEL1(Type, Type) DefSubgroupBlockINTEL_vt(Type, v2)        \
+      DefSubgroupBlockINTEL_vt(Type, v4) DefSubgroupBlockINTEL_vt(Type, v8)
+
+namespace ncpu_types {
+template <class T> struct vtypes {
+  using v2 = __ocl_vec_t<T, 2>;
+  using v4 = __ocl_vec_t<T, 4>;
+  using v8 = __ocl_vec_t<T, 8>;
+};
+} // namespace ncpu_types
+
+DefSubgroupBlockINTEL(unsigned) DefSubgroupBlockINTEL(unsigned __int64)
+    DefSubgroupBlockINTEL(unsigned char) DefSubgroupBlockINTEL(unsigned short)
+
+    // i1 @__mux_sub_group_any_i1(i1 %x)
+    // i1 @__mux_work_group_any_i1(i32 %id, i1 %x)
+    // i1 @__mux_vec_group_any_v4i1(<4 x i1> %x)
+
+    DEVICE_EXTERN_C bool __mux_work_group_any_i1(unsigned, bool);
 DEVICE_EXTERNAL bool __spirv_GroupAny(unsigned id, bool val) {
   return __mux_work_group_any_i1(id, val);
 }
@@ -91,6 +134,62 @@ DEVICE_EXTERN_C bool __mux_work_group_all_i1(unsigned, bool);
 DEVICE_EXTERNAL bool __spirv_GroupAll(unsigned id, bool val) {
   return __mux_work_group_all_i1(id, val);
 }
+
+#define DefineScan(Type, MuxType, spir_sfx, mux_sfx)                           \
+  DEVICE_EXTERN_C MuxType __mux_sub_group_scan_inclusive_##mux_sfx(            \
+      /*int,*/ MuxType);                                                       \
+  DEVICE_EXTERNAL Type __spirv_Group##spir_sfx(unsigned g, unsigned id,        \
+                                               Type v) {                       \
+    if (__spv::Scope::Flag::Subgroup == g)                                     \
+      return __mux_sub_group_scan_inclusive_##mux_sfx(/*id,*/ v);              \
+    return Type(); /*TODO*/                                                    \
+  }
+
+DefineScan(int, int32_t, IAdd,
+           add_i32) DefineScan(unsigned, int32_t, IAdd,
+                               add_i32) DefineScan(float, float, FAdd, fadd_f32)
+
+#define DefineReduce(Type, MuxType, spir_sfx, mux_sfx)                         \
+  DEVICE_EXTERN_C MuxType __mux_sub_group_reduce_##mux_sfx(MuxType);           \
+  DEVICE_EXTERNAL Type __spirv_Group##spir_sfx(unsigned g, unsigned id,        \
+                                               Type v) {                       \
+    if (__spv::Scope::Flag::Subgroup == g)                                     \
+      return __mux_sub_group_reduce_##mux_sfx(v);                              \
+    return Type(); /*TODO*/                                                    \
+  }
+
+    DefineReduce(double, double, FMulKHR, fmul_f64) DefineReduce(
+        double, double, FAdd,
+        fadd_f64) DefineReduce(double, double, FMin,
+                               fmin_f64) DefineReduce(double, double, FMax,
+                                                      fmax_f64)
+
+        DefineReduce(int, int, IMulKHR,
+                     mul_i32) DefineReduce(unsigned, int, IMulKHR,
+                                           mul_i32) DefineReduce(float, float,
+                                                                 FMulKHR,
+                                                                 fmul_f32)
+
+            DefineReduce(int, int, SMin, smin_i32) DefineReduce(int, int, SMax,
+                                                                smax_i32)
+                DefineReduce(unsigned, int, UMin, umin_i32) DefineReduce(
+                    unsigned, int, UMax,
+                    umax_i32) DefineReduce(float, float, FMin,
+                                           fmin_f32) DefineReduce(float, float,
+                                                                  FMax,
+                                                                  fmax_f32)
+
+#define DefineBitwiseReduce(Type, MuxType, mux_sfx)                            \
+  DefineReduce(Type, MuxType, BitwiseOrKHR, or_##mux_sfx)                      \
+      DefineReduce(Type, MuxType, BitwiseXorKHR, xor_##mux_sfx)                \
+          DefineReduce(Type, MuxType, BitwiseAndKHR, and_##mux_sfx)
+
+                    DefineBitwiseReduce(int, int, i32) DefineBitwiseReduce(
+                        unsigned, int,
+                        i32) DefineBitwiseReduce(int64_t, int64_t,
+                                                 i64) DefineBitwiseReduce(uint64_t,
+                                                                          int64_t,
+                                                                          i64)
 
 #define DefineBroadCast(Type, Sfx, MuxType)                                    \
   DEVICE_EXTERN_C MuxType __mux_work_group_broadcast_##Sfx(                    \
@@ -104,8 +203,10 @@ DEVICE_EXTERNAL bool __spirv_GroupAll(unsigned id, bool val) {
     return Type(); /*TODO*/                                                    \
   }
 
-DefineBroadCast(int, i32, int32_t) DefineBroadCast(unsigned, i32, int32_t)
-    DefineBroadCast(float, f32, float)
+                        DefineBroadCast(int, i32, int32_t) DefineBroadCast(
+                            unsigned, i32, int32_t) DefineBroadCast(float, f32,
+                                                                    float)
+                            DefineBroadCast(double, f64, double)
 
 // defining subgroup builtins
 
@@ -152,13 +253,24 @@ DefineBroadCast(int, i32, int32_t) DefineBroadCast(unsigned, i32, int32_t)
       DefShuffleDownINTEL(Type, Sfx, MuxType)                                  \
           DefShuffleXorINTEL(Type, Sfx, MuxType)
 
-        DefShuffleINTEL_All(uint64_t, i64, int64_t) DefShuffleINTEL_All(
-            int64_t, i64, int64_t) DefShuffleINTEL_All(int32_t, i32, int32_t)
-            DefShuffleINTEL_All(uint32_t, i32, int32_t)
-                DefShuffleINTEL_All(int16_t, i16, int16_t)
-                    DefShuffleINTEL_All(uint16_t, i16, int16_t)
-                        DefShuffleINTEL_All(double, f64, double)
-                            DefShuffleINTEL_All(float, f32, float)
+                                DefShuffleINTEL_All(
+                                    uint64_t, i64,
+                                    int64_t) DefShuffleINTEL_All(int64_t, i64,
+                                                                 int64_t)
+                                    DefShuffleINTEL_All(
+                                        int32_t, i32,
+                                        int32_t) DefShuffleINTEL_All(uint32_t,
+                                                                     i32,
+                                                                     int32_t)
+                                        DefShuffleINTEL_All(
+                                            int16_t, i16,
+                                            int16_t) DefShuffleINTEL_All(uint16_t,
+                                                                         i16,
+                                                                         int16_t)
+                                            DefShuffleINTEL_All(double, f64,
+                                                                double)
+                                                DefShuffleINTEL_All(float, f32,
+                                                                    float)
 
 #define DefineShuffleVec(T, N, Sfx, MuxType)                                   \
   using vt##T##N = sycl::detail::VecStorage<T, N>::DataType;                   \
@@ -171,38 +283,60 @@ DefineBroadCast(int, i32, int32_t) DefineBroadCast(unsigned, i32, int32_t)
           DefineShuffleVec(Type, 8, Sfx, MuxType)                              \
               DefineShuffleVec(Type, 16, Sfx, MuxType)
 
-                                DefineShuffleVec2to16(int, i32, int)
-                                    DefineShuffleVec2to16(unsigned, i32, int)
-                                        DefineShuffleVec2to16(float, f32, float)
+                                                    DefineShuffleVec2to16(int,
+                                                                          i32,
+                                                                          int)
+                                                        DefineShuffleVec2to16(
+                                                            unsigned, i32, int)
+                                                            DefineShuffleVec2to16(
+                                                                float, f32,
+                                                                float)
 
-#define GEN_u32(bname, muxname)\
-  DEVICE_EXTERN_C uint32_t muxname();\
+#define GEN_u32(bname, muxname)                                                \
+  DEVICE_EXTERN_C uint32_t muxname();                                          \
   DEVICE_EXTERNAL uint32_t bname() { return muxname(); }
-  // subgroup
+    // subgroup
     GEN_u32(__spirv_SubgroupLocalInvocationId,
-            __mux_get_sub_group_local_id)
-    GEN_u32(__spirv_SubgroupMaxSize, __mux_get_max_sub_group_size)
-    GEN_u32(__spirv_SubgroupId, __mux_get_sub_group_id)
-    GEN_u32(__spirv_NumSubgroups, __mux_get_num_sub_groups)
-    GEN_u32(__spirv_SubgroupSize, __mux_get_sub_group_size)
+            __mux_get_sub_group_local_id) GEN_u32(__spirv_SubgroupMaxSize,
+                                                  __mux_get_max_sub_group_size)
+        GEN_u32(__spirv_SubgroupId, __mux_get_sub_group_id) GEN_u32(
+            __spirv_NumSubgroups,
+            __mux_get_num_sub_groups) GEN_u32(__spirv_SubgroupSize,
+                                              __mux_get_sub_group_size)
 
-//I64_I32
-#define GEN_p(bname, muxname, arg)\
-  DEVICE_EXTERN_C uint64_t muxname(uint32_t);\
+// I64_I32
+#define GEN_p(bname, muxname, arg)                                             \
+  DEVICE_EXTERN_C uint64_t muxname(uint32_t);                                  \
   DEVICE_EXTERNAL uint64_t bname() { return muxname(arg); }
 
-#define GEN_xyz(bname, ncpu_name)\
-  GEN_p(bname ## _x, ncpu_name, 0)\
-  GEN_p(bname ## _y, ncpu_name, 1)\
-  GEN_p(bname ## _z, ncpu_name, 2)
+#define GEN_xyz(bname, ncpu_name)                                              \
+  GEN_p(bname##_x, ncpu_name, 0) GEN_p(bname##_y, ncpu_name, 1)                \
+      GEN_p(bname##_z, ncpu_name, 2)
 
+            GEN_xyz(__spirv_GlobalInvocationId,
+                    __mux_get_global_id) GEN_xyz(__spirv_GlobalSize,
+                                                 __mux_get_global_size)
+                GEN_xyz(__spirv_GlobalOffset, __mux_get_global_offset) GEN_xyz(
+                    __spirv_LocalInvocationId,
+                    __mux_get_local_id) GEN_xyz(__spirv_NumWorkgroups,
+                                                __mux_get_num_groups)
+                    GEN_xyz(__spirv_WorkgroupSize,
+                            __mux_get_local_size) GEN_xyz(__spirv_WorkgroupId,
+                                                          __mux_get_group_id)
 
-    GEN_xyz(__spirv_GlobalInvocationId, __mux_get_global_id)
-    GEN_xyz(__spirv_GlobalSize, __mux_get_global_size)
-    GEN_xyz(__spirv_GlobalOffset, __mux_get_global_offset)
-    GEN_xyz(__spirv_LocalInvocationId, __mux_get_local_id)
-    GEN_xyz(__spirv_NumWorkgroups, __mux_get_num_groups)
-    GEN_xyz(__spirv_WorkgroupSize, __mux_get_local_size)
-    GEN_xyz(__spirv_WorkgroupId, __mux_get_group_id)
+#define DefStateSetWithType(name, field, type)                                 \
+  DEVICE_EXTERNAL_C void name(type value, __nativecpu_state *s) {              \
+    s->field = value;                                                          \
+  }
+
+                        DefStateSetWithType(
+                            __dpcpp_nativecpu_set_num_sub_groups, NumSubGroups,
+                            uint32_t)
+                            DefStateSetWithType(
+                                __dpcpp_nativecpu_set_sub_group_id, SubGroup_id,
+                                uint32_t)
+                                DefStateSetWithType(
+                                    __dpcpp_nativecpu_set_max_sub_group_size,
+                                    SubGroup_size, uint32_t)
 
 #endif // __SYCL_NATIVE_CPU__
