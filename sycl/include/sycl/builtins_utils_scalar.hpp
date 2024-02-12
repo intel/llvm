@@ -128,6 +128,17 @@ template <size_t Size> struct get_unsigned_int_by_size {
 template <typename T> struct same_size_unsigned_int {
   using type = typename get_unsigned_int_by_size<sizeof(T)>::type;
 };
+template <typename T>
+using same_size_unsigned_int_t = typename same_size_unsigned_int<T>::type;
+
+template <typename T> struct get_fixed_sized_int {
+  static_assert(std::is_integral_v<T>);
+  using type =
+      std::conditional_t<std::is_signed_v<T>, same_size_signed_int_t<T>,
+                         same_size_unsigned_int_t<T>>;
+};
+template <typename T>
+using get_fixed_sized_int_t = typename get_fixed_sized_int<T>::type;
 
 // Utility trait for getting an upsampled integer type.
 // NOTE: For upsampling we look for an integer of double the size of the

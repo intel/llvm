@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1cd402ead34a54459a6acb85777fbec105a178a0
-  # Merge: 5b89ee8b c8e150c5
+  # commit 47102cb2b275472054803a9399b5b977ef210b23
+  # Merge: 186bfb9d 2390664d
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Tue Feb 6 14:48:55 2024 +0000
-  #     Merge pull request #1218 from Bensuo/maxime/imm-cmd-list-support
-  #     [EXP][CMDBUF] L0 Immediate command-list support
-  set(UNIFIED_RUNTIME_TAG 1cd402ead34a54459a6acb85777fbec105a178a0)
+  # Date:   Fri Feb 9 12:21:47 2024 +0000
+  #     Merge pull request #1328 from Bensuo/maxime/events-reset-bugfix
+  #     [EXP][CMDBUF] Reset events for multiple submissions (bugfix)
+  set(UNIFIED_RUNTIME_TAG 47102cb2b275472054803a9399b5b977ef210b23)
   
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

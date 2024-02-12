@@ -963,6 +963,7 @@ Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
       for (auto Ev = Events.begin(); Ev != Events.end();) {
         auto *EvDepCmd = static_cast<Command *>((*Ev)->getCommand());
         if (!EvDepCmd) {
+          ++Ev;
           continue;
         }
         // Handle event dependencies on any commands part of another active
