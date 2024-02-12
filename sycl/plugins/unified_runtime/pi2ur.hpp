@@ -608,6 +608,12 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
      * No need to convert since types are compatible
      */
     *ParamValueSizeRet = sizeof(pi_device_fp_config);
+  } else if (ParamName == UR_DEVICE_INFO_COMPONENT_DEVICES) {
+    if (ParamValueSizeRet && *ParamValueSizeRet != 0) {
+      const uint32_t UrNumberElements =
+          *ParamValueSizeRet / sizeof(ur_device_handle_t);
+      *ParamValueSizeRet = UrNumberElements * sizeof(pi_device);
+    }
   } else {
 
     // TODO: what else needs a UR-PI translation?
@@ -974,7 +980,6 @@ inline pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 
 inline pi_result piDeviceRetain(pi_device Device) {
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
-
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
   HANDLE_ERRORS(urDeviceRetain(UrDevice));
   return PI_SUCCESS;
@@ -1008,7 +1013,6 @@ inline pi_result piPluginGetLastError(char **Message) {
 inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                                  size_t ParamValueSize, void *ParamValue,
                                  size_t *ParamValueSizeRet) {
-
   ur_device_info_t InfoType;
   switch (ParamName) {
 #define PI_TO_UR_MAP_DEVICE_INFO(FROM, TO)                                     \
@@ -1270,6 +1274,10 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
         UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT,
                              UR_DEVICE_INFO_ESIMD_SUPPORT)
+    PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_COMPONENT_DEVICES,
+                             UR_DEVICE_INFO_COMPONENT_DEVICES)
+    PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_COMPOSITE_DEVICE,
+                             UR_DEVICE_INFO_COMPOSITE_DEVICE)
 #undef PI_TO_UR_MAP_DEVICE_INFO
   default:
     return PI_ERROR_UNKNOWN;

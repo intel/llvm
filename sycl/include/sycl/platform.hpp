@@ -188,6 +188,8 @@ public:
   /// \return the default context
   context ext_oneapi_get_default_context() const;
 
+  std::vector<device> ext_oneapi_get_composite_devices() const;
+
 private:
   pi_native_handle getNative() const;
 
