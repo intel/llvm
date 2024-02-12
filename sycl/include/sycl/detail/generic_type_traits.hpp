@@ -704,6 +704,18 @@ template <typename T> auto convertToOpenCLType(T &&x) {
   return convertDataToType<T, OpenCLType>(std::forward<T>(x));
 }
 
+template <typename To, typename From> auto convertFromOpenCLTypeFor(From &&x) {
+  if constexpr (std::is_same_v<To, bool> &&
+                std::is_same_v<std::remove_reference_t<From>, bool>) {
+    // FIXME: Something seems to be wrong elsewhere...
+    return x;
+  } else {
+    static_assert(std::is_same_v<std::remove_reference_t<From>,
+                                 ConvertToOpenCLType_t<To>>);
+    return convertDataToType<From, To>(std::forward<From>(x));
+  }
+}
+
 // Used for all, any and select relational built-in functions
 template <typename T> inline constexpr T msbMask(T) {
   using UT = make_unsigned_t<T>;

@@ -9,7 +9,7 @@
 #pragma once
 
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL_ALWAYS_INLINE
-#include <sycl/detail/generic_type_traits.hpp> // for convertDataToType
+#include <sycl/detail/generic_type_traits.hpp> // for to/from OpenCLType converts
 #include <utility>
 
 // TODO Decide whether to mark functions with this attribute.
@@ -18,27 +18,31 @@
 #ifdef __SYCL_DEVICE_ONLY__
 #define __FUNC_PREFIX_OCL __spirv_ocl_
 #define __FUNC_PREFIX_CORE __spirv_
-#define __SYCL_EXTERN_IT1(Ret, prefix, call, arg1)
-#define __SYCL_EXTERN_IT2(Ret, prefix, call, arg1, arg2)
-#define __SYCL_EXTERN_IT2_SAME(Ret, prefix, call, arg)
-#define __SYCL_EXTERN_IT3(Ret, prefix, call, Arg1, Arg2, Arg3)
+#define __SYCL_EXTERN_IT1(R, prefix, call, arg1)
+#define __SYCL_EXTERN_IT2(R, prefix, call, arg1, arg2)
+#define __SYCL_EXTERN_IT2_SAME(R, prefix, call, arg)
+#define __SYCL_EXTERN_IT3(R, prefix, call, Arg1, Arg2, Arg3)
 #else
 #define __FUNC_PREFIX_OCL sycl_host_
 #define __FUNC_PREFIX_CORE sycl_host_
-#define __SYCL_EXTERN_IT1(Ret, prefix, call, arg)                              \
+#define __SYCL_EXTERN_IT1(R, prefix, call, arg)                                \
   using Arg = decltype(arg);                                                   \
+  using Ret = sycl::detail::ConvertToOpenCLType_t<R>;                          \
   extern Ret __SYCL_PPCAT(prefix, call)(Arg)
-#define __SYCL_EXTERN_IT2_SAME(Ret, prefix, call, arg)                         \
+#define __SYCL_EXTERN_IT2_SAME(R, prefix, call, arg)                           \
   using Arg = decltype(arg);                                                   \
+  using Ret = sycl::detail::ConvertToOpenCLType_t<R>;                          \
   extern Ret __SYCL_PPCAT(prefix, call)(Arg, Arg)
-#define __SYCL_EXTERN_IT2(Ret, prefix, call, arg1, arg2)                       \
+#define __SYCL_EXTERN_IT2(R, prefix, call, arg1, arg2)                         \
   using Arg1 = decltype(arg1);                                                 \
   using Arg2 = decltype(arg2);                                                 \
+  using Ret = sycl::detail::ConvertToOpenCLType_t<R>;                          \
   extern Ret __SYCL_PPCAT(prefix, call)(Arg1, Arg2)
-#define __SYCL_EXTERN_IT3(Ret, prefix, call, arg1, arg2, arg3)                 \
+#define __SYCL_EXTERN_IT3(R, prefix, call, arg1, arg2, arg3)                   \
   using Arg1 = decltype(arg1);                                                 \
   using Arg2 = decltype(arg2);                                                 \
   using Arg3 = decltype(arg3);                                                 \
+  using Ret = sycl::detail::ConvertToOpenCLType_t<R>;                          \
   extern Ret __SYCL_PPCAT(prefix, call)(Arg1, Arg2, Arg3)
 #endif
 
@@ -49,10 +53,9 @@
   template <typename R, typename T1>                                           \
   inline __SYCL_ALWAYS_INLINE R __invoke_##call(T1 t1) __NOEXC {               \
     auto arg1 = sycl::detail::convertToOpenCLType(std::move(t1));              \
-    using Ret = sycl::detail::ConvertToOpenCLType_t<R>;                        \
-    __SYCL_EXTERN_IT1(Ret, prefix, call, arg1);                                \
-    Ret ret = __SYCL_PPCAT(prefix, call)(std::move(arg1));                     \
-    return sycl::detail::convertDataToType<Ret, R>(std::move(ret));            \
+    __SYCL_EXTERN_IT1(R, prefix, call, arg1);                                  \
+    return sycl::detail::convertFromOpenCLTypeFor<R>(                          \
+        __SYCL_PPCAT(prefix, call)(std::move(arg1)));                          \
   }
 
 #define __SYCL_MAKE_CALL_ARG2(call, prefix)                                    \
@@ -60,10 +63,9 @@
   inline __SYCL_ALWAYS_INLINE R __invoke_##call(T1 t1, T2 t2) __NOEXC {        \
     auto arg1 = sycl::detail::convertToOpenCLType(std::move(t1));              \
     auto arg2 = sycl::detail::convertToOpenCLType(std::move(t2));              \
-    using Ret = sycl::detail::ConvertToOpenCLType_t<R>;                        \
-    __SYCL_EXTERN_IT2(Ret, prefix, call, arg1, arg2);                          \
-    Ret ret = __SYCL_PPCAT(prefix, call)(std::move(arg1), std::move(arg2));    \
-    return sycl::detail::convertDataToType<Ret, R>(std::move(ret));            \
+    __SYCL_EXTERN_IT2(R, prefix, call, arg1, arg2);                            \
+    return sycl::detail::convertFromOpenCLTypeFor<R>(                          \
+        __SYCL_PPCAT(prefix, call)(std::move(arg1), std::move(arg2)));         \
   }
 
 #define __SYCL_MAKE_CALL_ARG2_SAME(call, prefix)                               \
@@ -71,10 +73,9 @@
   inline __SYCL_ALWAYS_INLINE R __invoke_##call(T t1, T t2) __NOEXC {          \
     auto arg1 = sycl::detail::convertToOpenCLType(std::move(t1));              \
     auto arg2 = sycl::detail::convertToOpenCLType(std::move(t2));              \
-    using Ret = sycl::detail::ConvertToOpenCLType_t<R>;                        \
-    __SYCL_EXTERN_IT2_SAME(Ret, prefix, call, arg1);                           \
-    Ret ret = __SYCL_PPCAT(prefix, call)(std::move(arg1), std::move(arg2));    \
-    return sycl::detail::convertDataToType<Ret, R>(std::move(ret));            \
+    __SYCL_EXTERN_IT2_SAME(R, prefix, call, arg1);                             \
+    return sycl::detail::convertFromOpenCLTypeFor<R>(                          \
+        __SYCL_PPCAT(prefix, call)(std::move(arg1), std::move(arg2)));         \
   }
 
 #define __SYCL_MAKE_CALL_ARG2_SAME_RESULT(call, prefix)                        \
@@ -82,10 +83,9 @@
   inline __SYCL_ALWAYS_INLINE T __invoke_##call(T v1, T v2) __NOEXC {          \
     auto arg1 = sycl::detail::convertToOpenCLType(std::move(v1));              \
     auto arg2 = sycl::detail::convertToOpenCLType(std::move(v2));              \
-    using Type = decltype(arg1);                                               \
-    __SYCL_EXTERN_IT2_SAME(Type, prefix, call, arg1);                          \
-    Type ret = __SYCL_PPCAT(prefix, call)(std::move(arg1), std::move(arg2));   \
-    return sycl::detail::convertDataToType<Type, T>(std::move(ret));           \
+    __SYCL_EXTERN_IT2_SAME(T, prefix, call, arg1);                             \
+    return sycl::detail::convertFromOpenCLTypeFor<T>(                          \
+        __SYCL_PPCAT(prefix, call)(std::move(arg1), std::move(arg2)));         \
   }
 
 #define __SYCL_MAKE_CALL_ARG3(call, prefix)                                    \
@@ -94,11 +94,9 @@
     auto arg1 = sycl::detail::convertToOpenCLType(std::move(t1));              \
     auto arg2 = sycl::detail::convertToOpenCLType(std::move(t2));              \
     auto arg3 = sycl::detail::convertToOpenCLType(std::move(t3));              \
-    using Ret = sycl::detail::ConvertToOpenCLType_t<R>;                        \
-    __SYCL_EXTERN_IT3(Ret, prefix, call, arg1, arg2, arg3);                    \
-    Ret ret = __SYCL_PPCAT(prefix, call)(std::move(arg1), std::move(arg2),     \
-                                         std::move(arg3));                     \
-    return sycl::detail::convertDataToType<Ret, R>(std::move(ret));            \
+    __SYCL_EXTERN_IT3(R, prefix, call, arg1, arg2, arg3);                      \
+    return sycl::detail::convertFromOpenCLTypeFor<R>(__SYCL_PPCAT(             \
+        prefix, call)(std::move(arg1), std::move(arg2), std::move(arg3)));     \
   }
 
 #ifndef __SYCL_DEVICE_ONLY__
