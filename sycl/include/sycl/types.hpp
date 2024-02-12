@@ -1813,7 +1813,7 @@ public:
   // TODO: Check that Rhs arg is suitable.
 #ifdef __SYCL_OPASSIGN
 #error "Undefine __SYCL_OPASSIGN macro."
-#endifW
+#endif
 #define __SYCL_OPASSIGN(OPASSIGN, OP)                                          \
   SwizzleOp &operator OPASSIGN(const DataT & Rhs) {                            \
     operatorHelper<OP>(vec_t(Rhs));                                            \
