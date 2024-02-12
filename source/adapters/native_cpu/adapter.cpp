@@ -13,6 +13,7 @@
 
 struct ur_adapter_handle_t_ {
   std::atomic<uint32_t> RefCount = 0;
+  logger::Logger &logger = logger::get_logger("native_cpu");
 } Adapter;
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
