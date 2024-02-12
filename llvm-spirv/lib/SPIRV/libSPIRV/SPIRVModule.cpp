@@ -484,7 +484,7 @@ private:
   SPIRVAddressingModelKind AddrModel;
   SPIRVMemoryModelKind MemoryModel;
 
-  typedef std::map<SPIRVId, SPIRVEntry *> SPIRVIdToEntryMap;
+  typedef std::unordered_map<SPIRVId, SPIRVEntry *> SPIRVIdToEntryMap;
   typedef std::set<SPIRVEntry *> SPIRVEntrySet;
   typedef std::set<SPIRVId> SPIRVIdSet;
   typedef std::vector<SPIRVId> SPIRVIdVec;
