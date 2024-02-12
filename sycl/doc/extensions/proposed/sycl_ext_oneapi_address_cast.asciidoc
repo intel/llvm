@@ -93,6 +93,12 @@ implementation supports.
 ----
 namespace sycl::ext::oneapi::experimental {
 
+// Shorthands for address space names
+constexpr inline address_space global_space = sycl::access::address_space::global_space;
+constexpr inline address_space local_space = sycl::access::address_space::local_space;
+constexpr inline address_space private_space = sycl::access::address_space::private_space;
+constexpr inline address_space generic_space = sycl::access::address_space::generic_space;
+
 template <access::address_space Space,
           typename ElementType>
 multi_ptr<ElementType, Space, access::decorated::no>
@@ -102,7 +108,7 @@ template <access::address_space Space,
           typename ElementType,
           access::decorated DecorateAddress>
 multi_ptr<ElementType, Space, DecorateAddress>
-static_address_cast(multi_ptr<ElementType, access::address_space::generic_space, DecorateAddress> ptr);
+static_address_cast(multi_ptr<ElementType, generic_space, DecorateAddress> ptr);
 
 template <access::address_space Space,
           typename ElementType>
@@ -113,7 +119,7 @@ template <access::address_space Space,
           typename ElementType,
           access::decorated DecorateAddress>
 multi_ptr<ElementType, Space, DecorateAddress>
-dynamic_address_cast(multi_ptr<ElementType, access::address_space::generic_space, DecorateAddress> ptr);
+dynamic_address_cast(multi_ptr<ElementType, generic_space, DecorateAddress> ptr);
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -138,7 +144,7 @@ template <access::address_space Space,
           typename ElementType,
           access::decorated DecorateAddress>
 multi_ptr<ElementType, Space, DecorateAddress>
-static_address_cast(multi_ptr<ElementType, access::address_space::generic_space, DecorateAddress> ptr);
+static_address_cast(multi_ptr<ElementType, generic_space, DecorateAddress> ptr);
 ----
 _Preconditions_: `ptr` points to an object allocated in the address space
 designated by `Space`.
@@ -173,7 +179,7 @@ template <access::address_space Space,
           typename ElementType,
           access::decorated DecorateAddress>
 multi_ptr<ElementType, Space, DecorateAddress>
-dynamic_address_cast(multi_ptr<ElementType, access::address_space::generic_space, DecorateAddress> ptr);
+dynamic_address_cast(multi_ptr<ElementType, generic_space, DecorateAddress> ptr);
 ----
 _Preconditions_: The memory at `ptr` is accessible to the calling work-item.
 
