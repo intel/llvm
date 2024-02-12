@@ -130,7 +130,7 @@ _Mandates_: `ElementType` must be a cv-unqualified trivial type and `SpecName`
 must be a reference to a specialization constant of integral `value_type`.
 
 _Effects_: `h.get_specialization_constant<size>()` elements of type
-`ElementType` are allocated and default initialized in the stack.
+`ElementType` are allocated and default initialized in private memory.
 
 _Returns_: A pointer to a default initialized region of private memory of
 `h.get_specialization_constant<size>()` elements of type
