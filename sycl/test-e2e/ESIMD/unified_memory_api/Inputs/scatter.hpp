@@ -476,7 +476,7 @@ bool testLACC(queue Q, uint32_t MaskStride,
 
   try {
     Q.submit([&](handler &cgh) {
-              cgh.parallel_for(Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+       cgh.parallel_for(Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
          ScatterPropertiesT Props{};
          uint16_t GlobalID = ndi.get_global_id(0);
          uint16_t LocalID = ndi.get_local_id(0);
