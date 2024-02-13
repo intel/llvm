@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 47102cb2b275472054803a9399b5b977ef210b23
-  # Merge: 186bfb9d 2390664d
+  # commit be849b2f745fc525cf77bc2fe42c469751093706
+  # Merge: 47102cb2 92a02504
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Fri Feb 9 12:21:47 2024 +0000
-  #     Merge pull request #1328 from Bensuo/maxime/events-reset-bugfix
-  #     [EXP][CMDBUF] Reset events for multiple submissions (bugfix)
-  set(UNIFIED_RUNTIME_TAG 47102cb2b275472054803a9399b5b977ef210b23)
+  # Date:   Mon Feb 12 10:01:50 2024 +0000
+  #     Merge pull request #1324 from raiyanla/event-opt
+  #     [L0] Allocate event pools efficiently in multi-device scenarios
+  set(UNIFIED_RUNTIME_TAG be849b2f745fc525cf77bc2fe42c469751093706)
   
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

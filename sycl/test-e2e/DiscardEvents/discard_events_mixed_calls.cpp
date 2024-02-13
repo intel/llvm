@@ -24,7 +24,7 @@
 // the tests, please check if they pass without the discard_events property, if
 // they don't pass then it's most likely a general issue unrelated to
 // discard_events.
-
+// REQUIRES: aspect-usm_shared_allocations
 #include <CL/sycl.hpp>
 #include <cassert>
 #include <iostream>

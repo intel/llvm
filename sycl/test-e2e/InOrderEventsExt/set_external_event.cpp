@@ -15,20 +15,26 @@ int main() {
   sycl::queue Q1{Ctx, Dev, {sycl::property::queue::in_order{}}};
   sycl::queue Q2{Ctx, Dev, {sycl::property::queue::in_order{}}};
 
-  int *DevData = sycl::malloc_shared<int>(N, Dev, Ctx);
+  sycl::buffer<int> DevDataBuf{sycl::range{N}};
+  sycl::accessor DevData{DevDataBuf};
   int *HostData = (int *)malloc(N * sizeof(int) * 10);
 
   for (size_t I = 0; I < 10; ++I) {
-    Q1.fill<int>(DevData, 0, N);
-    sycl::event E1 = Q1.parallel_for(
-        N, [=](sycl::item<1> Idx) { DevData[Idx] = 42 + Idx[0] + I; });
+    Q1.fill(DevData, 0);
+    sycl::event E1 = Q1.submit([&](sycl::handler &h) {
+      h.require(DevData);
+      h.parallel_for(
+          N, [=](sycl::item<1> Idx) { DevData[Idx] = 42 + Idx[0] + I; });
+    });
 
     Q2.ext_oneapi_set_external_event(E1);
-    sycl::event E2 =
-        Q2.parallel_for(N, [=](sycl::item<1> Idx) { ++DevData[Idx]; });
+    sycl::event E2 = Q2.submit([&](sycl::handler &h) {
+      h.require(DevData);
+      h.parallel_for(N, [=](sycl::item<1> Idx) { ++DevData[Idx]; });
+    });
 
     Q1.ext_oneapi_set_external_event(E2);
-    Q1.copy(DevData, HostData + N * I, N);
+    Q1.copy(DevData, HostData + N * I);
   }
 
   Q1.wait_and_throw();
@@ -46,9 +52,6 @@ int main() {
       }
     }
   }
-
-  sycl::free(DevData, Ctx);
   free(HostData);
-
   return Failures;
 }

@@ -227,5 +227,23 @@ int main() {
   test_is_same_vector_size<true, s::constant_ptr<s::int2>, s::int2>();
   test_is_same_vector_size<false, s::constant_ptr<s::int2>, float>();
 
+#ifdef __SYCL_DEVICE_ONLY__
+  static_assert(
+      std::is_same_v<
+          s::remove_decoration_t<const __attribute__((opencl_global)) int>,
+          const int>);
+  static_assert(
+      std::is_same_v<s::remove_decoration_t<const volatile
+                                            __attribute__((opencl_global)) int>,
+                     const volatile int>);
+  static_assert(
+      std::is_same_v<
+          s::remove_decoration_t<const __attribute__((opencl_global)) int *>,
+          const int *>);
+  static_assert(std::is_same_v<s::remove_decoration_t<const __attribute__((
+                                   opencl_global)) int *const>,
+                               const int *const>);
+#endif
+
   return 0;
 }
