@@ -118,7 +118,7 @@ template <class T> struct vtypes {
 };
 } // namespace ncpu_types
 
-DefSubgroupBlockINTEL(unsigned) DefSubgroupBlockINTEL(unsigned __int64)
+DefSubgroupBlockINTEL(unsigned) DefSubgroupBlockINTEL(uint64_t)
     DefSubgroupBlockINTEL(unsigned char) DefSubgroupBlockINTEL(unsigned short)
 
     // i1 @__mux_sub_group_any_i1(i1 %x)
