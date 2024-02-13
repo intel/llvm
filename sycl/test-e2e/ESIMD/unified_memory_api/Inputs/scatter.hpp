@@ -262,7 +262,7 @@ bool testSLM(queue Q, uint32_t MaskStride,
          uint16_t GlobalID = ndi.get_global_id(0);
          uint32_t GlobalElemOffset = GlobalID * N;
 
-         constexpr uint32_t SLMSize = (Threads * N) * sizeof(T);
+         constexpr uint32_t SLMSize = N * sizeof(T);
          slm_init<SLMSize>();
 
          if (LocalID == 0) {

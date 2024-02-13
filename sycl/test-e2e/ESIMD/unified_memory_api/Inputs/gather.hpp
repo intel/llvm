@@ -793,10 +793,9 @@ bool testLACC(queue Q, uint32_t MaskStride, PropertiesT) {
     In[I] = esimd_test::getRandomValue<T>();
 
   try {
-    buffer<T, 1> InBuf(In, Size * 2);
     Q.submit([&](handler &CGH) {
        // Allocate a bit more to safely initialize it with 8-element chunks.
-       constexpr uint32_t SLMSize = Threads * N;
+       constexpr uint32_t SLMSize =  N;
 
        auto InAcc = local_accessor<T, 1>(SLMSize, CGH);
 
