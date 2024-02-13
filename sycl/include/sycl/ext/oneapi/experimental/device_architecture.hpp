@@ -20,7 +20,7 @@ enum class architecture {
   //   - "-fsycl-targets" description in sycl/doc/UsersManual.md
   //
   // Add
-  //   - __SYCL_TARGET_<ARCH>__ to the compiler driver and to all places below.
+  //   - __SYCL_TARGET_<ARCH>__ to the compiler driver and to all places below
   //   - the unique ID of the new architecture in SYCL RT source code to support
   //     querying the device architecture
   //
