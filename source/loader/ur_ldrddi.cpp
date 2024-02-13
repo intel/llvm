@@ -32,6 +32,7 @@ ur_exp_image_mem_factory_t ur_exp_image_mem_factory;
 ur_exp_interop_mem_factory_t ur_exp_interop_mem_factory;
 ur_exp_interop_semaphore_factory_t ur_exp_interop_semaphore_factory;
 ur_exp_command_buffer_factory_t ur_exp_command_buffer_factory;
+ur_exp_command_buffer_command_factory_t ur_exp_command_buffer_command_factory;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urAdapterGet
@@ -6526,12 +6527,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urCommandBufferCreateExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_context_handle_t hContext, ///< [in] Handle of the context object.
+    ur_device_handle_t hDevice,   ///< [in] Handle of the device object.
     const ur_exp_command_buffer_desc_t
-        *pCommandBufferDesc, ///< [in][optional] CommandBuffer descriptor
+        *pCommandBufferDesc, ///< [in][optional] command-buffer descriptor.
     ur_exp_command_buffer_handle_t
-        *phCommandBuffer ///< [out] pointer to Command-Buffer handle
+        *phCommandBuffer ///< [out] Pointer to command-Buffer handle.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6572,7 +6573,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
 /// @brief Intercept function for urCommandBufferRetainExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer ///< [in] handle of the command-buffer object
+        hCommandBuffer ///< [in] Handle of the command-buffer object.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6600,7 +6601,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainExp(
 /// @brief Intercept function for urCommandBufferReleaseExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer ///< [in] handle of the command-buffer object
+        hCommandBuffer ///< [in] Handle of the command-buffer object.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6628,7 +6629,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseExp(
 /// @brief Intercept function for urCommandBufferFinalizeExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferFinalizeExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer ///< [in] handle of the command-buffer object
+        hCommandBuffer ///< [in] Handle of the command-buffer object.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6656,9 +6657,9 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferFinalizeExp(
 /// @brief Intercept function for urCommandBufferAppendKernelLaunchExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer,         ///< [in] handle of the command-buffer object
-    ur_kernel_handle_t hKernel, ///< [in] kernel to append
-    uint32_t workDim,           ///< [in] dimension of the kernel execution
+        hCommandBuffer,         ///< [in] Handle of the command-buffer object.
+    ur_kernel_handle_t hKernel, ///< [in] Kernel to append.
+    uint32_t workDim,           ///< [in] Dimension of the kernel execution.
     const size_t
         *pGlobalWorkOffset, ///< [in] Offset to use when executing kernel.
     const size_t *
@@ -6669,8 +6670,10 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint, ///< [out][optional] Sync point associated with this command.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6693,10 +6696,26 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     hKernel = reinterpret_cast<ur_kernel_object_t *>(hKernel)->handle;
 
     // forward to device-platform
-    result = pfnAppendKernelLaunchExp(hCommandBuffer, hKernel, workDim,
-                                      pGlobalWorkOffset, pGlobalWorkSize,
-                                      pLocalWorkSize, numSyncPointsInWaitList,
-                                      pSyncPointWaitList, pSyncPoint);
+    result = pfnAppendKernelLaunchExp(
+        hCommandBuffer, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+        pLocalWorkSize, numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint,
+        phCommand);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phCommand) {
+            *phCommand =
+                reinterpret_cast<ur_exp_command_buffer_command_handle_t>(
+                    ur_exp_command_buffer_command_factory.getInstance(
+                        *phCommand, dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
 
     return result;
 }
@@ -6705,16 +6724,16 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 /// @brief Intercept function for urCommandBufferAppendUSMMemcpyExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer, ///< [in] handle of the command-buffer object.
+        hCommandBuffer, ///< [in] Handle of the command-buffer object.
     void *pDst,         ///< [in] Location the data will be copied to.
     const void *pSrc,   ///< [in] The data to be copied.
-    size_t size,        ///< [in] The number of bytes to copy
+    size_t size,        ///< [in] The number of bytes to copy.
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6787,7 +6806,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
 /// @brief Intercept function for urCommandBufferAppendMemBufferCopyExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+        hCommandBuffer,      ///< [in] Handle of the command-buffer object.
     ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
     ur_mem_handle_t hDstMem, ///< [in] The location the data will be copied to.
     size_t srcOffset,        ///< [in] Offset into the source memory.
@@ -6797,8 +6816,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6835,18 +6854,18 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
 /// @brief Intercept function for urCommandBufferAppendMemBufferWriteExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer,      ///< [in] handle of the command-buffer object.
-    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
-    size_t offset,           ///< [in] offset in bytes in the buffer object.
-    size_t size,             ///< [in] size in bytes of data being written.
+        hCommandBuffer,      ///< [in] Handle of the command-buffer object.
+    ur_mem_handle_t hBuffer, ///< [in] Handle of the buffer object.
+    size_t offset,           ///< [in] Offset in bytes in the buffer object.
+    size_t size,             ///< [in] Size in bytes of data being written.
     const void *
-        pSrc, ///< [in] pointer to host memory where data is to be written from.
+        pSrc, ///< [in] Pointer to host memory where data is to be written from.
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6880,17 +6899,17 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
 /// @brief Intercept function for urCommandBufferAppendMemBufferReadExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer,      ///< [in] handle of the command-buffer object.
-    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
-    size_t offset,           ///< [in] offset in bytes in the buffer object.
-    size_t size,             ///< [in] size in bytes of data being written.
-    void *pDst, ///< [in] pointer to host memory where data is to be written to.
+        hCommandBuffer,      ///< [in] Handle of the command-buffer object.
+    ur_mem_handle_t hBuffer, ///< [in] Handle of the buffer object.
+    size_t offset,           ///< [in] Offset in bytes in the buffer object.
+    size_t size,             ///< [in] Size in bytes of data being written.
+    void *pDst, ///< [in] Pointer to host memory where data is to be written to.
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6924,7 +6943,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
 /// @brief Intercept function for urCommandBufferAppendMemBufferCopyRectExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+        hCommandBuffer,      ///< [in] Handle of the command-buffer object.
     ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
     ur_mem_handle_t hDstMem, ///< [in] The location the data will be copied to.
     ur_rect_offset_t
@@ -6941,8 +6960,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6980,31 +6999,31 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
 /// @brief Intercept function for urCommandBufferAppendMemBufferWriteRectExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer,      ///< [in] handle of the command-buffer object.
-    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
+        hCommandBuffer,      ///< [in] Handle of the command-buffer object.
+    ur_mem_handle_t hBuffer, ///< [in] Handle of the buffer object.
     ur_rect_offset_t bufferOffset, ///< [in] 3D offset in the buffer.
     ur_rect_offset_t hostOffset,   ///< [in] 3D offset in the host region.
     ur_rect_region_t
         region, ///< [in] 3D rectangular region descriptor: width, height, depth.
     size_t
-        bufferRowPitch, ///< [in] length of each row in bytes in the buffer object.
+        bufferRowPitch, ///< [in] Length of each row in bytes in the buffer object.
     size_t
-        bufferSlicePitch, ///< [in] length of each 2D slice in bytes in the buffer object being
+        bufferSlicePitch, ///< [in] Length of each 2D slice in bytes in the buffer object being
                           ///< written.
     size_t
-        hostRowPitch, ///< [in] length of each row in bytes in the host memory region pointed to
+        hostRowPitch, ///< [in] Length of each row in bytes in the host memory region pointed to
                       ///< by pSrc.
     size_t
-        hostSlicePitch, ///< [in] length of each 2D slice in bytes in the host memory region
+        hostSlicePitch, ///< [in] Length of each 2D slice in bytes in the host memory region
                         ///< pointed to by pSrc.
     void *
-        pSrc, ///< [in] pointer to host memory where data is to be written from.
+        pSrc, ///< [in] Pointer to host memory where data is to be written from.
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -7039,29 +7058,29 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
 /// @brief Intercept function for urCommandBufferAppendMemBufferReadRectExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer,      ///< [in] handle of the command-buffer object.
-    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
+        hCommandBuffer,      ///< [in] Handle of the command-buffer object.
+    ur_mem_handle_t hBuffer, ///< [in] Handle of the buffer object.
     ur_rect_offset_t bufferOffset, ///< [in] 3D offset in the buffer.
     ur_rect_offset_t hostOffset,   ///< [in] 3D offset in the host region.
     ur_rect_region_t
         region, ///< [in] 3D rectangular region descriptor: width, height, depth.
     size_t
-        bufferRowPitch, ///< [in] length of each row in bytes in the buffer object.
+        bufferRowPitch, ///< [in] Length of each row in bytes in the buffer object.
     size_t
-        bufferSlicePitch, ///< [in] length of each 2D slice in bytes in the buffer object being read.
+        bufferSlicePitch, ///< [in] Length of each 2D slice in bytes in the buffer object being read.
     size_t
-        hostRowPitch, ///< [in] length of each row in bytes in the host memory region pointed to
+        hostRowPitch, ///< [in] Length of each row in bytes in the host memory region pointed to
                       ///< by pDst.
     size_t
-        hostSlicePitch, ///< [in] length of each 2D slice in bytes in the host memory region
+        hostSlicePitch, ///< [in] Length of each 2D slice in bytes in the host memory region
                         ///< pointed to by pDst.
-    void *pDst, ///< [in] pointer to host memory where data is to be read into.
+    void *pDst, ///< [in] Pointer to host memory where data is to be read into.
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -7222,15 +7241,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 /// @brief Intercept function for urCommandBufferEnqueueExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer, ///< [in] handle of the command-buffer object.
+        hCommandBuffer, ///< [in] Handle of the command-buffer object.
     ur_queue_handle_t
-        hQueue, ///< [in] the queue to submit this command-buffer for execution.
-    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+        hQueue, ///< [in] The queue to submit this command-buffer for execution.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
     ///< events that must be complete before the command-buffer execution.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait
-    ///< events.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command-buffer execution instance.
@@ -7279,6 +7297,194 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     } catch (std::bad_alloc &) {
         result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferRetainCommandExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
+    ur_exp_command_buffer_command_handle_t
+        hCommand ///< [in] Handle of the command-buffer command.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable =
+        reinterpret_cast<ur_exp_command_buffer_command_object_t *>(hCommand)
+            ->dditable;
+    auto pfnRetainCommandExp =
+        dditable->ur.CommandBufferExp.pfnRetainCommandExp;
+    if (nullptr == pfnRetainCommandExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hCommand =
+        reinterpret_cast<ur_exp_command_buffer_command_object_t *>(hCommand)
+            ->handle;
+
+    // forward to device-platform
+    result = pfnRetainCommandExp(hCommand);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferReleaseCommandExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
+    ur_exp_command_buffer_command_handle_t
+        hCommand ///< [in] Handle of the command-buffer command.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable =
+        reinterpret_cast<ur_exp_command_buffer_command_object_t *>(hCommand)
+            ->dditable;
+    auto pfnReleaseCommandExp =
+        dditable->ur.CommandBufferExp.pfnReleaseCommandExp;
+    if (nullptr == pfnReleaseCommandExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hCommand =
+        reinterpret_cast<ur_exp_command_buffer_command_object_t *>(hCommand)
+            ->handle;
+
+    // forward to device-platform
+    result = pfnReleaseCommandExp(hCommand);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferUpdateKernelLaunchExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
+    ur_exp_command_buffer_command_handle_t
+        hCommand, ///< [in] Handle of the command-buffer kernel command to update.
+    const ur_exp_command_buffer_update_kernel_launch_desc_t *
+        pUpdateKernelLaunch ///< [in] Struct defining how the kernel command is to be updated.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable =
+        reinterpret_cast<ur_exp_command_buffer_command_object_t *>(hCommand)
+            ->dditable;
+    auto pfnUpdateKernelLaunchExp =
+        dditable->ur.CommandBufferExp.pfnUpdateKernelLaunchExp;
+    if (nullptr == pfnUpdateKernelLaunchExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hCommand =
+        reinterpret_cast<ur_exp_command_buffer_command_object_t *>(hCommand)
+            ->handle;
+
+    // Deal with any struct parameters that have handle members we need to convert.
+    auto pUpdateKernelLaunchLocal = *pUpdateKernelLaunch;
+
+    std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t>
+        pUpdateKernelLaunchpNewMemObjArgList;
+    for (uint32_t i = 0; i < pUpdateKernelLaunch->numNewMemObjArgs; i++) {
+        ur_exp_command_buffer_update_memobj_arg_desc_t NewRangeStruct =
+            pUpdateKernelLaunchLocal.pNewMemObjArgList[i];
+        if (NewRangeStruct.hNewMemObjArg) {
+            NewRangeStruct.hNewMemObjArg = reinterpret_cast<ur_mem_object_t *>(
+                                               NewRangeStruct.hNewMemObjArg)
+                                               ->handle;
+        }
+
+        pUpdateKernelLaunchpNewMemObjArgList.push_back(NewRangeStruct);
+    }
+    pUpdateKernelLaunchLocal.pNewMemObjArgList =
+        pUpdateKernelLaunchpNewMemObjArgList.data();
+
+    // Now that we've converted all the members update the param pointers
+    pUpdateKernelLaunch = &pUpdateKernelLaunchLocal;
+
+    // forward to device-platform
+    result = pfnUpdateKernelLaunchExp(hCommand, pUpdateKernelLaunch);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferGetInfoExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferGetInfoExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer, ///< [in] handle of the command-buffer object
+    ur_exp_command_buffer_info_t
+        propName, ///< [in] the name of the command-buffer property to query
+    size_t
+        propSize, ///< [in] size in bytes of the command-buffer property value
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] value of the
+                    ///< command-buffer property
+    size_t *
+        pPropSizeRet ///< [out][optional] bytes returned in command-buffer property
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable =
+        reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+            ->dditable;
+    auto pfnGetInfoExp = dditable->ur.CommandBufferExp.pfnGetInfoExp;
+    if (nullptr == pfnGetInfoExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hCommandBuffer =
+        reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+            ->handle;
+
+    // forward to device-platform
+    result = pfnGetInfoExp(hCommandBuffer, propName, propSize, pPropValue,
+                           pPropSizeRet);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferCommandGetInfoExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferCommandGetInfoExp(
+    ur_exp_command_buffer_command_handle_t
+        hCommand, ///< [in] handle of the command-buffer command object
+    ur_exp_command_buffer_command_info_t
+        propName, ///< [in] the name of the command-buffer command property to query
+    size_t
+        propSize, ///< [in] size in bytes of the command-buffer command property value
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] value of the
+                    ///< command-buffer command property
+    size_t *
+        pPropSizeRet ///< [out][optional] bytes returned in command-buffer command property
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable =
+        reinterpret_cast<ur_exp_command_buffer_command_object_t *>(hCommand)
+            ->dditable;
+    auto pfnCommandGetInfoExp =
+        dditable->ur.CommandBufferExp.pfnCommandGetInfoExp;
+    if (nullptr == pfnCommandGetInfoExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hCommand =
+        reinterpret_cast<ur_exp_command_buffer_command_object_t *>(hCommand)
+            ->handle;
+
+    // forward to device-platform
+    result = pfnCommandGetInfoExp(hCommand, propName, propSize, pPropValue,
+                                  pPropSizeRet);
 
     return result;
 }
@@ -7898,6 +8104,15 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
             pDdiTable->pfnAppendUSMAdviseExp =
                 ur_loader::urCommandBufferAppendUSMAdviseExp;
             pDdiTable->pfnEnqueueExp = ur_loader::urCommandBufferEnqueueExp;
+            pDdiTable->pfnRetainCommandExp =
+                ur_loader::urCommandBufferRetainCommandExp;
+            pDdiTable->pfnReleaseCommandExp =
+                ur_loader::urCommandBufferReleaseCommandExp;
+            pDdiTable->pfnUpdateKernelLaunchExp =
+                ur_loader::urCommandBufferUpdateKernelLaunchExp;
+            pDdiTable->pfnGetInfoExp = ur_loader::urCommandBufferGetInfoExp;
+            pDdiTable->pfnCommandGetInfoExp =
+                ur_loader::urCommandBufferCommandGetInfoExp;
         } else {
             // return pointers directly to platform's DDIs
             *pDdiTable = ur_loader::context->platforms.front()

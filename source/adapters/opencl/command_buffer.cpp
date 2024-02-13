@@ -104,7 +104,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    ur_exp_command_buffer_command_handle_t *) {
 
   cl_context CLContext = cl_adapter::cast<cl_context>(hCommandBuffer->hContext);
   cl_ext::clCommandNDRangeKernelKHR_fn clCommandNDRangeKernelKHR = nullptr;
@@ -355,4 +356,68 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
       cl_adapter::cast<cl_event *>(phEvent)));
 
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
+    [[maybe_unused]] ur_exp_command_buffer_command_handle_t hCommand) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
+    [[maybe_unused]] ur_exp_command_buffer_command_handle_t hCommand) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
+    [[maybe_unused]] ur_exp_command_buffer_command_handle_t hCommand,
+    [[maybe_unused]] const ur_exp_command_buffer_update_kernel_launch_desc_t
+        *pUpdateKernelLaunch) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    ur_exp_command_buffer_info_t propName, size_t propSize, void *pPropValue,
+    size_t *pPropSizeRet) {
+
+  cl_context CLContext = cl_adapter::cast<cl_context>(hCommandBuffer->hContext);
+  cl_ext::clGetCommandBufferInfoKHR_fn clGetCommandBufferInfoKHR = nullptr;
+  cl_int Res =
+      cl_ext::getExtFuncFromContext<decltype(clGetCommandBufferInfoKHR)>(
+          CLContext, cl_ext::ExtFuncPtrCache->clGetCommandBufferInfoKHRCache,
+          cl_ext::GetCommandBufferInfoName, &clGetCommandBufferInfoKHR);
+
+  if (!clGetCommandBufferInfoKHR || Res != CL_SUCCESS)
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+
+  if (propName != UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT) {
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+
+  if (pPropSizeRet) {
+    *pPropSizeRet = sizeof(cl_uint);
+  }
+
+  cl_uint ref_count;
+  CL_RETURN_ON_FAILURE(clGetCommandBufferInfoKHR(
+      hCommandBuffer->CLCommandBuffer, CL_COMMAND_BUFFER_REFERENCE_COUNT_KHR,
+      sizeof(ref_count), &ref_count, nullptr));
+
+  if (pPropValue) {
+    if (propSize != sizeof(cl_uint)) {
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    static_assert(sizeof(cl_uint) == sizeof(uint32_t));
+    *static_cast<uint32_t *>(pPropValue) = static_cast<uint32_t>(ref_count);
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCommandGetInfoExp(
+    [[maybe_unused]] ur_exp_command_buffer_command_handle_t hCommand,
+    [[maybe_unused]] ur_exp_command_buffer_command_info_t propName,
+    [[maybe_unused]] size_t propSize, [[maybe_unused]] void *pPropValue,
+    [[maybe_unused]] size_t *pPropSizeRet) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

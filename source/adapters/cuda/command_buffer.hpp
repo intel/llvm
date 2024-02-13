@@ -175,20 +175,91 @@ static inline const char *getUrResultString(ur_result_t Result) {
       fprintf(stderr, "UR <--- %s(%s)\n", #Call, getUrResultString(Result));   \
   }
 
+// Handle to a kernel command.
+//
+// Struct that stores all the information related to a kernel command in a
+// command-buffer, such that the command can be recreated. When handles can
+// be returned from other command types this struct will need refactored.
+struct ur_exp_command_buffer_command_handle_t_ {
+  ur_exp_command_buffer_command_handle_t_(
+      ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
+      std::shared_ptr<CUgraphNode> Node, CUDA_KERNEL_NODE_PARAMS Params,
+      uint32_t WorkDim, const size_t *GlobalWorkOffsetPtr,
+      const size_t *GlobalWorkSizePtr, const size_t *LocalWorkSizePtr);
+
+  void setGlobalOffset(const size_t *GlobalWorkOffsetPtr) {
+    const size_t CopySize = sizeof(size_t) * WorkDim;
+    std::memcpy(GlobalWorkOffset, GlobalWorkOffsetPtr, CopySize);
+    if (WorkDim < 3) {
+      const size_t ZeroSize = sizeof(size_t) * (3 - WorkDim);
+      std::memset(GlobalWorkOffset + WorkDim, 0, ZeroSize);
+    }
+  }
+
+  void setGlobalSize(const size_t *GlobalWorkSizePtr) {
+    const size_t CopySize = sizeof(size_t) * WorkDim;
+    std::memcpy(GlobalWorkSize, GlobalWorkSizePtr, CopySize);
+    if (WorkDim < 3) {
+      const size_t ZeroSize = sizeof(size_t) * (3 - WorkDim);
+      std::memset(GlobalWorkSize + WorkDim, 0, ZeroSize);
+    }
+  }
+
+  void setLocalSize(const size_t *LocalWorkSizePtr) {
+    const size_t CopySize = sizeof(size_t) * WorkDim;
+    std::memcpy(LocalWorkSize, LocalWorkSizePtr, CopySize);
+    if (WorkDim < 3) {
+      const size_t ZeroSize = sizeof(size_t) * (3 - WorkDim);
+      std::memset(LocalWorkSize + WorkDim, 0, ZeroSize);
+    }
+  }
+
+  uint32_t incrementInternalReferenceCount() noexcept {
+    return ++RefCountInternal;
+  }
+  uint32_t decrementInternalReferenceCount() noexcept {
+    return --RefCountInternal;
+  }
+
+  uint32_t incrementExternalReferenceCount() noexcept {
+    return ++RefCountExternal;
+  }
+  uint32_t decrementExternalReferenceCount() noexcept {
+    return --RefCountExternal;
+  }
+  uint32_t getExternalReferenceCount() const noexcept {
+    return RefCountExternal;
+  }
+
+  ur_exp_command_buffer_handle_t CommandBuffer;
+  ur_kernel_handle_t Kernel;
+  std::shared_ptr<CUgraphNode> Node;
+  CUDA_KERNEL_NODE_PARAMS Params;
+
+  uint32_t WorkDim;
+  size_t GlobalWorkOffset[3];
+  size_t GlobalWorkSize[3];
+  size_t LocalWorkSize[3];
+
+private:
+  std::atomic_uint32_t RefCountInternal;
+  std::atomic_uint32_t RefCountExternal;
+};
+
 struct ur_exp_command_buffer_handle_t_ {
 
-  ur_exp_command_buffer_handle_t_(ur_context_handle_t hContext,
-                                  ur_device_handle_t hDevice);
+  ur_exp_command_buffer_handle_t_(ur_context_handle_t Context,
+                                  ur_device_handle_t Device, bool IsUpdatable);
 
   ~ur_exp_command_buffer_handle_t_();
 
-  void RegisterSyncPoint(ur_exp_command_buffer_sync_point_t SyncPoint,
+  void registerSyncPoint(ur_exp_command_buffer_sync_point_t SyncPoint,
                          std::shared_ptr<CUgraphNode> CuNode) {
     SyncPoints[SyncPoint] = std::move(CuNode);
     NextSyncPoint++;
   }
 
-  ur_exp_command_buffer_sync_point_t GetNextSyncPoint() const {
+  ur_exp_command_buffer_sync_point_t getNextSyncPoint() const {
     return NextSyncPoint;
   }
 
@@ -196,23 +267,46 @@ struct ur_exp_command_buffer_handle_t_ {
   // @param CuNode Node to register as next sync point
   // @return Pointer to the sync that registers the Node
   ur_exp_command_buffer_sync_point_t
-  AddSyncPoint(std::shared_ptr<CUgraphNode> CuNode) {
+  addSyncPoint(std::shared_ptr<CUgraphNode> CuNode) {
     ur_exp_command_buffer_sync_point_t SyncPoint = NextSyncPoint;
-    RegisterSyncPoint(SyncPoint, std::move(CuNode));
+    registerSyncPoint(SyncPoint, std::move(CuNode));
     return SyncPoint;
+  }
+
+  uint32_t incrementInternalReferenceCount() noexcept {
+    return ++RefCountInternal;
+  }
+  uint32_t decrementInternalReferenceCount() noexcept {
+    return --RefCountInternal;
+  }
+  uint32_t getInternalReferenceCount() const noexcept {
+    return RefCountInternal;
+  }
+
+  uint32_t incrementExternalReferenceCount() noexcept {
+    return ++RefCountExternal;
+  }
+  uint32_t decrementExternalReferenceCount() noexcept {
+    return --RefCountExternal;
+  }
+  uint32_t getExternalReferenceCount() const noexcept {
+    return RefCountExternal;
   }
 
   // UR context associated with this command-buffer
   ur_context_handle_t Context;
   // Device associated with this command buffer
   ur_device_handle_t Device;
+  // Whether commands in the command-buffer can be updated
+  bool IsUpdatable;
   // Cuda Graph handle
   CUgraph CudaGraph;
   // Cuda Graph Exec handle
   CUgraphExec CudaGraphExec;
   // Atomic variable counting the number of reference to this command_buffer
   // using std::atomic prevents data race when incrementing/decrementing.
-  std::atomic_uint32_t RefCount;
+  std::atomic_uint32_t RefCountInternal;
+  std::atomic_uint32_t RefCountExternal;
 
   // Map of sync_points to ur_events
   std::unordered_map<ur_exp_command_buffer_sync_point_t,
@@ -222,9 +316,6 @@ struct ur_exp_command_buffer_handle_t_ {
   // is not enough)
   ur_exp_command_buffer_sync_point_t NextSyncPoint;
 
-  // Used when retaining an object.
-  uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
-  // Used when releasing an object.
-  uint32_t decrementReferenceCount() noexcept { return --RefCount; }
-  uint32_t getReferenceCount() const noexcept { return RefCount; }
+  // Handles to individual commands in the command-buffer
+  std::vector<ur_exp_command_buffer_command_handle_t> CommandHandles;
 };
