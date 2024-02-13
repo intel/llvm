@@ -1087,15 +1087,9 @@ RValue CodeGenFunction::EmitAtomicExpr(AtomicExpr *E) {
       Args.add(RValue::get(CastToGenericAddrSpace(Val1.getPointer(),
                                                   E->getVal1()->getType())),
                getContext().VoidPtrTy);
-<<<<<<< HEAD
-
-      AddDirectArgument(*this, Args, UseOptimizedLibcall, Val2.getPointer(),
-                        MemTy, E->getExprLoc(), TInfo.Width);
-=======
       Args.add(RValue::get(CastToGenericAddrSpace(Val2.getPointer(),
                                                   E->getVal2()->getType())),
                getContext().VoidPtrTy);
->>>>>>> 5fdd094837c6d8437803ebf3ccc91c3d494a2ac8
       Args.add(RValue::get(Order), getContext().IntTy);
       Order = OrderFail;
       break;
