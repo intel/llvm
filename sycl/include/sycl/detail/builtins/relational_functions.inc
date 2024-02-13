@@ -14,6 +14,15 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 template <typename T>
+struct bitselect_elem_type
+    : std::bool_constant<
+          check_type_in_v<get_elem_type_t<T>, FP_TYPES> ||
+          (is_vec_or_swizzle_v<T> &&
+           check_type_in_v<get_elem_type_t<T>, FIXED_WIDTH_INTEGER_TYPES>) ||
+          (!is_vec_or_swizzle_v<T> &&
+           check_type_in_v<get_elem_type_t<T>, INTEGER_TYPES>)> {};
+
+template <typename T>
 struct rel_ret_traits
     : std::conditional<is_scalar_arithmetic_v<T>, bool,
                        std::conditional_t<
@@ -21,6 +30,9 @@ struct rel_ret_traits
                            same_size_signed_int_t<simplify_if_swizzle_t<T>>>> {
 };
 } // namespace detail
+
+BUILTIN_CREATE_ENABLER(builtin_enable_bitselect, default_ret_type,
+                       bitselect_elem_type, any_shape, same_elem_type)
 BUILTIN_CREATE_ENABLER(builtin_enable_rel, rel_ret_traits, fp_elem_type,
                        non_scalar_only, same_elem_type)
 
@@ -118,10 +130,15 @@ BUILTIN_REL(ONE_ARG, signbit, __spirv_SignBitSet)
 #undef BUILTIN_REL
 
 #ifdef __SYCL_DEVICE_ONLY__
-DEVICE_IMPL_TEMPLATE(THREE_ARGS, bitselect, builtin_enable_generic_t,
-                     __spirv_ocl_bitselect)
+DEVICE_IMPL_TEMPLATE(
+    THREE_ARGS, bitselect, builtin_enable_bitselect_t, [](auto... xs) {
+      using ret_ty =
+          detail::builtin_enable_bitselect_t<THREE_ARGS_TEMPLATE_TYPE>;
+      using detail::builtins::convert_result;
+      return convert_result<ret_ty>(__spirv_ocl_bitselect(xs...));
+    })
 #else
-HOST_IMPL_TEMPLATE(THREE_ARGS, bitselect, builtin_enable_generic_t, rel,
+HOST_IMPL_TEMPLATE(THREE_ARGS, bitselect, builtin_enable_bitselect_t, rel,
                    default_ret_type)
 #endif
 

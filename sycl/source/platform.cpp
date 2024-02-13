@@ -95,6 +95,41 @@ context platform::ext_oneapi_get_default_context() const {
   return detail::createSyclObjFromImpl<context>(It->second);
 }
 
+std::vector<device> platform::ext_oneapi_get_composite_devices() const {
+  // Only GPU architectures can be composite devices.
+  auto GPUDevices = get_devices(info::device_type::gpu);
+  // Using ZE_FLAT_DEVICE_HIERARCHY=COMBINED, we receive tiles as devices, which
+  // are component devices. Thus, we need to get the composite device for each
+  // of the component devices, and filter out duplicates.
+  std::vector<device> Composites;
+  std::vector<device> Result;
+  for (auto &Dev : GPUDevices) {
+    if (!Dev.has(sycl::aspect::ext_oneapi_is_component))
+      continue;
+
+    auto Composite = Dev.get_info<
+        sycl::ext::oneapi::experimental::info::device::composite_device>();
+    if (std::find(Result.begin(), Result.end(), Composite) == Result.end())
+      Composites.push_back(Composite);
+  }
+  for (const auto &Composite : Composites) {
+    auto Components = Composite.get_info<
+        sycl::ext::oneapi::experimental::info::device::component_devices>();
+    // Checking whether Components are GPU device is not enough, we need to
+    // check if they are in the list of available devices returned by
+    // `get_devices()`, because we cannot return a Composite device unless all
+    // of its components are available too.
+    size_t ComponentsFound = std::count_if(
+        Components.begin(), Components.end(), [&](const device &d) {
+          return std::find(GPUDevices.begin(), GPUDevices.end(), d) !=
+                 GPUDevices.end();
+        });
+    if (ComponentsFound == Components.size())
+      Result.push_back(Composite);
+  }
+  return Result;
+}
+
 namespace detail {
 
 void enable_ext_oneapi_default_context(bool Val) {

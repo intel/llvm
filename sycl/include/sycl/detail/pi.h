@@ -151,10 +151,11 @@
 // 14.42 Added piextCommandBufferPrefetchUSM and piextCommandBufferAdviseUSM
 // 15.43 Changed the signature of piextMemGetNativeHandle to also take a
 // pi_device
-// 15.44 Added piextSyncPointGetProfilingInfo
+// 15.44 Add coarse-grain memory advice flag for HIP.
+// 15.45 Added piextSyncPointGetProfilingInfo
 
 #define _PI_H_VERSION_MAJOR 15
-#define _PI_H_VERSION_MINOR 44
+#define _PI_H_VERSION_MINOR 45
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -437,6 +438,10 @@ typedef enum {
   PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT = 0x2010F,
 
   PI_EXT_ONEAPI_DEVICE_INFO_MATRIX_COMBINATIONS = 0x20110,
+
+  // Composite device
+  PI_EXT_ONEAPI_DEVICE_INFO_COMPONENT_DEVICES = 0x20111,
+  PI_EXT_ONEAPI_DEVICE_INFO_COMPOSITE_DEVICE = 0x20112,
 } _pi_device_info;
 
 typedef enum {
@@ -583,6 +588,8 @@ typedef enum {
   PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST = 1 << 7,
   PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST = 1 << 8,
   PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST = 1 << 9,
+  PI_MEM_ADVICE_HIP_SET_COARSE_GRAINED = 1 << 10,
+  PI_MEM_ADVICE_HIP_UNSET_COARSE_GRAINED = 1 << 11,
   PI_MEM_ADVICE_UNKNOWN = 0x7FFFFFFF,
 } _pi_mem_advice;
 

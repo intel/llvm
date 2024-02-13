@@ -1868,20 +1868,12 @@ or layered as a separate extension proposal.
 The following features are not yet supported, and an exception will be thrown
 if used in application code.
 
-. Using `handler::fill` in a graph node implemented for USM only.
-. Using `handler::memset` in a graph node.
-. Using `handler::prefetch` in a graph node.
-. Using `handler::memadvise` in a graph node.
 . Using reductions in a graph node.
 . Using sycl streams in a graph node.
 . Profiling information is not available for graphs that contain host-task nodes.
 . Profiling a node from an event returned from graph submission with
   `event::ext_oneapi_get_profiling_info(ext::node)` is only available for
   the level-zero backend.
-. Level Zero immediate command-lists are not supported, and
-  `sycl::ext::intel::property::queue::no_immediate_command_list`
-  should be set on construction to any queues an executable
-  graph is submitted to.
 . Synchronization between multiple executions of the same command-buffer 
   must be handled in the host for level-zero backend, which may involve 
   extra latency for subsequent submissions.
