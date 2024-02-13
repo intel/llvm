@@ -53,7 +53,7 @@ template <typename DataT, typename... ArgTN>
 struct AllSuitableArgTypes
     : std::conjunction<IsSuitableArgType<DataT, ArgTN>...> {};
 
-class HelperFlattenMArrayArg {
+class FlattenMArrayArgHelper {
 private:
   // Utility trait for creating an std::array from an marray argument.
   template <typename DataT, typename T, std::size_t... Is>
@@ -64,19 +64,18 @@ private:
 
 public:
   template <typename DataT, typename T, std::size_t N>
-  static constexpr std::array<DataT, N>
-  FlattenMArrayArgHelper(const marray<T, N> &A) {
+  static constexpr std::array<DataT, N> FlattenMArray(const marray<T, N> &A) {
     return MArrayToArray<DataT>(A, std::make_index_sequence<N>());
   }
   template <typename DataT, typename T>
-  static constexpr auto FlattenMArrayArgHelper(const T &A) {
+  static constexpr auto FlattenMArray(const T &A) {
     return std::array<DataT, 1>{static_cast<DataT>(A)};
   }
 };
 
 template <typename DataT, typename T> struct FlattenMArrayArg {
   constexpr auto operator()(const T &A) const {
-    return HelperFlattenMArrayArg::FlattenMArrayArgHelper<DataT>(A);
+    return FlattenMArrayArgHelper::FlattenMArray<DataT>(A);
   }
 };
 
@@ -107,9 +106,9 @@ private:
   /// FIXME: If the subscript operator is made constexpr these can be removed.
   // Other marray specializations needs to be a friend to access MData.
   template <typename Type_, std::size_t NumElements_> friend class marray;
-  // detail::HelperFlattenMArrayArg::MArrayToArray needs to be a friend to
+  // detail::FlattenMArrayArgHelper::MArrayToArray needs to be a friend to
   // access MData.
-  friend class detail::HelperFlattenMArrayArg;
+  friend class detail::FlattenMArrayArgHelper;
 
   constexpr void initialize_data(const Type &Arg) {
     for (size_t i = 0; i < NumElements; ++i) {

@@ -42,9 +42,9 @@ private:
       : MData{Arr[Is]...} {}
 
   /// FIXME: If the subscript operator is made constexpr this can be removed.
-  // detail::HelperFlattenMArrayArg::MArrayToArray needs to have access to
+  // detail::FlattenMArrayArgHelper::MArrayToArray needs to have access to
   // MData.
-  friend class detail::HelperFlattenMArrayArg;
+  friend class detail::FlattenMArrayArgHelper;
 
 public:
   constexpr marray() : MData{} {};
