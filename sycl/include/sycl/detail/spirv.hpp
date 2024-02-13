@@ -943,7 +943,6 @@ EnableIfNativeShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
     return __spirv_SubgroupShuffleDownINTEL(convertToOpenCLType(x),
                                             convertToOpenCLType(x), delta);
   }
-=======
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT>) {
     return __nvvm_shfl_sync_down_i32(detail::ExtractMask(detail::GetMask(g))[0],
