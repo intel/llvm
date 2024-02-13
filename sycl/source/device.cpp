@@ -134,48 +134,64 @@ bool device::has_extension(const std::string &extension_name) const {
 }
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-template <typename Param>
+template<typename Param>
 typename detail::is_device_info_desc<Param>::return_type
-device::get_info_internal() const {
+device::get_info_impl() const {
   return impl->template get_info<Param>();
 }
 
-detail::string device::get_device_info(DeviceProperty PropertyName) const {
-  std::string Info;
-  if (PropertyName == DeviceProperty::BACKEND_VERSION) {
-    Info = impl->template get_info<info::device::backend_version>();
-  } else if (PropertyName == DeviceProperty::DRIVER_VERSION) {
-    Info = impl->template get_info<info::device::driver_version>();
-  } else if (PropertyName == DeviceProperty::EXT_INTEL_PCI_ADDRESS) {
-    Info = impl->template get_info<info::device::ext_intel_pci_address>();
-  } else if (PropertyName == DeviceProperty::NAME) {
-    Info = impl->template get_info<info::device::name>();
-  } else if (PropertyName == DeviceProperty::OPENCL_C_VERSION) {
-    Info = impl->template get_info<info::device::opencl_c_version>();
-  } else if (PropertyName == DeviceProperty::PROFILE) {
-    Info = impl->template get_info<info::device::profile>();
-  } else if (PropertyName == DeviceProperty::VENDOR) {
-    Info = impl->template get_info<info::device::vendor>();
-  } else if (PropertyName == DeviceProperty::VERSION) {
-    Info = impl->template get_info<info::device::version>();
-  } else {
-    throw sycl::invalid_parameter_error("unsupported device info requested",
-                                        PI_ERROR_INVALID_OPERATION);
+template <typename Param>
+ReturnType<Param>
+device::get_info_internal() const {
+  if constexpr (std::is_same_v<std::string,
+                                typename detail::is_device_info_desc<
+                                    Param>::return_type>) {
+    return get_device_info<Param>();
+  } else if constexpr (std::is_same_v<std::vector<std::string>,
+                                        typename detail::is_device_info_desc<
+                                            Param>::return_type>) {
+    return get_device_info_vector<Param>();
   }
+  return get_info_impl<Param>();
+}
+
+template <typename Param>
+detail::string device::get_device_info<Param>() const {
+  std::string Info = impl->template get_info<Param>();
+  // if (PropertyName == DeviceProperty::BACKEND_VERSION) {
+  //   Info = impl->template get_info<info::device::backend_version>();
+  // } else if (PropertyName == DeviceProperty::DRIVER_VERSION) {
+  //   Info = impl->template get_info<info::device::driver_version>();
+  // } else if (PropertyName == DeviceProperty::EXT_INTEL_PCI_ADDRESS) {
+  //   Info = impl->template get_info<info::device::ext_intel_pci_address>();
+  // } else if (PropertyName == DeviceProperty::NAME) {
+  //   Info = impl->template get_info<info::device::name>();
+  // } else if (PropertyName == DeviceProperty::OPENCL_C_VERSION) {
+  //   Info = impl->template get_info<info::device::opencl_c_version>();
+  // } else if (PropertyName == DeviceProperty::PROFILE) {
+  //   Info = impl->template get_info<info::device::profile>();
+  // } else if (PropertyName == DeviceProperty::VENDOR) {
+  //   Info = impl->template get_info<info::device::vendor>();
+  // } else if (PropertyName == DeviceProperty::VERSION) {
+  //   Info = impl->template get_info<info::device::version>();
+  // } else {
+  //   throw sycl::invalid_parameter_error("unsupported device info requested",
+  //                                       PI_ERROR_INVALID_OPERATION);
+  // }
   return detail::string(Info);
 }
 
-std::vector<detail::string>
-device::get_device_info_vector(DeviceProperty PropertyName) const {
-  std::vector<std::string> Info;
-  if (PropertyName == DeviceProperty::BUILT_IN_KERNELS) {
-    Info = impl->template get_info<info::device::built_in_kernels>();
-  } else if (PropertyName == DeviceProperty::EXTENSIONS) {
-    Info = impl->template get_info<info::device::extensions>();
-  } else {
-    throw sycl::invalid_parameter_error(
-        "unsupported device info vector requested", PI_ERROR_INVALID_OPERATION);
-  }
+template <typename Param>
+device::get_device_info_vector<Param>() const {
+  std::vector<std::string> Info = impl->template get_info<Param>();
+  // if (PropertyName == DeviceProperty::BUILT_IN_KERNELS) {
+  //   Info = impl->template get_info<info::device::built_in_kernels>();
+  // } else if (PropertyName == DeviceProperty::EXTENSIONS) {
+  //   Info = impl->template get_info<info::device::extensions>();
+  // } else {
+  //   throw sycl::invalid_parameter_error(
+  //       "unsupported device info vector requested", PI_ERROR_INVALID_OPERATION);
+  // }
 
   std::vector<detail::string> Result;
   for (std::string &Str : Info) {
@@ -195,7 +211,7 @@ device::get_info() const {
 template <>
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_EXPORT device
-device::get_info_internal<info::device::parent_device>() const {
+device::get_info_impl<info::device::parent_device>() const {
 #else
 __SYCL_EXPORT device device::get_info<info::device::parent_device>() const {
 #endif
@@ -214,7 +230,7 @@ __SYCL_EXPORT device device::get_info<info::device::parent_device>() const {
 template <>
 __SYCL_EXPORT std::vector<sycl::aspect>
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-device::get_info_internal<info::device::aspects>() const {
+device::get_info_impl<info::device::aspects>() const {
 #else
 device::get_info<info::device::aspects>() const {
 #endif
@@ -243,7 +259,7 @@ device::get_info<info::device::aspects>() const {
 template <>
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_EXPORT bool
-device::get_info_internal<info::device::image_support>() const {
+device::get_info_impl<info::device::image_support>() const {
 #else
 __SYCL_EXPORT bool device::get_info<info::device::image_support>() const {
 #endif
@@ -254,7 +270,7 @@ __SYCL_EXPORT bool device::get_info<info::device::image_support>() const {
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template __SYCL_EXPORT ReturnT                                               \
+  template __SYCL_EXPORT std::ReturnType<ReturnT>::type                        \
   device::get_info_internal<info::device::Desc>() const;
 #else
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
@@ -269,7 +285,7 @@ __SYCL_EXPORT bool device::get_info<info::device::image_support>() const {
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
-  template __SYCL_EXPORT ReturnT                                               \
+  template __SYCL_EXPORT std::ReturnType<ReturnT>::type                        \
   device::get_info_internal<Namespace::info::DescType::Desc>() const;
 #else
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
