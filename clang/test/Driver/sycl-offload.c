@@ -508,13 +508,13 @@
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS2 %s
 // CHK-TOOLS-OPTS2: clang-offload-wrapper{{.*}} "-link-opts=-DFOO1 -DFOO2"
 
-/// -fsycl-disable-range-rounding settings
+/// -fsycl-range-rounding settings
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl \
 // RUN:        -fsycl-targets=spir64 -O0 %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DISABLE-RANGE-ROUNDING %s
 // RUN: %clang_cl -### -fsycl -fsycl-targets=spir64 -Od %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DISABLE-RANGE-ROUNDING %s
-// CHK-DISABLE-RANGE-ROUNDING: "-fsycl-disable-range-rounding"
+// CHK-DISABLE-RANGE-ROUNDING: "-fsycl-range-rounding=disable"
 
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl \
 // RUN:        -fsycl-targets=spir64 -O2 %s 2>&1 \
@@ -527,6 +527,8 @@
 // RUN: %clang_cl -### -fsycl -fsycl-targets=spir64 %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-RANGE-ROUNDING %s
 // CHK-RANGE-ROUNDING-NOT: "-fsycl-disable-range-rounding"
+// CHK-RANGE-ROUNDING-NOT: "-fsycl-range-rounding=disable"
+// CHK-RANGE-ROUNDING-NOT: "-fsycl-range-rounding=force"
 
 /// ###########################################################################
 

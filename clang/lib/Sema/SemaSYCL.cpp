@@ -5172,10 +5172,18 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "#endif //" << Macro.first << "\n\n";
   }
 
-  if (S.getLangOpts().SYCLDisableRangeRounding) {
+  if (S.getLangOpts().getSYCLRangeRounding() ==
+      LangOptions::SYCLRangeRoundingPreference::Disable) {
     O << "#ifndef __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ \n";
     O << "#define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1\n";
     O << "#endif //__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__\n\n";
+  }
+
+  if (S.getLangOpts().getSYCLRangeRounding() ==
+      LangOptions::SYCLRangeRoundingPreference::Force) {
+    O << "#ifndef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__ \n";
+    O << "#define __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__ 1\n";
+    O << "#endif //__SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__\n\n";
   }
 
   if (SpecConsts.size() > 0) {

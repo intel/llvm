@@ -5454,7 +5454,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         DisableRangeRounding = true;
     }
     if (DisableRangeRounding || HasFPGA)
-      CmdArgs.push_back("-fsycl-disable-range-rounding");
+      CmdArgs.push_back("-fsycl-range-rounding=disable");
 
     if (HasFPGA) {
       // Pass -fintelfpga to both the host and device SYCL compilations if set.

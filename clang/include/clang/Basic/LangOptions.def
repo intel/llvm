@@ -298,7 +298,8 @@ LANGOPT(
     "SYCL compiler assumes value fits within MAX_INT for member function of "
     "get/operator[], get_id/operator[] and get_global_id/get_global_linear_id "
     "in SYCL class id, iterm and nd_iterm")
-LANGOPT(SYCLDisableRangeRounding, 1, 0, "Disable parallel for range rounding")
+ENUM_LANGOPT(SYCLRangeRounding, SYCLRangeRoundingPreference, 2, SYCLRangeRoundingPreference::On,
+    "Preference for SYCL parallel_for range rounding")
 LANGOPT(SYCLEnableIntHeaderDiags, 1, 0, "Enable diagnostics that require the "
         "SYCL integration header")
 LANGOPT(SYCLAllowVirtualFunctions, 1, 0,

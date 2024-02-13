@@ -579,8 +579,13 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     // Set __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ macro for
     // both host and device compilations if -fsycl-disable-range-rounding
     // flag is used.
-    if (LangOpts.SYCLDisableRangeRounding)
+    if (LangOpts.getSYCLRangeRounding() ==
+        LangOptions::SYCLRangeRoundingPreference::Disable)
       Builder.defineMacro("__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__");
+
+    if (LangOpts.getSYCLRangeRounding() ==
+        LangOptions::SYCLRangeRoundingPreference::Force)
+      Builder.defineMacro("__SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__");
   }
 
   if (LangOpts.DeclareSPIRVBuiltins) {

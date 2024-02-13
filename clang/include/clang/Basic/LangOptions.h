@@ -151,6 +151,12 @@ public:
     undefined
   };
 
+  enum class SYCLRangeRoundingPreference {
+    On = 0,
+    Disable = 1,
+    Force = 2,
+  };
+
   enum HLSLLangStd {
     HLSL_Unset = 0,
     HLSL_2015 = 2015,
