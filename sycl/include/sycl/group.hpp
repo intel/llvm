@@ -14,7 +14,7 @@
 #include <sycl/detail/common.hpp>              // for NDLoop, __SYCL_ASSERT
 #include <sycl/detail/defines.hpp>             // for __SYCL_TYPE
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
-#include <sycl/detail/generic_type_traits.hpp> // for ConvertToOpenCLType_t
+#include <sycl/detail/generic_type_traits.hpp> // for convertToOpenCLType
 #include <sycl/detail/helpers.hpp>             // for Builder, getSPIRVMemo...
 #include <sycl/detail/item_base.hpp>           // for id, range
 #include <sycl/detail/type_traits.hpp>         // for is_bool, change_base_...
