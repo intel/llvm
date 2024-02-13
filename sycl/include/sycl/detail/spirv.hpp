@@ -282,21 +282,12 @@ template <> struct GroupId<::sycl::sub_group> {
 
 // Consolidated function for converting group arguments to OpenCL types.
 template <typename Group, typename T, typename IdT>
-auto ConvertGroupOperands(T x, IdT local_id) {
-  using GroupIdT = typename GroupId<Group>::type;
-  GroupIdT GroupLocalId = static_cast<GroupIdT>(local_id);
-  using OCLT = detail::ConvertToOpenCLType_t<T>;
-  using WidenedT = WidenOpenCLTypeTo32_t<OCLT>;
-  using OCLIdT = detail::ConvertToOpenCLType_t<GroupIdT>;
-  WidenedT OCLX = detail::convertDataToType<T, OCLT>(x);
-  OCLIdT OCLId = detail::convertDataToType<GroupIdT, OCLIdT>(GroupLocalId);
-  return std::make_pair(OCLX, OCLId);
-}
-
-template <typename Group, typename T, typename IdT>
 EnableIfNativeBroadcast<T, IdT> GroupBroadcast(Group, T x, IdT local_id) {
-  auto [OCLX, OCLId] = ConvertGroupOperands<Group>(x, local_id);
-  return __spirv_GroupBroadcast(group_scope<Group>::value, OCLX, OCLId);
+  auto GroupLocalId = static_cast<typename GroupId<Group>::type>(local_id);
+  auto OCLX = detail::convertToOpenCLType(x);
+  WidenOpenCLTypeTo32_t<decltype(OCLX)> WideOCLX = OCLX;
+  auto OCLId = detail::convertToOpenCLType(GroupLocalId);
+  return __spirv_GroupBroadcast(group_scope<Group>::value, WideOCLX, OCLId);
 }
 
 template <typename ParentGroup, typename T, typename IdT>
@@ -306,17 +297,21 @@ GroupBroadcast(sycl::ext::oneapi::experimental::ballot_group<ParentGroup> g,
   // Remap local_id to its original numbering in ParentGroup.
   auto LocalId = detail::IdToMaskPosition(g, local_id);
 
-  auto [OCLX, OCLId] = ConvertGroupOperands<ParentGroup>(x, LocalId);
+  // TODO: Refactor to avoid duplication after design settles.
+  auto GroupLocalId = static_cast<typename GroupId<ParentGroup>::type>(LocalId);
+  auto OCLX = detail::convertToOpenCLType(x);
+  WidenOpenCLTypeTo32_t<decltype(OCLX)> WideOCLX = OCLX;
+  auto OCLId = detail::convertToOpenCLType(GroupLocalId);
 
   // ballot_group partitions its parent into two groups (0 and 1)
   // We have to force each group down different control flow
   // Work-items in the "false" group (0) may still be active
   if (g.get_group_id() == 1) {
     return __spirv_GroupNonUniformBroadcast(group_scope<ParentGroup>::value,
-                                            OCLX, OCLId);
+                                            WideOCLX, OCLId);
   } else {
     return __spirv_GroupNonUniformBroadcast(group_scope<ParentGroup>::value,
-                                            OCLX, OCLId);
+                                            WideOCLX, OCLId);
   }
 }
 template <size_t PartitionSize, typename ParentGroup, typename T, typename IdT>
@@ -326,14 +321,18 @@ EnableIfNativeBroadcast<T, IdT> GroupBroadcast(
   // Remap local_id to its original numbering in ParentGroup
   auto LocalId = g.get_group_linear_id() * PartitionSize + local_id;
 
-  auto [OCLX, OCLId] = ConvertGroupOperands<ParentGroup>(x, LocalId);
+  // TODO: Refactor to avoid duplication after design settles.
+  auto GroupLocalId = static_cast<typename GroupId<ParentGroup>::type>(LocalId);
+  auto OCLX = detail::convertToOpenCLType(x);
+  WidenOpenCLTypeTo32_t<decltype(OCLX)> WideOCLX = OCLX;
+  auto OCLId = detail::convertToOpenCLType(GroupLocalId);
 
   // NonUniformBroadcast requires Id to be dynamically uniform, which does not
   // hold here; each partition is broadcasting a separate index. We could
   // fallback to either NonUniformShuffle or a NonUniformBroadcast per
   // partition, and it's unclear which will be faster in practice.
-  return __spirv_GroupNonUniformShuffle(group_scope<ParentGroup>::value, OCLX,
-                                        OCLId);
+  return __spirv_GroupNonUniformShuffle(group_scope<ParentGroup>::value,
+                                        WideOCLX, OCLId);
 }
 template <typename ParentGroup, typename T, typename IdT>
 EnableIfNativeBroadcast<T, IdT>
@@ -342,10 +341,14 @@ GroupBroadcast(ext::oneapi::experimental::tangle_group<ParentGroup> g, T x,
   // Remap local_id to its original numbering in ParentGroup.
   auto LocalId = detail::IdToMaskPosition(g, local_id);
 
-  auto [OCLX, OCLId] = ConvertGroupOperands<ParentGroup>(x, LocalId);
+  // TODO: Refactor to avoid duplication after design settles.
+  auto GroupLocalId = static_cast<typename GroupId<ParentGroup>::type>(LocalId);
+  auto OCLX = detail::convertToOpenCLType(x);
+  WidenOpenCLTypeTo32_t<decltype(OCLX)> WideOCLX = OCLX;
+  auto OCLId = detail::convertToOpenCLType(GroupLocalId);
 
-  return __spirv_GroupNonUniformBroadcast(group_scope<ParentGroup>::value, OCLX,
-                                          OCLId);
+  return __spirv_GroupNonUniformBroadcast(group_scope<ParentGroup>::value,
+                                          WideOCLX, OCLId);
 }
 template <typename T, typename IdT>
 EnableIfNativeBroadcast<T, IdT>
@@ -354,11 +357,16 @@ GroupBroadcast(const ext::oneapi::experimental::opportunistic_group &g, T x,
   // Remap local_id to its original numbering in sub-group
   auto LocalId = detail::IdToMaskPosition(g, local_id);
 
-  auto [OCLX, OCLId] = ConvertGroupOperands<sub_group>(x, LocalId);
+  // TODO: Refactor to avoid duplication after design settles.
+  auto GroupLocalId =
+      static_cast<typename GroupId<::sycl::sub_group>::type>(LocalId);
+  auto OCLX = detail::convertToOpenCLType(x);
+  WidenOpenCLTypeTo32_t<decltype(OCLX)> WideOCLX = OCLX;
+  auto OCLId = detail::convertToOpenCLType(GroupLocalId);
 
   return __spirv_GroupNonUniformBroadcast(
-      group_scope<ext::oneapi::experimental::opportunistic_group>::value, OCLX,
-      OCLId);
+      group_scope<ext::oneapi::experimental::opportunistic_group>::value,
+      WideOCLX, OCLId);
 }
 
 template <typename Group, typename T, typename IdT>
@@ -392,16 +400,14 @@ EnableIfNativeBroadcast<T> GroupBroadcast(Group g, T x,
     return GroupBroadcast(g, x, local_id[0]);
   }
   using IdT = vec<size_t, Dimensions>;
-  using OCLT = detail::ConvertToOpenCLType_t<T>;
-  using WidenedT = WidenOpenCLTypeTo32_t<OCLT>;
-  using OCLIdT = detail::ConvertToOpenCLType_t<IdT>;
   IdT VecId;
   for (int i = 0; i < Dimensions; ++i) {
     VecId[i] = local_id[Dimensions - i - 1];
   }
-  WidenedT OCLX = detail::convertDataToType<T, OCLT>(x);
-  OCLIdT OCLId = detail::convertDataToType<IdT, OCLIdT>(VecId);
-  return __spirv_GroupBroadcast(group_scope<Group>::value, OCLX, OCLId);
+  auto OCLX = detail::convertToOpenCLType(x);
+  WidenOpenCLTypeTo32_t<decltype(OCLX)> WideOCLX = OCLX;
+  auto OCLId = detail::convertToOpenCLType(VecId);
+  return __spirv_GroupBroadcast(group_scope<Group>::value, WideOCLX, OCLId);
 }
 template <typename ParentGroup, typename T>
 EnableIfNativeBroadcast<T>
@@ -837,7 +843,6 @@ template <typename GroupT, typename T>
 EnableIfNativeShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
   uint32_t LocalId = MapShuffleID(g, local_id);
 #ifndef __NVPTX__
-  using OCLT = detail::ConvertToOpenCLType_t<T>;
   std::ignore = g;
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT> &&
@@ -850,11 +855,11 @@ EnableIfNativeShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
     return result;
   } else if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                            GroupT>) {
-    return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value, OCLT(x),
-                                          LocalId);
+    return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
+                                          convertToOpenCLType(x), LocalId);
   } else {
     // Subgroup.
-    return __spirv_SubgroupShuffleINTEL(OCLT(x), LocalId);
+    return __spirv_SubgroupShuffleINTEL(convertToOpenCLType(x), LocalId);
   }
 #else
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
@@ -870,7 +875,6 @@ EnableIfNativeShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
 template <typename GroupT, typename T>
 EnableIfNativeShuffle<T> ShuffleXor(GroupT g, T x, id<1> mask) {
 #ifndef __NVPTX__
-  using OCLT = detail::ConvertToOpenCLType_t<T>;
   std::ignore = g;
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT> &&
@@ -888,11 +892,11 @@ EnableIfNativeShuffle<T> ShuffleXor(GroupT g, T x, id<1> mask) {
     // general, and simple so we go with that.
     id<1> TargetLocalId = g.get_local_id() ^ mask;
     uint32_t TargetId = MapShuffleID(g, TargetLocalId);
-    return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value, OCLT(x),
-                                          TargetId);
+    return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
+                                          convertToOpenCLType(x), TargetId);
   } else {
     // Subgroup.
-    return __spirv_SubgroupShuffleXorINTEL(OCLT(x),
+    return __spirv_SubgroupShuffleXorINTEL(convertToOpenCLType(x),
                                            static_cast<uint32_t>(mask.get(0)));
   }
 #else
@@ -911,7 +915,6 @@ EnableIfNativeShuffle<T> ShuffleXor(GroupT g, T x, id<1> mask) {
 template <typename GroupT, typename T>
 EnableIfNativeShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
 #ifndef __NVPTX__
-  using OCLT = detail::ConvertToOpenCLType_t<T>;
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT> &&
                 detail::is_vec<T>::value) {
@@ -933,13 +936,14 @@ EnableIfNativeShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
         delta > ItemsInGroup ? delta - ItemsInGroup : delta;
     TargetLocalId[0] = (TargetLocalId[0] + AdjustedDelta) % ItemsInGroup;
     uint32_t TargetId = MapShuffleID(g, TargetLocalId);
-    return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value, OCLT(x),
-                                          TargetId);
+    return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
+                                          convertToOpenCLType(x), TargetId);
   } else {
     // Subgroup.
-    return __spirv_SubgroupShuffleDownINTEL(OCLT(x), OCLT(x), delta);
+    return __spirv_SubgroupShuffleDownINTEL(convertToOpenCLType(x),
+                                            convertToOpenCLType(x), delta);
   }
-#else
+=======
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT>) {
     return __nvvm_shfl_sync_down_i32(detail::ExtractMask(detail::GetMask(g))[0],
@@ -953,7 +957,6 @@ EnableIfNativeShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
 template <typename GroupT, typename T>
 EnableIfNativeShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
 #ifndef __NVPTX__
-  using OCLT = detail::ConvertToOpenCLType_t<T>;
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT> &&
                 detail::is_vec<T>::value) {
@@ -974,11 +977,12 @@ EnableIfNativeShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
     else
       TargetLocalId[0] -= WrappedDelta;
     uint32_t TargetId = MapShuffleID(g, TargetLocalId);
-    return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value, OCLT(x),
-                                          TargetId);
+    return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
+                                          convertToOpenCLType(x), TargetId);
   } else {
     // Subgroup.
-    return __spirv_SubgroupShuffleUpINTEL(OCLT(x), OCLT(x), delta);
+    return __spirv_SubgroupShuffleUpINTEL(convertToOpenCLType(x),
+                                          convertToOpenCLType(x), delta);
   }
 #else
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<

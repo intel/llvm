@@ -4422,7 +4422,8 @@ NestedNameSpecifierLoc TreeTransform<Derived>::TransformNestedNameSpecifierLoc(
           SS.Adopt(ETL.getQualifierLoc());
           TL = ETL.getNamedTypeLoc();
         }
-        SS.Extend(SemaRef.Context, /*FIXME:*/ SourceLocation(), TL,
+
+        SS.Extend(SemaRef.Context, TL.getTemplateKeywordLoc(), TL,
                   Q.getLocalEndLoc());
         break;
       }
