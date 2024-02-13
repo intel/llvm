@@ -476,7 +476,7 @@ bool testLACC(queue Q, uint32_t MaskStride,
 
   try {
     Q.submit([&](handler &cgh) {
-       constexpr uint32_t SLMSize = (Threads * N + 8) * sizeof(T);
+       constexpr uint32_t SLMSize = (Threads * N) * sizeof(T);
        auto LocalAcc = local_accessor<T, 1>(SLMSize, cgh);
 
        cgh.parallel_for(Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
@@ -487,9 +487,9 @@ bool testLACC(queue Q, uint32_t MaskStride,
          uint32_t LocalElemOffset = LocalID * N;
 
          if (LocalID == 0) {
-           for (int I = 0; I < Threads * N; I += 8) {
-             simd<T, 8> InVec(Out + GlobalElemOffset + I);
-             simd<uint32_t, 8> Offsets(I * sizeof(T), sizeof(T));
+           for (int I = 0; I < Threads * N; I++) {
+             simd<T, 1> InVec(Out + GlobalElemOffset + I);
+             simd<uint32_t, 1> Offsets(I * sizeof(T), sizeof(T));
              scatter<T>(LocalAcc, Offsets, InVec);
            }
          }
