@@ -119,6 +119,21 @@ auto GetPoolInfo =
     };
 
 template <class T>
+auto GetCommandBufferInfo = [](ur_exp_command_buffer_handle_t cmd_buf,
+                               ur_exp_command_buffer_info_t info,
+                               T &out_value) {
+    return GetInfo(cmd_buf, info, urCommandBufferGetInfoExp, out_value);
+};
+
+template <class T>
+auto GetCommandBufferCommandInfo =
+    [](ur_exp_command_buffer_command_handle_t command,
+       ur_exp_command_buffer_command_info_t info, T &out_value) {
+        return GetInfo(command, info, urCommandBufferCommandGetInfoExp,
+                       out_value);
+    };
+
+template <class T>
 ur_result_t GetObjectReferenceCount(T object, uint32_t &out_ref_count) {
     if constexpr (std::is_same_v<T, ur_context_handle_t>) {
         return GetContextInfo<uint32_t>(object, UR_CONTEXT_INFO_REFERENCE_COUNT,
@@ -152,6 +167,16 @@ ur_result_t GetObjectReferenceCount(T object, uint32_t &out_ref_count) {
         return GetPoolInfo<uint32_t>(object, UR_USM_POOL_INFO_REFERENCE_COUNT,
                                      out_ref_count);
     }
+    if constexpr (std::is_same_v<T, ur_exp_command_buffer_handle_t>) {
+        return GetCommandBufferInfo<uint32_t>(
+            object, UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT, out_ref_count);
+    }
+    if constexpr (std::is_same_v<T, ur_exp_command_buffer_command_handle_t>) {
+        return GetCommandBufferCommandInfo<uint32_t>(
+            object, UR_EXP_COMMAND_BUFFER_COMMAND_INFO_REFERENCE_COUNT,
+            out_ref_count);
+    }
+
     return UR_RESULT_ERROR_INVALID_VALUE;
 }
 
