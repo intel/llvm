@@ -567,8 +567,8 @@ Unlike other AOT targets, the bitcode module linked from intermediate compiled
 objects never goes through SPIR-V. Instead it is passed directly in bitcode form
 down to the NVPTX Back End. All produced bitcode depends on two libraries,
 `libdevice.bc` (provided by the CUDA SDK) and `libspirv-nvptx64--nvidiacl.bc` variants
-(built by the libclc project). `libspirv-nvptx64--nvidiacl.bc` is not used directly. 
-Instead it is used to generate remangled variants 
+(built by the libclc project). `libspirv-nvptx64--nvidiacl.bc` is not used directly.
+Instead it is used to generate remangled variants
 `remangled-l64-signed_char.libspirv-nvptx64--nvidiacl.bc` and
 `remangled-l32-signed_char.libspirv-nvptx64--nvidiacl.bc` to handle primitive type
 differences between Linux and Windows.
@@ -600,14 +600,14 @@ path in SYCL kernels.
 
 ##### NVPTX Builtins
 
-Builtins are implemented in OpenCL C within libclc. OpenCL C treats `long` 
+Builtins are implemented in OpenCL C within libclc. OpenCL C treats `long`
 types as 64 bit and has no `long long` types while Windows DPC++ treats `long`
-types like 32-bit integers and `long long` types like 64-bit integers. 
-Differences between the primitive types can cause applications to use 
-incompatible libclc built-ins. A remangler creates multiple libspriv files 
-with different remangled function names to support both Windows and Linux. 
-When building a SYCL application targeting the CUDA backend the driver 
-will link the device code with 
+types like 32-bit integers and `long long` types like 64-bit integers.
+Differences between the primitive types can cause applications to use
+incompatible libclc built-ins. A remangler creates multiple libspirv files
+with different remangled function names to support both Windows and Linux.
+When building a SYCL application targeting the CUDA backend the driver
+will link the device code with
 `remangled-l32-signed_char.libspirv-nvptx64--nvidiacl.bc` if the host target is
 Windows or it will link the device code with
 `remangled-l64-signed_char.libspirv-nvptx64--nvidiacl.bc` if the host target is
@@ -916,7 +916,7 @@ template <typename T, address_space AS> class multi_ptr {
   // DecoratedType<T, global_space>::type == "__attribute__((opencl_global)) T"
   // See sycl/include/sycl/access/access.hpp for more details
   using pointer_t = typename DecoratedType<T, AS>::type *;
- 
+
   pointer_t m_Pointer;
   public:
   pointer_t get() { return m_Pointer; }

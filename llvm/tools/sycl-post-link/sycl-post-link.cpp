@@ -13,7 +13,6 @@
 // - specialization constant intrinsic transformation
 //===----------------------------------------------------------------------===//
 
-#include "ModuleSplitter.h"
 #include "SYCLDeviceLibReqMask.h"
 #include "SYCLDeviceRequirements.h"
 #include "SYCLKernelParamOptInfo.h"
@@ -40,6 +39,7 @@
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
+#include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
@@ -313,8 +313,9 @@ std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
 }
 
 bool isModuleUsingAsan(const Module &M) {
-  auto *AsanInitFunction = M.getFunction("__asan_init");
-  return AsanInitFunction;
+  return llvm::any_of(M.functions(), [](const Function &F) {
+    return F.getName().starts_with("__asan_");
+  });
 }
 
 // Gets reqd_work_group_size information for function Func.
@@ -1008,8 +1009,11 @@ processInputModule(std::unique_ptr<Module> M) {
   Modified |= SplitOccurred;
 
   // FIXME: this check is not performed for ESIMD splits
-  if (DeviceGlobals)
-    Splitter->verifyNoCrossModuleDeviceGlobalUsage();
+  if (DeviceGlobals) {
+    auto E = Splitter->verifyNoCrossModuleDeviceGlobalUsage();
+    if (E)
+      error(toString(std::move(E)));
+  }
 
   // It is important that we *DO NOT* preserve all the splits in memory at the
   // same time, because it leads to a huge RAM consumption by the tool on bigger

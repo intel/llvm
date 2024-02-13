@@ -103,6 +103,7 @@ HOST_IMPL(bitselect, [](auto x, auto y, auto z) {
   assert((ures & std::numeric_limits<utype>::max()) == ures);
   return bit_cast<T0>(static_cast<utype>(ures));
 })
-EXPORT_SCALAR_AND_VEC_1_16(THREE_ARGS, bitselect, INTEGER_TYPES, FP_TYPES)
+FOR_EACH2(EXPORT_SCALAR, THREE_ARGS, bitselect, INTEGER_TYPES, FP_TYPES)
+EXPORT_VEC_1_16(THREE_ARGS, bitselect, FIXED_WIDTH_INTEGER_TYPES, FP_TYPES)
 } // namespace _V1
 } // namespace sycl
