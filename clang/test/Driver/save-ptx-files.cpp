@@ -4,14 +4,14 @@
 // while targeting CUDA enabled GPUs.
 
 // Linux
-// RUN: %clang -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64-unknown-unknown --cuda-path=%S/Inputs/CUDA/usr/local/cuda -fsycl-dump-device-code=/user/input/path %s 2>&1 \
+// RUN: %clang -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64-unknown-unknown -target x86_64-unknown-linux-gnu --cuda-path=%S/Inputs/CUDA/usr/local/cuda -fsycl-dump-device-code=/user/input/path %s 2>&1 \
 // RUN: | FileCheck %s --check-prefixes=CHECK-PTX-FILES,CHECK-SPIRV-FILES
 
 // clang --driver-mode=g++
-// RUN: %clangxx -### -fsycl  -fsycl-targets=nvptx64-nvidia-cuda --cuda-path=%S/Inputs/CUDA/usr/local/cuda -fsycl-dump-device-code=/user/input/path %s 2>&1 \
+// RUN: %clangxx -### -fsycl  -fsycl-targets=nvptx64-nvidia-cuda -target x86_64-unknown-linux-gnu --cuda-path=%S/Inputs/CUDA/usr/local/cuda -fsycl-dump-device-code=/user/input/path %s 2>&1 \
 // RUN: | FileCheck %s --check-prefixes=CHECK-PTX-FILES
 
-// RUN: %clang -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64-unknown-unknown --cuda-path=%S/Inputs/CUDA/usr/local/cuda -fsycl-dump-device-code= %s 2>&1 \
+// RUN: %clang -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64-unknown-unknown -target x86_64-unknown-linux-gnu --cuda-path=%S/Inputs/CUDA/usr/local/cuda -fsycl-dump-device-code= %s 2>&1 \
 // RUN: | FileCheck %s --check-prefixes=CHECK-PTX-FILES-CWD,CHECK-SPIRV-FILES-CWD
 
 // CHECK-PTX-FILES: llvm-foreach{{.*}} "--out-ext=s"{{.*}} "--out-dir=/user/input/path{{(/|\\\\)}}" "--" "{{.*}}clang-18" {{.*}} "-fsycl-is-device" {{.*}}.s{{.*}}
