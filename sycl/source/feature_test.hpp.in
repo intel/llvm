@@ -56,6 +56,7 @@ inline namespace _V1 {
 #define SYCL_EXT_ONEAPI_PROPERTIES 1
 #define SYCL_EXT_ONEAPI_NATIVE_MATH 1
 #define SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS 1
+#define SYCL_EXT_ONEAPI_COMPOSITE_DEVICE 1
 #define SYCL_EXT_INTEL_DATAFLOW_PIPES 1
 #ifdef __clang__
 #if __has_extension(sycl_extended_atomics)
@@ -100,6 +101,7 @@ inline namespace _V1 {
 #define SYCL_EXT_INTEL_FP_CONTROL 1
 #define SYCL_EXT_ONEAPI_NON_UNIFORM_GROUPS 1
 #define SYCL_EXT_ONEAPI_IN_ORDER_QUEUE_EVENTS 1
+#define SYCL_EXT_INTEL_MATRIX 1
 
 #ifndef __has_include
 #define __has_include(x) 0

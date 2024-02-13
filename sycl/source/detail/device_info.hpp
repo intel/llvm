@@ -638,6 +638,7 @@ constexpr std::pair<const int, oneapi_exp_arch> IntelGPUArchitectures[] = {
     {0x030e0005, oneapi_exp_arch::intel_gpu_acm_g11},
     {0x030e4000, oneapi_exp_arch::intel_gpu_acm_g12},
     {0x030f0007, oneapi_exp_arch::intel_gpu_pvc},
+    {0x030f4007, oneapi_exp_arch::intel_gpu_pvc_vg},
 };
 
 // Only for Intel CPU architectures
@@ -1082,6 +1083,67 @@ struct get_device_info_impl<
     return CmdBufferSupport
                ? ext::oneapi::experimental::graph_support_level::native
                : ext::oneapi::experimental::graph_support_level::unsupported;
+  }
+};
+
+// Specialization for composite devices extension.
+template <>
+struct get_device_info_impl<
+    std::vector<sycl::device>,
+    ext::oneapi::experimental::info::device::component_devices> {
+  static std::vector<sycl::device> get(const DeviceImplPtr &Dev) {
+    if (Dev->getBackend() != backend::ext_oneapi_level_zero)
+      return {};
+    size_t ResultSize = 0;
+    // First call to get DevCount.
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+        Dev->getHandleRef(),
+        PiInfoCode<
+            ext::oneapi::experimental::info::device::component_devices>::value,
+        0, nullptr, &ResultSize);
+    size_t DevCount = ResultSize / sizeof(pi_device);
+    // Second call to get the list.
+    std::vector<pi_device> Devs(DevCount);
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+        Dev->getHandleRef(),
+        PiInfoCode<
+            ext::oneapi::experimental::info::device::component_devices>::value,
+        ResultSize, Devs.data(), nullptr);
+    std::vector<sycl::device> Result;
+    const auto &Platform = Dev->getPlatformImpl();
+    for (const auto &d : Devs)
+      Result.push_back(createSyclObjFromImpl<device>(
+          Platform->getOrMakeDeviceImpl(d, Platform)));
+
+    return Result;
+  }
+};
+template <>
+struct get_device_info_impl<
+    sycl::device, ext::oneapi::experimental::info::device::composite_device> {
+  static sycl::device get(const DeviceImplPtr &Dev) {
+    if (Dev->getBackend() != backend::ext_oneapi_level_zero)
+      return {};
+    if (!Dev->has(sycl::aspect::ext_oneapi_is_component))
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Only devices with aspect::ext_oneapi_is_component "
+                            "can call this function.");
+
+    typename sycl_to_pi<device>::type Result;
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+        Dev->getHandleRef(),
+        PiInfoCode<
+            ext::oneapi::experimental::info::device::composite_device>::value,
+        sizeof(Result), &Result, nullptr);
+
+    if (Result) {
+      const auto &Platform = Dev->getPlatformImpl();
+      return createSyclObjFromImpl<device>(
+          Platform->getOrMakeDeviceImpl(Result, Platform));
+    }
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "A component with aspect::ext_oneapi_is_component "
+                          "must have a composite device.");
   }
 };
 
@@ -2038,6 +2100,20 @@ template <>
 inline float get_device_info_host<
     ext::oneapi::experimental::info::device::mipmap_max_anisotropy>() {
   throw runtime_error("Bindless image mipaps are not supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline std::vector<sycl::device> get_device_info_host<
+    ext::oneapi::experimental::info::device::component_devices>() {
+  throw runtime_error("Host devices cannot be component devices.",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline sycl::device get_device_info_host<
+    ext::oneapi::experimental::info::device::composite_device>() {
+  throw runtime_error("Host devices cannot be composite devices.",
                       PI_ERROR_INVALID_DEVICE);
 }
 

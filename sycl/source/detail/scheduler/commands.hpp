@@ -244,6 +244,8 @@ public:
 
   bool isHostTask() const;
 
+  bool isFusable() const;
+
 protected:
   QueueImplPtr MQueue;
   EventImplPtr MEvent;
@@ -649,6 +651,7 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   void emitInstrumentationData() final;
+  std::string_view getTypeString() const;
 
   detail::CG &getCG() const { return *MCommandGroup; }
 

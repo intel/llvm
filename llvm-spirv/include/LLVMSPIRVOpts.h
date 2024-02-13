@@ -68,6 +68,27 @@ enum class VersionNumber : uint32_t {
   MaximumVersion = SPIRV_1_4
 };
 
+inline constexpr std::string_view formatVersionNumber(uint32_t Version) {
+  switch (Version) {
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_0):
+    return "1.0";
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_1):
+    return "1.1";
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_2):
+    return "1.2";
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_3):
+    return "1.3";
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_4):
+    return "1.4";
+  }
+  return "unknown";
+}
+
+inline bool isSPIRVVersionKnown(uint32_t Ver) {
+  return Ver >= static_cast<uint32_t>(VersionNumber::MinimumVersion) &&
+         Ver <= static_cast<uint32_t>(VersionNumber::MaximumVersion);
+}
+
 enum class ExtensionID : uint32_t {
   First,
 #define EXT(X) X,

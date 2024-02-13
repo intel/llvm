@@ -149,11 +149,14 @@
 // 14.40 Add HIP _pi_mem_advice alises to match the PI_MEM_ADVICE_CUDA* ones.
 // 14.41 Added piextCommandBufferMemBufferFill & piextCommandBufferFillUSM
 // 14.42 Added piextCommandBufferPrefetchUSM and piextCommandBufferAdviseUSM
-// 14.43 Added piextKernelSuggestMaxCooperativeGroupCount and
+// 15.43 Changed the signature of piextMemGetNativeHandle to also take a
+// pi_device
+// 15.44 Add coarse-grain memory advice flag for HIP.
+// 15.45 Added piextKernelSuggestMaxCooperativeGroupCount and
 //       piextEnqueueCooperativeKernelLaunch.
 
-#define _PI_H_VERSION_MAJOR 14
-#define _PI_H_VERSION_MINOR 42
+#define _PI_H_VERSION_MAJOR 15
+#define _PI_H_VERSION_MINOR 44
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -436,6 +439,10 @@ typedef enum {
   PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT = 0x2010F,
 
   PI_EXT_ONEAPI_DEVICE_INFO_MATRIX_COMBINATIONS = 0x20110,
+
+  // Composite device
+  PI_EXT_ONEAPI_DEVICE_INFO_COMPONENT_DEVICES = 0x20111,
+  PI_EXT_ONEAPI_DEVICE_INFO_COMPOSITE_DEVICE = 0x20112,
 } _pi_device_info;
 
 typedef enum {
@@ -582,6 +589,8 @@ typedef enum {
   PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST = 1 << 7,
   PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST = 1 << 8,
   PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST = 1 << 9,
+  PI_MEM_ADVICE_HIP_SET_COARSE_GRAINED = 1 << 10,
+  PI_MEM_ADVICE_HIP_UNSET_COARSE_GRAINED = 1 << 11,
   PI_MEM_ADVICE_UNKNOWN = 0x7FFFFFFF,
 } _pi_mem_advice;
 
@@ -1426,8 +1435,9 @@ __SYCL_EXPORT pi_result piMemBufferPartition(
 /// Gets the native handle of a PI mem object.
 ///
 /// \param mem is the PI mem to get the native handle of.
+/// \param dev is the PI device that the native allocation will be resident on
 /// \param nativeHandle is the native handle of mem.
-__SYCL_EXPORT pi_result piextMemGetNativeHandle(pi_mem mem,
+__SYCL_EXPORT pi_result piextMemGetNativeHandle(pi_mem mem, pi_device dev,
                                                 pi_native_handle *nativeHandle);
 
 /// Creates PI mem object from a native handle.

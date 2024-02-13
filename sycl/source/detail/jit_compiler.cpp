@@ -203,10 +203,17 @@ static Promotion getInternalizationInfo(Requirement *Req) {
   return (AccPromotion != Promotion::None) ? AccPromotion : BuffPromotion;
 }
 
-static std::optional<size_t> getLocalSize(NDRDescT NDRange, Requirement *Req,
-                                          Promotion Target) {
+static std::optional<size_t> getLocalSize(NDRDescT NDRange,
+                                          std::optional<size_t> UserGlobalSize,
+                                          Requirement *Req, Promotion Target) {
+  assert((!UserGlobalSize.has_value() || Target != Promotion::Local) &&
+         "Unexpected range rounding");
   auto NumElementsMem = static_cast<SYCLMemObjT *>(Req->MSYCLMemObj)->size();
   if (Target == Promotion::Private) {
+    if (UserGlobalSize.has_value()) {
+      // Only the first dimension is affected by range rounding.
+      NDRange.GlobalSize[0] = *UserGlobalSize;
+    }
     auto NumWorkItems = NDRange.GlobalSize.size();
     // For private internalization, the local size is
     // (Number of elements in buffer)/(number of work-items)
@@ -237,13 +244,15 @@ static bool accessorEquals(Requirement *Req, Requirement *Other) {
 
 static void resolveInternalization(ArgDesc &Arg, unsigned KernelIndex,
                                    unsigned ArgFunctionIndex, NDRDescT NDRange,
+                                   std::optional<size_t> UserGlobalSize,
                                    PromotionMap &Promotions) {
   assert(Arg.MType == kernel_param_kind_t::kind_accessor);
 
   Requirement *Req = static_cast<Requirement *>(Arg.MPtr);
 
   auto ThisPromotionTarget = getInternalizationInfo(Req);
-  auto ThisLocalSize = getLocalSize(NDRange, Req, ThisPromotionTarget);
+  auto ThisLocalSize =
+      getLocalSize(NDRange, UserGlobalSize, Req, ThisPromotionTarget);
 
   if (Promotions.count(Req->MSYCLMemObj)) {
     // We previously encountered an accessor for the same buffer.
@@ -278,7 +287,7 @@ static void resolveInternalization(ArgDesc &Arg, unsigned KernelIndex,
         // Recompute the local size for the previous definition with adapted
         // promotion target.
         auto NewPrevLocalSize =
-            getLocalSize(PreviousDefinition.NDRange,
+            getLocalSize(PreviousDefinition.NDRange, std::nullopt,
                          PreviousDefinition.Definition, Promotion::Local);
 
         if (!NewPrevLocalSize.has_value()) {
@@ -316,7 +325,8 @@ static void resolveInternalization(ArgDesc &Arg, unsigned KernelIndex,
 
       if (PreviousDefinition.PromotionTarget == Promotion::Local) {
         // Recompute the local size with adapted promotion target.
-        auto ThisLocalSize = getLocalSize(NDRange, Req, Promotion::Local);
+        auto ThisLocalSize =
+            getLocalSize(NDRange, std::nullopt, Req, Promotion::Local);
         if (!ThisLocalSize.has_value()) {
           printPerformanceWarning("Work-group size for local promotion not "
                                   "specified, not performing internalization");
@@ -591,11 +601,12 @@ updatePromotedArgs(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
       // argument is later on passed to the kernel.
       const size_t SizeAccField =
           sizeof(size_t) * (Req->MDims == 0 ? 1 : Req->MDims);
-      // Compute the local size and use it for the range parameters.
-      auto LocalSize = getLocalSize(NDRange, Req,
-                                    (PromotedToPrivate) ? Promotion::Private
-                                                        : Promotion::Local);
-      range<3> AccessRange{1, 1, LocalSize.value()};
+      // Compute the local size and use it for the range parameters (only
+      // relevant for local promotion).
+      size_t LocalSize = PromotedToLocal ? *getLocalSize(NDRange, std::nullopt,
+                                                         Req, Promotion::Local)
+                                         : 0;
+      range<3> AccessRange{1, 1, LocalSize};
       auto *RangeArg = storePlainArg(FusedArgStorage, AccessRange);
       // Use all-zero as the offset
       id<3> AcessOffset{0, 0, 0};
@@ -604,7 +615,7 @@ updatePromotedArgs(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
       // Override the arguments.
       // 1. Override the pointer with a std-layout argument with 'nullptr' as
       // value. handler.cpp does the same for local accessors.
-      int SizeInBytes = Req->MElemSize * LocalSize.value();
+      int SizeInBytes = Req->MElemSize * LocalSize;
       FusedArgs[ArgIndex] =
           ArgDesc{kernel_param_kind_t::kind_std_layout, nullptr, SizeInBytes,
                   static_cast<int>(ArgIndex)};
@@ -656,12 +667,12 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   unsigned KernelIndex = 0;
   ParamList FusedParams;
   PromotionMap PromotedAccs;
-  // TODO(Lukas, ONNX-399): Collect information about streams and auxiliary
-  // resources (which contain reductions) and figure out how to fuse them.
+  // TODO: Collect information about streams and figure out how
+  // to fuse them.
   for (auto &RawCmd : InputKernels) {
     auto *KernelCmd = static_cast<ExecCGCommand *>(RawCmd);
     auto &CG = KernelCmd->getCG();
-    assert(CG.getType() == CG::Kernel);
+    assert(KernelCmd->isFusable());
     auto *KernelCG = static_cast<CGExecKernel *>(&CG);
     if (KernelCG->MKernelIsCooperative) {
       printPerformanceWarning("Cannot fuse cooperative kernel");
@@ -698,6 +709,26 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       return A.MIndex < B.MIndex;
     });
 
+    // Determine whether the kernel has been subject to DPCPP's range rounding.
+    // If so, the first argument will be the original ("user") range.
+    std::optional<size_t> UserGlobalSize;
+    if ((KernelName.find("_ZTSN4sycl3_V16detail18RoundedRangeKernel") == 0 ||
+         KernelName.find("_ZTSN4sycl3_V16detail19__pf_kernel_wrapper") == 0) &&
+        !Args.empty()) {
+      auto &A0 = Args[0];
+      [[maybe_unused]] auto Dims = KernelCG->MNDRDesc.Dims;
+      assert(A0.MPtr && A0.MSize == static_cast<int>(Dims * sizeof(size_t)) &&
+             A0.MType == kernel_param_kind_t::kind_std_layout &&
+             "Unexpected signature for rounded range kernel");
+
+      size_t *UGS = reinterpret_cast<size_t *>(A0.MPtr);
+      // Range-rounding only applies to the first dimension.
+      assert(UGS[0] > KernelCG->MNDRDesc.GlobalSize[1]);
+      assert(Dims < 2 || UGS[1] == KernelCG->MNDRDesc.GlobalSize[1]);
+      assert(Dims < 3 || UGS[2] == KernelCG->MNDRDesc.GlobalSize[2]);
+      UserGlobalSize = UGS[0];
+    }
+
     ::jit_compiler::SYCLArgumentDescriptor ArgDescriptor{Args.size()};
     size_t ArgIndex = 0;
     // The kernel function in SPIR-V will only have the non-eliminated
@@ -723,7 +754,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       if (!Eliminated) {
         if (Arg.MType == kernel_param_kind_t::kind_accessor) {
           resolveInternalization(Arg, KernelIndex, ArgFunctionIndex,
-                                 KernelCG->MNDRDesc, PromotedAccs);
+                                 KernelCG->MNDRDesc, UserGlobalSize,
+                                 PromotedAccs);
         }
         FusedParams.emplace_back(Arg, KernelIndex, ArgFunctionIndex, true);
         ++ArgFunctionIndex;
@@ -732,8 +764,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       }
     }
 
-    // TODO(Lukas, ONNX-399): Check for the correct kernel bundle state of the
-    // device image?
+    // TODO: Check for the correct kernel bundle state of the device image?
     auto &RawDeviceImage = DeviceImage->getRawData();
     auto DeviceImageSize = static_cast<size_t>(RawDeviceImage.BinaryEnd -
                                                RawDeviceImage.BinaryStart);
@@ -775,8 +806,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       // Not all overloads of parallel_for_work_group only specify the number of
       // work-groups, so the above mechanism might not detect all hierarchical
       // parallelism.
-      // TODO(Lukas, CRD-6): Find a more reliable way to detect hierarchical
-      // parallelism.
+      // TODO: Find a more reliable way to detect hierarchical parallelism.
     }
 
     // We need to copy the storages here. The input CGs might be eliminated
@@ -787,9 +817,9 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
                        KernelCG->getArgsStorage().end());
     AccStorage.insert(AccStorage.end(), KernelCG->getAccStorage().begin(),
                       KernelCG->getAccStorage().end());
-    // TODO(Lukas, ONNX-399): Does the MSharedPtrStorage contain any
-    // information about actual shared pointers beside the kernel bundle and
-    // handler impl? If yes, we might need to copy it here.
+    // TODO: Does the MSharedPtrStorage contain any information about actual
+    // shared pointers beside the kernel bundle and handler impl? If yes, we
+    // might need to copy it here.
     Requirements.insert(Requirements.end(), KernelCG->getRequirements().begin(),
                         KernelCG->getRequirements().end());
     Events.insert(Events.end(), KernelCG->getEvents().begin(),

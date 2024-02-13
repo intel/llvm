@@ -7,6 +7,10 @@
 // RUN: %clang_cc1 -verify=ref -std=c++20 %s
 // RUN: %clang_cc1 -verify=ref -triple i686 %s
 
+/// Used to crash.
+struct Empty {};
+constexpr Empty e = {Empty()};
+
 struct BoolPair {
   bool first;
   bool second;
@@ -170,7 +174,6 @@ public:
                    // ref-error {{has incomplete type 'const Bar'}}
 };
 constexpr Bar B; // expected-error {{must be initialized by a constant expression}} \
-                 // expected-error {{failed to evaluate an expression}} \
                  // ref-error {{must be initialized by a constant expression}}
 constexpr Bar *pb = nullptr;
 

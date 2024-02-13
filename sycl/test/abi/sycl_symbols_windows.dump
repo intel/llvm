@@ -50,6 +50,10 @@
 ??$get_info@Ucompile_num_sub_groups@kernel_device_specific@info@_V1@sycl@@@kernel@_V1@sycl@@QEBAIAEBVdevice@12@@Z
 ??$get_info@Ucompile_sub_group_size@kernel_device_specific@info@_V1@sycl@@@kernel@_V1@sycl@@QEBAIAEBVdevice@12@@Z
 ??$get_info@Ucompile_work_group_size@kernel_device_specific@info@_V1@sycl@@@kernel@_V1@sycl@@QEBA?AV?$range@$02@12@AEBVdevice@12@@Z
+??$get_info@Ucomponent_devices@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
+??$get_info@Ucomponent_devices@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
+??$get_info@Ucomposite_device@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@QEBA?AV012@XZ
+??$get_info@Ucomposite_device@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AVdevice@23@XZ
 ??$get_info@Ucontext@kernel@info@_V1@sycl@@@kernel@_V1@sycl@@QEBA?AVcontext@12@XZ
 ??$get_info@Ucontext@queue@info@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVcontext@12@XZ
 ??$get_info@Udevice@queue@info@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVdevice@12@XZ
@@ -1048,6 +1052,7 @@
 ?ext_oneapi_fill2d_impl@handler@_V1@sycl@@AEAAXPEAX_KPEBX111@Z
 ?ext_oneapi_fill_cmd_buffer@MemoryManager@detail@_V1@sycl@@SAXV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@PEAU_pi_ext_command_buffer@@PEAVSYCLMemObjI@234@PEAX_KPEBDIV?$range@$02@34@6V?$id@$02@34@IV?$vector@IV?$allocator@I@std@@@6@PEAI@Z
 ?ext_oneapi_fill_usm_cmd_buffer@MemoryManager@detail@_V1@sycl@@SAXV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@PEAU_pi_ext_command_buffer@@PEAX_KHV?$vector@IV?$allocator@I@std@@@6@PEAI@Z
+?ext_oneapi_get_composite_devices@platform@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
 ?ext_oneapi_get_default_context@platform@_V1@sycl@@QEBA?AVcontext@23@XZ
 ?ext_oneapi_get_kernel@kernel_bundle_plain@detail@_V1@sycl@@QEAA?AVkernel@34@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?ext_oneapi_get_last_event@queue@_V1@sycl@@QEBA?AVevent@23@XZ
@@ -1234,6 +1239,7 @@
 ?get_channel_order@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AW4image_channel_order@56@XZ
 ?get_channel_type@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AW4image_channel_type@56@XZ
 ?get_cl_code@exception@_V1@sycl@@QEBAHXZ
+?get_composite_devices@experimental@oneapi@ext@_V1@sycl@@YA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
 ?get_context@exception@_V1@sycl@@QEBA?AVcontext@23@XZ
 ?get_context@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AVcontext@56@XZ
 ?get_context@kernel@_V1@sycl@@QEBA?AVcontext@23@XZ

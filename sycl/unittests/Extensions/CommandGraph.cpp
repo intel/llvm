@@ -1199,9 +1199,11 @@ TEST_F(CommandGraphTest, InOrderQueueHostTaskAndGraph) {
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
   auto EventLastImpl = sycl::detail::getSyclObjImpl(EventLast);
   auto EventLastWaitList = EventLastImpl->getWaitList();
-  // Previous task is not a host task. In Order queue dependency are managed by
-  // the backend for non-host kernels.
-  ASSERT_EQ(EventLastWaitList.size(), 0lu);
+  // Previous task is not a host task. Explicit dependency is still needed
+  // to properly handle blocked tasks (the event will be filtered out before
+  // submission to the backend).
+  ASSERT_EQ(EventLastWaitList.size(), 1lu);
+  ASSERT_EQ(EventLastWaitList[0], EventGraphImpl);
 }
 
 TEST_F(CommandGraphTest, InOrderQueueMemsetAndGraph) {
@@ -1844,25 +1846,6 @@ TEST_F(CommandGraphTest, FusionExtensionExceptionCheck) {
     ExceptionCode = Exception.code();
   }
   ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-}
-
-TEST_F(CommandGraphTest, USMMemsetShortcutExceptionCheck) {
-
-  const size_t N = 10;
-  unsigned char *Arr = malloc_device<unsigned char>(N, Queue);
-  int Value = 77;
-
-  Graph.begin_recording(Queue);
-
-  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    Queue.memset(Arr, Value, N);
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-
-  Graph.end_recording(Queue);
 }
 
 TEST_F(CommandGraphTest, Memcpy2DExceptionCheck) {
