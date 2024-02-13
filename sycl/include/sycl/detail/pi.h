@@ -149,6 +149,8 @@
 // 14.40 Add HIP _pi_mem_advice alises to match the PI_MEM_ADVICE_CUDA* ones.
 // 14.41 Added piextCommandBufferMemBufferFill & piextCommandBufferFillUSM
 // 14.42 Added piextCommandBufferPrefetchUSM and piextCommandBufferAdviseUSM
+// 14.43 Added piextKernelSuggestMaxCooperativeGroupCount and
+//       piextEnqueueCooperativeKernelLaunch.
 
 #define _PI_H_VERSION_MAJOR 14
 #define _PI_H_VERSION_MINOR 42
