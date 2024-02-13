@@ -1,0 +1,18 @@
+{{OPT}}{{Segmentation fault|Aborted}}
+{{OPT}}BufferFillCommandTest.UpdateParameters/AMD_HIP_BACKEND{{.*}}
+{{OPT}}BufferFillCommandTest.UpdateGlobalSize/AMD_HIP_BACKEND{{.*}}
+{{OPT}}BufferFillCommandTest.SeparateUpdateCalls/AMD_HIP_BACKEND{{.*}}
+{{OPT}}BufferFillCommandTest.OverrideUpdate/AMD_HIP_BACKEND{{.*}}
+{{OPT}}BufferFillCommandTest.OverrideArgList/AMD_HIP_BACKEND{{.*}}
+{{OPT}}USMFillCommandTest.UpdateParameters/AMD_HIP_BACKEND{{.*}}
+{{OPT}}USMFillCommandTest.UpdateExecInfo/AMD_HIP_BACKEND{{.*}}
+{{OPT}}USMMultipleFillCommandTest.UpdateAllKernels/AMD_HIP_BACKEND{{.*}}
+{{OPT}}BufferSaxpyKernelTest.UpdateParameters/AMD_HIP_BACKEND{{.*}}
+{{OPT}}USMSaxpyKernelTest.UpdateParameters/AMD_HIP_BACKEND{{.*}}
+{{OPT}}NDRangeUpdateTests.Update3D/AMD_HIP_BACKEND{{.*}}
+{{OPT}}NDRangeUpdateTests.Update2D/AMD_HIP_BACKEND{{.*}}
+{{OPT}}NDRangeUpdateTests.Update1D/AMD_HIP_BACKEND{{.*}}
+{{OPT}}urCommandBufferReleaseCommandExpTest.Success/AMD_HIP_BACKEND{{.*}}
+{{OPT}}urCommandBufferReleaseCommandExpTest.InvalidNullHandle/AMD_HIP_BACKEND{{.*}}
+{{OPT}}urCommandBufferRetainCommandExpTest.Success/AMD_HIP_BACKEND{{.*}}
+{{OPT}}urCommandBufferRetainCommandExpTest.InvalidNullHandle/AMD_HIP_BACKEND{{.*}}

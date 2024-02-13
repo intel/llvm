@@ -951,6 +951,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_ASYNC_BARRIER: {
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
+
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
+    cl_device_id Dev = cl_adapter::cast<cl_device_id>(hDevice);
+    size_t ExtSize = 0;
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(Dev, CL_DEVICE_EXTENSIONS, 0, nullptr, &ExtSize));
+
+    std::string ExtStr(ExtSize, '\0');
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(Dev, CL_DEVICE_EXTENSIONS, ExtSize,
+                                         ExtStr.data(), nullptr));
+
+    std::string SupportedExtensions(ExtStr.c_str());
+    return ReturnValue(ExtStr.find("cl_khr_command_buffer") !=
+                       std::string::npos);
+  }
+  case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP: {
+    return ReturnValue(false);
+  }
   default: {
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
