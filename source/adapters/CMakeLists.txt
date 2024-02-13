@@ -1,4 +1,4 @@
-# Copyright (C) 2022 Intel Corporation
+# Copyright (C) 2022-2024 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -29,8 +29,6 @@ function(add_ur_adapter name)
 endfunction()
 
 add_subdirectory(null)
-
-set(INTEL_LLVM_TAG nightly-2023-09-20)
 
 if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_ALL)
     add_subdirectory(level_zero)
