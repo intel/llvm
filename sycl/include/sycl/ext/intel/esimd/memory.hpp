@@ -3918,27 +3918,9 @@ slm_gather(simd<uint32_t, N / VS> byte_offsets, simd_mask<N / VS> mask,
                                         detail::lsc_data_size::default_size>(
         byte_offsets, mask, pass_thru);
   } else {
-    if constexpr (sizeof(T) == 8) {
-      simd<T, N> Res;
-      Res.template bit_cast_view<uint32_t>().template select<N, 2>(0) =
-          __esimd_slm_gather_ld<uint32_t, N, Alignment>(
-              byte_offsets.data(), mask.data(),
-              (pass_thru.template bit_cast_view<uint32_t>()
-                   .template select<N, 2>(0))
-                  .data());
-      simd<uint32_t, N / VS> Offset = byte_offsets + sizeof(uint32_t);
-      Res.template bit_cast_view<uint32_t>().template select<N, 2>(1) =
-          __esimd_slm_gather_ld<uint32_t, N, sizeof(uint32_t)>(
-              Offset.data(), mask.data(),
-              (pass_thru.template bit_cast_view<uint32_t>()
-                   .template select<N, 2>(1))
-                  .data());
-      return Res;
-    } else {
-      using MsgT = detail::__raw_t<T>;
-      return __esimd_slm_gather_ld<MsgT, N, Alignment>(
-          byte_offsets.data(), mask.data(), pass_thru.data());
-    }
+    using MsgT = detail::__raw_t<T>;
+    return __esimd_slm_gather_ld<MsgT, N, Alignment>(
+        byte_offsets.data(), mask.data(), pass_thru.data());
   }
 }
 
@@ -3983,24 +3965,10 @@ slm_gather(simd<uint32_t, N / VS> byte_offsets, simd_mask<N / VS> mask,
     return detail::slm_gather_impl<T, VS, detail::lsc_data_size::default_size>(
         byte_offsets, mask, PassThru);
   } else if constexpr (detail::isMaskedGatherScatterLLVMAvailable()) {
-    if constexpr (sizeof(T) == 8) {
-      simd<T, N> Res;
-      simd<uint32_t, N> PassThru; // it is intentionally undefined
-
-      Res.template bit_cast_view<uint32_t>().template select<N, 2>(0) =
-          __esimd_slm_gather_ld<uint32_t, N, Alignment>(
-              byte_offsets.data(), mask.data(), PassThru.data());
-      simd<uint32_t, N / VS> Offset = byte_offsets + sizeof(uint32_t);
-      Res.template bit_cast_view<uint32_t>().template select<N, 2>(1) =
-          __esimd_slm_gather_ld<uint32_t, N, sizeof(uint32_t)>(
-              Offset.data(), mask.data(), PassThru.data());
-      return Res;
-    } else {
-      using MsgT = detail::__raw_t<T>;
-      simd<MsgT, N> PassThru; // it is intentionally undefined
-      return __esimd_slm_gather_ld<MsgT, N, Alignment>(
-          byte_offsets.data(), mask.data(), PassThru.data());
-    }
+    using MsgT = detail::__raw_t<T>;
+    simd<MsgT, N> PassThru; // it is intentionally undefined
+    return __esimd_slm_gather_ld<MsgT, N, Alignment>(
+        byte_offsets.data(), mask.data(), PassThru.data());
   } else {
     detail::LocalAccessorMarker acc;
     return detail::gather_impl<T, N>(acc, byte_offsets, 0, mask);
@@ -4289,25 +4257,10 @@ slm_scatter(simd<uint32_t, N / VS> byte_offsets, simd<T, N> vals,
     __ESIMD_DNS::slm_scatter_impl<T, VS, detail::lsc_data_size::default_size>(
         byte_offsets, vals, mask);
   } else if constexpr (detail::isMaskedGatherScatterLLVMAvailable()) {
-    if constexpr (sizeof(T) == 8) {
-      __esimd_slm_scatter_st<uint32_t, N, Alignment>(
-          vals.template bit_cast_view<uint32_t>()
-              .template select<N, 2>(0)
-              .data(),
-          byte_offsets.data(), mask.data());
-      simd<uint32_t, N / VS> Offset = byte_offsets + sizeof(uint32_t);
-      __esimd_slm_scatter_st<uint32_t, N, sizeof(uint32_t)>(
-          vals.template bit_cast_view<uint32_t>()
-              .template select<N, 2>(1)
-              .data(),
-          Offset.data(), mask.data());
-
-    } else {
-      using MsgT = detail::__raw_t<T>;
-      __esimd_slm_scatter_st<MsgT, N, Alignment>(
-          sycl::bit_cast<__ESIMD_DNS::vector_type_t<MsgT, N>>(vals.data()),
-          byte_offsets.data(), mask.data());
-    }
+    using MsgT = detail::__raw_t<T>;
+    __esimd_slm_scatter_st<MsgT, N, Alignment>(
+        sycl::bit_cast<__ESIMD_DNS::vector_type_t<MsgT, N>>(vals.data()),
+        byte_offsets.data(), mask.data());
   } else {
     detail::LocalAccessorMarker acc;
     detail::scatter_impl<T, N>(acc, vals, byte_offsets, 0, mask);
