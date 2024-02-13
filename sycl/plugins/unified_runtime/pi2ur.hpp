@@ -4514,7 +4514,8 @@ inline pi_result piextCommandBufferNDRangeKernel(
 
   HANDLE_ERRORS(urCommandBufferAppendKernelLaunchExp(
       UrCommandBuffer, UrKernel, WorkDim, GlobalWorkOffset, GlobalWorkSize,
-      LocalWorkSize, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+      LocalWorkSize, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint,
+      nullptr));
 
   return PI_SUCCESS;
 }
