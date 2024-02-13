@@ -24,7 +24,8 @@ static void replaceSpecialCharacters(std::string &Str) {
   std::replace_if(
       Str.begin(), Str.end(),
       [](const char Sym) {
-        return '(' == Sym || ')' == Sym || '[' == Sym || ']' == Sym;
+        return '(' == Sym || ')' == Sym || '[' == Sym || ']' == Sym ||
+               '+' == Sym;
       },
       '.');
 }
