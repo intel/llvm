@@ -16,15 +16,11 @@
 namespace sycl {
 inline namespace _V1 {
 
-template <typename T> using marray_data = sycl::detail::vec_helper<T>;
-
-template <typename T>
-using marray_data_t = typename detail::vec_helper<T>::RetType;
-
 template <typename T, std::size_t NumElements>
 class marray<sycl::ext::oneapi::experimental::complex<T>, NumElements> {
 private:
   using ComplexDataT = sycl::ext::oneapi::experimental::complex<T>;
+  using MarrayDataT = typename sycl::detail::vec_helper<ComplexDataT>::RetType;
 
 public:
   using value_type = ComplexDataT;
@@ -51,7 +47,7 @@ public:
 
   explicit constexpr marray(const value_type &arg)
       : marray{sycl::detail::RepeatValue<NumElements>(
-                   static_cast<marray_data_t<value_type>>(arg)),
+                   static_cast<MarrayDataT>(arg)),
                std::make_index_sequence<NumElements>()} {}
 
   template <
