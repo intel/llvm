@@ -476,15 +476,14 @@ bool testLACC(queue Q, uint32_t MaskStride,
 
   try {
     Q.submit([&](handler &cgh) {
-       constexpr uint32_t SLMSize = (Threads * N + 8) * sizeof(T);
-       auto LocalAcc = local_accessor<T, 1>(SLMSize, cgh);
-
-       cgh.parallel_for(Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+              cgh.parallel_for(Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
          ScatterPropertiesT Props{};
          uint16_t GlobalID = ndi.get_global_id(0);
          uint16_t LocalID = ndi.get_local_id(0);
          uint32_t GlobalElemOffset = GlobalID * N;
          uint32_t LocalElemOffset = LocalID * N;
+         constexpr uint32_t SLMSize = (Threads * N + 8) * sizeof(T);
+         auto LocalAcc = local_accessor<T, 1>(SLMSize, cgh);
 
          if (LocalID == 0) {
            for (int I = 0; I < Threads * N; I += 8) {
