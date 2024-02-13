@@ -234,7 +234,8 @@ public:
 
   std::string getDeviceName() const;
 
-  bool extOneapiArchitectureIs(ext::oneapi::experimental::architecture Arch) {
+  bool
+  extOneapiArchitectureIs(ext::oneapi::experimental::architecture Arch) const {
     return Arch == getDeviceArch();
   }
 

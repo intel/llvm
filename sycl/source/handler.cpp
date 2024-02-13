@@ -292,7 +292,7 @@ event handler::finalize() {
       };
 
       bool DiscardEvent = false;
-      if (MQueue->has_discard_events_support()) {
+      if (MQueue->supportsDiscardingPiEvents()) {
         // Kernel only uses assert if it's non interop one
         bool KernelUsesAssert =
             !(MKernel && MKernel->isInterop()) &&
@@ -306,6 +306,7 @@ event handler::finalize() {
                               PI_ERROR_INVALID_OPERATION);
       } else {
         NewEvent = std::make_shared<detail::event_impl>(MQueue);
+        NewEvent->setWorkerQueue(MQueue);
         NewEvent->setContextImpl(MQueue->getContextImplPtr());
         NewEvent->setStateIncomplete();
         NewEvent->setSubmissionTime();

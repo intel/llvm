@@ -1019,8 +1019,6 @@ LLVMToSPIRVDbgTran::transDbgMemberTypeOpenCL(const DIDerivedType *MT) {
       Ops.push_back(Val->getId());
     }
   }
-  if (isNonSemanticDebugInfo())
-    transformToConstant(Ops, {LineIdx, ColumnIdx, FlagsIdx});
   return BM->addDebugInfo(SPIRVDebug::TypeMember, getVoidTy(), Ops);
 }
 
@@ -1186,6 +1184,23 @@ LLVMToSPIRVDbgTran::transDbgGlobalVariable(const DIGlobalVariable *GV) {
   // Check if GV is the definition of previously declared static member
   if (DIDerivedType *StaticMember = GV->getStaticDataMemberDeclaration())
     Ops.push_back(transDbgEntry(StaticMember)->getId());
+
+  // Check if Ops[VariableIdx] has no information
+  if (isNonSemanticDebugInfo() && Ops[VariableIdx] == getDebugInfoNoneId()) {
+    // Check if GV has an associated GVE with a non-empty DIExpression.
+    // The non-empty DIExpression gives the initial value of the GV.
+    for (const DIGlobalVariableExpression *GVE : DIF.global_variables()) {
+      if ( // GVE matches GV
+          GVE->getVariable() == GV &&
+          // DIExpression is non-empty
+          GVE->getExpression()->getNumElements()) {
+        // Repurpose VariableIdx operand to hold the initial value held in the
+        // GVE's DIExpression
+        Ops[VariableIdx] = transDbgExpression(GVE->getExpression())->getId();
+        break;
+      }
+    }
+  }
 
   if (isNonSemanticDebugInfo())
     transformToConstant(Ops, {LineIdx, ColumnIdx, FlagsIdx});

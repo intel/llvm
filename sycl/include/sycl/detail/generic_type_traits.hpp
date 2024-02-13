@@ -57,6 +57,14 @@ template <typename T>
 inline constexpr bool is_half_v = is_contained_v<T, gtl::scalar_half_list>;
 
 template <typename T>
+inline constexpr bool is_bfloat16_v =
+    is_contained_v<T, gtl::scalar_bfloat16_list>;
+
+template <typename T>
+inline constexpr bool is_half_or_bf16_v =
+    is_contained_v<T, gtl::half_bfloat16_list>;
+
+template <typename T>
 inline constexpr bool is_svgenfloath_v =
     is_contained_v<T, gtl::scalar_vector_half_list>;
 
@@ -539,12 +547,12 @@ using select_cl_scalar_t = std::conditional_t<
     std::is_integral_v<T>, select_cl_scalar_integral_t<T>,
     std::conditional_t<
         std::is_floating_point_v<T>, select_cl_scalar_float_t<T>,
-        // half is a special case: it is implemented differently on
-        // host and device and therefore, might lower to different
-        // types
-        std::conditional_t<is_half_v<T>,
-                           sycl::detail::half_impl::BIsRepresentationT,
-                           select_cl_scalar_complex_or_T_t<T>>>>;
+        // half and bfloat16 are special cases: they are implemented differently
+        // on host and device and therefore might lower to different types
+        std::conditional_t<
+            is_half_v<T>, sycl::detail::half_impl::BIsRepresentationT,
+            std::conditional_t<is_bfloat16_v<T>, T,
+                               select_cl_scalar_complex_or_T_t<T>>>>>;
 
 // select_cl_vector_or_scalar_or_ptr does cl_* type selection for element type
 // of a vector type T, pointer type substitution, and scalar type substitution.
@@ -556,7 +564,7 @@ template <typename T>
 struct select_cl_vector_or_scalar_or_ptr<
     T, typename std::enable_if_t<is_vgentype_v<T>>> {
   using type =
-      // select_cl_scalar_t returns _Float16, so, we try to instantiate vec
+      // select_cl_scalar_t may return _Float16, so, we try to instantiate vec
       // class with _Float16 DataType, which is not expected there
       // So, leave vector<half, N> as-is
       vec<std::conditional_t<is_half_v<mptr_or_vec_elem_type_t<T>>,
@@ -687,6 +695,25 @@ convertDataToType(FROM t) {
     return t.template as<TO>();
   else
     return ConvertNonVectorType<TO>(t);
+}
+
+// Now fuse the above into a simpler helper that's easy to use.
+// TODO: That should probably be moved outside of "type_traits".
+template <typename T> auto convertToOpenCLType(T &&x) {
+  using OpenCLType = ConvertToOpenCLType_t<std::remove_reference_t<T>>;
+  return convertDataToType<T, OpenCLType>(std::forward<T>(x));
+}
+
+template <typename To, typename From> auto convertFromOpenCLTypeFor(From &&x) {
+  if constexpr (std::is_same_v<To, bool> &&
+                std::is_same_v<std::remove_reference_t<From>, bool>) {
+    // FIXME: Something seems to be wrong elsewhere...
+    return x;
+  } else {
+    static_assert(std::is_same_v<std::remove_reference_t<From>,
+                                 ConvertToOpenCLType_t<To>>);
+    return convertDataToType<From, To>(std::forward<From>(x));
+  }
 }
 
 // Used for all, any and select relational built-in functions

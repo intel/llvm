@@ -23,10 +23,15 @@
 #include "mlir/IR/OpImplementation.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/CommandLine.h"
 #include <iterator>
 #include <mlir/Interfaces/SideEffectInterfaces.h>
 #include <optional>
 #include <tuple>
+
+static llvm::cl::opt<bool> useStrictIntrinsicVerifier(
+    "strict-intrinsic-verifier", llvm::cl::init(false),
+    llvm::cl::desc("use stricter verifier for HLFIR intrinsic operations"));
 
 /// generic implementation of the memory side effects interface for hlfir
 /// transformational intrinsic operations
@@ -498,7 +503,7 @@ verifyLogicalReductionOp(LogicalReductionOp reductionOp) {
   mlir::Type resultType = results[0];
   if (mlir::isa<fir::LogicalType>(resultType)) {
     // Result is of the same type as MASK
-    if (resultType != logicalTy)
+    if ((resultType != logicalTy) && useStrictIntrinsicVerifier)
       return reductionOp->emitOpError(
           "result must have the same element type as MASK argument");
 
@@ -509,7 +514,7 @@ verifyLogicalReductionOp(LogicalReductionOp reductionOp) {
       if (!resultExpr.isArray())
         return reductionOp->emitOpError("result must be an array");
 
-      if (resultExpr.getEleTy() != logicalTy)
+      if ((resultExpr.getEleTy() != logicalTy) && useStrictIntrinsicVerifier)
         return reductionOp->emitOpError(
             "result must have the same element type as MASK argument");
 
@@ -585,7 +590,7 @@ mlir::LogicalResult hlfir::CountOp::verify() {
       if (resultShape.size() != (maskShape.size() - 1))
         return emitOpError("result rank must be one less than MASK");
     } else {
-      return emitOpError("result must be of numerical scalar type");
+      return emitOpError("result must be of numerical array type");
     }
   } else if (!hlfir::isFortranScalarNumericalType(resultType)) {
     return emitOpError("result must be of numerical scalar type");
@@ -682,15 +687,18 @@ verifyArrayAndMaskForReductionOp(NumericalReductionOp reductionOp) {
     if (!maskShape.empty()) {
       if (maskShape.size() != arrayShape.size())
         return reductionOp->emitWarning("MASK must be conformable to ARRAY");
-      static_assert(fir::SequenceType::getUnknownExtent() ==
-                    hlfir::ExprType::getUnknownExtent());
-      constexpr int64_t unknownExtent = fir::SequenceType::getUnknownExtent();
-      for (std::size_t i = 0; i < arrayShape.size(); ++i) {
-        int64_t arrayExtent = arrayShape[i];
-        int64_t maskExtent = maskShape[i];
-        if ((arrayExtent != maskExtent) && (arrayExtent != unknownExtent) &&
-            (maskExtent != unknownExtent))
-          return reductionOp->emitWarning("MASK must be conformable to ARRAY");
+      if (useStrictIntrinsicVerifier) {
+        static_assert(fir::SequenceType::getUnknownExtent() ==
+                      hlfir::ExprType::getUnknownExtent());
+        constexpr int64_t unknownExtent = fir::SequenceType::getUnknownExtent();
+        for (std::size_t i = 0; i < arrayShape.size(); ++i) {
+          int64_t arrayExtent = arrayShape[i];
+          int64_t maskExtent = maskShape[i];
+          if ((arrayExtent != maskExtent) && (arrayExtent != unknownExtent) &&
+              (maskExtent != unknownExtent))
+            return reductionOp->emitWarning(
+                "MASK must be conformable to ARRAY");
+        }
       }
     }
   }
@@ -719,7 +727,7 @@ verifyNumericalReductionOp(NumericalReductionOp reductionOp) {
   mlir::Type resultType = results[0];
   if (hlfir::isFortranScalarNumericalType(resultType)) {
     // Result is of the same type as ARRAY
-    if (resultType != numTy)
+    if ((resultType != numTy) && useStrictIntrinsicVerifier)
       return reductionOp->emitOpError(
           "result must have the same element type as ARRAY argument");
 
@@ -729,7 +737,7 @@ verifyNumericalReductionOp(NumericalReductionOp reductionOp) {
       if (!resultExpr.isArray())
         return reductionOp->emitOpError("result must be an array");
 
-      if (resultExpr.getEleTy() != numTy)
+      if ((resultExpr.getEleTy() != numTy) && useStrictIntrinsicVerifier)
         return reductionOp->emitOpError(
             "result must have the same element type as ARRAY argument");
 
@@ -792,7 +800,7 @@ verifyCharacterReductionOp(CharacterReductionOp reductionOp) {
          "result must be character");
 
   // Result is of the same type as ARRAY
-  if (resultType != numTy)
+  if ((resultType != numTy) && useStrictIntrinsicVerifier)
     return reductionOp->emitOpError(
         "result must have the same element type as ARRAY argument");
 
@@ -823,9 +831,8 @@ mlir::LogicalResult hlfir::MaxvalOp::verify() {
   auto resultExpr = mlir::dyn_cast<hlfir::ExprType>(results[0]);
   if (resultExpr && mlir::isa<fir::CharacterType>(resultExpr.getEleTy())) {
     return verifyCharacterReductionOp<hlfir::MaxvalOp *>(this);
-  } else {
-    return verifyNumericalReductionOp<hlfir::MaxvalOp *>(this);
   }
+  return verifyNumericalReductionOp<hlfir::MaxvalOp *>(this);
 }
 
 void hlfir::MaxvalOp::getEffects(
@@ -848,9 +855,8 @@ mlir::LogicalResult hlfir::MinvalOp::verify() {
   auto resultExpr = mlir::dyn_cast<hlfir::ExprType>(results[0]);
   if (resultExpr && mlir::isa<fir::CharacterType>(resultExpr.getEleTy())) {
     return verifyCharacterReductionOp<hlfir::MinvalOp *>(this);
-  } else {
-    return verifyNumericalReductionOp<hlfir::MinvalOp *>(this);
   }
+  return verifyNumericalReductionOp<hlfir::MinvalOp *>(this);
 }
 
 void hlfir::MinvalOp::getEffects(
@@ -864,17 +870,15 @@ void hlfir::MinvalOp::getEffects(
 // MinlocOp
 //===----------------------------------------------------------------------===//
 
-mlir::LogicalResult hlfir::MinlocOp::verify() {
-  mlir::Operation *op = getOperation();
+template <typename NumericalReductionOp>
+static mlir::LogicalResult
+verifyResultForMinMaxLoc(NumericalReductionOp reductionOp) {
+  mlir::Operation *op = reductionOp->getOperation();
   auto results = op->getResultTypes();
   assert(results.size() == 1);
 
-  auto res = verifyArrayAndMaskForReductionOp(this);
-  if (failed(res))
-    return res;
-
-  mlir::Value array = getArray();
-  mlir::Value dim = getDim();
+  mlir::Value array = reductionOp->getArray();
+  mlir::Value dim = reductionOp->getDim();
   fir::SequenceType arrayTy =
       hlfir::getFortranElementOrSequenceType(array.getType())
           .cast<fir::SequenceType>();
@@ -883,29 +887,57 @@ mlir::LogicalResult hlfir::MinlocOp::verify() {
   mlir::Type resultType = results[0];
   if (dim && arrayShape.size() == 1) {
     if (!fir::isa_integer(resultType))
-      return emitOpError("result must be scalar integer");
+      return reductionOp->emitOpError("result must be scalar integer");
   } else if (auto resultExpr =
                  mlir::dyn_cast_or_null<hlfir::ExprType>(resultType)) {
     if (!resultExpr.isArray())
-      return emitOpError("result must be an array");
+      return reductionOp->emitOpError("result must be an array");
 
     if (!fir::isa_integer(resultExpr.getEleTy()))
-      return emitOpError("result must have integer elements");
+      return reductionOp->emitOpError("result must have integer elements");
 
     llvm::ArrayRef<int64_t> resultShape = resultExpr.getShape();
     // With dim the result has rank n-1
     if (dim && resultShape.size() != (arrayShape.size() - 1))
-      return emitOpError("result rank must be one less than ARRAY");
+      return reductionOp->emitOpError(
+          "result rank must be one less than ARRAY");
     // With dim the result has rank n
     if (!dim && resultShape.size() != 1)
-      return emitOpError("result rank must be 1");
+      return reductionOp->emitOpError("result rank must be 1");
   } else {
-    return emitOpError("result must be of numerical expr type");
+    return reductionOp->emitOpError("result must be of numerical expr type");
   }
   return mlir::success();
 }
 
+mlir::LogicalResult hlfir::MinlocOp::verify() {
+  auto res = verifyArrayAndMaskForReductionOp(this);
+  if (failed(res))
+    return res;
+
+  return verifyResultForMinMaxLoc(this);
+}
+
 void hlfir::MinlocOp::getEffects(
+    llvm::SmallVectorImpl<
+        mlir::SideEffects::EffectInstance<mlir::MemoryEffects::Effect>>
+        &effects) {
+  getIntrinsicEffects(getOperation(), effects);
+}
+
+//===----------------------------------------------------------------------===//
+// MaxlocOp
+//===----------------------------------------------------------------------===//
+
+mlir::LogicalResult hlfir::MaxlocOp::verify() {
+  auto res = verifyArrayAndMaskForReductionOp(this);
+  if (failed(res))
+    return res;
+
+  return verifyResultForMinMaxLoc(this);
+}
+
+void hlfir::MaxlocOp::getEffects(
     llvm::SmallVectorImpl<
         mlir::SideEffects::EffectInstance<mlir::MemoryEffects::Effect>>
         &effects) {
@@ -981,17 +1013,19 @@ mlir::LogicalResult hlfir::DotProductOp::verify() {
 
   constexpr int64_t unknownExtent = fir::SequenceType::getUnknownExtent();
   if ((lhsSize != unknownExtent) && (rhsSize != unknownExtent) &&
-      (lhsSize != rhsSize))
+      (lhsSize != rhsSize) && useStrictIntrinsicVerifier)
     return emitOpError("both arrays must have the same size");
 
-  if (mlir::isa<fir::LogicalType>(lhsEleTy) !=
-      mlir::isa<fir::LogicalType>(rhsEleTy))
-    return emitOpError("if one array is logical, so should the other be");
+  if (useStrictIntrinsicVerifier) {
+    if (mlir::isa<fir::LogicalType>(lhsEleTy) !=
+        mlir::isa<fir::LogicalType>(rhsEleTy))
+      return emitOpError("if one array is logical, so should the other be");
 
-  if (mlir::isa<fir::LogicalType>(lhsEleTy) !=
-      mlir::isa<fir::LogicalType>(resultTy))
-    return emitOpError("the result type should be a logical only if the "
-                       "argument types are logical");
+    if (mlir::isa<fir::LogicalType>(lhsEleTy) !=
+        mlir::isa<fir::LogicalType>(resultTy))
+      return emitOpError("the result type should be a logical only if the "
+                         "argument types are logical");
+  }
 
   if (!hlfir::isFortranScalarNumericalType(resultTy) &&
       !mlir::isa<fir::LogicalType>(resultTy))
@@ -1040,6 +1074,9 @@ mlir::LogicalResult hlfir::MatmulOp::verify() {
   if (mlir::isa<fir::LogicalType>(lhsEleTy) !=
       mlir::isa<fir::LogicalType>(rhsEleTy))
     return emitOpError("if one array is logical, so should the other be");
+
+  if (!useStrictIntrinsicVerifier)
+    return mlir::success();
 
   int64_t lastLhsDim = lhsShape[lhsRank - 1];
   int64_t firstRhsDim = rhsShape[0];
@@ -1153,6 +1190,9 @@ mlir::LogicalResult hlfir::TransposeOp::verify() {
   if (rank != 2 || resultRank != 2)
     return emitOpError("input and output arrays should have rank 2");
 
+  if (!useStrictIntrinsicVerifier)
+    return mlir::success();
+
   constexpr int64_t unknownExtent = fir::SequenceType::getUnknownExtent();
   if ((inShape[0] != resultShape[1]) && (inShape[0] != unknownExtent))
     return emitOpError("output shape does not match input array");
@@ -1199,6 +1239,9 @@ mlir::LogicalResult hlfir::MatmulTransposeOp::verify() {
   // lhs must have rank 2 for the transpose to be valid
   if ((lhsRank != 2) || ((rhsRank != 1) && (rhsRank != 2)))
     return emitOpError("array must have either rank 1 or rank 2");
+
+  if (!useStrictIntrinsicVerifier)
+    return mlir::success();
 
   if (mlir::isa<fir::LogicalType>(lhsEleTy) !=
       mlir::isa<fir::LogicalType>(rhsEleTy))

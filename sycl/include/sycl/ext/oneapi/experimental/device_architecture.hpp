@@ -13,6 +13,17 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 enum class architecture {
+  // If new element is added to this enum:
+  //
+  // Update
+  //   - sycl_ext_oneapi_device_architecture specification doc
+  //   - "-fsycl-targets" description in sycl/doc/UsersManual.md
+  //
+  // Add
+  //   - __SYCL_TARGET_<ARCH>__ to the compiler driver and to all places below
+  //   - the unique ID of the new architecture in SYCL RT source code to support
+  //     querying the device architecture
+  //
   x86_64,
   intel_cpu_spr,
   intel_cpu_gnr,
@@ -43,6 +54,7 @@ enum class architecture {
   intel_gpu_acm_g12,
   intel_gpu_dg2_g12 = intel_gpu_acm_g12,
   intel_gpu_pvc,
+  intel_gpu_pvc_vg,
   // NVIDIA architectures
   nvidia_gpu_sm_50,
   nvidia_gpu_sm_52,
@@ -72,7 +84,12 @@ enum class architecture {
   amd_gpu_gfx904,
   amd_gpu_gfx906,
   amd_gpu_gfx908,
+  amd_gpu_gfx909,
   amd_gpu_gfx90a,
+  amd_gpu_gfx90c,
+  amd_gpu_gfx940,
+  amd_gpu_gfx941,
+  amd_gpu_gfx942,
   amd_gpu_gfx1010,
   amd_gpu_gfx1011,
   amd_gpu_gfx1012,
@@ -80,7 +97,18 @@ enum class architecture {
   amd_gpu_gfx1030,
   amd_gpu_gfx1031,
   amd_gpu_gfx1032,
+  amd_gpu_gfx1033,
   amd_gpu_gfx1034,
+  amd_gpu_gfx1035,
+  amd_gpu_gfx1036,
+  amd_gpu_gfx1100,
+  amd_gpu_gfx1101,
+  amd_gpu_gfx1102,
+  amd_gpu_gfx1103,
+  amd_gpu_gfx1150,
+  amd_gpu_gfx1151,
+  amd_gpu_gfx1200,
+  amd_gpu_gfx1201,
   // Update "detail::max_architecture" below if you add new elements here!
   intel_gpu_8_0_0 = intel_gpu_bdw,
   intel_gpu_9_0_9 = intel_gpu_skl,
@@ -101,7 +129,7 @@ enum class architecture {
 namespace detail {
 
 static constexpr ext::oneapi::experimental::architecture max_architecture =
-    ext::oneapi::experimental::architecture::amd_gpu_gfx1034;
+    ext::oneapi::experimental::architecture::amd_gpu_gfx1201;
 
 #ifndef __SYCL_TARGET_INTEL_X86_64__
 #define __SYCL_TARGET_INTEL_X86_64__ 0
@@ -168,6 +196,9 @@ static constexpr ext::oneapi::experimental::architecture max_architecture =
 #endif
 #ifndef __SYCL_TARGET_INTEL_GPU_PVC__
 #define __SYCL_TARGET_INTEL_GPU_PVC__ 0
+#endif
+#ifndef __SYCL_TARGET_INTEL_GPU_PVC_VG__
+#define __SYCL_TARGET_INTEL_GPU_PVC_VG__ 0
 #endif
 #ifndef __SYCL_TARGET_NVIDIA_GPU_SM50__
 #define __SYCL_TARGET_NVIDIA_GPU_SM50__ 0
@@ -250,8 +281,23 @@ static constexpr ext::oneapi::experimental::architecture max_architecture =
 #ifndef __SYCL_TARGET_AMD_GPU_GFX908__
 #define __SYCL_TARGET_AMD_GPU_GFX908__ 0
 #endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX909__
+#define __SYCL_TARGET_AMD_GPU_GFX909__ 0
+#endif
 #ifndef __SYCL_TARGET_AMD_GPU_GFX90A__
 #define __SYCL_TARGET_AMD_GPU_GFX90A__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX90C__
+#define __SYCL_TARGET_AMD_GPU_GFX90C__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX940__
+#define __SYCL_TARGET_AMD_GPU_GFX940__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX941__
+#define __SYCL_TARGET_AMD_GPU_GFX941__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX942__
+#define __SYCL_TARGET_AMD_GPU_GFX942__ 0
 #endif
 #ifndef __SYCL_TARGET_AMD_GPU_GFX1010__
 #define __SYCL_TARGET_AMD_GPU_GFX1010__ 0
@@ -274,8 +320,41 @@ static constexpr ext::oneapi::experimental::architecture max_architecture =
 #ifndef __SYCL_TARGET_AMD_GPU_GFX1032__
 #define __SYCL_TARGET_AMD_GPU_GFX1032__ 0
 #endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1033__
+#define __SYCL_TARGET_AMD_GPU_GFX1033__ 0
+#endif
 #ifndef __SYCL_TARGET_AMD_GPU_GFX1034__
 #define __SYCL_TARGET_AMD_GPU_GFX1034__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1035__
+#define __SYCL_TARGET_AMD_GPU_GFX1035__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1036__
+#define __SYCL_TARGET_AMD_GPU_GFX1036__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1100__
+#define __SYCL_TARGET_AMD_GPU_GFX1100__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1101__
+#define __SYCL_TARGET_AMD_GPU_GFX1101__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1102__
+#define __SYCL_TARGET_AMD_GPU_GFX1102__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1103__
+#define __SYCL_TARGET_AMD_GPU_GFX1103__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1150__
+#define __SYCL_TARGET_AMD_GPU_GFX1150__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1151__
+#define __SYCL_TARGET_AMD_GPU_GFX1151__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1200__
+#define __SYCL_TARGET_AMD_GPU_GFX1200__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX1201__
+#define __SYCL_TARGET_AMD_GPU_GFX1201__ 0
 #endif
 
 // This is true when the translation unit is compiled in AOT mode with target
@@ -306,6 +385,7 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_INTEL_GPU_ACM_G11__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_ACM_G12__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_PVC__ == 1) ||
+    (__SYCL_TARGET_INTEL_GPU_PVC_VG__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM50__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM52__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM53__ == 1) ||
@@ -333,7 +413,12 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_AMD_GPU_GFX904__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX906__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX908__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX909__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX90A__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX90C__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX940__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX941__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX942__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1010__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1011__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1012__ == 1) ||
@@ -341,7 +426,18 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_AMD_GPU_GFX1030__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1031__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX1032__ == 1) ||
-    (__SYCL_TARGET_AMD_GPU_GFX1034__ == 1);
+    (__SYCL_TARGET_AMD_GPU_GFX1033__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1034__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1035__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1036__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1100__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1101__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1102__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1103__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1150__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1151__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1200__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX1201__ == 1);
 
 struct IsAOTForArchitectureClass {
   // Allocate an array of size == size of
@@ -394,6 +490,8 @@ struct IsAOTForArchitectureClass {
         __SYCL_TARGET_INTEL_GPU_ACM_G12__ == 1;
     arr[static_cast<int>(arch::intel_gpu_pvc)] =
         __SYCL_TARGET_INTEL_GPU_PVC__ == 1;
+    arr[static_cast<int>(arch::intel_gpu_pvc_vg)] =
+        __SYCL_TARGET_INTEL_GPU_PVC_VG__ == 1;
     arr[static_cast<int>(arch::nvidia_gpu_sm_50)] =
         __SYCL_TARGET_NVIDIA_GPU_SM50__ == 1;
     arr[static_cast<int>(arch::nvidia_gpu_sm_52)] =
@@ -448,8 +546,18 @@ struct IsAOTForArchitectureClass {
         __SYCL_TARGET_AMD_GPU_GFX906__ == 1;
     arr[static_cast<int>(arch::amd_gpu_gfx908)] =
         __SYCL_TARGET_AMD_GPU_GFX908__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx909)] =
+        __SYCL_TARGET_AMD_GPU_GFX909__ == 1;
     arr[static_cast<int>(arch::amd_gpu_gfx90a)] =
         __SYCL_TARGET_AMD_GPU_GFX90A__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx90c)] =
+        __SYCL_TARGET_AMD_GPU_GFX90C__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx940)] =
+        __SYCL_TARGET_AMD_GPU_GFX940__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx941)] =
+        __SYCL_TARGET_AMD_GPU_GFX941__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx942)] =
+        __SYCL_TARGET_AMD_GPU_GFX942__ == 1;
     arr[static_cast<int>(arch::amd_gpu_gfx1010)] =
         __SYCL_TARGET_AMD_GPU_GFX1010__ == 1;
     arr[static_cast<int>(arch::amd_gpu_gfx1011)] =
@@ -462,8 +570,30 @@ struct IsAOTForArchitectureClass {
         __SYCL_TARGET_AMD_GPU_GFX1031__ == 1;
     arr[static_cast<int>(arch::amd_gpu_gfx1032)] =
         __SYCL_TARGET_AMD_GPU_GFX1032__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1033)] =
+        __SYCL_TARGET_AMD_GPU_GFX1033__ == 1;
     arr[static_cast<int>(arch::amd_gpu_gfx1034)] =
         __SYCL_TARGET_AMD_GPU_GFX1034__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1035)] =
+        __SYCL_TARGET_AMD_GPU_GFX1035__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1036)] =
+        __SYCL_TARGET_AMD_GPU_GFX1036__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1100)] =
+        __SYCL_TARGET_AMD_GPU_GFX1100__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1101)] =
+        __SYCL_TARGET_AMD_GPU_GFX1101__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1102)] =
+        __SYCL_TARGET_AMD_GPU_GFX1102__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1103)] =
+        __SYCL_TARGET_AMD_GPU_GFX1103__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1150)] =
+        __SYCL_TARGET_AMD_GPU_GFX1150__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1151)] =
+        __SYCL_TARGET_AMD_GPU_GFX1151__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1200)] =
+        __SYCL_TARGET_AMD_GPU_GFX1200__ == 1;
+    arr[static_cast<int>(arch::amd_gpu_gfx1201)] =
+        __SYCL_TARGET_AMD_GPU_GFX1201__ == 1;
   }
 };
 

@@ -146,9 +146,15 @@
 // 14.37 Added piextUSMImportExternalPointer and piextUSMReleaseImportedPointer.
 // 14.38 Change PI_MEM_ADVICE_* values to flags for use in bitwise operations.
 // 14.39 Added PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT device info query.
+// 14.40 Add HIP _pi_mem_advice alises to match the PI_MEM_ADVICE_CUDA* ones.
+// 14.41 Added piextCommandBufferMemBufferFill & piextCommandBufferFillUSM
+// 14.42 Added piextCommandBufferPrefetchUSM and piextCommandBufferAdviseUSM
+// 15.43 Changed the signature of piextMemGetNativeHandle to also take a
+// pi_device
+// 15.44 Add coarse-grain memory advice flag for HIP.
 
-#define _PI_H_VERSION_MAJOR 14
-#define _PI_H_VERSION_MINOR 39
+#define _PI_H_VERSION_MAJOR 15
+#define _PI_H_VERSION_MINOR 44
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -431,6 +437,10 @@ typedef enum {
   PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT = 0x2010F,
 
   PI_EXT_ONEAPI_DEVICE_INFO_MATRIX_COMBINATIONS = 0x20110,
+
+  // Composite device
+  PI_EXT_ONEAPI_DEVICE_INFO_COMPONENT_DEVICES = 0x20111,
+  PI_EXT_ONEAPI_DEVICE_INFO_COMPOSITE_DEVICE = 0x20112,
 } _pi_device_info;
 
 typedef enum {
@@ -577,8 +587,33 @@ typedef enum {
   PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST = 1 << 7,
   PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST = 1 << 8,
   PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST = 1 << 9,
+  PI_MEM_ADVICE_HIP_SET_COARSE_GRAINED = 1 << 10,
+  PI_MEM_ADVICE_HIP_UNSET_COARSE_GRAINED = 1 << 11,
   PI_MEM_ADVICE_UNKNOWN = 0x7FFFFFFF,
 } _pi_mem_advice;
+
+// HIP _pi_mem_advice aliases
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_SET_READ_MOSTLY =
+    PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_UNSET_READ_MOSTLY =
+    PI_MEM_ADVICE_CUDA_UNSET_READ_MOSTLY;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_SET_PREFERRED_LOCATION =
+    PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_UNSET_PREFERRED_LOCATION =
+    PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_SET_ACCESSED_BY =
+    PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_UNSET_ACCESSED_BY =
+    PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_SET_PREFERRED_LOCATION_HOST =
+    PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION_HOST;
+static constexpr _pi_mem_advice
+    PI_MEM_ADVICE_HIP_UNSET_PREFERRED_LOCATION_HOST =
+        PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_SET_ACCESSED_BY_HOST =
+    PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_UNSET_ACCESSED_BY_HOST =
+    PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST;
 
 typedef enum {
   PI_IMAGE_CHANNEL_ORDER_A = 0x10B1,
@@ -1398,8 +1433,9 @@ __SYCL_EXPORT pi_result piMemBufferPartition(
 /// Gets the native handle of a PI mem object.
 ///
 /// \param mem is the PI mem to get the native handle of.
+/// \param dev is the PI device that the native allocation will be resident on
 /// \param nativeHandle is the native handle of mem.
-__SYCL_EXPORT pi_result piextMemGetNativeHandle(pi_mem mem,
+__SYCL_EXPORT pi_result piextMemGetNativeHandle(pi_mem mem, pi_device dev,
                                                 pi_native_handle *nativeHandle);
 
 /// Creates PI mem object from a native handle.
@@ -2417,7 +2453,7 @@ __SYCL_EXPORT pi_result piextCommandBufferMemBufferReadRect(
     pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
     pi_buff_rect_region region, size_t buffer_row_pitch,
     size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
-    void *ptr, pi_uint32 num_events_in_wait_list,
+    void *ptr, pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
     pi_ext_sync_point *sync_point);
 
@@ -2434,7 +2470,7 @@ __SYCL_EXPORT pi_result piextCommandBufferMemBufferReadRect(
 /// \param sync_point The sync_point associated with this memory operation.
 __SYCL_EXPORT pi_result piextCommandBufferMemBufferWrite(
     pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
-    size_t size, const void *ptr, pi_uint32 num_events_in_wait_list,
+    size_t size, const void *ptr, pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
     pi_ext_sync_point *sync_point);
 
@@ -2459,7 +2495,75 @@ __SYCL_EXPORT pi_result piextCommandBufferMemBufferWriteRect(
     pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
     pi_buff_rect_region region, size_t buffer_row_pitch,
     size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
-    const void *ptr, pi_uint32 num_events_in_wait_list,
+    const void *ptr, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a mem buffer fill command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param buffer is the location to fill the data.
+/// \param pattern pointer to the pattern to fill the buffer with.
+/// \param pattern_size size of the pattern in bytes.
+/// \param offset Offset into the buffer to fill from.
+/// \param size fill size in bytes.
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemBufferFill(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, const void *pattern,
+    size_t pattern_size, size_t offset, size_t size,
+    pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a USM fill command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param ptr pointer to the USM allocation to fill.
+/// \param pattern pointer to the pattern to fill ptr with.
+/// \param pattern_size size of the pattern in bytes.
+/// \param size fill size in bytes.
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferFillUSM(
+    pi_ext_command_buffer command_buffer, void *ptr, const void *pattern,
+    size_t pattern_size, size_t size, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a USM Prefetch command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param ptr points to the memory to migrate.
+/// \param size is the number of bytes to migrate.
+/// \param flags is a bitfield used to specify memory migration options.
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferPrefetchUSM(
+    pi_ext_command_buffer command_buffer, const void *ptr, size_t size,
+    pi_usm_migration_flags flags, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a USM Advise command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param ptr is the data to be advised.
+/// \param length is the size in bytes of the memory to advise.
+/// \param advice is device specific advice.
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferAdviseUSM(
+    pi_ext_command_buffer command_buffer, const void *ptr, size_t length,
+    pi_mem_advice advice, pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
     pi_ext_sync_point *sync_point);
 

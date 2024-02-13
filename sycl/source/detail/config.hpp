@@ -231,10 +231,11 @@ public:
   }
 };
 
-// Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
-// ONEAPI_DEVICE_SELECTOR
+// Array is used by SYCL_DEVICE_ALLOWLIST and ONEAPI_DEVICE_SELECTOR.
+// The 'supportAcc' parameter is used by SYCL_DEVICE_ALLOWLIST which,
+// unlike ONEAPI_DEVICE_SELECTOR, also accepts 'acc' as a valid device type.
 const std::array<std::pair<std::string, info::device_type>, 6> &
-getSyclDeviceTypeMap();
+getSyclDeviceTypeMap(bool supportAcc = false);
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
 // ONEAPI_DEVICE_SELECTOR
@@ -265,6 +266,7 @@ public:
   }
 };
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // ---------------------------------------
 // SYCL_DEVICE_FILTER support
 
@@ -306,6 +308,7 @@ public:
     return FilterList;
   }
 };
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 template <> class SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS> {
   using BaseT = SYCLConfigBase<SYCL_ENABLE_DEFAULT_CONTEXTS>;
@@ -513,7 +516,7 @@ private:
       return Result;
 
     std::string ValueStr{ValueRaw};
-    auto DeviceTypeMap = getSyclDeviceTypeMap();
+    auto DeviceTypeMap = getSyclDeviceTypeMap(true /*Enable 'acc'*/);
 
     // Iterate over all configurations.
     size_t Start = 0, End = 0;

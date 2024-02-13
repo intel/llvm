@@ -48,6 +48,7 @@ and not recommended to use in production environment.
     support are accepted, providing a streamlined interface for AOT. Only one of
     these values at a time is supported.
     * intel_gpu_pvc - Ponte Vecchio Intel graphics architecture
+    * intel_gpu_pvc_vg - Ponte Vecchio VG Intel graphics architecture
     * intel_gpu_acm_g12, intel_gpu_dg2_g12 - Alchemist G12 Intel graphics architecture
     * intel_gpu_acm_g11, intel_gpu_dg2_g11 - Alchemist G11 Intel graphics architecture
     * intel_gpu_acm_g10, intel_gpu_dg2_g10 - Alchemist G10 Intel graphics architecture
@@ -98,7 +99,12 @@ and not recommended to use in production environment.
     * amd_gpu_gfx904 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx906 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx908 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx909 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx90a - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx90c - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx940 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx941 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx942 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx1010 - AMD GCN GFX10.1 (RDNA 1) architecture
     * amd_gpu_gfx1011 - AMD GCN GFX10.1 (RDNA 1) architecture
     * amd_gpu_gfx1012 - AMD GCN GFX10.1 (RDNA 1) architecture
@@ -106,7 +112,18 @@ and not recommended to use in production environment.
     * amd_gpu_gfx1030 - AMD GCN GFX10.3 (RDNA 2) architecture
     * amd_gpu_gfx1031 - GCN GFX10.3 (RDNA 2) architecture
     * amd_gpu_gfx1032 - GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1033 - GCN GFX10.3 (RDNA 2) architecture
     * amd_gpu_gfx1034 - GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1035 - GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1036 - GCN GFX10.3 (RDNA 2) architecture
+    * amd_gpu_gfx1100 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1101 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1102 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1103 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1150 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1151 - GCN GFX11 (RDNA 3) architecture
+    * amd_gpu_gfx1200 - GCN GFX12 (RDNA 4) architecture
+    * amd_gpu_gfx1201 - GCN GFX12 (RDNA 4) architecture
 
 ## Language options
 

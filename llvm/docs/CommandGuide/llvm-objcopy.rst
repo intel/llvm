@@ -117,6 +117,11 @@ multiple file formats.
  If specified, symbol and section names specified by other switches are treated
  as extended POSIX regular expression patterns.
 
+.. option:: --remove-symbol-prefix <prefix>
+
+Remove ``<prefix>`` from the start of every symbol name. No-op for symbols that do
+not start with ``<prefix>``.
+
 .. option:: --remove-section <section>, -R
 
  Remove the specified section from the output. Can be specified multiple times
@@ -324,6 +329,11 @@ them.
 
  Extract the named partition from the output.
 
+.. option:: --gap-fill <value>
+
+ For binary outputs, fill the gaps between sections with ``<value>`` instead
+ of zero. The value must be an unsigned 8-bit integer.
+
 .. option:: --globalize-symbol <symbol>
 
  Mark any defined symbols named ``<symbol>`` as global symbols in the output.
@@ -410,6 +420,11 @@ them.
  of valid ``<format>`` values. If unspecified, the output format is assumed to
  be the same as the value specified for :option:`--input-target` or the input
  file's format if that option is also unspecified.
+
+.. option:: --pad-to <address>
+
+ For binary outputs, pad the output to the load address ``<address>`` using a value
+ of zero or the value specified by :option:`--gap-fill`.
 
 .. option:: --prefix-alloc-sections <prefix>
 

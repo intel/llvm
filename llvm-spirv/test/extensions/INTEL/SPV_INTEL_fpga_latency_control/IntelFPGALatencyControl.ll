@@ -25,10 +25,10 @@ target triple = "spir64-unknown-unknown"
 
 $_ZTSZ4fooEUlvE_ = comdat any
 
-@.str = private unnamed_addr constant [16 x i8] c"sycl-properties\00", section "llvm.metadata"
-@.str.1 = private unnamed_addr constant [19 x i8] c"inc/fpga_utils.hpp\00", section "llvm.metadata"
-@.str.9 = private unnamed_addr constant [11 x i8] c"{6172:\220\22}\00", section "llvm.metadata"
-@.str.10 = private unnamed_addr constant [25 x i8] c"{6172:\221\22}{6173:\220,1,5\22}\00", section "llvm.metadata"
+@.str = private unnamed_addr addrspace(1) constant [16 x i8] c"sycl-properties\00", section "llvm.metadata"
+@.str.1 = private unnamed_addr addrspace(1) constant [19 x i8] c"inc/fpga_utils.hpp\00", section "llvm.metadata"
+@.str.9 = private unnamed_addr addrspace(1) constant [11 x i8] c"{6172:\220\22}\00", section "llvm.metadata"
+@.str.10 = private unnamed_addr addrspace(1) constant [25 x i8] c"{6172:\221\22}{6173:\220,1,5\22}\00", section "llvm.metadata"
 
 ; CHECK-LLVM: @[[#ANN_STR1:]] = private unnamed_addr constant [27 x i8] c"{sycl-latency-anchor-id:0}\00"
 ; CHECK-LLVM: @[[#ANN_STR2:]] = private unnamed_addr constant [58 x i8] c"{sycl-latency-anchor-id:1}{sycl-latency-constraint:0,1,5}\00"
@@ -42,21 +42,21 @@ entry:
   %3 = getelementptr inbounds %struct.__spirv_Something, ptr %2, i32 0, i32 0
   %4 = bitcast ptr %3 to ptr
 ; CHECK-LLVM: %[[#ANN_PTR1:]] = getelementptr inbounds %struct.__spirv_Something, ptr %[[#]], i32 0, i32 0
-  %5 = call ptr @llvm.ptr.annotation.p0.p0(ptr %4, ptr @.str.9, ptr @.str.1, i32 5, ptr null)
+  %5 = call ptr @llvm.ptr.annotation.p0.p1(ptr %4, ptr addrspace(1) @.str.9, ptr addrspace(1) @.str.1, i32 5, ptr addrspace(1) null)
 ; CHECK-LLVM: call ptr @llvm.ptr.annotation.p0.p0(ptr %[[#ANN_PTR1]], ptr @[[#ANN_STR1]], ptr undef, i32 undef, ptr undef)
   %6 = load i32, ptr %5, align 8
   %7 = load ptr, ptr %1, align 8
   %8 = getelementptr inbounds %struct.__spirv_Something, ptr %7, i32 0, i32 1
   %9 = bitcast ptr %8 to ptr
 ; CHECK-LLVM: %[[#ANN_PTR2:]] = getelementptr inbounds %struct.__spirv_Something, ptr %[[#]], i32 0, i32 1
-  %10 = call ptr @llvm.ptr.annotation.p0.p0(ptr %9, ptr @.str.10, ptr @.str.1, i32 5, ptr null)
+  %10 = call ptr @llvm.ptr.annotation.p0.p1(ptr %9, ptr addrspace(1) @.str.10, ptr addrspace(1) @.str.1, i32 5, ptr addrspace(1) null)
 ; CHECK-LLVM: call ptr @llvm.ptr.annotation.p0.p0(ptr %[[#ANN_PTR2]], ptr @[[#ANN_STR2]], ptr undef, i32 undef, ptr undef)
   %11 = load i32, ptr %10, align 8
   ret void
 }
 
 ; Function Attrs: nocallback nofree nosync nounwind willreturn memory(inaccessiblemem: readwrite)
-declare ptr @llvm.ptr.annotation.p0.p0(ptr, ptr, ptr, i32, ptr) #1
+declare ptr @llvm.ptr.annotation.p0.p1(ptr, ptr addrspace(1), ptr addrspace(1), i32, ptr addrspace(1)) #1
 
 attributes #0 = { mustprogress norecurse "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="sycl-properties-ptr-annotations.cpp" "uniform-work-group-size"="true" }
 attributes #1 = { nocallback nofree nosync nounwind willreturn memory(inaccessiblemem: readwrite) }
