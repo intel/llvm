@@ -172,17 +172,17 @@ auto builtin_delegate_to_scalar(FuncTy F, const Ts &...x) {
   using T = typename first_type<Ts...>::type;
   static_assert(is_vec_or_swizzle_v<T> || is_marray_v<T>);
 
-  constexpr auto N = T::size();
+  constexpr auto Size = T::size();
   using ret_elem_type = decltype(F(x[0]...));
-  std::conditional_t<is_marray_v<T>, marray<ret_elem_type, N>,
-                     vec<ret_elem_type, N>>
+  std::conditional_t<is_marray_v<T>, marray<ret_elem_type, Size>,
+                     vec<ret_elem_type, Size>>
       r{};
 
   if constexpr (is_marray_v<T>) {
-    for (size_t i = 0; i < T::size(); ++i)
+    for (size_t i = 0; i < Size; ++i)
       r[i] = F(x[i]...);
   } else {
-    loop<T::size()>([&](auto idx) { r[idx] = F(x[idx]...); });
+    loop<Size>([&](auto idx) { r[idx] = F(x[idx]...); });
   }
 
   return r;
