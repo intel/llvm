@@ -1,8 +1,5 @@
 // FIXME flaky fail on CUDA and HIP
 // UNSUPPORTED: cuda || hip
-// TODO: Remove unsupported after fixing
-// https://github.com/intel/llvm/issues/12683
-// UNSUPPORTED: accelerator
 //
 // FIXME: Remove XFAIL one intel/llvm#11364 is resolved
 // XFAIL: (opencl && gpu)
@@ -20,7 +17,7 @@
 // DEFINE: %{gpu_env} = env SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY=1 SYCL_PI_SUPPRESS_ERROR_MESSAGE=1
 
 // Shouldn't fail on ACC as fallback assert isn't enqueued there
-// RUN: %if gpu %{ %{gpu_env} %} %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt %if acc %{ --check-prefix=CHECK-ACC %}
+// RUN: %if gpu %{ %{gpu_env} %} %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt %if accelerator %{ --check-prefix=CHECK-ACC %}
 //
 // CHECK:      {{this message from file1|this message from file2}}
 // CHECK-NOT:  The test ended.
