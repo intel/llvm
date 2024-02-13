@@ -663,12 +663,14 @@ template <> struct ConvertToOpenCLTypeImpl<Boolean<1>> {
   // Or should it be "int"?
   using type = Boolean<1>;
 };
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 // TODO: It seems we only use this to convert a pointer's element type. As such,
 // although it doesn't look very clean, it should be ok having this case handled
 // explicitly until further refactoring of this area.
 template <> struct ConvertToOpenCLTypeImpl<std::byte> {
   using type = uint8_t;
 };
+#endif
 #endif
 
 template <typename T> struct ConvertToOpenCLTypeImpl<T *> {
