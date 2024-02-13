@@ -1856,7 +1856,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendKernelLaunchExp_t)(
     const size_t *,
     uint32_t,
     const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *);
+    ur_exp_command_buffer_sync_point_t *,
+    ur_exp_command_buffer_command_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urCommandBufferAppendUSMMemcpyExp
@@ -2014,6 +2015,40 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferEnqueueExp_t)(
     ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferRetainCommandExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferRetainCommandExp_t)(
+    ur_exp_command_buffer_command_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferReleaseCommandExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferReleaseCommandExp_t)(
+    ur_exp_command_buffer_command_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferUpdateKernelLaunchExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferUpdateKernelLaunchExp_t)(
+    ur_exp_command_buffer_command_handle_t,
+    const ur_exp_command_buffer_update_kernel_launch_desc_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferGetInfoExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferGetInfoExp_t)(
+    ur_exp_command_buffer_handle_t,
+    ur_exp_command_buffer_info_t,
+    size_t,
+    void *,
+    size_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferCommandGetInfoExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferCommandGetInfoExp_t)(
+    ur_exp_command_buffer_command_handle_t,
+    ur_exp_command_buffer_command_info_t,
+    size_t,
+    void *,
+    size_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of CommandBufferExp functions pointers
 typedef struct ur_command_buffer_exp_dditable_t {
     ur_pfnCommandBufferCreateExp_t pfnCreateExp;
@@ -2033,6 +2068,11 @@ typedef struct ur_command_buffer_exp_dditable_t {
     ur_pfnCommandBufferAppendUSMPrefetchExp_t pfnAppendUSMPrefetchExp;
     ur_pfnCommandBufferAppendUSMAdviseExp_t pfnAppendUSMAdviseExp;
     ur_pfnCommandBufferEnqueueExp_t pfnEnqueueExp;
+    ur_pfnCommandBufferRetainCommandExp_t pfnRetainCommandExp;
+    ur_pfnCommandBufferReleaseCommandExp_t pfnReleaseCommandExp;
+    ur_pfnCommandBufferUpdateKernelLaunchExp_t pfnUpdateKernelLaunchExp;
+    ur_pfnCommandBufferGetInfoExp_t pfnGetInfoExp;
+    ur_pfnCommandBufferCommandGetInfoExp_t pfnCommandGetInfoExp;
 } ur_command_buffer_exp_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////
