@@ -28,12 +28,7 @@ class Sink {
         }
 
         format(buffer, fmt, std::forward<Args &&>(args)...);
-
-        std::scoped_lock<std::mutex> lock(output_mutex);
-        *ostream << buffer.str();
-        if (level >= flush_level) {
-            ostream->flush();
-        }
+        print(level, buffer.str());
     }
 
     void setFlushLevel(logger::Level level) { this->flush_level = level; }
@@ -48,6 +43,14 @@ class Sink {
         : logger_name(std::move(logger_name)), skip_prefix(skip_prefix) {
         ostream = nullptr;
         flush_level = logger::Level::ERR;
+    }
+
+    virtual void print(logger::Level level, const std::string &msg) {
+        std::scoped_lock<std::mutex> lock(output_mutex);
+        *ostream << msg;
+        if (level >= flush_level) {
+            ostream->flush();
+        }
     }
 
   private:
