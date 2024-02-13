@@ -41,9 +41,9 @@ private:
                    std::index_sequence<Is...>)
       : MData{Arr[Is]...} {}
 
-  /// FIXME: If the subscript operator is made constexpr this can be removed.
   // detail::FlattenMArrayArgHelper::MArrayToArray needs to have access to
   // MData.
+  // FIXME: If the subscript operator is made constexpr this can be removed.
   friend class detail::FlattenMArrayArgHelper;
 
 public:

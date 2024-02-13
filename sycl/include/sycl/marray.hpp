@@ -103,11 +103,12 @@ public:
 private:
   value_type MData[NumElements];
 
-  /// FIXME: If the subscript operator is made constexpr these can be removed.
   // Other marray specializations needs to be a friend to access MData.
+  // FIXME: If the subscript operator is made constexpr these can be removed.
   template <typename Type_, std::size_t NumElements_> friend class marray;
   // detail::FlattenMArrayArgHelper::MArrayToArray needs to be a friend to
   // access MData.
+  // FIXME: If the subscript operator is made constexpr these can be removed.
   friend class detail::FlattenMArrayArgHelper;
 
   constexpr void initialize_data(const Type &Arg) {
