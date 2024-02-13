@@ -236,7 +236,7 @@ template <typename T, uint16_t N, uint16_t VS, bool UseMask, bool UseProperties,
 bool testSLM(queue Q, uint32_t MaskStride,
              ScatterPropertiesT ScatterProperties) {
   constexpr uint32_t Groups = 8;
-  constexpr uint32_t Threads = 1;
+  constexpr uint32_t Threads = 16;
   constexpr size_t Size = Groups * Threads * N;
   static_assert(VS > 0 && N % VS == 0,
                 "Incorrect VS parameter. N must be divisible by VS.");
@@ -260,27 +260,24 @@ bool testSLM(queue Q, uint32_t MaskStride,
        cgh.parallel_for(Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
          ScatterPropertiesT Props{};
          uint16_t GlobalID = ndi.get_global_id(0);
-         uint16_t LocalID = ndi.get_local_id(0);
          uint32_t GlobalElemOffset = GlobalID * N;
-         uint32_t LocalElemOffset = LocalID * N;
 
-         constexpr uint32_t SLMSize = (Threads * N + 8) * sizeof(T);
+         constexpr uint32_t SLMSize = (Threads * N) * sizeof(T);
          slm_init<SLMSize>();
 
          if (LocalID == 0) {
-           for (int I = 0; I < Threads * N; I += 8) {
-             simd<T, 8> InVec(Out + GlobalElemOffset + I);
-             simd<uint32_t, 8> Offsets(I * sizeof(T), sizeof(T));
-             slm_scatter<T>(Offsets, InVec);
-           }
+           simd<T, N> InVec(In + GlobalElemOffset);
+           simd<uint32_t, N> offsets(0, sizeof(T));
+           slm_scatter<T>(offsets, InVec);
          }
          barrier();
 
-         simd<uint32_t, NOffsets> ByteOffsets(LocalElemOffset * sizeof(T),
-                                              VS * sizeof(T));
+         simd<uint32_t, NOffsets> ByteOffsets(0, VS * sizeof(T));
          auto ByteOffsetsView = ByteOffsets.template select<NOffsets, 1>();
 
          simd<T, N> Vals = slm_gather<T, N, VS>(ByteOffsets, Props);
+         barrier();
+
          Vals *= 2;
 
          auto ValsView = Vals.template select<N, 1>();
@@ -373,12 +370,11 @@ bool testSLM(queue Q, uint32_t MaskStride,
            }
          }
          barrier();
+
          if (LocalID == 0) {
-           for (int I = 0; I < Threads * N; I++) {
-             simd<uint32_t, 1> Offsets(I * sizeof(T), sizeof(T));
-             simd<T, 1> OutVec = slm_gather<T>(Offsets);
-             OutVec.copy_to(Out + GlobalElemOffset + I);
-           }
+           simd<uint32_t, N> offsets(0, sizeof(T));
+           simd<T, N> OutVec = slm_gather<T>(Offsets);
+           OutVec.copy_to(Out + GlobalElemOffset + I);
          }
        });
      }).wait();

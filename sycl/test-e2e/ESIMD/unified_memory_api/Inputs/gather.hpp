@@ -509,22 +509,19 @@ bool testSLM(queue Q, uint32_t MaskStride, PropertiesT) {
        uint32_t LocalElemOffset = LocalID * N;
 
        // Allocate a bit more to safely initialize it with 8-element chunks.
-       constexpr uint32_t SLMSize = (Threads * N) * sizeof(T);
+       constexpr uint32_t SLMSize = N * sizeof(T);
        slm_init<SLMSize>();
 
        if (LocalID == 0) {
-         for (int I = 0; I < Threads * N; I++) {
-           simd<T, 1> InVec(In + GlobalElemOffset + I);
-           simd<uint32_t, 1> offsets(I * sizeof(T), sizeof(T));
-           slm_scatter<T>(offsets, InVec);
-         }
+         simd<T, N> InVec(In + GlobalElemOffset);
+         simd<uint32_t, N> offsets(0, sizeof(T));
+         slm_scatter<T>(offsets, InVec);
        }
        barrier();
 
        PropertiesT Props{};
 
-       simd<uint32_t, NOffsets> ByteOffsets(LocalElemOffset * sizeof(T),
-                                            VS * sizeof(T));
+       simd<uint32_t, NOffsets> ByteOffsets(0, VS * sizeof(T));
        simd_view ByteOffsetsView = ByteOffsets.template select<NOffsets, 1>();
 
        simd_mask<NOffsets> Pred;
@@ -799,28 +796,23 @@ bool testLACC(queue Q, uint32_t MaskStride, PropertiesT) {
     buffer<T, 1> InBuf(In, Size * 2);
     Q.submit([&](handler &CGH) {
        // Allocate a bit more to safely initialize it with 8-element chunks.
-       constexpr uint32_t SLMSize = (Threads * N + 8) * sizeof(T);
+       constexpr uint32_t SLMSize = Threads * N;
 
        auto InAcc = local_accessor<T, 1>(SLMSize, CGH);
 
        CGH.parallel_for(Range, [=](sycl::nd_item<1> NDI) SYCL_ESIMD_KERNEL {
          uint16_t GlobalID = NDI.get_global_id(0);
-         uint16_t LocalID = NDI.get_local_id(0);
          uint32_t GlobalElemOffset = GlobalID * N;
-         uint32_t LocalElemOffset = LocalID * N;
 
          if (LocalID == 0) {
-           for (int I = 0; I < Threads * N; I += 8) {
-             simd<T, 8> InVec(In + GlobalElemOffset + I);
-             simd<uint32_t, 8> Offsets(I * sizeof(T), sizeof(T));
-             scatter<T>(InAcc, Offsets, InVec);
-           }
+           simd<T, N> InVec(In + GlobalElemOffset);
+           simd<uint32_t, N> offsets(0, sizeof(T));
+           slm_scatter<T>(offsets, InVec);
          }
          barrier();
          PropertiesT Props{};
 
-         simd<OffsetT, NOffsets> ByteOffsets(LocalElemOffset * sizeof(T),
-                                             VS * sizeof(T));
+         simd<OffsetT, NOffsets> ByteOffsets(0, VS * sizeof(T));
          simd_view ByteOffsetsView = ByteOffsets.template select<NOffsets, 1>();
 
          simd_mask<NOffsets> Pred;
