@@ -84,15 +84,15 @@ enum class graph_state {
 
 enum class node_type {
   empty = 0,
-  subgraph,
-  kernel,
-  memcpy,
-  memset,
-  memfill,
-  prefetch,
-  memadvise,
-  ext_oneapi_barrier,
-  host_task
+  subgraph = 1,
+  kernel = 2,
+  memcpy = 3,
+  memset = 4,
+  memfill = 5,
+  prefetch = 6,
+  memadvise = 7,
+  ext_oneapi_barrier = 8,
+  host_task = 9
 };
 
 /// Class representing a node in the graph, returned by command_graph::add().

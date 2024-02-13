@@ -951,8 +951,8 @@ void exec_graph_impl::duplicateNodes() {
   // Subgraph nodes need special handling, we extract all subgraph nodes and
   // merge them into the main node list
 
-  for (auto NewNodeIt = NewNodes.end(); NewNodeIt != NewNodes.begin();) {
-    --NewNodeIt;
+  for (auto NewNodeIt = NewNodes.rbegin(); NewNodeIt != NewNodes.rend();
+       ++NewNodeIt) {
     auto NewNode = *NewNodeIt;
     if (NewNode->MNodeType != node_type::subgraph) {
       continue;
@@ -1046,8 +1046,8 @@ void exec_graph_impl::duplicateNodes() {
         NewNodes.erase(std::find(NewNodes.begin(), NewNodes.end(), NewNode));
     // Also set the iterator to the newly added nodes so we can continue
     // iterating over all remaining nodes
-    NewNodeIt = NewNodes.insert(OldPositionIt, NewSubgraphNodes.begin(),
-                                NewSubgraphNodes.end());
+    NewNodeIt = std::reverse_iterator{NewNodes.insert(
+        OldPositionIt, NewSubgraphNodes.begin(), NewSubgraphNodes.end())};
   }
 
   // Store all the new nodes locally
