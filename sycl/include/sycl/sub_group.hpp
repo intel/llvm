@@ -49,6 +49,7 @@ template <typename MultiPtrTy> auto convertToBlockPtr(MultiPtrTy MultiPtr) {
   using ElemTy = remove_decoration_t<std::remove_pointer_t<DecoratedPtrTy>>;
 
   using TargetElemTy = SelectBlockT<ElemTy>;
+  // TODO: Handle cv qualifiers.
 #ifdef __SYCL_DEVICE_ONLY__
   using ResultTy =
       typename DecoratedType<TargetElemTy,
