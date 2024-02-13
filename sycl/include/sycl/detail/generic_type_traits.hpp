@@ -663,6 +663,12 @@ template <> struct ConvertToOpenCLTypeImpl<Boolean<1>> {
   // Or should it be "int"?
   using type = Boolean<1>;
 };
+// TODO: It seems we only use this to convert a pointer's element type. As such,
+// although it doesn't look very clean, it should be ok having this case handled
+// explicitly until further refactoring of this area.
+template <> struct ConvertToOpenCLTypeImpl<std::byte> {
+  using type = uint8_t;
+};
 #endif
 
 template <typename T> struct ConvertToOpenCLTypeImpl<T *> {
@@ -704,9 +710,10 @@ template <typename T> auto convertToOpenCLType(T &&x) {
   if constexpr (is_multi_ptr_v<no_ref>) {
     return convertToOpenCLType(x.get_decorated());
   } else if constexpr (std::is_pointer_v<no_ref>) {
-    using elem_type = remove_decoration_t<std::remove_pointer_t<no_ref>>;
-    using converted_elem_type_no_cv = ConvertToOpenCLType_t<elem_type>;
     // TODO: Below ignores volatile, but we didn't have a need for it yet.
+    using elem_type = remove_decoration_t<std::remove_pointer_t<no_ref>>;
+    using converted_elem_type_no_cv =
+        ConvertToOpenCLType_t<std::remove_const_t<elem_type>>;
     using converted_elem_type =
         std::conditional_t<std::is_const_v<elem_type>,
                            const converted_elem_type_no_cv,
