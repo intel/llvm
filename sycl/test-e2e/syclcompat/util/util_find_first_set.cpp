@@ -112,7 +112,7 @@ void test_find_first_set() {
       [=](sycl::nd_item<3> item_ct1) { find_first_set_test(test_result); });
 
   dev_ct1.queues_wait_and_throw();
-  q_ct1.copy(&host_test_result, test_result, sizeof(int)).wait();
+  q_ct1.memcpy(&host_test_result, test_result, sizeof(int)).wait();
   find_first_set_test(&host_test_result);
   assert(host_test_result == 0);
 

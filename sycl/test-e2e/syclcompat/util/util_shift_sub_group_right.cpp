@@ -104,7 +104,7 @@ void test_shift_sub_group_right() {
       119, 120, 121, 122, 123, 124, 125, 126};
 
   init_data<unsigned int>(host_dev_data_u, DATA_NUM);
-  q_ct1->copy(dev_data_u, host_dev_data_u, DATA_NUM * sizeof(unsigned int))
+  q_ct1->memcpy(dev_data_u, host_dev_data_u, DATA_NUM * sizeof(unsigned int))
       .wait();
   q_ct1->parallel_for(sycl::nd_range<3>(GridSize * BlockSize, BlockSize),
                       [=](sycl::nd_item<3> item_ct1)
@@ -113,7 +113,7 @@ void test_shift_sub_group_right() {
                           });
 
   dev_ct1.queues_wait_and_throw();
-  q_ct1->copy(host_dev_data_u, dev_data_u, DATA_NUM * sizeof(unsigned int))
+  q_ct1->memcpy(host_dev_data_u, dev_data_u, DATA_NUM * sizeof(unsigned int))
       .wait();
   verify_data<unsigned int>(host_dev_data_u, expect1, DATA_NUM);
 
@@ -130,7 +130,7 @@ void test_shift_sub_group_right() {
       104, 105, 106, 107, 108, 109, 110, 112, 112, 113, 114, 115, 116, 117, 118,
       120, 120, 121, 122, 123, 124, 125, 126};
   init_data<unsigned int>(host_dev_data_u, DATA_NUM);
-  q_ct1->copy(dev_data_u, host_dev_data_u, DATA_NUM * sizeof(unsigned int))
+  q_ct1->memcpy(dev_data_u, host_dev_data_u, DATA_NUM * sizeof(unsigned int))
       .wait();
 
   q_ct1->parallel_for(sycl::nd_range<3>(GridSize * BlockSize, BlockSize),
@@ -140,7 +140,7 @@ void test_shift_sub_group_right() {
                           });
 
   dev_ct1.queues_wait_and_throw();
-q_ct1->copy(host_dev_data_u, dev_data_u, DATA_NUM * sizeof(unsigned int)).wait();
+q_ct1->memcpy(host_dev_data_u, dev_data_u, DATA_NUM * sizeof(unsigned int)).wait();
   verify_data<unsigned int>(host_dev_data_u, expect2, DATA_NUM);
 
   sycl::free(dev_data, *q_ct1);
