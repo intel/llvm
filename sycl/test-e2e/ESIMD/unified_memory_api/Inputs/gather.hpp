@@ -634,11 +634,9 @@ bool testSLM(queue Q, uint32_t MaskStride, PropertiesT) {
            }
          }
        } // end if (VS == 1)
-       if constexpr (UseMask) {
-           scatter<T, N, VS>(Out + GlobalElemOffset, ByteOffsets, Vals, Pred);
-         } else {
-           Vals.copy_to(Out + GlobalElemOffset);
-         }
+
+       Vals.copy_to(Out + GlobalElemOffset);
+
        
      }).wait();
   } catch (sycl::exception const &e) {
@@ -936,11 +934,7 @@ bool testLACC(queue Q, uint32_t MaskStride, PropertiesT) {
            }
          } // end if (VS == 1)
 
-         if constexpr (UseMask) {
-           scatter<T, N, VS>(Out + GlobalElemOffset, ByteOffsets, Vals, Pred);
-         } else {
-           Vals.copy_to(Out + GlobalElemOffset);
-         }
+         Vals.copy_to(Out + GlobalElemOffset);
        });
      }).wait();
   } catch (sycl::exception const &e) {
