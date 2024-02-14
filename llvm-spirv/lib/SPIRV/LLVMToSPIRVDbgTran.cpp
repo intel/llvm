@@ -1186,7 +1186,7 @@ LLVMToSPIRVDbgTran::transDbgGlobalVariable(const DIGlobalVariable *GV) {
     Ops.push_back(transDbgEntry(StaticMember)->getId());
 
   // Check if Ops[VariableIdx] has no information
-  if (Ops[VariableIdx] == getDebugInfoNoneId()) {
+  if (isNonSemanticDebugInfo() && Ops[VariableIdx] == getDebugInfoNoneId()) {
     // Check if GV has an associated GVE with a non-empty DIExpression.
     // The non-empty DIExpression gives the initial value of the GV.
     for (const DIGlobalVariableExpression *GVE : DIF.global_variables()) {
