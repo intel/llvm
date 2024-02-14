@@ -151,7 +151,7 @@ device::get_info_internal() const {
                                         typename detail::is_device_info_desc<
                                             Param>::return_type>) {
     return get_device_info_vector<Param>();
-  }
+  } else
   return get_info_impl<Param>();
 }
 
