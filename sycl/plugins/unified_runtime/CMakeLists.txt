@@ -63,7 +63,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Wed Jan 10 14:50:23 2024 +0000
   #     Merge pull request #1170 from jchlanda/jakub/hip_custom_dirs
   #     [HIP] Allow custom location of ROCm components
-  set(UNIFIED_RUNTIME_TAG 6d5ba2eb7aad4192102114d771dabd058e8cf3c1)
+  set(UNIFIED_RUNTIME_TAG 8a8d70442271fb1bddc107181d33ff929672c804)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -124,7 +124,7 @@ set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/com
 
 add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 add_library(UnifiedRuntimeCommon ALIAS ur_common)
-add_library(UnifiedMallocFramework ALIAS unified_malloc_framework)
+add_library(UnifiedMemoryFramework ALIAS umf)
 
 add_library(UnifiedRuntime-Headers INTERFACE)
 
