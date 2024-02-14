@@ -1,7 +1,7 @@
 // REQUIRES: level_zero || cuda, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out 2>&1
-// RUN: %if ext_oneapi_level_zero %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --implicit-check-not=LEAK %s %}
+// RUN: %if ext_oneapi_level_zero %{ %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --implicit-check-not=LEAK %s %}
 
 // This test checks the profiling of an event returned
 // from graph submission with event::get_profiling_info().
