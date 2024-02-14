@@ -303,9 +303,9 @@ bool Command::isFusable() const {
   if ((MType != CommandType::RUN_CG)) {
     return false;
   }
-  const auto &CG = (dynamic_cast<const ExecCGCommand &>(*this)).getCG();
+  const auto &CG = (static_cast<const ExecCGCommand &>(*this)).getCG();
   return (CG.getType() == CG::CGTYPE::Kernel) &&
-         (!dynamic_cast<const CGExecKernel &>(CG).MKernelIsCooperative);
+         (!static_cast<const CGExecKernel &>(CG).MKernelIsCooperative);
 }
 
 static void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls,
