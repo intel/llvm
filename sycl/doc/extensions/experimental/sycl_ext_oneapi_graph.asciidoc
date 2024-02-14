@@ -366,9 +366,11 @@ class dynamic_parameter {
 public:
   dynamic_parameter(command_graph<graph_state::modifiable> graph);
 
+  dynamic_parameter(const ValueT &initialValue, command_graph<graph_state::modifiable> graph);
+
   void register(int argIndex, const handler& cgh);
 
-  void update_value(const ValueT& newValue);
+  void update(const ValueT& newValue);
 };
 
 class node {
@@ -575,6 +577,19 @@ arguments.
 
 Parameters:
 
+* `graph` - Graph containing the nodes which will have dynamic parameters.
+
+|
+[source,c++]
+----
+dynamic_parameter(const ValueT &initialValue, command_graph<graph_state::modifiable> graph);
+----
+|Constructs a dynamic parameter object that can be registered with node
+arguments, while providing an intiial value.
+
+Parameters:
+
+* `initialValue` - Initial value for the dynamic parameter.
 * `graph` - Graph containing the nodes which will have dynamic parameters.
 
 |
