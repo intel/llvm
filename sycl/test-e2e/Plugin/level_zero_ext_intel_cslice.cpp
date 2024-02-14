@@ -53,11 +53,20 @@ bool IsPVC(device &d) {
   return masked_device_id == 0xbd0 || masked_device_id == 0xb60;
 }
 
+bool IsPVC_2T(device &d) {
+  // PVC-1T does not support partitioning by affinity domain,
+  // while PVC-2T does.
+  if (!isPartitionableByAffinityDomain(d))
+    return false;
+
+  return IsPVC(d);
+}
+
 void test_pvc(device &d) {
   std::cout << "Test PVC Begin" << std::endl;
   // CHECK-PVC: Test PVC Begin
-  std::cout << "IsPVC: " << IsPVC(d) << std::endl;
-  if (IsPVC(d)) {
+  std::cout << "IsPVC: " << IsPVC_2T(d) << std::endl;
+  if (IsPVC_2T(d)) {
     assert(isPartitionableByAffinityDomain(d));
     assert(!isPartitionableByCSlice(d));
     {
@@ -146,7 +155,7 @@ void test_pvc(device &d) {
 }
 
 void test_non_pvc(device &d) {
-  if (IsPVC(d))
+  if (IsPVC_2T(d))
     return;
 
   // Non-PVC devices are not partitionable by CSlice at any level of

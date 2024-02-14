@@ -10,14 +10,39 @@
 
 using namespace sycl;
 
+template <typename RangeTy, typename ElemTy>
+bool contains(RangeTy &&Range, const ElemTy &Elem) {
+  return std::find(Range.begin(), Range.end(), Elem) != Range.end();
+}
+
+bool isPartitionableBy(device &Dev, info::partition_property Prop) {
+  return contains(Dev.get_info<info::device::partition_properties>(), Prop);
+}
+
+bool isPartitionableByAffinityDomain(device &Dev) {
+  return isPartitionableBy(
+      Dev, info::partition_property::partition_by_affinity_domain);
+}
+
+bool IsPVC(device &d) {
+  uint32_t masked_device_id =
+      d.get_info<ext::intel::info::device::device_id>() & 0xff0;
+  return masked_device_id == 0xbd0 || masked_device_id == 0xb60;
+}
+
+bool IsPVC_2T(device &d) {
+  // PVC-1T does not support partitioning by affinity domain,
+  // while PVC-2T does.
+  if (!isPartitionableByAffinityDomain(d))
+    return false;
+
+  return IsPVC(d);
+}
+
 void test_pvc(device &d) {
   std::cout << "Test PVC Begin" << std::endl;
   // CHECK-PVC: Test PVC Begin
-  bool IsPVC = [&]() {
-    uint32_t masked_device_id =
-        d.get_info<ext::intel::info::device::device_id>() & 0xff0;
-    return masked_device_id == 0xbd0 || masked_device_id == 0xb60;
-  }();
+  bool IsPVC = IsPVC_2T(d);
   std::cout << "IsPVC: " << std::boolalpha << IsPVC << std::endl;
   if (IsPVC) {
     assert(d.get_info<ext::intel::info::device::max_compute_queue_indices>() ==

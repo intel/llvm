@@ -21,6 +21,35 @@
 using namespace sycl;
 using namespace std::chrono;
 
+template <typename RangeTy, typename ElemTy>
+bool contains(RangeTy &&Range, const ElemTy &Elem) {
+  return std::find(Range.begin(), Range.end(), Elem) != Range.end();
+}
+
+bool isPartitionableBy(device &Dev, info::partition_property Prop) {
+  return contains(Dev.get_info<info::device::partition_properties>(), Prop);
+}
+
+bool isPartitionableByAffinityDomain(device &Dev) {
+  return isPartitionableBy(
+      Dev, info::partition_property::partition_by_affinity_domain);
+}
+
+bool IsPVC(device &d) {
+  uint32_t masked_device_id =
+      d.get_info<ext::intel::info::device::device_id>() & 0xff0;
+  return masked_device_id == 0xbd0 || masked_device_id == 0xb60;
+}
+
+bool IsPVC_2T(device &d) {
+  // PVC-1T does not support partitioning by affinity domain,
+  // while PVC-2T does.
+  if (!isPartitionableByAffinityDomain(d))
+    return false;
+
+  return IsPVC(d);
+}
+
 #define random_float() (rand() / double(RAND_MAX))
 #define INTER_NUM (150)
 #define KERNEL_NUM (2000)
@@ -90,6 +119,10 @@ int main(void) {
   std::vector<device> subsub;
 
   device d;
+
+  // PVC-1T does not support partition by affinity domain
+  if (!IsPVC_2T(d))
+    return 0;
 
   // watch out device here
   auto subdevices = d.create_sub_devices<
