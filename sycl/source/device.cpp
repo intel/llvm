@@ -172,24 +172,30 @@ std::vector<detail::string> device::get_device_info_vector() const {
   return Result;
 }
 
-// Several get_device_info<> need to be specialized to avoid link-time errors.
-// template<> 
-// detail::string detail::get_device_info<info::device::name>() const {
-//   std::string Info = impl->template get_info<info::device::name>();
-//   return detail::string(Info);
-// }
+// get_device_info<>() need to be specialized to avoid link-time errors.
+template <> 
+detail::string device::get_device_info<info::device::name>() const {
+  std::string Info = impl->template get_info<info::device::name>();
+  return detail::string(Info);
+}
 
-// template<> 
-// detail::string detail::get_device_info<info::device::driver_version>() const {
-//   std::string Info = impl->template get_info<info::device::driver_version>();
-//   return detail::string(Info);
-// }
+template <> 
+detail::string device::get_device_info<info::device::driver_version>() const {
+  std::string Info = impl->template get_info<info::device::driver_version>();
+  return detail::string(Info);
+}
 
-// template<> 
-// detail::string detail::get_device_info<info::device::version>() const {
-//   std::string Info = impl->template get_info<info::device::version>();
-//   return detail::string(Info);
-// }
+template <> 
+detail::string device::get_device_info<info::device::vendor>() const {
+  std::string Info = impl->template get_info<info::device::vendor>();
+  return detail::string(Info);
+}
+
+template <> 
+detail::string device::get_device_info<info::device::version>() const {
+  std::string Info = impl->template get_info<info::device::version>();
+  return detail::string(Info);
+}
 #else
 template <typename Param>
 typename detail::is_device_info_desc<Param>::return_type

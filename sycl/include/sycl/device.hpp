@@ -358,8 +358,7 @@ private:
   detail::string get_device_info() const;
   
   template <typename Param>
-  std::vector<detail::string>
-  get_device_info_vector() const;
+  std::vector<detail::string> get_device_info_vector() const;
 #endif
 };
 
