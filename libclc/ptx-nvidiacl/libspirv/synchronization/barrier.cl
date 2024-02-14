@@ -9,14 +9,34 @@
 #include <spirv/spirv.h>
 #include <spirv/spirv_types.h>
 
+int __clc_nvvm_reflect_arch();
+
 _CLC_OVERLOAD _CLC_DEF void __spirv_MemoryBarrier(unsigned int memory,
                                                   unsigned int semantics) {
-  if (memory == CrossDevice) {
-    __nvvm_membar_sys();
-  } else if (memory == Device) {
-    __nvvm_membar_gl();
+
+  // for sm_70 and above membar becomes semantically identical to fence.sc.
+  // However sm_70 and above also introduces a lightweight fence.acq_rel that
+  // can be used to form either acquire or release strong operations.
+
+  unsigned int order = semantics & 0x1F;
+  if (order == None) {
+  } else if (__clc_nvvm_reflect_arch() < 700 ||
+             order == SequentiallyConsistent) {
+    if (memory == CrossDevice) {
+      __nvvm_membar_sys();
+    } else if (memory == Device) {
+      __nvvm_membar_gl();
+    } else {
+      __nvvm_membar_cta();
+    }
   } else {
-    __nvvm_membar_cta();
+    if (memory == CrossDevice) {
+      __asm__ __volatile__("fence.acq_rel.sys;");
+    } else if (memory == Device) {
+      __asm__ __volatile__("fence.acq_rel.gpu;");
+    } else {
+      __asm__ __volatile__("fence.acq_rel.cta;");
+    }
   }
 }
 
