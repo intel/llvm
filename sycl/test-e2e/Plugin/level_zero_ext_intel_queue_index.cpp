@@ -30,9 +30,9 @@ bool IsPVC(device &d) {
   return masked_device_id == 0xbd0 || masked_device_id == 0xb60;
 }
 
-bool IsPVC_2T(device &d) {
-  // PVC-1T does not support partitioning by affinity domain,
-  // while PVC-2T does.
+bool IsPVC_MultiTiles(device &d) {
+  // PVC-1T (one tile) does not support partitioning by affinity domain,
+  // which this test requires
   if (!isPartitionableByAffinityDomain(d))
     return false;
 
@@ -42,7 +42,7 @@ bool IsPVC_2T(device &d) {
 void test_pvc(device &d) {
   std::cout << "Test PVC Begin" << std::endl;
   // CHECK-PVC: Test PVC Begin
-  bool IsPVC = IsPVC_2T(d);
+  bool IsPVC = IsPVC_MultiTiles(d);
   std::cout << "IsPVC: " << std::boolalpha << IsPVC << std::endl;
   if (IsPVC) {
     assert(d.get_info<ext::intel::info::device::max_compute_queue_indices>() ==
