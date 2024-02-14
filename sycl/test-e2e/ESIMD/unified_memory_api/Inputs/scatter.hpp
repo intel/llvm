@@ -455,7 +455,7 @@ template <typename T, uint16_t N, uint16_t VS, bool UseMask, bool UseProperties,
 bool testLACC(queue Q, uint32_t MaskStride,
               ScatterPropertiesT ScatterProperties) {
   constexpr uint32_t Groups = 8;
-  constexpr uint32_t Threads = 1;
+  constexpr uint32_t Threads = 16;
   constexpr size_t Size = Groups * Threads * N;
   static_assert(VS > 0 && N % VS == 0,
                 "Incorrect VS parameter. N must be divisible by VS.");
@@ -476,7 +476,7 @@ bool testLACC(queue Q, uint32_t MaskStride,
 
   try {
     Q.submit([&](handler &cgh) {
-       constexpr uint32_t SLMSize = (Threads * N) * sizeof(T);
+       constexpr uint32_t SLMSize = Size;
        auto LocalAcc = local_accessor<T, 1>(SLMSize, cgh);
 
        cgh.parallel_for(Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
@@ -486,19 +486,16 @@ bool testLACC(queue Q, uint32_t MaskStride,
          uint32_t GlobalElemOffset = GlobalID * N;
          uint32_t LocalElemOffset = LocalID * N;
 
-         if (LocalID == 0) {
-           for (int I = 0; I < Threads * N; I++) {
-             simd<T, 1> InVec(Out + GlobalElemOffset + I);
-             LocalAcc[I] = InVec[0];
-           }
+         for (int I = 0; I < Size; I++) {
+           LocalAcc[I] = Out[I];
          }
-         barrier();
 
-         simd<uint32_t, NOffsets> ByteOffsets(LocalElemOffset * sizeof(T),
+         simd<uint32_t, NOffsets> ByteOffsets(GlobalElemOffset * sizeof(T),
                                               VS * sizeof(T));
          auto ByteOffsetsView = ByteOffsets.template select<NOffsets, 1>();
 
          simd<T, N> Vals = gather<T, N, VS>(LocalAcc, ByteOffsets, Props);
+         barrier();
          Vals *= 2;
 
          auto ValsView = Vals.template select<N, 1>();
@@ -595,12 +592,9 @@ bool testLACC(queue Q, uint32_t MaskStride,
            }
          }
          barrier();
-         if (LocalID == 0) {
-           for (int I = 0; I < Threads * N; I++) {
-             simd<uint32_t, 1> Offsets(I * sizeof(T), sizeof(T));
-             simd<T, 1> OutVec = gather<T>(LocalAcc, Offsets);
-             OutVec.copy_to(Out + GlobalElemOffset + I);
-           }
+
+         for (int I = 0; I < N; I++) {
+           Out[GlobalElemOffset + I] = LocalAcc[GlobalElemOffset + I];
          }
        });
      }).wait();
