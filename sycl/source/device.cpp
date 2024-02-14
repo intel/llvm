@@ -141,7 +141,7 @@ device::get_info_impl() const {
 }
 
 template <typename Param>
-std::ReturnType<typename detail::is_device_info_desc<Param>::return_type>
+typename std::ReturnType<typename detail::is_device_info_desc<Param>::return_type>::type
 device::get_info_internal() const {
   if constexpr (std::is_same_v<std::string,
                                 typename detail::is_device_info_desc<
@@ -182,7 +182,7 @@ detail::string device::get_device_info() const {
 }
 
 template <typename Param>
-device::get_device_info_vector() const {
+std::vector<detail::string> device::get_device_info_vector() const {
   std::vector<std::string> Info = impl->template get_info<Param>();
   // if (PropertyName == DeviceProperty::BUILT_IN_KERNELS) {
   //   Info = impl->template get_info<info::device::built_in_kernels>();
