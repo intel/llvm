@@ -115,7 +115,7 @@ enum class aspect : /*unspecified*/ {
 The `ext_oneapi_scla` aspect indicates that the device is capable of using the
 `private_alloca` API defined in the following sections.
 
-=== The `private_alloca` function
+=== The SCLA API
 
 [source,c++]
 ----
@@ -124,10 +124,18 @@ template <typename ElementType, auto &SpecName,
           access::decorated DecorateAddress>
 private_ptr<ElementType, DecorateAddress>
 private_alloca(kernel_handler &kh);
+
+template <typename ElementType, std::size_t Alignment, auto &SpecName,
+          access::decorated DecorateAddress>
+private_ptr<ElementType, DecorateAddress>
+aligned_private_alloca(kernel_handler &kh);
 } // namespace sycl::ext::oneapi::experimental
 ----
+
 _Mandates_: `ElementType` must be a cv-unqualified trivial type and `SpecName`
-must be a reference to a specialization constant of integral `value_type`.
+must be a reference to a specialization constant of integral `value_type`. In
+the case of `aligned_private_alloca`, `Alignment` must be a power of 2
+fundamental alignment stricter than `ElementType`'s alignment requirement.
 
 _Effects_: `h.get_specialization_constant<size>()` elements of type
 `ElementType` are allocated and default initialized in private memory.
@@ -135,7 +143,9 @@ _Effects_: `h.get_specialization_constant<size>()` elements of type
 _Returns_: A pointer to a default initialized region of private memory of
 `h.get_specialization_constant<size>()` elements of type
 `ElementType`. `DecorateAddress` defines whether the returned `multi_ptr` is
-decorated.
+decorated. In the case of `private_alloca`, the pointer is suitably aligned for
+an object of type `ElementType`. In the case of `aligned_private_alloca`, the
+pointer is aligned to the specified `Alignment`.
 
 _Remarks_: In case of private memory exhaustion, the underlying backend must
 report an error in the same fashion as if the allocation size were static. In
