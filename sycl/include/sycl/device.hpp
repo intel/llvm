@@ -248,26 +248,11 @@ public:
     if constexpr (std::is_same_v<std::string,
                                  typename detail::is_device_info_desc<
                                      Param>::return_type>) {
-      // auto *Map = getMap();
-      // auto iter = Map->find(typeid(Param).name());
-      // if (iter == Map->end()) {
-      //   throw sycl::invalid_parameter_error("unsupported device info requested",
-      //                                       PI_ERROR_INVALID_OPERATION);
-      // }
-      // DeviceProperty PropertyName = iter->second;
       detail::string Info = get_device_info<Param>();
       return Info.c_str();
     } else if constexpr (std::is_same_v<std::vector<std::string>,
                                         typename detail::is_device_info_desc<
                                             Param>::return_type>) {
-      // return value is std::vector<std::string>
-      // auto *Map = getMap();
-      // auto iter = Map->find(typeid(Param).name());
-      // if (iter == Map->end()) {
-      //   throw sycl::invalid_parameter_error("unsupported device info requested",
-      //                                       PI_ERROR_INVALID_OPERATION);
-      // }
-      // DeviceProperty PropertyName = iter->second;
       std::vector<detail::string> Info = get_device_info_vector<Param>();
       std::vector<std::string> Res;
       Res.reserve(Info.size());
@@ -361,7 +346,7 @@ private:
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
-  typename std::ReturnType<typename detail::is_device_info_desc<Param>::return_type>::type
+  typename detail::is_device_info_desc<Param>::return_type
   get_info_impl() const;
 
   // proxy of get_info_internal() to handle C++11-ABI compatibility separately.
