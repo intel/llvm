@@ -111,14 +111,14 @@ int main() {
             float sum = 0;
             // Extension: read image data from handle
             float px1 = sycl::ext::oneapi::experimental::read_image<float>(
-                imgHandle1, sycl::int4(dim0, dim1, dim2, 0));
+                imgHandle1, sycl::int3(dim0, dim1, dim2));
             float px2 = sycl::ext::oneapi::experimental::read_image<float>(
-                imgHandle2, sycl::int4(dim0, dim1, dim2, 0));
+                imgHandle2, sycl::int3(dim0, dim1, dim2));
 
             sum = px1 + px2;
             // Extension: write to image with handle
             sycl::ext::oneapi::experimental::write_image<float>(
-                imgHandle3, sycl::int4(dim0, dim1, dim2, 0), sum);
+                imgHandle3, sycl::int3(dim0, dim1, dim2), sum);
           });
     });
 

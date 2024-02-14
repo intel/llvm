@@ -151,7 +151,7 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
               VecType pixel;
               pixel = syclexp::read_image<
                   std::conditional_t<NChannels == 1, DType, VecType>>(
-                  handles.imgInput, sycl::float4(fdim0, fdim1, fdim2, 0));
+                  handles.imgInput, sycl::float3(fdim0, fdim1, fdim2));
 
               pixel *= static_cast<DType>(10.1f);
               outAcc[sycl::id{dim2, dim1, dim0}] = pixel;

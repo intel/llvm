@@ -1030,15 +1030,11 @@ of the <<recognized_standard_types>>.
 Sampled images cannot be written to using `write_image`.
 
 For reading and writing of unsampled images, coordinates are specified by `int`, 
-`sycl::vec<int, 2>`, and `sycl::vec<int, 4>` for 1D, 2D, and 3D images, 
+`sycl::vec<int, 2>`, and `sycl::vec<int, 3>` for 1D, 2D, and 3D images, 
 respectively.
 
 Sampled image reads take `float`, `sycl::vec<float, 2>`, and 
-`sycl::vec<float, 4>` coordinate types for 1D, 2D, and 3D images, respectively.
-
-Note that in the case of 3D reads or writes, coordinates for 3D images take a 
-vector of size 4, not 3, as the fourth element in the coordinate vector is 
-ignored.
+`sycl::vec<float, 3>` coordinate types for 1D, 2D, and 3D images, respectively.
 
 Note also that all images must be used in either read-only or write-only fashion 
 within a single kernel invocation; read/write images are not supported.
@@ -1061,7 +1057,7 @@ standard types.
 
 * All POD types (`char`, `short`, `int`, `float`, etc.) excluding `double`
 * `sycl::half`
-* Variants of `sycl::vec<T, N>` where `T` is one of the above, and `N` is `1`, `2`, or `4`
+* Variants of `sycl::vec<T, N>` where `T` is one of the above, and `N` is `1`, `2`, or `3`
 
 Any other types are classified as user-defined types.
 
@@ -1080,7 +1076,7 @@ struct my_short2 {
 ```
 
 When providing the above types as `DataT` parameters to an image read function, 
-the corresponding `HintT` parameters to use would be `sycl::vec<float, 4>` and 
+the corresponding `HintT` parameters to use would be `sycl::vec<float, 4>` and
 `sycl::vec<short, 2>`, respectively.
 
 == Mipmapped images
