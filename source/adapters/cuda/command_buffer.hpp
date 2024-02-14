@@ -12,6 +12,7 @@
 #include <ur_api.h>
 
 #include "context.hpp"
+#include "logger/ur_logger.hpp"
 #include <cuda.h>
 #include <memory>
 
@@ -169,10 +170,10 @@ static inline const char *getUrResultString(ur_result_t Result) {
 #define UR_CALL(Call, Result)                                                  \
   {                                                                            \
     if (PrintTrace)                                                            \
-      fprintf(stderr, "UR ---> %s\n", #Call);                                  \
+      logger::always("UR ---> {}", #Call);                                     \
     Result = (Call);                                                           \
     if (PrintTrace)                                                            \
-      fprintf(stderr, "UR <--- %s(%s)\n", #Call, getUrResultString(Result));   \
+      logger::always("UR <--- {}({})", #Call, getUrResultString(Result));      \
   }
 
 // Handle to a kernel command.
