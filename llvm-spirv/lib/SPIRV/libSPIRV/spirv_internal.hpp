@@ -70,6 +70,9 @@ enum InternalOp {
   IOpJointMatrixUUMadINTEL = 6130,
   IOpArithmeticFenceINTEL = 6145,
   IOpTypeJointMatrixINTELv2 = 6184,
+  IOpCooperativeMatrixLoadCheckedINTEL = 6193,
+  IOpCooperativeMatrixStoreCheckedINTEL = 6194,
+  IOpCooperativeMatrixConstructCheckedINTEL = 6195,
   IOpJointMatrixWorkItemLengthINTEL = 6410,
   IOpComplexFMulINTEL = 6415,
   IOpComplexFDivINTEL = 6416,
@@ -105,6 +108,7 @@ enum InternalCapability {
   ICapabilityHWThreadQueryINTEL = 6134,
   ICapFPArithmeticFenceINTEL = 6144,
   ICapGlobalVariableDecorationsINTEL = 6146,
+  ICapabilityCooperativeMatrixCheckedInstructionsINTEL = 6192,
   ICapabilityCooperativeMatrixPrefetchINTEL = 6411,
   ICapabilityComplexFloatMulDivINTEL = 6414,
   ICapabilityTensorFloat32RoundingINTEL = 6425,
@@ -115,13 +119,15 @@ enum InternalCapability {
   ICapabilityJointMatrixBF16ComponentTypeINTEL = 6437,
   ICapabilityJointMatrixPackedInt2ComponentTypeINTEL = 6438,
   ICapabilityJointMatrixPackedInt4ComponentTypeINTEL = 6439,
-  ICapabilityCacheControlsINTEL = 6441
+  ICapabilityCacheControlsINTEL = 6441,
+  ICapabilitySubgroupRequirementsINTEL = 6445
 };
 
 enum InternalFunctionControlMask { IFunctionControlOptNoneINTELMask = 0x10000 };
 
 enum InternalExecutionMode {
   IExecModeFastCompositeKernelINTEL = 6088,
+  IExecModeNamedSubgroupSizeINTEL = 6446
 };
 
 constexpr LinkageType LinkageTypeInternal =
@@ -185,6 +191,11 @@ _SPIRV_OP(Op, JointMatrixGetElementCoordINTEL)
 _SPIRV_OP(Capability, CooperativeMatrixPrefetchINTEL)
 _SPIRV_OP(Op, CooperativeMatrixPrefetchINTEL)
 
+_SPIRV_OP(Capability, CooperativeMatrixCheckedInstructionsINTEL)
+_SPIRV_OP(Op, CooperativeMatrixLoadCheckedINTEL)
+_SPIRV_OP(Op, CooperativeMatrixStoreCheckedINTEL)
+_SPIRV_OP(Op, CooperativeMatrixConstructCheckedINTEL)
+
 _SPIRV_OP(Capability, CooperativeMatrixInvocationInstructionsINTEL)
 _SPIRV_OP(Op, CooperativeMatrixApplyFunctionINTEL)
 
@@ -204,6 +215,8 @@ _SPIRV_OP(Capability, TensorFloat32RoundingINTEL)
 _SPIRV_OP(Op, RoundFToTF32INTEL)
 
 _SPIRV_OP(Capability, CacheControlsINTEL)
+
+_SPIRV_OP(Capability, SubgroupRequirementsINTEL)
 #undef _SPIRV_OP
 
 constexpr SourceLanguage SourceLanguagePython =
@@ -292,6 +305,9 @@ constexpr FunctionControlMask FunctionControlOptNoneINTELMask =
 
 constexpr ExecutionMode ExecutionModeFastCompositeKernelINTEL =
     static_cast<ExecutionMode>(IExecModeFastCompositeKernelINTEL);
+
+constexpr ExecutionMode ExecutionModeNamedSubgroupSizeINTEL =
+    static_cast<ExecutionMode>(IExecModeNamedSubgroupSizeINTEL);
 
 } // namespace internal
 } // namespace spv

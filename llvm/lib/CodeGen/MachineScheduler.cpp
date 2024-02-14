@@ -32,7 +32,6 @@
 #include "llvm/CodeGen/MachineOperand.h"
 #include "llvm/CodeGen/MachinePassRegistry.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
-#include "llvm/CodeGen/MachineValueType.h"
 #include "llvm/CodeGen/RegisterClassInfo.h"
 #include "llvm/CodeGen/RegisterPressure.h"
 #include "llvm/CodeGen/ScheduleDAG.h"
@@ -48,6 +47,7 @@
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSchedule.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
+#include "llvm/CodeGenTypes/MachineValueType.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/MC/LaneBitmask.h"
@@ -3804,6 +3804,12 @@ ScheduleDAGMILive *llvm::createGenericSchedLive(MachineSchedContext *C) {
   // data and pass it to later mutations. Have a single mutation that gathers
   // the interesting nodes in one pass.
   DAG->addMutation(createCopyConstrainDAGMutation(DAG->TII, DAG->TRI));
+
+  const TargetSubtargetInfo &STI = C->MF->getSubtarget();
+  // Add MacroFusion mutation if fusions are not empty.
+  const auto &MacroFusions = STI.getMacroFusions();
+  if (!MacroFusions.empty())
+    DAG->addMutation(createMacroFusionDAGMutation(MacroFusions));
   return DAG;
 }
 
@@ -3953,8 +3959,15 @@ void PostGenericScheduler::schedNode(SUnit *SU, bool IsTopNode) {
 }
 
 ScheduleDAGMI *llvm::createGenericSchedPostRA(MachineSchedContext *C) {
-  return new ScheduleDAGMI(C, std::make_unique<PostGenericScheduler>(C),
-                           /*RemoveKillFlags=*/true);
+  ScheduleDAGMI *DAG =
+      new ScheduleDAGMI(C, std::make_unique<PostGenericScheduler>(C),
+                        /*RemoveKillFlags=*/true);
+  const TargetSubtargetInfo &STI = C->MF->getSubtarget();
+  // Add MacroFusion mutation if fusions are not empty.
+  const auto &MacroFusions = STI.getMacroFusions();
+  if (!MacroFusions.empty())
+    DAG->addMutation(createMacroFusionDAGMutation(MacroFusions));
+  return DAG;
 }
 
 //===----------------------------------------------------------------------===//

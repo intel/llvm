@@ -74,8 +74,10 @@ class BuiltinCallMutator {
   // the new instruction is created.
   std::function<llvm::Value *(llvm::IRBuilder<> &, llvm::CallInst *)> MutateRet;
   typedef decltype(MutateRet) MutateRetFuncTy;
-  // The attribute list for the new call instruction.
+  // The attribute list for the new called function.
   llvm::AttributeList Attrs;
+  // The attribute list for the new call instruction.
+  llvm::AttributeList CallAttrs;
   // The return type for the new call instruction.
   llvm::Type *ReturnTy;
   // The arguments for the new call instruction.

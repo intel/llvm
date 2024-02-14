@@ -334,6 +334,14 @@ intel_gpu_pvc
 a|
 [source]
 ----
+intel_gpu_pvc_vg
+----
+|-
+|Ponte Vecchio VG Intel graphics architecture.
+
+a|
+[source]
+----
 intel_gpu_8_0_0 = intel_gpu_bdw
 intel_gpu_9_0_9 = intel_gpu_skl
 intel_gpu_9_1_9 = intel_gpu_kbl
@@ -973,7 +981,7 @@ int main() {
     syclex::if_architecture_is<syclex::architecture::intel_gpu_pvc>([&]{
       // Code for PVC
     }).otherwise([&]{
-      // Fallback code
+      // Generic code
     });
   });
 
@@ -987,7 +995,7 @@ int main() {
                                        syclex::architecture::amd_gpu_gfx1013>([&]{
       // Code for AMD devices between gfx1010 and gfx1013 (inclusive)
     }).otherwise([&]{
-      // Fallback code
+      // Generic code
     });
   });
 }

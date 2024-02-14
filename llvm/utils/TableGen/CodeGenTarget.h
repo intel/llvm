@@ -23,7 +23,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/CodeGen/MachineValueType.h"
+#include "llvm/CodeGenTypes/MachineValueType.h"
 #include <cassert>
 #include <memory>
 #include <optional>
@@ -74,6 +74,7 @@ class CodeGenTarget {
 
   mutable StringRef InstNamespace;
   mutable std::vector<const CodeGenInstruction*> InstrsByEnum;
+  mutable DenseMap<const Record *, unsigned> InstrToIntMap;
   mutable unsigned NumPseudoInstructions = 0;
 public:
   CodeGenTarget(RecordKeeper &Records);
@@ -190,6 +191,15 @@ public:
     if (InstrsByEnum.empty())
       ComputeInstrsByEnum();
     return InstrsByEnum;
+  }
+
+  /// Return the integer enum value corresponding to this instruction record.
+  unsigned getInstrIntValue(const Record *R) const {
+    if (InstrsByEnum.empty())
+      ComputeInstrsByEnum();
+    auto V = InstrToIntMap.find(R);
+    assert(V != InstrToIntMap.end() && "instr not in InstrToIntMap");
+    return V->second;
   }
 
   typedef ArrayRef<const CodeGenInstruction *>::const_iterator inst_iterator;

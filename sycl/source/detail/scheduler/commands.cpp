@@ -299,6 +299,12 @@ bool Command::isHostTask() const {
           CG::CGTYPE::CodeplayHostTask);
 }
 
+bool Command::isFusable() const {
+  return (MType == CommandType::RUN_CG) &&
+         ((static_cast<const ExecCGCommand *>(this))->getCG().getType() ==
+          CG::CGTYPE::Kernel);
+}
+
 static void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls,
                                 const QueueImplPtr &Queue) {
   for (auto &EventImpl : EventImpls) {
@@ -1825,7 +1831,7 @@ void UpdateHostRequirementCommand::emitInstrumentationData() {
 #endif
 }
 
-static std::string cgTypeToString(detail::CG::CGTYPE Type) {
+static std::string_view cgTypeToString(detail::CG::CGTYPE Type) {
   switch (Type) {
   case detail::CG::Kernel:
     return "Kernel";
@@ -1845,6 +1851,10 @@ static std::string cgTypeToString(detail::CG::CGTYPE Type) {
   case detail::CG::CopyPtrToAcc:
     return "copy ptr to acc";
     break;
+  case detail::CG::Barrier:
+    return "barrier";
+  case detail::CG::BarrierWaitlist:
+    return "barrier waitlist";
   case detail::CG::CopyUSM:
     return "copy usm";
     break;
@@ -1863,6 +1873,8 @@ static std::string cgTypeToString(detail::CG::CGTYPE Type) {
   case detail::CG::Fill2DUSM:
     return "fill 2d usm";
     break;
+  case detail::CG::AdviseUSM:
+    return "advise usm";
   case detail::CG::Memset2DUSM:
     return "memset 2d usm";
     break;
@@ -1872,6 +1884,16 @@ static std::string cgTypeToString(detail::CG::CGTYPE Type) {
   case detail::CG::CopyFromDeviceGlobal:
     return "copy from device_global";
     break;
+  case detail::CG::ReadWriteHostPipe:
+    return "read_write host pipe";
+  case detail::CG::ExecCommandBuffer:
+    return "exec command buffer";
+  case detail::CG::CopyImage:
+    return "copy image";
+  case detail::CG::SemaphoreWait:
+    return "semaphore wait";
+  case detail::CG::SemaphoreSignal:
+    return "semaphore signal";
   default:
     return "unknown";
     break;
@@ -2102,7 +2124,7 @@ void ExecCGCommand::emitInstrumentationData() {
         KernelCG->getKernelName(), MAddress, FromSource);
   } break;
   default:
-    KernelName = cgTypeToString(MCommandGroup->getType());
+    KernelName = getTypeString();
     break;
   }
 
@@ -2150,7 +2172,7 @@ void ExecCGCommand::printDot(std::ostream &Stream) const {
     break;
   }
   default:
-    Stream << "CG type: " << cgTypeToString(MCommandGroup->getType()) << "\\n";
+    Stream << "CG type: " << getTypeString() << "\\n";
     break;
   }
 
@@ -2163,6 +2185,10 @@ void ExecCGCommand::printDot(std::ostream &Stream) const {
            << "MemObj: " << Dep.MDepRequirement->MSYCLMemObj << " \" ]"
            << std::endl;
   }
+}
+
+std::string_view ExecCGCommand::getTypeString() const {
+  return cgTypeToString(MCommandGroup->getType());
 }
 
 // SYCL has a parallel_for_work_group variant where the only NDRange
@@ -2678,7 +2704,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
   }
 
   sycl::detail::pi::PiEvent *Event =
-      (MQueue->has_discard_events_support() &&
+      (MQueue->supportsDiscardingPiEvents() &&
        MCommandGroup->getRequirements().size() == 0)
           ? nullptr
           : &MEvent->getHandleRef();
@@ -2825,11 +2851,11 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   auto RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
-  bool DiscardEvent = (MQueue->has_discard_events_support() &&
-                       MCommandGroup->getRequirements().size() == 0);
+  bool DiscardPiEvent = (MQueue->supportsDiscardingPiEvents() &&
+                         MCommandGroup->getRequirements().size() == 0);
   sycl::detail::pi::PiEvent *Event =
-      DiscardEvent ? nullptr : &MEvent->getHandleRef();
-  detail::EventImplPtr EventImpl = DiscardEvent ? nullptr : MEvent;
+      DiscardPiEvent ? nullptr : &MEvent->getHandleRef();
+  detail::EventImplPtr EventImpl = DiscardPiEvent ? nullptr : MEvent;
 
   switch (MCommandGroup->getType()) {
 

@@ -182,9 +182,15 @@ Instruction *InstCombinerImpl::commonCastTransforms(CastInst &CI) {
     if (!Cmp || Cmp->getOperand(0)->getType() != Sel->getType() ||
         (CI.getOpcode() == Instruction::Trunc &&
          shouldChangeType(CI.getSrcTy(), CI.getType()))) {
-      if (Instruction *NV = FoldOpIntoSelect(CI, Sel)) {
-        replaceAllDbgUsesWith(*Sel, *NV, CI, DT);
-        return NV;
+
+      // If it's a bitcast involving vectors, make sure it has the same number
+      // of elements on both sides.
+      if (CI.getOpcode() != Instruction::BitCast ||
+          match(&CI, m_ElementWiseBitCast(m_Value()))) {
+        if (Instruction *NV = FoldOpIntoSelect(CI, Sel)) {
+          replaceAllDbgUsesWith(*Sel, *NV, CI, DT);
+          return NV;
+        }
       }
     }
   }
@@ -838,7 +844,7 @@ Instruction *InstCombinerImpl::visitTrunc(TruncInst &Trunc) {
   //   //   extractelement <8 x i32> (bitcast <4 x i64> %X to <8 x i32>), i32 0
   // ```
   // can't be lowered by SPIR-V translator to "standard" format.
-  if (StringRef(Trunc.getModule()->getTargetTriple()).startswith("spir"))
+  if (StringRef(Trunc.getModule()->getTargetTriple()).starts_with("spir"))
     return nullptr;
 
   // Whenever an element is extracted from a vector, and then truncated,
