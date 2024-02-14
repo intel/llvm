@@ -57,14 +57,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit be849b2f745fc525cf77bc2fe42c469751093706
-  # Merge: 47102cb2 92a02504
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Feb 12 10:01:50 2024 +0000
-  #     Merge pull request #1324 from raiyanla/event-opt
-  #     [L0] Allocate event pools efficiently in multi-device scenarios
-  set(UNIFIED_RUNTIME_TAG be849b2f745fc525cf77bc2fe42c469751093706)
-  
+  # commit 8ff738f424de6f84fa16c9f7d41c8c70b766665d
+  # Merge: 5e548c5e fbdaf72a
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Tue Feb 13 13:01:03 2024 +0100
+  #     Merge pull request #1089 from Bensuo/ewan/update
+  #     [EXP][Command-Buffer] Add kernel command update
+  set(UNIFIED_RUNTIME_TAG 8ff738f424de6f84fa16c9f7d41c8c70b766665d)
+
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
   endif()

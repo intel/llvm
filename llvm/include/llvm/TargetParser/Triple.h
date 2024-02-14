@@ -285,7 +285,7 @@ public:
     Callable,
     Mesh,
     Amplification,
-
+    OpenCL,
     OpenHOS,
 
     LastEnvironmentType = OpenHOS

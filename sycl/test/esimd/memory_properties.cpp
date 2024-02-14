@@ -1439,9 +1439,17 @@ test_slm_gather_scatter(int byte_offset32) {
   slm_scatter<float, 32, 2>(ioffset_n16_view, slm_view, mask_n16, props_align4);
 
   simd<uint32_t, 10> ioffset_n10(byte_offset32, 8);
-  simd<float, 10> usm_n10;
+  simd<float, 10> slm_n10;
   // Check special case to verify that for cases when N is not power of 2 llvm
   // intrinsic is used
   // CHECK-COUNT-1: call void @llvm.masked.scatter.v10f32.v10p3(<10 x float> {{[^)]+}}, <10 x ptr addrspace(3)> {{[^)]+}}, i32 4, <10 x i1> {{[^)]+}})
-  slm_scatter(ioffset_n10, usm_n10);
+  slm_scatter(ioffset_n10, slm_n10);
+
+  // Check a case to verify emulation for 64 bit data types
+  // CHECK-COUNT-1: call <32 x i32> @llvm.masked.gather.v32i32.v32p3(<32 x ptr addrspace(3)> {{[^)]+}}, i32 8, <32 x i1> {{[^)]+}}, <32 x i32> {{[^)]+}})
+  // CHECK-COUNT-1: call <32 x i32> @llvm.masked.gather.v32i32.v32p3(<32 x ptr addrspace(3)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}}, <32 x i32> {{[^)]+}})
+  auto slm_64 = slm_gather<int64_t>(ioffset_n32);
+  // CHECK-COUNT-1: call void @llvm.masked.scatter.v32i32.v32p3(<32 x i32> {{[^)]+}}, <32 x ptr addrspace(3)> {{[^)]+}}, i32 8, <32 x i1> {{[^)]+}})
+  // CHECK-COUNT-1: call void @llvm.masked.scatter.v32i32.v32p3(<32 x i32> {{[^)]+}}, <32 x ptr addrspace(3)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}})
+  slm_scatter<int64_t>(ioffset_n32, slm_64);
 }

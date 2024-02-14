@@ -127,5 +127,13 @@ int main(void) {
     passed &= test<half, 32>(q);
   }
 
+  passed &= test<int64_t, 16>(q);
+  passed &= test<int64_t, 32>(q);
+
+  if (dev.has(sycl::aspect::fp64)) {
+    passed &= test<double, 16>(q);
+    passed &= test<double, 32>(q);
+  }
+
   return passed ? 0 : 1;
 }

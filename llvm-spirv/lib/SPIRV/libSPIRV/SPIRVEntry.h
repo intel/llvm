@@ -885,6 +885,8 @@ public:
       return ExtensionID::SPV_INTEL_vector_compute;
     case internal::CapabilityFastCompositeINTEL:
       return ExtensionID::SPV_INTEL_fast_composite;
+    case internal::CapabilitySubgroupRequirementsINTEL:
+      return ExtensionID::SPV_INTEL_subgroup_requirements;
     default:
       return {};
     }
