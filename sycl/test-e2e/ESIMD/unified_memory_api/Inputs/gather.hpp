@@ -513,14 +513,13 @@ bool testSLM(queue Q, uint32_t MaskStride, PropertiesT) {
        slm_init<SLMSize>();
 
        simd<T, N> InVec(In + GlobalElemOffset);
-       simd<uint32_t, N> offsets(0, sizeof(T));
-       slm_scatter<T>(offsets, InVec);
+       simd<uint32_t, NOffsets> ByteOffsets(0, VS * sizeof(T));
+       slm_scatter<T,N,VS>(ByteOffsets, InVec);
 
        barrier();
 
        PropertiesT Props{};
 
-       simd<uint32_t, NOffsets> ByteOffsets(0, VS * sizeof(T));
        simd_view ByteOffsetsView = ByteOffsets.template select<NOffsets, 1>();
 
        simd_mask<NOffsets> Pred;
@@ -637,7 +636,6 @@ bool testSLM(queue Q, uint32_t MaskStride, PropertiesT) {
 
        Vals.copy_to(Out + GlobalElemOffset);
 
-       
      }).wait();
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
@@ -807,13 +805,13 @@ bool testLACC(queue Q, uint32_t MaskStride, PropertiesT) {
          uint32_t GlobalElemOffset = GlobalID * N;
 
          simd<T, N> InVec(In + GlobalElemOffset);
-       simd<uint32_t, N> offsets(0, sizeof(T));
-       slm_scatter<T>(InAcc, offsets, InVec);
+       simd<OffsetT, NOffsets> ByteOffsets(0, VS * sizeof(T));
+       scatter<T,N,VS>(InAcc, ByteOffsets, InVec);
 
          barrier();
          PropertiesT Props{};
 
-         simd<OffsetT, NOffsets> ByteOffsets(GlobalElemOffset * sizeof(T), VS * sizeof(T));
+         
          simd_view ByteOffsetsView = ByteOffsets.template select<NOffsets, 1>();
 
          simd_mask<NOffsets> Pred;
