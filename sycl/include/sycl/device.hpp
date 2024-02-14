@@ -37,18 +37,13 @@ namespace std {
 // cases, and it is only called internally and not exposed to the user.
 // The following ReturnType structure is intended for general return type,
 // and special return types (std::string and vector of it).
-template <typename T>
-struct ReturnType {
-  using type = T;
-};
+template <typename T> struct ReturnType { using type = T; };
 
-template <>
-struct ReturnType<std::string> {
+template <> struct ReturnType<std::string> {
   using type = sycl::_V1::detail::string;
 };
 
-template <>
-struct ReturnType<std::vector<std::string>> {
+template <> struct ReturnType<std::vector<std::string>> {
   using type = std::vector<sycl::_V1::detail::string>;
 };
 } // namespace std
@@ -261,7 +256,7 @@ public:
       }
       return Res;
     } else
-    return get_info_impl<Param>();
+      return get_info_impl<Param>();
   }
 
 #else
@@ -350,13 +345,13 @@ private:
   get_info_impl() const;
 
   template <typename Param>
-  typename std::ReturnType<typename detail::is_device_info_desc<Param>::return_type>::type
+  typename std::ReturnType<
+      typename detail::is_device_info_desc<Param>::return_type>::type
   get_info_internal() const;
 
   // proxy of get_info_internal() to handle C++11-ABI compatibility separately.
-  template <typename Param>
-  detail::string get_device_info() const;
-  
+  template <typename Param> detail::string get_device_info() const;
+
   template <typename Param>
   std::vector<detail::string> get_device_info_vector() const;
 #endif
