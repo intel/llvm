@@ -486,14 +486,13 @@ bool testLACC(queue Q, uint32_t MaskStride,
          uint32_t GlobalElemOffset = GlobalID * N;
          uint32_t LocalElemOffset = LocalID * N;
 
-         for (int I = 0; I < Size; I++) {
-           LocalAcc[I] = Out[I];
-         }
+         simd<T, N> InVec(Out + GlobalElemOffset);
 
          simd<uint32_t, NOffsets> ByteOffsets(GlobalElemOffset * sizeof(T),
                                               VS * sizeof(T));
+         slm_scatter<T>(ByteOffsets, InVec);
+         barrier();
          auto ByteOffsetsView = ByteOffsets.template select<NOffsets, 1>();
-
          simd<T, N> Vals = gather<T, N, VS>(LocalAcc, ByteOffsets, Props);
          barrier();
          Vals *= 2;
@@ -593,9 +592,8 @@ bool testLACC(queue Q, uint32_t MaskStride,
          }
          barrier();
 
-         for (int I = 0; I < N; I++) {
-           Out[GlobalElemOffset + I] = LocalAcc[GlobalElemOffset + I];
-         }
+         simd<T, N> OutVec = gather<T, N, VS>(LocalAcc, ByteOffsets, Props);
+         OutVec.copy_to(Out + GlobalElemOffset);
        });
      }).wait();
   } catch (sycl::exception const &e) {
