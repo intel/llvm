@@ -455,7 +455,7 @@ template <typename T, uint16_t N, uint16_t VS, bool UseMask, bool UseProperties,
 bool testLACC(queue Q, uint32_t MaskStride,
               ScatterPropertiesT ScatterProperties) {
   constexpr uint32_t Groups = 8;
-  constexpr uint32_t Threads = 16;
+  constexpr uint32_t Threads = 1;
   constexpr size_t Size = Groups * Threads * N;
   static_assert(VS > 0 && N % VS == 0,
                 "Incorrect VS parameter. N must be divisible by VS.");
@@ -476,7 +476,7 @@ bool testLACC(queue Q, uint32_t MaskStride,
 
   try {
     Q.submit([&](handler &cgh) {
-       constexpr uint32_t SLMSize = Size;
+       constexpr uint32_t SLMSize = N;
        auto LocalAcc = local_accessor<T, 1>(SLMSize, cgh);
 
        cgh.parallel_for(Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
@@ -486,18 +486,14 @@ bool testLACC(queue Q, uint32_t MaskStride,
          uint32_t GlobalElemOffset = GlobalID * N;
          uint32_t LocalElemOffset = LocalID * N;
 
-         simd<T, N> InVec(Out + GlobalElemOffset);
+         simd<T, N> Vals(GlobalElemOffset, 1);
 
-         simd<uint32_t, NOffsets> ByteOffsets(GlobalElemOffset * sizeof(T),
-                                              VS * sizeof(T));
-         slm_scatter<T>(ByteOffsets, InVec);
-         barrier();
-         auto ByteOffsetsView = ByteOffsets.template select<NOffsets, 1>();
-         simd<T, N> Vals = gather<T, N, VS>(LocalAcc, ByteOffsets, Props);
-         barrier();
+         simd<uint32_t, NOffsets> ByteOffsets(0, VS * sizeof(T));
          Vals *= 2;
 
          auto ValsView = Vals.template select<N, 1>();
+         auto ByteOffsetsView = ByteOffsets.template select<NOffsets, 1>();
+
          simd_mask<NOffsets> Pred = 0;
          for (int I = 0; I < NOffsets; I++)
            Pred[I] = (I % MaskStride == 0) ? 1 : 0;
@@ -590,10 +586,13 @@ bool testLACC(queue Q, uint32_t MaskStride,
              }
            }
          }
-         barrier();
 
          simd<T, N> OutVec = gather<T, N, VS>(LocalAcc, ByteOffsets, Props);
-         OutVec.copy_to(Out + GlobalElemOffset);
+         if constexpr (UseMask) {
+           scatter<T, N, VS>(Out + GlobalElemOffset, ByteOffsets, OutVec, Pred);
+         } else {
+           OutVec.copy_to(Out + GlobalElemOffset);
+         }
        });
      }).wait();
   } catch (sycl::exception const &e) {
