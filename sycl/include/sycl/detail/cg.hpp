@@ -121,7 +121,7 @@ public:
   CG(CG &&CommandGroup) = default;
   CG(const CG &CommandGroup) = default;
 
-  CGTYPE getType() { return MType; }
+  CGTYPE getType() const { return MType; }
 
   std::vector<std::vector<char>> &getArgsStorage() {
     return MData.MArgsStorage;

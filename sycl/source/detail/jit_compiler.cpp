@@ -674,10 +674,6 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     auto &CG = KernelCmd->getCG();
     assert(KernelCmd->isFusable());
     auto *KernelCG = static_cast<CGExecKernel *>(&CG);
-    if (KernelCG->MKernelIsCooperative) {
-      printPerformanceWarning("Cannot fuse cooperative kernel");
-      return nullptr;
-    }
 
     auto KernelName = KernelCG->MKernelName;
     if (KernelName.empty()) {
