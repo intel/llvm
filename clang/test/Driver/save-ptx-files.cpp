@@ -16,7 +16,7 @@
 
 // CHECK-PTX-FILES: llvm-foreach{{.*}} "--out-ext=s"{{.*}} "--out-dir=/user/input/path{{(/|\\\\)}}" "--" "{{.*}}clang-{{[0-9]+}}" {{.*}} "-fsycl-is-device" {{.*}}.s{{.*}}
 // CHECK-SPIRV-FILES: llvm-foreach{{.*}} "--out-dir=/user/input/path{{(/|\\\\)}}" "--" "{{.*}}llvm-spirv"
-// CHECK-PTX-FILES-CWD: llvm-foreach{{.*}} "--out-ext=s"{{.*}} "--out-dir=.{{(/|\\\\)}}" "--" "{{.*}}clang-18" {{.*}} "-fsycl-is-device"
+// CHECK-PTX-FILES-CWD: llvm-foreach{{.*}} "--out-ext=s"{{.*}} "--out-dir=.{{(/|\\\\)}}" "--" "{{.*}}clang-{{[0-9]+}}" {{.*}} "-fsycl-is-device"
 // CHECK-SPIRV-FILES-CWD: llvm-foreach{{.*}} "--out-dir=.{{(/|\\\\)}}" "--" "{{.*}}llvm-spirv"
 
 // Windows - Check if PTX files are saved in the user provided path.
@@ -38,6 +38,6 @@
 // RUN: -fsycl-dump-device-code= %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHECK-PTX-WIN-CWD %s
 
-// CHECK-PTX-WIN: llvm-foreach{{.*}} "--out-ext=s"{{.*}} "--out-dir=/user/input/path{{(/|\\\\)}}" "--" "{{.*}}clang-18" {{.*}} "-fsycl-is-device" {{.*}}.asm{{.*}}
-// CHECK-PTX-WIN-CWD: llvm-foreach{{.*}} "--out-ext=s"{{.*}} "--out-dir=.{{(/|\\\\)}}" "--" "{{.*}}clang-18" {{.*}} "-fsycl-is-device" {{.*}}.asm{{.*}}
+// CHECK-PTX-WIN: llvm-foreach{{.*}} "--out-ext=s"{{.*}} "--out-dir=/user/input/path{{(/|\\\\)}}" "--" "{{.*}}clang-{{[0-9]+}}" {{.*}} "-fsycl-is-device" {{.*}}.asm{{.*}}
+// CHECK-PTX-WIN-CWD: llvm-foreach{{.*}} "--out-ext=s"{{.*}} "--out-dir=.{{(/|\\\\)}}" "--" "{{.*}}clang-{{[0-9]+}}" {{.*}} "-fsycl-is-device" {{.*}}.asm{{.*}}
 // CHECK-SPV-WIN:  llvm-foreach{{.*}} "--out-dir=/user/input/path{{(/|\\\\)}}" "--" "{{.*}}llvm-spirv"
