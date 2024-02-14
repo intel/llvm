@@ -927,11 +927,10 @@ EnableIfNativeShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
   } else if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                            GroupT>) {
     id<1> TargetLocalId = g.get_local_id();
-    size_t ItemsInGroup = g.get_local_linear_range();
-    TargetLocalId[0] += delta;
-    // ID outside the group range is UB, so we just pick the first item.
-    if (TargetLocalId[0] >= ItemsInGroup)
-      TargetLocalId[0] = 0;
+    // ID outside the group range is UB, so we just keep the current item ID
+    // unchanged.
+    if (TargetLocalId[0] + delta < g.get_local_linear_range())
+      TargetLocalId[0] += delta;
     uint32_t TargetId = MapShuffleID(g, TargetLocalId);
     return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
                                           convertToOpenCLType(x), TargetId);
@@ -966,10 +965,8 @@ EnableIfNativeShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
   } else if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                            GroupT>) {
     id<1> TargetLocalId = g.get_local_id();
-    // Underflow is UB, so we just pick the first item.
-    if (TargetLocalId[0] < delta)
-      TargetLocalId[0] = 0;
-    else
+    // Underflow is UB, so we just keep the current item ID unchanged.
+    if (TargetLocalId[0] >= delta)
       TargetLocalId[0] -= delta;
     uint32_t TargetId = MapShuffleID(g, TargetLocalId);
     return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
