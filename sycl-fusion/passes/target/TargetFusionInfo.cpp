@@ -230,7 +230,7 @@ public:
       F->setAttributes(
           AttributeList::get(LLVMMod->getContext(), FnAttrs, {}, {}));
       F->setCallingConv(CallingConv::SPIR_FUNC);
-      F->setIsNewDbgInfoFormat(UseNewDbgInfoFormat);
+      F->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
     }
 
     // See
@@ -397,7 +397,7 @@ public:
                     Attribute::get(Ctx, Attribute::AttrKind::NoUnwind)}),
           {}, {}));
       F->setCallingConv(CallingConv::SPIR_FUNC);
-      F->setIsNewDbgInfoFormat(UseNewDbgInfoFormat);
+      F->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
     }
 
     auto *Call = Builder.CreateCall(F, {Builder.getInt32(Idx)});
@@ -420,7 +420,7 @@ public:
                                  /*isVarArg*/ false);
     auto *F = Function::Create(Ty, Function::InternalLinkage, Name, *M);
     setMetadataForGeneratedFunction(F);
-    F->setIsNewDbgInfoFormat(UseNewDbgInfoFormat);
+    F->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
 
     auto *EntryBlock = BasicBlock::Create(Ctx, "entry", F);
     Builder.SetInsertPoint(EntryBlock);
@@ -565,7 +565,7 @@ public:
                                    /*isVarArg*/ false);
       F = Function::Create(Ty, Function::InternalLinkage, GetGlobalIDName, M);
       setMetadataForGeneratedFunction(F);
-      F->setIsNewDbgInfoFormat(UseNewDbgInfoFormat);
+      F->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
 
       auto *EntryBlock = BasicBlock::Create(Builder.getContext(), "entry", F);
       Builder.SetInsertPoint(EntryBlock);
@@ -625,7 +625,7 @@ public:
                                     /*isVarArg*/ false);
       auto *F = Function::Create(FTy, Function::InternalLinkage, Name, *M);
       setMetadataForGeneratedFunction(F);
-      F->setIsNewDbgInfoFormat(UseNewDbgInfoFormat);
+      F->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
 
       auto *EntryBlock = BasicBlock::Create(Ctx, "entry", F);
       Builder.SetInsertPoint(EntryBlock);
@@ -643,7 +643,7 @@ public:
       auto *FTy = FunctionType::get(Builder.getInt32Ty(), /*isVarArg*/ false);
       auto *F = Function::Create(FTy, Function::InternalLinkage, Name, *M);
       setMetadataForGeneratedFunction(F);
-      F->setIsNewDbgInfoFormat(UseNewDbgInfoFormat);
+      F->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
 
       auto *EntryBlock = BasicBlock::Create(Ctx, "entry", F);
       Builder.SetInsertPoint(EntryBlock);

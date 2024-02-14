@@ -125,7 +125,7 @@ getOrCreateGetGlobalLinearIDFunction(const TargetFusionInfo &TargetInfo,
   auto *Ty = FunctionType::get(Builder.getIntNTy(N), /*isVarArg*/ false);
   F = Function::Create(Ty, Function::LinkageTypes::InternalLinkage, Name, M);
   TargetInfo.setMetadataForGeneratedFunction(F);
-  F->setIsNewDbgInfoFormat(UseNewDbgInfoFormat);
+  F->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
 
   auto *EntryBlock = BasicBlock::Create(Context, "entry", F);
   Builder.SetInsertPoint(EntryBlock);

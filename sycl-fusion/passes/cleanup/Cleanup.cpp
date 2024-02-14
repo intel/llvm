@@ -51,7 +51,7 @@ static Function *createMaskedFunction(const BitVector &Mask, Function *F,
   FunctionType *NFTy = createMaskedFunctionType(Mask, F->getFunctionType());
   Function *NF = Function::Create(NFTy, F->getLinkage(), F->getAddressSpace(),
                                   F->getName(), F->getParent());
-  NF->setIsNewDbgInfoFormat(UseNewDbgInfoFormat);
+  NF->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
   copyAttributesFrom(Mask, NF, F);
   NF->setComdat(F->getComdat());
   NF->takeName(F);

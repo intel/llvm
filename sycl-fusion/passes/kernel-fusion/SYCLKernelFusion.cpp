@@ -473,7 +473,7 @@ Error SYCLKernelFusion::fuseKernel(
   Function *FusedFunction = Function::createWithDefaultAttr(
       FT, GlobalValue::LinkageTypes::ExternalLinkage,
       M.getDataLayout().getProgramAddressSpace(), KernelName->getString(), &M);
-  FusedFunction->setIsNewDbgInfoFormat(UseNewDbgInfoFormat);
+  FusedFunction->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
   {
     auto DefaultAttr = FusedFunction->getAttributes();
     // Add uniform function attributes, i.e., attributes with identical value on

@@ -567,7 +567,7 @@ getPromotedFunctionDeclaration(Function *F, ArrayRef<PromotionInfo> PromInfos,
   Function *NewF =
       Function::Create(NewTy, F->getLinkage(), F->getAddressSpace(),
                        F->getName(), F->getParent());
-  NewF->setIsNewDbgInfoFormat(UseNewDbgInfoFormat);
+  NewF->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
   return NewF;
 }
 
