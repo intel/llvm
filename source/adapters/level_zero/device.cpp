@@ -918,7 +918,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP:
-    return ReturnValue(false);
+    return ReturnValue(Device->Platform->ZeMutableCmdListExt.Supported);
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP:

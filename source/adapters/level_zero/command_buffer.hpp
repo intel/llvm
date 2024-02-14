@@ -78,4 +78,21 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   // Event which a command-buffer waits on until the main command-list event
   // have been reset.
   ur_event_handle_t AllResetEvent = nullptr;
+  // Indicates if command-buffer commands can be updated after it is closed.
+  bool IsUpdatable = false;
+  // Indicates if command buffer was finalized.
+  bool IsFinalized = false;
+};
+
+struct ur_exp_command_buffer_command_handle_t_ : public _ur_object {
+  ur_exp_command_buffer_command_handle_t_(ur_exp_command_buffer_handle_t,
+                                          uint64_t, ur_kernel_handle_t);
+
+  ~ur_exp_command_buffer_command_handle_t_();
+
+  // Command-buffer of this command.
+  ur_exp_command_buffer_handle_t CommandBuffer;
+
+  uint64_t CommandId;
+  ur_kernel_handle_t Kernel;
 };
