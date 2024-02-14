@@ -10,8 +10,6 @@ function(add_usm_test name)
     add_ur_executable(${TEST_TARGET_NAME}
         ${UR_USM_TEST_DIR}/../conformance/source/environment.cpp
         ${UR_USM_TEST_DIR}/../conformance/source/main.cpp
-        ${UR_USM_TEST_DIR}/../unified_malloc_framework/common/provider.c
-        ${UR_USM_TEST_DIR}/../unified_malloc_framework/common/pool.c
         ${ARGN})
     target_link_libraries(${TEST_TARGET_NAME}
         PRIVATE
