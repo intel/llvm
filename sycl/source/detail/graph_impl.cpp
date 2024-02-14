@@ -1046,8 +1046,11 @@ void exec_graph_impl::duplicateNodes() {
         NewNodes.erase(std::find(NewNodes.begin(), NewNodes.end(), NewNode));
     // Also set the iterator to the newly added nodes so we can continue
     // iterating over all remaining nodes
-    NewNodeIt = std::reverse_iterator{NewNodes.insert(
-        OldPositionIt, NewSubgraphNodes.begin(), NewSubgraphNodes.end())};
+    auto InsertIt = NewNodes.insert(OldPositionIt, NewSubgraphNodes.begin(),
+                                    NewSubgraphNodes.end());
+    // Since the new reverse_iterator will be at i - 1 we need to advance it
+    // when constructing
+    NewNodeIt = std::make_reverse_iterator(std::next(InsertIt));
   }
 
   // Store all the new nodes locally
