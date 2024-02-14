@@ -564,8 +564,11 @@ getPromotedFunctionDeclaration(Function *F, ArrayRef<PromotionInfo> PromInfos,
   // declaration.
   FunctionType *NewTy =
       ChangeTypes ? getPromotedFunctionType(Ty, PromInfos, AS) : Ty;
-  return Function::Create(NewTy, F->getLinkage(), F->getAddressSpace(),
-                          F->getName(), F->getParent());
+  Function *NewF =
+      Function::Create(NewTy, F->getLinkage(), F->getAddressSpace(),
+                       F->getName(), F->getParent());
+  NewF->setIsNewDbgInfoFormat(UseNewDbgInfoFormat);
+  return NewF;
 }
 
 ///

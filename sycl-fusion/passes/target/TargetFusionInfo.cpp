@@ -18,10 +18,13 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Triple.h"
 
 using namespace jit_compiler;
+
+extern llvm::cl::opt<bool> UseNewDbgInfoFormat;
 
 template <typename ForwardIt, typename KeyTy>
 static ForwardIt mapArrayLookup(ForwardIt Begin, ForwardIt End,
@@ -227,6 +230,7 @@ public:
       F->setAttributes(
           AttributeList::get(LLVMMod->getContext(), FnAttrs, {}, {}));
       F->setCallingConv(CallingConv::SPIR_FUNC);
+      F->setIsNewDbgInfoFormat(UseNewDbgInfoFormat);
     }
 
     // See
@@ -393,6 +397,7 @@ public:
                     Attribute::get(Ctx, Attribute::AttrKind::NoUnwind)}),
           {}, {}));
       F->setCallingConv(CallingConv::SPIR_FUNC);
+      F->setIsNewDbgInfoFormat(UseNewDbgInfoFormat);
     }
 
     auto *Call = Builder.CreateCall(F, {Builder.getInt32(Idx)});
@@ -415,6 +420,7 @@ public:
                                  /*isVarArg*/ false);
     auto *F = Function::Create(Ty, Function::InternalLinkage, Name, *M);
     setMetadataForGeneratedFunction(F);
+    F->setIsNewDbgInfoFormat(UseNewDbgInfoFormat);
 
     auto *EntryBlock = BasicBlock::Create(Ctx, "entry", F);
     Builder.SetInsertPoint(EntryBlock);
@@ -559,6 +565,7 @@ public:
                                    /*isVarArg*/ false);
       F = Function::Create(Ty, Function::InternalLinkage, GetGlobalIDName, M);
       setMetadataForGeneratedFunction(F);
+      F->setIsNewDbgInfoFormat(UseNewDbgInfoFormat);
 
       auto *EntryBlock = BasicBlock::Create(Builder.getContext(), "entry", F);
       Builder.SetInsertPoint(EntryBlock);
@@ -618,6 +625,7 @@ public:
                                     /*isVarArg*/ false);
       auto *F = Function::Create(FTy, Function::InternalLinkage, Name, *M);
       setMetadataForGeneratedFunction(F);
+      F->setIsNewDbgInfoFormat(UseNewDbgInfoFormat);
 
       auto *EntryBlock = BasicBlock::Create(Ctx, "entry", F);
       Builder.SetInsertPoint(EntryBlock);
@@ -635,6 +643,7 @@ public:
       auto *FTy = FunctionType::get(Builder.getInt32Ty(), /*isVarArg*/ false);
       auto *F = Function::Create(FTy, Function::InternalLinkage, Name, *M);
       setMetadataForGeneratedFunction(F);
+      F->setIsNewDbgInfoFormat(UseNewDbgInfoFormat);
 
       auto *EntryBlock = BasicBlock::Create(Ctx, "entry", F);
       Builder.SetInsertPoint(EntryBlock);

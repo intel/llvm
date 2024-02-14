@@ -64,6 +64,7 @@ Expected<std::unique_ptr<Module>> helper::FusionHelper::addFusedKernel(
     // correct name and signature only during the fusion pass.
     auto *F = Function::Create(FT, GlobalValue::LinkageTypes::ExternalLinkage,
                                "fused_kernel", *NewMod);
+    F->setIsNewDbgInfoFormat(UseNewDbgInfoFormat);
 
     // Attach metadata to the function stub.
     // The metadata specifies the name of the fused kernel (as the
