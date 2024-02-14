@@ -349,6 +349,10 @@ private:
   typename detail::is_device_info_desc<Param>::return_type
   get_info_impl() const;
 
+  template <typename Param>
+  std::ReturnType<typename detail::is_device_info_desc<Param>::return_type>
+  get_info_internal() const;
+
   // proxy of get_info_internal() to handle C++11-ABI compatibility separately.
   template <typename Param>
   detail::string get_device_info() const;
