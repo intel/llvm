@@ -88,7 +88,7 @@ TEST_P(USMFillCommandTest, UpdateParameters) {
     Validate((uint32_t *)shared_ptr, global_size, val);
 
     // Allocate a new USM pointer of larger size
-    size_t new_global_size = 64;
+    size_t new_global_size = global_size; // 64;
     const size_t new_allocation_size = sizeof(val) * new_global_size;
     ASSERT_SUCCESS(urUSMSharedAlloc(context, device, nullptr, nullptr,
                                     new_allocation_size, &new_shared_ptr));
@@ -128,7 +128,7 @@ TEST_P(USMFillCommandTest, UpdateParameters) {
         &new_input_desc,  // pNewValueArgList
         nullptr,          // pNewExecInfoList
         nullptr,          // pNewGlobalWorkOffset
-        &new_global_size, // pNewGlobalWorkSize
+        nullptr,          //&new_global_size, // pNewGlobalWorkSize
         nullptr,          // pNewLocalWorkSize
     };
 
