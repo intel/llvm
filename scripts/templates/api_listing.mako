@@ -272,12 +272,12 @@ ${th.make_type_name(n, tags, obj)}
     x = tags['$x']
     api_types_funcs = tph.get_api_types_funcs(specs, meta, namespace, tags)
 %>\
-## Generate Print API links table
-Print
+## Generate Print C API links table
+Print C API
 ============================================================
 The Print API functions are helpful for printing Unified Runtime API objects'
 values as human-readable strings using C interface. Those functions are complimentary
-to the set of operators in the Print API C++ header (ur_print.hpp).
+to the set of operators in the :ref:`core/api:Print C++ API`.
 
 Each function is named in the same style based on the Unified Runtime object name
 to be printed. See examples:
@@ -291,7 +291,7 @@ To print the :any:`${x}_kernel_arg_local_properties_t` object's value, call:
 There is also one 'extras' function in this API, which can be used for printing
 all values of given function's parameters - :any:`${x}PrintFunctionParams`.
 
-See :ref:`core/api:Print Functions` for the description of common parameters of Print API functions.
+See :ref:`core/api:Print C Functions` for the description of common parameters of Print API functions.
 
 * Functions
 %for func in api_types_funcs:
@@ -311,8 +311,8 @@ ${func_name}
     :project: UnifiedRuntime
 </%def>
 
-## Generate Print API documentation
-Print Functions
+## Generate Print C API documentation
+Print C Functions
 ------------------------------------------------------------------------------
 All functions output strings to print to the :any:`buffer` of a given
 size :any:`buff_size`. The outputted string's size is retrieved
@@ -327,3 +327,35 @@ ${generate_api_doc(func.c_name)}
 
 ## 'Extras' functions
 ${generate_api_doc(f'{x}PrintFunctionParams')}
+
+## Generate Print C++ API functions links table
+Print C++ API
+============================================================
+This part of the Unified Runtime API consists mainly of the :any:`std::ostream`
+print operators. Those are defined for all Unified Runtime objects described
+in the specification.
+
+Currently, there is also one non-operator 'extras' function which can be used
+for printing all parameters of a given UR API function.
+
+* Functions
+## As operators don't need any special descriptions, docs for them are limited to just
+## listing their declarations. This is made to avoid making the docs page unresponsive
+## by introducing a large amount of not-so-helpful links and detailed descriptions.
+## 'Extras' functions
+    * :ref:`printFunctionParams`
+
+## Generate Print C++ API documentation
+Print C++ Functions
+------------------------------------------------------------------------------
+## 'Extras' functions
+${generate_api_doc('printFunctionParams')}
+
+## Print the list of operators declarations
+Print Operators
+------------------------------------------------------------------------------
+%for func in api_types_funcs:
+.. doxygenfunction:: ${f'{func.cpp_name}({func.cpp_args})'}
+    :project: UnifiedRuntime
+    :outline:
+%endfor
