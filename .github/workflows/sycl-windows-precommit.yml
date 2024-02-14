@@ -56,3 +56,4 @@ jobs:
       name: Intel GEN12 Graphics with Level Zero
       runner: '["Windows","gen12"]'
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
+      extra_lit_opts: --param gpu-intel-gen12=True

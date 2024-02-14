@@ -334,6 +334,14 @@ intel_gpu_pvc
 a|
 [source]
 ----
+intel_gpu_pvc_vg
+----
+|-
+|Ponte Vecchio VG Intel graphics architecture.
+
+a|
+[source]
+----
 intel_gpu_8_0_0 = intel_gpu_bdw
 intel_gpu_9_0_9 = intel_gpu_skl
 intel_gpu_9_1_9 = intel_gpu_kbl

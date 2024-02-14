@@ -963,10 +963,11 @@ Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
       for (auto Ev = Events.begin(); Ev != Events.end();) {
         auto *EvDepCmd = static_cast<Command *>((*Ev)->getCommand());
         if (!EvDepCmd) {
+          ++Ev;
           continue;
         }
-        // Handle event dependencies on any commands part of another active
-        // fusion.
+        // Event dependencies on commands part of another active fusion are
+        // handled by cancelling fusion in that other queue.
         if (EvDepCmd->getQueue() != Queue && isPartOfActiveFusion(EvDepCmd)) {
           printFusionWarning(
               "Aborting fusion because of event dependency from a "
@@ -1615,6 +1616,9 @@ Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
   auto FusedKernelCmd =
       std::make_unique<ExecCGCommand>(std::move(FusedCG), Queue);
 
+  // Inherit auxiliary resources from fused command groups
+  Scheduler::getInstance().takeAuxiliaryResources(FusedKernelCmd->getEvent(),
+                                                  PlaceholderCmd->getEvent());
   assert(PlaceholderCmd->MDeps.empty());
   // Next, backwards iterate over all the commands in the fusion list and remove
   // them from the graph to restore the state before starting fusion, so we can

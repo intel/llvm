@@ -178,7 +178,8 @@ TEST(ParseAllowListTests, CheckAllValidBackendNameValuesAreProcessed) {
 
 TEST(ParseAllowListTests, CheckAllValidDeviceTypeValuesAreProcessed) {
   std::string AllowList;
-  for (const auto &SyclDeviceType : sycl::detail::getSyclDeviceTypeMap()) {
+  for (const auto &SyclDeviceType :
+       sycl::detail::getSyclDeviceTypeMap(true /*Enable 'acc'*/)) {
     if (!AllowList.empty())
       AllowList += "|";
     AllowList += "DeviceType:" + SyclDeviceType.first;

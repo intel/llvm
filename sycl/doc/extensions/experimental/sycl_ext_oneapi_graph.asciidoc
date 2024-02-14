@@ -1827,10 +1827,6 @@ if used in application code.
 . Using sycl streams in a graph node.
 . Profiling an event returned from graph submission with
   `event::get_profiling_info()`.
-. Level Zero immediate command-lists are not supported, and
-  `sycl::ext::intel::property::queue::no_immediate_command_list`
-  should be set on construction to any queues an executable
-  graph is submitted to.
 . Synchronization between multiple executions of the same command-buffer 
   must be handled in the host for level-zero backend, which may involve 
   extra latency for subsequent submissions.

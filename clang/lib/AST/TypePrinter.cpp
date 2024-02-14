@@ -1077,6 +1077,9 @@ void TypePrinter::printFunctionAfter(const FunctionType::ExtInfo &Info,
     case CC_M68kRTD:
       OS << " __attribute__((m68k_rtd))";
       break;
+    case CC_PreserveNone:
+      OS << " __attribute__((preserve_none))";
+      break;
     }
   }
 
@@ -1204,10 +1207,10 @@ void TypePrinter::printDecltypeBefore(const DecltypeType *T, raw_ostream &OS) {
 
 void TypePrinter::printPackIndexingBefore(const PackIndexingType *T,
                                           raw_ostream &OS) {
-  if (T->isInstantiationDependentType())
-    OS << T->getPattern() << "...[" << T->getIndexExpr() << "]";
-  else
+  if (T->hasSelectedType())
     OS << T->getSelectedType();
+  else
+    OS << T->getPattern() << "...[" << T->getIndexExpr() << "]";
   spaceBeforePlaceHolder(OS);
 }
 
@@ -1929,6 +1932,9 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
     break;
   case attr::M68kRTD:
     OS << "m68k_rtd";
+    break;
+  case attr::PreserveNone:
+    OS << "preserve_none";
     break;
   case attr::NoDeref:
     OS << "noderef";
