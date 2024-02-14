@@ -102,14 +102,14 @@ int main() {
 
             uint32_t ShiftLeftResult =
                 sycl::shift_group_left(OpportunisticGroup, LID, 2);
-            ShiftLeftAcc[WI] =
-                (ShiftLeftResult == (LID + 2) % OpportunisticGroupSize);
+            ShiftLeftAcc[WI] = (LID + 2 >= OpportunisticGroupSize ||
+                                ShiftLeftResult == LID + 2);
 
             uint32_t ShiftRightResult =
                 sycl::shift_group_right(OpportunisticGroup, LID, 2);
             ShiftRightAcc[WI] =
-                (ShiftRightResult ==
-                 (LID + OpportunisticGroupSize - 2) % OpportunisticGroupSize);
+                (LID + OpportunisticGroupSize - 2 <= OpportunisticGroupSize ||
+                 ShiftRightResult == LID - 2);
 
             uint32_t SelectResult = sycl::select_from_group(
                 OpportunisticGroup, LID,

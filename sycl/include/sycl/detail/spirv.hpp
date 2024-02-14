@@ -926,15 +926,12 @@ EnableIfNativeShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
     return result;
   } else if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                            GroupT>) {
-    // To avoid overflow we adjust the delta down by the size of the group, if
-    // it is larger than the size of the group. Since the local ID cannot be
-    // larger than the size of the group, it cannot overflow when we add them
-    // prior to wrapping the target ID.
     id<1> TargetLocalId = g.get_local_id();
     size_t ItemsInGroup = g.get_local_linear_range();
-    uint32_t AdjustedDelta =
-        delta > ItemsInGroup ? delta - ItemsInGroup : delta;
-    TargetLocalId[0] = (TargetLocalId[0] + AdjustedDelta) % ItemsInGroup;
+    TargetLocalId[0] += delta;
+    // ID outside the group range is UB, so we just pick the first item.
+    if (TargetLocalId[0] >= ItemsInGroup)
+      TargetLocalId[0] = 0;
     uint32_t TargetId = MapShuffleID(g, TargetLocalId);
     return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
                                           convertToOpenCLType(x), TargetId);
@@ -943,6 +940,7 @@ EnableIfNativeShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
     return __spirv_SubgroupShuffleDownINTEL(convertToOpenCLType(x),
                                             convertToOpenCLType(x), delta);
   }
+#else
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT>) {
     return __nvvm_shfl_sync_down_i32(detail::ExtractMask(detail::GetMask(g))[0],
@@ -968,13 +966,11 @@ EnableIfNativeShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
   } else if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                            GroupT>) {
     id<1> TargetLocalId = g.get_local_id();
-    size_t ItemsInGroup = g.get_local_linear_range();
-    uint32_t WrappedDelta = delta % ItemsInGroup;
-    // Avoid underflow.
-    if (TargetLocalId[0] < WrappedDelta)
-      TargetLocalId[0] = ItemsInGroup - (WrappedDelta - TargetLocalId[0]);
+    // Underflow is UB, so we just pick the first item.
+    if (TargetLocalId[0] < delta)
+      TargetLocalId[0] = 0;
     else
-      TargetLocalId[0] -= WrappedDelta;
+      TargetLocalId[0] -= delta;
     uint32_t TargetId = MapShuffleID(g, TargetLocalId);
     return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
                                           convertToOpenCLType(x), TargetId);

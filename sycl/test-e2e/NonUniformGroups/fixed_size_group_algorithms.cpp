@@ -105,12 +105,13 @@ template <size_t PartitionSize> void test() {
           IncScanAcc[WI] = (IncScanResult == LID + 1);
 
           uint32_t ShiftLeftResult = sycl::shift_group_left(Partition, LID, 2);
-          ShiftLeftAcc[WI] = (ShiftLeftResult == (LID + 2) % PartitionSize);
+          ShiftLeftAcc[WI] =
+              (LID + 2 >= PartitionSize || ShiftLeftResult == LID + 2);
 
           uint32_t ShiftRightResult =
               sycl::shift_group_right(Partition, LID, 2);
-          ShiftRightAcc[WI] =
-              (ShiftRightResult == (LID + PartitionSize - 2) % PartitionSize);
+          ShiftRightAcc[WI] = (LID + PartitionSize - 2 <= PartitionSize ||
+                               ShiftRightResult == LID - 2);
 
           uint32_t SelectResult = sycl::select_from_group(
               Partition, LID, (Partition.get_local_id() + 2) % PartitionSize);
