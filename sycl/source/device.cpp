@@ -158,41 +158,12 @@ device::get_info_internal() const {
 template <typename Param>
 detail::string device::get_device_info() const {
   std::string Info = impl->template get_info<Param>();
-  // if (PropertyName == DeviceProperty::BACKEND_VERSION) {
-  //   Info = impl->template get_info<info::device::backend_version>();
-  // } else if (PropertyName == DeviceProperty::DRIVER_VERSION) {
-  //   Info = impl->template get_info<info::device::driver_version>();
-  // } else if (PropertyName == DeviceProperty::EXT_INTEL_PCI_ADDRESS) {
-  //   Info = impl->template get_info<info::device::ext_intel_pci_address>();
-  // } else if (PropertyName == DeviceProperty::NAME) {
-  //   Info = impl->template get_info<info::device::name>();
-  // } else if (PropertyName == DeviceProperty::OPENCL_C_VERSION) {
-  //   Info = impl->template get_info<info::device::opencl_c_version>();
-  // } else if (PropertyName == DeviceProperty::PROFILE) {
-  //   Info = impl->template get_info<info::device::profile>();
-  // } else if (PropertyName == DeviceProperty::VENDOR) {
-  //   Info = impl->template get_info<info::device::vendor>();
-  // } else if (PropertyName == DeviceProperty::VERSION) {
-  //   Info = impl->template get_info<info::device::version>();
-  // } else {
-  //   throw sycl::invalid_parameter_error("unsupported device info requested",
-  //                                       PI_ERROR_INVALID_OPERATION);
-  // }
   return detail::string(Info);
 }
 
 template <typename Param>
 std::vector<detail::string> device::get_device_info_vector() const {
   std::vector<std::string> Info = impl->template get_info<Param>();
-  // if (PropertyName == DeviceProperty::BUILT_IN_KERNELS) {
-  //   Info = impl->template get_info<info::device::built_in_kernels>();
-  // } else if (PropertyName == DeviceProperty::EXTENSIONS) {
-  //   Info = impl->template get_info<info::device::extensions>();
-  // } else {
-  //   throw sycl::invalid_parameter_error(
-  //       "unsupported device info vector requested", PI_ERROR_INVALID_OPERATION);
-  // }
-
   std::vector<detail::string> Result;
   for (std::string &Str : Info) {
     Result.push_back(detail::string(Str.c_str()));

@@ -360,31 +360,6 @@ private:
   template <typename Param>
   std::vector<detail::string>
   get_device_info_vector() const;
-
-  // static const std::unordered_map<const char *, DeviceProperty> *getMap() {
-  //   static const auto *map =
-  //       new std::unordered_map<const char *, DeviceProperty>{
-  //           {typeid(info::device::backend_version).name(),
-  //            DeviceProperty::BACKEND_VERSION},
-  //           {typeid(info::device::backend_version).name(),
-  //            DeviceProperty::BACKEND_VERSION},
-  //           {typeid(info::device::built_in_kernels).name(),
-  //            DeviceProperty::BUILT_IN_KERNELS},
-  //           {typeid(info::device::driver_version).name(),
-  //            DeviceProperty::DRIVER_VERSION},
-  //           {typeid(info::device::extensions).name(),
-  //            DeviceProperty::EXTENSIONS},
-  //           {typeid(info::device::ext_intel_pci_address).name(),
-  //            DeviceProperty::EXT_INTEL_PCI_ADDRESS},
-  //           {typeid(info::device::name).name(), DeviceProperty::NAME},
-  //           {typeid(info::device::opencl_c_version).name(),
-  //            DeviceProperty::OPENCL_C_VERSION},
-  //           {typeid(info::device::profile).name(), DeviceProperty::PROFILE},
-  //           {typeid(info::device::vendor).name(), DeviceProperty::VENDOR},
-  //           { typeid(info::device::version).name(),
-  //             DeviceProperty::VERSION }};
-  //   return map;
-  // }
 #endif
 };
 
