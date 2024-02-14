@@ -260,6 +260,7 @@ bool testSLM(queue Q, uint32_t MaskStride,
        cgh.parallel_for(Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
          ScatterPropertiesT Props{};
          uint16_t GlobalID = ndi.get_global_id(0);
+         uint16_t LocalID = NDI.get_local_id(0);
          uint32_t GlobalElemOffset = GlobalID * N;
 
          constexpr uint32_t SLMSize = N * sizeof(T);
@@ -369,13 +370,10 @@ bool testSLM(queue Q, uint32_t MaskStride,
              }
            }
          }
-         barrier();
 
-         if (LocalID == 0) {
-           simd<uint32_t, N> offsets(0, sizeof(T));
-           simd<T, N> OutVec = slm_gather<T>(Offsets);
-           OutVec.copy_to(Out + GlobalElemOffset + I);
-         }
+         simd<uint32_t, N> offsets(0, sizeof(T));
+         simd<T, N> OutVec = slm_gather<T>(Offsets);
+         OutVec.copy_to(Out + GlobalElemOffset);
        });
      }).wait();
   } catch (sycl::exception const &e) {

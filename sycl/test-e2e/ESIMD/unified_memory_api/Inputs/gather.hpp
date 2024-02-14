@@ -801,6 +801,7 @@ bool testLACC(queue Q, uint32_t MaskStride, PropertiesT) {
 
        CGH.parallel_for(Range, [=](sycl::nd_item<1> NDI) SYCL_ESIMD_KERNEL {
          uint16_t GlobalID = NDI.get_global_id(0);
+         uint16_t LocalID = NDI.get_local_id(0);
          uint32_t GlobalElemOffset = GlobalID * N;
 
          if (LocalID == 0) {
@@ -931,7 +932,7 @@ bool testLACC(queue Q, uint32_t MaskStride, PropertiesT) {
              }
            }
          } // end if (VS == 1)
-         Vals.copy_to(Out + GlobalID * N);
+         Vals.copy_to(Out + GlobalElemOffset);
        });
      }).wait();
   } catch (sycl::exception const &e) {
