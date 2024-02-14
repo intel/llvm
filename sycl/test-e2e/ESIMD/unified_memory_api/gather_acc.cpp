@@ -30,11 +30,9 @@ int main() {
   Passed &= testACC<uint32_t, TestFeatures>(Q);
   Passed &= testACC<float, TestFeatures>(Q);
   Passed &= testACC<ext::intel::experimental::esimd::tfloat32, TestFeatures>(Q);
-#ifdef __ESIMD_FORCE_STATELESS_MEM
   Passed &= testACC<int64_t, TestFeatures>(Q);
   if (Q.get_device().has(sycl::aspect::fp64))
     Passed &= testACC<double, TestFeatures>(Q);
-#endif // __ESIMD_FORCE_STATELESS_MEM
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;
 }
