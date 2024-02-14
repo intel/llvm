@@ -135,7 +135,7 @@ aligned_private_alloca(kernel_handler &kh);
 _Mandates_: `ElementType` must be a cv-unqualified trivial type and `SpecName`
 must be a reference to a specialization constant of integral `value_type`. In
 the case of `aligned_private_alloca`, `Alignment` must be a power of 2
-fundamental alignment stricter than `ElementType`'s alignment requirement.
+fundamental alignment stricter than the alignment requirement of `ElementType`.
 
 _Effects_: `h.get_specialization_constant<size>()` elements of type
 `ElementType` are allocated and default initialized in private memory.
