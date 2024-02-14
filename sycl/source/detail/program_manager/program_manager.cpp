@@ -380,13 +380,6 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
         return Dev.is_gpu() &&
                Dev.get_info<info::device::vendor_id>() == 0x8086;
       });
-  if (IsIntelGPU && Img.getDeviceGlobals().size() != 0) {
-    // If the image has device globals we need to add the
-    // -ze-take-global-address option to tell IGC to record addresses of these.
-    if (!CompileOpts.empty())
-      CompileOpts += " ";
-    CompileOpts += "-ze-take-global-address";
-  }
   if (!CompileOptsEnv) {
     static const char *TargetCompileFast = "-ftarget-compile-fast";
     if (auto Pos = CompileOpts.find(TargetCompileFast);

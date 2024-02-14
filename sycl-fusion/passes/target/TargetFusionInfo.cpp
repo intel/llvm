@@ -445,8 +445,8 @@ class NVPTXAMDGCNTargetFusionInfoBase : public TargetFusionInfoImpl {
 public:
   using TargetFusionInfoImpl::TargetFusionInfoImpl;
 
-  void notifyFunctionsDelete(StringRef MDName,
-                             llvm::ArrayRef<Function *> Funcs) const {
+  void removeDeletedKernelsFromMD(StringRef MDName,
+                                  llvm::ArrayRef<Function *> Funcs) const {
     SmallPtrSet<Constant *, 8> DeletedFuncs{Funcs.begin(), Funcs.end()};
     SmallVector<MDNode *> ValidKernels;
     auto *OldAnnotations = LLVMMod->getNamedMetadata(MDName);
@@ -469,7 +469,7 @@ public:
     }
   }
 
-  void addKernelFunction(StringRef MDName, Function *KernelFunc) const {
+  void addKernelToMD(StringRef MDName, Function *KernelFunc) const {
     auto *Annotations = LLVMMod->getOrInsertNamedMetadata(MDName);
     auto *MDOne = ConstantAsMetadata::get(
         ConstantInt::get(Type::getInt32Ty(LLVMMod->getContext()), 1));
@@ -707,13 +707,11 @@ public:
   using NVPTXAMDGCNTargetFusionInfoBase::NVPTXAMDGCNTargetFusionInfoBase;
 
   void notifyFunctionsDelete(llvm::ArrayRef<Function *> Funcs) const override {
-    NVPTXAMDGCNTargetFusionInfoBase::notifyFunctionsDelete("nvvm.annotations",
-                                                           Funcs);
+    removeDeletedKernelsFromMD("nvvm.annotations", Funcs);
   }
 
   void addKernelFunction(Function *KernelFunc) const override {
-    NVPTXAMDGCNTargetFusionInfoBase::addKernelFunction("nvvm.annotations",
-                                                       KernelFunc);
+    addKernelToMD("nvvm.annotations", KernelFunc);
   }
 
   void createBarrierCall(IRBuilderBase &Builder,
@@ -818,14 +816,12 @@ public:
   using NVPTXAMDGCNTargetFusionInfoBase::NVPTXAMDGCNTargetFusionInfoBase;
 
   void notifyFunctionsDelete(llvm::ArrayRef<Function *> Funcs) const override {
-    NVPTXAMDGCNTargetFusionInfoBase::notifyFunctionsDelete("amdgcn.annotations",
-                                                           Funcs);
+    removeDeletedKernelsFromMD("amdgcn.annotations", Funcs);
   }
 
   void addKernelFunction(Function *KernelFunc) const override {
     KernelFunc->setCallingConv(CallingConv::AMDGPU_KERNEL);
-    NVPTXAMDGCNTargetFusionInfoBase::addKernelFunction("amdgcn.annotations",
-                                                       KernelFunc);
+    addKernelToMD("amdgcn.annotations", KernelFunc);
   }
 
   void createBarrierCall(IRBuilderBase &Builder,
