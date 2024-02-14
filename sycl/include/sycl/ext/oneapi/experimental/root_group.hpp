@@ -110,11 +110,15 @@ template <int dimensions>
 void group_barrier(ext::oneapi::experimental::root_group<dimensions> G,
                    memory_scope FenceScope = decltype(G)::fence_scope) {
 #ifdef __SYCL_DEVICE_ONLY__
-  // Root group barrier first synchronizes using a work group barrier. This
-  // allows backends to ignore the second ControlBarrier (with Device scope) if
-  // their maximum number of work groups is 1.
-  group_barrier(get_child_group(G));
-  detail::spirv::ControlBarrier(G, FenceScope, memory_order::seq_cst);
+  // Root group barrier synchronizes using a work group barrier if there's only
+  // one work group. This allows backends to ignore the ControlBarrier with
+  // Device scope if their maximum number of work groups is 1.
+  const auto ChildGroup = ext::oneapi::experimental::get_child_group(G);
+  if (ChildGroup.get_group_linear_range() == 1) {
+    group_barrier(ChildGroup);
+  } else {
+    detail::spirv::ControlBarrier(G, FenceScope, memory_order::seq_cst);
+  }
 #else
   (void)G;
   (void)FenceScope;
