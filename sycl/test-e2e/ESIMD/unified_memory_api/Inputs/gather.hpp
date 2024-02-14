@@ -509,18 +509,18 @@ bool testSLM(queue Q, uint32_t MaskStride, PropertiesT) {
        uint32_t LocalElemOffset = LocalID * N;
 
        // Allocate a bit more to safely initialize it with 8-element chunks.
-       constexpr uint32_t SLMSize = Size * sizeof(T);
+       constexpr uint32_t SLMSize = N * sizeof(T);
        slm_init<SLMSize>();
 
        simd<T, N> InVec(In + GlobalElemOffset);
-       simd<uint32_t, N> offsets(GlobalElemOffset* sizeof(T), sizeof(T));
+       simd<uint32_t, N> offsets(0, sizeof(T));
        slm_scatter<T>(offsets, InVec);
 
        barrier();
 
        PropertiesT Props{};
 
-       simd<uint32_t, NOffsets> ByteOffsets(GlobalElemOffset * sizeof(T), VS * sizeof(T));
+       simd<uint32_t, NOffsets> ByteOffsets(0, VS * sizeof(T));
        simd_view ByteOffsetsView = ByteOffsets.template select<NOffsets, 1>();
 
        simd_mask<NOffsets> Pred;
@@ -634,7 +634,12 @@ bool testSLM(queue Q, uint32_t MaskStride, PropertiesT) {
            }
          }
        } // end if (VS == 1)
-       Vals.copy_to(Out + GlobalElemOffset);
+       if constexpr (UseMask) {
+           scatter<T, N, VS>(Out + GlobalElemOffset, ByteOffsets, Vals, Pred);
+         } else {
+           Vals.copy_to(Out + GlobalElemOffset);
+         }
+       
      }).wait();
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
@@ -794,7 +799,7 @@ bool testLACC(queue Q, uint32_t MaskStride, PropertiesT) {
   try {
     Q.submit([&](handler &CGH) {
        // Allocate a bit more to safely initialize it with 8-element chunks.
-       constexpr uint32_t SLMSize =  Size;
+       constexpr uint32_t SLMSize =  N;
 
        auto InAcc = local_accessor<T, 1>(SLMSize, CGH);
 
@@ -803,9 +808,10 @@ bool testLACC(queue Q, uint32_t MaskStride, PropertiesT) {
          uint16_t LocalID = NDI.get_local_id(0);
          uint32_t GlobalElemOffset = GlobalID * N;
 
-         for (int I = 0; I < Size; I++) {
-           InAcc[I] = In[I];
-         }
+         simd<T, N> InVec(In + GlobalElemOffset);
+       simd<uint32_t, N> offsets(0, sizeof(T));
+       slm_scatter<T>(InAcc, offsets, InVec);
+
          barrier();
          PropertiesT Props{};
 
@@ -929,7 +935,12 @@ bool testLACC(queue Q, uint32_t MaskStride, PropertiesT) {
              }
            }
          } // end if (VS == 1)
-         Vals.copy_to(Out + GlobalElemOffset);
+
+         if constexpr (UseMask) {
+           scatter<T, N, VS>(Out + GlobalElemOffset, ByteOffsets, Vals, Pred);
+         } else {
+           Vals.copy_to(Out + GlobalElemOffset);
+         }
        });
      }).wait();
   } catch (sycl::exception const &e) {

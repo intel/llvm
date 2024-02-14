@@ -263,21 +263,16 @@ bool testSLM(queue Q, uint32_t MaskStride,
          uint16_t LocalID = ndi.get_local_id(0);
          uint32_t GlobalElemOffset = GlobalID * N;
 
-         constexpr uint32_t SLMSize = Size * sizeof(T);
+         constexpr uint32_t SLMSize = N * sizeof(T);
          slm_init<SLMSize>();
 
-         simd<T, N> InVec(Out + GlobalElemOffset);
-         simd<uint32_t, N> offsets(GlobalElemOffset* sizeof(T), sizeof(T));
-         slm_scatter<T>(offsets, InVec);
+         simd<T, N> Vals(GlobalElemOffset, 1);
 
 
          simd<uint32_t, NOffsets> ByteOffsets(GlobalElemOffset * sizeof(T), VS * sizeof(T));
          auto ByteOffsetsView = ByteOffsets.template select<NOffsets, 1>();
 
-         simd<T, N> Vals = slm_gather<T, N, VS>(ByteOffsets, Props);
-         barrier();
-
-         Vals *= 2;
+                  Vals *= 2;
 
          auto ValsView = Vals.template select<N, 1>();
          simd_mask<NOffsets> Pred = 0;
@@ -370,7 +365,11 @@ bool testSLM(queue Q, uint32_t MaskStride,
          }
 
          simd<T, N> OutVec = slm_gather<T>(offsets);
-         OutVec.copy_to(Out + GlobalElemOffset);
+         if constexpr (UseMask) {
+           scatter<T, N, VS>(Out + GlobalElemOffset, ByteOffsets, OutVec, Pred);
+         } else {
+           OutVec.copy_to(Out + GlobalElemOffset);
+         }
        });
      }).wait();
   } catch (sycl::exception const &e) {
