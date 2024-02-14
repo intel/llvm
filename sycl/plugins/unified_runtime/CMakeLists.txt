@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8ff738f424de6f84fa16c9f7d41c8c70b766665d
-  # Merge: 5e548c5e fbdaf72a
+  # commit cfba9f160528018055881f1ccf9ab98ec59c963f
+  # Merge: 0bb2cad8 db5c33b2
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Feb 13 13:01:03 2024 +0100
-  #     Merge pull request #1089 from Bensuo/ewan/update
-  #     [EXP][Command-Buffer] Add kernel command update
-  set(UNIFIED_RUNTIME_TAG 8ff738f424de6f84fa16c9f7d41c8c70b766665d)
+  # Date:   Wed Feb 14 11:17:21 2024 +0100
+  #     Merge pull request #1216 from igchor/umf_standalone
+  #     [UR] Remove UMF sources and use standalone UMF repo instead
+  set(UNIFIED_RUNTIME_TAG cfba9f160528018055881f1ccf9ab98ec59c963f)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -124,7 +124,7 @@ set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/com
 
 add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 add_library(UnifiedRuntimeCommon ALIAS ur_common)
-add_library(UnifiedMallocFramework ALIAS unified_malloc_framework)
+add_library(UnifiedMemoryFramework ALIAS umf)
 
 add_library(UnifiedRuntime-Headers INTERFACE)
 
