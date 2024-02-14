@@ -115,11 +115,11 @@ def GENX_BlockDimYOp : GENX_DeviceFunctionOp<"workgroup.dim.y",
 def GENX_BlockDimZOp : GENX_DeviceFunctionOp<"workgroup.dim.z",
                         "_Z14get_local_sizej", 2>;
 def GENX_GridDimXOp : GENX_DeviceFunctionOp<"grid.dim.x",
-                        "_Z15get_global_sizej", 0>;
+                        "_Z14get_num_groupsj", 0>;
 def GENX_GridDimYOp : GENX_DeviceFunctionOp<"grid.dim.y",
-                        "_Z15get_global_sizej", 1>;
+                        "_Z14get_num_groupsj", 1>;
 def GENX_GridDimZOp : GENX_DeviceFunctionOp<"grid.dim.z",
-                        "_Z15get_global_sizej", 2>;
+                        "_Z14get_num_groupsj", 2>;
 
 //===----------------------------------------------------------------------===//
 // Synchronization
