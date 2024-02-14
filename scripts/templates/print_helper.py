@@ -109,7 +109,19 @@ class Func:
 
     @property
     def cpp_name(self) -> str:
-        return ""
+        return "operator<<"
+
+    @property
+    def cpp_args(self) -> str:
+        attribute = (
+            "[[maybe_unused]]" if re.match("const struct", self.print_arg.type) else ""
+        )
+        return str(
+            [
+                Arg("std::ostream &", "os"),
+                Arg(" ".join([attribute, self.print_arg.type]), self.print_arg.name),
+            ]
+        ).strip("[]")
 
     @property
     def print_arg(self) -> PrintArg:

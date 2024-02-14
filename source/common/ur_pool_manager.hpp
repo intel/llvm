@@ -13,12 +13,12 @@
 
 #include "logger/ur_logger.hpp"
 #include "umf_helpers.hpp"
-#include "umf_pools/disjoint_pool.hpp"
 #include "ur_api.h"
 #include "ur_util.hpp"
 
 #include <umf/memory_pool.h>
 #include <umf/memory_provider.h>
+#include <umf/pools/pool_disjoint.h>
 
 #include <functional>
 #include <unordered_map>
