@@ -17,7 +17,8 @@
 #include <sycl/detail/pi.h>                   // for pi_n...
 #include <sycl/detail/string.hpp>             // for c++11 abi compatibility
 #include <sycl/detail/string_view.hpp>        // for c++11 abi compatibility
-#include <sycl/device_selector.hpp>           // for Enab...
+#include <sycl/detail/util.hpp>
+#include <sycl/device_selector.hpp>                             // for Enab...
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp> // for arch...
 #include <sycl/info/info_desc.hpp>                              // for part...
 #include <sycl/platform.hpp>                                    // for plat...
@@ -54,22 +55,6 @@ enum class peer_access {
 };
 
 } // namespace ext::oneapi
-
-// We need special handling of std::string to handle ABI incompatibility
-// for get_info<>() when it returns std::string and vector<std::string>.
-// For this purpose, get_info_internal<>() is created to handle special
-// cases, and it is only called internally and not exposed to the user.
-// The following ReturnType structure is intended for general return type,
-// and special return types (std::string and vector of it).
-template <typename T> struct ReturnType { using type = T; };
-
-template <> struct ReturnType<std::string> {
-  using type = sycl::_V1::detail::string;
-};
-
-template <> struct ReturnType<std::vector<std::string>> {
-  using type = std::vector<sycl::_V1::detail::string>;
-};
 
 /// The SYCL device class encapsulates a single SYCL device on which kernels
 /// may be executed.
@@ -343,7 +328,7 @@ private:
   get_info_impl() const;
 
   template <typename Param>
-  typename ReturnType<
+  typename detail::GetInfoReturnType<
       typename detail::is_device_info_desc<Param>::return_type>::type
   get_info_internal() const;
 

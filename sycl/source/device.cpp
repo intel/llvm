@@ -141,7 +141,7 @@ device::get_info_impl() const {
 }
 
 template <typename Param>
-typename ReturnType<
+typename detail::GetInfoReturnType<
     typename detail::is_device_info_desc<Param>::return_type>::type
 device::get_info_internal() const {
   if constexpr (std::is_same_v<
@@ -273,7 +273,7 @@ __SYCL_EXPORT bool device::get_info<info::device::image_support>() const {
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template __SYCL_EXPORT ReturnType<ReturnT>::type                             \
+  template __SYCL_EXPORT typename detail::GetInfoReturnType<ReturnT>::type     \
   device::get_info_internal<info::device::Desc>() const;                       \
   template __SYCL_EXPORT ReturnT device::get_info_impl<info::device::Desc>()   \
       const;
@@ -290,7 +290,7 @@ __SYCL_EXPORT bool device::get_info<info::device::image_support>() const {
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
-  template __SYCL_EXPORT ReturnType<ReturnT>::type                             \
+  template __SYCL_EXPORT typename detail::GetInfoReturnType<ReturnT>::type     \
   device::get_info_internal<Namespace::info::DescType::Desc>() const;          \
   template __SYCL_EXPORT ReturnT                                               \
   device::get_info_impl<Namespace::info::DescType::Desc>() const;

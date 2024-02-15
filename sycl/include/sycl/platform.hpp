@@ -18,8 +18,9 @@
 #include <sycl/detail/pi.h>                   // for pi_native_handle
 #include <sycl/detail/string.hpp>             // for C++11 ABI compatibility
 #include <sycl/detail/string_view.hpp>        // for C++11 ABI compatibility
-#include <sycl/device_selector.hpp>           // for EnableIfSYCL2020DeviceS...
-#include <sycl/info/info_desc.hpp>            // for device_type
+#include <sycl/detail/util.hpp>
+#include <sycl/device_selector.hpp> // for EnableIfSYCL2020DeviceS...
+#include <sycl/info/info_desc.hpp>  // for device_type
 
 #ifdef __SYCL_INTERNAL_API
 #include <sycl/detail/cl.h>
@@ -58,22 +59,6 @@ namespace ext::oneapi {
 // Forward declaration
 class filter_selector;
 } // namespace ext::oneapi
-
-// We need special handling of std::string to handle ABI incompatibility
-// for get_info<>() when it returns std::string and vector<std::string>.
-// For this purpose, get_info_internal<>() is created to handle special
-// cases, and it is only called internally and not exposed to the user.
-// The following ReturnType structure is intended for general return type,
-// and special return types (std::string and vector of it).
-template <typename T> struct PlatformReturnType { using type = T; };
-
-template <> struct PlatformReturnType<std::string> {
-  using type = detail::string;
-};
-
-template <> struct PlatformReturnType<std::vector<std::string>> {
-  using type = std::vector<detail::string>;
-};
 
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///
@@ -255,7 +240,7 @@ private:
   get_info_impl() const;
 
   template <typename Param>
-  typename PlatformReturnType<
+  typename detail::GetInfoReturnType<
       typename detail::is_platform_info_desc<Param>::return_type>::type
   get_info_internal() const;
 
