@@ -56,13 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/igchor/unified-runtime.git")
-  # commit 619cdbb7ac9819ed58d544fa1498329b428bbdd8
-  # Merge: 0bb2cad8 db5c33b2
-  # Author: Igor Chorazewicz <igor.chorazewicz@intel.com>
-  # Date:   Wed Feb 14 19:27:12 2024 +0100
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit f11823e1abe977bd478364534b3575ae199d8d96
+  # Merge: c96e4ae4 619cdbb7
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Thu Feb 15 11:08:56 2024 +0100
+  #     Merge pull request #1343 from igchor/add_pthread_umf
   #     [UR] Add missing Threads library to common
-  set(UNIFIED_RUNTIME_TAG 619cdbb7ac9819ed58d544fa1498329b428bbdd8)
+  set(UNIFIED_RUNTIME_TAG f11823e1abe977bd478364534b3575ae199d8d96)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
