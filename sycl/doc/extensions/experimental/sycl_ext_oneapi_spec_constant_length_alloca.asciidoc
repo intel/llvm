@@ -103,7 +103,7 @@ implementation supports.
 
 This extension adds a new device aspect:
 
-[source,c++]
+[source]
 ----
 namespace sycl {
 enum class aspect : /*unspecified*/ {
@@ -117,7 +117,7 @@ The `ext_oneapi_scla` aspect indicates that the device is capable of using the
 
 === The SCLA API
 
-[source,c++]
+[source]
 ----
 namespace sycl::ext::oneapi::experimental {
 template <typename ElementType, auto &SpecName,
@@ -160,7 +160,7 @@ This non-normative section shows some example usages of the extension.
 
 === Basic Usage
 
-[source,c++]
+[source]
 ----
 constexpr specialization_id<int> size(1);
 
@@ -186,7 +186,7 @@ void run(queue q, const float *in, float *out, size_t n) {
 The following example is intended to clarify storage duration of memory
 allocated by `private_alloca`.
 
-[source,c++]
+[source]
 ----
 constexpr specialization_id<int> size(1);
 
@@ -240,12 +240,12 @@ Initial design passes size as a `sycl::specialization_id<Integral> &` template
 argument and receives a `sycl::kernel_handler &` as an argument. This decision
 comes from the current situation in which `sycl::specialization_id` is a unique
 identifier to represent a specialization constant and `sycl::kernel_handler` is
-used to query the **value** of specialization constants with
+used to query the *value* of specialization constants with
 `sycl::kernel_handler::get_specialization_constant`. Having a
 `sycl::specialization_constant` class representing specialization constants
 would enable cleaner interfaces to this function like:
 
-[source,c++]
+[source]
 ----
 namespace sycl::ext::oneapi::experimental {
 template <typename ElementType, access::decorated DecorateAddress>
