@@ -325,6 +325,18 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       IsDeviceAsanEnabled = (std::count(SyclFEArgEq.begin(), SyclFEArgEq.end(),
                                         "-fsanitize=address") > 0);
     }
+
+    // User can also enable asan for SYCL device via -Xarch_device option.
+    if (!IsDeviceAsanEnabled) {
+      auto DeviceArchVals = Args.getAllArgValues(options::OPT_Xarch_device);
+      for (auto DArchVal : DeviceArchVals) {
+        if (DArchVal.find("-fsanitize=address") != std::string::npos) {
+          IsDeviceAsanEnabled = true;
+          break;
+        }
+      }
+    }
+
     if (IsDeviceAsanEnabled)
       addLibraries(SYCLDeviceSanitizerLibs);
   }
@@ -880,6 +892,7 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
           .Cases("intel_gpu_acm_g11", "intel_gpu_dg2_g11", "acm_g11")
           .Cases("intel_gpu_acm_g12", "intel_gpu_dg2_g12", "acm_g12")
           .Case("intel_gpu_pvc", "pvc")
+          .Case("intel_gpu_pvc_vg", "pvc_vg")
           .Case("nvidia_gpu_sm_50", "sm_50")
           .Case("nvidia_gpu_sm_52", "sm_52")
           .Case("nvidia_gpu_sm_53", "sm_53")
@@ -960,6 +973,7 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
                       .Case("acm_g11", "INTEL_GPU_ACM_G11")
                       .Case("acm_g12", "INTEL_GPU_ACM_G12")
                       .Case("pvc", "INTEL_GPU_PVC")
+                      .Case("pvc_vg", "INTEL_GPU_PVC_VG")
                       .Case("sm_50", "NVIDIA_GPU_SM_50")
                       .Case("sm_52", "NVIDIA_GPU_SM_52")
                       .Case("sm_53", "NVIDIA_GPU_SM_53")

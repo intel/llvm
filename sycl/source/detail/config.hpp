@@ -232,8 +232,10 @@ public:
 };
 
 // Array is used by SYCL_DEVICE_ALLOWLIST and ONEAPI_DEVICE_SELECTOR.
+// The 'supportAcc' parameter is used by SYCL_DEVICE_ALLOWLIST which,
+// unlike ONEAPI_DEVICE_SELECTOR, also accepts 'acc' as a valid device type.
 const std::array<std::pair<std::string, info::device_type>, 6> &
-getSyclDeviceTypeMap();
+getSyclDeviceTypeMap(bool supportAcc = false);
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
 // ONEAPI_DEVICE_SELECTOR
@@ -313,11 +315,7 @@ template <> class SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS> {
 
 public:
   static bool get() {
-#ifdef WIN32
-    constexpr bool DefaultValue = false;
-#else
     constexpr bool DefaultValue = true;
-#endif
 
     const char *ValStr = getCachedValue();
 
@@ -514,7 +512,7 @@ private:
       return Result;
 
     std::string ValueStr{ValueRaw};
-    auto DeviceTypeMap = getSyclDeviceTypeMap();
+    auto DeviceTypeMap = getSyclDeviceTypeMap(true /*Enable 'acc'*/);
 
     // Iterate over all configurations.
     size_t Start = 0, End = 0;

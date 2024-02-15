@@ -608,6 +608,12 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
      * No need to convert since types are compatible
      */
     *ParamValueSizeRet = sizeof(pi_device_fp_config);
+  } else if (ParamName == UR_DEVICE_INFO_COMPONENT_DEVICES) {
+    if (ParamValueSizeRet && *ParamValueSizeRet != 0) {
+      const uint32_t UrNumberElements =
+          *ParamValueSizeRet / sizeof(ur_device_handle_t);
+      *ParamValueSizeRet = UrNumberElements * sizeof(pi_device);
+    }
   } else {
 
     // TODO: what else needs a UR-PI translation?
@@ -974,7 +980,6 @@ inline pi_result piDevicesGet(pi_platform Platform, pi_device_type DeviceType,
 
 inline pi_result piDeviceRetain(pi_device Device) {
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
-
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
   HANDLE_ERRORS(urDeviceRetain(UrDevice));
   return PI_SUCCESS;
@@ -1008,7 +1013,6 @@ inline pi_result piPluginGetLastError(char **Message) {
 inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                                  size_t ParamValueSize, void *ParamValue,
                                  size_t *ParamValueSizeRet) {
-
   ur_device_info_t InfoType;
   switch (ParamName) {
 #define PI_TO_UR_MAP_DEVICE_INFO(FROM, TO)                                     \
@@ -1270,6 +1274,10 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
         UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT,
                              UR_DEVICE_INFO_ESIMD_SUPPORT)
+    PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_COMPONENT_DEVICES,
+                             UR_DEVICE_INFO_COMPONENT_DEVICES)
+    PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_COMPOSITE_DEVICE,
+                             UR_DEVICE_INFO_COMPOSITE_DEVICE)
 #undef PI_TO_UR_MAP_DEVICE_INFO
   default:
     return PI_ERROR_UNKNOWN;
@@ -1312,6 +1320,12 @@ piextDeviceCreateWithNativeHandle(pi_native_handle NativeHandle,
 
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
+
+  ur_adapter_handle_t adapter = nullptr;
+  if (auto res = PiGetAdapter(adapter); res != PI_SUCCESS) {
+    return res;
+  }
+  (void)adapter;
 
   ur_native_handle_t UrNativeDevice =
       reinterpret_cast<ur_native_handle_t>(NativeHandle);
@@ -2664,10 +2678,6 @@ inline pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags,
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(RetMem, PI_ERROR_INVALID_VALUE);
 
-  if (properties != nullptr) {
-    die("piMemBufferCreate: no mem properties goes to Level-Zero RT yet");
-  }
-
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
 
@@ -2691,6 +2701,44 @@ inline pi_result piMemBufferCreate(pi_context Context, pi_mem_flags Flags,
   ur_buffer_properties_t UrProps{};
   UrProps.stype = UR_STRUCTURE_TYPE_BUFFER_PROPERTIES;
   UrProps.pHost = HostPtr;
+
+  ur_buffer_channel_properties_t bufferChannelProperties{};
+  bufferChannelProperties.stype = UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES;
+  ur_buffer_alloc_location_properties_t bufferLocationProperties{};
+  bufferLocationProperties.stype =
+      UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES;
+  if (properties != nullptr) {
+    bool bufferLocationPropertySet = false;
+    bool bufferMemChannelPropertySet = false;
+    uint64_t allocBufferLocation = 0;
+    uint32_t allocBufferMemChannel = 0;
+    // pi mem properties must ended by 0
+    size_t I = 0;
+    while (properties[I] != 0) {
+      if (properties[I] == PI_MEM_PROPERTIES_ALLOC_BUFFER_LOCATION) {
+        allocBufferLocation = properties[I + 1];
+        bufferLocationPropertySet = true;
+      } else if (properties[I] == PI_MEM_PROPERTIES_CHANNEL) {
+        allocBufferMemChannel = properties[I + 1];
+        bufferMemChannelPropertySet = true;
+      }
+      I += 2;
+    }
+    void *extensionProperties = nullptr;
+    if (bufferLocationPropertySet) {
+      bufferLocationProperties.location = allocBufferLocation;
+      extensionProperties = &bufferLocationProperties;
+    }
+    if (bufferMemChannelPropertySet) {
+      bufferChannelProperties.channel = allocBufferMemChannel;
+      extensionProperties = &bufferChannelProperties;
+    }
+    if (bufferLocationPropertySet && bufferMemChannelPropertySet) {
+      bufferLocationProperties.pNext = &bufferChannelProperties;
+      extensionProperties = &bufferLocationProperties;
+    }
+    UrProps.pNext = extensionProperties;
+  }
   ur_mem_handle_t *UrBuffer = reinterpret_cast<ur_mem_handle_t *>(RetMem);
   HANDLE_ERRORS(
       urMemBufferCreate(UrContext, UrBufferFlags, Size, &UrProps, UrBuffer));
@@ -4429,7 +4477,8 @@ inline pi_result piextCommandBufferNDRangeKernel(
 
   HANDLE_ERRORS(urCommandBufferAppendKernelLaunchExp(
       UrCommandBuffer, UrKernel, WorkDim, GlobalWorkOffset, GlobalWorkSize,
-      LocalWorkSize, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
+      LocalWorkSize, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint,
+      nullptr));
 
   return PI_SUCCESS;
 }
