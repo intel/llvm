@@ -31,11 +31,8 @@
 // ===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: hip
-// TODO: Remove unsupported after fixing
-// https://github.com/intel/llvm/issues/12683
-// UNSUPPORTED: accelerator
 
-// RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} -fsycl-device-code-split=per_kernel %s -o %t.out
 // RUN: %{run} %t.out
 
 #include <type_traits>
