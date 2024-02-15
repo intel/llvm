@@ -112,8 +112,7 @@ int main() {
 
           uint32_t ShiftRightResult =
               sycl::shift_group_right(BallotGroup, LID, 2);
-          ShiftRightAcc[WI] = (LID + BallotGroupSize - 2 <= PartitionSize ||
-                               ShiftRightResult == LID - 2);
+          ShiftRightAcc[WI] = (LID < 2 || ShiftRightResult == LID - 2);
 
           uint32_t SelectResult = sycl::select_from_group(
               BallotGroup, LID,

@@ -980,9 +980,9 @@ EnableIfNativeShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT>) {
     return __nvvm_shfl_sync_up_i32(detail::ExtractMask(detail::GetMask(g))[0],
-                                   x, delta, 0x1f);
+                                   x, delta, 0);
   } else {
-    return __nvvm_shfl_sync_up_i32(membermask(), x, delta, 0x1f);
+    return __nvvm_shfl_sync_up_i32(membermask(), x, delta, 0);
   }
 #endif
 }

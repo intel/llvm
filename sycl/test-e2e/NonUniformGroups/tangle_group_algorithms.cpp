@@ -100,8 +100,7 @@ int main() {
                 (LID + 2 >= TangleSize || ShiftLeftResult == LID + 2);
 
             uint32_t ShiftRightResult = sycl::shift_group_right(Tangle, LID, 2);
-            ShiftRightAcc[WI] = (LID + TangleSize - 2 <= TangleSize ||
-                                 ShiftRightResult == LID - 2);
+            ShiftRightAcc[WI] = (LID < 2 || ShiftRightResult == LID - 2);
 
             uint32_t SelectResult = sycl::select_from_group(
                 Tangle, LID, (Tangle.get_local_id() + 2) % TangleSize);
