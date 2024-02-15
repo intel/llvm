@@ -149,10 +149,10 @@ pointer is aligned to the specified `Alignment`.
 
 _Remarks_: In case of private memory exhaustion, the underlying backend must
 report an error in the same fashion as if the allocation size were static. In
-case of a successful call, memory is freed automatically when the function which
-called `private_alloca` returns to its caller. Additionally, `SpecName` must
-have a default value of at least 1 and not be set to a value less than 1 during
-program execution. Violation of these conditions results in undefined behavior.
+case of a successful call, allocated memory has automatic storage
+duration. Additionally, `SpecName` must have a default value of at least 1 and
+not be set to a value less than 1 during program execution. Violation of these
+conditions results in undefined behaviour.
 
 == Example usage
 
@@ -185,9 +185,9 @@ The big design constraint stems from the unknown allocation size at compile
 time. C++ does not support variable length arrays and complete type sizes must
 be known at compile time. Thus, the free function interface returning a pointer
 to private memory is the better way to represent this construct in C++. Lifetime
-of the underlying memory region was a concern too, but the current design
-automatically freeing the memory when the caller is returned is in line with
-similar constructs in other platforms.
+of the underlying memory region was a concern too, but the current design with
+automatic storage duration for the allocated memory region closely follows what
+the user would get from a stack-allocated array.
 
 == Issues
 
