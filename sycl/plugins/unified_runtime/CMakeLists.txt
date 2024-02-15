@@ -57,13 +57,15 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit f11823e1abe977bd478364534b3575ae199d8d96
-  # Merge: c96e4ae4 619cdbb7
+  # commit 69ac6c7fecac1028024ec1889d3e2cc02565c9e7
+  # Merge: f11823e1 b3469f1e
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Feb 15 11:08:56 2024 +0100
-  #     Merge pull request #1343 from igchor/add_pthread_umf
-  #     [UR] Add missing Threads library to common
-  set(UNIFIED_RUNTIME_TAG f11823e1abe977bd478364534b3575ae199d8d96)
+  # Date:   Thu Feb 15 15:28:12 2024 +0100
+  #
+  #    Merge pull request #1344 from aarongreig/aaron/correctlyMapBufferLocation
+  #
+  #    Correct mapping of BUFFER_ALLOC_LOCATION_PROPERITES in CL adapter.
+  set(UNIFIED_RUNTIME_TAG 69ac6c7fecac1028024ec1889d3e2cc02565c9e7)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
