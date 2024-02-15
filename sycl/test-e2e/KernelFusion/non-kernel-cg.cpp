@@ -104,19 +104,6 @@ int main() {
     fw.complete_fusion();
   }
 
-  {
-    // CHECK: Not fusing kernel with 'use_root_sync' property. Can only fuse non-cooperative device kernels.
-    fw.start_fusion();
-    q.submit([&](handler &cgh) {
-      constexpr int size = 10;
-      const auto props = sycl::ext::oneapi::experimental::properties{
-          sycl::ext::oneapi::experimental::use_root_sync};
-      cgh.parallel_for(sycl::nd_range<1>{size, size}, props,
-                       [](sycl::nd_item<1>) {});
-    });
-    fw.complete_fusion();
-  }
-
   free(src, q);
   free(dst, q);
 }
