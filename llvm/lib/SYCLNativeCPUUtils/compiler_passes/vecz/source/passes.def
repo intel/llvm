@@ -41,6 +41,8 @@ FUNCTION_PASS("packetizer", PacketizationPass())
 FUNCTION_PASS("inline-post-vecz", InlinePostVectorizationPass())
 FUNCTION_PASS("interleave-combine-loads", InterleavedGroupCombinePass(eInterleavedLoad))
 FUNCTION_PASS("interleave-combine-stores", InterleavedGroupCombinePass(eInterleavedStore))
+
+FUNCTION_PASS("print<strides>", StrideAnalysisPrinterPass(llvm::dbgs()))
 #undef FUNCTION_PASS
 
 #ifndef LOOP_PASS
