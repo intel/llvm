@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit cfba9f160528018055881f1ccf9ab98ec59c963f
-  # Merge: 0bb2cad8 db5c33b2
+  # commit f11823e1abe977bd478364534b3575ae199d8d96
+  # Merge: c96e4ae4 619cdbb7
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Feb 14 11:17:21 2024 +0100
-  #     Merge pull request #1216 from igchor/umf_standalone
-  #     [UR] Remove UMF sources and use standalone UMF repo instead
-  set(UNIFIED_RUNTIME_TAG cfba9f160528018055881f1ccf9ab98ec59c963f)
+  # Date:   Thu Feb 15 11:08:56 2024 +0100
+  #     Merge pull request #1343 from igchor/add_pthread_umf
+  #     [UR] Add missing Threads library to common
+  set(UNIFIED_RUNTIME_TAG f11823e1abe977bd478364534b3575ae199d8d96)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
