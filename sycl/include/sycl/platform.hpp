@@ -16,8 +16,8 @@
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_platform_info_desc
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
 #include <sycl/detail/pi.h>                   // for pi_native_handle
-#include <sycl/detail/string.hpp>             // for c++11 ABI compatibility
-#include <sycl/detail/string_view.hpp>        // for c++11 ABI compatibility
+#include <sycl/detail/string.hpp>             // for C++11 ABI compatibility
+#include <sycl/detail/string_view.hpp>        // for C++11 ABI compatibility
 #include <sycl/device_selector.hpp>           // for EnableIfSYCL2020DeviceS...
 #include <sycl/info/info_desc.hpp>            // for device_type
 
@@ -65,14 +65,14 @@ class filter_selector;
 // cases, and it is only called internally and not exposed to the user.
 // The following ReturnType structure is intended for general return type,
 // and special return types (std::string and vector of it).
-template <typename T> struct ReturnType { using type = T; };
+template <typename T> struct PlatformReturnType { using type = T; };
 
-template <> struct ReturnType<std::string> {
-  using type = sycl::_V1::detail::string;
+template <> struct PlatformReturnType<std::string> {
+  using type = detail::string;
 };
 
-template <> struct ReturnType<std::vector<std::string>> {
-  using type = std::vector<sycl::_V1::detail::string>;
+template <> struct PlatformReturnType<std::vector<std::string>> {
+  using type = std::vector<detail::string>;
 };
 
 /// Encapsulates a SYCL platform on which kernels may be executed.
@@ -255,7 +255,7 @@ private:
   get_info_impl() const;
 
   template <typename Param>
-  typename ReturnType<
+  typename PlatformReturnType<
       typename detail::is_platform_info_desc<Param>::return_type>::type
   get_info_internal() const;
 

@@ -64,7 +64,7 @@ platform::get_info_impl() const {
 }
 
 template <typename Param>
-typename ReturnType<
+typename PlatformReturnType<
     typename detail::is_platform_info_desc<Param>::return_type>::type
 platform::get_info_internal() const {
   if constexpr (std::is_same_v<std::string,
