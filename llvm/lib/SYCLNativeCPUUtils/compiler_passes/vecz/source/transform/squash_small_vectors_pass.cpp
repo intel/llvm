@@ -89,7 +89,7 @@ PreservedAnalyses SquashSmallVectorsPass::run(Function &F,
         auto *const ty = load->getType();
         auto *const scalarTy = ty->getScalarType();
         const unsigned numBits = ty->getPrimitiveSizeInBits();
-        if ((numBits & (numBits - 1)) == 0 && scalarTy != ty &&
+        if (isPowerOf2_32(numBits) && scalarTy != ty &&
             DL.fitsInLegalInteger(numBits)) {
           const auto align = load->getAlign();
           auto *const intTy = IntegerType::get(context, numBits);
@@ -133,7 +133,7 @@ PreservedAnalyses SquashSmallVectorsPass::run(Function &F,
         auto *const ty = data->getType();
         auto *const scalarTy = ty->getScalarType();
         const unsigned numBits = ty->getPrimitiveSizeInBits();
-        if ((numBits & (numBits - 1)) == 0 && scalarTy != ty &&
+        if (isPowerOf2_32(numBits) && scalarTy != ty &&
             DL.fitsInLegalInteger(numBits)) {
           const auto align = store->getAlign();
           auto *const intTy = IntegerType::get(context, numBits);
