@@ -1,5 +1,5 @@
 /// This test checks that the macro __ESIMD_FORCE_STATELESS_MEM is automatically
-/// defined by default with -fsycl, -fsycl-is-device or -fsycl-is-host.
+/// defined by default with -fsycl-is-device or -fsycl-is-host.
 
 // RUN: %clang_cc1 %s -fsycl-is-device -fsycl-esimd-force-stateless-mem -E -dM | FileCheck --check-prefix=CHECK-OPT %s
 // RUN: %clang_cc1 %s -fsycl-is-device -E -dM | FileCheck --check-prefix=CHECK-OPT %s
