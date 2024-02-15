@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "SYCLDeviceRequirements.h"
+#include "llvm/SYCLLowerIR/SYCLDeviceRequirements.h"
 
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"

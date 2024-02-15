@@ -14,10 +14,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "SYCLDeviceLibReqMask.h"
-#include "SYCLDeviceRequirements.h"
 #include "SYCLKernelParamOptInfo.h"
 #include "SpecConstants.h"
 #include "Support.h"
+#include "llvm/SYCLLowerIR/SYCLDeviceRequirements.h"
 
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringRef.h"
