@@ -103,7 +103,7 @@ implementation supports.
 
 This extension adds a new device aspect:
 
-[source]
+[source,c++]
 ----
 namespace sycl {
 enum class aspect : /*unspecified*/ {
@@ -117,7 +117,7 @@ The `ext_oneapi_scla` aspect indicates that the device is capable of using the
 
 === The SCLA API
 
-[source]
+[source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 template <typename ElementType, auto &SpecName,
@@ -160,7 +160,7 @@ This non-normative section shows some example usages of the extension.
 
 === Basic Usage
 
-[source]
+[source,c++]
 ----
 constexpr specialization_id<int> size(1);
 
@@ -186,7 +186,7 @@ void run(queue q, const float *in, float *out, size_t n) {
 The following example is intended to clarify storage duration of memory
 allocated by `private_alloca`.
 
-[source]
+[source,c++]
 ----
 constexpr specialization_id<int> size(1);
 
@@ -215,12 +215,12 @@ void run(queue q, const float *in, float *out, size_t n) {
 == Design Constraints
 
 The big design constraint stems from the unknown allocation size at compile
-time. C++ does not support variable length arrays and complete type sizes must
+time. C\+\+ does not support variable length arrays and complete type sizes must
 be known at compile time. Thus, the free function interface returning a pointer
-to private memory is the better way to represent this construct in C++. Lifetime
-of the underlying memory region was a concern too, but the current design with
-automatic storage duration for the allocated memory region closely follows what
-the user would get from a stack-allocated array.
+to private memory is the better way to represent this construct in
+C\+\+. Lifetime of the underlying memory region was a concern too, but the
+current design with automatic storage duration for the allocated memory region
+closely follows what the user would get from a stack-allocated array.
 
 == Issues
 
@@ -245,7 +245,7 @@ used to query the *value* of specialization constants with
 `sycl::specialization_constant` class representing specialization constants
 would enable cleaner interfaces to this function like:
 
-[source]
+[source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 template <typename ElementType, access::decorated DecorateAddress>
