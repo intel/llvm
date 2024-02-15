@@ -97,7 +97,8 @@ std::vector<detail::string> platform::get_platform_info_vector() const {
 // Instantiation of get_platform_info and get_platform_info_vector
 #define __SYCL_GET_PLATFORM_INFO_SPEC(Desc)                                    \
   template <>                                                                  \
-  detail::string platform::get_platform_info<info::platform::Desc>() const {   \
+  __SYCL_EXPORT detail::string                                                 \
+  platform::get_platform_info<info::platform::Desc>() const {                  \
     return detail::string(impl->template get_info<info::platform::Desc>());    \
   }
 
@@ -108,7 +109,7 @@ __SYCL_GET_PLATFORM_INFO_SPEC(version)
 
 #define __SYCL_GET_PLATFORM_INFO_VECTOR_SPEC(Desc)                             \
   template <>                                                                  \
-  std::vector<detail::string>                                                  \
+  __SYCL_EXPORT std::vector<detail::string>                                    \
   platform::get_platform_info_vector<info::platform::Desc>() const {           \
     std::vector<std::string> Info =                                            \
         impl->template get_info<info::platform::Desc>();                       \
@@ -132,9 +133,15 @@ pi_native_handle platform::getNative() const { return impl->getNative(); }
 
 bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template __SYCL_EXPORT ReturnT platform::get_info<info::platform::Desc>()    \
       const;
+#else
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+  template __SYCL_EXPORT ReturnT platform::get_info<info::platform::Desc>()    \
+      const;
+#endif
 
 #include <sycl/info/platform_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC

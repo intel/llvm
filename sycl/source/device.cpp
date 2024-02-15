@@ -174,7 +174,8 @@ std::vector<detail::string> device::get_device_info_vector() const {
 // Instantiation of get_device_info and get_device_info_vector
 #define __SYCL_GET_DEVICE_INFO_SPEC(Desc)                                      \
   template <>                                                                  \
-  detail::string device::get_device_info<info::device::Desc>() const {         \
+  __SYCL_EXPORT detail::string device::get_device_info<info::device::Desc>()   \
+      const {                                                                  \
     return detail::string(impl->template get_info<info::device::Desc>());      \
   }
 
@@ -189,7 +190,7 @@ __SYCL_GET_DEVICE_INFO_SPEC(version)
 
 #define __SYCL_GET_DEVICE_INFO_VECTOR_SPEC(Desc)                               \
   template <>                                                                  \
-  std::vector<detail::string>                                                  \
+  __SYCL_EXPORT std::vector<detail::string>                                    \
   device::get_device_info_vector<info::device::Desc>() const {                 \
     std::vector<std::string> Info =                                            \
         impl->template get_info<info::device::Desc>();                         \
@@ -213,7 +214,8 @@ device::get_info() const {
 // Explicit override. Not fulfilled by #include device_traits.def below.
 template <>
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-device device::get_info_impl<info::device::parent_device>() const {
+__SYCL_EXPORT device
+device::get_info_impl<info::device::parent_device>() const {
 #else
 __SYCL_EXPORT device device::get_info<info::device::parent_device>() const {
 #endif
@@ -260,7 +262,7 @@ device::get_info<info::device::aspects>() const {
 
 template <>
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-bool device::get_info_impl<info::device::image_support>() const {
+__SYCL_EXPORT bool device::get_info_impl<info::device::image_support>() const {
 #else
 __SYCL_EXPORT bool device::get_info<info::device::image_support>() const {
 #endif
@@ -271,9 +273,10 @@ __SYCL_EXPORT bool device::get_info<info::device::image_support>() const {
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template ReturnType<ReturnT>::type                                           \
+  template __SYCL_EXPORT ReturnType<ReturnT>::type                             \
   device::get_info_internal<info::device::Desc>() const;                       \
-  template ReturnT device::get_info_impl<info::device::Desc>() const;
+  template __SYCL_EXPORT ReturnT device::get_info_impl<info::device::Desc>()   \
+      const;
 #else
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template __SYCL_EXPORT ReturnT device::get_info<info::device::Desc>() const;
@@ -287,10 +290,10 @@ __SYCL_EXPORT bool device::get_info<info::device::image_support>() const {
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
-  template ReturnType<ReturnT>::type                                           \
+  template __SYCL_EXPORT ReturnType<ReturnT>::type                             \
   device::get_info_internal<Namespace::info::DescType::Desc>() const;          \
-  template ReturnT device::get_info_impl<Namespace::info::DescType::Desc>()    \
-      const;
+  template __SYCL_EXPORT ReturnT                                               \
+  device::get_info_impl<Namespace::info::DescType::Desc>() const;
 #else
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
   template __SYCL_EXPORT ReturnT                                               \
