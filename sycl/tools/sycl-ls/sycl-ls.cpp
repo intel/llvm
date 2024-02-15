@@ -127,7 +127,7 @@ static int printUsageAndExit() {
   return EXIT_FAILURE;
 }
 
-// Print warning and supress printing device ids if any of
+// Print warning and suppress printing device ids if any of
 // the filter environment variable is set.
 static void printWarningIfFiltersUsed(bool &SuppressNumberPrinting) {
 
@@ -185,14 +185,22 @@ static void printWarningIfFiltersUsed(bool &SuppressNumberPrinting) {
 // ONEAPI_DEVICE_SELECTOR, and SYCL_DEVICE_ALLOWLIST.
 static void unsetFilterEnvVars() {
   for (auto it : FilterEnvVars) {
+#ifdef _WIN32
+    _putenv_s(it.first.c_str(), "");
+#else
     unsetenv(it.first.c_str());
+#endif
   }
 }
 
 // Restore filter related environment variables that we unset earlier.
 static void restoreFilterEnvVars() {
   for (auto it : FilterEnvVars) {
+#ifdef _WIN32
+    _putenv_s(it.first.c_str(), it.second.c_str());
+#else
     setenv(it.first.c_str(), it.second.c_str(), 1);
+#endif
   }
 }
 
@@ -202,7 +210,7 @@ int main(int argc, char **argv) {
     verbose = false;
     DiscardFilters = false;
   }
-  else if (argc > 1 && argc < 4) {
+  else {
     // Parse CLI options.
     for (int i = 1; i < argc; i++) {
       if (std::string(argv[i]) == "--verbose")
@@ -213,16 +221,13 @@ int main(int argc, char **argv) {
         return printUsageAndExit();
     }
   }
-  else
-    return printUsageAndExit();
 
   bool SuppressNumberPrinting = false;
-  // Print warning and supress printing device ids if any of
+  // Print warning and suppress printing device ids if any of
   // the filter environment variable is set.
   printWarningIfFiltersUsed(SuppressNumberPrinting);
 
   try {
-
     // Unset all filter env. vars to get all available devices in the system.
     if (DiscardFilters)
       unsetFilterEnvVars();
