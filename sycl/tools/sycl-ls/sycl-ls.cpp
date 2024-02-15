@@ -22,8 +22,10 @@
 #include <iostream>
 #include <map>
 #include <stdlib.h>
+#include <vector>
 
 using namespace sycl;
+using namespace std::literals;
 
 // Controls verbose output vs. concise.
 bool verbose;
@@ -31,8 +33,8 @@ bool verbose;
 // Controls whether to discard filter environment variables or not.
 bool DiscardFilters;
 
-// Map to store values of various filter environment variables.
-std::map<std::string, std::string> FilterEnvVars;
+// To store various filter environment variables.
+std::vector<std::string> FilterEnvVars;
 
 // Trivial custom selector that selects a device of the given type.
 class custom_selector : public device_selector {
@@ -145,7 +147,7 @@ static void printWarningIfFiltersUsed(bool &SuppressNumberPrinting) {
                 << std::endl;
       SuppressNumberPrinting = true;
     } else
-      FilterEnvVars.insert({"SYCL_DEVICE_FILTER", filter});
+      FilterEnvVars.push_back("SYCL_DEVICE_FILTER");
   }
 #endif
 
@@ -160,7 +162,7 @@ static void printWarningIfFiltersUsed(bool &SuppressNumberPrinting) {
                 << std::endl;
       SuppressNumberPrinting = true;
     } else
-      FilterEnvVars.insert({"ONEAPI_DEVICE_SELECTOR", ods_targets});
+      FilterEnvVars.push_back("ONEAPI_DEVICE_SELECTOR");
   }
 
   const char *sycl_dev_allow = std::getenv("SYCL_DEVICE_ALLOWLIST");
@@ -174,7 +176,7 @@ static void printWarningIfFiltersUsed(bool &SuppressNumberPrinting) {
                 << std::endl;
       SuppressNumberPrinting = true;
     } else
-      FilterEnvVars.insert({"SYCL_DEVICE_ALLOWLIST", sycl_dev_allow});
+      FilterEnvVars.push_back("SYCL_DEVICE_ALLOWLIST");
   }
 }
 
@@ -183,20 +185,9 @@ static void printWarningIfFiltersUsed(bool &SuppressNumberPrinting) {
 static void unsetFilterEnvVars() {
   for (auto it : FilterEnvVars) {
 #ifdef _WIN32
-    _putenv_s(it.first.c_str(), "");
+    _putenv_s(it.c_str(), "");
 #else
-    unsetenv(it.first.c_str());
-#endif
-  }
-}
-
-// Restore filter related environment variables that we unset earlier.
-static void restoreFilterEnvVars() {
-  for (auto it : FilterEnvVars) {
-#ifdef _WIN32
-    _putenv_s(it.first.c_str(), it.second.c_str());
-#else
-    setenv(it.first.c_str(), it.second.c_str(), 1);
+    unsetenv(it.c_str());
 #endif
   }
 }
@@ -209,9 +200,9 @@ int main(int argc, char **argv) {
   } else {
     // Parse CLI options.
     for (int i = 1; i < argc; i++) {
-      if (std::string(argv[i]) == "--verbose")
+      if (argv[i] == "--verbose"sv)
         verbose = true;
-      else if (std::string(argv[i]) == "--discard-filters")
+      else if (argv[i] == "--discard-filters"sv)
         DiscardFilters = true;
       else
         return printUsageAndExit();
@@ -229,10 +220,6 @@ int main(int argc, char **argv) {
       unsetFilterEnvVars();
 
     const auto &Platforms = platform::get_platforms();
-
-    // Restore all filter env.
-    if (DiscardFilters)
-      restoreFilterEnvVars();
 
     // Keep track of the number of devices per backend
     std::map<backend, size_t> DeviceNums;

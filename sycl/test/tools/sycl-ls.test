@@ -1,4 +1,4 @@
--- Check that sycl-ls exits with 0 exit code.
+-- Check sycl-ls exit code and output.
 
 RUN: sycl-ls --verbose > vanilla_verbose.out
 RUN: sycl-ls > vanilla.out
