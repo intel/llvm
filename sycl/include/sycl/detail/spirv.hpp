@@ -853,23 +853,38 @@ EnableIfNativeShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
     for (int s = 0; s < x.size(); ++s)
       result[s] = Shuffle(g, x[s], local_id);
     return result;
-  } else if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                           GroupT>) {
-    return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
-                                          convertToOpenCLType(x), LocalId);
-  } else {
-    // Subgroup.
-    return __spirv_SubgroupShuffleINTEL(convertToOpenCLType(x), LocalId);
   }
+  auto ShuffleFunc = [&]() {
+    if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
+                      GroupT>) {
+      return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
+                                            convertToOpenCLType(x), LocalId);
+    } else {
+      // Subgroup.
+      return __spirv_SubgroupShuffleINTEL(convertToOpenCLType(x), LocalId);
+    }
+  };
 #else
-  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                    GroupT>) {
-    return __nvvm_shfl_sync_idx_i32(detail::ExtractMask(detail::GetMask(g))[0],
-                                    x, LocalId, 0x1f);
-  } else {
-    return __nvvm_shfl_sync_idx_i32(membermask(), x, LocalId, 0x1f);
-  }
+  auto ShuffleFunc = [&]() {
+    if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
+                      GroupT>) {
+      return __nvvm_shfl_sync_idx_i32(
+          detail::ExtractMask(detail::GetMask(g))[0], x, LocalId, 0x1f);
+    } else {
+      return __nvvm_shfl_sync_idx_i32(membermask(), x, LocalId, 0x1f);
+    }
+  };
 #endif
+  // If we are working with a ballot group we need to call the shuffles in
+  // divergent control-flows.
+  if constexpr (is_ballot_group<GroupT>::value) {
+    if (g.get_group_id() == 1)
+      return ShuffleFunc();
+    else
+      return ShuffleFunc();
+  } else {
+    return ShuffleFunc();
+  }
 }
 
 template <typename GroupT, typename T>
@@ -885,31 +900,46 @@ EnableIfNativeShuffle<T> ShuffleXor(GroupT g, T x, id<1> mask) {
     for (int s = 0; s < x.size(); ++s)
       result[s] = ShuffleXor(g, x[s], mask);
     return result;
-  } else if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                           GroupT>) {
-    // Since the masks are relative to the groups, we could either try to adjust
-    // the mask or simply do the xor ourselves. Latter option is efficient,
-    // general, and simple so we go with that.
-    id<1> TargetLocalId = g.get_local_id() ^ mask;
-    uint32_t TargetId = MapShuffleID(g, TargetLocalId);
-    return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
-                                          convertToOpenCLType(x), TargetId);
-  } else {
-    // Subgroup.
-    return __spirv_SubgroupShuffleXorINTEL(convertToOpenCLType(x),
-                                           static_cast<uint32_t>(mask.get(0)));
   }
+  auto ShuffleFunc = [&]() {
+    if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
+                      GroupT>) {
+      // Since the masks are relative to the groups, we could either try to
+      // adjust the mask or simply do the xor ourselves. Latter option is
+      // efficient, general, and simple so we go with that.
+      id<1> TargetLocalId = g.get_local_id() ^ mask;
+      uint32_t TargetId = MapShuffleID(g, TargetLocalId);
+      return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
+                                            convertToOpenCLType(x), TargetId);
+    } else {
+      // Subgroup.
+      return __spirv_SubgroupShuffleXorINTEL(
+          convertToOpenCLType(x), static_cast<uint32_t>(mask.get(0)));
+    }
+  };
 #else
-  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                    GroupT>) {
-    return __nvvm_shfl_sync_bfly_i32(detail::ExtractMask(detail::GetMask(g))[0],
-                                     x, static_cast<uint32_t>(mask.get(0)),
-                                     0x1f);
-  } else {
-    return __nvvm_shfl_sync_bfly_i32(membermask(), x,
-                                     static_cast<uint32_t>(mask.get(0)), 0x1f);
-  }
+  auto ShuffleFunc = [&]() {
+    if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
+                      GroupT>) {
+      return __nvvm_shfl_sync_bfly_i32(
+          detail::ExtractMask(detail::GetMask(g))[0], x,
+          static_cast<uint32_t>(mask.get(0)), 0x1f);
+    } else {
+      return __nvvm_shfl_sync_bfly_i32(
+          membermask(), x, static_cast<uint32_t>(mask.get(0)), 0x1f);
+    }
+  };
 #endif
+  // If we are working with a ballot group we need to call the shuffles in
+  // divergent control-flows.
+  if constexpr (is_ballot_group<GroupT>::value) {
+    if (g.get_group_id() == 1)
+      return ShuffleFunc();
+    else
+      return ShuffleFunc();
+  } else {
+    return ShuffleFunc();
+  }
 }
 
 template <typename GroupT, typename T>
@@ -924,30 +954,45 @@ EnableIfNativeShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
     for (int s = 0; s < x.size(); ++s)
       result[s] = ShuffleDown(g, x[s], delta);
     return result;
-  } else if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                           GroupT>) {
-    id<1> TargetLocalId = g.get_local_id();
-    // ID outside the group range is UB, so we just keep the current item ID
-    // unchanged.
-    if (TargetLocalId[0] + delta < g.get_local_linear_range())
-      TargetLocalId[0] += delta;
-    uint32_t TargetId = MapShuffleID(g, TargetLocalId);
-    return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
-                                          convertToOpenCLType(x), TargetId);
-  } else {
-    // Subgroup.
-    return __spirv_SubgroupShuffleDownINTEL(convertToOpenCLType(x),
-                                            convertToOpenCLType(x), delta);
   }
+  auto ShuffleFunc = [&]() {
+    if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
+                      GroupT>) {
+      id<1> TargetLocalId = g.get_local_id();
+      // ID outside the group range is UB, so we just keep the current item ID
+      // unchanged.
+      if (TargetLocalId[0] + delta < g.get_local_linear_range())
+        TargetLocalId[0] += delta;
+      uint32_t TargetId = MapShuffleID(g, TargetLocalId);
+      return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
+                                            convertToOpenCLType(x), TargetId);
+    } else {
+      // Subgroup.
+      return __spirv_SubgroupShuffleDownINTEL(convertToOpenCLType(x),
+                                              convertToOpenCLType(x), delta);
+    }
+  };
 #else
-  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                    GroupT>) {
-    return __nvvm_shfl_sync_down_i32(detail::ExtractMask(detail::GetMask(g))[0],
-                                     x, delta, 0x1f);
-  } else {
-    return __nvvm_shfl_sync_down_i32(membermask(), x, delta, 0x1f);
-  }
+  auto ShuffleFunc = [&]() {
+    if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
+                      GroupT>) {
+      return __nvvm_shfl_sync_down_i32(
+          detail::ExtractMask(detail::GetMask(g))[0], x, delta, 0x1f);
+    } else {
+      return __nvvm_shfl_sync_down_i32(membermask(), x, delta, 0x1f);
+    }
+  };
 #endif
+  // If we are working with a ballot group we need to call the shuffles in
+  // divergent control-flows.
+  if constexpr (is_ballot_group<GroupT>::value) {
+    if (g.get_group_id() == 1)
+      return ShuffleFunc();
+    else
+      return ShuffleFunc();
+  } else {
+    return ShuffleFunc();
+  }
 }
 
 template <typename GroupT, typename T>
@@ -962,29 +1007,44 @@ EnableIfNativeShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
     for (int s = 0; s < x.size(); ++s)
       result[s] = ShuffleUp(g, x[s], delta);
     return result;
-  } else if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                           GroupT>) {
-    id<1> TargetLocalId = g.get_local_id();
-    // Underflow is UB, so we just keep the current item ID unchanged.
-    if (TargetLocalId[0] >= delta)
-      TargetLocalId[0] -= delta;
-    uint32_t TargetId = MapShuffleID(g, TargetLocalId);
-    return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
-                                          convertToOpenCLType(x), TargetId);
-  } else {
-    // Subgroup.
-    return __spirv_SubgroupShuffleUpINTEL(convertToOpenCLType(x),
-                                          convertToOpenCLType(x), delta);
   }
+  auto ShuffleFunc = [&]() {
+    if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
+                      GroupT>) {
+      id<1> TargetLocalId = g.get_local_id();
+      // Underflow is UB, so we just keep the current item ID unchanged.
+      if (TargetLocalId[0] >= delta)
+        TargetLocalId[0] -= delta;
+      uint32_t TargetId = MapShuffleID(g, TargetLocalId);
+      return __spirv_GroupNonUniformShuffle(group_scope<GroupT>::value,
+                                            convertToOpenCLType(x), TargetId);
+    } else {
+      // Subgroup.
+      return __spirv_SubgroupShuffleUpINTEL(convertToOpenCLType(x),
+                                            convertToOpenCLType(x), delta);
+    }
+  };
 #else
-  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
-                    GroupT>) {
-    return __nvvm_shfl_sync_up_i32(detail::ExtractMask(detail::GetMask(g))[0],
-                                   x, delta, 0);
-  } else {
-    return __nvvm_shfl_sync_up_i32(membermask(), x, delta, 0);
-  }
+  auto ShuffleFunc = [&]() {
+    if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
+                      GroupT>) {
+      return __nvvm_shfl_sync_up_i32(detail::ExtractMask(detail::GetMask(g))[0],
+                                     x, delta, 0);
+    } else {
+      return __nvvm_shfl_sync_up_i32(membermask(), x, delta, 0);
+    }
+  };
 #endif
+  // If we are working with a ballot group we need to call the shuffles in
+  // divergent control-flows.
+  if constexpr (is_ballot_group<GroupT>::value) {
+    if (g.get_group_id() == 1)
+      return ShuffleFunc();
+    else
+      return ShuffleFunc();
+  } else {
+    return ShuffleFunc();
+  }
 }
 
 template <typename GroupT, typename T>
