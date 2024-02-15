@@ -5919,7 +5919,6 @@ __ESIMD_API
 /// atomic_update(T *p, simd<Toffset, N> byte_offset,
 ///               props = {});                                  /// (usm-au0-2)
 /// simd<T, N>
-///
 /// atomic_update(T *p, simd_view<OffsetObjT, RegionTy> byte_offset,
 ///               simd_mask<N> mask, props = {});               /// (usm-au0-3)
 /// simd<T, N>
@@ -5979,27 +5978,45 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd_mask<N> mask,
     return detail::atomic_update_impl<
         Op, T, N, detail::lsc_data_size::default_size, L1Hint, L2Hint, Toffset>(
         p, byte_offset, mask);
-  } else {
-    if constexpr (Op == atomic_op::load) {
-      if constexpr (std::is_integral_v<T>) {
-        return atomic_update<atomic_op::bit_or, T, N>(
-            p, byte_offset, simd<T, N>(0), mask, props);
-      } else {
-        using Tint = detail::uint_type_t<sizeof(T)>;
-        simd<Tint, N> Res = atomic_update<atomic_op::bit_or, Tint, N>(
-            reinterpret_cast<Tint *>(p), byte_offset, simd<Tint, N>(0), mask,
-            props);
-        return Res.template bit_cast_view<T>();
-      }
-    } else {
-      detail::check_atomic<Op, T, N, 0>();
+  } else if constexpr (N == 16 || N == 32) {
+    // TODO: In fact GPU BE supports legalization for any N, even for
+    // non-power-of-2, but it is implemented with an error now. For example,
+    // N=17 is emulated as 2 calls (N=16 and N=1), while it must be 3 calls:
+    // (N=8, N=8, N=1). I.e. Gen12 atomic instruction supports only N up to 8
+    // and GPU thinks now it is up to 16.
+    // Thus we emulate N=16 with 2 calls with N=8 each.
+    // N=32 is emulated with 4 calls with N=8 each.
+    // Task1: Remove the special-case emulation for N=16 and N=32 below when
+    // GPU driver fixes the error.
+    // Task2: remove the condition "!__ESIMD_DNS::isPowerOf2(N, 32)" above
+    // and let svm.atomic for any N.
 
-      simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
-      simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(byte_offset);
-      vAddr += offset_i1;
-      using Tx = typename detail::__raw_t<T>;
-      return __esimd_svm_atomic0<Op, Tx, N>(vAddr.data(), mask.data());
+    simd<T, N> Res;
+    for (int I = 0; I < N; I += 8) {
+      simd_mask<8> Mask8 = mask.template select<8, 1>(I);
+      simd<Toffset, 8> ByteOffset8 = byte_offset.template select<8, 1>(I);
+      Res.template select<8, 1>(I) =
+          atomic_update<Op, T, 8>(p, ByteOffset8, Mask8, props);
     }
+    return Res;
+  } else if constexpr (Op == atomic_op::load) {
+    if constexpr (std::is_integral_v<T>) {
+      return atomic_update<atomic_op::bit_or, T, N>(p, byte_offset,
+                                                    simd<T, N>(0), mask, props);
+    } else {
+      using Tint = detail::uint_type_t<sizeof(T)>;
+      simd<Tint, N> Res = atomic_update<atomic_op::bit_or, Tint, N>(
+          reinterpret_cast<Tint *>(p), byte_offset, simd<Tint, N>(0), mask,
+          props);
+      return Res.template bit_cast_view<T>();
+    }
+  } else {
+    detail::check_atomic<Op, T, N, 0>();
+    simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
+    simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(byte_offset);
+    vAddr += offset_i1;
+    using Tx = typename detail::__raw_t<T>;
+    return __esimd_svm_atomic0<Op, Tx, N>(vAddr.data(), mask.data());
   }
 }
 
@@ -6197,28 +6214,47 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
     return detail::atomic_update_impl<
         Op, T, N, detail::lsc_data_size::default_size, L1Hint, L2Hint, Toffset>(
         p, byte_offset, src0, mask);
-  } else {
-    if constexpr (Op == atomic_op::store) {
-      if constexpr (std::is_integral_v<T>) {
-        return atomic_update<atomic_op::xchg, T, N>(p, byte_offset, src0, mask,
-                                                    props);
-      } else {
-        using Tint = detail::uint_type_t<sizeof(T)>;
-        simd<Tint, N> Res = atomic_update<atomic_op::xchg, Tint, N>(
-            reinterpret_cast<Tint *>(p), byte_offset,
-            src0.template bit_cast_view<Tint>(), mask, props);
-        return Res.template bit_cast_view<T>();
-      }
-    } else {
-      detail::check_atomic<Op, T, N, 1>();
-      simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
-      simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(byte_offset);
-      vAddr += offset_i1;
-
-      using Tx = typename detail::__raw_t<T>;
-      return __esimd_svm_atomic1<Op, Tx, N>(vAddr.data(), src0.data(),
-                                            mask.data());
+  } else if constexpr (N == 16 || N == 32) {
+    // TODO: In fact GPU BE supports legalization for any N, even for
+    // non-power-of-2, but it is implemented with an error now. For example,
+    // N=17 is emulated as 2 calls (N=16 and N=1), while it must be 3 calls:
+    // (N=8, N=8, N=1). I.e. Gen12 atomic instruction supports only N up to 8
+    // and GPU thinks now it is up to 16.
+    // Thus we emulate N=16 with 2 calls with N=8 each.
+    // N=32 is emulated with 4 calls with N=8 each.
+    // Task1: Remove the special-case emulation for N=16 and N=32 below when
+    // GPU driver fixes the error.
+    // Task2: remove the condition "!__ESIMD_DNS::isPowerOf2(N, 32)" above
+    // and let svm.atomic for any N.
+    simd<T, N> Res;
+    for (int I = 0; I < N; I += 8) {
+      simd_mask<8> Mask8 = mask.template select<8, 1>(I);
+      simd<Toffset, 8> ByteOffset8 = byte_offset.template select<8, 1>(I);
+      simd<T, 8> Src08 = src0.template select<8, 1>(I);
+      Res.template select<8, 1>(I) =
+          atomic_update<Op, T, 8>(p, ByteOffset8, Src08, Mask8, props);
     }
+    return Res;
+  } else if constexpr (Op == atomic_op::store) {
+    if constexpr (std::is_integral_v<T>) {
+      return atomic_update<atomic_op::xchg, T, N>(p, byte_offset, src0, mask,
+                                                  props);
+    } else {
+      using Tint = detail::uint_type_t<sizeof(T)>;
+      simd<Tint, N> Res = atomic_update<atomic_op::xchg, Tint, N>(
+          reinterpret_cast<Tint *>(p), byte_offset,
+          src0.template bit_cast_view<Tint>(), mask, props);
+      return Res.template bit_cast_view<T>();
+    }
+  } else {
+    detail::check_atomic<Op, T, N, 1>();
+    simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
+    simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(byte_offset);
+    vAddr += offset_i1;
+
+    using Tx = typename detail::__raw_t<T>;
+    return __esimd_svm_atomic1<Op, Tx, N>(vAddr.data(), src0.data(),
+                                          mask.data());
   }
 }
 
@@ -6443,6 +6479,28 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
     return detail::atomic_update_impl<
         Op, T, N, detail::lsc_data_size::default_size, L1Hint, L2Hint, Toffset>(
         p, byte_offset, src1, src0, mask);
+  } else if constexpr (N == 16 || N == 32) {
+    // TODO: In fact GPU BE supports legalization for any N, even for
+    // non-power-of-2, but it is implemented with an error now. For example,
+    // N=17 is emulated as 2 calls (N=16 and N=1), while it must be 3 calls:
+    // (N=8, N=8, N=1). I.e. Gen12 atomic instruction supports only N up to 8
+    // and GPU thinks now it is up to 16.
+    // Thus we emulate N=16 with 2 calls with N=8 each.
+    // N=32 is emulated with 4 calls with N=8 each.
+    // Task1: Remove the special-case emulation for N=16 and N=32 below when
+    // GPU driver fixes the error.
+    // Task2: remove the condition "!__ESIMD_DNS::isPowerOf2(N, 32)" above
+    // and let svm.atomic for any N.
+    simd<T, N> Res;
+    for (int I = 0; I < N; I += 8) {
+      simd_mask<8> Mask8 = mask.template select<8, 1>(I);
+      simd<Toffset, 8> ByteOffset8 = byte_offset.template select<8, 1>(I);
+      simd<T, 8> Src08 = src0.template select<8, 1>(I);
+      simd<T, 8> Src18 = src1.template select<8, 1>(I);
+      Res.template select<8, 1>(I) =
+          atomic_update<Op, T, 8>(p, ByteOffset8, Src08, Src18, Mask8, props);
+    }
+    return Res;
   } else {
     detail::check_atomic<Op, T, N, 2>();
     simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
