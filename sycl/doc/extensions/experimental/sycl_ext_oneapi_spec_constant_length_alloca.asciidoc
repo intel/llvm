@@ -10,6 +10,7 @@
 :encoding: utf-8
 :lang: en
 :dpcpp: pass:[DPC++]
+:cpp: pass:[C++]
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
@@ -61,7 +62,7 @@ submitted to the queue.
 
 == Overview
 
-C++ arrays and `std::array` can be used in SYCL code to represent fixed-size
+{cpp} arrays and `std::array` can be used in SYCL code to represent fixed-size
 sequences of objects. However, these constructs have a significant restriction:
 the number of elements must be known at compile time. In host-code context,
 users can make use of dynamic memory allocations, e.g., `std::vector`, but this
@@ -215,10 +216,10 @@ void run(queue q, const float *in, float *out, size_t n) {
 == Design Constraints
 
 The big design constraint stems from the unknown allocation size at compile
-time. C\+\+ does not support variable length arrays and complete type sizes must
+time. {cpp} does not support variable length arrays and complete type sizes must
 be known at compile time. Thus, the free function interface returning a pointer
 to private memory is the better way to represent this construct in
-C\+\+. Lifetime of the underlying memory region was a concern too, but the
+{cpp}. Lifetime of the underlying memory region was a concern too, but the
 current design with automatic storage duration for the allocated memory region
 closely follows what the user would get from a stack-allocated array.
 
