@@ -12,6 +12,8 @@
 
 #pragma once
 
+#include "SYCLDeviceRequirements.h"
+
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Function.h"
@@ -106,6 +108,7 @@ class ModuleDesc {
   std::unique_ptr<Module> M;
   EntryPointGroup EntryPoints;
   bool IsTopLevel = false;
+  std::optional<SYCLDeviceRequirements> Reqs;
 
 public:
   struct Properties {
@@ -190,6 +193,12 @@ public:
   void setSpecConstantDefault(bool Value);
 
   ModuleDesc clone() const;
+
+  const SYCLDeviceRequirements &getOrComputeDeviceRequirements() {
+    if (!Reqs.has_value())
+      Reqs = SYCLDeviceRequirements(*this);
+    return *Reqs;
+  }
 
 #ifndef NDEBUG
   void verifyESIMDProperty() const;

@@ -8,8 +8,12 @@
 
 #pragma once
 
+#include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringRef.h"
 #include <cstdint>
 #include <map>
+#include <optional>
+#include <set>
 #include <vector>
 
 namespace llvm {
@@ -23,8 +27,15 @@ namespace util {
 class PropertyValue;
 }
 
-void getSYCLDeviceRequirements(
-    const module_split::ModuleDesc &M,
-    std::map<StringRef, util::PropertyValue> &Requirements);
+struct SYCLDeviceRequirements {
+  SYCLDeviceRequirements(const module_split::ModuleDesc &M);
+  std::set<uint32_t> Aspects;
+  std::set<uint32_t> FixedTarget;
+  std::optional<llvm::SmallVector<uint64_t, 3>> ReqdWorkGroupSize;
+  std::optional<llvm::SmallString<256>> JointMatrix;
+  std::optional<llvm::SmallString<256>> JointMatrixMad;
+  std::optional<uint32_t> SubGroupSize;
 
+  std::map<StringRef, util::PropertyValue> asMap() const;
+};
 } // namespace llvm

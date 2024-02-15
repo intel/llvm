@@ -20,6 +20,7 @@
 #include "SpecConstants.h"
 #include "Support.h"
 
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/AssumptionCache.h"
 #include "llvm/Analysis/ProfileSummaryInfo.h"
@@ -35,6 +36,7 @@
 #include "llvm/Linker/Linker.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
+#include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
@@ -104,9 +106,28 @@ cl::opt<std::string> OutputDir{
         "Directory where files listed in the result file table will be output"),
     cl::value_desc("dirname"), cl::cat(PostLinkCat)};
 
-cl::opt<std::string> OutputFilename{"o", cl::desc("Output filename"),
-                                    cl::value_desc("filename"), cl::init("-"),
-                                    cl::cat(PostLinkCat)};
+struct TargetFilenamePair {
+  std::string Target;
+  std::string Filename;
+};
+
+struct TargetFilenamePairParser : public cl::basic_parser<TargetFilenamePair> {
+  using cl::basic_parser<TargetFilenamePair>::basic_parser;
+  bool parse(cl::Option &O, StringRef ArgName, StringRef &ArgValue,
+             TargetFilenamePair &Val) const {
+    auto FirstComma = ArgValue.find(",");
+    if (FirstComma == ArgValue.npos)
+      Val = {"", ArgValue.str()};
+    else
+      Val = {ArgValue.substr(0, FirstComma).str(),
+             ArgValue.substr(FirstComma + 1).str()};
+    return false;
+  }
+};
+
+cl::list<TargetFilenamePair, bool, TargetFilenamePairParser> OutputFiles{
+    "o", cl::desc("Output filename"), cl::value_desc("filename"),
+    cl::cat(PostLinkCat)};
 
 cl::opt<bool> Force{"f", cl::desc("Enable binary output on terminals"),
                     cl::cat(PostLinkCat)};
@@ -338,13 +359,14 @@ std::vector<uint32_t> getKernelReqdWorkGroupSizeMetadata(const Function &Func) {
 std::string makeResultFileName(Twine Ext, int I, StringRef Suffix) {
   const StringRef Dir0 = OutputDir.getNumOccurrences() > 0
                              ? OutputDir
-                             : sys::path::parent_path(OutputFilename);
+                             : sys::path::parent_path(OutputFiles[0].Filename);
   const StringRef Sep = sys::path::get_separator();
   std::string Dir = Dir0.str();
   if (!Dir0.empty() && !Dir0.ends_with(Sep))
     Dir += Sep.str();
-  return Dir + sys::path::stem(OutputFilename).str() + Suffix.str() + "_" +
-         std::to_string(I) + Ext.str();
+  return (Dir + sys::path::stem(OutputFiles[0].Filename) + Suffix + "_" +
+          Twine(I) + Ext)
+      .str();
 }
 
 void saveModuleIR(Module &M, StringRef OutFilename) {
@@ -383,9 +405,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     PropSet.add(PropSetRegTy::SYCL_DEVICELIB_REQ_MASK, RMEntry);
   }
   {
-    std::map<StringRef, llvm::util::PropertyValue> Requirements;
-    getSYCLDeviceRequirements(MD, Requirements);
-    PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS, Requirements);
+    PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS,
+                MD.getOrComputeDeviceRequirements().asMap());
   }
   if (MD.Props.SpecConstsMet) {
     // extract spec constant maps per each module
@@ -939,7 +960,63 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
   return Result;
 }
 
-std::unique_ptr<util::SimpleTable>
+bool isTargetCompatibleWithModule(StringRef Target,
+                                  module_split::ModuleDesc &IrMD) {
+  if (Target == "")
+    return true;
+  const DeviceConfigFile::TargetInfo &TargetInfo =
+      DeviceConfigFile::TargetTable[Target.str()];
+  const SYCLDeviceRequirements &ModuleReqs =
+      IrMD.getOrComputeDeviceRequirements();
+  // The device config file data stores the target's supported
+  // aspects as a vector of the strings, so we need to translate
+  // the values to a common format.
+  const NamedMDNode *Node = IrMD.getModule().getNamedMetadata("sycl_aspects");
+  if (Node) {
+    SmallMapVector<StringRef, int, 32> AspectNameToValue;
+    for (const MDNode *N : Node->operands()) {
+      assert(N->getNumOperands() == 2 &&
+             "Each operand of sycl_aspects must be a pair.");
+
+      // The aspect's name is the first operand.
+      const auto *AspectName = cast<MDString>(N->getOperand(0));
+
+      // The aspect's integral value is the second operand.
+      const auto *AspectCAM = cast<ConstantAsMetadata>(N->getOperand(1));
+      const Constant *AspectC = AspectCAM->getValue();
+
+      AspectNameToValue[AspectName->getString()] =
+          cast<ConstantInt>(AspectC)->getSExtValue();
+    }
+
+    // Make the set of aspects values the target supports.
+    SmallSet<int64_t, 32> TargetAspectValueSet;
+    for (auto Aspect : TargetInfo.aspects) {
+      auto It = AspectNameToValue.find(Aspect);
+      assert(It != AspectNameToValue.end() && "Aspect value mapping unknown!");
+      TargetAspectValueSet.insert(It->second);
+    }
+
+    // Now check to see if all the requirements of the input module
+    // are compatbile with the target.
+    for (auto Aspect : ModuleReqs.Aspects) {
+      if (!TargetAspectValueSet.contains(Aspect))
+        return false;
+    }
+  }
+
+  // Check if module sub group size is compatible with the target.
+  if (ModuleReqs.SubGroupSize.has_value()) {
+    auto Begin = TargetInfo.subGroupSizes.begin();
+    auto End = TargetInfo.subGroupSizes.end();
+    if (std::find(Begin, End, *ModuleReqs.SubGroupSize) == End)
+      return false;
+  }
+
+  return true;
+}
+
+std::vector<std::unique_ptr<util::SimpleTable>>
 processInputModule(std::unique_ptr<Module> M) {
   // Construct the resulting table which will accumulate all the outputs.
   SmallVector<StringRef, MAX_COLUMNS_IN_FILE_TABLE> ColumnTitles{
@@ -951,7 +1028,14 @@ processInputModule(std::unique_ptr<Module> M) {
   Expected<std::unique_ptr<util::SimpleTable>> TableE =
       util::SimpleTable::create(ColumnTitles);
   CHECK_AND_EXIT(TableE.takeError());
-  std::unique_ptr<util::SimpleTable> Table = std::move(TableE.get());
+  std::vector<std::unique_ptr<util::SimpleTable>> Tables;
+  for (auto OutputFile : OutputFiles) {
+    std::ignore = OutputFile;
+    Expected<std::unique_ptr<util::SimpleTable>> TableE =
+        util::SimpleTable::create(ColumnTitles);
+    CHECK_AND_EXIT(TableE.takeError());
+    Tables.push_back(std::move(TableE.get()));
+  }
 
   // Used in output filenames generation.
   int ID = 0;
@@ -1043,14 +1127,14 @@ processInputModule(std::unique_ptr<Module> M) {
               "' can't be used");
       }
       MMs.front().cleanup();
-      saveModuleIR(MMs.front().getModule(), OutputFilename);
-      return Table;
+      saveModuleIR(MMs.front().getModule(), OutputFiles[0].Filename);
+      return Tables;
     }
     // Empty IR file name directs saveModule to generate one and save IR to
     // it:
     std::string OutIRFileName = "";
 
-    if (!Modified && (OutputFilename.getNumOccurrences() == 0)) {
+    if (!Modified && (OutputFiles.getNumOccurrences() == 0)) {
       assert(!SplitOccurred);
       OutIRFileName = InputFilename; // ... non-empty means "skip IR writing"
       errs() << "sycl-post-link NOTE: no modifications to the input LLVM IR "
@@ -1058,7 +1142,9 @@ processInputModule(std::unique_ptr<Module> M) {
     }
     for (module_split::ModuleDesc &IrMD : MMs) {
       IrPropSymFilenameTriple T = saveModule(IrMD, ID, OutIRFileName);
-      addTableRow(*Table, T);
+      for (const auto &[Table, OutputFile] : zip_equal(Tables, OutputFiles))
+        if (isTargetCompatibleWithModule(OutputFile.Target, IrMD))
+          addTableRow(*Table, T);
     }
 
     ++ID;
@@ -1067,13 +1153,15 @@ processInputModule(std::unique_ptr<Module> M) {
       for (size_t i = 0; i != MMsWithDefaultSpecConsts.size(); ++i) {
         module_split::ModuleDesc &IrMD = MMsWithDefaultSpecConsts[i];
         IrPropSymFilenameTriple T = saveModule(IrMD, ID, OutIRFileName);
-        addTableRow(*Table, T);
+        for (const auto &[Table, OutputFile] : zip_equal(Tables, OutputFiles))
+          if (isTargetCompatibleWithModule(OutputFile.Target, IrMD))
+            addTableRow(*Table, T);
       }
 
       ++ID;
     }
   }
-  return Table;
+  return Tables;
 }
 
 } // namespace
@@ -1197,23 +1285,26 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  if (OutputFilename.getNumOccurrences() == 0) {
-    std::string S =
+  if (OutputFiles.getNumOccurrences() == 0) {
+    StringRef S =
         IROutputOnly ? (OutputAssembly ? ".out.ll" : "out.bc") : ".files";
-    OutputFilename = (Twine(sys::path::stem(InputFilename)) + S).str();
+    OutputFiles.push_back({"", (sys::path::stem(InputFilename) + S).str()});
   }
 
-  std::unique_ptr<util::SimpleTable> Table = processInputModule(std::move(M));
+  std::vector<std::unique_ptr<util::SimpleTable>> Tables =
+      processInputModule(std::move(M));
 
   // Input module was processed and a single output file was requested.
   if (IROutputOnly)
     return 0;
 
-  // Emit the resulting table
-  std::error_code EC;
-  raw_fd_ostream Out{OutputFilename, EC, sys::fs::OF_None};
-  checkError(EC, "error opening file '" + OutputFilename + "'");
-  Table->write(Out);
+  // Emit the resulting tables
+  for (const auto &[Table, OutputFile] : zip_equal(Tables, OutputFiles)) {
+    std::error_code EC;
+    raw_fd_ostream Out{OutputFile.Filename, EC, sys::fs::OF_None};
+    checkError(EC, "error opening file '" + OutputFile.Filename + "'");
+    Table->write(Out);
+  }
 
   return 0;
 }
