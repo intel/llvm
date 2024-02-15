@@ -123,6 +123,19 @@ class StrideAnalysis : public llvm::AnalysisInfoMixin<StrideAnalysis> {
   static llvm::AnalysisKey Key;
 };
 
+/// @brief Helper pass to print out the contents of the StrideAnalysis
+/// analysis.
+class StrideAnalysisPrinterPass
+    : public llvm::PassInfoMixin<StrideAnalysisPrinterPass> {
+  llvm::raw_ostream &OS;
+
+ public:
+  explicit StrideAnalysisPrinterPass(llvm::raw_ostream &OS) : OS(OS) {}
+
+  llvm::PreservedAnalyses run(llvm::Function &F,
+                              llvm::FunctionAnalysisManager &AM);
+};
+
 }  // namespace vecz
 
 #endif  // VECZ_ANALYSIS_STRIDE_ANALYSIS_H_INCLUDED
