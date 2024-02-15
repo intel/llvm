@@ -34,6 +34,11 @@ FetchContent_Declare(unified-memory-framework
     GIT_TAG           ${UMF_TAG}
 )
 
+if(UR_BUILD_TESTS)
+    set(UMF_BUILD_TESTS ON CACHE INTERNAL "Build UMF tests")
+else()
+    set(UMF_BUILD_TESTS OFF CACHE INTERNAL "Build UMF tests")
+endif()
 set(UMF_BUILD_LIBUMF_POOL_DISJOINT ON CACHE INTERNAL "Build Disjoint Pool")
 set(UMF_BUILD_OS_MEMORY_PROVIDER OFF CACHE INTERNAL "Build OS Provider")
 
