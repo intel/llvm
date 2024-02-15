@@ -88,3 +88,34 @@ StrideAnalysisResult StrideAnalysis::run(llvm::Function &F,
   auto &UVR = AM.getResult<UniformValueAnalysis>(F);
   return Result(F, UVR, AC);
 }
+
+PreservedAnalyses StrideAnalysisPrinterPass::run(Function &F,
+                                                 FunctionAnalysisManager &AM) {
+  auto &SAR = AM.getResult<StrideAnalysis>(F);
+  OS << "StrideAnalysis for function '" << F.getName() << "':\n";
+
+  for (auto &BB : F) {
+    for (auto &I : BB) {
+      if (auto MO = MemOp::get(&I)) {
+        auto *const Ptr = MO->getPointerOperand();
+        if (!Ptr) {
+          continue;
+        }
+        if (const OffsetInfo *Info = SAR.getInfo(Ptr)) {
+          OS << "* Stride for " << *Ptr << "\n";
+          OS << "  - "
+             << (Info->mayDiverge()
+                     ? "divergent"
+                     : (Info->hasStride()
+                            ? "linear"
+                            : (Info->isUniform() ? "uniform" : "unknown")));
+          if (Info->isStrideConstantInt()) {
+            OS << " stride of " << Info->getStrideAsConstantInt();
+          }
+          OS << "\n";
+        }
+      }
+    }
+  }
+  return PreservedAnalyses::all();
+}
