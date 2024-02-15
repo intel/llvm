@@ -82,8 +82,37 @@ enum class graph_state {
   executable, ///< In executable state, the graph is ready to execute.
 };
 
+enum class node_type {
+  empty = 0,
+  subgraph = 1,
+  kernel = 2,
+  memcpy = 3,
+  memset = 4,
+  memfill = 5,
+  prefetch = 6,
+  memadvise = 7,
+  ext_oneapi_barrier = 8,
+  host_task = 9
+};
+
 /// Class representing a node in the graph, returned by command_graph::add().
 class __SYCL_EXPORT node {
+public:
+  node() = delete;
+
+  /// Get the type of command associated with this node.
+  node_type get_type() const;
+
+  /// Get a list of all the node dependencies of this node.
+  std::vector<node> get_predecessors() const;
+
+  /// Get a list of all nodes which depend on this node.
+  std::vector<node> get_successors() const;
+
+  /// Get the node associated with a SYCL event returned from a queue recording
+  /// submission.
+  static node get_node_from_event(event nodeEvent);
+
 private:
   node(const std::shared_ptr<detail::node_impl> &Impl) : impl(Impl) {}
 
@@ -258,6 +287,12 @@ public:
   /// @param verbose If true, print additional information about the nodes such
   /// as kernel args or memory access where applicable.
   void print_graph(const std::string path, bool verbose = false) const;
+
+  /// Get a list of all nodes contained in this graph.
+  std::vector<node> get_nodes() const;
+
+  /// Get a list of all root nodes (nodes without dependencies) in this graph.
+  std::vector<node> get_root_nodes() const;
 
 protected:
   /// Constructor used internally by the runtime.
