@@ -487,12 +487,6 @@ template <typename T> auto convertToOpenCLType(T &&x) {
 #endif
     return reinterpret_cast<result_type>(x);
   } else if constexpr (is_vec_v<no_ref>) {
-#ifdef __SYCL_DEVICE_ONLY__
-    return static_cast<typename no_ref::vector_t>(x);
-#else
-#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-    // No idea why this is necessary, most likely ABI bug-compatibility with
-    // previous release.
     using ElemTy = typename no_ref::element_type;
     // sycl::half may convert to _Float16, and we would try to instantiate
     // vec class with _Float16 DataType, which is not expected there. As
@@ -501,10 +495,11 @@ template <typename T> auto convertToOpenCLType(T &&x) {
                                                decltype(convertToOpenCLType(
                                                    std::declval<ElemTy>()))>,
                             no_ref::size()>;
-    return x.template as<MatchingVec>();
+#ifdef __SYCL_DEVICE_ONLY__
+    return static_cast<typename MatchingVec::vector_t>(
+        x.template as<MatchingVec>());
 #else
-    return std::forward<T>(x);
-#endif
+    return x.template as<MatchingVec>();
 #endif
   } else if constexpr (is_boolean_v<no_ref>) {
 #ifdef __SYCL_DEVICE_ONLY__

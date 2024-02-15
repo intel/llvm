@@ -206,6 +206,20 @@ int main() {
               s::vec<long long, 2>, s::access::address_space::global_space,
               s::access::decorated::yes>>,
           __attribute__((opencl_global)) long_vec2 *>);
+
+  using signed_char2 = s::opencl::cl_char __attribute__((ext_vector_type(2)));
+  static_assert(std::is_same_v<
+                d::ConvertToOpenCLType_t<s::multi_ptr<
+                    s::vec<char, 2>, s::access::address_space::global_space,
+                    s::access::decorated::yes>>,
+          __attribute__((opencl_global)) signed_char2 *>);
+  static_assert(
+      std::is_same_v<
+          d::ConvertToOpenCLType_t<s::multi_ptr<
+              s::vec<signed char, 2>, s::access::address_space::global_space,
+              s::access::decorated::yes>>,
+          __attribute__((opencl_global)) signed_char2 *>);
+
 #endif
 
 #ifdef __SYCL_DEVICE_ONLY__
