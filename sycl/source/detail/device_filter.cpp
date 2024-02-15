@@ -93,9 +93,13 @@ static void Parse_ODS_Device(ods_target &Target,
   std::string_view TopDeviceStr = DeviceSubTuple[0];
 
   // Handle explicit device type (e.g. 'gpu').
-  auto DeviceTypeMap =
-      getSyclDeviceTypeMap(); // <-- std::array<std::pair<std::string,
-                              // info::device::type>>
+  auto DeviceTypeMap = getSyclDeviceTypeMap(
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+      true /*Enable 'acc'*/
+#endif
+  ); // <-- std::array<std::pair<std::string,
+     // info::device::type>>
+
   auto It =
       std::find_if(std::begin(DeviceTypeMap), std::end(DeviceTypeMap),
                    [&](auto DtPair) { return TopDeviceStr == DtPair.first; });
@@ -262,7 +266,11 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envString) {
 std::ostream &operator<<(std::ostream &Out, const ods_target &Target) {
   Out << Target.Backend;
   if (Target.DeviceType) {
-    auto DeviceTypeMap = getSyclDeviceTypeMap();
+    auto DeviceTypeMap = getSyclDeviceTypeMap(
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+        true /*Enable 'acc'*/
+#endif
+    );
     auto Match = std::find_if(
         DeviceTypeMap.begin(), DeviceTypeMap.end(),
         [&](auto Pair) { return (Pair.second == Target.DeviceType); });
@@ -288,7 +296,7 @@ ods_target_list::ods_target_list(const std::string &envStr) {
   TargetList = Parse_ONEAPI_DEVICE_SELECTOR(envStr);
 }
 
-// Backend is compatible with the SYCL_DEVICE_FILTER in the following cases.
+// Backend is compatible with the ONEAPI_DEVICE_SELECTOR in the following cases.
 // 1. Filter backend is '*' which means ANY backend.
 // 2. Filter backend match exactly with the given 'Backend'
 bool ods_target_list::backendCompatible(backend Backend) {
@@ -300,6 +308,7 @@ bool ods_target_list::backendCompatible(backend Backend) {
       });
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // ---------------------------------------
 // SYCL_DEVICE_FILTER support
 
@@ -334,11 +343,12 @@ device_filter::device_filter(const std::string &FilterString) {
   if (TripleValueID >= Tokens.size()) {
     DeviceType = info::device_type::all;
   } else {
-    auto Iter = std::find_if(std::begin(getSyclDeviceTypeMap()),
-                             std::end(getSyclDeviceTypeMap()), FindElement);
+    auto Iter = std::find_if(
+        std::begin(getSyclDeviceTypeMap(true /*Enable 'acc'*/)),
+        std::end(getSyclDeviceTypeMap(true /*Enable 'acc'*/)), FindElement);
     // If no match is found, set device_type 'all',
     // which actually means 'any device_type' will be a match.
-    if (Iter == getSyclDeviceTypeMap().end())
+    if (Iter == getSyclDeviceTypeMap(true /*Enable 'acc'*/).end())
       DeviceType = info::device_type::all;
     else {
       DeviceType = Iter->second;
@@ -424,6 +434,7 @@ bool device_filter_list::deviceNumberCompatible(int DeviceNum) {
         return (!Filter.DeviceNum) || (Filter.DeviceNum.value() == DeviceNum);
       });
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 } // namespace detail
 } // namespace _V1

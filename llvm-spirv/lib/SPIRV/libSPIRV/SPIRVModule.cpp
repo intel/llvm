@@ -2094,27 +2094,7 @@ void SPIRVModuleImpl::addUnknownStructField(SPIRVTypeStruct *Struct, unsigned I,
 }
 
 static std::string to_string(uint32_t Version) {
-  std::string Res;
-  switch (Version) {
-  case static_cast<uint32_t>(VersionNumber::SPIRV_1_0):
-    Res = "1.0";
-    break;
-  case static_cast<uint32_t>(VersionNumber::SPIRV_1_1):
-    Res = "1.1";
-    break;
-  case static_cast<uint32_t>(VersionNumber::SPIRV_1_2):
-    Res = "1.2";
-    break;
-  case static_cast<uint32_t>(VersionNumber::SPIRV_1_3):
-    Res = "1.3";
-    break;
-  case static_cast<uint32_t>(VersionNumber::SPIRV_1_4):
-    Res = "1.4";
-    break;
-  default:
-    Res = "unknown";
-  }
-
+  std::string Res(formatVersionNumber(Version));
   Res += " (" + std::to_string(Version) + ")";
   return Res;
 }
@@ -2139,9 +2119,7 @@ std::istream &operator>>(std::istream &I, SPIRVModule &M) {
   }
 
   Decoder >> MI.SPIRVVersion;
-  bool SPIRVVersionIsKnown =
-      static_cast<uint32_t>(VersionNumber::MinimumVersion) <= MI.SPIRVVersion &&
-      MI.SPIRVVersion <= static_cast<uint32_t>(VersionNumber::MaximumVersion);
+  bool SPIRVVersionIsKnown = isSPIRVVersionKnown(MI.SPIRVVersion);
   if (!M.getErrorLog().checkError(
           SPIRVVersionIsKnown, SPIRVEC_InvalidModule,
           "unsupported SPIR-V version number '" + to_string(MI.SPIRVVersion) +

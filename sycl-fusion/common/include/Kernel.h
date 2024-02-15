@@ -12,12 +12,11 @@
 #include "DynArray.h"
 
 #include <algorithm>
-#include <array>
 #include <cassert>
 #include <cstdint>
 #include <cstring>
-#include <string>
-#include <vector>
+#include <functional>
+#include <type_traits>
 
 namespace jit_compiler {
 
@@ -131,7 +130,7 @@ using ArgUsageUT = std::underlying_type_t<ArgUsage>;
 ///
 /// Describe the list of arguments by their kind and usage.
 struct SYCLArgumentDescriptor {
-  explicit SYCLArgumentDescriptor(size_t NumArgs)
+  explicit SYCLArgumentDescriptor(size_t NumArgs = 0)
       : Kinds(NumArgs), UsageMask(NumArgs){};
 
   DynArray<ParameterKind> Kinds;
@@ -265,12 +264,19 @@ public:
   constexpr int getDimensions() const { return Dimensions; }
 
   bool hasSpecificLocalSize() const { return LocalSize != AllZeros; }
+  bool hasUniformWorkGroupSizes() const {
+    assert(hasSpecificLocalSize() && "Local size must be specified");
+    for (int I = 0; I < Dimensions; ++I) {
+      if (GlobalSize[I] % LocalSize[I] != 0) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   friend constexpr bool operator==(const NDRange &LHS, const NDRange &RHS) {
     return LHS.Dimensions == RHS.Dimensions &&
-           LHS.GlobalSize == RHS.GlobalSize &&
-           (!LHS.hasSpecificLocalSize() || !RHS.hasSpecificLocalSize() ||
-            LHS.LocalSize == RHS.LocalSize) &&
+           LHS.GlobalSize == RHS.GlobalSize && LHS.LocalSize == RHS.LocalSize &&
            LHS.Offset == RHS.Offset;
   }
 
@@ -293,19 +299,11 @@ public:
       return false;
     }
 
-    if (!LHS.hasSpecificLocalSize() && RHS.hasSpecificLocalSize()) {
+    if (LHS.LocalSize < RHS.LocalSize) {
       return true;
     }
-    if (LHS.hasSpecificLocalSize() && !RHS.hasSpecificLocalSize()) {
+    if (LHS.LocalSize > RHS.LocalSize) {
       return false;
-    }
-    if (LHS.hasSpecificLocalSize() && RHS.hasSpecificLocalSize()) {
-      if (LHS.LocalSize < RHS.LocalSize) {
-        return true;
-      }
-      if (LHS.LocalSize > RHS.LocalSize) {
-        return false;
-      }
     }
 
     return LHS.Offset < RHS.Offset;
@@ -339,6 +337,8 @@ struct SYCLKernelInfo {
 
   SYCLKernelBinaryInfo BinaryInfo;
 
+  SYCLKernelInfo() = default;
+
   SYCLKernelInfo(const char *KernelName, const SYCLArgumentDescriptor &ArgDesc,
                  const NDRange &NDR, const SYCLKernelBinaryInfo &BinInfo)
       : Name{KernelName}, Args{ArgDesc}, Attributes{}, NDR{NDR},
@@ -346,33 +346,6 @@ struct SYCLKernelInfo {
 
   SYCLKernelInfo(const char *KernelName, size_t NumArgs)
       : Name{KernelName}, Args{NumArgs}, Attributes{}, NDR{}, BinaryInfo{} {}
-};
-
-///
-/// Represents a SPIR-V translation unit containing SYCL kernels by the
-/// KernelInfo for each of the contained kernels.
-class SYCLModuleInfo {
-public:
-  using KernelInfoList = std::vector<SYCLKernelInfo>;
-
-  void addKernel(SYCLKernelInfo &Kernel) { Kernels.push_back(Kernel); }
-
-  KernelInfoList &kernels() { return Kernels; }
-
-  bool hasKernelFor(const std::string &KernelName) {
-    return getKernelFor(KernelName) != nullptr;
-  }
-
-  SYCLKernelInfo *getKernelFor(const std::string &KernelName) {
-    auto It =
-        std::find_if(Kernels.begin(), Kernels.end(), [&](SYCLKernelInfo &K) {
-          return K.Name == KernelName.c_str();
-        });
-    return (It != Kernels.end()) ? &*It : nullptr;
-  }
-
-private:
-  KernelInfoList Kernels;
 };
 
 } // namespace jit_compiler

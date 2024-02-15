@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
 
 // RUN: env SYCL_PI_TRACE=2 %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
-
+// REQUIRES: aspect-usm_shared_allocations
 // The test checks that the last parameter is `nullptr` for all PI calls that
 // should discard events.
 // {{0|0000000000000000}} is required for various output on Linux and Windows.

@@ -48,6 +48,11 @@
   FOR_EACH4_A6(BASE_CASE, FIXED1, FIXED2, FIXED3, FIXED4, ARG1, ARG2, ARG3,    \
                ARG4, ARG5, ARG6)                                               \
   BASE_CASE(FIXED1, FIXED2, FIXED3, FIXED4, ARG7)
+#define FOR_EACH4_A8(BASE_CASE, FIXED1, FIXED2, FIXED3, FIXED4, ARG1, ARG2,    \
+                     ARG3, ARG4, ARG5, ARG6, ARG7, ARG8)                       \
+  FOR_EACH4_A7(BASE_CASE, FIXED1, FIXED2, FIXED3, FIXED4, ARG1, ARG2, ARG3,    \
+               ARG4, ARG5, ARG6, ARG7)                                         \
+  BASE_CASE(FIXED1, FIXED2, FIXED3, FIXED4, ARG8)
 #define FOR_EACH4_A11(BASE_CASE, FIXED1, FIXED2, FIXED3, FIXED4, ARG1, ARG2,   \
                       ARG3, ARG4, ARG5, ARG6, ARG7, ARG8, ARG9, ARG10, ARG11)  \
   FOR_EACH4_A7(BASE_CASE, FIXED1, FIXED2, FIXED3, FIXED4, ARG1, ARG2, ARG3,    \
@@ -169,6 +174,9 @@
   unsigned char, unsigned short, unsigned int, unsigned long, unsigned long long
 // 11 types
 #define INTEGER_TYPES SIGNED_TYPES, UNSIGNED_TYPES
+// 8 types
+#define FIXED_WIDTH_INTEGER_TYPES                                              \
+  int8_t, int16_t, int32_t, int64_t, uint8_t, uint16_t, uint32_t, uint64_t
 
 #define DEVICE_IMPL_TEMPLATE_CUSTOM_DELEGATE(                                  \
     NUM_ARGS, NAME, ENABLER, DELEGATOR, NS, /*SCALAR_VEC_IMPL*/...)            \

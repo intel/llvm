@@ -48,6 +48,7 @@ and not recommended to use in production environment.
     support are accepted, providing a streamlined interface for AOT. Only one of
     these values at a time is supported.
     * intel_gpu_pvc - Ponte Vecchio Intel graphics architecture
+    * intel_gpu_pvc_vg - Ponte Vecchio VG Intel graphics architecture
     * intel_gpu_acm_g12, intel_gpu_dg2_g12 - Alchemist G12 Intel graphics architecture
     * intel_gpu_acm_g11, intel_gpu_dg2_g11 - Alchemist G11 Intel graphics architecture
     * intel_gpu_acm_g10, intel_gpu_dg2_g10 - Alchemist G10 Intel graphics architecture

@@ -2005,7 +2005,7 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       StorageClass = SPIRSPIRVAddrSpaceMap::map(AddressSpace);
       if (StorageClass == StorageClassFunction) {
         std::stringstream SS;
-        SS << "Global variable can not have Function storage class. "
+        SS << "Global variable cannot have Function storage class. "
            << "Consider setting a proper address space.\n "
            << "Original LLVM value:\n"
            << toString(GV);
@@ -2188,8 +2188,25 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     return mapValue(V, BM->addUnreachableInst(BB));
 
   if (auto *RI = dyn_cast<ReturnInst>(V)) {
-    if (auto *RV = RI->getReturnValue())
+    if (auto *RV = RI->getReturnValue()) {
+      if (auto *II = dyn_cast<IntrinsicInst>(RV)) {
+        if (II->getIntrinsicID() == Intrinsic::frexp) {
+          // create composite type from the return value and second operand
+          auto *FrexpResult = transValue(RV, BB);
+          SPIRVValue *IntFromFrexpResult =
+              static_cast<SPIRVExtInst *>(FrexpResult)->getArgValues()[1];
+          IntFromFrexpResult = BM->addLoadInst(IntFromFrexpResult, {}, BB);
+
+          std::vector<SPIRVId> Operands = {FrexpResult->getId(),
+                                           IntFromFrexpResult->getId()};
+          auto *Compos = BM->addCompositeConstructInst(transType(RV->getType()),
+                                                       Operands, BB);
+
+          return mapValue(V, BM->addReturnValueInst(Compos, BB));
+        }
+      }
       return mapValue(V, BM->addReturnValueInst(transValue(RV, BB), BB));
+    }
     return mapValue(V, BM->addReturnInst(BB));
   }
 
@@ -2349,6 +2366,20 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
   }
 
   if (auto *Ext = dyn_cast<ExtractValueInst>(V)) {
+    if (auto *II = dyn_cast<IntrinsicInst>(Ext->getAggregateOperand())) {
+      if (II->getIntrinsicID() == Intrinsic::frexp) {
+        unsigned Idx = Ext->getIndices()[0];
+        auto *Val = transValue(II, BB);
+        if (Idx == 0)
+          return mapValue(V, Val);
+
+        // Idx = 1
+        SPIRVValue *IntFromFrexpResult =
+            static_cast<SPIRVExtInst *>(Val)->getArgValues()[1];
+        IntFromFrexpResult = BM->addLoadInst(IntFromFrexpResult, {}, BB);
+        return mapValue(V, IntFromFrexpResult);
+      }
+    }
     return mapValue(V, BM->addCompositeExtractInst(
                            transScavengedType(Ext),
                            transValue(Ext->getAggregateOperand(), BB),
@@ -3706,6 +3737,7 @@ bool LLVMToSPIRVBase::isKnownIntrinsic(Intrinsic::ID Id) {
   case Intrinsic::fabs:
   case Intrinsic::floor:
   case Intrinsic::fma:
+  case Intrinsic::frexp:
   case Intrinsic::log:
   case Intrinsic::log10:
   case Intrinsic::log2:
@@ -3816,6 +3848,8 @@ static SPIRVWord getBuiltinIdForIntrinsic(Intrinsic::ID IID) {
     return OpenCLLIB::Floor;
   case Intrinsic::fma:
     return OpenCLLIB::Fma;
+  case Intrinsic::frexp:
+    return OpenCLLIB::Frexp;
   case Intrinsic::log:
     return OpenCLLIB::Log;
   case Intrinsic::log10:
@@ -3989,6 +4023,28 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     SPIRVType *STy = transType(II->getType());
     std::vector<SPIRVValue *> Ops(1, transValue(II->getArgOperand(0), BB));
     return BM->addExtInst(STy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
+                          BB);
+  }
+  case Intrinsic::frexp: {
+    if (!checkTypeForSPIRVExtendedInstLowering(II, BM))
+      break;
+    SPIRVWord ExtOp = getBuiltinIdForIntrinsic(IID);
+
+    SPIRVType *FTy = transType(II->getType()->getStructElementType(0));
+    SPIRVTypePointer *ITy = static_cast<SPIRVTypePointer *>(transPointerType(
+        II->getType()->getStructElementType(1), SPIRAS_Private));
+
+    unsigned BitWidth = ITy->getElementType()->getBitWidth();
+    BM->getErrorLog().checkError(BitWidth == 32, SPIRVEC_InvalidBitWidth,
+                                 std::to_string(BitWidth));
+
+    SPIRVValue *IntVal =
+        BM->addVariable(ITy, false, spv::internal::LinkageTypeInternal, nullptr,
+                        "", ITy->getStorageClass(), BB);
+
+    std::vector<SPIRVValue *> Ops{transValue(II->getArgOperand(0), BB), IntVal};
+
+    return BM->addExtInst(FTy, BM->getExtInstSetId(SPIRVEIS_OpenCL), ExtOp, Ops,
                           BB);
   }
   // Binary FP intrinsics
@@ -5842,6 +5898,12 @@ bool LLVMToSPIRVBase::transExecutionMode() {
         if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fast_composite))
           BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
               OpExecutionMode, BF, static_cast<ExecutionMode>(EMode))));
+      } break;
+      case spv::internal::ExecutionModeNamedSubgroupSizeINTEL: {
+        if (!BM->isAllowedToUseExtension(
+                ExtensionID::SPV_INTEL_subgroup_requirements))
+          break;
+        AddSingleArgExecutionMode(static_cast<ExecutionMode>(EMode));
       } break;
       default:
         llvm_unreachable("invalid execution mode");

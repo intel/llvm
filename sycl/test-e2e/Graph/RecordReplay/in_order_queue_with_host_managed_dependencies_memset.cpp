@@ -55,6 +55,7 @@ int main() {
   }
 
   sycl::free(TestData, Queue);
+  sycl::free(TestDataOut, Queue);
 
   return 0;
 }
