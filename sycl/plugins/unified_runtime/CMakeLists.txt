@@ -56,15 +56,15 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/Bensuo/unified-runtime.git")
 
-  # commit a2757b2931daa2f8d7c9dd51b0fc846be1fd49a7
-  # Merge:  9b936b5 + f78d369
+  # commit cfba9f160528018055881f1ccf9ab98ec59c963f
+  # Merge: 0bb2cad8 db5c33b2
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Feb 27 11:34:58 2024 +0000
-  #     Merge pull request #1254 from Bensuo/cmdbuf-support-hip
-  #     [EXP][CMDBUF] HIP adapter support for command buffers
-  set(UNIFIED_RUNTIME_TAG a2757b2931daa2f8d7c9dd51b0fc846be1fd49a7 )
+  # Date:   Wed Feb 14 11:17:21 2024 +0100
+  #     Merge pull request #1216 from igchor/umf_standalone
+  #     [UR] Remove UMF sources and use standalone UMF repo instead
+  set(UNIFIED_RUNTIME_TAG ewan/coverity_cuda_update)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
