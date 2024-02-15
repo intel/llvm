@@ -152,9 +152,9 @@ public:
   };
 
   enum class SYCLRangeRoundingPreference {
-    On = 0,
-    Disable = 1,
-    Force = 2,
+    On,
+    Disable,
+    Force,
   };
 
   enum HLSLLangStd {

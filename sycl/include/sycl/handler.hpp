@@ -1334,10 +1334,9 @@ private:
     {
       (void)UserRange;
       (void)Props;
-#ifndef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__ // If parallel_for range
-                                                   // rounding is forced then
-                                                   // only range rounded kernel
-                                                   // is generated
+#ifndef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
+      // If parallel_for range rounding is forced then only range rounded
+      // kernel is generated
       kernel_parallel_for_wrapper<NameT, TransformedArgType, KernelType,
                                   PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__

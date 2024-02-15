@@ -10,11 +10,11 @@
 // 1. The user range is the same as the in kernel range (using BufRange) as
 //    reported by get_range().
 // 2. That the effective range is the same as the reported range (using
-//    BufCounter). ie check that the mapping of effective range to user range is
-//    "onto"?
-// 3. That every index in a 1, 2, or 3 dim range is active the execution (using
-//    BufIndexes). ie check that the mapping of effective range to user range is
-//    "1-to-1"?
+//    BufCounter). i.e. check that the mapping of effective range to user range
+//    is "onto".
+// 3. That every index in a 1, 2, or 3 dimension range is active the execution
+//    (using BufIndexes). i.e. check that the mapping of effective range to user
+//    range is "one-to-one".
 //
 #include <iostream>
 #include <sycl/sycl.hpp>
@@ -37,7 +37,8 @@ void check(const char *msg, size_t v, size_t ref) {
 }
 
 template <unsigned Dims> void checkVec(vec<int, Dims> a, vec<int, Dims> b) {
-  assert(Dims == 1 || Dims == 2 || Dims == 3);
+  static_assert(Dims == 1 || Dims == 2 || Dims == 3,
+                "Should only be use for 1, 2 or 3 dimensional vectors");
   assert(a[0] == b[0]);
   if constexpr (Dims > 1)
     assert(a[1] == b[1]);
