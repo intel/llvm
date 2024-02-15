@@ -1192,7 +1192,7 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
 
   if (JA.isOffloading(Action::OFK_SYCL)) {
     toolchains::SYCLToolChain::AddSYCLIncludeArgs(D, Args, CmdArgs);
-    if (Inputs[0].getType() == types::TY_CUDA) {
+    if (Inputs[0].getType() == types::TY_CUDA || Args.hasFlag(options::OPT_fsycl_cuda_compat, options::OPT_fno_sycl_cuda_compat, false)) {
       // Include __clang_cuda_runtime_wrapper.h in .cu SYCL compilation.
       getToolChain().AddCudaIncludeArgs(Args, CmdArgs);
     }
@@ -5097,6 +5097,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       IsSYCLOffloadDevice &&
       Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga;
   const bool IsSYCLNativeCPU = isSYCLNativeCPU(TC, C.getDefaultToolChain());
+  const bool IsSYCLCUDACompat = Args.hasFlag(options::OPT_fsycl_cuda_compat, options::OPT_fno_sycl_cuda_compat, false);
 
   // Perform the SYCL host compilation using an external compiler if the user
   // requested.
@@ -5361,6 +5362,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     if (Args.hasArg(options::OPT_fpreview_breaking_changes))
       CmdArgs.push_back("-D__INTEL_PREVIEW_BREAKING_CHANGES");
+
+    if (IsSYCLCUDACompat) {
+      Args.addOptInFlag(CmdArgs, options::OPT_fsycl_cuda_compat, options::OPT_fno_sycl_cuda_compat);
+      // clang's CUDA headers require this ...
+      CmdArgs.push_back("-fdeclspec");
+      // Note: assumes CUDA 9.0 or more (required by SYCL for CUDA)
+      CmdArgs.push_back("-fcuda-allow-variadic-functions");
+    }
 
     if (SYCLStdArg) {
       // Use of -sycl-std=1.2.1 is deprecated. Emit a diagnostic stating so.

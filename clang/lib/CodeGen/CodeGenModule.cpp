@@ -4126,13 +4126,8 @@ void CodeGenModule::EmitGlobal(GlobalDecl GD) {
 
     // Forward declarations are emitted lazily on first use.
     if (!FD->doesThisDeclarationHaveABody()) {
-      if (!FD->doesDeclarationForceExternallyVisibleDefinition()) {
-        // Force the declaration in SYCL compilation of CUDA sources.
-        if (!((SYCLCUDAIsHost(LangOpts) && Global->hasAttr<CUDAHostAttr>()) ||
-              (SYCLCUDAIsSYCLDevice(LangOpts) &&
-               Global->hasAttr<CUDADeviceAttr>())))
-          return;
-      }
+      if (!FD->doesDeclarationForceExternallyVisibleDefinition())
+        return;
 
       StringRef MangledName = getMangledName(GD);
 
