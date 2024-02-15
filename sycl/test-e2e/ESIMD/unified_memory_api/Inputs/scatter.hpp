@@ -490,7 +490,6 @@ bool testLACC(queue Q, uint32_t MaskStride,
 
          simd<uint32_t, NOffsets> ByteOffsets(0, VS * sizeof(T));
          scatter<T, N, VS>(LocalAcc, ByteOffsets, InVec);
-         barrier();
          auto ByteOffsetsView = ByteOffsets.template select<NOffsets, 1>();
          simd<T, N> Vals = gather<T, N, VS>(LocalAcc, ByteOffsets, Props);
 
