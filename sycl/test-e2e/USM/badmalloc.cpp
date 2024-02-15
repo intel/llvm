@@ -26,7 +26,16 @@ int main(int argc, char *argv[]) {
   auto p = malloc(8, q, usm::alloc::unknown);
   if (p != nullptr)
     return 1;
-
+  // check that malloc_shared throws when usm_shared_allocations not supported
+  if (!q.get_device().has(aspect::usm_shared_allocations)) {
+    try {
+      auto p = malloc_shared<int>(1, q);
+      return 11;
+    } catch (const sycl::exception &e) {
+      if (e.code() != sycl::errc::feature_not_supported)
+        return 11;
+    }
+  }
   // Bad size, host
   p = malloc(-1, q, usm::alloc::host);
   std::cout << "p = " << p << std::endl;

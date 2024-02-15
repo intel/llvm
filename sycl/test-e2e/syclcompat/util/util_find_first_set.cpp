@@ -105,7 +105,7 @@ void test_find_first_set() {
   int *test_result, host_test_result = 0;
 
   test_result = sycl::malloc_device<int>(1, q_ct1);
-  *test_result = 0;
+  q_ct1.memcpy(test_result, &host_test_result, sizeof(int)).wait();
 
   q_ct1.parallel_for(
       sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
