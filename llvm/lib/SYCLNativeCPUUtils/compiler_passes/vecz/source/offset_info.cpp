@@ -22,6 +22,7 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Module.h>
 #include <llvm/Support/KnownBits.h>
+#include <llvm/Support/MathExtras.h>
 
 #include "analysis/instantiation_analysis.h"
 #include "analysis/stride_analysis.h"
@@ -40,7 +41,7 @@ inline uint64_t SizeOrZero(TypeSize &&T) {
 }
 
 uint8_t highbit(const uint32_t x) {
-  assert((x & (x - 1)) == 0 && "Value must be a power of two");
+  assert(isPowerOf2_32(x) && "Value must be a power of two");
   // This is a De Bruijn hash table, it returns the index of the highest
   // bit, which works when x is a power of 2. For details, see
   // https://en.wikipedia.org/wiki/De_Bruijn_sequence#Uses
@@ -636,7 +637,7 @@ OffsetInfo &OffsetInfo::manifest(IRBuilder<> &B, StrideAnalysisResult &SAR) {
         // Don't need to do anything if the size is 1
         idxStride = idxOffset.ManifestStride;
       } else {
-        if ((MemSize & (MemSize - 1)) == 0) {
+        if (isPowerOf2_64(MemSize)) {
           // the size is a power of two, so shift to get the offset in bytes
           auto *const SizeVal = getSizeInt(B, highbit(MemSize));
           idxStride = B.CreateShl(idxOffset.ManifestStride, SizeVal);
@@ -694,7 +695,7 @@ Value *OffsetInfo::buildMemoryStride(IRBuilder<> &B, Type *PtrEleTy,
     return nullptr;
   }
 
-  if ((PtrEleSize & (PtrEleSize - 1)) == 0) {
+  if (isPowerOf2_64(PtrEleSize)) {
     auto ShiftVal = highbit(PtrEleSize);
     if (auto *BinOp = dyn_cast<BinaryOperator>(ManifestStride)) {
       if (BinOp->getOpcode() == Instruction::Shl) {
