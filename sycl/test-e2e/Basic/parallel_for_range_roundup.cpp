@@ -1,8 +1,8 @@
 // REQUIRES: gpu
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Xclang -fsycl-range-rounding=disable -o %t.out
 // RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t.out | FileCheck %s --check-prefix=CHECK-DEFAULT
 
-// RUN: %{build} -fsycl-range-rounding=force -o %t.out
+// RUN: %{build} -Xclang -fsycl-range-rounding=force -o %t.out
 // RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t.out | FileCheck %s --check-prefix=CHECK-DEFAULT
 
 // These tests test 3 things:
