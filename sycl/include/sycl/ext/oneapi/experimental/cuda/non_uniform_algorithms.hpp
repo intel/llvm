@@ -203,7 +203,7 @@ masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
     unsigned remainder = opRange % 2;
 
     // unfolded position of set bit in mask of shfl src lane
-    int unfoldedSrcSetBit = localSetBit + stride;
+    int unfoldedSrcSetBit = localSetBit - stride;
 
     // __nvvm_fns automatically wraps around to the correct bit position.
     // There is no performance impact on src_set_bit position wrt localSetBit
