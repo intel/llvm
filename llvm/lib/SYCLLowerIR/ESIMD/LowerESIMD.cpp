@@ -1004,6 +1004,37 @@ static void translateGatherLoad(CallInst &CI, bool IsSLM) {
   CI.replaceAllUsesWith(LI);
 }
 
+static void translateScatterStore(CallInst &CI, bool IsSLM) {
+  IRBuilder<> Builder(&CI);
+  constexpr int AlignmentTemplateArgIdx = 2;
+  APInt Val = parseTemplateArg(CI, AlignmentTemplateArgIdx,
+                               ESIMDIntrinDesc::GenXArgConversion::TO_I64);
+  Align AlignValue(Val.getZExtValue());
+
+  auto ValsOp = CI.getArgOperand(0);
+  auto OffsetsOp = CI.getArgOperand(1);
+  auto MaskOp = CI.getArgOperand(2);
+  auto DataType = ValsOp->getType();
+
+  // Convert the mask from <N x i16> to <N x i1>.
+  Value *Zero = ConstantInt::get(MaskOp->getType(), 0);
+  MaskOp = Builder.CreateICmp(ICmpInst::ICMP_NE, MaskOp, Zero);
+
+  // The address space may be 3-SLM, 1-global or private.
+  // At the moment of calling 'scatter()' operation the pointer passed to it
+  // is already 4-generic. Thus, simply use 4-generic for global and private
+  // and let GPU BE deduce the actual address space from the use-def graph.
+  unsigned AS = IsSLM ? 3 : 4;
+  auto ElemType = DataType->getScalarType();
+  auto NumElems = (cast<VectorType>(DataType))->getElementCount();
+  auto VPtrType = VectorType::get(PointerType::get(ElemType, AS), NumElems);
+  auto VPtrOp = Builder.CreateIntToPtr(OffsetsOp, VPtrType);
+
+  auto SI = Builder.CreateMaskedScatter(ValsOp, VPtrOp, AlignValue, MaskOp);
+  SI->setDebugLoc(CI.getDebugLoc());
+  CI.replaceAllUsesWith(SI);
+}
+
 // TODO Specify document behavior for slm_init and nbarrier_init when:
 // 1) they are called not from kernels
 // 2) there are multiple such calls reachable from a kernel
@@ -1983,6 +2014,13 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       if (Name.starts_with("__esimd_gather_ld") ||
           Name.starts_with("__esimd_slm_gather_ld")) {
         translateGatherLoad(*CI, Name.starts_with("__esimd_slm_gather_ld"));
+        ToErase.push_back(CI);
+        continue;
+      }
+
+      if (Name.starts_with("__esimd_scatter_st") ||
+          Name.starts_with("__esimd_slm_scatter_st")) {
+        translateScatterStore(*CI, Name.starts_with("__esimd_slm_scatter_st"));
         ToErase.push_back(CI);
         continue;
       }

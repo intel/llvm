@@ -987,6 +987,41 @@ public:
 #endif
 
 #ifdef __SYCL_USE_EXT_VECTOR_TYPE__
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+#define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
+  friend vec operator BINOP(const vec &Lhs, const vec &Rhs) {                  \
+    vec Ret;                                                                   \
+    if constexpr (IsUsingArrayOnDevice) {                                      \
+      for (size_t I = 0; I < NumElements; ++I) {                               \
+        Ret.setValue(I, (Lhs.getValue(I) BINOP Rhs.getValue(I)));              \
+      }                                                                        \
+    } else {                                                                   \
+      Ret.m_Data = Lhs.m_Data BINOP Rhs.m_Data;                                \
+      if constexpr (std::is_same_v<Type, bool> && CONVERT) {                   \
+        Ret.ConvertToDataT();                                                  \
+      }                                                                        \
+    }                                                                          \
+    return Ret;                                                                \
+  }                                                                            \
+  friend vec operator BINOP(const vec &Lhs, const DataT &Rhs) {                \
+    return Lhs BINOP vec(Rhs);                                                 \
+  }                                                                            \
+  friend vec operator BINOP(const DataT &Lhs, const vec &Rhs) {                \
+    return vec(Lhs) BINOP Rhs;                                                 \
+  }                                                                            \
+  friend vec &operator OPASSIGN(vec & Lhs, const vec & Rhs) {                  \
+    Lhs = Lhs BINOP Rhs;                                                       \
+    return Lhs;                                                                \
+  }                                                                            \
+  template <int Num = NumElements>                                             \
+  friend typename std::enable_if_t<Num != 1, vec &> operator OPASSIGN(         \
+      vec & Lhs, const DataT & Rhs) {                                          \
+    Lhs = Lhs BINOP vec(Rhs);                                                  \
+    return Lhs;                                                                \
+  }
+#endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+
+#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 #define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
   template <typename Ty = vec>                                                 \
   vec operator BINOP(const EnableIfNotUsingArrayOnDevice<Ty> &Rhs) const {     \
@@ -1024,38 +1059,37 @@ public:
     *this = *this BINOP vec(Rhs);                                              \
     return *this;                                                              \
   }
+#endif // !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+
 #else // __SYCL_USE_EXT_VECTOR_TYPE__
 
 #if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 #define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
-  vec operator BINOP(const vec &Rhs) const {                                   \
+  friend vec operator BINOP(const vec &Lhs, const vec &Rhs) {                  \
     vec Ret{};                                                                 \
     if constexpr (NativeVec)                                                   \
-      Ret.m_Data = m_Data BINOP Rhs.m_Data;                                    \
+      Ret.m_Data = Lhs.m_Data BINOP Rhs.m_Data;                                \
     else                                                                       \
       for (size_t I = 0; I < NumElements; ++I)                                 \
-        Ret.setValue(I, (DataT)(vec_data<DataT>::get(getValue(                 \
+        Ret.setValue(I, (DataT)(vec_data<DataT>::get(Lhs.getValue(             \
                             I)) BINOP vec_data<DataT>::get(Rhs.getValue(I)))); \
     return Ret;                                                                \
   }                                                                            \
-  template <typename T>                                                        \
-  typename std::enable_if_t<                                                   \
-      std::is_convertible_v<DataT, T> &&                                       \
-          (std::is_fundamental_v<vec_data_t<T>> ||                             \
-           detail::is_half_or_bf16_v<typename std::remove_const_t<T>>),        \
-      vec>                                                                     \
-  operator BINOP(const T & Rhs) const {                                        \
-    return *this BINOP vec(static_cast<const DataT &>(Rhs));                   \
+  friend vec operator BINOP(const vec &Lhs, const DataT &Rhs) {                \
+    return Lhs BINOP vec(Rhs);                                                 \
   }                                                                            \
-  vec &operator OPASSIGN(const vec & Rhs) {                                    \
-    *this = *this BINOP Rhs;                                                   \
-    return *this;                                                              \
+  friend vec operator BINOP(const DataT &Lhs, const vec &Rhs) {                \
+    return vec(Lhs) BINOP Rhs;                                                 \
+  }                                                                            \
+  friend vec &operator OPASSIGN(vec & Lhs, const vec & Rhs) {                  \
+    Lhs = Lhs BINOP Rhs;                                                       \
+    return Lhs;                                                                \
   }                                                                            \
   template <int Num = NumElements>                                             \
-  typename std::enable_if_t<Num != 1, vec &> operator OPASSIGN(                \
-      const DataT & Rhs) {                                                     \
-    *this = *this BINOP vec(Rhs);                                              \
-    return *this;                                                              \
+  friend typename std::enable_if_t<Num != 1, vec &> operator OPASSIGN(         \
+      vec & Lhs, const DataT & Rhs) {                                          \
+    Lhs = Lhs BINOP vec(Rhs);                                                  \
+    return Lhs;                                                                \
   }
 #endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
@@ -1120,6 +1154,42 @@ public:
 // Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
 // by SYCL device compiler only.
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+#define __SYCL_RELLOGOP(RELLOGOP)                                              \
+  friend vec<rel_t, NumElements> operator RELLOGOP(const vec & Lhs,            \
+                                                   const vec & Rhs) {          \
+    vec<rel_t, NumElements> Ret{};                                             \
+    /* This special case is needed since there are no standard operator||   */ \
+    /* or operator&& functions for std::array.                              */ \
+    if constexpr (IsUsingArrayOnDevice &&                                      \
+                  (std::string_view(#RELLOGOP) == "||" ||                      \
+                   std::string_view(#RELLOGOP) == "&&")) {                     \
+      for (size_t I = 0; I < NumElements; ++I) {                               \
+        /* We cannot use SetValue here as the operator is not a friend of*/    \
+        /* Ret on Windows. */                                                  \
+        Ret[I] = static_cast<rel_t>(-(vec_data<DataT>::get(                    \
+            Lhs.getValue(I)) RELLOGOP vec_data<DataT>::get(Rhs.getValue(I)))); \
+      }                                                                        \
+    } else {                                                                   \
+      Ret = vec<rel_t, NumElements>(                                           \
+          (typename vec<rel_t, NumElements>::vector_t)(                        \
+              Lhs.m_Data RELLOGOP Rhs.m_Data));                                \
+      if (NumElements == 1) /*Scalar 0/1 logic was applied, invert*/           \
+        Ret *= -1;                                                             \
+    }                                                                          \
+    return Ret;                                                                \
+  }                                                                            \
+  friend vec<rel_t, NumElements> operator RELLOGOP(const vec & Lhs,            \
+                                                   const DataT & Rhs) {        \
+    return Lhs RELLOGOP vec(Rhs);                                              \
+  }                                                                            \
+  friend vec<rel_t, NumElements> operator RELLOGOP(const DataT & Lhs,          \
+                                                   const vec & Rhs) {          \
+    return vec(Lhs) RELLOGOP Rhs;                                              \
+  }
+#endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+
+#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 #define __SYCL_RELLOGOP(RELLOGOP)                                              \
   vec<rel_t, NumElements> operator RELLOGOP(const vec & Rhs) const {           \
     vec<rel_t, NumElements> Ret{};                                             \
@@ -1129,9 +1199,10 @@ public:
                   (std::string_view(#RELLOGOP) == "||" ||                      \
                    std::string_view(#RELLOGOP) == "&&")) {                     \
       for (size_t I = 0; I < NumElements; ++I) {                               \
-        Ret.setValue(I,                                                        \
-                     -(vec_data<DataT>::get(getValue(I))                       \
-                           RELLOGOP vec_data<DataT>::get(Rhs.getValue(I))));   \
+        /* We cannot use SetValue here as the operator is not a friend of*/    \
+        /* Ret on Windows. */                                                  \
+        Ret[I] = static_cast<rel_t>(-(vec_data<DataT>::get(                    \
+            getValue(I)) RELLOGOP vec_data<DataT>::get(Rhs.getValue(I))));     \
       }                                                                        \
     } else {                                                                   \
       Ret = vec<rel_t, NumElements>(                                           \
@@ -1150,13 +1221,38 @@ public:
   operator RELLOGOP(const T & Rhs) const {                                     \
     return *this RELLOGOP vec(static_cast<const DataT &>(Rhs));                \
   }
+#endif // !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 #else
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+#define __SYCL_RELLOGOP(RELLOGOP)                                              \
+  friend vec<rel_t, NumElements> operator RELLOGOP(const vec & Lhs,            \
+                                                   const vec & Rhs) {          \
+    vec<rel_t, NumElements> Ret{};                                             \
+    for (size_t I = 0; I < NumElements; ++I) {                                 \
+      /* We cannot use SetValue here as the operator is not a friend of*/      \
+      /* Ret on Windows. */                                                    \
+      Ret[I] = static_cast<rel_t>(-(vec_data<DataT>::get(                      \
+          Lhs.getValue(I)) RELLOGOP vec_data<DataT>::get(Rhs.getValue(I))));   \
+    }                                                                          \
+    return Ret;                                                                \
+  }                                                                            \
+  friend vec<rel_t, NumElements> operator RELLOGOP(const vec & Lhs,            \
+                                                   const DataT & Rhs) {        \
+    return Lhs RELLOGOP vec(Rhs);                                              \
+  }                                                                            \
+  friend vec<rel_t, NumElements> operator RELLOGOP(const DataT & Lhs,          \
+                                                   const vec & Rhs) {          \
+    return vec(Lhs) RELLOGOP Rhs;                                              \
+  }
+#else // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 #define __SYCL_RELLOGOP(RELLOGOP)                                              \
   vec<rel_t, NumElements> operator RELLOGOP(const vec & Rhs) const {           \
     vec<rel_t, NumElements> Ret{};                                             \
     for (size_t I = 0; I < NumElements; ++I) {                                 \
-      Ret.setValue(I, -(vec_data<DataT>::get(getValue(I))                      \
-                            RELLOGOP vec_data<DataT>::get(Rhs.getValue(I))));  \
+      /* We cannot use SetValue here as the operator is not a friend of*/      \
+      /* Ret on Windows. */                                                    \
+      Ret[I] = static_cast<rel_t>(-(vec_data<DataT>::get(                      \
+          getValue(I)) RELLOGOP vec_data<DataT>::get(Rhs.getValue(I))));       \
     }                                                                          \
     return Ret;                                                                \
   }                                                                            \
@@ -1168,6 +1264,7 @@ public:
   operator RELLOGOP(const T & Rhs) const {                                     \
     return *this RELLOGOP vec(static_cast<const DataT &>(Rhs));                \
   }
+#endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 #endif
 
   __SYCL_RELLOGOP(==)
@@ -1184,6 +1281,18 @@ public:
 #ifdef __SYCL_UOP
 #error "Undefine __SYCL_UOP macro"
 #endif
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+#define __SYCL_UOP(UOP, OPASSIGN)                                              \
+  friend vec &operator UOP(vec & Rhs) {                                        \
+    Rhs OPASSIGN vec_data<DataT>::get(1);                                      \
+    return Rhs;                                                                \
+  }                                                                            \
+  friend vec operator UOP(vec &Lhs, int) {                                     \
+    vec Ret(Lhs);                                                              \
+    Lhs OPASSIGN vec_data<DataT>::get(1);                                      \
+    return Ret;                                                                \
+  }
+#else // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 #define __SYCL_UOP(UOP, OPASSIGN)                                              \
   vec &operator UOP() {                                                        \
     *this OPASSIGN vec_data<DataT>::get(1);                                    \
@@ -1194,6 +1303,7 @@ public:
     *this OPASSIGN vec_data<DataT>::get(1);                                    \
     return Ret;                                                                \
   }
+#endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
   __SYCL_UOP(++, +=)
   __SYCL_UOP(--, -=)
@@ -1203,124 +1313,15 @@ public:
 
   // operator~() available only when: dataT != float && dataT != double
   // && dataT != half
-  template <typename T = DataT>
-  typename std::enable_if_t<!std::is_floating_point_v<vec_data_t<T>> &&
-                                (!IsUsingArrayOnDevice && !IsUsingArrayOnHost),
-                            vec>
-  operator~() const {
-    vec Ret{(typename vec::DataType) ~m_Data};
-    if constexpr (std::is_same_v<Type, bool>) {
-      Ret.ConvertToDataT();
-    }
-    return Ret;
-  }
-  template <typename T = DataT>
-  typename std::enable_if_t<!std::is_floating_point_v<vec_data_t<T>> &&
-                                (IsUsingArrayOnDevice || IsUsingArrayOnHost),
-                            vec>
-  operator~() const {
-    vec Ret{};
-    for (size_t I = 0; I < NumElements; ++I) {
-      Ret.setValue(I, ~getValue(I));
-    }
-    return Ret;
-  }
-
-  template <typename T>
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-  using OpNotRet = detail::rel_t<T>;
-#else
-  using OpNotRet = T;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
-  // operator!
-  template <typename T = DataT, int N = NumElements>
-  EnableIfNotUsingArray<vec<OpNotRet<T>, N>> operator!() const {
-    return vec<T, N>{(typename vec<DataT, NumElements>::DataType) !m_Data}
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-        .template as<vec<OpNotRet<T>, N>>();
-#else
-    ;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-  }
-
-  // std::byte neither supports ! unary op or casting, so special handling is
-  // needed. And, worse, Windows has a conflict with 'byte'.
-#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-  template <typename T = DataT, int N = NumElements>
-  typename std::enable_if_t<std::is_same_v<std::byte, T> &&
-                                (IsUsingArrayOnDevice || IsUsingArrayOnHost),
-                            vec<OpNotRet<T>, N>>
-  operator!() const {
-    vec Ret{};
-    for (size_t I = 0; I < NumElements; ++I) {
-      Ret.setValue(I, std::byte{!vec_data<DataT>::get(getValue(I))});
-    }
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-    return Ret.template as<vec<OpNotRet<T>, N>>();
-#else
-    return Ret;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-  }
-
-  template <typename T = DataT, int N = NumElements>
-  typename std::enable_if_t<!std::is_same_v<std::byte, T> &&
-                                (IsUsingArrayOnDevice || IsUsingArrayOnHost),
-                            vec<OpNotRet<T>, N>>
-  operator!() const {
-    vec Ret{};
-    for (size_t I = 0; I < NumElements; ++I)
-      Ret.setValue(I, !vec_data<DataT>::get(getValue(I)));
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-    return Ret.template as<vec<OpNotRet<T>, N>>();
-#else
-    return Ret;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-  }
-#else
-  template <typename T = DataT, int N = NumElements>
-  EnableIfUsingArray<vec<OpNotRet<T>, N>> operator!() const {
-    vec Ret{};
-    for (size_t I = 0; I < NumElements; ++I)
-      Ret.setValue(I, !vec_data<DataT>::get(getValue(I)));
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-    return Ret.template as<vec<OpNotRet<T>, N>>();
-#else
-    return Ret;
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-  }
-#endif
-
-  // operator +
-  template <typename T = vec> EnableIfNotUsingArray<T> operator+() const {
-    return vec{+m_Data};
-  }
-
-  template <typename T = vec> EnableIfUsingArray<T> operator+() const {
-    vec Ret{};
-    for (size_t I = 0; I < NumElements; ++I)
-      Ret.setValue(I, vec_data<DataT>::get(+vec_data<DataT>::get(getValue(I))));
-    return Ret;
-  }
-
-  // operator -
-  template <typename T = vec> EnableIfNotUsingArray<T> operator-() const {
-    namespace oneapi = sycl::ext::oneapi;
-    if constexpr (IsBfloat16 && NumElements == 1) {
-      vec Ret{};
-      oneapi::bfloat16 v = oneapi::detail::bitsToBfloat16(m_Data);
-      oneapi::bfloat16 w = -v;
-      Ret.m_Data = oneapi::detail::bfloat16ToBits(w);
-    } else if constexpr (IsBfloat16) {
+  friend vec operator~(const vec &Rhs) {
+    if constexpr (IsUsingArrayOnDevice || IsUsingArrayOnHost) {
       vec Ret{};
       for (size_t I = 0; I < NumElements; ++I) {
-        oneapi::bfloat16 v = oneapi::detail::bitsToBfloat16(m_Data[I]);
-        oneapi::bfloat16 w = -v;
-        Ret.m_Data[I] = oneapi::detail::bfloat16ToBits(w);
+        Ret.setValue(I, ~Rhs.getValue(I));
       }
       return Ret;
     } else {
-      vec Ret{-m_Data};
+      vec Ret{(typename vec::DataType) ~Rhs.m_Data};
       if constexpr (std::is_same_v<Type, bool>) {
         Ret.ConvertToDataT();
       }
@@ -1328,25 +1329,68 @@ public:
     }
   }
 
-  template <typename T = vec> EnableIfUsingArray<T> operator-() const {
+  // operator!
+  friend vec<detail::rel_t<DataT>, NumElements> operator!(const vec &Rhs) {
+    if constexpr (IsUsingArrayOnDevice || IsUsingArrayOnHost) {
+      vec Ret{};
+      for (size_t I = 0; I < NumElements; ++I) {
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+        // std::byte neither supports ! unary op or casting, so special handling
+        // is needed. And, worse, Windows has a conflict with 'byte'.
+        if constexpr (std::is_same_v<std::byte, DataT>) {
+          Ret.setValue(I, std::byte{!vec_data<DataT>::get(Rhs.getValue(I))});
+        } else
+#endif // (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+        {
+          Ret.setValue(I, !vec_data<DataT>::get(Rhs.getValue(I)));
+        }
+      }
+      return Ret.template as<vec<detail::rel_t<DataT>, NumElements>>();
+    } else {
+      return vec{(typename vec<DataT, NumElements>::DataType) !Rhs.m_Data}
+          .template as<vec<detail::rel_t<DataT>, NumElements>>();
+    }
+  }
+
+  // operator +
+  friend vec operator+(const vec &Lhs) {
+    if constexpr (IsUsingArrayOnDevice || IsUsingArrayOnHost) {
+      vec Ret{};
+      for (size_t I = 0; I < NumElements; ++I)
+        Ret.setValue(
+            I, vec_data<DataT>::get(+vec_data<DataT>::get(Lhs.getValue(I))));
+      return Ret;
+    } else {
+      return vec{+Lhs.m_Data};
+    }
+  }
+
+  // operator -
+  friend vec operator-(const vec &Lhs) {
     namespace oneapi = sycl::ext::oneapi;
     vec Ret{};
     if constexpr (IsBfloat16 && NumElements == 1) {
-      oneapi::bfloat16 v = oneapi::detail::bitsToBfloat16(m_Data);
+      oneapi::bfloat16 v = oneapi::detail::bitsToBfloat16(Lhs.m_Data);
       oneapi::bfloat16 w = -v;
       Ret.m_Data = oneapi::detail::bfloat16ToBits(w);
     } else if constexpr (IsBfloat16) {
       for (size_t I = 0; I < NumElements; I++) {
-        oneapi::bfloat16 v = oneapi::detail::bitsToBfloat16(m_Data[I]);
+        oneapi::bfloat16 v = oneapi::detail::bitsToBfloat16(Lhs.m_Data[I]);
         oneapi::bfloat16 w = -v;
         Ret.m_Data[I] = oneapi::detail::bfloat16ToBits(w);
       }
-    } else {
+    } else if constexpr (IsUsingArrayOnDevice || IsUsingArrayOnHost) {
       for (size_t I = 0; I < NumElements; ++I)
-        Ret.setValue(I,
-                     vec_data<DataT>::get(-vec_data<DataT>::get(getValue(I))));
+        Ret.setValue(
+            I, vec_data<DataT>::get(-vec_data<DataT>::get(Lhs.getValue(I))));
+      return Ret;
+    } else {
+      Ret = vec{-Lhs.m_Data};
+      if constexpr (std::is_same_v<Type, bool>) {
+        Ret.ConvertToDataT();
+      }
+      return Ret;
     }
-    return Ret;
   }
 #endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
@@ -1770,6 +1814,19 @@ public:
 #ifdef __SYCL_OPASSIGN
 #error "Undefine __SYCL_OPASSIGN macro."
 #endif
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+#define __SYCL_OPASSIGN(OPASSIGN, OP)                                          \
+  friend SwizzleOp &operator OPASSIGN(SwizzleOp & Lhs, const DataT & Rhs) {    \
+    Lhs.operatorHelper<OP>(vec_t(Rhs));                                        \
+    return Lhs;                                                                \
+  }                                                                            \
+  template <typename RhsOperation>                                             \
+  friend SwizzleOp &operator OPASSIGN(SwizzleOp & Lhs,                         \
+                                      const RhsOperation & Rhs) {              \
+    Lhs.operatorHelper<OP>(Rhs);                                               \
+    return Lhs;                                                                \
+  }
+#else // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 #define __SYCL_OPASSIGN(OPASSIGN, OP)                                          \
   SwizzleOp &operator OPASSIGN(const DataT & Rhs) {                            \
     operatorHelper<OP>(vec_t(Rhs));                                            \
@@ -1780,6 +1837,7 @@ public:
     operatorHelper<OP>(Rhs);                                                   \
     return *this;                                                              \
   }
+#endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
   __SYCL_OPASSIGN(+=, std::plus)
   __SYCL_OPASSIGN(-=, std::minus)
@@ -1796,6 +1854,18 @@ public:
 #ifdef __SYCL_UOP
 #error "Undefine __SYCL_UOP macro"
 #endif
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+#define __SYCL_UOP(UOP, OPASSIGN)                                              \
+  friend SwizzleOp &operator UOP(SwizzleOp & Rhs) {                            \
+    Rhs OPASSIGN static_cast<DataT>(1);                                        \
+    return Rhs;                                                                \
+  }                                                                            \
+  friend vec_t operator UOP(SwizzleOp &Lhs, int) {                             \
+    vec_t Ret = Lhs;                                                           \
+    Lhs OPASSIGN static_cast<DataT>(1);                                        \
+    return Ret;                                                                \
+  }
+#else // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 #define __SYCL_UOP(UOP, OPASSIGN)                                              \
   SwizzleOp &operator UOP() {                                                  \
     *this OPASSIGN static_cast<DataT>(1);                                      \
@@ -1806,11 +1876,36 @@ public:
     *this OPASSIGN static_cast<DataT>(1);                                      \
     return Ret;                                                                \
   }
+#endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
   __SYCL_UOP(++, +=)
   __SYCL_UOP(--, -=)
 #undef __SYCL_UOP
 
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+  template <typename T = DataT>
+  friend typename std::enable_if_t<
+      std::is_same_v<T, DataT> && std::is_integral_v<vec_data_t<T>>, vec_t>
+  operator~(const SwizzleOp &Rhs) {
+    vec_t Tmp = Rhs;
+    return ~Tmp;
+  }
+
+  friend vec_rel_t operator!(const SwizzleOp &Rhs) {
+    vec_t Tmp = Rhs;
+    return !Tmp;
+  }
+
+  friend vec_t operator+(const SwizzleOp &Rhs) {
+    vec_t Tmp = Rhs;
+    return +Tmp;
+  }
+
+  friend vec_t operator-(const SwizzleOp &Rhs) {
+    vec_t Tmp = Rhs;
+    return -Tmp;
+  }
+#else  // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
   template <typename T = DataT>
   typename std::enable_if_t<std::is_integral_v<vec_data_t<T>>, vec_t>
   operator~() {
@@ -1832,6 +1927,80 @@ public:
     vec_t Tmp = *this;
     return -Tmp;
   }
+#endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+// scalar BINOP vec<>
+// scalar BINOP SwizzleOp
+// vec<> BINOP SwizzleOp
+#ifdef __SYCL_BINOP
+#error "Undefine __SYCL_BINOP macro"
+#endif
+#define __SYCL_BINOP(BINOP)                                                    \
+  friend vec_t operator BINOP(const DataT &Lhs, const SwizzleOp &Rhs) {        \
+    vec_t Tmp = Rhs;                                                           \
+    return Lhs BINOP Tmp;                                                      \
+  }                                                                            \
+  friend vec_t operator BINOP(const SwizzleOp &Lhs, const DataT &Rhs) {        \
+    vec_t Tmp = Lhs;                                                           \
+    return Tmp BINOP Rhs;                                                      \
+  }                                                                            \
+  friend vec_t operator BINOP(const vec_t &Lhs, const SwizzleOp &Rhs) {        \
+    vec_t Tmp = Rhs;                                                           \
+    return Lhs BINOP Tmp;                                                      \
+  }                                                                            \
+  friend vec_t operator BINOP(const SwizzleOp &Lhs, const vec_t &Rhs) {        \
+    vec_t Tmp = Lhs;                                                           \
+    return Tmp BINOP Rhs;                                                      \
+  }
+
+  __SYCL_BINOP(+)
+  __SYCL_BINOP(-)
+  __SYCL_BINOP(*)
+  __SYCL_BINOP(/)
+  __SYCL_BINOP(%)
+  __SYCL_BINOP(&)
+  __SYCL_BINOP(|)
+  __SYCL_BINOP(^)
+  __SYCL_BINOP(>>)
+  __SYCL_BINOP(<<)
+#undef __SYCL_BINOP
+
+// scalar RELLOGOP vec<>
+// scalar RELLOGOP SwizzleOp
+// vec<> RELLOGOP SwizzleOp
+#ifdef __SYCL_RELLOGOP
+#error "Undefine __SYCL_RELLOGOP macro"
+#endif
+#define __SYCL_RELLOGOP(RELLOGOP)                                              \
+  friend vec_rel_t operator RELLOGOP(const DataT &Lhs, const SwizzleOp &Rhs) { \
+    vec_t Tmp = Rhs;                                                           \
+    return Lhs RELLOGOP Tmp;                                                   \
+  }                                                                            \
+  friend vec_rel_t operator RELLOGOP(const SwizzleOp &Lhs, const DataT &Rhs) { \
+    vec_t Tmp = Lhs;                                                           \
+    return Tmp RELLOGOP Rhs;                                                   \
+  }                                                                            \
+  friend vec_rel_t operator RELLOGOP(const vec_t &Lhs, const SwizzleOp &Rhs) { \
+    vec_t Tmp = Rhs;                                                           \
+    return Lhs RELLOGOP Tmp;                                                   \
+  }                                                                            \
+  friend vec_rel_t operator RELLOGOP(const SwizzleOp &Lhs, const vec_t &Rhs) { \
+    vec_t Tmp = Lhs;                                                           \
+    return Tmp RELLOGOP Rhs;                                                   \
+  }
+
+  __SYCL_RELLOGOP(==)
+  __SYCL_RELLOGOP(!=)
+  __SYCL_RELLOGOP(>)
+  __SYCL_RELLOGOP(<)
+  __SYCL_RELLOGOP(>=)
+  __SYCL_RELLOGOP(<=)
+  // TODO: limit to integral types.
+  __SYCL_RELLOGOP(&&)
+  __SYCL_RELLOGOP(||)
+#undef __SYCL_RELLOGOP
+#endif // defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
   template <int IdxNum = getNumElements(),
             typename = EnableIfMultipleIndexes<IdxNum>>
@@ -2265,6 +2434,7 @@ private:
 };
 } // namespace detail
 
+#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 // scalar BINOP vec<>
 // scalar BINOP SwizzleOp
 // vec<> BINOP SwizzleOp
@@ -2374,6 +2544,7 @@ __SYCL_RELLOGOP(<=)
 __SYCL_RELLOGOP(&&)
 __SYCL_RELLOGOP(||)
 #undef __SYCL_RELLOGOP
+#endif // !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 
 namespace detail {
 

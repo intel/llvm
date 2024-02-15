@@ -62,7 +62,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Tue Jan 23 12:34:08 2024 +0000
   #
   #     [Bindless][Exp] Add Support For Image Arrays
-  set(UNIFIED_RUNTIME_TAG f6ab4ed9846a472d8cb173c12fb9affae21c0fd0)
+  set(UNIFIED_RUNTIME_TAG 5181d72cdd60dc262f1f02423f2f7c8f1f45029d)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -123,7 +123,7 @@ set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/com
 
 add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 add_library(UnifiedRuntimeCommon ALIAS ur_common)
-add_library(UnifiedMallocFramework ALIAS unified_malloc_framework)
+add_library(UnifiedMemoryFramework ALIAS umf)
 
 add_library(UnifiedRuntime-Headers INTERFACE)
 
