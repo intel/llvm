@@ -38,10 +38,6 @@ int main() {
 
   auto GraphExec = Graph.finalize();
 
-  auto SubmitGraph = [&]() {
-    Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
-  };
-
   for (unsigned n = 0; n < Iterations; n++) {
     Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
   }
