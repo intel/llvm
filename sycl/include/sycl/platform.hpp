@@ -59,9 +59,21 @@ namespace ext::oneapi {
 class filter_selector;
 } // namespace ext::oneapi
 
-// Platform properties that returns std::string
-// These need special handling to deal with ABI incompatibility
-enum class PlatformProperty { EXTENSIONS, NAME, PROFILE, VENDOR, VERSION };
+// We need special handling of std::string to handle ABI incompatibility
+// for get_info<>() when it returns std::string and vector<std::string>.
+// For this purpose, get_info_internal<>() is created to handle special
+// cases, and it is only called internally and not exposed to the user.
+// The following ReturnType structure is intended for general return type,
+// and special return types (std::string and vector of it).
+template <typename T> struct ReturnType { using type = T; };
+
+template <> struct ReturnType<std::string> {
+  using type = sycl::_V1::detail::string;
+};
+
+template <> struct ReturnType<std::vector<std::string>> {
+  using type = std::vector<sycl::_V1::detail::string>;
+};
 
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///
@@ -158,35 +170,22 @@ public:
     if constexpr (std::is_same_v<std::string,
                                  typename detail::is_platform_info_desc<
                                      Param>::return_type>) {
-      auto *Map = getMap();
-      auto iter = Map->find(typeid(Param).name());
-      if (iter == Map->end()) {
-        throw sycl::invalid_parameter_error(
-            "unsupported platform info requested", PI_ERROR_INVALID_OPERATION);
-      }
-      PlatformProperty PropertyName = iter->second;
-      detail::string Info = get_platform_info(PropertyName);
+      detail::string Info = get_platform_info<Param>();
       return Info.c_str();
     } else if constexpr (std::is_same_v<std::vector<std::string>,
                                         typename detail::is_platform_info_desc<
                                             Param>::return_type>) {
       // The return value is std::vector<std::string>
-      auto *Map = getMap();
-      auto iter = Map->find(typeid(Param).name());
-      if (iter == Map->end()) {
-        throw sycl::invalid_parameter_error(
-            "unsupported platform info requested", PI_ERROR_INVALID_OPERATION);
-      }
-      PlatformProperty PropertyName = iter->second;
-      std::vector<detail::string> Info = get_platform_info_vector(PropertyName);
+      std::vector<detail::string> Info = get_platform_info_vector<Param>();
       std::vector<std::string> Res;
       Res.reserve(Info.size());
       for (detail::string &Str : Info) {
         Res.push_back(Str.c_str());
       }
       return Res;
+    } else {
+      return get_info_internal<Param>();
     }
-    return get_info_internal<Param>();
   }
 #else
   template <typename Param>
@@ -253,24 +252,18 @@ private:
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
   typename detail::is_platform_info_desc<Param>::return_type
-  get_info_internal() const;
-  // proxy of get_info_internal() to handle C++11-ABI compatibility separately.
-  detail::string get_platform_info(PlatformProperty Type) const;
-  std::vector<detail::string>
-  get_platform_info_vector(PlatformProperty Type) const;
+  get_info_impl() const;
 
-  static const std::unordered_map<const char *, PlatformProperty> *getMap() {
-    static const auto *map =
-        new std::unordered_map<const char *, PlatformProperty>{
-            {typeid(info::platform::extensions).name(),
-             PlatformProperty::EXTENSIONS},
-            {typeid(info::platform::name).name(), PlatformProperty::NAME},
-            {typeid(info::platform::profile).name(), PlatformProperty::PROFILE},
-            {typeid(info::platform::vendor).name(), PlatformProperty::VENDOR},
-            { typeid(info::platform::version).name(),
-              PlatformProperty::VERSION }};
-    return map;
-  }
+  template <typename Param>
+  typename ReturnType<
+      typename detail::is_platform_info_desc<Param>::return_type>::type
+  get_info_internal() const;
+
+  // proxy of get_info_impl() to handle C++11-ABI compatibility separately.
+  template <typename Param> detail::string get_platform_info() const;
+
+  template <typename Param>
+  std::vector<detail::string> get_platform_info_vector() const;
 #endif
 }; // class platform
 } // namespace _V1

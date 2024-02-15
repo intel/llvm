@@ -59,45 +59,67 @@ backend platform::get_backend() const noexcept { return impl->getBackend(); }
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 template <typename Param>
 typename detail::is_platform_info_desc<Param>::return_type
-platform::get_info_internal() const {
+platform::get_info_impl() const {
   return impl->get_info<Param>();
 }
 
-detail::string
-platform::get_platform_info(PlatformProperty PropertyName) const {
-  std::string Info;
-  if (PropertyName == PlatformProperty::NAME) {
-    Info = impl->get_info<info::platform::name>();
-  } else if (PropertyName == PlatformProperty::PROFILE) {
-    Info = impl->get_info<info::platform::profile>();
-  } else if (PropertyName == PlatformProperty::VENDOR) {
-    Info = impl->get_info<info::platform::vendor>();
-  } else if (PropertyName == PlatformProperty::VERSION) {
-    Info = impl->get_info<info::platform::version>();
+template <typename Param>
+typename ReturnType<
+    typename detail::is_platform_info_desc<Param>::return_type>::type
+platform::get_info_internal() const {
+  if constexpr (std::is_same_v<std::string,
+                               typename detail::is_platform_info_desc<
+                                   Param>::return_type>) {
+    return get_platform_info<Param>();
+  } else if constexpr (std::is_same_v<std::vector<std::string>,
+                                      typename detail::is_platform_info_desc<
+                                          Param>::return_type>) {
+    return get_platform_info_vector<Param>();
   } else {
-    throw sycl::invalid_parameter_error("unsupported platform info requested",
-                                        PI_ERROR_INVALID_OPERATION);
+    return get_info_impl<Param>();
   }
-  return detail::string(Info);
 }
 
-std::vector<detail::string>
-platform::get_platform_info_vector(PlatformProperty PropertyName) const {
-  std::vector<std::string> Info;
-  if (PropertyName == PlatformProperty::EXTENSIONS) {
-    Info = impl->template get_info<info::platform::extensions>();
-  } else {
-    throw sycl::invalid_parameter_error(
-        "unsupported platform info vector requested",
-        PI_ERROR_INVALID_OPERATION);
-  }
+template <typename Param> detail::string platform::get_platform_info() const {
+  return detail::string(impl->template get_info<Param>());
+}
 
+template <typename Param>
+std::vector<detail::string> platform::get_platform_info_vector() const {
+  std::vector<std::string> Info = impl->template get_info<Param>();
   std::vector<detail::string> Result;
   for (std::string &Str : Info) {
     Result.push_back(detail::string(Str.c_str()));
   }
   return Result;
 }
+
+// Instantiation of get_platform_info and get_platform_info_vector
+#define __SYCL_GET_PLATFORM_INFO_SPEC(Desc)                                    \
+  template <>                                                                  \
+  detail::string platform::get_platform_info<info::platform::Desc>() const {   \
+    return detail::string(impl->template get_info<info::platform::Desc>());    \
+  }
+
+__SYCL_GET_PLATFORM_INFO_SPEC(name)
+__SYCL_GET_PLATFORM_INFO_SPEC(profile)
+__SYCL_GET_PLATFORM_INFO_SPEC(vendor)
+__SYCL_GET_PLATFORM_INFO_SPEC(version)
+
+#define __SYCL_GET_PLATFORM_INFO_VECTOR_SPEC(Desc)                             \
+  template <>                                                                  \
+  std::vector<detail::string>                                                  \
+  platform::get_platform_info_vector<info::platform::Desc>() const {           \
+    std::vector<std::string> Info =                                            \
+        impl->template get_info<info::platform::Desc>();                       \
+    std::vector<detail::string> Result;                                        \
+    for (std::string & Str : Info) {                                           \
+      Result.push_back(detail::string(Str.c_str()));                           \
+    }                                                                          \
+    return Result;                                                             \
+  }
+
+__SYCL_GET_PLATFORM_INFO_VECTOR_SPEC(extensions)
 #else
 template <typename Param>
 typename detail::is_platform_info_desc<Param>::return_type

@@ -30,24 +30,6 @@
 #include <variant> // for hash
 #include <vector>  // for vector
 
-namespace std {
-// We need special handling of std::string to handle ABI incompatibility
-// for get_info<>() when it returns std::string and vector<std::string>.
-// For this purpose, get_info_internal<>() is created to handle special
-// cases, and it is only called internally and not exposed to the user.
-// The following ReturnType structure is intended for general return type,
-// and special return types (std::string and vector of it).
-template <typename T> struct ReturnType { using type = T; };
-
-template <> struct ReturnType<std::string> {
-  using type = sycl::_V1::detail::string;
-};
-
-template <> struct ReturnType<std::vector<std::string>> {
-  using type = std::vector<sycl::_V1::detail::string>;
-};
-} // namespace std
-
 namespace sycl {
 inline namespace _V1 {
 // Forward declarations
@@ -72,6 +54,22 @@ enum class peer_access {
 };
 
 } // namespace ext::oneapi
+
+// We need special handling of std::string to handle ABI incompatibility
+// for get_info<>() when it returns std::string and vector<std::string>.
+// For this purpose, get_info_internal<>() is created to handle special
+// cases, and it is only called internally and not exposed to the user.
+// The following ReturnType structure is intended for general return type,
+// and special return types (std::string and vector of it).
+template <typename T> struct ReturnType { using type = T; };
+
+template <> struct ReturnType<std::string> {
+  using type = sycl::_V1::detail::string;
+};
+
+template <> struct ReturnType<std::vector<std::string>> {
+  using type = std::vector<sycl::_V1::detail::string>;
+};
 
 /// The SYCL device class encapsulates a single SYCL device on which kernels
 /// may be executed.
@@ -255,10 +253,10 @@ public:
         Res.push_back(Str.c_str());
       }
       return Res;
-    } else
+    } else {
       return get_info_impl<Param>();
+    }
   }
-
 #else
   template <typename Param>
   typename detail::is_device_info_desc<Param>::return_type get_info() const;
@@ -345,11 +343,11 @@ private:
   get_info_impl() const;
 
   template <typename Param>
-  typename std::ReturnType<
+  typename ReturnType<
       typename detail::is_device_info_desc<Param>::return_type>::type
   get_info_internal() const;
 
-  // proxy of get_info_internal() to handle C++11-ABI compatibility separately.
+  // proxy of get_info_impl() to handle C++11-ABI compatibility separately.
   template <typename Param> detail::string get_device_info() const;
 
   template <typename Param>
