@@ -158,6 +158,8 @@ conditions results in undefined behaviour.
 
 This non-normative section shows some example usages of the extension.
 
+=== Basic Usage
+
 [source,c++]
 ----
 constexpr specialization_id<int> size(1);
@@ -175,6 +177,37 @@ void run(queue q, const float *in, float *out, size_t n) {
       auto ptr = private_alloca<float, size, access::decorated::yes>(kh);
       // Use pointer in implementation
       impl(in, out, kh.get_specialization_constant<size>(), ptr);
+    });
+  });
+----
+
+=== Storage Duration Clarification
+
+The following example is intended to clarify storage duration of memory
+allocated by `private_alloca`.
+
+[source,c++]
+----
+constexpr specialization_id<int> size(1);
+
+class Kernel;
+
+SYCL_EXTERNAL void impl(const float *in, float *out, size_t n,
+                        raw_private_ptr<float> ptr);
+
+void run(queue q, const float *in, float *out, size_t n) {
+  q.submit([&](handler &h) {
+    h.set_specialization_constant<size>(n);
+    h.parallel_for<Kernel>(n, [=](id<1> i, kernel_handler kh) {
+      raw_private_ptr<float> ptr;
+      {
+        ptr = private_alloca<float, size, access::decorated::no>(kh);
+        // 'private_alloca' has allocated a private memory region we can use in
+        // this block.
+        impl(in, out, kh.get_specialization_constant<size>(), ptr);
+      }
+      // Memory allocated by 'private_alloca' has been deallocated.
+      // Dereferencing 'ptr' at this program point is undefined behaviour.
     });
   });
 ----
