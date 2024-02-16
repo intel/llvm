@@ -8,29 +8,29 @@
 
 #pragma once
 
-#include <sycl/aspects.hpp>                   // for aspect
-#include <sycl/backend_types.hpp>             // for backend, backend_return_t
-#include <sycl/context.hpp>                   // for context
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
-#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <sycl/detail/info_desc_helpers.hpp>  // for is_platform_info_desc
-#include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
-#include <sycl/detail/pi.h>                   // for pi_native_handle
-#include <sycl/detail/string.hpp>             // for C++11 ABI compatibility
-#include <sycl/detail/string_view.hpp>        // for C++11 ABI compatibility
+#include <sycl/aspects.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/context.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/detail/owner_less_base.hpp>
+#include <sycl/detail/pi.h>
+#include <sycl/detail/string.hpp>
+#include <sycl/detail/string_view.hpp>
 #include <sycl/detail/util.hpp>
-#include <sycl/device_selector.hpp> // for EnableIfSYCL2020DeviceS...
-#include <sycl/info/info_desc.hpp>  // for device_type
+#include <sycl/device_selector.hpp>
+#include <sycl/info/info_desc.hpp>
 
 #ifdef __SYCL_INTERNAL_API
 #include <sycl/detail/cl.h>
 #endif
 
-#include <cstddef> // for size_t
-#include <memory>  // for shared_ptr, hash, opera...
-#include <string>  // for string
-#include <variant> // for hash
-#include <vector>  // for vector
+#include <cstddef>
+#include <memory>
+#include <string>
+#include <variant>
+#include <vector>
 
 namespace sycl {
 inline namespace _V1 {
@@ -231,7 +231,7 @@ private:
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
-  typename detail::GetInfoReturnType<
+  typename detail::ABINeutralT<
       typename detail::is_platform_info_desc<Param>::return_type>::type
   get_info_impl() const;
 #endif

@@ -135,7 +135,7 @@ bool device::has_extension(const std::string &extension_name) const {
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 template <typename Param>
-typename detail::GetInfoReturnType<
+typename detail::ABINeutralT<
     typename detail::is_device_info_desc<Param>::return_type>::type
 device::get_info_impl() const {
   auto Info = impl->template get_info<Param>();
@@ -223,7 +223,7 @@ __SYCL_EXPORT bool device::get_info<info::device::image_support>() const {
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template __SYCL_EXPORT typename detail::GetInfoReturnType<ReturnT>::type     \
+  template __SYCL_EXPORT typename detail::ABINeutralT<ReturnT>::type           \
   device::get_info_impl<info::device::Desc>() const;
 #else
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
@@ -238,7 +238,7 @@ __SYCL_EXPORT bool device::get_info<info::device::image_support>() const {
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
-  template __SYCL_EXPORT typename detail::GetInfoReturnType<ReturnT>::type     \
+  template __SYCL_EXPORT typename detail::ABINeutralT<ReturnT>::type           \
   device::get_info_impl<Namespace::info::DescType::Desc>() const;
 #else
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \

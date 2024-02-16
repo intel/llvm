@@ -76,12 +76,10 @@ using SerializedObj = std::vector<unsigned char>;
 // and special return types (std::string and vector of it).
 template <typename T> struct ABINeutralT { using type = T; };
 
-template <> struct GetInfoReturnType<std::string> {
-  using type = sycl::_V1::detail::string;
-};
+template <> struct ABINeutralT<std::string> { using type = detail::string; };
 
-template <> struct GetInfoReturnType<std::vector<std::string>> {
-  using type = std::vector<sycl::_V1::detail::string>;
+template <> struct ABINeutralT<std::vector<std::string>> {
+  using type = std::vector<detail::string>;
 };
 
 } // namespace detail

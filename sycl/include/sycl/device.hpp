@@ -8,28 +8,28 @@
 
 #pragma once
 
-#include <sycl/aspects.hpp>                   // for aspect
-#include <sycl/backend_types.hpp>             // for backend
-#include <sycl/detail/defines_elementary.hpp> // for __SY...
-#include <sycl/detail/export.hpp>             // for __SY...
-#include <sycl/detail/info_desc_helpers.hpp>  // for is_d...
-#include <sycl/detail/owner_less_base.hpp>    // for Owne...
-#include <sycl/detail/pi.h>                   // for pi_n...
-#include <sycl/detail/string.hpp>             // for c++11 abi compatibility
-#include <sycl/detail/string_view.hpp>        // for c++11 abi compatibility
+#include <sycl/aspects.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/detail/owner_less_base.hpp>
+#include <sycl/detail/pi.h>
+#include <sycl/detail/string.hpp>
+#include <sycl/detail/string_view.hpp>
 #include <sycl/detail/util.hpp>
-#include <sycl/device_selector.hpp>                             // for Enab...
-#include <sycl/ext/oneapi/experimental/device_architecture.hpp> // for arch...
-#include <sycl/info/info_desc.hpp>                              // for part...
-#include <sycl/platform.hpp>                                    // for plat...
+#include <sycl/device_selector.hpp>
+#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/platform.hpp>
 
-#include <cstddef>     // for size_t
-#include <memory>      // for shar...
-#include <string>      // for string
-#include <type_traits> // for add_...
+#include <cstddef>
+#include <memory>
+#include <string>
+#include <type_traits>
 #include <typeinfo>
-#include <variant> // for hash
-#include <vector>  // for vector
+#include <variant>
+#include <vector>
 
 namespace sycl {
 inline namespace _V1 {
@@ -320,7 +320,7 @@ private:
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
-  typename detail::GetInfoReturnType<
+  typename detail::ABINeutralT<
       typename detail::is_device_info_desc<Param>::return_type>::type
   get_info_impl() const;
 #endif

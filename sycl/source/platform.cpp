@@ -58,7 +58,7 @@ backend platform::get_backend() const noexcept { return impl->getBackend(); }
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 template <typename Param>
-typename detail::GetInfoReturnType<
+typename detail::ABINeutralT<
     typename detail::is_platform_info_desc<Param>::return_type>::type
 platform::get_info_impl() const {
   auto Info = impl->template get_info<Param>();
@@ -90,7 +90,7 @@ bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template __SYCL_EXPORT typename detail::GetInfoReturnType<ReturnT>::type     \
+  template __SYCL_EXPORT typename detail::ABINeutralT<ReturnT>::type           \
   platform::get_info_impl<info::platform::Desc>() const;
 #else
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
