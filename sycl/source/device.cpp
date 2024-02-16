@@ -135,74 +135,24 @@ bool device::has_extension(const std::string &extension_name) const {
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 template <typename Param>
-typename detail::is_device_info_desc<Param>::return_type
-device::get_info_impl() const {
-  return impl->template get_info<Param>();
-}
-
-template <typename Param>
 typename detail::GetInfoReturnType<
     typename detail::is_device_info_desc<Param>::return_type>::type
-device::get_info_internal() const {
-  if constexpr (std::is_same_v<
-                    std::string,
-                    typename detail::is_device_info_desc<Param>::return_type>) {
-    return get_device_info<Param>();
-  } else if constexpr (std::is_same_v<std::vector<std::string>,
-                                      typename detail::is_device_info_desc<
-                                          Param>::return_type>) {
-    return get_device_info_vector<Param>();
+device::get_info_impl() const {
+  auto Info = impl->template get_info<Param>();
+  if constexpr (std::is_same_v<decltype(Info), std::string>) {
+    return detail::string{Info};
+  } else if constexpr (std::is_same_v<decltype(Info),
+                                      std::vector<std::string>>) {
+    std::vector<detail::string> Res;
+    Res.reserve(Info.size());
+    for (std::string &Str : Info) {
+      Res.push_back(detail::string{Str});
+    }
+    return Res;
   } else {
-    return get_info_impl<Param>();
+    return std::move(Info);
   }
 }
-
-template <typename Param> detail::string device::get_device_info() const {
-  return detail::string(impl->template get_info<Param>());
-}
-
-template <typename Param>
-std::vector<detail::string> device::get_device_info_vector() const {
-  std::vector<std::string> Info = impl->template get_info<Param>();
-  std::vector<detail::string> Result;
-  for (std::string &Str : Info) {
-    Result.push_back(detail::string(Str.c_str()));
-  }
-  return Result;
-}
-
-// Instantiation of get_device_info and get_device_info_vector
-#define __SYCL_GET_DEVICE_INFO_SPEC(Desc)                                      \
-  template <>                                                                  \
-  __SYCL_EXPORT detail::string device::get_device_info<info::device::Desc>()   \
-      const {                                                                  \
-    return detail::string(impl->template get_info<info::device::Desc>());      \
-  }
-
-__SYCL_GET_DEVICE_INFO_SPEC(backend_version)
-__SYCL_GET_DEVICE_INFO_SPEC(driver_version)
-__SYCL_GET_DEVICE_INFO_SPEC(ext_intel_pci_address)
-__SYCL_GET_DEVICE_INFO_SPEC(name)
-__SYCL_GET_DEVICE_INFO_SPEC(opencl_c_version)
-__SYCL_GET_DEVICE_INFO_SPEC(profile)
-__SYCL_GET_DEVICE_INFO_SPEC(vendor)
-__SYCL_GET_DEVICE_INFO_SPEC(version)
-
-#define __SYCL_GET_DEVICE_INFO_VECTOR_SPEC(Desc)                               \
-  template <>                                                                  \
-  __SYCL_EXPORT std::vector<detail::string>                                    \
-  device::get_device_info_vector<info::device::Desc>() const {                 \
-    std::vector<std::string> Info =                                            \
-        impl->template get_info<info::device::Desc>();                         \
-    std::vector<detail::string> Result;                                        \
-    for (std::string & Str : Info) {                                           \
-      Result.push_back(detail::string(Str.c_str()));                           \
-    }                                                                          \
-    return Result;                                                             \
-  }
-
-__SYCL_GET_DEVICE_INFO_VECTOR_SPEC(built_in_kernels)
-__SYCL_GET_DEVICE_INFO_VECTOR_SPEC(extensions)
 #else
 template <typename Param>
 typename detail::is_device_info_desc<Param>::return_type
@@ -274,9 +224,7 @@ __SYCL_EXPORT bool device::get_info<info::device::image_support>() const {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template __SYCL_EXPORT typename detail::GetInfoReturnType<ReturnT>::type     \
-  device::get_info_internal<info::device::Desc>() const;                       \
-  template __SYCL_EXPORT ReturnT device::get_info_impl<info::device::Desc>()   \
-      const;
+  device::get_info_impl<info::device::Desc>() const;
 #else
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template __SYCL_EXPORT ReturnT device::get_info<info::device::Desc>() const;
@@ -291,8 +239,6 @@ __SYCL_EXPORT bool device::get_info<info::device::image_support>() const {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
   template __SYCL_EXPORT typename detail::GetInfoReturnType<ReturnT>::type     \
-  device::get_info_internal<Namespace::info::DescType::Desc>() const;          \
-  template __SYCL_EXPORT ReturnT                                               \
   device::get_info_impl<Namespace::info::DescType::Desc>() const;
 #else
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \

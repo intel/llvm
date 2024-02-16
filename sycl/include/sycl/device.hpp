@@ -223,15 +223,11 @@ public:
   typename detail::is_device_info_desc<Param>::return_type get_info() const {
     // For C++11_ABI compatibility, we handle these string Param types
     // separately.
-    if constexpr (std::is_same_v<std::string,
-                                 typename detail::is_device_info_desc<
-                                     Param>::return_type>) {
-      detail::string Info = get_device_info<Param>();
+    auto Info = get_info_impl<Param>();
+    if constexpr (std::is_same_v<decltype(Info), detail::string>) {
       return Info.c_str();
-    } else if constexpr (std::is_same_v<std::vector<std::string>,
-                                        typename detail::is_device_info_desc<
-                                            Param>::return_type>) {
-      std::vector<detail::string> Info = get_device_info_vector<Param>();
+    } else if constexpr (std::is_same_v<decltype(Info),
+                                        std::vector<detail::string>>) {
       std::vector<std::string> Res;
       Res.reserve(Info.size());
       for (detail::string &Str : Info) {
@@ -239,7 +235,7 @@ public:
       }
       return Res;
     } else {
-      return get_info_impl<Param>();
+      return std::move(Info);
     }
   }
 #else
@@ -324,19 +320,9 @@ private:
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
-  typename detail::is_device_info_desc<Param>::return_type
-  get_info_impl() const;
-
-  template <typename Param>
   typename detail::GetInfoReturnType<
       typename detail::is_device_info_desc<Param>::return_type>::type
-  get_info_internal() const;
-
-  // proxy of get_info_impl() to handle C++11-ABI compatibility separately.
-  template <typename Param> detail::string get_device_info() const;
-
-  template <typename Param>
-  std::vector<detail::string> get_device_info_vector() const;
+  get_info_impl() const;
 #endif
 };
 

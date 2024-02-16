@@ -58,69 +58,24 @@ backend platform::get_backend() const noexcept { return impl->getBackend(); }
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 template <typename Param>
-typename detail::is_platform_info_desc<Param>::return_type
-platform::get_info_impl() const {
-  return impl->get_info<Param>();
-}
-
-template <typename Param>
 typename detail::GetInfoReturnType<
     typename detail::is_platform_info_desc<Param>::return_type>::type
-platform::get_info_internal() const {
-  if constexpr (std::is_same_v<std::string,
-                               typename detail::is_platform_info_desc<
-                                   Param>::return_type>) {
-    return get_platform_info<Param>();
-  } else if constexpr (std::is_same_v<std::vector<std::string>,
-                                      typename detail::is_platform_info_desc<
-                                          Param>::return_type>) {
-    return get_platform_info_vector<Param>();
+platform::get_info_impl() const {
+  auto Info = impl->template get_info<Param>();
+  if constexpr (std::is_same_v<decltype(Info), std::string>) {
+    return detail::string{Info};
+  } else if constexpr (std::is_same_v<decltype(Info),
+                                      std::vector<std::string>>) {
+    std::vector<detail::string> Res;
+    Res.reserve(Info.size());
+    for (std::string &Str : Info) {
+      Res.push_back(detail::string{Str});
+    }
+    return Res;
   } else {
-    return get_info_impl<Param>();
+    return std::move(Info);
   }
 }
-
-template <typename Param> detail::string platform::get_platform_info() const {
-  return detail::string(impl->template get_info<Param>());
-}
-
-template <typename Param>
-std::vector<detail::string> platform::get_platform_info_vector() const {
-  std::vector<std::string> Info = impl->template get_info<Param>();
-  std::vector<detail::string> Result;
-  for (std::string &Str : Info) {
-    Result.push_back(detail::string(Str.c_str()));
-  }
-  return Result;
-}
-
-// Instantiation of get_platform_info and get_platform_info_vector
-#define __SYCL_GET_PLATFORM_INFO_SPEC(Desc)                                    \
-  template <>                                                                  \
-  __SYCL_EXPORT detail::string                                                 \
-  platform::get_platform_info<info::platform::Desc>() const {                  \
-    return detail::string(impl->template get_info<info::platform::Desc>());    \
-  }
-
-__SYCL_GET_PLATFORM_INFO_SPEC(name)
-__SYCL_GET_PLATFORM_INFO_SPEC(profile)
-__SYCL_GET_PLATFORM_INFO_SPEC(vendor)
-__SYCL_GET_PLATFORM_INFO_SPEC(version)
-
-#define __SYCL_GET_PLATFORM_INFO_VECTOR_SPEC(Desc)                             \
-  template <>                                                                  \
-  __SYCL_EXPORT std::vector<detail::string>                                    \
-  platform::get_platform_info_vector<info::platform::Desc>() const {           \
-    std::vector<std::string> Info =                                            \
-        impl->template get_info<info::platform::Desc>();                       \
-    std::vector<detail::string> Result;                                        \
-    for (std::string & Str : Info) {                                           \
-      Result.push_back(detail::string(Str.c_str()));                           \
-    }                                                                          \
-    return Result;                                                             \
-  }
-
-__SYCL_GET_PLATFORM_INFO_VECTOR_SPEC(extensions)
 #else
 template <typename Param>
 typename detail::is_platform_info_desc<Param>::return_type
@@ -136,8 +91,6 @@ bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template __SYCL_EXPORT typename detail::GetInfoReturnType<ReturnT>::type     \
-  platform::get_info_internal<info::platform::Desc>() const;                   \
-  template __SYCL_EXPORT ReturnT                                               \
   platform::get_info_impl<info::platform::Desc>() const;
 #else
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
