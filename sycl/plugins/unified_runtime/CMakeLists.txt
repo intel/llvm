@@ -57,15 +57,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 69ac6c7fecac1028024ec1889d3e2cc02565c9e7
-  # Merge: f11823e1 b3469f1e
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Feb 15 15:28:12 2024 +0100
+  # commit 3487672ceba0fd3575b5f3f15a832b100dc5fbad
+  # Author: Artur Gainullin <artur.gainullin@intel.com>
+  # Date:   Fri Feb 16 09:59:50 2024 -0800
   #
-  #    Merge pull request #1344 from aarongreig/aaron/correctlyMapBufferLocation
-  #
-  #    Correct mapping of BUFFER_ALLOC_LOCATION_PROPERITES in CL adapter.
-  set(UNIFIED_RUNTIME_TAG 69ac6c7fecac1028024ec1889d3e2cc02565c9e7)
+  #     [UR] Provide flexibility to replace unified-memory-framework repo and tag
+  set(UNIFIED_RUNTIME_TAG 3487672ceba0fd3575b5f3f15a832b100dc5fbad)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
