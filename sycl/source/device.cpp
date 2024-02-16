@@ -150,7 +150,7 @@ device::get_info_impl() const {
     }
     return Res;
   } else {
-    return std::move(Info);
+    return Info;
   }
 }
 #else
