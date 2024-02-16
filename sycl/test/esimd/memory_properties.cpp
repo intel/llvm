@@ -10,7 +10,6 @@
 // NOTE: must be run in -O0, as optimizer optimizes away some of the code.
 
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl::ext::intel::esimd;
 
@@ -35,6 +34,8 @@ test_gather_scatter(AccType &, LocalAccType &, float *, int byte_offset32,
                     size_t byte_offset64);
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
 test_slm_gather_scatter(int byte_offset32);
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
+test_prefetch(AccType &, float *, int byte_offset32, size_t byte_offset64);
 
 class EsimdFunctor {
 public:
@@ -50,6 +51,7 @@ public:
     test_block_store(acc, local_acc, ptr, byte_offset32, byte_offset64);
     test_gather_scatter(acc, local_acc, ptr, byte_offset32, byte_offset64);
     test_slm_gather_scatter(byte_offset32);
+    test_prefetch(acc, ptr, byte_offset32, byte_offset64);
   }
 };
 
@@ -1452,4 +1454,114 @@ test_slm_gather_scatter(int byte_offset32) {
   // CHECK-COUNT-1: call void @llvm.masked.scatter.v32i32.v32p3(<32 x i32> {{[^)]+}}, <32 x ptr addrspace(3)> {{[^)]+}}, i32 8, <32 x i1> {{[^)]+}})
   // CHECK-COUNT-1: call void @llvm.masked.scatter.v32i32.v32p3(<32 x i32> {{[^)]+}}, <32 x ptr addrspace(3)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}})
   slm_scatter<int64_t>(ioffset_n32, slm_64);
+}
+
+// CHECK-LABEL: define {{.*}} @_Z13test_prefetch{{.*}}
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_prefetch(AccType &acc, float *ptrf,
+                                                     int byte_offset32,
+                                                     size_t byte_offset64) {
+  properties props_cache_load{cache_hint_L1<cache_hint::cached>,
+                              cache_hint_L2<cache_hint::uncached>};
+
+  int *ptri = reinterpret_cast<int *>(ptrf);
+
+  simd<uint32_t, 32> ioffset_n32(byte_offset32, 8);
+  simd<uint64_t, 32> loffset_n32(byte_offset64, 16);
+  auto ioffset_n32_view = ioffset_n32.select<32, 1>();
+  auto loffset_n32_view = loffset_n32.select<32, 1>();
+
+  simd<uint32_t, 16> ioffset_n16(byte_offset32, 8);
+  simd<uint64_t, 16> loffset_n16(byte_offset64, 16);
+  auto ioffset_n16_view = ioffset_n16.select<16, 1>();
+  auto loffset_n16_view = loffset_n16.select<16, 1>();
+
+  simd_mask<32> mask_n32 = 1;
+  simd_mask<16> mask_n16 = 1;
+  simd_mask<1> mask_n1 = 1;
+
+  // Test USM prefetch using this plan:
+  // 1) prefetch(usm, offsets): offsets is simd or simd_view
+  // 2) prefetch(usm, offsets, mask): offsets is simd or simd_view
+  // 3) prefetch(usm, offset): same as (1) above, but with offset as a scalar.
+  // 4) prefetch(usm, offset): same as (1) and (2) above, but with VS > 1.
+
+  // 1) prefetch(usm, offsets): offsets is simd or simd_view
+  // CHECK-COUNT-4: call void @llvm.genx.lsc.prefetch.stateless.v32i1.v32i64(<32 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <32 x i64> {{[^)]+}}, i32 0)
+  prefetch(ptrf, ioffset_n32);
+  prefetch<float, 32>(ptrf, ioffset_n32_view);
+
+  prefetch(ptrf, loffset_n32);
+  prefetch<float, 32>(ptrf, loffset_n32_view);
+
+  // CHECK-COUNT-4: call void @llvm.genx.lsc.prefetch.stateless.v32i1.v32i64(<32 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <32 x i64> {{[^)]+}}, i32 0)
+  prefetch(ptrf, ioffset_n32, props_cache_load);
+  prefetch<float, 32>(ptrf, ioffset_n32_view, props_cache_load);
+
+  prefetch(ptrf, loffset_n32, props_cache_load);
+  prefetch<float, 32>(ptrf, loffset_n32_view, props_cache_load);
+
+  // 2) prefetch(usm, offsets, mask): offsets is simd or simd_view
+  // CHECK-COUNT-4: call void @llvm.genx.lsc.prefetch.stateless.v32i1.v32i64(<32 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <32 x i64> {{[^)]+}}, i32 0)
+  prefetch(ptrf, ioffset_n32, mask_n32);
+  prefetch<float, 32>(ptrf, ioffset_n32_view, mask_n32);
+
+  prefetch(ptrf, loffset_n32, mask_n32);
+  prefetch<float, 32>(ptrf, loffset_n32_view, mask_n32);
+
+  // CHECK-COUNT-4: call void @llvm.genx.lsc.prefetch.stateless.v32i1.v32i64(<32 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <32 x i64> {{[^)]+}}, i32 0)
+  prefetch(ptrf, ioffset_n32, mask_n32, props_cache_load);
+  prefetch<float, 32>(ptrf, ioffset_n32_view, mask_n32, props_cache_load);
+
+  prefetch(ptrf, loffset_n32, mask_n32, props_cache_load);
+  prefetch<float, 32>(ptrf, loffset_n32_view, mask_n32, props_cache_load);
+
+  // 3) prefetch(usm, offset): offset is scalar
+  // CHECK-COUNT-8: call void @llvm.genx.lsc.prefetch.stateless.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 1, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
+  __ESIMD_NS::prefetch(ptrf);
+  __ESIMD_NS::prefetch(ptrf, byte_offset32);
+  __ESIMD_NS::prefetch(ptrf, byte_offset64);
+  __ESIMD_NS::prefetch(ptrf, mask_n1);
+  __ESIMD_NS::prefetch(ptrf, byte_offset32, mask_n1);
+  __ESIMD_NS::prefetch(ptrf, byte_offset64, mask_n1);
+  __ESIMD_NS::prefetch(ptrf, byte_offset32, mask_n1);
+  __ESIMD_NS::prefetch(ptrf, byte_offset64, mask_n1);
+
+  // CHECK-COUNT-8: call void @llvm.genx.lsc.prefetch.stateless.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 1, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
+  __ESIMD_NS::prefetch(ptrf, byte_offset32, props_cache_load);
+  __ESIMD_NS::prefetch(ptrf, byte_offset64, props_cache_load);
+  __ESIMD_NS::prefetch(ptrf, props_cache_load);
+  __ESIMD_NS::prefetch(ptrf, mask_n1, props_cache_load);
+  __ESIMD_NS::prefetch(ptrf, byte_offset32, mask_n1, props_cache_load);
+  __ESIMD_NS::prefetch(ptrf, byte_offset64, mask_n1, props_cache_load);
+  __ESIMD_NS::prefetch(ptrf, byte_offset32, mask_n1, props_cache_load);
+  __ESIMD_NS::prefetch(ptrf, byte_offset64, mask_n1, props_cache_load);
+
+  // 4) prefetch(usm, ...): same as (1), (2) above, but with VS > 1.
+  // CHECK-COUNT-4: call void @llvm.genx.lsc.prefetch.stateless.v16i1.v16i64(<16 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, i32 0)
+  prefetch<float, 32, 2>(ptrf, ioffset_n16);
+  prefetch<float, 32, 2>(ptrf, ioffset_n16_view);
+
+  prefetch<float, 32, 2>(ptrf, loffset_n16);
+  prefetch<float, 32, 2>(ptrf, loffset_n16_view);
+
+  // CHECK-COUNT-4: call void @llvm.genx.lsc.prefetch.stateless.v16i1.v16i64(<16 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, i32 0)
+  prefetch<float, 32, 2>(ptrf, ioffset_n16, props_cache_load);
+  prefetch<float, 32, 2>(ptrf, ioffset_n16_view, props_cache_load);
+
+  prefetch<float, 32, 2>(ptrf, loffset_n16, props_cache_load);
+  prefetch<float, 32, 2>(ptrf, loffset_n16_view, props_cache_load);
+
+  // CHECK-COUNT-4: call void @llvm.genx.lsc.prefetch.stateless.v16i1.v16i64(<16 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, i32 0)
+  prefetch<float, 32, 2>(ptrf, ioffset_n16, mask_n16);
+  prefetch<float, 32, 2>(ptrf, ioffset_n16_view, mask_n16);
+
+  prefetch<float, 32, 2>(ptrf, loffset_n16, mask_n16);
+  prefetch<float, 32, 2>(ptrf, loffset_n16_view, mask_n16);
+
+  // CHECK-COUNT-4: call void @llvm.genx.lsc.prefetch.stateless.v16i1.v16i64(<16 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, i32 0)
+  prefetch<float, 32, 2>(ptrf, ioffset_n16, mask_n16, props_cache_load);
+  prefetch<float, 32, 2>(ptrf, ioffset_n16_view, mask_n16, props_cache_load);
+
+  prefetch<float, 32, 2>(ptrf, loffset_n16, mask_n16, props_cache_load);
+  prefetch<float, 32, 2>(ptrf, loffset_n16_view, mask_n16, props_cache_load);
 }
