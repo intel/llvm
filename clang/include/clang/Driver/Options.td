@@ -3997,6 +3997,21 @@ def fsycl_host_compiler_options_EQ : Joined<["-"], "fsycl-host-compiler-options=
   Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"When performing the host compilation with "
   "-fsycl-host-compiler specified, use the given options during that compile. "
   "Options are expected to be a quoted list of space separated options.">;
+def fsycl_range_rounding_EQ : Joined<["-"], "fsycl-range-rounding=">,
+  Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
+  Values<"on,disable,force">,
+  NormalizedValuesScope<"LangOptions::SYCLRangeRoundingPreference">,
+  NormalizedValues<["On", "Disable", "Force"]>,
+  MarshallingInfoEnum<LangOpts<"SYCLRangeRounding">, "On">,
+  HelpText<"Options for range rounding of SYCL range kernels: "
+  "disable (do not generate range rounded kernels) "
+  "force (only generate range rounded kernels) "
+  "on (generate range rounded kernels as well as unrounded kernels). Default is 'on'">;
+def fsycl_disable_range_rounding : Flag<["-"], "fsycl-disable-range-rounding">,
+  Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
+  Alias<fsycl_range_rounding_EQ>, AliasArgs<["disable"]>,
+  HelpText<"Deprecated: please use -fsycl-range-rounding=disable instead.">,
+  Flags<[Deprecated]>;
 def fno_sycl_use_footer : Flag<["-"], "fno-sycl-use-footer">, Visibility<[ClangOption, CLOption, DXCOption]>,
   HelpText<"Disable usage of the integration footer during SYCL enabled "
    "compilations.">;
@@ -8256,20 +8271,6 @@ defm sycl_allow_func_ptr: BoolFOption<"sycl-allow-func-ptr",
 def fenable_sycl_dae : Flag<["-"], "fenable-sycl-dae">,
   HelpText<"Enable Dead Argument Elimination in SPIR kernels">,
   MarshallingInfoFlag<LangOpts<"EnableDAEInSpirKernels">>;
-def fsycl_range_rounding_EQ : Joined<["-"], "fsycl-range-rounding=">,
-  Visibility<[ClangOption, CLOption, DXCOption]>,
-  Values<"on,disable,force">,
-  NormalizedValuesScope<"LangOptions::SYCLRangeRoundingPreference">,
-  NormalizedValues<["On", "Disable", "Force"]>,
-  MarshallingInfoEnum<LangOpts<"SYCLRangeRounding">, "On">,
-  HelpText<"Options for range rounding of SYCL range kernels: "
-  "disable (do not generate range rounded kernels) "
-  "force (only generate range rounded kernels) "
-  "on (generate range rounded kernels as well as unrounded kernels). Default is 'on'">;
-def fsycl_disable_range_rounding : Flag<["-"], "fsycl-disable-range-rounding">,
-  Alias<fsycl_range_rounding_EQ>, AliasArgs<["disable"]>,
-  HelpText<"Deprecated: please use -fsycl-range-rounding=disable instead.">,
-  Flags<[Deprecated]>;
 def fsycl_enable_int_header_diags: Flag<["-"], "fsycl-enable-int-header-diags">,
   HelpText<"Enable diagnostics that require the SYCL integration header.">,
   MarshallingInfoFlag<LangOpts<"SYCLEnableIntHeaderDiags">>;

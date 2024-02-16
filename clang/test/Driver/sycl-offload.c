@@ -509,6 +509,19 @@
 // CHK-TOOLS-OPTS2: clang-offload-wrapper{{.*}} "-link-opts=-DFOO1 -DFOO2"
 
 /// -fsycl-range-rounding settings
+///
+/// // Check that driver flag is passed to cc1
+// RUN: %clang -### -fsycl -fsycl-range-rounding=disable %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-DRIVER-RANGE-ROUNDING-DISABLE %s
+// RUN: %clang -### -fsycl -fsycl-range-rounding=force %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-DRIVER-RANGE-ROUNDING-FORCE %s
+// RUN: %clang -### -fsycl -fsycl-range-rounding=on %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-DRIVER-RANGE-ROUNDING-ON %s
+// CHK-DRIVER-RANGE-ROUNDING-DISABLE: "-cc1{{.*}}-fsycl-range-rounding=disable"
+// CHK-DRIVER-RANGE-ROUNDING-FORCE: "-cc1{{.*}}-fsycl-range-rounding=force"
+// CHK-DRIVER-RANGE-ROUNDING-ON: "-cc1{{.*}}-fsycl-range-rounding=on"
+///
+///
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl \
 // RUN:        -fsycl-targets=spir64 -O0 %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DISABLE-RANGE-ROUNDING %s
