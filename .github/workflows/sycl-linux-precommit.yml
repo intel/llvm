@@ -88,7 +88,7 @@ jobs:
       install_drivers: ${{ matrix.install_drivers }}
 
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
-      env: ${{ matrix.env || '{}' }}
+      env: '{"LIT_FILTER":"Basic/get_backend.cpp"}'
 
       ref: ${{ github.sha }}
       merge_ref: ''

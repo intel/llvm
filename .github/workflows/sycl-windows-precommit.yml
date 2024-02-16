@@ -3,7 +3,6 @@ name: SYCL Pre Commit on Windows
 on:
   pull_request:
     branches:
-    - sycl
     - sycl-devops-pr/**
     - llvmspirv_pulldown
     - sycl-rel-**

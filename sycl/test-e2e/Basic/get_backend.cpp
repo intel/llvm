@@ -1,8 +1,5 @@
-// Sporadic fails on DG2
-// TODO: Reenable when internal ticket is resolved
-// UNSUPPORTED: gpu-intel-dg2
 // RUN: %{build} -o %t.out
-// RUN: %{run-unfiltered-devices} %t.out
+// RUN: env SYCL_PI_TRACE=-1 UR_L0_DEBUG=-1 %{run-unfiltered-devices} %t.out
 //
 //==----------------- get_backend.cpp ------------------------==//
 // This is a test of get_backend().
@@ -30,8 +27,8 @@ bool check(backend be) {
   return false;
 }
 
-inline void return_fail() {
-  std::cout << "Failed" << std::endl;
+inline void return_fail(int line = __builtin_LINE()) {
+  std::cout << "Failed at line " << line << std::endl;
   exit(1);
 }
 
