@@ -2,6 +2,11 @@
 // RUN: env SYCL_PI_TRACE=-1 UR_L0_DEBUG=-1 ONEAPI_DEVICE_SELECTOR="*:fpga" %{run-unfiltered-devices} %t.out
 // RUN: env SYCL_PI_TRACE=-1 UR_L0_DEBUG=-1 ONEAPI_DEVICE_SELECTOR="opencl:*" %{run-unfiltered-devices} %t.out
 // RUN: env SYCL_PI_TRACE=-1 UR_L0_DEBUG=-1 %{run-unfiltered-devices} %t.out
+
+// RUN: %{build} -DUSE_RVAL_DEV -o %t.out
+// RUN: env SYCL_PI_TRACE=-1 UR_L0_DEBUG=-1 ONEAPI_DEVICE_SELECTOR="*:fpga" %{run-unfiltered-devices} %t.out
+// RUN: env SYCL_PI_TRACE=-1 UR_L0_DEBUG=-1 ONEAPI_DEVICE_SELECTOR="opencl:*" %{run-unfiltered-devices} %t.out
+// RUN: env SYCL_PI_TRACE=-1 UR_L0_DEBUG=-1 %{run-unfiltered-devices} %t.out
 //
 //==----------------- get_backend.cpp ------------------------==//
 // This is a test of get_backend().
@@ -42,7 +47,13 @@ int main() {
       return_fail();
     }
 
-    context c(plt);
+    auto get_device = [&]() { return plt.get_devices()[0]; };
+#ifdef USE_RVAL_DEV
+    context c{get_device()};
+#else
+    auto d_holder = get_device();
+    context c{d_holder};
+#endif
     if (c.get_backend() != plt.get_backend()) {
       return_fail();
     }
