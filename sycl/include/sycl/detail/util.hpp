@@ -70,7 +70,7 @@ using SerializedObj = std::vector<unsigned char>;
 
 // We need special handling of std::string to handle ABI incompatibility
 // for get_info<>() when it returns std::string and vector<std::string>.
-// For this purpose, get_info_internal<>() is created to handle special
+// For this purpose, get_info_impl<>() is created to handle special
 // cases, and it is only called internally and not exposed to the user.
 // The following ReturnType structure is intended for general return type,
 // and special return types (std::string and vector of it).
