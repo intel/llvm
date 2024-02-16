@@ -47,7 +47,17 @@ int main() {
       return_fail();
     }
 
-    auto device = c.get_devices()[0];
+    auto devices = c.get_devices();
+    std::cout << "Devices in context:" << std::endl;
+    for (auto d : devices) {
+      auto d_name = d.get_info<info::device::name>();
+      std::cout << "MY: Device: " << d_name << std::endl;
+      auto d_backend_version = d.get_info<info::device::backend_version>();
+      std::cout << "MY: Device: " << d_backend_version << std::endl;
+    }
+    std::cout << "END Devices in context:" << std::endl;
+    auto device = devices[0];
+
     auto d_name = device.get_info<info::device::name>();
     std::cout << "MY: Device: " << d_name << std::endl;
     auto d_backend_version = device.get_info<info::device::backend_version>();
@@ -56,7 +66,7 @@ int main() {
       return_fail();
     }
 
-    queue q(device);
+    queue q(c, device);
     if (q.get_backend() != plt.get_backend()) {
       return_fail();
     }
