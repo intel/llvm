@@ -1,6 +1,6 @@
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 UR_L0_DEBUG=-1 ONEAPI_DEVICE_SELECTOR=*:fpga %{run-unfiltered-devices} %t.out
-// RUN: env SYCL_PI_TRACE=-1 UR_L0_DEBUG=-1 ONEAPI_DEVICE_SELECTOR=opencl:* %{run-unfiltered-devices} %t.out
+// RUN: env SYCL_PI_TRACE=-1 UR_L0_DEBUG=-1 ONEAPI_DEVICE_SELECTOR="*:fpga" %{run-unfiltered-devices} %t.out
+// RUN: env SYCL_PI_TRACE=-1 UR_L0_DEBUG=-1 ONEAPI_DEVICE_SELECTOR="opencl:*" %{run-unfiltered-devices} %t.out
 // RUN: env SYCL_PI_TRACE=-1 UR_L0_DEBUG=-1 %{run-unfiltered-devices} %t.out
 //
 //==----------------- get_backend.cpp ------------------------==//
