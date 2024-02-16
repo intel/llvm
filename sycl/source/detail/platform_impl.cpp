@@ -214,9 +214,19 @@ std::vector<platform> platform_impl::get_platforms() {
         });
     return default_selector_v(*it);
   };
-  std::stable_sort(Platforms.begin(), Platforms.end(), [&](auto lhs, auto rhs) {
-    return GetPlatformScore(lhs) > GetPlatformScore(rhs);
+
+  std::vector<std::pair<platform, int>> PlatformScores;
+  PlatformScores.reserve(Platforms.size());
+  for (auto &p : Platforms)
+    PlatformScores.emplace_back(p, GetPlatformScore(p));
+
+  std::stable_sort(PlatformScores.begin(), PlatformScores.end(), [&](auto lhs, auto rhs) {
+    return lhs.second > rhs.second;
   });
+
+  Platforms.clear();
+  for (auto &e : PlatformScores )
+    Platforms.push_back(e.first);
 
   return Platforms;
 }
