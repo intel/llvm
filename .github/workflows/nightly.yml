@@ -50,4 +50,4 @@ jobs:
 
     - name: Fuzz long test
       working-directory: ${{github.workspace}}/build
-      run: ctest -C ${{matrix.build_type}} --output-on-failure -L "fuzz-long"
+      run: ctest -C ${{matrix.build_type}} --output-on-failure -L "fuzz-long" --verbose
