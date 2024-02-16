@@ -421,18 +421,6 @@ struct convert_data_type_impl<T, B, std::enable_if_t<is_vgentype_v<T>, T>> {
 template <typename T, typename B>
 using convert_data_type = convert_data_type_impl<T, B, T>;
 
-// TryToGetElementType<T>::type is T::element_type or T::value_type if those
-// exist, otherwise T.
-template <typename T> class TryToGetElementType {
-  static T check(...);
-  template <typename A> static typename A::element_type check(const A &);
-  template <typename A> static typename A::value_type check(const A &);
-
-public:
-  using type = decltype(check(T()));
-  static constexpr bool value = !std::is_same_v<T, type>;
-};
-
 // select_apply_cl_scalar_t selects from T8/T16/T32/T64 basing on
 // sizeof(IN).  expected to handle scalar types.
 template <typename T, typename T8, typename T16, typename T32, typename T64>
@@ -643,6 +631,18 @@ template <typename T, typename Enable = void> struct RelConverter {
 #endif
 
   static R apply(value_t value) { return value; }
+};
+
+// TryToGetElementType<T>::type is T::element_type or T::value_type if those
+// exist, otherwise T.
+template <typename T> class TryToGetElementType {
+  static T check(...);
+  template <typename A> static typename A::element_type check(const A &);
+  template <typename A> static typename A::value_type check(const A &);
+
+public:
+  using type = decltype(check(T()));
+  static constexpr bool value = !std::is_same_v<T, type>;
 };
 
 template <typename T>
