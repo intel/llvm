@@ -222,7 +222,11 @@ cl_program program_impl::get() const {
         PI_ERROR_INVALID_PROGRAM);
   }
   getPlugin()->call<PiApiKind::piProgramRetain>(MProgram);
-  return pi::cast<cl_program>(MProgram);
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  pi_native_handle NativeProgram;
+  getPlugin()->call<PiApiKind::piextProgramGetNativeHandle>(MProgram,
+                                                            &NativeProgram);
+  return pi::cast<cl_program>(NativeProgram);
 }
 
 void program_impl::compile_with_kernel_name(std::string KernelName,
@@ -389,23 +393,22 @@ std::pair<sycl::detail::pi::PiKernel, const KernelArgMask *>
 program_impl::get_pi_kernel_arg_mask_pair(const std::string &KernelName) const {
   std::pair<sycl::detail::pi::PiKernel, const KernelArgMask *> Result;
 
-    const PluginPtr &Plugin = getPlugin();
-    sycl::detail::pi::PiResult Err =
-        Plugin->call_nocheck<PiApiKind::piKernelCreate>(
-            MProgram, KernelName.c_str(), &Result.first);
-    if (Err == PI_ERROR_INVALID_KERNEL_NAME) {
-      throw invalid_object_error(
-          "This instance of program does not contain the kernel requested",
-          Err);
-    }
-    Plugin->checkPiResult(Err);
+  const PluginPtr &Plugin = getPlugin();
+  sycl::detail::pi::PiResult Err =
+      Plugin->call_nocheck<PiApiKind::piKernelCreate>(
+          MProgram, KernelName.c_str(), &Result.first);
+  if (Err == PI_ERROR_INVALID_KERNEL_NAME) {
+    throw invalid_object_error(
+        "This instance of program does not contain the kernel requested", Err);
+  }
+  Plugin->checkPiResult(Err);
 
-    // Some PI Plugins (like OpenCL) require this call to enable USM
-    // For others, PI will turn this into a NOP.
-    Plugin->call<PiApiKind::piKernelSetExecInfo>(
-        Result.first, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
+  // Some PI Plugins (like OpenCL) require this call to enable USM
+  // For others, PI will turn this into a NOP.
+  Plugin->call<PiApiKind::piKernelSetExecInfo>(
+      Result.first, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
 
-    return Result;
+  return Result;
 }
 
 std::vector<device>

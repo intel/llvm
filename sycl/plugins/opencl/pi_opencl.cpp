@@ -616,6 +616,19 @@ pi_result piSamplerRelease(pi_sampler Sampler) {
   return pi2ur::piSamplerRelease(Sampler);
 }
 
+pi_result piextSamplerGetNativeHandle(pi_sampler sampler,
+                                      pi_native_handle *nativeHandle) {
+  return pi2ur::piextSamplerGetNativeHandle(sampler, nativeHandle);
+}
+
+pi_result piextSamplerCreateWithNativeHandle(pi_native_handle nativeHandle,
+                                             pi_context context,
+                                             const bool ownNativeHandle,
+                                             pi_sampler *sampler) {
+  return pi2ur::piextSamplerCreateWithNativeHandle(nativeHandle, context,
+                                                   ownNativeHandle, sampler);
+}
+
 pi_result piEnqueueEventsWait(pi_queue Queue, pi_uint32 NumEventsInWaitList,
                               const pi_event *EventWaitList,
                               pi_event *OutEvent) {

@@ -77,7 +77,9 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
   return devices;
 }
 
-cl_device_id device::get() const { return impl->get(); }
+cl_device_id device::get() const {
+  return detail::pi::cast<cl_device_id>(impl->getNative());
+}
 
 bool device::is_host() const {
   bool IsHost = impl->is_host();

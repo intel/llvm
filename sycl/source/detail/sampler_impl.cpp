@@ -23,11 +23,14 @@ sampler_impl::sampler_impl(coordinate_normalization_mode normalizationMode,
 
 sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
 
-  sycl::detail::pi::PiSampler Sampler =
-      pi::cast<sycl::detail::pi::PiSampler>(clSampler);
+  sycl::detail::pi::PiSampler Sampler;
+
+  auto Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
+  Plugin->call<detail::PiApiKind::piextSamplerCreateWithNativeHandle>(
+      pi::cast<pi_native_handle>(clSampler),
+      getSyclObjImpl(syclContext)->getHandleRef(), false, &Sampler);
+
   MContextToSampler[syclContext] = Sampler;
-  const PluginPtr &Plugin = getSyclObjImpl(syclContext)->getPlugin();
-  Plugin->call<PiApiKind::piSamplerRetain>(Sampler);
   Plugin->call<PiApiKind::piSamplerGetInfo>(
       Sampler, PI_SAMPLER_INFO_NORMALIZED_COORDS, sizeof(pi_bool),
       &MCoordNormMode, nullptr);

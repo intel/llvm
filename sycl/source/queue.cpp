@@ -65,12 +65,35 @@ queue::queue(const context &SyclContext, const device &SyclDevice,
 queue::queue(cl_command_queue clQueue, const context &SyclContext,
              const async_handler &AsyncHandler) {
   const property_list PropList{};
-  impl = std::make_shared<detail::queue_impl>(
-      reinterpret_cast<sycl::detail::pi::PiQueue>(clQueue),
-      detail::getSyclObjImpl(SyclContext), AsyncHandler, PropList);
+  sycl::detail::pi::PiQueue Queue;
+  auto Context = detail::getSyclObjImpl(SyclContext);
+  auto Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
+
+  cl_device_id CLDevice;
+  size_t Ret = clGetCommandQueueInfo(clQueue, CL_QUEUE_DEVICE, sizeof(CLDevice),
+                                     &CLDevice, nullptr);
+  if (Ret) {
+    throw runtime_error("Failed to retrieve device associated with the queue",
+                        PI_ERROR_INVALID_QUEUE);
+  }
+  sycl::detail::pi::PiDevice Device;
+  Plugin->call<detail::PiApiKind::piextDeviceCreateWithNativeHandle>(
+      detail::pi::cast<pi_native_handle>(CLDevice), nullptr, &Device);
+
+  sycl::detail::pi::PiQueueProperties Properties[] = {PI_QUEUE_FLAGS, 0, 0, 0,
+                                                      0};
+  Plugin->call<detail::PiApiKind::piextQueueCreateWithNativeHandle>(
+      detail::pi::cast<pi_native_handle>(clQueue), 0, Context->getHandleRef(),
+      Device, false, Properties, &Queue);
+
+  impl = std::make_shared<detail::queue_impl>(Queue, Context, AsyncHandler,
+                                              PropList);
 }
 
-cl_command_queue queue::get() const { return impl->get(); }
+cl_command_queue queue::get() const {
+  int32_t NativeHandleDesc = 0;
+  return detail::pi::cast<cl_command_queue>(impl->getNative(NativeHandleDesc));
+}
 
 context queue::get_context() const { return impl->get_context(); }
 

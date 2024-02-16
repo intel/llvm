@@ -126,9 +126,12 @@ cl_context context_impl::get() const {
         "This instance of context doesn't support OpenCL interoperability.",
         PI_ERROR_INVALID_CONTEXT);
   }
-  // TODO catch an exception and put it to list of asynchronous exceptions
   getPlugin()->call<PiApiKind::piContextRetain>(MContext);
-  return pi::cast<cl_context>(MContext);
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  pi_native_handle NativeContext;
+  getPlugin()->call<PiApiKind::piextContextGetNativeHandle>(MContext,
+                                                            &NativeContext);
+  return pi::cast<cl_context>(NativeContext);
 }
 
 bool context_impl::is_host() const { return MHostContext; }

@@ -2269,23 +2269,11 @@ void SetArgBasedOnType(
         getMemAllocationFunc
             ? (sycl::detail::pi::PiMem)getMemAllocationFunc(Req)
             : nullptr;
-    if (Context.get_backend() == backend::opencl) {
-      // clSetKernelArg (corresponding to piKernelSetArg) returns an error
-      // when MemArg is null, which is the case when zero-sized buffers are
-      // handled. Below assignment provides later call to clSetKernelArg with
-      // acceptable arguments.
-      if (!MemArg)
-        MemArg = sycl::detail::pi::PiMem();
-
-      Plugin->call<PiApiKind::piKernelSetArg>(
-          Kernel, NextTrueIndex, sizeof(sycl::detail::pi::PiMem), &MemArg);
-    } else {
-      pi_mem_obj_property MemObjData{};
-      MemObjData.mem_access = AccessModeToPi(Req->MAccessMode);
-      MemObjData.type = PI_KERNEL_ARG_MEM_OBJ_ACCESS;
-      Plugin->call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
-                                                       &MemObjData, &MemArg);
-    }
+    pi_mem_obj_property MemObjData{};
+    MemObjData.mem_access = AccessModeToPi(Req->MAccessMode);
+    MemObjData.type = PI_KERNEL_ARG_MEM_OBJ_ACCESS;
+    Plugin->call<PiApiKind::piextKernelSetArgMemObj>(Kernel, NextTrueIndex,
+                                                     &MemObjData, &MemArg);
     break;
   }
   case kernel_param_kind_t::kind_std_layout: {

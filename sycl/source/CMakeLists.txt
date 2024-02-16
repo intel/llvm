@@ -129,6 +129,9 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   target_link_libraries(${LIB_OBJ_NAME}
     PRIVATE OpenCL-Headers
   )
+  target_link_libraries(${LIB_NAME}
+    PRIVATE OpenCL::OpenCL
+  )
 
   if(SYCL_ENABLE_KERNEL_FUSION)
     target_link_libraries(${LIB_NAME} PRIVATE sycl-fusion)

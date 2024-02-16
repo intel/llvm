@@ -106,7 +106,11 @@ public:
           PI_ERROR_INVALID_KERNEL);
     }
     getPlugin()->call<PiApiKind::piKernelRetain>(MKernel);
-    return pi::cast<cl_kernel>(MKernel);
+    // TODO catch an exception and put it to list of asynchronous exceptions
+    pi_native_handle NativeKernel;
+    getPlugin()->call<PiApiKind::piextKernelGetNativeHandle>(MKernel,
+                                                             &NativeKernel);
+    return pi::cast<cl_kernel>(NativeKernel);
   }
 
   /// Check if the associated SYCL context is a SYCL host context.

@@ -25,13 +25,14 @@ inline namespace _V1 {
 
 event::event() : impl(std::make_shared<detail::event_impl>(std::nullopt)) {}
 
-event::event(cl_event ClEvent, const context &SyclContext)
-    : impl(std::make_shared<detail::event_impl>(
-          detail::pi::cast<sycl::detail::pi::PiEvent>(ClEvent), SyclContext)) {
-  // This is a special interop constructor for OpenCL, so the event must be
-  // retained.
-  impl->getPlugin()->call<detail::PiApiKind::piEventRetain>(
-      detail::pi::cast<sycl::detail::pi::PiEvent>(ClEvent));
+event::event(cl_event ClEvent, const context &SyclContext) {
+  sycl::detail::pi::PiEvent Event;
+  auto Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
+  Plugin->call<detail::PiApiKind::piextEventCreateWithNativeHandle>(
+      detail::pi::cast<pi_native_handle>(ClEvent),
+      detail::getSyclObjImpl(SyclContext)->getHandleRef(), false, &Event);
+
+  impl = std::make_shared<detail::event_impl>(Event, SyclContext);
 }
 
 bool event::operator==(const event &rhs) const { return rhs.impl == impl; }

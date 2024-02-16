@@ -958,6 +958,21 @@ inline pi_result mock_piSamplerRelease(pi_sampler sampler) {
   return PI_SUCCESS;
 }
 
+inline pi_result
+mock_piextSamplerGetNativeHandle(pi_sampler sampler,
+                                 pi_native_handle *nativeHandle) {
+  *nativeHandle = reinterpret_cast<pi_native_handle>(sampler);
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextSamplerCreateWithNativeHandle(
+    pi_native_handle nativeHandle, pi_context context,
+    const bool ownNativeHandle, pi_sampler *sampler) {
+  *sampler = reinterpret_cast<pi_sampler>(nativeHandle);
+  retainDummyHandle(*sampler);
+  return PI_SUCCESS;
+}
+
 //
 // Queue Commands
 //
