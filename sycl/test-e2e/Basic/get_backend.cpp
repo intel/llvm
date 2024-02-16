@@ -66,7 +66,8 @@ int main() {
       return_fail();
     }
 
-    queue q(c, device);
+    context ctx{device};
+    queue q(ctx, device);
     if (q.get_backend() != plt.get_backend()) {
       return_fail();
     }
