@@ -66,7 +66,9 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   cuGraphDestroy(CudaGraph);
 
   // Release the memory allocated to the CudaGraphExec
-  cuGraphExecDestroy(CudaGraphExec);
+  if (CudaGraphExec) {
+    cuGraphExecDestroy(CudaGraphExec);
+  }
 }
 
 ur_exp_command_buffer_command_handle_t_::
