@@ -56,7 +56,7 @@ int main() {
       return_fail();
     }
 
-    queue q(c, device);
+    queue q(device);
     if (q.get_backend() != plt.get_backend()) {
       return_fail();
     }
