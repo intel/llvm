@@ -80,6 +80,12 @@ llvm_config.with_system_environment(
 
 llvm_config.with_environment("PATH", config.lit_tools_dir, append_path=True)
 
+if "cuda:gpu" in config.sycl_devices:
+    llvm_config.with_system_environment("CUDA_PATH")
+
+if "hip:gpu" in config.sycl_devices:
+    llvm_config.with_system_environment("ROCM_PATH")
+
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
 if platform.system() == "Linux":
     config.available_features.add("linux")

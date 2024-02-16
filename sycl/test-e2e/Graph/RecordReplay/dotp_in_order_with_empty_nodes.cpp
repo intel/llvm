@@ -13,9 +13,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-  property_list Properties{
-      property::queue::in_order{},
-      sycl::ext::intel::property::queue::no_immediate_command_list{}};
+  property_list Properties{property::queue::in_order{}};
   queue Queue{Properties};
 
   if (!are_graphs_supported(Queue)) {
