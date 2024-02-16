@@ -74,7 +74,7 @@ using SerializedObj = std::vector<unsigned char>;
 // cases, and it is only called internally and not exposed to the user.
 // The following ReturnType structure is intended for general return type,
 // and special return types (std::string and vector of it).
-template <typename T> struct GetInfoReturnType { using type = T; };
+template <typename T> struct ABINeutralT { using type = T; };
 
 template <> struct GetInfoReturnType<std::string> {
   using type = sycl::_V1::detail::string;
