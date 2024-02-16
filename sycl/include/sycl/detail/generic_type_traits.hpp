@@ -405,22 +405,6 @@ template <typename T>
 using make_unsinged_integer_t =
     make_type_t<T, gtl::scalar_unsigned_integer_list>;
 
-template <typename T, typename B, typename Enable = void>
-struct convert_data_type_impl;
-
-template <typename T, typename B>
-struct convert_data_type_impl<T, B, std::enable_if_t<is_sgentype_v<T>, T>> {
-  B operator()(T t) { return static_cast<B>(t); }
-};
-
-template <typename T, typename B>
-struct convert_data_type_impl<T, B, std::enable_if_t<is_vgentype_v<T>, T>> {
-  vec<B, T::size()> operator()(T t) { return t.template convert<B>(); }
-};
-
-template <typename T, typename B>
-using convert_data_type = convert_data_type_impl<T, B, T>;
-
 // TryToGetElementType<T>::type is T::element_type or T::value_type if those
 // exist, otherwise T.
 template <typename T> class TryToGetElementType {
