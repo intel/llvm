@@ -9,9 +9,10 @@
 
 #pragma once
 
-#include "sycl/ext/intel/experimental/fpga_kernel_properties.hpp"
-#include "sycl/ext/intel/experimental/task_sequence/properties.hpp"
+#include <CL/__spirv/spirv_types.hpp>
 #include <CL/__spirv/spirv_ops.hpp>
+#include <sycl/ext/intel/experimental/fpga_kernel_properties.hpp>
+#include <sycl/ext/intel/experimental/task_sequence/properties.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 
@@ -48,10 +49,13 @@ public:
   task_sequence &operator=(task_sequence &&) = delete;
 
   task_sequence() {
-#if defined(__SYCL_DEVICE_ONLY__)
-    id = __spirv_TaskSequenceCreateINTEL(this, &f, m_invocation_capacity,
-                                         m_response_capacity, m_pipelined,
-                                         m_fpga_cluster);
+#ifdef __SYCL_DEVICE_ONLY__
+    taskSequence = __spirv_TaskSequenceCreateINTEL(
+        &f,
+        oneapi::experimental::detail::ValueOrDefault<property_list_t, pipelined_key>::template get<int32_t>(-1);,
+        static_cast<typename std::underlying_type<fpga_cluster_options_enum>::type>(oneapi::experimental::detail::ValueOrDefault<property_list_t, fpga_cluster_key>::template get<fpga_cluster_options_enum>(fpga_cluster_options_enum::stall_free)),
+        oneapi::experimental::detail::ValueOrDefault<property_list_t, response_capacity_key>::template get<uint32_t>(0),
+        oneapi::experimental::detail::ValueOrDefault<property_list_t, invocation_capacity_key>::template get<uint32_t>(0));
 #else
     throw exception{make_error_code(errc::feature_not_supported),
                     "task_sequence is not supported on host device"};
@@ -59,9 +63,9 @@ public:
   }
 
   void async(ArgsT... Args) {
-#if defined(__SYCL_DEVICE_ONLY__)
+#ifdef __SYCL_DEVICE_ONLY__
     ++outstanding;
-    __spirv_TaskSequenceAsyncINTEL(id, Args...);
+    __spirv_TaskSequenceAsyncINTEL(taskSequence, Args...);
 #else
     throw exception{make_error_code(errc::feature_not_supported),
                     "task_sequence is not supported on host device"};
@@ -69,9 +73,9 @@ public:
   }
 
   ReturnT get() {
-#if defined(__SYCL_DEVICE_ONLY__)
+#ifdef __SYCL_DEVICE_ONLY__
     --outstanding;
-    return __spirv_TaskSequenceGetINTEL<ReturnT>(id);
+    return __spirv_TaskSequenceGetINTEL<ReturnT>(taskSequence);
 #else
     throw exception{make_error_code(errc::feature_not_supported),
                     "task_sequence is not supported on host device"};
@@ -79,12 +83,12 @@ public:
   }
 
   ~task_sequence() {
-#if defined(__SYCL_DEVICE_ONLY__)
-    if constexpr (!m_balanced) {
+#ifdef __SYCL_DEVICE_ONLY__
+    if constexpr (!has_property<balanced_key>()) {
       while (outstanding)
         get();
     }
-    __spirv_TaskSequenceReleaseINTEL(id);
+    __spirv_TaskSequenceReleaseINTEL(taskSequence);
 #else
     // throw exception{
     //     make_error_code(errc::feature_not_supported),
@@ -102,25 +106,10 @@ public:
   }
 
 private:
+#ifdef __SYCL_DEVICE_ONLY__
   unsigned outstanding = 0;
-  size_t id;
-
-  static constexpr uint32_t m_invocation_capacity =
-      oneapi::experimental::detail::ValueOrDefault<
-          property_list_t, invocation_capacity_key>::template get<uint32_t>(0);
-  static constexpr uint32_t m_response_capacity =
-      oneapi::experimental::detail::ValueOrDefault<
-          property_list_t, response_capacity_key>::template get<uint32_t>(0);
-  static constexpr int32_t m_pipelined =
-      oneapi::experimental::detail::ValueOrDefault<
-          property_list_t, pipelined_key>::template get<int32_t>(-1);
-  static constexpr uint16_t m_fpga_cluster = static_cast<
-      typename std::underlying_type<fpga_cluster_options_enum>::type>(
-      oneapi::experimental::detail::ValueOrDefault<property_list_t,
-                                                   fpga_cluster_key>::
-          template get<fpga_cluster_options_enum>(
-              fpga_cluster_options_enum::stall_free));
-  static constexpr bool m_balanced = has_property<balanced_key>();
+  __spirv_TaskSequenceINTELTy taskSequence;
+#endif
 };
 
 } // namespace ext::intel::experimental
