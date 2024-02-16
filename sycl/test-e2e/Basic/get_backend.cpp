@@ -34,6 +34,8 @@ inline void return_fail(int line = __builtin_LINE()) {
 
 int main() {
   for (const auto &plt : platform::get_platforms()) {
+    auto plt_name = plt.get_info<info::platform::name>();
+    std::cout << "MY: Platform: " << plt_name << std::endl;
     if (check(plt.get_backend()) == false) {
       return_fail();
     }
@@ -44,6 +46,10 @@ int main() {
     }
 
     auto device = c.get_devices()[0];
+    auto d_name = device.get_info<info::device::name>();
+    std::cout << "MY: Device: " << d_name << std::endl;
+    auto d_backend_version = device.get_info<info::device::backend_version>();
+    std::cout << "MY: Device: " << d_backend_version << std::endl;
     if (device.get_backend() != plt.get_backend()) {
       return_fail();
     }
