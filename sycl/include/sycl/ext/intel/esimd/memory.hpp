@@ -4331,9 +4331,8 @@ slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// void slm_scatter(
 ///             OffsetSimdViewT byte_offsets, simd<T, N> vals,
 ///             PropertyListT props = {});                         // (slm-sc-4)
-/// Loads ("gathers") elements of the type 'T' from Shared Local Memory
-/// locations addressed by byte offsets \p byte_offsets, and returns the loaded
-/// elements.
+/// Stores ("scatters") elements of the type 'T' to Shared Local Memory
+/// locations addressed by byte offsets \p byte_offsets.
 /// @tparam T Element type.
 /// @tparam N Number of elements to read.
 /// @tparam VS Vector size. It can also be read as the number of reads per each
@@ -5872,7 +5871,6 @@ __ESIMD_API
 /// atomic_update(T *p, simd<Toffset, N> byte_offset,
 ///               props = {});                                  /// (usm-au0-2)
 /// simd<T, N>
-///
 /// atomic_update(T *p, simd_view<OffsetObjT, RegionTy> byte_offset,
 ///               simd_mask<N> mask, props = {});               /// (usm-au0-3)
 /// simd<T, N>
@@ -5932,27 +5930,45 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd_mask<N> mask,
     return detail::atomic_update_impl<
         Op, T, N, detail::lsc_data_size::default_size, L1Hint, L2Hint, Toffset>(
         p, byte_offset, mask);
-  } else {
-    if constexpr (Op == atomic_op::load) {
-      if constexpr (std::is_integral_v<T>) {
-        return atomic_update<atomic_op::bit_or, T, N>(
-            p, byte_offset, simd<T, N>(0), mask, props);
-      } else {
-        using Tint = detail::uint_type_t<sizeof(T)>;
-        simd<Tint, N> Res = atomic_update<atomic_op::bit_or, Tint, N>(
-            reinterpret_cast<Tint *>(p), byte_offset, simd<Tint, N>(0), mask,
-            props);
-        return Res.template bit_cast_view<T>();
-      }
-    } else {
-      detail::check_atomic<Op, T, N, 0>();
+  } else if constexpr (N == 16 || N == 32) {
+    // TODO: In fact GPU BE supports legalization for any N, even for
+    // non-power-of-2, but it is implemented with an error now. For example,
+    // N=17 is emulated as 2 calls (N=16 and N=1), while it must be 3 calls:
+    // (N=8, N=8, N=1). I.e. Gen12 atomic instruction supports only N up to 8
+    // and GPU thinks now it is up to 16.
+    // Thus we emulate N=16 with 2 calls with N=8 each.
+    // N=32 is emulated with 4 calls with N=8 each.
+    // Task1: Remove the special-case emulation for N=16 and N=32 below when
+    // GPU driver fixes the error.
+    // Task2: remove the condition "!__ESIMD_DNS::isPowerOf2(N, 32)" above
+    // and let svm.atomic for any N.
 
-      simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
-      simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(byte_offset);
-      vAddr += offset_i1;
-      using Tx = typename detail::__raw_t<T>;
-      return __esimd_svm_atomic0<Op, Tx, N>(vAddr.data(), mask.data());
+    simd<T, N> Res;
+    for (int I = 0; I < N; I += 8) {
+      simd_mask<8> Mask8 = mask.template select<8, 1>(I);
+      simd<Toffset, 8> ByteOffset8 = byte_offset.template select<8, 1>(I);
+      Res.template select<8, 1>(I) =
+          atomic_update<Op, T, 8>(p, ByteOffset8, Mask8, props);
     }
+    return Res;
+  } else if constexpr (Op == atomic_op::load) {
+    if constexpr (std::is_integral_v<T>) {
+      return atomic_update<atomic_op::bit_or, T, N>(p, byte_offset,
+                                                    simd<T, N>(0), mask, props);
+    } else {
+      using Tint = detail::uint_type_t<sizeof(T)>;
+      simd<Tint, N> Res = atomic_update<atomic_op::bit_or, Tint, N>(
+          reinterpret_cast<Tint *>(p), byte_offset, simd<Tint, N>(0), mask,
+          props);
+      return Res.template bit_cast_view<T>();
+    }
+  } else {
+    detail::check_atomic<Op, T, N, 0>();
+    simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
+    simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(byte_offset);
+    vAddr += offset_i1;
+    using Tx = typename detail::__raw_t<T>;
+    return __esimd_svm_atomic0<Op, Tx, N>(vAddr.data(), mask.data());
   }
 }
 
@@ -6150,28 +6166,47 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
     return detail::atomic_update_impl<
         Op, T, N, detail::lsc_data_size::default_size, L1Hint, L2Hint, Toffset>(
         p, byte_offset, src0, mask);
-  } else {
-    if constexpr (Op == atomic_op::store) {
-      if constexpr (std::is_integral_v<T>) {
-        return atomic_update<atomic_op::xchg, T, N>(p, byte_offset, src0, mask,
-                                                    props);
-      } else {
-        using Tint = detail::uint_type_t<sizeof(T)>;
-        simd<Tint, N> Res = atomic_update<atomic_op::xchg, Tint, N>(
-            reinterpret_cast<Tint *>(p), byte_offset,
-            src0.template bit_cast_view<Tint>(), mask, props);
-        return Res.template bit_cast_view<T>();
-      }
-    } else {
-      detail::check_atomic<Op, T, N, 1>();
-      simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
-      simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(byte_offset);
-      vAddr += offset_i1;
-
-      using Tx = typename detail::__raw_t<T>;
-      return __esimd_svm_atomic1<Op, Tx, N>(vAddr.data(), src0.data(),
-                                            mask.data());
+  } else if constexpr (N == 16 || N == 32) {
+    // TODO: In fact GPU BE supports legalization for any N, even for
+    // non-power-of-2, but it is implemented with an error now. For example,
+    // N=17 is emulated as 2 calls (N=16 and N=1), while it must be 3 calls:
+    // (N=8, N=8, N=1). I.e. Gen12 atomic instruction supports only N up to 8
+    // and GPU thinks now it is up to 16.
+    // Thus we emulate N=16 with 2 calls with N=8 each.
+    // N=32 is emulated with 4 calls with N=8 each.
+    // Task1: Remove the special-case emulation for N=16 and N=32 below when
+    // GPU driver fixes the error.
+    // Task2: remove the condition "!__ESIMD_DNS::isPowerOf2(N, 32)" above
+    // and let svm.atomic for any N.
+    simd<T, N> Res;
+    for (int I = 0; I < N; I += 8) {
+      simd_mask<8> Mask8 = mask.template select<8, 1>(I);
+      simd<Toffset, 8> ByteOffset8 = byte_offset.template select<8, 1>(I);
+      simd<T, 8> Src08 = src0.template select<8, 1>(I);
+      Res.template select<8, 1>(I) =
+          atomic_update<Op, T, 8>(p, ByteOffset8, Src08, Mask8, props);
     }
+    return Res;
+  } else if constexpr (Op == atomic_op::store) {
+    if constexpr (std::is_integral_v<T>) {
+      return atomic_update<atomic_op::xchg, T, N>(p, byte_offset, src0, mask,
+                                                  props);
+    } else {
+      using Tint = detail::uint_type_t<sizeof(T)>;
+      simd<Tint, N> Res = atomic_update<atomic_op::xchg, Tint, N>(
+          reinterpret_cast<Tint *>(p), byte_offset,
+          src0.template bit_cast_view<Tint>(), mask, props);
+      return Res.template bit_cast_view<T>();
+    }
+  } else {
+    detail::check_atomic<Op, T, N, 1>();
+    simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
+    simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(byte_offset);
+    vAddr += offset_i1;
+
+    using Tx = typename detail::__raw_t<T>;
+    return __esimd_svm_atomic1<Op, Tx, N>(vAddr.data(), src0.data(),
+                                          mask.data());
   }
 }
 
@@ -6396,6 +6431,28 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
     return detail::atomic_update_impl<
         Op, T, N, detail::lsc_data_size::default_size, L1Hint, L2Hint, Toffset>(
         p, byte_offset, src1, src0, mask);
+  } else if constexpr (N == 16 || N == 32) {
+    // TODO: In fact GPU BE supports legalization for any N, even for
+    // non-power-of-2, but it is implemented with an error now. For example,
+    // N=17 is emulated as 2 calls (N=16 and N=1), while it must be 3 calls:
+    // (N=8, N=8, N=1). I.e. Gen12 atomic instruction supports only N up to 8
+    // and GPU thinks now it is up to 16.
+    // Thus we emulate N=16 with 2 calls with N=8 each.
+    // N=32 is emulated with 4 calls with N=8 each.
+    // Task1: Remove the special-case emulation for N=16 and N=32 below when
+    // GPU driver fixes the error.
+    // Task2: remove the condition "!__ESIMD_DNS::isPowerOf2(N, 32)" above
+    // and let svm.atomic for any N.
+    simd<T, N> Res;
+    for (int I = 0; I < N; I += 8) {
+      simd_mask<8> Mask8 = mask.template select<8, 1>(I);
+      simd<Toffset, 8> ByteOffset8 = byte_offset.template select<8, 1>(I);
+      simd<T, 8> Src08 = src0.template select<8, 1>(I);
+      simd<T, 8> Src18 = src1.template select<8, 1>(I);
+      Res.template select<8, 1>(I) =
+          atomic_update<Op, T, 8>(p, ByteOffset8, Src08, Src18, Mask8, props);
+    }
+    return Res;
   } else {
     detail::check_atomic<Op, T, N, 2>();
     simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
@@ -7930,6 +7987,196 @@ __ESIMD_API
 }
 
 /// Variant of scatter that uses local accessor as a parameter
+/// template <typename T, int N, int VS = 1, typename AccessorT,
+///           typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              simd<uint32_t, N / VS> byte_offsets,
+///              simd<T, N> vals,
+///              simd_mask<N / VS> mask,
+///              PropertyListT props = {});                  // (lacc-sc-1)
+
+/// template <typename T, int N, int VS = 1, typename AccessorT,
+///           typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              simd<uint32_t, N / VS> byte_offsets,
+///              simd<T, N> vals,
+///              PropertyListT props = {});                 // (lacc-sc-2)
+
+/// The next two functions are similar to lacc-sc-{1,2} with the 'byte_offsets'
+/// parameter represerented as 'simd_view'.
+
+/// template <typename T, int N, int VS = 1, typename AccessorT,
+///           typename OffsetSimdViewT,
+///           typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              OffsetSimdViewT byte_offsets,
+///              simd<T, N> vals,
+///              simd_mask<N / VS> mask,
+///              PropertyListT props = {});                 // (lacc-sc-3)
+
+/// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+///           typename AccessorT,
+///           typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              OffsetSimdViewT byte_offsets,
+///              simd<T, N> vals,
+///              PropertyListT props = {});                // (lacc-sc-4)
+
+/// template <typename T, int N, int VS = 1, typename AccessorT,
+///           typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              simd<uint32_t, N / VS> byte_offsets,
+///              simd<T, N> vals,
+///              simd_mask<N / VS> mask,
+///              PropertyListT props = {});               // (lacc-sc-1)
+///
+/// Writes ("scatters") elements of the input vector to memory locations
+/// addressed by the local accessor \p acc and byte offsets \p byte_offsets.
+/// Access to any element's memory location can be disabled via
+/// the input mask.
+/// @tparam T Element type.
+/// @tparam N Number of elements to write.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc The accessor to scatter to.
+/// @param byte_offsets the vector of 32-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param vals The vector to scatter.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// property is used.
+template <typename T, int N, int VS = 1, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT,
+                                     detail::accessor_mode_cap::can_write> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorT acc, simd<uint32_t, N / VS> byte_offsets, simd<T, N> vals,
+        simd_mask<N / VS> mask, PropertyListT props = {}) {
+  slm_scatter<T, N, VS>(byte_offsets + __ESIMD_DNS::localAccessorToOffset(acc),
+                        vals, mask, props);
+}
+
+/// template <typename T, int N, int VS = 1, typename AccessorT,
+///           typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              simd<uint32_t, N / VS> byte_offsets,
+///              simd<T, N> vals,
+///              PropertyListT props = {});                 // (lacc-sc-2)
+///
+/// Writes ("scatters") elements of the input vector to memory locations
+/// addressed by the local accessor \p acc and byte offsets \p byte_offsets.
+/// @tparam T Element type.
+/// @tparam N Number of elements to write.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc The accessor to scatter to.
+/// @param byte_offsets the vector of 32-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param vals The vector to scatter.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// property is used.
+template <typename T, int N, int VS = 1, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT,
+                                     detail::accessor_mode_cap::can_write> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorT acc, simd<uint32_t, N / VS> byte_offsets, simd<T, N> vals,
+        PropertyListT props = {}) {
+  simd_mask<N / VS> Mask = 1;
+  scatter<T, N, VS>(acc, byte_offsets, vals, Mask, props);
+}
+
+/// template <typename T, int N, int VS = 1, typename AccessorT,
+///           typename OffsetSimdViewT,
+///           typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              OffsetSimdViewT byte_offsets,
+///              simd<T, N> vals,
+///              simd_mask<N / VS> mask,
+///              PropertyListT props = {});                 // (lacc-sc-3)
+///
+/// Writes ("scatters") elements of the input vector to memory locations
+/// addressed by the local accessor \p acc and byte offsets \p byte_offsets.
+/// Access to any element's memory location can be disabled via the input mask.
+/// @tparam T Element type.
+/// @tparam N Number of elements to write.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc The accessor to scatter to.
+/// @param byte_offsets the vector of 32-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param vals The vector to scatter.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+          typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT,
+                                     detail::accessor_mode_cap::can_write> &&
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorT acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+        simd_mask<N / VS> mask, PropertyListT props = {}) {
+  scatter<T, N, VS>(acc, byte_offsets.read(), vals, mask, props);
+}
+
+/// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+///           typename AccessorT,
+///           typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              OffsetSimdViewT byte_offsets,
+///              simd<T, N> vals,
+///              PropertyListT props = {});                // (lacc-sc-4)
+///
+/// Writes ("scatters") elements of the input vector to memory locations
+/// addressed by the local accessor \p acc and byte offsets \p byte_offsets.
+/// @tparam T Element type.
+/// @tparam N Number of elements to write.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc The accessor to scatter to.
+/// @param byte_offsets the vector of 32-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param vals The vector to scatter.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// property is used.
+template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+          typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT,
+                                     detail::accessor_mode_cap::can_write> &&
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorT acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+        PropertyListT props = {}) {
+  simd_mask<N / VS> Mask = 1;
+  scatter<T, N, VS>(acc, byte_offsets.read(), vals, Mask, props);
+}
+
+/// Variant of scatter that uses local accessor as a parameter
 ///
 /// Writes elements of a \ref simd object into an accessor at given offsets.
 /// An element can be a 1, 2 or 4-byte value.
@@ -7951,7 +8198,7 @@ template <typename T, int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<detail::is_local_accessor_with_v<
     AccessorTy, detail::accessor_mode_cap::can_write>>
 scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> vals,
-        uint32_t glob_offset = 0, simd_mask<N> mask = 1) {
+        uint32_t glob_offset, simd_mask<N> mask = 1) {
   slm_scatter<T, N>(offsets + glob_offset +
                         __ESIMD_DNS::localAccessorToOffset(acc),
                     vals, mask);

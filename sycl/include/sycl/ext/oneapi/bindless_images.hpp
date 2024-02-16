@@ -783,8 +783,8 @@ DataT read_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
                  const CoordT &coords [[maybe_unused]]) {
   detail::assert_unsampled_coords<CoordT>();
   constexpr size_t coordSize = detail::coord_size<CoordT>();
-  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
-                "Expected input coordinate to be have 1, 2, or 4 components "
+  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 3,
+                "Expected input coordinate to be have 1, 2, or 3 components "
                 "for 1D, 2D and 3D images, respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -829,8 +829,8 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                  const CoordT &coords [[maybe_unused]]) {
   detail::assert_sampled_coords<CoordT>();
   constexpr size_t coordSize = detail::coord_size<CoordT>();
-  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
-                "Expected input coordinate to be have 1, 2, or 4 components "
+  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 3,
+                "Expected input coordinate to be have 1, 2, or 3 components "
                 "for 1D, 2D and 3D images, respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -871,8 +871,8 @@ DataT read_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
                   const float level [[maybe_unused]]) {
   detail::assert_sampled_coords<CoordT>();
   constexpr size_t coordSize = detail::coord_size<CoordT>();
-  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
-                "Expected input coordinate to be have 1, 2, or 4 components "
+  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 3,
+                "Expected input coordinate to be have 1, 2, or 3 components "
                 "for 1D, 2D and 3D images, respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -915,8 +915,8 @@ DataT read_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
                   const CoordT &dY [[maybe_unused]]) {
   detail::assert_sampled_coords<CoordT>();
   constexpr size_t coordSize = detail::coord_size<CoordT>();
-  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
-                "Expected input coordinates and gradients to have 1, 2, or 4 "
+  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 3,
+                "Expected input coordinates and gradients to have 1, 2, or 3 "
                 "components for 1D, 2D, and 3D images, respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -961,8 +961,8 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                  const float level [[maybe_unused]]) {
   detail::assert_sampled_coords<CoordT>();
   constexpr size_t coordSize = detail::coord_size<CoordT>();
-  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
-                "Expected input coordinate to be have 1, 2, or 4 components "
+  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 3,
+                "Expected input coordinate to be have 1, 2, or 3 components "
                 "for 1D, 2D and 3D images, respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1008,8 +1008,8 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                  const CoordT &dY [[maybe_unused]]) {
   detail::assert_sampled_coords<CoordT>();
   constexpr size_t coordSize = detail::coord_size<CoordT>();
-  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
-                "Expected input coordinates and gradients to have 1, 2, or 4 "
+  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 3,
+                "Expected input coordinates and gradients to have 1, 2, or 3 "
                 "components for 1D, 2D, and 3D images, respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -1045,8 +1045,8 @@ void write_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
                  const DataT &color [[maybe_unused]]) {
   detail::assert_unsampled_coords<CoordT>();
   constexpr size_t coordSize = detail::coord_size<CoordT>();
-  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
-                "Expected input coordinate to be have 1, 2, or 4 components "
+  static_assert(coordSize == 1 || coordSize == 2 || coordSize == 3,
+                "Expected input coordinate to be have 1, 2, or 3 components "
                 "for 1D, 2D and 3D images, respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__

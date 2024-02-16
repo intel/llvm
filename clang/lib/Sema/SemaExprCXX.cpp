@@ -1559,12 +1559,13 @@ Sema::BuildCXXTypeConstructExpr(TypeSourceInfo *TInfo,
     TemplateDeductionInfo Info(Deduce->getExprLoc());
     TemplateDeductionResult Result =
         DeduceAutoType(TInfo->getTypeLoc(), Deduce, DeducedType, Info);
-    if (Result != TDK_Success && Result != TDK_AlreadyDiagnosed)
+    if (Result != TemplateDeductionResult::Success &&
+        Result != TemplateDeductionResult::AlreadyDiagnosed)
       return ExprError(Diag(TyBeginLoc, diag::err_auto_expr_deduction_failure)
                        << Ty << Deduce->getType() << FullRange
                        << Deduce->getSourceRange());
     if (DeducedType.isNull()) {
-      assert(Result == TDK_AlreadyDiagnosed);
+      assert(Result == TemplateDeductionResult::AlreadyDiagnosed);
       return ExprError();
     }
 
@@ -2103,12 +2104,13 @@ ExprResult Sema::BuildCXXNew(SourceRange Range, bool UseGlobal,
     TemplateDeductionInfo Info(Deduce->getExprLoc());
     TemplateDeductionResult Result =
         DeduceAutoType(AllocTypeInfo->getTypeLoc(), Deduce, DeducedType, Info);
-    if (Result != TDK_Success && Result != TDK_AlreadyDiagnosed)
+    if (Result != TemplateDeductionResult::Success &&
+        Result != TemplateDeductionResult::AlreadyDiagnosed)
       return ExprError(Diag(StartLoc, diag::err_auto_new_deduction_failure)
                        << AllocType << Deduce->getType() << TypeRange
                        << Deduce->getSourceRange());
     if (DeducedType.isNull()) {
-      assert(Result == TDK_AlreadyDiagnosed);
+      assert(Result == TemplateDeductionResult::AlreadyDiagnosed);
       return ExprError();
     }
     AllocType = DeducedType;
@@ -2892,7 +2894,7 @@ bool Sema::FindAllocationFunctions(SourceLocation StartLoc, SourceRange Range,
         // expected function type.
         TemplateDeductionInfo Info(StartLoc);
         if (DeduceTemplateArguments(FnTmpl, nullptr, ExpectedFunctionType, Fn,
-                                    Info))
+                                    Info) != TemplateDeductionResult::Success)
           continue;
       } else
         Fn = cast<FunctionDecl>((*D)->getUnderlyingDecl());
