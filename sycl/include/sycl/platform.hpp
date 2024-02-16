@@ -164,7 +164,7 @@ public:
       }
       return Res;
     } else {
-      return std::move(Info);
+      return Info;
     }
   }
 #else
