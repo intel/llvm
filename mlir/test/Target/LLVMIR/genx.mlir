@@ -84,17 +84,11 @@ llvm.func @genx.fptofp(%a: f32, %b: f16) {
   // CHECK-NEXT: call half @llvm.experimental.constrained.fptrunc.f16.f32(float %0, metadata !"round.upward", metadata !"fpexcept.strict")
   // CHECK-NEXT: call half @llvm.experimental.constrained.fptrunc.f16.f32(float %0, metadata !"round.towardzero", metadata !"fpexcept.strict")
   // CHECK-NEXT: call float @llvm.experimental.constrained.fpext.f32.f16(half %1, metadata !"fpexcept.strict")
-  // CHECK-NEXT: call float @llvm.experimental.constrained.fpext.f32.f16(half %1, metadata !"fpexcept.strict")
-  // CHECK-NEXT: call float @llvm.experimental.constrained.fpext.f32.f16(half %1, metadata !"fpexcept.strict")
-  // CHECK-NEXT: call float @llvm.experimental.constrained.fpext.f32.f16(half %1, metadata !"fpexcept.strict")
   %0 = genx.conv.fptofp %a {roundingMode=#genx.rounding_mode<RTE>} : f32 to f16
   %1 = genx.conv.fptofp %a {roundingMode=#genx.rounding_mode<RTN>} : f32 to f16
   %2 = genx.conv.fptofp %a {roundingMode=#genx.rounding_mode<RTP>} : f32 to f16
   %3 = genx.conv.fptofp %a {roundingMode=#genx.rounding_mode<RTZ>} : f32 to f16
-  %4 = genx.conv.fptofp %b {roundingMode=#genx.rounding_mode<RTE>} : f16 to f32
-  %5 = genx.conv.fptofp %b {roundingMode=#genx.rounding_mode<RTN>} : f16 to f32
-  %6 = genx.conv.fptofp %b {roundingMode=#genx.rounding_mode<RTP>} : f16 to f32
-  %7 = genx.conv.fptofp %b {roundingMode=#genx.rounding_mode<RTZ>} : f16 to f32
+  %7 = genx.conv.fptofp %b : f16 to f32
   llvm.return
 }
 
