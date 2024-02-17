@@ -495,8 +495,8 @@ static constexpr bool is_allowable_aot_mode =
 
 constexpr static std::optional<ext::oneapi::experimental::architecture>
 get_current_architecture_aot() {
-  // TODO: re-write the logic below when sycl_ext_oneapi_device_architecture will
-  // support -fsycl-targets will targets more than one
+  // TODO: re-write the logic below when sycl_ext_oneapi_device_architecture
+  // will support targets more than one in -fsycl-targets
 #if __SYCL_TARGET_INTEL_X86_64__
   return ext::oneapi::experimental::architecture::x86_64;
 #endif
@@ -731,7 +731,7 @@ is_aot_for_architecture(ext::oneapi::experimental::architecture arch) {
   constexpr std::optional<ext::oneapi::experimental::architecture>
       current_arch = get_current_architecture_aot();
   if (current_arch.has_value())
-    return static_cast<int>(arch) == static_cast<int>(*current_arch);
+    return arch == *current_arch;
   return false;
 }
 
@@ -786,10 +786,8 @@ constexpr static bool device_architecture_is_in_category_aot() {
 
   if (category_min_arch.has_value() && category_max_arch.has_value() &&
       current_arch.has_value())
-    if ((static_cast<int>(*category_min_arch) <=
-         static_cast<int>(*current_arch)) &&
-        (static_cast<int>(*current_arch) <=
-         static_cast<int>(*category_max_arch)))
+    if ((*category_min_arch <= *current_arch) &&
+        (*current_arch <= *category_max_arch))
       return true;
 
   return false;
@@ -801,12 +799,11 @@ constexpr static bool device_architecture_is_in_categories() {
 }
 
 constexpr static std::optional<ext::oneapi::experimental::arch_category>
-get_architecture_category(ext::oneapi::experimental::architecture arch) {
+get_device_architecture_category(ext::oneapi::experimental::architecture arch) {
   auto arch_is_in_segment =
       [&arch](ext::oneapi::experimental::architecture min,
               ext::oneapi::experimental::architecture max) {
-        if ((static_cast<int>(min) <= static_cast<int>(arch)) &&
-            (static_cast<int>(arch) <= static_cast<int>(max)))
+        if ((min <= arch) && (arch <= max))
           return true;
         return false;
       };
@@ -827,13 +824,13 @@ get_architecture_category(ext::oneapi::experimental::architecture arch) {
 template <ext::oneapi::experimental::architecture Arch, typename Compare>
 constexpr static bool device_architecture_comparison_aot(Compare comp) {
   constexpr std::optional<ext::oneapi::experimental::arch_category>
-      input_arch_category = get_architecture_category(Arch);
+      input_arch_category = get_device_architecture_category(Arch);
   constexpr std::optional<ext::oneapi::experimental::architecture>
       current_arch = get_current_architecture_aot();
 
   if (input_arch_category.has_value() && current_arch.has_value()) {
     std::optional<ext::oneapi::experimental::arch_category>
-        current_arch_category = get_architecture_category(*current_arch);
+        current_arch_category = get_device_architecture_category(*current_arch);
     if (current_arch_category.has_value() &&
         (*input_arch_category == *current_arch_category))
       return comp(*current_arch, Arch);
