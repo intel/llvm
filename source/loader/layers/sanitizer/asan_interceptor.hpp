@@ -22,14 +22,20 @@
 
 namespace ur_sanitizer_layer {
 
-enum USMMemoryType { DEVICE, SHARE, HOST, MEM_BUFFER };
+enum class AllocType : uint32_t {
+    DEVICE_USM,
+    SHARED_USM,
+    HOST_USM,
+    MEM_BUFFER,
+    DEVICE_GLOBAL
+};
 
-struct USMAllocInfo {
+struct AllocInfo {
     uptr AllocBegin;
     uptr UserBegin;
     uptr UserEnd;
     size_t AllocSize;
-    USMMemoryType Type;
+    AllocType Type;
 };
 
 enum class DeviceType { UNKNOWN, CPU, GPU_PVC, GPU_DG2 };
@@ -42,7 +48,7 @@ struct DeviceInfo {
 
     // Lock InitPool & AllocInfos
     ur_shared_mutex Mutex;
-    std::vector<std::shared_ptr<USMAllocInfo>> AllocInfos;
+    std::vector<std::shared_ptr<AllocInfo>> AllocInfos;
 };
 
 struct QueueInfo {
@@ -64,7 +70,7 @@ struct ContextInfo {
         return QueueMap[Queue];
     }
 
-    std::shared_ptr<USMAllocInfo> getUSMAllocInfo(uptr Address) {
+    std::shared_ptr<AllocInfo> getUSMAllocInfo(uptr Address) {
         std::shared_lock<ur_shared_mutex> Guard(Mutex);
         assert(AllocatedUSMMap.find(Address) != AllocatedUSMMap.end());
         return AllocatedUSMMap[Address];
@@ -78,7 +84,7 @@ struct ContextInfo {
     /// key: USMAllocInfo.AllocBegin
     /// value: USMAllocInfo
     /// Use AllocBegin as key can help to detect underflow pointer
-    std::map<uptr, std::shared_ptr<USMAllocInfo>> AllocatedUSMMap;
+    std::map<uptr, std::shared_ptr<AllocInfo>> AllocatedUSMMap;
 };
 
 struct LaunchInfo {
@@ -95,6 +101,12 @@ struct LaunchInfo {
     ~LaunchInfo();
 };
 
+struct DeviceGlobalInfo {
+    uptr Size;
+    uptr SizeWithRedZone;
+    uptr Addr;
+};
+
 class SanitizerInterceptor {
   public:
     SanitizerInterceptor();
@@ -105,8 +117,11 @@ class SanitizerInterceptor {
                                ur_device_handle_t Device,
                                const ur_usm_desc_t *Properties,
                                ur_usm_pool_handle_t Pool, size_t Size,
-                               void **ResultPtr, USMMemoryType Type);
+                               void **ResultPtr, AllocType Type);
     ur_result_t releaseMemory(ur_context_handle_t Context, void *Ptr);
+
+    ur_result_t registerDeviceGlobals(ur_context_handle_t Context,
+                                      ur_program_handle_t Program);
 
     ur_result_t preLaunchKernel(ur_kernel_handle_t Kernel,
                                 ur_queue_handle_t Queue,
@@ -131,7 +146,7 @@ class SanitizerInterceptor {
     ur_result_t enqueueAllocInfo(ur_context_handle_t Context,
                                  ur_device_handle_t Device,
                                  ur_queue_handle_t Queue,
-                                 std::shared_ptr<USMAllocInfo> &AlloccInfo,
+                                 std::shared_ptr<AllocInfo> &AI,
                                  ur_event_handle_t &LastEvent);
 
     /// Initialize Global Variables & Kernel Name at first Launch
@@ -162,5 +177,22 @@ class SanitizerInterceptor {
     bool m_IsInASanContext;
     bool m_ShadowMemInited;
 };
+
+inline const char *ToString(AllocType Type) {
+    switch (Type) {
+    case AllocType::DEVICE_USM:
+        return "Device USM";
+    case AllocType::HOST_USM:
+        return "Host USM";
+    case AllocType::SHARED_USM:
+        return "Shared USM";
+    case AllocType::MEM_BUFFER:
+        return "Memory Buffer";
+    case AllocType::DEVICE_GLOBAL:
+        return "Device Global";
+    default:
+        return "Unknown Type";
+    }
+}
 
 } // namespace ur_sanitizer_layer
