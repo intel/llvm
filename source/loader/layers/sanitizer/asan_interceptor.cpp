@@ -13,6 +13,7 @@
 
 #include "asan_interceptor.hpp"
 #include "ur_sanitizer_layer.hpp"
+#include <cxxabi.h>
 
 namespace ur_sanitizer_layer {
 
@@ -280,6 +281,14 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
         const char *File = AH->File[0] ? AH->File : "<unknown file>";
         const char *Func = AH->Func[0] ? AH->Func : "<unknown func>";
         auto KernelName = getKernelName(Kernel);
+
+        // Try to demangle the kernel name
+        char *demangled_name =
+            abi::__cxa_demangle(KernelName.c_str(), nullptr, nullptr, nullptr);
+        if (demangled_name) {
+            KernelName = demangled_name;
+            free(demangled_name);
+        }
 
         context.logger.always("\n====ERROR: DeviceSanitizer: {} on {}",
                               DeviceSanitizerFormat(AH->ErrorType),
