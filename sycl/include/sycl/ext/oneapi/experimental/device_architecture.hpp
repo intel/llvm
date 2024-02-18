@@ -886,7 +886,7 @@ public:
     if constexpr (MakeCall &&
                   sycl::detail::device_architecture_comparison_aot<Arch>(
                       [](ext::oneapi::experimental::architecture a,
-                         ext::oneapi::experimental::architecture b) {
+                         ext::oneapi::experimental::architecture b) constexpr {
                         return a < b;
                       })) {
       fn();
@@ -907,7 +907,7 @@ public:
     if constexpr (MakeCall &&
                   sycl::detail::device_architecture_comparison_aot<Arch>(
                       [](ext::oneapi::experimental::architecture a,
-                         ext::oneapi::experimental::architecture b) {
+                         ext::oneapi::experimental::architecture b) constexpr {
                         return a <= b;
                       })) {
       fn();
@@ -927,7 +927,7 @@ public:
     if constexpr (MakeCall &&
                   sycl::detail::device_architecture_comparison_aot<Arch>(
                       [](ext::oneapi::experimental::architecture a,
-                         ext::oneapi::experimental::architecture b) {
+                         ext::oneapi::experimental::architecture b) constexpr {
                         return a > b;
                       })) {
       fn();
@@ -948,7 +948,7 @@ public:
     if constexpr (MakeCall &&
                   sycl::detail::device_architecture_comparison_aot<Arch>(
                       [](ext::oneapi::experimental::architecture a,
-                         ext::oneapi::experimental::architecture b) {
+                         ext::oneapi::experimental::architecture b) constexpr {
                         return a >= b;
                       })) {
       fn();
@@ -970,12 +970,12 @@ public:
     if constexpr (MakeCall &&
                   sycl::detail::device_architecture_comparison_aot<Arch1>(
                       [](ext::oneapi::experimental::architecture a,
-                         ext::oneapi::experimental::architecture b) {
+                         ext::oneapi::experimental::architecture b) constexpr {
                         return a >= b;
                       }) &&
                   sycl::detail::device_architecture_comparison_aot<Arch2>(
                       [](ext::oneapi::experimental::architecture a,
-                         ext::oneapi::experimental::architecture b) {
+                         ext::oneapi::experimental::architecture b) constexpr {
                         return a <= b;
                       })) {
       fn();
@@ -1035,7 +1035,9 @@ constexpr static auto if_architecture_is(T fn) {
 template <architecture Arch, typename T>
 constexpr static auto if_architecture_is_lt(T fn) {
   if constexpr (sycl::detail::device_architecture_comparison_aot<Arch>(
-                    [](architecture a, architecture b) { return a < b; })) {
+                    [](architecture a, architecture b) constexpr {
+                      return a < b;
+                    })) {
     fn();
     return sycl::detail::if_architecture_helper<false>{};
   } else {
@@ -1050,7 +1052,9 @@ constexpr static auto if_architecture_is_lt(T fn) {
 template <architecture Arch, typename T>
 constexpr static auto if_architecture_is_le(T fn) {
   if constexpr (sycl::detail::device_architecture_comparison_aot<Arch>(
-                    [](architecture a, architecture b) { return a <= b; })) {
+                    [](architecture a, architecture b) constexpr {
+                      return a <= b;
+                    })) {
     fn();
     return sycl::detail::if_architecture_helper<false>{};
   } else {
@@ -1065,7 +1069,9 @@ constexpr static auto if_architecture_is_le(T fn) {
 template <architecture Arch, typename T>
 constexpr static auto if_architecture_is_gt(T fn) {
   if constexpr (sycl::detail::device_architecture_comparison_aot<Arch>(
-                    [](architecture a, architecture b) { return a > b; })) {
+                    [](architecture a, architecture b) constexpr {
+                      return a > b;
+                    })) {
     fn();
     return sycl::detail::if_architecture_helper<false>{};
   } else {
@@ -1080,7 +1086,9 @@ constexpr static auto if_architecture_is_gt(T fn) {
 template <architecture Arch, typename T>
 constexpr static auto if_architecture_is_ge(T fn) {
   if constexpr (sycl::detail::device_architecture_comparison_aot<Arch>(
-                    [](architecture a, architecture b) { return a >= b; })) {
+                    [](architecture a, architecture b) constexpr {
+                      return a >= b;
+                    })) {
     fn();
     return sycl::detail::if_architecture_helper<false>{};
   } else {
@@ -1096,9 +1104,13 @@ constexpr static auto if_architecture_is_ge(T fn) {
 template <architecture Arch1, architecture Arch2, typename T>
 constexpr static auto if_architecture_is_between(T fn) {
   if constexpr (sycl::detail::device_architecture_comparison_aot<Arch1>(
-                    [](architecture a, architecture b) { return a >= b; }) &&
+                    [](architecture a, architecture b) constexpr {
+                      return a >= b;
+                    }) &&
                 sycl::detail::device_architecture_comparison_aot<Arch2>(
-                    [](architecture a, architecture b) { return a <= b; })) {
+                    [](architecture a, architecture b) constexpr {
+                      return a <= b;
+                    })) {
     fn();
     return sycl::detail::if_architecture_helper<false>{};
   } else {
