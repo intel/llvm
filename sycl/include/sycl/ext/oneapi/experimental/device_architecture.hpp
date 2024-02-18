@@ -9,7 +9,6 @@
 #pragma once
 
 #include <optional>
-#include <unordered_map>
 
 namespace sycl {
 inline namespace _V1 {
