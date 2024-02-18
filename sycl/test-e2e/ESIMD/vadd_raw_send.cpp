@@ -7,8 +7,6 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-gen9
 // UNSUPPORTED: gpu-intel-dg1,gpu-intel-dg2,gpu-intel-pvc
-// TODO: esimd_emulator fails due to unimplemented 'raw_send' intrinsic
-// XFAIL: esimd_emulator
 // RUN: %{build} -fno-sycl-esimd-force-stateless-mem -o %t1.out
 // RUN: %{run} %t1.out
 // RUN: %{build} -fno-sycl-esimd-force-stateless-mem -DUSE_CONSTEXPR_API -o %t2.out

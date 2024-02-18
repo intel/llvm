@@ -35,7 +35,7 @@ queue q;
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLUsesAspectsAttr
 // CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}} 'sycl::aspect'
-// CHECK-NEXT: NonTypeTemplateParmDecl {{.*}} referenced 'sycl::aspect':'sycl::aspect' depth 0 index 0 Aspect
+// CHECK-NEXT: NonTypeTemplateParmDecl {{.*}} referenced 'sycl::aspect' depth 0 index 0 Aspect
 // CHECK-NEXT: CStyleCastExpr {{.*}} 'sycl::aspect' <IntegralCast>
 // CHECK-NEXT: IntegerLiteral {{.*}} 'int' 0
 template <sycl::aspect Aspect>

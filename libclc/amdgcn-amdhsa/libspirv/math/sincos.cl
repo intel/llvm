@@ -10,9 +10,6 @@
 #include <spirv/spirv.h>
 #include <utils.h>
 
-double __ocml_sincos_f64(double, double *);
-float __ocml_sincos_f32(float, float *);
-
 #define FUNCNAME(IN, OUT)                                                      \
   __CLC_XCONCAT(__CLC_XCONCAT(_Z18__spirv_ocl_sincos, IN), OUT)
 #define VEC_TYPE(T, N) __CLC_XCONCAT(__CLC_XCONCAT(__CLC_XCONCAT(Dv, N), _), T)
@@ -48,6 +45,7 @@ float __ocml_sincos_f32(float, float *);
 #define FNAME_LOCAL(N) VEC_FUNCNAME(N, f, PU3AS3)
 #define FNAME_PRIVATE(N) VEC_FUNCNAME(N, f, PU3AS5)
 
+float __ocml_sincos_f32(float, float *);
 __CLC_SINCOS(__ocml_sincos_f32, float, f, float)
 MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(f, Pf), FNAME_GENERIC, float, 0,
                                   float)
@@ -72,6 +70,7 @@ MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(f, PU3AS5f), FNAME_PRIVATE, float, 5,
 #define FNAME_LOCAL(N) VEC_FUNCNAME(N, d, PU3AS3)
 #define FNAME_PRIVATE(N) VEC_FUNCNAME(N, d, PU3AS5)
 
+double __ocml_sincos_f64(double, double *);
 __CLC_SINCOS(__ocml_sincos_f64, double, d, double)
 MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(d, Pd), FNAME_GENERIC, double, 0,
                                   double)
@@ -98,7 +97,8 @@ MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(d, PU3AS5d), FNAME_PRIVATE, double,
 #define FNAME_LOCAL(N) VEC_FUNCNAME(N, Dh, PU3AS3)
 #define FNAME_PRIVATE(N) VEC_FUNCNAME(N, Dh, PU3AS5)
 
-__CLC_SINCOS(__ocml_sincos_f32, half, Dh, float)
+half __ocml_sincos_f16(half, half *);
+__CLC_SINCOS(__ocml_sincos_f16, half, Dh, half)
 MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(Dh, PDh), FNAME_GENERIC, half, 0,
                                   half)
 MANUALLY_MANGLED_V_V_VP_VECTORIZE(FUNCNAME(Dh, PU3AS1Dh), FNAME_GLOBAL, half, 1,

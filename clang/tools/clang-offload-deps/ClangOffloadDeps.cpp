@@ -173,7 +173,7 @@ int main(int argc, const char **argv) {
       // possibly reusing ClangOffloadBundler's 'OffloadTargetInfo'.
       for (const std::string &Target : Targets) {
         std::string Prefix = Target + ".";
-        if (Symbol.startswith(Prefix))
+        if (Symbol.starts_with(Prefix))
           Target2Symbols[Target].insert(
               Symbol.substr(Prefix.size(), Len - Prefix.size()));
       }
@@ -186,7 +186,7 @@ int main(int argc, const char **argv) {
   }
 
   LLVMContext Context;
-  Type *Int8PtrTy = Type::getInt8PtrTy(Context);
+  Type *Int8PtrTy = PointerType::getUnqual(Context);
 
   // Create bitcode file with the symbol names for each target and write it to
   // the output file.

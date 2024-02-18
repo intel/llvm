@@ -1,4 +1,3 @@
-// REQUIRES: fusion
 // RUN: %{build} -O2 -fsycl-embed-ir -o %t.out
 // RUN: env SYCL_RT_WARNING_LEVEL=1 SYCL_ENABLE_FUSION_CACHING=0 %{run} %t.out 2>&1 | FileCheck %s
 
@@ -153,7 +152,9 @@ int main() {
   // CHECK: Local(8), Local(16)
   // CHECK: WARNING: Not performing specified local promotion due to work-group size mismatch
   // CHECK: ERROR: JIT compilation for kernel fusion failed with message:
-  // CHECK: Cannot fuse kernels with different offsets or local sizes
+  // CHECK: Illegal ND-range combination
+  // CHECK: Detailed information:
+  // CHECK: Cannot fuse kernels with different local sizes
   // CHECK: COMPUTATION OK
 
   // Scenario: One accessor with local internalization, one with private

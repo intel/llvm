@@ -50,9 +50,13 @@ template <typename T, typename Prop, typename... Props>
 struct check_property_list<T, Prop, Props...>
     : std::conditional_t<is_valid_property<T, Prop>::value,
                          check_property_list<T, Props...>, std::false_type> {
-  static_assert(is_valid_property<T, Prop>::value,
+  static constexpr bool is_valid_property_for_given_type =
+      is_valid_property<T, Prop>::value;
+  static_assert(is_valid_property_for_given_type,
                 "Property is invalid for the given type.");
 };
+
+template <typename PropTy> struct propagateToPtrAnnotation : std::false_type {};
 
 //===----------------------------------------------------------------------===//
 //        Common properties of annotated_arg/annotated_ptr
@@ -77,6 +81,8 @@ struct is_property_key_of<alignment_key, annotated_ptr<T, PropertyListT>>
 template <typename T, typename PropertyListT>
 struct is_property_key_of<alignment_key, annotated_arg<T, PropertyListT>>
     : std::true_type {};
+
+template <> struct propagateToPtrAnnotation<alignment_key> : std::true_type {};
 
 namespace detail {
 

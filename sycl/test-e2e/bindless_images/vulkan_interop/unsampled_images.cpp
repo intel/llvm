@@ -56,13 +56,13 @@ create_test_handles(sycl::context &ctxt, sycl::device &dev,
 
   // Extension: map image memory handles
   syclexp::image_mem_handle input_mapped_mem_handle_1 =
-      syclexp::map_external_memory_array(input_interop_mem_handle_1, desc, dev,
+      syclexp::map_external_image_memory(input_interop_mem_handle_1, desc, dev,
                                          ctxt);
   syclexp::image_mem_handle input_mapped_mem_handle_2 =
-      syclexp::map_external_memory_array(input_interop_mem_handle_2, desc, dev,
+      syclexp::map_external_image_memory(input_interop_mem_handle_2, desc, dev,
                                          ctxt);
   syclexp::image_mem_handle output_mapped_mem_handle =
-      syclexp::map_external_memory_array(output_interop_mem_handle, desc, dev,
+      syclexp::map_external_image_memory(output_interop_mem_handle, desc, dev,
                                          ctxt);
 
   // Extension: create the image and return the handle
@@ -209,25 +209,23 @@ void run_ndim_test(sycl::range<NDims> global_size,
 
               if constexpr (NChannels > 1) {
                 VecType px1 = syclexp::read_image<VecType>(
-                    handles.input_1, sycl::int4(dim0, dim1, dim2, 0));
+                    handles.input_1, sycl::int3(dim0, dim1, dim2));
                 VecType px2 = syclexp::read_image<VecType>(
-                    handles.input_2, sycl::int4(dim0, dim1, dim2, 0));
+                    handles.input_2, sycl::int3(dim0, dim1, dim2));
 
                 auto sum =
                     VecType(util::add_kernel<VecType, NChannels>(px1, px2));
-                syclexp::write_image<VecType>(handles.output,
-                                              sycl::int4(dim0, dim1, dim2, 0),
-                                              VecType(sum));
+                syclexp::write_image<VecType>(
+                    handles.output, sycl::int3(dim0, dim1, dim2), VecType(sum));
               } else {
                 DType px1 = syclexp::read_image<DType>(
-                    handles.input_1, sycl::int4(dim0, dim1, dim2, 0));
+                    handles.input_1, sycl::int3(dim0, dim1, dim2));
                 DType px2 = syclexp::read_image<DType>(
-                    handles.input_2, sycl::int4(dim0, dim1, dim2, 0));
+                    handles.input_2, sycl::int3(dim0, dim1, dim2));
 
                 auto sum = DType(util::add_kernel<DType, NChannels>(px1, px2));
-                syclexp::write_image<DType>(handles.output,
-                                            sycl::int4(dim0, dim1, dim2, 0),
-                                            DType(sum));
+                syclexp::write_image<DType>(
+                    handles.output, sycl::int3(dim0, dim1, dim2), DType(sum));
               }
             }
           });

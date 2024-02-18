@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "xpti/xpti_trace_framework.h"
+#include "xpti/xpti_trace_framework.hpp"
 
 #include <deque>
 #include <iostream>
@@ -21,6 +21,10 @@ std::set<uint16_t> GAnalyzedTraceTypes;
 
 XPTI_CALLBACK_API void addAnalyzedTraceType(uint16_t TraceType) {
   GAnalyzedTraceTypes.insert(TraceType);
+}
+
+XPTI_CALLBACK_API void clearAnalyzedTraceTypes() {
+  GAnalyzedTraceTypes.clear();
 }
 
 XPTI_CALLBACK_API void testCallback(uint16_t TraceType,
@@ -62,6 +66,78 @@ XPTI_CALLBACK_API void testCallback(uint16_t TraceType,
     } else if (UData.find("memory_transfer_node") != std::string::npos) {
       GReceivedNotifications.push_back(std::make_pair(TraceType, UData));
     }
+  } else if (TraceType == xpti::trace_queue_create) {
+    if (Event) {
+      std::string Message;
+      xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
+      for (const auto &Item : *Metadata) {
+        std::string_view Key{xptiLookupString(Item.first)};
+        if (Key == "queue_id") {
+          Message.append(
+              std::string("create:") + Key.data() + std::string(":") +
+              std::to_string(
+                  xpti::getMetadata<unsigned long long>(Item).second));
+          Message.append(";");
+        } else if (Key == "queue_handle") {
+          Message.append(
+              Key.data() + std::string(":") +
+              std::to_string(xpti::getMetadata<size_t>(Item).second));
+          Message.append(";");
+        }
+      }
+      GReceivedNotifications.push_back(std::make_pair(TraceType, Message));
+    }
+  } else if (TraceType == xpti::trace_queue_destroy) {
+    if (Event) {
+      std::string Message;
+      xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
+      for (const auto &Item : *Metadata) {
+        std::string_view Key{xptiLookupString(Item.first)};
+        if (Key == "queue_id") {
+          Message.append(
+              std::string("destroy:") + Key.data() + std::string(":") +
+              std::to_string(
+                  xpti::getMetadata<unsigned long long>(Item).second));
+          Message.append(";");
+        } else if (Key == "queue_handle") {
+          Message.append(
+              Key.data() + std::string(":") +
+              std::to_string(xpti::getMetadata<size_t>(Item).second));
+          Message.append(";");
+        }
+      }
+      GReceivedNotifications.push_back(std::make_pair(TraceType, Message));
+    }
+  } else if (TraceType == xpti::trace_task_begin) {
+    if (Event) {
+      std::string Message;
+      xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
+      for (const auto &Item : *Metadata) {
+        std::string_view Key{xptiLookupString(Item.first)};
+        if (Key == "queue_id") {
+          Message.append(
+              std::string("task_begin:") + Key.data() + std::string(":") +
+              std::to_string(
+                  xpti::getMetadata<unsigned long long>(Item).second));
+        }
+      }
+      GReceivedNotifications.push_back(std::make_pair(TraceType, Message));
+    }
+  } else if (TraceType == xpti::trace_task_end) {
+    if (Event) {
+      std::string Message;
+      xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
+      for (const auto &Item : *Metadata) {
+        std::string_view Key{xptiLookupString(Item.first)};
+        if (Key == "queue_id") {
+          Message.append(
+              std::string("task_end:") + Key.data() + std::string(":") +
+              std::to_string(
+                  xpti::getMetadata<unsigned long long>(Item).second));
+        }
+      }
+      GReceivedNotifications.push_back(std::make_pair(TraceType, Message));
+    }
   }
 }
 
@@ -72,6 +148,12 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
   uint8_t StreamID = xptiRegisterStream("sycl");
   xptiRegisterCallback(StreamID, xpti::trace_diagnostics, testCallback);
   xptiRegisterCallback(StreamID, xpti::trace_node_create, testCallback);
+  xptiRegisterCallback(StreamID, xpti::trace_task_begin, testCallback);
+  xptiRegisterCallback(StreamID, xpti::trace_task_end, testCallback);
+  xptiRegisterCallback(StreamID, xpti::trace_queue_create, testCallback);
+  xptiRegisterCallback(StreamID, xpti::trace_queue_destroy, testCallback);
+  xptiRegisterCallback(StreamID, xpti::trace_task_begin, testCallback);
+  xptiRegisterCallback(StreamID, xpti::trace_task_end, testCallback);
 }
 
 XPTI_CALLBACK_API void xptiTraceFinish(const char * /*StreamName*/) {}

@@ -207,34 +207,6 @@ enum class atomic_op : uint8_t {
 /// @} sycl_esimd_core
 
 namespace detail {
-template <__ESIMD_NS::native::lsc::atomic_op Op> constexpr int get_num_args() {
-  if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::inc ||
-                Op == __ESIMD_NS::native::lsc::atomic_op::dec ||
-                Op == __ESIMD_NS::native::lsc::atomic_op::load) {
-    return 0;
-  } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::store ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::add ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::sub ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::smin ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::smax ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::umin ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::umax ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::fadd ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::fsub ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::fmin ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::fmax ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::bit_and ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::bit_or ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::bit_xor) {
-    return 1;
-  } else if constexpr (Op == __ESIMD_NS::native::lsc::atomic_op::cmpxchg ||
-                       Op == __ESIMD_NS::native::lsc::atomic_op::fcmpxchg) {
-    return 2;
-  } else {
-    return -1; // error
-  }
-}
-
 template <__ESIMD_NS::atomic_op Op> constexpr bool has_lsc_equivalent() {
   switch (Op) {
   case __ESIMD_NS::atomic_op::xchg:
@@ -276,7 +248,7 @@ constexpr __ESIMD_NS::native::lsc::atomic_op to_lsc_atomic_op() {
     return __ESIMD_NS::native::lsc::atomic_op::fmax;
   case __ESIMD_NS::atomic_op::fmin:
     return __ESIMD_NS::native::lsc::atomic_op::fmin;
-  case __ESIMD_NS::atomic_op::fcmpwr:
+  case __ESIMD_NS::atomic_op::fcmpxchg:
     return __ESIMD_NS::native::lsc::atomic_op::fcmpxchg;
   case __ESIMD_NS::atomic_op::fadd:
     return __ESIMD_NS::native::lsc::atomic_op::fadd;
@@ -323,7 +295,7 @@ constexpr __ESIMD_NS::atomic_op to_atomic_op() {
   case __ESIMD_NS::native::lsc::atomic_op::fmin:
     return __ESIMD_NS::atomic_op::fmin;
   case __ESIMD_NS::native::lsc::atomic_op::fcmpxchg:
-    return __ESIMD_NS::atomic_op::fcmpwr;
+    return __ESIMD_NS::atomic_op::fcmpxchg;
   case __ESIMD_NS::native::lsc::atomic_op::fadd:
     return __ESIMD_NS::atomic_op::fadd;
   case __ESIMD_NS::native::lsc::atomic_op::fsub:
@@ -336,17 +308,38 @@ constexpr __ESIMD_NS::atomic_op to_atomic_op() {
 }
 
 template <__ESIMD_NS::atomic_op Op> constexpr int get_num_args() {
-  if constexpr (has_lsc_equivalent<Op>()) {
-    return get_num_args<to_lsc_atomic_op<Op>()>();
-  } else {
-    switch (Op) {
-    case __ESIMD_NS::atomic_op::xchg:
-    case __ESIMD_NS::atomic_op::predec:
-      return 1;
-    default:
-      return -1; // error
-    }
+  switch (Op) {
+  case __ESIMD_NS::atomic_op::inc:
+  case __ESIMD_NS::atomic_op::dec:
+  case __ESIMD_NS::atomic_op::load:
+    return 0;
+  case __ESIMD_NS::atomic_op::xchg:
+  case __ESIMD_NS::atomic_op::predec:
+  case __ESIMD_NS::atomic_op::store:
+  case __ESIMD_NS::atomic_op::add:
+  case __ESIMD_NS::atomic_op::sub:
+  case __ESIMD_NS::atomic_op::smin:
+  case __ESIMD_NS::atomic_op::smax:
+  case __ESIMD_NS::atomic_op::umin:
+  case __ESIMD_NS::atomic_op::umax:
+  case __ESIMD_NS::atomic_op::fadd:
+  case __ESIMD_NS::atomic_op::fsub:
+  case __ESIMD_NS::atomic_op::fmin:
+  case __ESIMD_NS::atomic_op::fmax:
+  case __ESIMD_NS::atomic_op::bit_and:
+  case __ESIMD_NS::atomic_op::bit_or:
+  case __ESIMD_NS::atomic_op::bit_xor:
+    return 1;
+  case __ESIMD_NS::atomic_op::cmpxchg:
+  case __ESIMD_NS::atomic_op::fcmpxchg:
+    return 2;
+  default:
+    return -1; // error
   }
+}
+
+template <__ESIMD_NS::native::lsc::atomic_op Op> constexpr int get_num_args() {
+  return get_num_args<to_atomic_op<Op>()>();
 }
 
 } // namespace detail
@@ -389,6 +382,62 @@ enum class cache_hint : uint8_t {
   /// If the assertion is violated (the cache line is written), the behavior
   /// is undefined.
   const_cached = 7
+};
+
+/// The scope that fence() operation should apply to.
+/// Supported platforms: DG2, PVC
+enum class fence_scope : uint8_t {
+  /// Wait until all previous memory transactions from this thread are observed
+  /// within the local thread-group.
+  group = 0,
+
+  /// Wait until all previous memory transactions from this thread are observed
+  /// within the local sub-slice.
+  local = 1,
+
+  /// Wait until all previous memory transactions from this thread are observed
+  /// in the local tile.
+  tile = 2,
+
+  /// Wait until all previous memory transactions from this thread are observed
+  /// in the local GPU.
+  gpu = 3,
+
+  /// Wait until all previous memory transactions from this thread are observed
+  /// across all GPUs in the system.
+  gpus = 4,
+
+  /// Global memory data-port only: wait until all previous memory transactions
+  /// from this thread are observed at the "system" level.
+  system = 5,
+
+  /// Global memory data-port only: for GPUs that do not follow
+  /// PCIe Write ordering for downstream writes targeting device memory,
+  /// this op will commit to device memory all downstream and peer writes that
+  /// have reached the device.
+  system_acquire = 6
+};
+
+/// The cache flush operation to apply to caches after fence() is complete.
+/// Supported platforms: DG2, PVC
+enum class fence_flush_op : uint8_t {
+  none = 0,       /// no operation;
+  evict = 1,      /// R/W: evict dirty lines; R/W and RO: invalidate clean lines
+  invalidate = 2, /// R/W and RO: invalidate all clean lines;
+
+  // enum with the value 3 is reserved;
+
+  clean = 4 /// R/W: dirty lines are written to memory, but retained in
+            /// cache in clean state; RO: no effect.
+};
+
+/// The target memory kind for fence() operation.
+/// Supported platforms: DG2, PVC
+enum class memory_kind : uint8_t {
+  global = 0, /// untyped global memory
+  // enum with the value 1 is reserved;
+  image = 2, /// image (also known as typed global memory)
+  local = 3, /// shared local memory
 };
 
 /// L1, L2 or L3 cache hint levels. L3 is reserved for future use.
@@ -582,6 +631,21 @@ void check_cache_hint() {
                   "unsupported cache hint");
   }
 }
+
+constexpr lsc_data_size expand_data_size(lsc_data_size DS) {
+  if (DS == lsc_data_size::u8)
+    return lsc_data_size::u8u32;
+  if (DS == lsc_data_size::u16)
+    return lsc_data_size::u16u32;
+  return DS;
+}
+
+template <typename T> struct lsc_expand_type {
+  using type = std::conditional_t<
+      sizeof(T) <= 4,
+      std::conditional_t<std::is_signed_v<T>, int32_t, uint32_t>,
+      std::conditional_t<std::is_signed_v<T>, int64_t, uint64_t>>;
+};
 
 } // namespace detail
 

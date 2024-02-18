@@ -5,9 +5,9 @@
 
 // RUN: %{build} -o %t.out
 
-// RUN: env ZE_DEBUG=4 %{run} %t.out u 2>&1 | FileCheck %s --check-prefix CHECK-USM
-// RUN: env ZE_DEBUG=4 %{run} %t.out s 2>&1 | FileCheck %s --check-prefix CHECK-SMALL-BUF
-// RUN: env ZE_DEBUG=4 %{run} %t.out l 2>&1 | FileCheck %s --check-prefix CHECK-LARGE-BUF
+// RUN: %{l0_leak_check} %{run} %t.out u 2>&1 | FileCheck %s --check-prefix CHECK-USM
+// RUN: %{l0_leak_check} %{run} %t.out s 2>&1 | FileCheck %s --check-prefix CHECK-SMALL-BUF
+// RUN: %{l0_leak_check} %{run} %t.out l 2>&1 | FileCheck %s --check-prefix CHECK-LARGE-BUF
 
 #include <sycl/sycl.hpp>
 using namespace sycl;

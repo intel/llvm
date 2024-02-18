@@ -24,6 +24,16 @@ add_libc_test(
 )
 
 add_libc_test(
+  math_extras_test
+  SUITE
+    libc-support-tests
+  SRCS
+    math_extras_test.cpp
+  DEPENDS
+    libc.src.__support.math_extras
+)
+
+add_libc_test(
   high_precision_decimal_test
   SUITE
     libc-support-tests
@@ -32,6 +42,8 @@ add_libc_test(
   DEPENDS
     libc.src.__support.high_precision_decimal
     libc.src.__support.uint128
+  # FIXME Test segfaults on gfx90a GPU
+  UNIT_TEST_ONLY
 )
 
 add_libc_test(
@@ -40,6 +52,8 @@ add_libc_test(
     libc-support-tests
   SRCS
     str_to_float_test.cpp
+    str_to_double_test.cpp
+    str_to_long_double_test.cpp
   DEPENDS
     libc.src.__support.str_to_float
     libc.src.__support.uint128
@@ -84,6 +98,17 @@ add_libc_test(
 )
 
 add_libc_test(
+  integer_literals_test
+  SUITE
+    libc-support-tests
+  SRCS
+    integer_literals_test.cpp
+  DEPENDS
+    libc.src.__support.integer_literals
+    libc.src.__support.CPP.optional
+)
+
+add_libc_test(
   fixedvector_test
   SUITE
     libc-support-tests
@@ -101,6 +126,32 @@ add_libc_test(
     char_vector_test.cpp
   DEPENDS
     libc.src.__support.char_vector
+)
+
+add_libc_test(
+  hash_test
+  SUITE
+    libc-support-tests
+  SRCS
+    hash_test.cpp
+  DEPENDS
+    libc.src.__support.hash
+    libc.src.__support.CPP.new
+    libc.src.stdlib.rand
+    libc.src.stdlib.srand
+    libc.src.string.memset
+  UNIT_TEST_ONLY
+    # Aligned Allocation is not supported in hermetic builds.
+)
+
+add_libc_test(
+  memory_size_test
+  SUITE
+    libc-support-tests
+  SRCS
+    memory_size_test.cpp
+  DEPENDS
+    libc.src.__support.memory_size
 )
 
 add_executable(
@@ -132,3 +183,4 @@ add_subdirectory(File)
 add_subdirectory(RPC)
 add_subdirectory(OSUtil)
 add_subdirectory(FPUtil)
+add_subdirectory(HashTable)

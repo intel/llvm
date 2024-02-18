@@ -1,16 +1,20 @@
-// RUN: not %clangxx -fsycl -fsycl-device-only -S %s -o /dev/null 2>&1 | FileCheck %s
+// RUN: not %clangxx -fsycl -fsycl-device-only -Xclang -fsycl-allow-func-ptr -S %s -o /dev/null 2>&1 | FileCheck %s
+// RUN: %clangxx -fsycl -fsycl-device-only -Xclang -fsycl-allow-func-ptr -S %s -o /dev/null -DUNIFORM
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 #include <sycl/sycl.hpp>
 
+struct Foo {};
 using namespace sycl::ext::oneapi::experimental;
 using namespace sycl;
 namespace esimd = sycl::ext::intel::esimd;
 
-[[intel::device_indirectly_callable]] std::tuple<simd<int, 4>, simd<int, 4>>
-callee(simd<int, 8>) {
-  return std::make_tuple(simd<int, 4>(), simd<int, 4>());
+#ifdef UNIFORM
+[[intel::device_indirectly_callable]] uniform<Foo> callee(simd<int, 8>) {
+  return uniform(Foo{});
 }
-
+#else
+[[intel::device_indirectly_callable]] Foo callee(simd<int, 8>) { return Foo{}; }
+#endif
 void foo() {
   constexpr unsigned Size = 1024;
   constexpr unsigned GroupSize = 64;
@@ -27,5 +31,5 @@ void foo() {
 
 int main() {
   foo();
-  // CHECK: {{.*}}error:{{.*}}static assertion failed due to requirement '!callable_has_struct_ret': invoke_simd does not support callables returning structures{{.*}}
+  // CHECK: {{.*}}error:{{.*}}static assertion failed due to requirement '!callable_has_non_uniform_struct_ret': invoke_simd does not support callables returning non-uniform structures{{.*}}
 }

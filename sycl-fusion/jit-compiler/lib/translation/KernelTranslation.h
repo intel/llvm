@@ -8,8 +8,8 @@
 #ifndef SYCL_FUSION_JIT_COMPILER_TRANSLATION_KERNELTRANSLATION_H
 #define SYCL_FUSION_JIT_COMPILER_TRANSLATION_KERNELTRANSLATION_H
 
-#include "JITContext.h"
 #include "Kernel.h"
+#include "fusion/JITContext.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Error.h"
@@ -43,6 +43,10 @@ private:
 
   static llvm::Expected<KernelBinary *>
   translateToPTX(SYCLKernelInfo &Kernel, llvm::Module &Mod, JITContext &JITCtx);
+
+  static llvm::Expected<KernelBinary *>
+  translateToAMDGCN(SYCLKernelInfo &KernelInfo, llvm::Module &Mod,
+                    JITContext &JITCtx);
 };
 } // namespace translation
 } // namespace jit_compiler

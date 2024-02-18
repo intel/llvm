@@ -6,11 +6,11 @@
 // make dummy archive
 // Build a fat static lib that will be used for all tests
 // RUN: echo "void foo(void) {}" > %t1.cpp
-// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fintelfpga %t1.cpp -c -o %t1_bundle.obj
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fintelfpga %t1.cpp -c -o %t1_bundle.obj
 // RUN: lib -out:%t.lib %t1_bundle.obj
 
 /// Check phases with static lib
-// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fintelfpga %t.lib -ccc-print-phases 2>&1 \
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fintelfpga %t.lib -ccc-print-phases 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHECK_PHASES %s
 // CHECK_PHASES: 0: input, "[[INPUT:.+\.lib]]", object, (host-sycl)
 // CHECK_PHASES: 1: linker, {0}, image, (host-sycl)
@@ -31,7 +31,7 @@
 // CHECK_PHASES: 16: offload, "host-sycl (x86_64-pc-windows-msvc)" {1}, "device-sycl (spir64_fpga-unknown-unknown)" {15}, image
 
 /// Check for unbundle and use of deps in static lib
-// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fsycl -fno-sycl-device-lib=all -fintelfpga -Xshardware %t.lib -### 2>&1 \
+// RUN: %clang_cl --target=x86_64-pc-windows-msvc -fno-sycl-device-lib=all -fintelfpga -Xshardware %t.lib -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHECK_UNBUNDLE %s
 // CHECK_UNBUNDLE: clang-offload-bundler" "-type=aoo" "-targets=sycl-fpga_dep" "-input={{.*}}" "-output=[[DEPFILES:.+\.txt]]" "-unbundle"
 // CHECK_UNBUNDLE: aoc{{.*}} "-dep-files=@[[DEPFILES]]"

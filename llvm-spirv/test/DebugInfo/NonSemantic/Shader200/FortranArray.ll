@@ -7,11 +7,11 @@
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: [[#CompUnit:]] [[#]] DebugCompilationUnit
-; CHECK-SPIRV: [[#None:]] [[#]] DebugInfoNone
-; CHECK-SPIRV: [[#EntryFunc:]] [[#]] DebugFunction
-; CHECK-SPIRV: [[#BaseTy:]] [[#]] DebugTypeBasic
-; CHECK-SPIRV: [[#Subrange:]] [[#]] DebugTypeSubrange
-; CHECK-SPIRV: DebugTypeArrayDynamic [[#BaseTy]] [[#]] [[#]] [[#None]] [[#None]] [[#Subrange]]
+; CHECK-SPIRV-DAG: [[#None:]] [[#]] DebugInfoNone
+; CHECK-SPIRV-DAG: [[#BaseTy:]] [[#]] DebugTypeBasic
+; CHECK-SPIRV-DAG: [[#Subrange:]] [[#]] DebugTypeSubrange
+; CHECK-SPIRV-DAG: DebugTypeArrayDynamic [[#BaseTy]] [[#]] [[#]] [[#None]] [[#None]] [[#Subrange]]
+; CHECK-SPIRV-DAG: [[#EntryFunc:]] [[#]] DebugFunction [[#]]
 ; CHECK-SPIRV: DebugEntryPoint [[#EntryFunc]] [[#CompUnit]] [[#]] [[#]] {{$}}
 
 ; CHECK-LLVM: !DICompileUnit(language: DW_LANG_Fortran95

@@ -5,8 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// TODO: investigate sporadic esimd_emulator failures
-// UNSUPPORTED: esimd_emulator
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

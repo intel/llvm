@@ -49,6 +49,10 @@
 ??$get_info@Ucompile_num_sub_groups@kernel_device_specific@info@_V1@sycl@@@kernel@_V1@sycl@@QEBAIAEBVdevice@12@@Z
 ??$get_info@Ucompile_sub_group_size@kernel_device_specific@info@_V1@sycl@@@kernel@_V1@sycl@@QEBAIAEBVdevice@12@@Z
 ??$get_info@Ucompile_work_group_size@kernel_device_specific@info@_V1@sycl@@@kernel@_V1@sycl@@QEBA?AV?$range@$02@12@AEBVdevice@12@@Z
+??$get_info@Ucomponent_devices@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
+??$get_info@Ucomponent_devices@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
+??$get_info@Ucomposite_device@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@QEBA?AV012@XZ
+??$get_info@Ucomposite_device@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AVdevice@23@XZ
 ??$get_info@Ucontext@kernel@info@_V1@sycl@@@kernel@_V1@sycl@@QEBA?AVcontext@12@XZ
 ??$get_info@Ucontext@queue@info@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVcontext@12@XZ
 ??$get_info@Udevice@queue@info@_V1@sycl@@@queue@_V1@sycl@@QEBA?AVdevice@12@XZ
@@ -120,8 +124,8 @@
 ??$get_info@Ukernel_kernel_pipe_support@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_NXZ
 ??$get_info@Ulocal_mem_size@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA_KXZ
 ??$get_info@Ulocal_mem_type@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AW4local_mem_type@info@12@XZ
-??$get_info@Umatrix_combinations@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$vector@Ucombination@matrix@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Ucombination@matrix@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Umatrix_combinations@device@info@experimental@oneapi@ext@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$vector@Ucombination@matrix@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Ucombination@matrix@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
+??$get_info@Umatrix_combinations@device@info@experimental@oneapi@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBA?AV?$vector@Ucombination@matrix@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Ucombination@matrix@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ??$get_info@Umax_clock_frequency@device@info@_V1@sycl@@@device@_V1@sycl@@QEBAIXZ
 ??$get_info@Umax_compute_queue_indices@device@info@intel@ext@_V1@sycl@@@device@_V1@sycl@@QEBAHXZ
 ??$get_info@Umax_compute_queue_indices@device@info@intel@ext@_V1@sycl@@@device_impl@detail@_V1@sycl@@QEBAHXZ
@@ -600,6 +604,7 @@
 ??0modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@$$QEAV0123456@@Z
 ??0modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV0123456@@Z
 ??0modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBVcontext@56@AEBVdevice@56@AEBVproperty_list@56@@Z
+??0modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBVqueue@56@AEBVproperty_list@56@@Z
 ??0node@experimental@oneapi@ext@_V1@sycl@@AEAA@AEBV?$shared_ptr@Vnode_impl@detail@experimental@oneapi@ext@_V1@sycl@@@std@@@Z
 ??0node@experimental@oneapi@ext@_V1@sycl@@QEAA@$$QEAV012345@@Z
 ??0node@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV012345@@Z
@@ -873,6 +878,7 @@
 ?add@device_global_map@detail@_V1@sycl@@YAXPEBXPEBD@Z
 ?add@host_pipe_map@detail@_V1@sycl@@YAXPEBXPEBD@Z
 ?add@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA?AVnode@34567@AEBVproperty_list@67@@Z
+?addGraphLeafDependencies@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXVnode@34567@@Z
 ?addHostAccessorAndWait@detail@_V1@sycl@@YAXPEAVAccessorImplHost@123@@Z
 ?addHostSampledImageAccessorAndWait@detail@_V1@sycl@@YAXPEAVSampledImageAccessorImplHost@123@@Z
 ?addHostUnsampledImageAccessorAndWait@detail@_V1@sycl@@YAXPEAVUnsampledImageAccessorImplHost@123@@Z
@@ -932,6 +938,7 @@
 ?begin@kernel_bundle_plain@detail@_V1@sycl@@IEBAPEBVdevice_image_plain@234@XZ
 ?begin_recording@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA_NAEAVqueue@67@@Z
 ?begin_recording@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA_NAEBV?$vector@Vqueue@_V1@sycl@@V?$allocator@Vqueue@_V1@sycl@@@std@@@std@@@Z
+?build_from_source@detail@experimental@oneapi@ext@_V1@sycl@@YA?AV?$kernel_bundle@$01@56@AEAV?$kernel_bundle@$02@56@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@AEBV?$vector@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@V?$allocator@V?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@2@@std@@PEAV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?build_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBV?$kernel_bundle@$0A@@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBVproperty_list@23@@Z
 ?canReadHostPtr@SYCLMemObjT@detail@_V1@sycl@@QEAA_NPEAX_K@Z
 ?canReuseHostPtr@SYCLMemObjT@detail@_V1@sycl@@QEAA_NPEAX_K@Z
@@ -974,6 +981,8 @@
 ?create_image@experimental@oneapi@ext@_V1@sycl@@YA?AUunsampled_image_handle@12345@AEAVimage_mem@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
 ?create_image@experimental@oneapi@ext@_V1@sycl@@YA?AUunsampled_image_handle@12345@Uimage_mem_handle@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?create_image@experimental@oneapi@ext@_V1@sycl@@YA?AUunsampled_image_handle@12345@Uimage_mem_handle@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
+?create_kernel_bundle_from_source@experimental@oneapi@ext@_V1@sycl@@YA?AV?$kernel_bundle@$02@45@AEBVcontext@45@W4source_language@12345@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
+?create_kernel_bundle_from_source@experimental@oneapi@ext@_V1@sycl@@YA?AV?$kernel_bundle@$02@45@AEBVcontext@45@W4source_language@12345@AEBV?$vector@W4byte@std@@V?$allocator@W4byte@std@@@2@@std@@@Z
 ?default_selector_v@_V1@sycl@@YAHAEBVdevice@12@@Z
 ?deleteAccProps@buffer_plain@detail@_V1@sycl@@IEAAXAEBW4PropWithDataKind@234@@Z
 ?deleteAccessorProperty@SYCLMemObjT@detail@_V1@sycl@@QEAAXAEBW4PropWithDataKind@234@@Z
@@ -1034,16 +1043,25 @@
 ?ext_oneapi_copyD2H_cmd_buffer@MemoryManager@detail@_V1@sycl@@SAXV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@PEAU_pi_ext_command_buffer@@PEAVSYCLMemObjI@234@PEAXIV?$range@$02@34@4V?$id@$02@34@IPEADI45IV?$vector@IV?$allocator@I@std@@@6@PEAI@Z
 ?ext_oneapi_copyH2D_cmd_buffer@MemoryManager@detail@_V1@sycl@@SAXV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@PEAU_pi_ext_command_buffer@@PEAVSYCLMemObjI@234@PEADIV?$range@$02@34@V?$id@$02@34@IPEAXI445IV?$vector@IV?$allocator@I@std@@@6@PEAI@Z
 ?ext_oneapi_copy_usm_cmd_buffer@MemoryManager@detail@_V1@sycl@@SAXV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@PEBXPEAU_pi_ext_command_buffer@@_KPEAXV?$vector@IV?$allocator@I@std@@@6@PEAI@Z
+?ext_oneapi_prefetch_usm_cmd_buffer@MemoryManager@detail@_V1@sycl@@SAXV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@PEAU_pi_ext_command_buffer@@PEAX_KV?$vector@IV?$allocator@I@std@@@6@PEAI@Z
+?ext_oneapi_advise_usm_cmd_buffer@MemoryManager@detail@_V1@sycl@@SAXV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@PEAU_pi_ext_command_buffer@@PEBX_KW4_pi_mem_advice@@V?$vector@IV?$allocator@I@std@@@6@PEAI@Z
 ?ext_oneapi_disable_peer_access@device@_V1@sycl@@QEAAXAEBV123@@Z
 ?ext_oneapi_empty@queue@_V1@sycl@@QEBA_NXZ
 ?ext_oneapi_enable_peer_access@device@_V1@sycl@@QEAAXAEBV123@@Z
 ?ext_oneapi_fill2d_impl@handler@_V1@sycl@@AEAAXPEAX_KPEBX111@Z
+?ext_oneapi_fill_cmd_buffer@MemoryManager@detail@_V1@sycl@@SAXV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@PEAU_pi_ext_command_buffer@@PEAVSYCLMemObjI@234@PEAX_KPEBDIV?$range@$02@34@6V?$id@$02@34@IV?$vector@IV?$allocator@I@std@@@6@PEAI@Z
+?ext_oneapi_fill_usm_cmd_buffer@MemoryManager@detail@_V1@sycl@@SAXV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@PEAU_pi_ext_command_buffer@@PEAX_KHV?$vector@IV?$allocator@I@std@@@6@PEAI@Z
+?ext_oneapi_get_composite_devices@platform@_V1@sycl@@QEBA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
 ?ext_oneapi_get_default_context@platform@_V1@sycl@@QEBA?AVcontext@23@XZ
+?ext_oneapi_get_kernel@kernel_bundle_plain@detail@_V1@sycl@@QEAA?AVkernel@34@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
+?ext_oneapi_get_last_event@queue@_V1@sycl@@QEBA?AVevent@23@XZ
+?ext_oneapi_get_graph@queue@_V1@sycl@@QEBA?AV?$command_graph@$0A@@experimental@oneapi@ext@23@XZ
 ?ext_oneapi_get_state@queue@_V1@sycl@@QEBA?AW4queue_state@experimental@oneapi@ext@23@XZ
 ?ext_oneapi_graph@handler@_V1@sycl@@QEAAXV?$command_graph@$00@experimental@oneapi@ext@23@@Z
 ?ext_oneapi_graph@queue@_V1@sycl@@QEAA?AVevent@23@V?$command_graph@$00@experimental@oneapi@ext@23@AEBUcode_location@detail@23@@Z
 ?ext_oneapi_graph@queue@_V1@sycl@@QEAA?AVevent@23@V?$command_graph@$00@experimental@oneapi@ext@23@AEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@AEBUcode_location@detail@23@@Z
 ?ext_oneapi_graph@queue@_V1@sycl@@QEAA?AVevent@23@V?$command_graph@$00@experimental@oneapi@ext@23@V423@AEBUcode_location@detail@23@@Z
+?ext_oneapi_has_kernel@kernel_bundle_plain@detail@_V1@sycl@@QEAA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?ext_oneapi_memcpy2d_impl@handler@_V1@sycl@@AEAAXPEAX_KPEBX111@Z
 ?ext_oneapi_memset2d_impl@handler@_V1@sycl@@AEAAXPEAX_KH11@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vcontext@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBV?$weak_object_base@Vcontext@_V1@sycl@@@2oneapi@ext@34@@Z
@@ -1062,6 +1080,7 @@
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vqueue@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBVqueue@34@@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vstream@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBV?$weak_object_base@Vstream@_V1@sycl@@@2oneapi@ext@34@@Z
 ?ext_oneapi_owner_before@?$OwnerLessBase@Vstream@_V1@sycl@@@detail@_V1@sycl@@QEBA_NAEBVstream@34@@Z
+?ext_oneapi_set_external_event@queue@_V1@sycl@@QEAAXAEBVevent@23@@Z
 ?ext_oneapi_signal_external_semaphore@handler@_V1@sycl@@QEAAXUinterop_semaphore_handle@experimental@oneapi@ext@23@@Z
 ?ext_oneapi_signal_external_semaphore@queue@_V1@sycl@@QEAA?AVevent@23@Uinterop_semaphore_handle@experimental@oneapi@ext@23@AEBUcode_location@detail@23@@Z
 ?ext_oneapi_signal_external_semaphore@queue@_V1@sycl@@QEAA?AVevent@23@Uinterop_semaphore_handle@experimental@oneapi@ext@23@AEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@AEBUcode_location@detail@23@@Z
@@ -1137,6 +1156,7 @@
 ?getInteropContext@SYCLMemObjT@detail@_V1@sycl@@UEBA?AV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@XZ
 ?getKernelName@handler@_V1@sycl@@AEAA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ?getMaxWorkGroups@handler@_V1@sycl@@AEAA?AV?$optional@V?$array@_K$02@std@@@std@@XZ
+?getMaxWorkGroups_v2@handler@_V1@sycl@@AEAA?AV?$tuple@V?$array@_K$02@std@@_N@std@@XZ
 ?getMemoryObject@AccessorBaseHost@detail@_V1@sycl@@QEBAPEAXXZ
 ?getMemoryObject@SampledImageAccessorBaseHost@detail@_V1@sycl@@QEBAPEAXXZ
 ?getMemoryObject@UnsampledImageAccessorBaseHost@detail@_V1@sycl@@QEBAPEAXXZ
@@ -1218,6 +1238,7 @@
 ?get_channel_order@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AW4image_channel_order@56@XZ
 ?get_channel_type@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AW4image_channel_type@56@XZ
 ?get_cl_code@exception@_V1@sycl@@QEBAHXZ
+?get_composite_devices@experimental@oneapi@ext@_V1@sycl@@YA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@XZ
 ?get_context@exception@_V1@sycl@@QEBA?AVcontext@23@XZ
 ?get_context@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AVcontext@56@XZ
 ?get_context@kernel@_V1@sycl@@QEBA?AVcontext@23@XZ
@@ -1260,6 +1281,8 @@
 ?get_mip_level_mem_handle@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@U612345@IAEBVqueue@45@@Z
 ?get_mip_level_mem_handle@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AUimage_mem_handle@23456@I@Z
 ?get_name@kernel_id@_V1@sycl@@QEBAPEBDXZ
+?get_node_from_event@node@experimental@oneapi@ext@_V1@sycl@@SA?AV123456@Vevent@56@@Z
+?get_nodes@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ?get_num_channels@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBAIXZ
 ?get_pipe_name@pipe_base@experimental@intel@ext@_V1@sycl@@KA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEBX@Z
 ?get_pitch@image_impl@detail@_V1@sycl@@QEBA?AV?$range@$01@34@XZ
@@ -1270,16 +1293,20 @@
 ?get_pointer_device@_V1@sycl@@YA?AVdevice@12@PEBXAEBVcontext@12@@Z
 ?get_pointer_type@_V1@sycl@@YA?AW4alloc@usm@12@PEBXAEBVcontext@12@@Z
 ?get_precision@stream@_V1@sycl@@QEBA_KXZ
+?get_predecessors@node@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ?get_queue@fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEBA?AVqueue@56@XZ
 ?get_range@image_impl@detail@_V1@sycl@@QEBA?AV?$range@$02@34@XZ
 ?get_range@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$range@$02@56@XZ
 ?get_range@image_plain@detail@_V1@sycl@@IEBA?AV?$range@$02@34@XZ
+?get_root_nodes@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ?get_size@image_plain@detail@_V1@sycl@@IEBA_KXZ
 ?get_size@stream@_V1@sycl@@QEBA_KXZ
 ?get_size@stream_impl@detail@_V1@sycl@@QEBA_KXZ
 ?get_specialization_constant_impl@kernel_bundle_plain@detail@_V1@sycl@@IEBAXPEBDPEAX@Z
 ?get_stream_mode@stream@_V1@sycl@@QEBA?AW4stream_manipulator@23@XZ
+?get_successors@node@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ?get_type@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AW4image_type@23456@XZ
+?get_type@node@experimental@oneapi@ext@_V1@sycl@@QEBA?AW4node_type@23456@XZ
 ?get_wait_list@event@_V1@sycl@@QEAA?AV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@XZ
 ?get_width@stream@_V1@sycl@@QEBA_KXZ
 ?get_work_item_buffer_size@stream@_V1@sycl@@QEBA_KXZ
@@ -1335,6 +1362,7 @@
 ?is_host@queue@_V1@sycl@@QEBA_NXZ
 ?is_in_fusion_mode@fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEBA_NXZ
 ?is_in_order@queue@_V1@sycl@@QEBA_NXZ
+?is_source_kernel_bundle_supported@experimental@oneapi@ext@_V1@sycl@@YA_NW4backend@45@W4source_language@12345@@Z
 ?is_specialization_constant_set@kernel_bundle_plain@detail@_V1@sycl@@IEBA_NPEBD@Z
 ?join_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBV?$vector@V?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@V?$allocator@V?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@@2@@5@W4bundle_state@23@@Z
 ?link_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBV?$vector@V?$kernel_bundle@$00@_V1@sycl@@V?$allocator@V?$kernel_bundle@$00@_V1@sycl@@@std@@@5@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBVproperty_list@23@@Z
@@ -1377,6 +1405,8 @@
 ?malloc_shared@_V1@sycl@@YAPEAX_KAEBVqueue@12@AEBUcode_location@detail@12@@Z
 ?malloc_shared@_V1@sycl@@YAPEAX_KAEBVqueue@12@AEBVproperty_list@12@AEBUcode_location@detail@12@@Z
 ?map@MemoryManager@detail@_V1@sycl@@SAPEAXPEAVSYCLMemObjI@234@PEAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@W4mode@access@34@IV?$range@$02@34@4V?$id@$02@34@IV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@7@AEAPEAU_pi_event@@@Z
+?map_external_image_memory@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@Uinterop_mem_handle@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
+?map_external_image_memory@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@Uinterop_mem_handle@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
 ?map_external_memory_array@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@Uinterop_mem_handle@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?map_external_memory_array@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@Uinterop_mem_handle@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
 ?markAsInternal@SYCLMemObjT@detail@_V1@sycl@@QEAAXXZ
@@ -1423,6 +1453,7 @@
 ?prefetch_usm@MemoryManager@detail@_V1@sycl@@SAXPEAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_KV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@AEBV?$shared_ptr@Vevent_impl@detail@_V1@sycl@@@6@@Z
 ?prepare_for_device_copy@experimental@oneapi@ext@_V1@sycl@@YAXPEBX_KAEBVcontext@45@@Z
 ?prepare_for_device_copy@experimental@oneapi@ext@_V1@sycl@@YAXPEBX_KAEBVqueue@45@@Z
+?print_graph@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBAXV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@_N@Z
 ?processArg@handler@_V1@sycl@@AEAAXPEAXAEBW4kernel_param_kind_t@detail@23@H_KAEA_K_N4@Z
 ?query@tls_code_loc_t@detail@_V1@sycl@@QEAAAEBUcode_location@234@XZ
 ?reduComputeWGSize@detail@_V1@sycl@@YA_K_K0AEA_K@Z
@@ -1465,6 +1496,7 @@
 ?setStateExplicitKernelBundle@handler@_V1@sycl@@AEAAXXZ
 ?setStateSpecConstSet@handler@_V1@sycl@@AEAAXXZ
 ?setType@handler@_V1@sycl@@AEAAXW4CGTYPE@CG@detail@23@@Z
+?setUserFacingNodeType@handler@_V1@sycl@@AEAAXW4node_type@experimental@oneapi@ext@23@@Z
 ?set_final_data@SYCLMemObjT@detail@_V1@sycl@@QEAAX$$T@Z
 ?set_final_data@SYCLMemObjT@detail@_V1@sycl@@QEAAXAEBV?$function@$$A6AXAEBV?$function@$$A6AXPEAX@Z@std@@@Z@std@@@Z
 ?set_final_data_from_storage@SYCLMemObjT@detail@_V1@sycl@@QEAAXXZ

@@ -116,14 +116,19 @@ template <typename T, typename BinaryOperation> struct is_native_op {
 // ---- is_plus
 template <typename T, typename BinaryOperation>
 using is_plus = std::integral_constant<
-    bool, std::is_same_v<BinaryOperation, sycl::plus<T>> ||
-              std::is_same_v<BinaryOperation, sycl::plus<void>>>;
+    bool,
+    std::is_same_v<BinaryOperation, sycl::plus<std::remove_const_t<T>>> ||
+        std::is_same_v<BinaryOperation, sycl::plus<std::add_const_t<T>>> ||
+        std::is_same_v<BinaryOperation, sycl::plus<void>>>;
 
 // ---- is_multiplies
 template <typename T, typename BinaryOperation>
 using is_multiplies = std::integral_constant<
-    bool, std::is_same_v<BinaryOperation, sycl::multiplies<T>> ||
-              std::is_same_v<BinaryOperation, sycl::multiplies<void>>>;
+    bool,
+    std::is_same_v<BinaryOperation, sycl::multiplies<std::remove_const_t<T>>> ||
+        std::is_same_v<BinaryOperation,
+                       sycl::multiplies<std::add_const_t<T>>> ||
+        std::is_same_v<BinaryOperation, sycl::multiplies<void>>>;
 
 // ---- is_complex
 // Use SFINAE so that the "true" branch could be implemented in
@@ -134,9 +139,9 @@ struct is_complex : public std::false_type {};
 
 // ---- is_arithmetic_or_complex
 template <typename T>
-using is_arithmetic_or_complex = std::integral_constant<
-    bool, sycl::detail::is_complex<typename std::remove_cv_t<T>>::value ||
-              sycl::detail::is_arithmetic<T>::value>;
+using is_arithmetic_or_complex =
+    std::integral_constant<bool, sycl::detail::is_complex<T>::value ||
+                                     sycl::detail::is_arithmetic<T>::value>;
 
 template <typename T>
 struct is_vector_arithmetic_or_complex
@@ -843,7 +848,7 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
     return ((v + divisor - 1) / divisor) * divisor;
   };
   typename std::remove_const<typename detail::remove_pointer<InPtr>::type>::type
-      x;
+      x = {};
   T carry = init;
   for (ptrdiff_t chunk = 0; chunk < roundup(N, stride); chunk += stride) {
     ptrdiff_t i = chunk + offset;
@@ -1034,7 +1039,7 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
     return ((v + divisor - 1) / divisor) * divisor;
   };
   typename std::remove_const<typename detail::remove_pointer<InPtr>::type>::type
-      x;
+      x = {};
   T carry = init;
   for (ptrdiff_t chunk = 0; chunk < roundup(N, stride); chunk += stride) {
     ptrdiff_t i = chunk + offset;

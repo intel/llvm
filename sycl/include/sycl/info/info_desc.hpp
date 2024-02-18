@@ -17,9 +17,8 @@
 #include <sycl/aspects.hpp>
 #include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
-#if (SYCL_EXT_ONEAPI_MATRIX_VERSION == 4)
 #include <sycl/ext/oneapi/matrix/query-types.hpp>
-#endif
+
 #include <sycl/range.hpp>
 
 namespace sycl {

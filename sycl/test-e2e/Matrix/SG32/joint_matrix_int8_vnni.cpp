@@ -6,14 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix
+// REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // XFAIL: gpu
 
-#include <iostream>
-#include <sycl/sycl.hpp>
+#include "../common.hpp"
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;

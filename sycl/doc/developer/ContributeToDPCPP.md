@@ -2,7 +2,7 @@
 
 ## General guidelines
 
-Read [CONTRIBUTING.md](/CONTRIBUTING.md) first.
+Read [CONTRIBUTING.md](https://github.com/intel/llvm/blob/sycl/CONTRIBUTING.md) first.
 
 ## Maintaining stable ABI/API
 
@@ -10,6 +10,8 @@ All changes made to the DPC++ compiler and runtime library should generally
 preserve existing ABI/API and contributors should avoid making incompatible
 changes. One of the exceptions is experimental APIs, clearly marked so by
 namespace or related specification.
+If you wish to propose a new experimental DPC++ extension then read
+[README-process.md](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/README-process.md).
 
 Another exceptional case is the transition from SYCL 1.2.1 to SYCL 2020
 standard.
@@ -58,8 +60,8 @@ There are 3 types of tests which are used for DPC++ toolchain validation:
 ### DPC++ device-independent tests
 
 DPC++ device-independent tests are hosted in this repository. They can be run by
-[check-llvm](/llvm/test), [check-clang](/clang/test),
-[check-llvm-spirv](/llvm-spirv/test) and [check-sycl](/sycl/test) targets.
+[check-llvm](https://github.com/intel/llvm/blob/sycl/llvm/test), [check-clang](https://github.com/intel/llvm/blob/sycl/clang/test),
+[check-llvm-spirv](https://github.com/intel/llvm/blob/sycl/llvm-spirv/test) and [check-sycl](https://github.com/intel/llvm/blob/sycl/sycl/test) targets.
 These tests are expected not to have hardware (e.g. GPU, FPGA, etc.) or
 external software (e.g. OpenCL, Level Zero, CUDA runtimes) dependencies. All
 other tests should land at DPC++ end-to-end or SYCL CTS tests.
@@ -106,11 +108,11 @@ end-to-end or SYCL-CTS tests.
 
 #### DPC++ headers and runtime tests
 
-- [check-sycl](/sycl/test) target contains 2 types of tests: LIT tests and
+- [check-sycl](https://github.com/intel/llvm/blob/sycl/sycl/test) target contains 2 types of tests: LIT tests and
   unit tests. LIT tests make compile-time checks of DPC++ headers, e.g. device
   code IR verification, `static_assert` tests. Unit tests check DPC++ runtime
   behavior and do not perform any device code compilation, instead relying on
-  redefining plugin API with [PiMock](/sycl/unittests/helpers/PiMock.hpp) when
+  redefining plugin API with [PiMock](https://github.com/intel/llvm/blob/sycl/sycl/unittests/helpers/PiMock.hpp) when
   necessary.
 
 When adding new test to `check-sycl`, please consider the following:
@@ -126,7 +128,7 @@ When adding new test to `check-sycl`, please consider the following:
   launch only host compilation, use `%fsycl-host-only` substitution.
 
 - tests which want to check generated device code (either in LLVM IR or SPIR-V
-  form) should be placed under [check_device_code](/sycl/test/check_device_code)
+  form) should be placed under [check_device_code](https://github.com/intel/llvm/blob/sycl/sycl/test/check_device_code)
   folder.
 
 - if compiler invocation in your LIT test produces an output file, please make
@@ -146,9 +148,9 @@ When adding new test to `check-sycl`, please consider the following:
 
 ### DPC++ end-to-end (E2E) tests
 
-These tests are located in [/sycl/test-e2e](/sycl/test-e2e) directory and are not
+These tests are located in [/sycl/test-e2e](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e) directory and are not
 configured to be run by default. See
-[End-to-End tests documentation](/sycl/test-e2e/README.md)
+[End-to-End tests documentation](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/README.md)
 for instructions on how to run them.
 
 A test which requires full stack including backend runtimes (e.g. OpenCL,

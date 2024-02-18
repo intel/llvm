@@ -71,9 +71,8 @@ bool run_test(sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
               syclexp::write_image(imgOut, sycl::int2(dim0, dim1), pixel);
             } else if constexpr (NDims == 3) {
               OutputType pixel = syclexp::read_image<OutputType>(
-                  imgIn, sycl::float4(dim0, dim1, dim2, 0));
-              syclexp::write_image(imgOut, sycl::int4(dim0, dim1, dim2, 0),
-                                   pixel);
+                  imgIn, sycl::float3(dim0, dim1, dim2));
+              syclexp::write_image(imgOut, sycl::int3(dim0, dim1, dim2), pixel);
             }
           });
     });
@@ -86,8 +85,9 @@ bool run_test(sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
     syclexp::destroy_image_handle(imgIn, q);
     syclexp::destroy_image_handle(imgOut, q);
 
-    syclexp::free_image_mem(imgMemIn, dev, ctxt);
-    syclexp::free_image_mem(imgMemOut, dev, ctxt);
+    syclexp::free_image_mem(imgMemIn, syclexp::image_type::standard, dev, ctxt);
+    syclexp::free_image_mem(imgMemOut, syclexp::image_type::standard, dev,
+                            ctxt);
 
   } catch (sycl::exception e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";

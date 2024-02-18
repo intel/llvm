@@ -4,7 +4,11 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+  queue Queue{};
+
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
 
   using T = int;
 
@@ -39,7 +43,8 @@ int main() {
 
   for (size_t i = 0; i < Size; i++) {
     for (size_t j = 0; j < Size; j++) {
-      assert(ReferenceA[i * Size + j] == HostAccA[i][j]);
+      const size_t index = i * Size + j;
+      assert(check_value(index, ReferenceA[index], HostAccA[i][j], "HostAccA"));
     }
   }
 

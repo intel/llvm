@@ -128,7 +128,7 @@ void test_normalized_clamp_linear_sampler(image_channel_order ChanOrder,
 
     // REPORT RESULTS
     size_t offset = 0;
-    auto test_acc = testResults.get_access<access::mode::read>();
+    auto test_acc = testResults.get_host_access();
     std::cout << "read seven pixels at 'boundary' locations, starting out of "
                  "bounds,  sample:   Normalized +  Clamp  + Linear"
               << std::endl;

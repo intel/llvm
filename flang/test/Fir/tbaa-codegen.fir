@@ -1,4 +1,4 @@
-// test that tbaa attributes can be added to fir.load and fir.store
+// Test that tbaa attributes can be added to fir.load and fir.store
 // and that these attributes are propagated to LLVMIR
 
 // RUN: tco %s | FileCheck %s
@@ -28,7 +28,7 @@ module attributes {fir.defaultkind = "a1c4d8i4l4r4", fir.kindmap = "", llvm.targ
 }
 
 // CHECK-LABEL: define void @_QPsimple(
-// CHECK-SAME:      ptr %[[ARG0:.*]]) {
+// CHECK-SAME:      ptr %[[ARG0:.*]]){{.*}}{
 // [...]
 // load  a(2):
 // CHECK:  %[[VAL20:.*]] = getelementptr i8, ptr %{{.*}}, i64 %{{.*}}

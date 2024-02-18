@@ -234,7 +234,8 @@ public:
 
   std::string getDeviceName() const;
 
-  bool extOneapiArchitectureIs(ext::oneapi::experimental::architecture Arch) {
+  bool
+  extOneapiArchitectureIs(ext::oneapi::experimental::architecture Arch) const {
     return Arch == getDeviceArch();
   }
 
@@ -257,11 +258,13 @@ public:
   std::string
   get_device_info_string(sycl::detail::pi::PiDeviceInfo InfoCode) const;
 
+  /// Get device architecture
+  ext::oneapi::experimental::architecture getDeviceArch() const;
+
 private:
   explicit device_impl(pi_native_handle InteropDevice,
                        sycl::detail::pi::PiDevice Device,
                        PlatformImplPtr Platform, const PluginPtr &Plugin);
-  ext::oneapi::experimental::architecture getDeviceArch() const;
   sycl::detail::pi::PiDevice MDevice = 0;
   sycl::detail::pi::PiDeviceType MType;
   sycl::detail::pi::PiDevice MRootDevice = nullptr;
@@ -272,7 +275,7 @@ private:
   mutable std::once_flag MDeviceNameFlag;
   mutable ext::oneapi::experimental::architecture MDeviceArch{};
   mutable std::once_flag MDeviceArchFlag;
-  std::pair<uint64_t, uint64_t> MDeviceHostBaseTime;
+  std::pair<uint64_t, uint64_t> MDeviceHostBaseTime{0, 0};
 }; // class device_impl
 
 } // namespace detail

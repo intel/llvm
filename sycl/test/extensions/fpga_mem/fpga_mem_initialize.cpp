@@ -58,22 +58,22 @@ int main() {
   static_assert(aggr_int_2d[1][2] == 8);
 
   // default initialization
-  constexpr intel::fpga_mem<int> default_int;
+  constexpr intel::fpga_mem<int> default_int{};
   static_assert(default_int.get() == 0);
 
-  constexpr intel::fpga_mem<float> default_float;
+  constexpr intel::fpga_mem<float> default_float{};
   static_assert(default_float.get() == 0.0f);
 
-  constexpr intel::fpga_mem<char> default_char;
+  constexpr intel::fpga_mem<char> default_char{};
   static_assert(default_char.get() == 0);
 
-  constexpr intel::fpga_mem<bool> default_bool;
+  constexpr intel::fpga_mem<bool> default_bool{};
   static_assert(default_bool.get() == false);
 
-  constexpr intel::fpga_mem<foo> default_struct;
+  constexpr intel::fpga_mem<foo> default_struct{};
   static_assert(default_struct.get().i == 0);
 
-  constexpr intel::fpga_mem<int[3]> default_aggr_int;
+  constexpr intel::fpga_mem<int[3]> default_aggr_int{};
   static_assert(default_aggr_int[1] == 0);
 
   return 0;

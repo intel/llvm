@@ -806,9 +806,12 @@ Init *UnOpInit::Fold(Record *CurRec, bool IsFinal) const {
         OS << *Def->getDef();
         OS.flush();
         return StringInit::get(RK, S);
-      }
-      // Otherwise, print the value of the variable.
-      else {
+      } else {
+        // Otherwise, print the value of the variable.
+        //
+        // NOTE: we could recursively !repr the elements of a list,
+        // but that could produce a lot of output when printing a
+        // defset.
         return StringInit::get(RK, LHS->getAsString());
       }
     }
@@ -920,15 +923,16 @@ Init *UnOpInit::Fold(Record *CurRec, bool IsFinal) const {
 
   case GETDAGOP:
     if (DagInit *Dag = dyn_cast<DagInit>(LHS)) {
-      DefInit *DI = DefInit::get(Dag->getOperatorAsDef({}));
-      if (!DI->getType()->typeIsA(getType())) {
+      // TI is not necessarily a def due to the late resolution in multiclasses,
+      // but has to be a TypedInit.
+      auto *TI = cast<TypedInit>(Dag->getOperator());
+      if (!TI->getType()->typeIsA(getType())) {
         PrintFatalError(CurRec->getLoc(),
-                        Twine("Expected type '") +
-                        getType()->getAsString() + "', got '" +
-                        DI->getType()->getAsString() + "' in: " +
-                        getAsString() + "\n");
+                        Twine("Expected type '") + getType()->getAsString() +
+                            "', got '" + TI->getType()->getAsString() +
+                            "' in: " + getAsString() + "\n");
       } else {
-        return DI;
+        return Dag->getOperator();
       }
     }
     break;
@@ -2260,9 +2264,9 @@ void VarDefInit::Profile(FoldingSetNodeID &ID) const {
 DefInit *VarDefInit::instantiate() {
   if (!Def) {
     RecordKeeper &Records = Class->getRecords();
-    auto NewRecOwner = std::make_unique<Record>(Records.getNewAnonymousName(),
-                                           Class->getLoc(), Records,
-                                           /*IsAnonymous=*/true);
+    auto NewRecOwner =
+        std::make_unique<Record>(Records.getNewAnonymousName(), Class->getLoc(),
+                                 Records, Record::RK_AnonymousDef);
     Record *NewRec = NewRecOwner.get();
 
     // Copy values from class to instance
@@ -2271,6 +2275,9 @@ DefInit *VarDefInit::instantiate() {
 
     // Copy assertions from class to instance.
     NewRec->appendAssertions(Class);
+
+    // Copy dumps from class to instance.
+    NewRec->appendDumps(Class);
 
     // Substitute and resolve template arguments
     ArrayRef<Init *> TArgs = Class->getTemplateArgs();
@@ -2305,6 +2312,9 @@ DefInit *VarDefInit::instantiate() {
 
     // Check the assertions.
     NewRec->checkRecordAssertions();
+
+    // Check the assertions.
+    NewRec->emitRecordDumps();
 
     Def = DefInit::get(NewRec);
   }
@@ -2863,6 +2873,11 @@ void Record::resolveReferences(Resolver &R, const RecordVal *SkipVal) {
     Value = Assertion.Message->resolveReferences(R);
     Assertion.Message = Value;
   }
+  // Resolve the dump expressions.
+  for (auto &Dump : Dumps) {
+    Init *Value = Dump.Message->resolveReferences(R);
+    Dump.Message = Value;
+  }
 }
 
 void Record::resolveReferences(Init *NewName) {
@@ -3116,6 +3131,16 @@ void Record::checkRecordAssertions() {
     Init *Condition = Assertion.Condition->resolveReferences(R);
     Init *Message = Assertion.Message->resolveReferences(R);
     CheckAssert(Assertion.Loc, Condition, Message);
+  }
+}
+
+void Record::emitRecordDumps() {
+  RecordResolver R(*this);
+  R.setFinal(true);
+
+  for (const auto &Dump : getDumps()) {
+    Init *Message = Dump.Message->resolveReferences(R);
+    dumpMessage(Dump.Loc, Message);
   }
 }
 

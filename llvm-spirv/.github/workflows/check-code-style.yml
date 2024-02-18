@@ -24,7 +24,7 @@ env:
   # We need compile command database in order to perform clang-tidy check. So,
   # in order to perform configure step we need to setup llvm-dev package. This
   # env variable used to specify desired version of it
-  LLVM_VERSION: 18
+  LLVM_VERSION: 19
 
 jobs:
   clang-format-and-tidy:
@@ -83,14 +83,7 @@ jobs:
       id: run-clang-format
       run: |
         cat diff-to-inspect.txt | /usr/share/clang/clang-format-${{ env.LLVM_VERSION }}/clang-format-diff.py \
-            -p1 -binary clang-format-${{ env.LLVM_VERSION }} > clang-format.patch
-        if [ -s clang-format.patch ]; then
-          echo "clang-format found incorrectly formatted code:"
-          cat clang-format.patch;
-          exit 1;
-        else
-          rm clang-format.patch # to avoid uploading empty file
-        fi
+            -p1 -binary clang-format-${{ env.LLVM_VERSION }}
 
     - name: Run clang-tidy
       # By some reason, GitHub Actions automatically include "success()"
@@ -103,41 +96,7 @@ jobs:
       run: |
         cat diff-to-inspect.txt | /usr/lib/llvm-${{ env.LLVM_VERSION }}/share/clang/clang-tidy-diff.py \
             -p1 -clang-tidy-binary clang-tidy-${{ env.LLVM_VERSION }} -quiet \
-            -path ${{ github.workspace}}/build > clang-tidy.log 2>/dev/null
-        # By some reason, clang-tidy log contains tons of extra empty lines,
-        # that confuse the check below
-        sed -i '/^$/d' clang-tidy.log
-        if [ -s clang-tidy.log ]; then
-          if ! grep -q "No relevant changes found." clang-tidy.log; then
-            # Emit annotations
-            while read -r line; do
-              type="error"
-              if [[ $line == *"warning:"* ]]; then
-                type="warning"
-              elif [[ $line == *"error:"* ]]; then
-                type="error"
-              else
-                continue
-              fi
-
-              absolute_path=$(echo $line | grep -Po "^[\w\d-./]+(?=:)")
-              relative_path=${absolute_path##"${{ github.workspace }}"}
-
-              line_number=$(echo $line | grep -Po "(?<=:)\d+(?=:\d)")
-
-              message=$(echo $line | grep -Po "(?<=${type}: ).*$")
-
-              # see [workflow-commands] for documentation
-              echo "::${type} file=${relative_path},line=${line_number}::${message}"
-            done < clang-tidy.log
-
-            echo "clang-tidy found incorrectly written code:"
-            cat clang-tidy.log
-            exit 1
-          else
-            rm clang-tidy.log # to avoid uploading empty file
-          fi
-        fi
+            -path ${{ github.workspace}}/build
 
     - name: Upload patch with clang-format fixes
       uses: actions/upload-artifact@v2

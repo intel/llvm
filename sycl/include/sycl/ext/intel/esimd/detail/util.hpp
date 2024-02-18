@@ -25,6 +25,13 @@
 #define __ESIMD_INTRIN inline
 #endif // __SYCL_DEVICE_ONLY__
 
+#ifdef __SYCL_DEVICE_ONLY__
+#define __ESIMD_INTRIN_END ;
+#else
+#define __ESIMD_INTRIN_END                                                     \
+  { __ESIMD_UNSUPPORTED_ON_HOST; }
+#endif // __SYCL_DEVICE_ONLY__
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext::intel::esimd::detail {

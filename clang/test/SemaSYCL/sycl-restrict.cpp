@@ -40,10 +40,12 @@ bool operator==(const Fraction &lhs, const Fraction &rhs) {
 } // namespace Check_User_Operators
 
 namespace Check_VLA_Restriction {
-void no_restriction(int p) {
+void no_restriction(int p) { // expected-note {{declared here}}
+  // expected-note@+2 {{function parameter 'p' with unknown value cannot be used in a constant expression}}
+  // expected-warning@+1 {{variable length arrays in C++ are a Clang extension}}
   int index[p + 2];
 }
-void restriction(int p) {
+void restriction(int p) { // expected-note {{declared here}}
   // This particular violation is nested under two kernels with intermediate function calls.
   // e.g. main -> 1stkernel -> usage -> 2ndkernel -> isa_B -> restriction -> !!
   // Because the error is in two different kernels, we are given helpful notes for the origination of the error, twice.
@@ -52,6 +54,8 @@ void restriction(int p) {
   // expected-note@#call_isa_B 2{{called by 'operator()'}}
   // expected-note@#rtti_kernel 2{{called by 'kernel1<kernel_name, (lambda at }}
   // expected-note@#call_vla {{called by 'isa_B'}}
+  // expected-note@+2 {{function parameter 'p' with unknown value cannot be used in a constant expression}}
+  // expected-warning@+1 {{variable length arrays in C++ are a Clang extension}}
   int index[p + 2]; // expected-error {{variable length arrays are not supported for the current target}}
 }
 } // namespace Check_VLA_Restriction

@@ -223,7 +223,7 @@ void OCLTypeToSPIRVBase::adaptFunctionArguments(Function *F) {
       auto STName = NewTy->getStructName();
       if (!hasAccessQualifiedName(STName))
         continue;
-      if (STName.startswith(kSPR2TypeName::ImagePrefix)) {
+      if (STName.starts_with(kSPR2TypeName::ImagePrefix)) {
         auto Ty = STName.str();
         auto Acc = getAccessQualifier(Ty);
         auto Desc = getImageDescriptor(ParamTys[I]);
@@ -251,7 +251,7 @@ void OCLTypeToSPIRVBase::adaptArgumentsByMetadata(Function *F) {
     if (OCLTyStr == OCL_TYPE_NAME_SAMPLER_T) {
       addAdaptedType(&(*Arg), getSPIRVType(OpTypeSampler));
       Changed = true;
-    } else if (OCLTyStr.startswith("image") && OCLTyStr.endswith("_t")) {
+    } else if (OCLTyStr.starts_with("image") && OCLTyStr.ends_with("_t")) {
       auto Ty = (Twine("opencl.") + OCLTyStr).str();
       if (auto *STy = StructType::getTypeByName(F->getContext(), Ty)) {
         auto *ImageTy = TypedPointerType::get(STy, SPIRAS_Global);

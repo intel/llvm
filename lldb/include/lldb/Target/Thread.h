@@ -390,6 +390,13 @@ public:
   /// and having the thread call the SystemRuntime again.
   virtual bool ThreadHasQueueInformation() const { return false; }
 
+  /// GetStackFrameCount can be expensive.  Stacks can get very deep, and they
+  /// require memory reads for each frame.  So only use GetStackFrameCount when 
+  /// you need to know the depth of the stack.  When iterating over frames, its
+  /// better to generate the frames one by one with GetFrameAtIndex, and when
+  /// that returns NULL, you are at the end of the stack.  That way your loop
+  /// will only do the work it needs to, without forcing lldb to realize
+  /// StackFrames you weren't going to look at.
   virtual uint32_t GetStackFrameCount() {
     return GetStackFrameList()->GetNumFrames();
   }
@@ -489,6 +496,23 @@ public:
   ///     The position of the first instruction to print.
   void DumpTraceInstructions(Stream &s, size_t count,
                              size_t start_position = 0) const;
+
+  /// Print a description of this thread using the provided thread format.
+  ///
+  /// \param[out] strm
+  ///   The Stream to print the description to.
+  ///
+  /// \param[in] frame_idx
+  ///   If not \b LLDB_INVALID_FRAME_ID, then use this frame index as context to
+  ///   generate the description.
+  ///
+  /// \param[in] format
+  ///   The input format.
+  ///
+  /// \return
+  ///   \b true if and only if dumping with the given \p format worked.
+  bool DumpUsingFormat(Stream &strm, uint32_t frame_idx,
+                       const FormatEntity::Entry *format);
 
   // If stop_format is true, this will be the form used when we print stop
   // info. If false, it will be the form we use for thread list and co.

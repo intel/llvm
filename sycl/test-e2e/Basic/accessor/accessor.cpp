@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -DSYCL2020_DISABLE_DEPRECATION_WARNINGS -o %t.out
 // RUN: %{run} %t.out
 
 //==----------------accessor.cpp - SYCL accessor basic test ----------------==//

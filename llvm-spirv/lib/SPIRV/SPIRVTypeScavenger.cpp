@@ -557,7 +557,7 @@ bool SPIRVTypeScavenger::typeIntrinsicCall(
     default:
       return false;
     }
-  } else if (TargetFn->getName().startswith("_Z18__spirv_ocl_printf")) {
+  } else if (TargetFn->getName().starts_with("_Z18__spirv_ocl_printf")) {
     Type *Int8Ty = Type::getInt8Ty(Ctx);
     // The first argument is a string pointer. Subsequent arguments may include
     // pointer-valued arguments, corresponding to %s or %p parameters.
@@ -727,8 +727,8 @@ void SPIRVTypeScavenger::deduceFunctionType(Function &F) {
   // existing code can propagate types to the parameters.
   // TODO: Investigate if target extension types and the specially-handled
   // SPIR-V intrinsics renders this code unnecessary.
-  if (F.isDeclaration() && F.getName().startswith("_Z")) {
-    if (F.getName().startswith("_Z")) {
+  if (F.isDeclaration() && F.getName().starts_with("_Z")) {
+    if (F.getName().starts_with("_Z")) {
       SmallVector<Type *, 8> ParamTypes;
       if (getParameterTypes(&F, ParamTypes)) {
         for (Argument *Arg : PointerArgs) {

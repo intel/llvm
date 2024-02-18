@@ -94,7 +94,6 @@ template <dpas_argument_type T> struct DpasNaturalOperandType {
   static constexpr bool is_bf16 = T == dpas_argument_type::bf16;
   static constexpr bool is_tf32 = T == dpas_argument_type::tf32;
 
-  // TODO: support tf32 here.
   using type = std::conditional_t<
       is_sint, signed char,
       std::conditional_t<
@@ -149,7 +148,7 @@ void writeToHorizontallyPackedMatrix(void *VVec, int Row, int Col,
   ElemT *Vec = reinterpret_cast<ElemT *>(VVec);
 
   // 1. Find and read the target 'unsigned int' element.
-  // THe unpacked matrix has dimensions: NumRows*NumCols
+  // The unpacked matrix dimensions are NumRows*NumCols.
   constexpr int ElemsInElemT = sizeof(ElemT) * 8 / ElemBitSize;
   int UnpackedLinearIndex = Row * NumCols + Col;
   int PackedLinearIndex = UnpackedLinearIndex / ElemsInElemT;
@@ -160,7 +159,6 @@ void writeToHorizontallyPackedMatrix(void *VVec, int Row, int Col,
   } else {
     ElemT TargetElem = Vec[PackedLinearIndex];
     // TargetElem has 2 or more elements in it. Need to extract one.
-    // TODO: for now assume that is the case only for 2 or 4-bit integers.
     assert((ElemBitSize == 2 || ElemBitSize == 4) && "Unexpected element type");
 
     unsigned int Offset = (UnpackedLinearIndex % ElemsInElemT) * ElemBitSize;
@@ -196,7 +194,6 @@ ReadT readFromHorizontallyPackedMatrix(void *VVec, int Row, int Col) {
     return static_cast<ReadT>(TargetElem);
   } else {
     // TargetElem has 2 or more elements in it. Need to extract one.
-    // TODO: for now assume that is the case only for 2 or 4-bit integers.
     assert((ElemBitSize == 2 || ElemBitSize == 4) && "Unexpected element type");
     unsigned int Offset = (UnpackedLinearIndex % ElemsInElemT) * ElemBitSize;
     unsigned int Mask = (static_cast<uint64_t>(1) << ElemBitSize) - 1;
@@ -425,18 +422,17 @@ bool tests(queue Q, bool Print) {
   auto Dev = Q.get_device();
 
   // Detect the execution size.
-  // The device trait is not implemented for esimd_emulator. Use both 8 and 16.
   int ExecSize;
-  bool IsEmulator = false;
   try {
     ExecSize = Dev.get_info<ext::intel::info::device::gpu_eu_simd_width>();
   } catch (sycl::exception e) {
-    IsEmulator = true;
+    std::cerr << "Could not determine ExecSize, FAIL" << std::endl;
+    return false;
   }
-  assert((IsEmulator || (ExecSize == 8 || ExecSize == 16)) &&
+  assert(((ExecSize == 8 || ExecSize == 16)) &&
          "Execution size must be 8 or 16");
 
-  if (ExecSize == 16 || IsEmulator) {
+  if (ExecSize == 16) {
     Passed &=
         test<SystolicDepth, RepeatCount, T1, T2, UseSrc0, 16, LetDeduceArgs>(
             Q, Print);
@@ -444,7 +440,7 @@ bool tests(queue Q, bool Print) {
         test<SystolicDepth, RepeatCount, T1, T2, !UseSrc0, 16, LetDeduceArgs>(
             Q, Print);
   }
-  if (ExecSize == 8 || IsEmulator) {
+  if (ExecSize == 8) {
     if constexpr (!ExecSize16Only) {
       Passed &=
           test<SystolicDepth, RepeatCount, T1, T2, UseSrc0, 8, LetDeduceArgs>(

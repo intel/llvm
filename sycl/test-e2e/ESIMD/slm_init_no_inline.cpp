@@ -1,6 +1,8 @@
 // TODO: Investigate fail of this test on Gen12 platform
-// REQUIRES-INTEL-DRIVER: lin: 26516, win: 101.4827
+// REQUIRES-INTEL-DRIVER: lin: 27427, win: 101.4827
 // REQUIRES: gpu-intel-pvc
+// TODO: Support ze_debug once GPU hang introduced in new GPU driver is solved
+// UNSUPPORTED: ze_debug
 // DEFINE: %{inlineflags} = %if cl_options %{/clang:-fno-inline-functions%} %else %{-fno-inline-functions%}
 // RUN: %{build} %{inlineflags} -o %t.out
 // RUN: %{run} %t.out

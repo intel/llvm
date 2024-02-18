@@ -38,8 +38,8 @@
 // RUN:          --sysroot=%S/Inputs/SYCL -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS %s
 // WRAPPER_OPTIONS: clang-linker-wrapper{{.*}} "--triple=spir64"
-// WRAPPER_OPTIONS-SAME: "--sycl-device-libraries=libsycl-crt.o,libsycl-complex.o,libsycl-complex-fp64.o,libsycl-cmath.o,libsycl-cmath-fp64.o,libsycl-imf.o,libsycl-imf-fp64.o,libsycl-imf-bf16.o,libsycl-itt-user-wrappers.o,libsycl-itt-compiler-wrappers.o,libsycl-itt-stubs.o"
-// WRAPPER_OPTIONS-SAME: "--sycl-device-library-location={{.*}}/lib"
+// WRAPPER_OPTIONS-SAME: "-sycl-device-libraries=libsycl-crt.o,libsycl-complex.o,libsycl-complex-fp64.o,libsycl-cmath.o,libsycl-cmath-fp64.o,libsycl-imf.o,libsycl-imf-fp64.o,libsycl-imf-bf16.o,libsycl-itt-user-wrappers.o,libsycl-itt-compiler-wrappers.o,libsycl-itt-stubs.o"
+// WRAPPER_OPTIONS-SAME: "-sycl-device-library-location={{.*}}/lib"
 
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
 // RUN:          -Xspirv-translator -translator-opt -### %s 2>&1 \

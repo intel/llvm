@@ -156,7 +156,7 @@ template <typename T> static unsigned asUInt(T val) {
 
 static IntegerType *getSizeTTy(Module &M) {
   LLVMContext &Ctx = M.getContext();
-  auto PtrSize = M.getDataLayout().getPointerTypeSize(Type::getInt8PtrTy(Ctx));
+  auto PtrSize = M.getDataLayout().getPointerTypeSize(PointerType::getUnqual(Ctx));
   return PtrSize == 8 ? Type::getInt64Ty(Ctx) : Type::getInt32Ty(Ctx);
 }
 
@@ -405,9 +405,7 @@ static void copyBetweenPrivateAndShadow(Value *L, GlobalVariable *Shadow,
   assert(T && "Unexpected type");
 
   if (T->isAggregateType()) {
-    // TODO: we should use methods which directly return MaybeAlign once such
-    // are added to LLVM for AllocaInst and GlobalVariable
-    auto ShdAlign = MaybeAlign(Shadow->getAlignment());
+    auto ShdAlign = Shadow->getAlign();
     Module &M = *Shadow->getParent();
     auto SizeVal = M.getDataLayout().getTypeStoreSize(T);
     auto Size = ConstantInt::get(getSizeTTy(M), SizeVal);

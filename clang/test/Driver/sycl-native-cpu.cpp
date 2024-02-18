@@ -17,3 +17,8 @@
 // CHECK-WIN: {{.*}}"-fsycl-is-device"{{.*}}"-gcodeview"
 // CHECK-WIN-DAG: {{.*}}"-fsycl-is-host"{{.*}}"-gcodeview"
 // CHECK-WIN-NOT: dwarf
+
+// checks that -sycl-opt is not enabled by default on NativeCPU so that the full llvm optimization is enabled
+// RUN:   %clang -fsycl -fsycl-targets=native_cpu -### %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
+// CHECK-OPTS-NOT: -sycl-opt
+

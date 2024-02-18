@@ -32,6 +32,10 @@ int main() {
 
   queue Queue{Dev1};
 
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
+
   exp_ext::command_graph Graph{Queue.get_context(), Dev0};
 
   std::error_code ExceptionCode = make_error_code(sycl::errc::success);

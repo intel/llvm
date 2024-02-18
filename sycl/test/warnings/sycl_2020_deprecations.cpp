@@ -118,6 +118,11 @@ int main() {
   ex.get_cl_code();
   (void)ex;
 
+  // expected-warning@+1{{'online_compiler<sycl::ext::intel::experimental::source_language::opencl_c>' is deprecated}}
+  sycl::ext::intel::experimental::online_compiler<
+      sycl::ext::intel::experimental::source_language::opencl_c>
+      oc(Device);
+
   Queue.submit([](sycl::handler &CGH) {
     // expected-warning@+3{{'nd_range' is deprecated: offsets are deprecated in SYCL2020}}
     // expected-warning@+2{{'nd_range' is deprecated: offsets are deprecated in SYCL2020}}
@@ -134,7 +139,7 @@ int main() {
   sycl::byte B;
   (void)B;
 
-  // expected-warning@+1{{'abs<float>' is deprecated: abs for floating point types is non-standard and has been deprecated. Please use fabs instead.}}
+  // expected-warning@+1{{abs for floating point types is non-standard and has been deprecated. Please use fabs instead.}}
   sycl::abs(0.0f);
 
   // expected-warning@+1{{'image_support' is deprecated: deprecated in SYCL 2020, use device::has(aspect::ext_intel_legacy_image) to query for SYCL 1.2.1 image support}}
@@ -442,6 +447,21 @@ int main() {
     // expected-warning@+1{{'get_max_statement_size' is deprecated: get_max_statement_size() is deprecated since SYCL 2020. Please use get_work_item_buffer_size() instead.}}
     size_t StreamMaxStatementSize = Stream.get_max_statement_size();
   });
+
+  // expected-warning@+1 {{'fast_distance<double, double>' is deprecated: fast_distance for double precision types is non-standard and has been deprecated}}
+  std::ignore = sycl::fast_distance(double{1.0}, double{2.0});
+  // expected-warning@+2 {{'fast_distance<sycl::vec<double, 2>, sycl::vec<double, 2>>' is deprecated: fast_distance for double precision types is non-standard and has been deprecated}}
+  std::ignore =
+      sycl::fast_distance(sycl::vec<double, 2>{0.0}, sycl::vec<double, 2>{1.0});
+
+  // clang-format off
+  // SYCL 2020, revision 9 uses fixed-width integer type, one of these has to be
+  // deprecated.
+  // expected-warning-re@+1 {{'nan<{{.*}}>' is deprecated: This is a deprecated argument type for SYCL nan built-in function.}}
+  std::ignore = (sycl::nan((unsigned long){0}), sycl::nan((unsigned long long){0}));
+  // expected-warning-re@+1 {{'nan<sycl::vec<{{.*}}, 2>>' is deprecated: This is a deprecated argument type for SYCL nan built-in function.}}
+  std::ignore = (sycl::nan(sycl::vec<unsigned long, 2>{0}), sycl::nan(sycl::vec<unsigned long long, 2>{0}));
+  // clang-format on
 
   return 0;
 }

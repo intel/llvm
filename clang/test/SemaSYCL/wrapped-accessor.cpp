@@ -38,12 +38,12 @@ int main() {
 // CHECK: VarDecl {{.*}}'(lambda at {{.*}}wrapped-accessor.cpp{{.*}})'
 // CHECK-NEXT: InitListExpr {{.*}}'(lambda at {{.*}}wrapped-accessor.cpp{{.*}})'
 // CHECK-NEXT: InitListExpr {{.*}}'AccWrapper<sycl::accessor<int, 1, sycl::access::mode::read_write>>'
-// CHECK-NEXT: CXXConstructExpr {{.*}}'sycl::accessor<int, 1, sycl::access::mode::read_write>':'sycl::accessor<int, 1, sycl::access::mode::read_write>' 'void () noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}}'sycl::accessor<int, 1, sycl::access::mode::read_write>' 'void () noexcept'
 
 // Check that accessor field of the wrapper object is initialized using __init method
 // CHECK-NEXT: CXXMemberCallExpr {{.*}} 'void'
 // CHECK-NEXT: MemberExpr {{.*}} 'void ({{.*}}PtrType, range<1>, range<1>, id<1>)' lvalue .__init
-// CHECK-NEXT: MemberExpr {{.*}} 'sycl::accessor<int, 1, sycl::access::mode::read_write>':'sycl::accessor<int, 1, sycl::access::mode::read_write>' lvalue .accessor {{.*}}
+// CHECK-NEXT: MemberExpr {{.*}} 'sycl::accessor<int, 1, sycl::access::mode::read_write>' lvalue .accessor {{.*}}
 // CHECK-NEXT: MemberExpr {{.*}} 'AccWrapper<decltype(acc)>':'AccWrapper<sycl::accessor<int, 1, sycl::access::mode::read_write>>' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '(lambda at {{.*}}wrapped-accessor.cpp{{.*}})' lvalue Var {{.*}} '(lambda at {{.*}}wrapped-accessor.cpp{{.*}})'
 

@@ -52,13 +52,11 @@ public:
     if (!MModifyCounter)
       return;
 
+    LockGuard Guard(GlobalHandler::MSyclGlobalHandlerProtector);
     MCounter--;
-    if (!MCounter) {
-      LockGuard Guard(GlobalHandler::MSyclGlobalHandlerProtector);
-      GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
-      if (RTGlobalObjHandler) {
-        RTGlobalObjHandler->prepareSchedulerToRelease();
-      }
+    GlobalHandler *RTGlobalObjHandler = GlobalHandler::getInstancePtr();
+    if (RTGlobalObjHandler) {
+      RTGlobalObjHandler->prepareSchedulerToRelease(!MCounter);
     }
   }
 
@@ -142,7 +140,7 @@ void GlobalHandler::attachScheduler(Scheduler *Scheduler) {
   // The method is used in unit tests only. Do not protect with lock since
   // releaseResources will cause dead lock due to host queue release
   if (MScheduler.Inst)
-    prepareSchedulerToRelease();
+    prepareSchedulerToRelease(true);
   MScheduler.Inst.reset(Scheduler);
 }
 
@@ -204,10 +202,13 @@ std::vector<PluginPtr> &GlobalHandler::getPlugins() {
   enableOnCrashStackPrinting();
   return getOrCreate(MPlugins);
 }
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 device_filter_list &
 GlobalHandler::getDeviceFilterList(const std::string &InitValue) {
   return getOrCreate(MDeviceFilterList, InitValue);
 }
+#endif
 
 ods_target_list &
 GlobalHandler::getOneapiDeviceSelectorTargets(const std::string &InitValue) {
@@ -227,20 +228,10 @@ ThreadPool &GlobalHandler::getHostTaskThreadPool() {
 
 void GlobalHandler::releaseDefaultContexts() {
   // Release shared-pointers to SYCL objects.
-#ifndef _WIN32
+  // Note that on Windows the destruction of the default context
+  // races with the detaching of the DLL object that calls piTearDown.
+
   MPlatformToDefaultContextCache.Inst.reset(nullptr);
-#else
-  // Windows does not maintain dependencies between dynamically loaded libraries
-  // and can unload SYCL runtime dependencies before sycl.dll's DllMain has
-  // finished. To avoid calls to nowhere, intentionally leak platform to device
-  // cache. This will prevent destructors from being called, thus no PI cleanup
-  // routines will be called in the end.
-  // Update: the pi_win_proxy_loader addresses this for SYCL's own dependencies,
-  // but the GPU device dlls seem to manually load yet another DLL which may
-  // have been released when this function is called. So we still release() and
-  // leak until that is addressed. context destructs fine on CPU device.
-  MPlatformToDefaultContextCache.Inst.release();
-#endif
 }
 
 struct DefaultContextReleaseHandler {
@@ -273,11 +264,13 @@ void GlobalHandler::unloadPlugins() {
   getPlugins().clear();
 }
 
-void GlobalHandler::prepareSchedulerToRelease() {
+void GlobalHandler::prepareSchedulerToRelease(bool Blocking) {
 #ifndef _WIN32
-  drainThreadPool();
+  if (Blocking)
+    drainThreadPool();
   if (MScheduler.Inst)
-    MScheduler.Inst->releaseResources();
+    MScheduler.Inst->releaseResources(Blocking ? BlockingT::BLOCKING
+                                               : BlockingT::NON_BLOCKING);
 #endif
 }
 
@@ -306,7 +299,7 @@ void shutdown() {
 
   // Ensure neither host task is working so that no default context is accessed
   // upon its release
-  Handler->prepareSchedulerToRelease();
+  Handler->prepareSchedulerToRelease(true);
 
   if (Handler->MHostTaskThreadPool.Inst)
     Handler->MHostTaskThreadPool.Inst->finishAndWait();

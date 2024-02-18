@@ -235,3 +235,28 @@ TEST_F(DeviceInfoNegativeTest, TestAspectNotSupported) {
   EXPECT_EQ(Dev.has(aspect::ext_intel_memory_clock_rate), false);
   EXPECT_EQ(Dev.has(aspect::ext_intel_memory_bus_width), false);
 }
+
+TEST_F(DeviceInfoTest, SplitStringDelimeterSpace) {
+  std::string InputString("V1 V2 V3");
+  std::vector<std::string> Expected{"V1", "V2", "V3"};
+  EXPECT_EQ(detail::split_string(InputString, ' '), Expected);
+}
+
+TEST_F(DeviceInfoTest, SplitStringDelimeterSpaceAtTheEnd) {
+  std::string InputString("V1 V2 V3 ");
+  std::vector<std::string> Expected{"V1", "V2", "V3"};
+  EXPECT_EQ(detail::split_string(InputString, ' '), Expected);
+}
+
+TEST_F(DeviceInfoTest, SplitStringDelimeterSemicolon) {
+  std::string InputString("V1;V2;V3");
+  std::vector<std::string> Expected{"V1", "V2", "V3"};
+  EXPECT_EQ(detail::split_string(InputString, ';'), Expected);
+}
+
+TEST_F(DeviceInfoTest, SplitStringCheckNoDoubleNullCharacters) {
+  std::string InputString("V1;V23");
+  std::vector<std::string> Result = detail::split_string(InputString, ';');
+  EXPECT_EQ(Result[0].length(), (unsigned)2);
+  EXPECT_EQ(Result[1].length(), (unsigned)3);
+}

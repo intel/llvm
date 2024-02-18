@@ -2,6 +2,8 @@
 
 // RUN: %{build} %{mathflags} -o %t.out
 // RUN: %{run} %t.out
+// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes %{mathflags} -o %t2.out %}
+// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 
 #include <sycl/sycl.hpp>
 
@@ -94,30 +96,51 @@ int main() {
   sycl::vec<float, 2> va13{1.4f, 4.2f};
 
   TEST(sycl::fabs, float, 3, EXPECTED(float, 180, 180, 180), 0, va5);
-  TEST(sycl::fabs, float, 2, EXPECTED(float, 180, 180), 0, va5.swizzle<0, 1>());
   TEST(sycl::ilogb, int, 3, EXPECTED(int, 7, 7, 7), 0, va3);
-  TEST(sycl::ilogb, int, 2, EXPECTED(int, 7, 7), 0, va3.swizzle<0, 1>());
   TEST(sycl::fmax, float, 2, EXPECTED(float, 3.0f, 2.0f), 0, va1, va2);
+  TEST(sycl::fmin, float, 2, EXPECTED(float, 1.0f, 2.0f), 0, va1, 5.0f);
+  TEST(sycl::ldexp, float, 3, EXPECTED(float, 360, 360, 360), 0, va3, va4);
+  TEST(sycl::rootn, float, 3, EXPECTED(float, 180, 180, 180), 0.1, va3, va4);
+  TEST2(sycl::fract, float, float, 3, EXPECTED(float, 0.4f, 0.2f, 0.3f),
+        EXPECTED(float, 1, 4, 5), 0.0001, va6);
+  TEST2(sycl::modf, float, float, 3, EXPECTED(float, 0.4f, 0.2f, 0.3f),
+        EXPECTED(float, 1, 4, 5), 0.0001, va6);
+  TEST2(sycl::sincos, float, float, 3,
+        EXPECTED(float, 0.98545f, -0.871576f, -0.832267f),
+        EXPECTED(float, 0.169967, -0.490261, 0.554375), 0.0001, va6);
+  TEST2(sycl::frexp, float, int, 3, EXPECTED(float, 0.7f, 0.525f, 0.6625f),
+        EXPECTED(int, 1, 3, 3), 0.0001, va6);
+  TEST2(sycl::lgamma_r, float, int, 3,
+        EXPECTED(float, -0.119613f, 2.04856f, 3.63964f), EXPECTED(int, 1, 1, 1),
+        0.0001, va6);
+  TEST2(sycl::remquo, float, int, 3, EXPECTED(float, 1.4f, 4.2f, 5.3f),
+        EXPECTED(int, 0, 0, 0), 0.0001, va6, va3);
+  TEST3(sycl::nan, float, 3, va7);
+  if (deviceQueue.get_device().has(sycl::aspect::fp64)) {
+    TEST3(sycl::nan, double, 3, va8);
+  }
+  TEST(sycl::half_precision::exp10, float, 2, EXPECTED(float, 10, 100), 0.1,
+       va1);
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  TEST(sycl::fabs, float, 2, EXPECTED(float, 180, 180), 0, va5.swizzle<0, 1>());
+  TEST(sycl::ilogb, int, 2, EXPECTED(int, 7, 7), 0, va3.swizzle<0, 1>());
   TEST(sycl::fmax, float, 2, EXPECTED(float, 3.0f, 2.0f), 0,
        va9.swizzle<0, 1>(), va2);
   TEST(sycl::fmax, float, 2, EXPECTED(float, 3.0f, 2.0f), 0, va1,
        va10.swizzle<0, 1>());
   TEST(sycl::fmax, float, 2, EXPECTED(float, 3.0f, 2.0f), 0,
        va9.swizzle<0, 1>(), va10.swizzle<0, 1>());
-  TEST(sycl::fmax, float, 2, EXPECTED(float, 5.0f, 5.0f), 0, va1, 5.0f);
   TEST(sycl::fmax, float, 2, EXPECTED(float, 5.0f, 5.0f), 0,
        va9.swizzle<0, 1>(), 5.0f);
-  TEST(sycl::fmin, float, 2, EXPECTED(float, 1.0f, 2.0f), 0, va1, va2);
   TEST(sycl::fmin, float, 2, EXPECTED(float, 1.0f, 2.0f), 0,
        va9.swizzle<0, 1>(), va2);
   TEST(sycl::fmin, float, 2, EXPECTED(float, 1.0f, 2.0f), 0, va1,
        va10.swizzle<0, 1>());
   TEST(sycl::fmin, float, 2, EXPECTED(float, 1.0f, 2.0f), 0,
        va9.swizzle<0, 1>(), va10.swizzle<0, 1>());
-  TEST(sycl::fmin, float, 2, EXPECTED(float, 1.0f, 2.0f), 0, va1, 5.0f);
   TEST(sycl::fmin, float, 2, EXPECTED(float, 1.0f, 2.0f), 0,
        va9.swizzle<0, 1>(), 5.0f);
-  TEST(sycl::ldexp, float, 3, EXPECTED(float, 360, 360, 360), 0, va3, va4);
   TEST(sycl::ldexp, float, 2, EXPECTED(float, 360, 360), 0, va3.swizzle<0, 1>(),
        va12);
   TEST(sycl::ldexp, float, 2, EXPECTED(float, 360, 360), 0, va11,
@@ -141,46 +164,29 @@ int main() {
        va4.swizzle<0, 1>());
   TEST(sycl::rootn, float, 2, EXPECTED(float, 180, 180), 0.1,
        va3.swizzle<0, 1>(), va4.swizzle<0, 1>());
-  TEST2(sycl::fract, float, float, 3, EXPECTED(float, 0.4f, 0.2f, 0.3f),
-        EXPECTED(float, 1, 4, 5), 0.0001, va6);
   TEST2(sycl::fract, float, float, 2, EXPECTED(float, 0.4f, 0.2f),
         EXPECTED(float, 1, 4), 0.0001, va6.swizzle<0, 1>());
-  TEST2(sycl::modf, float, float, 3, EXPECTED(float, 0.4f, 0.2f, 0.3f),
-        EXPECTED(float, 1, 4, 5), 0.0001, va6);
   TEST2(sycl::modf, float, float, 2, EXPECTED(float, 0.4f, 0.2f),
         EXPECTED(float, 1, 4), 0.0001, va6.swizzle<0, 1>());
-  TEST2(sycl::sincos, float, float, 3,
-        EXPECTED(float, 0.98545f, -0.871576f, -0.832267f),
-        EXPECTED(float, 0.169967, -0.490261, 0.554375), 0.0001, va6);
   TEST2(sycl::sincos, float, float, 2, EXPECTED(float, 0.98545f, -0.871576f),
         EXPECTED(float, 0.169967, -0.490261), 0.0001, va6.swizzle<0, 1>());
-  TEST2(sycl::frexp, float, int, 3, EXPECTED(float, 0.7f, 0.525f, 0.6625f),
-        EXPECTED(int, 1, 3, 3), 0.0001, va6);
   TEST2(sycl::frexp, float, int, 2, EXPECTED(float, 0.7f, 0.525f),
         EXPECTED(int, 1, 3), 0.0001, va6.swizzle<0, 1>());
-  TEST2(sycl::lgamma_r, float, int, 3,
-        EXPECTED(float, -0.119613f, 2.04856f, 3.63964f), EXPECTED(int, 1, 1, 1),
-        0.0001, va6);
   TEST2(sycl::lgamma_r, float, int, 2, EXPECTED(float, -0.119613f, 2.04856f),
         EXPECTED(int, 1, 1), 0.0001, va6.swizzle<0, 1>());
-  TEST2(sycl::remquo, float, int, 3, EXPECTED(float, 1.4f, 4.2f, 5.3f),
-        EXPECTED(int, 0, 0, 0), 0.0001, va6, va3);
   TEST2(sycl::remquo, float, int, 2, EXPECTED(float, 1.4f, 4.2f),
         EXPECTED(int, 0, 0), 0.0001, va6.swizzle<0, 1>(), va11);
   TEST2(sycl::remquo, float, int, 2, EXPECTED(float, 1.4f, 4.2f),
         EXPECTED(int, 0, 0), 0.0001, va13, va3.swizzle<0, 1>());
   TEST2(sycl::remquo, float, int, 2, EXPECTED(float, 1.4f, 4.2f),
         EXPECTED(int, 0, 0), 0.0001, va6.swizzle<0, 1>(), va3.swizzle<0, 1>());
-  TEST3(sycl::nan, float, 3, va7);
   TEST3(sycl::nan, float, 2, va7.swizzle<0, 1>());
   if (deviceQueue.get_device().has(sycl::aspect::fp64)) {
-    TEST3(sycl::nan, double, 3, va8);
     TEST3(sycl::nan, double, 2, va8.swizzle<0, 1>());
   }
   TEST(sycl::half_precision::exp10, float, 2, EXPECTED(float, 10, 100), 0.1,
-       va1);
-  TEST(sycl::half_precision::exp10, float, 2, EXPECTED(float, 10, 100), 0.1,
        va9.swizzle<0, 1>());
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   return 0;
 }

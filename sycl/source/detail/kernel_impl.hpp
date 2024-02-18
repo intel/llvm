@@ -73,7 +73,7 @@ public:
   kernel_impl(sycl::detail::pi::PiKernel Kernel, ContextImplPtr ContextImpl,
               DeviceImageImplPtr DeviceImageImpl,
               KernelBundleImplPtr KernelBundleImpl,
-              const KernelArgMask *ArgMask);
+              const KernelArgMask *ArgMask, std::mutex *CacheMutex);
 
   /// Constructs a SYCL kernel for host device
   ///
@@ -183,6 +183,7 @@ public:
   }
 
   const KernelArgMask *getKernelArgMask() const { return MKernelArgMaskPtr; }
+  std::mutex *getCacheMutex() const { return MCacheMutex; }
 
 private:
   sycl::detail::pi::PiKernel MKernel;
@@ -194,6 +195,7 @@ private:
   bool MIsInterop = false;
   std::mutex MNoncacheableEnqueueMutex;
   const KernelArgMask *MKernelArgMaskPtr;
+  std::mutex *MCacheMutex = nullptr;
 
   bool isBuiltInKernel(const device &Device) const;
   void checkIfValidForNumArgsInfoQuery() const;

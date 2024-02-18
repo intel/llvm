@@ -25,7 +25,7 @@ A ret_agg() {
   A a;
   return a;
 }
-// CHECK: define {{.*}}spir_func void @{{.*}}ret_agg{{.*}}(ptr addrspace(4) noalias sret(%struct{{.*}}.A) align 4 %agg.result)
+// CHECK: define {{.*}}spir_func void @{{.*}}ret_agg{{.*}}(ptr addrspace(4) dead_on_unwind noalias writable sret(%struct{{.*}}.A) align 4 %agg.result)
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel_single_task(const Func &kernelFunc) {

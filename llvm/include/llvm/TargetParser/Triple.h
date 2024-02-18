@@ -113,6 +113,7 @@ public:
   enum SubArchType {
     NoSubArch,
 
+    ARMSubArch_v9_5a,
     ARMSubArch_v9_4a,
     ARMSubArch_v9_3a,
     ARMSubArch_v9_2a,
@@ -156,8 +157,11 @@ public:
     MipsSubArch_r6,
 
     SPIRSubArch_fpga,
+    SPIRSubArch_fpga_image,
     SPIRSubArch_gen,
+    SPIRSubArch_gen_image,
     SPIRSubArch_x86_64,
+    SPIRSubArch_x86_64_image,
 
     PPCSubArch_spe,
 
@@ -168,6 +172,7 @@ public:
     SPIRVSubArch_v13,
     SPIRVSubArch_v14,
     SPIRVSubArch_v15,
+    SPIRVSubArch_v16,
   };
   enum VendorType {
     UnknownVendor,
@@ -219,6 +224,7 @@ public:
     TvOS,       // Apple tvOS
     WatchOS,    // Apple watchOS
     DriverKit,  // Apple DriverKit
+    XROS,       // Apple XROS
     Mesa3D,
     AMDPAL,     // AMD PAL Runtime
     HermitCore, // HermitCore Unikernel/Multikernel
@@ -227,7 +233,9 @@ public:
     Emscripten,
     ShaderModel, // DirectX ShaderModel
     LiteOS,
-    LastOSType = LiteOS
+    Serenity,
+    Vulkan,      // Vulkan SPIR-V
+    LastOSType = Vulkan
   };
   enum EnvironmentType {
     UnknownEnvironment,
@@ -277,7 +285,7 @@ public:
     Callable,
     Mesh,
     Amplification,
-
+    OpenCL,
     OpenHOS,
 
     LastEnvironmentType = OpenHOS
@@ -413,6 +421,10 @@ public:
   /// Parse the version number as with getOSVersion.
   VersionTuple getDriverKitVersion() const;
 
+  /// Parse the Vulkan version number from the OSVersion and SPIR-V version
+  /// (SubArch).  This should only be called with Vulkan SPIR-V triples.
+  VersionTuple getVulkanVersion() const;
+
   /// @}
   /// @name Direct Component Access
   /// @{
@@ -423,9 +435,6 @@ public:
 
   /// Get the architecture (first) component of the triple.
   StringRef getArchName() const;
-
-  /// Get the architecture name based on Kind and SubArch.
-  StringRef getArchName(ArchType Kind, SubArchType SubArch = NoSubArch) const;
 
   /// Get the vendor (second) component of the triple.
   StringRef getVendorName() const;
@@ -440,6 +449,12 @@ public:
   /// Get the operating system and optional environment components as a single
   /// string (separated by a '-' if the environment component is present).
   StringRef getOSAndEnvironmentName() const;
+
+  /// Get the version component of the environment component as a single
+  /// string (the version after the environment).
+  ///
+  /// For example, "fooos1.2.3" would return "1.2.3".
+  StringRef getEnvironmentVersionString() const;
 
   /// @}
   /// @name Convenience Predicates
@@ -515,14 +530,17 @@ public:
     return getSubArch() == Triple::ARMSubArch_v7k;
   }
 
+  /// Is this an Apple XROS triple.
+  bool isXROS() const { return getOS() == Triple::XROS; }
+
   /// Is this an Apple DriverKit triple.
   bool isDriverKit() const { return getOS() == Triple::DriverKit; }
 
   bool isOSzOS() const { return getOS() == Triple::ZOS; }
 
-  /// Is this a "Darwin" OS (macOS, iOS, tvOS, watchOS, or DriverKit).
+  /// Is this a "Darwin" OS (macOS, iOS, tvOS, watchOS, XROS, or DriverKit).
   bool isOSDarwin() const {
-    return isMacOSX() || isiOS() || isWatchOS() || isDriverKit();
+    return isMacOSX() || isiOS() || isWatchOS() || isDriverKit() || isXROS();
   }
 
   bool isSimulatorEnvironment() const {
@@ -677,6 +695,10 @@ public:
     return getOS() == Triple::AIX;
   }
 
+  bool isOSSerenity() const {
+    return getOS() == Triple::Serenity;
+  }
+
   /// Tests whether the OS uses the ELF binary format.
   bool isOSBinFormatELF() const {
     return getObjectFormat() == Triple::ELF;
@@ -768,6 +790,8 @@ public:
     return getOS() == Triple::ShaderModel;
   }
 
+  bool isVulkanOS() const { return getOS() == Triple::Vulkan; }
+
   bool isShaderStageEnvironment() const {
     EnvironmentType Env = getEnvironment();
     return Env == Triple::Pixel || Env == Triple::Vertex ||
@@ -783,6 +807,13 @@ public:
   /// Tests whether the target is SPIR (32- or 64-bit).
   bool isSPIR() const {
     return getArch() == Triple::spir || getArch() == Triple::spir64;
+  }
+
+  /// Tests whether the target is SPIR and AOT related.
+  bool isSPIRAOT() const {
+    return isSPIR() && (getSubArch() == Triple::SPIRSubArch_fpga ||
+                        getSubArch() == Triple::SPIRSubArch_gen ||
+                        getSubArch() == Triple::SPIRSubArch_x86_64);
   }
 
   /// Tests whether the target is SPIR-V (32/64-bit/Logical).
@@ -1018,6 +1049,10 @@ public:
            isWindowsCygwinEnvironment() || isOHOSFamily();
   }
 
+  /// True if the target supports both general-dynamic and TLSDESC, and TLSDESC
+  /// is enabled by default.
+  bool hasDefaultTLSDESC() const { return isAndroid() && isRISCV64(); }
+
   /// Tests whether the target uses -data-sections as default.
   bool hasDefaultDataSections() const {
     return isOSBinFormatXCOFF() || isWasm();
@@ -1123,6 +1158,9 @@ public:
 
   /// Get the canonical name for the \p Kind architecture.
   static StringRef getArchTypeName(ArchType Kind);
+
+  /// Get the architecture name based on \p Kind and \p SubArch.
+  static StringRef getArchName(ArchType Kind, SubArchType SubArch = NoSubArch);
 
   /// Get the "prefix" canonical name for the \p Kind architecture. This is the
   /// prefix used by the architecture specific builtins, and is suitable for

@@ -1,7 +1,7 @@
-// RUN: mlir-opt %s --pass-pipeline="builtin.module(test-transform-dialect-interpreter{transform-library-paths=%p/test-interpreter-library/definitions-self-contained.mlir})" \
+// RUN: mlir-opt %s --pass-pipeline="builtin.module(test-transform-dialect-interpreter{transform-library-paths=%p%{fs-sep}include%{fs-sep}test-interpreter-library/definitions-self-contained.mlir})" \
 // RUN:             --verify-diagnostics --split-input-file | FileCheck %s
 
-// RUN: mlir-opt %s --pass-pipeline="builtin.module(test-transform-dialect-interpreter{transform-library-paths=%p/test-interpreter-library/definitions-self-contained.mlir}, test-transform-dialect-interpreter)" \
+// RUN: mlir-opt %s --pass-pipeline="builtin.module(test-transform-dialect-interpreter{transform-library-paths=%p%{fs-sep}include%{fs-sep}test-interpreter-library/definitions-self-contained.mlir}, test-transform-dialect-interpreter)" \
 // RUN:             --verify-diagnostics --split-input-file | FileCheck %s
 
 // The definition of the @print_message named sequence is provided in another
@@ -27,34 +27,34 @@ module attributes {transform.with_named_sequence} {
 
   // These ops collide with ops from the other module before or after renaming.
   transform.named_sequence private @colliding(%arg0: !transform.any_op {transform.readonly}) {
-    transform.test_print_remark_at_operand %arg0, "internal colliding (without suffix)" : !transform.any_op
+    transform.debug.emit_remark_at %arg0, "internal colliding (without suffix)" : !transform.any_op
     transform.yield
   }
   transform.named_sequence private @colliding_0(%arg0: !transform.any_op {transform.readonly}) {
-    transform.test_print_remark_at_operand %arg0, "internal colliding_0" : !transform.any_op
+    transform.debug.emit_remark_at %arg0, "internal colliding_0" : !transform.any_op
     transform.yield
   }
   transform.named_sequence private @colliding_1(%arg0: !transform.any_op {transform.readonly}) {
-    transform.test_print_remark_at_operand %arg0, "internal colliding_1" : !transform.any_op
+    transform.debug.emit_remark_at %arg0, "internal colliding_1" : !transform.any_op
     transform.yield
   }
   transform.named_sequence private @colliding_3(%arg0: !transform.any_op {transform.readonly}) {
-    transform.test_print_remark_at_operand %arg0, "internal colliding_3" : !transform.any_op
+    transform.debug.emit_remark_at %arg0, "internal colliding_3" : !transform.any_op
     transform.yield
   }
   // This symbol is public and thus can't be renamed.
   // CHECK-DAG: transform.named_sequence @colliding_4(
   transform.named_sequence @colliding_4(%arg0: !transform.any_op {transform.readonly}) {
-    transform.test_print_remark_at_operand %arg0, "internal colliding_4" : !transform.any_op
+    transform.debug.emit_remark_at %arg0, "internal colliding_4" : !transform.any_op
     transform.yield
   }
   transform.named_sequence private @colliding_5(%arg0: !transform.any_op {transform.readonly}) {
-    transform.test_print_remark_at_operand %arg0, "internal colliding_5" : !transform.any_op
+    transform.debug.emit_remark_at %arg0, "internal colliding_5" : !transform.any_op
     transform.yield
   }
 
   // CHECK-DAG: transform.named_sequence @unannotated(
-  // CHECK-DAG: test_print_remark_at_operand %{{.*}}, "unannotated"
+  // CHECK-DAG: transform.debug.emit_remark_at %{{.*}}, "unannotated"
   transform.named_sequence @unannotated(!transform.any_op {transform.readonly})
 
   transform.sequence failures(propagate) {

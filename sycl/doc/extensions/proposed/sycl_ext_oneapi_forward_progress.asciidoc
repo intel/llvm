@@ -20,7 +20,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2022-2023 Intel Corporation.  All rights reserved.
+Copyright (C) 2022-2024 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -383,9 +383,11 @@ and work-groups to also provide concurrent forward progress guarantees). In
 such a case, an implementation must satisfy the strongest request(s).
 
 Devices may not be able to provide the requested forward progress guarantees
-for all launch configurations.  The <<launch, launch queries>> defined in a
-later section allow developers to identify valid launch configurations for
-specific combinations of properties.
+for all launch configurations. Developers should use the launch queries defined
+by the
+link:../proposed/sycl_ext_oneapi_launch_queries.asciidoc[sycl_ext_oneapi_launch_queries]
+extension to identify valid launch configurations for specific combinations of
+properties.
 
 [NOTE]
 ====

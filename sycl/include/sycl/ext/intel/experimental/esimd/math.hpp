@@ -1665,6 +1665,19 @@ __ESIMD_NS::simd<T, N> dp4(__ESIMD_NS::simd<T, N> v1,
   return retv;
 }
 
+/// srnd - perform stochastic rounding.
+/// Supported conversions:
+///   float -> half
+/// Available on PVC_XT+
+/// \param src0 the operand to be rounded
+/// \param src1 random number used for rounding
+/// \return the converted value
+template <int N>
+ESIMD_INLINE __ESIMD_NS::simd<sycl::half, N>
+srnd(__ESIMD_NS::simd<float, N> src0, __ESIMD_NS::simd<uint16_t, N> src1) {
+  return __esimd_srnd<N>(src0.data(), src1.data());
+}
+
 /// @} sycl_esimd_math
 
 /// @addtogroup sycl_esimd_logical
@@ -1708,6 +1721,13 @@ __ESIMD_API std::enable_if_t<__ESIMD_DNS::is_esimd_scalar<T>::value &&
                                  std::is_integral_v<T>,
                              T> bfn(T src0, T src1, T src2) {
   return __ESIMD_NS::bfn<FuncControl>(src0, src1, src2);
+}
+
+/// rdtsc - get the value of timestamp counter.
+/// \return the current value of timestamp counter
+ESIMD_INLINE uint64_t rdtsc() {
+  __ESIMD_NS::simd<uint32_t, 4> retv = __esimd_timestamp();
+  return retv.template bit_cast_view<uint64_t>()[0];
 }
 
 /// @} sycl_esimd_logical

@@ -143,6 +143,14 @@ enum class FPURestriction {
   SP_D16    ///< Only single-precision instructions, with 16 D registers
 };
 
+inline bool isDoublePrecision(const FPURestriction restriction) {
+  return restriction != FPURestriction::SP_D16;
+}
+
+inline bool has32Regs(const FPURestriction restriction) {
+  return restriction == FPURestriction::None;
+}
+
 // An FPU name implies one of three levels of Neon support:
 enum class NeonSupportLevel {
   None = 0, ///< No Neon
@@ -250,6 +258,7 @@ uint64_t parseArchExt(StringRef ArchExt);
 ArchKind parseCPUArch(StringRef CPU);
 ProfileKind parseArchProfile(StringRef Arch);
 unsigned parseArchVersion(StringRef Arch);
+unsigned parseArchMinorVersion(StringRef Arch);
 
 void fillValidCPUArchList(SmallVectorImpl<StringRef> &Values);
 StringRef computeDefaultTargetABI(const Triple &TT, StringRef CPU);

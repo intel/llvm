@@ -10,9 +10,11 @@ int main() {
   const sycl::device Dev{sycl::default_selector_v};
   const sycl::context Ctx{Dev};
 
-  queue Queue{Ctx,
-              Dev,
-              {sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+  queue Queue{Ctx, Dev};
+
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
 
   sycl::kernel_id KernelID = sycl::get_kernel_id<Kernel1Name>();
 
