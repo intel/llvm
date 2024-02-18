@@ -249,7 +249,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_event_handle_t hEvent{};
     ur_result_t result = pfnKernelLaunch(
         hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-        pLocalWorkSize, numEventsInWaitList, phEventWaitList, &hEvent);
+        pLocalWorkSize, hEvents.size(), hEvents.data(), &hEvent);
 
     if (result == UR_RESULT_SUCCESS) {
         context.interceptor->postLaunchKernel(hKernel, hQueue, hEvent,
