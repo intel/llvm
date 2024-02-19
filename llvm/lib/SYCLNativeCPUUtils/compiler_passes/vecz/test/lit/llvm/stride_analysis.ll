@@ -18,7 +18,7 @@
 
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
-; CHECK: StrideAnalysis for function '__vecz_v4_foo':
+; CHECK-LABEL: StrideAnalysis for function '__vecz_v4_foo':
 define spir_kernel void @foo(ptr addrspace(1) align 1 %input) {
 entry:
   %localid0 = tail call i64 @__mux_get_local_id(i32 0)
@@ -99,6 +99,75 @@ entry:
   %idxprom9 = and i64 %conv9, 4294967295
   %arrayidx9 = getelementptr inbounds i8, ptr addrspace(1) %input, i64 %idxprom9
   %ld9 = load i8, ptr addrspace(1) %arrayidx9, align 1
+
+  ret void
+}
+
+; CHECK-LABEL: StrideAnalysis for function '__vecz_v4_canny_regression':
+define spir_kernel void @canny_regression(ptr addrspace(1) align 1 %input) {
+entry:
+  %groupid0 = tail call i64 @__mux_get_group_id(i32 0)
+  %localid0 = tail call i64 @__mux_get_local_id(i32 0)
+  %localsize0 = tail call i64 @__mux_get_local_size(i32 0)
+  %mul = mul i64 %groupid0, %localsize0
+  %add = add i64 %mul, %localid0
+  %0 = trunc i64 %add to i32
+  %conv = add i32 %0, -1
+  %trunclocalsize0 = trunc i64 %localsize0 to i32
+
+; CHECK: Stride for %arrayidx_pre = getelementptr inbounds i8, ptr addrspace(1) %input, i64 %idxprom_pre
+; CHECK-NEXT: divergent
+  %idxprom_pre = zext i32 %conv to i64
+  %arrayidx_pre = getelementptr inbounds i8, ptr addrspace(1) %input, i64 %idxprom_pre
+  %ld_pre = load i8, ptr addrspace(1) %arrayidx_pre, align 1
+
+  br label %for.body
+
+for.body:
+; The below is fundamentally the same stride calculation as %arrayidx_pre -
+; make sure the loop and the PHI don't throw off the analysis.
+; CHECK: Stride for %arrayidx_loop = getelementptr inbounds i8, ptr addrspace(1) %input, i64 %idxprom_loop
+; CHECK-NEXT: divergent
+  %iv = phi i64 [ 0, %entry ], [ %iv.next, %for.body ]
+  %gx2.050.us = phi i32 [ %conv, %entry ], [ %conv26.us, %for.body ]
+  %idxprom_loop = zext i32 %gx2.050.us to i64
+  %arrayidx_loop = getelementptr inbounds i8, ptr addrspace(1) %input, i64 %idxprom_loop
+
+  %ld_loop = load i8, ptr addrspace(1) %arrayidx_loop, align 1
+
+  %conv26.us = add i32 %gx2.050.us, %trunclocalsize0
+  %iv.next = add nuw nsw i64 %iv, 1
+  %exit_cond = icmp ult i64 %iv.next, 2
+  br i1 %exit_cond, label %for.body, label %exit
+
+exit:
+  ret void
+}
+
+; CHECK-LABEL: StrideAnalysis for function '__vecz_v4_select_regression':
+define spir_kernel void @select_regression(ptr addrspace(1) align 1 %input, i1 %cmp) {
+entry:
+  %groupid0 = tail call i64 @__mux_get_group_id(i32 0)
+  %localid0 = tail call i64 @__mux_get_local_id(i32 0)
+  %localsize0 = tail call i64 @__mux_get_local_size(i32 0)
+  %mul = mul i64 %groupid0, %localsize0
+  %add = add i64 %mul, %localid0
+  %addtrunc = trunc i64 %add to i32
+
+; CHECK: Stride for %arrayidx0 = getelementptr inbounds i8, ptr addrspace(1) %input, i64 %idxprom0
+; CHECK-NEXT: divergent
+  %idxprom0 = zext i32 %addtrunc to i64
+  %arrayidx0 = getelementptr inbounds i8, ptr addrspace(1) %input, i64 %idxprom0
+  %ld0 = load i8, ptr addrspace(1) %arrayidx0, align 1
+
+; The below is fundamentally the same stride calculation as %arrayidx0 - make
+; sure the select doesn't throw off the analysis.
+; CHECK: Stride for %arrayidx1 = getelementptr inbounds i8, ptr addrspace(1) %input, i64 %idxprom1
+; CHECK-NEXT: divergent
+  %sel1 = select i1 %cmp, i32 %addtrunc, i32 %addtrunc
+  %idxprom1 = zext i32 %sel1 to i64
+  %arrayidx1 = getelementptr inbounds i8, ptr addrspace(1) %input, i64 %idxprom1
+  %ld1 = load i8, ptr addrspace(1) %arrayidx1, align 1
 
   ret void
 }
