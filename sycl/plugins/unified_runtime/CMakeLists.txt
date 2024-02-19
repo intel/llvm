@@ -4,9 +4,9 @@
 # Options to override the default behaviour of the FetchContent to include UR
 # source code.
 set(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO
-  "https://github.com/rafbiels/unified-runtime.git" CACHE STRING "Override the Unified Runtime FetchContent repository")
+  "" CACHE STRING "Override the Unified Runtime FetchContent repository")
 set(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG
-  "rafbiels/fix-cuda-maxreg-check" CACHE STRING "Override the Unified Runtime FetchContent tag")
+  "" CACHE STRING "Override the Unified Runtime FetchContent tag")
 
 # Options to disable use of FetchContent to include Unified Runtime source code
 # to improve developer workflow.
@@ -57,12 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 3487672ceba0fd3575b5f3f15a832b100dc5fbad
-  # Author: Artur Gainullin <artur.gainullin@intel.com>
-  # Date:   Fri Feb 16 09:59:50 2024 -0800
-  #
-  #     [UR] Provide flexibility to replace unified-memory-framework repo and tag
-  set(UNIFIED_RUNTIME_TAG 3487672ceba0fd3575b5f3f15a832b100dc5fbad)
+  # commit 24078c26ab871572067f520d856f4c65271cb9e5
+  # Merge: 227a5edf 89a66af7
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Mon Feb 19 11:51:49 2024 +0100
+  #     Merge pull request #1299 from rafbiels/rafbiels/fix-cuda-maxreg-check
+  #     [CUDA] Fix MaxRegsPerBlock check in setKernelParams
+  set(UNIFIED_RUNTIME_TAG 24078c26ab871572067f520d856f4c65271cb9e5)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
