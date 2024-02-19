@@ -255,6 +255,12 @@ struct OffsetInfo {
   /// @param[in] Other the other OffsetInfo to copy from
   /// @return Reference to the current object for chaining.
   OffsetInfo &copyStrideFrom(const OffsetInfo &Other);
+
+  /// @brief Copies the stride and bitmask information from another OffsetInfo
+  /// into this one
+  /// @param[in] Other the other OffsetInfo to copy from
+  /// @return Reference to the current object for chaining.
+  OffsetInfo &copyStrideAndBitMaskFrom(const OffsetInfo &Other);
 };
 
 }  // namespace vecz
