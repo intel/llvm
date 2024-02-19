@@ -34,7 +34,7 @@ template <size_t PartitionSize> void test() {
           [=](sycl::nd_item<1> item) [[sycl::reqd_sub_group_size(32)]] {
             auto WI = item.get_global_id();
             auto SG = item.get_sub_group();
-            auto WR = item.get_range(0);
+            auto WR = item.get_global_range(0);
 
             auto Partition = syclex::get_fixed_size_group<PartitionSize>(SG);
 
