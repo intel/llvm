@@ -27,8 +27,6 @@ private:
   size_t MaxWorkItemSizes[MaxWorkItemDimensions];
   size_t MaxWorkGroupSize{0};
   size_t MaxAllocSize{0};
-  int MaxBlockDimY{0};
-  int MaxBlockDimZ{0};
   int MaxRegsPerBlock{0};
   int MaxCapacityLocalMem{0};
   int MaxChosenLocalMem{0};
@@ -95,16 +93,11 @@ public:
 
   uint64_t getElapsedTime(CUevent) const;
 
-  void getMaxWorkItemSizes(size_t RetSize,
-                           size_t *RetMaxWorkItemSizes) const noexcept {
-    memcpy(RetMaxWorkItemSizes, MaxWorkItemSizes, RetSize);
-  };
+  size_t getMaxWorkItemSizes(int index) const noexcept {
+    return MaxWorkItemSizes[index];
+  }
 
   size_t getMaxWorkGroupSize() const noexcept { return MaxWorkGroupSize; };
-
-  size_t getMaxBlockDimY() const noexcept { return MaxBlockDimY; };
-
-  size_t getMaxBlockDimZ() const noexcept { return MaxBlockDimZ; };
 
   size_t getMaxRegsPerBlock() const noexcept { return MaxRegsPerBlock; };
 
