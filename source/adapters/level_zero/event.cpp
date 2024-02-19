@@ -1065,9 +1065,10 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
 ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
                         bool IsMultiDevice, bool HostVisible,
                         ur_event_handle_t *RetEvent,
-                        bool CounterBasedEventEnabled) {
-
-  bool ProfilingEnabled = !Queue || Queue->isProfilingEnabled();
+                        bool CounterBasedEventEnabled,
+                        bool ForceDisableProfiling) {
+  bool ProfilingEnabled =
+      ForceDisableProfiling ? false : (!Queue || Queue->isProfilingEnabled());
   bool UsingImmediateCommandlists = !Queue || Queue->UsingImmCmdLists;
 
   ur_device_handle_t Device = nullptr;
