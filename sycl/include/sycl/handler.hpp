@@ -418,8 +418,9 @@ template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
   }
   return true;
 }
-
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 using string = std::string;
+#endif
 
 } // namespace detail
 
