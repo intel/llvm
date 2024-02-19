@@ -110,6 +110,12 @@ members:
     - type: $x_bool_t
       name: isUpdatable
       desc: "[in] Commands in a finalized command-buffer can be updated."
+    - type: $x_bool_t
+      name: isInOrder
+      desc: "[in] Commands in a command-buffer may be executed in-order without explicit dependencies."
+    - type: $x_bool_t
+      name: enableProfiling
+      desc: "[in] Command-buffer profiling is enabled."
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Descriptor type for updating a kernel command memobj argument."
@@ -306,7 +312,8 @@ params:
       desc: "[in] The number of sync points in the provided dependency list."
     - type: "const $x_exp_command_buffer_sync_point_t*"
       name: pSyncPointWaitList
-      desc: "[in][optional] A list of sync points that this command depends on."
+      desc: "[in][optional] A list of sync points that this command depends on.
+      May be ignored if command-buffer is in-order."
     - type: "$x_exp_command_buffer_sync_point_t*"
       name: pSyncPoint
       desc: "[out][optional] Sync point associated with this command."
@@ -348,7 +355,8 @@ params:
       desc: "[in] The number of sync points in the provided dependency list."
     - type: "const $x_exp_command_buffer_sync_point_t*"
       name: pSyncPointWaitList
-      desc: "[in][optional] A list of sync points that this command depends on."
+      desc: "[in][optional] A list of sync points that this command depends on.
+      May be ignored if command-buffer is in-order."
     - type: "$x_exp_command_buffer_sync_point_t*"
       name: pSyncPoint
       desc: "[out][optional] Sync point associated with this command."
@@ -390,7 +398,8 @@ params:
       desc: "[in] The number of sync points in the provided dependency list."
     - type: "const $x_exp_command_buffer_sync_point_t*"
       name: pSyncPointWaitList
-      desc: "[in][optional] A list of sync points that this command depends on."
+      desc: "[in][optional] A list of sync points that this command depends on.
+      May be ignored if command-buffer is in-order."
     - type: "$x_exp_command_buffer_sync_point_t*"
       name: pSyncPoint
       desc: "[out][optional] sync point associated with this command."
@@ -438,7 +447,8 @@ params:
       desc: "[in] The number of sync points in the provided dependency list."
     - type: "const $x_exp_command_buffer_sync_point_t*"
       name: pSyncPointWaitList
-      desc: "[in][optional] A list of sync points that this command depends on."
+      desc: "[in][optional] A list of sync points that this command depends on.
+      May be ignored if command-buffer is in-order."
     - type: "$x_exp_command_buffer_sync_point_t*"
       name: pSyncPoint
       desc: "[out][optional] Sync point associated with this command."
@@ -477,7 +487,8 @@ params:
       desc: "[in] The number of sync points in the provided dependency list."
     - type: "const $x_exp_command_buffer_sync_point_t*"
       name: pSyncPointWaitList
-      desc: "[in][optional] A list of sync points that this command depends on."
+      desc: "[in][optional] A list of sync points that this command depends on.
+      May be ignored if command-buffer is in-order."
     - type: "$x_exp_command_buffer_sync_point_t*"
       name: pSyncPoint
       desc: "[out][optional] Sync point associated with this command."
@@ -516,7 +527,8 @@ params:
       desc: "[in] The number of sync points in the provided dependency list."
     - type: "const $x_exp_command_buffer_sync_point_t*"
       name: pSyncPointWaitList
-      desc: "[in][optional] A list of sync points that this command depends on."
+      desc: "[in][optional] A list of sync points that this command depends on.
+      May be ignored if command-buffer is in-order."
     - type: "$x_exp_command_buffer_sync_point_t*"
       name: pSyncPoint
       desc: "[out][optional] Sync point associated with this command."
@@ -570,7 +582,8 @@ params:
       desc: "[in] The number of sync points in the provided dependency list."
     - type: "const $x_exp_command_buffer_sync_point_t*"
       name: pSyncPointWaitList
-      desc: "[in][optional] A list of sync points that this command depends on."
+      desc: "[in][optional] A list of sync points that this command depends on.
+      May be ignored if command-buffer is in-order."
     - type: $x_exp_command_buffer_sync_point_t*
       name: pSyncPoint
       desc: "[out][optional] Sync point associated with this command."
@@ -624,7 +637,8 @@ params:
       desc: "[in] The number of sync points in the provided dependency list."
     - type: "const $x_exp_command_buffer_sync_point_t*"
       name: pSyncPointWaitList
-      desc: "[in][optional] A list of sync points that this command depends on."
+      desc: "[in][optional] A list of sync points that this command depends on.
+      May be ignored if command-buffer is in-order."
     - type: $x_exp_command_buffer_sync_point_t*
       name: pSyncPoint
       desc: "[out][optional] Sync point associated with this command."
@@ -678,7 +692,8 @@ params:
       desc: "[in] The number of sync points in the provided dependency list."
     - type: "const $x_exp_command_buffer_sync_point_t*"
       name: pSyncPointWaitList
-      desc: "[in][optional] A list of sync points that this command depends on."
+      desc: "[in][optional] A list of sync points that this command depends on.
+      May be ignored if command-buffer is in-order."
     - type: $x_exp_command_buffer_sync_point_t*
       name: pSyncPoint
       desc: "[out][optional] Sync point associated with this command."
@@ -720,7 +735,8 @@ params:
       desc: "[in] The number of sync points in the provided dependency list."
     - type: "const $x_exp_command_buffer_sync_point_t*"
       name: pSyncPointWaitList
-      desc: "[in][optional] A list of sync points that this command depends on."
+      desc: "[in][optional] A list of sync points that this command depends on.
+      May be ignored if command-buffer is in-order."
     - type: $x_exp_command_buffer_sync_point_t*
       name: pSyncPoint
       desc: "[out][optional] sync point associated with this command."
@@ -761,7 +777,8 @@ params:
       desc: "[in] The number of sync points in the provided dependency list."
     - type: "const $x_exp_command_buffer_sync_point_t*"
       name: pSyncPointWaitList
-      desc: "[in][optional] A list of sync points that this command depends on."
+      desc: "[in][optional] A list of sync points that this command depends on.
+      May be ignored if command-buffer is in-order."
     - type: "$x_exp_command_buffer_sync_point_t*"
       name: pSyncPoint
       desc: "[out][optional] sync point associated with this command."
@@ -804,7 +821,8 @@ params:
       desc: "[in] The number of sync points in the provided dependency list."
     - type: "const $x_exp_command_buffer_sync_point_t*"
       name: pSyncPointWaitList
-      desc: "[in][optional] A list of sync points that this command depends on."
+      desc: "[in][optional] A list of sync points that this command depends on.
+      May be ignored if command-buffer is in-order."
     - type: "$x_exp_command_buffer_sync_point_t*"
       name: pSyncPoint
       desc: "[out][optional] sync point associated with this command."
