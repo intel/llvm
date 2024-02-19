@@ -11,8 +11,9 @@
 #ifndef __SYCL_DEVICE_ONLY
 
 #include <sycl/detail/defines.hpp>
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string.hpp>
-
+#endif
 #include <cstring>
 #include <mutex>
 #include <vector>
@@ -68,6 +69,7 @@ struct CmpCStr {
 
 using SerializedObj = std::vector<unsigned char>;
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 // We need special handling of std::string to handle ABI incompatibility
 // for get_info<>() when it returns std::string and vector<std::string>.
 // For this purpose, get_info_impl<>() is created to handle special
@@ -81,6 +83,7 @@ template <> struct ABINeutralT<std::string> { using type = detail::string; };
 template <> struct ABINeutralT<std::vector<std::string>> {
   using type = std::vector<detail::string>;
 };
+#endif
 
 } // namespace detail
 } // namespace _V1

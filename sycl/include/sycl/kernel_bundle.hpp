@@ -15,6 +15,7 @@
 #include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
 #include <sycl/detail/pi.h>                // for pi_native_handle
 #include <sycl/detail/pi.hpp>              // for cast
+#include <sycl/detail/string_view.hpp>
 #include <sycl/device.hpp>                 // for device
 #include <sycl/kernel.hpp>                 // for kernel, kernel_bundle
 #include <sycl/kernel_bundle_enums.hpp>    // for bundle_state
@@ -456,7 +457,11 @@ template <typename KernelName> kernel_id get_kernel_id() {
   // FIXME: This must fail at link-time if KernelName not in any available
   // translation units.
   using KI = sycl::detail::KernelInfo<KernelName>;
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   return detail::get_kernel_id_impl(detail::string_view(KI::getName()));
+#else
+  return detail::get_kernel_id_impl(KI::getName());
+#endif
 }
 
 /// \returns a vector with all kernel_id's defined in the application
