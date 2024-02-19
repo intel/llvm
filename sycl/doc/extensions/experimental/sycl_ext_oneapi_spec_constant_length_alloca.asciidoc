@@ -100,7 +100,7 @@ implementation supports.
  feature-test macro always has this value.
 |===
 
-=== New Aspect for Specification Constant-Length Allocations
+=== New aspect for specialization constant-length allocations
 
 This extension adds a new device aspect:
 
@@ -136,7 +136,7 @@ aligned_private_alloca(kernel_handler &kh);
 _Mandates_: `ElementType` must be a cv-unqualified trivial type and `SpecName`
 must be a reference to a specialization constant of integral `value_type`. In
 the case of `aligned_private_alloca`, `Alignment` must be a power of 2
-fundamental alignment stricter than the alignment requirement of `ElementType`.
+fundamental alignment and must be a positive multiple of `alignof(ElementType)`.
 
 _Effects_: `h.get_specialization_constant<size>()` elements of type
 `ElementType` are allocated and default initialized in private memory.
@@ -148,18 +148,18 @@ decorated. In the case of `private_alloca`, the pointer is suitably aligned for
 an object of type `ElementType`. In the case of `aligned_private_alloca`, the
 pointer is aligned to the specified `Alignment`.
 
-_Remarks_: In case of private memory exhaustion, the underlying backend must
-report an error in the same fashion as if the allocation size were static. In
-case of a successful call, allocated memory has automatic storage
-duration. Additionally, `SpecName` must have a default value of at least 1 and
-not be set to a value less than 1 during program execution. Violation of these
-conditions results in undefined behaviour.
+_Remarks_: In case of private memory exhaustion, the implementation must report
+an error in the same fashion as if the allocation size were static. In case of a
+successful call, allocated memory has automatic storage duration. Additionally,
+`SpecName` must have a default value of at least 1 and not be set to a value
+less than 1 during program execution. Violation of these conditions results in
+undefined behaviour.
 
 == Example usage
 
 This non-normative section shows some example usages of the extension.
 
-=== Basic Usage
+=== Basic usage
 
 [source,c++]
 ----
@@ -182,7 +182,7 @@ void run(queue q, const float *in, float *out, size_t n) {
   });
 ----
 
-=== Storage Duration Clarification
+=== Storage duration clarification
 
 The following example is intended to clarify storage duration of memory
 allocated by `private_alloca`.
@@ -213,7 +213,7 @@ void run(queue q, const float *in, float *out, size_t n) {
   });
 ----
 
-== Design Constraints
+== Design constraints
 
 The big design constraint stems from the unknown allocation size at compile
 time. {cpp} does not support variable length arrays and complete type sizes must
@@ -225,7 +225,7 @@ closely follows what the user would get from a stack-allocated array.
 
 == Issues
 
-=== Default `DecorateAddress` Value
+=== Default `DecorateAddress` value
 
 At the time this extension was first proposed, there was no consensus for a
 default value for `sycl::access::decorate` in SYCL. The SYCL specification
@@ -235,7 +235,7 @@ this would not justify using that value in this extension.
 Although it would be desirable to have one, the SCLA extension will not commit
 to a default value until the SYCL community has come to an agreement.
 
-=== Passing Size as an Argument
+=== Passing size as an argument
 
 Initial design passes size as a `sycl::specialization_id<Integral> &` template
 argument and receives a `sycl::kernel_handler &` as an argument. This decision
@@ -255,7 +255,7 @@ private_alloca(const specialization_constant<std::size_t> &size);
 } // namespace sycl::ext::oneapi::experimental
 ----
 
-== Revision History
+== Revision history
 
 [cols="5,15,15,70"]
 [grid="rows"]
