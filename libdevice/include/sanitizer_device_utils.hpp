@@ -13,10 +13,7 @@
 template <typename T>
 class
 #ifdef __SYCL_DEVICE_ONLY__
-    [[__sycl_detail__::global_variable_allowed, __sycl_detail__::device_global,
-      __sycl_detail__::add_ir_attributes_global_variable(
-          "sycl-device-global-size", "sycl-device-image-scope", sizeof(T),
-          nullptr)]]
+    [[__sycl_detail__::global_variable_allowed, __sycl_detail__::device_global]]
 #endif
     DeviceGlobal {
 public:
