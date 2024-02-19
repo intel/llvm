@@ -267,7 +267,7 @@ public:
   /// the function.
   bool ext_oneapi_architecture_is(ext::oneapi::experimental::architecture arch);
 
-  /// Indicates if the SYCL device architecture equals is in the category passed
+  /// Indicates if the SYCL device architecture is in the category passed
   /// to the function.
   ///
   /// \param category is one of the architecture categories from arch_category
