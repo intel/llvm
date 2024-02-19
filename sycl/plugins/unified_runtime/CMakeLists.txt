@@ -57,13 +57,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit cfba9f160528018055881f1ccf9ab98ec59c963f
-  # Merge: 0bb2cad8 db5c33b2
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Feb 14 11:17:21 2024 +0100
-  #     Merge pull request #1216 from igchor/umf_standalone
-  #     [UR] Remove UMF sources and use standalone UMF repo instead
-  set(UNIFIED_RUNTIME_TAG cfba9f160528018055881f1ccf9ab98ec59c963f)
+  # commit 3487672ceba0fd3575b5f3f15a832b100dc5fbad
+  # Author: Artur Gainullin <artur.gainullin@intel.com>
+  # Date:   Fri Feb 16 09:59:50 2024 -0800
+  #
+  #     [UR] Provide flexibility to replace unified-memory-framework repo and tag
+  set(UNIFIED_RUNTIME_TAG 3487672ceba0fd3575b5f3f15a832b100dc5fbad)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

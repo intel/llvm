@@ -83,6 +83,7 @@ public:
     DebugInstCache[DebugInst] = Res;
     return static_cast<T *>(Res);
   }
+
   Instruction *transDebugIntrinsic(const SPIRVExtInst *DebugInst,
                                    BasicBlock *BB);
   void finalize();
@@ -98,6 +99,8 @@ private:
   unsigned getLineNo(const SPIRVEntry *E);
 
   MDNode *transDebugInstImpl(const SPIRVExtInst *DebugInst);
+
+  DIType *transNonNullDebugType(const SPIRVExtInst *DebugInst);
 
   llvm::DebugLoc transDebugLocation(const SPIRVExtInst *DebugInst);
 

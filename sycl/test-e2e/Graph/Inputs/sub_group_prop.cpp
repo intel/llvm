@@ -141,7 +141,7 @@ void test(queue &Queue, const std::vector<size_t> SupportedSGSizes) {
 }
 
 int main() {
-  queue Queue({sycl::ext::intel::property::queue::no_immediate_command_list{}});
+  queue Queue;
 
   if (!are_graphs_supported(Queue)) {
     return 0;
