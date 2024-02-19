@@ -60,9 +60,10 @@ template <> inline id<3> linear_id_to_id(range<3> r, size_t linear_id) {
 
 // ---- get_local_linear_range
 template <typename Group> inline auto get_local_linear_range(Group g) {
-  auto result = g.get_local_range(0);
+  auto local_range = g.get_local_range();
+  auto result = local_range[0];
   for (size_t i = 1; i < Group::dimensions; ++i)
-    result *= g.get_local_range(i);
+    result *= local_range[i];
   return result;
 }
 
