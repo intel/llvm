@@ -43,6 +43,36 @@ static constexpr bool
     contained_is_same_v<sycl::vec<Contained, NumElements>, ValueT, void> =
         std::is_same_v<Contained, ValueT>;
 
+template <typename Container, typename = void>
+static constexpr bool contained_is_integral_v = false;
+
+template <typename Container>
+static constexpr bool contained_is_integral_v<
+    Container, std::void_t<typename Container::value_type>> =
+    std::is_integral_v<typename Container::value_type>;
+
+// FIXME: Only needed because sycl::vec does not have the value_type alias
+template <typename Contained, int NumElements>
+static constexpr bool
+    contained_is_integral_v<sycl::vec<Contained, NumElements>, void> =
+        std::is_integral_v<Contained>;
+
+template <typename Container, typename = void>
+static constexpr bool contained_is_floating_point_v = false;
+
+template <typename Container>
+static constexpr bool contained_is_floating_point_v<
+    Container, std::void_t<typename Container::value_type>> =
+    std::is_floating_point_v<typename Container::value_type> ||
+    std::is_same_v<typename Container::value_type, sycl::half>;
+
+// FIXME: Only needed because sycl::vec does not have the value_type alias
+template <typename Contained, int NumElements>
+static constexpr bool
+    contained_is_floating_point_v<sycl::vec<Contained, NumElements>, void> =
+        std::is_floating_point_v<Contained> ||
+        std::is_same_v<Contained, sycl::half>;
+
 template <typename ValueT> struct should_skip {
   bool operator()(const sycl::device &dev) const {
     if constexpr (std::is_same_v<ValueT, double> ||
@@ -77,11 +107,11 @@ public:
       : grid_{grid}, threads_{threads}, skip_{skip} {}
 };
 
-template <typename ValueT, typename ValueU>
+// Templated TRes to support both arithmetic and boolean operators
+template <typename ValueT, typename ValueU,
+          typename TRes = std::common_type_t<ValueT, ValueU>>
 class BinaryOpTestLauncher : OpTestLauncher {
 protected:
-  using TRes = std::common_type_t<ValueT, ValueU>;
-
   ValueT *op1_;
   ValueU *op2_;
   TRes *res_;
@@ -117,14 +147,21 @@ public:
     syclcompat::launch<Kernel>(grid_, threads_, op1_, op2_, res_);
     syclcompat::wait();
 
-    if constexpr (std::is_integral_v<TRes>)
+    if constexpr (std::is_integral_v<ValueT>)
       assert(*res_ == expected);
-    if constexpr (std::is_floating_point_v<TRes>)
+    else if constexpr (std::is_floating_point_v<ValueT> ||
+                       std::is_same_v<ValueT, sycl::half>)
       assert(fabs(*res_ - expected) < ERROR_TOLERANCE);
+    else if constexpr (contained_is_floating_point_v<ValueT>) // Container
+      for (size_t i = 0; i < res_->size(); i++)
+        assert(fabs((*res_)[i] - expected[i]) < ERROR_TOLERANCE);
+    else
+      assert(0); // If arrived here, no results where checked
   }
 };
 
-template <typename ValueT> class UnaryOpTestLauncher : OpTestLauncher {
+template <typename ValueT, typename TRes = ValueT>
+class UnaryOpTestLauncher : OpTestLauncher {
 protected:
   ValueT *op_;
   ValueT *res_;
@@ -149,7 +186,7 @@ public:
     syclcompat::free(res_);
   }
 
-  template <auto Kernel> void launch_test(ValueT op, ValueT expected) {
+  template <auto Kernel> void launch_test(ValueT op, TRes expected) {
     if (skip_)
       return;
     *op_ = op;
@@ -158,7 +195,13 @@ public:
 
     if constexpr (std::is_integral_v<ValueT>)
       assert(*res_ == expected);
-    if constexpr (std::is_floating_point_v<ValueT>)
+    else if constexpr (std::is_floating_point_v<ValueT> ||
+                       std::is_same_v<ValueT, sycl::half>)
       assert(fabs(*res_ - expected) < ERROR_TOLERANCE);
+    else if constexpr (contained_is_floating_point_v<ValueT>) // Container
+      for (size_t i = 0; i < res_->size(); i++)
+        assert(fabs((*res_)[i] - expected[i]) < ERROR_TOLERANCE);
+    else
+      assert(0); // If arrived here, no results where checked
   }
 };
