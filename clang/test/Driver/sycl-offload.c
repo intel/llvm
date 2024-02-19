@@ -527,7 +527,14 @@
 // RUN:   | FileCheck -check-prefix=CHK-DISABLE-RANGE-ROUNDING %s
 // RUN: %clang_cl -### -fsycl -fsycl-targets=spir64 -Od %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DISABLE-RANGE-ROUNDING %s
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl \
+// RUN:        -O0 -fsycl-range-rounding=force %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OVERRIDE-RANGE-ROUNDING %s
+// RUN: %clang_cl -### -fsycl -Od %s 2>&1 -fsycl-range-rounding=force %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OVERRIDE-RANGE-ROUNDING %s
 // CHK-DISABLE-RANGE-ROUNDING: "-fsycl-range-rounding=disable"
+// CHK-OVERRIDE-RANGE-ROUNDING: "-fsycl-range-rounding=force"
+// CHK-OVERRIDE-RANGE-ROUNDING-NOT: "-fsycl-range-rounding=disable"
 
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl \
 // RUN:        -fsycl-targets=spir64 -O2 %s 2>&1 \
