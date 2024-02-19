@@ -477,15 +477,16 @@ inline sycl::marray<ValueT, 2> cmul_add(const sycl::marray<ValueT, 2> a,
 /// \param [in] a The first value
 /// \param [in] b The second value
 /// \returns the bigger value
-template <typename ValueT>
-inline ValueT fmax_nan(const ValueT a, const ValueT b) {
+template <typename ValueT, typename ValueU>
+inline std::common_type_t<ValueT, ValueU> fmax_nan(const ValueT a,
+                                                   const ValueU b) {
   if (detail::isnan(a) || detail::isnan(b))
     return NAN;
-  return sycl::fmax(a, b);
+  return sycl::fmax<std::common_type_t<ValueT, ValueU>>(a, b);
 }
-template <typename ValueT>
-inline sycl::vec<ValueT, 2> fmax_nan(const sycl::vec<ValueT, 2> a,
-                                     const sycl::vec<ValueT, 2> b) {
+template <typename ValueT, typename ValueU>
+inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
+fmax_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b) {
   return {fmax_nan(a[0], b[0]), fmax_nan(a[1], b[1])};
 }
 
@@ -494,15 +495,16 @@ inline sycl::vec<ValueT, 2> fmax_nan(const sycl::vec<ValueT, 2> a,
 /// \param [in] a The first value
 /// \param [in] b The second value
 /// \returns the smaller value
-template <typename ValueT>
-inline ValueT fmin_nan(const ValueT a, const ValueT b) {
+template <typename ValueT, typename ValueU>
+inline std::common_type_t<ValueT, ValueU> fmin_nan(const ValueT a,
+                                                   const ValueU b) {
   if (detail::isnan(a) || detail::isnan(b))
     return NAN;
-  return sycl::fmin(a, b);
+  return sycl::fmin<std::common_type_t<ValueT, ValueU>>(a, b);
 }
-template <typename ValueT>
-inline sycl::vec<ValueT, 2> fmin_nan(const sycl::vec<ValueT, 2> a,
-                                     const sycl::vec<ValueT, 2> b) {
+template <typename ValueT, typename ValueU>
+inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
+fmin_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b) {
   return {fmin_nan(a[0], b[0]), fmin_nan(a[1], b[1])};
 }
 

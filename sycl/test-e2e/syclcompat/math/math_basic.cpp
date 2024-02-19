@@ -71,6 +71,58 @@ void test_syclcompat_min() {
 }
 
 template <typename ValueT, typename ValueU>
+inline void fmin_nan_kernel(ValueT *a, ValueU *b,
+                            std::common_type_t<ValueT, ValueU> *r) {
+  *r = syclcompat::fmin_nan(*a, *b);
+}
+
+template <typename ValueT, typename ValueU = ValueT>
+void test_syclcompat_fmin_nan() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  constexpr syclcompat::dim3 grid{1};
+  constexpr syclcompat::dim3 threads{1};
+  constexpr ValueT op1 = static_cast<ValueT>(5);
+  constexpr ValueU op2 = static_cast<ValueU>(10);
+  ValueU op3 = sycl::nan(static_cast<unsigned int>(0));
+
+  constexpr std::common_type_t<ValueT, ValueU> res =
+      static_cast<std::common_type_t<ValueT, ValueU>>(5);
+
+  BinaryOpTestLauncher<ValueT, ValueU>(grid, threads)
+      .template launch_test<fmin_nan_kernel<ValueT, ValueU>>(op1, op2, res);
+
+  // BinaryOpTestLauncher<ValueT, ValueU>(grid, threads)
+  //     .template launch_test<fmin_nan_kernel<ValueT, ValueU>>(op1, op3, op3);
+}
+
+template <typename ValueT, typename ValueU>
+inline void fmax_nan_kernel(ValueT *a, ValueU *b,
+                            std::common_type_t<ValueT, ValueU> *r) {
+  *r = syclcompat::fmax_nan(*a, *b);
+}
+
+template <typename ValueT, typename ValueU = ValueT>
+void test_syclcompat_fmax_nan() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  constexpr syclcompat::dim3 grid{1};
+  constexpr syclcompat::dim3 threads{1};
+  constexpr ValueT op1 = static_cast<ValueT>(5);
+  constexpr ValueU op2 = static_cast<ValueU>(10);
+  ValueU op3 = sycl::nan(static_cast<unsigned int>(0));
+
+  constexpr std::common_type_t<ValueT, ValueU> res =
+      static_cast<std::common_type_t<ValueT, ValueU>>(10);
+
+  BinaryOpTestLauncher<ValueT, ValueU>(grid, threads)
+      .template launch_test<fmax_nan_kernel<ValueT, ValueU>>(op1, op2, res);
+
+  // BinaryOpTestLauncher<ValueT, ValueU>(grid, threads)
+  //     .template launch_test<fmax_nan_kernel<ValueT, ValueU>>(op1, op3, op3);
+}
+
+template <typename ValueT, typename ValueU>
 inline void pow_kernel(ValueT *a, ValueU *b, ValueT *r) {
   *r = syclcompat::pow(*a, *b);
 }
@@ -172,6 +224,11 @@ int main() {
   test_syclcompat_max<long, int>();
   test_syclcompat_min<double, float>();
   test_syclcompat_min<long, int>();
+
+  INSTANTIATE_ALL_TYPES(floating_type_list, test_syclcompat_fmin_nan);
+  test_syclcompat_fmin_nan<double, float>();
+  // INSTANTIATE_ALL_TYPES(floating_type_list, test_syclcompat_fmax_nan);
+  test_syclcompat_fmax_nan<double, float>();
 
   INSTANTIATE_ALL_TYPES(value_type_list, test_syclcompat_max);
   test_syclcompat_pow<float, int>();
