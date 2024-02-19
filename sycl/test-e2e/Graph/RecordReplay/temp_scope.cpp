@@ -26,8 +26,7 @@ void run_some_kernel(queue Queue, int *Data) {
 }
 
 int main() {
-  queue Queue{default_selector_v,
-              {sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+  queue Queue{default_selector_v};
 
   if (!are_graphs_supported(Queue)) {
     return 0;

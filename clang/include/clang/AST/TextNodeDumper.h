@@ -402,6 +402,7 @@ public:
   void
   VisitLifetimeExtendedTemporaryDecl(const LifetimeExtendedTemporaryDecl *D);
   void VisitHLSLBufferDecl(const HLSLBufferDecl *D);
+  void VisitOpenACCConstructStmt(const OpenACCConstructStmt *S);
 };
 
 } // namespace clang
