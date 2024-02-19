@@ -73,8 +73,7 @@ template <typename Group> inline auto get_local_linear_id(Group g) {
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_GROUP_GET_LOCAL_LINEAR_ID(D)                                    \
-  template <>                                                                  \
-  inline group<D>::linear_id_type get_local_linear_id<group<D>>(group<D>) {    \
+  template <> inline auto get_local_linear_id<group<D>>(group<D>) {            \
     nd_item<D> it = sycl::detail::Builder::getNDItem<D>();                     \
     return it.get_local_linear_id();                                           \
   }
