@@ -1,14 +1,14 @@
 ; RUN: llvm-spirv %s -to-binary -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.bc
-; RUN: llvm-dis %t.bc
-; RUN: FileCheck < %t.ll %s
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
+; RUN: FileCheck < %t.rev.ll %s
 
 ; CHECK: %[[StructTy:[0-9a-z.]+]] = type { float, i32 }
 ; CHECK: %[[#StructPtr:]] = alloca %[[StructTy]]
-; CHECK: %[[GEP:[0-9a-z.]+]] = getelementptr inbounds float, ptr %[[#StructPtr]], i32 0
+; CHECK: %[[GEP:[0-9a-z.]+]] = getelementptr inbounds %[[StructTy]], ptr %[[#StructPtr]], i32 0, i32 0
 ; CHECK: store float %[[#]], ptr %[[GEP]]
-; CHECK: %[[GEP1:[0-9a-z.]+]] = getelementptr inbounds i32, ptr %[[#StructPtr]], i32 1
+; CHECK: %[[GEP1:[0-9a-z.]+]] = getelementptr inbounds %[[StructTy]], ptr %[[#StructPtr]], i32 0, i32 1
 ; CHECK: store i32 %[[#]], ptr %[[GEP1]]
 ; CHECK: %[[LoadStr:[0-9a-z.]+]] = load %[[StructTy]], ptr %[[#StructPtr]]
 ; CHECK: ret %[[StructTy]] %[[LoadStr]]

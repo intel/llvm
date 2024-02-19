@@ -44,7 +44,7 @@ static Indices getAttributeValues(MDNode *MD) {
 ///   - reqd_work_group_size
 ///   - work_group_size_hint
 static void restoreKernelAttributes(Module *Mod, SYCLKernelInfo &Info) {
-  auto *KernelFunction = Mod->getFunction(Info.Name);
+  auto *KernelFunction = Mod->getFunction(Info.Name.c_str());
   assert(KernelFunction && "Kernel function not present in module");
   SmallVector<SYCLKernelAttribute, 2> Attrs;
   using AttrKind = SYCLKernelAttribute::AttrKind;
@@ -156,7 +156,7 @@ KernelTranslator::loadLLVMKernel(llvm::LLVMContext &LLVMCtx,
   llvm::StringRef RawData(reinterpret_cast<const char *>(BinInfo.BinaryStart),
                           BinInfo.BinarySize);
   return llvm::parseBitcodeFile(
-      MemoryBuffer::getMemBuffer(RawData, Kernel.Name,
+      MemoryBuffer::getMemBuffer(RawData, Kernel.Name.c_str(),
                                  /* RequiresNullTermnator*/ false)
           ->getMemBufferRef(),
       LLVMCtx);
@@ -259,7 +259,7 @@ KernelTranslator::translateToPTX(SYCLKernelInfo &KernelInfo, llvm::Module &Mod,
 
   llvm::StringRef TargetCPU{"sm_50"};
   llvm::StringRef TargetFeatures{"+sm_50,+ptx76"};
-  if (auto *KernelFunc = Mod.getFunction(KernelInfo.Name)) {
+  if (auto *KernelFunc = Mod.getFunction(KernelInfo.Name.c_str())) {
     if (KernelFunc->hasFnAttribute(TARGET_CPU_ATTRIBUTE)) {
       TargetCPU =
           KernelFunc->getFnAttribute(TARGET_CPU_ATTRIBUTE).getValueAsString();
@@ -333,7 +333,7 @@ KernelTranslator::translateToAMDGCN(SYCLKernelInfo &KernelInfo,
   // "Build DPC++ toolchain with support for HIP AMD"
   llvm::StringRef TargetCPU{"gfx906"};
   llvm::StringRef TargetFeatures{""};
-  if (auto *KernelFunc = Mod.getFunction(KernelInfo.Name)) {
+  if (auto *KernelFunc = Mod.getFunction(KernelInfo.Name.c_str())) {
     if (KernelFunc->hasFnAttribute(TARGET_CPU_ATTRIBUTE)) {
       TargetCPU =
           KernelFunc->getFnAttribute(TARGET_CPU_ATTRIBUTE).getValueAsString();

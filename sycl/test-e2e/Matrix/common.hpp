@@ -1,3 +1,10 @@
+//==------------------ common.hpp  - DPC++ joint_matrix---------------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 #include <cmath>
 #include <iostream>
 #include <random>
@@ -172,4 +179,28 @@ bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
     }
   }
   return true;
+}
+
+bool is_type_supported_by_device(queue q, matrix_type type) {
+  std::vector<combination> combinations =
+      q.get_device()
+          .get_info<sycl::ext::oneapi::experimental::info::device::
+                        matrix_combinations>();
+  for (int i = 0; i < combinations.size(); i++) {
+    if (combinations[i].atype == type) {
+      return true;
+    }
+  }
+  return false;
+}
+
+template <typename KernelName> size_t get_sg_size(queue q) {
+  auto KernelID = get_kernel_id<KernelName>();
+  auto KB =
+      get_kernel_bundle<bundle_state::executable>(q.get_context(), {KernelID});
+  auto kernel = KB.get_kernel(KernelID);
+
+  return kernel
+      .template get_info<info::kernel_device_specific::max_sub_group_size>(
+          q.get_device());
 }

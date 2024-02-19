@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %if linux && (level_zero || cuda) %{ env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 FileCheck %s %} %else %{ %{run} %t.out %}
 
+// prefetch command not supported for OpenCL
+// UNSUPPORTED: opencl
+
 // Since Prefetch is only a memory hint that doesn't
 // impact results but only performances, we verify
 // that a node is correctly added by checking PI function calls

@@ -652,6 +652,7 @@ namespace sycl::ext::oneapi::experimental {
 
 struct bindless_image_sampler {
 
+  // Assign addressing mode to all dimensions
   bindless_image_sampler(sycl::addressing_mode addressing,
                          sycl::coordinate_normalization_mode coordinate,
                          sycl::filtering_mode filtering);
@@ -663,7 +664,20 @@ struct bindless_image_sampler {
                          float minMipmapLevelClamp, float maxMipmapLevelClamp,
                          float maxAnisotropy);
 
-  sycl::addressing_mode addressing = sycl::addressing_mode::none;
+  // Specific addressing modes per dimension
+  bindless_image_sampler(sycl::addressing_mode addressing[3],
+                         sycl::coordinate_normalization_mode coordinate,
+                         sycl::filtering_mode filtering);
+
+  bindless_image_sampler(sycl::addressing_mode addressing[3],
+                         sycl::coordinate_normalization_mode coordinate,
+                         sycl::filtering_mode filtering,
+                         sycl::filtering_mode mipmapFiltering,
+                         float minMipmapLevelClamp, float maxMipmapLevelClamp,
+                         float maxAnisotropy);
+
+
+  sycl::addressing_mode addressing[3] = {sycl::addressing_mode::none};
   sycl::coordinate_normalization_mode coordinate =
       sycl::coordinate_normalization_mode::unnormalized;
   sycl::filtering_mode filtering = sycl::filtering_mode::nearest;
@@ -680,6 +694,10 @@ The `bindless_image_sampler` shall be default constructible and follow by-value
 semantics. The value for the addressing mode, `addressing_mode::none`, 
 represents the backend's default addressing mode. On CUDA this is `Wrap`, i.e. 
 `addressing_mode::repeat`.
+
+`addressing[3]` defines the addressing mode per texture dimension. A 
+`bindless_image_sampler` can be constructed with a singular 
+`sycl::addressing_mode`, where this parameter will define all dimensions.
 
 `mipmap_filtering` dictates the method in which sampling between mipmap 
 levels is performed.
@@ -1012,15 +1030,11 @@ of the <<recognized_standard_types>>.
 Sampled images cannot be written to using `write_image`.
 
 For reading and writing of unsampled images, coordinates are specified by `int`, 
-`sycl::vec<int, 2>`, and `sycl::vec<int, 4>` for 1D, 2D, and 3D images, 
+`sycl::vec<int, 2>`, and `sycl::vec<int, 3>` for 1D, 2D, and 3D images, 
 respectively.
 
 Sampled image reads take `float`, `sycl::vec<float, 2>`, and 
-`sycl::vec<float, 4>` coordinate types for 1D, 2D, and 3D images, respectively.
-
-Note that in the case of 3D reads or writes, coordinates for 3D images take a 
-vector of size 4, not 3, as the fourth element in the coordinate vector is 
-ignored.
+`sycl::vec<float, 3>` coordinate types for 1D, 2D, and 3D images, respectively.
 
 Note also that all images must be used in either read-only or write-only fashion 
 within a single kernel invocation; read/write images are not supported.
@@ -1043,7 +1057,7 @@ standard types.
 
 * All POD types (`char`, `short`, `int`, `float`, etc.) excluding `double`
 * `sycl::half`
-* Variants of `sycl::vec<T, N>` where `T` is one of the above, and `N` is `1`, `2`, or `4`
+* Variants of `sycl::vec<T, N>` where `T` is one of the above, and `N` is `1`, `2`, or `3`
 
 Any other types are classified as user-defined types.
 
@@ -1062,7 +1076,7 @@ struct my_short2 {
 ```
 
 When providing the above types as `DataT` parameters to an image read function, 
-the corresponding `HintT` parameters to use would be `sycl::vec<float, 4>` and 
+the corresponding `HintT` parameters to use would be `sycl::vec<float, 4>` and
 `sycl::vec<short, 2>`, respectively.
 
 == Mipmapped images
@@ -2060,4 +2074,6 @@ These features still need to be handled:
                    wording around what types are allowed to be read or written.
                  - Allow `read_image` and `read_mipmap` to return a 
                    user-defined type.
+|5.1|2023-12-06| - Added unique addressing modes per dimension to the 
+                   `bindless_image_sampler`
 |======================
