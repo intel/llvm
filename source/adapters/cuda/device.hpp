@@ -41,15 +41,19 @@ public:
         Platform(platform) {
 
     UR_CHECK_ERROR(cuDeviceGetAttribute(
-        &MaxBlockDimY, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y, cuDevice));
-    UR_CHECK_ERROR(cuDeviceGetAttribute(
-        &MaxBlockDimZ, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z, cuDevice));
-    UR_CHECK_ERROR(cuDeviceGetAttribute(
         &MaxRegsPerBlock, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
         cuDevice));
     UR_CHECK_ERROR(cuDeviceGetAttribute(
         &MaxCapacityLocalMem,
         CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK_OPTIN, cuDevice));
+
+    UR_CHECK_ERROR(urDeviceGetInfo(this, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
+                                   sizeof(MaxWorkItemSizes), MaxWorkItemSizes,
+                                   nullptr));
+
+    UR_CHECK_ERROR(urDeviceGetInfo(this, UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
+                                   sizeof(MaxWorkGroupSize), &MaxWorkGroupSize,
+                                   nullptr));
 
     // Set local mem max size if env var is present
     static const char *LocalMemSizePtrUR =
@@ -90,13 +94,6 @@ public:
   ur_platform_handle_t getPlatform() const noexcept { return Platform; };
 
   uint64_t getElapsedTime(CUevent) const;
-
-  void saveMaxWorkItemSizes(size_t Size,
-                            size_t *SaveMaxWorkItemSizes) noexcept {
-    memcpy(MaxWorkItemSizes, SaveMaxWorkItemSizes, Size);
-  };
-
-  void saveMaxWorkGroupSize(int Value) noexcept { MaxWorkGroupSize = Value; };
 
   void getMaxWorkItemSizes(size_t RetSize,
                            size_t *RetMaxWorkItemSizes) const noexcept {
