@@ -17,6 +17,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <string>
 
 namespace ur_sanitizer_layer {
 
@@ -106,5 +107,7 @@ bool SetupShadowMem();
 bool DestroyShadowMem();
 
 void *GetMemFunctionPointer(const char *);
+
+std::string DemangleName(const std::string &name);
 
 } // namespace ur_sanitizer_layer

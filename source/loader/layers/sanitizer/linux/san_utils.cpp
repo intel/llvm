@@ -15,8 +15,10 @@
 #include "ur_sanitizer_layer.hpp"
 
 #include <asm/param.h>
+#include <cxxabi.h>
 #include <dlfcn.h>
 #include <gnu/lib-names.h>
+#include <string>
 #include <sys/mman.h>
 
 extern "C" __attribute__((weak)) void __asan_init(void);
@@ -82,6 +84,17 @@ void *GetMemFunctionPointer(const char *FuncName) {
         context.logger.error("Failed to get '{}' from {}", FuncName, LIBC_SO);
     }
     return ptr;
+}
+
+std::string DemangleName(const std::string &name) {
+    std::string result = name;
+    char *demangled =
+        abi::__cxa_demangle(name.c_str(), nullptr, nullptr, nullptr);
+    if (demangled) {
+        result = demangled;
+        free(demangled);
+    }
+    return result;
 }
 
 } // namespace ur_sanitizer_layer
