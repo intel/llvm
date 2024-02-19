@@ -1,4 +1,4 @@
-= sycl_ext_oneapi_spec_constant_length_alloca
+= sycl_ext_oneapi_private_alloca
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -54,11 +54,11 @@ specification.*
 == Backend support status
 
 The APIs in this extension may be used only on a device that has
-`aspect::ext_oneapi_scla`. The application must check that the device has this
-aspect before submitting a kernel using any of the APIs in this extension. If
-the application fails to do this, the implementation throws a synchronous
-exception with the `errc::kernel_not_supported` error code when the kernel is
-submitted to the queue.
+`aspect::ext_oneapi_private_alloca`. The application must check that the device
+has this aspect before submitting a kernel using any of the APIs in this
+extension. If the application fails to do this, the implementation throws a
+synchronous exception with the `errc::kernel_not_supported` error code when the
+kernel is submitted to the queue.
 
 == Overview
 
@@ -84,11 +84,10 @@ specialization constants.
 
 This extension provides a feature-test macro as described in the core SYCL
 specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_ONEAPI_SPEC_CONSTANT_LENGTH_ALLOCA` to one of the values defined
-in the table below. Applications can test for the existence of this macro to
-determine if the implementation supports this feature, or applications can test
-the macro's value to determine which of the extension's features the
-implementation supports.
+macro `SYCL_EXT_ONEAPI_PRIVATE_ALLOCA` to one of the values defined in the table
+below. Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's value
+to determine which of the extension's features the implementation supports.
 
 [%header,cols="1,5"]
 |===
@@ -108,15 +107,15 @@ This extension adds a new device aspect:
 ----
 namespace sycl {
 enum class aspect : /*unspecified*/ {
-  ext_oneapi_scla
+  ext_oneapi_private_alloca
 };
 } // namespace sycl
 ----
 
-The `ext_oneapi_scla` aspect indicates that the device is capable of using the
-`private_alloca` API defined in the following sections.
+The `ext_oneapi_private_alloca` aspect indicates that the device is capable of
+using the `private_alloca` API defined in the following sections.
 
-=== The SCLA API
+=== The `private_alloca` API
 
 [source,c++]
 ----
@@ -232,8 +231,8 @@ default value for `sycl::access::decorate` in SYCL. The SYCL specification
 chooses `sycl::access::decorate::legacy` to avoid making breaking changes, but
 this would not justify using that value in this extension.
 
-Although it would be desirable to have one, the SCLA extension will not commit
-to a default value until the SYCL community has come to an agreement.
+Although it would be desirable to have one, the `private_alloca` extension will
+not commit to a default value until the SYCL community has come to an agreement.
 
 === Passing size as an argument
 
