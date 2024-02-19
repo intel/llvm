@@ -27,15 +27,19 @@ or copying the memory located on a separate "peer" device.
 
 Motivation
 --------------------------------------------------------------------------------
-Several important projects that the SYCL programming model aims to support use
-fine-grained peer to peer memory access controls.
-Two such examples that SYCL supports are Pytorch and Gromacs.
-This experimental extension to UR aims to provide a portable interface that can
-call appropriate driver functions to query and control peer memory access
-across the CUDA, HIP and L0 adapters.
+Several important projects that programming models such as SYCL or OpenMP aim
+to support use fine-grained peer to peer memory access controls.
+This experimental extension to the Unified-Runtime API aims to provide a
+portable interface that can call appropriate driver functions to query and
+control peer memory access within different adapters such as CUDA, HIP and
+Level Zero.
 
 API
 --------------------------------------------------------------------------------
+
+Macros
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+* ${X}_USM_P2P_EXTENSION_STRING_EXP
 
 Enums
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -51,11 +55,13 @@ Functions
 Changelog
 --------------------------------------------------------------------------------
 
-+-----------+------------------------+
-| Revision  | Changes                |
-+===========+========================+
-| 1.0       | Initial Draft          |
-+-----------+------------------------+
++-----------+---------------------------------------------+
+| Revision  | Changes                                     |
++===========+=============================================+
+| 1.0       | Initial Draft                               |
++-----------+---------------------------------------------+
+| 1.1       | Added USM_P2P_EXTENSION_STRING_EXP ID Macro |
++-----------+---------------------------------------------+
 
 Contributors
 --------------------------------------------------------------------------------
