@@ -323,8 +323,12 @@ inline std::enable_if_t<ValueT::size() == 2, ValueT> isnan(const ValueT a) {
 }
 
 /// cbrt function wrapper.
-template <typename ValueT> inline ValueT cbrt(ValueT val) {
-  return sycl::cbrt((ValueT)val);
+template <typename ValueT>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        ValueT>
+cbrt(ValueT val) {
+  return sycl::cbrt(static_cast<ValueT>(val));
 }
 
 // min function overloads.
@@ -355,37 +359,53 @@ std::enable_if_t<std::is_floating_point_v<T1> && std::is_floating_point_v<T2>,
 max(T1 a, T2 b) {
   return sycl::fmax<std::common_type_t<T1, T2>>(a, b);
 }
+// std::is_floating_point_v<sycl::half> is not satisfied
+sycl::half min(sycl::half a, sycl::half b) {
+  return sycl::fmin<sycl::half>(a, b);
+}
+sycl::half max(sycl::half a, sycl::half b) {
+  return sycl::fmax<sycl::half>(a, b);
+}
 
 // pow functions overload.
 inline float pow(const float a, const int b) { return sycl::pown(a, b); }
 inline double pow(const double a, const int b) { return sycl::pown(a, b); }
-inline float pow(const float a, const float b) { return sycl::pow(a, b); }
-inline double pow(const double a, const double b) { return sycl::pow(a, b); }
-template <typename ValueT, typename U>
+
+template <typename ValueT, typename ValueU>
 inline typename std::enable_if_t<std::is_floating_point_v<ValueT>, ValueT>
-pow(const ValueT a, const U b) {
+pow(const ValueT a, const ValueU b) {
   return sycl::pow(a, static_cast<ValueT>(b));
 }
-template <typename ValueT, typename U>
+template <typename ValueT, typename ValueU>
 inline typename std::enable_if_t<!std::is_floating_point_v<ValueT>, double>
-pow(const ValueT a, const U b) {
+pow(const ValueT a, const ValueU b) {
   return sycl::pow(static_cast<double>(a), static_cast<double>(b));
 }
 
 /// Performs relu saturation.
 /// \param [in] a The input value
 /// \returns the relu saturation result
-template <typename ValueT> inline ValueT relu(const ValueT a) {
+template <typename ValueT>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        ValueT>
+relu(const ValueT a) {
   if (!detail::isnan(a) && a < 0.f)
     return 0.f;
   return a;
 }
 template <class ValueT>
-inline sycl::vec<ValueT, 2> relu(const sycl::vec<ValueT, 2> a) {
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        sycl::vec<ValueT, 2>>
+relu(const sycl::vec<ValueT, 2> a) {
   return {relu(a[0]), relu(a[1])};
 }
 template <class ValueT>
-inline sycl::marray<ValueT, 2> relu(const sycl::marray<ValueT, 2> a) {
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        sycl::marray<ValueT, 2>>
+relu(const sycl::marray<ValueT, 2> a) {
   return {relu(a[0]), relu(a[1])};
 }
 
@@ -438,17 +458,16 @@ template <typename ValueT> sycl::vec<ValueT, 2> conj(sycl::vec<ValueT, 2> x) {
 /// \param [in] c The third value
 /// \returns the operation result
 template <typename ValueT>
-inline sycl::vec<ValueT, 2> complex_mul_add(const sycl::vec<ValueT, 2> a,
-                                            const sycl::vec<ValueT, 2> b,
-                                            const sycl::vec<ValueT, 2> c) {
+inline sycl::vec<ValueT, 2> cmul_add(const sycl::vec<ValueT, 2> a,
+                                     const sycl::vec<ValueT, 2> b,
+                                     const sycl::vec<ValueT, 2> c) {
   return sycl::vec<ValueT, 2>{a[0] * b[0] - a[1] * b[1] + c[0],
                               a[0] * b[1] + a[1] * b[0] + c[1]};
 }
 template <typename ValueT>
-inline sycl::marray<ValueT, 2>
-complex_mul_add(const sycl::marray<ValueT, 2> a,
-                const sycl::marray<ValueT, 2> b,
-                const sycl::marray<ValueT, 2> c) {
+inline sycl::marray<ValueT, 2> cmul_add(const sycl::marray<ValueT, 2> a,
+                                        const sycl::marray<ValueT, 2> b,
+                                        const sycl::marray<ValueT, 2> c) {
   return sycl::marray<ValueT, 2>{a[0] * b[0] - a[1] * b[1] + c[0],
                                  a[0] * b[1] + a[1] * b[0] + c[1]};
 }
