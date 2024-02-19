@@ -1544,7 +1544,7 @@ def SYCLIntelESimdVectorize : InheritableAttr {
 def SYCLScope : Attr {
   // No spelling, as this attribute can't be created in the source code.
   let Spellings = [];
-  let Args = [EnumArgument<"level", "Level", /*is_string=*/true,
+  let Args = [EnumArgument<"level", "Level", /*is_string=*/false,
                                              ["work_group", "work_item"],
                                              ["WorkGroup", "WorkItem"]>];
   let Subjects = SubjectList<[Function, Var]>;
@@ -2047,7 +2047,7 @@ def IntelReqdSubGroupSize: InheritableAttr {
 
 def IntelNamedSubGroupSize : InheritableAttr {
   let Spellings = [CXX11<"intel", "named_sub_group_size">];
-  let Args = [EnumArgument<"Type", "SubGroupSizeType", /*is_string=*/true,
+  let Args = [EnumArgument<"Type", "SubGroupSizeType", /*is_string=*/false,
                            ["automatic", "primary"],
                            ["Automatic", "Primary"]>];
   let Subjects = SubjectList<[Function], ErrorDiag>;
@@ -2696,7 +2696,7 @@ def SYCLIntelSinglePump : Attr {
 
 def SYCLIntelMemory : Attr {
   let Spellings = [CXX11<"intel", "fpga_memory">];
-  let Args = [EnumArgument<"Kind", "MemoryKind", /*is_string=*/true,
+  let Args = [EnumArgument<"Kind", "MemoryKind", /*is_string=*/false,
                            ["MLAB", "BLOCK_RAM", ""],
                            ["MLAB", "BlockRAM", "Default"], 1>];
   let AdditionalMembers = [{
