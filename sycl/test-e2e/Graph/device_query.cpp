@@ -6,11 +6,9 @@
 
 #include "graph_common.hpp"
 
-int main() {
-  queue Queue;
-
+void test(queue Queue) {
   if (!are_graphs_supported(Queue)) {
-    return 0;
+    return;
   }
 
   auto Device = Queue.get_device();
@@ -30,4 +28,12 @@ int main() {
   } else {
     assert(SupportsGraphs == exp_ext::graph_support_level::unsupported);
   }
+}
+
+int main() {
+  queue Queue;
+  test(Queue);
+
+  queue ioq{{sycl::property::queue::in_order()}};
+  test(ioq);
 }
