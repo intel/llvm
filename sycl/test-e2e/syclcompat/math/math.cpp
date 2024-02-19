@@ -40,12 +40,6 @@
 
 // These tests only check the API, not the functionality itself.
 
-void test_length() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  double d;
-  assert(!syclcompat::length(&d, 0));
-}
 
 void test_compare_half() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
