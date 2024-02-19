@@ -329,10 +329,10 @@ OffsetInfo &OffsetInfo::analyze(Value *Offset, StrideAnalysisResult &SAR) {
         return setKind(eOffsetUniformVariable);
       case compiler::utils::eBuiltinUniformityInstanceID:
         if (Builtin.properties & compiler::utils::eBuiltinPropertyLocalID) {
-          // If the local size is unknown (represented by zero), the
-          // resulting mask will be ~0ULL (all ones). Potentially, it is
-          // possible to use the CL_​DEVICE_​MAX_​WORK_​ITEM_​SIZES
-          // property as an upper bound in this case.
+          // If the local size is unknown (represented by zero), the resulting
+          // mask will be ~0ULL (all ones). Potentially, it is possible to use
+          // the CL_DEVICE_MAX_WORK_ITEM_SIZES property as an upper bound in
+          // this case.
           uint64_t LocalBitMask = SAR.UVR.VU.getLocalSize() - 1;
           LocalBitMask |= LocalBitMask >> 32;
           LocalBitMask |= LocalBitMask >> 16;
