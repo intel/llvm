@@ -8,6 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "common.hpp"
+#include "logger/ur_logger.hpp"
 
 #include <sstream>
 
@@ -54,35 +55,34 @@ void checkErrorUR(amd_comgr_status_t Result, const char *Function, int Line,
     return;
   }
 
-  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr ||
-      std::getenv("UR_SUPPRESS_ERROR_MESSAGE") == nullptr) {
-    const char *ErrorString = nullptr;
-    const char *ErrorName = nullptr;
-    switch (Result) {
-    case AMD_COMGR_STATUS_ERROR:
-      ErrorName = "AMD_COMGR_STATUS_ERROR";
-      ErrorString = "Generic error";
-      break;
-    case AMD_COMGR_STATUS_ERROR_INVALID_ARGUMENT:
-      ErrorName = "AMD_COMGR_STATUS_ERROR_INVALID_ARGUMENT";
-      ErrorString =
-          "One of the actual arguments does not meet a precondition stated in "
-          "the documentation of the corresponding formal argument.";
-      break;
-    case AMD_COMGR_STATUS_ERROR_OUT_OF_RESOURCES:
-      ErrorName = "AMD_COMGR_STATUS_ERROR_OUT_OF_RESOURCES";
-      ErrorString = "Failed to allocate the necessary resources";
-      break;
-    default:
-      break;
-    }
-    std::cerr << "\nUR HIP ERROR:"
-              << "\n\tValue:           " << Result
-              << "\n\tName:            " << ErrorName
-              << "\n\tDescription:     " << ErrorString
-              << "\n\tFunction:        " << Function
-              << "\n\tSource Location: " << File << ":" << Line << "\n\n";
+  const char *ErrorString = nullptr;
+  const char *ErrorName = nullptr;
+  switch (Result) {
+  case AMD_COMGR_STATUS_ERROR:
+    ErrorName = "AMD_COMGR_STATUS_ERROR";
+    ErrorString = "Generic error";
+    break;
+  case AMD_COMGR_STATUS_ERROR_INVALID_ARGUMENT:
+    ErrorName = "AMD_COMGR_STATUS_ERROR_INVALID_ARGUMENT";
+    ErrorString =
+        "One of the actual arguments does not meet a precondition stated in "
+        "the documentation of the corresponding formal argument.";
+    break;
+  case AMD_COMGR_STATUS_ERROR_OUT_OF_RESOURCES:
+    ErrorName = "AMD_COMGR_STATUS_ERROR_OUT_OF_RESOURCES";
+    ErrorString = "Failed to allocate the necessary resources";
+    break;
+  default:
+    break;
   }
+  std::stringstream SS;
+  SS << "\nUR HIP ERROR:"
+     << "\n\tValue:           " << Result
+     << "\n\tName:            " << ErrorName
+     << "\n\tDescription:     " << ErrorString
+     << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
+     << ":" << Line << "\n";
+  logger::error("{}", SS.str());
 
   if (std::getenv("PI_HIP_ABORT") != nullptr ||
       std::getenv("UR_HIP_ABORT") != nullptr) {
@@ -99,19 +99,17 @@ void checkErrorUR(hipError_t Result, const char *Function, int Line,
     return;
   }
 
-  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr ||
-      std::getenv("UR_SUPPRESS_ERROR_MESSAGE") == nullptr) {
-    const char *ErrorString = nullptr;
-    const char *ErrorName = nullptr;
-    ErrorName = hipGetErrorName(Result);
-    ErrorString = hipGetErrorString(Result);
-    std::cerr << "\nUR HIP ERROR:"
-              << "\n\tValue:           " << Result
-              << "\n\tName:            " << ErrorName
-              << "\n\tDescription:     " << ErrorString
-              << "\n\tFunction:        " << Function
-              << "\n\tSource Location: " << File << ":" << Line << "\n\n";
-  }
+  const char *ErrorString = hipGetErrorString(Result);
+  const char *ErrorName = hipGetErrorName(Result);
+
+  std::stringstream SS;
+  SS << "\nUR HIP ERROR:"
+     << "\n\tValue:           " << Result
+     << "\n\tName:            " << ErrorName
+     << "\n\tDescription:     " << ErrorString
+     << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
+     << ":" << Line << "\n";
+  logger::error("{}", SS.str());
 
   if (std::getenv("PI_HIP_ABORT") != nullptr ||
       std::getenv("UR_HIP_ABORT") != nullptr) {
@@ -127,13 +125,11 @@ void checkErrorUR(ur_result_t Result, const char *Function, int Line,
     return;
   }
 
-  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr ||
-      std::getenv("UR_SUPPRESS_ERROR_MESSAGE") == nullptr) {
-    std::cerr << "\nUR HIP ERROR:"
-              << "\n\tValue:           " << Result
-              << "\n\tFunction:        " << Function
-              << "\n\tSource Location: " << File << ":" << Line << "\n\n";
-  }
+  std::stringstream SS;
+  SS << "\nUR HIP ERROR:"
+     << "\n\tValue:           " << Result << "\n\tFunction:        " << Function
+     << "\n\tSource Location: " << File << ":" << Line << "\n";
+  logger::error("{}", SS.str());
 
   if (std::getenv("PI_HIP_ABORT") != nullptr ||
       std::getenv("UR_HIP_ABORT") != nullptr) {
@@ -157,17 +153,13 @@ hipError_t getHipVersionString(std::string &Version) {
 }
 
 void detail::ur::die(const char *pMessage) {
-  std::cerr << "ur_die: " << pMessage << '\n';
+  logger::always("ur_die: {}", pMessage);
   std::terminate();
 }
 
 void detail::ur::assertion(bool Condition, const char *pMessage) {
   if (!Condition)
     die(pMessage);
-}
-
-void detail::ur::hipPrint(const char *pMessage) {
-  std::cerr << "ur_print: " << pMessage << '\n';
 }
 
 // Global variables for UR_RESULT_ADAPTER_SPECIFIC_ERROR
