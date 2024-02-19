@@ -147,12 +147,12 @@ public:
     syclcompat::launch<Kernel>(grid_, threads_, op1_, op2_, res_);
     syclcompat::wait();
 
-    if constexpr (std::is_integral_v<ValueT>)
+    if constexpr (std::is_integral_v<TRes>)
       assert(*res_ == expected);
-    else if constexpr (std::is_floating_point_v<ValueT> ||
-                       std::is_same_v<ValueT, sycl::half>)
+    else if constexpr (std::is_floating_point_v<TRes> ||
+                       std::is_same_v<TRes, sycl::half>)
       assert(fabs(*res_ - expected) < ERROR_TOLERANCE);
-    else if constexpr (contained_is_floating_point_v<ValueT>) // Container
+    else if constexpr (contained_is_floating_point_v<TRes>) // Container
       for (size_t i = 0; i < res_->size(); i++)
         assert(fabs((*res_)[i] - expected[i]) < ERROR_TOLERANCE);
     else
@@ -193,12 +193,12 @@ public:
     syclcompat::launch<Kernel>(grid_, threads_, op_, res_);
     syclcompat::wait();
 
-    if constexpr (std::is_integral_v<ValueT>)
+    if constexpr (std::is_integral_v<TRes>)
       assert(*res_ == expected);
-    else if constexpr (std::is_floating_point_v<ValueT> ||
-                       std::is_same_v<ValueT, sycl::half>)
+    else if constexpr (std::is_floating_point_v<TRes> ||
+                       std::is_same_v<TRes, sycl::half>)
       assert(fabs(*res_ - expected) < ERROR_TOLERANCE);
-    else if constexpr (contained_is_floating_point_v<ValueT>) // Container
+    else if constexpr (contained_is_floating_point_v<TRes>) // Container
       for (size_t i = 0; i < res_->size(); i++)
         assert(fabs((*res_)[i] - expected[i]) < ERROR_TOLERANCE);
     else

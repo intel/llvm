@@ -202,6 +202,65 @@ template <typename ValueT> void test_unordered_compare_vec() {
           op1, op2, res2);
 }
 
+template <typename Container>
+void compare_both_kernel(Container *a, Container *b, bool *r) {
+  *r = syclcompat::compare_both(*a, *b, std::equal_to<>());
+}
+
+template <typename ValueT> void test_compare_both() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  using Container = sycl::vec<ValueT, 2>;
+
+  constexpr syclcompat::dim3 grid{1};
+  constexpr syclcompat::dim3 threads{1};
+  constexpr Container op1 = {static_cast<ValueT>(1.0),
+                             static_cast<ValueT>(2.0)};
+  Container op2 = {static_cast<ValueT>(1.0),
+                   sycl::nan(static_cast<unsigned int>(0))};
+
+  //  1.0 == 1.0, 2.0 == NaN -> {true, false} -> false
+  BinaryOpTestLauncher<Container, Container, bool>(grid, threads)
+      .template launch_test<compare_both_kernel<Container>>(op1, op2, false);
+
+  //  1.0 == 1.0, 2.0 == 2.0 -> {true, true} -> true
+  BinaryOpTestLauncher<Container, Container, bool>(grid, threads)
+      .template launch_test<compare_both_kernel<Container>>(op1, op1, true);
+
+  //  1.0 == 1.0, NaN == NaN -> {true, false} -> false
+  BinaryOpTestLauncher<Container, Container, bool>(grid, threads)
+      .template launch_test<compare_both_kernel<Container>>(op2, op2, false);
+}
+
+template <typename Container>
+void unordered_compare_both_kernel(Container *a, Container *b, bool *r) {
+  *r = syclcompat::unordered_compare_both(*a, *b, std::equal_to<>());
+}
+
+template <typename ValueT> void test_unordered_compare_both() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  using Container = sycl::vec<ValueT, 2>;
+
+  constexpr syclcompat::dim3 grid{1};
+  constexpr syclcompat::dim3 threads{1};
+  constexpr Container op1 = {static_cast<ValueT>(1.0),
+                             static_cast<ValueT>(2.0)};
+  Container op2 = {static_cast<ValueT>(1.0),
+                   sycl::nan(static_cast<unsigned int>(0))};
+
+  //  1.0 == 1.0, 2.0 == NaN -> {true, true} -> true
+  BinaryOpTestLauncher<Container, Container, bool>(grid, threads)
+      .template launch_test<unordered_compare_both_kernel<Container>>(op1, op2,
+                                                                      true);
+  //  1.0 == 1.0, 2.0 == 2.0 -> {true, true} -> true
+  BinaryOpTestLauncher<Container, Container, bool>(grid, threads)
+      .template launch_test<unordered_compare_both_kernel<Container>>(op1, op1,
+                                                                      true);
+  //  1.0 == 1.0, NaN == NaN -> {true, true} -> true
+  BinaryOpTestLauncher<Container, Container, bool>(grid, threads)
+      .template launch_test<unordered_compare_both_kernel<Container>>(op2, op2,
+                                                                      true);
+}
+
 /*
 
 template <class F> void test_vectorized_binary() {
@@ -279,8 +338,8 @@ int main() {
   INSTANTIATE_ALL_TYPES(floating_type_list, test_unordered_compare);
   INSTANTIATE_ALL_TYPES(floating_type_list, test_compare_vec);
   INSTANTIATE_ALL_TYPES(floating_type_list, test_unordered_compare_vec);
-  // INSTANTIATE_ALL_TYPES(floating_type_list, test_compare_both);
-  // INSTANTIATE_ALL_TYPES(floating_type_list, test_unordered_compare_both);
+  INSTANTIATE_ALL_TYPES(floating_type_list, test_compare_both);
+  INSTANTIATE_ALL_TYPES(floating_type_list, test_unordered_compare_both);
 
   // TODO: These currently only check API
   // test_vectorized_binary_abs_diff();
