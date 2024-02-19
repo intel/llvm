@@ -641,7 +641,10 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
 
   if (Subtarget.hasStdExtA()) {
     setMaxAtomicSizeInBitsSupported(Subtarget.getXLen());
-    setMinCmpXchgSizeInBits(32);
+    if (Subtarget.hasStdExtZabha() && Subtarget.hasStdExtZacas())
+      setMinCmpXchgSizeInBits(8);
+    else
+      setMinCmpXchgSizeInBits(32);
   } else if (Subtarget.hasForcedAtomics()) {
     setMaxAtomicSizeInBitsSupported(Subtarget.getXLen());
   } else {
@@ -1414,7 +1417,7 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
                          ISD::SHL, ISD::STORE, ISD::SPLAT_VECTOR,
                          ISD::BUILD_VECTOR, ISD::CONCAT_VECTORS,
                          ISD::EXPERIMENTAL_VP_REVERSE, ISD::MUL,
-                         ISD::INSERT_VECTOR_ELT});
+                         ISD::INSERT_VECTOR_ELT, ISD::ABS});
   if (Subtarget.hasVendorXTHeadMemPair())
     setTargetDAGCombine({ISD::LOAD, ISD::STORE});
   if (Subtarget.useRVVForFixedLengthVectors())
@@ -13371,7 +13374,7 @@ struct NodeExtensionHelper {
     unsigned ExtOpc = *SExt ? RISCVISD::VSEXT_VL : RISCVISD::VZEXT_VL;
 
     // If we need an extension, we should be changing the type.
-    SDLoc DL(Root);
+    SDLoc DL(OrigOperand);
     auto [Mask, VL] = getMaskAndVL(Root, DAG, Subtarget);
     switch (OrigOperand.getOpcode()) {
     case ISD::ZERO_EXTEND:
@@ -15000,8 +15003,8 @@ static SDValue useInversedSetcc(SDNode *N, SelectionDAG &DAG,
     ISD::CondCode CC = cast<CondCodeSDNode>(Cond.getOperand(2))->get();
     if (CC == ISD::SETEQ && LHS.getOpcode() == ISD::AND &&
         isa<ConstantSDNode>(LHS.getOperand(1)) && isNullConstant(RHS)) {
-      uint64_t MaskVal = LHS.getConstantOperandVal(1);
-      if (isPowerOf2_64(MaskVal) && !isInt<12>(MaskVal))
+      const APInt &MaskVal = LHS.getConstantOperandAPInt(1);
+      if (MaskVal.isPowerOf2() && !MaskVal.isSignedIntN(12))
         return DAG.getSelect(DL, VT,
                              DAG.getSetCC(DL, CondVT, LHS, RHS, ISD::SETNE),
                              False, True);
@@ -15607,6 +15610,19 @@ SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
     assert(Op0.getOpcode() == ISD::FABS);
     return DAG.getNode(ISD::AND, DL, VT, NewFMV,
                        DAG.getConstant(~SignBit, DL, VT));
+  }
+  case ISD::ABS: {
+    EVT VT = N->getValueType(0);
+    SDValue N0 = N->getOperand(0);
+    // abs (sext) -> zext (abs)
+    // abs (zext) -> zext (handled elsewhere)
+    if (VT.isVector() && N0.hasOneUse() && N0.getOpcode() == ISD::SIGN_EXTEND) {
+      SDValue Src = N0.getOperand(0);
+      SDLoc DL(N);
+      return DAG.getNode(ISD::ZERO_EXTEND, DL, VT,
+                         DAG.getNode(ISD::ABS, DL, Src.getValueType(), Src));
+    }
+    break;
   }
   case ISD::ADD: {
     if (SDValue V = combineBinOp_VLToVWBinOp_VL(N, DCI, Subtarget))
@@ -19731,12 +19747,16 @@ RISCVTargetLowering::shouldExpandAtomicRMWInIR(AtomicRMWInst *AI) const {
     return AtomicExpansionKind::None;
 
   unsigned Size = AI->getType()->getPrimitiveSizeInBits();
-  if (Size == 8 || Size == 16)
-    return AtomicExpansionKind::MaskedIntrinsic;
+  if (AI->getOperation() == AtomicRMWInst::Nand) {
+    if (Subtarget.hasStdExtZacas() &&
+        (Size >= 32 || Subtarget.hasStdExtZabha()))
+      return AtomicExpansionKind::CmpXChg;
+    if (Size < 32)
+      return AtomicExpansionKind::MaskedIntrinsic;
+  }
 
-  if (Subtarget.hasStdExtZacas() && AI->getOperation() == AtomicRMWInst::Nand &&
-      (Size == Subtarget.getXLen() || Size == 32))
-    return AtomicExpansionKind::CmpXChg;
+  if (Size < 32 && !Subtarget.hasStdExtZabha())
+    return AtomicExpansionKind::MaskedIntrinsic;
 
   return AtomicExpansionKind::None;
 }
@@ -19859,7 +19879,8 @@ RISCVTargetLowering::shouldExpandAtomicCmpXchgInIR(
     return AtomicExpansionKind::None;
 
   unsigned Size = CI->getCompareOperand()->getType()->getPrimitiveSizeInBits();
-  if (Size == 8 || Size == 16)
+  if (!(Subtarget.hasStdExtZabha() && Subtarget.hasStdExtZacas()) &&
+      (Size == 8 || Size == 16))
     return AtomicExpansionKind::MaskedIntrinsic;
   return AtomicExpansionKind::None;
 }
