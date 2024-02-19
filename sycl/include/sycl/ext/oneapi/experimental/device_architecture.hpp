@@ -1033,10 +1033,11 @@ constexpr static auto if_architecture_is(T fn) {
 /// family as @tparam Arch and compares less than @tparam Arch.
 template <architecture Arch, typename T>
 constexpr static auto if_architecture_is_lt(T fn) {
+  constexpr auto compare_op_lt = [](architecture a, architecture b) constexpr {
+    return a < b;
+  };
   if constexpr (sycl::detail::device_architecture_comparison_aot<Arch>(
-                    [](architecture a, architecture b) constexpr {
-                      return a < b;
-                    })) {
+                    compare_op_lt)) {
     fn();
     return sycl::detail::if_architecture_helper<false>{};
   } else {
