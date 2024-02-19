@@ -75,7 +75,8 @@ struct OffsetInfo {
   uint64_t BitMask;
 
   /// @brief Construct a new offset information object from a general value
-  /// @param[in] B The StrideAnalysisResult used to retrieve other OffsetInfos.
+  /// @param[in] SAR The StrideAnalysisResult used to retrieve other
+  /// OffsetInfos.
   /// @param[in] V Offset value to analyze.
   OffsetInfo(StrideAnalysisResult &SAR, llvm::Value *V);
 
@@ -119,7 +120,7 @@ struct OffsetInfo {
   /// @brief Convert the bytewise stride into an element-wise stride based on
   /// the data type and data layout, as an integer.
   ///
-  /// @param[in] PtrTy The element data type.
+  /// @param[in] PtrEleTy The element data type.
   /// @param[in] DL The Data Layout.
   /// @return The memory stride as number of elements.
 
@@ -131,7 +132,7 @@ struct OffsetInfo {
   /// that the stride must be manifest first.
   ///
   /// @param[in] B an IRBuilder used for creating constants or instructions.
-  /// @param[in] PtrTy The element data type.
+  /// @param[in] PtrEleTy The element data type.
   /// @param[in] DL The Data Layout.
   /// @return The memory stride as number of elements.
   llvm::Value *buildMemoryStride(llvm::IRBuilder<> &B, llvm::Type *PtrEleTy,
@@ -254,6 +255,12 @@ struct OffsetInfo {
   /// @param[in] Other the other OffsetInfo to copy from
   /// @return Reference to the current object for chaining.
   OffsetInfo &copyStrideFrom(const OffsetInfo &Other);
+
+  /// @brief Copies the stride and bitmask information from another OffsetInfo
+  /// into this one
+  /// @param[in] Other the other OffsetInfo to copy from
+  /// @return Reference to the current object for chaining.
+  OffsetInfo &copyStrideAndBitMaskFrom(const OffsetInfo &Other);
 };
 
 }  // namespace vecz
