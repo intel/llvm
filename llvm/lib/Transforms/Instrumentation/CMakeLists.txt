@@ -39,4 +39,5 @@ add_llvm_component_library(LLVMInstrumentation
   TargetParser
   TransformUtils
   ProfileData
+  SYCLLowerIR
   )

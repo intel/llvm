@@ -10,9 +10,6 @@
 #include "spir_global_var.hpp"
 #include <cstdint>
 
-// Treat this header as system one to workaround frontend's restriction
-#pragma clang system_header
-
 template <typename T>
 class
 #ifdef __SYCL_DEVICE_ONLY__

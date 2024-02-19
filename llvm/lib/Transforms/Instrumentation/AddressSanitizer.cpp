@@ -63,6 +63,7 @@
 #include "llvm/IR/Use.h"
 #include "llvm/IR/Value.h"
 #include "llvm/MC/MCSectionMachO.h"
+#include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -298,6 +299,11 @@ static cl::opt<bool> ClUseAfterScope("asan-use-after-scope",
 static cl::opt<bool> ClGlobals("asan-globals",
                                cl::desc("Handle global objects"), cl::Hidden,
                                cl::init(true));
+
+static cl::opt<bool>
+    ClDeviceGlobals("asan-device-globals",
+                    cl::desc("Handle sycl device global objects"), cl::Hidden,
+                    cl::init(true));
 
 static cl::opt<bool> ClInitializers("asan-initialization-order",
                                     cl::desc("Handle C++ initializer order"),
@@ -850,6 +856,7 @@ private:
   void initializeCallbacks(Module &M);
 
   void instrumentGlobals(IRBuilder<> &IRB, Module &M, bool *CtorComdat);
+  void instrumentSyclDeviceGlobals(IRBuilder<> &IRB, Module &M);
   void InstrumentGlobalsCOFF(IRBuilder<> &IRB, Module &M,
                              ArrayRef<GlobalVariable *> ExtendedGlobals,
                              ArrayRef<Constant *> MetadataInitializers);
@@ -2352,6 +2359,78 @@ Instruction *ModuleAddressSanitizer::CreateAsanModuleDtor(Module &M) {
   return ReturnInst::Create(*C, AsanDtorBB);
 }
 
+void ModuleAddressSanitizer::instrumentSyclDeviceGlobals(IRBuilder<> &IRB,
+                                                         Module &M) {
+  auto &DL = M.getDataLayout();
+  SmallVector<GlobalVariable *, 8> GlobalsToRemove;
+  SmallVector<GlobalVariable *, 8> NewDeviceGlobals;
+  SmallVector<Constant *, 8> DeviceGlobalMetadata;
+
+  // Device global meta data is described by a structure
+  //  size_t device_global_size
+  //  size_t device_global_size_with_red_zone
+  //  size_t beg
+  StructType *StructTy = StructType::get(IntptrTy, IntptrTy, IntptrTy);
+
+  for (auto &G : M.globals()) {
+    if (isDeviceGlobalVariable(G) && hasDeviceImageScopeProperty(G)) {
+      Type *Ty = G.getValueType();
+      const uint64_t SizeInBytes = DL.getTypeAllocSize(Ty);
+      const uint64_t RightRedzoneSize = getRedzoneSizeForGlobal(SizeInBytes);
+      Type *RightRedZoneTy = ArrayType::get(IRB.getInt8Ty(), RightRedzoneSize);
+      StructType *NewTy = StructType::get(Ty, RightRedZoneTy);
+      Constant *NewInitializer = ConstantStruct::get(
+          NewTy, G.getInitializer(), Constant::getNullValue(RightRedZoneTy));
+
+      // Create a new global variable with enough space for a redzone.
+      GlobalVariable *NewGlobal = new GlobalVariable(
+          M, NewTy, G.isConstant(), G.getLinkage(), NewInitializer, "", &G,
+          G.getThreadLocalMode(), G.getAddressSpace());
+      NewGlobal->copyAttributesFrom(&G);
+      NewGlobal->setComdat(G.getComdat());
+      NewGlobal->setAlignment(Align(getMinRedzoneSizeForGlobal()));
+      NewGlobal->copyMetadata(&G, 0);
+
+      Value *Indices2[2];
+      Indices2[0] = IRB.getInt32(0);
+      Indices2[1] = IRB.getInt32(0);
+
+      G.replaceAllUsesWith(
+          ConstantExpr::getGetElementPtr(NewTy, NewGlobal, Indices2, true));
+      NewGlobal->takeName(&G);
+      GlobalsToRemove.push_back(&G);
+      NewDeviceGlobals.push_back(NewGlobal);
+      DeviceGlobalMetadata.push_back(ConstantStruct::get(
+          StructTy, ConstantInt::get(IntptrTy, SizeInBytes),
+          ConstantInt::get(IntptrTy, SizeInBytes + RightRedzoneSize),
+          ConstantExpr::getPointerCast(NewGlobal, IntptrTy)));
+    }
+  }
+
+  if (GlobalsToRemove.empty())
+    return;
+
+  // Create global to record number of device globals
+  GlobalVariable *NumOfDeviceGlobals = new GlobalVariable(
+      M, IntptrTy, false, GlobalValue::ExternalLinkage,
+      ConstantInt::get(IntptrTy, NewDeviceGlobals.size()),
+      "__AsanDeviceGlobalCount", nullptr, GlobalValue::NotThreadLocal, 1);
+  NumOfDeviceGlobals->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+
+  // Create meta data global to record device globals' information
+  ArrayType *ArrayTy = ArrayType::get(StructTy, NewDeviceGlobals.size());
+  Constant *MetadataInitializer =
+      ConstantArray::get(ArrayTy, DeviceGlobalMetadata);
+  GlobalVariable *AsanDeviceGlobalMetadata = new GlobalVariable(
+      M, MetadataInitializer->getType(), false, GlobalValue::ExternalLinkage,
+      MetadataInitializer, "__AsanDeviceGlobalMetadata", nullptr,
+      GlobalValue::NotThreadLocal, 1);
+  AsanDeviceGlobalMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+
+  for (auto *G : GlobalsToRemove)
+    G->eraseFromParent();
+}
+
 void ModuleAddressSanitizer::InstrumentGlobalsCOFF(
     IRBuilder<> &IRB, Module &M, ArrayRef<GlobalVariable *> ExtendedGlobals,
     ArrayRef<Constant *> MetadataInitializers) {
@@ -2819,8 +2898,13 @@ bool ModuleAddressSanitizer::instrumentModule(Module &M) {
     }
   }
 
-  // SPIR kernel needn't AsanCtorFunction & AsanDtorFunction
   if (TargetTriple.isSPIR()) {
+    if (ClDeviceGlobals) {
+      IRBuilder<> IRB(*C);
+      instrumentSyclDeviceGlobals(IRB, M);
+    }
+
+    // SPIR kernel needn't AsanCtorFunction & AsanDtorFunction
     AsanCtorFunction = nullptr;
     AsanDtorFunction = nullptr;
   }
