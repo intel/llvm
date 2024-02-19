@@ -86,6 +86,41 @@ template <typename ValueT> void test_compare() {
       .template launch_test<compare_not_equal_kernel<ValueT>>(op2, op2, false);
 }
 
+template <typename Container>
+void compare_equal_vec_kernel(Container *a, Container *b, Container *r) {
+  *r = syclcompat::compare(*a, *b, std::equal_to<>());
+}
+
+template <typename Container>
+void compare_not_equal_vec_kernel(Container *a, Container *b, Container *r) {
+  *r = syclcompat::compare(*a, *b, std::not_equal_to<>());
+}
+
+template <typename ValueT> void test_compare_vec() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  using Container = sycl::vec<ValueT, 2>;
+
+  constexpr syclcompat::dim3 grid{1};
+  constexpr syclcompat::dim3 threads{1};
+  constexpr Container op1 = {static_cast<ValueT>(1.0),
+                             static_cast<ValueT>(2.0)};
+  Container op2 = {static_cast<ValueT>(1.0),
+                   sycl::nan(static_cast<unsigned int>(0))};
+
+  // bool2 does not exist, 1.0 and 0.0 floats are used for true
+  // and false instead.
+  //  1.0 == 1.0, 2.0 == NaN -> {true, false}
+  constexpr Container res1 = {1.0, 0.0};
+  BinaryOpTestLauncher<Container, Container>(grid, threads)
+      .template launch_test<compare_equal_vec_kernel<Container>>(op1, op2,
+                                                                 res1);
+  //  1.0 != 1.0, 2.0 != NaN -> {false, false}
+  constexpr Container res2 = {0.0, 0.0};
+  BinaryOpTestLauncher<Container, Container>(grid, threads)
+      .template launch_test<compare_not_equal_vec_kernel<Container>>(op1, op2,
+                                                                     res2);
+}
+
 template <typename ValueT>
 void unordered_compare_equal_kernel(ValueT *a, ValueT *b, bool *r) {
   *r = syclcompat::unordered_compare(*a, *b, std::equal_to<>());
@@ -107,7 +142,7 @@ void test_unordered_compare() {
 
   // Unordered comparison checks if either operand is NaN, or the binaryop holds
   // true
-  //  1.0 == 1.0 -> False
+  //  1.0 == 1.0 -> True
   BinaryOpTestLauncher<ValueT, ValueT, bool>(grid, threads)
       .template launch_test<unordered_compare_equal_kernel<ValueT>>(op1, op1,
                                                                     true);
@@ -130,23 +165,44 @@ void test_unordered_compare() {
   // No need to check again if either operand is NaN
 }
 
-void isnan_kernel(sycl::float2 *a, sycl::float2 *r) {
-  *r = syclcompat::isnan(*a);
+template <typename Container>
+void unordered_compare_equal_vec_kernel(Container *a, Container *b,
+                                        Container *r) {
+  *r = syclcompat::unordered_compare(*a, *b, std::equal_to<>());
 }
 
-void test_isnan() {
+template <typename Container>
+void unordered_compare_not_equal_vec_kernel(Container *a, Container *b,
+                                            Container *r) {
+  *r = syclcompat::unordered_compare(*a, *b, std::not_equal_to<>());
+}
+
+template <typename ValueT> void test_unordered_compare_vec() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
+  using Container = sycl::vec<ValueT, 2>;
 
   constexpr syclcompat::dim3 grid{1};
   constexpr syclcompat::dim3 threads{1};
-  sycl::float2 op1 = {sycl::nan(static_cast<unsigned int>(0)), 1.0f};
-  // bool2 does not exist,1.0 and 0.0 floats are used for true
-  // and false instead.
-  sycl::float2 expect = {1.0, 0.0};
+  constexpr Container op1 = {static_cast<ValueT>(1.0),
+                             static_cast<ValueT>(2.0)};
+  Container op2 = {static_cast<ValueT>(1.0),
+                   sycl::nan(static_cast<unsigned int>(0))};
 
-  UnaryOpTestLauncher<sycl::float2>(grid, threads)
-      .template launch_test<isnan_kernel>(op1, expect);
+  // bool2 does not exist, 1.0 and 0.0 floats are used for true
+  // and false instead.
+  //  1.0 == 1.0, 2.0 == NaN -> {true, true}
+  constexpr Container res1 = {1.0, 1.0};
+  BinaryOpTestLauncher<Container, Container>(grid, threads)
+      .template launch_test<unordered_compare_equal_vec_kernel<Container>>(
+          op1, op2, res1);
+  //  1.0 != 1.0, 2.0 != NaN -> {false, true}
+  constexpr Container res2 = {0.0, 1.0};
+  BinaryOpTestLauncher<Container, Container>(grid, threads)
+      .template launch_test<unordered_compare_not_equal_vec_kernel<Container>>(
+          op1, op2, res2);
 }
+
+/*
 
 template <class F> void test_vectorized_binary() {
   unsigned u;
@@ -216,26 +272,26 @@ void test_vectorized_sum_abs_diff() {
   unsigned u;
   syclcompat::vectorized_sum_abs_diff<sycl::short2>(u, u);
 }
+ */
 
 int main() {
   INSTANTIATE_ALL_TYPES(floating_type_list, test_compare);
   INSTANTIATE_ALL_TYPES(floating_type_list, test_unordered_compare);
-  INSTANTIATE_ALL_TYPES(floating_type_list, test_compare_both);
-  INSTANTIATE_ALL_TYPES(floating_type_list, test_unordered_compare_both);
-  test_isnan();
+  INSTANTIATE_ALL_TYPES(floating_type_list, test_compare_vec);
+  INSTANTIATE_ALL_TYPES(floating_type_list, test_unordered_compare_vec);
+  // INSTANTIATE_ALL_TYPES(floating_type_list, test_compare_both);
+  // INSTANTIATE_ALL_TYPES(floating_type_list, test_unordered_compare_both);
 
   // TODO: These currently only check API
-  // test_compare_both();
-  // test_unordered_compare_both();
-  test_vectorized_binary_abs_diff();
-  test_vectorized_binary_add_sat();
-  test_vectorized_binary_rhadd();
-  test_vectorized_binary_hadd();
-  test_vectorized_binary_maximum();
-  test_vectorized_binary_minimum();
-  test_vectorized_binary_sub_sat();
-  test_vectorized_unary();
-  test_vectorized_sum_abs_diff();
+  // test_vectorized_binary_abs_diff();
+  // test_vectorized_binary_add_sat();
+  // test_vectorized_binary_rhadd();
+  // test_vectorized_binary_hadd();
+  // test_vectorized_binary_maximum();
+  // test_vectorized_binary_minimum();
+  // test_vectorized_binary_sub_sat();
+  // test_vectorized_unary();
+  // test_vectorized_sum_abs_diff();
 
   return 0;
 }

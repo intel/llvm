@@ -145,6 +145,24 @@ template <typename ValueT> void test_syclcompat_cbrt() {
       .template launch_test<cbrt_kernel<ValueT>>(op2, res2);
 }
 
+void isnan_kernel(sycl::float2 *a, sycl::float2 *r) {
+  *r = syclcompat::isnan(*a);
+}
+
+void test_isnan() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  constexpr syclcompat::dim3 grid{1};
+  constexpr syclcompat::dim3 threads{1};
+  sycl::float2 op1 = {sycl::nan(static_cast<unsigned int>(0)), 1.0f};
+  // bool2 does not exist,1.0 and 0.0 floats are used for true
+  // and false instead.
+  sycl::float2 expect = {1.0, 0.0};
+
+  UnaryOpTestLauncher<sycl::float2>(grid, threads)
+      .template launch_test<isnan_kernel>(op1, expect);
+}
+
 int main() {
   INSTANTIATE_ALL_TYPES(value_type_list, test_syclcompat_max);
   INSTANTIATE_ALL_TYPES(value_type_list, test_syclcompat_min);
@@ -162,5 +180,6 @@ int main() {
   INSTANTIATE_ALL_TYPES(floating_type_list, test_syclcompat_relu);
   INSTANTIATE_ALL_TYPES(floating_type_list, test_syclcompat_cbrt);
 
+  test_isnan();
   return 0;
 }
