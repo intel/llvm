@@ -132,13 +132,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 08b3e8fe6c5ad0aed125823c335eb44343845f6c
-    # Merge: 758c6149 db47fc0a
+    # commit 760eaa38ae8cacf3143188a3293d8f9a2a3608f7
+    # Merge: 38e9478b e68f26fa
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Wed Apr 10 16:22:00 2024 +0100
-    #     Merge pull request #1359 from lplewa/hip_log
-    #     Refactor hip adapter to new logger
-    08b3e8fe6c5ad0aed125823c335eb44343845f6c
+    # Date:   Thu Apr 11 15:36:52 2024 +0100
+    #     Merge pull request #1357 from Bensuo/ewan/hip_nullptr
+    #     [HIP] Check for null arg to urKernelSetArgMemObj
+    760eaa38ae8cacf3143188a3293d8f9a2a3608f7
   )
 
   fetch_adapter_source(native_cpu
