@@ -57,14 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 47102cb2b275472054803a9399b5b977ef210b23
-  # Merge: 186bfb9d 2390664d
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Fri Feb 9 12:21:47 2024 +0000
-  #     Merge pull request #1328 from Bensuo/maxime/events-reset-bugfix
-  #     [EXP][CMDBUF] Reset events for multiple submissions (bugfix)
-  set(UNIFIED_RUNTIME_TAG 47102cb2b275472054803a9399b5b977ef210b23)
-  
+  # commit 3487672ceba0fd3575b5f3f15a832b100dc5fbad
+  # Author: Artur Gainullin <artur.gainullin@intel.com>
+  # Date:   Fri Feb 16 09:59:50 2024 -0800
+  #
+  #     [UR] Provide flexibility to replace unified-memory-framework repo and tag
+  set(UNIFIED_RUNTIME_TAG 3487672ceba0fd3575b5f3f15a832b100dc5fbad)
+
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
   endif()
@@ -124,7 +123,7 @@ set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/com
 
 add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 add_library(UnifiedRuntimeCommon ALIAS ur_common)
-add_library(UnifiedMallocFramework ALIAS unified_malloc_framework)
+add_library(UnifiedMemoryFramework ALIAS umf)
 
 add_library(UnifiedRuntime-Headers INTERFACE)
 

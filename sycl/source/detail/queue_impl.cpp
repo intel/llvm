@@ -118,11 +118,6 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   // Emit a begin/end scope for this call
   PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
 #endif
-  if (MGraph.lock()) {
-    throw sycl::exception(make_error_code(errc::invalid),
-                          "The memset feature is not yet available "
-                          "for use with the SYCL Graph extension.");
-  }
 
   return submitMemOpHelper(
       Self, DepEvents, [&](handler &CGH) { CGH.memset(Ptr, Value, Count); },
@@ -169,11 +164,6 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
   // Emit a begin/end scope for this call
   PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
 #endif
-  // If we have a command graph set we need to capture the copy through normal
-  // queue submission rather than execute the copy directly.
-  auto HandlerFunc = [&](handler &CGH) { CGH.memcpy(Dest, Src, Count); };
-  if (MGraph.lock())
-    return submitWithHandler(Self, DepEvents, HandlerFunc);
 
   if ((!Src || !Dest) && Count != 0) {
     report(CodeLoc);
@@ -181,7 +171,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                         PI_ERROR_INVALID_VALUE);
   }
   return submitMemOpHelper(
-      Self, DepEvents, HandlerFunc,
+      Self, DepEvents, [&](handler &CGH) { CGH.memcpy(Dest, Src, Count); },
       [](const auto &...Args) { MemoryManager::copy_usm(Args...); }, Src, Self,
       Count, Dest);
 }
@@ -190,14 +180,9 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
                              pi_mem_advice Advice,
                              const std::vector<event> &DepEvents) {
-  // If we have a command graph set we need to capture the advise through normal
-  // queue submission.
-  auto HandlerFunc = [&](handler &CGH) { CGH.mem_advise(Ptr, Length, Advice); };
-  if (MGraph.lock())
-    return submitWithHandler(Self, DepEvents, HandlerFunc);
-
   return submitMemOpHelper(
-      Self, DepEvents, HandlerFunc,
+      Self, DepEvents,
+      [&](handler &CGH) { CGH.mem_advise(Ptr, Length, Advice); },
       [](const auto &...Args) { MemoryManager::advise_usm(Args...); }, Ptr,
       Self, Length, Advice);
 }
@@ -353,7 +338,10 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
     const std::vector<event> &ExpandedDepEvents =
         getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
 
-    if (areEventsSafeForSchedulerBypass(ExpandedDepEvents, MContext)) {
+    // If we have a command graph set we need to capture the op through the
+    // handler rather than by-passing the scheduler.
+    if (!MGraph.lock() &&
+        areEventsSafeForSchedulerBypass(ExpandedDepEvents, MContext)) {
       if (MSupportsDiscardingPiEvents) {
         MemOpFunc(MemOpArgs..., getPIEvents(ExpandedDepEvents),
                   /*PiEvent*/ nullptr, /*EventImplPtr*/ nullptr);
