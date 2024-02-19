@@ -90,7 +90,7 @@ int main() {
 
             // Extension: read image data from handle
             float px1 = syclexp::read_image<float>(
-                imgHandle, sycl::float4(fdim0, fdim1, fdim2, (float)0));
+                imgHandle, sycl::float3(fdim0, fdim1, fdim2));
 
             outAcc[sycl::id<3>{dim2, dim1, dim0}] = px1;
           });

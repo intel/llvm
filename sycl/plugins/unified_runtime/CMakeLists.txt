@@ -119,7 +119,7 @@ set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/com
 
 add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 add_library(UnifiedRuntimeCommon ALIAS ur_common)
-add_library(UnifiedMallocFramework ALIAS unified_malloc_framework)
+add_library(UnifiedMemoryFramework ALIAS umf)
 
 add_library(UnifiedRuntime-Headers INTERFACE)
 
