@@ -1713,7 +1713,7 @@ int main(int argc, char **argv) {
 
   // Check output
   for (size_t i = 0; i < n_points; i++) {
-    assert(h_Y[i] - h_expected[i] < 1e6);
+    assert(fabs(h_Y[i] - h_expected[i]) < 1e-6);
   }
 
   // Clean up memory
