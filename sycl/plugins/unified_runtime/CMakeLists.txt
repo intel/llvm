@@ -56,14 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/0x12CC/unified-runtime.git")
-  # commit c53953ae492587698d5adbab8ffee254d97b6a4e
-  # Merge: 9f88cf88 66d52ace
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 3fd11f1d23e7634fd7a847074a4e752273a19223
+  # Merge: 24078c26 8a8d7044
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Jan 10 14:50:23 2024 +0000
-  #     Merge pull request #1170 from jchlanda/jakub/hip_custom_dirs
-  #     [HIP] Allow custom location of ROCm components
-  set(UNIFIED_RUNTIME_TAG 8a8d70442271fb1bddc107181d33ff929672c804)
+  # Date:   Mon Feb 19 14:07:05 2024 +0100
+  #     Merge pull request #1246 from 0x12CC/cooperative_kernel_functions
+  #     [UR] Add default implementation for cooperative kernel functions
+  set(UNIFIED_RUNTIME_TAG 3fd11f1d23e7634fd7a847074a4e752273a19223)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
