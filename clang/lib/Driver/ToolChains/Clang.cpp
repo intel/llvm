@@ -5092,7 +5092,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool IsFPGASYCLOffloadDevice =
       IsSYCLOffloadDevice &&
       Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga;
-  const bool IsSYCLNativeCPU = isSYCLNativeCPU(TC, C.getDefaultToolChain());
+  const bool IsSYCLNativeCPU = isSYCLNativeCPU(TC);
 
   // Perform the SYCL host compilation using an external compiler if the user
   // requested.
