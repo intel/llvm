@@ -548,6 +548,8 @@ public:
   /// Map of devices to command buffers.
   std::unordered_map<sycl::device, sycl::detail::pi::PiExtCommandBuffer>
       MPiCommandBuffers;
+  /// List of predecessors to this partition.
+  std::vector<std::shared_ptr<partition>> MPredecessors;
 
   /// @return True if the partition contains a host task
   bool isHostTask() const {
@@ -1188,6 +1190,9 @@ private:
   std::vector<sycl::detail::EventImplPtr> MExecutionEvents;
   /// List of the partitions that compose the exec graph.
   std::vector<std::shared_ptr<partition>> MPartitions;
+  /// Map of the partitions to their execution events
+  std::unordered_map<std::shared_ptr<partition>, sycl::detail::EventImplPtr>
+      MPartitionsExecutionEvents;
   /// Storage for copies of nodes from the original modifiable graph.
   std::vector<std::shared_ptr<node_impl>> MNodeStorage;
 };

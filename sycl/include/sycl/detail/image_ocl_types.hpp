@@ -139,7 +139,7 @@ static RetType __invoke__ImageReadGrad(SmpImageT SmpImg, CoordT Coords,
   auto TmpGraddX = sycl::detail::convertToOpenCLType(Dx);
   auto TmpGraddY = sycl::detail::convertToOpenCLType(Dy);
 
-  enum ImageOperands { Grad = 0x3 };
+  enum ImageOperands { Grad = 0x4 };
 
   // OpImageSampleExplicitLod
   // Its components must be the same as Sampled Type of the underlying
