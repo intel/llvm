@@ -52,6 +52,13 @@ Functions
 * ${x}UsmP2PDisablePeerAccessExp
 * ${x}UsmP2PPeerAccessGetInfoExp
 
+Support
+--------------------------------------------------------------------------------
+
+Adapters which support this experimental feature *must* return the valid string
+defined in ``${X}_USM_P2P_EXTENSION_STRING_EXP`` as one of the options from
+${x}DeviceGetInfo when querying for ${X}_DEVICE_INFO_EXTENSIONS.
+
 Changelog
 --------------------------------------------------------------------------------
 
