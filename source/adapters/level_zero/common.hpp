@@ -287,18 +287,6 @@ template <class T> struct ZesStruct : public T {
   }
 };
 
-// Trace an internal PI call; returns in case of an error.
-#define UR_CALL(Call)                                                          \
-  {                                                                            \
-    if (PrintTrace)                                                            \
-      fprintf(stderr, "UR ---> %s\n", #Call);                                  \
-    ur_result_t Result = (Call);                                               \
-    if (PrintTrace)                                                            \
-      fprintf(stderr, "UR <--- %s(%s)\n", #Call, getUrResultString(Result));   \
-    if (Result != UR_RESULT_SUCCESS)                                           \
-      return Result;                                                           \
-  }
-
 // This function will ensure compatibility with both Linux and Windows for
 // setting environment variables.
 bool setEnvVar(const char *name, const char *value);

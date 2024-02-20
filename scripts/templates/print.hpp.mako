@@ -9,7 +9,7 @@ from templates import helper as th
     X=x.upper()
 %>/*
  *
- * Copyright (C) 2023 Intel Corporation
+ * Copyright (C) 2023-2024 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
  * See LICENSE.TXT
@@ -156,7 +156,7 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
 %for spec in specs:
 %for obj in spec['objects']:
 %if re.match(r"enum", obj['type']):
-    inline std::ostream &operator<<(std::ostream &os, ${th.make_enum_name(n, tags, obj)} value);
+    inline std::ostream &operator<<(std::ostream &os, enum ${th.make_enum_name(n, tags, obj)} value);
 %elif re.match(r"struct", obj['type']):
     inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const ${obj['type']} ${th.make_type_name(n, tags, obj)} params);
 %endif
@@ -173,12 +173,12 @@ template <typename T> inline ${x}_result_t printTagged(std::ostream &os, const v
     /// @returns
     ///     std::ostream &
     %if "api_version" in obj['name']:
-    inline std::ostream &operator<<(std::ostream &os, ${th.make_enum_name(n, tags, obj)} value) {
+    inline std::ostream &operator<<(std::ostream &os, enum ${th.make_enum_name(n, tags, obj)} value) {
         os << UR_MAJOR_VERSION(value) << "." << UR_MINOR_VERSION(value);
         return os;
     }
     %else:
-    inline std::ostream &operator<<(std::ostream &os, ${th.make_enum_name(n, tags, obj)} value) {
+    inline std::ostream &operator<<(std::ostream &os, enum ${th.make_enum_name(n, tags, obj)} value) {
         switch (value) {
             %for n, item in enumerate(obj['etors']):
                 <%

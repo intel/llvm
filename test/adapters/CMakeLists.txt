@@ -31,7 +31,9 @@ function(add_adapter_test name)
         ${PROJECT_NAME}::common
         GTest::gtest)
 
-    add_test(NAME ${target} COMMAND $<TARGET_FILE:${target}>)
+    add_test(NAME ${target} COMMAND $<TARGET_FILE:${target}>
+        --devices_count=${UR_TEST_DEVICES_COUNT}
+        --platforms_count=${UR_TEST_DEVICES_COUNT})
     set_tests_properties(${target} PROPERTIES
         LABELS "adapter-specific;${name}"
         ENVIRONMENT "${args_ENVIRONMENT}")

@@ -1,6 +1,6 @@
 <%!
 import re
-from templates import helper as th
+from templates import print_helper as tph
 %><%
     n=namespace
     N=n.upper()
@@ -9,7 +9,7 @@ from templates import helper as th
     X=x.upper()
 %>/*
  *
- * Copyright (C) 2023 Intel Corporation
+ * Copyright (C) 2023-2024 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
  * See LICENSE.TXT
@@ -27,50 +27,19 @@ from templates import helper as th
 extern "C" {
 #endif
 
-## Declarations ###############################################################
-%for spec in specs:
-%for obj in spec['objects']:
-%if re.match(r"enum", obj['type']):
-    ///////////////////////////////////////////////////////////////////////////////
-    /// @brief Print ${th.make_enum_name(n, tags, obj)} enum
-    /// @returns
-    ///     - ::${X}_RESULT_SUCCESS
-    ///     - ::${X}_RESULT_ERROR_INVALID_NULL_POINTER
-    ///         - `NULL == buffer`
-    ///     - ::${X}_RESULT_ERROR_INVALID_SIZE
-    ///         - `buff_size < out_size`
-    ${X}_APIEXPORT ${x}_result_t ${X}_APICALL ${th.make_func_name_with_prefix(f'{x}Print', obj['name'])}(enum ${th.make_enum_name(n, tags, obj)} value, char *buffer, const size_t buff_size, size_t *out_size);
-
-%elif re.match(r"struct", obj['type']):
-    ///////////////////////////////////////////////////////////////////////////////
-    /// @brief Print ${th.make_type_name(n, tags, obj)} struct
-    /// @returns
-    ///     - ::${X}_RESULT_SUCCESS
-    ///     - ::${X}_RESULT_ERROR_INVALID_NULL_POINTER
-    ///         - `NULL == buffer`
-    ///     - ::${X}_RESULT_ERROR_INVALID_SIZE
-    ///         - `buff_size < out_size`
-    ${X}_APIEXPORT ${x}_result_t ${X}_APICALL ${th.make_func_name_with_prefix(f'{x}Print', obj['name'])}(const ${obj['type']} ${th.make_type_name(n, tags, obj)} params, char *buffer, const size_t buff_size, size_t *out_size);
-
-%endif
-%endfor # obj in spec['objects']
-%endfor
-
-%for tbl in th.get_pfncbtables(specs, meta, n, tags):
-%for obj in tbl['functions']:
 <%
-    name = th.make_pfncb_param_type(n, tags, obj)
+    api_types_funcs = tph.get_api_types_funcs(specs, meta, n, tags)
 %>
+## Declarations ###############################################################
+%for func in api_types_funcs:
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print ${th.make_pfncb_param_type(n, tags, obj)} params struct
+/// @brief Print ${func.print_arg.type_name} ${func.print_arg.base_type}
 /// @returns
 ///     - ::${X}_RESULT_SUCCESS
-///     - ::${X}_RESULT_ERROR_INVALID_NULL_POINTER
-///         - `NULL == buffer`
 ///     - ::${X}_RESULT_ERROR_INVALID_SIZE
 ///         - `buff_size < out_size`
-${X}_APIEXPORT ${x}_result_t ${X}_APICALL ${th.make_func_name_with_prefix(f'{x}Print', name)}(const struct ${th.make_pfncb_param_type(n, tags, obj)} *params, char *buffer, const size_t buff_size, size_t *out_size);
-%endfor
+${X}_APIEXPORT ${x}_result_t ${X}_APICALL ${func.c_name}(${func.c_args});
+
 %endfor
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -80,7 +49,6 @@ ${X}_APIEXPORT ${x}_result_t ${X}_APICALL ${th.make_func_name_with_prefix(f'{x}P
 ///     - ::${X}_RESULT_ERROR_INVALID_ENUMERATION
 ///     - ::${X}_RESULT_ERROR_INVALID_NULL_POINTER
 ///         - `NULL == params`
-///         - `NULL == buffer`
 ///     - ::${X}_RESULT_ERROR_INVALID_SIZE
 ///         - `buff_size < out_size`
 ${X}_APIEXPORT ${x}_result_t ${X}_APICALL ${x}PrintFunctionParams(enum ${x}_function_t function, const void *params, char *buffer, const size_t buff_size, size_t *out_size);

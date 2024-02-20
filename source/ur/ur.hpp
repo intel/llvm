@@ -19,6 +19,7 @@
 #include <shared_mutex>
 #include <string>
 #include <thread>
+#include <variant>
 #include <vector>
 
 #include <ur_api.h>
@@ -191,16 +192,6 @@ struct _ur_platform {};
 // Controls tracing UR calls from within the UR itself.
 extern bool PrintTrace;
 
-// Apparatus for maintaining immutable cache of platforms.
-//
-// Note we only create a simple pointer variables such that C++ RT won't
-// deallocate them automatically at the end of the main program.
-// The heap memory allocated for these global variables reclaimed only at
-// explicit tear-down.
-extern std::vector<ur_platform_handle_t> *URPlatformsCache;
-extern SpinLock *URPlatformsCacheMutex;
-extern bool URPlatformCachePopulated;
-
 // The getInfo*/ReturnHelper facilities provide shortcut way of
 // writing return bytes for the various getInfo APIs.
 namespace ur {
@@ -309,4 +300,24 @@ protected:
   size_t param_value_size;
   void *param_value;
   size_t *param_value_size_ret;
+};
+
+template <typename T> class Result {
+public:
+  Result(ur_result_t err) : value_or_err(err) {}
+  Result(T value) : value_or_err(std::move(value)) {}
+  Result() : value_or_err(UR_RESULT_ERROR_UNINITIALIZED) {}
+
+  bool is_err() { return std::holds_alternative<ur_result_t>(value_or_err); }
+  explicit operator bool() const { return !is_err(); }
+
+  const T *get_value() { return std::get_if<T>(&value_or_err); }
+
+  ur_result_t get_error() {
+    auto *err = std::get_if<ur_result_t>(&value_or_err);
+    return err ? *err : UR_RESULT_SUCCESS;
+  }
+
+private:
+  std::variant<ur_result_t, T> value_or_err;
 };

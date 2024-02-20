@@ -627,6 +627,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetKernelProcAddrTable_t)(
 /// @brief Function-pointer for urKernelSuggestMaxCooperativeGroupCountExp
 typedef ur_result_t(UR_APICALL *ur_pfnKernelSuggestMaxCooperativeGroupCountExp_t)(
     ur_kernel_handle_t,
+    size_t,
+    size_t,
     uint32_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -655,6 +657,93 @@ urGetKernelExpProcAddrTable(
 typedef ur_result_t(UR_APICALL *ur_pfnGetKernelExpProcAddrTable_t)(
     ur_api_version_t,
     ur_kernel_exp_dditable_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urQueueGetInfo
+typedef ur_result_t(UR_APICALL *ur_pfnQueueGetInfo_t)(
+    ur_queue_handle_t,
+    ur_queue_info_t,
+    size_t,
+    void *,
+    size_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urQueueCreate
+typedef ur_result_t(UR_APICALL *ur_pfnQueueCreate_t)(
+    ur_context_handle_t,
+    ur_device_handle_t,
+    const ur_queue_properties_t *,
+    ur_queue_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urQueueRetain
+typedef ur_result_t(UR_APICALL *ur_pfnQueueRetain_t)(
+    ur_queue_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urQueueRelease
+typedef ur_result_t(UR_APICALL *ur_pfnQueueRelease_t)(
+    ur_queue_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urQueueGetNativeHandle
+typedef ur_result_t(UR_APICALL *ur_pfnQueueGetNativeHandle_t)(
+    ur_queue_handle_t,
+    ur_queue_native_desc_t *,
+    ur_native_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urQueueCreateWithNativeHandle
+typedef ur_result_t(UR_APICALL *ur_pfnQueueCreateWithNativeHandle_t)(
+    ur_native_handle_t,
+    ur_context_handle_t,
+    ur_device_handle_t,
+    const ur_queue_native_properties_t *,
+    ur_queue_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urQueueFinish
+typedef ur_result_t(UR_APICALL *ur_pfnQueueFinish_t)(
+    ur_queue_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urQueueFlush
+typedef ur_result_t(UR_APICALL *ur_pfnQueueFlush_t)(
+    ur_queue_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Table of Queue functions pointers
+typedef struct ur_queue_dditable_t {
+    ur_pfnQueueGetInfo_t pfnGetInfo;
+    ur_pfnQueueCreate_t pfnCreate;
+    ur_pfnQueueRetain_t pfnRetain;
+    ur_pfnQueueRelease_t pfnRelease;
+    ur_pfnQueueGetNativeHandle_t pfnGetNativeHandle;
+    ur_pfnQueueCreateWithNativeHandle_t pfnCreateWithNativeHandle;
+    ur_pfnQueueFinish_t pfnFinish;
+    ur_pfnQueueFlush_t pfnFlush;
+} ur_queue_dditable_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's Queue table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL
+urGetQueueProcAddrTable(
+    ur_api_version_t version,      ///< [in] API version requested
+    ur_queue_dditable_t *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGetQueueProcAddrTable
+typedef ur_result_t(UR_APICALL *ur_pfnGetQueueProcAddrTable_t)(
+    ur_api_version_t,
+    ur_queue_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urSamplerCreate
@@ -1377,93 +1466,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetEnqueueExpProcAddrTable_t)(
     ur_enqueue_exp_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urQueueGetInfo
-typedef ur_result_t(UR_APICALL *ur_pfnQueueGetInfo_t)(
-    ur_queue_handle_t,
-    ur_queue_info_t,
-    size_t,
-    void *,
-    size_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urQueueCreate
-typedef ur_result_t(UR_APICALL *ur_pfnQueueCreate_t)(
-    ur_context_handle_t,
-    ur_device_handle_t,
-    const ur_queue_properties_t *,
-    ur_queue_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urQueueRetain
-typedef ur_result_t(UR_APICALL *ur_pfnQueueRetain_t)(
-    ur_queue_handle_t);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urQueueRelease
-typedef ur_result_t(UR_APICALL *ur_pfnQueueRelease_t)(
-    ur_queue_handle_t);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urQueueGetNativeHandle
-typedef ur_result_t(UR_APICALL *ur_pfnQueueGetNativeHandle_t)(
-    ur_queue_handle_t,
-    ur_queue_native_desc_t *,
-    ur_native_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urQueueCreateWithNativeHandle
-typedef ur_result_t(UR_APICALL *ur_pfnQueueCreateWithNativeHandle_t)(
-    ur_native_handle_t,
-    ur_context_handle_t,
-    ur_device_handle_t,
-    const ur_queue_native_properties_t *,
-    ur_queue_handle_t *);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urQueueFinish
-typedef ur_result_t(UR_APICALL *ur_pfnQueueFinish_t)(
-    ur_queue_handle_t);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urQueueFlush
-typedef ur_result_t(UR_APICALL *ur_pfnQueueFlush_t)(
-    ur_queue_handle_t);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Table of Queue functions pointers
-typedef struct ur_queue_dditable_t {
-    ur_pfnQueueGetInfo_t pfnGetInfo;
-    ur_pfnQueueCreate_t pfnCreate;
-    ur_pfnQueueRetain_t pfnRetain;
-    ur_pfnQueueRelease_t pfnRelease;
-    ur_pfnQueueGetNativeHandle_t pfnGetNativeHandle;
-    ur_pfnQueueCreateWithNativeHandle_t pfnCreateWithNativeHandle;
-    ur_pfnQueueFinish_t pfnFinish;
-    ur_pfnQueueFlush_t pfnFlush;
-} ur_queue_dditable_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Exported function for filling application's Queue table
-///        with current process' addresses
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
-UR_DLLEXPORT ur_result_t UR_APICALL
-urGetQueueProcAddrTable(
-    ur_api_version_t version,      ///< [in] API version requested
-    ur_queue_dditable_t *pDdiTable ///< [in,out] pointer to table of DDI function pointers
-);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urGetQueueProcAddrTable
-typedef ur_result_t(UR_APICALL *ur_pfnGetQueueProcAddrTable_t)(
-    ur_api_version_t,
-    ur_queue_dditable_t *);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesUnsampledImageHandleDestroyExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesUnsampledImageHandleDestroyExp_t)(
     ur_context_handle_t,
@@ -1854,7 +1856,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendKernelLaunchExp_t)(
     const size_t *,
     uint32_t,
     const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *);
+    ur_exp_command_buffer_sync_point_t *,
+    ur_exp_command_buffer_command_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urCommandBufferAppendUSMMemcpyExp
@@ -2012,6 +2015,40 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferEnqueueExp_t)(
     ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferRetainCommandExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferRetainCommandExp_t)(
+    ur_exp_command_buffer_command_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferReleaseCommandExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferReleaseCommandExp_t)(
+    ur_exp_command_buffer_command_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferUpdateKernelLaunchExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferUpdateKernelLaunchExp_t)(
+    ur_exp_command_buffer_command_handle_t,
+    const ur_exp_command_buffer_update_kernel_launch_desc_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferGetInfoExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferGetInfoExp_t)(
+    ur_exp_command_buffer_handle_t,
+    ur_exp_command_buffer_info_t,
+    size_t,
+    void *,
+    size_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferCommandGetInfoExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferCommandGetInfoExp_t)(
+    ur_exp_command_buffer_command_handle_t,
+    ur_exp_command_buffer_command_info_t,
+    size_t,
+    void *,
+    size_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of CommandBufferExp functions pointers
 typedef struct ur_command_buffer_exp_dditable_t {
     ur_pfnCommandBufferCreateExp_t pfnCreateExp;
@@ -2031,6 +2068,11 @@ typedef struct ur_command_buffer_exp_dditable_t {
     ur_pfnCommandBufferAppendUSMPrefetchExp_t pfnAppendUSMPrefetchExp;
     ur_pfnCommandBufferAppendUSMAdviseExp_t pfnAppendUSMAdviseExp;
     ur_pfnCommandBufferEnqueueExp_t pfnEnqueueExp;
+    ur_pfnCommandBufferRetainCommandExp_t pfnRetainCommandExp;
+    ur_pfnCommandBufferReleaseCommandExp_t pfnReleaseCommandExp;
+    ur_pfnCommandBufferUpdateKernelLaunchExp_t pfnUpdateKernelLaunchExp;
+    ur_pfnCommandBufferGetInfoExp_t pfnGetInfoExp;
+    ur_pfnCommandBufferCommandGetInfoExp_t pfnCommandGetInfoExp;
 } ur_command_buffer_exp_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2310,13 +2352,13 @@ typedef struct ur_dditable_t {
     ur_program_exp_dditable_t ProgramExp;
     ur_kernel_dditable_t Kernel;
     ur_kernel_exp_dditable_t KernelExp;
+    ur_queue_dditable_t Queue;
     ur_sampler_dditable_t Sampler;
     ur_mem_dditable_t Mem;
     ur_physical_mem_dditable_t PhysicalMem;
     ur_global_dditable_t Global;
     ur_enqueue_dditable_t Enqueue;
     ur_enqueue_exp_dditable_t EnqueueExp;
-    ur_queue_dditable_t Queue;
     ur_bindless_images_exp_dditable_t BindlessImagesExp;
     ur_usm_dditable_t USM;
     ur_usm_exp_dditable_t USMExp;

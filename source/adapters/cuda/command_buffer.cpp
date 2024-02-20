@@ -19,12 +19,38 @@
 
 #include <cstring>
 
+namespace {
+ur_result_t
+commandBufferReleaseInternal(ur_exp_command_buffer_handle_t CommandBuffer) {
+  if (CommandBuffer->decrementInternalReferenceCount() != 0) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  delete CommandBuffer;
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t
+commandHandleReleaseInternal(ur_exp_command_buffer_command_handle_t Command) {
+  if (Command->decrementInternalReferenceCount() != 0) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  // Decrement parent command-buffer internal ref count
+  commandBufferReleaseInternal(Command->CommandBuffer);
+
+  delete Command;
+  return UR_RESULT_SUCCESS;
+}
+} // end anonymous namespace
+
 ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice)
-    : Context(hContext), Device(hDevice), CudaGraph{nullptr},
-      CudaGraphExec{nullptr}, RefCount{1}, NextSyncPoint{0} {
-  urContextRetain(hContext);
-  urDeviceRetain(hDevice);
+    ur_context_handle_t Context, ur_device_handle_t Device, bool IsUpdatable)
+    : Context(Context), Device(Device),
+      IsUpdatable(IsUpdatable), CudaGraph{nullptr}, CudaGraphExec{nullptr},
+      RefCountInternal{1}, RefCountExternal{1}, NextSyncPoint{0} {
+  urContextRetain(Context);
+  urDeviceRetain(Device);
 }
 
 /// The ur_exp_command_buffer_handle_t_ destructor releases
@@ -41,6 +67,33 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
 
   // Release the memory allocated to the CudaGraphExec
   cuGraphExecDestroy(CudaGraphExec);
+}
+
+ur_exp_command_buffer_command_handle_t_::
+    ur_exp_command_buffer_command_handle_t_(
+        ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
+        std::shared_ptr<CUgraphNode> Node, CUDA_KERNEL_NODE_PARAMS Params,
+        uint32_t WorkDim, const size_t *GlobalWorkOffsetPtr,
+        const size_t *GlobalWorkSizePtr, const size_t *LocalWorkSizePtr)
+    : CommandBuffer(CommandBuffer), Kernel(Kernel), Node(Node), Params(Params),
+      WorkDim(WorkDim), RefCountInternal(1), RefCountExternal(1) {
+  CommandBuffer->incrementInternalReferenceCount();
+
+  const size_t CopySize = sizeof(size_t) * WorkDim;
+  std::memcpy(GlobalWorkOffset, GlobalWorkOffsetPtr, CopySize);
+  std::memcpy(GlobalWorkSize, GlobalWorkSizePtr, CopySize);
+  // Local work size may be nullptr
+  if (LocalWorkSizePtr) {
+    std::memcpy(LocalWorkSize, LocalWorkSizePtr, CopySize);
+  } else {
+    std::memset(LocalWorkSize, 0, sizeof(size_t) * 3);
+  }
+
+  if (WorkDim < 3) {
+    const size_t ZeroSize = sizeof(size_t) * (3 - WorkDim);
+    std::memset(GlobalWorkOffset + WorkDim, 0, ZeroSize);
+    std::memset(GlobalWorkSize + WorkDim, 0, ZeroSize);
+  }
 }
 
 /// Helper function for finding the Cuda Nodes associated with the
@@ -136,7 +189,7 @@ static ur_result_t enqueueCommandBufferFillHelper(
 
       // Get sync point and register the cuNode with it.
       *SyncPoint =
-          CommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+          CommandBuffer->addSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
 
     } else {
       // CUDA has no memset functions that allow setting values more than 4
@@ -174,7 +227,7 @@ static ur_result_t enqueueCommandBufferFillHelper(
             CommandBuffer->Device->getContext()));
 
         // Get sync point and register the cuNode with it.
-        *SyncPoint = CommandBuffer->AddSyncPoint(
+        *SyncPoint = CommandBuffer->addSyncPoint(
             std::make_shared<CUgraphNode>(GraphNode));
       }
     }
@@ -188,10 +241,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_exp_command_buffer_desc_t *pCommandBufferDesc,
     ur_exp_command_buffer_handle_t *phCommandBuffer) {
-  (void)pCommandBufferDesc;
+
+  const bool IsUpdatable =
+      pCommandBufferDesc ? pCommandBufferDesc->isUpdatable : false;
 
   try {
-    *phCommandBuffer = new ur_exp_command_buffer_handle_t_(hContext, hDevice);
+    *phCommandBuffer =
+        new ur_exp_command_buffer_handle_t_(hContext, hDevice, IsUpdatable);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -209,17 +265,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  hCommandBuffer->incrementReferenceCount();
+  hCommandBuffer->incrementInternalReferenceCount();
+  hCommandBuffer->incrementExternalReferenceCount();
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
-  if (hCommandBuffer->decrementReferenceCount() != 0)
-    return UR_RESULT_SUCCESS;
+  if (hCommandBuffer->decrementExternalReferenceCount() == 0) {
+    // External ref count has reached zero, internal release of created
+    // commands.
+    for (auto Command : hCommandBuffer->CommandHandles) {
+      commandHandleReleaseInternal(Command);
+    }
+  }
 
-  delete hCommandBuffer;
-  return UR_RESULT_SUCCESS;
+  return commandBufferReleaseInternal(hCommandBuffer);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -250,7 +311,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    ur_exp_command_buffer_command_handle_t *phCommand) {
   // Preconditions
   UR_ASSERT(hCommandBuffer->Context == hKernel->getContext(),
             UR_RESULT_ERROR_INVALID_KERNEL);
@@ -277,7 +339,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
                                          DepsList.data(), DepsList.size()));
 
       // Get sync point and register the cuNode with it.
-      *pSyncPoint = hCommandBuffer->AddSyncPoint(
+      *pSyncPoint = hCommandBuffer->addSyncPoint(
           std::make_shared<CUgraphNode>(GraphNode));
     } catch (ur_result_t Err) {
       Result = Err;
@@ -324,8 +386,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
       hKernel->clearLocalSize();
 
     // Get sync point and register the cuNode with it.
-    *pSyncPoint =
-        hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+    auto NodeSP = std::make_shared<CUgraphNode>(GraphNode);
+    if (pSyncPoint) {
+      *pSyncPoint = hCommandBuffer->addSyncPoint(NodeSP);
+    }
+
+    auto NewCommand = new ur_exp_command_buffer_command_handle_t_{
+        hCommandBuffer, hKernel,           NodeSP,          NodeParams,
+        workDim,        pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize};
+
+    NewCommand->incrementInternalReferenceCount();
+    hCommandBuffer->CommandHandles.push_back(NewCommand);
+
+    if (phCommand) {
+      *phCommand = NewCommand;
+    }
+
   } catch (ur_result_t Err) {
     Result = Err;
   }
@@ -359,7 +435,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
 
     // Get sync point and register the cuNode with it.
     *pSyncPoint =
-        hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+        hCommandBuffer->addSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
   } catch (ur_result_t Err) {
     Result = Err;
   }
@@ -403,7 +479,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
 
     // Get sync point and register the cuNode with it.
     *pSyncPoint =
-        hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+        hCommandBuffer->addSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
   } catch (ur_result_t Err) {
     Result = Err;
   }
@@ -444,7 +520,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
 
     // Get sync point and register the cuNode with it.
     *pSyncPoint =
-        hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+        hCommandBuffer->addSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
   } catch (ur_result_t Err) {
     Result = Err;
   }
@@ -482,7 +558,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
 
     // Get sync point and register the cuNode with it.
     *pSyncPoint =
-        hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+        hCommandBuffer->addSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
   } catch (ur_result_t Err) {
     Result = Err;
   }
@@ -519,7 +595,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
 
     // Get sync point and register the cuNode with it.
     *pSyncPoint =
-        hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+        hCommandBuffer->addSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
   } catch (ur_result_t Err) {
     Result = Err;
   }
@@ -561,7 +637,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
 
     // Get sync point and register the cuNode with it.
     *pSyncPoint =
-        hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+        hCommandBuffer->addSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
   } catch (ur_result_t Err) {
     Result = Err;
   }
@@ -603,7 +679,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
 
     // Get sync point and register the cuNode with it.
     *pSyncPoint =
-        hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+        hCommandBuffer->addSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
   } catch (ur_result_t Err) {
     Result = Err;
   }
@@ -633,7 +709,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
 
     // Get sync point and register the cuNode with it.
     *pSyncPoint =
-        hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+        hCommandBuffer->addSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
 
     setErrorMessage("Prefetch hint ignored and replaced with empty node as "
                     "prefetch is not supported by CUDA Graph backend",
@@ -668,7 +744,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 
     // Get sync point and register the cuNode with it.
     *pSyncPoint =
-        hCommandBuffer->AddSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
+        hCommandBuffer->addSyncPoint(std::make_shared<CUgraphNode>(GraphNode));
 
     setErrorMessage("Memory advice ignored and replaced with empty node as "
                     "memory advice is not supported by CUDA Graph backend",
@@ -761,4 +837,191 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   }
 
   return Result;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
+    ur_exp_command_buffer_command_handle_t hCommand) {
+  hCommand->incrementExternalReferenceCount();
+  hCommand->incrementInternalReferenceCount();
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
+    ur_exp_command_buffer_command_handle_t hCommand) {
+  hCommand->decrementExternalReferenceCount();
+  return commandHandleReleaseInternal(hCommand);
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
+    ur_exp_command_buffer_command_handle_t hCommand,
+    const ur_exp_command_buffer_update_kernel_launch_desc_t
+        *pUpdateKernelLaunch) {
+  // Update requires command-buffer to be finalized
+  ur_exp_command_buffer_handle_t CommandBuffer = hCommand->CommandBuffer;
+  if (!CommandBuffer->CudaGraphExec) {
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
+
+  // Update requires command-buffer to be created with update enabled
+  if (!CommandBuffer->IsUpdatable) {
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
+
+  // Kernel corresponding to the command to update
+  ur_kernel_handle_t Kernel = hCommand->Kernel;
+
+  // Update pointer arguments to the kernel
+  uint32_t NumPointerArgs = pUpdateKernelLaunch->numNewPointerArgs;
+  const ur_exp_command_buffer_update_pointer_arg_desc_t *ArgPointerList =
+      pUpdateKernelLaunch->pNewPointerArgList;
+  for (uint32_t i = 0; i < NumPointerArgs; i++) {
+    const auto &PointerArgDesc = ArgPointerList[i];
+    uint32_t ArgIndex = PointerArgDesc.argIndex;
+    const void *ArgValue = PointerArgDesc.pNewPointerArg;
+
+    ur_result_t Result = UR_RESULT_SUCCESS;
+    try {
+      Kernel->setKernelArg(ArgIndex, sizeof(ArgValue), ArgValue);
+    } catch (ur_result_t Err) {
+      Result = Err;
+      return Result;
+    }
+  }
+
+  // Update memobj arguments to the kernel
+  uint32_t NumMemobjArgs = pUpdateKernelLaunch->numNewMemObjArgs;
+  const ur_exp_command_buffer_update_memobj_arg_desc_t *ArgMemobjList =
+      pUpdateKernelLaunch->pNewMemObjArgList;
+  for (uint32_t i = 0; i < NumMemobjArgs; i++) {
+    const auto &MemobjArgDesc = ArgMemobjList[i];
+    uint32_t ArgIndex = MemobjArgDesc.argIndex;
+    ur_mem_handle_t ArgValue = MemobjArgDesc.hNewMemObjArg;
+
+    ur_result_t Result = UR_RESULT_SUCCESS;
+    try {
+      if (ArgValue == nullptr) {
+        Kernel->setKernelArg(ArgIndex, 0, nullptr);
+      } else {
+        CUdeviceptr CuPtr = std::get<BufferMem>(ArgValue->Mem).get();
+        Kernel->setKernelArg(ArgIndex, sizeof(CUdeviceptr), (void *)&CuPtr);
+      }
+    } catch (ur_result_t Err) {
+      Result = Err;
+      return Result;
+    }
+  }
+
+  // Update value arguments to the kernel
+  uint32_t NumValueArgs = pUpdateKernelLaunch->numNewValueArgs;
+  const ur_exp_command_buffer_update_value_arg_desc_t *ArgValueList =
+      pUpdateKernelLaunch->pNewValueArgList;
+  for (uint32_t i = 0; i < NumValueArgs; i++) {
+    const auto &ValueArgDesc = ArgValueList[i];
+    uint32_t ArgIndex = ValueArgDesc.argIndex;
+    size_t ArgSize = ValueArgDesc.argSize;
+    const void *ArgValue = ValueArgDesc.pNewValueArg;
+
+    ur_result_t Result = UR_RESULT_SUCCESS;
+
+    try {
+      Kernel->setKernelArg(ArgIndex, ArgSize, ArgValue);
+    } catch (ur_result_t Err) {
+      Result = Err;
+      return Result;
+    }
+  }
+
+  // Set the updated ND range
+  const uint32_t NewWorkDim = pUpdateKernelLaunch->newWorkDim;
+  if (NewWorkDim != 0) {
+    UR_ASSERT(NewWorkDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+    UR_ASSERT(NewWorkDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+    hCommand->WorkDim = NewWorkDim;
+  }
+
+  if (pUpdateKernelLaunch->pNewGlobalWorkOffset) {
+    hCommand->setGlobalOffset(pUpdateKernelLaunch->pNewGlobalWorkOffset);
+  }
+
+  if (pUpdateKernelLaunch->pNewGlobalWorkSize) {
+    hCommand->setGlobalSize(pUpdateKernelLaunch->pNewGlobalWorkSize);
+  }
+
+  if (pUpdateKernelLaunch->pNewLocalWorkSize) {
+    hCommand->setLocalSize(pUpdateKernelLaunch->pNewLocalWorkSize);
+  }
+
+  size_t *GlobalWorkOffset = hCommand->GlobalWorkOffset;
+  size_t *GlobalWorkSize = hCommand->GlobalWorkSize;
+
+  const bool ProvidedLocalSize = hCommand->LocalWorkSize[0] != 0 ||
+                                 hCommand->LocalWorkSize[1] != 0 ||
+                                 hCommand->LocalWorkSize[2] != 0;
+  // If no worksize is provided make sure we pass nullptr to setKernelParams so
+  // it can guess the local work size.
+  size_t *LocalWorkSize = ProvidedLocalSize ? hCommand->LocalWorkSize : nullptr;
+  uint32_t WorkDim = hCommand->WorkDim;
+
+  // Set the number of threads per block to the number of threads per warp
+  // by default unless user has provided a better number
+  size_t ThreadsPerBlock[3] = {32u, 1u, 1u};
+  size_t BlocksPerGrid[3] = {1u, 1u, 1u};
+  CUfunction CuFunc = Kernel->get();
+  ur_context_handle_t Context = CommandBuffer->Context;
+  ur_device_handle_t Device = CommandBuffer->Device;
+  auto Result = setKernelParams(Context, Device, WorkDim, GlobalWorkOffset,
+                                GlobalWorkSize, LocalWorkSize, Kernel, CuFunc,
+                                ThreadsPerBlock, BlocksPerGrid);
+  if (Result != UR_RESULT_SUCCESS) {
+    return Result;
+  }
+
+  CUDA_KERNEL_NODE_PARAMS &Params = hCommand->Params;
+
+  Params.func = CuFunc;
+  Params.gridDimX = BlocksPerGrid[0];
+  Params.gridDimY = BlocksPerGrid[1];
+  Params.gridDimZ = BlocksPerGrid[2];
+  Params.blockDimX = ThreadsPerBlock[0];
+  Params.blockDimY = ThreadsPerBlock[1];
+  Params.blockDimZ = ThreadsPerBlock[2];
+  Params.sharedMemBytes = Kernel->getLocalSize();
+  Params.kernelParams = const_cast<void **>(Kernel->getArgIndices().data());
+
+  CUgraphNode Node = *(hCommand->Node);
+  CUgraphExec CudaGraphExec = CommandBuffer->CudaGraphExec;
+  UR_CHECK_ERROR(cuGraphExecKernelNodeSetParams(CudaGraphExec, Node, &Params));
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,
+    ur_exp_command_buffer_info_t propName, size_t propSize, void *pPropValue,
+    size_t *pPropSizeRet) {
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+
+  switch (propName) {
+  case UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT:
+    return ReturnValue(hCommandBuffer->getExternalReferenceCount());
+  default:
+    assert(!"Command-buffer info request not implemented");
+  }
+
+  return UR_RESULT_ERROR_INVALID_ENUMERATION;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCommandGetInfoExp(
+    ur_exp_command_buffer_command_handle_t hCommand,
+    ur_exp_command_buffer_command_info_t propName, size_t propSize,
+    void *pPropValue, size_t *pPropSizeRet) {
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
+
+  switch (propName) {
+  case UR_EXP_COMMAND_BUFFER_COMMAND_INFO_REFERENCE_COUNT:
+    return ReturnValue(hCommand->getExternalReferenceCount());
+  default:
+    assert(!"Command-buffer command info request not implemented");
+  }
+
+  return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }

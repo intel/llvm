@@ -38,14 +38,18 @@ int ur_device_get(TestState &state) {
         return -1;
     }
 
-    ur_result_t res = urDeviceGet(state.platforms[state.platform_num],
-                                  state.device_type, state.num_entries,
-                                  state.devices.data(), &state.num_devices);
+    ur_result_t res = UR_RESULT_SUCCESS;
+    if (state.devices.size() == 0) {
+        res = urDeviceGet(state.platforms[state.platform_num],
+                          state.device_type, 0, nullptr, &state.num_devices);
+        state.devices.resize(state.num_devices);
+    } else {
+        res =
+            urDeviceGet(state.platforms[state.platform_num], state.device_type,
+                        state.num_entries, state.devices.data(), nullptr);
+    }
     if (res != UR_RESULT_SUCCESS) {
         return -1;
-    }
-    if (state.devices.size() != state.num_devices) {
-        state.devices.resize(state.num_devices);
     }
 
     return 0;

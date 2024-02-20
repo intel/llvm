@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2023-2024 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -30,36 +30,57 @@ struct urTest : ::testing::Test {
     ur_loader_config_handle_t loader_config = nullptr;
 };
 
-struct valPlatformsTest : urTest {
+struct valAdaptersTest : urTest {
 
     void SetUp() override {
         urTest::SetUp();
 
         uint32_t adapter_count;
         ASSERT_EQ(urAdapterGet(0, nullptr, &adapter_count), UR_RESULT_SUCCESS);
+        ASSERT_GT(adapter_count, 0);
         adapters.resize(adapter_count);
         ASSERT_EQ(urAdapterGet(adapter_count, adapters.data(), nullptr),
-                  UR_RESULT_SUCCESS);
-
-        uint32_t count;
-        ASSERT_EQ(
-            urPlatformGet(adapters.data(), adapter_count, 0, nullptr, &count),
-            UR_RESULT_SUCCESS);
-        ASSERT_NE(count, 0);
-        platforms.resize(count);
-        ASSERT_EQ(urPlatformGet(adapters.data(), adapter_count, count,
-                                platforms.data(), nullptr),
                   UR_RESULT_SUCCESS);
     }
 
     void TearDown() override {
-        for (auto &adapter : adapters) {
+        for (auto adapter : adapters) {
             ASSERT_EQ(urAdapterRelease(adapter), UR_RESULT_SUCCESS);
         }
         urTest::TearDown();
     }
 
     std::vector<ur_adapter_handle_t> adapters;
+};
+
+struct valAdapterTest : valAdaptersTest {
+
+    void SetUp() override {
+        valAdaptersTest::SetUp();
+        adapter = adapters[0]; // TODO - which to choose?
+    }
+
+    ur_adapter_handle_t adapter;
+};
+
+struct valPlatformsTest : valAdaptersTest {
+
+    void SetUp() override {
+        valAdaptersTest::SetUp();
+
+        uint32_t count;
+        ASSERT_EQ(urPlatformGet(adapters.data(),
+                                static_cast<uint32_t>(adapters.size()), 0,
+                                nullptr, &count),
+                  UR_RESULT_SUCCESS);
+        ASSERT_GT(count, 0);
+        platforms.resize(count);
+        ASSERT_EQ(urPlatformGet(adapters.data(),
+                                static_cast<uint32_t>(adapters.size()), count,
+                                platforms.data(), nullptr),
+                  UR_RESULT_SUCCESS);
+    }
+
     std::vector<ur_platform_handle_t> platforms;
 };
 
@@ -91,6 +112,14 @@ struct valAllDevicesTest : valPlatformTest {
             FAIL() << "Failed to get devices";
         }
     }
+
+    void TearDown() override {
+        for (auto device : devices) {
+            ASSERT_EQ(urDeviceRelease(device), UR_RESULT_SUCCESS);
+        }
+        valPlatformTest::TearDown();
+    }
+
     std::vector<ur_device_handle_t> devices;
 };
 

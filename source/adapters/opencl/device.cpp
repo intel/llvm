@@ -923,6 +923,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     }
     return ReturnValue(SupportedExtensions.c_str());
   }
+  case UR_DEVICE_INFO_COMPONENT_DEVICES:
+  case UR_DEVICE_INFO_COMPOSITE_DEVICE:
+    // These two are exclusive of L0.
+    return ReturnValue(0);
   /* TODO: Check regularly to see if support is enabled in OpenCL. Intel GPU
    * EU device-specific information extensions. Some of the queries are
    * enabled by cl_intel_device_attribute_query extension, but it's not yet in
@@ -946,6 +950,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MEMORY_BUS_WIDTH:
   case UR_DEVICE_INFO_ASYNC_BARRIER: {
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
+
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
+    cl_device_id Dev = cl_adapter::cast<cl_device_id>(hDevice);
+    size_t ExtSize = 0;
+    CL_RETURN_ON_FAILURE(
+        clGetDeviceInfo(Dev, CL_DEVICE_EXTENSIONS, 0, nullptr, &ExtSize));
+
+    std::string ExtStr(ExtSize, '\0');
+    CL_RETURN_ON_FAILURE(clGetDeviceInfo(Dev, CL_DEVICE_EXTENSIONS, ExtSize,
+                                         ExtStr.data(), nullptr));
+
+    std::string SupportedExtensions(ExtStr.c_str());
+    return ReturnValue(ExtStr.find("cl_khr_command_buffer") !=
+                       std::string::npos);
+  }
+  case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP: {
+    return ReturnValue(false);
   }
   default: {
     return UR_RESULT_ERROR_INVALID_ENUMERATION;

@@ -225,6 +225,29 @@ arguments:
 *   Pointer to handle arguments, such as out parameters, are prefixed with
     ``ph`` i.e. ``phQueue``.
 
+Limitations
+-----------
+
+There are some limitations on the patterns our spec generator can handle. These
+limitations are due to convenience of implementation rather than design: if
+they are preventing you from implementing a feature please open an issue and we
+will be happy to try and accommodate your use case. Otherwise beware of the
+following:
+
+* A function parameter or struct member which is a struct type that has any of
+  the following members in its type definition must not have the ``[range]``
+  tag:
+
+  * An object handle with the ``[range]`` tag
+
+  * A struct type with the ``[range]`` tag that has an object handle member
+
+* A struct member which is a pointer to a struct type must not have the
+  ``[optional]`` tag if that struct (or any of its members, recursively) has
+  an object handle member in its definition.
+
+* A struct member which is an object handle must not have the ``[out]`` tag.
+
 Forks and Pull Requests
 =======================
 

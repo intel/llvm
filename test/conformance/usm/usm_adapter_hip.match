@@ -6,9 +6,9 @@
 {{OPT}}urUSMDeviceAllocTest.InvalidUSMSize/AMD_HIP_BACKEND___{{.*}}___UsePoolEnabled
 {{OPT}}urUSMDeviceAllocTest.InvalidUSMSize/AMD_HIP_BACKEND___{{.*}}___UsePoolDisabled
 {{OPT}}urUSMDeviceAllocTest.InvalidValueAlignPowerOfTwo/AMD_HIP_BACKEND___{{.*}}___UsePoolEnabled
-{{OPT}}urUSMAllocInfoTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_USM_ALLOC_INFO_BASE_PTR
-{{OPT}}urUSMAllocInfoTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_USM_ALLOC_INFO_SIZE
-{{OPT}}urUSMAllocInfoTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_USM_ALLOC_INFO_POOL
+{{OPT}}urUSMGetMemAllocInfoTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_USM_ALLOC_INFO_BASE_PTR
+{{OPT}}urUSMGetMemAllocInfoTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_USM_ALLOC_INFO_SIZE
+{{OPT}}urUSMGetMemAllocInfoTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_USM_ALLOC_INFO_POOL
 {{OPT}}urUSMHostAllocTest.Success/AMD_HIP_BACKEND___{{.*}}___UsePoolEnabled
 {{OPT}}urUSMHostAllocTest.SuccessWithDescriptors/AMD_HIP_BACKEND___{{.*}}___UsePoolEnabled
 {{OPT}}urUSMHostAllocTest.InvalidNullHandleContext/AMD_HIP_BACKEND___{{.*}}___UsePoolEnabled
