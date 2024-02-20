@@ -281,6 +281,9 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
         const char *Func = AH->Func[0] ? AH->Func : "<unknown func>";
         auto KernelName = getKernelName(Kernel);
 
+        // Try to demangle the kernel name
+        KernelName = DemangleName(KernelName);
+
         context.logger.always("\n====ERROR: DeviceSanitizer: {} on {}",
                               DeviceSanitizerFormat(AH->ErrorType),
                               DeviceSanitizerFormat(AH->MemoryType));
