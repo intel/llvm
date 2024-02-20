@@ -1034,6 +1034,10 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
  *  @brief   Read an unsampled image array using its handle
  *
  *  @tparam  DataT The return type
+ *  @tparam  HintT A hint type that can be used to select for a specialized
+ *           backend intrinsic when a user-defined type is passed as `DataT`.
+ *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
+ *           HintT must also have the same size as DataT.
  *  @tparam  CoordT The input coordinate type. e.g. int or int2 for 1D or 2D,
  *           respectively
  *  @param   imageHandle The image handle
@@ -1047,7 +1051,7 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
  *             The name mangling should therefore not interfere with one
  *             another
  */
-template <typename DataT, typename CoordT>
+template <typename DataT, typename HintT = DataT, typename CoordT>
 DataT read_image_array(const unsampled_image_handle &imageHandle
                        [[maybe_unused]],
                        const CoordT &coords [[maybe_unused]],
@@ -1059,12 +1063,18 @@ DataT read_image_array(const unsampled_image_handle &imageHandle
                 "and 2D images respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__NVPTX__)
-  return __invoke__ImageArrayRead<DataT>(imageHandle.raw_handle, coords,
-                                         arrayLayer);
-#else
-  // TODO: add SPIRV part for unsampled image array read.
-#endif
+  if constexpr (detail::is_recognized_standard_type<DataT>()) {
+    return __invoke__ImageArrayRead<DataT>(imageHandle.raw_handle, coords,
+                                           arrayLayer);
+  } else {
+    static_assert(sizeof(HintT) == sizeof(DataT),
+                  "When trying to read a user-defined type, HintT must be of "
+                  "the same size as the user-defined DataT.");
+    static_assert(detail::is_recognized_standard_type<HintT>(),
+                  "HintT must always be a recognized standard type");
+    return sycl::bit_cast<DataT>(__invoke__ImageArrayRead<HintT>(
+        imageHandle.raw_handle, coords, arrayLayer));
+  }
 #else
   assert(false); // Bindless images not yet implemented on host.
 #endif
@@ -1128,12 +1138,15 @@ void write_image_array(const unsampled_image_handle &imageHandle
                 "and 2D images respectively.");
 
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__NVPTX__)
-  __invoke__ImageArrayWrite(static_cast<uint64_t>(imageHandle.raw_handle),
-                            coords, arrayLayer, detail::convert_color(color));
-#else
-  // TODO: add SPIRV part for unsampled image array write.
-#endif
+  if constexpr (detail::is_recognized_standard_type<DataT>()) {
+    __invoke__ImageArrayWrite(static_cast<uint64_t>(imageHandle.raw_handle),
+                              coords, arrayLayer, color);
+  } else {
+    // Convert DataT to a supported backend write type when user-defined type is
+    // passed
+    __invoke__ImageArrayWrite(static_cast<uint64_t>(imageHandle.raw_handle),
+                              coords, arrayLayer, detail::convert_color(color));
+  }
 #else
   assert(false); // Bindless images not yet implemented on host.
 #endif

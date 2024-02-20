@@ -189,7 +189,7 @@ void run_ndim_test(sycl::range<NDims> global_size,
                     handles.input_2, sycl::int3(dim0, dim1, dim2));
 
                 auto sum = VecType(
-                    bindless_helpers::add_kernel<VecType, NChannels>(px1, px2));
+                    bindless_helpers::add_kernel<DType, NChannels>(px1, px2));
                 syclexp::write_image<VecType>(
                     handles.output, sycl::int3(dim0, dim1, dim2), VecType(sum));
               } else {

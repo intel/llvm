@@ -1273,13 +1273,16 @@ passing the `unsampled_image_handle`, the coordinates, and the array index.
 
 ```c++
 // Read an unsampled image array
-template <typename DataT, typename CoordT>
+template <typename DataT, typename HintT = DataT, typename CoordT>
 DataT read_image_array(const unsampled_image_handle &ImageHandle,
                        const CoordT &Coords, const unsigned int ArrayLayer);
 ```
 
 Reading an image array follows the same restrictions on what coordinate types 
 may be used as laid out in <<reading_writing_inside_kernel>>.
+
+Reading an image array by providing a user-defined return `DataT` type also 
+follows the restrictions as laid out in <<reading_writing_inside_kernel>>.
 
 [NOTE]
 ====
