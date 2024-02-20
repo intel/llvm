@@ -320,7 +320,7 @@ written in a row (`row_major`), column major (`col_major`)
 fashion. `stride` describes the number of elements between consecutive
 rows for the row major layout, or between columns for the column major layout.
 
-The overload of `joint_matrix_store` takes
+The second overload of `joint_matrix_store` takes
 `sycl::ext::oneapi::experimental::annotated_ptr` as argument instead
 of `sycl::multi_ptr`. The property list associated with the
 `annotated_ptr` argument represents the compile-time constant
@@ -433,7 +433,7 @@ joint_matrix_apply(sg, C, [=](T &x) {
 namespace sycl::ext::oneapi::experimental::matrix {
 
 template <size_t Rows, size_t Cols, typename Group, typename T,
-          typename Properties = ext::oneapi::experimental::empty_properties_t>
+          typename Properties = empty_properties_t>
 void joint_matrix_prefetch(Group g, T* ptr, size_t stride, layout Layout,
                            Properties properties = {});
 

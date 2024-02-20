@@ -148,21 +148,27 @@ template <typename Group, typename T, size_t Rows, size_t Cols,
           access::decorated IsDecorated>
 void joint_matrix_store(Group g,
     const joint_matrix<Group, T, use::a, Rows, Cols, Layout> &res,
-    multi_ptr<T, Space, IsDecorated> src, size_t stride);
+    multi_ptr<T, Space, IsDecorated> dest, size_t stride);
 
 template <typename Group, typename T, size_t Rows, size_t Cols,
           layout Layout, access::address_space Space,
           access::decorated IsDecorated>
 void joint_matrix_store(Group g,
     const joint_matrix<Group, T, use::b, Rows, Cols, Layout> &res,
-    multi_ptr<T, Space, IsDecorated> src, size_t stride);
+    multi_ptr<T, Space, IsDecorated> dest, size_t stride);
 
-// Only available when Layout != layout::dynamic
 template <typename Group, typename T, size_t Rows, size_t Cols,
-          use Use, layout Layout, typename PropertyListT>
+          layout Layout, typename PropertyListT>
 void joint_matrix_store(Group g,
-    joint_matrix<Group, T, Use, Rows, Cols, Layout> &res,
-    ext::oneapi::experimental::annotated_ptr<T, PropertyListT> src,
+    const joint_matrix<Group, T, use::a, Rows, Cols, Layout> &res,
+    ext::oneapi::experimental::annotated_ptr<T, PropertyListT> dest,
+    size_t stride);
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          layout Layout, typename PropertyListT>
+void joint_matrix_store(Group g,
+    const joint_matrix<Group, T, use::b, Rows, Cols, Layout> &res,
+    ext::oneapi::experimental::annotated_ptr<T, PropertyListT> dest,
     size_t stride);
 
 } // namespace sycl::ext::intel::experimental::matrix
