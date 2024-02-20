@@ -85,12 +85,11 @@ static RetType __invoke__ImageArrayRead(ImageT Img, CoordT Coords,
 
   // Convert from sycl types to builtin types to get correct function mangling.
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
-  using TempArgT = sycl::detail::ConvertToOpenCLType_t<CoordT>;
+  auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
 
-  TempArgT Arg = sycl::detail::convertDataToType<CoordT, TempArgT>(Coords);
-  TempRetT Ret =
-      __spirv_ImageArrayRead<TempRetT, ImageT, TempArgT>(Img, Arg, ArrayLayer);
-  return sycl::detail::convertDataToType<TempRetT, RetType>(Ret);
+  return sycl::detail::convertFromOpenCLTypeFor<RetType>(
+      __spirv_ImageArrayRead<TempRetT, ImageT, decltype(TmpCoords)>(
+          Img, TmpCoords, ArrayLayer));
 }
 
 template <typename ImageT, typename CoordT, typename ValT>
@@ -98,14 +97,11 @@ static void __invoke__ImageArrayWrite(ImageT Img, CoordT Coords, int ArrayLayer,
                                       ValT Val) {
 
   // Convert from sycl types to builtin types to get correct function mangling.
-  using TmpValT = sycl::detail::ConvertToOpenCLType_t<ValT>;
-  using TmpCoordT = sycl::detail::ConvertToOpenCLType_t<CoordT>;
+  auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
+  auto TmpVal = sycl::detail::convertToOpenCLType(Val);
 
-  TmpCoordT TmpCoord =
-      sycl::detail::convertDataToType<CoordT, TmpCoordT>(Coords);
-  TmpValT TmpVal = sycl::detail::convertDataToType<ValT, TmpValT>(Val);
-  __spirv_ImageArrayWrite<ImageT, TmpCoordT, TmpValT>(Img, TmpCoord, ArrayLayer,
-                                                      TmpVal);
+  __spirv_ImageArrayWrite<ImageT, decltype(TmpCoords), decltype(TmpVal)>(
+      Img, TmpCoords, ArrayLayer, TmpVal);
 }
 
 template <typename RetType, typename SmpImageT, typename CoordT>
