@@ -117,12 +117,6 @@ inline bool isSYCLExternalFunction(const Function *F) {
   return F->hasFnAttribute(ATTR_SYCL_MODULE_ID);
 }
 
-constexpr char SYCLNATIVECPUSUFFIX[] = ".SYCLNCPU";
-inline llvm::Twine addSYCLNativeCPUSuffix(StringRef S) {
-  return llvm::Twine(S, SYCLNATIVECPUSUFFIX);
-}
-constexpr char SYCLNATIVECPURENAMEMD[] = "sycl-native-cpu-rename";
-
 } // namespace utils
 } // namespace sycl
 } // namespace llvm

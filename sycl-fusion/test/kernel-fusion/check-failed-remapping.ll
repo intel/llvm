@@ -42,6 +42,6 @@ attributes #0 = { nounwind }
     !"StdLayout", !"StdLayout", !"StdLayout", !"Accessor", !"StdLayout",
     !"StdLayout", !"StdLayout"},
   !{i8 1, i8 0, i8 0, i8 1, i8 1, i8 0, i8 0, i8 1, i8 1, i8 0, i8 0, i8 1},
-  !{!"work_group_size_hint", !"1", !"1", !"64"}
+  !{!"work_group_size_hint", i32 1, i32 1, i32 64}
 }
 !sycl.moduleinfo = !{!14}

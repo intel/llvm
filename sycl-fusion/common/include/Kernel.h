@@ -12,11 +12,11 @@
 #include "DynArray.h"
 
 #include <algorithm>
-#include <array>
 #include <cassert>
 #include <cstdint>
-#include <string>
-#include <vector>
+#include <cstring>
+#include <functional>
+#include <type_traits>
 
 namespace jit_compiler {
 
@@ -109,18 +109,6 @@ struct SYCLKernelBinaryInfo {
 };
 
 ///
-/// Describe a SYCL/OpenCL kernel attribute by its name and values.
-struct SYCLKernelAttribute {
-  using AttributeValueList = std::vector<std::string>;
-
-  SYCLKernelAttribute(std::string Name)
-      : AttributeName{std::move(Name)}, Values{} {}
-
-  std::string AttributeName;
-  AttributeValueList Values;
-};
-
-///
 /// Encode usage of parameters for the actual kernel function.
 enum ArgUsage : uint8_t {
   // Used to indicate that an argument is not used by the kernel
@@ -142,16 +130,12 @@ using ArgUsageUT = std::underlying_type_t<ArgUsage>;
 ///
 /// Describe the list of arguments by their kind and usage.
 struct SYCLArgumentDescriptor {
-  explicit SYCLArgumentDescriptor(size_t NumArgs)
+  explicit SYCLArgumentDescriptor(size_t NumArgs = 0)
       : Kinds(NumArgs), UsageMask(NumArgs){};
 
   DynArray<ParameterKind> Kinds;
   DynArray<ArgUsageUT> UsageMask;
 };
-
-///
-/// List of SYCL/OpenCL kernel attributes.
-using AttributeList = std::vector<SYCLKernelAttribute>;
 
 ///
 /// Class to model a three-dimensional index.
@@ -192,6 +176,48 @@ private:
   static constexpr size_t Size = 3;
   size_t Values[Size];
 };
+
+///
+/// Describe a SYCL/OpenCL kernel attribute by its kind and values.
+struct SYCLKernelAttribute {
+  enum class AttrKind { Invalid, ReqdWorkGroupSize, WorkGroupSizeHint };
+
+  static constexpr auto ReqdWorkGroupSizeName = "reqd_work_group_size";
+  static constexpr auto WorkGroupSizeHintName = "work_group_size_hint";
+
+  static AttrKind parseKind(const char *Name) {
+    auto Kind = AttrKind::Invalid;
+    if (std::strcmp(Name, ReqdWorkGroupSizeName) == 0) {
+      Kind = AttrKind::ReqdWorkGroupSize;
+    } else if (std::strcmp(Name, WorkGroupSizeHintName) == 0) {
+      Kind = AttrKind::WorkGroupSizeHint;
+    }
+    return Kind;
+  }
+
+  AttrKind Kind;
+  Indices Values;
+
+  SYCLKernelAttribute() : Kind(AttrKind::Invalid) {}
+  SYCLKernelAttribute(AttrKind Kind, const Indices &Values)
+      : Kind(Kind), Values(Values) {}
+
+  const char *getName() const {
+    assert(Kind != AttrKind::Invalid);
+    switch (Kind) {
+    case AttrKind::ReqdWorkGroupSize:
+      return ReqdWorkGroupSizeName;
+    case AttrKind::WorkGroupSizeHint:
+      return WorkGroupSizeHintName;
+    default:
+      return "__invalid__";
+    }
+  }
+};
+
+///
+/// List of SYCL/OpenCL kernel attributes.
+using SYCLAttributeList = DynArray<SYCLKernelAttribute>;
 
 ///
 /// Class to model SYCL nd_range
@@ -238,12 +264,19 @@ public:
   constexpr int getDimensions() const { return Dimensions; }
 
   bool hasSpecificLocalSize() const { return LocalSize != AllZeros; }
+  bool hasUniformWorkGroupSizes() const {
+    assert(hasSpecificLocalSize() && "Local size must be specified");
+    for (int I = 0; I < Dimensions; ++I) {
+      if (GlobalSize[I] % LocalSize[I] != 0) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   friend constexpr bool operator==(const NDRange &LHS, const NDRange &RHS) {
     return LHS.Dimensions == RHS.Dimensions &&
-           LHS.GlobalSize == RHS.GlobalSize &&
-           (!LHS.hasSpecificLocalSize() || !RHS.hasSpecificLocalSize() ||
-            LHS.LocalSize == RHS.LocalSize) &&
+           LHS.GlobalSize == RHS.GlobalSize && LHS.LocalSize == RHS.LocalSize &&
            LHS.Offset == RHS.Offset;
   }
 
@@ -266,19 +299,11 @@ public:
       return false;
     }
 
-    if (!LHS.hasSpecificLocalSize() && RHS.hasSpecificLocalSize()) {
+    if (LHS.LocalSize < RHS.LocalSize) {
       return true;
     }
-    if (LHS.hasSpecificLocalSize() && !RHS.hasSpecificLocalSize()) {
+    if (LHS.LocalSize > RHS.LocalSize) {
       return false;
-    }
-    if (LHS.hasSpecificLocalSize() && RHS.hasSpecificLocalSize()) {
-      if (LHS.LocalSize < RHS.LocalSize) {
-        return true;
-      }
-      if (LHS.LocalSize > RHS.LocalSize) {
-        return false;
-      }
     }
 
     return LHS.Offset < RHS.Offset;
@@ -302,50 +327,25 @@ private:
 /// Information about a kernel from DPC++.
 struct SYCLKernelInfo {
 
-  std::string Name;
+  DynString Name;
 
   SYCLArgumentDescriptor Args;
 
-  AttributeList Attributes;
+  SYCLAttributeList Attributes;
 
   NDRange NDR;
 
   SYCLKernelBinaryInfo BinaryInfo;
 
-  SYCLKernelInfo(const std::string &KernelName,
-                 const SYCLArgumentDescriptor &ArgDesc, const NDRange &NDR,
-                 const SYCLKernelBinaryInfo &BinInfo)
-      : Name{KernelName}, Args{ArgDesc}, Attributes{}, NDR{NDR}, BinaryInfo{
-                                                                     BinInfo} {}
+  SYCLKernelInfo() = default;
 
-  SYCLKernelInfo(const std::string &KernelName, size_t NumArgs)
+  SYCLKernelInfo(const char *KernelName, const SYCLArgumentDescriptor &ArgDesc,
+                 const NDRange &NDR, const SYCLKernelBinaryInfo &BinInfo)
+      : Name{KernelName}, Args{ArgDesc}, Attributes{}, NDR{NDR},
+        BinaryInfo{BinInfo} {}
+
+  SYCLKernelInfo(const char *KernelName, size_t NumArgs)
       : Name{KernelName}, Args{NumArgs}, Attributes{}, NDR{}, BinaryInfo{} {}
-};
-
-///
-/// Represents a SPIR-V translation unit containing SYCL kernels by the
-/// KernelInfo for each of the contained kernels.
-class SYCLModuleInfo {
-public:
-  using KernelInfoList = std::vector<SYCLKernelInfo>;
-
-  void addKernel(SYCLKernelInfo &Kernel) { Kernels.push_back(Kernel); }
-
-  KernelInfoList &kernels() { return Kernels; }
-
-  bool hasKernelFor(const std::string &KernelName) {
-    return getKernelFor(KernelName) != nullptr;
-  }
-
-  SYCLKernelInfo *getKernelFor(const std::string &KernelName) {
-    auto It =
-        std::find_if(Kernels.begin(), Kernels.end(),
-                     [&](SYCLKernelInfo &K) { return K.Name == KernelName; });
-    return (It != Kernels.end()) ? &*It : nullptr;
-  }
-
-private:
-  KernelInfoList Kernels;
 };
 
 } // namespace jit_compiler

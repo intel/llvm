@@ -1,0 +1,214 @@
+= sycl_ext_oneapi_profiling_tag
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 8 specification.
+All references below to the "core SYCL specification" or to section numbers in
+the SYCL specification refer to that revision.
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.
+Interfaces defined in this specification may not be implemented yet or may be
+in a preliminary state.
+The specification itself may also change in incompatible ways before it is
+finalized.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Overview
+
+This extension provides the ability to time the execution of commands in a
+queue without enabling profiling on the entire queue.
+This is more efficient on some platforms because only a subset of the events
+are required to contain timestamp information.
+It is also more convenient for use in libraries, where the library wants to
+get timing information for some commands, but the library does not control the
+construction of the queue (which is where the `enable_profiling` property is
+passed).
+
+This extension is structured as a free function, rather than a member function
+on `queue`, in order to be consistent with the API design in
+link:../proposed/sycl_ext_oneapi_enqueue_functions.asciidoc[
+sycl_ext_oneapi_enqueue_functions]
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.
+An implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_PROFILING_TAG` to one of the values defined in the table
+below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== New device aspect
+
+This extension adds the `ext_oneapi_queue_profiling_tag` enumerator to the
+`sycl::aspect` enumeration.
+
+```
+namespace sycl {
+
+enum class aspect : /*unspecified*/ {
+  ext_oneapi_queue_profiling_tag
+};
+
+} // namespace sycl
+```
+
+When a device has this aspect, the `submit_profiling_tag` function may be
+called for a queue on this device even if the queue is not constructed with the
+property `property::queue::enable_profiling`.
+
+=== New free function
+
+This extension adds the following free function.
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+event submit_profiling_tag(const queue& q);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Effects:_ If the queue `q` is out-of-order (i.e. was not constructed with
+`property::queue::in_order`), this function enqueues a command barrier to `q`.
+Any commands submitted after this barrier cannot begin execution until all
+previously submitted commands have completed.
+If this queue is in-order, this function simply enqueues a lightweight "tag"
+command that marks the current head of the queue.
+
+_Returns:_ If the queue is out-of-order, returns an event which represents the
+completion of the barrier.
+If the queue is in-order, returns an event which represents the completion of
+the "tag" command.
+In either case, the event's status becomes
+`info::event_command_status::complete` when all commands submitted to the queue
+prior to the call to `submit_profiling_tag` have completed.
+The event's `info::event_profiling::command_submit` timestamp reflects the
+time at which `submit_profiling_tag` is called.
+The event's `info::event_profiling::command_end` timestamp reflects the time
+at which the event enters the "complete" state.
+
+It is unspecified whether the event ever has the
+`info::event_command_status::running` status, and the meaning of the
+`info::event_profiling::command_start` timestamp is also unspecified.
+Implementations are encouraged to transition the event directly from the
+"submitted" status to the "complete" status and are encouraged to set the
+"command_start" timestamp to the same value as the "command_end" timestamp.
+
+_Throws:_ A synchronous `exception` with the `errc::invalid` error code if the
+queue was not constructed with the `property::queue::enable_profiling` property
+and if the queue's device does not have the aspect
+`ext_oneapi_queue_profiling_tag`.
+
+[_Note:_ In order to understand why the "command_start" and "command_end"
+timestamps are encouraged to be the same, think of the barrier as an empty
+kernel with an implicit set of dependencies on all previous commands in the
+same queue.
+This theoretical kernel starts executing when the dependencies are resolved.
+Since the kernel is empty, the end time is the same as the start time.
+The "command_start" and "command_end" timestamps are not required to be the
+same, though, in order to accommodate an implementation where the barrier is
+implemented by submitting an actual kernel, which has non-zero execution time.
+_{endnote}_]
+|====
+
+
+== Example
+
+The following example demonstrates how to time a sequence of kernels that are
+submitted to a queue.
+
+```
+#include <iostream>
+#include <sycl/sycl.hpp>
+namespace syclex = sycl::ext::oneapi::experimental;
+
+static constexpr size_t N = 1024;
+
+int main() {
+  sycl::queue q;
+
+  if (!q.get_device().has(sycl::aspect::ext_oneapi_queue_profiling_tag)) {
+    std::cout << "Cannot time kernels without enabling profiling on queue\n";
+    return;
+  }
+
+  // commands submitted here are not timed
+
+  sycl::event start = syclex::submit_profiling_tag(q);
+  sycl::parallel_for(q, {N}, [=](auto i) {/* first kernel */});
+  sycl::parallel_for(q, {N}, [=](auto i) {/* second kernel */});
+  sycl::event end = syclex::submit_profiling_tag(q);
+
+  q.wait();
+
+  uint64_t elapsed =
+    end.get_profiling_info<sycl::info::event_profiling::command_start>() -
+    start.get_profiling_info<sycl::info::event_profiling::command_end>();
+  std::cout << "Execution time: " << elapsed << " (nanoseconds)\n";
+}
+```

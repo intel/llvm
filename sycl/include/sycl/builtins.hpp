@@ -12,10 +12,7 @@
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 
-// Include the generated builtins.
-#include <sycl/builtins_marray_gen.hpp>
-#include <sycl/builtins_scalar_gen.hpp>
-#include <sycl/builtins_vector_gen.hpp>
+#include <sycl/builtins_preview.hpp>
 
 #else // __INTEL_PREVIEW_BREAKING_CHANGES
 
@@ -124,6 +121,10 @@ extern __DPCPP_SYCL_EXTERNAL float __imf_fmaf_rd(float x, float y, float z);
 extern __DPCPP_SYCL_EXTERNAL float __imf_fmaf_rn(float x, float y, float z);
 extern __DPCPP_SYCL_EXTERNAL float __imf_fmaf_ru(float x, float y, float z);
 extern __DPCPP_SYCL_EXTERNAL float __imf_fmaf_rz(float x, float y, float z);
+extern __DPCPP_SYCL_EXTERNAL float __imf_sqrtf_rd(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_sqrtf_rn(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_sqrtf_ru(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_sqrtf_rz(float x);
 extern __DPCPP_SYCL_EXTERNAL int __imf_float2int_rd(float x);
 extern __DPCPP_SYCL_EXTERNAL int __imf_float2int_rn(float x);
 extern __DPCPP_SYCL_EXTERNAL int __imf_float2int_ru(float x);
@@ -361,6 +362,10 @@ extern __DPCPP_SYCL_EXTERNAL double __imf_drcp_rd(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_drcp_rn(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_drcp_ru(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_drcp_rz(double x);
+extern __DPCPP_SYCL_EXTERNAL double __imf_sqrt_rd(double x);
+extern __DPCPP_SYCL_EXTERNAL double __imf_sqrt_rn(double x);
+extern __DPCPP_SYCL_EXTERNAL double __imf_sqrt_ru(double x);
+extern __DPCPP_SYCL_EXTERNAL double __imf_sqrt_rz(double x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_double2float_rd(double x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_double2float_rn(double x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_double2float_ru(double x);

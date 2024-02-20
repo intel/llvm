@@ -11,8 +11,8 @@ target triple = "spir64-unknown-unknown"
 !1 = !{i8 1, i8 0, i8 0, i8 1, i8 1, i8 0, i8 0, i8 1, i8 1, i8 0, i8 0, i8 1}
 !2 = !{!"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E9KernelOne", !0, !1}
 !3 = !{!"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE0_clES2_E9KernelTwo", !0, !1,
-       !{!"work_group_size_hint", !"1", !"2", !"3"},
-       !{!"reqd_work_group_size", !"4", !"5", !"6"}}
+       !{!"work_group_size_hint", i32 1, i32 2, i32 3},
+       !{!"reqd_work_group_size", i32 4, i32 5, i32 6}}
 !sycl.moduleinfo = !{!2, !3}
 
 ; Test scenario: Test if the analysis and the printing pass work correctly

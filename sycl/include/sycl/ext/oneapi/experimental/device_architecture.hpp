@@ -13,6 +13,17 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 enum class architecture {
+  // If new element is added to this enum:
+  //
+  // Update
+  //   - sycl_ext_oneapi_device_architecture specification doc
+  //   - "-fsycl-targets" description in sycl/doc/UsersManual.md
+  //
+  // Add
+  //   - __SYCL_TARGET_<ARCH>__ to the compiler driver and to all places below
+  //   - the unique ID of the new architecture in SYCL RT source code to support
+  //     querying the device architecture
+  //
   x86_64,
   intel_cpu_spr,
   intel_cpu_gnr,
@@ -43,6 +54,7 @@ enum class architecture {
   intel_gpu_acm_g12,
   intel_gpu_dg2_g12 = intel_gpu_acm_g12,
   intel_gpu_pvc,
+  intel_gpu_pvc_vg,
   // NVIDIA architectures
   nvidia_gpu_sm_50,
   nvidia_gpu_sm_52,
@@ -184,6 +196,9 @@ static constexpr ext::oneapi::experimental::architecture max_architecture =
 #endif
 #ifndef __SYCL_TARGET_INTEL_GPU_PVC__
 #define __SYCL_TARGET_INTEL_GPU_PVC__ 0
+#endif
+#ifndef __SYCL_TARGET_INTEL_GPU_PVC_VG__
+#define __SYCL_TARGET_INTEL_GPU_PVC_VG__ 0
 #endif
 #ifndef __SYCL_TARGET_NVIDIA_GPU_SM50__
 #define __SYCL_TARGET_NVIDIA_GPU_SM50__ 0
@@ -370,6 +385,7 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_INTEL_GPU_ACM_G11__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_ACM_G12__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_PVC__ == 1) ||
+    (__SYCL_TARGET_INTEL_GPU_PVC_VG__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM50__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM52__ == 1) ||
     (__SYCL_TARGET_NVIDIA_GPU_SM53__ == 1) ||
@@ -474,6 +490,8 @@ struct IsAOTForArchitectureClass {
         __SYCL_TARGET_INTEL_GPU_ACM_G12__ == 1;
     arr[static_cast<int>(arch::intel_gpu_pvc)] =
         __SYCL_TARGET_INTEL_GPU_PVC__ == 1;
+    arr[static_cast<int>(arch::intel_gpu_pvc_vg)] =
+        __SYCL_TARGET_INTEL_GPU_PVC_VG__ == 1;
     arr[static_cast<int>(arch::nvidia_gpu_sm_50)] =
         __SYCL_TARGET_NVIDIA_GPU_SM50__ == 1;
     arr[static_cast<int>(arch::nvidia_gpu_sm_52)] =

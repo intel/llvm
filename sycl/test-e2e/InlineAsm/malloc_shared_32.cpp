@@ -1,5 +1,5 @@
 // UNSUPPORTED: cuda, hip
-// REQUIRES: gpu,linux
+// REQUIRES: gpu,linux,sg-32,aspect-usm_shared_allocations
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -16,10 +16,7 @@ int main() {
 
   sycl::device Device = q.get_device();
 
-  auto Vec = Device.get_info<sycl::info::device::extensions>();
-  if (!isInlineASMSupported(Device) ||
-      std::find(Vec.begin(), Vec.end(), "cl_intel_required_subgroup_size") ==
-          std::end(Vec)) {
+  if (!isInlineASMSupported(Device)) {
     std::cout << "Skipping test\n";
     return 0;
   }
@@ -40,7 +37,7 @@ int main() {
   q.submit([&](sycl::handler &cgh) {
      cgh.parallel_for<kernel_name>(
          sycl::range<1>(problem_size),
-         [=](sycl::id<1> idx) [[intel::reqd_sub_group_size(32)]] {
+         [=](sycl::id<1> idx) [[sycl::reqd_sub_group_size(32)]] {
            int i = idx[0];
 #if defined(__SYCL_DEVICE_ONLY__)
            asm volatile(R"a(

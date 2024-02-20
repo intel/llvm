@@ -134,12 +134,13 @@ template <typename T, typename Expected> inline void checkVecNotReturnType() {
   using Vector = sycl::vec<T, N>;
 #if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
   using ExpectedVector = sycl::vec<Expected, N>;
+  using OpNotResult = decltype(operator!(std::declval<Vector>()));
 #else
   using ExpectedVector = sycl::vec<T, N>;
-#endif
   using OpNotResult = decltype(std::declval<Vector>().operator!());
+#endif
   static_assert(std::is_same_v<OpNotResult, ExpectedVector>,
-                "Incorrect vec::operator! return type");
+                "Incorrect operator! return type");
 }
 
 // the math built-in testing ensures that the vec binary ops get tested,
@@ -204,6 +205,18 @@ void checkVariousVecUnaryOps() {
   checkVecUnaryOps(vd1);
   sycl::vec<double, 16> vd{0, 4, 5, -9, 0, 4, 5, -9, 0, 4, 5, -9, 0, 4, 5, -9};
   checkVecUnaryOps(vd);
+
+  sycl::vec<sycl::half, 1> vh1{1};
+  checkVecUnaryOps(vh1);
+  sycl::vec<sycl::half, 16> vh{0, 4, 5, -9, 0, 4, 5, -9,
+                               0, 4, 5, -9, 0, 4, 5, -9};
+  checkVecUnaryOps(vh);
+
+  sycl::vec<sycl::ext::oneapi::bfloat16, 1> vbf1{1};
+  checkVecUnaryOps(vbf1);
+  sycl::vec<sycl::ext::oneapi::bfloat16, 16> vbf{0, 4, 5, -9, 0, 4, 5, -9,
+                                                 0, 4, 5, -9, 0, 4, 5, -9};
+  checkVecUnaryOps(vbf);
 }
 
 int main() {

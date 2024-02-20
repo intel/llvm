@@ -83,6 +83,7 @@ piSamplerRelease
 piSamplerRetain
 piTearDown
 piextBindlessImageSamplerCreate
+piextCommandBufferAdviseUSM
 piextCommandBufferCreate
 piextCommandBufferFillUSM
 piextCommandBufferFinalize
@@ -95,6 +96,7 @@ piextCommandBufferMemBufferWrite
 piextCommandBufferMemBufferWriteRect
 piextCommandBufferMemcpyUSM
 piextCommandBufferNDRangeKernel
+piextCommandBufferPrefetchUSM
 piextCommandBufferRelease
 piextCommandBufferRetain
 piextContextCreateWithNativeHandle

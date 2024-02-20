@@ -20,35 +20,6 @@ using d_t = double;
 struct v {};
 
 int main() {
-  // is_floatn
-  static_assert(d::is_floatn_v<s::vec<s::opencl::cl_float, 4>> == true);
-  static_assert(d::is_floatn_v<s::vec<s::opencl::cl_float, 16>> == true);
-  static_assert(d::is_floatn_v<s::float4> == true, "");
-  static_assert(d::is_floatn_v<s::float16> == true, "");
-
-  static_assert(d::is_floatn_v<s::opencl::cl_float> == false);
-  static_assert(d::is_floatn_v<s::opencl::cl_int> == false);
-  static_assert(d::is_floatn_v<i_t> == false, "");
-  static_assert(d::is_floatn_v<f_t> == false, "");
-  static_assert(d::is_floatn_v<t::c_t> == false, "");
-  static_assert(d::is_floatn_v<t::d_t> == false, "");
-  static_assert(d::is_floatn_v<v> == false, "");
-  // is_genfloatf
-  static_assert(d::is_genfloatf_v<s::vec<s::opencl::cl_float, 4>> == true);
-  static_assert(d::is_genfloatf_v<s::vec<s::opencl::cl_float, 16>> == true);
-  static_assert(d::is_genfloatf_v<s::opencl::cl_float> == true);
-  static_assert(d::is_genfloatf_v<s::float4> == true);
-  static_assert(d::is_genfloatf_v<s::float16> == true);
-  static_assert(d::is_genfloatf_v<f_t> == true, "");
-
-  static_assert(d::is_genfloatf_v<s::opencl::cl_int> == false);
-  static_assert(d::is_genfloatf_v<i_t> == false, "");
-  static_assert(d::is_genfloatf_v<t::c_t> == false, "");
-  static_assert(d::is_genfloatf_v<t::d_t> == false, "");
-  static_assert(d::is_genfloatf_v<v> == false, "");
-
-  //
-
   static_assert(d::is_genfloat_v<s::opencl::cl_float> == true);
   static_assert(d::is_genfloat_v<s::vec<s::opencl::cl_float, 4>> == true);
 
@@ -62,6 +33,10 @@ int main() {
   static_assert(d::is_ugenint_v<s::uint3> == true);
 
   static_assert(d::is_half_v<s::half>);
+
+  static_assert(d::is_bfloat16_v<sycl::ext::oneapi::bfloat16>);
+  static_assert(d::is_half_or_bf16_v<s::half>);
+  static_assert(d::is_half_or_bf16_v<sycl::ext::oneapi::bfloat16>);
 
   // TODO add checks for the following type traits
   /*
@@ -160,79 +135,88 @@ int main() {
   */
 
   // checks for some type conversions.
-  static_assert(std::is_same<d::SelectMatchingOpenCLType_t<s::opencl::cl_int>,
-                             s::opencl::cl_int>::value);
-
-  static_assert(
-      std::is_same<d::SelectMatchingOpenCLType_t<s::vec<s::opencl::cl_int, 2>>,
-                   s::vec<s::opencl::cl_int, 2>>::value);
-
-  static_assert(std::is_same<
-                d::SelectMatchingOpenCLType_t<s::multi_ptr<
-                    s::opencl::cl_int, s::access::address_space::global_space,
-                    s::access::decorated::yes>>,
-                s::multi_ptr<s::opencl::cl_int,
-                             s::access::address_space::global_space,
-                             s::access::decorated::yes>>::value);
-
-  static_assert(
-      std::is_same<d::SelectMatchingOpenCLType_t<
-                       s::multi_ptr<s::vec<s::opencl::cl_int, 2>,
-                                    s::access::address_space::global_space,
-                                    s::access::decorated::yes>>,
-                   s::multi_ptr<s::vec<s::opencl::cl_int, 2>,
-                                s::access::address_space::global_space,
-                                s::access::decorated::yes>>::value);
-
-  static_assert(std::is_same<d::SelectMatchingOpenCLType_t<long long>,
-                             s::opencl::cl_long>::value);
-
-  static_assert(
-      std::is_same<d::SelectMatchingOpenCLType_t<s::vec<long long, 2>>,
-                   s::vec<s::opencl::cl_long, 2>>::value);
-
-  static_assert(
-      std::is_same<d::SelectMatchingOpenCLType_t<s::multi_ptr<
-                       long long, s::access::address_space::global_space,
-                       s::access::decorated::yes>>,
-                   s::multi_ptr<s::opencl::cl_long,
-                                s::access::address_space::global_space,
-                                s::access::decorated::yes>>::value);
-
-  static_assert(
-      std::is_same<
-          d::SelectMatchingOpenCLType_t<s::multi_ptr<
-              s::vec<long long, 2>, s::access::address_space::global_space,
-              s::access::decorated::yes>>,
-          s::multi_ptr<s::vec<s::opencl::cl_long, 2>,
-                       s::access::address_space::global_space,
-                       s::access::decorated::yes>>::value);
+  static_assert(std::is_same_v<d::ConvertToOpenCLType_t<s::opencl::cl_int>,
+                               s::opencl::cl_int>);
 
 #ifdef __SYCL_DEVICE_ONLY__
   static_assert(
-      std::is_same<d::ConvertToOpenCLType_t<s::vec<s::opencl::cl_int, 2>>,
-                   s::vec<s::opencl::cl_int, 2>::vector_t>::value);
-  static_assert(std::is_same<d::ConvertToOpenCLType_t<s::vec<long long, 2>>,
-                             s::vec<s::opencl::cl_long, 2>::vector_t>::value);
-  static_assert(std::is_same<
+      std::is_same_v<d::ConvertToOpenCLType_t<s::vec<s::opencl::cl_int, 2>>,
+                     s::opencl::cl_int __attribute__((ext_vector_type(2)))>);
+
+  static_assert(std::is_same_v<
+                d::ConvertToOpenCLType_t<s::multi_ptr<
+                    s::opencl::cl_int, s::access::address_space::global_space,
+                    s::access::decorated::yes>>,
+                __attribute__((opencl_global)) s::opencl::cl_int *>);
+
+  using int_vec2 = s::opencl::cl_int __attribute__((ext_vector_type(2)));
+  static_assert(
+      std::is_same_v<d::ConvertToOpenCLType_t<
+                         s::multi_ptr<s::vec<s::opencl::cl_int, 2>,
+                                      s::access::address_space::global_space,
+                                      s::access::decorated::yes>>,
+                     __attribute__((opencl_global)) int_vec2 *>);
+
+  static_assert(
+      std::is_same_v<d::ConvertToOpenCLType_t<long long>, s::opencl::cl_long>);
+
+  static_assert(
+      std::is_same_v<d::ConvertToOpenCLType_t<s::vec<long long, 2>>,
+                     s::opencl::cl_long __attribute__((ext_vector_type(2)))>);
+
+  static_assert(
+      std::is_same_v<d::ConvertToOpenCLType_t<s::multi_ptr<
+                         long long, s::access::address_space::global_space,
+                         s::access::decorated::yes>>,
+                     __attribute__((opencl_global)) s::opencl::cl_long *>);
+
+  using long_vec2 = s::opencl::cl_long __attribute__((ext_vector_type(2)));
+  static_assert(
+      std::is_same_v<
+          d::ConvertToOpenCLType_t<s::multi_ptr<
+              s::vec<long long, 2>, s::access::address_space::global_space,
+              s::access::decorated::yes>>,
+          __attribute__((opencl_global)) long_vec2 *>);
+
+  using signed_char2 = s::opencl::cl_char __attribute__((ext_vector_type(2)));
+  static_assert(std::is_same_v<
+                d::ConvertToOpenCLType_t<s::multi_ptr<
+                    s::vec<char, 2>, s::access::address_space::global_space,
+                    s::access::decorated::yes>>,
+          __attribute__((opencl_global)) signed_char2 *>);
+  static_assert(
+      std::is_same_v<
+          d::ConvertToOpenCLType_t<s::multi_ptr<
+              s::vec<signed char, 2>, s::access::address_space::global_space,
+              s::access::decorated::yes>>,
+          __attribute__((opencl_global)) signed_char2 *>);
+
+#endif
+
+#ifdef __SYCL_DEVICE_ONLY__
+  static_assert(
+      std::is_same_v<d::ConvertToOpenCLType_t<s::vec<s::opencl::cl_int, 2>>,
+                     s::vec<s::opencl::cl_int, 2>::vector_t>);
+  static_assert(std::is_same_v<d::ConvertToOpenCLType_t<s::vec<long long, 2>>,
+                               s::vec<s::opencl::cl_long, 2>::vector_t>);
+  static_assert(std::is_same_v<
                 d::ConvertToOpenCLType_t<s::multi_ptr<
                     s::opencl::cl_int, s::access::address_space::global_space,
                     s::access::decorated::yes>>,
                 s::multi_ptr<s::opencl::cl_int,
                              s::access::address_space::global_space,
-                             s::access::decorated::yes>::pointer>::value);
+                             s::access::decorated::yes>::pointer>);
   static_assert(
-      std::is_same<d::ConvertToOpenCLType_t<
-                       s::multi_ptr<s::vec<s::opencl::cl_int, 4>,
-                                    s::access::address_space::global_space,
-                                    s::access::decorated::yes>>,
-                   s::multi_ptr<s::vec<s::opencl::cl_int, 4>::vector_t,
-                                s::access::address_space::global_space,
-                                s::access::decorated::yes>::pointer>::value);
+      std::is_same_v<d::ConvertToOpenCLType_t<
+                         s::multi_ptr<s::vec<s::opencl::cl_int, 4>,
+                                      s::access::address_space::global_space,
+                                      s::access::decorated::yes>>,
+                     s::multi_ptr<s::vec<s::opencl::cl_int, 4>::vector_t,
+                                  s::access::address_space::global_space,
+                                  s::access::decorated::yes>::pointer>);
 #endif
-  static_assert(std::is_same<d::ConvertToOpenCLType_t<s::half>,
-                             d::half_impl::BIsRepresentationT>::value,
-                "");
+  static_assert(std::is_same_v<d::ConvertToOpenCLType_t<s::half>,
+                               d::half_impl::BIsRepresentationT>);
 
   s::multi_ptr<int, s::access::address_space::global_space,
                s::access::decorated::yes>
