@@ -7955,8 +7955,11 @@ llvm::Constant *CodeGenModule::GetAddrOfRTTIDescriptor(QualType Ty,
   // Return a bogus pointer if RTTI is disabled, unless it's for EH.
   // FIXME: should we even be calling this method if RTTI is disabled
   // and it's not for EH?
-  if (!shouldEmitRTTI(ForEH))
-    return llvm::Constant::getNullValue(Int8PtrTy);
+  if (!shouldEmitRTTI(ForEH)) {
+    if (getTriple().isSPIR())
+      return llvm::Constant::getNullValue(DefaultInt8PtrTy);
+    return llvm::Constant::getNullValue(GlobalsInt8PtrTy);
+  }
 
   if (ForEH && Ty->isObjCObjectPointerType() &&
       LangOpts.ObjCRuntime.isGNUFamily())
