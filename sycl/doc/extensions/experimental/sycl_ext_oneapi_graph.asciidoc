@@ -530,6 +530,27 @@ Exceptions:
 * Throws with error code `invalid` if the type of the node is not a kernel
   execution.
 
+|
+[source,c++]
+----
+template <int Dimensions>
+void update_range(range<Dimensions> executionRange);
+----
+| Updates the execution Range for this node with a new value. This new value
+will not affect any executable graphs this node is part of until it is
+passed to the executable graph's update function.
+See <<executable-graph-update, Executable Graph Update>> for more information
+about updating node parameters.
+
+Parameters:
+
+* `executionRange` - The new value for the Range.
+
+Exceptions:
+
+* Throws with error code `invalid` if the type of the node is not a kernel
+  execution.
+
 |===
 
 ==== Dynamic Parameters
@@ -585,17 +606,18 @@ Parameters:
 dynamic_parameter(const ValueT &initialValue, command_graph<graph_state::modifiable> graph);
 ----
 |Constructs a dynamic parameter object that can be registered with node
-arguments, while providing an intiial value.
+arguments, while providing an intiial value which is used solely for
+deducing ValueT.
 
 Parameters:
 
-* `initialValue` - Initial value for the dynamic parameter.
+* `initialValue` - Initial value used for CTAD.
 * `graph` - Graph containing the nodes which will have dynamic parameters.
 
 |
 [source,c++]
 ----
-void register(int argIndex, const handler &cgh);
+void register_with_node(const handler &cgh, int argIndex);
 ----
 |Callable only from command-group scope when adding a node to a graph
 using the explicit API. Associate the dynamic parameter
@@ -605,9 +627,9 @@ registered with `handler`.
 
 Parameters:
 
+* `handler` - SYCL handler object.
 * `argIndex` - Kernel argument index starting from zero to associate with
   the dynamic parameter.
-* `handler` - SYCL handler object.
 
 Exceptions:
 
@@ -738,7 +760,7 @@ possible.
 
 ===== Individual Node Update
 
-Memory parameters to individual nodes in a graph in the `executable` state
+Parameters to individual nodes in a graph in the `executable` state
 can be updated between graph executions using dynamic parameters. When a
 `dynamic_parameter` instance is created with a modifiable state graph it is
 empty, with no associated kernel arguments. The `dynamic_parameter`
