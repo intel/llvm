@@ -575,7 +575,7 @@ ur_result_t SanitizerInterceptor::updateShadowMemory(ur_queue_handle_t Queue) {
 
 ur_result_t
 SanitizerInterceptor::registerDeviceGlobals(ur_context_handle_t Context,
-                                         ur_program_handle_t Program) {
+                                            ur_program_handle_t Program) {
     std::vector<ur_device_handle_t> Devices;
     getProgramDevices(Program, Devices);
 
