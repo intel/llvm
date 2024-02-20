@@ -420,6 +420,7 @@ template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
 }
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 using string = std::string;
+using string_view = std::string;
 #endif
 
 } // namespace detail
@@ -549,11 +550,7 @@ private:
                   bool IsKernelCreatedFromSource, bool IsESIMD);
 
   /// \return a string containing name of SYCL kernel.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   detail::string getKernelName();
-#else
-  std::string getKernelName();
-#endif
 
   template <typename LambdaNameT> bool lambdaAndKernelHaveEqualName() {
     // TODO It is unclear a kernel and a lambda/functor must to be equal or not
@@ -563,11 +560,7 @@ private:
     // values of arguments for the kernel.
     assert(MKernel && "MKernel is not initialized");
     const std::string LambdaName = detail::KernelInfo<LambdaNameT>::getName();
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
     detail::string KernelName = getKernelName();
-#else
-    const std::string KernelName = getKernelName();
-#endif
     return KernelName == LambdaName;
   }
 
@@ -3314,11 +3307,7 @@ private:
   std::vector<detail::ArgDesc> MAssociatedAccesors;
   /// Struct that encodes global size, local size, ...
   detail::NDRDescT MNDRDesc;
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   detail::string MKernelName;
-#else
-  std::string MKernelName;
-#endif
   /// Storage for a sycl::kernel object.
   std::shared_ptr<detail::kernel_impl> MKernel;
   /// Type of the command group, e.g. kernel, fill. Can also encode version.

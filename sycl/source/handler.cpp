@@ -861,15 +861,13 @@ void handler::extractArgsAndReqsFromLambda(
 // Calling methods of kernel_impl requires knowledge of class layout.
 // As this is impossible in header, there's a function that calls necessary
 // method inside the library and returns the result.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 detail::string handler::getKernelName() {
-  return detail::string(MKernel->get_info<info::kernel::function_name>());
-}
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  return detail::string{MKernel->get_info<info::kernel::function_name>()};
 #else
-std::string handler::getKernelName() {
   return MKernel->get_info<info::kernel::function_name>();
-}
 #endif
+}
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
@@ -1327,8 +1325,8 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
 }
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-void handler::ext_intel_read_host_pipe(const detail::string_view Name,
-                                       void *Ptr, size_t Size, bool Block) {
+void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
+                                       size_t Size, bool Block) {
   MImpl->HostPipeName = Name.data();
 #else
 void handler::ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
@@ -1343,8 +1341,8 @@ void handler::ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
 }
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-void handler::ext_intel_write_host_pipe(const detail::string_view Name,
-                                        void *Ptr, size_t Size, bool Block) {
+void handler::ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
+                                        size_t Size, bool Block) {
   MImpl->HostPipeName = Name.data();
 #else
 void handler::ext_intel_write_host_pipe(const std::string &Name, void *Ptr,

@@ -83,7 +83,12 @@ public:
 
   // new SYCL 2020 constructors
   exception(std::error_code);
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  exception(int EV, const std::error_category &ECat, const std::string &WhatArg)
+      : exception(EV, ECat, WhatArg.c_str()) {}
+#else
   exception(int, const std::error_category &, const std::string &);
+#endif
   exception(int, const std::error_category &, const char *);
   exception(int, const std::error_category &);
 

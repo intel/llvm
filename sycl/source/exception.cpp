@@ -27,9 +27,11 @@ exception::exception(std::error_code EC, const std::string &Msg)
 // new SYCL 2020 constructors
 exception::exception(std::error_code EC) : exception(EC, nullptr, "") {}
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 exception::exception(int EV, const std::error_category &ECat,
                      const std::string &WhatArg)
     : exception({EV, ECat}, nullptr, WhatArg) {}
+#endif
 
 exception::exception(int EV, const std::error_category &ECat,
                      const char *WhatArg)

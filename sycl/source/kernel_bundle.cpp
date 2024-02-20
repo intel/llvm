@@ -138,12 +138,14 @@ removeDuplicateDevices(const std::vector<device> &Devs) {
 
   return UniqueDevices;
 }
+
 kernel_id get_kernel_id_impl(string_view KernelName) {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   return detail::ProgramManager::getInstance().getSYCLKernelID(
       KernelName.data());
-}
-kernel_id get_kernel_id_impl(std::string KernelName) {
+#else
   return detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
+#endif
 }
 
 detail::KernelBundleImplPtr
