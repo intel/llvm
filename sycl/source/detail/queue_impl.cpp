@@ -516,6 +516,11 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   for (const EventImplPtr &Event : StreamsServiceEvents)
     Event->wait(Event);
 
+  // If there is an external event set, we need to wait on it.
+  std::optional<event> ExternalEvent = popExternalEvent();
+  if (ExternalEvent)
+    ExternalEvent->wait();
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
 #endif
