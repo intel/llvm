@@ -11,7 +11,6 @@
 #include <sycl/bit_cast.hpp>              // for bit_cast
 #include <sycl/detail/export.hpp>         // for __SYCL_EXPORT
 #include <sycl/detail/iostream_proxy.hpp> // for istream, ostream
-#include <sycl/detail/memcpy.hpp> // for bit_cast specialization for sycl::half
 #include <sycl/detail/vector_traits.hpp> // for vector_alignment
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -155,10 +154,6 @@ public:
   constexpr half(half &&) = default;
 
   __SYCL_CONSTEXPR_HALF half(const float &rhs) : Buf(float2Half(rhs)) {}
-  constexpr volatile half &operator=(const half &rhs) volatile {
-    Buf = rhs.Buf;
-    return *this;
-  }
 
   constexpr half &operator=(const half &rhs) = default;
 
@@ -311,10 +306,6 @@ public:
   __SYCL_CONSTEXPR_HALF half(const float &rhs) : Data(rhs) {}
 
   constexpr half &operator=(const half &rhs) = default;
-  constexpr volatile half &operator=(const half &rhs) volatile {
-    std::ignore = (Data = rhs.Data); // avoid compiler warnings
-    return *this;
-  }
 
 #ifndef __SYCL_DEVICE_ONLY__
   // Since StorageT and BIsRepresentationT are different on host, these two
@@ -602,22 +593,6 @@ inline float cast_if_host_half(half_impl::half val) {
 }
 
 } // namespace detail
-
-// An overload of the bit_cast function template that is defined in bit_cast.hpp
-// to provide a customized version in the case that From == sycl::half. It is
-// needed because that version of bit_cast requires the From type to be
-// trivially copyable which sycl::half is not. Therefore, we provide this
-// implementation which does not have that requirement.
-template <typename To>
-std::enable_if_t<sizeof(To) == sizeof(half), To>
-bit_cast(const half &from) noexcept {
-  static_assert(std::is_trivially_default_constructible<To>::value,
-                "To must be trivially default constructible");
-  To to;
-  detail::memcpy(&to, &from, sizeof(To));
-  return to;
-}
-
 } // namespace _V1
 } // namespace sycl
 
