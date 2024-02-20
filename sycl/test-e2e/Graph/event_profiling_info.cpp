@@ -1,14 +1,15 @@
 // REQUIRES: level_zero || cuda, gpu
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out 2>&1
-// RUN: %if ext_oneapi_level_zero %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --implicit-check-not=LEAK %s %}
+// RUN: %{run} %t.out
+// Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
+// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// Extra run to check for immediate-command-list in Level Zero
+// RUN: %if level_zero && linux %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
 // This test checks the profiling of an event returned
 // from graph submission with event::get_profiling_info().
 // It first tests a graph made exclusively of memory operations,
 // then tests a graph made of kernels.
-// The second run is to check that there are no leaks reported with the embedded
-// UR_L0_LEAKS_DEBUG testing capability.
 
 #include "graph_common.hpp"
 
@@ -76,13 +77,11 @@ bool compareProfiling(event Event1, event Event2) {
   return (Pass1 && Pass2);
 }
 
-// The test checks that get_profiling_info waits for command asccociated with
+// The test checks that get_profiling_info waits for command associated with
 // event to complete execution.
 int main() {
   device Dev;
-  queue Queue{Dev,
-              {sycl::ext::intel::property::queue::no_immediate_command_list{},
-               sycl::property::queue::enable_profiling()}};
+  queue Queue{Dev, {sycl::property::queue::enable_profiling()}};
 
   const size_t Size = 100000;
   int Data[Size] = {0};
