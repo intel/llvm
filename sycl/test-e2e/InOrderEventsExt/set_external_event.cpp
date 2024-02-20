@@ -14,7 +14,7 @@ int check_work(sycl::queue &Q1, sycl::queue &Q2) {
 
   sycl::buffer<int> DevDataBuf{sycl::range{N}};
   sycl::accessor DevData{DevDataBuf};
-  int *HostData = (int *)malloc(N * sizeof(int) * 10);
+  int *HostData =  new int[N * sizeof(int) * 10];
 
   for (size_t I = 0; I < 10; ++I) {
     Q1.fill(DevData, 0);
@@ -49,7 +49,7 @@ int check_work(sycl::queue &Q1, sycl::queue &Q2) {
       }
     }
   }
-  free(HostData);
+  delete[] HostData;
   return Failures;
 }
 
@@ -59,7 +59,7 @@ int check_wait(sycl::queue &Q1, sycl::queue &Q2) {
 
   sycl::buffer<int> DevDataBuf{sycl::range{N}};
   sycl::accessor DevData{DevDataBuf};
-  int *HostData = (int *)malloc(N * sizeof(int));
+  int *HostData = new int[N * sizeof(int)];
 
   Q1.fill(DevData, 0);
   for (size_t I = 0; I < 10; ++I) {
@@ -83,7 +83,7 @@ int check_wait(sycl::queue &Q1, sycl::queue &Q2) {
       ++Failures;
     }
   }
-  free(HostData);
+  delete[] HostData;
   return Failures;
 }
 
