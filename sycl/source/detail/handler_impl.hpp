@@ -11,6 +11,7 @@
 #include "sycl/handler.hpp"
 #include <detail/kernel_bundle_impl.hpp>
 #include <memory>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -117,6 +118,14 @@ public:
 
   // Extra information for semaphore interoperability
   sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+
+  // The user facing node type, used for operations which are recorded to a
+  // graph. Since some operations may actually be a different type than the user
+  // submitted, e.g. a fill() which is performed as a kernel submission. This is
+  // used to pass the type that the user expects to graph nodes when they are
+  // created for later query by users.
+  sycl::ext::oneapi::experimental::node_type MUserFacingNodeType =
+      sycl::ext::oneapi::experimental::node_type::empty;
 };
 
 } // namespace detail

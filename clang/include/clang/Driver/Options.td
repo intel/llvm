@@ -316,6 +316,8 @@ class AnalyzerOpts<string base>
   : KeyPathAndMacro<"AnalyzerOpts->", base, "ANALYZER_"> {}
 class MigratorOpts<string base>
   : KeyPathAndMacro<"MigratorOpts.", base, "MIGRATOR_"> {}
+class InstallAPIOpts<string base>
+  : KeyPathAndMacro<"InstallAPIOpts.", base, "INSTALLAPI_"> {}
 
 // A boolean option which is opt-in in CC1. The positive option exists in CC1 and
 // Args.hasArg(OPT_ffoo) can be used to check that the flag is enabled.
@@ -1166,7 +1168,8 @@ def config_user_dir_EQ : Joined<["--"], "config-user-dir=">,
 def coverage : Flag<["-", "--"], "coverage">, Group<Link_Group>,
   Visibility<[ClangOption, CLOption]>;
 def cpp_precomp : Flag<["-"], "cpp-precomp">, Group<clang_ignored_f_Group>;
-def current__version : JoinedOrSeparate<["-"], "current_version">;
+def current__version : JoinedOrSeparate<["-"], "current_version">,
+  Visibility<[ClangOption, CC1Option]>;
 def cxx_isystem : JoinedOrSeparate<["-"], "cxx-isystem">, Group<clang_i_Group>,
   HelpText<"Add directory to the C++ SYSTEM include search path">,
   Visibility<[ClangOption, CC1Option]>,
@@ -1600,6 +1603,9 @@ def static_libsan : Flag<["-"], "static-libsan">,
   HelpText<"Statically link the sanitizer runtime (Not supported for ASan, TSan or UBSan on darwin)">;
 def : Flag<["-"], "shared-libasan">, Alias<shared_libsan>;
 def fasm : Flag<["-"], "fasm">, Group<f_Group>;
+def installapi : Flag<["-"], "installapi">,
+  Visibility<[ClangOption, CC1Option]>, Group<Action_Group>,
+  HelpText<"Create a text-based stub file by scanning header files">;
 
 defm assume_unique_vtables : BoolFOption<"assume-unique-vtables",
   CodeGenOpts<"AssumeUniqueVTables">, DefaultTrue,
@@ -3815,11 +3821,11 @@ def fsycl_device_only : Flag<["-"], "fsycl-device-only">, Visibility<[ClangOptio
 def fsycl_embed_ir : Flag<["-"], "fsycl-embed-ir">, Visibility<[ClangOption, CLOption, DXCOption]>,
   HelpText<"Embed LLVM IR for runtime kernel fusion">;
 defm sycl_esimd_force_stateless_mem : BoolFOption<"sycl-esimd-force-stateless-mem",
-    LangOpts<"SYCLESIMDForceStatelessMem">, DefaultFalse,
+    LangOpts<"SYCLESIMDForceStatelessMem">, DefaultTrue,
     PosFlag<SetTrue, [], [ClangOption], "Enforce using stateless memory accesses. "
             "Convert stateful accesses via SYCL accessors to stateless within ESIMD kernels. "
-            "Disabled by default. (experimental)">,
-    NegFlag<SetFalse, [], [ClangOption], "Do not enforce using stateless memory accesses. (experimental)">,
+            "Enabled by default.">,
+    NegFlag<SetFalse, [], [ClangOption], "Do not enforce using stateless memory accesses.">,
     BothFlags<[], [ClangOption, CLOption, DXCOption, CC1Option], "">>;
 // TODO: Remove this option once ESIMD headers are updated to
 // guard vectors to be device only.
@@ -4259,6 +4265,10 @@ defm function_sections : BoolFOption<"function-sections",
   PosFlag<SetTrue, [], [ClangOption, CC1Option],
           "Place each function in its own section">,
   NegFlag<SetFalse>>;
+defm basic_block_address_map : BoolFOption<"basic-block-address-map",
+  CodeGenOpts<"BBAddrMap">, DefaultFalse,
+  PosFlag<SetTrue, [], [CC1Option], "Emit the basic block address map section.">,
+  NegFlag<SetFalse>>;
 def fbasic_block_sections_EQ : Joined<["-"], "fbasic-block-sections=">, Group<f_Group>,
   Visibility<[ClangOption, CC1Option, CC1AsOption]>,
   HelpText<"Place each function's basic blocks in unique sections (ELF Only)">,
@@ -4558,7 +4568,9 @@ def verify_pch : Flag<["-"], "verify-pch">, Group<Action_Group>,
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"Load and verify that a pre-compiled header file is not stale">;
 def init : Separate<["-"], "init">;
-def install__name : Separate<["-"], "install_name">;
+def install__name : Separate<["-"], "install_name">,
+  Visibility<[ClangOption, CC1Option]>,
+  MarshallingInfoString<InstallAPIOpts<"InstallName">>;
 def iprefix : JoinedOrSeparate<["-"], "iprefix">, Group<clang_i_Group>,
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"Set the -iwithprefix/-iwithprefixbefore prefix">, MetaVarName<"<dir>">;
@@ -4681,7 +4693,7 @@ def mwatchsimulator_version_min_EQ : Joined<["-"], "mwatchsimulator-version-min=
 def march_EQ : Joined<["-"], "march=">, Group<m_Group>,
   Flags<[TargetSpecific]>, Visibility<[ClangOption, CLOption, DXCOption, FlangOption]>,
   HelpText<"For a list of available architectures for the target use '-mcpu=help'">;
-def masm_EQ : Joined<["-"], "masm=">, Group<m_Group>;
+def masm_EQ : Joined<["-"], "masm=">, Group<m_Group>, Visibility<[ClangOption, FlangOption]>;
 def inline_asm_EQ : Joined<["-"], "inline-asm=">, Group<m_Group>,
   Visibility<[ClangOption, CC1Option]>,
   Values<"att,intel">,
@@ -4881,6 +4893,10 @@ def msave_restore : Flag<["-"], "msave-restore">, Group<m_riscv_Features_Group>,
   HelpText<"Enable using library calls for save and restore">;
 def mno_save_restore : Flag<["-"], "mno-save-restore">, Group<m_riscv_Features_Group>,
   HelpText<"Disable using library calls for save and restore">;
+def mforced_sw_shadow_stack : Flag<["-"], "mforced-sw-shadow-stack">, Group<m_riscv_Features_Group>,
+  HelpText<"Force using software shadow stack when shadow-stack enabled">;
+def mno_forced_sw_shadow_stack : Flag<["-"], "mno-forced-sw-shadow-stack">, Group<m_riscv_Features_Group>,
+  HelpText<"Not force using software shadow stack when shadow-stack enabled">;
 } // let Flags = [TargetSpecific]
 let Flags = [TargetSpecific] in {
 def menable_experimental_extensions : Flag<["-"], "menable-experimental-extensions">, Group<m_Group>,
@@ -5068,9 +5084,9 @@ defm amdgpu_ieee : BoolOption<"m", "amdgpu-ieee",
 def mcode_object_version_EQ : Joined<["-"], "mcode-object-version=">, Group<m_Group>,
   HelpText<"Specify code object ABI version. Defaults to 5. (AMDGPU only)">,
   Visibility<[ClangOption, FlangOption, CC1Option, FC1Option]>,
-  Values<"none,4,5">,
+  Values<"none,4,5,6">,
   NormalizedValuesScope<"llvm::CodeObjectVersionKind">,
-  NormalizedValues<["COV_None", "COV_4", "COV_5"]>,
+  NormalizedValues<["COV_None", "COV_4", "COV_5", "COV_6"]>,
   MarshallingInfoEnum<TargetOpts<"CodeObjectVersion">, "COV_5">;
 
 defm cumode : SimpleMFlag<"cumode",
@@ -5261,10 +5277,10 @@ def mno_fmv : Flag<["-"], "mno-fmv">, Group<f_clang_Group>,
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"Disable function multiversioning">;
 def moutline_atomics : Flag<["-"], "moutline-atomics">, Group<f_clang_Group>,
-  Visibility<[ClangOption, CC1Option]>,
+  Visibility<[ClangOption, CC1Option, FlangOption]>,
   HelpText<"Generate local calls to out-of-line atomic operations">;
 def mno_outline_atomics : Flag<["-"], "mno-outline-atomics">, Group<f_clang_Group>,
-  Visibility<[ClangOption, CC1Option]>,
+  Visibility<[ClangOption, CC1Option, FlangOption]>,
   HelpText<"Don't generate local calls to out-of-line atomic operations">;
 def mno_implicit_float : Flag<["-"], "mno-implicit-float">, Group<m_Group>,
   HelpText<"Don't generate implicit floating point or vector instructions">;
@@ -5604,7 +5620,7 @@ def print_rocm_search_dirs : Flag<["-", "--"], "print-rocm-search-dirs">,
   HelpText<"Print the paths used for finding ROCm installation">,
   Visibility<[ClangOption, CLOption]>;
 def print_runtime_dir : Flag<["-", "--"], "print-runtime-dir">,
-  HelpText<"Print the directory pathname containing clangs runtime libraries">,
+  HelpText<"Print the directory pathname containing Clang's runtime libraries">,
   Visibility<[ClangOption, CLOption]>;
 def print_diagnostic_options : Flag<["-", "--"], "print-diagnostic-options">,
   HelpText<"Print all of Clang's warning options">,
@@ -5664,11 +5680,13 @@ def fsycl_dump_device_code_EQ : Joined<["-"], "fsycl-dump-device-code=">, Flags<
   HelpText<"Dump device code into the user provided directory.">;
 def save_temps_EQ : Joined<["-", "--"], "save-temps=">, Flags<[NoXarchOption]>,
   Visibility<[ClangOption, CC1Option, FlangOption, FC1Option]>,
-  HelpText<"Save intermediate compilation results.">;
+  HelpText<"Save intermediate compilation results. <arg> can be set to 'cwd' for "
+  "current working directory, or 'obj' which will save temporary files in the "
+  "same directory as the final output file">;
 def save_temps : Flag<["-", "--"], "save-temps">, Flags<[NoXarchOption]>,
   Visibility<[ClangOption, FlangOption, FC1Option]>,
   Alias<save_temps_EQ>, AliasArgs<["cwd"]>,
-  HelpText<"Save intermediate compilation results">;
+  HelpText<"Alias for --save-temps=cwd">;
 def save_stats_EQ : Joined<["-", "--"], "save-stats=">, Flags<[NoXarchOption]>,
   HelpText<"Save llvm statistics.">;
 def save_stats : Flag<["-", "--"], "save-stats">, Flags<[NoXarchOption]>,
@@ -6095,6 +6113,18 @@ def mvis3 : Flag<["-"], "mvis3">, Group<m_sparc_Features_Group>;
 def mno_vis3 : Flag<["-"], "mno-vis3">, Group<m_sparc_Features_Group>;
 def mhard_quad_float : Flag<["-"], "mhard-quad-float">, Group<m_sparc_Features_Group>;
 def msoft_quad_float : Flag<["-"], "msoft-quad-float">, Group<m_sparc_Features_Group>;
+foreach i = 1 ... 7 in
+  def ffixed_g#i : Flag<["-"], "ffixed-g"#i>, Group<m_sparc_Features_Group>,
+    HelpText<"Reserve the G"#i#" register (SPARC only)">;
+foreach i = 0 ... 5 in
+  def ffixed_o#i : Flag<["-"], "ffixed-o"#i>, Group<m_sparc_Features_Group>,
+    HelpText<"Reserve the O"#i#" register (SPARC only)">;
+foreach i = 0 ... 7 in
+  def ffixed_l#i : Flag<["-"], "ffixed-l"#i>, Group<m_sparc_Features_Group>,
+    HelpText<"Reserve the L"#i#" register (SPARC only)">;
+foreach i = 0 ... 5 in
+  def ffixed_i#i : Flag<["-"], "ffixed-i"#i>, Group<m_sparc_Features_Group>,
+    HelpText<"Reserve the I"#i#" register (SPARC only)">;
 } // let Flags = [TargetSpecific]
 
 // M68k features flags
@@ -8838,8 +8868,8 @@ def _SLASH_ZW : CLJoined<"ZW">;
 // clang-dxc Options
 //===----------------------------------------------------------------------===//
 
-def dxc_Group : OptionGroup<"<clang-dxc options>">, Visibility<[DXCOption]>,
-  HelpText<"dxc compatibility options">;
+def dxc_Group : OptionGroup<"clang-dxc options">, Visibility<[DXCOption]>,
+  HelpText<"dxc compatibility options.">;
 class DXCFlag<string name> : Option<["/", "-"], name, KIND_FLAG>,
   Group<dxc_Group>, Visibility<[DXCOption]>;
 class DXCJoinedOrSeparate<string name> : Option<["/", "-"], name,

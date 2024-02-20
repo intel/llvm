@@ -165,14 +165,16 @@ void dumpConfig() {
 // TODO: host device type will be removed once sycl_ext_oneapi_filter_selector
 // is removed.
 const std::array<std::pair<std::string, info::device_type>, 6> &
-getSyclDeviceTypeMap() {
+getSyclDeviceTypeMap(bool supportAcc) {
   static const std::array<std::pair<std::string, info::device_type>, 6>
-      SyclDeviceTypeMap = {{{"host", info::device_type::host},
-                            {"cpu", info::device_type::cpu},
-                            {"gpu", info::device_type::gpu},
-                            {"acc", info::device_type::accelerator},
-                            {"fpga", info::device_type::accelerator},
-                            {"*", info::device_type::all}}};
+      SyclDeviceTypeMap = {
+          {{"host", info::device_type::host},
+           {"cpu", info::device_type::cpu},
+           {"gpu", info::device_type::gpu},
+           /* Duplicate entries are fine as this map is one-directional.*/
+           {supportAcc ? "acc" : "fpga", info::device_type::accelerator},
+           {"fpga", info::device_type::accelerator},
+           {"*", info::device_type::all}}};
   return SyclDeviceTypeMap;
 }
 
