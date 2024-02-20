@@ -14,7 +14,7 @@ int check_work(sycl::queue &Q1, sycl::queue &Q2) {
 
   sycl::buffer<int> DevDataBuf{sycl::range{N}};
   sycl::accessor DevData{DevDataBuf};
-  int *HostData =  new int[N * sizeof(int) * 10];
+  int *HostData = new int[N * sizeof(int) * 10];
 
   for (size_t I = 0; I < 10; ++I) {
     Q1.fill(DevData, 0);
