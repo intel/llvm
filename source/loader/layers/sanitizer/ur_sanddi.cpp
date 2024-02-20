@@ -28,8 +28,8 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
         if (!DI->ShadowOffset) {
             UR_CALL(DI->allocShadowMemory(Context));
         }
-        CI->DeviceList.emplace_back(std::move(DI));
-        CI->AllocInfosMap.emplace(hDevice, USMAllocInfoList{});
+        CI->DeviceList.emplace_back(hDevice);
+        CI->AllocInfosMap[hDevice];
     }
     return UR_RESULT_SUCCESS;
 }
