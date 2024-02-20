@@ -15,6 +15,7 @@
 #include "common.hpp"
 #include "device_sanitizer_report.hpp"
 #include "stacktrace.hpp"
+#include "ur_sanitizer_layer.hpp"
 
 #include <map>
 #include <memory>
@@ -43,42 +44,89 @@ struct USMAllocInfo {
     StackTrace ReleaseStack;
 };
 
+struct USMAllocInfoList {
+    std::vector<std::shared_ptr<USMAllocInfo>> List;
+    ur_shared_mutex Mutex;
+};
+
 enum class DeviceType { UNKNOWN, CPU, GPU_PVC, GPU_DG2 };
 
 struct DeviceInfo {
+    ur_device_handle_t Handle;
+
     DeviceType Type;
     size_t Alignment;
-    uptr ShadowOffset;
-    uptr ShadowOffsetEnd;
+    uptr ShadowOffset = 0;
+    uptr ShadowOffsetEnd = 0;
 
-    // Lock InitPool & AllocInfos
-    ur_shared_mutex Mutex;
-    std::vector<std::shared_ptr<USMAllocInfo>> AllocInfos;
+    DeviceInfo(ur_device_handle_t Device) : Handle(Device) {
+        [[maybe_unused]] auto Result =
+            context.urDdiTable.Device.pfnRetain(Device);
+        assert(Result == UR_RESULT_SUCCESS);
+    }
+
+    ~DeviceInfo() {
+        [[maybe_unused]] auto Result =
+            context.urDdiTable.Device.pfnRelease(Handle);
+        assert(Result == UR_RESULT_SUCCESS);
+    }
+
+    ur_result_t allocShadowMemory(ur_context_handle_t Context);
 };
 
 struct QueueInfo {
+    ur_queue_handle_t Handle;
     ur_mutex Mutex;
     ur_event_handle_t LastEvent;
+
+    QueueInfo(ur_queue_handle_t Queue) : Handle(Queue) {
+        [[maybe_unused]] auto Result =
+            context.urDdiTable.Queue.pfnRetain(Queue);
+        assert(Result == UR_RESULT_SUCCESS);
+    }
+
+    ~QueueInfo() {
+        [[maybe_unused]] auto Result =
+            context.urDdiTable.Queue.pfnRelease(Handle);
+        assert(Result == UR_RESULT_SUCCESS);
+    }
+
+    static std::unique_ptr<QueueInfo> Create(ur_context_handle_t Context,
+                                             ur_device_handle_t Device) {
+        ur_queue_handle_t Queue{};
+        [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnCreate(
+            Context, Device, nullptr, &Queue);
+        assert(Result == UR_RESULT_SUCCESS);
+        return std::make_unique<QueueInfo>(Queue);
+    }
 };
 
 struct ContextInfo {
+    ur_context_handle_t Handle;
 
-    std::shared_ptr<DeviceInfo> getDeviceInfo(ur_device_handle_t Device) {
-        std::shared_lock<ur_shared_mutex> Guard(Mutex);
-        assert(DeviceMap.find(Device) != DeviceMap.end());
-        return DeviceMap[Device];
+    std::vector<ur_device_handle_t> DeviceList;
+    std::unordered_map<ur_device_handle_t, USMAllocInfoList> AllocInfosMap;
+
+    ContextInfo(ur_context_handle_t Context) : Handle(Context) {
+        [[maybe_unused]] auto Result =
+            context.urDdiTable.Context.pfnRetain(Context);
+        assert(Result == UR_RESULT_SUCCESS);
     }
 
-    std::shared_ptr<QueueInfo> getQueueInfo(ur_queue_handle_t Queue) {
-        std::shared_lock<ur_shared_mutex> Guard(Mutex);
-        assert(QueueMap.find(Queue) != QueueMap.end());
-        return QueueMap[Queue];
+    ~ContextInfo() {
+        [[maybe_unused]] auto Result =
+            context.urDdiTable.Context.pfnRelease(Handle);
+        assert(Result == UR_RESULT_SUCCESS);
     }
 
-    ur_shared_mutex Mutex;
-    std::unordered_map<ur_device_handle_t, std::shared_ptr<DeviceInfo>>
-        DeviceMap;
-    std::unordered_map<ur_queue_handle_t, std::shared_ptr<QueueInfo>> QueueMap;
+    void insertAllocInfo(const std::vector<ur_device_handle_t> &Devices,
+                         std::shared_ptr<USMAllocInfo> &AllocInfo) {
+        for (auto Device : Devices) {
+            auto &AllocInfos = AllocInfosMap[Device];
+            std::scoped_lock<ur_shared_mutex> Guard(AllocInfos.Mutex);
+            AllocInfos.List.emplace_back(AllocInfo);
+        }
+    }
 };
 
 struct LaunchInfo {
@@ -95,6 +143,27 @@ struct LaunchInfo {
     ~LaunchInfo();
 };
 
+struct ManagedQueue {
+    ManagedQueue(ur_context_handle_t Context,
+                                             ur_device_handle_t Device) {
+        [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnCreate(
+            Context, Device, nullptr, &Handle);
+        assert(Result == UR_RESULT_SUCCESS);
+    }
+
+    ~ManagedQueue() {
+        [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnRelease(Handle);
+        assert(Result == UR_RESULT_SUCCESS);
+    }
+
+    operator ur_queue_handle_t() {
+        return Handle;
+    }
+
+private:
+    ur_queue_handle_t Handle;
+};
+
 class SanitizerInterceptor {
   public:
     SanitizerInterceptor();
@@ -109,17 +178,18 @@ class SanitizerInterceptor {
     ur_result_t releaseMemory(ur_context_handle_t Context, void *Ptr);
 
     ur_result_t preLaunchKernel(ur_kernel_handle_t Kernel,
-                                ur_queue_handle_t Queue,
-                                ur_event_handle_t &Event,
-                                LaunchInfo &LaunchInfo, uint32_t numWorkgroup);
+                                ur_queue_handle_t Queue, LaunchInfo &LaunchInfo,
+                                uint32_t numWorkgroup);
     void postLaunchKernel(ur_kernel_handle_t Kernel, ur_queue_handle_t Queue,
                           ur_event_handle_t &Event, LaunchInfo &LaunchInfo);
 
-    ur_result_t insertContext(ur_context_handle_t Context);
+    ur_result_t insertContext(ur_context_handle_t Context,
+                              std::shared_ptr<ContextInfo> &CI);
     ur_result_t eraseContext(ur_context_handle_t Context);
 
-    ur_result_t insertDevice(ur_context_handle_t Context,
-                             ur_device_handle_t Device);
+    ur_result_t insertDevice(ur_device_handle_t Device,
+                             std::shared_ptr<DeviceInfo> &CI);
+    ur_result_t eraseDevice(ur_device_handle_t Device);
 
     ur_result_t insertQueue(ur_context_handle_t Context,
                             ur_queue_handle_t Queue);
@@ -130,27 +200,30 @@ class SanitizerInterceptor {
     findAllocInfoByAddress(uptr Address, ur_context_handle_t Context,
                            ur_device_handle_t Device);
 
+    ur_context_handle_t getPVCContext();
+
   private:
-    ur_result_t updateShadowMemory(ur_queue_handle_t Queue);
+    ur_result_t updateShadowMemory(std::shared_ptr<ContextInfo> &ContextInfo,
+                                   std::shared_ptr<DeviceInfo> &DeviceInfo,
+                                   ur_queue_handle_t Queue);
     ur_result_t enqueueAllocInfo(ur_context_handle_t Context,
-                                 ur_device_handle_t Device,
+                                 std::shared_ptr<DeviceInfo> &DeviceInfo,
                                  ur_queue_handle_t Queue,
-                                 std::shared_ptr<USMAllocInfo> &AlloccInfo,
-                                 ur_event_handle_t &LastEvent);
+                                 std::shared_ptr<USMAllocInfo> &AllocInfo);
 
     /// Initialize Global Variables & Kernel Name at first Launch
-    ur_result_t prepareLaunch(ur_queue_handle_t Queue,
+    ur_result_t prepareLaunch(ur_context_handle_t Context,
+                              std::shared_ptr<DeviceInfo> &DeviceInfo,
+                              ur_queue_handle_t Queue,
                               ur_kernel_handle_t Kernel, LaunchInfo &LaunchInfo,
                               uint32_t numWorkgroup);
 
     ur_result_t allocShadowMemory(ur_context_handle_t Context,
                                   std::shared_ptr<DeviceInfo> &DeviceInfo);
     ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
-                                    ur_device_handle_t Device,
+                                    std::shared_ptr<DeviceInfo> &DeviceInfo,
                                     ur_queue_handle_t Queue, uptr Addr,
-                                    uptr Size, u8 Value,
-                                    ur_event_handle_t DepEvent,
-                                    ur_event_handle_t *OutEvent);
+                                    uptr Size, u8 Value);
 
     std::shared_ptr<ContextInfo> getContextInfo(ur_context_handle_t Context) {
         std::shared_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
@@ -158,10 +231,20 @@ class SanitizerInterceptor {
         return m_ContextMap[Context];
     }
 
+    std::shared_ptr<DeviceInfo> getDeviceInfo(ur_device_handle_t Device) {
+        std::shared_lock<ur_shared_mutex> Guard(m_DeviceMapMutex);
+        assert(m_DeviceMap.find(Device) != m_DeviceMap.end());
+        return m_DeviceMap[Device];
+    }
+
   private:
     std::unordered_map<ur_context_handle_t, std::shared_ptr<ContextInfo>>
         m_ContextMap;
     ur_shared_mutex m_ContextMapMutex;
+
+    std::unordered_map<ur_device_handle_t, std::shared_ptr<DeviceInfo>>
+        m_DeviceMap;
+    ur_shared_mutex m_DeviceMapMutex;
 
     struct USMAllocInfoCompare {
         bool operator()(const std::shared_ptr<USMAllocInfo> &lhs,

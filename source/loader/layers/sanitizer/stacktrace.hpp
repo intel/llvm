@@ -14,7 +14,6 @@
 
 #include "common.hpp"
 
-#include <string>
 #include <vector>
 
 namespace ur_sanitizer_layer {
