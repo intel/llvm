@@ -35,5 +35,5 @@
 // RUN: env LD_PRELOAD=%t-lib-a.so %{run} %t-a.run
 // RUN: env LD_PRELOAD=%t-lib-o.so %{run} %t-o.run
 
-// Tentatively disable due to nightly failure
+// Tentatively disable test until internal tracker is resolved.
 // UNSUPPORTED: linux && gpu
