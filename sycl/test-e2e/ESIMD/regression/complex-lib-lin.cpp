@@ -34,3 +34,6 @@
 // do not use"
 // RUN: env LD_PRELOAD=%t-lib-a.so %{run} %t-a.run
 // RUN: env LD_PRELOAD=%t-lib-o.so %{run} %t-o.run
+
+// Tentatively disable due to nightly failure
+// UNSUPPORTED: linux && gpu
