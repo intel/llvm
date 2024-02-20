@@ -189,10 +189,10 @@ ur_result_t ur_context_handle_t_::initialize() {
                            .second;
     DeviceMemPools.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(umf::poolMakeUnique<usm::DisjointPool, 1>(
-                            {std::move(MemProvider)},
-                            DisjointPoolConfigInstance
-                                .Configs[usm::DisjointPoolMemType::Device])
+        std::make_tuple(umf::poolMakeUniqueFromOps(
+                            &UMF_DISJOINT_POOL_OPS, std::move(MemProvider),
+                            &DisjointPoolConfigInstance
+                                 .Configs[usm::DisjointPoolMemType::Device])
                             .second));
 
     MemProvider = umf::memoryProviderMakeUnique<L0SharedMemoryProvider>(
@@ -200,10 +200,10 @@ ur_result_t ur_context_handle_t_::initialize() {
                       .second;
     SharedMemPools.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(umf::poolMakeUnique<usm::DisjointPool, 1>(
-                            {std::move(MemProvider)},
-                            DisjointPoolConfigInstance
-                                .Configs[usm::DisjointPoolMemType::Shared])
+        std::make_tuple(umf::poolMakeUniqueFromOps(
+                            &UMF_DISJOINT_POOL_OPS, std::move(MemProvider),
+                            &DisjointPoolConfigInstance
+                                 .Configs[usm::DisjointPoolMemType::Shared])
                             .second));
 
     MemProvider = umf::memoryProviderMakeUnique<L0SharedReadOnlyMemoryProvider>(
@@ -212,10 +212,10 @@ ur_result_t ur_context_handle_t_::initialize() {
     SharedReadOnlyMemPools.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
         std::make_tuple(
-            umf::poolMakeUnique<usm::DisjointPool, 1>(
-                {std::move(MemProvider)},
-                DisjointPoolConfigInstance
-                    .Configs[usm::DisjointPoolMemType::SharedReadOnly])
+            umf::poolMakeUniqueFromOps(
+                &UMF_DISJOINT_POOL_OPS, std::move(MemProvider),
+                &DisjointPoolConfigInstance
+                     .Configs[usm::DisjointPoolMemType::SharedReadOnly])
                 .second));
 
     MemProvider = umf::memoryProviderMakeUnique<L0DeviceMemoryProvider>(
@@ -224,8 +224,7 @@ ur_result_t ur_context_handle_t_::initialize() {
     DeviceMemProxyPools.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
         std::make_tuple(
-            umf::poolMakeUnique<USMProxyPool, 1>({std::move(MemProvider)})
-                .second));
+            umf::poolMakeUnique<USMProxyPool>(std::move(MemProvider)).second));
 
     MemProvider = umf::memoryProviderMakeUnique<L0SharedMemoryProvider>(
                       reinterpret_cast<ur_context_handle_t>(this), Device)
@@ -233,8 +232,7 @@ ur_result_t ur_context_handle_t_::initialize() {
     SharedMemProxyPools.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
         std::make_tuple(
-            umf::poolMakeUnique<USMProxyPool, 1>({std::move(MemProvider)})
-                .second));
+            umf::poolMakeUnique<USMProxyPool>(std::move(MemProvider)).second));
 
     MemProvider = umf::memoryProviderMakeUnique<L0SharedReadOnlyMemoryProvider>(
                       reinterpret_cast<ur_context_handle_t>(this), Device)
@@ -242,8 +240,7 @@ ur_result_t ur_context_handle_t_::initialize() {
     SharedReadOnlyMemProxyPools.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
         std::make_tuple(
-            umf::poolMakeUnique<USMProxyPool, 1>({std::move(MemProvider)})
-                .second));
+            umf::poolMakeUnique<USMProxyPool>(std::move(MemProvider)).second));
   };
 
   // Recursive helper to call createUSMAllocators for all sub-devices
@@ -268,16 +265,16 @@ ur_result_t ur_context_handle_t_::initialize() {
                          reinterpret_cast<ur_context_handle_t>(this), nullptr)
                          .second;
   HostMemPool =
-      umf::poolMakeUnique<usm::DisjointPool, 1>(
-          {std::move(MemProvider)},
-          DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Host])
+      umf::poolMakeUniqueFromOps(
+          &UMF_DISJOINT_POOL_OPS, std::move(MemProvider),
+          &DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Host])
           .second;
 
   MemProvider = umf::memoryProviderMakeUnique<L0HostMemoryProvider>(
                     reinterpret_cast<ur_context_handle_t>(this), nullptr)
                     .second;
   HostMemProxyPool =
-      umf::poolMakeUnique<USMProxyPool, 1>({std::move(MemProvider)}).second;
+      umf::poolMakeUnique<USMProxyPool>(std::move(MemProvider)).second;
 
   // We may allocate memory to this root device so create allocators.
   if (SingleRootDevice &&
@@ -471,12 +468,17 @@ static const uint32_t MaxNumEventsPerPool = [] {
 
 ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
     ze_event_pool_handle_t &Pool, size_t &Index, bool HostVisible,
-    bool ProfilingEnabled) {
+    bool ProfilingEnabled, ur_device_handle_t Device) {
   // Lock while updating event pool machinery.
   std::scoped_lock<ur_mutex> Lock(ZeEventPoolCacheMutex);
 
+  ze_device_handle_t ZeDevice = nullptr;
+
+  if (Device) {
+    ZeDevice = Device->ZeDevice;
+  }
   std::list<ze_event_pool_handle_t> *ZePoolCache =
-      getZeEventPoolCache(HostVisible, ProfilingEnabled);
+      getZeEventPoolCache(HostVisible, ProfilingEnabled, ZeDevice);
 
   if (!ZePoolCache->empty()) {
     if (NumEventsAvailableInEventPool[ZePoolCache->front()] == 0) {
@@ -511,9 +513,14 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
     urPrint("ze_event_pool_desc_t flags set to: %d\n", ZeEventPoolDesc.flags);
 
     std::vector<ze_device_handle_t> ZeDevices;
-    std::for_each(
-        Devices.begin(), Devices.end(),
-        [&](const ur_device_handle_t &D) { ZeDevices.push_back(D->ZeDevice); });
+    if (ZeDevice) {
+      ZeDevices.push_back(ZeDevice);
+    } else {
+      std::for_each(Devices.begin(), Devices.end(),
+                    [&](const ur_device_handle_t &D) {
+                      ZeDevices.push_back(D->ZeDevice);
+                    });
+    }
 
     ZE2UR_CALL(zeEventPoolCreate, (ZeContext, &ZeEventPoolDesc,
                                    ZeDevices.size(), &ZeDevices[0], ZePool));
@@ -528,11 +535,10 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
   return UR_RESULT_SUCCESS;
 }
 
-ur_event_handle_t
-ur_context_handle_t_::getEventFromContextCache(bool HostVisible,
-                                               bool WithProfiling) {
+ur_event_handle_t ur_context_handle_t_::getEventFromContextCache(
+    bool HostVisible, bool WithProfiling, ur_device_handle_t Device) {
   std::scoped_lock<ur_mutex> Lock(EventCacheMutex);
-  auto Cache = getEventCache(HostVisible, WithProfiling);
+  auto Cache = getEventCache(HostVisible, WithProfiling, Device);
   if (Cache->empty())
     return nullptr;
 
@@ -546,8 +552,14 @@ ur_context_handle_t_::getEventFromContextCache(bool HostVisible,
 
 void ur_context_handle_t_::addEventToContextCache(ur_event_handle_t Event) {
   std::scoped_lock<ur_mutex> Lock(EventCacheMutex);
-  auto Cache =
-      getEventCache(Event->isHostVisible(), Event->isProfilingEnabled());
+  ur_device_handle_t Device = nullptr;
+
+  if (!Event->IsMultiDevice && Event->UrQueue) {
+    Device = Event->UrQueue->Device;
+  }
+
+  auto Cache = getEventCache(Event->isHostVisible(),
+                             Event->isProfilingEnabled(), Device);
   Cache->emplace_back(Event);
 }
 
@@ -562,8 +574,14 @@ ur_context_handle_t_::decrementUnreleasedEventsInPool(ur_event_handle_t Event) {
     return UR_RESULT_SUCCESS;
   }
 
-  std::list<ze_event_pool_handle_t> *ZePoolCache =
-      getZeEventPoolCache(Event->isHostVisible(), Event->isProfilingEnabled());
+  ze_device_handle_t ZeDevice = nullptr;
+
+  if (!Event->IsMultiDevice && Event->UrQueue) {
+    ZeDevice = Event->UrQueue->Device->ZeDevice;
+  }
+
+  std::list<ze_event_pool_handle_t> *ZePoolCache = getZeEventPoolCache(
+      Event->isHostVisible(), Event->isProfilingEnabled(), ZeDevice);
 
   // Put the empty pool to the cache of the pools.
   if (NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0)

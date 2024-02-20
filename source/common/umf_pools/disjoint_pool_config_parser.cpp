@@ -10,6 +10,7 @@
 
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <string>
 
 namespace usm {
@@ -25,10 +26,15 @@ constexpr auto operator""_GB(unsigned long long x) -> size_t {
 }
 
 DisjointPoolAllConfigs::DisjointPoolAllConfigs(int trace) {
-    Configs[DisjointPoolMemType::Host].name = "Host";
-    Configs[DisjointPoolMemType::Device].name = "Device";
-    Configs[DisjointPoolMemType::Shared].name = "Shared";
-    Configs[DisjointPoolMemType::SharedReadOnly].name = "SharedReadOnly";
+    for (auto &Config : Configs) {
+        Config = umfDisjointPoolParamsDefault();
+        Config.PoolTrace = trace;
+    }
+
+    Configs[DisjointPoolMemType::Host].Name = "Host";
+    Configs[DisjointPoolMemType::Device].Name = "Device";
+    Configs[DisjointPoolMemType::Shared].Name = "Shared";
+    Configs[DisjointPoolMemType::SharedReadOnly].Name = "SharedReadOnly";
 
     // Buckets for Host use a minimum of the cache line size of 64 bytes.
     // This prevents two separate allocations residing in the same cache line.
@@ -58,10 +64,6 @@ DisjointPoolAllConfigs::DisjointPoolAllConfigs(int trace) {
     Configs[DisjointPoolMemType::SharedReadOnly].MaxPoolableSize = 4_MB;
     Configs[DisjointPoolMemType::SharedReadOnly].Capacity = 4;
     Configs[DisjointPoolMemType::SharedReadOnly].SlabMinSize = 2_MB;
-
-    for (auto &Config : Configs) {
-        Config.PoolTrace = trace;
-    }
 }
 
 DisjointPoolAllConfigs parseDisjointPoolConfig(const std::string &config,
@@ -170,7 +172,7 @@ DisjointPoolAllConfigs parseDisjointPoolConfig(const std::string &config,
         MemParser(Params, M);
     };
 
-    auto limits = std::make_shared<DisjointPoolConfig::SharedLimits>();
+    size_t MaxSize = (std::numeric_limits<size_t>::max)();
 
     // Update pool settings if specified in environment.
     size_t EnableBuffers = 1;
@@ -185,7 +187,7 @@ DisjointPoolAllConfigs parseDisjointPoolConfig(const std::string &config,
             size_t Pos = Params.find(';');
             if (Pos != std::string::npos) {
                 if (Pos > 0) {
-                    GetValue(Params, Pos, limits->MaxSize);
+                    GetValue(Params, Pos, MaxSize);
                 }
                 Params.erase(0, Pos + 1);
                 do {
@@ -206,15 +208,19 @@ DisjointPoolAllConfigs parseDisjointPoolConfig(const std::string &config,
                 } while (true);
             } else {
                 // set MaxPoolSize for all configs
-                GetValue(Params, Params.size(), limits->MaxSize);
+                GetValue(Params, Params.size(), MaxSize);
             }
         } else {
             GetValue(Params, Params.size(), EnableBuffers);
         }
     }
 
+    AllConfigs.limits = std::shared_ptr<umf_disjoint_pool_shared_limits_t>(
+        umfDisjointPoolSharedLimitsCreate(MaxSize),
+        umfDisjointPoolSharedLimitsDestroy);
+
     for (auto &Config : AllConfigs.Configs) {
-        Config.limits = limits;
+        Config.SharedLimits = AllConfigs.limits.get();
         Config.PoolTrace = trace;
     }
 
@@ -263,8 +269,8 @@ DisjointPoolAllConfigs parseDisjointPoolConfig(const std::string &config,
         << std::setw(12)
         << AllConfigs.Configs[DisjointPoolMemType::SharedReadOnly].Capacity
         << std::endl;
-    std::cout << std::setw(15) << "MaxPoolSize" << std::setw(12)
-              << limits->MaxSize << std::endl;
+    std::cout << std::setw(15) << "MaxPoolSize" << std::setw(12) << MaxSize
+              << std::endl;
     std::cout << std::setw(15) << "EnableBuffers" << std::setw(12)
               << EnableBuffers << std::endl
               << std::endl;

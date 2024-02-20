@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2023 Intel Corporation
+ * Copyright (C) 2023-2024 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
  * See LICENSE.TXT
@@ -42,7 +42,9 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
 
     if (context.enableLeakChecking && phAdapters &&
         result == UR_RESULT_SUCCESS) {
-        refCountContext.createOrIncrementRefCount(*phAdapters, true);
+        for (uint32_t i = 0; i < NumEntries; i++) {
+            refCountContext.createOrIncrementRefCount(phAdapters[i], true);
+        }
     }
 
     return result;
@@ -132,6 +134,11 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetLastError(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hAdapter)) {
+        refCountContext.logInvalidReference(hAdapter);
+    }
+
     ur_result_t result = pfnAdapterGetLastError(hAdapter, ppMessage, pError);
 
     return result;
@@ -178,6 +185,11 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
         if (propSize == 0 && pPropValue != NULL) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hAdapter)) {
+        refCountContext.logInvalidReference(hAdapter);
     }
 
     ur_result_t result = pfnAdapterGetInfo(hAdapter, propName, propSize,
@@ -439,6 +451,13 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGet(
     ur_result_t result =
         pfnGet(hPlatform, DeviceType, NumEntries, phDevices, pNumDevices);
 
+    if (context.enableLeakChecking && phDevices &&
+        result == UR_RESULT_SUCCESS) {
+        for (uint32_t i = 0; i < NumEntries; i++) {
+            refCountContext.createOrIncrementRefCount(phDevices[i], false);
+        }
+    }
+
     return result;
 }
 
@@ -486,6 +505,11 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
+    }
+
     ur_result_t result =
         pfnGetInfo(hDevice, propName, propSize, pPropValue, pPropSizeRet);
 
@@ -513,7 +537,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRetain(
     ur_result_t result = pfnRetain(hDevice);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(hDevice);
+        refCountContext.incrementRefCount(hDevice, false);
     }
 
     return result;
@@ -539,7 +563,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRelease(
     ur_result_t result = pfnRelease(hDevice);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hDevice);
+        refCountContext.decrementRefCount(hDevice, false);
     }
 
     return result;
@@ -578,6 +602,11 @@ __urdlllocal ur_result_t UR_APICALL urDevicePartition(
         if (NULL == pProperties->pProperties) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
     }
 
     ur_result_t result = pfnPartition(hDevice, pProperties, NumDevices,
@@ -624,6 +653,11 @@ __urdlllocal ur_result_t UR_APICALL urDeviceSelectBinary(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
+    }
+
     ur_result_t result =
         pfnSelectBinary(hDevice, pBinaries, NumBinaries, pSelectedBinary);
 
@@ -651,6 +685,11 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
         if (NULL == phNativeDevice) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
     }
 
     ur_result_t result = pfnGetNativeHandle(hDevice, phNativeDevice);
@@ -718,6 +757,11 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
         if (NULL == hDevice) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
     }
 
     ur_result_t result =
@@ -788,7 +832,7 @@ __urdlllocal ur_result_t UR_APICALL urContextRetain(
     ur_result_t result = pfnRetain(hContext);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(hContext);
+        refCountContext.incrementRefCount(hContext, false);
     }
 
     return result;
@@ -814,7 +858,7 @@ __urdlllocal ur_result_t UR_APICALL urContextRelease(
     ur_result_t result = pfnRelease(hContext);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hContext);
+        refCountContext.decrementRefCount(hContext, false);
     }
 
     return result;
@@ -865,6 +909,11 @@ __urdlllocal ur_result_t UR_APICALL urContextGetInfo(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
     ur_result_t result =
         pfnGetInfo(hContext, propName, propSize, pPropValue, pPropSizeRet);
 
@@ -892,6 +941,11 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
         if (NULL == phNativeContext) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
     }
 
     ur_result_t result = pfnGetNativeHandle(hContext, phNativeContext);
@@ -965,6 +1019,11 @@ __urdlllocal ur_result_t UR_APICALL urContextSetExtendedDeleter(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
     ur_result_t result = pfnSetExtendedDeleter(hContext, pfnDeleter, pUserData);
 
     return result;
@@ -1025,8 +1084,17 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
     ur_result_t result =
         pfnImageCreate(hContext, flags, pImageFormat, pImageDesc, pHost, phMem);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*phMem);
+    }
 
     return result;
 }
@@ -1080,8 +1148,17 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
     ur_result_t result =
         pfnBufferCreate(hContext, flags, size, pProperties, phBuffer);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*phBuffer);
+    }
 
     return result;
 }
@@ -1106,7 +1183,7 @@ __urdlllocal ur_result_t UR_APICALL urMemRetain(
     ur_result_t result = pfnRetain(hMem);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(hMem);
+        refCountContext.incrementRefCount(hMem, false);
     }
 
     return result;
@@ -1132,7 +1209,7 @@ __urdlllocal ur_result_t UR_APICALL urMemRelease(
     ur_result_t result = pfnRelease(hMem);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hMem);
+        refCountContext.decrementRefCount(hMem, false);
     }
 
     return result;
@@ -1178,6 +1255,11 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hBuffer)) {
+        refCountContext.logInvalidReference(hBuffer);
+    }
+
     ur_result_t result =
         pfnBufferPartition(hBuffer, flags, bufferCreateType, pRegion, phMem);
 
@@ -1213,6 +1295,16 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hMem)) {
+        refCountContext.logInvalidReference(hMem);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
+    }
+
     ur_result_t result = pfnGetNativeHandle(hMem, hDevice, phNativeMem);
 
     return result;
@@ -1246,8 +1338,17 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
     ur_result_t result = pfnBufferCreateWithNativeHandle(hNativeMem, hContext,
                                                          pProperties, phMem);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*phMem);
+    }
 
     return result;
 }
@@ -1291,8 +1392,17 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
     ur_result_t result = pfnImageCreateWithNativeHandle(
         hNativeMem, hContext, pImageFormat, pImageDesc, pProperties, phMem);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.createRefCount(*phMem);
+    }
 
     return result;
 }
@@ -1340,6 +1450,11 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
         if (propSize == 0 && pPropValue != NULL) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hMemory)) {
+        refCountContext.logInvalidReference(hMemory);
     }
 
     ur_result_t result =
@@ -1392,6 +1507,11 @@ __urdlllocal ur_result_t UR_APICALL urMemImageGetInfo(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hMemory)) {
+        refCountContext.logInvalidReference(hMemory);
+    }
+
     ur_result_t result =
         pfnImageGetInfo(hMemory, propName, propSize, pPropValue, pPropSizeRet);
 
@@ -1435,6 +1555,11 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreate(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
     ur_result_t result = pfnCreate(hContext, pDesc, phSampler);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
@@ -1465,7 +1590,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRetain(
     ur_result_t result = pfnRetain(hSampler);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(hSampler);
+        refCountContext.incrementRefCount(hSampler, false);
     }
 
     return result;
@@ -1492,7 +1617,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRelease(
     ur_result_t result = pfnRelease(hSampler);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hSampler);
+        refCountContext.decrementRefCount(hSampler, false);
     }
 
     return result;
@@ -1539,6 +1664,11 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetInfo(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hSampler)) {
+        refCountContext.logInvalidReference(hSampler);
+    }
+
     ur_result_t result =
         pfnGetInfo(hSampler, propName, propSize, pPropValue, pPropSizeRet);
 
@@ -1566,6 +1696,11 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetNativeHandle(
         if (NULL == phNativeSampler) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hSampler)) {
+        refCountContext.logInvalidReference(hSampler);
     }
 
     ur_result_t result = pfnGetNativeHandle(hSampler, phNativeSampler);
@@ -1599,6 +1734,11 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
         if (NULL == phSampler) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
     }
 
     ur_result_t result = pfnCreateWithNativeHandle(hNativeSampler, hContext,
@@ -1652,6 +1792,16 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(pool)) {
+        refCountContext.logInvalidReference(pool);
+    }
+
     ur_result_t result = pfnHostAlloc(hContext, pUSMDesc, pool, size, ppMem);
 
     return result;
@@ -1701,6 +1851,21 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
         if (size == 0) {
             return UR_RESULT_ERROR_INVALID_USM_SIZE;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(pool)) {
+        refCountContext.logInvalidReference(pool);
     }
 
     ur_result_t result =
@@ -1755,6 +1920,21 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(pool)) {
+        refCountContext.logInvalidReference(pool);
+    }
+
     ur_result_t result =
         pfnSharedAlloc(hContext, hDevice, pUSMDesc, pool, size, ppMem);
 
@@ -1781,6 +1961,11 @@ __urdlllocal ur_result_t UR_APICALL urUSMFree(
         if (NULL == pMem) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
     }
 
     ur_result_t result = pfnFree(hContext, pMem);
@@ -1823,6 +2008,11 @@ __urdlllocal ur_result_t UR_APICALL urUSMGetMemAllocInfo(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
     ur_result_t result = pfnGetMemAllocInfo(hContext, pMem, propName, propSize,
                                             pPropValue, pPropSizeRet);
 
@@ -1862,6 +2052,11 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
     ur_result_t result = pfnPoolCreate(hContext, pPoolDesc, ppPool);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
@@ -1891,7 +2086,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolRetain(
     ur_result_t result = pfnPoolRetain(pPool);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(pPool);
+        refCountContext.incrementRefCount(pPool, false);
     }
 
     return result;
@@ -1917,7 +2112,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolRelease(
     ur_result_t result = pfnPoolRelease(pPool);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(pPool);
+        refCountContext.decrementRefCount(pPool, false);
     }
 
     return result;
@@ -1961,6 +2156,11 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
         if (propSize == 0 && pPropValue != NULL) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hPool)) {
+        refCountContext.logInvalidReference(hPool);
     }
 
     ur_result_t result =
@@ -2017,6 +2217,16 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
+    }
+
     ur_result_t result = pfnGranularityGetInfo(
         hContext, hDevice, propName, propSize, pPropValue, pPropSizeRet);
 
@@ -2053,6 +2263,11 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemReserve(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
     ur_result_t result = pfnReserve(hContext, pStart, size, ppStart);
 
     return result;
@@ -2080,6 +2295,11 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemFree(
         if (NULL == pStart) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
     }
 
     ur_result_t result = pfnFree(hContext, pStart, size);
@@ -2125,6 +2345,16 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemMap(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hPhysicalMem)) {
+        refCountContext.logInvalidReference(hPhysicalMem);
+    }
+
     ur_result_t result =
         pfnMap(hContext, pStart, size, hPhysicalMem, offset, flags);
 
@@ -2153,6 +2383,11 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemUnmap(
         if (NULL == pStart) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
     }
 
     ur_result_t result = pfnUnmap(hContext, pStart, size);
@@ -2188,6 +2423,11 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemSetAccess(
         if (UR_VIRTUAL_MEM_ACCESS_FLAGS_MASK & flags) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
     }
 
     ur_result_t result = pfnSetAccess(hContext, pStart, size, flags);
@@ -2231,6 +2471,11 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGetInfo(
         if (UR_VIRTUAL_MEM_INFO_ACCESS_MODE < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
     }
 
     ur_result_t result = pfnGetInfo(hContext, pStart, size, propName, propSize,
@@ -2277,6 +2522,16 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemCreate(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
+    }
+
     ur_result_t result =
         pfnCreate(hContext, hDevice, size, pProperties, phPhysicalMem);
 
@@ -2308,7 +2563,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRetain(
     ur_result_t result = pfnRetain(hPhysicalMem);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(hPhysicalMem);
+        refCountContext.incrementRefCount(hPhysicalMem, false);
     }
 
     return result;
@@ -2335,7 +2590,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRelease(
     ur_result_t result = pfnRelease(hPhysicalMem);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hPhysicalMem);
+        refCountContext.decrementRefCount(hPhysicalMem, false);
     }
 
     return result;
@@ -2384,6 +2639,11 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
         if (length == 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
     }
 
     ur_result_t result =
@@ -2443,6 +2703,16 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
+    }
+
     ur_result_t result = pfnCreateWithBinary(hContext, hDevice, size, pBinary,
                                              pProperties, phProgram);
 
@@ -2477,6 +2747,16 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hProgram)) {
+        refCountContext.logInvalidReference(hProgram);
+    }
+
     ur_result_t result = pfnBuild(hContext, hProgram, pOptions);
 
     return result;
@@ -2505,6 +2785,16 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompile(
         if (NULL == hProgram) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hProgram)) {
+        refCountContext.logInvalidReference(hProgram);
     }
 
     ur_result_t result = pfnCompile(hContext, hProgram, pOptions);
@@ -2548,6 +2838,11 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
     ur_result_t result =
         pfnLink(hContext, count, phPrograms, pOptions, phProgram);
 
@@ -2574,7 +2869,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramRetain(
     ur_result_t result = pfnRetain(hProgram);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(hProgram);
+        refCountContext.incrementRefCount(hProgram, false);
     }
 
     return result;
@@ -2600,7 +2895,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramRelease(
     ur_result_t result = pfnRelease(hProgram);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hProgram);
+        refCountContext.decrementRefCount(hProgram, false);
     }
 
     return result;
@@ -2643,6 +2938,16 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetFunctionPointer(
         if (NULL == ppFunctionPointer) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hProgram)) {
+        refCountContext.logInvalidReference(hProgram);
     }
 
     ur_result_t result = pfnGetFunctionPointer(hDevice, hProgram, pFunctionName,
@@ -2695,6 +3000,11 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetInfo(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hProgram)) {
+        refCountContext.logInvalidReference(hProgram);
+    }
+
     ur_result_t result =
         pfnGetInfo(hProgram, propName, propSize, pPropValue, pPropSizeRet);
 
@@ -2739,6 +3049,16 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetBuildInfo(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hProgram)) {
+        refCountContext.logInvalidReference(hProgram);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
+    }
+
     ur_result_t result = pfnGetBuildInfo(hProgram, hDevice, propName, propSize,
                                          pPropValue, pPropSizeRet);
 
@@ -2775,6 +3095,11 @@ __urdlllocal ur_result_t UR_APICALL urProgramSetSpecializationConstants(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hProgram)) {
+        refCountContext.logInvalidReference(hProgram);
+    }
+
     ur_result_t result =
         pfnSetSpecializationConstants(hProgram, count, pSpecConstants);
 
@@ -2802,6 +3127,11 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetNativeHandle(
         if (NULL == phNativeProgram) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hProgram)) {
+        refCountContext.logInvalidReference(hProgram);
     }
 
     ur_result_t result = pfnGetNativeHandle(hProgram, phNativeProgram);
@@ -2835,6 +3165,11 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
         if (NULL == phProgram) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
     }
 
     ur_result_t result = pfnCreateWithNativeHandle(hNativeProgram, hContext,
@@ -2875,6 +3210,11 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreate(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hProgram)) {
+        refCountContext.logInvalidReference(hProgram);
+    }
+
     ur_result_t result = pfnCreate(hProgram, pKernelName, phKernel);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
@@ -2911,6 +3251,11 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hKernel)) {
+        refCountContext.logInvalidReference(hKernel);
+    }
+
     ur_result_t result =
         pfnSetArgValue(hKernel, argIndex, argSize, pProperties, pArgValue);
 
@@ -2937,6 +3282,11 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
         if (NULL == hKernel) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hKernel)) {
+        refCountContext.logInvalidReference(hKernel);
     }
 
     ur_result_t result =
@@ -2990,6 +3340,11 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hKernel)) {
+        refCountContext.logInvalidReference(hKernel);
+    }
+
     ur_result_t result =
         pfnGetInfo(hKernel, propName, propSize, pPropValue, pPropSizeRet);
 
@@ -3029,6 +3384,16 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetGroupInfo(
         if (UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hKernel)) {
+        refCountContext.logInvalidReference(hKernel);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
     }
 
     ur_result_t result = pfnGetGroupInfo(hKernel, hDevice, propName, propSize,
@@ -3072,6 +3437,16 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSubGroupInfo(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hKernel)) {
+        refCountContext.logInvalidReference(hKernel);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
+    }
+
     ur_result_t result = pfnGetSubGroupInfo(hKernel, hDevice, propName,
                                             propSize, pPropValue, pPropSizeRet);
 
@@ -3098,7 +3473,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelRetain(
     ur_result_t result = pfnRetain(hKernel);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(hKernel);
+        refCountContext.incrementRefCount(hKernel, false);
     }
 
     return result;
@@ -3124,7 +3499,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelRelease(
     ur_result_t result = pfnRelease(hKernel);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hKernel);
+        refCountContext.decrementRefCount(hKernel, false);
     }
 
     return result;
@@ -3151,6 +3526,11 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
         if (NULL == hKernel) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hKernel)) {
+        refCountContext.logInvalidReference(hKernel);
     }
 
     ur_result_t result =
@@ -3191,6 +3571,11 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hKernel)) {
+        refCountContext.logInvalidReference(hKernel);
+    }
+
     ur_result_t result =
         pfnSetExecInfo(hKernel, propName, propSize, pProperties, pPropValue);
 
@@ -3220,6 +3605,16 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
         if (NULL == hArgValue) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hKernel)) {
+        refCountContext.logInvalidReference(hKernel);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hArgValue)) {
+        refCountContext.logInvalidReference(hArgValue);
     }
 
     ur_result_t result =
@@ -3252,6 +3647,16 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
             UR_MEM_FLAGS_MASK & pProperties->memoryAccess) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hKernel)) {
+        refCountContext.logInvalidReference(hKernel);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hArgValue)) {
+        refCountContext.logInvalidReference(hArgValue);
     }
 
     ur_result_t result =
@@ -3289,6 +3694,11 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetSpecializationConstants(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hKernel)) {
+        refCountContext.logInvalidReference(hKernel);
+    }
+
     ur_result_t result =
         pfnSetSpecializationConstants(hKernel, count, pSpecConstants);
 
@@ -3316,6 +3726,11 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
         if (NULL == phNativeKernel) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hKernel)) {
+        refCountContext.logInvalidReference(hKernel);
     }
 
     ur_result_t result = pfnGetNativeHandle(hKernel, phNativeKernel);
@@ -3355,6 +3770,16 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
         if (NULL == phKernel) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hProgram)) {
+        refCountContext.logInvalidReference(hProgram);
     }
 
     ur_result_t result = pfnCreateWithNativeHandle(
@@ -3406,6 +3831,11 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
         if (propSize == 0 && pPropValue != NULL) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
     }
 
     ur_result_t result =
@@ -3460,6 +3890,16 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
+    }
+
     ur_result_t result = pfnCreate(hContext, hDevice, pProperties, phQueue);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
@@ -3489,7 +3929,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueRetain(
     ur_result_t result = pfnRetain(hQueue);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(hQueue);
+        refCountContext.incrementRefCount(hQueue, false);
     }
 
     return result;
@@ -3515,7 +3955,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueRelease(
     ur_result_t result = pfnRelease(hQueue);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hQueue);
+        refCountContext.decrementRefCount(hQueue, false);
     }
 
     return result;
@@ -3544,6 +3984,11 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
         if (NULL == phNativeQueue) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
     }
 
     ur_result_t result = pfnGetNativeHandle(hQueue, pDesc, phNativeQueue);
@@ -3584,6 +4029,16 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
+    }
+
     ur_result_t result = pfnCreateWithNativeHandle(
         hNativeQueue, hContext, hDevice, pProperties, phQueue);
 
@@ -3611,6 +4066,11 @@ __urdlllocal ur_result_t UR_APICALL urQueueFinish(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
     ur_result_t result = pfnFinish(hQueue);
 
     return result;
@@ -3631,6 +4091,11 @@ __urdlllocal ur_result_t UR_APICALL urQueueFlush(
         if (NULL == hQueue) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
     }
 
     ur_result_t result = pfnFlush(hQueue);
@@ -3677,6 +4142,11 @@ __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hEvent)) {
+        refCountContext.logInvalidReference(hEvent);
+    }
+
     ur_result_t result =
         pfnGetInfo(hEvent, propName, propSize, pPropValue, pPropSizeRet);
 
@@ -3715,6 +4185,11 @@ __urdlllocal ur_result_t UR_APICALL urEventGetProfilingInfo(
         if (pPropValue && propSize == 0) {
             return UR_RESULT_ERROR_INVALID_VALUE;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hEvent)) {
+        refCountContext.logInvalidReference(hEvent);
     }
 
     ur_result_t result = pfnGetProfilingInfo(hEvent, propName, propSize,
@@ -3772,7 +4247,7 @@ __urdlllocal ur_result_t UR_APICALL urEventRetain(
     ur_result_t result = pfnRetain(hEvent);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(hEvent);
+        refCountContext.incrementRefCount(hEvent, false);
     }
 
     return result;
@@ -3798,7 +4273,7 @@ __urdlllocal ur_result_t UR_APICALL urEventRelease(
     ur_result_t result = pfnRelease(hEvent);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hEvent);
+        refCountContext.decrementRefCount(hEvent, false);
     }
 
     return result;
@@ -3825,6 +4300,11 @@ __urdlllocal ur_result_t UR_APICALL urEventGetNativeHandle(
         if (NULL == phNativeEvent) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hEvent)) {
+        refCountContext.logInvalidReference(hEvent);
     }
 
     ur_result_t result = pfnGetNativeHandle(hEvent, phNativeEvent);
@@ -3858,6 +4338,11 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
         if (NULL == phEvent) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
     }
 
     ur_result_t result =
@@ -3901,6 +4386,11 @@ __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
         if (execStatus == UR_EXECUTION_INFO_QUEUED) {
             return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hEvent)) {
+        refCountContext.logInvalidReference(hEvent);
     }
 
     ur_result_t result =
@@ -3980,6 +4470,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hKernel)) {
+        refCountContext.logInvalidReference(hKernel);
+    }
+
     ur_result_t result = pfnKernelLaunch(
         hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
         pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent);
@@ -4030,6 +4530,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWait(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
     ur_result_t result =
         pfnEventsWait(hQueue, numEventsInWaitList, phEventWaitList, phEvent);
 
@@ -4078,6 +4583,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
                 }
             }
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
     }
 
     ur_result_t result = pfnEventsWaitWithBarrier(hQueue, numEventsInWaitList,
@@ -4145,6 +4655,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
                 }
             }
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hBuffer)) {
+        refCountContext.logInvalidReference(hBuffer);
     }
 
     ur_result_t result =
@@ -4215,6 +4735,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
                 }
             }
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hBuffer)) {
+        refCountContext.logInvalidReference(hBuffer);
     }
 
     ur_result_t result =
@@ -4335,6 +4865,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
                 }
             }
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hBuffer)) {
+        refCountContext.logInvalidReference(hBuffer);
     }
 
     ur_result_t result = pfnMemBufferReadRect(
@@ -4462,6 +5002,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hBuffer)) {
+        refCountContext.logInvalidReference(hBuffer);
+    }
+
     ur_result_t result = pfnMemBufferWriteRect(
         hQueue, hBuffer, blockingWrite, bufferOrigin, hostOrigin, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
@@ -4535,6 +5085,21 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
                 }
             }
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hBufferSrc)) {
+        refCountContext.logInvalidReference(hBufferSrc);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hBufferDst)) {
+        refCountContext.logInvalidReference(hBufferDst);
     }
 
     ur_result_t result =
@@ -4656,6 +5221,21 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hBufferSrc)) {
+        refCountContext.logInvalidReference(hBufferSrc);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hBufferDst)) {
+        refCountContext.logInvalidReference(hBufferDst);
+    }
+
     ur_result_t result = pfnMemBufferCopyRect(
         hQueue, hBufferSrc, hBufferDst, srcOrigin, dstOrigin, region,
         srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch,
@@ -4745,6 +5325,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hBuffer)) {
+        refCountContext.logInvalidReference(hBuffer);
+    }
+
     ur_result_t result =
         pfnMemBufferFill(hQueue, hBuffer, pPattern, patternSize, offset, size,
                          numEventsInWaitList, phEventWaitList, phEvent);
@@ -4820,6 +5410,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
                 }
             }
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hImage)) {
+        refCountContext.logInvalidReference(hImage);
     }
 
     ur_result_t result = pfnMemImageRead(
@@ -4898,6 +5498,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
                 }
             }
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hImage)) {
+        refCountContext.logInvalidReference(hImage);
     }
 
     ur_result_t result = pfnMemImageWrite(
@@ -4984,6 +5594,21 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageCopy(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hImageSrc)) {
+        refCountContext.logInvalidReference(hImageSrc);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hImageDst)) {
+        refCountContext.logInvalidReference(hImageDst);
+    }
+
     ur_result_t result =
         pfnMemImageCopy(hQueue, hImageSrc, hImageDst, srcOrigin, dstOrigin,
                         region, numEventsInWaitList, phEventWaitList, phEvent);
@@ -5058,6 +5683,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hBuffer)) {
+        refCountContext.logInvalidReference(hBuffer);
+    }
+
     ur_result_t result = pfnMemBufferMap(hQueue, hBuffer, blockingMap, mapFlags,
                                          offset, size, numEventsInWaitList,
                                          phEventWaitList, phEvent, ppRetMap);
@@ -5116,6 +5751,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
                 }
             }
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hMem)) {
+        refCountContext.logInvalidReference(hMem);
     }
 
     ur_result_t result =
@@ -5204,6 +5849,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
     ur_result_t result =
         pfnUSMFill(hQueue, pMem, patternSize, pPattern, size,
                    numEventsInWaitList, phEventWaitList, phEvent);
@@ -5281,6 +5931,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
     ur_result_t result =
         pfnUSMMemcpy(hQueue, blocking, pDst, pSrc, size, numEventsInWaitList,
                      phEventWaitList, phEvent);
@@ -5351,6 +6006,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
     ur_result_t result =
         pfnUSMPrefetch(hQueue, pMem, size, flags, numEventsInWaitList,
                        phEventWaitList, phEvent);
@@ -5397,6 +6057,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
             boundsError != UR_RESULT_SUCCESS) {
             return boundsError;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
     }
 
     ur_result_t result = pfnUSMAdvise(hQueue, pMem, size, advice, phEvent);
@@ -5504,6 +6169,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
     ur_result_t result =
         pfnUSMFill2D(hQueue, pMem, pitch, patternSize, pPattern, width, height,
                      numEventsInWaitList, phEventWaitList, phEvent);
@@ -5603,6 +6273,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
     ur_result_t result =
         pfnUSMMemcpy2D(hQueue, blocking, pDst, dstPitch, pSrc, srcPitch, width,
                        height, numEventsInWaitList, phEventWaitList, phEvent);
@@ -5674,6 +6349,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hProgram)) {
+        refCountContext.logInvalidReference(hProgram);
+    }
+
     ur_result_t result = pfnDeviceGlobalVariableWrite(
         hQueue, hProgram, name, blockingWrite, count, offset, pSrc,
         numEventsInWaitList, phEventWaitList, phEvent);
@@ -5743,6 +6428,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
                 }
             }
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hProgram)) {
+        refCountContext.logInvalidReference(hProgram);
     }
 
     ur_result_t result = pfnDeviceGlobalVariableRead(
@@ -5819,6 +6514,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hProgram)) {
+        refCountContext.logInvalidReference(hProgram);
+    }
+
     ur_result_t result =
         pfnReadHostPipe(hQueue, hProgram, pipe_symbol, blocking, pDst, size,
                         numEventsInWaitList, phEventWaitList, phEvent);
@@ -5893,6 +6598,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hProgram)) {
+        refCountContext.logInvalidReference(hProgram);
+    }
+
     ur_result_t result =
         pfnWriteHostPipe(hQueue, hProgram, pipe_symbol, blocking, pSrc, size,
                          numEventsInWaitList, phEventWaitList, phEvent);
@@ -5954,6 +6669,21 @@ __urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(pool)) {
+        refCountContext.logInvalidReference(pool);
+    }
+
     ur_result_t result =
         pfnPitchedAllocExp(hContext, hDevice, pUSMDesc, pool, widthInBytes,
                            height, elementSizeBytes, ppMem, pResultPitch);
@@ -5991,6 +6721,16 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
+    }
+
     ur_result_t result =
         pfnUnsampledImageHandleDestroyExp(hContext, hDevice, hImage);
 
@@ -6025,6 +6765,16 @@ urBindlessImagesSampledImageHandleDestroyExp(
         if (NULL == hImage) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
     }
 
     ur_result_t result =
@@ -6077,6 +6827,16 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
+    }
+
     ur_result_t result = pfnImageAllocateExp(hContext, hDevice, pImageFormat,
                                              pImageDesc, phImageMem);
 
@@ -6109,6 +6869,16 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
         if (NULL == hImageMem) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
     }
 
     ur_result_t result = pfnImageFreeExp(hContext, hDevice, hImageMem);
@@ -6169,6 +6939,16 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
         if (pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
             return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
     }
 
     ur_result_t result = pfnUnsampledImageCreateExp(
@@ -6235,6 +7015,21 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
         if (pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type) {
             return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hSampler)) {
+        refCountContext.logInvalidReference(hSampler);
     }
 
     ur_result_t result =
@@ -6322,6 +7117,11 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
     ur_result_t result = pfnImageCopyExp(
         hQueue, pDst, pSrc, pImageFormat, pImageDesc, imageCopyFlags, srcOffset,
         dstOffset, copyExtent, hostExtent, numEventsInWaitList, phEventWaitList,
@@ -6401,6 +7201,16 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
+    }
+
     ur_result_t result = pfnMipmapGetLevelExp(hContext, hDevice, hImageMem,
                                               mipmapLevel, phImageMem);
 
@@ -6433,6 +7243,16 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
         if (NULL == hMem) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
     }
 
     ur_result_t result = pfnMipmapFreeExp(hContext, hDevice, hMem);
@@ -6474,6 +7294,16 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
         if (NULL == phInteropMem) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
     }
 
     ur_result_t result = pfnImportOpaqueFDExp(hContext, hDevice, size,
@@ -6532,6 +7362,16 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
+    }
+
     ur_result_t result = pfnMapExternalArrayExp(
         hContext, hDevice, pImageFormat, pImageDesc, hInteropMem, phImageMem);
 
@@ -6567,11 +7407,17 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
         }
     }
 
-    ur_result_t result = pfnReleaseInteropExp(hContext, hDevice, hInteropMem);
-
-    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hInteropMem);
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
     }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
+    }
+
+    ur_result_t result = pfnReleaseInteropExp(hContext, hDevice, hInteropMem);
 
     return result;
 }
@@ -6613,6 +7459,16 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
+    }
+
     ur_result_t result = pfnImportExternalSemaphoreOpaqueFDExp(
         hContext, hDevice, pInteropSemaphoreDesc, phInteropSemaphore);
 
@@ -6646,6 +7502,16 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
         if (NULL == hInteropSemaphore) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
     }
 
     ur_result_t result =
@@ -6696,6 +7562,11 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
     ur_result_t result = pfnWaitExternalSemaphoreExp(
         hQueue, hSemaphore, numEventsInWaitList, phEventWaitList, phEvent);
 
@@ -6744,6 +7615,11 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
     ur_result_t result = pfnSignalExternalSemaphoreExp(
         hQueue, hSemaphore, numEventsInWaitList, phEventWaitList, phEvent);
 
@@ -6753,12 +7629,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urCommandBufferCreateExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_context_handle_t hContext, ///< [in] Handle of the context object.
+    ur_device_handle_t hDevice,   ///< [in] Handle of the device object.
     const ur_exp_command_buffer_desc_t
-        *pCommandBufferDesc, ///< [in][optional] CommandBuffer descriptor
+        *pCommandBufferDesc, ///< [in][optional] command-buffer descriptor.
     ur_exp_command_buffer_handle_t
-        *phCommandBuffer ///< [out] pointer to Command-Buffer handle
+        *phCommandBuffer ///< [out] Pointer to command-Buffer handle.
 ) {
     auto pfnCreateExp = context.urDdiTable.CommandBufferExp.pfnCreateExp;
 
@@ -6780,6 +7656,16 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
+    }
+
     ur_result_t result =
         pfnCreateExp(hContext, hDevice, pCommandBufferDesc, phCommandBuffer);
 
@@ -6790,7 +7676,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
 /// @brief Intercept function for urCommandBufferRetainExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer ///< [in] handle of the command-buffer object
+        hCommandBuffer ///< [in] Handle of the command-buffer object.
 ) {
     auto pfnRetainExp = context.urDdiTable.CommandBufferExp.pfnRetainExp;
 
@@ -6806,10 +7692,6 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainExp(
 
     ur_result_t result = pfnRetainExp(hCommandBuffer);
 
-    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(hCommandBuffer);
-    }
-
     return result;
 }
 
@@ -6817,7 +7699,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainExp(
 /// @brief Intercept function for urCommandBufferReleaseExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer ///< [in] handle of the command-buffer object
+        hCommandBuffer ///< [in] Handle of the command-buffer object.
 ) {
     auto pfnReleaseExp = context.urDdiTable.CommandBufferExp.pfnReleaseExp;
 
@@ -6833,10 +7715,6 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseExp(
 
     ur_result_t result = pfnReleaseExp(hCommandBuffer);
 
-    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hCommandBuffer);
-    }
-
     return result;
 }
 
@@ -6844,7 +7722,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseExp(
 /// @brief Intercept function for urCommandBufferFinalizeExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferFinalizeExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer ///< [in] handle of the command-buffer object
+        hCommandBuffer ///< [in] Handle of the command-buffer object.
 ) {
     auto pfnFinalizeExp = context.urDdiTable.CommandBufferExp.pfnFinalizeExp;
 
@@ -6867,9 +7745,9 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferFinalizeExp(
 /// @brief Intercept function for urCommandBufferAppendKernelLaunchExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer,         ///< [in] handle of the command-buffer object
-    ur_kernel_handle_t hKernel, ///< [in] kernel to append
-    uint32_t workDim,           ///< [in] dimension of the kernel execution
+        hCommandBuffer,         ///< [in] Handle of the command-buffer object.
+    ur_kernel_handle_t hKernel, ///< [in] Kernel to append.
+    uint32_t workDim,           ///< [in] Dimension of the kernel execution.
     const size_t
         *pGlobalWorkOffset, ///< [in] Offset to use when executing kernel.
     const size_t *
@@ -6880,8 +7758,10 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint, ///< [out][optional] Sync point associated with this command.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
 ) {
     auto pfnAppendKernelLaunchExp =
         context.urDdiTable.CommandBufferExp.pfnAppendKernelLaunchExp;
@@ -6920,10 +7800,15 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hKernel)) {
+        refCountContext.logInvalidReference(hKernel);
+    }
+
     ur_result_t result = pfnAppendKernelLaunchExp(
         hCommandBuffer, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-        pLocalWorkSize, numSyncPointsInWaitList, pSyncPointWaitList,
-        pSyncPoint);
+        pLocalWorkSize, numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint,
+        phCommand);
 
     return result;
 }
@@ -6932,16 +7817,16 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 /// @brief Intercept function for urCommandBufferAppendUSMMemcpyExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer, ///< [in] handle of the command-buffer object.
+        hCommandBuffer, ///< [in] Handle of the command-buffer object.
     void *pDst,         ///< [in] Location the data will be copied to.
     const void *pSrc,   ///< [in] The data to be copied.
-    size_t size,        ///< [in] The number of bytes to copy
+    size_t size,        ///< [in] The number of bytes to copy.
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
     auto pfnAppendUSMMemcpyExp =
         context.urDdiTable.CommandBufferExp.pfnAppendUSMMemcpyExp;
@@ -7056,7 +7941,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
 /// @brief Intercept function for urCommandBufferAppendMemBufferCopyExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+        hCommandBuffer,      ///< [in] Handle of the command-buffer object.
     ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
     ur_mem_handle_t hDstMem, ///< [in] The location the data will be copied to.
     size_t srcOffset,        ///< [in] Offset into the source memory.
@@ -7066,8 +7951,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
     auto pfnAppendMemBufferCopyExp =
         context.urDdiTable.CommandBufferExp.pfnAppendMemBufferCopyExp;
@@ -7098,6 +7983,16 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hSrcMem)) {
+        refCountContext.logInvalidReference(hSrcMem);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDstMem)) {
+        refCountContext.logInvalidReference(hDstMem);
+    }
+
     ur_result_t result = pfnAppendMemBufferCopyExp(
         hCommandBuffer, hSrcMem, hDstMem, srcOffset, dstOffset, size,
         numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
@@ -7109,18 +8004,18 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
 /// @brief Intercept function for urCommandBufferAppendMemBufferWriteExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer,      ///< [in] handle of the command-buffer object.
-    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
-    size_t offset,           ///< [in] offset in bytes in the buffer object.
-    size_t size,             ///< [in] size in bytes of data being written.
+        hCommandBuffer,      ///< [in] Handle of the command-buffer object.
+    ur_mem_handle_t hBuffer, ///< [in] Handle of the buffer object.
+    size_t offset,           ///< [in] Offset in bytes in the buffer object.
+    size_t size,             ///< [in] Size in bytes of data being written.
     const void *
-        pSrc, ///< [in] pointer to host memory where data is to be written from.
+        pSrc, ///< [in] Pointer to host memory where data is to be written from.
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
     auto pfnAppendMemBufferWriteExp =
         context.urDdiTable.CommandBufferExp.pfnAppendMemBufferWriteExp;
@@ -7151,6 +8046,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hBuffer)) {
+        refCountContext.logInvalidReference(hBuffer);
+    }
+
     ur_result_t result = pfnAppendMemBufferWriteExp(
         hCommandBuffer, hBuffer, offset, size, pSrc, numSyncPointsInWaitList,
         pSyncPointWaitList, pSyncPoint);
@@ -7162,17 +8062,17 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
 /// @brief Intercept function for urCommandBufferAppendMemBufferReadExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer,      ///< [in] handle of the command-buffer object.
-    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
-    size_t offset,           ///< [in] offset in bytes in the buffer object.
-    size_t size,             ///< [in] size in bytes of data being written.
-    void *pDst, ///< [in] pointer to host memory where data is to be written to.
+        hCommandBuffer,      ///< [in] Handle of the command-buffer object.
+    ur_mem_handle_t hBuffer, ///< [in] Handle of the buffer object.
+    size_t offset,           ///< [in] Offset in bytes in the buffer object.
+    size_t size,             ///< [in] Size in bytes of data being written.
+    void *pDst, ///< [in] Pointer to host memory where data is to be written to.
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
     auto pfnAppendMemBufferReadExp =
         context.urDdiTable.CommandBufferExp.pfnAppendMemBufferReadExp;
@@ -7203,6 +8103,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hBuffer)) {
+        refCountContext.logInvalidReference(hBuffer);
+    }
+
     ur_result_t result = pfnAppendMemBufferReadExp(
         hCommandBuffer, hBuffer, offset, size, pDst, numSyncPointsInWaitList,
         pSyncPointWaitList, pSyncPoint);
@@ -7214,7 +8119,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
 /// @brief Intercept function for urCommandBufferAppendMemBufferCopyRectExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+        hCommandBuffer,      ///< [in] Handle of the command-buffer object.
     ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
     ur_mem_handle_t hDstMem, ///< [in] The location the data will be copied to.
     ur_rect_offset_t
@@ -7231,8 +8136,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
     auto pfnAppendMemBufferCopyRectExp =
         context.urDdiTable.CommandBufferExp.pfnAppendMemBufferCopyRectExp;
@@ -7263,6 +8168,16 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hSrcMem)) {
+        refCountContext.logInvalidReference(hSrcMem);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDstMem)) {
+        refCountContext.logInvalidReference(hDstMem);
+    }
+
     ur_result_t result = pfnAppendMemBufferCopyRectExp(
         hCommandBuffer, hSrcMem, hDstMem, srcOrigin, dstOrigin, region,
         srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch,
@@ -7275,31 +8190,31 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
 /// @brief Intercept function for urCommandBufferAppendMemBufferWriteRectExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer,      ///< [in] handle of the command-buffer object.
-    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
+        hCommandBuffer,      ///< [in] Handle of the command-buffer object.
+    ur_mem_handle_t hBuffer, ///< [in] Handle of the buffer object.
     ur_rect_offset_t bufferOffset, ///< [in] 3D offset in the buffer.
     ur_rect_offset_t hostOffset,   ///< [in] 3D offset in the host region.
     ur_rect_region_t
         region, ///< [in] 3D rectangular region descriptor: width, height, depth.
     size_t
-        bufferRowPitch, ///< [in] length of each row in bytes in the buffer object.
+        bufferRowPitch, ///< [in] Length of each row in bytes in the buffer object.
     size_t
-        bufferSlicePitch, ///< [in] length of each 2D slice in bytes in the buffer object being
+        bufferSlicePitch, ///< [in] Length of each 2D slice in bytes in the buffer object being
                           ///< written.
     size_t
-        hostRowPitch, ///< [in] length of each row in bytes in the host memory region pointed to
+        hostRowPitch, ///< [in] Length of each row in bytes in the host memory region pointed to
                       ///< by pSrc.
     size_t
-        hostSlicePitch, ///< [in] length of each 2D slice in bytes in the host memory region
+        hostSlicePitch, ///< [in] Length of each 2D slice in bytes in the host memory region
                         ///< pointed to by pSrc.
     void *
-        pSrc, ///< [in] pointer to host memory where data is to be written from.
+        pSrc, ///< [in] Pointer to host memory where data is to be written from.
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
     auto pfnAppendMemBufferWriteRectExp =
         context.urDdiTable.CommandBufferExp.pfnAppendMemBufferWriteRectExp;
@@ -7330,6 +8245,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hBuffer)) {
+        refCountContext.logInvalidReference(hBuffer);
+    }
+
     ur_result_t result = pfnAppendMemBufferWriteRectExp(
         hCommandBuffer, hBuffer, bufferOffset, hostOffset, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
@@ -7342,29 +8262,29 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
 /// @brief Intercept function for urCommandBufferAppendMemBufferReadRectExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer,      ///< [in] handle of the command-buffer object.
-    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
+        hCommandBuffer,      ///< [in] Handle of the command-buffer object.
+    ur_mem_handle_t hBuffer, ///< [in] Handle of the buffer object.
     ur_rect_offset_t bufferOffset, ///< [in] 3D offset in the buffer.
     ur_rect_offset_t hostOffset,   ///< [in] 3D offset in the host region.
     ur_rect_region_t
         region, ///< [in] 3D rectangular region descriptor: width, height, depth.
     size_t
-        bufferRowPitch, ///< [in] length of each row in bytes in the buffer object.
+        bufferRowPitch, ///< [in] Length of each row in bytes in the buffer object.
     size_t
-        bufferSlicePitch, ///< [in] length of each 2D slice in bytes in the buffer object being read.
+        bufferSlicePitch, ///< [in] Length of each 2D slice in bytes in the buffer object being read.
     size_t
-        hostRowPitch, ///< [in] length of each row in bytes in the host memory region pointed to
+        hostRowPitch, ///< [in] Length of each row in bytes in the host memory region pointed to
                       ///< by pDst.
     size_t
-        hostSlicePitch, ///< [in] length of each 2D slice in bytes in the host memory region
+        hostSlicePitch, ///< [in] Length of each 2D slice in bytes in the host memory region
                         ///< pointed to by pDst.
-    void *pDst, ///< [in] pointer to host memory where data is to be read into.
+    void *pDst, ///< [in] Pointer to host memory where data is to be read into.
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
-    ur_exp_command_buffer_sync_point_t
-        *pSyncPoint ///< [out][optional] sync point associated with this command
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] Sync point associated with this command.
 ) {
     auto pfnAppendMemBufferReadRectExp =
         context.urDdiTable.CommandBufferExp.pfnAppendMemBufferReadRectExp;
@@ -7393,6 +8313,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
         if (pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hBuffer)) {
+        refCountContext.logInvalidReference(hBuffer);
     }
 
     ur_result_t result = pfnAppendMemBufferReadRectExp(
@@ -7448,6 +8373,11 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
         if (pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hBuffer)) {
+        refCountContext.logInvalidReference(hBuffer);
     }
 
     ur_result_t result = pfnAppendMemBufferFillExp(
@@ -7571,15 +8501,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
 /// @brief Intercept function for urCommandBufferEnqueueExp
 __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t
-        hCommandBuffer, ///< [in] handle of the command-buffer object.
+        hCommandBuffer, ///< [in] Handle of the command-buffer object.
     ur_queue_handle_t
-        hQueue, ///< [in] the queue to submit this command-buffer for execution.
-    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+        hQueue, ///< [in] The queue to submit this command-buffer for execution.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
     ///< events that must be complete before the command-buffer execution.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait
-    ///< events.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< command-buffer execution instance.
@@ -7616,8 +8545,191 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
     ur_result_t result = pfnEnqueueExp(
         hCommandBuffer, hQueue, numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferRetainCommandExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferRetainCommandExp(
+    ur_exp_command_buffer_command_handle_t
+        hCommand ///< [in] Handle of the command-buffer command.
+) {
+    auto pfnRetainCommandExp =
+        context.urDdiTable.CommandBufferExp.pfnRetainCommandExp;
+
+    if (nullptr == pfnRetainCommandExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hCommand) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnRetainCommandExp(hCommand);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferReleaseCommandExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseCommandExp(
+    ur_exp_command_buffer_command_handle_t
+        hCommand ///< [in] Handle of the command-buffer command.
+) {
+    auto pfnReleaseCommandExp =
+        context.urDdiTable.CommandBufferExp.pfnReleaseCommandExp;
+
+    if (nullptr == pfnReleaseCommandExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hCommand) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnReleaseCommandExp(hCommand);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferUpdateKernelLaunchExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
+    ur_exp_command_buffer_command_handle_t
+        hCommand, ///< [in] Handle of the command-buffer kernel command to update.
+    const ur_exp_command_buffer_update_kernel_launch_desc_t *
+        pUpdateKernelLaunch ///< [in] Struct defining how the kernel command is to be updated.
+) {
+    auto pfnUpdateKernelLaunchExp =
+        context.urDdiTable.CommandBufferExp.pfnUpdateKernelLaunchExp;
+
+    if (nullptr == pfnUpdateKernelLaunchExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hCommand) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pUpdateKernelLaunch) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    ur_result_t result =
+        pfnUpdateKernelLaunchExp(hCommand, pUpdateKernelLaunch);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferGetInfoExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferGetInfoExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer, ///< [in] handle of the command-buffer object
+    ur_exp_command_buffer_info_t
+        propName, ///< [in] the name of the command-buffer property to query
+    size_t
+        propSize, ///< [in] size in bytes of the command-buffer property value
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] value of the
+                    ///< command-buffer property
+    size_t *
+        pPropSizeRet ///< [out][optional] bytes returned in command-buffer property
+) {
+    auto pfnGetInfoExp = context.urDdiTable.CommandBufferExp.pfnGetInfoExp;
+
+    if (nullptr == pfnGetInfoExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hCommandBuffer) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (propSize != 0 && pPropValue == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pPropValue == NULL && pPropSizeRet == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT < propName) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (propSize == 0 && pPropValue != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+    }
+
+    ur_result_t result = pfnGetInfoExp(hCommandBuffer, propName, propSize,
+                                       pPropValue, pPropSizeRet);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferCommandGetInfoExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferCommandGetInfoExp(
+    ur_exp_command_buffer_command_handle_t
+        hCommand, ///< [in] handle of the command-buffer command object
+    ur_exp_command_buffer_command_info_t
+        propName, ///< [in] the name of the command-buffer command property to query
+    size_t
+        propSize, ///< [in] size in bytes of the command-buffer command property value
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] value of the
+                    ///< command-buffer command property
+    size_t *
+        pPropSizeRet ///< [out][optional] bytes returned in command-buffer command property
+) {
+    auto pfnCommandGetInfoExp =
+        context.urDdiTable.CommandBufferExp.pfnCommandGetInfoExp;
+
+    if (nullptr == pfnCommandGetInfoExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hCommand) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (propSize != 0 && pPropValue == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pPropValue == NULL && pPropSizeRet == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (UR_EXP_COMMAND_BUFFER_COMMAND_INFO_REFERENCE_COUNT < propName) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (propSize == 0 && pPropValue != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+    }
+
+    ur_result_t result = pfnCommandGetInfoExp(hCommand, propName, propSize,
+                                              pPropValue, pPropSizeRet);
 
     return result;
 }
@@ -7694,6 +8806,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hQueue)) {
+        refCountContext.logInvalidReference(hQueue);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hKernel)) {
+        refCountContext.logInvalidReference(hKernel);
+    }
+
     ur_result_t result = pfnCooperativeKernelLaunchExp(
         hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
         pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent);
@@ -7705,7 +8827,13 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
 /// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCountExp
 __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
-    uint32_t *pGroupCountRet    ///< [out] pointer to maximum number of groups
+    size_t
+        localWorkSize, ///< [in] number of local work-items that will form a work-group when the
+                       ///< kernel is launched
+    size_t
+        dynamicSharedMemorySize, ///< [in] size of dynamic shared memory, for each work-group, in bytes,
+    ///< that will be used when the kernel is launched
+    uint32_t *pGroupCountRet ///< [out] pointer to maximum number of groups
 ) {
     auto pfnSuggestMaxCooperativeGroupCountExp =
         context.urDdiTable.KernelExp.pfnSuggestMaxCooperativeGroupCountExp;
@@ -7724,8 +8852,13 @@ __urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
         }
     }
 
-    ur_result_t result =
-        pfnSuggestMaxCooperativeGroupCountExp(hKernel, pGroupCountRet);
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hKernel)) {
+        refCountContext.logInvalidReference(hKernel);
+    }
+
+    ur_result_t result = pfnSuggestMaxCooperativeGroupCountExp(
+        hKernel, localWorkSize, dynamicSharedMemorySize, pGroupCountRet);
 
     return result;
 }
@@ -7754,6 +8887,11 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
         if (NULL == phDevices) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hProgram)) {
+        refCountContext.logInvalidReference(hProgram);
     }
 
     ur_result_t result = pfnBuildExp(hProgram, numDevices, phDevices, pOptions);
@@ -7786,6 +8924,11 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompileExp(
         if (NULL == phDevices) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hProgram)) {
+        refCountContext.logInvalidReference(hProgram);
     }
 
     ur_result_t result =
@@ -7837,6 +8980,11 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
     ur_result_t result = pfnLinkExp(hContext, numDevices, phDevices, count,
                                     phPrograms, pOptions, phProgram);
 
@@ -7866,6 +9014,11 @@ __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
         }
     }
 
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
+    }
+
     ur_result_t result = pfnImportExp(hContext, pMem, size);
 
     return result;
@@ -7893,11 +9046,12 @@ __urdlllocal ur_result_t UR_APICALL urUSMReleaseExp(
         }
     }
 
-    ur_result_t result = pfnReleaseExp(hContext, pMem);
-
-    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(pMem);
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hContext)) {
+        refCountContext.logInvalidReference(hContext);
     }
+
+    ur_result_t result = pfnReleaseExp(hContext, pMem);
 
     return result;
 }
@@ -7924,6 +9078,16 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
         if (NULL == peerDevice) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(commandDevice)) {
+        refCountContext.logInvalidReference(commandDevice);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(peerDevice)) {
+        refCountContext.logInvalidReference(peerDevice);
     }
 
     ur_result_t result = pfnEnablePeerAccessExp(commandDevice, peerDevice);
@@ -7953,6 +9117,16 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
         if (NULL == peerDevice) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(commandDevice)) {
+        refCountContext.logInvalidReference(commandDevice);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(peerDevice)) {
+        refCountContext.logInvalidReference(peerDevice);
     }
 
     ur_result_t result = pfnDisablePeerAccessExp(commandDevice, peerDevice);
@@ -8009,6 +9183,16 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
         if (propSize == 0 && pPropValue != NULL) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(commandDevice)) {
+        refCountContext.logInvalidReference(commandDevice);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(peerDevice)) {
+        refCountContext.logInvalidReference(peerDevice);
     }
 
     ur_result_t result =
@@ -8263,6 +9447,25 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
 
     dditable.pfnEnqueueExp = pDdiTable->pfnEnqueueExp;
     pDdiTable->pfnEnqueueExp = ur_validation_layer::urCommandBufferEnqueueExp;
+
+    dditable.pfnRetainCommandExp = pDdiTable->pfnRetainCommandExp;
+    pDdiTable->pfnRetainCommandExp =
+        ur_validation_layer::urCommandBufferRetainCommandExp;
+
+    dditable.pfnReleaseCommandExp = pDdiTable->pfnReleaseCommandExp;
+    pDdiTable->pfnReleaseCommandExp =
+        ur_validation_layer::urCommandBufferReleaseCommandExp;
+
+    dditable.pfnUpdateKernelLaunchExp = pDdiTable->pfnUpdateKernelLaunchExp;
+    pDdiTable->pfnUpdateKernelLaunchExp =
+        ur_validation_layer::urCommandBufferUpdateKernelLaunchExp;
+
+    dditable.pfnGetInfoExp = pDdiTable->pfnGetInfoExp;
+    pDdiTable->pfnGetInfoExp = ur_validation_layer::urCommandBufferGetInfoExp;
+
+    dditable.pfnCommandGetInfoExp = pDdiTable->pfnCommandGetInfoExp;
+    pDdiTable->pfnCommandGetInfoExp =
+        ur_validation_layer::urCommandBufferCommandGetInfoExp;
 
     return result;
 }
@@ -9289,6 +10492,7 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
     if (enabledLayerNames.count(nameFullValidation)) {
         enableParameterValidation = true;
         enableLeakChecking = true;
+        enableLifetimeValidation = true;
     } else {
         if (enabledLayerNames.count(nameParameterValidation)) {
             enableParameterValidation = true;
@@ -9296,9 +10500,15 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
         if (enabledLayerNames.count(nameLeakChecking)) {
             enableLeakChecking = true;
         }
+        if (enabledLayerNames.count(nameLifetimeValidation)) {
+            // Handle lifetime validation requires leak checking feature.
+            enableLifetimeValidation = true;
+            enableLeakChecking = true;
+        }
     }
 
-    if (!enableParameterValidation && !enableLeakChecking) {
+    if (!enableParameterValidation && !enableLeakChecking &&
+        !enableLifetimeValidation) {
         return result;
     }
 

@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2023 Intel Corporation
+ * Copyright (C) 2023-2024 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
  * See LICENSE.TXT
@@ -58,6 +58,8 @@ template <>
 struct is_handle<ur_exp_interop_semaphore_handle_t> : std::true_type {};
 template <>
 struct is_handle<ur_exp_command_buffer_handle_t> : std::true_type {};
+template <>
+struct is_handle<ur_exp_command_buffer_command_handle_t> : std::true_type {};
 template <typename T>
 inline constexpr bool is_handle_v = is_handle<T>::value;
 template <typename T>
@@ -200,132 +202,145 @@ template <>
 inline ur_result_t printFlag<ur_exp_image_copy_flag_t>(std::ostream &os, uint32_t flag);
 
 template <>
+inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_exp_command_buffer_info_t value, size_t size);
+
+template <>
+inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_exp_command_buffer_command_info_t value, size_t size);
+
+template <>
 inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_exp_peer_info_t value, size_t size);
 
 } // namespace ur::details
 
-inline std::ostream &operator<<(std::ostream &os, ur_function_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_structure_type_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_result_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_structure_type_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_base_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_base_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_rect_offset_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_rect_region_t params);
-inline std::ostream &operator<<(std::ostream &os, ur_device_init_flag_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_loader_config_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_init_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_loader_config_info_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_code_location_t params);
-inline std::ostream &operator<<(std::ostream &os, ur_adapter_info_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_adapter_backend_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_platform_info_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_api_version_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_adapter_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_adapter_backend_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_platform_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_api_version_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_platform_native_properties_t params);
-inline std::ostream &operator<<(std::ostream &os, ur_platform_backend_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_platform_backend_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_device_binary_t params);
-inline std::ostream &operator<<(std::ostream &os, ur_device_type_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_device_info_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_device_affinity_domain_flag_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_device_partition_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_type_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_affinity_domain_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_partition_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_device_partition_property_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_device_partition_properties_t params);
-inline std::ostream &operator<<(std::ostream &os, ur_device_fp_capability_flag_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_device_mem_cache_type_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_device_local_mem_type_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_device_exec_capability_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_fp_capability_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_mem_cache_type_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_local_mem_type_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_exec_capability_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_device_native_properties_t params);
-inline std::ostream &operator<<(std::ostream &os, ur_memory_order_capability_flag_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_memory_scope_capability_flag_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_device_usm_access_capability_flag_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_context_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_memory_order_capability_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_memory_scope_capability_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_usm_access_capability_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_context_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_context_properties_t params);
-inline std::ostream &operator<<(std::ostream &os, ur_context_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_context_info_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_context_native_properties_t params);
-inline std::ostream &operator<<(std::ostream &os, ur_mem_flag_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_mem_type_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_mem_info_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_image_channel_order_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_image_channel_type_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_image_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_mem_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_mem_type_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_mem_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_image_channel_order_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_image_channel_type_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_image_info_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_image_format_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_image_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_buffer_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_buffer_channel_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_buffer_alloc_location_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_buffer_region_t params);
-inline std::ostream &operator<<(std::ostream &os, ur_buffer_create_type_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_buffer_create_type_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_mem_native_properties_t params);
-inline std::ostream &operator<<(std::ostream &os, ur_sampler_filter_mode_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_sampler_addressing_mode_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_sampler_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_sampler_filter_mode_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_sampler_addressing_mode_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_sampler_info_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_sampler_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_sampler_native_properties_t params);
-inline std::ostream &operator<<(std::ostream &os, ur_usm_host_mem_flag_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_usm_device_mem_flag_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_usm_pool_flag_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_usm_type_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_usm_alloc_info_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_usm_advice_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_usm_host_mem_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_usm_device_mem_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_usm_pool_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_usm_type_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_usm_alloc_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_usm_advice_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_usm_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_usm_host_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_usm_device_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_usm_alloc_location_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_usm_pool_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_usm_pool_limits_desc_t params);
-inline std::ostream &operator<<(std::ostream &os, ur_usm_pool_info_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_virtual_mem_granularity_info_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_virtual_mem_access_flag_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_virtual_mem_info_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_physical_mem_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_usm_pool_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_virtual_mem_granularity_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_virtual_mem_access_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_virtual_mem_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_physical_mem_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_physical_mem_properties_t params);
-inline std::ostream &operator<<(std::ostream &os, ur_program_metadata_type_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_program_metadata_type_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_program_metadata_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_program_properties_t params);
-inline std::ostream &operator<<(std::ostream &os, ur_program_info_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_program_build_status_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_program_binary_type_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_program_build_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_program_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_program_build_status_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_program_binary_type_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_program_build_info_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_specialization_constant_info_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_program_native_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_kernel_arg_value_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_kernel_arg_local_properties_t params);
-inline std::ostream &operator<<(std::ostream &os, ur_kernel_info_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_kernel_group_info_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_kernel_sub_group_info_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_kernel_cache_config_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_kernel_exec_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_kernel_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_kernel_group_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_kernel_sub_group_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_kernel_cache_config_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_kernel_exec_info_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_kernel_arg_pointer_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_kernel_exec_info_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_kernel_arg_sampler_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_kernel_arg_mem_obj_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_kernel_native_properties_t params);
-inline std::ostream &operator<<(std::ostream &os, ur_queue_info_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_queue_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_queue_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_queue_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_index_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_native_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_native_properties_t params);
-inline std::ostream &operator<<(std::ostream &os, ur_command_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_event_status_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_event_info_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_profiling_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_command_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_event_status_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_event_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_profiling_info_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_event_native_properties_t params);
-inline std::ostream &operator<<(std::ostream &os, ur_execution_info_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_map_flag_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_usm_migration_flag_t value);
-inline std::ostream &operator<<(std::ostream &os, ur_exp_image_copy_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_execution_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_map_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_usm_migration_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_image_copy_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_file_descriptor_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_win32_handle_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_sampler_mip_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_sampler_addr_modes_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_interop_mem_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_interop_semaphore_desc_t params);
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_command_buffer_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_command_buffer_command_info_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_command_buffer_desc_t params);
-inline std::ostream &operator<<(std::ostream &os, ur_exp_peer_info_t value);
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_command_buffer_update_memobj_arg_desc_t params);
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_command_buffer_update_pointer_arg_desc_t params);
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_command_buffer_update_value_arg_desc_t params);
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_command_buffer_update_exec_info_desc_t params);
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_command_buffer_update_kernel_launch_desc_t params);
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_peer_info_t value);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_function_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_function_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     switch (value) {
     case UR_FUNCTION_CONTEXT_CREATE:
         os << "UR_FUNCTION_CONTEXT_CREATE";
@@ -822,6 +837,9 @@ inline std::ostream &operator<<(std::ostream &os, ur_function_t value) {
     case UR_FUNCTION_ADAPTER_GET_INFO:
         os << "UR_FUNCTION_ADAPTER_GET_INFO";
         break;
+    case UR_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP";
+        break;
     case UR_FUNCTION_PROGRAM_BUILD_EXP:
         os << "UR_FUNCTION_PROGRAM_BUILD_EXP";
         break;
@@ -879,6 +897,18 @@ inline std::ostream &operator<<(std::ostream &os, ur_function_t value) {
     case UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP:
         os << "UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP";
         break;
+    case UR_FUNCTION_COMMAND_BUFFER_RETAIN_COMMAND_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_RETAIN_COMMAND_EXP";
+        break;
+    case UR_FUNCTION_COMMAND_BUFFER_RELEASE_COMMAND_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_RELEASE_COMMAND_EXP";
+        break;
+    case UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP";
+        break;
+    case UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -889,7 +919,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_function_t value) {
 /// @brief Print operator for the ur_structure_type_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_structure_type_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_structure_type_t value) {
     switch (value) {
     case UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES";
@@ -998,6 +1028,21 @@ inline std::ostream &operator<<(std::ostream &os, ur_structure_type_t value) {
         break;
     case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC:
         os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC";
+        break;
+    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC:
+        os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC";
+        break;
+    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_MEMOBJ_ARG_DESC:
+        os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_MEMOBJ_ARG_DESC";
+        break;
+    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_POINTER_ARG_DESC:
+        os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_POINTER_ARG_DESC";
+        break;
+    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC:
+        os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC";
+        break;
+    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_EXEC_INFO_DESC:
+        os << "UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_EXEC_INFO_DESC";
         break;
     case UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES";
@@ -1214,6 +1259,31 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
         printPtr(os, pstruct);
     } break;
 
+    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC: {
+        const ur_exp_command_buffer_update_kernel_launch_desc_t *pstruct = (const ur_exp_command_buffer_update_kernel_launch_desc_t *)ptr;
+        printPtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_MEMOBJ_ARG_DESC: {
+        const ur_exp_command_buffer_update_memobj_arg_desc_t *pstruct = (const ur_exp_command_buffer_update_memobj_arg_desc_t *)ptr;
+        printPtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_POINTER_ARG_DESC: {
+        const ur_exp_command_buffer_update_pointer_arg_desc_t *pstruct = (const ur_exp_command_buffer_update_pointer_arg_desc_t *)ptr;
+        printPtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC: {
+        const ur_exp_command_buffer_update_value_arg_desc_t *pstruct = (const ur_exp_command_buffer_update_value_arg_desc_t *)ptr;
+        printPtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_EXEC_INFO_DESC: {
+        const ur_exp_command_buffer_update_exec_info_desc_t *pstruct = (const ur_exp_command_buffer_update_exec_info_desc_t *)ptr;
+        printPtr(os, pstruct);
+    } break;
+
     case UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES: {
         const ur_exp_sampler_mip_properties_t *pstruct = (const ur_exp_sampler_mip_properties_t *)ptr;
         printPtr(os, pstruct);
@@ -1254,7 +1324,7 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
 /// @brief Print operator for the ur_result_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_result_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
     switch (value) {
     case UR_RESULT_SUCCESS:
         os << "UR_RESULT_SUCCESS";
@@ -1472,6 +1542,9 @@ inline std::ostream &operator<<(std::ostream &os, ur_result_t value) {
     case UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP:
         os << "UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP";
         break;
+    case UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP:
+        os << "UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP";
+        break;
     case UR_RESULT_ERROR_UNKNOWN:
         os << "UR_RESULT_ERROR_UNKNOWN";
         break;
@@ -1573,7 +1646,7 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_rect_region_t 
 /// @brief Print operator for the ur_device_init_flag_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_device_init_flag_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_init_flag_t value) {
     switch (value) {
     case UR_DEVICE_INIT_FLAG_GPU:
         os << "UR_DEVICE_INIT_FLAG_GPU";
@@ -1670,7 +1743,7 @@ inline ur_result_t printFlag<ur_device_init_flag_t>(std::ostream &os, uint32_t f
 /// @brief Print operator for the ur_loader_config_info_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_loader_config_info_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_loader_config_info_t value) {
     switch (value) {
     case UR_LOADER_CONFIG_INFO_AVAILABLE_LAYERS:
         os << "UR_LOADER_CONFIG_INFO_AVAILABLE_LAYERS";
@@ -1754,7 +1827,7 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_code_location_
 /// @brief Print operator for the ur_adapter_info_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_adapter_info_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_adapter_info_t value) {
     switch (value) {
     case UR_ADAPTER_INFO_BACKEND:
         os << "UR_ADAPTER_INFO_BACKEND";
@@ -1814,7 +1887,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_adapter_inf
 /// @brief Print operator for the ur_adapter_backend_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_adapter_backend_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_adapter_backend_t value) {
     switch (value) {
     case UR_ADAPTER_BACKEND_UNKNOWN:
         os << "UR_ADAPTER_BACKEND_UNKNOWN";
@@ -1844,7 +1917,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_adapter_backend_t value) {
 /// @brief Print operator for the ur_platform_info_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_platform_info_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_platform_info_t value) {
     switch (value) {
     case UR_PLATFORM_INFO_NAME:
         os << "UR_PLATFORM_INFO_NAME";
@@ -1929,7 +2002,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_platform_in
 /// @brief Print operator for the ur_api_version_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_api_version_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_api_version_t value) {
     os << UR_MAJOR_VERSION(value) << "." << UR_MINOR_VERSION(value);
     return os;
 }
@@ -1962,7 +2035,7 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_platform_nativ
 /// @brief Print operator for the ur_platform_backend_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_platform_backend_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_platform_backend_t value) {
     switch (value) {
     case UR_PLATFORM_BACKEND_UNKNOWN:
         os << "UR_PLATFORM_BACKEND_UNKNOWN";
@@ -2018,7 +2091,7 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_device_binary_
 /// @brief Print operator for the ur_device_type_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_device_type_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_type_t value) {
     switch (value) {
     case UR_DEVICE_TYPE_DEFAULT:
         os << "UR_DEVICE_TYPE_DEFAULT";
@@ -2051,7 +2124,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_device_type_t value) {
 /// @brief Print operator for the ur_device_info_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_device_info_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     switch (value) {
     case UR_DEVICE_INFO_TYPE:
         os << "UR_DEVICE_INFO_TYPE";
@@ -2400,6 +2473,18 @@ inline std::ostream &operator<<(std::ostream &os, ur_device_info_t value) {
         break;
     case UR_DEVICE_INFO_ESIMD_SUPPORT:
         os << "UR_DEVICE_INFO_ESIMD_SUPPORT";
+        break;
+    case UR_DEVICE_INFO_COMPONENT_DEVICES:
+        os << "UR_DEVICE_INFO_COMPONENT_DEVICES";
+        break;
+    case UR_DEVICE_INFO_COMPOSITE_DEVICE:
+        os << "UR_DEVICE_INFO_COMPOSITE_DEVICE";
+        break;
+    case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
+        os << "UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP";
+        break;
+    case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP:
+        os << "UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP";
         break;
     case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP";
@@ -3809,6 +3894,58 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
 
         os << ")";
     } break;
+    case UR_DEVICE_INFO_COMPONENT_DEVICES: {
+
+        const ur_device_handle_t *tptr = (const ur_device_handle_t *)ptr;
+        os << "{";
+        size_t nelems = size / sizeof(ur_device_handle_t);
+        for (size_t i = 0; i < nelems; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
+
+            ur::details::printPtr(os,
+                                  tptr[i]);
+        }
+        os << "}";
+    } break;
+    case UR_DEVICE_INFO_COMPOSITE_DEVICE: {
+        const ur_device_handle_t *tptr = (const ur_device_handle_t *)ptr;
+        if (sizeof(ur_device_handle_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_device_handle_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        ur::details::printPtr(os,
+                              *tptr);
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
     case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
@@ -4013,7 +4150,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
 /// @brief Print operator for the ur_device_affinity_domain_flag_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_device_affinity_domain_flag_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_affinity_domain_flag_t value) {
     switch (value) {
     case UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA:
         os << "UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA";
@@ -4123,7 +4260,7 @@ inline ur_result_t printFlag<ur_device_affinity_domain_flag_t>(std::ostream &os,
 /// @brief Print operator for the ur_device_partition_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_device_partition_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_partition_t value) {
     switch (value) {
     case UR_DEVICE_PARTITION_EQUALLY:
         os << "UR_DEVICE_PARTITION_EQUALLY";
@@ -4237,7 +4374,7 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_device_partiti
 /// @brief Print operator for the ur_device_fp_capability_flag_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_device_fp_capability_flag_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_fp_capability_flag_t value) {
     switch (value) {
     case UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT:
         os << "UR_DEVICE_FP_CAPABILITY_FLAG_CORRECTLY_ROUNDED_DIVIDE_SQRT";
@@ -4373,7 +4510,7 @@ inline ur_result_t printFlag<ur_device_fp_capability_flag_t>(std::ostream &os, u
 /// @brief Print operator for the ur_device_mem_cache_type_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_device_mem_cache_type_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_mem_cache_type_t value) {
     switch (value) {
     case UR_DEVICE_MEM_CACHE_TYPE_NONE:
         os << "UR_DEVICE_MEM_CACHE_TYPE_NONE";
@@ -4394,7 +4531,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_device_mem_cache_type_t val
 /// @brief Print operator for the ur_device_local_mem_type_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_device_local_mem_type_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_local_mem_type_t value) {
     switch (value) {
     case UR_DEVICE_LOCAL_MEM_TYPE_NONE:
         os << "UR_DEVICE_LOCAL_MEM_TYPE_NONE";
@@ -4415,7 +4552,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_device_local_mem_type_t val
 /// @brief Print operator for the ur_device_exec_capability_flag_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_device_exec_capability_flag_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_exec_capability_flag_t value) {
     switch (value) {
     case UR_DEVICE_EXEC_CAPABILITY_FLAG_KERNEL:
         os << "UR_DEVICE_EXEC_CAPABILITY_FLAG_KERNEL";
@@ -4498,7 +4635,7 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_device_native_
 /// @brief Print operator for the ur_memory_order_capability_flag_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_memory_order_capability_flag_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_memory_order_capability_flag_t value) {
     switch (value) {
     case UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED:
         os << "UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED";
@@ -4595,7 +4732,7 @@ inline ur_result_t printFlag<ur_memory_order_capability_flag_t>(std::ostream &os
 /// @brief Print operator for the ur_memory_scope_capability_flag_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_memory_scope_capability_flag_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_memory_scope_capability_flag_t value) {
     switch (value) {
     case UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM:
         os << "UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM";
@@ -4692,7 +4829,7 @@ inline ur_result_t printFlag<ur_memory_scope_capability_flag_t>(std::ostream &os
 /// @brief Print operator for the ur_device_usm_access_capability_flag_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_device_usm_access_capability_flag_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_device_usm_access_capability_flag_t value) {
     switch (value) {
     case UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS:
         os << "UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS";
@@ -4776,7 +4913,7 @@ inline ur_result_t printFlag<ur_device_usm_access_capability_flag_t>(std::ostrea
 /// @brief Print operator for the ur_context_flag_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_context_flag_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_context_flag_t value) {
     switch (value) {
     case UR_CONTEXT_FLAG_TBD:
         os << "UR_CONTEXT_FLAG_TBD";
@@ -4847,7 +4984,7 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_context_proper
 /// @brief Print operator for the ur_context_info_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_context_info_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_context_info_t value) {
     switch (value) {
     case UR_CONTEXT_INFO_NUM_DEVICES:
         os << "UR_CONTEXT_INFO_NUM_DEVICES";
@@ -5044,7 +5181,7 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_context_native
 /// @brief Print operator for the ur_mem_flag_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_mem_flag_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_mem_flag_t value) {
     switch (value) {
     case UR_MEM_FLAG_READ_WRITE:
         os << "UR_MEM_FLAG_READ_WRITE";
@@ -5154,7 +5291,7 @@ inline ur_result_t printFlag<ur_mem_flag_t>(std::ostream &os, uint32_t flag) {
 /// @brief Print operator for the ur_mem_type_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_mem_type_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_mem_type_t value) {
     switch (value) {
     case UR_MEM_TYPE_BUFFER:
         os << "UR_MEM_TYPE_BUFFER";
@@ -5187,7 +5324,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_mem_type_t value) {
 /// @brief Print operator for the ur_mem_info_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_mem_info_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_mem_info_t value) {
     switch (value) {
     case UR_MEM_INFO_SIZE:
         os << "UR_MEM_INFO_SIZE";
@@ -5248,7 +5385,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_mem_info_t 
 /// @brief Print operator for the ur_image_channel_order_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_image_channel_order_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_image_channel_order_t value) {
     switch (value) {
     case UR_IMAGE_CHANNEL_ORDER_A:
         os << "UR_IMAGE_CHANNEL_ORDER_A";
@@ -5305,7 +5442,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_image_channel_order_t value
 /// @brief Print operator for the ur_image_channel_type_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_image_channel_type_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_image_channel_type_t value) {
     switch (value) {
     case UR_IMAGE_CHANNEL_TYPE_SNORM_INT8:
         os << "UR_IMAGE_CHANNEL_TYPE_SNORM_INT8";
@@ -5362,7 +5499,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_image_channel_type_t value)
 /// @brief Print operator for the ur_image_info_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_image_info_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_image_info_t value) {
     switch (value) {
     case UR_IMAGE_INFO_FORMAT:
         os << "UR_IMAGE_INFO_FORMAT";
@@ -5687,7 +5824,7 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_buffer_region_
 /// @brief Print operator for the ur_buffer_create_type_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_buffer_create_type_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_buffer_create_type_t value) {
     switch (value) {
     case UR_BUFFER_CREATE_TYPE_REGION:
         os << "UR_BUFFER_CREATE_TYPE_REGION";
@@ -5727,7 +5864,7 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_mem_native_pro
 /// @brief Print operator for the ur_sampler_filter_mode_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_sampler_filter_mode_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_sampler_filter_mode_t value) {
     switch (value) {
     case UR_SAMPLER_FILTER_MODE_NEAREST:
         os << "UR_SAMPLER_FILTER_MODE_NEAREST";
@@ -5745,7 +5882,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_sampler_filter_mode_t value
 /// @brief Print operator for the ur_sampler_addressing_mode_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_sampler_addressing_mode_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_sampler_addressing_mode_t value) {
     switch (value) {
     case UR_SAMPLER_ADDRESSING_MODE_NONE:
         os << "UR_SAMPLER_ADDRESSING_MODE_NONE";
@@ -5772,7 +5909,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_sampler_addressing_mode_t v
 /// @brief Print operator for the ur_sampler_info_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_sampler_info_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_sampler_info_t value) {
     switch (value) {
     case UR_SAMPLER_INFO_REFERENCE_COUNT:
         os << "UR_SAMPLER_INFO_REFERENCE_COUNT";
@@ -5938,7 +6075,7 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_sampler_native
 /// @brief Print operator for the ur_usm_host_mem_flag_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_usm_host_mem_flag_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_usm_host_mem_flag_t value) {
     switch (value) {
     case UR_USM_HOST_MEM_FLAG_INITIAL_PLACEMENT:
         os << "UR_USM_HOST_MEM_FLAG_INITIAL_PLACEMENT";
@@ -5983,7 +6120,7 @@ inline ur_result_t printFlag<ur_usm_host_mem_flag_t>(std::ostream &os, uint32_t 
 /// @brief Print operator for the ur_usm_device_mem_flag_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_usm_device_mem_flag_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_usm_device_mem_flag_t value) {
     switch (value) {
     case UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINED:
         os << "UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINED";
@@ -6054,7 +6191,7 @@ inline ur_result_t printFlag<ur_usm_device_mem_flag_t>(std::ostream &os, uint32_
 /// @brief Print operator for the ur_usm_pool_flag_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_usm_pool_flag_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_usm_pool_flag_t value) {
     switch (value) {
     case UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK:
         os << "UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK";
@@ -6099,7 +6236,7 @@ inline ur_result_t printFlag<ur_usm_pool_flag_t>(std::ostream &os, uint32_t flag
 /// @brief Print operator for the ur_usm_type_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_usm_type_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_usm_type_t value) {
     switch (value) {
     case UR_USM_TYPE_UNKNOWN:
         os << "UR_USM_TYPE_UNKNOWN";
@@ -6123,7 +6260,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_usm_type_t value) {
 /// @brief Print operator for the ur_usm_alloc_info_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_usm_alloc_info_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_usm_alloc_info_t value) {
     switch (value) {
     case UR_USM_ALLOC_INFO_TYPE:
         os << "UR_USM_ALLOC_INFO_TYPE";
@@ -6230,7 +6367,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_usm_alloc_i
 /// @brief Print operator for the ur_usm_advice_flag_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_usm_advice_flag_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_usm_advice_flag_t value) {
     switch (value) {
     case UR_USM_ADVICE_FLAG_DEFAULT:
         os << "UR_USM_ADVICE_FLAG_DEFAULT";
@@ -6276,6 +6413,12 @@ inline std::ostream &operator<<(std::ostream &os, ur_usm_advice_flag_t value) {
         break;
     case UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST:
         os << "UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST";
+        break;
+    case UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY:
+        os << "UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY";
+        break;
+    case UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY:
+        os << "UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY";
         break;
     default:
         os << "unknown enumerator";
@@ -6440,6 +6583,26 @@ inline ur_result_t printFlag<ur_usm_advice_flag_t>(std::ostream &os, uint32_t fl
             first = false;
         }
         os << UR_USM_ADVICE_FLAG_CLEAR_PREFERRED_LOCATION_HOST;
+    }
+
+    if ((val & UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY) == (uint32_t)UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY) {
+        val ^= (uint32_t)UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY;
+    }
+
+    if ((val & UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY) == (uint32_t)UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY) {
+        val ^= (uint32_t)UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY;
     }
     if (val != 0) {
         std::bitset<32> bits(val);
@@ -6621,7 +6784,7 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_usm_pool_limit
 /// @brief Print operator for the ur_usm_pool_info_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_usm_pool_info_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_usm_pool_info_t value) {
     switch (value) {
     case UR_USM_POOL_INFO_REFERENCE_COUNT:
         os << "UR_USM_POOL_INFO_REFERENCE_COUNT";
@@ -6682,7 +6845,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_usm_pool_in
 /// @brief Print operator for the ur_virtual_mem_granularity_info_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_virtual_mem_granularity_info_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_virtual_mem_granularity_info_t value) {
     switch (value) {
     case UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM:
         os << "UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM";
@@ -6742,7 +6905,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_virtual_mem
 /// @brief Print operator for the ur_virtual_mem_access_flag_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_virtual_mem_access_flag_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_virtual_mem_access_flag_t value) {
     switch (value) {
     case UR_VIRTUAL_MEM_ACCESS_FLAG_NONE:
         os << "UR_VIRTUAL_MEM_ACCESS_FLAG_NONE";
@@ -6813,7 +6976,7 @@ inline ur_result_t printFlag<ur_virtual_mem_access_flag_t>(std::ostream &os, uin
 /// @brief Print operator for the ur_virtual_mem_info_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_virtual_mem_info_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_virtual_mem_info_t value) {
     switch (value) {
     case UR_VIRTUAL_MEM_INFO_ACCESS_MODE:
         os << "UR_VIRTUAL_MEM_INFO_ACCESS_MODE";
@@ -6859,7 +7022,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_virtual_mem
 /// @brief Print operator for the ur_physical_mem_flag_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_physical_mem_flag_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_physical_mem_flag_t value) {
     switch (value) {
     case UR_PHYSICAL_MEM_FLAG_TBD:
         os << "UR_PHYSICAL_MEM_FLAG_TBD";
@@ -6930,7 +7093,7 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_physical_mem_p
 /// @brief Print operator for the ur_program_metadata_type_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_program_metadata_type_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_program_metadata_type_t value) {
     switch (value) {
     case UR_PROGRAM_METADATA_TYPE_UINT32:
         os << "UR_PROGRAM_METADATA_TYPE_UINT32";
@@ -7068,7 +7231,7 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_program_proper
 /// @brief Print operator for the ur_program_info_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_program_info_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_program_info_t value) {
     switch (value) {
     case UR_PROGRAM_INFO_REFERENCE_COUNT:
         os << "UR_PROGRAM_INFO_REFERENCE_COUNT";
@@ -7218,7 +7381,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_program_inf
 /// @brief Print operator for the ur_program_build_status_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_program_build_status_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_program_build_status_t value) {
     switch (value) {
     case UR_PROGRAM_BUILD_STATUS_NONE:
         os << "UR_PROGRAM_BUILD_STATUS_NONE";
@@ -7242,7 +7405,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_program_build_status_t valu
 /// @brief Print operator for the ur_program_binary_type_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_program_binary_type_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_program_binary_type_t value) {
     switch (value) {
     case UR_PROGRAM_BINARY_TYPE_NONE:
         os << "UR_PROGRAM_BINARY_TYPE_NONE";
@@ -7266,7 +7429,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_program_binary_type_t value
 /// @brief Print operator for the ur_program_build_info_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_program_build_info_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_program_build_info_t value) {
     switch (value) {
     case UR_PROGRAM_BUILD_INFO_STATUS:
         os << "UR_PROGRAM_BUILD_INFO_STATUS";
@@ -7432,7 +7595,7 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_kernel_arg_loc
 /// @brief Print operator for the ur_kernel_info_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_kernel_info_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_kernel_info_t value) {
     switch (value) {
     case UR_KERNEL_INFO_FUNCTION_NAME:
         os << "UR_KERNEL_INFO_FUNCTION_NAME";
@@ -7555,7 +7718,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_kernel_info
 /// @brief Print operator for the ur_kernel_group_info_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_kernel_group_info_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_kernel_group_info_t value) {
     switch (value) {
     case UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE:
         os << "UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE";
@@ -7679,7 +7842,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_kernel_grou
 /// @brief Print operator for the ur_kernel_sub_group_info_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_kernel_sub_group_info_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_kernel_sub_group_info_t value) {
     switch (value) {
     case UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE:
         os << "UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE";
@@ -7769,7 +7932,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_kernel_sub_
 /// @brief Print operator for the ur_kernel_cache_config_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_kernel_cache_config_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_kernel_cache_config_t value) {
     switch (value) {
     case UR_KERNEL_CACHE_CONFIG_DEFAULT:
         os << "UR_KERNEL_CACHE_CONFIG_DEFAULT";
@@ -7790,7 +7953,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_kernel_cache_config_t value
 /// @brief Print operator for the ur_kernel_exec_info_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_kernel_exec_info_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_kernel_exec_info_t value) {
     switch (value) {
     case UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS:
         os << "UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS";
@@ -7978,7 +8141,7 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_kernel_native_
 /// @brief Print operator for the ur_queue_info_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_queue_info_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_queue_info_t value) {
     switch (value) {
     case UR_QUEUE_INFO_CONTEXT:
         os << "UR_QUEUE_INFO_CONTEXT";
@@ -8117,7 +8280,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_queue_info_
 /// @brief Print operator for the ur_queue_flag_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_queue_flag_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_queue_flag_t value) {
     switch (value) {
     case UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE:
         os << "UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE";
@@ -8394,7 +8557,7 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_queue_native_p
 /// @brief Print operator for the ur_command_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_command_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_command_t value) {
     switch (value) {
     case UR_COMMAND_KERNEL_LAUNCH:
         os << "UR_COMMAND_KERNEL_LAUNCH";
@@ -8490,7 +8653,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_command_t value) {
 /// @brief Print operator for the ur_event_status_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_event_status_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_event_status_t value) {
     switch (value) {
     case UR_EVENT_STATUS_COMPLETE:
         os << "UR_EVENT_STATUS_COMPLETE";
@@ -8514,7 +8677,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_event_status_t value) {
 /// @brief Print operator for the ur_event_info_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_event_info_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_event_info_t value) {
     switch (value) {
     case UR_EVENT_INFO_COMMAND_QUEUE:
         os << "UR_EVENT_INFO_COMMAND_QUEUE";
@@ -8621,7 +8784,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_event_info_
 /// @brief Print operator for the ur_profiling_info_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_profiling_info_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_profiling_info_t value) {
     switch (value) {
     case UR_PROFILING_INFO_COMMAND_QUEUED:
         os << "UR_PROFILING_INFO_COMMAND_QUEUED";
@@ -8751,7 +8914,7 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_event_native_p
 /// @brief Print operator for the ur_execution_info_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_execution_info_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_execution_info_t value) {
     switch (value) {
     case UR_EXECUTION_INFO_COMPLETE:
         os << "UR_EXECUTION_INFO_COMPLETE";
@@ -8775,7 +8938,7 @@ inline std::ostream &operator<<(std::ostream &os, ur_execution_info_t value) {
 /// @brief Print operator for the ur_map_flag_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_map_flag_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_map_flag_t value) {
     switch (value) {
     case UR_MAP_FLAG_READ:
         os << "UR_MAP_FLAG_READ";
@@ -8846,7 +9009,7 @@ inline ur_result_t printFlag<ur_map_flag_t>(std::ostream &os, uint32_t flag) {
 /// @brief Print operator for the ur_usm_migration_flag_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_usm_migration_flag_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_usm_migration_flag_t value) {
     switch (value) {
     case UR_USM_MIGRATION_FLAG_DEFAULT:
         os << "UR_USM_MIGRATION_FLAG_DEFAULT";
@@ -8891,7 +9054,7 @@ inline ur_result_t printFlag<ur_usm_migration_flag_t>(std::ostream &os, uint32_t
 /// @brief Print operator for the ur_exp_image_copy_flag_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_exp_image_copy_flag_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_image_copy_flag_t value) {
     switch (value) {
     case UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE:
         os << "UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE";
@@ -9121,6 +9284,96 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_interop_se
     return os;
 }
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_command_buffer_info_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_command_buffer_info_t value) {
+    switch (value) {
+    case UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT:
+        os << "UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
+namespace ur::details {
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_command_buffer_info_t enum value
+template <>
+inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_exp_command_buffer_info_t value, size_t size) {
+    if (ptr == NULL) {
+        return printPtr(os, ptr);
+    }
+
+    switch (value) {
+    case UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    default:
+        os << "unknown enumerator";
+        return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    }
+    return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_command_buffer_command_info_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_command_buffer_command_info_t value) {
+    switch (value) {
+    case UR_EXP_COMMAND_BUFFER_COMMAND_INFO_REFERENCE_COUNT:
+        os << "UR_EXP_COMMAND_BUFFER_COMMAND_INFO_REFERENCE_COUNT";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
+namespace ur::details {
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_command_buffer_command_info_t enum value
+template <>
+inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_exp_command_buffer_command_info_t value, size_t size) {
+    if (ptr == NULL) {
+        return printPtr(os, ptr);
+    }
+
+    switch (value) {
+    case UR_EXP_COMMAND_BUFFER_COMMAND_INFO_REFERENCE_COUNT: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    default:
+        os << "unknown enumerator";
+        return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    }
+    return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_command_buffer_desc_t type
 /// @returns
 ///     std::ostream &
@@ -9137,6 +9390,284 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_command_bu
     ur::details::printStruct(os,
                              (params.pNext));
 
+    os << ", ";
+    os << ".isUpdatable = ";
+
+    os << (params.isUpdatable);
+
+    os << "}";
+    return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_command_buffer_update_memobj_arg_desc_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_command_buffer_update_memobj_arg_desc_t params) {
+    os << "(struct ur_exp_command_buffer_update_memobj_arg_desc_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur::details::printStruct(os,
+                             (params.pNext));
+
+    os << ", ";
+    os << ".argIndex = ";
+
+    os << (params.argIndex);
+
+    os << ", ";
+    os << ".pProperties = ";
+
+    os << (params.pProperties);
+
+    os << ", ";
+    os << ".hNewMemObjArg = ";
+
+    ur::details::printPtr(os,
+                          (params.hNewMemObjArg));
+
+    os << "}";
+    return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_command_buffer_update_pointer_arg_desc_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_command_buffer_update_pointer_arg_desc_t params) {
+    os << "(struct ur_exp_command_buffer_update_pointer_arg_desc_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur::details::printStruct(os,
+                             (params.pNext));
+
+    os << ", ";
+    os << ".argIndex = ";
+
+    os << (params.argIndex);
+
+    os << ", ";
+    os << ".pProperties = ";
+
+    os << (params.pProperties);
+
+    os << ", ";
+    os << ".pNewPointerArg = ";
+
+    os << (params.pNewPointerArg);
+
+    os << "}";
+    return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_command_buffer_update_value_arg_desc_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_command_buffer_update_value_arg_desc_t params) {
+    os << "(struct ur_exp_command_buffer_update_value_arg_desc_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur::details::printStruct(os,
+                             (params.pNext));
+
+    os << ", ";
+    os << ".argIndex = ";
+
+    os << (params.argIndex);
+
+    os << ", ";
+    os << ".argSize = ";
+
+    os << (params.argSize);
+
+    os << ", ";
+    os << ".pProperties = ";
+
+    os << (params.pProperties);
+
+    os << ", ";
+    os << ".pNewValueArg = ";
+
+    os << (params.pNewValueArg);
+
+    os << "}";
+    return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_command_buffer_update_exec_info_desc_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_command_buffer_update_exec_info_desc_t params) {
+    os << "(struct ur_exp_command_buffer_update_exec_info_desc_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur::details::printStruct(os,
+                             (params.pNext));
+
+    os << ", ";
+    os << ".propName = ";
+
+    os << (params.propName);
+
+    os << ", ";
+    os << ".propSize = ";
+
+    os << (params.propSize);
+
+    os << ", ";
+    os << ".pProperties = ";
+
+    os << (params.pProperties);
+
+    os << ", ";
+    os << ".pNewExecInfo = ";
+
+    os << (params.pNewExecInfo);
+
+    os << "}";
+    return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_command_buffer_update_kernel_launch_desc_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_command_buffer_update_kernel_launch_desc_t params) {
+    os << "(struct ur_exp_command_buffer_update_kernel_launch_desc_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur::details::printStruct(os,
+                             (params.pNext));
+
+    os << ", ";
+    os << ".numNewMemObjArgs = ";
+
+    os << (params.numNewMemObjArgs);
+
+    os << ", ";
+    os << ".numNewPointerArgs = ";
+
+    os << (params.numNewPointerArgs);
+
+    os << ", ";
+    os << ".numNewValueArgs = ";
+
+    os << (params.numNewValueArgs);
+
+    os << ", ";
+    os << ".numNewExecInfos = ";
+
+    os << (params.numNewExecInfos);
+
+    os << ", ";
+    os << ".newWorkDim = ";
+
+    os << (params.newWorkDim);
+
+    os << ", ";
+    os << ".pNewMemObjArgList = {";
+    for (size_t i = 0; (params.pNewMemObjArgList) != NULL && i < params.numNewMemObjArgs; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        os << ((params.pNewMemObjArgList))[i];
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".pNewPointerArgList = {";
+    for (size_t i = 0; (params.pNewPointerArgList) != NULL && i < params.numNewPointerArgs; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        os << ((params.pNewPointerArgList))[i];
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".pNewValueArgList = {";
+    for (size_t i = 0; (params.pNewValueArgList) != NULL && i < params.numNewValueArgs; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        os << ((params.pNewValueArgList))[i];
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".pNewExecInfoList = {";
+    for (size_t i = 0; (params.pNewExecInfoList) != NULL && i < params.numNewExecInfos; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        os << ((params.pNewExecInfoList))[i];
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".pNewGlobalWorkOffset = {";
+    for (size_t i = 0; (params.pNewGlobalWorkOffset) != NULL && i < params.newWorkDim; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        os << ((params.pNewGlobalWorkOffset))[i];
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".pNewGlobalWorkSize = {";
+    for (size_t i = 0; (params.pNewGlobalWorkSize) != NULL && i < params.newWorkDim; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        os << ((params.pNewGlobalWorkSize))[i];
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".pNewLocalWorkSize = {";
+    for (size_t i = 0; (params.pNewLocalWorkSize) != NULL && i < params.newWorkDim; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        os << ((params.pNewLocalWorkSize))[i];
+    }
+    os << "}";
+
     os << "}";
     return os;
 }
@@ -9144,7 +9675,7 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_command_bu
 /// @brief Print operator for the ur_exp_peer_info_t type
 /// @returns
 ///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, ur_exp_peer_info_t value) {
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_peer_info_t value) {
     switch (value) {
     case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED:
         os << "UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED";
@@ -10869,10 +11400,206 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
                           *(params->phKernel));
 
     os << ", ";
+    os << ".localWorkSize = ";
+
+    os << *(params->plocalWorkSize);
+
+    os << ", ";
+    os << ".dynamicSharedMemorySize = ";
+
+    os << *(params->pdynamicSharedMemorySize);
+
+    os << ", ";
     os << ".pGroupCountRet = ";
 
     ur::details::printPtr(os,
                           *(params->ppGroupCountRet));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_get_info_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_get_info_params_t *params) {
+
+    os << ".hQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->phQueue));
+
+    os << ", ";
+    os << ".propName = ";
+
+    os << *(params->ppropName);
+
+    os << ", ";
+    os << ".propSize = ";
+
+    os << *(params->ppropSize);
+
+    os << ", ";
+    os << ".pPropValue = ";
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+
+    os << ", ";
+    os << ".pPropSizeRet = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_create_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_create_params_t *params) {
+
+    os << ".hContext = ";
+
+    ur::details::printPtr(os,
+                          *(params->phContext));
+
+    os << ", ";
+    os << ".hDevice = ";
+
+    ur::details::printPtr(os,
+                          *(params->phDevice));
+
+    os << ", ";
+    os << ".pProperties = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
+
+    os << ", ";
+    os << ".phQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->pphQueue));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_retain_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_retain_params_t *params) {
+
+    os << ".hQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->phQueue));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_release_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_release_params_t *params) {
+
+    os << ".hQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->phQueue));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_get_native_handle_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_get_native_handle_params_t *params) {
+
+    os << ".hQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->phQueue));
+
+    os << ", ";
+    os << ".pDesc = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppDesc));
+
+    os << ", ";
+    os << ".phNativeQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->pphNativeQueue));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_create_with_native_handle_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_create_with_native_handle_params_t *params) {
+
+    os << ".hNativeQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->phNativeQueue));
+
+    os << ", ";
+    os << ".hContext = ";
+
+    ur::details::printPtr(os,
+                          *(params->phContext));
+
+    os << ", ";
+    os << ".hDevice = ";
+
+    ur::details::printPtr(os,
+                          *(params->phDevice));
+
+    os << ", ";
+    os << ".pProperties = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
+
+    os << ", ";
+    os << ".phQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->pphQueue));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_finish_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_finish_params_t *params) {
+
+    os << ".hQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->phQueue));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_queue_flush_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_flush_params_t *params) {
+
+    os << ".hQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->phQueue));
 
     return os;
 }
@@ -13195,192 +13922,6 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_queue_get_info_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_get_info_params_t *params) {
-
-    os << ".hQueue = ";
-
-    ur::details::printPtr(os,
-                          *(params->phQueue));
-
-    os << ", ";
-    os << ".propName = ";
-
-    os << *(params->ppropName);
-
-    os << ", ";
-    os << ".propSize = ";
-
-    os << *(params->ppropSize);
-
-    os << ", ";
-    os << ".pPropValue = ";
-    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
-
-    os << ", ";
-    os << ".pPropSizeRet = ";
-
-    ur::details::printPtr(os,
-                          *(params->ppPropSizeRet));
-
-    return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_queue_create_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_create_params_t *params) {
-
-    os << ".hContext = ";
-
-    ur::details::printPtr(os,
-                          *(params->phContext));
-
-    os << ", ";
-    os << ".hDevice = ";
-
-    ur::details::printPtr(os,
-                          *(params->phDevice));
-
-    os << ", ";
-    os << ".pProperties = ";
-
-    ur::details::printPtr(os,
-                          *(params->ppProperties));
-
-    os << ", ";
-    os << ".phQueue = ";
-
-    ur::details::printPtr(os,
-                          *(params->pphQueue));
-
-    return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_queue_retain_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_retain_params_t *params) {
-
-    os << ".hQueue = ";
-
-    ur::details::printPtr(os,
-                          *(params->phQueue));
-
-    return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_queue_release_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_release_params_t *params) {
-
-    os << ".hQueue = ";
-
-    ur::details::printPtr(os,
-                          *(params->phQueue));
-
-    return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_queue_get_native_handle_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_get_native_handle_params_t *params) {
-
-    os << ".hQueue = ";
-
-    ur::details::printPtr(os,
-                          *(params->phQueue));
-
-    os << ", ";
-    os << ".pDesc = ";
-
-    ur::details::printPtr(os,
-                          *(params->ppDesc));
-
-    os << ", ";
-    os << ".phNativeQueue = ";
-
-    ur::details::printPtr(os,
-                          *(params->pphNativeQueue));
-
-    return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_queue_create_with_native_handle_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_create_with_native_handle_params_t *params) {
-
-    os << ".hNativeQueue = ";
-
-    ur::details::printPtr(os,
-                          *(params->phNativeQueue));
-
-    os << ", ";
-    os << ".hContext = ";
-
-    ur::details::printPtr(os,
-                          *(params->phContext));
-
-    os << ", ";
-    os << ".hDevice = ";
-
-    ur::details::printPtr(os,
-                          *(params->phDevice));
-
-    os << ", ";
-    os << ".pProperties = ";
-
-    ur::details::printPtr(os,
-                          *(params->ppProperties));
-
-    os << ", ";
-    os << ".phQueue = ";
-
-    ur::details::printPtr(os,
-                          *(params->pphQueue));
-
-    return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_queue_finish_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_finish_params_t *params) {
-
-    os << ".hQueue = ";
-
-    ur::details::printPtr(os,
-                          *(params->phQueue));
-
-    return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_queue_flush_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_flush_params_t *params) {
-
-    os << ".hQueue = ";
-
-    ur::details::printPtr(os,
-                          *(params->phQueue));
-
-    return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_bindless_images_unsampled_image_handle_destroy_exp_params_t type
 /// @returns
 ///     std::ostream &
@@ -14540,6 +15081,12 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     ur::details::printPtr(os,
                           *(params->ppSyncPoint));
 
+    os << ", ";
+    os << ".phCommand = ";
+
+    ur::details::printPtr(os,
+                          *(params->pphCommand));
+
     return os;
 }
 
@@ -15235,6 +15782,122 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     ur::details::printPtr(os,
                           *(params->pphEvent));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_command_buffer_retain_command_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_command_buffer_retain_command_exp_params_t *params) {
+
+    os << ".hCommand = ";
+
+    ur::details::printPtr(os,
+                          *(params->phCommand));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_command_buffer_release_command_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_command_buffer_release_command_exp_params_t *params) {
+
+    os << ".hCommand = ";
+
+    ur::details::printPtr(os,
+                          *(params->phCommand));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_command_buffer_update_kernel_launch_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_command_buffer_update_kernel_launch_exp_params_t *params) {
+
+    os << ".hCommand = ";
+
+    ur::details::printPtr(os,
+                          *(params->phCommand));
+
+    os << ", ";
+    os << ".pUpdateKernelLaunch = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppUpdateKernelLaunch));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_command_buffer_get_info_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_command_buffer_get_info_exp_params_t *params) {
+
+    os << ".hCommandBuffer = ";
+
+    ur::details::printPtr(os,
+                          *(params->phCommandBuffer));
+
+    os << ", ";
+    os << ".propName = ";
+
+    os << *(params->ppropName);
+
+    os << ", ";
+    os << ".propSize = ";
+
+    os << *(params->ppropSize);
+
+    os << ", ";
+    os << ".pPropValue = ";
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+
+    os << ", ";
+    os << ".pPropSizeRet = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_command_buffer_command_get_info_exp_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_command_buffer_command_get_info_exp_params_t *params) {
+
+    os << ".hCommand = ";
+
+    ur::details::printPtr(os,
+                          *(params->phCommand));
+
+    os << ", ";
+    os << ".propName = ";
+
+    os << *(params->ppropName);
+
+    os << ", ";
+    os << ".propSize = ";
+
+    os << *(params->ppropSize);
+
+    os << ", ";
+    os << ".pPropValue = ";
+    ur::details::printTagged(os, *(params->ppPropValue), *(params->ppropName), *(params->ppropSize));
+
+    os << ", ";
+    os << ".pPropSizeRet = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppPropSizeRet));
 
     return os;
 }
@@ -16061,6 +16724,30 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     case UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP: {
         os << (const struct ur_kernel_suggest_max_cooperative_group_count_exp_params_t *)params;
     } break;
+    case UR_FUNCTION_QUEUE_GET_INFO: {
+        os << (const struct ur_queue_get_info_params_t *)params;
+    } break;
+    case UR_FUNCTION_QUEUE_CREATE: {
+        os << (const struct ur_queue_create_params_t *)params;
+    } break;
+    case UR_FUNCTION_QUEUE_RETAIN: {
+        os << (const struct ur_queue_retain_params_t *)params;
+    } break;
+    case UR_FUNCTION_QUEUE_RELEASE: {
+        os << (const struct ur_queue_release_params_t *)params;
+    } break;
+    case UR_FUNCTION_QUEUE_GET_NATIVE_HANDLE: {
+        os << (const struct ur_queue_get_native_handle_params_t *)params;
+    } break;
+    case UR_FUNCTION_QUEUE_CREATE_WITH_NATIVE_HANDLE: {
+        os << (const struct ur_queue_create_with_native_handle_params_t *)params;
+    } break;
+    case UR_FUNCTION_QUEUE_FINISH: {
+        os << (const struct ur_queue_finish_params_t *)params;
+    } break;
+    case UR_FUNCTION_QUEUE_FLUSH: {
+        os << (const struct ur_queue_flush_params_t *)params;
+    } break;
     case UR_FUNCTION_SAMPLER_CREATE: {
         os << (const struct ur_sampler_create_params_t *)params;
     } break;
@@ -16211,30 +16898,6 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     case UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP: {
         os << (const struct ur_enqueue_cooperative_kernel_launch_exp_params_t *)params;
     } break;
-    case UR_FUNCTION_QUEUE_GET_INFO: {
-        os << (const struct ur_queue_get_info_params_t *)params;
-    } break;
-    case UR_FUNCTION_QUEUE_CREATE: {
-        os << (const struct ur_queue_create_params_t *)params;
-    } break;
-    case UR_FUNCTION_QUEUE_RETAIN: {
-        os << (const struct ur_queue_retain_params_t *)params;
-    } break;
-    case UR_FUNCTION_QUEUE_RELEASE: {
-        os << (const struct ur_queue_release_params_t *)params;
-    } break;
-    case UR_FUNCTION_QUEUE_GET_NATIVE_HANDLE: {
-        os << (const struct ur_queue_get_native_handle_params_t *)params;
-    } break;
-    case UR_FUNCTION_QUEUE_CREATE_WITH_NATIVE_HANDLE: {
-        os << (const struct ur_queue_create_with_native_handle_params_t *)params;
-    } break;
-    case UR_FUNCTION_QUEUE_FINISH: {
-        os << (const struct ur_queue_finish_params_t *)params;
-    } break;
-    case UR_FUNCTION_QUEUE_FLUSH: {
-        os << (const struct ur_queue_flush_params_t *)params;
-    } break;
     case UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP: {
         os << (const struct ur_bindless_images_unsampled_image_handle_destroy_exp_params_t *)params;
     } break;
@@ -16372,6 +17035,21 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     } break;
     case UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP: {
         os << (const struct ur_command_buffer_enqueue_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_RETAIN_COMMAND_EXP: {
+        os << (const struct ur_command_buffer_retain_command_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_RELEASE_COMMAND_EXP: {
+        os << (const struct ur_command_buffer_release_command_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP: {
+        os << (const struct ur_command_buffer_update_kernel_launch_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP: {
+        os << (const struct ur_command_buffer_get_info_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP: {
+        os << (const struct ur_command_buffer_command_get_info_exp_params_t *)params;
     } break;
     case UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP: {
         os << (const struct ur_usm_p2p_enable_peer_access_exp_params_t *)params;

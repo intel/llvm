@@ -5,14 +5,18 @@
 
 #include "ur_pool_manager.hpp"
 
-#include "../unified_malloc_framework/common/pool.h"
-#include "../unified_malloc_framework/common/provider.h"
-
 #include <uur/fixtures.h>
 
 struct urUsmPoolDescriptorTest
     : public uur::urMultiDeviceContextTest,
       ::testing::WithParamInterface<ur_usm_pool_handle_t> {};
+
+auto createMockPoolHandle() {
+    static uintptr_t uniqueAddress = 0x1;
+    return umf::pool_unique_handle_t(
+        (umf_memory_pool_handle_t)(uniqueAddress++),
+        [](umf_memory_pool_t *) {});
+}
 
 TEST_P(urUsmPoolDescriptorTest, poolIsPerContextTypeAndDevice) {
     auto &devices = uur::DevicesEnvironment::instance->devices;
@@ -70,9 +74,7 @@ TEST_P(urUsmPoolManagerTest, poolManagerPopulate) {
 
     for (auto &desc : poolDescriptors) {
         // Populate the pool manager
-        auto pool = nullPoolCreate();
-        ASSERT_NE(pool, nullptr);
-        auto poolUnique = umf::pool_unique_handle_t(pool, umfPoolDestroy);
+        auto poolUnique = createMockPoolHandle();
         ASSERT_NE(poolUnique, nullptr);
         ret = manager.addPool(desc, poolUnique);
         ASSERT_EQ(ret, UR_RESULT_SUCCESS);
@@ -92,9 +94,7 @@ TEST_P(urUsmPoolManagerTest, poolManagerInsertExisting) {
 
     const auto &desc = poolDescriptors[0];
 
-    auto pool = nullPoolCreate();
-    ASSERT_NE(pool, nullptr);
-    auto poolUnique = umf::pool_unique_handle_t(pool, umfPoolDestroy);
+    auto poolUnique = createMockPoolHandle();
     ASSERT_NE(poolUnique, nullptr);
 
     ret = manager.addPool(desc, poolUnique);

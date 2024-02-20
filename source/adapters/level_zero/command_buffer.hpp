@@ -51,6 +51,10 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   ze_command_list_handle_t ZeCommandList;
   // Level Zero command list descriptor
   ZeStruct<ze_command_list_desc_t> ZeCommandListDesc;
+  // List of Level Zero fences created when submitting a graph.
+  // This list is needed to release all fences retained by the
+  // command_buffer.
+  std::vector<ze_fence_handle_t> ZeFencesList;
   // Queue properties from command-buffer descriptor
   // TODO: Do we need these?
   ur_queue_properties_t QueueProperties;
@@ -60,13 +64,6 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   // Next sync_point value (may need to consider ways to reuse values if 32-bits
   // is not enough)
   ur_exp_command_buffer_sync_point_t NextSyncPoint;
-  // Command list map so we can use queue::executeCommandList.
-  // Command list map is also used to release all the Fences retained by the
-  // command_buffer std::unordered_multimap<ze_command_list_handle_t,
-  // ur_command_list_info_t> CommandListMap; CommandListMap is redefined as a
-  // multimap to enable mutiple commands enqueing into the same command_buffer
-  std::unordered_multimap<ze_command_list_handle_t, ur_command_list_info_t>
-      CommandListMap;
   // Event which will signals the most recent execution of the command-buffer
   // has finished
   ur_event_handle_t SignalEvent = nullptr;

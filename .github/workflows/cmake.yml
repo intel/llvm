@@ -213,15 +213,7 @@ jobs:
       working-directory: ${{github.workspace}}/build
       run: ctest -C ${{matrix.build_type}} --output-on-failure -L "adapter-specific" --timeout 180
 
-    # Temporarily disabling platform test for L0, because of hang
-    # See issue: #824
-    - name: Test L0 adapter
-      if: matrix.adapter.name == 'L0'
-      working-directory: ${{github.workspace}}/build
-      run: ctest -C ${{matrix.build_type}} --output-on-failure -L "conformance" -E "platform-adapter_level_zero" --timeout 180
-
     - name: Test adapters
-      if: matrix.adapter.name != 'L0'
       working-directory: ${{github.workspace}}/build
       run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --output-on-failure -L "conformance" --timeout 180
 
@@ -312,7 +304,7 @@ jobs:
     steps:
     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
-    - uses: actions/setup-python@65d7f2d534ac1bc67fcd62888c5f4f3d2cb2b236 # v4.7.1
+    - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
       with:
         python-version: 3.9
 
@@ -363,7 +355,7 @@ jobs:
     steps:
     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
-    - uses: actions/setup-python@65d7f2d534ac1bc67fcd62888c5f4f3d2cb2b236 # v4.7.1
+    - uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
       with:
         python-version: 3.9
 
@@ -381,4 +373,4 @@ jobs:
         -DUR_FORMAT_CPP_STYLE=ON
         -DUMF_ENABLE_POOL_TRACKING=ON
     - name: Build
-      run: cmake --build ${{github.workspace}}/build -j $(nproc)
+      run: cmake --build ${{github.workspace}}/build -j $(sysctl -n hw.logicalcpu)

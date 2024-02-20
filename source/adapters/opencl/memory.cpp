@@ -251,7 +251,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
         case UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES: {
           auto BufferLocationProperty =
               reinterpret_cast<ur_buffer_alloc_location_properties_t *>(Prop);
-          PropertiesIntel.push_back(CL_MEM_ALLOC_FLAGS_INTEL);
+          PropertiesIntel.push_back(CL_MEM_ALLOC_BUFFER_LOCATION_INTEL);
           PropertiesIntel.push_back(BufferLocationProperty->location);
         } break;
         default:

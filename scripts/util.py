@@ -1,5 +1,5 @@
 """
- Copyright (C) 2022 Intel Corporation
+ Copyright (C) 2022-2024 Intel Corporation
 
  Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
  See LICENSE.TXT
@@ -14,7 +14,7 @@ import glob
 import json
 import yaml
 from mako.template import Template
-from mako.exceptions import RichTraceback
+from mako import exceptions
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
@@ -161,13 +161,7 @@ def makoWrite(inpath, outpath, **args):
         makoFileList.append(outpath)
         return len(rendered.splitlines())
     except:
-        traceback = RichTraceback()
-        #for (filename, lineno, function, line) in traceback.traceback:
-        #    print("%s(%s) : error in %s" % (filename, lineno, function))
-        #    print(line, "\n")
-        line = "%s: %s" % (str(traceback.error.__class__.__name__), traceback.error)
-        makoErrorList.append(line)
-        print(line)
+        print(exceptions.text_error_template().render())
         raise
 
 def makoFileListWrite(outpath):

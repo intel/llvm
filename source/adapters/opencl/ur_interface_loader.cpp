@@ -301,6 +301,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   pDdiTable->pfnAppendUSMAdviseExp = urCommandBufferAppendUSMAdviseExp;
   pDdiTable->pfnAppendMemBufferFillExp = urCommandBufferAppendMemBufferFillExp;
   pDdiTable->pfnEnqueueExp = urCommandBufferEnqueueExp;
+  pDdiTable->pfnUpdateKernelLaunchExp = urCommandBufferUpdateKernelLaunchExp;
+  pDdiTable->pfnGetInfoExp = urCommandBufferGetInfoExp;
+  pDdiTable->pfnCommandGetInfoExp = urCommandBufferCommandGetInfoExp;
+  pDdiTable->pfnReleaseCommandExp = urCommandBufferReleaseCommandExp;
+  pDdiTable->pfnRetainCommandExp = urCommandBufferRetainCommandExp;
 
   return retVal;
 }
@@ -390,7 +395,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnCooperativeKernelLaunchExp = nullptr;
+  pDdiTable->pfnCooperativeKernelLaunchExp =
+      urEnqueueCooperativeKernelLaunchExp;
 
   return UR_RESULT_SUCCESS;
 }
@@ -402,7 +408,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelExpProcAddrTable(
     return result;
   }
 
-  pDdiTable->pfnSuggestMaxCooperativeGroupCountExp = nullptr;
+  pDdiTable->pfnSuggestMaxCooperativeGroupCountExp =
+      urKernelSuggestMaxCooperativeGroupCountExp;
 
   return UR_RESULT_SUCCESS;
 }

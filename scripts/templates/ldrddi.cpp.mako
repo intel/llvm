@@ -177,6 +177,87 @@ namespace ur_loader
                 pPropSizeRet = &sizeret;
         %endif
 
+        ## Here we deal with handles buried inside struct type parameters. First
+        ## we create a local copy of the struct, then we convert all the handles
+        ## in that local copy and set the parameter to point to it before forwarding
+        ## it to the final API call.
+        <% handle_structs = th.get_object_handle_structs_to_convert(n, tags, obj, meta) %>
+        %if handle_structs:
+        // Deal with any struct parameters that have handle members we need to convert.
+        %for struct in handle_structs:
+            %if struct['optional']:
+            ${struct['type']} ${struct['name']}Local = {};
+            if(${struct['name']})
+                ${struct['name']}Local = *${struct['name']};
+            %else:
+            auto ${struct['name']}Local = *${struct['name']};
+            %endif
+        %endfor
+
+        %for struct in handle_structs:
+        %for member in struct['members']:
+            ## If this member has a handle_members field that means it's a range of
+            ## structs which each contain a handle to convert.
+            %if 'handle_members' in member:
+                ## we use the parent info stripped of derefs for a unique variable name
+                <%
+                parent_no_deref = th.strip_deref(member['parent'])
+                range_vector_name = struct['name'] + parent_no_deref + member['name']
+                ## we need to check if range bounds are literals or variables: variables
+                ## need the full reference chain prepended to them
+                range_start = member['range_start']
+                if not re.match(r"[0-9]+$", range_start):
+                    range_start = struct['name'] + "->" + member['parent'] + range_start
+                range_end = member['range_end']
+                if not re.match(r"[0-9]+$", range_end):
+                    range_end = struct['name'] + "->" + member['parent'] + range_end %>
+                std::vector<${member['type']}> ${range_vector_name};
+                for(uint32_t i = ${range_start}; i < ${range_end}; i++) {
+                    ${member['type']} NewRangeStruct = ${struct['name']}Local.${member['parent']}${member['name']}[i];
+                    %for handle_member in member['handle_members']:
+                    %if handle_member['optional']:
+                    if(NewRangeStruct.${handle_member['parent']}${handle_member['name']})
+                    %endif
+                    NewRangeStruct.${handle_member['parent']}${handle_member['name']} =
+                        reinterpret_cast<${handle_member['obj_name']}*>(
+                            NewRangeStruct.${handle_member['parent']}${handle_member['name']})
+                            ->handle;
+                    %endfor
+
+                    ${range_vector_name}.push_back(NewRangeStruct);
+                }
+                ${struct['name']}Local.${member['parent']}${member['name']} = ${range_vector_name}.data();
+            ## If the member has range_start then its a range of handles
+            %elif 'range_start' in member:
+                ## we use the parent info stripped of derefs for a unique variable name
+                <%
+                parent_no_deref = th.strip_deref(member['parent'])
+                range_vector_name = struct['name'] + parent_no_deref + member['name'] %>
+                std::vector<${member['type']}> ${range_vector_name};
+                for(uint32_t i = 0;i < ${struct['name']}->${member['parent']}${member['range_end']};i++) {
+                    ${range_vector_name}.push_back(reinterpret_cast<${member['obj_name']}*>(${struct['name']}->${member['parent']}${member['name']}[i])->handle);
+                }
+                ${struct['name']}Local.${member['parent']}${member['name']} = ${range_vector_name}.data();
+            %else:
+                %if member['optional']:
+                if(${struct['name']}Local.${member['parent']}${member['name']})
+                %endif
+                ${struct['name']}Local.${member['parent']}${member['name']} =
+                    reinterpret_cast<${member['obj_name']}*>(
+                        ${struct['name']}Local.${member['parent']}${member['name']})->handle;
+            %endif
+        %endfor
+        %endfor
+
+        // Now that we've converted all the members update the param pointers
+        %for struct in handle_structs:
+            %if struct['optional']:
+            if(${struct['name']})
+            %endif
+            ${struct['name']} = &${struct['name']}Local;
+        %endfor
+        %endif
+
         // forward to device-platform
         %if add_local:
         result = ${th.make_pfn_name(n, tags, obj)}( ${", ".join(th.make_param_lines(n, tags, obj, format=["name", "local"], replacements=param_replacements))} );

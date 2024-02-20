@@ -76,7 +76,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
     bool IsInternal = OutEvent == nullptr;
     ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
     UR_CALL(createEventAndAssociateQueue(Queue, Event, UR_COMMAND_EVENTS_WAIT,
-                                         CommandList, IsInternal));
+                                         CommandList, IsInternal, false));
 
     ZeEvent = (*Event)->ZeEvent;
     (*Event)->WaitList = TmpWaitList;
@@ -103,9 +103,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
     std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
     if (OutEvent) {
-      UR_CALL(createEventAndAssociateQueue(
-          Queue, OutEvent, UR_COMMAND_EVENTS_WAIT, Queue->CommandListMap.end(),
-          /* IsInternal */ false));
+      UR_CALL(createEventAndAssociateQueue(Queue, OutEvent,
+                                           UR_COMMAND_EVENTS_WAIT,
+                                           Queue->CommandListMap.end(), false,
+                                           /* IsInternal */ false));
     }
 
     UR_CALL(Queue->synchronize());
@@ -157,7 +158,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
                ur_event_handle_t &Event, bool IsInternal) {
         UR_CALL(createEventAndAssociateQueue(
             Queue, &Event, UR_COMMAND_EVENTS_WAIT_WITH_BARRIER, CmdList,
-            IsInternal));
+            IsInternal, false));
 
         Event->WaitList = EventWaitList;
 
@@ -604,7 +605,8 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
     // Create a "proxy" host-visible event.
     UR_CALL(createEventAndAssociateQueue(
         UrQueue, &HostVisibleEvent, UR_EXT_COMMAND_TYPE_USER, CommandList,
-        /* IsInternal */ false, /* HostVisible */ true));
+        /* IsInternal */ false, /* IsMultiDevice */ false,
+        /* HostVisible */ true));
 
     ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
                (CommandList->first, 1, &ZeEvent));
@@ -750,7 +752,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urExtEventCreate(
     ur_event_handle_t
         *Event ///< [out] pointer to the handle of the event object created.
 ) {
-  UR_CALL(EventCreate(Context, nullptr, true, Event));
+  UR_CALL(EventCreate(Context, nullptr, false, true, Event));
 
   (*Event)->RefCountExternal++;
   ZE2UR_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
@@ -768,7 +770,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
   // we dont have urEventCreate, so use this check for now to know that
   // the call comes from urEventCreate()
   if (NativeEvent == nullptr) {
-    UR_CALL(EventCreate(Context, nullptr, true, Event));
+    UR_CALL(EventCreate(Context, nullptr, false, true, Event));
 
     (*Event)->RefCountExternal++;
     ZE2UR_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
@@ -1046,12 +1048,19 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
 // a host-visible pool.
 //
 ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
-                        bool HostVisible, ur_event_handle_t *RetEvent) {
+                        bool IsMultiDevice, bool HostVisible,
+                        ur_event_handle_t *RetEvent) {
 
   bool ProfilingEnabled = !Queue || Queue->isProfilingEnabled();
 
-  if (auto CachedEvent =
-          Context->getEventFromContextCache(HostVisible, ProfilingEnabled)) {
+  ur_device_handle_t Device = nullptr;
+
+  if (!IsMultiDevice && Queue) {
+    Device = Queue->Device;
+  }
+
+  if (auto CachedEvent = Context->getEventFromContextCache(
+          HostVisible, ProfilingEnabled, Device)) {
     *RetEvent = CachedEvent;
     return UR_RESULT_SUCCESS;
   }
@@ -1062,7 +1071,7 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
   size_t Index = 0;
 
   if (auto Res = Context->getFreeSlotInExistingOrNewPool(
-          ZeEventPool, Index, HostVisible, ProfilingEnabled))
+          ZeEventPool, Index, HostVisible, ProfilingEnabled, Device))
     return Res;
 
   ZeStruct<ze_event_desc_t> ZeEventDesc;
@@ -1264,9 +1273,45 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
         }
 
         std::shared_lock<ur_shared_mutex> Lock(EventList[I]->Mutex);
-        this->ZeEventList[TmpListLength] = EventList[I]->ZeEvent;
-        this->UrEventList[TmpListLength] = EventList[I];
-        this->UrEventList[TmpListLength]->RefCount.increment();
+
+        if (Queue && Queue->Device != CurQueue->Device &&
+            !EventList[I]->IsMultiDevice) {
+          ze_event_handle_t MultiDeviceZeEvent = nullptr;
+          ur_event_handle_t MultiDeviceEvent;
+          bool IsInternal = true;
+          bool IsMultiDevice = true;
+
+          ur_command_list_ptr_t CommandList{};
+          UR_CALL(Queue->Context->getAvailableCommandList(Queue, CommandList,
+                                                          false, true));
+
+          UR_CALL(createEventAndAssociateQueue(
+              Queue, &MultiDeviceEvent, EventList[I]->CommandType, CommandList,
+              IsInternal, IsMultiDevice));
+          MultiDeviceZeEvent = MultiDeviceEvent->ZeEvent;
+          const auto &ZeCommandList = CommandList->first;
+          EventList[I]->RefCount.increment();
+
+          zeCommandListAppendWaitOnEvents(ZeCommandList, 1u,
+                                          &EventList[I]->ZeEvent);
+          zeEventHostSignal(MultiDeviceZeEvent);
+
+          UR_CALL(Queue->executeCommandList(CommandList, /* IsBlocking */ false,
+                                            /* OkToBatchCommand */ true));
+
+          // Acquire lock of newly created MultiDeviceEvent to increase it's
+          // RefCount
+          std::shared_lock<ur_shared_mutex> Lock(MultiDeviceEvent->Mutex);
+
+          this->ZeEventList[TmpListLength] = MultiDeviceZeEvent;
+          this->UrEventList[TmpListLength] = MultiDeviceEvent;
+          this->UrEventList[TmpListLength]->RefCount.increment();
+        } else {
+          this->ZeEventList[TmpListLength] = EventList[I]->ZeEvent;
+          this->UrEventList[TmpListLength] = EventList[I];
+          this->UrEventList[TmpListLength]->RefCount.increment();
+        }
+
         TmpListLength += 1;
       }
     }

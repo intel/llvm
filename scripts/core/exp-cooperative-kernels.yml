@@ -78,6 +78,12 @@ params:
     - type: $x_kernel_handle_t
       name: hKernel
       desc: "[in] handle of the kernel object"
+    - type: size_t
+      name: localWorkSize
+      desc: "[in] number of local work-items that will form a work-group when the kernel is launched"
+    - type: size_t
+      name: dynamicSharedMemorySize
+      desc: "[in] size of dynamic shared memory, for each work-group, in bytes, that will be used when the kernel is launched"
     - type: "uint32_t*"
       name: "pGroupCountRet"
       desc: "[out] pointer to maximum number of groups"
