@@ -661,7 +661,7 @@ SanitizerInterceptor::insertContext(ur_context_handle_t Context,
 
     CI = std::make_shared<ContextInfo>(Context);
 
-    m_ContextMap.emplace(Context, std::move(CI));
+    m_ContextMap.emplace(Context, CI);
 
     return UR_RESULT_SUCCESS;
 }
@@ -697,7 +697,7 @@ SanitizerInterceptor::insertDevice(ur_device_handle_t Device,
         Device, UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN, sizeof(DI->Alignment),
         &DI->Alignment, nullptr));
 
-    m_DeviceMap.emplace(Device, std::move(DI));
+    m_DeviceMap.emplace(Device, DI);
 
     return UR_RESULT_SUCCESS;
 }
@@ -718,7 +718,8 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
 
     do {
         // Set global variable to program
-        auto EnqueueWriteGlobal = [&](const char *Name, const void *Value) {
+        auto EnqueueWriteGlobal = [&Queue, &Program](const char *Name,
+                                                     const void *Value) {
             auto Result =
                 context.urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite(
                     Queue, Program, Name, false, sizeof(uptr), 0, Value, 0,
