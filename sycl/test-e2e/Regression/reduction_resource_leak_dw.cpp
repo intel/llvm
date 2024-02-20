@@ -2,7 +2,7 @@
 // XFAIL: windows
 //
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s
 //
 // CHECK-NOT: LEAK
 

@@ -937,6 +937,7 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVOpaqueType>::init() {
   _SPIRV_OP(CooperativeMatrixKHR)
 #undef _SPIRV_OP
   add("JointMatrixINTEL", internal::OpTypeJointMatrixINTEL);
+  add("TaskSequenceINTEL", internal::OpTypeTaskSequenceINTEL);
 }
 
 // Check if the module contains llvm.loop.* metadata

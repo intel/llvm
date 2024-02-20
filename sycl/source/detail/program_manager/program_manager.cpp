@@ -380,13 +380,6 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
         return Dev.is_gpu() &&
                Dev.get_info<info::device::vendor_id>() == 0x8086;
       });
-  if (IsIntelGPU && Img.getDeviceGlobals().size() != 0) {
-    // If the image has device globals we need to add the
-    // -ze-take-global-address option to tell IGC to record addresses of these.
-    if (!CompileOpts.empty())
-      CompileOpts += " ";
-    CompileOpts += "-ze-take-global-address";
-  }
   if (!CompileOptsEnv) {
     static const char *TargetCompileFast = "-ftarget-compile-fast";
     if (auto Pos = CompileOpts.find(TargetCompileFast);
@@ -2719,11 +2712,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
     }
   }
 
-  // TODO: remove checks for CUDA and HIP from if-statement below when runtime
-  // query for them in matrix_combinations is implemented
-  if (JointMatrixPropIt &&
-      (Dev.get_backend() != sycl::backend::ext_oneapi_cuda) &&
-      (Dev.get_backend() != sycl::backend::ext_oneapi_hip)) {
+  if (JointMatrixPropIt) {
     std::vector<ext::oneapi::experimental::matrix::combination> Combinations =
         Dev.get_info<
             ext::oneapi::experimental::info::device::matrix_combinations>();
@@ -2747,11 +2736,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
       return Result.value();
   }
 
-  // TODO: remove checks for CUDA and HIP from if-statement below when runtime
-  // query for them in matrix_combinations is implemented
-  if (JointMatrixMadPropIt &&
-      (Dev.get_backend() != sycl::backend::ext_oneapi_cuda) &&
-      (Dev.get_backend() != sycl::backend::ext_oneapi_hip)) {
+  if (JointMatrixMadPropIt) {
     std::vector<ext::oneapi::experimental::matrix::combination> Combinations =
         Dev.get_info<
             ext::oneapi::experimental::info::device::matrix_combinations>();

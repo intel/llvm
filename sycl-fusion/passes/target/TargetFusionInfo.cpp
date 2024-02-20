@@ -18,10 +18,13 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicsAMDGPU.h"
 #include "llvm/IR/IntrinsicsNVPTX.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Triple.h"
 
 using namespace jit_compiler;
+
+extern llvm::cl::opt<bool> UseNewDbgInfoFormat;
 
 template <typename ForwardIt, typename KeyTy>
 static ForwardIt mapArrayLookup(ForwardIt Begin, ForwardIt End,
@@ -227,6 +230,7 @@ public:
       F->setAttributes(
           AttributeList::get(LLVMMod->getContext(), FnAttrs, {}, {}));
       F->setCallingConv(CallingConv::SPIR_FUNC);
+      F->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
     }
 
     // See
@@ -393,6 +397,7 @@ public:
                     Attribute::get(Ctx, Attribute::AttrKind::NoUnwind)}),
           {}, {}));
       F->setCallingConv(CallingConv::SPIR_FUNC);
+      F->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
     }
 
     auto *Call = Builder.CreateCall(F, {Builder.getInt32(Idx)});
@@ -415,6 +420,7 @@ public:
                                  /*isVarArg*/ false);
     auto *F = Function::Create(Ty, Function::InternalLinkage, Name, *M);
     setMetadataForGeneratedFunction(F);
+    F->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
 
     auto *EntryBlock = BasicBlock::Create(Ctx, "entry", F);
     Builder.SetInsertPoint(EntryBlock);
@@ -445,8 +451,8 @@ class NVPTXAMDGCNTargetFusionInfoBase : public TargetFusionInfoImpl {
 public:
   using TargetFusionInfoImpl::TargetFusionInfoImpl;
 
-  void notifyFunctionsDelete(StringRef MDName,
-                             llvm::ArrayRef<Function *> Funcs) const {
+  void removeDeletedKernelsFromMD(StringRef MDName,
+                                  llvm::ArrayRef<Function *> Funcs) const {
     SmallPtrSet<Constant *, 8> DeletedFuncs{Funcs.begin(), Funcs.end()};
     SmallVector<MDNode *> ValidKernels;
     auto *OldAnnotations = LLVMMod->getNamedMetadata(MDName);
@@ -469,7 +475,7 @@ public:
     }
   }
 
-  void addKernelFunction(StringRef MDName, Function *KernelFunc) const {
+  void addKernelToMD(StringRef MDName, Function *KernelFunc) const {
     auto *Annotations = LLVMMod->getOrInsertNamedMetadata(MDName);
     auto *MDOne = ConstantAsMetadata::get(
         ConstantInt::get(Type::getInt32Ty(LLVMMod->getContext()), 1));
@@ -559,6 +565,7 @@ public:
                                    /*isVarArg*/ false);
       F = Function::Create(Ty, Function::InternalLinkage, GetGlobalIDName, M);
       setMetadataForGeneratedFunction(F);
+      F->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
 
       auto *EntryBlock = BasicBlock::Create(Builder.getContext(), "entry", F);
       Builder.SetInsertPoint(EntryBlock);
@@ -618,6 +625,7 @@ public:
                                     /*isVarArg*/ false);
       auto *F = Function::Create(FTy, Function::InternalLinkage, Name, *M);
       setMetadataForGeneratedFunction(F);
+      F->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
 
       auto *EntryBlock = BasicBlock::Create(Ctx, "entry", F);
       Builder.SetInsertPoint(EntryBlock);
@@ -635,6 +643,7 @@ public:
       auto *FTy = FunctionType::get(Builder.getInt32Ty(), /*isVarArg*/ false);
       auto *F = Function::Create(FTy, Function::InternalLinkage, Name, *M);
       setMetadataForGeneratedFunction(F);
+      F->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
 
       auto *EntryBlock = BasicBlock::Create(Ctx, "entry", F);
       Builder.SetInsertPoint(EntryBlock);
@@ -707,13 +716,11 @@ public:
   using NVPTXAMDGCNTargetFusionInfoBase::NVPTXAMDGCNTargetFusionInfoBase;
 
   void notifyFunctionsDelete(llvm::ArrayRef<Function *> Funcs) const override {
-    NVPTXAMDGCNTargetFusionInfoBase::notifyFunctionsDelete("nvvm.annotations",
-                                                           Funcs);
+    removeDeletedKernelsFromMD("nvvm.annotations", Funcs);
   }
 
   void addKernelFunction(Function *KernelFunc) const override {
-    NVPTXAMDGCNTargetFusionInfoBase::addKernelFunction("nvvm.annotations",
-                                                       KernelFunc);
+    addKernelToMD("nvvm.annotations", KernelFunc);
   }
 
   void createBarrierCall(IRBuilderBase &Builder,
@@ -818,14 +825,12 @@ public:
   using NVPTXAMDGCNTargetFusionInfoBase::NVPTXAMDGCNTargetFusionInfoBase;
 
   void notifyFunctionsDelete(llvm::ArrayRef<Function *> Funcs) const override {
-    NVPTXAMDGCNTargetFusionInfoBase::notifyFunctionsDelete("amdgcn.annotations",
-                                                           Funcs);
+    removeDeletedKernelsFromMD("amdgcn.annotations", Funcs);
   }
 
   void addKernelFunction(Function *KernelFunc) const override {
     KernelFunc->setCallingConv(CallingConv::AMDGPU_KERNEL);
-    NVPTXAMDGCNTargetFusionInfoBase::addKernelFunction("amdgcn.annotations",
-                                                       KernelFunc);
+    addKernelToMD("amdgcn.annotations", KernelFunc);
   }
 
   void createBarrierCall(IRBuilderBase &Builder,

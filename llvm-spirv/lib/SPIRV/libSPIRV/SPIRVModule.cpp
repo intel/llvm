@@ -247,6 +247,7 @@ public:
   addJointMatrixINTELType(SPIRVType *, std::vector<SPIRVValue *>) override;
   SPIRVTypeCooperativeMatrixKHR *
   addCooperativeMatrixKHRType(SPIRVType *, std::vector<SPIRVValue *>) override;
+  SPIRVTypeTaskSequenceINTEL *addTaskSequenceINTELType() override;
   SPIRVType *addOpaqueGenericType(Op) override;
   SPIRVTypeDeviceEvent *addDeviceEventType() override;
   SPIRVTypeQueue *addQueueType() override;
@@ -483,7 +484,7 @@ private:
   SPIRVAddressingModelKind AddrModel;
   SPIRVMemoryModelKind MemoryModel;
 
-  typedef std::map<SPIRVId, SPIRVEntry *> SPIRVIdToEntryMap;
+  typedef std::unordered_map<SPIRVId, SPIRVEntry *> SPIRVIdToEntryMap;
   typedef std::set<SPIRVEntry *> SPIRVEntrySet;
   typedef std::set<SPIRVId> SPIRVIdSet;
   typedef std::vector<SPIRVId> SPIRVIdVec;
@@ -1019,6 +1020,10 @@ SPIRVModuleImpl::addCooperativeMatrixKHRType(SPIRVType *CompType,
                                              std::vector<SPIRVValue *> Args) {
   return addType(
       new SPIRVTypeCooperativeMatrixKHR(this, getId(), CompType, Args));
+}
+
+SPIRVTypeTaskSequenceINTEL *SPIRVModuleImpl::addTaskSequenceINTELType() {
+  return addType(new SPIRVTypeTaskSequenceINTEL(this, getId()));
 }
 
 SPIRVType *SPIRVModuleImpl::addOpaqueGenericType(Op TheOpCode) {

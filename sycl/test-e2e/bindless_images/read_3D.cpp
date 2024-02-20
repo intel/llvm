@@ -76,10 +76,10 @@ int main() {
             // Extension: read image data from handle
             sycl::float4 px1 =
                 sycl::ext::oneapi::experimental::read_image<sycl::float4>(
-                    imgHandle1, sycl::int4(dim0, dim1, dim2, 0));
+                    imgHandle1, sycl::int3(dim0, dim1, dim2));
             sycl::float4 px2 =
                 sycl::ext::oneapi::experimental::read_image<sycl::float4>(
-                    imgHandle2, sycl::int4(dim0, dim1, dim2, 0));
+                    imgHandle2, sycl::int3(dim0, dim1, dim2));
 
             sum = px1[0] + px2[0];
             outAcc[sycl::id<3>{dim2, dim1, dim0}] = sum;

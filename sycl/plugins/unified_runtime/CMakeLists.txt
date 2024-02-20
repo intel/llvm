@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8ff738f424de6f84fa16c9f7d41c8c70b766665d
-  # Merge: 5e548c5e fbdaf72a
+  # commit 24078c26ab871572067f520d856f4c65271cb9e5
+  # Merge: 227a5edf 89a66af7
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Feb 13 13:01:03 2024 +0100
-  #     Merge pull request #1089 from Bensuo/ewan/update
-  #     [EXP][Command-Buffer] Add kernel command update
-  set(UNIFIED_RUNTIME_TAG 8ff738f424de6f84fa16c9f7d41c8c70b766665d)
+  # Date:   Mon Feb 19 11:51:49 2024 +0100
+  #     Merge pull request #1299 from rafbiels/rafbiels/fix-cuda-maxreg-check
+  #     [CUDA] Fix MaxRegsPerBlock check in setKernelParams
+  set(UNIFIED_RUNTIME_TAG 24078c26ab871572067f520d856f4c65271cb9e5)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -124,7 +124,7 @@ set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/com
 
 add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 add_library(UnifiedRuntimeCommon ALIAS ur_common)
-add_library(UnifiedMallocFramework ALIAS unified_malloc_framework)
+add_library(UnifiedMemoryFramework ALIAS umf)
 
 add_library(UnifiedRuntime-Headers INTERFACE)
 

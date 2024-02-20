@@ -1,0 +1,75 @@
+; Tests translation of DebugTypeArrayDynamic with DebugInfoNone type
+
+; RUN: llvm-spirv -to-binary %s -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
+
+; CHECK-LLVM: ![[#]] = !DICompositeType(tag: DW_TAG_array_type, baseType: ![[#Type:]]
+; CHECK-LLVM: ![[#Type]] = !DIBasicType(tag: DW_TAG_unspecified_type, name: "SPIRV unknown type")
+
+119734787 65536 393230 49 0 
+2 Capability Addresses 
+2 Capability Linkage 
+2 Capability Kernel 
+8 Extension "SPV_KHR_non_semantic_info" 
+5 ExtInstImport 1 "OpenCL.std" 
+11 ExtInstImport 2 "NonSemantic.Shader.DebugInfo.200" 
+3 MemoryModel 2 2 
+11 String 7 "/test/declare_target_subroutine.F90" 
+3 String 9 "0" 
+3 String 13 "" 
+9 String 22 "declare_target_subroutine" 
+4 String 23 "MAIN__" 
+3 String 27 "a" 
+5 String 28 "INTEGER*4" 
+6 String 42 "iso_fortran_env" 
+3 Source 0 0 
+4 Name 5 "MAIN__" 
+
+6 Decorate 5 LinkageAttributes "MAIN__" Export 
+4 TypeInt 10 32 0 
+4 Constant 10 11 1 
+4 Constant 10 15 65536 
+4 Constant 10 16 4 
+4 Constant 10 17 206 
+4 Constant 10 20 0 
+4 Constant 10 24 23 
+4 Constant 10 25 8 
+4 Constant 10 29 32 
+4 Constant 10 31 149 
+4 Constant 10 40 28 
+4 Constant 10 45 24 
+2 TypeVoid 3 
+3 TypeFunction 4 3 
+
+
+6 ExtInst 3 8 2 DebugSource 7 
+7 ExtInst 3 12 2 DebugBuildIdentifier 9 11 
+6 ExtInst 3 14 2 DebugStoragePath 13 
+10 ExtInst 3 18 2 DebugCompilationUnit 15 16 8 17 13 
+5 ExtInst 3 19 2 DebugInfoNone 
+7 ExtInst 3 21 2 DebugTypeFunction 20 19 
+15 ExtInst 3 26 2 DebugFunction 22 21 8 24 20 18 23 25 24 19
+5 ExtInst 3 30 2 DebugInfoNone 
+6 ExtInst 3 32 2 DebugOperation 31 
+6 ExtInst 3 33 2 DebugExpression 32 
+6 ExtInst 3 34 2 DebugOperation 31 
+6 ExtInst 3 35 2 DebugExpression 34 
+6 ExtInst 3 36 2 DebugOperation 31 
+6 ExtInst 3 37 2 DebugExpression 36 
+9 ExtInst 3 38 2 DebugTypeSubrange 37 37 19 37 
+11 ExtInst 3 39 2 DebugTypeArrayDynamic 30 33 35 19 19 38 
+12 ExtInst 3 41 2 DebugLocalVariable 27 39 8 40 20 26 20 
+6 ExtInst 3 43 2 DebugSource 13 
+13 ExtInst 3 44 2 DebugModule 42 43 20 26 13 13 13 11 
+12 ExtInst 3 46 2 DebugImportedEntity 13 20 8 44 45 20 26 
+9 ExtInst 3 47 2 DebugEntryPoint 26 18 13 13 
+
+5 Function 3 5 0 4 
+
+2 Label 6 
+7 ExtInst 3 48 2 DebugFunctionDefinition 26 5 
+1 Return 
+
+1 FunctionEnd 
+

@@ -1,0 +1,54 @@
+; Tests translation of GlobalVariable with DebugInfoNone type
+
+; REQUIRES: spirv-as
+
+; RUN: spirv-as %s --target-env spv1.1 -o %t.spv
+; RUN: llvm-spirv -r -o %t.rev.bc %t.spv
+; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
+; RUN: FileCheck %s --input-file %t.rev.ll --check-prefix CHECK-LLVM
+
+; CHECK-LLVM: distinct !DIGlobalVariable(name: "i", linkageName: "_ZL1i", scope: ![[#]], file: ![[#]], line: 1, type: ![[#Type:]], isLocal: true, isDefinition: true)
+; CHECK-LLVM: ![[#Type]] = !DIBasicType(tag: DW_TAG_unspecified_type, name: "SPIRV unknown type")
+
+; SPIR-V
+; Version: 1.1
+; Generator: Khronos LLVM/SPIR-V Translator; 14
+; Bound: 24
+; Schema: 0
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+          %1 = OpExtInstImport "OpenCL.std"
+          %2 = OpExtInstImport "OpenCL.DebugInfo.100"
+               OpMemoryModel Physical64 OpenCL
+          %8 = OpString "/tmp/global.cpp"
+         %13 = OpString "int"
+         %17 = OpString "main"
+         %18 = OpString ""
+         %21 = OpString "i"
+         %22 = OpString "_ZL1i"
+               OpSource Unknown 0
+               OpName %main "main"
+               OpName %entry "entry"
+               OpModuleProcessed "Debuginfoproducer:clangversion3.4"
+               OpDecorate %main LinkageAttributes "main" Export
+       %uint = OpTypeInt 32 0
+     %uint_0 = OpConstant %uint 0
+    %uint_32 = OpConstant %uint 32
+          %4 = OpTypeFunction %uint
+       %void = OpTypeVoid
+         %10 = OpExtInst %void %2 DebugInfoNone
+         %11 = OpExtInst %void %2 DebugSource %8
+         %12 = OpExtInst %void %2 DebugCompilationUnit 65536 3 %11 CPP_for_OpenCL
+         %15 = OpExtInst %void %2 DebugTypeBasic %13 %uint_32 Signed
+         %16 = OpExtInst %void %2 DebugTypeFunction None %15
+         %19 = OpExtInst %void %2 DebugInfoNone
+         %20 = OpExtInst %void %2 DebugFunction %17 %16 %11 2 0 %12 %18 FlagIsDefinition|FlagPrototyped|FlagIsOptimized 2 %main %19
+         %23 = OpExtInst %void %2 DebugGlobalVariable %21 %10 %11 1 0 %12 %22 %19 FlagIsLocal|FlagIsDefinition
+       %main = OpFunction %uint None %4
+      %entry = OpLabel
+         %24 = OpExtInst %void %2 DebugScope %20
+               OpLine %8 4 0
+               OpReturnValue %uint_0
+               OpFunctionEnd
+
