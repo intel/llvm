@@ -66,13 +66,20 @@ int main() {
     assert(imgMem0MoveAssign != imgMem1CopyAssign);
     assert(imgMem1 == imgMem1CopyAssign);
 
+    // We can default construct image handles
+    sycl::ext::oneapi::experimental::unsampled_image_handle imgHandle1;
+
     // Extension: create the image and return the handle
-    sycl::ext::oneapi::experimental::unsampled_image_handle imgHandle1 =
+    sycl::ext::oneapi::experimental::unsampled_image_handle tmpHandle =
         sycl::ext::oneapi::experimental::create_image(imgMem0MoveAssign, desc,
                                                       dev, ctxt);
     sycl::ext::oneapi::experimental::unsampled_image_handle imgHandle2 =
         sycl::ext::oneapi::experimental::create_image(imgMem1CopyAssign, desc,
                                                       dev, ctxt);
+
+    // Default constructed image handles are not valid until we assign a valid
+    // raw handle to the struct
+    imgHandle1.raw_handle = tmpHandle.raw_handle;
 
     // Extension: copy over data to device
     q.ext_oneapi_copy(dataIn1.data(), imgMem0MoveAssign.get_handle(), desc);

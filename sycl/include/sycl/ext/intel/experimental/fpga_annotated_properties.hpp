@@ -353,6 +353,10 @@ struct is_valid_property<T, conduit_key::value_t> : std::true_type {};
 template <typename T>
 struct is_valid_property<T, stable_key::value_t> : std::true_type {};
 
+// buffer_location is applied on PtrAnnotation
+template <>
+struct propagateToPtrAnnotation<buffer_location_key> : std::true_type {};
+
 //===----------------------------------------------------------------------===//
 //   Utility for FPGA properties
 //===----------------------------------------------------------------------===//
@@ -372,6 +376,15 @@ template <typename... Args> struct checkValidFPGAPropertySet {
       ContainsProperty<wait_request_key, list>::value;
 
   static constexpr bool value = !(!has_BufferLocation && has_InterfaceConfig);
+};
+
+template <typename... Args> struct checkHasConduitAndRegisterMap {
+  using list = std::tuple<Args...>;
+  static constexpr bool has_Conduit =
+      ContainsProperty<conduit_key, list>::value;
+  static constexpr bool has_RegisterMap =
+      ContainsProperty<register_map_key, list>::value;
+  static constexpr bool value = !(has_Conduit && has_RegisterMap);
 };
 } // namespace detail
 

@@ -3,7 +3,7 @@
 //
 // Fails to release USM pointer on HIP for NVIDIA
 // XFAIL: hip_nvidia
-
+// REQUIRES: aspect-usm_shared_allocations
 #include <numeric>
 #include <sycl/sycl.hpp>
 

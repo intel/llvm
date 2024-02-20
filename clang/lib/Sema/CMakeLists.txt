@@ -84,6 +84,7 @@ add_clang_library(clangSema
   ClangDriverOptions
 
   LINK_LIBS
+  clangAPINotes
   clangAST
   clangAnalysis
   clangBasic

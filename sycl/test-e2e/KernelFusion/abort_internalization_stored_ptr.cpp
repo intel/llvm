@@ -1,6 +1,5 @@
-// REQUIRES: fusion
 // RUN: %{build} -fsycl-embed-ir -o %t.out
-// RUN: env SYCL_RT_WARNING_LEVEL=1 %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not "Computation error" --implicit-check-not "Internalized" --check-prefix=CHECK %if ext_oneapi_hip %{ --check-prefix=CHECK-HIP %} %else %{ --check-prefix=CHECK-NON-HIP %}
+// RUN: env SYCL_RT_WARNING_LEVEL=1 %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not "Computation error" --implicit-check-not "Internalized" --check-prefix=CHECK %if hip %{ --check-prefix=CHECK-HIP %} %else %{ --check-prefix=CHECK-NON-HIP %}
 
 // Test pointers being stored are not internalized.
 

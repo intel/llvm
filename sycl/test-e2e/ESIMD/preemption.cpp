@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: linux
-// UNSUPPORTED: esimd_emulator || gpu-intel-dg2 || gpu-intel-pvc
+// UNSUPPORTED: gpu-intel-dg2 || gpu-intel-pvc
 // RUN: %{build} -o %t.out
 // RUN: env IGC_DumpToCustomDir=%t.dump IGC_ShaderDumpEnable=1 %{run} %t.out
 // RUN: grep enablePreemption %t.dump/*.asm

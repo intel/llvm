@@ -25,7 +25,7 @@ source_filename = "test/DebugInfo/X86/linkage-name.ll"
 
 %class.A = type { i8 }
 
-@a = global %class.A zeroinitializer, align 1, !dbg !0
+@a = addrspace(1) global %class.A zeroinitializer, align 1, !dbg !0
 
 ; Function Attrs: nounwind ssp uwtable
 define i32 @_ZN1A1aEi(ptr %this, i32 %b) #0 align 2 !dbg !14 {

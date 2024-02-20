@@ -3,18 +3,18 @@
 
 // RUN: %{build} -o %t.out
 
-// RUN: env ZEX_NUMBER_OF_CCS=0:4 ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
+// RUN: env ZEX_NUMBER_OF_CCS=0:4 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
 
 // RUN: env SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING=1 \
-// RUN:   ZEX_NUMBER_OF_CCS=0:4 ZE_DEBUG=1 %{run} %t.out  2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
+// RUN:   ZEX_NUMBER_OF_CCS=0:4 UR_L0_DEBUG=1 %{run} %t.out  2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
 
 // Same, but without using immediate commandlists:
 
 // RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 ZEX_NUMBER_OF_CCS=0:4 \
-// RUN:   ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
+// RUN:   UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
 
 // RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING=1 \
-// RUN:   ZEX_NUMBER_OF_CCS=0:4 ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
+// RUN:   ZEX_NUMBER_OF_CCS=0:4 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
 
 #include <sycl/sycl.hpp>
 
@@ -135,7 +135,7 @@ void test_pvc(device &d) {
     }
   } else {
     // Make FileCheck pass.
-    std::cout << "Fake ZE_DEBUG output for FileCheck:" << std::endl;
+    std::cout << "Fake UR_L0_DEBUG output for FileCheck:" << std::endl;
     // clang-format off
     std::cout << "[getZeQueue]: create queue ordinal = 0, index = 0 (round robin in [0, 0])" << std::endl;
     std::cout << "[getZeQueue]: create queue ordinal = 0, index = 1 (round robin in [1, 1])" << std::endl;

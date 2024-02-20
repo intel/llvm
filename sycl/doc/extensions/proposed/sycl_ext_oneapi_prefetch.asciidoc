@@ -232,6 +232,9 @@ void prefetch(accessor<DataT, Dimensions, AccessMode, target::device, IsPlacehol
 template <typename Properties = empty_properties_t>
 void prefetch(void* ptr, Properties properties = {});
 ----
+_Constraints_: Available only if `is_property_list_v<std::decay_t<Properties>>`
+is `true`.
+
 _Preconditions_: `ptr` must point to an object in global memory.
 
 _Effects_: Acts as a hint to the implementation that the cacheline containing
@@ -243,6 +246,9 @@ the byte at `ptr` should be prefetched into the levels of cache specified by
 template <typename Properties = empty_properties_t>
 void prefetch(void* ptr, size_t bytes, Properties properties = {});
 ----
+_Constraints_: Available only if `is_property_list_v<std::decay_t<Properties>>`
+is `true`.
+
 _Preconditions_: `ptr` must point to an object in global memory.
 
 _Effects_: Acts as a hint to the implementation that the cachelines containing
@@ -254,6 +260,9 @@ cache specified by `properties`.
 template <typename T, typename Properties = empty_properties_t>
 void prefetch(T* ptr, Properties properties = {});
 ----
+_Constraints_: Available only if `is_property_list_v<std::decay_t<Properties>>`
+is `true`.
+
 _Preconditions_: `ptr` must point to an object in global memory.
 
 _Effects_: Equivalent to `prefetch((void*) ptr, sizeof(T), properties)`.
@@ -263,6 +272,9 @@ _Effects_: Equivalent to `prefetch((void*) ptr, sizeof(T), properties)`.
 template <typename T, typename Properties = empty_properties_t>
 void prefetch(T* ptr, size_t count, Properties properties = {});
 ----
+_Constraints_: Available only if `is_property_list_v<std::decay_t<Properties>>`
+is `true`.
+
 _Preconditions_: `ptr` must point to an object in global memory.
 
 _Effects_: Equivalent to `prefetch((void*) ptr, count * sizeof(T), properties)`.
@@ -274,7 +286,8 @@ template <access::address_space AddressSpace, access::decorated IsDecorated,
 void prefetch(multi_ptr<void, AddressSpace, IsDecorated> ptr, Properties properties = {});
 ----
 _Constraints_: Available only if `AddressSpace == global_space || AddressSpace
-== generic_space` is `true`.
+== generic_space` is `true` and `is_property_list_v<std::decay_t<Properties>>`
+is `true`.
 
 _Preconditions_: `ptr` must point to an object in global memory.
 
@@ -287,7 +300,8 @@ template <access::address_space AddressSpace, access::decorated IsDecorated,
 void prefetch(multi_ptr<void, AddressSpace, IsDecorated> ptr, size_t bytes, Properties properties = {});
 ----
 _Constraints_: Available only if `AddressSpace == global_space || AddressSpace
-== generic_space` is `true`.
+== generic_space` is `true` and `is_property_list_v<std::decay_t<Properties>>`
+is `true`.
 
 _Preconditions_: `ptr` must point to an object in global memory.
 
@@ -300,7 +314,8 @@ template <typename T, access::address_space AddressSpace, access::decorated IsDe
 void prefetch(multi_ptr<T, AddressSpace, IsDecorated> ptr, Properties properties = {});
 ----
 _Constraints_: Available only if `AddressSpace == global_space || AddressSpace
-== generic_space` is `true`.
+== generic_space` is `true` and `is_property_list_v<std::decay_t<Properties>>`
+is `true`.
 
 _Preconditions_: `ptr` must point to an object in global memory.
 
@@ -313,7 +328,8 @@ template <typename T, access::address_space AddressSpace, access::decorated IsDe
 void prefetch(multi_ptr<T, AddressSpace, IsDecorated> ptr, size_t count, Properties properties = {});
 ----
 _Constraints_: Available only if `AddressSpace == global_space || AddressSpace
-== generic_space` is `true`.
+== generic_space` is `true` and `is_property_list_v<std::decay_t<Properties>>`
+is `true`.
 
 _Preconditions_: `ptr` must point to an object in global memory.
 
@@ -328,7 +344,8 @@ void prefetch(accessor<DataT, Dimensions, AccessMode, target::device, IsPlacehol
               id<Dimensions> offset, Properties properties = {});
 ----
 _Constraints_: Available only if `Dimensions > 0 && (AccessMode == read ||
-AccessMode == read_write)` is `true`.
+AccessMode == read_write)` is `true` and
+`is_property_list_v<std::decay_t<Properties>>` is `true`.
 
 _Effects_: Equivalent to `prefetch((void*) &acc[offset], sizeof(DataT),
 properties)`.
@@ -342,7 +359,8 @@ void prefetch(accessor<DataT, Dimensions, AccessMode, target::device, IsPlacehol
               size_t offset, size_t count, Properties properties = {});
 ----
 _Constraints_: Available only if `Dimensions > 0 && (AccessMode == read ||
-AccessMode == read_write)` is `true`.
+AccessMode == read_write)` is `true` and
+`is_property_list_v<std::decay_t<Properties>>` is `true`.
 
 _Effects_: Equivalent to `prefetch((void*) &acc[offset], count * sizeof(DataT),
 properties)`.
@@ -453,7 +471,7 @@ template <typename Group, typename Properties = empty_properties_t>
 void joint_prefetch(Group g, void* ptr, Properties properties = {});
 ----
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
-`true`.
+`true` and `is_property_list_v<std::decay_t<Properties>>` is `true`.
 
 _Preconditions_: `ptr` must point to an object in global memory. `ptr` and
 `properties` must be the same for all work-items in group `g`.
@@ -468,7 +486,7 @@ template <typename Group, typename Properties = empty_properties_t>
 void joint_prefetch(Group g, void* ptr, size_t bytes, Properties properties = {});
 ----
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
-`true`.
+`true` and `is_property_list_v<std::decay_t<Properties>>` is `true`.
 
 _Preconditions_: `ptr` must point to an object in global memory. `ptr`, `bytes`
 and `properties` must be the same for all work-items in group `g`.
@@ -483,7 +501,7 @@ template <typename Group, typename T, typename Properties = empty_properties_t>
 void joint_prefetch(Group g, T* ptr, Properties properties = {});
 ----
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
-`true`.
+`true` and `is_property_list_v<std::decay_t<Properties>>` is `true`.
 
 _Preconditions_: `ptr` must point to an object in global memory. `ptr` and
 `properties` must be the same for all work-items in group `g`.
@@ -497,7 +515,7 @@ template <typename Group, typename T, typename Properties = empty_properties_t>
 void joint_prefetch(Group g, T* ptr, size_t count, Properties properties = {});
 ----
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
-`true`.
+`true` and `is_property_list_v<std::decay_t<Properties>>` is `true`.
 
 _Preconditions_: `ptr` must point to an object in global memory. `ptr`, `count`
 and `properties` must be the same for all work-items in group `g`.
@@ -514,7 +532,7 @@ void joint_prefetch(Group g, multi_ptr<void, AddressSpace, IsDecorated> ptr,
 ----
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
 `true` and `AddressSpace == global_space || AddressSpace == generic_space` is
-`true`.
+`true` and `is_property_list_v<std::decay_t<Properties>>` is `true`.
 
 _Preconditions_: `ptr` must point to an object in global memory. `ptr` and
 `properties` must be the same for all work-items in group `g`.
@@ -531,7 +549,7 @@ void joint_prefetch(Group g, multi_ptr<void, AddressSpace, IsDecorated> ptr, siz
 ----
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
 `true` and `AddressSpace == global_space || AddressSpace == generic_space` is
-`true`.
+`true` and `is_property_list_v<std::decay_t<Properties>>` is `true`.
 
 _Preconditions_: `ptr` must point to an object in global memory. `ptr`, `bytes`
 and `properties` must be the same for all work-items in group `g`.
@@ -548,7 +566,7 @@ void joint_prefetch(Group g, multi_ptr<T, AddressSpace, IsDecorated> ptr,
 ----
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
 `true` and `AddressSpace == global_space || AddressSpace == generic_space` is
-`true`.
+`true` and `is_property_list_v<std::decay_t<Properties>>` is `true`.
 
 _Preconditions_: `ptr` must point to an object in global memory. `ptr` and
 `properties` must be the same for all work-items in group `g`.
@@ -564,7 +582,7 @@ void joint_prefetch(Group g, multi_ptr<T, AddressSpace, IsDecorated> ptr, size_t
                     Properties properties = {});
 ----
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
-`true`.
+`true` and `is_property_list_v<std::decay_t<Properties>>` is `true`.
 
 _Preconditions_: `ptr` must point to an object in global memory. `ptr`, `count`
 and `properties` must be the same for all work-items in group `g`.
@@ -581,7 +599,8 @@ void joint_prefetch(Group g, accessor<DataT, Dimensions, AccessMode, target::dev
 ----
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
 `true` and `Dimensions > 0 && (AccessMode == read || AccessMode ==
-read_write)` is `true`.
+read_write)` is `true` and `is_property_list_v<std::decay_t<Properties>>` is
+`true`.
 
 _Preconditions_: `acc`, `offset` and `properties` must be the same for all
 work-items in group `g`.
@@ -599,7 +618,8 @@ void joint_prefetch(Group g, accessor<DataT, Dimensions, AccessMode, target::dev
 ----
 _Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
 `true` and `Dimensions > 0 && (AccessMode == read || AccessMode ==
-read_write)` is `true`.
+read_write)` is `true` and `is_property_list_v<std::decay_t<Properties>>` is
+`true`.
 
 _Preconditions_: `acc`, `offset`, `count` and `properties` must be the same for
 all work-items in group `g`.

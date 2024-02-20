@@ -6,7 +6,11 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+  queue Queue{};
+
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
 
   using T = int;
 
@@ -42,13 +46,8 @@ int main() {
     }
     auto GraphExec = Graph.finalize();
 
-    event Event;
     for (unsigned n = 0; n < Iterations; n++) {
-      Event = Queue.submit([&](handler &CGH) {
-        CGH.depends_on(Event);
-        CGH.ext_oneapi_graph(GraphExec);
-      });
-      Event.wait();
+      Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
     }
 
     Queue.copy(BufferA.get_access(), DataA.data());
@@ -58,9 +57,11 @@ int main() {
     Queue.wait_and_throw();
   }
 
-  assert(ReferenceA == DataA);
-  assert(ReferenceB == DataB);
-  assert(ReferenceC == DataC);
+  for (size_t i = 0; i < Size; i++) {
+    assert(check_value(i, ReferenceA[i], DataA[i], "DataA"));
+    assert(check_value(i, ReferenceB[i], DataB[i], "DataB"));
+    assert(check_value(i, ReferenceC[i], DataC[i], "DataC"));
+  }
 
   return 0;
 }

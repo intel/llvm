@@ -59,7 +59,7 @@ target triple = "spir64-unknown-unknown"
 
 %struct.C = type { i8 }
 
-@b = external global i8
+@b = external addrspace(1) global i8
 
 ; Function Attrs: nounwind
 define void @_Z4fun4v() #0 !dbg !12 {
@@ -68,7 +68,7 @@ entry:
   %this.addr.i = alloca ptr, align 8, !dbg !22
   %agg.tmp.ensured = alloca %struct.C, align 1
   %cleanup.cond = alloca i1
-  %0 = load i8, ptr @b, align 1, !dbg !24
+  %0 = load i8, ptr addrspace(1) @b, align 1, !dbg !24
   %tobool = trunc i8 %0 to i1, !dbg !24
   store i1 false, ptr %cleanup.cond
   br i1 %tobool, label %land.rhs, label %land.end, !dbg !24

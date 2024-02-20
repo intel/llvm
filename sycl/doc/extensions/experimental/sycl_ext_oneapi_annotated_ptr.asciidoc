@@ -187,6 +187,31 @@ pointer unless noted otherwise.
 ----
 using sycl::ext::oneapi::experimental;
 struct MyType {
+  MyType(const MyType& otherM) {
+     ...
+  }
+};
+
+struct MyKernel {
+  annotated_ptr<MyType, properties<PropA>> a; //non-trivially-copyable type is not allowed
+  annotated_ptr<void, properties<PropB>> b;   //void is legal 
+  ...
+  void operator()() const {
+    ...
+    *b = ...; //deference is not allowed
+  }
+};
+----
+It is ill-formed to instantiate`annotated_ptr` and `annotated_ref` for a non-trivially-copyable
+type `T`. The only exception is that `annotated_ptr` is allowed to be instantiated with `void`.
+
+In the above example, encapsulating `annotated_ptr` within `MyType` is illegal. Encapsulating
+`annotated_ptr` with `void` is legal, but it can not be deferenced.
+
+[source,c++]
+----
+using sycl::ext::oneapi::experimental;
+struct MyType {
   annotated_ptr<int, properties<PropC>> a;
   annotated_ptr<int, properties<PropD>> b;
 };
@@ -399,6 +424,8 @@ Returns an `annotated_ref` reference wrapper which can be used to read or write
 to the underlying pointer. Reads/Writes using the reference will retain the
 annotations.
 
+Operator might be disabled when certain properties are applied. Please check the property specification.
+
 // --- ROW BREAK ---
 a|
 [source,c++]
@@ -407,6 +434,8 @@ reference operator[](std::ptrdiff_t Index) const;
 ----
 |
 Returns an `annotated_ref` reference wrapper to the object at offset `Index`.
+
+Operator might be disabled when certain properties are applied. Please check the property specification.
 
 // --- ROW BREAK ---
 a|
@@ -417,6 +446,8 @@ annotated_ptr operator+(size_t Offset) const;
 |
 Returns an `annotated_ptr` that points to `this[Offset]`.
 
+Operator might be disabled when certain properties are applied. Please check the property specification.
+
 // --- ROW BREAK ---
 a|
 [source,c++]
@@ -426,6 +457,8 @@ std::ptrdiff_t operator-(annotated_ptr FromPtr) const;
 |
 Returns the distance between the underlying pointer and the pointer encapsulated
 by `FromPtr`.
+
+Operator might be disabled when certain properties are applied. Please check the property specification.
 
 // --- ROW BREAK ---
 a|
@@ -455,6 +488,8 @@ annotated_ptr& operator++() noexcept;
 |
 Prefix increment operator.
 
+Operator might be disabled when certain properties are applied. Please check the property specification.
+
 // --- ROW BREAK ---
 a|
 [source,c++]
@@ -463,6 +498,8 @@ annotated_ptr operator++(int) noexcept;
 ----
 |
 Postfix increment operator.
+
+Operator might be disabled when certain properties are applied. Please check the property specification.
 
 // --- ROW BREAK ---
 a|
@@ -473,6 +510,8 @@ annotated_ptr& operator--() noexcept;
 |
 Prefix decrement operator.
 
+Operator might be disabled when certain properties are applied. Please check the property specification.
+
 // --- ROW BREAK ---
 a|
 [source,c++]
@@ -481,6 +520,8 @@ annotated_ptr operator--(int) noexcept;
 ----
 |
 Postfix decrement operator.
+
+Operator might be disabled when certain properties are applied. Please check the property specification.
 
 // --- ROW BREAK ---
 a|
@@ -524,14 +565,32 @@ class annotated_ref {
   public:
     annotated_ref(const annotated_ref&) = delete;
     operator T() const;
-    T operator=(const T &) const;
+
+    template <typename O>         //available only if O is not an annotated_ref type
+    T operator=(O&&) const;
     T operator=(const annotated_ref&) const;
+
     // OP is: +=, -=, *=, /=, %=, <<=, >>=, &=, |=, ^=
-    T operatorOP(const T &) const;
-    T operator++();
-    T operator++(int);
-    T operator--();
-    T operator--(int);
+    template <typename O>         //available only if O is not an annotated_ref type
+    T operatorOP(O&& a) const;
+    T operatorOP(const annotated_ref &b) const;
+
+    T operator++() const;
+    T operator++(int) const;
+    T operator--() const;
+    T operator--(int) const;
+
+    // OP is: +, -, *, /, %, <<, >>, &, |, ^, <, <=, >, >=, ==, ~=, &&, ||
+    template <typename O>
+    auto friend operatorOP(O&& a, const annotated_ref& b) ->
+               decltype(std::forward<O>(a) OP std::declval<T>());
+    template <typename O>         //available only if O is not an annotated_ref type
+    auto friend operatorOP(const annotated_ref& a, O&& b) ->
+               decltype(std::declval<T>() OP std::forward<O>(b));
+
+    // OP is: +, -, !, ~
+    template <typename O=T>
+    auto operatorOP() -> decltype(OP std::declval<O>());
   };
 } // namespace sycl::ext::oneapi::experimental
 ```
@@ -556,24 +615,27 @@ annotations when the object is loaded from memory.
 a|
 [source,c++]
 ----
-T operator=(const T &);
+template <typename O>
+T operator=(O&&) const;
 ----
 |
-Writes an object of type `T` to the location referenced by this wrapper,
+Writes an object of type `O` to the location referenced by this wrapper. 
+`O` cannot be a type of `annotated_ref`.
+
 applying the annotations when the object is stored to memory.
 
 // --- ROW BREAK ---
 a|
 [source,c++]
 ----
-T operator=(const annotated_ref& other);
+T operator=(const annotated_ref& other) const;
 ----
 a|
 Equivalent to:
 ```c++
-tmp T = other;   // Reads from memory
-                 // with annotations
-*this = T;       // Writes to memory
+T tmp = other.operator T();   // Reads from memory
+                              // with annotations
+*this = tmp;     // Writes to memory
                  // with annotations
 return T;
 ```
@@ -583,18 +645,22 @@ Does not rebind the reference!
 a|
 [source,c++]
 ----
-T operatorOP(const T &);
+template <typename O>
+T operatorOP(O&& a) const;
 ----
 a|
 Where [code]#OP# is: [code]#pass:[+=]#, [code]#-=#,[code]#*=#, [code]#/=#, [code]#%=#, [code]#+<<=+#, [code]#>>=#, [code]#&=#, [code]#\|=#, [code]#^=#.
 
-Compound assignment operators. Return result by value.
-Available only if the corresponding non-compound operator is available for `T`.
+Compound assignment operators for type `O`. `O` cannot be a type of `annotated_ref`.
+
+Return result by value.
+
+Available only if the corresponding assignment operator OP is available for `T` taking a type of `O`.
 Equivalent to:
 ```c++
-T tmp = *this;     // Reads from memory
-                   // with annotations
-tmp = tmp OP val;
+T tmp = this->operator T();     // Reads from memory
+                                // with annotations
+tmp OP std::forward<O>(a);
 *this = tmp;       // Writes to memory
                    // with annotations
 return tmp;
@@ -603,14 +669,99 @@ return tmp;
 a|
 [source,c++]
 ----
-T operator++();
-T operator++(int);
-T operator--();
-T operator--(int);
+T operatorOP(const annotated_ref &b) const;
+----
+a|
+Where [code]#OP# is: [code]#pass:[+=]#, [code]#-=#,[code]#*=#, [code]#/=#, [code]#%=#, [code]#+<<=+#, [code]#>>=#, [code]#&=#, [code]#\|=#, [code]#^=#.
+
+Compound assignment operators for type `annotated_ref`.
+
+Return result by value.
+
+Available only if the corresponding assignment operator OP is available for `T`.
+Equivalent to:
+```c++
+T tmp = this->operator T();     // Reads from memory
+                                // with annotations
+T tmp2 = b;        // Reads from memory
+                   // with annotations
+tmp OP b;
+*this = tmp;       // Writes to memory
+                   // with annotations
+return tmp;
+```
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+T operator++() const;
+T operator++(int) const;
+T operator--() const;
+T operator--(int) const;
 ----
 |
-increment and decrement operator of annotated_ref. The annotations are applied
-when the object `T` is loaded and stored to the memory.
+Increment and decrement operator of annotated_ref. Increment/Decrement the object `T`
+referenced by this wrapper via ``T``'s Increment/Decrement operator.
+
+The annotations are applied when the object `T` is loaded and stored to the memory.
+
+a|
+[source,c++]
+----
+template <typename O>
+auto friend operatorOP(O&& a, const annotated_ref& b) ->
+		   decltype(std::forward<O>(a) OP std::declval<T>());
+----
+a|
+Where [code]#OP# is: [code]#pass:[+]#, [code]#-#,[code]#*#, [code]#/#, [code]#%#, [code]#+<<+#, [code]#>>#, [code]#&#, [code]#\|#, [code]#\^#, [code]#<#, [code]#<=#, [code]#>#, [code]#>=#, [code]#==#, [code]#!=#, [code]#&&#, [code]#\|\|#.
+
+Defines a hidden friend operator `OP` overload for type `O` and `annotated_ref`.
+
+Let `operatorOP` denotes the operator used.  The overloaded operator `operatorOP` utilizes
+`operatorOP(O&&, T&&)` and is available only if `operatorOP(O&&, T&&)` is well formed. The value and result
+is the same as the result of `operatorOP(O&&, T&&)` applied to the objects of
+type `O` and `T`.
+
+The annotations from `PropertyListT` are applied when the object `b` is loaded from memory. 
+
+a|
+[source,c++]
+----
+template <typename O>
+auto friend operatorOP(const annotated_ref& a, O&& b) ->
+		   decltype(std::declval<T>() OP std::forward<O>(b));
+----
+a|
+Where [code]#OP# is: [code]#pass:[+]#, [code]#-#,[code]#*#, [code]#/#, [code]#%#, [code]#+<<+#, [code]#>>#, [code]#&#, [code]#\|#, [code]#\^#, [code]#<#, [code]#<=#, [code]#>#, [code]#>=#, [code]#==#, [code]#!=#, [code]#&&#, [code]#\|\|#.
+
+Defines a hidden friend operator `OP` overload for type `annotated_ref` and `O`. `O` cannot be
+a type of `annotated_ref`.
+
+Let `operatorOP` denotes the operator used.  The overloaded operator `operatorOP` utilizes
+`operatorOP(T&&, O&&)` and is available only if `operatorOP(T&&, O&&)` is well formed. The value and result
+is the same as the result of `operatorOP(T&&, O&&)` applied to the objects of
+type `T` and `O`.
+
+The annotations from `PropertyListT` are applied when the object `a` is loaded from memory. 
+
+a|
+[source,c++]
+----
+template <typename O=T>
+auto operatorOP() -> decltype(OP std::declval<O>());
+----
+a|
+Where [code]#OP# is: [code]#pass:[+]#, [code]#-#, [code]#!#, [code]#~#.
+
+Defines a operator `OP` overload for types `O` where the default type is `T`.
+
+Let `operatorOP` denotes the operator used. The overloaded operator
+`operatorOP` utilizes `operatorOP(O)` and is available only if `operatorOP(O)`
+is well formed. The value and result is the same as the result of `operatorOP(O)`
+applied to the objects of type `O`.
+
+The annotations from `PropertyListT` are applied when the object `a` is loaded from memory. 
+
 |===
 
 == Issues related to `annotated_ptr`
@@ -658,6 +809,7 @@ the alignment is set up.
 [options="header"]
 |========================================
 |Rev|Date|Author|Changes
+|5|2023-11-30|Brox Chen|API fixes: operators fowarding for annnotated_ref
 |4|2023-06-28|Roland Schulz|API fixes: constructors and annotated_ref assignment
 |3|2022-04-05|Abhishek Tiwari|*Addressed review comments*
 |2|2022-03-07|Abhishek Tiwari|*Corrected API and updated description*

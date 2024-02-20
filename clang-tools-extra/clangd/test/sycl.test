@@ -1,0 +1,40 @@
+# RUN: rm -rf %t.dir/* && mkdir -p %t.dir
+# RUN: echo '[{"directory": "%/t.dir", "command": "clang++ -fsycl main.cpp", "file": "main.cpp"}]' > %t.dir/compile_commands.json
+# RUN: sed -e "s|INPUT_DIR|%/t.dir|g" %s > %t.test.1
+
+# On Windows, we need the URI in didOpen to look like "uri":"file:///C:/..."
+# (with the extra slash in the front), so we add it here.
+# RUN: sed -E -e 's|"file://([A-Z]):/|"file:///\1:/|g' %t.test.1 > %t.test
+
+# RUN: clangd -lit-test < %t.test | FileCheck -strict-whitespace %t.test
+
+{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"initializationOptions":{"compilationDatabasePath":"INPUT_DIR"}}}
+---
+{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"test:///main.cpp","languageId":"cpp","version":1,"text":"#include <sycl/sycl.hpp>\nsycl::queue q{};"}}}
+---
+{"jsonrpc":"2.0","id":1,"method":"textDocument/symbolInfo","params":{
+  "textDocument":{"uri":"test:///main.cpp"},
+  "position":{"line":1,"character":13}
+}}
+#      CHECK:  "id": 1
+# CHECK-NEXT:  "jsonrpc": "2.0",
+# CHECK-NEXT:  "result": [
+# CHECK-NEXT:    {
+# CHECK-NEXT:      "containerName": "sycl::queue::",
+# CHECK-NEXT:      "declarationRange": {
+# CHECK-NEXT:        "range": {
+# CHECK-NEXT:          "end": {
+# CHECK-NEXT:            "character": 16,
+# CHECK-NEXT:            "line": 124
+# CHECK-NEXT:          },
+# CHECK-NEXT:          "start": {
+# CHECK-NEXT:            "character": 11,
+# CHECK-NEXT:            "line": 124
+# CHECK-NEXT:          }
+# CHECK-NEXT:        },
+# CHECK-NEXT:        "uri": "file://{{.*}}/include/sycl/queue.hpp"
+# CHECK-NEXT:      },
+---
+{"jsonrpc":"2.0","id":3,"method":"shutdown"}
+---
+{"jsonrpc":"2.0","method":"exit"}

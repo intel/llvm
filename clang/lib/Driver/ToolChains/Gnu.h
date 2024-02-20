@@ -255,7 +255,6 @@ public:
     void print(raw_ostream &OS) const;
 
   private:
-    std::string TripleNoVendor;
     static void
     CollectLibDirsAndTriples(const llvm::Triple &TargetTriple,
                              const llvm::Triple &BiarchTriple,

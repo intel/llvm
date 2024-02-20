@@ -20,8 +20,6 @@ int main() {
 
   Devs = device::get_devices();
 
-  std::cout << "# Devices found: " << Devs.size() << std::endl;
-
   if (Devs.size() > 1) {
     filter_selector filter("1");
 

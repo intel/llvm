@@ -3,20 +3,20 @@
 
 #include <cstdlib>
 #include <sycl/sycl.hpp>
+#include <vector>
 
 void nestedSubmit() {
   uint32_t n = 1024;
-  float *ptr = (float *)malloc(n * sizeof(float));
+  std::vector<float> array(n);
   sycl::queue q{};
   {
-    sycl::buffer<float> buf(ptr, sycl::range<1>{n});
+    sycl::buffer<float> buf(array.data(), sycl::range<1>{n});
     q.submit([&](sycl::handler &h) {
       auto acc = buf.get_access<sycl::access::mode::write>(h);
       q.parallel_for<class zero>(sycl::range<1>{n},
                                  [=](sycl::id<1> i) { acc[i] = float(0.0); });
     });
   }
-  free(ptr);
 }
 
 int main() {

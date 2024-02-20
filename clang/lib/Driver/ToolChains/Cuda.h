@@ -82,7 +82,7 @@ namespace tools {
 namespace NVPTX {
 
 // Run ptxas, the NVPTX assembler.
-class LLVM_LIBRARY_VISIBILITY Assembler : public Tool {
+class LLVM_LIBRARY_VISIBILITY Assembler final : public Tool {
 public:
   Assembler(const ToolChain &TC) : Tool("NVPTX::Assembler", "ptxas", TC) {}
 
@@ -109,7 +109,7 @@ public:
 };
 
 // Runs nvlink, which links GPU object files ("cubin" files) into a single file.
-class LLVM_LIBRARY_VISIBILITY Linker : public Tool {
+class LLVM_LIBRARY_VISIBILITY Linker final : public Tool {
 public:
   Linker(const ToolChain &TC) : Tool("NVPTX::Linker", "nvlink", TC) {}
 
@@ -195,6 +195,11 @@ public:
   unsigned GetDefaultDwarfVersion() const override { return 2; }
   unsigned getMaxDwarfVersion() const override { return 2; }
 
+  /// Uses nvptx-arch tool to get arch of the system GPU. Will return error
+  /// if unable to find one.
+  virtual Expected<SmallVector<std::string>>
+  getSystemGPUArchs(const llvm::opt::ArgList &Args) const override;
+
   CudaInstallationDetector CudaInstallation;
 
 protected:
@@ -251,11 +256,6 @@ public:
 
   Tool *SelectTool(const JobAction &JA) const override;
   const ToolChain &HostTC;
-
-  /// Uses nvptx-arch tool to get arch of the system GPU. Will return error
-  /// if unable to find one.
-  virtual Expected<SmallVector<std::string>>
-  getSystemGPUArchs(const llvm::opt::ArgList &Args) const override;
 
 protected:
   Tool *buildAssembler() const override; // ptxas

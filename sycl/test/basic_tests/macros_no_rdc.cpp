@@ -25,4 +25,4 @@
 #include <sycl/sycl.hpp>
 #include "ext/oneapi/bfloat16.hpp"
 #include "ext/intel/esimd.hpp"
-#include "ext/oneapi/experimental/sycl_complex.hpp"
+#include "ext/oneapi/experimental/complex/complex.hpp"

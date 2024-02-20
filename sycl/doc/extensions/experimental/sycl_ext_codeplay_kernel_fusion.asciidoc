@@ -73,12 +73,6 @@ on an API for kernel fusion in SYCL to inform a future extension proposal
 addressing the mentioned problems. 
 ====
 
-[NOTE]
-====
-This extension is currently being implemented in {dpcpp} only for kernels in
-SPIRV format.
-====
-
 == Overview
 
 Every kernel launch in SYCL carries an overhead due to memory traffic and device

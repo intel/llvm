@@ -60,18 +60,18 @@ source_filename = "test/DebugInfo/Generic/dwarf-public-names.ll"
 
 %struct.C = type { i8 }
 
-@_ZN1C22static_member_variableE = global i32 0, align 4, !dbg !0
-@global_variable = global %struct.C zeroinitializer, align 1, !dbg !15
-@_ZN2ns25global_namespace_variableE = global i32 1, align 4, !dbg !17
+@_ZN1C22static_member_variableE = addrspace(1) global i32 0, align 4, !dbg !0
+@global_variable = addrspace(1) global %struct.C zeroinitializer, align 1, !dbg !15
+@_ZN2ns25global_namespace_variableE = addrspace(1) global i32 1, align 4, !dbg !17
 
 ; Function Attrs: nounwind uwtable
-define void @_ZN1C15member_functionEv(ptr %this) #0 align 2 !dbg !23 {
+define void @_ZN1C15member_functionEv(ptr addrspace(1) %this) #0 align 2 !dbg !23 {
 entry:
   %this.addr = alloca ptr, align 8
-  store ptr %this, ptr %this.addr, align 8
+  store ptr addrspace(1) %this, ptr %this.addr, align 8
   call void @llvm.dbg.declare(metadata ptr %this.addr, metadata !24, metadata !26), !dbg !27
   %this1 = load ptr, ptr %this.addr
-  store i32 0, ptr @_ZN1C22static_member_variableE, align 4, !dbg !28
+  store i32 0, ptr addrspace(1) @_ZN1C22static_member_variableE, align 4, !dbg !28
   ret void, !dbg !29
 }
 
@@ -81,7 +81,7 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 ; Function Attrs: nounwind uwtable
 define i32 @_ZN1C22static_member_functionEv() #0 align 2 !dbg !30 {
 entry:
-  %0 = load i32, ptr @_ZN1C22static_member_variableE, align 4, !dbg !31
+  %0 = load i32, ptr addrspace(1) @_ZN1C22static_member_variableE, align 4, !dbg !31
   ret i32 %0, !dbg !31
 }
 
@@ -94,7 +94,7 @@ entry:
 ; Function Attrs: nounwind uwtable
 define void @_ZN2ns25global_namespace_functionEv() #0 !dbg !34 {
 entry:
-  call void @_ZN1C15member_functionEv(ptr @global_variable), !dbg !37
+  call void @_ZN1C15member_functionEv(ptr addrspace(1) @global_variable), !dbg !37
   ret void, !dbg !38
 }
 

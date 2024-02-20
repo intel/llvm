@@ -461,7 +461,7 @@ public:
 
   Scheduler();
   ~Scheduler();
-  void releaseResources();
+  void releaseResources(BlockingT Blocking = BlockingT::BLOCKING);
   bool isDeferredMemObjectsEmpty();
 
   void enqueueCommandForCG(EventImplPtr NewEvent,
@@ -543,6 +543,8 @@ protected:
     bool ShouldEnqueue;
   };
 
+  /// Assign \p Src's auxiliary resources to \p Dst.
+  void takeAuxiliaryResources(const EventImplPtr &Dst, const EventImplPtr &Src);
   void registerAuxiliaryResources(
       EventImplPtr &Event, std::vector<std::shared_ptr<const void>> Resources);
   void cleanupAuxiliaryResources(BlockingT Blocking);

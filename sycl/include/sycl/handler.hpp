@@ -11,16 +11,12 @@
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
 #include <sycl/context.hpp>
-#include <sycl/detail/array.hpp>
 #include <sycl/detail/cg.hpp>
 #include <sycl/detail/cg_types.hpp>
-#include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/helpers.hpp>
 #include <sycl/detail/impl_utils.hpp>
-#include <sycl/detail/item_base.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/detail/pi.hpp>
@@ -28,7 +24,7 @@
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
-#include <sycl/exception_list.hpp>
+#include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
 #include <sycl/ext/oneapi/bindless_images_descriptor.hpp>
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
@@ -51,13 +47,8 @@
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 #include <sycl/sampler.hpp>
-#include <sycl/types.hpp>
 #include <sycl/usm/usm_enums.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
-
-#ifdef __SYCL_NATIVE_CPU__
-#include <sycl/detail/native_cpu.hpp>
-#endif
 
 #include <assert.h>
 #include <functional>
@@ -71,7 +62,7 @@
 #include <vector>
 
 // TODO: refactor this header
-// 47(!!!) includes of SYCL headers + 10 includes of standard headers.
+// 41(!!!) includes of SYCL headers + 10 includes of standard headers.
 // 3300+ lines of code
 
 // SYCL_LANGUAGE_VERSION is 4 digit year followed by 2 digit revision
@@ -189,11 +180,15 @@ static Arg member_ptr_helper(RetType (Func::*)(Arg) const);
 template <typename RetType, typename Func, typename Arg>
 static Arg member_ptr_helper(RetType (Func::*)(Arg));
 
-// template <typename RetType, typename Func>
-// static void member_ptr_helper(RetType (Func::*)() const);
+// Version with two arguments to handle the case when kernel_handler is passed
+// to a lambda
+template <typename RetType, typename Func, typename Arg1, typename Arg2>
+static Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2) const);
 
-// template <typename RetType, typename Func>
-// static void member_ptr_helper(RetType (Func::*)());
+// Non-const version of the above template to match functors whose 'operator()'
+// is declared w/o the 'const' qualifier.
+template <typename RetType, typename Func, typename Arg1, typename Arg2>
+static Arg1 member_ptr_helper(RetType (Func::*)(Arg1, Arg2));
 
 template <typename F, typename SuggestedArgType>
 decltype(member_ptr_helper(&F::operator())) argument_helper(int);
@@ -729,9 +724,9 @@ private:
     NormalizedKernelType NormalizedKernel(KernelFunc);
     auto NormalizedKernelFunc =
         std::function<void(const sycl::nd_item<Dims> &)>(NormalizedKernel);
-    auto HostKernelPtr =
-        new detail::HostKernel<decltype(NormalizedKernelFunc),
-                               sycl::nd_item<Dims>, Dims>(NormalizedKernelFunc);
+    auto HostKernelPtr = new detail::HostKernel<decltype(NormalizedKernelFunc),
+                                                sycl::nd_item<Dims>, Dims>(
+        std::move(NormalizedKernelFunc));
     MHostKernel.reset(HostKernelPtr);
     return &HostKernelPtr->MKernel.template target<NormalizedKernelType>()
                 ->MKernelFunc;
@@ -912,11 +907,20 @@ private:
   ///
   /// Stores information about kernel properties into the handler.
   template <
+      typename KernelName,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
   void processProperties(PropertiesT Props) {
+    using KI = detail::KernelInfo<KernelName>;
     static_assert(
         ext::oneapi::experimental::is_property_list<PropertiesT>::value,
         "Template type is not a property list.");
+    static_assert(
+        !PropertiesT::template has_property<
+            sycl::ext::intel::experimental::fp_control_key>() ||
+            (PropertiesT::template has_property<
+                 sycl::ext::intel::experimental::fp_control_key>() &&
+             KI::isESIMD()),
+        "Floating point control property is supported for ESIMD kernels only.");
     if constexpr (PropertiesT::template has_property<
                       sycl::ext::intel::experimental::cache_config_key>()) {
       auto Config = Props.template get_property<
@@ -1110,9 +1114,12 @@ private:
   };
 
   std::optional<std::array<size_t, 3>> getMaxWorkGroups();
+  // We need to use this version to support gcc 7.5.0. Remove when minimal
+  // supported gcc version is bumped.
+  std::tuple<std::array<size_t, 3>, bool> getMaxWorkGroups_v2();
 
   template <int Dims>
-  std::optional<range<Dims>> getRoundedRange(range<Dims> UserRange) {
+  std::tuple<range<Dims>, bool> getRoundedRange(range<Dims> UserRange) {
     range<Dims> RoundedRange = UserRange;
     // Disable the rounding-up optimizations under these conditions:
     // 1. The env var SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING is set.
@@ -1132,7 +1139,7 @@ private:
 
     // Perform range rounding if rounding-up is enabled.
     if (this->DisableRangeRounding())
-      return {};
+      return {range<Dims>{}, false};
 
     // Range should be a multiple of this for reasonable performance.
     size_t MinFactorX = 16;
@@ -1156,8 +1163,8 @@ private:
     // kernel in a 32-bit global range.
     auto Dev = detail::getSyclObjImpl(detail::getDeviceFromHandler(*this));
     id<Dims> MaxNWGs = [&] {
-      auto PiResult = getMaxWorkGroups();
-      if (!PiResult.has_value()) {
+      auto [MaxWGs, HasMaxWGs] = getMaxWorkGroups_v2();
+      if (!HasMaxWGs) {
         id<Dims> Default;
         for (int i = 0; i < Dims; ++i)
           Default[i] = (std::numeric_limits<int32_t>::max)();
@@ -1167,7 +1174,7 @@ private:
       id<Dims> IdResult;
       size_t Limit = (std::numeric_limits<int>::max)();
       for (int i = 0; i < Dims; ++i)
-        IdResult[i] = (std::min)(Limit, (*PiResult)[Dims - i - 1]);
+        IdResult[i] = (std::min)(Limit, MaxWGs[Dims - i - 1]);
       return IdResult;
     }();
     auto M = (std::numeric_limits<uint32_t>::max)();
@@ -1203,8 +1210,8 @@ private:
         Adjust(i, MaxRange[i]);
 
     if (!DidAdjust)
-      return {};
-    return RoundedRange;
+      return {range<Dims>{}, false};
+    return {RoundedRange, true};
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range.
@@ -1245,16 +1252,18 @@ private:
 
 #if defined(SYCL2020_CONFORMANT_APIS) ||                                       \
     defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+    static_assert(std::is_convertible_v<item<Dims>, LambdaArgType> ||
+                      std::is_convertible_v<item<Dims, false>, LambdaArgType>,
+                  "sycl::parallel_for(sycl::range) kernel must have the "
+                  "first argument of sycl::item type, or of a type which is "
+                  "implicitly convertible from sycl::item");
+
+    using RefLambdaArgType = std::add_lvalue_reference_t<LambdaArgType>;
     static_assert(
-        (std::is_invocable_v<KernelType, item<Dims>> ||
-         std::is_invocable_v<
-             KernelType, item<Dims>,
-             kernel_handler>)&&(std::is_invocable_v<KernelType,
-                                                    item<Dims, false>> ||
-                                std::is_invocable_v<KernelType,
-                                                    item<Dims, false>,
-                                                    kernel_handler>),
-        "Kernel should be invocable with a sycl::item");
+        (std::is_invocable_v<KernelType, RefLambdaArgType> ||
+         std::is_invocable_v<KernelType, RefLambdaArgType, kernel_handler>),
+        "SYCL kernel lambda/functor has an unexpected signature, it should be "
+        "invocable with sycl::item and optionally sycl::kernel_handler");
 #endif
 
     // TODO: Properties may change the kernel function, so in order to avoid
@@ -1270,7 +1279,8 @@ private:
 #if !defined(__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__) &&                  \
     !defined(DPCPP_HOST_DEVICE_OPENMP) &&                                      \
     !defined(DPCPP_HOST_DEVICE_PERF_NATIVE) && SYCL_LANGUAGE_VERSION >= 202001
-    if (auto RoundedRange = getRoundedRange(UserRange)) {
+    auto [RoundedRange, HasRoundedRange] = getRoundedRange(UserRange);
+    if (HasRoundedRange) {
       using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
       auto Wrapper =
           getRangeRoundedKernelLambda<NameWT, TransformedArgType, Dims>(
@@ -1279,7 +1289,7 @@ private:
       using KName = std::conditional_t<std::is_same<KernelType, NameT>::value,
                                        decltype(Wrapper), NameWT>;
 
-      kernel_parallel_for_wrapper<KName, item<Dims>, decltype(Wrapper),
+      kernel_parallel_for_wrapper<KName, TransformedArgType, decltype(Wrapper),
                                   PropertiesT>(Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
       // We are executing over the rounded range, but there are still
@@ -1288,8 +1298,8 @@ private:
       // __SYCL_ASSUME_INT can still be violated. So check the bounds
       // of the user range, instead of the rounded range.
       detail::checkValueRange<Dims>(UserRange);
-      MNDRDesc.set(*RoundedRange);
-      StoreLambda<KName, decltype(Wrapper), Dims, item<Dims>>(
+      MNDRDesc.set(RoundedRange);
+      StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
       setType(detail::CG::Kernel);
 #endif
@@ -1303,7 +1313,7 @@ private:
       kernel_parallel_for_wrapper<NameT, TransformedArgType, KernelType,
                                   PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
-      processProperties<PropertiesT>(Props);
+      processProperties<NameT, PropertiesT>(Props);
       detail::checkValueRange<Dims>(UserRange);
       MNDRDesc.set(std::move(UserRange));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
@@ -1357,7 +1367,7 @@ private:
     kernel_parallel_for_wrapper<NameT, TransformedArgType, KernelType,
                                 PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
-    processProperties<PropertiesT>(Props);
+    processProperties<NameT, PropertiesT>(Props);
     detail::checkValueRange<Dims>(ExecutionRange);
     MNDRDesc.set(std::move(ExecutionRange));
     StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
@@ -1413,7 +1423,7 @@ private:
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType, KernelType,
                                            PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
-    processProperties<PropertiesT>(Props);
+    processProperties<NameT, PropertiesT>(Props);
     detail::checkValueRange<Dims>(NumWorkGroups);
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
@@ -1454,7 +1464,7 @@ private:
     kernel_parallel_for_work_group_wrapper<NameT, LambdaArgType, KernelType,
                                            PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
-    processProperties<PropertiesT>(Props);
+    processProperties<NameT, PropertiesT>(Props);
     nd_range<Dims> ExecRange =
         nd_range<Dims>(NumWorkGroups * WorkGroupSize, WorkGroupSize);
     detail::checkValueRange<Dims>(ExecRange);
@@ -1634,8 +1644,8 @@ private:
   //   * Provide explicit template type parameters for the call
   //
   // Couldn't think of a better way to achieve both.
-  template <typename KernelType, typename PropertiesT, bool HasKernelHandlerArg,
-            typename FuncTy>
+  template <typename KernelName, typename KernelType, typename PropertiesT,
+            bool HasKernelHandlerArg, typename FuncTy>
   void unpack(_KERNELFUNCPARAM(KernelFunc), FuncTy Lambda) {
 #ifdef __SYCL_DEVICE_ONLY__
     detail::CheckDeviceCopyable<KernelType>();
@@ -1644,13 +1654,15 @@ private:
         typename detail::GetMergedKernelProperties<KernelType,
                                                    PropertiesT>::type;
     using Unpacker = KernelPropertiesUnpacker<MergedPropertiesT>;
+#ifndef __SYCL_DEVICE_ONLY__
     // If there are properties provided by get method then process them.
     if constexpr (ext::oneapi::experimental::detail::
                       HasKernelPropertiesGetMethod<
                           _KERNELFUNCPARAMTYPE>::value) {
-      processProperties(
+      processProperties<KernelName>(
           KernelFunc.get(ext::oneapi::experimental::properties_tag{}));
     }
+#endif
     if constexpr (HasKernelHandlerArg) {
       kernel_handler KH;
       Lambda(Unpacker{}, this, KernelFunc, KH);
@@ -1666,7 +1678,7 @@ private:
       typename KernelName, typename KernelType,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
   void kernel_single_task_wrapper(_KERNELFUNCPARAM(KernelFunc)) {
-    unpack<KernelType, PropertiesT,
+    unpack<KernelName, KernelType, PropertiesT,
            detail::KernelLambdaHasKernelHandlerArgT<KernelType>::value>(
         KernelFunc, [&](auto Unpacker, auto... args) {
           Unpacker.template kernel_single_task_unpack<KernelName, KernelType>(
@@ -1678,7 +1690,7 @@ private:
       typename KernelName, typename ElementType, typename KernelType,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
   void kernel_parallel_for_wrapper(_KERNELFUNCPARAM(KernelFunc)) {
-    unpack<KernelType, PropertiesT,
+    unpack<KernelName, KernelType, PropertiesT,
            detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                     ElementType>::value>(
         KernelFunc, [&](auto Unpacker, auto... args) {
@@ -1691,7 +1703,7 @@ private:
       typename KernelName, typename ElementType, typename KernelType,
       typename PropertiesT = ext::oneapi::experimental::empty_properties_t>
   void kernel_parallel_for_work_group_wrapper(_KERNELFUNCPARAM(KernelFunc)) {
-    unpack<KernelType, PropertiesT,
+    unpack<KernelName, KernelType, PropertiesT,
            detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                     ElementType>::value>(
         KernelFunc, [&](auto Unpacker, auto... args) {
@@ -1725,7 +1737,7 @@ private:
     // No need to check if range is out of INT_MAX limits as it's compile-time
     // known constant.
     MNDRDesc.set(range<1>{1});
-    processProperties<PropertiesT>(Props);
+    processProperties<NameT, PropertiesT>(Props);
     StoreLambda<NameT, KernelType, /*Dims*/ 1, void>(KernelFunc);
     setType(detail::CG::Kernel);
 #endif
@@ -1765,6 +1777,14 @@ private:
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
   getCommandGraph() const;
 
+  /// Sets the user facing node type of this operation, used for operations
+  /// which are recorded to a graph. Since some operations may actually be a
+  /// different type than the user submitted, e.g. a fill() which is performed
+  /// as a kernel submission.
+  /// @param Type The actual type based on what handler functions the user
+  /// called.
+  void setUserFacingNodeType(ext::oneapi::experimental::node_type Type);
+
 public:
   handler(const handler &) = delete;
   handler(handler &&) = delete;
@@ -1774,10 +1794,6 @@ public:
   template <auto &SpecName>
   void set_specialization_constant(
       typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
-
-    throwIfGraphAssociated<
-        ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
-            sycl_specialization_constants>();
 
     setStateSpecConstSet();
 
@@ -1792,10 +1808,6 @@ public:
   template <auto &SpecName>
   typename std::remove_reference_t<decltype(SpecName)>::value_type
   get_specialization_constant() const {
-
-    throwIfGraphAssociated<
-        ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
-            sycl_specialization_constants>();
 
     if (isStateExplicitKernelBundle())
       throw sycl::exception(make_error_code(errc::invalid),
@@ -2312,7 +2324,6 @@ public:
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   single_task(PropertiesT Props, _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     single_task_lambda_impl<KernelName, KernelType, PropertiesT>(Props,
                                                                  KernelFunc);
   }
@@ -2323,7 +2334,6 @@ public:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(range<1> NumWorkItems, PropertiesT Props,
                _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     parallel_for_lambda_impl<KernelName, KernelType, 1, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
@@ -2334,7 +2344,6 @@ public:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(range<2> NumWorkItems, PropertiesT Props,
                _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     parallel_for_lambda_impl<KernelName, KernelType, 2, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
@@ -2345,7 +2354,6 @@ public:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(range<3> NumWorkItems, PropertiesT Props,
                _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     parallel_for_lambda_impl<KernelName, KernelType, 3, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
@@ -2356,7 +2364,6 @@ public:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(nd_range<Dims> Range, PropertiesT Properties,
                _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     parallel_for_impl<KernelName>(Range, Properties, std::move(KernelFunc));
   }
 
@@ -2371,7 +2378,6 @@ public:
   parallel_for(range<1> Range, PropertiesT Properties, RestT &&...Rest) {
     throwIfGraphAssociated<ext::oneapi::experimental::detail::
                                UnsupportedGraphFeatures::sycl_reductions>();
-    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
@@ -2385,7 +2391,6 @@ public:
   parallel_for(range<2> Range, PropertiesT Properties, RestT &&...Rest) {
     throwIfGraphAssociated<ext::oneapi::experimental::detail::
                                UnsupportedGraphFeatures::sycl_reductions>();
-    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
@@ -2399,7 +2404,6 @@ public:
   parallel_for(range<3> Range, PropertiesT Properties, RestT &&...Rest) {
     throwIfGraphAssociated<ext::oneapi::experimental::detail::
                                UnsupportedGraphFeatures::sycl_reductions>();
-    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
@@ -2456,7 +2460,6 @@ public:
             int Dims, typename PropertiesT>
   void parallel_for_work_group(range<Dims> NumWorkGroups, PropertiesT Props,
                                _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     parallel_for_work_group_lambda_impl<KernelName, KernelType, Dims,
                                         PropertiesT>(NumWorkGroups, Props,
                                                      KernelFunc);
@@ -2467,7 +2470,6 @@ public:
   void parallel_for_work_group(range<Dims> NumWorkGroups,
                                range<Dims> WorkGroupSize, PropertiesT Props,
                                _KERNELFUNCPARAM(KernelFunc)) {
-    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     parallel_for_work_group_lambda_impl<KernelName, KernelType, Dims,
                                         PropertiesT>(
         NumWorkGroups, WorkGroupSize, Props, KernelFunc);
@@ -2726,6 +2728,7 @@ public:
       checkIfPlaceholderIsBoundToHandler(Dst);
 
     throwIfActionIsCreated();
+    setUserFacingNodeType(ext::oneapi::experimental::node_type::memfill);
     // TODO add check:T must be an integral scalar value or a SYCL vector type
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the fill method.");
@@ -2764,6 +2767,7 @@ public:
   /// \param Count is the number of times to fill Pattern into Ptr.
   template <typename T> void fill(void *Ptr, const T &Pattern, size_t Count) {
     throwIfActionIsCreated();
+    setUserFacingNodeType(ext::oneapi::experimental::node_type::memfill);
     static_assert(is_device_copyable<T>::value,
                   "Pattern must be device copyable");
     parallel_for<__usmfill<T>>(range<1>(Count), [=](id<1> Index) {
@@ -3614,17 +3618,6 @@ private:
       throw sycl::exception(make_error_code(errc::kernel_argument),
                             "placeholder accessor must be bound by calling "
                             "handler::require() before it can be used.");
-  }
-
-  template <typename PropertiesT>
-  std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  throwIfGraphAssociatedAndKernelProperties() const {
-    if (!std::is_same_v<PropertiesT,
-                        ext::oneapi::experimental::empty_properties_t>)
-      throwIfGraphAssociated<
-          ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
-              sycl_ext_oneapi_kernel_properties>();
   }
 
   // Set value of the gpu cache configuration for the kernel.

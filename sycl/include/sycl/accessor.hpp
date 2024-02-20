@@ -924,7 +924,7 @@ public:
 
 #ifdef __SYCL_DEVICE_ONLY__
   // Default constructor for objects later initialized with __init member.
-  image_accessor() : MImageObj() {}
+  image_accessor() {}
 #endif
 
   // Available only when: accessTarget == access::target::host_image
@@ -982,9 +982,9 @@ public:
 
     device Device = getDeviceFromHandler(CommandGroupHandlerRef);
     if (!Device.has(aspect::ext_intel_legacy_image))
-      throw feature_not_supported(
-          "SYCL 1.2.1 images are not supported by this device.",
-          PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(
+          sycl::errc::feature_not_supported,
+          "SYCL 1.2.1 images are not supported by this device.");
   }
 #endif
 

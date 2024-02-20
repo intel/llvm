@@ -20,7 +20,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+Copyright (C) 2022-2023 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -181,7 +181,7 @@ other devices.
 On many Intel devices, there is just one available queue index, and there is
 therefore no advantage to using the `compute_index` property.  However, this
 property can sometimes be useful when running on Data Center GPU Flex series
-devices (aka ATS-M) or Data Center GPU Max series devices (aka PVC).
+devices (aka ATS-M) or Intel(R) Data Center GPU Max Series devices (aka PVC).
 
 Some models of ATS-M support multiple queue indices with the semantics
 described in the sections above.  When a single process submits kernels to

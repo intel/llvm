@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl-device-only -Xclang -fsycl-is-device -emit-llvm %s -S -o %t.ll -I %sycl_include
+// RUN: %clangxx -fsycl-device-only -Xclang -fsycl-is-device -emit-llvm %s -S -o %t.ll
 // RUN: FileCheck %s --input-file %t.ll
 
 // Check SYCL FE metadata is updated when dead argument elimination removes an

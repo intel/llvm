@@ -154,10 +154,10 @@ EventImplPtr Scheduler::addCG(
     for (const auto &StreamImplPtr : Streams) {
       StreamImplPtr->flush(NewEvent);
     }
-
-    if (!AuxiliaryResources.empty())
-      registerAuxiliaryResources(NewEvent, std::move(AuxiliaryResources));
   }
+
+  if (!AuxiliaryResources.empty())
+    registerAuxiliaryResources(NewEvent, std::move(AuxiliaryResources));
 
   return NewEvent;
 }
@@ -405,13 +405,13 @@ Scheduler::Scheduler() {
 
 Scheduler::~Scheduler() { DefaultHostQueue.reset(); }
 
-void Scheduler::releaseResources() {
+void Scheduler::releaseResources(BlockingT Blocking) {
   //  There might be some commands scheduled for post enqueue cleanup that
   //  haven't been freed because of the graph mutex being locked at the time,
   //  clean them up now.
   cleanupCommands({});
 
-  cleanupAuxiliaryResources(BlockingT::BLOCKING);
+  cleanupAuxiliaryResources(Blocking);
   // We need loop since sometimes we may need new objects to be added to
   // deferred mem objects storage during cleanup. Known example is: we cleanup
   // existing deferred mem objects under write lock, during this process we
@@ -419,8 +419,9 @@ void Scheduler::releaseResources() {
   // queue_impl, ~queue_impl is called and buffer for assert (which is created
   // with size only so all confitions for deferred release are satisfied) is
   // added to deferred mem obj storage. So we may end up with leak.
-  while (!isDeferredMemObjectsEmpty())
-    cleanupDeferredMemObjects(BlockingT::BLOCKING);
+  do {
+    cleanupDeferredMemObjects(Blocking);
+  } while (Blocking == BlockingT::BLOCKING && !isDeferredMemObjectsEmpty());
 }
 
 MemObjRecord *Scheduler::getMemObjRecord(const Requirement *const Req) {
@@ -455,8 +456,15 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
 
   } else {
     std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
-    MDeferredCleanupCommands.insert(MDeferredCleanupCommands.end(),
-                                    Cmds.begin(), Cmds.end());
+    // Full cleanup for fusion placeholder commands is handled by the entry
+    // points for fusion (start_fusion, ...). To avoid double free or access to
+    // objects after their lifetime, fusion commands should therefore never be
+    // added to the deferred command list.
+    std::copy_if(Cmds.begin(), Cmds.end(),
+                 std::back_inserter(MDeferredCleanupCommands),
+                 [](const Command *Cmd) {
+                   return Cmd->getType() != Command::CommandType::FUSION;
+                 });
   }
 }
 
@@ -550,10 +558,35 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
   }
 }
 
+static void registerAuxiliaryResourcesNoLock(
+    std::unordered_map<EventImplPtr, std::vector<std::shared_ptr<const void>>>
+        &AuxiliaryResources,
+    const EventImplPtr &Event,
+    std::vector<std::shared_ptr<const void>> &&Resources) {
+  std::vector<std::shared_ptr<const void>> &StoredResources =
+      AuxiliaryResources[Event];
+  StoredResources.insert(StoredResources.end(),
+                         std::make_move_iterator(Resources.begin()),
+                         std::make_move_iterator(Resources.end()));
+}
+
+void Scheduler::takeAuxiliaryResources(const EventImplPtr &Dst,
+                                       const EventImplPtr &Src) {
+  std::unique_lock<std::mutex> Lock{MAuxiliaryResourcesMutex};
+  auto Iter = MAuxiliaryResources.find(Src);
+  if (Iter == MAuxiliaryResources.end()) {
+    return;
+  }
+  registerAuxiliaryResourcesNoLock(MAuxiliaryResources, Dst,
+                                   std::move(Iter->second));
+  MAuxiliaryResources.erase(Iter);
+}
+
 void Scheduler::registerAuxiliaryResources(
     EventImplPtr &Event, std::vector<std::shared_ptr<const void>> Resources) {
   std::unique_lock<std::mutex> Lock{MAuxiliaryResourcesMutex};
-  MAuxiliaryResources.insert({Event, std::move(Resources)});
+  registerAuxiliaryResourcesNoLock(MAuxiliaryResources, Event,
+                                   std::move(Resources));
 }
 
 void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {

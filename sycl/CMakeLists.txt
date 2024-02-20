@@ -33,7 +33,7 @@ include(SYCLUtils)
 # See doc/developer/ABIPolicyGuide.md for the meaning when in the middle of
 # development cycle.
 set(SYCL_MAJOR_VERSION 7)
-set(SYCL_MINOR_VERSION 1)
+set(SYCL_MINOR_VERSION 2)
 set(SYCL_PATCH_VERSION 0)
 
 set(SYCL_DEV_ABI_VERSION 8)
@@ -180,30 +180,10 @@ string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
 configure_file("source/version.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp")
 configure_file("source/feature_test.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp")
 
-# Generate SYCL builtins
-find_package(Python3 REQUIRED)
-add_custom_command(
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/source/builtins_generator.py ${SYCL_INCLUDE_BUILD_DIR}/sycl
-  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/source/builtins_generator.py
-  OUTPUT "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_scalar_gen.hpp"
-         "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_vector_gen.hpp"
-         "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_marray_gen.hpp"
-  COMMENT "Generating SYCL builtin headers"
-)
-
-add_custom_target(sycl-builtins-header
-  DEPENDS "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_scalar_gen.hpp"
-          "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_vector_gen.hpp"
-          "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_marray_gen.hpp"
-)
-
 # Install generated headers.
 install(FILES
   "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp"
   "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp"
-  "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_scalar_gen.hpp"
-  "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_vector_gen.hpp"
-  "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_marray_gen.hpp"
   DESTINATION "${SYCL_INCLUDE_DIR}/sycl"
   COMPONENT sycl-headers)
 
@@ -233,7 +213,6 @@ add_custom_target(sycl-headers
           ${OUT_HEADERS_IN_CL_DIR}
           ${OUT_HEADERS_IN_STD_DIR}
           ${OUT_HEADERS_IN_SYCLCOMPAT_DIR}
-          sycl-builtins-header
           boost_mp11-headers)
 
 add_custom_command(

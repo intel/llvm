@@ -2,6 +2,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -o %t2.out %}
+// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
+
 #include <sycl/sycl.hpp>
 
 #include <array>
@@ -22,7 +25,8 @@ int main() {
       {
         float *Buf = (float *)s::malloc_shared(
             sizeof(float) * 2, myQueue.get_device(), myQueue.get_context());
-        s::malloc_shared(100, myQueue.get_device(), myQueue.get_context());
+        void *ptr =
+            s::malloc_shared(100, myQueue.get_device(), myQueue.get_context());
         myQueue.submit([&](s::handler &cgh) {
           cgh.single_task<class fractF1UF1>(
               [=]() { Buf[0] = s::fract(float{1.5f}, &Buf[1]); });
@@ -31,6 +35,7 @@ int main() {
         r = Buf[0];
         i = Buf[1];
         s::free(Buf, myQueue.get_context());
+        s::free(ptr, myQueue.get_context());
       }
       assert(r == 0.5f);
       assert(i == 1.0f);
@@ -51,6 +56,7 @@ int main() {
       float r2 = Buf[0].y();
       float i1 = Buf[1].x();
       float i2 = Buf[1].y();
+      s::free(Buf, myQueue.get_context());
 
       assert(r1 == 0.5f);
       assert(r2 == 0.5f);

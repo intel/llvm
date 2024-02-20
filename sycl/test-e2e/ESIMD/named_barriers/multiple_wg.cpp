@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// TODO: enable esimd_emulator when supported
 // REQUIRES: gpu-intel-pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -18,9 +17,10 @@
 // Producers store to SLM; consumers read SLM and store data to surface.
 
 #include <CL/sycl.hpp>
+#include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
 
-#include <iostream>
+#include "../esimd_test_utils.hpp"
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -135,11 +135,8 @@ bool test(QueueTY q) {
 }
 
 int main() {
-  auto GPUSelector = gpu_selector{};
-  auto q = queue{GPUSelector};
-  auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
-            << "\n";
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
+  esimd_test::printTestLabel(q);
 
   bool passed = true;
 

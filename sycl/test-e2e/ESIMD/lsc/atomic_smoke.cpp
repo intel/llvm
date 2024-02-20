@@ -7,10 +7,7 @@
 //===----------------------------------------------------------------------===//
 // This test checks LSC atomic operations.
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc
-// TODO: esimd_emulator fails due to random timeouts (_XFAIL_: esimd_emulator)
-// TODO: esimd_emulator doesn't support xchg operation
-// UNSUPPORTED: esimd_emulator
+// REQUIRES: gpu-intel-pvc || gpu-intel-dg2
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -113,7 +110,6 @@ const char *to_string(DWORDAtomicOp op) {
     return "smin";
   case DWORDAtomicOp::smax:
     return "smax";
-#ifndef USE_DWORD_ATOMICS
   case DWORDAtomicOp::fmax:
     return "fmax";
   case DWORDAtomicOp::fmin:
@@ -122,7 +118,6 @@ const char *to_string(DWORDAtomicOp op) {
     return "fadd";
   case DWORDAtomicOp::fsub:
     return "fsub";
-#endif // !USE_DWORD_ATOMICS
   case DWORDAtomicOp::fcmpxchg:
     return "fcmpxchg";
   case DWORDAtomicOp::load:

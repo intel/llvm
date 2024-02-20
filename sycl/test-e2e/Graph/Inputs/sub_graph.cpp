@@ -4,7 +4,11 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+  queue Queue{};
+
+  if (!are_graphs_supported(Queue)) {
+    return 0;
+  }
 
   using T = short;
 
@@ -97,13 +101,8 @@ int main() {
   // Finalize a graph with the additional kernel for writing out to
   auto MainGraphExec = MainGraph.finalize();
 
-  event Event;
   for (unsigned n = 0; n < Iterations; n++) {
-    Event = Queue.submit([&](handler &CGH) {
-      CGH.depends_on(Event);
-      CGH.ext_oneapi_graph(MainGraphExec);
-    });
-    Event.wait();
+    Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(MainGraphExec); });
   }
   Queue.wait_and_throw();
 
@@ -118,9 +117,12 @@ int main() {
   free(PtrC, Queue);
   free(PtrOut, Queue);
 
-  assert(ReferenceA == DataA);
-  assert(ReferenceB == DataB);
-  assert(ReferenceC == DataC);
-  assert(ReferenceOut == DataOut);
+  for (size_t i = 0; i < Size; i++) {
+    assert(check_value(i, ReferenceA[i], DataA[i], "DataA"));
+    assert(check_value(i, ReferenceB[i], DataB[i], "DataB"));
+    assert(check_value(i, ReferenceC[i], DataC[i], "DataC"));
+    assert(check_value(i, ReferenceOut[i], DataOut[i], "DataOut"));
+  }
+
   return 0;
 }

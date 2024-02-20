@@ -4,7 +4,6 @@
 // CHECK-NOT: alloca target("spirv.JointMatrixINTEL"
 
 // check that correct address spaces are used to load from and store to
-#define SYCL_EXT_ONEAPI_MATRIX_VERSION 4
 #include <sycl/sycl.hpp>
 
 using namespace sycl;

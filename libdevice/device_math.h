@@ -41,6 +41,12 @@ DEVICE_EXTERN_C
 long long int __devicelib_llabs(long long int x);
 
 DEVICE_EXTERN_C
+float __devicelib_fabsf(float x);
+
+DEVICE_EXTERN_C
+double __devicelib_fabs(double x);
+
+DEVICE_EXTERN_C
 div_t __devicelib_div(int x, int y);
 
 DEVICE_EXTERN_C
