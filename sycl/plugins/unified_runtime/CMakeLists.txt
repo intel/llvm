@@ -57,15 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 69ac6c7fecac1028024ec1889d3e2cc02565c9e7
-  # Merge: f11823e1 b3469f1e
+  # commit 24078c26ab871572067f520d856f4c65271cb9e5
+  # Merge: 227a5edf 89a66af7
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Feb 15 15:28:12 2024 +0100
-  #
-  #    Merge pull request #1344 from aarongreig/aaron/correctlyMapBufferLocation
-  #
-  #    Correct mapping of BUFFER_ALLOC_LOCATION_PROPERITES in CL adapter.
-  set(UNIFIED_RUNTIME_TAG 69ac6c7fecac1028024ec1889d3e2cc02565c9e7)
+  # Date:   Mon Feb 19 11:51:49 2024 +0100
+  #     Merge pull request #1299 from rafbiels/rafbiels/fix-cuda-maxreg-check
+  #     [CUDA] Fix MaxRegsPerBlock check in setKernelParams
+  set(UNIFIED_RUNTIME_TAG 24078c26ab871572067f520d856f4c65271cb9e5)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
