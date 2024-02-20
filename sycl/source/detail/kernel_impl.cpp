@@ -27,8 +27,11 @@ kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
   // Enable USM indirect access for interoperability kernels.
   // Some PI Plugins (like OpenCL) require this call to enable USM
   // For others, PI will turn this into a NOP.
-  getPlugin()->call<PiApiKind::piKernelSetExecInfo>(
-      MKernel, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
+  if (Context->getPlatformImpl()->getBackend() != backend::opencl ||
+      Context->getPlatformImpl()->has_extension(
+          "cl_intel_unified_shared_memory"))
+    getPlugin()->call<PiApiKind::piKernelSetExecInfo>(
+        MKernel, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
 
   // This constructor is only called in the interoperability kernel constructor.
   MIsInterop = true;
