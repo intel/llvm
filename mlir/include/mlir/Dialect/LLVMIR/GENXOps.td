@@ -211,7 +211,7 @@ def GENX_FpToFpOp : GENX_Op<"conv.fptofp">,
   Results<(outs AnyFloat:$res)>,
   Arguments<(ins
     AnyFloat:$arg,
-    RoundingModeAttr:$roundingMode
+    OptionalAttr<RoundingModeAttr>:$roundingMode
   )> {
 
   let summary = "Convert between floating point types";

@@ -106,24 +106,24 @@ static llvm::CallInst *createSubGroupShuffle(llvm::IRBuilderBase &builder,
 static llvm::CallInst *
 createGenISAFpToFp(GENX::FpToFpOp op, llvm::IRBuilderBase &builder,
                    LLVM::ModuleTranslation &moduleTranslation) {
-  // TODO: Remove GENX::RoundingMode and use llvm::RoundingMode directly.
-  llvm::RoundingMode rounding;
-  switch (op.getRoundingMode()) {
-  case GENX::RoundingMode::RTE:
-    rounding = llvm::RoundingMode::NearestTiesToEven;
-    break;
-  case GENX::RoundingMode::RTN:
-    rounding = llvm::RoundingMode::TowardNegative;
-    break;
-  case GENX::RoundingMode::RTP:
-    rounding = llvm::RoundingMode::TowardPositive;
-    break;
-  case GENX::RoundingMode::RTZ:
-    rounding = llvm::RoundingMode::TowardZero;
-    break;
-  default:
-    llvm_unreachable("Unhandled rounding mode");
-  }
+  std::optional<llvm::RoundingMode> rounding = std::nullopt;
+  if (op.getRoundingMode())
+    switch (*op.getRoundingMode()) {
+    case GENX::RoundingMode::RTE:
+      rounding = llvm::RoundingMode::NearestTiesToEven;
+      break;
+    case GENX::RoundingMode::RTN:
+      rounding = llvm::RoundingMode::TowardNegative;
+      break;
+    case GENX::RoundingMode::RTP:
+      rounding = llvm::RoundingMode::TowardPositive;
+      break;
+    case GENX::RoundingMode::RTZ:
+      rounding = llvm::RoundingMode::TowardZero;
+      break;
+    default:
+      llvm_unreachable("Unhandled rounding mode");
+    }
 
   SmallVector<llvm::Value *> args = {
       moduleTranslation.lookupValue(op.getArg())};
@@ -134,6 +134,8 @@ createGenISAFpToFp(GENX::FpToFpOp op, llvm::IRBuilderBase &builder,
   // TODO: Add verifier.
   assert(srcTySizeInBits != resTySizeInBits &&
          "Expecting first argument and result size to be different");
+  assert((op.getRoundingMode() || srcTySizeInBits < resTySizeInBits) &&
+         "Expecting rounding mode for truncation");
   llvm::Intrinsic::ID id =
       srcTySizeInBits > resTySizeInBits
           ? llvm::Intrinsic::experimental_constrained_fptrunc
