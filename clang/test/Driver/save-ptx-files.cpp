@@ -14,9 +14,9 @@
 // RUN: %clang -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda,spir64-unknown-unknown -target x86_64-unknown-linux-gnu --cuda-path=%S/Inputs/CUDA/usr/local/cuda -fsycl-dump-device-code= %s 2>&1 \
 // RUN: | FileCheck %s --check-prefixes=CHECK-PTX-FILES-CWD,CHECK-SPIRV-FILES-CWD
 
-// CHECK-PTX-FILES: llvm-foreach{{.*}} "--out-ext=s"{{.*}} "--out-dir=/user/input/path{{(/|\\\\)}}" "--" "{{.*}}clang-{{[0-9]+}}" {{.*}} "-fsycl-is-device" {{.*}}.s{{.*}}
+// CHECK-PTX-FILES: llvm-foreach{{.*}} "--out-ext=s"{{.*}} "--out-dir=/user/input/path{{(/|\\\\)}}" "--" "{{.*}}clang{{.*}}" {{.*}} "-fsycl-is-device" {{.*}}.s{{.*}}
 // CHECK-SPIRV-FILES: llvm-foreach{{.*}} "--out-dir=/user/input/path{{(/|\\\\)}}" "--" "{{.*}}llvm-spirv"
-// CHECK-PTX-FILES-CWD: llvm-foreach{{.*}} "--out-ext=s"{{.*}} "--out-dir=.{{(/|\\\\)}}" "--" "{{.*}}clang-{{[0-9]+}}" {{.*}} "-fsycl-is-device"
+// CHECK-PTX-FILES-CWD: llvm-foreach{{.*}} "--out-ext=s"{{.*}} "--out-dir=.{{(/|\\\\)}}" "--" "{{.*}}clang{{.*}}" {{.*}} "-fsycl-is-device"
 // CHECK-SPIRV-FILES-CWD: llvm-foreach{{.*}} "--out-dir=.{{(/|\\\\)}}" "--" "{{.*}}llvm-spirv"
 
 // Windows - Check if PTX files are saved in the user provided path.
@@ -38,6 +38,6 @@
 // RUN: -fsycl-dump-device-code= %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHECK-PTX-WIN-CWD %s
 
-// CHECK-PTX-WIN: llvm-foreach{{.*}} "--out-ext=s"{{.*}} "--out-dir=/user/input/path{{(/|\\\\)}}" "--" "{{.*}}clang-{{[0-9]+}}" {{.*}} "-fsycl-is-device" {{.*}}.asm{{.*}}
-// CHECK-PTX-WIN-CWD: llvm-foreach{{.*}} "--out-ext=s"{{.*}} "--out-dir=.{{(/|\\\\)}}" "--" "{{.*}}clang-{{[0-9]+}}" {{.*}} "-fsycl-is-device" {{.*}}.asm{{.*}}
+// CHECK-PTX-WIN: llvm-foreach{{.*}} "--out-ext=s"{{.*}} "--out-dir=/user/input/path{{(/|\\\\)}}" "--" "{{.*}}clang{{.*}}" {{.*}} "-fsycl-is-device" {{.*}}.asm{{.*}}
+// CHECK-PTX-WIN-CWD: llvm-foreach{{.*}} "--out-ext=s"{{.*}} "--out-dir=.{{(/|\\\\)}}" "--" "{{.*}}clang{{.*}}" {{.*}} "-fsycl-is-device" {{.*}}.asm{{.*}}
 // CHECK-SPV-WIN:  llvm-foreach{{.*}} "--out-dir=/user/input/path{{(/|\\\\)}}" "--" "{{.*}}llvm-spirv"
