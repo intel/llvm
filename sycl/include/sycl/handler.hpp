@@ -1780,13 +1780,18 @@ private:
                                               void()>::value ||
                    detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void(interop_handle)>::value>
-  host_task_impl(FuncT &&Func) {
+  host_task_impl(FuncT &&Func, const property_list PropList = {}) {
     throwIfActionIsCreated();
 
     MNDRDesc.set(range<1>(1));
     MArgs = std::move(MAssociatedAccesors);
 
-    MHostTask.reset(new detail::HostTask(std::move(Func)));
+    if constexpr (detail::check_fn_signature<std::remove_reference_t<FuncT>,
+                                             void(interop_handle)>::value)
+      MHostTask.reset(
+          new detail::HostTask(std::move(Func), std::move(PropList)));
+    else
+      MHostTask.reset(new detail::HostTask(std::move(Func)));
 
     setType(detail::CG::CodeplayHostTask);
   }
@@ -1962,8 +1967,8 @@ public:
                                               void()>::value ||
                    detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void(interop_handle)>::value>
-  host_task(FuncT &&Func) {
-    host_task_impl(Func);
+  host_task(FuncT &&Func, const property_list PropList = {}) {
+    host_task_impl(Func, PropList);
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and

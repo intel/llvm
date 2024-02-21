@@ -16,6 +16,7 @@
 #include <sycl/detail/kernel_desc.hpp>         // for kernel_param_kind_t
 #include <sycl/detail/pi.h>                    // for PI_ERROR_INVALID_WORK...
 #include <sycl/exception.hpp>                  // for nd_range_error
+#include <sycl/ext/codeplay/experimental/host_task_properties.hpp> // for property::host_task::manual_interop_sync
 #include <sycl/group.hpp>                      // for group
 #include <sycl/h_item.hpp>                     // for h_item
 #include <sycl/id.hpp>                         // for id
@@ -233,13 +234,22 @@ public:
 class HostTask {
   std::function<void()> MHostTask;
   std::function<void(interop_handle)> MInteropTask;
+  bool ManualInteropSync = false;
 
 public:
   HostTask() : MHostTask([]() {}) {}
   HostTask(std::function<void()> &&Func) : MHostTask(Func) {}
   HostTask(std::function<void(interop_handle)> &&Func) : MInteropTask(Func) {}
+  HostTask(std::function<void(interop_handle)> &&Func,
+           const property_list PropList)
+      : MInteropTask(Func),
+        ManualInteropSync{
+            PropList.has_property<ext::codeplay::experimental::property::
+                                      host_task::manual_interop_sync>()} {}
 
   bool isInteropTask() const { return !!MInteropTask; }
+
+  bool isManualInteropSync() const { return ManualInteropSync; }
 
   void call(HostProfilingInfo *HPI) {
     if (HPI)
