@@ -114,7 +114,7 @@ static void printSelectorChoice(const device_selector &Selector,
 }
 
 static int printUsageAndExit() {
-  std::cout << "Usage: sycl-ls [--verbose] [--discard-filters]" << std::endl;
+  std::cout << "Usage: sycl-ls [--verbose] [--ignore-device-selectors]" << std::endl;
   std::cout << "This program lists all devices and backends discovered by SYCL."
             << std::endl;
   std::cout << "\n Options:" << std::endl;
@@ -123,9 +123,9 @@ static int printUsageAndExit() {
       << "It also lists the device chosen by various SYCL device selectors."
       << std::endl;
   std::cout
-      << "\t --discard-filters "
+      << "\t --ignore-device-selectors "
       << "\t Lists all platforms available on the system irrespective "
-      << "of the filter environment variables (like ONEAPI_DEVICE_SELECTOR)."
+      << "of DPCPP filter environment variables (like ONEAPI_DEVICE_SELECTOR)."
       << std::endl;
 
   return EXIT_FAILURE;
@@ -142,7 +142,7 @@ static void printWarningIfFiltersUsed(bool &SuppressNumberPrinting) {
       std::cerr << "INFO: Output filtered by SYCL_DEVICE_FILTER "
                 << "environment variable, which is set to " << filter << "."
                 << std::endl;
-      std::cerr << "To see device ids, use the --discard-filters CLI option."
+      std::cerr << "To see device ids, use the --ignore-device-selectors CLI option."
                 << std::endl
                 << std::endl;
       SuppressNumberPrinting = true;
@@ -157,7 +157,7 @@ static void printWarningIfFiltersUsed(bool &SuppressNumberPrinting) {
       std::cerr << "INFO: Output filtered by ONEAPI_DEVICE_SELECTOR "
                 << "environment variable, which is set to " << ods_targets
                 << "." << std::endl;
-      std::cerr << "To see device ids, use the --discard-filters CLI option."
+      std::cerr << "To see device ids, use the --ignore-device-selectors CLI option."
                 << std::endl
                 << std::endl;
       SuppressNumberPrinting = true;
@@ -171,7 +171,7 @@ static void printWarningIfFiltersUsed(bool &SuppressNumberPrinting) {
       std::cerr << "INFO: Output filtered by SYCL_DEVICE_ALLOWLIST "
                 << "environment variable, which is set to " << sycl_dev_allow
                 << "." << std::endl;
-      std::cerr << "To see device ids, use the --discard-filters CLI option."
+      std::cerr << "To see device ids, use the --ignore-device-selectors CLI option."
                 << std::endl
                 << std::endl;
       SuppressNumberPrinting = true;
@@ -202,7 +202,7 @@ int main(int argc, char **argv) {
     for (int i = 1; i < argc; i++) {
       if (argv[i] == "--verbose"sv)
         verbose = true;
-      else if (argv[i] == "--discard-filters"sv)
+      else if (argv[i] == "--ignore-device-selectors"sv)
         DiscardFilters = true;
       else
         return printUsageAndExit();
