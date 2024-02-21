@@ -364,11 +364,9 @@ struct graphs_support;
 template <typename ValueT>
 class dynamic_parameter {
 public:
-  dynamic_parameter(command_graph<graph_state::modifiable> graph);
+  dynamic_parameter(command_graph<graph_state::modifiable> graph, const ValueT &param);
 
-  dynamic_parameter(const ValueT &initialValue, command_graph<graph_state::modifiable> graph);
-
-  void register(int argIndex, const handler& cgh);
+  void register_with_node(int argIndex, const handler& cgh);
 
   void update(const ValueT& newValue);
 };
@@ -591,28 +589,16 @@ Table {counter: tableNumber}. Member functions of the `dynamic_parameter` class.
 |
 [source,c++]
 ----
-dynamic_parameter(command_graph<graph_state::modifiable> graph);
+dynamic_parameter(command_graph<graph_state::modifiable> graph, const ValueT &param);
 ----
-|Constructs a dynamic parameter object that can be registered with node
-arguments.
+|Constructs a dynamic parameter object that can be registered with command graph
+nodes. The param argument is used only to deduce the template parameter ValueT,
+which is the type of the kernel argument this `dynamic_parameter` represents.
 
 Parameters:
 
 * `graph` - Graph containing the nodes which will have dynamic parameters.
-
-|
-[source,c++]
-----
-dynamic_parameter(const ValueT &initialValue, command_graph<graph_state::modifiable> graph);
-----
-|Constructs a dynamic parameter object that can be registered with node
-arguments, while providing an intiial value which is used solely for
-deducing ValueT.
-
-Parameters:
-
-* `initialValue` - Initial value used for CTAD.
-* `graph` - Graph containing the nodes which will have dynamic parameters.
+* `param` - Value used for CTAD.
 
 |
 [source,c++]
@@ -1892,18 +1878,18 @@ kernel builtinKernel = myBundle.get_kernel(builtinKernelIds[0]);
 // Graph containing a two kernels node
 sycl_ext::command_graph myGraph(myContext, myDevice);
 
+int myScalar = 42;
 // Create graph dynamic parameters
-dynamic_parameter<int*> dynParamInput(myGraph);
-dynamic_parameter<int> dynParamScalar(myGraph);
+dynamic_parameter dynParamInput(myGraph, ptrX);
+dynamic_parameter dynParamScalar(myGraph, myScalar);
 
 // First node uses ptrX as an input & output parameter, with operand
 // mySclar as another argument.
-int myScalar = 42;
 node nodeA = myGraph.add([&](handler& cgh) {
     cgh.set_args(ptrX, ptrY, myScalar);
     // Register nodeA dynamic parameters
-    dynParamInput.register(0, cgh);  // Argument index 0 is ptrX
-    dynParamScalar.register(2, cgh);  // Argument index 2 is myScalar
+    dynParamInput.register_with_node(cgh, 0);  // Argument index 0 is ptrX
+    dynParamScalar.register_with_node(cgh, 2);  // Argument index 2 is myScalar
     cgh.parallel_for(range {n}, builtinKernel);
 });
 
