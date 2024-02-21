@@ -587,3 +587,12 @@ int main() {
 //expected-note@+1{{conflicting attribute is here}}
 [[intel::bankwidth(8)]] extern const int var_bankwidth_2;
 [[intel::fpga_register]] const int var_bankwidth_2 =0;
+
+using namespace sycl::ext::oneapi; // for properties;
+[[intel::numbanks(2)]] /*const*/ device_global<int> const_glob; // OK
+
+[[intel::numbanks(8)]] const device_global<int> const_glob2; // OK
+
+struct Foo {
+  [[intel::numbanks(2)]] /*const*/ device_global<int> const_glob3; // OK
+};

@@ -2648,10 +2648,11 @@ def SYCLIntelConstVar : SubsetSubject<Var,
                       [{S->getKind() != Decl::ImplicitParam &&
                         S->getKind() != Decl::ParmVar &&
                         S->getKind() != Decl::NonTypeTemplateParm &&
-                        (S->getType().isConstQualified() ||
+                        ((!S->hasAttr<SYCLDeviceGlobalAttr>() ||
+                          S->getType().isConstQualified()) ||
                          S->getType().getAddressSpace() ==
                             LangAS::opencl_constant)}],
-                      "constant variables">;
+                      "constant variables, non-const device_global variables">;
 
 def SYCLIntelLocalStaticAgentMemVar : SubsetSubject<Var,
       [{S->getKind() != Decl::ImplicitParam &&
