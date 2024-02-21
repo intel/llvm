@@ -151,7 +151,7 @@ template <int Dimensions>
 id<Dimensions> this_id();
 
 template <int Dimensions>
-item<Dimensions> this_item();
+item<Dimensions, false> this_item();
 
 template <int Dimensions>
 nd_item<Dimensions> this_nd_item();
@@ -191,9 +191,8 @@ global iteration space.
 [_Note:_ The `offset` parameter to `parallel_for` is deprecated in SYCL 2020, as
 is the ability of an `item` to carry an offset. This extension returns an
 `item` where the `WithOffset` template parameter is set to `false` to prevent
-usage of the new queries in conjunction with deprecated functionality. The
-return type of `get_item()` is expected to change when the `offset` parameter
-is removed in a future version of the SYCL specification. _{endnote}_]
+usage of the new queries in conjunction with deprecated
+functionality._{endnote}_]
 
 [source,c++]
 ----
