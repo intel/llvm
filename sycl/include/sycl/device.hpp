@@ -223,22 +223,7 @@ public:
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
   typename detail::is_device_info_desc<Param>::return_type get_info() const {
-    // For C++11_ABI compatibility, we handle these string Param types
-    // separately.
-    auto Info = get_info_impl<Param>();
-    if constexpr (std::is_same_v<decltype(Info), detail::string>) {
-      return Info.c_str();
-    } else if constexpr (std::is_same_v<decltype(Info),
-                                        std::vector<detail::string>>) {
-      std::vector<std::string> Res;
-      Res.reserve(Info.size());
-      for (detail::string &Str : Info) {
-        Res.push_back(Str.c_str());
-      }
-      return Res;
-    } else {
-      return Info;
-    }
+    __SYCL_GET_INFO_BODY
   }
 #else
   template <typename Param>

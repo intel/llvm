@@ -862,11 +862,7 @@ void handler::extractArgsAndReqsFromLambda(
 // As this is impossible in header, there's a function that calls necessary
 // method inside the library and returns the result.
 detail::string handler::getKernelName() {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   return detail::string{MKernel->get_info<info::kernel::function_name>()};
-#else
-  return MKernel->get_info<info::kernel::function_name>();
-#endif
 }
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES

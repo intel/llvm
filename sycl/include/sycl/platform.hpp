@@ -62,6 +62,38 @@ namespace ext::oneapi {
 class filter_selector;
 } // namespace ext::oneapi
 
+#define __SYCL_GET_INFO_BODY                                                   \
+  auto Info = get_info_impl<Param>();                                          \
+  if constexpr (std::is_same_v<decltype(Info), detail::string>) {              \
+    return Info.c_str();                                                       \
+  } else if constexpr (std::is_same_v<decltype(Info),                          \
+                                      std::vector<detail::string>>) {          \
+    std::vector<std::string> Res;                                              \
+    Res.reserve(Info.size());                                                  \
+    for (detail::string & Str : Info) {                                        \
+      Res.push_back(Str.c_str());                                              \
+    }                                                                          \
+    return Res;                                                                \
+  } else {                                                                     \
+    return Info;                                                               \
+  }
+
+#define __SYCL_GET_INFO_IMPL_BODY                                              \
+  auto Info = impl->template get_info<Param>();                                \
+  if constexpr (std::is_same_v<decltype(Info), std::string>) {                 \
+    return detail::string{Info};                                               \
+  } else if constexpr (std::is_same_v<decltype(Info),                          \
+                                      std::vector<std::string>>) {             \
+    std::vector<detail::string> Res;                                           \
+    Res.reserve(Info.size());                                                  \
+    for (std::string & Str : Info) {                                           \
+      Res.push_back(detail::string{Str});                                      \
+    }                                                                          \
+    return Res;                                                                \
+  } else {                                                                     \
+    return Info;                                                               \
+  }
+
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///
 /// \ingroup sycl_api
@@ -152,22 +184,7 @@ public:
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
   typename detail::is_platform_info_desc<Param>::return_type get_info() const {
-    // For C++11-ABI compatibility, we handle these string Param types
-    // separately.
-    auto Info = get_info_impl<Param>();
-    if constexpr (std::is_same_v<decltype(Info), detail::string>) {
-      return Info.c_str();
-    } else if constexpr (std::is_same_v<decltype(Info),
-                                        std::vector<detail::string>>) {
-      std::vector<std::string> Res;
-      Res.reserve(Info.size());
-      for (detail::string &Str : Info) {
-        Res.push_back(Str.c_str());
-      }
-      return Res;
-    } else {
-      return Info;
-    }
+    __SYCL_GET_INFO_BODY
   }
 #else
   template <typename Param>

@@ -138,20 +138,7 @@ template <typename Param>
 typename detail::ABINeutralT<
     typename detail::is_device_info_desc<Param>::return_type>::type
 device::get_info_impl() const {
-  auto Info = impl->template get_info<Param>();
-  if constexpr (std::is_same_v<decltype(Info), std::string>) {
-    return detail::string{Info};
-  } else if constexpr (std::is_same_v<decltype(Info),
-                                      std::vector<std::string>>) {
-    std::vector<detail::string> Res;
-    Res.reserve(Info.size());
-    for (std::string &Str : Info) {
-      Res.push_back(detail::string{Str});
-    }
-    return Res;
-  } else {
-    return Info;
-  }
+  __SYCL_GET_INFO_IMPL_BODY
 }
 #else
 template <typename Param>
