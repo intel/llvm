@@ -24,13 +24,22 @@ namespace detail {
 class HostTask {
   std::function<void()> MHostTask;
   std::function<void(interop_handle)> MInteropTask;
+  bool ManualInteropSync = false;
 
 public:
   HostTask() : MHostTask([]() {}) {}
   HostTask(std::function<void()> &&Func) : MHostTask(Func) {}
   HostTask(std::function<void(interop_handle)> &&Func) : MInteropTask(Func) {}
+  HostTask(std::function<void(interop_handle)> &&Func,
+           const property_list PropList)
+      : MInteropTask(Func),
+        ManualInteropSync{
+            PropList.has_property<ext::codeplay::experimental::property::
+                                      host_task::manual_interop_sync>()} {}
 
   bool isInteropTask() const { return !!MInteropTask; }
+
+  bool isManualInteropSync() const { return ManualInteropSync; }
 
   void call(HostProfilingInfo *HPI) {
     if (HPI)
@@ -82,7 +91,11 @@ handler::host_task_impl(FuncT &&Func) {
   // accessors during finalize
   MArgs = MAssociatedAccesors;
 
-  MHostTask.reset(new detail::HostTask(std::move(Func)));
+  if constexpr (detail::check_fn_signature<std::remove_reference_t<FuncT>,
+                                           void(interop_handle)>::value)
+    MHostTask.reset(new detail::HostTask(std::move(Func), std::move(PropList)));
+  else
+    MHostTask.reset(new detail::HostTask(std::move(Func)));
 
   setType(detail::CG::CodeplayHostTask);
 }

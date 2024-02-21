@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
+#include <sycl/ext/codeplay/experimental/host_task_properties.hpp>
 #include <sycl/properties/accessor_properties.hpp>
 #include <sycl/properties/buffer_properties.hpp>
 #include <sycl/properties/context_properties.hpp>

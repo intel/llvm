@@ -2067,8 +2067,8 @@ public:
                                               void()>::value ||
                    detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                               void(interop_handle)>::value>
-  host_task(FuncT &&Func) {
-    host_task_impl(Func);
+  host_task(FuncT &&Func, const property_list PropList = {}) {
+    host_task_impl(Func, PropList);
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and
