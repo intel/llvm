@@ -3394,31 +3394,31 @@ gather(AccessorT acc, OffsetSimdViewT byte_offsets, PropertyListT props = {}) {
 ///
 /// template <typename T, int N, int VS = 1, typename AccessorTy,
 /// typename OffsetT, typename PropertyListT = empty_properties_t>
-/// void scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
-/// 	simd_mask<N / VS> mask, PropertyListT props = {}); // (acc-sc-1)
+/// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets, simd<T, N>
+/// vals, 	simd_mask<N / VS> mask, PropertyListT props = {}); // (acc-sc-1)
 ///
 /// template <typename T, int N, int VS = 1, typename AccessorTy,
 /// typename OffsetT, typename PropertyListT = empty_properties_t>
-/// void scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
-/// 	PropertyListT props = {});                         // (acc-sc-2)
+/// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets, simd<T, N>
+/// vals, 	PropertyListT props = {});                         // (acc-sc-2)
 
 /// The following two functions are similar to acc-sc-{1,2} with the
 /// 'byte_offsets' parameter represented as 'simd_view'.
 
 /// template <typename T, int N, int VS = 1, typename AccessorTy,
 /// typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
-/// void scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+/// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// 	simd_mask<N / VS> mask, PropertyListT props = {}); // (acc-sc-3)
 ///
 /// template <typename T, int N, int VS = 1, typename AccessorTy,
 /// typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
-/// void scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+/// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// 	PropertyListT props = {});                         // (acc-sc-4)
 ///
 /// template <typename T, int N, int VS = 1, typename AccessorTy,
 /// typename OffsetT, typename PropertyListT = empty_properties_t>
-/// void scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
-/// 	simd_mask<N / VS> mask, PropertyListT props = {}); // (acc-sc-1)
+/// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets, simd<T, N>
+/// vals, 	simd_mask<N / VS> mask, PropertyListT props = {}); // (acc-sc-1)
 ///
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the accessor \p acc and byte offsets \p byte_offsets.
@@ -3466,7 +3466,7 @@ scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
                 "hint is cache_level::L2 now.");
 
   if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
-                VS > 1 || sizeof(T) > 4 || !detail::isPowerOf2(N, 32)) {
+                VS > 1 || !detail::isPowerOf2(N, 32)) {
     detail::scatter_impl<T, VS, detail::lsc_data_size::default_size, L1Hint,
                          L2Hint>(acc, byte_offsets, vals, mask);
   } else {
@@ -3477,8 +3477,8 @@ scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
 }
 /// template <typename T, int N, int VS = 1, typename AccessorTy,
 /// typename OffsetT, typename PropertyListT = empty_properties_t>
-/// void scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
-/// 	PropertyListT props = {});                         // (acc-sc-2)
+/// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets, simd<T, N>
+/// vals, 	PropertyListT props = {});                         // (acc-sc-2)
 ///
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the accessor \p acc and byte offsets \p byte_offsets.
@@ -3512,7 +3512,7 @@ scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
 
 /// template <typename T, int N, int VS = 1, typename AccessorTy,
 /// typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
-/// void scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+/// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// 	simd_mask<N / VS> mask, PropertyListT props = {}); // (acc-sc-3)
 ///
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
@@ -3550,7 +3550,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 
 /// template <typename T, int N, int VS = 1, typename AccessorTy,
 /// typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
-/// void scatter(T *p, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+/// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// 	PropertyListT props = {});                         // (acc-sc-4)
 ///
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
@@ -3624,6 +3624,20 @@ __ESIMD_API
   simd<detail::DeviceAccessorOffsetT, N> ByteOffsets = 0;
   scatter<T, N>(acc, ByteOffsets, vals, glob_offset, mask);
 }
+
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+template <typename T, int N, typename AccessorTy, typename Toffset>
+__ESIMD_API std::enable_if_t<
+    (detail::isPowerOf2(N, 32)) &&
+    detail::is_device_accessor_with_v<AccessorTy,
+                                      detail::accessor_mode_cap::can_write> &&
+    std::is_integral_v<Toffset> && !std::is_same_v<Toffset, uint64_t>>
+scatter(AccessorTy acc, simd<Toffset, N> offsets, simd<T, N> vals,
+        uint64_t glob_offset, simd_mask<N> mask = 1) {
+  scatter<T, N, AccessorTy>(acc, convert<uint64_t>(offsets), vals, glob_offset,
+                            mask);
+}
+#endif
 
 /// Load a scalar value from an accessor.
 /// @tparam T Type of the value.
