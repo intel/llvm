@@ -112,7 +112,10 @@ void group_barrier(ext::oneapi::experimental::root_group<dimensions> G,
 #ifdef __SYCL_DEVICE_ONLY__
   // Root group barrier synchronizes using a work group barrier if there's only
   // one work group. This allows backends to ignore the ControlBarrier with
-  // Device scope if their maximum number of work groups is 1.
+  // Device scope if their maximum number of work groups is 1. This is a
+  // workaround that's not intended to reduce the bar for SPIR-V modules
+  // acceptance, but rather make a pessimistic case work until we have full
+  // support for the device barrier built-in from backends.
   const auto ChildGroup = ext::oneapi::experimental::get_child_group(G);
   if (ChildGroup.get_group_linear_range() == 1) {
     group_barrier(ChildGroup);
