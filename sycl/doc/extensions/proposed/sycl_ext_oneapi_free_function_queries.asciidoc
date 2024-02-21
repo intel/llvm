@@ -8,6 +8,7 @@
 :toc: left
 :encoding: utf-8
 :lang: en
+:dpcpp: pass:[DPC++]
 
 :blank: pass:[ +]
 
@@ -16,53 +17,30 @@
 // docbook uses c++ and html5 uses cpp.
 :language: {basebackend@docbook:c++:cpp}
 
-== Introduction
-IMPORTANT: This specification is a draft.
-
-NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
-
-This document describes an extension that adds features for SYCL work items and groups to be available globally.
 
 == Notice
 
-Copyright (c) 2020-2021 Intel Corporation.  All rights reserved.
+[%hardbreaks]
+Copyright (C) 2020-2024 Intel Corporation.  All rights reserved.
 
-== Status
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
 
-Working Draft
-
-This is a preview extension specification, intended to provide early access to a feature for review and community feedback. When the feature matures, this specification may be released as a formal extension.
-
-Because the interfaces defined by this specification are not final and are subject to change they are not intended to be used by shipping software products.
-
-== Version
-
-Revision: 1
 
 == Contact
-Ruslan Arutyunyan, Intel (ruslan 'dot' arutyunyan 'at' intel 'dot' com)
 
-John Pennycook, Intel (john 'dot' pennycook 'at' intel 'dot' com)
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
 
 == Dependencies
 
-This extension is written against the SYCL 2020 specification, Revision 4.
+This extension is written against the SYCL 2020 revision 8 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
 
-== Feature Test Macro
-
-This extension provides a feature-test macro as described in the core SYCL
-specification section 6.3.3 "Feature test macros". Therefore, an implementation
-supporting this extension must predefine the macro `SYCL_EXT_ONEAPI_FREE_FUNCTION_QUERIES`
-to one of the values defined in the table below. Applications can test for the
-existence of this macro to determine if the implementation supports this
-feature, or applications can test the macro's value to determine which of the
-extension's APIs the implementation supports.
-
-[%header,cols="1,5"]
-|===
-|Value |Description
-|1     |Initial extension version. Base features are supported.
-|===
 
 == Overview
 
@@ -77,7 +55,30 @@ that is less error-prone to use. For example, if a function accepts a
 satisfied. It is recommended that this extension is used only when modifying
 existing interfaces is not feasible.
 
-== Accessing Instances of Special SYCL Classes
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_FREE_FUNCTION_QUERIES` to one of the values defined in
+the table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== Accessing instances of special SYCL classes
 
 The `sycl::ext::oneapi::this_kernel` namespace contains functionality related
 to the currently executing kernel.
