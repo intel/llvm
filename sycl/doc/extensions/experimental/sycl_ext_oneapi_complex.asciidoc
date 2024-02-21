@@ -269,17 +269,14 @@ public:
   /// Divides and assigns complex number rhs to marray lhs.
   friend marray &operator /=(marray &lhs, const value_type &rhs);
 
-  /// Returns a copy of the input marray.
-  friend marray operator +(const marray &lhs);
-  /// Negates each element of the input marray.
-  friend marray operator -(const marray &lhs);
-
   /// Adds marray rhs and marray lhs and returns the result.
   friend marray operator +(const marray &lhs, const marray &rhs);
   /// Adds complex number rhs and marray lhs and returns the result.
   friend marray operator +(const marray &lhs, const value_type &rhs);
   /// Adds marray rhs and complex number lhs and returns the result.
   friend marray operator +(const value_type &lhs, const marray &rhs);
+  /// Returns a copy of the input marray.
+  friend marray operator +(const marray &lhs);
 
   /// Subtracts marray rhs and marray lhs and returns the result.
   friend marray operator -(const marray &lhs, const marray &rhs);
@@ -287,6 +284,8 @@ public:
   friend marray operator -(const marray &lhs, const value_type &rhs);
   /// Subtracts marray rhs and complex number lhs and returns the result.
   friend marray operator -(const value_type &lhs, const marray &rhs);
+  /// Negates each element of the input marray.
+  friend marray operator -(const marray &lhs);
 
   /// Mulitplies marray rhs and marray lhs and returns the result.
   friend marray operator *(const marray &lhs, const marray &rhs);
@@ -318,24 +317,41 @@ public:
 
   /* ... */
 
-  friend marray operator %(const marray &lhs, const marray &rhs) = delete;
-  friend marray operator %(const marray &lhs, const value_type &rhs) = delete;
-  friend marray operator %(const value_type &lhs, const marray &rhs) = delete;
-
   friend marray &operator %=(marray &lhs, const marray &rhs) = delete;
   friend marray &operator %=(marray &lhs, const value_type &rhs) = delete;
 
-  friend marray operator ++(marray &lhs, int) = delete;
-  friend marray &operator ++(marray &lhs) = delete;
+  friend marray &operator &=(marray &lhs, const marray &rhs) = delete;
+  friend marray &operator &=(marray &lhs, const value_type &rhs) = delete;
 
-  friend marray operator --(marray &lhs, int) = delete;
+  friend marray &operator |=(marray &lhs, const marray &rhs) = delete;
+  friend marray &operator |=(marray &lhs, const value_type &rhs) = delete;
+
+  friend marray &operator ^=(marray &lhs, const marray &rhs) = delete;
+  friend marray &operator ^=(marray &lhs, const value_type &rhs) = delete;
+
+  friend marray &operator <<=(marray &lhs, const marray &rhs) = delete;
+  friend marray &operator <<=(marray &lhs, const value_type &rhs) = delete;
+
+  friend marray &operator >>=(marray &lhs, const marray &rhs) = delete;
+  friend marray &operator >>=(marray &lhs, const value_type &rhs) = delete;
+
+  friend marray &operator ++(marray &lhs) = delete;
+  friend marray operator ++(marray &lhs, int) = delete;
+
   friend marray &operator --(marray &lhs) = delete;
+  friend marray operator --(marray &lhs, int) = delete;
 
   friend marray &operator +=(marray &lhs) = delete;
   friend marray operator  +=(marray &lhs, int) = delete;
 
   friend marray &operator -=(marray &lhs) = delete;
   friend marray operator  -=(marray &lhs, int) = delete;
+
+  friend marray operator %(const marray &lhs, const marray &rhs) = delete;
+  friend marray operator %(const marray &lhs, const value_type &rhs) = delete;
+  friend marray operator %(const value_type &lhs, const marray &rhs) = delete;
+
+  friend marray operator ~(const marray &lhs) = delete;
 
   friend marray operator &(const marray &lhs, const marray &rhs) = delete;
   friend marray operator &(const marray &lhs, const value_type &rhs) = delete;
@@ -349,15 +365,6 @@ public:
   friend marray operator ^(const marray &lhs, const value_type &rhs) = delete;
   friend marray operator ^(const value_type &lhs, const marray &rhs) = delete;
 
-  friend marray &operator &=(marray &lhs, const marray &rhs) = delete;
-  friend marray &operator &=(marray &lhs, const value_type &rhs) = delete;
-
-  friend marray &operator |=(marray &lhs, const marray &rhs) = delete;
-  friend marray &operator |=(marray &lhs, const value_type &rhs) = delete;
-
-  friend marray &operator ^=(marray &lhs, const marray &rhs) = delete;
-  friend marray &operator ^=(marray &lhs, const value_type &rhs) = delete;
-
   friend marray<bool, NumElements> operator <<(const marray &lhs, const marray &rhs) = delete;
   friend marray<bool, NumElements> operator <<(const marray &lhs, const value_type &rhs) = delete;
   friend marray<bool, NumElements> operator <<(const value_type &lhs, const marray &rhs) = delete;
@@ -366,11 +373,15 @@ public:
   friend marray<bool, NumElements> operator >>(const marray &lhs, const value_type &rhs) = delete;
   friend marray<bool, NumElements> operator >>(const value_type &lhs, const marray &rhs) = delete;
 
-  friend marray &operator <<=(marray &lhs, const marray &rhs) = delete;
-  friend marray &operator <<=(marray &lhs, const value_type &rhs) = delete;
+  friend marray<bool, NumElements> operator !(const marray &lhs) = delete;
 
-  friend marray &operator >>=(marray &lhs, const marray &rhs) = delete;
-  friend marray &operator >>=(marray &lhs, const value_type &rhs) = delete;
+  friend marray<bool, NumElements> operator &&(const marray &lhs, const marray &hhs) = delete;
+  friend marray<bool, NumElements> operator &&(const marray &lhs, const value_type &rhs) = delete;
+  friend marray<bool, NumElements> operator &&(const value_type &lhs, const marray &rhs) = delete;
+
+  friend marray<bool, NumElements> operator ||(const marray &lhs, const marray &rhs) = delete;
+  friend marray<bool, NumElements> operator ||(const marray &lhs, const value_type &rhs) = delete;
+  friend marray<bool, NumElements> operator ||(const value_type &lhs, const marray &rhs) = delete;
 
   friend marray<bool, NumElements> operator <(const marray &lhs, const marray &rhs) = delete;
   friend marray<bool, NumElements> operator <(const marray &lhs, const value_type &rhs) = delete;
@@ -387,18 +398,6 @@ public:
   friend marray<bool, NumElements> operator >=(const marray &lhs, const marray &rhs) = delete;
   friend marray<bool, NumElements> operator >=(const marray &lhs, const value_type &rhs) = delete;
   friend marray<bool, NumElements> operator >=(const value_type &lhs, const marray &rhs) = delete;
-
-  friend marray<bool, NumElements> operator &&(const marray &lhs, const marray &hhs) = delete;
-  friend marray<bool, NumElements> operator &&(const marray &lhs, const value_type &rhs) = delete;
-  friend marray<bool, NumElements> operator &&(const value_type &lhs, const marray &rhs) = delete;
-
-  friend marray<bool, NumElements> operator ||(const marray &lhs, const marray &rhs) = delete;
-  friend marray<bool, NumElements> operator ||(const marray &lhs, const value_type &rhs) = delete;
-  friend marray<bool, NumElements> operator ||(const value_type &lhs, const marray &rhs) = delete;
-
-  friend marray operator ~(const marray &lhs) = delete;
-
-  friend marray<bool, NumElements> operator !(const marray &lhs) = delete;
 };
 
 } // namespace sycl
