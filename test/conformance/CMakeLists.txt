@@ -120,6 +120,7 @@ if(UR_DPCXX)
     add_subdirectory(program)
     add_subdirectory(enqueue)
     add_subdirectory(exp_command_buffer)
+    add_subdirectory(exp_usm_p2p)
 else()
     message(WARNING
         "UR_DPCXX is not defined, the following conformance test executables \
