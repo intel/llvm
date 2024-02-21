@@ -773,8 +773,6 @@ void imageWriteHostImpl(const CoordT &Coords, const WriteDataT &Color,
     break;
   case image_channel_type::fp16:
     writePixel(
-        // convertWriteDataToHalf<typename
-        // TryToGetElementType<WriteDataT>::type>(
         convertWriteData<half>(Color, ImgChannelType),
         reinterpret_cast<half *>(Ptr), ImgChannelOrder, ImgChannelType);
     break;
@@ -915,7 +913,7 @@ DataT getColor(const int4 PixelCoord, const addressing_mode SmplAddrMode,
   DataT RetData;
   if (isOutOfRange(PixelCoord, SmplAddrMode, ImgRange)) {
     float4 BorderColor = getBorderColor(ImgChannelOrder);
-    RetData = BorderColor.convert<typename TryToGetElementType<DataT>::type>();
+    RetData = BorderColor.convert<get_elem_type_t<DataT>>();
   } else {
     RetData = ReadPixelData<DataT>(PixelCoord, ImgPitch, ImgChannelType,
                                    ImgChannelOrder, BasePtr, ElementSize);
@@ -984,7 +982,7 @@ DataT ReadPixelDataLinearFiltMode(const int8 CoordValues, const float4 abc,
   //           (1 – a) * b * Ci0j1 + a * b * Ci1j1;
   // For 1D image: j0 = 0, j1 = 0, k0 = 0, k1 = 0, b = 0.5, c = 0.5.
   // RetData = (1 – a) * Ci0 + a * Ci1;
-  return RetData.convert<typename TryToGetElementType<DataT>::type>();
+  return RetData.convert<get_elem_type_t<DataT>>();
 }
 
 // imageReadSamplerHostImpl method is called by the read API in image accessors
