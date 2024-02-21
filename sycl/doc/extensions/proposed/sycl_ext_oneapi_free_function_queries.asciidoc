@@ -99,7 +99,7 @@ template <int Dimensions>
 nd_item<Dimensions> get_nd_item();
 
 template <int Dimensions>
-group<Dimensions> get_group();
+group<Dimensions> get_work_group();
 
 sub_group get_sub_group();
 
@@ -124,7 +124,7 @@ _Returns_: A `sycl::nd_item` instance representing the current work-item in a
 [source,c++]
 ----
 template <int Dimensions>
-group<Dimensions> get_group();
+group<Dimensions> get_work_group();
 ----
 _Preconditions_: `Dimensions` must match the dimensionality of the currently
 executing kernel. The currently executing kernel must have been launched with a
