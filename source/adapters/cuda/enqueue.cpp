@@ -245,13 +245,14 @@ setKernelParams(const ur_context_handle_t Context,
           return UR_RESULT_SUCCESS;
         };
 
-        size_t KernelLocalWorkGroupSize = 0;
+        size_t KernelLocalWorkGroupSize = 1;
         for (size_t Dim = 0; Dim < WorkDim; Dim++) {
           auto Err = IsValid(Dim);
           if (Err != UR_RESULT_SUCCESS)
             return Err;
-          // If no error then sum the total local work size per dim.
-          KernelLocalWorkGroupSize += LocalWorkSize[Dim];
+          // If no error then compute the total local work size as a product of
+          // all dims.
+          KernelLocalWorkGroupSize *= LocalWorkSize[Dim];
         }
 
         if (hasExceededMaxRegistersPerBlock(Device, Kernel,
@@ -491,6 +492,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     Result = Err;
   }
   return Result;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
+    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  return urEnqueueKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
+                               pGlobalWorkSize, pLocalWorkSize,
+                               numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 /// Set parameters for general 3D memory copy.
