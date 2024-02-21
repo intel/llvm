@@ -377,6 +377,9 @@ public:
 
   template <int Dimensions>
   void update_nd_range(nd_range<Dimensions> executionRange);
+
+  template <int Dimensions>
+  void update_range(range<Dimensions> executionRange);
 };
 
 // State of a graph
@@ -512,8 +515,11 @@ Parameters:
 
 Exceptions:
 
-* Throws with error code `nd_range` if `executionRange` is an invalid ND-Range
-  for this node.
+* Throws with error code `invalid` if `Dimensions` does not match the dimensions
+  of the nd_range the kernel was originally created with.
+
+* Throws with error code `invalid` if the kernel node was originally created
+  with a `sycl::range`
 
 * Throws with error code `invalid` if the type of the node is not a kernel
   execution.
@@ -535,6 +541,12 @@ Parameters:
 * `executionRange` - The new value for the Range.
 
 Exceptions:
+
+* Throws with error code `invalid` if `Dimensions` does not match the dimensions
+  of the range the kernel was originally created with.
+
+* Throws with error code `invalid` if the kernel node was originally created
+  with a `sycl::nd_range`
 
 * Throws with error code `invalid` if the type of the node is not a kernel
   execution.
@@ -600,6 +612,9 @@ using the explicit API. Associate the dynamic parameter
 with the kernel parameter of the node that encapsulates this command-group.
 Parameters are associated by their index which was given when they were
 registered with `handler`.
+
+This function should only be used when kernel arguments are being set explicitly
+using indices, such as when using `handler::set_arg()`.
 
 Parameters:
 
