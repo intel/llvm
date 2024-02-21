@@ -156,7 +156,7 @@
 //       piextEnqueueCooperativeKernelLaunch.
 
 #define _PI_H_VERSION_MAJOR 15
-#define _PI_H_VERSION_MINOR 44
+#define _PI_H_VERSION_MINOR 45
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
