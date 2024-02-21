@@ -1097,10 +1097,26 @@ public:
   /// the node was not found.
   sycl::detail::pi::PiExtSyncPoint
   getSyncPointFromNode(std::shared_ptr<node_impl> Node) const {
-    auto SyncPoint = MPiSyncPoints.find(Node);
-    if (SyncPoint == MPiSyncPoints.end()) {
+    auto throwException = []() {
       throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                             "The node was not found in this exec graph. ");
+    };
+
+    auto SyncPoint = MPiSyncPoints.find(Node);
+    if (SyncPoint == MPiSyncPoints.end()) {
+      // If the node is not found that comes from the fact that users
+      // have passed a node from the original graph and not the duplicated node
+      // that was enqueued as a part of the exec_graph.
+      try {
+        // Look for the original node.
+        auto OriginalNode = NodesMap.at(Node);
+        SyncPoint = MPiSyncPoints.find(OriginalNode);
+        if (SyncPoint == MPiSyncPoints.end()) {
+          throwException();
+        }
+      } catch (const std::out_of_range &e) {
+        throwException();
+      }
     }
     return SyncPoint->second;
   }
@@ -1210,6 +1226,8 @@ private:
       MPartitionsExecutionEvents;
   /// Storage for copies of nodes from the original modifiable graph.
   std::vector<std::shared_ptr<node_impl>> MNodeStorage;
+  /// Map of original modifiable nodes (keys) to new duplicated nodes (values)
+  std::map<std::shared_ptr<node_impl>, std::shared_ptr<node_impl>> NodesMap;
 };
 
 } // namespace detail

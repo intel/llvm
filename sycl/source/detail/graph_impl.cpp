@@ -948,9 +948,6 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
 }
 
 void exec_graph_impl::duplicateNodes() {
-  // Map of original modifiable nodes (keys) to new duplicated nodes (values)
-  std::map<std::shared_ptr<node_impl>, std::shared_ptr<node_impl>> NodesMap;
-
   const std::vector<std::shared_ptr<node_impl>> &ModifiableNodes =
       MGraphImpl->MNodeStorage;
   std::deque<std::shared_ptr<node_impl>> NewNodes;
