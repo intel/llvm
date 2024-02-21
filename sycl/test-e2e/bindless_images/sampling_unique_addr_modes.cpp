@@ -88,8 +88,8 @@ int main() {
             float fdim1 = float(dim1 + height + 0.5) / (float)height;
             float fdim2 = float(dim2 + depth + 0.5) / (float)depth;
 
-            // Extension: read image data from handle
-            float px1 = syclexp::read_image<float>(
+            // Extension: sample image data from handle
+            float px1 = syclexp::sample_image<float>(
                 imgHandle, sycl::float3(fdim0, fdim1, fdim2));
 
             outAcc[sycl::id<3>{dim2, dim1, dim0}] = px1;
