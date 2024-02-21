@@ -81,8 +81,8 @@ implementation supports.
 
 === Accessing instances of special SYCL classes
 
-The `sycl::ext::oneapi::this_kernel` namespace contains functionality related
-to the currently executing kernel.
+The `sycl::ext::oneapi::this_work_item` namespace contains functionality
+related to the currently executing kernel.
 
 It is the user's responsibility to ensure that these functions are called
 in a manner that is compatible with the kernel's launch parameters, as detailed
@@ -91,10 +91,7 @@ kernel results in undefined behavior.
 
 [source,c++]
 ----
-namespace sycl {
-namespace ext {
-namespace oneapi {
-namespace this_kernel {
+namespace sycl::ext::oneapi::this_work_item {
 
 template <int Dimensions>
 nd_item<Dimensions> get_nd_item();
@@ -104,9 +101,6 @@ group<Dimensions> get_work_group();
 
 sub_group get_sub_group();
 
-}
-}
-}
 }
 ----
 
@@ -206,20 +200,20 @@ is removed in a future version of the SYCL specification. _{endnote}_]
 template <int Dimensions>
 nd_item<Dimensions> get_nd_item();
 ____
-_Effects_: Equivalent to `return this_kernel::get_nd_item()`.
+_Effects_: Equivalent to `return this_work_item::get_nd_item()`.
 
 [source,c++]
 ----
 template <int Dimensions>
 group<Dimensions> get_group();
 ____
-_Effects_: Equivalent to `return this_kernel::get_work_group()`.
+_Effects_: Equivalent to `return this_work_item::get_work_group()`.
 
 [source,c++]
 ----
 sub_group get_sub_group();
 ____
-_Effects_: Equivalent to `return this_kernel::get_sub_group()`.
+_Effects_: Equivalent to `return this_work_item::get_sub_group()`.
 
 
 == Issues
