@@ -143,6 +143,84 @@ _Preconditions_: The currently executing kernel must have been launched with a
 _Returns_: A `sycl::sub_group` instance representing the sub-group to which the
 current work-item belongs.
 
+=== Deprecated functionality
+
+The functionality in this section was previously part of an experimental
+version of this extension, but is now deprecated.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <int Dimensions>
+id<Dimensions> this_id();
+
+template <int Dimensions>
+item<Dimensions> this_item();
+
+template <int Dimensions>
+nd_item<Dimensions> this_nd_item();
+
+template <int Dimensions>
+group this_group();
+
+sub_group this_sub_group();
+
+}
+----
+
+[source,c++]
+----
+template <int Dimensions>
+id<Dimensions> this_id();
+----
+_Preconditions_: `Dimensions` must match the dimensionality of the currently
+executing kernel. The currently executing kernel must have been launched with a
+`sycl::range` or `sycl::nd_range` argument.
+
+_Returns_: A `sycl::id` instance representing the current work-item in the
+global iteration space.
+
+[source,c++]
+----
+template <int Dimensions>
+item<Dimensions, false> get_item();
+----
+_Preconditions_: `Dimensions` must match the dimensionality of the currently
+executing kernel. The currently executing kernel must have been launched with a
+`sycl::range` or `sycl::nd_range` argument.
+
+_Returns_: A `sycl::item` instance representing the current work-item in the
+global iteration space.
+
+NOTE: The `offset` parameter to `parallel_for` is deprecated in SYCL 2020, as
+is the ability of an `item` to carry an offset. This extension returns an
+`item` where the `WithOffset` template parameter is set to `false` to prevent
+usage of the new queries in conjunction with deprecated functionality. The
+return type of `get_item()` is expected to change when the `offset` parameter
+is removed in a future version of the SYCL specification.
+
+[source,c++]
+----
+template <int Dimensions>
+nd_item<Dimensions> get_nd_item();
+____
+_Effects_: Equivalent to `return this_kernel::get_nd_item()`.
+
+[source,c++]
+----
+template <int Dimensions>
+group<Dimensions> get_group();
+____
+_Effects_: Equivalent to `return this_kernel::get_work_group()`.
+
+[source,c++]
+----
+sub_group get_sub_group();
+____
+_Effects_: Equivalent to `return this_kernel::get_sub_group()`.
+
+
 == Issues
 
 . Can undefined behavior be avoided or detected?
