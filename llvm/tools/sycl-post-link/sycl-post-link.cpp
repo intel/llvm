@@ -313,9 +313,7 @@ std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
 }
 
 bool isModuleUsingAsan(const Module &M) {
-  return llvm::any_of(M.functions(), [](const Function &F) {
-    return F.getName().starts_with("__asan_");
-  });
+  return nullptr != M.getNamedGlobal("__DeviceSanitizerReportMem");
 }
 
 // Gets reqd_work_group_size information for function Func.
