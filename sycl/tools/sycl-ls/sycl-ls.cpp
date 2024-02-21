@@ -114,7 +114,8 @@ static void printSelectorChoice(const device_selector &Selector,
 }
 
 static int printUsageAndExit() {
-  std::cout << "Usage: sycl-ls [--verbose] [--ignore-device-selectors]" << std::endl;
+  std::cout << "Usage: sycl-ls [--verbose] [--ignore-device-selectors]"
+            << std::endl;
   std::cout << "This program lists all devices and backends discovered by SYCL."
             << std::endl;
   std::cout << "\n Options:" << std::endl;
@@ -142,9 +143,10 @@ static void printWarningIfFiltersUsed(bool &SuppressNumberPrinting) {
       std::cerr << "INFO: Output filtered by SYCL_DEVICE_FILTER "
                 << "environment variable, which is set to " << filter << "."
                 << std::endl;
-      std::cerr << "To see device ids, use the --ignore-device-selectors CLI option."
-                << std::endl
-                << std::endl;
+      std::cerr
+          << "To see device ids, use the --ignore-device-selectors CLI option."
+          << std::endl
+          << std::endl;
       SuppressNumberPrinting = true;
     } else
       FilterEnvVars.push_back("SYCL_DEVICE_FILTER");
@@ -157,9 +159,10 @@ static void printWarningIfFiltersUsed(bool &SuppressNumberPrinting) {
       std::cerr << "INFO: Output filtered by ONEAPI_DEVICE_SELECTOR "
                 << "environment variable, which is set to " << ods_targets
                 << "." << std::endl;
-      std::cerr << "To see device ids, use the --ignore-device-selectors CLI option."
-                << std::endl
-                << std::endl;
+      std::cerr
+          << "To see device ids, use the --ignore-device-selectors CLI option."
+          << std::endl
+          << std::endl;
       SuppressNumberPrinting = true;
     } else
       FilterEnvVars.push_back("ONEAPI_DEVICE_SELECTOR");
@@ -171,9 +174,10 @@ static void printWarningIfFiltersUsed(bool &SuppressNumberPrinting) {
       std::cerr << "INFO: Output filtered by SYCL_DEVICE_ALLOWLIST "
                 << "environment variable, which is set to " << sycl_dev_allow
                 << "." << std::endl;
-      std::cerr << "To see device ids, use the --ignore-device-selectors CLI option."
-                << std::endl
-                << std::endl;
+      std::cerr
+          << "To see device ids, use the --ignore-device-selectors CLI option."
+          << std::endl
+          << std::endl;
       SuppressNumberPrinting = true;
     } else
       FilterEnvVars.push_back("SYCL_DEVICE_ALLOWLIST");
