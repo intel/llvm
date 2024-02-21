@@ -5,6 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===------------------------------------------------------------------===//
+// Fails in post-commit, temporarily disabled.
+// https://github.com/intel/llvm/issues/12769
+// XFAIL: *
 // REQUIRES: gpu-intel-pvc || gpu-intel-dg2
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
