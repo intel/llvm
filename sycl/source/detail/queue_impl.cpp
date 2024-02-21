@@ -510,7 +510,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 
   std::vector<EventImplPtr> StreamsServiceEvents;
   {
-    std::lock_guard<std::mutex> Lock(MMutex);
+    std::lock_guard<std::mutex> Lock(MStreamsServiceEventsMutex);
     StreamsServiceEvents.swap(MStreamsServiceEvents);
   }
   for (const EventImplPtr &Event : StreamsServiceEvents)

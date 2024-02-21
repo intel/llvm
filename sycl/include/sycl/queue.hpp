@@ -2983,11 +2983,8 @@ private:
 } // namespace sycl
 
 namespace std {
-template <> struct hash<sycl::queue> {
-  size_t operator()(const sycl::queue &Q) const {
-    return std::hash<std::shared_ptr<sycl::detail::queue_impl>>()(
-        sycl::detail::getSyclObjImpl(Q));
-  }
+template <> struct __SYCL_EXPORT hash<sycl::queue> {
+  size_t operator()(const sycl::queue &Q) const;
 };
 } // namespace std
 
