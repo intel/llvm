@@ -1053,9 +1053,10 @@ void update(node& node);
 ----
 
 | Updates an executable graph node that corresponds to `node`. `node` must be a
-kernel execution node. Argument values which have associated dynamic parameters
-will be updated, and the ND-range of the node will be updated inside the
-executable graph to reflect the current values in `node`.
+kernel execution node. Kernel arguments and the ND-range of the node will be
+updated inside the executable graph to reflect the current values in `node`.
+
+Updating these values will not change the structure of the graph.
 
 Preconditions:
 
@@ -1064,7 +1065,8 @@ Preconditions:
 
 Parameters:
 
-* `node` - The node in this graph which will be updated.
+* `node` - The node with which the equivalent node in this graph will be
+updated.
 
 Exceptions:
 
@@ -1081,9 +1083,9 @@ void update(const std::vector<node>& nodes);
 ----
 
 | Updates all executable graph nodes that corresponds to the nodes contained in
-`nodes`. All nodes must be kernel nodes. Argument values which have associated
-dynamic parameters will be updated, and the ND-range of the nodes will be
-updated inside the executable graph to reflect the current values in each node.
+`nodes`. All nodes must be kernel nodes. Kernel arguments and the ND-range of
+each node will be updated inside the executable graph to reflect the current
+values in each node in `nodes`.
 
 Preconditions:
 
@@ -1092,7 +1094,8 @@ Preconditions:
 
 Parameters:
 
-* `nodes` - The nodes in this graph which will be updated.
+* `nodes` - The nodes with which the equivalent nodes in this graph will be
+updated.
 
 Exceptions:
 
