@@ -600,9 +600,7 @@ bool testLACC(queue Q, uint32_t MaskStride,
          barrier();
          if (LocalID == 0) {
            for (int I = 0; I < Threads * N; I++) {
-             simd<uint32_t, 1> Offsets(I * sizeof(T), sizeof(T));
-             simd<T, 1> OutVec = gather<T>(LocalAcc, Offsets);
-             OutVec.copy_to(Out + GlobalElemOffset + I);
+             Out[GlobalElemOffset + I] = LocalAcc[I];
            }
          }
        });
