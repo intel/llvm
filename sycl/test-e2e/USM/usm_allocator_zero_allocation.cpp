@@ -10,8 +10,7 @@ template <usm::alloc alloc_kind> void test(queue &q) {
   int *p = ua.allocate(0);
 
   assert(!p && "Our implementation of usm_allocator is expected to return a "
-               "null pointer when allocation "
-               "size is zero.");
+               "null pointer when allocation size is zero.");
 
   ua.deallocate(p, 0);
 }
@@ -20,10 +19,10 @@ int main() {
   queue q;
   auto dev = q.get_device();
 
-  if (dev.get_info<info::device::usm_host_allocations>()) {
+  if (dev.has(aspect::usm_host_allocations)) {
     test<usm::alloc::host>(q);
   }
-  if (dev.get_info<info::device::usm_shared_allocations>()) {
+  if (dev.has(aspect::usm_shared_allocations)) {
     test<usm::alloc::shared>(q);
   }
 
