@@ -87,6 +87,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/LowerWGScope.h"
+#include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
@@ -197,7 +198,7 @@ enum class MemorySemantics : unsigned {
 };
 
 Instruction *genWGBarrier(Instruction &Before, const Triple &TT);
-Value *genPseudoLocalID(Instruction &Before, const Triple &TT);
+Value *genPseudoLocalID(Instruction &Before, const Triple &TT, bool IsNativeCPU);
 GlobalVariable *createWGLocalVariable(Module &M, Type *T, const Twine &Name);
 } // namespace spirv
 
@@ -275,7 +276,8 @@ static void guardBlockWithIsLeaderCheck(BasicBlock *IfBB, BasicBlock *TrueBB,
                                         BasicBlock *MergeBB,
                                         const DebugLoc &DbgLoc,
                                         const Triple &TT) {
-  Value *LinearLocalID = spirv::genPseudoLocalID(*IfBB->getTerminator(), TT);
+  const bool IsNativeCPU = sycl::utils::isSYCLNativeCPU(IfBB->getModule());
+  Value *LinearLocalID = spirv::genPseudoLocalID(*IfBB->getTerminator(), TT, IsNativeCPU);
   auto *Ty = LinearLocalID->getType();
   Value *Zero = Constant::getNullValue(Ty);
   IRBuilder<> Builder(IfBB->getContext());
@@ -896,9 +898,9 @@ GlobalVariable *spirv::createWGLocalVariable(Module &M, Type *T,
 //      variables
 
 // Return a value equals to 0 if and only if the local linear id is 0.
-Value *spirv::genPseudoLocalID(Instruction &Before, const Triple &TT) {
+Value *spirv::genPseudoLocalID(Instruction &Before, const Triple &TT, bool IsNativeCPU) {
   Module &M = *Before.getModule();
-  if (TT.isNVPTX() || TT.isAMDGCN()) {
+  if (TT.isNVPTX() || TT.isAMDGCN() || IsNativeCPU) {
     LLVMContext &Ctx = Before.getContext();
     Type *RetTy = getSizeTTy(M);
 
