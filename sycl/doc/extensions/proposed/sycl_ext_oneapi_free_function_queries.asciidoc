@@ -179,7 +179,7 @@ global iteration space.
 [source,c++]
 ----
 template <int Dimensions>
-item<Dimensions, false> get_item();
+item<Dimensions, false> this_item();
 ----
 _Preconditions_: `Dimensions` must match the dimensionality of the currently
 executing kernel. The currently executing kernel must have been launched with a
@@ -198,21 +198,21 @@ is removed in a future version of the SYCL specification. _{endnote}_]
 [source,c++]
 ----
 template <int Dimensions>
-nd_item<Dimensions> get_nd_item();
-____
+nd_item<Dimensions> this_nd_item();
+----
 _Effects_: Equivalent to `return this_work_item::get_nd_item()`.
 
 [source,c++]
 ----
 template <int Dimensions>
-group<Dimensions> get_group();
-____
+group<Dimensions> this_group();
+----
 _Effects_: Equivalent to `return this_work_item::get_work_group()`.
 
 [source,c++]
 ----
-sub_group get_sub_group();
-____
+sub_group this_sub_group();
+----
 _Effects_: Equivalent to `return this_work_item::get_sub_group()`.
 
 
