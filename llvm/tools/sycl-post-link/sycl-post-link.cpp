@@ -910,6 +910,9 @@ static bool instrumentDeviceGlobal(Module &M) {
   StructType *StructTy = StructType::get(IntptrTy, IntptrTy, IntptrTy);
 
   for (auto &G : M.globals()) {
+    // Non image scope device globals are implemented by device USM, and the
+    // out-of-bounds check for them will be done by sanitizer USM part. So we
+    // exclude them here.
     if (isDeviceGlobalVariable(G) && hasDeviceImageScopeProperty(G)) {
       Type *Ty = G.getValueType();
       const uint64_t SizeInBytes = DL.getTypeAllocSize(Ty);
