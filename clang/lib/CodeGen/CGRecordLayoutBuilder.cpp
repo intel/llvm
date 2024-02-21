@@ -657,10 +657,12 @@ void CGRecordLowering::computeVolatileBitfields() {
 }
 
 void CGRecordLowering::accumulateVPtrs() {
+  unsigned VTableAS =
+      this->Types.getContext().getTargetAddressSpace(LangAS::Default);
   if (Layout.hasOwnVFPtr())
     Members.push_back(
         MemberInfo(CharUnits::Zero(), MemberInfo::VFPtr,
-                   llvm::PointerType::getUnqual(Types.getLLVMContext())));
+                   llvm::PointerType::get(Types.getLLVMContext(), VTableAS)));
   if (Layout.hasOwnVBPtr())
     Members.push_back(
         MemberInfo(Layout.getVBPtrOffset(), MemberInfo::VBPtr,

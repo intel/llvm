@@ -2569,10 +2569,13 @@ void CodeGenFunction::InitializeVTablePointer(const VPtr &Vptr) {
   // support optimization.
   unsigned GlobalsAS = CGM.getDataLayout().getDefaultGlobalsAddressSpace();
   unsigned ProgAS = CGM.getDataLayout().getProgramAddressSpace();
+  unsigned ThisAddrSpace =
+      VTableField.getPointer()->getType()->getPointerAddressSpace();
+
   llvm::Type *VTablePtrTy =
       llvm::FunctionType::get(CGM.Int32Ty, /*isVarArg=*/true)
           ->getPointerTo(ProgAS)
-          ->getPointerTo(GlobalsAS);
+          ->getPointerTo(GlobalsAS ? GlobalsAS : ThisAddrSpace);
   llvm::Type *PtrTy = llvm::PointerType::get(CGM.getLLVMContext(), GlobalsAS);
   // vtable field is derived from `this` pointer, therefore they should be in
   // the same addr space. Note that this might not be LLVM address space 0.
@@ -2671,6 +2674,9 @@ void CodeGenFunction::InitializeVTablePointers(const CXXRecordDecl *RD) {
 
 llvm::Value *CodeGenFunction::GetVTablePtr(Address This, llvm::Type *VTableTy,
                                            const CXXRecordDecl *RD) {
+  unsigned AS = CGM.getContext().getTargetAddressSpace(LangAS::Default);
+  if (CGM.getTriple().isSPIR())
+    VTableTy = llvm::PointerType::get(getLLVMContext(), AS);
   Address VTablePtrSrc = This.withElementType(VTableTy);
   llvm::Instruction *VTable = Builder.CreateLoad(VTablePtrSrc, "vtable");
   TBAAAccessInfo TBAAInfo = CGM.getTBAAVTablePtrAccessInfo(VTableTy);
