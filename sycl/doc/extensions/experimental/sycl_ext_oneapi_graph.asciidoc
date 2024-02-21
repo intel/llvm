@@ -489,16 +489,6 @@ edges.
 
 The `node` class provides the {crs}[common reference semantics].
 
-[source,c++]
-----
-namespace sycl::ext::oneapi::experimental {
-  class node {
-    template <int Dimensions>
-    void update_nd_range(nd_range<Dimensions> executionRange);
-  };
-}
-----
-
 Table {counter: tableNumber}. Member functions of the `node` class.
 [cols="2a,a"]
 |===
