@@ -9,6 +9,7 @@
 :encoding: utf-8
 :lang: en
 :dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
 
 :blank: pass:[ +]
 
@@ -48,12 +49,12 @@ The extension allows developers to access `sycl::nd_item`, `sycl::group` and
 `sycl::sub_group` instances globally, without having to explicitly pass them as
 arguments to each function used on the device.
 
-NOTE: Passing such instances as arguments can result in a clearer interface
+[_Note:_ Passing such instances as arguments can result in a clearer interface
 that is less error-prone to use. For example, if a function accepts a
 `sycl::group`, the caller must assume that function may call a
 `sycl::group_barrier` and ensure that associated control flow requirements are
 satisfied. It is recommended that this extension is used only when modifying
-existing interfaces is not feasible.
+existing interfaces is not feasible. _{endnote}_]
 
 
 == Specification
@@ -193,12 +194,12 @@ executing kernel. The currently executing kernel must have been launched with a
 _Returns_: A `sycl::item` instance representing the current work-item in the
 global iteration space.
 
-NOTE: The `offset` parameter to `parallel_for` is deprecated in SYCL 2020, as
+[_Note:_ The `offset` parameter to `parallel_for` is deprecated in SYCL 2020, as
 is the ability of an `item` to carry an offset. This extension returns an
 `item` where the `WithOffset` template parameter is set to `false` to prevent
 usage of the new queries in conjunction with deprecated functionality. The
 return type of `get_item()` is expected to change when the `offset` parameter
-is removed in a future version of the SYCL specification.
+is removed in a future version of the SYCL specification. _{endnote}_]
 
 [source,c++]
 ----
