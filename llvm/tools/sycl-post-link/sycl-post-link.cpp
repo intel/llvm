@@ -887,9 +887,6 @@ static bool removeDeviceGlobalFromCompilerUsed(Module &M) {
 // instrumented by sanitizer pass. And record their infomation like size, red
 // zone size, beginning address.
 static bool instrumentDeviceGlobal(Module &M) {
-  if (!M.getNamedGlobal("__DeviceSanitizerReportMem"))
-    return false;
-
   auto &DL = M.getDataLayout();
   IRBuilder<> IRB(M.getContext());
   SmallVector<GlobalVariable *, 8> GlobalsToRemove;
@@ -1090,7 +1087,8 @@ processInputModule(std::unique_ptr<Module> M) {
 
   // Instrument each image scope device globals if the module has been
   // instrumented by sanitizer pass.
-  Modified |= instrumentDeviceGlobal(*M.get());
+  if (isModuleUsingAsan(*M))
+    Modified |= instrumentDeviceGlobal(*M.get());
 
   // Do invoke_simd processing before splitting because this:
   // - saves processing time (the pass is run once, even though on larger IR)
