@@ -69,7 +69,7 @@ template <typename Group> inline auto get_local_linear_range(Group g) {
 
 // ---- get_local_linear_id
 template <typename Group> inline auto get_local_linear_id(Group g) {
-  return g.get_local_id();
+  return g.get_local_linear_id();
 }
 
 #ifdef __SYCL_DEVICE_ONLY__
