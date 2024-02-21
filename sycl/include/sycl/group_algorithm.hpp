@@ -69,20 +69,16 @@ template <typename Group> inline auto get_local_linear_range(Group g) {
 
 // ---- get_local_linear_id
 template <typename Group> inline auto get_local_linear_id(Group g) {
+#ifdef __SYCL_DEVICE_ONLY__
+  if constexpr (std::is_same_v<Group, group<1>> ||
+                std::is_same_v<Group, group<2>> ||
+                std::is_same_v<Group, group<3>>) {
+    auto it = sycl::detail::Builder::getNDItem<Group::dimensions>();
+    return it.get_local_linear_id();
+  }
+#endif // __SYCL_DEVICE_ONLY__
   return g.get_local_linear_id();
 }
-
-#ifdef __SYCL_DEVICE_ONLY__
-#define __SYCL_GROUP_GET_LOCAL_LINEAR_ID(D)                                    \
-  template <> inline auto get_local_linear_id<group<D>>(group<D>) {            \
-    nd_item<D> it = sycl::detail::Builder::getNDItem<D>();                     \
-    return it.get_local_linear_id();                                           \
-  }
-__SYCL_GROUP_GET_LOCAL_LINEAR_ID(1);
-__SYCL_GROUP_GET_LOCAL_LINEAR_ID(2);
-__SYCL_GROUP_GET_LOCAL_LINEAR_ID(3);
-#undef __SYCL_GROUP_GET_LOCAL_LINEAR_ID
-#endif // __SYCL_DEVICE_ONLY__
 
 // ---- is_native_op
 template <typename T>
