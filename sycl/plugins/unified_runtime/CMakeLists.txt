@@ -58,6 +58,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/AllanZyne/unified-runtime.git")
   # commit d469cf92d87ec69d612a7594c362e1ae4a85e09d
+  # Merge: 9e13c014 4814e717
   # Author: Maosu Zhao <maosu.zhao@intel.com>
   # Date:   Thu Feb 22 15:06:24 2024 +0800
   #

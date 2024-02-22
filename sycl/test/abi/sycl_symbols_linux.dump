@@ -4792,5 +4792,6 @@ _ZNK4sycl3_V19exception4codeEv
 _ZNK4sycl3_V19exception4whatEv
 _ZNK4sycl3_V19exception8categoryEv
 _ZNK4sycl3_V19kernel_id8get_nameEv
+_ZNKSt4hashIN4sycl3_V15queueEEclERKS2_
 __sycl_register_lib
 __sycl_unregister_lib
