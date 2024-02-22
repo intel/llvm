@@ -99,42 +99,6 @@ void merge_sort(Tp *first, uint32_t n, uint8_t *scratch, Compare comp) {
   }
 }
 
-/*
-void merge_sort(int32_t *first, uint32_t n, uint8_t *scratch) {
-  const size_t idx = __get_wg_local_linear_id();
-  const size_t wg_size = __get_wg_local_range();
-  const size_t chunk_size = (n - 1) / wg_size + 1;
-
-  const size_t bubble_beg = (idx * chunk_size) >= n ? n : idx * chunk_size;
-  const size_t bubble_end =
-      ((idx + 1) * chunk_size) > n ? n : (idx + 1) * chunk_size;
-  bubble_sort(first, bubble_beg, bubble_end, std::greater<int32_t>{});
-  group_barrier();
-  int32_t *scratch1 = reinterpret_cast<int32_t *>(scratch);
-  bool data_in_scratch = false;
-  // We have wg_size chunks here, each chunk has chunk_size elements which
-  // are sorted. The last chunck's element number may be smaller.
-  size_t chunks_to_merge = (n - 1) / chunk_size + 1;
-  size_t merge_size = chunk_size;
-  while (chunks_to_merge > 1) {
-    // workitem 0 will merge chunk 0, 1.
-    // workitem 1 will merge chunk 2, 3.
-    // workitem idx will merge chunk 2 * idx and 2 * idx + 1
-    int32_t *data_in = data_in_scratch ? scratch1 : first;
-    int32_t *data_out = data_in_scratch ? first : scratch1;
-    merge(data_in, data_out, idx, merge_size, chunks_to_merge, n, std::less<int32_t>{});
-    group_barrier();
-    chunks_to_merge = (chunks_to_merge - 1) / 2 + 1;
-    merge_size <<= 1;
-    data_in_scratch = !data_in_scratch;
-  }
-  if (data_in_scratch) {
-    for (size_t i = idx * chunk_size; i < bubble_end; ++i)
-      first[i] = scratch1[i];
-    group_barrier();
-  }
-}
-*/
 #endif
 
 #endif
