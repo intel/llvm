@@ -223,7 +223,11 @@ public:
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
   typename detail::is_device_info_desc<Param>::return_type get_info() const {
-    __SYCL_GET_INFO_BODY
+    auto Info = get_info_impl<Param>();
+    return _get_info<
+        typename detail::ABINeutralT<
+            typename detail::is_device_info_desc<Param>::return_type>::type,
+        typename detail::is_device_info_desc<Param>::return_type, Param>(Info);
   }
 #else
   template <typename Param>

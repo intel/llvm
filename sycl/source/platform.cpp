@@ -61,7 +61,12 @@ template <typename Param>
 typename detail::ABINeutralT<
     typename detail::is_platform_info_desc<Param>::return_type>::type
 platform::get_info_impl() const {
-  __SYCL_GET_INFO_IMPL_BODY
+  auto Info = impl->template get_info<Param>();
+  return _get_info_impl<
+      typename detail::is_platform_info_desc<Param>::return_type,
+      typename detail::ABINeutralT<
+          typename detail::is_platform_info_desc<Param>::return_type>::type,
+      Param>(Info);
 }
 #else
 template <typename Param>

@@ -62,54 +62,36 @@ namespace ext::oneapi {
 class filter_selector;
 } // namespace ext::oneapi
 
-#define __SYCL_GET_INFO_BODY                                                   \
-  auto Info = get_info_impl<Param>();                                          \
-  if constexpr (std::is_same_v<decltype(Info), detail::string>) {              \
-    return Info.c_str();                                                       \
-  } else if constexpr (std::is_same_v<decltype(Info),                          \
-                                      std::vector<detail::string>>) {          \
-    std::vector<std::string> Res;                                              \
-    Res.reserve(Info.size());                                                  \
-    for (detail::string & Str : Info) {                                        \
-      Res.push_back(Str.c_str());                                              \
-    }                                                                          \
-    return Res;                                                                \
-  } else {                                                                     \
-    return Info;                                                               \
-  }
-
-#define __SYCL_GET_INFO_IMPL_BODY                                              \
-  auto Info = impl->template get_info<Param>();                                \
-  if constexpr (std::is_same_v<decltype(Info), std::string>) {                 \
-    return detail::string{Info};                                               \
-  } else if constexpr (std::is_same_v<decltype(Info),                          \
-                                      std::vector<std::string>>) {             \
-    std::vector<detail::string> Res;                                           \
-    Res.reserve(Info.size());                                                  \
-    for (std::string & Str : Info) {                                           \
-      Res.push_back(detail::string{Str});                                      \
-    }                                                                          \
-    return Res;                                                                \
-  } else {                                                                     \
-    return Info;                                                               \
-  }
-
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-template <typename Class, Class* C, typename Param>
-Param get_info() {
-  auto Info = C->template get_info_impl<Param>();                                          
-  if constexpr (std::is_same_v<decltype(Info), detail::string>) {              
-    return Info.c_str();                                                       
-  } else if constexpr (std::is_same_v<decltype(Info),                          
-                                      std::vector<detail::string>>) {          
-    std::vector<std::string> Res;                                              
-    Res.reserve(Info.size());                                                  
-    for (detail::string & Str : Info) {                                        
-      Res.push_back(Str.c_str());                                              
-    }                                                                          
-    return Res;                                                                
-  } else {                                                                     
-    return Info;                                                               
+template <typename ParamT, typename ReturnT, typename PropT>
+ReturnT _get_info_impl(ParamT &Info) {
+  if constexpr (std::is_same_v<ParamT, std::string>) {
+    return detail::string{Info};
+  } else if constexpr (std::is_same_v<ParamT, std::vector<std::string>>) {
+    std::vector<detail::string> Res;
+    Res.reserve(Info.size());
+    for (std::string &Str : Info) {
+      Res.push_back(detail::string{Str});
+    }
+    return Res;
+  } else {
+    return Info;
+  }
+}
+
+template <typename ParamT, typename ReturnT, typename PropT>
+ReturnT _get_info(ParamT &Info) {
+  if constexpr (std::is_same_v<ParamT, detail::string>) {
+    return Info.c_str();
+  } else if constexpr (std::is_same_v<ParamT, std::vector<detail::string>>) {
+    std::vector<std::string> Res;
+    Res.reserve(Info.size());
+    for (detail::string &Str : Info) {
+      Res.push_back(Str.c_str());
+    }
+    return Res;
+  } else {
+    return Info;
   }
 }
 #endif
@@ -204,7 +186,12 @@ public:
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
   typename detail::is_platform_info_desc<Param>::return_type get_info() const {
-    return get_info<platform, this, typename detail::is_platform_info_desc<Param>::return_type>();
+    auto Info = get_info_impl<Param>();
+    return _get_info<
+        typename detail::ABINeutralT<
+            typename detail::is_platform_info_desc<Param>::return_type>::type,
+        typename detail::is_platform_info_desc<Param>::return_type, Param>(
+        Info);
   }
 #else
   template <typename Param>
