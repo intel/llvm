@@ -94,8 +94,6 @@ attributes #5 = { nounwind }
 
 ; Make sure the specialization constants occur in the order with the padded
 ; struct first followed by the boolean specialization constant.
-; Most important information from the corresponding encoded data is the size of
-; the specialization constants, i.e. 8 and 1 bytes respectively.
 ; CHECK: [SYCL/specialization constants]
 ; CHECK-NEXT: 9d329ad59055e972____ZL12StructSpecId=2
 ; CHECK-NEXT: 9d329ad59055e972____ZL10BoolSpecId=2
@@ -103,17 +101,6 @@ attributes #5 = { nounwind }
 ; CHECK-LOG:[[UNIQUE_PREFIX:[a-z0-9]+]]____ZL12StructSpecId={0, 0, 8}
 ; CHECK-LOG:[[UNIQUE_PREFIX]]____ZL10BoolSpecId={1, 0, 1}
 
-; Ensure that the default values are correct.
-; IBAAAAAAAAAFAAAAjBAAAEA is decoded to "0x48 0x0 0x0 0x0 0x0 0x0 0x0 0x0 0x14
-; 0x0 0x0 0x0 0x63 0x0 0x0 0x0 0x1" which consists of:
-;  1. 8 bytes denoting the bit-size of the byte array, here 72 bits or 9 bytes.
-;  2. 4 bytes with the default value of the 32-bit integer member of
-;     %struct.TestStruct. Its value being 20.
-;  3. 1 byte with the default value of the char member of %struct.TestStruct.
-;     Its value being 'c'.
-;  4. 3 bytes of padding for %struct.TestStruct.
-;  5. 1 byte with the default value of the boolean specialization constant. Its
-;     value being true.
 ; CHECK: [SYCL/specialization constants default values]
 ; CHECK-NEXT: all=2
 ; CHECK-LOG: sycl.specialization-constants-default-values
