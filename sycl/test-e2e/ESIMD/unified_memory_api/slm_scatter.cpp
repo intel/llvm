@@ -5,12 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===------------------------------------------------------------------===//
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -D__ESIMD_GATHER_SCATTER_LLVM_IR -o %t.out
 // RUN: %{run} %t.out
 
-// The test verifies esimd::slm_scatter() functions accepting
-// optional compile-time esimd::properties.
-// The scatter() calls in this test do not use DG2/PVC features.
+// The test verifies esimd::slm_scatter() functions accepting  optional
+// compile-time esimd::properties. The slm_scatter() calls in this test do not
+// use VS > 1 (number of stores per offset) to not impose using PVC features.
 
 #include "Inputs/scatter.hpp"
 
@@ -27,6 +27,9 @@ int main() {
     Passed &= testSLM<sycl::half, TestFeatures>(Q);
   Passed &= testSLM<uint32_t, TestFeatures>(Q);
   Passed &= testSLM<float, TestFeatures>(Q);
+  Passed &= testSLM<int64_t, TestFeatures>(Q);
+  if (Q.get_device().has(sycl::aspect::fp64))
+    Passed &= testSLM<double, TestFeatures>(Q);
 
   std::cout << (Passed ? "Passed\n" : "FAILED\n");
   return Passed ? 0 : 1;

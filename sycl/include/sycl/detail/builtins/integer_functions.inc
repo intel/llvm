@@ -12,6 +12,19 @@
 
 namespace sycl {
 inline namespace _V1 {
+namespace detail {
+template <typename T>
+struct integer_elem_type
+    : std::bool_constant<
+          (is_vec_or_swizzle_v<T> &&
+           check_type_in_v<get_elem_type_t<T>, FIXED_WIDTH_INTEGER_TYPES>) ||
+          (!is_vec_or_swizzle_v<T> &&
+           check_type_in_v<get_elem_type_t<T>, INTEGER_TYPES>)> {};
+template <typename T>
+struct suint32_elem_type
+    : std::bool_constant<
+          check_type_in_v<get_elem_type_t<T>, int32_t, uint32_t>> {};
+} // namespace detail
 BUILTIN_CREATE_ENABLER(builtin_enable_integer, default_ret_type,
                        integer_elem_type, any_shape, same_elem_type)
 BUILTIN_CREATE_ENABLER(builtin_enable_integer_non_scalar, default_ret_type,

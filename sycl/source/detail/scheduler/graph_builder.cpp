@@ -963,10 +963,11 @@ Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
       for (auto Ev = Events.begin(); Ev != Events.end();) {
         auto *EvDepCmd = static_cast<Command *>((*Ev)->getCommand());
         if (!EvDepCmd) {
+          ++Ev;
           continue;
         }
-        // Handle event dependencies on any commands part of another active
-        // fusion.
+        // Event dependencies on commands part of another active fusion are
+        // handled by cancelling fusion in that other queue.
         if (EvDepCmd->getQueue() != Queue && isPartOfActiveFusion(EvDepCmd)) {
           printFusionWarning(
               "Aborting fusion because of event dependency from a "
