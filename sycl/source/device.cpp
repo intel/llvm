@@ -139,11 +139,8 @@ typename detail::ABINeutralT<
     typename detail::is_device_info_desc<Param>::return_type>::type
 device::get_info_impl() const {
   auto Info = impl->template get_info<Param>();
-  return _get_info_impl<
-      typename detail::is_device_info_desc<Param>::return_type,
-      typename detail::ABINeutralT<
-          typename detail::is_device_info_desc<Param>::return_type>::type,
-      Param>(Info);
+  return convert_to_abi_neutral<
+      typename detail::is_device_info_desc<Param>::return_type, Param>(Info);
 }
 #else
 template <typename Param>

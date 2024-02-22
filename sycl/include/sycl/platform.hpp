@@ -63,8 +63,9 @@ class filter_selector;
 } // namespace ext::oneapi
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-template <typename ParamT, typename ReturnT, typename PropT>
-ReturnT _get_info_impl(ParamT &Info) {
+template <typename ParamT, typename PropT>
+typename detail::ABINeutralT<ParamT>::type
+convert_to_abi_neutral(ParamT &Info) {
   if constexpr (std::is_same_v<ParamT, std::string>) {
     return detail::string{Info};
   } else if constexpr (std::is_same_v<ParamT, std::vector<std::string>>) {
@@ -79,11 +80,15 @@ ReturnT _get_info_impl(ParamT &Info) {
   }
 }
 
-template <typename ParamT, typename ReturnT, typename PropT>
-ReturnT _get_info(ParamT &Info) {
-  if constexpr (std::is_same_v<ParamT, detail::string>) {
+template <typename ReturnT, typename PropT>
+ReturnT
+convert_from_abi_neutral(typename detail::ABINeutralT<ReturnT>::type &Info) {
+  if constexpr (std::is_same_v<typename detail::ABINeutralT<ReturnT>::type,
+                               detail::string>) {
     return Info.c_str();
-  } else if constexpr (std::is_same_v<ParamT, std::vector<detail::string>>) {
+  } else if constexpr (std::is_same_v<
+                           typename detail::ABINeutralT<ReturnT>::type,
+                           std::vector<detail::string>>) {
     std::vector<std::string> Res;
     Res.reserve(Info.size());
     for (detail::string &Str : Info) {
@@ -187,9 +192,7 @@ public:
   template <typename Param>
   typename detail::is_platform_info_desc<Param>::return_type get_info() const {
     auto Info = get_info_impl<Param>();
-    return _get_info<
-        typename detail::ABINeutralT<
-            typename detail::is_platform_info_desc<Param>::return_type>::type,
+    return convert_from_abi_neutral<
         typename detail::is_platform_info_desc<Param>::return_type, Param>(
         Info);
   }

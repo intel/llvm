@@ -224,9 +224,7 @@ public:
   template <typename Param>
   typename detail::is_device_info_desc<Param>::return_type get_info() const {
     auto Info = get_info_impl<Param>();
-    return _get_info<
-        typename detail::ABINeutralT<
-            typename detail::is_device_info_desc<Param>::return_type>::type,
+    return convert_from_abi_neutral<
         typename detail::is_device_info_desc<Param>::return_type, Param>(Info);
   }
 #else
