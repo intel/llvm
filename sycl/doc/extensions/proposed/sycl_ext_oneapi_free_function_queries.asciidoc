@@ -43,6 +43,17 @@ references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
 
+== Status
+
+This is a proposed update to an existing extension.  Interfaces defined in this
+specification may not be implemented yet or may be in a preliminary state.  The
+specification itself may also change in incompatible ways before it is
+finalized.  *Shipping software products should not rely on APIs defined in this
+specification.*  See
+link:../experimental/sycl_ext_oneapi_free_function_queries.asciidoc[here] for
+the existing extension, which is implemented.
+
+
 == Overview
 
 The extension allows developers to access `sycl::nd_item`, `sycl::group` and
