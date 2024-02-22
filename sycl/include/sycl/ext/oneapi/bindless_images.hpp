@@ -808,7 +808,8 @@ template <typename DataT> constexpr bool is_recognized_standard_type() {
  *
  *  __NVPTX__: Name mangling info
  *             Cuda surfaces require integer coords (by bytes)
- *             Cuda textures require float coords (by element or normalized)
+ *             Cuda textures require float coords (by element or normalized) 
+ *             for sampling, and integer coords (by bytes) for fetching
  *             The name mangling should therefore not interfere with one
  *             another
  */
@@ -823,7 +824,7 @@ DataT fetch_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return __invoke__ImageRead<DataT>(imageHandle.raw_handle, coords);
+    return __invoke__ImageFetch<DataT>(imageHandle.raw_handle, coords);
   } else {
     static_assert(sizeof(HintT) == sizeof(DataT),
                   "When trying to read a user-defined type, HintT must be of "
@@ -831,7 +832,7 @@ DataT fetch_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
     static_assert(detail::is_recognized_standard_type<HintT>(),
                   "HintT must always be a recognized standard type");
     return sycl::bit_cast<DataT>(
-        __invoke__ImageRead<HintT>(imageHandle.raw_handle, coords));
+        __invoke__ImageFetch<HintT>(imageHandle.raw_handle, coords));
   }
 #else
   assert(false); // Bindless images not yet implemented on host
@@ -854,7 +855,8 @@ DataT fetch_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
  *
  *  __NVPTX__: Name mangling info
  *             Cuda surfaces require integer coords (by bytes)
- *             Cuda textures require float coords (by element or normalized)
+ *             Cuda textures require float coords (by element or normalized) 
+ *             for sampling, and integer coords (by bytes) for fetching
  *             The name mangling should therefore not interfere with one
  *             another
  */
@@ -903,10 +905,10 @@ DataT fetch_image(const sampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
-    return __invoke__ImageRead<DataT>(imageHandle.raw_handle, coords);
+    return __invoke__SampledImageFetch<DataT>(imageHandle.raw_handle, coords);
   } else {
     return sycl::bit_cast<DataT>(
-        __invoke__ImageRead<HintT>(imageHandle.raw_handle, coords));
+        __invoke__SampledImageFetch<HintT>(imageHandle.raw_handle, coords));
   }
 #else
   assert(false); // Bindless images not yet implemented on host.
@@ -976,7 +978,8 @@ DataT sample_image(const sampled_image_handle &imageHandle [[maybe_unused]],
  *
  *  __NVPTX__: Name mangling info
  *             Cuda surfaces require integer coords (by bytes)
- *             Cuda textures require float coords (by element or normalized)
+ *             Cuda textures require float coords (by element or normalized) 
+ *             for sampling, and integer coords (by bytes) for fetching
  *             The name mangling should therefore not interfere with one
  *             another
  */
