@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 24078c26ab871572067f520d856f4c65271cb9e5
-  # Merge: 227a5edf 89a66af7
+  # commit b4150ad1512476eb6ea0f2ede3bd29a6e3fd2b9e
+  # Merge: 4814e717 123c00f1
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Feb 19 11:51:49 2024 +0100
-  #     Merge pull request #1299 from rafbiels/rafbiels/fix-cuda-maxreg-check
-  #     [CUDA] Fix MaxRegsPerBlock check in setKernelParams
-  set(UNIFIED_RUNTIME_TAG 24078c26ab871572067f520d856f4c65271cb9e5)
+  # Date:   Thu Feb 22 10:42:39 2024 +0000
+  #     Merge pull request #1366 from nrspruit/fix_multidevice_event_cache
+  #     [L0] Fix the multi device event cache to allocate lists as pointers
+  set(UNIFIED_RUNTIME_TAG b4150ad1512476eb6ea0f2ede3bd29a6e3fd2b9e)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
