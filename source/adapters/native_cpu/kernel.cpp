@@ -28,7 +28,16 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
 
   auto f = reinterpret_cast<nativecpu_ptr_t>(
       const_cast<unsigned char *>(kernelEntry->second));
-  auto kernel = new ur_kernel_handle_t_(pKernelName, *f);
+  ur_kernel_handle_t_ *kernel;
+
+  // Set reqd_work_group_size for kernel if needed
+  const auto &ReqdMap = hProgram->KernelReqdWorkGroupSizeMD;
+  auto ReqdIt = ReqdMap.find(pKernelName);
+  if (ReqdIt != ReqdMap.end()) {
+    kernel = new ur_kernel_handle_t_(hProgram, pKernelName, *f, ReqdIt->second);
+  } else {
+    kernel = new ur_kernel_handle_t_(hProgram, pKernelName, *f);
+  }
 
   *phKernel = kernel;
 
@@ -84,13 +93,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
     //  case UR_KERNEL_INFO_PROGRAM:
     //    return ReturnValue(ur_program_handle_t{ Kernel->Program });
   case UR_KERNEL_INFO_FUNCTION_NAME:
-    if (hKernel->_name) {
-      return ReturnValue(hKernel->_name);
-    }
-    return UR_RESULT_ERROR_INVALID_FUNCTION_NAME;
-    //  case UR_KERNEL_INFO_NUM_ARGS:
-    //    return ReturnValue(uint32_t{ Kernel->ZeKernelProperties->numKernelArgs
-    //    });
+    return ReturnValue(hKernel->_name);
   case UR_KERNEL_INFO_REFERENCE_COUNT:
     return ReturnValue(uint32_t{hKernel->getReferenceCount()});
   case UR_KERNEL_INFO_ATTRIBUTES:
@@ -121,8 +124,16 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     return returnValue(max_threads);
   }
   case UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
-    size_t group_size[3] = {1, 1, 1};
-    return returnValue(group_size, 3);
+    size_t GroupSize[3] = {0, 0, 0};
+    const auto &ReqdWGSizeMDMap = hKernel->hProgram->KernelReqdWorkGroupSizeMD;
+    const auto ReqdWGSizeMD = ReqdWGSizeMDMap.find(hKernel->_name);
+    if (ReqdWGSizeMD != ReqdWGSizeMDMap.end()) {
+      const auto ReqdWGSize = ReqdWGSizeMD->second;
+      GroupSize[0] = std::get<0>(ReqdWGSize);
+      GroupSize[1] = std::get<1>(ReqdWGSize);
+      GroupSize[2] = std::get<2>(ReqdWGSize);
+    }
+    return returnValue(GroupSize, 3);
   }
   case UR_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
     int bytes = 0;

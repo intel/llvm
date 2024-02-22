@@ -12,6 +12,7 @@
 
 #include "common.hpp"
 #include "program.hpp"
+#include <cstdint>
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
@@ -24,6 +25,39 @@ urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
   std::ignore = phProgram;
 
   DIE_NO_IMPLEMENTATION
+}
+
+// TODO: taken from CUDA adapter, move this to a common header?
+static std::pair<std::string, std::string>
+splitMetadataName(const std::string &metadataName) {
+  size_t splitPos = metadataName.rfind('@');
+  if (splitPos == std::string::npos)
+    return std::make_pair(metadataName, std::string{});
+  return std::make_pair(metadataName.substr(0, splitPos),
+                        metadataName.substr(splitPos, metadataName.length()));
+}
+
+static ur_result_t getReqdWGSize(const ur_program_metadata_t &MetadataElement,
+                                 native_cpu::ReqdWGSize_t &res) {
+  size_t MDElemsSize = MetadataElement.size - sizeof(std::uint64_t);
+
+  // Expect between 1 and 3 32-bit integer values.
+  UR_ASSERT(MDElemsSize == sizeof(std::uint32_t) ||
+                MDElemsSize == sizeof(std::uint32_t) * 2 ||
+                MDElemsSize == sizeof(std::uint32_t) * 3,
+            UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE);
+
+  // Get pointer to data, skipping 64-bit size at the start of the data.
+  const char *ValuePtr =
+      reinterpret_cast<const char *>(MetadataElement.value.pData) +
+      sizeof(std::uint64_t);
+  // Read values and pad with 1's for values not present.
+  std::uint32_t ReqdWorkGroupElements[] = {1, 1, 1};
+  std::memcpy(ReqdWorkGroupElements, ValuePtr, MDElemsSize);
+  std::get<0>(res) = ReqdWorkGroupElements[0];
+  std::get<1>(res) = ReqdWorkGroupElements[1];
+  std::get<2>(res) = ReqdWorkGroupElements[2];
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
@@ -40,6 +74,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
 
   auto hProgram = new ur_program_handle_t_(
       hContext, reinterpret_cast<const unsigned char *>(pBinary));
+  if (pProperties != nullptr) {
+    for (uint32_t i = 0; i < pProperties->count; i++) {
+      auto mdNode = pProperties->pMetadatas[i];
+      std::string mdName(mdNode.pName);
+      auto [Prefix, Tag] = splitMetadataName(mdName);
+      if (Tag == __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE) {
+        native_cpu::ReqdWGSize_t reqdWGSize;
+        getReqdWGSize(mdNode, reqdWGSize);
+        hProgram->KernelReqdWorkGroupSizeMD[Prefix] = std::move(reqdWGSize);
+      }
+    }
+  }
 
   const nativecpu_entry *nativecpu_it =
       reinterpret_cast<const nativecpu_entry *>(pBinary);
