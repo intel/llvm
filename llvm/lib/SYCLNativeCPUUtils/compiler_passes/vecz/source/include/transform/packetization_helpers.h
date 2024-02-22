@@ -41,11 +41,11 @@ namespace vecz {
 class TargetInfo;
 struct SimdPacket;
 
-/// @brief Provides the insertion point after the value V. Intended to be used
-/// in IRBuilder constructor. If V has a position in the function, (e.g., an
-/// Instruction), this method will return the next point after that. If V has
-/// no position (e.g., a Constant or an Argument) then this method will return
-/// a suitable insertion point at the beginning of the function.
+/// @brief Determines the insertion point after the value V. If V has a position
+/// in the function, (e.g., an Instruction), this method will return an
+/// IRBuilder set to the next point after that. If V has no position (e.g., a
+/// Constant or an Argument) then this method will return an IRBuilder set to a
+/// suitable insertion point at the beginning of the function.
 ///
 /// @param[in] V Value to insert instructions after, if an llvm::Instruction.
 /// @param[in] F Function to insert instructions into, if V is not an
@@ -53,9 +53,9 @@ struct SimdPacket;
 /// @param[in] IsPhi true if the instructions to insert are phis, false if the
 /// insertion point should be after all phis in the basic block.
 ///
-/// @return Insertion Point.
-llvm::Instruction *buildAfter(llvm::Value *V, llvm::Function &F,
-                              bool IsPhi = false);
+/// @return IRBuilder set to a suitable insertion point.
+llvm::IRBuilder<> buildAfter(llvm::Value *V, llvm::Function &F,
+                             bool IsPhi = false);
 
 /// @brief Utility function for building a shufflevector instruction, absorbing
 /// its operands where possible.
