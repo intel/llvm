@@ -56,8 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/nrspruit/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 123c00f129e19db34c987990f13c336e5bef2db1)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit b4150ad1512476eb6ea0f2ede3bd29a6e3fd2b9e
+  # Merge: 4814e717 123c00f1
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Thu Feb 22 10:42:39 2024 +0000
+  #     Merge pull request #1366 from nrspruit/fix_multidevice_event_cache
+  #     [L0] Fix the multi device event cache to allocate lists as pointers
+  set(UNIFIED_RUNTIME_TAG b4150ad1512476eb6ea0f2ede3bd29a6e3fd2b9e)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
