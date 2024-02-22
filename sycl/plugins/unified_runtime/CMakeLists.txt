@@ -56,13 +56,13 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 3487672ceba0fd3575b5f3f15a832b100dc5fbad
-  # Author: Artur Gainullin <artur.gainullin@intel.com>
-  # Date:   Fri Feb 16 09:59:50 2024 -0800
+  set(UNIFIED_RUNTIME_REPO "https://github.com/AllanZyne/unified-runtime.git")
+  # commit d469cf92d87ec69d612a7594c362e1ae4a85e09d
+  # Author: Maosu Zhao <maosu.zhao@intel.com>
+  # Date:   Thu Feb 22 15:06:24 2024 +0800
   #
-  #     [UR] Provide flexibility to replace unified-memory-framework repo and tag
-  set(UNIFIED_RUNTIME_TAG 3487672ceba0fd3575b5f3f15a832b100dc5fbad)
+  #     Merge branch 'main' into sanitizer-device-global
+  set(UNIFIED_RUNTIME_TAG sanitizer-device-global)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
