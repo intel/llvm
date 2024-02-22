@@ -127,11 +127,12 @@ struct TargetFilenamePairParser : public cl::basic_parser<TargetFilenamePair> {
 
 cl::list<TargetFilenamePair, bool, TargetFilenamePairParser> OutputFiles{
     "o",
-    cl::desc("Specifies an output file. Multiple output files can be "
-             "specified. Additionally, a target may be specified alongside an "
-             "output file, which has the effect that when module splitting is "
-             "performed, the modules that are in that output table are filtered "
-             "so those modules are compatible with the target."),
+    cl::desc(
+        "Specifies an output file. Multiple output files can be "
+        "specified. Additionally, a target may be specified alongside an "
+        "output file, which has the effect that when module splitting is "
+        "performed, the modules that are in that output table are filtered "
+        "so those modules are compatible with the target."),
     cl::value_desc("target filename pair"), cl::cat(PostLinkCat)};
 
 cl::opt<bool> Force{"f", cl::desc("Enable binary output on terminals"),
@@ -965,6 +966,13 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
   return Result;
 }
 
+// Checks if the given target and module are compatible.
+// A target and module are compatible if all the optional kernel features
+// the module uses are supported by that target (i.e. that module can be
+// compiled for that target and then be executed on that target). This
+// information comes from the device config file (DeviceConfigFile.td).
+// For example, the intel_gpu_tgllp target does not support fp64 - therefore,
+// a module using fp64 would *not* be compatible with intel_gpu_tgllp.
 bool isTargetCompatibleWithModule(StringRef Target,
                                   module_split::ModuleDesc &IrMD) {
   if (Target == "")
