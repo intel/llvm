@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 3fd11f1d23e7634fd7a847074a4e752273a19223
-  # Merge: 24078c26 8a8d7044
+  # commit b4150ad1512476eb6ea0f2ede3bd29a6e3fd2b9e
+  # Merge: 4814e717 123c00f1
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Feb 19 14:07:05 2024 +0100
-  #     Merge pull request #1246 from 0x12CC/cooperative_kernel_functions
-  #     [UR] Add default implementation for cooperative kernel functions
-  set(UNIFIED_RUNTIME_TAG 3fd11f1d23e7634fd7a847074a4e752273a19223)
+  # Date:   Thu Feb 22 10:42:39 2024 +0000
+  #     Merge pull request #1366 from nrspruit/fix_multidevice_event_cache
+  #     [L0] Fix the multi device event cache to allocate lists as pointers
+  set(UNIFIED_RUNTIME_TAG b4150ad1512476eb6ea0f2ede3bd29a6e3fd2b9e)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
