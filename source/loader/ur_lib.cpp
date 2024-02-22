@@ -552,7 +552,7 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
 
     if (acceptDeviceList.size() == 0 && discardDeviceList.size() == 0) {
         // nothing in env var was understood as a valid term
-        return UR_RESULT_ERROR_INVALID_VALUE;
+        return UR_RESULT_SUCCESS;
     } else if (acceptDeviceList.size() == 0) {
         // no accept terms were understood, but at least one discard term was
         // we are magnanimous to the user when there were bad/ignored accept terms
