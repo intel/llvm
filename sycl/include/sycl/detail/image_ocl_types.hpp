@@ -84,12 +84,23 @@ static RetType __invoke__ImageFetch(ImageT Img, CoordT Coords) {
 
   // Convert from sycl types to builtin types to get correct function mangling.
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
-  using TempArgT = sycl::detail::ConvertToOpenCLType_t<CoordT>;
+  auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
 
-  TempArgT Arg = sycl::detail::convertDataToType<CoordT, TempArgT>(Coords);
-  TempRetT Ret = __spirv_ImageFetch<TempRetT, ImageT, TempArgT>(Img, Arg);
-  return sycl::detail::convertDataToType<TempRetT, RetType>(Ret);
+  return sycl::detail::convertFromOpenCLTypeFor<RetType>(
+      __spirv_ImageFetch<TempRetT, ImageT, decltype(TmpCoords)>(Img, TmpCoords));
 }
+
+// template <typename RetType, typename ImageT, typename CoordT>
+// static RetType __invoke__ImageFetch(ImageT Img, CoordT Coords) {
+
+//   // Convert from sycl types to builtin types to get correct function mangling.
+//   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
+//   using TempArgT = sycl::detail::ConvertToOpenCLType_t<CoordT>;
+
+//   TempArgT Arg = sycl::detail::convertDataToType<CoordT, TempArgT>(Coords);
+//   TempRetT Ret = __spirv_ImageFetch<TempRetT, ImageT, TempArgT>(Img, Arg);
+//   return sycl::detail::convertDataToType<TempRetT, RetType>(Ret);
+// }
 
 template <typename RetType, typename SmpImageT, typename CoordT>
 static RetType __invoke__ImageReadLod(SmpImageT SmpImg, CoordT Coords,

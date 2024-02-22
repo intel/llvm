@@ -84,7 +84,7 @@ int main() {
             size_t dim1 = it.get_local_id(1);
 
             // Extension: fetch data from sampled image handle
-            auto px1 = syclexp::read_image<sycl::vec<uint16_t, 4>>(
+            auto px1 = syclexp::fetch_image<sycl::vec<uint16_t, 4>>(
                 imgHandle, sycl::int2(dim0, dim1));
 
             outAcc[sycl::id<2>{dim1, dim0}] = px1;

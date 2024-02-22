@@ -793,34 +793,6 @@ template <typename DataT> constexpr bool is_recognized_standard_type() {
 } // namespace detail
 
 /**
- *  @brief   [Deprecated] Read an unsampled image using its handle
- *
- *  @tparam  DataT The return type
- *  @tparam  HintT A hint type that can be used to select for a specialized
- *           backend intrinsic when a user-defined type is passed as `DataT`.
- *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
- *           HintT must also have the same size as DataT.
- *  @tparam  CoordT The input coordinate type. e.g. int, int2, or int3 for
- *           1D, 2D, and 3D, respectively
- *  @param   imageHandle The image handle
- *  @param   coords The coordinates at which to fetch image data
- *  @return  Image data
- *
- *  __NVPTX__: Name mangling info
- *             Cuda surfaces require integer coords (by bytes)
- *             Cuda textures require float coords (by element or normalized)
- *             The name mangling should therefore not interfere with one
- *             another
- */
-template <typename DataT, typename HintT = DataT, typename CoordT>
-__SYCL_DEPRECATED("read_image for standard unsampled images is deprecated. "
-                  "Instead use fetch_image.")
-DataT read_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
-                 const CoordT &coords [[maybe_unused]]) {
-  return fetch_image(imageHandle, coords);
-}
-
-/**
  *  @brief   Fetch data from an unsampled image using its handle
  *
  *  @tparam  DataT The return type
@@ -867,18 +839,18 @@ DataT fetch_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
 }
 
 /**
- *  @brief   [Deprecated] Read a sampled image using its handle
+ *  @brief   [Deprecated] Read an unsampled image using its handle
  *
  *  @tparam  DataT The return type
  *  @tparam  HintT A hint type that can be used to select for a specialized
  *           backend intrinsic when a user-defined type is passed as `DataT`.
  *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
  *           HintT must also have the same size as DataT.
- *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float3 for
+ *  @tparam  CoordT The input coordinate type. e.g. int, int2, or int3 for
  *           1D, 2D, and 3D, respectively
  *  @param   imageHandle The image handle
- *  @param   coords The coordinates at which to sample image data
- *  @return  Sampled image data
+ *  @param   coords The coordinates at which to fetch image data
+ *  @return  Image data
  *
  *  __NVPTX__: Name mangling info
  *             Cuda surfaces require integer coords (by bytes)
@@ -887,11 +859,11 @@ DataT fetch_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
  *             another
  */
 template <typename DataT, typename HintT = DataT, typename CoordT>
-__SYCL_DEPRECATED("read_image for standard sampled images is deprecated. "
-                  "Instead use sample_image or fetch_image.")
-DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
+__SYCL_DEPRECATED("read_image for standard unsampled images is deprecated. "
+                  "Instead use fetch_image.")
+DataT read_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
                  const CoordT &coords [[maybe_unused]]) {
-  return sample_image(imageHandle, coords);
+  return fetch_image<DataT>(imageHandle, coords);
 }
 
 /**
@@ -930,12 +902,12 @@ DataT fetch_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                 "HintT must always be a recognized standard type");
 
 #ifdef __SYCL_DEVICE_ONLY__
-    if constexpr (detail::is_recognized_standard_type<DataT>()) {
-      return __invoke__ImageFetch<DataT>(imageHandle.raw_handle, coords);
-    } else {
-      return sycl::bit_cast<DataT>(
-          __invoke__ImageFetch<HintT>(imageHandle.raw_handle, coords));
-    }
+  if constexpr (detail::is_recognized_standard_type<DataT>()) {
+    return __invoke__ImageRead<DataT>(imageHandle.raw_handle, coords);
+  } else {
+    return sycl::bit_cast<DataT>(
+        __invoke__ImageRead<HintT>(imageHandle.raw_handle, coords));
+  }
 #else
   assert(false); // Bindless images not yet implemented on host.
 #endif
@@ -977,20 +949,19 @@ DataT sample_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                 "HintT must always be a recognized standard type");
 
 #ifdef __SYCL_DEVICE_ONLY__
-    if constexpr (detail::is_recognized_standard_type<DataT>()) {
-      return __invoke__ImageRead<DataT>(imageHandle.raw_handle, coords);
-    } else {
-      return sycl::bit_cast<DataT>(
-          __invoke__ImageRead<HintT>(imageHandle.raw_handle, coords));
-    }
+  if constexpr (detail::is_recognized_standard_type<DataT>()) {
+    return __invoke__ImageRead<DataT>(imageHandle.raw_handle, coords);
+  } else {
+    return sycl::bit_cast<DataT>(
+        __invoke__ImageRead<HintT>(imageHandle.raw_handle, coords));
+  }
 #else
   assert(false); // Bindless images not yet implemented on host.
 #endif
 }
 
 /**
- *  @brief   [Deprecated] Read a mipmap image using its handle with LOD
- *           filtering
+ *  @brief   [Deprecated] Read a sampled image using its handle
  *
  *  @tparam  DataT The return type
  *  @tparam  HintT A hint type that can be used to select for a specialized
@@ -999,45 +970,28 @@ DataT sample_image(const sampled_image_handle &imageHandle [[maybe_unused]],
  *           HintT must also have the same size as DataT.
  *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float3 for
  *           1D, 2D, and 3D, respectively
- *  @param   imageHandle The mipmap image handle
- *  @param   coords The coordinates at which to sample mipmap image data
- *  @param   level The mipmap level at which to sample
- *  @return  Mipmap image data with LOD filtering
- */
-template <typename DataT, typename HintT = DataT, typename CoordT>
-__SYCL_DEPRECATED("read_mipmap has been deprecated. "
-                  "Instead use sample_mipmap.")
-DataT read_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
-                  const CoordT &coords [[maybe_unused]],
-                  const float level [[maybe_unused]]) {
-  return sample_mipmap(imageHandle, coords, level);
-}
-
-/**
- *  @brief   [Deprecated] Read a mipmap image using its handle with anisotropic
- *           filtering
+ *  @param   imageHandle The image handle
+ *  @param   coords The coordinates at which to sample image data
+ *  @return  Sampled image data
  *
- *  @tparam  DataT The return type
- *  @tparam  HintT A hint type that can be used to select for a specialized
- *           backend intrinsic when a user-defined type is passed as `DataT`.
- *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
- *           HintT must also have the same size as DataT.
- *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float3 for
- *           1D, 2D, and 3D, respectively
- *  @param   imageHandle The mipmap image handle
- *  @param   coords The coordinates at which to sample mipmap image data
- *  @param   dX Screen space gradient in the x dimension
- *  @param   dY Screen space gradient in the y dimension
- *  @return  Mipmap image data with anisotropic filtering
+ *  __NVPTX__: Name mangling info
+ *             Cuda surfaces require integer coords (by bytes)
+ *             Cuda textures require float coords (by element or normalized)
+ *             The name mangling should therefore not interfere with one
+ *             another
  */
 template <typename DataT, typename HintT = DataT, typename CoordT>
-__SYCL_DEPRECATED("read_mipmap has been deprecated. "
-                  "Instead use sample_mipmap.")
-DataT read_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
-                  const CoordT &coords [[maybe_unused]],
-                  const CoordT &dX [[maybe_unused]],
-                  const CoordT &dY [[maybe_unused]]) {
-  return sample_mipmap(imageHandle, coords, dX, dY);
+__SYCL_DEPRECATED("read_image for standard sampled images is deprecated. "
+                  "Instead use sample_image with floating point coordinates or "
+                  "fetch_image with integer coordinates.")
+DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
+                 const CoordT &coords [[maybe_unused]]) {
+  detail::assert_coords_type<CoordT>();
+  if constexpr (detail::are_floating_coords<CoordT>()) {
+    return sample_image<DataT>(imageHandle, coords);
+  } else if constexpr (detail::are_integer_coords<CoordT>()) {
+    return fetch_image<DataT>(imageHandle, coords);
+  }
 }
 
 /**
@@ -1144,12 +1098,64 @@ DataT sample_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
  *  @return  Mipmap image data with LOD filtering
  */
 template <typename DataT, typename HintT = DataT, typename CoordT>
+__SYCL_DEPRECATED("read_mipmap has been deprecated. "
+                  "Instead use sample_mipmap.")
+DataT read_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
+                  const CoordT &coords [[maybe_unused]],
+                  const float level [[maybe_unused]]) {
+  return sample_mipmap<DataT>(imageHandle, coords, level);
+}
+
+/**
+ *  @brief   [Deprecated] Read a mipmap image using its handle with anisotropic
+ *           filtering
+ *
+ *  @tparam  DataT The return type
+ *  @tparam  HintT A hint type that can be used to select for a specialized
+ *           backend intrinsic when a user-defined type is passed as `DataT`.
+ *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
+ *           HintT must also have the same size as DataT.
+ *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float3 for
+ *           1D, 2D, and 3D, respectively
+ *  @param   imageHandle The mipmap image handle
+ *  @param   coords The coordinates at which to sample mipmap image data
+ *  @param   dX Screen space gradient in the x dimension
+ *  @param   dY Screen space gradient in the y dimension
+ *  @return  Mipmap image data with anisotropic filtering
+ */
+template <typename DataT, typename HintT = DataT, typename CoordT>
+__SYCL_DEPRECATED("read_mipmap has been deprecated. "
+                  "Instead use sample_mipmap.")
+DataT read_mipmap(const sampled_image_handle &imageHandle [[maybe_unused]],
+                  const CoordT &coords [[maybe_unused]],
+                  const CoordT &dX [[maybe_unused]],
+                  const CoordT &dY [[maybe_unused]]) {
+  return sample_mipmap<DataT>(imageHandle, coords, dX, dY);
+}
+
+/**
+ *  @brief   [Deprecated] Read a mipmap image using its handle with LOD
+ *           filtering
+ *
+ *  @tparam  DataT The return type
+ *  @tparam  HintT A hint type that can be used to select for a specialized
+ *           backend intrinsic when a user-defined type is passed as `DataT`.
+ *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
+ *           HintT must also have the same size as DataT.
+ *  @tparam  CoordT The input coordinate type. e.g. float, float2, or float3 for
+ *           1D, 2D, and 3D, respectively
+ *  @param   imageHandle The mipmap image handle
+ *  @param   coords The coordinates at which to sample mipmap image data
+ *  @param   level The mipmap level at which to sample
+ *  @return  Mipmap image data with LOD filtering
+ */
+template <typename DataT, typename HintT = DataT, typename CoordT>
 __SYCL_DEPRECATED("read_image for mipmaps is deprecated. "
                   "Instead use sample_mipmap.")
 DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                  const CoordT &coords [[maybe_unused]],
                  const float level [[maybe_unused]]) {
-  return sample_mipmap(imageHandle, coords, level);
+  return sample_mipmap<DataT>(imageHandle, coords, level);
 }
 
 /**
@@ -1176,7 +1182,7 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
                  const CoordT &coords [[maybe_unused]],
                  const CoordT &dX [[maybe_unused]],
                  const CoordT &dY [[maybe_unused]]) {
-  return sample_mipmap(imageHandle, coords, dX, dY);
+  return sample_mipmap<DataT>(imageHandle, coords, dX, dY);
 }
 
 /**

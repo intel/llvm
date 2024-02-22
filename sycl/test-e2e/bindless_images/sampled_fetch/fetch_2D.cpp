@@ -79,7 +79,7 @@ int main() {
 
             // Extension: fetch data from sampled image handle
             float px1 =
-                syclexp::read_image<float>(imgHandle, sycl::int2(dim0, dim1));
+                syclexp::fetch_image<float>(imgHandle, sycl::int2(dim0, dim1));
 
             outAcc[sycl::id<2>{dim1, dim0}] = px1;
           });

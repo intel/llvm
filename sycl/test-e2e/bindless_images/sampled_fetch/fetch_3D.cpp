@@ -82,8 +82,8 @@ int main() {
             size_t dim2 = it.get_local_id(2);
 
             // Extension: fetch data from sampled image handle
-            float px1 = syclexp::read_image<float>(
-                imgHandle, sycl::vec<int, 4>(dim0, dim1, dim2, 0));
+            float px1 = syclexp::fetch_image<float>(
+                imgHandle, sycl::vec<int, 3>(dim0, dim1, dim2));
 
             outAcc[sycl::id<3>{dim2, dim1, dim0}] = px1;
           });

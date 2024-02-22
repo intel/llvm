@@ -57,7 +57,7 @@ int main() {
 
       cgh.parallel_for<kernel_sampled_fetch>(width, [=](sycl::id<1> id) {
         // Extension: fetch data from sampled image handle
-        float px1 = syclexp::read_image<float>(imgHandle, int(id[0]));
+        float px1 = syclexp::fetch_image<float>(imgHandle, int(id[0]));
 
         outAcc[id] = px1;
       });
