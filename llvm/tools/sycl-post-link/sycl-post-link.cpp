@@ -891,7 +891,6 @@ static bool instrumentDeviceGlobal(Module &M) {
   SmallVector<GlobalVariable *, 8> NewDeviceGlobals;
   SmallVector<Constant *, 8> DeviceGlobalMetadata;
 
-
   constexpr uint64_t MaxRZ = 1 << 18;
   const uint64_t MinRZ = 32;
 
