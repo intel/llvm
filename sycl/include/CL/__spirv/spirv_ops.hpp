@@ -51,9 +51,9 @@ template <typename T, typename Tp, std::size_t R, std::size_t C,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern __DPCPP_SYCL_EXTERNAL
     __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *
-    __spirv_CompositeConstructCheckedINTEL(const T Value, size_t Height,
-                                           size_t Stride, size_t Width,
-                                           size_t CoordX, size_t CoordY);
+    __spirv_CooperativeMatrixConstructCheckedINTEL(const T Value, size_t Height,
+                                                   size_t Stride, size_t Width,
+                                                   size_t CoordX, size_t CoordY);
 
 template <typename T, typename Tp, std::size_t R, std::size_t C,
           __spv::MatrixUse U,
