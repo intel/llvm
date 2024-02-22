@@ -32,6 +32,54 @@ TEST_P(urProgramGetInfoTest, Success) {
     property_value.resize(property_size);
     ASSERT_SUCCESS(urProgramGetInfo(program, property_name, property_size,
                                     property_value.data(), nullptr));
+    switch (property_name) {
+    case UR_PROGRAM_INFO_REFERENCE_COUNT: {
+        auto returned_reference_count =
+            reinterpret_cast<uint32_t *>(property_value.data());
+        ASSERT_GT(*returned_reference_count, 0U);
+        break;
+    }
+    case UR_PROGRAM_INFO_CONTEXT: {
+        auto returned_context =
+            reinterpret_cast<ur_context_handle_t *>(property_value.data());
+        ASSERT_EQ(context, *returned_context);
+        break;
+    }
+    case UR_PROGRAM_INFO_NUM_DEVICES: {
+        auto returned_num_of_devices =
+            reinterpret_cast<uint32_t *>(property_value.data());
+        ASSERT_GE(uur::DevicesEnvironment::instance->devices.size(),
+                  *returned_num_of_devices);
+        break;
+    }
+    case UR_PROGRAM_INFO_DEVICES: {
+        auto returned_devices =
+            reinterpret_cast<ur_device_handle_t *>(property_value.data());
+        size_t devices_count = property_size / sizeof(ur_device_handle_t);
+        ASSERT_GT(devices_count, 0);
+        for (uint32_t i = 0; i < devices_count; i++) {
+            auto &devices = uur::DevicesEnvironment::instance->devices;
+            auto queried_device =
+                std::find(devices.begin(), devices.end(), returned_devices[i]);
+            EXPECT_TRUE(queried_device != devices.end());
+        }
+        break;
+    }
+    case UR_PROGRAM_INFO_NUM_KERNELS: {
+        auto returned_num_of_kernels =
+            reinterpret_cast<uint32_t *>(property_value.data());
+        ASSERT_GT(*returned_num_of_kernels, 0U);
+        break;
+    }
+    case UR_PROGRAM_INFO_KERNEL_NAMES: {
+        auto returned_kernel_names =
+            reinterpret_cast<char *>(property_value.data());
+        ASSERT_STRNE(returned_kernel_names, "");
+        break;
+    }
+    default:
+        break;
+    }
 }
 
 TEST_P(urProgramGetInfoTest, InvalidNullHandleProgram) {
