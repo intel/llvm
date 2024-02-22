@@ -282,6 +282,26 @@ Environment Variables
 
 Specific environment variables can be set to control the behavior of unified runtime or enable certain features.
 
+.. envvar:: UR_LOG_LEVEL_ZERO
+
+   Holds parameters for setting Unified Runtime level zero adapter logging. The syntax is described in the Logging_ section.
+
+.. envvar:: UR_LOG_CUDA
+
+   Holds parameters for setting Unified Runtime cuda adapter logging. The syntax is described in the Logging_ section.
+
+.. envvar:: UR_LOG_HIP
+
+   Holds parameters for setting Unified Runtime hip adapter logging. The syntax is described in the Logging_ section.
+
+.. envvar:: UR_LOG_OPENCL
+
+   Holds parameters for setting Unified Runtime opencl adapter logging. The syntax is described in the Logging_ section.
+
+.. envvar:: UR_LOG_NATIVE_CPU
+
+   Holds parameters for setting Unified Runtime native cpu logging. The syntax is described in the Logging_ section.
+
 .. envvar:: UR_LOG_LOADER
 
    Holds parameters for setting Unified Runtime loader logging. The syntax is described in the Logging_ section.
