@@ -12,7 +12,7 @@
 #include <CL/__spirv/spirv_types.hpp>
 #include <CL/__spirv/spirv_ops.hpp>
 #include <sycl/ext/intel/experimental/fpga_kernel_properties.hpp>
-#include <sycl/ext/intel/experimental/task_sequence/properties.hpp>
+#include <sycl/ext/intel/experimental/task_sequence_properties.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 
@@ -39,7 +39,12 @@ class task_sequence {
 
 template <typename ReturnT, typename... ArgsT, ReturnT (&f)(ArgsT...),
           typename... Props>
-class task_sequence<f, oneapi::experimental::detail::properties_t<Props...>> {
+#if defined(__SYCL_DEVICE_ONLY__)
+class [[__sycl_detail__::__uses_aspects__(aspect::ext_intel_fpga_task_sequence)]] task_sequence<
+#else
+class task_sequence<
+#endif
+  f, oneapi::experimental::detail::properties_t<Props...>> {
   using property_list_t = oneapi::experimental::detail::properties_t<Props...>;
 
 public:
@@ -49,10 +54,10 @@ public:
   task_sequence &operator=(task_sequence &&) = delete;
 
   task_sequence() {
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__SYCL_DEVICE_ONLY__)
     taskSequence = __spirv_TaskSequenceCreateINTEL(
         &f,
-        oneapi::experimental::detail::ValueOrDefault<property_list_t, pipelined_key>::template get<int32_t>(-1);,
+        oneapi::experimental::detail::ValueOrDefault<property_list_t, pipelined_key>::template get<int32_t>(-1),
         static_cast<typename std::underlying_type<fpga_cluster_options_enum>::type>(oneapi::experimental::detail::ValueOrDefault<property_list_t, fpga_cluster_key>::template get<fpga_cluster_options_enum>(fpga_cluster_options_enum::stall_free)),
         oneapi::experimental::detail::ValueOrDefault<property_list_t, response_capacity_key>::template get<uint32_t>(0),
         oneapi::experimental::detail::ValueOrDefault<property_list_t, invocation_capacity_key>::template get<uint32_t>(0));
@@ -63,7 +68,7 @@ public:
   }
 
   void async(ArgsT... Args) {
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__SYCL_DEVICE_ONLY__)
     ++outstanding;
     __spirv_TaskSequenceAsyncINTEL(taskSequence, Args...);
 #else
@@ -73,7 +78,7 @@ public:
   }
 
   ReturnT get() {
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__SYCL_DEVICE_ONLY__)
     --outstanding;
     return __spirv_TaskSequenceGetINTEL<ReturnT>(taskSequence);
 #else
@@ -83,7 +88,7 @@ public:
   }
 
   ~task_sequence() {
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__SYCL_DEVICE_ONLY__)
     if constexpr (!has_property<balanced_key>()) {
       while (outstanding)
         get();
@@ -106,9 +111,9 @@ public:
   }
 
 private:
-#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__SYCL_DEVICE_ONLY__)
   unsigned outstanding = 0;
-  __spirv_TaskSequenceINTELTy taskSequence;
+  __spirv_TaskSequenceINTEL *taskSequence;
 #endif
 };
 

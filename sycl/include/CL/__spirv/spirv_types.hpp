@@ -145,7 +145,7 @@ struct ConstantPipeStorage {
   int32_t _Capacity;
 };
 
-using __spirv_TaskSequenceINTELTy = void*;
+struct __spirv_TaskSequenceINTEL;
 
 namespace sycl {
 inline namespace _V1 {
