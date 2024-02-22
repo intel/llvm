@@ -64,6 +64,8 @@
 
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Demangle/Demangle.h"
+#include "llvm/Demangle/ItaniumDemangle.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Module.h"
@@ -362,9 +364,14 @@ public:
           if (auto *CB = dyn_cast<CallBase>(&I)) {
             if (isSlmInitCall(dyn_cast<CallInst>(CB))) {
               auto *CI = dyn_cast<CallInst>(CB);
-              esimd::assert_and_diag(!SlmInitCall,
-                                     "multiple slm_init calls in function ",
-                                     F.getName());
+              if (SlmInitCall) {
+                std::string ErrorMsg =
+                    std::string(
+                        "slm_init is called more than once from function '") +
+                    demangle(F.getName().str()) + "'.";
+                F.getContext().emitError(ErrorMsg);
+              }
+
               // TODO: this diagnostics incorrectly fires on functor's
               // operator() marked as SYCL_ESIMD_KERNEL, because becomes neither
               // spir_kernel nor SYCL_EXERNAL function in IR. It rather becomes

@@ -12,7 +12,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
-#include "llvm/ADT/SmallSet.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/Demangle/ItaniumDemangle.h"
 #include "llvm/IR/InstIterator.h"
@@ -99,7 +98,6 @@ public:
   void verify() {
     SmallPtrSet<const Function *, 8u> Visited;
     SmallVector<const Function *, 8u> Worklist;
-    SmallSet<StringRef, 8u> SLMKernelsSeen;
 
     auto Add2Worklist = [&Worklist, &Visited](const Function *F) {
       if (Visited.insert(F).second)
@@ -115,44 +113,6 @@ public:
     // for invalid calls.
     while (!Worklist.empty()) {
       const Function *F = Worklist.pop_back_val();
-      if (isSlmInit(*F)) {
-        // Filter function for graph traversal when propagating ESIMD attribute.
-        // While traversing the call graph, non-call use of the traversed
-        // function is not added to the graph. The reason is that it is
-        // impossible to gurantee correct inference of use of that function, in
-        // particular to determine if that function is used as an argument for
-        // invoke_simd. As a result, any use of function pointers requires
-        // explicit marking of the functions as ESIMD_FUNCTION if needed.
-        auto filterInvokeSimdUse = [](const Instruction *, const Function *) {
-          return false;
-        };
-
-        sycl::utils::traverseCallgraphUp(
-            const_cast<Function *>(F),
-            [&](Function *GraphNode) {
-              if (llvm::esimd::isESIMDKernel(*GraphNode)) {
-                StringRef KernelName = GraphNode->getName();
-                if (SLMKernelsSeen.count(KernelName) != 0) {
-                  std::string ErrorMsg =
-                      std::string("slm_init is called more than once from kernel '") +
-                      demangle(KernelName.str()) + "'.";
-                  GraphNode->getContext().emitError(ErrorMsg);
-                } else {
-                  SLMKernelsSeen.insert(KernelName);
-                }
-              } else {
-                if (!GraphNode->hasFnAttribute(llvm::Attribute::AlwaysInline)) {
-                  StringRef MangledName = GraphNode->getName();
-                  std::string ErrorMsg = std::string("slm_init is called from function '") +
-                                         demangle(MangledName.str()) +
-                                         "' which is not guaranteed to be inlined.";
-                  GraphNode->getContext().emitError(ErrorMsg);
-                }
-              }
-            },
-            false, filterInvokeSimdUse);     
-      }
-
 
       for (const Instruction &I : instructions(F)) {
         if (auto *CB = dyn_cast<CallBase>(&I)) {
