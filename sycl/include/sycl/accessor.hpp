@@ -3871,8 +3871,7 @@ public:
         AccessMode, (const void *)typeid(DataT).name(), sizeof(DataT), CodeLoc);
   }
 
-  /* -- common interface members -- */
-  
+  /* -- common interface members -- */  
   host_unsampled_image_accessor(const host_unsampled_image_accessor &Rhs) =
       default;
 
