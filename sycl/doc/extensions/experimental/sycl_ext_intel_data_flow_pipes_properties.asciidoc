@@ -142,10 +142,16 @@ struct first_symbol_in_high_order_bits_key {
                                            std::bool_constant<HighOrder>>;
 };
 
+struct implement_in_csr {
+  template <bool InCsr>
+  using value_t =
+      oneapi::experimental::property_value<implement_in_csr_key,
+                                           std::bool_constant<InCsr>>;
+};
+
 enum class protocol_name : /* unspecified */ {
-  avalon_streaming = 0,
-  avalon_mm = 1,
-  axi_streaming = 2
+  avalon = 0,
+  axi = 1
 };
 
 struct protocol_key {
@@ -170,6 +176,10 @@ template <bool HighOrder>
 inline constexpr first_symbol_in_high_order_bits_key::value_t<HighOrder>
     first_symbol_in_high_order_bits;
 
+template <bool InCsr>
+inline constexpr implement_in_csr_key::value_t<InCsr>
+    implement_in_csr;
+
 template <protocol_name Protocol>
 inline constexpr protocol_key::value_t<Protocol> protocol;
 
@@ -178,6 +188,8 @@ namespace avalon-st {
   using sycl::ext::intel::experimental::bits_per_symbol_key;
   using sycl::ext::intel::experimental::first_symbol_in_high_order_bits;
   using sycl::ext::intel::experimental::first_symbol_in_high_order_bits_key;
+  using sycl::ext::intel::experimental::implement_in_csr;
+  using sycl::ext::intel::experimental::implement_in_csr_key;
   using sycl::ext::intel::experimental::ready_latency;
   using sycl::ext::intel::experimental::ready_latency_key;
   using sycl::ext::intel::experimental::uses_ready;
@@ -208,7 +220,7 @@ pipe can no longer accept new inputs.
 
 This property only applies to the externally visible end of the pipe.
 
-This property is only valid when the `protocol` property is *avalon_streaming*.
+This property is only valid when the `protocol` property is *avalon* and the `implement_in_csr` property is *false*.
 
 |`bits_per_symbol`
 | Valid values: A positive integer value that evenly divides the data type size. 
@@ -222,7 +234,7 @@ property. By default, data is broken down in little endian order.
 
 This property only applies to the externally visible end of the pipe. 
 
-This property is only valid when the `protocol` property is *avalon_streaming*.
+This property is only valid when the `protocol` property is *avalon* and the `implement_in_csr` property is *false*.
 
 |`uses_valid`
 | Valid values: `true` or `false`
@@ -238,8 +250,7 @@ success is always true.
 This property only applies to the externally visible end of the pipe, and only valid when
 the valid signal is driven externally from the kernel, i.e., on a host-to-kernel or IO-to-kernel pipe.
 
-This property is only valid when the `protocol` property is *avalon_streaming*
-or *avalon_mm*.
+This property is only valid when the `protocol` property is *avalon*.
 
 |`uses_ready`
 | Ready values: `true` or `false`
@@ -255,7 +266,7 @@ success is always true.
 This property only applies to the externally visible end of the pipe, and only valid when
 the ready signal is driven externally from the kernel, i.e., on a kernel-to-host or IO-to-host pipe.
 
-This property is only valid when the `protocol` property is *avalon_streaming*.
+This property is only valid when the `protocol` property is *avalon*.
 
 |`first_symbol_in_high_order_bits`
 | Valid values: true or false
@@ -267,26 +278,32 @@ order.
 
 This property only applies to the externally visible end of the pipe.
 
-This property is only valid when the `protocol` property is *avalon_streaming*
-or *avalon_mm*.
+This property is only valid when the `protocol` property is *avalon*.
+
+|`implement_in_csr`
+| Valid values: true or false
+
+Default value: false
+
+Specifies whether the pipe should be accessed through the Control Status Register (CSR). 
+
+This property only applies to the externally visible end of the pipe.
 
 |`protocol`
 | Specifies the protocol for the pipe interface. Currently, the protocols supported
-are: *avalon_streaming*, *avalon_mm*, and *axi_streaming*.
+are: *avalon* and *axi*.
 
-*avalon_streaming*
+*avalon*
 
 Provide an Avalon streaming interface as described in https://www.intel.com/content/www/us/en/docs/programmable/683091/22-3/introduction-to-the-interface-specifications.html[Intel® Avalon Interface Specifications].
 
-*avalon_mm*
-
-Provide an Avalon memory mapped interface as described in https://www.intel.com/content/www/us/en/docs/programmable/683091/22-3/introduction-to-the-interface-specifications.html[Intel® Avalon Interface Specifications].
-
-*axi_streaming*
+*axi*
 
 Provide an AXI4-Stream interface as described in https://documentation-service.arm.com/static/642583d7314e245d086bc8c9[AMBA 4 AXI4-Stream Protocol Specification].
 
-The default protocol is *avalon_streaming*
+The default protocol is *avalon*
+
+This property is only valid when the `implement_in_csr` property is *false*.
 |====
 --
 
