@@ -152,15 +152,15 @@
 // 15.43 Changed the signature of piextMemGetNativeHandle to also take a
 // pi_device
 // 15.44 Add coarse-grain memory advice flag for HIP.
-// 15.45 Added device queries for sampled image fetch support
+// 15.45 Added piextKernelSuggestMaxCooperativeGroupCount and
+//       piextEnqueueCooperativeKernelLaunch.
+// 15.46 Added device queries for sampled image fetch support
 //         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D_USM
 //         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_1D
 //         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_USM
 //         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D
 //         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM
 //         - PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D
-// 15.46 Added piextKernelSuggestMaxCooperativeGroupCount and
-//       piextEnqueueCooperativeKernelLaunch.
 
 #define _PI_H_VERSION_MAJOR 15
 #define _PI_H_VERSION_MINOR 46
