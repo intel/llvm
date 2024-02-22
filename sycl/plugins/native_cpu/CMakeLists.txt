@@ -27,14 +27,14 @@ add_sycl_plugin(native_cpu
 if(NATIVECPU_USE_OCK)
   include(FetchContent)
   FetchContent_Declare(oneapi-ck
-   GIT_REPOSITORY https://github.com/codeplaysoftware/oneapi-construction-kit.git
+   GIT_REPOSITORY https://github.com/PietroGhg/oneapi-construction-kit.git
    # commit 558b76cd6080107a2d65f7e37468f3d01eef80f7
    # Merge: a5ec372f 542ee121
    # Author: PietroGhg <38155419+PietroGhg@users.noreply.github.com>
    # Date:   Tue Jan 30 12:53:39 2024 +0100
    # Merge pull request #322 from PietroGhg/pietro/update_30_jan
    # Update sycl_native_experimental branch
-   GIT_TAG 558b76cd6080107a2d65f7e37468f3d01eef80f7
+   GIT_TAG pietro/reqd_experimental
   )
   FetchContent_GetProperties(oneapi-ck)
   if(NOT oneapi-ck_POPULATED)
