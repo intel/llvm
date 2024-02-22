@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit f11823e1abe977bd478364534b3575ae199d8d96
-  # Merge: c96e4ae4 619cdbb7
+  # commit 24078c26ab871572067f520d856f4c65271cb9e5
+  # Merge: 227a5edf 89a66af7
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Feb 15 11:08:56 2024 +0100
-  #     Merge pull request #1343 from igchor/add_pthread_umf
-  #     [UR] Add missing Threads library to common
-  set(UNIFIED_RUNTIME_TAG f11823e1abe977bd478364534b3575ae199d8d96)
+  # Date:   Mon Feb 19 11:51:49 2024 +0100
+  #     Merge pull request #1299 from rafbiels/rafbiels/fix-cuda-maxreg-check
+  #     [CUDA] Fix MaxRegsPerBlock check in setKernelParams
+  set(UNIFIED_RUNTIME_TAG 24078c26ab871572067f520d856f4c65271cb9e5)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

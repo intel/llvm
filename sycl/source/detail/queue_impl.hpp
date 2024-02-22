@@ -689,7 +689,7 @@ public:
 #endif
 
   void registerStreamServiceEvent(const EventImplPtr &Event) {
-    std::lock_guard<std::mutex> Lock(MMutex);
+    std::lock_guard<std::mutex> Lock(MStreamsServiceEventsMutex);
     MStreamsServiceEvents.push_back(Event);
   }
 
@@ -945,6 +945,7 @@ protected:
   const bool MIsInorder;
 
   std::vector<EventImplPtr> MStreamsServiceEvents;
+  std::mutex MStreamsServiceEventsMutex;
 
   // All member variable defined here  are needed for the SYCL instrumentation
   // layer. Do not guard these variables below with XPTI_ENABLE_INSTRUMENTATION
