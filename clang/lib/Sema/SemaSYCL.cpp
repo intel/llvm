@@ -726,6 +726,9 @@ public:
   }
 };
 
+static KernelInvocationKind
+getKernelInvocationKind(FunctionDecl *KernelCallerFunc);
+
 // This type does the heavy lifting for the management of device functions,
 // recursive function detection, and attribute collection for a single
 // kernel/external function. It walks the callgraph to find all functions that
@@ -770,6 +773,17 @@ class SingleDeviceFunctionTracker {
       Parent.SemaRef.addFDToReachableFromSyclDevice(CurrentDecl,
                                                     CallStack.back());
 
+  if (CurrentDecl->getIdentifier()) {
+    auto *SK = this->GetSYCLKernel();
+    if (SK->getIdentifier())
+      printf("Kernel name is %s\n", SK->getIdentifier()->getName().data());
+    if (getKernelInvocationKind(this->GetSYCLKernel()) == InvokeParallelForWorkGroup) {
+      printf("Called from wg\n");
+    }
+    //if (CurrentDecl->getIdentifier()->getName() == "kernel_parallel_for_work_group")
+    if (CurrentDecl->getIdentifier()->getName() == "parallel_for_work_item")
+      printf("Name is %s\n", CurrentDecl->getIdentifier()->getName().data());
+  }
     // We previously thought we could skip this function if we'd seen it before,
     // but if we haven't seen it before in this call graph, we can end up
     // missing a recursive call.  SO, we have to revisit call-graphs we've
@@ -930,6 +944,10 @@ public:
     return true;
   }
 
+  bool VisitCallExpr(CallExpr *Call) {
+    return true;
+  }
+
 private:
   ASTContext &Ctx;
 };
@@ -939,6 +957,7 @@ static bool isSYCLPrivateMemoryVar(VarDecl *VD) {
 }
 
 static void addScopeAttrToLocalVars(CXXMethodDecl &F) {
+printf("Called\n");
   for (Decl *D : F.decls()) {
     VarDecl *VD = dyn_cast<VarDecl>(D);
 
@@ -954,6 +973,8 @@ static void addScopeAttrToLocalVars(CXXMethodDecl &F) {
     SYCLScopeAttr::Level L = isSYCLPrivateMemoryVar(VD)
                                  ? SYCLScopeAttr::Level::WorkItem
                                  : SYCLScopeAttr::Level::WorkGroup;
+printf("Marked\n");
+VD->dump();
     VD->addAttr(SYCLScopeAttr::CreateImplicit(F.getASTContext(), L));
   }
 }
@@ -2956,6 +2977,11 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
                                 FPOptionsOverride(), {}, {});
   }
 
+  void findWorkItem() {
+    MarkWIScopeFnVisitor MarkWIScope(SemaRef.getASTContext());
+    MarkWIScope.TraverseDecl(CallOperator);
+  }
+
   void annotateHierarchicalParallelismAPICalls() {
     // Is this a hierarchical parallelism kernel invocation?
     if (getKernelInvocationKind(KernelCallerFunc) != InvokeParallelForWorkGroup)
@@ -3433,6 +3459,7 @@ public:
         IsESIMD(IsSIMDKernel), CallOperator(CallOperator) {
     CollectionInitExprs.push_back(createInitListExpr(KernelObj));
     annotateHierarchicalParallelismAPICalls();
+    findWorkItem();
 
     Stmt *DS = new (S.Context) DeclStmt(DeclGroupRef(KernelObjClone),
                                         KernelCallerSrcLoc, KernelCallerSrcLoc);

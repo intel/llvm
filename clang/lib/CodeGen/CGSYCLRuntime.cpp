@@ -82,11 +82,15 @@ bool CGSYCLRuntime::actOnFunctionStart(const FunctionDecl &FD,
     F.setMetadata(WG_SCOPE_MD_ID, llvm::MDNode::get(F.getContext(), {}));
     return true;
   case SYCLScopeAttr::Level::WorkItem:
+printf("In case\n");
+FD.dump();
     F.setMetadata(WI_SCOPE_MD_ID, llvm::MDNode::get(F.getContext(), {}));
-    if (isPFWI(FD))
+    if (isPFWI(FD)) {
       // also emit specific marker for parallel_for_work_item, as it needs to
       // be handled specially in the SYCL lowering pass
+printf("In if\n");
       F.setMetadata(PFWI_MD_ID, llvm::MDNode::get(F.getContext(), {}));
+    }
     return true;
   }
   llvm_unreachable("unknown sycl scope");
