@@ -20,7 +20,6 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
-#include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Regex.h"
@@ -113,7 +112,6 @@ public:
     // for invalid calls.
     while (!Worklist.empty()) {
       const Function *F = Worklist.pop_back_val();
-
       for (const Instruction &I : instructions(F)) {
         if (auto *CB = dyn_cast<CallBase>(&I)) {
           Function *Callee = CB->getCalledFunction();
