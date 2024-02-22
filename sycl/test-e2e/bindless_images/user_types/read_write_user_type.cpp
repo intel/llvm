@@ -86,6 +86,10 @@ bool run_test() {
 
     q.ext_oneapi_copy(imgMemoryOut.get_handle(), dataOut, desc);
     q.wait_and_throw();
+
+    syclexp::destroy_image_handle(unsampledImgIn, q);
+    syclexp::destroy_image_handle(sampledImgIn, q);
+    syclexp::destroy_image_handle(imgOut, q);
   } catch (sycl::exception e) {
     std::cout << "SYCL exception caught: " << e.what() << "\n";
     return false;
