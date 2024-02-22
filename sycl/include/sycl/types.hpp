@@ -905,6 +905,8 @@ public:
   // Implement operator [] in the same way for host and device.
   // TODO: change host side implementation when underlying type for host side
   // will be changed to std::array.
+  // NOTE: aliasing on bfloat16 may lead to problems if aggressively optimized.
+  // specializing with noinline to avoid as workaround.
 
   template <typename T = DataT>
   typename std::enable_if<!std::is_same<T, sycl::ext::oneapi::bfloat16>::value,
@@ -920,8 +922,8 @@ public:
     return reinterpret_cast<DataT *>(&m_Data)[i];
   }
 
-#pragma clang optimize off
   template <typename T = DataT>
+  __attribute__((noinline))
   typename std::enable_if<std::is_same<T, sycl::ext::oneapi::bfloat16>::value,
                           const DataT &>::type
   operator[](int i) const {
@@ -929,12 +931,12 @@ public:
   }
 
   template <typename T = DataT>
+  __attribute__((noinline))
   typename std::enable_if<std::is_same<T, sycl::ext::oneapi::bfloat16>::value,
                           DataT &>::type
   operator[](int i) {
     return reinterpret_cast<DataT *>(&m_Data)[i];
   }
-#pragma clang optimize on
 
   // Begin hi/lo, even/odd, xyzw, and rgba swizzles.
 private:
