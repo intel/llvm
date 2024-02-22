@@ -3394,13 +3394,14 @@ gather(AccessorT acc, OffsetSimdViewT byte_offsets, PropertyListT props = {}) {
 ///
 /// template <typename T, int N, int VS = 1, typename AccessorTy,
 /// typename OffsetT, typename PropertyListT = empty_properties_t>
-/// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets, simd<T, N>
-/// vals, 	simd_mask<N / VS> mask, PropertyListT props = {}); // (acc-sc-1)
+/// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
+///              simd<T, N> vals, simd_mask<N / VS> mask,
+///              PropertyListT props = {});                        // (acc-sc-1)
 ///
 /// template <typename T, int N, int VS = 1, typename AccessorTy,
 /// typename OffsetT, typename PropertyListT = empty_properties_t>
-/// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets, simd<T, N>
-/// vals, 	PropertyListT props = {});                         // (acc-sc-2)
+/// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
+///              simd<T, N>vals, PropertyListT props = {});       // (acc-sc-2)
 
 /// The following two functions are similar to acc-sc-{1,2} with the
 /// 'byte_offsets' parameter represented as 'simd_view'.
@@ -3408,17 +3409,18 @@ gather(AccessorT acc, OffsetSimdViewT byte_offsets, PropertyListT props = {}) {
 /// template <typename T, int N, int VS = 1, typename AccessorTy,
 /// typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
 /// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
-/// 	simd_mask<N / VS> mask, PropertyListT props = {}); // (acc-sc-3)
+/// 	         simd_mask<N / VS> mask, PropertyListT props = {});// (acc-sc-3)
 ///
 /// template <typename T, int N, int VS = 1, typename AccessorTy,
 /// typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
 /// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
-/// 	PropertyListT props = {});                         // (acc-sc-4)
+/// 	         PropertyListT props = {});                       // (acc-sc-4)
 ///
 /// template <typename T, int N, int VS = 1, typename AccessorTy,
 /// typename OffsetT, typename PropertyListT = empty_properties_t>
 /// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets, simd<T, N>
-/// vals, 	simd_mask<N / VS> mask, PropertyListT props = {}); // (acc-sc-1)
+///              simd<T, N> vals, simd_mask<N / VS> mask,
+///              PropertyListT props = {});                      // (acc-sc-1)
 ///
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the accessor \p acc and byte offsets \p byte_offsets.
@@ -3432,7 +3434,7 @@ gather(AccessorT acc, OffsetSimdViewT byte_offsets, PropertyListT props = {}) {
 /// only on DG2 and PVC and only for 4- and 8-byte element vectors.
 /// @param acc Accessor referencing the data to store.
 /// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes.
-/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// For each i, (acc + byte_offsets[i]) must be element size aligned.
 /// If the alignment property is not passed, then it is assumed that each
 /// accessed address is aligned by element-size.
 /// @param mask The access mask.
@@ -3477,14 +3479,11 @@ scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
 }
 /// template <typename T, int N, int VS = 1, typename AccessorTy,
 /// typename OffsetT, typename PropertyListT = empty_properties_t>
-/// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets, simd<T, N>
-/// vals, 	PropertyListT props = {});                         // (acc-sc-2)
+/// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
+///              simd<T, N> vals, PropertyListT props = {});   // (acc-sc-2)
 ///
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the accessor \p acc and byte offsets \p byte_offsets.
-/// Access to any element's memory location can be disabled via the input vector
-/// of predicates \p mask. If mask[i] is unset, then the store to
-/// (acc + byte_offsets[i]) is skipped.
 /// @tparam T Element type.
 /// @tparam N Number of elements to write.
 /// @tparam VS Vector size. It can also be read as the number of writes per each
@@ -3492,7 +3491,7 @@ scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
 /// only on DG2 and PVC and only for 4- and 8-byte element vectors.
 /// @param acc Accessor referencing the data to store.
 /// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes.
-/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// For each i, (acc + byte_offsets[i]) must be element size aligned.
 /// If the alignment property is not passed, then it is assumed that each
 /// accessed address is aligned by element-size.
 /// @param props The optional compile-time properties. Only 'alignment'
@@ -3513,7 +3512,8 @@ scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
 /// template <typename T, int N, int VS = 1, typename AccessorTy,
 /// typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
 /// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
-/// 	simd_mask<N / VS> mask, PropertyListT props = {}); // (acc-sc-3)
+/// 	         simd_mask<N / VS> mask,
+///              PropertyListT props = {});                       // (acc-sc-3)
 ///
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the accessor \p acc and byte offsets \p byte_offsets.
@@ -3528,7 +3528,7 @@ scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
 /// @param acc Accessor referencing the data to store.
 /// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes
 /// represented as a 'simd_view' object.
-/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// For each i, (acc + byte_offsets[i]) must be element size aligned.
 /// If the alignment property is not passed, then it is assumed that each
 /// accessed address is aligned by element-size.
 /// @param mask The access mask.
@@ -3551,13 +3551,10 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// template <typename T, int N, int VS = 1, typename AccessorTy,
 /// typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
 /// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
-/// 	PropertyListT props = {});                         // (acc-sc-4)
+/// 	         PropertyListT props = {});                        // (acc-sc-4)
 ///
 /// Stores ("scatters") elements of the type 'T' to memory locations addressed
 /// by the accessor \p acc and byte offsets \p byte_offsets.
-/// Access to any element's memory location can be disabled via the input vector
-/// of predicates \p mask. If mask[i] is unset, then the store to
-/// (acc + byte_offsets[i]) is skipped.
 /// @tparam T Element type.
 /// @tparam N Number of elements to write.
 /// @tparam VS Vector size. It can also be read as the number of writes per each
@@ -3566,7 +3563,7 @@ scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
 /// @param acc Accessor referencing the data to store.
 /// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes
 /// represented as a 'simd_view' object.
-/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// For each i, (acc + byte_offsets[i]) must be element size aligned.
 /// If the alignment property is not passed, then it is assumed that each
 /// accessed address is aligned by element-size.
 /// @param props The optional compile-time properties. Only 'alignment'
@@ -3628,7 +3625,6 @@ __ESIMD_API
 #ifdef __ESIMD_FORCE_STATELESS_MEM
 template <typename T, int N, typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<
-    (detail::isPowerOf2(N, 32)) &&
     detail::is_device_accessor_with_v<AccessorTy,
                                       detail::accessor_mode_cap::can_write> &&
     std::is_integral_v<Toffset> && !std::is_same_v<Toffset, uint64_t>>
