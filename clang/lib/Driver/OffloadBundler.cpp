@@ -733,10 +733,6 @@ public:
     StringRef Content = *ContentOrErr;
 
     // Copy fat object contents to the output when extracting host bundle.
-<<<<<<< HEAD
-    if (Content.size() == 1u && Content.front() == 0)
-      Content = StringRef(Input.getBufferStart(), Input.getBufferSize());
-=======
     std::string ModifiedContent;
     if (Content.size() == 1u && Content.front() == 0) {
       auto HostBundleOrErr = getHostBundle(
@@ -747,7 +743,6 @@ public:
       ModifiedContent = std::move(*HostBundleOrErr);
       Content = ModifiedContent;
     }
->>>>>>> 61b13e0dfe1b476d9bf0fe477983be8471cfd26b
 
     OS.write(Content.data(), Content.size());
     return Error::success();
@@ -869,8 +864,6 @@ private:
     }
     return Error::success();
   }
-<<<<<<< HEAD
-=======
 
   Expected<std::string> getHostBundle(StringRef Input) {
     TempFileHandlerRAII TempFiles;
@@ -917,7 +910,35 @@ private:
 
     return BufOrErr->get()->getBuffer().str();
   }
->>>>>>> 61b13e0dfe1b476d9bf0fe477983be8471cfd26b
+
+  Expected<std::string> getHostBundle() {
+    TempFileHandlerRAII TempFiles;
+
+    auto ModifiedObjPathOrErr = TempFiles.Create(std::nullopt);
+    if (!ModifiedObjPathOrErr)
+      return ModifiedObjPathOrErr.takeError();
+    StringRef ModifiedObjPath = *ModifiedObjPathOrErr;
+
+    BumpPtrAllocator Alloc;
+    StringSaver SS{Alloc};
+    SmallVector<StringRef, 16> ObjcopyArgs{"llvm-objcopy"};
+
+    ObjcopyArgs.push_back("--regex");
+    ObjcopyArgs.push_back("--remove-section=__CLANG_OFFLOAD_BUNDLE__.*");
+    ObjcopyArgs.push_back("--");
+    ObjcopyArgs.push_back(BundlerConfig.InputFileNames.front());
+    ObjcopyArgs.push_back(ModifiedObjPath);
+
+    if (Error Err = executeObjcopy(BundlerConfig.ObjcopyPath, ObjcopyArgs))
+      return std::move(Err);
+
+    auto BufOrErr = MemoryBuffer::getFile(ModifiedObjPath);
+    if (!BufOrErr)
+      return createStringError(BufOrErr.getError(),
+                               "Failed to read back the modified object file");
+
+    return BufOrErr->get()->getBuffer().str();
+  }
 };
 
 /// Handler for text files. The bundled file will have the following format.
