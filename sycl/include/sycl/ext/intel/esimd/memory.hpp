@@ -3401,7 +3401,7 @@ gather(AccessorT acc, OffsetSimdViewT byte_offsets, PropertyListT props = {}) {
 /// template <typename T, int N, int VS = 1, typename AccessorTy,
 /// typename OffsetT, typename PropertyListT = empty_properties_t>
 /// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
-///              simd<T, N>vals, PropertyListT props = {});       // (acc-sc-2)
+///              simd<T, N> vals, PropertyListT props = {});      // (acc-sc-2)
 
 /// The following two functions are similar to acc-sc-{1,2} with the
 /// 'byte_offsets' parameter represented as 'simd_view'.
