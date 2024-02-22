@@ -905,11 +905,36 @@ public:
   // Implement operator [] in the same way for host and device.
   // TODO: change host side implementation when underlying type for host side
   // will be changed to std::array.
-  const DataT &operator[](int i) const {
+
+  template <typename T = DataT>
+  typename std::enable_if<!std::is_same<T, sycl::ext::oneapi::bfloat16>::value,
+                          const DataT &>::type
+  operator[](int i) const {
     return reinterpret_cast<const DataT *>(&m_Data)[i];
   }
 
-  DataT &operator[](int i) { return reinterpret_cast<DataT *>(&m_Data)[i]; }
+  template <typename T = DataT>
+  typename std::enable_if<!std::is_same<T, sycl::ext::oneapi::bfloat16>::value,
+                          DataT &>::type
+  operator[](int i) {
+    return reinterpret_cast<DataT *>(&m_Data)[i];
+  }
+
+#pragma clang optimize off
+  template <typename T = DataT>
+  typename std::enable_if<std::is_same<T, sycl::ext::oneapi::bfloat16>::value,
+                          const DataT &>::type
+  operator[](int i) const {
+    return reinterpret_cast<const DataT *>(&m_Data)[i];
+  }
+
+  template <typename T = DataT>
+  typename std::enable_if<std::is_same<T, sycl::ext::oneapi::bfloat16>::value,
+                          DataT &>::type
+  operator[](int i) {
+    return reinterpret_cast<DataT *>(&m_Data)[i];
+  }
+#pragma clang optimize on
 
   // Begin hi/lo, even/odd, xyzw, and rgba swizzles.
 private:
