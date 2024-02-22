@@ -94,6 +94,26 @@ class filter_selector;
     return Info;                                                               \
   }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+template <typename Class, Class* C, typename Param>
+Param get_info() {
+  auto Info = C->template get_info_impl<Param>();                                          
+  if constexpr (std::is_same_v<decltype(Info), detail::string>) {              
+    return Info.c_str();                                                       
+  } else if constexpr (std::is_same_v<decltype(Info),                          
+                                      std::vector<detail::string>>) {          
+    std::vector<std::string> Res;                                              
+    Res.reserve(Info.size());                                                  
+    for (detail::string & Str : Info) {                                        
+      Res.push_back(Str.c_str());                                              
+    }                                                                          
+    return Res;                                                                
+  } else {                                                                     
+    return Info;                                                               
+  }
+}
+#endif
+
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///
 /// \ingroup sycl_api
@@ -184,7 +204,7 @@ public:
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
   typename detail::is_platform_info_desc<Param>::return_type get_info() const {
-    __SYCL_GET_INFO_BODY
+    return get_info<platform, this, typename detail::is_platform_info_desc<Param>::return_type>();
   }
 #else
   template <typename Param>
