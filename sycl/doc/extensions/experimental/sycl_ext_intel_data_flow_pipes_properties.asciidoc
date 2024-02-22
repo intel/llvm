@@ -142,7 +142,7 @@ struct first_symbol_in_high_order_bits_key {
                                            std::bool_constant<HighOrder>>;
 };
 
-struct implement_in_csr {
+struct implement_in_csr_key {
   template <bool InCsr>
   using value_t =
       oneapi::experimental::property_value<implement_in_csr_key,
