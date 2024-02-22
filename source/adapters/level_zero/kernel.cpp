@@ -264,6 +264,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   return UR_RESULT_SUCCESS;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
+    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  return urEnqueueKernelLaunch(hQueue, hKernel, workDim, pGlobalWorkOffset,
+                               pGlobalWorkSize, pLocalWorkSize,
+                               numEventsInWaitList, phEventWaitList, phEvent);
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
     ur_queue_handle_t Queue,     ///< [in] handle of the queue to submit to.
     ur_program_handle_t Program, ///< [in] handle of the program containing the
@@ -784,6 +794,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
   std::shared_lock<ur_shared_mutex> Guard(Kernel->Mutex);
 
   *NativeKernel = reinterpret_cast<ur_native_handle_t>(Kernel->ZeKernel);
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
+    ur_kernel_handle_t hKernel, size_t localWorkSize,
+    size_t dynamicSharedMemorySize, uint32_t *pGroupCountRet) {
+  (void)hKernel;
+  (void)localWorkSize;
+  (void)dynamicSharedMemorySize;
+  *pGroupCountRet = 1;
   return UR_RESULT_SUCCESS;
 }
 
