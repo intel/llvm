@@ -726,8 +726,24 @@ public:
   }
 };
 
-static KernelInvocationKind
-getKernelInvocationKind(FunctionDecl *KernelCallerFunc);
+/// This function checks whether given DeclContext contains a topmost
+/// namespace with name "sycl".
+static bool isDeclaredInSYCLNamespace(const Decl *D) {
+  const DeclContext *DC = D->getDeclContext()->getEnclosingNamespaceContext();
+  const auto *ND = dyn_cast<NamespaceDecl>(DC);
+  // If this is not a namespace, then we are done.
+  if (!ND)
+    return false;
+
+  // While it is a namespace, find its parent scope.
+  while (const DeclContext *Parent = ND->getParent()) {
+    if (!isa<NamespaceDecl>(Parent))
+      break;
+    ND = cast<NamespaceDecl>(Parent);
+  }
+
+  return ND && ND->getName() == "sycl";
+}
 
 // This type does the heavy lifting for the management of device functions,
 // recursive function detection, and attribute collection for a single
@@ -773,17 +789,20 @@ class SingleDeviceFunctionTracker {
       Parent.SemaRef.addFDToReachableFromSyclDevice(CurrentDecl,
                                                     CallStack.back());
 
-  if (CurrentDecl->getIdentifier()) {
-    auto *SK = this->GetSYCLKernel();
-    if (SK->getIdentifier())
-      printf("Kernel name is %s\n", SK->getIdentifier()->getName().data());
-    if (getKernelInvocationKind(this->GetSYCLKernel()) == InvokeParallelForWorkGroup) {
-      printf("Called from wg\n");
+    // If this is a parallel_for_work_item that is declared in the
+    // sycl namespace, mark it with the WorkItem scope attribute.
+    // Note: Here, we assume that this is called from within a
+    // parallel_for_work_group; it is undefined to call it otherwise.
+    // We deliberately do not diagnose a violation.
+    if (CurrentDecl->getIdentifier() &&
+        CurrentDecl->getIdentifier()->getName() == "parallel_for_work_item" &&
+        isDeclaredInSYCLNamespace(CurrentDecl) &&
+        !CurrentDecl->hasAttr<SYCLScopeAttr>()) {
+      CurrentDecl->addAttr(
+          SYCLScopeAttr::CreateImplicit(Parent.SemaRef.getASTContext(),
+                                        SYCLScopeAttr::Level::WorkItem));
     }
-    //if (CurrentDecl->getIdentifier()->getName() == "kernel_parallel_for_work_group")
-    if (CurrentDecl->getIdentifier()->getName() == "parallel_for_work_item")
-      printf("Name is %s\n", CurrentDecl->getIdentifier()->getName().data());
-  }
+
     // We previously thought we could skip this function if we'd seen it before,
     // but if we haven't seen it before in this call graph, we can end up
     // missing a recursive call.  SO, we have to revisit call-graphs we've
@@ -944,10 +963,6 @@ public:
     return true;
   }
 
-  bool VisitCallExpr(CallExpr *Call) {
-    return true;
-  }
-
 private:
   ASTContext &Ctx;
 };
@@ -957,7 +972,6 @@ static bool isSYCLPrivateMemoryVar(VarDecl *VD) {
 }
 
 static void addScopeAttrToLocalVars(CXXMethodDecl &F) {
-printf("Called\n");
   for (Decl *D : F.decls()) {
     VarDecl *VD = dyn_cast<VarDecl>(D);
 
@@ -973,8 +987,6 @@ printf("Called\n");
     SYCLScopeAttr::Level L = isSYCLPrivateMemoryVar(VD)
                                  ? SYCLScopeAttr::Level::WorkItem
                                  : SYCLScopeAttr::Level::WorkGroup;
-printf("Marked\n");
-VD->dump();
     VD->addAttr(SYCLScopeAttr::CreateImplicit(F.getASTContext(), L));
   }
 }
@@ -2977,11 +2989,6 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
                                 FPOptionsOverride(), {}, {});
   }
 
-  void findWorkItem() {
-    MarkWIScopeFnVisitor MarkWIScope(SemaRef.getASTContext());
-    MarkWIScope.TraverseDecl(CallOperator);
-  }
-
   void annotateHierarchicalParallelismAPICalls() {
     // Is this a hierarchical parallelism kernel invocation?
     if (getKernelInvocationKind(KernelCallerFunc) != InvokeParallelForWorkGroup)
@@ -3459,7 +3466,6 @@ public:
         IsESIMD(IsSIMDKernel), CallOperator(CallOperator) {
     CollectionInitExprs.push_back(createInitListExpr(KernelObj));
     annotateHierarchicalParallelismAPICalls();
-    findWorkItem();
 
     Stmt *DS = new (S.Context) DeclStmt(DeclGroupRef(KernelObjClone),
                                         KernelCallerSrcLoc, KernelCallerSrcLoc);
