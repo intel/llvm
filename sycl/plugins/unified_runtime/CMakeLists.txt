@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b4150ad1512476eb6ea0f2ede3bd29a6e3fd2b9e
-  # Merge: 4814e717 123c00f1
+  # commit 588615e90bfd2b889834120dfff172236c6b8aa8
+  # Merge: 4e69cc60 47084751
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Feb 22 10:42:39 2024 +0000
-  #     Merge pull request #1366 from nrspruit/fix_multidevice_event_cache
-  #     [L0] Fix the multi device event cache to allocate lists as pointers
-  set(UNIFIED_RUNTIME_TAG b4150ad1512476eb6ea0f2ede3bd29a6e3fd2b9e)
+  # Date:   Thu Feb 22 16:10:13 2024 +0000
+  #     Merge pull request #1371 from pbalcer/l0-query-status-sync-deadlock
+  #     [L0] fix a deadlock in queue sync and event status query
+  set(UNIFIED_RUNTIME_TAG 588615e90bfd2b889834120dfff172236c6b8aa8)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
