@@ -1935,7 +1935,13 @@ Value *Packetizer::Impl::packetizeMaskVarying(Instruction *I) {
     // pressure, and to make it easier for CSE/GVN to combine them if there
     // are multiple uses of the same value (we could cache these?)
     auto *maskInst = dyn_cast<Instruction>(vecMask);
-    IRBuilder<> B(maskInst ? buildAfter(maskInst, F) : I);
+    IRBuilder<> B = [&] {
+      if (maskInst) {
+        return buildAfter(maskInst, F);
+      } else {
+        return IRBuilder<>(I);
+      }
+    }();
 
     Value *anyOfMask =
         createMaybeVPTargetReduction(B, TTI, vecMask, RecurKind::Or, VL);

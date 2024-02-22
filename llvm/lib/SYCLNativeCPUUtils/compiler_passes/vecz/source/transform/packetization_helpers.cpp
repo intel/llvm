@@ -99,7 +99,7 @@ Value *createFixedBroadcastOfScalableVector(const vecz::TargetInfo &TI,
 }  // namespace
 
 namespace vecz {
-Instruction *buildAfter(Value *V, Function &F, bool IsPhi) {
+IRBuilder<> buildAfter(Value *V, Function &F, bool IsPhi) {
   if (auto *const I = dyn_cast<Instruction>(V)) {
     BasicBlock::iterator Next = I->getIterator();
     const BasicBlock::iterator End = Next->getParent()->end();
@@ -107,14 +107,14 @@ Instruction *buildAfter(Value *V, Function &F, bool IsPhi) {
       ++Next;
     } while (!IsPhi && (Next != End) &&
              (isa<PHINode>(Next) || isa<AllocaInst>(Next)));
-    return &*Next;
+    return {I->getParent(), Next};
   }
   // Else find the first point in the function after any allocas.
   auto it = F.getEntryBlock().begin();
   while (isa<AllocaInst>(*it)) {
     ++it;
   }
-  return &*it;
+  return {&F.getEntryBlock(), it};
 }
 
 Constant *getShuffleMask(ShuffleVectorInst *shuffle) {
