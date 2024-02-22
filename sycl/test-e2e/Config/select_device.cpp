@@ -123,7 +123,11 @@ static std::vector<DevDescT> getAllowListDesc(std::string allowList) {
         throw std::runtime_error("Malformed device allowlist");
       }
       decDescs.back().devDriverVer = allowList.substr(start, pos - start);
-      pos = pos + 3;
+      pos = pos + 2;
+
+      if (allowList[pos] == ',') {
+        pos++;
+      }
     }
 
     else if ((allowList.compare(pos, platformName.size(), platformName)) == 0) {

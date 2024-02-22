@@ -15,10 +15,11 @@
 // producers. Producer stores data to SLM, then all threads read SLM and store
 // data to surface.
 
+#include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
-#include <iostream>
+#include "../esimd_test_utils.hpp"
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -47,63 +48,66 @@ bool test(QueueTY q) {
 
     auto e = q.submit([&](handler &cgh) {
       auto acc = buf.get_access<access::mode::write>(cgh);
-      cgh.parallel_for<KernelID<
-          case_num>>(Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
-        // 2 named barriers, id 0 reserved for unnamed
-        constexpr unsigned bnum = 3;
+      cgh.parallel_for<KernelID<case_num>>(
+          Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+            // 2 named barriers, id 0 reserved for unnamed
+            constexpr unsigned bnum = 3;
 
-        // SLM size is half of output surface size so
-        // content of SLM can be copied to out buffer on each iteration
-        constexpr unsigned SlmSize = Size / 2;     // 32
-        constexpr unsigned VL = SlmSize / Threads; // 4
+            // SLM size is half of output surface size so
+            // content of SLM can be copied to out buffer on each iteration
+            constexpr unsigned SlmSize = Size / 2;     // 32
+            constexpr unsigned VL = SlmSize / Threads; // 4
 
-        named_barrier_init<bnum>();
+            named_barrier_init<bnum>();
 
-        unsigned int idx = ndi.get_local_id(0);
-        unsigned int off = idx * VL * sizeof(int);
+            unsigned int idx = ndi.get_local_id(0);
+            unsigned int off = idx * VL * sizeof(int);
 
-        // 2 producers on first iteration, 1 producer on second
-        unsigned int indexes[2][2] = {{1, 2}, {3, 3}}; // local ids of producers
-        unsigned int prods[2] = {2, 1};                // number of producers
+            // 2 producers on first iteration, 1 producer on second
+            unsigned int indexes[2][2] = {{1, 2},
+                                          {3, 3}}; // local ids of producers
+            unsigned int prods[2] = {2, 1};        // number of producers
 
-        slm_init(SlmSize * sizeof(int));
-        lsc_slm_block_store<int, VL>(off, simd<int, VL>(0));
-        barrier();
+            slm_init(SlmSize * sizeof(int));
+            lsc_slm_block_store<int, VL>(off, simd<int, VL>(0));
+            barrier();
 
-        for (int b = bnum - 1; b > 0; b--) {
-          int j = bnum - b - 1; // iteration index
+            for (int b = bnum - 1; b > 0; b--) {
+              int j = bnum - b - 1; // iteration index
 
-          bool is_producer = idx == indexes[j][0] || idx == indexes[j][1];
-          bool is_consumer = !is_producer;
-          // only-consumer or only-producer modes
-          unsigned int flag = is_producer ? 0x1 : 0x2;
+              bool is_producer = idx == indexes[j][0] || idx == indexes[j][1];
+              bool is_consumer = !is_producer;
+              // only-consumer or only-producer modes
+              unsigned int flag = is_producer ? 0x1 : 0x2;
 
-          unsigned int producers = prods[j];
-          unsigned int consumers = Threads - producers;
+              unsigned int producers = prods[j];
+              unsigned int consumers = Threads - producers;
 
-          if (is_producer) {
-            unsigned int p_off = j * sizeof(int) * SlmSize / 4;
-            // second iteration store partialy overlaps first iteration stores
-            unsigned int dx = producers == 2 ? (idx - 1) : 0;
-            p_off += dx * sizeof(int) * SlmSize / 2;
-            int v = 0xdead0000 + idx;
-            simd<int, SlmSize / 2> init(v);
-            // producer stores to SLM
-            lsc_slm_block_store<int, SlmSize / 2>(p_off, init);
-          }
+              if (is_producer) {
+                unsigned int p_off = j * sizeof(int) * SlmSize / 4;
+                // second iteration store partialy overlaps first iteration
+                // stores
+                unsigned int dx = producers == 2 ? (idx - 1) : 0;
+                p_off += dx * sizeof(int) * SlmSize / 2;
+                int v = 0xdead0000 + idx;
+                simd<int, SlmSize / 2> init(v);
+                // producer stores to SLM
+                lsc_slm_block_store<int, SlmSize / 2>(p_off, init);
+              }
 
-          named_barrier_signal(b, flag, producers, consumers);
+              named_barrier_signal(b, flag, producers, consumers);
 
-          if (is_consumer)
-            named_barrier_wait(b); // consumers waiting for signal
+              if (is_consumer)
+                named_barrier_wait(b); // consumers waiting for signal
 
-          auto val = lsc_slm_block_load<int, VL>(off); // reading SLM
-          // and storing it to output surface
-          lsc_fence();
-          lsc_block_store<int, VL>(acc, off + j * SlmSize * sizeof(int), val);
-          lsc_fence();
-        }
-      });
+              auto val = lsc_slm_block_load<int, VL>(off); // reading SLM
+              // and storing it to output surface
+              fence();
+              lsc_block_store<int, VL>(acc, off + j * SlmSize * sizeof(int),
+                                       val);
+              fence();
+            }
+          });
     });
     e.wait();
   } catch (sycl::exception const &e) {
@@ -136,11 +140,8 @@ bool test(QueueTY q) {
 }
 
 int main() {
-  auto GPUSelector = gpu_selector{};
-  auto q = queue{GPUSelector};
-  auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
-            << "\n";
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
+  esimd_test::printTestLabel(q);
 
   bool passed = true;
 
