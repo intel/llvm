@@ -116,11 +116,15 @@ struct TargetFilenamePairParser : public cl::basic_parser<TargetFilenamePair> {
   bool parse(cl::Option &O, StringRef ArgName, StringRef &ArgValue,
              TargetFilenamePair &Val) const {
     auto FirstComma = ArgValue.find(",");
-    if (FirstComma == ArgValue.npos)
+    if (FirstComma == ArgValue.npos) {
       Val = {"", ArgValue.str()};
-    else
-      Val = {ArgValue.substr(0, FirstComma).str(),
-             ArgValue.substr(FirstComma + 1).str()};
+      return false;
+    }
+    auto Target = ArgValue.substr(0, FirstComma).str();
+    if (!is_contained(DeviceConfigFile::TargetTable, Target))
+      return O.error("'" + Target + "' is not a recognized target!");
+
+    Val = {Target, ArgValue.substr(FirstComma + 1).str()};
     return false;
   }
 };
