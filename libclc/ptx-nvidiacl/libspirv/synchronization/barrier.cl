@@ -19,8 +19,7 @@ _CLC_OVERLOAD _CLC_DEF void __spirv_MemoryBarrier(unsigned int memory,
   // can be used to form either acquire or release strong operations.
 
   unsigned int order = semantics & 0x1F;
-  if (order == None) {
-  } else if (__clc_nvvm_reflect_arch() < 700 ||
+  if (__clc_nvvm_reflect_arch() < 700 ||
              order == SequentiallyConsistent) {
     if (memory == CrossDevice) {
       __nvvm_membar_sys();
@@ -29,7 +28,7 @@ _CLC_OVERLOAD _CLC_DEF void __spirv_MemoryBarrier(unsigned int memory,
     } else {
       __nvvm_membar_cta();
     }
-  } else {
+  } else if (order != None) {
     if (memory == CrossDevice) {
       __asm__ __volatile__("fence.acq_rel.sys;");
     } else if (memory == Device) {
