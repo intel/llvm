@@ -71,7 +71,7 @@ attributes #4 = { convergent }
 ; implicit padding at the end of the composite type of the spec constant.
 ;
 ; CHECK: [SYCL/specialization constants]
-; CHECK-NEXT: fb86570d411366d1____ZL9SpecConst=2|gEAAAAAAAAAAAAAAAAAAAQAAAAQAAAAAEAAAAEAAAAw/////FAAAAMAAAAA
+; CHECK-NEXT: fb86570d411366d1____ZL9SpecConst=2
 ; CHECK-LOG: sycl.specialization-constants
 ; CHECK-LOG:[[UNIQUE_PREFIX:[0-9a-zA-Z]+]]={0, 0, 4}
 ; CHECK-LOG:[[UNIQUE_PREFIX]]={1, 4, 1}

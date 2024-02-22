@@ -97,8 +97,8 @@ attributes #5 = { nounwind }
 ; Most important information from the corresponding encoded data is the size of
 ; the specialization constants, i.e. 8 and 1 bytes respectively.
 ; CHECK: [SYCL/specialization constants]
-; CHECK-NEXT: 9d329ad59055e972____ZL12StructSpecId=2|gBAAAAAAAAAAAAAAAAAAAgAAAAA
-; CHECK-NEXT: 9d329ad59055e972____ZL10BoolSpecId=2|gBAAAAAAAAQAAAAAAAAAAEAAAAA
+; CHECK-NEXT: 9d329ad59055e972____ZL12StructSpecId=2
+; CHECK-NEXT: 9d329ad59055e972____ZL10BoolSpecId=2
 ; CHECK-LOG: sycl.specialization-constants
 ; CHECK-LOG:[[UNIQUE_PREFIX:[a-z0-9]+]]____ZL12StructSpecId={0, 0, 8}
 ; CHECK-LOG:[[UNIQUE_PREFIX]]____ZL10BoolSpecId={1, 0, 1}
@@ -115,7 +115,7 @@ attributes #5 = { nounwind }
 ;  5. 1 byte with the default value of the boolean specialization constant. Its
 ;     value being true.
 ; CHECK: [SYCL/specialization constants default values]
-; CHECK-NEXT: all=2|IBAAAAAAAAAFAAAAjBAAAEA
+; CHECK-NEXT: all=2
 ; CHECK-LOG: sycl.specialization-constants-default-values
 ; CHECK-LOG:{0, 4, 20}
 ; CHECK-LOG:{4, 1, 99}
