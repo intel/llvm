@@ -4,12 +4,12 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// Uncomment to print additional test information
+// #define VERBOSE_PRINT
+
 #include "user_types_common.hpp"
 #include <iostream>
 #include <sycl/sycl.hpp>
-
-// Uncomment to print additional test information
-// #define VERBOSE_PRINT
 
 template <typename MyType, int NElems, typename OutType,
           sycl::image_channel_order ChannelOrder,
@@ -146,24 +146,24 @@ int main() {
                sycl::image_channel_order::rg,
                sycl::image_channel_type::unsigned_int32, class myuint_2>();
 
-  printTestName("Running my_short4");
+  printTestName("Running my_ushort4");
   validated &=
       run_test<my_ushort4, 4, sycl::vec<uint16_t, 4>,
                sycl::image_channel_order::rgba,
                sycl::image_channel_type::unsigned_int16, class myushort_4>();
 
-  printTestName("Running my_short2");
+  printTestName("Running my_ushort2");
   validated &=
       run_test<my_ushort2, 2, sycl::vec<uint16_t, 2>,
                sycl::image_channel_order::rg,
                sycl::image_channel_type::unsigned_int16, class myushort_2>();
 
-  printTestName("Running my_char4");
+  printTestName("Running my_uchar4");
   validated &=
       run_test<my_uchar4, 4, sycl::vec<uint8_t, 4>,
                sycl::image_channel_order::rgba,
                sycl::image_channel_type::unsigned_int8, class myuchar_4>();
-  printTestName("Running my_char2");
+  printTestName("Running my_uchar2");
   validated &=
       run_test<my_uchar2, 2, sycl::vec<uint8_t, 2>,
                sycl::image_channel_order::rg,
