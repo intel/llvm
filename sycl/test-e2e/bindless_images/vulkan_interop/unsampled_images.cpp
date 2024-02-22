@@ -185,9 +185,9 @@ void run_ndim_test(sycl::range<NDims> global_size,
 
             if constexpr (NDims == 2) {
               if constexpr (NChannels > 1) {
-                VecType px1 = syclexp::read_image<VecType>(
+                VecType px1 = syclexp::fetch_image<VecType>(
                     handles.input_1, sycl::int2(dim0, dim1));
-                VecType px2 = syclexp::read_image<VecType>(
+                VecType px2 = syclexp::fetch_image<VecType>(
                     handles.input_2, sycl::int2(dim0, dim1));
 
                 auto sum =
@@ -195,10 +195,10 @@ void run_ndim_test(sycl::range<NDims> global_size,
                 syclexp::write_image<VecType>(
                     handles.output, sycl::int2(dim0, dim1), VecType(sum));
               } else {
-                DType px1 = syclexp::read_image<DType>(handles.input_1,
-                                                       sycl::int2(dim0, dim1));
-                DType px2 = syclexp::read_image<DType>(handles.input_2,
-                                                       sycl::int2(dim0, dim1));
+                DType px1 = syclexp::fetch_image<DType>(handles.input_1,
+                                                        sycl::int2(dim0, dim1));
+                DType px2 = syclexp::fetch_image<DType>(handles.input_2,
+                                                        sycl::int2(dim0, dim1));
 
                 auto sum = DType(util::add_kernel<DType, NChannels>(px1, px2));
                 syclexp::write_image<DType>(handles.output,
@@ -208,26 +208,24 @@ void run_ndim_test(sycl::range<NDims> global_size,
               size_t dim2 = it.get_global_id(2);
 
               if constexpr (NChannels > 1) {
-                VecType px1 = syclexp::read_image<VecType>(
-                    handles.input_1, sycl::int4(dim0, dim1, dim2, 0));
-                VecType px2 = syclexp::read_image<VecType>(
-                    handles.input_2, sycl::int4(dim0, dim1, dim2, 0));
+                VecType px1 = syclexp::fetch_image<VecType>(
+                    handles.input_1, sycl::int3(dim0, dim1, dim2));
+                VecType px2 = syclexp::fetch_image<VecType>(
+                    handles.input_2, sycl::int3(dim0, dim1, dim2));
 
                 auto sum =
                     VecType(util::add_kernel<VecType, NChannels>(px1, px2));
-                syclexp::write_image<VecType>(handles.output,
-                                              sycl::int4(dim0, dim1, dim2, 0),
-                                              VecType(sum));
+                syclexp::write_image<VecType>(
+                    handles.output, sycl::int3(dim0, dim1, dim2), VecType(sum));
               } else {
-                DType px1 = syclexp::read_image<DType>(
-                    handles.input_1, sycl::int4(dim0, dim1, dim2, 0));
-                DType px2 = syclexp::read_image<DType>(
-                    handles.input_2, sycl::int4(dim0, dim1, dim2, 0));
+                DType px1 = syclexp::fetch_image<DType>(
+                    handles.input_1, sycl::int3(dim0, dim1, dim2));
+                DType px2 = syclexp::fetch_image<DType>(
+                    handles.input_2, sycl::int3(dim0, dim1, dim2));
 
                 auto sum = DType(util::add_kernel<DType, NChannels>(px1, px2));
-                syclexp::write_image<DType>(handles.output,
-                                            sycl::int4(dim0, dim1, dim2, 0),
-                                            DType(sum));
+                syclexp::write_image<DType>(
+                    handles.output, sycl::int3(dim0, dim1, dim2), DType(sum));
               }
             }
           });

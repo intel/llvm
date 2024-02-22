@@ -167,7 +167,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
         // described in SyclBeMap
         ValidateEnumValues(BackendNameKeyName, getSyclBeMap());
         ValidateEnumValues(DeviceTypeKeyName,
-                           getSyclDeviceTypeMap(true /*Enable 'acc'*/));
+                           getSyclDeviceTypeMap<true /*Enable 'acc'*/>());
 
         if (Key == DeviceVendorIdKeyName) {
           // DeviceVendorId should have hex format
@@ -382,7 +382,7 @@ void applyAllowList(std::vector<sycl::detail::pi::PiDevice> &PiDevices,
         &PiDevType, nullptr);
     sycl::info::device_type DeviceType = pi::cast<info::device_type>(PiDevType);
     for (const auto &SyclDeviceType :
-         getSyclDeviceTypeMap(true /*Enable 'acc'*/)) {
+         getSyclDeviceTypeMap<true /*Enable 'acc'*/>()) {
       if (SyclDeviceType.second == DeviceType) {
         const auto &DeviceTypeValue = SyclDeviceType.first;
         DeviceDesc[DeviceTypeKeyName] = DeviceTypeValue;
