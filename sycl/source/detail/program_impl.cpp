@@ -402,10 +402,7 @@ program_impl::get_pi_kernel_arg_mask_pair(const std::string &KernelName) const {
 
     // Some PI Plugins (like OpenCL) require this call to enable USM
     // For others, PI will turn this into a NOP.
-    if (getContextImplPtr()->getPlatformImpl()->getBackend() !=
-            backend::opencl ||
-        getContextImplPtr()->getPlatformImpl()->has_extension(
-            "cl_intel_unified_shared_memory"))
+    if (getContextImplPtr()->getPlatformImpl()->supports_usm())
       Plugin->call<PiApiKind::piKernelSetExecInfo>(
           Result.first, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
 

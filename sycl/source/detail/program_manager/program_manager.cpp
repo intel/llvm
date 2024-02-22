@@ -690,9 +690,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
         Program, KernelName.c_str(), &Kernel);
 
     // Only set PI_USM_INDIRECT_ACCESS if the platform can handle it.
-    if (ContextImpl->getPlatformImpl()->getBackend() != backend::opencl ||
-        ContextImpl->getPlatformImpl()->has_extension(
-            "cl_intel_unified_shared_memory")) {
+    if (ContextImpl->getPlatformImpl()->supports_usm()) {
       // Some PI Plugins (like OpenCL) require this call to enable USM
       // For others, PI will turn this into a NOP.
       Plugin->call<PiApiKind::piKernelSetExecInfo>(
@@ -2367,8 +2365,7 @@ ProgramManager::getOrCreateKernel(const context &Context,
                                             &Kernel);
 
     // Only set PI_USM_INDIRECT_ACCESS if the platform can handle it.
-    if (Ctx->getPlatformImpl()->getBackend() != backend::opencl ||
-        Ctx->getPlatformImpl()->has_extension("cl_intel_unified_shared_memory"))
+    if (Ctx->getPlatformImpl()->supports_usm())
       Plugin->call<PiApiKind::piKernelSetExecInfo>(
           Kernel, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
 
