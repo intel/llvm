@@ -24,6 +24,28 @@ TEST_P(urKernelGetInfoTest, Success) {
     property_value.resize(property_size);
     ASSERT_SUCCESS(urKernelGetInfo(kernel, property_name, property_size,
                                    property_value.data(), nullptr));
+    switch (property_name) {
+    case UR_KERNEL_INFO_CONTEXT: {
+        auto returned_context =
+            reinterpret_cast<ur_context_handle_t *>(property_value.data());
+        ASSERT_EQ(context, *returned_context);
+        break;
+    }
+    case UR_KERNEL_INFO_PROGRAM: {
+        auto returned_program =
+            reinterpret_cast<ur_program_handle_t *>(property_value.data());
+        ASSERT_EQ(program, *returned_program);
+        break;
+    }
+    case UR_KERNEL_INFO_REFERENCE_COUNT: {
+        auto returned_reference_count =
+            reinterpret_cast<uint32_t *>(property_value.data());
+        ASSERT_GT(*returned_reference_count, 0U);
+        break;
+    }
+    default:
+        break;
+    }
 }
 
 TEST_P(urKernelGetInfoTest, InvalidNullHandleKernel) {
