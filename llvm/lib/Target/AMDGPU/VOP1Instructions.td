@@ -217,9 +217,7 @@ def VOP_I16_F16_SPECIAL_OMOD_t16 : VOPProfile_Fake16<VOP_I16_F16> {
 // VOP1 Instructions
 //===----------------------------------------------------------------------===//
 
-let VOPAsmPrefer32Bit = 1 in {
 defm V_NOP : VOP1Inst <"v_nop", VOP_NOP_PROFILE>;
-}
 
 def VOPProfile_MOV : VOPProfile <[i32, i32, untyped, untyped]> {
   let InsVOPDX = (ins Src0RC32:$src0X);
@@ -368,9 +366,7 @@ defm V_FREXP_EXP_I32_F32 : VOP1Inst <"v_frexp_exp_i32_f32", VOP_I32_F32, int_amd
 defm V_FREXP_MANT_F32 : VOP1Inst <"v_frexp_mant_f32", VOP_F32_F32, int_amdgcn_frexp_mant>;
 } // End isReMaterializable = 1
 
-let VOPAsmPrefer32Bit = 1 in {
 defm V_CLREXCP : VOP1Inst <"v_clrexcp", VOP_NO_EXT<VOP_NONE>>;
-}
 
 // Restrict src0 to be VGPR
 def VOP_MOVRELS : VOPProfile<[i32, i32, untyped, untyped]> {
@@ -399,10 +395,10 @@ class VOP_MOVREL<RegisterOperand Src1RC> : VOPProfile<[untyped, i32, untyped, un
 
   let OutsDPP = (outs Src0RC32:$vdst);
   let InsDPP16 = (ins Src0RC32:$old, Src0RC32:$src0,
-                      dpp_ctrl:$dpp_ctrl, row_mask:$row_mask,
-                      bank_mask:$bank_mask, bound_ctrl:$bound_ctrl, FI:$fi);
+                      dpp_ctrl:$dpp_ctrl, DppRowMask:$row_mask,
+                      DppBankMask:$bank_mask, DppBoundCtrl:$bound_ctrl, DppFI:$fi);
   let AsmDPP16 = getAsmDPP16<1, 1, 0>.ret;
-  let InsDPP8 = (ins Src0RC32:$old, Src0RC32:$src0, dpp8:$dpp8, FI:$fi);
+  let InsDPP8 = (ins Src0RC32:$old, Src0RC32:$src0, dpp8:$dpp8, DppFI:$fi);
   let AsmDPP8 = getAsmDPP8<1, 1, 0>.ret;
 
   let OutsVOP3DPP = (outs Src0RC64:$vdst);
@@ -668,10 +664,8 @@ class Cvt_F32_F8_Pat_OpSel<SDPatternOperator node, bits<2> index,
     VOP1_Pseudo inst_e32, VOP3_Pseudo inst_e64> : GCNPat<
     (f32 (node i32:$src, index)),
     !if (index,
-         (inst_e64 !if(index{0},
-                         !if(index{1}, !or(SRCMODS.OP_SEL_0, SRCMODS.OP_SEL_1),
-                                       SRCMODS.OP_SEL_0),
-                         !if(index{1}, SRCMODS.OP_SEL_1, 0)),
+         (inst_e64 !or(!if(index{0}, SRCMODS.OP_SEL_1, 0),
+                       !if(index{1}, SRCMODS.OP_SEL_0, 0)),
                     $src, 0),
          (inst_e32 $src))
 >;

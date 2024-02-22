@@ -2965,7 +2965,9 @@ private:
         Rest...);
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   buffer<detail::AssertHappened, 1> &getAssertHappenedBuffer();
+#endif
 
   event memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
                              bool IsDeviceImageScope, size_t NumBytes,
@@ -2981,11 +2983,8 @@ private:
 } // namespace sycl
 
 namespace std {
-template <> struct hash<sycl::queue> {
-  size_t operator()(const sycl::queue &Q) const {
-    return std::hash<std::shared_ptr<sycl::detail::queue_impl>>()(
-        sycl::detail::getSyclObjImpl(Q));
-  }
+template <> struct __SYCL_EXPORT hash<sycl::queue> {
+  size_t operator()(const sycl::queue &Q) const;
 };
 } // namespace std
 
@@ -3019,9 +3018,7 @@ class AssertInfoCopier;
  */
 event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
                           const detail::code_location &CodeLoc) {
-  using AHBufT = buffer<detail::AssertHappened, 1>;
-
-  AHBufT &Buffer = Self.getAssertHappenedBuffer();
+  buffer<detail::AssertHappened, 1> Buffer{1};
 
   event CopierEv, CheckerEv, PostCheckerEv;
   auto CopierCGF = [&](handler &CGH) {

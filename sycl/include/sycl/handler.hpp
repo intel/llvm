@@ -36,6 +36,7 @@
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
+#include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group.hpp>
@@ -948,6 +949,10 @@ private:
     } else {
       std::ignore = Props;
     }
+
+    constexpr bool UsesRootSync = PropertiesT::template has_property<
+        sycl::ext::oneapi::experimental::use_root_sync_key>();
+    setKernelIsCooperative(UsesRootSync);
   }
 
   /// Checks whether it is possible to copy the source shape to the destination
@@ -1791,6 +1796,14 @@ private:
   /// the appropriate constructor.
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
   getCommandGraph() const;
+
+  /// Sets the user facing node type of this operation, used for operations
+  /// which are recorded to a graph. Since some operations may actually be a
+  /// different type than the user submitted, e.g. a fill() which is performed
+  /// as a kernel submission.
+  /// @param Type The actual type based on what handler functions the user
+  /// called.
+  void setUserFacingNodeType(ext::oneapi::experimental::node_type Type);
 
 public:
   handler(const handler &) = delete;
@@ -2735,6 +2748,7 @@ public:
       checkIfPlaceholderIsBoundToHandler(Dst);
 
     throwIfActionIsCreated();
+    setUserFacingNodeType(ext::oneapi::experimental::node_type::memfill);
     // TODO add check:T must be an integral scalar value or a SYCL vector type
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the fill method.");
@@ -2773,6 +2787,7 @@ public:
   /// \param Count is the number of times to fill Pattern into Ptr.
   template <typename T> void fill(void *Ptr, const T &Pattern, size_t Count) {
     throwIfActionIsCreated();
+    setUserFacingNodeType(ext::oneapi::experimental::node_type::memfill);
     static_assert(is_device_copyable<T>::value,
                   "Pattern must be device copyable");
     parallel_for<__usmfill<T>>(range<1>(Count), [=](id<1> Index) {
@@ -3645,6 +3660,8 @@ private:
 
   // Set value of the gpu cache configuration for the kernel.
   void setKernelCacheConfig(sycl::detail::pi::PiKernelCacheConfig);
+  // Set value of the kernel is cooperative flag
+  void setKernelIsCooperative(bool);
 
   template <
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures FeatureT>

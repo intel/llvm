@@ -491,17 +491,39 @@ void VPlanTransforms::removeDeadRecipes(VPlan &Plan) {
 
 static VPValue *createScalarIVSteps(VPlan &Plan, const InductionDescriptor &ID,
                                     ScalarEvolution &SE, Instruction *TruncI,
-                                    Type *IVTy, VPValue *StartV,
-                                    VPValue *Step) {
+                                    VPValue *StartV, VPValue *Step,
+                                    VPBasicBlock::iterator IP) {
   VPBasicBlock *HeaderVPBB = Plan.getVectorLoopRegion()->getEntryBasicBlock();
-  auto IP = HeaderVPBB->getFirstNonPhi();
   VPCanonicalIVPHIRecipe *CanonicalIV = Plan.getCanonicalIV();
-  Type *TruncTy = TruncI ? TruncI->getType() : IVTy;
-  VPValue *BaseIV = CanonicalIV;
-  if (!CanonicalIV->isCanonical(ID.getKind(), StartV, Step, TruncTy)) {
-    BaseIV = new VPDerivedIVRecipe(ID, StartV, CanonicalIV, Step,
-                                   TruncI ? TruncI->getType() : nullptr);
-    HeaderVPBB->insert(BaseIV->getDefiningRecipe(), IP);
+  VPSingleDefRecipe *BaseIV = CanonicalIV;
+  if (!CanonicalIV->isCanonical(ID.getKind(), StartV, Step)) {
+    BaseIV = new VPDerivedIVRecipe(ID, StartV, CanonicalIV, Step);
+    HeaderVPBB->insert(BaseIV, IP);
+  }
+
+  // Truncate base induction if needed.
+  VPTypeAnalysis TypeInfo(SE.getContext());
+  Type *ResultTy = TypeInfo.inferScalarType(BaseIV);
+  if (TruncI) {
+    Type *TruncTy = TruncI->getType();
+    assert(ResultTy->getScalarSizeInBits() > TruncTy->getScalarSizeInBits() &&
+           "Not truncating.");
+    assert(ResultTy->isIntegerTy() && "Truncation requires an integer type");
+    BaseIV = new VPScalarCastRecipe(Instruction::Trunc, BaseIV, TruncTy);
+    HeaderVPBB->insert(BaseIV, IP);
+    ResultTy = TruncTy;
+  }
+
+  // Truncate step if needed.
+  Type *StepTy = TypeInfo.inferScalarType(Step);
+  if (ResultTy != StepTy) {
+    assert(StepTy->getScalarSizeInBits() > ResultTy->getScalarSizeInBits() &&
+           "Not truncating.");
+    assert(StepTy->isIntegerTy() && "Truncation requires an integer type");
+    Step = new VPScalarCastRecipe(Instruction::Trunc, Step, ResultTy);
+    auto *VecPreheader =
+        cast<VPBasicBlock>(HeaderVPBB->getSingleHierarchicalPredecessor());
+    VecPreheader->appendRecipe(Step->getDefiningRecipe());
   }
 
   VPScalarIVStepsRecipe *Steps = new VPScalarIVStepsRecipe(ID, BaseIV, Step);
@@ -513,6 +535,7 @@ void VPlanTransforms::optimizeInductions(VPlan &Plan, ScalarEvolution &SE) {
   SmallVector<VPRecipeBase *> ToRemove;
   VPBasicBlock *HeaderVPBB = Plan.getVectorLoopRegion()->getEntryBasicBlock();
   bool HasOnlyVectorVFs = !Plan.hasVF(ElementCount::getFixed(1));
+  VPBasicBlock::iterator InsertPt = HeaderVPBB->getFirstNonPhi();
   for (VPRecipeBase &Phi : HeaderVPBB->phis()) {
     auto *WideIV = dyn_cast<VPWidenIntOrFpInductionRecipe>(&Phi);
     if (!WideIV)
@@ -523,9 +546,9 @@ void VPlanTransforms::optimizeInductions(VPlan &Plan, ScalarEvolution &SE) {
       continue;
 
     const InductionDescriptor &ID = WideIV->getInductionDescriptor();
-    VPValue *Steps = createScalarIVSteps(
-        Plan, ID, SE, WideIV->getTruncInst(), WideIV->getPHINode()->getType(),
-        WideIV->getStartValue(), WideIV->getStepValue());
+    VPValue *Steps = createScalarIVSteps(Plan, ID, SE, WideIV->getTruncInst(),
+                                         WideIV->getStartValue(),
+                                         WideIV->getStepValue(), InsertPt);
 
     // Update scalar users of IV to use Step instead.
     if (!HasOnlyVectorVFs)
@@ -805,6 +828,17 @@ static unsigned getOpcodeForRecipe(VPRecipeBase &R) {
 
 /// Try to simplify recipe \p R.
 static void simplifyRecipe(VPRecipeBase &R, VPTypeAnalysis &TypeInfo) {
+  // Try to remove redundant blend recipes.
+  if (auto *Blend = dyn_cast<VPBlendRecipe>(&R)) {
+    VPValue *Inc0 = Blend->getIncomingValue(0);
+    for (unsigned I = 1; I != Blend->getNumIncomingValues(); ++I)
+      if (Inc0 != Blend->getIncomingValue(I))
+        return;
+    Blend->replaceAllUsesWith(Inc0);
+    Blend->eraseFromParent();
+    return;
+  }
+
   switch (getOpcodeForRecipe(R)) {
   case Instruction::Mul: {
     VPValue *A = R.getOperand(0);
@@ -1009,8 +1043,8 @@ void VPlanTransforms::optimize(VPlan &Plan, ScalarEvolution &SE) {
   removeRedundantCanonicalIVs(Plan);
   removeRedundantInductionCasts(Plan);
 
-  optimizeInductions(Plan, SE);
   simplifyRecipes(Plan, SE.getContext());
+  optimizeInductions(Plan, SE);
   removeDeadRecipes(Plan);
 
   createAndOptimizeReplicateRegions(Plan);
@@ -1165,5 +1199,88 @@ void VPlanTransforms::addActiveLaneMask(
            "WidenCanonicalIV must be the first operand of the compare");
     CompareToReplace->replaceAllUsesWith(LaneMask);
     CompareToReplace->eraseFromParent();
+  }
+}
+
+void VPlanTransforms::dropPoisonGeneratingRecipes(
+    VPlan &Plan, function_ref<bool(BasicBlock *)> BlockNeedsPredication) {
+  // Collect recipes in the backward slice of `Root` that may generate a poison
+  // value that is used after vectorization.
+  SmallPtrSet<VPRecipeBase *, 16> Visited;
+  auto collectPoisonGeneratingInstrsInBackwardSlice([&](VPRecipeBase *Root) {
+    SmallVector<VPRecipeBase *, 16> Worklist;
+    Worklist.push_back(Root);
+
+    // Traverse the backward slice of Root through its use-def chain.
+    while (!Worklist.empty()) {
+      VPRecipeBase *CurRec = Worklist.back();
+      Worklist.pop_back();
+
+      if (!Visited.insert(CurRec).second)
+        continue;
+
+      // Prune search if we find another recipe generating a widen memory
+      // instruction. Widen memory instructions involved in address computation
+      // will lead to gather/scatter instructions, which don't need to be
+      // handled.
+      if (isa<VPWidenMemoryInstructionRecipe>(CurRec) ||
+          isa<VPInterleaveRecipe>(CurRec) ||
+          isa<VPScalarIVStepsRecipe>(CurRec) ||
+          isa<VPCanonicalIVPHIRecipe>(CurRec) ||
+          isa<VPActiveLaneMaskPHIRecipe>(CurRec))
+        continue;
+
+      // This recipe contributes to the address computation of a widen
+      // load/store. If the underlying instruction has poison-generating flags,
+      // drop them directly.
+      if (auto *RecWithFlags = dyn_cast<VPRecipeWithIRFlags>(CurRec)) {
+        RecWithFlags->dropPoisonGeneratingFlags();
+      } else {
+        Instruction *Instr = dyn_cast_or_null<Instruction>(
+            CurRec->getVPSingleValue()->getUnderlyingValue());
+        (void)Instr;
+        assert((!Instr || !Instr->hasPoisonGeneratingFlags()) &&
+               "found instruction with poison generating flags not covered by "
+               "VPRecipeWithIRFlags");
+      }
+
+      // Add new definitions to the worklist.
+      for (VPValue *operand : CurRec->operands())
+        if (VPRecipeBase *OpDef = operand->getDefiningRecipe())
+          Worklist.push_back(OpDef);
+    }
+  });
+
+  // Traverse all the recipes in the VPlan and collect the poison-generating
+  // recipes in the backward slice starting at the address of a VPWidenRecipe or
+  // VPInterleaveRecipe.
+  auto Iter = vp_depth_first_deep(Plan.getEntry());
+  for (VPBasicBlock *VPBB : VPBlockUtils::blocksOnly<VPBasicBlock>(Iter)) {
+    for (VPRecipeBase &Recipe : *VPBB) {
+      if (auto *WidenRec = dyn_cast<VPWidenMemoryInstructionRecipe>(&Recipe)) {
+        Instruction &UnderlyingInstr = WidenRec->getIngredient();
+        VPRecipeBase *AddrDef = WidenRec->getAddr()->getDefiningRecipe();
+        if (AddrDef && WidenRec->isConsecutive() &&
+            BlockNeedsPredication(UnderlyingInstr.getParent()))
+          collectPoisonGeneratingInstrsInBackwardSlice(AddrDef);
+      } else if (auto *InterleaveRec = dyn_cast<VPInterleaveRecipe>(&Recipe)) {
+        VPRecipeBase *AddrDef = InterleaveRec->getAddr()->getDefiningRecipe();
+        if (AddrDef) {
+          // Check if any member of the interleave group needs predication.
+          const InterleaveGroup<Instruction> *InterGroup =
+              InterleaveRec->getInterleaveGroup();
+          bool NeedPredication = false;
+          for (int I = 0, NumMembers = InterGroup->getNumMembers();
+               I < NumMembers; ++I) {
+            Instruction *Member = InterGroup->getMember(I);
+            if (Member)
+              NeedPredication |= BlockNeedsPredication(Member->getParent());
+          }
+
+          if (NeedPredication)
+            collectPoisonGeneratingInstrsInBackwardSlice(AddrDef);
+        }
+      }
+    }
   }
 }

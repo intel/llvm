@@ -7,8 +7,7 @@
 //===----------------------------------------------------------------------===//
 /// \file
 ///
-/// Interfaces for registering analysis passes, producing common pass manager
-/// configurations, and parsing of pass pipelines.
+/// Interfaces for producing common pass manager configurations.
 ///
 //===----------------------------------------------------------------------===//
 
@@ -26,10 +25,12 @@
 #include "llvm/CodeGen/AssignmentTrackingAnalysis.h"
 #include "llvm/CodeGen/CallBrPrepare.h"
 #include "llvm/CodeGen/CodeGenPrepare.h"
+#include "llvm/CodeGen/DeadMachineInstructionElim.h"
 #include "llvm/CodeGen/DwarfEHPrepare.h"
 #include "llvm/CodeGen/ExpandMemCmp.h"
 #include "llvm/CodeGen/ExpandReductions.h"
 #include "llvm/CodeGen/FPBuiltinFnSelection.h"
+#include "llvm/CodeGen/FreeMachineFunction.h"
 #include "llvm/CodeGen/GCMetadata.h"
 #include "llvm/CodeGen/GlobalMerge.h"
 #include "llvm/CodeGen/IndirectBrExpand.h"
@@ -78,14 +79,14 @@ namespace llvm {
 
 // FIXME: Dummy target independent passes definitions that have not yet been
 // ported to new pass manager. Once they do, remove these.
-#define DUMMY_FUNCTION_PASS(NAME, PASS_NAME, CONSTRUCTOR)                      \
+#define DUMMY_FUNCTION_PASS(NAME, PASS_NAME)                                   \
   struct PASS_NAME : public PassInfoMixin<PASS_NAME> {                         \
     template <typename... Ts> PASS_NAME(Ts &&...) {}                           \
     PreservedAnalyses run(Function &, FunctionAnalysisManager &) {             \
       return PreservedAnalyses::all();                                         \
     }                                                                          \
   };
-#define DUMMY_MACHINE_MODULE_PASS(NAME, PASS_NAME, CONSTRUCTOR)                \
+#define DUMMY_MACHINE_MODULE_PASS(NAME, PASS_NAME)                             \
   struct PASS_NAME : public MachinePassInfoMixin<PASS_NAME> {                  \
     template <typename... Ts> PASS_NAME(Ts &&...) {}                           \
     Error run(Module &, MachineFunctionAnalysisManager &) {                    \
@@ -95,27 +96,14 @@ namespace llvm {
                           MachineFunctionAnalysisManager &) {                  \
       llvm_unreachable("this api is to make new PM api happy");                \
     }                                                                          \
-    static MachinePassKey Key;                                                 \
   };
-#define DUMMY_MACHINE_FUNCTION_PASS(NAME, PASS_NAME, CONSTRUCTOR)              \
+#define DUMMY_MACHINE_FUNCTION_PASS(NAME, PASS_NAME)                           \
   struct PASS_NAME : public MachinePassInfoMixin<PASS_NAME> {                  \
     template <typename... Ts> PASS_NAME(Ts &&...) {}                           \
     PreservedAnalyses run(MachineFunction &,                                   \
                           MachineFunctionAnalysisManager &) {                  \
       return PreservedAnalyses::all();                                         \
     }                                                                          \
-    static MachinePassKey Key;                                                 \
-  };
-#define DUMMY_MACHINE_FUNCTION_ANALYSIS(NAME, PASS_NAME, CONSTRUCTOR)          \
-  struct PASS_NAME : public AnalysisInfoMixin<PASS_NAME> {                     \
-    template <typename... Ts> PASS_NAME(Ts &&...) {}                           \
-    using Result = struct {};                                                  \
-    template <typename IRUnitT, typename AnalysisManagerT,                     \
-              typename... ExtraArgTs>                                          \
-    Result run(IRUnitT &, AnalysisManagerT &, ExtraArgTs &&...) {              \
-      return {};                                                               \
-    }                                                                          \
-    static AnalysisKey Key;                                                    \
   };
 #include "llvm/Passes/MachinePassRegistry.def"
 
@@ -149,24 +137,11 @@ public:
                       raw_pwrite_stream &Out, raw_pwrite_stream *DwoOut,
                       CodeGenFileType FileType) const;
 
-  void registerModuleAnalyses(ModuleAnalysisManager &) const;
-  void registerFunctionAnalyses(FunctionAnalysisManager &) const;
-  void registerMachineFunctionAnalyses(MachineFunctionAnalysisManager &) const;
-  std::pair<StringRef, bool> getPassNameFromLegacyName(StringRef) const;
-
-  void registerAnalyses(MachineFunctionAnalysisManager &MFAM) const {
-    registerModuleAnalyses(*MFAM.MAM);
-    registerFunctionAnalyses(*MFAM.FAM);
-    registerMachineFunctionAnalyses(MFAM);
-  }
-
   PassInstrumentationCallbacks *getPassInstrumentationCallbacks() const {
     return PIC;
   }
 
 protected:
-  template <typename PassT> using has_key_t = decltype(PassT::Key);
-
   template <typename PassT>
   using is_module_pass_t = decltype(std::declval<PassT &>().run(
       std::declval<Module &>(), std::declval<ModuleAnalysisManager &>()));
@@ -226,10 +201,6 @@ protected:
         : PM(PM), PB(PB) {}
 
     template <typename PassT> void operator()(PassT &&Pass) {
-      static_assert(
-          is_detected<has_key_t, PassT>::value,
-          "Machine function pass must define a static member variable `Key`.");
-
       if (!PB.runBeforeAdding(PassT::name()))
         return;
 
@@ -239,10 +210,10 @@ protected:
         C(PassT::name());
     }
 
-    template <typename PassT> void insertPass(MachinePassKey *ID, PassT Pass) {
+    template <typename PassT> void insertPass(StringRef PassName, PassT Pass) {
       PB.AfterCallbacks.emplace_back(
-          [this, ID, Pass = std::move(Pass)](MachinePassKey *PassID) {
-            if (PassID == ID)
+          [this, PassName, Pass = std::move(Pass)](StringRef Name) {
+            if (PassName == Name)
               this->PM.addPass(std::move(Pass));
           });
     }
@@ -257,14 +228,6 @@ protected:
   LLVMTargetMachine &TM;
   CGPassBuilderOption Opt;
   PassInstrumentationCallbacks *PIC;
-
-  /// Target override these hooks to parse target-specific analyses.
-  void registerTargetAnalysis(ModuleAnalysisManager &) const {}
-  void registerTargetAnalysis(FunctionAnalysisManager &) const {}
-  void registerTargetAnalysis(MachineFunctionAnalysisManager &) const {}
-  std::pair<StringRef, bool> getTargetPassNameFromLegacyName(StringRef) const {
-    return {"", false};
-  }
 
   template <typename TMC> TMC &getTM() const { return static_cast<TMC &>(TM); }
   CodeGenOptLevel getOptLevel() const { return TM.getOptLevel(); }
@@ -594,99 +557,6 @@ Error CodeGenPassBuilder<Derived>::verifyStartStop(
             PIC->getPassNameForClassName(Info.StopPass) + "\".",
         std::make_error_code(std::errc::invalid_argument));
   return Error::success();
-}
-
-static inline AAManager registerAAAnalyses() {
-  AAManager AA;
-
-  // The order in which these are registered determines their priority when
-  // being queried.
-
-  // Basic AliasAnalysis support.
-  // Add TypeBasedAliasAnalysis before BasicAliasAnalysis so that
-  // BasicAliasAnalysis wins if they disagree. This is intended to help
-  // support "obvious" type-punning idioms.
-  AA.registerFunctionAnalysis<TypeBasedAA>();
-  AA.registerFunctionAnalysis<ScopedNoAliasAA>();
-  AA.registerFunctionAnalysis<BasicAA>();
-
-  return AA;
-}
-
-template <typename Derived>
-void CodeGenPassBuilder<Derived>::registerModuleAnalyses(
-    ModuleAnalysisManager &MAM) const {
-#define MODULE_ANALYSIS(NAME, PASS_NAME, CONSTRUCTOR)                          \
-  MAM.registerPass([&] { return PASS_NAME CONSTRUCTOR; });
-#include "MachinePassRegistry.def"
-  derived().registerTargetAnalysis(MAM);
-}
-
-template <typename Derived>
-void CodeGenPassBuilder<Derived>::registerFunctionAnalyses(
-    FunctionAnalysisManager &FAM) const {
-  FAM.registerPass([this] { return registerAAAnalyses(); });
-
-#define FUNCTION_ANALYSIS(NAME, PASS_NAME, CONSTRUCTOR)                        \
-  FAM.registerPass([&] { return PASS_NAME CONSTRUCTOR; });
-#include "MachinePassRegistry.def"
-  derived().registerTargetAnalysis(FAM);
-}
-
-template <typename Derived>
-void CodeGenPassBuilder<Derived>::registerMachineFunctionAnalyses(
-    MachineFunctionAnalysisManager &MFAM) const {
-#define MACHINE_FUNCTION_ANALYSIS(NAME, PASS_NAME, CONSTRUCTOR)                \
-  MFAM.registerPass([&] { return PASS_NAME CONSTRUCTOR; });
-#include "MachinePassRegistry.def"
-  derived().registerTargetAnalysis(MFAM);
-}
-
-// FIXME: For new PM, use pass name directly in commandline seems good.
-// Translate stringfied pass name to its old commandline name. Returns the
-// matching legacy name and a boolean value indicating if the pass is a machine
-// pass.
-template <typename Derived>
-std::pair<StringRef, bool>
-CodeGenPassBuilder<Derived>::getPassNameFromLegacyName(StringRef Name) const {
-  std::pair<StringRef, bool> Ret;
-  if (Name.empty())
-    return Ret;
-
-#define FUNCTION_PASS(NAME, PASS_NAME, CONSTRUCTOR)                            \
-  if (Name == NAME)                                                            \
-    Ret = {#PASS_NAME, false};
-#define DUMMY_FUNCTION_PASS(NAME, PASS_NAME, CONSTRUCTOR)                      \
-  if (Name == NAME)                                                            \
-    Ret = {#PASS_NAME, false};
-#define MODULE_PASS(NAME, PASS_NAME, CONSTRUCTOR)                              \
-  if (Name == NAME)                                                            \
-    Ret = {#PASS_NAME, false};
-#define DUMMY_MODULE_PASS(NAME, PASS_NAME, CONSTRUCTOR)                        \
-  if (Name == NAME)                                                            \
-    Ret = {#PASS_NAME, false};
-#define MACHINE_MODULE_PASS(NAME, PASS_NAME, CONSTRUCTOR)                      \
-  if (Name == NAME)                                                            \
-    Ret = {#PASS_NAME, true};
-#define DUMMY_MACHINE_MODULE_PASS(NAME, PASS_NAME, CONSTRUCTOR)                \
-  if (Name == NAME)                                                            \
-    Ret = {#PASS_NAME, true};
-#define MACHINE_FUNCTION_PASS(NAME, PASS_NAME, CONSTRUCTOR)                    \
-  if (Name == NAME)                                                            \
-    Ret = {#PASS_NAME, true};
-#define DUMMY_MACHINE_FUNCTION_PASS(NAME, PASS_NAME, CONSTRUCTOR)              \
-  if (Name == NAME)                                                            \
-    Ret = {#PASS_NAME, true};
-#include "llvm/Passes/MachinePassRegistry.def"
-
-  if (Ret.first.empty())
-    Ret = derived().getTargetPassNameFromLegacyName(Name);
-
-  if (Ret.first.empty())
-    report_fatal_error(Twine('\"') + Twine(Name) +
-                       Twine("\" pass could not be found."));
-
-  return Ret;
 }
 
 template <typename Derived>

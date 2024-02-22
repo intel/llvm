@@ -37,20 +37,20 @@ void InstantiateClassWithAnnotFieldTemplates() {
   ClassWithAnnotFieldTemplate2<1, 2> InstantiatedCWAFS4; // expected-note {{in instantiation of template class 'ClassWithAnnotFieldTemplate2<1, 2>' requested here}}
 
   ClassWithAnnotFieldTemplate3<AttrName1, AttrName2, AttrName3> InstantiatedCWAFS5;
-  ClassWithAnnotFieldTemplate3<AttrName1, AttrName2> InstantiatedCWAFS6; // expected-note {{in instantiation of template class 'ClassWithAnnotFieldTemplate3<&AttrName1[0], &AttrName2[0]>' requested here}}
+  ClassWithAnnotFieldTemplate3<AttrName1, AttrName2> InstantiatedCWAFS6; // expected-note {{in instantiation of template class 'ClassWithAnnotFieldTemplate3<AttrName1, AttrName2>' requested here}}
 
   ClassWithAnnotFieldTemplate4<AttrName1, AttrName2, AttrName3> InstantiatedCWAFS7;
-  ClassWithAnnotFieldTemplate4<AttrName1, AttrName2> InstantiatedCWAFS8; // expected-note {{in instantiation of template class 'ClassWithAnnotFieldTemplate4<&AttrName1[0], &AttrName2[0]>' requested here}}
+  ClassWithAnnotFieldTemplate4<AttrName1, AttrName2> InstantiatedCWAFS8; // expected-note {{in instantiation of template class 'ClassWithAnnotFieldTemplate4<AttrName1, AttrName2>' requested here}}
 
   ClassWithAnnotFieldTemplate5<AttrName1, AttrVal1> InstantiatedCWAFS9;
   ClassWithAnnotFieldTemplate5<AttrName1, AttrName2, AttrVal1, AttrVal2> InstantiatedCWAFS10;
   ClassWithAnnotFieldTemplate5<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2, AttrVal3> InstantiatedCWAFS11;
-  ClassWithAnnotFieldTemplate5<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2> InstantiatedCWAFS12; // expected-note {{in instantiation of template class 'ClassWithAnnotFieldTemplate5<&AttrName1[0], &AttrName2[0], &AttrName3[0], &AttrVal1[0], &AttrVal2[0]>' requested here}}
+  ClassWithAnnotFieldTemplate5<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2> InstantiatedCWAFS12; // expected-note {{in instantiation of template class 'ClassWithAnnotFieldTemplate5<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2>' requested here}}
 
   ClassWithAnnotFieldTemplate6<AttrName1, AttrVal1> InstantiatedCWAFS13;
   ClassWithAnnotFieldTemplate6<AttrName1, AttrName2, AttrVal1, AttrVal2> InstantiatedCWAFS14;
   ClassWithAnnotFieldTemplate6<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2, AttrVal3> InstantiatedCWAFS15;
-  ClassWithAnnotFieldTemplate6<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2> InstantiatedCWAFS16; // expected-note {{in instantiation of template class 'ClassWithAnnotFieldTemplate6<&AttrName1[0], &AttrName2[0], &AttrName3[0], &AttrVal1[0], &AttrVal2[0]>' requested here}}
+  ClassWithAnnotFieldTemplate6<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2> InstantiatedCWAFS16; // expected-note {{in instantiation of template class 'ClassWithAnnotFieldTemplate6<AttrName1, AttrName2, AttrName3, AttrVal1, AttrVal2>' requested here}}
 
   (void)*InstantiatedCWAFS1.ptr;
   (void)*InstantiatedCWAFS2.ptr;

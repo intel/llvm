@@ -1121,9 +1121,7 @@ class __image_array_slice__ {
 
   constexpr static int AdjustedDims = (Dimensions == 2) ? 4 : Dimensions + 1;
 
-  template <typename CoordT,
-            typename CoordElemType =
-                typename detail::TryToGetElementType<CoordT>::type>
+  template <typename CoordT, typename CoordElemType = get_elem_type_t<CoordT>>
   sycl::vec<CoordElemType, AdjustedDims>
   getAdjustedCoords(const CoordT &Coords) const {
     CoordElemType LastCoord = 0;

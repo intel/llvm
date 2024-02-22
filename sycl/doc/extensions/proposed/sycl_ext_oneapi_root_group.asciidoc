@@ -182,7 +182,8 @@ inline constexpr use_root_sync_key::value_t use_root_sync;
 === The `root_group` class
 
 The `root_group` class implements all member functions common to the
-`sycl::group` and `sycl::sub_group` classes.
+`sycl::group` and `sycl::sub_group` classes and also contains own
+additional functions.
 
 [source,c++]
 ----
@@ -190,6 +191,13 @@ namespace sycl {
 namespace ext {
 namespace oneapi {
 namespace experimental {
+
+enum class execution_scope {
+  work_item,
+  sub_group,
+  work_group,
+  root_group,
+};
 
 template <int Dimensions>
 class root_group {
@@ -220,6 +228,31 @@ public:
   size_t get_local_linear_range() const;
 
   bool leader() const;
+
+  template <execution_scope Scope>
+  std::enable_if_t<(Scope == execution_scope::work_item ||
+                    Scope == execution_scope::work_group),
+                   id<Dimensions>>
+  get_id() const;
+
+  template <execution_scope Scope>
+  std::enable_if_t<Scope == execution_scope::sub_group, id<1>> get_id() const;
+
+  template <execution_scope Scope>
+  size_t get_linear_id() const;
+
+  template <execution_scope Scope>
+  std::enable_if_t<(Scope == execution_scope::work_item ||
+                    Scope == execution_scope::work_group),
+                   range<Dimensions>>
+  get_range() const;
+
+  template <execution_scope Scope>
+  std::enable_if_t<Scope == execution_scope::sub_group, range<1>>
+  get_range() const;
+
+  template <execution_scope Scope>
+  size_t get_linear_range() const;
 
 };
 
@@ -306,6 +339,67 @@ _Returns_: `true` for exactly one work-item in the root-group, if the calling
 work-item is the leader of the root-group, and `false` for all other work-items
 in the root-group. The leader of the root-group is guaranteed to be the
 work-item for which `get_local_id()` returns 0.
+
+[source,c++]
+----
+template <execution_scope Scope>
+std::enable_if_t<(Scope == execution_scope::work_item ||
+                  Scope == execution_scope::work_group),
+                 id<Dimensions>>
+get_id() const;
+----
+_Returns_: An `id` representing the index of the current work-group or work-item at `Scope`
+hierarchy level within the `root_group` object.
+
+[source,c++]
+----
+template <execution_scope Scope>
+std::enable_if_t<Scope == execution_scope::sub_group, id<1>> get_id() const;
+----
+_Returns_: An `id` representing the index of the current sub-group within the
+`root_group` object.
+
+[source,c++]
+----
+template <execution_scope Scope>
+size_t get_linear_id() const;
+----
+_Constraints_: `Scope` must be narrower than
+`execution_scope::root_group`.
+
+_Returns_: A linearized number of the current work-group or work-item at `Scope` hierarchy
+level within the `root_group` object.
+
+[source,c++]
+----
+template <execution_scope Scope>
+std::enable_if_t<(Scope == execution_scope::work_item ||
+                  Scope == execution_scope::work_group),
+                 range<Dimensions>>
+get_range() const;
+----
+_Returns_: A `range` representing the number of work-groups or work-items of `Scope`
+hierarchy level within the `root_group` object.
+
+[source,c++]
+----
+template <execution_scope Scope>
+std::enable_if_t<Scope == execution_scope::sub_group, range<1>>
+get_range() const;
+----
+_Returns_: A `range` representing the number of sub-groups within the `root_group`
+object.
+
+[source,c++]
+----
+template <execution_scope Scope>
+size_t get_linear_range() const;
+----
+_Constraints_: `Scope` must be narrower than
+`execution_scope::root_group`.
+
+_Returns_: The number of work-groups or work-items of `Scope` hierarchy level within the
+`root_group` object.
 
 
 === Using a `root_group`

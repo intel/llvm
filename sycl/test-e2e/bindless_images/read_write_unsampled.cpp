@@ -98,25 +98,25 @@ struct util {
 
               if constexpr (NChannels >= 1) {
                 VecType px1 =
-                    sycl::ext::oneapi::experimental::read_image<VecType>(
-                        input_0, sycl::int4(dim0, dim1, dim2, 0));
+                    sycl::ext::oneapi::experimental::fetch_image<VecType>(
+                        input_0, sycl::int3(dim0, dim1, dim2));
                 VecType px2 =
-                    sycl::ext::oneapi::experimental::read_image<VecType>(
-                        input_1, sycl::int4(dim0, dim1, dim2, 0));
+                    sycl::ext::oneapi::experimental::fetch_image<VecType>(
+                        input_1, sycl::int3(dim0, dim1, dim2));
 
                 auto sum =
                     VecType(util::add_kernel<DType, NChannels>(px1, px2));
                 sycl::ext::oneapi::experimental::write_image<VecType>(
-                    output, sycl::int4(dim0, dim1, dim2, 0), VecType(sum));
+                    output, sycl::int3(dim0, dim1, dim2), VecType(sum));
               } else {
-                DType px1 = sycl::ext::oneapi::experimental::read_image<DType>(
-                    input_0, sycl::int4(dim0, dim1, dim2, 0));
-                DType px2 = sycl::ext::oneapi::experimental::read_image<DType>(
-                    input_1, sycl::int4(dim0, dim1, dim2, 0));
+                DType px1 = sycl::ext::oneapi::experimental::fetch_image<DType>(
+                    input_0, sycl::int3(dim0, dim1, dim2));
+                DType px2 = sycl::ext::oneapi::experimental::fetch_image<DType>(
+                    input_1, sycl::int3(dim0, dim1, dim2));
 
                 auto sum = DType(util::add_kernel<DType, NChannels>(px1, px2));
                 sycl::ext::oneapi::experimental::write_image<DType>(
-                    output, sycl::int4(dim0, dim1, dim2, 0), DType(sum));
+                    output, sycl::int3(dim0, dim1, dim2), DType(sum));
               }
             });
       });
@@ -148,10 +148,10 @@ struct util {
 
               if constexpr (NChannels >= 1) {
                 VecType px1 =
-                    sycl::ext::oneapi::experimental::read_image<VecType>(
+                    sycl::ext::oneapi::experimental::fetch_image<VecType>(
                         input_0, sycl::int2(dim0, dim1));
                 VecType px2 =
-                    sycl::ext::oneapi::experimental::read_image<VecType>(
+                    sycl::ext::oneapi::experimental::fetch_image<VecType>(
                         input_1, sycl::int2(dim0, dim1));
 
                 auto sum =
@@ -159,9 +159,9 @@ struct util {
                 sycl::ext::oneapi::experimental::write_image<VecType>(
                     output, sycl::int2(dim0, dim1), VecType(sum));
               } else {
-                DType px1 = sycl::ext::oneapi::experimental::read_image<DType>(
+                DType px1 = sycl::ext::oneapi::experimental::fetch_image<DType>(
                     input_0, sycl::int2(dim0, dim1));
-                DType px2 = sycl::ext::oneapi::experimental::read_image<DType>(
+                DType px2 = sycl::ext::oneapi::experimental::fetch_image<DType>(
                     input_1, sycl::int2(dim0, dim1));
 
                 auto sum = DType(util::add_kernel<DType, NChannels>(px1, px2));
@@ -197,10 +197,10 @@ struct util {
 
               if constexpr (NChannels >= 1) {
                 VecType px1 =
-                    sycl::ext::oneapi::experimental::read_image<VecType>(
+                    sycl::ext::oneapi::experimental::fetch_image<VecType>(
                         input_0, int(dim0));
                 VecType px2 =
-                    sycl::ext::oneapi::experimental::read_image<VecType>(
+                    sycl::ext::oneapi::experimental::fetch_image<VecType>(
                         input_1, int(dim0));
 
                 auto sum =
@@ -208,9 +208,9 @@ struct util {
                 sycl::ext::oneapi::experimental::write_image<VecType>(
                     output, int(dim0), VecType(sum));
               } else {
-                DType px1 = sycl::ext::oneapi::experimental::read_image<DType>(
+                DType px1 = sycl::ext::oneapi::experimental::fetch_image<DType>(
                     input_0, int(dim0));
-                DType px2 = sycl::ext::oneapi::experimental::read_image<DType>(
+                DType px2 = sycl::ext::oneapi::experimental::fetch_image<DType>(
                     input_1, int(dim0));
 
                 auto sum = DType(util::add_kernel<DType, NChannels>(px1, px2));

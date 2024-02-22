@@ -1803,11 +1803,14 @@ Compilation *Driver::BuildCompilation(ArrayRef<const char *> ArgList) {
   const ToolChain &TC = getToolChain(
       *UArgs, computeTargetTriple(*this, TargetTriple, *UArgs));
 
-  if (TC.getTriple().isAndroid()) {
-    llvm::Triple Triple = TC.getTriple();
+  // Check if the environment version is valid except wasm case.
+  llvm::Triple Triple = TC.getTriple();
+  if (!Triple.isWasm()) {
     StringRef TripleVersionName = Triple.getEnvironmentVersionString();
-
-    if (Triple.getEnvironmentVersion().empty() && TripleVersionName != "") {
+    StringRef TripleObjectFormat =
+        Triple.getObjectFormatTypeName(Triple.getObjectFormat());
+    if (Triple.getEnvironmentVersion().empty() && TripleVersionName != "" &&
+        TripleVersionName != TripleObjectFormat) {
       Diags.Report(diag::err_drv_triple_version_invalid)
           << TripleVersionName << TC.getTripleString();
       ContainsError = true;
@@ -3518,7 +3521,7 @@ getLinkerArgs(Compilation &C, DerivedArgList &Args, bool IncludeObj = false) {
   // manner than the OpenMP processing.  We should try and refactor this
   // to use the OpenMP flow (adding -l<name> to the llvm-link step)
   auto resolveStaticLib = [&](StringRef LibName, bool IsStatic) -> bool {
-    if (!LibName.startswith("-l"))
+    if (!LibName.starts_with("-l"))
       return false;
     for (auto &LPath : LibPaths) {
       if (!IsStatic) {
@@ -3663,7 +3666,7 @@ static bool IsSYCLDeviceLibObj(std::string ObjFilePath, bool isMSVCEnv) {
   StringRef ObjFileName = llvm::sys::path::filename(ObjFilePath);
   StringRef ObjSuffix = isMSVCEnv ? ".obj" : ".o";
   bool Ret =
-      (ObjFileName.startswith("libsycl-") && ObjFileName.endswith(ObjSuffix))
+      (ObjFileName.starts_with("libsycl-") && ObjFileName.ends_with(ObjSuffix))
           ? true
           : false;
   return Ret;
@@ -7386,6 +7389,11 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         break;
       }
 
+      if (auto *IAA = dyn_cast<InstallAPIJobAction>(Current)) {
+        Current = nullptr;
+        break;
+      }
+
       // FIXME: Should we include any prior module file outputs as inputs of
       // later actions in the same command line?
 
@@ -7572,6 +7580,13 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
     if (!MergerInputs.empty())
       Actions.push_back(
           C.MakeAction<IfsMergeJobAction>(MergerInputs, types::TY_Image));
+  } else if (Args.hasArg(options::OPT_installapi)) {
+    // TODO: Lift restriction once operation can handle multiple inputs.
+    assert(Inputs.size() == 1 && "InstallAPI action can only handle 1 input");
+    const auto [InputType, InputArg] = Inputs.front();
+    Action *Current = C.MakeAction<InputAction>(*InputArg, InputType);
+    Actions.push_back(
+        C.MakeAction<InstallAPIJobAction>(Current, types::TY_TextAPI));
   }
 
   for (auto Opt : {options::OPT_print_supported_cpus,
@@ -8035,14 +8050,16 @@ Action *Driver::ConstructPhaseAction(
       return C.MakeAction<VerifyPCHJobAction>(Input, types::TY_Nothing);
     if (Args.hasArg(options::OPT_extract_api))
       return C.MakeAction<ExtractAPIJobAction>(Input, types::TY_API_INFO);
+    if (Args.hasArg(options::OPT_installapi))
+      return C.MakeAction<InstallAPIJobAction>(Input, types::TY_TextAPI);
     return C.MakeAction<CompileJobAction>(Input, types::TY_LLVM_BC);
   }
   case phases::Backend: {
     if (isUsingLTO() && TargetDeviceOffloadKind == Action::OFK_None) {
       types::ID Output;
-      if (Args.hasArg(options::OPT_ffat_lto_objects))
-        Output = Args.hasArg(options::OPT_emit_llvm) ? types::TY_LTO_IR
-                                                     : types::TY_PP_Asm;
+      if (Args.hasArg(options::OPT_ffat_lto_objects) &&
+          !Args.hasArg(options::OPT_emit_llvm))
+        Output = types::TY_PP_Asm;
       else if (Args.hasArg(options::OPT_S))
         Output = types::TY_LTO_IR;
       else
@@ -10062,7 +10079,7 @@ bool Driver::ShouldUseClangCompiler(const JobAction &JA) const {
   // And say "no" if this is not a kind of action clang understands.
   if (!isa<PreprocessJobAction>(JA) && !isa<PrecompileJobAction>(JA) &&
       !isa<CompileJobAction>(JA) && !isa<BackendJobAction>(JA) &&
-      !isa<ExtractAPIJobAction>(JA))
+      !isa<ExtractAPIJobAction>(JA) && !isa<InstallAPIJobAction>(JA))
     return false;
 
   return true;

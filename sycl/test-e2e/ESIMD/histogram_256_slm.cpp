@@ -45,7 +45,7 @@ ESIMD_INLINE void histogram_atomic(const uint32_t *input_ptr, uint32_t *output,
     auto start_addr = ((unsigned int *)input_ptr) + start_off;
     simd<uint, 32> data;
     data.copy_from(start_addr);
-    auto in = data.bit_cast_view<uchar>();
+    auto in = data.bit_cast_view<uint8_t>();
 
 #pragma unroll
     for (int j = 0; j < BLOCK_WIDTH * sizeof(int); j += 16) {
@@ -75,7 +75,7 @@ void HistogramCPU(unsigned int size, unsigned int *src,
                   unsigned int *cpu_histogram) {
   for (int i = 0; i < size; i++) {
     unsigned int x = src[i];
-    cpu_histogram[(x)&0xFFU] += 1;
+    cpu_histogram[(x) & 0xFFU] += 1;
     cpu_histogram[(x >> 8) & 0xFFU] += 1;
     cpu_histogram[(x >> 16) & 0xFFU] += 1;
     cpu_histogram[(x >> 24) & 0xFFU] += 1;
@@ -104,6 +104,7 @@ int CheckHistogram(unsigned int *cpu_histogram, unsigned int *gpu_histogram) {
 
 int main() {
   queue q = esimd_test::createQueue();
+  esimd_test::printTestLabel(q);
 
   const char *input_file = nullptr;
   unsigned int width = 1024;
@@ -111,7 +112,10 @@ int main() {
 
   // Initializes input.
   unsigned int input_size = width * height;
-  unsigned int *input_ptr = malloc_shared<unsigned int>(input_size, q);
+
+  esimd_test::shared_vector<unsigned int> input_vec(
+      input_size, esimd_test::shared_allocator<unsigned int>{q});
+  unsigned int *input_ptr = input_vec.data();
   printf("Processing %dx%d inputs\n", width, height);
 
   srand(2009);
@@ -124,13 +128,8 @@ int main() {
 
   // Allocates system memory for output buffer.
   int buffer_size = sizeof(unsigned int) * NUM_BINS;
-  unsigned int *hist = new unsigned int[buffer_size];
-  if (hist == nullptr) {
-    free(input_ptr, q);
-    std::cerr << "Out of memory\n";
-    exit(1);
-  }
-  memset(hist, 0, buffer_size);
+  std::vector<unsigned int> hist_vec(buffer_size, 0);
+  unsigned int *hist = hist_vec.data();
 
   // Uses the CPU to calculate the histogram output data.
   unsigned int cpu_histogram[NUM_BINS];
@@ -141,7 +140,9 @@ int main() {
   std::cout << "finish cpu_histogram\n";
 
   // Uses the GPU to calculate the histogram output data.
-  unsigned int *output_surface = malloc_shared<unsigned int>(NUM_BINS, q);
+  esimd_test::shared_vector<unsigned int> output_vec(
+      NUM_BINS, esimd_test::shared_allocator<unsigned int>{q});
+  unsigned int *output_surface = output_vec.data();
 
   unsigned int num_threads;
   num_threads = width * height / (NUM_BLOCKS * BLOCK_WIDTH);
@@ -194,9 +195,6 @@ int main() {
 
   memcpy(hist, output_surface, 4 * NUM_BINS);
 
-  free(output_surface, q);
-  free(input_ptr, q);
-
   // Compares the CPU histogram output data with the
   // GPU histogram output data.
   // If there is no difference, the result is correct.
@@ -206,8 +204,6 @@ int main() {
     std::cout << "PASSED\n";
   else
     std::cout << "FAILED\n";
-
-  delete[] hist;
 
   return res ? 0 : -1;
 }

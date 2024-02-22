@@ -128,7 +128,7 @@ public:
           std::move(CGH->MKernelName), std::move(CGH->MStreamStorage),
 #endif
           std::move(MImpl->MAuxiliaryResources), CGH->MCGType, {},
-          CGH->MCodeLoc));
+          MImpl->MKernelIsCooperative, CGH->MCodeLoc));
       break;
     }
     default:

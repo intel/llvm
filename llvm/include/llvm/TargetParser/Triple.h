@@ -285,7 +285,7 @@ public:
     Callable,
     Mesh,
     Amplification,
-
+    OpenCL,
     OpenHOS,
 
     LastEnvironmentType = OpenHOS
@@ -1049,12 +1049,9 @@ public:
            isWindowsCygwinEnvironment() || isOHOSFamily();
   }
 
-  /// Tests whether the target uses TLS Descriptor by default.
-  bool hasDefaultTLSDESC() const {
-    // TODO: Improve check for other platforms, like Android, and RISC-V
-    // Note: This is currently only used on RISC-V.
-    return isOSBinFormatELF() && isAArch64();
-  }
+  /// True if the target supports both general-dynamic and TLSDESC, and TLSDESC
+  /// is enabled by default.
+  bool hasDefaultTLSDESC() const { return isAndroid() && isRISCV64(); }
 
   /// Tests whether the target uses -data-sections as default.
   bool hasDefaultDataSections() const {
