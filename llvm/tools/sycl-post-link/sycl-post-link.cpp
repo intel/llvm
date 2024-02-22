@@ -126,8 +126,13 @@ struct TargetFilenamePairParser : public cl::basic_parser<TargetFilenamePair> {
 };
 
 cl::list<TargetFilenamePair, bool, TargetFilenamePairParser> OutputFiles{
-    "o", cl::desc("Output filename"), cl::value_desc("filename"),
-    cl::cat(PostLinkCat)};
+    "o",
+    cl::desc("Specifies an output file. Multiple output files can be "
+             "specified. Additionally, a target may be specified alongside an "
+             "output file, which has the effect that when module splitting is "
+             "performed, the modules that are in that output table are filtered "
+             "so those modules are compatible with the target."),
+    cl::value_desc("target filename pair"), cl::cat(PostLinkCat)};
 
 cl::opt<bool> Force{"f", cl::desc("Enable binary output on terminals"),
                     cl::cat(PostLinkCat)};
