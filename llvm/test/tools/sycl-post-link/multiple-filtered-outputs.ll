@@ -1,3 +1,8 @@
+; This checks that sycl-post-link can accept multiple -o options, 
+; with some of the -o options being composed of a (target, filename) pair,
+; and that the output tables from inputs with target info have the modules
+; that are not compatible with that target filtered out.
+
 ; RUN: sycl-post-link %s -symbols -split=auto \
 ; RUN: -o %t.table \
 ; RUN: -o intel_gpu_pvc,%t-pvc.table \
