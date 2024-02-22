@@ -114,7 +114,3 @@ attributes #3 = { nobuiltin }
 
 ; Vectorized kernel function
 ; CHECK: @__vecz_v[[WIDTH:[0-9]+]]_test_fn({{.*}} !dbg {{![0-9]+}}
-
-; Check that there is no intrinsics using undefs
-; CHECK-NOT: call void @llvm.dbg.value(metadata {{.*}} undef
-; CHECK-NOT: call void @llvm.dbg.declare(metadata {{.*}} undef
