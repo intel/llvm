@@ -3763,6 +3763,12 @@ public:
   }
 
   /* -- property interface members -- */
+  template <typename Property> bool has_property() const noexcept {
+    return getPropList().has_property<Property>();
+  }
+  template <typename Property> Property get_property() const {
+    return getPropList().get_property<Property>();
+  }
 
   size_t size() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -3866,7 +3872,7 @@ public:
   }
 
   /* -- common interface members -- */
-
+  
   host_unsampled_image_accessor(const host_unsampled_image_accessor &Rhs) =
       default;
 
@@ -3888,6 +3894,12 @@ public:
   }
 
   /* -- property interface members -- */
+  template <typename Property> bool has_property() const noexcept {
+    return getPropList().has_property<Property>();
+  }
+  template <typename Property> Property get_property() const {
+    return getPropList().get_property<Property>();
+  }
 
   size_t size() const noexcept { return base_class::getSize().size(); }
 
@@ -4034,6 +4046,12 @@ public:
   }
 
   /* -- property interface members -- */
+  template <typename Property> bool has_property() const noexcept {
+    return getPropList().has_property<Property>();
+  }
+  template <typename Property> Property get_property() const {
+    return getPropList().get_property<Property>();
+  }
 
   size_t size() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -4134,6 +4152,12 @@ public:
   }
 
   /* -- property interface members -- */
+  template <typename Property> bool has_property() const noexcept {
+    return getPropList().has_property<Property>();
+  }
+  template <typename Property> Property get_property() const {
+    return getPropList().get_property<Property>();
+  }
 
   size_t size() const noexcept { return base_class::getSize().size(); }
 
