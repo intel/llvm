@@ -922,18 +922,22 @@ public:
     return reinterpret_cast<DataT *>(&m_Data)[i];
   }
 
+#ifdef _MSC_VER
+#define __SYCL_NOINLINE_BF16 __declspec(noinline)
+#else
+#define __SYCL_NOINLINE_BF16 __attribute__((noinline))
+#endif
+
   template <typename T = DataT>
-  __attribute__((noinline))
-  typename std::enable_if<std::is_same<T, sycl::ext::oneapi::bfloat16>::value,
-                          const DataT &>::type
+  __SYCL_NOINLINE_BF16 typename std::enable_if<
+      std::is_same<T, sycl::ext::oneapi::bfloat16>::value, const DataT &>::type
   operator[](int i) const {
     return reinterpret_cast<const DataT *>(&m_Data)[i];
   }
 
   template <typename T = DataT>
-  __attribute__((noinline))
-  typename std::enable_if<std::is_same<T, sycl::ext::oneapi::bfloat16>::value,
-                          DataT &>::type
+  __SYCL_NOINLINE_BF16 typename std::enable_if<
+      std::is_same<T, sycl::ext::oneapi::bfloat16>::value, DataT &>::type
   operator[](int i) {
     return reinterpret_cast<DataT *>(&m_Data)[i];
   }
