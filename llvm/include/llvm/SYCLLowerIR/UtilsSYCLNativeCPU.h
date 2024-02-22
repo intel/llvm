@@ -45,8 +45,8 @@ inline llvm::Twine addSYCLNativeCPUSuffix(StringRef S) {
   return llvm::Twine(S, SYCLNATIVECPUSUFFIX);
 }
 
-inline bool isSYCLNativeCPU(const Module *M) {
-  return M->getModuleFlag("is-native-cpu") != nullptr;
+inline bool isSYCLNativeCPU(const Module &M) {
+  return M.getModuleFlag("is-native-cpu") != nullptr;
 }
 
 } // namespace utils

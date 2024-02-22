@@ -87,7 +87,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/LowerWGScope.h"
-#include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
@@ -98,6 +97,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
+#include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include "llvm/Support/CommandLine.h"
 
 #ifndef NDEBUG
@@ -198,7 +198,7 @@ enum class MemorySemantics : unsigned {
 };
 
 Instruction *genWGBarrier(Instruction &Before, const Triple &TT);
-Value *genPseudoLocalID(Instruction &Before, const Triple &TT, bool IsNativeCPU);
+Value *genPseudoLocalID(Instruction &Before, const Triple &TT);
 GlobalVariable *createWGLocalVariable(Module &M, Type *T, const Twine &Name);
 } // namespace spirv
 
@@ -276,8 +276,7 @@ static void guardBlockWithIsLeaderCheck(BasicBlock *IfBB, BasicBlock *TrueBB,
                                         BasicBlock *MergeBB,
                                         const DebugLoc &DbgLoc,
                                         const Triple &TT) {
-  const bool IsNativeCPU = sycl::utils::isSYCLNativeCPU(IfBB->getModule());
-  Value *LinearLocalID = spirv::genPseudoLocalID(*IfBB->getTerminator(), TT, IsNativeCPU);
+  Value *LinearLocalID = spirv::genPseudoLocalID(*IfBB->getTerminator(), TT);
   auto *Ty = LinearLocalID->getType();
   Value *Zero = Constant::getNullValue(Ty);
   IRBuilder<> Builder(IfBB->getContext());
@@ -898,8 +897,9 @@ GlobalVariable *spirv::createWGLocalVariable(Module &M, Type *T,
 //      variables
 
 // Return a value equals to 0 if and only if the local linear id is 0.
-Value *spirv::genPseudoLocalID(Instruction &Before, const Triple &TT, bool IsNativeCPU) {
+Value *spirv::genPseudoLocalID(Instruction &Before, const Triple &TT) {
   Module &M = *Before.getModule();
+  const bool IsNativeCPU = sycl::utils::isSYCLNativeCPU(M);
   if (TT.isNVPTX() || TT.isAMDGCN() || IsNativeCPU) {
     LLVMContext &Ctx = Before.getContext();
     Type *RetTy = getSizeTTy(M);
