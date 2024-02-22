@@ -988,6 +988,10 @@ namespace sycl::ext::oneapi::experimental {
 template <typename DataT, typename HintT = DataT, typename CoordT>
 DataT fetch_image(const unsampled_image_handle &ImageHandle,
                   const CoordT &Coords);
+
+template <typename DataT, typename HintT = DataT, typename CoordT>
+DataT fetch_image(const sampled_image_handle &ImageHandle,
+                  const CoordT &Coords);
 template <typename DataT, typename HintT = DataT, typename CoordT>
 DataT sample_image(const sampled_image_handle &ImageHandle, 
                    const CoordT &Coords);
@@ -1009,7 +1013,8 @@ When fetching from a sampled image handle, data exatly as is in memory, no
 sampling operations will be performed, and the `bindless_image_sampler` passed 
 to the image upon creation has no effect on the returned image data. Note that 
 not all devices may support fetching of sampled image data depending on the 
-dimension or backing memory type. We provide device aspect queries for this in <<querying_sampled_image_fetch_support>>.
+dimension or backing memory type. We provide device aspect queries for this in 
+<<querying_sampled_image_fetch_support>>.
 
 The user is required to pass a `DataT` template parameter, which specifies the
 return type of the `fetch_image` and `sample_image` functions. If `DataT` is 
