@@ -88,7 +88,9 @@ SYCLDeviceRequirements::SYCLDeviceRequirements(
       // intel_reqd_sub_group_size can call an ESIMD function through
       // invoke_esimd, and that function has intel_reqd_sub_group_size=1,
       // which is valid.
-      assert(MDN->getNumOperands() == 1);
+      assert(
+          MDN->getNumOperands() == 1 &&
+          "intel_reqd_sub_group_size metadata expects exactly one argument!");
       auto MDValue = ExtractUnsignedIntegerFromMDNodeOperand(MDN, 0);
       if (!SubGroupSize)
         SubGroupSize = MDValue;
