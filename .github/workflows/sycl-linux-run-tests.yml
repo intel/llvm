@@ -288,7 +288,7 @@ jobs:
         $CMAKE_EXTRA_ARGS
         ninja -C build-cts
 
-    - name: List devices
+    - name: [CTS] List devices
       if: inputs.tests_selector == 'cts'
       run: |
         ./build-cts/bin/test_all --list-devices
