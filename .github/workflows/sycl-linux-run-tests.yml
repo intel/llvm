@@ -301,8 +301,8 @@ jobs:
       run: |
         for i in `ls -1 ./build-cts/bin`; do \
           if [ "$i" != "test_all" ]; then \
-            echo "::group::Running $i" \
+            echo "::group::Running $i"; \
             build-cts/bin/$i; \
-            echo "::endgroup::" \
-          fi; \
+            echo "::endgroup::"; \
+          fi \
         done
