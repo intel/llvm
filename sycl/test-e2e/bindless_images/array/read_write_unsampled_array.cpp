@@ -37,9 +37,9 @@ struct util {
               size_t dim2 = it.get_global_id(2);
 
               if constexpr (NChannels >= 1) {
-                VecType px1 = syclexp::read_image_array<VecType>(
+                VecType px1 = syclexp::fetch_image_array<VecType>(
                     input_0, sycl::int2(dim0, dim1), int(dim2));
-                VecType px2 = syclexp::read_image_array<VecType>(
+                VecType px2 = syclexp::fetch_image_array<VecType>(
                     input_1, sycl::int2(dim0, dim1), int(dim2));
 
                 auto sum = VecType(
@@ -47,9 +47,9 @@ struct util {
                 syclexp::write_image_array<VecType>(
                     output, sycl::int2(dim0, dim1), int(dim2), VecType(sum));
               } else {
-                DType px1 = syclexp::read_image_array<DType>(
+                DType px1 = syclexp::fetch_image_array<DType>(
                     input_0, sycl::int2(dim0, dim1), int(dim2));
-                DType px2 = syclexp::read_image_array<DType>(
+                DType px2 = syclexp::fetch_image_array<DType>(
                     input_1, sycl::int2(dim0, dim1), int(dim2));
 
                 auto sum = DType(
@@ -86,9 +86,9 @@ struct util {
               size_t dim1 = it.get_global_id(1);
 
               if constexpr (NChannels >= 1) {
-                VecType px1 = syclexp::read_image_array<VecType>(
+                VecType px1 = syclexp::fetch_image_array<VecType>(
                     input_0, int(dim0), int(dim1));
-                VecType px2 = syclexp::read_image_array<VecType>(
+                VecType px2 = syclexp::fetch_image_array<VecType>(
                     input_1, int(dim0), int(dim1));
 
                 auto sum = VecType(
@@ -96,10 +96,10 @@ struct util {
                 syclexp::write_image_array<VecType>(output, int(dim0),
                                                     int(dim1), VecType(sum));
               } else {
-                DType px1 = syclexp::read_image_array<DType>(input_0, int(dim0),
-                                                             int(dim1));
-                DType px2 = syclexp::read_image_array<DType>(input_1, int(dim0),
-                                                             int(dim1));
+                DType px1 = syclexp::fetch_image_array<DType>(
+                    input_0, int(dim0), int(dim1));
+                DType px2 = syclexp::fetch_image_array<DType>(
+                    input_1, int(dim0), int(dim1));
 
                 auto sum = DType(
                     bindless_helpers::add_kernel<DType, NChannels>(px1, px2));

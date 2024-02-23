@@ -772,7 +772,7 @@ runNDimTestDevice(sycl::queue &q, sycl::range<NDims> globalSize,
               accessorCoords[i] = it.get_global_id(NDims - i - 1);
             }
 
-            VecType px1 = syclexp::read_image<VecType>(inputImage, coords);
+            VecType px1 = syclexp::sample_image<VecType>(inputImage, coords);
 
             outAcc[accessorCoords] = px1;
           });

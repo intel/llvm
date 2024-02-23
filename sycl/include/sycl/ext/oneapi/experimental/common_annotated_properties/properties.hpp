@@ -58,6 +58,11 @@ struct check_property_list<T, Prop, Props...>
 
 template <typename PropTy> struct propagateToPtrAnnotation : std::false_type {};
 
+// Partial specilization for property_value
+template <typename PropKeyT, typename... PropValuesTs>
+struct propagateToPtrAnnotation<property_value<PropKeyT, PropValuesTs...>>
+    : propagateToPtrAnnotation<PropKeyT> {};
+
 //===----------------------------------------------------------------------===//
 //        Common properties of annotated_arg/annotated_ptr
 //===----------------------------------------------------------------------===//

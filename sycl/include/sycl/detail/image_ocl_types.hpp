@@ -80,7 +80,7 @@ static RetType __invoke__ImageRead(ImageT Img, CoordT Coords) {
 }
 
 template <typename RetType, typename ImageT, typename CoordT>
-static RetType __invoke__ImageArrayRead(ImageT Img, CoordT Coords,
+static RetType __invoke__ImageArrayFetch(ImageT Img, CoordT Coords,
                                         int ArrayLayer) {
 
   // Convert from sycl types to builtin types to get correct function mangling.
@@ -88,7 +88,7 @@ static RetType __invoke__ImageArrayRead(ImageT Img, CoordT Coords,
   auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
 
   return sycl::detail::convertFromOpenCLTypeFor<RetType>(
-      __spirv_ImageArrayRead<TempRetT, ImageT, decltype(TmpCoords)>(
+      __spirv_ImageArrayFetch<TempRetT, ImageT, decltype(TmpCoords)>(
           Img, TmpCoords, ArrayLayer));
 }
 

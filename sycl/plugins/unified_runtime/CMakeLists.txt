@@ -56,13 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/isaacault/unified-runtime.git")
-  # commit f6ab4ed9846a472d8cb173c12fb9affae21c0fd0
-  # Author: Isaac Ault <isaac.ault@codeplay.com>
-  # Date:   Tue Jan 23 12:34:08 2024 +0000
-  #
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 91c6068bb581acf72f02f1284ab0464ec4f03e34 
+  # Merge: de328246 89ad3408
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Fri Feb 23 13:39:03 2024 +0000
+  #     Merge pull request #1274 from isaacault/iault/image_array_copy
   #     [Bindless][Exp] Add Support For Image Arrays
-  set(UNIFIED_RUNTIME_TAG 89ad3408f09ed22249f051795c91287f342193b4)
+  set(UNIFIED_RUNTIME_TAG 91c6068bb581acf72f02f1284ab0464ec4f03e34 )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

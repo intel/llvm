@@ -998,11 +998,11 @@ listed above caused the failure.
 namespace sycl::ext::oneapi::experimental {
 
 template <typename DataT, typename HintT = DataT, typename CoordT>
-DataT read_image(const unsampled_image_handle &ImageHandle,
-                 const CoordT &Coords);
+DataT fetch_image(const unsampled_image_handle &ImageHandle,
+                  const CoordT &Coords);
 template <typename DataT, typename HintT = DataT, typename CoordT>
-DataT read_image(const sampled_image_handle &ImageHandle, 
-                 const CoordT &Coords);
+DataT sample_image(const sampled_image_handle &ImageHandle, 
+                   const CoordT &Coords);
 
 template <typename DataT, typename CoordT>
 void write_image(unsampled_image_handle &ImageHandle,
@@ -1010,27 +1010,29 @@ void write_image(unsampled_image_handle &ImageHandle,
 }
 ```
 
-Inside a kernel, it's possible to read an image via `read_image`, passing 
-the image handle. For the form that takes `unsampled_image_handle`, image data 
-will be fetched exactly as is in device memory. For the form that takes a 
-`sampled_image_handle`, the image will be sampled according to the 
+Inside a kernel, it's possible to retrieve data from an image via `fetch_image` 
+or  `sample_image`, passing the appropirate image handle. The `fetch_image` API 
+is only applicable to unsampled images, and the data will be fetched exactly as 
+is in device memory. The `sample_image` API is only applicable to sampled 
+images, the image data will be sampled according to the 
 `bindless_image_sampler` that was passed to the image upon construction.
 
 The user is required to pass a `DataT` template parameter, which specifies the
-return type of the `read_image` function. If `DataT` is not a recognized 
-standard type, as defined in <<recognized_standard_types>>, and instead a 
-user-defined type, the user must provide a `HintT` template parameter to the 
-`read_image` function, to allow the backend to select the correct device 
-intrinsic to fetch or sample their data.
+return type of the `fetch_image` and `sample_image` functions. If `DataT` is 
+not a recognized standard type, as defined in <<recognized_standard_types>>, 
+and instead a user-defined type, the user must provide a `HintT` template 
+parameter to the `fetch_image` and `sample_image` functions, to allow the 
+backend to select the correct device intrinsic to fetch or sample their data.
+
 `HintT` must be one of the the <<recognized_standard_types>>, and must be the 
 same size as `DataT`.
 If `DataT` is a recognized standard type, and `HintT` is also passed, `HintT` 
 will be ignored.
 
-When reading a texture backed by a normalized integer channel type, either 
-`DataT` must be a 32-bit or 16-bit floating point value, a `sycl::vec` of 
-32-bit or 16-bit floating point values, or, in the case `DataT` is not one of 
-the above, then `HintT` must be one of the above, and be of the same size as 
+When fetching or sampling an image backed by a normalized integer channel type, 
+either `DataT` must be a 32-bit or 16-bit floating point value, a `sycl::vec` 
+of 32-bit or 16-bit floating point values, or, in the case `DataT` is not one 
+of the above, then `HintT` must be one of the above, and be of the same size as 
 `DataT`.
 
 It's possible to write to an unsampled image via `write_image` passing the 
@@ -1041,8 +1043,8 @@ of the <<recognized_standard_types>>.
 
 Sampled images cannot be written to using `write_image`.
 
-For reading and writing of unsampled images, coordinates are specified by `int`, 
-`sycl::vec<int, 2>`, and `sycl::vec<int, 3>` for 1D, 2D, and 3D images, 
+For fetching and writing of unsampled images, coordinates are specified by 
+`int`, `sycl::vec<int, 2>`, and `sycl::vec<int, 3>` for 1D, 2D, and 3D images, 
 respectively.
 
 Sampled image reads take `float`, `sycl::vec<float, 2>`, and 
@@ -1058,8 +1060,8 @@ kernel must be submitted for the written data to be accessible.
 
 [NOTE]
 ====
-Attempting to read a standard image type with `read_mipmap`, `read_image_array`,
-or any other defined read function will result in undefined behaviour.
+Attempting to sample a standard sampled image with `sample_mipmap` or any other 
+defined sampling function will result in undefined behaviour.
 ====
 
 === Recognized standard types [[recognized_standard_types]]
@@ -1069,7 +1071,8 @@ standard types.
 
 * All POD types (`char`, `short`, `int`, `float`, etc.) excluding `double`
 * `sycl::half`
-* Variants of `sycl::vec<T, N>` where `T` is one of the above, and `N` is `1`, `2`, or `3`
+* Variants of `sycl::vec<T, N>` where `T` is one of the above, and `N` is `1`, 
+  `2`, or `3`
 
 Any other types are classified as user-defined types.
 
@@ -1180,26 +1183,26 @@ level of a given top-level descriptor.
 
 === Reading a mipmap
 
-Inside the kernel, it's possible to read a mipmap via `read_mipmap`, passing the 
-`sampled_image_handle`, the coordinates, and either the level or anisotropic 
-gradient values.
+Inside the kernel, it's possible to sample a mipmap via `sample_mipmap`, 
+passing the `sampled_image_handle`, the coordinates, and either the level or 
+anisotropic gradient values.
 
-The method of sampling a mipmap is different based on which `read_mipmap` 
+The method of sampling a mipmap is different based on which `sample_mipmap` 
 function is used, and the sampler attributes passed upon creation of the 
 mipmap.
 
 ```c++
 // Nearest/linear filtering between mip levels
 template <typename DataT, typename HintT = DataT, typename CoordT>
-DataT read_mipmap(const sampled_image_handle &ImageHandle,
-                  const CoordT &Coords,
-                  const float Level);
+DataT sample_mipmap(const sampled_image_handle &ImageHandle,
+                    const CoordT &Coords,
+                    const float Level);
 
 // Anisotropic filtering
 template <typename DataT, typename HintT = DataT, typename CoordT>
-DataT read_mipmap(const sampled_image_handle &ImageHandle,
-                  const CoordT &Coords,
-                  const CoordT &Dx, const CoordT &Dy);
+DataT sample_mipmap(const sampled_image_handle &ImageHandle,
+                    const CoordT &Coords,
+                    const CoordT &Dx, const CoordT &Dy);
 ```
 
 Reading a mipmap follows the same restrictions on what coordinate types may be 
@@ -1211,8 +1214,8 @@ the restrictions as laid out in <<reading_writing_inside_kernel>>.
 
 [NOTE]
 ====
-Attempting to read a mipmap with `read_image` or any other defined read function 
-will result in undefined behaviour.
+Attempting to sample a mipmap with `sample_image` or any other defined sample 
+function will result in undefined behaviour.
 ====
 
 == Image arrays
@@ -1268,26 +1271,27 @@ array of images in one call to `ext_oneapi_copy` by passing the image arrays'
 
 === Reading an image array
 
-Inside the kernel, it's possible to read an image array via `read_image_array`, 
-passing the `unsampled_image_handle`, the coordinates, and the array index.
+Inside the kernel, it's possible to fetch data from an unsampled image array 
+via `fetch_image_array`, passing the `unsampled_image_handle`, the coordinates, 
+and the array index.
 
 ```c++
-// Read an unsampled image array
+// Fetch an unsampled image array
 template <typename DataT, typename HintT = DataT, typename CoordT>
-DataT read_image_array(const unsampled_image_handle &ImageHandle,
+DataT fetch_image_array(const unsampled_image_handle &ImageHandle,
                        const CoordT &Coords, const unsigned int ArrayLayer);
 ```
 
-Reading an image array follows the same restrictions on what coordinate types 
+Fetching an image array follows the same restrictions on what coordinate types 
 may be used as laid out in <<reading_writing_inside_kernel>>.
 
-Reading an image array by providing a user-defined return `DataT` type also 
+Fetching an image array by providing a user-defined return `DataT` type also 
 follows the restrictions as laid out in <<reading_writing_inside_kernel>>.
 
 [NOTE]
 ====
-Attempting to read an image array with `read_image`, `read_mipmap` or any other 
-defined read function will result in undefined behaviour.
+Attempting to fetch an image array with `fetch_image` or any other defined 
+fetch function will result in undefined behaviour.
 ====
 
 === Writing an image array
@@ -1655,7 +1659,7 @@ try {
 
     cgh.parallel_for(width, [=](sycl::id<1> id) {
       // Extension: read image data from handle
-      float pixel = sycl::ext::oneapi::experimental::read_image<float>(
+      float pixel = sycl::ext::oneapi::experimental::fetch_image<float>(
           imgIn, int(id[0]));
 
       // Extension: write to image data using handle
@@ -1757,7 +1761,7 @@ try {
           float sum = 0;
           for (int i = 0; i < numImages; i++) {
             // Extension: read image data from handle
-            sum += (sycl::ext::oneapi::experimental::read_image<float>(
+            sum += (sycl::ext::oneapi::experimental::fetch_image<float>(
                 imgHandleAcc[i], sycl::vec<int, 2>(dim0, dim1)));
           }
           outAcc[sycl::id{dim1, dim0}] = sum;
@@ -1847,9 +1851,9 @@ try {
       float x = (static_cast<float>(id[0]) + 0.5f) / static_cast<float>(width);
       // Read mipmap level 0 with anisotropic filtering
       // and level 1 with level filtering
-      float px1 = sycl::ext::oneapi::experimental::read_mipmap<float>(
+      float px1 = sycl::ext::oneapi::experimental::sample_mipmap<float>(
           mipHandle, x, 0.0f, 0.0f);
-      float px2 = sycl::ext::oneapi::experimental::read_mipmap<float>(
+      float px2 = sycl::ext::oneapi::experimental::sample_mipmap<float>(
           mipHandle, x, 1.0f);
 
       sum = px1 + px2;
@@ -1939,15 +1943,15 @@ try {
       float sum2 = 0;
       
       // Extension: read image layers 0 and 1
-      VecType px1 = sycl::ext::oneapi::experimental::read_image_array<VecType>(
+      VecType px1 = sycl::ext::oneapi::experimental::fetch_image_array<VecType>(
           arrayHandle1, int(id[0]), 0);
-      VecType px2 = sycl::ext::oneapi::experimental::read_image_array<VecType>(
+      VecType px2 = sycl::ext::oneapi::experimental::fetch_image_array<VecType>(
           arrayHandle1, int(id[0]), 1);
 
       // Extension: read image layers 0 and 1
-      VecType px3 = sycl::ext::oneapi::experimental::read_image_array<VecType>(
+      VecType px3 = sycl::ext::oneapi::experimental::fetch_image_array<VecType>(
           arrayHandle2, int(id[0]), 0);
-      VecType px4 = sycl::ext::oneapi::experimental::read_image_array<VecType>(
+      VecType px4 = sycl::ext::oneapi::experimental::fetch_image_array<VecType>(
           arrayHandle2, int(id[0]), 1);
 
       sum1 = px1[0] + px3[0];
@@ -2109,7 +2113,7 @@ try {
 
           // Extension: read image data from handle to imported image
           uint32_t pixel =
-              sycl::ext::oneapi::experimental::read_image<uint32_t>(
+              sycl::ext::oneapi::experimental::fetch_image<uint32_t>(
                   img_input, sycl::vec<int, 2>(dim0, dim1));
 
           // Modify the data before writing back
@@ -2310,9 +2314,14 @@ These features still need to be handled:
                    user-defined type.
 |5.1|2023-12-06| - Added unique addressing modes per dimension to the 
                    `bindless_image_sampler`
-|5.2|2024-02-06| - Added support for unsampled image arrays.
+|5.2|2024-02-14| - Image read and write functions now accept 3-component 
+                   coordinates for 3D reads, instead of 4-component coordinates.
+|5.3|2024-02-16| - Replace `read_image` and `read_mipmap` APIs in favor of more 
+                   descriptive naming, with `fetch_image`, `sample_image`, and
+                   `sample_mipmap`.
+|5.4|2024-02-23| - Added support for unsampled image arrays.
                  - Creation of unsampled image arrays.
-                 - Reading/writing of unsampled image arrays.
+                 - Fetching/writing of unsampled image arrays.
                  - `image_type::array` added to enum.
                  - `array_size` member added to `image_descriptor`.
                  - `image_descriptor::verify()` member function added.
