@@ -63,7 +63,7 @@ class filter_selector;
 } // namespace ext::oneapi
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-template <typename ParamT, typename PropT>
+template <typename ParamT>
 typename detail::ABINeutralT<ParamT>::type
 convert_to_abi_neutral(ParamT &Info) {
   if constexpr (std::is_same_v<ParamT, std::string>) {
@@ -80,7 +80,7 @@ convert_to_abi_neutral(ParamT &Info) {
   }
 }
 
-template <typename ReturnT, typename PropT>
+template <typename ReturnT>
 ReturnT
 convert_from_abi_neutral(typename detail::ABINeutralT<ReturnT>::type &Info) {
   if constexpr (std::is_same_v<typename detail::ABINeutralT<ReturnT>::type,
@@ -193,8 +193,7 @@ public:
   typename detail::is_platform_info_desc<Param>::return_type get_info() const {
     auto Info = get_info_impl<Param>();
     return convert_from_abi_neutral<
-        typename detail::is_platform_info_desc<Param>::return_type, Param>(
-        Info);
+        typename detail::is_platform_info_desc<Param>::return_type>(Info);
   }
 #else
   template <typename Param>
