@@ -1252,6 +1252,20 @@ pi_result piextCommandBufferAdviseUSM(
                                             SyncPointWaitList, SyncPoint);
 }
 
+pi_result piextEnqueueCooperativeKernelLaunch(
+    pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
+    const size_t *LocalWorkSize, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *OutEvent) {
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+pi_result piextKernelSuggestMaxCooperativeGroupCount(
+    pi_kernel Kernel, size_t LocalWorkSize, size_t DynamicSharedMemorySize,
+    pi_uint32 *GroupCountRet) {
+  return PI_ERROR_INVALID_OPERATION;
+}
+
 // Initialize function table with stubs.
 #define _PI_API(api)                                                           \
   (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);
