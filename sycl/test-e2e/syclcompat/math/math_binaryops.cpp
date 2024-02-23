@@ -159,8 +159,8 @@ int main() {
   test_syclcompat_pow<float, int>();
   test_syclcompat_pow<double, int>();
 
-  INSTANTIATE_ALL_TYPES(floating_type_list, test_syclcompat_relu);
-  INSTANTIATE_ALL_TYPES(floating_type_list, test_syclcompat_cbrt);
+  INSTANTIATE_ALL_TYPES(fp_type_list, test_syclcompat_relu);
+  INSTANTIATE_ALL_TYPES(fp_type_list, test_syclcompat_cbrt);
 
   return 0;
 }

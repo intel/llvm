@@ -92,8 +92,8 @@ void test_syclcompat_fmin_nan() {
   BinaryOpTestLauncher<ValueT, ValueU>(grid, threads)
       .template launch_test<fmin_nan_kernel<ValueT, ValueU>>(op1, op2, res);
 
-  // BinaryOpTestLauncher<ValueT, ValueU>(grid, threads)
-  //     .template launch_test<fmin_nan_kernel<ValueT, ValueU>>(op1, op3, op3);
+  BinaryOpTestLauncher<ValueT, ValueU>(grid, threads)
+      .template launch_test<fmin_nan_kernel<ValueT, ValueU>>(op1, op3, op3);
 }
 
 template <typename ValueT, typename ValueU>
@@ -118,8 +118,8 @@ void test_syclcompat_fmax_nan() {
   BinaryOpTestLauncher<ValueT, ValueU>(grid, threads)
       .template launch_test<fmax_nan_kernel<ValueT, ValueU>>(op1, op2, res);
 
-  // BinaryOpTestLauncher<ValueT, ValueU>(grid, threads)
-  //     .template launch_test<fmax_nan_kernel<ValueT, ValueU>>(op1, op3, op3);
+  BinaryOpTestLauncher<ValueT, ValueU>(grid, threads)
+      .template launch_test<fmax_nan_kernel<ValueT, ValueU>>(op1, op3, op3);
 }
 
 template <typename ValueT, typename ValueU>
@@ -225,17 +225,17 @@ int main() {
   test_syclcompat_min<double, float>();
   test_syclcompat_min<long, int>();
 
-  INSTANTIATE_ALL_TYPES(floating_type_list, test_syclcompat_fmin_nan);
+  INSTANTIATE_ALL_TYPES(fp_type_list, test_syclcompat_fmin_nan);
   test_syclcompat_fmin_nan<double, float>();
-  // INSTANTIATE_ALL_TYPES(floating_type_list, test_syclcompat_fmax_nan);
+  INSTANTIATE_ALL_TYPES(fp_type_list, test_syclcompat_fmax_nan);
   test_syclcompat_fmax_nan<double, float>();
 
   INSTANTIATE_ALL_TYPES(value_type_list, test_syclcompat_max);
   test_syclcompat_pow<float, int>();
   test_syclcompat_pow<double, int>();
 
-  INSTANTIATE_ALL_TYPES(floating_type_list, test_syclcompat_relu);
-  INSTANTIATE_ALL_TYPES(floating_type_list, test_syclcompat_cbrt);
+  INSTANTIATE_ALL_TYPES(fp_type_list, test_syclcompat_relu);
+  INSTANTIATE_ALL_TYPES(fp_type_list, test_syclcompat_cbrt);
 
   test_isnan();
   return 0;

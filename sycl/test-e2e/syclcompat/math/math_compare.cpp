@@ -358,14 +358,14 @@ template <typename ValueT> void test_unordered_compare_mask() {
 }
 
 int main() {
-  INSTANTIATE_ALL_TYPES(floating_type_list, test_compare);
-  INSTANTIATE_ALL_TYPES(floating_type_list, test_unordered_compare);
-  INSTANTIATE_ALL_TYPES(floating_type_list, test_compare_vec);
-  INSTANTIATE_ALL_TYPES(floating_type_list, test_unordered_compare_vec);
-  INSTANTIATE_ALL_TYPES(floating_type_list, test_compare_both);
-  INSTANTIATE_ALL_TYPES(floating_type_list, test_unordered_compare_both);
-  INSTANTIATE_ALL_TYPES(floating_type_list, test_compare_mask);
-  INSTANTIATE_ALL_TYPES(floating_type_list, test_unordered_compare_mask);
+  INSTANTIATE_ALL_TYPES(fp_type_list, test_compare);
+  INSTANTIATE_ALL_TYPES(fp_type_list, test_unordered_compare);
+  INSTANTIATE_ALL_TYPES(fp_type_list, test_compare_vec);
+  INSTANTIATE_ALL_TYPES(fp_type_list, test_unordered_compare_vec);
+  INSTANTIATE_ALL_TYPES(fp_type_list, test_compare_both);
+  INSTANTIATE_ALL_TYPES(fp_type_list, test_unordered_compare_both);
+  INSTANTIATE_ALL_TYPES(fp_type_list, test_compare_mask);
+  INSTANTIATE_ALL_TYPES(fp_type_list, test_unordered_compare_mask);
 
   return 0;
 }
