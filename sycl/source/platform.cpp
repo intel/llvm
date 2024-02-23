@@ -62,8 +62,7 @@ typename detail::ABINeutralT_t<
     typename detail::is_platform_info_desc<Param>::return_type>
 platform::get_info_impl() const {
   auto Info = impl->template get_info<Param>();
-  return convert_to_abi_neutral<
-      typename detail::is_platform_info_desc<Param>::return_type>(Info);
+  return detail::convert_to_abi_neutral(Info);
 }
 #else
 template <typename Param>

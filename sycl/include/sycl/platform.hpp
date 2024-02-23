@@ -56,15 +56,10 @@ class platform_impl;
 ///
 /// \param Val Indicates if extension should be enabled/disabled
 void __SYCL_EXPORT enable_ext_oneapi_default_context(bool Val);
-} // namespace detail
-namespace ext::oneapi {
-// Forward declaration
-class filter_selector;
-} // namespace ext::oneapi
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 template <typename ParamT>
-typename detail::ABINeutralT_t<ParamT> convert_to_abi_neutral(ParamT &Info) {
+ABINeutralT_t<ParamT> convert_to_abi_neutral(ParamT &Info) {
   if constexpr (std::is_same_v<ParamT, std::string>) {
     return detail::string{Info};
   } else if constexpr (std::is_same_v<ParamT, std::vector<std::string>>) {
@@ -80,7 +75,7 @@ typename detail::ABINeutralT_t<ParamT> convert_to_abi_neutral(ParamT &Info) {
 }
 
 template <typename ParamT>
-typename detail::ABINeutralT_t<ParamT> convert_from_abi_neutral(ParamT &Info) {
+ABINeutralT_t<ParamT> convert_from_abi_neutral(ParamT &Info) {
   if constexpr (std::is_same_v<ParamT, detail::string>) {
     return Info.c_str();
   } else if constexpr (std::is_same_v<ParamT, std::vector<detail::string>>) {
@@ -95,6 +90,11 @@ typename detail::ABINeutralT_t<ParamT> convert_from_abi_neutral(ParamT &Info) {
   }
 }
 #endif
+} // namespace detail
+namespace ext::oneapi {
+// Forward declaration
+class filter_selector;
+} // namespace ext::oneapi
 
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///
@@ -187,8 +187,7 @@ public:
   template <typename Param>
   typename detail::is_platform_info_desc<Param>::return_type get_info() const {
     auto Info = get_info_impl<Param>();
-    return convert_from_abi_neutral<typename detail::ABINeutralT_t<
-        typename detail::is_platform_info_desc<Param>::return_type>>(Info);
+    return detail::convert_from_abi_neutral(Info);
   }
 #else
   template <typename Param>
