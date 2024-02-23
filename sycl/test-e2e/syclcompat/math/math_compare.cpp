@@ -357,78 +357,6 @@ template <typename ValueT> void test_unordered_compare_mask() {
           op1, op5, 0xffffffff);
 }
 
-/*
-
-template <class F> void test_vectorized_binary() {
-  unsigned u;
-  syclcompat::vectorized_binary<sycl::short2>(u, u, F());
-}
-
-void test_vectorized_binary_abs_diff() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  using F = syclcompat::abs_diff;
-  test_vectorized_binary<F>();
-}
-
-void test_vectorized_binary_add_sat() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  using F = syclcompat::add_sat;
-  test_vectorized_binary<F>();
-}
-
-void test_vectorized_binary_rhadd() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  using F = syclcompat::rhadd;
-  test_vectorized_binary<F>();
-}
-
-void test_vectorized_binary_hadd() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  using F = syclcompat::hadd;
-  test_vectorized_binary<F>();
-}
-
-void test_vectorized_binary_maximum() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  using F = syclcompat::maximum;
-  test_vectorized_binary<F>();
-}
-
-void test_vectorized_binary_minimum() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  using F = syclcompat::minimum;
-  test_vectorized_binary<F>();
-}
-
-void test_vectorized_binary_sub_sat() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  using F = syclcompat::sub_sat;
-  test_vectorized_binary<F>();
-}
-
-void test_vectorized_unary() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  unsigned u;
-  using F = syclcompat::abs;
-  syclcompat::vectorized_unary<sycl::short2>(u, F());
-}
-
-void test_vectorized_sum_abs_diff() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  unsigned u;
-  syclcompat::vectorized_sum_abs_diff<sycl::short2>(u, u);
-}
- */
-
 int main() {
   INSTANTIATE_ALL_TYPES(floating_type_list, test_compare);
   INSTANTIATE_ALL_TYPES(floating_type_list, test_unordered_compare);
@@ -438,17 +366,6 @@ int main() {
   INSTANTIATE_ALL_TYPES(floating_type_list, test_unordered_compare_both);
   INSTANTIATE_ALL_TYPES(floating_type_list, test_compare_mask);
   INSTANTIATE_ALL_TYPES(floating_type_list, test_unordered_compare_mask);
-
-  // TODO: These currently only check API
-  // test_vectorized_binary_abs_diff();
-  // test_vectorized_binary_add_sat();
-  // test_vectorized_binary_rhadd();
-  // test_vectorized_binary_hadd();
-  // test_vectorized_binary_maximum();
-  // test_vectorized_binary_minimum();
-  // test_vectorized_binary_sub_sat();
-  // test_vectorized_unary();
-  // test_vectorized_sum_abs_diff();
 
   return 0;
 }
