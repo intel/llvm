@@ -1130,7 +1130,7 @@ DataT fetch_image_array(const unsampled_image_handle &imageHandle
 #ifdef __SYCL_DEVICE_ONLY__
   if constexpr (detail::is_recognized_standard_type<DataT>()) {
     return __invoke__ImageArrayFetch<DataT>(imageHandle.raw_handle, coords,
-                                           arrayLayer);
+                                            arrayLayer);
   } else {
     static_assert(sizeof(HintT) == sizeof(DataT),
                   "When trying to fetch a user-defined type, HintT must be of "

@@ -81,7 +81,7 @@ static RetType __invoke__ImageRead(ImageT Img, CoordT Coords) {
 
 template <typename RetType, typename ImageT, typename CoordT>
 static RetType __invoke__ImageArrayFetch(ImageT Img, CoordT Coords,
-                                        int ArrayLayer) {
+                                         int ArrayLayer) {
 
   // Convert from sycl types to builtin types to get correct function mangling.
   using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
