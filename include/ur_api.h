@@ -8929,7 +8929,7 @@ urUSMReleaseExp(
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 #ifndef UR_USM_P2P_EXTENSION_STRING_EXP
-/// @brief The extension string which defines support for USM P2P which is
+/// @brief The extension string that defines support for USM P2P which is
 ///        returned when querying device extensions.
 #define UR_USM_P2P_EXTENSION_STRING_EXP "ur_exp_usm_p2p"
 #endif // UR_USM_P2P_EXTENSION_STRING_EXP

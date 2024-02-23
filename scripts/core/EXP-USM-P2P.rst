@@ -27,8 +27,8 @@ or copying the memory located on a separate "peer" device.
 
 Motivation
 --------------------------------------------------------------------------------
-Several important projects that programming models such as SYCL or OpenMP aim
-to support use fine-grained peer to peer memory access controls.
+Programming models like SYCL or OpenMP aim to support several important
+projects that utilise fine-grained peer-to-peer memory access controls.
 This experimental extension to the Unified-Runtime API aims to provide a
 portable interface that can call appropriate driver functions to query and
 control peer memory access within different adapters such as CUDA, HIP and

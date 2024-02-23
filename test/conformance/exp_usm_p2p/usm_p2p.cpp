@@ -25,7 +25,7 @@ TEST_F(urP2PTest, Success) {
                                    nullptr));
 
     std::string_view extensions_string(returned_extensions.get());
-    bool usm_p2p_support =
+    const bool usm_p2p_support =
         extensions_string.find(UR_USM_P2P_EXTENSION_STRING_EXP) !=
         std::string::npos;
 
