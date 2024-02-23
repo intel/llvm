@@ -51,18 +51,16 @@ entry:
   call void @llvm.dbg.declare(metadata i64* %tid, metadata !14, metadata !29), !dbg !31
   %call = call i64 @__mux_get_global_id(i32 0) #3, !dbg !31
   store i64 %call, i64* %tid, align 8, !dbg !31
-; FIXME: We're dropping the llvm.dbg.declare/llvm.dbg.value for %a here - we
-; could probably preserve it.
-; CHECK-NOT: call void @llvm.dbg.value(
+; CHECK: call void @llvm.dbg.value(metadata i32 undef, metadata [[DI_A:![0-9]+]], metadata !DIExpression())
+; CHECK-SAME: !dbg [[A_LOC:![0-9]+]]
   call void @llvm.dbg.declare(metadata i32* %a, metadata !19, metadata !29), !dbg !32
   %0 = load i64, i64* %tid, align 8, !dbg !32
   %1 = load i32 addrspace(1)*, i32 addrspace(1)** %in1.addr, align 8, !dbg !32
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %1, i64 %0, !dbg !32
   %2 = load i32, i32 addrspace(1)* %arrayidx, align 4, !dbg !32
   store i32 %2, i32* %a, align 4, !dbg !32
-; FIXME: We're dropping the llvm.dbg.declare/llvm.dbg.value for %a here - we
-; could probably preserve it.
-; CHECK-NOT: call void @llvm.dbg.value(
+; CHECK: call void @llvm.dbg.value(metadata i32 undef, metadata [[DI_B:![0-9]+]], metadata !DIExpression())
+; CHECK-SAME: !dbg [[B_LOC:![0-9]+]]
   call void @llvm.dbg.declare(metadata i32* %b, metadata !20, metadata !29), !dbg !33
   %3 = load i64, i64* %tid, align 8, !dbg !33
   %4 = load i32 addrspace(1)*, i32 addrspace(1)** %in2.addr, align 8, !dbg !33

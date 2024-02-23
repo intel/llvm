@@ -75,44 +75,6 @@ bool AreUsersDead(Instruction *I,
   return true;
 }
 
-/// @brief Mark any invalid debug intrinsics in the DbgUsers list for
-/// deletion. When an Instruction is deleted, its debug uses change to undef
-/// or an empty MDNode. In this case we add it in the 'to delete' list.
-///
-/// @param[in] DbgUsers Debug Intrinsic Instructions.
-/// @param[in,out] WorkList Newly detected Instructions marked for deletion.
-///
-/// @return void
-void DeleteDebugInfoInstructions(
-    const SmallVectorImpl<DbgVariableIntrinsic *> &DbgUsers,
-    SmallPtrSetImpl<Instruction *> &WorkList) {
-  for (llvm::DbgVariableIntrinsic *DII : DbgUsers) {
-    Value *Op = DII->getOperand(0);
-    // The first operand must be a non-null variable location argument.
-    if (Op) {
-      auto *MD = cast<MetadataAsValue>(Op)->getMetadata();
-
-      // Check the variable location is not an undef.
-      if (auto *V = dyn_cast<ValueAsMetadata>(MD)) {
-        Value *Var = V->getValue();
-        if (Var && !isa<UndefValue>(Var)) {
-          continue;
-        }
-      }
-
-      // Check the variable doesn't point to an empty MDNode.
-      if (auto *mdNode = dyn_cast<MDNode>(MD)) {
-        if (mdNode->getNumOperands() > 0) {
-          continue;
-        }
-      }
-    }
-
-    // Mark the Debug Info Intrinsic for deletion.
-    WorkList.insert(DII);
-  }
-}
-
 }  // namespace
 
 void IRCleanup::deleteInstructionLater(llvm::Instruction *I) {
@@ -124,23 +86,13 @@ void IRCleanup::deleteInstructionLater(llvm::Instruction *I) {
 void IRCleanup::deleteInstructions() {
   SmallPtrSet<Instruction *, 16> WorkList;
   SmallPtrSet<Instruction *, 16> VisitedForCycles;
-  SmallVector<DbgVariableIntrinsic *, 1> DbgUsers;
   bool progress = true;
   while (progress && !InstructionsToDelete.empty()) {
     progress = false;
     for (Instruction *I : InstructionsToDelete) {
       WorkList.erase(I);
       if (I->use_empty()) {
-        // Before we delete the current instruction we save its debug users, to
-        // check for potential loss of debug information after the removal of I.
-        findDbgUsers(DbgUsers, I);
         I->eraseFromParent();
-        // After we delete the instruction, its debug uses (if any) may become
-        // useless as a result of a loss of debug info. where the value of one
-        // or more source variables becomes unavailable, so at this point we
-        // will identify and delete those debug info instructions.
-        DeleteDebugInfoInstructions(DbgUsers, WorkList);
-        DbgUsers.clear();
         progress = true;
       } else if (PHINode *Phi = dyn_cast<PHINode>(I)) {
         if (AreUsersDead(Phi, InstructionsToDelete, WorkList,
