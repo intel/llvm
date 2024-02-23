@@ -95,6 +95,22 @@ template <typename ValueT> struct should_skip {
   }
 };
 
+#define CHECK(ResultT, RESULT_PTR, EXPECTED)                                   \
+  if constexpr (std::is_integral_v<ResultT>) {                                 \
+    assert(*RESULT_PTR == EXPECTED);                                           \
+  } else if constexpr (std::is_floating_point_v<ResultT> ||                    \
+                       std::is_same_v<ResultT, sycl::half>) {                  \
+    if (sycl::isnan(*RESULT_PTR))                                              \
+      assert(sycl::isnan(EXPECTED));                                           \
+    else                                                                       \
+      assert(fabs(*RESULT_PTR - EXPECTED) < ERROR_TOLERANCE);                  \
+  } else if constexpr (contained_is_floating_point_v<ResultT>) {               \
+    for (size_t i = 0; i < RESULT_PTR->size(); i++)                            \
+      assert(fabs((*RESULT_PTR)[i] - EXPECTED[i]) < ERROR_TOLERANCE);          \
+  } else {                                                                     \
+    static_assert(0, "Math_fixt.hpp should not have arrived here.");           \
+  }
+
 class OpTestLauncher {
 protected:
   syclcompat::dim3 grid_;
@@ -107,14 +123,14 @@ public:
       : grid_{grid}, threads_{threads}, skip_{skip} {}
 };
 
-// Templated TRes to support both arithmetic and boolean operators
+// Templated ResultT to support both arithmetic and boolean operators
 template <typename ValueT, typename ValueU,
-          typename TRes = std::common_type_t<ValueT, ValueU>>
+          typename ResultT = std::common_type_t<ValueT, ValueU>>
 class BinaryOpTestLauncher : OpTestLauncher {
 protected:
   ValueT *op1_;
   ValueU *op2_;
-  TRes *res_;
+  ResultT *res_;
 
 public:
   BinaryOpTestLauncher(const syclcompat::dim3 &grid,
@@ -127,7 +143,7 @@ public:
       return;
     op1_ = syclcompat::malloc_shared<ValueT>(data_size);
     op2_ = syclcompat::malloc_shared<ValueU>(data_size);
-    res_ = syclcompat::malloc_shared<TRes>(data_size);
+    res_ = syclcompat::malloc_shared<ResultT>(data_size);
   };
 
   virtual ~BinaryOpTestLauncher() {
@@ -139,7 +155,7 @@ public:
   }
 
   template <auto Kernel>
-  void launch_test(ValueT op1, ValueU op2, TRes expected) {
+  void launch_test(ValueT op1, ValueU op2, ResultT expected) {
     if (skip_)
       return;
     *op1_ = op1;
@@ -147,20 +163,11 @@ public:
     syclcompat::launch<Kernel>(grid_, threads_, op1_, op2_, res_);
     syclcompat::wait();
 
-    if constexpr (std::is_integral_v<TRes>)
-      assert(*res_ == expected);
-    else if constexpr (std::is_floating_point_v<TRes> ||
-                       std::is_same_v<TRes, sycl::half>)
-      assert(fabs(*res_ - expected) < ERROR_TOLERANCE);
-    else if constexpr (contained_is_floating_point_v<TRes>) // Container
-      for (size_t i = 0; i < res_->size(); i++)
-        assert(fabs((*res_)[i] - expected[i]) < ERROR_TOLERANCE);
-    else
-      assert(0); // If arrived here, no results where checked
-  }
+    CHECK(ResultT, res_, expected);
+  };
 };
 
-template <typename ValueT, typename TRes = ValueT>
+template <typename ValueT, typename ResultT = ValueT>
 class UnaryOpTestLauncher : OpTestLauncher {
 protected:
   ValueT *op_;
@@ -186,22 +193,13 @@ public:
     syclcompat::free(res_);
   }
 
-  template <auto Kernel> void launch_test(ValueT op, TRes expected) {
+  template <auto Kernel> void launch_test(ValueT op, ResultT expected) {
     if (skip_)
       return;
     *op_ = op;
     syclcompat::launch<Kernel>(grid_, threads_, op_, res_);
     syclcompat::wait();
 
-    if constexpr (std::is_integral_v<TRes>)
-      assert(*res_ == expected);
-    else if constexpr (std::is_floating_point_v<TRes> ||
-                       std::is_same_v<TRes, sycl::half>)
-      assert(fabs(*res_ - expected) < ERROR_TOLERANCE);
-    else if constexpr (contained_is_floating_point_v<TRes>) // Container
-      for (size_t i = 0; i < res_->size(); i++)
-        assert(fabs((*res_)[i] - expected[i]) < ERROR_TOLERANCE);
-    else
-      assert(0); // If arrived here, no results where checked
+    CHECK(ResultT, res_, expected);
   }
 };
