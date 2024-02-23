@@ -4,6 +4,7 @@
 ; RUN: FileCheck %s -input-file=%t.table -check-prefix=CHECK-TABLE
 ; RUN: FileCheck %s -input-file=%t_1.prop -check-prefix=CHECK-PROP
 ; RUN: FileCheck %s -input-file=%t_esimd_1.prop -check-prefix=CHECK-ESIMD-PROP
+; RUN: sycl-post-link -debug-only=SpecConst -split=auto -split-esimd -lower-esimd -O2 -spec-const=native %s -generate-device-image-default-spec-consts 2>&1 | FileCheck %s --check-prefix=CHECK-LOG
 
 ; CHECK-TABLE: {{.*}}_esimd_0.bc|{{.*}}_esimd_0.prop
 ; CHECK-TABLE: {{.*}}_0.bc|{{.*}}_0.prop
@@ -14,6 +15,16 @@
 
 ; CHECK-ESIMD-PROP: isEsimdImage=1|1
 ; CHECK-ESIMD-PROP: specConstsReplacedWithDefault=1|1
+; CHECK-LOG: sycl.specialization-constants
+; CHECK-LOG:[[UNIQUE_PREFIX:[0-9a-zA-Z]+]]={0, 0, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={1, 4, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={2, 8, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={3, 12, 4}
+; CHECK-LOG: sycl.specialization-constants-default-values
+; CHECK-LOG: {0, 4, 3}
+; CHECK-LOG: {4, 4, 3}
+; CHECK-LOG: {8, 4, 2}
+; CHECK-LOG: {12, 4, 1}
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
