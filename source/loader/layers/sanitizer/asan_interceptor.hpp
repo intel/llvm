@@ -49,7 +49,7 @@ struct USMAllocInfoList {
     ur_shared_mutex Mutex;
 };
 
-enum class DeviceType { UNKNOWN, CPU, GPU_PVC, GPU_DG2 };
+enum class DeviceType : uint32_t { UNKNOWN = 0, CPU, GPU_PVC, GPU_DG2 };
 
 struct DeviceInfo {
     ur_device_handle_t Handle;

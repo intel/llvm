@@ -720,28 +720,31 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
 
     do {
         // Set global variable to program
-        auto EnqueueWriteGlobal = [&Queue, &Program](const char *Name,
-                                                     const void *Value) {
-            auto Result =
-                context.urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite(
-                    Queue, Program, Name, false, sizeof(uptr), 0, Value, 0,
-                    nullptr, nullptr);
-            if (Result != UR_RESULT_SUCCESS) {
-                context.logger.warning("Device Global[{}] Write Failed: {}",
-                                       Name, Result);
-                return false;
-            }
-            return true;
-        };
+        auto EnqueueWriteGlobal =
+            [Queue, Program](const char *Name, const void *Value, size_t Size) {
+                auto Result =
+                    context.urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite(
+                        Queue, Program, Name, false, Size, 0, Value, 0, nullptr,
+                        nullptr);
+                if (Result != UR_RESULT_SUCCESS) {
+                    context.logger.warning("Device Global[{}] Write Failed: {}",
+                                           Name, Result);
+                    return false;
+                }
+                return true;
+            };
 
         // Write shadow memory offset for global memory
         EnqueueWriteGlobal(kSPIR_AsanShadowMemoryGlobalStart,
-                           &DeviceInfo->ShadowOffset);
+                           &DeviceInfo->ShadowOffset,
+                           sizeof(DeviceInfo->ShadowOffset));
         EnqueueWriteGlobal(kSPIR_AsanShadowMemoryGlobalEnd,
-                           &DeviceInfo->ShadowOffsetEnd);
+                           &DeviceInfo->ShadowOffsetEnd,
+                           sizeof(DeviceInfo->ShadowOffsetEnd));
 
         // Write device type
-        EnqueueWriteGlobal(kSPIR_DeviceType, &DeviceInfo->Type);
+        EnqueueWriteGlobal(kSPIR_DeviceType, &DeviceInfo->Type,
+                           sizeof(DeviceInfo->Type));
 
         if (DeviceInfo->Type == DeviceType::CPU) {
             break;
@@ -772,9 +775,11 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
             LaunchInfo.LocalShadowOffset + LocalShadowMemorySize - 1;
 
         EnqueueWriteGlobal(kSPIR_AsanShadowMemoryLocalStart,
-                           &LaunchInfo.LocalShadowOffset);
+                           &LaunchInfo.LocalShadowOffset,
+                           sizeof(LaunchInfo.LocalShadowOffset));
         EnqueueWriteGlobal(kSPIR_AsanShadowMemoryLocalEnd,
-                           &LaunchInfo.LocalShadowOffsetEnd);
+                           &LaunchInfo.LocalShadowOffsetEnd,
+                           sizeof(LaunchInfo.LocalShadowOffsetEnd));
 
         {
             const char Pattern[] = {0};
