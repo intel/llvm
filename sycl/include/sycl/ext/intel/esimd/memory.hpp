@@ -8088,11 +8088,9 @@ scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> vals,
 /// operand.
 /// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
 ///           typename PropertyListT = empty_properties_t>
-/// void prefetch(const T *p,
-///             OffsetSimdViewT byte_offsets,
+/// void prefetch(const T *p, OffsetSimdViewT byte_offsets,
 ///             simd_mask<N / VS> mask, PropertyListT props = {}); // (usm-pf-5)
-/// void prefetch(const T *p,
-///             OffsetSimdViewT byte_offsets,
+/// void prefetch(const T *p, OffsetSimdViewT byte_offsets,
 ///             PropertyListT props = {});                        // (usm-pf-6)
 ///
 /// The next functions perform transposed 1-channel prefetch

@@ -5,6 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// This file contains tests that use various variants of prefetch API to make
+// sure they do not cause any issues.
 
 #include "common.hpp"
 
@@ -75,8 +77,8 @@ bool testUSM(queue Q, uint32_t MaskStride, PropertiesT) {
        int GlobalID = NDI.get_global_id(0);
        PropertiesT Props{};
 
-       simd<uint32_t, NOffsets> ByteOffsets(GlobalID * N * sizeof(T),
-                                            VS * sizeof(T));
+       uint32_t ByteOffset = GlobalID * N * sizeof(T);
+       simd<uint32_t, NOffsets> ByteOffsets(ByteOffset, VS * sizeof(T));
        simd_view ByteOffsetsView = ByteOffsets.template select<NOffsets, 1>();
 
        simd_mask<NOffsets> Pred;
@@ -91,10 +93,12 @@ bool testUSM(queue Q, uint32_t MaskStride, PropertiesT) {
          if constexpr (UseMask) {
            if constexpr (UseProperties) {
              if constexpr (sizeof(T) >= 4) {
-               if (GlobalID % 2 == 0) // ByteOffset - simd
+               if (GlobalID % 4 == 0) // ByteOffset - simd
                  prefetch<T, N, VS>(In, ByteOffsets, Pred, Props);
-               else if (GlobalID % 4 == 0)
+               else if (GlobalID % 4 == 1)
                  __ESIMD_NS::prefetch<T, VS>(In, Pred_1, Props);
+               else if (GlobalID % 4 == 2)
+                 __ESIMD_NS::prefetch<T, VS>(In, ByteOffset, Pred_1, Props);
                else // ByteOffset - simd_view
                  prefetch<T, N, VS>(In, ByteOffsetsView, Pred, Props);
              } else {
@@ -105,10 +109,12 @@ bool testUSM(queue Q, uint32_t MaskStride, PropertiesT) {
              }
            } else { // UseProperties is false
              if constexpr (sizeof(T) >= 4) {
-               if (GlobalID % 2 == 0) // ByteOffset - simd
+               if (GlobalID % 4 == 0) // ByteOffset - simd
                  prefetch<T, N, VS>(In, ByteOffsets, Pred);
-               else if (GlobalID % 4 == 0)
+               else if (GlobalID % 4 == 1)
                  __ESIMD_NS::prefetch<T, VS>(In, Pred_1);
+               else if (GlobalID % 4 == 2)
+                 __ESIMD_NS::prefetch<T, VS>(In, ByteOffset, Pred_1);
                else // ByteOffset - simd_view
                  prefetch<T, N, VS>(In, ByteOffsetsView, Pred);
              } else {
@@ -121,10 +127,12 @@ bool testUSM(queue Q, uint32_t MaskStride, PropertiesT) {
          } else { // UseMask is false
            if constexpr (UseProperties) {
              if constexpr (sizeof(T) >= 4) {
-               if (GlobalID % 2 == 0) // ByteOffset - simd
+               if (GlobalID % 4 == 0) // ByteOffset - simd
                  prefetch<T, N, VS>(In, ByteOffsets, Props);
-               else if (GlobalID % 4 == 0)
+               else if (GlobalID % 4 == 1)
                  __ESIMD_NS::prefetch<T, VS>(In, Props);
+               else if (GlobalID % 4 == 2)
+                 __ESIMD_NS::prefetch<T, VS>(In, ByteOffset);
                else // ByteOffset - simd_view
                  prefetch<T, N, VS>(In, ByteOffsetsView, Props);
              } else {
@@ -135,10 +143,12 @@ bool testUSM(queue Q, uint32_t MaskStride, PropertiesT) {
              }
            } else { // UseProperties is false
              if constexpr (sizeof(T) >= 4) {
-               if (GlobalID % 2 == 0) // ByteOffset - simd
+               if (GlobalID % 4 == 0) // ByteOffset - simd
                  prefetch<T, N, VS>(In, ByteOffsets);
-               else if (GlobalID % 4 == 0)
+               else if (GlobalID % 4 == 1)
                  __ESIMD_NS::prefetch<T, VS>(In);
+               else if (GlobalID % 4 == 2)
+                 __ESIMD_NS::prefetch<T, VS>(In, ByteOffset);
                else // ByteOffset - simd_view
                  prefetch<T, N, VS>(In, ByteOffsetsView);
              } else {
@@ -155,10 +165,12 @@ bool testUSM(queue Q, uint32_t MaskStride, PropertiesT) {
          if constexpr (UseMask) {
            if constexpr (UseProperties) {
              if constexpr (sizeof(T) >= 4) {
-               if (GlobalID % 2 == 0) // ByteOffset - simd
+               if (GlobalID % 4 == 0) // ByteOffset - simd
                  prefetch(In, ByteOffsets, Pred, Props);
-               else if (GlobalID % 4 == 0)
+               else if (GlobalID % 4 == 1)
                  __ESIMD_NS::prefetch(In, Pred_1, Props);
+               else if (GlobalID % 4 == 2)
+                 __ESIMD_NS::prefetch(In, ByteOffset, Pred_1, Props);
                else // ByteOffset - simd_view
                  prefetch<T, N>(In, ByteOffsetsView, Pred, Props);
              } else {
@@ -169,10 +181,12 @@ bool testUSM(queue Q, uint32_t MaskStride, PropertiesT) {
              }
            } else { // UseProperties is false
              if constexpr (sizeof(T) >= 4) {
-               if (GlobalID % 2 == 0) // ByteOffset - simd
+               if (GlobalID % 4 == 0) // ByteOffset - simd
                  prefetch(In, ByteOffsets, Pred);
-               else if (GlobalID % 4 == 0)
+               else if (GlobalID % 4 == 1)
                  __ESIMD_NS::prefetch(In, Pred_1);
+               else if (GlobalID % 4 == 2)
+                 __ESIMD_NS::prefetch(In, ByteOffset, Pred_1);
                else // ByteOffset - simd_view
                  prefetch<T, N>(In, ByteOffsetsView, Pred);
              } else {
@@ -185,10 +199,12 @@ bool testUSM(queue Q, uint32_t MaskStride, PropertiesT) {
          } else { // UseMask is false
            if constexpr (UseProperties) {
              if constexpr (sizeof(T) >= 4) {
-               if (GlobalID % 2 == 0) // ByteOffset - simd
+               if (GlobalID % 4 == 0) // ByteOffset - simd
                  __ESIMD_NS::prefetch(In, ByteOffsets, Props);
-               else if (GlobalID % 4 == 0)
+               else if (GlobalID % 4 == 1)
                  __ESIMD_NS::prefetch(In, Props);
+               else if (GlobalID % 4 == 2)
+                 __ESIMD_NS::prefetch(In, ByteOffset, Props);
                else // ByteOffset - simd_view
                  prefetch<T, N>(In, ByteOffsetsView, Props);
              } else {
@@ -199,10 +215,12 @@ bool testUSM(queue Q, uint32_t MaskStride, PropertiesT) {
              }
            } else {
              if constexpr (sizeof(T) >= 4) {
-               if (GlobalID % 2 == 0) // ByteOffset - simd
+               if (GlobalID % 4 == 0) // ByteOffset - simd
                  prefetch(In, ByteOffsets);
-               else if (GlobalID % 4 == 0)
+               else if (GlobalID % 4 == 1)
                  __ESIMD_NS::prefetch(In);
+               else if (GlobalID % 4 == 2)
+                 __ESIMD_NS::prefetch(In, ByteOffset);
                else // ByteOffset - simd_view
                  prefetch<T, N>(In, ByteOffsetsView);
              } else {
