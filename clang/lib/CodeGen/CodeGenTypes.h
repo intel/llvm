@@ -136,6 +136,12 @@ public:
   ///        %use%, (optional) %element_type_interpretation%)
   llvm::Type *ConvertSYCLJointMatrixINTELType(RecordDecl *RD);
 
+  /// ConvertSYCLTaskSequenceINTELType - Convert SYCL task_sequence type
+  /// which is represented as a pointer to a structure to LLVM extension type.
+  /// The expected representation is:
+  /// target("spirv.TaskSequenceINTEL", %element_type)
+  llvm::Type *ConvertSYCLTaskSequenceINTELType(RecordDecl *RD);
+
   /// GetFunctionType - Get the LLVM function type for \arg Info.
   llvm::FunctionType *GetFunctionType(const CGFunctionInfo &Info);
 

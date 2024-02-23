@@ -363,6 +363,25 @@ llvm::Type *CodeGenTypes::ConvertSYCLJointMatrixINTELType(RecordDecl *RD) {
   return getJointMatrixINTELExtType(CompTy, TemplateArgs);
 }
 
+/// ConvertSYCLTaskSequenceINTELType - Convert SYCL task_sequence type
+/// which is represented as a pointer to a structure to LLVM extension type.
+/// The expected representation is:
+/// target("spirv.TaskSequenceINTEL", %element_type)
+llvm::Type *CodeGenTypes::ConvertSYCLTaskSequenceINTELType(RecordDecl *RD) {
+  auto *TemplateDecl = cast<ClassTemplateSpecializationDecl>(RD);
+  ArrayRef<TemplateArgument> TemplateArgs =
+      TemplateDecl->getTemplateArgs().asArray();
+
+  assert(TemplateArgs[0].getKind() == TemplateArgument::Type &&
+         "1st TaskSequenceINTEL template parameter must be a type");
+  assert((TemplateArgs.size() == 1) &&
+         "TaskSequenceINTEL must have one and only one template parameter");
+
+  llvm::Type *CompTy = ConvertType(TemplateArgs[0].getAsType());
+  return llvm::TargetExtType::get(CompTy->getContext(),
+                                  "spirv.TaskSequenceINTEL", {CompTy});
+}
+
 /// ConvertType - Convert the specified type to its LLVM form.
 llvm::Type *CodeGenTypes::ConvertType(QualType T) {
   T = Context.getCanonicalType(T);
@@ -653,6 +672,10 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
         if (RD && RD->getQualifiedNameAsString() ==
                       "__spv::__spirv_JointMatrixINTEL") {
           ResultType = ConvertSYCLJointMatrixINTELType(RD);
+          break;
+        } else if (RD && RD->getQualifiedNameAsString() ==
+                             "__spv::__spirv_TaskSequenceINTEL") {
+          ResultType = ConvertSYCLTaskSequenceINTELType(RD);
           break;
         }
       }
