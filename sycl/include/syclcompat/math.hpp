@@ -293,9 +293,9 @@ template <typename ValueT, class BinaryOperation>
 inline unsigned compare_mask(const sycl::vec<ValueT, 2> a,
                              const sycl::vec<ValueT, 2> b,
                              const BinaryOperation binary_op) {
-  return sycl::vec<short, 2>(-compare(a[0], b[0], binary_op),
-                             -compare(a[1], b[1], binary_op))
-      .as<sycl::vec<unsigned, 1>>();
+  // Since compare returns 0 or 1, -compare will be 0x00000000 or 0xFFFFFFFF
+  return ((-compare(a[0], b[0], binary_op)) << 16) |
+         ((-compare(a[1], b[1], binary_op)) & 0xFFFF);
 }
 
 /// Performs 2 elements unordered comparison, compare result of each element is
@@ -309,9 +309,8 @@ template <typename ValueT, class BinaryOperation>
 inline unsigned unordered_compare_mask(const sycl::vec<ValueT, 2> a,
                                        const sycl::vec<ValueT, 2> b,
                                        const BinaryOperation binary_op) {
-  return sycl::vec<short, 2>(-unordered_compare(a[0], b[0], binary_op),
-                             -unordered_compare(a[1], b[1], binary_op))
-      .as<sycl::vec<unsigned, 1>>();
+  return ((-unordered_compare(a[0], b[0], binary_op)) << 16) |
+         ((-unordered_compare(a[1], b[1], binary_op)) & 0xFFFF);
 }
 
 /// Determine whether 2 element value is NaN.

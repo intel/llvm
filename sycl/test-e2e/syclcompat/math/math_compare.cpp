@@ -261,6 +261,102 @@ template <typename ValueT> void test_unordered_compare_both() {
                                                                       true);
 }
 
+template <typename Container>
+void compare_mask_kernel(Container *a, Container *b, unsigned *r) {
+  *r = syclcompat::compare_mask(*a, *b, std::equal_to<>());
+}
+
+template <typename ValueT> void test_compare_mask() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  using Container = sycl::vec<ValueT, 2>;
+
+  constexpr syclcompat::dim3 grid{1};
+  constexpr syclcompat::dim3 threads{1};
+  constexpr Container op1 = {static_cast<ValueT>(1.0),
+                             static_cast<ValueT>(2.0)};
+  constexpr Container op2 = {static_cast<ValueT>(2.0),
+                             static_cast<ValueT>(1.0)};
+  constexpr Container op3 = {static_cast<ValueT>(1.0),
+                             static_cast<ValueT>(3.0)};
+  constexpr Container op4 = {static_cast<ValueT>(3.0),
+                             static_cast<ValueT>(2.0)};
+  Container op5 = {sycl::nan(static_cast<unsigned int>(0)),
+                   sycl::nan(static_cast<unsigned int>(0))};
+
+  //  1.0 == 1.0, 2.0 == 2.0 -> 0xffffffff
+  BinaryOpTestLauncher<Container, Container, unsigned>(grid, threads)
+      .template launch_test<compare_mask_kernel<Container>>(op1, op1,
+                                                            0xffffffff);
+
+  //  1.0 == 2.0, 2.0 == 1.0 -> 0x00000000
+  BinaryOpTestLauncher<Container, Container, unsigned>(grid, threads)
+      .template launch_test<compare_mask_kernel<Container>>(op1, op2,
+                                                            0x00000000);
+
+  //  1.0 == 1.0, 2.0 == 3.0 -> 0xffff0000
+  BinaryOpTestLauncher<Container, Container, unsigned>(grid, threads)
+      .template launch_test<compare_mask_kernel<Container>>(op1, op3,
+                                                            0xffff0000);
+
+  //  1.0 == 3.0, 2.0 == 2.0 -> 0x0000ffff
+  BinaryOpTestLauncher<Container, Container, unsigned>(grid, threads)
+      .template launch_test<compare_mask_kernel<Container>>(op1, op4,
+                                                            0x0000ffff);
+
+  //  1.0 == NaN, 2.0 == NaN -> 0x00000000
+  BinaryOpTestLauncher<Container, Container, unsigned>(grid, threads)
+      .template launch_test<compare_mask_kernel<Container>>(op1, op5,
+                                                            0x00000000);
+}
+
+template <typename Container>
+void unordered_compare_mask_kernel(Container *a, Container *b, unsigned *r) {
+  *r = syclcompat::unordered_compare_mask(*a, *b, std::equal_to<>());
+}
+
+template <typename ValueT> void test_unordered_compare_mask() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  using Container = sycl::vec<ValueT, 2>;
+
+  constexpr syclcompat::dim3 grid{1};
+  constexpr syclcompat::dim3 threads{1};
+  constexpr Container op1 = {static_cast<ValueT>(1.0),
+                             static_cast<ValueT>(2.0)};
+  constexpr Container op2 = {static_cast<ValueT>(2.0),
+                             static_cast<ValueT>(1.0)};
+  constexpr Container op3 = {static_cast<ValueT>(1.0),
+                             static_cast<ValueT>(3.0)};
+  constexpr Container op4 = {static_cast<ValueT>(3.0),
+                             static_cast<ValueT>(2.0)};
+  Container op5 = {sycl::nan(static_cast<unsigned int>(0)),
+                   sycl::nan(static_cast<unsigned int>(0))};
+
+  //  1.0 == 1.0, 2.0 == 2.0 -> 0xffffffff
+  BinaryOpTestLauncher<Container, Container, unsigned>(grid, threads)
+      .template launch_test<unordered_compare_mask_kernel<Container>>(
+          op1, op1, 0xffffffff);
+
+  //  1.0 == 2.0, 2.0 == 1.0 -> 0x00000000
+  BinaryOpTestLauncher<Container, Container, unsigned>(grid, threads)
+      .template launch_test<unordered_compare_mask_kernel<Container>>(
+          op1, op2, 0x00000000);
+
+  //  1.0 == 1.0, 2.0 == 3.0 -> 0xffff0000
+  BinaryOpTestLauncher<Container, Container, unsigned>(grid, threads)
+      .template launch_test<unordered_compare_mask_kernel<Container>>(
+          op1, op3, 0xffff0000);
+
+  //  1.0 == 3.0, 2.0 == 2.0 -> 0x0000ffff
+  BinaryOpTestLauncher<Container, Container, unsigned>(grid, threads)
+      .template launch_test<unordered_compare_mask_kernel<Container>>(
+          op1, op4, 0x0000ffff);
+
+  //  1.0 == NaN, 2.0 == NaN -> 0x00000000
+  BinaryOpTestLauncher<Container, Container, unsigned>(grid, threads)
+      .template launch_test<unordered_compare_mask_kernel<Container>>(
+          op1, op5, 0xffffffff);
+}
+
 /*
 
 template <class F> void test_vectorized_binary() {
@@ -340,6 +436,8 @@ int main() {
   INSTANTIATE_ALL_TYPES(floating_type_list, test_unordered_compare_vec);
   INSTANTIATE_ALL_TYPES(floating_type_list, test_compare_both);
   INSTANTIATE_ALL_TYPES(floating_type_list, test_unordered_compare_both);
+  INSTANTIATE_ALL_TYPES(floating_type_list, test_compare_mask);
+  INSTANTIATE_ALL_TYPES(floating_type_list, test_unordered_compare_mask);
 
   // TODO: These currently only check API
   // test_vectorized_binary_abs_diff();
