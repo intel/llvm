@@ -207,7 +207,7 @@ equivalent):
 Writing YAML
 ============
 
-Please read the :ref:`core/INTRO:Naming Convention` section prior to making a
+Please read the :ref:`core/CONTRIB:Naming Convention` section prior to making a
 contribution and refer to the `YAML syntax`_ for specifics of how to define the
 required constructs.
 
@@ -386,7 +386,7 @@ values.
 
 
 Naming Convention
------------------
+=================
 
 The following naming conventions must be followed:
 
