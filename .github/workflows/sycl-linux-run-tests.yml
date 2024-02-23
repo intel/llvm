@@ -81,7 +81,7 @@ on:
           - '["Linux", "gen12"]'
           - '["amdgpu"]'
           - '["Linux", "arc"]'
-          - '["debug"]'
+          - '["cts-cpu"]'
       image:
         description: |
           Use option ending with ":build" for AMDGPU, ":latest" for the rest.
@@ -299,4 +299,10 @@ jobs:
       #   ./build-cts/bin/test_all --list-devices
       #   ./build-cts/bin/test_all $CTS_TEST_ARGS
       run: |
-        for i in `ls -1 ./build-cts/bin`; do if [ "$i" != "test_all" ]; then echo "###### Running $i" ; build-cts/bin/$i; fi; done
+        for i in `ls -1 ./build-cts/bin`; do \
+          if [ "$i" != "test_all" ]; then \
+            echo "::group::Running $i" \
+            build-cts/bin/$i; \
+            echo "::endgroup::" \
+          fi; \
+        done
