@@ -146,6 +146,15 @@ class assume_buffer_outlives_graph
 public:
   assume_buffer_outlives_graph() = default;
 };
+
+/// Property used to to add all previous graph leaves as dependencies when
+/// creating a new node with command_graph::add().
+class disable_in_order_optimization
+    : public ::sycl::detail::DataLessProperty<
+          ::sycl::detail::DisableInOrderOptimization> {
+public:
+  disable_in_order_optimization() = default;
+};
 } // namespace graph
 
 namespace node {
@@ -340,8 +349,10 @@ protected:
   /// Constructor used by internal runtime.
   /// @param Graph Detail implementation class to construct with.
   /// @param Ctx Context to use for graph.
+  /// @param DisableInOrderOptimization Disable the In Order graph opimization
   executable_command_graph(const std::shared_ptr<detail::graph_impl> &Graph,
-                           const sycl::context &Ctx);
+                           const sycl::context &Ctx,
+                           const bool DisableInOrderOptimization = false);
 
   template <class Obj>
   friend decltype(Obj::impl)

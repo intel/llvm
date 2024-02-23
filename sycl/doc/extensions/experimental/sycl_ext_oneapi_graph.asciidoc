@@ -341,6 +341,11 @@ class assume_buffer_outlives_graph {
   public:
     assume_buffer_outlives_graph() = default;
 };
+
+class disable_in_order_optimization {
+public:
+  disable_in_order_optimization() = default;
+};
 } // namespace graph
 
 namespace node {
@@ -646,6 +651,15 @@ which is used in a graph will be kept alive on the host for the lifetime of the
 graph. Destroying that buffer during the lifetime of a `command_graph`
 constructed with this property results in undefined behavior.
 
+===== Disable-In-Order-Optimization Property [[disable-in-order-optimization]]
+
+The `property::graph::disable_in_order_optimization` property disables 
+an optimization which can be applied to in-order graph to 
+reduce its execution time.
+This property is passed to the `command_graph::finalize()` function.
+Note that this property must be passed to the finalize function if users 
+want to profile the exec_graph execution.
+
 ==== Graph Member Functions
 
 Table {counter: tableNumber}. Constructor of the `command_graph` class.
@@ -849,8 +863,9 @@ Preconditions:
 
 Parameters:
 
-* `propList` - Optional parameter for passing properties. No finalization
-  properties are defined by this extension.
+* `propList` - Optional parameter for passing properties. The only defined 
+property is `disable_in_order_optimization`. See <<disable_in_order_optimization, Disable-In-Order-Optimization>>
+for more details.
 
 Returns: A new executable graph object which can be submitted to a queue.
 

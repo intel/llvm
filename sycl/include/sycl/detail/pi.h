@@ -2304,7 +2304,7 @@ typedef enum {
 struct pi_ext_command_buffer_desc final {
   pi_ext_structure_type stype;
   const void *pNext;
-  pi_queue_properties *properties;
+  pi_bool is_in_order;
 };
 
 /// API to create a command-buffer.
