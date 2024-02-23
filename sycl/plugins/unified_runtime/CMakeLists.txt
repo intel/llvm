@@ -56,14 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit e2ee9a4720414e0a59fa9c911e9575ab564ac57c
-  # Merge: 7a5150cd be622e7c
+  set(UNIFIED_RUNTIME_REPO "https://github.com/fabiomestre/unified-runtime.git")
+  # commit 588615e90bfd2b889834120dfff172236c6b8aa8
+  # Merge: 4e69cc60 47084751
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Sun Mar 10 18:02:50 2024 +0000
-  #     Merge pull request #1340 from Bensuo/ewan/coverity_cuda_update
-  #     [HIP][CUDA][Command-Buffer] Fix Coverity issues in HIP/CUDA command-buffer code
-  set(UNIFIED_RUNTIME_TAG e2ee9a4720414e0a59fa9c911e9575ab564ac57c)
+  # Date:   Thu Feb 22 16:10:13 2024 +0000
+  #     Merge pull request #1371 from pbalcer/l0-query-status-sync-deadlock
+  #     [L0] fix a deadlock in queue sync and event status query
+  set(UNIFIED_RUNTIME_TAG 1bc658a97c53c093b63ee1950147813401c8fd21)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
