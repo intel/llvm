@@ -167,7 +167,7 @@ available.
 
 .. code-block:: console
 
-    $ cmake build/ -DUR_FORMAT_CPP_STYLE=ON
+    $ cmake -B build/ -DUR_FORMAT_CPP_STYLE=ON
 
 You can then follow the instructions below to use the ``generate`` target to
 regenerate the source.
