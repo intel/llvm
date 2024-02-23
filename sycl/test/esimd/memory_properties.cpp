@@ -1564,4 +1564,8 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_prefetch(AccType &acc, float *ptrf,
 
   prefetch<float, 32, 2>(ptrf, loffset_n16, mask_n16, props_cache_load);
   prefetch<float, 32, 2>(ptrf, loffset_n16_view, mask_n16, props_cache_load);
+
+  // CHECK-COUNT-2: call void @llvm.genx.lsc.prefetch.stateless.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 7, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
+  __ESIMD_NS::prefetch<float, 32>(ptrf, 0);
+  __ESIMD_NS::prefetch<float, 32>(ptrf, 0, 1);
 }

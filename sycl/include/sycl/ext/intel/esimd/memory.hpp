@@ -2911,27 +2911,25 @@ __ESIMD_API void slm_scatter_impl(simd<uint32_t, N> offsets,
 /// @tparam L2H is L2 cache hint.
 /// @tparam N is the number of channels (platform dependent).
 /// @param p is the base pointer.
-/// @param offsets is the zero-based offsets in bytes.
+/// @param byte_offsets is the zero-based offsets in bytes.
 /// @param pred is predicates.
 ///
 template <typename T, int NElts, lsc_data_size DS, cache_hint L1H,
           cache_hint L2H, int N, typename Toffset>
-__ESIMD_API void prefetch_impl(const T *p, __ESIMD_NS::simd<Toffset, N> offsets,
-                               __ESIMD_NS::simd_mask<N> pred) {
+__ESIMD_API void prefetch_impl(const T *p, simd<Toffset, N> byte_offsets,
+                               simd_mask<N> pred) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   check_lsc_vector_size<NElts>();
   check_lsc_data_size<T, DS>();
   check_cache_hint<cache_action::prefetch, L1H, L2H>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
-  constexpr lsc_data_size EDS =
-      expand_data_size(detail::finalize_data_size<T, DS>());
-  constexpr detail::lsc_vector_size LSCVS = detail::to_lsc_vector_size<NElts>();
-  constexpr detail::lsc_data_order Transposed =
-      detail::lsc_data_order::nontranspose;
-  using MsgT = typename detail::lsc_expand_type<T>::type;
-  __ESIMD_NS::simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
-  addrs += convert<uintptr_t>(offsets);
+  constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
+  constexpr lsc_vector_size LSCVS = to_lsc_vector_size<NElts>();
+  constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
+  using MsgT = typename lsc_expand_type<T>::type;
+  simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
+  addrs += convert<uintptr_t>(byte_offsets);
   __esimd_lsc_prefetch_stateless<MsgT, L1H, L2H, AddressScale, ImmOffset, EDS,
                                  LSCVS, Transposed, N>(pred.data(),
                                                        addrs.data());
@@ -2940,24 +2938,22 @@ __ESIMD_API void prefetch_impl(const T *p, __ESIMD_NS::simd<Toffset, N> offsets,
 template <typename T, int NElts, lsc_data_size DS, cache_hint L1H,
           cache_hint L2H, typename Toffset>
 __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>>
-prefetch_impl(const T *p, Toffset offset, __ESIMD_NS::simd_mask<1> pred) {
+prefetch_impl(const T *p, Toffset offset, simd_mask<1> pred) {
   check_lsc_vector_size<NElts>();
   check_lsc_data_size<T, DS>();
   check_cache_hint<cache_action::prefetch, L1H, L2H>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
-  constexpr lsc_data_size EDS = detail::finalize_data_size<T, DS>();
+  constexpr lsc_data_size EDS = finalize_data_size<T, DS>();
 
   static_assert(
       EDS == lsc_data_size::u32 || EDS == lsc_data_size::u64,
       "Transposed prefetch is supported only for data size u32 or u64");
-  constexpr detail::lsc_vector_size LSCVS = detail::to_lsc_vector_size<NElts>();
-  constexpr detail::lsc_data_order Transposed =
-      detail::lsc_data_order::transpose;
+  constexpr lsc_vector_size LSCVS = to_lsc_vector_size<NElts>();
+  constexpr lsc_data_order Transposed = lsc_data_order::transpose;
   constexpr int N = 1;
 
-  __ESIMD_NS::simd<uintptr_t, N> addrs =
-      reinterpret_cast<uintptr_t>(p) + offset;
+  simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p) + offset;
   __esimd_lsc_prefetch_stateless<T, L1H, L2H, AddressScale, ImmOffset, EDS,
                                  LSCVS, Transposed, N>(pred.data(),
                                                        addrs.data());
@@ -8087,32 +8083,31 @@ scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> vals,
 ///                   PropertyListT props = {});                   // (usm-pf-3)
 /// void prefetch(const T *p, simd<OffsetT, N> byte_offsets,
 ///                   PropertyListT props = {});                   // (usm-pf-4)
+/// The next 2 functions are variations of the first 2 above (usm-pf-1,2)
+/// and were added only to support simd_view instead of simd for byte_offsets
+/// operand.
+/// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(const T *p,
+///             OffsetSimdViewT byte_offsets,
+///             simd_mask<N / VS> mask, PropertyListT props = {}); // (usm-pf-5)
+/// void prefetch(const T *p,
+///             OffsetSimdViewT byte_offsets,
+///             PropertyListT props = {});                        // (usm-pf-6)
 ///
 /// The next functions perform transposed 1-channel prefetch
 /// template <typename T, int VS = 1, typename OffsetT,
 ///           typename PropertyListT = empty_properties_t>
 /// void prefetch(const T *p, OffsetT byte_offset, simd_mask<1> mask,
-///                   PropertyListT props = {});                   // (usm-pf-5)
+///                   PropertyListT props = {});                   // (usm-pf-7)
 /// void prefetch(const T *p, OffsetT byte_offset,
-///                   PropertyListT props = {});                   // (usm-pf-6)
+///                   PropertyListT props = {});                   // (usm-pf-8)
 /// template <typename T, int VS = 1,
 ///           typename PropertyListT = empty_properties_t>
 /// void prefetch(const T *p, simd_mask<1> mask,
-///                   PropertyListT props = {});                   // (usm-pf-7)
-/// void prefetch(const T *p, PropertyListT props = {});           // (usm-pf-8)
+///                   PropertyListT props = {});                   // (usm-pf-9)
+/// void prefetch(const T *p, PropertyListT props = {});           //(usm-pf-10)
 ///
-/// The next 2 functions are variations of the first 2 above (usm-pf-1,2)
-/// and were added only to support simd_view instead of simd for byte_offsets
-/// operand.
-/// template <typename T, int N, int VS = 1, typename OffsetT,
-///           typename PropertyListT = empty_properties_t>
-/// void prefetch(const T *p,
-///             simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
-///             simd_mask<N / VS> mask, PropertyListT props = {}); // (usm-pf-9)
-/// void prefetch(const T *p,
-///             simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
-///             PropertyListT props = {});                         //
-///             (usm-pf-10)
 
 /// template <typename T, int N, int VS, typename OffsetT,
 ///           typename PropertyListT = empty_properties_t>
@@ -8235,118 +8230,10 @@ prefetch(const T *p, simd<OffsetT, N> byte_offsets, PropertyListT props = {}) {
   prefetch<T, N, VS>(p, byte_offsets, props);
 }
 
-/// template <typename T, int VS = 1, typename OffsetT,
-///           typename PropertyListT = empty_properties_t>
-/// void prefetch(const T *p, OffsetT byte_offset, simd_mask<1> mask,
-///                   PropertyListT props = {});                   // (usm-pf-5)
-/// Supported platforms: DG2, PVC only.
-/// Prefetches elements of the type 'T' from continuous memory location
-/// addressed by the base pointer \p p, and offset \p byte_offset and the length
-/// \p VS into the cache.
-/// @tparam T Element type.
-/// @tparam VS Vector size. It can also be read as the number of reads per each
-/// address. The parameter 'N' must be divisible by 'VS'.
-/// @param p The base address.
-/// @param byte_offset offset from the base address.
-/// @param mask The access mask. If it is set to 0, then the prefetch is
-/// omitted.
-/// @param props The optional compile-time properties. Only  cache hint
-/// properties are used.
-template <typename T, int VS = 1, typename OffsetT,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    std::is_integral_v<OffsetT> &&
-    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-prefetch(const T *p, OffsetT byte_offset, simd_mask<1> mask,
-         PropertyListT props = {}) {
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::uncached);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::cached);
-  detail::prefetch_impl<T, VS, detail::lsc_data_size::default_size, L1Hint,
-                        L2Hint>(p, byte_offset, mask);
-}
-
-/// template <typename T, int VS = 1, typename OffsetT,
-///           typename PropertyListT = empty_properties_t>
-/// void prefetch(const T *p, OffsetT byte_offset,
-///                   PropertyListT props = {});                   // (usm-pf-6)
-/// Supported platforms: DG2, PVC only.
-/// Prefetches elements of the type 'T' from continuous memory location
-/// addressed by the base pointer \p p, and offset \p byte_offset and the length
-/// \p VS into the cache.
-/// @tparam T Element type.
-/// @tparam VS Vector size. It can also be read as the number of reads per each
-/// address. The parameter 'N' must be divisible by 'VS'.
-/// @param p The base address.
-/// @param byte_offset offset from the base address
-/// @param props The optional compile-time properties. Only  cache hint
-/// properties are used.
-template <typename T, int VS = 1, typename OffsetT,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    std::is_integral_v<OffsetT> &&
-    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-prefetch(const T *p, OffsetT byte_offset, PropertyListT props = {}) {
-  simd_mask<1> Mask = 1;
-  prefetch<T, VS>(p, byte_offset, Mask, props);
-}
-
-/// template <typename T, int VS = 1,
-///           typename PropertyListT = empty_properties_t>
-/// void prefetch(const T *p, simd_mask<1> mask,
-///                   PropertyListT props = {});                 //(usm-pf-7)
-/// Supported platforms: DG2, PVC only.
-///  Prefetches elements of the type 'T' from continuous memory location
-///  addressed by the base pointer \p p
-/// and the length \p VS into the cache.
-/// @tparam T Element type.
-/// @tparam VS Vector size. It can also be read as the number of reads per each
-/// address. The parameter 'N' must be divisible by 'VS'.
-/// @param p The base address.
-/// @param mask The access mask. If it is set to 0, then the prefetch is
-/// omitted.
-/// @param props The optional compile-time properties. Only  cache hint
-/// properties are used.
-template <typename T, int VS = 1,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-prefetch(const T *p, simd_mask<1> mask, PropertyListT props = {}) {
-  prefetch<T, VS>(p, 0, mask, props);
-}
-
-/// template <typename T, int VS = 1,
-///           typename PropertyListT = empty_properties_t>
-/// void prefetch(const T *p, PropertyListT props = {});      // (usm-pf-8)
-/// Supported platforms: DG2, PVC only.
-/// Prefetches elements of the type 'T' from continuous memory location
-/// addressed by the base pointer \p p and the length \p VS into the cache.
-/// @tparam T Element type.
-/// @tparam VS Vector size. It can also be read as the number of reads per each
-/// address. The parameter 'N' must be divisible by 'VS'.
-/// @param p The base address.
-/// @param props The optional compile-time properties. Only  cache hint
-/// properties are used.
-template <typename T, int VS = 1,
-          typename PropertyListT =
-              ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-prefetch(const T *p, PropertyListT props = {}) {
-  simd_mask<1> Mask = 1;
-  prefetch<T, VS>(p, 0, Mask, props);
-}
-
 /// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
 ///           typename PropertyListT = empty_properties_t>
 /// void prefetch(const T *p, OffsetSimdViewT byte_offsets,
-///             simd_mask<N / VS> mask, PropertyListT props = {}); // (usm-pf-9)
+///             simd_mask<N / VS> mask, PropertyListT props = {}); // (usm-pf-5)
 /// Supported platforms: DG2, PVC only.
 /// Prefetches elements of the type 'T' from memory locations
 /// addressed by the base pointer \p p and byte offsets \p byte_offsets to the
@@ -8377,7 +8264,7 @@ prefetch(const T *p, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 /// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
 ///           typename PropertyListT = empty_properties_t>
 /// void prefetch(const T *p, OffsetSimdViewT byte_offsets,
-///             PropertyListT props = {});                      // (usm-pf-10)
+///             PropertyListT props = {});                      // (usm-pf-6)
 /// Supported platforms: DG2, PVC only.
 /// Prefetches elements of the type 'T' from memory locations
 /// addressed by the base pointer \p p and byte offsets \p byte_offsets to the
@@ -8399,6 +8286,114 @@ __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 prefetch(const T *p, OffsetSimdViewT byte_offsets, PropertyListT props = {}) {
   prefetch<T, N, VS>(p, byte_offsets.read(), props);
+}
+
+/// template <typename T, int VS = 1, typename OffsetT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(const T *p, OffsetT byte_offset, simd_mask<1> mask,
+///                   PropertyListT props = {});                   // (usm-pf-7)
+/// Supported platforms: DG2, PVC only.
+/// Prefetches elements of the type 'T' from continuous memory location
+/// addressed by the base pointer \p p, and offset \p byte_offset and the length
+/// \p VS elements into the cache.
+/// @tparam T Element type.
+/// @tparam VS Vector size. It specifies the number of consequent elements to
+/// prefetch.
+/// @param p The base address.
+/// @param byte_offset offset from the base address.
+/// @param mask The access mask. If it is set to 0, then the prefetch is
+/// omitted.
+/// @param props The optional compile-time properties. Only  cache hint
+/// properties are used.
+template <typename T, int VS = 1, typename OffsetT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<OffsetT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(const T *p, OffsetT byte_offset, simd_mask<1> mask,
+         PropertyListT props = {}) {
+  constexpr auto L1Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::uncached);
+  constexpr auto L2Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::cached);
+  detail::prefetch_impl<T, VS, detail::lsc_data_size::default_size, L1Hint,
+                        L2Hint>(p, byte_offset, mask);
+}
+
+/// template <typename T, int VS = 1, typename OffsetT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(const T *p, OffsetT byte_offset,
+///                   PropertyListT props = {});                   // (usm-pf-8)
+/// Supported platforms: DG2, PVC only.
+/// Prefetches elements of the type 'T' from continuous memory location
+/// addressed by the base pointer \p p, and offset \p byte_offset and the length
+/// \p VS elements into the cache.
+/// @tparam T Element type.
+/// @tparam VS Vector size. It specifies the number of consequent elements to
+/// prefetch.
+/// @param p The base address.
+/// @param byte_offset offset from the base address
+/// @param props The optional compile-time properties. Only  cache hint
+/// properties are used.
+template <typename T, int VS = 1, typename OffsetT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<OffsetT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(const T *p, OffsetT byte_offset, PropertyListT props = {}) {
+  simd_mask<1> Mask = 1;
+  prefetch<T, VS>(p, byte_offset, Mask, props);
+}
+
+/// template <typename T, int VS = 1,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(const T *p, simd_mask<1> mask,
+///                   PropertyListT props = {});                 //(usm-pf-9)
+/// Supported platforms: DG2, PVC only.
+///  Prefetches elements of the type 'T' from continuous memory location
+///  addressed by the base pointer \p p
+/// and the length \p VS elements into the cache.
+/// @tparam T Element type.
+/// @tparam VS Vector size. It specifies the number of consequent elements to
+/// prefetch.
+/// @param p The base address.
+/// @param mask The access mask. If it is set to 0, then the prefetch is
+/// omitted.
+/// @param props The optional compile-time properties. Only  cache hint
+/// properties are used.
+template <typename T, int VS = 1,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(const T *p, simd_mask<1> mask, PropertyListT props = {}) {
+  prefetch<T, VS>(p, 0, mask, props);
+}
+
+/// template <typename T, int VS = 1,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(const T *p, PropertyListT props = {});      // (usm-pf-10)
+/// Supported platforms: DG2, PVC only.
+/// Prefetches elements of the type 'T' from continuous memory location
+/// addressed by the base pointer \p p and the length \p VS into the cache.
+/// @tparam T Element type.
+/// @tparam VS Vector size. It specifies the number of consequent elements to
+/// prefetch.
+/// @param p The base address.
+/// @param props The optional compile-time properties. Only  cache hint
+/// properties are used.
+template <typename T, int VS = 1,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(const T *p, PropertyListT props = {}) {
+  simd_mask<1> Mask = 1;
+  prefetch<T, VS>(p, 0, Mask, props);
 }
 
 /// Variant of gather_rgba that uses local accessor as a parameter
