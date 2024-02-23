@@ -6,10 +6,6 @@
 int main() {
   queue Queue{};
 
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
-
   using T = int;
 
   if (!Queue.get_device().has(sycl::aspect::usm_shared_allocations)) {

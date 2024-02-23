@@ -5,7 +5,7 @@
 // The test checks that invalid exception is thrown
 // when trying to create a graph with an unsupported backend.
 
-#include "graph_common.hpp"
+#include "../graph_common.hpp"
 
 int GetUnsupportedBackend(const sycl::device &Dev) {
   // Return 1 if the device backend is unsupported or 0 else.

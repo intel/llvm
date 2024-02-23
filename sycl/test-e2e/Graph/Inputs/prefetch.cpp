@@ -10,10 +10,6 @@ int main() {
 
   queue Queue;
 
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
-
   if (!Queue.get_device().get_info<info::device::usm_shared_allocations>()) {
     return 0;
   }

@@ -4,14 +4,10 @@
 // Tests the using device query for graphs support, and that the return value
 // matches expectations.
 
-#include "graph_common.hpp"
+#include "../graph_common.hpp"
 
 int main() {
   queue Queue;
-
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
 
   auto Device = Queue.get_device();
 

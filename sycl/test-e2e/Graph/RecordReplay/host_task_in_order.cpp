@@ -14,10 +14,6 @@
 int main() {
   queue Queue{property::queue::in_order{}};
 
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
-
   using T = int;
 
   if (!Queue.get_device().has(sycl::aspect::usm_shared_allocations)) {
