@@ -15,7 +15,6 @@
 #include "asan_shadow_setup.hpp"
 #include "device_sanitizer_report.hpp"
 #include "stacktrace.hpp"
-#include "ur_api.h"
 
 namespace ur_sanitizer_layer {
 
@@ -60,7 +59,7 @@ uptr MemToShadow_PVC(uptr USM_SHADOW_BASE, uptr UPtr) {
 }
 
 ur_context_handle_t getContext(ur_queue_handle_t Queue) {
-    ur_context_handle_t Context;
+    ur_context_handle_t Context{};
     [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnGetInfo(
         Queue, UR_QUEUE_INFO_CONTEXT, sizeof(ur_context_handle_t), &Context,
         nullptr);
@@ -69,7 +68,7 @@ ur_context_handle_t getContext(ur_queue_handle_t Queue) {
 }
 
 ur_device_handle_t getDevice(ur_queue_handle_t Queue) {
-    ur_device_handle_t Device;
+    ur_device_handle_t Device{};
     [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnGetInfo(
         Queue, UR_QUEUE_INFO_DEVICE, sizeof(ur_device_handle_t), &Device,
         nullptr);
@@ -78,7 +77,7 @@ ur_device_handle_t getDevice(ur_queue_handle_t Queue) {
 }
 
 ur_program_handle_t getProgram(ur_kernel_handle_t Kernel) {
-    ur_program_handle_t Program;
+    ur_program_handle_t Program{};
     [[maybe_unused]] auto Result = context.urDdiTable.Kernel.pfnGetInfo(
         Kernel, UR_KERNEL_INFO_PROGRAM, sizeof(ur_program_handle_t), &Program,
         nullptr);
@@ -87,7 +86,7 @@ ur_program_handle_t getProgram(ur_kernel_handle_t Kernel) {
 }
 
 size_t getLocalMemorySize(ur_device_handle_t Device) {
-    size_t LocalMemorySize;
+    size_t LocalMemorySize{};
     [[maybe_unused]] auto Result = context.urDdiTable.Device.pfnGetInfo(
         Device, UR_DEVICE_INFO_LOCAL_MEM_SIZE, sizeof(LocalMemorySize),
         &LocalMemorySize, nullptr);
@@ -112,16 +111,16 @@ std::string getKernelName(ur_kernel_handle_t Kernel) {
 
 ur_device_handle_t getUSMAllocDevice(ur_context_handle_t Context,
                                      const void *MemPtr) {
-    ur_device_handle_t Device;
-    [[maybe_unused]] auto Result = context.urDdiTable.USM.pfnGetMemAllocInfo(
-        Context, MemPtr, UR_USM_ALLOC_INFO_DEVICE, sizeof(Device), &Device,
-        nullptr);
-    assert(Result == UR_RESULT_SUCCESS && "getUSMAllocDevice() failed");
+    ur_device_handle_t Device{};
+    // if urGetMemAllocInfo failed, return nullptr
+    context.urDdiTable.USM.pfnGetMemAllocInfo(Context, MemPtr,
+                                              UR_USM_ALLOC_INFO_DEVICE,
+                                              sizeof(Device), &Device, nullptr);
     return Device;
 }
 
 DeviceType getDeviceType(ur_device_handle_t Device) {
-    ur_device_type_t DeviceType;
+    ur_device_type_t DeviceType = UR_DEVICE_TYPE_DEFAULT;
     [[maybe_unused]] auto Result = context.urDdiTable.Device.pfnGetInfo(
         Device, UR_DEVICE_INFO_TYPE, sizeof(DeviceType), &DeviceType, nullptr);
     assert(Result == UR_RESULT_SUCCESS && "getDeviceType() failed");
@@ -129,7 +128,7 @@ DeviceType getDeviceType(ur_device_handle_t Device) {
     case UR_DEVICE_TYPE_CPU:
         return DeviceType::CPU;
     case UR_DEVICE_TYPE_GPU: {
-        // TODO: Check device vendor
+        // TODO: Check device name
         return DeviceType::GPU_PVC;
     }
     default:
@@ -394,6 +393,9 @@ ur_result_t SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
     auto DeviceInfo = getDeviceInfo(Device);
 
     ManagedQueue InternalQueue(Context, Device);
+    if (!InternalQueue) {
+        return UR_RESULT_ERROR_INVALID_QUEUE;
+    }
 
     UR_CALL(prepareLaunch(Context, DeviceInfo, InternalQueue, Kernel,
                           LaunchInfo, numWorkgroup));
@@ -473,7 +475,7 @@ ur_result_t SanitizerInterceptor::enqueueMemSetShadow(
             MemToShadow_PVC(DeviceInfo->ShadowOffset, Ptr + Size - 1);
 
         {
-            static const size_t PageSize = [Context, DeviceInfo]() {
+            static const size_t PageSize = [Context, &DeviceInfo]() {
                 size_t Size;
                 [[maybe_unused]] auto Result =
                     context.urDdiTable.VirtualMem.pfnGranularityGetInfo(

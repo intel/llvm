@@ -54,8 +54,8 @@ enum class DeviceType { UNKNOWN, CPU, GPU_PVC, GPU_DG2 };
 struct DeviceInfo {
     ur_device_handle_t Handle;
 
-    DeviceType Type;
-    size_t Alignment;
+    DeviceType Type = DeviceType::UNKNOWN;
+    size_t Alignment = 0;
     uptr ShadowOffset = 0;
     uptr ShadowOffsetEnd = 0;
 
@@ -79,7 +79,7 @@ struct QueueInfo {
     ur_mutex Mutex;
     ur_event_handle_t LastEvent;
 
-    QueueInfo(ur_queue_handle_t Queue) : Handle(Queue) {
+    QueueInfo(ur_queue_handle_t Queue) : Handle(Queue), LastEvent(nullptr) {
         [[maybe_unused]] auto Result =
             context.urDdiTable.Queue.pfnRetain(Queue);
         assert(Result == UR_RESULT_SUCCESS);
@@ -144,24 +144,22 @@ struct LaunchInfo {
 };
 
 struct ManagedQueue {
-    ManagedQueue(ur_context_handle_t Context,
-                                             ur_device_handle_t Device) {
+    ManagedQueue(ur_context_handle_t Context, ur_device_handle_t Device) {
         [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnCreate(
             Context, Device, nullptr, &Handle);
         assert(Result == UR_RESULT_SUCCESS);
     }
 
     ~ManagedQueue() {
-        [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnRelease(Handle);
+        [[maybe_unused]] auto Result =
+            context.urDdiTable.Queue.pfnRelease(Handle);
         assert(Result == UR_RESULT_SUCCESS);
     }
 
-    operator ur_queue_handle_t() {
-        return Handle;
-    }
+    operator ur_queue_handle_t() { return Handle; }
 
-private:
-    ur_queue_handle_t Handle;
+  private:
+    ur_queue_handle_t Handle = nullptr;
 };
 
 class SanitizerInterceptor {
@@ -199,8 +197,6 @@ class SanitizerInterceptor {
     std::vector<std::shared_ptr<USMAllocInfo>>
     findAllocInfoByAddress(uptr Address, ur_context_handle_t Context,
                            ur_device_handle_t Device);
-
-    ur_context_handle_t getPVCContext();
 
   private:
     ur_result_t updateShadowMemory(std::shared_ptr<ContextInfo> &ContextInfo,
