@@ -8,6 +8,22 @@ func.func @genx.fptofp(%a : i32) {
 
 // -----
 
+func.func @genx.fptofp(%a : f32) {
+  // expected-error @+1 {{'genx.conv.fptofp' op expecting first argument and result size to be different}}
+  %0 = genx.conv.fptofp %a {roundingMode=#genx.rounding_mode<RTE>} : f32 to f32
+  llvm.return
+}
+
+// -----
+
+func.func @genx.fptofp(%a : f32) {
+  // expected-error @+1 {{'genx.conv.fptofp' op expecting rounding mode for truncation}}
+  %0 = genx.conv.fptofp %a : f32 to f16
+  llvm.return
+}
+
+// -----
+
 func.func @genx.dpas(%c : vector<8xi32>, %a : vector<16xi8>, %b : vector<32xi8>) {
   // expected-error @+1 {{'genx.matrix.dpas' op expecting repeat count to be 1, 2, 4, or 8}}
   %0 = genx.matrix.dpas %c, %a, %b {pa=#genx.precision_type<S8>, pb=#genx.precision_type<S8>, rc=6:i32} : (vector<8xi32>, vector<16xi8>, vector<32xi8>) -> vector<8xi32>

@@ -17,6 +17,21 @@
 using namespace mlir;
 
 //===----------------------------------------------------------------------===//
+// genx.conv.fptofp
+//===----------------------------------------------------------------------===//
+
+LogicalResult GENX::FpToFpOp::verify() {
+  unsigned srcTySizeInBits = getArg().getType().getWidth();
+  unsigned resTySizeInBits = getRes().getType().getWidth();
+  if (srcTySizeInBits == resTySizeInBits)
+    return this->emitOpError(
+        "expecting first argument and result size to be different");
+  if (!getRoundingMode() && srcTySizeInBits >= resTySizeInBits)
+    return this->emitOpError("expecting rounding mode for truncation");
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // genx.matrix.dpas
 //===----------------------------------------------------------------------===//
 
@@ -149,8 +164,7 @@ template <typename Op>
 static LogicalResult verifyInput(Op op) {
   if (op.getElemSizeInBits() != 8 && op.getElemSizeInBits() != 16 &&
       op.getElemSizeInBits() != 32)
-    return op->emitOpError(
-        "expecting 'elem_size_in_bits' to be 8, 16, or 32");
+    return op->emitOpError("expecting 'elem_size_in_bits' to be 8, 16, or 32");
 
   if (op.getTranspose() && op.getVnniTransform())
     return op->emitOpError(
@@ -165,31 +179,31 @@ static LogicalResult verifyInput(Op op) {
   uint32_t TileWidth = op.getTileWidth();
   uint32_t TileHeight = op.getTileHeight();
   switch (op.getElemSizeInBits()) {
-    case 32:
+  case 32:
     if (TileWidth != 8)
       return op->emitOpError("tile_width for 32 bit elements should be equal "
-                               "to systolic depth, i.e., 8 elements");
+                             "to systolic depth, i.e., 8 elements");
     if (TileHeight != 8)
       return op->emitOpError("tile_height for 32 bit elements should be 8");
-      break;
+    break;
 
-    case 16:
+  case 16:
     if (TileWidth != 16)
       return op->emitOpError("tile_width for 16 bit elements should be equal "
-                               "to systolic depth times 2, i.e., 16 elements");
+                             "to systolic depth times 2, i.e., 16 elements");
     if (TileHeight != 16)
       return op->emitOpError("tile_height for 16 bit elements should be 16");
-      break;
+    break;
 
-    case 8:
+  case 8:
     if (TileWidth != 32)
       return op->emitOpError("tile_width for 8 bit elements should be equal "
-                               "to systolic depth times 4, i.e., 32 elements");
+                             "to systolic depth times 4, i.e., 32 elements");
     if (TileHeight != 32)
       return op->emitOpError("tile_height for 8 bit elements should be 32");
-      break;
+    break;
 
-    default:
+  default:
     return op->emitOpError("element size should be 8, 16 or 32 bits");
   }
   return success();
@@ -199,9 +213,7 @@ static LogicalResult verifyInput(Op op) {
 // genx.matrix.2Dblockload
 //===----------------------------------------------------------------------===//
 
-LogicalResult GENX::Matrix2DBlockLoadOp::verify() {
-  return verifyInput(*this);
-}
+LogicalResult GENX::Matrix2DBlockLoadOp::verify() { return verifyInput(*this); }
 
 //===----------------------------------------------------------------------===//
 // genx.matrix.2Dblockstore
