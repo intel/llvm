@@ -1253,16 +1253,16 @@ pi_result piextCommandBufferAdviseUSM(
 }
 
 pi_result piextEnqueueCooperativeKernelLaunch(
-    pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
-    const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
-    const size_t *LocalWorkSize, pi_uint32 NumEventsInWaitList,
-    const pi_event *EventWaitList, pi_event *OutEvent) {
+    pi_queue , pi_kernel , pi_uint32 ,
+    const size_t *, const size_t *,
+    const size_t *, pi_uint32 ,
+    const pi_event *, pi_event *) {
   return PI_ERROR_INVALID_OPERATION;
 }
 
 pi_result piextKernelSuggestMaxCooperativeGroupCount(
-    pi_kernel Kernel, size_t LocalWorkSize, size_t DynamicSharedMemorySize,
-    pi_uint32 *GroupCountRet) {
+    pi_kernel , size_t , size_t ,
+    pi_uint32 *) {
   return PI_ERROR_INVALID_OPERATION;
 }
 
