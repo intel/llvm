@@ -90,8 +90,11 @@ std::vector<pi_native_handle> interop_handle::getNativeEvents() const {
   // entry points. We will maybe need a new host task entry point.
   std::vector<pi_native_handle> RetEvents;
   for (auto &DepEvent : MEvent->getWaitList()) {
-    auto NativeEvents = DepEvent->getNativeVector();
-    RetEvents.insert(RetEvents.end(), NativeEvents.begin(), NativeEvents.end());
+    if (DepEvent->backendSet()) {
+      auto NativeEvents = DepEvent->getNativeVector();
+      RetEvents.insert(RetEvents.end(), NativeEvents.begin(),
+                       NativeEvents.end());
+    }
   }
   return RetEvents;
 }
