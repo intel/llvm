@@ -395,27 +395,29 @@ ur_result_t ur_context_handle_t_::finalize() {
 
   if (!DisableEventsCaching) {
     std::scoped_lock<ur_mutex> Lock(EventCacheMutex);
-    for (auto &EventCache : EventCaches) {
-      for (auto &Event : EventCache) {
+    for (auto EventCache : EventCaches) {
+      for (auto Event : *EventCache) {
         auto ZeResult = ZE_CALL_NOCHECK(zeEventDestroy, (Event->ZeEvent));
         // Gracefully handle the case that L0 was already unloaded.
         if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
           return ze2urResult(ZeResult);
         delete Event;
       }
-      EventCache.clear();
+      EventCache->clear();
+      delete EventCache;
     }
   }
   {
     std::scoped_lock<ur_mutex> Lock(ZeEventPoolCacheMutex);
-    for (auto &ZePoolCache : ZeEventPoolCache) {
-      for (auto &ZePool : ZePoolCache) {
+    for (auto ZePoolCache : ZeEventPoolCache) {
+      for (auto ZePool : *ZePoolCache) {
         auto ZeResult = ZE_CALL_NOCHECK(zeEventPoolDestroy, (ZePool));
         // Gracefully handle the case that L0 was already unloaded.
         if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
           return ze2urResult(ZeResult);
       }
-      ZePoolCache.clear();
+      ZePoolCache->clear();
+      delete ZePoolCache;
     }
   }
 

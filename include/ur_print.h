@@ -2451,6 +2451,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintVirtualMemGetInfoParams(const struct 
 UR_APIEXPORT ur_result_t UR_APICALL urPrintDeviceGetParams(const struct ur_device_get_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_device_get_selected_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintDeviceGetSelectedParams(const struct ur_device_get_selected_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_device_get_info_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
