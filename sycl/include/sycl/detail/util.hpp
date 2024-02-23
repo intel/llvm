@@ -84,6 +84,12 @@ template <> struct ABINeutralT<std::vector<std::string>> {
   using type = std::vector<detail::string>;
 };
 
+template <> struct ABINeutralT<detail::string> { using type = std::string; };
+
+template <> struct ABINeutralT<std::vector<detail::string>> {
+  using type = std::vector<std::string>;
+};
+
 template <typename T> using ABINeutralT_t = typename ABINeutralT<T>::type;
 #endif
 
