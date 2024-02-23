@@ -11,7 +11,7 @@ jobs:
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: SYCL-CTS
-      runner: '["debug"]'
+      runner: '["cts-cpu"]'
       image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:latest
       image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
       target_devices: opencl:cpu
