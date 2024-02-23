@@ -309,8 +309,8 @@ private:
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
-  typename detail::ABINeutralT<
-      typename detail::is_device_info_desc<Param>::return_type>::type
+  typename detail::ABINeutralT_t<
+      typename detail::is_device_info_desc<Param>::return_type>
   get_info_impl() const;
 #endif
 };

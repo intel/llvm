@@ -64,8 +64,7 @@ class filter_selector;
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 template <typename ParamT>
-typename detail::ABINeutralT<ParamT>::type
-convert_to_abi_neutral(ParamT &Info) {
+typename detail::ABINeutralT_t<ParamT> convert_to_abi_neutral(ParamT &Info) {
   if constexpr (std::is_same_v<ParamT, std::string>) {
     return detail::string{Info};
   } else if constexpr (std::is_same_v<ParamT, std::vector<std::string>>) {
@@ -82,13 +81,12 @@ convert_to_abi_neutral(ParamT &Info) {
 
 template <typename ReturnT>
 ReturnT
-convert_from_abi_neutral(typename detail::ABINeutralT<ReturnT>::type &Info) {
-  if constexpr (std::is_same_v<typename detail::ABINeutralT<ReturnT>::type,
+convert_from_abi_neutral(typename detail::ABINeutralT_t<ReturnT> &Info) {
+  if constexpr (std::is_same_v<typename detail::ABINeutralT_t<ReturnT>,
                                detail::string>) {
     return Info.c_str();
-  } else if constexpr (std::is_same_v<
-                           typename detail::ABINeutralT<ReturnT>::type,
-                           std::vector<detail::string>>) {
+  } else if constexpr (std::is_same_v<typename detail::ABINeutralT_t<ReturnT>,
+                                      std::vector<detail::string>>) {
     std::vector<std::string> Res;
     Res.reserve(Info.size());
     for (detail::string &Str : Info) {
@@ -261,8 +259,8 @@ private:
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
-  typename detail::ABINeutralT<
-      typename detail::is_platform_info_desc<Param>::return_type>::type
+  typename detail::ABINeutralT_t<
+      typename detail::is_platform_info_desc<Param>::return_type>
   get_info_impl() const;
 #endif
 }; // class platform
