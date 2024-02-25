@@ -44,9 +44,6 @@ LogicalResult GENX::MatrixDPASOp::verify() {
   Type AElemTy = ATy.getElementType();
   Type BElemTy = BTy.getElementType();
   Type CElemTy = CTy.getElementType();
-  if (AElemTy != BElemTy)
-    return this->emitOpError(
-        "element type of 2nd (A) and 3rd (B) operands must match");
 
   // ATy is required to be vector<RC x i16> as hard coded by IGC.
   if (ATy.getNumElements() * AElemTy.getIntOrFloatBitWidth() != getRc() * 16)
@@ -59,67 +56,48 @@ LogicalResult GENX::MatrixDPASOp::verify() {
     return this->emitOpError(
         "3rd operand (B) bit-size should be systolic depth (8) times 32");
 
-  return TypeSwitch<Type, LogicalResult>(AElemTy)
-      .Case<Float32Type>([&](auto ty) -> LogicalResult {
-        if (precision != GENX::PrecisionType::TF32)
-          return this->emitOpError("precision should be TF32 when 2nd (A) or "
-                                   "3rd (B) operand element type is f32");
-        if (!CElemTy.isF32())
-          return this->emitOpError("the element type for 1st operand (C) and "
-                                   "the result should be f32");
-        return success();
-      })
-      .Case<BFloat16Type>([&](auto ty) -> LogicalResult {
-        if (precision != GENX::PrecisionType::BF16)
-          return this->emitOpError(
-              "precision should be BF16 when 2nd (A) or 3rd (B) operand "
-              "element type is bf16");
-        if (!CElemTy.isF32())
-          return this->emitOpError(
-              "the element type for 1st operand (C) and the "
-              "result should be f32");
-        return success();
-      })
-      .Case<Float16Type>([&](auto ty) -> LogicalResult {
-        if (precision != GENX::PrecisionType::FP16)
-          return this->emitOpError("precision should be FP16 when 2nd (A) or "
-                                   "3rd (B) operand element type is f16");
-        if (!CElemTy.isF32())
-          return this->emitOpError(
-              "the element type for 1st operand (C) and the "
-              "result should be f32");
-        return success();
-      })
-      .Case<IntegerType>([&](auto ty) -> LogicalResult {
-        if (!ty.isInteger(8))
-          return this->emitOpError(
-              "expecting 2nd (A) or 3rd (B) operand element type to be f32, "
-              "bf16, f16, or i8");
+  if (precision == GENX::PrecisionType::U8 ||
+      precision == GENX::PrecisionType::S8) {
+    if (!CElemTy.isInteger(32))
+      return this->emitOpError("the element type for 1st operand (C) and "
+                               "the result should be i32");
+  } else if (!CElemTy.isF32())
+    return this->emitOpError("the element type for 1st operand (C) and the "
+                             "result should be f32");
 
-        if (precision == GENX::PrecisionType::U8) {
-          if (ty.isSigned())
-            return this->emitOpError(
-                "precision should be S8 when 2nd (A) or 3rd (B) operand "
-                "element type is signed i8");
-        } else if (precision == GENX::PrecisionType::S8) {
-          if (ty.isUnsigned())
-            return this->emitOpError(
-                "precision should be U8 when 2nd (A) or 3rd (B) operand "
-                "element type is unsigned i8");
-        } else
-          return this->emitOpError("precision should be U8 or S8 when 2nd (A) "
-                                   "or 3rd (B) operand element type is i8");
-
-        if (!CElemTy.isInteger(32))
-          return this->emitOpError("the element type for 1st operand (C) and "
-                                   "the result should be i32");
-
-        return success();
-      })
-      .Default([&](mlir::Type) -> LogicalResult {
-        return this->emitOpError("expecting 2nd (A) or 3rd (B) operand element "
-                                 "type to be f32, bf16, f16, or i8");
-      });
+  switch (precision) {
+  case GENX::PrecisionType::TF32:
+    if (!AElemTy.isa<Float32Type>() && !AElemTy.isInteger(32))
+      return this->emitOpError("A and B operand element type should be f32 or "
+                               "i32 when precision type is tf32");
+    break;
+  case GENX::PrecisionType::BF16:
+    if (!AElemTy.isa<BFloat16Type>() && !AElemTy.isInteger(16))
+      return this->emitOpError("A and B operand element type should be bf16 or "
+                               "i16 when precision type is bf16");
+    break;
+  case GENX::PrecisionType::FP16:
+    if (!AElemTy.isa<Float16Type>() && !AElemTy.isInteger(16))
+      return this->emitOpError("A and B operand element type should be f16 or "
+                               "i16 when precision type is f16");
+    break;
+  case GENX::PrecisionType::U8:
+    if (!(AElemTy.isInteger(8) && !AElemTy.cast<IntegerType>().isSigned()) &&
+        !AElemTy.isInteger(16))
+      return this->emitOpError("A and B operand element type should be u8, i8, "
+                               "or i16 when precision type is u8");
+    break;
+  case GENX::PrecisionType::S8:
+    if (!(AElemTy.isInteger(8) && !AElemTy.cast<IntegerType>().isUnsigned()) &&
+        !AElemTy.isInteger(16))
+      return this->emitOpError("A and B operand element type should be s8, i8, "
+                               "or i16 when precision type is s8");
+    break;
+  default:
+    return this->emitOpError(
+        "expecting precision type to be tf32, bf16, fp16, u8, or s8");
+  }
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -149,8 +127,7 @@ template <typename Op>
 static LogicalResult verifyInput(Op op) {
   if (op.getElemSizeInBits() != 8 && op.getElemSizeInBits() != 16 &&
       op.getElemSizeInBits() != 32)
-    return op->emitOpError(
-        "expecting 'elem_size_in_bits' to be 8, 16, or 32");
+    return op->emitOpError("expecting 'elem_size_in_bits' to be 8, 16, or 32");
 
   if (op.getTranspose() && op.getVnniTransform())
     return op->emitOpError(
@@ -165,31 +142,31 @@ static LogicalResult verifyInput(Op op) {
   uint32_t TileWidth = op.getTileWidth();
   uint32_t TileHeight = op.getTileHeight();
   switch (op.getElemSizeInBits()) {
-    case 32:
+  case 32:
     if (TileWidth != 8)
       return op->emitOpError("tile_width for 32 bit elements should be equal "
-                               "to systolic depth, i.e., 8 elements");
+                             "to systolic depth, i.e., 8 elements");
     if (TileHeight != 8)
       return op->emitOpError("tile_height for 32 bit elements should be 8");
-      break;
+    break;
 
-    case 16:
+  case 16:
     if (TileWidth != 16)
       return op->emitOpError("tile_width for 16 bit elements should be equal "
-                               "to systolic depth times 2, i.e., 16 elements");
+                             "to systolic depth times 2, i.e., 16 elements");
     if (TileHeight != 16)
       return op->emitOpError("tile_height for 16 bit elements should be 16");
-      break;
+    break;
 
-    case 8:
+  case 8:
     if (TileWidth != 32)
       return op->emitOpError("tile_width for 8 bit elements should be equal "
-                               "to systolic depth times 4, i.e., 32 elements");
+                             "to systolic depth times 4, i.e., 32 elements");
     if (TileHeight != 32)
       return op->emitOpError("tile_height for 8 bit elements should be 32");
-      break;
+    break;
 
-    default:
+  default:
     return op->emitOpError("element size should be 8, 16 or 32 bits");
   }
   return success();
@@ -199,9 +176,7 @@ static LogicalResult verifyInput(Op op) {
 // genx.matrix.2Dblockload
 //===----------------------------------------------------------------------===//
 
-LogicalResult GENX::Matrix2DBlockLoadOp::verify() {
-  return verifyInput(*this);
-}
+LogicalResult GENX::Matrix2DBlockLoadOp::verify() { return verifyInput(*this); }
 
 //===----------------------------------------------------------------------===//
 // genx.matrix.2Dblockstore
