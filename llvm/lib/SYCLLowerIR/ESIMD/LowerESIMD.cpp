@@ -1943,6 +1943,7 @@ static void fixFunctionReadWriteAttributes(Module &M) {
 
 PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
                                           ModuleAnalysisManager &MAM) {
+  // Check validity of slm_init calls.
   checkSLMInit(M);
   // AlwaysInlinerPass is required for correctness.
   bool ForceInline = prepareForAlwaysInliner(M);
