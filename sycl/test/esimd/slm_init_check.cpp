@@ -16,7 +16,7 @@ int main() {
      slm_init(1024);
      slm_init(1024);
    }).wait();
-  // CHECK: error: slm_init is called more than once from function 'typeinfo name for main::'lambda'(sycl::_V1::nd_item<1>)'.
+  // CHECK: error: slm_init is called more than once from kernel 'typeinfo name for main::'lambda'(sycl::_V1::nd_item<1>)'.
 
   return 0;
 }
