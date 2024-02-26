@@ -72,12 +72,12 @@ bool run_test() {
 
         MyType myPixel{};
 
-        // Unsampled read
-        myPixel = syclexp::read_image<MyType, OutType>(unsampledImgIn, coords);
+        // Unsampled fetch
+        myPixel = syclexp::fetch_image<MyType, OutType>(unsampledImgIn, coords);
 
         // Sampled read
         myPixel +=
-            syclexp::read_image<MyType, OutType>(sampledImgIn, floatCoords);
+            syclexp::sample_image<MyType, OutType>(sampledImgIn, floatCoords);
 
         syclexp::write_image(imgOut, coords, myPixel);
       });

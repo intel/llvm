@@ -6,6 +6,9 @@ on:
       filters:
         description: Matched filters
         value: ${{ jobs.need_check.outputs.filters }}
+      arc_tests:
+        description: Tests to run on Arc
+        value: ${{ jobs.need_check.outputs.arc_tests }}
 
 jobs:
   need_check:
@@ -16,6 +19,7 @@ jobs:
     timeout-minutes: 3
     outputs:
       filters: ${{ steps.result.outputs.result }}
+      arc_tests: ${{ steps.arc_tests.outputs.arc_tests }}
     steps:
       - name: Check file changes
         uses: dorny/paths-filter@0bc4621a3135347011ad047f9ecf449bf72ce2bd
@@ -57,6 +61,19 @@ jobs:
               - devops/scripts/install_drivers.sh
             perf-tests:
               - sycl/test-e2e/PerformanceTests/**
+            esimd:
+              - 'llvm/lib/SYCLLowerIR/ESIMD/**'
+              - 'llvm/lib/SYCLLowerIR/LowerInvokeSimd.cpp'
+              - 'llvm/include/llvm/SYCLLowerIR/LowerInvokeSimd.h'
+              - 'sycl/include/std/experimental/simd.hpp'
+              - 'sycl/include/std/experimental/simd.hpp'
+              - 'sycl/include/sycl/ext/intel/esimd.hpp'
+              - 'sycl/include/sycl/ext/intel/esimd/**'
+              - 'sycl/include/sycl/ext/intel/esimd.hpp'
+              - 'sycl/include/sycl/ext/intel/experimental/esimd/**'
+              - 'sycl/include/sycl/ext/oneapi/experimental/invoke_simd.hpp'
+              - 'sycl/include/sycl/ext/oneapi/experimental/detail/invoke_simd_types.hpp'
+              - 'sycl/test-e2e/(ESIMD|InvokeSimd)/**'
 
       - name: Set output
         id: result
@@ -69,6 +86,15 @@ jobs:
               return '${{ steps.changes.outputs.changes }}';
             }
             // Treat everything as changed for huge PRs.
-            return ["llvm", "llvm_spirv", "clang", "sycl_fusion", "xptifw", "libclc", "sycl", "ci"];
+            return ["llvm", "llvm_spirv", "clang", "sycl_fusion", "xptifw", "libclc", "sycl", "ci", "esimd"];
 
       - run: echo '${{ steps.result.outputs.result }}'
+
+      - name: Set Arc tests
+        id: arc_tests
+        run: |
+          if [ "${{ contains(steps.result.outputs.result, 'esimd') }}" == "true" ]; then
+            echo 'arc_tests="(ESIMD|InvokeSimd|Matrix)/"' >> "$GITHUB_OUTPUT"
+          else
+            echo 'arc_tests="Matrix/"' >> "$GITHUB_OUTPUT"
+          fi

@@ -15,10 +15,11 @@
 // stores data to addresses that partially overlap with addresses used by
 // previous thread.
 
+#include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
-#include <iostream>
+#include "../esimd_test_utils.hpp"
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -100,7 +101,7 @@ bool test(QueueTY q) {
             else
               lsc_block_store<int, VL>(acc, off, val);
 
-            lsc_fence();
+            fence();
 
             // idx == 0 arrives here first and signals barrier 1
             // idx == 1 arrives here next and signals barrier 2
@@ -143,11 +144,8 @@ bool test(QueueTY q) {
 }
 
 int main() {
-  auto GPUSelector = gpu_selector{};
-  auto q = queue{GPUSelector};
-  auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
-            << "\n";
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
+  esimd_test::printTestLabel(q);
 
   bool passed = true;
 

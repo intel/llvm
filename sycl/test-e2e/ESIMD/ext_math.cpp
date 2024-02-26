@@ -388,7 +388,10 @@ bool test(queue &Q, const std::string &Name, InitF Init = InitNarrow<T>{},
     if constexpr (sizeof(T) <= 2)
       delta = delta + delta;
 
-    bool BothFinite = std::isfinite(Test) && std::isfinite(Gold);
+    bool BothFinite = true;
+#ifndef TEST_FAST_MATH
+    BothFinite = std::isfinite(Test) && std::isfinite(Gold);
+#endif
     if (BothFinite && std::abs(Test - Gold) > delta) {
       if (++ErrCnt < 10) {
         std::cout << "    failed at index " << I << ", " << Test

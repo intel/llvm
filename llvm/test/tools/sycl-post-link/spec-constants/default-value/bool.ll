@@ -2,9 +2,14 @@
 
 ; RUN: sycl-post-link -split=auto -spec-const=native -S -o %t.table %s -generate-device-image-default-spec-consts
 ; RUN: FileCheck %s -input-file %t_1.ll --implicit-check-not="SpecConst"
+; RUN: sycl-post-link -debug-only=SpecConst -split=auto -spec-const=native -S %s -generate-device-image-default-spec-consts 2>&1 | FileCheck %s --check-prefix=CHECK-LOG
 
 ; CHECK: %bool1 = trunc i8 1 to i1
 ; CHECK: %frombool = zext i1 %bool1 to i8
+; CHECK-LOG: sycl.specialization-constants
+; CHECK-LOG:[[UNIQUE_PREFIX:[0-9a-zA-Z]+]]={0, 0, 1}
+; CHECK-LOG: sycl.specialization-constants-default-values
+; CHECK-LOG:{0, 1, 1}
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"

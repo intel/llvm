@@ -1,6 +1,7 @@
 ; RUN: sycl-post-link --spec-const=native -S < %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files_0.ll --check-prefix CHECK-IR
 ; RUN: FileCheck %s -input-file=%t.files_0.prop --check-prefix CHECK-PROP
+; RUN: sycl-post-link -debug-only=SpecConst --spec-const=native -S < %s 2>&1 | FileCheck %s --check-prefix=CHECK-LOG
 ;
 ; This test is intended to check that SpecConstantsPass is able to handle the
 ; situation where specialization constants with complex types such as structs
@@ -84,6 +85,25 @@ attributes #4 = { convergent }
 
 ; CHECK-PROP: [SYCL/specialization constants]
 ; CHECK-PROP-NEXT: ef880fa09cf7a9d7____ZL8coeff_id=2|
+; CHECK-LOG: sycl.specialization-constants
+; CHECK-LOG:[[UNIQUE_PREFIX:[0-9a-zA-Z]+]]={0, 0, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={1, 4, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={2, 8, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={3, 16, 8}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={4294967295, 24, 8}
+; CHECK-LOG:[[UNIQUE_PREFIX2:[0-9a-zA-Z]+]]={5, 0, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX2]]={6, 4, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX2]]={7, 8, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX2]]={8, 16, 8}
+; CHECK-LOG:[[UNIQUE_PREFIX2]]={4294967295, 31, 1}
 
 ; CHECK-PROP: [SYCL/specialization constants default values]
 ; CHECK-PROP-NEXT: all=2|
+; CHECK-LOG: sycl.specialization-constants-default-values
+; CHECK-LOG: {0, 12, 0}
+; CHECK-LOG: {16, 8, 0}
+; CHECK-LOG: {24, 8, 0}
+; CHECK-LOG: {32, 12, 0}
+; CHECK-LOG: {48, 8, 0}
+; CHECK-LOG: {56, 7, 0}
+; CHECK-LOG: {63, 1, 0}

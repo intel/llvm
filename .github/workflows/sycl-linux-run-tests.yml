@@ -81,6 +81,7 @@ on:
           - '["Linux", "gen12"]'
           - '["amdgpu"]'
           - '["Linux", "arc"]'
+          - '["cts-cpu"]'
       image:
         description: |
           Use option ending with ":build" for AMDGPU, ":latest" for the rest.
@@ -100,7 +101,7 @@ on:
         options:
           - 'opencl:cpu'
           - 'opencl:gpu'
-          - 'opencl:acc'
+          - 'opencl:fpga'
           - 'ext_oneapi_level_zero:gpu'
           - 'ext_oneapi_hip:gpu'
       tests_selector:
@@ -286,10 +287,27 @@ jobs:
         -DDPCPP_INSTALL_DIR="$$(dirname (which clang++))/.." \
         $CMAKE_EXTRA_ARGS
         ninja -C build-cts
+
+    - name: SYCL CTS List devices
+      if: inputs.tests_selector == 'cts'
+      run: |
+        ./build-cts/bin/test_all --list-devices
+
     - name: Run SYCL CTS tests
       if: inputs.tests_selector == 'cts'
       env:
         ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
+      # FIXME: For some reason the "sub_group api" test-case is failing with
+      # SIGSEGV while running test_all, so running each binary separately.
+      # BTW test_all requires a lot of resources to build it, so probably it'll
+      # be better to build each binary also separately.
+      # run: |
+      #   ./build-cts/bin/test_all $CTS_TEST_ARGS
       run: |
-        ./build-cts/bin/test_all --list-devices
-        ./build-cts/bin/test_all $CTS_TEST_ARGS
+        for i in `ls -1 ./build-cts/bin`; do
+          if [ "$i" != "test_all" ]; then
+            echo "::group::Running $i"
+            build-cts/bin/$i
+            echo "::endgroup::"
+          fi
+        done

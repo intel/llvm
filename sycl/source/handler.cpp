@@ -256,17 +256,34 @@ event handler::finalize() {
             // Capture the host timestamp for profiling (queue time)
             if (NewEvent != nullptr)
               NewEvent->setHostEnqueueTime();
-            MQueue->getPlugin()->call<detail::PiApiKind::piEnqueueKernelLaunch>(
-                nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
-                MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0],
-                &MNDRDesc.GlobalSize[0], &MNDRDesc.LocalSize[0], 0, nullptr,
-                nullptr);
+            [&](auto... Args) {
+              if (MImpl->MKernelIsCooperative) {
+                MQueue->getPlugin()
+                    ->call<
+                        detail::PiApiKind::piextEnqueueCooperativeKernelLaunch>(
+                        Args...);
+              } else {
+                MQueue->getPlugin()
+                    ->call<detail::PiApiKind::piEnqueueKernelLaunch>(Args...);
+              }
+            }(/* queue */
+              nullptr,
+              /* kernel */
+              reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
+              /* work_dim */
+              MNDRDesc.Dims,
+              /* global_work_offset */ &MNDRDesc.GlobalOffset[0],
+              /* global_work_size */ &MNDRDesc.GlobalSize[0],
+              /* local_work_size */ &MNDRDesc.LocalSize[0],
+              /* num_events_in_wait_list */ 0,
+              /* event_wait_list */ nullptr,
+              /* event */ nullptr);
             Result = PI_SUCCESS;
           } else {
-            Result =
-                enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
-                                 MKernel, MKernelName, RawEvents, NewEvent,
-                                 nullptr, MImpl->MKernelCacheConfig);
+            Result = enqueueImpKernel(
+                MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
+                MKernelName, RawEvents, NewEvent, nullptr,
+                MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative);
           }
         }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -325,7 +342,7 @@ event handler::finalize() {
         std::move(MImpl->MKernelBundle), std::move(CGData), std::move(MArgs),
         MKernelName, std::move(MStreamStorage),
         std::move(MImpl->MAuxiliaryResources), MCGType,
-        MImpl->MKernelCacheConfig, MCodeLoc));
+        MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative, MCodeLoc));
     break;
   }
   case detail::CG::CopyAccToPtr:
@@ -981,6 +998,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  Desc.verify();
+
   MSrcPtr = Src;
   MDstPtr = Dest.raw_handle;
 
@@ -988,9 +1007,18 @@ void handler::ext_oneapi_copy(
   PiDesc.image_width = Desc.width;
   PiDesc.image_height = Desc.height;
   PiDesc.image_depth = Desc.depth;
-  PiDesc.image_type = Desc.depth > 0 ? PI_MEM_TYPE_IMAGE3D
-                                     : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D
-                                                        : PI_MEM_TYPE_IMAGE1D);
+  PiDesc.image_array_size = Desc.array_size;
+
+  if (Desc.array_size > 1) {
+    // Image Array.
+    PiDesc.image_type =
+        Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+  } else {
+    PiDesc.image_type =
+        Desc.depth > 0
+            ? PI_MEM_TYPE_IMAGE3D
+            : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D : PI_MEM_TYPE_IMAGE1D);
+  }
 
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
@@ -1017,6 +1045,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  DestImgDesc.verify();
+
   MSrcPtr = Src;
   MDstPtr = Dest.raw_handle;
 
@@ -1024,10 +1054,18 @@ void handler::ext_oneapi_copy(
   PiDesc.image_width = DestImgDesc.width;
   PiDesc.image_height = DestImgDesc.height;
   PiDesc.image_depth = DestImgDesc.depth;
-  PiDesc.image_type = DestImgDesc.depth > 0
-                          ? PI_MEM_TYPE_IMAGE3D
-                          : (DestImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
-                                                    : PI_MEM_TYPE_IMAGE1D);
+  PiDesc.image_array_size = DestImgDesc.array_size;
+
+  if (DestImgDesc.array_size > 1) {
+    // Image Array.
+    PiDesc.image_type = DestImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
+                                               : PI_MEM_TYPE_IMAGE1D_ARRAY;
+  } else {
+    PiDesc.image_type = DestImgDesc.depth > 0
+                            ? PI_MEM_TYPE_IMAGE3D
+                            : (DestImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                      : PI_MEM_TYPE_IMAGE1D);
+  }
 
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
@@ -1052,6 +1090,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  Desc.verify();
+
   MSrcPtr = Src.raw_handle;
   MDstPtr = Dest;
 
@@ -1059,9 +1099,18 @@ void handler::ext_oneapi_copy(
   PiDesc.image_width = Desc.width;
   PiDesc.image_height = Desc.height;
   PiDesc.image_depth = Desc.depth;
-  PiDesc.image_type = Desc.depth > 0 ? PI_MEM_TYPE_IMAGE3D
-                                     : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D
-                                                        : PI_MEM_TYPE_IMAGE1D);
+  PiDesc.image_array_size = Desc.array_size;
+
+  if (Desc.array_size > 1) {
+    // Image Array.
+    PiDesc.image_type =
+        Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+  } else {
+    PiDesc.image_type =
+        Desc.depth > 0
+            ? PI_MEM_TYPE_IMAGE3D
+            : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D : PI_MEM_TYPE_IMAGE1D);
+  }
 
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
@@ -1088,6 +1137,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  SrcImgDesc.verify();
+
   MSrcPtr = Src.raw_handle;
   MDstPtr = Dest;
 
@@ -1095,10 +1146,18 @@ void handler::ext_oneapi_copy(
   PiDesc.image_width = SrcImgDesc.width;
   PiDesc.image_height = SrcImgDesc.height;
   PiDesc.image_depth = SrcImgDesc.depth;
-  PiDesc.image_type =
-      SrcImgDesc.depth > 0
-          ? PI_MEM_TYPE_IMAGE3D
-          : (SrcImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D : PI_MEM_TYPE_IMAGE1D);
+  PiDesc.image_array_size = SrcImgDesc.array_size;
+
+  if (SrcImgDesc.array_size > 1) {
+    // Image Array.
+    PiDesc.image_type = SrcImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
+                                              : PI_MEM_TYPE_IMAGE1D_ARRAY;
+  } else {
+    PiDesc.image_type = SrcImgDesc.depth > 0
+                            ? PI_MEM_TYPE_IMAGE3D
+                            : (SrcImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                     : PI_MEM_TYPE_IMAGE1D);
+  }
 
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
@@ -1123,6 +1182,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  Desc.verify();
+
   MSrcPtr = Src;
   MDstPtr = Dest;
 
@@ -1130,9 +1191,18 @@ void handler::ext_oneapi_copy(
   PiDesc.image_width = Desc.width;
   PiDesc.image_height = Desc.height;
   PiDesc.image_depth = Desc.depth;
-  PiDesc.image_type = Desc.depth > 0 ? PI_MEM_TYPE_IMAGE3D
-                                     : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D
-                                                        : PI_MEM_TYPE_IMAGE1D);
+  PiDesc.image_array_size = Desc.array_size;
+
+  if (Desc.array_size > 1) {
+    // Image Array.
+    PiDesc.image_type =
+        Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+  } else {
+    PiDesc.image_type =
+        Desc.depth > 0
+            ? PI_MEM_TYPE_IMAGE3D
+            : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D : PI_MEM_TYPE_IMAGE1D);
+  }
 
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
@@ -1161,6 +1231,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  DeviceImgDesc.verify();
+
   MSrcPtr = Src;
   MDstPtr = Dest;
 
@@ -1168,10 +1240,18 @@ void handler::ext_oneapi_copy(
   PiDesc.image_width = DeviceImgDesc.width;
   PiDesc.image_height = DeviceImgDesc.height;
   PiDesc.image_depth = DeviceImgDesc.depth;
-  PiDesc.image_type = DeviceImgDesc.depth > 0
-                          ? PI_MEM_TYPE_IMAGE3D
-                          : (DeviceImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
-                                                      : PI_MEM_TYPE_IMAGE1D);
+  PiDesc.image_array_size = DeviceImgDesc.array_size;
+
+  if (DeviceImgDesc.array_size > 1) {
+    // Image Array.
+    PiDesc.image_type = DeviceImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
+                                                 : PI_MEM_TYPE_IMAGE1D_ARRAY;
+  } else {
+    PiDesc.image_type = DeviceImgDesc.depth > 0
+                            ? PI_MEM_TYPE_IMAGE3D
+                            : (DeviceImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                        : PI_MEM_TYPE_IMAGE1D);
+  }
 
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
@@ -1407,6 +1487,10 @@ handler::getContextImplPtr() const {
 void handler::setKernelCacheConfig(
     sycl::detail::pi::PiKernelCacheConfig Config) {
   MImpl->MKernelCacheConfig = Config;
+}
+
+void handler::setKernelIsCooperative(bool KernelIsCooperative) {
+  MImpl->MKernelIsCooperative = KernelIsCooperative;
 }
 
 void handler::ext_oneapi_graph(

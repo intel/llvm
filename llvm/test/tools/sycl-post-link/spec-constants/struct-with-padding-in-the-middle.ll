@@ -1,5 +1,6 @@
 ; RUN: sycl-post-link --spec-const=native -S %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll
+; RUN: sycl-post-link -debug-only=SpecConst --spec-const=native -S %s 2>&1 | FileCheck %s --check-prefix=CHECK-LOG
 ; LLVM IR for this test is produced from the following SYCL code snippet:
 ;
 ; #include <sycl/sycl.hpp>
@@ -51,6 +52,17 @@
 ; CHECK-SAME: i32 [[#SCID3]], i32 8, i32 4,
 ; CHECK-SAME: i32 [[#SCID4]], i32 12, i32 1,
 ; CHECK-SAME: i32 -1, i32 13, i32 3}
+; CHECK-LOG: sycl.specialization-constants
+; CHECK-LOG:[[UNIQUE_PREFIX:[0-9a-zA-Z]+]]={0, 0, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={1, 4, 1}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={3, 8, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={4, 12, 1}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={4294967295, 13, 3}
+; CHECK-LOG: sycl.specialization-constants-default-values
+; CHECK-LOG:{0, 4, 3.140000e+00}
+; CHECK-LOG:{4, 1, 97}
+; CHECK-LOG:{8, 4, 42}
+; CHECK-LOG:{12, 1, 8}
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"

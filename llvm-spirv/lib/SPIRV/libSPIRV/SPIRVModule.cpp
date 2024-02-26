@@ -58,6 +58,18 @@
 
 namespace SPIRV {
 
+namespace {
+std::string to_string(uint32_t Version) {
+  std::string Res(formatVersionNumber(Version));
+  Res += " (" + std::to_string(Version) + ")";
+  return Res;
+}
+
+std::string to_string(VersionNumber Version) {
+  return to_string(static_cast<uint32_t>(Version));
+}
+} // Anonymous namespace
+
 SPIRVModule::SPIRVModule()
     : AutoAddCapability(true), ValidateCapability(false), IsValid(true) {}
 
@@ -173,7 +185,16 @@ public:
   void insertEntryNoId(SPIRVEntry *Entry) override { EntryNoId.insert(Entry); }
 
   void setSPIRVVersion(SPIRVWord Ver) override {
-    assert(this->isAllowedToUseVersion(static_cast<VersionNumber>(Ver)));
+    if (!this->isAllowedToUseVersion(static_cast<VersionNumber>(Ver))) {
+      std::stringstream SS;
+      SS << "SPIR-V version was restricted to at most "
+         << to_string(getMaximumAllowedSPIRVVersion())
+         << " but a construct from the input requires SPIR-V version "
+         << to_string(Ver) << " or above\n";
+      getErrorLog().checkError(false, SPIRVEC_RequiresVersion, SS.str());
+      setInvalid();
+      return;
+    }
     SPIRVVersion = Ver;
   }
 
@@ -2096,16 +2117,6 @@ SPIRVMemberName *SPIRVModuleImpl::addMemberName(SPIRVTypeStruct *ST,
 void SPIRVModuleImpl::addUnknownStructField(SPIRVTypeStruct *Struct, unsigned I,
                                             SPIRVId ID) {
   UnknownStructFieldMap[Struct].push_back(std::make_pair(I, ID));
-}
-
-static std::string to_string(uint32_t Version) {
-  std::string Res(formatVersionNumber(Version));
-  Res += " (" + std::to_string(Version) + ")";
-  return Res;
-}
-
-static std::string to_string(VersionNumber Version) {
-  return to_string(static_cast<uint32_t>(Version));
 }
 
 std::istream &operator>>(std::istream &I, SPIRVModule &M) {

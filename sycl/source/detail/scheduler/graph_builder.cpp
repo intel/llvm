@@ -1016,8 +1016,13 @@ Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
     } else {
       std::string s;
       std::stringstream ss(s);
-      ss << "Not fusing '" << NewCmd->getTypeString()
-         << "' command group. Can only fuse device kernel command groups.";
+      if (NewCmd->getCG().getType() == CG::CGTYPE::Kernel) {
+        ss << "Not fusing kernel with 'use_root_sync' property. Can only fuse "
+              "non-cooperative device kernels.";
+      } else {
+        ss << "Not fusing '" << NewCmd->getTypeString()
+           << "' command group. Can only fuse device kernel command groups.";
+      }
       printFusionWarning(ss.str());
     }
   }

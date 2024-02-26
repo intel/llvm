@@ -18,7 +18,7 @@ vector_operators
 vector_swizzle_assignment
 vector_swizzles
 kernel_bundle
-specialization_constants
+spec_constants
 device_selector
 math_builtin_api
 stream

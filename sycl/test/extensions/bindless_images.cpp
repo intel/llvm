@@ -35,7 +35,7 @@ int main() {
       auto outAcc = buf.get_access<sycl::access_mode::write>(cgh, width);
 
       cgh.parallel_for<image_read>(width, [=](sycl::id<1> id) {
-        sycl::float4 px1 = read_image<sycl::float4>(imgHandle1, int(id[0]));
+        sycl::float4 px1 = fetch_image<sycl::float4>(imgHandle1, int(id[0]));
         outAcc[id] = px1[0];
       });
     });

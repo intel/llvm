@@ -32,7 +32,9 @@
 
 // UNSUPPORTED: hip
 
-// RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// FIXME: Remove "-fsycl-device-code-split=per_kernel" option after fixing
+// https://github.com/intel/llvm/issues/12743.
+// RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} -fsycl-device-code-split=per_kernel %s -o %t.out
 // RUN: %{run} %t.out
 
 #include <cstddef>

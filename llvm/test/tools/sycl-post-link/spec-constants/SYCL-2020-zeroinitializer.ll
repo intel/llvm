@@ -1,4 +1,5 @@
 ; RUN: sycl-post-link --ir-output-only --spec-const=native %s -S -o - | FileCheck %s
+; RUN: sycl-post-link -debug-only=SpecConst --spec-const=native %s -S 2>&1 | FileCheck %s --check-prefix=CHECK-LOG
 ;
 ; This test is intended to check that SpecConstantsPass is able to handle the
 ; situation where specialization constants have zeroinitializer in LLVM IR
@@ -40,6 +41,18 @@ entry:
 ; CHECK: call i8 @_Z20__spirv_SpecConstantia(i32 [[#SCID3:]], i8 0)
 ; CHECK: call i8 @_Z20__spirv_SpecConstantia(i32 [[#SCID4:]], i8 0)
 ; CHECK: call i64 @_Z20__spirv_SpecConstantix(i32 [[#SCID5:]], i64 0)
+
+; CHECK-LOG: sycl.specialization-constants
+; CHECK-LOG:[[UNIQUE_PREFIX:[0-9a-zA-Z]+]]={0, 0, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX2:[0-9a-zA-Z]+]]={1, 0, 8}
+; CHECK-LOG:[[UNIQUE_PREFIX3:[0-9a-zA-Z]+]]={2, 0, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX3]]={3, 4, 1}
+; CHECK-LOG:[[UNIQUE_PREFIX3]]={4, 5, 1}
+; CHECK-LOG:[[UNIQUE_PREFIX3]]={5, 8, 8}
+; CHECK-LOG: sycl.specialization-constants-default-values
+; CHECK-LOG: {0, 4, 0}
+; CHECK-LOG: {4, 8, 0.000000e+00}
+; CHECK-LOG: {12, 16, 0}
 
   ret void
 }

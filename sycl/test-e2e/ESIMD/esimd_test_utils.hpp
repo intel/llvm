@@ -27,6 +27,10 @@ using namespace sycl;
 
 namespace esimd_test {
 
+template <typename T>
+using shared_allocator = sycl::usm_allocator<T, sycl::usm::alloc::shared>;
+template <typename T> using shared_vector = std::vector<T, shared_allocator<T>>;
+
 // This is the function provided to SYCL runtime by the application to decide
 // on which device to run, or whether to run at all.
 // When selecting a device, SYCL runtime first takes (1) a selector provided by

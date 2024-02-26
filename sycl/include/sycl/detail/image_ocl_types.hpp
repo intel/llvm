@@ -79,6 +79,31 @@ static RetType __invoke__ImageRead(ImageT Img, CoordT Coords) {
       __spirv_ImageRead<TempRetT, ImageT, decltype(TmpCoords)>(Img, TmpCoords));
 }
 
+template <typename RetType, typename ImageT, typename CoordT>
+static RetType __invoke__ImageArrayFetch(ImageT Img, CoordT Coords,
+                                         int ArrayLayer) {
+
+  // Convert from sycl types to builtin types to get correct function mangling.
+  using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
+  auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
+
+  return sycl::detail::convertFromOpenCLTypeFor<RetType>(
+      __spirv_ImageArrayFetch<TempRetT, ImageT, decltype(TmpCoords)>(
+          Img, TmpCoords, ArrayLayer));
+}
+
+template <typename ImageT, typename CoordT, typename ValT>
+static void __invoke__ImageArrayWrite(ImageT Img, CoordT Coords, int ArrayLayer,
+                                      ValT Val) {
+
+  // Convert from sycl types to builtin types to get correct function mangling.
+  auto TmpCoords = sycl::detail::convertToOpenCLType(Coords);
+  auto TmpVal = sycl::detail::convertToOpenCLType(Val);
+
+  __spirv_ImageArrayWrite<ImageT, decltype(TmpCoords), decltype(TmpVal)>(
+      Img, TmpCoords, ArrayLayer, TmpVal);
+}
+
 template <typename RetType, typename SmpImageT, typename CoordT>
 static RetType __invoke__ImageReadLod(SmpImageT SmpImg, CoordT Coords,
                                       float Level) {

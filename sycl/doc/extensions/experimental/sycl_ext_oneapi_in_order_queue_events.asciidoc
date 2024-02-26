@@ -140,6 +140,11 @@ This is equivalent to calling `handler::depends_on()` in a command submission
 with the `externalEvent` from the most recent call to this member function since
 the previous command submission to the same queue.
 
+If `queue::wait()` or `queue::wait_and_throw()` is called prior to any command
+submission following a call to this member function, `externalEvent.wait()` is
+called and `externalEvent` will not be a dependency on the next command
+submitted to the queue.
+
 Calls to this member function throw a `sycl::exception` with `errc::invalid` if
 the queue does not have the `property::queue::in_order` property.
 

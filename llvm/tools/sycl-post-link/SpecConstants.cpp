@@ -22,6 +22,8 @@
 
 #include <vector>
 
+#define DEBUG_TYPE "SpecConst"
+
 using namespace llvm;
 
 namespace {
@@ -306,6 +308,9 @@ void collectCompositeElementsDefaultValuesRecursive(
     size_t NumBytes = M.getDataLayout().getTypeStoreSize(C->getType());
     std::fill_n(std::back_inserter(DefaultValues), NumBytes, 0);
     Offset += NumBytes;
+    // Print tuple {Offset, Size, DefaultValue}.
+    LLVM_DEBUG(dbgs() << "{" << Offset - NumBytes << ", " << NumBytes << ", "
+                      << 0 << "}\n");
     return;
   }
 
@@ -368,6 +373,9 @@ void collectCompositeElementsDefaultValuesRecursive(
     auto Val = IntConst->getValue().getZExtValue();
     std::copy_n(reinterpret_cast<char *>(&Val), NumBytes,
                 std::back_inserter(DefaultValues));
+    // Print tuple {Offset, Size, DefaultValue}.
+    LLVM_DEBUG(dbgs() << "{" << Offset << ", " << NumBytes << ", " << Val
+                      << "}\n");
   } else if (auto *FPConst = dyn_cast<ConstantFP>(C)) {
     auto Val = FPConst->getValue();
 
@@ -377,14 +385,23 @@ void collectCompositeElementsDefaultValuesRecursive(
       auto Storage = static_cast<uint16_t>(IVal.getZExtValue());
       std::copy_n(reinterpret_cast<char *>(&Storage), NumBytes,
                   std::back_inserter(DefaultValues));
+      // Print tuple {Offset, Size, DefaultValue}.
+      LLVM_DEBUG(dbgs() << "{" << Offset << ", " << NumBytes << ", " << IVal
+                        << "}\n");
     } else if (NumBytes == 4) {
       float V = Val.convertToFloat();
       std::copy_n(reinterpret_cast<char *>(&V), NumBytes,
                   std::back_inserter(DefaultValues));
+      // Print tuple {Offset, Size, DefaultValue}.
+      LLVM_DEBUG(dbgs() << "{" << Offset << ", " << NumBytes << ", " << V
+                        << "}\n");
     } else if (NumBytes == 8) {
       double V = Val.convertToDouble();
       std::copy_n(reinterpret_cast<char *>(&V), NumBytes,
                   std::back_inserter(DefaultValues));
+      // Print tuple {Offset, Size, DefaultValue}.
+      LLVM_DEBUG(dbgs() << "{" << Offset << ", " << NumBytes << ", " << V
+                        << "}\n");
     } else {
       llvm_unreachable("Unexpected constant floating point type");
     }
@@ -979,6 +996,10 @@ bool SpecConstantsPass::collectSpecConstantMetadata(const Module &M,
     return static_cast<unsigned>(C->getUniqueInteger().getZExtValue());
   };
 
+  // Print MD name only if there are any operands.
+  if (MD->getNumOperands() > 0)
+    LLVM_DEBUG(dbgs() << MD->getName() << "\n");
+
   for (const auto *Node : MD->operands()) {
     StringRef ID = cast<MDString>(Node->getOperand(0).get())->getString();
     assert((Node->getNumOperands() - 1) % 3 == 0 &&
@@ -988,6 +1009,9 @@ bool SpecConstantsPass::collectSpecConstantMetadata(const Module &M,
       Descs[I].ID = ExtractIntegerFromMDNodeOperand(Node, NI + 0);
       Descs[I].Offset = ExtractIntegerFromMDNodeOperand(Node, NI + 1);
       Descs[I].Size = ExtractIntegerFromMDNodeOperand(Node, NI + 2);
+      // Print Node ID along with tuple {ID, Offset, Size}.
+      LLVM_DEBUG(dbgs() << ID << "={" << Descs[I].ID << ", " << Descs[I].Offset
+                        << ", " << Descs[I].Size << "}\n");
     }
 
     IDMap[ID] = Descs;
@@ -1001,6 +1025,10 @@ bool SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
   NamedMDNode *N = M.getNamedMetadata(SPEC_CONST_DEFAULT_VAL_MD_STRING);
   if (!N)
     return false;
+
+  // Print N name only if there are any operands.
+  if (N->getNumOperands() > 0)
+    LLVM_DEBUG(dbgs() << N->getName() << "\n");
 
   unsigned Offset = 0;
   for (const auto *Node : N->operands()) {

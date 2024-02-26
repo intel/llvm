@@ -2,6 +2,8 @@
 ; RUN: FileCheck %s --input-file=%t.ll --implicit-check-not "call i8 bitcast" --check-prefixes=CHECK,CHECK-RT
 ; RUN: sycl-post-link -spec-const=emulation -S < %s --ir-output-only -o %t.ll
 ; RUN: FileCheck %s --input-file=%t.ll --check-prefixes=CHECK,CHECK-DEF
+; RUN: sycl-post-link -debug-only=SpecConst -spec-const=native -S < %s 2>&1 | FileCheck %s --check-prefixes=CHECK-LOG,CHECK-LOG-NATIVE
+; RUN: sycl-post-link -debug-only=SpecConst -spec-const=emulation -S < %s 2>&1 | FileCheck %s --check-prefixes=CHECK-LOG,CHECK-LOG-EMULATION
 
 ; CHECK-LABEL: void @kernel_A
 ; CHECK-RT: %[[CALL:.*]] = call i8 @_Z20__spirv_SpecConstantia(i32 [[#]], i8 1)
@@ -17,6 +19,24 @@
 ; CHECK-DEF: %[[GEP:gep.*]] = getelementptr i8, ptr addrspace(4) null, i32 4
 ; CHECK-DEF: %[[BC:bc.*]] = bitcast ptr addrspace(4) %[[GEP]] to ptr addrspace(4)
 ; CHECK-DEF: %[[LOAD:load.*]] = load %struct.user_type, ptr addrspace(4) %[[BC]], align 4
+
+; CHECK-LOG: sycl.specialization-constants
+; CHECK-LOG:[[UNIQUE_PREFIX:[0-9a-zA-Z]+]]={0, 0, 1}
+; CHECK-LOG-NATIVE:[[UNIQUE_PREFIX2:[0-9a-zA-Z]+]]={1, 0, 4}
+; CHECK-LOG-NATIVE:[[UNIQUE_PREFIX2]]={2, 4, 4}
+; CHECK-LOG-NATIVE:[[UNIQUE_PREFIX2]]={3, 8, 1}
+; CHECK-LOG-NATIVE:[[UNIQUE_PREFIX2]]={4294967295, 9, 3}
+; CHECK-LOG-EMULATION:[[UNIQUE_PREFIX]]={4294967295, 1, 3}
+; CHECK-LOG-EMULATION:[[UNIQUE_PREFIX2:[0-9a-zA-Z]+]]={1, 0, 12}
+; CHECK-LOG: sycl.specialization-constants-default-values
+; CHECK-LOG:{0, 1, 1}
+; CHECK-LOG-NATIVE:{1, 4, 2.000000e+01}
+; CHECK-LOG-NATIVE:{5, 4, 20}
+; CHECK-LOG-NATIVE:{9, 1, 20}
+; CHECK-LOG-EMULATION:{1, 3, 0}
+; CHECK-LOG-EMULATION:{4, 4, 2.000000e+01}
+; CHECK-LOG-EMULATION:{8, 4, 20}
+; CHECK-LOG-EMULATION:{12, 1, 20}
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"

@@ -73,10 +73,10 @@ int main() {
     q.submit([&](sycl::handler &cgh) {
       cgh.parallel_for<image_addition>(width, [=](sycl::id<1> id) {
         float sum = 0;
-        // Extension: read image data from handle
-        float px1 = sycl::ext::oneapi::experimental::read_image<float>(
+        // Extension: fetch image data from handle
+        float px1 = sycl::ext::oneapi::experimental::fetch_image<float>(
             imgHandle1, int(id[0]));
-        float px2 = sycl::ext::oneapi::experimental::read_image<float>(
+        float px2 = sycl::ext::oneapi::experimental::fetch_image<float>(
             imgHandle2, int(id[0]));
 
         sum = px1 + px2;
