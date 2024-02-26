@@ -16,7 +16,7 @@ constexpr int kCount = 1024;
 
 int vectorSum(const int *v, size_t s, size_t sz) {
   int result = 0;
-  for (size_t i = s; i < s+sz; i++) {
+  for (size_t i = s; i < s + sz; i++) {
     result += v[i];
   }
 
@@ -42,7 +42,7 @@ int main() {
     buffer in_buf(in);
     buffer out_buf(out);
 
-    q.submit([&](handler& h) {
+    q.submit([&](handler &h) {
       accessor in_acc(in_buf, h, read_only);
       accessor out_acc(out_buf, h, write_only);
       h.single_task<SequentialTask>([=]() {
@@ -52,7 +52,7 @@ int main() {
       });
     });
 
-    q.submit([&](sycl::handler& h) {
+    q.submit([&](sycl::handler &h) {
       accessor in_acc(in_buf, h, read_only);
       accessor out_acc(out_buf, h, write_only);
       h.single_task<ParallelTask>([=]() {
@@ -60,12 +60,15 @@ int main() {
         task_sequence<vectorSum> secondQuarter;
         task_sequence<vectorSum> thirdQuarter;
         task_sequence<vectorSum> fourthQuarter;
-        constexpr int quarterCount = kCount/4;
+        constexpr int quarterCount = kCount / 4;
         firstQuarter.async(in_acc.get_pointer(), 0, quarterCount);
         secondQuarter.async(in_acc.get_pointer(), quarterCount, quarterCount);
-        thirdQuarter.async(in_acc.get_pointer(), 2*quarterCount, quarterCount);
-        fourthQuarter.async(in_acc.get_pointer(), 3*quarterCount, quarterCount);
-        out_acc[1] = firstQuarter.get() + secondQuarter.get() + thirdQuarter.get() + fourthQuarter.get();
+        thirdQuarter.async(in_acc.get_pointer(), 2 * quarterCount,
+                           quarterCount);
+        fourthQuarter.async(in_acc.get_pointer(), 3 * quarterCount,
+                            quarterCount);
+        out_acc[1] = firstQuarter.get() + secondQuarter.get() +
+                     thirdQuarter.get() + fourthQuarter.get();
       });
     });
     q.wait();
@@ -81,4 +84,3 @@ int main() {
   else
     std::cout << "FAILED" << std::endl;
 }
-

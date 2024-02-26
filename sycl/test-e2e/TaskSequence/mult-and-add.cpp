@@ -15,7 +15,9 @@
 int mult(int a, int b) { return a * b; }
 
 int mult_and_add(int a1, int b1, int a2, int b2) {
-  task_sequence<mult, decltype(properties{invocation_capacity<1>, response_capacity<1>})> task1, task2;
+  task_sequence<mult, decltype(properties{invocation_capacity<1>,
+                                          response_capacity<1>})>
+      task1, task2;
 
   task1.async(a1, b1);
   task2.async(a2, b2);
@@ -30,9 +32,8 @@ int main() {
 
   myQueue.submit([&](handler &cgh) {
     auto res_acc = res_buf.get_access<access::mode::write>(cgh);
-    cgh.single_task([=](kernel_handler kh) {
-      res_acc[0] = mult_and_add(1, 2, 3, 4);
-    });
+    cgh.single_task(
+        [=](kernel_handler kh) { res_acc[0] = mult_and_add(1, 2, 3, 4); });
   });
   myQueue.wait();
 

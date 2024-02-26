@@ -19,8 +19,7 @@ constexpr double kB = 3.7;
 
 using intertask_pipe = ext::intel::pipe<class p, double>;
 
-template<typename OutPipe>
-double task_a(double x, double a, int precision) {
+template <typename OutPipe> double task_a(double x, double a, int precision) {
   double res = 1;
   double term = 1;
   double multiplier = a;
@@ -39,8 +38,7 @@ double task_a(double x, double a, int precision) {
   return res;
 }
 
-template<typename InPipe>
-double task_b(double b, int precision) {
+template <typename InPipe> double task_b(double b, int precision) {
   double res = 1;
   double multiplier = b;
 
@@ -61,8 +59,8 @@ int main() {
   double golden = exp(kA * kX) / exp(kB * kX);
 
   // initialize inputs
-  std::vector<double> in = { kX, kA, kB };
-  std::vector<double> out = { 0.0 };
+  std::vector<double> in = {kX, kA, kB};
+  std::vector<double> out = {0.0};
 
   {
     sycl::queue q;
@@ -70,7 +68,7 @@ int main() {
     buffer in_buf(in);
     buffer out_buf(out);
 
-    q.submit([&](handler& h) {
+    q.submit([&](handler &h) {
       accessor in_acc(in_buf, h, read_only);
       accessor out_acc(out_buf, h, write_only);
       h.single_task<ConcurrentLoop>([=]() {
@@ -86,7 +84,6 @@ int main() {
         ts_b.async(b, kPrecision);
 
         out_acc[0] = ts_a.get() / ts_b.get();
-
       });
     });
     q.wait();
@@ -98,4 +95,3 @@ int main() {
     std::cout << "FAILED\n";
   return 0;
 }
-

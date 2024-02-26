@@ -16,15 +16,13 @@ constexpr int kSize = 128;
 
 using intertask_pipe = ext::intel::pipe<class p, int>;
 
-template<typename OutPipe>
-void producer(int *a, int *b, int N) {
+template <typename OutPipe> void producer(int *a, int *b, int N) {
   for (int i = 0; i < N; ++i) {
     OutPipe::write(a[i] * b[i]);
   }
 }
 
-template<typename InPipe>
-int consumer(int N) {
+template <typename InPipe> int consumer(int N) {
   int total = 0;
   for (int i = 0; i < N; ++i) {
     total += (InPipe::read() + 42);
@@ -32,13 +30,13 @@ int consumer(int N) {
   return total;
 }
 
-int main () {
+int main() {
   queue myQueue;
 
   int result = 0;
   buffer<int, 1> res_buf(&result, range<1>(1));
 
-  myQueue.submit([&](handler& cgh) {
+  myQueue.submit([&](handler &cgh) {
     auto res_acc = res_buf.get_access<access::mode::write>(cgh);
     cgh.single_task([=](kernel_handler kh) {
       int d1[kSize], d2[kSize];

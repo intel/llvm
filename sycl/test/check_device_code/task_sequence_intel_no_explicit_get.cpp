@@ -12,7 +12,7 @@ using namespace sycl::ext::oneapi::experimental;
 
 constexpr int NSIZE = 128;
 
-int user_sot(int* data1, int* data2, int N) {
+int user_sot(int *data1, int *data2, int N) {
   int ret = 0;
   for (int i = 0; i < N; ++i) {
     ret += data1[i] + data2[i];
@@ -21,13 +21,15 @@ int user_sot(int* data1, int* data2, int N) {
   return ret;
 }
 
-int main () {
+int main() {
   sycl::queue myQueue;
 
-  myQueue.submit([&](sycl::handler& cgh) {
+  myQueue.submit([&](sycl::handler &cgh) {
     cgh.single_task([=](sycl::kernel_handler kh) {
       int d1[NSIZE], d2[NSIZE];
-      task_sequence<user_sot, decltype(properties{invocation_capacity<2>, response_capacity<2>})> sot_object;
+      task_sequence<user_sot, decltype(properties{invocation_capacity<2>,
+                                                  response_capacity<2>})>
+          sot_object;
       sot_object.async(d1, d2, NSIZE);
     });
   });

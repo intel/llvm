@@ -39,12 +39,13 @@ int main() {
     buffer values_buf(values);
     buffer results_buf(values);
 
-    q.submit([&](handler& h) {
+    q.submit([&](handler &h) {
       accessor values_acc(values_buf, h, read_only);
       accessor results_acc(results_buf, h, write_only);
       h.single_task<InOrderTasks>([=]() {
         task_sequence<sigmoid,
-                      decltype(properties{invocation_capacity<kNumInputs>})> ts;
+                      decltype(properties{invocation_capacity<kNumInputs>})>
+            ts;
 
         for (int i = 0; i < kNumInputs; ++i) {
           ts.async(values_acc[i]);
@@ -71,4 +72,3 @@ int main() {
     std::cout << "FAILED\n";
   return 0;
 }
-
