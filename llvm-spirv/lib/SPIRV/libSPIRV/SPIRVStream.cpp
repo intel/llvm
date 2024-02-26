@@ -357,6 +357,7 @@ std::vector<SPIRVEntry *> SPIRVDecoder::getSourceContinuedInstructions() {
     SPIRVExtInst *Inst = static_cast<SPIRVExtInst *>(Entry);
     if (Inst->getExtOp() != SPIRVDebug::Instruction::SourceContinued) {
       IS.seekg(Pos); // restore position
+      delete Entry;
       return ContinuedInst;
     }
     M.add(Entry);

@@ -53,7 +53,9 @@ Erik Tomusk, Codeplay +
 Bjoern Knafla, Codeplay +
 Lukas Sommer, Codeplay +
 Maxime France-Pillois, Codeplay +
+Jack Kirk, Codeplay +
 Ronan Keryell, AMD +
+Andrey Alekseenko, KTH Royal Institute of Technology +
 
 == Dependencies
 
@@ -313,6 +315,19 @@ enum class graph_support_level {
   emulated
 };
 
+enum class node_type {
+  empty,
+  subgraph,
+  kernel,
+  memcpy,
+  memset,
+  memfill,
+  prefetch,
+  memadvise,
+  ext_oneapi_barrier,
+  host_task,
+};
+
 namespace property {
 
 namespace graph {
@@ -353,7 +368,18 @@ struct graphs_support;
 } // namespace device
 } // namespace info
 
-class node {};
+class node {
+public:
+  node() = delete;
+
+  node_type get_type() const;
+
+  std::vector<node> get_predecessors() const;
+
+  std::vector<node> get_successors() const;
+
+  static node get_node_from_event(event nodeEvent);
+};
 
 // State of a graph
 enum class graph_state {
@@ -369,6 +395,9 @@ template<>
 class command_graph<graph_state::modifiable> {
 public:
   command_graph(const context& syclContext, const device& syclDevice,
+                const property_list& propList = {});
+
+  command_graph(const queue& syclQueue,
                 const property_list& propList = {});
 
   command_graph<graph_state::executable>
@@ -389,6 +418,9 @@ public:
   void make_edge(node& src, node& dest);
 
   void print_graph(std::string path, bool verbose = false) const;
+
+  std::vector<node> get_nodes() const;
+  std::vector<node> get_root_nodes() const;
 };
 
 template<>
@@ -405,6 +437,9 @@ public:
 
   ext::oneapi::experimental::queue_state
   ext_oneapi_get_state() const;
+
+  ext::oneapi::experimental::command_graph<graph_state::modifiable> 
+  ext_oneapi_get_graph() const;
 
   /* -- graph convenience shortcuts -- */
 
@@ -459,12 +494,56 @@ edges.
 
 The `node` class provides the {crs}[common reference semantics].
 
+==== Node Member Functions
+
+Table {counter: tableNumber}. Member functions of the `node` class.
+[cols="2a,a"]
+|===
+|Member Function|Description
+
+|
 [source,c++]
 ----
-namespace sycl::ext::oneapi::experimental {
-  class node {};
-}
+node_type get_type() const;
 ----
+|Returns a value representing the type of command this node represents.
+
+|
+[source,c++]
+----
+std::vector<node> get_predecessors() const;
+----
+|Returns a list of the predecessor nodes which this node directly depends on.
+
+|
+[source,c++]
+----
+std::vector<node> get_successors() const;
+----
+|Returns a list of the successor nodes which directly depend on this node.
+
+|
+[source,c++]
+----
+static node get_node_from_event(event nodeEvent);
+----
+|Finds the node associated with an event created from a submission to a queue
+ in the recording state.
+
+Parameters:
+
+* `nodeEvent` - Event returned from a submission to a queue in the recording
+  state.
+
+Returns: Graph node that was created when the command that returned
+`nodeEvent` was submitted.
+
+Exceptions:
+
+* Throws with error code `invalid` if `nodeEvent` is not associated with a
+  graph node.
+
+|===
 
 ==== Depends-On Property
 
@@ -610,8 +689,34 @@ associated with `syclContext`.
 * Throws synchronously with error code `invalid` if `syclDevice`
   <<device-info-query, reports this extension as unsupported>>.
 
-* Throws synchronously with error code `invalid` if the backend associated
-with `syclDevice` is not supported.
+|
+[source,c++]
+----
+command_graph(const queue& syclQueue,
+              const property_list& propList = {});
+----
+|Simplified constructor form where `syclQueue` provides the device and context.
+Zero or more properties can be provided to the constructed SYCL `command_graph`
+via an instance of `property_list`.
+
+Preconditions:
+
+* This constructor is only available when the `command_graph` state is
+  `graph_state::modifiable`.
+
+Parameters:
+
+* `syclQueue` - Queue which provides the SYCL device and context for the graph,
+  which are immutable characteristics of the graph. All other properties of the
+  queue are ignored for the purposes of graph creation.
+
+* `propList` - Optional parameter for passing properties. Valid `command_graph`
+  constructor properties are listed in Section <<graph-properties, Graph Properties>>.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if the device associated with
+ `syclQueue` <<device-info-query, reports this extension as unsupported>>.
 
 |===
 
@@ -774,6 +879,21 @@ Exceptions:
 
 * Throws synchronously with error code `invalid` if the path is invalid or
 the file extension is not supported or if the write operation failed.
+
+|
+[source,c++]
+----
+std::vector<node> get_nodes() const;
+----
+|Returns a list of all the nodes present in the graph in the order that they
+were added.
+
+|
+[source,c++]
+----
+std::vector<node> get_root_nodes() const;
+----
+|Returns a list of all nodes in the graph which have no dependencies.
 
 |===
 
@@ -988,6 +1108,22 @@ Returns: If the queue is in the default state where commands are scheduled
 immediately for execution, `queue_state::executing` is returned. Otherwise,
 `queue_state::recording` is returned where commands are redirected to a `command_graph`
 object.
+|
+[source,c++]
+----
+command_graph<graph_state::modifiable>
+queue::ext_oneapi_get_graph() const;
+----
+
+| Query the underlying command graph of a queue when recording.
+
+Returns: The graph object that the queue is recording commands into.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if the queue is not in `queue_state::recording`
+state.
+
 |
 [source,c++]
 ----
@@ -1773,18 +1909,10 @@ or layered as a separate extension proposal.
 The following features are not yet supported, and an exception will be thrown
 if used in application code.
 
-. Using `handler::fill` in a graph node implemented for USM only.
-. Using `handler::memset` in a graph node.
-. Using `handler::prefetch` in a graph node.
-. Using `handler::memadvise` in a graph node.
 . Using reductions in a graph node.
 . Using sycl streams in a graph node.
 . Profiling an event returned from graph submission with
   `event::get_profiling_info()`.
-. Level Zero immediate command-lists are not supported, and
-  `sycl::ext::intel::property::queue::no_immediate_command_list`
-  should be set on construction to any queues an executable
-  graph is submitted to.
 . Synchronization between multiple executions of the same command-buffer 
   must be handled in the host for level-zero backend, which may involve 
   extra latency for subsequent submissions.

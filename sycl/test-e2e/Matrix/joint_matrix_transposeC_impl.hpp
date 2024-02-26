@@ -13,20 +13,21 @@ void matrix_load_and_store(T1 *input, T1 *out_col_major, T1 *out_row_major,
   size_t NDRangeM = M / TM;
   size_t NDRangeN = N / TN;
 
-  auto p_input = address_space_cast<sycl::access::address_space::global_space,
-                                    sycl::access::decorated::no>(input);
-
-  auto p_out_col_major =
-      address_space_cast<sycl::access::address_space::global_space,
-                         sycl::access::decorated::no>(out_col_major);
-  auto p_out_row_major =
-      address_space_cast<sycl::access::address_space::global_space,
-                         sycl::access::decorated::no>(out_row_major);
-
   q.submit([&](handler &cgh) {
      cgh.parallel_for(
          nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
          [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]] {
+           auto p_input =
+               address_space_cast<sycl::access::address_space::global_space,
+                                  sycl::access::decorated::no>(input);
+
+           auto p_out_col_major =
+               address_space_cast<sycl::access::address_space::global_space,
+                                  sycl::access::decorated::no>(out_col_major);
+           auto p_out_row_major =
+               address_space_cast<sycl::access::address_space::global_space,
+                                  sycl::access::decorated::no>(out_row_major);
+
            const auto global_idx = spmd_item.get_global_id(0);
            const auto global_idy = spmd_item.get_global_id(1);
            const auto sg_startx = global_idx - spmd_item.get_local_id(0);

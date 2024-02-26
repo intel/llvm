@@ -46,7 +46,7 @@ source_filename = "test/DebugInfo/X86/data_member_location.ll"
 
 %struct.foo = type { i8, i32 }
 
-@f = global %struct.foo zeroinitializer, align 4, !dbg !0
+@f = addrspace(1) global %struct.foo zeroinitializer, align 4, !dbg !0
 
 !llvm.dbg.cu = !{!9}
 !llvm.module.flags = !{!13, !14}

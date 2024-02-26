@@ -35,22 +35,22 @@ target triple = "spir64"
 
 %class.Sample = type { i32 }
 
-@.str = private unnamed_addr constant [19 x i8] c"class_annotation_a\00", section "llvm.metadata"
-@.str.1 = private unnamed_addr constant [17 x i8] c"/app/example.cpp\00", section "llvm.metadata"
-@.str.2 = private unnamed_addr constant [20 x i8] c"class_annotation_b2\00", section "llvm.metadata"
-@.str.3 = private unnamed_addr constant [17 x i8] c"var_annotation_a\00", section "llvm.metadata"
-@.str.4 = private unnamed_addr constant [18 x i8] c"var_annotation_b2\00", section "llvm.metadata"
+@.str = private unnamed_addr addrspace(1) constant [19 x i8] c"class_annotation_a\00", section "llvm.metadata"
+@.str.1 = private unnamed_addr addrspace(1) constant [17 x i8] c"/app/example.cpp\00", section "llvm.metadata"
+@.str.2 = private unnamed_addr addrspace(1) constant [20 x i8] c"class_annotation_b2\00", section "llvm.metadata"
+@.str.3 = private unnamed_addr addrspace(1) constant [17 x i8] c"var_annotation_a\00", section "llvm.metadata"
+@.str.4 = private unnamed_addr addrspace(1) constant [18 x i8] c"var_annotation_b2\00", section "llvm.metadata"
 
 define spir_func void @test() {
   %1 = alloca %class.Sample, align 4
   %2 = alloca i32, align 4
   %3 = getelementptr inbounds %class.Sample, ptr %1, i32 0, i32 0
-  %4 = call ptr @llvm.ptr.annotation.p0(ptr %3, ptr @.str, ptr @.str.1, i32 3, ptr null)
-  %5 = call ptr @llvm.ptr.annotation.p0(ptr %4, ptr @.str.2, ptr @.str.1, i32 3, ptr null)
+  %4 = call ptr @llvm.ptr.annotation.p0.p1(ptr %3, ptr addrspace(1) @.str, ptr addrspace(1) @.str.1, i32 3, ptr addrspace(1) null)
+  %5 = call ptr @llvm.ptr.annotation.p0.p1(ptr %4, ptr addrspace(1) @.str.2, ptr addrspace(1) @.str.1, i32 3, ptr addrspace(1) null)
   %6 = load i32, ptr %5, align 4
   call void @_Z3fooi(i32 noundef %6)
-  call void @llvm.var.annotation.p0.p0(ptr %2, ptr @.str.3, ptr @.str.1, i32 11, ptr null)
-  call void @llvm.var.annotation.p0.p0(ptr %2, ptr @.str.4, ptr @.str.1, i32 11, ptr null)
+  call void @llvm.var.annotation(ptr %2, ptr addrspace(1) @.str.3, ptr addrspace(1) @.str.1, i32 11, ptr addrspace(1) null)
+  call void @llvm.var.annotation(ptr %2, ptr addrspace(1) @.str.4, ptr addrspace(1) @.str.1, i32 11, ptr addrspace(1) null)
   store i32 0, ptr %2, align 4
   %7 = load i32, ptr %2, align 4
   call void @_Z3fooi(i32 noundef %7)
@@ -59,6 +59,6 @@ define spir_func void @test() {
 
 declare dso_local void @_Z3fooi(i32 noundef)
 
-declare ptr @llvm.ptr.annotation.p0(ptr, ptr, ptr, i32, ptr)
+declare ptr @llvm.ptr.annotation.p0.p1(ptr, ptr addrspace(1), ptr addrspace(1), i32, ptr addrspace(1))
 
-declare void @llvm.var.annotation.p0.p0(ptr, ptr, ptr, i32, ptr)
+declare void @llvm.var.annotation(ptr, ptr addrspace(1), ptr addrspace(1), i32, ptr addrspace(1))

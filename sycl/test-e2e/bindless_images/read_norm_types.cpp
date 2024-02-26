@@ -63,17 +63,16 @@ bool run_test(sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
 
             if constexpr (NDims == 1) {
               OutputType pixel =
-                  syclexp::read_image<OutputType>(imgIn, float(dim0));
+                  syclexp::sample_image<OutputType>(imgIn, float(dim0));
               syclexp::write_image(imgOut, int(dim0), pixel);
             } else if constexpr (NDims == 2) {
-              OutputType pixel = syclexp::read_image<OutputType>(
+              OutputType pixel = syclexp::sample_image<OutputType>(
                   imgIn, sycl::float2(dim0, dim1));
               syclexp::write_image(imgOut, sycl::int2(dim0, dim1), pixel);
             } else if constexpr (NDims == 3) {
-              OutputType pixel = syclexp::read_image<OutputType>(
-                  imgIn, sycl::float4(dim0, dim1, dim2, 0));
-              syclexp::write_image(imgOut, sycl::int4(dim0, dim1, dim2, 0),
-                                   pixel);
+              OutputType pixel = syclexp::sample_image<OutputType>(
+                  imgIn, sycl::float3(dim0, dim1, dim2));
+              syclexp::write_image(imgOut, sycl::int3(dim0, dim1, dim2), pixel);
             }
           });
     });

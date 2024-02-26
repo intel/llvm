@@ -1121,9 +1121,7 @@ class __image_array_slice__ {
 
   constexpr static int AdjustedDims = (Dimensions == 2) ? 4 : Dimensions + 1;
 
-  template <typename CoordT,
-            typename CoordElemType =
-                typename detail::TryToGetElementType<CoordT>::type>
+  template <typename CoordT, typename CoordElemType = get_elem_type_t<CoordT>>
   sycl::vec<CoordElemType, AdjustedDims>
   getAdjustedCoords(const CoordT &Coords) const {
     CoordElemType LastCoord = 0;
@@ -3763,6 +3761,20 @@ public:
   }
 
   /* -- property interface members -- */
+  template <typename Property> bool has_property() const noexcept {
+#ifndef __SYCL_DEVICE_ONLY__
+    return getPropList().template has_property<Property>();
+#else
+    return false;
+#endif
+  }
+  template <typename Property> Property get_property() const {
+#ifndef __SYCL_DEVICE_ONLY__
+    return getPropList().template get_property<Property>();
+#else
+    return Property();
+#endif
+  }
 
   size_t size() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -3888,6 +3900,20 @@ public:
   }
 
   /* -- property interface members -- */
+  template <typename Property> bool has_property() const noexcept {
+#ifndef __SYCL_DEVICE_ONLY__
+    return getPropList().template has_property<Property>();
+#else
+    return false;
+#endif
+  }
+  template <typename Property> Property get_property() const {
+#ifndef __SYCL_DEVICE_ONLY__
+    return getPropList().template get_property<Property>();
+#else
+    return Property();
+#endif
+  }
 
   size_t size() const noexcept { return base_class::getSize().size(); }
 
@@ -4034,6 +4060,20 @@ public:
   }
 
   /* -- property interface members -- */
+  template <typename Property> bool has_property() const noexcept {
+#ifndef __SYCL_DEVICE_ONLY__
+    return getPropList().template has_property<Property>();
+#else
+    return false;
+#endif
+  }
+  template <typename Property> Property get_property() const {
+#ifndef __SYCL_DEVICE_ONLY__
+    return getPropList().template get_property<Property>();
+#else
+    return Property();
+#endif
+  }
 
   size_t size() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -4134,6 +4174,20 @@ public:
   }
 
   /* -- property interface members -- */
+  template <typename Property> bool has_property() const noexcept {
+#ifndef __SYCL_DEVICE_ONLY__
+    return getPropList().template has_property<Property>();
+#else
+    return false;
+#endif
+  }
+  template <typename Property> Property get_property() const {
+#ifndef __SYCL_DEVICE_ONLY__
+    return getPropList().template get_property<Property>();
+#else
+    return Property();
+#endif
+  }
 
   size_t size() const noexcept { return base_class::getSize().size(); }
 

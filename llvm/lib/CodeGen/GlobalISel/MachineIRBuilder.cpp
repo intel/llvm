@@ -199,7 +199,7 @@ void MachineIRBuilder::validateShiftOp(const LLT Res, const LLT Op0,
 MachineInstrBuilder
 MachineIRBuilder::buildPtrAdd(const DstOp &Res, const SrcOp &Op0,
                               const SrcOp &Op1, std::optional<unsigned> Flags) {
-  assert(Res.getLLTTy(*getMRI()).getScalarType().isPointer() &&
+  assert(Res.getLLTTy(*getMRI()).isPointerOrPointerVector() &&
          Res.getLLTTy(*getMRI()) == Op0.getLLTTy(*getMRI()) && "type mismatch");
   assert(Op1.getLLTTy(*getMRI()).getScalarType().isScalar() && "invalid offset type");
 
@@ -314,7 +314,10 @@ MachineInstrBuilder MachineIRBuilder::buildConstant(const DstOp &Res,
   assert(EltTy.getScalarSizeInBits() == Val.getBitWidth() &&
          "creating constant with the wrong size");
 
-  if (Ty.isVector()) {
+  assert(!Ty.isScalableVector() &&
+         "unexpected scalable vector in buildConstant");
+
+  if (Ty.isFixedVector()) {
     auto Const = buildInstr(TargetOpcode::G_CONSTANT)
     .addDef(getMRI()->createGenericVirtualRegister(EltTy))
     .addCImm(&Val);
@@ -347,7 +350,10 @@ MachineInstrBuilder MachineIRBuilder::buildFConstant(const DstOp &Res,
 
   assert(!Ty.isPointer() && "invalid operand type");
 
-  if (Ty.isVector()) {
+  assert(!Ty.isScalableVector() &&
+         "unexpected scalable vector in buildFConstant");
+
+  if (Ty.isFixedVector()) {
     auto Const = buildInstr(TargetOpcode::G_FCONSTANT)
     .addDef(getMRI()->createGenericVirtualRegister(EltTy))
     .addFPImm(&Val);

@@ -21,15 +21,15 @@ target triple = "spir64-unknown-unknown"
 
 source_filename = "test/DebugInfo/X86/2011-09-26-GlobalVarContext.ll"
 
-@GLB = common global i32 0, align 4, !dbg !0
+@GLB = common addrspace(1) global i32 0, align 4, !dbg !0
 
 ; Function Attrs: nounwind
 define i32 @f() #0 !dbg !8 {
   %LOC = alloca i32, align 4
   call void @llvm.dbg.declare(metadata ptr %LOC, metadata !11, metadata !13), !dbg !14
-  %1 = load i32, ptr @GLB, align 4, !dbg !15
+  %1 = load i32, ptr addrspace(1) @GLB, align 4, !dbg !15
   store i32 %1, ptr %LOC, align 4, !dbg !15
-  %2 = load i32, ptr @GLB, align 4, !dbg !16
+  %2 = load i32, ptr addrspace(1) @GLB, align 4, !dbg !16
   ret i32 %2, !dbg !16
 }
 

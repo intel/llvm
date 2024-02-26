@@ -42,7 +42,12 @@ libc_test(
 
 libc_test(
     name = "str_to_float_test",
-    srcs = ["str_to_float_test.cpp"],
+    srcs = [
+        "str_to_double_test.cpp",
+        "str_to_float_test.cpp",
+        "str_to_fp_test.h",
+        "str_to_long_double_test.cpp",
+    ],
     deps = [
         "//libc:__support_fputil_fp_bits",
         "//libc:__support_str_to_float",
@@ -92,5 +97,13 @@ libc_test(
     srcs = ["char_vector_test.cpp"],
     deps = [
         "//libc:__support_char_vector",
+    ],
+)
+
+libc_test(
+    name = "integer_literals_test",
+    srcs = ["integer_literals_test.cpp"],
+    deps = [
+        "//libc:__support_integer_literals",
     ],
 )

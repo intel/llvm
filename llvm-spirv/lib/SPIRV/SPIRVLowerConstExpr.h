@@ -40,6 +40,8 @@ public:
     return runLowerConstExpr(M) ? llvm::PreservedAnalyses::none()
                                 : llvm::PreservedAnalyses::all();
   }
+
+  static bool isRequired() { return true; }
 };
 
 } // namespace SPIRV

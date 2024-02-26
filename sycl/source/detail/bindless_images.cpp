@@ -28,11 +28,20 @@ void populate_pi_structs(const image_descriptor &desc, pi_image_desc &piDesc,
   piDesc.image_width = desc.width;
   piDesc.image_height = desc.height;
   piDesc.image_depth = desc.depth;
-  piDesc.image_type = desc.depth > 0 ? PI_MEM_TYPE_IMAGE3D
-                                     : (desc.height > 0 ? PI_MEM_TYPE_IMAGE2D
-                                                        : PI_MEM_TYPE_IMAGE1D);
+
+  if (desc.array_size > 1) {
+    // Image array.
+    piDesc.image_type =
+        desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+  } else {
+    piDesc.image_type =
+        desc.depth > 0
+            ? PI_MEM_TYPE_IMAGE3D
+            : (desc.height > 0 ? PI_MEM_TYPE_IMAGE2D : PI_MEM_TYPE_IMAGE1D);
+  }
+
   piDesc.image_row_pitch = pitch;
-  piDesc.image_array_size = 0;
+  piDesc.image_array_size = desc.array_size;
   piDesc.image_slice_pitch = 0;
   piDesc.num_mip_levels = desc.num_levels;
   piDesc.num_samples = 0;
@@ -146,6 +155,8 @@ __SYCL_EXPORT void destroy_image_handle(sampled_image_handle &imageHandle,
 __SYCL_EXPORT image_mem_handle
 alloc_image_mem(const image_descriptor &desc, const sycl::device &syclDevice,
                 const sycl::context &syclContext) {
+  desc.verify();
+
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
   pi_context C = CtxImpl->getHandleRef();
@@ -153,22 +164,6 @@ alloc_image_mem(const image_descriptor &desc, const sycl::device &syclDevice,
       sycl::detail::getSyclObjImpl(syclDevice);
   pi_device Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-
-  if (desc.type == image_type::mipmap) {
-    // Mipmaps must have more than one level
-    if (desc.num_levels <= 1)
-      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                            "Mipmap number of levels must be 2 or more");
-  } else if (desc.type == image_type::standard) {
-    // Non-mipmap images must have only 1 level
-    if (desc.num_levels != 1)
-      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                            "Image number of levels must be 1");
-  } else {
-    // Not an image to allocate
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "Invalid image type to allocate");
-  }
 
   pi_image_desc piDesc;
   pi_image_format piFormat;
@@ -194,6 +189,8 @@ __SYCL_EXPORT_DEPRECATED("Distinct mipmap allocs are deprecated. "
 image_mem_handle alloc_mipmap_mem(const image_descriptor &desc,
                                   const sycl::device &syclDevice,
                                   const sycl::context &syclContext) {
+  desc.verify();
+
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
   pi_context C = CtxImpl->getHandleRef();
@@ -201,11 +198,6 @@ image_mem_handle alloc_mipmap_mem(const image_descriptor &desc,
       sycl::detail::getSyclObjImpl(syclDevice);
   pi_device Device = DevImpl->getHandleRef();
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-
-  // Mipmaps must have more than one level
-  if (desc.num_levels <= 1)
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "Mipmap number of levels must be 2 or more");
 
   pi_image_desc piDesc;
   pi_image_format piFormat;
@@ -273,7 +265,8 @@ __SYCL_EXPORT void free_image_mem(image_mem_handle memHandle,
       Plugin->call<sycl::errc::memory_allocation,
                    sycl::detail::PiApiKind::piextMemMipmapFree>(
           C, Device, memHandle.raw_handle);
-    } else if (imageType == image_type::standard) {
+    } else if (imageType == image_type::standard ||
+               imageType == image_type::array) {
       Plugin->call<sycl::errc::memory_allocation,
                    sycl::detail::PiApiKind::piextMemImageFree>(
           C, Device, memHandle.raw_handle);
@@ -349,6 +342,8 @@ create_image(image_mem &imgMem, const image_descriptor &desc,
 __SYCL_EXPORT unsampled_image_handle
 create_image(image_mem_handle memHandle, const image_descriptor &desc,
              const sycl::device &syclDevice, const sycl::context &syclContext) {
+  desc.verify();
+
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
   pi_context C = CtxImpl->getHandleRef();
@@ -383,44 +378,8 @@ __SYCL_EXPORT sampled_image_handle
 create_image(image_mem_handle memHandle, const bindless_image_sampler &sampler,
              const image_descriptor &desc, const sycl::device &syclDevice,
              const sycl::context &syclContext) {
-  std::shared_ptr<sycl::detail::context_impl> CtxImpl =
-      sycl::detail::getSyclObjImpl(syclContext);
-  pi_context C = CtxImpl->getHandleRef();
-  std::shared_ptr<sycl::detail::device_impl> DevImpl =
-      sycl::detail::getSyclObjImpl(syclDevice);
-  pi_device Device = DevImpl->getHandleRef();
-  const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
-
-  const pi_sampler_properties sProps[] = {
-      PI_SAMPLER_INFO_NORMALIZED_COORDS,
-      static_cast<pi_sampler_properties>(sampler.coordinate),
-      PI_SAMPLER_INFO_ADDRESSING_MODE,
-      static_cast<pi_sampler_properties>(sampler.addressing),
-      PI_SAMPLER_INFO_FILTER_MODE,
-      static_cast<pi_sampler_properties>(sampler.filtering),
-      PI_SAMPLER_INFO_MIP_FILTER_MODE,
-      static_cast<pi_sampler_properties>(sampler.mipmap_filtering),
-      0};
-
-  pi_sampler piSampler = {};
-  Plugin->call<sycl::errc::runtime,
-               sycl::detail::PiApiKind::piextBindlessImageSamplerCreate>(
-      C, sProps, sampler.min_mipmap_level_clamp, sampler.max_mipmap_level_clamp,
-      sampler.max_anisotropy, &piSampler);
-
-  pi_image_desc piDesc;
-  pi_image_format piFormat;
-  populate_pi_structs(desc, piDesc, piFormat);
-
-  // Call impl.
-  pi_image_handle piImageHandle;
-  pi_mem piImage;
-  Plugin->call<sycl::errc::runtime,
-               sycl::detail::PiApiKind::piextMemSampledImageCreate>(
-      C, Device, memHandle.raw_handle, &piFormat, &piDesc, piSampler, &piImage,
-      &piImageHandle);
-
-  return sampled_image_handle{piImageHandle};
+  return create_image(memHandle.raw_handle, 0 /*pitch*/, sampler, desc,
+                      syclDevice, syclContext);
 }
 
 __SYCL_EXPORT sampled_image_handle
@@ -449,6 +408,7 @@ __SYCL_EXPORT sampled_image_handle
 create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
              const image_descriptor &desc, const sycl::device &syclDevice,
              const sycl::context &syclContext) {
+  desc.verify();
 
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
@@ -459,13 +419,17 @@ create_image(void *devPtr, size_t pitch, const bindless_image_sampler &sampler,
   const sycl::detail::PluginPtr &Plugin = CtxImpl->getPlugin();
 
   const pi_sampler_properties sProps[] = {
-      PI_SAMPLER_INFO_NORMALIZED_COORDS,
+      PI_SAMPLER_PROPERTIES_NORMALIZED_COORDS,
       static_cast<pi_sampler_properties>(sampler.coordinate),
-      PI_SAMPLER_INFO_ADDRESSING_MODE,
-      static_cast<pi_sampler_properties>(sampler.addressing),
-      PI_SAMPLER_INFO_FILTER_MODE,
+      PI_SAMPLER_PROPERTIES_ADDRESSING_MODE,
+      static_cast<pi_sampler_properties>(sampler.addressing[0]),
+      PI_SAMPLER_PROPERTIES_ADDRESSING_MODE,
+      static_cast<pi_sampler_properties>(sampler.addressing[1]),
+      PI_SAMPLER_PROPERTIES_ADDRESSING_MODE,
+      static_cast<pi_sampler_properties>(sampler.addressing[2]),
+      PI_SAMPLER_PROPERTIES_FILTER_MODE,
       static_cast<pi_sampler_properties>(sampler.filtering),
-      PI_SAMPLER_INFO_MIP_FILTER_MODE,
+      PI_SAMPLER_PROPERTIES_MIP_FILTER_MODE,
       static_cast<pi_sampler_properties>(sampler.mipmap_filtering),
       0};
 
@@ -531,6 +495,8 @@ image_mem_handle map_external_image_memory(interop_mem_handle memHandle,
                                            const image_descriptor &desc,
                                            const sycl::device &syclDevice,
                                            const sycl::context &syclContext) {
+  desc.verify();
+
   std::shared_ptr<sycl::detail::context_impl> CtxImpl =
       sycl::detail::getSyclObjImpl(syclContext);
   pi_context C = CtxImpl->getHandleRef();

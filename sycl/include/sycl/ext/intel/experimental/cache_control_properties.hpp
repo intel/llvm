@@ -123,6 +123,16 @@ template <typename T, typename PropertyListT>
 struct is_property_key_of<intel::experimental::write_hint_key,
                           annotated_ptr<T, PropertyListT>> : std::true_type {};
 
+template <>
+struct propagateToPtrAnnotation<intel::experimental::read_hint_key>
+    : std::true_type {};
+template <>
+struct propagateToPtrAnnotation<intel::experimental::read_assertion_key>
+    : std::true_type {};
+template <>
+struct propagateToPtrAnnotation<intel::experimental::write_hint_key>
+    : std::true_type {};
+
 namespace detail {
 
 // Values assigned to cache levels in a nibble.

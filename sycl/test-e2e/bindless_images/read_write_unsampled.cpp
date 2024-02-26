@@ -4,8 +4,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %t.out
 
+#include "bindless_helpers.hpp"
 #include <iostream>
-#include <random>
 #include <sycl/sycl.hpp>
 #include <type_traits>
 
@@ -16,68 +16,6 @@ static sycl::device dev;
 
 // Helpers and utilities
 struct util {
-  template <typename DType, int NChannels>
-  static void fill_rand(std::vector<sycl::vec<DType, NChannels>> &v, int seed) {
-    std::default_random_engine generator;
-    generator.seed(seed);
-    auto distribution = [&]() {
-      auto distr_t_zero = []() {
-        if constexpr (std::is_same_v<DType, sycl::half>) {
-          return float{};
-        } else if constexpr (sizeof(DType) == 1) {
-          return int{};
-        } else {
-          return DType{};
-        }
-      }();
-      using distr_t = decltype(distr_t_zero);
-      if constexpr (std::is_floating_point_v<distr_t>) {
-        return std::uniform_real_distribution(distr_t_zero,
-                                              static_cast<distr_t>(100));
-      } else {
-        return std::uniform_int_distribution<distr_t>(distr_t_zero, 100);
-      }
-    }();
-    for (int i = 0; i < v.size(); ++i) {
-      sycl::vec<DType, NChannels> temp;
-
-      for (int j = 0; j < NChannels; j++) {
-        temp[j] = static_cast<DType>(distribution(generator));
-      }
-
-      v[i] = temp;
-    }
-  }
-
-  template <typename DType, int NChannels>
-  static void add_host(const std::vector<sycl::vec<DType, NChannels>> &in_0,
-                       const std::vector<sycl::vec<DType, NChannels>> &in_1,
-                       std::vector<sycl::vec<DType, NChannels>> &out) {
-    for (int i = 0; i < out.size(); ++i) {
-      for (int j = 0; j < NChannels; ++j) {
-        out[i][j] = in_0[i][j] + in_1[i][j];
-      }
-    }
-  }
-
-  template <typename DType, int NChannels,
-            typename = std::enable_if_t<NChannels == 1>>
-  static DType add_kernel(const DType in_0, const DType in_1) {
-    return in_0 + in_1;
-  }
-
-  template <typename DType, int NChannels,
-            typename = std::enable_if_t<(NChannels > 1)>>
-  static sycl::vec<DType, NChannels>
-  add_kernel(const sycl::vec<DType, NChannels> &in_0,
-             const sycl::vec<DType, NChannels> &in_1) {
-    sycl::vec<DType, NChannels> out;
-    for (int i = 0; i < NChannels; ++i) {
-      out[i] = in_0[i] + in_1[i];
-    }
-    return out;
-  }
-
   // parallel_for 3D
   template <int NDims, typename DType, int NChannels, typename KernelName,
             typename = std::enable_if_t<NDims == 3>>
@@ -98,25 +36,26 @@ struct util {
 
               if constexpr (NChannels >= 1) {
                 VecType px1 =
-                    sycl::ext::oneapi::experimental::read_image<VecType>(
-                        input_0, sycl::int4(dim0, dim1, dim2, 0));
+                    sycl::ext::oneapi::experimental::fetch_image<VecType>(
+                        input_0, sycl::int3(dim0, dim1, dim2));
                 VecType px2 =
-                    sycl::ext::oneapi::experimental::read_image<VecType>(
-                        input_1, sycl::int4(dim0, dim1, dim2, 0));
+                    sycl::ext::oneapi::experimental::fetch_image<VecType>(
+                        input_1, sycl::int3(dim0, dim1, dim2));
 
-                auto sum =
-                    VecType(util::add_kernel<DType, NChannels>(px1, px2));
+                auto sum = VecType(
+                    bindless_helpers::add_kernel<DType, NChannels>(px1, px2));
                 sycl::ext::oneapi::experimental::write_image<VecType>(
-                    output, sycl::int4(dim0, dim1, dim2, 0), VecType(sum));
+                    output, sycl::int3(dim0, dim1, dim2), VecType(sum));
               } else {
-                DType px1 = sycl::ext::oneapi::experimental::read_image<DType>(
-                    input_0, sycl::int4(dim0, dim1, dim2, 0));
-                DType px2 = sycl::ext::oneapi::experimental::read_image<DType>(
-                    input_1, sycl::int4(dim0, dim1, dim2, 0));
+                DType px1 = sycl::ext::oneapi::experimental::fetch_image<DType>(
+                    input_0, sycl::int3(dim0, dim1, dim2));
+                DType px2 = sycl::ext::oneapi::experimental::fetch_image<DType>(
+                    input_1, sycl::int3(dim0, dim1, dim2));
 
-                auto sum = DType(util::add_kernel<DType, NChannels>(px1, px2));
+                auto sum = DType(
+                    bindless_helpers::add_kernel<DType, NChannels>(px1, px2));
                 sycl::ext::oneapi::experimental::write_image<DType>(
-                    output, sycl::int4(dim0, dim1, dim2, 0), DType(sum));
+                    output, sycl::int3(dim0, dim1, dim2), DType(sum));
               }
             });
       });
@@ -148,23 +87,24 @@ struct util {
 
               if constexpr (NChannels >= 1) {
                 VecType px1 =
-                    sycl::ext::oneapi::experimental::read_image<VecType>(
+                    sycl::ext::oneapi::experimental::fetch_image<VecType>(
                         input_0, sycl::int2(dim0, dim1));
                 VecType px2 =
-                    sycl::ext::oneapi::experimental::read_image<VecType>(
+                    sycl::ext::oneapi::experimental::fetch_image<VecType>(
                         input_1, sycl::int2(dim0, dim1));
 
-                auto sum =
-                    VecType(util::add_kernel<DType, NChannels>(px1, px2));
+                auto sum = VecType(
+                    bindless_helpers::add_kernel<DType, NChannels>(px1, px2));
                 sycl::ext::oneapi::experimental::write_image<VecType>(
                     output, sycl::int2(dim0, dim1), VecType(sum));
               } else {
-                DType px1 = sycl::ext::oneapi::experimental::read_image<DType>(
+                DType px1 = sycl::ext::oneapi::experimental::fetch_image<DType>(
                     input_0, sycl::int2(dim0, dim1));
-                DType px2 = sycl::ext::oneapi::experimental::read_image<DType>(
+                DType px2 = sycl::ext::oneapi::experimental::fetch_image<DType>(
                     input_1, sycl::int2(dim0, dim1));
 
-                auto sum = DType(util::add_kernel<DType, NChannels>(px1, px2));
+                auto sum = DType(
+                    bindless_helpers::add_kernel<DType, NChannels>(px1, px2));
                 sycl::ext::oneapi::experimental::write_image<DType>(
                     output, sycl::int2(dim0, dim1), DType(sum));
               }
@@ -197,23 +137,24 @@ struct util {
 
               if constexpr (NChannels >= 1) {
                 VecType px1 =
-                    sycl::ext::oneapi::experimental::read_image<VecType>(
+                    sycl::ext::oneapi::experimental::fetch_image<VecType>(
                         input_0, int(dim0));
                 VecType px2 =
-                    sycl::ext::oneapi::experimental::read_image<VecType>(
+                    sycl::ext::oneapi::experimental::fetch_image<VecType>(
                         input_1, int(dim0));
 
-                auto sum =
-                    VecType(util::add_kernel<DType, NChannels>(px1, px2));
+                auto sum = VecType(
+                    bindless_helpers::add_kernel<DType, NChannels>(px1, px2));
                 sycl::ext::oneapi::experimental::write_image<VecType>(
                     output, int(dim0), VecType(sum));
               } else {
-                DType px1 = sycl::ext::oneapi::experimental::read_image<DType>(
+                DType px1 = sycl::ext::oneapi::experimental::fetch_image<DType>(
                     input_0, int(dim0));
-                DType px2 = sycl::ext::oneapi::experimental::read_image<DType>(
+                DType px2 = sycl::ext::oneapi::experimental::fetch_image<DType>(
                     input_1, int(dim0));
 
-                auto sum = DType(util::add_kernel<DType, NChannels>(px1, px2));
+                auto sum = DType(
+                    bindless_helpers::add_kernel<DType, NChannels>(px1, px2));
                 sycl::ext::oneapi::experimental::write_image<DType>(
                     output, int(dim0), DType(sum));
               }
@@ -261,9 +202,9 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   std::vector<VecType> actual(num_elems);
 
   std::srand(seed);
-  util::fill_rand(input_0, seed);
-  util::fill_rand(input_1, seed);
-  util::add_host(input_0, input_1, expected);
+  bindless_helpers::fill_rand(input_0, seed);
+  bindless_helpers::fill_rand(input_1, seed);
+  bindless_helpers::add_host(input_0, input_1, expected);
 
   try {
     sycl::ext::oneapi::experimental::image_descriptor desc(dims, COrder, CType);
