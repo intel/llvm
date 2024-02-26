@@ -64,7 +64,7 @@ public:
 
   range_type get_group_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupMaxSize() / PartitionSize;
+    return __spirv_SubgroupSize() / PartitionSize;
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);

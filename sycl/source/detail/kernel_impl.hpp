@@ -16,6 +16,7 @@
 #include <sycl/detail/pi.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
+#include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/info/info_desc.hpp>
 
 #include <cassert>
@@ -141,6 +142,9 @@ public:
   typename Param::return_type get_info(const device &Device,
                                        const range<3> &WGSize) const;
 
+  template <typename Param>
+  typename Param::return_type ext_oneapi_get_info(const queue &q) const;
+
   /// Get a reference to a raw kernel object.
   ///
   /// \return a reference to a valid PiKernel instance with raw kernel object.
@@ -255,6 +259,22 @@ kernel_impl::get_info(const device &Device,
   return get_kernel_device_specific_info_with_input<Param>(
       this->getHandleRef(), getSyclObjImpl(Device)->getHandleRef(), WGSize,
       getPlugin());
+}
+
+template <>
+inline typename ext::oneapi::experimental::info::kernel_queue_specific::
+    max_num_work_group_sync::return_type
+    kernel_impl::ext_oneapi_get_info<
+        ext::oneapi::experimental::info::kernel_queue_specific::
+            max_num_work_group_sync>(const queue &Queue) const {
+  const auto &Plugin = getPlugin();
+  const auto &Handle = getHandleRef();
+  const auto MaxWorkGroupSize =
+      Queue.get_device().get_info<info::device::max_work_group_size>();
+  pi_uint32 GroupCount = 0;
+  Plugin->call<PiApiKind::piextKernelSuggestMaxCooperativeGroupCount>(
+      Handle, MaxWorkGroupSize, /* DynamicSharedMemorySize */ 0, &GroupCount);
+  return GroupCount;
 }
 
 } // namespace detail
