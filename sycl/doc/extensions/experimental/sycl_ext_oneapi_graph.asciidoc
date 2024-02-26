@@ -626,8 +626,6 @@ Exceptions:
 
 * Throws with error code `invalid` if `argIndex` is not a valid argument index
   for the resulting node.
-* Throws with error code `invalid` if the type of the command-group is not a
-  kernel execution.
 * Throws with error code `invalid` if the resulting node is not associated with
   the graph that this dynamic parameter was created with.
 
@@ -637,11 +635,15 @@ Exceptions:
 void update(const ValueT& newValue);
 ----
 
-|Updates parameters in all nodes registered with this dynamic
-parameter to `newValue`. This new value will be reflected immediately in the
-modifiable graph which contains the registered nodes. It is not an
-error if `newValue` is set to the current parameter value in any registered
-nodes.
+|Updates parameters in all nodes registered with this dynamic parameter to
+`newValue`. This new value will be reflected immediately in the modifiable graph
+which contains the registered nodes. The new value will not be reflected in any
+executable graphs created from that modifiable graph until
+`command_graph::update()` is called passing the modified nodes, or a new
+executable graph is finalized from the modifiable graph.
+
+It is not an error if `newValue` is set to the current parameter value in any
+registered nodes.
 
 Parameters:
 
@@ -950,12 +952,13 @@ Exceptions:
 
 * Throws synchronously with error code `invalid` if a queue is recording
   commands to the graph.
-
 * Throws synchronously with error code `invalid` if the graph wasn't created with
   the `property::graph::assume_buffer_outlives_graph` property and this command
   uses a buffer. See the
   <<assume-buffer-outlives-graph-property, Assume-Buffer-Outlives-Graph>>
   property for more information.
+* Throws with error code `invalid` if the type of the command-group is not a
+  kernel execution and a `dynamic_parameter` was registered inside `cgf`.
 
 |
 [source,c++]
