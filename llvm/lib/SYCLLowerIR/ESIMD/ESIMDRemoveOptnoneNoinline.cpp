@@ -11,8 +11,6 @@
 // right answer.
 //=------------------------------------------------------------------------=//
 
-#define DEBUG_TYPE "ESIMDRemoveOptnoneNoinlinePass"
-
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
