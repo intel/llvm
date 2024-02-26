@@ -18421,7 +18421,6 @@ void Sema::CheckUnusedVolatileAssignment(Expr *E) {
 }
 
 void Sema::MarkExpressionAsImmediateEscalating(Expr *E) {
-  assert(!FunctionScopes.empty() && "Expected a function scope");
   assert(getLangOpts().CPlusPlus20 &&
          ExprEvalContexts.back().InImmediateEscalatingFunctionContext &&
          "Cannot mark an immediate escalating expression outside of an "
@@ -18438,7 +18437,8 @@ void Sema::MarkExpressionAsImmediateEscalating(Expr *E) {
   } else {
     assert(false && "expected an immediately escalating expression");
   }
-  getCurFunction()->FoundImmediateEscalatingExpression = true;
+  if (FunctionScopeInfo *FI = getCurFunction())
+    FI->FoundImmediateEscalatingExpression = true;
 }
 
 ExprResult Sema::CheckForImmediateInvocation(ExprResult E, FunctionDecl *Decl) {

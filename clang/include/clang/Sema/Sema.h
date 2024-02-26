@@ -1346,7 +1346,9 @@ public:
       if (FD) {
         FD->setWillHaveBody(true);
         S.ExprEvalContexts.back().InImmediateFunctionContext =
-            FD->isImmediateFunction();
+            FD->isImmediateFunction() ||
+            S.ExprEvalContexts[S.ExprEvalContexts.size() - 2]
+                .isConstantEvaluated();
         S.ExprEvalContexts.back().InImmediateEscalatingFunctionContext =
             S.getLangOpts().CPlusPlus20 && FD->isImmediateEscalating();
       } else
@@ -5152,6 +5154,12 @@ public:
   bool checkCommonAttributeFeatures(const Stmt *S, const ParsedAttr &A,
                                     bool SkipArgCountCheck = false);
 
+  /// Map any API notes provided for this declaration to attributes on the
+  /// declaration.
+  ///
+  /// Triggered by declaration-attribute processing.
+  void ProcessAPINotes(Decl *D);
+
   /// Determine if type T is a valid subject for a nonnull and similar
   /// attributes. By default, we look through references (the behavior used by
   /// nonnull), but if the second parameter is true, then we treat a reference
@@ -8817,7 +8825,7 @@ public:
   /// if the arguments are dependent.
   ExprResult CheckVarTemplateId(const CXXScopeSpec &SS,
                                 const DeclarationNameInfo &NameInfo,
-                                VarTemplateDecl *Template,
+                                VarTemplateDecl *Template, NamedDecl *FoundD,
                                 SourceLocation TemplateLoc,
                                 const TemplateArgumentListInfo *TemplateArgs);
 

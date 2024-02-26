@@ -2,6 +2,7 @@ set(LLVM_LINK_COMPONENTS
   Support
   TargetParser
   TextAPI
+  Option
   )
 
 add_clang_tool(clang-installapi
@@ -14,7 +15,9 @@ add_clang_tool(clang-installapi
 clang_target_link_libraries(clang-installapi
   PRIVATE
   clangInstallAPI
+  clangBasic
   clangDriver
   clangFrontend
   clangTooling
+  clangSerialization
   )

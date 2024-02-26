@@ -2739,6 +2739,8 @@ def StoreParamI32    : StoreParamInst<Int32Regs, ".b32">;
 
 def StoreParamI16    : StoreParamInst<Int16Regs, ".b16">;
 def StoreParamI8     : StoreParamInst<Int16Regs, ".b8">;
+def StoreParamI8TruncI32 : StoreParamInst<Int32Regs, ".b8">;
+def StoreParamI8TruncI64 : StoreParamInst<Int64Regs, ".b8">;
 def StoreParamV2I64  : StoreParamV2Inst<Int64Regs, ".b64">;
 def StoreParamV2I32  : StoreParamV2Inst<Int32Regs, ".b32">;
 def StoreParamV2I16  : StoreParamV2Inst<Int16Regs, ".b16">;
@@ -2758,6 +2760,8 @@ def StoreRetvalI64    : StoreRetvalInst<Int64Regs, ".b64">;
 def StoreRetvalI32    : StoreRetvalInst<Int32Regs, ".b32">;
 def StoreRetvalI16    : StoreRetvalInst<Int16Regs, ".b16">;
 def StoreRetvalI8     : StoreRetvalInst<Int16Regs, ".b8">;
+def StoreRetvalI8TruncI32 : StoreRetvalInst<Int32Regs, ".b8">;
+def StoreRetvalI8TruncI64 : StoreRetvalInst<Int64Regs, ".b8">;
 def StoreRetvalV2I64  : StoreRetvalV2Inst<Int64Regs, ".b64">;
 def StoreRetvalV2I32  : StoreRetvalV2Inst<Int32Regs, ".b32">;
 def StoreRetvalV2I16  : StoreRetvalV2Inst<Int16Regs, ".b16">;
@@ -3248,23 +3252,23 @@ def : Pat<(f16 (uint_to_fp Int64Regs:$a)),
 
 // sint -> bf16
 def : Pat<(bf16 (sint_to_fp Int1Regs:$a)),
-          (CVT_bf16_s32 (SELP_u32ii 1, 0, Int1Regs:$a), CvtRN)>;
+          (CVT_bf16_s32 (SELP_u32ii 1, 0, Int1Regs:$a), CvtRN)>, Requires<[hasPTX<78>, hasSM<90>]>;
 def : Pat<(bf16 (sint_to_fp Int16Regs:$a)),
-          (CVT_bf16_s16 Int16Regs:$a, CvtRN)>;
+          (CVT_bf16_s16 Int16Regs:$a, CvtRN)>, Requires<[hasPTX<78>, hasSM<90>]>;
 def : Pat<(bf16 (sint_to_fp Int32Regs:$a)),
-          (CVT_bf16_s32 Int32Regs:$a, CvtRN)>;
+          (CVT_bf16_s32 Int32Regs:$a, CvtRN)>, Requires<[hasPTX<78>, hasSM<90>]>;
 def : Pat<(bf16 (sint_to_fp Int64Regs:$a)),
-          (CVT_bf16_s64 Int64Regs:$a, CvtRN)>;
+          (CVT_bf16_s64 Int64Regs:$a, CvtRN)>, Requires<[hasPTX<78>, hasSM<90>]>;
 
 // uint -> bf16
 def : Pat<(bf16 (uint_to_fp Int1Regs:$a)),
-          (CVT_bf16_u32 (SELP_u32ii 1, 0, Int1Regs:$a), CvtRN)>;
+          (CVT_bf16_u32 (SELP_u32ii 1, 0, Int1Regs:$a), CvtRN)>, Requires<[hasPTX<78>, hasSM<90>]>;
 def : Pat<(bf16 (uint_to_fp Int16Regs:$a)),
-          (CVT_bf16_u16 Int16Regs:$a, CvtRN)>;
+          (CVT_bf16_u16 Int16Regs:$a, CvtRN)>, Requires<[hasPTX<78>, hasSM<90>]>;
 def : Pat<(bf16 (uint_to_fp Int32Regs:$a)),
-          (CVT_bf16_u32 Int32Regs:$a, CvtRN)>;
+          (CVT_bf16_u32 Int32Regs:$a, CvtRN)>, Requires<[hasPTX<78>, hasSM<90>]>;
 def : Pat<(bf16 (uint_to_fp Int64Regs:$a)),
-          (CVT_bf16_u64 Int64Regs:$a, CvtRN)>;
+          (CVT_bf16_u64 Int64Regs:$a, CvtRN)>, Requires<[hasPTX<78>, hasSM<90>]>;
 
 // sint -> f32
 def : Pat<(f32 (sint_to_fp Int1Regs:$a)),

@@ -212,6 +212,14 @@ VPBasicBlock::iterator VPBasicBlock::getFirstNonPhi() {
   return It;
 }
 
+VPTransformState::VPTransformState(ElementCount VF, unsigned UF, LoopInfo *LI,
+                                   DominatorTree *DT, IRBuilderBase &Builder,
+                                   InnerLoopVectorizer *ILV, VPlan *Plan,
+                                   LLVMContext &Ctx)
+    : VF(VF), UF(UF), LI(LI), DT(DT), Builder(Builder), ILV(ILV), Plan(Plan),
+      LVer(nullptr),
+      TypeAnalysis(Plan->getCanonicalIV()->getScalarType(), Ctx) {}
+
 Value *VPTransformState::get(VPValue *Def, const VPIteration &Instance) {
   if (Def->isLiveIn())
     return Def->getLiveInIRValue();
@@ -821,10 +829,6 @@ void VPlan::prepareToExecute(Value *TripCountV, Value *VectorTripCountV,
 /// Assumes a single pre-header basic-block was created for this. Introduce
 /// additional basic-blocks as needed, and fill them all.
 void VPlan::execute(VPTransformState *State) {
-  // Set the reverse mapping from VPValues to Values for code generation.
-  for (auto &Entry : Value2VPValue)
-    State->VPValue2Value[Entry.second] = Entry.first;
-
   // Initialize CFG state.
   State->CFG.PrevVPBB = nullptr;
   State->CFG.ExitBB = State->CFG.PrevBB->getSingleSuccessor();
