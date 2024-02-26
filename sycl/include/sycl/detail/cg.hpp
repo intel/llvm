@@ -125,7 +125,7 @@ public:
   CG(CG &&CommandGroup) = default;
   CG(const CG &CommandGroup) = default;
 
-  CGTYPE getType() { return MType; }
+  CGTYPE getType() const { return MType; }
 
   std::vector<std::vector<char>> &getArgsStorage() {
     return MData.MArgsStorage;
@@ -176,6 +176,7 @@ public:
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
   sycl::detail::pi::PiKernelCacheConfig MKernelCacheConfig;
+  bool MKernelIsCooperative = false;
 
   CGExecKernel(NDRDescT NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
                std::shared_ptr<detail::kernel_impl> SyclKernel,
@@ -186,14 +187,15 @@ public:
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
                CGTYPE Type,
                sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
-               detail::code_location loc = {})
+               bool KernelIsCooperative, detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
         MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
         MKernelName(std::move(KernelName)), MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
-        MKernelCacheConfig(std::move(KernelCacheConfig)) {
+        MKernelCacheConfig(std::move(KernelCacheConfig)),
+        MKernelIsCooperative(KernelIsCooperative) {
     assert(getType() == Kernel && "Wrong type of exec kernel CG.");
   }
 
