@@ -15,8 +15,8 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 struct named_sub_group_size {
-  static constexpr uint32_t primary = 0;
-  static constexpr uint32_t automatic = -1;
+  static constexpr uint32_t primary = -1;
+  static constexpr uint32_t automatic = -2;
 };
 
 inline constexpr sub_group_size_key::value_t<named_sub_group_size::primary>
