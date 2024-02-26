@@ -2966,6 +2966,52 @@ __urdlllocal ur_result_t UR_APICALL urQueueFlush(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueGetSuggestedLocalWorkSize
+__urdlllocal ur_result_t UR_APICALL urQueueGetSuggestedLocalWorkSize(
+    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel.
+    uint32_t
+        workDim, ///< [in] number of dimensions, from 1 to 3, to specify the global and
+                 ///< work-group work-items
+    const size_t *
+        pGlobalWorkOffset, ///< [in] pointer to an array of workDim unsigned values that specify the
+    ///< offset used to calculate the global ID of a work-item
+    const size_t *
+        pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify the
+    ///< number of global work-items in workDim that will execute the kernel
+    ///< function
+    const size_t *
+        pSuggestedLocalWorkSize ///< [out] pointer to an array of workDim unsigned values that specify the
+    ///< number of local work-items forming a work-group that will execute the
+    ///< kernel function.
+) {
+    auto pfnGetSuggestedLocalWorkSize =
+        context.urDdiTable.Queue.pfnGetSuggestedLocalWorkSize;
+
+    if (nullptr == pfnGetSuggestedLocalWorkSize) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_queue_get_suggested_local_work_size_params_t params = {
+        &hQueue,          &hKernel,
+        &workDim,         &pGlobalWorkOffset,
+        &pGlobalWorkSize, &pSuggestedLocalWorkSize};
+    uint64_t instance =
+        context.notify_begin(UR_FUNCTION_QUEUE_GET_SUGGESTED_LOCAL_WORK_SIZE,
+                             "urQueueGetSuggestedLocalWorkSize", &params);
+
+    ur_result_t result = pfnGetSuggestedLocalWorkSize(
+        hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+        pSuggestedLocalWorkSize);
+
+    context.notify_end(UR_FUNCTION_QUEUE_GET_SUGGESTED_LOCAL_WORK_SIZE,
+                       "urQueueGetSuggestedLocalWorkSize", &params, &result,
+                       instance);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEventGetInfo
 __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
     ur_event_handle_t hEvent, ///< [in] handle of the event object
@@ -7264,6 +7310,11 @@ __urdlllocal ur_result_t UR_APICALL urGetQueueProcAddrTable(
 
     dditable.pfnFlush = pDdiTable->pfnFlush;
     pDdiTable->pfnFlush = ur_tracing_layer::urQueueFlush;
+
+    dditable.pfnGetSuggestedLocalWorkSize =
+        pDdiTable->pfnGetSuggestedLocalWorkSize;
+    pDdiTable->pfnGetSuggestedLocalWorkSize =
+        ur_tracing_layer::urQueueGetSuggestedLocalWorkSize;
 
     return result;
 }

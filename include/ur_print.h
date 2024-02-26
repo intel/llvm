@@ -1539,6 +1539,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintQueueFinishParams(const struct ur_que
 UR_APIEXPORT ur_result_t UR_APICALL urPrintQueueFlushParams(const struct ur_queue_flush_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_queue_get_suggested_local_work_size_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintQueueGetSuggestedLocalWorkSizeParams(const struct ur_queue_get_suggested_local_work_size_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_sampler_create_params_t struct
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
