@@ -1,22 +1,7 @@
 // Test that llvm.bitreverse is lowered correctly by llvm-spirv
 
-// RUN: %{build} -o %t.O2.out -O2
-// RUN: %{run} %t.O2.out | FileCheck %s
-
-// CHECK: Passed bitreverse  8  1
-// CHECK: Passed bitreverse 16  2
-// CHECK: Passed bitreverse 32  4
-// CHECK: Passed bitreverse 64  8
-
-// CHECK: Passed bitreverse  8  2
-// CHECK: Passed bitreverse 16  4
-// CHECK: Passed bitreverse 32  8
-// CHECK: Passed bitreverse 64 16
-
-// CHECK: Passed bitreverse  8  4
-// CHECK: Passed bitreverse 16  8
-// CHECK: Passed bitreverse 32 16
-// CHECK: Passed bitreverse 64 32
+// RUN: %{build} -o %t.out -O2
+// RUN: %{run} %t.out
 
 #include <string.h>
 #include <sycl/sycl.hpp>
@@ -40,17 +25,17 @@ __attribute__((noinline)) UINT8 reverse8(UINT8 a) {
     return (a << 4) | (a >> 4);
 }
 template <typename UINT8>
-void do_bitreverse_test8() {
+void do_bitreverse_test8(int *result) {
   for (uint8_t u=0 ; u<250; u++) {
     UINT8 data=u;    
-    UINT8 ref[1];
-    UINT8 opt[1];
+    UINT8 ref = reference_reverse8(data);
+    UINT8 opt = reverse8(data);
 
-    ref[0] = reference_reverse8(data);
-    opt[0] = reverse8(data);    
-    if (memcmp(ref,opt,sizeof(UINT8))) return;
+    if (memcmp(&ref,&opt,sizeof(UINT8))) {
+      *result=1;
+      return;
+    }
   }
-  ext::oneapi::experimental::printf("Passed bitreverse  8 %2d\n",sizeof(UINT8));
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -72,17 +57,17 @@ __attribute__((noinline)) UINT16 reverse16(UINT16 a) {
 }
 
 template <typename UINT16>
-void do_bitreverse_test16() {
+void do_bitreverse_test16(int *result) {
   for (uint16_t u=0 ; u<0xFF00; u+=0x13) {
     UINT16 data=u;
-    UINT16 ref[1];
-    UINT16 opt[1];
-    
-    ref[0] = reference_reverse16(data);
-    opt[0] = reverse16(data);    
-    if (memcmp(ref,opt,sizeof(UINT16))) return;
+    UINT16 ref = reference_reverse16(data);
+    UINT16 opt = reverse16(data);
+
+    if (memcmp(&ref,&opt,sizeof(UINT16))) {
+      *result=1;
+      return;
+    }
   }
-  ext::oneapi::experimental::printf("Passed bitreverse 16 %2d\n",sizeof(UINT16));
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -105,17 +90,17 @@ __attribute__((noinline)) UINT32 reverse32(UINT32 a) {
     return (a << 16) | (a >> 16);
 }
 template <typename UINT32>
-void do_bitreverse_test32() {
+void do_bitreverse_test32(int *result) {
   for (uint32_t u=0 ; u<(0xFF<<24); u+=0xABCD13) {
     UINT32 data=u;
-    UINT32 ref[1];
-    UINT32 opt[1];
+    UINT32 ref = reference_reverse32(data);
+    UINT32 opt = reverse32(data);
 
-    ref[0] = reference_reverse32(data);
-    opt[0] = reverse32(data);    
-    if (memcmp(ref,opt,sizeof(UINT32))) return;
+    if (memcmp(&ref,&opt,sizeof(UINT32))) {
+      *result=1;
+      return;
+    }
   }
-  ext::oneapi::experimental::printf("Passed bitreverse 32 %2d\n",sizeof(UINT32));  
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -136,21 +121,21 @@ __attribute__((noinline)) UINT64 reverse64(UINT64 a) {
     a = ((0x3333333333333333UL & a) << 2) | (0x3333333333333333UL & (a >> 2));
     a = ((0x0F0F0F0F0F0F0F0FUL & a) << 4) | (0x0F0F0F0F0F0F0F0FUL & (a >> 4));
     a = ((0x00FF00FF00FF00FFUL & a) << 8) | (0x00FF00FF00FF00FFUL & (a >> 8));
-    a = ((0x0000FFFF0000FFFFUL & a) <<16) | (0x0000FFFF0000FFFFUL & (a >>16));    
+    a = ((0x0000FFFF0000FFFFUL & a) <<16) | (0x0000FFFF0000FFFFUL & (a >>16));
     return (a << 32) | (a >> 32);
 }
 template <typename UINT64>
-void do_bitreverse_test64() {
+void do_bitreverse_test64(int *result) {
   for (uint64_t u=0 ; u<(0xFFUL<<56); u+=0xABCDABCDABCD13UL) {
     UINT64 data=u;
-    UINT64 ref[1];
-    UINT64 opt[1];
+    UINT64 ref = reference_reverse64(data);
+    UINT64 opt = reverse64(data);
 
-    ref[0] = reference_reverse64(data);
-    opt[0] = reverse64(data);    
-    if (memcmp(ref,opt,sizeof(UINT64))) return;
+    if (memcmp(&ref,&opt,sizeof(UINT64))) {
+      *result=1;
+      return;
+    }
   }
-  ext::oneapi::experimental::printf("Passed bitreverse 64 %2d\n",sizeof(UINT64));
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -161,10 +146,29 @@ template <typename UINT8, typename UINT16, typename UINT32, typename UINT64>
 void testTypes() {
   queue q;
 
-  q.submit([](handler &cgh) { cgh.single_task<BitreverseTest<UINT8>> ([]() { do_bitreverse_test8 <UINT8> (); }); }); q.wait();
-  q.submit([](handler &cgh) { cgh.single_task<BitreverseTest<UINT16>>([]() { do_bitreverse_test16<UINT16>(); }); }); q.wait();
-  q.submit([](handler &cgh) { cgh.single_task<BitreverseTest<UINT32>>([]() { do_bitreverse_test32<UINT32>(); }); }); q.wait();
-  q.submit([](handler &cgh) { cgh.single_task<BitreverseTest<UINT64>>([]() { do_bitreverse_test64<UINT64>(); }); }); q.wait();  
+  int *result = (int *) malloc_host(sizeof(int),q);
+  *result=0;
+
+  q.submit([=](handler &cgh) { cgh.single_task<BitreverseTest<UINT8>> ([=]() { do_bitreverse_test8 <UINT8> (result); }); }); q.wait();
+  if (*result) {
+    std::cerr << "Failed bitreverse 8-bit, #elements=" <<  sizeof(UINT8)/sizeof(uint8_t) <<"\n";
+    exit(1);
+  }
+  q.submit([=](handler &cgh) { cgh.single_task<BitreverseTest<UINT16>>([=]() { do_bitreverse_test16<UINT16>(result); }); }); q.wait();
+  if (*result) {
+    std::cerr << "Failed bitreverse 16-bit, #elements=" <<  sizeof(UINT16)/sizeof(uint16_t) <<"\n";
+    exit(1);
+  }
+  q.submit([=](handler &cgh) { cgh.single_task<BitreverseTest<UINT32>>([=]() { do_bitreverse_test32<UINT32>(result); }); }); q.wait();
+  if (*result) {
+    std::cerr << "Failed bitreverse 32-bit, #elements=" <<  sizeof(UINT32)/sizeof(uint32_t) <<"\n";
+    exit(1);
+  }
+  q.submit([=](handler &cgh) { cgh.single_task<BitreverseTest<UINT64>>([=]() { do_bitreverse_test64<UINT64>(result); }); }); q.wait();
+  if (*result) {
+    std::cerr << "Failed bitreverse 64-bit, #elements=" <<  sizeof(UINT64)/sizeof(uint64_t) <<"\n";
+    exit(1);
+  }
 }
 
 typedef  uint8_t  uint8_t2  __attribute__((ext_vector_type(2)));
