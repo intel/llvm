@@ -2,7 +2,7 @@
 // RUN: %{build} -fsycl-esimd-force-stateless-mem -o %t.out
 // RUN: %{run} %t.out
 
-// This test verifies usage of accessor methods operator[] and get_pointer().
+// This test verifies usage of accessor methods operator[] and get_multi_ptr().
 
 #include "esimd_test_utils.hpp"
 
@@ -39,7 +39,8 @@ bool test(queue Q, uint32_t LocalRange, uint32_t GlobalRange) {
            for (int I = 0; I < VL; I++)
              TmpAcc[GID * VL + I] = GID * 100 + I;
          } else {
-           T *Ptr = TmpAcc.get_pointer();
+           T *Ptr =
+               TmpAcc.template get_multi_ptr<access::decorated::yes>().get();
            simd<int, VL> IntValues(GID * 100, 1);
            simd<T, VL> Values = IntValues;
            block_store(Ptr + GID * VL, Values);
@@ -53,12 +54,13 @@ bool test(queue Q, uint32_t LocalRange, uint32_t GlobalRange) {
                for (int I = 0; I < VL; I++)
                  Out[(GID + LID) * VL + I] = TmpAcc[(GID + LID) * VL + I];
              } else {
-               T *Ptr = TmpAcc.get_pointer();
+               T *Ptr = TmpAcc.template get_multi_ptr<access::decorated::yes>()
+                            .get();
                simd<T, VL> Values = block_load<T, VL>(Ptr + (GID + LID) * VL);
                Values.template copy_to(Out + (GID + LID) * VL);
              }
            } // end for (int LID = 0; LID < LocalRange; LID++)
-         }   // end if (LID == 0)
+         } // end if (LID == 0)
        });
      }).wait();
   } catch (sycl::exception const &e) {

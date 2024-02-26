@@ -281,6 +281,18 @@ void exec_graph_impl::makePartitions() {
                      Partition->MSchedule.end());
   }
 
+  // Compute partition dependencies
+  for (auto Partition : MPartitions) {
+    for (auto const &Root : Partition->MRoots) {
+      auto RootNode = Root.lock();
+      for (const auto &Dep : RootNode->MPredecessors) {
+        auto NodeDep = Dep.lock();
+        Partition->MPredecessors.push_back(
+            MPartitions[MPartitionNodes[NodeDep]]);
+      }
+    }
+  }
+
   // Reset node groups (if node have to be re-processed - e.g. subgraph)
   for (auto &Node : MNodeStorage) {
     Node->MPartitionNum = -1;
@@ -762,7 +774,22 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
   });
 
   sycl::detail::EventImplPtr NewEvent;
-  for (auto CurrentPartition : MPartitions) {
+  std::vector<sycl::detail::EventImplPtr> BackupCGDataMEvents;
+  if (MPartitions.size() > 1) {
+    BackupCGDataMEvents = CGData.MEvents;
+  }
+  for (uint32_t currentPartitionsNum = 0;
+       currentPartitionsNum < MPartitions.size(); currentPartitionsNum++) {
+    auto CurrentPartition = MPartitions[currentPartitionsNum];
+    // restore initial MEvents to add only needed additional depenencies
+    if (currentPartitionsNum > 0) {
+      CGData.MEvents = BackupCGDataMEvents;
+    }
+
+    for (auto const &DepPartition : CurrentPartition->MPredecessors) {
+      CGData.MEvents.push_back(MPartitionsExecutionEvents[DepPartition]);
+    }
+
     auto CommandBuffer =
         CurrentPartition->MPiCommandBuffers[Queue->get_device()];
 
@@ -880,7 +907,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
               // TODO: Pass accessor mem allocations
               nullptr,
               // TODO: Extract from handler
-              PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT);
+              PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT, CG->MKernelIsCooperative);
           if (Res != pi_result::PI_SUCCESS) {
             throw sycl::exception(
                 sycl::make_error_code(sycl::errc::kernel),
@@ -902,12 +929,19 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       NewEvent->setStateIncomplete();
       NewEvent->getPreparedDepsEvents() = ScheduledEvents;
     }
-    CGData.MEvents.push_back(NewEvent);
+    MPartitionsExecutionEvents[CurrentPartition] = NewEvent;
   }
 
   // Keep track of this execution event so we can make sure it's completed in
   // the destructor.
   MExecutionEvents.push_back(NewEvent);
+  // Attach events of previous partitions to ensure that when the returned event
+  // is complete all execution associated with the graph have been completed.
+  for (auto const &Elem : MPartitionsExecutionEvents) {
+    if (Elem.second != NewEvent) {
+      NewEvent->attachEventToComplete(Elem.second);
+    }
+  }
   sycl::event QueueEvent =
       sycl::detail::createSyclObjFromImpl<sycl::event>(NewEvent);
   return QueueEvent;
