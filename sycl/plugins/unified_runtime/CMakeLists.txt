@@ -56,14 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/AllanZyne/unified-runtime.git")
-  # commit d469cf92d87ec69d612a7594c362e1ae4a85e09d
-  # Merge: 9e13c014 4814e717
-  # Author: Maosu Zhao <maosu.zhao@intel.com>
-  # Date:   Thu Feb 22 15:06:24 2024 +0800
-  #
-  #     Merge branch 'main' into sanitizer-device-global
-  set(UNIFIED_RUNTIME_TAG sanitizer-device-global)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 9b936b5748a8da86123f3f148d1cfa84e52531c4
+  # Merge: 91c6068b 767cfd1a
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Mon Feb 26 10:46:55 2024 +0100
+  #     Merge pull request #1354 from AllanZyne/sanitizer-device-global
+  #     [DeviceSanitizer] Support detecting out-of-bounds error on DeviceGlobals
+  set(UNIFIED_RUNTIME_TAG 9b936b5748a8da86123f3f148d1cfa84e52531c4)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
