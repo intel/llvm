@@ -1,3 +1,18 @@
--- Check that sycl-ls exits with 0 exit code. 
+-- Check sycl-ls exit code and output.
 
-RUN: sycl-ls --verbose
+RUN: sycl-ls --verbose > vanilla_verbose.out
+RUN: sycl-ls > vanilla.out
+
+-- Check the functioning of '--ignore-device-selectors' CLI option.
+
+RUN: env ONEAPI_DEVICE_SELECTOR="opencl:*" sycl-ls --ignore-device-selectors > ods_ignore_device_selector.out
+RUN: diff vanilla.out ods_ignore_device_selector.out
+
+RUN: env ONEAPI_DEVICE_SELECTOR="opencl:*" sycl-ls --ignore-device-selectors --verbose > ods_ignore_device_selector_v.out
+RUN: diff vanilla_verbose.out ods_ignore_device_selector_v.out
+
+RUN: env SYCL_DEVICE_ALLOWLIST="BackendName:opencl" sycl-ls --ignore-device-selectors > sda_ignore_device_selector.out
+RUN: diff vanilla.out sda_ignore_device_selector.out
+
+RUN: env SYCL_DEVICE_ALLOWLIST="BackendName:opencl" sycl-ls --ignore-device-selectors --verbose > sda_ignore_device_selector_v.out
+RUN: diff vanilla_verbose.out sda_ignore_device_selector_v.out
