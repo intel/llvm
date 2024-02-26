@@ -107,6 +107,12 @@ IRBuilder<> buildAfter(Value *V, Function &F, bool IsPhi) {
       ++Next;
     } while (!IsPhi && (Next != End) &&
              (isa<PHINode>(Next) || isa<AllocaInst>(Next)));
+#if LLVM_VERSION_GREATER_EQUAL(19, 0)
+    // If there is debug info between this instruction and the next, insert
+    // before the debug info. This is required for PHIs and makes sense for
+    // other instructions too.
+    Next.setHeadBit(true);
+#endif
     return {I->getParent(), Next};
   }
   // Else find the first point in the function after any allocas.
