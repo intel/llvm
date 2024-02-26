@@ -7745,6 +7745,16 @@ void Sema::AddSYCLIntelNumBanksAttr(Decl *D, const AttributeCommonInfo &CI,
       }
     }
 
+    if (auto *VD = dyn_cast<VarDecl>(D)) {
+      if (!(VD->getKind() != Decl::ImplicitParam &&
+            VD->getKind() != Decl::NonTypeTemplateParm &&
+           ((VD->getStorageClass() == SC_Static || VD->hasLocalStorage()) ||
+            (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(VD->getType())
+             || VD->getType().isConstQualified())))){
+        Diag(CI.getLoc(), diag::err_fpga_attribute_incorrrect_variable) << CI;
+      }
+    }
+
     // Check to see if there's a duplicate attribute with different values
     // already applied to the declaration.
     if (const auto *DeclAttr = D->getAttr<SYCLIntelNumBanksAttr>()) {

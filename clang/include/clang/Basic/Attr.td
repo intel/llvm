@@ -2648,11 +2648,10 @@ def SYCLIntelConstVar : SubsetSubject<Var,
                       [{S->getKind() != Decl::ImplicitParam &&
                         S->getKind() != Decl::ParmVar &&
                         S->getKind() != Decl::NonTypeTemplateParm &&
-                        ((!S->hasAttr<SYCLDeviceGlobalAttr>() ||
-                          S->getType().isConstQualified()) ||
+                        (S->getType().isConstQualified() ||
                          S->getType().getAddressSpace() ==
                             LangAS::opencl_constant)}],
-                      "constant variables, non-const device_global variables">;
+                      "constant variables">;
 
 def SYCLIntelLocalStaticAgentMemVar : SubsetSubject<Var,
       [{S->getKind() != Decl::ImplicitParam &&
@@ -2731,9 +2730,6 @@ def : MutualExclusions<[SYCLIntelRegister, SYCLIntelBankWidth]>;
 def SYCLIntelNumBanks : InheritableAttr {
   let Spellings = [CXX11<"intel", "numbanks">];
   let Args = [ExprArgument<"Value">];
-  let Subjects = SubjectList<[SYCLIntelConstVar,
-                              SYCLIntelLocalStaticAgentMemVar,
-                              Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelNumBanksAttrDocs];
 }
