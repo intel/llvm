@@ -387,16 +387,18 @@ public:
     }
 #endif
 
-    pi_result WaitResult = waitForEvents();
-    if (WaitResult != PI_SUCCESS) {
-      std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
-          std::string("Couldn't wait for host-task's dependencies"),
-          WaitResult));
-      HostTask.MQueue->reportAsyncException(EPtr);
-      // reset host-task's lambda and quit
-      HostTask.MHostTask.reset();
-      Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
-      return;
+    if (!HostTask.MHostTask->isManualInteropSync()) {
+      pi_result WaitResult = waitForEvents();
+      if (WaitResult != PI_SUCCESS) {
+        std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
+            std::string("Couldn't wait for host-task's dependencies"),
+            WaitResult));
+        HostTask.MQueue->reportAsyncException(EPtr);
+        // reset host-task's lambda and quit
+        HostTask.MHostTask.reset();
+        Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
+        return;
+      }
     }
 
     try {
