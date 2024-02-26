@@ -23407,9 +23407,11 @@ llvm::CallInst *CodeGenFunction::MaybeEmitFPBuiltinofFD(
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_expm1;
       break;
     case Builtin::BIhypot:
+    case Builtin::BIhypotf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_hypot;
       break;
     case Builtin::BIldexp:
+    case Builtin::BIldexpf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_ldexp;
       break;
     }
