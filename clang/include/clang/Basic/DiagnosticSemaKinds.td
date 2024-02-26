@@ -12218,7 +12218,7 @@ def err_sycl_attribute_not_device_global
 def err_fpga_attribute_incorrrect_variable
     : Error<"%0 attribute only applies to constant variables, local variables, "
             "static variables, agent memory arguments, non-static data "
-            "members, and device_global variables">;
+            "members, and non-constant device_global variables">;
 def err_sycl_compiletime_property_duplication : Error<
   "can't apply %0 property twice to the same accessor">;
 def err_sycl_invalid_property_list_param_number : Error<

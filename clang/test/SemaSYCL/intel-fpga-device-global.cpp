@@ -7,7 +7,7 @@ using namespace sycl::ext::oneapi;
 [[intel::numbanks(2)]] device_global<int> dev_glob; // OK
 [[intel::numbanks(4)]] static device_global<float> static_dev_glob; // OK
 
-// expected-error@+1{{'numbanks' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members, and device_global variables}}
+// expected-error@+1{{'numbanks' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members, and non-constant device_global variables}}
 [[intel::numbanks(2)]] int K;
 
 struct bar {
@@ -22,7 +22,7 @@ void foo() {
 struct [[__sycl_detail__::global_variable_allowed]] GlobAllowedVarOnly {
 };
 
-// expected-error@+1{{'numbanks' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members, and device_global variables}}
+// expected-error@+1{{'numbanks' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members, and non-constant device_global variables}}
 [[intel::numbanks(2)]] GlobAllowedVarOnly GAVO;
 
 [[intel::numbanks(4)]] /*const*/ device_global<int> Good;
@@ -38,7 +38,7 @@ int main() {
   return 0;
 }
 
-//expected-error@+1{{'numbanks' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members, and device_global variables}}
+//expected-error@+1{{'numbanks' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members, and non-constant device_global variables}}
 [[intel::numbanks(2)]]
 __attribute__((opencl_global)) unsigned int ocl_glob_num_p2d[64] = {1, 2, 3};
 
