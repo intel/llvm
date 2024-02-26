@@ -38,6 +38,7 @@
 #include <llvm/Support/Error.h>
 #include <llvm/Support/TypeSize.h>
 #include <llvm/Support/raw_ostream.h>
+#include <multi_llvm/basicblock_helper.h>
 
 #include <queue>
 #include <utility>
@@ -715,8 +716,8 @@ bool ControlFlowConversionState::Impl::createEntryMasks(BasicBlock &BB) {
     VECZ_ERROR_IF(!preheader, "BasicBlock tag is not defined");
 
     if (LTag->isLoopDivergent()) {
-      PHINode *PHI =
-          PHINode::Create(maskTy, 2, BB.getName() + ".entry_mask", &BB.front());
+      PHINode *PHI = PHINode::Create(maskTy, 2, BB.getName() + ".entry_mask");
+      multi_llvm::insertBefore(PHI, BB.begin());
       PHI->addIncoming(MaskInfos[preheader].exitMasks[&BB], preheader);
       maskInfo.entryMask = PHI;
       LLVM_DEBUG(dbgs() << "Loop divergent loop header " << BB.getName()
@@ -766,8 +767,9 @@ bool ControlFlowConversionState::Impl::createEntryMasks(BasicBlock &BB) {
     }
   } else {
     // A phi function of the predecessors otherwise.
-    PHINode *PHI = PHINode::Create(maskTy, numPreds,
-                                   BB.getName() + ".entry_mask", &BB.front());
+    PHINode *PHI =
+        PHINode::Create(maskTy, numPreds, BB.getName() + ".entry_mask");
+    multi_llvm::insertBefore(PHI, BB.begin());
     for (auto it = pred_begin(&BB); it != pred_end(&BB); ++it) {
       PHI->addIncoming(MaskInfos[*it].exitMasks[&BB], *it);
     }
@@ -948,8 +950,9 @@ bool ControlFlowConversionState::Impl::createLoopExitMasks(LoopTag &LTag) {
       // The value of the exit mask of a divergent loop is a phi function
       // between the mask update and the loop exit mask phi.
       auto *const exitMask =
-          PHINode::Create(maskTy, 2, exitBlock->getName() + ".loop_exit_mask",
-                          LTag.header->getFirstNonPHI());
+          PHINode::Create(maskTy, 2, exitBlock->getName() + ".loop_exit_mask");
+      multi_llvm::insertBefore(exitMask,
+                               multi_llvm::getFirstNonPHIIt(LTag.header));
       LMask.persistedDivergentExitMasks[exitingBlock] = exitMask;
       if (BOSCC) {
         BOSCC->createReference(exitMask, getDefaultValue(maskTy));
@@ -2094,7 +2097,7 @@ bool ControlFlowConversionState::Impl::generateDivergentLoopResults(
                     << LTag.loop->getName() << "\n");
 
   // First create instructions to save the value of the last iteration ...
-  IRBuilder<> B(getInsertionPt(*LTag.header));
+  IRBuilder<> B(LTag.header, multi_llvm::getFirstNonPHIIt(LTag.header));
   for (Value *LLV : LTag.loopLiveValues) {
     LTag.loopResultPrevs[LLV] =
         B.CreatePHI(LLV->getType(), 2, LLV->getName() + ".prev");
@@ -2120,7 +2123,8 @@ bool ControlFlowConversionState::Impl::generateDivergentLoopResults(
 
         uniformLRP->setIncomingValue(1, LLV);
 
-        uniformLRP->insertBefore(getInsertionPt(*uniformHeader));
+        multi_llvm::insertBefore(uniformLRP,
+                                 multi_llvm::getFirstNonPHIIt(uniformHeader));
         BOSCC->createReference(LRP, uniformLRP, true);
       }
     }
@@ -2193,8 +2197,9 @@ bool ControlFlowConversionState::Impl::blendDivergentLoopLiveValues(
     VECZ_ERROR_IF(
         !prev, "Divergent loop live value does not have a persist instruction");
 
-    PHINode *blend = PHINode::Create(
-        LLV->getType(), 2, LLV->getName() + ".blend", &LTag.pureExit->front());
+    PHINode *blend =
+        PHINode::Create(LLV->getType(), 2, LLV->getName() + ".blend");
+    multi_llvm::insertBefore(blend, LTag.pureExit->begin());
 
     // Replace all uses outside the loop.
     VECZ_FAIL_IF(
@@ -2258,8 +2263,8 @@ bool ControlFlowConversionState::Impl::blendDivergentLoopExitMasks(
           "Divergent loop exit mask does not have a persist instruction");
 
       PHINode *blend =
-          PHINode::Create(prev->getType(), 2, prev->getName() + ".blend",
-                          &LTag.pureExit->front());
+          PHINode::Create(prev->getType(), 2, prev->getName() + ".blend");
+      multi_llvm::insertBefore(blend, LTag.pureExit->begin());
 
       // Replace all uses outside the loop.
       VECZ_FAIL_IF(!replaceUsesOutsideDivergentLoop(LTag, update, blend,
@@ -2944,8 +2949,8 @@ bool ControlFlowConversionState::Impl::blendInstructions() {
     Type *T = opDef->getType();
     const unsigned numPreds = std::distance(pred_begin(B), pred_end(B));
     Value *blend = nullptr;
-    PHINode *PHI =
-        PHINode::Create(T, numPreds, opDef->getName() + ".merge", &B->front());
+    PHINode *PHI = PHINode::Create(T, numPreds, opDef->getName() + ".merge");
+    multi_llvm::insertBefore(PHI, B->begin());
 
     auto const *const LTag = DR->getTag(B).loop;
     bool hasVisitedPred = false;

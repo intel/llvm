@@ -23,7 +23,7 @@
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Transforms/Utils/Cloning.h>
-#include <multi_llvm/multi_llvm.h>
+#include <multi_llvm/basicblock_helper.h>
 
 #include <numeric>
 #include <queue>
@@ -1023,8 +1023,8 @@ bool ControlFlowConversionState::BOSCCGadget::blendFinalize() {
                         << blendPoint->getName() << "\n");
 
       PHINode *blend = PHINode::Create(liveIn->getType(), 2,
-                                       liveIn->getName() + ".boscc_blend",
-                                       &blendPoint->front());
+                                       liveIn->getName() + ".boscc_blend");
+      multi_llvm::insertBefore(blend, blendPoint->begin());
       bool replaceUniform = false;
       bool replacePredicate = false;
       // For each predecessor, if it can reach the instruction, set the
@@ -1093,8 +1093,8 @@ bool ControlFlowConversionState::BOSCCGadget::blendFinalize() {
                        << " in " << target->getName() << "\n");
 
             PHINode *blend = PHINode::Create(
-                incoming->getType(), 1, incoming->getName() + ".boscc_lcssa",
-                &target->front());
+                incoming->getType(), 1, incoming->getName() + ".boscc_lcssa");
+            multi_llvm::insertBefore(blend, target->begin());
             blend->addIncoming(incoming, runtimeCheckerBlock);
             PHI->setIncomingValue(idx, blend);
           }
@@ -1216,8 +1216,8 @@ bool ControlFlowConversionState::BOSCCGadget::updateLoopBlendValues(
     LoopTag *LTag, Instruction *from, Instruction *to) {
   auto createLatchIncoming = [&from, &LTag, this] {
     auto *ret =
-        PHINode::Create(from->getType(), 2, from->getName() + ".boscc_blend",
-                        &LTag->latch->front());
+        PHINode::Create(from->getType(), 2, from->getName() + ".boscc_blend");
+    multi_llvm::insertBefore(ret, LTag->latch->begin());
     Value *uniform = getUniformV(from);
     Value *default_val = getDefaultValue(from->getType());
     for (BasicBlock *pred : predecessors(LTag->latch)) {
