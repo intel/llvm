@@ -78,6 +78,7 @@ jobs:
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: opencl:cpu
             tests_selector: cts
+            ninja_build_cts_extra_args: '-j8'
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
