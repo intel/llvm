@@ -171,15 +171,15 @@ void testTypes() {
   }
 }
 
-typedef  uint8_t  uint8_t2  __attribute__((ext_vector_type(2)));
-typedef uint16_t uint16_t2  __attribute__((ext_vector_type(2)));
-typedef uint32_t uint32_t2  __attribute__((ext_vector_type(2)));
-typedef uint64_t uint64_t2  __attribute__((ext_vector_type(2)));
+using  uint8_t2 =  uint8_t __attribute__((ext_vector_type(2)));
+using uint16_t2 = uint16_t __attribute__((ext_vector_type(2)));
+using uint32_t2 = uint32_t __attribute__((ext_vector_type(2)));
+using uint64_t2 = uint64_t __attribute__((ext_vector_type(2)));
 
-typedef  uint8_t  uint8_t4  __attribute__((ext_vector_type(4)));
-typedef uint16_t uint16_t4  __attribute__((ext_vector_type(4)));
-typedef uint32_t uint32_t4  __attribute__((ext_vector_type(4)));
-typedef uint64_t uint64_t4  __attribute__((ext_vector_type(4)));
+using  uint8_t4 =  uint8_t __attribute__((ext_vector_type(4)));
+using uint16_t4 = uint16_t __attribute__((ext_vector_type(4)));
+using uint32_t4 = uint32_t __attribute__((ext_vector_type(4)));
+using uint64_t4 = uint64_t __attribute__((ext_vector_type(4)));
 
 int main() {
   queue q;
