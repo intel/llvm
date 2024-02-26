@@ -122,7 +122,8 @@
 // RUN: %clangxx -fsycl %s -fno-sycl-device-lib=libc,all,libm-fp64,libm-fp32 --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_UNBUNDLE_NO_DEVICE_LIB
 // SYCL_DEVICE_LIB_UNBUNDLE_NO_DEVICE_LIB: {{.*}}clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"
-// SYCL_DEVICE_LIB_UNBUNDLE_NO_DEVICE_LIB-NEXT: {{.*}}llvm-link{{.*}} {{.*}} "--suppress-warnings"
+// SYCL_DEVICE_LIB_UNBUNDLE_NO_DEVICE_LIB-NOT: libsycl-cmath
+// SYCL_DEVICE_LIB_UNBUNDLE_NO_DEVICE_LIB: {{.*}}llvm-link{{.*}} {{.*}} "--suppress-warnings"
 
 /// ###########################################################################
 

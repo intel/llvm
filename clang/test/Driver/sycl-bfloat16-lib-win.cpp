@@ -124,7 +124,9 @@
 // BFLOAT16-FALLBACK-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-{{spir64_gen-|spir64-}}unknown-unknown" "-input={{.*}}libsycl-fallback-imf-bf16.obj" "-output={{.*}}libsycl-fallback-imf-bf16-{{.*}}.o" "-unbundle"
 // BFLOAT16-FALLBACK-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-{{spir64_gen-|spir64-}}unknown-unknown" "-input={{.*}}libsycl-fallback-bfloat16.obj"
 
-// BFLOAT16-NONE-NATIVE: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-crt.obj" "-output={{.*}}libsycl-crt-{{.*}}.obj" "-unbundle"
+// BFLOAT16-NONE-NATIVE: clang-{{.*}} "-triple" "spir64-unknown-unknown"
+// BFLOAT16-NONE-NATIVE-NEXT: llvm-link{{.*}}
+// BFLOAT16-NONE-NATIVE-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-crt.obj" "-output={{.*}}libsycl-crt-{{.*}}.obj" "-unbundle"
 // BFLOAT16-NONE-NATIVE-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-complex.obj" "-output={{.*}}libsycl-complex-{{.*}}.obj" "-unbundle"
 // BFLOAT16-NONE-NATIVE-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-complex-fp64.obj" "-output={{.*}}libsycl-complex-fp64-{{.*}}.obj" "-unbundle"
 // BFLOAT16-NONE-NATIVE-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-cmath.obj" "-output={{.*}}libsycl-cmath-{{.*}}.obj" "-unbundle"
@@ -151,8 +153,6 @@
 // BFLOAT16-NONE-NATIVE-NEXT: file-table-tform{{.*}}
 // BFLOAT16-NONE-NATIVE-NEXT: clang-offload-wrapper{{.*}}
 // BFLOAT16-NONE-NATIVE-NEXT: llc{{.*}}
-// BFLOAT16-NONE-NATIVE-NEXT: clang-16{{.*}}
-// BFLOAT16-NONE-NATIVE-NEXT: llvm-link{{.*}}
 // BFLOAT16-NONE-NATIVE: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen-unknown-unknown" "-input={{.*}}libsycl-crt.obj" "-output={{.*}}libsycl-crt-{{.*}}.obj" "-unbundle"
 // BFLOAT16-NONE-NATIVE-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen-unknown-unknown" "-input={{.*}}libsycl-complex.obj" "-output={{.*}}libsycl-complex-{{.*}}.obj" "-unbundle"
 // BFLOAT16-NONE-NATIVE-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen-unknown-unknown" "-input={{.*}}libsycl-complex-fp64.obj" "-output={{.*}}libsycl-complex-fp64-{{.*}}.obj" "-unbundle"
@@ -172,7 +172,9 @@
 // BFLOAT16-NONE-NATIVE-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen-unknown-unknown" "-input={{.*}}libsycl-fallback-imf-bf16.obj" "-output={{.*}}libsycl-fallback-imf-bf16-{{.*}}.obj" "-unbundle"
 // BFLOAT16-NONE-NATIVE-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen-unknown-unknown" "-input={{.*}}libsycl-native-bfloat16.obj"
 
-// BFLOAT16-NONE-FALLBACK: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-crt.obj" "-output={{.*}}libsycl-crt-{{.*}}.obj" "-unbundle"
+// BFLOAT16-NONE-FALLBACK: clang-{{.*}} "-triple" "spir64-unknown-unknown"
+// BFLOAT16-NONE-FALLBACK-NEXT: llvm-link{{.*}}
+// BFLOAT16-NONE-FALLBACK-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-crt.obj" "-output={{.*}}libsycl-crt-{{.*}}.obj" "-unbundle"
 // BFLOAT16-NONE-FALLBACK-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-complex.obj" "-output={{.*}}libsycl-complex-{{.*}}.obj" "-unbundle"
 // BFLOAT16-NONE-FALLBACK-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-complex-fp64.obj" "-output={{.*}}libsycl-complex-fp64-{{.*}}.obj" "-unbundle"
 // BFLOAT16-NONE-FALLBACK-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-cmath.obj" "-output={{.*}}libsycl-cmath-{{.*}}.obj" "-unbundle"
@@ -199,8 +201,6 @@
 // BFLOAT16-NONE-FALLBACK-NEXT: file-table-tform{{.*}}
 // BFLOAT16-NONE-FALLBACK-NEXT: clang-offload-wrapper{{.*}}
 // BFLOAT16-NONE-FALLBACK-NEXT: llc{{.*}}
-// BFLOAT16-NONE-FALLBACK-NEXT: clang-16{{.*}}
-// BFLOAT16-NONE-FALLBACK-NEXT: llvm-link{{.*}}
 // BFLOAT16-NONE-FALLBACK: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen-unknown-unknown" "-input={{.*}}libsycl-crt.obj" "-output={{.*}}libsycl-crt-{{.*}}.obj" "-unbundle"
 // BFLOAT16-NONE-FALLBACK-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen-unknown-unknown" "-input={{.*}}libsycl-complex.obj" "-output={{.*}}libsycl-complex-{{.*}}.obj" "-unbundle"
 // BFLOAT16-NONE-FALLBACK-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen-unknown-unknown" "-input={{.*}}libsycl-complex-fp64.obj" "-output={{.*}}libsycl-complex-fp64-{{.*}}.obj" "-unbundle"
@@ -220,7 +220,9 @@
 // BFLOAT16-NONE-FALLBACK-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen-unknown-unknown" "-input={{.*}}libsycl-fallback-imf-bf16.obj" "-output={{.*}}libsycl-fallback-imf-bf16-{{.*}}.obj" "-unbundle"
 // BFLOAT16-NONE-FALLBACK-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen-unknown-unknown" "-input={{.*}}libsycl-fallback-bfloat16.obj"
 
-// BFLOAT16-FALLBACK-NATIVE: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-crt.obj" "-output={{.*}}libsycl-crt-{{.*}}.obj" "-unbundle"
+// BFLOAT16-FALLBACK-NATIVE: clang-{{.*}} "-triple" "spir64_x86_64-unknown-unknown"
+// BFLOAT16-FALLBACK-NATIVE-NEXT: llvm-link{{.*}}
+// BFLOAT16-FALLBACK-NATIVE-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-crt.obj" "-output={{.*}}libsycl-crt-{{.*}}.obj" "-unbundle"
 // BFLOAT16-FALLBACK-NATIVE-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-complex.obj" "-output={{.*}}libsycl-complex-{{.*}}.obj" "-unbundle"
 // BFLOAT16-FALLBACK-NATIVE-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-complex-fp64.obj" "-output={{.*}}libsycl-complex-fp64-{{.*}}.obj" "-unbundle"
 // BFLOAT16-FALLBACK-NATIVE-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-cmath.obj" "-output={{.*}}libsycl-cmath-{{.*}}.obj" "-unbundle"
@@ -249,8 +251,6 @@
 // BFLOAT16-FALLBACK-NATIVE-NEXT: file-table-tform{{.*}}
 // BFLOAT16-FALLBACK-NATIVE-NEXT: clang-offload-wrapper{{.*}}
 // BFLOAT16-FALLBACK-NATIVE-NEXT: llc{{.*}}
-// BFLOAT16-FALLBACK-NATIVE-NEXT: clang-16{{.*}}
-// BFLOAT16-FALLBACK-NATIVE-NEXT: llvm-link{{.*}}
 // BFLOAT16-FALLBACK-NATIVE: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen-unknown-unknown" "-input={{.*}}libsycl-crt.obj" "-output={{.*}}libsycl-crt-{{.*}}.obj" "-unbundle"
 // BFLOAT16-FALLBACK-NATIVE-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen-unknown-unknown" "-input={{.*}}libsycl-complex.obj" "-output={{.*}}libsycl-complex-{{.*}}.obj" "-unbundle"
 // BFLOAT16-FALLBACK-NATIVE-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen-unknown-unknown" "-input={{.*}}libsycl-complex-fp64.obj" "-output={{.*}}libsycl-complex-fp64-{{.*}}.obj" "-unbundle"
@@ -270,7 +270,9 @@
 // BFLOAT16-FALLBACK-NATIVE-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen-unknown-unknown" "-input={{.*}}libsycl-fallback-imf-bf16.obj" "-output={{.*}}libsycl-fallback-imf-bf16-{{.*}}.obj" "-unbundle"
 // BFLOAT16-FALLBACK-NATIVE-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen-unknown-unknown" "-input={{.*}}libsycl-native-bfloat16.obj"
 
-// BFLOAT16-FALLBACK-FALLBACK: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-crt.obj" "-output={{.*}}libsycl-crt-{{.*}}.obj" "-unbundle"
+// BFLOAT16-FALLBACK-FALLBACK: clang-{{.*}} "-triple "spir64_x86_64-unknown-unknown"
+// BFLOAT16-FALLBACK-FALLBACK-NEXT: llvm-link{{.*}}
+// BFLOAT16-FALLBACK-FALLBACK-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-crt.obj" "-output={{.*}}libsycl-crt-{{.*}}.obj" "-unbundle"
 // BFLOAT16-FALLBACK-FALLBACK-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-complex.obj" "-output={{.*}}libsycl-complex-{{.*}}.obj" "-unbundle"
 // BFLOAT16-FALLBACK-FALLBACK-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-complex-fp64.obj" "-output={{.*}}libsycl-complex-fp64-{{.*}}.obj" "-unbundle"
 // BFLOAT16-FALLBACK-FALLBACK-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_x86_64-unknown-unknown" "-input={{.*}}libsycl-cmath.obj" "-output={{.*}}libsycl-cmath-{{.*}}.obj" "-unbundle"
@@ -299,8 +301,6 @@
 // BFLOAT16-FALLBACK-FALLBACK-NEXT: file-table-tform{{.*}}
 // BFLOAT16-FALLBACK-FALLBACK-NEXT: clang-offload-wrapper{{.*}}
 // BFLOAT16-FALLBACK-FALLBACK-NEXT: llc{{.*}}
-// BFLOAT16-FALLBACK-FALLBACK-NEXT: clang-16{{.*}}
-// BFLOAT16-FALLBACK-FALLBACK-NEXT: llvm-link{{.*}}
 // BFLOAT16-FALLBACK-FALLBACK: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen-unknown-unknown" "-input={{.*}}libsycl-crt.obj" "-output={{.*}}libsycl-crt-{{.*}}.obj" "-unbundle"
 // BFLOAT16-FALLBACK-FALLBACK-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen-unknown-unknown" "-input={{.*}}libsycl-complex.obj" "-output={{.*}}libsycl-complex-{{.*}}.obj" "-unbundle"
 // BFLOAT16-FALLBACK-FALLBACK-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64_gen-unknown-unknown" "-input={{.*}}libsycl-complex-fp64.obj" "-output={{.*}}libsycl-complex-fp64-{{.*}}.obj" "-unbundle"
