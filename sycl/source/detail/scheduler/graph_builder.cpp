@@ -963,10 +963,11 @@ Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
       for (auto Ev = Events.begin(); Ev != Events.end();) {
         auto *EvDepCmd = static_cast<Command *>((*Ev)->getCommand());
         if (!EvDepCmd) {
+          ++Ev;
           continue;
         }
-        // Handle event dependencies on any commands part of another active
-        // fusion.
+        // Event dependencies on commands part of another active fusion are
+        // handled by cancelling fusion in that other queue.
         if (EvDepCmd->getQueue() != Queue && isPartOfActiveFusion(EvDepCmd)) {
           printFusionWarning(
               "Aborting fusion because of event dependency from a "
@@ -1015,8 +1016,13 @@ Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
     } else {
       std::string s;
       std::stringstream ss(s);
-      ss << "Not fusing '" << NewCmd->getTypeString()
-         << "' command group. Can only fuse device kernel command groups.";
+      if (NewCmd->getCG().getType() == CG::CGTYPE::Kernel) {
+        ss << "Not fusing kernel with 'use_root_sync' property. Can only fuse "
+              "non-cooperative device kernels.";
+      } else {
+        ss << "Not fusing '" << NewCmd->getTypeString()
+           << "' command group. Can only fuse device kernel command groups.";
+      }
       printFusionWarning(ss.str());
     }
   }

@@ -36,6 +36,15 @@ __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device,
 __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device,
                          mipmap_max_anisotropy, float,
                          PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY)
+
+// Composite devices
+__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device,
+                         component_devices, std::vector<sycl::device>,
+                         PI_EXT_ONEAPI_DEVICE_INFO_COMPONENT_DEVICES)
+__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device,
+                         composite_device, sycl::device,
+                         PI_EXT_ONEAPI_DEVICE_INFO_COMPOSITE_DEVICE)
+
 #ifdef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF

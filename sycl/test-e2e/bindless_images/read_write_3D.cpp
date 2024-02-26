@@ -73,18 +73,18 @@ int main() {
             size_t dim1 = it.get_local_id(1);
             size_t dim2 = it.get_local_id(2);
             float sum = 0;
-            // Extension: read image data from handle
+            // Extension: fetch image data from handle
             sycl::float4 px1 =
-                sycl::ext::oneapi::experimental::read_image<sycl::float4>(
-                    imgIn1, sycl::int4(dim0, dim1, dim2, 0));
+                sycl::ext::oneapi::experimental::fetch_image<sycl::float4>(
+                    imgIn1, sycl::int3(dim0, dim1, dim2));
             sycl::float4 px2 =
-                sycl::ext::oneapi::experimental::read_image<sycl::float4>(
-                    imgIn2, sycl::int4(dim0, dim1, dim2, 0));
+                sycl::ext::oneapi::experimental::fetch_image<sycl::float4>(
+                    imgIn2, sycl::int3(dim0, dim1, dim2));
 
             sum = px1[0] + px2[0];
             // Extension: write to image with handle
             sycl::ext::oneapi::experimental::write_image<sycl::float4>(
-                imgOut, sycl::int4(dim0, dim1, dim2, 0), sycl::float4(sum));
+                imgOut, sycl::int3(dim0, dim1, dim2), sycl::float4(sum));
           });
     });
 

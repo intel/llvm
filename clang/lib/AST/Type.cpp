@@ -3444,6 +3444,7 @@ StringRef FunctionType::getNameForCallConv(CallingConv CC) {
   case CC_PreserveMost: return "preserve_most";
   case CC_PreserveAll: return "preserve_all";
   case CC_M68kRTD: return "m68k_rtd";
+  case CC_PreserveNone: return "preserve_none";
   }
 
   llvm_unreachable("Invalid calling convention.");
@@ -3860,6 +3861,12 @@ PackIndexingType::computeDependence(QualType Pattern, Expr *IndexExpr,
 
   if (!(IndexD & TypeDependence::UnexpandedPack))
     TD &= ~TypeDependence::UnexpandedPack;
+
+  // If the pattern does not contain an unexpended pack,
+  // the type is still dependent, and invalid
+  if (!Pattern->containsUnexpandedParameterPack())
+    TD |= TypeDependence::Error | TypeDependence::DependentInstantiation;
+
   return TD;
 }
 
@@ -3990,6 +3997,7 @@ bool AttributedType::isCallingConv() const {
   case attr::PreserveMost:
   case attr::PreserveAll:
   case attr::M68kRTD:
+  case attr::PreserveNone:
     return true;
   }
   llvm_unreachable("invalid attr kind");
