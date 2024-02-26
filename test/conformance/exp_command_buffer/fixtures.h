@@ -59,6 +59,9 @@ struct urCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::SetUp());
 
+        ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                         sizeof(backend), &backend, nullptr));
+
         size_t returned_size;
         ASSERT_SUCCESS(urDeviceGetInfo(device, UR_DEVICE_INFO_EXTENSIONS, 0,
                                        nullptr, &returned_size));
@@ -97,6 +100,7 @@ struct urCommandBufferExpExecutionTest : uur::urKernelExecutionTest {
 
     ur_exp_command_buffer_handle_t cmd_buf_handle = nullptr;
     ur_bool_t updatable_command_buffer_support = false;
+    ur_platform_backend_t backend;
 };
 
 struct urUpdatableCommandBufferExpExecutionTest
