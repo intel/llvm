@@ -1269,10 +1269,10 @@ extern __DPCPP_SYCL_EXTERNAL
 
 template <typename RetT, typename... ArgsT>
 extern __DPCPP_SYCL_EXTERNAL __spirv_TaskSequenceINTEL *
-__spirv_TaskSequenceCreateINTEL(RetT (*f)(ArgsT...), int32_t Pipelined = -1,
-                                uint16_t ClusterMode = -1,
-                                uint32_t ResponseCapacity = 0,
-                                uint32_t InvocationCapacity = 0) noexcept;
+__spirv_TaskSequenceCreateINTEL(RetT (*f)(ArgsT...), int Pipelined = -1,
+                                int ClusterMode = -1,
+                                unsigned int ResponseCapacity = 0,
+                                unsigned int InvocationCapacity = 0) noexcept;
 
 template <typename... ArgsT>
 extern __DPCPP_SYCL_EXTERNAL void

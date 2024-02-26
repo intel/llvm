@@ -114,12 +114,15 @@ private:
   static constexpr int32_t pipelined =
       oneapi::experimental::detail::ValueOrDefault<
           property_list_t, pipelined_key>::template get<int32_t>(-1);
-  static constexpr uint32_t fpga_cluster = static_cast<
-      typename std::underlying_type<fpga_cluster_options_enum>::type>(
-      oneapi::experimental::detail::ValueOrDefault<property_list_t,
-                                                   fpga_cluster_key>::
-          template get<fpga_cluster_options_enum>(
-              fpga_cluster_options_enum::stall_free));
+  static constexpr int32_t fpga_cluster =
+      has_property<fpga_cluster_key>()
+          ? static_cast<
+                typename std::underlying_type<fpga_cluster_options_enum>::type>(
+                oneapi::experimental::detail::ValueOrDefault<property_list_t,
+                                                             fpga_cluster_key>::
+                    template get<fpga_cluster_options_enum>(
+                        fpga_cluster_options_enum::stall_free))
+          : -1;
   static constexpr uint32_t response_capacity =
       oneapi::experimental::detail::ValueOrDefault<
           property_list_t, response_capacity_key>::template get<uint32_t>(0);

@@ -12,8 +12,6 @@
 #include <sycl/ext/oneapi/properties/property.hpp>       // for PropKind
 #include <sycl/ext/oneapi/properties/property_value.hpp> // for property_value
 
-#include <cstdint>     // for uint32_t
-#include <iosfwd>      // for nullptr_t
 #include <type_traits> // for true_type
 
 namespace sycl {
@@ -32,21 +30,21 @@ struct balanced_key {
 };
 
 struct invocation_capacity_key {
-  template <std::uint32_t Size>
+  template <unsigned int Size>
   using value_t = property_value<invocation_capacity_key,
-                                 std::integral_constant<uint32_t, Size>>;
+                                 std::integral_constant<unsigned int, Size>>;
 };
 
 struct response_capacity_key {
-  template <uint32_t Size>
+  template <unsigned int Size>
   using value_t = property_value<response_capacity_key,
-                                 std::integral_constant<uint32_t, Size>>;
+                                 std::integral_constant<unsigned int, Size>>;
 };
 
 inline constexpr balanced_key::value_t balanced;
-template <uint32_t Size>
+template <unsigned int Size>
 inline constexpr invocation_capacity_key::value_t<Size> invocation_capacity;
-template <uint32_t Size>
+template <unsigned int Size>
 inline constexpr response_capacity_key::value_t<Size> response_capacity;
 
 } // namespace ext::intel::experimental
