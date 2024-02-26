@@ -3708,6 +3708,50 @@ __urdlllocal ur_result_t UR_APICALL urQueueFlush(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urQueueGetSuggestedLocalWorkSize
+__urdlllocal ur_result_t UR_APICALL urQueueGetSuggestedLocalWorkSize(
+    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel.
+    uint32_t
+        workDim, ///< [in] number of dimensions, from 1 to 3, to specify the global and
+                 ///< work-group work-items
+    const size_t *
+        pGlobalWorkOffset, ///< [in] pointer to an array of workDim unsigned values that specify the
+    ///< offset used to calculate the global ID of a work-item
+    const size_t *
+        pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify the
+    ///< number of global work-items in workDim that will execute the kernel
+    ///< function
+    const size_t *
+        pSuggestedLocalWorkSize ///< [out] pointer to an array of workDim unsigned values that specify the
+    ///< number of local work-items forming a work-group that will execute the
+    ///< kernel function.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_queue_object_t *>(hQueue)->dditable;
+    auto pfnGetSuggestedLocalWorkSize =
+        dditable->ur.Queue.pfnGetSuggestedLocalWorkSize;
+    if (nullptr == pfnGetSuggestedLocalWorkSize) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
+
+    // convert loader handle to platform handle
+    hKernel = reinterpret_cast<ur_kernel_object_t *>(hKernel)->handle;
+
+    // forward to device-platform
+    result = pfnGetSuggestedLocalWorkSize(hQueue, hKernel, workDim,
+                                          pGlobalWorkOffset, pGlobalWorkSize,
+                                          pSuggestedLocalWorkSize);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEventGetInfo
 __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
     ur_event_handle_t hEvent, ///< [in] handle of the event object
@@ -8870,6 +8914,8 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
                 ur_loader::urQueueCreateWithNativeHandle;
             pDdiTable->pfnFinish = ur_loader::urQueueFinish;
             pDdiTable->pfnFlush = ur_loader::urQueueFlush;
+            pDdiTable->pfnGetSuggestedLocalWorkSize =
+                ur_loader::urQueueGetSuggestedLocalWorkSize;
         } else {
             // return pointers directly to platform's DDIs
             *pDdiTable =

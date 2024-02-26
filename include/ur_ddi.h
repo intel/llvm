@@ -712,6 +712,16 @@ typedef ur_result_t(UR_APICALL *ur_pfnQueueFlush_t)(
     ur_queue_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urQueueGetSuggestedLocalWorkSize
+typedef ur_result_t(UR_APICALL *ur_pfnQueueGetSuggestedLocalWorkSize_t)(
+    ur_queue_handle_t,
+    ur_kernel_handle_t,
+    uint32_t,
+    const size_t *,
+    const size_t *,
+    const size_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Queue functions pointers
 typedef struct ur_queue_dditable_t {
     ur_pfnQueueGetInfo_t pfnGetInfo;
@@ -722,6 +732,7 @@ typedef struct ur_queue_dditable_t {
     ur_pfnQueueCreateWithNativeHandle_t pfnCreateWithNativeHandle;
     ur_pfnQueueFinish_t pfnFinish;
     ur_pfnQueueFlush_t pfnFlush;
+    ur_pfnQueueGetSuggestedLocalWorkSize_t pfnGetSuggestedLocalWorkSize;
 } ur_queue_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////
