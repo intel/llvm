@@ -32,6 +32,7 @@ enum class DeviceSanitizerMemoryType : int32_t {
     LOCAL,
     PRIVATE,
     MEM_BUFFER,
+    DEVICE_GLOBAL,
 };
 
 struct DeviceSanitizerReport {
@@ -58,26 +59,28 @@ struct DeviceSanitizerReport {
     bool IsRecover = false;
 };
 
-inline const char *DeviceSanitizerFormat(DeviceSanitizerMemoryType MemoryType) {
+inline const char *ToString(DeviceSanitizerMemoryType MemoryType) {
     switch (MemoryType) {
     case DeviceSanitizerMemoryType::USM_DEVICE:
-        return "USM Device Memory";
+        return "Device USM";
     case DeviceSanitizerMemoryType::USM_HOST:
-        return "USM Host Memory";
+        return "Host USM";
     case DeviceSanitizerMemoryType::USM_SHARED:
-        return "USM Shared Memory";
+        return "Shared USM";
     case DeviceSanitizerMemoryType::LOCAL:
         return "Local Memory";
     case DeviceSanitizerMemoryType::PRIVATE:
         return "Private Memory";
     case DeviceSanitizerMemoryType::MEM_BUFFER:
         return "Memory Buffer";
+    case DeviceSanitizerMemoryType::DEVICE_GLOBAL:
+        return "Device Global";
     default:
         return "Unknown Memory";
     }
 }
 
-inline const char *DeviceSanitizerFormat(DeviceSanitizerErrorType ErrorType) {
+inline const char *ToString(DeviceSanitizerErrorType ErrorType) {
     switch (ErrorType) {
     case DeviceSanitizerErrorType::OUT_OF_BOUNDS:
         return "out-of-bounds-access";
