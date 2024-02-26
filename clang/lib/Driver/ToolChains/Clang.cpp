@@ -5424,6 +5424,19 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     bool HasFPGA = false;
     for (auto TI = SYCLTCRange.first, TE = SYCLTCRange.second; TI != TE; ++TI) {
       llvm::Triple SYCLTriple = TI->second->getTriple();
+      if (SYCLTriple.isNVPTX() && IsSYCLCUDACompat && !IsSYCLOffloadDevice) {
+        CmdArgs.push_back("-aux-triple");
+        CmdArgs.push_back(Args.MakeArgString(SYCLTriple.normalize()));
+        // We need to figure out which CUDA version we're compiling for, as that
+        // determines how we load and launch GPU kernels.
+        auto *CTC = static_cast<const toolchains::CudaToolChain *>(TI->second);
+        assert(CTC && "Expected valid CUDA Toolchain.");
+        if (CTC && CTC->CudaInstallation.version() != CudaVersion::UNKNOWN)
+          CmdArgs.push_back(Args.MakeArgString(
+              Twine("-target-sdk-version=") +
+              CudaVersionToString(CTC->CudaInstallation.version())));
+        break;
+      }
       if (SYCLTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
         HasFPGA = true;
         if (!IsSYCLOffloadDevice) {
