@@ -314,6 +314,10 @@ class ur_name_handle_t(c_void_p):
 </table>
 
 #### type: enum
+
+In the following section the word *enumerator* is abbreviated to `etor` and the
+plural form *enumerators* is abbreviated to `etors`.
+
 * An enum initiates the creation of a C/C++ `enum` declaration in the specification
 * An enum requires the following scalar fields: {`desc`, `name`}
   - `desc` will be used as the enum's description comment
