@@ -131,11 +131,6 @@ createGenISAFpToFp(GENX::FpToFpOp op, llvm::IRBuilderBase &builder,
   llvm::Type *resTy = moduleTranslation.convertType(op->getResultTypes()[0]);
   unsigned resTySizeInBits = resTy->getScalarSizeInBits();
   unsigned srcTySizeInBits = args[0]->getType()->getScalarSizeInBits();
-  // TODO: Add verifier.
-  assert(srcTySizeInBits != resTySizeInBits &&
-         "Expecting first argument and result size to be different");
-  assert((op.getRoundingMode() || srcTySizeInBits < resTySizeInBits) &&
-         "Expecting rounding mode for truncation");
   llvm::Intrinsic::ID id =
       srcTySizeInBits > resTySizeInBits
           ? llvm::Intrinsic::experimental_constrained_fptrunc

@@ -228,6 +228,8 @@ def GENX_FpToFpOp : GENX_Op<"conv.fptofp">,
   let assemblyFormat = [{
     $arg attr-dict `:` type($arg) `to` type($res)
   }];
+
+  let hasVerifier = 1;
 }
 
 //===----------------------------------------------------------------------===//
