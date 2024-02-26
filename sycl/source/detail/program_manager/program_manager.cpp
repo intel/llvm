@@ -944,7 +944,7 @@ ProgramManager::ProgramManager() : m_AsanFoundInImage(false) {
     // blocked until the construction of the ProgramManager singleton is
     // finished.
     m_SpvFileImage =
-        make_unique_ptr<DynRTDeviceBinaryImage>(std::move(Data), Size);
+        std::make_unique<DynRTDeviceBinaryImage>(std::move(Data), Size);
 
     if (DbgProgMgr > 0) {
       std::cerr << "loaded device image binary from " << SpvFile << "\n";
@@ -1263,7 +1263,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
     if (EntriesB == EntriesE)
       continue;
 
-    auto Img = make_unique_ptr<RTDeviceBinaryImage>(RawImg);
+    auto Img = std::make_unique<RTDeviceBinaryImage>(RawImg);
     static uint32_t SequenceID = 0;
 
     // Fill the kernel argument mask map
