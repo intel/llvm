@@ -345,8 +345,9 @@ class DispatchHostTask {
       if (RawEvents.size() == 0)
         continue;
       try {
-        PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
-                                                              RawEvents.data());
+        if (RawEvents.size())
+          PluginWithEvents.first->call<PiApiKind::piEventsWait>(
+              RawEvents.size(), RawEvents.data());
       } catch (const sycl::exception &E) {
         CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
         HostTask.MQueue->reportAsyncException(std::current_exception());
