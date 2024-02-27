@@ -82,11 +82,12 @@ TEST_P(BufferFillCommandTest, UpdateParameters) {
     };
 
     // Set argument index 2 as new value to fill (index 1 is buffer accessor)
+    const uint32_t arg_index = (backend == UR_PLATFORM_BACKEND_HIP) ? 4 : 2;
     uint32_t new_val = 33;
     ur_exp_command_buffer_update_value_arg_desc_t new_input_desc = {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
         nullptr,                                                    // pNext
-        2,                                                          // argIndex
+        arg_index,                                                  // argIndex
         sizeof(new_val),                                            // argSize
         nullptr,  // pProperties
         &new_val, // hArgValue
@@ -217,10 +218,11 @@ TEST_P(BufferFillCommandTest, SeparateUpdateCalls) {
                                                         &output_update_desc));
 
     uint32_t new_val = 33;
+    const uint32_t arg_index = (backend == UR_PLATFORM_BACKEND_HIP) ? 4 : 2;
     ur_exp_command_buffer_update_value_arg_desc_t new_input_desc = {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
         nullptr,                                                    // pNext
-        2,                                                          // argIndex
+        arg_index,                                                  // argIndex
         sizeof(new_val),                                            // argSize
         nullptr,  // pProperties
         &new_val, // hArgValue
@@ -280,11 +282,12 @@ TEST_P(BufferFillCommandTest, OverrideUpdate) {
     ASSERT_SUCCESS(urQueueFinish(queue));
     ValidateBuffer(buffer, sizeof(val) * global_size, val);
 
+    const uint32_t arg_index = (backend == UR_PLATFORM_BACKEND_HIP) ? 4 : 2;
     uint32_t first_val = 33;
     ur_exp_command_buffer_update_value_arg_desc_t first_input_desc = {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
         nullptr,                                                    // pNext
-        2,                                                          // argIndex
+        arg_index,                                                  // argIndex
         sizeof(first_val),                                          // argSize
         nullptr,    // pProperties
         &first_val, // hArgValue
@@ -313,7 +316,7 @@ TEST_P(BufferFillCommandTest, OverrideUpdate) {
     ur_exp_command_buffer_update_value_arg_desc_t second_input_desc = {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
         nullptr,                                                    // pNext
-        2,                                                          // argIndex
+        arg_index,                                                  // argIndex
         sizeof(second_val),                                         // argSize
         nullptr,     // pProperties
         &second_val, // hArgValue
@@ -356,11 +359,12 @@ TEST_P(BufferFillCommandTest, OverrideArgList) {
     ValidateBuffer(buffer, sizeof(val) * global_size, val);
 
     ur_exp_command_buffer_update_value_arg_desc_t input_descs[2];
+    const uint32_t arg_index = (backend == UR_PLATFORM_BACKEND_HIP) ? 4 : 2;
     uint32_t first_val = 33;
     input_descs[0] = {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
         nullptr,                                                    // pNext
-        2,                                                          // argIndex
+        arg_index,                                                  // argIndex
         sizeof(first_val),                                          // argSize
         nullptr,    // pProperties
         &first_val, // hArgValue
@@ -370,7 +374,7 @@ TEST_P(BufferFillCommandTest, OverrideArgList) {
     input_descs[1] = {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
         nullptr,                                                    // pNext
-        2,                                                          // argIndex
+        arg_index,                                                  // argIndex
         sizeof(second_val),                                         // argSize
         nullptr,     // pProperties
         &second_val, // hArgValue
