@@ -82,14 +82,17 @@ inline constexpr uptr ComputeRZLog(uptr user_requested_size) {
             return Result;                                                     \
     }
 
-struct AddressInfo {
+struct BacktraceInfo {
     uptr offset;
     std::string module;
+    std::string debug;
+};
+
+struct SourceInfo {
     std::string file;
     std::string function;
     int line;
     int column;
-    std::string debug;
 };
 
 enum class DeviceType : uint32_t { UNKNOWN = 0, CPU, GPU_PVC, GPU_DG2 };
@@ -103,5 +106,7 @@ bool Munmap(uptr Addr, uptr Size);
 void *GetMemFunctionPointer(const char *);
 
 std::string DemangleName(const std::string &name);
+
+std::string RunCommand(const char *cmd);
 
 } // namespace ur_sanitizer_layer

@@ -10,10 +10,9 @@
  *
  */
 
-#pragma once
-
 #include "asan_report.hpp"
 #include "asan_allocator.hpp"
+#include "asan_interceptor.hpp"
 #include "device_sanitizer_report.hpp"
 #include "ur_sanitizer_layer.hpp"
 #include "ur_sanitizer_utils.hpp"
@@ -21,7 +20,7 @@
 namespace ur_sanitizer_layer {
 
 void ReportBadFree(uptr Addr, const StackTrace &stack,
-                   std::shared_ptr<USMAllocInfo> AllocInfo) {
+                   std::shared_ptr<AllocInfo> AllocInfo) {
     context.logger.always(
         "\n====ERROR: DeviceSanitizer: attempting free on address which "
         "was not malloc()-ed: {} in thread T0",
@@ -37,7 +36,7 @@ void ReportBadFree(uptr Addr, const StackTrace &stack,
     assert(!AllocInfo->IsReleased && "Chunk must be not released");
 
     context.logger.always("{} is located inside of {} region [{}, {}]",
-                          (void *)Addr, getFormatString(AllocInfo->Type),
+                          (void *)Addr, ToString(AllocInfo->Type),
                           (void *)AllocInfo->UserBegin,
                           (void *)AllocInfo->UserEnd);
     context.logger.always("allocated by thread T0 here:");
@@ -47,7 +46,7 @@ void ReportBadFree(uptr Addr, const StackTrace &stack,
 }
 
 void ReportDoubleFree(uptr Addr, const StackTrace &Stack,
-                      std::shared_ptr<USMAllocInfo> AllocInfo) {
+                      std::shared_ptr<AllocInfo> AllocInfo) {
     context.logger.always("\n====ERROR: DeviceSanitizer: double-free on {}",
                           (void *)Addr);
     Stack.Print();
@@ -56,7 +55,7 @@ void ReportDoubleFree(uptr Addr, const StackTrace &Stack,
     exit(1);
 }
 
-void ReportGenericError(DeviceSanitizerReport &Report,
+void ReportGenericError(const DeviceSanitizerReport &Report,
                         ur_kernel_handle_t Kernel, ur_context_handle_t Context,
                         ur_device_handle_t Device) {
     const char *File = Report.File[0] ? Report.File : "<unknown file>";
@@ -64,8 +63,8 @@ void ReportGenericError(DeviceSanitizerReport &Report,
     auto KernelName = getKernelName(Kernel);
 
     context.logger.always("\n====ERROR: DeviceSanitizer: {} on {}",
-                          DeviceSanitizerFormat(Report.ErrorType),
-                          DeviceSanitizerFormat(Report.MemoryType));
+                          ToString(Report.ErrorType),
+                          ToString(Report.MemoryType));
     context.logger.always(
         "{} of size {} at kernel <{}> LID({}, {}, {}) GID({}, "
         "{}, {})",
@@ -87,7 +86,7 @@ void ReportGenericError(DeviceSanitizerReport &Report,
             }
             context.logger.always(
                 "{} is located inside of {} region [{}, {}]",
-                (void *)Report.Addr, getFormatString(AllocInfo->Type),
+                (void *)Report.Addr, ToString(AllocInfo->Type),
                 (void *)AllocInfo->UserBegin, (void *)AllocInfo->UserEnd);
             context.logger.always("allocated by thread T0 here:");
             AllocInfo->AllocStack.Print();

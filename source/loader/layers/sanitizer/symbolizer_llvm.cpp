@@ -11,27 +11,13 @@
  */
 
 #include "symbolizer_llvm.hpp"
-#include "ur_sanitizer_layer.hpp"
 
 #include <sstream>
 #include <string>
 
 namespace ur_sanitizer_layer {
 
-std::string exec(const char *cmd) {
-    std::array<char, 128> buffer;
-    std::string result;
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
-    if (!pipe) {
-        throw std::runtime_error("popen() failed!");
-    }
-    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
-        result += buffer.data();
-    }
-    return result;
-}
-
-bool ExtractInfo(const std::string &output, AddressInfo *Info) {
+bool ExtractSourceInfo(const std::string &output, SourceInfo &SI) {
     auto p1 = output.find('\n');
     std::string function = output.substr(0, p1);
     auto p2 = output.find(':', ++p1);
@@ -40,24 +26,22 @@ bool ExtractInfo(const std::string &output, AddressInfo *Info) {
     int line = std::stoi(output.substr(p2, p3 - p2));
     int column = std::stoi(output.substr(++p3));
     if (function != "??") {
-        Info->function = std::move(function);
+        SI.function = std::move(function);
     }
     if (file != "??") {
-        Info->file = std::move(file);
+        SI.file = std::move(file);
     }
-    Info->line = line;
-    Info->column = column;
+    SI.line = line;
+    SI.column = column;
     return true;
 }
 
-LLVMSymbolizer::LLVMSymbolizer(const char *path) {}
-
-bool LLVMSymbolizer::SymbolizePC(AddressInfo *Info) {
+bool LLVMSymbolizer::SymbolizePC(const BacktraceInfo &BI, SourceInfo &SI) {
     std::stringstream ss;
-    ss << "llvm-symbolizer --obj=" << Info->module << " " << Info->offset;
-    auto result = exec(ss.str().c_str());
+    ss << "llvm-symbolizer --obj=" << BI.module << " " << BI.offset;
+    auto result = RunCommand(ss.str().c_str());
     // context.logger.debug("llvm-symbolizer: {}", result);
-    ExtractInfo(result, Info);
+    ExtractSourceInfo(result, SI);
     return true;
 }
 

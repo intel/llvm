@@ -8,7 +8,6 @@
  *
  */
 #include "stacktrace.hpp"
-#include "ur_sanitizer_layer.hpp"
 
 #include <cstring>
 #include <execinfo.h>
@@ -16,7 +15,7 @@
 
 namespace ur_sanitizer_layer {
 
-bool ExtractSymbolInfo(const char *symbol, AddressInfo &info) {
+bool ExtractSymbolInfo(const char *symbol, BacktraceInfo &info) {
     info.debug = std::string(symbol);
 
     auto s1 = std::strrchr(symbol, '(');
@@ -37,7 +36,7 @@ StackTrace GetCurrentBacktrace() {
 
     StackTrace stack;
     for (int i = 0; i < frameCount; i++) {
-        AddressInfo addr_info;
+        BacktraceInfo addr_info;
         if (!ExtractSymbolInfo(backtraceStr[i], addr_info)) {
             continue;
         }

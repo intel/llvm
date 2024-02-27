@@ -14,11 +14,11 @@
 
 namespace ur_sanitizer_layer {
 
-std::vector<std::shared_ptr<USMAllocInfo>>
-Quarantine::put(ur_device_handle_t Device, std::shared_ptr<USMAllocInfo> &Ptr) {
+std::vector<std::shared_ptr<AllocInfo>>
+Quarantine::put(ur_device_handle_t Device, std::shared_ptr<AllocInfo> &Ptr) {
     auto AllocSize = Ptr->AllocSize;
     auto &Cache = m_Map[Device];
-    std::vector<std::shared_ptr<USMAllocInfo>> DequeueList;
+    std::vector<std::shared_ptr<AllocInfo>> DequeueList;
     while (Cache.Size() + AllocSize > m_MaxQuarantineSize) {
         DequeueList.emplace_back(Cache.Dequeue());
     }

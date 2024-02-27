@@ -29,29 +29,32 @@ bool startWith(const std::string &Str, const char *Pattern) {
     return Str.rfind(Pattern, 0) == 0;
 }
 
-void StackTrace::Print() {
+void StackTrace::Print() const {
     if (!stack.size()) {
         context.logger.always("  failed to acquire backtrace");
     }
-    LLVMSymbolizer symbolizer("");
+
+    LLVMSymbolizer symbolizer;
     unsigned index = 0;
-    for (auto &Addr : stack) {
-        auto ModuleFile = getFileName(Addr.module);
+
+    for (auto &BI : stack) {
+        auto ModuleFile = getFileName(BI.module);
         if (startWith(ModuleFile, "libsycl.so") ||
             startWith(ModuleFile, "libpi_unified_runtime.so") ||
             startWith(ModuleFile, "libur_loader.so")) {
             continue;
         }
-        symbolizer.SymbolizePC(&Addr);
 
-        if (!Addr.file.empty()) {
+        SourceInfo SI;
+        symbolizer.SymbolizePC(BI, SI);
+
+        if (!SI.file.empty()) {
             context.logger.always("  #{} {} in {} {}:{}:{}", index,
-                                  (void *)Addr.offset, Addr.function, Addr.file,
-                                  Addr.line, Addr.column);
+                                  (void *)BI.offset, SI.function, SI.file,
+                                  SI.line, SI.column);
         } else {
-            context.logger.always("  #{} {} in {} {}", index,
-                                  (void *)Addr.offset, Addr.function,
-                                  Addr.module);
+            context.logger.always("  #{} {} in {} {}", index, (void *)BI.offset,
+                                  SI.function, BI.module);
         }
         ++index;
     }
