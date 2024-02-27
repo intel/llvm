@@ -16,7 +16,6 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/info/info_desc.hpp>
-#include <sycl/stl.hpp>
 
 namespace sycl {
 inline namespace _V1 {

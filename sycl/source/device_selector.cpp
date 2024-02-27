@@ -17,7 +17,6 @@
 #include <sycl/device_selector.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
-#include <sycl/stl.hpp>
 // 4.6.1 Device selection class
 
 #include <algorithm>
