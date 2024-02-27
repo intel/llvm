@@ -200,12 +200,20 @@ struct property_key_base_tag {};
 struct compile_time_property_key_base_tag : property_key_base_tag {};
 
 template <PropKind Kind_> struct run_time_property_key : property_key_base_tag {
+protected:
   static constexpr PropKind Kind = Kind_;
+
+  template <typename T>
+  friend struct PropertyToKind;
 };
 
 template <PropKind Kind_>
 struct compile_time_property_key : compile_time_property_key_base_tag {
+protected:
   static constexpr PropKind Kind = Kind_;
+
+  template <typename T>
+  friend struct PropertyToKind;
 };
 
 // This trait must be specialized for all properties and must have a unique
