@@ -5540,20 +5540,21 @@ urQueueFlush(
 ///         + `NULL == pGlobalWorkOffset`
 ///         + `NULL == pGlobalWorkSize`
 ///         + `NULL == pSuggestedLocalWorkSize`
+///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
 UR_APIEXPORT ur_result_t UR_APICALL
 urQueueGetSuggestedLocalWorkSize(
     ur_queue_handle_t hQueue,             ///< [in] handle of the queue object
     ur_kernel_handle_t hKernel,           ///< [in] handle of the kernel.
-    uint32_t workDim,                     ///< [in] number of dimensions, from 1 to 3, to specify the global and
-                                          ///< work-group work-items
-    const size_t *pGlobalWorkOffset,      ///< [in] pointer to an array of workDim unsigned values that specify the
-                                          ///< offset used to calculate the global ID of a work-item
-    const size_t *pGlobalWorkSize,        ///< [in] pointer to an array of workDim unsigned values that specify the
-                                          ///< number of global work-items in workDim that will execute the kernel
-                                          ///< function
-    const size_t *pSuggestedLocalWorkSize ///< [out] pointer to an array of workDim unsigned values that specify the
-                                          ///< number of local work-items forming a work-group that will execute the
-                                          ///< kernel function.
+    uint32_t workDim,                     ///< [in] number of dimensions, from 1 to 3, to specify the global
+                                          ///< and work-group work-items
+    const size_t *pGlobalWorkOffset,      ///< [in] pointer to an array of workDim unsigned values that specify
+                                          ///< the offset used to calculate the global ID of a work-item"
+    const size_t *pGlobalWorkSize,        ///< [in] pointer to an array of workDim unsigned values that specify
+                                          ///< the number of global work-items in workDim that will execute the
+                                          ///< kernel function
+    const size_t *pSuggestedLocalWorkSize ///< [out] pointer to an array of workDim unsigned values that specify
+                                          ///< the number of local work-items forming a work-group that will
+                                          ///< execute the kernel function.
 );
 
 #if !defined(__GNUC__)
