@@ -156,10 +156,6 @@ struct image_descriptor {
       }
       return;
 
-    case image_type::interop:
-      // No checks to be made.
-      return;
-
     default:
       // Invalid image type.
       throw sycl::exception(sycl::errc::invalid,
