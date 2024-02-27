@@ -37,7 +37,8 @@ function(add_conformance_test name)
         ${PROJECT_NAME}::headers
         ${PROJECT_NAME}::testing
         ${PROJECT_NAME}::common
-        GTest::gtest_main)
+        GTest::gtest_main
+        unit_tests_helpers)
 
     if(UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_ALL)
         add_test_adapter(${name} adapter_cuda)

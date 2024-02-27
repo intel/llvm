@@ -399,11 +399,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(
     auto UrQueue = Event->UrQueue;
     if (UrQueue) {
       // Lock automatically releases when this goes out of scope.
-      std::scoped_lock<ur_shared_mutex> lock(UrQueue->Mutex);
-      const auto &OpenCommandList = UrQueue->eventOpenCommandList(Event);
-      if (OpenCommandList != UrQueue->CommandListMap.end()) {
-        UR_CALL(UrQueue->executeOpenCommandList(
-            OpenCommandList->second.isCopy(UrQueue)));
+      std::unique_lock<ur_shared_mutex> Lock(UrQueue->Mutex, std::try_to_lock);
+      // If we fail to acquire the lock, it's possible that the queue might
+      // already be waiting for this event in synchronize().
+      if (Lock.owns_lock()) {
+        const auto &OpenCommandList = UrQueue->eventOpenCommandList(Event);
+        if (OpenCommandList != UrQueue->CommandListMap.end()) {
+          UR_CALL(UrQueue->executeOpenCommandList(
+              OpenCommandList->second.isCopy(UrQueue)));
+        }
       }
     }
 

@@ -24,5 +24,6 @@ std::string getKernelName(ur_kernel_handle_t Kernel);
 ur_device_handle_t getUSMAllocDevice(ur_context_handle_t Context,
                                      const void *MemPtr);
 DeviceType getDeviceType(ur_device_handle_t Device);
+std::vector<ur_device_handle_t> getProgramDevices(ur_program_handle_t Program);
 
 } // namespace ur_sanitizer_layer

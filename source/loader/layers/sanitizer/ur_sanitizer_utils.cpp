@@ -93,4 +93,19 @@ DeviceType getDeviceType(ur_device_handle_t Device) {
     }
 }
 
+std::vector<ur_device_handle_t> getProgramDevices(ur_program_handle_t Program) {
+    size_t PropSize;
+    [[maybe_unused]] ur_result_t Result = context.urDdiTable.Program.pfnGetInfo(
+        Program, UR_PROGRAM_INFO_DEVICES, 0, nullptr, &PropSize);
+    assert(Result == UR_RESULT_SUCCESS);
+
+    std::vector<ur_device_handle_t> Devices;
+    Devices.resize(PropSize / sizeof(ur_device_handle_t));
+    Result = context.urDdiTable.Program.pfnGetInfo(
+        Program, UR_PROGRAM_INFO_DEVICES, PropSize, Devices.data(), nullptr);
+    assert(Result == UR_RESULT_SUCCESS);
+
+    return Devices;
+}
+
 } // namespace ur_sanitizer_layer
