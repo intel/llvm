@@ -29,29 +29,56 @@ struct BufferSaxpyKernelTest
                                                    0, nullptr, nullptr));
         }
 
-        // Index 0 is output buffer
-        ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, 0, nullptr, buffers[0]));
-        // Index 1 is output accessor
-        struct {
-            size_t offsets[1] = {0};
-        } accessor;
-        ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(accessor), nullptr,
-                                           &accessor));
+        // Variable that is incremented as arguments are added to the kernel
+        size_t current_arg_index = 0;
+        // Index 0 is output buffer for HIP/Non-HIP
+        ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, current_arg_index++,
+                                            nullptr, buffers[0]));
 
-        // Index 2 is A
-        ASSERT_SUCCESS(urKernelSetArgValue(kernel, 2, sizeof(A), nullptr, &A));
-        // Index 3 is X buffer
-        ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, 3, nullptr, buffers[1]));
+        // Lambda to add accessor arguments depending on backend.
+        // HIP has 3 offset parameters and other backends only have 1.
+        auto addAccessorArgs = [&]() {
+            if (backend == UR_PLATFORM_BACKEND_HIP) {
+                size_t val = 0;
+                ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++,
+                                                   sizeof(size_t), nullptr,
+                                                   &val));
+                ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++,
+                                                   sizeof(size_t), nullptr,
+                                                   &val));
+                ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++,
+                                                   sizeof(size_t), nullptr,
+                                                   &val));
+            } else {
+                struct {
+                    size_t offsets[1] = {0};
+                } accessor;
+                ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++,
+                                                   sizeof(accessor), nullptr,
+                                                   &accessor));
+            }
+        };
 
-        // Index 4 is X buffer accessor
-        ASSERT_SUCCESS(urKernelSetArgValue(kernel, 4, sizeof(accessor), nullptr,
-                                           &accessor));
-        // Index 5 is Y buffer
-        ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, 5, nullptr, buffers[2]));
+        // Index 3 on HIP and 1 on non-HIP are accessors
+        addAccessorArgs();
 
-        // Index 6 is Y buffer accessor
-        ASSERT_SUCCESS(urKernelSetArgValue(kernel, 6, sizeof(accessor), nullptr,
-                                           &accessor));
+        // Index 4 on HIP and 2 on non-HIP is A
+        ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index++,
+                                           sizeof(A), nullptr, &A));
+
+        // Index 5 on HIP and 3 on non-HIP is X buffer
+        ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, current_arg_index++,
+                                            nullptr, buffers[1]));
+
+        // Index 8 on HIP and 4 on non-HIP is X buffer accessor
+        addAccessorArgs();
+
+        // Index 9 on HIP and 5 on non-HIP is Y buffer
+        ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, current_arg_index++,
+                                            nullptr, buffers[2]));
+
+        // Index 12 on HIP and 6 on non-HIP is Y buffer accessor
+        addAccessorArgs();
 
         // Append kernel command to command-buffer and close command-buffer
         ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
@@ -120,30 +147,34 @@ TEST_P(BufferSaxpyKernelTest, UpdateParameters) {
     Validate(buffers[0], buffers[1], buffers[2], A, global_size);
 
     ur_exp_command_buffer_update_memobj_arg_desc_t new_input_descs[2];
-    // New X at index 3
+
+    // Index 5 on HIP and 3 on non-HIP is X buffer
+    const uint32_t x_arg_index = (backend == UR_PLATFORM_BACKEND_HIP) ? 5 : 3;
     new_input_descs[0] = {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_MEMOBJ_ARG_DESC, // stype
         nullptr,                                                     // pNext
-        3,                                                           // argIndex
+        x_arg_index,                                                 // argIndex
         nullptr,    // pProperties
         buffers[3], // hArgValue
     };
 
-    // New Y at index 5
+    // Index 9 on HIP and 5 on non-HIP is Y buffer
+    const uint32_t y_arg_index = backend == (UR_PLATFORM_BACKEND_HIP) ? 9 : 5;
     new_input_descs[1] = {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_MEMOBJ_ARG_DESC, // stype
         nullptr,                                                     // pNext
-        5,                                                           // argIndex
+        y_arg_index,                                                 // argIndex
         nullptr,    // pProperties
         buffers[4], // hArgValue
     };
 
-    // A at index 2
+    // Index 4 on HIP and 2 on non-HIP is A
+    const uint32_t a_arg_index = (backend == UR_PLATFORM_BACKEND_HIP) ? 4 : 2;
     uint32_t new_A = 33;
     ur_exp_command_buffer_update_value_arg_desc_t new_A_desc = {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
         nullptr,                                                    // pNext,
-        2,                                                          // argIndex
+        a_arg_index,                                                // argIndex
         sizeof(new_A),                                              // argSize
         nullptr, // pProperties
         &new_A,  // hArgValue
