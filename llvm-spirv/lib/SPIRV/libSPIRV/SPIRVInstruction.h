@@ -276,6 +276,9 @@ public:
     } else
       SPIRVEntry::setWordCount(WC);
     Ops = TheOps;
+    // The required SPIR-V version depends on the operands for some
+    // instructions.
+    updateModuleVersion();
   }
   void setWordCount(SPIRVWord TheWordCount) override {
     SPIRVEntry::setWordCount(TheWordCount);
@@ -295,6 +298,11 @@ public:
 
   /// Get operand as value.
   /// If the operand is a literal, return it as a uint32 constant.
+  const SPIRVValue *getOpValue(int I) const {
+    return isOperandLiteral(I) ? Module->getLiteralAsConstant(Ops[I])
+                               : getValue(Ops[I]);
+  }
+
   SPIRVValue *getOpValue(int I) {
     return isOperandLiteral(I) ? Module->getLiteralAsConstant(Ops[I])
                                : getValue(Ops[I]);
@@ -313,6 +321,10 @@ public:
       if (!isOperandLiteral(I))
         Operands.push_back(getEntry(Ops[I]));
     return Operands;
+  }
+
+  virtual const SPIRVValue *getOperand(unsigned I) const {
+    return getOpValue(I);
   }
 
   virtual SPIRVValue *getOperand(unsigned I) {
@@ -2502,6 +2514,22 @@ class SPIRVGroupNonUniformBallotInst : public SPIRVInstTemplateBase {
 public:
   SPIRVCapVec getRequiredCapability() const override {
     return getVec(CapabilityGroupNonUniformBallot);
+  }
+
+  SPIRVWord getRequiredSPIRVVersion() const override {
+    switch (OpCode) {
+    case OpGroupNonUniformBroadcast: {
+      assert(Ops.size() == 3 && "Expecting (Execution, Value, Id) operands");
+      if (!isConstantOpCode(getOperand(2)->getOpCode())) {
+        // Before version 1.5, Id must come from a constant instruction.
+        return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_5);
+      }
+      break;
+    }
+    default:
+      break;
+    }
+    return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_3);
   }
 };
 
