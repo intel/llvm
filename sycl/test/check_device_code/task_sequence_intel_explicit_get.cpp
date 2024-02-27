@@ -1,6 +1,6 @@
-// RUN: %clangxx -fsycl-device-only -S -Xclang -emit-llvm -Xclang -no-enable-noundef-analysis %s -o - | FileCheck %s
+// RUN: %clangxx -fsycl -fsycl-device-only -S -emit-llvm -Xclang -no-enable-noundef-analysis %s -o - | FileCheck %s
 
-// CHECK: [[TASK_SEQUENCE:%.*]] = call spir_func target("spirv.TaskSequenceINTEL") @_Z31__spirv_TaskSequenceCreateINTEL{{.*}}(ptr {{.*}} @_Z8user_sot{{.*}}, i32 -1, i32 -1, i32 2, i32 2)
+// CHECK: [[TASK_SEQUENCE:%.*]] ={{.*}} call spir_func target("spirv.TaskSequenceINTEL") @_Z31__spirv_TaskSequenceCreateINTEL{{.*}}(ptr{{.*}}@_Z8arrayAdd{{.*}}, i32 -1, i32 -1, i32 2, i32 2)
 // CHECK: call spir_func void @_Z30__spirv_TaskSequenceAsyncINTEL{{.*}}(target("spirv.TaskSequenceINTEL") [[TASK_SEQUENCE]], ptr addrspace(4) {{.*}}, ptr addrspace(4) {{.*}}, i32 128)
 // CHECK-COUNT-2: call spir_func i32 @_Z28__spirv_TaskSequenceGetINTEL{{.*}}(target("spirv.TaskSequenceINTEL")[[TASK_SEQUENCE]])
 // CHECK: call spir_func void @_Z32__spirv_TaskSequenceReleaseINTEL{{.*}}(target("spirv.TaskSequenceINTEL")[[TASK_SEQUENCE]])
