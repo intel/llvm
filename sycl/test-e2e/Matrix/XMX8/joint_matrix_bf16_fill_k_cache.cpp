@@ -7,8 +7,10 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix-xmx8
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -o %t.out -ffp-model=precise
 // RUN: %{run} %t.out
+
+// -ffp-model=precise is added to not depend on compiler defaults.
 
 #include "../common.hpp"
 #include <cstddef>

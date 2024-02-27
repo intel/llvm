@@ -309,7 +309,7 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
     return std::nullopt;
   StringRef AttrKindStr = Attr.getKindAsString();
   // Early exit if it is not a sycl-* attribute.
-  if (!AttrKindStr.startswith("sycl-"))
+  if (!AttrKindStr.starts_with("sycl-"))
     return std::nullopt;
 
   auto AddFPControlMetadataForWidth = [&](int32_t SPIRVFPControl,
@@ -444,8 +444,10 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
     // TODO: Remove SYCL_REGISTER_ALLOC_MODE_ATTR support in next ABI break.
     uint32_t PropVal = getAttributeAsInteger<uint32_t>(Attr);
     if (AttrKindStr == SYCL_GRF_SIZE_ATTR) {
-      assert((PropVal == 0 || PropVal == 128 || PropVal == 256) &&
-             "Unsupported GRF Size");
+      // The RegisterAllocMode metadata supports only 0, 128, and 256 for
+      // PropVal.
+      if (PropVal != 0 && PropVal != 128 && PropVal != 256)
+        return std::nullopt;
       // Map sycl-grf-size values to RegisterAllocMode values used in SPIR-V.
       static constexpr int SMALL_GRF_REGALLOCMODE_VAL = 1;
       static constexpr int LARGE_GRF_REGALLOCMODE_VAL = 2;
@@ -683,7 +685,7 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
                                   : PreservedAnalyses::all();
 }
 
-void CompileTimePropertiesPass::parseAlignmentAndApply(
+bool CompileTimePropertiesPass::parseAlignmentAndApply(
     Module &M, IntrinsicInst *IntrInst) {
   // Get the global variable with the annotation string.
   const GlobalVariable *AnnotStrArgGV = nullptr;
@@ -693,11 +695,11 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
   else if (auto *GEP = dyn_cast<GEPOperator>(IntrAnnotStringArg))
     AnnotStrArgGV = dyn_cast<GlobalVariable>(GEP->getOperand(0));
   if (!AnnotStrArgGV)
-    return;
+    return false;
 
   std::optional<StringRef> AnnotStr = getGlobalVariableString(AnnotStrArgGV);
   if (!AnnotStr)
-    return;
+    return false;
 
   // parse properties string to decoration-value pairs
   auto Properties = parseSYCLPropertiesString(M, IntrInst);
@@ -708,6 +710,7 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
   getUserListIgnoringCast<StoreInst>(IntrInst, TargetedInstList);
   getUserListIgnoringCast<MemTransferInst>(IntrInst, TargetedInstList);
 
+  bool AlignApplied = false;
   for (auto &Property : Properties) {
     auto DecorStr = Property.first->str();
     auto DecorValue = Property.second;
@@ -731,18 +734,26 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
         auto Op_num = Pair.second;
         if (auto *LInst = dyn_cast<LoadInst>(Inst)) {
           LInst->setAlignment(Align_val);
+          AlignApplied = true;
         } else if (auto *SInst = dyn_cast<StoreInst>(Inst)) {
-          if (Op_num == 1)
+          if (Op_num == 1) {
             SInst->setAlignment(Align_val);
+            AlignApplied = true;
+          }
         } else if (auto *MI = dyn_cast<MemTransferInst>(Inst)) {
-          if (Op_num == 0)
+          if (Op_num == 0) {
             MI->setDestAlignment(Align_val);
-          else if (Op_num == 1)
+            AlignApplied = true;
+          } else if (Op_num == 1) {
             MI->setSourceAlignment(Align_val);
+            AlignApplied = true;
+          }
         }
       }
     }
   }
+
+  return AlignApplied;
 }
 
 // Returns true if the transformation changed IntrInst.
@@ -771,7 +782,7 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
     return false;
 
   // check alignment annotation and apply it to load/store
-  parseAlignmentAndApply(M, IntrInst);
+  bool AlignApplied = parseAlignmentAndApply(M, IntrInst);
 
   // Read the annotation values and create new annotation strings.
   std::string NewAnnotString = "";
@@ -780,9 +791,9 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   bool CacheProp = false;
   bool FPGAProp = false;
   for (const auto &[PropName, PropVal] : Properties) {
-    // sycl-alignment is converted to align on
-    // previous parseAlignmentAndApply(), dropping here
-    if (PropName == "sycl-alignment")
+    // if sycl-alignment is converted to align on IR constructs
+    // during parseAlignmentAndApply(), dropping here
+    if (PropName == "sycl-alignment" && AlignApplied)
       continue;
 
     auto DecorIt = SpirvDecorMap.find(*PropName);

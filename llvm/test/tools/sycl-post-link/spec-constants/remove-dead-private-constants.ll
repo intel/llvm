@@ -4,6 +4,7 @@
 ; RUN: sycl-post-link -split=auto -spec-const=native -symbols -S -o %t.table %s -generate-device-image-default-spec-consts
 ; RUN: FileCheck %s -input-file %t_0.ll -check-prefix=CHECK-IR0
 ; RUN: FileCheck %s -input-file %t_1.ll -check-prefix=CHECK-IR1
+; RUN: sycl-post-link -debug-only=SpecConst -split=auto -spec-const=native -symbols -S %s -generate-device-image-default-spec-consts 2>&1 | FileCheck %s --check-prefix=CHECK-LOG
 
 ; CHECK-IR0-NOT: @__usid_str = private
 ; CHECK-IR1-NOT: @__usid_str = private
@@ -11,6 +12,18 @@
 ; CHECK-IR1-NOT: @__usid_str.1 = private
 ; CHECK-IR0-NOT: @__usid_str.2 = private
 ; CHECK-IR1-NOT: @__usid_str.2 = private
+; CHECK-LOG: sycl.specialization-constants
+; CHECK-LOG:[[UNIQUE_PREFIX:[0-9a-zA-Z]+]]={0, 0, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={1, 4, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={2, 8, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={3, 12, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX2:[0-9a-zA-Z]+]]={4, 0, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX3:[0-9a-zA-Z]+]]={5, 0, 4}
+; CHECK-LOG: sycl.specialization-constants-default-values
+; CHECK-LOG:{0, 4, 3}
+; CHECK-LOG:{4, 12, 0}
+; CHECK-LOG:{16, 4, 1}
+; CHECK-LOG:{20, 4, 123}
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"

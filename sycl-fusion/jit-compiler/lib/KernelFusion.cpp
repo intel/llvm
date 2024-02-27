@@ -8,7 +8,6 @@
 
 #include "KernelFusion.h"
 #include "Kernel.h"
-#include "KernelIO.h"
 #include "NDRangesHelper.h"
 #include "Options.h"
 #include "fusion/FusionHelper.h"
@@ -35,7 +34,7 @@ static FusionResult errorToFusionResult(llvm::Error &&Err,
                           // compiled without exception support.
                           ErrMsg << "\t" << StrErr.getMessage() << "\n";
                         });
-  return FusionResult{ErrMsg.str()};
+  return FusionResult{ErrMsg.str().c_str()};
 }
 
 static std::vector<jit_compiler::NDRange>
@@ -72,55 +71,51 @@ static bool isTargetFormatSupported(BinaryFormat TargetFormat) {
 }
 
 FusionResult KernelFusion::fuseKernels(
-    JITContext &JITCtx, Config &&JITConfig,
-    const std::vector<SYCLKernelInfo> &KernelInformation,
-    const std::vector<std::string> &KernelsToFuse,
-    const std::string &FusedKernelName, ParamIdentList &Identities,
-    BarrierFlags BarriersFlags,
-    const std::vector<jit_compiler::ParameterInternalization> &Internalization,
-    const std::vector<jit_compiler::JITConstant> &Constants) {
-  // Initialize the configuration helper to make the options for this invocation
-  // available (on a per-thread basis).
-  ConfigHelper::setConfig(std::move(JITConfig));
+    View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
+    View<ParameterIdentity> Identities, BarrierFlags BarriersFlags,
+    View<ParameterInternalization> Internalization,
+    View<jit_compiler::JITConstant> Constants) {
 
-  const auto NDRanges = gatherNDRanges(KernelInformation);
+  std::vector<std::string> KernelsToFuse;
+  llvm::transform(KernelInformation, std::back_inserter(KernelsToFuse),
+                  [](const auto &KI) { return std::string{KI.Name.c_str()}; });
 
-  if (!isValidCombination(NDRanges)) {
-    return FusionResult{
-        "Cannot fuse kernels with different offsets or local sizes, or "
-        "different global sizes in dimensions [2, N) and non-zero offsets, "
-        "or those whose fusion would yield non-uniform work-groups sizes"};
-  }
-
-  bool IsHeterogeneousList = jit_compiler::isHeterogeneousList(NDRanges);
+  const auto NDRanges = gatherNDRanges(KernelInformation.to<llvm::ArrayRef>());
 
   TargetInfo TargetInfo = ConfigHelper::get<option::JITTargetInfo>();
   BinaryFormat TargetFormat = TargetInfo.getFormat();
   DeviceArchitecture TargetArch = TargetInfo.getArch();
+
+  llvm::Expected<jit_compiler::FusedNDRange> FusedNDR =
+      jit_compiler::FusedNDRange::get(NDRanges);
+  if (llvm::Error Err = FusedNDR.takeError()) {
+    return errorToFusionResult(std::move(Err), "Illegal ND-range combination");
+  }
 
   if (!isTargetFormatSupported(TargetFormat)) {
     return FusionResult(
         "Fusion output target format not supported by this build");
   }
 
+  auto &JITCtx = JITContext::getInstance();
   bool CachingEnabled = ConfigHelper::get<option::JITEnableCaching>();
   CacheKeyT CacheKey{TargetArch,
                      KernelsToFuse,
-                     Identities,
+                     Identities.to<std::vector>(),
                      BarriersFlags,
-                     Internalization,
-                     Constants,
-                     IsHeterogeneousList
+                     Internalization.to<std::vector>(),
+                     Constants.to<std::vector>(),
+                     FusedNDR->isHeterogeneousList()
                          ? std::optional<std::vector<NDRange>>{NDRanges}
                          : std::optional<std::vector<NDRange>>{std::nullopt}};
   if (CachingEnabled) {
     std::optional<SYCLKernelInfo> CachedKernel = JITCtx.getCacheEntry(CacheKey);
     if (CachedKernel) {
       helper::printDebugMessage("Re-using cached JIT kernel");
-      if (!IsHeterogeneousList) {
+      if (!FusedNDR->isHeterogeneousList()) {
         // If the cache query didn't include the ranges, update the fused range
         // before returning the kernel info to the runtime.
-        CachedKernel->NDR = combineNDRanges(NDRanges);
+        CachedKernel->NDR = FusedNDR->getNDR();
       }
       return FusionResult{*CachedKernel, /*Cached*/ true};
     }
@@ -148,9 +143,12 @@ FusionResult KernelFusion::fuseKernels(
 
   // Add information about the kernel that should be fused as metadata into the
   // LLVM module.
-  FusedFunction FusedKernel{
-      FusedKernelName, KernelsToFuse, std::move(Identities),
-      Internalization, Constants,     NDRanges};
+  FusedFunction FusedKernel{FusedKernelName,
+                            KernelsToFuse,
+                            Identities.to<llvm::ArrayRef>(),
+                            Internalization.to<llvm::ArrayRef>(),
+                            Constants.to<llvm::ArrayRef>(),
+                            *FusedNDR};
   FusedFunctionList FusedKernelList;
   FusedKernelList.push_back(FusedKernel);
   llvm::Expected<std::unique_ptr<llvm::Module>> NewModOrError =
@@ -184,11 +182,17 @@ FusionResult KernelFusion::fuseKernels(
                                "Translation to output format failed");
   }
 
-  FusedKernelInfo.NDR = FusedKernel.FusedNDRange;
+  FusedKernelInfo.NDR = FusedNDR->getNDR();
 
   if (CachingEnabled) {
     JITCtx.addCacheEntry(CacheKey, FusedKernelInfo);
   }
 
   return FusionResult{FusedKernelInfo};
+}
+
+void KernelFusion::resetConfiguration() { ConfigHelper::reset(); }
+
+void KernelFusion::set(OptionPtrBase *Option) {
+  ConfigHelper::getConfig().set(Option);
 }

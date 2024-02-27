@@ -51,9 +51,7 @@ std::string toString(dpas_argument_type T) {
     return "bf16";
   case dpas_argument_type::tf32:
     return "tf32";
-  case dpas_argument_type::s1:
-  case dpas_argument_type::u1:
-  case dpas_argument_type::Invalid:
+  default:
     return "UNSUPPORTED";
   }
   return "UNRECOGNIZED";
@@ -94,7 +92,6 @@ template <dpas_argument_type T> struct DpasNaturalOperandType {
   static constexpr bool is_bf16 = T == dpas_argument_type::bf16;
   static constexpr bool is_tf32 = T == dpas_argument_type::tf32;
 
-  // TODO: support tf32 here.
   using type = std::conditional_t<
       is_sint, signed char,
       std::conditional_t<
@@ -128,9 +125,7 @@ template <dpas_argument_type T> constexpr int getBitSize() {
   case dpas_argument_type::tf32:
     return 32;
 
-  case dpas_argument_type::Invalid:
-  case dpas_argument_type::s1:
-  case dpas_argument_type::u1:
+  default:
     break;
   }
   return 0;
@@ -149,7 +144,7 @@ void writeToHorizontallyPackedMatrix(void *VVec, int Row, int Col,
   ElemT *Vec = reinterpret_cast<ElemT *>(VVec);
 
   // 1. Find and read the target 'unsigned int' element.
-  // THe unpacked matrix has dimensions: NumRows*NumCols
+  // The unpacked matrix dimensions are NumRows*NumCols.
   constexpr int ElemsInElemT = sizeof(ElemT) * 8 / ElemBitSize;
   int UnpackedLinearIndex = Row * NumCols + Col;
   int PackedLinearIndex = UnpackedLinearIndex / ElemsInElemT;
@@ -160,7 +155,6 @@ void writeToHorizontallyPackedMatrix(void *VVec, int Row, int Col,
   } else {
     ElemT TargetElem = Vec[PackedLinearIndex];
     // TargetElem has 2 or more elements in it. Need to extract one.
-    // TODO: for now assume that is the case only for 2 or 4-bit integers.
     assert((ElemBitSize == 2 || ElemBitSize == 4) && "Unexpected element type");
 
     unsigned int Offset = (UnpackedLinearIndex % ElemsInElemT) * ElemBitSize;
@@ -196,7 +190,6 @@ ReadT readFromHorizontallyPackedMatrix(void *VVec, int Row, int Col) {
     return static_cast<ReadT>(TargetElem);
   } else {
     // TargetElem has 2 or more elements in it. Need to extract one.
-    // TODO: for now assume that is the case only for 2 or 4-bit integers.
     assert((ElemBitSize == 2 || ElemBitSize == 4) && "Unexpected element type");
     unsigned int Offset = (UnpackedLinearIndex % ElemsInElemT) * ElemBitSize;
     unsigned int Mask = (static_cast<uint64_t>(1) << ElemBitSize) - 1;
@@ -408,7 +401,7 @@ bool test(queue &Q, bool Print) {
                   << ") != expected (" << GoldRes << ")" << std::endl;
       }
     } // end for JJ
-  }   // end for II
+  } // end for II
 
   free(Res, Q);
   free(APacked, Q);

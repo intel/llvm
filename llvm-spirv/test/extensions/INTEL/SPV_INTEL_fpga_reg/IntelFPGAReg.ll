@@ -99,10 +99,10 @@ $_ZN1AC1Ei = comdat any
 
 $_ZN1AC2Ei = comdat any
 
-@.str = private unnamed_addr constant [25 x i8] c"__builtin_intel_fpga_reg\00", section "llvm.metadata"
-@.str.1 = private unnamed_addr constant [9 x i8] c"test.cpp\00", section "llvm.metadata"
-@__const._Z3foov.i = private unnamed_addr constant %struct._ZTS2st.st { i32 1, float 5.000000e+00 }, align 4
-@__const._Z3foov.u1 = private unnamed_addr constant %union._ZTS2un.un { i32 1 }, align 4
+@.str = private unnamed_addr addrspace(1) constant [25 x i8] c"__builtin_intel_fpga_reg\00", section "llvm.metadata"
+@.str.1 = private unnamed_addr addrspace(1) constant [9 x i8] c"test.cpp\00", section "llvm.metadata"
+@__const._Z3foov.i = private unnamed_addr addrspace(1) constant %struct._ZTS2st.st { i32 1, float 5.000000e+00 }, align 4
+@__const._Z3foov.u1 = private unnamed_addr addrspace(1) constant %union._ZTS2un.un { i32 1 }, align 4
 
 ; Function Attrs: nounwind
 define spir_kernel void @_ZTSZ4mainE11fake_kernel() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 {
@@ -168,18 +168,18 @@ entry:
   %0 = load i32, ptr %a, align 4, !tbaa !9
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_INT32]] {{[0-9]+}} {{[0-9]+}}{{ *$}}
   ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32.p0(i32 {{[%a-z0-9]+}}, ptr @[[STR]]
-  %1 = call i32 @llvm.annotation.i32(i32 %0, ptr @.str, ptr @.str.1, i32 35)
+  %1 = call i32 @llvm.annotation.i32.p1(i32 %0, ptr addrspace(1) @.str, ptr addrspace(1) @.str.1, i32 35)
   store i32 %1, ptr %b, align 4, !tbaa !9
   call void @llvm.lifetime.start.p0(i64 4, ptr %myB) #4
   %2 = load i32, ptr %myA, align 4, !tbaa !9
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_INT32]] {{[0-9]+}} {{[0-9]+}}{{ *$}}
   ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32.p0(i32 {{[%a-z0-9]+}}, ptr @[[STR1]]
-  %3 = call i32 @llvm.annotation.i32(i32 %2, ptr @.str, ptr @.str.1, i32 39)
+  %3 = call i32 @llvm.annotation.i32.p1(i32 %2, ptr addrspace(1) @.str, ptr addrspace(1) @.str.1, i32 39)
   store i32 %3, ptr %myB, align 4, !tbaa !9
   call void @llvm.lifetime.start.p0(i64 4, ptr %c) #4
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_INT32]] {{[0-9]+}} {{[0-9]+}}{{ *$}}
   ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32.p0(i32 {{[%a-z0-9]+}}, ptr @[[STR2]]
-  %4 = call i32 @llvm.annotation.i32(i32 1073741824, ptr @.str, ptr @.str.1, i32 43)
+  %4 = call i32 @llvm.annotation.i32.p1(i32 1073741824, ptr addrspace(1) @.str, ptr addrspace(1) @.str.1, i32 43)
   %5 = bitcast i32 %4 to float
   %conv = fptosi float %5 to i32
   store i32 %conv, ptr %c, align 4, !tbaa !9
@@ -188,10 +188,10 @@ entry:
   %add = add nsw i32 %6, 12
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_INT32]] {{[0-9]+}} {{[0-9]+}}{{ *$}}
   ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32.p0(i32 {{[%a-z0-9]+}}, ptr @[[STR3]]
-  %7 = call i32 @llvm.annotation.i32(i32 %add, ptr @.str, ptr @.str.1, i32 48)
+  %7 = call i32 @llvm.annotation.i32.p1(i32 %add, ptr addrspace(1) @.str, ptr addrspace(1) @.str.1, i32 48)
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_INT32]] {{[0-9]+}} {{[0-9]+}}{{ *$}}
   ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32.p0(i32 {{[%a-z0-9]+}}, ptr @[[STR4]]
-  %8 = call i32 @llvm.annotation.i32(i32 %7, ptr @.str, ptr @.str.1, i32 48)
+  %8 = call i32 @llvm.annotation.i32.p1(i32 %7, ptr addrspace(1) @.str, ptr addrspace(1) @.str.1, i32 48)
   store i32 %8, ptr %d, align 4, !tbaa !9
   call void @llvm.lifetime.start.p0(i64 4, ptr %e) #4
   %9 = load i32, ptr %a, align 4, !tbaa !9
@@ -199,33 +199,33 @@ entry:
   %add1 = add nsw i32 %9, %10
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_INT32]] {{[0-9]+}} {{[0-9]+}}{{ *$}}
   ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32.p0(i32 {{[%a-z0-9]+}}, ptr @[[STR5]]
-  %11 = call i32 @llvm.annotation.i32(i32 %add1, ptr @.str, ptr @.str.1, i32 54)
+  %11 = call i32 @llvm.annotation.i32.p1(i32 %add1, ptr addrspace(1) @.str, ptr addrspace(1) @.str.1, i32 54)
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_INT32]] {{[0-9]+}} {{[0-9]+}}{{ *$}}
   ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32.p0(i32 {{[%a-z0-9]+}}, ptr @[[STR6]]
-  %12 = call i32 @llvm.annotation.i32(i32 %11, ptr @.str, ptr @.str.1, i32 54)
+  %12 = call i32 @llvm.annotation.i32.p1(i32 %11, ptr addrspace(1) @.str, ptr addrspace(1) @.str.1, i32 54)
   store i32 %12, ptr %e, align 4, !tbaa !9
   call void @llvm.lifetime.start.p0(i64 4, ptr %f) #4
   %13 = load i32, ptr %a, align 4, !tbaa !9
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_INT32]] {{[0-9]+}} {{[0-9]+}}{{ *$}}
   ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i32 @llvm.annotation.i32.p0(i32 {{[%a-z0-9]+}}, ptr @[[STR7]]
-  %14 = call i32 @llvm.annotation.i32(i32 %13, ptr @.str, ptr @.str.1, i32 62)
+  %14 = call i32 @llvm.annotation.i32.p1(i32 %13, ptr addrspace(1) @.str, ptr addrspace(1) @.str.1, i32 62)
   store i32 %14, ptr %f, align 4, !tbaa !9
   call void @llvm.lifetime.start.p0(i64 8, ptr %i) #4
-  call void @llvm.memcpy.p0.p0.i64(ptr align 4 %i, ptr align 4 @__const._Z3foov.i, i64 8, i1 false)
+  call void @llvm.memcpy.p0.p1.i64(ptr align 4 %i, ptr addrspace(1) align 4 @__const._Z3foov.i, i64 8, i1 false)
   call void @llvm.lifetime.start.p0(i64 8, ptr %i2) #4
   call void @llvm.memcpy.p0.p0.i64(ptr align 4 %i2, ptr align 4 %i, i64 8, i1 false), !tbaa.struct !11
   call void @llvm.lifetime.start.p0(i64 8, ptr %ii) #4
   call void @llvm.memcpy.p0.p0.i64(ptr align 4 %agg-temp, ptr align 4 %i, i64 8, i1 false), !tbaa.struct !11
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_PTR]]   {{[0-9]+}} {{[0-9]+}}{{ *$}}
   ; CHECK-LLVM-DAG: %{{[0-9]+}} = call ptr @llvm.ptr.annotation.p0.p0(ptr %[[CAST1:[a-z0-9]+]], ptr @[[STR8]]
-  %15 = call ptr @llvm.ptr.annotation.p0(ptr %agg-temp, ptr @.str, ptr @.str.1, i32 69, ptr null)
+  %15 = call ptr @llvm.ptr.annotation.p0.p1(ptr %agg-temp, ptr addrspace(1) @.str, ptr addrspace(1) @.str.1, i32 69, ptr addrspace(1) null)
   call void @llvm.memcpy.p0.p0.i64(ptr align 4 %ii, ptr align 4 %15, i64 8, i1 false)
   call void @llvm.lifetime.start.p0(i64 8, ptr %iii) #4
   call void @llvm.lifetime.start.p0(i64 8, ptr %ref.tmp) #4
   call void @llvm.memcpy.p0.p0.i64(ptr align 4 %agg-temp2, ptr align 4 %ii, i64 8, i1 false), !tbaa.struct !11
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_PTR]]   {{[0-9]+}} {{[0-9]+}}{{ *$}}
   ; CHECK-LLVM-DAG: %{{[0-9]+}} = call ptr @llvm.ptr.annotation.p0.p0(ptr %[[CAST2:[a-z0-9]+]], ptr @[[STR9]]
-  %16 = call ptr @llvm.ptr.annotation.p0(ptr %agg-temp2, ptr @.str, ptr @.str.1, i32 80, ptr null)
+  %16 = call ptr @llvm.ptr.annotation.p0.p1(ptr %agg-temp2, ptr addrspace(1) @.str, ptr addrspace(1) @.str.1, i32 80, ptr addrspace(1) null)
   call void @llvm.memcpy.p0.p0.i64(ptr align 4 %ref.tmp, ptr align 4 %16, i64 8, i1 false)
   call void @llvm.memcpy.p0.p0.i64(ptr align 4 %iii, ptr align 4 %ref.tmp, i64 8, i1 false), !tbaa.struct !11
   call void @llvm.lifetime.end.p0(i64 8, ptr %ref.tmp) #4
@@ -233,26 +233,26 @@ entry:
   %17 = ptrtoint ptr %iii to i64
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_INT64]] {{[0-9]+}} {{[0-9]+}}{{ *$}}
   ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i64 @llvm.annotation.i64.p0(i64 {{[%a-z0-9]+}}, ptr @[[STR10]]
-  %18 = call i64 @llvm.annotation.i64(i64 %17, ptr @.str, ptr @.str.1, i32 94)
+  %18 = call i64 @llvm.annotation.i64(i64 %17, ptr addrspace(1) @.str, ptr addrspace(1) @.str.1, i32 94)
   %19 = inttoptr i64 %18 to ptr
   %20 = addrspacecast ptr %19 to ptr addrspace(4)
   store ptr addrspace(4) %20, ptr %iiii, align 8, !tbaa !5
   call void @llvm.lifetime.start.p0(i64 4, ptr %u1) #4
-  call void @llvm.memcpy.p0.p0.i64(ptr align 4 %u1, ptr align 4 @__const._Z3foov.u1, i64 4, i1 false)
+  call void @llvm.memcpy.p0.p1.i64(ptr align 4 %u1, ptr addrspace(1) align 4 @__const._Z3foov.u1, i64 4, i1 false)
   call void @llvm.lifetime.start.p0(i64 4, ptr %u2) #4
   call void @llvm.lifetime.start.p0(i64 8, ptr %u3) #4
   call void @llvm.lifetime.start.p0(i64 4, ptr %ref.tmp3) #4
   call void @llvm.memcpy.p0.p0.i64(ptr align 4 %agg-temp4, ptr align 4 %u1, i64 4, i1 false), !tbaa.struct !14
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_PTR]]   {{[0-9]+}} {{[0-9]+}}{{ *$}}
   ; CHECK-LLVM-DAG: %{{[0-9]+}} = call ptr @llvm.ptr.annotation.p0.p0(ptr %[[CAST4:[a-z0-9]+]], ptr @[[STR11]]
-  %21 = call ptr @llvm.ptr.annotation.p0(ptr %agg-temp4, ptr @.str, ptr @.str.1, i32 103, ptr null)
+  %21 = call ptr @llvm.ptr.annotation.p0.p1(ptr %agg-temp4, ptr addrspace(1) @.str, ptr addrspace(1) @.str.1, i32 103, ptr addrspace(1) null)
   call void @llvm.memcpy.p0.p0.i64(ptr align 4 %ref.tmp3, ptr align 4 %21, i64 8, i1 false)
   call void @llvm.memcpy.p0.p0.i64(ptr align 4 %u2, ptr align 4 %ref.tmp3, i64 4, i1 false), !tbaa.struct !14
   call void @llvm.lifetime.end.p0(i64 4, ptr %ref.tmp3) #4
   %22 = ptrtoint ptr %u2 to i64
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_INT64]] {{[0-9]+}} {{[0-9]+}}{{ *$}}
   ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i64 @llvm.annotation.i64.p0(i64 {{[%a-z0-9]+}}, ptr @[[STR12]]
-  %23 = call i64 @llvm.annotation.i64(i64 %22, ptr @.str, ptr @.str.1, i32 117)
+  %23 = call i64 @llvm.annotation.i64(i64 %22, ptr addrspace(1) @.str, ptr addrspace(1) @.str.1, i32 117)
   %24 = inttoptr i64 %23 to ptr
   %25 = addrspacecast ptr %24 to ptr addrspace(4)
   store ptr addrspace(4) %25, ptr %u3, align 8, !tbaa !5
@@ -263,7 +263,7 @@ entry:
   call void @llvm.memcpy.p0.p0.i64(ptr align 4 %agg-temp5, ptr align 4 %ca, i64 4, i1 false), !tbaa.struct !16
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_PTR]]   {{[0-9]+}} {{[0-9]+}}{{ *$}}
   ; CHECK-LLVM-DAG: %{{[0-9]+}} = call ptr @llvm.ptr.annotation.p0.p0(ptr %[[CAST5:[a-z0-9]+]], ptr @[[STR13]]
-  %27 = call ptr @llvm.ptr.annotation.p0(ptr %agg-temp5, ptr @.str, ptr @.str.1, i32 125, ptr null)
+  %27 = call ptr @llvm.ptr.annotation.p0.p1(ptr %agg-temp5, ptr addrspace(1) @.str, ptr addrspace(1) @.str.1, i32 125, ptr addrspace(1) null)
   call void @llvm.memcpy.p0.p0.i64(ptr align 4 %cb, ptr align 4 %27, i64 8, i1 false)
   call void @llvm.lifetime.start.p0(i64 8, ptr %ap) #4
   %28 = addrspacecast ptr %a to ptr addrspace(4)
@@ -273,7 +273,7 @@ entry:
   %30 = ptrtoint ptr addrspace(4) %29 to i64
   ; CHECK-SPIRV: FPGARegINTEL [[TYPE_INT64]] {{[0-9]+}} {{[0-9]+}}{{ *$}}
   ; CHECK-LLVM-DAG: %{{[0-9]+}} = call i64 @llvm.annotation.i64.p0(i64 {{[%a-z0-9]+}}, ptr @[[STR14]]
-  %31 = call i64 @llvm.annotation.i64(i64 %30, ptr @.str, ptr @.str.1, i32 137)
+  %31 = call i64 @llvm.annotation.i64(i64 %30, ptr addrspace(1) @.str, ptr addrspace(1) @.str.1, i32 137)
   %32 = inttoptr i64 %31 to ptr addrspace(4)
   store ptr addrspace(4) %32, ptr %bp, align 8, !tbaa !5
   call void @llvm.lifetime.end.p0(i64 8, ptr %bp) #4
@@ -300,16 +300,22 @@ entry:
 }
 
 ; Function Attrs: nounwind
-declare i32 @llvm.annotation.i32(i32, ptr, ptr, i32) #4
+declare i32 @llvm.annotation.i32.p1(i32, ptr addrspace(1), ptr addrspace(1), i32) #4
 
 ; Function Attrs: argmemonly nounwind
 declare void @llvm.memcpy.p0.p0.i64(ptr nocapture writeonly, ptr nocapture readonly, i64, i1 immarg) #1
+
+; Function Attrs: argmemonly nounwind
+declare void @llvm.memcpy.p0.p1.i64(ptr nocapture writeonly, ptr addrspace(1) nocapture readonly, i64, i1 immarg) #1
 
 ; Function Attrs: nounwind
 declare ptr @llvm.ptr.annotation.p0(ptr, ptr, ptr, i32, ptr) #4
 
 ; Function Attrs: nounwind
-declare i64 @llvm.annotation.i64(i64, ptr, ptr, i32) #4
+declare ptr @llvm.ptr.annotation.p0.p1(ptr, ptr addrspace(1), ptr addrspace(1), i32, ptr addrspace(1)) #4
+
+; Function Attrs: nounwind
+declare i64 @llvm.annotation.i64(i64, ptr addrspace(1), ptr addrspace(1), i32) #4
 
 ; Function Attrs: nounwind
 define linkonce_odr spir_func void @_ZN1AC1Ei(ptr addrspace(4) %this, i32 %a) unnamed_addr #3 comdat align 2 {

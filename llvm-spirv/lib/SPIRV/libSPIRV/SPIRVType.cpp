@@ -142,9 +142,6 @@ SPIRVType *SPIRVType::getScalarType() const {
     return getVectorComponentType();
   case OpTypeMatrix:
     return getMatrixColumnType()->getVectorComponentType();
-  case OpTypeCooperativeMatrixKHR:
-    return static_cast<const SPIRVTypeCooperativeMatrixKHR *>(this)
-        ->getCompType();
   case OpTypeInt:
   case OpTypeFloat:
   case OpTypeBool:
@@ -240,6 +237,10 @@ bool SPIRVType::isTypeSubgroupAvcINTEL() const {
 bool SPIRVType::isTypeSubgroupAvcMceINTEL() const {
   return OpCode == OpTypeAvcMcePayloadINTEL ||
          OpCode == OpTypeAvcMceResultINTEL;
+}
+
+bool SPIRVType::isTypeTaskSequenceINTEL() const {
+  return OpCode == internal::OpTypeTaskSequenceINTEL;
 }
 
 bool SPIRVType::isTypeVectorOrScalarInt() const {

@@ -353,6 +353,10 @@ struct is_valid_property<T, conduit_key::value_t> : std::true_type {};
 template <typename T>
 struct is_valid_property<T, stable_key::value_t> : std::true_type {};
 
+// buffer_location is applied on PtrAnnotation
+template <>
+struct propagateToPtrAnnotation<buffer_location_key> : std::true_type {};
+
 //===----------------------------------------------------------------------===//
 //   Utility for FPGA properties
 //===----------------------------------------------------------------------===//

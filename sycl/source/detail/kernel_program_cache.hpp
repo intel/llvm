@@ -94,8 +94,11 @@ public:
       Val = nullptr;
     }
     ~ProgramBuildResult() {
-      if (Val)
-        Plugin->call<PiApiKind::piProgramRelease>(Val);
+      if (Val) {
+        sycl::detail::pi::PiResult Err =
+            Plugin->call_nocheck<PiApiKind::piProgramRelease>(Val);
+        __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
+      }
     }
   };
   using ProgramBuildResultPtr = std::shared_ptr<ProgramBuildResult>;
@@ -126,8 +129,11 @@ public:
       Val.first = nullptr;
     }
     ~KernelBuildResult() {
-      if (Val.first)
-        Plugin->call<PiApiKind::piKernelRelease>(Val.first);
+      if (Val.first) {
+        sycl::detail::pi::PiResult Err =
+            Plugin->call_nocheck<PiApiKind::piKernelRelease>(Val.first);
+        __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
+      }
     }
   };
   using KernelBuildResultPtr = std::shared_ptr<KernelBuildResult>;

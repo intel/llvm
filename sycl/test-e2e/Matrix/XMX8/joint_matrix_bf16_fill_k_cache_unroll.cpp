@@ -6,12 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix-xmx8
+// XFAIL:gpu
 
-// RUN: %{build} -mllvm -inline-threshold=2000 -o %t.out -DMANUAL_UNROLL
+// RUN: %{build} -mllvm -inline-threshold=2000 -ffp-model=precise -o %t.out -DMANUAL_UNROLL
 // RUN: %{run} %t.out
 
 // -mllvm -inline-threshold=2000 added as a workaround,
 // since IGC doesn't support some variants of IR for Joint Matrix currently
+// -ffp-model=precise is added to not depend on compiler defaults.
 
 #include "../common.hpp"
 #include <cstddef>

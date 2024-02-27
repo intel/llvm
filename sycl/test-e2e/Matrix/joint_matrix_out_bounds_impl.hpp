@@ -18,20 +18,21 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnniFactor) {
   // Add one iteration for the out of bounds dpas instruction
   size_t NDRangeM = M / TM + (((M % TM) != 0) ? 1 : 0);
   size_t NDRangeN = N / TN;
-
-  auto pA = address_space_cast<sycl::access::address_space::global_space,
-                               sycl::access::decorated::no>(A);
-  auto pB = address_space_cast<sycl::access::address_space::global_space,
-                               sycl::access::decorated::no>(B);
-  auto pC = address_space_cast<sycl::access::address_space::global_space,
-                               sycl::access::decorated::no>(C);
-
   q.submit([&](handler &cgh) {
      cgh.parallel_for(
          nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
          [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]]
 
          {
+           auto pA =
+               address_space_cast<sycl::access::address_space::global_space,
+                                  sycl::access::decorated::no>(A);
+           auto pB =
+               address_space_cast<sycl::access::address_space::global_space,
+                                  sycl::access::decorated::no>(B);
+           auto pC =
+               address_space_cast<sycl::access::address_space::global_space,
+                                  sycl::access::decorated::no>(C);
            // The submatrix API has to be accessed by all the workitems in a
            // subgroup these functions will be called once by the subgroup no
            // code divergence between the workitems
@@ -51,22 +52,23 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnniFactor) {
                sub_b;
            joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
            // bounds-checked load where width and height are added
-           joint_matrix_fill_checked(sg, sub_c, 1, M, N);
+           ext::intel::experimental::matrix::joint_matrix_fill_checked(
+               sg, sub_c, 1, N, M, N, sg_startx * TM, sg_starty / SG_SZ * TN);
            for (int k = 0; k < K; k += TK) {
              // bounds-checked load where width and height are added
-             joint_matrix_load_checked(sg, sub_a, pA + (sg_startx * TM) * K + k,
-                                       K, M, K);
+             ext::intel::experimental::matrix::joint_matrix_load_checked(
+                 sg, sub_a, pA, K, M, K, sg_startx * TM, k);
              // Assume we alreay in vnni format.
              // bounds-checked load where width and height are added
-             joint_matrix_load_checked(
-                 sg, sub_b, pB + k * N + sg_starty / SG_SZ * TN * vnniFactor,
-                 N * vnniFactor, K / vnniFactor, N * vnniFactor);
+             ext::intel::experimental::matrix::joint_matrix_load_checked(
+                 sg, sub_b, pB, N * vnniFactor, K / vnniFactor, N * vnniFactor,
+                 k, sg_starty / SG_SZ * TN * vnniFactor);
              joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
            // bounds-checked store where width and height are added
-           joint_matrix_store_checked(
-               sg, sub_c, pC + (sg_startx * TM) * N + sg_starty / SG_SZ * TN, N,
-               layout::row_major, M, N);
+           ext::intel::experimental::matrix::joint_matrix_store_checked(
+               sg, sub_c, pC, N, layout::row_major, M, N, sg_startx * TM,
+               sg_starty / SG_SZ * TN);
          }); // parallel for
    }).wait();
 }

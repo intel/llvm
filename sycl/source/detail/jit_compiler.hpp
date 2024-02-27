@@ -19,7 +19,8 @@ enum class BinaryFormat : uint32_t;
 class JITContext;
 struct SYCLKernelInfo;
 struct SYCLKernelAttribute;
-using ArgUsageMask = std::vector<unsigned char>;
+template <typename T> class DynArray;
+using ArgUsageMask = DynArray<uint8_t>;
 } // namespace jit_compiler
 
 struct pi_device_binaries_struct;
@@ -42,8 +43,8 @@ public:
   }
 
 private:
-  jit_compiler();
-  ~jit_compiler();
+  jit_compiler() = default;
+  ~jit_compiler() = default;
   jit_compiler(const jit_compiler &) = delete;
   jit_compiler(jit_compiler &&) = delete;
   jit_compiler &operator=(const jit_compiler &) = delete;
@@ -61,8 +62,6 @@ private:
 
   // Manages the lifetime of the PI structs for device binaries.
   std::vector<DeviceBinariesCollection> JITDeviceBinaries;
-
-  std::unique_ptr<::jit_compiler::JITContext> MJITContext;
 };
 
 } // namespace detail

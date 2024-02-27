@@ -152,6 +152,9 @@ __ESIMD_INTRIN __ESIMD_raw_vec_t(sycl::half, N)
                  __ESIMD_DNS::vector_type_t<uint16_t, N> src2)
         __ESIMD_INTRIN_END;
 
+__ESIMD_INTRIN __ESIMD_raw_vec_t(uint32_t, 4)
+    __esimd_timestamp() __ESIMD_INTRIN_END;
+
 #undef __ESIMD_raw_vec_t
 #undef __ESIMD_cpp_vec_t
 
