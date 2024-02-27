@@ -65,7 +65,8 @@ platform::get_info_impl() const {
 }
 #else
 template <typename Param>
-typename detail::is_platform_info_desc<Param>::return_type
+detail::ABINeutralT_t<
+    typename detail::is_platform_info_desc<Param>::return_type>
 platform::get_info() const {
   static_assert(std::is_same_v<
                 detail::ABINeutralT_t<

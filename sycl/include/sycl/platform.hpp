@@ -199,7 +199,9 @@ public:
   }
 #else
   template <typename Param>
-  typename detail::is_platform_info_desc<Param>::return_type get_info() const;
+  detail::ABINeutralT_t<
+      typename detail::is_platform_info_desc<Param>::return_type>
+  get_info() const;
 #endif
   /// Returns all available SYCL platforms in the system.
   ///
