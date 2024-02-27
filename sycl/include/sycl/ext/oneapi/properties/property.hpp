@@ -100,7 +100,7 @@ enum PropKind : uint32_t {
 namespace sycl::ext::oneapi::experimental {
 
 // (2.)
-struct foo {
+struct foo : detail::run_time_property_key<PropKind::Foo> {
   foo(int v) : value(v) {}
   int value;
 };
