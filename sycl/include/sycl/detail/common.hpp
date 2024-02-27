@@ -35,7 +35,9 @@ using EnableIfOutputPointerT = std::enable_if_t<
 
 template <typename DataT>
 using EnableIfOutputIteratorT = std::enable_if_t<
-    /*is_output_iterator<DataT>::value &&*/ !std::is_pointer_v<DataT>>;
+    /*is_output_iterator<DataT>::value &&*/ !std::is_pointer_v<DataT> &&
+    !std::is_const_v<std::remove_reference_t<
+        typename std::iterator_traits<DataT>::reference>>>;
 
 #if !defined(NDEBUG) && (_MSC_VER > 1929 || __has_builtin(__builtin_FILE))
 #define __CODELOC_FILE_NAME __builtin_FILE()
