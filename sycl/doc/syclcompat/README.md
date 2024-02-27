@@ -742,6 +742,10 @@ sycl::queue create_queue(bool print_on_async_exceptions = false,
 // device manager.
 sycl::queue get_default_queue();
 
+// Util function to set the default queue of the current device in the
+// device manager.
+void set_default_queue(const sycl::queue &q);
+
 // Util function to wait for the queued kernels.
 void wait(sycl::queue q = get_default_queue());
 
@@ -807,6 +811,7 @@ class device_ext : public sycl::device {
   void reset();
 
   sycl::queue *default_queue();
+  void set_default_queue(const sycl::queue &q);
   void queues_wait_and_throw();
   sycl::queue *create_queue(bool print_on_async_exceptions = false,
                             bool in_order = true);
