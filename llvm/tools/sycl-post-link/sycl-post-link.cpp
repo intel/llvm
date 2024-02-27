@@ -892,71 +892,71 @@ static bool instrumentDeviceGlobal(Module &M) {
   SmallVector<Constant *, 8> DeviceGlobalMetadata;
 
   constexpr uint64_t MaxRZ = 1 << 18;
-  const uint64_t MinRZ = 32;
+  constexpr uint64_t MinRZ = 32;
 
-  Type *IntptrTy =
-      Type::getIntNTy(M.getContext(), M.getDataLayout().getPointerSizeInBits());
+  Type *IntTy = Type::getIntNTy(M.getContext(), DL.getPointerSizeInBits());
 
   // Device global meta data is described by a structure
   //  size_t device_global_size
   //  size_t device_global_size_with_red_zone
   //  size_t beginning address of the device global
-  StructType *StructTy = StructType::get(IntptrTy, IntptrTy, IntptrTy);
+  StructType *StructTy = StructType::get(IntTy, IntTy, IntTy);
 
   for (auto &G : M.globals()) {
     // Non image scope device globals are implemented by device USM, and the
     // out-of-bounds check for them will be done by sanitizer USM part. So we
     // exclude them here.
-    if (isDeviceGlobalVariable(G) && hasDeviceImageScopeProperty(G)) {
-      Type *Ty = G.getValueType();
-      const uint64_t SizeInBytes = DL.getTypeAllocSize(Ty);
-      const uint64_t RightRedzoneSize = [&] {
-        uint64_t RZ = 0;
-        if (SizeInBytes <= MinRZ / 2) {
-          // Reduce redzone size for small size objects, e.g. int, char[1].
-          // Optimize when SizeInBytes is less than or equal to half of MinRZ.
-          RZ = MinRZ - SizeInBytes;
-        } else {
-          // Calculate RZ, where MinRZ <= RZ <= MaxRZ, and RZ ~ 1/4 *
-          // SizeInBytes.
-          RZ = std::clamp((SizeInBytes / MinRZ / 4) * MinRZ, MinRZ, MaxRZ);
+    if (!isDeviceGlobalVariable(G) || !hasDeviceImageScopeProperty(G))
+      continue;
 
-          // Round up to multiple of MinRZ.
-          if (SizeInBytes % MinRZ)
-            RZ += MinRZ - (SizeInBytes % MinRZ);
-        }
+    Type *Ty = G.getValueType();
+    const uint64_t SizeInBytes = DL.getTypeAllocSize(Ty);
+    const uint64_t RightRedzoneSize = [&] {
+      uint64_t RZ = 0;
+      if (SizeInBytes <= MinRZ / 2) {
+        // Reduce redzone size for small size objects, e.g. int, char[1].
+        // Optimize when SizeInBytes is less than or equal to half of MinRZ.
+        RZ = MinRZ - SizeInBytes;
+      } else {
+        // Calculate RZ, where MinRZ <= RZ <= MaxRZ, and RZ ~ 1/4 *
+        // SizeInBytes.
+        RZ = std::clamp((SizeInBytes / MinRZ / 4) * MinRZ, MinRZ, MaxRZ);
 
-        assert((RZ + SizeInBytes) % MinRZ == 0);
-        return RZ;
-      }();
-      Type *RightRedZoneTy = ArrayType::get(IRB.getInt8Ty(), RightRedzoneSize);
-      StructType *NewTy = StructType::get(Ty, RightRedZoneTy);
-      Constant *NewInitializer = ConstantStruct::get(
-          NewTy, G.getInitializer(), Constant::getNullValue(RightRedZoneTy));
+        // Round up to multiple of MinRZ.
+        if (SizeInBytes % MinRZ)
+          RZ += MinRZ - (SizeInBytes % MinRZ);
+      }
 
-      // Create a new global variable with enough space for a redzone.
-      GlobalVariable *NewGlobal = new GlobalVariable(
-          M, NewTy, G.isConstant(), G.getLinkage(), NewInitializer, "", &G,
-          G.getThreadLocalMode(), G.getAddressSpace());
-      NewGlobal->copyAttributesFrom(&G);
-      NewGlobal->setComdat(G.getComdat());
-      NewGlobal->setAlignment(Align(MinRZ));
-      NewGlobal->copyMetadata(&G, 0);
+      assert((RZ + SizeInBytes) % MinRZ == 0);
+      return RZ;
+    }();
+    Type *RightRedZoneTy = ArrayType::get(IRB.getInt8Ty(), RightRedzoneSize);
+    StructType *NewTy = StructType::get(Ty, RightRedZoneTy);
+    Constant *NewInitializer = ConstantStruct::get(
+        NewTy, G.getInitializer(), Constant::getNullValue(RightRedZoneTy));
 
-      Value *Indices2[2];
-      Indices2[0] = IRB.getInt32(0);
-      Indices2[1] = IRB.getInt32(0);
+    // Create a new global variable with enough space for a redzone.
+    GlobalVariable *NewGlobal = new GlobalVariable(
+        M, NewTy, G.isConstant(), G.getLinkage(), NewInitializer, "", &G,
+        G.getThreadLocalMode(), G.getAddressSpace());
+    NewGlobal->copyAttributesFrom(&G);
+    NewGlobal->setComdat(G.getComdat());
+    NewGlobal->setAlignment(Align(MinRZ));
+    NewGlobal->copyMetadata(&G, 0);
 
-      G.replaceAllUsesWith(
-          ConstantExpr::getGetElementPtr(NewTy, NewGlobal, Indices2, true));
-      NewGlobal->takeName(&G);
-      GlobalsToRemove.push_back(&G);
-      NewDeviceGlobals.push_back(NewGlobal);
-      DeviceGlobalMetadata.push_back(ConstantStruct::get(
-          StructTy, ConstantInt::get(IntptrTy, SizeInBytes),
-          ConstantInt::get(IntptrTy, SizeInBytes + RightRedzoneSize),
-          ConstantExpr::getPointerCast(NewGlobal, IntptrTy)));
-    }
+    Value *Indices2[2];
+    Indices2[0] = IRB.getInt32(0);
+    Indices2[1] = IRB.getInt32(0);
+
+    G.replaceAllUsesWith(
+        ConstantExpr::getGetElementPtr(NewTy, NewGlobal, Indices2, true));
+    NewGlobal->takeName(&G);
+    GlobalsToRemove.push_back(&G);
+    NewDeviceGlobals.push_back(NewGlobal);
+    DeviceGlobalMetadata.push_back(ConstantStruct::get(
+        StructTy, ConstantInt::get(IntTy, SizeInBytes),
+        ConstantInt::get(IntTy, SizeInBytes + RightRedzoneSize),
+        ConstantExpr::getPointerCast(NewGlobal, IntTy)));
   }
 
   if (GlobalsToRemove.empty())
@@ -964,8 +964,8 @@ static bool instrumentDeviceGlobal(Module &M) {
 
   // Create global to record number of device globals
   GlobalVariable *NumOfDeviceGlobals = new GlobalVariable(
-      M, IntptrTy, false, GlobalValue::ExternalLinkage,
-      ConstantInt::get(IntptrTy, NewDeviceGlobals.size()),
+      M, IntTy, false, GlobalValue::ExternalLinkage,
+      ConstantInt::get(IntTy, NewDeviceGlobals.size()),
       "__AsanDeviceGlobalCount", nullptr, GlobalValue::NotThreadLocal, 1);
   NumOfDeviceGlobals->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
 
