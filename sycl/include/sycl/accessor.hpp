@@ -3763,7 +3763,6 @@ public:
   }
 
   /* -- property interface members -- */
- 
   size_t size() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
     // Currently not reachable on device.
