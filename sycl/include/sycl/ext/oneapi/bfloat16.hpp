@@ -154,20 +154,6 @@ public:
     float f = static_cast<float>(lhs);                                         \
     f op static_cast<float>(rhs);                                              \
     return lhs = f;                                                            \
-  }                                                                            \
-  template <typename T>                                                        \
-  friend std::enable_if_t<std::is_convertible_v<T, float>, bfloat16>           \
-      &operator op(bfloat16 & lhs, const T & rhs) {                            \
-    float f = static_cast<float>(lhs);                                         \
-    f op static_cast<float>(rhs);                                              \
-    return lhs = f;                                                            \
-  }                                                                            \
-  template <typename T>                                                        \
-  friend std::enable_if_t<std::is_convertible_v<T, float>, T> &operator op(    \
-      T & lhs, const bfloat16 & rhs) {                                         \
-    float f = static_cast<float>(lhs);                                         \
-    f op static_cast<float>(rhs);                                              \
-    return lhs = f;                                                            \
   }
   OP(+=)
   OP(-=)
