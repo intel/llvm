@@ -66,9 +66,12 @@ platform::get_info_impl() const {
 }
 #else
 template <typename Param>
-typename detail::is_platform_info_desc<Param>::return_type
+//typename detail::is_platform_info_desc<Param>::return_type
+typename detail::ABINeutralT_t<
+    typename detail::is_platform_info_desc<Param>::return_type>
 platform::get_info() const {
-  return impl->get_info<Param>();
+  //  return impl->get_info<Param>();
+  return detail::convert_to_abi_neutral(impl->template get_info<Param>());
 }
 #endif
 
@@ -82,8 +85,8 @@ bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
   platform::get_info_impl<info::platform::Desc>() const;
 #else
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template __SYCL_EXPORT ReturnT platform::get_info<info::platform::Desc>()    \
-      const;
+  template __SYCL_EXPORT typename detail::ABINeutralT_t<ReturnT> \
+   platform::get_info<info::platform::Desc>()    const;
 #endif
 
 #include <sycl/info/platform_traits.def>

@@ -57,9 +57,9 @@ class platform_impl;
 /// \param Val Indicates if extension should be enabled/disabled
 void __SYCL_EXPORT enable_ext_oneapi_default_context(bool Val);
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 template <typename ParamT>
 auto convert_to_abi_neutral(ParamT &Info) {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   if constexpr (std::is_same_v<ParamT, std::string>) {
     return detail::string{Info};
   } else if constexpr (std::is_same_v<ParamT, std::vector<std::string>>) {
@@ -72,10 +72,14 @@ auto convert_to_abi_neutral(ParamT &Info) {
   } else {
     return Info;
   }
+#else
+  return std::forward<ParamT>(Info);
+#endif
 }
 
 template <typename ParamT>
 auto convert_from_abi_neutral(ParamT &Info) {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   if constexpr (std::is_same_v<ParamT, detail::string>) {
     return Info.c_str();
   } else if constexpr (std::is_same_v<ParamT, std::vector<detail::string>>) {
@@ -88,8 +92,10 @@ auto convert_from_abi_neutral(ParamT &Info) {
   } else {
     return Info;
   }
-}
+#else
+  return std::forward<ParamT>(Info);
 #endif
+}
 } // namespace detail
 namespace ext::oneapi {
 // Forward declaration
@@ -185,13 +191,17 @@ public:
   /// The return type depends on information being queried.
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
-  typename detail::is_platform_info_desc<Param>::return_type get_info() const {
+  //typename detail::is_platform_info_desc<Param>::return_type get_info() const {
+  typename detail::ABINeutralT_t<
+    typename detail::is_platform_info_desc<Param>::return_type> get_info() const {
     auto Info = get_info_impl<Param>();
     return detail::convert_from_abi_neutral(Info);
   }
 #else
   template <typename Param>
-  typename detail::is_platform_info_desc<Param>::return_type get_info() const;
+//  typename detail::is_platform_info_desc<Param>::return_type get_info() const;
+    typename detail::ABINeutralT_t<
+    typename detail::is_platform_info_desc<Param>::return_type> get_info() const;
 #endif
   /// Returns all available SYCL platforms in the system.
   ///

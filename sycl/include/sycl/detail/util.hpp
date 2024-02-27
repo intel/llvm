@@ -69,6 +69,7 @@ struct CmpCStr {
 
 using SerializedObj = std::vector<unsigned char>;
 
+template <typename T> struct ABINeutralT { using type = T; };
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 // We need special handling of std::string to handle ABI incompatibility
 // for get_info<>() when it returns std::string and vector<std::string>.
@@ -76,7 +77,6 @@ using SerializedObj = std::vector<unsigned char>;
 // cases, and it is only called internally and not exposed to the user.
 // The following ReturnType structure is intended for general return type,
 // and special return types (std::string and vector of it).
-template <typename T> struct ABINeutralT { using type = T; };
 
 template <> struct ABINeutralT<std::string> { using type = detail::string; };
 
@@ -89,9 +89,8 @@ template <> struct ABINeutralT<detail::string> { using type = std::string; };
 template <> struct ABINeutralT<std::vector<detail::string>> {
   using type = std::vector<std::string>;
 };
-
-template <typename T> using ABINeutralT_t = typename ABINeutralT<T>::type;
 #endif
+template <typename T> using ABINeutralT_t = typename ABINeutralT<T>::type;
 
 } // namespace detail
 } // namespace _V1
