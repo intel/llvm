@@ -519,7 +519,7 @@ Exceptions:
   of the nd_range the kernel was originally created with.
 
 * Throws with error code `invalid` if the kernel node was originally created
-  with a `sycl::range`
+  with a `sycl::range`.
 
 * Throws with error code `invalid` if the type of the node is not a kernel
   execution.
@@ -546,7 +546,7 @@ Exceptions:
   of the range the kernel was originally created with.
 
 * Throws with error code `invalid` if the kernel node was originally created
-  with a `sycl::nd_range`
+  with a `sycl::nd_range`.
 
 * Throws with error code `invalid` if the type of the node is not a kernel
   execution.
@@ -594,8 +594,9 @@ Table {counter: tableNumber}. Member functions of the `dynamic_parameter` class.
 dynamic_parameter(command_graph<graph_state::modifiable> graph, const ValueT &param);
 ----
 |Constructs a dynamic parameter object that can be registered with command graph
-nodes. The param argument is used only to deduce the template parameter ValueT,
-which is the type of the kernel argument this `dynamic_parameter` represents.
+nodes. The param argument is used only to deduce the template parameter
+`ValueT`, which is the type of the kernel argument this `dynamic_parameter`
+represents.
 
 Parameters:
 
