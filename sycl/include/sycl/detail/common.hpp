@@ -25,10 +25,6 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-// The check for output iterator is commented out as it blocks set_final_data
-// with void * argument to be used.
-// TODO: Align these checks with the SYCL specification when the behaviour
-// with void * is clarified.
 template <typename DataT>
 using EnableIfOutputPointerT =
     std::enable_if_t<is_output_iterator<DataT>::value &&
