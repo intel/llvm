@@ -57,12 +57,13 @@ class platform_impl;
 /// \param Val Indicates if extension should be enabled/disabled
 void __SYCL_EXPORT enable_ext_oneapi_default_context(bool Val);
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 template <typename ParamT>
-auto convert_to_abi_neutral(ParamT &Info) {
-  if constexpr (std::is_same_v<ParamT, std::string>) {
+auto convert_to_abi_neutral(ParamT &&Info) {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  using ParamNoRef = std::remove_reference_t<ParamT>;
+  if constexpr (std::is_same_v<ParamNoRef, std::string>) {
     return detail::string{Info};
-  } else if constexpr (std::is_same_v<ParamT, std::vector<std::string>>) {
+  } else if constexpr (std::is_same_v<ParamNoRef, std::vector<std::string>>) {
     std::vector<detail::string> Res;
     Res.reserve(Info.size());
     for (std::string &Str : Info) {
@@ -70,15 +71,20 @@ auto convert_to_abi_neutral(ParamT &Info) {
     }
     return Res;
   } else {
-    return Info;
+    return std::forward<ParamT>(Info);
   }
+#else
+  return std::forward<ParamT>(Info);
+#endif
 }
 
 template <typename ParamT>
-auto convert_from_abi_neutral(ParamT &Info) {
-  if constexpr (std::is_same_v<ParamT, detail::string>) {
+auto convert_from_abi_neutral(ParamT &&Info) {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  using ParamNoRef = std::remove_reference_t<ParamT>;
+  if constexpr (std::is_same_v<ParamNoRef, detail::string>) {
     return Info.c_str();
-  } else if constexpr (std::is_same_v<ParamT, std::vector<detail::string>>) {
+  } else if constexpr (std::is_same_v<ParamNoRef, std::vector<detail::string>>) {
     std::vector<std::string> Res;
     Res.reserve(Info.size());
     for (detail::string &Str : Info) {
@@ -86,10 +92,12 @@ auto convert_from_abi_neutral(ParamT &Info) {
     }
     return Res;
   } else {
-    return Info;
+    return std::forward<ParamT>(Info);
   }
-}
+#else
+  return std::forward<ParamT>(Info);
 #endif
+}
 } // namespace detail
 namespace ext::oneapi {
 // Forward declaration
