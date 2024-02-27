@@ -10,8 +10,8 @@ on:
         description: Adapter name
         type: string
         required: true
-      str_name: Formatted adapter name
-        description:
+      str_name:
+        description: Formatted adapter name
         type: string
         required: true
       prefix:
