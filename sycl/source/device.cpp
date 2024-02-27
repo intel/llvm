@@ -226,7 +226,7 @@ __SYCL_EXPORT bool device::get_info<info::device::image_support>() const {
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
-  template __SYCL_EXPORT typename detail::ABINeutralT_t<ReturnT>               \
+  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>               \
   device::get_info_impl<Namespace::info::DescType::Desc>() const;
 #else
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
