@@ -455,7 +455,7 @@ void attr_on_const_error()
 //expected-error@+1{{attribute only applies to local non-const variables and non-static data members}}
 void attr_on_func_arg([[intel::private_copies(8)]] int pc) {}
 
-//expected-error@+1{{attribute only applies to constant variables, local variables, static variables, agent memory arguments, and non-static data members}}
+//expected-error@+1{{'force_pow2_depth' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::force_pow2_depth(0)]]
 __attribute__((opencl_global)) unsigned int ocl_glob_force_p2d[64] = {1, 2, 3};
 

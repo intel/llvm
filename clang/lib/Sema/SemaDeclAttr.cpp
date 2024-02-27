@@ -8113,6 +8113,12 @@ void Sema::AddSYCLIntelForcePow2DepthAttr(Decl *D,
       return;
     }
 
+    // Check attribute only applies to constant variables, local variables,
+    // static variables, agent memory arguments, non-static data members,
+    // and device_global variables.
+    if (CheckValidFPGAMemoryAttributesVar(*this, D, CI))
+      return;
+
     // Check to see if there's a duplicate attribute with different values
     // already applied to the declaration.
     if (const auto *DeclAttr = D->getAttr<SYCLIntelForcePow2DepthAttr>()) {
