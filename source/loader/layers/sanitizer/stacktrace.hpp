@@ -21,7 +21,7 @@ namespace ur_sanitizer_layer {
 #define MAX_BACKTRACE_FRAMES 64
 
 struct StackTrace {
-    std::vector<AddressInfo> stack;
+    std::vector<BacktraceInfo> stack;
 
     void Print() const;
 };

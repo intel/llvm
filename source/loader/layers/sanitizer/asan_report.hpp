@@ -13,19 +13,20 @@
 #pragma once
 
 #include "common.hpp"
+
 #include <memory>
 
 namespace ur_sanitizer_layer {
 
 class DeviceSanitizerReport;
-class USMAllocInfo;
+class AllocInfo;
 class StackTrace;
 
 void ReportBadFree(uptr Addr, const StackTrace &stack,
-                   std::shared_ptr<USMAllocInfo> AllocInfo);
+                   std::shared_ptr<AllocInfo> AllocInfo);
 
 void ReportDoubleFree(uptr Addr, const StackTrace &Stack,
-                      std::shared_ptr<USMAllocInfo> AllocInfo);
+                      std::shared_ptr<AllocInfo> AllocInfo);
 
 void ReportGenericError(const DeviceSanitizerReport &Report,
                         ur_kernel_handle_t Kernel, ur_context_handle_t Context,

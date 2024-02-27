@@ -214,7 +214,7 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
 
     for (auto It = AllocInfos.begin(); It != AllocInfos.end();) {
         if (It->get()->Context == Context) {
-            CurrentContext.emplace_back(It);
+            CurrentContext.emplace_back(*It);
             It = AllocInfos.erase(It);
             continue;
         }
