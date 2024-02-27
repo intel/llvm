@@ -22,6 +22,7 @@
 #include "LlvmState.h"
 #include "PerfHelper.h"
 #include "SnippetGenerator.h"
+#include "ValidationEvent.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -38,10 +39,6 @@ namespace exegesis {
 extern cl::OptionCategory Options;
 extern cl::OptionCategory BenchmarkOptions;
 extern cl::OptionCategory AnalysisOptions;
-
-enum ValidationEvent {
-  InstructionRetired
-};
 
 struct PfmCountersInfo {
   // An optional name of a performance counter that can be used to measure
@@ -86,6 +83,7 @@ public:
   // Targets can use this to create target-specific perf counters.
   virtual Expected<std::unique_ptr<pfm::CounterGroup>>
   createCounter(StringRef CounterName, const LLVMState &State,
+                ArrayRef<const char *> ValidationCounters,
                 const pid_t ProcessID = 0) const;
 
   // Targets can use this to add target-specific passes in assembleToStream();
@@ -270,6 +268,7 @@ public:
       BenchmarkPhaseSelectorE BenchmarkPhaseSelector,
       BenchmarkRunner::ExecutionModeE ExecutionMode,
       unsigned BenchmarkRepeatCount,
+      ArrayRef<ValidationEvent> ValidationCounters,
       Benchmark::ResultAggregationModeE ResultAggMode = Benchmark::Min) const;
 
   // Returns the ExegesisTarget for the given triple or nullptr if the target
@@ -314,11 +313,13 @@ private:
       BenchmarkPhaseSelectorE BenchmarkPhaseSelector,
       Benchmark::ResultAggregationModeE ResultAggMode,
       BenchmarkRunner::ExecutionModeE ExecutionMode,
+      ArrayRef<ValidationEvent> ValidationCounters,
       unsigned BenchmarkRepeatCount) const;
   std::unique_ptr<BenchmarkRunner> virtual createUopsBenchmarkRunner(
       const LLVMState &State, BenchmarkPhaseSelectorE BenchmarkPhaseSelector,
       Benchmark::ResultAggregationModeE ResultAggMode,
-      BenchmarkRunner::ExecutionModeE ExecutionMode) const;
+      BenchmarkRunner::ExecutionModeE ExecutionMode,
+      ArrayRef<ValidationEvent> ValidationCounters) const;
 
   const ExegesisTarget *Next = nullptr;
   const ArrayRef<CpuAndPfmCounters> CpuPfmCounters;

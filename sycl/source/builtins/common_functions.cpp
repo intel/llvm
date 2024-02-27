@@ -63,16 +63,8 @@ BUILTIN_COMMON(TWO_ARGS, max,
 BUILTIN_COMMON(TWO_ARGS, min,
                [](auto x, auto y) -> decltype(x) { return (y < x ? y : x); })
 
-// clamp is implemented for INTEGER_TYPES as well, so expand/inline
-// BUILTIN_COMMON manually.
-HOST_IMPL(clamp, [](auto x, auto y, auto z) -> decltype(x) {
-  using ElemTy = detail::get_elem_type_t<decltype(x)>;
-  if constexpr (std::is_integral_v<ElemTy>) {
-    return std::min(std::max(x, y), z);
-  } else {
-    return std::fmin(std::fmax(x, y), z);
-  }
+BUILTIN_COMMON(THREE_ARGS, clamp, [](auto x, auto y, auto z) -> decltype(x) {
+  return std::fmin(std::fmax(x, y), z);
 })
-EXPORT_SCALAR_AND_VEC_1_16(THREE_ARGS, clamp, INTEGER_TYPES, FP_TYPES)
 } // namespace _V1
 } // namespace sycl

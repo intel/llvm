@@ -27,14 +27,33 @@ clang++ <device-ir> -o <device-o>
 #link
 clang++ -L<sycl-lib-path> -lsycl <device-o> <host-o> -o <output>
 ```
-In order to execute kernels compiled for `native-cpu`, we provide a PI Plugin. The plugin needs to be enabled when configuring DPC++ (e.g. `python buildbot/configure.py --native_cpu`) and needs to be selected at runtime by setting the environment variable `ONEAPI_DEVICE_SELECTOR=native_cpu:cpu`. 
+
+## Configuring DPC++ with SYCL Native CPU
+
+SYCL Native CPU needs to be enabled explictly when configuring DPC++, using `--native_cpu`, e.g.
+
+```
+python buildbot/configure.py \
+  --native_cpu
+# other options here
+```
+
+SYCL Native CPU uses the [oneAPI Construction Kit](https://github.com/codeplaysoftware/oneapi-construction-kit) (OCK) in order to support some core SYCL functionalities and improve performances, the OCK is fetched by default when SYCL Native CPU is enabled, and can optionally be disabled using the `NATIVECPU_USE_OCK` CMake variable (please note that disabling the OCK will result in limited functionalities and performances on the SYCL Native CPU backend):
+
+```
+python3 buildbot/configure.py \
+  --native_cpu \
+  --cmake-opt=-DNATIVECPU_USE_OCK=Off
+```
+
+The SYCL Native CPU device needs to be selected at runtime by setting the environment variable `ONEAPI_DEVICE_SELECTOR=native_cpu:cpu`. 
 
 # Supported features and current limitations
 
-The SYCL Native CPU flow is still WIP, not optimized and several core SYCL features are currently unsupported. Currently `barrier` and several math builtins are not supported, and attempting to use those will most likely fail with an `undefined reference` error at link time. Examples of supported applications can be found in the [runtime tests](https://github.com/intel/llvm/blob/sycl/sycl/test/native_cpu).
+The SYCL Native CPU flow is still WIP, not optimized and several core SYCL features are currently unsupported. Currently `barriers` are supported only when the oneAPI Construction Kit integration is enabled, several math builtins are not supported and attempting to use those will most likely fail with an `undefined reference` error at link time. Examples of supported applications can be found in the [runtime tests](https://github.com/intel/llvm/blob/sycl/sycl/test/native_cpu).
 
 
-To execute the `e2e` tests on the Native CPU, configure the test suite with:
+To execute the `e2e` tests on SYCL Native CPU, configure the test suite with:
 
 ```bash
 # make sure that DPC++ is in your $PATH and your environment is configured for DPC++
@@ -50,9 +69,19 @@ cmake \
 
 Note that a number of `e2e` tests are currently still failing.
 
-# Running example
+## Ongoing work
 
-The following section gives a brief overview of how a simple SYCL application is compiled for the Native CPU target. Consider the following SYCL sample, which performs vector addition using USM:
+* Complete support for remaining SYCL features, including but not limited to
+  * math and other builtins
+* Vectorization (e.g. Whole Function Vectorization)
+* Subgroup support
+* Performance optimizations
+
+### Please note that Windows support is temporarily disabled due to some implementation details, it will be reinstantiated soon.
+
+# Technical details
+
+The following section gives a brief overview of how a simple SYCL application is compiled for the SYCL Native CPU target. Consider the following SYCL sample, which performs vector addition using USM:
 
 ```c++
   cl::sycl::queue deviceQueue;
@@ -93,7 +122,7 @@ entry:
 }
 ```
 
-For the Native CPU target, the device compiler is in charge of materializing the SPIRV builtins (such as `@__spirv_BuiltInGlobalInvocationId`), so that they can be correctly updated by the runtime when executing the kernel. This is performed by the [PrepareSYCLNativeCPU pass](https://github.com/intel/llvm/blob/sycl/llvm/lib/SYCLLowerIR/PrepareSYCLNativeCPU.cpp).
+For the SYCL Native CPU target, the device compiler is in charge of materializing the SPIRV builtins (such as `@__spirv_BuiltInGlobalInvocationId`), so that they can be correctly updated by the runtime when executing the kernel. This is performed by the [PrepareSYCLNativeCPU pass](https://github.com/intel/llvm/blob/sycl/llvm/lib/SYCLLowerIR/PrepareSYCLNativeCPU.cpp).
 The PrepareSYCLNativeCPUPass also emits a `subhandler` function, which receives the kernel arguments from the SYCL runtime (packed in a vector), unpacks them, and forwards only the used ones to the actual kernel. 
 
 
@@ -123,7 +152,7 @@ entry:
 ```
 This pass will also set the correct calling convention for the target, and handle calling convention-related function attributes, allowing to call the kernel from the runtime.
 
-The `subhandler` for the Native CPU kernel looks like: 
+The `subhandler` for the SYCL Native CPU kernel looks like: 
 
 ```llvm
 define weak void @_Z6Sample(ptr %0, ptr %1) #4 {
@@ -142,9 +171,13 @@ entry:
 ```
 As you can see, the `subhandler` steals the kernel's function name, and receives two pointer arguments: the first one points to the kernel arguments from the SYCL runtime, and the second one to the `__nativecpu_state` struct.
 
+## Handling barriers 
+
+On SYCL Native CPU, calls to `__spirv_ControlBarrier` are handled using the `WorkItemLoopsPass` from the oneAPI Construction Kit. This pass handles barriers by splitting the kernel between calls calls to `__spirv_ControlBarrier`, and creating a wrapper that runs the subkernels over the local range. In order to correctly interface to the oneAPI Construction Kit pass pipeline, SPIRV builtins are converted to `mux` builtins (used by the OCK) by the `ConvertToMuxBuiltinsSYCLNativeCPUPass`.
+
 ## Kernel registration
 
-In order to register the Native CPU kernels to the SYCL runtime, we applied a small change to the `clang-offload-wrapper` tool: normally, the `clang-offload-wrapper` bundles the offload binary in an LLVM-IR module. Instead of bundling the device code, for the Native CPU target we insert an array of function pointers to the `subhandler`s, and the `pi_device_binary_struct::BinaryStart` and `pi_device_binary_struct::BinaryEnd` fields, which normally point to the begin and end addresses of the offload binary, now point to the begin and end of the array.
+In order to register the SYCL Native CPU kernels to the SYCL runtime, we applied a small change to the `clang-offload-wrapper` tool: normally, the `clang-offload-wrapper` bundles the offload binary in an LLVM-IR module. Instead of bundling the device code, for the SYCL Native CPU target we insert an array of function pointers to the `subhandler`s, and the `pi_device_binary_struct::BinaryStart` and `pi_device_binary_struct::BinaryEnd` fields, which normally point to the begin and end addresses of the offload binary, now point to the begin and end of the array.
 
 ```
  -------------------------------------------------------
@@ -160,17 +193,5 @@ Each entry in the array contains the kernel name as a string, and a pointer to t
 
 ## Kernel lowering and execution
 
-The information produced by the device compiler is then employed to correctly lower the kernel LLVM-IR module to the target ISA (this is performed by the driver when `-fsycl-targets=native_cpu` is set). The object file containing the kernel code is linked with the host object file (and libsycl and any other needed library) and the final executable is ran using the Native CPU PI Plug-in, defined in [pi_native_cpu.cpp](https://github.com/intel/llvm/blob/sycl/sycl/plugins/native_cpu/pi_native_cpu.cpp).
+The information produced by the device compiler is then employed to correctly lower the kernel LLVM-IR module to the target ISA (this is performed by the driver when `-fsycl-targets=native_cpu` is set). The object file containing the kernel code is linked with the host object file (and libsycl and any other needed library) and the final executable is run using the SYCL Native CPU UR Adapter, defined in [the Unified Runtime repo](https://github.com/oneapi-src/unified-runtime/tree/adapters/source/adapters/native_cpu).
 
-## Ongoing work
-
-* Complete support for remaining SYCL features, including but not limited to
-  * kernels with barriers
-  * math and other builtins
-  * work group local memory
-* Vectorization (e.g. Whole Function Vectorization)
-* Subgroup support
-* Performance optimizations
-* Support for multiple SYCL targets alongside native_cpu
-
-### Please note that Windows support is temporarily disabled due to some implementation details, it will be reinstantiated soon.

@@ -9,8 +9,7 @@
 int main() {
   using T = int;
 
-  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{},
-               sycl::property::queue::in_order{}}};
+  queue Queue{sycl::property::queue::in_order{}};
 
   if (!are_graphs_supported(Queue)) {
     return 0;
@@ -57,6 +56,7 @@ int main() {
   }
 
   sycl::free(TestData, Queue);
+  sycl::free(TestDataOut, Queue);
 
   return 0;
 }

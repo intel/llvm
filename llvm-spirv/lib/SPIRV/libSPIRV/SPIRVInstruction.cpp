@@ -154,10 +154,6 @@ SPIRVInstruction::getOperandTypes(const std::vector<SPIRVValue *> &Ops) {
   return Tys;
 }
 
-std::vector<SPIRVType *> SPIRVInstruction::getOperandTypes() {
-  return getOperandTypes(getOperands());
-}
-
 void SPIRVImageInstBase::setOpWords(const std::vector<SPIRVWord> &OpsArg) {
   std::vector<SPIRVWord> Ops = OpsArg;
 

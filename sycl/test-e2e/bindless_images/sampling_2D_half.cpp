@@ -82,9 +82,9 @@ int main() {
             float fdim0 = float(dim0 + 0.5f) / (float)width;
             float fdim1 = float(dim1 + 0.5f) / (float)height;
 
-            // Extension: read image data from handle
+            // Extension: sample image data from handle
             sycl::half4 px1 =
-                sycl::ext::oneapi::experimental::read_image<sycl::half4>(
+                sycl::ext::oneapi::experimental::sample_image<sycl::half4>(
                     imgHandle, sycl::float2(fdim0, fdim1));
 
             outAcc[sycl::id<2>{dim1, dim0}] = px1[0];
