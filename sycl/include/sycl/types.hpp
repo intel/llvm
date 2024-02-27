@@ -905,18 +905,18 @@ public:
   // Implement operator [] in the same way for host and device.
   // TODO: change host side implementation when underlying type for host side
   // will be changed to std::array.
-  // NOTE: aliasing on bfloat16 may lead to problems if aggressively optimized.
-  // specializing with noinline to avoid as workaround.
+  // NOTE: aliasing the incompatible types of bfloat16 may lead to problems if
+  // aggressively optimized. Specializing with noinline to avoid as workaround.
 
   template <typename T = DataT>
-  typename std::enable_if<!std::is_same<T, sycl::ext::oneapi::bfloat16>::value,
+  typename std::enable_if<!std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
                           const DataT &>::type
   operator[](int i) const {
     return reinterpret_cast<const DataT *>(&m_Data)[i];
   }
 
   template <typename T = DataT>
-  typename std::enable_if<!std::is_same<T, sycl::ext::oneapi::bfloat16>::value,
+  typename std::enable_if<!std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
                           DataT &>::type
   operator[](int i) {
     return reinterpret_cast<DataT *>(&m_Data)[i];
@@ -929,18 +929,22 @@ public:
 #endif
 
   template <typename T = DataT>
-  __SYCL_NOINLINE_BF16 typename std::enable_if<
-      std::is_same<T, sycl::ext::oneapi::bfloat16>::value, const DataT &>::type
-  operator[](int i) const {
+  __SYCL_NOINLINE_BF16
+      typename std::enable_if<std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
+                              const DataT &>::type
+      operator[](int i) const {
     return reinterpret_cast<const DataT *>(&m_Data)[i];
   }
 
   template <typename T = DataT>
-  __SYCL_NOINLINE_BF16 typename std::enable_if<
-      std::is_same<T, sycl::ext::oneapi::bfloat16>::value, DataT &>::type
-  operator[](int i) {
+  __SYCL_NOINLINE_BF16
+      typename std::enable_if<std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
+                              DataT &>::type
+      operator[](int i) {
     return reinterpret_cast<DataT *>(&m_Data)[i];
   }
+
+#undef __SYCL_NOINLINE_BF16
 
   // Begin hi/lo, even/odd, xyzw, and rgba swizzles.
 private:
