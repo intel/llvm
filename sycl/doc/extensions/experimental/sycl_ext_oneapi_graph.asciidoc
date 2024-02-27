@@ -387,7 +387,7 @@ public:
 class node {
 public:
   node() = delete;
-  
+
   node_type get_type() const;
 
   std::vector<node> get_predecessors() const;
@@ -395,7 +395,7 @@ public:
   std::vector<node> get_successors() const;
 
   static node get_node_from_event(event nodeEvent);
-  
+
   template <int Dimensions>
   void update_nd_range(nd_range<Dimensions> executionRange);
 
@@ -525,7 +525,7 @@ Table {counter: tableNumber}. Member functions of the `node` class.
 [cols="2a,a"]
 |===
 |Member Function|Description
-  
+
 |
 [source,c++]
 ----
