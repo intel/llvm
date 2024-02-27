@@ -206,10 +206,8 @@ struct _ur_image final : ur_mem_handle_t_ {
 
   bool isImage() const override { return true; }
 
-#ifndef NDEBUG
-  // Keep the descriptor of the image (for debugging purposes)
+  // Keep the descriptor of the image
   ZeStruct<ze_image_desc_t> ZeImageDesc;
-#endif // !NDEBUG
 
   // Level Zero image handle.
   ze_image_handle_t ZeImage;
