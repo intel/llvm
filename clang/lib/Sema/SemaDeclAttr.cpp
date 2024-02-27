@@ -7443,6 +7443,26 @@ static bool checkForDuplicateAttribute(Sema &S, Decl *D,
   return false;
 }
 
+// Checks if FPGA memory attributes apply on valid variables.
+// Returns true if an error occured.
+static bool CheckValidFPGAMemoryAttributesVar(Sema &S, Decl *D,
+                                              const AttributeCommonInfo &CI) {
+  if (const auto *VD = dyn_cast<VarDecl>(D)){
+    if (!(VD->getKind() != Decl::ImplicitParam &&
+          VD->getKind() != Decl::NonTypeTemplateParm &&
+          ((VD->getStorageClass() == SC_Static || VD->hasLocalStorage()) ||
+           (VD->getKind() != Decl::ParmVar &&
+            (S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(VD->getType())
+             || VD->getType().isConstQualified()
+             || VD->getType().getAddressSpace() ==
+                    LangAS::opencl_constant))))) {
+      S.Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable) << CI;
+      return true;
+    }
+  }
+  return false;
+}
+
 void Sema::AddSYCLIntelNoGlobalWorkOffsetAttr(Decl *D,
                                               const AttributeCommonInfo &CI,
                                               Expr *E) {
@@ -7748,18 +7768,8 @@ void Sema::AddSYCLIntelNumBanksAttr(Decl *D, const AttributeCommonInfo &CI,
     // Check attribute only applies to constant variables, local variables,
     // static variables, agent memory arguments, non-static data members,
     // and device_global variables.
-    if (const auto *VD = dyn_cast<VarDecl>(D)){
-      if (!(VD->getKind() != Decl::ImplicitParam &&
-            VD->getKind() != Decl::NonTypeTemplateParm &&
-           ((VD->getStorageClass() == SC_Static || VD->hasLocalStorage()) ||
-            (VD->getKind() != Decl::ParmVar &&
-	     (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(VD->getType())
-              || VD->getType().isConstQualified()
-	      || VD->getType().getAddressSpace() ==
-                 LangAS::opencl_constant))))){
-        Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable) << CI;
-      }
-    }
+    if (CheckValidFPGAMemoryAttributesVar(*this, D, CI))
+      return;
 
     // Check to see if there's a duplicate attribute with different values
     // already applied to the declaration.
@@ -7857,18 +7867,8 @@ void Sema::AddSYCLIntelMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
     // Check attribute only applies to constant variables, local variables,
     // static variables, agent memory arguments, non-static data members,
     // and device_global variables.
-    if (const auto *VD = dyn_cast<VarDecl>(D)){
-      if (!(VD->getKind() != Decl::ImplicitParam &&
-            VD->getKind() != Decl::NonTypeTemplateParm &&
-           ((VD->getStorageClass() == SC_Static || VD->hasLocalStorage()) ||
-            (VD->getKind() != Decl::ParmVar &&
-             (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(VD->getType())
-              || VD->getType().isConstQualified()
-              || VD->getType().getAddressSpace() ==
-                 LangAS::opencl_constant))))){
-        Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable) << CI;
-      }
-    }
+    if (CheckValidFPGAMemoryAttributesVar(*this, D, CI))
+      return;
 
     // Check to see if there's a duplicate attribute with different values
     // already applied to the declaration.
