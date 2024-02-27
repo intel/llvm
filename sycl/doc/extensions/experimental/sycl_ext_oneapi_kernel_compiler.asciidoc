@@ -327,11 +327,9 @@ a!
 namespace sycl::ext::oneapi::experimental {
 
 struct include_files {
-  std::vector<std::string> names;
-  std::vector<std::string> contents;
-  include_files(const std::string &name, const std::string &content);  (1)
-  include_files(const std::vector<std::string> &names,                 (2)
-                const std::vector<std::string> &contents);
+  include_files();                                                     (1)
+  include_files(const std::string &name, const std::string &content);  (2)
+  void add(const std::string &name, const std::string &content);       (3)
 };
 using include_files_key = include_files;
 
@@ -374,13 +372,18 @@ content via the `include_files` property:
 The include files defined via the `include_files` property are searched first,
 before these implicitly available headers.
 
-_Effects (1):_ Constructs an `include_files` property with a single (_Name_,
+_Effects (1):_ Creates a new `include_files` property with no (_Name_,
+_Content_) pairs.
+
+_Effects (2):_ Creates a new `include_files` property with a single (_Name_,
 _Content_) pair.
 
-_Effects (2):_ Constructs an `include_files` property with a collection of
-(_Name_, _Content_) pairs.
-The `names` vector provides the _Name_ strings, and the `contents` vector
-provides the _Content_ strings.
+_Effects (3):_ Adds a (_Name_, _Content_) pair to the property.
+
+_Throws (3):_
+
+* An `exception` with the `errc::invalid` error code if there is already an
+  entry with `name` in this property.
 |====
 
 === New properties for the `build` function
@@ -398,9 +401,10 @@ a!
 namespace sycl::ext::oneapi::experimental {
 
 struct build_options {
-  std::vector<std::string> opts;
-  build_options(const std::string &opt);                (1)
-  build_options(const std::vector<std::string> &opts);  (2)
+  build_options();                                      (1)
+  build_options(const std::string &opt);                (2)
+  build_options(const std::vector<std::string> &opts);  (3)
+  void add(const std::string &opt);                     (4)
 };
 using build_options_key = build_options;
 
@@ -420,11 +424,15 @@ options.
 The `source_language::sycl` language does not define any standard build
 options, but an implementation may support implementation-defined options.
 
-_Effects (1):_ Constructs a `build_options` property with a single build
+_Effects (1):_ Constructs a `build_options` property with no build options.
+
+_Effects (2):_ Constructs a `build_options` property with a single build
 option.
 
-_Effects (2):_ Constructs a `build_options` property from a vector of build
+_Effects (3):_ Constructs a `build_options` property from a vector of build
 options.
+
+_Effects (4):_ Adds `opt` to the end of the property's list of build options.
 
 a|
 [frame=all,grid=none]
@@ -435,7 +443,6 @@ a!
 namespace sycl::ext::oneapi::experimental {
 
 struct save_log {
-  std::string *log;
   save_log(std::string *to);  (1)
 };
 using save_log_key = save_log;
@@ -478,9 +485,10 @@ a!
 namespace sycl::ext::oneapi::experimental {
 
 struct registered_kernel_names {
-  std::vector<std::string> names;
-  registered_kernel_names(const std::string &name);                (1)
-  registered_kernel_names(const std::vector<std::string> &names);  (2)
+  registered_kernel_names();                                       (1)
+  registered_kernel_names(const std::string &name);                (2)
+  registered_kernel_names(const std::vector<std::string> &names);  (3)
+  void add(const std::string &name);                               (4)
 };
 using registered_kernel_names_key = registered_kernel_names;
 
@@ -504,17 +512,26 @@ See the section below "Obtaining a kernel when the language is ``sycl``" for a
 description of how this property is used with the `source_language::sycl`
 language.
 
-_Preconditions:_ Each source language defines its own requirements for the
-strings in the `name` and `names` parameters.
-For the language `source_language::sycl`, each string must be a {cpp}
-expression for a pointer to a kernel function as defined below under "Obtaining
-a kernel when the language is ``sycl``".
+_Effects (1):_ Creates a new `registered_kernel_names` property with no
+registered kernel names.
 
-_Effects (1):_ Constructs a `registered_kernel_names` property with a single
-kernel name.
+_Effects (2):_ Creates a new `registered_kernel_names` property with a single
+registered kernel name.
 
-_Effects (2):_ Constructs a `registered_kernel_names` property from a vector of
-kernel names.
+_Effects (3):_ Creates a new `registered_kernel_names` property from a vector
+of kernel names.
+
+_Effects (4):_ Adds `name` to the property's list of registered kernel names.
+
+_Preconditions (2-4):_ Each source language defines its own requirements for
+the registered kernel names.
+For the language `source_language::sycl`, each name must be a {cpp} expression
+for a pointer to a kernel function as defined below under "Obtaining a kernel
+when the language is ``sycl``".
+
+[_Note:_ It is not an error to have duplicate names in a
+`registered_kernel_names` property, but the duplicates have no effect.
+_{endnote}_]
 |====
 
 === New constraint for kernel bundle member functions
