@@ -61,6 +61,12 @@ public:
   /// \return true if platform supports specified extension.
   bool has_extension(const std::string &ExtensionName) const;
 
+  /// Checks if this platform supports usm.
+  /// Non opencl backends are assumed to support it.
+  ///
+  /// \return true if platform supports usm.
+  bool supports_usm() const;
+
   /// Returns all SYCL devices associated with this platform.
   ///
   /// If this platform is a host platform and device type requested is either
