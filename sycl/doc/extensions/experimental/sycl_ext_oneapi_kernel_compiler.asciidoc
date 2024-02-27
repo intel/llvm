@@ -109,7 +109,8 @@ supports.
 This extension adds the `ext_oneapi_source` enumerator to `sycl::bundle_state`
 to identify a kernel bundle that is represented as a source code string.
 
-```
+[source,c++]
+----
 namespace sycl {
 
 enum class bundle_state : /*unspecified*/ {
@@ -118,14 +119,15 @@ enum class bundle_state : /*unspecified*/ {
 };
 
 } // namespace sycl
-```
+----
 
 === New enumerator of kernel source languages
 
 This extension adds the `source_language` enumeration, which identifies
 possible languages for a kernel bundle that is in `ext_oneapi_source` state:
 
-```
+[source,c++]
+----
 namespace sycl::ext::oneapi::experimental {
 
 enum class source_language : /*unspecified*/ {
@@ -133,7 +135,7 @@ enum class source_language : /*unspecified*/ {
 };
 
 } // namespace sycl::ext::oneapi::experimental
-```
+----
 
 The only enumerator defined by this extension is `sycl`, which indicates that
 the kernel is written in SYCL using the "free function kernel" syntax defined
@@ -151,7 +153,7 @@ a|
 [frame=all,grid=none]
 !====
 a!
-[source]
+[source,c++]
 ----
 class device {
 
@@ -175,7 +177,7 @@ a|
 [frame=all,grid=none]
 !====
 a!
-[source]
+[source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
@@ -246,7 +248,7 @@ a|
 [frame=all,grid=none]
 !====
 a!
-[source]
+[source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
@@ -322,7 +324,7 @@ a|
 [frame=all,grid=none]
 !====
 a!
-[source]
+[source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
@@ -396,7 +398,7 @@ a|
 [frame=all,grid=none]
 !====
 a!
-[source]
+[source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
@@ -438,7 +440,7 @@ a|
 [frame=all,grid=none]
 !====
 a!
-[source]
+[source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
@@ -480,7 +482,7 @@ a|
 [frame=all,grid=none]
 !====
 a!
-[source]
+[source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
@@ -570,7 +572,8 @@ of `kernel_id` objects if the kernel bundle was created from a bundle of state
 
 This extensions adds the following new `kernel_bundle` member functions:
 
-```
+[source,c++]
+----
 namespace sycl {
 
 template <bundle_state State>
@@ -583,14 +586,14 @@ class kernel_bundle {
 };
 
 } // namespace sycl
-```
+----
 
 |====
 a|
 [frame=all,grid=none]
 !====
 a!
-[source]
+[source,c++]
 ----
 bool ext_oneapi_has_kernel(const std::string &name)
 ----
@@ -609,7 +612,7 @@ a|
 [frame=all,grid=none]
 !====
 a!
-[source]
+[source,c++]
 ----
 kernel ext_oneapi_get_kernel(const std::string &name)
 ----
@@ -630,7 +633,7 @@ a|
 [frame=all,grid=none]
 !====
 a!
-[source]
+[source,c++]
 ----
 std::string ext_oneapi_get_raw_kernel_name(const std::string &name)
 ----
@@ -669,7 +672,8 @@ Therefore, it is easy to query for the kernel by using the compiler-generated
 name.
 For example, if the kernel is defined like this in the source code string:
 
-```
+[source,c++]
+----
 std::string source = R"""(
   #include <sycl/sycl.hpp>
   namespace syclex = sycl::ext::oneapi::experimental;
@@ -678,14 +682,15 @@ std::string source = R"""(
   SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::range_kernel<1>))
   void foo(int *in, int *out) {/*...*/}
 )""";
-```
+----
 
 Then the application's host code can query for the kernel like this:
 
-```
+[source,c++]
+----
 sycl::kernel_bundle<sycl::bundle_state::executable> kb = /*...*/;
 sycl::kernel k = kb.ext_oneapi_get_kernel("foo");
-```
+----
 
 ==== Using the `registered_kernel_names` property
 
@@ -698,7 +703,8 @@ These expression strings are conceptually compiled at the bottom of source
 code.
 To illustrate, consider source code that defines a kernel like this:
 
-```
+[source,c++]
+----
 std::string source = R"""(
   #include <sycl/sycl.hpp>
   namespace syclex = sycl::ext::oneapi::experimental;
@@ -710,18 +716,19 @@ std::string source = R"""(
 
   } // namespace mykernels
 )""";
-```
+----
 
 The host code can compile this and get the kernel's `kernel` object like so:
 
-```
+[source,c++]
+----
 sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src = /*...*/;
 
 sycl::kernel_bundle<sycl::bundle_state::executable> kb = syclex::build(kb_src,
   syclex::properties{syclex::registered_kernel_names{"mykernels::bar"}});
 
 sycl::kernel k = kb.ext_oneapi_get_kernel("mykernels::bar");
-```
+----
 
 The {cpp} expression `"mykernels::bar"` computes the address of the kernel
 function `bar`.
@@ -733,14 +740,15 @@ construct the property, without even any whitespace differences.
 The application can also obtain the compiler-generated (i.e. mangled) name for
 the kernel by calling `ext_oneapi_get_raw_kernel_name` like this:
 
-```
+[source,c++]
+----
 sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src = /*...*/;
 
 sycl::kernel_bundle<sycl::bundle_state::executable> kb = syclex::build(kb_src,
   syclex::properties{syclex::registered_kernel_names{"mykernels::bar"}});
 
 std::string mangled_name = kb.ext_oneapi_get_raw_kernel_name("mykernels::bar");
-```
+----
 
 Again, the string passed to `ext_oneapi_get_raw_kernel_name` must have exactly
 the same content as the string that was used to construct the
@@ -755,7 +763,8 @@ kernel that is defined as a function template.
 For example, consider source code that defines a kernel function template like
 this:
 
-```
+[source,c++]
+----
 std::string source = R"""(
   #include <sycl/sycl.hpp>
   namespace syclex = sycl::ext::oneapi::experimental;
@@ -764,14 +773,15 @@ std::string source = R"""(
   SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::range_kernel<1>))
   void bartmpl(T *in, T *out) {/*...*/}
 )""";
-```
+----
 
 The application can use the `registered_kernel_names` property to instantiate
 the template for specific template arguments.
 For example, this host code instantiates the template twice and gets a `kernel`
 object for each instantiation:
 
-```
+[source,c++]
+----
 sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src = /*...*/;
 
 sycl::kernel_bundle<sycl::bundle_state::executable> kb = syclex::build(kb_src,
@@ -779,7 +789,7 @@ sycl::kernel_bundle<sycl::bundle_state::executable> kb = syclex::build(kb_src,
 
 sycl::kernel k_float = kb.ext_oneapi_get_kernel("bartmpl<float>");
 sycl::kernel k_int = kb.ext_oneapi_get_kernel("bartmpl<int>");
-```
+----
 
 
 == Examples
@@ -789,7 +799,8 @@ sycl::kernel k_int = kb.ext_oneapi_get_kernel("bartmpl<int>");
 The following example demonstrates how a SYCL application can define a kernel
 as a string and then compile and launch it.
 
-```
+[source,c++]
+----
 #include <sycl/sycl.hpp>
 namespace syclex = sycl::ext::oneapi::experimental;
 static constexpr size_t NUM = 1024;
@@ -835,14 +846,15 @@ int main() {
     cgh.parallel_for({NUM}, iota);
   }).wait();
 }
-```
+----
 
 === Disambiguating overloaded kernel functions
 
 This example demonstrates how to use the `registered_kernel_names` property to
 disambiguate a kernel function that has several overloads.
 
-```
+[source,c++]
+----
 #include <sycl/sycl.hpp>
 namespace syclex = sycl::ext::oneapi::experimental;
 static constexpr size_t NUM = 1024;
@@ -896,7 +908,7 @@ int main() {
     cgh.parallel_for({NUM}, iota);
   }).wait();
 }
-```
+----
 
 
 == Issues
