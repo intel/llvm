@@ -125,18 +125,19 @@ def GENX_GridDimZOp : GENX_DeviceFunctionOp<"grid.dim.z",
 // Synchronization
 //===----------------------------------------------------------------------===//
 
+// TODO: Add attribute to set the memory fence semantics.
 def GENX_BarrierOp : GENX_Op<"barrier"> {
   let summary = "Workgroup barrier";
 
   string baseDescription = [{
     The `genx.barrier` operation performs a workgroup barrier and ensures all
-    outstanding memory transaction using local or global memory are complete.
+    outstanding memory transaction using local memory are complete.
   }];
 
   string llvmBuilder = [{
     llvm::Type *retType = builder.getVoidTy();
     llvm::Type *argType = builder.getInt32Ty();
-    int memFence = 3; // local + global memory fence
+    int memFence = 1; // local memory fence
     llvm::Value *arg = llvm::ConstantInt::get(argType, memFence);
     createDeviceFunctionCall(builder, "_Z7barrierj", retType, {argType}, {arg},
                              true /*convergent*/);

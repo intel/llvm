@@ -34,7 +34,7 @@ llvm.func @genx_special_regs() -> i32 {
 
 llvm.func @genx.barrier() {
   // CHECK-LABEL: genx.barrier
-  // CHECK: call void @_Z7barrierj(i32 3) [[ATTR:#.*]]
+  // CHECK: call void @_Z7barrierj(i32 1) [[ATTR:#.*]]
   genx.barrier
   llvm.return
 }
