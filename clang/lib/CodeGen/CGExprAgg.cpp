@@ -932,6 +932,7 @@ void AggExprEmitter::VisitCastExpr(CastExpr *E) {
   case CK_BuiltinFnToFnPtr:
   case CK_ZeroToOCLOpaqueType:
   case CK_MatrixCast:
+  case CK_HLSLVectorTruncation:
 
   case CK_IntToOCLSampler:
   case CK_FloatingToFixedPoint:
@@ -1456,6 +1457,7 @@ static bool castPreservesZero(const CastExpr *CE) {
   case CK_MatrixCast:
   case CK_NonAtomicToAtomic:
   case CK_AtomicToNonAtomic:
+  case CK_HLSLVectorTruncation:
     return true;
 
   case CK_BaseToDerivedMemberPointer:

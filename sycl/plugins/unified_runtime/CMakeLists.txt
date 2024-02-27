@@ -56,14 +56,15 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/bensuo/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
 
-  # commit 3487672ceba0fd3575b5f3f15a832b100dc5fbad
-  # Author: Artur Gainullin <artur.gainullin@intel.com>
-  # Date:   Fri Feb 16 09:59:50 2024 -0800
-  #
-  #     [UR] Provide flexibility to replace unified-memory-framework repo and tag
-  set(UNIFIED_RUNTIME_TAG cmdbuf-support-hip)
+  # commit a2757b2931daa2f8d7c9dd51b0fc846be1fd49a7
+  # Merge:  9b936b5 + f78d369
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Tue Feb 27 11:34:58 2024 +0000
+  #     Merge pull request #1254 from Bensuo/cmdbuf-support-hip
+  #     [EXP][CMDBUF] HIP adapter support for command buffers
+  set(UNIFIED_RUNTIME_TAG a2757b2931daa2f8d7c9dd51b0fc846be1fd49a7 )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
