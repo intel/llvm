@@ -1,0 +1,96 @@
+/*
+ *
+ * Copyright (C) 2023 Intel Corporation
+ *
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See LICENSE.TXT
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ *
+ * @file ur_sanitizer_utils.cpp
+ *
+ */
+
+#include "ur_sanitizer_utils.hpp"
+#include "ur_sanitizer_layer.hpp"
+
+namespace ur_sanitizer_layer {
+
+ur_context_handle_t getContext(ur_queue_handle_t Queue) {
+    ur_context_handle_t Context{};
+    [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnGetInfo(
+        Queue, UR_QUEUE_INFO_CONTEXT, sizeof(ur_context_handle_t), &Context,
+        nullptr);
+    assert(Result == UR_RESULT_SUCCESS && "getContext() failed");
+    return Context;
+}
+
+ur_device_handle_t getDevice(ur_queue_handle_t Queue) {
+    ur_device_handle_t Device{};
+    [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnGetInfo(
+        Queue, UR_QUEUE_INFO_DEVICE, sizeof(ur_device_handle_t), &Device,
+        nullptr);
+    assert(Result == UR_RESULT_SUCCESS && "getDevice() failed");
+    return Device;
+}
+
+ur_program_handle_t getProgram(ur_kernel_handle_t Kernel) {
+    ur_program_handle_t Program{};
+    [[maybe_unused]] auto Result = context.urDdiTable.Kernel.pfnGetInfo(
+        Kernel, UR_KERNEL_INFO_PROGRAM, sizeof(ur_program_handle_t), &Program,
+        nullptr);
+    assert(Result == UR_RESULT_SUCCESS && "getProgram() failed");
+    return Program;
+}
+
+size_t getLocalMemorySize(ur_device_handle_t Device) {
+    size_t LocalMemorySize{};
+    [[maybe_unused]] auto Result = context.urDdiTable.Device.pfnGetInfo(
+        Device, UR_DEVICE_INFO_LOCAL_MEM_SIZE, sizeof(LocalMemorySize),
+        &LocalMemorySize, nullptr);
+    assert(Result == UR_RESULT_SUCCESS && "getLocalMemorySize() failed");
+    return LocalMemorySize;
+}
+
+std::string getKernelName(ur_kernel_handle_t Kernel) {
+    size_t KernelNameSize = 0;
+    [[maybe_unused]] auto Result = context.urDdiTable.Kernel.pfnGetInfo(
+        Kernel, UR_KERNEL_INFO_FUNCTION_NAME, 0, nullptr, &KernelNameSize);
+    assert(Result == UR_RESULT_SUCCESS && "getKernelName() failed");
+
+    std::vector<char> KernelNameBuf(KernelNameSize);
+    Result = context.urDdiTable.Kernel.pfnGetInfo(
+        Kernel, UR_KERNEL_INFO_FUNCTION_NAME, KernelNameSize,
+        KernelNameBuf.data(), nullptr);
+    assert(Result == UR_RESULT_SUCCESS && "getKernelName() failed");
+
+    return std::string(KernelNameBuf.data(), KernelNameSize - 1);
+}
+
+ur_device_handle_t getUSMAllocDevice(ur_context_handle_t Context,
+                                     const void *MemPtr) {
+    ur_device_handle_t Device{};
+    // if urGetMemAllocInfo failed, return nullptr
+    context.urDdiTable.USM.pfnGetMemAllocInfo(Context, MemPtr,
+                                              UR_USM_ALLOC_INFO_DEVICE,
+                                              sizeof(Device), &Device, nullptr);
+    return Device;
+}
+
+DeviceType getDeviceType(ur_device_handle_t Device) {
+    ur_device_type_t DeviceType = UR_DEVICE_TYPE_DEFAULT;
+    [[maybe_unused]] auto Result = context.urDdiTable.Device.pfnGetInfo(
+        Device, UR_DEVICE_INFO_TYPE, sizeof(DeviceType), &DeviceType, nullptr);
+    assert(Result == UR_RESULT_SUCCESS && "getDeviceType() failed");
+    switch (DeviceType) {
+    case UR_DEVICE_TYPE_CPU:
+        return DeviceType::CPU;
+    case UR_DEVICE_TYPE_GPU: {
+        // TODO: Check device name
+        return DeviceType::GPU_PVC;
+    }
+    default:
+        return DeviceType::UNKNOWN;
+    }
+}
+
+} // namespace ur_sanitizer_layer

@@ -12,13 +12,13 @@
 
 #pragma once
 
+#include "asan_allocator.hpp"
 #include "common.hpp"
 #include "device_sanitizer_report.hpp"
-#include "stacktrace.hpp"
 #include "ur_sanitizer_layer.hpp"
 
-#include <map>
 #include <memory>
+#include <queue>
 #include <set>
 #include <unordered_map>
 #include <utility>
@@ -26,30 +26,12 @@
 
 namespace ur_sanitizer_layer {
 
-enum MemoryType { DEVICE_USM, SHARED_USM, HOST_USM, MEM_BUFFER };
-
-struct USMAllocInfo {
-    uptr AllocBegin = 0;
-    uptr UserBegin = 0;
-    uptr UserEnd = 0;
-    size_t AllocSize = 0;
-
-    MemoryType Type = MemoryType::DEVICE_USM;
-    bool IsReleased = false;
-
-    ur_context_handle_t Context = nullptr;
-    ur_device_handle_t Device = nullptr;
-
-    StackTrace AllocStack;
-    StackTrace ReleaseStack;
-};
+class Quarantine;
 
 struct USMAllocInfoList {
     std::vector<std::shared_ptr<USMAllocInfo>> List;
     ur_shared_mutex Mutex;
 };
-
-enum class DeviceType : uint32_t { UNKNOWN = 0, CPU, GPU_PVC, GPU_DG2 };
 
 struct DeviceInfo {
     ur_device_handle_t Handle;
@@ -58,6 +40,10 @@ struct DeviceInfo {
     size_t Alignment = 0;
     uptr ShadowOffset = 0;
     uptr ShadowOffsetEnd = 0;
+
+    ur_mutex Mutex;
+    std::queue<std::shared_ptr<USMAllocInfo>> Quarantine;
+    size_t QuarantineSize = 0;
 
     DeviceInfo(ur_device_handle_t Device) : Handle(Device) {
         [[maybe_unused]] auto Result =
@@ -143,28 +129,9 @@ struct LaunchInfo {
     ~LaunchInfo();
 };
 
-struct ManagedQueue {
-    ManagedQueue(ur_context_handle_t Context, ur_device_handle_t Device) {
-        [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnCreate(
-            Context, Device, nullptr, &Handle);
-        assert(Result == UR_RESULT_SUCCESS);
-    }
-
-    ~ManagedQueue() {
-        [[maybe_unused]] auto Result =
-            context.urDdiTable.Queue.pfnRelease(Handle);
-        assert(Result == UR_RESULT_SUCCESS);
-    }
-
-    operator ur_queue_handle_t() { return Handle; }
-
-  private:
-    ur_queue_handle_t Handle = nullptr;
-};
-
 class SanitizerInterceptor {
   public:
-    SanitizerInterceptor();
+    explicit SanitizerInterceptor();
 
     ~SanitizerInterceptor();
 
@@ -195,8 +162,7 @@ class SanitizerInterceptor {
                            ur_queue_handle_t Queue);
 
     std::vector<std::shared_ptr<USMAllocInfo>>
-    findAllocInfoByAddress(uptr Address, ur_context_handle_t Context,
-                           ur_device_handle_t Device);
+    findAllocInfoByAddress(uptr Address);
 
   private:
     ur_result_t updateShadowMemory(std::shared_ptr<ContextInfo> &ContextInfo,
@@ -259,8 +225,10 @@ class SanitizerInterceptor {
     AllocaionRangSet m_AllocationsMap;
     ur_shared_mutex m_AllocationsMapMutex;
 
-    bool m_IsInASanContext;
-    bool m_ShadowMemInited;
+    uint32_t cl_Debug = 0;
+    uint32_t cl_MaxQuarantineSizeMB = 0;
+
+    std::unique_ptr<Quarantine> m_Quarantine;
 };
 
 } // namespace ur_sanitizer_layer
