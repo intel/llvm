@@ -135,7 +135,7 @@ bool device::has_extension(const std::string &extension_name) const {
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 template <typename Param>
-typename detail::ABINeutralT_t<
+detail::ABINeutralT_t<
     typename detail::is_device_info_desc<Param>::return_type>
 device::get_info_impl() const {
   auto Info = impl->template get_info<Param>();
