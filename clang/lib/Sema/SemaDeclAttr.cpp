@@ -7745,13 +7745,19 @@ void Sema::AddSYCLIntelNumBanksAttr(Decl *D, const AttributeCommonInfo &CI,
       }
     }
 
-    if (auto *VD = dyn_cast<VarDecl>(D)) {
+    // Check attribute only applies to constant variables, local variables,
+    // static variables, agent memory arguments, non-static data members,
+    // and device_global variables.
+    if (const auto *VD = dyn_cast<VarDecl>(D)){
       if (!(VD->getKind() != Decl::ImplicitParam &&
             VD->getKind() != Decl::NonTypeTemplateParm &&
            ((VD->getStorageClass() == SC_Static || VD->hasLocalStorage()) ||
-            (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(VD->getType())
-             || VD->getType().isConstQualified())))){
-        Diag(CI.getLoc(), diag::err_fpga_attribute_incorrrect_variable) << CI;
+            (VD->getKind() != Decl::ParmVar &&
+	     (isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(VD->getType())
+              || VD->getType().isConstQualified()
+	      || VD->getType().getAddressSpace() ==
+                 LangAS::opencl_constant))))){
+        Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable) << CI;
       }
     }
 

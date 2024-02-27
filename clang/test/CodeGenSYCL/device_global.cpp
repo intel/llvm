@@ -12,7 +12,7 @@ queue q;
 
 device_global<int> A;
 
-[[intel::numbanks(2)]] /*const*/ device_global<int> A1;
+[[intel::numbanks(2)]] device_global<int> A1;
 
 #ifdef SYCL_EXTERNAL
 SYCL_EXTERNAL device_global<int> AExt;
