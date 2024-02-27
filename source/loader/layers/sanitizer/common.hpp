@@ -91,6 +91,8 @@ struct AddressInfo {
     std::string debug;
 };
 
+enum class DeviceType : uint32_t { UNKNOWN = 0, CPU, GPU_PVC, GPU_DG2 };
+
 bool IsInASanContext();
 
 bool MmapFixedNoReserve(uptr Addr, uptr Size);

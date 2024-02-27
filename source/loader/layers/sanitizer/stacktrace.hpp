@@ -23,7 +23,7 @@ namespace ur_sanitizer_layer {
 struct StackTrace {
     std::vector<AddressInfo> stack;
 
-    void Print();
+    void Print() const;
 };
 
 StackTrace GetCurrentBacktrace();

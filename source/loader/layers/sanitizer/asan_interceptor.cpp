@@ -12,9 +12,12 @@
  */
 
 #include "asan_interceptor.hpp"
+#include "asan_quarantine.hpp"
+#include "asan_report.hpp"
 #include "asan_shadow_setup.hpp"
 #include "device_sanitizer_report.hpp"
 #include "stacktrace.hpp"
+#include "ur_sanitizer_utils.hpp"
 
 namespace ur_sanitizer_layer {
 
@@ -40,10 +43,28 @@ constexpr auto kSPIR_AsanShadowMemoryLocalStart =
 constexpr auto kSPIR_AsanShadowMemoryLocalEnd = "__AsanShadowMemoryLocalEnd";
 
 constexpr auto kSPIR_DeviceType = "__DeviceType";
+constexpr auto kSPIR_AsanDebug = "__AsanDebug";
 
 constexpr auto kSPIR_DeviceSanitizerReportMem = "__DeviceSanitizerReportMem";
 
-DeviceSanitizerReport SPIR_DeviceSanitizerReportMem;
+struct ManagedQueue {
+    ManagedQueue(ur_context_handle_t Context, ur_device_handle_t Device) {
+        [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnCreate(
+            Context, Device, nullptr, &Handle);
+        assert(Result == UR_RESULT_SUCCESS);
+    }
+
+    ~ManagedQueue() {
+        [[maybe_unused]] auto Result =
+            context.urDdiTable.Queue.pfnRelease(Handle);
+        assert(Result == UR_RESULT_SUCCESS);
+    }
+
+    operator ur_queue_handle_t() { return Handle; }
+
+  private:
+    ur_queue_handle_t Handle = nullptr;
+};
 
 uptr MemToShadow_CPU(uptr USM_SHADOW_BASE, uptr UPtr) {
     return USM_SHADOW_BASE + (UPtr >> 3);
@@ -58,183 +79,26 @@ uptr MemToShadow_PVC(uptr USM_SHADOW_BASE, uptr UPtr) {
     }
 }
 
-ur_context_handle_t getContext(ur_queue_handle_t Queue) {
-    ur_context_handle_t Context{};
-    [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnGetInfo(
-        Queue, UR_QUEUE_INFO_CONTEXT, sizeof(ur_context_handle_t), &Context,
-        nullptr);
-    assert(Result == UR_RESULT_SUCCESS && "getContext() failed");
-    return Context;
-}
-
-ur_device_handle_t getDevice(ur_queue_handle_t Queue) {
-    ur_device_handle_t Device{};
-    [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnGetInfo(
-        Queue, UR_QUEUE_INFO_DEVICE, sizeof(ur_device_handle_t), &Device,
-        nullptr);
-    assert(Result == UR_RESULT_SUCCESS && "getDevice() failed");
-    return Device;
-}
-
-ur_program_handle_t getProgram(ur_kernel_handle_t Kernel) {
-    ur_program_handle_t Program{};
-    [[maybe_unused]] auto Result = context.urDdiTable.Kernel.pfnGetInfo(
-        Kernel, UR_KERNEL_INFO_PROGRAM, sizeof(ur_program_handle_t), &Program,
-        nullptr);
-    assert(Result == UR_RESULT_SUCCESS && "getProgram() failed");
-    return Program;
-}
-
-size_t getLocalMemorySize(ur_device_handle_t Device) {
-    size_t LocalMemorySize{};
-    [[maybe_unused]] auto Result = context.urDdiTable.Device.pfnGetInfo(
-        Device, UR_DEVICE_INFO_LOCAL_MEM_SIZE, sizeof(LocalMemorySize),
-        &LocalMemorySize, nullptr);
-    assert(Result == UR_RESULT_SUCCESS && "getLocalMemorySize() failed");
-    return LocalMemorySize;
-}
-
-std::string getKernelName(ur_kernel_handle_t Kernel) {
-    size_t KernelNameSize = 0;
-    [[maybe_unused]] auto Result = context.urDdiTable.Kernel.pfnGetInfo(
-        Kernel, UR_KERNEL_INFO_FUNCTION_NAME, 0, nullptr, &KernelNameSize);
-    assert(Result == UR_RESULT_SUCCESS && "getKernelName() failed");
-
-    std::vector<char> KernelNameBuf(KernelNameSize);
-    Result = context.urDdiTable.Kernel.pfnGetInfo(
-        Kernel, UR_KERNEL_INFO_FUNCTION_NAME, KernelNameSize,
-        KernelNameBuf.data(), nullptr);
-    assert(Result == UR_RESULT_SUCCESS && "getKernelName() failed");
-
-    return std::string(KernelNameBuf.data(), KernelNameSize - 1);
-}
-
-ur_device_handle_t getUSMAllocDevice(ur_context_handle_t Context,
-                                     const void *MemPtr) {
-    ur_device_handle_t Device{};
-    // if urGetMemAllocInfo failed, return nullptr
-    context.urDdiTable.USM.pfnGetMemAllocInfo(Context, MemPtr,
-                                              UR_USM_ALLOC_INFO_DEVICE,
-                                              sizeof(Device), &Device, nullptr);
-    return Device;
-}
-
-DeviceType getDeviceType(ur_device_handle_t Device) {
-    ur_device_type_t DeviceType = UR_DEVICE_TYPE_DEFAULT;
-    [[maybe_unused]] auto Result = context.urDdiTable.Device.pfnGetInfo(
-        Device, UR_DEVICE_INFO_TYPE, sizeof(DeviceType), &DeviceType, nullptr);
-    assert(Result == UR_RESULT_SUCCESS && "getDeviceType() failed");
-    switch (DeviceType) {
-    case UR_DEVICE_TYPE_CPU:
-        return DeviceType::CPU;
-    case UR_DEVICE_TYPE_GPU: {
-        // TODO: Check device name
-        return DeviceType::GPU_PVC;
-    }
-    default:
-        return DeviceType::UNKNOWN;
-    }
-}
-
-const char *getFormatString(MemoryType MemoryType) {
-    switch (MemoryType) {
-    case MemoryType::DEVICE_USM:
-        return "USM Device Memory";
-    case MemoryType::HOST_USM:
-        return "USM Host Memory";
-    case MemoryType::SHARED_USM:
-        return "USM Shared Memory";
-    case MemoryType::MEM_BUFFER:
-        return "Memory Buffer";
-    default:
-        return "Unknown Memory";
-    }
-}
-
-void ReportBadFree(uptr Addr, StackTrace stack,
-                   std::shared_ptr<USMAllocInfo> AllocInfo) {
-    context.logger.always(
-        "\n====ERROR: DeviceSanitizer: attempting free on address which "
-        "was not malloc()-ed: {} in thread T0",
-        (void *)Addr);
-    stack.Print();
-
-    if (!AllocInfo) { // maybe Addr is host allocated memory
-        context.logger.always("{} is maybe allocated on Host Memory",
-                              (void *)Addr);
-        exit(1);
-    }
-
-    assert(!AllocInfo->IsReleased && "Chunk must be not released");
-
-    context.logger.always("{} is located inside of {} region [{}, {}]",
-                          (void *)Addr, getFormatString(AllocInfo->Type),
-                          (void *)AllocInfo->UserBegin,
-                          (void *)AllocInfo->UserEnd);
-    context.logger.always("allocated by thread T0 here:");
-    AllocInfo->AllocStack.Print();
-
-    exit(1);
-}
-
-void ReportDoubleFree(uptr Addr, StackTrace Stack,
-                      std::shared_ptr<USMAllocInfo> AllocInfo) {
-    context.logger.always("\n====ERROR: DeviceSanitizer: double-free on {}",
-                          (void *)Addr);
-    Stack.Print();
-    AllocInfo->AllocStack.Print();
-    AllocInfo->ReleaseStack.Print();
-    exit(1);
-}
-
-void ReportGenericError(DeviceSanitizerReport &Report,
-                        ur_kernel_handle_t Kernel, ur_context_handle_t Context,
-                        ur_device_handle_t Device) {
-    const char *File = Report.File[0] ? Report.File : "<unknown file>";
-    const char *Func = Report.Func[0] ? Report.Func : "<unknown func>";
-    auto KernelName = getKernelName(Kernel);
-
-    context.logger.always("\n====ERROR: DeviceSanitizer: {} on {}",
-                          DeviceSanitizerFormat(Report.ErrorType),
-                          DeviceSanitizerFormat(Report.MemoryType));
-    context.logger.always(
-        "{} of size {} at kernel <{}> LID({}, {}, {}) GID({}, "
-        "{}, {})",
-        Report.IsWrite ? "WRITE" : "READ", Report.AccessSize,
-        KernelName.c_str(), Report.LID0, Report.LID1, Report.LID2, Report.GID0,
-        Report.GID1, Report.GID2);
-    context.logger.always("  #0 {} {}:{}\n", Func, File, Report.Line);
-
-    if (Report.ErrorType == DeviceSanitizerErrorType::USE_AFTER_FREE) {
-        auto AllocInfos = context.interceptor->findAllocInfoByAddress(
-            Report.Addr, Context, Device);
-        if (!AllocInfos.size()) {
-            context.logger.always("can't find which chunck {} is allocated",
-                                  (void *)Report.Addr);
-        }
-        for (auto &AllocInfo : AllocInfos) {
-            if (!AllocInfo->IsReleased) {
-                continue;
-            }
-            context.logger.always(
-                "{} is located inside of {} region [{}, {}]",
-                (void *)Report.Addr, getFormatString(AllocInfo->Type),
-                (void *)AllocInfo->UserBegin, (void *)AllocInfo->UserEnd);
-            context.logger.always("allocated by thread T0 here:");
-            AllocInfo->AllocStack.Print();
-            context.logger.always("released by thread T0 here:");
-            AllocInfo->ReleaseStack.Print();
-        }
-    }
-
-    exit(1);
-}
-
 } // namespace
 
-SanitizerInterceptor::SanitizerInterceptor()
-    : m_IsInASanContext(IsInASanContext()),
-      m_ShadowMemInited(m_IsInASanContext) {}
+SanitizerInterceptor::SanitizerInterceptor() {
+    auto Options = getenv_to_map("UR_LAYER_ASAN_OPTIONS");
+    auto KV = Options->find("debug");
+    if (KV != Options->end()) {
+        auto Value = KV->second.front();
+        if (Value == "1" || Value == "true") {
+            cl_Debug = 1;
+        }
+    }
+    KV = Options->find("quarantine_size_mb");
+    if (KV != Options->end()) {
+        auto Value = KV->second.front();
+        cl_MaxQuarantineSizeMB = std::stoul(Value);
+    }
+    if (cl_MaxQuarantineSizeMB) {
+        m_Quarantine = std::make_unique<Quarantine>(cl_MaxQuarantineSizeMB);
+    }
+}
 
 SanitizerInterceptor::~SanitizerInterceptor() {
     DestroyShadowMemoryOnCPU();
@@ -336,14 +200,30 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
     auto ContextInfo = getContextInfo(Context);
 
     auto Addr = reinterpret_cast<uptr>(Ptr);
-    auto AllocInfos = findAllocInfoByAddress(Addr, Context, nullptr);
+    auto AllocInfos = findAllocInfoByAddress(Addr);
 
-    if (!AllocInfos.size()) {
+    if (AllocInfos.empty()) {
         ReportBadFree(Addr, GetCurrentBacktrace(), nullptr);
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
-    for (auto AllocInfo : AllocInfos) {
+    std::vector<std::shared_ptr<USMAllocInfo>> CurrentContext;
+
+    for (auto It = AllocInfos.begin(); It != AllocInfos.end();) {
+        if (It->get()->Context == Context) {
+            CurrentContext.emplace_back(It);
+            It = AllocInfos.erase(It);
+            continue;
+        }
+        ++It;
+    }
+
+    if (CurrentContext.empty()) {
+        // bad context
+        return UR_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
+    for (auto &AllocInfo : CurrentContext) {
         context.logger.debug("AllocInfo(AllocBegin={}, UserBegin={})",
                              (void *)AllocInfo->AllocBegin,
                              (void *)AllocInfo->UserBegin);
@@ -361,11 +241,17 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
         AllocInfo->IsReleased = true;
         AllocInfo->ReleaseStack = GetCurrentBacktrace();
 
-        auto Device =
-            getUSMAllocDevice(Context, (const void *)AllocInfo->AllocBegin);
-
+        // auto Device =
+        //     getUSMAllocDevice(Context, (const void *)AllocInfo->AllocBegin);
+        auto Device = AllocInfo->Device;
         // TODO: Check Device
+
         // TODO: Quarantine Cache
+        if (m_Quarantine) {
+            auto ReleaseList = m_Quarantine->put(Device, AllocInfo);
+            for (auto &AI : ReleaseList) {
+            }
+        }
 
         // auto Res =
         //     context.urDdiTable.USM.pfnFree(Context, (void *)AllocInfo->AllocBegin);
@@ -734,6 +620,9 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
                 return true;
             };
 
+        // Write debug
+        EnqueueWriteGlobal(kSPIR_AsanDebug, &cl_Debug, sizeof(cl_Debug));
+
         // Write shadow memory offset for global memory
         EnqueueWriteGlobal(kSPIR_AsanShadowMemoryGlobalStart,
                            &DeviceInfo->ShadowOffset,
@@ -802,9 +691,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
 }
 
 std::vector<std::shared_ptr<USMAllocInfo>>
-SanitizerInterceptor::findAllocInfoByAddress(uptr Address,
-                                             ur_context_handle_t Context,
-                                             ur_device_handle_t Device) {
+SanitizerInterceptor::findAllocInfoByAddress(uptr Address) {
     std::vector<std::shared_ptr<USMAllocInfo>> Result;
     auto current = std::make_shared<USMAllocInfo>(USMAllocInfo{Address});
 
@@ -819,12 +706,6 @@ SanitizerInterceptor::findAllocInfoByAddress(uptr Address,
         auto AI = *It;
         if (AI->AllocBegin > Address) {
             break;
-        }
-        if (Context && AI->Context != Context) {
-            continue;
-        }
-        if (Device && AI->Device != Device) {
-            continue;
         }
         Result.emplace_back(*It);
     }
