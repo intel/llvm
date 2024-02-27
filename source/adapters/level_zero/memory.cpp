@@ -14,6 +14,7 @@
 
 #include "context.hpp"
 #include "event.hpp"
+#include "image.hpp"
 #include "ur_level_zero.hpp"
 
 // Default to using compute engine for fill operation, but allow to
@@ -287,49 +288,6 @@ static ur_result_t ZeHostMemAllocHelper(void **ResultPtr,
   return UR_RESULT_SUCCESS;
 }
 
-static ur_result_t getImageRegionHelper(_ur_image *Mem,
-                                        ur_rect_offset_t *Origin,
-                                        ur_rect_region_t *Region,
-                                        ze_image_region_t &ZeRegion) {
-  UR_ASSERT(Mem, UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  UR_ASSERT(Origin, UR_RESULT_ERROR_INVALID_VALUE);
-
-#ifndef NDEBUG
-  auto UrImage = static_cast<_ur_image *>(Mem);
-  ze_image_desc_t &ZeImageDesc = UrImage->ZeImageDesc;
-
-  UR_ASSERT(Mem->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  UR_ASSERT((ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Origin->y == 0 &&
-             Origin->z == 0) ||
-                (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Origin->z == 0) ||
-                (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Origin->z == 0) ||
-                (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
-            UR_RESULT_ERROR_INVALID_VALUE);
-
-  UR_ASSERT(Region->width && Region->height && Region->depth,
-            UR_RESULT_ERROR_INVALID_VALUE);
-  UR_ASSERT(
-      (ZeImageDesc.type == ZE_IMAGE_TYPE_1D && Region->height == 1 &&
-       Region->depth == 1) ||
-          (ZeImageDesc.type == ZE_IMAGE_TYPE_1DARRAY && Region->depth == 1) ||
-          (ZeImageDesc.type == ZE_IMAGE_TYPE_2D && Region->depth == 1) ||
-          (ZeImageDesc.type == ZE_IMAGE_TYPE_3D),
-      UR_RESULT_ERROR_INVALID_VALUE);
-#endif // !NDEBUG
-
-  uint32_t OriginX = ur_cast<uint32_t>(Origin->x);
-  uint32_t OriginY = ur_cast<uint32_t>(Origin->y);
-  uint32_t OriginZ = ur_cast<uint32_t>(Origin->z);
-
-  uint32_t Width = ur_cast<uint32_t>(Region->width);
-  uint32_t Height = ur_cast<uint32_t>(Region->height);
-  uint32_t Depth = ur_cast<uint32_t>(Region->depth);
-
-  ZeRegion = {OriginX, OriginY, OriginZ, Width, Height, Depth};
-
-  return UR_RESULT_SUCCESS;
-}
-
 // Helper function to implement image read/write/copy.
 // PI interfaces must have queue's and destination image's mutexes locked for
 // exclusive use and source image's mutex locked for shared use on entry.
@@ -372,7 +330,8 @@ static ur_result_t enqueueMemImageCommandHelper(
     _ur_image *SrcMem = ur_cast<_ur_image *>(const_cast<void *>(Src));
 
     ze_image_region_t ZeSrcRegion;
-    UR_CALL(getImageRegionHelper(SrcMem, SrcOrigin, Region, ZeSrcRegion));
+    UR_CALL(getImageRegionHelper(SrcMem->ZeImageDesc, SrcOrigin, Region,
+                                 ZeSrcRegion));
 
     // TODO: Level Zero does not support row_pitch/slice_pitch for images yet.
     // Check that SYCL RT did not want pitch larger than default.
@@ -406,7 +365,8 @@ static ur_result_t enqueueMemImageCommandHelper(
   } else if (CommandType == UR_COMMAND_MEM_IMAGE_WRITE) {
     _ur_image *DstMem = ur_cast<_ur_image *>(Dst);
     ze_image_region_t ZeDstRegion;
-    UR_CALL(getImageRegionHelper(DstMem, DstOrigin, Region, ZeDstRegion));
+    UR_CALL(getImageRegionHelper(DstMem->ZeImageDesc, DstOrigin, Region,
+                                 ZeDstRegion));
 
     // TODO: Level Zero does not support row_pitch/slice_pitch for images yet.
     // Check that SYCL RT did not want pitch larger than default.
@@ -440,9 +400,11 @@ static ur_result_t enqueueMemImageCommandHelper(
     _ur_image *DstImage = ur_cast<_ur_image *>(Dst);
 
     ze_image_region_t ZeSrcRegion;
-    UR_CALL(getImageRegionHelper(SrcImage, SrcOrigin, Region, ZeSrcRegion));
+    UR_CALL(getImageRegionHelper(SrcImage->ZeImageDesc, SrcOrigin, Region,
+                                 ZeSrcRegion));
     ze_image_region_t ZeDstRegion;
-    UR_CALL(getImageRegionHelper(DstImage, DstOrigin, Region, ZeDstRegion));
+    UR_CALL(getImageRegionHelper(DstImage->ZeImageDesc, DstOrigin, Region,
+                                 ZeDstRegion));
 
     char *ZeHandleSrc = nullptr;
     char *ZeHandleDst = nullptr;
@@ -1456,74 +1418,8 @@ static ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
                                   const ur_image_desc_t *ImageDesc,
                                   ZeStruct<ze_image_desc_t> &ZeImageDesc) {
 
-  ze_image_format_type_t ZeImageFormatType;
-  size_t ZeImageFormatTypeSize;
-  switch (ImageFormat->channelType) {
-  case UR_IMAGE_CHANNEL_TYPE_FLOAT: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_FLOAT;
-    ZeImageFormatTypeSize = 32;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_FLOAT;
-    ZeImageFormatTypeSize = 16;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_UINT;
-    ZeImageFormatTypeSize = 32;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_UINT;
-    ZeImageFormatTypeSize = 16;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_UINT;
-    ZeImageFormatTypeSize = 8;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT16: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_UNORM;
-    ZeImageFormatTypeSize = 16;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT8: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_UNORM;
-    ZeImageFormatTypeSize = 8;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_SINT;
-    ZeImageFormatTypeSize = 32;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_SINT;
-    ZeImageFormatTypeSize = 16;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_SINT;
-    ZeImageFormatTypeSize = 8;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_SNORM_INT16: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_SNORM;
-    ZeImageFormatTypeSize = 16;
-    break;
-  }
-  case UR_IMAGE_CHANNEL_TYPE_SNORM_INT8: {
-    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_SNORM;
-    ZeImageFormatTypeSize = 8;
-    break;
-  }
-  default:
-    urPrint("urMemImageCreate: unsupported image data type: data type = %d\n",
-            ImageFormat->channelType);
-    return UR_RESULT_ERROR_INVALID_VALUE;
-  }
+  auto [ZeImageFormatType, ZeImageFormatTypeSize] =
+      getImageFormatTypeAndSize(ImageFormat);
 
   // TODO: populate the layout mapping
   ze_image_format_layout_t ZeImageFormatLayout;
