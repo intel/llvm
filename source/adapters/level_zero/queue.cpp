@@ -1267,17 +1267,28 @@ ur_queue_handle_t_::resetDiscardedEvent(ur_command_list_ptr_t CommandList) {
 }
 
 ur_result_t ur_queue_handle_t_::addEventToQueueCache(ur_event_handle_t Event) {
+  // Adding 2 initial global caches for provided scope:
+  // Host Scope, Device Scope.
+  if (EventCaches.empty()) {
+    for (int i = 0; i < 2; i++) {
+      std::list<ur_event_handle_t> *deviceEventCache =
+          new std::list<ur_event_handle_t>;
+      EventCaches.push_back(deviceEventCache);
+    }
+  }
   if (!Event->IsMultiDevice && Event->UrQueue) {
     auto Device = Event->UrQueue->Device;
     auto EventCachesMap = Event->isHostVisible() ? &EventCachesDeviceMap[0]
                                                  : &EventCachesDeviceMap[1];
     if (EventCachesMap->find(Device) == EventCachesMap->end()) {
-      EventCaches.emplace_back();
-      (*EventCachesMap)[Device] = &EventCaches.back();
+      std::list<ur_event_handle_t> *deviceEventCache =
+          new std::list<ur_event_handle_t>;
+      EventCaches.push_back(deviceEventCache);
+      (*EventCachesMap)[Device] = deviceEventCache;
     }
     (*EventCachesMap)[Device]->emplace_back(Event);
   } else {
-    auto Cache = Event->isHostVisible() ? &EventCaches[0] : &EventCaches[1];
+    auto Cache = Event->isHostVisible() ? EventCaches[0] : EventCaches[1];
     Cache->emplace_back(Event);
   }
   return UR_RESULT_SUCCESS;
@@ -1301,9 +1312,13 @@ ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
   if (!UrQueue->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
-  for (auto &Cache : UrQueue->EventCaches)
-    for (auto &Event : Cache)
+  for (auto Cache : UrQueue->EventCaches) {
+    for (auto Event : *Cache) {
       UR_CALL(urEventReleaseInternal(Event));
+    }
+    Cache->clear();
+    delete Cache;
+  }
 
   if (UrQueue->OwnZeCommandQueue) {
     for (auto &QueueMap :
@@ -1460,6 +1475,16 @@ ur_event_handle_t ur_queue_handle_t_::getEventFromQueueCache(bool IsMultiDevice,
                                                              bool HostVisible) {
   std::list<ur_event_handle_t> *Cache;
 
+  // Adding 2 initial global caches for provided scope:
+  // Host Scope, Device Scope.
+  if (EventCaches.empty()) {
+    for (int i = 0; i < 2; i++) {
+      std::list<ur_event_handle_t> *deviceEventCache =
+          new std::list<ur_event_handle_t>;
+      EventCaches.push_back(deviceEventCache);
+    }
+  }
+
   if (!IsMultiDevice) {
     auto Device = this->Device;
     Cache = HostVisible ? EventCachesDeviceMap[0][Device]
@@ -1468,7 +1493,7 @@ ur_event_handle_t ur_queue_handle_t_::getEventFromQueueCache(bool IsMultiDevice,
       return nullptr;
     }
   } else {
-    Cache = HostVisible ? &EventCaches[0] : &EventCaches[1];
+    Cache = HostVisible ? EventCaches[0] : EventCaches[1];
   }
 
   // If we don't have any events, return nullptr.

@@ -28,8 +28,8 @@ namespace ur_sanitizer_layer {
 
 class Quarantine;
 
-struct USMAllocInfoList {
-    std::vector<std::shared_ptr<USMAllocInfo>> List;
+struct AllocInfoList {
+    std::vector<std::shared_ptr<AllocInfo>> List;
     ur_shared_mutex Mutex;
 };
 
@@ -42,7 +42,7 @@ struct DeviceInfo {
     uptr ShadowOffsetEnd = 0;
 
     ur_mutex Mutex;
-    std::queue<std::shared_ptr<USMAllocInfo>> Quarantine;
+    std::queue<std::shared_ptr<AllocInfo>> Quarantine;
     size_t QuarantineSize = 0;
 
     DeviceInfo(ur_device_handle_t Device) : Handle(Device) {
@@ -91,7 +91,7 @@ struct ContextInfo {
     ur_context_handle_t Handle;
 
     std::vector<ur_device_handle_t> DeviceList;
-    std::unordered_map<ur_device_handle_t, USMAllocInfoList> AllocInfosMap;
+    std::unordered_map<ur_device_handle_t, AllocInfoList> AllocInfosMap;
 
     ContextInfo(ur_context_handle_t Context) : Handle(Context) {
         [[maybe_unused]] auto Result =
@@ -106,11 +106,11 @@ struct ContextInfo {
     }
 
     void insertAllocInfo(const std::vector<ur_device_handle_t> &Devices,
-                         std::shared_ptr<USMAllocInfo> &AllocInfo) {
+                         std::shared_ptr<AllocInfo> &AI) {
         for (auto Device : Devices) {
             auto &AllocInfos = AllocInfosMap[Device];
             std::scoped_lock<ur_shared_mutex> Guard(AllocInfos.Mutex);
-            AllocInfos.List.emplace_back(AllocInfo);
+            AllocInfos.List.emplace_back(AI);
         }
     }
 };
@@ -129,6 +129,12 @@ struct LaunchInfo {
     ~LaunchInfo();
 };
 
+struct DeviceGlobalInfo {
+    uptr Size;
+    uptr SizeWithRedZone;
+    uptr Addr;
+};
+
 class SanitizerInterceptor {
   public:
     explicit SanitizerInterceptor();
@@ -139,8 +145,11 @@ class SanitizerInterceptor {
                                ur_device_handle_t Device,
                                const ur_usm_desc_t *Properties,
                                ur_usm_pool_handle_t Pool, size_t Size,
-                               void **ResultPtr, MemoryType Type);
+                               void **ResultPtr, AllocType Type);
     ur_result_t releaseMemory(ur_context_handle_t Context, void *Ptr);
+
+    ur_result_t registerDeviceGlobals(ur_context_handle_t Context,
+                                      ur_program_handle_t Program);
 
     ur_result_t preLaunchKernel(ur_kernel_handle_t Kernel,
                                 ur_queue_handle_t Queue, LaunchInfo &LaunchInfo,
@@ -161,7 +170,7 @@ class SanitizerInterceptor {
     ur_result_t eraseQueue(ur_context_handle_t Context,
                            ur_queue_handle_t Queue);
 
-    std::vector<std::shared_ptr<USMAllocInfo>>
+    std::vector<std::shared_ptr<AllocInfo>>
     findAllocInfoByAddress(uptr Address);
 
   private:
@@ -171,7 +180,7 @@ class SanitizerInterceptor {
     ur_result_t enqueueAllocInfo(ur_context_handle_t Context,
                                  std::shared_ptr<DeviceInfo> &DeviceInfo,
                                  ur_queue_handle_t Queue,
-                                 std::shared_ptr<USMAllocInfo> &AllocInfo);
+                                 std::shared_ptr<AllocInfo> &AI);
 
     /// Initialize Global Variables & Kernel Name at first Launch
     ur_result_t prepareLaunch(ur_context_handle_t Context,
@@ -208,9 +217,9 @@ class SanitizerInterceptor {
         m_DeviceMap;
     ur_shared_mutex m_DeviceMapMutex;
 
-    struct USMAllocInfoCompare {
-        bool operator()(const std::shared_ptr<USMAllocInfo> &lhs,
-                        const std::shared_ptr<USMAllocInfo> &rhs) const {
+    struct AllocInfoCompare {
+        bool operator()(const std::shared_ptr<AllocInfo> &lhs,
+                        const std::shared_ptr<AllocInfo> &rhs) const {
             auto p1 = std::make_pair(lhs->AllocBegin,
                                      lhs->AllocBegin + lhs->AllocSize);
             auto p2 = std::make_pair(rhs->AllocBegin,
@@ -220,7 +229,7 @@ class SanitizerInterceptor {
     };
 
     using AllocaionRangSet =
-        std::multiset<std::shared_ptr<USMAllocInfo>, USMAllocInfoCompare>;
+        std::multiset<std::shared_ptr<AllocInfo>, AllocInfoCompare>;
 
     AllocaionRangSet m_AllocationsMap;
     ur_shared_mutex m_AllocationsMapMutex;

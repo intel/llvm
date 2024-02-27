@@ -17,6 +17,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <string>
 
 namespace ur_sanitizer_layer {
 
@@ -100,5 +101,7 @@ bool MmapFixedNoAccess(uptr Addr, uptr Size);
 bool Munmap(uptr Addr, uptr Size);
 
 void *GetMemFunctionPointer(const char *);
+
+std::string DemangleName(const std::string &name);
 
 } // namespace ur_sanitizer_layer
