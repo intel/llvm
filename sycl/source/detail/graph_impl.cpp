@@ -683,7 +683,8 @@ void exec_graph_impl::createCommandBuffers(
   sycl::detail::pi::PiExtCommandBuffer OutCommandBuffer;
   sycl::detail::pi::PiExtCommandBufferDesc Desc{
       pi_ext_structure_type::PI_EXT_STRUCTURE_TYPE_COMMAND_BUFFER_DESC, nullptr,
-      pi_bool(Partition->MIsInOrderGraph & UseInOrderCommandList)};
+      pi_bool(Partition->MIsInOrderGraph & MUseInOrderCommandList),
+      pi_bool(MEnableProfiling)};
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(Device);

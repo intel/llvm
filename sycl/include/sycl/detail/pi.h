@@ -2305,6 +2305,7 @@ struct pi_ext_command_buffer_desc final {
   pi_ext_structure_type stype;
   const void *pNext;
   pi_bool is_in_order;
+  pi_bool enable_profiling;
 };
 
 /// API to create a command-buffer.

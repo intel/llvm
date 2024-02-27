@@ -4428,6 +4428,7 @@ piextCommandBufferCreate(pi_context Context, pi_device Device,
   ur_exp_command_buffer_desc_t UrDesc;
   UrDesc.stype = UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC;
   UrDesc.isInOrder = Desc->is_in_order;
+  UrDesc.enableProfiling = Desc->enable_profiling;
   ur_exp_command_buffer_handle_t *UrCommandBuffer =
       reinterpret_cast<ur_exp_command_buffer_handle_t *>(RetCommandBuffer);
 
