@@ -4,8 +4,8 @@
 ; RUN: sycl-post-link -spec-const=native < %s -S -o %t.table
 ; RUN: FileCheck %s -check-prefixes=CHECK,CHECK-RT < %t_0.ll
 ; RUN: FileCheck %s --check-prefixes=CHECK-PROPS < %t_0.prop
-; RUN: sycl-post-link -debug-only=SpecConst -spec-const=emulation < %s -S 2>&1 | FileCheck %s --check-prefixes=CHECK-LOG,CHECK-LOG-EMULATION
-; RUN: sycl-post-link -debug-only=SpecConst -spec-const=native < %s -S 2>&1 | FileCheck %s --check-prefixes=CHECK-LOG,CHECK-LOG-NATIVE
+; RUN: %if asserts %{ sycl-post-link -debug-only=SpecConst -spec-const=emulation < %s -S 2>&1 | FileCheck %s --check-prefixes=CHECK-LOG,CHECK-LOG-EMULATION %} %else %{ %}
+; RUN: %if asserts %{ sycl-post-link -debug-only=SpecConst -spec-const=native < %s -S 2>&1 | FileCheck %s --check-prefixes=CHECK-LOG,CHECK-LOG-NATIVE %} %else %{ %}
 
 ; This test checks that the post link tool is able to correctly transform
 ; SYCL 2020 specialization constant intrinsics for different types in a device
