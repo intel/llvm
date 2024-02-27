@@ -355,14 +355,25 @@ params:
             [in] handle of the kernel.
     - type: uint32_t
       name: workDim
-      desc: "[in] number of dimensions, from 1 to 3, to specify the global and work-group work-items"
+      desc: |
+            [in] number of dimensions, from 1 to 3, to specify the global
+            and work-group work-items
     - type: "const size_t*"
       name: pGlobalWorkOffset
-      desc: "[in] pointer to an array of workDim unsigned values that specify the offset used to calculate the global ID of a work-item"
+      desc: |
+            [in] pointer to an array of workDim unsigned values that specify
+            the offset used to calculate the global ID of a work-item"
     - type: "const size_t*"
       name: pGlobalWorkSize      
-      desc: "[in] pointer to an array of workDim unsigned values that specify the number of global work-items in workDim that will execute the kernel function"
+      desc: |
+            [in] pointer to an array of workDim unsigned values that specify
+            the number of global work-items in workDim that will execute the 
+            kernel function
     - type: "const size_t*"
       name: pSuggestedLocalWorkSize
       desc: |
-            [out] pointer to an array of workDim unsigned values that specify the number of local work-items forming a work-group that will execute the kernel function. 
+            [out] pointer to an array of workDim unsigned values that specify
+            the number of local work-items forming a work-group that will 
+            execute the kernel function. 
+returns:
+    - $X_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
