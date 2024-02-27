@@ -58,11 +58,12 @@ class platform_impl;
 void __SYCL_EXPORT enable_ext_oneapi_default_context(bool Val);
 
 template <typename ParamT>
-auto convert_to_abi_neutral(ParamT &Info) {
+auto convert_to_abi_neutral(ParamT &&Info) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  if constexpr (std::is_same_v<ParamT, std::string>) {
+  using ParamNoRef = std::remove_reference_t<ParamT>;
+  if constexpr (std::is_same_v<ParamNoRef, std::string>) {
     return detail::string{Info};
-  } else if constexpr (std::is_same_v<ParamT, std::vector<std::string>>) {
+  } else if constexpr (std::is_same_v<ParamNoRef, std::vector<std::string>>) {
     std::vector<detail::string> Res;
     Res.reserve(Info.size());
     for (std::string &Str : Info) {
@@ -70,7 +71,7 @@ auto convert_to_abi_neutral(ParamT &Info) {
     }
     return Res;
   } else {
-    return Info;
+    return std::forward<ParamT>(Info);
   }
 #else
   return std::forward<ParamT>(Info);
@@ -78,11 +79,12 @@ auto convert_to_abi_neutral(ParamT &Info) {
 }
 
 template <typename ParamT>
-auto convert_from_abi_neutral(ParamT &Info) {
+auto convert_from_abi_neutral(ParamT &&Info) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  if constexpr (std::is_same_v<ParamT, detail::string>) {
+  using ParamNoRef = std::remove_reference_t<ParamT>;
+  if constexpr (std::is_same_v<ParamNoRef, detail::string>) {
     return Info.c_str();
-  } else if constexpr (std::is_same_v<ParamT, std::vector<detail::string>>) {
+  } else if constexpr (std::is_same_v<ParamNoRef, std::vector<detail::string>>) {
     std::vector<std::string> Res;
     Res.reserve(Info.size());
     for (detail::string &Str : Info) {
@@ -90,7 +92,7 @@ auto convert_from_abi_neutral(ParamT &Info) {
     }
     return Res;
   } else {
-    return Info;
+    return std::forward<ParamT>(Info);
   }
 #else
   return std::forward<ParamT>(Info);
@@ -199,9 +201,9 @@ public:
   }
 #else
   template <typename Param>
-//  typename detail::is_platform_info_desc<Param>::return_type get_info() const;
-    typename detail::ABINeutralT_t<
-    typename detail::is_platform_info_desc<Param>::return_type> get_info() const;
+  detail::ABINeutralT_t<
+      typename detail::is_platform_info_desc<Param>::return_type>
+  get_info() const;
 #endif
   /// Returns all available SYCL platforms in the system.
   ///

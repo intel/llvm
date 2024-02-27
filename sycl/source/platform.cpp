@@ -58,19 +58,20 @@ backend platform::get_backend() const noexcept { return impl->getBackend(); }
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 template <typename Param>
-typename detail::ABINeutralT_t<
+detail::ABINeutralT_t<
     typename detail::is_platform_info_desc<Param>::return_type>
 platform::get_info_impl() const {
-  auto Info = impl->template get_info<Param>();
-  return detail::convert_to_abi_neutral(Info);
+  return detail::convert_to_abi_neutral(impl->template get_info<Param>());
 }
 #else
 template <typename Param>
-//typename detail::is_platform_info_desc<Param>::return_type
-typename detail::ABINeutralT_t<
+detail::ABINeutralT_t<
     typename detail::is_platform_info_desc<Param>::return_type>
 platform::get_info() const {
-  //  return impl->get_info<Param>();
+  static_assert(std::is_same_v<
+                detail::ABINeutralT_t<
+                    typename detail::is_platform_info_desc<Param>::return_type>,
+                typename detail::is_platform_info_desc<Param>::return_type>);
   return detail::convert_to_abi_neutral(impl->template get_info<Param>());
 }
 #endif

@@ -69,8 +69,8 @@ struct CmpCStr {
 
 using SerializedObj = std::vector<unsigned char>;
 
-template <typename T> struct ABINeutralT { using type = T; };
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+template <typename T> struct ABINeutralT { using type = T; };
 // We need special handling of std::string to handle ABI incompatibility
 // for get_info<>() when it returns std::string and vector<std::string>.
 // For this purpose, get_info_impl<>() is created to handle special
@@ -89,8 +89,10 @@ template <> struct ABINeutralT<detail::string> { using type = std::string; };
 template <> struct ABINeutralT<std::vector<detail::string>> {
   using type = std::vector<std::string>;
 };
-#endif
 template <typename T> using ABINeutralT_t = typename ABINeutralT<T>::type;
+#else
+template <typename T> using ABINeutralT_t = T;
+#endif
 
 } // namespace detail
 } // namespace _V1
