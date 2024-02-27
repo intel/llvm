@@ -372,7 +372,7 @@ unsigned int match_all_over_sub_group(sycl::sub_group g, unsigned member_mask,
       sycl::plus<>());
   bool all_equal = (reduce_result == member_mask);
   *pred = is_participate & all_equal;
-  return all_equal * member_mask;
+  return (is_participate & all_equal) * member_mask;
 }
 
 namespace experimental {
