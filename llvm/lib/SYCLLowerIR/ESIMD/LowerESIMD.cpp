@@ -1754,14 +1754,11 @@ static void checkSLMInit(Module &M) {
   SmallPtrSet<const Function *, 8u> Callers;
   for (auto &F : M) {
     if (isSlmInit(F)) {
-      auto filterInvokeSimdUse = [](const Instruction *, const Function *) {
-        return false;
-      };
       for (User *U : F.users()) {
         auto *FCall = dyn_cast<CallInst>(U);
         if (FCall && FCall->getCalledFunction() == &F) {
           Function *GenF = FCall->getFunction();
-
+          SmallPtrSet<Function *, 32> Visited;
           sycl::utils::traverseCallgraphUp(
               GenF,
               [&](Function *GraphNode) {
@@ -1778,7 +1775,21 @@ static void checkSLMInit(Module &M) {
                   }
                 }
               },
-              false, filterInvokeSimdUse);
+              Visited, false);
+          bool VisitedKernel = false;
+          for (const Function *Caller : Visited) {
+            if (llvm::esimd::isESIMDKernel(*Caller)) {
+              VisitedKernel = true;
+              break;
+            }
+          }
+          if (!VisitedKernel) {
+            F.getContext().emitError(
+                "slm_init must be called directly from ESIMD kernel.");
+          }
+        } else {
+          F.getContext().emitError(
+              "slm_init can only be used as a direct call.");
         }
       }
     }
@@ -1886,7 +1897,7 @@ bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
       if (FCall && FCall->getCalledFunction() == &F) {
         Function *GenF = FCall->getFunction();
         // The original kernel (UserK) if often automatically separated into
-        // a spir_func (GenF) that is then cal   led from spir_kernel (GenK).
+        // a spir_func (GenF) that is then called from spir_kernel (GenK).
         // When that happens, the calls of slm_init<N>() originally placed
         // in 'UserK' get moved to spir_func 'GenF', which creates wrong IR
         // because slm_init() must be called only from a kernel.
@@ -1943,8 +1954,10 @@ static void fixFunctionReadWriteAttributes(Module &M) {
 
 PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
                                           ModuleAnalysisManager &MAM) {
+
   // Check validity of slm_init calls.
   checkSLMInit(M);
+
   // AlwaysInlinerPass is required for correctness.
   bool ForceInline = prepareForAlwaysInliner(M);
   if (ForceInline) {
