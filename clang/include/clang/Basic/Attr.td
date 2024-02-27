@@ -2757,9 +2757,6 @@ def : MutualExclusions<[SYCLIntelRegister, SYCLIntelMerge]>;
 def SYCLIntelMaxReplicates : InheritableAttr {
   let Spellings = [CXX11<"intel", "max_replicates">];
   let Args = [ExprArgument<"Value">];
-  let Subjects = SubjectList<[SYCLIntelConstVar,
-                              SYCLIntelLocalStaticAgentMemVar,
-                              Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelMaxReplicatesAttrDocs];
 }
