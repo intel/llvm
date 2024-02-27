@@ -75,7 +75,7 @@ auto convert_to_abi_neutral(ParamT &Info) {
 }
 
 template <typename ParamT>
-ABINeutralT_t<ParamT> convert_from_abi_neutral(ParamT &Info) {
+auto convert_from_abi_neutral(ParamT &Info) {
   if constexpr (std::is_same_v<ParamT, detail::string>) {
     return Info.c_str();
   } else if constexpr (std::is_same_v<ParamT, std::vector<detail::string>>) {
