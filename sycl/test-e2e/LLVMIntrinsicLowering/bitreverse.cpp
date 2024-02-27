@@ -1,5 +1,7 @@
 // Test that llvm.bitreverse is lowered correctly by llvm-spirv
 
+// UNSUPPORTED: hip || cuda
+
 // RUN: %{build} -o %t.out -O2
 // RUN: %{run} %t.out
 
