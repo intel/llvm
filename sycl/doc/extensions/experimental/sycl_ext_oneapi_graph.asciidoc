@@ -981,8 +981,8 @@ Exceptions:
 
 [source, c++]
 ----
-namespace sycl{
-namespace ext::oneapi::experimental{
+namespace sycl {
+namespace ext::oneapi::experimental {
 enum class queue_state {
   executing,
   recording
