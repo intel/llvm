@@ -178,14 +178,14 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template<typename PropertyListT = empty_properties_t>
+template<typename PropertyListT = empty_properties_t>                             (1)
 kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
   const context& ctxt,
   source_language lang,
   const std::string& source,
   PropertyListT props = {})
 
-template<typename PropertyListT = empty_properties_t>
+template<typename PropertyListT = empty_properties_t>                             (2)
 kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
   const context& ctxt,
   source_language lang,
@@ -201,16 +201,6 @@ _Constraints:_ Available only when `PropertyListT` is an instance of
 other than those listed below in the section "New properties for the
 `create_kernel_bundle_from_source` function".
 
-_Preconditions:_ There are two overloads of this function: one that reads the
-source code of the kernel from a `std::string`, and one that reads the source
-code of the kernel from a `std::vector` of `std::byte`.
-Each source language `lang` specifies whether the language is text format or
-binary format, and the application must use the overload that corresponds to
-that format.
-
-The `sycl` language is text format, so the application must use the overload
-taking `std::string` when creating a kernel bundle from this language.
-
 _Effects:_ Creates a new kernel bundle that represents a kernel written in the
 source language `lang`, where the source code is contained either by `source`
 (if the source language is a text format) or by `bytes` (if the source language
@@ -220,6 +210,14 @@ may only be submitted to a queue that shares the same context.
 The bundle's set of associated devices is the set of devices contained in
 `ctxt`.
 
+Each source language `lang` specifies whether the language is text format or
+binary format, and the application must use the overload that corresponds to
+that format.
+Applications must use overload (1) when the source language is text format and
+must use overload (2) when the source language is binary format.
+The `sycl` language is text format, so application must use overload (1) when
+when creating a kernel bundle from this language.
+
 _Returns:_ The newly created kernel bundle, which has `ext_oneapi_source`
 state.
 
@@ -227,6 +225,10 @@ _Throws:_
 
 * An `exception` with the `errc::invalid` error code if the source language
   `lang` is not supported by any device contained by the context `ctxt`.
+* Overload (1) throws an `exception` with the `errc::invalid` error code if the
+  source language `lang` is binary format.
+* Overload (2) throws an `exception` with the `errc::invalid` error code if the
+  source language `lang` is text format.
 
 [_Note:_ Calling this function does not attempt to compile the source code.
 As a result, syntactic errors in the source code string are not diagnosed by
