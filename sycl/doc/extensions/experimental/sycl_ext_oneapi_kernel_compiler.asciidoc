@@ -504,6 +504,12 @@ See the section below "Obtaining a kernel when the language is ``sycl``" for a
 description of how this property is used with the `source_language::sycl`
 language.
 
+_Preconditions:_ Each source language defines its own requirements for the
+strings in the `name` and `names` parameters.
+For the language `source_language::sycl`, each string must be a {cpp}
+expression for a pointer to a kernel function as defined below under "Obtaining
+a kernel when the language is ``sycl``".
+
 _Effects (1):_ Constructs a `registered_kernel_names` property with a single
 kernel name.
 
