@@ -629,6 +629,8 @@ public:
   template <typename Destination>
   detail::EnableIfOutputIteratorT<Destination>
   set_final_data_internal(Destination FinalData) {
+    static_assert(!std::is_const_v<std::remove_reference_t<decltype(*FinalData)>>,
+                  "set_final_data must be called with a non-const iterator!");
     const size_t Size = size();
     buffer_plain::set_final_data_internal(
         [FinalData, Size](const std::function<void(void *const Ptr)> &F) {
