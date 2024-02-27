@@ -659,6 +659,7 @@ If this property is not passed to the finalize function, certain optimizations,
 which prevent graph profiling, may be applied to this executable graph.
 In this case, an error will be thrown when attempting to profiling an event from 
 a graph submission that was created without this property.
+Note that this limitation currently only applies to the zero-level backend. 
 
 ==== Graph Member Functions
 
