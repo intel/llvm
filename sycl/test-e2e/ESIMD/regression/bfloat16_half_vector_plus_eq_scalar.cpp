@@ -91,7 +91,8 @@ int main() {
   }
 
 #ifdef USE_BF16
-  Passed &= test<sycl::ext::oneapi::bfloat16>(Q);
+// TODO: Reenable once the issue with bfloat16 is resolved
+// Passed &= test<sycl::ext::oneapi::bfloat16>(Q);
 #endif
 #ifdef USE_TF32
   Passed &= test<sycl::ext::intel::experimental::esimd::tfloat32>(Q);

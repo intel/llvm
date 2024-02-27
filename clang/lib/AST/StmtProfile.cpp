@@ -594,6 +594,8 @@ void OMPClauseProfiler::VisitOMPReleaseClause(const OMPReleaseClause *) {}
 
 void OMPClauseProfiler::VisitOMPRelaxedClause(const OMPRelaxedClause *) {}
 
+void OMPClauseProfiler::VisitOMPWeakClause(const OMPWeakClause *) {}
+
 void OMPClauseProfiler::VisitOMPThreadsClause(const OMPThreadsClause *) {}
 
 void OMPClauseProfiler::VisitOMPSIMDClause(const OMPSIMDClause *) {}
@@ -2246,6 +2248,12 @@ void StmtProfiler::VisitSizeOfPackExpr(const SizeOfPackExpr *S) {
   }
 }
 
+void StmtProfiler::VisitPackIndexingExpr(const PackIndexingExpr *E) {
+  VisitExpr(E);
+  VisitExpr(E->getPackIdExpression());
+  VisitExpr(E->getIndexExpr());
+}
+
 void StmtProfiler::VisitSubstNonTypeTemplateParmPackExpr(
     const SubstNonTypeTemplateParmPackExpr *S) {
   VisitExpr(S);
@@ -2443,6 +2451,12 @@ void StmtProfiler::VisitTemplateArgument(const TemplateArgument &Arg) {
     Arg.getAsIntegral().Profile(ID);
     break;
 
+  case TemplateArgument::StructuralValue:
+    VisitType(Arg.getStructuralValueType());
+    // FIXME: Do we need to recursively decompose this ourselves?
+    Arg.getAsStructuralValue().Profile(ID);
+    break;
+
   case TemplateArgument::Expression:
     Visit(Arg.getAsExpr());
     break;
@@ -2452,6 +2466,13 @@ void StmtProfiler::VisitTemplateArgument(const TemplateArgument &Arg) {
       VisitTemplateArgument(P);
     break;
   }
+}
+
+void StmtProfiler::VisitOpenACCComputeConstruct(
+    const OpenACCComputeConstruct *S) {
+  // VisitStmt handles children, so the AssociatedStmt is handled.
+  VisitStmt(S);
+  // TODO OpenACC: Visit Clauses.
 }
 
 void Stmt::Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context,

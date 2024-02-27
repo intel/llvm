@@ -80,6 +80,12 @@ llvm_config.with_system_environment(
 
 llvm_config.with_environment("PATH", config.lit_tools_dir, append_path=True)
 
+if "cuda:gpu" in config.sycl_devices:
+    llvm_config.with_system_environment("CUDA_PATH")
+
+if "hip:gpu" in config.sycl_devices:
+    llvm_config.with_system_environment("ROCM_PATH")
+
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
 if platform.system() == "Linux":
     config.available_features.add("linux")
@@ -183,6 +189,8 @@ if lit_config.params.get("ur_l0_leaks_debug"):
     config.ur_l0_leaks_debug = lit_config.params.get("ur_l0_leaks_debug")
     lit_config.note("UR_L0_LEAKS_DEBUG: " + config.ur_l0_leaks_debug)
 
+if lit_config.params.get("enable-perf-tests", False):
+    config.available_features.add("enable-perf-tests")
 # Make sure that any dynamic checks below are done in the build directory and
 # not where the sources are located. This is important for the in-tree
 # configuration (as opposite to the standalone one).
@@ -413,7 +421,7 @@ if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
             config.available_features.add("gpu-amd-gfx90a")
         if not line.startswith("["):
             continue
-        (backend, device, _) = line[1:].split(":", 2)
+        (backend, device) = line[1:].split("]")[0].split(":")
         devices.add("{}:{}".format(backend, device))
     config.sycl_devices = list(devices)
 
@@ -425,7 +433,7 @@ if len(config.sycl_devices) > 1:
 config.sycl_devices = [x.replace("ext_oneapi_", "") for x in config.sycl_devices]
 
 available_devices = {
-    "opencl": ("cpu", "gpu", "acc"),
+    "opencl": ("cpu", "gpu", "fpga"),
     "cuda": "gpu",
     "level_zero": "gpu",
     "hip": "gpu",
@@ -667,7 +675,7 @@ for sycl_device in config.sycl_devices:
     features.update(sg_size_features)
 
     be, dev = sycl_device.split(":")
-    features.add(dev.replace("acc", "accelerator"))
+    features.add(dev.replace("fpga", "accelerator"))
     # Use short names for LIT rules.
     features.add(be)
 
@@ -684,3 +692,7 @@ try:
     lit_config.maxIndividualTestTime = 600
 except ImportError:
     pass
+
+config.substitutions.append(
+    ("%device_sanitizer_flags", "-Xsycl-target-frontend -fsanitize=address")
+)

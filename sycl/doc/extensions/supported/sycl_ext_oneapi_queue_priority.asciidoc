@@ -45,7 +45,7 @@ This extension is implemented and fully supported by {dpcpp}.
 [NOTE]
 ====
 Although {dpcpp} supports this extension on all backends, it is currently used
-only on Level Zero and CUDA.
+on Level Zero, CUDA, and HIP.
 Other backends ignore the properties defined in this specification.
 ====
 
