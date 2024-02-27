@@ -59,7 +59,7 @@ void __SYCL_EXPORT enable_ext_oneapi_default_context(bool Val);
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 template <typename ParamT>
-ABINeutralT_t<ParamT> convert_to_abi_neutral(ParamT &Info) {
+auto convert_to_abi_neutral(ParamT &Info) {
   if constexpr (std::is_same_v<ParamT, std::string>) {
     return detail::string{Info};
   } else if constexpr (std::is_same_v<ParamT, std::vector<std::string>>) {
