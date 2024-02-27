@@ -47,7 +47,7 @@ enum DataLessPropKind {
   GraphAssumeDataOutlivesBuffer = 22,
   GraphAssumeBufferOutlivesGraph = 23,
   GraphDependOnAllLeaves = 24,
-  DisableInOrderOptimization = 25,
+  GraphEnableProfiling = 25,
   // Indicates the last known dataless property.
   LastKnownDataLessPropKind = 25,
   // Exceeding 32 may cause ABI breaking change on some of OSes.

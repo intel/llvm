@@ -132,10 +132,10 @@ int main() {
 
     // The profiling is not available with the In-Order optimization.
     // We therefore disable this optimization.
-    auto CopyGraphExec = CopyGraph.finalize(
-        exp_ext::property::graph::disable_in_order_optimization{});
-    auto KernelGraphExec = KernelGraph.finalize(
-        exp_ext::property::graph::disable_in_order_optimization{});
+    auto CopyGraphExec =
+        CopyGraph.finalize(exp_ext::property::graph::enable_profiling{});
+    auto KernelGraphExec =
+        KernelGraph.finalize(exp_ext::property::graph::enable_profiling{});
 
     event CopyEvent, KernelEvent1, KernelEvent2;
     // Run graphs

@@ -333,7 +333,7 @@ public:
 
   /// Test is the node contains a N-D copy
   /// @return true is the op is a N-D copy
-  bool is2DCopyNode() {
+  bool is2DCopyNode() const {
     if ((MCGType == sycl::detail::CG::CGTYPE::CopyAccToAcc) ||
         (MCGType == sycl::detail::CG::CGTYPE::CopyAccToPtr) ||
         (MCGType == sycl::detail::CG::CGTYPE::CopyPtrToAcc)) {
@@ -588,7 +588,7 @@ public:
       MIsInOrderGraph = false;
       return;
     }
-    for (auto Node : MSchedule) {
+    for (const auto &Node : MSchedule) {
       // In version 1.3.28454 of the L0 driver, 2D Copy ops cannot not
       // be enqueued in an in-order cmd-list (causing execution to stall).
       // The 2D Copy test should be removed from here when the bug is fixed.
@@ -1063,14 +1063,13 @@ public:
   /// nodes).
   /// @param Context Context to create graph with.
   /// @param GraphImpl Modifiable graph implementation to create with.
-  /// @param DisableInOrderOptimization Disable the In Order Command-List
-  /// optimization
+  /// @param EnableProfiling Enable graph profiling.
   exec_graph_impl(sycl::context Context,
                   const std::shared_ptr<graph_impl> &GraphImpl,
-                  const bool DisableInOrderOptimization = false)
+                  const bool EnableProfiling = false)
       : MSchedule(), MGraphImpl(GraphImpl), MPiSyncPoints(), MContext(Context),
         MRequirements(), MExecutionEvents(),
-        UseInOrderCommandList(!DisableInOrderOptimization) {
+        UseInOrderCommandList(!EnableProfiling) {
     // Copy nodes from GraphImpl and merge any subgraph nodes into this graph.
     duplicateNodes();
   }

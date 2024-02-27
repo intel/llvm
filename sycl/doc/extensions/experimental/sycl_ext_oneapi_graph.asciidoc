@@ -342,9 +342,8 @@ class assume_buffer_outlives_graph {
     assume_buffer_outlives_graph() = default;
 };
 
-class disable_in_order_optimization {
 public:
-  disable_in_order_optimization() = default;
+  enable_profiling() = default;
 };
 } // namespace graph
 
@@ -651,14 +650,15 @@ which is used in a graph will be kept alive on the host for the lifetime of the
 graph. Destroying that buffer during the lifetime of a `command_graph`
 constructed with this property results in undefined behavior.
 
-===== Disable-In-Order-Optimization Property [[disable-in-order-optimization]]
+===== Enable-Profiling Property [[enable-profiling]]
 
-The `property::graph::disable_in_order_optimization` property disables 
-an optimization which can be applied to in-order graph to 
-reduce its execution time.
+The `property::graph::enable_profiling` property enable profiling
+the executable_graph.
 This property is passed to the `command_graph::finalize()` function.
-Note that this property must be passed to the finalize function if users 
-want to profile the exec_graph execution.
+If this property is not passed to the finalize function, certain optimizations,
+which prevent graph profiling, may be applied to this executable graph.
+In this case, an error will be thrown when attempting to profiling an event from 
+a graph submission that was created without this property.
 
 ==== Graph Member Functions
 

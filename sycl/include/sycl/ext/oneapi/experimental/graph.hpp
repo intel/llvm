@@ -149,11 +149,10 @@ public:
 
 /// Property used to to add all previous graph leaves as dependencies when
 /// creating a new node with command_graph::add().
-class disable_in_order_optimization
-    : public ::sycl::detail::DataLessProperty<
-          ::sycl::detail::DisableInOrderOptimization> {
+class enable_profiling : public ::sycl::detail::DataLessProperty<
+                             ::sycl::detail::GraphEnableProfiling> {
 public:
-  disable_in_order_optimization() = default;
+  enable_profiling() = default;
 };
 } // namespace graph
 
@@ -349,10 +348,10 @@ protected:
   /// Constructor used by internal runtime.
   /// @param Graph Detail implementation class to construct with.
   /// @param Ctx Context to use for graph.
-  /// @param DisableInOrderOptimization Disable the In Order graph opimization
+  /// @param EnableProfiling Enable graph profiling.
   executable_command_graph(const std::shared_ptr<detail::graph_impl> &Graph,
                            const sycl::context &Ctx,
-                           const bool DisableInOrderOptimization = false);
+                           const bool EnableProfiling = false);
 
   template <class Obj>
   friend decltype(Obj::impl)

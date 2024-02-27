@@ -614,8 +614,6 @@ std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents() {
 void exec_graph_impl::findRealDeps(
     std::vector<sycl::detail::pi::PiExtSyncPoint> &Deps,
     std::shared_ptr<node_impl> CurrentNode, int ReferencePartitionNum) {
-  // if (MPartitions[MPartitionNodes[CurrentNode]]->MIsInOrderGraph)
-  //   return;
   if (CurrentNode->isEmpty()) {
     for (auto &N : CurrentNode->MPredecessors) {
       auto NodeImpl = N.lock();
@@ -698,8 +696,6 @@ void exec_graph_impl::createCommandBuffers(
   }
 
   Partition->MPiCommandBuffers[Device] = OutCommandBuffer;
-
-  printGraphAsDot("execgraph.dot", false);
 
   for (const auto &Node : Partition->MSchedule) {
     // Empty nodes are not processed as other nodes, but only their
@@ -1163,12 +1159,12 @@ modifiable_command_graph::finalize(const sycl::property_list &PropList) const {
   // Graph is read and written in this scope so we lock
   // this graph with full priviledges.
   graph_impl::WriteLock Lock(impl->MMutex);
-  bool DisableInOrderOptim = false;
-  if (PropList.has_property<property::graph::disable_in_order_optimization>()) {
-    DisableInOrderOptim = true;
+  bool EnableProfiling = false;
+  if (PropList.has_property<property::graph::enable_profiling>()) {
+    EnableProfiling = true;
   }
   return command_graph<graph_state::executable>{
-      this->impl, this->impl->getContext(), DisableInOrderOptim};
+      this->impl, this->impl->getContext(), EnableProfiling};
 }
 
 bool modifiable_command_graph::begin_recording(queue &RecordingQueue) {
@@ -1283,9 +1279,9 @@ std::vector<node> modifiable_command_graph::get_root_nodes() const {
 
 executable_command_graph::executable_command_graph(
     const std::shared_ptr<detail::graph_impl> &Graph, const sycl::context &Ctx,
-    const bool DisableInOrderOptimization)
-    : impl(std::make_shared<detail::exec_graph_impl>(
-          Ctx, Graph, DisableInOrderOptimization)) {
+    const bool EnableProfiling)
+    : impl(std::make_shared<detail::exec_graph_impl>(Ctx, Graph,
+                                                     EnableProfiling)) {
   finalizeImpl(); // Create backend representation for executable graph
 }
 
