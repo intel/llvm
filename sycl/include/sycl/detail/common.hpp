@@ -8,16 +8,16 @@
 
 #pragma once
 
+#include <array>                              // for array
+#include <cassert>                            // for assert
+#include <cstddef>                            // for size_t
+#include <string>                             // for allocator, operator+
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/pi.h>                   // for pi_int32
-
-#include <array>       // for array
-#include <cassert>     // for assert
-#include <cstddef>     // for size_t
-#include <string>      // for allocator, operator+
-#include <type_traits> // for enable_if_t
-#include <utility>     // for index_sequence, make_i...
+#include <sycl/detail/stl_type_traits.hpp>    // for is_output_iteratior
+#include <type_traits>                        // for enable_if_t
+#include <utility>                            // for index_sequence, make_i...
 
 // Default signature enables the passing of user code location information to
 // public methods as a default argument.
@@ -30,14 +30,14 @@ namespace detail {
 // TODO: Align these checks with the SYCL specification when the behaviour
 // with void * is clarified.
 template <typename DataT>
-using EnableIfOutputPointerT = std::enable_if_t<
-    /*is_output_iterator<DataT>::value &&*/ std::is_pointer_v<DataT>>;
+using EnableIfOutputPointerT =
+    std::enable_if_t<is_output_iterator<DataT>::value &&
+                     std::is_pointer_v<DataT>>;
 
 template <typename DataT>
-using EnableIfOutputIteratorT = std::enable_if_t<
-    /*is_output_iterator<DataT>::value &&*/ !std::is_pointer_v<DataT> &&
-    !std::is_const_v<std::remove_reference_t<
-        typename std::iterator_traits<DataT>::reference>>>;
+using EnableIfOutputIteratorT =
+    std::enable_if_t<is_output_iterator<DataT>::value &&
+                     !std::is_pointer_v<DataT>>;
 
 #if !defined(NDEBUG) && (_MSC_VER > 1929 || __has_builtin(__builtin_FILE))
 #define __CODELOC_FILE_NAME __builtin_FILE()

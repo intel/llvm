@@ -49,6 +49,11 @@ struct is_output_iterator<T, output_iterator_requirements<T>> {
   static constexpr bool value = true;
 };
 
+template <>
+struct is_output_iterator<void *> {
+    static constexpr bool value = true;
+};
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
