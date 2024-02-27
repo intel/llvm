@@ -86,8 +86,8 @@ bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
   platform::get_info_impl<info::platform::Desc>() const;
 #else
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template __SYCL_EXPORT typename detail::ABINeutralT_t<ReturnT> \
-   platform::get_info<info::platform::Desc>()    const;
+  template __SYCL_EXPORT ReturnT platform::get_info<info::platform::Desc>()    \
+      const;
 #endif
 
 #include <sycl/info/platform_traits.def>

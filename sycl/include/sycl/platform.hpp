@@ -193,9 +193,7 @@ public:
   /// The return type depends on information being queried.
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
-  //typename detail::is_platform_info_desc<Param>::return_type get_info() const {
-  typename detail::ABINeutralT_t<
-    typename detail::is_platform_info_desc<Param>::return_type> get_info() const {
+  typename detail::is_platform_info_desc<Param>::return_type get_info() const {
     auto Info = get_info_impl<Param>();
     return detail::convert_from_abi_neutral(Info);
   }
