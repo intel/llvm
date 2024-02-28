@@ -30,6 +30,10 @@ on:
         description: Tag defifned for the runner
         type: string
         required: true
+      trigger:
+        description: Type of workflow trigger
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -63,10 +67,11 @@ jobs:
 
     - uses: xt0rted/pull-request-comment-branch@d97294d304604fa98a2600a6e2f916a84b596dc7 # v2.0.0
       id: comment-branch
+      if: ${{ always() && inputs.trigger != 'schedule' }}
 
     - name: Add comment to PR
       uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
-      if: always()
+      if: ${{ always() && inputs.trigger != 'schedule' }}
       with:
         script: |
           const adapter = '${{ matrix.adapter.name }}';
@@ -180,12 +185,12 @@ jobs:
 
     - name: Add comment to PR
       uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
-      if: always()
+      if: ${{ always() && inputs.trigger != 'schedule' }}
       with:
         script: |
           const adapter = '${{ matrix.adapter.name }}';
           const url = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}';
-          const status = ${{ steps.tests.outcome }};
+          const status = '${{ steps.tests.outcome }}';
           const body = `E2E ${adapter} build: \n${url}\n Status: ${status}`;
 
           github.rest.issues.createComment({
