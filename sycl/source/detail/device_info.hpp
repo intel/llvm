@@ -740,9 +740,16 @@ struct get_device_info_impl<
     using namespace ext::oneapi::experimental::matrix;
     using namespace ext::oneapi::experimental;
     backend CurrentBackend = Dev->getBackend();
-    architecture DeviceArch = get_device_info_impl<
-        ext::oneapi::experimental::architecture,
-        ext::oneapi::experimental::info::device::architecture>::get(Dev);
+    try {
+      architecture DeviceArch = get_device_info_impl<
+          ext::oneapi::experimental::architecture,
+          ext::oneapi::experimental::info::device::architecture>::get(Dev);
+    } catch (sycl::exception const &e) {
+      if (e.code() == errc::runtime &&
+          std::string(e.what()) == "The current device architecture is not "
+                                   "supported by sycl_ext_oneapi_matrix.")
+        return {};
+    }
     if (architecture::intel_cpu_spr == DeviceArch)
       return {
           {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::uint8,
@@ -850,10 +857,7 @@ struct get_device_info_impl<
         for (const auto &Item : NvidiaArchNumbs)
           if (Item.second == arch)
             return Item.first;
-        throw sycl::exception(
-            make_error_code(errc::runtime),
-            "The current device architecture is not supported by "
-            "sycl_ext_oneapi_matrix.");
+        return {};
       };
       float ComputeCapability = GetArchNum(DeviceArch);
       std::vector<combination> sm_70_combinations = {
