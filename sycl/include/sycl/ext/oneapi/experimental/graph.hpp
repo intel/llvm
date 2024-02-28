@@ -147,8 +147,9 @@ public:
   assume_buffer_outlives_graph() = default;
 };
 
-/// Property used to to add all previous graph leaves as dependencies when
-/// creating a new node with command_graph::add().
+/// Property used to enable graph profiling.
+/// Passing this property to the `command_graph::finalize()` function
+/// ensures that profiling can be used on the generated graph.
 class enable_profiling : public ::sycl::detail::DataLessProperty<
                              ::sycl::detail::GraphEnableProfiling> {
 public:

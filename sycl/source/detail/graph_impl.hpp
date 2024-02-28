@@ -1068,9 +1068,7 @@ public:
                   const std::shared_ptr<graph_impl> &GraphImpl,
                   const bool EnableProfiling = false)
       : MSchedule(), MGraphImpl(GraphImpl), MPiSyncPoints(), MContext(Context),
-        MRequirements(), MExecutionEvents(),
-        MUseInOrderCommandList(!EnableProfiling),
-        MEnableProfiling(EnableProfiling) {
+        MRequirements(), MExecutionEvents(), MEnableProfiling(EnableProfiling) {
     // Copy nodes from GraphImpl and merge any subgraph nodes into this graph.
     duplicateNodes();
   }
@@ -1241,8 +1239,6 @@ private:
       MPartitionsExecutionEvents;
   /// Storage for copies of nodes from the original modifiable graph.
   std::vector<std::shared_ptr<node_impl>> MNodeStorage;
-  /// If true, the L0 backend In-order CommandList optimization is enabled.
-  bool MUseInOrderCommandList = true;
   /// If true, the graph profiling is enabled.
   bool MEnableProfiling = false;
 };

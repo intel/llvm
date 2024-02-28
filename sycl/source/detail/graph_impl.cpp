@@ -683,7 +683,7 @@ void exec_graph_impl::createCommandBuffers(
   sycl::detail::pi::PiExtCommandBuffer OutCommandBuffer;
   sycl::detail::pi::PiExtCommandBufferDesc Desc{
       pi_ext_structure_type::PI_EXT_STRUCTURE_TYPE_COMMAND_BUFFER_DESC, nullptr,
-      pi_bool(Partition->MIsInOrderGraph & MUseInOrderCommandList),
+      pi_bool(Partition->MIsInOrderGraph & !MEnableProfiling),
       pi_bool(MEnableProfiling)};
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
@@ -945,6 +945,9 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
     if (Elem.second != NewEvent) {
       NewEvent->attachEventToComplete(Elem.second);
     }
+  }
+  if (!MEnableProfiling) {
+    NewEvent->setProfilingEnabled(false);
   }
   sycl::event QueueEvent =
       sycl::detail::createSyclObjFromImpl<sycl::event>(NewEvent);

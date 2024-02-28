@@ -290,6 +290,8 @@ public:
     return MEventFromSubmittedExecCommandBuffer;
   }
 
+  void setProfilingEnabled(bool Value) { MIsProfilingEnabled = Value; }
+
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -313,7 +315,7 @@ protected:
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;
-  const bool MIsProfilingEnabled = false;
+  bool MIsProfilingEnabled = false;
   const bool MFallbackProfiling = false;
 
   std::weak_ptr<queue_impl> MWorkerQueue;
