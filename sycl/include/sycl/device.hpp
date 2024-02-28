@@ -223,8 +223,7 @@ public:
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
   typename detail::is_device_info_desc<Param>::return_type get_info() const {
-    auto Info = get_info_impl<Param>();
-    return detail::convert_from_abi_neutral(Info);
+    return detail::convert_from_abi_neutral(get_info_impl<Param>());
   }
 #else
   template <typename Param>

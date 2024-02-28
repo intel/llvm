@@ -57,8 +57,7 @@ class platform_impl;
 /// \param Val Indicates if extension should be enabled/disabled
 void __SYCL_EXPORT enable_ext_oneapi_default_context(bool Val);
 
-template <typename ParamT>
-auto convert_to_abi_neutral(ParamT &&Info) {
+template <typename ParamT> auto convert_to_abi_neutral(ParamT &&Info) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   using ParamNoRef = std::remove_reference_t<ParamT>;
   if constexpr (std::is_same_v<ParamNoRef, std::string>) {
@@ -78,13 +77,13 @@ auto convert_to_abi_neutral(ParamT &&Info) {
 #endif
 }
 
-template <typename ParamT>
-auto convert_from_abi_neutral(ParamT &&Info) {
+template <typename ParamT> auto convert_from_abi_neutral(ParamT &&Info) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   using ParamNoRef = std::remove_reference_t<ParamT>;
   if constexpr (std::is_same_v<ParamNoRef, detail::string>) {
     return Info.c_str();
-  } else if constexpr (std::is_same_v<ParamNoRef, std::vector<detail::string>>) {
+  } else if constexpr (std::is_same_v<ParamNoRef,
+                                      std::vector<detail::string>>) {
     std::vector<std::string> Res;
     Res.reserve(Info.size());
     for (detail::string &Str : Info) {
@@ -194,8 +193,7 @@ public:
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
   typename detail::is_platform_info_desc<Param>::return_type get_info() const {
-    auto Info = get_info_impl<Param>();
-    return detail::convert_from_abi_neutral(Info);
+    return detail::convert_from_abi_neutral(get_info_impl<Param>());
   }
 #else
   template <typename Param>

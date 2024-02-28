@@ -56,25 +56,16 @@ std::vector<platform> platform::get_platforms() {
 
 backend platform::get_backend() const noexcept { return impl->getBackend(); }
 
+template <typename Param>
+detail::ABINeutralT_t<
+    typename detail::is_platform_info_desc<Param>::return_type>
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-template <typename Param>
-detail::ABINeutralT_t<
-    typename detail::is_platform_info_desc<Param>::return_type>
 platform::get_info_impl() const {
-  return detail::convert_to_abi_neutral(impl->template get_info<Param>());
-}
 #else
-template <typename Param>
-detail::ABINeutralT_t<
-    typename detail::is_platform_info_desc<Param>::return_type>
 platform::get_info() const {
-  static_assert(std::is_same_v<
-                detail::ABINeutralT_t<
-                    typename detail::is_platform_info_desc<Param>::return_type>,
-                typename detail::is_platform_info_desc<Param>::return_type>);
+#endif
   return detail::convert_to_abi_neutral(impl->template get_info<Param>());
 }
-#endif
 
 pi_native_handle platform::getNative() const { return impl->getNative(); }
 
@@ -82,12 +73,12 @@ bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template __SYCL_EXPORT typename detail::ABINeutralT_t<ReturnT>               \
+  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
   platform::get_info_impl<info::platform::Desc>() const;
 #else
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template __SYCL_EXPORT ReturnT platform::get_info<info::platform::Desc>()    \
-      const;
+  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
+  platform::get_info<info::platform::Desc>() const;
 #endif
 
 #include <sycl/info/platform_traits.def>
