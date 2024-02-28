@@ -28,13 +28,12 @@ if(NATIVECPU_USE_OCK)
   include(FetchContent)
   FetchContent_Declare(oneapi-ck
    GIT_REPOSITORY https://github.com/codeplaysoftware/oneapi-construction-kit.git
-   # commit 558b76cd6080107a2d65f7e37468f3d01eef80f7
-   # Merge: a5ec372f 542ee121
-   # Author: PietroGhg <38155419+PietroGhg@users.noreply.github.com>
-   # Date:   Tue Jan 30 12:53:39 2024 +0100
-   # Merge pull request #322 from PietroGhg/pietro/update_30_jan
-   # Update sycl_native_experimental branch
-   GIT_TAG 558b76cd6080107a2d65f7e37468f3d01eef80f7
+   #  commit 63f4ba99fc758ffc4268a807b21816b6be1b1b68
+   #  Author: PietroGhg <38155419+PietroGhg@users.noreply.github.com>
+   #  Date:   Wed Jan 31 14:06:36 2024 +0100
+   #  Merge pull request #326 from PietroGhg/pietro/vecz
+   #  Integrate vecz in experimental branch
+   GIT_TAG 63f4ba99fc758ffc4268a807b21816b6be1b1b68
   )
   FetchContent_GetProperties(oneapi-ck)
   if(NOT oneapi-ck_POPULATED)
@@ -48,8 +47,9 @@ if(NATIVECPU_USE_OCK)
   target_include_directories(LLVMSYCLLowerIR PRIVATE 
     ${oneapi-ck_SOURCE_DIR}/modules/compiler/multi_llvm/include
     ${oneapi-ck_SOURCE_DIR}/modules/cargo/include
+    ${oneapi-ck_SOURCE_DIR}/modules/compiler/vecz/include
     ${oneapi-ck_SOURCE_DIR}/modules/compiler/utils/include)
-  target_link_libraries(LLVMSYCLLowerIR PRIVATE compiler-pipeline)
+  target_link_libraries(LLVMSYCLLowerIR PRIVATE compiler-pipeline vecz)
   target_compile_definitions(pi_native_cpu PRIVATE NATIVECPU_USE_OCK)
 
 endif()

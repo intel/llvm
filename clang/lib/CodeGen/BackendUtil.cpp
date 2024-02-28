@@ -1086,7 +1086,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     }
 
     if (SYCLNativeCPUBackend) {
-      sycl::utils::addSYCLNativeCPUBackendPasses(MPM, MAM);
+      llvm::sycl::utils::addSYCLNativeCPUBackendPasses(MPM, MAM, Level);
     }
     if (LangOpts.SYCLIsDevice) {
       MPM.addPass(SYCLMutatePrintfAddrspacePass());
