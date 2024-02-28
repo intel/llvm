@@ -30,7 +30,7 @@ body:
         - OS: [e.g Windows/Linux]
         - Target device and vendor: [e.g. AMD GPU]
         - DPC++ version: [e.g. commit hash or output of `clang++ --version`]
-        - Dependencies version: [e.g. low-level runtime versions (like NEO 20.04)]
+        - Dependencies version: [e.g. the output of `rocm-smi`]
     validations:
       required: false
   - type: textarea
