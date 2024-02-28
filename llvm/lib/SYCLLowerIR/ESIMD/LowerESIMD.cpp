@@ -1753,44 +1753,43 @@ void lowerGlobalsToVector(Module &M) {
 static void checkSLMInit(Module &M) {
   SmallPtrSet<const Function *, 8u> Callers;
   for (auto &F : M) {
-    if (isSlmInit(F)) {
-      for (User *U : F.users()) {
-        auto *FCall = dyn_cast<CallInst>(U);
-        if (FCall && FCall->getCalledFunction() == &F) {
-          Function *GenF = FCall->getFunction();
-          SmallPtrSet<Function *, 32> Visited;
-          sycl::utils::traverseCallgraphUp(
-              GenF,
-              [&](Function *GraphNode) {
-                if (llvm::esimd::isESIMDKernel(*GraphNode)) {
-                  if (Callers.contains(GraphNode)) {
-                    StringRef KernelName = GraphNode->getName();
-                    std::string ErrorMsg =
-                        std::string(
-                            "slm_init is called more than once from kernel '") +
-                        demangle(KernelName.str()) + "'.";
-                    GraphNode->getContext().emitError(ErrorMsg);
-                  } else {
-                    Callers.insert(GraphNode);
-                  }
+    if (!isSlmInit(F))
+      continue;
+    for (User *U : F.users()) {
+      auto *FCall = dyn_cast<CallInst>(U);
+      if (FCall && FCall->getCalledFunction() == &F) {
+        Function *GenF = FCall->getFunction();
+        SmallPtrSet<Function *, 32> Visited;
+        sycl::utils::traverseCallgraphUp(
+            GenF,
+            [&](Function *GraphNode) {
+              if (llvm::esimd::isESIMDKernel(*GraphNode)) {
+                if (Callers.contains(GraphNode)) {
+                  StringRef KernelName = GraphNode->getName();
+                  std::string ErrorMsg =
+                      std::string(
+                          "slm_init is called more than once from kernel '") +
+                      demangle(KernelName.str()) + "'.";
+                  GraphNode->getContext().emitError(ErrorMsg);
+                } else {
+                  Callers.insert(GraphNode);
                 }
-              },
-              Visited, false);
-          bool VisitedKernel = false;
-          for (const Function *Caller : Visited) {
-            if (llvm::esimd::isESIMDKernel(*Caller)) {
-              VisitedKernel = true;
-              break;
-            }
+              }
+            },
+            Visited, false);
+        bool VisitedKernel = false;
+        for (const Function *Caller : Visited) {
+          if (llvm::esimd::isESIMDKernel(*Caller)) {
+            VisitedKernel = true;
+            break;
           }
-          if (!VisitedKernel) {
-            F.getContext().emitError(
-                "slm_init must be called directly from ESIMD kernel.");
-          }
-        } else {
-          F.getContext().emitError(
-              "slm_init can only be used as a direct call.");
         }
+        if (!VisitedKernel) {
+          F.getContext().emitError(
+              "slm_init must be called directly from ESIMD kernel.");
+        }
+      } else {
+        F.getContext().emitError("slm_init can only be used as a direct call.");
       }
     }
   }
