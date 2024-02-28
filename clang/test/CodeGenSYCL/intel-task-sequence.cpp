@@ -3,7 +3,9 @@
 // Test that SPIR-V codegen generates the expected LLVM struct name for the
 // TaskSequenceINTEL type
 
-struct __spirv_TaskSequenceINTEL;
+namespace __spv {
+  struct __spirv_TaskSequenceINTEL;
+} // namespace __spv
 
 // CHECK: @_Z4func{{.*}}(target("spirv.TaskSequenceINTEL")
-void func(__spirv_TaskSequenceINTEL *task_seq) {}
+void func(__spv::__spirv_TaskSequenceINTEL *task_seq) {}

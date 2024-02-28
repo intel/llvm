@@ -1268,7 +1268,7 @@ extern __DPCPP_SYCL_EXTERNAL
     __spirv_ConvertPtrToU(from val) noexcept;
 
 template <typename RetT, typename... ArgsT>
-extern __DPCPP_SYCL_EXTERNAL __spirv_TaskSequenceINTEL *
+extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_TaskSequenceINTEL *
 __spirv_TaskSequenceCreateINTEL(RetT (*f)(ArgsT...), int Pipelined = -1,
                                 int ClusterMode = -1,
                                 unsigned int ResponseCapacity = 0,
@@ -1276,15 +1276,15 @@ __spirv_TaskSequenceCreateINTEL(RetT (*f)(ArgsT...), int Pipelined = -1,
 
 template <typename... ArgsT>
 extern __DPCPP_SYCL_EXTERNAL void
-__spirv_TaskSequenceAsyncINTEL(__spirv_TaskSequenceINTEL *TaskSequence,
+__spirv_TaskSequenceAsyncINTEL(__spv::__spirv_TaskSequenceINTEL *TaskSequence,
                                ArgsT... Args) noexcept;
 
 template <typename RetT>
-extern __DPCPP_SYCL_EXTERNAL RetT
-__spirv_TaskSequenceGetINTEL(__spirv_TaskSequenceINTEL *TaskSequence) noexcept;
+extern __DPCPP_SYCL_EXTERNAL RetT __spirv_TaskSequenceGetINTEL(
+    __spv::__spirv_TaskSequenceINTEL *TaskSequence) noexcept;
 
 extern __DPCPP_SYCL_EXTERNAL void __spirv_TaskSequenceReleaseINTEL(
-    __spirv_TaskSequenceINTEL *TaskSequence) noexcept;
+    __spv::__spirv_TaskSequenceINTEL *TaskSequence) noexcept;
 
 #else  // if !__SYCL_DEVICE_ONLY__
 
