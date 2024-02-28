@@ -652,9 +652,9 @@ constructed with this property results in undefined behavior.
 
 ===== Enable-Profiling Property [[enable-profiling]]
 
-The `property::graph::enable_profiling` property enable profiling
-the executable_graph.
-This property is passed to the `command_graph::finalize()` function.
+The `property::graph::enable_profiling` property can be passed to the 
+`command_graph::finalize()` function and enables profiling support 
+for the returned `command_graph<graph_state::executable>`.
 If this property is not passed to the finalize function, certain optimizations,
 which prevent graph profiling, may be applied to this executable graph.
 In this case, an error will be thrown when attempting to profiling an event from 
