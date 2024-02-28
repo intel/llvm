@@ -1090,7 +1090,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       // Run optimization passes after all the changes we made to the kernels.
       // Todo: maybe we could find a set of relevant passes instead of re-running
       // the full optimization pipeline.
-      PassBuilder PB;
       MPM.addPass(PB.buildPerModuleDefaultPipeline(Level));
     }
     if (LangOpts.SYCLIsDevice) {
