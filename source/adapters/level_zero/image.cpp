@@ -595,7 +595,8 @@ urBindlessImagesSampledImageHandleDestroyExp(ur_context_handle_t hContext,
                                              ur_device_handle_t hDevice,
                                              ur_exp_image_handle_t hImage) {
   // Sampled image is a combination of unsampled image and sampler.
-  urBindlessImagesUnsampledImageHandleDestroyExp(hContext, hDevice, hImage);
+  UR_CALL(urBindlessImagesUnsampledImageHandleDestroyExp(hContext, hDevice,
+                                                         hImage));
 
   return UR_RESULT_SUCCESS;
 }
@@ -695,11 +696,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
       *phMem = nullptr;
     }
   } else {
-    ze_image_pitched_exp_desc_t ZeImagePitchedDesc;
-    ZeImagePitchedDesc.stype = ZE_STRUCTURE_TYPE_PITCHED_IMAGE_EXP_DESC;
-    ZeImagePitchedDesc.pNext = nullptr;
-    ZeImagePitchedDesc.ptr = hImageMem;
-    ZeImageDesc.pNext = &ZeImagePitchedDesc;
+    ze_image_pitched_exp_desc_t PitchedDesc;
+    PitchedDesc.stype = ZE_STRUCTURE_TYPE_PITCHED_IMAGE_EXP_DESC;
+    PitchedDesc.pNext = nullptr;
+    PitchedDesc.ptr = hImageMem;
+
+    ze_image_bindless_exp_desc_t BindlessDesc;
+    BindlessDesc.stype = ZE_STRUCTURE_TYPE_BINDLESS_IMAGE_EXP_DESC;
+    BindlessDesc.pNext = &PitchedDesc;
+    BindlessDesc.flags = ZE_IMAGE_BINDLESS_EXP_FLAG_BINDLESS;
+
+    ZeImageDesc.pNext = &BindlessDesc;
 
     ze_image_handle_t ZeImage;
     ZE2UR_CALL(zeImageCreate, (hContext->ZeContext, hDevice->ZeDevice,
@@ -747,6 +754,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 
   UR_CALL(urBindlessImagesUnsampledImageCreateExp(
       hContext, hDevice, hImageMem, pImageFormat, pImageDesc, phMem, phImage));
+
   struct combined_sampled_image_handle {
     uint64_t raw_image_handle;
     uint64_t raw_sampler_handle;
