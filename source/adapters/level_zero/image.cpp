@@ -298,6 +298,15 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
   case UR_IMAGE_CHANNEL_ORDER_RGX: {
     switch (ZeImageFormatTypeSize) {
     default:
+    case 8:
+      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_8_8_8;
+      break;
+    case 16:
+      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_16_16_16;
+      break;
+    case 32:
+      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32_32_32;
+      break;
       urPrint("urMemImageCreate: unexpected data type Size\n");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
@@ -363,8 +372,8 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
   ZeImageDesc.type = ZeImageType;
   ZeImageDesc.format = ZeFormatDesc;
   ZeImageDesc.width = ur_cast<uint64_t>(ImageDesc->width);
-  ZeImageDesc.height = std::max(ur_cast<uint64_t>(ImageDesc->height), 1ul);
-  ZeImageDesc.depth = std::max(ur_cast<uint64_t>(ImageDesc->depth), 1ul);
+  ZeImageDesc.height = std::max(ur_cast<uint64_t>(ImageDesc->height), (uint64_t)1);
+  ZeImageDesc.depth = std::max(ur_cast<uint64_t>(ImageDesc->depth), (uint64_t)1);
   ZeImageDesc.arraylevels = ur_cast<uint32_t>(ImageDesc->arraySize);
   ZeImageDesc.miplevels = ImageDesc->numMipLevel;
 

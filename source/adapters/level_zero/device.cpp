@@ -924,7 +924,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP:
-    return ReturnValue(true);
+    return ReturnValue(false);
   case UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP:
