@@ -73,22 +73,30 @@ void assignment_test_usm_shared(queue q, size_t N) {
 }
 
 template <typename T> void assignment_test(queue q, size_t N) {
+  bool do_usm_tests = q.get_device().has(aspect::usm_shared_allocations);
 #ifdef RUN_DEPRECATED
   assignment_test<::sycl::ext::oneapi::atomic_ref,
                   access::address_space::global_space, T>(q, N);
-  assignment_test_usm_shared<::sycl::ext::oneapi::atomic_ref,
-                             access::address_space::global_space, T>(q, N);
+  if (do_usm_tests) {
+    assignment_test_usm_shared<::sycl::ext::oneapi::atomic_ref,
+                               access::address_space::global_space, T>(q, N);
+  }
 #else
   assignment_test<::sycl::atomic_ref, access::address_space::global_space, T>(
       q, N);
-  assignment_test_usm_shared<::sycl::atomic_ref,
-                             access::address_space::global_space, T>(q, N);
+  if (do_usm_tests) {
+    assignment_test_usm_shared<::sycl::atomic_ref,
+                               access::address_space::global_space, T>(q, N);
+  }
 #endif
 }
 
 template <typename T> void assignment_generic_test(queue q, size_t N) {
+  bool do_usm_tests = q.get_device().has(aspect::usm_shared_allocations);
   assignment_test<::sycl::atomic_ref, access::address_space::generic_space, T>(
       q, N);
-  assignment_test_usm_shared<::sycl::atomic_ref,
-                             access::address_space::generic_space, T>(q, N);
+  if (do_usm_tests) {
+    assignment_test_usm_shared<::sycl::atomic_ref,
+                               access::address_space::generic_space, T>(q, N);
+  }
 }

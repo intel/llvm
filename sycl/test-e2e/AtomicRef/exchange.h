@@ -151,6 +151,7 @@ void exchange_test(queue q, size_t N) {
       space == access::address_space::global_space ||
       (space == access::address_space::generic_space && !TEST_GENERIC_IN_LOCAL);
   constexpr bool do_ext_tests = space != access::address_space::generic_space;
+  bool do_usm_tests = q.get_device().has(aspect::usm_shared_allocations);
   if constexpr (do_local_tests) {
 #ifdef RUN_DEPRECATED
     if constexpr (do_ext_tests) {
@@ -166,13 +167,17 @@ void exchange_test(queue q, size_t N) {
     if constexpr (do_ext_tests) {
       exchange_global_test<::sycl::ext::oneapi::atomic_ref, space, T, order,
                            scope>(q, N);
-      exchange_global_test_usm_shared<::sycl::ext::oneapi::atomic_ref, space, T,
-                                      order, scope>(q, N);
+      if (do_usm_tests) {
+        exchange_global_test_usm_shared<::sycl::ext::oneapi::atomic_ref, space,
+                                        T, order, scope>(q, N);
+      }
     }
 #else
     exchange_global_test<::sycl::atomic_ref, space, T, order, scope>(q, N);
-    exchange_global_test_usm_shared<::sycl::atomic_ref, space, T, order, scope>(
-        q, N);
+    if (do_usm_tests) {
+      exchange_global_test_usm_shared<::sycl::atomic_ref, space, T, order,
+                                      scope>(q, N);
+    }
 #endif
   }
 }

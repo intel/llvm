@@ -406,6 +406,7 @@ void sub_test(queue q, size_t N) {
       space == access::address_space::global_space ||
       (space == access::address_space::generic_space && !TEST_GENERIC_IN_LOCAL);
   constexpr bool do_ext_tests = space != access::address_space::generic_space;
+  bool do_usm_tests = q.get_device().has(aspect::usm_shared_allocations);
   if constexpr (do_local_tests) {
 #ifdef RUN_DEPRECATED
     if constexpr (do_ext_tests) {
@@ -442,21 +443,25 @@ void sub_test(queue q, size_t N) {
 #else
     sub_fetch_test<::sycl::atomic_ref, space, T, Difference, order, scope>(q,
                                                                            N);
-    sub_fetch_test_usm_shared<::sycl::atomic_ref, space, T, Difference, order,
-                              scope>(q, N);
     sub_minus_equal_test<::sycl::atomic_ref, space, T, Difference, order,
                          scope>(q, N);
-    sub_minus_equal_test_usm_shared<::sycl::atomic_ref, space, T, Difference,
-                                    order, scope>(q, N);
+    if (do_usm_tests) {
+      sub_fetch_test_usm_shared<::sycl::atomic_ref, space, T, Difference, order,
+                                scope>(q, N);
+      sub_minus_equal_test_usm_shared<::sycl::atomic_ref, space, T, Difference,
+                                      order, scope>(q, N);
+    }
     if constexpr (!std::is_floating_point_v<T>) {
       sub_pre_dec_test<::sycl::atomic_ref, space, T, Difference, order, scope>(
           q, N);
-      sub_pre_dec_test_usm_shared<::sycl::atomic_ref, space, T, Difference,
-                                  order, scope>(q, N);
       sub_post_dec_test<::sycl::atomic_ref, space, T, Difference, order, scope>(
           q, N);
-      sub_post_dec_test_usm_shared<::sycl::atomic_ref, space, T, Difference,
-                                   order, scope>(q, N);
+      if (do_usm_tests) {
+        sub_pre_dec_test_usm_shared<::sycl::atomic_ref, space, T, Difference,
+                                    order, scope>(q, N);
+        sub_post_dec_test_usm_shared<::sycl::atomic_ref, space, T, Difference,
+                                     order, scope>(q, N);
+      }
     }
 #endif
   }
