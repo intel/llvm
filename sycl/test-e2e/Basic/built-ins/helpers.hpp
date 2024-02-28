@@ -40,4 +40,6 @@ void test(FuncTy F, ExpectedTy Expected, ArgTys... Args) {
   test(true /*CheckDevice*/, F, Expected, Args...);
 }
 
-#define F(BUILTIN) [](auto... xs) { return BUILTIN(xs...); }
+// MSVC's STL spoils global namespace with math functions, so use explicit
+// "sycl::".
+#define F(BUILTIN) [](auto... xs) { return sycl::BUILTIN(xs...); }
