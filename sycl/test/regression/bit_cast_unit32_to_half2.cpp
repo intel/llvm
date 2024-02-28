@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fpreview-breaking-changes -c %s -o %t.out
+// RUN: %clangxx -fsycl -fpreview-breaking-changes -c %s -o /dev/null
 #include <sycl/sycl.hpp>
 
 SYCL_EXTERNAL uint32_t test(uint32_t a) {
