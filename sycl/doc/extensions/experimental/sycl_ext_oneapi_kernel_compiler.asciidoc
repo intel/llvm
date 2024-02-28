@@ -228,6 +228,8 @@ _Throws:_
 
 * An `exception` with the `errc::invalid` error code if the source language
   `lang` is not supported by any device contained by the context `ctxt`.
+* An `exception` with the `errc::invalid` error code if the source language
+  `lang` does not support one of the properties in `PropertyListT`.
 * Overload (1) throws an `exception` with the `errc::invalid` error code if the
   source language `lang` is binary format.
 * Overload (2) throws an `exception` with the `errc::invalid` error code if the
@@ -296,8 +298,10 @@ _Throws:_
   `devs` does not support compilation of kernels in the source language of
   `sourceBundle`.
 
-* An `exception` with the `errc::invalid` error code if `props` contains an
-  `options` property that specifies an invalid option.
+* An `exception` with the `errc::invalid` error code if the source language
+  `lang` does not support one of the properties in `PropertyListT` or if
+  `props` contains a `build_options` property that contains an option that is
+  not supported by `lang`.
 
 * An `exception` with the `errc::build` error code if the compilation or
   linking operations fail.
@@ -419,10 +423,8 @@ struct is_property_key<build_options_key> : std::true_type {};
 
 This property provides build options that may affect the compilation or linking
 of the kernel, where each build option is a string.
-There are no standard build options that are common across all source
-languages.
-Instead, each source language specification defines its own set of build
-options.
+All source languages support the `build_options` property, but each source
+language defines the specific options that it supports.
 The `source_language::sycl` language does not define any standard build
 options, but an implementation may support implementation-defined options.
 
@@ -466,8 +468,8 @@ provides a description of the error.
 Instead, the `save_log` property provides information about a build operation
 that succeeds.
 This might include warning messages or other diagnostics.
-Each source language specification can define specific information that is
-provided in the log.
+All source languages support the `save_log` property, but each source language
+defines the specific information that is provided in the log.
 The `source_language::sycl` language does not define any specific information
 that is provided in the log, so implementations are free to provide any
 information they choose here.
