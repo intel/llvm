@@ -27,20 +27,12 @@ struct max_num_work_group_sync {
 };
 } // namespace info::kernel_queue_specific
 
-struct use_root_sync_key {
+struct use_root_sync_key
+    : detail::compile_time_property_key<detail::PropKind::UseRootSync> {
   using value_t = property_value<use_root_sync_key>;
 };
 
 inline constexpr use_root_sync_key::value_t use_root_sync;
-
-template <> struct is_property_key<use_root_sync_key> : std::true_type {};
-
-template <> struct detail::PropertyToKind<use_root_sync_key> {
-  static constexpr PropKind Kind = PropKind::UseRootSync;
-};
-
-template <>
-struct detail::IsCompileTimeProperty<use_root_sync_key> : std::true_type {};
 
 template <int Dimensions> class root_group {
 public:
