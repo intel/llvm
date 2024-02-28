@@ -228,7 +228,9 @@ public:
   }
 #else
   template <typename Param>
-  typename detail::is_device_info_desc<Param>::return_type get_info() const;
+  detail::ABINeutralT_t<
+      typename detail::is_device_info_desc<Param>::return_type>
+  get_info() const;
 #endif
 
   /// Check SYCL extension support by device

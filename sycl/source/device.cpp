@@ -135,17 +135,19 @@ bool device::has_extension(const std::string &extension_name) const {
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 template <typename Param>
-detail::ABINeutralT_t<
-    typename detail::is_device_info_desc<Param>::return_type>
+detail::ABINeutralT_t<typename detail::is_device_info_desc<Param>::return_type>
 device::get_info_impl() const {
-  auto Info = impl->template get_info<Param>();
-  return detail::convert_to_abi_neutral(Info);
+  return detail::convert_to_abi_neutral(impl->template get_info<Param>());
 }
 #else
 template <typename Param>
-typename detail::is_device_info_desc<Param>::return_type
+detail::ABINeutralT_t<typename detail::is_device_info_desc<Param>::return_type>
 device::get_info() const {
-  return impl->template get_info<Param>();
+  static_assert(
+      std::is_same_v<detail::ABINeutralT_t<typename detail::is_device_info_desc<
+                         Param>::return_type>,
+                     typename detail::is_device_info_desc<Param>::return_type>);
+  return detail::convert_to_abi_neutral(impl->template get_info<Param>());
 }
 #endif
 
@@ -211,11 +213,12 @@ __SYCL_EXPORT bool device::get_info<info::device::image_support>() const {
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>               \
+  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
   device::get_info_impl<info::device::Desc>() const;
 #else
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template __SYCL_EXPORT ReturnT device::get_info<info::device::Desc>() const;
+  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
+  device::get_info<info::device::Desc>() const;
 #endif
 
 #define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, PiCode)
@@ -226,11 +229,11 @@ __SYCL_EXPORT bool device::get_info<info::device::image_support>() const {
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
-  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>               \
+  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
   device::get_info_impl<Namespace::info::DescType::Desc>() const;
 #else
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
-  template __SYCL_EXPORT ReturnT                                               \
+  template __SYCL_EXPORT typename detail::ABINeutralT_t<ReturnT>               \
   device::get_info<Namespace::info::DescType::Desc>() const;
 #endif
 
