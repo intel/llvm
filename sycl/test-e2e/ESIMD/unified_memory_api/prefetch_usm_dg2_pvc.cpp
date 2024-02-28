@@ -11,7 +11,7 @@
 
 // The test verifies esimd::prefetch() functions accepting USM pointer
 // and optional compile-time esimd::properties.
-// The prefetch() calls in this test  require DG2 or PVC to run.
+// The prefetch() calls in this test require DG2 or PVC to run.
 
 #include "Inputs/prefetch.hpp"
 

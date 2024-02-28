@@ -8586,7 +8586,7 @@ scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> vals,
 /// void prefetch(const T *p, OffsetSimdViewT byte_offsets,
 ///             PropertyListT props = {});                        // (usm-pf-6)
 ///
-/// The next functions perform transposed 1-channel prefetch
+/// The next functions perform transposed 1-channel prefetch.
 /// template <typename T, int VS = 1, typename OffsetT,
 ///           typename PropertyListT = empty_properties_t>
 /// void prefetch(const T *p, OffsetT byte_offset, simd_mask<1> mask,
@@ -8794,7 +8794,7 @@ prefetch(const T *p, OffsetSimdViewT byte_offsets, PropertyListT props = {}) {
 /// @param byte_offset offset from the base address.
 /// @param mask The access mask. If it is set to 0, then the prefetch is
 /// omitted.
-/// @param props The optional compile-time properties. Only  cache hint
+/// @param props The optional compile-time properties. Only cache hint
 /// properties are used.
 template <typename T, int VS = 1, typename OffsetT,
           typename PropertyListT =
@@ -8827,7 +8827,7 @@ prefetch(const T *p, OffsetT byte_offset, simd_mask<1> mask,
 /// prefetch.
 /// @param p The base address.
 /// @param byte_offset offset from the base address
-/// @param props The optional compile-time properties. Only  cache hint
+/// @param props The optional compile-time properties. Only cache hint
 /// properties are used.
 template <typename T, int VS = 1, typename OffsetT,
           typename PropertyListT =
@@ -8854,7 +8854,7 @@ prefetch(const T *p, OffsetT byte_offset, PropertyListT props = {}) {
 /// @param p The base address.
 /// @param mask The access mask. If it is set to 0, then the prefetch is
 /// omitted.
-/// @param props The optional compile-time properties. Only  cache hint
+/// @param props The optional compile-time properties. Only cache hint
 /// properties are used.
 template <typename T, int VS = 1,
           typename PropertyListT =
@@ -8875,7 +8875,7 @@ prefetch(const T *p, simd_mask<1> mask, PropertyListT props = {}) {
 /// @tparam VS Vector size. It specifies the number of consequent elements to
 /// prefetch.
 /// @param p The base address.
-/// @param props The optional compile-time properties. Only  cache hint
+/// @param props The optional compile-time properties. Only cache hint
 /// properties are used.
 template <typename T, int VS = 1,
           typename PropertyListT =
