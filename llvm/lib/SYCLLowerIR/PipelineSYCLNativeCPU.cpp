@@ -11,8 +11,6 @@
 // When NATIVECPU_USE_OCK is set, adds passes from the oneAPI Construction Kit.
 //
 //===----------------------------------------------------------------------===//
-#include "llvm/Passes/OptimizationLevel.h"
-#include "llvm/Passes/PassBuilder.h"
 #include "llvm/SYCLLowerIR/ConvertToMuxBuiltinsSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/RenameKernelSYCLNativeCPU.h"
@@ -24,9 +22,9 @@
 #include "compiler/utils/prepare_barriers_pass.h"
 #include "compiler/utils/sub_group_analysis.h"
 #include "compiler/utils/work_item_loops_pass.h"
+#include "llvm/Transforms/IPO/AlwaysInliner.h"
 #include "vecz/pass.h"
 #include "vecz/vecz_target_info.h"
-#include "llvm/Transforms/IPO/AlwaysInliner.h"
 #endif
 
 using namespace llvm;
@@ -88,10 +86,4 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
   MPM.addPass(PrepareSYCLNativeCPUPass());
   MPM.addPass(RenameKernelSYCLNativeCPUPass());
 
-  // Run optimization passes after all the changes we made to the kernels.
-  // Todo: check optimization level from clang
-  // Todo: maybe we could find a set of relevant passes instead of re-running
-  // the full optimization pipeline.
-  PassBuilder PB;
-  MPM.addPass(PB.buildPerModuleDefaultPipeline(OptLevel));
 }
