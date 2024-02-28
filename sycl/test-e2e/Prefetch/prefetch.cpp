@@ -119,6 +119,8 @@ int main() {
         address_space_cast<
             access::address_space::global_space COMMA access::decorated::yes>(
             &dataChar[idx * arrSize]))
+
+    free(dataChar, q);
   }
   {
     std::vector<int> data(N);

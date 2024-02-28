@@ -617,6 +617,7 @@ lltok::Kind LLLexer::LexIdentifier() {
   KEYWORD(anyregcc);
   KEYWORD(preserve_mostcc);
   KEYWORD(preserve_allcc);
+  KEYWORD(preserve_nonecc);
   KEYWORD(ghccc);
   KEYWORD(x86_intrcc);
   KEYWORD(hhvmcc);
@@ -907,7 +908,7 @@ lltok::Kind LLLexer::LexIdentifier() {
 
 #define DWKEYWORD(TYPE, TOKEN)                                                 \
   do {                                                                         \
-    if (Keyword.startswith("DW_" #TYPE "_")) {                                 \
+    if (Keyword.starts_with("DW_" #TYPE "_")) {                                \
       StrVal.assign(Keyword.begin(), Keyword.end());                           \
       return lltok::TOKEN;                                                     \
     }                                                                          \

@@ -44,6 +44,7 @@
 #include "llvm/IR/IntrinsicsR600.h"
 #include "llvm/IR/IntrinsicsRISCV.h"
 #include "llvm/IR/IntrinsicsS390.h"
+#include "llvm/IR/IntrinsicsSPIRV.h"
 #include "llvm/IR/IntrinsicsVE.h"
 #include "llvm/IR/IntrinsicsWebAssembly.h"
 #include "llvm/IR/IntrinsicsX86.h"
@@ -436,8 +437,10 @@ Function::Function(FunctionType *Ty, LinkageTypes Linkage, unsigned AddrSpace,
   if (Ty->getNumParams())
     setValueSubclassData(1);   // Set the "has lazy arguments" bit.
 
-  if (ParentModule)
+  if (ParentModule) {
     ParentModule->getFunctionList().push_back(this);
+    IsNewDbgInfoFormat = ParentModule->IsNewDbgInfoFormat;
+  }
 
   HasLLVMReservedName = getName().starts_with("llvm.");
   // Ensure intrinsics have the right parameter attributes.
@@ -1185,22 +1188,17 @@ static void DecodeIITType(unsigned &NextElt, ArrayRef<unsigned char> Infos,
     return;
   case IIT_EXTERNREF:
     OutputTable.push_back(IITDescriptor::get(IITDescriptor::Pointer, 10));
-    OutputTable.push_back(IITDescriptor::get(IITDescriptor::Struct, 0));
     return;
   case IIT_FUNCREF:
     OutputTable.push_back(IITDescriptor::get(IITDescriptor::Pointer, 20));
-    OutputTable.push_back(IITDescriptor::get(IITDescriptor::Integer, 8));
     return;
   case IIT_PTR:
     OutputTable.push_back(IITDescriptor::get(IITDescriptor::Pointer, 0));
-    DecodeIITType(NextElt, Infos, Info, OutputTable);
     return;
-  case IIT_ANYPTR: {  // [ANYPTR addrspace, subtype]
+  case IIT_ANYPTR: // [ANYPTR addrspace]
     OutputTable.push_back(IITDescriptor::get(IITDescriptor::Pointer,
                                              Infos[NextElt++]));
-    DecodeIITType(NextElt, Infos, Info, OutputTable);
     return;
-  }
   case IIT_ARG: {
     unsigned ArgInfo = (NextElt == Infos.size() ? 0 : Infos[NextElt++]);
     OutputTable.push_back(IITDescriptor::get(IITDescriptor::Argument, ArgInfo));
@@ -1352,8 +1350,7 @@ static Type *DecodeFixedType(ArrayRef<Intrinsic::IITDescriptor> &Infos,
     return VectorType::get(DecodeFixedType(Infos, Tys, Context),
                            D.Vector_Width);
   case IITDescriptor::Pointer:
-    return PointerType::get(DecodeFixedType(Infos, Tys, Context),
-                            D.Pointer_AddressSpace);
+    return PointerType::get(Context, D.Pointer_AddressSpace);
   case IITDescriptor::Struct: {
     SmallVector<Type *, 8> Elts;
     for (unsigned i = 0, e = D.Struct_NumElements; i != e; ++i)
@@ -1515,20 +1512,7 @@ static bool matchIntrinsicType(
     }
     case IITDescriptor::Pointer: {
       PointerType *PT = dyn_cast<PointerType>(Ty);
-      if (!PT || PT->getAddressSpace() != D.Pointer_AddressSpace)
-        return true;
-      // Consume IIT descriptors relating to the pointer element type.
-      // FIXME: Intrinsic type matching of nested single value types or even
-      // aggregates doesn't work properly with opaque pointers but hopefully
-      // doesn't happen in practice.
-      while (Infos.front().Kind == IITDescriptor::Pointer ||
-             Infos.front().Kind == IITDescriptor::Vector)
-        Infos = Infos.slice(1);
-      assert((Infos.front().Kind != IITDescriptor::Argument ||
-              Infos.front().getArgumentKind() == IITDescriptor::AK_MatchType) &&
-             "Unsupported polymorphic pointer type with opaque pointer");
-      Infos = Infos.slice(1);
-      return false;
+      return !PT || PT->getAddressSpace() != D.Pointer_AddressSpace;
     }
 
     case IITDescriptor::Struct: {

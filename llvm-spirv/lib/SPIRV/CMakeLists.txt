@@ -26,6 +26,7 @@ set(SRC_LIST
   SPIRVUtil.cpp
   SPIRVWriter.cpp
   SPIRVWriterPass.cpp
+  PassPlugin.cpp
   PreprocessMetadata.cpp
   libSPIRV/SPIRVBasicBlock.cpp
   libSPIRV/SPIRVDebug.cpp
@@ -37,6 +38,7 @@ set(SRC_LIST
   libSPIRV/SPIRVStream.cpp
   libSPIRV/SPIRVType.cpp
   libSPIRV/SPIRVValue.cpp
+  libSPIRV/SPIRVError.cpp
 )
 add_llvm_library(LLVMSPIRVLib
   ${SRC_LIST}

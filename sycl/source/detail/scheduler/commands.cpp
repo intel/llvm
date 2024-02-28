@@ -299,6 +299,15 @@ bool Command::isHostTask() const {
           CG::CGTYPE::CodeplayHostTask);
 }
 
+bool Command::isFusable() const {
+  if ((MType != CommandType::RUN_CG)) {
+    return false;
+  }
+  const auto &CG = (static_cast<const ExecCGCommand &>(*this)).getCG();
+  return (CG.getType() == CG::CGTYPE::Kernel) &&
+         (!static_cast<const CGExecKernel &>(CG).MKernelIsCooperative);
+}
+
 static void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls,
                                 const QueueImplPtr &Queue) {
   for (auto &EventImpl : EventImpls) {
@@ -1825,7 +1834,7 @@ void UpdateHostRequirementCommand::emitInstrumentationData() {
 #endif
 }
 
-static std::string cgTypeToString(detail::CG::CGTYPE Type) {
+static std::string_view cgTypeToString(detail::CG::CGTYPE Type) {
   switch (Type) {
   case detail::CG::Kernel:
     return "Kernel";
@@ -1845,6 +1854,10 @@ static std::string cgTypeToString(detail::CG::CGTYPE Type) {
   case detail::CG::CopyPtrToAcc:
     return "copy ptr to acc";
     break;
+  case detail::CG::Barrier:
+    return "barrier";
+  case detail::CG::BarrierWaitlist:
+    return "barrier waitlist";
   case detail::CG::CopyUSM:
     return "copy usm";
     break;
@@ -1863,6 +1876,8 @@ static std::string cgTypeToString(detail::CG::CGTYPE Type) {
   case detail::CG::Fill2DUSM:
     return "fill 2d usm";
     break;
+  case detail::CG::AdviseUSM:
+    return "advise usm";
   case detail::CG::Memset2DUSM:
     return "memset 2d usm";
     break;
@@ -1872,6 +1887,16 @@ static std::string cgTypeToString(detail::CG::CGTYPE Type) {
   case detail::CG::CopyFromDeviceGlobal:
     return "copy from device_global";
     break;
+  case detail::CG::ReadWriteHostPipe:
+    return "read_write host pipe";
+  case detail::CG::ExecCommandBuffer:
+    return "exec command buffer";
+  case detail::CG::CopyImage:
+    return "copy image";
+  case detail::CG::SemaphoreWait:
+    return "semaphore wait";
+  case detail::CG::SemaphoreSignal:
+    return "semaphore signal";
   default:
     return "unknown";
     break;
@@ -2102,7 +2127,7 @@ void ExecCGCommand::emitInstrumentationData() {
         KernelCG->getKernelName(), MAddress, FromSource);
   } break;
   default:
-    KernelName = cgTypeToString(MCommandGroup->getType());
+    KernelName = getTypeString();
     break;
   }
 
@@ -2150,7 +2175,7 @@ void ExecCGCommand::printDot(std::ostream &Stream) const {
     break;
   }
   default:
-    Stream << "CG type: " << cgTypeToString(MCommandGroup->getType()) << "\\n";
+    Stream << "CG type: " << getTypeString() << "\\n";
     break;
   }
 
@@ -2163,6 +2188,10 @@ void ExecCGCommand::printDot(std::ostream &Stream) const {
            << "MemObj: " << Dep.MDepRequirement->MSYCLMemObj << " \" ]"
            << std::endl;
   }
+}
+
+std::string_view ExecCGCommand::getTypeString() const {
+  return cgTypeToString(MCommandGroup->getType());
 }
 
 // SYCL has a parallel_for_work_group variant where the only NDRange
@@ -2317,7 +2346,8 @@ static pi_result SetKernelParamsAndLaunch(
     std::vector<sycl::detail::pi::PiEvent> &RawEvents,
     const detail::EventImplPtr &OutEventImpl,
     const KernelArgMask *EliminatedArgMask,
-    const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
+    bool IsCooperative) {
   const PluginPtr &Plugin = Queue->getPlugin();
 
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
@@ -2355,11 +2385,18 @@ static pi_result SetKernelParamsAndLaunch(
   }
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
-  pi_result Error = Plugin->call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
-      Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
-      &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
-      RawEvents.empty() ? nullptr : &RawEvents[0],
-      OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
+  pi_result Error =
+      [&](auto... Args) {
+        if (IsCooperative) {
+          return Plugin
+              ->call_nocheck<PiApiKind::piextEnqueueCooperativeKernelLaunch>(
+                  Args...);
+        }
+        return Plugin->call_nocheck<PiApiKind::piEnqueueKernelLaunch>(Args...);
+      }(Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
+        &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
+        RawEvents.empty() ? nullptr : &RawEvents[0],
+        OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
   return Error;
 }
 
@@ -2499,7 +2536,8 @@ pi_int32 enqueueImpKernel(
     std::vector<sycl::detail::pi::PiEvent> &RawEvents,
     const detail::EventImplPtr &OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig) {
+    sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
+    const bool KernelIsCooperative) {
 
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2590,7 +2628,8 @@ pi_int32 enqueueImpKernel(
 
     Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
                                      NDRDesc, EventsWaitList, OutEventImpl,
-                                     EliminatedArgMask, getMemAllocationFunc);
+                                     EliminatedArgMask, getMemAllocationFunc,
+                                     KernelIsCooperative);
 
     const PluginPtr &Plugin = Queue->getPlugin();
     if (!SyclKernelImpl && !MSyclKernel) {
@@ -2678,7 +2717,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
   }
 
   sycl::detail::pi::PiEvent *Event =
-      (MQueue->has_discard_events_support() &&
+      (MQueue->supportsDiscardingPiEvents() &&
        MCommandGroup->getRequirements().size() == 0)
           ? nullptr
           : &MEvent->getHandleRef();
@@ -2764,6 +2803,46 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
     MEvent->setSyncPoint(OutSyncPoint);
     return PI_SUCCESS;
   }
+  case CG::CGTYPE::Fill: {
+    CGFill *Fill = (CGFill *)MCommandGroup.get();
+    Requirement *Req = (Requirement *)(Fill->getReqToFill());
+    AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
+
+    MemoryManager::ext_oneapi_fill_cmd_buffer(
+        MQueue->getContextImplPtr(), MCommandBuffer, AllocaCmd->getSYCLMemObj(),
+        AllocaCmd->getMemAllocation(), Fill->MPattern.size(),
+        Fill->MPattern.data(), Req->MDims, Req->MMemoryRange, Req->MAccessRange,
+        Req->MOffset, Req->MElemSize, std::move(MSyncPointDeps), &OutSyncPoint);
+    MEvent->setSyncPoint(OutSyncPoint);
+    return PI_SUCCESS;
+  }
+  case CG::CGTYPE::FillUSM: {
+    CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
+    MemoryManager::ext_oneapi_fill_usm_cmd_buffer(
+        MQueue->getContextImplPtr(), MCommandBuffer, Fill->getDst(),
+        Fill->getLength(), Fill->getFill(), std::move(MSyncPointDeps),
+        &OutSyncPoint);
+    MEvent->setSyncPoint(OutSyncPoint);
+    return PI_SUCCESS;
+  }
+  case CG::CGTYPE::PrefetchUSM: {
+    CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
+    MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(
+        MQueue->getContextImplPtr(), MCommandBuffer, Prefetch->getDst(),
+        Prefetch->getLength(), std::move(MSyncPointDeps), &OutSyncPoint);
+    MEvent->setSyncPoint(OutSyncPoint);
+    return PI_SUCCESS;
+  }
+  case CG::CGTYPE::AdviseUSM: {
+    CGAdviseUSM *Advise = (CGAdviseUSM *)MCommandGroup.get();
+    MemoryManager::ext_oneapi_advise_usm_cmd_buffer(
+        MQueue->getContextImplPtr(), MCommandBuffer, Advise->getDst(),
+        Advise->getLength(), Advise->getAdvice(), std::move(MSyncPointDeps),
+        &OutSyncPoint);
+    MEvent->setSyncPoint(OutSyncPoint);
+    return PI_SUCCESS;
+  }
+
   default:
     throw runtime_error("CG type not implemented for command buffers.",
                         PI_ERROR_INVALID_OPERATION);
@@ -2785,11 +2864,11 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   auto RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
-  bool DiscardEvent = (MQueue->has_discard_events_support() &&
-                       MCommandGroup->getRequirements().size() == 0);
+  bool DiscardPiEvent = (MQueue->supportsDiscardingPiEvents() &&
+                         MCommandGroup->getRequirements().size() == 0);
   sycl::detail::pi::PiEvent *Event =
-      DiscardEvent ? nullptr : &MEvent->getHandleRef();
-  detail::EventImplPtr EventImpl = DiscardEvent ? nullptr : MEvent;
+      DiscardPiEvent ? nullptr : &MEvent->getHandleRef();
+  detail::EventImplPtr EventImpl = DiscardPiEvent ? nullptr : MEvent;
 
   switch (MCommandGroup->getType()) {
 
@@ -2922,7 +3001,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     return enqueueImpKernel(
         MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
         KernelName, RawEvents, EventImpl, getMemAllocationFunc,
-        ExecKernel->MKernelCacheConfig);
+        ExecKernel->MKernelCacheConfig, ExecKernel->MKernelIsCooperative);
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();

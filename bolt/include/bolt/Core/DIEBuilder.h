@@ -15,6 +15,7 @@
 #ifndef BOLT_CORE_DIE_BUILDER_H
 #define BOLT_CORE_DIE_BUILDER_H
 
+#include "bolt/Core/BinaryContext.h"
 #include "llvm/CodeGen/DIE.h"
 #include "llvm/DebugInfo/DWARF/DWARFAbbreviationDeclaration.h"
 #include "llvm/DebugInfo/DWARF/DWARFDie.h"
@@ -32,7 +33,9 @@
 namespace llvm {
 
 namespace bolt {
+
 class DIEStreamer;
+class DebugStrOffsetsWriter;
 
 class DIEBuilder {
   friend DIEStreamer;
@@ -119,8 +122,9 @@ private:
   std::unique_ptr<State> BuilderState;
   FoldingSet<DIEAbbrev> AbbreviationsSet;
   std::vector<std::unique_ptr<DIEAbbrev>> Abbreviations;
+  BinaryContext &BC;
   DWARFContext *DwarfContext{nullptr};
-  bool IsDWO{false};
+  DWARFUnit *SkeletonCU{nullptr};
   uint64_t UnitSize{0};
   llvm::DenseSet<uint64_t> AllProcessed;
 
@@ -218,9 +222,10 @@ private:
     if (getState().CloneUnitCtxMap[UnitId].DieInfoVector.size() > DIEId)
       return *getState().CloneUnitCtxMap[UnitId].DieInfoVector[DIEId].get();
 
-    errs() << "BOLT-WARNING: [internal-dwarf-error]: The DIE is not allocated "
-              "before looking up, some"
-           << "unexpected corner cases happened.\n";
+    BC.errs()
+        << "BOLT-WARNING: [internal-dwarf-error]: The DIE is not allocated "
+           "before looking up, some"
+        << "unexpected corner cases happened.\n";
     return *getState().CloneUnitCtxMap[UnitId].DieInfoVector.front().get();
   }
 
@@ -259,14 +264,19 @@ private:
   /// current Section.
   DIE *constructDIEFast(DWARFDie &DDie, DWARFUnit &U, uint32_t UnitId);
 
+  /// Returns true if this DIEBUilder is for DWO Unit.
+  bool isDWO() const { return SkeletonCU != nullptr; }
+
 public:
-  DIEBuilder(DWARFContext *DwarfContext, bool IsDWO = false);
+  DIEBuilder(BinaryContext &BC, DWARFContext *DwarfContext,
+             DWARFUnit *SkeletonCU = nullptr);
 
   /// Returns enum to what we are currently processing.
   ProcessingType getCurrentProcessingState() { return getState().Type; }
 
   /// Constructs IR for Type Units.
-  void buildTypeUnits(const bool Init = true);
+  void buildTypeUnits(DebugStrOffsetsWriter *StrOffsetWriter = nullptr,
+                      const bool Init = true);
   /// Constructs IR for all the CUs.
   void buildCompileUnits(const bool Init = true);
   /// Constructs IR for CUs in a vector.
@@ -293,8 +303,9 @@ public:
     if (getState().TypeDIEMap.count(&DU))
       return getState().TypeDIEMap[&DU];
 
-    errs() << "BOLT-ERROR: unable to find TypeUnit for Type Unit at offset 0x"
-           << DU.getOffset() << "\n";
+    BC.errs()
+        << "BOLT-ERROR: unable to find TypeUnit for Type Unit at offset 0x"
+        << DU.getOffset() << "\n";
     return nullptr;
   }
 

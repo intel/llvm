@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_DIALECT_SPARSETENSOR_TRANSFORMS_CODEGENUTILS_H_
-#define MLIR_DIALECT_SPARSETENSOR_TRANSFORMS_CODEGENUTILS_H_
+#ifndef MLIR_DIALECT_SPARSETENSOR_TRANSFORMS_UTILS_CODEGENUTILS_H_
+#define MLIR_DIALECT_SPARSETENSOR_TRANSFORMS_UTILS_CODEGENUTILS_H_
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
@@ -289,7 +289,7 @@ Value genToPositions(OpBuilder &builder, Location loc, Value tensor, Level lvl);
 /// stride and offset.  Otherwise, the result type is a memref without
 /// any specified layout.
 Value genToCoordinates(OpBuilder &builder, Location loc, Value tensor,
-                       Level lvl, Level cooStart);
+                       Level lvl);
 
 /// Infers the result type and generates `ToCoordinatesBufferOp`.
 Value genToCoordinatesBuffer(OpBuilder &builder, Location loc, Value tensor);
@@ -423,7 +423,7 @@ inline Value constantPrimaryTypeEncoding(OpBuilder &builder, Location loc,
 /// Generates a constant of the internal dimension level type encoding.
 inline Value constantLevelTypeEncoding(OpBuilder &builder, Location loc,
                                        LevelType lt) {
-  return constantI8(builder, loc, static_cast<uint8_t>(lt));
+  return constantI64(builder, loc, static_cast<uint64_t>(lt));
 }
 
 inline bool isZeroRankedTensorOrScalar(Type type) {
@@ -434,4 +434,4 @@ inline bool isZeroRankedTensorOrScalar(Type type) {
 } // namespace sparse_tensor
 } // namespace mlir
 
-#endif // MLIR_DIALECT_SPARSETENSOR_TRANSFORMS_CODEGENUTILS_H_
+#endif // MLIR_DIALECT_SPARSETENSOR_TRANSFORMS_UTILS_CODEGENUTILS_H_

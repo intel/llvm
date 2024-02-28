@@ -14,19 +14,21 @@ int main() {
   queue q1{ext::codeplay::experimental::property::queue::enable_fusion{}};
   queue q2{ext::codeplay::experimental::property::queue::enable_fusion{}};
 
-  int *in1 = sycl::malloc_shared<int>(dataSize, q1);
-  int *in2 = sycl::malloc_shared<int>(dataSize, q1);
-  int *in3 = sycl::malloc_shared<int>(dataSize, q1);
-  int *tmp = sycl::malloc_shared<int>(dataSize, q1);
-  int *out = sycl::malloc_shared<int>(dataSize, q1);
+  int *in1 = sycl::malloc_device<int>(dataSize, q1);
+  int *in2 = sycl::malloc_device<int>(dataSize, q1);
+  int *in3 = sycl::malloc_device<int>(dataSize, q1);
+  int *tmp = sycl::malloc_device<int>(dataSize, q1);
+  int *out = sycl::malloc_device<int>(dataSize, q1);
 
-  for (size_t i = 0; i < dataSize; ++i) {
-    in1[i] = i * 2;
-    in2[i] = i * 3;
-    in3[i] = i * 4;
-    tmp[i] = -1;
-    out[i] = -1;
-  }
+  q1.single_task<class InitKernel>([=]() {
+      for (size_t i = 0; i < dataSize; ++i) {
+        in1[i] = i * 2;
+        in2[i] = i * 3;
+        in3[i] = i * 4;
+        tmp[i] = -1;
+        out[i] = -1;
+      }
+    }).wait();
 
   ext::codeplay::experimental::fusion_wrapper fw1{q1};
   fw1.start_fusion();
@@ -71,10 +73,12 @@ int main() {
 
   q1.wait();
   q2.wait();
-
+  int host_out[dataSize];
+  q1.memcpy(host_out, out, dataSize * sizeof(int));
+  q1.wait();
   // Check the results
   for (size_t i = 0; i < dataSize; ++i) {
-    assert(out[i] == (40 * i * i) && "Computation error");
+    assert(host_out[i] == (40 * i * i) && "Computation error");
   }
   sycl::free(in1, q1);
   sycl::free(in2, q1);

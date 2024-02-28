@@ -56,6 +56,13 @@ struct check_property_list<T, Prop, Props...>
                 "Property is invalid for the given type.");
 };
 
+template <typename PropTy> struct propagateToPtrAnnotation : std::false_type {};
+
+// Partial specilization for property_value
+template <typename PropKeyT, typename... PropValuesTs>
+struct propagateToPtrAnnotation<property_value<PropKeyT, PropValuesTs...>>
+    : propagateToPtrAnnotation<PropKeyT> {};
+
 //===----------------------------------------------------------------------===//
 //        Common properties of annotated_arg/annotated_ptr
 //===----------------------------------------------------------------------===//
@@ -79,6 +86,8 @@ struct is_property_key_of<alignment_key, annotated_ptr<T, PropertyListT>>
 template <typename T, typename PropertyListT>
 struct is_property_key_of<alignment_key, annotated_arg<T, PropertyListT>>
     : std::true_type {};
+
+template <> struct propagateToPtrAnnotation<alignment_key> : std::true_type {};
 
 namespace detail {
 

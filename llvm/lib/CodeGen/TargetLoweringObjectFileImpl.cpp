@@ -472,10 +472,14 @@ static SectionKind getELFKindForNamedSection(StringRef Name, SectionKind K) {
                                       /*AddSegmentInfo=*/false) ||
       Name == getInstrProfSectionName(IPSK_covfun, Triple::ELF,
                                       /*AddSegmentInfo=*/false) ||
+      Name == getInstrProfSectionName(IPSK_covdata, Triple::ELF,
+                                      /*AddSegmentInfo=*/false) ||
+      Name == getInstrProfSectionName(IPSK_covname, Triple::ELF,
+                                      /*AddSegmentInfo=*/false) ||
       Name == ".llvmbc" || Name == ".llvmcmd")
     return SectionKind::getMetadata();
 
-  if (Name.empty() || Name[0] != '.') return K;
+  if (!Name.starts_with(".")) return K;
 
   // Default implementation based on some magic section names.
   if (Name == ".bss" || Name.starts_with(".bss.") ||
@@ -631,7 +635,8 @@ static SmallString<128>
 getELFSectionNameForGlobal(const GlobalObject *GO, SectionKind Kind,
                            Mangler &Mang, const TargetMachine &TM,
                            unsigned EntrySize, bool UniqueSectionName) {
-  SmallString<128> Name;
+  SmallString<128> Name =
+      getSectionPrefixForGlobal(Kind, TM.isLargeGlobalValue(GO));
   if (Kind.isMergeableCString()) {
     // We also need alignment here.
     // FIXME: this is getting the alignment of the character, not the
@@ -639,13 +644,13 @@ getELFSectionNameForGlobal(const GlobalObject *GO, SectionKind Kind,
     Align Alignment = GO->getParent()->getDataLayout().getPreferredAlign(
         cast<GlobalVariable>(GO));
 
-    std::string SizeSpec = ".rodata.str" + utostr(EntrySize) + ".";
-    Name = SizeSpec + utostr(Alignment.value());
-  } else if (Kind.isMergeableConst()) {
-    Name = ".rodata.cst";
+    Name += ".str";
     Name += utostr(EntrySize);
-  } else {
-    Name = getSectionPrefixForGlobal(Kind, TM.isLargeGlobalObject(GO));
+    Name += ".";
+    Name += utostr(Alignment.value());
+  } else if (Kind.isMergeableConst()) {
+    Name += ".cst";
+    Name += utostr(EntrySize);
   }
 
   bool HasPrefix = false;
@@ -765,7 +770,7 @@ getGlobalObjectInfo(const GlobalObject *GO, const TargetMachine &TM) {
     Group = C->getName();
     IsComdat = C->getSelectionKind() == Comdat::Any;
   }
-  if (TM.isLargeGlobalObject(GO))
+  if (TM.isLargeGlobalValue(GO))
     Flags |= ELF::SHF_X86_64_LARGE;
   return {Group, IsComdat, Flags};
 }
@@ -1665,9 +1670,18 @@ static int getSelectionForCOFF(const GlobalValue *GV) {
 
 MCSection *TargetLoweringObjectFileCOFF::getExplicitSectionGlobal(
     const GlobalObject *GO, SectionKind Kind, const TargetMachine &TM) const {
+  StringRef Name = GO->getSection();
+  if (Name == getInstrProfSectionName(IPSK_covmap, Triple::COFF,
+                                      /*AddSegmentInfo=*/false) ||
+      Name == getInstrProfSectionName(IPSK_covfun, Triple::COFF,
+                                      /*AddSegmentInfo=*/false) ||
+      Name == getInstrProfSectionName(IPSK_covdata, Triple::COFF,
+                                      /*AddSegmentInfo=*/false) ||
+      Name == getInstrProfSectionName(IPSK_covname, Triple::COFF,
+                                      /*AddSegmentInfo=*/false))
+    Kind = SectionKind::getMetadata();
   int Selection = 0;
   unsigned Characteristics = getCOFFSectionFlags(Kind, TM);
-  StringRef Name = GO->getSection();
   StringRef COMDATSymName = "";
   if (GO->hasComdat()) {
     Selection = getSelectionForCOFF(GO);
@@ -2128,7 +2142,7 @@ static const Comdat *getWasmComdat(const GlobalValue *GV) {
   return C;
 }
 
-static unsigned getWasmSectionFlags(SectionKind K) {
+static unsigned getWasmSectionFlags(SectionKind K, bool Retain) {
   unsigned Flags = 0;
 
   if (K.isThreadLocal())
@@ -2137,9 +2151,20 @@ static unsigned getWasmSectionFlags(SectionKind K) {
   if (K.isMergeableCString())
     Flags |= wasm::WASM_SEG_FLAG_STRINGS;
 
+  if (Retain)
+    Flags |= wasm::WASM_SEG_FLAG_RETAIN;
+
   // TODO(sbc): Add suport for K.isMergeableConst()
 
   return Flags;
+}
+
+void TargetLoweringObjectFileWasm::getModuleMetadata(Module &M) {
+  SmallVector<GlobalValue *, 4> Vec;
+  collectUsedGlobalVariables(M, Vec, false);
+  for (GlobalValue *GV : Vec)
+    if (auto *GO = dyn_cast<GlobalObject>(GV))
+      Used.insert(GO);
 }
 
 MCSection *TargetLoweringObjectFileWasm::getExplicitSectionGlobal(
@@ -2165,16 +2190,18 @@ MCSection *TargetLoweringObjectFileWasm::getExplicitSectionGlobal(
     Group = C->getName();
   }
 
-  unsigned Flags = getWasmSectionFlags(Kind);
+  unsigned Flags = getWasmSectionFlags(Kind, Used.count(GO));
   MCSectionWasm *Section = getContext().getWasmSection(
       Name, Kind, Flags, Group, MCContext::GenericSectionID);
 
   return Section;
 }
 
-static MCSectionWasm *selectWasmSectionForGlobal(
-    MCContext &Ctx, const GlobalObject *GO, SectionKind Kind, Mangler &Mang,
-    const TargetMachine &TM, bool EmitUniqueSection, unsigned *NextUniqueID) {
+static MCSectionWasm *
+selectWasmSectionForGlobal(MCContext &Ctx, const GlobalObject *GO,
+                           SectionKind Kind, Mangler &Mang,
+                           const TargetMachine &TM, bool EmitUniqueSection,
+                           unsigned *NextUniqueID, bool Retain) {
   StringRef Group = "";
   if (const Comdat *C = getWasmComdat(GO)) {
     Group = C->getName();
@@ -2199,7 +2226,7 @@ static MCSectionWasm *selectWasmSectionForGlobal(
     (*NextUniqueID)++;
   }
 
-  unsigned Flags = getWasmSectionFlags(Kind);
+  unsigned Flags = getWasmSectionFlags(Kind, Retain);
   return Ctx.getWasmSection(Name, Kind, Flags, Group, UniqueID);
 }
 
@@ -2217,9 +2244,11 @@ MCSection *TargetLoweringObjectFileWasm::SelectSectionForGlobal(
   else
     EmitUniqueSection = TM.getDataSections();
   EmitUniqueSection |= GO->hasComdat();
+  bool Retain = Used.count(GO);
+  EmitUniqueSection |= Retain;
 
   return selectWasmSectionForGlobal(getContext(), GO, Kind, getMangler(), TM,
-                                    EmitUniqueSection, &NextUniqueID);
+                                    EmitUniqueSection, &NextUniqueID, Retain);
 }
 
 bool TargetLoweringObjectFileWasm::shouldPutJumpTableInFunctionSection(
@@ -2411,8 +2440,10 @@ MCSection *TargetLoweringObjectFileXCOFF::SelectSectionForGlobal(
     if (GVar->hasAttribute("toc-data")) {
       SmallString<128> Name;
       getNameWithPrefix(Name, GO, TM);
+      XCOFF::SymbolType symType =
+          GO->hasCommonLinkage() ? XCOFF::XTY_CM : XCOFF::XTY_SD;
       return getContext().getXCOFFSection(
-          Name, Kind, XCOFF::CsectProperties(XCOFF::XMC_TD, XCOFF::XTY_SD),
+          Name, Kind, XCOFF::CsectProperties(XCOFF::XMC_TD, symType),
           /* MultiSymbolsAllowed*/ true);
     }
 
@@ -2675,6 +2706,13 @@ TargetLoweringObjectFileGOFF::TargetLoweringObjectFileGOFF() = default;
 MCSection *TargetLoweringObjectFileGOFF::getExplicitSectionGlobal(
     const GlobalObject *GO, SectionKind Kind, const TargetMachine &TM) const {
   return SelectSectionForGlobal(GO, Kind, TM);
+}
+
+MCSection *TargetLoweringObjectFileGOFF::getSectionForLSDA(
+    const Function &F, const MCSymbol &FnSym, const TargetMachine &TM) const {
+  std::string Name = ".gcc_exception_table." + F.getName().str();
+  return getContext().getGOFFSection(Name, SectionKind::getData(), nullptr,
+                                     nullptr);
 }
 
 MCSection *TargetLoweringObjectFileGOFF::SelectSectionForGlobal(

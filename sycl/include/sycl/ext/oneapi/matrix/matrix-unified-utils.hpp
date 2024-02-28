@@ -7,6 +7,10 @@
 // ===--------------------------------------------------------------------=== //
 
 #pragma once
+
+#include <CL/__spirv/spirv_types.hpp> // __spv namespace
+#include <optional>                   // std::optional
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext {

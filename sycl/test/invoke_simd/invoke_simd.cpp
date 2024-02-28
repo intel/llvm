@@ -46,21 +46,21 @@ ESIMD_CALLEE(float *A, esimd::simd<float, VL> b, int i) SYCL_ESIMD_FUNCTION {
 float SPMD_CALLEE(float *A, float b, int i) { return A[i] + b; }
 
 class ESIMDSelector : public device_selector {
-  // Require GPU device unless HOST is requested in SYCL_DEVICE_FILTER env
+  // Require GPU device unless HOST is requested in ONEAPI_DEVICE_SELECTOR env
   virtual int operator()(const device &device) const {
-    if (const char *dev_filter = getenv("SYCL_DEVICE_FILTER")) {
+    if (const char *dev_filter = getenv("ONEAPI_DEVICE_SELECTOR")) {
       std::string filter_string(dev_filter);
       if (filter_string.find("gpu") != std::string::npos)
         return device.is_gpu() ? 1000 : -1;
       if (filter_string.find("host") != std::string::npos)
         return device.is_host() ? 1000 : -1;
       std::cerr
-          << "Supported 'SYCL_DEVICE_FILTER' env var values are 'gpu' and "
+          << "Supported 'ONEAPI_DEVICE_SELECTOR' env var values are 'gpu' and "
              "'host', '"
           << filter_string << "' does not contain such substrings.\n";
       return -1;
     }
-    // If "SYCL_DEVICE_FILTER" not defined, only allow gpu device
+    // If "ONEAPI_DEVICE_SELECTOR" not defined, only allow gpu device
     return device.is_gpu() ? 1000 : -1;
   }
 };

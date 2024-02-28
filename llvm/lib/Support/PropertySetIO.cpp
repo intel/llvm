@@ -37,7 +37,7 @@ PropertySetRegistry::read(const MemoryBuffer *Buf) {
 
   for (line_iterator LI(*Buf); !LI.is_at_end(); LI++) {
     // see if this line starts a new property set
-    if (LI->startswith("[")) {
+    if (LI->starts_with("[")) {
       // yes - parse the category (property name)
       auto EndPos = LI->rfind(']');
       if (EndPos == StringRef::npos)

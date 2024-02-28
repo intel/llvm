@@ -5821,7 +5821,7 @@ TEST_F(OpenMPIRBuilderTest, TargetRegion) {
   Function *KernelLaunchFunc = Call->getCalledFunction();
   EXPECT_NE(KernelLaunchFunc, nullptr);
   StringRef FunctionName = KernelLaunchFunc->getName();
-  EXPECT_TRUE(FunctionName.startswith("__tgt_target_kernel"));
+  EXPECT_TRUE(FunctionName.starts_with("__tgt_target_kernel"));
 
   // Check the fallback call
   BasicBlock *FallbackBlock = Branch->getSuccessor(0);
@@ -5838,7 +5838,7 @@ TEST_F(OpenMPIRBuilderTest, TargetRegion) {
   Function *OutlinedFunc = FCall->getCalledFunction();
   EXPECT_NE(OutlinedFunc, nullptr);
   StringRef FunctionName2 = OutlinedFunc->getName();
-  EXPECT_TRUE(FunctionName2.startswith("__omp_offloading"));
+  EXPECT_TRUE(FunctionName2.starts_with("__omp_offloading"));
 
   EXPECT_FALSE(verifyModule(*M, &errs()));
 }
@@ -6733,46 +6733,6 @@ TEST_F(OpenMPIRBuilderTest, createGPUOffloadEntry) {
   // Check kernel attributes
   EXPECT_TRUE(Fn->hasFnAttribute("kernel"));
   EXPECT_TRUE(Fn->hasFnAttribute(Attribute::MustProgress));
-}
-
-TEST_F(OpenMPIRBuilderTest, CreateRegisterRequires) {
-  OpenMPIRBuilder OMPBuilder(*M);
-  OMPBuilder.initialize();
-
-  OpenMPIRBuilderConfig Config(/* IsTargetDevice = */ false,
-                               /* IsGPU = */ false,
-                               /* OpenMPOffloadMandatory = */ false,
-                               /* HasRequiresReverseOffload = */ true,
-                               /* HasRequiresUnifiedAddress = */ false,
-                               /* HasRequiresUnifiedSharedMemory = */ true,
-                               /* HasRequiresDynamicAllocators = */ false);
-  OMPBuilder.setConfig(Config);
-
-  auto FName =
-      OMPBuilder.createPlatformSpecificName({"omp_offloading", "requires_reg"});
-  EXPECT_EQ(FName, ".omp_offloading.requires_reg");
-
-  Function *Fn = OMPBuilder.createRegisterRequires(FName);
-  EXPECT_NE(Fn, nullptr);
-  EXPECT_EQ(FName, Fn->getName());
-
-  EXPECT_EQ(Fn->getSection(), ".text.startup");
-  EXPECT_TRUE(Fn->hasInternalLinkage());
-  EXPECT_TRUE(Fn->hasFnAttribute(Attribute::NoInline));
-  EXPECT_TRUE(Fn->hasFnAttribute(Attribute::NoUnwind));
-  EXPECT_EQ(Fn->size(), 1u);
-
-  BasicBlock *Entry = &Fn->getEntryBlock();
-  EXPECT_FALSE(Entry->empty());
-  EXPECT_EQ(Fn->getReturnType()->getTypeID(), Type::VoidTyID);
-
-  CallInst *Call = &cast<CallInst>(*Entry->begin());
-  EXPECT_EQ(Call->getCalledFunction()->getName(), "__tgt_register_requires");
-  EXPECT_EQ(Call->getNumOperands(), 2u);
-
-  Value *Flags = Call->getArgOperand(0);
-  EXPECT_EQ(cast<ConstantInt>(Flags)->getSExtValue(),
-            OMPBuilder.Config.getRequiresFlags());
 }
 
 } // namespace

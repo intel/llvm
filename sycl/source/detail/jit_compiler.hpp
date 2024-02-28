@@ -19,7 +19,8 @@ enum class BinaryFormat : uint32_t;
 class JITContext;
 struct SYCLKernelInfo;
 struct SYCLKernelAttribute;
-using ArgUsageMask = std::vector<unsigned char>;
+template <typename T> class DynArray;
+using ArgUsageMask = DynArray<uint8_t>;
 } // namespace jit_compiler
 
 struct pi_device_binaries_struct;

@@ -679,6 +679,15 @@ void OpenMPIRBuilder::finalize(Function *Fn) {
 
     Function *OutlinedFn = Extractor.extractCodeRegion(CEAC);
 
+    // Forward target-cpu, target-features attributes to the outlined function.
+    auto TargetCpuAttr = OuterFn->getFnAttribute("target-cpu");
+    if (TargetCpuAttr.isStringAttribute())
+      OutlinedFn->addFnAttr(TargetCpuAttr);
+
+    auto TargetFeaturesAttr = OuterFn->getFnAttribute("target-features");
+    if (TargetFeaturesAttr.isStringAttribute())
+      OutlinedFn->addFnAttr(TargetFeaturesAttr);
+
     LLVM_DEBUG(dbgs() << "After      outlining: " << *OuterFn << "\n");
     LLVM_DEBUG(dbgs() << "   Outlined function: " << *OutlinedFn << "\n");
     assert(OutlinedFn->getReturnType()->isVoidTy() &&
@@ -2876,9 +2885,10 @@ OpenMPIRBuilder::applyWorkshareLoopTarget(DebugLoc DL, CanonicalLoopInfo *CLI,
   // We need to model loop body region as the function f(cnt, loop_arg).
   // That's why we replace loop induction variable by the new counter
   // which will be one of loop body function argument
-  for (auto Use = CLI->getIndVar()->user_begin();
-       Use != CLI->getIndVar()->user_end(); ++Use) {
-    if (Instruction *Inst = dyn_cast<Instruction>(*Use)) {
+  SmallVector<User *> Users(CLI->getIndVar()->user_begin(),
+                            CLI->getIndVar()->user_end());
+  for (auto Use : Users) {
+    if (Instruction *Inst = dyn_cast<Instruction>(Use)) {
       if (ParallelRegionBlockSet.count(Inst->getParent())) {
         Inst->replaceUsesOfWith(CLI->getIndVar(), NewLoopCntLoad);
       }
@@ -5213,10 +5223,13 @@ OpenMPIRBuilder::getOrCreateInternalVariable(Type *Ty, const StringRef &Name,
     // variable for possibly changing that to internal or private, or maybe
     // create different versions of the function for different OMP internal
     // variables.
-    auto *GV = new GlobalVariable(
-        M, Ty, /*IsConstant=*/false, GlobalValue::CommonLinkage,
-        Constant::getNullValue(Ty), Elem.first(),
-        /*InsertBefore=*/nullptr, GlobalValue::NotThreadLocal, AddressSpace);
+    auto Linkage = this->M.getTargetTriple().rfind("wasm32") == 0
+                       ? GlobalValue::ExternalLinkage
+                       : GlobalValue::CommonLinkage;
+    auto *GV = new GlobalVariable(M, Ty, /*IsConstant=*/false, Linkage,
+                                  Constant::getNullValue(Ty), Elem.first(),
+                                  /*InsertBefore=*/nullptr,
+                                  GlobalValue::NotThreadLocal, AddressSpace);
     const DataLayout &DL = M.getDataLayout();
     const llvm::Align TypeAlign = DL.getABITypeAlign(Ty);
     const llvm::Align PtrAlign = DL.getPointerABIAlignment(AddressSpace);
@@ -6023,6 +6036,17 @@ OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::createAtomicCompare(
     omp::OMPAtomicCompareOp Op, bool IsXBinopExpr, bool IsPostfixUpdate,
     bool IsFailOnly) {
 
+  AtomicOrdering Failure = AtomicCmpXchgInst::getStrongestFailureOrdering(AO);
+  return createAtomicCompare(Loc, X, V, R, E, D, AO, Op, IsXBinopExpr,
+                             IsPostfixUpdate, IsFailOnly, Failure);
+}
+
+OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::createAtomicCompare(
+    const LocationDescription &Loc, AtomicOpValue &X, AtomicOpValue &V,
+    AtomicOpValue &R, Value *E, Value *D, AtomicOrdering AO,
+    omp::OMPAtomicCompareOp Op, bool IsXBinopExpr, bool IsPostfixUpdate,
+    bool IsFailOnly, AtomicOrdering Failure) {
+
   if (!updateToLocation(Loc))
     return Loc.IP;
 
@@ -6037,7 +6061,6 @@ OpenMPIRBuilder::InsertPointTy OpenMPIRBuilder::createAtomicCompare(
   bool IsInteger = E->getType()->isIntegerTy();
 
   if (Op == OMPAtomicCompareOp::EQ) {
-    AtomicOrdering Failure = AtomicCmpXchgInst::getStrongestFailureOrdering(AO);
     AtomicCmpXchgInst *Result = nullptr;
     if (!IsInteger) {
       IntegerType *IntCastTy =
@@ -6237,8 +6260,10 @@ OpenMPIRBuilder::createTeams(const LocationDescription &Loc,
   BasicBlock *AllocaBB =
       splitBB(Builder, /*CreateBranch=*/true, "teams.alloca");
 
+  bool SubClausesPresent =
+      (NumTeamsLower || NumTeamsUpper || ThreadLimit || IfExpr);
   // Push num_teams
-  if (NumTeamsLower || NumTeamsUpper || ThreadLimit || IfExpr) {
+  if (!Config.isTargetDevice() && SubClausesPresent) {
     assert((NumTeamsLower == nullptr || NumTeamsUpper != nullptr) &&
            "if lowerbound is non-null, then upperbound must also be non-null "
            "for bounds on num_teams");
@@ -6291,7 +6316,8 @@ OpenMPIRBuilder::createTeams(const LocationDescription &Loc,
   OI.ExcludeArgsFromAggregate.push_back(createFakeIntVal(
       Builder, OuterAllocaIP, ToBeDeleted, AllocaIP, "tid", true));
 
-  OI.PostOutlineCB = [this, Ident, ToBeDeleted](Function &OutlinedFn) mutable {
+  auto HostPostOutlineCB = [this, Ident,
+                            ToBeDeleted](Function &OutlinedFn) mutable {
     // The stale call instruction will be replaced with a new call instruction
     // for runtime call with the outlined function.
 
@@ -6327,6 +6353,9 @@ OpenMPIRBuilder::createTeams(const LocationDescription &Loc,
       ToBeDeleted.pop();
     }
   };
+
+  if (!Config.isTargetDevice())
+    OI.PostOutlineCB = HostPostOutlineCB;
 
   addOutlineInfo(std::move(OI));
 
@@ -6573,6 +6602,17 @@ void OpenMPIRBuilder::createOffloadEntriesAndInfoMetadata(
       llvm_unreachable("Unsupported entry kind.");
     }
   }
+
+  // Emit requires directive globals to a special entry so the runtime can
+  // register them when the device image is loaded.
+  // TODO: This reduces the offloading entries to a 32-bit integer. Offloading
+  //       entries should be redesigned to better suit this use-case.
+  if (Config.hasRequiresFlags() && !Config.isTargetDevice())
+    offloading::emitOffloadingEntry(
+        M, Constant::getNullValue(PointerType::getUnqual(M.getContext())),
+        /*Name=*/"",
+        /*Size=*/0, OffloadEntriesInfoManager::OMPTargetGlobalRegisterRequires,
+        Config.getRequiresFlags(), "omp_offloading_entries");
 }
 
 void TargetRegionEntryInfo::getTargetRegionEntryFnName(
@@ -6850,35 +6890,6 @@ void OpenMPIRBuilder::loadOffloadInfoMetadata(StringRef HostFilePath) {
   }
 
   loadOffloadInfoMetadata(*M.get());
-}
-
-Function *OpenMPIRBuilder::createRegisterRequires(StringRef Name) {
-  // Skip the creation of the registration function if this is device codegen
-  if (Config.isTargetDevice())
-    return nullptr;
-
-  Builder.ClearInsertionPoint();
-
-  // Create registration function prototype
-  auto *RegFnTy = FunctionType::get(Builder.getVoidTy(), {});
-  auto *RegFn = Function::Create(
-      RegFnTy, GlobalVariable::LinkageTypes::InternalLinkage, Name, M);
-  RegFn->setSection(".text.startup");
-  RegFn->addFnAttr(Attribute::NoInline);
-  RegFn->addFnAttr(Attribute::NoUnwind);
-
-  // Create registration function body
-  auto *BB = BasicBlock::Create(M.getContext(), "entry", RegFn);
-  ConstantInt *FlagsVal =
-      ConstantInt::getSigned(Builder.getInt64Ty(), Config.getRequiresFlags());
-  Function *RTLRegFn = getOrCreateRuntimeFunctionPtr(
-      omp::RuntimeFunction::OMPRTL___tgt_register_requires);
-
-  Builder.SetInsertPoint(BB);
-  Builder.CreateCall(RTLRegFn, {FlagsVal});
-  Builder.CreateRetVoid();
-
-  return RegFn;
 }
 
 //===----------------------------------------------------------------------===//

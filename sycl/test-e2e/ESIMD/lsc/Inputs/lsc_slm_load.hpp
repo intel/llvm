@@ -23,8 +23,6 @@ bool test(queue Q, uint32_t PMask = ~0) {
   }
 
   static_assert(DS != lsc_data_size::u16u32h, "D16U32h not supported in HW");
-  static_assert(sizeof(T) >= 4,
-                "D8 and D16 are valid only in 2D block load/store");
 
   if constexpr (!Transpose && NChannels > 1) {
     static_assert(VL == 16 || VL == 32,
@@ -99,7 +97,7 @@ bool test(queue Q, uint32_t PMask = ~0) {
 
          simd<T, VL * NChannels> Vals;
          if constexpr (TestMergeOperand) {
-           simd<T, VL *NChannels> OldVals = MergeValue;
+           simd<T, VL * NChannels> OldVals = MergeValue;
            Vals = lsc_slm_gather<T, NChannels, DS>(Offsets, Pred, OldVals);
          } else {
            Vals = lsc_slm_gather<T, NChannels, DS>(Offsets, Pred);
@@ -122,11 +120,11 @@ bool test(queue Q, uint32_t PMask = ~0) {
       uint32_t LID = I % (LocalRange * VL * NChannels);
       uint32_t GID = I / VL;
       bool Pred = (GID & 0x1) == 0;
-      T ExpectedVal = GroupId * 1000000 + LID;
+      Tuint ExpectedVal = GroupId * 1000000 + LID;
       if (TestMergeOperand && !Pred)
-        ExpectedVal = GID + (I % VL);
+        ExpectedVal = sycl::bit_cast<Tuint>((T)(GID + (I % VL)));
 
-      if (Out[I] != ExpectedVal && NErrors++ < 32) {
+      if (sycl::bit_cast<Tuint>(Out[I]) != ExpectedVal && NErrors++ < 32) {
         std::cout << "Error: " << I << ": Value = " << Out[I]
                   << ", Expected value = " << ExpectedVal << std::endl;
       }

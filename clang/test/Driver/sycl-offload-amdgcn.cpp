@@ -1,6 +1,7 @@
 /// Tests specific to `-fsycl-targets=amdgcn-amd-amdhsa`
 
 // UNSUPPORTED: system-windows
+// REQUIRES: amdgpu-registered-target
 
 // Check that the offload arch is required
 // RUN: not %clangxx -### -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \

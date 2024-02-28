@@ -42,6 +42,8 @@ add_libc_test(
   DEPENDS
     libc.src.__support.high_precision_decimal
     libc.src.__support.uint128
+  # FIXME Test segfaults on gfx90a GPU
+  UNIT_TEST_ONLY
 )
 
 add_libc_test(
@@ -50,7 +52,10 @@ add_libc_test(
     libc-support-tests
   SRCS
     str_to_float_test.cpp
+    str_to_double_test.cpp
+    str_to_long_double_test.cpp
   DEPENDS
+    libc.src.__support.integer_literals
     libc.src.__support.str_to_float
     libc.src.__support.uint128
     libc.src.errno.errno
@@ -63,8 +68,9 @@ add_libc_test(
   SRCS
     integer_to_string_test.cpp
   DEPENDS
-    libc.src.__support.integer_to_string
     libc.src.__support.CPP.string_view
+    libc.src.__support.integer_literals
+    libc.src.__support.integer_to_string
     libc.src.__support.uint
     libc.src.__support.uint128
 )
@@ -82,14 +88,28 @@ if(NOT LIBC_TARGET_ARCHITECTURE_IS_GPU)
   )
 endif()
 
+# FIXME: Crash in NVPTX target lowering for calls
+if(NOT LIBC_GPU_TARGET_ARCHITECTURE_IS_NVPTX)
+  add_libc_test(
+    uint_test
+    SUITE
+      libc-support-tests
+    SRCS
+      uint_test.cpp
+    DEPENDS
+      libc.src.__support.uint
+      libc.src.__support.CPP.optional
+  )
+endif()
+
 add_libc_test(
-  uint_test
+  integer_literals_test
   SUITE
     libc-support-tests
   SRCS
-    uint_test.cpp
+    integer_literals_test.cpp
   DEPENDS
-    libc.src.__support.uint
+    libc.src.__support.integer_literals
     libc.src.__support.CPP.optional
 )
 
