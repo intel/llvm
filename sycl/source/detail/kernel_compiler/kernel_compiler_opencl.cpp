@@ -92,7 +92,20 @@ bool OpenCLC_Compilation_Available() {
   }
 }
 
+auto IPVersionsToString(const std::vector<uint32_t> IPVersionVec) {
+  std::stringstream ss;
+  bool amFirst = true;
+  for (uint32_t ipVersion : IPVersionVec) {
+    if (!amFirst)
+      ss << ",";
+    amFirst = false;
+    ss << ipVersion;
+  }
+  return ss.str();
+}
+
 spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
+                             const std::vector<uint32_t> &IPVersionVec,
                              const std::vector<std::string> &UserArgs,
                              std::string *LogPtr) {
   std::vector<std::string> CMUserArgs = UserArgs;
@@ -142,6 +155,10 @@ spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
 
   Args.push_back("-file");
   Args.push_back(SourceName);
+
+  // device
+  Args.push_back("-device");
+  Args.push_back(IPVersionsToString(IPVersionVec).c_str());
 
   // invoke
   decltype(::oclocInvoke) *OclocInvokeFunc =
