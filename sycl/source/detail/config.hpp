@@ -269,9 +269,8 @@ public:
       return DeviceTargets;
     }
     const char *ValStr = BaseT::getRawValue();
-    if (ValStr) {
-      // Return if the input string is empty.
-      if (ValStr[0] == '\0') return nullptr;
+    // Return if the input string is empty.
+    if (ValStr && ValStr[0] != '\0') {
 
       DeviceTargets =
           &GlobalHandler::instance().getOneapiDeviceSelectorTargets(ValStr);
