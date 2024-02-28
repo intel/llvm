@@ -1273,9 +1273,9 @@ ur_result_t ur_queue_handle_t_::addEventToQueueCache(ur_event_handle_t Event) {
                                                  : &EventCachesDeviceMap[1];
     if (EventCachesMap->find(Device) == EventCachesMap->end()) {
       EventCaches.emplace_back();
-      (*EventCachesMap)[Device] = &EventCaches.back();
+      EventCachesMap->insert(std::make_pair(Device, EventCaches.size() - 1));
     }
-    (*EventCachesMap)[Device]->emplace_back(Event);
+    EventCaches[EventCachesMap->at(Device)].emplace_back(Event);
   } else {
     auto Cache = Event->isHostVisible() ? &EventCaches[0] : &EventCaches[1];
     Cache->emplace_back(Event);
@@ -1301,9 +1301,11 @@ ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
   if (!UrQueue->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
-  for (auto &Cache : UrQueue->EventCaches)
+  for (auto &Cache : UrQueue->EventCaches) {
     for (auto &Event : Cache)
       UR_CALL(urEventReleaseInternal(Event));
+    Cache.clear();
+  }
 
   if (UrQueue->OwnZeCommandQueue) {
     for (auto &QueueMap :
@@ -1462,8 +1464,8 @@ ur_event_handle_t ur_queue_handle_t_::getEventFromQueueCache(bool IsMultiDevice,
 
   if (!IsMultiDevice) {
     auto Device = this->Device;
-    Cache = HostVisible ? EventCachesDeviceMap[0][Device]
-                        : EventCachesDeviceMap[1][Device];
+    Cache = HostVisible ? &EventCaches[EventCachesDeviceMap[0][Device]]
+                        : &EventCaches[EventCachesDeviceMap[1][Device]];
     if (!Cache) {
       return nullptr;
     }
