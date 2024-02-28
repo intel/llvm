@@ -270,7 +270,7 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
       ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32;
       break;
     default:
-      urPrint("urMemImageCreate: unexpected data type Size\n");
+      urPrint("ur2zeImageDesc: unexpected data type size\n");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
@@ -289,25 +289,7 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
       ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32_32;
       break;
     default:
-      urPrint("urMemImageCreate: unexpected data type Size\n");
-      return UR_RESULT_ERROR_INVALID_VALUE;
-    }
-    break;
-  }
-  case UR_IMAGE_CHANNEL_ORDER_RGB:
-  case UR_IMAGE_CHANNEL_ORDER_RGX: {
-    switch (ZeImageFormatTypeSize) {
-    default:
-    case 8:
-      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_8_8_8;
-      break;
-    case 16:
-      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_16_16_16;
-      break;
-    case 32:
-      ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32_32_32;
-      break;
-      urPrint("urMemImageCreate: unexpected data type Size\n");
+      urPrint("ur2zeImageDesc: unexpected data type size\n");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
@@ -327,14 +309,14 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
       ZeImageFormatLayout = ZE_IMAGE_FORMAT_LAYOUT_32_32_32_32;
       break;
     default:
-      urPrint("urMemImageCreate: unexpected data type Size\n");
+      urPrint("ur2zeImageDesc: unexpected data type size\n");
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
     break;
   }
   default:
-    urPrint("format layout = %d\n", ImageFormat->channelOrder);
-    die("urMemImageCreate: unsupported image format layout\n");
+    urPrint("format channel order = %d\n", ImageFormat->channelOrder);
+    die("ur2zeImageDesc: unsupported image channel order\n");
     break;
   }
 
@@ -362,7 +344,7 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
     ZeImageType = ZE_IMAGE_TYPE_2DARRAY;
     break;
   default:
-    urPrint("urMemImageCreate: unsupported image type\n");
+    urPrint("ur2zeImageDesc: unsupported image type\n");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
