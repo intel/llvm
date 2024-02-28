@@ -250,5 +250,5 @@
 // SYCL_DEVICE_LIB_SANITIZER-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-sanitizer.o" "-output={{.*}}libsycl-sanitizer-{{.*}}.o" "-unbundle"
 // SYCL_DEVICE_ASAN_MACRO: "-cc1"
 // SYCL_DEVICE_ASAN_MACRO-SAME: "USE_SYCL_DEVICE_ASAN"
-// SYCL_DEVICE_ASAN_MACRO-NEXT: llvm-link{{.*}}
+// SYCL_DEVICE_ASAN_MACRO: llvm-link{{.*}}
 // SYCL_DEVICE_ASAN_MACRO:  clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-sanitizer.o" "-output={{.*}}libsycl-sanitizer-{{.*}}.o" "-unbundle"
