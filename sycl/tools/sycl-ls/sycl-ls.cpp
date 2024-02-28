@@ -22,11 +22,19 @@
 #include <iostream>
 #include <map>
 #include <stdlib.h>
+#include <vector>
 
 using namespace sycl;
+using namespace std::literals;
 
 // Controls verbose output vs. concise.
 bool verbose;
+
+// Controls whether to discard filter environment variables or not.
+bool DiscardFilters;
+
+// To store various filter environment variables.
+std::vector<std::string> FilterEnvVars;
 
 // Trivial custom selector that selects a device of the given type.
 class custom_selector : public device_selector {
@@ -105,44 +113,116 @@ static void printSelectorChoice(const device_selector &Selector,
   }
 }
 
-int main(int argc, char **argv) {
+static int printUsageAndExit() {
+  std::cout << "Usage: sycl-ls [--verbose] [--ignore-device-selectors]"
+            << std::endl;
+  std::cout << "This program lists all devices and backends discovered by SYCL."
+            << std::endl;
+  std::cout << "\n Options:" << std::endl;
+  std::cout
+      << "\t --verbose " << "\t Verbosely prints all the discovered platforms. "
+      << "It also lists the device chosen by various SYCL device selectors."
+      << std::endl;
+  std::cout
+      << "\t --ignore-device-selectors "
+      << "\t Lists all platforms available on the system irrespective "
+      << "of DPCPP filter environment variables (like ONEAPI_DEVICE_SELECTOR)."
+      << std::endl;
 
-  // See if verbose output is requested
-  if (argc == 1)
-    verbose = false;
-  else if (argc == 2 && std::string(argv[1]) == "--verbose")
-    verbose = true;
-  else {
-    std::cout << "Usage: sycl-ls [--verbose]" << std::endl;
-    return EXIT_FAILURE;
-  }
+  return EXIT_FAILURE;
+}
 
-  bool SuppressNumberPrinting = false;
+// Print warning and suppress printing device ids if any of
+// the filter environment variable is set.
+static void printWarningIfFiltersUsed(bool &SuppressNumberPrinting) {
 
 #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   const char *filter = std::getenv("SYCL_DEVICE_FILTER");
   if (filter) {
-    std::cerr << "Warning: SYCL_DEVICE_FILTER environment variable is set to "
-              << filter << "." << std::endl;
-    std::cerr << "To see device ids, please unset SYCL_DEVICE_FILTER."
-              << std::endl
-              << std::endl;
-    SuppressNumberPrinting = true;
+    if (!DiscardFilters) {
+      std::cerr << "INFO: Output filtered by SYCL_DEVICE_FILTER "
+                << "environment variable, which is set to " << filter << "."
+                << std::endl;
+      std::cerr
+          << "To see device ids, use the --ignore-device-selectors CLI option."
+          << std::endl
+          << std::endl;
+      SuppressNumberPrinting = true;
+    } else
+      FilterEnvVars.push_back("SYCL_DEVICE_FILTER");
   }
 #endif
 
   const char *ods_targets = std::getenv("ONEAPI_DEVICE_SELECTOR");
   if (ods_targets) {
-    std::cerr
-        << "Warning: ONEAPI_DEVICE_SELECTOR environment variable is set to "
-        << ods_targets << "." << std::endl;
-    std::cerr << "To see device ids, please unset ONEAPI_DEVICE_SELECTOR."
-              << std::endl
-              << std::endl;
-    SuppressNumberPrinting = true;
+    if (!DiscardFilters) {
+      std::cerr << "INFO: Output filtered by ONEAPI_DEVICE_SELECTOR "
+                << "environment variable, which is set to " << ods_targets
+                << "." << std::endl;
+      std::cerr
+          << "To see device ids, use the --ignore-device-selectors CLI option."
+          << std::endl
+          << std::endl;
+      SuppressNumberPrinting = true;
+    } else
+      FilterEnvVars.push_back("ONEAPI_DEVICE_SELECTOR");
   }
 
+  const char *sycl_dev_allow = std::getenv("SYCL_DEVICE_ALLOWLIST");
+  if (sycl_dev_allow) {
+    if (!DiscardFilters) {
+      std::cerr << "INFO: Output filtered by SYCL_DEVICE_ALLOWLIST "
+                << "environment variable, which is set to " << sycl_dev_allow
+                << "." << std::endl;
+      std::cerr
+          << "To see device ids, use the --ignore-device-selectors CLI option."
+          << std::endl
+          << std::endl;
+      SuppressNumberPrinting = true;
+    } else
+      FilterEnvVars.push_back("SYCL_DEVICE_ALLOWLIST");
+  }
+}
+
+// Unset filter related environment variables namely, SYCL_DEVICE_FILTER,
+// ONEAPI_DEVICE_SELECTOR, and SYCL_DEVICE_ALLOWLIST.
+static void unsetFilterEnvVars() {
+  for (auto it : FilterEnvVars) {
+#ifdef _WIN32
+    _putenv_s(it.c_str(), "");
+#else
+    unsetenv(it.c_str());
+#endif
+  }
+}
+
+int main(int argc, char **argv) {
+
+  if (argc == 1) {
+    verbose = false;
+    DiscardFilters = false;
+  } else {
+    // Parse CLI options.
+    for (int i = 1; i < argc; i++) {
+      if (argv[i] == "--verbose"sv)
+        verbose = true;
+      else if (argv[i] == "--ignore-device-selectors"sv)
+        DiscardFilters = true;
+      else
+        return printUsageAndExit();
+    }
+  }
+
+  bool SuppressNumberPrinting = false;
+  // Print warning and suppress printing device ids if any of
+  // the filter environment variable is set.
+  printWarningIfFiltersUsed(SuppressNumberPrinting);
+
   try {
+    // Unset all filter env. vars to get all available devices in the system.
+    if (DiscardFilters)
+      unsetFilterEnvVars();
+
     const auto &Platforms = platform::get_platforms();
 
     // Keep track of the number of devices per backend

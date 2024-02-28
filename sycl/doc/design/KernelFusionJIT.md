@@ -226,7 +226,8 @@ This remapping consists on an inter-procedural pass replacing each built-in quer
 First of all, work-item remapping will always be performed when the list of input nd-ranges is heterogeneous. Additional remapping conditions are present for the following work-item components. For each input kernel:
 
 - `num_work_groups` and `local_size`: Only performed if the input nd-range has an explicit local size, may result in better performance, as this replaces built-in calls with constants;
-- `global_id`, `local_id` and `group_id`: Only needed if the number of dimensions differ w.r.t. that of the fused kernel or any component of the global size in the range [2, `num_dims`] differs.
+- `global_id`: Only needed if the number of dimensions differ w.r.t. that of the fused kernel or any component of the global size in the range [2, `num_dims`] differs.
+- `local_id` and `group_id`: Never needed as per [kernel fusion restrictions](#restrictions). These are invariant after fusion.
 
 Once this rules are set, also taking into account remapping constraints, the remapping is performed as follows for each input kernel:
 
@@ -234,10 +235,6 @@ Once this rules are set, also taking into account remapping constraints, the rem
   - `global_id(0) = GLID / (global_size(1) * global_size(2))`
   - `global_id(1) = (GLID / global_size(2)) % global_size(1)`
   - `global_id(2) = GLID % global_size(2)`
-- `local_id`:
-  - `local_id(x) = global_id(x) % local_size(x)`
-- `group_id`:
-  - `group_id(x) = global_id(x) / local_size(x)`
 - `num_work_groups`:
   - `num_work_groups(x) = global_size(x) / local_size(x)`
 - `global_size`:
@@ -348,6 +345,13 @@ q.submit([&](sycl::handler &cgh) {
       sycl::detail::strategy::group_reduce_and_last_wg_detection>(...);
 });
 ```
+### Group Algorithms and Functions
+
+Kernel fusion supports group algorithms and functions. As per [remapping
+rules](#work-item-remapping), group ID and local ID are invariant after fusion
+even when different ND-ranges are involved. This way, group functions and
+algorithms conceptually executed for a given group and using a given local ID
+as, e.g., the `group_broadcast` local ID, will keep semantics after fusion.
 
 ### Unsupported SYCL constructs
 

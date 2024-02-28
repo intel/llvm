@@ -742,6 +742,14 @@ sycl::queue create_queue(bool print_on_async_exceptions = false,
 // device manager.
 sycl::queue get_default_queue();
 
+// Util function to set the default queue of the current device in the
+// device manager.
+// If the device extension saved queue is the default queue, 
+// the previous saved queue will be overwritten as well.
+// This function will be blocking if there are submitted kernels in the
+// previous default queue.
+void set_default_queue(const sycl::queue &q);
+
 // Util function to wait for the queued kernels.
 void wait(sycl::queue q = get_default_queue());
 
@@ -785,6 +793,17 @@ destructor waits on a set of `sycl::event` which can be added to via
 schedule release of memory after a kernel or `mempcy`. SYCL device properties
 can be queried through `device_ext` as well.
 
+Users can manage queues through the `syclcompat::set_default_queue(sycl::queue q)`
+free function, and the `device_ext` `set_saved_queue`, `set_default_queue`,
+and `get_saved_queue` member functions.
+`set_default_queue` is blocking, and
+overwrites the previous default queue with a user defined one, waiting for any
+submitted kernels to finish.
+The `device_ext` automatically sets the saved queue to the default queue.
+Therefore, it's important to note that if the previous default queue was the
+device's saved queue, setting a new default queue will update the reference of
+the saved queue to the new default one to keep the state of the class consistent.
+
 The class is exposed as follows:
 
 ```c++
@@ -807,6 +826,7 @@ class device_ext : public sycl::device {
   void reset();
 
   sycl::queue *default_queue();
+  void set_default_queue(const sycl::queue &q);
   void queues_wait_and_throw();
   sycl::queue *create_queue(bool print_on_async_exceptions = false,
                             bool in_order = true);
