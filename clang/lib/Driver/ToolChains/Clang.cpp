@@ -1192,7 +1192,7 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
 
   if (JA.isOffloading(Action::OFK_SYCL)) {
     toolchains::SYCLToolChain::AddSYCLIncludeArgs(D, Args, CmdArgs);
-    if (Inputs[0].getType() == types::TY_CUDA) {
+    if (Inputs[0].getType() == types::TY_CUDA || Args.hasFlag(options::OPT_fsycl_cuda_compat, options::OPT_fno_sycl_cuda_compat, false)) {
       // Include __clang_cuda_runtime_wrapper.h in .cu SYCL compilation.
       getToolChain().AddCudaIncludeArgs(Args, CmdArgs);
     }
@@ -5097,6 +5097,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       IsSYCLOffloadDevice &&
       Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga;
   const bool IsSYCLNativeCPU = isSYCLNativeCPU(TC, C.getDefaultToolChain());
+  const bool IsSYCLCUDACompat = Args.hasFlag(options::OPT_fsycl_cuda_compat, options::OPT_fno_sycl_cuda_compat, false);
 
   // Perform the SYCL host compilation using an external compiler if the user
   // requested.
@@ -5362,6 +5363,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (Args.hasArg(options::OPT_fpreview_breaking_changes))
       CmdArgs.push_back("-D__INTEL_PREVIEW_BREAKING_CHANGES");
 
+    if (IsSYCLCUDACompat) {
+      Args.addOptInFlag(CmdArgs, options::OPT_fsycl_cuda_compat, options::OPT_fno_sycl_cuda_compat);
+      // clang's CUDA headers require this ...
+      CmdArgs.push_back("-fdeclspec");
+      // Note: assumes CUDA 9.0 or more (required by SYCL for CUDA)
+      CmdArgs.push_back("-fcuda-allow-variadic-functions");
+    }
+
     if (SYCLStdArg) {
       // Use of -sycl-std=1.2.1 is deprecated. Emit a diagnostic stating so.
       // TODO: remove support at next approprate major release.
@@ -5415,6 +5424,19 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     bool HasFPGA = false;
     for (auto TI = SYCLTCRange.first, TE = SYCLTCRange.second; TI != TE; ++TI) {
       llvm::Triple SYCLTriple = TI->second->getTriple();
+      if (SYCLTriple.isNVPTX() && IsSYCLCUDACompat && !IsSYCLOffloadDevice) {
+        CmdArgs.push_back("-aux-triple");
+        CmdArgs.push_back(Args.MakeArgString(SYCLTriple.normalize()));
+        // We need to figure out which CUDA version we're compiling for, as that
+        // determines how we load and launch GPU kernels.
+        auto *CTC = static_cast<const toolchains::CudaToolChain *>(TI->second);
+        assert(CTC && "Expected valid CUDA Toolchain.");
+        if (CTC && CTC->CudaInstallation.version() != CudaVersion::UNKNOWN)
+          CmdArgs.push_back(Args.MakeArgString(
+              Twine("-target-sdk-version=") +
+              CudaVersionToString(CTC->CudaInstallation.version())));
+        break;
+      }
       if (SYCLTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
         HasFPGA = true;
         if (!IsSYCLOffloadDevice) {
