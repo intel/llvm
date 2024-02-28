@@ -179,7 +179,14 @@ public:
 
   // TODO: This function will remain until ABI-breaking change
   static void fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
-                       const std::vector<char> &Pattern,
+                       int Pattern,
+                       std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                       sycl::detail::pi::PiEvent *OutEvent,
+                       const detail::EventImplPtr &OutEventImpl);
+
+  // TODO: This function will remain until ABI-breaking change
+  static void fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
+                       int Pattern,
                        std::vector<sycl::detail::pi::PiEvent> DepEvents,
                        sycl::detail::pi::PiEvent *OutEvent);
 
