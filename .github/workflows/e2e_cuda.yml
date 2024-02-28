@@ -26,3 +26,4 @@ jobs:
       prefix: "ext_oneapi_"
       config: "--cuda"
       unit: "gpu"
+      trigger: "${{github.event_name}}"
