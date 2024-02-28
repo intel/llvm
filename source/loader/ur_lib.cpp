@@ -224,10 +224,6 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
     if (!hPlatform) {
         return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
     }
-    // NumEntries is max number of devices wanted by the caller (max usable length of phDevices)
-    if (NumEntries < 0) {
-        return UR_RESULT_ERROR_INVALID_SIZE;
-    }
     if (NumEntries > 0 && !phDevices) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
