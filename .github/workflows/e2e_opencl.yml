@@ -26,3 +26,4 @@ jobs:
       prefix: ""
       config: ""
       unit: "cpu"
+      trigger: "${{github.event_name}}"
