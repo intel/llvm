@@ -4996,7 +4996,7 @@ class OffloadingActionBuilder final {
             CAList.push_back(A);
             ActionList DeviceLinkActions;
             appendSYCLDeviceLink(CAList, TargetInfo.TC, DeviceLinkActions,
-                                 TargetInfo.BoundArch, /*AddWrapper=*/true);
+                                 TargetInfo.BoundArch, /*SkipWrapper=*/false);
             // The list of actions generated from appendSYCLDeviceLink is kept
             // in DeviceLinkActions.  Instead of adding the dependency on the
             // compiled device file, add the dependency against the compiled
@@ -5181,7 +5181,7 @@ class OffloadingActionBuilder final {
         // restrict the wrappers from being inlined with each device link
         // when performing -fsycl-link behaviors.
         appendSYCLDeviceLink(LI, TC, AL, BoundArch,
-                             /*AddWrapper=*/!WrapDeviceOnlyBinary,
+                             /*SkipWrapper=*/WrapDeviceOnlyBinary,
                              /*AddOffloadAction=*/true);
       }
       DeviceLinkerInputs.clear();
@@ -5277,7 +5277,7 @@ class OffloadingActionBuilder final {
     // to better compartmentalize that aspect of the compilation.
     void appendSYCLDeviceLink(const ActionList &ListIndex, const ToolChain *TC,
                               ActionList &DeviceLinkActions,
-                              const char *BoundArch, bool AddWrapper,
+                              const char *BoundArch, bool SkipWrapper,
                               bool AddOffloadAction = false) {
       auto addDeps = [&](Action *A, const ToolChain *TC,
                          const char *BoundArch) {
@@ -5286,9 +5286,8 @@ class OffloadingActionBuilder final {
           Deps.add(*A, *TC, BoundArch, Action::OFK_SYCL);
           DeviceLinkActions.push_back(
               C.MakeAction<OffloadAction>(Deps, A->getType()));
-        } else {
+        } else
           DeviceLinkActions.push_back(A);
-        }
       };
 
       // List of device specific libraries to be fed into llvm-link.
@@ -5767,7 +5766,7 @@ class OffloadingActionBuilder final {
                 FileTableTformJobAction::COL_CODE);
             WrapperInputs.push_back(ReplaceFilesAction);
           }
-          if (!AddWrapper) {
+          if (SkipWrapper) {
             // Wrapper step not requested.
             withBoundArchForToolChain(TC, [&](const char *BoundArch) {
               addDeps(WrapperInputs.front(), TC, BoundArch);
@@ -5904,7 +5903,6 @@ class OffloadingActionBuilder final {
             auto *SYCLDeviceLibsDependenciesAction =
                 C.MakeAction<OffloadAction>(
                     Dep, SYCLDeviceLibsUnbundleAction->getType());
-
             DeviceLinkObjects.push_back(SYCLDeviceLibsDependenciesAction);
             if (!LibLocSelected)
               LibLocSelected = !LibLocSelected;
@@ -7480,9 +7478,9 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         // Only wrap the object with -fsycl-link=early
         auto *BC = C.MakeAction<OffloadWrapperJobAction>(LI, types::TY_LLVM_BC);
         auto *ASM = C.MakeAction<BackendJobAction>(BC, types::TY_PP_Asm);
-        auto *LI2 = C.MakeAction<AssembleJobAction>(ASM, types::TY_Object);
+        auto *OBJ = C.MakeAction<AssembleJobAction>(ASM, types::TY_Object);
         OffloadAction::HostDependence HDep(
-            *LI2, *C.getSingleOffloadToolChain<Action::OFK_Host>(),
+            *OBJ, *C.getSingleOffloadToolChain<Action::OFK_Host>(),
             /*BoundArch=*/nullptr, Action::OFK_SYCL);
         LI = C.MakeAction<OffloadAction>(HDep);
       }
@@ -7500,9 +7498,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
           continue;
         wrapObject();
       }
-    } else {
+    } else
       wrapObject();
-    }
     if (UnbundlerInput && !PL.empty()) {
       if (auto *IA = dyn_cast<InputAction>(UnbundlerInput)) {
         std::string FileName = IA->getInputArg().getAsString(Args);
