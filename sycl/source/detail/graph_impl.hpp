@@ -331,9 +331,9 @@ public:
     }
   }
 
-  /// Test is the node contains a N-D copy
-  /// @return true is the op is a N-D copy
-  bool is2DCopyNode() const {
+  /// Test if the node contains a N-D copy
+  /// @return true if the op is a N-D copy
+  bool isNDCopyNode() const {
     if ((MCGType == sycl::detail::CG::CGTYPE::CopyAccToAcc) ||
         (MCGType == sycl::detail::CG::CGTYPE::CopyAccToPtr) ||
         (MCGType == sycl::detail::CG::CGTYPE::CopyPtrToAcc)) {
@@ -581,8 +581,6 @@ public:
   /// Checks if the graph is single path, i.e. each node has a single successor.
   /// If so, the MIsInOrderGraph flag is set.
   void checkIfGraphIsSinglePath() {
-    // Is the graph of this partition a single path graph?
-    // If so, we can optimize its execution using InOrder optimizations
     MIsInOrderGraph = true;
     if (MRoots.size() > 1) {
       MIsInOrderGraph = false;
@@ -592,7 +590,7 @@ public:
       // In version 1.3.28454 of the L0 driver, 2D Copy ops cannot not
       // be enqueued in an in-order cmd-list (causing execution to stall).
       // The 2D Copy test should be removed from here when the bug is fixed.
-      if ((Node->MSuccessors.size() > 1) || (Node->is2DCopyNode())) {
+      if ((Node->MSuccessors.size() > 1) || (Node->isNDCopyNode())) {
         MIsInOrderGraph = false;
         return;
       }
