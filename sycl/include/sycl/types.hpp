@@ -909,15 +909,15 @@ public:
   // aggressively optimized. Specializing with noinline to avoid as workaround.
 
   template <typename T = DataT>
-  typename std::enable_if<!std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
-                          const DataT &>::type
+  typename std::enable_if_t<!std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
+                            const DataT &>
   operator[](int i) const {
     return reinterpret_cast<const DataT *>(&m_Data)[i];
   }
 
   template <typename T = DataT>
-  typename std::enable_if<!std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
-                          DataT &>::type
+  typename std::enable_if_t<!std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
+                            DataT &>
   operator[](int i) {
     return reinterpret_cast<DataT *>(&m_Data)[i];
   }
@@ -930,16 +930,16 @@ public:
 
   template <typename T = DataT>
   __SYCL_NOINLINE_BF16
-      typename std::enable_if<std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
-                              const DataT &>::type
+      typename std::enable_if_t<std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
+                                const DataT &>
       operator[](int i) const {
     return reinterpret_cast<const DataT *>(&m_Data)[i];
   }
 
   template <typename T = DataT>
   __SYCL_NOINLINE_BF16
-      typename std::enable_if<std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
-                              DataT &>::type
+      typename std::enable_if_t<std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
+                                DataT &>
       operator[](int i) {
     return reinterpret_cast<DataT *>(&m_Data)[i];
   }
