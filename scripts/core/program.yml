@@ -327,7 +327,9 @@ etors:
     - name: NUM_DEVICES
       desc: "[uint32_t] Return number of devices associated with Program."
     - name: DEVICES
-      desc: "[$x_device_handle_t[]] Return list of devices associated with Program."
+      desc: |
+          [$x_device_handle_t[]] Return list of devices associated with a program.
+          This is either the list of devices associated with the context or a subset of those devices when the program is created using $xProgramCreateWithBinary.
     - name: SOURCE
       desc: "[char[]] Return program source associated with Program."
     - name: BINARY_SIZES
