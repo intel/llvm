@@ -8,13 +8,14 @@
 
 #pragma once
 
+#include <cstdint> // for uint64_t
 #include <optional>
 
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-enum class architecture {
+enum class architecture : uint64_t {
   // If new element is added to this enum:
   //
   // Update
@@ -28,116 +29,131 @@ enum class architecture {
   //   - the unique ID of the new architecture in SYCL RT source code to support
   //     querying the device architecture
   //
-  x86_64 = 0x00000000,
+  // Important note about keeping architecture IDs below unique:
+  //   - the architecture ID must be a hex number with 16 digits
+  //   - the architecture ID must suit the following template:
+  //     0x AAAA BB CCCCCCCC DD (without spaces), where
+  //       - AAAA is 4-digit PCI vendor ID of that architecture
+  //       - BB is 2-digit unique number of vendor's accelerator. It is 00 by
+  //         default. E.g., for Intel, the PCI vendor ID is the same for all
+  //         accelerators: for CPU and for GPU. In this case BB can be equal to
+  //         00 for CPU and 01 for GPU
+  //       - AAAABB number must be unique to the only one category from
+  //         arch_category enum below. Two or more categories cannot share the
+  //         same AAAABB number
+  //       - CCCCCCCC is 8-digit number of architecture itself. It must be
+  //         unique for all architectures inside the category
+  //       - DD is 2-digit number reserved for future unexpected modifications
+  //         to keep uniqueness. It should be always 00 for now
+  //
+  x86_64 = 0x0000000000000000,
   //
   // Intel CPU architectures
   //
-  // The requirement for the unique ID for intel_cpu_* architectures below is:
-  // - the ID must start with 0x0 (to avoid the integer overflow)
-  // - then goes Intel's vendor ID from underlied backend (which is 8086)
-  // - the ID ends with the architecture ID from the DEVICE_IP_VERSION extension
-  //   of underlied backend
-  intel_cpu_spr = 0x08086008,
-  intel_cpu_gnr = 0x08086009,
+  // AAAA is 8086, BB is 00,
+  // CCCCCCCC is the architecture ID from the DEVICE_IP_VERSION extension of
+  // underlied backend,
+  // DD is 00
+  intel_cpu_spr = 0x8086000000000800,
+  intel_cpu_gnr = 0x8086000000000900,
   //
   // Intel GPU architectures
   //
-  // The requirement for the unique ID for intel_gpu_* architectures below is:
-  // - the ID is GMDID of that architecture
-  intel_gpu_bdw = 0x02000000,
-  intel_gpu_skl = 0x02400009,
-  intel_gpu_kbl = 0x02404009,
-  intel_gpu_cfl = 0x02408009,
-  intel_gpu_apl = 0x0240c000,
+  // AAAA is 8086, BB is 01,
+  // CCCCCCCC is GMDID of that architecture,
+  // DD is 00
+  intel_gpu_bdw = 0x8086010200000000,
+  intel_gpu_skl = 0x8086010240000900,
+  intel_gpu_kbl = 0x8086010240400900,
+  intel_gpu_cfl = 0x8086010240800900,
+  intel_gpu_apl = 0x8086010240c00000,
   intel_gpu_bxt = intel_gpu_apl,
-  intel_gpu_glk = 0x02410000,
-  intel_gpu_whl = 0x02414000,
-  intel_gpu_aml = 0x02418000,
-  intel_gpu_cml = 0x0241c000,
-  intel_gpu_icllp = 0x02c00000,
-  intel_gpu_ehl = 0x02c08000,
+  intel_gpu_glk = 0x8086010241000000,
+  intel_gpu_whl = 0x8086010241400000,
+  intel_gpu_aml = 0x8086010241800000,
+  intel_gpu_cml = 0x8086010241c00000,
+  intel_gpu_icllp = 0x80860102c0000000,
+  intel_gpu_ehl = 0x80860102c0800000,
   intel_gpu_jsl = intel_gpu_ehl,
-  intel_gpu_tgllp = 0x03000000,
-  intel_gpu_rkl = 0x03004000,
-  intel_gpu_adl_s = 0x03008000,
+  intel_gpu_tgllp = 0x8086010300000000,
+  intel_gpu_rkl = 0x8086010300400000,
+  intel_gpu_adl_s = 0x8086010300800000,
   intel_gpu_rpl_s = intel_gpu_adl_s,
-  intel_gpu_adl_p = 0x0300c000,
-  intel_gpu_adl_n = 0x03010000,
-  intel_gpu_dg1 = 0x03028000,
-  intel_gpu_acm_g10 = 0x030dc008,
+  intel_gpu_adl_p = 0x8086010300c00000,
+  intel_gpu_adl_n = 0x8086010301000000,
+  intel_gpu_dg1 = 0x8086010302800000,
+  intel_gpu_acm_g10 = 0x808601030dc00800,
   intel_gpu_dg2_g10 = intel_gpu_acm_g10,
-  intel_gpu_acm_g11 = 0x030e0005,
+  intel_gpu_acm_g11 = 0x808601030e000500,
   intel_gpu_dg2_g11 = intel_gpu_acm_g11,
-  intel_gpu_acm_g12 = 0x030e4000,
+  intel_gpu_acm_g12 = 0x808601030e400000,
   intel_gpu_dg2_g12 = intel_gpu_acm_g12,
-  intel_gpu_pvc = 0x030f0007,
-  intel_gpu_pvc_vg = 0x030f4007,
+  intel_gpu_pvc = 0x808601030f000700,
+  intel_gpu_pvc_vg = 0x808601030f400700,
   //
   // NVIDIA architectures
   //
-  // The requirement for the unique ID for nvidia_gpu_* architectures below is:
-  // - the ID must start with NVIDIA's vendor ID from underlied backend (which
-  //   is 0x10de)
-  // - the ID must end with SM version ID of that architecture
-  nvidia_gpu_sm_50 = 0x10de0050,
-  nvidia_gpu_sm_52 = 0x10de0052,
-  nvidia_gpu_sm_53 = 0x10de0053,
-  nvidia_gpu_sm_60 = 0x10de0060,
-  nvidia_gpu_sm_61 = 0x10de0061,
-  nvidia_gpu_sm_62 = 0x10de0062,
-  nvidia_gpu_sm_70 = 0x10de0070,
-  nvidia_gpu_sm_72 = 0x10de0072,
-  nvidia_gpu_sm_75 = 0x10de0075,
-  nvidia_gpu_sm_80 = 0x10de0080,
-  nvidia_gpu_sm_86 = 0x10de0086,
-  nvidia_gpu_sm_87 = 0x10de0087,
-  nvidia_gpu_sm_89 = 0x10de0089,
-  nvidia_gpu_sm_90 = 0x10de0090,
+  // AAAA is 10de, BB is 00,
+  // CCCCCCCC is the SM version ID of that architecture,
+  // DD is 00
+  nvidia_gpu_sm_50 = 0x10de000000005000,
+  nvidia_gpu_sm_52 = 0x10de000000005200,
+  nvidia_gpu_sm_53 = 0x10de000000005300,
+  nvidia_gpu_sm_60 = 0x10de000000006000,
+  nvidia_gpu_sm_61 = 0x10de000000006100,
+  nvidia_gpu_sm_62 = 0x10de000000006200,
+  nvidia_gpu_sm_70 = 0x10de000000007000,
+  nvidia_gpu_sm_72 = 0x10de000000007200,
+  nvidia_gpu_sm_75 = 0x10de000000007500,
+  nvidia_gpu_sm_80 = 0x10de000000008000,
+  nvidia_gpu_sm_86 = 0x10de000000008600,
+  nvidia_gpu_sm_87 = 0x10de000000008700,
+  nvidia_gpu_sm_89 = 0x10de000000008900,
+  nvidia_gpu_sm_90 = 0x10de000000009000,
   //
   // AMD architectures
   //
-  // The requirement for the unique ID for amd_gpu_* architectures below is:
-  // - the ID must start with AMD's vendor ID from underlied backend (which is
-  //   0x1002)
-  // - the ID must end with GFX version ID of that architecture
-  amd_gpu_gfx700 = 0x10020700,
-  amd_gpu_gfx701 = 0x10020701,
-  amd_gpu_gfx702 = 0x10020702,
-  amd_gpu_gfx801 = 0x10020801,
-  amd_gpu_gfx802 = 0x10020802,
-  amd_gpu_gfx803 = 0x10020803,
-  amd_gpu_gfx805 = 0x10020805,
-  amd_gpu_gfx810 = 0x10020810,
-  amd_gpu_gfx900 = 0x10020900,
-  amd_gpu_gfx902 = 0x10020902,
-  amd_gpu_gfx904 = 0x10020904,
-  amd_gpu_gfx906 = 0x10020906,
-  amd_gpu_gfx908 = 0x10020908,
-  amd_gpu_gfx909 = 0x10020909,
-  amd_gpu_gfx90a = 0x1002090a,
-  amd_gpu_gfx90c = 0x1002090c,
-  amd_gpu_gfx940 = 0x10020940,
-  amd_gpu_gfx941 = 0x10020941,
-  amd_gpu_gfx942 = 0x10020942,
-  amd_gpu_gfx1010 = 0x10021010,
-  amd_gpu_gfx1011 = 0x10021011,
-  amd_gpu_gfx1012 = 0x10021012,
-  amd_gpu_gfx1013 = 0x10021013,
-  amd_gpu_gfx1030 = 0x10021030,
-  amd_gpu_gfx1031 = 0x10021031,
-  amd_gpu_gfx1032 = 0x10021032,
-  amd_gpu_gfx1033 = 0x10021033,
-  amd_gpu_gfx1034 = 0x10021034,
-  amd_gpu_gfx1035 = 0x10021035,
-  amd_gpu_gfx1036 = 0x10021036,
-  amd_gpu_gfx1100 = 0x10021100,
-  amd_gpu_gfx1101 = 0x10021101,
-  amd_gpu_gfx1102 = 0x10021102,
-  amd_gpu_gfx1103 = 0x10021103,
-  amd_gpu_gfx1150 = 0x10021150,
-  amd_gpu_gfx1151 = 0x10021151,
-  amd_gpu_gfx1200 = 0x10021200,
-  amd_gpu_gfx1201 = 0x10021201,
+  // AAAA is 1002, BB is 00,
+  // CCCCCCCC is the GFX version ID of that architecture,
+  // DD is 00
+  amd_gpu_gfx700 = 0x1002000000070000,
+  amd_gpu_gfx701 = 0x1002000000070100,
+  amd_gpu_gfx702 = 0x1002000000070200,
+  amd_gpu_gfx801 = 0x1002000000080100,
+  amd_gpu_gfx802 = 0x1002000000080200,
+  amd_gpu_gfx803 = 0x1002000000080300,
+  amd_gpu_gfx805 = 0x1002000000080500,
+  amd_gpu_gfx810 = 0x1002000000081000,
+  amd_gpu_gfx900 = 0x1002000000090000,
+  amd_gpu_gfx902 = 0x1002000000090200,
+  amd_gpu_gfx904 = 0x1002000000090400,
+  amd_gpu_gfx906 = 0x1002000000090600,
+  amd_gpu_gfx908 = 0x1002000000090800,
+  amd_gpu_gfx909 = 0x1002000000090900,
+  amd_gpu_gfx90a = 0x1002000000090a00,
+  amd_gpu_gfx90c = 0x1002000000090c00,
+  amd_gpu_gfx940 = 0x1002000000094000,
+  amd_gpu_gfx941 = 0x1002000000094100,
+  amd_gpu_gfx942 = 0x1002000000094200,
+  amd_gpu_gfx1010 = 0x1002000000101000,
+  amd_gpu_gfx1011 = 0x1002000000101100,
+  amd_gpu_gfx1012 = 0x1002000000101200,
+  amd_gpu_gfx1013 = 0x1002000000101300,
+  amd_gpu_gfx1030 = 0x1002000000103000,
+  amd_gpu_gfx1031 = 0x1002000000103100,
+  amd_gpu_gfx1032 = 0x1002000000103200,
+  amd_gpu_gfx1033 = 0x1002000000103300,
+  amd_gpu_gfx1034 = 0x1002000000103400,
+  amd_gpu_gfx1035 = 0x1002000000103500,
+  amd_gpu_gfx1036 = 0x1002000000103600,
+  amd_gpu_gfx1100 = 0x1002000000110000,
+  amd_gpu_gfx1101 = 0x1002000000110100,
+  amd_gpu_gfx1102 = 0x1002000000110200,
+  amd_gpu_gfx1103 = 0x1002000000110300,
+  amd_gpu_gfx1150 = 0x1002000000115000,
+  amd_gpu_gfx1151 = 0x1002000000115100,
+  amd_gpu_gfx1200 = 0x1002000000120000,
+  amd_gpu_gfx1201 = 0x1002000000120100,
   intel_gpu_8_0_0 = intel_gpu_bdw,
   intel_gpu_9_0_9 = intel_gpu_skl,
   intel_gpu_9_1_9 = intel_gpu_kbl,
@@ -153,6 +169,18 @@ enum class architecture {
 };
 
 enum class arch_category {
+  // If new element is added to this enum:
+  //
+  // Add
+  //   - "detail::min_<new_category>_architecture" variable below
+  //   - "detail::max_<new_category>_architecture" variable below
+  //
+  // Update
+  //   - "detail::get_category_min_architecture()" function below
+  //   - "detail::get_category_max_architecture()" function below
+  //   - "detail::get_device_architecture_category()" function below
+  //   - sycl_ext_oneapi_device_architecture specification doc
+  //
   intel_gpu = 0,
   nvidia_gpu = 1,
   amd_gpu = 2,
