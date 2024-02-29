@@ -13,9 +13,6 @@
 int main() {
   using namespace sycl;
 
-  queue deviceQueue;
-  device dev = deviceQueue.get_device();
-
   marray<float, 2> ma1{1.0f, 2.0f};
   marray<float, 2> ma2{1.0f, 2.0f};
   marray<float, 2> ma3{3.0f, 2.0f};
