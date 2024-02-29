@@ -595,10 +595,9 @@ urBindlessImagesSampledImageHandleDestroyExp(ur_context_handle_t hContext,
                                              ur_device_handle_t hDevice,
                                              ur_exp_image_handle_t hImage) {
   // Sampled image is a combination of unsampled image and sampler.
-  UR_CALL(urBindlessImagesUnsampledImageHandleDestroyExp(hContext, hDevice,
-                                                         hImage));
-
-  return UR_RESULT_SUCCESS;
+  // Sampler is released in urSamplerRelease.
+  return urBindlessImagesUnsampledImageHandleDestroyExp(hContext, hDevice,
+                                                        hImage);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
@@ -621,15 +620,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
              (hContext->ZeContext, hDevice->ZeDevice, &ZeImageDesc, &ZeImage));
   ZE2UR_CALL(zeContextMakeImageResident,
              (hContext->ZeContext, hDevice->ZeDevice, ZeImage));
-  try {
-    auto UrImage = new _ur_image(hContext, ZeImage, /*OwnZeMemHandle*/ true);
-    UrImage->ZeImageDesc = ZeImageDesc;
-    *phImageMem = reinterpret_cast<ur_exp_image_mem_handle_t>(UrImage);
-  } catch (const std::bad_alloc &) {
-    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-  } catch (...) {
-    return UR_RESULT_ERROR_UNKNOWN;
-  }
+  UR_CALL(createUrMemFromZeImage(hContext, ZeImage, /*OwnZeMemHandle*/ true,
+                                 ZeImageDesc, phImageMem));
   return UR_RESULT_SUCCESS;
 }
 
@@ -638,17 +630,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     ur_exp_image_mem_handle_t hImageMem) {
   std::ignore = hContext;
   std::ignore = hDevice;
-  auto *UrImage = reinterpret_cast<_ur_image *>(hImageMem);
-  if (!UrImage->RefCount.decrementAndTest())
-    return UR_RESULT_SUCCESS;
-
-  if (UrImage->OwnNativeHandle) {
-    auto ZeResult = ZE_CALL_NOCHECK(zeImageDestroy, (UrImage->ZeImage));
-    // Gracefully handle the case that L0 was already unloaded.
-    if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-      return ze2urResult(ZeResult);
-  }
-  delete UrImage;
+  UR_CALL(urMemRelease(reinterpret_cast<ur_mem_handle_t>(hImageMem)));
   return UR_RESULT_SUCCESS;
 }
 
@@ -657,42 +639,34 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     ur_exp_image_mem_handle_t hImageMem, const ur_image_format_t *pImageFormat,
     const ur_image_desc_t *pImageDesc, ur_mem_handle_t *phMem,
     ur_exp_image_handle_t *phImage) {
-  std::ignore = phMem;
   std::shared_lock<ur_shared_mutex> Lock(hContext->Mutex);
 
   ZeStruct<ze_image_desc_t> ZeImageDesc;
   UR_CALL(ur2zeImageDesc(pImageFormat, pImageDesc, ZeImageDesc));
 
-  _ur_image *UrImage = nullptr;
+  ze_image_handle_t ZeImage;
 
   ze_memory_allocation_properties_t MemAllocProperties{
       ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES};
   ZE2UR_CALL(zeMemGetAllocProperties,
              (hContext->ZeContext, hImageMem, &MemAllocProperties, nullptr));
   if (MemAllocProperties.type == ZE_MEMORY_TYPE_UNKNOWN) {
-    UrImage = reinterpret_cast<_ur_image *>(hImageMem);
+    _ur_image *UrImage = reinterpret_cast<_ur_image *>(hImageMem);
     if (!isSameImageDesc(&UrImage->ZeImageDesc, &ZeImageDesc)) {
       ze_image_bindless_exp_desc_t ZeImageBindlessDesc;
       ZeImageBindlessDesc.stype = ZE_STRUCTURE_TYPE_BINDLESS_IMAGE_EXP_DESC;
       ZeImageBindlessDesc.pNext = nullptr;
       ZeImageBindlessDesc.flags = ZE_IMAGE_BINDLESS_EXP_FLAG_BINDLESS;
       ZeImageDesc.pNext = &ZeImageBindlessDesc;
-      ze_image_handle_t ZeImageView;
       ZE2UR_CALL(zeImageViewCreateExt,
                  (hContext->ZeContext, hDevice->ZeDevice, &ZeImageDesc,
-                  UrImage->ZeImage, &ZeImageView));
+                  UrImage->ZeImage, &ZeImage));
       ZE2UR_CALL(zeContextMakeImageResident,
-                 (hContext->ZeContext, hDevice->ZeDevice, ZeImageView));
-      try {
-        UrImage = new _ur_image(hContext, ZeImageView, /*OwnZeMemHandle*/ true);
-        UrImage->ZeImageDesc = ZeImageDesc;
-        *phMem = UrImage;
-      } catch (const std::bad_alloc &) {
-        return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-      } catch (...) {
-        return UR_RESULT_ERROR_UNKNOWN;
-      }
+                 (hContext->ZeContext, hDevice->ZeDevice, ZeImage));
+      UR_CALL(createUrMemFromZeImage(hContext, ZeImage, /*OwnZeMemHandle*/ true,
+                                     ZeImageDesc, phMem));
     } else {
+      ZeImage = UrImage->ZeImage;
       *phMem = nullptr;
     }
   } else {
@@ -708,20 +682,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 
     ZeImageDesc.pNext = &BindlessDesc;
 
-    ze_image_handle_t ZeImage;
     ZE2UR_CALL(zeImageCreate, (hContext->ZeContext, hDevice->ZeDevice,
                                &ZeImageDesc, &ZeImage));
     ZE2UR_CALL(zeContextMakeImageResident,
                (hContext->ZeContext, hDevice->ZeDevice, ZeImage));
-    try {
-      UrImage = new _ur_image(hContext, ZeImage, /*OwnZeMemHandle*/ true);
-      UrImage->ZeImageDesc = ZeImageDesc;
-      *phMem = UrImage;
-    } catch (const std::bad_alloc &) {
-      return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    } catch (...) {
-      return UR_RESULT_ERROR_UNKNOWN;
-    }
+    UR_CALL(createUrMemFromZeImage(hContext, ZeImage, /*OwnZeMemHandle*/ true,
+                                   ZeImageDesc, phMem));
   }
 
   static std::once_flag InitFlag;
@@ -738,9 +704,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
   if (!zeImageGetDeviceOffsetExpFunctionPtr)
     return UR_RESULT_ERROR_INVALID_OPERATION;
 
-  uint64_t DeviceOffset;
-  ZE2UR_CALL(zeImageGetDeviceOffsetExpFunctionPtr,
-             (UrImage->ZeImage, &DeviceOffset));
+  uint64_t DeviceOffset{};
+  ZE2UR_CALL(zeImageGetDeviceOffsetExpFunctionPtr, (ZeImage, &DeviceOffset));
   *phImage = reinterpret_cast<ur_exp_image_handle_t>(DeviceOffset);
 
   return UR_RESULT_SUCCESS;
@@ -936,11 +901,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_exp_image_mem_handle_t hMem) {
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = hMem;
-  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  return urBindlessImagesImageFreeExp(hContext, hDevice, hMem);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(

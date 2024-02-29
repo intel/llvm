@@ -1518,30 +1518,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
   ZE2UR_CALL(zeImageCreate,
              (Context->ZeContext, Device->ZeDevice, &ZeImageDesc, &ZeImage));
 
-  try {
-    auto UrImage = new _ur_image(Context, ZeImage, true /*OwnZeMemHandle*/);
-    *Mem = reinterpret_cast<ur_mem_handle_t>(UrImage);
+  UR_CALL(createUrMemFromZeImage(Context, ZeImage, /*OwnZeMemHandle*/ true,
+                                 ZeImageDesc, Mem));
 
-#ifndef NDEBUG
-    UrImage->ZeImageDesc = ZeImageDesc;
-#endif // !NDEBUG
-
-    if ((Flags & UR_MEM_FLAG_USE_HOST_POINTER) != 0 ||
-        (Flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER) != 0) {
-      // Initialize image synchronously with immediate offload.
-      // zeCommandListAppendImageCopyFromMemory must not be called from
-      // simultaneous threads with the same command list handle, so we need
-      // exclusive lock.
-      std::scoped_lock<ur_mutex> Lock(Context->ImmediateCommandListMutex);
-      ZE2UR_CALL(zeCommandListAppendImageCopyFromMemory,
-                 (Context->ZeCommandListInit, ZeImage, Host, nullptr, nullptr,
-                  0, nullptr));
-    }
-  } catch (const std::bad_alloc &) {
-    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-  } catch (...) {
-    return UR_RESULT_ERROR_UNKNOWN;
+  if ((Flags & UR_MEM_FLAG_USE_HOST_POINTER) != 0 ||
+      (Flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER) != 0) {
+    // Initialize image synchronously with immediate offload.
+    // zeCommandListAppendImageCopyFromMemory must not be called from
+    // simultaneous threads with the same command list handle, so we need
+    // exclusive lock.
+    std::scoped_lock<ur_mutex> Lock(Context->ImmediateCommandListMutex);
+    ZE2UR_CALL(zeCommandListAppendImageCopyFromMemory,
+               (Context->ZeCommandListInit, ZeImage, Host, nullptr, nullptr, 0,
+                nullptr));
   }
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -1560,30 +1551,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
 
   ze_image_handle_t ZeHImage = ur_cast<ze_image_handle_t>(NativeMem);
 
-  _ur_image *Image = nullptr;
-  try {
-    Image = new _ur_image(Context, ZeHImage, Properties->isNativeHandleOwned);
-    *Mem = reinterpret_cast<ur_mem_handle_t>(Image);
-
+  ZeStruct<ze_image_desc_t> ZeImageDesc;
 #ifndef NDEBUG
-    ZeStruct<ze_image_desc_t> ZeImageDesc;
-    ur_result_t Res = ur2zeImageDesc(ImageFormat, ImageDesc, ZeImageDesc);
-    if (Res != UR_RESULT_SUCCESS) {
-      delete Image;
-      *Mem = nullptr;
-      return Res;
-    }
-    Image->ZeImageDesc = ZeImageDesc;
+  ur_result_t Res = ur2zeImageDesc(ImageFormat, ImageDesc, ZeImageDesc);
+  if (Res != UR_RESULT_SUCCESS) {
+    *Mem = nullptr;
+    return Res;
+  }
 #else
     std::ignore = ImageFormat;
     std::ignore = ImageDesc;
 #endif // !NDEBUG
 
-  } catch (const std::bad_alloc &) {
-    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-  } catch (...) {
-    return UR_RESULT_ERROR_UNKNOWN;
-  }
+  UR_CALL(createUrMemFromZeImage(
+      Context, ZeHImage, Properties->isNativeHandleOwned, ZeImageDesc, Mem));
 
   return UR_RESULT_SUCCESS;
 }
