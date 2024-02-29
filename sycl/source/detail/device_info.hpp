@@ -923,6 +923,7 @@ struct get_device_info_impl<
     if (e.code() != errc::runtime) {
       std::rethrow_exception(std::make_exception_ptr(e));
     }
+    return {};
   }
 };
 
