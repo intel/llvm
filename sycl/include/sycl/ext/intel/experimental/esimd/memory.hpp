@@ -402,7 +402,8 @@ __ESIMD_API void named_barrier_signal(uint8_t barrier_id,
   __ESIMD_DNS::vector_type_t<uint32_t, 8> payload = 0;
   payload[2] = (num_consumers & 0xff) << 24 | (num_producers & 0xff) << 16 |
                producer_consumer_mode << 14 | (barrier_id & 0b11111) << 0;
-
+  __esimd_fence(__ESIMD_NS::fence_mask::global_coherent_fence |
+                __ESIMD_NS::fence_mask::local_barrier);
   __esimd_raw_send_nbarrier_signal<uint32_t, 8>(
       0 /*sendc*/, gateway, descriptor, payload, 1 /*pred*/);
 }

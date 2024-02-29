@@ -24,6 +24,9 @@
       }                                                                        \
       for (int i = 0; i < DIM; i++)                                            \
         assert(abs(result[i] - EXPECTED[i]) <= DELTA);                         \
+      auto host_result = FUNC(__VA_ARGS__);                                    \
+      for (int i = 0; i < DIM; i++)                                            \
+        assert(abs(host_result[i] - EXPECTED[i]) <= DELTA);                    \
     }                                                                          \
   }
 
