@@ -95,7 +95,7 @@ struct SourceInfo {
     int column;
 };
 
-enum class DeviceType : uint32_t { UNKNOWN = 0, CPU, GPU_PVC, GPU_DG2 };
+enum class DeviceType : uint64_t { UNKNOWN = 0, CPU, GPU_PVC, GPU_DG2 };
 
 bool IsInASanContext();
 

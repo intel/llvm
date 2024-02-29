@@ -62,6 +62,9 @@ void ReportGenericError(const DeviceSanitizerReport &Report,
     const char *Func = Report.Func[0] ? Report.Func : "<unknown func>";
     auto KernelName = getKernelName(Kernel);
 
+    // Try to demangle the kernel name
+    KernelName = DemangleName(KernelName);
+
     context.logger.always("\n====ERROR: DeviceSanitizer: {} on {}",
                           ToString(Report.ErrorType),
                           ToString(Report.MemoryType));
