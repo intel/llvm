@@ -744,186 +744,186 @@ struct get_device_info_impl<
       architecture DeviceArch = get_device_info_impl<
           ext::oneapi::experimental::architecture,
           ext::oneapi::experimental::info::device::architecture>::get(Dev);
-    } catch (sycl::exception const &e) {
-      if (e.code() == errc::runtime &&
-          std::string(e.what()) == "The current device architecture is not "
-                                   "supported by sycl_ext_oneapi_matrix.")
-        return {};
-    }
-    if (architecture::intel_cpu_spr == DeviceArch)
-      return {
-          {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::uint8,
-           matrix_type::sint32, matrix_type::sint32},
-          {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::sint8,
-           matrix_type::sint32, matrix_type::sint32},
-          {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::uint8,
-           matrix_type::sint32, matrix_type::sint32},
-          {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::sint8,
-           matrix_type::sint32, matrix_type::sint32},
-          {16, 16, 32, 0, 0, 0, matrix_type::bf16, matrix_type::bf16,
-           matrix_type::fp32, matrix_type::fp32},
-      };
-    else if (architecture::intel_cpu_gnr == DeviceArch)
-      return {
-          {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::uint8,
-           matrix_type::sint32, matrix_type::sint32},
-          {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::sint8,
-           matrix_type::sint32, matrix_type::sint32},
-          {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::uint8,
-           matrix_type::sint32, matrix_type::sint32},
-          {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::sint8,
-           matrix_type::sint32, matrix_type::sint32},
-          {16, 16, 32, 0, 0, 0, matrix_type::bf16, matrix_type::bf16,
-           matrix_type::fp32, matrix_type::fp32},
-          {16, 16, 32, 0, 0, 0, matrix_type::fp16, matrix_type::fp16,
-           matrix_type::fp32, matrix_type::fp32},
-      };
-    else if (architecture::intel_gpu_pvc == DeviceArch)
-      return {
-          {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,
-           matrix_type::sint32, matrix_type::sint32},
-          {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::sint8,
-           matrix_type::sint32, matrix_type::sint32},
-          {8, 0, 0, 0, 16, 32, matrix_type::sint8, matrix_type::uint8,
-           matrix_type::sint32, matrix_type::sint32},
-          {8, 0, 0, 0, 16, 32, matrix_type::sint8, matrix_type::sint8,
-           matrix_type::sint32, matrix_type::sint32},
-          {8, 0, 0, 0, 16, 16, matrix_type::fp16, matrix_type::fp16,
-           matrix_type::fp32, matrix_type::fp32},
-          {8, 0, 0, 0, 16, 16, matrix_type::bf16, matrix_type::bf16,
-           matrix_type::fp32, matrix_type::fp32},
-          {0, 0, 0, 16, 16, 16, matrix_type::bf16, matrix_type::bf16,
-           matrix_type::fp32, matrix_type::fp32},
-          {0, 0, 0, 32, 64, 16, matrix_type::bf16, matrix_type::bf16,
-           matrix_type::fp32, matrix_type::fp32},
-          {8, 0, 0, 0, 16, 8, matrix_type::tf32, matrix_type::tf32,
-           matrix_type::fp32, matrix_type::fp32},
-      };
-    else if ((architecture::intel_gpu_dg2_g10 == DeviceArch) ||
-             (architecture::intel_gpu_dg2_g11 == DeviceArch) ||
-             (architecture::intel_gpu_dg2_g12 == DeviceArch))
-      return {
-          {8, 0, 0, 0, 8, 32, matrix_type::uint8, matrix_type::uint8,
-           matrix_type::sint32, matrix_type::sint32},
-          {8, 0, 0, 0, 8, 32, matrix_type::uint8, matrix_type::sint8,
-           matrix_type::sint32, matrix_type::sint32},
-          {8, 0, 0, 0, 8, 32, matrix_type::sint8, matrix_type::uint8,
-           matrix_type::sint32, matrix_type::sint32},
-          {8, 0, 0, 0, 8, 32, matrix_type::sint8, matrix_type::sint8,
-           matrix_type::sint32, matrix_type::sint32},
-          {8, 0, 0, 0, 8, 16, matrix_type::fp16, matrix_type::fp16,
-           matrix_type::fp32, matrix_type::fp32},
-          {8, 0, 0, 0, 8, 16, matrix_type::bf16, matrix_type::bf16,
-           matrix_type::fp32, matrix_type::fp32},
-      };
-    else if (architecture::amd_gpu_gfx90a == DeviceArch)
-      return {
-          {0, 0, 0, 32, 32, 8, matrix_type::fp16, matrix_type::fp16,
-           matrix_type::fp32, matrix_type::fp32},
-          {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
-           matrix_type::fp32, matrix_type::fp32},
-          {0, 0, 0, 32, 32, 8, matrix_type::sint8, matrix_type::sint8,
-           matrix_type::sint32, matrix_type::sint32},
-          {0, 0, 0, 16, 16, 16, matrix_type::sint8, matrix_type::sint8,
-           matrix_type::sint32, matrix_type::sint32},
-          {0, 0, 0, 32, 32, 8, matrix_type::bf16, matrix_type::bf16,
-           matrix_type::fp32, matrix_type::fp32},
-          {0, 0, 0, 16, 16, 16, matrix_type::bf16, matrix_type::bf16,
-           matrix_type::fp32, matrix_type::fp32},
-          {0, 0, 0, 16, 16, 4, matrix_type::fp64, matrix_type::fp64,
-           matrix_type::fp64, matrix_type::fp64},
-      };
-    else if (backend::ext_oneapi_cuda == CurrentBackend) {
-      // TODO: Tho following can be simplified when comparison of architectures
-      // using < and > will be implemented
-      using oneapi_exp_arch = sycl::ext::oneapi::experimental::architecture;
-      constexpr std::pair<float, oneapi_exp_arch> NvidiaArchNumbs[] = {
-          {5.0, oneapi_exp_arch::nvidia_gpu_sm_50},
-          {5.2, oneapi_exp_arch::nvidia_gpu_sm_52},
-          {5.3, oneapi_exp_arch::nvidia_gpu_sm_53},
-          {6.0, oneapi_exp_arch::nvidia_gpu_sm_60},
-          {6.1, oneapi_exp_arch::nvidia_gpu_sm_61},
-          {6.2, oneapi_exp_arch::nvidia_gpu_sm_62},
-          {7.0, oneapi_exp_arch::nvidia_gpu_sm_70},
-          {7.2, oneapi_exp_arch::nvidia_gpu_sm_72},
-          {7.5, oneapi_exp_arch::nvidia_gpu_sm_75},
-          {8.0, oneapi_exp_arch::nvidia_gpu_sm_80},
-          {8.6, oneapi_exp_arch::nvidia_gpu_sm_86},
-          {8.7, oneapi_exp_arch::nvidia_gpu_sm_87},
-          {8.9, oneapi_exp_arch::nvidia_gpu_sm_89},
-          {9.0, oneapi_exp_arch::nvidia_gpu_sm_90},
-      };
-      auto GetArchNum = [&](const architecture &arch) {
-        for (const auto &Item : NvidiaArchNumbs)
-          if (Item.second == arch)
-            return Item.first;
-        return {};
-      };
-      float ComputeCapability = GetArchNum(DeviceArch);
-      std::vector<combination> sm_70_combinations = {
-          {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
-           matrix_type::fp32, matrix_type::fp32},
-          {0, 0, 0, 8, 32, 16, matrix_type::fp16, matrix_type::fp16,
-           matrix_type::fp32, matrix_type::fp32},
-          {0, 0, 0, 32, 8, 16, matrix_type::fp16, matrix_type::fp16,
-           matrix_type::fp32, matrix_type::fp32},
-          {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
-           matrix_type::fp16, matrix_type::fp16},
-          {0, 0, 0, 8, 32, 16, matrix_type::fp16, matrix_type::fp16,
-           matrix_type::fp16, matrix_type::fp16},
-          {0, 0, 0, 32, 8, 16, matrix_type::fp16, matrix_type::fp16,
-           matrix_type::fp16, matrix_type::fp16},
-          {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
-           matrix_type::fp32, matrix_type::fp16},
-          {0, 0, 0, 8, 32, 16, matrix_type::fp16, matrix_type::fp16,
-           matrix_type::fp32, matrix_type::fp16},
-          {0, 0, 0, 32, 8, 16, matrix_type::fp16, matrix_type::fp16,
-           matrix_type::fp32, matrix_type::fp16},
-          {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
-           matrix_type::fp16, matrix_type::fp32},
-          {0, 0, 0, 8, 32, 16, matrix_type::fp16, matrix_type::fp16,
-           matrix_type::fp16, matrix_type::fp32},
-          {0, 0, 0, 32, 8, 16, matrix_type::fp16, matrix_type::fp16,
-           matrix_type::fp16, matrix_type::fp32}};
-      std::vector<combination> sm_72_combinations = {
-          {0, 0, 0, 16, 16, 16, matrix_type::sint8, matrix_type::sint8,
-           matrix_type::sint32, matrix_type::sint32},
-          {0, 0, 0, 8, 32, 16, matrix_type::sint8, matrix_type::sint8,
-           matrix_type::sint32, matrix_type::sint32},
-          {0, 0, 0, 32, 8, 16, matrix_type::sint8, matrix_type::sint8,
-           matrix_type::sint32, matrix_type::sint32},
-          {0, 0, 0, 16, 16, 16, matrix_type::uint8, matrix_type::uint8,
-           matrix_type::sint32, matrix_type::sint32},
-          {0, 0, 0, 8, 32, 16, matrix_type::uint8, matrix_type::uint8,
-           matrix_type::sint32, matrix_type::sint32},
-          {0, 0, 0, 32, 8, 16, matrix_type::uint8, matrix_type::uint8,
-           matrix_type::sint32, matrix_type::sint32}};
-      std::vector<combination> sm_80_combinations = {
-          {0, 0, 0, 16, 16, 8, matrix_type::tf32, matrix_type::tf32,
-           matrix_type::fp32, matrix_type::fp32},
-          {0, 0, 0, 16, 16, 16, matrix_type::bf16, matrix_type::bf16,
-           matrix_type::fp32, matrix_type::fp32},
-          {0, 0, 0, 8, 32, 16, matrix_type::bf16, matrix_type::bf16,
-           matrix_type::fp32, matrix_type::fp32},
-          {0, 0, 0, 32, 8, 16, matrix_type::bf16, matrix_type::bf16,
-           matrix_type::fp32, matrix_type::fp32},
-          {0, 0, 0, 8, 8, 4, matrix_type::fp64, matrix_type::fp64,
-           matrix_type::fp64, matrix_type::fp64}};
-      if (ComputeCapability >= 8.0) {
-        sm_80_combinations.insert(sm_80_combinations.end(),
-                                  sm_72_combinations.begin(),
-                                  sm_72_combinations.end());
-        sm_80_combinations.insert(sm_80_combinations.end(),
-                                  sm_70_combinations.begin(),
-                                  sm_70_combinations.end());
-        return sm_80_combinations;
-      } else if (ComputeCapability >= 7.2) {
-        sm_72_combinations.insert(sm_72_combinations.end(),
-                                  sm_70_combinations.begin(),
-                                  sm_70_combinations.end());
-        return sm_72_combinations;
-      } else if (ComputeCapability >= 7.0)
-        return sm_70_combinations;
+      if (architecture::intel_cpu_spr == DeviceArch)
+        return {
+            {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::uint8,
+             matrix_type::sint32, matrix_type::sint32},
+            {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::sint8,
+             matrix_type::sint32, matrix_type::sint32},
+            {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::uint8,
+             matrix_type::sint32, matrix_type::sint32},
+            {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::sint8,
+             matrix_type::sint32, matrix_type::sint32},
+            {16, 16, 32, 0, 0, 0, matrix_type::bf16, matrix_type::bf16,
+             matrix_type::fp32, matrix_type::fp32},
+        };
+      else if (architecture::intel_cpu_gnr == DeviceArch)
+        return {
+            {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::uint8,
+             matrix_type::sint32, matrix_type::sint32},
+            {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::sint8,
+             matrix_type::sint32, matrix_type::sint32},
+            {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::uint8,
+             matrix_type::sint32, matrix_type::sint32},
+            {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::sint8,
+             matrix_type::sint32, matrix_type::sint32},
+            {16, 16, 32, 0, 0, 0, matrix_type::bf16, matrix_type::bf16,
+             matrix_type::fp32, matrix_type::fp32},
+            {16, 16, 32, 0, 0, 0, matrix_type::fp16, matrix_type::fp16,
+             matrix_type::fp32, matrix_type::fp32},
+        };
+      else if (architecture::intel_gpu_pvc == DeviceArch)
+        return {
+            {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,
+             matrix_type::sint32, matrix_type::sint32},
+            {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::sint8,
+             matrix_type::sint32, matrix_type::sint32},
+            {8, 0, 0, 0, 16, 32, matrix_type::sint8, matrix_type::uint8,
+             matrix_type::sint32, matrix_type::sint32},
+            {8, 0, 0, 0, 16, 32, matrix_type::sint8, matrix_type::sint8,
+             matrix_type::sint32, matrix_type::sint32},
+            {8, 0, 0, 0, 16, 16, matrix_type::fp16, matrix_type::fp16,
+             matrix_type::fp32, matrix_type::fp32},
+            {8, 0, 0, 0, 16, 16, matrix_type::bf16, matrix_type::bf16,
+             matrix_type::fp32, matrix_type::fp32},
+            {0, 0, 0, 16, 16, 16, matrix_type::bf16, matrix_type::bf16,
+             matrix_type::fp32, matrix_type::fp32},
+            {0, 0, 0, 32, 64, 16, matrix_type::bf16, matrix_type::bf16,
+             matrix_type::fp32, matrix_type::fp32},
+            {8, 0, 0, 0, 16, 8, matrix_type::tf32, matrix_type::tf32,
+             matrix_type::fp32, matrix_type::fp32},
+        };
+      else if ((architecture::intel_gpu_dg2_g10 == DeviceArch) ||
+               (architecture::intel_gpu_dg2_g11 == DeviceArch) ||
+               (architecture::intel_gpu_dg2_g12 == DeviceArch))
+        return {
+            {8, 0, 0, 0, 8, 32, matrix_type::uint8, matrix_type::uint8,
+             matrix_type::sint32, matrix_type::sint32},
+            {8, 0, 0, 0, 8, 32, matrix_type::uint8, matrix_type::sint8,
+             matrix_type::sint32, matrix_type::sint32},
+            {8, 0, 0, 0, 8, 32, matrix_type::sint8, matrix_type::uint8,
+             matrix_type::sint32, matrix_type::sint32},
+            {8, 0, 0, 0, 8, 32, matrix_type::sint8, matrix_type::sint8,
+             matrix_type::sint32, matrix_type::sint32},
+            {8, 0, 0, 0, 8, 16, matrix_type::fp16, matrix_type::fp16,
+             matrix_type::fp32, matrix_type::fp32},
+            {8, 0, 0, 0, 8, 16, matrix_type::bf16, matrix_type::bf16,
+             matrix_type::fp32, matrix_type::fp32},
+        };
+      else if (architecture::amd_gpu_gfx90a == DeviceArch)
+        return {
+            {0, 0, 0, 32, 32, 8, matrix_type::fp16, matrix_type::fp16,
+             matrix_type::fp32, matrix_type::fp32},
+            {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
+             matrix_type::fp32, matrix_type::fp32},
+            {0, 0, 0, 32, 32, 8, matrix_type::sint8, matrix_type::sint8,
+             matrix_type::sint32, matrix_type::sint32},
+            {0, 0, 0, 16, 16, 16, matrix_type::sint8, matrix_type::sint8,
+             matrix_type::sint32, matrix_type::sint32},
+            {0, 0, 0, 32, 32, 8, matrix_type::bf16, matrix_type::bf16,
+             matrix_type::fp32, matrix_type::fp32},
+            {0, 0, 0, 16, 16, 16, matrix_type::bf16, matrix_type::bf16,
+             matrix_type::fp32, matrix_type::fp32},
+            {0, 0, 0, 16, 16, 4, matrix_type::fp64, matrix_type::fp64,
+             matrix_type::fp64, matrix_type::fp64},
+        };
+      else if (backend::ext_oneapi_cuda == CurrentBackend) {
+        // TODO: Tho following can be simplified when comparison of
+        // architectures using < and > will be implemented
+        using oneapi_exp_arch = sycl::ext::oneapi::experimental::architecture;
+        constexpr std::pair<float, oneapi_exp_arch> NvidiaArchNumbs[] = {
+            {5.0, oneapi_exp_arch::nvidia_gpu_sm_50},
+            {5.2, oneapi_exp_arch::nvidia_gpu_sm_52},
+            {5.3, oneapi_exp_arch::nvidia_gpu_sm_53},
+            {6.0, oneapi_exp_arch::nvidia_gpu_sm_60},
+            {6.1, oneapi_exp_arch::nvidia_gpu_sm_61},
+            {6.2, oneapi_exp_arch::nvidia_gpu_sm_62},
+            {7.0, oneapi_exp_arch::nvidia_gpu_sm_70},
+            {7.2, oneapi_exp_arch::nvidia_gpu_sm_72},
+            {7.5, oneapi_exp_arch::nvidia_gpu_sm_75},
+            {8.0, oneapi_exp_arch::nvidia_gpu_sm_80},
+            {8.6, oneapi_exp_arch::nvidia_gpu_sm_86},
+            {8.7, oneapi_exp_arch::nvidia_gpu_sm_87},
+            {8.9, oneapi_exp_arch::nvidia_gpu_sm_89},
+            {9.0, oneapi_exp_arch::nvidia_gpu_sm_90},
+        };
+        auto GetArchNum = [&](const architecture &arch) {
+          for (const auto &Item : NvidiaArchNumbs)
+            if (Item.second == arch)
+              return Item.first;
+          return 0.f;
+        };
+        float ComputeCapability = GetArchNum(DeviceArch);
+        std::vector<combination> sm_70_combinations = {
+            {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
+             matrix_type::fp32, matrix_type::fp32},
+            {0, 0, 0, 8, 32, 16, matrix_type::fp16, matrix_type::fp16,
+             matrix_type::fp32, matrix_type::fp32},
+            {0, 0, 0, 32, 8, 16, matrix_type::fp16, matrix_type::fp16,
+             matrix_type::fp32, matrix_type::fp32},
+            {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
+             matrix_type::fp16, matrix_type::fp16},
+            {0, 0, 0, 8, 32, 16, matrix_type::fp16, matrix_type::fp16,
+             matrix_type::fp16, matrix_type::fp16},
+            {0, 0, 0, 32, 8, 16, matrix_type::fp16, matrix_type::fp16,
+             matrix_type::fp16, matrix_type::fp16},
+            {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
+             matrix_type::fp32, matrix_type::fp16},
+            {0, 0, 0, 8, 32, 16, matrix_type::fp16, matrix_type::fp16,
+             matrix_type::fp32, matrix_type::fp16},
+            {0, 0, 0, 32, 8, 16, matrix_type::fp16, matrix_type::fp16,
+             matrix_type::fp32, matrix_type::fp16},
+            {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
+             matrix_type::fp16, matrix_type::fp32},
+            {0, 0, 0, 8, 32, 16, matrix_type::fp16, matrix_type::fp16,
+             matrix_type::fp16, matrix_type::fp32},
+            {0, 0, 0, 32, 8, 16, matrix_type::fp16, matrix_type::fp16,
+             matrix_type::fp16, matrix_type::fp32}};
+        std::vector<combination> sm_72_combinations = {
+            {0, 0, 0, 16, 16, 16, matrix_type::sint8, matrix_type::sint8,
+             matrix_type::sint32, matrix_type::sint32},
+            {0, 0, 0, 8, 32, 16, matrix_type::sint8, matrix_type::sint8,
+             matrix_type::sint32, matrix_type::sint32},
+            {0, 0, 0, 32, 8, 16, matrix_type::sint8, matrix_type::sint8,
+             matrix_type::sint32, matrix_type::sint32},
+            {0, 0, 0, 16, 16, 16, matrix_type::uint8, matrix_type::uint8,
+             matrix_type::sint32, matrix_type::sint32},
+            {0, 0, 0, 8, 32, 16, matrix_type::uint8, matrix_type::uint8,
+             matrix_type::sint32, matrix_type::sint32},
+            {0, 0, 0, 32, 8, 16, matrix_type::uint8, matrix_type::uint8,
+             matrix_type::sint32, matrix_type::sint32}};
+        std::vector<combination> sm_80_combinations = {
+            {0, 0, 0, 16, 16, 8, matrix_type::tf32, matrix_type::tf32,
+             matrix_type::fp32, matrix_type::fp32},
+            {0, 0, 0, 16, 16, 16, matrix_type::bf16, matrix_type::bf16,
+             matrix_type::fp32, matrix_type::fp32},
+            {0, 0, 0, 8, 32, 16, matrix_type::bf16, matrix_type::bf16,
+             matrix_type::fp32, matrix_type::fp32},
+            {0, 0, 0, 32, 8, 16, matrix_type::bf16, matrix_type::bf16,
+             matrix_type::fp32, matrix_type::fp32},
+            {0, 0, 0, 8, 8, 4, matrix_type::fp64, matrix_type::fp64,
+             matrix_type::fp64, matrix_type::fp64}};
+        if (ComputeCapability >= 8.0) {
+          sm_80_combinations.insert(sm_80_combinations.end(),
+                                    sm_72_combinations.begin(),
+                                    sm_72_combinations.end());
+          sm_80_combinations.insert(sm_80_combinations.end(),
+                                    sm_70_combinations.begin(),
+                                    sm_70_combinations.end());
+          return sm_80_combinations;
+        } else if (ComputeCapability >= 7.2) {
+          sm_72_combinations.insert(sm_72_combinations.end(),
+                                    sm_70_combinations.begin(),
+                                    sm_70_combinations.end());
+          return sm_72_combinations;
+        } else if (ComputeCapability >= 7.0)
+          return sm_70_combinations;
+      }
+    } catch (sycl::exception &e) {
+      if (e.code() != errc::runtime) {
+        std::exception_ptr e_ptr = std::make_exception_ptr(e);
+        std::rethrow_exception(e_ptr);
+      }
     }
     return {};
   }
