@@ -1014,7 +1014,7 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                              const detail::EventImplPtr &OutEventImpl) {
   std::vector<char> vecPattern(sizeof(Pattern));
   std::memcpy(vecPattern.data(), &Pattern, sizeof(Pattern));
-  MemoryManager::fill_usm(Mem, Queue, Length, Pattern, DepEvents, OutEvent,
+  MemoryManager::fill_usm(Mem, Queue, Length, vecPattern, DepEvents, OutEvent,
                           OutEventImpl);
 }
 
@@ -1025,7 +1025,7 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                              sycl::detail::pi::PiEvent *OutEvent) {
   std::vector<char> vecPattern(sizeof(Pattern));
   std::memcpy(vecPattern.data(), &Pattern, sizeof(Pattern));
-  MemoryManager::fill_usm(Mem, Queue, Length, Pattern, DepEvents, OutEvent,
+  MemoryManager::fill_usm(Mem, Queue, Length, vecPattern, DepEvents, OutEvent,
                           nullptr); // OutEventImpl);
 }
 
