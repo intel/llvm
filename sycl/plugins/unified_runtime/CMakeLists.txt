@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 91c6068bb581acf72f02f1284ab0464ec4f03e34 
-  # Merge: de328246 89ad3408
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Feb 23 13:39:03 2024 +0000
-  #     Merge pull request #1274 from isaacault/iault/image_array_copy
-  #     [Bindless][Exp] Add Support For Image Arrays
-  set(UNIFIED_RUNTIME_TAG 91c6068bb581acf72f02f1284ab0464ec4f03e34 )
+  # commit 9b936b5748a8da86123f3f148d1cfa84e52531c4
+  # Merge: 91c6068b 767cfd1a
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Mon Feb 26 10:46:55 2024 +0100
+  #     Merge pull request #1354 from AllanZyne/sanitizer-device-global
+  #     [DeviceSanitizer] Support detecting out-of-bounds error on DeviceGlobals
+  set(UNIFIED_RUNTIME_TAG 9b936b5748a8da86123f3f148d1cfa84e52531c4)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
