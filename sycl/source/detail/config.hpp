@@ -234,8 +234,20 @@ public:
 // Array is used by SYCL_DEVICE_ALLOWLIST and ONEAPI_DEVICE_SELECTOR.
 // The 'supportAcc' parameter is used by SYCL_DEVICE_ALLOWLIST which,
 // unlike ONEAPI_DEVICE_SELECTOR, also accepts 'acc' as a valid device type.
+template <bool supportAcc = false>
 const std::array<std::pair<std::string, info::device_type>, 6> &
-getSyclDeviceTypeMap(bool supportAcc = false);
+getSyclDeviceTypeMap() {
+  static const std::array<std::pair<std::string, info::device_type>, 6>
+      SyclDeviceTypeMap = {
+          {{"host", info::device_type::host},
+           {"cpu", info::device_type::cpu},
+           {"gpu", info::device_type::gpu},
+           /* Duplicate entries are fine as this map is one-directional.*/
+           {supportAcc ? "acc" : "fpga", info::device_type::accelerator},
+           {"fpga", info::device_type::accelerator},
+           {"*", info::device_type::all}}};
+  return SyclDeviceTypeMap;
+}
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
 // ONEAPI_DEVICE_SELECTOR
@@ -512,7 +524,7 @@ private:
       return Result;
 
     std::string ValueStr{ValueRaw};
-    auto DeviceTypeMap = getSyclDeviceTypeMap(true /*Enable 'acc'*/);
+    auto DeviceTypeMap = getSyclDeviceTypeMap<true /*Enable 'acc'*/>();
 
     // Iterate over all configurations.
     size_t Start = 0, End = 0;

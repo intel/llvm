@@ -48,8 +48,9 @@ if(NATIVECPU_USE_OCK)
   target_include_directories(LLVMSYCLLowerIR PRIVATE 
     ${oneapi-ck_SOURCE_DIR}/modules/compiler/multi_llvm/include
     ${oneapi-ck_SOURCE_DIR}/modules/cargo/include
+    ${oneapi-ck_SOURCE_DIR}/modules/compiler/vecz/include
     ${oneapi-ck_SOURCE_DIR}/modules/compiler/utils/include)
-  target_link_libraries(LLVMSYCLLowerIR PRIVATE compiler-pipeline)
+  target_link_libraries(LLVMSYCLLowerIR PRIVATE compiler-pipeline vecz)
   target_compile_definitions(pi_native_cpu PRIVATE NATIVECPU_USE_OCK)
 
 endif()

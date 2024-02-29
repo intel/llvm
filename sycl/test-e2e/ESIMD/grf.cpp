@@ -71,13 +71,10 @@ int main(void) {
     A[i] = i;
   }
 
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
+  esimd_test::printTestLabel(q);
   try {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
-    queue q(gpu_selector{}, esimd_test::createExceptionHandler());
-
-    auto dev = q.get_device();
-    std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-
     auto e = q.submit([&](handler &cgh) {
       auto PA = bufa.get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<class SyclKernel>(Size,
@@ -98,11 +95,6 @@ int main(void) {
 
   try {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
-    queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
-
-    auto dev = q.get_device();
-    std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-
     auto e = q.submit([&](handler &cgh) {
       auto PA = bufa.get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<class EsimdKernel>(Size, [=](id<1> i) SYCL_ESIMD_KERNEL {
@@ -128,7 +120,6 @@ int main(void) {
 
   try {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
-    queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
 #ifdef USE_AUTO
     sycl::ext::oneapi::experimental::properties prop{grf_size_automatic};
 #elif defined(USE_NEW_API)
@@ -137,9 +128,6 @@ int main(void) {
     sycl::ext::oneapi::experimental::properties prop{
         register_alloc_mode<register_alloc_mode_enum::large>};
 #endif
-    auto dev = q.get_device();
-    std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
-
     auto e = q.submit([&](handler &cgh) {
       auto PA = bufa.get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<class EsimdKernelSpecifiedGRF>(
