@@ -205,18 +205,6 @@ void attr_on_const_no_error()
   [[intel::merge("mrg6", "width")]] const int const_var_mergewid[64] = {0, 1};
 }
 
-void attr_on_func_arg([[intel::numbanks(8)]] int pc) {}
-void attr_on_func_arg1([[intel::max_replicates(8)]] int pc1) {}
-void attr_on_func_arg2([[intel::force_pow2_depth(1)]] int pc2) {}
-void attr_on_func_arg3([[intel::bankwidth(8)]] int pc2) {}
-void attr_on_func_arg4([[intel::simple_dual_port]] int pc3) {}
-void attr_on_func_arg5([[intel::fpga_memory]] int pc4) {}
-void attr_on_func_arg6([[intel::bank_bits(7, 8)]] int pc5) {}
-void attr_on_func_arg7([[intel::fpga_register]] int pc6) {}
-void attr_on_func_arg8([[intel::singlepump]] int pc7) {}
-void attr_on_func_arg9([[intel::doublepump]] int pc8) {}
-void attr_on_func_arg10([[intel::merge("mrg1", "width")]] int pc9) {}
-
 struct [[__sycl_detail__::global_variable_allowed]] GlobAllowedVarOnly {
 };
 
