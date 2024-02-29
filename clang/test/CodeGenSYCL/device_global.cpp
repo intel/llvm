@@ -16,6 +16,14 @@ device_global<int> A;
 [[intel::max_replicates(2)]] device_global<int> Nonconst_glob1;
 [[intel::force_pow2_depth(1)]] device_global<int> Nonconst_glob2;
 [[intel::bankwidth(2)]] device_global<int> Nonconst_glob3;
+[[intel::simple_dual_port]] device_global<int> Nonconst_glob4;
+[[intel::fpga_memory]] device_global<int> Nonconst_glob5;
+[[intel::bank_bits(3, 4)]] device_global<int> Nonconst_glob6;
+[[intel::fpga_register]] device_global<int> Nonconst_glob7;
+[[intel::doublepump]] device_global<int>Nonconst_glob8;
+[[intel::singlepump]] device_global<int> Nonconst_glob9;
+[[intel::merge("mrg5", "width")]] device_global<int> Nonconst_glob10;
+[[intel::private_copies(8)]] device_global<int> Nonconst_glob11;
 
 #ifdef SYCL_EXTERNAL
 SYCL_EXTERNAL device_global<int> AExt;
@@ -33,6 +41,14 @@ device_global<int> Foo::C;
 // CHECK: @Nonconst_glob1 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Max_ATTRS:[0-9]+]]
 // CHECK: @Nonconst_glob2 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Force_ATTRS:[0-9]+]]
 // CHECK: @Nonconst_glob3 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Bankw_ATTRS:[0-9]+]]
+// CHECK: @Nonconst_glob4 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Simple_ATTRS:[0-9]+]]
+// CHECK: @Nonconst_glob5 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Mem_ATTRS:[0-9]+]]
+// CHECK: @Nonconst_glob6 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Bankbits_ATTRS:[0-9]+]]
+// CHECK: @Nonconst_glob7 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Reg_ATTRS:[0-9]+]]
+// CHECK: @Nonconst_glob8 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Dpump_ATTRS:[0-9]+]]
+// CHECK: @Nonconst_glob9 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Spump_ATTRS:[0-9]+]]
+// CHECK: @Nonconst_glob10 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Merge_ATTRS:[0-9]+]]
+// CHECK: @Nonconst_glob11 = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[Non_Const_Pc_ATTRS:[0-9]+]]
 // CHECK: @_ZL1B = internal addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[B_ATTRS:[0-9]+]]
 // CHECK: @_ZN3Foo1CE = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[C_ATTRS:[0-9]+]]
 
@@ -85,6 +101,14 @@ void foo() {
       (void)Nonconst_glob1;
       (void)Nonconst_glob2;
       (void)Nonconst_glob3;
+      (void)Nonconst_glob4;
+      (void)Nonconst_glob5;
+      (void)Nonconst_glob6;
+      (void)Nonconst_glob7;
+      (void)Nonconst_glob8;
+      (void)Nonconst_glob9;
+      (void)Nonconst_glob10;
+      (void)Nonconst_glob11;
       (void)B;
       (void)Foo::C;
       (void)same_name;
@@ -122,6 +146,14 @@ void bar() {
 // CHECK: attributes #[[Non_Const_Max_ATTRS]] = { "sycl-unique-id"="_Z14Nonconst_glob1" }
 // CHECK: attributes #[[Non_Const_Force_ATTRS]] = { "sycl-unique-id"="_Z14Nonconst_glob2" }
 // CHECK: attributes #[[Non_Const_Bankw_ATTRS]] = { "sycl-unique-id"="_Z14Nonconst_glob3" }
+// CHECK: attributes #[[Non_Const_Simple_ATTRS]] = { "sycl-unique-id"="_Z14Nonconst_glob4" }
+// CHECK: attributes #[[Non_Const_Mem_ATTRS]] = { "sycl-unique-id"="_Z14Nonconst_glob5" }
+// CHECK: attributes #[[Non_Const_Bankbits_ATTRS]] = { "sycl-unique-id"="_Z14Nonconst_glob6" }
+// CHECK: attributes #[[Non_Const_Reg_ATTRS]] = { "sycl-unique-id"="_Z14Nonconst_glob7" }
+// CHECK: attributes #[[Non_Const_Dpump_ATTRS]] = { "sycl-unique-id"="_Z14Nonconst_glob8" }
+// CHECK: attributes #[[Non_Const_Spump_ATTRS]] = { "sycl-unique-id"="_Z14Nonconst_glob9" }
+// CHECK: attributes #[[Non_Const_Merge_ATTRS]] = { "sycl-unique-id"="_Z15Nonconst_glob10" }
+// CHECK: attributes #[[Non_Const_Pc_ATTRS]] = { "sycl-unique-id"="_Z15Nonconst_glob11" }
 // CHECK: attributes #[[B_ATTRS]] = { "sycl-unique-id"="THE_PREFIX____ZL1B" }
 // CHECK: attributes #[[C_ATTRS]] = { "sycl-unique-id"="_ZN3Foo1CE" }
 // CHECK: attributes #[[SAME_NAME_ATTRS]] = { "sycl-unique-id"="_Z9same_name" }
