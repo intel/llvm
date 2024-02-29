@@ -15,7 +15,6 @@
 #include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/queue.hpp>
-#include <sycl/stl.hpp>
 
 #include <algorithm>
 

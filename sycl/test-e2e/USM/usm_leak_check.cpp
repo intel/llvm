@@ -1,8 +1,5 @@
 // REQUIRES: level_zero
 
-// https://github.com/intel/llvm/issues/11434
-// XFAIL: gpu-intel-dg2
-
 // RUN: %{build} -o %t.out
 
 // RUN: %{l0_leak_check} %{run} %t.out u 2>&1 | FileCheck %s --implicit-check-not=LEAK
