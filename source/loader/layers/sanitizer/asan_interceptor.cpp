@@ -87,6 +87,9 @@ uptr MemToShadow_PVC(uptr USM_SHADOW_BASE, uptr UPtr) {
 
 SanitizerInterceptor::SanitizerInterceptor() {
     auto Options = getenv_to_map("UR_LAYER_ASAN_OPTIONS");
+    if (!Options.has_value()) {
+        return;
+    }
     auto KV = Options->find("debug");
     if (KV != Options->end()) {
         auto Value = KV->second.front();
