@@ -9757,6 +9757,19 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   assert(isa<OffloadWrapperJobAction>(JA) && "Expecting wrapping job!");
 
   Action::OffloadKind OffloadingKind = JA.getOffloadingDeviceKind();
+  auto createArgString = [&](const char *Opt,
+                             ArgStringList CurBuildArgs) -> StringRef {
+    SmallString<128> AL;
+    for (const char *A : CurBuildArgs) {
+      if (AL.empty()) {
+        AL = A;
+        continue;
+      }
+      AL += " ";
+      AL += A;
+    }
+    return StringRef(C.getArgs().MakeArgString(Twine(Opt) + AL));
+  };
   if (OffloadingKind == Action::OFK_SYCL) {
     // The wrapper command looks like this:
     // clang-offload-wrapper
@@ -9809,21 +9822,6 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     }
     // Grab any Target specific options that need to be added to the wrapper
     // information.
-    ArgStringList BuildArgs;
-    auto createArgString = [&](const char *Opt) {
-      if (BuildArgs.empty())
-        return;
-      SmallString<128> AL;
-      for (const char *A : BuildArgs) {
-        if (AL.empty()) {
-          AL = A;
-          continue;
-        }
-        AL += " ";
-        AL += A;
-      }
-      WrapperArgs.push_back(C.getArgs().MakeArgString(Twine(Opt) + AL));
-    };
     const toolchains::SYCLToolChain &TC =
               static_cast<const toolchains::SYCLToolChain &>(getToolChain());
     // TODO: Consider separating the mechanisms for:
@@ -9836,12 +9834,17 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       // Only store compile/link opts in the image descriptor for the SPIR-V
       // target; AOT compilation has already been performed otherwise.
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+      ArgStringList BuildArgs;
       TC.AddImpliedTargetArgs(TT, TCArgs, BuildArgs, JA, *HostTC);
       TC.TranslateBackendTargetArgs(TT, TCArgs, BuildArgs);
-      createArgString("-compile-opts=");
+      if (!BuildArgs.empty())
+        WrapperArgs.push_back(TCArgs.MakeArgString(
+            createArgString("-compile-opts=", BuildArgs)));
       BuildArgs.clear();
       TC.TranslateLinkerTargetArgs(TT, TCArgs, BuildArgs);
-      createArgString("-link-opts=");
+      if (!BuildArgs.empty())
+        WrapperArgs.push_back(TCArgs.MakeArgString(
+            createArgString("-link-opts=", BuildArgs)));
     }
     bool IsEmbeddedIR = cast<OffloadWrapperJobAction>(JA).isEmbeddedIR();
     if (IsEmbeddedIR) {
@@ -9968,6 +9971,9 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     return;
   }
 
+
+  bool IsEmbeddedIR = cast<OffloadWrapperJobAction>(JA).isEmbeddedIR();
+
   // Add offload targets and inputs.
   for (unsigned I = 0; I < Inputs.size(); ++I) {
     // Get input's Offload Kind and ToolChain.
@@ -9984,8 +9990,38 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // And add it to the offload targets.
     CmdArgs.push_back(C.getArgs().MakeArgString(
         Twine("-kind=") + Action::GetOffloadKindName(DeviceKind)));
+    std::string TargetTripleOpt = DeviceTC->getTriple().normalize();
+    // SYCL toolchain target only uses the arch name.
+    if (DeviceKind == Action::OFK_SYCL)
+      TargetTripleOpt = DeviceTC->getTriple().getArchName();
     CmdArgs.push_back(TCArgs.MakeArgString(Twine("-target=") +
-                                           DeviceTC->getTriple().normalize()));
+                                           TargetTripleOpt));
+
+    const toolchains::SYCLToolChain &TC =
+              static_cast<const toolchains::SYCLToolChain &>(*DeviceTC);
+    if (TC.getTriple().getSubArch() == llvm::Triple::NoSubArch) {
+      // Only store compile/link opts in the image descriptor for the SPIR-V
+      // target; AOT compilation has already been performed otherwise.
+      const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+      llvm::Triple TT = TC.getTriple();
+      ArgStringList BuildArgs;
+      TC.AddImpliedTargetArgs(TT, C.getArgs(), BuildArgs, JA, *HostTC);
+      TC.TranslateBackendTargetArgs(TT, C.getArgs(), BuildArgs);
+      if (!BuildArgs.empty())
+        CmdArgs.push_back(TCArgs.MakeArgString(
+            createArgString("-compile-opts=", BuildArgs)));
+      BuildArgs.clear();
+      TC.TranslateLinkerTargetArgs(TT, C.getArgs(), BuildArgs);
+      if (!BuildArgs.empty())
+        CmdArgs.push_back(TCArgs.MakeArgString(
+            createArgString("-link-opts=", BuildArgs)));
+    }
+
+    const InputInfo &CurI = Inputs[I];
+    if (CurI.getType() == types::TY_Tempfiletable ||
+        CurI.getType() == types::TY_Tempfilelist || IsEmbeddedIR)
+      // wrapper actual input files are passed via the batch job file table:
+     CmdArgs.push_back(C.getArgs().MakeArgString("-batch"));
 
     // Add input.
     assert(Inputs[I].isFilename() && "Invalid input.");
