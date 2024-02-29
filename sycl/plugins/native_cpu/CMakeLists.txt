@@ -27,14 +27,14 @@ add_sycl_plugin(native_cpu
 if(NATIVECPU_USE_OCK)
   include(FetchContent)
   FetchContent_Declare(oneapi-ck
-   GIT_REPOSITORY https://github.com/PietroGhg/oneapi-construction-kit.git
-   # commit 6151546aeae04d93c6db9372fdc01d887c9b416a
-   # Merge: 63f4ba99 ab60de54
+   GIT_REPOSITORY https://github.com/codeplaysoftware/oneapi-construction-kit.git
+   # commit 62090f9d469a30e0595f445ff664ea2ecfe77b44
+   # Merge: 6151546a af33ddfb
    # Author: PietroGhg <pietro.ghiglio@codeplay.com>
-   # Date:   Wed Feb 28 11:03:42 2024 +0100
-   # Merge pull request #378 from PietroGhg/pietro/update_26_feb
-   # [NATIVECPU] Merge main in experimental branch
-   GIT_TAG  pietro/multi_llvm_include
+   # Date:   Thu Feb 29 12:46:49 2024 +0100
+   # Merge pull request #385 from PietroGhg/pietro/multi_llvm_include
+   # [NATIVECPU] Avoid specifying include path manually for multi_llvm and Native CPU
+   GIT_TAG  62090f9d469a30e0595f445ff664ea2ecfe77b44
   )
   FetchContent_GetProperties(oneapi-ck)
   if(NOT oneapi-ck_POPULATED)
