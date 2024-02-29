@@ -2,11 +2,17 @@
 
 template <typename T, typename D> bool equal(T x, T y, D delta) {
   // Maybe should be C++20's std::equality_comparable.
+  auto Abs = [](auto x) {
+    if constexpr (std::is_unsigned_v<decltype(x)>)
+      return x;
+    else
+      return std::abs(x);
+  };
   if constexpr (std::is_scalar_v<T> || std::is_same_v<sycl::half, T>) {
-    return std::abs(x - y) <= delta;
+    return Abs(x - y) <= delta;
   } else {
     for (size_t i = 0; i < x.size(); ++i)
-      if (std::abs(x[i] - y[i]) > delta)
+      if (Abs(x[i] - y[i]) > delta)
         return false;
 
     return true;
