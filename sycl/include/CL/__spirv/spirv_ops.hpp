@@ -178,7 +178,7 @@ template <typename T>
 extern __DPCPP_SYCL_EXTERNAL void __spirv_CooperativeMatrixPrefetchINTEL(
     T *Ptr, int32_t coordX, int32_t coordY, int32_t NumRows,
     int32_t NumCols, unsigned int CacheLevel, __spv::MatrixLayout Layout,
-    int32_t Stride);
+    size_t Stride);
 
 #ifndef __SPIRV_BUILTIN_DECLARATIONS__
 #error                                                                         \
