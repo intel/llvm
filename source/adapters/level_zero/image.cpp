@@ -552,6 +552,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
     size_t *pResultPitch) {
   std::shared_lock<ur_shared_mutex> Lock(hContext->Mutex);
 
+  UR_ASSERT(hContext && hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(widthInBytes != 0, UR_RESULT_ERROR_INVALID_USM_SIZE);
+  UR_ASSERT(ppMem && pResultPitch, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
   static std::once_flag InitFlag;
   std::call_once(InitFlag, [&]() {
     ze_driver_handle_t DriverHandle = hContext->getPlatform()->ZeDriver;
@@ -606,6 +610,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     ur_exp_image_mem_handle_t *phImageMem) {
   std::shared_lock<ur_shared_mutex> Lock(hContext->Mutex);
 
+  UR_ASSERT(hContext && hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pImageFormat && pImageDesc && phImageMem,
+            UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
   ZeStruct<ze_image_desc_t> ZeImageDesc;
   UR_CALL(ur2zeImageDesc(pImageFormat, pImageDesc, ZeImageDesc));
 
@@ -641,6 +649,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     ur_exp_image_handle_t *phImage) {
   std::shared_lock<ur_shared_mutex> Lock(hContext->Mutex);
 
+  UR_ASSERT(hContext && hDevice && hImageMem,
+            UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pImageFormat && pImageDesc && phMem && phImage,
+            UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
   ZeStruct<ze_image_desc_t> ZeImageDesc;
   UR_CALL(ur2zeImageDesc(pImageFormat, pImageDesc, ZeImageDesc));
 
@@ -669,7 +682,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
       ZeImage = UrImage->ZeImage;
       *phMem = nullptr;
     }
-  } else {
+  } else if (MemAllocProperties.type == ZE_MEMORY_TYPE_DEVICE) {
     ze_image_pitched_exp_desc_t PitchedDesc;
     PitchedDesc.stype = ZE_STRUCTURE_TYPE_PITCHED_IMAGE_EXP_DESC;
     PitchedDesc.pNext = nullptr;
@@ -688,6 +701,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
                (hContext->ZeContext, hDevice->ZeDevice, ZeImage));
     UR_CALL(createUrMemFromZeImage(hContext, ZeImage, /*OwnZeMemHandle*/ true,
                                    ZeImageDesc, phMem));
+  } else {
+    return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
   static std::once_flag InitFlag;
@@ -741,6 +756,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     ur_rect_region_t hostExtent, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   std::scoped_lock<ur_shared_mutex> Lock(hQueue->Mutex);
+
+  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(pDst && pSrc && pImageFormat && pImageDesc,
+            UR_RESULT_ERROR_INVALID_NULL_POINTER);
+  UR_ASSERT(!(UR_EXP_IMAGE_COPY_FLAGS_MASK & imageCopyFlags),
+            UR_RESULT_ERROR_INVALID_ENUMERATION);
+  UR_ASSERT(!(pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type),
+            UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
+
   ZeStruct<ze_image_desc_t> ZeImageDesc;
   UR_CALL(ur2zeImageDesc(pImageFormat, pImageDesc, ZeImageDesc));
 
@@ -843,6 +867,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
 UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
     ur_exp_image_mem_handle_t hImageMem, ur_image_info_t propName,
     void *pPropValue, size_t *pPropSizeRet) {
+  UR_ASSERT(hImageMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(UR_IMAGE_INFO_DEPTH >= propName,
+            UR_RESULT_ERROR_INVALID_ENUMERATION);
+  UR_ASSERT(pPropValue || pPropSizeRet, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
   auto *UrImage = reinterpret_cast<_ur_image *>(hImageMem);
   ze_image_desc_t &Desc = UrImage->ZeImageDesc;
   switch (propName) {
