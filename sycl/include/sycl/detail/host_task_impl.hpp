@@ -83,7 +83,7 @@ std::enable_if_t<
     detail::check_fn_signature<std::remove_reference_t<FuncT>, void()>::value ||
     detail::check_fn_signature<std::remove_reference_t<FuncT>,
                                void(interop_handle)>::value>
-handler::host_task_impl(FuncT &&Func) {
+handler::host_task_impl(FuncT &&Func, const property_list &PropList) {
   throwIfActionIsCreated();
 
   MNDRDesc.set(range<1>(1));

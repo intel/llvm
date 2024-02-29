@@ -61,7 +61,7 @@ void interop_handle::addNativeEvents(
   }
 
   // Make a std::vector of PiEvents from the native events
-  for (auto i = 0; i < NativeEvents.size(); ++i) {
+  for (auto i = 0u; i < NativeEvents.size(); ++i) {
     detail::pi::PiEvent Ev;
     Plugin->call<detail::PiApiKind::piextEventCreateWithNativeHandle>(
         NativeEvents[i], MContext->getHandleRef(),
@@ -77,9 +77,6 @@ void interop_handle::addNativeEvents(
 }
 
 std::vector<pi_native_handle> interop_handle::getNativeEvents() const {
-  if (!MEvent->backendSet()) {
-    MEvent->setContextImpl(MContext);
-  }
   // What if the events here have not yet been enqueued? I will need to wait on
   // them. That is probably already done?
   //

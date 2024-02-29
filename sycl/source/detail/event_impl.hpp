@@ -344,7 +344,9 @@ public:
     return MHostTaskNativeEvents.size() > 0;
   }
 
-  bool backendSet() const { return hasHostTaskNativeEvents(); }
+  bool backendSet() const {
+    return !MContext->is_host() || hasHostTaskNativeEvents();
+  }
 
   const std::vector<EventImplPtr> &getHostTaskNativeEvents() const {
     return MHostTaskNativeEvents;
@@ -402,15 +404,17 @@ protected:
   std::weak_ptr<queue_impl> MWorkerQueue;
   std::weak_ptr<queue_impl> MSubmittedQueue;
 
-  // Used to hold pi_events for native events that are stored with
-  // interop_handle::add_native_events
-  std::vector<EventImplPtr> MHostTaskNativeEvents;
-
   /// Dependency events prepared for waiting by backend.
   std::vector<EventImplPtr> MPreparedDepsEvents;
   std::vector<EventImplPtr> MPreparedHostDepsEvents;
 
   std::vector<EventImplPtr> MPostCompleteEvents;
+
+  // Used to hold pi_events for native events that are stored with
+  // interop_handle::add_native_events
+  std::vector<EventImplPtr> MHostTaskNativeEvents;
+  std::atomic<bool> MHostTaskNativeEventsHaveBeenWaitedOn = false;
+  std::mutex MHostTaskNativeEventsMutex;
 
   /// Indicates that the task associated with this event has been submitted by
   /// the queue to the device.

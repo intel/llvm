@@ -81,8 +81,7 @@ template <> struct BackendReturn<backend::ext_oneapi_hip, device> {
 };
 
 template <> struct BackendInput<backend::ext_oneapi_hip, event> {
-  using type = std::vector<HIPevent>;
-  using value_type = HIPevent;
+  using type = HIPevent;
 };
 
 template <> struct BackendReturn<backend::ext_oneapi_hip, event> {
