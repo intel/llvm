@@ -827,8 +827,8 @@ struct get_device_info_impl<
            matrix_type::fp64, matrix_type::fp64},
       };
     else if (backend::ext_oneapi_cuda == CurrentBackend) {
-      // TODO: Tho following can be simplified when comparison of
-      // architectures using < and > will be implemented
+      // TODO: Tho following can be simplified when comparison of architectures
+      // using < and > will be implemented
       using oneapi_exp_arch = sycl::ext::oneapi::experimental::architecture;
       constexpr std::pair<float, oneapi_exp_arch> NvidiaArchNumbs[] = {
           {5.0, oneapi_exp_arch::nvidia_gpu_sm_50},
