@@ -7445,16 +7445,36 @@ static bool checkForDuplicateAttribute(Sema &S, Decl *D,
 
 // Checks if FPGA memory attributes apply on valid variables.
 // Returns true if an error occured.
-static bool CheckValidFPGAMemoryAttributesVar(Sema &S, Decl *D) {
+static bool SYCLIntelConstLocalStaticAgentMemVar(Sema &S, Decl *D) {
   if (const auto *VD = dyn_cast<VarDecl>(D)){
     if (!(isa<FieldDecl>(D) ||
-	  (VD->getKind() != Decl::ImplicitParam &&
-	   VD->getKind() != Decl::NonTypeTemplateParm &&
-	   (VD->getStorageClass() == SC_Static || VD->hasLocalStorage() ||
-	    S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(VD->getType()) ||
-	    VD->getType().isConstQualified() ||
-	    VD->getType().getAddressSpace() ==
-	        LangAS::opencl_constant)))) {
+          (VD->getKind() != Decl::ImplicitParam &&
+           VD->getKind() != Decl::NonTypeTemplateParm &&
+	   (VD->getStorageClass() == SC_Static ||
+            VD->hasLocalStorage() ||
+            (VD->getKind() != Decl::ParmVar &&
+             (S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(VD->getType()) ||
+              VD->getType().isConstQualified() ||
+              VD->getType().getAddressSpace() ==
+                  LangAS::opencl_constant)))))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool SYCLIntelConstOrLocalOrStaticVar(Sema &S, Decl *D) {
+  if (const auto *VD = dyn_cast<VarDecl>(D)){
+    if (!(isa<FieldDecl>(D) ||
+          (VD->getKind() != Decl::ImplicitParam &&
+           VD->getKind() != Decl::NonTypeTemplateParm &&
+           VD->getKind() != Decl::ParmVar &&
+           (S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(VD->getType()) ||
+            VD->getType().isConstQualified() ||
+            VD->getType().getAddressSpace() ==
+                LangAS::opencl_constant ||
+            VD->getStorageClass() == SC_Static ||
+            VD->hasLocalStorage())))) {
       return true;
     }
   }
@@ -7541,7 +7561,7 @@ static void handleSYCLIntelSinglePumpAttr(Sema &S, Decl *D,
 
   // Check attribute applies to field, constant variables, local variables,
   // static variables, non-static data members, and device_global variables.
-  if (CheckValidFPGAMemoryAttributesVar(S, D)) {
+  if (SYCLIntelConstOrLocalOrStaticVar(S, D)) {
     S.Diag(AL.getLoc(), diag::err_fpga_attribute_incorrect_variable) << AL
         << /*agent memory arguments*/ 0;
     return;
@@ -7572,7 +7592,7 @@ static void handleSYCLIntelDoublePumpAttr(Sema &S, Decl *D,
 
   // Check attribute applies to field, constant variables, local variables,
   // static variables, non-static data members, and device_global variables.
-  if (CheckValidFPGAMemoryAttributesVar(S, D)) {
+  if (SYCLIntelConstOrLocalOrStaticVar(S, D)) {
     S.Diag(AL.getLoc(), diag::err_fpga_attribute_incorrect_variable) << AL
 	 << /*agent memory arguments*/ 0;
     return;
@@ -7628,7 +7648,7 @@ static void handleSYCLIntelMemoryAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   // Check attribute applies to field, constant variables, local variables,
   // static variables, agent memory arguments, non-static data members,
   // and device_global variables.
-  if (CheckValidFPGAMemoryAttributesVar(S, D)) {
+  if (SYCLIntelConstLocalStaticAgentMemVar(S, D)) {
     S.Diag(AL.getLoc(), diag::err_fpga_attribute_incorrect_variable) << AL
 	 << /*agent memory arguments*/ 1;
     return;
@@ -7668,7 +7688,7 @@ static void handleSYCLIntelRegisterAttr(Sema &S, Decl *D,
 
   // Check attribute applies to field, constant variables, local variables,
   // static variables, non-static data members, and device_global variables.
-  if (CheckValidFPGAMemoryAttributesVar(S, D)) {
+  if (SYCLIntelConstOrLocalOrStaticVar(S, D)) {
     S.Diag(A.getLoc(), diag::err_fpga_attribute_incorrect_variable) << A
 	 << /*agent memory arguments*/ 0;
     return;
@@ -7715,7 +7735,7 @@ void Sema::AddSYCLIntelBankWidthAttr(Decl *D, const AttributeCommonInfo &CI,
     // Check attribute applies to field, constant variables, local variables,
     // static variables, agent memory arguments, non-static data members,
     // and device_global variables.
-    if (CheckValidFPGAMemoryAttributesVar(*this, D)) {
+    if (SYCLIntelConstLocalStaticAgentMemVar(*this, D)) {
       Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable) << CI
          << /*agent memory arguments*/ 1;
       return;
@@ -7808,7 +7828,7 @@ void Sema::AddSYCLIntelNumBanksAttr(Decl *D, const AttributeCommonInfo &CI,
     // Check attribute applies to constant variables, local variables,
     // static variables, agent memory arguments, non-static data members,
     // and device_global variables.
-    if (CheckValidFPGAMemoryAttributesVar(*this, D)) {
+    if (SYCLIntelConstLocalStaticAgentMemVar(*this, D)) {
       Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable) << CI
          << /*agent memory arguments*/ 1;
       return;
@@ -7884,7 +7904,7 @@ static void handleIntelSimpleDualPortAttr(Sema &S, Decl *D,
   // Check attribute applies to field, constant variables, local variables,
   // static variables, agent memory arguments, non-static data members,
   // and device_global variables.
-  if (CheckValidFPGAMemoryAttributesVar(S, D)) {
+  if (SYCLIntelConstLocalStaticAgentMemVar(S, D)) {
     S.Diag(AL.getLoc(), diag::err_fpga_attribute_incorrect_variable) << AL
 	 << /*agent memory arguments*/ 1;
     return;
@@ -7919,9 +7939,9 @@ void Sema::AddSYCLIntelMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
     // Check attribute applies to field, constant variables, local variables,
     // static variables, agent memory arguments, non-static data members,
     // and device_global variables.
-    if (CheckValidFPGAMemoryAttributesVar(*this, D)) {
+    if (SYCLIntelConstLocalStaticAgentMemVar(*this, D)) {
       Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable) << CI
-	 << /*agent memory arguments*/ 1;
+         << /*agent memory arguments*/ 1;
       return;
     }
 
@@ -8010,7 +8030,7 @@ static void handleSYCLIntelMergeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   // Check attribute applies to field, constant variables, local variables,
   // static variables, non-static data members, and device_global variables.
-  if (CheckValidFPGAMemoryAttributesVar(S, D)) {
+  if (SYCLIntelConstOrLocalOrStaticVar(S, D)) {
     S.Diag(AL.getLoc(), diag::err_fpga_attribute_incorrect_variable) << AL
          << /*agent memory arguments*/ 0;
     return;
@@ -8104,7 +8124,7 @@ void Sema::AddSYCLIntelBankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
   // Check attribute applies to field, constant variables, local variables,
   // static variables, agent memory arguments, non-static data members,
   // and device_global variables.
-  if (CheckValidFPGAMemoryAttributesVar(*this, D)) {
+  if (SYCLIntelConstLocalStaticAgentMemVar(*this, D)) {
     Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable) << CI
        << /*agent memory arguments*/ 1;
     return;
@@ -8204,9 +8224,9 @@ void Sema::AddSYCLIntelForcePow2DepthAttr(Decl *D,
     // Check attribute applies to field, constant variables, local variables,
     // static variables, agent memory arguments, non-static data members,
     // and device_global variables.
-    if (CheckValidFPGAMemoryAttributesVar(*this, D)) {
+    if (SYCLIntelConstLocalStaticAgentMemVar(*this, D)) {
       Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable) << CI
-	 << /*agent memory arguments*/ 1;
+         << /*agent memory arguments*/ 1;
       return;
     }
 

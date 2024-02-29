@@ -212,9 +212,13 @@ void attr_on_func_arg3([[intel::bankwidth(8)]] int pc3) {}
 void attr_on_func_arg4([[intel::simple_dual_port]] int pc4) {}
 void attr_on_func_arg5([[intel::fpga_memory]] int pc5) {}
 void attr_on_func_arg6([[intel::bank_bits(7, 8)]] int pc6) {}
+// expected-error@+1{{'singlepump' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 void attr_on_func_arg7([[intel::singlepump]] int pc7) {}
+// expected-error@+1{{'doublepump' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 void attr_on_func_arg8([[intel::doublepump]] int pc8) {}
+// expected-error@+1{{'fpga_register' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 void attr_on_func_arg9([[intel::fpga_register]] int pc9) {}
+// expected-error@+1{{'merge' attribute only applies to constant variables, local variables, static variables, non-static data members and device_global variables}}
 void attr_on_func_arg10([[intel::merge("mrg1", "width")]] int pc10) {}
 
 struct [[__sycl_detail__::global_variable_allowed]] GlobAllowedVarOnly {
