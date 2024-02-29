@@ -90,30 +90,6 @@ __esimd_lsc_prefetch_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
                          __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
                          SurfIndAliasTy surf_ind) __ESIMD_INTRIN_END;
 
-/// USM pointer prefetch gather.
-/// Supported platforms: DG2, PVC
-///
-/// Prefetches elements located at specified address.
-///
-/// @tparam Ty is element type.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L2H is L2 cache hint.
-/// @tparam AddressScale is the address scale.
-/// @tparam ImmOffset is the immediate offset added to each address.
-/// @tparam DS is the data size.
-/// @tparam VS is the number of elements to load per address.
-/// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access)
-/// @param pred is predicates.
-/// @param addrs is the prefetch addresses.
-template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L2H,
-          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
-          __ESIMD_EDNS::lsc_vector_size VS,
-          __ESIMD_EDNS::lsc_data_order _Transposed, int N>
-__ESIMD_INTRIN void __esimd_lsc_prefetch_stateless(
-    __ESIMD_DNS::simd_mask_storage_t<N> pred,
-    __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs) __ESIMD_INTRIN_END;
-
 /// 2D USM pointer block load.
 /// Supported platforms: PVC
 ///
