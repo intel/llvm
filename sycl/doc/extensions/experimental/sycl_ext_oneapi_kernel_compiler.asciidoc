@@ -236,8 +236,8 @@ _Throws:_
   source language `lang` is text format.
 
 [_Note:_ Calling this function does not attempt to compile the source code.
-As a result, syntactic errors in the source code string are not diagnosed by
-this function.
+As a result, syntax errors in `source` or `bytes` are not diagnosed by this
+function.
 
 This function succeeds even if some devices in `ctxt` do not support the source
 language `lang`.
