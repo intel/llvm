@@ -171,7 +171,6 @@ jobs:
       id: build
       run: |
         cmake --build $GITHUB_WORKSPACE/build
-        cmake --build $GITHUB_WORKSPACE/build --target install
         #- name: check-llvm
       #if: always() && !cancelled() && contains(inputs.changes, 'llvm')
         #run: |
@@ -193,6 +192,8 @@ jobs:
       run: |
         # TODO consider moving this to Dockerfile.
         export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+        export PATH=$GITHUB_WORKSPACE/build/bin:$PATH
+        export LD_LIBRARY_PATH=$GITHUB_WORKSPACE/build/lib:$LD_LIBRARY_PATH
         echo $PATH
         echo $LD_LIBRARY_PATH
         ldd $(which sycl-ls)
