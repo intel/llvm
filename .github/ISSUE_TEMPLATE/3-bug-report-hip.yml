@@ -30,7 +30,7 @@ body:
         - OS: [e.g Windows/Linux]
         - Target device and vendor: [e.g. AMD GPU]
         - DPC++ version: [e.g. commit hash or output of `clang++ --version`]
-        - Dependencies version: [e.g. the output of `rocm-smi`]
+        - Dependencies version: [e.g. the output of `rocm-smi` and `sycl-ls --verbose`]
     validations:
       required: false
   - type: textarea
