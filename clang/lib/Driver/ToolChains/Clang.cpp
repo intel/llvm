@@ -9838,13 +9838,13 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       TC.AddImpliedTargetArgs(TT, TCArgs, BuildArgs, JA, *HostTC);
       TC.TranslateBackendTargetArgs(TT, TCArgs, BuildArgs);
       if (!BuildArgs.empty())
-        WrapperArgs.push_back(TCArgs.MakeArgString(
-            createArgString("-compile-opts=", BuildArgs)));
+        WrapperArgs.push_back(
+            TCArgs.MakeArgString(createArgString("-compile-opts=", BuildArgs)));
       BuildArgs.clear();
       TC.TranslateLinkerTargetArgs(TT, TCArgs, BuildArgs);
       if (!BuildArgs.empty())
-        WrapperArgs.push_back(TCArgs.MakeArgString(
-            createArgString("-link-opts=", BuildArgs)));
+        WrapperArgs.push_back(
+            TCArgs.MakeArgString(createArgString("-link-opts=", BuildArgs)));
     }
     bool IsEmbeddedIR = cast<OffloadWrapperJobAction>(JA).isEmbeddedIR();
     if (IsEmbeddedIR) {
@@ -9971,7 +9971,6 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     return;
   }
 
-
   bool IsEmbeddedIR = cast<OffloadWrapperJobAction>(JA).isEmbeddedIR();
 
   // Add offload targets and inputs.
@@ -9994,11 +9993,11 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // SYCL toolchain target only uses the arch name.
     if (DeviceKind == Action::OFK_SYCL)
       TargetTripleOpt = DeviceTC->getTriple().getArchName();
-    CmdArgs.push_back(TCArgs.MakeArgString(Twine("-target=") +
-                                           TargetTripleOpt));
+    CmdArgs.push_back(
+        TCArgs.MakeArgString(Twine("-target=") + TargetTripleOpt));
 
     const toolchains::SYCLToolChain &TC =
-              static_cast<const toolchains::SYCLToolChain &>(*DeviceTC);
+        static_cast<const toolchains::SYCLToolChain &>(*DeviceTC);
     if (TC.getTriple().getSubArch() == llvm::Triple::NoSubArch) {
       // Only store compile/link opts in the image descriptor for the SPIR-V
       // target; AOT compilation has already been performed otherwise.
@@ -10008,20 +10007,20 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       TC.AddImpliedTargetArgs(TT, C.getArgs(), BuildArgs, JA, *HostTC);
       TC.TranslateBackendTargetArgs(TT, C.getArgs(), BuildArgs);
       if (!BuildArgs.empty())
-        CmdArgs.push_back(TCArgs.MakeArgString(
-            createArgString("-compile-opts=", BuildArgs)));
+        CmdArgs.push_back(
+            TCArgs.MakeArgString(createArgString("-compile-opts=", BuildArgs)));
       BuildArgs.clear();
       TC.TranslateLinkerTargetArgs(TT, C.getArgs(), BuildArgs);
       if (!BuildArgs.empty())
-        CmdArgs.push_back(TCArgs.MakeArgString(
-            createArgString("-link-opts=", BuildArgs)));
+        CmdArgs.push_back(
+            TCArgs.MakeArgString(createArgString("-link-opts=", BuildArgs)));
     }
 
     const InputInfo &CurI = Inputs[I];
     if (CurI.getType() == types::TY_Tempfiletable ||
         CurI.getType() == types::TY_Tempfilelist || IsEmbeddedIR)
       // wrapper actual input files are passed via the batch job file table:
-     CmdArgs.push_back(C.getArgs().MakeArgString("-batch"));
+      CmdArgs.push_back(C.getArgs().MakeArgString("-batch"));
 
     // Add input.
     assert(Inputs[I].isFilename() && "Invalid input.");
