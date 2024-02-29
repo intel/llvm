@@ -290,7 +290,7 @@ public:
     return MEventFromSubmittedExecCommandBuffer;
   }
 
-  std::vector<EventImplPtr> getPostCompleteEvents() const {
+  const std::vector<EventImplPtr> &getPostCompleteEvents() const {
     return MPostCompleteEvents;
   }
 
