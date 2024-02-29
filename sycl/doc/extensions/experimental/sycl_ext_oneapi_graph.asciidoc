@@ -342,8 +342,9 @@ class assume_buffer_outlives_graph {
     assume_buffer_outlives_graph() = default;
 };
 
-public:
-  enable_profiling() = default;
+class enable_profiling {
+  public:
+    enable_profiling() = default;
 };
 } // namespace graph
 

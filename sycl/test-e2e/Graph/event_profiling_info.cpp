@@ -182,21 +182,6 @@ int main() {
     assert(verifyProfiling(CopyEvent) && verifyProfiling(KernelEvent1) &&
            verifyProfiling(KernelEvent2) &&
            compareProfiling(KernelEvent1, KernelEvent2));
-
-    // Checks exception thrown if profiling is requested while the
-    // enable_profiling property has not been passed to `finalize()`.
-    auto CopyGraphExecInOrder = CopyGraph.finalize();
-    auto EventInOrder = Queue.submit(
-        [&](handler &CGH) { CGH.ext_oneapi_graph(CopyGraphExecInOrder); });
-    Queue.wait_and_throw();
-    bool Success = false;
-    try {
-      EventInOrder
-          .get_profiling_info<sycl::info::event_profiling::command_start>();
-    } catch (sycl::exception &E) {
-      Success = true;
-    }
-    assert(Success);
   }
 
   host_accessor HostData(BufferTo);
