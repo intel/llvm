@@ -477,8 +477,11 @@ In general, the log information is intended for human consumption, and the
 format may not be stable across implementations of this extension.
 
 _Effects (1):_ Constructs a `save_log` property with a pointer to a `std::string`.
-When the `build` function completes successfully, this string will contain the
-log.
+If the `to` pointer is not null, when the `build` function completes
+successfully, the string pointed at by `to` will contain the log.
+
+_Remarks (1):_ When `to` is not null, the string object it points to must
+remain valid for all calls to `build` taking this `save_log` property.
 
 a|
 [frame=all,grid=none]
