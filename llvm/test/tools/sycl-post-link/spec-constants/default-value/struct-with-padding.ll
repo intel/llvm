@@ -4,7 +4,7 @@
 ; RUN: cat %t.table | FileCheck %s -check-prefix=CHECK-TABLE
 ; RUN: cat %t_1.prop | FileCheck %s -check-prefix=CHECK-PROP1
 ; RUN: cat %t_1.ll | FileCheck %s -check-prefix=CHECK-IR1 --implicit-check-not SpecConstant
-; RUN: sycl-post-link -debug-only=SpecConst -split=auto -spec-const=native -S %s -generate-device-image-default-spec-consts 2>&1 | FileCheck %s --check-prefix=CHECK-LOG
+; RUN: %if asserts %{ sycl-post-link -debug-only=SpecConst -split=auto -spec-const=native -S %s -generate-device-image-default-spec-consts 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
 
 ; CHECK-TABLE: {{.*}}_0.ll|{{.*}}_0.prop
 ; CHECK-TABLE: {{.*}}_1.ll|{{.*}}_1.prop

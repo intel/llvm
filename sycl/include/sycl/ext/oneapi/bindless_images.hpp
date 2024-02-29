@@ -191,7 +191,7 @@ __SYCL_EXPORT image_mem_handle get_mip_level_mem_handle(
  */
 __SYCL_EXPORT image_mem_handle get_mip_level_mem_handle(
     const image_mem_handle mipMem, const unsigned int level,
-    const sycl::device &syclQueue);
+    const sycl::queue &syclQueue);
 
 /**
  *  @brief   Import external memory taking an external memory handle (the type
@@ -683,9 +683,7 @@ get_image_num_channels(const image_mem_handle memHandle,
 namespace detail {
 
 // is sycl::vec
-template <typename T> struct is_vec {
-  static constexpr bool value = false;
-};
+template <typename T> struct is_vec { static constexpr bool value = false; };
 template <typename T, int N> struct is_vec<sycl::vec<T, N>> {
   static constexpr bool value = true;
 };
@@ -1098,6 +1096,56 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
 }
 
 /**
+ *  @brief   Fetch data from an unsampled image array using its handle
+ *
+ *  @tparam  DataT The return type
+ *  @tparam  HintT A hint type that can be used to select for a specialized
+ *           backend intrinsic when a user-defined type is passed as `DataT`.
+ *           HintT should be a `sycl::vec` type, `sycl::half` type, or POD type.
+ *           HintT must also have the same size as DataT.
+ *  @tparam  CoordT The input coordinate type. e.g. int or int2 for 1D or 2D,
+ *           respectively
+ *  @param   imageHandle The image handle
+ *  @param   coords The coordinates at which to fetch image data
+ *  @param   arrayLayer The image array layer at which to fetch
+ *  @return  Image data
+ *
+ *  __NVPTX__: Name mangling info
+ *             Cuda surfaces require integer coords (by bytes)
+ *             Cuda textures require float coords (by element or normalized)
+ *             The name mangling should therefore not interfere with one
+ *             another
+ */
+template <typename DataT, typename HintT = DataT, typename CoordT>
+DataT fetch_image_array(const unsampled_image_handle &imageHandle
+                        [[maybe_unused]],
+                        const CoordT &coords [[maybe_unused]],
+                        const int arrayLayer [[maybe_unused]]) {
+  detail::assert_unsampled_coords<CoordT>();
+  constexpr size_t coordSize = detail::coord_size<CoordT>();
+  static_assert(coordSize == 1 || coordSize == 2,
+                "Expected input coordinate to be have 1 or 2 components for 1D "
+                "and 2D images respectively.");
+
+#ifdef __SYCL_DEVICE_ONLY__
+  if constexpr (detail::is_recognized_standard_type<DataT>()) {
+    return __invoke__ImageArrayFetch<DataT>(imageHandle.raw_handle, coords,
+                                            arrayLayer);
+  } else {
+    static_assert(sizeof(HintT) == sizeof(DataT),
+                  "When trying to fetch a user-defined type, HintT must be of "
+                  "the same size as the user-defined DataT.");
+    static_assert(detail::is_recognized_standard_type<HintT>(),
+                  "HintT must always be a recognized standard type");
+    return sycl::bit_cast<DataT>(__invoke__ImageArrayFetch<HintT>(
+        imageHandle.raw_handle, coords, arrayLayer));
+  }
+#else
+  assert(false); // Bindless images not yet implemented on host.
+#endif
+}
+
+/**
  *  @brief   Write to an unsampled image using its handle
  *
  *  @tparam  DataT The data type to write
@@ -1105,6 +1153,7 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
  *           1D, 2D, and 3D, respectively
  *  @param   imageHandle The image handle
  *  @param   coords The coordinates at which to write image data
+ *  @param   color The data to write
  */
 template <typename DataT, typename CoordT>
 void write_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
@@ -1127,6 +1176,44 @@ void write_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
   }
 #else
   assert(false); // Bindless images not yet implemented on host
+#endif
+}
+
+/**
+ *  @brief   Write to an unsampled image array using its handle
+ *
+ *  @tparam  DataT The data type to write
+ *  @tparam  CoordT The input coordinate type. e.g. int or int2 for 1D or 2D,
+ *           respectively
+ *  @param   imageHandle The image handle
+ *  @param   coords The coordinates at which to write image data
+ *  @param   arrayLayer The image array layer at which to write
+ *  @param   color The data to write
+ */
+template <typename DataT, typename CoordT>
+void write_image_array(const unsampled_image_handle &imageHandle
+                       [[maybe_unused]],
+                       const CoordT &coords [[maybe_unused]],
+                       const int arrayLayer [[maybe_unused]],
+                       const DataT &color [[maybe_unused]]) {
+  detail::assert_unsampled_coords<CoordT>();
+  constexpr size_t coordSize = detail::coord_size<CoordT>();
+  static_assert(coordSize == 1 || coordSize == 2,
+                "Expected input coordinate to be have 1 or 2 components for 1D "
+                "and 2D images respectively.");
+
+#ifdef __SYCL_DEVICE_ONLY__
+  if constexpr (detail::is_recognized_standard_type<DataT>()) {
+    __invoke__ImageArrayWrite(static_cast<uint64_t>(imageHandle.raw_handle),
+                              coords, arrayLayer, color);
+  } else {
+    // Convert DataT to a supported backend write type when user-defined type is
+    // passed
+    __invoke__ImageArrayWrite(static_cast<uint64_t>(imageHandle.raw_handle),
+                              coords, arrayLayer, detail::convert_color(color));
+  }
+#else
+  assert(false); // Bindless images not yet implemented on host.
 #endif
 }
 
