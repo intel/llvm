@@ -51,10 +51,9 @@ template <typename T, typename Tp, std::size_t R, std::size_t C,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern __DPCPP_SYCL_EXTERNAL
     __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *
-    __spirv_CooperativeMatrixConstructCheckedINTEL(const T Value, size_t Height,
-                                                   size_t Stride, size_t Width,
-                                                   size_t CoordX,
-                                                   size_t CoordY);
+    __spirv_CooperativeMatrixConstructCheckedINTEL(
+        const T Value, int32_t Height, size_t Stride, int32_t Width,
+        int32_t CoordX, int32_t CoordY);
 
 template <typename T, typename Tp, std::size_t R, std::size_t C,
           __spv::MatrixUse U,
@@ -63,8 +62,8 @@ template <typename T, typename Tp, std::size_t R, std::size_t C,
 extern __DPCPP_SYCL_EXTERNAL
     __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *
     __spirv_JointMatrixLoadCheckedINTEL(T *Ptr, std::size_t Stride,
-                                        size_t Height, size_t Width,
-                                        size_t CoordX, size_t CoordY,
+                                        int32_t Height, int32_t Width,
+                                        int32_t CoordX, int32_t CoordY,
                                         __spv::MatrixLayout Layout = L,
                                         __spv::Scope::Flag Sc = S,
                                         int MemOperand = 0);
@@ -75,8 +74,8 @@ template <typename T, typename Tp, std::size_t R, std::size_t C,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern __DPCPP_SYCL_EXTERNAL void __spirv_JointMatrixStoreCheckedINTEL(
     T *Ptr, __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *Object,
-    std::size_t Stride, size_t Height, size_t Width, size_t CoordX,
-    size_t CoordY, __spv::MatrixLayout Layout = L, __spv::Scope::Flag Sc = S,
+    std::size_t Stride, int32_t Height, int32_t Width, int32_t CoordX,
+    int32_t CoordY, __spv::MatrixLayout Layout = L, __spv::Scope::Flag Sc = S,
     int MemOperand = 0);
 
 template <typename TA, typename TB, typename TC, std::size_t M, std::size_t K,
@@ -177,9 +176,9 @@ __spirv_VectorInsertDynamic(__spv::__spirv_JointMatrixINTEL<T, R, C, L, S, U> *,
 
 template <typename T>
 extern __DPCPP_SYCL_EXTERNAL void __spirv_CooperativeMatrixPrefetchINTEL(
-    T *Ptr, std::size_t coordX, std::size_t coordY, std::size_t NumRows,
-    std::size_t NumCols, unsigned int CacheLevel, __spv::MatrixLayout Layout,
-    std::size_t Stride);
+    T *Ptr, int32_t coordX, int32_t coordY, int32_t NumRows,
+    int32_t NumCols, unsigned int CacheLevel, __spv::MatrixLayout Layout,
+    int32_t Stride);
 
 #ifndef __SPIRV_BUILTIN_DECLARATIONS__
 #error                                                                         \
