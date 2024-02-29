@@ -522,7 +522,7 @@
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 7: compiler, {6}, ir, (host-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 8: backend, {7}, assembler, (host-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 9: assembler, {8}, object, (host-sycl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 10: input, "/localdisk2/mtoguchi/github/llvm/clang/test/Driver/sycl-offload.c", c++, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 10: input, "[[INPUT]]", c++, (device-sycl, sm_50)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 11: preprocessor, {10}, c++-cpp-output, (device-sycl, sm_50)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 12: compiler, {11}, ir, (device-sycl, sm_50)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 13: linker, {12}, ir, (device-sycl, sm_50)
