@@ -207,6 +207,82 @@ spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
   return SpirV;
 }
 
+bool OpenCLC_Feature_Available(const std::string &Feature, uint32_t IPVersion) {
+
+  static std::string FeatureLog = "";
+  if (FeatureLog.empty()) {
+    //  FeatureLog is empty, so let's go get it.
+
+    // handles into ocloc shared lib
+    static void *oclocInvokeHandle = nullptr;
+    static void *oclocFreeOutputHandle = nullptr;
+    std::error_code the_errc = make_error_code(errc::runtime);
+
+    // Set up Library
+    if (!oclocInvokeHandle) {
+      if (OclocLibrary == nullptr)
+        loadOclocLibrary();
+
+      oclocInvokeHandle = sycl::detail::pi::getOsLibraryFuncAddress(
+          OclocLibrary, "oclocInvoke");
+      if (!oclocInvokeHandle)
+        throw sycl::exception(the_errc, "Cannot load oclocInvoke() function");
+
+      oclocFreeOutputHandle = sycl::detail::pi::getOsLibraryFuncAddress(
+          OclocLibrary, "oclocFreeOutput");
+      if (!oclocFreeOutputHandle)
+        throw sycl::exception(the_errc,
+                              "Cannot load oclocFreeOutput() function");
+    }
+
+    uint32_t NumOutputs = 0;
+    uint8_t **Outputs = nullptr;
+    uint64_t *OutputLengths = nullptr;
+    char **OutputNames = nullptr;
+
+    std::vector<uint32_t> IPVersionVec{IPVersion};
+    std::vector<const char *> Args = {"ocloc", "query", "-device",
+                                      IPVersionsToString(IPVersionVec).c_str(),
+                                      "CL_DEVICE_OPENCL_C_FEATURES"};
+
+    decltype(::oclocInvoke) *OclocInvokeFunc =
+        reinterpret_cast<decltype(::oclocInvoke) *>(oclocInvokeHandle);
+
+    int InvokeError = OclocInvokeFunc(
+        Args.size(), Args.data(), 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
+        nullptr, &NumOutputs, &Outputs, &OutputLengths, &OutputNames);
+
+    // Gather the results.
+    for (uint32_t i = 0; i < NumOutputs; i++) {
+      if (!strcmp(OutputNames[i], "stdout.log")) {
+        const char *LogText = reinterpret_cast<const char *>(Outputs[i]);
+        if (LogText != nullptr && LogText[0] != '\0') {
+          FeatureLog.append(LogText);
+        }
+      }
+    }
+
+    // Try to free memory before reporting possible error.
+    decltype(::oclocFreeOutput) *OclocFreeOutputFunc =
+        reinterpret_cast<decltype(::oclocFreeOutput) *>(oclocFreeOutputHandle);
+    int MemFreeError = OclocFreeOutputFunc(&NumOutputs, &Outputs,
+                                           &OutputLengths, &OutputNames);
+
+    if (InvokeError) {
+      sycl::exception e(the_errc,
+                        "ocloc reported errors: {\n" + FeatureLog + "\n}");
+      FeatureLog = ""; // better luck next time?
+      throw e;
+    }
+
+    if (MemFreeError)
+      throw sycl::exception(the_errc, "ocloc cannot safely free resources");
+  }
+
+  // Allright, we have FeatureLog, so let's find that feature!
+  return (FeatureLog.find(Feature) != std::string::npos);
+}
+
 } // namespace detail
 } // namespace ext::oneapi::experimental
 } // namespace _V1

@@ -281,6 +281,14 @@ public:
   bool
   ext_oneapi_can_compile(ext::oneapi::experimental::source_language Language);
 
+  /// Indicates if the device supports a given feature when compiling the OpenCL
+  /// C language
+  ///
+  /// \param Feature
+  ///
+  /// \return true if supported
+  bool ext_oneapi_supports_cl_c_feature(const std::string &Feature);
+
 // TODO: Remove this diagnostics when __SYCL_WARN_IMAGE_ASPECT is removed.
 #if defined(__clang__)
 #pragma clang diagnostic pop

@@ -28,6 +28,8 @@ spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
 
 bool OpenCLC_Compilation_Available();
 
+bool OpenCLC_Feature_Available(const std::string &Feature, uint32_t IPVersion);
+
 } // namespace detail
 } // namespace ext::oneapi::experimental
 

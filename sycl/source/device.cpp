@@ -9,6 +9,7 @@
 #include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/kernel_compiler/kernel_compiler_opencl.hpp>
 #include <sycl/detail/device_filter.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/device.hpp>
@@ -266,6 +267,17 @@ bool device::ext_oneapi_architecture_is(
 bool device::ext_oneapi_can_compile(
     ext::oneapi::experimental::source_language Language) {
   return impl->extOneapiCanCompile(Language);
+}
+
+bool device::ext_oneapi_supports_cl_c_feature(const std::string &Feature) {
+  const detail::pi::PiDevice Device = impl->getHandleRef();
+  auto Plugin = impl->getPlugin();
+  uint32_t ipVersion = 0;
+  Plugin->call<detail::PiApiKind::piDeviceGetInfo>(
+      Device, PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
+      &ipVersion, nullptr);
+  return ext::oneapi::experimental::detail::OpenCLC_Feature_Available(
+      Feature, ipVersion);
 }
 
 } // namespace _V1
