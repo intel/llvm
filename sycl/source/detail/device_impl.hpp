@@ -239,6 +239,8 @@ public:
     return Arch == getDeviceArch();
   }
 
+  bool extOneapiCanCompile(ext::oneapi::experimental::source_language Language);
+
   /// Gets the current device timestamp
   /// @throw sycl::feature_not_supported if feature is not supported on device
   uint64_t getCurrentDeviceTime();

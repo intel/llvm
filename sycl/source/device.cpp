@@ -262,5 +262,11 @@ bool device::ext_oneapi_architecture_is(
   return impl->extOneapiArchitectureIs(arch);
 }
 
+// kernel_compiler extension methods
+bool device::ext_oneapi_can_compile(
+    ext::oneapi::experimental::source_language Language) {
+  return impl->extOneapiCanCompile(Language);
+}
+
 } // namespace _V1
 } // namespace sycl

@@ -397,26 +397,27 @@ namespace syclex = sycl::ext::oneapi::experimental;
 
 int main() {
   sycl::queue q;
-  sycl::device q.get_device();
+  sycl::device d =  q.get_device();
 
-  if (d.ext_oneapi_can_compile(syclex::source_language::opencl) {
+  if (d.ext_oneapi_can_compile(syclex::source_language::opencl)) 
     std::cout << "Device supports online compilation of OpenCL C kernels\n";
-  }
-  if (d.ext_oneapi_supports_cl_c_version(syclex::opencl_c_3_0) {
+
+  if (d.ext_oneapi_supports_cl_c_version(syclex::opencl_c_3_0)) 
     std::cout << "Device supports online compilation with OpenCL C 3.0\n";
-  }
-  if (d.ext_oneapi_supports_cl_c_feature("__opencl_c_fp64") {
+  
+  if (d.ext_oneapi_supports_cl_c_feature("__opencl_c_fp64")) 
     std::cout << "Device supports online compilation with 64-bit FP in OpenCL C\n";
-  }
+  
   syclex::cl_version version;
   if (d.ext_oneapi_supports_cl_extension("cl_intel_bfloat16_conversions", &version)) {
     std::cout << "Device supports online compilation of OpenCL C with bfloat16 "
       "conversions (version: " << version.major << "." << version.minor << "." <<
       version.patch << ")\n";
   }
-  if (d.ext_oneapi_cl_profile() == "FULL_PROFILE") {
+
+  if (d.ext_oneapi_cl_profile() == "FULL_PROFILE")
     std::cout << "Device supports online compilation with the OpenCL full profile\n";
-  }
+
 }
 ```
 

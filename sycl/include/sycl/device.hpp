@@ -18,6 +18,7 @@
 #include <sycl/device_selector.hpp>                             // for Enab...
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp> // for arch...
 #include <sycl/info/info_desc.hpp>                              // for part...
+#include <sycl/kernel_bundle_enums.hpp>                         // source_lang
 #include <sycl/platform.hpp>                                    // for plat...
 
 #include <cstddef>     // for size_t
@@ -266,6 +267,19 @@ public:
   /// \return true if the SYCL device architecture equals to the one passed to
   /// the function.
   bool ext_oneapi_architecture_is(ext::oneapi::experimental::architecture arch);
+
+  /// kernel_compiler extension
+
+  /// Indicates if the device can compile a kernel for the given language.
+  ///
+  /// \param Language is one of the values from the
+  /// kernel_bundle::source_language enumeration described in the
+  /// sycl_ext_oneapi_kernel_compiler specification
+  ///
+  /// \return true only if the device supports kernel bundles written in the
+  /// source language `lang`.
+  bool
+  ext_oneapi_can_compile(ext::oneapi::experimental::source_language Language);
 
 // TODO: Remove this diagnostics when __SYCL_WARN_IMAGE_ASPECT is removed.
 #if defined(__clang__)
