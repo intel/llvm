@@ -66,14 +66,13 @@ struct propagateToPtrAnnotation<property_value<PropKeyT, PropValuesTs...>>
 //===----------------------------------------------------------------------===//
 //        Common properties of annotated_arg/annotated_ptr
 //===----------------------------------------------------------------------===//
-struct alignment_key {
+struct alignment_key
+    : detail::compile_time_property_key<detail::PropKind::Alignment> {
   template <int K>
   using value_t = property_value<alignment_key, std::integral_constant<int, K>>;
 };
 
 template <int K> inline constexpr alignment_key::value_t<K> alignment;
-
-template <> struct is_property_key<alignment_key> : std::true_type {};
 
 template <typename T, int W>
 struct is_valid_property<T, alignment_key::value_t<W>>
@@ -90,13 +89,6 @@ struct is_property_key_of<alignment_key, annotated_arg<T, PropertyListT>>
 template <> struct propagateToPtrAnnotation<alignment_key> : std::true_type {};
 
 namespace detail {
-
-template <> struct PropertyToKind<alignment_key> {
-  static constexpr PropKind Kind = PropKind::Alignment;
-};
-
-template <> struct IsCompileTimeProperty<alignment_key> : std::true_type {};
-
 template <int N> struct PropertyMetaInfo<alignment_key::value_t<N>> {
   static constexpr const char *name = "sycl-alignment";
   static constexpr int value = N;
