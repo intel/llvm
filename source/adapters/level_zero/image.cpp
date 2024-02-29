@@ -354,8 +354,10 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
   ZeImageDesc.type = ZeImageType;
   ZeImageDesc.format = ZeFormatDesc;
   ZeImageDesc.width = ur_cast<uint64_t>(ImageDesc->width);
-  ZeImageDesc.height = std::max(ur_cast<uint64_t>(ImageDesc->height), (uint64_t)1);
-  ZeImageDesc.depth = std::max(ur_cast<uint64_t>(ImageDesc->depth), (uint64_t)1);
+  ZeImageDesc.height =
+      std::max(ur_cast<uint64_t>(ImageDesc->height), (uint64_t)1);
+  ZeImageDesc.depth =
+      std::max(ur_cast<uint64_t>(ImageDesc->depth), (uint64_t)1);
   ZeImageDesc.arraylevels = ur_cast<uint32_t>(ImageDesc->arraySize);
   ZeImageDesc.miplevels = ImageDesc->numMipLevel;
 
