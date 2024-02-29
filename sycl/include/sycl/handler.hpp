@@ -2771,8 +2771,6 @@ public:
   /// device copyable.
   /// \param Count is the number of times to fill Pattern into Ptr.
   template <typename T> void fill(void *Ptr, const T &Pattern, size_t Count) {
-    throwIfActionIsCreated();
-    setUserFacingNodeType(ext::oneapi::experimental::node_type::memfill);
     static_assert(is_device_copyable<T>::value,
                   "Pattern must be device copyable");
     this->fill_impl(Ptr, &Pattern, sizeof(T), Count);
