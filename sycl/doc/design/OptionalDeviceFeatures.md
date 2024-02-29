@@ -965,7 +965,7 @@ contains a list of the aspects, sub-group sizes, and other features that
 are supported by each target.
 
 There is also a way for the user to define their own configuration file, which
-allows users to compile for devices that have not yet be released to the
+allows users to compile for devices that have not yet been released to the
 public.
 
 [8]: <DeviceConfigFile.md>
