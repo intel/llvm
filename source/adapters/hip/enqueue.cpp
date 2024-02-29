@@ -1903,6 +1903,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
   ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
   try {
+    ScopedContext Active(hQueue->getDevice());
+
     uint32_t StreamToken;
     ur_stream_quard Guard;
     hipStream_t HIPStream = hQueue->getNextComputeStream(
