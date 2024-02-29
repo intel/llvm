@@ -659,7 +659,7 @@ Passing this property to the finalize function implies disabling
 certain optimizations to enable graph profiling.
 As a result, the execution time of a graph finalized with profiling enabled 
 is longer than that of a graph without profiling capability.
-In this case, an error will be thrown when attempting to profiling an event 
+An error will be thrown when attempting to profile an event 
 from a graph submission that was created without this property.
 
 ==== Graph Member Functions
