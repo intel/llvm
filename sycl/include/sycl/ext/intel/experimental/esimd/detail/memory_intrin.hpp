@@ -70,7 +70,7 @@ __ESIMD_INTRIN void __esimd_raw_send_nbarrier_signal(
 ///
 /// @tparam Ty is element type.
 /// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
+/// @tparam L2H is L2 cache hint.
 /// @tparam DS is the data size.
 /// @tparam Transposed is the transposed version or not.
 /// @tparam NBlocks is the number of blocks.
@@ -92,7 +92,7 @@ __ESIMD_INTRIN void __esimd_raw_send_nbarrier_signal(
 ///  otherwise,
 ///  N = roundUpNextMultiple(BlockHeight, 4 / sizeof(T)) *
 ///   getNextPowerOf2(BlockWidth) * NBlocks
-template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L2H,
           __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_data_order _Transposed, uint8_t NBlocks,
           int BlockWidth, int BlockHeight, bool Transformed, int N>
@@ -108,7 +108,7 @@ __esimd_lsc_load2d_stateless(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
 ///
 /// @tparam Ty is element type.
 /// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
+/// @tparam L2H is L2 cache hint.
 /// @tparam DS is the data size.
 /// @tparam NBlocks is the number of blocks.
 /// @tparam Transposed is the transposed version or not.
@@ -125,7 +125,7 @@ __esimd_lsc_load2d_stateless(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
 /// number of elements.
 /// @param Y is zero based Y-coordinate of the left upper rectangle corner in
 /// rows.
-template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L2H,
           __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_data_order _Transposed, uint8_t NBlocks,
           int BlockWidth, int BlockHeight, bool Transformed, int N>
@@ -140,7 +140,7 @@ __ESIMD_INTRIN void __esimd_lsc_prefetch2d_stateless(
 ///
 /// @tparam Ty is element type.
 /// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
+/// @tparam L2H is L2 cache hint.
 /// @tparam DS is the data size.
 /// @tparam Transposed is the transposed version or not.
 /// @tparam NBlocks is the number of blocks.
@@ -162,7 +162,7 @@ __ESIMD_INTRIN void __esimd_lsc_prefetch2d_stateless(
 ///  otherwise,
 ///  N = roundUpNextMultiple(BlockHeight, 4 / sizeof(T)) *
 ///   getNextPowerOf2(BlockWidth) * NBlocks
-template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L2H,
           __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_data_order _Transposed, uint8_t NBlocks,
           int BlockWidth, int BlockHeight, bool Transformed, int N>
