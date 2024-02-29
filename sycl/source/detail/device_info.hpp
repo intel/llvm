@@ -921,8 +921,7 @@ struct get_device_info_impl<
       }
     } catch (sycl::exception &e) {
       if (e.code() != errc::runtime) {
-        std::exception_ptr e_ptr = std::make_exception_ptr(e);
-        std::rethrow_exception(e_ptr);
+        std::rethrow_exception(std::make_exception_ptr(e));
       }
     }
     return {};
