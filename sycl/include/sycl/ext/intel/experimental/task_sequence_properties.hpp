@@ -25,17 +25,22 @@ template <typename PropertyT, typename... Ts>
 using property_value =
     sycl::ext::oneapi::experimental::property_value<PropertyT, Ts...>;
 
-struct balanced_key {
+struct balanced_key : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::Balanced> {
   using value_t = property_value<balanced_key>;
 };
 
-struct invocation_capacity_key {
+struct invocation_capacity_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::InvocationCapacity> {
   template <unsigned int Size>
   using value_t = property_value<invocation_capacity_key,
                                  std::integral_constant<unsigned int, Size>>;
 };
 
-struct response_capacity_key {
+struct response_capacity_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::ResponseCapacity> {
   template <unsigned int Size>
   using value_t = property_value<response_capacity_key,
                                  std::integral_constant<unsigned int, Size>>;
@@ -50,15 +55,6 @@ inline constexpr response_capacity_key::value_t<Size> response_capacity;
 } // namespace ext::intel::experimental
 
 namespace ext::oneapi::experimental {
-template <>
-struct is_property_key<intel::experimental::balanced_key> : std::true_type {};
-template <>
-struct is_property_key<intel::experimental::invocation_capacity_key>
-    : std::true_type {};
-template <>
-struct is_property_key<intel::experimental::response_capacity_key>
-    : std::true_type {};
-
 template <auto &f, typename PropertyListT>
 struct is_property_key_of<intel::experimental::balanced_key,
                           intel::experimental::task_sequence<f, PropertyListT>>
@@ -71,30 +67,6 @@ template <auto &f, typename PropertyListT>
 struct is_property_key_of<intel::experimental::response_capacity_key,
                           intel::experimental::task_sequence<f, PropertyListT>>
     : std::true_type {};
-
-namespace detail {
-template <> struct PropertyToKind<intel::experimental::balanced_key> {
-  static constexpr PropKind Kind = Balanced;
-};
-template <>
-struct PropertyToKind<intel::experimental::invocation_capacity_key> {
-  static constexpr PropKind Kind = InvocationCapacity;
-};
-template <> struct PropertyToKind<intel::experimental::response_capacity_key> {
-  static constexpr PropKind Kind = ResponseCapacity;
-};
-
-template <>
-struct IsCompileTimeProperty<intel::experimental::balanced_key>
-    : std::true_type {};
-template <>
-struct IsCompileTimeProperty<intel::experimental::invocation_capacity_key>
-    : std::true_type {};
-template <>
-struct IsCompileTimeProperty<intel::experimental::response_capacity_key>
-    : std::true_type {};
-
-} // namespace detail
 } // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl

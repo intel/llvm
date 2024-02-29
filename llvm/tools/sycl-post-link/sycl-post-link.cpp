@@ -624,7 +624,7 @@ bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
   PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
   ModulePassManager MPM;
-  MPM.addPass(SYCLLowerESIMDPass{});
+  MPM.addPass(SYCLLowerESIMDPass(!SplitEsimd));
 
   if (!OptLevelO0) {
     FunctionPassManager FPM;
