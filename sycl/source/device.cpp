@@ -26,7 +26,6 @@ void force_type(info::device_type &t, const info::device_type &ft) {
                                         PI_ERROR_INVALID_OPERATION);
   }
 }
-
 } // namespace detail
 
 device::device() : device(default_selector_v) {}
