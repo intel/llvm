@@ -1559,8 +1559,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
     return Res;
   }
 #else
-    std::ignore = ImageFormat;
-    std::ignore = ImageDesc;
+  std::ignore = ImageFormat;
+  std::ignore = ImageDesc;
 #endif // !NDEBUG
 
   UR_CALL(createUrMemFromZeImage(
