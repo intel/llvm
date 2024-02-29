@@ -435,11 +435,7 @@ public:
       return InstalledDir.c_str();
     return Dir.c_str();
   }
-<<<<<<< HEAD
-  void setInstalledDir(StringRef Value) { InstalledDir = std::string(Value); }
   bool isDumpDeviceCodeEnabled() const { return DumpDeviceCode; }
-=======
->>>>>>> ff07c9b701dc6372f82d989d01768051e848b30d
 
   bool isSaveTempsEnabled() const { return SaveTemps != SaveTempsNone; }
   bool isSaveTempsObj() const { return SaveTemps == SaveTempsObj; }
