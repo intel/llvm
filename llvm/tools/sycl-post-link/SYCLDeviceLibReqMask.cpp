@@ -445,6 +445,7 @@ SYCLDeviceLibFuncMap SDLMap = {
     {"__devicelib_imf_fabs", DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_trunc", DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_rint", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_rcp64h", DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_nearbyint", DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_inv", DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_sqrt", DeviceLibExt::cl_intel_devicelib_imf_fp64},
