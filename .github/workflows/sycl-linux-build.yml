@@ -169,7 +169,9 @@ jobs:
           --cmake-opt="-DSYCL_PI_TESTS=OFF"
     - name: Compile
       id: build
-      run: cmake --build $GITHUB_WORKSPACE/build
+      run: |
+        cmake --build $GITHUB_WORKSPACE/build
+        cmake --build $GITHUB_WORKSPACE/build --target install
         #- name: check-llvm
       #if: always() && !cancelled() && contains(inputs.changes, 'llvm')
         #run: |
