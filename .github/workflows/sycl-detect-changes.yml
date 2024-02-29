@@ -6,9 +6,6 @@ on:
       filters:
         description: Matched filters
         value: ${{ jobs.need_check.outputs.filters }}
-      arc_tests:
-        description: Tests to run on Arc
-        value: ${{ jobs.need_check.outputs.arc_tests }}
 
 jobs:
   need_check:
@@ -19,7 +16,6 @@ jobs:
     timeout-minutes: 3
     outputs:
       filters: ${{ steps.result.outputs.result }}
-      arc_tests: ${{ steps.arc_tests.outputs.arc_tests }}
     steps:
       - name: Check file changes
         uses: dorny/paths-filter@0bc4621a3135347011ad047f9ecf449bf72ce2bd
@@ -89,12 +85,4 @@ jobs:
             return ["llvm", "llvm_spirv", "clang", "sycl_fusion", "xptifw", "libclc", "sycl", "ci", "esimd"];
 
       - run: echo '${{ steps.result.outputs.result }}'
-
-      - name: Set Arc tests
-        id: arc_tests
-        run: |
-          if [ "${{ contains(steps.result.outputs.result, 'esimd') }}" == "true" ]; then
-            echo 'arc_tests="(ESIMD|InvokeSimd|Matrix)/"' >> "$GITHUB_OUTPUT"
-          else
-            echo 'arc_tests="Matrix/"' >> "$GITHUB_OUTPUT"
-          fi
+     

@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -c -o %t.bc %s
-// RUN: sycl-post-link -debug-only=SpecConst %t.bc -spec-const=native -o %t-split1.txt 2>&1 | FileCheck %s -check-prefixes=CHECK-LOG
+// RUN: %if asserts %{sycl-post-link -debug-only=SpecConst %t.bc -spec-const=native -o %t-split1.txt 2>&1 | FileCheck %s -check-prefixes=CHECK-LOG %} %else %{sycl-post-link %t.bc -spec-const=native -o %t-split1.txt 2>&1 %}
 // RUN: cat %t-split1_0.prop | FileCheck %s -check-prefixes=CHECK,CHECK-RT
 // RUN: sycl-post-link %t.bc -spec-const=emulation -o %t-split2.txt
 // RUN: cat %t-split2_0.prop | FileCheck %s -check-prefixes=CHECK,CHECK-DEF

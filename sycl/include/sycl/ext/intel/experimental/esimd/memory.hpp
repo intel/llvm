@@ -402,7 +402,8 @@ __ESIMD_API void named_barrier_signal(uint8_t barrier_id,
   __ESIMD_DNS::vector_type_t<uint32_t, 8> payload = 0;
   payload[2] = (num_consumers & 0xff) << 24 | (num_producers & 0xff) << 16 |
                producer_consumer_mode << 14 | (barrier_id & 0b11111) << 0;
-
+  __esimd_fence(__ESIMD_NS::fence_mask::global_coherent_fence |
+                __ESIMD_NS::fence_mask::local_barrier);
   __esimd_raw_send_nbarrier_signal<uint32_t, 8>(
       0 /*sendc*/, gateway, descriptor, payload, 1 /*pred*/);
 }
@@ -1213,23 +1214,7 @@ template <typename T, int NElts = 1,
           int N, typename Toffset>
 __ESIMD_API void lsc_prefetch(const T *p, __ESIMD_NS::simd<Toffset, N> offsets,
                               __ESIMD_NS::simd_mask<N> pred = 1) {
-  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
-  detail::check_lsc_vector_size<NElts>();
-  detail::check_lsc_data_size<T, DS>();
-  detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L3H>();
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS =
-      detail::expand_data_size(detail::finalize_data_size<T, DS>());
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::nontranspose;
-  using MsgT = typename detail::lsc_expand_type<T>::type;
-  __ESIMD_NS::simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
-  addrs += convert<uintptr_t>(offsets);
-  __esimd_lsc_prefetch_stateless<MsgT, L1H, L3H, _AddressScale, _ImmOffset, _DS,
-                                 _VS, _Transposed, N>(pred.data(),
-                                                      addrs.data());
+  __ESIMD_DNS::prefetch_impl<T, NElts, DS, L1H, L3H>(p, offsets, pred);
 }
 
 template <typename T, int NElts = 1,
@@ -1269,26 +1254,8 @@ template <typename T, int NElts = 1,
           lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none>
 __ESIMD_API void lsc_prefetch(const T *p) {
-  detail::check_lsc_vector_size<NElts>();
-  detail::check_lsc_data_size<T, DS>();
-  detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L3H>();
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
-
-  static_assert(
-      _DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
-      "Transposed prefetch is supported only for data size u32 or u64");
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::transpose;
-  constexpr int N = 1;
-  __ESIMD_NS::simd_mask<N> pred = 1;
-
-  __ESIMD_NS::simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
-  __esimd_lsc_prefetch_stateless<T, L1H, L3H, _AddressScale, _ImmOffset, _DS,
-                                 _VS, _Transposed, N>(pred.data(),
-                                                      addrs.data());
+  __ESIMD_NS::simd_mask<1> Mask = 1;
+  __ESIMD_DNS::prefetch_impl<T, NElts, DS, L1H, L3H>(p, 0, Mask);
 }
 
 /// Accessor-based prefetch gather.
