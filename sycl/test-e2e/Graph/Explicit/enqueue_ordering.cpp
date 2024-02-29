@@ -1,3 +1,4 @@
+// REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
@@ -15,10 +16,6 @@ int main() {
   queue Queue{};
 
   if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
-
-  if (!Queue.get_device().has(sycl::aspect::usm_shared_allocations)) {
     return 0;
   }
 
