@@ -330,8 +330,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
     ur_event_handle_t *phEvent) {
   std::ignore = pProperties;
 
-  *phEvent = ur_event_handle_t_::makeWithNative(
-      hContext, reinterpret_cast<hipEvent_t>(hNativeEvent));
+  std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
+
+  try {
+    EventPtr =
+        std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeWithNative(
+            hContext, reinterpret_cast<hipEvent_t>(hNativeEvent)));
+  } catch (const std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  *phEvent = EventPtr.release();
 
   return UR_RESULT_SUCCESS;
 }
