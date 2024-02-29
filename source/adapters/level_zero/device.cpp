@@ -919,6 +919,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     return ReturnValue(true);
   case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP:
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP:
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP:
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP:
+    urPrint("Unsupported ParamName in urGetDeviceInfo\n");
+    urPrint("ParamName=%d(0x%x)\n", ParamName, ParamName);
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  case UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT_EXP:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP:
+  case UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP:
+  case UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP:
+  case UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP:
+  case UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP:
+  case UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP:
   default:
     urPrint("Unsupported ParamName in urGetDeviceInfo\n");
     urPrint("ParamName=%d(0x%x)\n", ParamName, ParamName);
