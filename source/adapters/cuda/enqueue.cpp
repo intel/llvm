@@ -1764,7 +1764,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
   ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
   try {
-    ScopedContext Active(hQueue->getDevice());
+    ScopedContext Active(hQueue->getContext());
     CUstream CuStream = hQueue->getNextComputeStream();
 
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
