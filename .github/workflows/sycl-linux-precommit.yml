@@ -47,8 +47,27 @@ jobs:
       build_image: "ghcr.io/intel/llvm/ubuntu2204_build:7ed894ab0acc8ff09262113fdb08940d22654a30"
       changes: ${{ needs.detect_changes.outputs.filters }}
 
-  test:
+  determine_arc_tests:
+    name: Decide which Arc tests to run
     needs: [build, detect_changes]
+    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    # Github's ubuntu-* runners are slow to allocate. Use our CUDA runner since
+    # we don't use it for anything right now.
+    runs-on: [Linux, build]
+    timeout-minutes: 3
+    outputs:
+      arc_tests: ${{ steps.arc_tests.outputs.arc_tests }}
+    steps:
+      - name: Determine Arc tests
+        id: arc_tests
+        run: |
+          if [ "${{ contains(needs.detect_changes.outputs.filters, 'esimd') }}" == "true" ]; then
+            echo 'arc_tests="(ESIMD|InvokeSimd|Matrix)/"' >> "$GITHUB_OUTPUT"
+          else
+            echo 'arc_tests="Matrix/"' >> "$GITHUB_OUTPUT"
+          fi
+  test:
+    needs: [build, detect_changes, determine_arc_tests]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
@@ -76,7 +95,7 @@ jobs:
             reset_gpu: true
             install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
             extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
-            env: '{"LIT_FILTER":${{ needs.detect_changes.outputs.arc_tests }} }'
+            env: '{"LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}

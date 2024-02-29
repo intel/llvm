@@ -15,7 +15,6 @@
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/device.hpp>
 #include <sycl/property_list.hpp>
-#include <sycl/stl.hpp>
 
 #include <algorithm>
 #include <cassert>

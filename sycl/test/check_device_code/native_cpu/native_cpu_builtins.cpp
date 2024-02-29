@@ -27,7 +27,7 @@ int main() {
   sycl::range<1> r(1);
   deviceQueue.submit([&](sycl::handler &h) {
     h.parallel_for<Test1>(r, [=](sycl::id<1> id) { acc[id[0]] = 42; });
-    // CHECK: @_ZTS5Test1.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, ptr addrspace(1) %2)
+    // CHECK: @_ZTS5Test1.NativeCPUKernel(ptr {{.*}}, ptr {{.*}}, ptr addrspace(1){{.*}})
     // CHECK: call{{.*}}__dpcpp_nativecpu_get_global_id(i32 0, ptr addrspace(1) %2)
     // CHECK-NOT: @llvm.threadlocal
 

@@ -335,6 +335,7 @@ extern __DPCPP_SYCL_EXTERNAL double __imf_floor(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_ceil(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_trunc(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_rint(double x);
+extern __DPCPP_SYCL_EXTERNAL double __imf_rcp64h(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_nearbyint(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_sqrt(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_rsqrt(double x);

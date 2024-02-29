@@ -1,13 +1,14 @@
-// RUN: %clangxx -O0 -fsycl -fsycl-device-only -fno-sycl-esimd-force-stateless-mem -Xclang -emit-llvm %s -o %t
+// RUN: %clangxx %clang_O0 -fsycl -fsycl-device-only -fno-sycl-esimd-force-stateless-mem -Xclang -emit-llvm %s -o %t
 // RUN: sycl-post-link -split-esimd -lower-esimd -lower-esimd-force-stateless-mem=false -O0 -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATEFUL
 
-// RUN: %clangxx -O0 -fsycl -fsycl-device-only -fsycl-esimd-force-stateless-mem -Xclang -emit-llvm %s -o %t
+// RUN: %clangxx %clang_O0 -fsycl -fsycl-device-only -fsycl-esimd-force-stateless-mem -Xclang -emit-llvm %s -o %t
 // RUN: sycl-post-link -split-esimd -lower-esimd -lower-esimd-force-stateless-mem=true -O0 -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes=CHECK,CHECK-STATELESS
 
 // Checks ESIMD intrinsic translation with opaque pointers.
-// NOTE: must be run in -O0, as optimizer optimizes away some of the code
+// NOTE: must be run with %clang_O0, as optimizer optimizes away some of the
+// code
 
 #include <sycl/detail/image_ocl_types.hpp>
 #include <sycl/ext/intel/esimd.hpp>

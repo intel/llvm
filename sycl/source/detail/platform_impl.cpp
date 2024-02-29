@@ -203,31 +203,6 @@ std::vector<platform> platform_impl::get_platforms() {
   // may be initialized after.
   GlobalHandler::registerDefaultContextReleaseHandler();
 
-  // Some applications/libraries prefer to implement their own device selection
-  // and default to just providing the first available device. Make sure that
-  // the first platform has the most preferrable device.
-  auto GetPlatformScore = [](const platform &p) {
-    auto devs = p.get_devices();
-    auto it =
-        std::max_element(devs.begin(), devs.end(), [](auto lhs, auto rhs) {
-          return default_selector_v(lhs) < default_selector_v(rhs);
-        });
-    return default_selector_v(*it);
-  };
-
-  std::vector<std::pair<platform, int>> PlatformScores;
-  PlatformScores.reserve(Platforms.size());
-  for (auto &p : Platforms)
-    PlatformScores.emplace_back(p, GetPlatformScore(p));
-
-  std::stable_sort(PlatformScores.begin(), PlatformScores.end(), [&](auto lhs, auto rhs) {
-    return lhs.second > rhs.second;
-  });
-
-  Platforms.clear();
-  for (auto &e : PlatformScores )
-    Platforms.push_back(e.first);
-
   return Platforms;
 }
 
@@ -612,6 +587,11 @@ bool platform_impl::has_extension(const std::string &ExtensionName) const {
       MPlatform, getPlugin(),
       detail::PiInfoCode<info::platform::extensions>::value);
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
+}
+
+bool platform_impl::supports_usm() const {
+  return getBackend() != backend::opencl ||
+         has_extension("cl_intel_unified_shared_memory");
 }
 
 pi_native_handle platform_impl::getNative() const {

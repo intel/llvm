@@ -816,69 +816,32 @@ namespace ext::oneapi::experimental {
 /////////////////////////
 // PropertyT syclex::build_options
 /////////////////////////
-struct build_options {
+struct build_options
+    : detail::run_time_property_key<detail::PropKind::BuildOptions> {
   std::vector<std::string> opts;
   build_options(const std::string &optsArg) : opts{optsArg} {}
   build_options(const std::vector<std::string> &optsArg) : opts(optsArg) {}
 };
 using build_options_key = build_options;
 
-template <> struct is_property_key<build_options_key> : std::true_type {};
-
 template <>
 struct is_property_key_of<build_options_key,
                           sycl::kernel_bundle<bundle_state::ext_oneapi_source>>
     : std::true_type {};
 
-namespace detail {
-
-template <>
-struct PropertyToKind<sycl::ext::oneapi::experimental::build_options_key> {
-  static constexpr PropKind Kind = PropKind::BuildOptions;
-};
-
-template <>
-struct IsRuntimeProperty<sycl::ext::oneapi::experimental::build_options_key>
-    : std::true_type {};
-
-template <>
-struct IsCompileTimeProperty<sycl::ext::oneapi::experimental::build_options_key>
-    : std::false_type {};
-
-} // namespace detail
-
 /////////////////////////
 // PropertyT syclex::save_log
 /////////////////////////
-struct save_log {
+struct save_log : detail::run_time_property_key<detail::PropKind::BuildLog> {
   std::string *log;
   save_log(std::string *logArg) : log(logArg) {}
 };
 using save_log_key = save_log;
 
-template <> struct is_property_key<save_log_key> : std::true_type {};
-
 template <>
 struct is_property_key_of<save_log_key,
                           sycl::kernel_bundle<bundle_state::ext_oneapi_source>>
     : std::true_type {};
-
-namespace detail {
-
-template <>
-struct PropertyToKind<sycl::ext::oneapi::experimental::save_log_key> {
-  static constexpr PropKind Kind = PropKind::BuildLog;
-};
-
-template <>
-struct IsRuntimeProperty<sycl::ext::oneapi::experimental::save_log_key>
-    : std::true_type {};
-
-template <>
-struct IsCompileTimeProperty<sycl::ext::oneapi::experimental::save_log_key>
-    : std::false_type {};
-
-} // namespace detail
 
 /////////////////////////
 // syclex::is_source_kernel_bundle_supported

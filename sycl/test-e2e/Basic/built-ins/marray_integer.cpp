@@ -45,5 +45,12 @@ int main() {
          marray<uint8_t, 2>{3, 2});
   }
 
+  {
+    // Test abs_diff:
+    auto AbsDiff = [](auto... xs) { return abs_diff(xs...); };
+    Test(AbsDiff, marray<unsigned, 2>{1, 1}, marray<unsigned, 2>{0, 1},
+         marray<unsigned, 2>{1, 0});
+  }
+
   return 0;
 }

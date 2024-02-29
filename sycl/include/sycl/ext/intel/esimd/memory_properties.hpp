@@ -59,17 +59,23 @@ template <int K> inline constexpr alignment_key::value_t<K> alignment;
 /// L2 cache hint property must be used for the old/experimental LSC L3 cache
 /// hints.
 /// L3 cache property is reserved for future devices.
-struct cache_hint_L1_key {
+struct cache_hint_L1_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::ESIMDL1CacheHint> {
   template <cache_hint Hint>
   using value_t = ext::oneapi::experimental::property_value<
       cache_hint_L1_key, std::integral_constant<cache_hint, Hint>>;
 };
-struct cache_hint_L2_key {
+struct cache_hint_L2_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::ESIMDL2CacheHint> {
   template <cache_hint Hint>
   using value_t = ext::oneapi::experimental::property_value<
       cache_hint_L2_key, std::integral_constant<cache_hint, Hint>>;
 };
-struct cache_hint_L3_key {
+struct cache_hint_L3_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::ESIMDL3CacheHint> {
   template <cache_hint Hint>
   using value_t = ext::oneapi::experimental::property_value<
       cache_hint_L3_key, std::integral_constant<cache_hint, Hint>>;
@@ -151,45 +157,17 @@ struct property_value<__ESIMD_NS::cache_hint_L3_key,
   static constexpr __ESIMD_NS::cache_hint hint = Hint;
 };
 
-template <>
-struct is_property_key<sycl::ext::intel::esimd::cache_hint_L1_key>
-    : std::true_type {};
-template <>
-struct is_property_key<sycl::ext::intel::esimd::cache_hint_L2_key>
-    : std::true_type {};
-template <>
-struct is_property_key<sycl::ext::intel::esimd::cache_hint_L3_key>
-    : std::true_type {};
-
 // Declare that esimd::properties is a property_list.
 template <typename... PropertyValueTs>
 struct is_property_list<__ESIMD_NS::properties<std::tuple<PropertyValueTs...>>>
     : is_property_list<properties<std::tuple<PropertyValueTs...>>> {};
 
 namespace detail {
-template <> struct PropertyToKind<sycl::ext::intel::esimd::cache_hint_L1_key> {
-  static constexpr PropKind Kind = PropKind::ESIMDL1CacheHint;
-};
-template <> struct PropertyToKind<sycl::ext::intel::esimd::cache_hint_L2_key> {
-  static constexpr PropKind Kind = PropKind::ESIMDL2CacheHint;
-};
-template <> struct PropertyToKind<sycl::ext::intel::esimd::cache_hint_L3_key> {
-  static constexpr PropKind Kind = PropKind::ESIMDL3CacheHint;
-};
-
-template <>
-struct IsCompileTimeProperty<__ESIMD_NS::cache_hint_L1_key> : std::true_type {};
-template <>
-struct IsCompileTimeProperty<__ESIMD_NS::cache_hint_L2_key> : std::true_type {};
-template <>
-struct IsCompileTimeProperty<__ESIMD_NS::cache_hint_L3_key> : std::true_type {};
-
 // We do not override the class ConflictingProperties for cache_hint properties
 // because that mechanism would only allow to verify few obvious restrictions
 // without the knowledge of the context in which the cache_hint properties are
 // used (load, store, prefetch, atomic). Thus the function
 // __ESIMD_DNS::check_cache_hint() is used to verify correctness of properties.
-
 } // namespace detail
 } // namespace ext::oneapi::experimental
 } // namespace _V1

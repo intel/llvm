@@ -905,11 +905,46 @@ public:
   // Implement operator [] in the same way for host and device.
   // TODO: change host side implementation when underlying type for host side
   // will be changed to std::array.
-  const DataT &operator[](int i) const {
+  // NOTE: aliasing the incompatible types of bfloat16 may lead to problems if
+  // aggressively optimized. Specializing with noinline to avoid as workaround.
+
+  template <typename T = DataT>
+  typename std::enable_if_t<!std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
+                            const DataT &>
+  operator[](int i) const {
     return reinterpret_cast<const DataT *>(&m_Data)[i];
   }
 
-  DataT &operator[](int i) { return reinterpret_cast<DataT *>(&m_Data)[i]; }
+  template <typename T = DataT>
+  typename std::enable_if_t<!std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
+                            DataT &>
+  operator[](int i) {
+    return reinterpret_cast<DataT *>(&m_Data)[i];
+  }
+
+#ifdef _MSC_VER
+#define __SYCL_NOINLINE_BF16 __declspec(noinline)
+#else
+#define __SYCL_NOINLINE_BF16 __attribute__((noinline))
+#endif
+
+  template <typename T = DataT>
+  __SYCL_NOINLINE_BF16
+      typename std::enable_if_t<std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
+                                const DataT &>
+      operator[](int i) const {
+    return reinterpret_cast<const DataT *>(&m_Data)[i];
+  }
+
+  template <typename T = DataT>
+  __SYCL_NOINLINE_BF16
+      typename std::enable_if_t<std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
+                                DataT &>
+      operator[](int i) {
+    return reinterpret_cast<DataT *>(&m_Data)[i];
+  }
+
+#undef __SYCL_NOINLINE_BF16
 
   // Begin hi/lo, even/odd, xyzw, and rgba swizzles.
 private:

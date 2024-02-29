@@ -8,9 +8,6 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-// Treat this header as system one to workaround frontend's restriction
-#pragma clang system_header
-
 #include <cinttypes>
 
 enum class DeviceSanitizerErrorType : int32_t {
@@ -29,6 +26,7 @@ enum class DeviceSanitizerMemoryType : int32_t {
   LOCAL,
   PRIVATE,
   MEM_BUFFER,
+  DEVICE_GLOBAL,
 };
 
 // NOTE Layout of this structure should be aligned with the one in

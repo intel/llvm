@@ -12,7 +12,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
-#include "llvm/BinaryFormat/MsgPack.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/DebugInfoMetadata.h"
@@ -30,28 +29,20 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/Operator.h"
 #include "llvm/IR/Value.h"
-#include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/CodeGen.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
-#include <functional>
-#include <numeric>
-#include <set>
 #include <utility>
 #include <vector>
 
 #ifdef NATIVECPU_USE_OCK
 #include "compiler/utils/attributes.h"
 #include "compiler/utils/builtin_info.h"
+#include "compiler/utils/metadata.h"
 #endif
 
 using namespace llvm;
@@ -317,6 +308,8 @@ static Function *getReplaceFunc(Module &M, StringRef Name, Type *StateType) {
 }
 
 static Value *getStateArg(Function *F, llvm::Constant *StateTLS) {
+  // Todo: we should probably cache the state thread local load here
+  // to avoid re-emitting it for each builtin
   if (StateTLS) {
     IRBuilder<> BB(&*F->getEntryBlock().getFirstInsertionPt());
     llvm::Value *V = BB.CreateThreadLocalAddress(StateTLS);
@@ -353,6 +346,18 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
 
   CurrentStatePointerTLS = nullptr;
 
+  // check if any of the kernels is called by some other function.
+  // This can happen e.g. with OCK, where wrapper functions are
+  // created around the original kernel.
+  bool KernelIsCalled = false;
+  for (auto &K : OldKernels) {
+    for (auto &U : K->uses()) {
+      if (isa<CallBase>(U.getUser())) {
+        KernelIsCalled = true;
+      }
+    }
+  }
+
   // Then we iterate over all the supported builtins, find the used ones
   llvm::SmallVector<std::pair<llvm::Function *, StringRef>> UsedBuiltins;
   for (const auto &Entry : BuiltinNamesMap) {
@@ -361,9 +366,9 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       continue;
     for (const auto &Use : Glob->uses()) {
       auto *I = cast<CallInst>(Use.getUser());
-      if (!IsNativeCPUKernel(I->getFunction())) {
+      if (!IsNativeCPUKernel(I->getFunction()) || KernelIsCalled) {
         // only use the threadlocal if we have kernels calling builtins
-        // indirectly
+        // indirectly, or if the kernel is called by some other func.
         if (CurrentStatePointerTLS == nullptr)
           CurrentStatePointerTLS = M.getOrInsertGlobal(
               STATE_TLS_NAME, StatePtrType, [&M, StatePtrType]() {
@@ -388,12 +393,18 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   SmallVector<Function *> NewKernels;
   for (auto &OldF : OldKernels) {
 #ifdef NATIVECPU_USE_OCK
-    // The OCK creates a wrapper function around the original kernel with
-    // the WorkItemLoopsPass.
-    // At runtime, we want to run the wrapper function, therefore we
-    // make it so the wrapper steals the original kernel name.
     auto Name = compiler::utils::getBaseFnNameOrFnName(*OldF);
-    if (Name != OldF->getName()) {
+    OldF->setName(Name);
+    // if vectorization occurred, at this point we have a wrapper function that
+    // runs the vectorized kernel and peels using the scalar kernel. We make it
+    // so this wrapper steals the original kernel name.
+    std::optional<compiler::utils::LinkMetadataResult> veczR =
+        compiler::utils::parseVeczToOrigFnLinkMetadata(*OldF);
+    if (veczR) {
+      auto ScalarF = veczR.value().first;
+      OldF->takeName(ScalarF);
+      ScalarF->setName(OldF->getName() + "_scalar");
+    } else if (Name != OldF->getName()) {
       auto RealKernel = M.getFunction(Name);
       if (RealKernel) {
         // the real kernel was not inlined in the wrapper, steal its name

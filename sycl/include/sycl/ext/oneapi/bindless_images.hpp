@@ -191,7 +191,7 @@ __SYCL_EXPORT image_mem_handle get_mip_level_mem_handle(
  */
 __SYCL_EXPORT image_mem_handle get_mip_level_mem_handle(
     const image_mem_handle mipMem, const unsigned int level,
-    const sycl::device &syclQueue);
+    const sycl::queue &syclQueue);
 
 /**
  *  @brief   Import external memory taking an external memory handle (the type

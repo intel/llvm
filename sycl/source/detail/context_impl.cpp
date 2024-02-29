@@ -21,7 +21,6 @@
 #include <sycl/platform.hpp>
 #include <sycl/properties/context_properties.hpp>
 #include <sycl/property_list.hpp>
-#include <sycl/stl.hpp>
 
 #include <algorithm>
 

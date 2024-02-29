@@ -13,7 +13,6 @@
 #include <sycl/detail/cl.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/kernel_bundle.hpp>
-#include <sycl/stl.hpp>
 
 #include <memory>
 #include <mutex>

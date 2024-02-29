@@ -3,7 +3,7 @@
 
 ; RUN: sycl-post-link --spec-const=native -S %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll
-; RUN: sycl-post-link -debug-only=SpecConst -spec-const=native < %s 2>&1 | FileCheck %s --check-prefix=CHECK-LOG 
+; RUN: %if asserts %{ sycl-post-link -debug-only=SpecConst -spec-const=native < %s 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
 
 ; CHECK: %[[#SCV1:]] = call i8 @_Z20__spirv_SpecConstantia(i32 [[#SCID1:]], i8 120)
 ; CHECK: %[[#SCV2:]] = call i8 @_Z20__spirv_SpecConstantia(i32 [[#SCID2:]], i8 121)
