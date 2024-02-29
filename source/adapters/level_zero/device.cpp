@@ -1054,6 +1054,19 @@ bool ur_device_handle_t_::useRelaxedAllocationLimits() {
   return EnableRelaxedAllocationLimits;
 }
 
+bool ur_device_handle_t_::useDriverInOrderLists() {
+  // Use in-order lists implementation from L0 driver instead
+  // of adapter's implementation.
+  static const bool UseDriverInOrderLists = [] {
+    const char *UrRet = std::getenv("UR_L0_USE_DRIVER_INORDER_LISTS");
+    if (!UrRet)
+      return false;
+    return std::atoi(UrRet) != 0;
+  }();
+
+  return UseDriverInOrderLists;
+}
+
 ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
                                             int SubSubDeviceIndex) {
   // Maintain various device properties cache.
