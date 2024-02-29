@@ -325,5 +325,4 @@ template <> struct hash<sycl::device> {
         sycl::detail::getSyclObjImpl(Device));
   }
 };
-
 } // namespace std
