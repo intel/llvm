@@ -924,6 +924,7 @@ class args_selector;
 ///   void foo(sycl::float2 *x, int n, sycl::nd_item<3> item_ct1, float f=.1) {}
 /// and with the declaration:
 ///   args_selector<2, 1, decltype(foo)> selector(kernelParams, extra);
+///   void* kernelParams[2 + 1] = { (void*)float2_var, int_var, float_var }
 /// we have:
 ///   selector.get<0>() returns a reference to sycl::float*,
 ///   selector.get<1>() returns a reference to int,
