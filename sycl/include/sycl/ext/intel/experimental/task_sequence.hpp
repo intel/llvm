@@ -109,7 +109,7 @@ public:
 private:
 #if defined(__SYCL_DEVICE_ONLY__)
   unsigned outstanding = 0;
-  __spirv_TaskSequenceINTEL *taskSequence;
+  __spv::__spirv_TaskSequenceINTEL *taskSequence;
 #endif
   static constexpr int32_t pipelined =
       oneapi::experimental::detail::ValueOrDefault<
