@@ -1268,7 +1268,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   MutableCommandDesc.flags = 0;
 
   // We must synchronize mutable command list execution before mutating.
-  ZE2UR_CALL(zeEventHostSynchronize, (CommandBuffer->SignalEvent->ZeEvent, UINT64_MAX));
+  ZE2UR_CALL(zeEventHostSynchronize,
+             (CommandBuffer->SignalEvent->ZeEvent, UINT64_MAX));
 
   auto Plt = Command->CommandBuffer->Context->getPlatform();
   UR_ASSERT(Plt->ZeMutableCmdListExt.Supported,
