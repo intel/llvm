@@ -25,6 +25,10 @@ class StackTrace;
 void ReportBadFree(uptr Addr, const StackTrace &stack,
                    std::shared_ptr<AllocInfo> AllocInfo);
 
+void ReportBadFreeContext(
+    uptr Addr, const StackTrace &stack,
+    const std::vector<std::shared_ptr<AllocInfo>> &AllocInfos);
+
 void ReportDoubleFree(uptr Addr, const StackTrace &Stack,
                       std::shared_ptr<AllocInfo> AllocInfo);
 

@@ -20,38 +20,62 @@
 namespace ur_sanitizer_layer {
 
 void ReportBadFree(uptr Addr, const StackTrace &stack,
-                   std::shared_ptr<AllocInfo> AllocInfo) {
-    context.logger.always(
-        "\n====ERROR: DeviceSanitizer: attempting free on address which "
-        "was not malloc()-ed: {} in thread T0",
-        (void *)Addr);
+                   std::shared_ptr<AllocInfo> AI) {
+    context.logger.always("\n====ERROR: DeviceSanitizer: bad-free on {}",
+                          (void *)Addr);
     stack.Print();
 
-    if (!AllocInfo) { // maybe Addr is host allocated memory
-        context.logger.always("{} is maybe allocated on Host Memory",
+    if (!AI) { // maybe Addr is host allocated memory
+        context.logger.always("{} may be allocated on Host Memory",
                               (void *)Addr);
         exit(1);
     }
 
-    assert(!AllocInfo->IsReleased && "Chunk must be not released");
+    assert(!AI->IsReleased && "Chunk must be not released");
 
-    context.logger.always("{} is located inside of {} region [{}, {}]",
-                          (void *)Addr, ToString(AllocInfo->Type),
-                          (void *)AllocInfo->UserBegin,
-                          (void *)AllocInfo->UserEnd);
-    context.logger.always("allocated by thread T0 here:");
-    AllocInfo->AllocStack.Print();
+    context.logger.always("{} is located inside of {} region [{}, {})",
+                          (void *)Addr, ToString(AI->Type),
+                          (void *)AI->UserBegin, (void *)(AI->UserEnd + 1));
+    context.logger.always("allocated here:");
+    AI->AllocStack.Print();
 
     exit(1);
 }
 
+void ReportBadFreeContext(
+    uptr Addr, const StackTrace &stack,
+    const std::vector<std::shared_ptr<AllocInfo>> &AllocInfos) {
+    context.logger.always(
+        "\n====ERROR: DeviceSanitizer: bad-free-context on {}", (void *)Addr);
+    stack.Print();
+
+    for (auto &AI : AllocInfos) {
+        if (AI->IsReleased) {
+            continue;
+        }
+        context.logger.always("{} is located inside of {} region [{}, {})",
+                              (void *)Addr, ToString(AI->Type),
+                              (void *)AI->UserBegin, (void *)(AI->UserEnd + 1));
+        context.logger.always(
+            "allocated here:"); // allocated by device, context
+        AI->AllocStack.Print();
+    }
+    exit(1);
+}
+
 void ReportDoubleFree(uptr Addr, const StackTrace &Stack,
-                      std::shared_ptr<AllocInfo> AllocInfo) {
+                      std::shared_ptr<AllocInfo> AI) {
     context.logger.always("\n====ERROR: DeviceSanitizer: double-free on {}",
                           (void *)Addr);
     Stack.Print();
-    AllocInfo->AllocStack.Print();
-    AllocInfo->ReleaseStack.Print();
+
+    context.logger.always("{} is located inside of {} region [{}, {})",
+                          (void *)Addr, ToString(AI->Type),
+                          (void *)AI->UserBegin, (void *)(AI->UserEnd + 1));
+    context.logger.always("freed here:");
+    AI->ReleaseStack.Print();
+    context.logger.always("previously allocated here:");
+    AI->AllocStack.Print();
     exit(1);
 }
 
