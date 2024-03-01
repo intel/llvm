@@ -147,7 +147,7 @@ struct urUpdatableCommandBufferExpExecutionTest
         if (updatable_cmd_buf_handle) {
             EXPECT_SUCCESS(urCommandBufferReleaseExp(updatable_cmd_buf_handle));
         }
-        if (backend == UR_PLATFORM_BACKEND_LEVEL_ZERO) {
+        if (backend == UR_PLATFORM_BACKEND_LEVEL_ZERO && queue) {
             ASSERT_SUCCESS(urQueueRelease(queue));
         }
 
@@ -157,7 +157,7 @@ struct urUpdatableCommandBufferExpExecutionTest
 
     ur_exp_command_buffer_handle_t updatable_cmd_buf_handle = nullptr;
     ur_bool_t updatable_execution_range_support = true;
-    ur_queue_handle_t queue;
+    ur_queue_handle_t queue = nullptr;
 };
 
 struct urCommandBufferCommandExpTest
