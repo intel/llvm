@@ -54,6 +54,7 @@ class IntrinsicInst;
 
 namespace SPIRV {
 
+/// SPIR-V versions known to translator.
 enum class VersionNumber : uint32_t {
   // See section 2.3 of SPIR-V spec: Physical Layout of a SPIR_V Module and
   // Instruction
@@ -62,11 +63,33 @@ enum class VersionNumber : uint32_t {
   SPIRV_1_2 = 0x00010200,
   SPIRV_1_3 = 0x00010300,
   SPIRV_1_4 = 0x00010400,
-  // TODO: populate this enum with the latest versions (up to 1.5) once
-  // translator get support of corresponding features
+  SPIRV_1_5 = 0x00010500,
   MinimumVersion = SPIRV_1_0,
-  MaximumVersion = SPIRV_1_4
+  MaximumVersion = SPIRV_1_5
 };
+
+inline constexpr std::string_view formatVersionNumber(uint32_t Version) {
+  switch (Version) {
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_0):
+    return "1.0";
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_1):
+    return "1.1";
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_2):
+    return "1.2";
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_3):
+    return "1.3";
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_4):
+    return "1.4";
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_5):
+    return "1.5";
+  }
+  return "unknown";
+}
+
+inline bool isSPIRVVersionKnown(uint32_t Ver) {
+  return Ver >= static_cast<uint32_t>(VersionNumber::MinimumVersion) &&
+         Ver <= static_cast<uint32_t>(VersionNumber::MaximumVersion);
+}
 
 enum class ExtensionID : uint32_t {
   First,

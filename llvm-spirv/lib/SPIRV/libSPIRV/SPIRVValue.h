@@ -269,7 +269,8 @@ public:
 protected:
   void validate() const override {
     SPIRVConstantEmpty::validate();
-    assert((Type->isTypeComposite() || Type->isTypeOpaque() ||
+    assert((Type->isTypeBool() || Type->isTypeInt() || Type->isTypeFloat() ||
+            Type->isTypeComposite() || Type->isTypeOpaque() ||
             Type->isTypeEvent() || Type->isTypePointer() ||
             Type->isTypeReserveId() || Type->isTypeDeviceEvent() ||
             (Type->isTypeSubgroupAvcINTEL() &&

@@ -225,6 +225,15 @@ else()
   set(LIBC_INSTALL_INCLUDE_DIR ${CMAKE_INSTALL_INCLUDEDIR})
 endif()
 
+if(LIBC_TARGET_TRIPLE)
+  set(LIBC_INSTALL_LIBRARY_DIR lib${LLVM_LIBDIR_SUFFIX}/${LIBC_TARGET_TRIPLE})
+elseif(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT LIBC_GPU_BUILD)
+  set(LIBC_INSTALL_LIBRARY_DIR
+      lib${LLVM_LIBDIR_SUFFIX}/${LLVM_DEFAULT_TARGET_TRIPLE})
+else()
+  set(LIBC_INSTALL_LIBRARY_DIR lib${LLVM_LIBDIR_SUFFIX})
+endif()
+
 if(LIBC_TARGET_ARCHITECTURE_IS_GPU)
   include(prepare_libc_gpu_build)
   set(LIBC_ENABLE_UNITTESTS OFF)
@@ -340,26 +349,13 @@ set(TARGET_ENTRYPOINT_NAME_LIST "")
 foreach(entrypoint IN LISTS TARGET_LLVMLIBC_ENTRYPOINTS)
   string(FIND ${entrypoint} "." last_dot_loc REVERSE)
   if(${last_dot_loc} EQUAL -1)
-    message(FATAL "Invalid entrypoint target name ${entrypoint}; Expected a '.' "
-                  "(dot) in the name.")
+    message(FATAL_ERROR "Invalid entrypoint target name ${entrypoint}; Expected"
+                        " a '.' (dot) in the name.")
   endif()
   math(EXPR name_loc "${last_dot_loc} + 1")
   string(SUBSTRING ${entrypoint} ${name_loc} -1 entrypoint_name)
   list(APPEND TARGET_ENTRYPOINT_NAME_LIST ${entrypoint_name})
 endforeach()
-
-set(LIBC_INSTALL_DEPENDS)
-if(LLVM_LIBC_FULL_BUILD)
-  set(LIBC_INSTALL_DEPENDS "install-libc-static-archives;install-libc-headers")
-  if(NOT LIBC_TARGET_OS_IS_BAREMETAL)
-    # For now we will disable libc-startup installation for baremetal. The
-    # correct way to do it would be to make a hookable startup for baremetal
-    # and install it as part of the libc installation.
-    list(APPEND LIBC_INSTALL_DEPENDS "libc-startup")
-  endif()
-else()
-  set(LIBC_INSTALL_DEPENDS install-libc-static-archives)
-endif()
 
 add_subdirectory(include)
 add_subdirectory(config)
@@ -388,18 +384,3 @@ endif()
 if (LIBC_INCLUDE_DOCS)
   add_subdirectory(docs)
 endif()
-
-
-if(LLVM_LIBC_FULL_BUILD)
-  add_llvm_install_targets(
-    install-libc-headers
-    DEPENDS libc-headers
-    COMPONENT libc-headers
-  )
-endif()
-
-add_llvm_install_targets(
-  install-libc
-  DEPENDS ${LIBC_INSTALL_DEPENDS}
-  COMPONENT libc
-)

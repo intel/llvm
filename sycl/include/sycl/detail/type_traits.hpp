@@ -45,9 +45,9 @@ template <class T>
 inline constexpr bool is_fixed_topology_group_v =
     is_fixed_topology_group<T>::value;
 
-#ifdef SYCL_EXT_ONEAPI_ROOT_GROUP
-template <> struct is_fixed_topology_group<root_group> : std::true_type {};
-#endif
+template <int Dimensions> class root_group;
+template <int Dimensions>
+struct is_fixed_topology_group<root_group<Dimensions>> : std::true_type {};
 
 template <int Dimensions>
 struct is_fixed_topology_group<sycl::group<Dimensions>> : std::true_type {};
@@ -341,6 +341,12 @@ struct is_vector_bool
 template <typename T>
 struct is_bool
     : std::bool_constant<is_scalar_bool<vector_element_t<T>>::value> {};
+
+// is_boolean
+template <int N> struct Boolean;
+template <typename T> struct is_boolean : std::false_type {};
+template <int N> struct is_boolean<Boolean<N>> : std::true_type {};
+template <typename T> inline constexpr bool is_boolean_v = is_boolean<T>::value;
 
 // is_pointer
 template <typename T> struct is_pointer_impl : std::false_type {};

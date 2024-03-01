@@ -51,6 +51,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ESIMD/ESIMDUtils.cpp
   ESIMD/ESIMDVerifier.cpp
   ESIMD/ESIMDRemoveHostCode.cpp
+  ESIMD/ESIMDRemoveOptnoneNoinline.cpp
   ESIMD/LowerESIMD.cpp
   ESIMD/LowerESIMDKernelAttrs.cpp
   CleanupSYCLMetadata.cpp
@@ -62,17 +63,21 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LowerInvokeSimd.cpp
   LowerWGLocalMemory.cpp
   LowerWGScope.cpp
+  ModuleSplitter.cpp
   MutatePrintfAddrspace.cpp
   SYCLAddOptLevelAttribute.cpp
   SYCLPropagateAspectsUsage.cpp
   SYCLPropagateJointMatrixUsage.cpp
   SYCLUtils.cpp
+  SanitizeDeviceGlobal.cpp
 
   LocalAccessorToSharedMemory.cpp
   GlobalOffset.cpp
   TargetHelpers.cpp
   PrepareSYCLNativeCPU.cpp
   RenameKernelSYCLNativeCPU.cpp
+  ConvertToMuxBuiltinsSYCLNativeCPU.cpp
+  PipelineSYCLNativeCPU.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR

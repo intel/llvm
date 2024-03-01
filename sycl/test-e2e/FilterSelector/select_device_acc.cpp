@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR='*:acc' %{run-unfiltered-devices} %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='*:fpga' %{run-unfiltered-devices} %t.out
 //
 // Checks if only specified device types can be acquired from select_device
 // when ONEAPI_DEVICE_SELECTOR is set

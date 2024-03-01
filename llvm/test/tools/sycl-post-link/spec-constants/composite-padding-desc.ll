@@ -1,5 +1,6 @@
 ; RUN: sycl-post-link -spec-const=native < %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files_0.prop
+; RUN: %if asserts %{ sycl-post-link -debug-only=SpecConst -spec-const=native < %s 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
 ;
 ; This test checks that composite specialization constants with implicit padding
 ; at the end of the composite type will have an additional padding descriptor at
@@ -70,4 +71,10 @@ attributes #4 = { convergent }
 ; implicit padding at the end of the composite type of the spec constant.
 ;
 ; CHECK: [SYCL/specialization constants]
-; CHECK-NEXT: fb86570d411366d1____ZL9SpecConst=2|gEAAAAAAAAAAAAAAAAAAAQAAAAQAAAAAEAAAAEAAAAw/////FAAAAMAAAAA
+; CHECK-NEXT: fb86570d411366d1____ZL9SpecConst=2
+; CHECK-LOG: sycl.specialization-constants
+; CHECK-LOG:[[UNIQUE_PREFIX:[0-9a-zA-Z]+]]={0, 0, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={1, 4, 1}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={4294967295, 5, 3}
+; CHECK-LOG: sycl.specialization-constants-default-values
+; CHECK-LOG:{0, 8, 0}

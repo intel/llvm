@@ -50,6 +50,8 @@ public:
     unsigned int CompositeOffset = 0;
     unsigned int Size = 0;
     unsigned int BlobOffset = 0;
+    // Indicates if the specialization constant was set to a value which is
+    // different from the default value.
     bool IsSet = false;
   };
 
@@ -61,7 +63,8 @@ public:
                     sycl::detail::pi::PiProgram Program)
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(Program),
-        MKernelIDs(std::move(KernelIDs)) {
+        MKernelIDs(std::move(KernelIDs)),
+        MSpecConstsDefValBlob(getSpecConstsDefValBlob()) {
     updateSpecConstSymMap();
   }
 
@@ -74,6 +77,7 @@ public:
       : MBinImage(BinImage), MContext(std::move(Context)),
         MDevices(std::move(Devices)), MState(State), MProgram(Program),
         MKernelIDs(std::move(KernelIDs)), MSpecConstsBlob(SpecConstsBlob),
+        MSpecConstsDefValBlob(getSpecConstsDefValBlob()),
         MSpecConstSymMap(SpecConstMap) {}
 
   bool has_kernel(const kernel_id &KernelIDCand) const noexcept {
@@ -152,6 +156,21 @@ public:
     std::vector<SpecConstDescT> &Descs =
         MSpecConstSymMap[std::string{SpecName}];
     for (SpecConstDescT &Desc : Descs) {
+      // If there is a default value of the specialization constant and it is
+      // the same as the value which is being set then do nothing, runtime is
+      // going to handle this case just like if only the default value of the
+      // specialization constant was provided.
+      if (MSpecConstsDefValBlob.size() &&
+          (std::memcmp(MSpecConstsDefValBlob.begin() + Desc.BlobOffset,
+                       static_cast<const char *>(Value) + Desc.CompositeOffset,
+                       Desc.Size) == 0)) {
+        // Now we have default value, so reset to false.
+        Desc.IsSet = false;
+        continue;
+      }
+
+      // Value of the specialization constant is set to a value which is
+      // different from the default value.
       Desc.IsSet = true;
       std::memcpy(MSpecConstsBlob.data() + Desc.BlobOffset,
                   static_cast<const char *>(Value) + Desc.CompositeOffset,
@@ -161,19 +180,20 @@ public:
 
   void get_specialization_constant_raw_value(const char *SpecName,
                                              void *ValueRet) const noexcept {
-    assert(is_specialization_constant_set(SpecName));
+    bool IsSet = is_specialization_constant_set(SpecName);
     // Lock the mutex to prevent when one thread in the middle of writing a
     // new value while another thread is reading the value to pass it to
     // JIT compiler.
     const std::lock_guard<std::mutex> SpecConstLock(MSpecConstAccessMtx);
-
+    assert(IsSet || MSpecConstsDefValBlob.size());
     // operator[] can't be used here, since it's not marked as const
     const std::vector<SpecConstDescT> &Descs =
         MSpecConstSymMap.at(std::string{SpecName});
     for (const SpecConstDescT &Desc : Descs) {
-
+      auto Blob =
+          IsSet ? MSpecConstsBlob.data() : MSpecConstsDefValBlob.begin();
       std::memcpy(static_cast<char *>(ValueRet) + Desc.CompositeOffset,
-                  MSpecConstsBlob.data() + Desc.BlobOffset, Desc.Size);
+                  Blob + Desc.BlobOffset, Desc.Size);
     }
   }
 
@@ -293,15 +313,29 @@ public:
   }
 
 private:
+  // Get the specialization constant default value blob.
+  ByteArray getSpecConstsDefValBlob() const {
+    if (!MBinImage)
+      return ByteArray(nullptr, 0);
+
+    // Get default values for specialization constants.
+    const RTDeviceBinaryImage::PropertyRange &SCDefValRange =
+        MBinImage->getSpecConstantsDefaultValues();
+    if (!SCDefValRange.size())
+      return ByteArray(nullptr, 0);
+
+    ByteArray DefValDescriptors =
+        DeviceBinaryProperty(*SCDefValRange.begin()).asByteArray();
+    // First 8 bytes are consumed by the size of the property.
+    DefValDescriptors.dropBytes(8);
+    return DefValDescriptors;
+  }
+
   void updateSpecConstSymMap() {
     if (MBinImage) {
       const RTDeviceBinaryImage::PropertyRange &SCRange =
           MBinImage->getSpecConstants();
       using SCItTy = RTDeviceBinaryImage::PropertyRange::ConstIterator;
-
-      // get default values for specialization constants
-      const RTDeviceBinaryImage::PropertyRange &SCDefValRange =
-          MBinImage->getSpecConstantsDefaultValues();
 
       // This variable is used to calculate spec constant value offset in a
       // flat byte array.
@@ -341,16 +375,13 @@ private:
       }
       MSpecConstsBlob.resize(BlobOffset);
 
-      bool HasDefaultValues = SCDefValRange.begin() != SCDefValRange.end();
-
-      if (HasDefaultValues) {
-        ByteArray DefValDescriptors =
-            DeviceBinaryProperty(*SCDefValRange.begin()).asByteArray();
-        assert(DefValDescriptors.size() - 8 == MSpecConstsBlob.size() &&
+      if (MSpecConstsDefValBlob.size()) {
+        assert(MSpecConstsDefValBlob.size() == MSpecConstsBlob.size() &&
                "Specialization constant default value blob do not have the "
                "expected size.");
-        std::uninitialized_copy(&DefValDescriptors[8],
-                                &DefValDescriptors[8] + MSpecConstsBlob.size(),
+        std::uninitialized_copy(MSpecConstsDefValBlob.begin(),
+                                MSpecConstsDefValBlob.begin() +
+                                    MSpecConstsBlob.size(),
                                 MSpecConstsBlob.data());
       }
     }
@@ -372,6 +403,9 @@ private:
   // Binary blob which can have values of all specialization constants in the
   // image
   std::vector<unsigned char> MSpecConstsBlob;
+  // Binary blob which can have default values of all specialization constants
+  // in the image.
+  const ByteArray MSpecConstsDefValBlob;
   // Buffer containing binary blob which can have values of all specialization
   // constants in the image, it is using for storing non-native specialization
   // constants

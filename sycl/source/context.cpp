@@ -16,7 +16,6 @@
 #include <sycl/exception_list.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/properties/all_properties.hpp>
-#include <sycl/stl.hpp>
 
 #include <algorithm>
 #include <memory>

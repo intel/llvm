@@ -149,9 +149,14 @@
 // 14.40 Add HIP _pi_mem_advice alises to match the PI_MEM_ADVICE_CUDA* ones.
 // 14.41 Added piextCommandBufferMemBufferFill & piextCommandBufferFillUSM
 // 14.42 Added piextCommandBufferPrefetchUSM and piextCommandBufferAdviseUSM
+// 15.43 Changed the signature of piextMemGetNativeHandle to also take a
+// pi_device
+// 15.44 Add coarse-grain memory advice flag for HIP.
+// 15.45 Added piextKernelSuggestMaxCooperativeGroupCount and
+//       piextEnqueueCooperativeKernelLaunch.
 
-#define _PI_H_VERSION_MAJOR 14
-#define _PI_H_VERSION_MINOR 42
+#define _PI_H_VERSION_MAJOR 15
+#define _PI_H_VERSION_MINOR 45
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -434,6 +439,10 @@ typedef enum {
   PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT = 0x2010F,
 
   PI_EXT_ONEAPI_DEVICE_INFO_MATRIX_COMBINATIONS = 0x20110,
+
+  // Composite device
+  PI_EXT_ONEAPI_DEVICE_INFO_COMPONENT_DEVICES = 0x20111,
+  PI_EXT_ONEAPI_DEVICE_INFO_COMPOSITE_DEVICE = 0x20112,
 } _pi_device_info;
 
 typedef enum {
@@ -580,6 +589,8 @@ typedef enum {
   PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST = 1 << 7,
   PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST = 1 << 8,
   PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST = 1 << 9,
+  PI_MEM_ADVICE_HIP_SET_COARSE_GRAINED = 1 << 10,
+  PI_MEM_ADVICE_HIP_UNSET_COARSE_GRAINED = 1 << 11,
   PI_MEM_ADVICE_UNKNOWN = 0x7FFFFFFF,
 } _pi_mem_advice;
 
@@ -1424,8 +1435,9 @@ __SYCL_EXPORT pi_result piMemBufferPartition(
 /// Gets the native handle of a PI mem object.
 ///
 /// \param mem is the PI mem to get the native handle of.
+/// \param dev is the PI device that the native allocation will be resident on
 /// \param nativeHandle is the native handle of mem.
-__SYCL_EXPORT pi_result piextMemGetNativeHandle(pi_mem mem,
+__SYCL_EXPORT pi_result piextMemGetNativeHandle(pi_mem mem, pi_device dev,
                                                 pi_native_handle *nativeHandle);
 
 /// Creates PI mem object from a native handle.
@@ -1660,6 +1672,18 @@ __SYCL_EXPORT pi_result piextKernelCreateWithNativeHandle(
 __SYCL_EXPORT pi_result
 piextKernelGetNativeHandle(pi_kernel kernel, pi_native_handle *nativeHandle);
 
+/// Gets the max work group count for a cooperative kernel.
+///
+/// \param kernel is the PI kernel being queried.
+/// \param local_work_size is the number of work items in a work group that will
+/// be used when the kernel is launched. \param dynamic_shared_memory_size is
+/// the size of dynamic shared memory, for each work group, in bytes, that will
+/// be used when the kernel is launched." \param group_count_ret is a pointer to
+/// where the query result will be stored.
+__SYCL_EXPORT pi_result piextKernelSuggestMaxCooperativeGroupCount(
+    pi_kernel kernel, size_t local_work_size, size_t dynamic_shared_memory_size,
+    pi_uint32 *group_count_ret);
+
 //
 // Events
 //
@@ -1737,6 +1761,12 @@ __SYCL_EXPORT pi_result piSamplerRelease(pi_sampler sampler);
 // Queue Commands
 //
 __SYCL_EXPORT pi_result piEnqueueKernelLaunch(
+    pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,
+    const size_t *global_work_offset, const size_t *global_work_size,
+    const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event);
+
+__SYCL_EXPORT pi_result piextEnqueueCooperativeKernelLaunch(
     pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,
     const size_t *global_work_offset, const size_t *global_work_size,
     const size_t *local_work_size, pi_uint32 num_events_in_wait_list,

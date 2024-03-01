@@ -8,7 +8,7 @@
 #include <sycl/sycl.hpp>
 
 // Uncomment to print additional test information
-#define VERBOSE_PRINT
+// #define VERBOSE_PRINT
 
 template <typename DType, sycl::image_channel_type CType> class kernel;
 
@@ -99,12 +99,13 @@ template <typename DType, sycl::image_channel_type CType> bool runTest() {
             float fdim1 = float(dim1 + 0.5f) / (float)height;
             float fdim2 = float(dim2 + 0.5f) / (float)depth;
 
-            // Extension: read mipmap with anisotropic filtering with zero
+            // Extension: sample mipmap with anisotropic filtering with zero
             // viewing gradients
-            VecType px1 = sycl::ext::oneapi::experimental::read_mipmap<VecType>(
-                mipHandle, sycl::float4(fdim0, fdim1, fdim2, (float)0),
-                sycl::float4(0.0f, 0.0f, 0.0f, 0.0f),
-                sycl::float4(0.0f, 0.0f, 0.0f, 0.0f));
+            VecType px1 =
+                sycl::ext::oneapi::experimental::sample_mipmap<VecType>(
+                    mipHandle, sycl::float3(fdim0, fdim1, fdim2),
+                    sycl::float3(0.0f, 0.0f, 0.0f),
+                    sycl::float3(0.0f, 0.0f, 0.0f));
 
             outAcc[sycl::id<3>{dim2, dim1, dim0}] = px1[0];
           });

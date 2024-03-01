@@ -18,6 +18,13 @@ template <typename T, bool TestMerging> bool test_load(queue Q) {
   Passed &= test<T, 16, 8, 8, VS, Transpose, TestMerging>(Q);
   Passed &= test<T, 2, 4, 32, VS, Transpose, TestMerging>(Q);
   Passed &= test<T, 2, 4, 64, VS, Transpose, TestMerging>(Q);
+
+  Passed &= test<T, 1, 1, 4, VS, !Transpose, TestMerging>(Q);
+  Passed &= test<T, 1, 7, 16, VS, !Transpose, TestMerging>(Q);
+  Passed &= test<T, 4, 7, 16, VS, !Transpose, TestMerging>(Q);
+  Passed &= test<T, 16, 8, 8, VS, !Transpose, TestMerging>(Q);
+  Passed &= test<T, 2, 4, 32, VS, !Transpose, TestMerging>(Q);
+  Passed &= test<T, 2, 4, 64, VS, !Transpose, TestMerging>(Q);
   return Passed;
 }
 

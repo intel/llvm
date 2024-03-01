@@ -1,7 +1,7 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s
 //
 // CHECK:  zeCommandQueueCreate = 1     \--->         zeCommandQueueDestroy = 1
 // The test is to check that there is only a single level zero queue created

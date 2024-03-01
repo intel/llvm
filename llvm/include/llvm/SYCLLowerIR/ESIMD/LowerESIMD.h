@@ -34,11 +34,14 @@ class PassRegistry;
 /// like intrinsics to a form parsable by the ESIMD-aware SPIRV translator.
 class SYCLLowerESIMDPass : public PassInfoMixin<SYCLLowerESIMDPass> {
 public:
+  SYCLLowerESIMDPass(bool ModuleContainsScalar = true)
+      : ModuleContainsScalarCode(ModuleContainsScalar) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 
 private:
   bool prepareForAlwaysInliner(Module &M);
   size_t runOnFunction(Function &F, SmallPtrSetImpl<Type *> &);
+  bool ModuleContainsScalarCode;
 };
 
 ModulePass *createSYCLLowerESIMDPass();
@@ -82,6 +85,12 @@ public:
 };
 
 class ESIMDRemoveHostCodePass : public PassInfoMixin<ESIMDRemoveHostCodePass> {
+public:
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
+};
+
+class ESIMDRemoveOptnoneNoinlinePass
+    : public PassInfoMixin<ESIMDRemoveOptnoneNoinlinePass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
 };

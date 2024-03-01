@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // This test checks local accessor cmpxchg atomic operations.
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc || gpu-intel-dg2
+// REQUIRES: gpu-intel-pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //

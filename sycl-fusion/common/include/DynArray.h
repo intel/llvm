@@ -97,7 +97,7 @@ private:
 /// String-like class that owns its character storage.
 class DynString {
 public:
-  explicit DynString(const char *Str) : Chars{std::strlen(Str) + 1} {
+  explicit DynString(const char *Str = "") : Chars{std::strlen(Str) + 1} {
     std::copy(Str, Str + Chars.size(), Chars.begin());
   }
 

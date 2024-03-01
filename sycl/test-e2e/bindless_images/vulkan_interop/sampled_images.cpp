@@ -147,11 +147,11 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
               float fdim1 = float(dim1 + 0.5f) / (float)height;
               float fdim2 = float(dim2 + 0.5f) / (float)depth;
 
-              // Extension: read image data from handle (Vulkan imported)
+              // Extension: sample image data from handle (Vulkan imported)
               VecType pixel;
-              pixel = syclexp::read_image<
+              pixel = syclexp::sample_image<
                   std::conditional_t<NChannels == 1, DType, VecType>>(
-                  handles.imgInput, sycl::float4(fdim0, fdim1, fdim2, 0));
+                  handles.imgInput, sycl::float3(fdim0, fdim1, fdim2));
 
               pixel *= static_cast<DType>(10.1f);
               outAcc[sycl::id{dim2, dim1, dim0}] = pixel;
@@ -163,8 +163,8 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
               float fdim0 = float(dim0 + 0.5f) / (float)width;
               float fdim1 = float(dim1 + 0.5f) / (float)height;
 
-              // Extension: read image data from handle (Vulkan imported)
-              VecType pixel = syclexp::read_image<
+              // Extension: sample image data from handle (Vulkan imported)
+              VecType pixel = syclexp::sample_image<
                   std::conditional_t<NChannels == 1, DType, VecType>>(
                   handles.imgInput, sycl::float2(fdim0, fdim1));
 

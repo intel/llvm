@@ -76,7 +76,8 @@ namespace sycl {
 inline namespace _V1 {
 #define BUILTIN_GENINT(NUM_ARGS, NAME, IMPL)                                   \
   HOST_IMPL(NAME, IMPL)                                                        \
-  EXPORT_SCALAR_AND_VEC_1_16(NUM_ARGS, NAME, INTEGER_TYPES)
+  FOR_EACH2(EXPORT_SCALAR, NUM_ARGS, NAME, INTEGER_TYPES)                      \
+  EXPORT_VEC_1_16(NUM_ARGS, NAME, FIXED_WIDTH_INTEGER_TYPES)
 #define BUILTIN_GENINT_SU(NUM_ARGS, NAME, IMPL)                                \
   BUILTIN_GENINT(NUM_ARGS, NAME, IMPL)
 
@@ -89,11 +90,11 @@ BUILTIN_GENINT(ONE_ARG, abs, [](auto x) -> decltype(x) {
 })
 
 BUILTIN_GENINT_SU(TWO_ARGS, abs_diff, [](auto x, auto y) -> decltype(x) {
-  // From SYCL 2020 revision 8:
-  //
-  // > The subtraction is done without modulo overflow. The behavior is
-  // > undefined if the result cannot be represented by the return type.
-  return sycl::abs(x - y);
+  if constexpr (std::is_signed_v<decltype(x)>)
+    if ((x < 0) != (y < 0))
+      return std::abs(x) + std::abs(y);
+
+  return std::max(x, y) - std::min(x, y);
 })
 
 BUILTIN_GENINT_SU(TWO_ARGS, add_sat, [](auto x, auto y) -> decltype(x) {
@@ -213,6 +214,10 @@ BUILTIN_GENINT_SU(TWO_ARGS, max,
 
 BUILTIN_GENINT_SU(TWO_ARGS, min,
                   [](auto x, auto y) -> decltype(x) { return y < x ? y : x; })
+
+BUILTIN_GENINT_SU(THREE_ARGS, clamp, [](auto x, auto y, auto z) -> decltype(x) {
+  return std::min(std::max(x, y), z);
+})
 
 template <typename T> static inline constexpr T __clz_impl(T x, T m, T n = 0) {
   return (x & m) ? n : __clz_impl(x, T(m >> 1), ++n);

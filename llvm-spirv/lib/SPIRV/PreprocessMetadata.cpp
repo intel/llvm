@@ -167,10 +167,19 @@ void PreprocessMetadataBase::visit(Module *M) {
 
     // !{void (i32 addrspace(1)*)* @kernel, i32 35, i32 size}
     if (MDNode *ReqdSubgroupSize = Kernel.getMetadata(kSPIR2MD::SubgroupSize)) {
+      // A primary named subgroup size is encoded as
+      // the metadata intel_reqd_sub_group_size with value 0.
+      auto Val = getMDOperandAsInt(ReqdSubgroupSize, 0);
+      if (Val == 0)
+        EM.addOp()
+            .add(&Kernel)
+            .add(spv::internal::ExecutionModeNamedSubgroupSizeINTEL)
+            .add(/* PrimarySubgroupSizeINTEL = */ 0U)
+            .done();
       EM.addOp()
           .add(&Kernel)
           .add(spv::ExecutionModeSubgroupSize)
-          .add(getMDOperandAsInt(ReqdSubgroupSize, 0))
+          .add(Val)
           .done();
     }
 

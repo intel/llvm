@@ -43,9 +43,28 @@ int main() {
 
     // A/B tf32
     test<float, float, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 16, 8, 16,
+         layout::row_major, layout::row_major, layout::row_major,
          precision::tf32>(Q);
     test<const float, const float, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N,
-         16, 8, 16, precision::tf32>(Q);
+         16, 8, 16, layout::row_major, layout::row_major, layout::row_major,
+         precision::tf32>(Q);
+
+    // test different layout combinations for one case
+
+    test<const bfloat16, const float, float, SUB_TILES_M, SUB_TILES_K,
+         SUB_TILES_N, 8, 16, 32, layout::row_major, layout::col_major,
+         layout::row_major>(Q);
+    test<const bfloat16, const float, float, SUB_TILES_M, SUB_TILES_K,
+         SUB_TILES_N, 8, 16, 32, layout::col_major, layout::row_major,
+         layout::row_major>(Q);
+    test<const bfloat16, const float, float, SUB_TILES_M, SUB_TILES_K,
+         SUB_TILES_N, 8, 16, 32, layout::col_major, layout::col_major,
+         layout::row_major>(Q);
+    test<const bfloat16, const float, float, SUB_TILES_M, SUB_TILES_K,
+         SUB_TILES_N, 8, 16, 32, layout::col_major, layout::col_major,
+         layout::col_major>(Q);
+
+    // joint_matrix_apply tests
 
     float D[MATRIX_M][MATRIX_N];
     big_matrix<float, MATRIX_M, MATRIX_N> MD_f((float *)&D);
@@ -54,7 +73,6 @@ int main() {
     big_matrix<double, 8 * nWGperDim, 8 * nWGperDim> MD_d((double *)&D_d);
     auto apply_add = [](auto &x) { x = x + 2; };
 
-    // joint_matrix_apply tests
     matrix_verify_lambda<bfloat16, float, 16, 16, 16>(Q, MD_f, 0.0, apply_add);
 
     matrix_verify_lambda<double, double, 8, 4, 8>(Q, MD_d, -60.0, apply_add);

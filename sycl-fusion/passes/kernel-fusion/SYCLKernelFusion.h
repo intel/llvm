@@ -10,6 +10,7 @@
 #define SYCL_FUSION_PASSES_SYCLKERNELFUSION_H
 
 #include "Kernel.h"
+#include "ModuleInfo.h"
 #include "target/TargetFusionInfo.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"

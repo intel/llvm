@@ -1,4 +1,5 @@
 ;; Ensure that DIExpressions are preserved in DIGlobalVariableExpressions
+;; if nonsemantic debug info is enabled.
 ;; This utilizes SPIRV DebugGlobalVariable's Variable field to hold the
 ;; DIExpression.
 
@@ -23,6 +24,14 @@
 
 ; CHECK-LLVM: ![[#]] = !DIGlobalVariableExpression(var: ![[#GV:]], expr: !DIExpression(DW_OP_constu, 1, DW_OP_stack_value))
 ; CHECK-LLVM: ![[#GV]] = distinct !DIGlobalVariable(name: "true", scope: ![[#]], file: ![[#]], line: 3777, type: ![[#]], isLocal: true, isDefinition: true)
+
+;; Ensure SPIR-V DebugGlobalVariable's Variable field does not hold a DIExpression if nonsemantic debug info is not enabled
+
+; RUN: llvm-spirv -o %t.spt %t.bc -spirv-text
+; RUN: FileCheck %s --input-file %t.spt --check-prefix CHECK-NONE-SPIRV
+
+; CHECK-NONE-SPIRV: [[DEBUG_INFO_NONE:[0-9]+]] [[#]] DebugInfoNone
+; CHECK-NONE-SPIRV: [[#]] [[#]] DebugGlobalVariable [[#]] [[#]] [[#]] [[#]] [[#]] [[#]] [[#]] [[DEBUG_INFO_NONE]] [[#]] {{$}}
 
 !llvm.module.flags = !{!0, !1}
 !llvm.dbg.cu = !{!2}

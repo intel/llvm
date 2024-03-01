@@ -4,10 +4,10 @@
 ; Checking gvn-hoist in case of indirect branches.
 
 %class.bar = type { ptr, ptr }
-%class.base = type { i32 (...)** }
+%class.base = type { ptr }
 
-@bar = local_unnamed_addr global i32 ()* null, align 8
-@bar1 = local_unnamed_addr global i32 ()* null, align 8
+@bar = local_unnamed_addr global ptr null, align 8
+@bar1 = local_unnamed_addr global ptr null, align 8
 
 ; Check that the bitcast is not hoisted because it is after an indirect call
 define i32 @foo(ptr nocapture readonly %i) {
@@ -44,17 +44,17 @@ entry:
   br i1 %switch, label %l1.preheader, label %sw.default
 
 l1.preheader:                                     ; preds = %sw.default, %entry
-  %b1 = bitcast ptr %y to void (ptr)***
+  %b1 = bitcast ptr %y to ptr
   br label %l1
 
 l1:                                               ; preds = %l1.preheader, %l1
-  %1 = load i32 ()*, i32 ()** @bar, align 8
+  %1 = load ptr, ptr @bar, align 8
   %call = tail call i32 %1()
-  %b2 = bitcast ptr %y to void (ptr)***
+  %b2 = bitcast ptr %y to ptr
   br label %l1
 
 sw.default:                                       ; preds = %entry
-  %2 = load i32 ()*, i32 ()** @bar1, align 8
+  %2 = load ptr, ptr @bar1, align 8
   %call2 = tail call i32 %2()
   br label %l1.preheader
 }
@@ -98,19 +98,19 @@ entry:
   br i1 %switch, label %l1.preheader, label %sw.default
 
 l1.preheader:                                     ; preds = %sw.default, %entry
-  %b1 = bitcast ptr %y to void (ptr)***
+  %b1 = bitcast ptr %y to ptr
   %y1 = load ptr, ptr %x, align 8
   br label %l1
 
 l1:                                               ; preds = %l1.preheader, %l1
-  %b2 = bitcast ptr %y to void (ptr)***
-  %1 = load i32 ()*, i32 ()** @bar, align 8
+  %b2 = bitcast ptr %y to ptr
+  %1 = load ptr, ptr @bar, align 8
   %y2 = load ptr, ptr %x, align 8
   %call = tail call i32 %1()
   br label %l1
 
 sw.default:                                       ; preds = %entry
-  %2 = load i32 ()*, i32 ()** @bar1, align 8
+  %2 = load ptr, ptr @bar1, align 8
   %call2 = tail call i32 %2()
   br label %l1.preheader
 }
@@ -144,12 +144,12 @@ entry:
   indirectbr ptr %Ptr, [label %BrBlock, label %B2]
 
 B2:
-  %b1 = bitcast ptr %y to void (ptr)***
-  store i32 4, ptr%P
+  %b1 = bitcast ptr %y to ptr
+  store i32 4, ptr %P
   br label %BrBlock
 
 BrBlock:
-  %b2 = bitcast ptr %y to void (ptr)***
+  %b2 = bitcast ptr %y to ptr
   %L = load i32, ptr %P
   %C = icmp eq i32 %L, 42
   br i1 %C, label %T, label %F
@@ -194,12 +194,12 @@ entry:
   indirectbr ptr %Ptr, [label %BrBlock, label %B2, label %T]
 
 B2:
-  %b1 = bitcast ptr %y to void (ptr)***
-  store i32 4, ptr%P
+  %b1 = bitcast ptr %y to ptr
+  store i32 4, ptr %P
   br label %BrBlock
 
 BrBlock:
-  %b2 = bitcast ptr %y to void (ptr)***
+  %b2 = bitcast ptr %y to ptr
   %L = load i32, ptr %P
   %C = icmp eq i32 %L, 42
   br i1 %C, label %T, label %F
@@ -245,13 +245,13 @@ entry:
   indirectbr ptr %Ptr, [label %BrBlock, label %B2]
 
 B2:
-  %b1 = bitcast ptr %y to void (ptr)***
+  %b1 = bitcast ptr %y to ptr
   %0 = load i32, ptr %i, align 4
-  store i32 %0, ptr%P
+  store i32 %0, ptr %P
   br label %BrBlock
 
 BrBlock:
-  %b2 = bitcast ptr %y to void (ptr)***
+  %b2 = bitcast ptr %y to ptr
   %L = load i32, ptr %P
   %C = icmp eq i32 %L, 42
   br i1 %C, label %T, label %F
@@ -272,7 +272,7 @@ F:
 ; landing pad has direct branches (e.g., %lpad to %catch1, %catch)
 ; This CFG has a cycle (%lpad -> %catch1 -> %lpad4 -> %lpad)
 
-define i32 @foo2(ptr nocapture readonly %i) local_unnamed_addr personality ptr bitcast (i32 (...)* @__gxx_personality_v0 to ptr) {
+define i32 @foo2(ptr nocapture readonly %i) local_unnamed_addr personality ptr @__gxx_personality_v0 {
 ; CHECK-LABEL: define i32 @foo2
 ; CHECK-SAME: (ptr nocapture readonly [[I:%.*]]) local_unnamed_addr personality ptr @__gxx_personality_v0 {
 ; CHECK-NEXT:  entry:
@@ -330,17 +330,17 @@ if.then:
   %exception = tail call ptr @__cxa_allocate_exception(i64 4) #2
   %1 = bitcast ptr %exception to ptr
   store i32 %0, ptr %1, align 16
-  invoke void @__cxa_throw(ptr %exception, ptr bitcast (ptr @_ZTIi to ptr), ptr null) #3
+  invoke void @__cxa_throw(ptr %exception, ptr @_ZTIi, ptr null) #3
   to label %unreachable unwind label %lpad
 
 lpad:
   %2 = landingpad { ptr, i32 }
-  catch ptr bitcast (ptr @_ZTIi to ptr)
+  catch ptr @_ZTIi
   catch ptr null
   %bc1 = add i32 %0, 10
   %3 = extractvalue { ptr, i32 } %2, 0
   %4 = extractvalue { ptr, i32 } %2, 1
-  %5 = tail call i32 @llvm.eh.typeid.for(ptr bitcast (ptr @_ZTIi to ptr)) #2
+  %5 = tail call i32 @llvm.eh.typeid.for(ptr @_ZTIi) #2
   %matches = icmp eq i32 %4, %5
   %bc7 = add i32 %0, 10
   %6 = tail call ptr @__cxa_begin_catch(ptr %3) #2
@@ -363,7 +363,7 @@ lpad4:
   cleanup
   %bc5 = add i32 %0, 10
   tail call void @__cxa_end_catch() #2
-  invoke void @__cxa_throw(ptr %exception, ptr bitcast (ptr @_ZTIi to ptr), ptr null) #3
+  invoke void @__cxa_throw(ptr %exception, ptr @_ZTIi, ptr null) #3
   to label %unreachable unwind label %lpad
 
 try.cont:

@@ -23,12 +23,33 @@
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-MIX %s
 // clang-format on
 
+// Check the behaviour when -fsycl-add-default-spec-consts-image option is used
+// and default value is explicitly set with the same value - we are supposed to
+// choose images with inlined values in this case.
+
+// clang-format off
+// RUN: %clangxx  -fsycl-add-default-spec-consts-image -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %s -o %t3.out
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-DEFAULT-EXPLICIT-SET %s
+// clang-format on
+
+// Check the behaviour when -fsycl-add-default-spec-consts-image option is used
+// and value of specialization constant is changed to new value and then back to
+// the default value - we are supposed to choose images with inlined values in
+// this case.
+
+// clang-format off
+// RUN: %clangxx  -fsycl-add-default-spec-consts-image -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %s -o %t3.out
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-DEFAULT-BACK-TO-DEFAULT %s
+// clang-format on
+
 #include <sycl/sycl.hpp>
 
 constexpr sycl::specialization_id<int> int_id(3);
 
 class Kernel1;
 class Kernel2;
+class Kernel3;
+class Kernel4;
 
 int main() {
   sycl::queue Q;
@@ -189,5 +210,64 @@ int main() {
   else
     std::cout << "Default value of specialization constant was used."
               << std::endl;
+
+  // Test that if user calls set_specialization_constant with the value equal to
+  // default then we choose image with inlined default values of specialization
+  // constants. We are verifying that by checking the 4th parameter is set to
+  // zero.
+  // CHECK-DEFAULT-EXPLICIT-SET: Default value was explicitly set
+  // CHECK-DEFAULT-EXPLICIT-SET: ---> piextKernelSetArgMemObj(
+  // CHECK-DEFAULT-EXPLICIT-SET-NEXT:	<unknown> : {{.*}}
+  // CHECK-DEFAULT-EXPLICIT-SET-NEXT:	<unknown> : {{.*}}
+  // CHECK-DEFAULT-EXPLICIT-SET-NEXT:	<unknown> : {{.*}}
+  // CHECK-DEFAULT-EXPLICIT-SET-NEXT:	<unknown> : 0
+  // CHECK-DEFAULT-EXPLICIT-SET-NEXT: ) ---> 	pi_result : PI_SUCCESS
+  // CHECK-DEFAULT-EXPLICIT-SET: Default value of specialization constant was used.
+  std::cout << "Default value was explicitly set" << std::endl;
+  Q.submit([&](sycl::handler &cgh) {
+     cgh.set_specialization_constant<int_id>(3);
+
+     cgh.single_task<Kernel3>([=](sycl::kernel_handler h) {
+       auto SpecConst = h.get_specialization_constant<int_id>();
+       *Res = SpecConst == 3 ? 0 : 1;
+     });
+   }).wait();
+
+  if (*Res)
+    std::cout << "New specialization constant value was set." << std::endl;
+  else
+    std::cout << "Default value of specialization constant was used."
+              << std::endl;
+
+  // Test that if user sets new value of specialization constant and then
+  // changes it back to default value then we choose image with inlined default
+  // values of specialization constants. We are verifying that by checking the
+  // 4th parameter is set to zero.
+  // CHECK-DEFAULT-BACK-TO-DEFAULT: Changed to new value and then default value was explicitly set
+  // CHECK-DEFAULT-BACK-TO-DEFAULT: ---> piextKernelSetArgMemObj(
+  // CHECK-DEFAULT-BACK-TO-DEFAULT-NEXT:	<unknown> : {{.*}}
+  // CHECK-DEFAULT-BACK-TO-DEFAULT-NEXT:	<unknown> : {{.*}}
+  // CHECK-DEFAULT-BACK-TO-DEFAULT-NEXT:	<unknown> : {{.*}}
+  // CHECK-DEFAULT-BACK-TO-DEFAULT-NEXT:	<unknown> : 0
+  // CHECK-DEFAULT-BACK-TO-DEFAULT-NEXT: ) ---> 	pi_result : PI_SUCCESS
+  // CHECK-DEFAULT-BACK-TO-DEFAULT: Default value of specialization constant was used.
+  std::cout << "Changed to new value and then default value was explicitly set"
+            << std::endl;
+  Q.submit([&](sycl::handler &cgh) {
+     cgh.set_specialization_constant<int_id>(4);
+     cgh.set_specialization_constant<int_id>(3);
+
+     cgh.single_task<Kernel4>([=](sycl::kernel_handler h) {
+       auto SpecConst = h.get_specialization_constant<int_id>();
+       *Res = SpecConst == 3 ? 0 : 1;
+     });
+   }).wait();
+
+  if (*Res)
+    std::cout << "New specialization constant value was set." << std::endl;
+  else
+    std::cout << "Default value of specialization constant was used."
+              << std::endl;
+
   return 0;
 }

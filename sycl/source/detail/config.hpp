@@ -231,10 +231,23 @@ public:
   }
 };
 
-// Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
-// ONEAPI_DEVICE_SELECTOR
+// Array is used by SYCL_DEVICE_ALLOWLIST and ONEAPI_DEVICE_SELECTOR.
+// The 'supportAcc' parameter is used by SYCL_DEVICE_ALLOWLIST which,
+// unlike ONEAPI_DEVICE_SELECTOR, also accepts 'acc' as a valid device type.
+template <bool supportAcc = false>
 const std::array<std::pair<std::string, info::device_type>, 6> &
-getSyclDeviceTypeMap();
+getSyclDeviceTypeMap() {
+  static const std::array<std::pair<std::string, info::device_type>, 6>
+      SyclDeviceTypeMap = {
+          {{"host", info::device_type::host},
+           {"cpu", info::device_type::cpu},
+           {"gpu", info::device_type::gpu},
+           /* Duplicate entries are fine as this map is one-directional.*/
+           {supportAcc ? "acc" : "fpga", info::device_type::accelerator},
+           {"fpga", info::device_type::accelerator},
+           {"*", info::device_type::all}}};
+  return SyclDeviceTypeMap;
+}
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
 // ONEAPI_DEVICE_SELECTOR
@@ -265,6 +278,7 @@ public:
   }
 };
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // ---------------------------------------
 // SYCL_DEVICE_FILTER support
 
@@ -306,17 +320,14 @@ public:
     return FilterList;
   }
 };
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 template <> class SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS> {
   using BaseT = SYCLConfigBase<SYCL_ENABLE_DEFAULT_CONTEXTS>;
 
 public:
   static bool get() {
-#ifdef WIN32
-    constexpr bool DefaultValue = false;
-#else
     constexpr bool DefaultValue = true;
-#endif
 
     const char *ValStr = getCachedValue();
 
@@ -513,7 +524,7 @@ private:
       return Result;
 
     std::string ValueStr{ValueRaw};
-    auto DeviceTypeMap = getSyclDeviceTypeMap();
+    auto DeviceTypeMap = getSyclDeviceTypeMap<true /*Enable 'acc'*/>();
 
     // Iterate over all configurations.
     size_t Start = 0, End = 0;

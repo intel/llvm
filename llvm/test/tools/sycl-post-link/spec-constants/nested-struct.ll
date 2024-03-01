@@ -3,6 +3,7 @@
 
 ; RUN: sycl-post-link --spec-const=native -S %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll
+; RUN: %if asserts %{ sycl-post-link -debug-only=SpecConst -spec-const=native < %s 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
 
 ; CHECK: %[[#SCV1:]] = call i8 @_Z20__spirv_SpecConstantia(i32 [[#SCID1:]], i8 120)
 ; CHECK: %[[#SCV2:]] = call i8 @_Z20__spirv_SpecConstantia(i32 [[#SCID2:]], i8 121)
@@ -21,6 +22,20 @@
 ; CHECK-SAME: i32 -1, i32 13, i32 3,
 ; CHECK-SAME: i32 [[#SCID5:]], i32 16, i32 1,
 ; CHECK-SAME: i32 -1, i32 17, i32 3}
+; CHECK-LOG: sycl.specialization-constants
+; CHECK-LOG:[[UNIQUE_PREFIX:[0-9a-zA-Z]+]]={0, 0, 1}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={1, 4, 1}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={2, 8, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={3, 12, 1}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={4294967295, 13, 3}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={4, 16, 1}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={4294967295, 17, 3}
+; CHECK-LOG: sycl.specialization-constants-default-values
+; CHECK-LOG:{0, 1, 120}
+; CHECK-LOG:{4, 1, 121}
+; CHECK-LOG:{8, 4, 122}
+; CHECK-LOG:{12, 1, 97}
+; CHECK-LOG:{16, 1, 98}
 
 ; ModuleID = '..\sycl\test-e2e\SpecConstants\2020\nested-non-packed-struct.cpp'
 source_filename = "..\\sycl\\test-e2e\\SpecConstants\\2020\\nested-non-packed-struct.cpp"

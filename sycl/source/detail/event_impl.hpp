@@ -14,7 +14,6 @@
 #include <sycl/detail/host_profiling_info.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/info/info_desc.hpp>
-#include <sycl/stl.hpp>
 
 #include <atomic>
 #include <cassert>

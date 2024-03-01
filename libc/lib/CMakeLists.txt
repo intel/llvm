@@ -33,26 +33,44 @@ foreach(archive IN ZIP_LISTS
     PROPERTIES
       ARCHIVE_OUTPUT_NAME ${archive_0}
   )
+  if(LLVM_LIBC_FULL_BUILD)
+    target_link_libraries(${archive_1} PUBLIC libc-headers)
+    if(TARGET libc-startup)
+      add_dependencies(${archive_1} libc-startup)
+    endif()
+  endif()
   list(APPEND added_archive_targets ${archive_1})
 endforeach()
-
-if(LIBC_TARGET_TRIPLE)
-  set(LIBC_INSTALL_LIBRARY_DIR lib${LLVM_LIBDIR_SUFFIX}/${LIBC_TARGET_TRIPLE})
-elseif(LLVM_ENABLE_PER_TARGET_RUNTIME_DIR AND NOT LIBC_GPU_BUILD)
-  set(LIBC_INSTALL_LIBRARY_DIR
-      lib${LLVM_LIBDIR_SUFFIX}/${LLVM_DEFAULT_TARGET_TRIPLE})
-else()
-  set(LIBC_INSTALL_LIBRARY_DIR lib${LLVM_LIBDIR_SUFFIX})
-endif()
 
 install(
   TARGETS ${added_archive_targets}
   ARCHIVE DESTINATION ${LIBC_INSTALL_LIBRARY_DIR}
-  COMPONENT libc-static-archives
+  COMPONENT libc
 )
 
-add_llvm_install_targets(
-  install-libc-static-archives
-  DEPENDS ${added_archive_targets}
-  COMPONENT libc-static-archives
-)
+if(NOT LIBC_TARGET_OS_IS_BAREMETAL)
+  # For now we will disable libc-startup installation for baremetal. The
+  # correct way to do it would be to make a hookable startup for baremetal
+  # and install it as part of the libc installation.
+  set(startup_target "libc-startup")
+endif()
+
+if(LLVM_LIBC_FULL_BUILD)
+  set(header_install_target install-libc-headers)
+endif()
+
+add_custom_target(install-libc
+                  DEPENDS ${added_archive_targets}
+                          ${startup_target}
+                          ${header_install_target}
+                  COMMAND "${CMAKE_COMMAND}"
+                          -DCMAKE_INSTALL_COMPONENT=libc
+                          -P "${CMAKE_BINARY_DIR}/cmake_install.cmake")
+add_custom_target(install-libc-stripped
+                  DEPENDS ${added_archive_targets}
+                          ${startup_target}
+                          ${header_install_target}
+                  COMMAND "${CMAKE_COMMAND}"
+                          -DCMAKE_INSTALL_COMPONENT=libc
+                          -DCMAKE_INSTALL_DO_STRIP=1
+                          -P "${CMAKE_BINARY_DIR}/cmake_install.cmake")

@@ -12,6 +12,8 @@
 #include <sycl/detail/type_list.hpp> // for type_list, address_space_list
 #include <sycl/half_type.hpp>        // for half
 
+#include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
+
 #include <cstddef>     // for byte, size_t
 #include <type_traits> // for conditional_t, is_signed_v, is_...
 
@@ -40,6 +42,28 @@ using scalar_vector_half_list = tl_append<scalar_half_list, vector_half_list>;
 
 using half_list =
     tl_append<scalar_half_list, vector_half_list, marray_half_list>;
+
+using scalar_bfloat16_list = type_list<sycl::ext::oneapi::bfloat16>;
+
+using vector_bfloat16_list = type_list<
+    vec<sycl::ext::oneapi::bfloat16, 1>, vec<sycl::ext::oneapi::bfloat16, 2>,
+    vec<sycl::ext::oneapi::bfloat16, 3>, vec<sycl::ext::oneapi::bfloat16, 4>,
+    vec<sycl::ext::oneapi::bfloat16, 8>, vec<sycl::ext::oneapi::bfloat16, 16>>;
+
+using marray_bfloat16_list = type_list<marray<sycl::ext::oneapi::bfloat16, 1>,
+                                       marray<sycl::ext::oneapi::bfloat16, 2>,
+                                       marray<sycl::ext::oneapi::bfloat16, 3>,
+                                       marray<sycl::ext::oneapi::bfloat16, 4>,
+                                       marray<sycl::ext::oneapi::bfloat16, 8>,
+                                       marray<sycl::ext::oneapi::bfloat16, 16>>;
+
+using scalar_vector_bfloat16_list =
+    tl_append<scalar_bfloat16_list, vector_bfloat16_list>;
+
+using bfloat16_list =
+    tl_append<scalar_bfloat16_list, vector_bfloat16_list, marray_bfloat16_list>;
+
+using half_bfloat16_list = tl_append<scalar_half_list, scalar_bfloat16_list>;
 
 using scalar_float_list = type_list<float>;
 
@@ -73,14 +97,22 @@ using scalar_vector_double_list =
 using double_list =
     tl_append<scalar_double_list, vector_double_list, marray_double_list>;
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+using scalar_floating_list = tl_append<scalar_float_list, scalar_double_list,
+                                       scalar_half_list, scalar_bfloat16_list>;
+#else
+// Presently, this is used only by builtins_legacy_scalar.hpp for defining math
+// funcs. bfloat16 provides its own scalar math definitions so we skip its
+// inclusion.
 using scalar_floating_list =
     tl_append<scalar_float_list, scalar_double_list, scalar_half_list>;
+#endif
 
-using vector_floating_list =
-    tl_append<vector_float_list, vector_double_list, vector_half_list>;
+using vector_floating_list = tl_append<vector_float_list, vector_double_list,
+                                       vector_half_list, vector_bfloat16_list>;
 
-using marray_floating_list =
-    tl_append<marray_float_list, marray_double_list, marray_half_list>;
+using marray_floating_list = tl_append<marray_float_list, marray_double_list,
+                                       marray_half_list, marray_bfloat16_list>;
 
 using scalar_vector_floating_list =
     tl_append<scalar_floating_list, vector_floating_list>;

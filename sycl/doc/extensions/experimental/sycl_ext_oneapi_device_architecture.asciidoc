@@ -334,6 +334,14 @@ intel_gpu_pvc
 a|
 [source]
 ----
+intel_gpu_pvc_vg
+----
+|-
+|Ponte Vecchio VG Intel graphics architecture.
+
+a|
+[source]
+----
 intel_gpu_8_0_0 = intel_gpu_bdw
 intel_gpu_9_0_9 = intel_gpu_skl
 intel_gpu_9_1_9 = intel_gpu_kbl
@@ -617,6 +625,22 @@ amd_gpu_gfx1201
 |AMD RDNA 4 architecture.
 |===
 
+The enumerators are guaranteed to be partially ordered, which means that some
+comparison operations (e.g. `<`, `>`) are meaningful.
+Specifically, the following guarantees are provided:
+
+* When an enumerator's value is defined in the table above as equal to some
+  other enumerator, the values of the two enumerators are guaranteed to be the
+  same.
+
+* The enumerators within a "family" (e.g. the Intel GPU family) are guaranteed
+  to have ascending values in the order that they are defined in the table
+  above.
+  (Except, of course, for the enumerators that are defined to have a value that
+  is equal to some other enumerator.)
+
+Enumerators from different families have no guaranteed relative order.
+
 [_Note:_ An "alias" enumerator is generally added for new Intel GPU devices
 only after hardware has finalized and the exact version is known.
 _{endnote}_]
@@ -628,9 +652,65 @@ of the device, and `if_architecture_is` can be used similarly to the
 `+__CUDA_ARCH__+` macro in CUDA.
 _{endnote}_]
 
-=== New `if_architecture_is` free function
+=== New enumeration of architecture categories
 
-This extension adds the following new free function which may be called from
+This extension adds a new enumeration of various categories of device
+architectures.
+
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+enum class arch_category : /* unspecified */ {
+  // See table below for list of enumerators
+};
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+The following table specifies the enumerators that are available and tells
+which version of this extension first included each of these enumerators.
+
+[%header,cols="5,1,5"]
+|===
+|Enumerator name
+|Added in version
+|Description
+
+a|
+[source]
+----
+intel_gpu
+----
+|-
+|
+Any Intel GPU device.
+This category includes all device architectures in the Intel GPU family.
+
+a|
+[source]
+----
+nvidia_gpu
+----
+|-
+|
+Any Nvidia GPU device.
+This category includes all device architectures in the Nvidia GPU family.
+
+a|
+[source]
+----
+amd_gpu
+----
+|-
+|
+Any AMD GPU device.
+This category includes all device architectures in the AMD GPU family.
+|===
+
+=== New free functions to query the architecture in device code
+
+This extension adds the following new free functions which may be called from
 device code.
 
 |====
@@ -642,8 +722,26 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template<architecture ...Archs, typename T>
+template<architecture ...Archs, typename T>                   (1)
 /* unspecified */ if_architecture_is(T fn);
+
+template<arch_category ...Categories, typename T>             (2)
+/* unspecified */ if_architecture_is(T fn);
+
+template<architecture Arch, typename T>                       (3)
+/* unspecified */ if_architecture_is_lt(T fn);
+
+template<architecture Arch, typename T>                       (4)
+/* unspecified */ if_architecture_is_le(T fn);
+
+template<architecture Arch, typename T>                       (5)
+/* unspecified */ if_architecture_is_gt(T fn);
+
+template<architecture Arch, typename T>                       (6)
+/* unspecified */ if_architecture_is_ge(T fn);
+
+template<architecture Arch1, architecture Arch2, typename T>  (7)
+/* unspecified */ if_architecture_is_between(T fn);
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -652,16 +750,45 @@ template<architecture ...Archs, typename T>
 _Constraints:_ The type `T` must be a {cpp} `Callable` type which is invocable
 with an empty parameter list.
 
+_Mandates (7):_ The architecture `Arch1` must be in the same family as `Arch2`.
+
 _Preconditions:_ This function must be called from device code.
 
-_Effects:_ The `Archs` parameter pack identifies the condition that gates
-execution of the callable object `fn`.
-This condition is `true` only if the device which executes the
-`if_architecture_is` function has any one of the architectures listed in this
-pack.
+_Effects:_ The template parameters to these functions identify a condition that
+gates execution of the callable object `fn`.
+If the condition is `true`, the object `fn` is called.
 Otherwise, the function `fn` is potentially discarded as described in the
 link:../proposed/sycl_ext_oneapi_device_if.asciidoc[sycl_ext_oneapi_device_if]
 extension.
+
+For (1), the condition is `true` only if the device which executes the
+`if_architecture_is` function has any one of the architectures listed in the
+`Archs` pack.
+
+For (2), the condition is `true` only if the device which executes the
+`if_architecture_is` function has an architecture that is in any one of the
+categories listed in the `Categories` pack.
+
+For (3), the condition is `true` only if the device which executes the
+`if_architecture_is_lt` function has an architecture that is in the same
+family as `Arch` and compares less than `Arch`.
+
+For (4), the condition is `true` only if the device which executes the
+`if_architecture_is_le` function has an architecture that is in the same
+family as `Arch` and compares less than or equal to `Arch`.
+
+For (5), the condition is `true` only if the device which executes the
+`if_architecture_is_gt` function has an architecture that is in the same
+family as `Arch` and compares greater than `Arch`.
+
+For (6), the condition is `true` only if the device which executes the
+`if_architecture_is_ge` function has an architecture that is in the same
+family as `Arch` and compares greater than or equal to `Arch`.
+
+For (7), the condition is `true` only if the device which executes the
+`if_architecture_is_between` function has an architecture that is in the same
+family as `Arch1` and is greater than or equal to `Arch1` and is less than or
+equal to `Arch2`.
 
 _Returns:_ An object _F_ of the unnamed "else" class, which can be used to
 perform if-then-else chains.
@@ -702,23 +829,76 @@ a|
 a!
 [source]
 ----
-template<architecture ...Archs, typename T>
+template<architecture ...Archs, typename T>                   (1)
 /* unspecified */ else_if_architecture_is(T fn);
+
+template<arch_category ...Categories, typename T>             (2)
+/* unspecified */ else_if_architecture_is(T fn);
+
+template<architecture Arch, typename T>                       (3)
+/* unspecified */ else_if_architecture_is_lt(T fn);
+
+template<architecture Arch, typename T>                       (4)
+/* unspecified */ else_if_architecture_is_le(T fn);
+
+template<architecture Arch, typename T>                       (5)
+/* unspecified */ else_if_architecture_is_gt(T fn);
+
+template<architecture Arch, typename T>                       (6)
+/* unspecified */ else_if_architecture_is_ge(T fn);
+
+template<architecture Arch1, architecture Arch2, typename T>  (7)
+/* unspecified */ else_if_architecture_is_between(T fn);
 ----
 !====
 
 _Constraints:_ The type `T` must be a {cpp} `Callable` type which is invocable
 with an empty parameter list.
 
-_Effects:_ This function has an associated condition that gates execution of
+_Mandates (7):_ The architecture `Arch1` must be in the same family as `Arch2`.
+
+_Effects:_ These functions have an associated condition that gates execution of
 the callable object `fn`.
-This condition is `true` only if the object _F_ comes from a previous call
-whose associated condition is `false` *and* if the device calling
-`else_if_architecture_is` has any one of the architectures in the `Archs`
-parameter pack.
+If the condition is `true`, the object `fn` is called.
 Otherwise, the function `fn` is potentially discarded as described in the
 link:../proposed/sycl_ext_oneapi_device_if.asciidoc[sycl_ext_oneapi_device_if]
 extension.
+
+For (1), the condition is `true` only if the object _F_ comes from a previous
+call whose associated condition is `false` *and* if the device which executes
+the `else_if_architecture_is` function has any one of the architectures listed
+in the `Archs` parameter pack.
+
+For (2), the condition is `true` only if the object _F_ comes from a previous
+call whose associated condition is `false` *and* if the device which executes
+the `else_if_architecture_is` function has an architecture that is in any one
+of the categories listed in the `Categories` pack.
+
+For (3), the condition is `true` only if the object _F_ comes from a previous
+call whose associated condition is `false` *and* if the device which executes
+the `else_if_architecture_is_lt` function has an architecture that is in the
+same family as `Arch` and compares less than `Arch`.
+
+For (4), the condition is `true` only if the object _F_ comes from a previous
+call whose associated condition is `false` *and* if the device which executes
+the `else_if_architecture_is_le` function has an architecture that is in the
+same family as `Arch` and compares less than or equal to `Arch`.
+
+For (5), the condition is `true` only if the object _F_ comes from a previous
+call whose associated condition is `false` *and* if the device which executes
+the `else_if_architecture_is_gt` function has an architecture that is in the
+same family as `Arch` and compares greater than `Arch`.
+
+For (6), the condition is `true` only if the object _F_ comes from a previous
+call whose associated condition is `false` *and* if the device which executes
+the `else_if_architecture_is_ge` function has an architecture that is in the
+same family as `Arch` and compares greater than or equal to `Arch`.
+
+For (7), the condition is `true` only if the object _F_ comes from a previous
+call whose associated condition is `false` *and* if the device which executes
+the `else_if_architecture_is_between` function has an architecture that is in
+the same family as `Arch1` and is greater than or equal to `Arch1` and is less
+than or equal to `Arch2`.
 
 _Returns:_ An object _F_ of the unnamed "else" class, which can be used to
 perform if-then-else chains.
@@ -738,16 +918,22 @@ a!
 namespace sycl {
 
 class device {
-  bool ext_oneapi_architecture_is(
+  bool ext_oneapi_architecture_is(                       (1)
     ext::oneapi::experimental::architecture arch);
+
+  bool ext_oneapi_architecture_is(                       (2)
+    ext::oneapi::experimental::arch_category category);
 };
 
 } // namespace sycl
 ----
 !====
 
-_Returns:_ The value `true` only if the device's architecture is equal to
+_Returns (1):_ The value `true` only if the device's architecture is equal to
 `arch`.
+
+_Returns (2):_ The value `true` only if the device's architecture is in the
+category `category`.
 |====
 
 === New device information descriptor
@@ -790,11 +976,26 @@ static constexpr size_t N = 1000;
 int main() {
   sycl::queue q;
 
+  // Testing for a specific architecture.
   q.parallel_for({N}, [=](auto i) {
     syclex::if_architecture_is<syclex::architecture::intel_gpu_pvc>([&]{
       // Code for PVC
     }).otherwise([&]{
-      // Fallback code
+      // Generic code
+    });
+  });
+
+  // Testing for an architecture category or a range of architectures.
+  q.parallel_for({N}, [=](auto i) {
+    syclex::if_architecture_is<syclex::arch_category::intel_gpu>([&]{
+      // Code for an Intel GPU
+    }).else_if_architecture_ge<syclex::architecture::nvidia_gpu_sm80>([&]{
+      // Code Nvidia compute capability >= 8.x
+    }).else_if_architecture_is_between<syclex::architecture::amd_gpu_gfx1010,
+                                       syclex::architecture::amd_gpu_gfx1013>([&]{
+      // Code for AMD devices between gfx1010 and gfx1013 (inclusive)
+    }).otherwise([&]{
+      // Generic code
     });
   });
 }
@@ -845,6 +1046,28 @@ They currently exist only for use with the
 link:sycl_ext_matrix/sycl_ext_oneapi_matrix.asciidoc[sycl_ext_oneapi_matrix]
 extension.
 
+
+== Implementation notes
+
+Some planning is required when choosing the values for the `architecture`
+enumerators because applications will expect comparisons to reflect the
+features that are available.
+For example, an application might assume that
+`arch >= architecture::intel_gpu_pvc` tests for an Intel GPU that is PVC or
+newer.
+For the Intel GPUs, the order of the enumerators should be the same as the
+order of the device's 32-bit GMDID values.
+One solution is to use the GMDID value as the value of the enumerator, but we
+must ensure that the value does not accidentally collide with a value from
+another architecture family.
+We could potentially use the top bits to distinguish between architecture
+families, but this could cause problems if future GMDID values start using
+those top bits.
+Another option is to use a 64-bit base type for the enumeration.
+Whatever strategy we choose, we should not need to renumber the enumerators
+whenever a new one is added because this would constitute an ABI break.
+
+
 == Future direction
 
 This experimental extension is still evolving.
@@ -883,5 +1106,6 @@ features that are available on devices with the given architecture list but may
 not be available on devices with other architectures.
 --
 
-* Additional enumerators in the `architecture` enumeration.
+* Additional enumerators in the `architecture` and `arch_category`
+  enumerations.
   This could include entries for different x86_64 architectures.

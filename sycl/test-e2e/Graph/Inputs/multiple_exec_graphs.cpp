@@ -4,7 +4,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+  queue Queue{};
 
   if (!are_graphs_supported(Queue)) {
     return 0;
@@ -33,17 +33,12 @@ int main() {
   Queue.copy(DataC.data(), PtrC, Size);
   Queue.wait_and_throw();
 
-  // event Event = add_nodes(Graph, Queue, Size, PtrA, PtrB, PtrC);
-  // Queue.wait_and_throw();
-
   add_nodes(Graph, Queue, Size, PtrA, PtrB, PtrC);
 
   // Finalize and execute several iterations of the graph
-  event Event;
   for (unsigned n = 0; n < Iterations; n++) {
     auto GraphExec = Graph.finalize();
-    Event =
-        Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
+    Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
   }
   Queue.wait_and_throw();
 

@@ -244,6 +244,16 @@ int main() {
       check<aligned_half, 4>(Queue);
       check<aligned_half, 8>(Queue);
       check<aligned_half, 16>(Queue);
+
+      typedef sycl::ext::oneapi::bfloat16 aligned_bfloat16
+          __attribute__((aligned(16)));
+      check<aligned_bfloat16>(Queue);
+      check<aligned_bfloat16, 1>(Queue);
+      check<aligned_bfloat16, 2>(Queue);
+      check<aligned_bfloat16, 3>(Queue);
+      check<aligned_bfloat16, 4>(Queue);
+      check<aligned_bfloat16, 8>(Queue);
+      check<aligned_bfloat16, 16>(Queue);
     }
   }
   if (std::find(Vec.begin(), Vec.end(), "cl_intel_subgroups_long") !=

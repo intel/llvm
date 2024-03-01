@@ -102,16 +102,6 @@ template <typename T> struct lsc_expand_type {
   using type = __ESIMD_DNS::lsc_expand_type<T>::type;
 };
 
-template <typename T> struct lsc_bitcast_type {
-public:
-  using type = std::conditional_t<
-      sizeof(T) == 1, uint8_t,
-      std::conditional_t<
-          sizeof(T) == 2, uint16_t,
-          std::conditional_t<sizeof(T) == 4, uint32_t,
-                             std::conditional_t<sizeof(T) == 8, uint64_t, T>>>>;
-};
-
 } // namespace detail
 
 /// L1 or L3 cache hint kinds.

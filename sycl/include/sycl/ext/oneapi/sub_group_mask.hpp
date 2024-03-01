@@ -138,10 +138,9 @@ struct sub_group_mask {
     for (int i = 0; i < 4; ++i) {
       MemberMask[i] = TmpMArray[i];
     }
-    auto OCLMask =
-        sycl::detail::ConvertToOpenCLType_t<sycl::vec<unsigned, 4>>(MemberMask);
     return __spirv_GroupNonUniformBallotBitCount(
-        __spv::Scope::Subgroup, (int)__spv::GroupOperation::Reduce, OCLMask);
+        __spv::Scope::Subgroup, (int)__spv::GroupOperation::Reduce,
+        sycl::detail::convertToOpenCLType(MemberMask));
 #else
     unsigned int count = 0;
     auto word = (Bits & valuable_bits(bits_num));

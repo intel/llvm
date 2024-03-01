@@ -15,7 +15,7 @@ constexpr uint32_t seed = 322;
 using T = uint64_t;
 
 constexpr cache_hint L1H = cache_hint::cached;
-constexpr cache_hint L3H = cache_hint::uncached;
+constexpr cache_hint L2H = cache_hint::uncached;
 
 int main(void) {
   srand(seed);
@@ -23,21 +23,21 @@ int main(void) {
 
   // non transposed, non transformed
   passed &=
-      test<1, T, 1, 1, 8, 32, 1, false, false, L1H, L3H, true>(8, 32, 8, 0, 0);
+      test<1, T, 1, 1, 8, 32, 1, false, false, L1H, L2H, true>(8, 32, 8, 0, 0);
   passed &=
-      test<2, T, 2, 2, 8, 4, 1, false, false, L1H, L3H, true>(16, 16, 16, 1, 5);
+      test<2, T, 2, 2, 8, 4, 1, false, false, L1H, L2H, true>(16, 16, 16, 1, 5);
   passed &=
-      test<3, T, 1, 1, 4, 2, 1, false, false, L1H, L3H, true>(16, 4, 16, 3, 1);
+      test<3, T, 1, 1, 4, 2, 1, false, false, L1H, L2H, true>(16, 4, 16, 3, 1);
 
   // transposed
   passed &=
-      test<4, T, 1, 1, 1, 8, 1, true, false, L1H, L3H, true>(16, 10, 16, 1, 2);
+      test<4, T, 1, 1, 1, 8, 1, true, false, L1H, L2H, true>(16, 10, 16, 1, 2);
   passed &=
-      test<5, T, 1, 1, 2, 8, 1, true, false, L1H, L3H, true>(16, 10, 16, 10, 1);
+      test<5, T, 1, 1, 2, 8, 1, true, false, L1H, L2H, true>(16, 10, 16, 10, 1);
   passed &=
-      test<6, T, 1, 1, 4, 8, 1, true, false, L1H, L3H, true>(16, 10, 16, 11, 1);
+      test<6, T, 1, 1, 4, 8, 1, true, false, L1H, L2H, true>(16, 10, 16, 11, 1);
   passed &=
-      test<7, T, 2, 2, 4, 8, 1, true, false, L1H, L3H, true>(16, 9, 16, 1, 1);
+      test<7, T, 2, 2, 4, 8, 1, true, false, L1H, L2H, true>(16, 9, 16, 1, 1);
 
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;

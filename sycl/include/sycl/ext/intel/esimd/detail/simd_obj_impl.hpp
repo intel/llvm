@@ -124,13 +124,23 @@ constexpr vector_type_t<T, N> make_vector(const T (&&Arr)[N]) {
 }
 
 template <class T, int N, size_t... Is>
-constexpr vector_type_t<T, N> make_vector_impl(T Base, T Stride,
-                                               std::index_sequence<Is...>) {
-  return vector_type_t<T, N>{(T)(Base + ((T)Is) * Stride)...};
+constexpr auto make_vector_impl(T Base, T Stride, std::index_sequence<Is...>) {
+  if constexpr (std::is_integral_v<T> && N <= 3) {
+    // This sequence is a bit more efficient for integral types and N <= 3.
+    return vector_type_t<T, N>{(T)(Base + ((T)Is) * Stride)...};
+  } else {
+    using CppT = typename element_type_traits<T>::EnclosingCppT;
+    CppT BaseCpp = Base;
+    CppT StrideCpp = Stride;
+    vector_type_t<CppT, N> VBase = BaseCpp;
+    vector_type_t<CppT, N> VStride = StrideCpp;
+    vector_type_t<CppT, N> VStrideCoef{(CppT)(Is)...};
+    vector_type_t<CppT, N> Result{VBase + VStride * VStrideCoef};
+    return wrapper_type_converter<T>::template to_vector<N>(Result);
+  }
 }
 
-template <class T, int N>
-constexpr vector_type_t<T, N> make_vector(T Base, T Stride) {
+template <class T, int N> constexpr auto make_vector(T Base, T Stride) {
   return make_vector_impl<T, N>(Base, Stride, std::make_index_sequence<N>{});
 }
 
@@ -265,18 +275,13 @@ public:
   /// are initialized with the arithmetic progression defined by the arguments.
   /// For example, <code>simd<int, 4> x(1, 3)</code> will initialize x to the
   /// <code>{1, 4, 7, 10}</code> sequence.
-  /// @param Val The start of the progression.
+  /// If Ty is a floating-point type and \p Base or \p Step is +/-inf or nan,
+  /// then this constructor has undefined behavior.
+  /// @param Base The start of the progression.
   /// @param Step The step of the progression.
-  simd_obj_impl(Ty Val, Ty Step) noexcept {
-    __esimd_dbg_print(simd_obj_impl(Ty Val, Ty Step));
-    if constexpr (is_wrapper_elem_type_v<Ty> || !std::is_integral_v<Ty>) {
-      for (int i = 0; i < N; ++i) {
-        M_data[i] = bitcast_to_raw_type(Val);
-        Val = binary_op<BinOp::add, Ty>(Val, Step);
-      }
-    } else {
-      M_data = make_vector<Ty, N>(Val, Step);
-    }
+  simd_obj_impl(Ty Base, Ty Step) noexcept {
+    __esimd_dbg_print(simd_obj_impl(Ty Base, Ty Step));
+    M_data = make_vector<Ty, N>(Base, Step);
   }
 
   /// Broadcast constructor. Given value is type-converted to the

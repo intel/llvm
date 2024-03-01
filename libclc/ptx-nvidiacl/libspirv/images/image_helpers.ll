@@ -42,6 +42,14 @@ define <4 x i32> @__clc_struct32_to_vector({i32,i32,i32,i32} %s) nounwind always
   ret <4 x i32> %v
 }
 
+define <2 x i32> @__clc_struct32_to_vector2({i32,i32} %s) nounwind alwaysinline {
+  %a = alloca {i32,i32}
+  store {i32,i32} %s, {i32,i32}* %a
+  %bc = bitcast {i32,i32} * %a to <2 x i32> *
+  %v = load <2 x i32>, <2 x i32> * %bc, align 128
+  ret <2 x i32> %v
+}
+
 define <4 x float> @__clc_structf32_to_vector({float,float,float,float} %s) nounwind alwaysinline {
   %a = alloca {float,float,float,float}
   store {float,float,float,float} %s, {float,float,float,float}* %a
@@ -484,4 +492,183 @@ entry:
   %0 = tail call {i32,i32,i32,i32} @llvm.nvvm.tex.unified.3d.grad.v4u32.f32(i64 %img, float %x, float %y, float %z, float %dXx, float %dXy, float %dXz, float %dYx, float %dYy, float %dYz);
   %1 = tail call <4 x i32>@__clc_struct32_to_vector({i32,i32,i32,i32} %0)
   ret <4 x i32> %1
+}
+
+; <--- IMAGE ARRAYS --->
+
+; Surface Reads
+;
+; @llvm.nvvm.suld.<NDims>.array.v<NChannels><DType>.clamp
+;
+; <NDims> = { 1d, 2d, 3d }
+; <NChannels> = { 2, 4 } 
+; <Dtype> = { i8, i16, i32 }
+;
+; Note: The case of NChannels=1 doesn't need to be handled here as it can be
+; called directly.
+
+
+; @llvm.nvvm.suld.<NDims>.array.v<NChannels>{i8, i16, i32}.clamp
+
+; - @llvm.nvvm.suld.<NDims>.array.v{2, 4}i8.clamp
+
+; - - @llvm.nvvm.suld.{1d, 2d, 3d}.array.v2i8.clamp
+
+declare {i16,i16} @llvm.nvvm.suld.1d.array.v2i8.clamp(i64, i32, i32)
+define <2 x i16> @__clc_llvm_nvvm_suld_1d_array_v2i8_clamp(i64 %img, i32 %idx, i32 %x) nounwind alwaysinline {
+entry:
+  %0 = tail call {i16,i16} @llvm.nvvm.suld.1d.array.v2i8.clamp(i64 %img, i32 %idx, i32 %x);
+  %1 = tail call <2 x i16> @__clc_struct16_to_vector2({i16,i16} %0)
+  ret <2 x i16> %1
+}
+
+declare {i16,i16} @llvm.nvvm.suld.2d.array.v2i8.clamp(i64, i32, i32, i32)
+define <2 x i16> @__clc_llvm_nvvm_suld_2d_array_v2i8_clamp(i64 %img, i32 %idx, i32 %x, i32 %y) nounwind alwaysinline {
+entry:
+  %0 = tail call {i16,i16} @llvm.nvvm.suld.2d.array.v2i8.clamp(i64 %img, i32 %idx, i32 %x, i32 %y);
+  %1 = tail call <2 x i16> @__clc_struct16_to_vector2({i16,i16} %0)
+  ret <2 x i16> %1
+}
+
+declare {i16,i16} @llvm.nvvm.suld.3d.array.v2i8.clamp(i64, i32, i32, i32, i32)
+define <2 x i16> @__clc_llvm_nvvm_suld_3d_array_v2i8_clamp(i64 %img, i32 %idx, i32 %x, i32 %y, i32 %z) nounwind alwaysinline {
+entry:
+  %0 = tail call {i16,i16} @llvm.nvvm.suld.3d.array.v2i8.clamp(i64 %img, i32 %idx, i32 %x, i32 %y, i32 %z);
+  %1 = tail call <2 x i16> @__clc_struct16_to_vector2({i16,i16} %0)
+  ret <2 x i16> %1
+}
+
+; - - @llvm.nvvm.suld.{1d, 2d, 3d}.array.v4i8.clamp
+
+declare {i16,i16,i16,i16} @llvm.nvvm.suld.1d.array.v4i8.clamp(i64, i32, i32)
+define <4 x i16> @__clc_llvm_nvvm_suld_1d_array_v4i8_clamp(i64 %img, i32 %idx, i32 %x) nounwind alwaysinline {
+entry:
+  %0 = tail call {i16,i16,i16,i16} @llvm.nvvm.suld.1d.array.v4i8.clamp(i64 %img, i32 %idx, i32 %x);
+  %1 = tail call <4 x i16> @__clc_struct16_to_vector({i16,i16,i16,i16} %0)
+  ret <4 x i16> %1
+}
+
+declare {i16,i16,i16,i16} @llvm.nvvm.suld.2d.array.v4i8.clamp(i64, i32, i32, i32)
+define <4 x i16> @__clc_llvm_nvvm_suld_2d_array_v4i8_clamp(i64 %img, i32 %idx, i32 %x, i32 %y) nounwind alwaysinline {
+entry:
+  %0 = tail call {i16,i16,i16,i16} @llvm.nvvm.suld.2d.array.v4i8.clamp(i64 %img, i32 %idx, i32 %x, i32 %y);
+  %1 = tail call <4 x i16> @__clc_struct16_to_vector({i16,i16,i16,i16} %0)
+  ret <4 x i16> %1
+}
+
+declare {i16,i16,i16,i16} @llvm.nvvm.suld.3d.array.v4i8.clamp(i64, i32, i32, i32, i32)
+define <4 x i16> @__clc_llvm_nvvm_suld_3d_array_v4i8_clamp(i64 %img, i32 %idx, i32 %x, i32 %y, i32 %z) nounwind alwaysinline {
+entry:
+  %0 = tail call {i16,i16,i16,i16} @llvm.nvvm.suld.3d.array.v4i8.clamp(i64 %img, i32 %idx, i32 %x, i32 %y, i32 %z);
+  %1 = tail call <4 x i16> @__clc_struct16_to_vector({i16,i16,i16,i16} %0)
+  ret <4 x i16> %1
+}
+
+; - @llvm.nvvm.suld.<NDims>.array.v{2, 4}i16.clamp
+
+; - - @llvm.nvvm.suld.{1d, 2d, 3d}.array.v2i16.clamp
+
+declare {i16,i16} @llvm.nvvm.suld.1d.array.v2i16.clamp(i64, i32, i32)
+define <2 x i16> @__clc_llvm_nvvm_suld_1d_array_v2i16_clamp(i64 %img, i32 %idx, i32 %x) nounwind alwaysinline {
+entry:
+  %0 = tail call {i16,i16} @llvm.nvvm.suld.1d.array.v2i16.clamp(i64 %img, i32 %idx, i32 %x);
+  %1 = tail call <2 x i16> @__clc_struct16_to_vector2({i16,i16} %0)
+  ret <2 x i16> %1
+}
+
+declare {i16,i16} @llvm.nvvm.suld.2d.array.v2i16.clamp(i64, i32, i32, i32)
+define <2 x i16> @__clc_llvm_nvvm_suld_2d_array_v2i16_clamp(i64 %img, i32 %idx, i32 %x, i32 %y) nounwind alwaysinline {
+entry:
+  %0 = tail call {i16,i16} @llvm.nvvm.suld.2d.array.v2i16.clamp(i64 %img, i32 %idx, i32 %x, i32 %y);
+  %1 = tail call <2 x i16> @__clc_struct16_to_vector2({i16,i16} %0)
+  ret <2 x i16> %1
+}
+
+declare {i16,i16} @llvm.nvvm.suld.3d.array.v2i16.clamp(i64, i32, i32, i32, i32)
+define <2 x i16> @__clc_llvm_nvvm_suld_3d_array_v2i16_clamp(i64 %img, i32 %idx, i32 %x, i32 %y, i32 %z) nounwind alwaysinline {
+entry:
+  %0 = tail call {i16,i16} @llvm.nvvm.suld.3d.array.v2i16.clamp(i64 %img, i32 %idx, i32 %x, i32 %y, i32 %z);
+  %1 = tail call <2 x i16> @__clc_struct16_to_vector2({i16,i16} %0)
+  ret <2 x i16> %1
+}
+
+; - - @llvm.nvvm.suld.{1d, 2d, 3d}.array.v4i16.clamp
+
+declare {i16,i16,i16,i16} @llvm.nvvm.suld.1d.array.v4i16.clamp(i64, i32, i32)
+define <4 x i16> @__clc_llvm_nvvm_suld_1d_array_v4i16_clamp(i64 %img, i32 %idx, i32 %x) nounwind alwaysinline {
+entry:
+  %0 = tail call {i16,i16,i16,i16} @llvm.nvvm.suld.1d.array.v4i16.clamp(i64 %img, i32 %idx, i32 %x);
+  %1 = tail call <4 x i16> @__clc_struct16_to_vector({i16,i16,i16,i16} %0)
+  ret <4 x i16> %1
+}
+
+declare {i16,i16,i16,i16} @llvm.nvvm.suld.2d.array.v4i16.clamp(i64, i32, i32, i32)
+define <4 x i16> @__clc_llvm_nvvm_suld_2d_array_v4i16_clamp(i64 %img, i32 %idx, i32 %x, i32 %y) nounwind alwaysinline {
+entry:
+  %0 = tail call {i16,i16,i16,i16} @llvm.nvvm.suld.2d.array.v4i16.clamp(i64 %img, i32 %idx, i32 %x, i32 %y);
+  %1 = tail call <4 x i16> @__clc_struct16_to_vector({i16,i16,i16,i16} %0)
+  ret <4 x i16> %1
+}
+
+declare {i16,i16,i16,i16} @llvm.nvvm.suld.3d.array.v4i16.clamp(i64, i32, i32, i32, i32)
+define <4 x i16> @__clc_llvm_nvvm_suld_3d_array_v4i16_clamp(i64 %img, i32 %idx, i32 %x, i32 %y, i32 %z) nounwind alwaysinline {
+entry:
+  %0 = tail call {i16,i16,i16,i16} @llvm.nvvm.suld.3d.array.v4i16.clamp(i64 %img, i32 %idx, i32 %x, i32 %y, i32 %z);
+  %1 = tail call <4 x i16> @__clc_struct16_to_vector({i16,i16,i16,i16} %0)
+  ret <4 x i16> %1
+}
+
+; - @llvm.nvvm.suld.<NDims>.array.v{2, 4}i32.clamp
+
+; - - @llvm.nvvm.suld.{1d, 2d, 3d}.array.v2i32.clamp
+
+declare {i32,i32} @llvm.nvvm.suld.1d.array.v2i32.clamp(i64, i32, i32)
+define <2 x i32> @__clc_llvm_nvvm_suld_1d_array_v2i32_clamp(i64 %img, i32 %idx, i32 %x) nounwind alwaysinline {
+entry:
+  %0 = tail call {i32,i32} @llvm.nvvm.suld.1d.array.v2i32.clamp(i64 %img, i32 %idx, i32 %x);
+  %1 = tail call <2 x i32> @__clc_struct32_to_vector2({i32,i32} %0)
+  ret <2 x i32> %1
+}
+
+declare {i32,i32} @llvm.nvvm.suld.2d.array.v2i32.clamp(i64, i32, i32, i32)
+define <2 x i32> @__clc_llvm_nvvm_suld_2d_array_v2i32_clamp(i64 %img, i32 %idx, i32 %x, i32 %y) nounwind alwaysinline {
+entry:
+  %0 = tail call {i32,i32} @llvm.nvvm.suld.2d.array.v2i32.clamp(i64 %img, i32 %idx, i32 %x, i32 %y);
+  %1 = tail call <2 x i32> @__clc_struct32_to_vector2({i32,i32} %0)
+  ret <2 x i32> %1
+}
+
+declare {i32,i32} @llvm.nvvm.suld.3d.array.v2i32.clamp(i64, i32, i32, i32, i32)
+define <2 x i32> @__clc_llvm_nvvm_suld_3d_array_v2i32_clamp(i64 %img, i32 %idx, i32 %x, i32 %y, i32 %z) nounwind alwaysinline {
+entry:
+  %0 = tail call {i32,i32} @llvm.nvvm.suld.3d.array.v2i32.clamp(i64 %img, i32 %idx, i32 %x, i32 %y, i32 %z);
+  %1 = tail call <2 x i32> @__clc_struct32_to_vector2({i32,i32} %0)
+  ret <2 x i32> %1
+}
+
+; - @llvm.nvvm.suld.<NDims>.array.v4i32.clamp
+
+; - - @llvm.nvvm.suld.{1d, 2d, 3d}.array.v4i32.clamp
+
+declare {i32,i32,i32,i32} @llvm.nvvm.suld.1d.array.v4i32.clamp(i64, i32, i32)
+define <4 x i32> @__clc_llvm_nvvm_suld_1d_array_v4i32_clamp(i64 %img, i32 %idx, i32 %x) nounwind alwaysinline {
+entry:
+  %0 = tail call {i32,i32,i32,i32} @llvm.nvvm.suld.1d.array.v4i32.clamp(i64 %img, i32 %idx, i32 %x);
+  %1 = tail call <4 x i32> @__clc_struct32_to_vector({i32,i32,i32,i32} %0)
+  ret <4 x i32> %1
+}
+
+declare {i32,i32,i32,i32} @llvm.nvvm.suld.2d.array.v4i32.clamp(i64, i32, i32, i32)
+define <4 x i32> @__clc_llvm_nvvm_suld_2d_array_v4i32_clamp(i64 %img, i32 %idx, i32 %x, i32 %y) nounwind alwaysinline {
+entry:
+  %0 = tail call {i32,i32,i32,i32} @llvm.nvvm.suld.2d.array.v4i32.clamp(i64 %img, i32 %idx, i32 %x, i32 %y);
+  %1 = tail call <4 x i32> @__clc_struct32_to_vector({i32,i32,i32,i32} %0)
+  ret <4 x i32> %1
+}
+
+declare {i32,i32,i32,i32} @llvm.nvvm.suld.3d.array.v4i32.clamp(i64, i32, i32, i32, i32)
+define <4 x i32> @__clc_llvm_nvvm_suld_3d_array_v4i32_clamp(i64 %img, i32 %idx, i32 %x, i32 %y, i32 %z) nounwind alwaysinline {
+entry:
+  %0 = tail call {i32,i32,i32,i32} @llvm.nvvm.suld.3d.array.v4i32.clamp(i64 %img, i32 %idx, i32 %x, i32 %y, i32 %z);
+  %1 = tail call <4 x i32> @__clc_struct32_to_vector({i32,i32,i32,i32} %0) ret <4 x i32> %1
 }

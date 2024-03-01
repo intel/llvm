@@ -52,7 +52,7 @@ For further details see here: <https://github.com/intel/llvm/blob/sycl/sycl/doc/
         
 There is an extension that introduces a filtering device selection to SYCL described in
 [sycl\_ext\_oneapi\_filter\_selector](../supported/sycl_ext_oneapi_filter_selector.asciidoc).
-Similar to how SYCL_DEVICE_FILTER or ONEAPI_DEVICE_SELECTOR applies filtering to the entire process this device selector can be used to
+Similar to how ONEAPI_DEVICE_SELECTOR applies filtering to the entire process this device selector can be used to
 programmatically select the Level-Zero backend.
                 
 When neither the environment variable nor the filtering device selector are used, the implementation chooses

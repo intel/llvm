@@ -1,6 +1,3 @@
-// TODO: enable when Jira ticket resolved
-// XFAIL: gpu
-//
 // Check that full compilation works:
 // RUN: %clangxx -DIMPL_SUBGROUP -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %S/../uniform_retval.cpp -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out

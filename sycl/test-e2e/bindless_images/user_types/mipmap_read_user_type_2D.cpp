@@ -4,12 +4,12 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// Uncomment to print additional test information
+// #define VERBOSE_PRINT
+
 #include "user_types_common.hpp"
 #include <iostream>
 #include <sycl/sycl.hpp>
-
-// Uncomment to print additional test information
-// #define VERBOSE_PRINT
 
 // Returns true if test case was passed and validated
 template <typename MyType, int NElems, typename OutType,
@@ -119,9 +119,9 @@ bool run_test() {
             float fdim0 = float(dim0 + 0.5f) / (float)width;
             float fdim1 = float(dim1 + 0.5f) / (float)height;
 
-            // Extension: read mipmap level 1 with LOD
+            // Extension: sample mipmap level 1 with LOD
             MyType pixel =
-                sycl::ext::oneapi::experimental::read_mipmap<MyType, OutType>(
+                sycl::ext::oneapi::experimental::sample_mipmap<MyType, OutType>(
                     mipHandle, sycl::float2(fdim0, fdim1), 1.0f);
 
             outAcc[sycl::id<2>{dim1, dim0}] = pixel;

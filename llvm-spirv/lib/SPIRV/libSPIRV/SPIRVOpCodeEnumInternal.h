@@ -18,6 +18,12 @@ _SPIRV_OP_INTERNAL(JointMatrixGetElementCoordINTEL,
                    internal::OpJointMatrixGetElementCoordINTEL)
 _SPIRV_OP_INTERNAL(CooperativeMatrixPrefetchINTEL,
                    internal::OpCooperativeMatrixPrefetchINTEL)
+_SPIRV_OP_INTERNAL(CooperativeMatrixLoadCheckedINTEL,
+                   internal::OpCooperativeMatrixLoadCheckedINTEL)
+_SPIRV_OP_INTERNAL(CooperativeMatrixStoreCheckedINTEL,
+                   internal::OpCooperativeMatrixStoreCheckedINTEL)
+_SPIRV_OP_INTERNAL(CooperativeMatrixConstructCheckedINTEL,
+                   internal::OpCooperativeMatrixConstructCheckedINTEL)
 _SPIRV_OP_INTERNAL(CooperativeMatrixApplyFunctionINTEL,
                    internal::OpCooperativeMatrixApplyFunctionINTEL)
 _SPIRV_OP_INTERNAL(ComplexFMulINTEL, internal::ComplexFMulINTEL)
@@ -25,3 +31,9 @@ _SPIRV_OP_INTERNAL(ComplexFDivINTEL, internal::ComplexFDivINTEL)
 _SPIRV_OP_INTERNAL(MaskedGatherINTEL, internal::OpMaskedGatherINTEL)
 _SPIRV_OP_INTERNAL(MaskedScatterINTEL, internal::OpMaskedScatterINTEL)
 _SPIRV_OP_INTERNAL(RoundFToTF32INTEL, internal::RoundFToTF32INTEL)
+_SPIRV_OP_INTERNAL(TaskSequenceAsyncINTEL, internal::OpTaskSequenceAsyncINTEL)
+_SPIRV_OP_INTERNAL(TaskSequenceCreateINTEL, internal::OpTaskSequenceCreateINTEL)
+_SPIRV_OP_INTERNAL(TaskSequenceGetINTEL, internal::OpTaskSequenceGetINTEL)
+_SPIRV_OP_INTERNAL(TaskSequenceReleaseINTEL,
+                   internal::OpTaskSequenceReleaseINTEL)
+_SPIRV_OP_INTERNAL(TypeTaskSequenceINTEL, internal::OpTypeTaskSequenceINTEL)
