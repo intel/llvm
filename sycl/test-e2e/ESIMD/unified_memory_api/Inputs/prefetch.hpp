@@ -59,7 +59,6 @@ bool testUSM(queue Q, uint32_t MaskStride, PropertiesT) {
             << std::endl;
 
   uint16_t Size = Groups * Threads * N;
-  using Tuint = esimd_test::uint_type_t<sizeof(T)>;
 
   sycl::range<1> GlobalRange{Groups};
   sycl::range<1> LocalRange{Threads};
@@ -85,8 +84,6 @@ bool testUSM(queue Q, uint32_t MaskStride, PropertiesT) {
        simd_mask<1> Pred_1 = 1;
        for (int I = 0; I < NOffsets; I++)
          Pred[I] = (I % MaskStride == 0) ? 1 : 0;
-
-       using Tuint = esimd_test::uint_type_t<sizeof(T)>;
 
        simd<T, N> Vals;
        if constexpr (VS > 1) { // VS > 1 requires specifying <T, N, VS>
@@ -298,7 +295,6 @@ bool testACC(queue Q, uint32_t MaskStride, PropertiesT) {
             << std::endl;
 
   uint16_t Size = Groups * Threads * N;
-  using Tuint = esimd_test::uint_type_t<sizeof(T)>;
 
   sycl::range<1> GlobalRange{Groups};
   sycl::range<1> LocalRange{Threads};
@@ -327,8 +323,6 @@ bool testACC(queue Q, uint32_t MaskStride, PropertiesT) {
          simd_mask<1> Pred_1 = 1;
          for (int I = 0; I < NOffsets; I++)
            Pred[I] = (I % MaskStride == 0) ? 1 : 0;
-
-         using Tuint = esimd_test::uint_type_t<sizeof(T)>;
 
          simd<T, N> Vals;
          if constexpr (VS > 1) { // VS > 1 requires specifying <T, N, VS>
@@ -504,21 +498,25 @@ template <typename T> bool testACC(queue Q) {
   bool Passed = true;
   Passed &= testACC<T, 1, 1, !UseMask, !UseProperties>(Q, 2, CacheProps);
   Passed &= testACC<T, 2, 1, UseMask, !UseProperties>(Q, 2, CacheProps);
-  Passed &= testACC<T, 4, 1, UseMask, !UseProperties>(Q, 2, CacheProps);
+  Passed &= testACC<T, 4, 1, !UseMask, UseProperties>(Q, 2, CacheProps);
   Passed &= testACC<T, 8, 1, UseMask, UseProperties>(Q, 3, CacheProps);
+  Passed &= testACC<T, 16, 1, UseMask, UseProperties>(Q, 3, CacheProps);
+  Passed &= testACC<T, 32, 1, UseMask, UseProperties>(Q, 3, CacheProps);
 
-  Passed &= testACC<T, 1, 1, !UseMask, UseProperties>(Q, 2, CacheProps);
+  Passed &= testACC<T, 1, 1, UseMask, UseProperties>(Q, 2, CacheProps);
   Passed &= testACC<T, 2, 1, UseMask, UseProperties>(Q, 2, CacheProps);
-  Passed &= testACC<T, 4, 1, UseMask, UseProperties>(Q, 2, CacheProps);
-  Passed &= testACC<T, 8, 1, UseMask, UseProperties>(Q, 3, CacheProps);
-  Passed &= testACC<T, 32, 1, UseMask, UseProperties>(Q, 2, CacheProps);
+  Passed &= testACC<T, 4, 1, UseMask, !UseProperties>(Q, 2, CacheProps);
+  Passed &= testACC<T, 8, 1, !UseMask, UseProperties>(Q, 3, CacheProps);
+  Passed &= testACC<T, 16, 1, UseMask, !UseProperties>(Q, 3, CacheProps);
+  Passed &= testACC<T, 32, 1, !UseMask, UseProperties>(Q, 2, CacheProps);
 
   // Check VS > 1. GPU supports only dwords and qwords in this mode.
   if constexpr (sizeof(T) >= 4) {
     Passed &= testACC<T, 16, 2, UseMask, UseProperties>(Q, 3, CacheProps);
     Passed &= testACC<T, 32, 2, !UseMask, UseProperties>(Q, 3, CacheProps);
     Passed &= testACC<T, 32, 2, UseMask, UseProperties>(Q, 3, CacheProps);
-    Passed &= testACC<T, 32, 2, UseMask, UseProperties>(Q, 3, CacheProps);
+    Passed &= testACC<T, 32, 2, UseMask, !UseProperties>(Q, 3, CacheProps);
+    Passed &= testACC<T, 64, 2, UseMask, !UseProperties>(Q, 3, CacheProps);
   }
   return Passed;
 }
