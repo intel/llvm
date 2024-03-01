@@ -55,6 +55,10 @@ public:
     return UR_EVENT_STATUS_COMPLETE;
   }
 
+  bool isTimestampEvent() const noexcept {
+    return getCommandType() == UR_COMMAND_TIMESTAMP_RECORDING_EXP;
+  }
+
   ur_context_handle_t getContext() const noexcept { return Context; };
 
   uint32_t incrementReferenceCount() { return ++RefCount; }
