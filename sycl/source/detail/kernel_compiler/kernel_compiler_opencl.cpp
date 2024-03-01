@@ -113,10 +113,14 @@ void SetupLibrary(voidPtr &oclocInvokeHandle, voidPtr &oclocFreeOutputHandle,
   }
 }
 
-auto IPVersionsToString(const std::vector<uint32_t> IPVersionVec) {
+std::string IPVersionsToString(const std::vector<uint32_t> IPVersionVec) {
   std::stringstream ss;
   bool amFirst = true;
   for (uint32_t ipVersion : IPVersionVec) {
+    // if any device is not intelGPU, bail.
+    if (ipVersion < 0x02000000)
+      return "";
+
     if (!amFirst)
       ss << ",";
     amFirst = false;
@@ -163,8 +167,11 @@ spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
   Args.push_back(SourceName);
 
   // device
-  Args.push_back("-device");
-  Args.push_back(IPVersionsToString(IPVersionVec).c_str());
+  std::string IPVersionsStr = IPVersionsToString(IPVersionVec);
+  if (!IPVersionsStr.empty()) {
+    Args.push_back("-device");
+    Args.push_back(IPVersionsStr.c_str());
+  }
 
   // invoke
   decltype(::oclocInvoke) *OclocInvokeFunc =
@@ -229,10 +236,14 @@ std::string InvokeOclocQuery(uint32_t IPVersion, const char *identifier) {
   uint64_t *OutputLengths = nullptr;
   char **OutputNames = nullptr;
 
+  std::vector<const char *> Args = {"ocloc", "query"};
   std::vector<uint32_t> IPVersionVec{IPVersion};
-  std::vector<const char *> Args = {"ocloc", "query", "-device",
-                                    IPVersionsToString(IPVersionVec).c_str(),
-                                    identifier};
+  std::string IPVersionsStr = IPVersionsToString(IPVersionVec);
+  if (!IPVersionsStr.empty()) {
+    Args.push_back("-device");
+    Args.push_back(IPVersionsStr.c_str());
+  }
+  Args.push_back(identifier);
 
   decltype(::oclocInvoke) *OclocInvokeFunc =
       reinterpret_cast<decltype(::oclocInvoke) *>(oclocInvokeHandle);
@@ -269,8 +280,13 @@ std::string InvokeOclocQuery(uint32_t IPVersion, const char *identifier) {
 
 bool OpenCLC_Feature_Available(const std::string &Feature, uint32_t IPVersion) {
   static std::string FeatureLog = "";
-  if (FeatureLog.empty())
-    FeatureLog = InvokeOclocQuery(IPVersion, "CL_DEVICE_OPENCL_C_FEATURES");
+  if (FeatureLog.empty()) {
+    try {
+      FeatureLog = InvokeOclocQuery(IPVersion, "CL_DEVICE_OPENCL_C_FEATURES");
+    } catch (sycl::exception &) {
+      return false;
+    }
+  }
 
   // Allright, we have FeatureLog, so let's find that feature!
   return (FeatureLog.find(Feature) != std::string::npos);
@@ -279,8 +295,14 @@ bool OpenCLC_Feature_Available(const std::string &Feature, uint32_t IPVersion) {
 bool OpenCLC_Supports_Version(
     const ext::oneapi::experimental::cl_version &Version, uint32_t IPVersion) {
   static std::string VersionLog = "";
-  if (VersionLog.empty())
-    VersionLog = InvokeOclocQuery(IPVersion, "CL_DEVICE_OPENCL_C_ALL_VERSIONS");
+  if (VersionLog.empty()) {
+    try {
+      VersionLog =
+          InvokeOclocQuery(IPVersion, "CL_DEVICE_OPENCL_C_ALL_VERSIONS");
+    } catch (sycl::exception &) {
+      return false;
+    }
+  }
 
   // Have VersionLog, will search.
   // "OpenCL C":1.0.0 "OpenCL C":1.1.0 "OpenCL C":1.2.0 "OpenCL C":3.0.0
@@ -294,9 +316,14 @@ bool OpenCLC_Supports_Extension(
     uint32_t IPVersion) {
   std::error_code rt_errc = make_error_code(errc::runtime);
   static std::string ExtensionByVersionLog = "";
-  if (ExtensionByVersionLog.empty())
-    ExtensionByVersionLog =
-        InvokeOclocQuery(IPVersion, "CL_DEVICE_EXTENSIONS_WITH_VERSION");
+  if (ExtensionByVersionLog.empty()) {
+    try {
+      ExtensionByVersionLog =
+          InvokeOclocQuery(IPVersion, "CL_DEVICE_EXTENSIONS_WITH_VERSION");
+    } catch (sycl::exception &) {
+      return false;
+    }
+  }
 
   // ExtensionByVersionLog is ready. Time to find Name, and update VersionPtr.
   // cl_khr_byte_addressable_store:1.0.0 cl_khr_device_uuid:1.0.0 ...
@@ -338,8 +365,12 @@ bool OpenCLC_Supports_Extension(
 
 std::string OpenCLC_Profile(uint32_t IPVersion) {
   // Note: seems to have \n\n amended
-  std::string result = InvokeOclocQuery(IPVersion, "CL_DEVICE_PROFILE");
-  return result;
+  try {
+    std::string result = InvokeOclocQuery(IPVersion, "CL_DEVICE_PROFILE");
+    return result;
+  } catch (sycl::exception &) {
+    return "";
+  }
 }
 
 } // namespace detail

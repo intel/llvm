@@ -156,9 +156,6 @@ bool ext_oneapi_can_compile(ext::oneapi::experimental::source_language lang);
 
 _Returns:_ The value `true` only if the device supports kernel bundles written
 in the source language `lang`.
-
-_Throws:_  May throw an exception with 'errc::runtime' if there is trouble
-communicating with the device driver interface used by the kernel_compiler.
 |====
 
 === New free functions to create and build kernel bundles

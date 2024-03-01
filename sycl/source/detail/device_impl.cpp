@@ -709,7 +709,11 @@ bool device_impl::isGetDeviceAndHostTimerSupported() {
 
 bool device_impl::extOneapiCanCompile(
     ext::oneapi::experimental::source_language Language) {
-  return is_source_kernel_bundle_supported(getBackend(), Language);
+  try {
+    return is_source_kernel_bundle_supported(getBackend(), Language);
+  } catch (sycl::exception &) {
+    return false;
+  }
 }
 
 } // namespace detail
