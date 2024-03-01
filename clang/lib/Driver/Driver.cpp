@@ -5050,9 +5050,9 @@ class OffloadingActionBuilder final {
 
           for (auto SDA : SYCLDeviceActions)
             SYCLLinkBinaryList.push_back(SDA);
-          if (WrapDeviceOnlyBinary) {
+          if (WrapDeviceOnlyBinary)
             return ABRT_Success;
-          } else {
+          else {
             auto *Link = C.MakeAction<LinkJobAction>(SYCLLinkBinaryList,
                                                          types::TY_Image);
             SYCLLinkBinary = C.MakeAction<SPIRVTranslatorJobAction>(
