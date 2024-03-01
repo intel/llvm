@@ -6,7 +6,7 @@
 // RUN: %t.out
 
 // Uncomment to print additional test information
-#define VERBOSE_PRINT
+// #define VERBOSE_PRINT
 
 #include <sycl/sycl.hpp>
 
