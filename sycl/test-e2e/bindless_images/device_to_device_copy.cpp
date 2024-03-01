@@ -76,17 +76,17 @@ int main() {
   sycl::queue q(dev);
   auto ctxt = q.get_context();
 
-  bool validated =
-      run_copy_test_with<sycl::image_channel_order::r,
-                         sycl::image_channel_type::fp32, 1>(dev, q, {4});
+  bool validated = run_copy_test_with<sycl::image_channel_order::r,
+                                      sycl::image_channel_type::fp32, 2>(
+      dev, q, {2048, 2048});
+
+  validated &= run_copy_test_with<sycl::image_channel_order::r,
+                                  sycl::image_channel_type::fp32, 1>(
+      dev, q, {512 * 256});
 
   validated &=
       run_copy_test_with<sycl::image_channel_order::r,
-                         sycl::image_channel_type::fp32, 2>(dev, q, {4, 4});
-
-  validated &=
-      run_copy_test_with<sycl::image_channel_order::r,
-                         sycl::image_channel_type::fp32, 3>(dev, q, {4, 4, 4});
+                         sycl::image_channel_type::fp32, 3>(dev, q, {2048, 2048, 64});
 
   if (!validated) {
     std::cout << "Tests failed";
