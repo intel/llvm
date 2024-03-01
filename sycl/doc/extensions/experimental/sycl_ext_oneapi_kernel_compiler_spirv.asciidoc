@@ -209,6 +209,14 @@ _{endnote}_]
 |*OpTypePointer* with _Storage Class_ *Workgroup*
 |A `local_accessor`.
 
+[_Note:_ The `local_accessor` merely conveys the size of the local memory, such
+that the *OpTypePointer* kernel argument points to a local memory buffer of _N_
+bytes, where _N_ is the value returned by `local_accessor::byte_size`.
+If the application wants to pass other information from the `local_accessor` to
+the kernel (such as the value _N_), it must pass this as separate kernel
+arguments.
+_{endnote}_]
+
 |*OpTypePointer* with _Storage Class_ *Function* and _Type_ *OpTypeStruct*
  (i.e. the pointed-at type is *OpTypeStruct*).
 |A {cpp} struct or class that is device copyable, which has the same size and
