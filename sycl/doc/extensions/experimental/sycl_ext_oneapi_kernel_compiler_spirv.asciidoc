@@ -242,6 +242,34 @@ because this helps ensure that the size of the integers on the host matches the
 size in the kernel.
 _{endnote}_]
 
+=== Iteration space and built-in variables
+
+A `kernel` object created from a SPIR-V module must be launched either as a
+single-task kernel or as an nd-range kernel.
+Attempting to launch such a kernel with a simple range iteration space results
+in undefined behavior.
+
+If the kernel is launched as a single-task kernel, it is executed with one
+work-group dimension, with one work-group of one work-item.
+
+If the kernel is launched as an nd-range kernel, the number of work-group
+dimensions is the same as the number of dimensions in the `nd_range`.
+The global size, local size, and the number of work-groups is determined in the
+usual way from the `nd_range`.
+If the SPIR-V kernel defines a fixed local size (e.g. via the *LocalSize*
+execution mode), the local size in the `nd_range` must match this value.
+
+The kernel may use SPIR-V built-in variables as they are defined in the SPIR-V
+client API specification, with the following clarification.
+Some of the built-in variables are defined as a 3-component vector (e.g.
+*GlobalSize*).
+The order of these components is inverted from their corresponding SYCL
+objects.
+To illustrate, consider a 3-dimensional kernel invocation.
+Vector component 0 of the *GlobalSize* variable corresponds to dimension 2 of
+the `nd_range`, and vector component 2 of the *GlobalSize* variable corresponds
+to dimension 0 of the `nd_range`.
+
 
 == Example
 
@@ -284,6 +312,7 @@ int main() {
   sycl::kernel k = kb_exe.ext_oneapi_get_kernel("my_kernel");
 
   constexpr int N = 4;
+  constexpr int WGSIZE = 1;
   int32_t input[N] = {0, 1, 2, 3};
   int32_t output[N] = {};
 
@@ -297,8 +326,9 @@ int main() {
     // Set the values for the kernel arguments.
     cgh.set_args(in, out);
 
-    // Invoke the kernel over a range.
-    cgh.parallel_for(sycl::range{N}, k);
+    // Invoke the kernel over an nd-range.
+    sycl::nd_range ndr{{N}, {WGSIZE}};
+    cgh.parallel_for(ndr, k);
   });
 }
 ----
