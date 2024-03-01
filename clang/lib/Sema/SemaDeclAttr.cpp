@@ -7720,7 +7720,7 @@ void Sema::AddSYCLIntelBankWidthAttr(Decl *D, const AttributeCommonInfo &CI,
     // and device_global variables.
     if (CheckValidFPGAMemoryAttributesVar(*this, D)) {
       Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable)
-        << CI << /*agent memory arguments*/ 1;
+          << CI << /*agent memory arguments*/ 1;
       return;
     }
 
@@ -7813,7 +7813,7 @@ void Sema::AddSYCLIntelNumBanksAttr(Decl *D, const AttributeCommonInfo &CI,
     // and device_global variables.
     if (CheckValidFPGAMemoryAttributesVar(*this, D)) {
       Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable)
-        << CI << /*agent memory arguments*/ 1;
+          << CI << /*agent memory arguments*/ 1;
       return;
     }
 
@@ -7924,7 +7924,7 @@ void Sema::AddSYCLIntelMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
     // and device_global variables.
     if (CheckValidFPGAMemoryAttributesVar(*this, D)) {
       Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable)
-        << CI << /*agent memory arguments*/ 1;
+          << CI << /*agent memory arguments*/ 1;
       return;
     }
 
@@ -8110,7 +8110,7 @@ void Sema::AddSYCLIntelBankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
   // and device_global variables.
   if (CheckValidFPGAMemoryAttributesVar(*this, D)) {
     Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable)
-      << CI << /*agent memory arguments*/ 1;
+        << CI << /*agent memory arguments*/ 1;
     return;
   }
 
@@ -8142,17 +8142,17 @@ void Sema::AddSYCLIntelPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
 
     // Check attribute applies to field as well as const variables, non-static
     // local variables, non-static data members, and device_global variables.
-    if (const auto *VD = dyn_cast<VarDecl>(D)){
-     if (!(isa<FieldDecl>(D) ||
-          (VD->getKind() != Decl::ImplicitParam &&
-           VD->getKind() != Decl::NonTypeTemplateParm &&
-           VD->getKind() != Decl::ParmVar &&
-	   (VD->hasLocalStorage() ||
-            isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
-              VD->getType()))))) {
-       Diag(CI.getLoc(), diag::err_fpga_attribute_invalid_decl) << CI;
-       return;
-     }
+    if (const auto *VD = dyn_cast<VarDecl>(D)) {
+      if (!(isa<FieldDecl>(D) ||
+            (VD->getKind() != Decl::ImplicitParam &&
+             VD->getKind() != Decl::NonTypeTemplateParm &&
+             VD->getKind() != Decl::ParmVar &&
+             (VD->hasLocalStorage() ||
+              isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+                  VD->getType()))))) {
+        Diag(CI.getLoc(), diag::err_fpga_attribute_invalid_decl) << CI;
+        return;
+      }
     }
 
     // Check to see if there's a duplicate attribute with different values
@@ -8210,7 +8210,7 @@ void Sema::AddSYCLIntelForcePow2DepthAttr(Decl *D,
     // and device_global variables.
     if (CheckValidFPGAMemoryAttributesVar(*this, D)) {
       Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable)
-        << CI << /*agent memory arguments*/ 1;
+          << CI << /*agent memory arguments*/ 1;
       return;
     }
 
