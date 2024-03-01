@@ -82,7 +82,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/konradkusiak97/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG e400d8f37e6ccef65ff62491b417fc43b8c659ce)
+  set(UNIFIED_RUNTIME_TAG URChangesForFillCombined)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

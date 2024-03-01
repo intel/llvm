@@ -1110,8 +1110,9 @@
 ?fill_2d_usm@MemoryManager@detail@_V1@sycl@@SAXPEAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_K22AEBV?$vector@DV?$allocator@D@std@@@6@V?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
 ?fill_2d_usm@MemoryManager@detail@_V1@sycl@@SAXPEAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_K22AEBV?$vector@DV?$allocator@D@std@@@6@V?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@AEBV?$shared_ptr@Vevent_impl@detail@_V1@sycl@@@6@@Z
 ?fill_impl@handler@_V1@sycl@@AEAAXPEAXPEBX_K2@Z
-?fill_usm@MemoryManager@detail@_V1@sycl@@SAXPEAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_KAEBV?$vector@DV?$allocator@D@std@@@6@V?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
 ?fill_usm@MemoryManager@detail@_V1@sycl@@SAXPEAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_KAEBV?$vector@DV?$allocator@D@std@@@6@V?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@AEBV?$shared_ptr@Vevent_impl@detail@_V1@sycl@@@6@@Z
+?fill_usm@MemoryManager@detail@_V1@sycl@@SAXPEAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_KHV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@@Z
+?fill_usm@MemoryManager@detail@_V1@sycl@@SAXPEAXV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_KHV?$vector@PEAU_pi_event@@V?$allocator@PEAU_pi_event@@@std@@@6@PEAPEAU_pi_event@@AEBV?$shared_ptr@Vevent_impl@detail@_V1@sycl@@@6@@Z
 ?finalize@handler@_V1@sycl@@AEAA?AVevent@23@XZ
 ?finalize@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$command_graph@$00@34567@AEBVproperty_list@67@@Z
 ?finalizeImpl@executable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXXZ
