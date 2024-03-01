@@ -6,7 +6,7 @@
 // RUN: %t.out
 
 // Uncomment to print additional test information
-// #define VERBOSE_PRINT
+#define VERBOSE_PRINT
 
 #include <sycl/sycl.hpp>
 
@@ -96,18 +96,6 @@ create_test_handles(sycl::context &ctxt, sycl::device &dev,
 }
 
 void cleanup_test(sycl::context &ctxt, sycl::device &dev, handles_t handles) {
-  syclexp::release_external_memory(handles.input_interop_mem_handle_1, dev,
-                                   ctxt);
-  syclexp::release_external_memory(handles.input_interop_mem_handle_2, dev,
-                                   ctxt);
-  syclexp::release_external_memory(handles.output_interop_mem_handle, dev,
-                                   ctxt);
-  syclexp::free_image_mem(handles.input_mem_handle_1,
-                          syclexp::image_type::standard, dev, ctxt);
-  syclexp::free_image_mem(handles.input_mem_handle_1,
-                          syclexp::image_type::standard, dev, ctxt);
-  syclexp::free_image_mem(handles.output_mem_handle,
-                          syclexp::image_type::standard, dev, ctxt);
   syclexp::destroy_external_semaphore(
       handles.sycl_wait_interop_semaphore_handle, dev, ctxt);
   syclexp::destroy_external_semaphore(
@@ -115,6 +103,18 @@ void cleanup_test(sycl::context &ctxt, sycl::device &dev, handles_t handles) {
   syclexp::destroy_image_handle(handles.input_1, dev, ctxt);
   syclexp::destroy_image_handle(handles.input_2, dev, ctxt);
   syclexp::destroy_image_handle(handles.output, dev, ctxt);
+  syclexp::free_image_mem(handles.input_mem_handle_1,
+                          syclexp::image_type::standard, dev, ctxt);
+  syclexp::free_image_mem(handles.input_mem_handle_1,
+                          syclexp::image_type::standard, dev, ctxt);
+  syclexp::free_image_mem(handles.output_mem_handle,
+                          syclexp::image_type::standard, dev, ctxt);
+  syclexp::release_external_memory(handles.input_interop_mem_handle_1, dev,
+                                   ctxt);
+  syclexp::release_external_memory(handles.input_interop_mem_handle_2, dev,
+                                   ctxt);
+  syclexp::release_external_memory(handles.output_interop_mem_handle, dev,
+                                   ctxt);
 }
 
 template <int NDims, typename DType, sycl::image_channel_type CType,
