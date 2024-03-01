@@ -198,7 +198,7 @@ kernel as a string and then compiles and launches it.
 [source,c++]
 ----
 #include <sycl/sycl.hpp>
-#include <OpenCL/opencl.h>
+#include <CL/opencl.h>
 namespace syclex = sycl::ext::oneapi::experimental;
 
 int main() {
