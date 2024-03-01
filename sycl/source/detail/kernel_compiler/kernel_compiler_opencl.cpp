@@ -6,8 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/detail/pi.hpp> // getOsLibraryFuncAddress
-#include <sycl/exception.hpp> // make_error_code
+#include <sycl/detail/common_info.hpp> // split_string
+#include <sycl/detail/pi.hpp>          // getOsLibraryFuncAddress
+#include <sycl/exception.hpp>          // make_error_code
 
 #include "kernel_compiler_opencl.hpp"
 
@@ -286,6 +287,53 @@ bool OpenCLC_Supports_Version(
   std::stringstream ss;
   ss << Version.major << "." << Version.minor << "." << Version.patch;
   return VersionLog.find(ss.str());
+}
+
+bool OpenCLC_Supports_Extension(
+    const std::string &Name, ext::oneapi::experimental::cl_version *VersionPtr,
+    uint32_t IPVersion) {
+  std::error_code rt_errc = make_error_code(errc::runtime);
+  static std::string ExtensionByVersionLog = "";
+  if (ExtensionByVersionLog.empty())
+    ExtensionByVersionLog =
+        InvokeOclocQuery(IPVersion, "CL_DEVICE_EXTENSIONS_WITH_VERSION");
+
+  // ExtensionByVersionLog is ready. Time to find Name, and update VersionPtr.
+  // cl_khr_byte_addressable_store:1.0.0 cl_khr_device_uuid:1.0.0 ...
+  size_t where = ExtensionByVersionLog.find(Name);
+  if (where == std::string::npos) {
+    return false;
+  } // not there
+
+  size_t colon = ExtensionByVersionLog.find(':', where);
+  if (colon == std::string::npos) {
+    throw sycl::exception(
+        rt_errc,
+        "trouble parsing query returned from CL_DEVICE_EXTENSIONS_WITH_VERSION "
+        "- extension not followed by colon (:)");
+  }
+  colon++; // move it forward
+
+  size_t space = ExtensionByVersionLog.find(' ', colon); // could be npos
+
+  size_t count = (space == std::string::npos) ? space : (space - colon);
+
+  std::string versionStr = ExtensionByVersionLog.substr(colon, count);
+  std::vector<std::string> versionVec =
+      sycl::detail::split_string(versionStr, '.');
+  if (versionVec.size() != 3) {
+    throw sycl::exception(
+        rt_errc,
+        "trouble parsing query returned from  "
+        "CL_DEVICE_EXTENSIONS_WITH_VERSION - version string unexpected: " +
+            versionStr);
+  }
+
+  VersionPtr->major = std::stoi(versionVec[0]);
+  VersionPtr->minor = std::stoi(versionVec[1]);
+  VersionPtr->patch = std::stoi(versionVec[2]);
+
+  return true;
 }
 
 std::string OpenCLC_Profile(uint32_t IPVersion) {

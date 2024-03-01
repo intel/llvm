@@ -299,6 +299,16 @@ public:
   bool ext_oneapi_supports_cl_c_version(
       const ext::oneapi::experimental::cl_version &Version) const;
 
+  /// If the device supports kernel bundles using the OpenCL extension
+  /// identified by `name` and if `version` is not a null pointer, the supported
+  /// version of the extension is written to `version`.
+  ///
+  /// \return true only if the device supports kernel bundles using the OpenCL
+  /// extension identified by `name`.
+  bool ext_oneapi_supports_cl_extension(
+      const std::string &name,
+      ext::oneapi::experimental::cl_version *version = nullptr) const;
+
   /// Retrieve the OpenCl Device Profile
   ///
   /// \return If the device supports kernel bundles written in

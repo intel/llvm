@@ -187,6 +187,9 @@ class device {
 _Returns:_ The value `true` only if the device supports kernel bundles written
 in the OpenCL C version identified by `version`.
 
+_Throws:_  May throw an exception with 'errc::runtime' if there is trouble
+communicating with 'ocloc' the device driver interface used by the kernel_compiler.
+
 a|
 [frame=all,grid=none]
 !====
@@ -203,6 +206,9 @@ _Returns:_ The value `true` only if the device supports kernel bundles using
 the OpenCL C feature whose feature macro is `name`.
 The set of possible feature macros are defined in section 6.2.1 "Features" of
 the OpenCL C specification.
+
+_Throws:_  May throw an exception with 'errc::runtime' if there is trouble
+communicating with 'ocloc' the device driver interface used by the kernel_compiler.
 
 a|
 [frame=all,grid=none]
@@ -224,6 +230,9 @@ version of the extension is written to `version`.
 _Returns:_ The value `true` only if the device supports kernel bundles using
 the OpenCL extension identified by `name`.
 
+_Throws:_  May throw an exception with 'errc::runtime' if there is trouble
+communicating with 'ocloc' the device driver interface used by the kernel_compiler.
+
 a|
 [frame=all,grid=none]
 !====
@@ -244,6 +253,9 @@ The profile name is the same string that is returned by the query
 specification.
 If the device does not support kernel bundles written in
 `source_language::opencl`, returns the empty string.
+
+_Throws:_  May throw an exception with 'errc::runtime' if there is trouble
+communicating with 'ocloc' the device driver interface used by the kernel_compiler.
 |====
 
 === Build options
@@ -415,7 +427,7 @@ int main() {
       version.patch << ")\n";
   }
 
-  if (d.ext_oneapi_cl_profile() == "FULL_PROFILE")
+  if (d.ext_oneapi_cl_profile().find("FULL_PROFILE") == 0)
     std::cout << "Device supports online compilation with the OpenCL full profile\n";
 
 }
