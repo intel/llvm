@@ -220,13 +220,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(ur_event_handle_t,
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
   try {
-    auto Context = phEventWaitList[0]->getContext();
-    ScopedContext Active(Context);
+    ScopedContext Active(phEventWaitList[0]->getContext());
 
-    auto WaitFunc = [Context](ur_event_handle_t Event) -> ur_result_t {
+    auto WaitFunc = [](ur_event_handle_t Event) -> ur_result_t {
       UR_ASSERT(Event, UR_RESULT_ERROR_INVALID_EVENT);
-      UR_ASSERT(Event->getContext() == Context,
-                UR_RESULT_ERROR_INVALID_CONTEXT);
 
       return Event->wait();
     };
