@@ -57,7 +57,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/cppchedy/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 28df2c251174900d9464a9be206f5661e243afb4)
+  set(UNIFIED_RUNTIME_TAG aa04d5d16d08dadb04c84a56faeb299a01d2b64f)
 
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
