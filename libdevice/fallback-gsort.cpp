@@ -444,4 +444,56 @@ void __devicelib_default_work_group_joint_sort_descending_p3f32_u32_p3i8(
     float *first, uint32_t n, uint8_t *scratch) {
   merge_sort(first, n, scratch, std::greater<float>{});
 }
+
+//============ default work grop private sort for signed integer ==============
+// Since 'first' should point to 'private' memory address space, it can only be
+// decorated with 'p1'.
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_close_ascending_p1i8_u32_p1i8(
+    int8_t *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_close(first, n, scratch, std::less<int8_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_close_ascending_p1i8_u32_p3i8(
+    int8_t *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_close(first, n, scratch, std::less<int8_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_close_descending_p1i8_u32_p1i8(
+    int8_t *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_close(first, n, scratch, std::greater<int8_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_close_descending_p1i8_u32_p3i8(
+    int8_t *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_close(first, n, scratch, std::greater<int8_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_spread_ascending_p1i8_u32_p1i8(
+    int8_t *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_spread(first, n, scratch, std::less<int8_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_spread_ascending_p1i8_u32_p3i8(
+    int8_t *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_spread(first, n, scratch, std::less<int8_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_spread_descending_p1i8_u32_p1i8(
+    int8_t *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_spread(first, n, scratch, std::greater<int8_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_spread_descending_p1i8_u32_p3i8(
+    int8_t *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_spread(first, n, scratch, std::greater<int8_t>{});
+}
+
 #endif

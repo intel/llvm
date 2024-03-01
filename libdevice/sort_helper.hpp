@@ -35,7 +35,7 @@ template <typename Tp, typename Compare>
 void merge(Tp *din, Tp *dout, size_t widx, size_t msize, size_t chunks,
            size_t n, Compare comp) {
   if (2 * widx >= chunks)
-    return ;
+    return;
 
   size_t beg1 = 2 * widx * msize;
   size_t end1 = beg1 + msize;
@@ -86,7 +86,8 @@ void merge_sort(Tp *first, uint32_t n, uint8_t *scratch, Compare comp) {
     // workitem idx will merge chunk 2 * idx and 2 * idx + 1
     Tp *data_in = data_in_scratch ? scratch1 : first;
     Tp *data_out = data_in_scratch ? first : scratch1;
-    merge<Tp, Compare>(data_in, data_out, idx, merge_size, chunks_to_merge, n, comp);
+    merge<Tp, Compare>(data_in, data_out, idx, merge_size, chunks_to_merge, n,
+                       comp);
     group_barrier();
     chunks_to_merge = (chunks_to_merge - 1) / 2 + 1;
     merge_size <<= 1;
@@ -97,6 +98,47 @@ void merge_sort(Tp *first, uint32_t n, uint8_t *scratch, Compare comp) {
       first[i] = scratch1[i];
     group_barrier();
   }
+}
+
+// Each work-item holds some input elements located in private memory and apply
+// group sorting to all work-items' input. The sorted data will be copied back
+// to each work-item's private memory.
+// Assumption about scratch memory size:
+// scratch_size >= n * wg_size * sizeof(Tp) * 2
+template <typename Tp, typename Compare>
+void private_merge_sort_close(Tp *first, uint32_t n, uint8_t *scratch,
+                              Compare comp) {
+  const size_t idx = __get_wg_local_linear_id();
+  const size_t wg_size = __get_wg_local_range();
+  Tp *temp_buffer = reinterpret_cast<Tp *>(scratch);
+  for (size_t i = 0; i < n; ++i)
+    temp_buffer[idx * n + i] = first[i];
+
+  group_barrier();
+  // do group sorting for whole input data
+  merge_sort(temp_buffer, n * wg_size,
+             reinterpret_cast<uint8_t *>(temp_buffer + n * wg_size), comp);
+
+  for (size_t i = 0; i < n; ++i)
+    first[i] = temp_buffer[idx * n + i];
+}
+
+template <typename Tp, typename Compare>
+void private_merge_sort_spread(Tp *first, uint32_t n, uint8_t *scratch,
+                               Compare comp) {
+  const size_t idx = __get_wg_local_linear_id();
+  const size_t wg_size = __get_wg_local_range();
+  Tp *temp_buffer = reinterpret_cast<Tp *>(scratch);
+  for (size_t i = 0; i < n; ++i)
+    temp_buffer[idx * n + i] = first[i];
+
+  group_barrier();
+  // do group sorting for whole input data
+  merge_sort(temp_buffer, n * wg_size,
+             reinterpret_cast<uint8_t *>(temp_buffer + n * wg_size), comp);
+
+  for (size_t i = 0; i < n; ++i)
+    first[i] = temp_buffer[i * wg_size + idx];
 }
 
 #endif
