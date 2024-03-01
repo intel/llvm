@@ -194,11 +194,7 @@ enum class image_channel_type : /* unspecified */ {
 enum class image_type : /* unspecified */ {
   standard,
   mipmap,
-<<<<<<< HEAD
-=======
   array,
-  interop,
->>>>>>> sycl
 };
 
 struct image_descriptor {
