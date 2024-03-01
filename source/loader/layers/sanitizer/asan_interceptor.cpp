@@ -226,6 +226,7 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
 
     if (CurrentContext.empty()) {
         // bad context
+        ReportBadFreeContext(Addr, GetCurrentBacktrace(), AllocInfos);
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
