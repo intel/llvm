@@ -13,7 +13,6 @@
 #include <sycl/detail/cl.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/kernel_bundle.hpp>
-#include <sycl/stl.hpp>
 
 #include <memory>
 #include <mutex>
@@ -234,7 +233,8 @@ public:
 
   std::string getDeviceName() const;
 
-  bool extOneapiArchitectureIs(ext::oneapi::experimental::architecture Arch) {
+  bool
+  extOneapiArchitectureIs(ext::oneapi::experimental::architecture Arch) const {
     return Arch == getDeviceArch();
   }
 

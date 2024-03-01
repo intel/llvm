@@ -1,5 +1,6 @@
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_RT_WARNING_LEVEL=1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_RT_WARNING_LEVEL=1 SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS=16:32:64 \
+// RUN:   %{run} %t.out 2>&1 | FileCheck %s
 
 // Test complete fusion of kernels with different ND-ranges.
 
@@ -262,4 +263,12 @@ int main() {
   // 1-D, 2-D and 3-D kernels with different global sizes.
   test({RangeDesc{{10}, R5}, RangeDesc{{10, 1}, {5, 1}},
         RangeDesc{{10, 1, 1}, {5, 1, 1}}});
+
+  // Test global sizes that trigger the rounded range kernel insertion.
+  // Note that we lower the RR threshold when running this test.
+  test({RangeDesc{67}, RangeDesc{87}, RangeDesc{64}});
+
+  // Test multi-dimensional range-rounded kernels. Only the first dimension will
+  // be rounded up.
+  test({RangeDesc{30, 67}, RangeDesc{76, 55}, RangeDesc{64, 64}});
 }

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/TargetParser/Triple.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -188,7 +189,7 @@ StringRef Triple::getArchTypePrefix(ArchType Kind) {
 
   case spirv:
   case spirv32:
-  case spirv64:     return "spirv";
+  case spirv64:     return "spv";
 
   case kalimba:     return "kalimba";
   case lanai:       return "lanai";
@@ -243,6 +244,7 @@ StringRef Triple::getOSTypeName(OSType Kind) {
   case AIX: return "aix";
   case AMDHSA: return "amdhsa";
   case AMDPAL: return "amdpal";
+  case BridgeOS: return "bridgeos";
   case CUDA: return "cuda";
   case Darwin: return "darwin";
   case DragonFly: return "dragonfly";
@@ -277,6 +279,8 @@ StringRef Triple::getOSTypeName(OSType Kind) {
   case ZOS: return "zos";
   case ShaderModel: return "shadermodel";
   case LiteOS: return "liteos";
+  case XROS: return "xros";
+  case Vulkan: return "vulkan";
   }
 
   llvm_unreachable("Invalid OSType");
@@ -324,6 +328,8 @@ StringRef Triple::getEnvironmentTypeName(EnvironmentType Kind) {
   case Callable: return "callable";
   case Mesh: return "mesh";
   case Amplification: return "amplification";
+  case OpenCL:
+    return "opencl";
   case OpenHOS: return "ohos";
   }
 
@@ -555,8 +561,7 @@ static Triple::ArchType parseArch(StringRef ArchName) {
     .Case("hsail64", Triple::hsail64)
     .Case("spir", Triple::spir)
     .Case("spir64", Triple::spir64)
-    .Cases("spirv", "spirv1.0", "spirv1.1", "spirv1.2",
-           "spirv1.3", "spirv1.4", "spirv1.5", Triple::spirv)
+    .Cases("spirv", "spirv1.5", "spirv1.6", Triple::spirv)
     .Cases("spirv32", "spirv32v1.0", "spirv32v1.1", "spirv32v1.2",
            "spirv32v1.3", "spirv32v1.4", "spirv32v1.5", Triple::spirv32)
     .Cases("spirv64", "spirv64v1.0", "spirv64v1.1", "spirv64v1.2",
@@ -644,7 +649,10 @@ static Triple::OSType parseOS(StringRef OSName) {
     .StartsWith("elfiamcu", Triple::ELFIAMCU)
     .StartsWith("tvos", Triple::TvOS)
     .StartsWith("watchos", Triple::WatchOS)
+    .StartsWith("bridgeos", Triple::BridgeOS)
     .StartsWith("driverkit", Triple::DriverKit)
+    .StartsWith("xros", Triple::XROS)
+    .StartsWith("visionos", Triple::XROS)
     .StartsWith("mesa3d", Triple::Mesa3D)
     .StartsWith("amdpal", Triple::AMDPAL)
     .StartsWith("hermit", Triple::HermitCore)
@@ -654,6 +662,7 @@ static Triple::OSType parseOS(StringRef OSName) {
     .StartsWith("shadermodel", Triple::ShaderModel)
     .StartsWith("liteos", Triple::LiteOS)
     .StartsWith("serenity", Triple::Serenity)
+    .StartsWith("vulkan", Triple::Vulkan)
     .Default(Triple::UnknownOS);
 }
 
@@ -698,6 +707,7 @@ static Triple::EnvironmentType parseEnvironment(StringRef EnvironmentName) {
       .StartsWith("callable", Triple::Callable)
       .StartsWith("mesh", Triple::Mesh)
       .StartsWith("amplification", Triple::Amplification)
+      .StartsWith("opencl", Triple::OpenCL)
       .StartsWith("ohos", Triple::OpenHOS)
       .Default(Triple::UnknownEnvironment);
 }
@@ -721,7 +731,7 @@ static Triple::SubArchType parseSubArch(StringRef SubArchName) {
       (SubArchName.ends_with("r6el") || SubArchName.ends_with("r6")))
     return Triple::MipsSubArch_r6;
 
-  if (SubArchName.startswith("spir")) {
+  if (SubArchName.starts_with("spir")) {
     StringRef SA(SubArchName);
     if (SA.consume_front("spir64_") || SA.consume_front("spir_")) {
       if (SA == "fpga")
@@ -756,6 +766,7 @@ static Triple::SubArchType parseSubArch(StringRef SubArchName) {
         .EndsWith("v1.3", Triple::SPIRVSubArch_v13)
         .EndsWith("v1.4", Triple::SPIRVSubArch_v14)
         .EndsWith("v1.5", Triple::SPIRVSubArch_v15)
+        .EndsWith("v1.6", Triple::SPIRVSubArch_v16)
         .Default(Triple::NoSubArch);
 
   StringRef ARMSubArch = ARM::getCanonicalArchName(SubArchName);
@@ -834,6 +845,8 @@ static Triple::SubArchType parseSubArch(StringRef SubArchName) {
     return Triple::ARMSubArch_v9_3a;
   case ARM::ArchKind::ARMV9_4A:
     return Triple::ARMSubArch_v9_4a;
+  case ARM::ArchKind::ARMV9_5A:
+    return Triple::ARMSubArch_v9_5a;
   case ARM::ArchKind::ARMV8R:
     return Triple::ARMSubArch_v8r;
   case ARM::ArchKind::ARMV8MBaseline:
@@ -1236,11 +1249,30 @@ static VersionTuple parseVersionFromName(StringRef Name) {
 }
 
 VersionTuple Triple::getEnvironmentVersion() const {
+  return parseVersionFromName(getEnvironmentVersionString());
+}
+
+StringRef Triple::getEnvironmentVersionString() const {
   StringRef EnvironmentName = getEnvironmentName();
+
+  // none is a valid environment type - it basically amounts to a freestanding
+  // environment.
+  if (EnvironmentName == "none")
+    return "";
+
   StringRef EnvironmentTypeName = getEnvironmentTypeName(getEnvironment());
   EnvironmentName.consume_front(EnvironmentTypeName);
 
-  return parseVersionFromName(EnvironmentName);
+  if (EnvironmentName.contains("-")) {
+    // -obj is the suffix
+    if (getObjectFormat() != Triple::UnknownObjectFormat) {
+      StringRef ObjectFormatTypeName =
+          getObjectFormatTypeName(getObjectFormat());
+      const std::string tmp = (Twine("-") + ObjectFormatTypeName).str();
+      EnvironmentName.consume_back(tmp);
+    }
+  }
+  return EnvironmentName;
 }
 
 VersionTuple Triple::getOSVersion() const {
@@ -1251,6 +1283,8 @@ VersionTuple Triple::getOSVersion() const {
     OSName = OSName.substr(OSTypeName.size());
   else if (getOS() == MacOSX)
     OSName.consume_front("macos");
+  else if (OSName.starts_with("visionos"))
+    OSName.consume_front("visionos");
 
   return parseVersionFromName(OSName);
 }
@@ -1292,6 +1326,8 @@ bool Triple::getMacOSXVersion(VersionTuple &Version) const {
     // IOS.
     Version = VersionTuple(10, 4);
     break;
+  case XROS:
+    llvm_unreachable("OSX version isn't relevant for xrOS");
   case DriverKit:
     llvm_unreachable("OSX version isn't relevant for DriverKit");
   }
@@ -1315,6 +1351,11 @@ VersionTuple Triple::getiOSVersion() const {
     if (Version.getMajor() == 0)
       return (getArch() == aarch64) ? VersionTuple(7) : VersionTuple(5);
     return Version;
+  }
+  case XROS: {
+    // xrOS 1 is aligned with iOS 17.
+    VersionTuple Version = getOSVersion();
+    return Version.withMajorReplaced(Version.getMajor() + 16);
   }
   case WatchOS:
     llvm_unreachable("conflicting triple info");
@@ -1341,6 +1382,8 @@ VersionTuple Triple::getWatchOSVersion() const {
   }
   case IOS:
     llvm_unreachable("conflicting triple info");
+  case XROS:
+    llvm_unreachable("watchOS version isn't relevant for xrOS");
   case DriverKit:
     llvm_unreachable("DriverKit doesn't have a WatchOS version");
   }
@@ -1356,6 +1399,31 @@ VersionTuple Triple::getDriverKitVersion() const {
       return Version.withMajorReplaced(19);
     return Version;
   }
+}
+
+VersionTuple Triple::getVulkanVersion() const {
+  if (getArch() != spirv || getOS() != Vulkan)
+    llvm_unreachable("invalid Vulkan SPIR-V triple");
+
+  VersionTuple VulkanVersion = getOSVersion();
+  SubArchType SpirvVersion = getSubArch();
+
+  llvm::DenseMap<VersionTuple, SubArchType> ValidVersionMap = {
+      // Vulkan 1.2 -> SPIR-V 1.5.
+      {VersionTuple(1, 2), SPIRVSubArch_v15},
+      // Vulkan 1.3 -> SPIR-V 1.6.
+      {VersionTuple(1, 3), SPIRVSubArch_v16}};
+
+  // If Vulkan version is unset, default to 1.2.
+  if (VulkanVersion == VersionTuple(0))
+    VulkanVersion = VersionTuple(1, 2);
+
+  if (ValidVersionMap.contains(VulkanVersion) &&
+      (ValidVersionMap.lookup(VulkanVersion) == SpirvVersion ||
+       SpirvVersion == NoSubArch))
+    return VulkanVersion;
+
+  return VersionTuple(0);
 }
 
 void Triple::setTriple(const Twine &Str) {
@@ -1422,7 +1490,7 @@ void Triple::setOSAndEnvironmentName(StringRef Str) {
   setTriple(getArchName() + "-" + getVendorName() + "-" + Str);
 }
 
-static unsigned getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
+unsigned Triple::getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
   switch (Arch) {
   case llvm::Triple::UnknownArch:
     return 0;

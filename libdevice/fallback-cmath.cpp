@@ -26,6 +26,9 @@ DEVICE_EXTERN_C_INLINE
 long long int __devicelib_llabs(long long int x) { return x < 0 ? -x : x; }
 
 DEVICE_EXTERN_C_INLINE
+float __devicelib_fabsf(float x) { return x < 0 ? -x : x; }
+
+DEVICE_EXTERN_C_INLINE
 div_t __devicelib_div(int x, int y) { return {x / y, x % y}; }
 
 DEVICE_EXTERN_C_INLINE

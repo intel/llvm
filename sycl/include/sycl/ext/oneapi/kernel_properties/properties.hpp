@@ -34,25 +34,28 @@ template <size_t X, size_t... Xs> struct AllNonZero<X, Xs...> {
 
 struct properties_tag {};
 
-struct work_group_size_key {
+struct work_group_size_key
+    : detail::compile_time_property_key<detail::PropKind::WorkGroupSize> {
   template <size_t... Dims>
   using value_t = property_value<work_group_size_key,
                                  std::integral_constant<size_t, Dims>...>;
 };
 
-struct work_group_size_hint_key {
+struct work_group_size_hint_key
+    : detail::compile_time_property_key<detail::PropKind::WorkGroupSizeHint> {
   template <size_t... Dims>
   using value_t = property_value<work_group_size_hint_key,
                                  std::integral_constant<size_t, Dims>...>;
 };
 
-struct sub_group_size_key {
+struct sub_group_size_key
+    : detail::compile_time_property_key<detail::PropKind::SubGroupSize> {
   template <uint32_t Size>
   using value_t = property_value<sub_group_size_key,
                                  std::integral_constant<uint32_t, Size>>;
 };
 
-struct device_has_key {
+struct device_has_key : detail::compile_time_property_key<detail::PropKind::DeviceHas> {
   template <aspect... Aspects>
   using value_t = property_value<device_has_key,
                                  std::integral_constant<aspect, Aspects>...>;

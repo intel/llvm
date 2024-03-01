@@ -35,13 +35,13 @@ int main() {
   auto vec_2 = std::vector<int>(size);
   auto vec_3 = std::vector<int>(size);
   auto vec_4 = std::vector<int>(size);
-  auto buf_0 = buffer{vec_0};
-  auto buf_1 = buffer{vec_1};
-  auto buf_2 = buffer{vec_2};
-  auto buf_3 = buffer{vec_3};
-  auto buf_4 = buffer{vec_4};
 
   try {
+    auto buf_0 = buffer{vec_0};
+    auto buf_1 = buffer{vec_1};
+    auto buf_2 = buffer{vec_2};
+    auto buf_3 = buffer{vec_3};
+    auto buf_4 = buffer{vec_4};
     q.submit([&](handler &h) {
       auto access_0 = buf_0.template get_access<access::mode::read_write>(h);
       auto access_1 = buf_1.template get_access<access::mode::read_write>(h);
@@ -86,11 +86,6 @@ int main() {
           });
     });
     q.wait();
-    buf_0.template get_access<access::mode::read_write>();
-    buf_1.template get_access<access::mode::read_write>();
-    buf_2.template get_access<access::mode::read_write>();
-    buf_3.template get_access<access::mode::read_write>();
-    buf_4.template get_access<access::mode::read_write>();
   } catch (sycl::exception e) {
     std::cout << "SYCL exception caught: " << e.what();
     return 1;

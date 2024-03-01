@@ -17,6 +17,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
+#include <algorithm>
 #include <sstream>
 
 using namespace clang::driver;
@@ -108,6 +109,26 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
       OutputDirName.append(llvm::sys::path::get_separator());
     ForeachArgs.push_back(
         C.getArgs().MakeArgString("--out-dir=" + OutputDirName));
+  }
+
+  // If fsycl-dump-device-code is passed, put the PTX files
+  // into the path provided in fsycl-dump-device-code.
+  if (T->getToolChain().getTriple().isNVPTX() &&
+      C.getDriver().isDumpDeviceCodeEnabled() && Ext.equals("s")) {
+    SmallString<128> OutputDir;
+
+    Arg *DumpDeviceCodeArg =
+        C.getArgs().getLastArg(options::OPT_fsycl_dump_device_code_EQ);
+
+    OutputDir = (DumpDeviceCodeArg ? DumpDeviceCodeArg->getValue() : "");
+
+    // If the output directory path is empty, put the PTX files in the
+    // current directory.
+    if (OutputDir.empty())
+      llvm::sys::path::native(OutputDir = "./");
+    else
+      OutputDir.append(llvm::sys::path::get_separator());
+    ForeachArgs.push_back(C.getArgs().MakeArgString("--out-dir=" + OutputDir));
   }
 
   ForeachArgs.push_back(C.getArgs().MakeArgString("--"));
@@ -311,6 +332,33 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       if (SanitizeVal == "address")
         addLibraries(SYCLDeviceSanitizerLibs);
     }
+  } else {
+    // User can pass -fsanitize=address to device compiler via
+    // -Xsycl-target-frontend, sanitize device library must be
+    // linked with user's device image if so.
+    bool IsDeviceAsanEnabled = false;
+    auto SyclFEArg = Args.getAllArgValues(options::OPT_Xsycl_frontend);
+    IsDeviceAsanEnabled = (std::count(SyclFEArg.begin(), SyclFEArg.end(),
+                                      "-fsanitize=address") > 0);
+    if (!IsDeviceAsanEnabled) {
+      auto SyclFEArgEq = Args.getAllArgValues(options::OPT_Xsycl_frontend_EQ);
+      IsDeviceAsanEnabled = (std::count(SyclFEArgEq.begin(), SyclFEArgEq.end(),
+                                        "-fsanitize=address") > 0);
+    }
+
+    // User can also enable asan for SYCL device via -Xarch_device option.
+    if (!IsDeviceAsanEnabled) {
+      auto DeviceArchVals = Args.getAllArgValues(options::OPT_Xarch_device);
+      for (auto DArchVal : DeviceArchVals) {
+        if (DArchVal.find("-fsanitize=address") != std::string::npos) {
+          IsDeviceAsanEnabled = true;
+          break;
+        }
+      }
+    }
+
+    if (IsDeviceAsanEnabled)
+      addLibraries(SYCLDeviceSanitizerLibs);
   }
 #endif
   return LibraryList;
@@ -353,8 +401,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
   // instead of the original object.
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
     bool IsRDC = !shouldDoPerObjectFileLinking(C);
-    const bool IsSYCLNativeCPU = isSYCLNativeCPU(
-        this->getToolChain(), *C.getSingleOffloadToolChain<Action::OFK_Host>());
+    const bool IsSYCLNativeCPU = isSYCLNativeCPU(this->getToolChain());
     auto isNoRDCDeviceCodeLink = [&](const InputInfo &II) {
       if (IsRDC)
         return false;
@@ -385,8 +432,9 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
           LibPostfix = ".cubin";
       }
       StringRef LibSyclPrefix("libsycl-");
-      if (!InputFilename.startswith(LibSyclPrefix) ||
-          !InputFilename.endswith(LibPostfix) || (InputFilename.count('-') < 2))
+      if (!InputFilename.starts_with(LibSyclPrefix) ||
+          !InputFilename.ends_with(LibPostfix) ||
+          (InputFilename.count('-') < 2))
         return false;
       // Skip the prefix "libsycl-"
       std::string PureLibName =
@@ -403,7 +451,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
             PureLibName.substr(0, FinalDashPos) + PureLibName.substr(DotPos);
       }
       for (const auto &L : SYCLDeviceLibList) {
-        if (StringRef(PureLibName).startswith(L))
+        if (StringRef(PureLibName).starts_with(L))
           return true;
       }
       return false;
@@ -863,6 +911,7 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
           .Cases("intel_gpu_acm_g11", "intel_gpu_dg2_g11", "acm_g11")
           .Cases("intel_gpu_acm_g12", "intel_gpu_dg2_g12", "acm_g12")
           .Case("intel_gpu_pvc", "pvc")
+          .Case("intel_gpu_pvc_vg", "pvc_vg")
           .Case("nvidia_gpu_sm_50", "sm_50")
           .Case("nvidia_gpu_sm_52", "sm_52")
           .Case("nvidia_gpu_sm_53", "sm_53")
@@ -943,6 +992,7 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
                       .Case("acm_g11", "INTEL_GPU_ACM_G11")
                       .Case("acm_g12", "INTEL_GPU_ACM_G12")
                       .Case("pvc", "INTEL_GPU_PVC")
+                      .Case("pvc_vg", "INTEL_GPU_PVC_VG")
                       .Case("sm_50", "NVIDIA_GPU_SM_50")
                       .Case("sm_52", "NVIDIA_GPU_SM_52")
                       .Case("sm_53", "NVIDIA_GPU_SM_53")
@@ -1299,7 +1349,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
         // For AOT, Use ocloc's per-device options flag with the correct ocloc
         // option to honor the user's specification.
         PerDeviceArgs.push_back(
-            {DeviceName, Args.MakeArgString("-options " + BackendOptName)});
+            {DeviceName, Args.MakeArgString(BackendOptName)});
       } else if (Triple.isSPIR() &&
                  Triple.getSubArch() == llvm::Triple::NoSubArch) {
         // For JIT, pass -ftarget-register-alloc-mode=Device:BackendOpt to
@@ -1318,8 +1368,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     StringRef DeviceName = "pvc";
     StringRef BackendOptName = SYCL::gen::getGenGRFFlag("auto");
     if (IsGen)
-      PerDeviceArgs.push_back(
-          {DeviceName, Args.MakeArgString("-options " + BackendOptName)});
+      PerDeviceArgs.push_back({DeviceName, Args.MakeArgString(BackendOptName)});
     else if (Triple.isSPIR() &&
              Triple.getSubArch() == llvm::Triple::NoSubArch) {
       BeArgs.push_back(Args.MakeArgString(RegAllocModeOptName + DeviceName +
@@ -1339,7 +1388,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
       for (auto *A : Args) {
         if (!A->getOption().matches(options::OPT_Xsycl_backend_EQ))
           continue;
-        if (StringRef(A->getValue()).startswith("intel_gpu"))
+        if (StringRef(A->getValue()).starts_with("intel_gpu"))
           TargArgs.push_back(A->getValue(1));
       }
       if (llvm::find_if(TargArgs, [&](auto Cur) {

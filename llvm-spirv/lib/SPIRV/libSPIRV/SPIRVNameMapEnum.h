@@ -169,6 +169,7 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationDontStaticallyCoalesceINTEL, "DontStaticallyCoalesceINTEL");
   add(DecorationPrefetchINTEL, "PrefetchINTEL");
   add(DecorationStallEnableINTEL, "StallEnableINTEL");
+  add(DecorationStallFreeINTEL, "StallFreeINTEL");
   add(DecorationFuseLoopsInFunctionINTEL, "FuseLoopsInFunctionINTEL");
   add(DecorationAliasScopeINTEL, "AliasScopeINTEL");
   add(DecorationNoAliasINTEL, "NoAliasINTEL");
@@ -220,6 +221,9 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationInitModeINTEL, "InitModeINTEL");
   add(DecorationImplementInRegisterMapINTEL, "ImplementInRegisterMapINTEL");
 
+  add(DecorationCacheControlLoadINTEL, "CacheControlLoadINTEL");
+  add(DecorationCacheControlStoreINTEL, "CacheControlStoreINTEL");
+
   // From spirv_internal.hpp
   add(internal::DecorationFuncParamKindINTEL, "FuncParamKindINTEL");
   add(internal::DecorationFuncParamDescINTEL, "FuncParamDescINTEL");
@@ -229,8 +233,6 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(internal::DecorationInitModeINTEL, "InitModeINTEL");
   add(internal::DecorationImplementInCSRINTEL, "ImplementInCSRINTEL");
   add(internal::DecorationArgumentAttributeINTEL, "ArgumentAttributeINTEL");
-  add(internal::DecorationCacheControlLoadINTEL, "CacheControlLoadINTEL");
-  add(internal::DecorationCacheControlStoreINTEL, "CacheControlStoreINTEL");
 
   add(DecorationMax, "Max");
 }
@@ -609,6 +611,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityFPGAKernelAttributesv2INTEL, "FPGAKernelAttributesv2INTEL");
   add(CapabilityFPGAMemoryAccessesINTEL, "FPGAMemoryAccessesINTEL");
   add(CapabilityFPGAClusterAttributesINTEL, "FPGAClusterAttributesINTEL");
+  add(CapabilityFPGAClusterAttributesV2INTEL, "FPGAClusterAttributesV2INTEL");
   add(CapabilityLoopFuseINTEL, "LoopFuseINTEL");
   add(CapabilityMemoryAccessAliasingINTEL, "MemoryAccessAliasingINTEL");
   add(CapabilityFPGABufferLocationINTEL, "FPGABufferLocationINTEL");
@@ -680,6 +683,11 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
       "CooperativeMatrixPrefetchINTEL");
   add(internal::CapabilityCooperativeMatrixInvocationInstructionsINTEL,
       "CooperativeMatrixInvocationInstructionsINTEL");
+  add(internal::CapabilityCooperativeMatrixCheckedInstructionsINTEL,
+      "CooperativeMatrixCheckedInstructionsINTEL");
+  add(internal::CapabilitySubgroupRequirementsINTEL,
+      "SubgroupRequirementsINTEL");
+  add(internal::CapabilityTaskSequenceINTEL, "TaskSequenceINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 
