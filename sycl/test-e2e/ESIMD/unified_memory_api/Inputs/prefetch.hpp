@@ -279,3 +279,246 @@ template <typename T> bool testUSM(queue Q) {
   }
   return Passed;
 }
+
+template <typename T, uint16_t N, uint16_t VS, bool UseMask, bool UseProperties,
+          typename PropertiesT>
+bool testACC(queue Q, uint32_t MaskStride, PropertiesT) {
+
+  static_assert(VS > 0 && N % VS == 0,
+                "Incorrect VS parameter. N must be divisible by VS.");
+  constexpr int NOffsets = N / VS;
+
+  uint32_t Groups = 8;
+  uint32_t Threads = 16;
+
+  std::cout << "Running case: T=" << esimd_test::type_name<T>() << ", N=" << N
+            << ", VS=" << VS << ", MaskStride=" << MaskStride
+            << ", Groups=" << Groups << ", Threads=" << Threads
+            << ", use_mask=" << UseMask << ", use_properties=" << UseProperties
+            << std::endl;
+
+  uint16_t Size = Groups * Threads * N;
+  using Tuint = esimd_test::uint_type_t<sizeof(T)>;
+
+  sycl::range<1> GlobalRange{Groups};
+  sycl::range<1> LocalRange{Threads};
+  sycl::nd_range<1> Range{GlobalRange * LocalRange, LocalRange};
+
+  T *Out = sycl::malloc_shared<T>(Size, Q);
+  std::memset(Out, 0, Size * sizeof(T));
+
+  T *In = sycl::malloc_shared<T>(Size * 2, Q);
+  for (int I = 0; I < Size; I++)
+    In[I] = esimd_test::getRandomValue<T>();
+
+  try {
+    buffer<T, 1> InBuf(In, Size * 2);
+    Q.submit([&](handler &CGH) {
+       accessor InAcc{InBuf, CGH};
+       CGH.parallel_for(Range, [=](sycl::nd_item<1> NDI) SYCL_ESIMD_KERNEL {
+         int GlobalID = NDI.get_global_id(0);
+         PropertiesT Props{};
+
+         uint32_t ByteOffset = GlobalID * N * sizeof(T);
+         simd<uint32_t, NOffsets> ByteOffsets(ByteOffset, VS * sizeof(T));
+         simd_view ByteOffsetsView = ByteOffsets.template select<NOffsets, 1>();
+
+         simd_mask<NOffsets> Pred;
+         simd_mask<1> Pred_1 = 1;
+         for (int I = 0; I < NOffsets; I++)
+           Pred[I] = (I % MaskStride == 0) ? 1 : 0;
+
+         using Tuint = esimd_test::uint_type_t<sizeof(T)>;
+
+         simd<T, N> Vals;
+         if constexpr (VS > 1) { // VS > 1 requires specifying <T, N, VS>
+           if constexpr (UseMask) {
+             if constexpr (UseProperties) {
+               if constexpr (sizeof(T) >= 4) {
+                 if (GlobalID % 4 == 0) // ByteOffset - simd
+                   prefetch<T, N, VS>(InAcc, ByteOffsets, Pred, Props);
+                 else if (GlobalID % 4 == 1)
+                   prefetch<T, VS>(InAcc, Pred_1, Props);
+                 else if (GlobalID % 4 == 2)
+                   prefetch<T, VS>(InAcc, ByteOffset, Pred_1, Props);
+                 else // ByteOffset - simd_view
+                   prefetch<T, N, VS>(InAcc, ByteOffsetsView, Pred, Props);
+               } else {
+                 if (GlobalID % 2 == 0) // ByteOffset - simd
+                   prefetch<T, N, VS>(InAcc, ByteOffsets, Pred, Props);
+                 else // ByteOffset - simd_view
+                   prefetch<T, N, VS>(InAcc, ByteOffsetsView, Pred, Props);
+               }
+             } else { // UseProperties is false
+               if constexpr (sizeof(T) >= 4) {
+                 if (GlobalID % 4 == 0) // ByteOffset - simd
+                   prefetch<T, N, VS>(InAcc, ByteOffsets, Pred);
+                 else if (GlobalID % 4 == 1)
+                   prefetch<T, VS>(InAcc, Pred_1);
+                 else if (GlobalID % 4 == 2)
+                   prefetch<T, VS>(InAcc, ByteOffset, Pred_1);
+                 else // ByteOffset - simd_view
+                   prefetch<T, N, VS>(InAcc, ByteOffsetsView, Pred);
+               } else {
+                 if (GlobalID % 2 == 0) // ByteOffset - simd
+                   prefetch<T, N, VS>(InAcc, ByteOffsets, Pred);
+                 else // ByteOffset - simd_view
+                   prefetch<T, N, VS>(InAcc, ByteOffsetsView, Pred);
+               }
+             }
+           } else { // UseMask is false
+             if constexpr (UseProperties) {
+               if constexpr (sizeof(T) >= 4) {
+                 if (GlobalID % 4 == 0) // ByteOffset - simd
+                   prefetch<T, N, VS>(InAcc, ByteOffsets, Props);
+                 else if (GlobalID % 4 == 1)
+                   prefetch<T, VS>(InAcc, Props);
+                 else if (GlobalID % 4 == 2)
+                   prefetch<T, VS>(InAcc, ByteOffset);
+                 else // ByteOffset - simd_view
+                   prefetch<T, N, VS>(InAcc, ByteOffsetsView, Props);
+               } else {
+                 if (GlobalID % 2 == 0) // ByteOffset - simd
+                   prefetch<T, N, VS>(InAcc, ByteOffsets, Props);
+                 else // ByteOffset - simd_view
+                   prefetch<T, N, VS>(InAcc, ByteOffsetsView, Props);
+               }
+             } else { // UseProperties is false
+               if constexpr (sizeof(T) >= 4) {
+                 if (GlobalID % 4 == 0) // ByteOffset - simd
+                   prefetch<T, N, VS>(InAcc, ByteOffsets);
+                 else if (GlobalID % 4 == 1)
+                   prefetch<T, VS>(In);
+                 else if (GlobalID % 4 == 2)
+                   prefetch<T, VS>(InAcc, ByteOffset);
+                 else // ByteOffset - simd_view
+                   prefetch<T, N, VS>(InAcc, ByteOffsetsView);
+               } else {
+                 if (GlobalID % 2 == 0) // ByteOffset - simd
+                   prefetch<T, N, VS>(InAcc, ByteOffsets);
+                 else // ByteOffset - simd_view
+                   prefetch<T, N, VS>(InAcc, ByteOffsetsView);
+               }
+             }
+           }
+         } else {
+           // if (VS == 1) then <T, N, VS> can often be omitted - test it
+           // here. C++ FE do simd to simd_view matching.
+           if constexpr (UseMask) {
+             if constexpr (UseProperties) {
+               if constexpr (sizeof(T) >= 4) {
+                 if (GlobalID % 4 == 0) // ByteOffset - simd
+                   prefetch<T>(InAcc, ByteOffsets, Pred, Props);
+                 else if (GlobalID % 4 == 1)
+                   prefetch<T>(InAcc, Pred_1, Props);
+                 else if (GlobalID % 4 == 2)
+                   prefetch<T>(InAcc, ByteOffset, Pred_1, Props);
+                 else // ByteOffset - simd_view
+                   prefetch<T, N>(InAcc, ByteOffsetsView, Pred, Props);
+               } else {
+                 if (GlobalID % 2 == 0) // ByteOffset - simd
+                   prefetch<T>(InAcc, ByteOffsets, Pred, Props);
+                 else // ByteOffset - simd_view
+                   prefetch<T, N>(InAcc, ByteOffsetsView, Pred, Props);
+               }
+             } else { // UseProperties is false
+               if constexpr (sizeof(T) >= 4) {
+                 if (GlobalID % 4 == 0) // ByteOffset - simd
+                   prefetch<T>(InAcc, ByteOffsets, Pred);
+                 else if (GlobalID % 4 == 1)
+                   prefetch<T>(InAcc, Pred_1);
+                 else if (GlobalID % 4 == 2)
+                   prefetch<T>(InAcc, ByteOffset, Pred_1);
+                 else // ByteOffset - simd_view
+                   prefetch<T, N>(InAcc, ByteOffsetsView, Pred);
+               } else {
+                 if (GlobalID % 2 == 0) // ByteOffset - simd
+                   prefetch<T>(InAcc, ByteOffsets, Pred);
+                 else // ByteOffset - simd_view
+                   prefetch<T, N>(InAcc, ByteOffsetsView, Pred);
+               }
+             }
+           } else { // UseMask is false
+             if constexpr (UseProperties) {
+               if constexpr (sizeof(T) >= 4) {
+                 if (GlobalID % 4 == 0) // ByteOffset - simd
+                   prefetch<T>(InAcc, ByteOffsets, Props);
+                 else if (GlobalID % 4 == 1)
+                   prefetch<T>(InAcc, Props);
+                 else if (GlobalID % 4 == 2)
+                   prefetch<T>(InAcc, ByteOffset, Props);
+                 else // ByteOffset - simd_view
+                   prefetch<T, N>(InAcc, ByteOffsetsView, Props);
+               } else {
+                 if (GlobalID % 2 == 0) // ByteOffset - simd
+                   prefetch<T>(InAcc, ByteOffsets, Props);
+                 else // ByteOffset - simd_view
+                   prefetch<T, N>(InAcc, ByteOffsetsView, Props);
+               }
+             } else {
+               if constexpr (sizeof(T) >= 4) {
+                 if (GlobalID % 4 == 0) // ByteOffset - simd
+                   prefetch<T>(InAcc, ByteOffsets);
+                 else if (GlobalID % 4 == 1)
+                   prefetch<T>(InAcc);
+                 else if (GlobalID % 4 == 2)
+                   prefetch<T>(InAcc, ByteOffset);
+                 else // ByteOffset - simd_view
+                   prefetch<T, N>(InAcc, ByteOffsetsView);
+               } else {
+                 if (GlobalID % 2 == 0) // ByteOffset - simd
+                   prefetch(In, ByteOffsets);
+                 else // ByteOffset - simd_view
+                   prefetch<T, N>(InAcc, ByteOffsetsView);
+               }
+             }
+           }
+         } // end if (VS == 1)
+         Vals = gather<T, N, VS>(InAcc, ByteOffsets);
+         Vals.copy_to(Out + GlobalID * N);
+       });
+     }).wait();
+  } catch (sycl::exception const &e) {
+    std::cout << "SYCL exception caught: " << e.what() << '\n';
+    sycl::free(In, Q);
+    sycl::free(Out, Q);
+    return false;
+  }
+
+  bool Passed = verify(In, Out, N, Size, VS);
+  if (!Passed)
+    std::cout << "Case FAILED" << std::endl;
+
+  sycl::free(In, Q);
+  sycl::free(Out, Q);
+  return Passed;
+}
+
+template <typename T> bool testACC(queue Q) {
+  constexpr bool UseMask = true;
+  constexpr bool UseProperties = true;
+
+  properties CacheProps{cache_hint_L1<cache_hint::streaming>,
+                        cache_hint_L2<cache_hint::cached>};
+
+  bool Passed = true;
+  Passed &= testACC<T, 1, 1, !UseMask, !UseProperties>(Q, 2, CacheProps);
+  Passed &= testACC<T, 2, 1, UseMask, !UseProperties>(Q, 2, CacheProps);
+  Passed &= testACC<T, 4, 1, UseMask, !UseProperties>(Q, 2, CacheProps);
+  Passed &= testACC<T, 8, 1, UseMask, UseProperties>(Q, 3, CacheProps);
+
+  Passed &= testACC<T, 1, 1, !UseMask, UseProperties>(Q, 2, CacheProps);
+  Passed &= testACC<T, 2, 1, UseMask, UseProperties>(Q, 2, CacheProps);
+  Passed &= testACC<T, 4, 1, UseMask, UseProperties>(Q, 2, CacheProps);
+  Passed &= testACC<T, 8, 1, UseMask, UseProperties>(Q, 3, CacheProps);
+  Passed &= testACC<T, 32, 1, UseMask, UseProperties>(Q, 2, CacheProps);
+
+  // Check VS > 1. GPU supports only dwords and qwords in this mode.
+  if constexpr (sizeof(T) >= 4) {
+    Passed &= testACC<T, 16, 2, UseMask, UseProperties>(Q, 3, CacheProps);
+    Passed &= testACC<T, 32, 2, !UseMask, UseProperties>(Q, 3, CacheProps);
+    Passed &= testACC<T, 32, 2, UseMask, UseProperties>(Q, 3, CacheProps);
+    Passed &= testACC<T, 32, 2, UseMask, UseProperties>(Q, 3, CacheProps);
+  }
+  return Passed;
+}
