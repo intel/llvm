@@ -190,7 +190,7 @@ __ESIMD_INTRIN void __esimd_lsc_prefetch_stateless(
 template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
           uint16_t AddressScale, int ImmOffset, __ESIMD_DNS::lsc_data_size DS,
           __ESIMD_DNS::lsc_vector_size VS,
-          __ESIMD_DNS::lsc_data_order _Transposed, int N,
+          __ESIMD_DNS::lsc_data_order Transposed, int N,
           typename SurfIndAliasTy>
 __ESIMD_INTRIN void
 __esimd_lsc_prefetch_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
