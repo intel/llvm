@@ -186,6 +186,8 @@ class device {
 
 _Returns:_ The value `true` only if the device supports kernel bundles written
 in the OpenCL C version identified by `version`.
+Returns `false` if the device does not support kernel bundles written in
+`source_language::opencl`.
 
 a|
 [frame=all,grid=none]
@@ -203,6 +205,8 @@ _Returns:_ The value `true` only if the device supports kernel bundles using
 the OpenCL C feature whose feature macro is `name`.
 The set of possible feature macros are defined in section 6.2.1 "Features" of
 the OpenCL C specification.
+Returns `false` if the device does not support kernel bundles written in
+`source_language::opencl`.
 
 a|
 [frame=all,grid=none]
@@ -223,6 +227,8 @@ version of the extension is written to `version`.
 
 _Returns:_ The value `true` only if the device supports kernel bundles using
 the OpenCL extension identified by `name`.
+Returns `false` if the device does not support kernel bundles written in
+`source_language::opencl`.
 
 a|
 [frame=all,grid=none]
