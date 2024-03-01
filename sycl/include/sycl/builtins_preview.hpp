@@ -95,28 +95,13 @@ template <typename T> auto convert_arg(T &&x) {
                                            __attribute__((ext_vector_type(N)))>;
     // TODO: We should have this bit_cast impl inside vec::convert.
     return bit_cast<result_type>(static_cast<typename no_cv_ref::vector_t>(x));
-  } else if constexpr (std::is_same_v<no_cv_ref, half>)
-    return static_cast<half_impl::BIsRepresentationT>(x);
-  else if constexpr (is_multi_ptr_v<no_cv_ref>) {
-    return convert_arg(x.get_decorated());
-  } else if constexpr (is_scalar_arithmetic_v<no_cv_ref>) {
-    // E.g. on linux: long long -> int64_t (long), or char -> int8_t (signed
-    // char) and same for unsigned; Windows has long/long long reversed.
-    // TODO: Inline this scalar impl.
-    return static_cast<ConvertToOpenCLType_t<no_cv_ref>>(x);
-  } else if constexpr (std::is_pointer_v<no_cv_ref>) {
-    using elem_type = remove_decoration_t<std::remove_pointer_t<no_cv_ref>>;
-    using converted_elem_type =
-        decltype(convert_arg(std::declval<elem_type>()));
-    using result_type =
-        typename DecoratedType<converted_elem_type,
-                               deduce_AS<no_cv_ref>::value>::type *;
-    return reinterpret_cast<result_type>(x);
   } else if constexpr (is_swizzle_v<no_cv_ref>) {
     return convert_arg(simplify_if_swizzle_t<no_cv_ref>{x});
   } else {
-    // TODO: should it be unreachable? What can it be?
-    return std::forward<T>(x);
+    static_assert(is_scalar_arithmetic_v<no_cv_ref> ||
+                  is_multi_ptr_v<no_cv_ref> || std::is_pointer_v<no_cv_ref> ||
+                  std::is_same_v<no_cv_ref, half>);
+    return convertToOpenCLType(std::forward<T>(x));
   }
 }
 
@@ -170,16 +155,22 @@ auto builtin_default_host_impl(FuncTy F, const Ts &...x) {
 template <typename FuncTy, typename... Ts>
 auto builtin_delegate_to_scalar(FuncTy F, const Ts &...x) {
   using T = typename first_type<Ts...>::type;
-  if constexpr (is_vec_or_swizzle_v<T>) {
-    using ret_elem_type = decltype(F(x[0]...));
-    // TODO: using r{} to avoid Werror. Not sure if ok.
-    vec<ret_elem_type, T::size()> r{};
-    loop<T::size()>([&](auto idx) { r[idx] = F(x[idx]...); });
-    return r;
+  static_assert(is_vec_or_swizzle_v<T> || is_marray_v<T>);
+
+  constexpr auto Size = T::size();
+  using ret_elem_type = decltype(F(x[0]...));
+  std::conditional_t<is_marray_v<T>, marray<ret_elem_type, Size>,
+                     vec<ret_elem_type, Size>>
+      r{};
+
+  if constexpr (is_marray_v<T>) {
+    for (size_t i = 0; i < Size; ++i)
+      r[i] = F(x[i]...);
   } else {
-    static_assert(is_marray_v<T>);
-    return builtin_marray_impl(F, x...);
+    loop<Size>([&](auto idx) { r[idx] = F(x[idx]...); });
   }
+
+  return r;
 }
 
 template <typename T>

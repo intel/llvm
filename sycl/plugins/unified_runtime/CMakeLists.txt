@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8ff738f424de6f84fa16c9f7d41c8c70b766665d
-  # Merge: 5e548c5e fbdaf72a
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Feb 13 13:01:03 2024 +0100
-  #     Merge pull request #1089 from Bensuo/ewan/update
-  #     [EXP][Command-Buffer] Add kernel command update
-  set(UNIFIED_RUNTIME_TAG 8ff738f424de6f84fa16c9f7d41c8c70b766665d)
+  # commit 9b936b5748a8da86123f3f148d1cfa84e52531c4
+  # Merge: 91c6068b 767cfd1a
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Mon Feb 26 10:46:55 2024 +0100
+  #     Merge pull request #1354 from AllanZyne/sanitizer-device-global
+  #     [DeviceSanitizer] Support detecting out-of-bounds error on DeviceGlobals
+  set(UNIFIED_RUNTIME_TAG 9b936b5748a8da86123f3f148d1cfa84e52531c4)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -124,7 +124,7 @@ set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/com
 
 add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 add_library(UnifiedRuntimeCommon ALIAS ur_common)
-add_library(UnifiedMallocFramework ALIAS unified_malloc_framework)
+add_library(UnifiedMemoryFramework ALIAS umf)
 
 add_library(UnifiedRuntime-Headers INTERFACE)
 

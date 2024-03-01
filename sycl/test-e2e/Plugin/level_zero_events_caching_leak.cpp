@@ -1,8 +1,8 @@
 // REQUIRES: gpu, level_zero
 
 // RUN: %{build} -o %t.out
-// RUN: env ZE_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL=4 UR_L0_LEAKS_DEBUG=1 %{run} %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING=1 ZE_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL=4 UR_L0_LEAKS_DEBUG=1 %{run} %t.out
+// RUN: env ZE_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL=4 %{l0_leak_check} %{run} %t.out
+// RUN: env SYCL_PI_LEVEL_ZERO_DISABLE_EVENTS_CACHING=1 ZE_MAX_NUMBER_OF_EVENTS_PER_EVENT_POOL=4 %{l0_leak_check} %{run} %t.out
 
 // Check that events and pools are not leaked when event caching is
 // enabled/disabled.
