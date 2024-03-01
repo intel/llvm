@@ -123,6 +123,10 @@ TEST_P(BufferFillCommandTest, UpdateParameters) {
 
 // Test updating the global size so that the fill outputs to a larger buffer
 TEST_P(BufferFillCommandTest, UpdateGlobalSize) {
+    if (!updatable_execution_range_support) {
+        GTEST_SKIP() << "Execution range update is not supported.";
+    }
+
     ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
                                              nullptr, nullptr));
     ASSERT_SUCCESS(urQueueFinish(queue));
@@ -181,7 +185,7 @@ TEST_P(BufferFillCommandTest, SeparateUpdateCalls) {
     ValidateBuffer(buffer, sizeof(val) * global_size, val);
 
     size_t new_global_size =
-        global_size; //64; // Try same value for testing purposes.
+        updatable_execution_range_support ? 64 : global_size;
     const size_t new_buffer_size = sizeof(val) * new_global_size;
     ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE,
                                      new_buffer_size, nullptr, &new_buffer));
@@ -248,25 +252,28 @@ TEST_P(BufferFillCommandTest, SeparateUpdateCalls) {
     ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(command_handle,
                                                         &input_update_desc));
 
-    /*ur_exp_command_buffer_update_kernel_launch_desc_t global_size_update_desc = {
-        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
-        nullptr,                                                        // pNext
-        0,                // numNewMemObjArgs
-        0,                // numNewPointerArgs
-        0,                // numNewValueArgs
-        0,                // numNewExecInfos
-        0,                // newWorkDim
-        nullptr,          // pNewMemObjArgList
-        nullptr,          // pNewPointerArgList
-        nullptr,          // pNewValueArgList
-        nullptr,          // pNewExecInfoList
-        nullptr,          // pNewGlobalWorkOffset
-        &new_global_size, // pNewGlobalWorkSize
-        nullptr,          // pNewLocalWorkSize
-    };
+    if (updatable_execution_range_support) {
+        ur_exp_command_buffer_update_kernel_launch_desc_t
+            global_size_update_desc = {
+                UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
+                nullptr,          // pNext
+                0,                // numNewMemObjArgs
+                0,                // numNewPointerArgs
+                0,                // numNewValueArgs
+                0,                // numNewExecInfos
+                0,                // newWorkDim
+                nullptr,          // pNewMemObjArgList
+                nullptr,          // pNewPointerArgList
+                nullptr,          // pNewValueArgList
+                nullptr,          // pNewExecInfoList
+                nullptr,          // pNewGlobalWorkOffset
+                &new_global_size, // pNewGlobalWorkSize
+                nullptr,          // pNewLocalWorkSize
+            };
 
-    ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(
-        command_handle, &global_size_update_desc));*/
+        ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(
+            command_handle, &global_size_update_desc));
+    }
 
     ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
                                              nullptr, nullptr));
