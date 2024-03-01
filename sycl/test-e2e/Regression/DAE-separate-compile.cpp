@@ -13,7 +13,7 @@
 
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 
 int main() {
   constexpr int THE_ANSWER = 42;

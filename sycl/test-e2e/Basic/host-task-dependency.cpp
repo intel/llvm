@@ -7,7 +7,7 @@
 
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 
 #include <atomic>
 #include <condition_variable>

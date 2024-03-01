@@ -34,7 +34,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 #include <syclcompat.hpp>
 
 #define DATA_NUM 128

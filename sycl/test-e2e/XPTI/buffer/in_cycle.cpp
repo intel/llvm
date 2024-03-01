@@ -10,7 +10,7 @@
 
 #else
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 bool func(sycl::queue &Queue, int depth = 0) {
   bool MismatchFound = false;
   // Create a buffer of 4 ints to be used inside the kernel code.

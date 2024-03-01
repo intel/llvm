@@ -12,7 +12,7 @@
 
 #include <cmath>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 #include <unordered_set>
 
 using namespace sycl;

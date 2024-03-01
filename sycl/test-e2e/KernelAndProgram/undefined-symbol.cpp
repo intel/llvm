@@ -12,7 +12,7 @@
 //
 //===--------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 SYCL_EXTERNAL
 void symbol_that_does_not_exist();
 

@@ -12,7 +12,7 @@
 //
 //===--------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 
 class MyKernel;
 

@@ -14,7 +14,7 @@ not support the info::partition_affinity_domain provided, an exception with the
 */
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 /** returns true if the device supports a particular affinity domain
  */
 static bool

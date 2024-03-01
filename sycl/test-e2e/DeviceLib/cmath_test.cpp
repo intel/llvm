@@ -15,7 +15,7 @@
 #include <cmath>
 #include <cstdint>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 
 namespace s = sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;

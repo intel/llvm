@@ -18,7 +18,7 @@
 #include <complex>
 #endif
 
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 
 #ifndef INCLUDE_BEFORE
 #include <complex>

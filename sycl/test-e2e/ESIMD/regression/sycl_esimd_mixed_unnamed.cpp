@@ -13,7 +13,7 @@
 
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 
 using namespace ::sycl;
 

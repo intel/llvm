@@ -10,7 +10,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <algorithm>
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 
 using namespace sycl;
 

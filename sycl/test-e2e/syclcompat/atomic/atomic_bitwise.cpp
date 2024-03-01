@@ -40,7 +40,7 @@
 
 #include <type_traits>
 
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 
 #include <syclcompat/atomic.hpp>
 #include <syclcompat/device.hpp>

@@ -9,7 +9,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 
 #include <cassert>
 #include <iostream>

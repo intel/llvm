@@ -24,7 +24,7 @@
 // RUN: %{run} %t.out
 
 #include <cassert>
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 #include <syclcompat/dims.hpp>
 
 int main() {

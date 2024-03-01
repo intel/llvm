@@ -9,7 +9,7 @@
 //  devices, not sub-devices.
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 
 using namespace sycl;
 using namespace std;

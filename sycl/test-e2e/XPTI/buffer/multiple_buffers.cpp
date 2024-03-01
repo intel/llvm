@@ -9,7 +9,7 @@
 
 #else
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 
 int main() {
   bool MismatchFound = false;

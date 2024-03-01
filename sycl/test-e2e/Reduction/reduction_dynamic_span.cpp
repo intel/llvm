@@ -1,6 +1,6 @@
 // RUN: not %{build} -fsyntax-only -o %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 
 using namespace sycl;
 

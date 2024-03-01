@@ -10,7 +10,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 
 #define GOLD 10
 static int NumTestCases = 0;

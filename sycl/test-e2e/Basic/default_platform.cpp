@@ -9,7 +9,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 
 int main() {
   sycl::platform Plt;

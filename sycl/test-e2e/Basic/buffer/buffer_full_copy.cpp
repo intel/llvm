@@ -11,7 +11,7 @@
 
 #include <cassert>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 
 void check_copy_device_to_host(sycl::queue &Queue) {
   constexpr int size = 6, offset = 2;

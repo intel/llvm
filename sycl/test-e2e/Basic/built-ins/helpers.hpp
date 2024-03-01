@@ -1,4 +1,6 @@
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
+
+#include <sycl/builtins.hpp>
 
 template <typename T, typename D> bool equal(T x, T y, D delta) {
   // Maybe should be C++20's std::equality_comparable.

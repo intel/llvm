@@ -9,7 +9,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 
 namespace s = sycl;
 

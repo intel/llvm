@@ -1,4 +1,4 @@
-//==--------- default_device.cpp - SYCL device default ctor test -----------==//
+//==------------ sycl.hpp - SYCL2020 standard header file ------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,13 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+#pragma once
 
-#include <sycl/core.hpp>
-
-int main() {
-  sycl::device Dev;
-  assert(Dev == sycl::device{sycl::default_selector_v});
-  return 0;
-}
+#include <sycl/accessor.hpp>
+#include <sycl/buffer.hpp>
+#include <sycl/queue.hpp>

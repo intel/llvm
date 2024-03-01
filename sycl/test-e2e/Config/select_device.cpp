@@ -57,7 +57,7 @@
 #include <iostream>
 #include <regex>
 #include <string>
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 
 using namespace sycl;
 

@@ -35,7 +35,7 @@
 
 #include <numeric>
 
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 
 #include <syclcompat.hpp>
 

@@ -2,7 +2,10 @@
 // RUN: %{run} %t.out
 #include <cassert>
 #include <iostream>
-#include <sycl/sycl.hpp>
+
+#include <sycl/core.hpp>
+
+#include <sycl/detail/boolean.hpp>
 
 using namespace sycl;
 namespace s = sycl;

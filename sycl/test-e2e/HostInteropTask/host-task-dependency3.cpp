@@ -6,7 +6,7 @@
 
 #include <chrono>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 #include <thread>
 
 using namespace sycl;

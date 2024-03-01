@@ -2,7 +2,7 @@
 // RUN: %{run} %t.out
 
 #include <stdlib.h>
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 
 int main() {
 

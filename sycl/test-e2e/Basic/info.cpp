@@ -8,7 +8,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 
 #include <cassert>
 #include <cstdint>

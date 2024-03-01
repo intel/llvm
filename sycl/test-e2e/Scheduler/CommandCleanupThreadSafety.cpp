@@ -2,7 +2,7 @@
 // RUN: %{build} -o %t.out -lpthread
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/core.hpp>
 
 #include <cassert>
 #include <cstddef>
