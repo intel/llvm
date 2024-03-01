@@ -197,6 +197,34 @@ application must ensure that the data has the same size and representation on
 the host and inside the OpenCL C kernel.
 Applications can use the OpenCL types (e.g. `cl_int`) for this purpose.
 
+=== Iteration space and work-item functions
+
+A `kernel` object created from OpenCL C source code must be launched either as
+a single-task kernel or as an nd-range kernel.
+Attempting to launch such a kernel with a simple range iteration space results
+in undefined behavior.
+
+If the kernel is launched as a single-task kernel, it is executed with one
+work-group dimension, with one work-group of one work-item.
+
+If the kernel is launched as an nd-range kernel, the number of work-group
+dimensions is the same as the number of dimensions in the `nd_range`.
+The global size, local size, and the number of work-groups is determined in the
+usual way from the `nd_range`.
+If the OpenCL C kernel is decorated with the `reqd_work_group_size` attribute,
+the local size in the `nd_range` must match this value.
+
+The kernel may call the functions defined in section 6.15.1 "Work-Item
+Functions" of the OpenCL C specification, with the following clarification.
+Some of these functions take a `dimindx` parameter that selects a dimension
+index.
+This index has the opposite sense from SYCL.
+To illustrate, consider a call to `get_global_size` from a kernel that is
+invoked with a 3-dimensional `nd_range`.
+Calling `get_global_size(0)` retrieves the global size from dimension 2 of the
+`nd_range`, and calling `get_global_size(2)` retrieves the global size from
+dimension 0 of the `nd_range`.
+
 
 == Example
 
@@ -236,6 +264,7 @@ int main() {
   sycl::kernel k = kb_exe.ext_oneapi_get_kernel("my_kernel");
 
   constexpr int N = 4;
+  constexpr int WGSIZE = 1;
   cl_int input[N] = {0, 1, 2, 3};
   cl_int output[N] = {};
 
@@ -249,8 +278,9 @@ int main() {
     // Each argument to the kernel is a SYCL accessor.
     cgh.set_args(in, out);
 
-    // Invoke the kernel over a range.
-    cgh.parallel_for(sycl::range{N}, k);
+    // Invoke the kernel over an nd-range.
+    sycl::nd_range ndr{{N}, {WGSIZE}};
+    cgh.parallel_for(ndr, k);
   });
 }
 ----
@@ -301,20 +331,3 @@ their source string.
   backend?
   Currently, the online_compiler does support this case (but it provides no way
   to query about optional features or extensions).
-
-* Do we need to document some restrictions on the OpenCL C
-  https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_C.html#work-item-functions[
-  work-item functions] that the kernel can call, which depends on how the
-  kernel was launched?
-  For example, can a kernel launched with the simple `range` form of
-  `parallel_for` call `get_local_size`?
-  In OpenCL, there is only one way to launch kernels
-  (`clEnqueueNDRangeKernel`), so it is always legal to call any of the
-  work-item functions.
-  If an OpenCL kernel is launched with a NULL `local_work_size` (which is
-  roughly equivalent to SYCL's `range` form of `parallel_for`), the
-  `get_local_size` function returns the local work-group size that is chosen by
-  the implementation.
-  Level Zero, similarly, has only one way to launch kernels.
-  Therefore, maybe it is OK to let kernels in this extension call any of the
-  work-item functions, regardless of how they are launched?
