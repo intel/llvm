@@ -30,9 +30,9 @@ int main() {
         [=](sycl::nd_item<1> item) { ++array[item.get_global_id(0)]; });
   });
   Q.wait();
-  // CHECK-DEVICE: ERROR: DeviceSanitizer: out-of-bounds-access on USM Device Memory
-  // CHECK-HOST:   ERROR: DeviceSanitizer: out-of-bounds-access on USM Host Memory
-  // CHECK-SHARED: ERROR: DeviceSanitizer: out-of-bounds-access on USM Shared Memory
+  // CHECK-DEVICE: ERROR: DeviceSanitizer: out-of-bounds-access on Device USM
+  // CHECK-HOST:   ERROR: DeviceSanitizer: out-of-bounds-access on Host USM
+  // CHECK-SHARED: ERROR: DeviceSanitizer: out-of-bounds-access on Shared USM
   // CHECK: {{READ of size 1 at kernel <.*MyKernelR_4> LID\(0, 0, 0\) GID\(12345, 0, 0\)}}
   // CHECK: {{  #0 .* .*parallel_for_char.cpp:}}[[@LINE-7]]
 
