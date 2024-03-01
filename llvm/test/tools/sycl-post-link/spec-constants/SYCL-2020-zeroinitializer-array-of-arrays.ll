@@ -1,6 +1,7 @@
 ; RUN: sycl-post-link --spec-const=native -S < %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files_0.ll --check-prefix CHECK-IR
 ; RUN: FileCheck %s -input-file=%t.files_0.prop --check-prefix CHECK-PROP
+; RUN: %if asserts %{ sycl-post-link -debug-only=SpecConst --spec-const=native -S < %s 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
 ;
 ; This test is intended to check that SpecConstantsPass is able to handle the
 ; situation where specialization constants with complex types such as arrays
@@ -108,9 +109,43 @@ attributes #2 = { convergent "frame-pointer"="all" "no-trapping-math"="true" "st
 !9 = !{!"_ZTSN2cl4sycl14kernel_handlerE", !5, i64 0}
 
 ; CHECK-PROP: [SYCL/specialization constants]
-; CHECK-PROP-NEXT: 9f47062a80eecfa7____ZL8coeff_id=2|gNAAAAAAAAAAAAAAAAAAAQAAAAQAAAAAEAAAAQAAAAgAAAAAIAAAAQAAAAwAAAAAMAAAAQAAAAABAAAAQAAAAQAAAAQBAAAAUAAAAQAAAAgBAAAAYAAAAQAAAAwBAAAAcAAAAQAAAAACAAAAgAAAAQAAAAA
-; CHECK-PROP-NEXT: 405761736d5a1797____ZL9coeff_id2=2|gNAAAAAAAAQCAAAAAAAAAQAAAAgCAAAAEAAAAQAAAAwCAAAAIAAAAQAAAAADAAAAMAAAAQAAAAQDAAAAQAAAAQAAAAgDAAAAUAAAAQAAAAwDAAAAYAAAAQAAAAAEAAAAcAAAAQAAAAQEAAAAgAAAAQAAAAA
-; CHECK-PROP-NEXT: 6da74a122db9f35d____ZL9coeff_id3=2|AGAAAAAAAAgEAAAAAAAAAQAAAAwEAAAAEAAAAQAAAAAFAAAAIAAAAQAAAAQFAAAAQAAAAgAAAAA
+; CHECK-PROP-NEXT: 9f47062a80eecfa7____ZL8coeff_id=2
+; CHECK-PROP-NEXT: 405761736d5a1797____ZL9coeff_id2=2
+; CHECK-PROP-NEXT: 6da74a122db9f35d____ZL9coeff_id3=2
+; CHECK-LOG: sycl.specialization-constants
+; CHECK-LOG:[[UNIQUE_PREFIX:[0-9a-zA-Z]+]]={0, 0, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={1, 4, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={2, 8, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={3, 12, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={4, 16, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={5, 20, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={6, 24, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={7, 28, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={8, 32, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX2:[0-9a-zA-Z]+]]={9, 0, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX2]]={10, 4, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX2]]={11, 8, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX2]]={12, 12, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX2]]={13, 16, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX2]]={14, 20, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX2]]={15, 24, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX2]]={16, 28, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX2]]={17, 32, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX3:[0-9a-zA-Z]+]]={18, 0, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX3]]={19, 4, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX3]]={20, 8, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX3]]={21, 16, 8}
+
 
 ; CHECK-PROP: [SYCL/specialization constants default values]
-; CHECK-PROP-NEXT: all=2|AMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAg/AAAAA0MzMIQzMzoAZmZGDEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+; CHECK-PROP-NEXT: all=2
+; CHECK-LOG: sycl.specialization-constants-default-values
+; CHECK-LOG: {0, 36, 0}
+; CHECK-LOG: {36, 12, 0}
+; CHECK-LOG: {48, 4, 0.000000e+00}
+; CHECK-LOG: {52, 4, 1.000000e+00}
+; CHECK-LOG: {56, 4, 2.000000e+00}
+; CHECK-LOG: {60, 4, 4.100000e+00}
+; CHECK-LOG: {64, 4, 5.100000e+00}
+; CHECK-LOG: {68, 4, 6.200000e+00}
+; CHECK-LOG: {72, 24, 0}

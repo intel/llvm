@@ -20,35 +20,6 @@ using d_t = double;
 struct v {};
 
 int main() {
-  // is_floatn
-  static_assert(d::is_floatn_v<s::vec<s::opencl::cl_float, 4>> == true);
-  static_assert(d::is_floatn_v<s::vec<s::opencl::cl_float, 16>> == true);
-  static_assert(d::is_floatn_v<s::float4> == true, "");
-  static_assert(d::is_floatn_v<s::float16> == true, "");
-
-  static_assert(d::is_floatn_v<s::opencl::cl_float> == false);
-  static_assert(d::is_floatn_v<s::opencl::cl_int> == false);
-  static_assert(d::is_floatn_v<i_t> == false, "");
-  static_assert(d::is_floatn_v<f_t> == false, "");
-  static_assert(d::is_floatn_v<t::c_t> == false, "");
-  static_assert(d::is_floatn_v<t::d_t> == false, "");
-  static_assert(d::is_floatn_v<v> == false, "");
-  // is_genfloatf
-  static_assert(d::is_genfloatf_v<s::vec<s::opencl::cl_float, 4>> == true);
-  static_assert(d::is_genfloatf_v<s::vec<s::opencl::cl_float, 16>> == true);
-  static_assert(d::is_genfloatf_v<s::opencl::cl_float> == true);
-  static_assert(d::is_genfloatf_v<s::float4> == true);
-  static_assert(d::is_genfloatf_v<s::float16> == true);
-  static_assert(d::is_genfloatf_v<f_t> == true, "");
-
-  static_assert(d::is_genfloatf_v<s::opencl::cl_int> == false);
-  static_assert(d::is_genfloatf_v<i_t> == false, "");
-  static_assert(d::is_genfloatf_v<t::c_t> == false, "");
-  static_assert(d::is_genfloatf_v<t::d_t> == false, "");
-  static_assert(d::is_genfloatf_v<v> == false, "");
-
-  //
-
   static_assert(d::is_genfloat_v<s::opencl::cl_float> == true);
   static_assert(d::is_genfloat_v<s::vec<s::opencl::cl_float, 4>> == true);
 

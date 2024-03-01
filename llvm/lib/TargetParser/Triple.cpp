@@ -244,6 +244,7 @@ StringRef Triple::getOSTypeName(OSType Kind) {
   case AIX: return "aix";
   case AMDHSA: return "amdhsa";
   case AMDPAL: return "amdpal";
+  case BridgeOS: return "bridgeos";
   case CUDA: return "cuda";
   case Darwin: return "darwin";
   case DragonFly: return "dragonfly";
@@ -648,6 +649,7 @@ static Triple::OSType parseOS(StringRef OSName) {
     .StartsWith("elfiamcu", Triple::ELFIAMCU)
     .StartsWith("tvos", Triple::TvOS)
     .StartsWith("watchos", Triple::WatchOS)
+    .StartsWith("bridgeos", Triple::BridgeOS)
     .StartsWith("driverkit", Triple::DriverKit)
     .StartsWith("xros", Triple::XROS)
     .StartsWith("visionos", Triple::XROS)
@@ -1488,7 +1490,7 @@ void Triple::setOSAndEnvironmentName(StringRef Str) {
   setTriple(getArchName() + "-" + getVendorName() + "-" + Str);
 }
 
-static unsigned getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
+unsigned Triple::getArchPointerBitWidth(llvm::Triple::ArchType Arch) {
   switch (Arch) {
   case llvm::Triple::UnknownArch:
     return 0;
