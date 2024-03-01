@@ -58,6 +58,23 @@ struct device_has_key {
                                  std::integral_constant<aspect, Aspects>...>;
 };
 
+struct range_kernel_key {
+  template <int Dims>
+  using value_t =
+      property_value<range_kernel_key, std::integral_constant<int, Dims>>;
+};
+
+struct nd_range_kernel_key {
+  template <int Dims>
+  using value_t =
+      property_value<nd_range_kernel_key, std::integral_constant<int, Dims>>;
+};
+
+struct single_task_kernel_key {
+  using value_t = property_value<single_task_kernel_key>;
+};
+
+
 template <size_t Dim0, size_t... Dims>
 struct property_value<work_group_size_key, std::integral_constant<size_t, Dim0>,
                       std::integral_constant<size_t, Dims>...> {
@@ -110,6 +127,32 @@ struct property_value<device_has_key,
   static constexpr std::array<aspect, sizeof...(Aspects)> value{Aspects...};
 };
 
+template <int Dims>
+struct property_value<range_kernel_key, std::integral_constant<int, Dims>> {
+  static_assert(Dims >= 1 && Dims <= 3,
+                "range_kernel_key property must use dimension of 1, 2 or 3.");
+
+  using key_t = range_kernel_key;
+  using value_t = int;
+  static constexpr int value = Dims;
+};
+
+template <int Dims>
+struct property_value<nd_range_kernel_key, std::integral_constant<int, Dims>> {
+  static_assert(
+      Dims >= 1 && Dims <= 3,
+      "nd_range_kernel_key property must use dimension of 1, 2 or 3.");
+
+  using key_t = nd_range_kernel_key;
+  using value_t = int;
+  static constexpr int value = Dims;
+};
+
+template <>
+struct property_value<single_task_kernel_key> {
+  using key_t = single_task_kernel_key;
+};
+
 template <size_t Dim0, size_t... Dims>
 inline constexpr work_group_size_key::value_t<Dim0, Dims...> work_group_size;
 
@@ -123,11 +166,35 @@ inline constexpr sub_group_size_key::value_t<Size> sub_group_size;
 template <aspect... Aspects>
 inline constexpr device_has_key::value_t<Aspects...> device_has;
 
+template <int Dims>
+inline constexpr range_kernel_key::value_t<Dims> range_kernel;
+
+template <int Dims>
+inline constexpr nd_range_kernel_key::value_t<Dims> nd_range_kernel;
+
+inline constexpr single_task_kernel_key::value_t single_task_kernel;
+
 template <> struct is_property_key<work_group_size_key> : std::true_type {};
 template <>
 struct is_property_key<work_group_size_hint_key> : std::true_type {};
 template <> struct is_property_key<sub_group_size_key> : std::true_type {};
 template <> struct is_property_key<device_has_key> : std::true_type {};
+template <> struct is_property_key<range_kernel_key> : std::true_type {};
+template <> struct is_property_key<nd_range_kernel_key> : std::true_type {};
+template <> struct is_property_key<single_task_kernel_key> : std::true_type {};
+
+template <auto *Func, int Dims> struct is_range_kernel;
+template <auto *Func, int Dims> struct is_nd_range_kernel;
+template <auto *Func, int Dims> struct is_single_task_kernel;
+
+template <auto *Func, int Dims>
+inline constexpr bool is_range_kernel_v = is_range_kernel<Func, Dims>::value;
+template <auto *Func, int Dims>
+inline constexpr bool is_nd_range_kernel_v =
+    is_nd_range_kernel<Func, Dims>::value;
+template <auto *Func, int Dims>
+inline constexpr bool is_single_task_kernel_v =
+    is_single_task_kernel<Func, Dims>::value;
 
 namespace detail {
 template <> struct PropertyToKind<work_group_size_key> {
@@ -141,6 +208,15 @@ template <> struct PropertyToKind<sub_group_size_key> {
 };
 template <> struct PropertyToKind<device_has_key> {
   static constexpr PropKind Kind = PropKind::DeviceHas;
+};
+template <> struct PropertyToKind<range_kernel_key> {
+  static constexpr PropKind Kind = PropKind::RangeKernel;
+};
+template <> struct PropertyToKind<nd_range_kernel_key> {
+  static constexpr PropKind Kind = PropKind::NDRangeKernel;
+};
+template <> struct PropertyToKind<single_task_kernel_key> {
+  static constexpr PropKind Kind = PropKind::SingleTaskKernel;
 };
 
 template <>
@@ -172,6 +248,20 @@ struct PropertyMetaInfo<device_has_key::value_t<Aspects...>> {
   static constexpr const char *value =
       SizeListToStr<static_cast<size_t>(Aspects)...>::value;
 };
+template <int Dims>
+struct PropertyMetaInfo<range_kernel_key::value_t<Dims>> {
+  static constexpr const char* name = "sycl-range-kernel";
+  static constexpr int value = Dims;
+};
+template <int Dims>
+struct PropertyMetaInfo<nd_range_kernel_key::value_t<Dims>> {
+  static constexpr const char* name = "sycl-nd-range-kernel";
+  static constexpr int value = Dims;
+};
+template <>
+struct PropertyMetaInfo<single_task_kernel_key::value_t> {
+  static constexpr const char* name = "sycl-single-task-kernel";
+};
 
 template <typename T, typename = void>
 struct HasKernelPropertiesGetMethod : std::false_type {};
@@ -198,6 +288,32 @@ struct HasKernelPropertiesGetMethod<T,
           std::remove_cv_t<std::remove_reference_t<decltype(PROP)>>>::name,    \
       sycl::ext::oneapi::experimental::detail::PropertyMetaInfo<               \
           std::remove_cv_t<std::remove_reference_t<decltype(PROP)>>>::value)]]
+
+#define SYCL_EXT_ONEAPI_RANGE_KERNEL_PROPERTY(PROP)                            \
+  [[__sycl_detail__::add_ir_attributes_function(                               \
+      {"sycl-range-kernel"},                                                   \
+      sycl::ext::oneapi::experimental::detail::PropertyMetaInfo<               \
+          std::remove_cv_t<std::remove_reference_t<decltype(PROP)>>>::name,    \
+      sycl::ext::oneapi::experimental::detail::PropertyMetaInfo<               \
+          std::remove_cv_t<std::remove_reference_t<decltype(PROP)>>>::value)]]
+
+#define SYCL_EXT_ONEAPI_ND_RANGE_KERNEL_PROPERTY(PROP)                         \
+  [[__sycl_detail__::add_ir_attributes_function(                               \
+      {"sycl-nd-range-kernel"},                                                \
+      sycl::ext::oneapi::experimental::detail::PropertyMetaInfo<               \
+          std::remove_cv_t<std::remove_reference_t<decltype(PROP)>>>::name,    \
+      sycl::ext::oneapi::experimental::detail::PropertyMetaInfo<               \
+          std::remove_cv_t<std::remove_reference_t<decltype(PROP)>>>::value)]]
+
+#define SYCL_EXT_ONEAPI_SINGLE_TASK_KERNEL_PROPERTY(PROP)                      \
+  [[__sycl_detail__::add_ir_attributes_function(                               \
+      {"sycl-single-task-kernel"},                                             \
+      sycl::ext::oneapi::experimental::detail::PropertyMetaInfo<               \
+          std::remove_cv_t<std::remove_reference_t<decltype(PROP)>>>::name,    \
+      0)]]
 #else
 #define SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(PROP)
+#define SYCL_EXT_ONEAPI_RANGE_KERNEL_PROPERTY(PROP)
+#define SYCL_EXT_ONEAPI_ND_RANGE_KERNEL_PROPERTY(PROP)
+#define SYCL_EXT_ONEAPI_SINGLE_TASK_KERNEL_PROPERTY(PROP)
 #endif

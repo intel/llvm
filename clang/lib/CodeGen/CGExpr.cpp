@@ -48,6 +48,7 @@
 
 #include <optional>
 #include <string>
+#include <iostream>
 
 using namespace clang;
 using namespace CodeGen;
@@ -2836,6 +2837,9 @@ LValue CodeGenFunction::EmitDeclRefLValue(const DeclRefExpr *E) {
   }
 
   if (const auto *VD = dyn_cast<VarDecl>(ND)) {
+#if 0
+    std::cerr << "VD=" << (void*)VD << std::endl;
+#endif
     // Check if this is a global variable.
     if (VD->hasLinkage() || VD->isStaticDataMember())
       return EmitGlobalVarDeclLValue(*this, E, VD);
@@ -2865,7 +2869,12 @@ LValue CodeGenFunction::EmitDeclRefLValue(const DeclRefExpr *E) {
 
     // No other cases for now.
     } else {
+#if 0
+      for (auto LDMEntry : LocalDeclMap) {
+        LDMEntry.first->dump();
+      }
       llvm_unreachable("DeclRefExpr for Decl not entered in LocalDeclMap?");
+#endif
     }
 
     // Handle threadlocal function locals.

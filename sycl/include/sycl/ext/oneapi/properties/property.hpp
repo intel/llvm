@@ -221,8 +221,11 @@ enum PropKind : uint32_t {
   BuildOptions = 51,
   BuildLog = 52,
   FloatingPointControls = 53,
+  RangeKernel = 54,
+  NDRangeKernel = 55,
+  SingleTaskKernel = 56,
   // PropKindSize must always be the last value.
-  PropKindSize = 54,
+  PropKindSize = 57,
 };
 
 // This trait must be specialized for all properties and must have a unique
