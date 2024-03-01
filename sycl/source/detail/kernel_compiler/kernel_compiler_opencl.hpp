@@ -30,6 +30,9 @@ bool OpenCLC_Compilation_Available();
 
 bool OpenCLC_Feature_Available(const std::string &Feature, uint32_t IPVersion);
 
+bool OpenCLC_Supports_Version(
+    const ext::oneapi::experimental::cl_version &Version, uint32_t IPVersion);
+
 std::string OpenCLC_Profile(uint32_t IPVersion);
 
 } // namespace detail

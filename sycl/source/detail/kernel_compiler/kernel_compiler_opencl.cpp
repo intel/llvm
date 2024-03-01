@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/pi.hpp> // getOsLibraryFuncAddress
-#include <sycl/exception.hpp> // for make_error_code
+#include <sycl/exception.hpp> // make_error_code
 
 #include "kernel_compiler_opencl.hpp"
 
@@ -273,6 +273,19 @@ bool OpenCLC_Feature_Available(const std::string &Feature, uint32_t IPVersion) {
 
   // Allright, we have FeatureLog, so let's find that feature!
   return (FeatureLog.find(Feature) != std::string::npos);
+}
+
+bool OpenCLC_Supports_Version(
+    const ext::oneapi::experimental::cl_version &Version, uint32_t IPVersion) {
+  static std::string VersionLog = "";
+  if (VersionLog.empty())
+    VersionLog = InvokeOclocQuery(IPVersion, "CL_DEVICE_OPENCL_C_ALL_VERSIONS");
+
+  // Have VersionLog, will search.
+  // "OpenCL C":1.0.0 "OpenCL C":1.1.0 "OpenCL C":1.2.0 "OpenCL C":3.0.0
+  std::stringstream ss;
+  ss << Version.major << "." << Version.minor << "." << Version.patch;
+  return VersionLog.find(ss.str());
 }
 
 std::string OpenCLC_Profile(uint32_t IPVersion) {

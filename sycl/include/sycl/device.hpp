@@ -289,6 +289,16 @@ public:
   /// \return true if supported
   bool ext_oneapi_supports_cl_c_feature(const std::string &Feature);
 
+  /// Indicates if the device supports kernel bundles written in a particular
+  /// OpenCL C version
+  ///
+  /// \param Version
+  ///
+  /// \return true only if the device supports kernel bundles written in the
+  /// version identified by `Version`.
+  bool ext_oneapi_supports_cl_c_version(
+      const ext::oneapi::experimental::cl_version &Version) const;
+
   /// Retrieve the OpenCl Device Profile
   ///
   /// \return If the device supports kernel bundles written in
