@@ -681,10 +681,10 @@ For example, if the kernel is defined like this in the source code string:
 ----
 std::string source = R"""(
   #include <sycl/sycl.hpp>
-  namespace syclex = sycl::ext::oneapi::experimental;
+  namespace syclexp = sycl::ext::oneapi::experimental;
 
   extern "C"
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::range_kernel<1>))
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
   void foo(int *in, int *out) {/*...*/}
 )""";
 ----
@@ -712,11 +712,11 @@ To illustrate, consider source code that defines a kernel like this:
 ----
 std::string source = R"""(
   #include <sycl/sycl.hpp>
-  namespace syclex = sycl::ext::oneapi::experimental;
+  namespace syclexp = sycl::ext::oneapi::experimental;
 
   namespace mykernels {
 
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::range_kernel<1>))
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
   void bar(int *in, int *out) {/*...*/}
 
   } // namespace mykernels
@@ -729,8 +729,8 @@ The host code can compile this and get the kernel's `kernel` object like so:
 ----
 sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src = /*...*/;
 
-sycl::kernel_bundle<sycl::bundle_state::executable> kb = syclex::build(kb_src,
-  syclex::properties{syclex::registered_kernel_names{"mykernels::bar"}});
+sycl::kernel_bundle<sycl::bundle_state::executable> kb = syclexp::build(kb_src,
+  syclexp::properties{syclexp::registered_kernel_names{"mykernels::bar"}});
 
 sycl::kernel k = kb.ext_oneapi_get_kernel("mykernels::bar");
 ----
@@ -749,8 +749,8 @@ the kernel by calling `ext_oneapi_get_raw_kernel_name` like this:
 ----
 sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src = /*...*/;
 
-sycl::kernel_bundle<sycl::bundle_state::executable> kb = syclex::build(kb_src,
-  syclex::properties{syclex::registered_kernel_names{"mykernels::bar"}});
+sycl::kernel_bundle<sycl::bundle_state::executable> kb = syclexp::build(kb_src,
+  syclexp::properties{syclexp::registered_kernel_names{"mykernels::bar"}});
 
 std::string mangled_name = kb.ext_oneapi_get_raw_kernel_name("mykernels::bar");
 ----
@@ -772,10 +772,10 @@ this:
 ----
 std::string source = R"""(
   #include <sycl/sycl.hpp>
-  namespace syclex = sycl::ext::oneapi::experimental;
+  namespace syclexp = sycl::ext::oneapi::experimental;
 
   template<typename T>
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::range_kernel<1>))
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
   void bartmpl(T *in, T *out) {/*...*/}
 )""";
 ----
@@ -789,8 +789,8 @@ object for each instantiation:
 ----
 sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src = /*...*/;
 
-sycl::kernel_bundle<sycl::bundle_state::executable> kb = syclex::build(kb_src,
-  syclex::properties{syclex::registered_kernel_names{{"bartmpl<float>", "bartmpl<int>"}});
+sycl::kernel_bundle<sycl::bundle_state::executable> kb = syclexp::build(kb_src,
+  syclexp::properties{syclexp::registered_kernel_names{{"bartmpl<float>", "bartmpl<int>"}});
 
 sycl::kernel k_float = kb.ext_oneapi_get_kernel("bartmpl<float>");
 sycl::kernel k_int = kb.ext_oneapi_get_kernel("bartmpl<int>");
@@ -807,8 +807,10 @@ as a string and then compile and launch it.
 [source,c++]
 ----
 #include <sycl/sycl.hpp>
-namespace syclex = sycl::ext::oneapi::experimental;
+namespace syclexp = sycl::ext::oneapi::experimental;
+
 static constexpr size_t NUM = 1024;
+static constexpr size_t WGSIZE = 16;
 
 int main() {
   sycl::queue q;
@@ -816,27 +818,28 @@ int main() {
   // The source code for a kernel, defined as a SYCL "free function kernel".
   std::string source = R"""(
     #include <sycl/sycl.hpp>
-    namespace syclex = sycl::ext::oneapi::experimental;
+    namespace syclext = sycl::ext::oneapi;
+    namespace syclexp = sycl::ext::oneapi::experimental;
 
     extern "C"
-    SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::range_kernel<1>))
+    SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
     void iota(float start, float *ptr) {
-      size_t id = syclex::this_kernel::get_id();
+      size_t id = syclext::this_work_item::get_nd_item().get_global_linear_id();
       ptr[id] = start + static_cast<float>(id);
     }
   )""";
 
   // Create a kernel bundle in "source" state.
   sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src =
-    syclex::create_kernel_bundle_from_source(
+    syclexp::create_kernel_bundle_from_source(
       q.get_context(),
-      syclex::source_language::sycl,
+      syclexp::source_language::sycl,
       source);
 
   // Compile the kernel.  There is no need to use the "registered_kernel_names"
   // property because the kernel is declared extern "C".
   sycl::kernel_bundle<sycl::bundle_state::executable> kb_exe =
-    syclex::build(kb_src);
+    syclexp::build(kb_src);
 
   // Get the kernel via its compiler-generated name.
   sycl::kernel iota = kb_exe.ext_oneapi_get_kernel("iota");
@@ -846,9 +849,9 @@ int main() {
     // Set the values of the kernel arguments.
     cgh.set_args(3.14f, ptr);
 
-    // Launch the kernel according to its type, in this case a simple
-    // "range" kernel.
-    cgh.parallel_for({NUM}, iota);
+    // Launch the kernel according to its type, in this case an nd-range kernel.
+    sycl::nd_range ndr{{NUM}, {WGSIZE}};
+    cgh.parallel_for(ndr, iota);
   }).wait();
 }
 ----
@@ -861,8 +864,10 @@ disambiguate a kernel function that has several overloads.
 [source,c++]
 ----
 #include <sycl/sycl.hpp>
-namespace syclex = sycl::ext::oneapi::experimental;
+namespace syclexp = sycl::ext::oneapi::experimental;
+
 static constexpr size_t NUM = 1024;
+static constexpr size_t WGSIZE = 16;
 
 int main() {
   sycl::queue q;
@@ -870,34 +875,35 @@ int main() {
   // The source code for two kernels defined as overloaded functions.
   std::string source = R"""(
     #include <sycl/sycl.hpp>
-    namespace syclex = sycl::ext::oneapi::experimental;
+    namespace syclext = sycl::ext::oneapi;
+    namespace syclexp = sycl::ext::oneapi::experimental;
 
-    SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::range_kernel<1>))
+    SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
     void iota(float start, float *ptr) {
-      size_t id = syclex::this_kernel::get_id();
+      size_t id = syclext::this_work_item::get_nd_item().get_global_linear_id();
       ptr[id] = start + static_cast<float>(id);
     }
 
-    SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclex::range_kernel<1>))
+    SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::range_kernel<1>))
     void iota(int start, int *ptr) {
-      size_t id = syclex::this_kernel::get_id();
+      size_t id = syclext::this_work_item::get_nd_item().get_global_linear_id();
       ptr[id] = start + static_cast<int>(id);
     }
   )""";
 
   // Create a kernel bundle in "source" state.
   sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src =
-    syclex::create_kernel_bundle_from_source(
+    syclexp::create_kernel_bundle_from_source(
       q.get_context(),
-      syclex::source_language::sycl,
+      syclexp::source_language::sycl,
       source);
 
   // Compile the kernel.  Because there are two overloads of "iota", we need to
   // use a C++ cast to disambiguate between them.  Here, we are selecting the
   // "int" overload.
   std::string iota_name{"(void(*)(int, int*))iota"};
-  sycl::kernel_bundle<sycl::bundle_state::executable> kb_exe = syclex::build(kb_src,
-    syclex::properties{syclex::registered_kernel_names{iota_name}});
+  sycl::kernel_bundle<sycl::bundle_state::executable> kb_exe = syclexp::build(kb_src,
+    syclexp::properties{syclexp::registered_kernel_names{iota_name}});
 
   // Get the kernel by passing the same string we used to construct the
   // "registered_kernel_names" property.
@@ -908,9 +914,9 @@ int main() {
     // Set the values of the kernel arguments.
     cgh.set_args(3, ptr);
 
-    // Launch the kernel according to its type, in this case a simple
-    // "range" kernel.
-    cgh.parallel_for({NUM}, iota);
+    // Launch the kernel according to its type, in this case an nd-range kernel.
+    sycl::nd_range ndr{{NUM}, {WGSIZE}};
+    cgh.parallel_for(ndr, iota);
   }).wait();
 }
 ----
