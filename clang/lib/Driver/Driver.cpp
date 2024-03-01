@@ -5052,12 +5052,10 @@ class OffloadingActionBuilder final {
             SYCLLinkBinaryList.push_back(SDA);
           if (WrapDeviceOnlyBinary)
             return ABRT_Success;
-          else {
-            auto *Link = C.MakeAction<LinkJobAction>(SYCLLinkBinaryList,
-                                                         types::TY_Image);
-            SYCLLinkBinary = C.MakeAction<SPIRVTranslatorJobAction>(
-                Link, types::TY_Image);
-          }
+          auto *Link = C.MakeAction<LinkJobAction>(SYCLLinkBinaryList,
+                                                   types::TY_Image);
+          SYCLLinkBinary = C.MakeAction<SPIRVTranslatorJobAction>(
+              Link, types::TY_Image);
           // We avoid creating host action in device-only mode.
           return ABRT_Ignore_Host;
         }
