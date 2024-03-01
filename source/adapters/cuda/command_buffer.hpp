@@ -298,7 +298,7 @@ struct ur_exp_command_buffer_handle_t_ {
   // Device associated with this command buffer
   ur_device_handle_t Device;
   // Whether commands in the command-buffer can be updated
-  bool IsUpdatable = false;
+  bool IsUpdatable;
   // Cuda Graph handle
   CUgraph CudaGraph;
   // Cuda Graph Exec handle
