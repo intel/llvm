@@ -21,7 +21,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+Copyright (C) 2023-2024 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.
@@ -49,11 +49,11 @@ This extension also depends on the following other SYCL extensions:
 
 == Status
 
-This is an experimental extension specification, intended to provide early 
-access to features and gather community feedback. Interfaces defined in 
-this specification are implemented in DPC++, but they are not finalized 
-and may change incompatibly in future versions of DPC++ without prior notice. 
-*Shipping software products should not rely on APIs defined in 
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback. Interfaces defined in
+this specification are implemented in {dpcpp}, but they are not finalized
+and may change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in
 this specification.*
 
 
@@ -96,7 +96,8 @@ This extension adds the `opencl` enumerator to the `source_language`
 enumeration, which indicates that a kernel bundle defines kernels in the
 OpenCL C language.
 
-```
+[source,c++]
+----
 namespace sycl::ext::oneapi::experimental {
 
 enum class source_language : /*unspecified*/ {
@@ -105,7 +106,7 @@ enum class source_language : /*unspecified*/ {
 };
 
 } // namespace sycl::ext::oneapi::experimental
-```
+----
 
 === Source code is text format
 
@@ -132,17 +133,19 @@ functions identify a kernel using the function name, exactly as it appears in
 the OpenCL C source code.
 For example, if the kernel is defined this way in OpenCL C:
 
-```
+[source,c++]
+----
 __kernel
 void foo(__global int *in, __global int *out) {/*...*/}
-```
+----
 
 Then the application's host code can query for the kernel like so:
 
-```
+[source,c++]
+----
 sycl::kernel_bundle<sycl::bundle_state::executable> kb = /*...*/;
 sycl::kernel k = kb.ext_oneapi_get_kernel("foo");
-```
+----
 
 === Kernel argument restrictions
 
@@ -192,7 +195,8 @@ _{endnote}_]
 The following example shows a simple SYCL program that defines an OpenCL C
 kernel as a string and then compiles and launches it.
 
-```
+[source,c++]
+----
 #include <sycl/sycl.hpp>
 #include <OpenCL/opencl.h>
 namespace syclex = sycl::ext::oneapi::experimental;
@@ -241,7 +245,7 @@ int main() {
     cgh.parallel_for(sycl::range{N}, k);
   });
 }
-```
+----
 
 
 == Issues

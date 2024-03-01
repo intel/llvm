@@ -10,6 +10,7 @@
 :encoding: utf-8
 :lang: en
 :dpcpp: pass:[DPC++]
+:cpp: pass:[C++]
 :endnote: &#8212;{nbsp}end{nbsp}note
 
 // Set the default source code type in this document to C++,
@@ -21,7 +22,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+Copyright (C) 2023-2024 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.
@@ -52,11 +53,11 @@ This extension also depends on the following other SYCL extensions:
 
 == Status
 
-This is an experimental extension specification, intended to provide early 
-access to features and gather community feedback. Interfaces defined in 
-this specification are implemented in DPC++, but they are not finalized 
-and may change incompatibly in future versions of DPC++ without prior notice. 
-*Shipping software products should not rely on APIs defined in 
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback. Interfaces defined in
+this specification are implemented in {dpcpp}, but they are not finalized
+and may change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in
 this specification.*
 
 
@@ -103,7 +104,8 @@ This extension adds the `spirv` enumerator to the `source_language`
 enumeration, which indicates that a kernel bundle defines kernels as a SPIR-V
 binary module.
 
-```
+[source,c++]
+----
 namespace sycl::ext::oneapi::experimental {
 
 enum class source_language : /*unspecified*/ {
@@ -112,7 +114,7 @@ enum class source_language : /*unspecified*/ {
 };
 
 } // namespace sycl::ext::oneapi::experimental
-```
+----
 
 === Source code is binary format
 
@@ -155,16 +157,18 @@ identify a kernel using the name, exactly as it appears in the *OpEntryPoint*
 instruction.
 For example, if the kernel is defined this way in SPIR-V:
 
-```
+[source]
+----
 OpEntryPoint Kernel %20 "foo"
-```
+----
 
 Then the application's host code can query for the kernel like so:
 
-```
+[source,c++]
+----
 sycl::kernel_bundle<sycl::bundle_state::executable> kb = /*...*/;
 sycl::kernel k = kb.ext_oneapi_get_kernel("foo");
-```
+----
 
 === Passing kernel arguments
 
@@ -182,7 +186,7 @@ backend's SPIR-V client API specification.
 |Corresponding SYCL type
 
 |*OpTypeInt*
-|A C++ type that is device copyable, which has the same width and data
+|A {cpp} type that is device copyable, which has the same width and data
  representation.
 
 [_Note:_ Applications typically use a fixed-width integer type where the width
@@ -190,7 +194,7 @@ matches the width of the *OpTypeInt*.
 _{endnote}_]
 
 |*OpTypeFloat*
-|A C++ type that is device copyable, which has the same width and data
+|A {cpp} type that is device copyable, which has the same width and data
  representation.
 
 [_Note:_ Applications typically use `float` when the *OpTypeFloat* has a width
@@ -207,7 +211,7 @@ _{endnote}_]
 
 |*OpTypePointer* with _Storage Class_ *Function* and _Type_ *OpTypeStruct*
  (i.e. the pointed-at type is *OpTypeStruct*).
-|A C++ struct or class that is device copyable, which has the same size and
+|A {cpp} struct or class that is device copyable, which has the same size and
  data representation as the *OpTypeStruct*.
 
 [_Note:_ The SYCL argument is a structure even though the SPIR-V argument type
@@ -236,7 +240,8 @@ _{endnote}_]
 The following example shows a simple SYCL program that loads a SPIR-V module
 from a file and then launches a kernel from that module.
 
-```
+[source,c++]
+----
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
@@ -288,4 +293,4 @@ int main() {
     cgh.parallel_for(sycl::range{N}, k);
   });
 }
-```
+----
