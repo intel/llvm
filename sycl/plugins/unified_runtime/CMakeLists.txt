@@ -56,8 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/pbalcer/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 8a5d6d397cf036b832ff9e909dbfb5d269e57212 )
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 78e09f717f56ea8d6e5eb3aa1a22107cf58a8d41
+  # Merge: e0393a45 8a5d6d39
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Thu Feb 29 12:49:08 2024 +0000
+  #     Merge pull request #1392 from pbalcer/event-cache-different-fix
+  #     [L0] Event cache different fix
+  set(UNIFIED_RUNTIME_TAG 78e09f717f56ea8d6e5eb3aa1a22107cf58a8d41)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
