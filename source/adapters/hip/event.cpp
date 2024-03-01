@@ -251,7 +251,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
 
   ur_queue_handle_t Queue = hEvent->getQueue();
   if (Queue == nullptr || !(Queue->URFlags & UR_QUEUE_FLAG_PROFILING_ENABLE) ||
-      !isTimestampEvent()) {
+      !hEvent->isTimestampEvent()) {
     return UR_RESULT_ERROR_PROFILING_INFO_NOT_AVAILABLE;
   }
 
