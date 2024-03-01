@@ -269,8 +269,13 @@ public:
       return DeviceTargets;
     }
     const char *ValStr = BaseT::getRawValue();
-    // Return if the input string is empty.
-    if (ValStr && ValStr[0] != '\0') {
+    if (ValStr) {
+      // Throw if the input string is empty.
+      if (ValStr[0] == '\0')
+        throw invalid_parameter_error(
+              "Invalid value for ONEAPI_DEVICE_SELECTOR environment "
+              "variable: value should not be null.",
+              PI_ERROR_INVALID_VALUE);
 
       DeviceTargets =
           &GlobalHandler::instance().getOneapiDeviceSelectorTargets(ValStr);
