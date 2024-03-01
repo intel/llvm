@@ -821,7 +821,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
               sycl::backend::ext_oneapi_level_zero) {
             Event->wait(Event);
           } else {
-            auto AttachedEventsList = Event->getPostCompleteEvents();
+            auto &AttachedEventsList = Event->getPostCompleteEvents();
             CGData.MEvents.reserve(AttachedEventsList.size() + 1);
             CGData.MEvents.push_back(Event);
             // Add events of the previous execution of all graph partitions.
