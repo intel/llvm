@@ -280,5 +280,15 @@ bool device::ext_oneapi_supports_cl_c_feature(const std::string &Feature) {
       Feature, ipVersion);
 }
 
+std::string device::ext_oneapi_cl_profile() const {
+  const detail::pi::PiDevice Device = impl->getHandleRef();
+  auto Plugin = impl->getPlugin();
+  uint32_t ipVersion = 0;
+  Plugin->call<detail::PiApiKind::piDeviceGetInfo>(
+      Device, PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
+      &ipVersion, nullptr);
+  return ext::oneapi::experimental::detail::OpenCLC_Profile(ipVersion);
+}
+
 } // namespace _V1
 } // namespace sycl

@@ -92,6 +92,26 @@ bool OpenCLC_Compilation_Available() {
   }
 }
 
+using voidPtr = void *;
+
+void SetupLibrary(voidPtr &oclocInvokeHandle, voidPtr &oclocFreeOutputHandle,
+                  std::error_code the_errc) {
+  if (!oclocInvokeHandle) {
+    if (OclocLibrary == nullptr)
+      loadOclocLibrary();
+
+    oclocInvokeHandle =
+        sycl::detail::pi::getOsLibraryFuncAddress(OclocLibrary, "oclocInvoke");
+    if (!oclocInvokeHandle)
+      throw sycl::exception(the_errc, "Cannot load oclocInvoke() function");
+
+    oclocFreeOutputHandle = sycl::detail::pi::getOsLibraryFuncAddress(
+        OclocLibrary, "oclocFreeOutput");
+    if (!oclocFreeOutputHandle)
+      throw sycl::exception(the_errc, "Cannot load oclocFreeOutput() function");
+  }
+}
+
 auto IPVersionsToString(const std::vector<uint32_t> IPVersionVec) {
   std::stringstream ss;
   bool amFirst = true;
@@ -116,22 +136,7 @@ spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
   static void *oclocFreeOutputHandle = nullptr;
   std::error_code build_errc = make_error_code(errc::build);
 
-  // setup Library
-  if (!oclocInvokeHandle) {
-    if (OclocLibrary == nullptr)
-      loadOclocLibrary();
-
-    oclocInvokeHandle =
-        sycl::detail::pi::getOsLibraryFuncAddress(OclocLibrary, "oclocInvoke");
-    if (!oclocInvokeHandle)
-      throw sycl::exception(build_errc, "Cannot load oclocInvoke() function");
-
-    oclocFreeOutputHandle = sycl::detail::pi::getOsLibraryFuncAddress(
-        OclocLibrary, "oclocFreeOutput");
-    if (!oclocFreeOutputHandle)
-      throw sycl::exception(build_errc,
-                            "Cannot load oclocFreeOutput() function");
-  }
+  SetupLibrary(oclocInvokeHandle, oclocFreeOutputHandle, build_errc);
 
   // assemble ocloc args
   std::string CombinedUserArgs =
@@ -207,80 +212,73 @@ spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
   return SpirV;
 }
 
-bool OpenCLC_Feature_Available(const std::string &Feature, uint32_t IPVersion) {
+std::string InvokeOclocQuery(uint32_t IPVersion, const char *identifier) {
 
-  static std::string FeatureLog = "";
-  if (FeatureLog.empty()) {
-    //  FeatureLog is empty, so let's go get it.
+  std::string QueryLog = "";
 
-    // handles into ocloc shared lib
-    static void *oclocInvokeHandle = nullptr;
-    static void *oclocFreeOutputHandle = nullptr;
-    std::error_code the_errc = make_error_code(errc::runtime);
+  // handles into ocloc shared lib
+  static void *oclocInvokeHandle = nullptr;
+  static void *oclocFreeOutputHandle = nullptr;
+  std::error_code the_errc = make_error_code(errc::runtime);
 
-    // Set up Library
-    if (!oclocInvokeHandle) {
-      if (OclocLibrary == nullptr)
-        loadOclocLibrary();
+  SetupLibrary(oclocInvokeHandle, oclocFreeOutputHandle, the_errc);
 
-      oclocInvokeHandle = sycl::detail::pi::getOsLibraryFuncAddress(
-          OclocLibrary, "oclocInvoke");
-      if (!oclocInvokeHandle)
-        throw sycl::exception(the_errc, "Cannot load oclocInvoke() function");
+  uint32_t NumOutputs = 0;
+  uint8_t **Outputs = nullptr;
+  uint64_t *OutputLengths = nullptr;
+  char **OutputNames = nullptr;
 
-      oclocFreeOutputHandle = sycl::detail::pi::getOsLibraryFuncAddress(
-          OclocLibrary, "oclocFreeOutput");
-      if (!oclocFreeOutputHandle)
-        throw sycl::exception(the_errc,
-                              "Cannot load oclocFreeOutput() function");
-    }
+  std::vector<uint32_t> IPVersionVec{IPVersion};
+  std::vector<const char *> Args = {"ocloc", "query", "-device",
+                                    IPVersionsToString(IPVersionVec).c_str(),
+                                    identifier};
 
-    uint32_t NumOutputs = 0;
-    uint8_t **Outputs = nullptr;
-    uint64_t *OutputLengths = nullptr;
-    char **OutputNames = nullptr;
+  decltype(::oclocInvoke) *OclocInvokeFunc =
+      reinterpret_cast<decltype(::oclocInvoke) *>(oclocInvokeHandle);
 
-    std::vector<uint32_t> IPVersionVec{IPVersion};
-    std::vector<const char *> Args = {"ocloc", "query", "-device",
-                                      IPVersionsToString(IPVersionVec).c_str(),
-                                      "CL_DEVICE_OPENCL_C_FEATURES"};
+  int InvokeError = OclocInvokeFunc(
+      Args.size(), Args.data(), 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
+      nullptr, &NumOutputs, &Outputs, &OutputLengths, &OutputNames);
 
-    decltype(::oclocInvoke) *OclocInvokeFunc =
-        reinterpret_cast<decltype(::oclocInvoke) *>(oclocInvokeHandle);
-
-    int InvokeError = OclocInvokeFunc(
-        Args.size(), Args.data(), 0, nullptr, 0, nullptr, 0, nullptr, nullptr,
-        nullptr, &NumOutputs, &Outputs, &OutputLengths, &OutputNames);
-
-    // Gather the results.
-    for (uint32_t i = 0; i < NumOutputs; i++) {
-      if (!strcmp(OutputNames[i], "stdout.log")) {
-        const char *LogText = reinterpret_cast<const char *>(Outputs[i]);
-        if (LogText != nullptr && LogText[0] != '\0') {
-          FeatureLog.append(LogText);
-        }
+  // Gather the results.
+  for (uint32_t i = 0; i < NumOutputs; i++) {
+    if (!strcmp(OutputNames[i], "stdout.log")) {
+      const char *LogText = reinterpret_cast<const char *>(Outputs[i]);
+      if (LogText != nullptr && LogText[0] != '\0') {
+        QueryLog.append(LogText);
       }
     }
-
-    // Try to free memory before reporting possible error.
-    decltype(::oclocFreeOutput) *OclocFreeOutputFunc =
-        reinterpret_cast<decltype(::oclocFreeOutput) *>(oclocFreeOutputHandle);
-    int MemFreeError = OclocFreeOutputFunc(&NumOutputs, &Outputs,
-                                           &OutputLengths, &OutputNames);
-
-    if (InvokeError) {
-      sycl::exception e(the_errc,
-                        "ocloc reported errors: {\n" + FeatureLog + "\n}");
-      FeatureLog = ""; // better luck next time?
-      throw e;
-    }
-
-    if (MemFreeError)
-      throw sycl::exception(the_errc, "ocloc cannot safely free resources");
   }
+
+  // Try to free memory before reporting possible error.
+  decltype(::oclocFreeOutput) *OclocFreeOutputFunc =
+      reinterpret_cast<decltype(::oclocFreeOutput) *>(oclocFreeOutputHandle);
+  int MemFreeError =
+      OclocFreeOutputFunc(&NumOutputs, &Outputs, &OutputLengths, &OutputNames);
+
+  if (InvokeError)
+    throw sycl::exception(the_errc,
+                          "ocloc reported errors: {\n" + QueryLog + "\n}");
+
+  if (MemFreeError)
+    throw sycl::exception(the_errc, "ocloc cannot safely free resources");
+
+  return QueryLog;
+}
+
+bool OpenCLC_Feature_Available(const std::string &Feature, uint32_t IPVersion) {
+  static std::string FeatureLog = "";
+  if (FeatureLog.empty())
+    FeatureLog = InvokeOclocQuery(IPVersion, "CL_DEVICE_OPENCL_C_FEATURES");
 
   // Allright, we have FeatureLog, so let's find that feature!
   return (FeatureLog.find(Feature) != std::string::npos);
+}
+
+std::string OpenCLC_Profile(uint32_t IPVersion) {
+  // Note: seems to have \n\n amended
+  std::string result = InvokeOclocQuery(IPVersion, "CL_DEVICE_PROFILE");
+  return result;
 }
 
 } // namespace detail

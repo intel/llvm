@@ -289,6 +289,16 @@ public:
   /// \return true if supported
   bool ext_oneapi_supports_cl_c_feature(const std::string &Feature);
 
+  /// Retrieve the OpenCl Device Profile
+  ///
+  /// \return If the device supports kernel bundles written in
+  /// `source_language::opencl`, returns the name of the OpenCL profile that is
+  /// supported. The profile name is the same string that is returned by the
+  /// query `CL_DEVICE_PROFILE`, as defined in section 4.2 "Querying Devices" of
+  /// the OpenCL specification. If the device does not support kernel bundles
+  /// written in `source_language::opencl`, returns the empty string.
+  std::string ext_oneapi_cl_profile() const;
+
 // TODO: Remove this diagnostics when __SYCL_WARN_IMAGE_ASPECT is removed.
 #if defined(__clang__)
 #pragma clang diagnostic pop
