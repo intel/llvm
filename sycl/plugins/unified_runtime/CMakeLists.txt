@@ -57,7 +57,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/konradkusiak97/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG e400d8f37e6ccef65ff62491b417fc43b8c659ce)
+  set(UNIFIED_RUNTIME_TAG 7a05c32dcd5efe4294f724d8f8303a44cbcf8ab8)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

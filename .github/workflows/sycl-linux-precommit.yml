@@ -51,8 +51,6 @@ jobs:
     name: Decide which Arc tests to run
     needs: [build, detect_changes]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
-    # Github's ubuntu-* runners are slow to allocate. Use our CUDA runner since
-    # we don't use it for anything right now.
     runs-on: [Linux, build]
     timeout-minutes: 3
     outputs:

@@ -28,12 +28,13 @@ if(NATIVECPU_USE_OCK)
   include(FetchContent)
   FetchContent_Declare(oneapi-ck
    GIT_REPOSITORY https://github.com/codeplaysoftware/oneapi-construction-kit.git
-   #  commit 63f4ba99fc758ffc4268a807b21816b6be1b1b68
-   #  Author: PietroGhg <38155419+PietroGhg@users.noreply.github.com>
-   #  Date:   Wed Jan 31 14:06:36 2024 +0100
-   #  Merge pull request #326 from PietroGhg/pietro/vecz
-   #  Integrate vecz in experimental branch
-   GIT_TAG 63f4ba99fc758ffc4268a807b21816b6be1b1b68
+   # commit 62090f9d469a30e0595f445ff664ea2ecfe77b44
+   # Merge: 6151546a af33ddfb
+   # Author: PietroGhg <pietro.ghiglio@codeplay.com>
+   # Date:   Thu Feb 29 12:46:49 2024 +0100
+   # Merge pull request #385 from PietroGhg/pietro/multi_llvm_include
+   # [NATIVECPU] Avoid specifying include path manually for multi_llvm and Native CPU
+   GIT_TAG  62090f9d469a30e0595f445ff664ea2ecfe77b44
   )
   FetchContent_GetProperties(oneapi-ck)
   if(NOT oneapi-ck_POPULATED)
@@ -43,6 +44,12 @@ if(NATIVECPU_USE_OCK)
     set(CA_NATIVE_CPU 1)
     add_subdirectory(${oneapi-ck_SOURCE_DIR} ${oneapi-ck_BINARY_DIR} EXCLUDE_FROM_ALL)
   endif()
+  install(TARGETS multi_llvm
+  EXPORT;LLVMExports
+        LIBRARY DESTINATION lib${LLVM_LIBDIR_SUFFIX} COMPONENT multi_llvm
+        ARCHIVE DESTINATION lib${LLVM_LIBDIR_SUFFIX} COMPONENT multi_llvm
+        RUNTIME DESTINATION lib${LLVM_LIBDIR_SUFFIX} COMPONENT multi_llvm)
+  set_property(GLOBAL APPEND PROPERTY LLVM_EXPORTS multi_llvm)
   target_compile_definitions(LLVMSYCLLowerIR PRIVATE  NATIVECPU_USE_OCK)
   target_include_directories(LLVMSYCLLowerIR PRIVATE 
     ${oneapi-ck_SOURCE_DIR}/modules/compiler/multi_llvm/include
