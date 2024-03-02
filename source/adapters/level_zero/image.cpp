@@ -738,13 +738,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
       hContext, hDevice, hImageMem, pImageFormat, pImageDesc, phMem, phImage));
 
   struct combined_sampled_image_handle {
-    uint64_t raw_image_handle;
-    uint64_t raw_sampler_handle;
+    uint64_t RawImageHandle;
+    uint64_t RawSamplerHandle;
   };
-  combined_sampled_image_handle *sampledImageHandle =
+  auto *SampledImageHandle =
       reinterpret_cast<combined_sampled_image_handle *>(phImage);
-  sampledImageHandle->raw_image_handle = reinterpret_cast<uint64_t>(*phImage);
-  sampledImageHandle->raw_sampler_handle =
+  SampledImageHandle->RawSamplerHandle =
       reinterpret_cast<uint64_t>(hSampler->ZeSampler);
 
   return UR_RESULT_SUCCESS;
