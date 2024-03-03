@@ -34,7 +34,7 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
     endif()
 
     set(LEVEL_ZERO_LOADER_REPO "https://github.com/oneapi-src/level-zero.git")
-    set(LEVEL_ZERO_LOADER_TAG v1.15.1)
+    set(LEVEL_ZERO_LOADER_TAG v1.16.1)
 
     # Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104
     set(CMAKE_INCLUDE_CURRENT_DIR OFF)
