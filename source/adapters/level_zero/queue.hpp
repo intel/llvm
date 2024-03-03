@@ -342,9 +342,8 @@ struct ur_queue_handle_t_ : _ur_object {
   // requested type of event. Each list contains events which can be reused
   // inside all command lists in the queue as described in the 2-event model.
   // Leftover events in the cache are relased at the queue destruction.
-  std::vector<std::list<ur_event_handle_t> *> EventCaches;
-  std::vector<
-      std::unordered_map<ur_device_handle_t, std::list<ur_event_handle_t> *>>
+  std::vector<std::list<ur_event_handle_t>> EventCaches{2};
+  std::vector<std::unordered_map<ur_device_handle_t, size_t>>
       EventCachesDeviceMap{2};
 
   // adjust the queue's batch size, knowing that the current command list
