@@ -69,11 +69,20 @@ cmake \
 
 Note that a number of `e2e` tests are currently still failing.
 
+# Vectorization
+
+With the integration of the OneAPI Construction Kit, the SYCL Native CPU target
+also gained support for Whole Function Vectorization.\\
+Whole Function Vectorization is enabled by default, and can be controlled through these compiler options:
+* `-mllvm -sycl-native-cpu-no-vecz`: disable Whole Function Vectorization.
+* `-mllvm -sycl-native-cpu-vecz-width`: sets the vector width to the specified value, defaults to 8.
+
+For more details on how the Whole Function Vectorizer is integrated for SYCL Native CPU, refer to the [Technical details[(#technical-details) section.
+
 ## Ongoing work
 
 * Complete support for remaining SYCL features, including but not limited to
   * math and other builtins
-* Vectorization (e.g. Whole Function Vectorization)
 * Subgroup support
 * Performance optimizations
 
@@ -169,11 +178,54 @@ entry:
   ret void
 }
 ```
+
 As you can see, the `subhandler` steals the kernel's function name, and receives two pointer arguments: the first one points to the kernel arguments from the SYCL runtime, and the second one to the `__nativecpu_state` struct.
 
 ## Handling barriers 
 
 On SYCL Native CPU, calls to `__spirv_ControlBarrier` are handled using the `WorkItemLoopsPass` from the oneAPI Construction Kit. This pass handles barriers by splitting the kernel between calls calls to `__spirv_ControlBarrier`, and creating a wrapper that runs the subkernels over the local range. In order to correctly interface to the oneAPI Construction Kit pass pipeline, SPIRV builtins are converted to `mux` builtins (used by the OCK) by the `ConvertToMuxBuiltinsSYCLNativeCPUPass`.
+
+## Vectorization
+
+The OneAPI Construction Kit's Whole Function Vectorizer is executed as an LLVM Pass. Considering the following input function:
+
+```llvm
+define void @SimpleVadd(i32*, i32*, i32*) {
+  %5 = call i64 @_Z13get_global_idj(i32 0)
+  %6 = getelementptr inbounds i32, ptr %1, i64 %5
+  %7 = load i32, ptr %6, align 4
+  %8 = getelementptr inbounds i32, ptr %2, i64 %5
+  %9 = load i32, ptr %8, align 4
+  %10 = add nsw i32 %9, %7
+  %11 = getelementptr inbounds i32, ptr %0, i64 %5
+  store i32 %10, ptr %11, align 4
+  ret void
+}
+```
+
+With a vector width of 8, the vectorizer will produce:
+
+```llvm
+define void @__vecz_v8_SimpleVadd(i32*, i32*, i32*) !codeplay_ca_vecz.derived !2 {
+  %5 = call i64 @_Z13get_global_idj(i32 0)
+  %6 = getelementptr inbounds i32, ptr %1, i64 %5
+  %7 = load <8 x i32>, ptr %6, align 4
+  %8 = getelementptr inbounds i32, ptr %2, i64 %5
+  %9 = load <8 x i32>, ptr %8, align 4
+  %10 = add nsw <8 x i32> %9, %7
+  %11 = getelementptr inbounds i32, ptr %0, i64 %5
+  store <8 x i32> %12, ptr %11, align 4
+  ret void
+}
+!1 = !{i32 8, i32 0, i32 0, i32 0}
+!2 = !{!1, ptr @_ZTSN4sycl3_V16detail19__pf_kernel_wrapperI10SimpleVaddEE}
+```
+
+The `__vecz_v8_SimpleVadd` function is the vectorized version of the original function. It receives arguments of the same type,
+and has the `codeplay_ca_vecz.derived` metadata node attached. The metadata node contains information about the vectorization width,
+and points to the original version of the function. This information is used later in the pass pipeline by the `WorkItemLoopsPass`,
+which will account for the vectorization when creating the Work Item Loops, and use the original version of the function to add
+peeling loops.
 
 ## Kernel registration
 
@@ -189,7 +241,7 @@ In order to register the SYCL Native CPU kernels to the SYCL runtime, we applied
     BinaryStart                         BinaryEnd  
 ```
 
-Each entry in the array contains the kernel name as a string, and a pointer to the `sunhandler` function declaration. Since the subhandler's signature has always the same arguments (two pointers in LLVM-IR), the `clang-offload-wrapper` can emit the function declarations given just the function names contained in the `.table` file emitted by `sycl-post-link`. The symbols are then resolved by the system's linker, which receives both the output from the offload wrapper and the lowered device module.
+Each entry in the array contains the kernel name as a string, and a pointer to the `subhandler` function declaration. Since the subhandler's signature has always the same arguments (two pointers in LLVM-IR), the `clang-offload-wrapper` can emit the function declarations given just the function names contained in the `.table` file emitted by `sycl-post-link`. The symbols are then resolved by the system's linker, which receives both the output from the offload wrapper and the lowered device module.
 
 ## Kernel lowering and execution
 

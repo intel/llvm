@@ -57,13 +57,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 24078c26ab871572067f520d856f4c65271cb9e5
-  # Merge: 227a5edf 89a66af7
+
+  # commit a2757b2931daa2f8d7c9dd51b0fc846be1fd49a7
+  # Merge:  9b936b5 + f78d369
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Feb 19 11:51:49 2024 +0100
-  #     Merge pull request #1299 from rafbiels/rafbiels/fix-cuda-maxreg-check
-  #     [CUDA] Fix MaxRegsPerBlock check in setKernelParams
-  set(UNIFIED_RUNTIME_TAG 24078c26ab871572067f520d856f4c65271cb9e5)
+  # Date:   Tue Feb 27 11:34:58 2024 +0000
+  #     Merge pull request #1254 from Bensuo/cmdbuf-support-hip
+  #     [EXP][CMDBUF] HIP adapter support for command buffers
+  set(UNIFIED_RUNTIME_TAG a2757b2931daa2f8d7c9dd51b0fc846be1fd49a7 )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

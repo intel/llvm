@@ -17,11 +17,15 @@
 // CHECK:      PI Call Begin : piextQueueCreate
 // CHECK:      PI Call Begin : piextDeviceSelectBinary
 // CHECK:      PI Call Begin : piKernelCreate
+// CHECK-NEXT: PI Call Begin : piPlatformGetInfo
+// CHECK-NEXT: PI Call Begin : piPlatformGetInfo
 // CHECK-NEXT: PI Call Begin : piKernelSetExecInfo
 // CHECK:      PI Call Begin : piextKernelSetArgPointer
 // CHECK-NEXT: PI Call Begin : piKernelGetGroupInfo
 // CHECK-NEXT: PI Call Begin : piEnqueueKernelLaunch
 // CHECK:      PI Call Begin : piKernelCreate
+// CHECK-NEXT: PI Call Begin : piPlatformGetInfo
+// CHECK-NEXT: PI Call Begin : piPlatformGetInfo
 // CHECK-NEXT: PI Call Begin : piKernelSetExecInfo
 // CHECK:      Node create
 // CHECK-DAG:    sym_line_no : {{.*}}
