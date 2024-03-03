@@ -34,6 +34,8 @@ DeviceGlobal<DeviceSanitizerReport> __DeviceSanitizerReportMem;
 
 DeviceGlobal<DeviceType> __DeviceType;
 
+DeviceGlobal<uint64_t> __AsanDebug;
+
 #if defined(__SPIR__)
 
 #ifdef __SYCL_DEVICE_ONLY__
