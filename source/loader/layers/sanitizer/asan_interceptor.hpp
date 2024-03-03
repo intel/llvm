@@ -220,7 +220,7 @@ class SanitizerInterceptor {
     AllocationMap m_AllocationMap;
     ur_shared_mutex m_AllocationMapMutex;
 
-    uint32_t cl_Debug = 0;
+    uint64_t cl_Debug = 0;
     uint32_t cl_MaxQuarantineSizeMB = 0;
 
     std::unique_ptr<Quarantine> m_Quarantine;

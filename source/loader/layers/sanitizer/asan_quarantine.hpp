@@ -24,34 +24,32 @@ namespace ur_sanitizer_layer {
 
 class QuarantineCache {
   public:
+    using Element = AllocationIterator;
+    using List = std::queue<Element>;
+
     explicit QuarantineCache() {}
 
     // Total memory used, including internal accounting.
     uptr Size() const { return m_Size; }
 
-    // Memory used for internal accounting.
-    // uptr OverheadSize() const { return m_List.size() * sizeof(QuarantineBatch); }
-
-    void Enqueue(std::shared_ptr<AllocInfo> &ptr) {
-        m_List.push(ptr);
-        m_Size += ptr->AllocSize;
+    void Enqueue(Element &It) {
+        m_List.push(It);
+        m_Size += It->second->AllocSize;
     }
 
-    std::shared_ptr<AllocInfo> Dequeue() {
+    std::optional<Element> Dequeue() {
         if (m_List.empty()) {
-            return nullptr;
+            return std::optional<Element>{};
         }
-        auto b = m_List.front();
+        auto It = m_List.front();
         m_List.pop();
-        m_Size -= b->AllocSize;
-        return b;
+        m_Size -= It->second->AllocSize;
+        return It;
     }
 
     void PrintStats() const {}
 
   private:
-    typedef std::queue<std::shared_ptr<AllocInfo>> List;
-
     List m_List;
     std::atomic_uintptr_t m_Size;
 };
@@ -61,8 +59,8 @@ class Quarantine {
     explicit Quarantine(size_t MaxQuarantineSize)
         : m_MaxQuarantineSize(MaxQuarantineSize) {}
 
-    std::vector<std::shared_ptr<AllocInfo>>
-    put(ur_device_handle_t Device, std::shared_ptr<AllocInfo> &Ptr);
+    std::vector<AllocationIterator> put(ur_device_handle_t Device,
+                                        AllocationIterator &Ptr);
 
   private:
     std::unordered_map<ur_device_handle_t, QuarantineCache> m_Map;
