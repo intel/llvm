@@ -20,7 +20,7 @@
 namespace ur_sanitizer_layer {
 
 void ReportBadFree(uptr Addr, const StackTrace &stack,
-                   std::shared_ptr<AllocInfo> AI) {
+                   const std::shared_ptr<AllocInfo> &AI) {
     context.logger.always("\n====ERROR: DeviceSanitizer: bad-free on {}",
                           (void *)Addr);
     stack.Print();
@@ -42,29 +42,28 @@ void ReportBadFree(uptr Addr, const StackTrace &stack,
     exit(1);
 }
 
-void ReportBadFreeContext(
-    uptr Addr, const StackTrace &stack,
-    const std::vector<std::shared_ptr<AllocInfo>> &AllocInfos) {
+void ReportBadFreeContext(uptr Addr, const StackTrace &stack,
+                          const std::shared_ptr<AllocInfo> &AI) {
     context.logger.always(
         "\n====ERROR: DeviceSanitizer: bad-free-context on {}", (void *)Addr);
     stack.Print();
 
-    for (auto &AI : AllocInfos) {
-        if (AI->IsReleased) {
-            continue;
-        }
-        context.logger.always("{} is located inside of {} region [{}, {})",
-                              (void *)Addr, ToString(AI->Type),
-                              (void *)AI->UserBegin, (void *)(AI->UserEnd + 1));
-        context.logger.always(
-            "allocated here:"); // allocated by device, context
-        AI->AllocStack.Print();
+    context.logger.always("{} is located inside of {} region [{}, {})",
+                          (void *)Addr, ToString(AI->Type),
+                          (void *)AI->UserBegin, (void *)(AI->UserEnd + 1));
+    context.logger.always("allocated here:"); // allocated by device, context
+    AI->AllocStack.Print();
+
+    if (AI->IsReleased) {
+        context.logger.always("freed here:");
+        AI->ReleaseStack.Print();
     }
+
     exit(1);
 }
 
 void ReportDoubleFree(uptr Addr, const StackTrace &Stack,
-                      std::shared_ptr<AllocInfo> AI) {
+                      const std::shared_ptr<AllocInfo> &AI) {
     context.logger.always("\n====ERROR: DeviceSanitizer: double-free on {}",
                           (void *)Addr);
     Stack.Print();
@@ -80,8 +79,8 @@ void ReportDoubleFree(uptr Addr, const StackTrace &Stack,
 }
 
 void ReportGenericError(const DeviceSanitizerReport &Report,
-                        ur_kernel_handle_t Kernel, ur_context_handle_t Context,
-                        ur_device_handle_t Device) {
+                        ur_kernel_handle_t Kernel,
+                        ur_context_handle_t Context) {
     const char *File = Report.File[0] ? Report.File : "<unknown file>";
     const char *Func = Report.Func[0] ? Report.Func : "<unknown func>";
     auto KernelName = getKernelName(Kernel);
@@ -101,25 +100,27 @@ void ReportGenericError(const DeviceSanitizerReport &Report,
     context.logger.always("  #0 {} {}:{}\n", Func, File, Report.Line);
 
     if (Report.ErrorType == DeviceSanitizerErrorType::USE_AFTER_FREE) {
-        auto AllocInfos =
+        auto AllocInfoItOp =
             context.interceptor->findAllocInfoByAddress(Report.Addr);
-        if (!AllocInfos.size()) {
+        if (!AllocInfoItOp) {
             context.logger.always("can't find which chunck {} is allocated",
                                   (void *)Report.Addr);
         }
-        for (auto &AllocInfo : AllocInfos) {
-            if (!AllocInfo->IsReleased) {
-                continue;
-            }
-            context.logger.always(
-                "{} is located inside of {} region [{}, {}]",
-                (void *)Report.Addr, ToString(AllocInfo->Type),
-                (void *)AllocInfo->UserBegin, (void *)AllocInfo->UserEnd);
-            context.logger.always("allocated by thread T0 here:");
-            AllocInfo->AllocStack.Print();
-            context.logger.always("released by thread T0 here:");
-            AllocInfo->ReleaseStack.Print();
+        auto &AllocInfo = (*AllocInfoItOp)->second;
+        if (AllocInfo->Context != Context) {
+            context.logger.always("can't find which chunck {} is allocated",
+                                  (void *)Report.Addr);
         }
+        assert(AllocInfo->IsReleased);
+
+        context.logger.always("{} is located inside of {} region [{}, {}]",
+                              (void *)Report.Addr, ToString(AllocInfo->Type),
+                              (void *)AllocInfo->UserBegin,
+                              (void *)AllocInfo->UserEnd);
+        context.logger.always("allocated by thread T0 here:");
+        AllocInfo->AllocStack.Print();
+        context.logger.always("released by thread T0 here:");
+        AllocInfo->ReleaseStack.Print();
     }
 
     exit(1);

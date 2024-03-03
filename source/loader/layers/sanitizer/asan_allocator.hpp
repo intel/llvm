@@ -15,6 +15,9 @@
 #include "common.hpp"
 #include "stacktrace.hpp"
 
+#include <map>
+#include <memory>
+
 namespace ur_sanitizer_layer {
 
 enum class AllocType : uint32_t {
@@ -40,6 +43,9 @@ struct AllocInfo {
     StackTrace AllocStack;
     StackTrace ReleaseStack;
 };
+
+using AllocationMap = std::map<uptr, std::shared_ptr<AllocInfo>>;
+using AllocationIterator = AllocationMap::iterator;
 
 inline const char *ToString(AllocType Type) {
     switch (Type) {

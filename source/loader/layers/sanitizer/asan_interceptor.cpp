@@ -189,8 +189,8 @@ ur_result_t SanitizerInterceptor::allocateMemory(
 
     // For memory release
     {
-        std::scoped_lock<ur_shared_mutex> Guard(m_AllocationsMapMutex);
-        m_AllocationsMap.emplace(std::move(AI));
+        std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
+        m_AllocationMap.emplace(AI->AllocBegin, std::move(AI));
     }
 
     context.logger.info(
@@ -206,71 +206,58 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
     auto ContextInfo = getContextInfo(Context);
 
     auto Addr = reinterpret_cast<uptr>(Ptr);
-    auto AllocInfos = findAllocInfoByAddress(Addr);
+    auto AllocInfoItOp = findAllocInfoByAddress(Addr);
 
-    if (AllocInfos.empty()) {
+    if (!AllocInfoItOp) {
         ReportBadFree(Addr, GetCurrentBacktrace(), nullptr);
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
-    std::vector<std::shared_ptr<AllocInfo>> CurrentContext;
+    auto AllocInfoIt = *AllocInfoItOp;
+    auto &AllocInfo = AllocInfoIt->second;
 
-    for (auto It = AllocInfos.begin(); It != AllocInfos.end();) {
-        if (It->get()->Context == Context) {
-            CurrentContext.emplace_back(*It);
-            It = AllocInfos.erase(It);
-            continue;
+    context.logger.debug("AllocInfo(AllocBegin={}, UserBegin={})",
+                         (void *)AllocInfo->AllocBegin,
+                         (void *)AllocInfo->UserBegin);
+
+    if (AllocInfo->Context != Context) {
+        if (AllocInfo->UserBegin == Addr) {
+            ReportBadFreeContext(Addr, GetCurrentBacktrace(), AllocInfo);
+        } else {
+            ReportBadFree(Addr, GetCurrentBacktrace(), nullptr);
         }
-        ++It;
-    }
-
-    if (CurrentContext.empty()) {
-        // bad context
-        ReportBadFreeContext(Addr, GetCurrentBacktrace(), AllocInfos);
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
-    for (auto &AllocInfo : CurrentContext) {
-        context.logger.debug("AllocInfo(AllocBegin={}, UserBegin={})",
-                             (void *)AllocInfo->AllocBegin,
-                             (void *)AllocInfo->UserBegin);
+    if (Addr != AllocInfo->UserBegin) {
+        ReportBadFree(Addr, GetCurrentBacktrace(), AllocInfo);
+        return UR_RESULT_ERROR_INVALID_ARGUMENT;
+    }
 
-        if (AllocInfo->IsReleased) {
-            ReportDoubleFree(Addr, GetCurrentBacktrace(), AllocInfo);
-            return UR_RESULT_ERROR_INVALID_ARGUMENT;
+    if (AllocInfo->IsReleased) {
+        ReportDoubleFree(Addr, GetCurrentBacktrace(), AllocInfo);
+        return UR_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
+    AllocInfo->IsReleased = true;
+    AllocInfo->ReleaseStack = GetCurrentBacktrace();
+
+    auto Device = AllocInfo->Device;
+
+    if (m_Quarantine) {
+        auto ReleaseList = m_Quarantine->put(Device, AllocInfoIt);
+        std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
+        for (auto &It : ReleaseList) {
+            context.urDdiTable.USM.pfnFree(Context,
+                                           (void *)(It->second->AllocBegin));
+            m_AllocationMap.erase(It);
         }
+    }
 
-        if (Addr != AllocInfo->UserBegin) {
-            ReportBadFree(Addr, GetCurrentBacktrace(), AllocInfo);
-            return UR_RESULT_ERROR_INVALID_ARGUMENT;
-        }
-
-        AllocInfo->IsReleased = true;
-        AllocInfo->ReleaseStack = GetCurrentBacktrace();
-
-        // auto Device =
-        //     getUSMAllocDevice(Context, (const void *)AllocInfo->AllocBegin);
-        auto Device = AllocInfo->Device;
-        // TODO: Check Device
-
-        // TODO: Quarantine Cache
-        if (m_Quarantine) {
-            auto ReleaseList = m_Quarantine->put(Device, AllocInfo);
-            for (auto &AI : ReleaseList) {
-            }
-        }
-
-        // auto Res =
-        //     context.urDdiTable.USM.pfnFree(Context, (void *)AllocInfo->AllocBegin);
-        // if (Res != UR_RESULT_SUCCESS) {
-        //     return Res;
-        // }
-
-        if (AllocInfo->Type == AllocType::HOST_USM) {
-            ContextInfo->insertAllocInfo(ContextInfo->DeviceList, AllocInfo);
-        } else {
-            ContextInfo->insertAllocInfo({Device}, AllocInfo);
-        }
+    if (AllocInfo->Type == AllocType::HOST_USM) {
+        ContextInfo->insertAllocInfo(ContextInfo->DeviceList, AllocInfo);
+    } else {
+        ContextInfo->insertAllocInfo({Device}, AllocInfo);
     }
 
     return UR_RESULT_SUCCESS;
@@ -318,11 +305,11 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
     if (Result == UR_RESULT_SUCCESS) {
         Event = ReadEvent;
 
-        auto AH = &LaunchInfo.SPIR_DeviceSanitizerReportMem;
-        if (!AH->Flag) {
+        const auto &AH = LaunchInfo.SPIR_DeviceSanitizerReportMem;
+        if (AH.Flag) {
             return;
         }
-        ReportGenericError(*AH, Kernel, getContext(Queue), getDevice(Queue));
+        ReportGenericError(AH, Kernel, getContext(Queue));
     }
 }
 
@@ -750,26 +737,12 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
     return UR_RESULT_SUCCESS;
 }
 
-std::vector<std::shared_ptr<AllocInfo>>
+std::optional<AllocationIterator>
 SanitizerInterceptor::findAllocInfoByAddress(uptr Address) {
-    std::vector<std::shared_ptr<AllocInfo>> Result;
-    auto current = std::make_shared<AllocInfo>(AllocInfo{Address});
-
-    std::shared_lock<ur_shared_mutex> Guard(m_AllocationsMapMutex);
-
-    auto It = std::lower_bound(
-        m_AllocationsMap.begin(), m_AllocationsMap.end(), Address,
-        [](const std::shared_ptr<AllocInfo> &AllocInfo, uptr Addr) {
-            return (AllocInfo->AllocBegin + AllocInfo->AllocSize) < Addr;
-        });
-    for (; It != m_AllocationsMap.end(); ++It) {
-        auto AI = *It;
-        if (AI->AllocBegin > Address) {
-            break;
-        }
-        Result.emplace_back(*It);
-    }
-    return Result;
+    std::shared_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
+    auto It = m_AllocationMap.lower_bound(Address);
+    return It == m_AllocationMap.end() ? std::optional<AllocationIterator>{}
+                                       : It;
 }
 
 LaunchInfo::~LaunchInfo() {
