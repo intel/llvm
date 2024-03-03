@@ -18,6 +18,7 @@
 #include "ur_sanitizer_layer.hpp"
 
 #include <memory>
+#include <optional>
 #include <queue>
 #include <set>
 #include <unordered_map>
@@ -170,8 +171,7 @@ class SanitizerInterceptor {
     ur_result_t eraseQueue(ur_context_handle_t Context,
                            ur_queue_handle_t Queue);
 
-    std::vector<std::shared_ptr<AllocInfo>>
-    findAllocInfoByAddress(uptr Address);
+    std::optional<AllocationIterator> findAllocInfoByAddress(uptr Address);
 
   private:
     ur_result_t updateShadowMemory(std::shared_ptr<ContextInfo> &ContextInfo,
@@ -217,22 +217,8 @@ class SanitizerInterceptor {
         m_DeviceMap;
     ur_shared_mutex m_DeviceMapMutex;
 
-    struct AllocInfoCompare {
-        bool operator()(const std::shared_ptr<AllocInfo> &lhs,
-                        const std::shared_ptr<AllocInfo> &rhs) const {
-            auto p1 = std::make_pair(lhs->AllocBegin,
-                                     lhs->AllocBegin + lhs->AllocSize);
-            auto p2 = std::make_pair(rhs->AllocBegin,
-                                     rhs->AllocBegin + rhs->AllocSize);
-            return p1 < p2;
-        }
-    };
-
-    using AllocaionRangSet =
-        std::multiset<std::shared_ptr<AllocInfo>, AllocInfoCompare>;
-
-    AllocaionRangSet m_AllocationsMap;
-    ur_shared_mutex m_AllocationsMapMutex;
+    AllocationMap m_AllocationMap;
+    ur_shared_mutex m_AllocationMapMutex;
 
     uint32_t cl_Debug = 0;
     uint32_t cl_MaxQuarantineSizeMB = 0;

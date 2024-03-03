@@ -14,15 +14,20 @@
 
 namespace ur_sanitizer_layer {
 
-std::vector<std::shared_ptr<AllocInfo>>
-Quarantine::put(ur_device_handle_t Device, std::shared_ptr<AllocInfo> &Ptr) {
-    auto AllocSize = Ptr->AllocSize;
+std::vector<AllocationIterator> Quarantine::put(ur_device_handle_t Device,
+                                                AllocationIterator &It) {
+    auto &AI = It->second;
+    auto AllocSize = AI->AllocSize;
     auto &Cache = m_Map[Device];
-    std::vector<std::shared_ptr<AllocInfo>> DequeueList;
+    std::vector<AllocationIterator> DequeueList;
     while (Cache.Size() + AllocSize > m_MaxQuarantineSize) {
-        DequeueList.emplace_back(Cache.Dequeue());
+        auto ItOp = Cache.Dequeue();
+        if (!ItOp) {
+            break;
+        }
+        DequeueList.emplace_back(*ItOp);
     }
-    m_Map[Device].Enqueue(Ptr);
+    m_Map[Device].Enqueue(It);
     return DequeueList;
 }
 
