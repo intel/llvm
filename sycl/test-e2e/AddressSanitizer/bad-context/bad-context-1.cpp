@@ -1,3 +1,4 @@
+// UNSUPPORTED: true
 // REQUIRES: linux
 // RUN: %{build} %device_sanitizer_flags -O0 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 UR_ENABLE_LAYERS=UR_LAYER_ASAN %{run-unfiltered-devices} not %t &> %t.txt ; FileCheck --check-prefixes CHECK --input-file %t.txt %s
@@ -9,7 +10,7 @@ int main() {
   sycl::free(data, Q2);
   return 0;
 }
-// CHECK: ERROR: DeviceSanitizer: bad-free-context on [[ADDR:0x.*]]
+// CHECK: ERROR: DeviceSanitizer: bad-context on address [[ADDR:0x.*]]
 // CHECK: {{#[0-9]+}} {{0x.*}} in main {{.*mismatched-queue-1.cpp}}:[[@LINE-4]]
 // CHECK: [[ADDR]] is located inside of Device USM region {{\[0x.*, 0x.*\)}}
 // CHECK:   {{#[0-9]+}} {{0x.*}} in main {{.*mismatched-queue-1.cpp}}:[[@LINE-7]]

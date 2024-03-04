@@ -378,7 +378,7 @@ void __asan_report_access_error(uptr addr, int32_t as, size_t size,
     break;
   case kDeviceGlobalRedZoneMagic:
     memory_type = DeviceSanitizerMemoryType::DEVICE_GLOBAL;
-    error_type = DeviceSanitizerErrorType::OUT_OF_BOUND;
+    error_type = DeviceSanitizerErrorType::OUT_OF_BOUNDS;
     break;
   default:
     memory_type = DeviceSanitizerMemoryType::UNKNOWN;

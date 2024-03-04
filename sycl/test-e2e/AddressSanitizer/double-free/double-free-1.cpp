@@ -25,7 +25,7 @@ int main() {
 
   return 0;
 }
-// CHECK: ERROR: DeviceSanitizer: double-free on [[ADDR:0x.*]]
+// CHECK: ERROR: DeviceSanitizer: double-free on address [[ADDR:0x.*]]
 // CHECK: {{#[0-9]+}} {{0x.*}} in main {{.*double-free-1.cpp}}:[[@LINE-5]]
 // CHECK-HOST:   [[ADDR]] is located inside of Host USM region {{\[0x.*, 0x.*\)}}
 // CHECK-SHARED: [[ADDR]] is located inside of Shared USM region {{\[0x.*, 0x.*\)}}

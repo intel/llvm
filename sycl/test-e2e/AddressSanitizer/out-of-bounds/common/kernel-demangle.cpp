@@ -1,0 +1,20 @@
+// REQUIRES: linux, cpu, aspect-fp64
+// RUN: %{build} %device_sanitizer_flags -DMALLOC_DEVICE -O2 -g -o %t
+// RUN: env SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} not %t &> %t.txt ; FileCheck --input-file %t.txt %s
+#include <sycl/sycl.hpp>
+
+int main() {
+  sycl::queue Q;
+  constexpr std::size_t N = 123456;
+  auto *array = sycl::malloc_device<double>(N, Q);
+
+  Q.submit([&](sycl::handler &h) {
+    h.parallel_for<class MyKernel>(
+        sycl::nd_range<1>(N + 1, 1),
+        [=](sycl::nd_item<1> item) { ++array[item.get_global_id(0)]; });
+  });
+  Q.wait();
+  // CHECK: kernel <typeinfo name for main::{lambda(sycl::_V1::handler&)#1}::operator()(sycl::_V1::handler&) const::MyKernel>
+
+  return 0;
+}

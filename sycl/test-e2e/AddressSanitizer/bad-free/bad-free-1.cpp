@@ -21,7 +21,7 @@ int main() {
 #endif
 
   sycl::free(data + 1, Q);
-  // CHECK: ERROR: DeviceSanitizer: bad-free on [[ADDR:0x.*]]
+  // CHECK: ERROR: DeviceSanitizer: bad-free on address [[ADDR:0x.*]]
   // CHECK: {{#[0-9]+}} {{0x.*}} in main {{.*bad-free-1.cpp}}:[[@LINE-2]]
   // CHECK-HOST:   [[ADDR]] is located inside of Host USM region {{\[0x.*, 0x.*\)}}
   // CHECK-SHARED: [[ADDR]] is located inside of Shared USM region {{\[0x.*, 0x.*\)}}

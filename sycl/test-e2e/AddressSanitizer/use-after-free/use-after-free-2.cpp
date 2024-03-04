@@ -1,34 +1,38 @@
 // REQUIRES: linux, cpu
-// RUN: %{build} %device_sanitizer_flags -DMALLOC_DEVICE -O1 -g -o %t
-// RUN: env SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-DEVICE --input-file %t.txt %s
-// RUN: %{build} %device_sanitizer_flags -DMALLOC_DEVICE -O2 -g -o %t
-// RUN: env SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-DEVICE --input-file %t.txt %s
-// RUN: %{build} %device_sanitizer_flags -DMALLOC_HOST -O2 -g -o %t
-// RUN: env SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-HOST --input-file %t.txt %s
-// RUN: %{build} %device_sanitizer_flags -DMALLOC_SHARED -O2 -g -o %t
-// RUN: env SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-SHARED --input-file %t.txt %s
+// RUN: %{build} %device_sanitizer_flags -DMALLOC_DEVICE -O0 -g -o %t
+// RUN: env SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu UR_LAYER_ASAN_OPTIONS=quarantine_size_mb:5 UR_LOG_SANITIZER=level:info %{run-unfiltered-devices} not %t &> %t.txt ; FileCheck --input-file %t.txt %s
 #include <sycl/sycl.hpp>
 
 int main() {
   sycl::queue Q;
-  constexpr std::size_t N = 1024;
-  auto *array = sycl::malloc_device<char>(N, Q);
+  auto *array =
+      sycl::malloc_device<char>(1024, Q); // allocated size: 1280 <= 5120
   sycl::free(array, Q);
+
   // quarantine test
-  auto *array2 = sycl::malloc_device<char>(N, Q);
-  auto *array3 = sycl::malloc_device<char>(N, Q);
+  auto *temp =
+      sycl::malloc_device<char>(1024, Q); // allocated size: 1280*2 <= 5120
+  sycl::free(temp, Q);
+  temp = sycl::malloc_device<char>(1024, Q); // allocated size: 1280*3 <= 5120
+  sycl::free(temp, Q);
+  temp = sycl::malloc_device<char>(1024, Q); // allocated size: 1280*4 <= 5120
+  sycl::free(temp, Q);
+  // CHECK-NOT: <SANITIZER>[INFO]: Quarantine Free
 
   Q.submit([&](sycl::handler &h) {
     h.parallel_for<class MyKernel>(
-        sycl::nd_range<1>(N + 1, 1),
+        sycl::nd_range<1>(1024, 1),
         [=](sycl::nd_item<1> item) { ++array[item.get_global_id(0)]; });
   });
   Q.wait();
-  // CHECK-DEVICE: ERROR: DeviceSanitizer: out-of-bounds-access on USM Device Memory
-  // CHECK-HOST:   ERROR: DeviceSanitizer: out-of-bounds-access on USM Host Memory
-  // CHECK-SHARED: ERROR: DeviceSanitizer: out-of-bounds-access on USM Shared Memory
-  // CHECK: {{READ of size 1 at kernel <.*MyKernel> LID\(0, 0, 0\) GID\(12345, 0, 0\)}}
-  // CHECK: {{  #0 .* .*parallel_for_char.cpp:}}[[@LINE-7]]
+  // CHECK: ERROR: DeviceSanitizer: use-after-free on address [[ADDR:0x.*]]
+  // CHECK: READ of size 1 at kernel <{{.*MyKernel}}>
+  // CHECK:   #0 {{.*}} {{.*use-after-free-2.cpp}}:25
+  // CHECK: [[ADDR]] is located inside of Device USM region [{{0x.*}}, {{0x.*}})
+  // CHECK: allocated here:
+  // CHECK:   {{#[0-9]+}} {{0x.*}} in main {{.*use-after-free-2.cpp}}:9
+  // CHECK: released here:
+  // CHECK:   {{#[0-9]+}} {{0x.*}} in main {{.*use-after-free-2.cpp}}:10
 
   return 0;
 }
