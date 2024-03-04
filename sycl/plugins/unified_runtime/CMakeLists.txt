@@ -132,13 +132,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(hip
     ${UNIFIED_RUNTIME_REPO}
-    # commit 760eaa38ae8cacf3143188a3293d8f9a2a3608f7
-    # Merge: 38e9478b e68f26fa
+    # commit 1473ed8a81ca86e67321dfc90c79e951ead212ac
+    # Merge: 6ccaf387 f2774226
     # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-    # Date:   Thu Apr 11 15:36:52 2024 +0100
-    #     Merge pull request #1357 from Bensuo/ewan/hip_nullptr
-    #     [HIP] Check for null arg to urKernelSetArgMemObj
-    760eaa38ae8cacf3143188a3293d8f9a2a3608f7
+    # Date:   Fri Apr 12 10:43:00 2024 +0100
+    #     Merge pull request #1395 from konradkusiak97/improvedQueueFill
+    #     [HIP] Implement workaround for hipMemset2D
+    1473ed8a81ca86e67321dfc90c79e951ead212ac
   )
 
   fetch_adapter_source(native_cpu
