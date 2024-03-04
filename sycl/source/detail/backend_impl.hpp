@@ -18,8 +18,9 @@ namespace detail {
 template <class T> backend getImplBackend(const T &Impl) {
   // Experimental host task allows the user to get backend for event impls
   if constexpr (std::is_same_v<T, std::shared_ptr<event_impl>>) {
-    assert(Impl->backendSet() &&
-           "interop_handle::add_native_events must be used in order for a host "
+    assert((!Impl->is_host() || Impl->backendSet()) &&
+           "interop_handle::add_native_events must be "
+           "used in order for a host "
            "task event to have a native event");
   } else {
     assert(!Impl->is_host() && "Cannot get the backend for host.");

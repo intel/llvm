@@ -323,7 +323,7 @@ class DispatchHostTask {
                        // to the event impl of the sycl event returned at
                        // CGSubmit
 
-  pi_result waitForEvents() const {
+  pi_result waitForNativeDepEvents() const {
     std::map<const PluginPtr, std::vector<EventImplPtr>>
         RequiredEventsPerPlugin;
 
@@ -359,6 +359,8 @@ class DispatchHostTask {
     // Host events can't throw exceptions so don't try to catch it.
     for (const EventImplPtr &Event : MThisCmd->MPreparedHostDepsEvents) {
       Event->waitInternal();
+      if (Event->hasHostTaskNativeEvents())
+        Event->waitForHostTaskNativeEvents();
     }
 
     return PI_SUCCESS;
@@ -388,7 +390,7 @@ public:
 #endif
 
     if (!HostTask.MHostTask->isManualInteropSync()) {
-      pi_result WaitResult = waitForEvents();
+      pi_result WaitResult = waitForNativeDepEvents();
       if (WaitResult != PI_SUCCESS) {
         std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
             std::string("Couldn't wait for host-task's dependencies"),
@@ -2868,8 +2870,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
 
 pi_int32 ExecCGCommand::enqueueImpQueue() {
   if (getCG().getType() != CG::CGTYPE::CodeplayHostTask)
-    waitForPreparedHostEvents(); // Why is this not called if the current
-                                 // command group is a HT?
+    waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = getAllPreparedDepsEvents();
   auto RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());

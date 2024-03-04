@@ -3,6 +3,12 @@
 // RUN: %{build} -o %t.out -lcuda
 // RUN: %{run} %t.out
 
+// These tests use the add_native_events API to ensure that the SYCL RT can
+// handle the events submitted to add_native_events within its runtime DAG.
+//
+// If manual_interop_sync is used then the user deals with async dependencies
+// manually in the HT lambda through the get_native_events interface.
+
 #include "host-task-native-events-cuda.hpp"
 #include <cuda.h>
 #include <sycl/sycl.hpp>
@@ -12,37 +18,9 @@ using T = unsigned; // We don't need to test lots of types, we just want a race
 constexpr size_t bufSize = 1e6;
 constexpr T pattern = 42;
 
-// Check that the SYCL event that we submit with add_native_events can be
-// retrieved later through get_native(syclEvent)
-template <typename WaitOnType> void test1() {
-  printf("Running test 1\n");
-  sycl::queue q;
-
-  std::atomic<CUevent>
-      atomicEvent; // To share the event from the host task with the main thread
-
-  auto syclEvent = q.submit([&](sycl::handler &cgh) {
-    cgh.host_task([&](sycl::interop_handle ih) {
-      auto [_, ev] = cudaSetCtxAndGetStreamAndEvent(ih);
-      cuEventRecord(ev, 0);
-      atomicEvent.store(ev);
-      ih.add_native_events<sycl::backend::ext_oneapi_cuda>({ev});
-    });
-  });
-
-  waitHelper<WaitOnType>(syclEvent, q);
-
-  auto nativeEvents =
-      sycl::get_native<sycl::backend::ext_oneapi_cuda>(syclEvent);
-  // Check that the vec of native events contains the event we stored in the
-  // atomic var
-  assert(std::find(nativeEvents.begin(), nativeEvents.end(),
-                   atomicEvent.load()) != nativeEvents.end());
-}
-
 // Tries to check for a race condition if the backend events are not added to
 // the SYCL dag.
-template <typename WaitOnType> void test2() {
+template <typename WaitOnType> void test1() {
   printf("Running test 2\n");
   sycl::queue q;
   std::vector<T> out(bufSize, 0);
@@ -70,7 +48,7 @@ template <typename WaitOnType> void test2() {
 }
 
 // Using host task event as a cgh.depends_on with USM
-template <typename WaitOnType> void test3() {
+template <typename WaitOnType> void test2() {
   printf("Running test 3\n");
   using T = unsigned;
 
@@ -107,7 +85,7 @@ template <typename WaitOnType> void test3() {
 }
 
 // Using host task event with implicit DAG from buffer accessor model
-template <typename WaitOnType> void test4() {
+template <typename WaitOnType> void test3() {
   printf("Running test 4\n");
   using T = unsigned;
 
@@ -125,6 +103,7 @@ template <typename WaitOnType> void test4() {
     sycl::accessor acc{buf, sycl::write_only};
 
     cgh.host_task([&](sycl::interop_handle ih) {
+      // FIXME: this call fails
       auto accPtr = ih.get_native_mem<sycl::backend::ext_oneapi_cuda>(acc);
       auto [stream, ev] = cudaSetCtxAndGetStreamAndEvent(ih);
 
@@ -152,9 +131,7 @@ int main() {
   test1<sycl::event>();
   test2<sycl::queue>();
   test2<sycl::event>();
-  test3<sycl::queue>();
-  test3<sycl::event>();
-  // test4<sycl::queue>(); Fails with `SyclObject.impl && "every constructor
+  // test3<sycl::queue>(); Fails with `SyclObject.impl && "every constructor
   //                       should create an impl"' failed.
-  // test4<sycl::event>();
+  // test3<sycl::event>();
 }

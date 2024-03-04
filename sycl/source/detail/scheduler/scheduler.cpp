@@ -377,6 +377,22 @@ void Scheduler::enqueueLeavesOfReqUnlocked(const Requirement *const Req,
   EnqueueLeaves(Record->MWriteLeaves);
 }
 
+void Scheduler::enqueueUnblockedCommands(
+    const std::vector<EventImplPtr> &ToEnqueue, ReadLockT &GraphReadLock,
+    std::vector<Command *> &ToCleanUp) {
+  for (auto &Event : ToEnqueue) {
+    Command *Cmd = static_cast<Command *>(Event->getCommand());
+    if (!Cmd)
+      continue;
+    EnqueueResultT Res;
+    bool Enqueued =
+        GraphProcessor::enqueueCommand(Cmd, GraphReadLock, Res, ToCleanUp, Cmd);
+    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+      throw runtime_error("Enqueue process failed.",
+                          PI_ERROR_INVALID_OPERATION);
+  }
+}
+
 Scheduler::Scheduler() {
   sycl::device HostDevice =
       createSyclObjFromImpl<device>(device_impl::getHostDeviceImpl());
@@ -470,7 +486,13 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
       ToCleanUp.push_back(Cmd);
       Cmd->MMarkedForCleanup = true;
     }
-    Cmd->getEvent()->setComplete();
+
+    {
+      std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
+      // update self-event status
+      Cmd->getEvent()->setComplete();
+    }
+    Scheduler::enqueueUnblockedCommands(Cmd->MBlockedUsers, Lock, ToCleanUp);
   }
   cleanupCommands(ToCleanUp);
 }

@@ -69,6 +69,9 @@ void event_impl::waitInternal() {
         "waitInternal method cannot be used for a discarded event.");
   } else if (MState != HES_Complete) {
     // Wait for the host event
+    // In the case that the Host Task function stores native events with
+    // add_native_events, waitInternal will only wait on the lambda to complete,
+    // not on the asynchronous events
     std::unique_lock<std::mutex> lock(MMutex);
     cv.wait(lock, [this] { return MState == HES_Complete; });
   }
@@ -79,8 +82,9 @@ void event_impl::waitInternal() {
 }
 
 void event_impl::waitForHostTaskNativeEvents() {
-  // This should only be called if we wait on a queue or a SYCL user
-  // event. It should not be called to managed device dependencies
+  std::unique_lock<std::mutex> Lock(MHostTaskNativeEventsMutex);
+  if (MHostTaskNativeEventsHaveBeenWaitedOn.exchange(true))
+    return;
   for (const EventImplPtr &Event : MHostTaskNativeEvents)
     Event->wait(Event);
 }
@@ -424,11 +428,16 @@ pi_native_handle event_impl::getNative() {
 }
 
 std::vector<pi_native_handle> event_impl::getNativeVector() {
+  // Return empty vec if native events have already been waited on
+  if (isCompleted() && (!hasHostTaskNativeEvents() ||
+                        MHostTaskNativeEventsHaveBeenWaitedOn.load()))
+    return {};
+
   // If there is a native event return that. This will also initialize context
   if (auto nativeEvent = getNative())
     return {nativeEvent};
 
-  // Return native events sumbitted via host task interop
+  // Return native events submitted via host task interop
   auto Plugin = getPlugin();
   std::vector<pi_native_handle> HandleVec;
   for (auto &HostTaskNativeEventImpl : MHostTaskNativeEvents) {

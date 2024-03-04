@@ -77,9 +77,6 @@ void interop_handle::addNativeEvents(
 }
 
 std::vector<pi_native_handle> interop_handle::getNativeEvents() const {
-  if (!MEvent->backendSet()) {
-    MEvent->setContextImpl(MContext);
-  }
   // What if the events here have not yet been enqueued? I will need to wait on
   // them. That is probably already done?
   //
