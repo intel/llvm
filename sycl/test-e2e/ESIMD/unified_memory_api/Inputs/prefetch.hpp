@@ -502,6 +502,7 @@ template <typename T> bool testACC(queue Q) {
   Passed &= testACC<T, 8, 1, UseMask, UseProperties>(Q, 3, CacheProps);
   Passed &= testACC<T, 16, 1, UseMask, UseProperties>(Q, 3, CacheProps);
   Passed &= testACC<T, 32, 1, UseMask, UseProperties>(Q, 3, CacheProps);
+  Passed &= testACC<T, 64, 1, UseMask, UseProperties>(Q, 3, CacheProps);
 
   Passed &= testACC<T, 1, 1, UseMask, UseProperties>(Q, 2, CacheProps);
   Passed &= testACC<T, 2, 1, UseMask, UseProperties>(Q, 2, CacheProps);
@@ -509,6 +510,8 @@ template <typename T> bool testACC(queue Q) {
   Passed &= testACC<T, 8, 1, !UseMask, UseProperties>(Q, 3, CacheProps);
   Passed &= testACC<T, 16, 1, UseMask, !UseProperties>(Q, 3, CacheProps);
   Passed &= testACC<T, 32, 1, !UseMask, UseProperties>(Q, 2, CacheProps);
+  Passed &= testACC<T, 64, 1, !UseMask, UseProperties>(Q, 2, CacheProps);
+  Passed &= testACC<T, 6, 1, UseMask, !UseProperties>(Q, 3, CacheProps);
 
   // Check VS > 1. GPU supports only dwords and qwords in this mode.
   if constexpr (sizeof(T) >= 4) {
@@ -517,6 +520,7 @@ template <typename T> bool testACC(queue Q) {
     Passed &= testACC<T, 32, 2, UseMask, UseProperties>(Q, 3, CacheProps);
     Passed &= testACC<T, 32, 2, UseMask, !UseProperties>(Q, 3, CacheProps);
     Passed &= testACC<T, 64, 2, UseMask, !UseProperties>(Q, 3, CacheProps);
+    Passed &= testACC<T, 6, 2, UseMask, !UseProperties>(Q, 3, CacheProps);
   }
   return Passed;
 }

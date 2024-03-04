@@ -9003,11 +9003,9 @@ prefetch(const T *p, PropertyListT props = {}) {
 /// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
 ///           typename AccessorT, typename PropertyListT = empty_properties_t>
 /// void prefetch(AccessorT acc, OffsetSimdViewT byte_offsets,
-///               simd_mask<N / VS> mask, PropertyListT props = {}); //
-///               (acc-pf-5)
+///               simd_mask<N / VS> mask, PropertyListT props = {});//(acc-pf-5)
 /// void prefetch(AccessorT acc, OffsetSimdViewT byte_offsets,
-///               PropertyListT props = {});                        //
-///               (acc-pf-6)
+///               PropertyListT props = {});                        //(acc-pf-6)
 ///
 /// The next functions perform transposed 1-channel prefetch.
 /// template <typename T, int VS = 1, typename AccessorT, typename OffsetT,
