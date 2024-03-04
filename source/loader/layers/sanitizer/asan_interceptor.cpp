@@ -194,10 +194,7 @@ ur_result_t SanitizerInterceptor::allocateMemory(
         m_AllocationMap.emplace(AI->AllocBegin, std::move(AI));
     }
 
-    context.logger.info(
-        "AllocInfo(AllocBegin={},  User={}-{}, NeededSize={}, Type={})",
-        (void *)AllocBegin, (void *)UserBegin, (void *)UserEnd, NeededSize,
-        ToString(Type));
+    AI->Print();
 
     return UR_RESULT_SUCCESS;
 }
@@ -217,10 +214,6 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
 
     auto AllocInfoIt = *AllocInfoItOp;
     auto &AllocInfo = AllocInfoIt->second;
-
-    context.logger.debug("AllocInfo(AllocBegin={}, UserBegin={})",
-                         (void *)AllocInfo->AllocBegin,
-                         (void *)AllocInfo->UserBegin);
 
     if (AllocInfo->Context != Context) {
         if (AllocInfo->UserBegin == Addr) {

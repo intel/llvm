@@ -10,8 +10,6 @@
  *
  */
 
-#pragma once
-
 #include "stacktrace.hpp"
 #include "symbolizer_llvm.hpp"
 #include "ur_sanitizer_layer.hpp"
