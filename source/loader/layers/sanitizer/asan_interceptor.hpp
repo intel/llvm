@@ -20,9 +20,7 @@
 #include <memory>
 #include <optional>
 #include <queue>
-#include <set>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 namespace ur_sanitizer_layer {
@@ -46,7 +44,7 @@ struct DeviceInfo {
     std::queue<std::shared_ptr<AllocInfo>> Quarantine;
     size_t QuarantineSize = 0;
 
-    DeviceInfo(ur_device_handle_t Device) : Handle(Device) {
+    explicit DeviceInfo(ur_device_handle_t Device) : Handle(Device) {
         [[maybe_unused]] auto Result =
             context.urDdiTable.Device.pfnRetain(Device);
         assert(Result == UR_RESULT_SUCCESS);
@@ -66,7 +64,8 @@ struct QueueInfo {
     ur_mutex Mutex;
     ur_event_handle_t LastEvent;
 
-    QueueInfo(ur_queue_handle_t Queue) : Handle(Queue), LastEvent(nullptr) {
+    explicit QueueInfo(ur_queue_handle_t Queue)
+        : Handle(Queue), LastEvent(nullptr) {
         [[maybe_unused]] auto Result =
             context.urDdiTable.Queue.pfnRetain(Queue);
         assert(Result == UR_RESULT_SUCCESS);
@@ -94,7 +93,7 @@ struct ContextInfo {
     std::vector<ur_device_handle_t> DeviceList;
     std::unordered_map<ur_device_handle_t, AllocInfoList> AllocInfosMap;
 
-    ContextInfo(ur_context_handle_t Context) : Handle(Context) {
+    explicit ContextInfo(ur_context_handle_t Context) : Handle(Context) {
         [[maybe_unused]] auto Result =
             context.urDdiTable.Context.pfnRetain(Context);
         assert(Result == UR_RESULT_SUCCESS);
