@@ -6,10 +6,6 @@
 int main() {
   queue Queue{};
 
-  if (!Queue.get_device().has(sycl::aspect::usm_host_allocations)) {
-    return 0;
-  }
-
   using T = int;
 
   std::vector<T> DataA(Size), DataB(Size), DataC(Size);
