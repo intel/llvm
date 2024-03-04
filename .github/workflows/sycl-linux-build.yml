@@ -171,32 +171,29 @@ jobs:
       id: build
       run: |
         cmake --build $GITHUB_WORKSPACE/build
-        #- name: check-llvm
-      #if: always() && !cancelled() && contains(inputs.changes, 'llvm')
-        #run: |
-        #cmake --build $GITHUB_WORKSPACE/build --target check-llvm
-        #- name: check-clang
-      #if: always() && !cancelled() && contains(inputs.changes, 'clang')
-        #run: |
-        # Can we move this to Dockerfile? Hopefully, noop on Windows.
-        #export XDG_CACHE_HOME=$GITHUB_WORKSPACE/os_cache
-        #cmake --build $GITHUB_WORKSPACE/build --target check-clang
-        #- name: check-sycl
-      #if: always() && !cancelled() && contains(inputs.changes, 'sycl')
-        #run: |
-        # TODO consider moving this to Dockerfile.
-        #export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
-        #    cmake --build $GITHUB_WORKSPACE/build --target check-sycl
+    # - name: check-llvm
+    #   if: always() && !cancelled() && contains(inputs.changes, 'llvm')
+    #   run: |
+    #     cmake --build $GITHUB_WORKSPACE/build --target check-llvm
+    # - name: check-clang
+    #   if: always() && !cancelled() && contains(inputs.changes, 'clang')
+    #   run: |
+    #     Can we move this to Dockerfile? Hopefully, noop on Windows.
+    #     export XDG_CACHE_HOME=$GITHUB_WORKSPACE/os_cache
+    #     cmake --build $GITHUB_WORKSPACE/build --target check-clang
+    # - name: check-sycl
+    #   if: always() && !cancelled() && contains(inputs.changes, 'sycl')
+    #   run: |
+    #     TODO consider moving this to Dockerfile.
+    #     export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+    #        cmake --build $GITHUB_WORKSPACE/build --target check-sycl
     - name: check-sycl-unittests
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
       run: |
-        # TODO consider moving this to Dockerfile.
         export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
-        export PATH=$GITHUB_WORKSPACE/build/bin:$PATH
+        # TODO consider moving this to Dockerfile.
         export LD_LIBRARY_PATH=$GITHUB_WORKSPACE/build/lib:$LD_LIBRARY_PATH
-        echo $PATH
-        echo $LD_LIBRARY_PATH
-        ldd $(which sycl-ls)
+        export PATH=$GITHUB_WORKSPACE/build/bin:$PATH
         cmake --build $GITHUB_WORKSPACE/build --target check-sycl-unittests
     - name: check-llvm-spirv
       if: always() && !cancelled() && contains(inputs.changes, 'llvm_spirv')
