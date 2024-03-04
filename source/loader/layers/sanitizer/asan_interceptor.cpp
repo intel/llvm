@@ -222,7 +222,7 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
 
     if (AllocInfo->Context != Context) {
         if (AllocInfo->UserBegin == Addr) {
-            ReportBadFreeContext(Addr, GetCurrentBacktrace(), AllocInfo);
+            ReportBadContext(Addr, GetCurrentBacktrace(), AllocInfo);
         } else {
             ReportBadFree(Addr, GetCurrentBacktrace(), nullptr);
         }
@@ -267,8 +267,8 @@ ur_result_t SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
                                                   ur_queue_handle_t Queue,
                                                   LaunchInfo &LaunchInfo,
                                                   uint32_t numWorkgroup) {
-    auto Context = getContext(Queue);
-    auto Device = getDevice(Queue);
+    auto Context = GetContext(Queue);
+    auto Device = GetDevice(Queue);
     auto ContextInfo = getContextInfo(Context);
     auto DeviceInfo = getDeviceInfo(Device);
 
@@ -291,7 +291,7 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
                                             ur_queue_handle_t Queue,
                                             ur_event_handle_t &Event,
                                             LaunchInfo &LaunchInfo) {
-    auto Program = getProgram(Kernel);
+    auto Program = GetProgram(Kernel);
     ur_event_handle_t ReadEvent{};
 
     // If kernel has defined SPIR_DeviceSanitizerReportMem, then we try to read it
@@ -306,10 +306,14 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
         Event = ReadEvent;
 
         const auto &AH = LaunchInfo.SPIR_DeviceSanitizerReportMem;
-        if (AH.Flag) {
+        if (!AH.Flag) {
             return;
         }
-        ReportGenericError(AH, Kernel, getContext(Queue));
+        if (AH.ErrorType == DeviceSanitizerErrorType::USE_AFTER_FREE) {
+            ReportUseAfterFree(AH, Kernel, GetContext(Queue));
+        } else {
+            ReportGenericError(AH, Kernel);
+        }
     }
 }
 
@@ -532,7 +536,7 @@ ur_result_t SanitizerInterceptor::updateShadowMemory(
 ur_result_t
 SanitizerInterceptor::registerDeviceGlobals(ur_context_handle_t Context,
                                             ur_program_handle_t Program) {
-    std::vector<ur_device_handle_t> Devices = getProgramDevices(Program);
+    std::vector<ur_device_handle_t> Devices = GetProgramDevices(Program);
 
     auto ContextInfo = getContextInfo(Context);
 
@@ -622,7 +626,7 @@ SanitizerInterceptor::insertDevice(ur_device_handle_t Device,
     DI = std::make_shared<ur_sanitizer_layer::DeviceInfo>(Device);
 
     // Query device type
-    DI->Type = getDeviceType(Device);
+    DI->Type = GetDeviceType(Device);
     if (DI->Type == DeviceType::UNKNOWN) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
@@ -649,7 +653,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
     ur_context_handle_t Context, std::shared_ptr<DeviceInfo> &DeviceInfo,
     ur_queue_handle_t Queue, ur_kernel_handle_t Kernel, LaunchInfo &LaunchInfo,
     uint32_t numWorkgroup) {
-    auto Program = getProgram(Kernel);
+    auto Program = GetProgram(Kernel);
 
     do {
         // Set global variable to program
@@ -687,7 +691,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         }
 
         // Write shadow memory offset for local memory
-        auto LocalMemorySize = getLocalMemorySize(DeviceInfo->Handle);
+        auto LocalMemorySize = GetLocalMemorySize(DeviceInfo->Handle);
         auto LocalShadowMemorySize =
             (numWorkgroup * LocalMemorySize) >> ASAN_SHADOW_SCALE;
 
@@ -740,9 +744,11 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
 std::optional<AllocationIterator>
 SanitizerInterceptor::findAllocInfoByAddress(uptr Address) {
     std::shared_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
-    auto It = m_AllocationMap.lower_bound(Address);
-    return It == m_AllocationMap.end() ? std::optional<AllocationIterator>{}
-                                       : It;
+    auto It = m_AllocationMap.upper_bound(Address);
+    if (It == m_AllocationMap.begin()) {
+        return std::optional<AllocationIterator>{};
+    }
+    return --It;
 }
 
 LaunchInfo::~LaunchInfo() {
