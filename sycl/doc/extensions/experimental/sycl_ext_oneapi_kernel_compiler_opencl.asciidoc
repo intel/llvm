@@ -411,10 +411,10 @@ int main() {
 
   if (d.ext_oneapi_supports_cl_c_version(syclex::opencl_c_3_0))
     std::cout << "Device supports online compilation with OpenCL C 3.0\n";
-  
+
   if (d.ext_oneapi_supports_cl_c_feature("__opencl_c_fp64"))
     std::cout << "Device supports online compilation with 64-bit FP in OpenCL C\n";
-  
+
   syclex::cl_version version;
   if (d.ext_oneapi_supports_cl_extension("cl_intel_bfloat16_conversions", &version)) {
     std::cout << "Device supports online compilation of OpenCL C with bfloat16 "
