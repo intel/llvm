@@ -107,3 +107,8 @@ struct ur_kernel_handle_t_ : _ur_object {
   ZeCache<ZeStruct<ze_kernel_properties_t>> ZeKernelProperties;
   ZeCache<std::string> ZeKernelName;
 };
+
+ur_result_t getSuggestedLocalWorkSize(ur_queue_handle_t Queue,
+                                      ze_kernel_handle_t ZeKernel,
+                                      size_t GlobalWorkSize3D[3],
+                                      uint32_t SuggestedLocalWorkSize3D[3]);

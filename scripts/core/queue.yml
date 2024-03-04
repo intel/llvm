@@ -369,7 +369,7 @@ params:
             [in] pointer to an array of workDim unsigned values that specify
             the number of global work-items in workDim that will execute the 
             kernel function
-    - type: "const size_t*"
+    - type: "size_t*"
       name: pSuggestedLocalWorkSize
       desc: |
             [out] pointer to an array of workDim unsigned values that specify
@@ -377,3 +377,4 @@ params:
             execute the kernel function. 
 returns:
     - $X_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE;

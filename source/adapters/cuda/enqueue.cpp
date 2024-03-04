@@ -1756,3 +1756,39 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
 
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urQueueGetSuggestedLocalWorkSize(
+    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    size_t *pSuggestedLocalWorkSize) {
+  ur_context_handle_t Context = hQueue->getContext();
+  ur_device_handle_t Device = hQueue->Device;
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  size_t MaxWorkGroupSize = 0u;
+  size_t ThreadsPerBlock[3] = {};
+  size_t MaxThreadsPerBlock[3] = {};
+  uint32_t LocalSize = hKernel->getLocalSize();
+
+  try {
+    // Set the active context here as guessLocalWorkSize needs an active context
+    ScopedContext Active(Context);
+    {
+      MaxWorkGroupSize = Device->getMaxWorkGroupSize();
+      Device->getMaxWorkItemSizes(sizeof(MaxThreadsPerBlock),
+                                  MaxThreadsPerBlock);
+      guessLocalWorkSize(Device, ThreadsPerBlock, pGlobalWorkSize, WorkDim,
+                         MaxThreadsPerBlock, hKernel, LocalSize);
+
+      if (MaxWorkGroupSize <
+          ThreadsPerBlock[0] * ThreadsPerBlock[1] * ThreadsPerBlock[2]) {
+        return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+      }
+    }
+
+    std::copy(ThreadsPerBlock, ThreadsPerBlock + workDim,
+              pSuggestedLocalWorkSize);
+  } catch (ur_result_t Err) {
+    Result = Err;
+  }
+  return Result;
+}
