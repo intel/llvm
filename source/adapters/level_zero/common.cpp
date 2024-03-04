@@ -174,6 +174,11 @@ template <> ze_structure_type_t getZeStructureType<ze_command_list_desc_t>() {
   return ZE_STRUCTURE_TYPE_COMMAND_LIST_DESC;
 }
 template <>
+ze_structure_type_t
+getZeStructureType<ze_mutable_command_list_exp_properties_t>() {
+  return ZE_STRUCTURE_TYPE_MUTABLE_COMMAND_LIST_EXP_PROPERTIES;
+}
+template <>
 ze_structure_type_t getZeStructureType<ze_mutable_command_list_exp_desc_t>() {
   return ZE_STRUCTURE_TYPE_MUTABLE_COMMAND_LIST_EXP_DESC;
 }

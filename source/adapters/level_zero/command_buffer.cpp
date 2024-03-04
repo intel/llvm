@@ -25,7 +25,6 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
       ZeCommandListDesc(ZeDesc), ZeFencesList(), QueueProperties(),
       SyncPoints(), NextSyncPoint(0),
       IsUpdatable(Desc ? Desc->isUpdatable : false) {
-  (void)Desc;
   urContextRetain(Context);
   urDeviceRetain(Device);
 }
@@ -1045,6 +1044,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   auto CommandBuffer = Command->CommandBuffer;
   uint32_t Dim = CommandDesc->newWorkDim;
   const void *NextDesc = nullptr;
+  auto SupportedFeatures =
+      Command->CommandBuffer->Device->ZeDeviceMutableCmdListsProperties
+          ->mutableCommandFlags;
 
   // We need the created descriptors to live till the point when
   // zexCommandListUpdateMutableCommandsExp is called at the end of the
@@ -1060,6 +1062,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
 
   // Check if new global offset is provided.
   size_t *NewGlobalWorkOffset = CommandDesc->pNewGlobalWorkOffset;
+  UR_ASSERT(!NewGlobalWorkOffset ||
+                (SupportedFeatures & ZE_MUTABLE_COMMAND_EXP_FLAG_GLOBAL_OFFSET),
+            UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
   if (NewGlobalWorkOffset && Dim > 0) {
     if (!CommandBuffer->Context->getPlatform()
              ->ZeDriverGlobalOffsetExtensionFound) {
@@ -1079,6 +1084,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
 
   // Check if new group size is provided.
   size_t *NewLocalWorkSize = CommandDesc->pNewLocalWorkSize;
+  UR_ASSERT(!NewLocalWorkSize ||
+                (SupportedFeatures & ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_SIZE),
+            UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
   if (NewLocalWorkSize && Dim > 0) {
     auto MutableGroupSizeDesc =
         std::make_unique<ZeStruct<ze_mutable_group_size_exp_desc_t>>();
@@ -1093,6 +1101,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
 
   // Check if new global size is provided and we need to update group count.
   size_t *NewGlobalWorkSize = CommandDesc->pNewGlobalWorkSize;
+  UR_ASSERT(!NewGlobalWorkSize ||
+                (SupportedFeatures & ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_COUNT),
+            UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+  UR_ASSERT(!(NewGlobalWorkSize && !NewLocalWorkSize) ||
+                (SupportedFeatures & ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_SIZE),
+            UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
   if (NewGlobalWorkSize && Dim > 0) {
     ze_group_count_t ZeThreadGroupDimensions{1, 1, 1};
     uint32_t WG[3];
@@ -1123,6 +1137,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
       GroupSizeDescs.push_back(std::move(MutableGroupSizeDesc));
     }
   }
+
+  UR_ASSERT(
+      (!CommandDesc->numNewMemObjArgs && !CommandDesc->numNewPointerArgs &&
+       !CommandDesc->numNewValueArgs) ||
+          (SupportedFeatures & ZE_MUTABLE_COMMAND_EXP_FLAG_KERNEL_ARGUMENTS),
+      UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
 
   // Check if new memory object arguments are provided.
   for (uint32_t NewMemObjArgNum = CommandDesc->numNewMemObjArgs;
