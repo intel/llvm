@@ -602,6 +602,31 @@ bool device_impl::has(aspect Aspect) const {
 
     return Result != nullptr;
   }
+  case aspect::ext_oneapi_graph: {
+    size_t ResultSize = 0;
+    bool CallSuccessful = getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+                              MDevice, PI_DEVICE_INFO_EXTENSIONS, 0, nullptr,
+                              &ResultSize) == PI_SUCCESS;
+    if (!CallSuccessful || ResultSize == 0) {
+      return PI_FALSE;
+    }
+
+    std::unique_ptr<char[]> Result(new char[ResultSize]);
+    CallSuccessful = getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+                         MDevice, PI_DEVICE_INFO_EXTENSIONS, ResultSize,
+                         Result.get(), nullptr) == PI_SUCCESS;
+
+    if (!CallSuccessful) {
+      return PI_FALSE;
+    }
+
+    std::string_view ExtensionsString(Result.get());
+    std::cout << ExtensionsString;
+    const bool Support =
+        ExtensionsString.find("ur_exp_command_buffer") != std::string::npos;
+
+    return Support;
+  }
   }
   throw runtime_error("This device aspect has not been implemented yet.",
                       PI_ERROR_INVALID_DEVICE);

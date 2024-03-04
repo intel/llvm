@@ -26,7 +26,6 @@
 
 using namespace sycl;
 using namespace std::literals;
-namespace exp_ext = sycl::ext::oneapi::experimental;
 
 // Controls verbose output vs. concise.
 bool verbose;
@@ -90,12 +89,6 @@ static void printDeviceInfo(const device &Device, bool Verbose,
     for (auto size : sg_sizes)
       std::cout << " " << size;
     std::cout << std::endl;
-
-    auto GraphSupport = Device.get_info<exp_ext::info::device::graph_support>();
-    if (GraphSupport != exp_ext::graph_support_level::unsupported) {
-      std::cout << Prepend << "sycl_ext_oneapi_graph" << std::endl;
-    }
-
   } else {
     std::cout << Prepend << ", " << DeviceName << " " << DeviceVersion << " ["
               << DeviceDriverVersion << "]" << std::endl;

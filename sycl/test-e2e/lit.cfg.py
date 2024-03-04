@@ -619,7 +619,6 @@ for sycl_device in config.sycl_devices:
 
     dev_aspects = []
     dev_sg_sizes = []
-    graph_support = False
     # See format.py's parse_min_intel_driver_req for explanation.
     is_intel_driver = False
     intel_driver_ver = {}
@@ -644,8 +643,6 @@ for sycl_device in config.sycl_devices:
             # str.removeprefix isn't universally available...
             sg_sizes_str = line.strip().replace("info::device::sub_group_sizes: ", "")
             dev_sg_sizes.append(sg_sizes_str.strip().split(" "))
-        if re.match(r" *sycl_ext_oneapi_graph", line):
-            graph_support = True
 
     if dev_aspects == []:
         lit_config.error(
@@ -676,9 +673,6 @@ for sycl_device in config.sycl_devices:
     features = set()
     features.update(aspect_features)
     features.update(sg_size_features)
-
-    if graph_support:
-        features.add("graph-extension")
 
     be, dev = sycl_device.split(":")
     features.add(dev.replace("fpga", "accelerator"))

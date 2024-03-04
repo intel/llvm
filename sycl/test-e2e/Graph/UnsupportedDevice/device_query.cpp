@@ -10,21 +10,16 @@ int main() {
   queue Queue;
 
   auto Device = Queue.get_device();
-
-  exp_ext::graph_support_level SupportsGraphs =
-      Device.get_info<exp_ext::info::device::graph_support>();
+  bool SupportsGraphs = Device.has(aspect::ext_oneapi_graph);
   auto Backend = Device.get_backend();
 
   if ((Backend == backend::ext_oneapi_level_zero) ||
       (Backend == backend::ext_oneapi_cuda) ||
       (Backend == backend::ext_oneapi_hip)) {
-    assert(SupportsGraphs == exp_ext::graph_support_level::native);
-  } else if (Backend == backend::opencl) {
+    assert(SupportsGraphs);
+  } else if (Backend != backend::opencl) {
     // OpenCL backend support is conditional on the cl_khr_command_buffer
-    // extension being available
-    assert(SupportsGraphs == exp_ext::graph_support_level::native ||
-           SupportsGraphs == exp_ext::graph_support_level::unsupported);
-  } else {
-    assert(SupportsGraphs == exp_ext::graph_support_level::unsupported);
+    // extension being available.
+    assert(!SupportsGraphs);
   }
 }
