@@ -80,6 +80,12 @@ llvm_config.with_system_environment(
 
 llvm_config.with_environment("PATH", config.lit_tools_dir, append_path=True)
 
+if "cuda:gpu" in config.sycl_devices:
+    llvm_config.with_system_environment("CUDA_PATH")
+
+if "hip:gpu" in config.sycl_devices:
+    llvm_config.with_system_environment("ROCM_PATH")
+
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
 if platform.system() == "Linux":
     config.available_features.add("linux")
@@ -427,7 +433,7 @@ if len(config.sycl_devices) > 1:
 config.sycl_devices = [x.replace("ext_oneapi_", "") for x in config.sycl_devices]
 
 available_devices = {
-    "opencl": ("cpu", "gpu", "acc"),
+    "opencl": ("cpu", "gpu", "fpga"),
     "cuda": "gpu",
     "level_zero": "gpu",
     "hip": "gpu",
@@ -669,7 +675,7 @@ for sycl_device in config.sycl_devices:
     features.update(sg_size_features)
 
     be, dev = sycl_device.split(":")
-    features.add(dev.replace("acc", "accelerator"))
+    features.add(dev.replace("fpga", "accelerator"))
     # Use short names for LIT rules.
     features.add(be)
 

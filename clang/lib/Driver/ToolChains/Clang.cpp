@@ -2915,6 +2915,26 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   LangOptions::ComplexRangeKind Range = LangOptions::ComplexRangeKind::CX_None;
   std::string ComplexRangeStr = "";
 
+  // Lambda to set fast-math options. This is also used by -ffp-model=fast
+  auto applyFastMath = [&]() {
+    HonorINFs = false;
+    HonorNaNs = false;
+    MathErrno = false;
+    AssociativeMath = true;
+    ReciprocalMath = true;
+    ApproxFunc = true;
+    SignedZeros = false;
+    TrappingMath = false;
+    RoundingFPMath = false;
+    FPExceptionBehavior = "";
+    // If fast-math is set then set the fp-contract mode to fast.
+    FPContract = "fast";
+    // ffast-math enables limited range rules for complex multiplication and
+    // division.
+    Range = LangOptions::ComplexRangeKind::CX_Limited;
+    SeenUnsafeMathModeOption = true;
+  };
+
   if (const Arg *A = Args.getLastArg(options::OPT_flimited_precision_EQ)) {
     CmdArgs.push_back("-mlimit-float-precision");
     CmdArgs.push_back(A->getValue());
@@ -2986,9 +3006,8 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
             << Args.MakeArgString("-ffp-model=" + FPModel)
             << Args.MakeArgString("-ffp-model=" + Val);
       if (Val.equals("fast")) {
-        optID = options::OPT_ffast_math;
         FPModel = Val;
-        FPContract = "fast";
+        applyFastMath();
       } else if (Val.equals("precise")) {
         optID = options::OPT_ffp_contract;
         FPModel = Val;
@@ -3210,22 +3229,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
         continue;
       [[fallthrough]];
     case options::OPT_ffast_math: {
-      HonorINFs = false;
-      HonorNaNs = false;
-      MathErrno = false;
-      AssociativeMath = true;
-      ReciprocalMath = true;
-      ApproxFunc = true;
-      SignedZeros = false;
-      TrappingMath = false;
-      RoundingFPMath = false;
-      FPExceptionBehavior = "";
-      // If fast-math is set then set the fp-contract mode to fast.
-      FPContract = "fast";
-      SeenUnsafeMathModeOption = true;
-      // ffast-math enables fortran rules for complex multiplication and
-      // division.
-      Range = LangOptions::ComplexRangeKind::CX_Limited;
+      applyFastMath();
       break;
     }
     case options::OPT_fno_fast_math:
@@ -5092,7 +5096,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool IsFPGASYCLOffloadDevice =
       IsSYCLOffloadDevice &&
       Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga;
-  const bool IsSYCLNativeCPU = isSYCLNativeCPU(TC, C.getDefaultToolChain());
+  const bool IsSYCLNativeCPU = isSYCLNativeCPU(TC);
 
   // Perform the SYCL host compilation using an external compiler if the user
   // requested.
@@ -5396,6 +5400,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                       options::OPT_fno_sycl_unnamed_lambda, true))
       CmdArgs.push_back("-fno-sycl-unnamed-lambda");
 
+    if (!Args.hasFlag(options::OPT_fsycl_esimd_force_stateless_mem,
+                      options::OPT_fno_sycl_esimd_force_stateless_mem, true))
+      CmdArgs.push_back("-fno-sycl-esimd-force-stateless-mem");
+
     // Add the Unique ID prefix
     StringRef UniqueID = D.getSYCLUniqueID(Input.getBaseInput());
     if (!UniqueID.empty())
@@ -5502,9 +5510,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       if (Args.hasArg(options::OPT_fno_sycl_esimd_build_host_code))
         CmdArgs.push_back("-fno-sycl-esimd-build-host-code");
     }
-    if (Args.hasFlag(options::OPT_fsycl_esimd_force_stateless_mem,
-                     options::OPT_fno_sycl_esimd_force_stateless_mem, false))
-      CmdArgs.push_back("-fsycl-esimd-force-stateless-mem");
 
     const auto DeviceTraitsMacrosArgs = D.getDeviceTraitsMacrosArgs();
     for (const auto &Arg : DeviceTraitsMacrosArgs) {
@@ -6517,6 +6522,14 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // NVPTX/AMDGPU does not care about the code model and will accept
       // whatever works for the host.
       Ok = true;
+    } else if (Triple.isSPARC64()) {
+      if (CM == "medlow")
+        CM = "small";
+      else if (CM == "medmid")
+        CM = "medium";
+      else if (CM == "medany")
+        CM = "large";
+      Ok = CM == "small" || CM == "medium" || CM == "large";
     }
     if (Ok) {
       CmdArgs.push_back(Args.MakeArgString("-mcmodel=" + CM));
@@ -6703,11 +6716,30 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-ffunction-sections");
   }
 
+  if (Arg *A = Args.getLastArg(options::OPT_fbasic_block_address_map,
+                               options::OPT_fno_basic_block_address_map)) {
+    if (Triple.isX86() && Triple.isOSBinFormatELF()) {
+      if (A->getOption().matches(options::OPT_fbasic_block_address_map))
+        A->render(Args, CmdArgs);
+    } else {
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << A->getAsString(Args) << TripleStr;
+    }
+  }
+
   if (Arg *A = Args.getLastArg(options::OPT_fbasic_block_sections_EQ)) {
     StringRef Val = A->getValue();
     if (Triple.isX86() && Triple.isOSBinFormatELF()) {
       if (Val != "all" && Val != "labels" && Val != "none" &&
           !Val.starts_with("list="))
+        D.Diag(diag::err_drv_invalid_value)
+            << A->getAsString(Args) << A->getValue();
+      else
+        A->render(Args, CmdArgs);
+    } else if (Triple.isAArch64() && Triple.isOSBinFormatELF()) {
+      // "all" is not supported on AArch64 since branch relaxation creates new
+      // basic blocks for some cross-section branches.
+      if (Val != "labels" && Val != "none" && !Val.starts_with("list="))
         D.Diag(diag::err_drv_invalid_value)
             << A->getAsString(Args) << A->getValue();
       else
@@ -7396,11 +7428,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (A->getOption().matches(options::OPT_fno_strict_overflow))
       CmdArgs.push_back("-fwrapv");
   }
-
-  if (Arg *A = Args.getLastArg(options::OPT_freroll_loops,
-                               options::OPT_fno_reroll_loops))
-    if (A->getOption().matches(options::OPT_freroll_loops))
-      CmdArgs.push_back("-freroll-loops");
 
   Args.AddLastArg(CmdArgs, options::OPT_ffinite_loops,
                   options::OPT_fno_finite_loops);
@@ -8462,26 +8489,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   addMachineOutlinerArgs(D, Args, CmdArgs, Triple, /*IsLTO=*/false);
 
-  if (Arg *A = Args.getLastArg(options::OPT_moutline_atomics,
-                               options::OPT_mno_outline_atomics)) {
-    // Option -moutline-atomics supported for AArch64 target only.
-    if (!Triple.isAArch64()) {
-      D.Diag(diag::warn_drv_moutline_atomics_unsupported_opt)
-          << Triple.getArchName() << A->getOption().getName();
-    } else {
-      if (A->getOption().matches(options::OPT_moutline_atomics)) {
-        CmdArgs.push_back("-target-feature");
-        CmdArgs.push_back("+outline-atomics");
-      } else {
-        CmdArgs.push_back("-target-feature");
-        CmdArgs.push_back("-outline-atomics");
-      }
-    }
-  } else if (Triple.isAArch64() &&
-             getToolChain().IsAArch64OutlineAtomicsDefault(Args)) {
-    CmdArgs.push_back("-target-feature");
-    CmdArgs.push_back("+outline-atomics");
-  }
+  addOutlineAtomicsArgs(D, getToolChain(), Args, CmdArgs, Triple);
 
   if (Triple.isAArch64() &&
       (Args.hasArg(options::OPT_mno_fmv) ||
@@ -9843,7 +9851,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       TargetTripleOpt = ("llvm_" + TargetTripleOpt).str();
     }
 
-    const bool IsSYCLNativeCPU = isSYCLNativeCPU(TC, C.getDefaultToolChain());
+    const bool IsSYCLNativeCPU = isSYCLNativeCPU(TC);
     if (IsSYCLNativeCPU) {
       TargetTripleOpt = "native_cpu";
     }
@@ -10180,7 +10188,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     std::string DefaultExtArg =
         ",+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
         ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls"
-        ",+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr";
+        ",+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr,+SPV_KHR_bit_instructions";
     std::string INTELExtArg =
         ",+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io"
         ",+SPV_INTEL_device_side_avc_motion_estimation"
@@ -10308,8 +10316,11 @@ static void addArgs(ArgStringList &DstArgs, const llvm::opt::ArgList &Alloc,
 // Partially copied from clang/lib/Frontend/CompilerInvocation.cpp
 static std::string getSYCLPostLinkOptimizationLevel(const ArgList &Args) {
   if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
+    // Pass -O2 when the user passes -O0 due to IGC
+    // debugging limitation. Note this only effects
+    // ESIMD code.
     if (A->getOption().matches(options::OPT_O0))
-      return "-O0";
+      return "-O2";
 
     if (A->getOption().matches(options::OPT_Ofast))
       return "-O3";
@@ -10373,7 +10384,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   if (!TCArgs.hasFlag(options::OPT_fno_sycl_remove_unused_external_funcs,
                       options::OPT_fsycl_remove_unused_external_funcs, false) &&
       !T.isNVPTX() && !T.isAMDGPU() &&
-      !isSYCLNativeCPU(getToolChain(), C.getDefaultToolChain()))
+      !isSYCLNativeCPU(getToolChain()))
     addArgs(CmdArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 
   // OPT_fsycl_device_code_split is not checked as it is an alias to
@@ -10425,9 +10436,9 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   addArgs(CmdArgs, TCArgs, {"-device-globals"});
 
   // Make ESIMD accessors use stateless memory accesses.
-  if (TCArgs.hasFlag(options::OPT_fsycl_esimd_force_stateless_mem,
-                     options::OPT_fno_sycl_esimd_force_stateless_mem, false))
-    addArgs(CmdArgs, TCArgs, {"-lower-esimd-force-stateless-mem"});
+  if (TCArgs.hasFlag(options::OPT_fno_sycl_esimd_force_stateless_mem,
+                     options::OPT_fsycl_esimd_force_stateless_mem, false))
+    addArgs(CmdArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
 
   // Add output file table file option
   assert(Output.isFilename() && "output must be a filename");

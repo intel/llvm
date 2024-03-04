@@ -152,9 +152,11 @@
 // 15.43 Changed the signature of piextMemGetNativeHandle to also take a
 // pi_device
 // 15.44 Add coarse-grain memory advice flag for HIP.
+// 15.45 Added piextKernelSuggestMaxCooperativeGroupCount and
+//       piextEnqueueCooperativeKernelLaunch.
 
 #define _PI_H_VERSION_MAJOR 15
-#define _PI_H_VERSION_MINOR 44
+#define _PI_H_VERSION_MINOR 45
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -437,6 +439,10 @@ typedef enum {
   PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT = 0x2010F,
 
   PI_EXT_ONEAPI_DEVICE_INFO_MATRIX_COMBINATIONS = 0x20110,
+
+  // Composite device
+  PI_EXT_ONEAPI_DEVICE_INFO_COMPONENT_DEVICES = 0x20111,
+  PI_EXT_ONEAPI_DEVICE_INFO_COMPOSITE_DEVICE = 0x20112,
 } _pi_device_info;
 
 typedef enum {
@@ -1666,6 +1672,18 @@ __SYCL_EXPORT pi_result piextKernelCreateWithNativeHandle(
 __SYCL_EXPORT pi_result
 piextKernelGetNativeHandle(pi_kernel kernel, pi_native_handle *nativeHandle);
 
+/// Gets the max work group count for a cooperative kernel.
+///
+/// \param kernel is the PI kernel being queried.
+/// \param local_work_size is the number of work items in a work group that will
+/// be used when the kernel is launched. \param dynamic_shared_memory_size is
+/// the size of dynamic shared memory, for each work group, in bytes, that will
+/// be used when the kernel is launched." \param group_count_ret is a pointer to
+/// where the query result will be stored.
+__SYCL_EXPORT pi_result piextKernelSuggestMaxCooperativeGroupCount(
+    pi_kernel kernel, size_t local_work_size, size_t dynamic_shared_memory_size,
+    pi_uint32 *group_count_ret);
+
 //
 // Events
 //
@@ -1743,6 +1761,12 @@ __SYCL_EXPORT pi_result piSamplerRelease(pi_sampler sampler);
 // Queue Commands
 //
 __SYCL_EXPORT pi_result piEnqueueKernelLaunch(
+    pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,
+    const size_t *global_work_offset, const size_t *global_work_size,
+    const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event);
+
+__SYCL_EXPORT pi_result piextEnqueueCooperativeKernelLaunch(
     pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,
     const size_t *global_work_offset, const size_t *global_work_size,
     const size_t *local_work_size, pi_uint32 num_events_in_wait_list,

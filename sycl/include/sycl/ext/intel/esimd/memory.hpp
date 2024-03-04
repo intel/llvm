@@ -724,11 +724,20 @@ scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
 
   // Use LSC lowering if L1/L2 or VS > 1.
   if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
-                VS > 1 || !__ESIMD_DNS::isPowerOf2(N, 32)) {
+                VS > 1 ||
+                (!__ESIMD_DNS::isPowerOf2(N, 32) &&
+                 !detail::isMaskedGatherScatterLLVMAvailable())) {
     static_assert(VS == 1 || sizeof(T) >= 4,
                   "VS > 1 is supprted only for 4- and 8-byte elements");
     return detail::scatter_impl<T, VS, detail::lsc_data_size::default_size,
                                 L1Hint, L2Hint>(p, byte_offsets, vals, mask);
+  } else if constexpr (detail::isMaskedGatherScatterLLVMAvailable()) {
+    simd<uint64_t, N> Addrs(reinterpret_cast<uint64_t>(p));
+    Addrs = Addrs + convert<uint64_t>(byte_offsets);
+    using MsgT = detail::__raw_t<T>;
+    __esimd_scatter_st<MsgT, N, Alignment>(
+        sycl::bit_cast<__ESIMD_DNS::vector_type_t<MsgT, N>>(vals.data()),
+        Addrs.data(), mask.data());
   } else {
     using Tx = detail::__raw_t<T>;
     simd<uint64_t, N> byte_offsets_i = convert<uint64_t>(byte_offsets);
@@ -2685,38 +2694,97 @@ block_store(AccessorT acc, simd<T, N> vals, simd_mask<1> pred,
 namespace detail {
 template <typename T, int N, typename AccessorTy>
 ESIMD_INLINE ESIMD_NODEBUG std::enable_if_t<
-    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-    (std::is_same_v<detail::LocalAccessorMarker, AccessorTy> ||
-     is_accessor_with_v<AccessorTy, detail::accessor_mode_cap::can_write>)>
+    std::is_same_v<detail::LocalAccessorMarker, AccessorTy> ||
+    is_accessor_with_v<AccessorTy, detail::accessor_mode_cap::can_write>>
 scatter_impl(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
              uint32_t glob_offset, simd_mask<N> mask) {
-  constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
-  // TODO (performance) use hardware-supported scale once BE supports it
-  constexpr int16_t scale = 0;
-  const auto si = __ESIMD_NS::get_surface_index(acc);
 
-  if constexpr (sizeof(T) < 4) {
-    using Tint = std::conditional_t<std::is_integral_v<T>, T,
-                                    detail::uint_type_t<sizeof(T)>>;
-    using Treal = __raw_t<T>;
-    simd<Tint, N> vals_int = bitcast<Tint, Treal, N>(std::move(vals).data());
-    using PromoT = typename std::conditional_t<std::is_signed<Tint>::value,
-                                               int32_t, uint32_t>;
-    const simd<PromoT, N> promo_vals = convert<PromoT>(std::move(vals_int));
-    __esimd_scatter_scaled<PromoT, N, decltype(si), TypeSizeLog2, scale>(
-        mask.data(), si, glob_offset, offsets.data(), promo_vals.data());
+  static_assert(detail::isPowerOf2(N, 32), "Unexpected vector length");
+  if constexpr (sizeof(T) == 8) {
+    scatter_impl<uint32_t, N>(
+        acc, vals.template bit_cast_view<uint32_t>().template select<N, 2>(0),
+        offsets, glob_offset, mask);
+    scatter_impl<uint32_t, N>(
+        acc, vals.template bit_cast_view<uint32_t>().template select<N, 2>(1),
+        offsets, glob_offset + sizeof(uint32_t), mask);
   } else {
-    using Treal = __raw_t<T>;
-    if constexpr (!std::is_same_v<Treal, T>) {
-      simd<Treal, N> Values = vals.template bit_cast_view<Treal>();
-      __esimd_scatter_scaled<Treal, N, decltype(si), TypeSizeLog2, scale>(
-          mask.data(), si, glob_offset, offsets.data(), Values.data());
+    constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
+    // TODO (performance) use hardware-supported scale once BE supports it
+    constexpr int16_t scale = 0;
+    const auto si = __ESIMD_NS::get_surface_index(acc);
+
+    if constexpr (sizeof(T) < 4) {
+      using Tint = std::conditional_t<std::is_integral_v<T>, T,
+                                      detail::uint_type_t<sizeof(T)>>;
+      using Treal = __raw_t<T>;
+      simd<Tint, N> vals_int = bitcast<Tint, Treal, N>(std::move(vals).data());
+      using PromoT = typename std::conditional_t<std::is_signed<Tint>::value,
+                                                 int32_t, uint32_t>;
+      const simd<PromoT, N> promo_vals = convert<PromoT>(std::move(vals_int));
+      __esimd_scatter_scaled<PromoT, N, decltype(si), TypeSizeLog2, scale>(
+          mask.data(), si, glob_offset, offsets.data(), promo_vals.data());
     } else {
-      __esimd_scatter_scaled<T, N, decltype(si), TypeSizeLog2, scale>(
-          mask.data(), si, glob_offset, offsets.data(), vals.data());
+      using Treal = __raw_t<T>;
+      if constexpr (!std::is_same_v<Treal, T>) {
+        simd<Treal, N> Values = vals.template bit_cast_view<Treal>();
+        __esimd_scatter_scaled<Treal, N, decltype(si), TypeSizeLog2, scale>(
+            mask.data(), si, glob_offset, offsets.data(), Values.data());
+      } else {
+        __esimd_scatter_scaled<T, N, decltype(si), TypeSizeLog2, scale>(
+            mask.data(), si, glob_offset, offsets.data(), vals.data());
+      }
     }
   }
 }
+
+#ifndef __ESIMD_FORCE_STATELESS_MEM
+/// Accessor-based scatter.
+/// Supported platforms: DG2, PVC
+/// VISA instruction: lsc_store.ugm
+///
+/// Scatters elements to surface.
+///
+/// @tparam T is element type.
+/// @tparam NElts is the number of elements to store per address.
+/// @tparam DS is the data size.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam N is the number of channels (platform dependent).
+/// @tparam AccessorTy is the \ref sycl::accessor type.
+/// @param acc is the SYCL accessor.
+/// @param offsets is the zero-based offsets in bytes.
+/// @param vals is values to store.
+/// @param pred is predicates.
+///
+template <typename T, int NElts, lsc_data_size DS, cache_hint L1H,
+          cache_hint L2H, int N, typename AccessorTy, typename OffsetT>
+__ESIMD_API std::enable_if_t<
+    is_device_accessor_with_v<AccessorTy, accessor_mode_cap::can_write>>
+scatter_impl(AccessorTy acc, simd<OffsetT, N> offsets, simd<T, N * NElts> vals,
+             simd_mask<N> pred) {
+  static_assert(std::is_integral_v<OffsetT>,
+                "Scatter must have integral byte_offset type");
+  static_assert(sizeof(OffsetT) <= 4,
+                "Implicit truncation of 64-bit byte_offset to 32-bit is "
+                "disabled. Use -fsycl-esimd-force-stateless-mem or explicitly "
+                "convert offsets to a 32-bit vector");
+  check_lsc_vector_size<NElts>();
+  check_lsc_data_size<T, DS>();
+  check_cache_hint<cache_action::store, L1H, L2H>();
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
+  constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
+  constexpr lsc_vector_size LSCNElts = to_lsc_vector_size<NElts>();
+  constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
+  using MsgT = typename lsc_expand_type<T>::type;
+  simd<MsgT, N * NElts> Tmp = lsc_format_input<MsgT, T>(vals);
+  simd<uint32_t, N> ByteOffsets32 = convert<uint32_t>(offsets);
+  auto si = get_surface_index(acc);
+  __esimd_lsc_store_bti<MsgT, L1H, L2H, AddressScale, ImmOffset, EDS, LSCNElts,
+                        Transposed, N>(pred.data(), ByteOffsets32.data(),
+                                       Tmp.data(), si);
+}
+#endif // __ESIMD_FORCE_STATELESS_MEM
 
 template <typename T, int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<
@@ -2725,42 +2793,50 @@ __ESIMD_API std::enable_if_t<
     simd<T, N>>
 gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
             simd_mask<N> mask) {
-  static_assert(sizeof(T) <= 4 && detail::isPowerOf2(N, 32),
-                "Unexpected type or vector length");
+  static_assert(detail::isPowerOf2(N, 32), "Unexpected vector length");
 
-  constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
-  // TODO (performance) use hardware-supported scale once BE supports it
-  constexpr uint32_t scale = 0;
-  const auto si = get_surface_index(acc);
-
-  if constexpr (sizeof(T) < 4) {
-    using Tint = std::conditional_t<std::is_integral_v<T>, T,
-                                    detail::uint_type_t<sizeof(T)>>;
-    using Treal = __raw_t<T>;
-    static_assert(std::is_integral<Tint>::value,
-                  "only integral 1- & 2-byte types are supported");
-    using PromoT = typename std::conditional_t<std::is_signed<Tint>::value,
-                                               int32_t, uint32_t>;
-    simd<PromoT, N> promo_vals =
-        __esimd_gather_masked_scaled2<PromoT, N, decltype(si), TypeSizeLog2,
-                                      scale>(si, glob_offset, offsets.data(),
-                                             mask.data());
-    auto Res = convert<Tint>(promo_vals);
-
-    if constexpr (!std::is_same_v<Tint, T>) {
-      return detail::bitcast<Treal, Tint, N>(Res.data());
-    } else {
-      return Res;
-    }
+  if constexpr (sizeof(T) == 8) {
+    simd<T, N> Res;
+    Res.template bit_cast_view<uint32_t>().template select<N, 2>(0) =
+        gather_impl<uint32_t, N>(acc, offsets, glob_offset, mask);
+    Res.template bit_cast_view<uint32_t>().template select<N, 2>(1) =
+        gather_impl<uint32_t, N>(acc, offsets, glob_offset + sizeof(uint32_t),
+                                 mask);
+    return Res;
   } else {
     using Treal = __raw_t<T>;
-    simd<Treal, N> Res = __esimd_gather_masked_scaled2<Treal, N, decltype(si),
-                                                       TypeSizeLog2, scale>(
-        si, glob_offset, offsets.data(), mask.data());
-    if constexpr (!std::is_same_v<Treal, T>) {
-      return Res.template bit_cast_view<T>();
+    constexpr int TypeSizeLog2 = detail::ElemsPerAddrEncoding<sizeof(T)>();
+    // TODO (performance) use hardware-supported scale once BE supports it
+    constexpr uint32_t scale = 0;
+    const auto si = get_surface_index(acc);
+    if constexpr (sizeof(T) < 4) {
+      using Tint = std::conditional_t<std::is_integral_v<T>, T,
+                                      detail::uint_type_t<sizeof(T)>>;
+
+      static_assert(std::is_integral<Tint>::value,
+                    "only integral 1- & 2-byte types are supported");
+      using PromoT = typename std::conditional_t<std::is_signed<Tint>::value,
+                                                 int32_t, uint32_t>;
+      simd<PromoT, N> promo_vals =
+          __esimd_gather_masked_scaled2<PromoT, N, decltype(si), TypeSizeLog2,
+                                        scale>(si, glob_offset, offsets.data(),
+                                               mask.data());
+      auto Res = convert<Tint>(promo_vals);
+
+      if constexpr (!std::is_same_v<Tint, T>) {
+        return detail::bitcast<Treal, Tint, N>(Res.data());
+      } else {
+        return Res;
+      }
     } else {
-      return Res;
+      simd<Treal, N> Res = __esimd_gather_masked_scaled2<Treal, N, decltype(si),
+                                                         TypeSizeLog2, scale>(
+          si, glob_offset, offsets.data(), mask.data());
+      if constexpr (!std::is_same_v<Treal, T>) {
+        return Res.template bit_cast_view<T>();
+      } else {
+        return Res;
+      }
     }
   }
 }
@@ -2820,10 +2896,9 @@ gather_impl(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
 /// @return is a vector of type T and size N * NElts.
 ///
 template <typename T, int NElts, lsc_data_size DS, int N>
-__ESIMD_API __ESIMD_NS::simd<T, N * NElts>
-slm_gather_impl(__ESIMD_NS::simd<uint32_t, N> offsets,
-                __ESIMD_NS::simd_mask<N> pred,
-                __ESIMD_NS::simd<T, N * NElts> pass_thru) {
+__ESIMD_API simd<T, N * NElts> slm_gather_impl(simd<uint32_t, N> offsets,
+                                               simd_mask<N> pred,
+                                               simd<T, N * NElts> pass_thru) {
   check_lsc_vector_size<NElts>();
   check_lsc_data_size<T, DS>();
   constexpr uint16_t AddressScale = 1;
@@ -2832,14 +2907,105 @@ slm_gather_impl(__ESIMD_NS::simd<uint32_t, N> offsets,
   constexpr lsc_vector_size LSCVS = to_lsc_vector_size<NElts>();
   constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
   using MsgT = typename lsc_expand_type<T>::type;
-  __ESIMD_NS::simd<MsgT, N * NElts> PassThruExpanded =
-      lsc_format_input<MsgT>(pass_thru);
-  __ESIMD_NS::simd<MsgT, N * NElts> Result =
+  simd<MsgT, N * NElts> PassThruExpanded = lsc_format_input<MsgT>(pass_thru);
+  simd<MsgT, N * NElts> Result =
       __esimd_lsc_load_merge_slm<MsgT, cache_hint::none, cache_hint::none,
                                  AddressScale, ImmOffset, EDS, LSCVS,
                                  Transposed, N>(pred.data(), offsets.data(),
                                                 PassThruExpanded.data());
   return lsc_format_ret<T>(Result);
+}
+
+/// SLM scatter implementation.
+/// Supported platforms: DG2, PVC
+/// VISA instruction: lsc_store.slm
+///
+/// Scatters elements located to slm.
+///
+/// @tparam T is element type.
+/// @tparam NElts is the number of elements to store per address.
+/// @tparam DS is the data size.
+/// @tparam N is the number of channels (platform dependent).
+/// @param offsets is the zero-based offsets for SLM buffer in bytes.
+/// @param vals is values to store.
+/// @param pred is predicates.
+///
+template <typename T, int NElts, lsc_data_size DS, int N>
+__ESIMD_API void slm_scatter_impl(simd<uint32_t, N> offsets,
+                                  simd<T, N * NElts> vals, simd_mask<N> pred) {
+  check_lsc_vector_size<NElts>();
+  check_lsc_data_size<T, DS>();
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
+  constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
+  constexpr lsc_vector_size LSCVS = to_lsc_vector_size<NElts>();
+  constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
+  using MsgT = typename lsc_expand_type<T>::type;
+  simd<MsgT, N * NElts> Tmp = lsc_format_input<MsgT, T>(vals);
+  __esimd_lsc_store_slm<MsgT, cache_hint::none, cache_hint::none, AddressScale,
+                        ImmOffset, EDS, LSCVS, Transposed, N>(
+      pred.data(), offsets.data(), Tmp.data());
+}
+
+/// USM pointer prefetch implementation.
+/// Supported platforms: DG2, PVC
+/// VISA instruction: lsc_load.ugm
+///
+/// Prefetches elements located at specified address.
+///
+/// @tparam T is element type.
+/// @tparam NElts is the number of elements to load per address.
+/// @tparam DS is the data size.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam N is the number of channels (platform dependent).
+/// @param p is the base pointer.
+/// @param byte_offsets is the zero-based offsets in bytes.
+/// @param pred is predicates.
+///
+template <typename T, int NElts, lsc_data_size DS, cache_hint L1H,
+          cache_hint L2H, int N, typename Toffset>
+__ESIMD_API void prefetch_impl(const T *p, simd<Toffset, N> byte_offsets,
+                               simd_mask<N> pred) {
+  static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
+  check_lsc_vector_size<NElts>();
+  check_lsc_data_size<T, DS>();
+  check_cache_hint<cache_action::prefetch, L1H, L2H>();
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
+  constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
+  constexpr lsc_vector_size LSCVS = to_lsc_vector_size<NElts>();
+  constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
+  using MsgT = typename lsc_expand_type<T>::type;
+  simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
+  addrs += convert<uintptr_t>(byte_offsets);
+  __esimd_lsc_prefetch_stateless<MsgT, L1H, L2H, AddressScale, ImmOffset, EDS,
+                                 LSCVS, Transposed, N>(pred.data(),
+                                                       addrs.data());
+}
+
+template <typename T, int NElts, lsc_data_size DS, cache_hint L1H,
+          cache_hint L2H, typename Toffset>
+__ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>>
+prefetch_impl(const T *p, Toffset offset, simd_mask<1> pred) {
+  check_lsc_vector_size<NElts>();
+  check_lsc_data_size<T, DS>();
+  check_cache_hint<cache_action::prefetch, L1H, L2H>();
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
+  constexpr lsc_data_size EDS = finalize_data_size<T, DS>();
+
+  static_assert(
+      EDS == lsc_data_size::u32 || EDS == lsc_data_size::u64,
+      "Transposed prefetch is supported only for data size u32 or u64");
+  constexpr lsc_vector_size LSCVS = to_lsc_vector_size<NElts>();
+  constexpr lsc_data_order Transposed = lsc_data_order::transpose;
+  constexpr int N = 1;
+
+  simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p) + offset;
+  __esimd_lsc_prefetch_stateless<T, L1H, L2H, AddressScale, ImmOffset, EDS,
+                                 LSCVS, Transposed, N>(pred.data(),
+                                                       addrs.data());
 }
 
 } // namespace detail
@@ -2887,7 +3053,7 @@ __ESIMD_API
   return gather<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset),
                       byte_offsets, mask);
 #else
-  if constexpr (sizeof(T) > 4 || !(detail::isPowerOf2(N, 32))) {
+  if constexpr (!detail::isPowerOf2(N, 32)) {
     // Requires DG2 or PVC.
     simd<T, N> PassThru; // Intentionally undefined
     byte_offsets += glob_offset;
@@ -3096,7 +3262,7 @@ gather(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
                 "hint is cache_level::L2 now.");
 
   if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
-                VS > 1 || sizeof(T) > 4 || !(detail::isPowerOf2(N, 32))) {
+                VS > 1 || !(detail::isPowerOf2(N, 32))) {
     simd<T, N> PassThru; // Intentionally undefined
     return detail::gather_impl<T, N, VS, L1Hint, L2Hint,
                                detail::lsc_data_size::default_size>(
@@ -3287,6 +3453,197 @@ gather(AccessorT acc, OffsetSimdViewT byte_offsets, PropertyListT props = {}) {
 /// @anchor accessor_scatter
 /// Accessor-based scatter.
 ///
+/// template <typename T, int N, int VS = 1, typename AccessorTy,
+/// typename OffsetT, typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
+///              simd<T, N> vals, simd_mask<N / VS> mask,
+///              PropertyListT props = {});                        // (acc-sc-1)
+///
+/// template <typename T, int N, int VS = 1, typename AccessorTy,
+/// typename OffsetT, typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
+///              simd<T, N> vals, PropertyListT props = {});      // (acc-sc-2)
+
+/// The following two functions are similar to acc-sc-{1,2} with the
+/// 'byte_offsets' parameter represented as 'simd_view'.
+
+/// template <typename T, int N, int VS = 1, typename AccessorTy,
+/// typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+/// 	         simd_mask<N / VS> mask, PropertyListT props = {});// (acc-sc-3)
+///
+/// template <typename T, int N, int VS = 1, typename AccessorTy,
+/// typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+/// 	         PropertyListT props = {});                       // (acc-sc-4)
+///
+/// template <typename T, int N, int VS = 1, typename AccessorTy,
+/// typename OffsetT, typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets, simd<T, N>
+///              simd<T, N> vals, simd_mask<N / VS> mask,
+///              PropertyListT props = {});                      // (acc-sc-1)
+///
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the accessor \p acc and byte offsets \p byte_offsets.
+/// Access to any element's memory location can be disabled via the input vector
+/// of predicates \p mask. If mask[i] is unset, then the store to
+/// (acc + byte_offsets[i]) is skipped.
+/// @tparam T Element type.
+/// @tparam N Number of elements to write.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc Accessor referencing the data to store.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes.
+/// For each i, (acc + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <typename T, int N, int VS = 1, typename AccessorTy, typename OffsetT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_device_accessor_with_v<AccessorTy,
+                                      detail::accessor_mode_cap::can_write> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
+        simd_mask<N / VS> mask, PropertyListT props = {}) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  scatter<T, N, VS>(__ESIMD_DNS::accessorToPointer<T>(acc), byte_offsets, vals,
+                    mask, props);
+#else
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(T));
+  static_assert(Alignment >= sizeof(T),
+                "gather() requires at least element-size alignment");
+  constexpr auto L1Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::none);
+  constexpr auto L2Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::none);
+  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
+                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
+                "hint is cache_level::L2 now.");
+
+  if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
+                VS > 1 || !detail::isPowerOf2(N, 32)) {
+    detail::scatter_impl<T, VS, detail::lsc_data_size::default_size, L1Hint,
+                         L2Hint>(acc, byte_offsets, vals, mask);
+  } else {
+    detail::scatter_impl<T, N, AccessorTy>(acc, vals, byte_offsets, 0, mask);
+  }
+
+#endif // __ESIMD_FORCE_STATELESS_MEM
+}
+/// template <typename T, int N, int VS = 1, typename AccessorTy,
+/// typename OffsetT, typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets,
+///              simd<T, N> vals, PropertyListT props = {});   // (acc-sc-2)
+///
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the accessor \p acc and byte offsets \p byte_offsets.
+/// @tparam T Element type.
+/// @tparam N Number of elements to write.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc Accessor referencing the data to store.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes.
+/// For each i, (acc + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <typename T, int N, int VS = 1, typename AccessorTy, typename OffsetT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_device_accessor_with_v<AccessorTy,
+                                      detail::accessor_mode_cap::can_write> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
+        PropertyListT props = {}) {
+  simd_mask<N / VS> Mask = 1;
+  scatter<T, N, VS>(acc, byte_offsets, vals, Mask, props);
+}
+
+/// template <typename T, int N, int VS = 1, typename AccessorTy,
+/// typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+/// 	         simd_mask<N / VS> mask,
+///              PropertyListT props = {});                       // (acc-sc-3)
+///
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the accessor \p acc and byte offsets \p byte_offsets.
+/// Access to any element's memory location can be disabled via the input vector
+/// of predicates \p mask. If mask[i] is unset, then the store to
+/// (acc + byte_offsets[i]) is skipped.
+/// @tparam T Element type.
+/// @tparam N Number of elements to write.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc Accessor referencing the data to store.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, (acc + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <typename T, int N, int VS = 1, typename AccessorTy,
+          typename OffsetSimdViewT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_device_accessor_with_v<AccessorTy,
+                                      detail::accessor_mode_cap::can_write> &&
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+        simd_mask<N / VS> mask, PropertyListT props = {}) {
+  scatter<T, N, VS>(acc, byte_offsets.read(), vals, mask, props);
+}
+
+/// template <typename T, int N, int VS = 1, typename AccessorTy,
+/// typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+/// 	         PropertyListT props = {});                        // (acc-sc-4)
+///
+/// Stores ("scatters") elements of the type 'T' to memory locations addressed
+/// by the accessor \p acc and byte offsets \p byte_offsets.
+/// @tparam T Element type.
+/// @tparam N Number of elements to write.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc Accessor referencing the data to store.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, (acc + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <typename T, int N, int VS = 1, typename AccessorTy,
+          typename OffsetSimdViewT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_device_accessor_with_v<AccessorTy,
+                                      detail::accessor_mode_cap::can_write> &&
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorTy acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+        PropertyListT props = {}) {
+  simd_mask<N / VS> Mask = 1;
+  scatter<T, N, VS>(acc, byte_offsets.read(), vals, Mask, props);
+}
+
 /// Writes elements of a \ref simd object into an accessor at given offsets.
 /// An element can be a 1, 2 or 4-byte value.
 ///
@@ -3304,30 +3661,36 @@ gather(AccessorT acc, OffsetSimdViewT byte_offsets, PropertyListT props = {}) {
 ///
 ///
 template <typename T, int N, typename AccessorTy>
-__ESIMD_API std::enable_if_t<
-    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
-    detail::is_device_accessor_with_v<AccessorTy,
-                                      detail::accessor_mode_cap::can_write>>
-scatter(AccessorTy acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
-        simd<T, N> vals, detail::DeviceAccessorOffsetT glob_offset = 0,
-        simd_mask<N> mask = 1) {
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-  scatter<T, N>(__ESIMD_DNS::accessorToPointer<T>(acc, glob_offset), offsets,
-                vals, mask);
-#else
-  detail::scatter_impl<T, N, AccessorTy>(acc, vals, offsets, glob_offset, mask);
-#endif
+__ESIMD_API
+    std::enable_if_t<(detail::isPowerOf2(N, 32)) &&
+                     detail::is_device_accessor_with_v<
+                         AccessorTy, detail::accessor_mode_cap::can_write>>
+    scatter(AccessorTy acc, simd<detail::DeviceAccessorOffsetT, N> offsets,
+            simd<T, N> vals, detail::DeviceAccessorOffsetT glob_offset,
+            simd_mask<N> mask = 1) {
+  offsets += glob_offset;
+  scatter<T, N>(acc, offsets, vals, mask);
+}
+
+template <typename T, int N, typename AccessorTy>
+__ESIMD_API
+    std::enable_if_t<(detail::isPowerOf2(N, 32)) &&
+                     detail::is_device_accessor_with_v<
+                         AccessorTy, detail::accessor_mode_cap::can_write>>
+    scatter(AccessorTy acc, detail::DeviceAccessorOffsetT glob_offset,
+            simd<T, N> vals, simd_mask<N> mask = 1) {
+  simd<detail::DeviceAccessorOffsetT, N> ByteOffsets = 0;
+  scatter<T, N>(acc, ByteOffsets, vals, glob_offset, mask);
 }
 
 #ifdef __ESIMD_FORCE_STATELESS_MEM
 template <typename T, int N, typename AccessorTy, typename Toffset>
 __ESIMD_API std::enable_if_t<
-    (sizeof(T) <= 4) && (N == 1 || N == 8 || N == 16 || N == 32) &&
     detail::is_device_accessor_with_v<AccessorTy,
                                       detail::accessor_mode_cap::can_write> &&
     std::is_integral_v<Toffset> && !std::is_same_v<Toffset, uint64_t>>
 scatter(AccessorTy acc, simd<Toffset, N> offsets, simd<T, N> vals,
-        uint64_t glob_offset = 0, simd_mask<N> mask = 1) {
+        uint64_t glob_offset, simd_mask<N> mask = 1) {
   scatter<T, N, AccessorTy>(acc, convert<uint64_t>(offsets), vals, glob_offset,
                             mask);
 }
@@ -3862,9 +4225,27 @@ slm_gather(simd<uint32_t, N / VS> byte_offsets, simd_mask<N / VS> mask,
                                         detail::lsc_data_size::default_size>(
         byte_offsets, mask, pass_thru);
   } else {
-    using MsgT = detail::__raw_t<T>;
-    return __esimd_slm_gather_ld<MsgT, N, Alignment>(
-        byte_offsets.data(), mask.data(), pass_thru.data());
+    if constexpr (sizeof(T) == 8) {
+      simd<T, N> Res;
+      Res.template bit_cast_view<uint32_t>().template select<N, 2>(0) =
+          __esimd_slm_gather_ld<uint32_t, N, Alignment>(
+              byte_offsets.data(), mask.data(),
+              (pass_thru.template bit_cast_view<uint32_t>()
+                   .template select<N, 2>(0))
+                  .data());
+      simd<uint32_t, N / VS> Offset = byte_offsets + sizeof(uint32_t);
+      Res.template bit_cast_view<uint32_t>().template select<N, 2>(1) =
+          __esimd_slm_gather_ld<uint32_t, N, sizeof(uint32_t)>(
+              Offset.data(), mask.data(),
+              (pass_thru.template bit_cast_view<uint32_t>()
+                   .template select<N, 2>(1))
+                  .data());
+      return Res;
+    } else {
+      using MsgT = detail::__raw_t<T>;
+      return __esimd_slm_gather_ld<MsgT, N, Alignment>(
+          byte_offsets.data(), mask.data(), pass_thru.data());
+    }
   }
 }
 
@@ -3909,10 +4290,24 @@ slm_gather(simd<uint32_t, N / VS> byte_offsets, simd_mask<N / VS> mask,
     return detail::slm_gather_impl<T, VS, detail::lsc_data_size::default_size>(
         byte_offsets, mask, PassThru);
   } else if constexpr (detail::isMaskedGatherScatterLLVMAvailable()) {
-    using MsgT = detail::__raw_t<T>;
-    simd<MsgT, N> PassThru; // it is intentionally undefined
-    return __esimd_slm_gather_ld<MsgT, N, Alignment>(
-        byte_offsets.data(), mask.data(), PassThru.data());
+    if constexpr (sizeof(T) == 8) {
+      simd<T, N> Res;
+      simd<uint32_t, N> PassThru; // it is intentionally undefined
+
+      Res.template bit_cast_view<uint32_t>().template select<N, 2>(0) =
+          __esimd_slm_gather_ld<uint32_t, N, Alignment>(
+              byte_offsets.data(), mask.data(), PassThru.data());
+      simd<uint32_t, N / VS> Offset = byte_offsets + sizeof(uint32_t);
+      Res.template bit_cast_view<uint32_t>().template select<N, 2>(1) =
+          __esimd_slm_gather_ld<uint32_t, N, sizeof(uint32_t)>(
+              Offset.data(), mask.data(), PassThru.data());
+      return Res;
+    } else {
+      using MsgT = detail::__raw_t<T>;
+      simd<MsgT, N> PassThru; // it is intentionally undefined
+      return __esimd_slm_gather_ld<MsgT, N, Alignment>(
+          byte_offsets.data(), mask.data(), PassThru.data());
+    }
   } else {
     detail::LocalAccessorMarker acc;
     return detail::gather_impl<T, N>(acc, byte_offsets, 0, mask);
@@ -4118,7 +4513,7 @@ slm_gather(OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
 /// @param byte_offsets the vector of 32-bit offsets in bytes.
 /// For each i, (byte_offsets[i]) must be element size aligned.
 /// @param props The optional compile-time properties. Only 'alignment'
-/// and cache hint properties are used.
+/// property is used.
 /// @return A vector of elements read.
 template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
           typename PropertyListT =
@@ -4141,17 +4536,176 @@ template <typename T> __ESIMD_API T slm_scalar_load(uint32_t offset) {
   return Res[0];
 }
 
-/// Scatter operation over the Shared Local Memory.
-/// This API has almost the same interface as the @ref accessor_scatter
-/// "accessor-based scatter", except that it does not have the accessor and
-/// the global offset parameters.
+/// template <typename T, int N, int VS = 1,
+///           typename PropertyListT = empty_properties_t>
+/// void slm_scatter(simd<uint32_t, N / VS> byte_offsets,
+///                  simd<T, N> vals, simd_mask<N / VS> mask,
+///                  PropertyListT props = {});                   // (slm-sc-1)
+/// void slm_scatter(simd<uint32_t, N / VS> byte_offsets,
+///                   simd<T, N> vals, PropertyListT props = {});  // (slm-sc-2)
 ///
-template <typename T, int N>
-__ESIMD_API std::enable_if_t<(N == 1 || N == 8 || N == 16 || N == 32) &&
-                             (sizeof(T) <= 4)>
-slm_scatter(simd<uint32_t, N> offsets, simd<T, N> vals, simd_mask<N> mask = 1) {
-  detail::LocalAccessorMarker acc;
-  detail::scatter_impl<T, N>(acc, vals, offsets, 0, mask);
+/// The next 2 functions are variations of the first 2 above (slm-sc-1,2)
+/// and were added only to support simd_view instead of simd for byte_offsets.
+/// template <typename T, int N, int VS = 1, typename OffsetObjT,
+///           typename OffsetRegionT, typename PropertyListT = empty_props_t>
+/// void slm_scatter(OffsetSimdViewT byte_offsets,
+///             simd<T, N> vals, simd_mask<N / VS> mask,
+///             PropertyListT props = {});                         // (slm-sc-3)
+/// void slm_scatter(OffsetSimdViewT byte_offsets,
+///             simd<T, N> vals, PropertyListT props = {});        // (slm-sc-4)
+
+/// template <typename T, int N, int VS = 1,
+///           typename PropertyListT = empty_properties_t>
+/// void slm_scatter(simd<uint32_t, N / VS> byte_offsets,
+///                   simd<T, N> vals, simd_mask<N / VS> mask,
+///                   PropertyListT props = {});                   // (slm-sc-1)
+/// Stores ("scatters") elements of the type 'T' to Shared Local Memory
+/// locations addressed by byte offsets \p byte_offsets. Storage of any element
+/// can be disabled via the input vector of predicates \p mask.
+/// If mask[i] is unset, then the storage to (byte_offsets[i]) is skipped.
+/// @tparam T Element type.
+/// @tparam N Number of elements to read.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param byte_offsets the vector of 32-bit offsets in bytes.
+/// For each i, (byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param vals The vector of values to store.
+/// @param mask The access mask, defaults to all 1s.
+/// @param props The optional compile-time properties. Only 'alignment' property
+/// is used.
+template <typename T, int N, int VS = 1,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+slm_scatter(simd<uint32_t, N / VS> byte_offsets, simd<T, N> vals,
+            simd_mask<N / VS> mask, PropertyListT props = {}) {
+  static_assert(N / VS >= 1 && N % VS == 0, "N must be divisible by VS");
+
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(T));
+  static_assert(Alignment >= sizeof(T),
+                "slm_scatter() requires at least element-size alignment");
+
+  // Use LSC lowering if VS > 1.
+  if constexpr (VS > 1 || (!detail::isPowerOf2(N, 32) &&
+                           !detail::isMaskedGatherScatterLLVMAvailable())) {
+    __ESIMD_DNS::slm_scatter_impl<T, VS, detail::lsc_data_size::default_size>(
+        byte_offsets, vals, mask);
+  } else if constexpr (detail::isMaskedGatherScatterLLVMAvailable()) {
+    if constexpr (sizeof(T) == 8) {
+      __esimd_slm_scatter_st<uint32_t, N, Alignment>(
+          vals.template bit_cast_view<uint32_t>()
+              .template select<N, 2>(0)
+              .data(),
+          byte_offsets.data(), mask.data());
+      simd<uint32_t, N / VS> Offset = byte_offsets + sizeof(uint32_t);
+      __esimd_slm_scatter_st<uint32_t, N, sizeof(uint32_t)>(
+          vals.template bit_cast_view<uint32_t>()
+              .template select<N, 2>(1)
+              .data(),
+          Offset.data(), mask.data());
+
+    } else {
+      using MsgT = detail::__raw_t<T>;
+      __esimd_slm_scatter_st<MsgT, N, Alignment>(
+          sycl::bit_cast<__ESIMD_DNS::vector_type_t<MsgT, N>>(vals.data()),
+          byte_offsets.data(), mask.data());
+    }
+  } else {
+    detail::LocalAccessorMarker acc;
+    detail::scatter_impl<T, N>(acc, vals, byte_offsets, 0, mask);
+  }
+}
+
+/// template <typename T, int N, int VS = 1,
+///           typename PropertyListT = empty_properties_t>
+/// void slm_scatter(simd<uint32_t, N / VS> byte_offsets, simd<T, N> vals,
+///                   PropertyListT props = {});                   // (slm-sc-2)
+/// Stores ("scatters") elements of the type 'T' to Shared Local Memory
+/// locations addressed by byte offsets \p byte_offsets.
+/// @tparam T Element type.
+/// @tparam N Number of elements to read.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors..
+/// @param byte_offsets the vector of 32-bit offsets in bytes.
+/// For each i, (byte_offsets[i]) must be element size aligned.
+/// @param vals The vector of values to store.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// property is used.
+template <typename T, int N, int VS = 1,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+slm_scatter(simd<uint32_t, N / VS> byte_offsets, simd<T, N> vals,
+            PropertyListT props = {}) {
+  simd_mask<N / VS> Mask = 1;
+  slm_scatter<T, N, VS>(byte_offsets, vals, Mask, props);
+}
+
+/// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+///           typename PropertyListT = empty_props_t>
+/// void slm_scatter(
+///             OffsetSimdViewT byte_offsets, simd<T, N> vals,
+///             simd_mask<N / VS> mask, PropertyListT props = {}); // (slm-sc-3)
+/// Stores ("scatters") elements of the type 'T' to Shared Local Memory
+/// locations addressed by byte offsets \p byte_offsets.
+/// Storage to any element's memory location can be disabled via the
+/// input vector of predicates \p mask. If mask[i] is unset, then the storage to
+/// (byte_offsets[i]) is skipped.
+/// @tparam T Element type.
+/// @tparam N Number of elements to read.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors..
+/// @param byte_offsets the vector of 32-bit offsets in bytes.
+/// For each i, (byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param vals The vector of values to store.
+/// @param mask The access mask, defaults to all 1s.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// property is used.
+template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
+            simd_mask<N / VS> mask, PropertyListT props = {}) {
+  slm_scatter<T, N, VS>(byte_offsets.read(), vals, mask, props);
+}
+
+/// void slm_scatter(
+///             OffsetSimdViewT byte_offsets, simd<T, N> vals,
+///             PropertyListT props = {});                         // (slm-sc-4)
+/// Stores ("scatters") elements of the type 'T' to Shared Local Memory
+/// locations addressed by byte offsets \p byte_offsets.
+/// @tparam T Element type.
+/// @tparam N Number of elements to read.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param byte_offsets the vector of 32-bit offsets in bytes.
+/// For each i, (byte_offsets[i]) must be element size aligned.
+/// @param vals The vector of values to store.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// property is used.
+template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+slm_scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
+            PropertyListT props = {}) {
+  return slm_scatter<T, N, VS>(byte_offsets.read(), vals, props);
 }
 
 /// Store a scalar value into the Shared Local Memory.
@@ -5671,7 +6225,6 @@ __ESIMD_API
 /// atomic_update(T *p, simd<Toffset, N> byte_offset,
 ///               props = {});                                  /// (usm-au0-2)
 /// simd<T, N>
-///
 /// atomic_update(T *p, simd_view<OffsetObjT, RegionTy> byte_offset,
 ///               simd_mask<N> mask, props = {});               /// (usm-au0-3)
 /// simd<T, N>
@@ -5731,27 +6284,45 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd_mask<N> mask,
     return detail::atomic_update_impl<
         Op, T, N, detail::lsc_data_size::default_size, L1Hint, L2Hint, Toffset>(
         p, byte_offset, mask);
-  } else {
-    if constexpr (Op == atomic_op::load) {
-      if constexpr (std::is_integral_v<T>) {
-        return atomic_update<atomic_op::bit_or, T, N>(
-            p, byte_offset, simd<T, N>(0), mask, props);
-      } else {
-        using Tint = detail::uint_type_t<sizeof(T)>;
-        simd<Tint, N> Res = atomic_update<atomic_op::bit_or, Tint, N>(
-            reinterpret_cast<Tint *>(p), byte_offset, simd<Tint, N>(0), mask,
-            props);
-        return Res.template bit_cast_view<T>();
-      }
-    } else {
-      detail::check_atomic<Op, T, N, 0>();
+  } else if constexpr (N == 16 || N == 32) {
+    // TODO: In fact GPU BE supports legalization for any N, even for
+    // non-power-of-2, but it is implemented with an error now. For example,
+    // N=17 is emulated as 2 calls (N=16 and N=1), while it must be 3 calls:
+    // (N=8, N=8, N=1). I.e. Gen12 atomic instruction supports only N up to 8
+    // and GPU thinks now it is up to 16.
+    // Thus we emulate N=16 with 2 calls with N=8 each.
+    // N=32 is emulated with 4 calls with N=8 each.
+    // Task1: Remove the special-case emulation for N=16 and N=32 below when
+    // GPU driver fixes the error.
+    // Task2: remove the condition "!__ESIMD_DNS::isPowerOf2(N, 32)" above
+    // and let svm.atomic for any N.
 
-      simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
-      simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(byte_offset);
-      vAddr += offset_i1;
-      using Tx = typename detail::__raw_t<T>;
-      return __esimd_svm_atomic0<Op, Tx, N>(vAddr.data(), mask.data());
+    simd<T, N> Res;
+    for (int I = 0; I < N; I += 8) {
+      simd_mask<8> Mask8 = mask.template select<8, 1>(I);
+      simd<Toffset, 8> ByteOffset8 = byte_offset.template select<8, 1>(I);
+      Res.template select<8, 1>(I) =
+          atomic_update<Op, T, 8>(p, ByteOffset8, Mask8, props);
     }
+    return Res;
+  } else if constexpr (Op == atomic_op::load) {
+    if constexpr (std::is_integral_v<T>) {
+      return atomic_update<atomic_op::bit_or, T, N>(p, byte_offset,
+                                                    simd<T, N>(0), mask, props);
+    } else {
+      using Tint = detail::uint_type_t<sizeof(T)>;
+      simd<Tint, N> Res = atomic_update<atomic_op::bit_or, Tint, N>(
+          reinterpret_cast<Tint *>(p), byte_offset, simd<Tint, N>(0), mask,
+          props);
+      return Res.template bit_cast_view<T>();
+    }
+  } else {
+    detail::check_atomic<Op, T, N, 0>();
+    simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
+    simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(byte_offset);
+    vAddr += offset_i1;
+    using Tx = typename detail::__raw_t<T>;
+    return __esimd_svm_atomic0<Op, Tx, N>(vAddr.data(), mask.data());
   }
 }
 
@@ -5949,28 +6520,47 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
     return detail::atomic_update_impl<
         Op, T, N, detail::lsc_data_size::default_size, L1Hint, L2Hint, Toffset>(
         p, byte_offset, src0, mask);
-  } else {
-    if constexpr (Op == atomic_op::store) {
-      if constexpr (std::is_integral_v<T>) {
-        return atomic_update<atomic_op::xchg, T, N>(p, byte_offset, src0, mask,
-                                                    props);
-      } else {
-        using Tint = detail::uint_type_t<sizeof(T)>;
-        simd<Tint, N> Res = atomic_update<atomic_op::xchg, Tint, N>(
-            reinterpret_cast<Tint *>(p), byte_offset,
-            src0.template bit_cast_view<Tint>(), mask, props);
-        return Res.template bit_cast_view<T>();
-      }
-    } else {
-      detail::check_atomic<Op, T, N, 1>();
-      simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
-      simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(byte_offset);
-      vAddr += offset_i1;
-
-      using Tx = typename detail::__raw_t<T>;
-      return __esimd_svm_atomic1<Op, Tx, N>(vAddr.data(), src0.data(),
-                                            mask.data());
+  } else if constexpr (N == 16 || N == 32) {
+    // TODO: In fact GPU BE supports legalization for any N, even for
+    // non-power-of-2, but it is implemented with an error now. For example,
+    // N=17 is emulated as 2 calls (N=16 and N=1), while it must be 3 calls:
+    // (N=8, N=8, N=1). I.e. Gen12 atomic instruction supports only N up to 8
+    // and GPU thinks now it is up to 16.
+    // Thus we emulate N=16 with 2 calls with N=8 each.
+    // N=32 is emulated with 4 calls with N=8 each.
+    // Task1: Remove the special-case emulation for N=16 and N=32 below when
+    // GPU driver fixes the error.
+    // Task2: remove the condition "!__ESIMD_DNS::isPowerOf2(N, 32)" above
+    // and let svm.atomic for any N.
+    simd<T, N> Res;
+    for (int I = 0; I < N; I += 8) {
+      simd_mask<8> Mask8 = mask.template select<8, 1>(I);
+      simd<Toffset, 8> ByteOffset8 = byte_offset.template select<8, 1>(I);
+      simd<T, 8> Src08 = src0.template select<8, 1>(I);
+      Res.template select<8, 1>(I) =
+          atomic_update<Op, T, 8>(p, ByteOffset8, Src08, Mask8, props);
     }
+    return Res;
+  } else if constexpr (Op == atomic_op::store) {
+    if constexpr (std::is_integral_v<T>) {
+      return atomic_update<atomic_op::xchg, T, N>(p, byte_offset, src0, mask,
+                                                  props);
+    } else {
+      using Tint = detail::uint_type_t<sizeof(T)>;
+      simd<Tint, N> Res = atomic_update<atomic_op::xchg, Tint, N>(
+          reinterpret_cast<Tint *>(p), byte_offset,
+          src0.template bit_cast_view<Tint>(), mask, props);
+      return Res.template bit_cast_view<T>();
+    }
+  } else {
+    detail::check_atomic<Op, T, N, 1>();
+    simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
+    simd<uintptr_t, N> offset_i1 = convert<uintptr_t>(byte_offset);
+    vAddr += offset_i1;
+
+    using Tx = typename detail::__raw_t<T>;
+    return __esimd_svm_atomic1<Op, Tx, N>(vAddr.data(), src0.data(),
+                                          mask.data());
   }
 }
 
@@ -6195,6 +6785,28 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
     return detail::atomic_update_impl<
         Op, T, N, detail::lsc_data_size::default_size, L1Hint, L2Hint, Toffset>(
         p, byte_offset, src1, src0, mask);
+  } else if constexpr (N == 16 || N == 32) {
+    // TODO: In fact GPU BE supports legalization for any N, even for
+    // non-power-of-2, but it is implemented with an error now. For example,
+    // N=17 is emulated as 2 calls (N=16 and N=1), while it must be 3 calls:
+    // (N=8, N=8, N=1). I.e. Gen12 atomic instruction supports only N up to 8
+    // and GPU thinks now it is up to 16.
+    // Thus we emulate N=16 with 2 calls with N=8 each.
+    // N=32 is emulated with 4 calls with N=8 each.
+    // Task1: Remove the special-case emulation for N=16 and N=32 below when
+    // GPU driver fixes the error.
+    // Task2: remove the condition "!__ESIMD_DNS::isPowerOf2(N, 32)" above
+    // and let svm.atomic for any N.
+    simd<T, N> Res;
+    for (int I = 0; I < N; I += 8) {
+      simd_mask<8> Mask8 = mask.template select<8, 1>(I);
+      simd<Toffset, 8> ByteOffset8 = byte_offset.template select<8, 1>(I);
+      simd<T, 8> Src08 = src0.template select<8, 1>(I);
+      simd<T, 8> Src18 = src1.template select<8, 1>(I);
+      Res.template select<8, 1>(I) =
+          atomic_update<Op, T, 8>(p, ByteOffset8, Src08, Src18, Mask8, props);
+    }
+    return Res;
   } else {
     detail::check_atomic<Op, T, N, 2>();
     simd<uintptr_t, N> vAddr(reinterpret_cast<uintptr_t>(p));
@@ -7729,6 +8341,196 @@ __ESIMD_API
 }
 
 /// Variant of scatter that uses local accessor as a parameter
+/// template <typename T, int N, int VS = 1, typename AccessorT,
+///           typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              simd<uint32_t, N / VS> byte_offsets,
+///              simd<T, N> vals,
+///              simd_mask<N / VS> mask,
+///              PropertyListT props = {});                  // (lacc-sc-1)
+
+/// template <typename T, int N, int VS = 1, typename AccessorT,
+///           typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              simd<uint32_t, N / VS> byte_offsets,
+///              simd<T, N> vals,
+///              PropertyListT props = {});                 // (lacc-sc-2)
+
+/// The next two functions are similar to lacc-sc-{1,2} with the 'byte_offsets'
+/// parameter represerented as 'simd_view'.
+
+/// template <typename T, int N, int VS = 1, typename AccessorT,
+///           typename OffsetSimdViewT,
+///           typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              OffsetSimdViewT byte_offsets,
+///              simd<T, N> vals,
+///              simd_mask<N / VS> mask,
+///              PropertyListT props = {});                 // (lacc-sc-3)
+
+/// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+///           typename AccessorT,
+///           typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              OffsetSimdViewT byte_offsets,
+///              simd<T, N> vals,
+///              PropertyListT props = {});                // (lacc-sc-4)
+
+/// template <typename T, int N, int VS = 1, typename AccessorT,
+///           typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              simd<uint32_t, N / VS> byte_offsets,
+///              simd<T, N> vals,
+///              simd_mask<N / VS> mask,
+///              PropertyListT props = {});               // (lacc-sc-1)
+///
+/// Writes ("scatters") elements of the input vector to memory locations
+/// addressed by the local accessor \p acc and byte offsets \p byte_offsets.
+/// Access to any element's memory location can be disabled via
+/// the input mask.
+/// @tparam T Element type.
+/// @tparam N Number of elements to write.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc The accessor to scatter to.
+/// @param byte_offsets the vector of 32-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param vals The vector to scatter.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// property is used.
+template <typename T, int N, int VS = 1, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT,
+                                     detail::accessor_mode_cap::can_write> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorT acc, simd<uint32_t, N / VS> byte_offsets, simd<T, N> vals,
+        simd_mask<N / VS> mask, PropertyListT props = {}) {
+  slm_scatter<T, N, VS>(byte_offsets + __ESIMD_DNS::localAccessorToOffset(acc),
+                        vals, mask, props);
+}
+
+/// template <typename T, int N, int VS = 1, typename AccessorT,
+///           typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              simd<uint32_t, N / VS> byte_offsets,
+///              simd<T, N> vals,
+///              PropertyListT props = {});                 // (lacc-sc-2)
+///
+/// Writes ("scatters") elements of the input vector to memory locations
+/// addressed by the local accessor \p acc and byte offsets \p byte_offsets.
+/// @tparam T Element type.
+/// @tparam N Number of elements to write.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc The accessor to scatter to.
+/// @param byte_offsets the vector of 32-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param vals The vector to scatter.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// property is used.
+template <typename T, int N, int VS = 1, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT,
+                                     detail::accessor_mode_cap::can_write> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorT acc, simd<uint32_t, N / VS> byte_offsets, simd<T, N> vals,
+        PropertyListT props = {}) {
+  simd_mask<N / VS> Mask = 1;
+  scatter<T, N, VS>(acc, byte_offsets, vals, Mask, props);
+}
+
+/// template <typename T, int N, int VS = 1, typename AccessorT,
+///           typename OffsetSimdViewT,
+///           typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              OffsetSimdViewT byte_offsets,
+///              simd<T, N> vals,
+///              simd_mask<N / VS> mask,
+///              PropertyListT props = {});                 // (lacc-sc-3)
+///
+/// Writes ("scatters") elements of the input vector to memory locations
+/// addressed by the local accessor \p acc and byte offsets \p byte_offsets.
+/// Access to any element's memory location can be disabled via the input mask.
+/// @tparam T Element type.
+/// @tparam N Number of elements to write.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc The accessor to scatter to.
+/// @param byte_offsets the vector of 32-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param vals The vector to scatter.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// and cache hint properties are used.
+template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+          typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT,
+                                     detail::accessor_mode_cap::can_write> &&
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorT acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+        simd_mask<N / VS> mask, PropertyListT props = {}) {
+  scatter<T, N, VS>(acc, byte_offsets.read(), vals, mask, props);
+}
+
+/// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+///           typename AccessorT,
+///           typename PropertyListT = empty_properties_t>
+/// void scatter(AccessorT acc,
+///              OffsetSimdViewT byte_offsets,
+///              simd<T, N> vals,
+///              PropertyListT props = {});                // (lacc-sc-4)
+///
+/// Writes ("scatters") elements of the input vector to memory locations
+/// addressed by the local accessor \p acc and byte offsets \p byte_offsets.
+/// @tparam T Element type.
+/// @tparam N Number of elements to write.
+/// @tparam VS Vector size. It can also be read as the number of writes per each
+/// address. The parameter 'N' must be divisible by 'VS'. (VS > 1) is supported
+/// only on DG2 and PVC and only for 4- and 8-byte element vectors.
+/// @param acc The accessor to scatter to.
+/// @param byte_offsets the vector of 32-bit offsets in bytes
+/// represented as a 'simd_view' object.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// If the alignment property is not passed, then it is assumed that each
+/// accessed address is aligned by element-size.
+/// @param vals The vector to scatter.
+/// @param props The optional compile-time properties. Only 'alignment'
+/// property is used.
+template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+          typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_local_accessor_with_v<AccessorT,
+                                     detail::accessor_mode_cap::can_write> &&
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+scatter(AccessorT acc, OffsetSimdViewT byte_offsets, simd<T, N> vals,
+        PropertyListT props = {}) {
+  simd_mask<N / VS> Mask = 1;
+  scatter<T, N, VS>(acc, byte_offsets.read(), vals, Mask, props);
+}
+
+/// Variant of scatter that uses local accessor as a parameter
 ///
 /// Writes elements of a \ref simd object into an accessor at given offsets.
 /// An element can be a 1, 2 or 4-byte value.
@@ -7750,10 +8552,339 @@ template <typename T, int N, typename AccessorTy>
 __ESIMD_API std::enable_if_t<detail::is_local_accessor_with_v<
     AccessorTy, detail::accessor_mode_cap::can_write>>
 scatter(AccessorTy acc, simd<uint32_t, N> offsets, simd<T, N> vals,
-        uint32_t glob_offset = 0, simd_mask<N> mask = 1) {
+        uint32_t glob_offset, simd_mask<N> mask = 1) {
   slm_scatter<T, N>(offsets + glob_offset +
                         __ESIMD_DNS::localAccessorToOffset(acc),
                     vals, mask);
+}
+
+/// template <typename T, int N, int VS, typename OffsetT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(const T *p, simd<OffsetT, N / VS> byte_offsets,
+///                   simd_mask<N / VS> mask,
+///                   PropertyListT props = {});                   // (usm-pf-1)
+/// void prefetch(const T *p, simd<OffsetT, N / VS> byte_offsets,
+///                   PropertyListT props = {});                   // (usm-pf-2)
+///
+/// The next 2 functions are similar to the above and were added for
+/// convenience. They assume the VS parameter is set to 1 and do not require
+/// specifying the template parameters <T, N, VS> at function calls.
+/// template <typename T, int N, typename OffsetT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(const T *p, simd<OffsetT, N> byte_offsets,
+///                   simd_mask<N> mask,
+///                   PropertyListT props = {});                   // (usm-pf-3)
+/// void prefetch(const T *p, simd<OffsetT, N> byte_offsets,
+///                   PropertyListT props = {});                   // (usm-pf-4)
+/// The next 2 functions are variations of the first 2 above (usm-pf-1,2)
+/// and were added only to support simd_view instead of simd for byte_offsets
+/// operand.
+/// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(const T *p, OffsetSimdViewT byte_offsets,
+///             simd_mask<N / VS> mask, PropertyListT props = {}); // (usm-pf-5)
+/// void prefetch(const T *p, OffsetSimdViewT byte_offsets,
+///             PropertyListT props = {});                        // (usm-pf-6)
+///
+/// The next functions perform transposed 1-channel prefetch.
+/// template <typename T, int VS = 1, typename OffsetT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(const T *p, OffsetT byte_offset, simd_mask<1> mask,
+///                   PropertyListT props = {});                   // (usm-pf-7)
+/// void prefetch(const T *p, OffsetT byte_offset,
+///                   PropertyListT props = {});                   // (usm-pf-8)
+/// template <typename T, int VS = 1,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(const T *p, simd_mask<1> mask,
+///                   PropertyListT props = {});                   // (usm-pf-9)
+/// void prefetch(const T *p, PropertyListT props = {});           //(usm-pf-10)
+///
+
+/// template <typename T, int N, int VS, typename OffsetT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(const T *p, simd<OffsetT, N / VS> byte_offsets,
+///                   simd_mask<N / VS> mask,
+///                   PropertyListT props = {});                   // (usm-pf-1)
+/// Supported platforms: DG2, PVC only.
+/// Prefetches elements of the type 'T' from memory locations addressed
+/// by the base pointer \p p and byte offsets \p byte_offsets, to the cache.
+/// Access to any element's memory location can be disabled via the input vector
+/// of predicates \p mask. If mask[i] is unset, then the prefetch from
+/// (p + byte_offsets[i]) is skipped.
+/// @tparam T Element type.
+/// @tparam N Number of elements to read.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'.
+/// @param p The base address.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+template <typename T, int N, int VS, typename OffsetT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(const T *p, simd<OffsetT, N / VS> byte_offsets, simd_mask<N / VS> mask,
+         PropertyListT props = {}) {
+  static_assert(N / VS >= 1 && N % VS == 0, "N must be divisible by VS");
+
+  constexpr auto L1Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::uncached);
+  constexpr auto L2Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::cached);
+  detail::prefetch_impl<T, VS, detail::lsc_data_size::default_size, L1Hint,
+                        L2Hint>(p, byte_offsets, mask);
+}
+
+/// template <typename T, int VS, typename OffsetT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(const T *p, simd<OffsetT, N / VS> byte_offsets,
+///                   PropertyListT props = {});                   // (usm-pf-2)
+/// Supported platforms: DG2, PVC only.
+/// Prefetches elements of the type 'T' from memory locations addressed
+/// by the base pointer \p p and byte offsets \p byte_offsets, into the cache.
+/// @tparam T Element type.
+/// @tparam N Number of elements to read.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'.
+/// @param p The base address.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+template <typename T, int N, int VS, typename OffsetT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(const T *p, simd<OffsetT, N / VS> byte_offsets,
+         PropertyListT props = {}) {
+  simd_mask<N / VS> Mask = 1;
+  prefetch<T, N, VS>(p, byte_offsets, Mask, props);
+}
+
+/// template <typename T, int N, typename OffsetT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(const T *p, simd<OffsetT, N> byte_offsets,
+///                   simd_mask<N> mask,
+///                   PropertyListT props = {});                   // (usm-pf-3)
+/// Supported platforms: DG2, PVC only.
+/// Prefetches elements of the type 'T' from memory locations addressed
+/// by the base pointer \p p and byte offsets \p byte_offsets, to the cache.
+/// Access to any element's memory location can be disabled via the input vector
+/// of predicates \p mask. If mask[i] is unset, then the prefetch from
+/// (p + byte_offsets[i]) is skipped.
+/// @tparam T Element type.
+/// @tparam N Number of elements to read.
+/// @param p The base address.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+template <typename T, int N, typename OffsetT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(const T *p, simd<OffsetT, N> byte_offsets, simd_mask<N> mask,
+         PropertyListT props = {}) {
+  constexpr int VS = 1;
+  prefetch<T, N, VS>(p, byte_offsets, mask, props);
+}
+
+/// template <typename T, typename OffsetT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(const T *p, simd<OffsetT, N> byte_offsets,
+///                   PropertyListT props = {});                   // (usm-pf-4)
+/// Supported platforms: DG2, PVC only.
+/// Prefetches elements of the type 'T' from memory locations addressed
+/// by the base pointer \p p and byte offsets \p byte_offsets, into the cache.
+/// @tparam T Element type.
+/// @tparam N Number of elements to read.
+/// @param p The base address.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+template <typename T, int N, typename OffsetT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(const T *p, simd<OffsetT, N> byte_offsets, PropertyListT props = {}) {
+  constexpr int VS = 1;
+  prefetch<T, N, VS>(p, byte_offsets, props);
+}
+
+/// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(const T *p, OffsetSimdViewT byte_offsets,
+///             simd_mask<N / VS> mask, PropertyListT props = {}); // (usm-pf-5)
+/// Supported platforms: DG2, PVC only.
+/// Prefetches elements of the type 'T' from memory locations
+/// addressed by the base pointer \p p and byte offsets \p byte_offsets to the
+/// cache. Access to any element's memory location can be disabled via the input
+/// vector of predicates \p mask. If mask[i] is unset, then the load from (p +
+/// byte_offsets[i]) is skipped.
+/// @tparam T Element type.
+/// @tparam N Number of elements to read.
+/// @tparam VS Vector size. It can also be read as the number of reads per
+/// each address. The parameter 'N' must be divisible by 'VS'.
+/// @param p The base address.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(const T *p, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
+         PropertyListT props = {}) {
+  prefetch<T, N, VS>(p, byte_offsets.read(), mask, props);
+}
+
+/// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(const T *p, OffsetSimdViewT byte_offsets,
+///             PropertyListT props = {});                      // (usm-pf-6)
+/// Supported platforms: DG2, PVC only.
+/// Prefetches elements of the type 'T' from memory locations
+/// addressed by the base pointer \p p and byte offsets \p byte_offsets to the
+/// cache.
+/// @tparam T Element type.
+/// @tparam N Number of elements to read.
+/// @tparam VS Vector size. It can also be read as the number of reads per
+/// each address. The parameter 'N' must be divisible by 'VS'.
+/// @param p The base address.
+/// @param byte_offsets the vector of 32-bit or 64-bit offsets in bytes.
+/// For each i, ((byte*)p + byte_offsets[i]) must be element size aligned.
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(const T *p, OffsetSimdViewT byte_offsets, PropertyListT props = {}) {
+  prefetch<T, N, VS>(p, byte_offsets.read(), props);
+}
+
+/// template <typename T, int VS = 1, typename OffsetT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(const T *p, OffsetT byte_offset, simd_mask<1> mask,
+///                   PropertyListT props = {});                   // (usm-pf-7)
+/// Supported platforms: DG2, PVC only.
+/// Prefetches elements of the type 'T' from continuous memory location
+/// addressed by the base pointer \p p, and offset \p byte_offset and the length
+/// \p VS elements into the cache.
+/// @tparam T Element type.
+/// @tparam VS Vector size. It specifies the number of consequent elements to
+/// prefetch.
+/// @param p The base address.
+/// @param byte_offset offset from the base address.
+/// @param mask The access mask. If it is set to 0, then the prefetch is
+/// omitted.
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+template <typename T, int VS = 1, typename OffsetT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<OffsetT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(const T *p, OffsetT byte_offset, simd_mask<1> mask,
+         PropertyListT props = {}) {
+  constexpr auto L1Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::uncached);
+  constexpr auto L2Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::cached);
+  detail::prefetch_impl<T, VS, detail::lsc_data_size::default_size, L1Hint,
+                        L2Hint>(p, byte_offset, mask);
+}
+
+/// template <typename T, int VS = 1, typename OffsetT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(const T *p, OffsetT byte_offset,
+///                   PropertyListT props = {});                   // (usm-pf-8)
+/// Supported platforms: DG2, PVC only.
+/// Prefetches elements of the type 'T' from continuous memory location
+/// addressed by the base pointer \p p, and offset \p byte_offset and the length
+/// \p VS elements into the cache.
+/// @tparam T Element type.
+/// @tparam VS Vector size. It specifies the number of consequent elements to
+/// prefetch.
+/// @param p The base address.
+/// @param byte_offset offset from the base address
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+template <typename T, int VS = 1, typename OffsetT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<OffsetT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(const T *p, OffsetT byte_offset, PropertyListT props = {}) {
+  simd_mask<1> Mask = 1;
+  prefetch<T, VS>(p, byte_offset, Mask, props);
+}
+
+/// template <typename T, int VS = 1,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(const T *p, simd_mask<1> mask,
+///                   PropertyListT props = {});                 //(usm-pf-9)
+/// Supported platforms: DG2, PVC only.
+///  Prefetches elements of the type 'T' from continuous memory location
+///  addressed by the base pointer \p p
+/// and the length \p VS elements into the cache.
+/// @tparam T Element type.
+/// @tparam VS Vector size. It specifies the number of consequent elements to
+/// prefetch.
+/// @param p The base address.
+/// @param mask The access mask. If it is set to 0, then the prefetch is
+/// omitted.
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+template <typename T, int VS = 1,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(const T *p, simd_mask<1> mask, PropertyListT props = {}) {
+  prefetch<T, VS>(p, 0, mask, props);
+}
+
+/// template <typename T, int VS = 1,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(const T *p, PropertyListT props = {});      // (usm-pf-10)
+/// Supported platforms: DG2, PVC only.
+/// Prefetches elements of the type 'T' from continuous memory location
+/// addressed by the base pointer \p p and the length \p VS into the cache.
+/// @tparam T Element type.
+/// @tparam VS Vector size. It specifies the number of consequent elements to
+/// prefetch.
+/// @param p The base address.
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+template <typename T, int VS = 1,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(const T *p, PropertyListT props = {}) {
+  simd_mask<1> Mask = 1;
+  prefetch<T, VS>(p, 0, Mask, props);
 }
 
 /// Variant of gather_rgba that uses local accessor as a parameter

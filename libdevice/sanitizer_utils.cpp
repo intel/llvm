@@ -54,6 +54,7 @@ const int kUsmDeviceRedzoneMagic = (char)0x81;
 const int kUsmHostRedzoneMagic = (char)0x82;
 const int kUsmSharedRedzoneMagic = (char)0x83;
 const int kMemBufferRedzoneMagic = (char)0x84;
+const int kDeviceGlobalRedZoneMagic = (char)0x85;
 
 const int kUsmDeviceDeallocatedMagic = (char)0x91;
 const int kUsmHostDeallocatedMagic = (char)0x92;
@@ -364,6 +365,10 @@ void __asan_report_access_error(uptr addr, int32_t as, size_t size,
     break;
   case kSharedLocalRedzoneMagic:
     memory_type = DeviceSanitizerMemoryType::LOCAL;
+    error_type = DeviceSanitizerErrorType::OUT_OF_BOUND;
+    break;
+  case kDeviceGlobalRedZoneMagic:
+    memory_type = DeviceSanitizerMemoryType::DEVICE_GLOBAL;
     error_type = DeviceSanitizerErrorType::OUT_OF_BOUND;
     break;
   default:

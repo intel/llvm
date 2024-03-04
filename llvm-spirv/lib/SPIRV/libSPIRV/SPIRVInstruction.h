@@ -128,7 +128,6 @@ public:
   SPIRVInstruction *getPrevious() const { return BB->getPrevious(this); }
   SPIRVInstruction *getNext() const { return BB->getNext(this); }
   virtual std::vector<SPIRVValue *> getOperands();
-  std::vector<SPIRVType *> getOperandTypes();
   static std::vector<SPIRVType *>
   getOperandTypes(const std::vector<SPIRVValue *> &Ops);
 
@@ -226,7 +225,8 @@ public:
   virtual void init() {}
   virtual void initImpl(Op OC, bool HasId = true, SPIRVWord WC = 0,
                         bool VariWC = false, unsigned Lit1 = ~0U,
-                        unsigned Lit2 = ~0U, unsigned Lit3 = ~0U) {
+                        unsigned Lit2 = ~0U, unsigned Lit3 = ~0U,
+                        unsigned Lit4 = ~0U) {
     OpCode = OC;
     if (!HasId) {
       setHasNoId();
@@ -238,6 +238,7 @@ public:
     addLit(Lit1);
     addLit(Lit2);
     addLit(Lit3);
+    addLit(Lit4);
   }
   bool isOperandLiteral(unsigned I) const override { return Lit.count(I); }
   void addLit(unsigned L) {
@@ -364,14 +365,16 @@ protected:
 
 template <typename BT = SPIRVInstTemplateBase, Op OC = OpNop, bool HasId = true,
           SPIRVWord WC = 0, bool HasVariableWC = false, unsigned Literal1 = ~0U,
-          unsigned Literal2 = ~0U, unsigned Literal3 = ~0U>
+          unsigned Literal2 = ~0U, unsigned Literal3 = ~0U,
+          unsigned Literal4 = ~0U>
 class SPIRVInstTemplate : public BT {
 public:
   typedef BT BaseTy;
   SPIRVInstTemplate() { init(); }
   ~SPIRVInstTemplate() override {}
   void init() override {
-    this->initImpl(OC, HasId, WC, HasVariableWC, Literal1, Literal2, Literal3);
+    this->initImpl(OC, HasId, WC, HasVariableWC, Literal1, Literal2, Literal3,
+                   Literal4);
   }
 };
 
@@ -3852,6 +3855,86 @@ protected:
 };
 #define _SPIRV_OP(x) typedef SPIRVReadClockKHRInstBase<Op##x> SPIRV##x;
 _SPIRV_OP(ReadClockKHR)
+#undef _SPIRV_OP
+
+class SPIRVTaskSequenceINTELInstBase : public SPIRVInstTemplateBase {
+public:
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_task_sequence;
+  }
+};
+
+class SPIRVTaskSequenceINTELInst : public SPIRVTaskSequenceINTELInstBase {
+public:
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(internal::CapabilityTaskSequenceINTEL);
+  }
+};
+
+class SPIRVTaskSequenceCreateINTELInst : public SPIRVTaskSequenceINTELInst {
+protected:
+  void validate() const override {
+    SPIRVInstruction::validate();
+    std::string InstName = "TaskSequenceCreateINTEL";
+    SPIRVErrorLog &SPVErrLog = this->getModule()->getErrorLog();
+
+    SPIRVType *ResTy = this->getType();
+    SPVErrLog.checkError(
+        ResTy->isTypeTaskSequenceINTEL(), SPIRVEC_InvalidInstruction,
+        InstName + "\nResult must be TaskSequenceINTEL type\n");
+
+    SPIRVValue *Func =
+        const_cast<SPIRVTaskSequenceCreateINTELInst *>(this)->getOperand(0);
+    SPVErrLog.checkError(
+        Func->getOpCode() == OpFunction, SPIRVEC_InvalidInstruction,
+        InstName + "\nFirst argument is expected to be a function.\n");
+
+    SPIRVConstant *PipelinedConst = static_cast<SPIRVConstant *>(
+        const_cast<SPIRVTaskSequenceCreateINTELInst *>(this)->getOperand(1));
+    const int Pipelined = PipelinedConst->getZExtIntValue();
+    SPVErrLog.checkError(Pipelined >= -1, SPIRVEC_InvalidInstruction,
+                         InstName + "\nPipeline must be a 32 bit integer with "
+                                    "the value bigger or equal to -1.\n");
+
+    const int ClusterMode =
+        static_cast<SPIRVConstant *>(
+            const_cast<SPIRVTaskSequenceCreateINTELInst *>(this)->getOperand(2))
+            ->getZExtIntValue();
+    SPVErrLog.checkError(
+        ClusterMode >= -1 && ClusterMode <= 1, SPIRVEC_InvalidInstruction,
+        InstName + "\nClusterMode valid values are -1, 0, 1.\n");
+
+    const uint32_t GetCapacity =
+        static_cast<SPIRVConstant *>(
+            const_cast<SPIRVTaskSequenceCreateINTELInst *>(this)->getOperand(3))
+            ->getZExtIntValue();
+    SPVErrLog.checkError(
+        GetCapacity, SPIRVEC_InvalidInstruction,
+        InstName + "\nGetCapacity must be unsigned 32 bit integer.\n");
+
+    const uint32_t AsyncCapacity =
+        static_cast<SPIRVConstant *>(
+            const_cast<SPIRVTaskSequenceCreateINTELInst *>(this)->getOperand(4))
+            ->getZExtIntValue();
+    SPVErrLog.checkError(
+        AsyncCapacity, SPIRVEC_InvalidInstruction,
+        InstName + "\nAsyncCapacity must be unsigned 32 bit integer.\n");
+  }
+};
+
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVTaskSequenceINTELInst,                        \
+                            internal::Op##x##INTEL, __VA_ARGS__>               \
+      SPIRV##x##INTEL;
+_SPIRV_OP(TaskSequenceAsync, false, 2, true)
+_SPIRV_OP(TaskSequenceGet, true, 4, false)
+_SPIRV_OP(TaskSequenceRelease, false, 2, false)
+#undef _SPIRV_OP
+#define _SPIRV_OP(x, ...)                                                      \
+  typedef SPIRVInstTemplate<SPIRVTaskSequenceCreateINTELInst,                  \
+                            internal::Op##x##INTEL, __VA_ARGS__>               \
+      SPIRV##x##INTEL;
+_SPIRV_OP(TaskSequenceCreate, true, 8, false, 1, 2, 3, 4)
 #undef _SPIRV_OP
 
 } // namespace SPIRV

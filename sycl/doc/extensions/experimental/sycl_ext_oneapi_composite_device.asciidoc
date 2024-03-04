@@ -1,0 +1,288 @@
+= sycl_ext_oneapi_composite_device
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023-2024 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 8 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Backend support status
+
+The APIs defined in this extension are only useful when using the Level Zero
+backend, and they are only useful when the Level Zero environment variable
+`ZE_FLAT_DEVICE_HIERARCHY=COMBINED` is set.  The APIs may be called even when
+using other backends, but they will return an empty list of composite devices.
+
+
+== Overview
+
+Some Intel GPU architectures are structured with multiple tiles on a single
+card.  Currently, this applies only to the Intel(R) Data Center GPU Max Series
+(aka PVC).  By default, SYCL exposes each of these tiles as a separate root
+device, so each tile corresponds to a separate `device` object that is returned
+from `device::get_devices`.  Applications generally perform better when each
+tile is treated as a separate device, but some advanced use cases can benefit
+by treating all tiles on a card as a single "composite" device.  This extension
+provides APIs that enable these advanced use cases.
+
+A composite device has the same semantics as any other SYCL device, though the
+performance characteristics might be different.  The application may submit a
+kernel to a composite device, and the implementation automatically schedules
+work-items to each of the underlying tiles.  Memory allocated on the composite
+device is accessible to any of these work-items, regardless of which underlying
+tile it runs on.
+
+Applications that use this extension can access the same hardware through
+different `device` objects.  For example, it is possible to get one `device`
+object that represents a card and another `device` object that represents a
+tile from that card.  As noted previously, a device representing a card is
+known as a "composite" device.  A device representing a tile is known as a
+"component" of that composite device.  Since the tile-level devices are
+returned from `device::get_devices`, they are also considered "root" devices,
+which is a term defined in the core SYCL specification.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_COMPOSITE_DEVICE` to one of the values defined in the
+table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Enumerating composite devices
+
+This extension adds two new functions for enumerating the available composite
+devices.  One is a free function and the other is a new member function of the
+`platform` class:
+
+```
+namespace sycl {
+namespace ext::oneapi::experimental {
+
+std::vector<device> get_composite_devices();
+
+} // namespace ext::oneapi::experimental
+
+class platform {
+  std::vector<device> ext_oneapi_get_composite_devices();
+};
+
+} // namespace sycl
+```
+
+The free function `get_composite_devices` returns all of the composite devices
+across all platforms.  The member function
+`platform::ext_oneapi_get_composite_devices` returns the composite devices
+within the given platform.
+
+The execution environment for a SYCL application has a fixed number of
+composite devices which does not vary as the application executes.  As a
+result, each call to these functions returns the same set of `device` objects,
+and the order of those objects does not vary between calls.
+
+=== New device information descriptors
+
+This extension adds two new device information descriptors:
+
+```
+namespace sycl::ext::oneapi::experimental::info::device {
+
+struct component_devices;
+struct composite_device;
+
+} // namespace sycl::ext::oneapi::experimental::info::device
+```
+
+[width="100%",%header,cols="37%,19%,44%"]
+|===
+|Device descriptor
+|Return type
+|Description
+
+|`component_devices`
+|`std::vector<device>`
+|Returns the set of component devices that are contained by a composite device.
+ If this device is not a composite device, an empty vector is returned.
+
+|`composite_device`
+|`device`
+|This query may only be applied to a device that has
+ `aspect::ext_oneapi_is_component`.  Returns the composite device which
+ contains this component device.  Since the set of composite devices is fixed,
+ the `device` object returned from this query is a copy of one of the `device`
+ objects returned by `get_composite_devices`.
+
+If this device does not have `aspect::ext_oneapi_is_component`, the
+`device::get_info` function throws a synchronous `exception` with the
+`errc::invalid` error code.
+|===
+
+=== New device aspects
+
+This extension adds two new device aspects:
+
+```
+namespace sycl {
+
+enum class aspect : /*unspecified*/ {
+  ext_oneapi_is_composite,
+  ext_oneapi_is_component
+};
+
+} // namespace sycl
+```
+
+[width="100%",%header,cols="50%,50%"]
+|===
+|Aspect
+|Description
+
+|`ext_oneapi_is_composite`
+|Indicates that the device is a composite device.  Any device with this aspect
+ will have at least two constituent component devices.
+
+|`ext_oneapi_is_component`
+|Indicates that the device is a component device of some other composite
+ device.  This applies only to a root device that is a direct component of
+ some composite device.  A sub-device will not have this aspect even if its
+ parent is a component device.
+|===
+
+=== Impact on "descendent device"
+
+This extension augments the definition of the term "descendent device" from the
+core SYCL specification as follows.  Given some composite device _C_ and some
+component of that composite device _R_, device _R_ is a descendent device of
+_C_ and all descendent devices of _R_ are also descendent devices of _C_.
+
+This definition means that a SYCL context that contains a composite device is
+compatible with any of its component devices, even if those component devices
+are not contained by the context.  See the core SYCL specification for details.
+
+=== Interaction with the default context
+
+If the implementation supports the
+link:../supported/sycl_ext_oneapi_default_context.asciidoc[
+sycl_ext_oneapi_default_context] extension, then each platform has the notion
+of a default context.  This default context contains only the platform's root
+devices, which are those returned by `platform::get_devices`.  Any composite
+devices for the platform are not considered root devices, and thus the default
+context does not include these composite devices.  If an application wants a
+context that contains the composite devices, then it must explicitly create
+such a context.
+
+
+== Impact to the ONEAPI_DEVICE_SELECTOR
+
+The `ONEAPI_DEVICE_SELECTOR` is an environment variable that is specific to the
+{dpcpp} implementation.  Therefore, this section that describes the interaction
+between this extension and that environment variable is non-normative and does
+not apply to other SYCL implementations that may support this extension.
+
+The `ONEAPI_DEVICE_SELECTOR` environment variable determines the list of root
+devices that are returned from `device::get_devices`: _R0_, _R1_, _R2_, etc.
+The devices returned from `get_composite_devices` are computed from this list
+by iterating over the elements _Ri_ in order:
+
+* Start with an empty list of composite devices.
+* If device _Ri_ is a component of some composite device _C_ and if all other
+  components of _C_ are also in the list of root devices returned from
+  `device::get_devices`, then _C_ is appended to the list of composite devices
+  unless _C_ is already in that list.
+
+This algorithm ensures that a composite device is made visible to the
+application only if all of its components are also visible.  This is important
+for two reasons.  The first reason is philosophical.  We do not want to expose
+a composite device unless it has at least two component devices.  This is
+similar to our decision in the core SYCL spec to disallow partitioning into
+sub-devices which results in only a single sub-device.  We don't want to expose
+partitioning when the parent and child represent exactly the same hardware.
+The second reason is practical.  The {dpcpp} implementation will associate
+each composite device with a single Level Zero native device handle, which
+represents the entire card.  There is no way to get a Level Zero handle that
+represents a subset of the tiles.  Therefore, we do not expose a composite
+device unless it represents all of the tiles on a card.
+
+The algorithm also imposes a sensible order on the composite devices, which
+corresponds to the order of the root devices.  Thus, users who set the order of
+root devices via `ONEAPI_DEVICE_SELECTOR` will also get a corresponding order
+for the composite devices.
+
+
+== Issues
+
+* What guarantees do we make (if any) about the accessibility of USM allocated
+  on a composite device?  Do we guarantee that this memory is also accessible
+  on the component devices?  Is the answer different for "device" USM vs.
+  "shared" USM?  One option is to say that the application needs to
+  specifically enable P2P access between a composite device and its component
+  devices in order to guarantee accessibility.  There is a related question in
+  the core SYCL spec about accessibility of USM w.r.t. sub-devices, which we
+  have not yet resolved.
+
+* Should the `ONEAPI_DEVICE_SELECTOR` be extended to allow selection of
+  composite devices?  For example, syntax like
+  `ONEAPI_DEVICE_SELECTOR=level_zero:C1` could mean "select the second Level
+  Zero card device and expose it as a root device from
+  ``device::get_devices``".  Our current thinking is that we should not allow
+  syntax like this.

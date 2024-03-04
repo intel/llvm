@@ -14,12 +14,12 @@
 //
 //===---------------------------------------------------------------------===//
 
-#include "SYCLOffloadWrapper.h"
 #include "clang/Basic/Version.h"
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/CodeGen/CommandFlags.h"
 #include "llvm/Frontend/Offloading/OffloadWrapper.h"
+#include "llvm/Frontend/Offloading/SYCLOffloadWrapper.h"
 #include "llvm/Frontend/Offloading/Utility.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DiagnosticPrinter.h"
@@ -244,6 +244,70 @@ Expected<std::string> findProgram(StringRef Name, ArrayRef<StringRef> Paths) {
   return *Path;
 }
 
+/// Returns the hashed value for a constant string.
+std::string getHash(StringRef Str) {
+  llvm::MD5 Hasher;
+  llvm::MD5::MD5Result Hash;
+  Hasher.update(Str);
+  Hasher.final(Hash);
+  return llvm::utohexstr(Hash.low(), /*LowerCase=*/true);
+}
+
+/// Renames offloading entry sections in a relocatable link so they do not
+/// conflict with a later link job.
+Error relocateOffloadSection(const ArgList &Args, StringRef Output) {
+  llvm::Triple Triple(
+      Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
+  if (Triple.isOSWindows())
+    return createStringError(
+        inconvertibleErrorCode(),
+        "Relocatable linking is not supported on COFF targets");
+
+  Expected<std::string> ObjcopyPath =
+      findProgram("llvm-objcopy", {getMainExecutable("llvm-objcopy")});
+  if (!ObjcopyPath)
+    return ObjcopyPath.takeError();
+
+  // Use the linker output file to get a unique hash. This creates a unique
+  // identifier to rename the sections to that is deterministic to the contents.
+  auto BufferOrErr = DryRun ? MemoryBuffer::getMemBuffer("")
+                            : MemoryBuffer::getFileOrSTDIN(Output);
+  if (!BufferOrErr)
+    return createStringError(inconvertibleErrorCode(), "Failed to open %s",
+                             Output.str().c_str());
+  std::string Suffix = "_" + getHash((*BufferOrErr)->getBuffer());
+
+  SmallVector<StringRef> ObjcopyArgs = {
+      *ObjcopyPath,
+      Output,
+  };
+
+  // Remove the old .llvm.offloading section to prevent further linking.
+  ObjcopyArgs.emplace_back("--remove-section");
+  ObjcopyArgs.emplace_back(".llvm.offloading");
+  for (StringRef Prefix : {"omp", "cuda", "hip"}) {
+    auto Section = (Prefix + "_offloading_entries").str();
+    // Rename the offloading entires to make them private to this link unit.
+    ObjcopyArgs.emplace_back("--rename-section");
+    ObjcopyArgs.emplace_back(
+        Args.MakeArgString(Section + "=" + Section + Suffix));
+
+    // Rename the __start_ / __stop_ symbols appropriately to iterate over the
+    // newly renamed section containing the offloading entries.
+    ObjcopyArgs.emplace_back("--redefine-sym");
+    ObjcopyArgs.emplace_back(Args.MakeArgString("__start_" + Section + "=" +
+                                                "__start_" + Section + Suffix));
+    ObjcopyArgs.emplace_back("--redefine-sym");
+    ObjcopyArgs.emplace_back(Args.MakeArgString("__stop_" + Section + "=" +
+                                                "__stop_" + Section + Suffix));
+  }
+
+  if (Error Err = executeCommands(*ObjcopyPath, ObjcopyArgs))
+    return Err;
+
+  return Error::success();
+}
+
 /// Runs the wrapped linker job with the newly created input.
 Error runLinker(ArrayRef<StringRef> Files, const ArgList &Args) {
   llvm::TimeTraceScope TimeScope("Execute host linker");
@@ -268,6 +332,10 @@ Error runLinker(ArrayRef<StringRef> Files, const ArgList &Args) {
     LinkerArgs.push_back(Arg);
   if (Error Err = executeCommands(LinkerPath, LinkerArgs))
     return Err;
+
+  if (Args.hasArg(OPT_relocatable))
+    return relocateOffloadSection(Args, ExecutableName);
+
   return Error::success();
 }
 
@@ -673,8 +741,8 @@ readPropertyRegistryFromFile(StringRef File) {
 // a_n.bin|a_n.prop|a_n.sym
 //
 // .bin extension might be a bc, spv or other native extension.
-Expected<SmallVector<SYCLImage>> readSYCLImagesFromTable(StringRef TableFile,
-                                                         const ArgList &Args) {
+Expected<SmallVector<offloading::SYCLImage>>
+readSYCLImagesFromTable(StringRef TableFile, const ArgList &Args) {
   auto TableOrErr = util::SimpleTable::read(TableFile);
   if (!TableOrErr)
     return TableOrErr.takeError();
@@ -688,7 +756,7 @@ Expected<SmallVector<SYCLImage>> readSYCLImagesFromTable(StringRef TableFile,
         inconvertibleErrorCode(),
         "expected columns in the table: Code, Properties and Symbols");
 
-  SmallVector<SYCLImage> Images;
+  SmallVector<offloading::SYCLImage> Images;
   for (const util::SimpleTable::Row &row : Table->rows()) {
     auto ImageOrErr = readBinaryFile(row.getCell("Code"));
     if (!ImageOrErr)
@@ -703,7 +771,7 @@ Expected<SmallVector<SYCLImage>> readSYCLImagesFromTable(StringRef TableFile,
     if (!SymbolsOrErr)
       return SymbolsOrErr.takeError();
 
-    SYCLImage Image;
+    offloading::SYCLImage Image;
     Image.Image = std::move(*ImageOrErr);
     Image.PropertyRegistry = std::move(**PropertiesOrErr);
     Image.Entries = std::move(*SymbolsOrErr);
@@ -743,7 +811,7 @@ Expected<StringRef> wrapSYCLBinariesFromFile(StringRef InputFile,
         inconvertibleErrorCode(),
         "can't wrap SYCL image. -triple argument is missed.");
 
-  for (SYCLImage &Image : Images)
+  for (offloading::SYCLImage &Image : Images)
     Image.Target = Target;
 
   LLVMContext C;
@@ -754,10 +822,10 @@ Expected<StringRef> wrapSYCLBinariesFromFile(StringRef InputFile,
   StringRef CompileOptions =
       Args.getLastArgValue(OPT_sycl_backend_compile_options_EQ);
   StringRef LinkOptions = Args.getLastArgValue(OPT_sycl_target_link_options_EQ);
-  SYCLWrappingOptions WrappingOptions;
+  offloading::SYCLWrappingOptions WrappingOptions;
   WrappingOptions.CompileOptions = CompileOptions;
   WrappingOptions.LinkOptions = LinkOptions;
-  if (Error E = wrapSYCLBinaries(M, Images, WrappingOptions))
+  if (Error E = offloading::wrapSYCLBinaries(M, Images, WrappingOptions))
     return E;
 
   if (Args.hasArg(OPT_print_wrapped_module))
@@ -1503,7 +1571,8 @@ wrapDeviceImages(ArrayRef<std::unique_ptr<MemoryBuffer>> Buffers,
   case OFK_OpenMP:
     if (Error Err = offloading::wrapOpenMPBinaries(
             M, BuffersToWrap,
-            offloading::getOffloadEntryArray(M, "omp_offloading_entries")))
+            offloading::getOffloadEntryArray(M, "omp_offloading_entries"),
+            /*Suffix=*/"", /*Relocatable=*/Args.hasArg(OPT_relocatable)))
       return std::move(Err);
     break;
   case OFK_Cuda:
@@ -1727,6 +1796,7 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
       // separate path inside 'linkDevice' call seen above.
       // This will eventually be refactored to use the 'common' wrapping logic
       // that is used for other offload kinds.
+      std::scoped_lock Guard(ImageMtx);
       WrappedOutput.push_back(*SYCLOutputOrErr);
     }
 
@@ -1978,12 +2048,6 @@ Expected<bool> getSymbols(StringRef Image, OffloadKind Kind, bool IsArchive,
 Expected<SmallVector<SmallVector<OffloadFile>>>
 getDeviceInput(const ArgList &Args) {
   llvm::TimeTraceScope TimeScope("ExtractDeviceCode");
-
-  // If the user is requesting a reloctable link we ignore the device code. The
-  // actual linker will merge the embedded device code sections so they can be
-  // linked when the executable is finally created.
-  if (Args.hasArg(OPT_relocatable))
-    return SmallVector<SmallVector<OffloadFile>>{};
 
   StringRef Root = Args.getLastArgValue(OPT_sysroot_EQ);
   SmallVector<StringRef> LibraryPaths;
