@@ -42,6 +42,8 @@ struct AllocInfo {
 
     StackTrace AllocStack;
     StackTrace ReleaseStack;
+
+    void Print();
 };
 
 using AllocationMap = std::map<uptr, std::shared_ptr<AllocInfo>>;

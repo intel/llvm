@@ -11,7 +11,15 @@
  */
 
 #include "asan_allocator.hpp"
+#include "ur_sanitizer_layer.hpp"
 
 namespace ur_sanitizer_layer {
+
+void AllocInfo::Print() {
+    context.logger.info(
+        "AllocInfo(AllocBegin={},  User={}-{}, NeededSize={}, Type={})",
+        (void *)AllocBegin, (void *)UserBegin, (void *)UserEnd, AllocSize,
+        ToString(Type));
+}
 
 } // namespace ur_sanitizer_layer
