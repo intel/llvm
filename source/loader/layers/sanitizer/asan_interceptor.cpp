@@ -181,6 +181,8 @@ ur_result_t SanitizerInterceptor::allocateMemory(
                                                     GetCurrentBacktrace(),
                                                     {}});
 
+    AI->Print();
+
     // For updating shadow memory
     if (Device) { // Device/Shared USM
         ContextInfo->insertAllocInfo({Device}, AI);
@@ -193,8 +195,6 @@ ur_result_t SanitizerInterceptor::allocateMemory(
         std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
         m_AllocationMap.emplace(AI->AllocBegin, std::move(AI));
     }
-
-    AI->Print();
 
     return UR_RESULT_SUCCESS;
 }
