@@ -113,9 +113,7 @@ struct urUpdatableCommandBufferExpExecutionTest
         }
 
         // Currently level zero driver doesn't support updating execution range.
-        // Also disable immediate command lists because there is synchronization issue causing test failures.
         if (backend == UR_PLATFORM_BACKEND_LEVEL_ZERO) {
-            setenv("UR_L0_USE_IMMEDIATE_COMMANDLISTS", "0", 0);
             updatable_execution_range_support = false;
         }
 
