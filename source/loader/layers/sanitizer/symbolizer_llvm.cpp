@@ -11,11 +11,16 @@
  */
 
 #include "symbolizer_llvm.hpp"
+#include "ur_sanitizer_layer.hpp"
 
 #include <sstream>
 #include <string>
 
 namespace ur_sanitizer_layer {
+
+std::vector<std::unique_ptr<SymbolizerTool>> SymbolizerTools;
+
+namespace {
 
 bool ExtractSourceInfo(const std::string &output, SourceInfo &SI) {
     auto p1 = output.find('\n');
@@ -36,13 +41,26 @@ bool ExtractSourceInfo(const std::string &output, SourceInfo &SI) {
     return true;
 }
 
+} // namespace
+
 bool LLVMSymbolizer::SymbolizePC(const BacktraceInfo &BI, SourceInfo &SI) {
     std::stringstream ss;
     ss << "llvm-symbolizer --obj=" << BI.module << " " << BI.offset;
     auto result = RunCommand(ss.str().c_str());
-    // context.logger.debug("llvm-symbolizer: {}", result);
     ExtractSourceInfo(result, SI);
     return true;
+}
+
+void InitSymbolizers() {
+    auto result = RunCommand("llvm-symbolizer -v");
+    if (result.size()) {
+        SymbolizerTools.emplace_back(std::make_unique<LLVMSymbolizer>());
+    }
+
+    if (SymbolizerTools.empty()) {
+        context.logger.always("<SANITIZER>[WARNING]: llvm-symbolizer is needed "
+                              "for UR_LAYER_ASAN");
+    }
 }
 
 } // namespace ur_sanitizer_layer
