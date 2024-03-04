@@ -11,6 +11,7 @@
  */
 
 #include "asan_interceptor.hpp"
+#include "symbolizer_llvm.hpp"
 #include "ur_sanitizer_layer.hpp"
 
 namespace ur_sanitizer_layer {
@@ -482,6 +483,8 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
         result = ur_sanitizer_layer::urGetUSMProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->USM);
     }
+
+    InitSymbolizers();
 
     return result;
 }

@@ -15,7 +15,6 @@
 #include "asan_allocator.hpp"
 
 #include <atomic>
-#include <memory>
 #include <queue>
 #include <unordered_map>
 #include <vector>

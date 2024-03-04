@@ -34,7 +34,6 @@ void StackTrace::Print() const {
         context.logger.always("  failed to acquire backtrace");
     }
 
-    LLVMSymbolizer symbolizer;
     unsigned index = 0;
 
     for (auto &BI : stack) {
@@ -46,7 +45,11 @@ void StackTrace::Print() const {
         }
 
         SourceInfo SI;
-        symbolizer.SymbolizePC(BI, SI);
+        for (auto &symbolizer : SymbolizerTools) {
+            if (symbolizer->SymbolizePC(BI, SI)) {
+                break;
+            }
+        }
 
         if (!SI.file.empty()) {
             context.logger.always("  #{} {} in {} {}:{}:{}", index,
