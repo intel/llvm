@@ -115,8 +115,6 @@ if(UR_ENABLE_SANITIZER)
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_report.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_report.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_shadow_setup.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_shadow_setup.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_shadow_setup.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_shadow_setup.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/common.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/device_sanitizer_report.hpp
