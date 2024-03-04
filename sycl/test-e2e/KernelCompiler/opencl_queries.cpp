@@ -43,5 +43,11 @@ int main() {
   // no supported devices support EMBEDDED_PROFILE at this time.
   assert(d.ext_oneapi_cl_profile().find("FULL_PROFILE") == 0);
 
+  assert(syclex::opencl_c_1_0.major == 1 && syclex::opencl_c_1_0.minor == 0 && syclex::opencl_c_1_0.patch == 0);
+  assert(syclex::opencl_c_1_1.major == 1 && syclex::opencl_c_1_1.minor == 1 && syclex::opencl_c_1_1.patch == 0);
+  assert(syclex::opencl_c_1_2.major == 1 && syclex::opencl_c_1_2.minor == 2 && syclex::opencl_c_1_2.patch == 0);
+  assert(syclex::opencl_c_2_0.major == 2 && syclex::opencl_c_2_0.minor == 0 && syclex::opencl_c_2_0.patch == 0);
+  assert(syclex::opencl_c_3_0.major == 3 && syclex::opencl_c_3_0.minor == 0 && syclex::opencl_c_3_0.patch == 0);
+
   return 0;
 }
