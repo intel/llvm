@@ -2,7 +2,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include "sycl/info/info_desc.hpp"
 #include <numeric>
 #include <string_view>
 #include <type_traits>
@@ -98,8 +97,8 @@ int main() {
   } catch (const sycl::exception &e) {
     using std::string_view_literals::operator""sv;
     auto Msg = "Exceeded the number of registers available on the hardware."sv;
-    int Errc = PI_ERROR_OUT_OF_RESOURCES;
-    if (e.get_cl_code() == Errc &&
+    auto Errc = sycl::make_error_code(sycl::errc::nd_range);
+    if (e.code() == Errc &&
         std::string_view{e.what()}.find(Msg) != std::string_view::npos) {
       return 0;
     }
