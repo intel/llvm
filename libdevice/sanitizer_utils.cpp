@@ -84,7 +84,7 @@ static const __SYCL_CONSTANT__ char __local_shadow_out_of_bound[] =
 static const __SYCL_CONSTANT__ char __unsupport_device_type[] =
     "ERROR: Unsupport device type: %d\n";
 
-static const __SYCL_CONSTANT__ char __asan_shadow_value[] =
+static const __SYCL_CONSTANT__ char __asan_print_shadow_value[] =
     "%p(%d) -> %p: %02X\n";
 
 #define ASAN_REPORT_NONE 0
@@ -196,7 +196,7 @@ inline uptr MemToShadow(uptr addr, int32_t as) {
   }
 
   if (__AsanDebug) {
-    __spirv_ocl_printf(__asan_shadow_value, addr, as, shadow_ptr,
+    __spirv_ocl_printf(__asan_print_shadow_value, addr, as, shadow_ptr,
                        shadow_ptr ? *(u8 *)shadow_ptr : 0xff);
   }
 
