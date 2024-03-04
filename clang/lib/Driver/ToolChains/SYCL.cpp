@@ -403,8 +403,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
   // instead of the original object.
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
     bool IsRDC = !shouldDoPerObjectFileLinking(C);
-    const bool IsSYCLNativeCPU = isSYCLNativeCPU(
-        this->getToolChain(), *C.getSingleOffloadToolChain<Action::OFK_Host>());
+    const bool IsSYCLNativeCPU = isSYCLNativeCPU(this->getToolChain());
     auto isNoRDCDeviceCodeLink = [&](const InputInfo &II) {
       if (IsRDC)
         return false;
