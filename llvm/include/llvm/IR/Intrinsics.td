@@ -2717,6 +2717,17 @@ def int_experimental_convergence_loop
   : DefaultAttrsIntrinsic<[llvm_token_ty], [], [IntrNoMem, IntrConvergent]>;
 
 //===----------------------------------------------------------------------===//
+// SYCL intrinsics
+//===----------------------------------------------------------------------===//
+
+// Codegen for this intrinsic is handled by sycl-post-link.
+def int_sycl_alloca
+  : DefaultAttrsIntrinsic<[llvm_anyptr_ty],
+                          [llvm_anyptr_ty, llvm_anyptr_ty,
+                           llvm_anyptr_ty, llvm_any_ty, llvm_i64_ty],
+                          [IntrReadMem, ImmArg<ArgIndex<4>>]>;
+
+//===----------------------------------------------------------------------===//
 // Target-specific intrinsics
 //===----------------------------------------------------------------------===//
 
