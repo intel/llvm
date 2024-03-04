@@ -197,3 +197,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
   CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urQueueGetSuggestedLocalWorkSize(
+    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    size_t *pSuggestedLocalWorkSize) {
+#if !defined(cl_khr_suggested_local_work_size)
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+#else  // #if !defined(cl_khr_suggested_local_work_size)
+  CL_RETURN_ON_FAILURE(clGetKernelSuggestedLocalWorkSizeKHR(
+      cl_adapter::cast<cl_command_queue>(hQueue),
+      cl_adapter::cast<cl_kernel>(hKernel), workDim, pGlobalWorkOffset,
+      pGlobalWorkSize, pSuggestedLocalWorkSize));
+
+  return UR_RESULT_SUCCESS;
+#endif // #if !defined(cl_khr_suggested_local_work_size)
+}

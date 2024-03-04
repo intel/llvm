@@ -719,7 +719,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnQueueGetSuggestedLocalWorkSize_t)(
     uint32_t,
     const size_t *,
     const size_t *,
-    const size_t *);
+    size_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Queue functions pointers

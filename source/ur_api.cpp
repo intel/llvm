@@ -3719,6 +3719,7 @@ ur_result_t UR_APICALL urQueueFlush(
 ///         + `NULL == pGlobalWorkSize`
 ///         + `NULL == pSuggestedLocalWorkSize`
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 ur_result_t UR_APICALL urQueueGetSuggestedLocalWorkSize(
     ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel.
@@ -3732,7 +3733,7 @@ ur_result_t UR_APICALL urQueueGetSuggestedLocalWorkSize(
         pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify
     ///< the number of global work-items in workDim that will execute the
     ///< kernel function
-    const size_t *
+    size_t *
         pSuggestedLocalWorkSize ///< [out] pointer to an array of workDim unsigned values that specify
     ///< the number of local work-items forming a work-group that will
     ///< execute the kernel function.

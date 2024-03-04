@@ -1824,3 +1824,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urQueueGetSuggestedLocalWorkSize(
+    ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel, uint32_t workDim,
+    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
+    size_t *pSuggestedLocalWorkSize) {
+  size_t MaxThreadsPerBlock[3] = {};
+  size_t ThreadsPerBlock[3] = {32u, 1u, 1u};
+
+  MaxThreadsPerBlock[0] = hQueue->Device->getMaxBlockDimX();
+  MaxThreadsPerBlock[1] = hQueue->Device->getMaxBlockDimY();
+  MaxThreadsPerBlock[2] = hQueue->Device->getMaxBlockDimZ();
+  simpleGuessLocalWorkSize(ThreadsPerBlock, pGlobalWorkSize, MaxThreadsPerBlock,
+                           hKernel);
+  std::copy(ThreadsPerBlock, ThreadsPerBlock + workDim,
+            pSuggestedLocalWorkSize);
+  return UR_RESULT_SUCCESS;
+}

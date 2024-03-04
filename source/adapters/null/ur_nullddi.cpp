@@ -2821,7 +2821,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetSuggestedLocalWorkSize(
         pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify
     ///< the number of global work-items in workDim that will execute the
     ///< kernel function
-    const size_t *
+    size_t *
         pSuggestedLocalWorkSize ///< [out] pointer to an array of workDim unsigned values that specify
     ///< the number of local work-items forming a work-group that will
     ///< execute the kernel function.
