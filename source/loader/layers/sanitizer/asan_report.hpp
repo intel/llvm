@@ -18,9 +18,9 @@
 
 namespace ur_sanitizer_layer {
 
-class DeviceSanitizerReport;
-class AllocInfo;
-class StackTrace;
+struct DeviceSanitizerReport;
+struct AllocInfo;
+struct StackTrace;
 
 void ReportBadFree(uptr Addr, const StackTrace &stack,
                    const std::shared_ptr<AllocInfo> &AllocInfo);
