@@ -51,7 +51,7 @@ class QuarantineCache {
 
   private:
     List m_List;
-    std::atomic_uintptr_t m_Size;
+    std::atomic_uintptr_t m_Size = 0;
 };
 
 class Quarantine {

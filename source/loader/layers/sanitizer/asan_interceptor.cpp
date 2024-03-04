@@ -103,7 +103,8 @@ SanitizerInterceptor::SanitizerInterceptor() {
         cl_MaxQuarantineSizeMB = std::stoul(Value);
     }
     if (cl_MaxQuarantineSizeMB) {
-        m_Quarantine = std::make_unique<Quarantine>(cl_MaxQuarantineSizeMB);
+        m_Quarantine =
+            std::make_unique<Quarantine>(cl_MaxQuarantineSizeMB * 1024);
     }
 }
 
@@ -194,7 +195,7 @@ ur_result_t SanitizerInterceptor::allocateMemory(
     }
 
     context.logger.info(
-        "AllocInfos(AllocBegin={},  User={}-{}, NeededSize={}, Type={})",
+        "AllocInfo(AllocBegin={},  User={}-{}, NeededSize={}, Type={})",
         (void *)AllocBegin, (void *)UserBegin, (void *)UserEnd, NeededSize,
         ToString(Type));
 
@@ -209,6 +210,7 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
     auto AllocInfoItOp = findAllocInfoByAddress(Addr);
 
     if (!AllocInfoItOp) {
+        // "Addr" might be a host pointer
         ReportBadFree(Addr, GetCurrentBacktrace(), nullptr);
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
@@ -224,6 +226,7 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
         if (AllocInfo->UserBegin == Addr) {
             ReportBadContext(Addr, GetCurrentBacktrace(), AllocInfo);
         } else {
+            // "Addr" might be a host pointer
             ReportBadFree(Addr, GetCurrentBacktrace(), nullptr);
         }
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
@@ -242,22 +245,31 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
     AllocInfo->IsReleased = true;
     AllocInfo->ReleaseStack = GetCurrentBacktrace();
 
-    auto Device = AllocInfo->Device;
+    if (AllocInfo->Type == AllocType::HOST_USM) {
+        ContextInfo->insertAllocInfo(ContextInfo->DeviceList, AllocInfo);
+    } else {
+        ContextInfo->insertAllocInfo({AllocInfo->Device}, AllocInfo);
+    }
 
-    if (m_Quarantine) {
-        auto ReleaseList = m_Quarantine->put(Device, AllocInfoIt);
+    // If quarantine is disabled, USM is freed immediately
+    if (!m_Quarantine) {
+        context.logger.debug("Free: {}", (void *)AllocInfo->AllocBegin);
+        std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
+        m_AllocationMap.erase(AllocInfoIt);
+        return context.urDdiTable.USM.pfnFree(Context,
+                                              (void *)(AllocInfo->AllocBegin));
+    }
+
+    auto ReleaseList = m_Quarantine->put(AllocInfo->Device, AllocInfoIt);
+    if (ReleaseList.size()) {
         std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
         for (auto &It : ReleaseList) {
+            context.logger.info("Quarantine Free: {}",
+                                (void *)It->second->AllocBegin);
             context.urDdiTable.USM.pfnFree(Context,
                                            (void *)(It->second->AllocBegin));
             m_AllocationMap.erase(It);
         }
-    }
-
-    if (AllocInfo->Type == AllocType::HOST_USM) {
-        ContextInfo->insertAllocInfo(ContextInfo->DeviceList, AllocInfo);
-    } else {
-        ContextInfo->insertAllocInfo({Device}, AllocInfo);
     }
 
     return UR_RESULT_SUCCESS;

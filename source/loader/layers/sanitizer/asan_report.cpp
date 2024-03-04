@@ -21,8 +21,8 @@ namespace ur_sanitizer_layer {
 
 void ReportBadFree(uptr Addr, const StackTrace &stack,
                    const std::shared_ptr<AllocInfo> &AI) {
-    context.logger.always("\n====ERROR: DeviceSanitizer: bad-free on {}",
-                          (void *)Addr);
+    context.logger.always(
+        "\n====ERROR: DeviceSanitizer: bad-free on address {}", (void *)Addr);
     stack.Print();
 
     if (!AI) { // maybe Addr is host allocated memory
@@ -44,8 +44,9 @@ void ReportBadFree(uptr Addr, const StackTrace &stack,
 
 void ReportBadContext(uptr Addr, const StackTrace &stack,
                       const std::shared_ptr<AllocInfo> &AI) {
-    context.logger.always("\n====ERROR: DeviceSanitizer: bad-context on {}",
-                          (void *)Addr);
+    context.logger.always(
+        "\n====ERROR: DeviceSanitizer: bad-context on address {}",
+        (void *)Addr);
     stack.Print();
 
     context.logger.always("{} is located inside of {} region [{}, {})",
@@ -64,8 +65,9 @@ void ReportBadContext(uptr Addr, const StackTrace &stack,
 
 void ReportDoubleFree(uptr Addr, const StackTrace &Stack,
                       const std::shared_ptr<AllocInfo> &AI) {
-    context.logger.always("\n====ERROR: DeviceSanitizer: double-free on {}",
-                          (void *)Addr);
+    context.logger.always(
+        "\n====ERROR: DeviceSanitizer: double-free on address {}",
+        (void *)Addr);
     Stack.Print();
 
     context.logger.always("{} is located inside of {} region [{}, {})",
@@ -111,7 +113,7 @@ void ReportUseAfterFree(const DeviceSanitizerReport &Report,
     // Try to demangle the kernel name
     KernelName = DemangleName(KernelName);
 
-    context.logger.always("\n====ERROR: DeviceSanitizer: {} on {}",
+    context.logger.always("\n====ERROR: DeviceSanitizer: {} on address {}",
                           ToString(Report.ErrorType), (void *)Report.Addr);
     context.logger.always(
         "{} of size {} at kernel <{}> LID({}, {}, {}) GID({}, "
