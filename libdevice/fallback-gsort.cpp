@@ -496,4 +496,52 @@ void __devicelib_default_work_group_private_sort_spread_descending_p1i8_u32_p3i8
   private_merge_sort_spread(first, n, scratch, std::greater<int8_t>{});
 }
 
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_close_ascending_p1i16_u32_p1i8(
+    int16_t *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_close(first, n, scratch, std::less<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_close_ascending_p1i16_u32_p3i8(
+    int16_t *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_close(first, n, scratch, std::less<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_close_descending_p1i16_u32_p1i8(
+    int16_t *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_close(first, n, scratch, std::greater<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_close_descending_p1i16_u32_p3i8(
+    int16_t *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_close(first, n, scratch, std::greater<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_spread_ascending_p1i16_u32_p1i8(
+    int16_t *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_spread(first, n, scratch, std::less<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_spread_ascending_p1i16_u32_p3i8(
+    int16_t *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_spread(first, n, scratch, std::less<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_spread_descending_p1i16_u32_p1i8(
+    int16_t *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_spread(first, n, scratch, std::greater<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_spread_descending_p1i16_u32_p3i8(
+    int16_t *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_spread(first, n, scratch, std::greater<int16_t>{});
+}
+
 #endif
