@@ -14,7 +14,7 @@
 //  sycl/include/sycl/detail/pi.h
 //===----------------------------------------------------------------------===//
 
-#include "SYCLOffloadWrapper.h"
+#include "llvm/Frontend/Offloading/SYCLOffloadWrapper.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
@@ -40,6 +40,7 @@
 #include <utility>
 
 using namespace llvm;
+using namespace llvm::offloading;
 using namespace llvm::util;
 
 namespace {
@@ -727,8 +728,9 @@ struct Wrapper {
 
 } // anonymous namespace
 
-Error wrapSYCLBinaries(llvm::Module &M, SmallVector<SYCLImage> &Images,
-                       SYCLWrappingOptions Options) {
+Error llvm::offloading::wrapSYCLBinaries(llvm::Module &M,
+                                         SmallVector<SYCLImage> &Images,
+                                         SYCLWrappingOptions Options) {
   Wrapper W(M, Options);
   GlobalVariable *Desc = W.createFatbinDesc(Images);
   if (!Desc)
