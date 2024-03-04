@@ -25,13 +25,16 @@ class StackTrace;
 void ReportBadFree(uptr Addr, const StackTrace &stack,
                    const std::shared_ptr<AllocInfo> &AllocInfo);
 
-void ReportBadFreeContext(uptr Addr, const StackTrace &stack,
-                          const std::shared_ptr<AllocInfo> &AllocInfos);
+void ReportBadContext(uptr Addr, const StackTrace &stack,
+                      const std::shared_ptr<AllocInfo> &AllocInfos);
 
 void ReportDoubleFree(uptr Addr, const StackTrace &Stack,
                       const std::shared_ptr<AllocInfo> &AllocInfo);
 
 void ReportGenericError(const DeviceSanitizerReport &Report,
+                        ur_kernel_handle_t Kernel);
+
+void ReportUseAfterFree(const DeviceSanitizerReport &Report,
                         ur_kernel_handle_t Kernel, ur_context_handle_t Context);
 
 } // namespace ur_sanitizer_layer

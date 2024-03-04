@@ -15,7 +15,7 @@
 
 namespace ur_sanitizer_layer {
 
-ur_context_handle_t getContext(ur_queue_handle_t Queue) {
+ur_context_handle_t GetContext(ur_queue_handle_t Queue) {
     ur_context_handle_t Context{};
     [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnGetInfo(
         Queue, UR_QUEUE_INFO_CONTEXT, sizeof(ur_context_handle_t), &Context,
@@ -24,7 +24,7 @@ ur_context_handle_t getContext(ur_queue_handle_t Queue) {
     return Context;
 }
 
-ur_device_handle_t getDevice(ur_queue_handle_t Queue) {
+ur_device_handle_t GetDevice(ur_queue_handle_t Queue) {
     ur_device_handle_t Device{};
     [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnGetInfo(
         Queue, UR_QUEUE_INFO_DEVICE, sizeof(ur_device_handle_t), &Device,
@@ -33,7 +33,7 @@ ur_device_handle_t getDevice(ur_queue_handle_t Queue) {
     return Device;
 }
 
-ur_program_handle_t getProgram(ur_kernel_handle_t Kernel) {
+ur_program_handle_t GetProgram(ur_kernel_handle_t Kernel) {
     ur_program_handle_t Program{};
     [[maybe_unused]] auto Result = context.urDdiTable.Kernel.pfnGetInfo(
         Kernel, UR_KERNEL_INFO_PROGRAM, sizeof(ur_program_handle_t), &Program,
@@ -42,7 +42,7 @@ ur_program_handle_t getProgram(ur_kernel_handle_t Kernel) {
     return Program;
 }
 
-size_t getLocalMemorySize(ur_device_handle_t Device) {
+size_t GetLocalMemorySize(ur_device_handle_t Device) {
     size_t LocalMemorySize{};
     [[maybe_unused]] auto Result = context.urDdiTable.Device.pfnGetInfo(
         Device, UR_DEVICE_INFO_LOCAL_MEM_SIZE, sizeof(LocalMemorySize),
@@ -51,7 +51,7 @@ size_t getLocalMemorySize(ur_device_handle_t Device) {
     return LocalMemorySize;
 }
 
-std::string getKernelName(ur_kernel_handle_t Kernel) {
+std::string GetKernelName(ur_kernel_handle_t Kernel) {
     size_t KernelNameSize = 0;
     [[maybe_unused]] auto Result = context.urDdiTable.Kernel.pfnGetInfo(
         Kernel, UR_KERNEL_INFO_FUNCTION_NAME, 0, nullptr, &KernelNameSize);
@@ -66,7 +66,7 @@ std::string getKernelName(ur_kernel_handle_t Kernel) {
     return std::string(KernelNameBuf.data(), KernelNameSize - 1);
 }
 
-ur_device_handle_t getUSMAllocDevice(ur_context_handle_t Context,
+ur_device_handle_t GetUSMAllocDevice(ur_context_handle_t Context,
                                      const void *MemPtr) {
     ur_device_handle_t Device{};
     // if urGetMemAllocInfo failed, return nullptr
@@ -76,7 +76,7 @@ ur_device_handle_t getUSMAllocDevice(ur_context_handle_t Context,
     return Device;
 }
 
-DeviceType getDeviceType(ur_device_handle_t Device) {
+DeviceType GetDeviceType(ur_device_handle_t Device) {
     ur_device_type_t DeviceType = UR_DEVICE_TYPE_DEFAULT;
     [[maybe_unused]] auto Result = context.urDdiTable.Device.pfnGetInfo(
         Device, UR_DEVICE_INFO_TYPE, sizeof(DeviceType), &DeviceType, nullptr);
@@ -93,7 +93,7 @@ DeviceType getDeviceType(ur_device_handle_t Device) {
     }
 }
 
-std::vector<ur_device_handle_t> getProgramDevices(ur_program_handle_t Program) {
+std::vector<ur_device_handle_t> GetProgramDevices(ur_program_handle_t Program) {
     size_t PropSize;
     [[maybe_unused]] ur_result_t Result = context.urDdiTable.Program.pfnGetInfo(
         Program, UR_PROGRAM_INFO_DEVICES, 0, nullptr, &PropSize);
