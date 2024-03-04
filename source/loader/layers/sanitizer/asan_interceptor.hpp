@@ -217,6 +217,7 @@ class SanitizerInterceptor {
         m_DeviceMap;
     ur_shared_mutex m_DeviceMapMutex;
 
+    /// Assumption: all usm chunks are allocated in one VA
     AllocationMap m_AllocationMap;
     ur_shared_mutex m_AllocationMapMutex;
 
