@@ -228,10 +228,9 @@ private:
   bool oclGetExtInstIndex(const std::string &MangledName,
                           const std::string &DemangledName,
                           SPIRVWord *EntryPoint);
-  void
-  oclGetMutatedArgumentTypesByBuiltin(llvm::FunctionType *FT,
-                                      std::map<unsigned, Type *> &ChangedType,
-                                      Function *F);
+  void oclGetMutatedArgumentTypesByBuiltin(
+      llvm::FunctionType *FT, std::unordered_map<unsigned, Type *> &ChangedType,
+      Function *F);
   bool isBuiltinTransToInst(Function *F);
   bool isBuiltinTransToExtInst(Function *F,
                                SPIRVExtInstSetKind *BuiltinSet = nullptr,
@@ -245,8 +244,9 @@ private:
   SPIRVValue *transBuiltinToConstant(StringRef DemangledName, CallInst *CI);
   SPIRVInstruction *transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
                                                         SPIRVBasicBlock *BB);
-  void mutateFuncArgType(const std::map<unsigned, Type *> &ChangedType,
-                         Function *F);
+  void
+  mutateFuncArgType(const std::unordered_map<unsigned, Type *> &ChangedType,
+                    Function *F);
 
   SPIRVValue *transSpcvCast(CallInst *CI, SPIRVBasicBlock *BB);
   SPIRVValue *oclTransSpvcCastSampler(CallInst *CI, SPIRVBasicBlock *BB);

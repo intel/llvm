@@ -80,7 +80,7 @@ SPIRVEntry *SPIRVEntry::create(Op OpCode) {
 #undef _SPIRV_OP
   };
 
-  typedef std::map<Op, SPIRVFactoryTy> OpToFactoryMapTy;
+  typedef std::unordered_map<Op, SPIRVFactoryTy> OpToFactoryMapTy;
   static const OpToFactoryMapTy OpToFactoryMap(std::begin(Table),
                                                std::end(Table));
 
