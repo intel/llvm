@@ -259,9 +259,9 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
         for (auto &It : ReleaseList) {
             context.logger.info("Quarantine Free: {}",
                                 (void *)It->second->AllocBegin);
-            context.urDdiTable.USM.pfnFree(Context,
-                                           (void *)(It->second->AllocBegin));
             m_AllocationMap.erase(It);
+            UR_CALL(context.urDdiTable.USM.pfnFree(
+                Context, (void *)(It->second->AllocBegin)));
         }
     }
 
@@ -279,6 +279,7 @@ ur_result_t SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
     ManagedQueue InternalQueue(Context, Device);
     if (!InternalQueue) {
+        context.logger.error("Failed to create internal queue");
         return UR_RESULT_ERROR_INVALID_QUEUE;
     }
 

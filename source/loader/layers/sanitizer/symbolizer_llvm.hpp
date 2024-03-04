@@ -21,6 +21,7 @@ namespace ur_sanitizer_layer {
 
 class SymbolizerTool {
   public:
+    virtual ~SymbolizerTool() {}
     virtual bool SymbolizePC(const BacktraceInfo &BI, SourceInfo &SI) {
         std::ignore = BI;
         std::ignore = SI;

@@ -25,7 +25,7 @@ void ReportBadFree(uptr Addr, const StackTrace &stack,
         "\n====ERROR: DeviceSanitizer: bad-free on address {}", (void *)Addr);
     stack.Print();
 
-    if (!AI) { // maybe Addr is host allocated memory
+    if (!AI) {
         context.logger.always("{} may be allocated on Host Memory",
                               (void *)Addr);
         exit(1);
@@ -52,7 +52,7 @@ void ReportBadContext(uptr Addr, const StackTrace &stack,
     context.logger.always("{} is located inside of {} region [{}, {})",
                           (void *)Addr, ToString(AI->Type),
                           (void *)AI->UserBegin, (void *)(AI->UserEnd + 1));
-    context.logger.always("allocated here:"); // allocated by device, context
+    context.logger.always("allocated here:");
     AI->AllocStack.Print();
 
     if (AI->IsReleased) {
@@ -126,9 +126,14 @@ void ReportUseAfterFree(const DeviceSanitizerReport &Report,
 
     auto AllocInfoItOp =
         context.interceptor->findAllocInfoByAddress(Report.Addr);
-    auto &AllocInfo = (*AllocInfoItOp)->second;
+    if (!AllocInfoItOp) {
+        context.logger.always("Failed to find which chunck {} is allocated",
+                              (void *)Report.Addr);
+        return;
+    }
 
-    if (!AllocInfoItOp || AllocInfo->Context != Context) {
+    auto &AllocInfo = (*AllocInfoItOp)->second;
+    if (AllocInfo->Context != Context) {
         context.logger.always("Failed to find which chunck {} is allocated",
                               (void *)Report.Addr);
     }

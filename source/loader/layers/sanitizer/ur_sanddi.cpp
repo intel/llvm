@@ -305,8 +305,6 @@ __urdlllocal ur_result_t UR_APICALL urContextRelease(
     return result;
 }
 
-// TODO: urDeviceRelease
-
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Context table
 ///        with current process' addresses
