@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2023 Intel Corporation
+ * Copyright (C) 2024 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
  * See LICENSE.TXT
@@ -18,7 +18,7 @@
 
 namespace ur_sanitizer_layer {
 
-#define MAX_BACKTRACE_FRAMES 64
+constexpr size_t MAX_BACKTRACE_FRAMES = 64;
 
 struct StackTrace {
     std::vector<BacktraceInfo> stack;

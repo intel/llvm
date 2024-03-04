@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2023 Intel Corporation
+ * Copyright (C) 2024 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
  * See LICENSE.TXT
@@ -15,6 +15,8 @@
 
 namespace ur_sanitizer_layer {
 
+namespace {
+
 bool ExtractSymbolInfo(const char *symbol, BacktraceInfo &info) {
     info.debug = std::string(symbol);
 
@@ -24,6 +26,8 @@ bool ExtractSymbolInfo(const char *symbol, BacktraceInfo &info) {
     info.offset = std::stoull(s2 + 1, nullptr, 16);
     return true;
 }
+
+} // namespace
 
 StackTrace GetCurrentBacktrace() {
     void *backtraceFrames[MAX_BACKTRACE_FRAMES];

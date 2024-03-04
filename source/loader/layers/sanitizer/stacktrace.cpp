@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2023 Intel Corporation
+ * Copyright (C) 2024 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
  * See LICENSE.TXT
@@ -18,16 +18,18 @@
 
 namespace ur_sanitizer_layer {
 
-#define MAX_BACKTRACE_FRAMES 64
+namespace {
 
-std::string getFileName(const std::string &FilePath) {
+std::string GetFileName(const std::string &FilePath) {
     auto p = FilePath.find_last_of('/');
     return FilePath.substr(p + 1);
 }
 
-bool startWith(const std::string &Str, const char *Pattern) {
+bool StartWith(const std::string &Str, const char *Pattern) {
     return Str.rfind(Pattern, 0) == 0;
 }
+
+} // namespace
 
 void StackTrace::Print() const {
     if (!stack.size()) {
@@ -38,10 +40,10 @@ void StackTrace::Print() const {
     unsigned index = 0;
 
     for (auto &BI : stack) {
-        auto ModuleFile = getFileName(BI.module);
-        if (startWith(ModuleFile, "libsycl.so") ||
-            startWith(ModuleFile, "libpi_unified_runtime.so") ||
-            startWith(ModuleFile, "libur_loader.so")) {
+        auto ModuleFile = GetFileName(BI.module);
+        if (StartWith(ModuleFile, "libsycl.so") ||
+            StartWith(ModuleFile, "libpi_unified_runtime.so") ||
+            StartWith(ModuleFile, "libur_loader.so")) {
             continue;
         }
 
