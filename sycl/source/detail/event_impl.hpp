@@ -289,6 +289,10 @@ public:
     return MEventFromSubmittedExecCommandBuffer;
   }
 
+  const std::vector<EventImplPtr> &getPostCompleteEvents() const {
+    return MPostCompleteEvents;
+  }
+  
   void markAsProfilingTagEvent() { MProfilingTagEvent = true; }
 
   bool isProfilingTagEvent() const noexcept { return MProfilingTagEvent; }
