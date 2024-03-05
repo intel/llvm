@@ -20,7 +20,7 @@ using namespace sycl::ext::intel::experimental::esimd;
 
 template <typename T, uint16_t N,
           lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none,
           bool UsePrefetch = false, bool UseOldValuesOperand = true,
           typename Flags = __ESIMD_NS::overaligned_tag<4>>
 bool test(queue Q, uint32_t Groups, uint32_t Threads) {
@@ -63,7 +63,7 @@ bool test(queue Q, uint32_t Groups, uint32_t Threads) {
 
          simd_mask<1> Mask = GlobalID % 1;
          if constexpr (UsePrefetch) {
-           lsc_prefetch<T, N, DS, L1H, L3H>(In + ElemOffset);
+           lsc_prefetch<T, N, DS, L1H, L2H>(In + ElemOffset);
            if constexpr (sizeof(T) < 8) {
              Vals = lsc_block_load<T, N, DS>(In + ElemOffset, Mask, OldValues,
                                              Flags{});
@@ -72,16 +72,16 @@ bool test(queue Q, uint32_t Groups, uint32_t Threads) {
            }
          } else {
            if constexpr (sizeof(T) < 8) {
-             Vals = lsc_block_load<T, N, DS, L1H, L3H>(In + ElemOffset, Mask,
+             Vals = lsc_block_load<T, N, DS, L1H, L2H>(In + ElemOffset, Mask,
                                                        OldValues, Flags{});
            } else {
-             Vals = lsc_block_load<T, N, DS, L1H, L3H>(In + ElemOffset, Mask,
+             Vals = lsc_block_load<T, N, DS, L1H, L2H>(In + ElemOffset, Mask,
                                                        OldValues);
            }
          }
        } else {
          if constexpr (UsePrefetch) {
-           lsc_prefetch<T, N, DS, L1H, L3H>(In + ElemOffset);
+           lsc_prefetch<T, N, DS, L1H, L2H>(In + ElemOffset);
            if constexpr (sizeof(T) < 8) {
              Vals = lsc_block_load<T, N, DS>(In + ElemOffset, Flags{});
            } else {
@@ -90,9 +90,9 @@ bool test(queue Q, uint32_t Groups, uint32_t Threads) {
          } else {
            if constexpr (sizeof(T) < 8) {
              Vals =
-                 lsc_block_load<T, N, DS, L1H, L3H>(In + ElemOffset, Flags{});
+                 lsc_block_load<T, N, DS, L1H, L2H>(In + ElemOffset, Flags{});
            } else {
-             Vals = lsc_block_load<T, N, DS, L1H, L3H>(In + ElemOffset);
+             Vals = lsc_block_load<T, N, DS, L1H, L2H>(In + ElemOffset);
            }
          }
        }
@@ -138,7 +138,7 @@ bool test(queue Q, uint32_t Groups, uint32_t Threads) {
 template <typename T> bool test_lsc_block_load() {
   constexpr lsc_data_size DS = lsc_data_size::default_size;
   constexpr cache_hint L1H = cache_hint::none;
-  constexpr cache_hint L3H = cache_hint::none;
+  constexpr cache_hint L2H = cache_hint::none;
 
   constexpr bool NoPrefetch = false;
   constexpr bool CheckMerge = true;
@@ -150,52 +150,52 @@ template <typename T> bool test_lsc_block_load() {
             << Q.get_device().get_info<sycl::info::device::name>() << std::endl;
 
   bool Passed = true;
-  Passed &= test<T, 64, DS, L1H, L3H, NoPrefetch, NoCheckMerge>(Q, 1, 4);
-  Passed &= test<T, 32, DS, L1H, L3H, NoPrefetch, NoCheckMerge>(Q, 1, 4);
-  Passed &= test<T, 16, DS, L1H, L3H, NoPrefetch, NoCheckMerge>(Q, 2, 2);
-  Passed &= test<T, 8, DS, L1H, L3H, NoPrefetch, NoCheckMerge>(Q, 2, 8);
-  Passed &= test<T, 4, DS, L1H, L3H, NoPrefetch, NoCheckMerge>(Q, 3, 3);
+  Passed &= test<T, 64, DS, L1H, L2H, NoPrefetch, NoCheckMerge>(Q, 1, 4);
+  Passed &= test<T, 32, DS, L1H, L2H, NoPrefetch, NoCheckMerge>(Q, 1, 4);
+  Passed &= test<T, 16, DS, L1H, L2H, NoPrefetch, NoCheckMerge>(Q, 2, 2);
+  Passed &= test<T, 8, DS, L1H, L2H, NoPrefetch, NoCheckMerge>(Q, 2, 8);
+  Passed &= test<T, 4, DS, L1H, L2H, NoPrefetch, NoCheckMerge>(Q, 3, 3);
   if constexpr (sizeof(T) * 2 >= sizeof(int))
-    Passed &= test<T, 2, DS, L1H, L3H, NoPrefetch, NoCheckMerge>(Q, 5, 5);
+    Passed &= test<T, 2, DS, L1H, L2H, NoPrefetch, NoCheckMerge>(Q, 5, 5);
   if constexpr (sizeof(T) >= sizeof(int))
-    Passed &= test<T, 1, DS, L1H, L3H, NoPrefetch, CheckMerge>(Q, 3, 5);
+    Passed &= test<T, 1, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 3, 5);
   if constexpr (sizeof(T) <= 4) {
-    Passed &= test<T, 128, DS, L1H, L3H, NoPrefetch, CheckMerge,
+    Passed &= test<T, 128, DS, L1H, L2H, NoPrefetch, CheckMerge,
                    __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
-    Passed &= test<T, 128, DS, L1H, L3H, NoPrefetch, NoCheckMerge,
+    Passed &= test<T, 128, DS, L1H, L2H, NoPrefetch, NoCheckMerge,
                    __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
     if constexpr (sizeof(T) == 2) {
-      Passed &= test<T, 256, DS, L1H, L3H, NoPrefetch, CheckMerge,
+      Passed &= test<T, 256, DS, L1H, L2H, NoPrefetch, CheckMerge,
                      __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
-      Passed &= test<T, 256, DS, L1H, L3H, NoPrefetch, NoCheckMerge,
+      Passed &= test<T, 256, DS, L1H, L2H, NoPrefetch, NoCheckMerge,
                      __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
     }
     if constexpr (sizeof(T) == 1) {
-      Passed &= test<T, 512, DS, L1H, L3H, NoPrefetch, CheckMerge,
+      Passed &= test<T, 512, DS, L1H, L2H, NoPrefetch, CheckMerge,
                      __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
-      Passed &= test<T, 512, DS, L1H, L3H, NoPrefetch, NoCheckMerge,
+      Passed &= test<T, 512, DS, L1H, L2H, NoPrefetch, NoCheckMerge,
                      __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
     }
   }
 
-  Passed &= test<T, 64, DS, L1H, L3H, NoPrefetch, CheckMerge>(Q, 1, 4);
-  Passed &= test<T, 32, DS, L1H, L3H, NoPrefetch, CheckMerge>(Q, 2, 2);
-  Passed &= test<T, 16, DS, L1H, L3H, NoPrefetch, CheckMerge>(Q, 4, 4);
-  Passed &= test<T, 8, DS, L1H, L3H, NoPrefetch, CheckMerge>(Q, 2, 8);
-  Passed &= test<T, 4, DS, L1H, L3H, NoPrefetch, CheckMerge>(Q, 3, 3);
+  Passed &= test<T, 64, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 1, 4);
+  Passed &= test<T, 32, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 2, 2);
+  Passed &= test<T, 16, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 4, 4);
+  Passed &= test<T, 8, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 2, 8);
+  Passed &= test<T, 4, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 3, 3);
   if constexpr (sizeof(T) * 2 >= sizeof(int))
-    Passed &= test<T, 2, DS, L1H, L3H, NoPrefetch, CheckMerge>(Q, 5, 5);
+    Passed &= test<T, 2, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 5, 5);
   if constexpr (sizeof(T) >= sizeof(int))
-    Passed &= test<T, 1, DS, L1H, L3H, NoPrefetch, CheckMerge>(Q, 3, 5);
+    Passed &= test<T, 1, DS, L1H, L2H, NoPrefetch, CheckMerge>(Q, 3, 5);
   // Only 512-bits maximum can be loaded at once (i.e. 4*128 bytes).
   if constexpr (sizeof(T) <= 4)
-    Passed &= test<T, 128, DS, L1H, L3H, NoPrefetch, CheckMerge,
+    Passed &= test<T, 128, DS, L1H, L2H, NoPrefetch, CheckMerge,
                    __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
   if constexpr (sizeof(T) <= 2)
-    Passed &= test<T, 256, DS, L1H, L3H, NoPrefetch, CheckMerge,
+    Passed &= test<T, 256, DS, L1H, L2H, NoPrefetch, CheckMerge,
                    __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
   if constexpr (sizeof(T) == 1)
-    Passed &= test<T, 512, DS, L1H, L3H, NoPrefetch, CheckMerge,
+    Passed &= test<T, 512, DS, L1H, L2H, NoPrefetch, CheckMerge,
                    __ESIMD_NS::overaligned_tag<8>>(Q, 1, 4);
 
   return Passed;
@@ -205,7 +205,7 @@ template <typename T, lsc_data_size DS = lsc_data_size::default_size,
           bool IsGatherLikePrefetch = false>
 std::enable_if_t<!IsGatherLikePrefetch, bool> test_lsc_prefetch() {
   constexpr cache_hint L1H = cache_hint::cached;
-  constexpr cache_hint L3H = cache_hint::uncached;
+  constexpr cache_hint L2H = cache_hint::uncached;
   constexpr bool DoPrefetch = true;
 
   auto Q = queue{gpu_selector_v};
@@ -214,15 +214,15 @@ std::enable_if_t<!IsGatherLikePrefetch, bool> test_lsc_prefetch() {
             << Q.get_device().get_info<sycl::info::device::name>() << std::endl;
 
   bool Passed = true;
-  Passed &= test<T, 64, DS, L1H, L3H, DoPrefetch>(Q, 1, 4);
-  Passed &= test<T, 32, DS, L1H, L3H, DoPrefetch>(Q, 1, 4);
-  Passed &= test<T, 16, DS, L1H, L3H, DoPrefetch>(Q, 2, 2);
-  Passed &= test<T, 8, DS, L1H, L3H, DoPrefetch>(Q, 2, 8);
-  Passed &= test<T, 4, DS, L1H, L3H, DoPrefetch>(Q, 3, 3);
+  Passed &= test<T, 64, DS, L1H, L2H, DoPrefetch>(Q, 1, 4);
+  Passed &= test<T, 32, DS, L1H, L2H, DoPrefetch>(Q, 1, 4);
+  Passed &= test<T, 16, DS, L1H, L2H, DoPrefetch>(Q, 2, 2);
+  Passed &= test<T, 8, DS, L1H, L2H, DoPrefetch>(Q, 2, 8);
+  Passed &= test<T, 4, DS, L1H, L2H, DoPrefetch>(Q, 3, 3);
   if constexpr (sizeof(T) * 2 >= sizeof(int))
-    Passed &= test<T, 2, DS, L1H, L3H, DoPrefetch>(Q, 5, 5);
+    Passed &= test<T, 2, DS, L1H, L2H, DoPrefetch>(Q, 5, 5);
   if constexpr (sizeof(T) >= sizeof(int))
-    Passed &= test<T, 1, DS, L1H, L3H, DoPrefetch>(Q, 3, 5);
+    Passed &= test<T, 1, DS, L1H, L2H, DoPrefetch>(Q, 3, 5);
 
   return Passed;
 }
