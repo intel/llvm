@@ -11,15 +11,25 @@
 
 using namespace sycl;
 
+template <typename TYPE>
+__attribute__((optnone, noinline)) TYPE reference_reverse(TYPE a, const int bitlength) {
+  TYPE ret = 0;
+  for (auto i = 0; i<bitlength; i++) {
+    ret<<=1;
+    ret |= a & 0x1;
+    a>>=1;
+  }
+  return ret;
+}
+
+template <typename TYPE>
+__attribute__((noinline)) TYPE reverse(TYPE a) {
+  return __builtin_elementwise_bitreverse(a);
+}
+
 ////////////////////////////////////////////////////////////////////////////////////
 // 8-bit
 ////////////////////////////////////////////////////////////////////////////////////
-template <typename UINT8>
-__attribute__((optnone, noinline)) UINT8 reference_reverse8(UINT8 a) {
-    a = ((0x55 & a) << 1) | (0x55 & (a >> 1));
-    a = ((0x33 & a) << 2) | (0x33 & (a >> 2));
-    return (a << 4) | (a >> 4);
-}
 template <typename UINT8>
 __attribute__((noinline)) UINT8 reverse8(UINT8 a) {
     a = ((0x55 & a) << 1) | (0x55 & (a >> 1));
@@ -30,8 +40,8 @@ template <typename UINT8>
 void do_bitreverse_test8(int *result, int bytesize) {
   for (uint8_t u=0 ; u<250; u++) {
     UINT8 data=u;    
-    UINT8 ref = reference_reverse8(data);
-    UINT8 opt = reverse8(data);
+    UINT8 ref = reference_reverse(data,8);
+    UINT8 opt = reverse8(data); // avoid bug with __builtin_elementwise_bitreverse(a) on scalar 8-bit types
 
     if (memcmp(&ref,&opt,bytesize)) {
       *result=1;
@@ -44,13 +54,6 @@ void do_bitreverse_test8(int *result, int bytesize) {
 // 16-bit
 ////////////////////////////////////////////////////////////////////////////////////
 template <typename UINT16>
-__attribute__((optnone, noinline)) UINT16 reference_reverse16(UINT16 a) {
-    a = ((0x5555 & a) << 1) | (0x5555 & (a >> 1));
-    a = ((0x3333 & a) << 2) | (0x3333 & (a >> 2));
-    a = ((0x0F0F & a) << 4) | (0x0F0F & (a >> 4));    
-    return (a << 8) | (a >> 8);
-}
-template <typename UINT16>
 __attribute__((noinline)) UINT16 reverse16(UINT16 a) {
     a = ((0x5555 & a) << 1) | (0x5555 & (a >> 1));
     a = ((0x3333 & a) << 2) | (0x3333 & (a >> 2));
@@ -62,8 +65,8 @@ template <typename UINT16>
 void do_bitreverse_test16(int *result, int bytesize) {
   for (uint16_t u=0 ; u<0xFF00; u+=0x13) {
     UINT16 data=u;
-    UINT16 ref = reference_reverse16(data);
-    UINT16 opt = reverse16(data);
+    UINT16 ref = reference_reverse(data,16);
+    UINT16 opt = reverse16(data); // avoid bug with __builtin_elementwise_bitreverse(a) on scalar 16-bit types
 
     if (memcmp(&ref,&opt,bytesize)) {
       *result=1;
@@ -76,27 +79,11 @@ void do_bitreverse_test16(int *result, int bytesize) {
 // 32-bit
 ////////////////////////////////////////////////////////////////////////////////////
 template <typename UINT32>
-__attribute__((optnone, noinline)) UINT32 reference_reverse32(UINT32 a) {
-    a = ((0x55555555 & a) << 1) | (0x55555555 & (a >> 1));
-    a = ((0x33333333 & a) << 2) | (0x33333333 & (a >> 2));
-    a = ((0x0F0F0F0F & a) << 4) | (0x0F0F0F0F & (a >> 4));
-    a = ((0x00FF00FF & a) << 8) | (0x00FF00FF & (a >> 8));            
-    return (a << 16) | (a >> 16);
-}
-template <typename UINT32>
-__attribute__((noinline)) UINT32 reverse32(UINT32 a) {
-    a = ((0x55555555 & a) << 1) | (0x55555555 & (a >> 1));
-    a = ((0x33333333 & a) << 2) | (0x33333333 & (a >> 2));
-    a = ((0x0F0F0F0F & a) << 4) | (0x0F0F0F0F & (a >> 4));
-    a = ((0x00FF00FF & a) << 8) | (0x00FF00FF & (a >> 8));            
-    return (a << 16) | (a >> 16);
-}
-template <typename UINT32>
 void do_bitreverse_test32(int *result, int bytesize) {
   for (uint32_t u=0 ; u<(0xFF<<24); u+=0xABCD13) {
     UINT32 data=u;
-    UINT32 ref = reference_reverse32(data);
-    UINT32 opt = reverse32(data);
+    UINT32 ref = reference_reverse(data,32);
+    UINT32 opt = reverse(data);
 
     if (memcmp(&ref,&opt,bytesize)) {
       *result=1;
@@ -109,29 +96,11 @@ void do_bitreverse_test32(int *result, int bytesize) {
 // 64-bit
 ////////////////////////////////////////////////////////////////////////////////////
 template <typename UINT64>
-__attribute__((optnone, noinline)) UINT64 reference_reverse64(UINT64 a) {
-    a = ((0x5555555555555555UL & a) << 1) | (0x5555555555555555UL & (a >> 1));
-    a = ((0x3333333333333333UL & a) << 2) | (0x3333333333333333UL & (a >> 2));
-    a = ((0x0F0F0F0F0F0F0F0FUL & a) << 4) | (0x0F0F0F0F0F0F0F0FUL & (a >> 4));
-    a = ((0x00FF00FF00FF00FFUL & a) << 8) | (0x00FF00FF00FF00FFUL & (a >> 8));
-    a = ((0x0000FFFF0000FFFFUL & a) <<16) | (0x0000FFFF0000FFFFUL & (a >>16));    
-    return (a << 32) | (a >> 32);
-}
-template <typename UINT64>
-__attribute__((noinline)) UINT64 reverse64(UINT64 a) {
-    a = ((0x5555555555555555UL & a) << 1) | (0x5555555555555555UL & (a >> 1));
-    a = ((0x3333333333333333UL & a) << 2) | (0x3333333333333333UL & (a >> 2));
-    a = ((0x0F0F0F0F0F0F0F0FUL & a) << 4) | (0x0F0F0F0F0F0F0F0FUL & (a >> 4));
-    a = ((0x00FF00FF00FF00FFUL & a) << 8) | (0x00FF00FF00FF00FFUL & (a >> 8));
-    a = ((0x0000FFFF0000FFFFUL & a) <<16) | (0x0000FFFF0000FFFFUL & (a >>16));
-    return (a << 32) | (a >> 32);
-}
-template <typename UINT64>
 void do_bitreverse_test64(int *result, int bytesize) {
   for (uint64_t u=0 ; u<(0xFFUL<<56); u+=0xABCDABCDABCD13UL) {
     UINT64 data=u;
-    UINT64 ref = reference_reverse64(data);
-    UINT64 opt = reverse64(data);
+    UINT64 ref = reference_reverse(data,64);
+    UINT64 opt = reverse(data);
 
     if (memcmp(&ref,&opt,bytesize)) {
       *result=1;
