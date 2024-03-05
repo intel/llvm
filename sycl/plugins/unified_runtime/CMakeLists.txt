@@ -57,13 +57,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 9b936b5748a8da86123f3f148d1cfa84e52531c4
-  # Merge: 91c6068b 767cfd1a
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Mon Feb 26 10:46:55 2024 +0100
-  #     Merge pull request #1354 from AllanZyne/sanitizer-device-global
-  #     [DeviceSanitizer] Support detecting out-of-bounds error on DeviceGlobals
-  set(UNIFIED_RUNTIME_TAG 9b936b5748a8da86123f3f148d1cfa84e52531c4)
+
+  # commit a2757b2931daa2f8d7c9dd51b0fc846be1fd49a7
+  # Merge:  9b936b5 + f78d369
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Tue Feb 27 11:34:58 2024 +0000
+  #     Merge pull request #1254 from Bensuo/cmdbuf-support-hip
+  #     [EXP][CMDBUF] HIP adapter support for command buffers
+  set(UNIFIED_RUNTIME_TAG a2757b2931daa2f8d7c9dd51b0fc846be1fd49a7 )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

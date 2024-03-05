@@ -1,4 +1,4 @@
-// REQUIRES: native_cpu_be
+// REQUIRES: native_cpu_ock
 // RUN: %clangxx -DFILE1 -fsycl -fsycl-targets=native_cpu %s -g -c -o %t1.o
 // RUN: %clangxx -DFILE2 -fsycl -fsycl-targets=native_cpu %s -g -c -o %t2.o
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %t1.o %t2.o -g -o %t
