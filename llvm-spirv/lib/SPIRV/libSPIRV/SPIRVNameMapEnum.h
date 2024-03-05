@@ -717,7 +717,7 @@ inline void SPIRVMap<NamedMaximumNumberOfRegisters, std::string>::init() {
   add(NamedMaximumNumberOfRegistersAutoINTEL, "AutoINTEL");
 }
 SPIRV_DEF_NAMEMAP(NamedMaximumNumberOfRegisters,
-                  SPIRVNamedMaximumNumberOfRegistersNameMap);
+                  SPIRVNamedMaximumNumberOfRegistersNameMap)
 
 } /* namespace SPIRV */
 
