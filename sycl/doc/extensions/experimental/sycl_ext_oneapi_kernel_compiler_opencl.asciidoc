@@ -49,11 +49,11 @@ This extension also depends on the following other SYCL extensions:
 
 == Status
 
-This is an experimental extension specification, intended to provide early 
-access to features and gather community feedback. Interfaces defined in 
-this specification are implemented in DPC++, but they are not finalized 
-and may change incompatibly in future versions of DPC++ without prior notice. 
-*Shipping software products should not rely on APIs defined in 
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback. Interfaces defined in
+this specification are implemented in DPC++, but they are not finalized
+and may change incompatibly in future versions of DPC++ without prior notice.
+*Shipping software products should not rely on APIs defined in
 this specification.*
 
 
@@ -114,11 +114,15 @@ As a result, the application must use the overload of
 `create_kernel_bundle_from_source` taking `std::string` when creating a kernel
 bundle from this language.
 
-=== Build options
+=== Supported properties
 
-The `build_options` property accepts any of the compiler or linker options
-defined by the OpenCL specification, except for those that are specific to
-creating an OpenCL library.
+The `opencl` language supports only those properties from
+link:../experimental/sycl_ext_oneapi_kernel_compiler.asciidoc[
+sycl_ext_oneapi_kernel_compiler] that are common to all source languages.
+
+The `build_options` property that is passed to the `build` function may contain
+any of the compiler or linker options defined by the OpenCL specification,
+except for those that are specific to creating an OpenCL library.
 The kernel compiler can be used to create an OpenCL program, but not an OpenCL
 library.
 
