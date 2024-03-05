@@ -121,6 +121,42 @@ void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
       "interoperability function or to query a device built-in kernel");
 }
 
+template <>
+std::string kernel_impl::get_backend_info<info::platform::version>() const {
+  if (MContext->getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::platform::version info descriptor can "
+                          "only be queried with an OpenCL backend");
+  }
+  auto Devices = MKernelBundleImpl->get_devices();
+  return Devices[0].get_platform().get_info<info::platform::version>();
+}
+
+template <>
+std::string kernel_impl::get_backend_info<info::device::version>() const {
+  if (MContext->getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::version info descriptor can only "
+                          "be queried with an OpenCL backend");
+  }
+  auto Devices = MKernelBundleImpl->get_devices();
+  return Devices[0].get_info<info::device::version>();
+}
+
+template <>
+std::string
+kernel_impl::get_backend_info<info::device::backend_version>() const {
+  if (MContext->getBackend() != backend::ext_oneapi_level_zero) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::backend_version info descriptor "
+                          "can only be queried with a level0 backend");
+  }
+  return "";
+  // Currently The Level Zero backend does not define the value of this
+  // information descriptor and implementations are encouraged to return the
+  // empty string as per specification.
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

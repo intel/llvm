@@ -610,6 +610,41 @@ typename Param::return_type platform_impl::get_info() const {
   return get_platform_info<Param>(this->getHandleRef(), getPlugin());
 }
 
+template <>
+std::string platform_impl::get_backend_info<info::platform::version>() const {
+  if (getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::platform::version info descriptor can "
+                          "only be queried with an OpenCL backend");
+  }
+  return get_info<info::platform::version>();
+}
+
+template <>
+std::string platform_impl::get_backend_info<info::device::version>() const {
+  if (getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::version info descriptor can only "
+                          "be queried with an OpenCL backend");
+  }
+  auto Devices = get_devices();
+  return Devices[0].get_info<info::device::version>();
+}
+
+template <>
+std::string
+platform_impl::get_backend_info<info::device::backend_version>() const {
+  if (getBackend() != backend::ext_oneapi_level_zero) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::backend_version info descriptor "
+                          "can only be queried with a level0 backend");
+  }
+  return "";
+  // Currently The Level Zero backend does not define the value of this
+  // information descriptor and implementations are encouraged to return the
+  // empty string as per specification.
+}
+
 // All devices on the platform must have the given aspect.
 bool platform_impl::has(aspect Aspect) const {
   for (const auto &dev : get_devices()) {

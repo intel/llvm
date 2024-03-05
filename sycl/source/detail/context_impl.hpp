@@ -118,6 +118,12 @@ public:
   /// The return type depends on information being queried.
   template <typename Param> typename Param::return_type get_info() const;
 
+  /// Queries SYCL queue for SYCL backend-specific information.
+  ///
+  /// The return type depends on information being queried.
+  template <typename Param>
+  typename Param::return_type get_backend_info() const;
+
   /// Gets the underlying context object (if any) without reference count
   /// modification.
   ///

@@ -1,0 +1,3 @@
+__SYCL_PARAM_TRAITS_SPEC(platform, version, std::string, PI_PLATFORM_INFO_VERSION)
+__SYCL_PARAM_TRAITS_SPEC(device, version, std::string, PI_DEVICE_INFO_VERSION)
+__SYCL_PARAM_TRAITS_SPEC(device, backend_version, std::string, PI_DEVICE_INFO_BACKEND_VERSION)

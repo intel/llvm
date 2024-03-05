@@ -392,6 +392,58 @@ event_impl::get_info<info::event::command_execution_status>() {
              : info::event_command_status::complete;
 }
 
+template <>
+std::string event_impl::get_backend_info<info::platform::version>() const {
+  if (MContext->getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::platform::version info descriptor can "
+                          "only be queried with an OpenCL backend");
+  }
+  if (QueueImplPtr Queue = MQueue.lock()) {
+    try {
+      return Queue->getDeviceImplPtr()
+          ->get_platform()
+          .get_info<info::platform::version>();
+    } catch (sycl::exception &e) {
+      std::rethrow_exception(std::current_exception());
+    }
+  }
+  return ""; // If the queue has been released, no platform will be associated
+             // so return empty string
+}
+
+template <>
+std::string event_impl::get_backend_info<info::device::version>() const {
+  if (MContext->getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::version info descriptor can only "
+                          "be queried with an OpenCL backend");
+  }
+  if (QueueImplPtr Queue = MQueue.lock()) {
+    try {
+      return Queue->getDeviceImplPtr()->get_info<info::device::version>();
+    } catch (sycl::exception &e) {
+      std::rethrow_exception(std::current_exception());
+    }
+  }
+  return ""; // If the queue has been released, no device will be associated so
+             // return empty string
+}
+
+template <>
+std::string
+event_impl::get_backend_info<info::device::backend_version>() const {
+  if (MContext->getBackend() != backend::ext_oneapi_level_zero) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::backend_version info descriptor "
+                          "can only be queried with a level0 backend");
+  }
+  return "";
+  // Currently The Level Zero backend does not define the value of this
+  // information descriptor and implementations are encouraged to return the
+  // empty string as per specification.
+}
+
 void HostProfilingInfo::start() { StartTime = getTimestamp(); }
 
 void HostProfilingInfo::end() { EndTime = getTimestamp(); }

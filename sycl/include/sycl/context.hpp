@@ -175,6 +175,13 @@ public:
   template <typename Param>
   typename detail::is_context_info_desc<Param>::return_type get_info() const;
 
+  /// Queries this SYCL context for SYCL backend-specific information.
+  ///
+  /// The return type depends on information being queried.
+  template <typename Param>
+  typename detail::is_backend_info_desc<Param>::return_type
+  get_backend_info() const;
+
   context(const context &rhs) = default;
 
   context(context &&rhs) = default;
