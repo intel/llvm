@@ -204,8 +204,8 @@ a single-task kernel or as an nd-range kernel.
 Attempting to launch such a kernel with a simple range iteration space results
 in undefined behavior.
 
-If the kernel is launched as a single-task kernel, it is executed with one
-work-group dimension, with one work-group of one work-item.
+If the kernel is launched as a single-task kernel, it is executed with a
+1-dimensional nd-range, with one work-group of one work-item.
 
 If the kernel is launched as an nd-range kernel, the number of work-group
 dimensions is the same as the number of dimensions in the `nd_range`.
