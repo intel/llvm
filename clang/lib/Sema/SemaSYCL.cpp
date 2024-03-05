@@ -726,6 +726,25 @@ public:
   }
 };
 
+/// This function checks whether given DeclContext contains a topmost
+/// namespace with name "sycl".
+static bool isDeclaredInSYCLNamespace(const Decl *D) {
+  const DeclContext *DC = D->getDeclContext()->getEnclosingNamespaceContext();
+  const auto *ND = dyn_cast<NamespaceDecl>(DC);
+  // If this is not a namespace, then we are done.
+  if (!ND)
+    return false;
+
+  // While it is a namespace, find its parent scope.
+  while (const DeclContext *Parent = ND->getParent()) {
+    if (!isa<NamespaceDecl>(Parent))
+      break;
+    ND = cast<NamespaceDecl>(Parent);
+  }
+
+  return ND && ND->getName() == "sycl";
+}
+
 // This type does the heavy lifting for the management of device functions,
 // recursive function detection, and attribute collection for a single
 // kernel/external function. It walks the callgraph to find all functions that
@@ -769,6 +788,20 @@ class SingleDeviceFunctionTracker {
         !CurrentDecl->hasAttr<SYCLDeviceAttr>())
       Parent.SemaRef.addFDToReachableFromSyclDevice(CurrentDecl,
                                                     CallStack.back());
+
+    // If this is a parallel_for_work_item that is declared in the
+    // sycl namespace, mark it with the WorkItem scope attribute.
+    // Note: Here, we assume that this is called from within a
+    // parallel_for_work_group; it is undefined to call it otherwise.
+    // We deliberately do not diagnose a violation.
+    if (CurrentDecl->getIdentifier() &&
+        CurrentDecl->getIdentifier()->getName() == "parallel_for_work_item" &&
+        isDeclaredInSYCLNamespace(CurrentDecl) &&
+        !CurrentDecl->hasAttr<SYCLScopeAttr>()) {
+      CurrentDecl->addAttr(
+          SYCLScopeAttr::CreateImplicit(Parent.SemaRef.getASTContext(),
+                                        SYCLScopeAttr::Level::WorkItem));
+    }
 
     // We previously thought we could skip this function if we'd seen it before,
     // but if we haven't seen it before in this call graph, we can end up
@@ -919,14 +952,13 @@ public:
       // not a member of sycl::group - continue search
       return true;
     auto Name = Callee->getName();
-    if (((Name != "parallel_for_work_item") && (Name != "wait_for")) ||
+    if (Name != "wait_for" ||
         Callee->hasAttr<SYCLScopeAttr>())
       return true;
-    // it is a call to sycl::group::parallel_for_work_item/wait_for -
-    // mark the callee
+    // it is a call to sycl::group::wait_for - mark the callee
     Callee->addAttr(
         SYCLScopeAttr::CreateImplicit(Ctx, SYCLScopeAttr::Level::WorkItem));
-    // continue search as there can be other PFWI or wait_for calls
+    // continue search as there can be other wait_for calls
     return true;
   }
 
@@ -2968,7 +3000,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     assert(CallOperator && "non callable object is passed as kernel obj");
     // Mark the function that it "works" in a work group scope:
-    // NOTE: In case of parallel_for_work_item the marker call itself is
+    // NOTE: In case of wait_for the marker call itself is
     // marked with work item scope attribute, here  the '()' operator of the
     // object passed as parameter is marked. This is an optimization -
     // there are a lot of locals created at parallel_for_work_group
@@ -2979,7 +3011,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     if (!CallOperator->hasAttr<SYCLScopeAttr>()) {
       CallOperator->addAttr(SYCLScopeAttr::CreateImplicit(
           SemaRef.getASTContext(), SYCLScopeAttr::Level::WorkGroup));
-      // Search and mark parallel_for_work_item calls:
+      // Search and mark wait_for calls:
       MarkWIScopeFnVisitor MarkWIScope(SemaRef.getASTContext());
       MarkWIScope.TraverseDecl(CallOperator);
       // Now mark local variables declared in the PFWG lambda with work group
