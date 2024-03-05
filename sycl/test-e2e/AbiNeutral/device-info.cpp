@@ -1,5 +1,7 @@
-// RUN: %{build} -o %t.out -fpreview-breaking-changes -D_GLIBCXX_USE_CXX11_ABI=0
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -D_GLIBCXX_USE_CXX11_ABI=0 -o %t2.out %}
+// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 
 #include <deque>
 #include <iostream>
