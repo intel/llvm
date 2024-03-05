@@ -404,7 +404,7 @@ std::string event_impl::get_backend_info<info::platform::version>() const {
       return Queue->getDeviceImplPtr()
           ->get_platform()
           .get_info<info::platform::version>();
-    } catch () {
+    } catch (...) {
       std::rethrow_exception(std::current_exception());
     }
   }
@@ -422,7 +422,7 @@ std::string event_impl::get_backend_info<info::device::version>() const {
   if (QueueImplPtr Queue = MQueue.lock()) {
     try {
       return Queue->getDeviceImplPtr()->get_info<info::device::version>();
-    } catch () {
+    } catch (...) {
       std::rethrow_exception(std::current_exception());
     }
   }
