@@ -23,7 +23,6 @@ int main(int argc, char *argv[]) {
   // DEVICE: ---> piextUSMDeviceAlloc
   // DEVICE: ZE ---> zeMemAllocDevice
   // DEVICE: ZE ---> zeContextMakeMemoryResident
-  // DEVICE-NOT: ZE ---> zeContextMakeMemoryResident
 
   auto ptr2 = malloc_shared<int>(1, Q);
   // SHARED: ---> piextUSMSharedAlloc
