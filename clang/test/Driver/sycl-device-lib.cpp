@@ -36,6 +36,7 @@
 // SYCL_DEVICE_LIB_UNBUNDLE_DEFAULT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-fallback-imf.o" "-output={{.*}}libsycl-fallback-imf-{{.*}}.o" "-unbundle"
 // SYCL_DEVICE_LIB_UNBUNDLE_DEFAULT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-fallback-imf-fp64.o" "-output={{.*}}libsycl-fallback-imf-fp64-{{.*}}.o" "-unbundle"
 // SYCL_DEVICE_LIB_UNBUNDLE_DEFAULT-NEXT: clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-fallback-imf-bf16.o" "-output={{.*}}libsycl-fallback-imf-bf16-{{.*}}.o" "-unbundle"
+
 /// ###########################################################################
 /// test sycl fallback device libraries are not linked by default
 // RUN: %clangxx -fsycl -fsycl-device-lib-jit-link %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
@@ -251,3 +252,4 @@
 // SYCL_DEVICE_ASAN_MACRO-SAME: "USE_SYCL_DEVICE_ASAN"
 // SYCL_DEVICE_ASAN_MACRO-NEXT: llvm-link{{.*}}
 // SYCL_DEVICE_ASAN_MACRO:  clang-offload-bundler{{.*}} "-type=o" "-targets=sycl-spir64-unknown-unknown" "-input={{.*}}libsycl-sanitizer.o" "-output={{.*}}libsycl-sanitizer-{{.*}}.o" "-unbundle"
+// SYCL_DEVICE_ASAN_MACRO: llvm-link{{.*}} "-only-needed" "{{.*}}" "-o" "{{.*}}.bc" "--suppress-warnings"

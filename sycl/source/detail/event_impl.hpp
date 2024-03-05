@@ -295,6 +295,10 @@ public:
     return MEventFromSubmittedExecCommandBuffer;
   }
 
+  const std::vector<EventImplPtr> &getPostCompleteEvents() const {
+    return MPostCompleteEvents;
+  }
+
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
