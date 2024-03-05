@@ -136,6 +136,8 @@ static constexpr char ESIMD_INTRIN_PREF0[] = "_Z";
 static constexpr char ESIMD_INTRIN_PREF1[] = "__esimd_";
 static constexpr char ESIMD_INSERTED_VSTORE_FUNC_NAME[] = "_Z14__esimd_vstorev";
 static constexpr char SPIRV_INTRIN_PREF[] = "__spirv_BuiltIn";
+static constexpr char SPIRV_LOCAL_ACCESSOR_PREF[] =
+    "_ZN4sycl3_V114local_accessor";
 struct ESIMDIntrinDesc {
   // Denotes argument translation rule kind.
   enum GenXArgRuleKind {
@@ -1752,45 +1754,82 @@ void lowerGlobalsToVector(Module &M) {
 
 static void checkSLMInit(Module &M) {
   SmallPtrSet<const Function *, 8u> Callers;
+  bool Kernel_Has_slm_init = false;
+  bool Kernel_Has_local_accessor = false;
+
   for (auto &F : M) {
-    if (!isSlmInit(F))
-      continue;
-    for (User *U : F.users()) {
-      auto *FCall = dyn_cast<CallInst>(U);
-      if (FCall && FCall->getCalledFunction() == &F) {
-        Function *GenF = FCall->getFunction();
-        SmallPtrSet<Function *, 32> Visited;
-        sycl::utils::traverseCallgraphUp(
-            GenF,
-            [&](Function *GraphNode) {
-              if (llvm::esimd::isESIMDKernel(*GraphNode)) {
-                if (Callers.contains(GraphNode)) {
-                  StringRef KernelName = GraphNode->getName();
-                  std::string ErrorMsg =
-                      std::string(
-                          "slm_init is called more than once from kernel '") +
-                      demangle(KernelName.str()) + "'.";
-                  GraphNode->getContext().emitError(ErrorMsg);
-                } else {
-                  Callers.insert(GraphNode);
-                }
-              }
-            },
-            Visited, false);
-        bool VisitedKernel = false;
-        for (const Function *Caller : Visited) {
-          if (llvm::esimd::isESIMDKernel(*Caller)) {
-            VisitedKernel = true;
-            break;
+    if (!isSlmInit(F)) {
+      if (Kernel_Has_local_accessor) {
+        continue;
+      }
+      if (F.getName().starts_with(SPIRV_LOCAL_ACCESSOR_PREF)) {
+        Kernel_Has_local_accessor = true;
+        continue;
+      }
+      unsigned Idx = 0;
+      for (const Argument &Arg : F.args()) {
+        if (Arg.getType()->isPointerTy()) {
+          auto *KernelArgAccPtrs = F.getMetadata("kernel_arg_accessor_ptr");
+
+          if (KernelArgAccPtrs) {
+            auto *AccMD =
+                cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx));
+            auto AccMDVal = cast<ConstantInt>(AccMD->getValue())->getValue();
+            bool IsAcc = static_cast<unsigned>(AccMDVal.getZExtValue());
+
+            constexpr unsigned LocalAS{3};
+            if (IsAcc && cast<PointerType>(Arg.getType())->getAddressSpace() ==
+                             LocalAS) {
+              Kernel_Has_local_accessor = true;
+              break;
+            }
           }
         }
-        if (!VisitedKernel) {
-          F.getContext().emitError(
-              "slm_init must be called directly from ESIMD kernel.");
-        }
-      } else {
-        F.getContext().emitError("slm_init can only be used as a direct call.");
+        Idx++;
       }
+    } else {
+      Kernel_Has_slm_init = true;
+      for (User *U : F.users()) {
+        auto *FCall = dyn_cast<CallInst>(U);
+        if (FCall && FCall->getCalledFunction() == &F) {
+          Function *GenF = FCall->getFunction();
+          SmallPtrSet<Function *, 32> Visited;
+          sycl::utils::traverseCallgraphUp(
+              GenF,
+              [&](Function *GraphNode) {
+                if (llvm::esimd::isESIMDKernel(*GraphNode)) {
+                  if (Callers.contains(GraphNode)) {
+                    StringRef KernelName = GraphNode->getName();
+                    std::string ErrorMsg =
+                        std::string("slm_init is called more than once "
+                                    "from kernel '") +
+                        demangle(KernelName.str()) + "'.";
+                    GraphNode->getContext().emitError(ErrorMsg);
+                  } else {
+                    Callers.insert(GraphNode);
+                  }
+                }
+              },
+              Visited, false);
+          bool VisitedKernel = false;
+          for (const Function *Caller : Visited) {
+            if (llvm::esimd::isESIMDKernel(*Caller)) {
+              VisitedKernel = true;
+              break;
+            }
+          }
+          if (!VisitedKernel) {
+            F.getContext().emitError(
+                "slm_init must be called directly from ESIMD kernel.");
+          }
+        } else {
+          F.getContext().emitError(
+              "slm_init can only be used as a direct call.");
+        }
+      }
+    }
+    if (Kernel_Has_slm_init && Kernel_Has_local_accessor) {
+      F.getContext().emitError("slm_init can not be used with local_accessor.");
     }
   }
 }
