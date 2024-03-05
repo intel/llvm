@@ -484,7 +484,7 @@ public:
 }  // namespace sycl
 ----
 
-=== Device Info Query
+=== Querying Graph Supoport
 
 Due to the experimental nature of the extension, support is not available across
 all devices. The following device support query is added to the
@@ -506,6 +506,24 @@ returned. Otherwise `unsupported` is returned if the SYCL device doesn't
 support using this graph extension.
 
 |===
+
+Command-graph update support may also not be available across all devices. The
+following extension to the `aspect` enum class can be used to query for graph
+update support:
+
+[source]
+----
+namespace sycl {
+enum class aspect {
+  ...
+  sycl_ext_oneapi_graph_update
+}
+}
+----
+
+If a SYCL device has the `sycl_ext_oneapi_graph_update` aspact, then it supports
+the functionality described in the <<executable-graph-update, Executable Graph
+Update>> section.
 
 
 === Node
