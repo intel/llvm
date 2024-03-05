@@ -4336,8 +4336,9 @@ typedef enum ur_program_info_t {
                                          ///< provided for identifying memory leaks.
     UR_PROGRAM_INFO_CONTEXT = 1,         ///< [::ur_context_handle_t] Program context info.
     UR_PROGRAM_INFO_NUM_DEVICES = 2,     ///< [uint32_t] Return number of devices associated with Program.
-    UR_PROGRAM_INFO_DEVICES = 3,         ///< [::ur_device_handle_t[]] Return list of devices associated with
-                                         ///< Program.
+    UR_PROGRAM_INFO_DEVICES = 3,         ///< [::ur_device_handle_t[]] Return list of devices associated with a program.
+                                         ///< This is either the list of devices associated with the context or a
+                                         ///< subset of those devices when the program is created using ::urProgramCreateWithBinary.
     UR_PROGRAM_INFO_SOURCE = 4,          ///< [char[]] Return program source associated with Program.
     UR_PROGRAM_INFO_BINARY_SIZES = 5,    ///< [size_t[]] Return program binary sizes for each device.
     UR_PROGRAM_INFO_BINARIES = 6,        ///< [unsigned char[]] Return program binaries for all devices for this
