@@ -1568,21 +1568,22 @@ lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam DS is the data size (unused/obsolete).
 /// @tparam L1H is L1 cache hint.
 /// @tparam L2H is L2 cache hint.
+/// @tparam Flags is the alignment specifier type tag.
 /// @param p is the base pointer.
 /// @param vals is values to store.
 /// @param pred is operation predicate. Zero means operation is skipped
 /// entirely, non-zero - operation is performed. The default is '1' - perform
 /// the operation.
-/// @param flags is the alignment specifier type tag.
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none,
           typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
 __ESIMD_API std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>>
 lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
-                __ESIMD_NS::simd_mask<1> pred = 1, FlagsT flags = FlagsT{}) {
-  return __ESIMD_DNS::block_store_impl<T, NElts, L1H, L2H>(p, vals, pred,
-                                                           flags);
+                __ESIMD_NS::simd_mask<1> pred = 1, FlagsT = {}) {
+  using PropertyListT = __ESIMD_DNS::make_L1_L2_alignment_properties_t<
+      L1H, L2H, FlagsT::template alignment<__ESIMD_NS::simd<T, NElts>>>;
+  return __ESIMD_DNS::block_store_impl<T, NElts, PropertyListT>(p, vals, pred);
 }
 
 /// A variation of lsc_block_store without predicate parameter to simplify
@@ -1647,6 +1648,7 @@ lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals, FlagsT flags) {
 /// @tparam DS is the data size (unused/obsolete).
 /// @tparam L1H is L1 cache hint.
 /// @tparam L2H is L2 cache hint.
+/// @tparam Flags is the alignment specifier type tag.
 /// @tparam AccessorTy is the \ref sycl::accessor type.
 /// @param acc is the SYCL accessor.
 /// @param offset is the zero-based offset in bytes.
@@ -1654,7 +1656,6 @@ lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals, FlagsT flags) {
 /// @param pred is operation predicate. Zero means operation is skipped
 /// entirely, non-zero - operation is performed. The default is '1' - perform
 /// the operation.
-/// @param flags is the alignment specifier type tag.
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none,
@@ -1666,9 +1667,11 @@ __ESIMD_API std::enable_if_t<
     __ESIMD_NS::is_simd_flag_type_v<FlagsT>>
 lsc_block_store(AccessorTy acc, __ESIMD_DNS::DeviceAccessorOffsetT offset,
                 __ESIMD_NS::simd<T, NElts> vals,
-                __ESIMD_NS::simd_mask<1> pred = 1, FlagsT flags = FlagsT{}) {
-  __ESIMD_DNS::block_store_impl<T, NElts, L1H, L2H>(acc, offset, vals, pred,
-                                                    flags);
+                __ESIMD_NS::simd_mask<1> pred = 1, FlagsT = {}) {
+  using PropertyListT = __ESIMD_DNS::make_L1_L2_alignment_properties_t<
+      L1H, L2H, FlagsT::template alignment<__ESIMD_NS::simd<T, NElts>>>;
+  __ESIMD_DNS::block_store_impl<T, NElts, PropertyListT>(acc, offset, vals,
+                                                         pred);
 }
 
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
