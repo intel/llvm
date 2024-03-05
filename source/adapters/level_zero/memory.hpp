@@ -206,11 +206,26 @@ struct _ur_image final : ur_mem_handle_t_ {
 
   bool isImage() const override { return true; }
 
-#ifndef NDEBUG
-  // Keep the descriptor of the image (for debugging purposes)
+  // Keep the descriptor of the image
   ZeStruct<ze_image_desc_t> ZeImageDesc;
-#endif // !NDEBUG
 
   // Level Zero image handle.
   ze_image_handle_t ZeImage;
 };
+
+template <typename T>
+ur_result_t
+createUrMemFromZeImage(ur_context_handle_t Context, ze_image_handle_t ZeImage,
+                       bool OwnZeMemHandle,
+                       const ZeStruct<ze_image_desc_t> &ZeImageDesc, T *UrMem) {
+  try {
+    auto UrImage = new _ur_image(Context, ZeImage, OwnZeMemHandle);
+    UrImage->ZeImageDesc = ZeImageDesc;
+    *UrMem = reinterpret_cast<T>(UrImage);
+  } catch (const std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+  return UR_RESULT_SUCCESS;
+}
