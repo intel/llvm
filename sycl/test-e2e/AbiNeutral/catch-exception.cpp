@@ -2,10 +2,10 @@
 // RUN: %{run} %t.out
 // RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -D_GLIBCXX_USE_CXX11_ABI=0 -o %t2.out %}
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
+// REQUIRES: level_zero && gpu
 
 #include <sycl/sycl.hpp>
 
-#include <iostream>
 
 int main() {
 #ifdef _GLIBCXX_USE_CXX11_ABI
