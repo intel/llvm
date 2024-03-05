@@ -23692,7 +23692,7 @@ CodeGenFunction::EmitIntelSYCLAllocaBuiltin(const CallExpr *E,
   QualType AllocaType = TAL.get(0).getAsType();
   llvm::Type *Ty = CGM.getTypes().ConvertTypeForMem(AllocaType);
   unsigned AllocaAS = CGM.getDataLayout().getAllocaAddrSpace();
-  llvm::Type *AllocaTy = Ty->getPointerTo(AllocaAS);
+  llvm::Type *AllocaTy = llvm::PointerType::get(Builder.getContext(), AllocaAS);
 
   llvm::Constant *EltTyConst = llvm::Constant::getNullValue(Ty);
 
