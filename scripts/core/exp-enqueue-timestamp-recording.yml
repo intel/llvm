@@ -52,7 +52,7 @@ params:
       name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
-            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event. 
+            If nullptr, the numEventsInWaitList must be 0, indicating no wait events. 
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
