@@ -32,30 +32,29 @@ enum class architecture : uint64_t {
   // Important note about keeping architecture IDs below unique:
   //   - the architecture ID must be a hex number with 16 digits
   //   - the architecture ID must suit the following template:
-  //     0x AA BBBBBBBBBBBB CC (without spaces), where
-  //       - AA is 2-digit ID of category which must be unique
-  //       - BBBBBBBBBBBB is 12-digit number of architecture itself. It must be
-  //         unique for all architectures inside the category
-  //       - CC is 2-digit number reserved for future unexpected modifications
+  //     0x AA BBBB CCCCCCCC DD (without spaces), where
+  //       - AA is 2-digit ID of the architecture family which must be unique
+  //       - BBBB is 4-digit number reserved for future modifications
+  //         to keep uniqueness. It should be always 0000 for now
+  //       - CCCCCCCC is 8-digit number of architecture itself. It must be
+  //         unique for all architectures inside the family
+  //       - DD is 2-digit number reserved for future unexpected modifications
   //         to keep uniqueness. It should be always 00 for now
   //
   x86_64 = 0x9900000000000000,
   //
   // Intel CPU architectures
   //
-  // AAAA is 03,
-  // BBBBBBBBBBBB is the architecture ID from the DEVICE_IP_VERSION extension of
-  // underlied backend,
-  // CC is 00
+  // AA is 03,
+  // CCCCCCCC is the architecture ID from the DEVICE_IP_VERSION extension of
+  // underlied backend
   intel_cpu_spr = 0x0300000000000800,
   intel_cpu_gnr = 0x0300000000000900,
   //
   // Intel GPU architectures
   //
   // AA is 00,
-  // BBBBBBBBBBBB is GMDID of that architecture (4 zeros + 8-digit GMDID
-  // itself),
-  // CC is 00
+  // CCCCCCCC is GMDID of that architecture
   intel_gpu_bdw = 0x0000000200000000,
   intel_gpu_skl = 0x0000000240000900,
   intel_gpu_kbl = 0x0000000240400900,
@@ -88,8 +87,7 @@ enum class architecture : uint64_t {
   // NVIDIA architectures
   //
   // AA is 01,
-  // BBBBBBBBBBBB is the SM version ID of that architecture,
-  // CC is 00
+  // CCCCCCCC is the SM version ID of that architecture
   nvidia_gpu_sm_50 = 0x0100000000005000,
   nvidia_gpu_sm_52 = 0x0100000000005200,
   nvidia_gpu_sm_53 = 0x0100000000005300,
@@ -108,8 +106,7 @@ enum class architecture : uint64_t {
   // AMD architectures
   //
   // AA is 02,
-  // BBBBBBBBBBBB is the GFX version ID of that architecture,
-  // CC is 00
+  // CCCCCCCC is the GFX version ID of that architecture
   amd_gpu_gfx700 = 0x0200000000070000,
   amd_gpu_gfx701 = 0x0200000000070100,
   amd_gpu_gfx702 = 0x0200000000070200,
