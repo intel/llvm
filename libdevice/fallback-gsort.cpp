@@ -640,6 +640,8 @@ void __devicelib_default_work_group_private_sort_spread_descending_p1i64_u32_p3i
   private_merge_sort_spread(first, n, scratch, std::greater<int64_t>{});
 }
 
+//=========== default work grop private sort for unsigned integer =============
+
 DEVICE_EXTERN_C_INLINE
 void __devicelib_default_work_group_private_sort_close_ascending_p1u8_u32_p1i8(
     uint8_t *first, uint32_t n, uint8_t *scratch) {
@@ -831,4 +833,55 @@ void __devicelib_default_work_group_private_sort_spread_descending_p1u64_u32_p3i
     uint64_t *first, uint32_t n, uint8_t *scratch) {
   private_merge_sort_spread(first, n, scratch, std::greater<uint64_t>{});
 }
+
+//================= default work grop private sort for fp32 ====================
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_close_ascending_p1f32_u32_p1i8(
+    float *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_close(first, n, scratch, std::less<float>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_close_ascending_p1f32_u32_p3i8(
+    float *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_close(first, n, scratch, std::less<float>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_close_descending_p1f32_u32_p1i8(
+    float *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_close(first, n, scratch, std::greater<float>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_close_descending_p1f32_u32_p3i8(
+    float *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_close(first, n, scratch, std::greater<float>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_spread_ascending_p1f32_u32_p1i8(
+    float *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_spread(first, n, scratch, std::less<float>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_spread_ascending_p1f32_u32_p3i8(
+    float *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_spread(first, n, scratch, std::less<float>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_spread_descending_p1f32_u32_p1i8(
+    float *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_spread(first, n, scratch, std::greater<float>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_spread_descending_p1f32_u32_p3i8(
+    float *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_spread(first, n, scratch, std::greater<float>{});
+}
+
 #endif
