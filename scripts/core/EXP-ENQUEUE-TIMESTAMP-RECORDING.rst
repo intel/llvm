@@ -23,7 +23,7 @@ Enqueue Timestamp Recording
 Motivation
 --------------------------------------------------------------------------------
 Currently, the only way to get timestamp information is through enabling
-profiling on a queue and retrieve the information from events coming from
+profiling on a queue and retrieving the information from events coming from
 commands submitted to it. However, not all systems give full control of the
 queue construction to the programmer wanting the profiling information. To amend
 this, this extension adds the ability to enqueue a timestamp recording on any
