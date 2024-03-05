@@ -169,9 +169,9 @@ void __devicelib_default_work_group_private_sort_spread_ascending_<encoded_param
 void __devicelib_default_work_group_private_sort_spread_descending_<encoded_param_types>(T* first, uint n, byte* scratch);
 
 // for sub-groups
-T __devicelib_default_sub_group_private_sort_ascending_<encoded_scalar_param_type>(T value);
+T __devicelib_default_sub_group_private_sort_ascending_<encoded_scalar_param_type>(T value, byte* scratch);
 
-T __devicelib_default_sub_group_private_sort_descending_<encoded_scalar_param_type>(T value);
+T __devicelib_default_sub_group_private_sort_descending_<encoded_scalar_param_type>(T value, byte* scratch);
 
 // for key value sorting using the default algorithm
 void __devicelib_default_work_group_joint_sort_ascending_<encoded_param_types>(T* keys_first, U* values_first, uint n, byte* scratch);
@@ -209,7 +209,7 @@ void __devicelib_default_work_group_joint_sort_ascending_p1i32_u32_p3i8(int* fir
 void __devicelib_default_work_group_joint_sort_descending_p1u32_u32_p1i8(uint* first, uint n, byte* scratch);
 void __devicelib_default_work_group_joint_sort_ascending_p3u32_p3u32_u32_p1i8(uint* first_keys, uint* first_values, uint n, byte* scratch);
 void __devicelib_default_work_group_private_sort_close_ascending_p1u32_p1u32_u32_p1i8(uint* first_keys, uint* first_values, uint n, byte* scratch);
-double __devicelib_default_sub_group_private_sort_ascending_f64(double value);
+double __devicelib_default_sub_group_private_sort_ascending_f64(double value, byte* scratch);
 ```
 
 ## Alternative Design
