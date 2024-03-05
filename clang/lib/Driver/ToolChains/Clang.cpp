@@ -5035,14 +5035,16 @@ static void ProcessVSRuntimeLibrary(const ArgList &Args,
         !Args.hasArg(options::OPT_nolibsycl)) {
       if (RTOptionID == options::OPT__SLASH_MDd) {
         if (Args.hasArg(options::OPT_fpreview_breaking_changes))
-          CmdArgs.push_back("--dependent-lib=sycl-previewd");
+          CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION
+                            "-previewd");
         else
-          CmdArgs.push_back("--dependent-lib=sycld");
+          CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION "d");
       } else {
         if (Args.hasArg(options::OPT_fpreview_breaking_changes))
-          CmdArgs.push_back("--dependent-lib=sycl-preview");
+          CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION
+                            "-preview");
         else
-          CmdArgs.push_back("--dependent-lib=sycl");
+          CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION);
       }
       CmdArgs.push_back("--dependent-lib=sycl-devicelib-host");
     }
@@ -6596,9 +6598,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (!D.IsCLMode() && TC.getTriple().isWindowsMSVCEnvironment()) {
       if (isDependentLibAdded(Args, "msvcrtd")) {
         if (Args.hasArg(options::OPT_fpreview_breaking_changes))
-          CmdArgs.push_back("--dependent-lib=sycl-previewd");
+          CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION
+                            "-previewd");
         else
-          CmdArgs.push_back("--dependent-lib=sycld");
+          CmdArgs.push_back("--dependent-lib=sycl" SYCL_MAJOR_VERSION "d");
       }
     } else if (!D.IsCLMode() && TC.getTriple().isWindowsGNUEnvironment()) {
       if (Args.hasArg(options::OPT_fpreview_breaking_changes))

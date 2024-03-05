@@ -138,14 +138,15 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     if (!Args.hasArg(options::OPT__SLASH_MDd) &&
         !isDependentLibAdded(Args, "msvcrtd")) {
       if (Args.hasArg(options::OPT_fpreview_breaking_changes))
-        CmdArgs.push_back("-defaultlib:sycl-preview.lib");
+        CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION "-preview.lib");
       else
-        CmdArgs.push_back("-defaultlib:sycl.lib");
+        CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION ".lib");
     } else {
       if (Args.hasArg(options::OPT_fpreview_breaking_changes))
-        CmdArgs.push_back("-defaultlib:sycl-previewd.lib");
+        CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION
+                          "-previewd.lib");
       else
-        CmdArgs.push_back("-defaultlib:sycld.lib");
+        CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION "d.lib");
     }
     CmdArgs.push_back("-defaultlib:sycl-devicelib-host.lib");
   }
