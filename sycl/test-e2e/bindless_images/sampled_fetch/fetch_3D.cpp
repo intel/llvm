@@ -1,5 +1,6 @@
 // REQUIRES: linux
 // REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_bindless_sampled_image_fetch_3d
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -17,15 +18,6 @@ int main() {
   sycl::device dev;
   sycl::queue q(dev);
   auto ctxt = q.get_context();
-
-  // Check if device supports 3D non-USM sampled image fetches
-  if (!dev.has(sycl::aspect::ext_oneapi_bindless_sampled_image_fetch_3d)) {
-#ifdef VERBOSE_PRINT
-    std::cout << "Test skipped due to lack of device support for fetching 3D "
-                 "non-USM backed sampled images\n";
-#endif
-    return 0;
-  }
 
   // declare image data
   constexpr size_t width = 4;
