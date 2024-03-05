@@ -81,12 +81,12 @@ int main() {
                    intel::experimental::register_map_interface_options_enum::
                        do_not_wait_for_done_write>)>);
   static_assert(
-      std::is_same_v<decltype(intel::experimental::use_stall_enable_clusters),
+      std::is_same_v<decltype(intel::experimental::stall_enable_clusters),
                      decltype(intel::experimental::fpga_cluster<
                               intel::experimental::fpga_cluster_options_enum::
                                   stall_enable>)>);
   static_assert(
-      std::is_same_v<decltype(intel::experimental::use_stall_free_clusters),
+      std::is_same_v<decltype(intel::experimental::stall_free_clusters),
                      decltype(intel::experimental::fpga_cluster<
                               intel::experimental::fpga_cluster_options_enum::
                                   stall_free>)>);
@@ -95,7 +95,7 @@ int main() {
   using PS = decltype(oneapi::experimental::properties(
       intel::experimental::streaming_interface_remove_downstream_stall,
       intel::experimental::pipelined<1>,
-      intel::experimental::use_stall_enable_clusters));
+      intel::experimental::stall_enable_clusters));
   static_assert(oneapi::experimental::is_property_list_v<PS>);
   static_assert(
       PS::has_property<intel::experimental::streaming_interface_key>());
@@ -116,7 +116,7 @@ int main() {
   using PR = decltype(oneapi::experimental::properties(
       intel::experimental::register_map_interface_wait_for_done_write,
       intel::experimental::pipelined<0>,
-      intel::experimental::use_stall_free_clusters));
+      intel::experimental::stall_free_clusters));
   static_assert(oneapi::experimental::is_property_list_v<PR>);
   static_assert(
       PR::has_property<intel::experimental::register_map_interface_key>());

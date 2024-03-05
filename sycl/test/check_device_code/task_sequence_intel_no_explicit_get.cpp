@@ -28,7 +28,7 @@ int main() {
     cgh.single_task([=]() {
       int d1[kSize], d2[kSize];
       task_sequence<arrayAdd,
-                    decltype(properties{pipelined<0>, use_stall_enable_clusters,
+                    decltype(properties{pipelined<0>, stall_enable_clusters,
                                         invocation_capacity<1>,
                                         response_capacity<1>})>
           arrayAddTask;

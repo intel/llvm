@@ -12,11 +12,11 @@ void dummyTask() {}
 static task_sequence<dummyTask,
                      decltype(properties(balanced, response_capacity<0>,
                                          invocation_capacity<0>, pipelined<-1>,
-                                         use_stall_free_clusters))>
+                                         stall_free_clusters))>
     TaskSequence1;
 static task_sequence<
     dummyTask, decltype(properties(response_capacity<2>, invocation_capacity<3>,
-                                   pipelined<1>, use_stall_enable_clusters))>
+                                   pipelined<1>, stall_enable_clusters))>
     TaskSequence2;
 static task_sequence<dummyTask, decltype(properties(pipelined<0>))>
     TaskSequence3;
@@ -52,8 +52,8 @@ int main() {
   static_assert(is_property_value<decltype(pipelined<-1>)>::value);
   static_assert(is_property_value<decltype(pipelined<0>)>::value);
   static_assert(is_property_value<decltype(pipelined<1>)>::value);
-  static_assert(is_property_value<decltype(use_stall_enable_clusters)>::value);
-  static_assert(is_property_value<decltype(use_stall_free_clusters)>::value);
+  static_assert(is_property_value<decltype(stall_enable_clusters)>::value);
+  static_assert(is_property_value<decltype(stall_free_clusters)>::value);
 
   checkIsPropertyOf<decltype(TaskSequence1)>();
   static_assert(TaskSequence1.has_property<balanced_key>());
@@ -68,7 +68,7 @@ int main() {
                 invocation_capacity<0>);
   static_assert(TaskSequence1.get_property<pipelined_key>() == pipelined<-1>);
   static_assert(TaskSequence1.get_property<fpga_cluster_key>() ==
-                use_stall_free_clusters);
+                stall_free_clusters);
 
   checkIsPropertyOf<decltype(TaskSequence2)>();
   static_assert(!TaskSequence2.has_property<balanced_key>());
@@ -82,7 +82,7 @@ int main() {
                 invocation_capacity<3>);
   static_assert(TaskSequence2.get_property<pipelined_key>() == pipelined<1>);
   static_assert(TaskSequence2.get_property<fpga_cluster_key>() ==
-                use_stall_enable_clusters);
+                stall_enable_clusters);
 
   checkIsPropertyOf<decltype(TaskSequence3)>();
   static_assert(!TaskSequence3.has_property<balanced_key>());

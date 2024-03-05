@@ -108,11 +108,11 @@ inline constexpr fpga_cluster_key::value_t<option> fpga_cluster;
 
 inline constexpr fpga_cluster_key::value_t<
     fpga_cluster_options_enum::stall_free>
-    use_stall_free_clusters;
+    stall_free_clusters;
 
 inline constexpr fpga_cluster_key::value_t<
     fpga_cluster_options_enum::stall_enable>
-    use_stall_enable_clusters;
+    stall_enable_clusters;
 
 } // namespace ext::intel::experimental
 

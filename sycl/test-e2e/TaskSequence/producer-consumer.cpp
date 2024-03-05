@@ -56,11 +56,6 @@ int main() {
   int sum = 0;
   for (int i = 0; i < kSize; ++i)
     sum += i * i + 42;
-  if (result == sum) {
-    std::cout << "PASSED\n";
-    return 0;
-  } else {
-    std::cout << "FAILED\n";
-    return 1;
-  }
+  assert(result == sum);
+  return 0;
 }

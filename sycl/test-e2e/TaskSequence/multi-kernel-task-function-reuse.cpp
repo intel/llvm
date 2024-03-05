@@ -74,13 +74,7 @@ int main() {
     q.wait();
   }
 
-  if (out[0] == golden)
-    std::cout << "PASSED sequential test" << std::endl;
-  else
-    std::cout << "FAILED" << std::endl;
-
-  if (out[1] == golden)
-    std::cout << "PASSED parallel test" << std::endl;
-  else
-    std::cout << "FAILED" << std::endl;
+  assert(out[0] == golden);
+  assert(out[1] == golden);
+  return 0;
 }

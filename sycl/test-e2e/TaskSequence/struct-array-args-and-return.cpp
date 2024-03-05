@@ -168,8 +168,6 @@ int main() {
     });
     q.wait();
   }
-  bool passed = check(res_struct) && check(res_array);
-  std::cout << (passed ? "PASSED\n" : "FAILED\n");
-
+  assert(check(res_struct) && check(res_array));
   return 0;
 }

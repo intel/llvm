@@ -1,4 +1,3 @@
-/* INTEL_CUSTOMIZATION */
 //==--------------------------- task_sequence.hpp --------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -60,17 +59,17 @@ public:
         &f, pipelined, fpga_cluster, response_capacity, invocation_capacity);
 #else
     throw exception{make_error_code(errc::feature_not_supported),
-                    "task_sequence is not supported on host device"};
+                    "task_sequence is not supported on the host"};
 #endif
   }
 
-  void async(ArgsT... Args) {
+  void async([[maybe_unused]] ArgsT... Args) {
 #if defined(__SYCL_DEVICE_ONLY__)
     ++outstanding;
     __spirv_TaskSequenceAsyncINTEL(taskSequence, Args...);
 #else
     throw exception{make_error_code(errc::feature_not_supported),
-                    "task_sequence is not supported on host device"};
+                    "task_sequence is not supported on the host"};
 #endif
   }
 
@@ -80,7 +79,7 @@ public:
     return __spirv_TaskSequenceGetINTEL<ReturnT>(taskSequence);
 #else
     throw exception{make_error_code(errc::feature_not_supported),
-                    "task_sequence is not supported on host device"};
+                    "task_sequence is not supported on the host"};
 #endif
   }
 
@@ -91,11 +90,8 @@ public:
         get();
     }
     __spirv_TaskSequenceReleaseINTEL(taskSequence);
-#else
-    // throw exception{make_error_code(errc::feature_not_supported),
-    //                 "task_sequence is not supported on host device"};
-    // Destructor shouldn't throw exception.
 #endif
+    // Destructor shouldn't throw exception.
   }
 
   template <typename propertyT> static constexpr bool has_property() {

@@ -37,9 +37,5 @@ int main() {
   });
   myQueue.wait();
 
-  // Check result:
-  if (result == 1 * 2 + 3 * 4)
-    std::cout << "PASSED\n";
-  else
-    std::cout << "FAILED\n";
+  assert(result == (1 * 2 + 3 * 4));
 }

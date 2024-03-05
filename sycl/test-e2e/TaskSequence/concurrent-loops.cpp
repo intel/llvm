@@ -89,9 +89,6 @@ int main() {
     q.wait();
   }
 
-  if (abs(out[0] - golden) < 0.001)
-    std::cout << "PASSED\n";
-  else
-    std::cout << "FAILED\n";
+  assert(abs(out[0] - golden) < 0.001);
   return 0;
 }

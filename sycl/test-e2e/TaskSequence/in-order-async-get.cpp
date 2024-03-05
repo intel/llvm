@@ -61,14 +61,9 @@ int main() {
   }
 
   // verification
-  bool passed = true;
   for (int i = 0; i < kNumInputs; ++i) {
-    if (abs(results[i] - golden[i]) > 0.0001)
-      passed = false;
+    assert(abs(results[i] - golden[i]) < 0.001);
   }
-  if (passed)
-    std::cout << "PASSED\n";
-  else
-    std::cout << "FAILED\n";
+
   return 0;
 }

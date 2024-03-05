@@ -624,6 +624,6 @@
 #endif
 
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_fpga_task_sequence__
-// __SYCL_ASPECT(ext_oneapi_tangle_group, 61)
+// __SYCL_ASPECT(ext_intel_fpga_task_sequence__, 61)
 #define __SYCL_ANY_DEVICE_HAS_ext_intel_fpga_task_sequence__ 0
 #endif
