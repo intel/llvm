@@ -15,7 +15,6 @@
 #include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/queue.hpp>
-#include <sycl/stl.hpp>
 
 #include <algorithm>
 
@@ -80,6 +79,20 @@ ext::oneapi::experimental::queue_state queue::ext_oneapi_get_state() const {
   return impl->getCommandGraph()
              ? ext::oneapi::experimental::queue_state::recording
              : ext::oneapi::experimental::queue_state::executing;
+}
+
+ext::oneapi::experimental::command_graph<
+    ext::oneapi::experimental::graph_state::modifiable>
+queue::ext_oneapi_get_graph() const {
+  auto Graph = impl->getCommandGraph();
+  if (!Graph)
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "ext_oneapi_get_graph() can only be called on recording queues.");
+
+  return sycl::detail::createSyclObjFromImpl<
+      ext::oneapi::experimental::command_graph<
+          ext::oneapi::experimental::graph_state::modifiable>>(Graph);
 }
 
 bool queue::is_host() const {
@@ -284,9 +297,11 @@ pi_native_handle queue::getNative(int32_t &NativeHandleDesc) const {
   return impl->getNative(NativeHandleDesc);
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 buffer<detail::AssertHappened, 1> &queue::getAssertHappenedBuffer() {
   return impl->getAssertHappenedBuffer();
 }
+#endif
 
 event queue::memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
                                   bool IsDeviceImageScope, size_t NumBytes,
@@ -344,3 +359,10 @@ void queue::ext_oneapi_set_external_event(const event &external_event) {
 
 } // namespace _V1
 } // namespace sycl
+
+size_t std::hash<sycl::queue>::operator()(const sycl::queue &Q) const {
+  // Compared to using the impl pointer, the unique ID helps avoid hash
+  // collisions with previously destroyed queues.
+  return std::hash<unsigned long long>()(
+      sycl::detail::getSyclObjImpl(Q)->getQueueID());
+}

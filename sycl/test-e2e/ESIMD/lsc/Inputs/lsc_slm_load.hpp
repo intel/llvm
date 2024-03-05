@@ -120,11 +120,11 @@ bool test(queue Q, uint32_t PMask = ~0) {
       uint32_t LID = I % (LocalRange * VL * NChannels);
       uint32_t GID = I / VL;
       bool Pred = (GID & 0x1) == 0;
-      T ExpectedVal = GroupId * 1000000 + LID;
+      Tuint ExpectedVal = GroupId * 1000000 + LID;
       if (TestMergeOperand && !Pred)
-        ExpectedVal = GID + (I % VL);
+        ExpectedVal = sycl::bit_cast<Tuint>((T)(GID + (I % VL)));
 
-      if (Out[I] != ExpectedVal && NErrors++ < 32) {
+      if (sycl::bit_cast<Tuint>(Out[I]) != ExpectedVal && NErrors++ < 32) {
         std::cout << "Error: " << I << ": Value = " << Out[I]
                   << ", Expected value = " << ExpectedVal << std::endl;
       }

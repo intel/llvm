@@ -344,7 +344,7 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
   // The deprecated -DLLVM_ENABLE_PROJECTS=libcxx configuration installs
   // libc++.so in D.Dir+"/../lib/". Detect this path.
   // TODO Remove once LLVM_ENABLE_PROJECTS=libcxx is unsupported.
-  if (StringRef(D.Dir).startswith(SysRoot) &&
+  if (StringRef(D.Dir).starts_with(SysRoot) &&
       (Args.hasArg(options::OPT_fsycl) ||
        D.getVFS().exists(D.Dir + "/../lib/libsycl.so")))
     addPathIfExists(D, D.Dir + "/../lib", Paths);

@@ -54,6 +54,7 @@ _iml_half_internal __imf_rsqrtf16(_iml_half_internal);
 float __imf_truncf(float);
 double __imf_trunc(double);
 _iml_half_internal __imf_truncf16(_iml_half_internal);
+double __imf_rcp64h(double);
 };
 
 namespace sycl {
@@ -231,6 +232,11 @@ std::enable_if_t<std::is_same_v<Tp, sycl::half>, sycl::half> trunc(Tp x) {
 template <typename Tp>
 std::enable_if_t<std::is_same_v<Tp, sycl::half2>, sycl::half2> trunc(Tp x) {
   return sycl::half2{trunc(x.s0()), trunc(x.s1())};
+}
+
+template <typename Tp>
+std::enable_if_t<std::is_same_v<Tp, double>, double> rcp64h(Tp x) {
+  return __imf_rcp64h(x);
 }
 
 } // namespace ext::intel::math

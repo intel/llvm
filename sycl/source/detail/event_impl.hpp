@@ -14,7 +14,6 @@
 #include <sycl/detail/host_profiling_info.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/info/info_desc.hpp>
-#include <sycl/stl.hpp>
 
 #include <atomic>
 #include <cassert>
@@ -288,6 +287,10 @@ public:
 
   bool isEventFromSubmittedExecCommandBuffer() const {
     return MEventFromSubmittedExecCommandBuffer;
+  }
+
+  const std::vector<EventImplPtr> &getPostCompleteEvents() const {
+    return MPostCompleteEvents;
   }
 
 protected:
