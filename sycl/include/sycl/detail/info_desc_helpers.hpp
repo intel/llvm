@@ -134,6 +134,7 @@ struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
     using return_type = info::DescType::Desc::return_type;                     \
   };
 #include <sycl/info/sycl_backend_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace detail
 } // namespace _V1
