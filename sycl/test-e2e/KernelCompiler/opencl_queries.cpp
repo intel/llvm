@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: ocloc
+// REQUIRES: ocloc && (opencl || level_zero)
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -41,7 +41,8 @@ int main() {
   }
 
   // no supported devices support EMBEDDED_PROFILE at this time.
-  assert(d.ext_oneapi_cl_profile().find("FULL_PROFILE") == 0);
+  assert(d.ext_oneapi_cl_profile() == "FULL_PROFILE" &&
+         "unexpected cl_profile");
 
   assert(syclex::opencl_c_1_0.major == 1 && syclex::opencl_c_1_0.minor == 0 && syclex::opencl_c_1_0.patch == 0);
   assert(syclex::opencl_c_1_1.major == 1 && syclex::opencl_c_1_1.minor == 1 && syclex::opencl_c_1_1.patch == 0);

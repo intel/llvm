@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// Run on CUDA, HIP, and other devices that don't support the kernel_compiler
-// REQUIRES: !ocloc
+// Test when we don't have ocloc (eg CUDA, HIP, etc)
+// REQUIRES: !ocloc && !opencl && !level_zero
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

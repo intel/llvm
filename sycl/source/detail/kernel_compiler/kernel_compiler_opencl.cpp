@@ -364,9 +364,14 @@ bool OpenCLC_Supports_Extension(
 }
 
 std::string OpenCLC_Profile(uint32_t IPVersion) {
-  // Note: seems to have \n\n amended
   try {
     std::string result = InvokeOclocQuery(IPVersion, "CL_DEVICE_PROFILE");
+    // NOTE: result has \n\n amended. Clean it up.
+    // TODO: remove this once the ocloc query is fixed.
+    while (result.back() == '\n') {
+      result.pop_back();
+    }
+
     return result;
   } catch (sycl::exception &) {
     return "";
