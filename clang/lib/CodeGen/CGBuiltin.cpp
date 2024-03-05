@@ -23717,6 +23717,8 @@ CodeGenFunction::EmitIntelSYCLAllocaBuiltin(const CallExpr *E,
   // Both 'sycl::access::decorated::{yes and legacy}' lead to decorated (private
   // AS) pointer type. Perform cast if 'sycl::access::decorated::no'.
   if (Decorated == NoDecorated) {
+    IRBuilderBase::InsertPointGuard IPG(Builder);
+    Builder.SetInsertPoint(getPostAllocaInsertPoint());
     unsigned DestAddrSpace =
         getContext().getTargetAddressSpace(LangAS::Default);
     llvm::PointerType *DestTy =
