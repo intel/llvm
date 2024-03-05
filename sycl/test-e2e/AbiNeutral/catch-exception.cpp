@@ -4,8 +4,10 @@
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 // REQUIRES: level_zero && gpu
 
-#include <sycl/sycl.hpp>
+// This test case tests if compiling works with or without
+// _GLIBCXX_USE_CXX11_ABI=0.
 
+#include <sycl/sycl.hpp>
 
 int main() {
 #ifdef _GLIBCXX_USE_CXX11_ABI
