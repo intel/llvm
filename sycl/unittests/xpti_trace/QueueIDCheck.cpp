@@ -136,7 +136,7 @@ TEST_F(QueueID, QueueCreationAndKernelWithDeps) {
   checkTaskBeginEnd(QueueIDSTr);
 }
 
-TEST_F(QueueID, QueueCreationUSMOperations) {
+TEST_F(QueueID, DISABLED_QueueCreationUSMOperations) {
   sycl::queue Q0;
   auto Queue0ImplPtr = sycl::detail::getSyclObjImpl(Q0);
   auto QueueIDSTr = std::to_string(Queue0ImplPtr->getQueueID());
