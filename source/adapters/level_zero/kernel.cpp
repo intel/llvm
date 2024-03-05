@@ -18,45 +18,44 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetSuggestedLocalWorkSize(
     size_t *pSuggestedLocalWorkSize) {
 
   uint32_t WG[3]{};
-
   size_t GlobalWorkSize3D[3]{1, 1, 1};
-  std::copy(GlobalWorkSize, GlobalWorkSize + WorkDim, GlobalWorkSize3D);
+  std::copy(pGlobalWorkSize, pGlobalWorkSize + workDim, GlobalWorkSize3D);
 
   ze_kernel_handle_t ZeKernel{};
-  if (ur_result_t Result = getZeKernel(Queue, Kernel);
+  if (ur_result_t Result = getZeKernel(hQueue, hKernel, &ZeKernel);
       Result != UR_RESULT_SUCCESS)
     return Result;
 
   if (ur_result_t Result =
-          getSuggestedLocalWorkSize(Queue, ZeKernel, GlobalWorkSize3D, WG);
+          getSuggestedLocalWorkSize(hQueue, ZeKernel, GlobalWorkSize3D, WG);
       Result != UR_RESULT_SUCCESS)
     return Result;
 
   UR_ASSERT(pSuggestedLocalWorkSize != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
-  std::copy(WG, WG + WorkDim, pSuggestedLocalWorkSize);
+  std::copy(WG, WG + workDim, pSuggestedLocalWorkSize);
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t getZeKernel(ur_queue_handle_t Queue, ur_kernel_handle_t Kernel,
-                        ze_kernel_handle_t *pZeKernel) {
-  auto ZeDevice = Queue->Device->ZeDevice;
+ur_result_t getZeKernel(ur_queue_handle_t hQueue, ur_kernel_handle_t hKernel,
+                        ze_kernel_handle_t *phZeKernel) {
+  auto ZeDevice = hQueue->Device->ZeDevice;
 
-  if (Kernel->ZeKernelMap.empty()) {
-    *pZeKernel = Kernel->ZeKernel;
+  if (hKernel->ZeKernelMap.empty()) {
+    *phZeKernel = hKernel->ZeKernel;
   } else {
-    auto It = Kernel->ZeKernelMap.find(ZeDevice);
-    if (It == Kernel->ZeKernelMap.end()) {
+    auto It = hKernel->ZeKernelMap.find(ZeDevice);
+    if (It == hKernel->ZeKernelMap.end()) {
       /* kernel and queue don't match */
       return UR_RESULT_ERROR_INVALID_QUEUE;
     }
-    *pZeKernel = It->second;
+    *phZeKernel = It->second;
   }
 
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t getSuggestedLocalWorkSize(ur_queue_handle_t Queue,
-                                      ze_kernel_handle_t ZeKernel,
+ur_result_t getSuggestedLocalWorkSize(ur_queue_handle_t hQueue,
+                                      ze_kernel_handle_t hZeKernel,
                                       size_t GlobalWorkSize3D[3],
                                       uint32_t SuggestedLocalWorkSize3D[3]) {
   uint32_t *WG = SuggestedLocalWorkSize3D;
@@ -71,7 +70,7 @@ ur_result_t getSuggestedLocalWorkSize(ur_queue_handle_t Queue,
   }
   if (SuggestGroupSize) {
     ZE2UR_CALL(zeKernelSuggestGroupSize,
-               (ZeKernel, GlobalWorkSize3D[0], GlobalWorkSize3D[1],
+               (hZeKernel, GlobalWorkSize3D[0], GlobalWorkSize3D[1],
                 GlobalWorkSize3D[2], &WG[0], &WG[1], &WG[2]));
   } else {
     for (int I : {0, 1, 2}) {
@@ -79,9 +78,9 @@ ur_result_t getSuggestedLocalWorkSize(ur_queue_handle_t Queue,
       // fully divisable with. Start with the max possible size in
       // each dimension.
       uint32_t GroupSize[] = {
-          Queue->Device->ZeDeviceComputeProperties->maxGroupSizeX,
-          Queue->Device->ZeDeviceComputeProperties->maxGroupSizeY,
-          Queue->Device->ZeDeviceComputeProperties->maxGroupSizeZ};
+          hQueue->Device->ZeDeviceComputeProperties->maxGroupSizeX,
+          hQueue->Device->ZeDeviceComputeProperties->maxGroupSizeY,
+          hQueue->Device->ZeDeviceComputeProperties->maxGroupSizeZ};
       GroupSize[I] = (std::min)(size_t(GroupSize[I]), GlobalWorkSize3D[I]);
       while (GlobalWorkSize3D[I] % GroupSize[I]) {
         --GroupSize[I];
@@ -131,7 +130,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                   ///< this particular kernel execution instance.
 ) {
   ze_kernel_handle_t ZeKernel{};
-  if (ur_result_t Result = getZeKernel(Queue, Kernel);
+  if (ur_result_t Result = getZeKernel(Queue, Kernel, &ZeKernel);
       Result != UR_RESULT_SUCCESS)
     return Result;
 
