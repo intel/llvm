@@ -12228,6 +12228,13 @@ def err_sycl_attribute_internal_decl
             "in an anonymous namespace">;
 def err_sycl_attribute_not_device_global
     : Error<"%0 attribute can only be applied to 'device_global' variables">;
+def err_fpga_attribute_incorrect_variable
+    : Error<"%0 attribute only applies to constant variables, local variables, "
+            "static variables, %select{|agent memory arguments, }1non-static data "
+            "members and device_global variables">;
+def err_fpga_attribute_invalid_decl
+    : Error<"%0 attribute only applies to const variables, local variables, "
+            "non-static data members and device_global variables">;
 def err_sycl_compiletime_property_duplication : Error<
   "can't apply %0 property twice to the same accessor">;
 def err_sycl_invalid_property_list_param_number : Error<
