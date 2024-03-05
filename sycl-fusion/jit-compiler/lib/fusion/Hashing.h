@@ -42,6 +42,10 @@ inline llvm::hash_code hash_value(const NDRange &ND) {
   return llvm::hash_combine(ND.getDimensions(), ND.getGlobalSize(),
                             ND.getLocalSize(), ND.getOffset());
 }
+
+template <typename T> inline llvm::hash_code hash_value(const DynArray<T> &DA) {
+  return llvm::hash_combine_range(DA.begin(), DA.end());
+}
 } // namespace jit_compiler
 
 namespace std {

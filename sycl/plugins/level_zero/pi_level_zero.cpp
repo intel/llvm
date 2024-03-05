@@ -243,8 +243,9 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
                                  HostPtr, RetImage);
 }
 
-pi_result piextMemGetNativeHandle(pi_mem Mem, pi_native_handle *NativeHandle) {
-  return pi2ur::piextMemGetNativeHandle(Mem, NativeHandle);
+pi_result piextMemGetNativeHandle(pi_mem Mem, pi_device Dev,
+                                  pi_native_handle *NativeHandle) {
+  return pi2ur::piextMemGetNativeHandle(Mem, Dev, NativeHandle);
 }
 
 pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
@@ -557,6 +558,16 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
       NumEventsInWaitList, EventWaitList, OutEvent);
 }
 
+pi_result piextEnqueueCooperativeKernelLaunch(
+    pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
+    const size_t *LocalWorkSize, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *OutEvent) {
+  return pi2ur::piextEnqueueCooperativeKernelLaunch(
+      Queue, Kernel, WorkDim, GlobalWorkOffset, GlobalWorkSize, LocalWorkSize,
+      NumEventsInWaitList, EventWaitList, OutEvent);
+}
+
 pi_result piextKernelCreateWithNativeHandle(pi_native_handle NativeHandle,
                                             pi_context Context,
                                             pi_program Program,
@@ -570,6 +581,13 @@ pi_result piextKernelCreateWithNativeHandle(pi_native_handle NativeHandle,
 pi_result piextKernelGetNativeHandle(pi_kernel Kernel,
                                      pi_native_handle *NativeHandle) {
   return pi2ur::piextKernelGetNativeHandle(Kernel, NativeHandle);
+}
+
+pi_result piextKernelSuggestMaxCooperativeGroupCount(
+    pi_kernel Kernel, size_t LocalWorkSize, size_t DynamicSharedMemorySize,
+    pi_uint32 *GroupCountRet) {
+  return pi2ur::piextKernelSuggestMaxCooperativeGroupCount(
+      Kernel, LocalWorkSize, DynamicSharedMemorySize, GroupCountRet);
 }
 
 //
@@ -1322,6 +1340,24 @@ pi_result piextCommandBufferFillUSM(pi_ext_command_buffer CommandBuffer,
   return pi2ur::piextCommandBufferFillUSM(
       CommandBuffer, Ptr, Pattern, PatternSize, Size, NumSyncPointsInWaitList,
       SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextCommandBufferPrefetchUSM(
+    pi_ext_command_buffer CommandBuffer, const void *Ptr, size_t Size,
+    pi_usm_migration_flags Flags, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferPrefetchUSM(CommandBuffer, Ptr, Size, Flags,
+                                              NumSyncPointsInWaitList,
+                                              SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextCommandBufferAdviseUSM(
+    pi_ext_command_buffer CommandBuffer, const void *Ptr, size_t Length,
+    pi_mem_advice Advice, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferAdviseUSM(CommandBuffer, Ptr, Length, Advice,
+                                            NumSyncPointsInWaitList,
+                                            SyncPointWaitList, SyncPoint);
 }
 
 pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,

@@ -96,7 +96,6 @@ void registerTestMultiBuffering();
 void registerTestIntRangeInference();
 void registerTestIRVisitorsPass();
 void registerTestGenericIRVisitorsPass();
-void registerTestGenericIRVisitorsInterruptPass();
 void registerTestInterfaces();
 void registerTestLastModifiedPass();
 void registerTestLinalgDecomposeOps();
@@ -110,30 +109,30 @@ void registerTestLoopFusion();
 void registerTestCFGLoopInfoPass();
 void registerTestLoopMappingPass();
 void registerTestLoopUnrollingPass();
+void registerTestLowerToArmSME();
 void registerTestLowerToLLVM();
-void registerTestLowerToNVVM();
 void registerTestMakeIsolatedFromAbovePass();
 void registerTestMatchReductionPass();
 void registerTestMathAlgebraicSimplificationPass();
 void registerTestMathPolynomialApproximationPass();
+void registerTestMathToVCIXPass();
 void registerTestMemRefDependenceCheck();
 void registerTestMemRefStrideCalculation();
 void registerTestMeshSimplificationsPass();
 void registerTestMeshReshardingSpmdizationPass();
-void registerTestMultiIndexOpLoweringPass();
+void registerTestOpLoweringPasses();
 void registerTestNextAccessPass();
 void registerTestOneToNTypeConversionPass();
 void registerTestOpaqueLoc();
 void registerTestPadFusion();
-void registerTestPreparationPassWithAllowedMemrefResults();
 void registerTestRecursiveTypesPass();
 void registerTestSCFUtilsPass();
 void registerTestSCFWhileOpBuilderPass();
+void registerTestSCFWrapInZeroTripCheckPasses();
 void registerTestShapeMappingPass();
 void registerTestSliceAnalysisPass();
 void registerTestTensorCopyInsertionPass();
 void registerTestTensorTransforms();
-void registerTestTilingInterface();
 void registerTestTopologicalSortAnalysisPass();
 void registerTestTransformDialectEraseSchedulePass();
 void registerTestTransformDialectInterpreterPass();
@@ -152,6 +151,7 @@ void registerTestPDLLPasses();
 namespace test {
 void registerTestDialect(DialectRegistry &);
 void registerTestDynDialect(DialectRegistry &);
+void registerTestTilingInterfaceTransformDialectExtension(DialectRegistry &);
 void registerTestTransformDialectExtension(DialectRegistry &);
 } // namespace test
 
@@ -234,14 +234,16 @@ void registerTestPasses() {
   mlir::test::registerTestCFGLoopInfoPass();
   mlir::test::registerTestLoopMappingPass();
   mlir::test::registerTestLoopUnrollingPass();
+  mlir::test::registerTestLowerToArmSME();
   mlir::test::registerTestLowerToLLVM();
   mlir::test::registerTestMakeIsolatedFromAbovePass();
   mlir::test::registerTestMatchReductionPass();
   mlir::test::registerTestMathAlgebraicSimplificationPass();
   mlir::test::registerTestMathPolynomialApproximationPass();
+  mlir::test::registerTestMathToVCIXPass();
   mlir::test::registerTestMemRefDependenceCheck();
   mlir::test::registerTestMemRefStrideCalculation();
-  mlir::test::registerTestMultiIndexOpLoweringPass();
+  mlir::test::registerTestOpLoweringPasses();
   mlir::test::registerTestMeshSimplificationsPass();
   mlir::test::registerTestMeshReshardingSpmdizationPass();
   mlir::test::registerTestNextAccessPass();
@@ -251,11 +253,11 @@ void registerTestPasses() {
   mlir::test::registerTestRecursiveTypesPass();
   mlir::test::registerTestSCFUtilsPass();
   mlir::test::registerTestSCFWhileOpBuilderPass();
+  mlir::test::registerTestSCFWrapInZeroTripCheckPasses();
   mlir::test::registerTestShapeMappingPass();
   mlir::test::registerTestSliceAnalysisPass();
   mlir::test::registerTestTensorCopyInsertionPass();
   mlir::test::registerTestTensorTransforms();
-  mlir::test::registerTestTilingInterface();
   mlir::test::registerTestTopologicalSortAnalysisPass();
   mlir::test::registerTestTransformDialectEraseSchedulePass();
   mlir::test::registerTestTransformDialectInterpreterPass();
@@ -292,6 +294,7 @@ int main(int argc, char **argv) {
 #ifdef MLIR_INCLUDE_TESTS
   ::test::registerTestDialect(registry);
   ::test::registerTestTransformDialectExtension(registry);
+  ::test::registerTestTilingInterfaceTransformDialectExtension(registry);
   ::test::registerTestDynDialect(registry);
 #endif
   return mlir::asMainReturnCode(mlir::MlirOptMain(

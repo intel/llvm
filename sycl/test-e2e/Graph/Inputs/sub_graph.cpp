@@ -4,7 +4,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
+  queue Queue{};
 
   if (!are_graphs_supported(Queue)) {
     return 0;
@@ -101,10 +101,8 @@ int main() {
   // Finalize a graph with the additional kernel for writing out to
   auto MainGraphExec = MainGraph.finalize();
 
-  event Event;
   for (unsigned n = 0; n < Iterations; n++) {
-    Event = Queue.submit(
-        [&](handler &CGH) { CGH.ext_oneapi_graph(MainGraphExec); });
+    Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(MainGraphExec); });
   }
   Queue.wait_and_throw();
 

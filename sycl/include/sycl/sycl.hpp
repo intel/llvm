@@ -85,10 +85,12 @@
 #include <sycl/ext/oneapi/experimental/ballot_group.hpp>
 #include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
+#include <sycl/ext/oneapi/experimental/composite_device.hpp>
 #include <sycl/ext/oneapi/experimental/cuda/barrier.hpp>
 #include <sycl/ext/oneapi/experimental/fixed_size_group.hpp>
 #include <sycl/ext/oneapi/experimental/opportunistic_group.hpp>
 #include <sycl/ext/oneapi/experimental/prefetch.hpp>
+#include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/ext/oneapi/experimental/tangle_group.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
 #include <sycl/ext/oneapi/functional.hpp>
@@ -106,4 +108,20 @@
 // We used to include those and some code might be reliant on that.
 #include <cmath>
 #include <complex>
+#endif
+
+#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+namespace sycl {
+inline namespace _V1 {
+// This wasn't put into "detail" so we can't just drop it outsdie ABI-breaking
+// window. DO NOT USE.
+template <typename T, typename... ArgsT>
+__SYCL_DEPRECATED(
+    "sycl::make_unique_ptr was never supposed to be anything other than "
+    "an implementation detail. Use std::make_unique instead.")
+std::unique_ptr<T> make_unique_ptr(ArgsT &&...Args) {
+  return std::unique_ptr<T>(new T(std::forward<ArgsT>(Args)...));
+}
+} // namespace _V1
+} // namespace sycl
 #endif

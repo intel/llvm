@@ -1,4 +1,4 @@
-//===-- Fix-sized Monotonic HashTable ---------------------------*- C++ -*-===//
+//===-- Resizable Monotonic HashTable ---------------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,7 +9,7 @@
 #ifndef LLVM_LIBC_SRC___SUPPORT_HASHTABLE_table_H
 #define LLVM_LIBC_SRC___SUPPORT_HASHTABLE_table_H
 
-#include "include/llvm-libc-types/ENTRY.h"
+#include "llvm-libc-types/ENTRY.h"
 #include "src/__support/CPP/bit.h" // bit_ceil
 #include "src/__support/CPP/new.h"
 #include "src/__support/HashTable/bitmask.h"
