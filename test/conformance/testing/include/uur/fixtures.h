@@ -526,6 +526,26 @@ struct urMemBufferQueueTest : urQueueTest {
     ur_mem_handle_t buffer = nullptr;
 };
 
+template <class T>
+struct urMemBufferQueueTestWithParam : urQueueTestWithParam<T> {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTestWithParam<T>::SetUp());
+        ASSERT_SUCCESS(urMemBufferCreate(this->context, UR_MEM_FLAG_READ_WRITE,
+                                         size, nullptr, &buffer));
+    }
+
+    void TearDown() override {
+        if (buffer) {
+            EXPECT_SUCCESS(urMemRelease(buffer));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTestWithParam<T>::TearDown());
+    }
+
+    const size_t count = 8;
+    const size_t size = sizeof(uint32_t) * count;
+    ur_mem_handle_t buffer = nullptr;
+};
+
 struct urMemImageQueueTest : urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
