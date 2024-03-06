@@ -516,14 +516,14 @@ update support:
 namespace sycl {
 enum class aspect {
   ...
-  sycl_ext_oneapi_graph_update
+  sycl_ext_oneapi_limited_graph
 }
 }
 ----
 
-If a SYCL device has the `sycl_ext_oneapi_graph_update` aspact, then it supports
-the functionality described in the <<executable-graph-update, Executable Graph
-Update>> section.
+If a SYCL device has the `sycl_ext_oneapi_limited_graph` aspect, then it
+supports all graph functionality except that which is described in the
+<<executable-graph-update, Executable Graph Update>> section.
 
 
 === Node
