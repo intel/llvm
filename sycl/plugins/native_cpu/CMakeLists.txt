@@ -24,24 +24,35 @@ add_sycl_plugin(native_cpu
 )
 
 option(OCK_SOURCE_DIR "Root to a local checkout of the oneAPI Construction Kit" "")
+option(OCK_GIT_REPO "Git repository for the oneAPI Construction Kit FetchContent" "")
+option(OCK_GIT_TAG "Git tag for the oneAPI Construction Kit FetchContent" "")
 option(NATIVECPU_OCK_USE_FETCHCONTENT "Use FetchContent to acquire oneAPI Construction Kit source code" On)
 
 if(NATIVECPU_USE_OCK)
   if(NATIVECPU_OCK_USE_FETCHCONTENT)
+    set(OCK_GIT_INTERNAL_REPO "https://github.com/codeplaysoftware/oneapi-construction-kit.git")
+    # commit 9a53d126cba574fadab3bef513b1c6d9c1ebc0fd
+    # Merge: f211f428 b0678100
+    # Author: PietroGhg <pietro.ghiglio@codeplay.com>
+    # Date:   Wed Mar 6 13:13:47 2024 +0100
+    # Merge pull request #389 from PietroGhg/pietro/skip_spirv_fetchcontent
+    # Skip FetchContent for SPIRV-Headers if building llvm-spirv
+    set(OCK_GIT_INTERNAL_TAG 9a53d126cba574fadab3bef513b1c6d9c1ebc0fd)
+    # Overwrite OCK_GIT_INTERNAL_REPO/OCK_GIT_INTERNAL_TAG if the corresponding options are set
+    if(OCK_GIT_REPO)
+      set(OCK_GIT_INTERNAL_REPO "${OCK_GIT_REPO}")
+    endif()
+    if(OCK_GIT_TAG)
+      set(OCK_GIT_INTERNAL_TAG "${OCK_GIT_TAG}")
+    endif()
     include(FetchContent)
     FetchContent_Declare(oneapi-ck
-     GIT_REPOSITORY https://github.com/codeplaysoftware/oneapi-construction-kit.git
-     # commit 9a53d126cba574fadab3bef513b1c6d9c1ebc0fd
-     # Merge: f211f428 b0678100
-     # Author: PietroGhg <pietro.ghiglio@codeplay.com>
-     # Date:   Wed Mar 6 13:13:47 2024 +0100
-     # Merge pull request #389 from PietroGhg/pietro/skip_spirv_fetchcontent
-     # Skip FetchContent for SPIRV-Headers if building llvm-spirv
-     GIT_TAG 9a53d126cba574fadab3bef513b1c6d9c1ebc0fd
+     GIT_REPOSITORY "${OCK_GIT_INTERNAL_REPO}"
+     GIT_TAG "${OCK_GIT_INTERNAL_TAG}"
     )
     FetchContent_GetProperties(oneapi-ck)
     if(NOT oneapi-ck_POPULATED)
-      message(STATUS "Cloning oneAPI Construction Kit")
+      message(STATUS "Cloning oneAPI Construction Kit from ${OCK_GIT_INTERNAL_REPO}, tag ${OCK_GIT_INTERNAL_TAG}")
       FetchContent_Populate(oneapi-ck)
       message(STATUS "oneAPI Construction Kit cloned in ${oneapi-ck_SOURCE_DIR}")
       set(OCK_SOURCE_DIR_INTERNAL ${oneapi-ck_SOURCE_DIR})
