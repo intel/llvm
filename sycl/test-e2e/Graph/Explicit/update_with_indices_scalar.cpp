@@ -30,7 +30,7 @@ int main() {
 
   Queue.memset(DeviceData, 0, N * sizeof(int)).wait();
 
-  exp_ext::dynamic_parameter InputParam(ScalarValue, Graph);
+  exp_ext::dynamic_parameter InputParam(Graph, ScalarValue);
 
   auto KernelNode = Graph.add([&](handler &cgh) {
     // Register the input scalar, we should be using set_arg but can't

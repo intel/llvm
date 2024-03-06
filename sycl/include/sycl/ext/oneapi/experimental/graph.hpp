@@ -452,13 +452,15 @@ class dynamic_parameter : public detail::dynamic_parameter_base {
                        : sycl::detail::kernel_param_kind_t::kind_std_layout;
 
 public:
-  dynamic_parameter(experimental::command_graph<graph_state::modifiable> Graph)
+  /// Constructs a new dynamic parameter.
+  /// @param Graph The graph associated with this parameter.
+  /// @param Param A reference value for this parameter used for CTAD.
+  dynamic_parameter(experimental::command_graph<graph_state::modifiable> Graph,
+                    const ValueT &Param)
       : detail::dynamic_parameter_base(Graph), MValue() {}
 
-  dynamic_parameter(ValueT InitialValue,
-                    experimental::command_graph<graph_state::modifiable> Graph)
-      : detail::dynamic_parameter_base(Graph), MValue(InitialValue) {}
-
+  /// Updates this dynamic parameter and all registered nodes with a new value.
+  /// @param NewValue The new value for the parameter.
   void update(const ValueT &NewValue) {
     MValue = NewValue;
     if constexpr (IsAccessor) {
@@ -472,7 +474,10 @@ private:
   ValueT MValue;
 };
 
-/// Additional CTAD deduction guide.
+/// Additional CTAD deduction guides.
+template <typename ValueT>
+dynamic_parameter(experimental::command_graph<graph_state::modifiable> Graph,
+                  const ValueT &Param) -> dynamic_parameter<ValueT>;
 template <graph_state State = graph_state::modifiable>
 command_graph(const context &SyclContext, const device &SyclDevice,
               const property_list &PropList) -> command_graph<State>;

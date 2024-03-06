@@ -39,9 +39,9 @@ int main() {
   Queue.memcpy(PtrB, HostDataB.data(), N * sizeof(int)).wait();
   Queue.memset(PtrC, 0, N * sizeof(int)).wait();
 
-  exp_ext::dynamic_parameter ParamA(PtrA, Graph);
-  exp_ext::dynamic_parameter ParamB(PtrB, Graph);
-  exp_ext::dynamic_parameter ParamOut(PtrC, Graph);
+  exp_ext::dynamic_parameter ParamA(Graph, PtrA);
+  exp_ext::dynamic_parameter ParamB(Graph, PtrB);
+  exp_ext::dynamic_parameter ParamOut(Graph, PtrC);
 
   auto KernelNode = Graph.add([&](handler &cgh) {
     // Register the input pointers, we should be using set_arg but can't

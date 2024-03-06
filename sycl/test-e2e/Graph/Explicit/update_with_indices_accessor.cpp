@@ -32,7 +32,7 @@ int main() {
   BufA.set_write_back(false);
   BufB.set_write_back(false);
 
-  exp_ext::dynamic_parameter InputParam(BufA.get_access(), Graph);
+  exp_ext::dynamic_parameter InputParam(Graph, BufA.get_access());
 
   auto KernelNode = Graph.add([&](handler &cgh) {
     // Register the input pointer, we should be using set_arg but can't

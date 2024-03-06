@@ -29,7 +29,7 @@ TEST_F(CommandGraphTest, UpdatableException) {
 TEST_F(CommandGraphTest, DynamicParamRegister) {
   // Check that registering a dynamic param with a node from a graph that was
   // not passed to its constructor throws.
-  experimental::dynamic_parameter<int> DynamicParam(Graph);
+  experimental::dynamic_parameter DynamicParam(Graph, int{});
 
   auto OtherGraph =
       experimental::command_graph(Queue.get_context(), Queue.get_device());
@@ -72,7 +72,7 @@ TEST_F(CommandGraphTest, UpdateNodeTypeExceptions) {
   int *PtrA = malloc_device<int>(16, Queue);
   int *PtrB = malloc_device<int>(16, Queue);
 
-  experimental::dynamic_parameter<int> DynamicParam{Graph};
+  experimental::dynamic_parameter DynamicParam{Graph, int{}};
 
   ASSERT_NO_THROW(auto NodeKernel = Graph.add([&](sycl::handler &cgh) {
     DynamicParam.register_with_node(cgh, 0);
