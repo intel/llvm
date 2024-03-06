@@ -235,7 +235,7 @@ void run(queue q, const float *in, float *out, size_t n) {
       // Create sycl::span with the returned pointer and the specialization
       // constant used as size.
       sycl::span<float> tmp{
-          private_alloca<float, size, access::decorated::no>(kh),
+          private_alloca<float, size, access::decorated::no>(kh).get_raw(),
           kh.get_specialization_constant<size>()};
       impl(in, out, tmp);
     });
