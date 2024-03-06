@@ -196,7 +196,7 @@ granularity, as returned by a call to `get_mem_granularity`. Likewise,
 `numBytes` must be a multiple of the granularity. Attempting to call this
 function without meeting these requirements results in undefined behavior.
 
-If any of the devices in `syclContext` does not have
+If any of the devices in `syclContext` do not have
 `aspect::ext_oneapi_virtual_mem` the call throws an exception with
 `errc::feature_not_supported`.
 
@@ -219,8 +219,8 @@ behavior.
 
 :crs: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:reference-semantics
 
-To represent the underlying physical device memory a virtual address is mapped,
-the `physical_mem` class is added. This new class is defined as:
+To represent the underlying physical device memory a virtual address is mapped
+to, the `physical_mem` class is added. This new class is defined as:
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
@@ -283,8 +283,8 @@ of `offset` bytes.
 
 If `mode` is `address_access_mode::read` or `address_access_mode::read_write`
 the returned pointer is accessible after the call as read-only or read-write
-respectively. Otherwise, it considered inaccessible and accessing it will result
-in undefined behavior.
+respectively. Otherwise, it is considered inaccessible and accessing it will
+result in undefined behavior.
 
 Writing to any address in the virtual memory range with access mode set to
 `access_mode::read` results in undefined behavior.
