@@ -104,26 +104,26 @@ test_block_load(AccType &acc, LocalAccType &local_acc, float *ptrf,
   const int *ptri = reinterpret_cast<const int *>(ptrf);
   const int8_t *ptrb = reinterpret_cast<const int8_t *>(ptrf);
 
-  // CHECK: call <4 x float> @llvm.genx.lsc.load.stateless.v4f32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
+  // CHECK: call <4 x float> @llvm.genx.lsc.load.merge.stateless.v4f32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0, <4 x float> {{[^)]+}})
   auto d1 = block_load<float, N>(ptrf, props_a);
 
-  // CHECK: call <4 x i32> @llvm.genx.lsc.load.stateless.v4i32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
+  // CHECK: call <4 x i32> @llvm.genx.lsc.load.merge.stateless.v4i32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0, <4 x i32> {{[^)]+}})
   auto d2 = block_load<int, N>(ptri, byte_offset32, props_a);
 
-  // CHECK: call <4 x float> @llvm.genx.lsc.load.stateless.v4f32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
+  // CHECK: call <4 x float> @llvm.genx.lsc.load.merge.stateless.v4f32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0, <4 x float> {{[^)]+}})
   auto d3 = block_load<float, N>(ptrf, byte_offset64, props_b);
 
-  // CHECK: call <4 x float> @llvm.genx.lsc.load.stateless.v4f32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
+  // CHECK: call <4 x float> @llvm.genx.lsc.load.merge.stateless.v4f32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0, <4 x float> {{[^)]+}})
   simd_mask<1> mask = 1;
   auto d4 = block_load<float, N>(ptrf, mask, props_a);
 
   // CHECK: call <4 x float> @llvm.genx.lsc.load.merge.stateless.v4f32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0, <4 x float> {{[^)]+}})
   auto d5 = block_load<float, N>(ptrf, mask, pass_thru, props_b);
 
-  // CHECK: call <4 x float> @llvm.genx.lsc.load.stateless.v4f32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
+  // CHECK: call <4 x float> @llvm.genx.lsc.load.merge.stateless.v4f32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0, <4 x float> {{[^)]+}})
   auto d6 = block_load<float, N>(ptrf, byte_offset32, mask, props_a);
 
-  // CHECK: call <4 x i32> @llvm.genx.lsc.load.stateless.v4i32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
+  // CHECK: call <4 x i32> @llvm.genx.lsc.load.merge.stateless.v4i32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0, <4 x i32> {{[^)]+}})
   auto d7 = block_load<int, N>(ptri, byte_offset64, mask, props_b);
 
   // CHECK: call <4 x i32> @llvm.genx.lsc.load.merge.stateless.v4i32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0, <4 x i32> {{[^)]+}})
@@ -149,15 +149,15 @@ test_block_load(AccType &acc, LocalAccType &local_acc, float *ptrf,
   // Verify ACCESSOR-based block_load.
 
   // CHECK-STATEFUL:  call <4 x float> @llvm.genx.lsc.load.bti.v4f32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}})
-  // CHECK-STATELESS: call <4 x float> @llvm.genx.lsc.load.stateless.v4f32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
+  // CHECK-STATELESS: call <4 x float> @llvm.genx.lsc.load.merge.stateless.v4f32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0, <4 x float> {{[^)]+}})
   auto a1 = block_load<float, N>(acc, props_a);
 
   // CHECK-STATEFUL:  call <4 x i32> @llvm.genx.lsc.load.bti.v4i32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}})
-  // CHECK-STATELESS: call <4 x i32> @llvm.genx.lsc.load.stateless.v4i32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
+  // CHECK-STATELESS: call <4 x i32> @llvm.genx.lsc.load.merge.stateless.v4i32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0, <4 x i32> {{[^)]+}})
   auto a2 = block_load<int, N>(acc, byte_offset32, props_a);
 
   // CHECK-STATEFUL:  call <4 x float> @llvm.genx.lsc.load.bti.v4f32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}})
-  // CHECK-STATELESS: call <4 x float> @llvm.genx.lsc.load.stateless.v4f32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
+  // CHECK-STATELESS: call <4 x float> @llvm.genx.lsc.load.merge.stateless.v4f32.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0, <4 x float> {{[^)]+}})
   auto a3 = block_load<float, N>(acc, byte_offset64, props_b);
 
   // CHECK-STATEFUL:  call <4 x float> @llvm.genx.lsc.load.merge.bti.v4f32.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 5, i8 2, i16 1, i32 0, i8 3, i8 4, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}}, <4 x float> {{[^)]+}})
@@ -1691,4 +1691,75 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_prefetch(AccType &acc, float *ptrf,
   // CHECK-COUNT-2: call void @llvm.genx.lsc.prefetch.stateless.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 7, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
   __ESIMD_NS::prefetch<float, 32>(ptrf, 0);
   __ESIMD_NS::prefetch<float, 32>(ptrf, 0, 1);
+
+  // Test Acc prefetch using this plan:
+  // 1) prefetch(acc, offsets): offsets is simd or simd_view
+  // 2) prefetch(acc, offsets, mask): offsets is simd or simd_view
+  // 3) prefetch(acc, offset): same as (1) above, but with offset as a scalar.
+  // 4) prefetch(acc, offset): same as (1) and (2) above, but with VS > 1.
+
+  // 1) prefetch(acc, offsets): offsets is simd or simd_view
+  // CHECK-STATEFUL-COUNT-2: call void @llvm.genx.lsc.prefetch.bti.v32i1.v32i32(<32 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <32 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS-COUNT-2: call void @llvm.genx.lsc.prefetch.stateless.v32i1.v32i64(<32 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <32 x i64> {{[^)]+}}, i32 0)
+  prefetch<float>(acc, ioffset_n32);
+  prefetch<float, 32>(acc, ioffset_n32_view);
+
+  // CHECK-STATEFUL-COUNT-2: call void @llvm.genx.lsc.prefetch.bti.v32i1.v32i32(<32 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <32 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS-COUNT-2: call void @llvm.genx.lsc.prefetch.stateless.v32i1.v32i64(<32 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <32 x i64> {{[^)]+}}, i32 0)
+  prefetch<float>(acc, ioffset_n32, props_cache_load);
+  prefetch<float, 32>(acc, ioffset_n32_view, props_cache_load);
+
+  // 2) prefetch(acc, offsets, mask): offsets is simd or simd_view
+  // CHECK-STATEFUL-COUNT-2: call void @llvm.genx.lsc.prefetch.bti.v32i1.v32i32(<32 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <32 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS-COUNT-2: call void @llvm.genx.lsc.prefetch.stateless.v32i1.v32i64(<32 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <32 x i64> {{[^)]+}}, i32 0)
+  prefetch<float>(acc, ioffset_n32, mask_n32);
+  prefetch<float, 32>(acc, ioffset_n32_view, mask_n32);
+
+  // CHECK-STATEFUL-COUNT-2: call void @llvm.genx.lsc.prefetch.bti.v32i1.v32i32(<32 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <32 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS-COUNT-2: call void @llvm.genx.lsc.prefetch.stateless.v32i1.v32i64(<32 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <32 x i64> {{[^)]+}}, i32 0)
+  prefetch<float>(acc, ioffset_n32, mask_n32, props_cache_load);
+  prefetch<float, 32>(acc, ioffset_n32_view, mask_n32, props_cache_load);
+
+  // 3) prefetch(acc, offset): offset is scalar
+  // CHECK-STATEFUL-COUNT-5: call void @llvm.genx.lsc.prefetch.bti.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 1, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS-COUNT-5: call void @llvm.genx.lsc.prefetch.stateless.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 1, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
+  prefetch<float>(acc);
+  prefetch<float>(acc, byte_offset32);
+  prefetch<float>(acc, mask_n1);
+  prefetch<float>(acc, byte_offset32, mask_n1);
+  prefetch<float>(acc, byte_offset32, mask_n1);
+
+  // CHECK-STATEFUL-COUNT-5: call void @llvm.genx.lsc.prefetch.bti.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 1, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS-COUNT-5: call void @llvm.genx.lsc.prefetch.stateless.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 1, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
+  prefetch<float>(acc, byte_offset32, props_cache_load);
+  prefetch<float>(acc, props_cache_load);
+  prefetch<float>(acc, mask_n1, props_cache_load);
+  prefetch<float>(acc, byte_offset32, mask_n1, props_cache_load);
+  prefetch<float>(acc, byte_offset32, mask_n1, props_cache_load);
+
+  // 4) prefetch(usm, ...): same as (1), (2) above, but with VS > 1.
+  // CHECK-STATEFUL-COUNT-2: call void @llvm.genx.lsc.prefetch.bti.v16i1.v16i32(<16 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS-COUNT-2: call void @llvm.genx.lsc.prefetch.stateless.v16i1.v16i64(<16 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, i32 0)
+  prefetch<float, 32, 2>(acc, ioffset_n16);
+  prefetch<float, 32, 2>(acc, ioffset_n16_view);
+
+  // CHECK-STATEFUL-COUNT-2: call void @llvm.genx.lsc.prefetch.bti.v16i1.v16i32(<16 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS-COUNT-2: call void @llvm.genx.lsc.prefetch.stateless.v16i1.v16i64(<16 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, i32 0)
+  prefetch<float, 32, 2>(acc, ioffset_n16, props_cache_load);
+  prefetch<float, 32, 2>(acc, ioffset_n16_view, props_cache_load);
+
+  // CHECK-STATEFUL-COUNT-2: call void @llvm.genx.lsc.prefetch.bti.v16i1.v16i32(<16 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS-COUNT-2: call void @llvm.genx.lsc.prefetch.stateless.v16i1.v16i64(<16 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, i32 0)
+  prefetch<float, 32, 2>(acc, ioffset_n16, mask_n16);
+  prefetch<float, 32, 2>(acc, ioffset_n16_view, mask_n16);
+
+  // CHECK-STATEFUL-COUNT-2: call void @llvm.genx.lsc.prefetch.bti.v16i1.v16i32(<16 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS-COUNT-2: call void @llvm.genx.lsc.prefetch.stateless.v16i1.v16i64(<16 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, i32 0)
+  prefetch<float, 32, 2>(acc, ioffset_n16, mask_n16, props_cache_load);
+  prefetch<float, 32, 2>(acc, ioffset_n16_view, mask_n16, props_cache_load);
+
+  // CHECK-STATEFUL-COUNT-2: call void @llvm.genx.lsc.prefetch.bti.v1i1.v1i32(<1 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 7, i8 2, i8 0, <1 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS-COUNT-2: call void @llvm.genx.lsc.prefetch.stateless.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 1, i8 2, i16 1, i32 0, i8 3, i8 7, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
+  prefetch<float, 32>(acc, 0);
+  prefetch<float, 32>(acc, 0, 1);
 }

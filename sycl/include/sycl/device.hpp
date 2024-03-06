@@ -283,6 +283,17 @@ public:
   /// the function.
   bool ext_oneapi_architecture_is(ext::oneapi::experimental::architecture arch);
 
+  /// Indicates if the SYCL device architecture is in the category passed
+  /// to the function.
+  ///
+  /// \param category is one of the architecture categories from arch_category
+  /// enum described in sycl_ext_oneapi_device_architecture specification.
+  ///
+  /// \return true if the SYCL device architecture is in the category passed to
+  /// the function.
+  bool
+  ext_oneapi_architecture_is(ext::oneapi::experimental::arch_category category);
+
   /// kernel_compiler extension
 
   /// Indicates if the device can compile a kernel for the given language.
