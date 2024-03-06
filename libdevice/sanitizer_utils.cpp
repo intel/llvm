@@ -39,6 +39,7 @@ DeviceGlobal<DeviceType> __DeviceType;
 #ifdef __SYCL_DEVICE_ONLY__
 #define __USE_SPIR_BUILTIN__ 1
 #else
+#define __USE_SPIR_BUILTIN__
 #endif
 
 #if __USE_SPIR_BUILTIN__
