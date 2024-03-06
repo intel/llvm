@@ -1758,7 +1758,6 @@ static void checkSLMInit(Module &M) {
   bool KernelHasLocalAccessor = false;
 
   for (auto &F : M) {
-    F.dump();
     if (!isSlmInit(F)) {
       if (KernelHasLocalAccessor)
         continue;
