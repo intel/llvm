@@ -198,8 +198,9 @@ jobs:
         script: |
           const adapter = '${{ matrix.adapter.name }}';
           const url = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}';
-          const status = '${{ steps.tests.outcome }}';
-          const body = `E2E ${adapter} build: \n${url}\n Status: ${status}`;
+          const test_status = '${{ steps.tests.outcome }}';
+          const job_status = '${{ job.status }}';
+          const body = `E2E ${adapter} build:\n${url}\nJob status: ${job_status}. Test status: ${test_status}`;
 
           github.rest.issues.createComment({
             issue_number: context.issue.number,
