@@ -2551,7 +2551,7 @@ TEST_F(CommandGraphTest, UpdatableException) {
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
 
   auto ExecGraphUpdatable =
-      Graph.finalize(experimental::property::graph::updateable{});
+      Graph.finalize(experimental::property::graph::updatable{});
 
   EXPECT_NO_THROW(ExecGraphUpdatable.update(Node));
 
@@ -2584,7 +2584,7 @@ TEST_F(CommandGraphTest, UpdateNodeNotInGraph) {
   auto OtherNode = OtherGraph.add(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
 
-  auto ExecGraph = Graph.finalize(experimental::property::graph::updateable{});
+  auto ExecGraph = Graph.finalize(experimental::property::graph::updatable{});
   EXPECT_ANY_THROW(ExecGraph.update(OtherNode));
 }
 
@@ -2595,7 +2595,7 @@ TEST_F(CommandGraphTest, UpdateWithUnchangedNode) {
   auto Node = Graph.add(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
 
-  auto ExecGraph = Graph.finalize(experimental::property::graph::updateable{});
+  auto ExecGraph = Graph.finalize(experimental::property::graph::updatable{});
   EXPECT_NO_THROW(ExecGraph.update(Node));
 }
 

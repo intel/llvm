@@ -263,8 +263,8 @@ different recordings we can then match parameter order when updating.
 
 ### Scheduler Integration
 
-Graph updates in the runtime are sychronous calls however they can optionally be
-done through the scheduler using a new command,
+Graph updates in the runtime are synchronous calls however they can optionally
+be done through the scheduler using a new command,
 `sycl::detail::UpdateCommandBufferCommand`. This is needed when dealing with
 accessor updates. Since a new buffer which the user creates for updating may not
 yet have been lazily initialized on device we schedule a new command which has

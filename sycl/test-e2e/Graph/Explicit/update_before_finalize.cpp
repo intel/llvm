@@ -47,7 +47,7 @@ int main() {
   // Swap PtrB to be the input
   InputParam.update(PtrB);
 
-  auto ExecGraph = Graph.finalize(exp_ext::property::graph::updateable{});
+  auto ExecGraph = Graph.finalize(exp_ext::property::graph::updatable{});
 
   // Only PtrB should be filled with values
   Queue.ext_oneapi_graph(ExecGraph).wait();

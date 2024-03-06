@@ -478,6 +478,7 @@ public:
   /// \param Graph The executable graph to be updated.
   /// \param Nodes The list of Nodes which are to be updated in the graph.
   /// \param Requirements List of accessor requirements for this update.
+  /// \param Events List of events that this update operation depends on
   EventImplPtr addCommandGraphUpdate(
       ext::oneapi::experimental::detail::exec_graph_impl *Graph,
       std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
@@ -691,6 +692,8 @@ protected:
     /// \param Graph The executable graph to be updated.
     /// \param Nodes The list of Nodes which are to be updated in the graph.
     /// \param Requirements List of accessor requirements for this update.
+    /// \param Events List of events that this operation depends on.
+    /// \param ToEnqueue List of commands which need to be enqueued.
     Command *addCommandGraphUpdate(
         ext::oneapi::experimental::detail::exec_graph_impl *Graph,
         std::vector<

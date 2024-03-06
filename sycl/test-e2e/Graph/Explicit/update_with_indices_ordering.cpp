@@ -52,7 +52,7 @@ int main() {
     });
   });
 
-  auto ExecGraph = Graph.finalize(exp_ext::property::graph::updateable{});
+  auto ExecGraph = Graph.finalize(exp_ext::property::graph::updatable{});
 
   // Submit a bunch of graphs without waiting
   for (size_t i = 0; i < NumSubmitLoops; i++) {

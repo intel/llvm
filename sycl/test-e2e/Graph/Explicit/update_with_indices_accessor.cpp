@@ -47,7 +47,7 @@ int main() {
     });
   });
 
-  auto ExecGraph = Graph.finalize(exp_ext::property::graph::updateable{});
+  auto ExecGraph = Graph.finalize(exp_ext::property::graph::updatable{});
 
   // BufA should be filled with values
   Queue.ext_oneapi_graph(ExecGraph).wait();

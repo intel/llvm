@@ -46,8 +46,8 @@ int main() {
     });
   });
 
-  auto ExecGraph = Graph.finalize(exp_ext::property::graph::updateable{});
-  auto ExecGraph2 = Graph.finalize(exp_ext::property::graph::updateable{});
+  auto ExecGraph = Graph.finalize(exp_ext::property::graph::updatable{});
+  auto ExecGraph2 = Graph.finalize(exp_ext::property::graph::updatable{});
 
   // PtrA values should be modified twice
   Queue.ext_oneapi_graph(ExecGraph).wait();

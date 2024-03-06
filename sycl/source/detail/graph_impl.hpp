@@ -1406,8 +1406,8 @@ private:
   std::unordered_map<std::shared_ptr<node_impl>,
                      sycl::detail::pi::PiExtCommandBufferCommand>
       MCommandMap;
-
-  bool MIsUpdateable;
+  /// True if this graph can be updated (set with property::updatable)
+  bool MIsUpdatable;
 
   // Stores a cache of node ids from modifiable graph nodes to the companion
   // node(s) in this graph. Used for quick access when updating this graph.

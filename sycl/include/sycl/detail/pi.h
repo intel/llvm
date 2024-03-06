@@ -2331,7 +2331,7 @@ typedef enum {
 struct pi_ext_command_buffer_desc final {
   pi_ext_structure_type stype;
   const void *pNext;
-  pi_bool is_updateable;
+  pi_bool is_updatable;
 };
 
 // Command Buffer Update types

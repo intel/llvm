@@ -702,7 +702,7 @@ void exec_graph_impl::createCommandBuffers(
   sycl::detail::pi::PiExtCommandBuffer OutCommandBuffer;
   sycl::detail::pi::PiExtCommandBufferDesc Desc{
       pi_ext_structure_type::PI_EXT_STRUCTURE_TYPE_COMMAND_BUFFER_DESC, nullptr,
-      MIsUpdateable};
+      MIsUpdatable};
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(Device);
@@ -763,11 +763,11 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
                                  const property_list &PropList)
     : MSchedule(), MGraphImpl(GraphImpl), MPiSyncPoints(), MContext(Context),
       MRequirements(), MExecutionEvents(),
-      MIsUpdateable(PropList.has_property<property::graph::updateable>()) {
+      MIsUpdatable(PropList.has_property<property::graph::updatable>()) {
 
-  // If the graph has been marked as updateable then check if the backend
+  // If the graph has been marked as updatable then check if the backend
   // actually supports that.
-  if (MIsUpdateable) {
+  if (MIsUpdatable) {
     pi_bool SupportsUpdate = PI_FALSE;
     bool CallSuccessful =
         sycl::detail::getSyclObjImpl(MContext)
@@ -1156,7 +1156,7 @@ void exec_graph_impl::update(std::shared_ptr<node_impl> Node) {
 void exec_graph_impl::update(
     const std::vector<std::shared_ptr<node_impl>> Nodes) {
 
-  if (!MIsUpdateable) {
+  if (!MIsUpdatable) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "update() cannot be called on a executable graph "
                           "which was not created with property::updatable");

@@ -48,7 +48,7 @@ int main() {
     });
   });
 
-  auto SubExecGraph = SubGraph.finalize(exp_ext::property::graph::updateable{});
+  auto SubExecGraph = SubGraph.finalize(exp_ext::property::graph::updatable{});
 
   auto KernelNode = Graph.add([&](handler &cgh) {
     cgh.single_task([=]() {

@@ -162,10 +162,10 @@ public:
 
 /// Property passed to command_graph<graph_state::modifiable>::finalize() to
 /// mark the resulting executable command_graph as able to be updated.
-class updateable
-    : public ::sycl::detail::DataLessProperty<::sycl::detail::GraphUpdateable> {
+class updatable
+    : public ::sycl::detail::DataLessProperty<::sycl::detail::GraphUpdatable> {
 public:
-  updateable() = default;
+  updatable() = default;
 };
 } // namespace graph
 
