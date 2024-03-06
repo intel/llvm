@@ -422,7 +422,7 @@ int main() {
       version.patch << ")\n";
   }
 
-  if (d.ext_oneapi_cl_profile().find("FULL_PROFILE") == 0)
+  if (d.ext_oneapi_cl_profile() == "FULL_PROFILE")
     std::cout << "Device supports online compilation with the OpenCL full profile\n";
 
 }
