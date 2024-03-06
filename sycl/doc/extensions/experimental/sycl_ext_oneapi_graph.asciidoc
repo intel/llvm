@@ -516,12 +516,12 @@ update support:
 namespace sycl {
 enum class aspect {
   ...
-  sycl_ext_oneapi_limited_graph
+  ext_oneapi_limited_graph
 }
 }
 ----
 
-If a SYCL device has the `sycl_ext_oneapi_limited_graph` aspect, then it
+If a SYCL device has the `ext_oneapi_limited_graph` aspect, then it
 supports all graph functionality except that which is described in the
 <<executable-graph-update, Executable Graph Update>> section. This is a
 temporary aspect that we intend to remove once devices with full graph support
