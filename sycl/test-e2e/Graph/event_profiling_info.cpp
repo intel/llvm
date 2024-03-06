@@ -130,8 +130,8 @@ int main() {
 
     KernelGraph.end_recording(Queue);
 
-    // The profiling is not available with the in-order optimization.
-    // We therefore disable this optimization.
+    // The `enable_profiling` property must be passed to the finalize function
+    // in order to query profiling information.
     auto CopyGraphExec =
         CopyGraph.finalize(exp_ext::property::graph::enable_profiling{});
     auto KernelGraphExec =

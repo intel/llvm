@@ -349,10 +349,11 @@ protected:
   /// Constructor used by internal runtime.
   /// @param Graph Detail implementation class to construct with.
   /// @param Ctx Context to use for graph.
-  /// @param EnableProfiling Enable graph profiling.
+  /// @param PropList Optional list of properties to pass.
   executable_command_graph(const std::shared_ptr<detail::graph_impl> &Graph,
                            const sycl::context &Ctx,
-                           const bool EnableProfiling = false);
+			   const property_list &PropList = {});
+
 
   template <class Obj>
   friend decltype(Obj::impl)

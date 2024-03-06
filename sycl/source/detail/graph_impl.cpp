@@ -683,7 +683,7 @@ void exec_graph_impl::createCommandBuffers(
   sycl::detail::pi::PiExtCommandBuffer OutCommandBuffer;
   sycl::detail::pi::PiExtCommandBufferDesc Desc{
       pi_ext_structure_type::PI_EXT_STRUCTURE_TYPE_COMMAND_BUFFER_DESC, nullptr,
-      pi_bool(Partition->MIsInOrderGraph & !MEnableProfiling),
+      pi_bool(Partition->MIsInOrderGraph && !MEnableProfiling),
       pi_bool(MEnableProfiling)};
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
@@ -1163,12 +1163,8 @@ modifiable_command_graph::finalize(const sycl::property_list &PropList) const {
   // Graph is read and written in this scope so we lock
   // this graph with full priviledges.
   graph_impl::WriteLock Lock(impl->MMutex);
-  bool EnableProfiling = false;
-  if (PropList.has_property<property::graph::enable_profiling>()) {
-    EnableProfiling = true;
-  }
   return command_graph<graph_state::executable>{
-      this->impl, this->impl->getContext(), EnableProfiling};
+      this->impl, this->impl->getContext(), PropList};
 }
 
 bool modifiable_command_graph::begin_recording(queue &RecordingQueue) {
@@ -1283,9 +1279,8 @@ std::vector<node> modifiable_command_graph::get_root_nodes() const {
 
 executable_command_graph::executable_command_graph(
     const std::shared_ptr<detail::graph_impl> &Graph, const sycl::context &Ctx,
-    const bool EnableProfiling)
-    : impl(std::make_shared<detail::exec_graph_impl>(Ctx, Graph,
-                                                     EnableProfiling)) {
+    const property_list &PropList)
+    : impl(std::make_shared<detail::exec_graph_impl>(Ctx, Graph, PropList)) {
   finalizeImpl(); // Create backend representation for executable graph
 }
 

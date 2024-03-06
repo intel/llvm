@@ -568,8 +568,8 @@ public:
       MPiCommandBuffers;
   /// List of predecessors to this partition.
   std::vector<std::shared_ptr<partition>> MPredecessors;
-  /// True is the graph of this partition is a single path graph
-  /// and InOrder optmization can be applied on it.
+  /// True if the graph of this partition is a single path graph
+  /// and in-order optmization can be applied on it.
   bool MIsInOrderGraph = false;
 
   /// @return True if the partition contains a host task
@@ -1061,12 +1061,14 @@ public:
   /// nodes).
   /// @param Context Context to create graph with.
   /// @param GraphImpl Modifiable graph implementation to create with.
-  /// @param EnableProfiling Enable graph profiling.
+  /// @param PropList List of properties for constructing this object.
   exec_graph_impl(sycl::context Context,
                   const std::shared_ptr<graph_impl> &GraphImpl,
-                  const bool EnableProfiling = false)
+                  const property_list &PropList)
       : MSchedule(), MGraphImpl(GraphImpl), MPiSyncPoints(), MContext(Context),
-        MRequirements(), MExecutionEvents(), MEnableProfiling(EnableProfiling) {
+        MRequirements(), MExecutionEvents(),
+        MEnableProfiling(
+            PropList.has_property<property::graph::enable_profiling>()) {
     // Copy nodes from GraphImpl and merge any subgraph nodes into this graph.
     duplicateNodes();
   }
