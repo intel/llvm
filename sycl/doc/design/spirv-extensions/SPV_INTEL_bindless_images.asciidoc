@@ -1,0 +1,138 @@
+SPV_INTEL_bindless_images
+=========================
+
+== Name Strings
+
+SPV_INTEL_bindless_images
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+<https://github.com/intel/llvm/issues>
+
+== Contributors
+
+- Duncan Brawley, Codeplay
+- Przemek Malon, Codeplay
+- Peter Žužek, Codeplay
+- Chedy Najjar, Codeplay
+
+== Notice
+
+Copyright © Codeplay Software Limited. All rights reserved.
+
+== Status
+
+In Development
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | 2024-02-23
+| Revision           | 6
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification,
+Version 1.6 Revision 1.
+
+This extension requires SPIR-V 1.0.
+
+== Overview
+
+This extension adds support for bindless images.
+This is done by adding support for SPIR-V to convert unsigned integer handles to images/samplers.
+
+Bindless images are a feature that provides flexibility on how images are accessed and used, such as removing limitations on how many images can be accessed as well as potentially improving performance.
+This is an improvement on the legacy bound images model which is a holdover from binding slots in hardware which used to be limited in number.
+
+== Extension Name
+
+To use this extension within a SPIR-V module, the following *OpExtension* must be present in the module:
+
+----
+OpExtension "SPV_INTEL_bindless_images"
+----
+
+== New Capabilities
+
+This extension introduces a new capability:
+
+----
+BindlessImagesINTEL
+----
+
+== New Instructions
+
+Instructions added under *BindlessImagesINTEL* capability.
+
+----
+OpConvertHandleToImageINTEL
+OpConvertHandleToSamplerINTEL
+----
+
+== Token Number Assignments
+
+--
+[width="40%"]
+[cols="70%,30%"]
+[grid="rows"]
+|====
+|BindlessImagesINTEL                |6528
+|OpConvertHandleToImageINTEL        |6529
+|OpConvertHandleToSamplerINTEL      |6530
+|====
+--
+
+== Modifications to the SPIR-V Specification, Version 1.6
+
+[cols="2*1,3*2"]
+|======
+5+|[[OpConvertHandleToImageINTEL]]*OpConvertHandleToImageINTEL* +
+ +
+Accepts an unsigned integer and converts to image type.
+
+Unsigned integer is either a 64 or 32 bit unsigned integer.
+Depending on whether *OpMemoryModel* is set to *Physical32* or *Physical64*.
+
+Return type must be an `OpTypeImage`.
+
+| 4 | 6529 | '<id> Result Type' | 'Result <id>' | '<id> Operand'
+|======
+
+[cols="2*1,3*2"]
+|======
+5+|[[OpConvertHandleToSamplerINTEL]]*OpConvertHandleToSamplerINTEL* +
+ +
+Accepts an unsigned integer and converts to sampler type.
+
+Unsigned integer is either a 64 or 32 bit unsigned integer.
+Depending on whether *OpMemoryModel* is set to *Physical32* or *Physical64*.
+
+Return type must be an `OpTypeSampler`.
+
+| 4 | 6530 | '<id> Result Type' | 'Result <id>' | '<id> Operand'
+|======
+
+
+== Issues
+
+None Yet.
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|1|2023-03-23|Duncan Brawley|*Initial public release*
+|2|2023-03-30|Duncan Brawley| Updated token assignments
+|3|2023-05-29|Duncan Brawley| Updated token assignments and fix capitalization
+|4|2023-06-13|Duncan Brawley| Remove need for OpHandleAddressingModeINTEL instruction
+|5|2024-02-23|Duncan Brawley| Remove OpConvertHandleToSampledImageINTEL instruction and clarify return types
+|========================================
+
