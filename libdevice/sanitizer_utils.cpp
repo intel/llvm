@@ -37,6 +37,11 @@ DeviceGlobal<DeviceType> __DeviceType;
 #if defined(__SPIR__)
 
 #ifdef __SYCL_DEVICE_ONLY__
+#define __USE_SPIR_BUILTIN__ 1
+#else
+#endif
+
+#if __USE_SPIR_BUILTIN__
 extern SYCL_EXTERNAL int
 __spirv_ocl_printf(const __SYCL_CONSTANT__ char *Format, ...);
 
