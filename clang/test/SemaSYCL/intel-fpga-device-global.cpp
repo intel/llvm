@@ -296,6 +296,9 @@ struct [[__sycl_detail__::global_variable_allowed]] GlobAllowedVarOnly {
 [[intel::private_copies(16)]] device_global<int> Good11;
 [[intel::private_copies(16)]] extern device_global<int> Bad11;
 
+[[intel::private_copies(8)]] const device_global<int> Good12;
+[[intel::private_copies(8)]] const int Good1i14 [4] {0, 1, 2, 3};
+
 int main() {
   sycl::kernel_single_task<class KernelName1>([=]() {
     Good.get();
@@ -310,6 +313,9 @@ int main() {
     Good9.get();
     Good10.get();
     Good11.get();
+    Good12.get();
+    [[intel::private_copies(8)]] int Good13 [10];
+    [[intel::private_copies(8)]] const int Good14 [4] {0, 1, 2, 3};
 
     // expected-error@+1 {{invalid reference to 'device_global' variable; external 'device_global' variable must be marked with SYCL_EXTERNAL macro}}
     Bad.get();
