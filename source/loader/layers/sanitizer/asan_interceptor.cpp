@@ -693,9 +693,6 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
             break;
         }
 
-        // LaunchInfo needs context to release shadow memory
-        LaunchInfo.setContext(Context);
-
         // Write shadow memory offset for local memory
         auto LocalMemorySize = GetLocalMemorySize(DeviceInfo->Handle);
         auto LocalShadowMemorySize =
@@ -758,11 +755,10 @@ SanitizerInterceptor::findAllocInfoByAddress(uptr Address) {
     return --It;
 }
 
-void LaunchInfo::setContext(ur_context_handle_t Context) {
+LaunchInfo::LaunchInfo(ur_context_handle_t Context) : Context(Context) {
     [[maybe_unused]] auto Result =
         context.urDdiTable.Context.pfnRetain(Context);
     assert(Result == UR_RESULT_SUCCESS);
-    this->Context = Context;
 }
 
 LaunchInfo::~LaunchInfo() {
@@ -771,11 +767,9 @@ LaunchInfo::~LaunchInfo() {
             context.urDdiTable.USM.pfnFree(Context, (void *)LocalShadowOffset);
         assert(Result == UR_RESULT_SUCCESS);
     }
-    if (Context) {
-        [[maybe_unused]] auto Result =
-            context.urDdiTable.Context.pfnRelease(Context);
-        assert(Result == UR_RESULT_SUCCESS);
-    }
+    [[maybe_unused]] auto Result =
+        context.urDdiTable.Context.pfnRelease(Context);
+    assert(Result == UR_RESULT_SUCCESS);
 }
 
 } // namespace ur_sanitizer_layer

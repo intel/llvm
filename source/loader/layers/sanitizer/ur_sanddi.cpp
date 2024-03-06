@@ -215,7 +215,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
     context.logger.debug("==== urEnqueueKernelLaunch");
 
-    LaunchInfo LaunchInfo{};
+    LaunchInfo LaunchInfo(GetContext(hQueue));
     const size_t *pUserLocalWorkSize = pLocalWorkSize;
     if (!pUserLocalWorkSize) {
         pUserLocalWorkSize = LaunchInfo.LocalWorkSize;
