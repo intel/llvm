@@ -1,5 +1,5 @@
 // REQUIRES: linux, cpu
-// RUN: %{build} %device_sanitizer_flags -DMALLOC_DEVICE -O0 -g -o %t
+// RUN: %{build} %device_sanitizer_flags -O0 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 UR_ENABLE_LAYERS=UR_LAYER_ASAN UR_LAYER_ASAN_OPTIONS=quarantine_size_mb:1 %{run} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-DEVICE --input-file %t.txt %s
 // RUN: %{build} %device_sanitizer_flags -DMALLOC_HOST -O0 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 UR_ENABLE_LAYERS=UR_LAYER_ASAN UR_LAYER_ASAN_OPTIONS=quarantine_size_mb:1 %{run} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-HOST --input-file %t.txt %s
