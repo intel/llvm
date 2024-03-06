@@ -16,6 +16,7 @@ enum class DeviceSanitizerErrorType : int32_t {
   MISALIGNED,
   USE_AFTER_FREE,
   OUT_OF_SHADOW_BOUNDS,
+  UNKNOWN_DEVICE,
 };
 
 enum class DeviceSanitizerMemoryType : int32_t {

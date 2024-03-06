@@ -1245,11 +1245,14 @@ static bool isUnsupportedAMDGPUAddrspace(Value *Addr) {
 }
 
 static bool isUnsupportedSPIRAccess(Value *Addr, Function *Func) {
+  std::ignore = Func;
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
   // Private address space: skip kernel arguments
   if (PtrTy->getPointerAddressSpace() == 0) {
-    return Func->getCallingConv() == CallingConv::SPIR_KERNEL &&
-           isa<Argument>(Addr);
+    // FIXME: Currently we don't suppport all private variables
+    // return Func->getCallingConv() == CallingConv::SPIR_KERNEL &&
+    //        isa<Argument>(Addr);
+    return true;
   }
 
   // All the rest address spaces: skip SPIR-V built-in varibles
