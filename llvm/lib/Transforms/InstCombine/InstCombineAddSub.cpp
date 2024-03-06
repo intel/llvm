@@ -1683,6 +1683,9 @@ Instruction *InstCombinerImpl::visitAdd(BinaryOperator &I) {
     }
   }
 
+  if (Instruction *R = tryFoldInstWithCtpopWithNot(&I))
+    return R;
+
   // TODO(jingyue): Consider willNotOverflowSignedAdd and
   // willNotOverflowUnsignedAdd to reduce the number of invocations of
   // computeKnownBits.
@@ -2445,6 +2448,24 @@ Instruction *InstCombinerImpl::visitSub(BinaryOperator &I) {
     }
   }
 
+  {
+    // (sub (xor X, (sext C)), (sext C)) => (select C, (neg X), X)
+    // (sub (sext C), (xor X, (sext C))) => (select C, X, (neg X))
+    Value *C, *X;
+    auto m_SubXorCmp = [&C, &X](Value *LHS, Value *RHS) {
+      return match(LHS, m_OneUse(m_c_Xor(m_Value(X), m_Specific(RHS)))) &&
+             match(RHS, m_SExt(m_Value(C))) &&
+             (C->getType()->getScalarSizeInBits() == 1);
+    };
+    if (m_SubXorCmp(Op0, Op1))
+      return SelectInst::Create(C, Builder.CreateNeg(X), X);
+    if (m_SubXorCmp(Op1, Op0))
+      return SelectInst::Create(C, X, Builder.CreateNeg(X));
+  }
+
+  if (Instruction *R = tryFoldInstWithCtpopWithNot(&I))
+    return R;
+
   if (Instruction *R = foldSubOfMinMax(I, Builder))
     return R;
 
@@ -2836,7 +2857,8 @@ Instruction *InstCombinerImpl::visitFSub(BinaryOperator &I) {
   // Note that if this fsub was really an fneg, the fadd with -0.0 will get
   // killed later. We still limit that particular transform with 'hasOneUse'
   // because an fneg is assumed better/cheaper than a generic fsub.
-  if (I.hasNoSignedZeros() || cannotBeNegativeZero(Op0, SQ.DL, SQ.TLI)) {
+  if (I.hasNoSignedZeros() ||
+      cannotBeNegativeZero(Op0, 0, getSimplifyQuery().getWithInstruction(&I))) {
     if (match(Op1, m_OneUse(m_FSub(m_Value(X), m_Value(Y))))) {
       Value *NewSub = Builder.CreateFSubFMF(Y, X, &I);
       return BinaryOperator::CreateFAddFMF(Op0, NewSub, &I);

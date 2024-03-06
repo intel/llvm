@@ -1,0 +1,88 @@
+name: Identify changed files
+
+on:
+  workflow_call:
+    outputs:
+      filters:
+        description: Matched filters
+        value: ${{ jobs.need_check.outputs.filters }}
+
+jobs:
+  need_check:
+    name: Decide which tests could be affected by the changes
+    # Github's ubuntu-* runners are slow to allocate. Use our CUDA runner since
+    # we don't use it for anything right now.
+    runs-on: [Linux, build]
+    timeout-minutes: 3
+    outputs:
+      filters: ${{ steps.result.outputs.result }}
+    steps:
+      - name: Check file changes
+        uses: dorny/paths-filter@0bc4621a3135347011ad047f9ecf449bf72ce2bd
+        id: changes
+        with:
+          filters: |
+            llvm: &llvm
+              - 'llvm/**'
+            llvm_spirv: &llvm_spirv
+              - *llvm
+              - 'llvm-spirv/**'
+            clang: &clang
+              - *llvm
+              - 'clang/**'
+            sycl_fusion: &sycl-fusion
+              - *llvm
+              - 'sycl-fusion/**'
+            xptifw: &xptifw
+              - 'xptifw/**'
+            libclc: &libclc
+              - *llvm_spirv
+              - *clang
+              - 'libclc/**'
+            sycl: &sycl
+              - *clang
+              - *sycl-fusion
+              - *llvm_spirv
+              - *xptifw
+              - *libclc
+              - 'sycl/*'
+              - 'sycl/!(test-e2e|doc)/**'
+            ci:
+              - .github/workflows/**
+              # devops/* contains config files, including drivers versions.
+              # Allow them to be tested in pre-commit.
+              - devops/*/**
+            drivers:
+              - devops/dependencies.json
+              - devops/scripts/install_drivers.sh
+            perf-tests:
+              - sycl/test-e2e/PerformanceTests/**
+            esimd:
+              - 'llvm/lib/SYCLLowerIR/ESIMD/**'
+              - 'llvm/lib/SYCLLowerIR/LowerInvokeSimd.cpp'
+              - 'llvm/include/llvm/SYCLLowerIR/LowerInvokeSimd.h'
+              - 'sycl/include/std/experimental/simd.hpp'
+              - 'sycl/include/std/experimental/simd.hpp'
+              - 'sycl/include/sycl/ext/intel/esimd.hpp'
+              - 'sycl/include/sycl/ext/intel/esimd/**'
+              - 'sycl/include/sycl/ext/intel/esimd.hpp'
+              - 'sycl/include/sycl/ext/intel/experimental/esimd/**'
+              - 'sycl/include/sycl/ext/oneapi/experimental/invoke_simd.hpp'
+              - 'sycl/include/sycl/ext/oneapi/experimental/detail/invoke_simd_types.hpp'
+              - 'sycl/test-e2e/(ESIMD|InvokeSimd)/**'
+
+      - name: Set output
+        id: result
+        uses: actions/github-script@v7
+        with:
+          script: |
+            console.log("Number of files changed:");
+            console.log(context.payload.pull_request.changed_files);
+            if (context.payload.pull_request.changed_files < 500) {
+              return '${{ steps.changes.outputs.changes }}';
+            }
+            // Treat everything as changed for huge PRs.
+            return ["llvm", "llvm_spirv", "clang", "sycl_fusion", "xptifw", "libclc", "sycl", "ci", "esimd"];
+
+      - run: echo '${{ steps.result.outputs.result }}'
+     

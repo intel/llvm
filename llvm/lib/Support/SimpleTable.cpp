@@ -214,8 +214,8 @@ Expected<SimpleTable::UPtrTy> SimpleTable::read(MemoryBuffer *Buf,
     return std::make_unique<SimpleTable>();
   UPtrTy Res;
 
-  if (LI->startswith(COL_TITLE_LINE_OPEN)) {
-    if (!LI->endswith(COL_TITLE_LINE_CLOSE))
+  if (LI->starts_with(COL_TITLE_LINE_OPEN)) {
+    if (!LI->ends_with(COL_TITLE_LINE_CLOSE))
       return createStringError(errc::invalid_argument, "malformed title line");
     // column titles present
     StringRef L = LI->substr(1, LI->size() - 2); // trim '[' and ']'

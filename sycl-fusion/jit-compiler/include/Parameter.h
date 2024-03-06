@@ -13,7 +13,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <vector>
 
 namespace jit_compiler {
 ///
@@ -59,8 +58,6 @@ struct ParameterIdentity {
     return !(LHS == RHS);
   }
 };
-
-using ParamIdentList = std::vector<ParameterIdentity>;
 
 ///
 /// Express how a parameter can be lowered using promotion to local or global

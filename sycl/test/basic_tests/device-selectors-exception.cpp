@@ -1,5 +1,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: env SYCL_DEVICE_FILTER="" %t.out
+// RUN: %if preview-breaking-changes-supported %{ %clangxx -fsycl -fsycl-targets=%sycl_triple -fpreview-breaking-changes %s -o %t.out %}
+// ONEAPI_DEVICE_SELECTOR="*:-1" causes this test to not select any device at
+// all.
+// RUN: %if preview-breaking-changes-supported %{ env ONEAPI_DEVICE_SELECTOR="*:-1" %t.out %}
 
 #include <sycl/sycl.hpp>
 using namespace sycl;

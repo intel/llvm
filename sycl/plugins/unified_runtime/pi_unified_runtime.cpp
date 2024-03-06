@@ -235,9 +235,9 @@ __SYCL_EXPORT pi_result piMemBufferPartition(
                                      BufferCreateInfo, RetMem);
 }
 
-__SYCL_EXPORT pi_result
-piextMemGetNativeHandle(pi_mem Mem, pi_native_handle *NativeHandle) {
-  return pi2ur::piextMemGetNativeHandle(Mem, NativeHandle);
+__SYCL_EXPORT pi_result piextMemGetNativeHandle(
+    pi_mem Mem, pi_device Dev, pi_native_handle *NativeHandle) {
+  return pi2ur::piextMemGetNativeHandle(Mem, Dev, NativeHandle);
 }
 
 __SYCL_EXPORT pi_result
@@ -1415,6 +1415,7 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   }
 
   HANDLE_ERRORS(urLoaderInit(0, LoaderConfig));
+  HANDLE_ERRORS(urLoaderConfigRelease(LoaderConfig));
 
   uint32_t NumAdapters;
   HANDLE_ERRORS(urAdapterGet(0, nullptr, &NumAdapters));

@@ -72,32 +72,15 @@ min(T x, detail::get_elem_type_t<T> y) {
              detail::simplify_if_swizzle_t<T>{y});
 }
 
-#undef BUILTIN_COMMON
-
-#ifdef __SYCL_DEVICE_ONLY__
-DEVICE_IMPL_TEMPLATE(THREE_ARGS, clamp, builtin_enable_generic_t,
-                     [](auto... xs) {
-                       using ElemTy = detail::get_elem_type_t<T0>;
-                       if constexpr (std::is_integral_v<ElemTy>) {
-                         if constexpr (std::is_signed_v<ElemTy>) {
-                           return __spirv_ocl_s_clamp(xs...);
-                         } else {
-                           return __spirv_ocl_u_clamp(xs...);
-                         }
-                       } else {
-                         return __spirv_ocl_fclamp(xs...);
-                       }
-                     })
-#else
-HOST_IMPL_TEMPLATE(THREE_ARGS, clamp, builtin_enable_generic_t, common,
-                   default_ret_type)
-#endif
+BUILTIN_COMMON(THREE_ARGS, clamp, __spirv_ocl_fclamp)
 template <typename T>
-detail::builtin_enable_generic_non_scalar_t<T>
+detail::builtin_enable_common_non_scalar_t<T>
 clamp(T x, detail::get_elem_type_t<T> y, detail::get_elem_type_t<T> z) {
   return clamp(detail::simplify_if_swizzle_t<T>{x},
                detail::simplify_if_swizzle_t<T>{y},
                detail::simplify_if_swizzle_t<T>{z});
 }
+
+#undef BUILTIN_COMMON
 } // namespace _V1
 } // namespace sycl
