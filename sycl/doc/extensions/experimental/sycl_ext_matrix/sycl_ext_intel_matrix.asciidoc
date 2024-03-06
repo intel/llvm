@@ -204,29 +204,34 @@ In the case of `ext_intel_packed` matrix memory layout, `row` and
 transformation.
 
 === Load/Store/Fill With Out-of-Bounds Checks
-`joint_matrix_load`, `joint_matrix_store`, and `joint_matrix_fill`
-operations do not perform bounds checking. When the global matrix size is
-not multiple of the joint matrix size, this extension adds a new form
-of API to load, store, and fill joint matrix while checking the
-bounds. For load and fill, the out-of-bounds elements are set to
-0. For the store, they are dropped out.
+The APIs in this section may be used only on a device that has
+`aspect::ext_intel_matrix_checked`. The application must check that
+the device has this aspect before submitting a kernel using any of the
+APIs in this section. If the application fails to do this, the
+implementation throws a synchronous exception with the
+`errc::kernel_not_supported` error code when the kernel is submitted
+to the queue.
 
-These functions are similar to the existing ones without bounds
-checking, namely `joint_matrix_fill`, `joint_matrix_load`, and
-`joint_matrix_store`. But they are different in three ways:
+==== New Aspect for Checked Matrix APIs
+This extension adds a new device aspect:
+```c++
+namespace sycl {
 
-* The pointer `base_src` or `base_dest` designates the base pointer of
-the original memory matrix excluding any offset calculations. The
-coordinates are given separately here.
-* The coordinates `CoordX` and `CoordY` to calculate the  pointer
-offset to load/store are given as separate arguments.
-* These variants take extra arguments to determine the global bounds
-`Height` and `Width` of the two-dimensional region to load to or store
-from.
+enum class aspect : /*unspecified*/ {
+  ext_intel_matrix_checked
+};
 
-The two-dimensional memory region is interpreted as follows, where
-`Height` is number of rows in the memory matrix, `Width` is number of
-columns in the memory matrix, `stride` is number of rows that include
+} // namespace sycl
+```
+The `ext_intel_matrix_checked` aspect indicates that the device is capable of
+supporting the out of bounds checked APIs that are defined in this section.
+
+==== Introduction
+In this section, we refer to the memory buffer where a `joint_matrix`
+is loaded from or stored to as the global matrix. This global matrix
+is also interpreted as a two-dimensional memory region as follows, where
+`Height` is number of rows in the global matrix, `Width` is number of
+columns in the global matrix, `stride` is number of columns that include
 the out of bounds data (depicted as x here).
 
 |<-----------`Width`-------->|
@@ -244,16 +249,42 @@ the out of bounds data (depicted as x here).
 |<------------`Stride`---------->|
 
 Note that joint matrix shape `Rows` and `Cols` represents a sub-block
-of the picture above for each sub-group execution. The out of bounds
-functions checks that the 2d block starting at the address to be
-accessed `[0, src]` and ending at `[Cols, src + Rows * stride]` does
-not exceed the bigger 2d block starting at `[0, src]` and ending at
-`[Width, src + Height * stride]`. For instance, load of `sub_b`
-defined as `joint_matrix<sub_group, bfloat16, use::b, 2, 3,
-layout::row_major> sub_b;` from `ptr + 9` checks that `ptr + 9` does
-not exceed `ptr + 10` where 10 is `Width` so it reads only 1 element
-for that iteration. The 2 columns left that exceed the total `10`
-columns are filled by zero.
+of the picture above. The out of bounds data results when the global
+matrix size is not evenly divisible by the joint matrix size.
+
+==== Checked APIs
+`joint_matrix_load`, `joint_matrix_store`, and `joint_matrix_fill`
+operations do not perform bounds checking. When the global matrix size is
+not multiple of the joint matrix size, this extension adds a new form
+of API to load, store, and fill joint matrix while checking the
+bounds. For load and fill, the out-of-bounds elements are set to
+0. For the store, they are dropped out.
+
+These functions are similar to the existing ones without bounds
+checking, namely `joint_matrix_fill`, `joint_matrix_load`, and
+`joint_matrix_store`. But they are different in three ways:
+
+* The pointer `base_src` or `base_dest` designates the base pointer of
+the global memory matrix, which is different from the APIs that do not
+do bounds checking. Those non-bounds-checking APIs take a pointer to
+the base of the joint matrix.
+* The coordinates `CoordX` and `CoordY` into the global matrix to
+calculate the  pointer offset to load/store are given as separate
+arguments.
+* These variants take extra arguments to determine the global bounds
+`Height` and `Width` of the global matrix.
+
+The out of bounds functions check that the joint matrix block starting at the
+address `base_src` and ending at `base_src + Rows * Stride + Cols`
+does not exceed the global matrix block starting at `[base_src]` and
+ending at `base_src + Height * stride + Width`.
+For instance, load of joint matrix `sub_b` defined as
+`joint_matrix<sub_group, bfloat16, use::b, 2, 3, layout::row_major>
+sub_b;` from global matrix of `Height=2` and `Width=10`, using
+`joint_matrix_load_checked(sg, sub_b, base_src, 12, 2, 10, 0, 9);`,
+checks that the load starting at `base_src + 9` does not exceed
+`base_ptr + 10`. This results into reading only 1 column. The two
+columns left that exceed the `Width=10` columns are filled by zero.
 
 ```c++
 namespace sycl::ext::intel::experimental::matrix {
@@ -309,12 +340,19 @@ void joint_matrix_store_checked(Group g,
    multi_ptr<T, Space, IsDecorated> base_dest, size_t Stride, layout Layout,
    size_t Height, size_t Width, size_t CoordX, size_t CoordY);
 
-// Only available when Layout != layout::dynamic
 template <typename Group, typename T, size_t Rows, size_t Cols,
-          use Use, layout Layout, access::address_space Space,
+          layout Layout, access::address_space Space,
           access::decorated IsDecorated>
 void joint_matrix_store_checked(Group g,
-   const joint_matrix<Group, T, Use, Rows, Cols, Layout> &res,
+   const joint_matrix<Group, T, use::a, Rows, Cols, Layout> &res,
+   multi_ptr<T, Space, IsDecorated> base_dest, size_t Stride,
+   size_t Height, size_t Width, size_t CoordX, size_t CoordY);
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          layout Layout, access::address_space Space,
+          access::decorated IsDecorated>
+void joint_matrix_store_checked(Group g,
+   const joint_matrix<Group, T, use::b, Rows, Cols, Layout> &res,
    multi_ptr<T, Space, IsDecorated> base_dest, size_t Stride,
    size_t Height, size_t Width, size_t CoordX, size_t CoordY);
 
@@ -326,12 +364,18 @@ void joint_matrix_store_checked(Group g,
    size_t Stride, layout Layout, size_t Height, size_t Width,
    size_t CoordX, size_t CoordY);
 
-// Only available when Layout != layout::dynamic
 template <typename Group, typename T, size_t Rows, size_t Cols,
-          use Use, layout Layout, typename PropertyListT>
+          layout Layout, typename PropertyListT>
 void joint_matrix_store_checked(Group g,
-   const joint_matrix<Group, T, Use, Rows, Cols, Layout> &res,
-   ext::oneapi::experimental::annotated_ptr<T2, PropertyListT> base_dest,
+   const joint_matrix<Group, T, use::a, Rows, Cols, Layout> &res,
+   ext::oneapi::experimental::annotated_ptr<T, PropertyListT> base_dest,
+   size_t Stride, size_t Height, size_t Width, size_t CoordX, size_t CoordY);
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          layout Layout, typename PropertyListT>
+void joint_matrix_store_checked(Group g,
+   const joint_matrix<Group, T, use::b, Rows, Cols, Layout> &res,
+   ext::oneapi::experimental::annotated_ptr<T, PropertyListT> base_dest,
    size_t Stride, size_t Height, size_t Width, size_t CoordX, size_t CoordY);
 
 } // namespace sycl::ext::intel::experimental::matrix
@@ -340,9 +384,32 @@ void joint_matrix_store_checked(Group g,
 The property list associated with the `annotated_ptr` argument
 represents the compile-time constant properties for cache control included
 in the SYCL extenion
-link:../../proposed/sycl_ext_intel_cache_controls.asciidoc[sycl_ext_intel_cache_controls],
-and for the alignment property defined in the SYCL extension
-link:../../experimental/sycl_ext_oneapi_kernel_arg_properties.asciidoc[sycl_ext_oneapi_kernel_arg_properties].
+link:../../proposed/sycl_ext_intel_cache_controls.asciidoc[sycl_ext_intel_cache_controls].
+
+==== Restrictions and Device Information Descriptors
+The following restrictions apply to these checked APIs:
+- The base pointer must be 4 bytes aligned.
+- For 8 bits data type, `CoordX` must be a multiple of 4. For 16 bits
+data type, `CoordX` must be a multiple of 2. So `CoordX` must be a
+multiple of 4 divided by size of the element type (`4/sizeof(T)`).
+- For 8 bits data type, `Width` must be a multiple of 4, For 16 bits
+data type, `Width` must be a multiple of 2. So `Width` must be a
+multiple of 4 divided by size of the element type (`4/sizeof(T)`).
+
+These requirements are added as part of the matrix query. The table
+below provides a description for the additional device matrix
+descriptors that can be queried using `get_info` API.
+
+[frame="none",options="header"]
+|======================
+| Device descriptors | Return type| Description
+|`ext::intel::experimental::info::device::matrix_checked_alignment`| `size_t`
+|Returns the alignment requirement for the checked APIs pointer.
+|`ext::intel::experimental::info::device::matrix_checked_coordx_multiple_of<T>`|`size_t`|Returns
+a value, of which `CoordX` must be multiple of.
+|`ext::intel::experimental::info::device::matrix_checked_width_multiple_of<T>`|`size_t`|Returns
+a value, of which `Width` must be multiple of.
+|======================
 
 === New Device Information Descriptor
 Besides the query we provide in
