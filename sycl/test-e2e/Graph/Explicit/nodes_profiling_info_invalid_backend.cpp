@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out 2>&1
+// RUN: %{run} %t.out
 
 // This test checks exception throwing when trying to get node profiling
 // information on a non Level-Zero backend.
@@ -10,9 +10,7 @@
 
 int main() {
   device Dev;
-  queue Queue{Dev,
-              {sycl::ext::intel::property::queue::no_immediate_command_list{},
-               sycl::property::queue::enable_profiling()}};
+  queue Queue{Dev, {sycl::property::queue::enable_profiling()}};
 
   if (!are_graphs_supported(Queue)) {
     return 0;

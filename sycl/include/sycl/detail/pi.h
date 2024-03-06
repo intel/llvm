@@ -2614,7 +2614,7 @@ piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer, pi_queue queue,
 /// \param param_name The name of the profiling property to query depends on.
 /// \param param_value_size Size in bytes of the profiling property value.
 /// \param param_value Value of the profiling property.
-/// \param param_value_size_ret  pointer to the actual size in bytes returned
+/// \param param_value_size_ret Pointer to the actual size in bytes returned
 /// in param_value of the profiling property.
 __SYCL_EXPORT pi_result piextSyncPointGetProfilingInfo(
     pi_event event, pi_ext_sync_point sync_point, pi_profiling_info param_name,

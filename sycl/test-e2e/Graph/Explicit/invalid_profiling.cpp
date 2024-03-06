@@ -1,7 +1,10 @@
 // REQUIRES: level_zero || cuda, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %if ext_oneapi_level_zero %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --implicit-check-not=LEAK %s %}
+// Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
+// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// Extra run to check for immediate-command-list in Level Zero
+// RUN: %if level_zero && linux %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
 // This test checks exception throwing if profiling an event returned
 // from multi-partitions graph submission.
@@ -12,9 +15,7 @@
 
 int main() {
   device Dev;
-  queue Queue{Dev,
-              {sycl::ext::intel::property::queue::no_immediate_command_list{},
-               sycl::property::queue::enable_profiling()}};
+  queue Queue{Dev, {sycl::property::queue::enable_profiling()}};
 
   const size_t Size = 100000;
   int Data[Size] = {0};
