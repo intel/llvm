@@ -2879,6 +2879,98 @@ prefetch_impl(const T *p, Toffset offset, simd_mask<1> pred) {
                                                        addrs.data());
 }
 
+#ifndef __ESIMD_FORCE_STATELESS_MEM
+/// Accessor-based prefetch gather.
+/// Supported platforms: DG2, PVC
+/// VISA instruction: lsc_load.ugm
+///
+/// Prefetches elements located at surface.
+///
+/// @tparam T is element type.
+/// @tparam NElts is the number of elements to load per address.
+/// @tparam DS is the data size.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam N is the number of channels (platform dependent).
+/// @tparam AccessorTy is the \ref sycl::accessor type.
+/// @tparam OffsetT is the type of \c byte_offsets.
+/// @param acc is the SYCL accessor.
+/// @param byte_offsets is the zero-based offsets in bytes.
+/// @param pred is predicates.
+///
+
+template <typename T, int NElts, lsc_data_size DS, cache_hint L1H,
+          cache_hint L2H, int N, typename AccessorTy, typename OffsetT>
+__ESIMD_API std::enable_if_t<
+    is_device_accessor_with_v<AccessorTy, accessor_mode_cap::can_read>>
+prefetch_impl(AccessorTy acc, simd<OffsetT, N> byte_offsets,
+              simd_mask<N> pred) {
+  static_assert(std::is_integral_v<OffsetT>,
+                "Prefetch must have integral byte_offset type");
+  static_assert(sizeof(OffsetT) <= 4,
+                "Implicit truncation of 64-bit byte_offset to 32-bit is "
+                "disabled. Use -fsycl-esimd-force-stateless-mem or explicitly "
+                "convert offsets to a 32-bit vector");
+  check_lsc_vector_size<NElts>();
+  check_lsc_data_size<T, DS>();
+  check_cache_hint<cache_action::prefetch, L1H, L2H>();
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
+  constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
+  constexpr lsc_vector_size LSCVS = to_lsc_vector_size<NElts>();
+  constexpr lsc_data_order Transposed = lsc_data_order::nontranspose;
+  using MsgT = typename lsc_expand_type<T>::type;
+  simd<uint32_t, N> ByteOffsets32 = convert<uint32_t>(byte_offsets);
+  auto SI = get_surface_index(acc);
+  __esimd_lsc_prefetch_bti<MsgT, L1H, L2H, AddressScale, ImmOffset, EDS, LSCVS,
+                           Transposed, N>(pred.data(), ByteOffsets32.data(),
+                                          SI);
+}
+
+/// Accessor-based transposed prefetch gather with 1 channel.
+/// Supported platforms: DG2, PVC
+/// VISA instruction: lsc_load.ugm
+///
+/// Prefetches elements located at surface.
+///
+/// @tparam T is element type.
+/// @tparam NElts is the number of elements to load per address.
+/// @tparam DS is the data size.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam AccessorTy is the \ref sycl::accessor type.
+/// @tparam OffsetT is the type of \c byte_offset.
+/// @param acc is the SYCL accessor.
+/// @param byte_offset is the zero-based offset in bytes.
+///
+template <typename T, int NElts, lsc_data_size DS, cache_hint L1H,
+          cache_hint L2H, typename AccessorTy, typename OffsetT>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<OffsetT> &&
+    is_device_accessor_with_v<AccessorTy, accessor_mode_cap::can_read>>
+prefetch_impl(AccessorTy acc, OffsetT byte_offset, simd_mask<1> pred) {
+  static_assert(sizeof(OffsetT) <= 4,
+                "Implicit truncation of 64-bit byte_offset to 32-bit is "
+                "disabled. Use -fsycl-esimd-force-stateless-mem or explicitly "
+                "convert offsets to a 32-bit vector");
+  check_lsc_vector_size<NElts>();
+  check_lsc_data_size<T, DS>();
+  check_cache_hint<cache_action::prefetch, L1H, L2H>();
+  constexpr uint16_t AddressScale = 1;
+  constexpr int ImmOffset = 0;
+  constexpr lsc_data_size EDS = finalize_data_size<T, DS>();
+  static_assert(
+      EDS == lsc_data_size::u32 || EDS == lsc_data_size::u64,
+      "Transposed prefetch is supported only for data size u32 or u64");
+  constexpr lsc_vector_size LSCVS = to_lsc_vector_size<NElts>();
+  constexpr lsc_data_order Transposed = lsc_data_order::transpose;
+  constexpr int N = 1;
+  simd<uint32_t, N> offsets = byte_offset;
+  auto SI = get_surface_index(acc);
+  __esimd_lsc_prefetch_bti<T, L1H, L2H, AddressScale, ImmOffset, EDS, LSCVS,
+                           Transposed, N>(pred.data(), offsets.data(), SI);
+}
+#endif // __ESIMD_FORCE_STATELESS_MEM
 } // namespace detail
 
 /// @endcond ESIMD_DETAIL
@@ -8756,6 +8848,374 @@ __ESIMD_API std::enable_if_t<
 prefetch(const T *p, PropertyListT props = {}) {
   simd_mask<1> Mask = 1;
   prefetch<T, VS>(p, 0, Mask, props);
+}
+
+/// template <typename T, int N, int VS, typename AccessorT, typename OffsetT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
+///               simd_mask<N / VS> mask,
+///               PropertyListT props = {});                   // (acc-pf-1)
+/// void prefetch(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
+///               PropertyListT props = {});                   // (acc-pf-2)
+///
+/// The next 2 functions are similar to the above and were added for
+/// convenience. They assume the VS parameter is set to 1 and do not require
+/// specifying the template parameters <T, N, VS> at function calls.
+/// template <typename T, int N, typename AccessorT, typename OffsetT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(AccessorT acc, simd<OffsetT, N> byte_offsets,
+///               simd_mask<N> mask,
+///               PropertyListT props = {});                   // (acc-pf-3)
+/// void prefetch(AccessorT acc, simd<OffsetT, N> byte_offsets,
+///               PropertyListT props = {});                   // (acc-pf-4)
+/// The next 2 functions are variations of the first 2 above (acc-pf-1,2)
+/// and were added only to support simd_view instead of simd for byte_offsets
+/// operand.
+/// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+///           typename AccessorT, typename PropertyListT = empty_properties_t>
+/// void prefetch(AccessorT acc, OffsetSimdViewT byte_offsets,
+///               simd_mask<N / VS> mask, PropertyListT props = {});//(acc-pf-5)
+/// void prefetch(AccessorT acc, OffsetSimdViewT byte_offsets,
+///               PropertyListT props = {});                        //(acc-pf-6)
+///
+/// The next functions perform transposed 1-channel prefetch.
+/// template <typename T, int VS = 1, typename AccessorT, typename OffsetT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(AccessorT acc, OffsetT byte_offset, simd_mask<1> mask,
+///               PropertyListT props = {});                   // (acc-pf-7)
+/// void prefetch(AccessorT acc, OffsetT byte_offset,
+///               PropertyListT props = {});                   // (acc-pf-8)
+/// template <typename T, int VS = 1, typename AccessorT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(AccessorT acc, simd_mask<1> mask,
+///               PropertyListT props = {});                   // (acc-pf-9)
+/// void prefetch(AccessorT acc, PropertyListT props = {});       // (acc-pf-10)
+///
+
+/// template <typename T, int N, int VS, typename AccessorT, typename OffsetT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
+///               simd_mask<N / VS> mask,
+///               PropertyListT props = {});                   // (acc-pf-1)
+/// Supported platforms: DG2, PVC only.
+/// Prefetches elements of the type 'T' from memory locations addressed
+/// by the accessor \p acc and byte offsets \p byte_offsets, to the cache.
+/// Access to any element's memory location can be disabled via the input vector
+/// of predicates \p mask. If mask[i] is unset, then the prefetch from
+/// (acc + byte_offsets[i]) is skipped.
+/// @tparam T Element type.
+/// @tparam N Number of elements to read.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'.
+/// @param acc Accessor referencing the data to load.
+/// @param byte_offsets the vector of offsets in bytes. If force stateless
+/// memory is used the offsets can be up to 64 bit size, otherwise up to 32 bit
+/// size. For each i, (acc + byte_offsets[i]) must be element size aligned.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+template <typename T, int N, int VS, typename AccessorT, typename OffsetT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_device_accessor_with_v<AccessorT,
+                                      detail::accessor_mode_cap::can_read> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
+         simd_mask<N / VS> mask, PropertyListT props = {}) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  prefetch<T, N, VS>(detail::accessorToPointer<T>(acc), byte_offsets, mask,
+                     props);
+#else
+  static_assert(N / VS >= 1 && N % VS == 0, "N must be divisible by VS");
+
+  constexpr auto L1Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::uncached);
+  constexpr auto L2Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::cached);
+  detail::prefetch_impl<T, VS, detail::lsc_data_size::default_size, L1Hint,
+                        L2Hint>(acc, byte_offsets, mask);
+#endif // __ESIMD_FORCE_STATELESS_MEM
+}
+
+/// template <typename T, int N, int VS, typename AccessorT, typename OffsetT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(AccessorT acc, simd<uint32_t, N / VS> byte_offsets,
+///                   PropertyListT props = {});                   // (acc-pf-2)
+/// Supported platforms: DG2, PVC only.
+/// Prefetches elements of the type 'T' from memory locations addressed
+/// by the accessor \p acc and byte offsets \p byte_offsets, into the cache.
+/// @tparam T Element type.
+/// @tparam N Number of elements to read.
+/// @tparam VS Vector size. It can also be read as the number of reads per each
+/// address. The parameter 'N' must be divisible by 'VS'.
+/// @param acc Accessor referencing the data to load.
+/// @param byte_offsets the vector of offsets in bytes. If force stateless
+/// memory is used the offsets can be up to 64 bit size, otherwise up to 32 bit
+/// size. For each i, (acc + byte_offsets[i]) must be element size aligned.
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+template <typename T, int N, int VS, typename AccessorT, typename OffsetT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_device_accessor_with_v<AccessorT,
+                                      detail::accessor_mode_cap::can_read> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
+         PropertyListT props = {}) {
+  simd_mask<N / VS> Mask = 1;
+  prefetch<T, N, VS>(acc, byte_offsets, Mask, props);
+}
+
+/// template <typename T, int N, typename AccessorT, typename OffsetT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(AccessorT acc, simd<uint32_t, N> byte_offsets,
+///                   simd_mask<N> mask,
+///                   PropertyListT props = {});                   // (acc-pf-3)
+/// Supported platforms: DG2, PVC only.
+/// Prefetches elements of the type 'T' from memory locations addressed
+/// by the accessor \p acc and byte offsets \p byte_offsets, to the cache.
+/// Access to any element's memory location can be disabled via the input vector
+/// of predicates \p mask. If mask[i] is unset, then the prefetch from
+/// (acc + byte_offsets[i]) is skipped.
+/// @tparam T Element type.
+/// @tparam N Number of elements to read.
+/// @param acc Accessor referencing the data to load.
+/// @param byte_offsets the vector of offsets in bytes. If force stateless
+/// memory is used the offsets can be up to 64 bit size, otherwise up to 32 bit
+/// size. For each i, (acc + byte_offsets[i]) must be element size aligned.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+template <typename T, int N, typename AccessorT, typename OffsetT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_device_accessor_with_v<AccessorT,
+                                      detail::accessor_mode_cap::can_read> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(AccessorT acc, simd<OffsetT, N> byte_offsets, simd_mask<N> mask,
+         PropertyListT props = {}) {
+  constexpr int VS = 1;
+  prefetch<T, N, VS>(acc, byte_offsets, mask, props);
+}
+
+/// template <typename T, typename AccessorT, typename OffsetT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(AccessorT acc, simd<uint32_t, N> byte_offsets,
+///                   PropertyListT props = {});                   // (acc-pf-4)
+/// Supported platforms: DG2, PVC only.
+/// Prefetches elements of the type 'T' from memory locations addressed
+/// by the accessor \p acc and byte offsets \p byte_offsets, into the cache.
+/// @tparam T Element type.
+/// @tparam N Number of elements to read.
+/// @param acc Accessor referencing the data to load.
+/// @param byte_offsets the vector of offsets in bytes. If force stateless
+/// memory is used the offsets can be up to 64 bit size, otherwise up to 32 bit
+/// size. For each i, (acc + byte_offsets[i]) must be element size aligned.
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+template <typename T, int N, typename AccessorT, typename OffsetT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_device_accessor_with_v<AccessorT,
+                                      detail::accessor_mode_cap::can_read> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(AccessorT acc, simd<OffsetT, N> byte_offsets,
+         PropertyListT props = {}) {
+  constexpr int VS = 1;
+  prefetch<T, N, VS>(acc, byte_offsets, props);
+}
+
+/// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+///           typename AccessorT, typename PropertyListT = empty_properties_t>
+/// void prefetch(AccessorT acc, OffsetSimdViewT byte_offsets,
+///             simd_mask<N / VS> mask, PropertyListT props = {}); // (acc-pf-5)
+/// Supported platforms: DG2, PVC only.
+/// Prefetches elements of the type 'T' from memory locations
+/// addressed by the accessor \p acc and byte offsets \p byte_offsets to the
+/// cache. Access to any element's memory location can be disabled via the input
+/// vector of predicates \p mask. If mask[i] is unset, then the load from (acc +
+/// byte_offsets[i]) is skipped.
+/// @tparam T Element type.
+/// @tparam N Number of elements to read.
+/// @tparam VS Vector size. It can also be read as the number of reads per
+/// each address. The parameter 'N' must be divisible by 'VS'.
+/// @param acc Accessor referencing the data to load.
+/// @param byte_offsets the vector of offsets in bytes. If force stateless
+/// memory is used the offsets can be up to 64 bit size, otherwise up to 32 bit
+/// size. For each i, (acc + byte_offsets[i]) must be element size aligned.
+/// @param mask The access mask.
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+          typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_device_accessor_with_v<AccessorT,
+                                      detail::accessor_mode_cap::can_read> &&
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(AccessorT acc, OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
+         PropertyListT props = {}) {
+  prefetch<T, N, VS>(acc, byte_offsets.read(), mask, props);
+}
+
+/// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+///           typename AccessorT, typename PropertyListT = empty_properties_t>
+/// void prefetch(AccessorT acc, OffsetSimdViewT byte_offsets,
+///             PropertyListT props = {});                      // (acc-pf-6)
+/// Supported platforms: DG2, PVC only.
+/// Prefetches elements of the type 'T' from memory locations
+/// addressed by the accessor \p acc and byte offsets \p byte_offsets to the
+/// cache.
+/// @tparam T Element type.
+/// @tparam N Number of elements to read.
+/// @tparam VS Vector size. It can also be read as the number of reads per
+/// each address. The parameter 'N' must be divisible by 'VS'.
+/// @param acc Accessor referencing the data to load.
+/// @param byte_offsets the vector of offsets in bytes. If force stateless
+/// memory is used the offsets can be up to 64 bit size, otherwise up to 32 bit
+/// size. For each i, (acc + byte_offsets[i]) must be element size aligned.
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
+          typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_device_accessor_with_v<AccessorT,
+                                      detail::accessor_mode_cap::can_read> &&
+    detail::is_simd_view_type_v<OffsetSimdViewT> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(AccessorT acc, OffsetSimdViewT byte_offsets,
+         PropertyListT props = {}) {
+  prefetch<T, N, VS>(acc, byte_offsets.read(), props);
+}
+
+/// template <typename T, int VS = 1, typename AccessorT, typename OffsetT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(AccessorT acc, uint32_t byte_offset, simd_mask<1> mask,
+///                   PropertyListT props = {});                   // (acc-pf-7)
+/// Supported platforms: DG2, PVC only.
+/// Prefetches elements of the type 'T' from continuous memory location
+/// addressed by the accessor \p acc, and offset \p byte_offset and the length
+/// \p VS elements into the cache.
+/// @tparam T Element type.
+/// @tparam VS Vector size. It specifies the number of consequent elements to
+/// prefetch.
+/// @param acc Accessor referencing the data to load.
+/// @param byte_offset offset from the base address.
+/// @param mask The access mask. If it is set to 0, then the prefetch is
+/// omitted.
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+template <typename T, int VS = 1, typename AccessorT, typename OffsetT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<OffsetT> &&
+    detail::is_device_accessor_with_v<AccessorT,
+                                      detail::accessor_mode_cap::can_read> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(AccessorT acc, OffsetT byte_offset, simd_mask<1> mask,
+         PropertyListT props = {}) {
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+  prefetch<T, VS>(detail::accessorToPointer<T>(acc), byte_offset, mask, props);
+#else
+  constexpr auto L1Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::uncached);
+  constexpr auto L2Hint =
+      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::cached);
+  detail::prefetch_impl<T, VS, detail::lsc_data_size::default_size, L1Hint,
+                        L2Hint>(acc, byte_offset, mask);
+#endif // __ESIMD_FORCE_STATELESS_MEM
+}
+
+/// template <typename T, int VS = 1, typename AccessorT, typename OffsetT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(AccessorT acc, uint32_t byte_offset,
+///                   PropertyListT props = {});                   // (acc-pf-8)
+/// Supported platforms: DG2, PVC only.
+/// Prefetches elements of the type 'T' from continuous memory location
+/// addressed by the accessor \p acc, and offset \p byte_offset and the length
+/// \p VS elements into the cache.
+/// @tparam T Element type.
+/// @tparam VS Vector size. It specifies the number of consequent elements to
+/// prefetch.
+/// @param acc Accessor referencing the data to load.
+/// @param byte_offset offset from the base address
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+template <typename T, int VS = 1, typename AccessorT, typename OffsetT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    std::is_integral_v<OffsetT> &&
+    detail::is_device_accessor_with_v<AccessorT,
+                                      detail::accessor_mode_cap::can_read> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(AccessorT acc, OffsetT byte_offset, PropertyListT props = {}) {
+  simd_mask<1> Mask = 1;
+  prefetch<T, VS>(acc, byte_offset, Mask, props);
+}
+
+/// template <typename T, int VS = 1, typename AccessorT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(AccessorT acc, simd_mask<1> mask,
+///                   PropertyListT props = {});                 //(acc-pf-9)
+/// Supported platforms: DG2, PVC only.
+///  Prefetches elements of the type 'T' from continuous memory location
+///  addressed by the accessor \p acc
+/// and the length \p VS elements into the cache.
+/// @tparam T Element type.
+/// @tparam VS Vector size. It specifies the number of consequent elements to
+/// prefetch.
+/// @param acc Accessor referencing the data to load.
+/// @param mask The access mask. If it is set to 0, then the prefetch is
+/// omitted.
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+template <typename T, int VS = 1, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_device_accessor_with_v<AccessorT,
+                                      detail::accessor_mode_cap::can_read> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(AccessorT acc, simd_mask<1> mask, PropertyListT props = {}) {
+  prefetch<T, VS>(acc, 0, mask, props);
+}
+
+/// template <typename T, int VS = 1, typename AccessorT,
+///           typename PropertyListT = empty_properties_t>
+/// void prefetch(AccessorT acc, PropertyListT props = {});      // (acc-pf-10)
+/// Supported platforms: DG2, PVC only.
+/// Prefetches elements of the type 'T' from continuous memory location
+/// addressed by the accessor \p acc and the length \p VS into the cache.
+/// @tparam T Element type.
+/// @tparam VS Vector size. It specifies the number of consequent elements to
+/// prefetch.
+/// @param acc Accessor referencing the data to load.
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+template <typename T, int VS = 1, typename AccessorT,
+          typename PropertyListT =
+              ext::oneapi::experimental::detail::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    detail::is_device_accessor_with_v<AccessorT,
+                                      detail::accessor_mode_cap::can_read> &&
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch(AccessorT acc, PropertyListT props = {}) {
+  simd_mask<1> Mask = 1;
+  prefetch<T, VS>(acc, 0, Mask, props);
 }
 
 /// Variant of gather_rgba that uses local accessor as a parameter
