@@ -2266,9 +2266,9 @@ commands.
 **UNRESOLVED** Should be added for at least memory copy nodes, however
 full scope of support needs to be designed and implemented.
 
-=== Updateable Property Graph Resubmission
+=== Updatable Property Graph Resubmission
 
-It has been suggested that updateable graphs could remove the dependencies
+It has been suggested that updatable graphs could remove the dependencies
 generated between graphs upon resubmission while a previous submission of the
 same graph is still executing. However, this requires further design discussion 
 to ensure this is desired and makes sense to users.
