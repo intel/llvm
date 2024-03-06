@@ -1221,9 +1221,6 @@ private:
   std::vector<sycl::detail::EventImplPtr> MExecutionEvents;
   /// List of the partitions that compose the exec graph.
   std::vector<std::shared_ptr<partition>> MPartitions;
-  /// Map of the partitions to their execution events
-  std::unordered_map<std::shared_ptr<partition>, sycl::detail::EventImplPtr>
-      MPartitionsExecutionEvents;
   /// Storage for copies of nodes from the original modifiable graph.
   std::vector<std::shared_ptr<node_impl>> MNodeStorage;
   /// Map of original modifiable nodes (keys) to new duplicated nodes (values)

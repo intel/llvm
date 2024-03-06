@@ -128,7 +128,6 @@ public:
   SPIRVInstruction *getPrevious() const { return BB->getPrevious(this); }
   SPIRVInstruction *getNext() const { return BB->getNext(this); }
   virtual std::vector<SPIRVValue *> getOperands();
-  std::vector<SPIRVType *> getOperandTypes();
   static std::vector<SPIRVType *>
   getOperandTypes(const std::vector<SPIRVValue *> &Ops);
 
@@ -447,7 +446,7 @@ public:
       : SPIRVInstruction(TheInitializer ? 5 : 4, OpVariable, TheType, TheId,
                          TheBB, TheM),
         StorageClass(TheStorageClass) {
-    if (TheInitializer)
+    if (TheInitializer && !TheInitializer->isUndef())
       Initializer.push_back(TheInitializer->getId());
     Name = TheName;
     validate();

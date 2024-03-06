@@ -5385,7 +5385,7 @@ def err_alias_template_extra_headers : Error<
 def err_template_spec_extra_headers : Error<
   "extraneous template parameter list in template specialization or "
   "out-of-line template definition">;
-def warn_template_spec_extra_headers : Warning<
+def ext_template_spec_extra_headers : ExtWarn<
   "extraneous template parameter list in template specialization">;
 def note_explicit_template_spec_does_not_need_header : Note<
   "'template<>' header not required for explicitly-specialized class %0 "
@@ -8330,6 +8330,9 @@ def err_not_tag_in_scope : Error<
 def ext_template_after_declarative_nns : ExtWarn<
     "'template' cannot be used after a declarative nested name specifier">,
     InGroup<DiagGroup<"template-in-declaration-name">>;
+def ext_alias_template_in_declarative_nns : ExtWarn<
+  "a declarative nested name specifier cannot name an alias template">,
+  InGroup<DiagGroup<"alias-template-in-declaration-name">>;
 
 def err_no_typeid_with_fno_rtti : Error<
   "use of typeid requires -frtti">;
@@ -10436,6 +10439,8 @@ def err_x86_builtin_tile_arg_duplicate : Error<
 
 def err_builtin_target_unsupported : Error<
   "builtin is not supported on this target">;
+def err_builtin_aix_os_unsupported : Error<
+  "this builtin is available only on AIX 7.2 and later operating systems">;
 def err_builtin_longjmp_unsupported : Error<
   "__builtin_longjmp is not supported for the current target">;
 def err_builtin_setjmp_unsupported : Error<
@@ -10836,6 +10841,13 @@ def warn_imp_cast_drops_unaligned : Warning<
   InGroup<DiagGroup<"unaligned-qualifier-implicit-cast">>;
 
 } // end of sema category
+
+let CategoryName = "API Notes Issue" in {
+
+def err_incompatible_replacement_type : Error<
+  "API notes replacement type %0 has a different size from original type %1">;
+
+} // end of API Notes category
 
 let CategoryName = "OpenMP Issue" in {
 // OpenMP support.
@@ -12053,7 +12065,8 @@ def err_builtin_invalid_arg_type: Error <
   "pointer to a valid matrix element type|"
   "signed integer or floating point type|vector type|"
   "floating point type|"
-  "vector of integers}1 (was %2)">;
+  "vector of integers|"
+  "type of integer}1 (was %2)">;
 
 def err_builtin_matrix_disabled: Error<
   "matrix types extension is disabled. Pass -fenable-matrix to enable it">;
@@ -12215,6 +12228,13 @@ def err_sycl_attribute_internal_decl
             "in an anonymous namespace">;
 def err_sycl_attribute_not_device_global
     : Error<"%0 attribute can only be applied to 'device_global' variables">;
+def err_fpga_attribute_incorrect_variable
+    : Error<"%0 attribute only applies to constant variables, local variables, "
+            "static variables, %select{|agent memory arguments, }1non-static data "
+            "members and device_global variables">;
+def err_fpga_attribute_invalid_decl
+    : Error<"%0 attribute only applies to const variables, local variables, "
+            "non-static data members and device_global variables">;
 def err_sycl_compiletime_property_duplication : Error<
   "can't apply %0 property twice to the same accessor">;
 def err_sycl_invalid_property_list_param_number : Error<
@@ -12367,6 +12387,9 @@ def err_hlsl_operator_unsupported : Error<
 def err_hlsl_param_qualifier_mismatch :
   Error<"conflicting parameter qualifier %0 on parameter %1">;
 
+def warn_hlsl_impcast_vector_truncation : Warning<
+  "implicit conversion truncates vector: %0 to %1">, InGroup<Conversion>;
+
 // Layout randomization diagnostics.
 def err_non_designated_init_used : Error<
   "a randomized struct can only be initialized with a designated initializer">;
@@ -12441,4 +12464,18 @@ def err_wasm_builtin_arg_must_match_table_element_type : Error <
   "%ordinal0 argument must match the element type of the WebAssembly table in the %ordinal1 argument">;
 def err_wasm_builtin_arg_must_be_integer_type : Error <
   "%ordinal0 argument must be an integer">;
+
+// OpenACC diagnostics.
+def warn_acc_construct_unimplemented
+    : Warning<"OpenACC construct '%0' not yet implemented, pragma ignored">,
+      InGroup<SourceUsesOpenACC>;
+def warn_acc_clause_unimplemented
+    : Warning<"OpenACC clause '%0' not yet implemented, clause ignored">,
+      InGroup<SourceUsesOpenACC>;
+def err_acc_construct_appertainment
+    : Error<"OpenACC construct '%0' cannot be used here; it can only "
+            "be used in a statement context">;
+def err_acc_branch_in_out_compute_construct
+    : Error<"invalid %select{branch|return}0 %select{out of|into}1 OpenACC "
+            "Compute Construct">;
 } // end of sema component.
