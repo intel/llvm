@@ -146,6 +146,15 @@ class assume_buffer_outlives_graph
 public:
   assume_buffer_outlives_graph() = default;
 };
+
+/// Property used to enable graph profiling.
+/// Passing this property to the `command_graph::finalize()` function
+/// ensures that profiling can be used on the generated graph.
+class enable_profiling : public ::sycl::detail::DataLessProperty<
+                             ::sycl::detail::GraphEnableProfiling> {
+public:
+  enable_profiling() = default;
+};
 } // namespace graph
 
 namespace node {
@@ -340,8 +349,11 @@ protected:
   /// Constructor used by internal runtime.
   /// @param Graph Detail implementation class to construct with.
   /// @param Ctx Context to use for graph.
+  /// @param PropList Optional list of properties to pass.
   executable_command_graph(const std::shared_ptr<detail::graph_impl> &Graph,
-                           const sycl::context &Ctx);
+                           const sycl::context &Ctx,
+			   const property_list &PropList = {});
+
 
   template <class Obj>
   friend decltype(Obj::impl)

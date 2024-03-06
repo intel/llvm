@@ -130,8 +130,12 @@ int main() {
 
     KernelGraph.end_recording(Queue);
 
-    auto CopyGraphExec = CopyGraph.finalize();
-    auto KernelGraphExec = KernelGraph.finalize();
+    // The `enable_profiling` property must be passed to the finalize function
+    // in order to query profiling information.
+    auto CopyGraphExec =
+        CopyGraph.finalize(exp_ext::property::graph::enable_profiling{});
+    auto KernelGraphExec =
+        KernelGraph.finalize(exp_ext::property::graph::enable_profiling{});
 
     event CopyEvent, KernelEvent1, KernelEvent2;
     // Run graphs

@@ -4462,13 +4462,15 @@ piextCommandBufferCreate(pi_context Context, pi_device Device,
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
   ur_device_handle_t UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  const ur_exp_command_buffer_desc_t *UrDesc =
-      reinterpret_cast<const ur_exp_command_buffer_desc_t *>(Desc);
+  ur_exp_command_buffer_desc_t UrDesc;
+  UrDesc.stype = UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC;
+  UrDesc.isInOrder = Desc->is_in_order;
+  UrDesc.enableProfiling = Desc->enable_profiling;
   ur_exp_command_buffer_handle_t *UrCommandBuffer =
       reinterpret_cast<ur_exp_command_buffer_handle_t *>(RetCommandBuffer);
 
   HANDLE_ERRORS(
-      urCommandBufferCreateExp(UrContext, UrDevice, UrDesc, UrCommandBuffer));
+      urCommandBufferCreateExp(UrContext, UrDevice, &UrDesc, UrCommandBuffer));
 
   return PI_SUCCESS;
 }

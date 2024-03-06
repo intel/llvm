@@ -534,3 +534,31 @@ TEST_F(CommandGraphTest, ProfilingException) {
         std::string::npos);
   }
 }
+
+TEST_F(CommandGraphTest, ProfilingExceptionProperty) {
+  Graph.begin_recording(Queue);
+  auto Event1 = Queue.submit(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  Graph.end_recording(Queue);
+
+  // Checks exception thrown if profiling is requested while the
+  // enable_profiling property has not been passed to `finalize()`.
+  auto GraphExecInOrder = Graph.finalize();
+  queue QueueProfile{Dev, {sycl::property::queue::enable_profiling()}};
+  auto EventInOrder = QueueProfile.submit(
+      [&](handler &CGH) { CGH.ext_oneapi_graph(GraphExecInOrder); });
+  QueueProfile.wait_and_throw();
+  bool Success = true;
+  try {
+    EventInOrder
+        .get_profiling_info<sycl::info::event_profiling::command_start>();
+  } catch (sycl::exception &Exception) {
+    ASSERT_FALSE(std::string(Exception.what())
+                     .find("Profiling information is unavailable as the queue "
+                           "associated with the event does not have the "
+                           "'enable_profiling' property.") ==
+                 std::string::npos);
+    Success = false;
+  }
+  ASSERT_EQ(Success, false);
+}

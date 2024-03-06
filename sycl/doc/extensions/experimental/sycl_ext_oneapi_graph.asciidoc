@@ -601,6 +601,28 @@ which is used in a graph will be kept alive on the host for the lifetime of the
 graph. Destroying that buffer during the lifetime of a `command_graph`
 constructed with this property results in undefined behavior.
 
+===== Enable-Profiling Property [[enable-profiling]]
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::property::graph {
+class enable_profiling {
+  public:
+    enable_profiling() = default;
+};
+}
+----
+
+The `property::graph::enable_profiling` property can be passed to the 
+`command_graph::finalize()` function and enables profiling support 
+for the returned `command_graph<graph_state::executable>`.
+Passing this property to the finalize function implies disabling 
+certain optimizations to enable graph profiling.
+As a result, the execution time of a graph finalized with profiling enabled 
+is longer than that of a graph without profiling capability.
+An error will be thrown when attempting to profile an event 
+from a graph submission that was created without this property.
+
 ==== Graph Member Functions
 
 Table {counter: tableNumber}. Constructor of the `command_graph` class.
@@ -804,8 +826,9 @@ Constraints:
 
 Parameters:
 
-* `propList` - Optional parameter for passing properties. No finalization
-  properties are defined by this extension.
+* `propList` - Optional parameter for passing properties. The only defined 
+property is `enable_profiling`. See <<enable-profiling, Enable-Profiling>>
+for more details.
 
 Returns: A new executable graph object which can be submitted to a queue.
 
