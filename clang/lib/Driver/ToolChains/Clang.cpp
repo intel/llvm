@@ -544,6 +544,13 @@ static bool isSYCLOptimizationO2orHigher(const ArgList &Args) {
       return false;
     return OptLevel > 1;
   }
+
+  // Put O0 if -g is passed and optimization level is not provided explicitly.
+  if (const Arg *A = Args.getLastArg(options::OPT_g_Group)) {
+    if (!A->getOption().matches(options::OPT_g0))
+      return false;
+  }
+
   // No -O setting seen, default is -O2 for device.
   return true;
 }
@@ -5315,9 +5322,17 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-Wno-sycl-strict");
     }
 
-    // Set O2 optimization level by default
-    if (!Args.getLastArg(options::OPT_O_Group))
-      CmdArgs.push_back("-O2");
+    // Set O2 optimization level by default. Put O0 if -g is passed and
+    // optimization level is not provided explicitly.
+    if (!Args.getLastArg(options::OPT_O_Group)) {
+      StringRef OptLevel = "-O2";
+      if (const Arg *A = Args.getLastArg(options::OPT_g_Group)) {
+        if (!A->getOption().matches(options::OPT_g0)) {
+          OptLevel = "-O0";
+        }
+      }
+      CmdArgs.push_back(OptLevel.data());
+    }
 
     // Add the integration header option to generate the header.
     StringRef Header(D.getIntegrationHeader(Input.getBaseInput()));
@@ -10336,6 +10351,12 @@ static std::string getSYCLPostLinkOptimizationLevel(const ArgList &Args) {
     if (std::any_of(AcceptedOptions.begin(), AcceptedOptions.end(),
                     [=](char c) { return c == S[0]; }))
       return std::string("-O") + S[0];
+  }
+
+  // Put O0 if -g is passed and optimization level is not provided explicitly.
+  if (const Arg *A = Args.getLastArg(options::OPT_g_Group)) {
+    if (!A->getOption().matches(options::OPT_g0))
+      return "-O0";;
   }
 
   // The default for SYCL device code optimization
