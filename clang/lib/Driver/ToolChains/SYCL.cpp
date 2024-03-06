@@ -371,6 +371,8 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList {
   "bfloat16", "crt", "cmath", "cmath-fp64", "complex", "complex-fp64",
 #if defined(_WIN32)
       "msvc-math",
+#else
+      "sanitizer",
 #endif
       "imf", "imf-fp64", "itt-compiler-wrappers", "itt-stubs",
       "itt-user-wrappers", "fallback-cassert", "fallback-cstring",
@@ -401,8 +403,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
   // instead of the original object.
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
     bool IsRDC = !shouldDoPerObjectFileLinking(C);
-    const bool IsSYCLNativeCPU = isSYCLNativeCPU(
-        this->getToolChain(), *C.getSingleOffloadToolChain<Action::OFK_Host>());
+    const bool IsSYCLNativeCPU = isSYCLNativeCPU(this->getToolChain());
     auto isNoRDCDeviceCodeLink = [&](const InputInfo &II) {
       if (IsRDC)
         return false;
