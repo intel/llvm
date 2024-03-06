@@ -38,6 +38,7 @@ if(NATIVECPU_USE_OCK)
     # Merge pull request #389 from PietroGhg/pietro/skip_spirv_fetchcontent
     # Skip FetchContent for SPIRV-Headers if building llvm-spirv
     set(OCK_GIT_INTERNAL_TAG 9a53d126cba574fadab3bef513b1c6d9c1ebc0fd)
+
     # Overwrite OCK_GIT_INTERNAL_REPO/OCK_GIT_INTERNAL_TAG if the corresponding options are set
     if(OCK_GIT_REPO)
       set(OCK_GIT_INTERNAL_REPO "${OCK_GIT_REPO}")
