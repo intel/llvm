@@ -26,9 +26,6 @@ on:
           if inputs.target_devices contains 'ext_oneapi_hip'
         type: string
         required: False
-      ninja_build_cts_extra_args:
-        type: string
-        required: False
       tests_selector:
         description: |
           Two possible options: "e2e" and "cts".
@@ -107,8 +104,6 @@ on:
           - 'opencl:fpga'
           - 'ext_oneapi_level_zero:gpu'
           - 'ext_oneapi_hip:gpu'
-      ninja_build_cts_extra_args:
-        type: string
       tests_selector:
         type: choice
         options:
@@ -283,7 +278,6 @@ jobs:
       if: inputs.tests_selector == 'cts'
       env:
         CMAKE_EXTRA_ARGS: ${{ inputs.extra_cmake_args }}
-        NINJA_BUILD_CTS_EXTRA_ARGS: ${{ inputs.ninja_build_cts_extra_args }}
       run: |
         cmake -GNinja -B./build-cts -S./khronos_sycl_cts -DCMAKE_CXX_COMPILER=$(which clang++) \
         -DSYCL_IMPLEMENTATION=DPCPP \
@@ -292,7 +286,7 @@ jobs:
         -DSYCL_CTS_MEASURE_BUILD_TIMES=ON \
         -DDPCPP_INSTALL_DIR="$$(dirname (which clang++))/.." \
         $CMAKE_EXTRA_ARGS
-        ninja -C build-cts $NINJA_BUILD_CTS_EXTRA_ARGS
+        ninja -C build-cts
 
     - name: SYCL CTS List devices
       if: inputs.tests_selector == 'cts'
