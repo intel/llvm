@@ -1,6 +1,6 @@
 // REQUIRES: linux, cpu
 // RUN: %{build} %device_sanitizer_flags -O0 -g -o %t
-// RUN: env SYCL_PREFER_UR=1 UR_ENABLE_LAYERS=UR_LAYER_ASAN ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} not %t &> %t.txt ; FileCheck --check-prefixes CHECK --input-file %t.txt %s
+// RUN: env SYCL_PREFER_UR=1 UR_ENABLE_LAYERS=UR_LAYER_ASAN %{run} not %t &> %t.txt ; FileCheck --check-prefixes CHECK --input-file %t.txt %s
 #include <sycl/sycl.hpp>
 
 constexpr size_t N = 64;

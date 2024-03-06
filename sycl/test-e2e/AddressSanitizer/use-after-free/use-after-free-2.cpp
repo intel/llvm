@@ -1,6 +1,6 @@
 // REQUIRES: linux, cpu
 // RUN: %{build} %device_sanitizer_flags -DMALLOC_DEVICE -O0 -g -o %t
-// RUN: env SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu UR_LAYER_ASAN_OPTIONS=quarantine_size_mb:5 UR_LOG_SANITIZER=level:info %{run-unfiltered-devices} not %t &> %t.txt ; FileCheck --input-file %t.txt %s
+// RUN: env SYCL_PREFER_UR=1 UR_LAYER_ASAN_OPTIONS=quarantine_size_mb:5 UR_LOG_SANITIZER=level:info %{run} not %t &> %t.txt ; FileCheck --input-file %t.txt %s
 #include <sycl/sycl.hpp>
 
 int main() {
