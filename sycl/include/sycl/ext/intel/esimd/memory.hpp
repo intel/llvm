@@ -889,59 +889,6 @@ using DeviceAccessorOffsetT = uint64_t;
 using DeviceAccessorOffsetT = uint32_t;
 #endif
 
-template <typename T, int NElts, cache_hint L1H, cache_hint L2H,
-          typename FlagsT>
-__ESIMD_API std::enable_if_t<is_simd_flag_type_v<FlagsT>, simd<T, NElts>>
-block_load_impl(const T *p, simd_mask<1> pred, FlagsT flags) {
-  // Verify input template arguments.
-  check_cache_hint<cache_action::load, L1H, L2H>();
-  constexpr auto Alignment =
-      FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
-  static_assert(
-      (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
-          (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
-      "Incorrect alignment for the data type");
-
-  constexpr int SmallIntFactor64Bit = sizeof(uint64_t) / sizeof(T);
-  constexpr int SmallIntFactor32Bit =
-      sizeof(uint32_t) / sizeof(T) > 1 ? sizeof(uint32_t) / sizeof(T) : 1;
-  static_assert(NElts > 0 && NElts % SmallIntFactor32Bit == 0,
-                "Number of elements is not supported by Transposed load");
-
-  // If alignment >= 8 and (NElts * sizeof(T)) % 8 == 0) we can load QWORDs.
-  // Don't do it for 4-byte vectors (unless it is greater than 256-bytes),
-  // because it would require a bit-cast, which is supposed to be NO-OP, but
-  // might confuse GPU BE sometimes. 1- and 2-byte vectors are casted anyways.
-  constexpr bool Use64BitData =
-      Alignment >= __ESIMD_DNS::OperandSize::QWORD &&
-      (NElts * sizeof(T)) % sizeof(uint64_t) == 0 &&
-      (sizeof(T) != sizeof(uint32_t) || NElts * sizeof(T) > 256);
-  constexpr int SmallIntFactor =
-      Use64BitData ? SmallIntFactor64Bit : SmallIntFactor32Bit;
-  constexpr int FactoredNElts = NElts / SmallIntFactor;
-  check_lsc_vector_size<FactoredNElts>();
-
-  // Prepare template arguments for the call of intrinsic.
-  using LoadElemT = __ESIMD_DNS::__raw_t<
-      std::conditional_t<SmallIntFactor == 1, T,
-                         std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
-  constexpr uint16_t AddressScale = 1;
-  constexpr int ImmOffset = 0;
-  constexpr lsc_data_size ActualDS =
-      Use64BitData ? lsc_data_size::u64 : lsc_data_size::u32;
-  constexpr lsc_vector_size VS = to_lsc_vector_size<FactoredNElts>();
-  constexpr auto Transposed = lsc_data_order::transpose;
-  constexpr int N = 1;
-
-  // Prepare non-template arguments and call the intrinsic.
-  simd<uintptr_t, N> Addrs = reinterpret_cast<uintptr_t>(p);
-  simd<LoadElemT, FactoredNElts> Result =
-      __esimd_lsc_load_stateless<LoadElemT, L1H, L2H, AddressScale, ImmOffset,
-                                 ActualDS, VS, Transposed, N>(pred.data(),
-                                                              Addrs.data());
-  return Result.template bit_cast_view<T>();
-}
-
 /// USM pointer transposed gather with 1 channel.
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load.ugm
@@ -964,25 +911,22 @@ block_load_impl(const T *p, simd_mask<1> pred, FlagsT flags) {
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L2H is L2 cache hint.
+/// @tparam PropertyListT is the list of optional cache-hint properties and
+/// the required alignment property.
 /// @param p is the base pointer.
 /// @param pred is operation predicate. Zero means operation is skipped
 /// entirely, non-zero - operation is performed.
 /// @param pass_thru contains the vector which elements are copied
 /// to the returned result when the corresponding element of \p pred is 0.
-/// @param flags is the alignment specifier type tag.
 /// @return is a vector of type T and size NElts.
 ///
-template <typename T, int NElts, cache_hint L1H, cache_hint L2H,
-          typename FlagsT>
-__ESIMD_API std::enable_if_t<is_simd_flag_type_v<FlagsT>, simd<T, NElts>>
-block_load_impl(const T *p, simd_mask<1> pred, simd<T, NElts> pass_thru,
-                FlagsT flags) {
+template <typename T, int NElts, typename PropertyListT>
+__ESIMD_API std::enable_if_t<is_property_list_v<PropertyListT>, simd<T, NElts>>
+block_load_impl(const T *p, simd_mask<1> pred, simd<T, NElts> pass_thru) {
   // Verify input template arguments.
-  check_cache_hint<cache_action::load, L1H, L2H>();
-  constexpr auto Alignment =
-      FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+  check_cache_hints<cache_action::load, PropertyListT>();
+  constexpr size_t Alignment =
+      PropertyListT::template get_property<alignment_key>().value;
   static_assert(
       (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
           (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
@@ -1011,6 +955,10 @@ block_load_impl(const T *p, simd_mask<1> pred, simd<T, NElts> pass_thru,
   using LoadElemT = __ESIMD_DNS::__raw_t<
       std::conditional_t<SmallIntFactor == 1, T,
                          std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size ActualDS =
@@ -1051,35 +999,34 @@ block_load_impl(const T *p, simd_mask<1> pred, simd<T, NElts> pass_thru,
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L2H is L2 cache hint.
+/// @tparam PropertyListT is the list of optional cache-hint properties and
+/// the required alignment property.
 /// @tparam AccessorT is the \ref sycl::accessor type.
 /// @param acc is the SYCL accessor.
 /// @param offset is the zero-based offset in bytes.
 /// @param pred is operation predicate. Zero means operation is skipped
 /// entirely, non-zero - operation is performed. The default is '1' - perform
 /// the operation.
-/// @param flags is the alignment specifier type tag.
 /// @return is a vector of type T and size NElts. The elements of the returned
 /// vector for which the corresponding element in \p pred is 0 are undefined.
 ///
-template <typename T, int NElts, cache_hint L1H, cache_hint L2H,
-          typename AccessorT, typename FlagsT>
+template <typename T, int NElts, typename PropertyListT, typename AccessorT>
 __ESIMD_API
     std::enable_if_t<detail::is_device_accessor_with_v<
                          AccessorT, detail::accessor_mode_cap::can_read> &&
-                         is_simd_flag_type_v<FlagsT>,
+                         is_property_list_v<PropertyListT>,
                      simd<T, NElts>>
     block_load_impl(AccessorT acc, DeviceAccessorOffsetT offset,
-                    simd_mask<1> pred, FlagsT flags) {
+                    simd_mask<1> pred) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return block_load_impl<T, NElts, L1H, L2H>(accessorToPointer<T>(acc, offset),
-                                             pred, flags);
+  simd<T, NElts> PassThru; // Intentionally undefined.
+  return block_load_impl<T, NElts, PropertyListT>(
+      accessorToPointer<T>(acc, offset), pred, PassThru);
 #else  // !__ESIMD_FORCE_STATELESS_MEM
   // Verify input template arguments.
-  check_cache_hint<cache_action::load, L1H, L2H>();
-  constexpr auto Alignment =
-      FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+  check_cache_hints<cache_action::load, PropertyListT>();
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(T));
   static_assert(
       (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
           (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
@@ -1108,7 +1055,10 @@ __ESIMD_API
   using LoadElemT = __ESIMD_DNS::__raw_t<
       std::conditional_t<SmallIntFactor == 1, T,
                          std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
-
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size ActualDS =
@@ -1149,8 +1099,8 @@ __ESIMD_API
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L2H is L2 cache hint.
+/// @tparam PropertyListT is the list of optional cache-hint properties and
+/// the required alignment property.
 /// @tparam AccessorTy is the \ref sycl::accessor type.
 /// @param acc is the SYCL accessor.
 /// @param offset is the zero-based offset in bytes.
@@ -1159,26 +1109,24 @@ __ESIMD_API
 /// Otherwise, the operation is performed and the result if it copied to
 /// the result.
 /// @param pass_thru contains the values copied to the result if \p pred is 0.
-/// @param flags is the alignment specifier type tag.
 /// @return is a vector of type T and size NElts
 ///
-template <typename T, int NElts, cache_hint L1H, cache_hint L2H,
-          typename AccessorT, typename FlagsT>
+template <typename T, int NElts, typename PropertyListT, typename AccessorT>
 __ESIMD_API
     std::enable_if_t<detail::is_device_accessor_with_v<
                          AccessorT, detail::accessor_mode_cap::can_read> &&
-                         is_simd_flag_type_v<FlagsT>,
+                         is_property_list_v<PropertyListT>,
                      simd<T, NElts>>
     block_load_impl(AccessorT acc, DeviceAccessorOffsetT offset,
-                    simd_mask<1> pred, simd<T, NElts> pass_thru, FlagsT flags) {
+                    simd_mask<1> pred, simd<T, NElts> pass_thru) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return block_load_impl<T, NElts, L1H, L2H>(accessorToPointer<T>(acc, offset),
-                                             pred, pass_thru, flags);
+  return block_load_impl<T, NElts, PropertyListT>(
+      accessorToPointer<T>(acc, offset), pred, pass_thru);
 #else  // !__ESIMD_FORCE_STATELESS_MEM
   // Verify input template arguments.
-  check_cache_hint<cache_action::load, L1H, L2H>();
-  constexpr auto Alignment =
-      FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+  check_cache_hints<cache_action::load, PropertyListT>();
+  constexpr size_t Alignment =
+      PropertyListT::template get_property<alignment_key>().value;
   static_assert(
       (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
           (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
@@ -1207,7 +1155,10 @@ __ESIMD_API
   using LoadElemT = __ESIMD_DNS::__raw_t<
       std::conditional_t<SmallIntFactor == 1, T,
                          std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
-
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size ActualDS =
@@ -1229,13 +1180,12 @@ __ESIMD_API
 #endif // !__ESIMD_FORCE_STATELESS_MEM
 }
 
-template <typename T, int NElts, cache_hint L1H, cache_hint L2H,
-          typename FlagsT>
-__ESIMD_API std::enable_if_t<is_simd_flag_type_v<FlagsT>>
-block_store_impl(T *p, simd<T, NElts> vals, simd_mask<1> pred, FlagsT flags) {
-  detail::check_cache_hint<cache_action::store, L1H, L2H>();
-  constexpr auto Alignment =
-      FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+template <typename T, int NElts, typename PropertyListT>
+__ESIMD_API std::enable_if_t<detail::is_property_list_v<PropertyListT>>
+block_store_impl(T *p, simd<T, NElts> vals, simd_mask<1> pred) {
+  detail::check_cache_hints<cache_action::store, PropertyListT>();
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(T));
   static_assert(
       (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
           (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
@@ -1265,6 +1215,10 @@ block_store_impl(T *p, simd<T, NElts> vals, simd_mask<1> pred, FlagsT flags) {
   using StoreType = __ESIMD_DNS::__raw_t<
       std::conditional_t<SmallIntFactor == 1, T,
                          std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size ActualDS =
@@ -1281,22 +1235,21 @@ block_store_impl(T *p, simd<T, NElts> vals, simd_mask<1> pred, FlagsT flags) {
           vals.data()));
 }
 
-template <typename T, int NElts, cache_hint L1H, cache_hint L2H,
-          typename AccessorT, typename FlagsT>
+template <typename T, int NElts, typename PropertyListT, typename AccessorT>
 __ESIMD_API
     std::enable_if_t<detail::is_device_accessor_with_v<
                          AccessorT, detail::accessor_mode_cap::can_write> &&
-                     is_simd_flag_type_v<FlagsT>>
+                     detail::is_property_list_v<PropertyListT>>
     block_store_impl(AccessorT acc, DeviceAccessorOffsetT offset,
-                     simd<T, NElts> vals, simd_mask<1> pred, FlagsT flags) {
+                     simd<T, NElts> vals, simd_mask<1> pred) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  block_store_impl<T, NElts, L1H, L2H>(accessorToPointer<T>(acc, offset), vals,
-                                       pred, flags);
+  block_store_impl<T, NElts, PropertyListT>(accessorToPointer<T>(acc, offset),
+                                            vals, pred);
 #else
   // Verify input template arguments.
-  check_cache_hint<cache_action::store, L1H, L2H>();
-  constexpr auto Alignment =
-      FlagsT::template alignment<__ESIMD_DNS::__raw_t<T>>;
+  check_cache_hints<cache_action::store, PropertyListT>();
+  constexpr size_t Alignment =
+      detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(T));
   static_assert(
       (Alignment >= __ESIMD_DNS::OperandSize::DWORD && sizeof(T) <= 4) ||
           (Alignment >= __ESIMD_DNS::OperandSize::QWORD && sizeof(T) > 4),
@@ -1327,7 +1280,10 @@ __ESIMD_API
   using StoreElemT = __ESIMD_DNS::__raw_t<
       std::conditional_t<SmallIntFactor == 1, T,
                          std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
-
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size ActualDS =
@@ -1444,26 +1400,16 @@ template <typename T, int N,
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
 block_load(const T *ptr, PropertyListT props = {}) {
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
-  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
-                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
-                "hint is cache_level::L2 now.");
-
   constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
-  constexpr size_t Alignment =
-      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
-  if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none) {
-    detail::check_cache_hint<detail::cache_action::load, L1Hint, L2Hint>();
-
+  using NewPropertyListT =
+      detail::add_alignment_property_t<PropertyListT, DefaultAlignment>;
+  if constexpr (detail::has_cache_hints<PropertyListT>()) {
+    simd<T, N> PassThru; // Intentionally undefined.
     simd_mask<1> Mask = 1;
-    return detail::block_load_impl<T, N, L1Hint, L2Hint>(
-        ptr, Mask, overaligned_tag<Alignment>{});
+    return detail::block_load_impl<T, N, NewPropertyListT>(ptr, Mask, PassThru);
   } else {
+    constexpr size_t Alignment =
+        NewPropertyListT::template get_property<alignment_key>().value;
     return block_load<T, N>(ptr, overaligned_tag<Alignment>{});
   }
 }
@@ -1549,26 +1495,14 @@ block_load(const T *ptr, size_t byte_offset, PropertyListT props = {}) {
 template <typename T, int N,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
-block_load(const T *ptr, simd_mask<1> pred, PropertyListT props = {}) {
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
-  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
-                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
-                "hint is cache_level::L2 now.");
-
-  detail::check_cache_hint<detail::cache_action::load, L1Hint, L2Hint>();
+__ESIMD_API
+    std::enable_if_t<detail::is_property_list_v<PropertyListT>, simd<T, N>>
+    block_load(const T *ptr, simd_mask<1> pred, PropertyListT props = {}) {
   constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
-  constexpr size_t Alignment =
-      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
-
-  return detail::block_load_impl<T, N, L1Hint, L2Hint>(
-      ptr, pred, overaligned_tag<Alignment>{});
+  using NewPropertyListT =
+      detail::add_alignment_property_t<PropertyListT, DefaultAlignment>;
+  simd<T, N> PassThru; // Intentionally uninitialized.
+  return detail::block_load_impl<T, N, NewPropertyListT>(ptr, pred, PassThru);
 }
 
 /// simd<T, N> block_load(const T* ptr, size_t byte_offset,
@@ -1655,23 +1589,10 @@ __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
 block_load(const T *ptr, simd_mask<1> pred, simd<T, N> pass_thru,
            PropertyListT props = {}) {
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
-  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
-                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
-                "hint is cache_level::L2 now.");
-
-  detail::check_cache_hint<detail::cache_action::load, L1Hint, L2Hint>();
   constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
-  constexpr size_t Alignment =
-      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
-
-  return detail::block_load_impl<T, N, L1Hint, L2Hint>(
-      ptr, pred, pass_thru, overaligned_tag<Alignment>{});
+  using NewPropertyListT =
+      detail::add_alignment_property_t<PropertyListT, DefaultAlignment>;
+  return detail::block_load_impl<T, N, NewPropertyListT>(ptr, pred, pass_thru);
 }
 
 /// simd<T, N> block_load(const T* ptr, size_t byte_offset,
@@ -1898,11 +1819,14 @@ block_load(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
   constexpr bool IsLegacySize = Size == OWord || Size == 2 * OWord ||
                                 Size == 4 * OWord || Size == 8 * OWord;
 
-  if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
-                !IsLegacySize) {
-    return detail::block_load_impl<T, N, L1Hint, L2Hint>(
-        acc, byte_offset, simd_mask<1>(1), overaligned_tag<Alignment>{});
+  using NewPropertyListT =
+      detail::add_alignment_property_t<PropertyListT, DefaultAlignment>;
+  if constexpr (detail::has_cache_hints<PropertyListT>() || !IsLegacySize) {
+    return detail::block_load_impl<T, N, NewPropertyListT>(acc, byte_offset,
+                                                           simd_mask<1>(1));
   } else {
+    constexpr size_t Alignment =
+        NewPropertyListT::template get_property<alignment_key>().value;
     return block_load<T, N>(acc, byte_offset, overaligned_tag<Alignment>{});
   }
 #endif // !__ESIMD_FORCE_STATELESS_MEM
@@ -2016,10 +1940,10 @@ block_load(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
   // If the alignment property is not passed, then assume the byte_offset
   // is element-aligned and is at leat 4-bytes.
   constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
-  constexpr size_t Alignment =
-      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
-  return detail::block_load_impl<T, N, L1Hint, L2Hint>(
-      acc, byte_offset, pred, pass_thru, overaligned_tag<Alignment>{});
+  using NewPropertyListT =
+      detail::add_alignment_property_t<PropertyListT, DefaultAlignment>;
+  return detail::block_load_impl<T, N, NewPropertyListT>(acc, byte_offset, pred,
+                                                         pass_thru);
 }
 
 /// simd<T, N>
@@ -2227,28 +2151,14 @@ block_load(AccessorT acc, simd_mask<1> pred, PropertyListT /* props */ = {}) {
 template <typename T, int N,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
-block_store(T *ptr, simd<T, N> vals, PropertyListT props = {}) {
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
-  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
-                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
-                "hint is cache_level::L2 now.");
-  if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none) {
-    detail::check_cache_hint<detail::cache_action::store, L1Hint, L2Hint>();
-    constexpr int DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
-    constexpr size_t Alignment =
-        detail::getPropertyValue<PropertyListT, alignment_key>(
-            DefaultAlignment);
-
+__ESIMD_API std::enable_if_t<detail::is_property_list_v<PropertyListT>>
+block_store(T *ptr, simd<T, N> vals, PropertyListT /* props */ = {}) {
+  if constexpr (detail::has_cache_hints<PropertyListT>()) {
+    constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
+    using NewPropertyListT =
+        detail::add_alignment_property_t<PropertyListT, DefaultAlignment>;
     simd_mask<1> Mask = 1;
-    detail::block_store_impl<T, N, L1Hint, L2Hint>(
-        ptr, vals, Mask, overaligned_tag<Alignment>{});
+    detail::block_store_impl<T, N, NewPropertyListT>(ptr, vals, Mask);
   } else {
     // If the alignment property is not passed, then assume the pointer
     // is OWORD-aligned.
@@ -2340,26 +2250,13 @@ block_store(T *ptr, size_t byte_offset, simd<T, N> vals,
 template <typename T, int N,
           typename PropertyListT =
               ext::oneapi::experimental::detail::empty_properties_t>
-__ESIMD_API std::enable_if_t<
-    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+__ESIMD_API std::enable_if_t<detail::is_property_list_v<PropertyListT>>
 block_store(T *ptr, simd<T, N> vals, simd_mask<1> pred,
-            PropertyListT props = {}) {
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
-  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
-                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
-                "hint is cache_level::L2 now.");
-
+            PropertyListT /* props */ = {}) {
   constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
-  constexpr size_t Alignment =
-      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
-
-  detail::block_store_impl<T, N, L1Hint, L2Hint>(ptr, vals, pred,
-                                                 overaligned_tag<Alignment>{});
+  using NewPropertyListT =
+      detail::add_alignment_property_t<PropertyListT, DefaultAlignment>;
+  detail::block_store_impl<T, N, NewPropertyListT>(ptr, vals, pred);
 }
 
 /// void block_store(T* ptr, size_t byte_offset,         // (usm-bs-4)
@@ -2485,27 +2382,19 @@ block_store(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
   block_store<T, N>(detail::accessorToPointer<T>(acc, byte_offset), vals,
                     props);
 #else
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
-  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
-                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
-                "hint is cache_level::L2 now.");
   constexpr int DefaultLSCAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
   constexpr size_t Alignment =
       detail::getPropertyValue<PropertyListT, alignment_key>(
           DefaultLSCAlignment);
   constexpr bool AlignmentRequiresLSC =
       PropertyListT::template has_property<alignment_key>() && Alignment < 16;
-  if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
+  if constexpr (detail::has_cache_hints<PropertyListT>() ||
                 AlignmentRequiresLSC) {
-    detail::check_cache_hint<detail::cache_action::store, L1Hint, L2Hint>();
+    using NewPropertyListT =
+        detail::add_alignment_property_t<PropertyListT, DefaultLSCAlignment>;
     simd_mask<1> Mask = 1;
-    detail::block_store_impl<T, N, L1Hint, L2Hint>(
-        acc, byte_offset, vals, Mask, overaligned_tag<Alignment>{});
+    detail::block_store_impl<T, N, NewPropertyListT>(acc, byte_offset, vals,
+                                                     Mask);
   } else {
     using Tx = detail::__raw_t<T>;
     constexpr unsigned Sz = sizeof(Tx) * N;
@@ -2570,11 +2459,7 @@ block_store(AccessorT acc, simd<T, N> vals, PropertyListT props = {}) {
   constexpr auto L2Hint =
       detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
           cache_hint::none);
-  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
-                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
-                "hint is cache_level::L2 now.");
   properties Props{cache_hint_L1<L1Hint>, cache_hint_L2<L2Hint>, alignment<16>};
-
   block_store<T, N>(acc, 0, vals, Props);
 }
 
@@ -2618,22 +2503,11 @@ __ESIMD_API std::enable_if_t<
                                       detail::accessor_mode_cap::can_write>>
 block_store(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
             simd<T, N> vals, simd_mask<1> pred, PropertyListT props = {}) {
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
-  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
-                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
-                "hint is cache_level::L2 now.");
-
   constexpr size_t DefaultAlignment = (sizeof(T) <= 4) ? 4 : sizeof(T);
-  constexpr size_t Alignment =
-      detail::getPropertyValue<PropertyListT, alignment_key>(DefaultAlignment);
-
-  detail::block_store_impl<T, N, L1Hint, L2Hint>(acc, byte_offset, vals, pred,
-                                                 overaligned_tag<Alignment>{});
+  using NewPropertyListT =
+      detail::add_alignment_property_t<PropertyListT, DefaultAlignment>;
+  detail::block_store_impl<T, N, NewPropertyListT>(acc, byte_offset, vals,
+                                                   pred);
 }
 
 /// void block_store(AccessorT acc, simd<T, N> vals,              // (acc-bs-4)
@@ -2677,9 +2551,6 @@ block_store(AccessorT acc, simd<T, N> vals, simd_mask<1> pred,
   constexpr auto L2Hint =
       detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
           cache_hint::none);
-  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
-                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
-                "hint is cache_level::L2 now.");
   properties Props{cache_hint_L1<L1Hint>, cache_hint_L2<L2Hint>, alignment<16>};
   block_store<T, N>(acc, 0, vals, pred, Props);
 }
