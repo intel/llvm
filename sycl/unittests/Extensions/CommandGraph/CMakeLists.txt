@@ -8,4 +8,5 @@ add_sycl_unittest(CommandGraphExtensionTests OBJECT
   MultiThreaded.cpp
   Queries.cpp
   Subgraph.cpp
+  Update.cpp
 )
