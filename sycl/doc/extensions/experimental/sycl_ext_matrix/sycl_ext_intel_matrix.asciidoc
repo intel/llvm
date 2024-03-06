@@ -388,10 +388,13 @@ link:../../proposed/sycl_ext_intel_cache_controls.asciidoc[sycl_ext_intel_cache_
 
 ==== Restrictions and Device Information Descriptors
 The following restrictions apply to these checked APIs:
+
 - The base pointer must be 4 bytes aligned.
+
 - For 8 bits data type, `CoordX` must be a multiple of 4. For 16 bits
 data type, `CoordX` must be a multiple of 2. So `CoordX` must be a
 multiple of 4 divided by size of the element type (`4/sizeof(T)`).
+
 - For 8 bits data type, `Width` must be a multiple of 4, For 16 bits
 data type, `Width` must be a multiple of 2. So `Width` must be a
 multiple of 4 divided by size of the element type (`4/sizeof(T)`).
