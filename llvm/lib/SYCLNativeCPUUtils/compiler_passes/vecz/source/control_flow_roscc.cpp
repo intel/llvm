@@ -128,8 +128,8 @@ bool ControlFlowConversionState::ROSCCGadget::run(Function &F) {
 
     BasicBlock *ReturnBlock = Which ? SuccT : SuccF;
     Value *Cond = Branch->getCondition();
-    ICmpInst *newCond =
-        new ICmpInst(*BB, CmpInst::ICMP_EQ, Cond, Which ? falseCI : trueCI);
+    auto *newCond = CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_EQ, Cond,
+                                    Which ? falseCI : trueCI, "", BB);
     newCond->setName(Twine(Cond->getName(), ".ROSCC"));
     BranchInst::Create(newBB, ReturnBlock, newCond, BB);
 

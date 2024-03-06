@@ -760,9 +760,10 @@ bool ControlFlowConversionState::BOSCCGadget::connectUniformRegion(
       BOSCCIndirTag.loop->loop->addBasicBlockToLoop(BOSCCIndir, *LI);
     }
 
-    ICmpInst *cond = new ICmpInst(
-        *runtimeCheckerBlock, CmpInst::ICMP_EQ,
-        PassState.getMaskInfo(uniformB).exitMasks.lookup(succ), trueCI);
+    auto *cond =
+        CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_EQ,
+                        PassState.getMaskInfo(uniformB).exitMasks.lookup(succ),
+                        trueCI, "", runtimeCheckerBlock);
     BranchInst::Create(succ, BOSCCIndir, cond, runtimeCheckerBlock);
 
     if (i > 0) {
@@ -775,9 +776,10 @@ bool ControlFlowConversionState::BOSCCGadget::connectUniformRegion(
   }
 
   BasicBlock *succ = succs[size - 1];
-  ICmpInst *cond = new ICmpInst(
-      *runtimeCheckerBlock, CmpInst::ICMP_EQ,
-      PassState.getMaskInfo(uniformB).exitMasks.lookup(succ), trueCI);
+  auto *cond =
+      CmpInst::Create(Instruction::ICmp, CmpInst::ICMP_EQ,
+                      PassState.getMaskInfo(uniformB).exitMasks.lookup(succ),
+                      trueCI, "", runtimeCheckerBlock);
 
   BasicBlock *connectionPoint = target;
 
