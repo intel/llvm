@@ -57,7 +57,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/bensuo/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG maxime/in-order-cmd-list)
+  set(UNIFIED_RUNTIME_TAG maxime/L0-optimizations)
   
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
