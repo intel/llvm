@@ -80,8 +80,14 @@ void ReportDoubleFree(uptr Addr, const StackTrace &Stack,
     exit(1);
 }
 
-void ReportGenericError(const DeviceSanitizerReport &Report,
-                        ur_kernel_handle_t Kernel) {
+void ReportGenericError(const DeviceSanitizerReport &Report) {
+    context.logger.always("\n====ERROR: DeviceSanitizer: {}",
+                          ToString(Report.ErrorType));
+    exit(1);
+}
+
+void ReportOutOfBoundsError(const DeviceSanitizerReport &Report,
+                            ur_kernel_handle_t Kernel) {
     const char *File = Report.File[0] ? Report.File : "<unknown file>";
     const char *Func = Report.Func[0] ? Report.Func : "<unknown func>";
     auto KernelName = GetKernelName(Kernel);

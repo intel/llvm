@@ -116,16 +116,15 @@ struct ContextInfo {
 };
 
 struct LaunchInfo {
-    uptr LocalShadowOffset;
-    uptr LocalShadowOffsetEnd;
-    ur_context_handle_t Context;
+    uptr LocalShadowOffset = 0;
+    uptr LocalShadowOffsetEnd = 0;
+    ur_context_handle_t Context = nullptr;
 
     DeviceSanitizerReport SPIR_DeviceSanitizerReportMem;
 
     size_t LocalWorkSize[3];
 
-    LaunchInfo()
-        : LocalShadowOffset(0), LocalShadowOffsetEnd(0), Context(nullptr) {}
+    void setContext(ur_context_handle_t Context);
     ~LaunchInfo();
 };
 
