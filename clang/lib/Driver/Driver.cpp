@@ -6907,13 +6907,13 @@ public:
       if (!SB->isValid())
         continue;
       HA = SB->appendLinkHostActions(DeviceAL);
+      if (!HA)
+        continue;
       // This created host action has no originating input argument, therefore
       // needs to set its offloading kind directly.
-      if (HA) {
-        HA->propagateHostOffloadInfo(SB->getAssociatedOffloadKind(),
-                                     /*BoundArch=*/nullptr);
-        Inputs.push_back(HA);
-      }
+      HA->propagateHostOffloadInfo(SB->getAssociatedOffloadKind(),
+                                   /*BoundArch=*/nullptr);
+      Inputs.push_back(HA);
     }
   }
 
@@ -7363,7 +7363,10 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       if (Phase == phases::Link) {
         assert(Phase == PL.back() && "linking must be final compilation step.");
 
-        // When performing -fsycl-link
+        // When performing -fsycl-link the current inputs are not expected to
+        // be passed to the final host link step.  Instead, take these inputs
+        // and redirect them to the associated wrapping step to create the
+        // final object.
         if (C.getInputArgs().hasArg(options::OPT_fsycl_link_EQ) &&
             !Args.hasArg(options::OPT_fintelfpga)) {
           DeviceAOTLinkerInputs.push_back(Current);
