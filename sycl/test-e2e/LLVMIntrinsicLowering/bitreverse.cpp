@@ -2,7 +2,11 @@
 
 // UNSUPPORTED: hip || cuda
 
-// RUN: %{build} -o %t.out -O2
+// Ensure that SPV_KHR_bit_instructions is disabled so that translator
+// will lower llvm.bitreverse.* intrinsics instead of relying on SPIRV
+// BitReverse instruction.
+
+// RUN: %{build} -o %t.out -O2 -Xspirv-translator --spirv-ext=-SPV_KHR_bit_instructions
 // RUN: %{run} %t.out
 
 #include <string.h>
