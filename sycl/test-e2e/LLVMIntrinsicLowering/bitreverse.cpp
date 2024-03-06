@@ -2,12 +2,84 @@
 
 // UNSUPPORTED: hip || cuda
 
+// Make dump directory
+// RUN: rm -rf %t.spvdir && mkdir %t.spvdir
+
 // Ensure that SPV_KHR_bit_instructions is disabled so that translator
 // will lower llvm.bitreverse.* intrinsics instead of relying on SPIRV
 // BitReverse instruction.
+// Also build executable with SPV dump
+// RUN: %{build} -o %t.out -O2 -Xspirv-translator --spirv-ext=-SPV_KHR_bit_instructions -fsycl-dump-device-code=%t.spvdir
 
-// RUN: %{build} -o %t.out -O2 -Xspirv-translator --spirv-ext=-SPV_KHR_bit_instructions
+// Rename SPV file to explictly known filename
+// RUN: mv %t.spvdir/*.spv %t.spvdir/dump.spv
+
+// Convert to text
+// RUN: llvm-spirv -to-text %t.spvdir/dump.spv
+
+// Check that all lowerings are done by llvm-spirv
+// RUN: cat %t.spvdir/dump.spt | FileCheck %s --check-prefix CHECK-SPV --implicit-check-not=BitReverse
+
+// Execute to ensure lowering has correct functionality
 // RUN: %{run} %t.out
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Build without lowering explicitly disabled
+// RUN: %{build} -o %t.bitinstructions.out
+
+// Execution should still be correct
+// RUN: %{run} %t.bitinstructions.out
+
+// CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_i8"
+// CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_i16"
+// CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_i32"
+// CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_i64"
+
+// CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v3i8"
+// CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v3i16"
+// CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v3i32"
+// CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v3i64"
+
+// CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v4i8"
+// CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v4i16"
+// CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v4i32"
+// CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v4i64"
+
+// CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v8i8"
+// CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v8i16"
+// CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v8i32"
+// CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v8i64"
+
+// CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v16i8"
+// CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v16i16"
+// CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v16i32"
+// CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v16i64"
+
+// CHECK-SPV: LinkageAttributes "llvm_bitreverse_i8" Export
+// CHECK-SPV: LinkageAttributes "llvm_bitreverse_i16" Export
+// CHECK-SPV: LinkageAttributes "llvm_bitreverse_i32" Export
+// CHECK-SPV: LinkageAttributes "llvm_bitreverse_i64" Export
+
+// CHECK-SPV: LinkageAttributes "llvm_bitreverse_v3i8" Export
+// CHECK-SPV: LinkageAttributes "llvm_bitreverse_v3i16" Export
+// CHECK-SPV: LinkageAttributes "llvm_bitreverse_v3i32" Export
+// CHECK-SPV: LinkageAttributes "llvm_bitreverse_v3i64" Export
+
+// CHECK-SPV: LinkageAttributes "llvm_bitreverse_v4i8" Export
+// CHECK-SPV: LinkageAttributes "llvm_bitreverse_v4i16" Export
+// CHECK-SPV: LinkageAttributes "llvm_bitreverse_v4i32" Export
+// CHECK-SPV: LinkageAttributes "llvm_bitreverse_v4i64" Export
+
+// CHECK-SPV: LinkageAttributes "llvm_bitreverse_v8i8" Export
+// CHECK-SPV: LinkageAttributes "llvm_bitreverse_v8i16" Export
+// CHECK-SPV: LinkageAttributes "llvm_bitreverse_v8i32" Export
+// CHECK-SPV: LinkageAttributes "llvm_bitreverse_v8i64" Export
+
+// CHECK-SPV: LinkageAttributes "llvm_bitreverse_v16i8" Export
+// CHECK-SPV: LinkageAttributes "llvm_bitreverse_v16i16" Export
+// CHECK-SPV: LinkageAttributes "llvm_bitreverse_v16i32" Export
+// CHECK-SPV: LinkageAttributes "llvm_bitreverse_v16i64" Export
 
 #include <string.h>
 #include <sycl/sycl.hpp>
