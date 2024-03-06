@@ -100,7 +100,12 @@ SanitizerInterceptor::SanitizerInterceptor() {
     KV = Options->find("quarantine_size_mb");
     if (KV != Options->end()) {
         auto Value = KV->second.front();
-        cl_MaxQuarantineSizeMB = std::stoul(Value);
+        try {
+            cl_MaxQuarantineSizeMB = std::stoul(Value);
+        } catch (...) {
+            die("<SANITIZER>[ERROR]: \"cl_MaxQuarantineSizeMB\" should be an "
+                "integer");
+        }
     }
     if (cl_MaxQuarantineSizeMB) {
         m_Quarantine =
@@ -317,8 +322,10 @@ void SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
         }
         if (AH.ErrorType == DeviceSanitizerErrorType::USE_AFTER_FREE) {
             ReportUseAfterFree(AH, Kernel, GetContext(Queue));
+        } else if (AH.ErrorType == DeviceSanitizerErrorType::OUT_OF_BOUNDS) {
+            ReportOutOfBoundsError(AH, Kernel);
         } else {
-            ReportGenericError(AH, Kernel);
+            ReportGenericError(AH);
         }
     }
 }
@@ -547,26 +554,16 @@ SanitizerInterceptor::registerDeviceGlobals(ur_context_handle_t Context,
     auto ContextInfo = getContextInfo(Context);
 
     for (auto Device : Devices) {
-        ur_queue_handle_t Queue;
-        ur_result_t Result = context.urDdiTable.Queue.pfnCreate(
-            Context, Device, nullptr, &Queue);
-        if (Result != UR_RESULT_SUCCESS) {
-            context.logger.error("Failed to create command queue: {}", Result);
-            return Result;
-        }
+        ManagedQueue Queue(Context, Device);
 
         uint64_t NumOfDeviceGlobal;
-        Result = context.urDdiTable.Enqueue.pfnDeviceGlobalVariableRead(
+        auto Result = context.urDdiTable.Enqueue.pfnDeviceGlobalVariableRead(
             Queue, Program, kSPIR_AsanDeviceGlobalCount, true,
             sizeof(NumOfDeviceGlobal), 0, &NumOfDeviceGlobal, 0, nullptr,
             nullptr);
-        if (Result == UR_RESULT_ERROR_INVALID_ARGUMENT) {
+        if (Result != UR_RESULT_SUCCESS) {
             context.logger.info("No device globals");
             continue;
-        } else if (Result != UR_RESULT_SUCCESS) {
-            context.logger.error("Device Global[{}] Read Failed: {}",
-                                 kSPIR_AsanDeviceGlobalCount, Result);
-            return Result;
         }
 
         std::vector<DeviceGlobalInfo> GVInfos(NumOfDeviceGlobal);
@@ -696,6 +693,9 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
             break;
         }
 
+        // LaunchInfo needs context to release shadow memory
+        LaunchInfo.setContext(Context);
+
         // Write shadow memory offset for local memory
         auto LocalMemorySize = GetLocalMemorySize(DeviceInfo->Handle);
         auto LocalShadowMemorySize =
@@ -713,8 +713,9 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         if (Result != UR_RESULT_SUCCESS) {
             context.logger.error(
                 "Failed to allocate shadow memory for local memory: {}",
-                numWorkgroup, Result);
-            context.logger.error("Maybe the number of workgroup too large");
+                Result);
+            context.logger.error("Maybe the number of workgroup ({}) too large",
+                                 numWorkgroup);
             return Result;
         }
         LaunchInfo.LocalShadowOffsetEnd =
@@ -757,10 +758,22 @@ SanitizerInterceptor::findAllocInfoByAddress(uptr Address) {
     return --It;
 }
 
+void LaunchInfo::setContext(ur_context_handle_t Context) {
+    [[maybe_unused]] auto Result =
+        context.urDdiTable.Context.pfnRetain(Context);
+    assert(Result == UR_RESULT_SUCCESS);
+    this->Context = Context;
+}
+
 LaunchInfo::~LaunchInfo() {
     if (LocalShadowOffset) {
         [[maybe_unused]] auto Result =
             context.urDdiTable.USM.pfnFree(Context, (void *)LocalShadowOffset);
+        assert(Result == UR_RESULT_SUCCESS);
+    }
+    if (Context) {
+        [[maybe_unused]] auto Result =
+            context.urDdiTable.Context.pfnRelease(Context);
         assert(Result == UR_RESULT_SUCCESS);
     }
 }

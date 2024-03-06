@@ -22,6 +22,7 @@ enum class DeviceSanitizerErrorType : int32_t {
     MISALIGNED,
     USE_AFTER_FREE,
     OUT_OF_SHADOW_BOUNDS,
+    UNKNOWN_DEVICE,
 };
 
 enum class DeviceSanitizerMemoryType : int32_t {
@@ -91,6 +92,8 @@ inline const char *ToString(DeviceSanitizerErrorType ErrorType) {
         return "use-after-free";
     case DeviceSanitizerErrorType::OUT_OF_SHADOW_BOUNDS:
         return "out-of-shadow-bounds-access";
+    case DeviceSanitizerErrorType::UNKNOWN_DEVICE:
+        return "unknown-device";
     default:
         return "unknown-error";
     }

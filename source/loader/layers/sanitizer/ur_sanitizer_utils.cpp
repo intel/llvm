@@ -24,6 +24,15 @@ ur_context_handle_t GetContext(ur_queue_handle_t Queue) {
     return Context;
 }
 
+ur_context_handle_t GetContext(ur_program_handle_t Program) {
+    ur_context_handle_t Context{};
+    [[maybe_unused]] auto Result = context.urDdiTable.Program.pfnGetInfo(
+        Program, UR_PROGRAM_INFO_CONTEXT, sizeof(ur_context_handle_t), &Context,
+        nullptr);
+    assert(Result == UR_RESULT_SUCCESS && "getContext() failed");
+    return Context;
+}
+
 ur_device_handle_t GetDevice(ur_queue_handle_t Queue) {
     ur_device_handle_t Device{};
     [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnGetInfo(
@@ -83,6 +92,8 @@ DeviceType GetDeviceType(ur_device_handle_t Device) {
     assert(Result == UR_RESULT_SUCCESS && "getDeviceType() failed");
     switch (DeviceType) {
     case UR_DEVICE_TYPE_CPU:
+    case UR_DEVICE_TYPE_FPGA:
+        // TODO: Check fpga is fpga emulator
         return DeviceType::CPU;
     case UR_DEVICE_TYPE_GPU: {
         // TODO: Check device name
