@@ -1,3 +1,5 @@
+// REQUIRES: aspect-queue_profiling
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
