@@ -81,7 +81,6 @@ struct bar {
 
 [[intel::private_copies(16)]] device_global<int> nonconst_ignore11;
 
-
 // CHECK-NOT: !private_copies
 // CHECK-NOT: !singlepump
 // CHECK-NOT: !doublepump
@@ -93,3 +92,4 @@ struct bar {
 // CHECK-NOT: !simple_dual_port
 // CHECK-NOT: !merge
 // CHECK-NOT: !fpga_memory
+// CHECK-NOT: !fpga_register
