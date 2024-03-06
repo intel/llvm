@@ -221,7 +221,8 @@ inline bool isTypeOpCode(Op OpCode) {
          isVCOpCode(OpCode) || OC == internal::OpTypeTokenINTEL ||
          OC == internal::OpTypeJointMatrixINTEL ||
          OC == internal::OpTypeJointMatrixINTELv2 ||
-         OC == OpTypeCooperativeMatrixKHR;
+         OC == OpTypeCooperativeMatrixKHR ||
+         OC == internal::OpTypeTaskSequenceINTEL;
 }
 
 inline bool isSpecConstantOpCode(Op OpCode) {

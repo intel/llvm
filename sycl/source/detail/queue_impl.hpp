@@ -31,7 +31,6 @@
 #include <sycl/properties/queue_properties.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/queue.hpp>
-#include <sycl/stl.hpp>
 
 #include "detail/graph_impl.hpp"
 
@@ -689,7 +688,7 @@ public:
 #endif
 
   void registerStreamServiceEvent(const EventImplPtr &Event) {
-    std::lock_guard<std::mutex> Lock(MMutex);
+    std::lock_guard<std::mutex> Lock(MStreamsServiceEventsMutex);
     MStreamsServiceEvents.push_back(Event);
   }
 
@@ -837,10 +836,9 @@ protected:
 
       if (IsKernel)
         // Kernel only uses assert if it's non interop one
-        KernelUsesAssert =
-            !(Handler.MKernel && Handler.MKernel->isInterop()) &&
-            ProgramManager::getInstance().kernelUsesAssert(Handler.MKernelName);
-
+        KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
+                           ProgramManager::getInstance().kernelUsesAssert(
+                               Handler.MKernelName.c_str());
       finalizeHandler(Handler, Event);
 
       (*PostProcess)(IsKernel, KernelUsesAssert, Event);
@@ -945,6 +943,7 @@ protected:
   const bool MIsInorder;
 
   std::vector<EventImplPtr> MStreamsServiceEvents;
+  std::mutex MStreamsServiceEventsMutex;
 
   // All member variable defined here  are needed for the SYCL instrumentation
   // layer. Do not guard these variables below with XPTI_ENABLE_INSTRUMENTATION

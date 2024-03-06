@@ -14,6 +14,7 @@
 // Same as above but all mismatches are printed
 // #define VERBOSE_LV3
 
+#include "bindless_helpers.hpp"
 #include <cassert>
 #include <iostream>
 #include <random>
@@ -22,30 +23,6 @@
 namespace syclexp = sycl::ext::oneapi::experimental;
 
 namespace util {
-template <typename DType, int NChannels>
-static void fillRand(std::vector<sycl::vec<DType, NChannels>> &v, int seed) {
-  std::default_random_engine generator;
-  generator.seed(seed);
-  auto distribution = [&]() {
-    if constexpr (std::is_same_v<DType, sycl::half>) {
-      return std::uniform_real_distribution<float>(0.0, 100.0);
-    } else if constexpr (std::is_floating_point_v<DType>) {
-      return std::uniform_real_distribution<DType>(0.0, 100.0);
-    } else {
-      return std::uniform_int_distribution<DType>(0, 100);
-    }
-  }();
-  for (int i = 0; i < v.size(); ++i) {
-    sycl::vec<DType, NChannels> temp;
-
-    for (int j = 0; j < NChannels; j++) {
-      temp[j] = distribution(generator);
-    }
-
-    v[i] = temp;
-  }
-}
-
 static bool isNumberWithinPercentOfNumber(float firstN, float percent,
                                           float secondN, float &diff,
                                           float &percDiff) {
@@ -795,7 +772,7 @@ runNDimTestDevice(sycl::queue &q, sycl::range<NDims> globalSize,
               accessorCoords[i] = it.get_global_id(NDims - i - 1);
             }
 
-            VecType px1 = syclexp::read_image<VecType>(inputImage, coords);
+            VecType px1 = syclexp::sample_image<VecType>(inputImage, coords);
 
             outAcc[accessorCoords] = px1;
           });
@@ -829,7 +806,7 @@ static bool runTest(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   std::vector<VecType> actual(numElems);
 
   std::srand(seed);
-  util::fillRand(input, seed);
+  bindless_helpers::fill_rand(input, seed);
 
   {
     sycl::range<NDims> globalSize = dims;
