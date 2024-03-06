@@ -260,6 +260,7 @@ bool __asan_region_is_value(uptr addr, int32_t as, std::size_t size,
 #if __SYCL_DEVICE_ONLY__
 #define __DEVICE_SANITIZER_REPORT_ACCESSOR __DeviceSanitizerReportMem.get()
 #else
+#define __DEVICE_SANITIZER_REPORT_ACCESSOR
 #endif
 
 static void __asan_internal_report_save(
