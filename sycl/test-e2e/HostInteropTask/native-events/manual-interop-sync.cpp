@@ -1,13 +1,11 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include "native-events.hpp"
 
 void test_empty_host_task_with_manual_interop_sync_property() {
   sycl::queue{}.submit([&](sycl::handler &cgh) {
-    cgh.host_task([&](sycl::interop_handle ih) {},
-                  {sycl::ext::codeplay::experimental::property::host_task::
-                       manual_interop_sync{}});
+    cgh.host_task([&](sycl::interop_handle ih) {}, {manual_interop_sync{}});
   });
 }
 

@@ -12,7 +12,9 @@
 // manually in the HT lambda through the get_native_events interface.
 //
 
-#include "host-task-native-events-cuda.hpp"
+#include "native-events-cuda.hpp"
+#include "native-events.hpp"
+
 #include <cuda.h>
 #include <sycl/sycl.hpp>
 
@@ -22,15 +24,6 @@ constexpr size_t bufSize = 1e7;
 constexpr T pattern = 42;
 
 sycl::queue q;
-
-using manual_interop_sync =
-    sycl::ext::codeplay::experimental::property::host_task::manual_interop_sync;
-
-constexpr auto PropList = [](bool UseManualInteropSync) -> sycl::property_list {
-  if (UseManualInteropSync)
-    return {manual_interop_sync{}};
-  return {};
-};
 
 // Check that the SYCL event that we submit with add_native_events can be
 // retrieved later through get_native_events in a dependent host task

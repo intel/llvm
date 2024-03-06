@@ -9,7 +9,9 @@
 // If manual_interop_sync is used then the user deals with async dependencies
 // manually in the HT lambda through the get_native_events interface.
 
-#include "host-task-native-events-cuda.hpp"
+#include "native-events-cuda.hpp"
+#include "native-events.hpp"
+
 #include <cuda.h>
 #include <sycl/sycl.hpp>
 
