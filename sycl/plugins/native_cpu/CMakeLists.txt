@@ -31,24 +31,25 @@ if(NATIVECPU_USE_OCK)
     include(FetchContent)
     FetchContent_Declare(oneapi-ck
      GIT_REPOSITORY https://github.com/codeplaysoftware/oneapi-construction-kit.git
-     # commit 7cd729ba2212fc99c7d113648e18e9ab5e3d7163
-     # Merge: f0588dac a6984456
-     # Author: Fraser Cormack <fraser@codeplay.com>
-     # Date:   Thu Feb 29 11:12:23 2024 +0000
-     # Merge pull request #384 from frasercrmck/refactor-relocs
-     # [loader] Refactor common relocation code into helper
-     GIT_TAG 7cd729ba2212fc99c7d113648e18e9ab5e3d7163
+     # commit 9a53d126cba574fadab3bef513b1c6d9c1ebc0fd
+     # Merge: f211f428 b0678100
+     # Author: PietroGhg <pietro.ghiglio@codeplay.com>
+     # Date:   Wed Mar 6 13:13:47 2024 +0100
+     # Merge pull request #389 from PietroGhg/pietro/skip_spirv_fetchcontent
+     # Skip FetchContent for SPIRV-Headers if building llvm-spirv
+     GIT_TAG 9a53d126cba574fadab3bef513b1c6d9c1ebc0fd
     )
     FetchContent_GetProperties(oneapi-ck)
     if(NOT oneapi-ck_POPULATED)
       message(STATUS "Cloning oneAPI Construction Kit")
       FetchContent_Populate(oneapi-ck)
       message(STATUS "oneAPI Construction Kit cloned in ${oneapi-ck_SOURCE_DIR}")
-      set(OCK_SOURCE_DIR_INTERNAL ${oneapi-ci_SOURCE_DIR})
-      add_subdirectory(${oneapi-ck_SOURCE_DIR} ${oneapi-ck_BINARY_DIR} EXCLUDE_FROM_ALL)
+      set(OCK_SOURCE_DIR_INTERNAL ${oneapi-ck_SOURCE_DIR})
+      set(OCK_BINARY_DIR_INTERNAL ${oneapi-ck_BINARY_DIR})
     endif()
   elseif(OCK_SOURCE_DIR)
-    set(OCK_SOURCE_DIR_INTERNAL ${OCK_SOURCE_DIR})
+    set(OCK_SOURCE_DIR_INTERNAL "${OCK_SOURCE_DIR}")
+    set(OCK_BINARY_DIR_INTERNAL "${CMAKE_CURRENT_BINARY_DIR}/oneapi-construction-kit")
   else()
     message(FATAL_ERROR "NATIVECPU_OCK_USE_FETCHCONTENT is Off and OCK_SOURCE_DIR not set")
   endif()
@@ -56,7 +57,7 @@ if(NATIVECPU_USE_OCK)
   set(CA_ENABLE_API "cl" CACHE STRING "" FORCE)
   add_subdirectory(
     ${OCK_SOURCE_DIR_INTERNAL}
-    ${CMAKE_CURRENT_BINARY_DIR}/oneapi-construction-kit EXCLUDE_FROM_ALL)
+    ${OCK_BINARY_DIR_INTERNAL} EXCLUDE_FROM_ALL)
 
   install(TARGETS compiler-pipeline
   EXPORT;LLVMExports
