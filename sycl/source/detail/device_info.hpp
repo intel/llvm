@@ -744,7 +744,7 @@ struct get_device_info_impl<
       // this helper lambda ignores all runtime-related exceptions from
       // quering the device architecture. For instance, if device architecture
       // on user's machine is not supported by
-      // sycl_ext_oneapi_device_architecture, the runtime exception is ommited,
+      // sycl_ext_oneapi_device_architecture, the runtime exception is omitted,
       // and std::nullopt is returned.
       try {
         return get_device_info_impl<
