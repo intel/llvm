@@ -31,7 +31,6 @@
 #include <sycl/properties/queue_properties.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/queue.hpp>
-#include <sycl/stl.hpp>
 
 #include "detail/graph_impl.hpp"
 
@@ -837,10 +836,9 @@ protected:
 
       if (IsKernel)
         // Kernel only uses assert if it's non interop one
-        KernelUsesAssert =
-            !(Handler.MKernel && Handler.MKernel->isInterop()) &&
-            ProgramManager::getInstance().kernelUsesAssert(Handler.MKernelName);
-
+        KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
+                           ProgramManager::getInstance().kernelUsesAssert(
+                               Handler.MKernelName.c_str());
       finalizeHandler(Handler, Event);
 
       (*PostProcess)(IsKernel, KernelUsesAssert, Event);

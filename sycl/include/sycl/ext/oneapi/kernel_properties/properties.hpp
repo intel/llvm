@@ -34,25 +34,28 @@ template <size_t X, size_t... Xs> struct AllNonZero<X, Xs...> {
 
 struct properties_tag {};
 
-struct work_group_size_key {
+struct work_group_size_key
+    : detail::compile_time_property_key<detail::PropKind::WorkGroupSize> {
   template <size_t... Dims>
   using value_t = property_value<work_group_size_key,
                                  std::integral_constant<size_t, Dims>...>;
 };
 
-struct work_group_size_hint_key {
+struct work_group_size_hint_key
+    : detail::compile_time_property_key<detail::PropKind::WorkGroupSizeHint> {
   template <size_t... Dims>
   using value_t = property_value<work_group_size_hint_key,
                                  std::integral_constant<size_t, Dims>...>;
 };
 
-struct sub_group_size_key {
+struct sub_group_size_key
+    : detail::compile_time_property_key<detail::PropKind::SubGroupSize> {
   template <uint32_t Size>
   using value_t = property_value<sub_group_size_key,
                                  std::integral_constant<uint32_t, Size>>;
 };
 
-struct device_has_key {
+struct device_has_key : detail::compile_time_property_key<detail::PropKind::DeviceHas> {
   template <aspect... Aspects>
   using value_t = property_value<device_has_key,
                                  std::integral_constant<aspect, Aspects>...>;
@@ -123,34 +126,7 @@ inline constexpr sub_group_size_key::value_t<Size> sub_group_size;
 template <aspect... Aspects>
 inline constexpr device_has_key::value_t<Aspects...> device_has;
 
-template <> struct is_property_key<work_group_size_key> : std::true_type {};
-template <>
-struct is_property_key<work_group_size_hint_key> : std::true_type {};
-template <> struct is_property_key<sub_group_size_key> : std::true_type {};
-template <> struct is_property_key<device_has_key> : std::true_type {};
-
 namespace detail {
-template <> struct PropertyToKind<work_group_size_key> {
-  static constexpr PropKind Kind = PropKind::WorkGroupSize;
-};
-template <> struct PropertyToKind<work_group_size_hint_key> {
-  static constexpr PropKind Kind = PropKind::WorkGroupSizeHint;
-};
-template <> struct PropertyToKind<sub_group_size_key> {
-  static constexpr PropKind Kind = PropKind::SubGroupSize;
-};
-template <> struct PropertyToKind<device_has_key> {
-  static constexpr PropKind Kind = PropKind::DeviceHas;
-};
-
-template <>
-struct IsCompileTimeProperty<work_group_size_key> : std::true_type {};
-template <>
-struct IsCompileTimeProperty<work_group_size_hint_key> : std::true_type {};
-template <>
-struct IsCompileTimeProperty<sub_group_size_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<device_has_key> : std::true_type {};
-
 template <size_t Dim0, size_t... Dims>
 struct PropertyMetaInfo<work_group_size_key::value_t<Dim0, Dims...>> {
   static constexpr const char *name = "sycl-work-group-size";

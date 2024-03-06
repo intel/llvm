@@ -14,7 +14,6 @@
 #include <sycl/detail/host_profiling_info.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/info/info_desc.hpp>
-#include <sycl/stl.hpp>
 
 #include <atomic>
 #include <cassert>
@@ -299,6 +298,10 @@ public:
 
   sycl::detail::pi::PiExtCommandBufferCommand getCommandBufferCommand() const {
     return MCommandBufferCommand;
+  }
+  
+  const std::vector<EventImplPtr> &getPostCompleteEvents() const {
+    return MPostCompleteEvents;
   }
 
 protected:
