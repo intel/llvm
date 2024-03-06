@@ -19,7 +19,7 @@ int main() {
        scalar_load<int>(InAcc, 0);
      });
    }).wait();
-  // CHECK: error: slm_init can not be used with local_accessor.
+  // CHECK: error: slm_init can not be used with local accessors.
 
   return 0;
 }

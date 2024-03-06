@@ -1754,16 +1754,17 @@ void lowerGlobalsToVector(Module &M) {
 
 static void checkSLMInit(Module &M) {
   SmallPtrSet<const Function *, 8u> Callers;
-  bool Kernel_Has_slm_init = false;
-  bool Kernel_Has_local_accessor = false;
+  bool KernelHasSLMInit = false;
+  bool KernelHasLocalAccessor = false;
 
   for (auto &F : M) {
+    F.dump();
     if (!isSlmInit(F)) {
-      if (Kernel_Has_local_accessor) {
+      if (KernelHasLocalAccessor)
         continue;
-      }
+
       if (F.getName().starts_with(SPIRV_LOCAL_ACCESSOR_PREF)) {
-        Kernel_Has_local_accessor = true;
+        KernelHasLocalAccessor = true;
         continue;
       }
       unsigned Idx = 0;
@@ -1780,7 +1781,7 @@ static void checkSLMInit(Module &M) {
             constexpr unsigned LocalAS{3};
             if (IsAcc && cast<PointerType>(Arg.getType())->getAddressSpace() ==
                              LocalAS) {
-              Kernel_Has_local_accessor = true;
+              KernelHasLocalAccessor = true;
               break;
             }
           }
@@ -1788,7 +1789,7 @@ static void checkSLMInit(Module &M) {
         Idx++;
       }
     } else {
-      Kernel_Has_slm_init = true;
+      KernelHasSLMInit = true;
       for (User *U : F.users()) {
         auto *FCall = dyn_cast<CallInst>(U);
         if (FCall && FCall->getCalledFunction() == &F) {
@@ -1828,8 +1829,9 @@ static void checkSLMInit(Module &M) {
         }
       }
     }
-    if (Kernel_Has_slm_init && Kernel_Has_local_accessor) {
-      F.getContext().emitError("slm_init can not be used with local_accessor.");
+    if (KernelHasSLMInit && KernelHasLocalAccessor) {
+      F.getContext().emitError(
+          "slm_init can not be used with local accessors.");
     }
   }
 }
