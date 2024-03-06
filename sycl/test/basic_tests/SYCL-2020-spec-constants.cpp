@@ -138,6 +138,7 @@ int main() {
 // CHECK-NEXT-LOG:[[UNIQUE_PREFIX]]____ZL8float_id={8, 0, 4}
 // CHECK-NEXT-LOG:[[UNIQUE_PREFIX]]____ZL9double_id={9, 0, 8}
 // CHECK-NEXT-LOG:[[UNIQUE_PREFIX]]____ZL12composite_id={10, 0, 4}
+// CHECK-NEXT-LOG:[[UNIQUE_PREFIX]]____ZL12composite_id={11, 4, 4}
 // CHECK-NEXT-LOG:[[UNIQUE_PREFIX]]____ZL14enumeration_id={12, 0, 4}
 // CHECK-NEXT-LOG:{0, 1, 42}
 // CHECK-NEXT-LOG:{1, 1, 26}
