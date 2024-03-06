@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: ocloc && (opencl || level_zero)
+// REQUIRES: (opencl || level_zero)
+// UNSUPPORTED: accelerator
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
