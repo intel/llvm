@@ -251,6 +251,12 @@ in undefined behavior.
 
 If the kernel is launched as a single-task kernel, it is executed with a
 1-dimensional nd-range, with one work-group of one work-item.
+Because it is launched as an nd-range kernel, the kernel can use features that
+are normally prohibited in single-task kernels.
+For example, the `local_accessor` type is allowed as a kernel argument, and the
+kernel can use SPIR-V group and subgroup instructions.
+Of course, these features have limited use because the kernel is launched with
+just a single work-item.
 
 If the kernel is launched as an nd-range kernel, the number of work-group
 dimensions is the same as the number of dimensions in the `nd_range`.
