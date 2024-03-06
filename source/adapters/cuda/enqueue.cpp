@@ -1776,7 +1776,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetSuggestedLocalWorkSize(
       MaxWorkGroupSize = Device->getMaxWorkGroupSize();
       Device->getMaxWorkItemSizes(sizeof(MaxThreadsPerBlock),
                                   MaxThreadsPerBlock);
-      guessLocalWorkSize(Device, ThreadsPerBlock, pGlobalWorkSize, WorkDim,
+      guessLocalWorkSize(Device, ThreadsPerBlock, pGlobalWorkSize, workDim,
                          MaxThreadsPerBlock, hKernel, LocalSize);
 
       if (MaxWorkGroupSize <
