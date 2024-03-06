@@ -141,6 +141,23 @@ void private_merge_sort_spread(Tp *first, uint32_t n, uint8_t *scratch,
     first[i] = temp_buffer[i * wg_size + idx];
 }
 
+// sub group sort implementation, each work-item holds an element, the total
+// number of input elements is work group size.
+// Assumption about scratch memory size:
+// scratch_size >= wg_size * sizeof(Tp) * 2
+template <typename Tp, typename Compare>
+Tp sub_group_merge_sort(Tp value, uint8_t *scratch, Compare comp) {
+  const size_t idx = __get_wg_local_linear_id();
+  const size_t wg_size = __get_wg_local_range();
+  Tp *temp_buffer = reinterpret_cast<Tp *>(scratch);
+  temp_buffer[idx] = value;
+
+  group_barrier();
+  merge_sort(temp_buffer, wg_size,
+             reinterpret_cast<uint8_t *>(temp_buffer + wg_size), comp);
+  return temp_buffer[idx];
+}
+
 #endif
 
 #endif
