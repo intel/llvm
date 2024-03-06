@@ -432,7 +432,7 @@ extern "C" int optMain(
   initializeSelectOptimizePass(Registry);
   initializeCallBrPreparePass(Registry);
   initializeCodeGenPrepareLegacyPassPass(Registry);
-  initializeAtomicExpandPass(Registry);
+  initializeAtomicExpandLegacyPass(Registry);
   initializeWinEHPreparePass(Registry);
   initializeDwarfEHPrepareLegacyPassPass(Registry);
   initializeSafeStackLegacyPassPass(Registry);

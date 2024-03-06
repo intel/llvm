@@ -760,7 +760,9 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
                          sycl::detail::CG::StorageInitHelper CGData) {
   WriteLock Lock(MMutex);
 
-  std::vector<sycl::detail::EventImplPtr> PartitionEvents;
+  // Map of the partitions to their execution events
+  std::unordered_map<std::shared_ptr<partition>, sycl::detail::EventImplPtr>
+      PartitionsExecutionEvents;
 
   auto CreateNewEvent([&]() {
     auto NewEvent = std::make_shared<sycl::detail::event_impl>(Queue);
@@ -783,7 +785,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
     }
 
     for (auto const &DepPartition : CurrentPartition->MPredecessors) {
-      CGData.MEvents.push_back(MPartitionsExecutionEvents[DepPartition]);
+      CGData.MEvents.push_back(PartitionsExecutionEvents[DepPartition]);
     }
 
     auto CommandBuffer =
@@ -815,7 +817,13 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
               sycl::backend::ext_oneapi_level_zero) {
             Event->wait(Event);
           } else {
+            auto &AttachedEventsList = Event->getPostCompleteEvents();
+            CGData.MEvents.reserve(AttachedEventsList.size() + 1);
             CGData.MEvents.push_back(Event);
+            // Add events of the previous execution of all graph partitions.
+            for (auto &AttachedEvent : AttachedEventsList) {
+              CGData.MEvents.push_back(AttachedEvent);
+            }
           }
           ++It;
         } else {
@@ -925,7 +933,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       NewEvent->setStateIncomplete();
       NewEvent->getPreparedDepsEvents() = ScheduledEvents;
     }
-    MPartitionsExecutionEvents[CurrentPartition] = NewEvent;
+    PartitionsExecutionEvents[CurrentPartition] = NewEvent;
   }
 
   // Keep track of this execution event so we can make sure it's completed in
@@ -933,7 +941,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
   MExecutionEvents.push_back(NewEvent);
   // Attach events of previous partitions to ensure that when the returned event
   // is complete all execution associated with the graph have been completed.
-  for (auto const &Elem : MPartitionsExecutionEvents) {
+  for (auto const &Elem : PartitionsExecutionEvents) {
     if (Elem.second != NewEvent) {
       NewEvent->attachEventToComplete(Elem.second);
     }
