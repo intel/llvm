@@ -126,6 +126,8 @@ using uint32_t16 = uint32_t __attribute__((ext_vector_type(16)));
 using uint64_t16 = uint64_t __attribute__((ext_vector_type(16)));
 
 int main() {
+  srand(2024);
+
   do_scalar_bitreverse_test<uint8_t>();
   do_scalar_bitreverse_test<uint16_t>();
   do_scalar_bitreverse_test<uint32_t>();
