@@ -1,0 +1,18 @@
+set(MLIR_BINARY_DIR ${CMAKE_BINARY_DIR})
+
+set(LLVM_TARGET_DEFINITIONS GENOps.td)
+mlir_tablegen(Dialect.h.inc -gen-dialect-decls -dialect=gen)
+mlir_tablegen(Dialect.cpp.inc -gen-dialect-defs -dialect=gen)
+mlir_tablegen(GENOpsConversions.inc -gen-llvmir-conversions)
+mlir_tablegen(GENOps.h.inc -gen-op-decls)
+mlir_tablegen(GENOps.cpp.inc -gen-op-defs)
+mlir_tablegen(GENOpsEnums.h.inc -gen-enum-decls)
+mlir_tablegen(GENOpsEnums.cpp.inc -gen-enum-defs)
+add_mlir_doc(GENDialect GENDialect dialects/ -gen-dialect-doc)
+add_mlir_doc(GENOps GENOps dialects/ -gen-op-doc)
+add_public_tablegen_target(MLIRGENTableGen)
+
+set(LLVM_TARGET_DEFINITIONS GENAttrDefs.td)
+mlir_tablegen(GENOpsAttrDefs.h.inc -gen-attrdef-decls)
+mlir_tablegen(GENOpsAttrDefs.cpp.inc -gen-attrdef-defs)
+add_public_tablegen_target(MLIRGENAttrDefsIncGen)
