@@ -218,7 +218,8 @@ The kernel may call the functions defined in section 6.15.1 "Work-Item
 Functions" of the OpenCL C specification, with the following clarification.
 Some of these functions take a `dimindx` parameter that selects a dimension
 index.
-This index has the opposite sense from SYCL.
+This index has the opposite sense from SYCL, as described in section C.7.7
+"OpenCL kernel conventions and SYCL" of the core SYCL specification.
 To illustrate, consider a call to `get_global_size` from a kernel that is
 invoked with a 3-dimensional `nd_range`.
 Calling `get_global_size(0)` retrieves the global size from dimension 2 of the
