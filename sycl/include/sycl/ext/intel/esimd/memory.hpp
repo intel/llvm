@@ -8595,10 +8595,10 @@ prefetch(const T *p, simd<OffsetT, N / VS> byte_offsets, simd_mask<N / VS> mask,
 
   constexpr auto L1Hint =
       detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::uncached);
+          cache_hint::none);
   constexpr auto L2Hint =
       detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::cached);
+          cache_hint::none);
   detail::prefetch_impl<T, VS, detail::lsc_data_size::default_size, L1Hint,
                         L2Hint>(p, byte_offsets, mask);
 }
@@ -8769,10 +8769,10 @@ prefetch(const T *p, OffsetT byte_offset, simd_mask<1> mask,
          PropertyListT props = {}) {
   constexpr auto L1Hint =
       detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::uncached);
+          cache_hint::none);
   constexpr auto L2Hint =
       detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::cached);
+          cache_hint::none);
   detail::prefetch_impl<T, VS, detail::lsc_data_size::default_size, L1Hint,
                         L2Hint>(p, byte_offset, mask);
 }
@@ -8931,10 +8931,10 @@ prefetch(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
 
   constexpr auto L1Hint =
       detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::uncached);
+          cache_hint::none);
   constexpr auto L2Hint =
       detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::cached);
+          cache_hint::none);
   detail::prefetch_impl<T, VS, detail::lsc_data_size::default_size, L1Hint,
                         L2Hint>(acc, byte_offsets, mask);
 #endif // __ESIMD_FORCE_STATELESS_MEM
@@ -9130,10 +9130,10 @@ prefetch(AccessorT acc, OffsetT byte_offset, simd_mask<1> mask,
 #else
   constexpr auto L1Hint =
       detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::uncached);
+          cache_hint::none);
   constexpr auto L2Hint =
       detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::cached);
+          cache_hint::none);
   detail::prefetch_impl<T, VS, detail::lsc_data_size::default_size, L1Hint,
                         L2Hint>(acc, byte_offset, mask);
 #endif // __ESIMD_FORCE_STATELESS_MEM
