@@ -736,13 +736,30 @@ struct get_device_info_impl<
     std::vector<ext::oneapi::experimental::matrix::combination>,
     ext::oneapi::experimental::info::device::matrix_combinations> {
   static std::vector<ext::oneapi::experimental::matrix::combination>
-  get(const DeviceImplPtr &Dev) try {
+  get(const DeviceImplPtr &Dev) {
     using namespace ext::oneapi::experimental::matrix;
     using namespace ext::oneapi::experimental;
     backend CurrentBackend = Dev->getBackend();
-    architecture DeviceArch = get_device_info_impl<
-        ext::oneapi::experimental::architecture,
-        ext::oneapi::experimental::info::device::architecture>::get(Dev);
+    auto get_current_architecture = [&Dev]() -> std::optional<architecture> {
+      // this helper lambda ignores all runtime-related exceptions from
+      // quering the device architecture. For instance, if device architecture
+      // on user's machine is not supported by
+      // sycl_ext_oneapi_device_architecture, the runtime exception is ommited,
+      // and std::nullopt is returned.
+      try {
+        return get_device_info_impl<
+            architecture,
+            ext::oneapi::experimental::info::device::architecture>::get(Dev);
+      } catch (sycl::exception &e) {
+        if (e.code() != errc::runtime)
+          std::rethrow_exception(std::make_exception_ptr(e));
+      }
+      return std::nullopt;
+    };
+    std::optional<architecture> DeviceArchOpt = get_current_architecture();
+    if (!DeviceArchOpt.has_value())
+      return {};
+    architecture DeviceArch = DeviceArchOpt.value();
     if (architecture::intel_cpu_spr == DeviceArch)
       return {
           {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::uint8,
@@ -917,11 +934,6 @@ struct get_device_info_impl<
         return sm_72_combinations;
       } else if (ComputeCapability >= 7.0)
         return sm_70_combinations;
-    }
-    return {};
-  } catch (sycl::exception &e) {
-    if (e.code() != errc::runtime) {
-      std::rethrow_exception(std::make_exception_ptr(e));
     }
     return {};
   }
