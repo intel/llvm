@@ -10,6 +10,7 @@
 
 #include <sycl/sycl.hpp>
 
+#include "../bindless_helpers.hpp"
 #include "vulkan_common.hpp"
 
 #include <cstdlib>
@@ -38,20 +39,6 @@ bool equal_vec(sycl::vec<DType, NChannels> v1, sycl::vec<DType, NChannels> v2) {
   }
 
   return true;
-}
-
-template <typename DType, int NChannel>
-constexpr sycl::vec<DType, NChannel> initVector(DType val) {
-  if constexpr (NChannel == 1) {
-    return sycl::vec<DType, NChannel>{val};
-  } else if constexpr (NChannel == 2) {
-    return sycl::vec<DType, NChannel>{val, val};
-  } else if constexpr (NChannel == 4) {
-    return sycl::vec<DType, NChannel>{val, val, val, val};
-  } else {
-    std::cerr << "unsupported number of channels " << NChannel << "\n";
-    exit(-1);
-  }
 }
 
 struct handles_t {
@@ -189,8 +176,8 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
   bool validated = true;
   for (int i = 0; i < globalSize.size(); i++) {
     bool mismatch = false;
-    VecType expected =
-        initVector<DType, NChannels>(i) * static_cast<DType>(10.1f);
+    VecType expected = bindless_helpers::init_vector<DType, NChannels>(i) *
+                       static_cast<DType>(10.1f);
     if (!equal_vec<DType, NChannels>(out[i], expected)) {
       mismatch = true;
       validated = false;
@@ -273,7 +260,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
                             imageSizeBytes, 0 /*flags*/,
                             (void **)&inputStagingData));
   for (int i = 0; i < numElems; ++i) {
-    inputStagingData[i] = initVector<DType, NChannels>(i);
+    inputStagingData[i] = bindless_helpers::init_vector<DType, NChannels>(i);
   }
   vkUnmapMemory(vk_device, inputStagingMemory);
 

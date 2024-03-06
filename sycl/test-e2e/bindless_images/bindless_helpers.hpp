@@ -4,9 +4,24 @@
 
 namespace bindless_helpers {
 
+template <typename DType, int NChannel>
+constexpr sycl::vec<DType, NChannel> init_vector(DType val) {
+  if constexpr (NChannel == 1) {
+    return sycl::vec<DType, NChannel>{val};
+  } else if constexpr (NChannel == 2) {
+    return sycl::vec<DType, NChannel>{val, val};
+  } else if constexpr (NChannel == 4) {
+    return sycl::vec<DType, NChannel>{val, val, val, val};
+  } else {
+    std::cerr << "Unsupported number of channels " << NChannel << "\n";
+    exit(-1);
+  }
+}
+
 template <typename DType, int NChannels>
 static void fill_rand(std::vector<sycl::vec<DType, NChannels>> &v,
                       int seed = std::default_random_engine::default_seed) {
+  assert(!v.empty());
   std::default_random_engine generator;
   generator.seed(seed);
   auto distribution = [&]() {
