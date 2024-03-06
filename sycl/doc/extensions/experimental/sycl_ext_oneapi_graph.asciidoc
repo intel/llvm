@@ -2054,6 +2054,30 @@ sycl::free(ptrQ, myQueue);
 
 ----
 
+Example snippet showing how to use accessors with `dynamic_parameter` update:
+[source,c++]
+----
+sycl::buffer bufferA{...};
+sycl::buffer bufferB{...};
+
+// Create graph dynamic parameter using a placeholder accessor, since the
+// sycl::handler is not available here outside of the command-group scope.
+dynamic_parameter dynParamAccessor(myGraph, bufferA.get_access());
+
+node nodeA = myGraph.add([&](handler& cgh) {
+    // Create a non-placeholder accessor for the kernel
+    auto accA = bufferA.get_access(cgh);
+    cgh.set_args(accA);
+    // Register nodeA dynamic parameters
+    dynParamAccessor.register_with_node(cgh, 0);  // Argument index 0 is accA
+    cgh.parallel_for(range {n}, builtinKernel);
+});
+
+...
+// Update the dynamic parameter with a placeholder accessor from bufferB instead
+dynParamAccessor.update(bufferB.get_access());
+----
+
 == Future Direction [[future-direction]]
 
 This section contains both features of the specification which have been
