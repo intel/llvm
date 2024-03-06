@@ -61,7 +61,7 @@ void interop_handle::addNativeEvents(
   }
 
   // Make a std::vector of PiEvents from the native events
-  for (auto i = 0; i < NativeEvents.size(); ++i) {
+  for (auto i = 0u; i < NativeEvents.size(); ++i) {
     detail::pi::PiEvent Ev;
     Plugin->call<detail::PiApiKind::piextEventCreateWithNativeHandle>(
         NativeEvents[i], MContext->getHandleRef(),
