@@ -17,9 +17,16 @@ int main() {
       (Backend == backend::ext_oneapi_cuda) ||
       (Backend == backend::ext_oneapi_hip)) {
     assert(SupportsGraphs);
-  } else if (Backend != backend::opencl) {
+  } else if (Backend == backend::opencl) {
     // OpenCL backend support is conditional on the cl_khr_command_buffer
-    // extension being available.
+    // extension being available
+    bool ExtSupport = Device.has_extension("cl_khr_command_buffer");
+    if (ExtSupport) {
+      assert(SupportsGraphs);
+    } else {
+      assert(!SupportsGraphs);
+    }
+  } else {
     assert(!SupportsGraphs);
   }
 }

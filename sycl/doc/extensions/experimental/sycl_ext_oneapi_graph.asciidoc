@@ -308,9 +308,8 @@ Table {counter: tableNumber}. Device Support Aspect.
 | Device Descriptor | Description
 
 |`aspect::ext_oneapi_graph`
-| Indicates that the device supports the extension using an
-  underlying SYCL backend command-buffer construct to propagate the graph to
-  the backend.
+| Indicates that the device supports the APIs described in this extension.
+
 |===
 
 
