@@ -43,7 +43,7 @@ bool ExtractSourceInfo(const std::string &output, SourceInfo &SI) {
 
 } // namespace
 
-bool LLVMSymbolizer::SymbolizePC(const BacktraceInfo &BI, SourceInfo &SI) {
+bool LLVMSymbolizer::symbolizePC(const BacktraceInfo &BI, SourceInfo &SI) {
     std::stringstream ss;
     ss << "llvm-symbolizer --obj=" << BI.module << " " << BI.offset;
     auto result = RunCommand(ss.str().c_str());

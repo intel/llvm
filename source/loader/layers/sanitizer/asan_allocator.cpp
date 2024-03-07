@@ -15,7 +15,7 @@
 
 namespace ur_sanitizer_layer {
 
-void AllocInfo::Print() {
+void AllocInfo::print() {
     context.logger.info(
         "AllocInfo(AllocBegin={},  User={}-{}, AllocSize={}, Type={})",
         (void *)AllocBegin, (void *)UserBegin, (void *)UserEnd, AllocSize,

@@ -31,10 +31,10 @@ constexpr int kUsmSharedRedzoneMagic = (char)0x83;
 constexpr int kMemBufferRedzoneMagic = (char)0x84;
 constexpr int kDeviceGlobalRedZoneMagic = (char)0x85;
 
-const int kUsmDeviceDeallocatedMagic = (char)0x91;
-const int kUsmHostDeallocatedMagic = (char)0x92;
-const int kUsmSharedDeallocatedMagic = (char)0x93;
-const int kMemBufferDeallocatedMagic = (char)0x93;
+constexpr int kUsmDeviceDeallocatedMagic = (char)0x91;
+constexpr int kUsmHostDeallocatedMagic = (char)0x92;
+constexpr int kUsmSharedDeallocatedMagic = (char)0x93;
+constexpr int kMemBufferDeallocatedMagic = (char)0x93;
 
 constexpr auto kSPIR_AsanShadowMemoryGlobalStart =
     "__AsanShadowMemoryGlobalStart";
@@ -186,7 +186,7 @@ ur_result_t SanitizerInterceptor::allocateMemory(
                                                     GetCurrentBacktrace(),
                                                     {}});
 
-    AI->Print();
+    AI->print();
 
     // For updating shadow memory
     if (Device) { // Device/Shared USM

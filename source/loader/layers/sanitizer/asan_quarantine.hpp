@@ -29,14 +29,14 @@ class QuarantineCache {
     explicit QuarantineCache() {}
 
     // Total memory used, including internal accounting.
-    uptr Size() const { return m_Size; }
+    uptr size() const { return m_Size; }
 
-    void Enqueue(Element &It) {
+    void enqueue(Element &It) {
         m_List.push(It);
         m_Size += It->second->AllocSize;
     }
 
-    std::optional<Element> Dequeue() {
+    std::optional<Element> dequeue() {
         if (m_List.empty()) {
             return std::optional<Element>{};
         }
@@ -46,7 +46,7 @@ class QuarantineCache {
         return It;
     }
 
-    void PrintStats() const {}
+    void printStats() const {}
 
   private:
     List m_List;

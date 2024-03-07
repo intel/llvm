@@ -76,15 +76,6 @@ struct QueueInfo {
             context.urDdiTable.Queue.pfnRelease(Handle);
         assert(Result == UR_RESULT_SUCCESS);
     }
-
-    static std::unique_ptr<QueueInfo> Create(ur_context_handle_t Context,
-                                             ur_device_handle_t Device) {
-        ur_queue_handle_t Queue{};
-        [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnCreate(
-            Context, Device, nullptr, &Queue);
-        assert(Result == UR_RESULT_SUCCESS);
-        return std::make_unique<QueueInfo>(Queue);
-    }
 };
 
 struct ContextInfo {

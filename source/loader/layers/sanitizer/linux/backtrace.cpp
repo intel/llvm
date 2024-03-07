@@ -9,7 +9,6 @@
  */
 #include "stacktrace.hpp"
 
-#include <cstring>
 #include <execinfo.h>
 #include <string>
 

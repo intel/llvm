@@ -23,7 +23,7 @@ void ReportBadFree(uptr Addr, const StackTrace &stack,
                    const std::shared_ptr<AllocInfo> &AI) {
     context.logger.always(
         "\n====ERROR: DeviceSanitizer: bad-free on address {}", (void *)Addr);
-    stack.Print();
+    stack.print();
 
     if (!AI) {
         context.logger.always("{} may be allocated on Host Memory",
@@ -37,7 +37,7 @@ void ReportBadFree(uptr Addr, const StackTrace &stack,
                           (void *)Addr, ToString(AI->Type),
                           (void *)AI->UserBegin, (void *)(AI->UserEnd + 1));
     context.logger.always("allocated here:");
-    AI->AllocStack.Print();
+    AI->AllocStack.print();
 
     exit(1);
 }
@@ -47,17 +47,17 @@ void ReportBadContext(uptr Addr, const StackTrace &stack,
     context.logger.always(
         "\n====ERROR: DeviceSanitizer: bad-context on address {}",
         (void *)Addr);
-    stack.Print();
+    stack.print();
 
     context.logger.always("{} is located inside of {} region [{}, {})",
                           (void *)Addr, ToString(AI->Type),
                           (void *)AI->UserBegin, (void *)(AI->UserEnd + 1));
     context.logger.always("allocated here:");
-    AI->AllocStack.Print();
+    AI->AllocStack.print();
 
     if (AI->IsReleased) {
         context.logger.always("freed here:");
-        AI->ReleaseStack.Print();
+        AI->ReleaseStack.print();
     }
 
     exit(1);
@@ -68,15 +68,15 @@ void ReportDoubleFree(uptr Addr, const StackTrace &Stack,
     context.logger.always(
         "\n====ERROR: DeviceSanitizer: double-free on address {}",
         (void *)Addr);
-    Stack.Print();
+    Stack.print();
 
     context.logger.always("{} is located inside of {} region [{}, {})",
                           (void *)Addr, ToString(AI->Type),
                           (void *)AI->UserBegin, (void *)(AI->UserEnd + 1));
     context.logger.always("freed here:");
-    AI->ReleaseStack.Print();
+    AI->ReleaseStack.print();
     context.logger.always("previously allocated here:");
-    AI->AllocStack.Print();
+    AI->AllocStack.print();
     exit(1);
 }
 
@@ -150,9 +150,9 @@ void ReportUseAfterFree(const DeviceSanitizerReport &Report,
                           (void *)AllocInfo->UserBegin,
                           (void *)(AllocInfo->UserEnd + 1));
     context.logger.always("allocated here:");
-    AllocInfo->AllocStack.Print();
+    AllocInfo->AllocStack.print();
     context.logger.always("released here:");
-    AllocInfo->ReleaseStack.Print();
+    AllocInfo->ReleaseStack.print();
 
     exit(1);
 }
