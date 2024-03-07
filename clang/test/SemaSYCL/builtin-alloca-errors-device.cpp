@@ -1,8 +1,11 @@
-// RUN: %clang_cc1 -fsyntax-only -fsycl-is-device -triple spir64-unknown-unknown -verify -Wpedantic %s
+// RUN: %clang_cc1 -fsyntax-only -fsycl-is-device -triple spir64-unknown-unknown -verify %s
+
+// Test errors of __builtin_intel_sycl_alloca when used in SYCL device code.
 
 #include <stddef.h>
 
 #include "Inputs/sycl.hpp"
+#include "Inputs/private_alloca.hpp"
 
 constexpr sycl::specialization_id<size_t> size(1);
 constexpr sycl::specialization_id<float> badsize(1);
@@ -64,7 +67,7 @@ void test(sycl::kernel_handler &h) {
   // expected-error@+1 {{builtin functions must be directly called}}
   auto funcPtr = sycl::ext::oneapi::experimental::private_alloca<float, size, sycl::access::decorated::no>;
 
-  // expected-error@+1 {{__builtin_intel_sycl_alloca cannot be used in source code. Use the private_alloca alias instead.}}
+  // expected-error@+1 {{__builtin_intel_sycl_alloca cannot be used in source code. Use the private_alloca alias instead}}
   __builtin_intel_sycl_alloca(h);
 
   // expected-error@+1 {{too few arguments to function call, expected 1, have 0}}

@@ -179,7 +179,7 @@ def err_intel_sycl_ptr_annotation_mismatch
 
 def err_intel_sycl_alloca_no_alias
     : Error<"__builtin_intel_sycl_alloca cannot be used in source code. "
-            "Use the private_alloca alias instead.">;
+            "Use the private_alloca alias instead">;
 def err_intel_sycl_alloca_wrong_arg_count
     : Error<"__builtin_intel_sycl_alloca expects to be passed a single "
             "argument. Got %0">;

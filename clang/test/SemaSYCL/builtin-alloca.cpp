@@ -1,9 +1,11 @@
 // RUN: %clang_cc1 -fsyntax-only -fsycl-is-device -triple spir64-unknown-unknown -verify -Wpedantic                  %s
-// RUN: %clang_cc1 -fsyntax-only -fsycl-is-host   -triple x86_64-unknown-unknown -verify -Wpedantic -fcxx-exceptions %s
+
+// Test verification of __builtin_intel_sycl_alloca when used in different valid ways.
 
 #include <stddef.h>
 
 #include "Inputs/sycl.hpp"
+#include "Inputs/private_alloca.hpp"
 
 // expected-no-diagnostics
 

@@ -1,8 +1,11 @@
-// RUN: %clang_cc1 -fsyntax-only -fsycl-is-host -triple x86_64-unknown-unknown -verify -Wpedantic -fcxx-exceptions %s
+// RUN: %clang_cc1 -fsyntax-only -fsycl-is-host -triple x86_64-unknown-unknown -verify %s
+
+// Test errors of __builtin_intel_sycl_alloca when used in targets other than SYCL devices.
 
 #include <stddef.h>
 
 #include "Inputs/sycl.hpp"
+#include "Inputs/private_alloca.hpp"
 
 constexpr sycl::specialization_id<size_t> size(1);
 

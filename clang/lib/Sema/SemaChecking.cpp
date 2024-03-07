@@ -7578,11 +7578,10 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
   if (CheckSize(getASTContext(), CST)) {
     TemplateArgument TA = CST->get(1);
     QualType Ty = TA.getNonTypeTemplateArgumentType();
-    if (Ty.isNull()) {
+    if (Ty.isNull())
       Diag(Loc, diag::err_intel_sycl_alloca_no_size) << TA;
-    } else {
+    else
       Diag(Loc, diag::err_intel_sycl_alloca_wrong_size) << TA << Ty;
-    }
     return true;
   }
 

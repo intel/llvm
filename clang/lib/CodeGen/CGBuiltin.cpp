@@ -23727,9 +23727,8 @@ CodeGenFunction::EmitIntelSYCLAllocaBuiltin(const CallExpr *E,
   }
 
   // If no slot is provided, simply return allocation.
-  if (ReturnValue.isNull()) {
+  if (ReturnValue.isNull())
     return RValue::get(Allocation);
-  }
 
   // If a slot is provided, store pointer there.
   Builder.CreateStore(Allocation, ReturnValue.getValue());
