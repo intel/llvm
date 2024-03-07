@@ -20,14 +20,14 @@ std::vector<AllocationIterator> Quarantine::put(ur_device_handle_t Device,
     auto AllocSize = AI->AllocSize;
     auto &Cache = m_Map[Device];
     std::vector<AllocationIterator> DequeueList;
-    while (Cache.Size() + AllocSize > m_MaxQuarantineSize) {
-        auto ElementOp = Cache.Dequeue();
+    while (Cache.size() + AllocSize > m_MaxQuarantineSize) {
+        auto ElementOp = Cache.dequeue();
         if (!ElementOp) {
             break;
         }
         DequeueList.emplace_back(*ElementOp);
     }
-    Cache.Enqueue(It);
+    Cache.enqueue(It);
     return DequeueList;
 }
 

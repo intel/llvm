@@ -29,7 +29,7 @@ bool StartWith(const std::string &Str, const char *Pattern) {
 
 } // namespace
 
-void StackTrace::Print() const {
+void StackTrace::print() const {
     if (!stack.size()) {
         context.logger.always("  failed to acquire backtrace");
     }
@@ -46,7 +46,7 @@ void StackTrace::Print() const {
 
         SourceInfo SI;
         for (auto &symbolizer : SymbolizerTools) {
-            if (symbolizer->SymbolizePC(BI, SI)) {
+            if (symbolizer->symbolizePC(BI, SI)) {
                 break;
             }
         }
