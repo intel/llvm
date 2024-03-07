@@ -157,10 +157,10 @@ This timestamp is between the `info::event_profiling::command_submit` and
 `info::event_profiling::command_end` timestamps.
 
 It is unspecified whether the event ever has the
-`info::event_command_status::running` status. Implementations are encouraged
-to transition the event directly from the "submitted" status to the "complete"
-status and are encouraged to set the "command_start" timestamp to the same value
-as the "command_end" timestamp.
+`info::event_command_status::running` status.
+Implementations are encouraged to transition the event directly from the
+"submitted" status to the "complete" status and are encouraged to set the
+"command_start" timestamp to the same value as the "command_end" timestamp.
 
 _Throws:_ A synchronous `exception` with the `errc::invalid` error code if the
 queue was not constructed with the `property::queue::enable_profiling` property
