@@ -122,6 +122,18 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
 )
 
+if(WIN32)
+    target_sources(ur_adapter_level_zero
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/adapter_lib_init_windows.cpp
+    )
+else()
+    target_sources(ur_adapter_level_zero
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/adapter_lib_init_linux.cpp
+    )
+endif()
+
 # TODO: fix level_zero adapter conversion warnings
 target_compile_options(${TARGET_NAME} PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/wd4805 /wd4244>
