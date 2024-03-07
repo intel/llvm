@@ -207,7 +207,7 @@ int main() {
   q.wait();
 
   uint64_t elapsed =
-    end.get_profiling_info<sycl::info::event_profiling::command_end>() -
+    end.get_profiling_info<sycl::info::event_profiling::command_start>() -
     start.get_profiling_info<sycl::info::event_profiling::command_end>();
   std::cout << "Execution time: " << elapsed << " (nanoseconds)\n";
 }
