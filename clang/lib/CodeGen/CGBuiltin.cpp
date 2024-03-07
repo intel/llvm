@@ -23449,54 +23449,67 @@ llvm::CallInst *CodeGenFunction::MaybeEmitFPBuiltinofFD(
       // attribute.
       return nullptr;
     case Builtin::BItan:
+    case Builtin::BItanf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_tan;
       break;
     case Builtin::BItanh:
+    case Builtin::BItanhf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_tanh;
       break;
     case Builtin::BIlog2:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_log2;
       break;
     case Builtin::BIlog1p:
+    case Builtin::BIlog1pf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_log1p;
       break;
     case Builtin::BIcos:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_cos;
       break;
     case Builtin::BIcosh:
+    case Builtin::BIcoshf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_cosh;
       break;
     case Builtin::BIacos:
+    case Builtin::BIacosf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_acos;
       break;
     case Builtin::BIacosh:
+    case Builtin::BIacoshf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_acosh;
       break;
     case Builtin::BIsin:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_sin;
       break;
     case Builtin::BIsinh:
+    case Builtin::BIsinhf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_sinh;
       break;
     case Builtin::BIasin:
+    case Builtin::BIasinf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_asin;
       break;
     case Builtin::BIasinh:
+    case Builtin::BIasinhf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_asinh;
       break;
     case Builtin::BIatan:
+    case Builtin::BIatanf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_atan;
       break;
     case Builtin::BIatanh:
+    case Builtin::BIatanhf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_atanh;
       break;
     case Builtin::BIatan2:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_atan2;
       break;
     case Builtin::BIerf:
+    case Builtin::BIerff:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_erf;
       break;
     case Builtin::BIerfc:
+    case Builtin::BIerfcf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_erfc;
       break;
     case Builtin::BIexp:
@@ -23506,12 +23519,15 @@ llvm::CallInst *CodeGenFunction::MaybeEmitFPBuiltinofFD(
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_exp2;
       break;
     case Builtin::BIexpm1:
+    case Builtin::BIexpm1f:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_expm1;
       break;
     case Builtin::BIhypot:
+    case Builtin::BIhypotf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_hypot;
       break;
     case Builtin::BIldexp:
+    case Builtin::BIldexpf:
       FPAccuracyIntrinsicID = Intrinsic::fpbuiltin_ldexp;
       break;
     }

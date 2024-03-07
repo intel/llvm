@@ -285,9 +285,15 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
 
   return value == 1;
 }
+
 bool device::ext_oneapi_architecture_is(
     ext::oneapi::experimental::architecture arch) {
   return impl->extOneapiArchitectureIs(arch);
+}
+
+bool device::ext_oneapi_architecture_is(
+    ext::oneapi::experimental::arch_category category) {
+  return impl->extOneapiArchitectureIs(category);
 }
 
 } // namespace _V1
