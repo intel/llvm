@@ -23,9 +23,9 @@ add_sycl_plugin(native_cpu
     UnifiedRuntimeCommon
 )
 
-option(OCK_SOURCE_DIR "Root to a local checkout of the oneAPI Construction Kit" "")
-option(OCK_GIT_REPO "Git repository for the oneAPI Construction Kit FetchContent" "")
-option(OCK_GIT_TAG "Git tag for the oneAPI Construction Kit FetchContent" "")
+set(OCK_SOURCE_DIR "" CACHE PATH "Root to a local checkout of the oneAPI Construction Kit")
+set(OCK_GIT_REPO "" CACHE STRING "Git repository for the oneAPI Construction Kit FetchContent")
+set(OCK_GIT_TAG "" CACHE STRING "Git tag for the oneAPI Construction Kit FetchContent")
 option(NATIVECPU_OCK_USE_FETCHCONTENT "Use FetchContent to acquire oneAPI Construction Kit source code" On)
 
 if(NATIVECPU_USE_OCK)
