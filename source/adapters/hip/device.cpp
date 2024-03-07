@@ -779,7 +779,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     ur_memory_order_capability_flags_t Capabilities =
         UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
         UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
-        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE;
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL;
+#if __HIP_PLATFORM_NVIDIA__
+    // Nvidia introduced fence.sc for seq_cst only since SM 7.0.
+    int Major = 0;
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &Major, hipDeviceAttributeComputeCapabilityMajor, hDevice->get()));
+    if (Major >= 7)
+      Capabilities |= UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
+#else
+    Capabilities |= UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
+#endif
     return ReturnValue(Capabilities);
   }
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
