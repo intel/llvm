@@ -17,6 +17,9 @@ To report problems with this extension, please open a new issue at:
 - Przemek Malon, Codeplay
 - Peter Žužek, Codeplay
 - Chedy Najjar, Codeplay
+- Sean Stirling, Codeplay
+- Isaac Ault, Codeplay
+- Victor Lomuller, Codeplay
 
 == Notice
 
