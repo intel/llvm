@@ -69,8 +69,9 @@ void handleOutOfResources(const device_impl &DeviceImpl, pi_kernel Kernel,
   }
   // Fallback
   constexpr pi_result Error = PI_ERROR_OUT_OF_RESOURCES;
-  throw runtime_error(
-      "PI backend failed. PI backend returns: " + codeToString(Error), Error);
+  throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                        "PI backend failed. PI backend returns:" +
+                            codeToString(Error));
 }
 
 void handleInvalidWorkGroupSize(const device_impl &DeviceImpl, pi_kernel Kernel,
