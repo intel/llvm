@@ -10,6 +10,7 @@
 :encoding: utf-8
 :lang: en
 :dpcpp: pass:[DPC++]
+:cpp: pass:[C++]
 :endnote: &#8212;{nbsp}end{nbsp}note
 
 // Set the default source code type in this document to C++,
@@ -21,7 +22,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+Copyright (C) 2023-2024 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.
@@ -52,11 +53,11 @@ This extension also depends on the following other SYCL extensions:
 
 == Status
 
-This is an experimental extension specification, intended to provide early 
-access to features and gather community feedback. Interfaces defined in 
-this specification are implemented in DPC++, but they are not finalized 
-and may change incompatibly in future versions of DPC++ without prior notice. 
-*Shipping software products should not rely on APIs defined in 
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback. Interfaces defined in
+this specification are implemented in {dpcpp}, but they are not finalized
+and may change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in
 this specification.*
 
 
@@ -103,7 +104,8 @@ This extension adds the `spirv` enumerator to the `source_language`
 enumeration, which indicates that a kernel bundle defines kernels as a SPIR-V
 binary module.
 
-```
+[source,c++]
+----
 namespace sycl::ext::oneapi::experimental {
 
 enum class source_language : /*unspecified*/ {
@@ -112,7 +114,7 @@ enum class source_language : /*unspecified*/ {
 };
 
 } // namespace sycl::ext::oneapi::experimental
-```
+----
 
 === Source code is binary format
 
@@ -155,16 +157,18 @@ identify a kernel using the name, exactly as it appears in the *OpEntryPoint*
 instruction.
 For example, if the kernel is defined this way in SPIR-V:
 
-```
+[source]
+----
 OpEntryPoint Kernel %20 "foo"
-```
+----
 
 Then the application's host code can query for the kernel like so:
 
-```
+[source,c++]
+----
 sycl::kernel_bundle<sycl::bundle_state::executable> kb = /*...*/;
 sycl::kernel k = kb.ext_oneapi_get_kernel("foo");
-```
+----
 
 === Passing kernel arguments
 
@@ -182,7 +186,7 @@ backend's SPIR-V client API specification.
 |Corresponding SYCL type
 
 |*OpTypeInt*
-|A C++ type that is device copyable, which has the same width and data
+|A {cpp} type that is device copyable, which has the same width and data
  representation.
 
 [_Note:_ Applications typically use a fixed-width integer type where the width
@@ -190,7 +194,7 @@ matches the width of the *OpTypeInt*.
 _{endnote}_]
 
 |*OpTypeFloat*
-|A C++ type that is device copyable, which has the same width and data
+|A {cpp} type that is device copyable, which has the same width and data
  representation.
 
 [_Note:_ Applications typically use `float` when the *OpTypeFloat* has a width
@@ -205,9 +209,17 @@ _{endnote}_]
 |*OpTypePointer* with _Storage Class_ *Workgroup*
 |A `local_accessor`.
 
+[_Note:_ The `local_accessor` merely conveys the size of the local memory, such
+that the *OpTypePointer* kernel argument points to a local memory buffer of _N_
+bytes, where _N_ is the value returned by `local_accessor::byte_size`.
+If the application wants to pass other information from the `local_accessor` to
+the kernel (such as the value _N_), it must pass this as separate kernel
+arguments.
+_{endnote}_]
+
 |*OpTypePointer* with _Storage Class_ *Function* and _Type_ *OpTypeStruct*
  (i.e. the pointed-at type is *OpTypeStruct*).
-|A C++ struct or class that is device copyable, which has the same size and
+|A {cpp} struct or class that is device copyable, which has the same size and
  data representation as the *OpTypeStruct*.
 
 [_Note:_ The SYCL argument is a structure even though the SPIR-V argument type
@@ -230,13 +242,48 @@ because this helps ensure that the size of the integers on the host matches the
 size in the kernel.
 _{endnote}_]
 
+=== Iteration space and built-in variables
+
+A `kernel` object created from a SPIR-V module must be launched either as a
+single-task kernel or as an nd-range kernel.
+Attempting to launch such a kernel with a simple range iteration space results
+in undefined behavior.
+
+If the kernel is launched as a single-task kernel, it is executed with a
+1-dimensional nd-range, with one work-group of one work-item.
+Because it is launched as an nd-range kernel, the kernel can use features that
+are normally prohibited in single-task kernels.
+For example, the `local_accessor` type is allowed as a kernel argument, and the
+kernel can use SPIR-V group and subgroup instructions.
+Of course, these features have limited use because the kernel is launched with
+just a single work-item.
+
+If the kernel is launched as an nd-range kernel, the number of work-group
+dimensions is the same as the number of dimensions in the `nd_range`.
+The global size, local size, and the number of work-groups is determined in the
+usual way from the `nd_range`.
+If the SPIR-V kernel defines a fixed local size (e.g. via the *LocalSize*
+execution mode), the local size in the `nd_range` must match this value.
+
+The kernel may use SPIR-V built-in variables as they are defined in the SPIR-V
+client API specification, with the following clarification.
+Some of the built-in variables are defined as a 3-component vector (e.g.
+*GlobalSize*).
+The order of these components is inverted from their corresponding SYCL
+objects.
+To illustrate, consider a 3-dimensional kernel invocation.
+Vector component 0 of the *GlobalSize* variable corresponds to dimension 2 of
+the `nd_range`, and vector component 2 of the *GlobalSize* variable corresponds
+to dimension 0 of the `nd_range`.
+
 
 == Example
 
 The following example shows a simple SYCL program that loads a SPIR-V module
 from a file and then launches a kernel from that module.
 
-```
+[source,c++]
+----
 #include <cstddef>
 #include <cstdint>
 #include <fstream>
@@ -271,6 +318,7 @@ int main() {
   sycl::kernel k = kb_exe.ext_oneapi_get_kernel("my_kernel");
 
   constexpr int N = 4;
+  constexpr int WGSIZE = 1;
   int32_t input[N] = {0, 1, 2, 3};
   int32_t output[N] = {};
 
@@ -284,8 +332,9 @@ int main() {
     // Set the values for the kernel arguments.
     cgh.set_args(in, out);
 
-    // Invoke the kernel over a range.
-    cgh.parallel_for(sycl::range{N}, k);
+    // Invoke the kernel over an nd-range.
+    sycl::nd_range ndr{{N}, {WGSIZE}};
+    cgh.parallel_for(ndr, k);
   });
 }
-```
+----
