@@ -112,6 +112,8 @@ jobs:
     - name: check-sycl-unittests
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
       run: |
+        printenv
+        export PATH=$GITHUB_WORKSPACE\build\bin;PATH
         cmake --version
         cmake --build build --target check-sycl-unittests
     - name: check-llvm-spirv
