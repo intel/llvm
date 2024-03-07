@@ -1,5 +1,5 @@
-// UNSUPPORTED: true
-// REQUIRES: linux
+// REQUIRES: linux, cpu
+// REQUIRES: linux, gpu
 // RUN: %{build} %device_sanitizer_flags -O0 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 UR_ENABLE_LAYERS=UR_LAYER_ASAN %{run-unfiltered-devices} not %t &> %t.txt ; FileCheck --check-prefixes CHECK --input-file %t.txt %s
 #include <sycl/sycl.hpp>
