@@ -42,6 +42,20 @@
 namespace syclcompat {
 
 namespace detail {
+
+template <typename tag, typename T> class generic_error_type {
+public:
+  generic_error_type() = default;
+  generic_error_type(T value) : value{value} {}
+  operator T() const { return value; }
+
+private:
+  T value;
+};
+
+using err0 = generic_error_type<struct err0_tag, int>;
+using err1 = generic_error_type<struct err1_tag, int>;
+
 template <typename T> struct DataType {
   using T2 = T;
 };
@@ -359,9 +373,9 @@ inline void nd_range_barrier(
 /// work-group.
 /// Note: Please make sure that the logical-group size is a power of 2 in the
 /// range [1, current_sub_group_size].
-class logical_group {
-  sycl::nd_item<3> _item;
-  sycl::group<3> _g;
+template <int dimensions = 3> class logical_group {
+  sycl::nd_item<dimensions> _item;
+  sycl::group<dimensions> _g;
   uint32_t _logical_group_size;
   uint32_t _group_linear_range_in_parent;
 
@@ -370,12 +384,14 @@ public:
   /// \param [in] item Current work-item.
   /// \param [in] parent_group The group to be divided.
   /// \param [in] size The logical-group size.
-  logical_group(sycl::nd_item<3> item, sycl::group<3> parent_group,
-                uint32_t size)
+  logical_group(sycl::nd_item<dimensions> item,
+                sycl::group<dimensions> parent_group, uint32_t size)
       : _item(item), _g(parent_group), _logical_group_size(size) {
     _group_linear_range_in_parent =
         (_g.get_local_linear_range() - 1) / _logical_group_size + 1;
   }
+  logical_group(sycl::nd_item<dimensions> item)
+      : _item(item), _g(item.get_group()) {}
   /// Returns the index of the work-item within the logical-group.
   uint32_t get_local_linear_id() const {
     return _item.get_local_linear_id() % _logical_group_size;
