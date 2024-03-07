@@ -36,25 +36,38 @@ int run_test_on_queue(sycl::queue &Queue) {
   uint64_t StartTagSubmit =
       StartTagE
           .get_profiling_info<sycl::info::event_profiling::command_submit>();
+  uint64_t StartTagStart =
+      StartTagE
+          .get_profiling_info<sycl::info::event_profiling::command_start>();
   uint64_t StartTagEnd =
       StartTagE.get_profiling_info<sycl::info::event_profiling::command_end>();
   uint64_t EndTagSubmit =
       EndTagE.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  uint64_t EndTagStart =
+      EndTagE.get_profiling_info<sycl::info::event_profiling::command_start>();
   uint64_t EndTagEnd =
       EndTagE.get_profiling_info<sycl::info::event_profiling::command_end>();
 
   std::cout << "StartTagSubmit: " << StartTagSubmit << std::endl;
+  std::cout << "StartTagStart: " << StartTagStart << std::endl;
   std::cout << "StartTagEnd: " << StartTagEnd << std::endl;
   std::cout << "EndTagSubmit: " << EndTagSubmit << std::endl;
+  std::cout << "EndTagStart: " << EndTagStart << std::endl;
   std::cout << "EndTagEnd: " << EndTagEnd << std::endl;
 
   CHECK(Failures, StartTagSubmit != 0)
+  CHECK(Failures, StartTagStart != 0)
   CHECK(Failures, StartTagEnd != 0)
   CHECK(Failures, EndTagSubmit != 0)
+  CHECK(Failures, EndTagStart != 0)
   CHECK(Failures, StartTagSubmit != 0)
 
   CHECK(Failures, StartTagSubmit <= StartTagEnd)
+  CHECK(Failures, StartTagSubmit <= StartTagStart)
+  CHECK(Failures, StartTagStart <= StartTagEnd)
   CHECK(Failures, EndTagSubmit <= EndTagEnd)
+  CHECK(Failures, EndTagSubmit <= EndTagStart)
+  CHECK(Failures, EndTagStart <= EndTagEnd)
   CHECK(Failures, StartTagEnd <= EndTagEnd)
 
   if (Queue.has_property<sycl::property::queue::enable_profiling>()) {
