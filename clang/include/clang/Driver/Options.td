@@ -5182,6 +5182,12 @@ defm unsafe_fp_atomics : BoolMOption<"unsafe-fp-atomics",
           "for certain memory destinations. (AMDGPU only)">,
   NegFlag<SetFalse>>;
 
+defm amdgpu_cross_addr_space_atomic_memory_ordering : BoolMOption<"amdgpu-cross-addr-space-atomic-memory-ordering",
+  CodeGenOpts<"EnableCrossAddressSpaceAtomicMemoryOrdering">, DefaultFalse,
+  PosFlag<SetTrue, [], [CC1Option],
+          "Set cross address-space memory ordering for atomic operations. (AMDGPU only)">,
+  NegFlag<SetFalse, [], [CC1Option]>>;
+
 def faltivec : Flag<["-"], "faltivec">, Group<f_Group>;
 def fno_altivec : Flag<["-"], "fno-altivec">, Group<f_Group>;
 let Flags = [TargetSpecific] in {

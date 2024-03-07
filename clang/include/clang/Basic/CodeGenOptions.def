@@ -436,6 +436,10 @@ CODEGENOPT(SPIRITTAnnotations, 1, 0)
 /// propagate signaling NaN inputs per IEEE 754-2008 (AMDGPU Only)
 CODEGENOPT(EmitIEEENaNCompliantInsts, 1, 1)
 
+/// Force-enable atomic scope model for memory consistency that uses single 
+/// happens-before relation for all address spaces (AMDGPU only).
+CODEGENOPT(EnableCrossAddressSpaceAtomicMemoryOrdering, 1, 0)
+
 // Whether to emit Swift Async function extended frame information: auto,
 // never, always.
 ENUM_CODEGENOPT(SwiftAsyncFramePointer, SwiftAsyncFramePointerKind, 2,

@@ -446,6 +446,11 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     # have to be explicity declared in the soruce.
     list( APPEND flags -Xclang -fdeclare-spirv-builtins)
 
+    if( ${ARCH} STREQUAL "amdgcn" )
+      # Enable cross address space memory ordering for atomic operations.
+      list( APPEND flags -Xclang -mamdgpu-cross-addr-space-atomic-memory-ordering )
+    endif()
+
     # OpenCL 3.0 extensions
     list( APPEND flags -cl-std=CL3.0 "SHELL:-Xclang" )
     string(CONCAT CL_3_0_EXTENSIONS

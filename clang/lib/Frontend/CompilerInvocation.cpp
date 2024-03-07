@@ -2174,6 +2174,10 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
   if (!Opts.EmitIEEENaNCompliantInsts && !LangOptsRef.NoHonorNaNs)
     Diags.Report(diag::err_drv_amdgpu_ieee_without_no_honor_nans);
 
+  Opts.EnableCrossAddressSpaceAtomicMemoryOrdering = Args.hasFlag(
+      options::OPT_mamdgpu_cross_addr_space_atomic_memory_ordering,
+      options::OPT_mno_amdgpu_cross_addr_space_atomic_memory_ordering, false);
+
   return Diags.getNumErrors() == NumErrorsBefore;
 }
 

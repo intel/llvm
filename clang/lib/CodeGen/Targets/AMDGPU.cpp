@@ -301,6 +301,8 @@ public:
   bool shouldEmitDWARFBitFieldSeparators() const override;
   void setCUDAKernelCallingConvention(const FunctionType *&FT) const override;
 
+  bool shouldUseCrossAddressSpaceSyncScope() const override;
+
 private:
   // Adds a NamedMDNode with GV, Name, and Operand as operands, and adds the
   // resulting MDNode to the amdgcn.annotations MDNode.
@@ -558,10 +560,17 @@ AMDGPUTargetCodeGenInfo::getLLVMSyncScopeID(const LangOptions &LangOpts,
     break;
   }
 
-  if (Ordering != llvm::AtomicOrdering::SequentiallyConsistent) {
+  // Choose whether to use cross-address-space sync for non-seq_cst ordering.
+  bool CrossAddressSpaceSSID = shouldUseCrossAddressSpaceSyncScope();
+  // SYCL 2020 specifies single happens-before relation for all address spaces.
+  if (LangOpts.SYCLIsDevice)
+    CrossAddressSpaceSSID |=
+        LangOpts.getSYCLVersion() == LangOptions::SYCL_2020;
+
+  if (Ordering != llvm::AtomicOrdering::SequentiallyConsistent &&
+      !CrossAddressSpaceSSID) {
     if (!Name.empty())
       Name = Twine(Twine(Name) + Twine("-")).str();
-
     Name = Twine(Twine(Name) + Twine("one-as")).str();
   }
 
@@ -580,6 +589,12 @@ void AMDGPUTargetCodeGenInfo::setCUDAKernelCallingConvention(
     const FunctionType *&FT) const {
   FT = getABIInfo().getContext().adjustFunctionType(
       FT, FT->getExtInfo().withCallingConv(CC_OpenCLKernel));
+}
+
+bool AMDGPUTargetCodeGenInfo::shouldUseCrossAddressSpaceSyncScope() const {
+  return getABIInfo()
+      .getCodeGenOpts()
+      .EnableCrossAddressSpaceAtomicMemoryOrdering;
 }
 
 /// Create an OpenCL kernel for an enqueued block.
