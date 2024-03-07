@@ -23,7 +23,7 @@ constexpr size_t MAX_BACKTRACE_FRAMES = 64;
 struct StackTrace {
     std::vector<BacktraceInfo> stack;
 
-    void Print() const;
+    void print() const;
 };
 
 StackTrace GetCurrentBacktrace();

@@ -21,6 +21,7 @@
 namespace ur_sanitizer_layer {
 
 enum class AllocType : uint32_t {
+    UNKNOWN,
     DEVICE_USM,
     SHARED_USM,
     HOST_USM,
@@ -34,7 +35,7 @@ struct AllocInfo {
     uptr UserEnd = 0;
     size_t AllocSize = 0;
 
-    AllocType Type = AllocType::DEVICE_USM;
+    AllocType Type = AllocType::UNKNOWN;
     bool IsReleased = false;
 
     ur_context_handle_t Context = nullptr;
@@ -43,7 +44,7 @@ struct AllocInfo {
     StackTrace AllocStack;
     StackTrace ReleaseStack;
 
-    void Print();
+    void print();
 };
 
 using AllocationMap = std::map<uptr, std::shared_ptr<AllocInfo>>;

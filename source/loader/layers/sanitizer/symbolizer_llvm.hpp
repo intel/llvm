@@ -22,7 +22,7 @@ namespace ur_sanitizer_layer {
 class SymbolizerTool {
   public:
     virtual ~SymbolizerTool() {}
-    virtual bool SymbolizePC(const BacktraceInfo &BI, SourceInfo &SI) {
+    virtual bool symbolizePC(const BacktraceInfo &BI, SourceInfo &SI) {
         std::ignore = BI;
         std::ignore = SI;
         return false;
@@ -31,7 +31,7 @@ class SymbolizerTool {
 
 class LLVMSymbolizer final : public SymbolizerTool {
   public:
-    bool SymbolizePC(const BacktraceInfo &BI, SourceInfo &SI) override;
+    bool symbolizePC(const BacktraceInfo &BI, SourceInfo &SI) override;
 };
 
 extern std::vector<std::unique_ptr<SymbolizerTool>> SymbolizerTools;
