@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define FORCE_IMM_CMD_LIST 0
+
 #include <detail/graph_impl.hpp>
 #include <detail/handler_impl.hpp>
 #include <detail/kernel_arg_mask.hpp>
@@ -681,10 +683,13 @@ sycl::detail::pi::PiExtSyncPoint exec_graph_impl::enqueueNode(
 void exec_graph_impl::createCommandBuffers(
     sycl::device Device, std::shared_ptr<partition> &Partition) {
   sycl::detail::pi::PiExtCommandBuffer OutCommandBuffer;
+  auto imm_cmd_list = (Partition->MIsInOrderGraph && !MEnableProfiling);
+#if FORCE_IMM_CMD_LIST == 1
+  imm_cmd_list = true;
+#endif
   sycl::detail::pi::PiExtCommandBufferDesc Desc{
       pi_ext_structure_type::PI_EXT_STRUCTURE_TYPE_COMMAND_BUFFER_DESC, nullptr,
-      pi_bool(Partition->MIsInOrderGraph && !MEnableProfiling),
-      pi_bool(MEnableProfiling)};
+      pi_bool(imm_cmd_list), pi_bool(MEnableProfiling)};
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(Device);
