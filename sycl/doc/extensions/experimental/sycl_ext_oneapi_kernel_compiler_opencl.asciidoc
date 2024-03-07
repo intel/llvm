@@ -447,7 +447,8 @@ This example demonstrates how to query the version of OpenCL C that is
 supported, how to query the supported features, and how to query the
 supported extensions.
 
-```
+[source,c++]
+----
 #include <iostream>
 #include <sycl/sycl.hpp>
 namespace syclex = sycl::ext::oneapi::experimental;
@@ -476,4 +477,4 @@ int main() {
     std::cout << "Device supports online compilation with the OpenCL full profile\n";
 
 }
-```
+----
