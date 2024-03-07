@@ -12,13 +12,14 @@
 #include "ur_level_zero.hpp"
 
 void __attribute__((constructor)) createAdapterHandle() {
-  if (!Adapter) {
-    Adapter = new ur_adapter_handle_t_();
+  if (!GlobalAdapter) {
+    GlobalAdapter = new ur_adapter_handle_t_();
   }
 }
 
 void __attribute__((destructor)) deleteAdapterHandle() {
-  if (Adapter) {
-    delete Adapter;
+  if (GlobalAdapter) {
+    delete GlobalAdapter;
+    GlobalAdapter = nullptr;
   }
 }

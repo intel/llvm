@@ -25,4 +25,4 @@ struct ur_adapter_handle_t_ {
   ZeCache<Result<PlatformVec>> PlatformCache;
 };
 
-extern ur_adapter_handle_t_ *Adapter;
+extern ur_adapter_handle_t_ *GlobalAdapter;
