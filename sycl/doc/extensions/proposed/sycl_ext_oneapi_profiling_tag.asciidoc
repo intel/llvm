@@ -152,8 +152,8 @@ time at which `submit_profiling_tag` is called.
 The event's `info::event_profiling::command_end` timestamp reflects the time
 at which the event enters the "complete" state.
 The event's `info::event_profiling::command_start` timestamp reflects the time
-that the profiling tag command starts executing. This timestamp is between
-the `info::event_profiling::command_submit` and
+that the profiling tag command starts executing.
+This timestamp is between the `info::event_profiling::command_submit` and
 `info::event_profiling::command_end` timestamps.
 
 It is unspecified whether the event ever has the
