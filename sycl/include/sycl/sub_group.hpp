@@ -219,8 +219,9 @@ struct sub_group {
 
   /* --- one-input shuffles --- */
   /* indices in [0 , sub_group size) */
+  template <typename T>
   __SYCL_DEPRECATED("Shuffles in the sub-group class are deprecated.")
-  template <typename T> T shuffle(T x, id_type local_id) const {
+  T shuffle(T x, id_type local_id) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::spirv::SubgroupShuffle(x, local_id);
 #else
@@ -231,8 +232,9 @@ struct sub_group {
 #endif
   }
 
+  template <typename T>
   __SYCL_DEPRECATED("Shuffles in the sub-group class are deprecated.")
-  template <typename T> T shuffle_down(T x, uint32_t delta) const {
+  T shuffle_down(T x, uint32_t delta) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::spirv::SubgroupShuffleDown(x, delta);
 #else
@@ -243,8 +245,9 @@ struct sub_group {
 #endif
   }
 
+  template <typename T>
   __SYCL_DEPRECATED("Shuffles in the sub-group class are deprecated.")
-  template <typename T> T shuffle_up(T x, uint32_t delta) const {
+  T shuffle_up(T x, uint32_t delta) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::spirv::SubgroupShuffleUp(x, delta);
 #else
@@ -255,8 +258,9 @@ struct sub_group {
 #endif
   }
 
+  template <typename T>
   __SYCL_DEPRECATED("Shuffles in the sub-group class are deprecated.")
-  template <typename T> T shuffle_xor(T x, id_type value) const {
+  T shuffle_xor(T x, id_type value) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::spirv::SubgroupShuffleXor(x, value);
 #else
