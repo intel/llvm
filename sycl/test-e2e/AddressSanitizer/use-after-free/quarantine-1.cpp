@@ -37,12 +37,12 @@ int main() {
   Q.wait();
   // CHECK: ERROR: DeviceSanitizer: use-after-free on address [[ADDR:0x.*]]
   // CHECK: READ of size 1 at kernel <{{.*MyKernel}}>
-  // CHECK:   #0 {{.*}} {{.*use-after-free-2.cpp}}:25
+  // CHECK:   #0 {{.*}} {{.*quarantine-1.cpp}}:[[@LINE-5]]
   // CHECK: [[ADDR]] is located inside of Device USM region [{{0x.*}}, {{0x.*}})
   // CHECK: allocated here:
-  // CHECK:   {{#[0-9]+}} {{0x.*}} in main {{.*use-after-free-2.cpp}}:9
+  // CHECK:   {{#[0-9]+}} {{0x.*}} in main {{.*quarantine-1.cpp}}:[[@LINE-23]]
   // CHECK: released here:
-  // CHECK:   {{#[0-9]+}} {{0x.*}} in main {{.*use-after-free-2.cpp}}:10
+  // CHECK:   {{#[0-9]+}} {{0x.*}} in main {{.*quarantine-1.cpp}}:[[@LINE-24]]
 
   return 0;
 }
