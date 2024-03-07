@@ -33,6 +33,10 @@ template <int dimensions = 1>
 class __SYCL_TYPE(group) group {
 public:
   group() = default; // fake constructor
+  // Dummy parallel_for_work_item function to mimic calls from
+  // parallel_for_work_group.
+  void parallel_for_work_item() {
+  }
 };
 
 namespace access {

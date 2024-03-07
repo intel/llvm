@@ -913,11 +913,11 @@ lsc_gather(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam DS is the data size (unused/obsolete).
 /// @tparam L1H is L1 cache hint.
 /// @tparam L2H is L2 cache hint.
+/// @tparam Flags is the alignment specifier type tag.
 /// @param p is the base pointer.
 /// @param pred is operation predicate. Zero means operation is skipped
 /// entirely, non-zero - operation is performed. The default is '1' -
 /// perform the operation.
-/// @param flags is the alignment specifier type tag.
 /// @return is a vector of type T and size NElts. The elements of the
 /// returned vector for which the corresponding element in \p pred is 0
 /// are undefined.
@@ -927,9 +927,12 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
 __ESIMD_API std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>,
                              __ESIMD_NS::simd<T, NElts>>
-lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1,
-               FlagsT flags = FlagsT{}) {
-  return __ESIMD_DNS::block_load_impl<T, NElts, L1H, L2H>(p, pred, flags);
+lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1, FlagsT = {}) {
+  using PropertyListT = __ESIMD_DNS::make_L1_L2_alignment_properties_t<
+      L1H, L2H, FlagsT::template alignment<__ESIMD_NS::simd<T, NElts>>>;
+  __ESIMD_NS::simd<T, NElts> PassThru; // Intentionally undefined.
+  return __ESIMD_DNS::block_load_impl<T, NElts, PropertyListT>(p, pred,
+                                                               PassThru);
 }
 
 /// A variation of lsc_block_load without predicate parameter to simplify use
@@ -951,11 +954,11 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred = 1,
 ///
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
+/// @tparam FlagsT is the alignment specifier type tag.
 /// @tparam DS is the data size (unused/obsolete).
 /// @tparam L1H is L1 cache hint.
 /// @tparam L2H is L2 cache hint.
 /// @param p is the base pointer.
-/// @param flags is the alignment specifier type tag.
 /// @return is a vector of type T and size NElts. The elements of the
 /// returned vector for which the corresponding element in \p pred is 0
 /// are undefined.
@@ -965,9 +968,11 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
 __ESIMD_API std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>,
                              __ESIMD_NS::simd<T, NElts>>
-lsc_block_load(const T *p, FlagsT flags) {
-  return __ESIMD_DNS::block_load_impl<T, NElts, L1H, L2H>(
-      p, __ESIMD_NS::simd_mask<1>(1), flags);
+lsc_block_load(const T *p, FlagsT) {
+  using PropertyListT = __ESIMD_DNS::make_L1_L2_alignment_properties_t<
+      L1H, L2H, FlagsT::template alignment<__ESIMD_NS::simd<T, NElts>>>;
+  return __ESIMD_DNS::block_load_impl<T, NElts, PropertyListT>(
+      p, __ESIMD_NS::simd_mask<1>(1));
 }
 
 /// USM pointer transposed gather with 1 channel.
@@ -993,12 +998,12 @@ lsc_block_load(const T *p, FlagsT flags) {
 /// @tparam DS is the data size (unused/obsolete).
 /// @tparam L1H is L1 cache hint.
 /// @tparam L2H is L2 cache hint.
+/// @tparam FlagsT is the alignment specifier type tag.
 /// @param p is the base pointer.
 /// @param pred is operation predicate. Zero means operation is skipped
 /// entirely, non-zero - operation is performed.
 /// @param pass_thru contains the vector which elements are copied
 /// to the returned result when the corresponding element of \p pred is 0.
-/// @param flags is the alignment specifier type tag.
 /// @return is a vector of type T and size NElts.
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
@@ -1007,9 +1012,11 @@ template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
 __ESIMD_API std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>,
                              __ESIMD_NS::simd<T, NElts>>
 lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
-               __ESIMD_NS::simd<T, NElts> pass_thru, FlagsT flags = FlagsT{}) {
-  return __ESIMD_DNS::block_load_impl<T, NElts, L1H, L2H>(p, pred, pass_thru,
-                                                          flags);
+               __ESIMD_NS::simd<T, NElts> pass_thru, FlagsT = {}) {
+  using PropertyListT = __ESIMD_DNS::make_L1_L2_alignment_properties_t<
+      L1H, L2H, FlagsT::template alignment<__ESIMD_NS::simd<T, NElts>>>;
+  return __ESIMD_DNS::block_load_impl<T, NElts, PropertyListT>(p, pred,
+                                                               pass_thru);
 }
 
 /// Accessor-based transposed gather with 1 channel.
@@ -1034,12 +1041,12 @@ lsc_block_load(const T *p, __ESIMD_NS::simd_mask<1> pred,
 /// @tparam L1H is L1 cache hint.
 /// @tparam L2H is L2 cache hint.
 /// @tparam AccessorTy is the \ref sycl::accessor type.
+/// @param FlagsT is the alignment specifier type tag.
 /// @param acc is the SYCL accessor.
 /// @param offset is the zero-based offset in bytes.
 /// @param pred is operation predicate. Zero means operation is skipped
 /// entirely, non-zero - operation is performed. The default is '1' - perform
 /// the operation.
-/// @param flags is the alignment specifier type tag.
 /// @return is a vector of type T and size NElts. The elements of the returned
 /// vector for which the corresponding element in \p pred is 0 are undefined.
 ///
@@ -1054,8 +1061,10 @@ __ESIMD_API std::enable_if_t<
     __ESIMD_NS::simd<T, NElts>>
 lsc_block_load(AccessorTy acc, __ESIMD_DNS::DeviceAccessorOffsetT offset,
                __ESIMD_NS::simd_mask<1> pred = 1, FlagsT flags = FlagsT{}) {
-  return __ESIMD_DNS::block_load_impl<T, NElts, L1H, L2H>(acc, offset, pred,
-                                                          flags);
+  using PropertyListT = __ESIMD_DNS::make_L1_L2_alignment_properties_t<
+      L1H, L2H, FlagsT::template alignment<__ESIMD_NS::simd<T, NElts>>>;
+  return __ESIMD_DNS::block_load_impl<T, NElts, PropertyListT>(acc, offset,
+                                                               pred);
 }
 
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
@@ -1151,6 +1160,7 @@ lsc_block_load(AccessorTy acc, uint32_t offset, FlagsT flags) {
 /// @tparam L1H is L1 cache hint.
 /// @tparam L2H is L2 cache hint.
 /// @tparam AccessorTy is the \ref sycl::accessor type.
+/// @tparam FlagsT is the alignment specifier type tag.
 /// @param acc is the SYCL accessor.
 /// @param offset is the zero-based offset in bytes.
 /// @param pred is operation predicate. Operation is skipped for index 'i'
@@ -1158,7 +1168,6 @@ lsc_block_load(AccessorTy acc, uint32_t offset, FlagsT flags) {
 /// Otherwise, the operation is performed.
 /// @param pass_thru contains the values copied to the result when
 /// the corresponding element from \p pred is zero.
-/// @param flags is the alignment specifier type tag.
 /// @return is a vector of type T and size NElts
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
@@ -1172,9 +1181,11 @@ __ESIMD_API std::enable_if_t<
     __ESIMD_NS::simd<T, NElts>>
 lsc_block_load(AccessorTy acc, __ESIMD_DNS::DeviceAccessorOffsetT offset,
                __ESIMD_NS::simd_mask<1> pred,
-               __ESIMD_NS::simd<T, NElts> pass_thru, FlagsT flags = FlagsT{}) {
-  return __ESIMD_DNS::block_load_impl<T, NElts, L1H, L2H>(acc, offset, pred,
-                                                          pass_thru, flags);
+               __ESIMD_NS::simd<T, NElts> pass_thru, FlagsT = {}) {
+  using PropertyListT = __ESIMD_DNS::make_L1_L2_alignment_properties_t<
+      L1H, L2H, FlagsT::template alignment<__ESIMD_NS::simd<T, NElts>>>;
+  return __ESIMD_DNS::block_load_impl<T, NElts, PropertyListT>(acc, offset,
+                                                               pred, pass_thru);
 }
 
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
@@ -1282,30 +1293,13 @@ template <typename T, int NElts = 1,
 __ESIMD_API std::enable_if_t<__ESIMD_DNS::is_device_accessor_with_v<
     AccessorTy, __ESIMD_DNS::accessor_mode_cap::can_read>>
 lsc_prefetch(AccessorTy acc,
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-             __ESIMD_NS::simd<uint64_t, N> offsets,
-#else
-             __ESIMD_NS::simd<uint32_t, N> offsets,
-#endif
+             __ESIMD_NS::simd<__ESIMD_DNS::DeviceAccessorOffsetT, N> offsets,
              __ESIMD_NS::simd_mask<N> pred = 1) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return lsc_prefetch<T, NElts, DS, L1H, L2H>(
-      __ESIMD_DNS::accessorToPointer<T>(acc), offsets, pred);
+  lsc_prefetch<T, NElts, DS, L1H, L2H>(__ESIMD_DNS::accessorToPointer<T>(acc),
+                                       offsets, pred);
 #else
-  detail::check_lsc_vector_size<NElts>();
-  detail::check_lsc_data_size<T, DS>();
-  detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L2H>();
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS =
-      detail::expand_data_size(detail::finalize_data_size<T, DS>());
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::nontranspose;
-  using MsgT = typename detail::lsc_expand_type<T>::type;
-  auto si = __ESIMD_NS::get_surface_index(acc);
-  __esimd_lsc_prefetch_bti<MsgT, L1H, L2H, _AddressScale, _ImmOffset, _DS, _VS,
-                           _Transposed, N>(pred.data(), offsets.data(), si);
+  __ESIMD_DNS::prefetch_impl<T, NElts, DS, L1H, L2H>(acc, offsets, pred);
 #endif
 }
 
@@ -1351,24 +1345,8 @@ lsc_prefetch(AccessorTy acc, __ESIMD_DNS::DeviceAccessorOffsetT offset) {
   lsc_prefetch<T, NElts, DS, L1H, L2H>(
       __ESIMD_DNS::accessorToPointer<T>(acc, offset));
 #else
-  detail::check_lsc_vector_size<NElts>();
-  detail::check_lsc_data_size<T, DS>();
-  detail::check_lsc_cache_hint<detail::lsc_action::prefetch, L1H, L2H>();
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS = detail::finalize_data_size<T, DS>();
-  static_assert(
-      _DS == lsc_data_size::u32 || _DS == lsc_data_size::u64,
-      "Transposed prefetch is supported only for data size u32 or u64");
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<NElts>();
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::transpose;
-  constexpr int N = 1;
-  __ESIMD_NS::simd_mask<N> pred = 1;
-  __ESIMD_NS::simd<uint32_t, N> offsets = offset;
-  auto si = __ESIMD_NS::get_surface_index(acc);
-  __esimd_lsc_prefetch_bti<T, L1H, L2H, _AddressScale, _ImmOffset, _DS, _VS,
-                           _Transposed, N>(pred.data(), offsets.data(), si);
+  __ESIMD_NS::simd_mask<1> Mask = 1;
+  __ESIMD_DNS::prefetch_impl<T, NElts, DS, L1H, L2H>(acc, offset, Mask);
 #endif
 }
 
@@ -1557,21 +1535,22 @@ lsc_scatter(AccessorTy acc, __ESIMD_NS::simd<uint32_t, N> offsets,
 /// @tparam DS is the data size (unused/obsolete).
 /// @tparam L1H is L1 cache hint.
 /// @tparam L2H is L2 cache hint.
+/// @tparam Flags is the alignment specifier type tag.
 /// @param p is the base pointer.
 /// @param vals is values to store.
 /// @param pred is operation predicate. Zero means operation is skipped
 /// entirely, non-zero - operation is performed. The default is '1' - perform
 /// the operation.
-/// @param flags is the alignment specifier type tag.
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none,
           typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
 __ESIMD_API std::enable_if_t<__ESIMD_NS::is_simd_flag_type_v<FlagsT>>
 lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals,
-                __ESIMD_NS::simd_mask<1> pred = 1, FlagsT flags = FlagsT{}) {
-  return __ESIMD_DNS::block_store_impl<T, NElts, L1H, L2H>(p, vals, pred,
-                                                           flags);
+                __ESIMD_NS::simd_mask<1> pred = 1, FlagsT = {}) {
+  using PropertyListT = __ESIMD_DNS::make_L1_L2_alignment_properties_t<
+      L1H, L2H, FlagsT::template alignment<__ESIMD_NS::simd<T, NElts>>>;
+  return __ESIMD_DNS::block_store_impl<T, NElts, PropertyListT>(p, vals, pred);
 }
 
 /// A variation of lsc_block_store without predicate parameter to simplify
@@ -1636,6 +1615,7 @@ lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals, FlagsT flags) {
 /// @tparam DS is the data size (unused/obsolete).
 /// @tparam L1H is L1 cache hint.
 /// @tparam L2H is L2 cache hint.
+/// @tparam Flags is the alignment specifier type tag.
 /// @tparam AccessorTy is the \ref sycl::accessor type.
 /// @param acc is the SYCL accessor.
 /// @param offset is the zero-based offset in bytes.
@@ -1643,7 +1623,6 @@ lsc_block_store(T *p, __ESIMD_NS::simd<T, NElts> vals, FlagsT flags) {
 /// @param pred is operation predicate. Zero means operation is skipped
 /// entirely, non-zero - operation is performed. The default is '1' - perform
 /// the operation.
-/// @param flags is the alignment specifier type tag.
 ///
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
           cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none,
@@ -1655,9 +1634,11 @@ __ESIMD_API std::enable_if_t<
     __ESIMD_NS::is_simd_flag_type_v<FlagsT>>
 lsc_block_store(AccessorTy acc, __ESIMD_DNS::DeviceAccessorOffsetT offset,
                 __ESIMD_NS::simd<T, NElts> vals,
-                __ESIMD_NS::simd_mask<1> pred = 1, FlagsT flags = FlagsT{}) {
-  __ESIMD_DNS::block_store_impl<T, NElts, L1H, L2H>(acc, offset, vals, pred,
-                                                    flags);
+                __ESIMD_NS::simd_mask<1> pred = 1, FlagsT = {}) {
+  using PropertyListT = __ESIMD_DNS::make_L1_L2_alignment_properties_t<
+      L1H, L2H, FlagsT::template alignment<__ESIMD_NS::simd<T, NElts>>>;
+  __ESIMD_DNS::block_store_impl<T, NElts, PropertyListT>(acc, offset, vals,
+                                                         pred);
 }
 
 template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
@@ -2786,34 +2767,8 @@ __ESIMD_API std::enable_if_t<__ESIMD_DNS::is_rw_device_accessor_v<AccessorTy>,
 lsc_atomic_update(AccessorTy acc, __ESIMD_NS::simd<Toffset, N> offsets,
                   __ESIMD_NS::simd<T, N> src0, __ESIMD_NS::simd<T, N> src1,
                   __ESIMD_NS::simd_mask<N> pred) {
-#ifdef __ESIMD_FORCE_STATELESS_MEM
-  return lsc_atomic_update<Op, T, N, DS, L1H, L2H>(
-      __ESIMD_DNS::accessorToPointer<T>(acc), offsets, src0, src1, pred);
-#else
-  static_assert(std::is_integral_v<Toffset> && sizeof(Toffset) == 4,
-                "Unsupported offset type");
-  detail::check_lsc_vector_size<1>();
-  detail::check_lsc_data_size<T, DS>();
-  __ESIMD_DNS::check_atomic<Op, T, N, 2>();
-  detail::check_lsc_cache_hint<detail::lsc_action::atomic, L1H, L2H>();
-  constexpr uint16_t _AddressScale = 1;
-  constexpr int _ImmOffset = 0;
-  constexpr lsc_data_size _DS =
-      detail::expand_data_size(detail::finalize_data_size<T, DS>());
-  constexpr detail::lsc_vector_size _VS = detail::to_lsc_vector_size<1>();
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::nontranspose;
-  using MsgT = typename detail::lsc_expand_type<T>::type;
-  constexpr int IOp = detail::lsc_to_internal_atomic_op<T, Op>();
-  __ESIMD_NS::simd<MsgT, N> Msg_data0 = detail::lsc_format_input<MsgT>(src0);
-  __ESIMD_NS::simd<MsgT, N> Msg_data1 = detail::lsc_format_input<MsgT>(src1);
-  auto si = __ESIMD_NS::get_surface_index(acc);
-  __ESIMD_NS::simd<MsgT, N> Tmp =
-      __esimd_lsc_xatomic_bti_2<MsgT, IOp, L1H, L2H, _AddressScale, _ImmOffset,
-                                _DS, _VS, _Transposed, N>(
-          pred.data(), offsets.data(), Msg_data0.data(), Msg_data1.data(), si);
-  return detail::lsc_format_ret<T>(Tmp);
-#endif
+  return __ESIMD_DNS::atomic_update_impl<Op, T, N, DS, L1H, L2H>(
+      acc, offsets, src0, src1, pred);
 }
 
 /// Variant of \c lsc_atomic_update that uses \c local_accessor as a parameter.

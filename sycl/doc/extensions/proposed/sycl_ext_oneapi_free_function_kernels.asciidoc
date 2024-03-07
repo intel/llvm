@@ -72,7 +72,7 @@ either captures of a lambda expression or member variables of a callable
 object.
 
 The primary motivation for this extension is the
-link:../proposed/sycl_ext_oneapi_kernel_compiler.asciidoc[
+link:../experimental/sycl_ext_oneapi_kernel_compiler.asciidoc[
 sycl_ext_oneapi_kernel_compiler], which allows online compilation of a kernel
 from source code.
 These kernels must have a clean separation between host and device code, and

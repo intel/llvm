@@ -28,7 +28,6 @@ endif()
 
 add_clang_tool(clang-linker-wrapper
   ClangLinkerWrapper.cpp
-  SYCLOffloadWrapper.cpp
 
   DEPENDS
   ${tablegen_deps}

@@ -446,7 +446,7 @@ public:
       : SPIRVInstruction(TheInitializer ? 5 : 4, OpVariable, TheType, TheId,
                          TheBB, TheM),
         StorageClass(TheStorageClass) {
-    if (TheInitializer)
+    if (TheInitializer && !TheInitializer->isUndef())
       Initializer.push_back(TheInitializer->getId());
     Name = TheName;
     validate();

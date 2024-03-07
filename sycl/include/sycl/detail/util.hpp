@@ -11,7 +11,9 @@
 #ifndef __SYCL_DEVICE_ONLY
 
 #include <sycl/detail/defines.hpp>
-
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#include <sycl/detail/string.hpp>
+#endif
 #include <cstring>
 #include <mutex>
 #include <vector>
@@ -66,6 +68,26 @@ struct CmpCStr {
 };
 
 using SerializedObj = std::vector<unsigned char>;
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+template <typename T> struct ABINeutralT { using type = T; };
+// We need special handling of std::string to handle ABI incompatibility
+// for get_info<>() when it returns std::string and vector<std::string>.
+// For this purpose, get_info_impl<>() is created to handle special
+// cases, and it is only called internally and not exposed to the user.
+// The following ReturnType structure is intended for general return type,
+// and special return types (std::string and vector of it).
+
+template <> struct ABINeutralT<std::string> { using type = detail::string; };
+
+template <> struct ABINeutralT<std::vector<std::string>> {
+  using type = std::vector<detail::string>;
+};
+
+template <typename T> using ABINeutralT_t = typename ABINeutralT<T>::type;
+#else
+template <typename T> using ABINeutralT_t = T;
+#endif
 
 } // namespace detail
 } // namespace _V1

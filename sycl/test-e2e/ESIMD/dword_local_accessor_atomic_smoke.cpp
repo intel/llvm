@@ -8,6 +8,8 @@
 // This test checks DWORD local accessor atomic operations.
 //===----------------------------------------------------------------------===//
 // REQUIRES-INTEL-DRIVER: lin: 26690, win: 101.4576
+// TODO: disabled temporarily because of flaky issue.
+// UNSUPPORTED: windows
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //

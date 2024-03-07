@@ -22,10 +22,22 @@ namespace detail {
 
 using spirv_vec_t = std::vector<uint8_t>;
 spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
+                             const std::vector<uint32_t> &IPVersionVec,
                              const std::vector<std::string> &UserArgs,
                              std::string *LogPtr);
 
 bool OpenCLC_Compilation_Available();
+
+bool OpenCLC_Feature_Available(const std::string &Feature, uint32_t IPVersion);
+
+bool OpenCLC_Supports_Version(
+    const ext::oneapi::experimental::cl_version &Version, uint32_t IPVersion);
+
+bool OpenCLC_Supports_Extension(
+    const std::string &Name, ext::oneapi::experimental::cl_version *VersionPtr,
+    uint32_t IPVersion);
+
+std::string OpenCLC_Profile(uint32_t IPVersion);
 
 } // namespace detail
 } // namespace ext::oneapi::experimental
