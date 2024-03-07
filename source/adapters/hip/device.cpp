@@ -785,8 +785,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE;
     return ReturnValue(Capabilities);
   }
-  case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
-  case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+  case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
     // SYCL2020 4.6.4.2 minimum mandated capabilities for
     // atomic_fence/memory_scope_capabilities.
     // Because scopes are hierarchical, wider scopes support all narrower
@@ -796,6 +795,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
         UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
         UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP;
+    return ReturnValue(Capabilities);
+  }
+  case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+    uint64_t Capabilities = UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
+                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
+                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE |
+                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
     return ReturnValue(Capabilities);
   }
   case UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
