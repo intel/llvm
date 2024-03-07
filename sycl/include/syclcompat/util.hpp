@@ -545,5 +545,191 @@ inline int calculate_max_potential_wg(int *num_wg, int *wg_size,
   return 0;
 }
 
+/// Supported group type during migration.
+enum class group_type { work_group, sub_group, logical_group, root_group };
+
+/// The group_base will dispatch the function call to the specific interface
+/// based on the group type.
+template <int dimensions = 3> class group_base {
+public:
+  group_base(sycl::nd_item<dimensions> item)
+      : nd_item(item), logical_group(item) {}
+  ~group_base() {}
+  /// Returns the number of work-items in the group.
+  size_t get_local_linear_range() {
+    switch (type) {
+    case group_type::work_group:
+      return nd_item.get_group().get_local_linear_range();
+    case group_type::sub_group:
+      return nd_item.get_sub_group().get_local_linear_range();
+    case group_type::logical_group:
+      return logical_group.get_local_linear_range();
+    default:
+      return -1; // Unkonwn group type
+    }
+  }
+  /// Returns the index of the work-item within the group.
+  size_t get_local_linear_id() {
+    switch (type) {
+    case group_type::work_group:
+      return nd_item.get_group().get_local_linear_id();
+    case group_type::sub_group:
+      return nd_item.get_sub_group().get_local_linear_id();
+    case group_type::logical_group:
+      return logical_group.get_local_linear_id();
+    default:
+      return -1; // Unkonwn group type
+    }
+  }
+  /// Wait for all the elements within the group to complete their execution
+  /// before proceeding.
+  void barrier() {
+    switch (type) {
+    case group_type::work_group:
+      sycl::group_barrier(nd_item.get_group());
+      break;
+    case group_type::sub_group:
+    case group_type::logical_group:
+      sycl::group_barrier(nd_item.get_sub_group());
+      break;
+    default:
+      break;
+    }
+  }
+
+protected:
+  logical_group<dimensions> logical_group;
+  sycl::nd_item<dimensions> nd_item;
+  group_type type;
+};
+
+/// The group class is a container type that can storage supported group_type.
+template <typename T, int dimensions = 3>
+class group : public group_base<dimensions> {
+  using group_base<dimensions>::type;
+  using group_base<dimensions>::logical_group;
+
+public:
+  group(T g, sycl::nd_item<dimensions> item) : group_base<dimensions>(item) {
+    if constexpr (std::is_same_v<T, sycl::sub_group>) {
+      type = group_type::sub_group;
+    } else if constexpr (std::is_same_v<T, sycl::group<dimensions>>) {
+      type = group_type::work_group;
+    } else if constexpr (std::is_same_v<
+                             T, experimental::logical_group<dimensions>>) {
+      logical_group = g;
+      type = group_type::logical_group;
+    }
+  }
+};
 } // namespace experimental
+
+/// If x <= 2, then return a pointer to the deafult queue;
+/// otherwise, return x reinterpreted as a sycl::queue *.
+inline sycl::queue *int_as_queue_ptr(uintptr_t x) {
+  return x <= 2 ? &get_default_queue() : reinterpret_cast<sycl::queue *>(x);
+}
+
+template <int n_nondefault_params, int n_default_params, typename T>
+class args_selector;
+
+/// args_selector is a helper class for extracting arguments from an
+/// array of pointers to arguments or buffer of arguments to pass to a
+/// kernel function.
+///
+/// \param R(Ts...) The type of the kernel
+/// \param n_nondefault_params The number of nondefault parameters of the kernel
+/// (excluding parameters that like sycl::nd_item, etc.)
+/// \param n_default_params The number of default parameters of the kernel
+///
+/// Example usage:
+/// With the following kernel:
+///   void foo(sycl::float2 *x, int n, sycl::nd_item<3> item_ct1, float f=.1) {}
+/// and with the declaration:
+///   args_selector<2, 1, decltype(foo)> selector(kernelParams, extra);
+///   void* kernelParams[2 + 1] = { (void*)float2_var, int_var, float_var }
+/// we have:
+///   selector.get<0>() returns a reference to sycl::float*,
+///   selector.get<1>() returns a reference to int,
+///   selector.get<2>() returns a reference to float
+template <int n_nondefault_params, int n_default_params, typename R,
+          typename... Ts>
+class args_selector<n_nondefault_params, n_default_params, R(Ts...)> {
+private:
+  void **kernel_params;
+  char *args_buffer;
+
+  template <int i> static constexpr int account_for_default_params() {
+    constexpr int n_total_params = sizeof...(Ts);
+    if constexpr (i >= n_nondefault_params) {
+      return n_total_params - n_default_params + (i - n_nondefault_params);
+    } else {
+      return i;
+    }
+  }
+
+public:
+  /// Get the type of the ith argument of R(Ts...)
+  /// \param [in] i Index of parameter to get
+  /// \returns Type of ith parameter
+  template <int i>
+  using arg_type =
+      std::tuple_element_t<account_for_default_params<i>(), std::tuple<Ts...>>;
+
+private:
+  template <int i> static constexpr int get_offset() {
+    if constexpr (i == 0) {
+      // we can assume args_buffer is properly aligned to the
+      // first argument
+      return 0;
+    } else {
+      constexpr int prev_off = get_offset<i - 1>();
+      constexpr int prev_past_end = prev_off + sizeof(arg_type<i - 1>);
+      using T = arg_type<i>;
+      // is the past-the-end of the i-1st element properly aligned
+      // with the ith element's alignment?
+      if constexpr (prev_past_end % alignof(T) == 0) {
+        return prev_past_end;
+      }
+      // otherwise bump prev_past_end to match alignment
+      else {
+        return prev_past_end + (alignof(T) - (prev_past_end % alignof(T)));
+      }
+    }
+  }
+
+  static char *get_args_buffer(void **extra) {
+    if (!extra)
+      return nullptr;
+    for (; (std::size_t)*extra != 0; ++extra) {
+      if ((std::size_t)*extra == 1) {
+        return static_cast<char *>(*(extra + 1));
+      }
+    }
+    return nullptr;
+  }
+
+public:
+  /// If kernel_params is nonnull, then args_selector will
+  /// extract arguments from kernel_params. Otherwise, it
+  /// will extract them from extra.
+  /// \param [in] kernel_params Array of pointers to arguments
+  /// a or null pointer.
+  /// \param [in] extra Array containing pointer to argument buffer.
+  args_selector(void **kernel_params, void **extra)
+      : kernel_params(kernel_params), args_buffer(get_args_buffer(extra)) {}
+
+  /// Get a reference to the ith argument extracted from kernel_params
+  /// or extra.
+  /// \param [in] i Index of argument to get
+  /// \returns Reference to the ith argument
+  template <int i> arg_type<i> &get() {
+    if (kernel_params) {
+      return *static_cast<arg_type<i> *>(kernel_params[i]);
+    } else {
+      return *reinterpret_cast<arg_type<i> *>(args_buffer + get_offset<i>());
+    }
+  }
+};
+
 } // namespace syclcompat
