@@ -219,7 +219,7 @@ struct sub_group {
 
   /* --- one-input shuffles --- */
   /* indices in [0 , sub_group size) */
-
+  __SYCL_DEPRECATED("Shuffles in the sub-group class are deprecated.")
   template <typename T> T shuffle(T x, id_type local_id) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::spirv::SubgroupShuffle(x, local_id);
@@ -231,6 +231,7 @@ struct sub_group {
 #endif
   }
 
+  __SYCL_DEPRECATED("Shuffles in the sub-group class are deprecated.")
   template <typename T> T shuffle_down(T x, uint32_t delta) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::spirv::SubgroupShuffleDown(x, delta);
@@ -242,6 +243,7 @@ struct sub_group {
 #endif
   }
 
+  __SYCL_DEPRECATED("Shuffles in the sub-group class are deprecated.")
   template <typename T> T shuffle_up(T x, uint32_t delta) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::spirv::SubgroupShuffleUp(x, delta);
@@ -253,6 +255,7 @@ struct sub_group {
 #endif
   }
 
+  __SYCL_DEPRECATED("Shuffles in the sub-group class are deprecated.")
   template <typename T> T shuffle_xor(T x, id_type value) const {
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::spirv::SubgroupShuffleXor(x, value);
@@ -358,7 +361,7 @@ struct sub_group {
     }
     return res;
   }
-#else // __NVPTX__ || __AMDGCN__
+#else  // __NVPTX__ || __AMDGCN__
   template <int N, typename CVT, access::address_space Space,
             access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
   std::enable_if_t<
@@ -608,6 +611,7 @@ struct sub_group {
   }
 
   /* --- synchronization functions --- */
+  __SYCL_DEPRECATED("Sub-group barrier with no arguments is deprecated.")
   void barrier() const {
 #ifdef __SYCL_DEVICE_ONLY__
     __spirv_ControlBarrier(
@@ -636,6 +640,7 @@ struct sub_group {
 #endif
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES__
   /* --- deprecated collective functions --- */
   template <typename T>
   __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
@@ -752,6 +757,7 @@ struct sub_group {
                           "Sub-groups are not supported on host.");
 #endif
   }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES__
 
   linear_id_type get_group_linear_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
