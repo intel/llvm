@@ -345,6 +345,7 @@ Requested alignment applied, limited at 64.")
 /// \ingroup sycl_api
 template <typename Type, int NumElements> class vec {
   using DataT = Type;
+
   // This represent type of underlying value. There should be only one field
   // in the class, so vec<float, 16> should be equal to float16 in memory.
   using DataType = typename detail::VecStorage<DataT, NumElements>::DataType;
