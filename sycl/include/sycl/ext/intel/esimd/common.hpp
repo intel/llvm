@@ -551,10 +551,25 @@ constexpr bool are_both(cache_hint First, cache_hint Second, cache_hint Val) {
 
 enum class cache_action { prefetch, load, store, atomic };
 
-template <cache_action Action, cache_hint L1Hint, cache_hint L2Hint>
-void check_cache_hint() {
-  constexpr auto L1H = cache_hint_wrap<L1Hint>{};
-  constexpr auto L2H = cache_hint_wrap<L2Hint>{};
+template <typename PropertyListT> constexpr bool has_cache_hints() {
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  return L1H != cache_hint::none || L2H != cache_hint::none;
+}
+
+// Currently, this is just a wrapper around 'check_cache_hint' function.
+// It accepts the compile-time properties that may include cache-hints
+// to be verified.
+template <cache_action Action, typename PropertyListT>
+void check_cache_hints() {
+  constexpr auto L1H =
+      cache_hint_wrap<getPropertyValue<PropertyListT, cache_hint_L1_key>(
+          cache_hint::none)>{};
+  constexpr auto L2H =
+      cache_hint_wrap<getPropertyValue<PropertyListT, cache_hint_L2_key>(
+          cache_hint::none)>{};
   if constexpr (Action == cache_action::prefetch) {
     static_assert(
         L1H.template is_one_of<cache_hint::cached, cache_hint::uncached,
@@ -588,26 +603,6 @@ void check_cache_hint() {
                                               cache_hint::write_back>()),
                   "unsupported cache hint");
   }
-}
-
-template <typename PropertyListT> constexpr bool has_cache_hints() {
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
-  return L1H != cache_hint::none || L2H != cache_hint::none;
-}
-
-// Currently, this is just a wrapper around 'check_cache_hint' function.
-// It accepts the compile-time properties that may include cache-hints
-// to be verified.
-template <cache_action Action, typename PropertyListT>
-void check_cache_hints() {
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
-  check_cache_hint<Action, L1H, L2H>();
 }
 
 constexpr lsc_data_size expand_data_size(lsc_data_size DS) {

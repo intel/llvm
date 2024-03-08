@@ -297,6 +297,13 @@ jobs:
       if: inputs.tests_selector == 'cts'
       env:
         ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
+      # By-default GitHub actions execute the "run" shell script with -e option,
+      # so the execution terminates if any command returns a non-zero status.
+      # Since we're using a loop to run all test-binaries separately, some test
+      # may fail and terminate the execution. Setting "shell" value to override
+      # the default behavior.
+      # https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#custom-shell
+      shell: bash {0}
       # FIXME: For some reason the "sub_group api" test-case is failing with
       # SIGSEGV while running test_all, so running each binary separately.
       # BTW test_all requires a lot of resources to build it, so probably it'll
@@ -304,10 +311,25 @@ jobs:
       # run: |
       #   ./build-cts/bin/test_all $CTS_TEST_ARGS
       run: |
+        status=""
+        failed_suites=""
         for i in `ls -1 ./build-cts/bin`; do
           if [ "$i" != "test_all" ]; then
             echo "::group::Running $i"
             build-cts/bin/$i
+            if [ $? -ne 0 ]; then
+              status=1
+              if [$failed_suites == ""]; then
+                failed_suites=$i
+              else
+                failed_suites="$failed_suites, $i"
+              fi
+            fi
             echo "::endgroup::"
           fi
         done
+        if [ -n "$status" ]; then
+          echo "Failed suite(s): $failed_suites"
+          exit 1
+        fi
+        exit 0

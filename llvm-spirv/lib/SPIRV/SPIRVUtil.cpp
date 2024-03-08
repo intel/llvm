@@ -94,6 +94,24 @@ void removeFnAttr(CallInst *Call, Attribute::AttrKind Attr) {
   Call->removeFnAttr(Attr);
 }
 
+Value *extendVector(Value *V, FixedVectorType *NewType,
+                    IRBuilderBase &Builder) {
+  unsigned OldSize = cast<FixedVectorType>(V->getType())->getNumElements();
+  unsigned NewSize = NewType->getNumElements();
+  assert(OldSize < NewSize);
+  std::vector<Constant *> Components;
+  IntegerType *Int32Ty = Builder.getInt32Ty();
+  for (unsigned I = 0; I < NewSize; I++) {
+    if (I < OldSize)
+      Components.push_back(ConstantInt::get(Int32Ty, I));
+    else
+      Components.push_back(PoisonValue::get(Int32Ty));
+  }
+
+  return Builder.CreateShuffleVector(V, PoisonValue::get(V->getType()),
+                                     ConstantVector::get(Components), "vecext");
+}
+
 void saveLLVMModule(Module *M, const std::string &OutputFile) {
   std::error_code EC;
   ToolOutputFile Out(OutputFile.c_str(), EC, sys::fs::OF_None);
