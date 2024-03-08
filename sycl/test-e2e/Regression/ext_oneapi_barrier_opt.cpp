@@ -2,7 +2,7 @@
 // RUN: %{run} %t.out
 
 // Check that ext_oneapi_submit_barrier works fine in the scenarios
-// when provided wailist consists of only empty events.
+// when provided waitlist consists of only empty events.
 
 #include <iostream>
 #include <mutex>
