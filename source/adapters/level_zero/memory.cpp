@@ -242,10 +242,10 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
                (ZeCommandList, Ptr, Pattern, PatternSize, Size, ZeEvent,
                 WaitList.Length, WaitList.ZeEventList));
 
-  logger::debug("calling zeCommandListAppendMemoryFill() with"
-                "  ZeEvent {}",
-                ur_cast<uint64_t>(ZeEvent));
-  printZeEventList(WaitList);
+    logger::debug("calling zeCommandListAppendMemoryFill() with"
+                  "  ZeEvent {}",
+                  ur_cast<uint64_t>(ZeEvent));
+    printZeEventList(WaitList);
 
     // Execute command list asynchronously, as the event will be used
     // to track down its completion.
