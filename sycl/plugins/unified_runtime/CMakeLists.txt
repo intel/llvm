@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 78e09f717f56ea8d6e5eb3aa1a22107cf58a8d41
-  # Merge: e0393a45 8a5d6d39
+  # commit 93902794c09f1c8cb5163089f0eacfe55c1f1b86
+  # Merge: cc268e58 5518b489
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Feb 29 12:49:08 2024 +0000
-  #     Merge pull request #1392 from pbalcer/event-cache-different-fix
-  #     [L0] Event cache different fix
-  set(UNIFIED_RUNTIME_TAG 78e09f717f56ea8d6e5eb3aa1a22107cf58a8d41)
+  # Date:   Fri Mar 8 09:48:44 2024 +0000
+  #     Merge pull request #1419 from nrspruit/main_l0_adapter_release_lib
+  #     [L0] Create/Destroy Adapter Handle during lib init
+  set(UNIFIED_RUNTIME_TAG 93902794c09f1c8cb5163089f0eacfe55c1f1b86)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

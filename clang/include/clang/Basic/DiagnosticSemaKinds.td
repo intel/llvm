@@ -177,6 +177,28 @@ def err_intel_sycl_ptr_annotation_mismatch
             "a pointer"
             "|a string literal or constexpr const char*}0">;
 
+def err_intel_sycl_alloca_no_alias
+    : Error<"__builtin_intel_sycl_alloca cannot be used in source code. "
+            "Use the private_alloca alias instead">;
+def err_intel_sycl_alloca_wrong_arg_count
+    : Error<"__builtin_intel_sycl_alloca expects to be passed a single "
+            "argument. Got %0">;
+def err_intel_sycl_alloca_wrong_template_arg_count
+    : Error<"__builtin_intel_sycl_alloca expects to be passed three template "
+            "arguments. Got %0">;
+def err_intel_sycl_alloca_wrong_arg
+    : Error<"__builtin_intel_sycl_alloca expects to be passed an argument of type "
+            "'sycl::kernel_handler &'. Got %0">;
+def err_intel_sycl_alloca_wrong_type
+    : Error<"__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' "
+            "to a cv-unqualified object type. Got %0">;
+def err_intel_sycl_alloca_wrong_size
+    : Error<"__builtin_intel_sycl_alloca must be passed a specialization "
+            "constant of integral value type as a template argument. Got %1 (%0)">;
+def err_intel_sycl_alloca_no_size
+    : Error<"__builtin_intel_sycl_alloca must be passed a specialization "
+            "constant of integral value type as a template argument. Got %0">;
+
 // C99 variable-length arrays
 def ext_vla : Extension<"variable length arrays are a C99 feature">,
   InGroup<VLAExtension>;
@@ -4470,7 +4492,7 @@ def err_attribute_preferred_name_arg_invalid : Error<
   "argument %0 to 'preferred_name' attribute is not a typedef for "
   "a specialization of %1">;
 def err_attribute_builtin_alias : Error<
-  "%0 attribute can only be applied to a ARM, HLSL or RISC-V builtin">;
+  "%0 attribute can only be applied to a ARM, HLSL, SYCL or RISC-V builtin">;
 
 // called-once attribute diagnostics.
 def err_called_once_attribute_wrong_type : Error<
