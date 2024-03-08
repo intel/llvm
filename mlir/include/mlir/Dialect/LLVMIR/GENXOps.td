@@ -316,6 +316,36 @@ def GENX_MatrixDPASOp : GENX_Op<"matrix.dpas">,
   let hasVerifier = 1;
 }
 
+//def GENX_Matrix2DBlockPrefetchOp : GENX_Op<"matrix.2Dblockprefetch">,
+//  Arguments<(ins
+//    Arg<LLVM_AnyPointer, "", [MemRead]>:$ptr,
+//    I32:$base_width,
+//    I32:$base_height,
+//    I32:$base_pitch,
+//    I32:$x,
+//    I32:$y,
+//    I32Attr:$elem_size_in_bits,
+//    I32Attr:$tile_width,
+//    I32Attr:$tile_height,
+//    I32Attr:$v_blocks,
+//    I1Attr:$transpose,
+//    I1Attr:$vnni_transform
+//  )> {
+//
+//  let summary = "GENX 2D block prefetch";
+//
+//  string baseDescription = [{
+//  }];
+//
+//  string llvmBuilder = [{
+//    $res = createGenISA2DBlockPrefetch(op, builder, moduleTranslation);
+//  }];
+//
+//  let assemblyFormat = [{
+//    operands attr-dict `:` `(` type(operands) `)`
+//  }];
+//}
+
 def GENX_Matrix2DBlockLoadOp : GENX_Op<"matrix.2Dblockload">,
   Results<(outs FixedVectorOf<[GENX_MatrixElemType]>:$res)>,
   Arguments<(ins

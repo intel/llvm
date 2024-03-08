@@ -187,6 +187,37 @@ createGenISADPAS(GENX::MatrixDPASOp op, llvm::IRBuilderBase &builder,
   return builder.CreateCall(fn, args);
 }
 
+// static llvm::CallInst *
+// createGenISA2DBlockPrefetch(GENX::Matrix2DBlockLoadOp op,
+//                             llvm::IRBuilderBase &builder,
+//                             LLVM::ModuleTranslation &moduleTranslation) {
+//   llvm::Module *module = builder.GetInsertBlock()->getModule();
+//   llvm::Function *fn = llvm::GenISAIntrinsic::getDeclaration(
+//       module, llvm::GenISAIntrinsic::GenISA_LSC2DBlockPrefetch, {});
+//   assert(fn && "GenISAIntrinsic::getDeclaration() returns NULL");
+//
+//   SmallVector<llvm::Value *> args(
+//       moduleTranslation.lookupValues(op.getOperands()));
+//
+//   // The IGC intrinsic requires the first argument be int64
+//   assert(isa<llvm::PointerType>(args[0]->getType()) &&
+//          "Expecting a pointer type");
+//   args[0] = builder.CreatePointerCast(args[0], builder.getInt64Ty());
+//
+//   auto *int32Ty = builder.getInt32Ty();
+//   auto *int1Ty = builder.getInt1Ty();
+//   args.push_back(llvm::ConstantInt::get(int32Ty, op.getElemSizeInBits()));
+//   args.push_back(llvm::ConstantInt::get(int32Ty, op.getTileWidth()));
+//   args.push_back(llvm::ConstantInt::get(int32Ty, op.getTileHeight()));
+//   args.push_back(llvm::ConstantInt::get(int32Ty, op.getVBlocks()));
+//   args.push_back(llvm::ConstantInt::get(int1Ty, op.getTranspose()));
+//   args.push_back(llvm::ConstantInt::get(int1Ty, op.getVnniTransform()));
+//   // FIXME: Add argument to control cache.
+//   args.push_back(llvm::ConstantInt::get(int32Ty, 0));
+//
+//   return builder.CreateCall(fn, args);
+// }
+
 static llvm::CallInst *
 createGenISA2DBlockRead(GENX::Matrix2DBlockLoadOp op,
                         llvm::IRBuilderBase &builder,
