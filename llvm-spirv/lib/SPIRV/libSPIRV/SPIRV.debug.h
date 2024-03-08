@@ -760,7 +760,7 @@ namespace Operation {
 enum {
   OpCodeIdx = 0
 };
-static std::map<ExpressionOpCode, unsigned> OpCountMap {
+static std::unordered_map<ExpressionOpCode, unsigned> OpCountMap {
   { Deref,              1 },
   { Plus,               1 },
   { Minus,              1 },
