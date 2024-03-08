@@ -31,13 +31,13 @@ option(NATIVECPU_OCK_USE_FETCHCONTENT "Use FetchContent to acquire oneAPI Constr
 if(NATIVECPU_USE_OCK)
   if(NATIVECPU_OCK_USE_FETCHCONTENT)
     set(OCK_GIT_INTERNAL_REPO "https://github.com/codeplaysoftware/oneapi-construction-kit.git")
-    # commit 9a53d126cba574fadab3bef513b1c6d9c1ebc0fd
-    # Merge: f211f428 b0678100
-    # Author: PietroGhg <pietro.ghiglio@codeplay.com>
-    # Date:   Wed Mar 6 13:13:47 2024 +0100
-    # Merge pull request #389 from PietroGhg/pietro/skip_spirv_fetchcontent
-    # Skip FetchContent for SPIRV-Headers if building llvm-spirv
-    set(OCK_GIT_INTERNAL_TAG 9a53d126cba574fadab3bef513b1c6d9c1ebc0fd)
+    # commit 342f06e2bba2ad5c3bb3773505fce1d0e3f872d9
+    # Merge: 51c1b31c d74b3e1a
+    # Author: Harald van Dijk <harald.vandijk@codeplay.com>
+    # Date:   Thu Mar 7 14:19:58 2024 +0000
+    # Merge pull request #397 from hvdijk/ignore-gl_test
+    # Ignore test_gl test.
+    set(OCK_GIT_INTERNAL_TAG  342f06e2bba2ad5c3bb3773505fce1d0e3f872d9)
 
     # Overwrite OCK_GIT_INTERNAL_REPO/OCK_GIT_INTERNAL_TAG if the corresponding options are set
     if(OCK_GIT_REPO)
