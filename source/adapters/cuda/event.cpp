@@ -17,7 +17,6 @@
 
 #include <cassert>
 #include <cuda.h>
-#include <memory>
 
 ur_event_handle_t_::ur_event_handle_t_(ur_command_t Type,
                                        ur_context_handle_t Context,
@@ -292,17 +291,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
 
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
-  try {
-    EventPtr =
-        std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeWithNative(
-            hContext, reinterpret_cast<CUevent>(hNativeEvent)));
-  } catch (const std::bad_alloc &) {
-    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-  } catch (...) {
-    return UR_RESULT_ERROR_UNKNOWN;
-  }
-
-  *phEvent = EventPtr.release();
+  *phEvent = ur_event_handle_t_::makeWithNative(
+      hContext, reinterpret_cast<CUevent>(hNativeEvent));
 
   return UR_RESULT_SUCCESS;
 }
