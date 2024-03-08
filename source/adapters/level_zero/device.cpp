@@ -1442,7 +1442,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
   // a valid Level Zero device.
 
   ur_device_handle_t Dev = nullptr;
-  if (const auto *platforms = Adapter.PlatformCache->get_value()) {
+  if (const auto *platforms = GlobalAdapter->PlatformCache->get_value()) {
     for (const auto &p : *platforms) {
       Dev = p->getDeviceFromNativeHandle(ZeDevice);
       if (Dev) {
@@ -1453,7 +1453,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
       }
     }
   } else {
-    return Adapter.PlatformCache->get_error();
+    return GlobalAdapter->PlatformCache->get_error();
   }
 
   if (Dev == nullptr)
