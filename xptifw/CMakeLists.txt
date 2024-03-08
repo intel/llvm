@@ -6,6 +6,7 @@ project (xptifw VERSION "${XPTI_VERSION}" LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 
 set(XPTIFW_DIR ${CMAKE_CURRENT_LIST_DIR})
+set(SAMPLES_DIR ${CMAKE_CURRENT_LIST_DIR}/samples)
 
 # The XPTI framework requires the includes from
 # the proxy implementation of XPTI
