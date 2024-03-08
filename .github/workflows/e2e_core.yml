@@ -41,6 +41,7 @@ permissions:
 
 jobs:
   e2e-build-hw:
+    if: github.repository == 'oneapi-src/unified-runtime'  # run only on upstream; forks will not have the HW
     name: Build SYCL, UR, run E2E
     strategy:
       matrix:

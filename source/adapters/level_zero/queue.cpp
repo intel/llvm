@@ -569,7 +569,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   // Maybe this is not completely correct.
   uint32_t NumEntries = 1;
   ur_platform_handle_t Platform{};
-  ur_adapter_handle_t AdapterHandle = &Adapter;
+  ur_adapter_handle_t AdapterHandle = GlobalAdapter;
   UR_CALL(urPlatformGet(&AdapterHandle, 1, NumEntries, &Platform, nullptr));
 
   ur_device_handle_t UrDevice = Device;

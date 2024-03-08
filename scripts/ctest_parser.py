@@ -33,8 +33,8 @@ def summarize_results(results):
     total_failed = len(results['Failed'])
     total_crashed = total - (total_passed + total_skipped + total_failed)
 
-    pass_rate_incl_skipped = percent(total_passed, total)
-    pass_rate_excl_skipped = percent(total_passed, total - total_skipped)
+    pass_rate_incl_skipped = percent(total_passed + total_skipped, total)
+    pass_rate_excl_skipped = percent(total_passed, total)
 
     skipped_rate = percent(total_skipped, total)
     failed_rate = percent(total_failed, total)
