@@ -19,7 +19,6 @@
 
 static uint8_t GStreamID = 0;
 std::mutex GIOMutex;
-xpti::ThreadID GThreadIDEnum;
 
 // The lone callback function we are going to use to demonstrate how to attach
 // the collector to the running executable
@@ -111,9 +110,10 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
                                   xpti::trace_event_data_t *Event,
                                   uint64_t Instance, const void *UserData) {
   auto Payload = xptiQueryPayload(Event);
-  xpti::timer::tick_t Time = xpti::timer::rdtsc();
-  auto TID = xpti::timer::getThreadID();
-  uint32_t CPU = GThreadIDEnum.enumID(TID);
+  xpti::utils::timer::measurement_t M;
+  uint64_t Time = M.clock();
+  auto TID = M.thread();
+  uint32_t CPU = M.cpu();
   std::string Name;
 
   if (Payload->name_sid() != xpti::invalid_id) {
