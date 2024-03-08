@@ -116,9 +116,9 @@
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx1201 -DMAC_STR=GFX1201
 // MACRO_AMD: clang{{.*}} "-triple" "amdgcn-amd-amdhsa"
 // MACRO_AMD: "-D__SYCL_TARGET_AMD_GPU_[[MAC_STR]]__"
-// DEVICE_AMD: clang-offload-wrapper{{.*}} "-compile-opts=--offload-arch=[[DEV_STR]]{{.*}}"
 // MACRO_AMD: clang{{.*}} "-fsycl-is-host"
 // MACRO_AMD: "-D__SYCL_TARGET_AMD_GPU_[[MAC_STR]]__"
+// DEVICE_AMD: clang-offload-wrapper{{.*}} "-compile-opts=--offload-arch=[[DEV_STR]]{{.*}}"
 
 /// test for invalid amd arch
 // RUN: not %clangxx -c -fsycl -fsycl-targets=amd_gpu_bad -### %s 2>&1 | \
@@ -161,16 +161,16 @@
 // AMD_CHECK_PHASES: 7: compiler, {6}, ir, (host-sycl)
 // AMD_CHECK_PHASES: 8: backend, {7}, assembler, (host-sycl)
 // AMD_CHECK_PHASES: 9: assembler, {8}, object, (host-sycl)
-// AMD_CHECK_PHASES: 10: linker, {9}, image, (host-sycl)
-// AMD_CHECK_PHASES: 11: linker, {5}, ir, (device-sycl, gfx700)
-// AMD_CHECK_PHASES: 12: sycl-post-link, {11}, ir, (device-sycl, gfx700)
-// AMD_CHECK_PHASES: 13: file-table-tform, {12}, ir, (device-sycl, gfx700)
-// AMD_CHECK_PHASES: 14: backend, {13}, assembler, (device-sycl, gfx700)
-// AMD_CHECK_PHASES: 15: assembler, {14}, object, (device-sycl, gfx700)
-// AMD_CHECK_PHASES: 16: linker, {15}, image, (device-sycl, gfx700)
-// AMD_CHECK_PHASES: 17: linker, {16}, hip-fatbin, (device-sycl, gfx700)
-// AMD_CHECK_PHASES: 18: foreach, {13, 17}, hip-fatbin, (device-sycl, gfx700)
-// AMD_CHECK_PHASES: 19: file-table-tform, {12, 18}, tempfiletable, (device-sycl, gfx700)
-// AMD_CHECK_PHASES: 20: clang-offload-wrapper, {19}, object, (device-sycl, gfx700)
-// AMD_CHECK_PHASES: 21: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (amdgcn-amd-amdhsa:gfx700)" {20}, image
+// AMD_CHECK_PHASES: 10: linker, {5}, ir, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 11: sycl-post-link, {10}, ir, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 12: file-table-tform, {11}, ir, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 13: backend, {12}, assembler, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 14: assembler, {13}, object, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 15: linker, {14}, image, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 16: linker, {15}, hip-fatbin, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 17: foreach, {12, 16}, hip-fatbin, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 18: file-table-tform, {11, 17}, tempfiletable, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 19: clang-offload-wrapper, {18}, object, (device-sycl, gfx700)
+// AMD_CHECK_PHASES: 20: offload, "device-sycl (amdgcn-amd-amdhsa:gfx700)" {19}, object
+// AMD_CHECK_PHASES: 21: linker, {9, 20}, image, (host-sycl)
 

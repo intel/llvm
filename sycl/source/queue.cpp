@@ -258,7 +258,12 @@ event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
                                        const detail::code_location &CodeLoc) {
-  if (is_in_order() && WaitList.empty())
+  bool AllEventsEmptyOrNop = std::all_of(
+      begin(WaitList), end(WaitList), [&](const event &Event) -> bool {
+        return !detail::getSyclObjImpl(Event)->isContextInitialized() ||
+               detail::getSyclObjImpl(Event)->isNOP();
+      });
+  if (is_in_order() && AllEventsEmptyOrNop)
     return getBarrierEventForInorderQueueHelper(impl);
 
   return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
