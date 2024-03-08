@@ -76,21 +76,18 @@ static const __SYCL_CONSTANT__ char __asan_current_shadow_value[] = ">%02X";
 static const __SYCL_CONSTANT__ char __newline[] = "\n";
 
 static const __SYCL_CONSTANT__ char __global_shadow_out_of_bound[] =
-    "ERROR: Global shadow memory out-of-bound (ptr: %p -> %p, base: %p)\n";
+    "[kernel] Global shadow memory out-of-bound (ptr: %p -> %p, base: %p)\n";
 static const __SYCL_CONSTANT__ char __local_shadow_out_of_bound[] =
-    "ERROR: Local shadow memory out-of-bound (ptr: %p -> %p, wg: %d, base: "
+    "[kernel] Local shadow memory out-of-bound (ptr: %p -> %p, wg: %d, base: "
     "%p)\n";
 
-static const __SYCL_CONSTANT__ char __unsupport_device_type[] =
-    "ERROR: Unsupport device type: %d\n";
+static const __SYCL_CONSTANT__ char __asan_print_unsupport_device_type[] =
+    "[kernel] Unsupport device type: %d\n";
 
 static const __SYCL_CONSTANT__ char __asan_print_shadow_value1[] =
-    "%p(%d) -> %p: %02X\n";
+    "[kernel] %p(%d) -> %p: %02X\n";
 static const __SYCL_CONSTANT__ char __asan_print_shadow_value2[] =
-    "%p(%d) -> %p: --\n";
-
-static const __SYCL_CONSTANT__ char __asan_print_generic[] =
-    "%p(%d) -> %p(%d)\n";
+    "[kernel] %p(%d) -> %p: --\n";
 
 #define ASAN_REPORT_NONE 0
 #define ASAN_REPORT_START 1
@@ -104,8 +101,8 @@ static const __SYCL_CONSTANT__ char __asan_print_generic[] =
 
 namespace {
 
-void __asan_report_unknown_device();
-void __asan_report_out_of_shadow_bounds();
+bool __asan_report_unknown_device();
+bool __asan_report_out_of_shadow_bounds();
 
 __SYCL_GLOBAL__ void *ToGlobal(void *ptr) {
   return __spirv_GenericCastToPtrExplicit_ToGlobal(ptr, 5);
@@ -132,8 +129,7 @@ inline uptr MemToShadow_DG2(uptr addr, int32_t as) {
   }
 
   if (shadow_ptr > __AsanShadowMemoryGlobalEnd) {
-    __asan_report_out_of_shadow_bounds();
-    if (__AsanDebug) {
+    if (__asan_report_out_of_shadow_bounds() && __AsanDebug) {
       __spirv_ocl_printf(__global_shadow_out_of_bound, addr, shadow_ptr);
     }
   }
@@ -166,8 +162,7 @@ inline uptr MemToShadow_PVC(uptr addr, int32_t as) {
     }
 
     if (shadow_ptr > __AsanShadowMemoryGlobalEnd) {
-      __asan_report_out_of_shadow_bounds();
-      if (__AsanDebug) {
+      if (__asan_report_out_of_shadow_bounds() && __AsanDebug) {
         __spirv_ocl_printf(__global_shadow_out_of_bound, addr, shadow_ptr,
                            (uptr)__AsanShadowMemoryGlobalStart);
       }
@@ -187,8 +182,7 @@ inline uptr MemToShadow_PVC(uptr addr, int32_t as) {
                  ((addr & (SLM_SIZE - 1)) >> 3);
 
     if (shadow_ptr > __AsanShadowMemoryLocalEnd) {
-      __asan_report_out_of_shadow_bounds();
-      if (__AsanDebug) {
+      if (__asan_report_out_of_shadow_bounds() && __AsanDebug) {
         __spirv_ocl_printf(__local_shadow_out_of_bound, addr, shadow_ptr,
                            wg_lid, (uptr)__AsanShadowMemoryLocalStart);
       }
@@ -207,7 +201,9 @@ inline uptr MemToShadow(uptr addr, int32_t as) {
   } else if (__DeviceType == DeviceType::GPU_PVC) {
     shadow_ptr = MemToShadow_PVC(addr, as);
   } else {
-    __asan_report_unknown_device();
+    if (__asan_report_unknown_device() && __AsanDebug) {
+      __spirv_ocl_printf(__asan_print_unsupport_device_type, (int)__DeviceType);
+    }
     return shadow_ptr;
   }
 
@@ -254,8 +250,7 @@ bool MemIsZero(const char *beg, uptr size) {
 /// ASAN Save Report
 ///
 
-void __asan_internal_report_save(DeviceSanitizerErrorType error_type) {
-
+bool __asan_internal_report_save(DeviceSanitizerErrorType error_type) {
   const int Expected = ASAN_REPORT_NONE;
   int Desired = ASAN_REPORT_START;
   if (atomicCompareAndSet(&__DeviceSanitizerReportMem.get().Flag, Desired,
@@ -263,10 +258,12 @@ void __asan_internal_report_save(DeviceSanitizerErrorType error_type) {
     __DeviceSanitizerReportMem.get().ErrorType = error_type;
     // Show we've done copying
     atomicStore(&__DeviceSanitizerReportMem.get().Flag, ASAN_REPORT_FINISH);
+    return true;
   }
+  return false;
 }
 
-void __asan_internal_report_save(
+bool __asan_internal_report_save(
     uptr ptr, int32_t as, const char __SYCL_CONSTANT__ *file, int32_t line,
     const char __SYCL_CONSTANT__ *func, bool is_write, uint32_t access_size,
     DeviceSanitizerMemoryType memory_type, DeviceSanitizerErrorType error_type,
@@ -320,7 +317,9 @@ void __asan_internal_report_save(
 
     // Show we've done copying
     atomicStore(&__DeviceSanitizerReportMem.get().Flag, ASAN_REPORT_FINISH);
+    return true;
   }
+  return false;
 }
 
 ///
@@ -396,12 +395,13 @@ void __asan_report_access_error(uptr addr, int32_t as, size_t size,
                               memory_type, error_type, is_recover);
 }
 
-void __asan_report_unknown_device() {
-  __asan_internal_report_save(DeviceSanitizerErrorType::UNKNOWN_DEVICE);
+bool __asan_report_unknown_device() {
+  return __asan_internal_report_save(DeviceSanitizerErrorType::UNKNOWN_DEVICE);
 }
 
-void __asan_report_out_of_shadow_bounds() {
-  __asan_internal_report_save(DeviceSanitizerErrorType::OUT_OF_SHADOW_BOUNDS);
+bool __asan_report_out_of_shadow_bounds() {
+  return __asan_internal_report_save(
+      DeviceSanitizerErrorType::OUT_OF_SHADOW_BOUNDS);
 }
 
 ///
