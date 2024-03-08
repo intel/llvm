@@ -521,12 +521,16 @@ private:
   typedef std::vector<SPIRVAsmTargetINTEL *> SPIRVAsmTargetVector;
   typedef std::vector<SPIRVAsmINTEL *> SPIRVAsmVector;
   typedef std::vector<SPIRVEntryPoint *> SPIRVEntryPointVec;
-  typedef std::map<SPIRVId, SPIRVExtInstSetKind> SPIRVIdToInstructionSetMap;
-  std::map<SPIRVExtInstSetKind, SPIRVId> ExtInstSetIds;
-  typedef std::map<SPIRVId, SPIRVExtInstSetKind> SPIRVIdToBuiltinSetMap;
-  typedef std::map<SPIRVExecutionModelKind, SPIRVIdSet> SPIRVExecModelIdSetMap;
+  typedef std::unordered_map<SPIRVId, SPIRVExtInstSetKind>
+      SPIRVIdToInstructionSetMap;
+  std::unordered_map<SPIRVExtInstSetKind, SPIRVId> ExtInstSetIds;
+  typedef std::unordered_map<SPIRVId, SPIRVExtInstSetKind>
+      SPIRVIdToBuiltinSetMap;
+  typedef std::unordered_map<SPIRVExecutionModelKind, SPIRVIdSet>
+      SPIRVExecModelIdSetMap;
   typedef std::unordered_map<std::string, SPIRVString *> SPIRVStringMap;
-  typedef std::map<SPIRVTypeStruct *, std::vector<std::pair<unsigned, SPIRVId>>>
+  typedef std::unordered_map<SPIRVTypeStruct *,
+                             std::vector<std::pair<unsigned, SPIRVId>>>
       SPIRVUnknownStructFieldMap;
   typedef std::vector<SPIRVEntry *> SPIRVAliasInstMDVec;
   typedef std::unordered_map<llvm::MDNode *, SPIRVEntry *> SPIRVAliasInstMDMap;
@@ -560,7 +564,7 @@ private:
   SPIRVTypeVoid *VoidTy;
   SmallDenseMap<unsigned, SPIRVTypeInt *, 4> IntTypeMap;
   SmallDenseMap<unsigned, SPIRVTypeFloat *, 4> FloatTypeMap;
-  std::map<unsigned, SPIRVConstant *> LiteralMap;
+  std::unordered_map<unsigned, SPIRVConstant *> LiteralMap;
   std::vector<SPIRVExtInst *> DebugInstVec;
   std::vector<SPIRVExtInst *> AuxDataInstVec;
   std::vector<SPIRVModuleProcessed *> ModuleProcessedVec;
