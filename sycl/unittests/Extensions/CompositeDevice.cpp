@@ -104,7 +104,7 @@ TEST(CompositeDeviceTest, DescendentDeviceSupport) {
 
   auto CompositeDevice = RootDevice.get_info<
       sycl::ext::oneapi::experimental::info::device::composite_device>();
-  sycl::context Ctx2(CompositeDevice);
+  sycl::context CompositeDevContext(CompositeDevice);
   // To make sure that component devices an also be used within a context
   // created for a composite device, we expect them to be implicitly added to
   // the context under the hood.
@@ -124,4 +124,9 @@ TEST(CompositeDeviceTest, DescendentDeviceSupport) {
                             return D == reinterpret_cast<pi_device>(
                                             COMPONENT_DEVICE_B);
                           }));
+  // Even though under the hood we have created context for 3 devices,
+  // user-visible interface should only report the exact list of devices passed
+  // by user to the context constructor.
+  ASSERT_EQ(CompositeDevContext.get_devices().size(), 1);
+  ASSERT_EQ(CompositeDevContext.get_devices().front(), CompositeDevice);
 }

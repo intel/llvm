@@ -58,10 +58,8 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
           MDevices[I]
               .get_info<
                   ext::oneapi::experimental::info::device::component_devices>();
-      for (const auto &CD : ComponentDevices) {
+      for (const auto &CD : ComponentDevices)
         DeviceIds.push_back(getSyclObjImpl(CD)->getHandleRef());
-        MDevices.push_back(CD);
-      }
     }
 
     DeviceIds.push_back(getSyclObjImpl(MDevices[I])->getHandleRef());
