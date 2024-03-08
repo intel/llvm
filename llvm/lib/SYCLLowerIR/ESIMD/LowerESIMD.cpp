@@ -1753,42 +1753,49 @@ void lowerGlobalsToVector(Module &M) {
 } // namespace
 
 static void checkSLMInit(Module &M) {
-  SmallPtrSet<const Function *, 8u> Callers;
-  bool KernelHasSLMInit = false;
-  bool KernelHasLocalAccessor = false;
+  SmallPtrSet<const Function *, 8u> SLMInitKernels;
+  SmallPtrSet<const Function *, 8u> LocalAccessorKernels;
 
   for (auto &F : M) {
     if (!isSlmInit(F)) {
-      if (KernelHasLocalAccessor)
-        continue;
-
+      bool LocalAccessorUsed = false;
       if (F.getName().starts_with(SPIRV_LOCAL_ACCESSOR_PREF)) {
-        KernelHasLocalAccessor = true;
-        continue;
-      }
-      unsigned Idx = 0;
-      for (const Argument &Arg : F.args()) {
-        if (Arg.getType()->isPointerTy()) {
-          auto *KernelArgAccPtrs = F.getMetadata("kernel_arg_accessor_ptr");
+        LocalAccessorUsed = true;
+      } else {
+        unsigned Idx = 0;
+        for (const Argument &Arg : F.args()) {
+          if (Arg.getType()->isPointerTy()) {
+            auto *KernelArgAccPtrs = F.getMetadata("kernel_arg_accessor_ptr");
 
-          if (KernelArgAccPtrs) {
-            auto *AccMD =
-                cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx));
-            auto AccMDVal = cast<ConstantInt>(AccMD->getValue())->getValue();
-            bool IsAcc = static_cast<unsigned>(AccMDVal.getZExtValue());
+            if (KernelArgAccPtrs) {
+              auto *AccMD =
+                  cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx));
+              auto AccMDVal = cast<ConstantInt>(AccMD->getValue())->getValue();
+              bool IsAcc = static_cast<unsigned>(AccMDVal.getZExtValue());
 
-            constexpr unsigned LocalAS{3};
-            if (IsAcc && cast<PointerType>(Arg.getType())->getAddressSpace() ==
-                             LocalAS) {
-              KernelHasLocalAccessor = true;
-              break;
+              constexpr unsigned LocalAS{3};
+              if (IsAcc &&
+                  cast<PointerType>(Arg.getType())->getAddressSpace() ==
+                      LocalAS) {
+                LocalAccessorUsed = true;
+                break;
+              }
             }
           }
+          Idx++;
         }
-        Idx++;
+      }
+      if (LocalAccessorUsed) {
+        sycl::utils::traverseCallgraphUp(
+            &F,
+            [&](Function *GraphNode) {
+              if (llvm::esimd::isESIMDKernel(*GraphNode)) {
+                LocalAccessorKernels.insert(GraphNode);
+              }
+            },
+            false);
       }
     } else {
-      KernelHasSLMInit = true;
       for (User *U : F.users()) {
         auto *FCall = dyn_cast<CallInst>(U);
         if (FCall && FCall->getCalledFunction() == &F) {
@@ -1798,7 +1805,7 @@ static void checkSLMInit(Module &M) {
               GenF,
               [&](Function *GraphNode) {
                 if (llvm::esimd::isESIMDKernel(*GraphNode)) {
-                  if (Callers.contains(GraphNode)) {
+                  if (SLMInitKernels.contains(GraphNode)) {
                     StringRef KernelName = GraphNode->getName();
                     std::string ErrorMsg =
                         std::string("slm_init is called more than once "
@@ -1806,7 +1813,7 @@ static void checkSLMInit(Module &M) {
                         demangle(KernelName.str()) + "'.";
                     GraphNode->getContext().emitError(ErrorMsg);
                   } else {
-                    Callers.insert(GraphNode);
+                    SLMInitKernels.insert(GraphNode);
                   }
                 }
               },
@@ -1828,9 +1835,10 @@ static void checkSLMInit(Module &M) {
         }
       }
     }
-    if (KernelHasSLMInit && KernelHasLocalAccessor) {
-      F.getContext().emitError(
-          "slm_init can not be used with local accessors.");
+    for (const Function *Kernel : LocalAccessorKernels) {
+      if (SLMInitKernels.contains(Kernel))
+        F.getContext().emitError(
+            "slm_init can not be used with local accessors.");
     }
   }
 }

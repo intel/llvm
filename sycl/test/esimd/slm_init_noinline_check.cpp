@@ -1,7 +1,7 @@
 // RUN: not %clangxx -fsycl  %s 2>&1 | FileCheck  %s
 
-// This test verifies call to slm_init from a function not marked as
-// always_inline triggers an error.
+// This test verifies call to slm_init from a function marked as
+// noinline triggers an error.
 
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
