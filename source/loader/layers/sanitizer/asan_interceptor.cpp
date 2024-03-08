@@ -109,7 +109,7 @@ SanitizerInterceptor::SanitizerInterceptor() {
     }
     if (cl_MaxQuarantineSizeMB) {
         m_Quarantine =
-            std::make_unique<Quarantine>(cl_MaxQuarantineSizeMB * 1024);
+            std::make_unique<Quarantine>(cl_MaxQuarantineSizeMB * 1024 * 1024);
     }
 }
 
@@ -129,23 +129,38 @@ ur_result_t SanitizerInterceptor::allocateMemory(
     ur_context_handle_t Context, ur_device_handle_t Device,
     const ur_usm_desc_t *Properties, ur_usm_pool_handle_t Pool, size_t Size,
     void **ResultPtr, AllocType Type) {
-    auto Alignment = Properties->align;
-    assert(Alignment == 0 || IsPowerOfTwo(Alignment));
+
+    if (Size == 0) {
+        *ResultPtr = nullptr;
+        return UR_RESULT_SUCCESS;
+    }
 
     auto ContextInfo = getContextInfo(Context);
     std::shared_ptr<DeviceInfo> DeviceInfo =
         Device ? getDeviceInfo(Device) : nullptr;
 
-    if (Alignment == 0) {
-        Alignment =
-            DeviceInfo ? DeviceInfo->Alignment : ASAN_SHADOW_GRANULARITY;
+    /// Modified from llvm/compiler-rt/lib/asan/asan_allocator.cpp
+    uint32_t Alignment = Properties ? Properties->align : 0;
+    // Alignment must be zero or a power-of-two
+    if (0 != (Alignment & (Alignment - 1))) {
+        return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
-    // Copy from LLVM compiler-rt/lib/asan
+    const uint32_t MinAlignment = ASAN_SHADOW_GRANULARITY;
+    if (Alignment == 0) {
+        Alignment = DeviceInfo ? DeviceInfo->Alignment : MinAlignment;
+    }
+    if (Alignment < MinAlignment) {
+        Alignment = MinAlignment;
+    }
+
     uptr RZLog = ComputeRZLog(Size);
     uptr RZSize = RZLog2Size(RZLog);
     uptr RoundedSize = RoundUpTo(Size, Alignment);
     uptr NeededSize = RoundedSize + RZSize * 2;
+    if (Alignment > MinAlignment) {
+        NeededSize += Alignment;
+    }
 
     void *Allocated = nullptr;
 
@@ -163,7 +178,6 @@ ur_result_t SanitizerInterceptor::allocateMemory(
         return UR_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
-    // Copy from LLVM compiler-rt/lib/asan
     uptr AllocBegin = reinterpret_cast<uptr>(Allocated);
     [[maybe_unused]] uptr AllocEnd = AllocBegin + NeededSize;
     uptr UserBegin = AllocBegin + RZSize;
