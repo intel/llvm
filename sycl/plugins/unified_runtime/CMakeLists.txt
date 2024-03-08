@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 9b936b5748a8da86123f3f148d1cfa84e52531c4
-  # Merge: 91c6068b 767cfd1a
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Mon Feb 26 10:46:55 2024 +0100
-  #     Merge pull request #1354 from AllanZyne/sanitizer-device-global
-  #     [DeviceSanitizer] Support detecting out-of-bounds error on DeviceGlobals
-  set(UNIFIED_RUNTIME_TAG 9b936b5748a8da86123f3f148d1cfa84e52531c4)
+  # commit 78e09f717f56ea8d6e5eb3aa1a22107cf58a8d41
+  # Merge: e0393a45 8a5d6d39
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Thu Feb 29 12:49:08 2024 +0000
+  #     Merge pull request #1392 from pbalcer/event-cache-different-fix
+  #     [L0] Event cache different fix
+  set(UNIFIED_RUNTIME_TAG 78e09f717f56ea8d6e5eb3aa1a22107cf58a8d41)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
