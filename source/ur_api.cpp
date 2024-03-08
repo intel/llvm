@@ -3421,6 +3421,53 @@ ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the suggested local work-item number from runtime implementation.
+///
+/// @details
+///     - pLocalWorkSize can be omitted in urEnqueueKernelLaunch(), but beside
+///       from
+///     - OpenCL, LocalWorkSize will need to be calculated or guessed before
+///       enqueue
+///     - the kernel. This function will get the LocalWorkSize value used when
+///       enqueueing
+///     - the kernel.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalWorkOffset`
+///         + `NULL == pGlobalWorkSize`
+///         + `NULL == pSuggestedLocalWorkSize`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel.
+    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
+    uint32_t
+        workDim, ///< [in] number of dimensions, from 1 to 3, to specify the global
+                 ///< and work-group work-items
+    const size_t *
+        pGlobalWorkOffset, ///< [in] pointer to an array of workDim unsigned values that specify
+    ///< the offset used to calculate the global ID of a work-item"
+    const size_t *
+        pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify
+    ///< the number of global work-items in workDim that will execute the
+    ///< kernel function
+    size_t *
+        pSuggestedLocalWorkSize ///< [out] pointer to an array of workDim unsigned values that specify
+    ///< the number of local work-items forming a work-group that will
+    ///< execute the kernel function.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Query information about a command queue
 ///
 /// @remarks
@@ -3688,55 +3735,6 @@ ur_result_t UR_APICALL urQueueFinish(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urQueueFlush(
     ur_queue_handle_t hQueue ///< [in] handle of the queue to be flushed.
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Get the suggested local work-item number from runtime implementation.
-///
-/// @details
-///     - pLocalWorkSize can be omitted in urEnqueueKernelLaunch(), but beside
-///       from
-///     - OpenCL, LocalWorkSize will need to be calculated or guessed before
-///       enqueue
-///     - the kernel. This function will get the LocalWorkSize value used when
-///       enqueueing
-///     - the kernel.
-///     - TODO: find a better place for this function
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hQueue`
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pGlobalWorkOffset`
-///         + `NULL == pGlobalWorkSize`
-///         + `NULL == pSuggestedLocalWorkSize`
-///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-ur_result_t UR_APICALL urQueueGetSuggestedLocalWorkSize(
-    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
-    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel.
-    uint32_t
-        workDim, ///< [in] number of dimensions, from 1 to 3, to specify the global
-                 ///< and work-group work-items
-    const size_t *
-        pGlobalWorkOffset, ///< [in] pointer to an array of workDim unsigned values that specify
-    ///< the offset used to calculate the global ID of a work-item"
-    const size_t *
-        pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify
-    ///< the number of global work-items in workDim that will execute the
-    ///< kernel function
-    size_t *
-        pSuggestedLocalWorkSize ///< [out] pointer to an array of workDim unsigned values that specify
-    ///< the number of local work-items forming a work-group that will
-    ///< execute the kernel function.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;

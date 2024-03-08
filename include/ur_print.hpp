@@ -912,8 +912,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_DEVICE_GET_SELECTED:
         os << "UR_FUNCTION_DEVICE_GET_SELECTED";
         break;
-    case UR_FUNCTION_QUEUE_GET_SUGGESTED_LOCAL_WORK_SIZE:
-        os << "UR_FUNCTION_QUEUE_GET_SUGGESTED_LOCAL_WORK_SIZE";
+    case UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE:
+        os << "UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE";
         break;
     default:
         os << "unknown enumerator";
@@ -11177,6 +11177,49 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_kernel_get_suggested_local_work_size_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_kernel_get_suggested_local_work_size_params_t *params) {
+
+    os << ".hKernel = ";
+
+    ur::details::printPtr(os,
+                          *(params->phKernel));
+
+    os << ", ";
+    os << ".hQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->phQueue));
+
+    os << ", ";
+    os << ".workDim = ";
+
+    os << *(params->pworkDim);
+
+    os << ", ";
+    os << ".pGlobalWorkOffset = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppGlobalWorkOffset));
+
+    os << ", ";
+    os << ".pGlobalWorkSize = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppGlobalWorkSize));
+
+    os << ", ";
+    os << ".pSuggestedLocalWorkSize = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppSuggestedLocalWorkSize));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_kernel_set_arg_value_params_t type
 /// @returns
 ///     std::ostream &
@@ -11606,49 +11649,6 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     ur::details::printPtr(os,
                           *(params->phQueue));
-
-    return os;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Print operator for the ur_queue_get_suggested_local_work_size_params_t type
-/// @returns
-///     std::ostream &
-inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_queue_get_suggested_local_work_size_params_t *params) {
-
-    os << ".hQueue = ";
-
-    ur::details::printPtr(os,
-                          *(params->phQueue));
-
-    os << ", ";
-    os << ".hKernel = ";
-
-    ur::details::printPtr(os,
-                          *(params->phKernel));
-
-    os << ", ";
-    os << ".workDim = ";
-
-    os << *(params->pworkDim);
-
-    os << ", ";
-    os << ".pGlobalWorkOffset = ";
-
-    ur::details::printPtr(os,
-                          *(params->ppGlobalWorkOffset));
-
-    os << ", ";
-    os << ".pGlobalWorkSize = ";
-
-    ur::details::printPtr(os,
-                          *(params->ppGlobalWorkSize));
-
-    os << ", ";
-    os << ".pSuggestedLocalWorkSize = ";
-
-    ur::details::printPtr(os,
-                          *(params->ppSuggestedLocalWorkSize));
 
     return os;
 }
@@ -16791,6 +16791,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     case UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE: {
         os << (const struct ur_kernel_create_with_native_handle_params_t *)params;
     } break;
+    case UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE: {
+        os << (const struct ur_kernel_get_suggested_local_work_size_params_t *)params;
+    } break;
     case UR_FUNCTION_KERNEL_SET_ARG_VALUE: {
         os << (const struct ur_kernel_set_arg_value_params_t *)params;
     } break;
@@ -16838,9 +16841,6 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     } break;
     case UR_FUNCTION_QUEUE_FLUSH: {
         os << (const struct ur_queue_flush_params_t *)params;
-    } break;
-    case UR_FUNCTION_QUEUE_GET_SUGGESTED_LOCAL_WORK_SIZE: {
-        os << (const struct ur_queue_get_suggested_local_work_size_params_t *)params;
     } break;
     case UR_FUNCTION_SAMPLER_CREATE: {
         os << (const struct ur_sampler_create_params_t *)params;

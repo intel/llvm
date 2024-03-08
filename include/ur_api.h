@@ -221,7 +221,7 @@ typedef enum ur_function_t {
     UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP = 218,                             ///< Enumerator for ::urCommandBufferGetInfoExp
     UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP = 219,                     ///< Enumerator for ::urCommandBufferCommandGetInfoExp
     UR_FUNCTION_DEVICE_GET_SELECTED = 220,                                     ///< Enumerator for ::urDeviceGetSelected
-    UR_FUNCTION_QUEUE_GET_SUGGESTED_LOCAL_WORK_SIZE = 223,                     ///< Enumerator for ::urQueueGetSuggestedLocalWorkSize
+    UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE = 224,                    ///< Enumerator for ::urKernelGetSuggestedLocalWorkSize
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -5159,6 +5159,47 @@ urKernelCreateWithNativeHandle(
     ur_kernel_handle_t *phKernel                      ///< [out] pointer to the handle of the kernel object created.
 );
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the suggested local work-item number from runtime implementation.
+///
+/// @details
+///     - pLocalWorkSize can be omitted in urEnqueueKernelLaunch(), but beside
+///       from
+///     - OpenCL, LocalWorkSize will need to be calculated or guessed before
+///       enqueue
+///     - the kernel. This function will get the LocalWorkSize value used when
+///       enqueueing
+///     - the kernel.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///         + `NULL == hQueue`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalWorkOffset`
+///         + `NULL == pGlobalWorkSize`
+///         + `NULL == pSuggestedLocalWorkSize`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelGetSuggestedLocalWorkSize(
+    ur_kernel_handle_t hKernel,      ///< [in] handle of the kernel.
+    ur_queue_handle_t hQueue,        ///< [in] handle of the queue object
+    uint32_t workDim,                ///< [in] number of dimensions, from 1 to 3, to specify the global
+                                     ///< and work-group work-items
+    const size_t *pGlobalWorkOffset, ///< [in] pointer to an array of workDim unsigned values that specify
+                                     ///< the offset used to calculate the global ID of a work-item"
+    const size_t *pGlobalWorkSize,   ///< [in] pointer to an array of workDim unsigned values that specify
+                                     ///< the number of global work-items in workDim that will execute the
+                                     ///< kernel function
+    size_t *pSuggestedLocalWorkSize  ///< [out] pointer to an array of workDim unsigned values that specify
+                                     ///< the number of local work-items forming a work-group that will
+                                     ///< execute the kernel function.
+);
+
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
@@ -5513,49 +5554,6 @@ urQueueFinish(
 UR_APIEXPORT ur_result_t UR_APICALL
 urQueueFlush(
     ur_queue_handle_t hQueue ///< [in] handle of the queue to be flushed.
-);
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Get the suggested local work-item number from runtime implementation.
-///
-/// @details
-///     - pLocalWorkSize can be omitted in urEnqueueKernelLaunch(), but beside
-///       from
-///     - OpenCL, LocalWorkSize will need to be calculated or guessed before
-///       enqueue
-///     - the kernel. This function will get the LocalWorkSize value used when
-///       enqueueing
-///     - the kernel.
-///     - TODO: find a better place for this function
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hQueue`
-///         + `NULL == hKernel`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pGlobalWorkOffset`
-///         + `NULL == pGlobalWorkSize`
-///         + `NULL == pSuggestedLocalWorkSize`
-///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-UR_APIEXPORT ur_result_t UR_APICALL
-urQueueGetSuggestedLocalWorkSize(
-    ur_queue_handle_t hQueue,        ///< [in] handle of the queue object
-    ur_kernel_handle_t hKernel,      ///< [in] handle of the kernel.
-    uint32_t workDim,                ///< [in] number of dimensions, from 1 to 3, to specify the global
-                                     ///< and work-group work-items
-    const size_t *pGlobalWorkOffset, ///< [in] pointer to an array of workDim unsigned values that specify
-                                     ///< the offset used to calculate the global ID of a work-item"
-    const size_t *pGlobalWorkSize,   ///< [in] pointer to an array of workDim unsigned values that specify
-                                     ///< the number of global work-items in workDim that will execute the
-                                     ///< kernel function
-    size_t *pSuggestedLocalWorkSize  ///< [out] pointer to an array of workDim unsigned values that specify
-                                     ///< the number of local work-items forming a work-group that will
-                                     ///< execute the kernel function.
 );
 
 #if !defined(__GNUC__)
@@ -9647,6 +9645,19 @@ typedef struct ur_kernel_create_with_native_handle_params_t {
 } ur_kernel_create_with_native_handle_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urKernelGetSuggestedLocalWorkSize
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_kernel_get_suggested_local_work_size_params_t {
+    ur_kernel_handle_t *phKernel;
+    ur_queue_handle_t *phQueue;
+    uint32_t *pworkDim;
+    const size_t **ppGlobalWorkOffset;
+    const size_t **ppGlobalWorkSize;
+    size_t **ppSuggestedLocalWorkSize;
+} ur_kernel_get_suggested_local_work_size_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urKernelSetArgValue
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -9811,19 +9822,6 @@ typedef struct ur_queue_finish_params_t {
 typedef struct ur_queue_flush_params_t {
     ur_queue_handle_t *phQueue;
 } ur_queue_flush_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urQueueGetSuggestedLocalWorkSize
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_queue_get_suggested_local_work_size_params_t {
-    ur_queue_handle_t *phQueue;
-    ur_kernel_handle_t *phKernel;
-    uint32_t *pworkDim;
-    const size_t **ppGlobalWorkOffset;
-    const size_t **ppGlobalWorkSize;
-    size_t **ppSuggestedLocalWorkSize;
-} ur_queue_get_suggested_local_work_size_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urSamplerCreate

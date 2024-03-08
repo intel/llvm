@@ -1780,6 +1780,14 @@ ur_result_t urPrintKernelCreateWithNativeHandleParams(
     return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintKernelGetSuggestedLocalWorkSizeParams(
+    const struct ur_kernel_get_suggested_local_work_size_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << params;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintKernelSetArgValueParams(
     const struct ur_kernel_set_arg_value_params_t *params, char *buffer,
     const size_t buff_size, size_t *out_size) {
@@ -2270,14 +2278,6 @@ ur_result_t
 urPrintQueueFlushParams(const struct ur_queue_flush_params_t *params,
                         char *buffer, const size_t buff_size,
                         size_t *out_size) {
-    std::stringstream ss;
-    ss << params;
-    return str_copy(&ss, buffer, buff_size, out_size);
-}
-
-ur_result_t urPrintQueueGetSuggestedLocalWorkSizeParams(
-    const struct ur_queue_get_suggested_local_work_size_params_t *params,
-    char *buffer, const size_t buff_size, size_t *out_size) {
     std::stringstream ss;
     ss << params;
     return str_copy(&ss, buffer, buff_size, out_size);

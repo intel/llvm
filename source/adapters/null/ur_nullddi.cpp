@@ -2584,6 +2584,44 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelGetSuggestedLocalWorkSize
+__urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel.
+    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
+    uint32_t
+        workDim, ///< [in] number of dimensions, from 1 to 3, to specify the global
+                 ///< and work-group work-items
+    const size_t *
+        pGlobalWorkOffset, ///< [in] pointer to an array of workDim unsigned values that specify
+    ///< the offset used to calculate the global ID of a work-item"
+    const size_t *
+        pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify
+    ///< the number of global work-items in workDim that will execute the
+    ///< kernel function
+    size_t *
+        pSuggestedLocalWorkSize ///< [out] pointer to an array of workDim unsigned values that specify
+    ///< the number of local work-items forming a work-group that will
+    ///< execute the kernel function.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnGetSuggestedLocalWorkSize =
+        d_context.urDdiTable.Kernel.pfnGetSuggestedLocalWorkSize;
+    if (nullptr != pfnGetSuggestedLocalWorkSize) {
+        result = pfnGetSuggestedLocalWorkSize(
+            hKernel, hQueue, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+            pSuggestedLocalWorkSize);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urQueueGetInfo
 __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
@@ -2797,44 +2835,6 @@ __urdlllocal ur_result_t UR_APICALL urQueueFlush(
     auto pfnFlush = d_context.urDdiTable.Queue.pfnFlush;
     if (nullptr != pfnFlush) {
         result = pfnFlush(hQueue);
-    } else {
-        // generic implementation
-    }
-
-    return result;
-} catch (...) {
-    return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urQueueGetSuggestedLocalWorkSize
-__urdlllocal ur_result_t UR_APICALL urQueueGetSuggestedLocalWorkSize(
-    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
-    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel.
-    uint32_t
-        workDim, ///< [in] number of dimensions, from 1 to 3, to specify the global
-                 ///< and work-group work-items
-    const size_t *
-        pGlobalWorkOffset, ///< [in] pointer to an array of workDim unsigned values that specify
-    ///< the offset used to calculate the global ID of a work-item"
-    const size_t *
-        pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify
-    ///< the number of global work-items in workDim that will execute the
-    ///< kernel function
-    size_t *
-        pSuggestedLocalWorkSize ///< [out] pointer to an array of workDim unsigned values that specify
-    ///< the number of local work-items forming a work-group that will
-    ///< execute the kernel function.
-    ) try {
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetSuggestedLocalWorkSize =
-        d_context.urDdiTable.Queue.pfnGetSuggestedLocalWorkSize;
-    if (nullptr != pfnGetSuggestedLocalWorkSize) {
-        result = pfnGetSuggestedLocalWorkSize(
-            hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-            pSuggestedLocalWorkSize);
     } else {
         // generic implementation
     }
@@ -6152,6 +6152,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
     pDdiTable->pfnCreateWithNativeHandle =
         driver::urKernelCreateWithNativeHandle;
 
+    pDdiTable->pfnGetSuggestedLocalWorkSize =
+        driver::urKernelGetSuggestedLocalWorkSize;
+
     pDdiTable->pfnSetArgValue = driver::urKernelSetArgValue;
 
     pDdiTable->pfnSetArgLocal = driver::urKernelSetArgLocal;
@@ -6457,9 +6460,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetQueueProcAddrTable(
     pDdiTable->pfnFinish = driver::urQueueFinish;
 
     pDdiTable->pfnFlush = driver::urQueueFlush;
-
-    pDdiTable->pfnGetSuggestedLocalWorkSize =
-        driver::urQueueGetSuggestedLocalWorkSize;
 
     return result;
 } catch (...) {
