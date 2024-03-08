@@ -251,6 +251,26 @@ template <typename T> sycl::vec<T, 2> conj(sycl::vec<T, 2> x) {
   return sycl::vec<T, 2>(t.real(), t.imag());
 }
 
+/// Performs complex number multiply addition.
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \returns the operation result
+template <typename ValueT>
+inline sycl::vec<ValueT, 2> cmul_add(const sycl::vec<ValueT, 2> a,
+                                     const sycl::vec<ValueT, 2> b,
+                                     const sycl::vec<ValueT, 2> c) {
+  return sycl::vec<ValueT, 2>{a[0] * b[0] - a[1] * b[1] + c[0],
+                              a[0] * b[1] + a[1] * b[0] + c[1]};
+}
+template <typename ValueT>
+inline sycl::marray<ValueT, 2> cmul_add(const sycl::marray<ValueT, 2> a,
+                                        const sycl::marray<ValueT, 2> b,
+                                        const sycl::marray<ValueT, 2> c) {
+  return sycl::marray<ValueT, 2>{a[0] * b[0] - a[1] * b[1] + c[0],
+                                 a[0] * b[1] + a[1] * b[0] + c[1]};
+}
+
 /// A sycl::abs wrapper functors.
 struct abs {
   template <typename ValueT> auto operator()(const ValueT x) const {
