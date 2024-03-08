@@ -45,7 +45,7 @@ Bowen Xue, Intel
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 6 specification.  All
+This extension is written against the SYCL 2020 revision 8 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
@@ -212,7 +212,9 @@ _PropertyListT_ enables properties to be associated with a `task_sequence`
 |void async(\\__unspecified__... args)
 |Available only in device functions. +
  +
- Asynchronously invoke the task_sequence's associated Callable `f` with `args`
+ Asynchronously invoke the task_sequence's associated Callable `f` with `args`.
+ Calling `async` on a task_sequence to start a new invocation may block if the
+ number of outstanding invocations is equal to the invocation capacity.
  Calling `async` on a task_sequence with mismatched argument types with respect
  to the Callable `f`'s argument types is malformed.
 
@@ -220,14 +222,18 @@ _PropertyListT_ enables properties to be associated with a `task_sequence`
 |Available only in device functions. +
  +
  Retrieves a return value from the task_sequence, which is the same return type
- as the associated Callable `f`'s return type.
+ as the associated Callable `f`'s return type. Calling `get` on a task_sequence
+ to retrieve a return value from the task_sequence will block if there are no
+ return values to retrieve.
 |===
 
 By calling `async` on a `task_sequence` object more than once, the user implies
 that those invocations of `f` can be run in parallel. The implementation is,
 however, not obligated to run the invocations in parallel except in so far as is
 necessary to meet the forward progress guarantees outlined in the section on
-Progress Guarantees.
+Progress Guarantees. It is undefined behaviour to template a task sequence
+object on a function and rely on communication between different invocations,
+i.e. through the use of atomics in the function.
 
 The `async` function call is non-blocking in that it may return before the
 asynchronous `f` invocation completes executing, and potentially before `f` even
@@ -405,7 +411,7 @@ Example 1 uses the following program:
   task_obj2.async(...); // Object_2_Task_2_Thread
 }
 ```
-The calls to the task_sequence constructor create the task object threads
+The calls to the `task_sequence constructor` create the task object threads
 _Object_1_Thread_ and _Object_2_Thread_. The first two `async` calls create task
 threads _Object_1_Task_1_Thread_ and _Object_1_Task_2_Thread_. Similarly the
 next two calls create _Object_2_Task_1_Thread_ and _Object_2_Task_2_Thread_.
