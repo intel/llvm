@@ -4994,9 +4994,8 @@ class OffloadingActionBuilder final {
             ActionList CAList;
             CAList.push_back(A);
             ActionList DeviceLinkActions;
-            appendSYCLDeviceLink(CAList, TargetInfo.TC, DA, DeviceLinkActions,
-                                 TargetInfo.BoundArch,
-                                 /*AddOffloadAction=*/true);
+            appendSYCLDeviceLink(CAList, TargetInfo.TC, DeviceLinkActions,
+                                 TargetInfo.BoundArch, /*SkipWrapper=*/false);
             // The list of actions generated from appendSYCLDeviceLink is kept
             // in DeviceLinkActions.  Instead of adding the dependency on the
             // compiled device file, add the dependency against the compiled
@@ -5044,69 +5043,18 @@ class OffloadingActionBuilder final {
         if (CompileDeviceOnly && !SYCLDeviceActions.empty()) {
           for (auto SDA : SYCLDeviceActions)
             SYCLLinkBinaryList.push_back(SDA);
-          if (WrapDeviceOnlyBinary) {
-            // -fsycl-link behavior does the following to the unbundled device
-            // binaries:
-            //   1) Link them together using llvm-link
-            //   2) Pass the linked binary through sycl-post-link
-            //   3) Translate final .bc file to .spv
-            //   4) Wrap the binary with the offload wrapper which can be used
-            //      by any compilation link step.
-            auto *DeviceLinkAction = C.MakeAction<LinkJobAction>(
-                SYCLLinkBinaryList, types::TY_Image);
-            ActionList FullSYCLLinkBinaryList;
-            bool SYCLDeviceLibLinked = false;
-            FullSYCLLinkBinaryList.push_back(DeviceLinkAction);
-            // If used without the FPGA target, -fsycl-link is used to wrap
-            // device objects for future host link. Device libraries should
-            // be linked by default to resolve any undefined reference.
-            const auto *TC = ToolChains.front();
-            llvm::Triple TT(TC->getTriple());
-            if (TT.getSubArch() != llvm::Triple::SPIRSubArch_fpga) {
-              SYCLDeviceLibLinked =
-                  addSYCLDeviceLibs(TC, FullSYCLLinkBinaryList, true,
-                                    C.getDefaultToolChain()
-                                        .getTriple()
-                                        .isWindowsMSVCEnvironment());
-            }
-
-            Action *FullDeviceLinkAction = nullptr;
-            if (SYCLDeviceLibLinked)
-              FullDeviceLinkAction = C.MakeAction<LinkJobAction>(
-                  FullSYCLLinkBinaryList, types::TY_LLVM_BC);
-            else
-              FullDeviceLinkAction = DeviceLinkAction;
-            auto *PostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
-                FullDeviceLinkAction, types::TY_LLVM_BC,
-                types::TY_Tempfiletable);
-            PostLinkAction->setRTSetsSpecConstants(!TT.isSPIRAOT());
-            auto *ExtractIRFilesAction = C.MakeAction<FileTableTformJobAction>(
-                PostLinkAction, types::TY_Tempfilelist, types::TY_Tempfilelist);
-            // single column w/o title fits TY_Tempfilelist format
-            ExtractIRFilesAction->addExtractColumnTform(
-                FileTableTformJobAction::COL_CODE, false /*drop titles*/);
-            auto *TranslateAction = C.MakeAction<SPIRVTranslatorJobAction>(
-                ExtractIRFilesAction, types::TY_Tempfilelist);
-
-            ActionList TformInputs{PostLinkAction, TranslateAction};
-            auto *ReplaceFilesAction = C.MakeAction<FileTableTformJobAction>(
-                TformInputs, types::TY_Tempfiletable, types::TY_Tempfiletable);
-            ReplaceFilesAction->addReplaceColumnTform(
-                FileTableTformJobAction::COL_CODE,
-                FileTableTformJobAction::COL_CODE);
-
-            SYCLLinkBinary = C.MakeAction<OffloadWrapperJobAction>(
-                ReplaceFilesAction, types::TY_Object);
-          } else {
-            auto *Link = C.MakeAction<LinkJobAction>(SYCLLinkBinaryList,
-                                                         types::TY_Image);
-            SYCLLinkBinary = C.MakeAction<SPIRVTranslatorJobAction>(
-                Link, types::TY_Image);
-          }
-
           // Remove the SYCL actions as they are already connected to an host
           // action or fat binary.
           SYCLDeviceActions.clear();
+
+          for (auto SDA : SYCLDeviceActions)
+            SYCLLinkBinaryList.push_back(SDA);
+          if (WrapDeviceOnlyBinary)
+            return ABRT_Success;
+          auto *Link =
+              C.MakeAction<LinkJobAction>(SYCLLinkBinaryList, types::TY_Image);
+          SYCLLinkBinary =
+              C.MakeAction<SPIRVTranslatorJobAction>(Link, types::TY_Image);
           // We avoid creating host action in device-only mode.
           return ABRT_Ignore_Host;
         }
@@ -5202,6 +5150,52 @@ class OffloadingActionBuilder final {
       return ABRT_Success;
     }
 
+    void appendLinkDeviceActions(ActionList &AL) override {
+      if (DeviceLinkerInputs.size() == 0)
+        return;
+
+      for (const auto &LinkInputEnum : enumerate(DeviceLinkerInputs)) {
+        auto &LI = LinkInputEnum.value();
+        int Index = LinkInputEnum.index();
+        const ToolChain *TC = SYCLTargetInfoList[Index].TC;
+        const char *BoundArch = SYCLTargetInfoList[Index].BoundArch;
+
+        auto TripleIt = llvm::find_if(SYCLTripleList, [&](auto &SYCLTriple) {
+          return SYCLTriple == TC->getTriple();
+        });
+        if (TripleIt == SYCLTripleList.end()) {
+          // If the toolchain's triple is absent in this "main" triple
+          // collection, this means it was created specifically for one of
+          // the SYCL AOT inputs. Those will be handled separately.
+          continue;
+        }
+        if (LI.empty())
+          // Current list is empty, nothing to process.
+          continue;
+        // Do not add the wrapper when performing -fsycl-link.
+        // TODO: Update when wrappers are not added to be more general,
+        // improving the number of wrapper calls occuring.  For now, only
+        // restrict the wrappers from being inlined with each device link
+        // when performing -fsycl-link behaviors.
+        appendSYCLDeviceLink(LI, TC, AL, BoundArch,
+                             /*SkipWrapper=*/WrapDeviceOnlyBinary,
+                             /*AddOffloadAction=*/true);
+      }
+      DeviceLinkerInputs.clear();
+    }
+
+    Action *appendLinkHostActions(ActionList &AL) override {
+      // Only add wrapping actions when performing -fsycl-link
+      if (!WrapDeviceOnlyBinary)
+        return nullptr;
+
+      // Create wrapper bitcode from the result of device link actions and
+      // compile it to an object which will be added to the host link command.
+      auto *BC = C.MakeAction<OffloadWrapperJobAction>(AL, types::TY_LLVM_BC);
+      auto *ASM = C.MakeAction<BackendJobAction>(BC, types::TY_PP_Asm);
+      return C.MakeAction<AssembleJobAction>(ASM, types::TY_Object);
+    }
+
     // Actions that can only be appended after all Inputs have been processed
     // occur here.  Not all offload actions are against single files.
     void appendTopLevelLinkAction(ActionList &AL) override {
@@ -5273,10 +5267,14 @@ class OffloadingActionBuilder final {
     // created device linking actions are performed against. The
     // DeviceLinkActions is used to hold the actions generated to be added to
     // the toolchain.
+    // TODO: This function takes a list of items to work against. Update this
+    // to work one action at a time, enabling the ability to pull out the
+    // wrapping step to be performed solely on the host side of the toolchain.
+    // Any FPGA specific behaviors should also be specifically scrutinized
+    // to better compartmentalize that aspect of the compilation.
     void appendSYCLDeviceLink(const ActionList &ListIndex, const ToolChain *TC,
-                              OffloadAction::DeviceDependences &DA,
                               ActionList &DeviceLinkActions,
-                              const char *BoundArch,
+                              const char *BoundArch, bool SkipWrapper,
                               bool AddOffloadAction = false) {
       auto addDeps = [&](Action *A, const ToolChain *TC,
                          const char *BoundArch) {
@@ -5285,9 +5283,8 @@ class OffloadingActionBuilder final {
           Deps.add(*A, *TC, BoundArch, Action::OFK_SYCL);
           DeviceLinkActions.push_back(
               C.MakeAction<OffloadAction>(Deps, A->getType()));
-        } else {
-          DA.add(*A, *TC, BoundArch, Action::OFK_SYCL);
-        }
+        } else
+          DeviceLinkActions.push_back(A);
       };
 
       // List of device specific libraries to be fed into llvm-link.
@@ -5415,9 +5412,9 @@ class OffloadingActionBuilder final {
               Action *CompiledDeviceAction =
                   C.MakeAction<OffloadWrapperJobAction>(WrapperItems,
                                                         types::TY_Object);
-              addDeps(CompiledDeviceAction, TC, nullptr);
+              addDeps(CompiledDeviceAction, TC, BoundArch);
             }
-            addDeps(DeviceAction, TC, nullptr);
+            addDeps(DeviceAction, TC, BoundArch);
           }
         }
       }
@@ -5642,10 +5639,10 @@ class OffloadingActionBuilder final {
                 FullDeviceLinkAction, types::TY_PP_Asm);
             auto *AsmAct =
                 C.MakeAction<AssembleJobAction>(BackendAct, types::TY_Object);
-            DA.add(*AsmAct, *TC, BoundArch, Action::OFK_SYCL);
+            addDeps(AsmAct, TC, BoundArch);
             auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
                 PostLinkAction, types::TY_Object);
-            DA.add(*DeviceWrappingAction, *TC, BoundArch, Action::OFK_SYCL);
+            addDeps(DeviceWrappingAction, TC, BoundArch);
             continue;
           }
           if ((IsNVPTX || IsAMDGCN) &&
@@ -5765,6 +5762,13 @@ class OffloadingActionBuilder final {
                 FileTableTformJobAction::COL_CODE,
                 FileTableTformJobAction::COL_CODE);
             WrapperInputs.push_back(ReplaceFilesAction);
+          }
+          if (SkipWrapper) {
+            // Wrapper step not requested.
+            withBoundArchForToolChain(TC, [&](const char *BoundArch) {
+              addDeps(WrapperInputs.front(), TC, BoundArch);
+            });
+            continue;
           }
 
           // After the Link, wrap the files before the final host link
@@ -5896,7 +5900,6 @@ class OffloadingActionBuilder final {
             auto *SYCLDeviceLibsDependenciesAction =
                 C.MakeAction<OffloadAction>(
                     Dep, SYCLDeviceLibsUnbundleAction->getType());
-
             DeviceLinkObjects.push_back(SYCLDeviceLibsDependenciesAction);
             if (!LibLocSelected)
               LibLocSelected = !LibLocSelected;
@@ -5975,31 +5978,6 @@ class OffloadingActionBuilder final {
     }
 
     void appendLinkDependences(OffloadAction::DeviceDependences &DA) override {
-      // DeviceLinkerInputs holds binaries per ToolChain (TC) / bound-arch pair
-      // The following will loop link and post process for each TC / bound-arch
-      // to produce a final binary.
-      // They will be bundled per TC before being sent to the Offload Wrapper.
-      for (const auto &LinkInputEnum : enumerate(DeviceLinkerInputs)) {
-        auto &LI = LinkInputEnum.value();
-        int Index = LinkInputEnum.index();
-        const ToolChain *TC = SYCLTargetInfoList[Index].TC;
-        const char *BoundArch = SYCLTargetInfoList[Index].BoundArch;
-
-        auto TripleIt = llvm::find_if(SYCLTripleList, [&](auto &SYCLTriple) {
-          return SYCLTriple == TC->getTriple();
-        });
-        if (TripleIt == SYCLTripleList.end()) {
-          // If the toolchain's triple is absent in this "main" triple
-          // collection, this means it was created specifically for one of
-          // the SYCL AOT inputs. Those will be handled separately.
-          continue;
-        }
-        if (LI.empty())
-          // Current list is empty, nothing to process.
-          continue;
-        ActionList AL;
-        appendSYCLDeviceLink(LI, TC, DA, AL, BoundArch);
-      }
       for (auto &SAI : SYCLAOTInputs) {
         // Extract binary file name
         std::string FN(SAI.second);
@@ -6278,9 +6256,8 @@ class OffloadingActionBuilder final {
       if (ToolChains.empty())
         return false;
 
-      Arg *SYCLLinkTargets = Args.getLastArg(
-                                  options::OPT_fsycl_link_targets_EQ);
-      WrapDeviceOnlyBinary = Args.hasArg(options::OPT_fsycl_link_EQ);
+      Arg *SYCLLinkTargets =
+          Args.getLastArg(options::OPT_fsycl_link_targets_EQ);
       auto *DeviceCodeSplitArg =
           Args.getLastArg(options::OPT_fsycl_device_code_split_EQ);
       // -fsycl-device-code-split is an alias to
@@ -6448,10 +6425,11 @@ class OffloadingActionBuilder final {
           SYCLfpgaTriple = true;
       }
 
+      WrapDeviceOnlyBinary =
+          Args.hasArg(options::OPT_fsycl_link_EQ) && !SYCLfpgaTriple;
       // Device only compilation for -fsycl-link (no FPGA) and
       // -fsycl-link-targets
-      CompileDeviceOnly =
-          (SYCLLinkTargets || (WrapDeviceOnlyBinary && !SYCLfpgaTriple));
+      CompileDeviceOnly = (SYCLLinkTargets || WrapDeviceOnlyBinary);
 
       // Set the FPGA output type based on command line (-fsycl-link).
       if (auto *A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ)) {
@@ -6771,6 +6749,9 @@ public:
         return false;
       if (HasFPGATarget && !updateInputForFPGA(A, InputArg, Args))
         return false;
+      // FIXME - unbundling action is being split into two different actions
+      // when unbundling objects.  One action for the host, the other for the
+      // device.
       auto UnbundlingHostAction = C.MakeAction<OffloadUnbundlingJobAction>(
           A, (HasSPIRTarget && HostAction->getType() == types::TY_Archive)
                  ? types::TY_Tempfilelist
@@ -6809,6 +6790,7 @@ public:
     // For unbundling of an FPGA AOCX binary, we want to link with the original
     // FPGA device archive.
     if ((OffloadKind == Action::OFK_None && CanUseBundler) ||
+        (Args.hasArg(options::OPT_fsycl_link_EQ) && !HasFPGATarget) ||
         (HasFPGATarget && ((Args.hasArg(options::OPT_fsycl_link_EQ) &&
                             HostAction->getType() == types::TY_Object) ||
                            HostAction->getType() == types::TY_FPGA_AOCX)))
@@ -6911,6 +6893,29 @@ public:
     }
   }
 
+  void makeHostLinkDeviceOnlyAction(ActionList &Inputs) {
+    // Build a list of device linking actions.
+    ActionList DeviceAL;
+    appendDeviceLinkActions(DeviceAL);
+    if (DeviceAL.empty())
+      return;
+
+    // Let builders add host linking actions.
+    Action *HA = nullptr;
+    for (DeviceActionBuilder *SB : SpecializedBuilders) {
+      if (!SB->isValid())
+        continue;
+      HA = SB->appendLinkHostActions(DeviceAL);
+      if (!HA)
+        continue;
+      // This created host action has no originating input argument, therefore
+      // needs to set its offloading kind directly.
+      HA->propagateHostOffloadInfo(SB->getAssociatedOffloadKind(),
+                                   /*BoundArch=*/nullptr);
+      Inputs.push_back(HA);
+    }
+  }
+
   void makeHostLinkAction(ActionList &LinkerInputs) {
 
     bool IsCUinSYCL = false;
@@ -6949,6 +6954,14 @@ public:
         HA->propagateHostOffloadInfo(SB->getAssociatedOffloadKind(),
                                      /*BoundArch=*/nullptr);
         LinkerInputs.push_back(HA);
+      } else {
+        // Nothing appended to create a singular input, so add each device
+        // individually to the inputs.
+        for (auto &DeviceAction : DeviceAL) {
+          DeviceAction->propagateHostOffloadInfo(SB->getAssociatedOffloadKind(),
+                                                 /*BoundArch=*/nullptr);
+          LinkerInputs.push_back(DeviceAction);
+        }
       }
     }
   }
@@ -7348,6 +7361,18 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       // Queue linker inputs.
       if (Phase == phases::Link) {
         assert(Phase == PL.back() && "linking must be final compilation step.");
+
+        // When performing -fsycl-link the current inputs are not expected to
+        // be passed to the final host link step.  Instead, take these inputs
+        // and redirect them to the associated wrapping step to create the
+        // final object.
+        if (C.getInputArgs().hasArg(options::OPT_fsycl_link_EQ) &&
+            !Args.hasArg(options::OPT_fintelfpga)) {
+          DeviceAOTLinkerInputs.push_back(Current);
+          Current = nullptr;
+          break;
+        }
+
         // We don't need to generate additional link commands if emitting AMD
         // bitcode or compiling only for the offload device
         if (!(C.getInputArgs().hasArg(options::OPT_hip_link) &&
@@ -7453,7 +7478,11 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         // Only wrap the object with -fsycl-link=early
         auto *BC = C.MakeAction<OffloadWrapperJobAction>(LI, types::TY_LLVM_BC);
         auto *ASM = C.MakeAction<BackendJobAction>(BC, types::TY_PP_Asm);
-        LI = C.MakeAction<AssembleJobAction>(ASM, types::TY_Object);
+        auto *OBJ = C.MakeAction<AssembleJobAction>(ASM, types::TY_Object);
+        OffloadAction::HostDependence HDep(
+            *OBJ, *C.getSingleOffloadToolChain<Action::OFK_Host>(),
+            /*BoundArch=*/nullptr, Action::OFK_SYCL);
+        LI = C.MakeAction<OffloadAction>(HDep);
       }
     };
     if (auto *IA = dyn_cast<InputAction>(LI)) {
@@ -7469,9 +7498,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
           continue;
         wrapObject();
       }
-    } else {
+    } else
       wrapObject();
-    }
     if (UnbundlerInput && !PL.empty()) {
       if (auto *IA = dyn_cast<InputAction>(UnbundlerInput)) {
         std::string FileName = IA->getInputArg().getAsString(Args);
@@ -7484,12 +7512,23 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   }
 
   // Add a link action if necessary.
+  Arg *FinalPhaseArg;
+  if (!UseNewOffloadingDriver &&
+      getFinalPhase(Args, &FinalPhaseArg) == phases::Link) {
+    if (LinkerInputs.empty() && DeviceAOTLinkerInputs.empty())
+      OffloadBuilder->appendDeviceLinkActions(Actions);
 
-  if (LinkerInputs.empty()) {
-    Arg *FinalPhaseArg;
-    if (getFinalPhase(Args, &FinalPhaseArg) == phases::Link)
-      if (!UseNewOffloadingDriver)
-        OffloadBuilder->appendDeviceLinkActions(Actions);
+    if (!DeviceAOTLinkerInputs.empty() &&
+        Args.hasArg(options::OPT_fsycl_link_EQ) &&
+        !Args.hasArg(options::OPT_fintelfpga)) {
+      ActionList LAList;
+      OffloadBuilder->makeHostLinkDeviceOnlyAction(LAList);
+      if (!LAList.empty()) {
+        Action *LA = LAList.front();
+        LA = OffloadBuilder->processHostLinkAction(LA);
+        Actions.push_back(LA);
+      }
+    }
   }
 
   if (!LinkerInputs.empty()) {
@@ -8960,7 +8999,6 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       InputInfo CurI;
       bool IsFPGAObjLink =
           (JA->getType() == types::TY_Object &&
-           EffectiveTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
            C.getInputArgs().hasArg(options::OPT_fsycl_link_EQ));
       if (C.getDriver().getOffloadStaticLibSeen() &&
           (JA->getType() == types::TY_Archive ||
