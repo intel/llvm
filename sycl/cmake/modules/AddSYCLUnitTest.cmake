@@ -37,29 +37,16 @@ macro(add_sycl_unittest test_dirname link_variant)
     )
   endif()
 
-  if(WIN32)
-    add_custom_target(check-sycl-${test_dirname}
-      ${CMAKE_COMMAND} -E env
-      LLVM_PROFILE_FILE="${SYCL_COVERAGE_PATH}/${test_dirname}.profraw"
-      SYCL_CONFIG_FILE_NAME=null.cfg
-      SYCL_DEVICELIB_NO_FALLBACK=1
-      SYCL_CACHE_DIR="${CMAKE_BINARY_DIR}/sycl_cache"
-      ${CMAKE_CURRENT_BINARY_DIR}/${test_dirname}
-      DEPENDS
-      ${test_dirname}
-    )
-  else()
-    add_custom_target(check-sycl-${test_dirname}
-      ${CMAKE_COMMAND} -E env
-      LLVM_PROFILE_FILE="${SYCL_COVERAGE_PATH}/${test_dirname}.profraw"
-      env SYCL_CONFIG_FILE_NAME=null.cfg
-      env SYCL_DEVICELIB_NO_FALLBACK=1
-      env SYCL_CACHE_DIR="${CMAKE_BINARY_DIR}/sycl_cache"
-      ${CMAKE_CURRENT_BINARY_DIR}/${test_dirname}
-      DEPENDS
-      ${test_dirname}
-    )
-  endif()
+  add_custom_target(check-sycl-${test_dirname}
+    ${CMAKE_COMMAND} -E env
+    LLVM_PROFILE_FILE="${SYCL_COVERAGE_PATH}/${test_dirname}.profraw"
+    SYCL_CONFIG_FILE_NAME=null.cfg
+    SYCL_DEVICELIB_NO_FALLBACK=1
+    SYCL_CACHE_DIR="${CMAKE_BINARY_DIR}/sycl_cache"
+    ${CMAKE_CURRENT_BINARY_DIR}/${test_dirname}
+    DEPENDS
+    ${test_dirname}
+  )
 
   add_dependencies(check-sycl-unittests check-sycl-${test_dirname})
 
@@ -73,7 +60,7 @@ macro(add_sycl_unittest test_dirname link_variant)
   if(SYCL_ENABLE_KERNEL_FUSION)
     target_link_libraries(${test_dirname} PRIVATE sycl-fusion)
   endif(SYCL_ENABLE_KERNEL_FUSION)
-  
+
   target_include_directories(${test_dirname}
     PRIVATE SYSTEM
       ${sycl_inc_dir}
