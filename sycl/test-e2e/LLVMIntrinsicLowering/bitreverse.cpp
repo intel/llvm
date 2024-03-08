@@ -25,11 +25,13 @@
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// TODO FIXME  Change NOT_READY to RUN when llvm.bitreverse.* is supported
+
 // Build without lowering explicitly disabled
-// RUN: %{build} -o %t.bitinstructions.out
+// NOT_READY: %{build} -o %t.bitinstructions.out
 
 // Execution should still be correct
-// RUN: %{run} %t.bitinstructions.out
+// NOT_READY: %{run} %t.bitinstructions.out
 
 // CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_i8"
 // CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_i16"
