@@ -105,13 +105,11 @@ ur_adapter_handle_t_::ur_adapter_handle_t_() {
   };
 }
 
-#if defined(_WIN32)
-void globalAdapterWindowsCleanup() {
+void globalAdapterOnDemandCleanup() {
   if (GlobalAdapter) {
     delete GlobalAdapter;
   }
 }
-#endif
 
 ur_result_t adapterStateTeardown() {
   bool LeakFound = false;
@@ -201,7 +199,7 @@ ur_result_t adapterStateTeardown() {
     // Due to multiple DLLMain definitions with SYCL, register to cleanup the
     // Global Adapter after refcnt is 0
 #if defined(_WIN32)
-  std::atexit(globalAdapterWindowsCleanup);
+  std::atexit(globalAdapterOnDemandCleanup);
 #endif
 
   return UR_RESULT_SUCCESS;
@@ -227,10 +225,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
       if (GlobalAdapter->RefCount++ == 0) {
         adapterStateInit();
       }
-      *Adapters = GlobalAdapter;
     } else {
-      return UR_RESULT_ERROR_UNINITIALIZED;
+      // If the GetAdapter is called after the Library began or was torndown,
+      // then temporarily create a new Adapter handle and register a new
+      // cleanup.
+      GlobalAdapter = new ur_adapter_handle_t_();
+      std::lock_guard<std::mutex> Lock{GlobalAdapter->Mutex};
+      if (GlobalAdapter->RefCount++ == 0) {
+        adapterStateInit();
+      }
+      std::atexit(globalAdapterOnDemandCleanup);
     }
+    *Adapters = GlobalAdapter;
   }
 
   if (NumAdapters) {
@@ -256,8 +262,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterRetain(ur_adapter_handle_t) {
   if (GlobalAdapter) {
     std::lock_guard<std::mutex> Lock{GlobalAdapter->Mutex};
     GlobalAdapter->RefCount++;
-  } else {
-    return UR_RESULT_ERROR_UNINITIALIZED;
   }
 
   return UR_RESULT_SUCCESS;
