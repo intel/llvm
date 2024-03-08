@@ -647,6 +647,14 @@ public:
   // BUFFER/FLAT/GLOBAL_ATOMIC_ADD/MIN/MAX_F64
   bool hasBufferFlatGlobalAtomicsF64() const { return hasGFX90AInsts(); }
 
+  bool hasExpOrExportInsts() const {
+    return !hasGFX940Insts();
+  }
+
+  bool hasInterpInsts() const {
+    return GFX11Insts;
+  }
+
   // DS_ADD_F64/DS_ADD_RTN_F64
   bool hasLdsAtomicAddF64() const { return hasGFX90AInsts(); }
 
@@ -1380,6 +1388,12 @@ public:
   /// \returns Total number of VGPRs supported by the subtarget.
   unsigned getTotalNumVGPRs() const {
     return AMDGPU::IsaInfo::getTotalNumVGPRs(this);
+  }
+
+  /// \returns Addressable number of architectural VGPRs supported by the
+  /// subtarget.
+  unsigned getAddressableNumArchVGPRs() const {
+    return AMDGPU::IsaInfo::getAddressableNumArchVGPRs(this);
   }
 
   /// \returns Addressable number of VGPRs supported by the subtarget.

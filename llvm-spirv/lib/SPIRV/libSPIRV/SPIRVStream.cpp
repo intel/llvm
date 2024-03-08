@@ -147,6 +147,7 @@ SPIRV_DEF_ENCDEC(SPIRVDebugExtOpKind)
 SPIRV_DEF_ENCDEC(NonSemanticAuxDataOpKind)
 SPIRV_DEF_ENCDEC(InitializationModeQualifier)
 SPIRV_DEF_ENCDEC(HostAccessQualifier)
+SPIRV_DEF_ENCDEC(NamedMaximumNumberOfRegisters)
 SPIRV_DEF_ENCDEC(LinkageType)
 
 // Read a string with padded 0's at the end so that they form a stream of

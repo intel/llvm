@@ -734,7 +734,8 @@ void SPIRVTypeScavenger::deduceFunctionType(Function &F) {
         for (Argument *Arg : PointerArgs) {
           if (auto *Ty =
                   dyn_cast<TypedPointerType>(ParamTypes[Arg->getArgNo()]))
-            TypeArgument(Arg, Ty);
+            if (!Arg->hasAttribute(Attribute::StructRet))
+              TypeArgument(Arg, Ty);
         }
       }
     }

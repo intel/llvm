@@ -1,4 +1,4 @@
-// RUN: %{build} -O2 -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // UNSUPPORTED: opencl && gpu-intel-pvc

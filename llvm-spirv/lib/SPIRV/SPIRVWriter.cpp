@@ -54,9 +54,9 @@
 #include "SPIRVLowerBitCastToNonStandardType.h"
 #include "SPIRVLowerBool.h"
 #include "SPIRVLowerConstExpr.h"
+#include "SPIRVLowerLLVMIntrinsic.h"
 #include "SPIRVLowerMemmove.h"
 #include "SPIRVLowerOCLBlocks.h"
-#include "SPIRVLowerSaddWithOverflow.h"
 #include "SPIRVMDWalker.h"
 #include "SPIRVMemAliasingINTEL.h"
 #include "SPIRVModule.h"
@@ -981,7 +981,10 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
 
   transFPGAFunctionMetadata(BF, F);
 
-  transFunctionMetadataAsUserSemanticDecoration(BF, F);
+  if (BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_maximum_registers))
+    transFunctionMetadataAsExecutionMode(BF, F);
+  else
+    transFunctionMetadataAsUserSemanticDecoration(BF, F);
 
   transAuxDataInst(BF, F);
 
@@ -1134,6 +1137,38 @@ void LLVMToSPIRVBase::transFPGAFunctionMetadata(SPIRVFunction *BF,
   // In addition, process the decorations on the function
   if (auto *FDecoMD = F->getMetadata(SPIRV_MD_DECORATIONS))
     transMetadataDecorations(FDecoMD, BF);
+}
+
+void LLVMToSPIRVBase::transFunctionMetadataAsExecutionMode(SPIRVFunction *BF,
+                                                           Function *F) {
+  SmallVector<MDNode *, 1> RegisterAllocModeMDs;
+  F->getMetadata("RegisterAllocMode", RegisterAllocModeMDs);
+
+  for (unsigned I = 0; I < RegisterAllocModeMDs.size(); I++) {
+    auto *RegisterAllocMode = RegisterAllocModeMDs[I]->getOperand(0).get();
+    if (isa<MDString>(RegisterAllocMode)) {
+      StringRef Str = getMDOperandAsString(RegisterAllocModeMDs[I], 0);
+      NamedMaximumNumberOfRegisters NamedValue =
+          SPIRVNamedMaximumNumberOfRegistersNameMap::rmap(Str.str());
+      BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
+          OpExecutionMode, BF, ExecutionModeNamedMaximumRegistersINTEL,
+          NamedValue)));
+    } else if (isa<MDNode>(RegisterAllocMode)) {
+      auto *RegisterAllocNodeMDOp =
+          getMDOperandAsMDNode(RegisterAllocModeMDs[I], 0);
+      int Num = getMDOperandAsInt(RegisterAllocNodeMDOp, 0);
+      auto *Const =
+          BM->addConstant(transType(Type::getInt32Ty(F->getContext())), Num);
+      BF->addExecutionMode(BM->add(new SPIRVExecutionModeId(
+          BF, ExecutionModeMaximumRegistersIdINTEL, Const->getId())));
+    } else {
+      int64_t RegisterAllocVal =
+          mdconst::dyn_extract<ConstantInt>(RegisterAllocMode)->getZExtValue();
+      BF->addExecutionMode(BM->add(new SPIRVExecutionMode(
+          OpExecutionMode, BF, ExecutionModeMaximumRegistersINTEL,
+          RegisterAllocVal)));
+    }
+  }
 }
 
 void LLVMToSPIRVBase::transFunctionMetadataAsUserSemanticDecoration(
@@ -4236,7 +4271,8 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     // If allowed, let's replace llvm.fmuladd.* with mad from OpenCL extended
     // instruction set, as it has the same semantic for FULL_PROFILE OpenCL
     // devices (implementation-defined for EMBEDDED_PROFILE).
-    if (BM->shouldReplaceLLVMFmulAddWithOpenCLMad()) {
+    if (BM->shouldReplaceLLVMFmulAddWithOpenCLMad() ||
+        BM->getExtInst() == SPIRV::ExtInst::OpenCL) {
       std::vector<SPIRVValue *> Ops{transValue(II->getArgOperand(0), BB),
                                     transValue(II->getArgOperand(1), BB),
                                     transValue(II->getArgOperand(2), BB)};
@@ -5405,7 +5441,7 @@ LLVMToSPIRVBase::collectEntryPointInterfaces(SPIRVFunction *SF, Function *F) {
 }
 
 void LLVMToSPIRVBase::mutateFuncArgType(
-    const std::map<unsigned, Type *> &ChangedType, Function *F) {
+    const std::unordered_map<unsigned, Type *> &ChangedType, Function *F) {
   for (auto &I : ChangedType) {
     for (auto UI = F->user_begin(), UE = F->user_end(); UI != UE; ++UI) {
       auto *Call = dyn_cast<CallInst>(*UI);
@@ -5640,7 +5676,7 @@ bool LLVMToSPIRVBase::translate() {
 
   for (auto &F : *M) {
     auto *FT = F.getFunctionType();
-    std::map<unsigned, Type *> ChangedType;
+    std::unordered_map<unsigned, Type *> ChangedType;
     oclGetMutatedArgumentTypesByBuiltin(FT, ChangedType, &F);
     mutateFuncArgType(ChangedType, &F);
   }
@@ -5680,7 +5716,7 @@ llvm::IntegerType *LLVMToSPIRVBase::getSizetType(unsigned AS) {
 }
 
 void LLVMToSPIRVBase::oclGetMutatedArgumentTypesByBuiltin(
-    llvm::FunctionType *FT, std::map<unsigned, Type *> &ChangedType,
+    llvm::FunctionType *FT, std::unordered_map<unsigned, Type *> &ChangedType,
     Function *F) {
   StringRef Demangled;
   if (!oclIsBuiltin(F->getName(), Demangled))
@@ -6411,6 +6447,29 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     return BM->addCompositeConstructInst(transType(CI->getType()), Operands,
                                          BB);
   }
+  case OpGroupNonUniformShuffleDown: {
+    Function *F = CI->getCalledFunction();
+    if (F->arg_size() && F->getArg(0)->hasStructRetAttr()) {
+      StructType *St = cast<StructType>(F->getParamStructRetType(0));
+      assert(isSYCLHalfType(St) || isSYCLBfloat16Type(St));
+      SPIRVValue *InValue =
+          transValue(CI->getArgOperand(0)->stripPointerCasts(), BB);
+      SPIRVId ScopeId = transValue(CI->getArgOperand(1), BB)->getId();
+      SPIRVValue *Delta = transValue(CI->getArgOperand(3), BB);
+      SPIRVValue *Composite0 = BM->addLoadInst(InValue, {}, BB);
+      Type *MemberTy = St->getElementType(0);
+      SPIRVType *ElementTy = transType(MemberTy);
+      SPIRVValue *Element0 =
+          BM->addCompositeExtractInst(ElementTy, Composite0, {0}, BB);
+      SPIRVValue *Src =
+          BM->addGroupInst(OpGroupNonUniformShuffleDown, ElementTy,
+                           static_cast<Scope>(ScopeId), {Element0, Delta}, BB);
+      SPIRVValue *Composite1 =
+          BM->addCompositeInsertInst(Src, Composite0, {0}, BB);
+      return BM->addStoreInst(InValue, Composite1, {}, BB);
+    }
+    [[fallthrough]];
+  }
   default: {
     if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit) {
       return BM->addUnaryInst(OC, transScavengedType(CI),
@@ -6553,7 +6612,7 @@ void addPassesForSPIRV(ModulePassManager &PassMgr,
   PassMgr.addPass(SPIRVLowerConstExprPass());
   PassMgr.addPass(SPIRVLowerBoolPass());
   PassMgr.addPass(SPIRVLowerMemmovePass());
-  PassMgr.addPass(SPIRVLowerSaddWithOverflowPass());
+  PassMgr.addPass(SPIRVLowerLLVMIntrinsicPass(Opts));
   PassMgr.addPass(createModuleToFunctionPassAdaptor(
       SPIRVLowerBitCastToNonStandardTypePass(Opts)));
 }

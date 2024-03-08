@@ -1017,9 +1017,12 @@
 ?ext_intel_write_host_pipe@handler@_V1@sycl@@AEAAXAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAX_K_N@Z
 ?ext_oneapi_advise_usm_cmd_buffer@MemoryManager@detail@_V1@sycl@@SAXV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@PEAU_pi_ext_command_buffer@@PEBX_KW4_pi_mem_advice@@V?$vector@IV?$allocator@I@std@@@6@PEAI@Z
 ?ext_oneapi_architecture_is@device@_V1@sycl@@QEAA_NW4architecture@experimental@oneapi@ext@23@@Z
+?ext_oneapi_architecture_is@device@_V1@sycl@@QEAA_NW4arch_category@experimental@oneapi@ext@23@@Z
 ?ext_oneapi_barrier@handler@_V1@sycl@@QEAAXAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
 ?ext_oneapi_barrier@handler@_V1@sycl@@QEAAXXZ
 ?ext_oneapi_can_access_peer@device@_V1@sycl@@QEAA_NAEBV123@W4peer_access@oneapi@ext@23@@Z
+?ext_oneapi_can_compile@device@_V1@sycl@@QEAA_NW4source_language@experimental@oneapi@ext@23@@Z
+?ext_oneapi_cl_profile@device@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ?ext_oneapi_copy@handler@_V1@sycl@@QEAAXPEAX0AEBUimage_descriptor@experimental@oneapi@ext@23@_K@Z
 ?ext_oneapi_copy@handler@_V1@sycl@@QEAAXPEAXUimage_mem_handle@experimental@oneapi@ext@23@AEBUimage_descriptor@56723@@Z
 ?ext_oneapi_copy@handler@_V1@sycl@@QEAAXPEAXV?$range@$02@23@01AEBUimage_descriptor@experimental@oneapi@ext@23@_K11@Z
@@ -1091,6 +1094,9 @@
 ?ext_oneapi_signal_external_semaphore@queue@_V1@sycl@@QEAA?AVevent@23@Uinterop_semaphore_handle@experimental@oneapi@ext@23@V423@AEBUcode_location@detail@23@@Z
 ?ext_oneapi_submit_barrier@queue@_V1@sycl@@QEAA?AVevent@23@AEBUcode_location@detail@23@@Z
 ?ext_oneapi_submit_barrier@queue@_V1@sycl@@QEAA?AVevent@23@AEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@AEBUcode_location@detail@23@@Z
+?ext_oneapi_supports_cl_c_feature@device@_V1@sycl@@QEAA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
+?ext_oneapi_supports_cl_c_version@device@_V1@sycl@@QEBA_NAEBUcl_version@experimental@oneapi@ext@23@@Z
+?ext_oneapi_supports_cl_extension@device@_V1@sycl@@QEBA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAUcl_version@experimental@oneapi@ext@23@@Z
 ?ext_oneapi_wait_external_semaphore@handler@_V1@sycl@@QEAAXUinterop_semaphore_handle@experimental@oneapi@ext@23@@Z
 ?ext_oneapi_wait_external_semaphore@queue@_V1@sycl@@QEAA?AVevent@23@Uinterop_semaphore_handle@experimental@oneapi@ext@23@AEBUcode_location@detail@23@@Z
 ?ext_oneapi_wait_external_semaphore@queue@_V1@sycl@@QEAA?AVevent@23@Uinterop_semaphore_handle@experimental@oneapi@ext@23@AEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@AEBUcode_location@detail@23@@Z

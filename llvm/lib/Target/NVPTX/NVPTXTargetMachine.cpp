@@ -403,7 +403,7 @@ void NVPTXPassConfig::addIRPasses() {
     addStraightLineScalarOptimizationPasses();
   }
 
-  addPass(createAtomicExpandPass());
+  addPass(createAtomicExpandLegacyPass());
   addPass(createNVPTXCtorDtorLoweringLegacyPass());
 
   // === LSR and other generic IR passes ===

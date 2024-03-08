@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // UNSUPPORTED: gpu-intel-pvc
-// Use -O2 to avoid huge stack usage under -O0.
-// RUN: %{build} -O2 -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // This test checks simd::copy_from/to methods with alignment flags.

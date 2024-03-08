@@ -696,6 +696,17 @@ public:
     }
   }
 
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    switch (static_cast<unsigned>(ExecMode)) {
+    case ExecutionModeMaximumRegistersINTEL:
+    case ExecutionModeMaximumRegistersIdINTEL:
+    case ExecutionModeNamedMaximumRegistersINTEL:
+      return ExtensionID::SPV_INTEL_maximum_registers;
+    default:
+      return {};
+    }
+  }
+
 protected:
   _SPIRV_DCL_ENCDEC
   SPIRVExecutionModeKind ExecMode;
@@ -757,6 +768,11 @@ public:
       return IsDenorm(EMK) || IsRoundingMode(EMK) || IsFPMode(EMK) ||
              IsOtherFP(EMK);
     };
+    auto IsMaxRegisters = [&](auto EMK) {
+      return EMK == ExecutionModeMaximumRegistersINTEL ||
+             EMK == ExecutionModeMaximumRegistersIdINTEL ||
+             EMK == ExecutionModeNamedMaximumRegistersINTEL;
+    };
     auto IsCompatible = [&](SPIRVExecutionMode *EM0, SPIRVExecutionMode *EM1) {
       if (EM0->getTargetId() != EM1->getTargetId())
         return true;
@@ -770,7 +786,8 @@ public:
         return true;
       return !(IsDenorm(EMK0) && IsDenorm(EMK1)) &&
              !(IsRoundingMode(EMK0) && IsRoundingMode(EMK1)) &&
-             !(IsFPMode(EMK0) && IsFPMode(EMK1));
+             !(IsFPMode(EMK0) && IsFPMode(EMK1)) &&
+             !(IsMaxRegisters(EMK0) && IsMaxRegisters(EMK1));
     };
     for (auto I = ExecModes.begin(); I != ExecModes.end(); ++I) {
       assert(IsCompatible(ExecMode, (*I).second) &&
