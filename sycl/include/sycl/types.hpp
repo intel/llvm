@@ -548,7 +548,6 @@ public:
   using element_type = DataT;
   using value_type = DataT;
   using rel_t = detail::rel_t<DataT>;
-
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
   using vector_t =
