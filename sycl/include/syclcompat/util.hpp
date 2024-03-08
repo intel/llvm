@@ -545,7 +545,7 @@ inline int calculate_max_potential_wg(int *num_wg, int *wg_size,
   return 0;
 }
 
-/// Supported group type during migration.
+/// Supported group types
 enum class group_type { work_group, sub_group, logical_group, root_group };
 
 /// The group_base will dispatch the function call to the specific interface
@@ -603,20 +603,21 @@ protected:
   group_type type;
 };
 
-/// The group class is a container type that can storage supported group_type.
-template <typename T, int dimensions = 3>
+/// Container type that can store supported group_types.
+template <typename GroupT, int dimensions = 3>
 class group : public group_base<dimensions> {
   using group_base<dimensions>::type;
   using group_base<dimensions>::logical_group;
 
 public:
-  group(T g, sycl::nd_item<dimensions> item) : group_base<dimensions>(item) {
-    if constexpr (std::is_same_v<T, sycl::sub_group>) {
+  group(GroupT g, sycl::nd_item<dimensions> item)
+      : group_base<dimensions>(item) {
+    if constexpr (std::is_same_v<GroupT, sycl::sub_group>) {
       type = group_type::sub_group;
-    } else if constexpr (std::is_same_v<T, sycl::group<dimensions>>) {
+    } else if constexpr (std::is_same_v<GroupT, sycl::group<dimensions>>) {
       type = group_type::work_group;
     } else if constexpr (std::is_same_v<
-                             T, experimental::logical_group<dimensions>>) {
+                             GroupT, experimental::logical_group<dimensions>>) {
       logical_group = g;
       type = group_type::logical_group;
     }

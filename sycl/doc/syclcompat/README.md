@@ -1077,15 +1077,20 @@ position of the first least significant set bit in an integer.
 `byte_level_permute` returns a byte-permutation of two input unsigned integers,
 with bytes selected according to a third unsigned integer argument.
 
-There is also an `experimental::logical_group` class which allows
-`sycl::sub_group`s to be further subdivided into 'logical' groups to perform
-sub-group level operations. This class provides methods to get the local & group
-id and range. The functions `select_from_sub_group`, `shift_sub_group_left`,
+The functions `select_from_sub_group`, `shift_sub_group_left`,
 `shift_sub_group_right` and `permute_sub_group_by_xor` provide equivalent
 functionality to `sycl::select_from_group`, `sycl::shift_group_left`,
 `sycl::shift_group_right` and `sycl::permute_group_by_xor`, respectively.
 However, they provide an optional argument to represent the `logical_group` size
 (default 32).
+
+`int_as_queue_ptr` helps with translation of code by reinterpret casting an
+address to `sycl::queue *`, or returning a pointer to Syclcompat's default queue
+if the address is <= 2.
+`args_selector` is a helper class for extracting arguments from an
+array of pointers to arguments or buffer of arguments to pass to a
+kernel function. The class allows users to exclude parameters such as
+`sycl::nd_item`.
 
 ```c++
 namespace syclcompat {
@@ -1115,6 +1120,31 @@ template <typename ValueT>
 ValueT permute_sub_group_by_xor(sycl::sub_group g, ValueT x, unsigned int mask,
                            int logical_sub_group_size = 32);
 
+inline sycl::queue *int_as_queue_ptr(uintptr_t x);
+
+template <int n_nondefault_params, int n_default_params, typename T>
+class args_selector;
+
+template <int n_nondefault_params, int n_default_params, typename R,
+          typename... Ts>
+class args_selector<n_nondefault_params, n_default_params, R(Ts...)> {
+public:
+  // Get the type of the ith argument of R(Ts...)
+  template <int i>
+  using arg_type =
+      std::tuple_element_t<account_for_default_params<i>(), std::tuple<Ts...>>;
+
+  // If kernel_params is nonnull, then args_selector will
+  // extract arguments from kernel_params. Otherwise, it
+  // will extract them from extra.
+  args_selector(void **kernel_params, void **extra)
+      : kernel_params(kernel_params), args_buffer(get_args_buffer(extra)) {}
+
+  // Get a reference to the i-th argument extracted from kernel_params
+  // or extra.
+  template <int i> arg_type<i> &get();
+};
+
 } // namespace syclcompat
 ```
 
@@ -1123,6 +1153,12 @@ work groups within a SYCL kernel. This is not officially supported by the SYCL
 spec, and so should be used with caution.
 `experimental::calculate_max_active_wg_per_xecore` and
 `experimental::calculate_max_potential_wg` are used for occupancy calculation.
+There is also an `experimental::logical_group` class which allows
+`sycl::sub_group`s to be further subdivided into 'logical' groups to perform
+sub-group level operations. This class provides methods to get the local & group
+id and range. `experimental::group_type`, `experimental::group` and
+`experimental::group_base` are helper classes to manage the supported group
+types.
 
 ```c++
 namespace syclcompat {
@@ -1142,9 +1178,9 @@ inline void nd_range_barrier(
                      sycl::memory_scope::device,
                      sycl::access::address_space::global_space> &counter);
 
-class logical_group {
+template <int dimensions = 3> class logical_group {
 public:
-  logical_group(sycl::nd_item<3> item, sycl::group<3> parent_group,
+  logical_group(sycl::nd_item<dimensions> item, sycl::group<dimensions> parent_group,
                 uint32_t size);
   uint32_t get_local_linear_id() const;
   uint32_t get_group_linear_id() const;
@@ -1163,6 +1199,31 @@ inline int calculate_max_potential_wg(int *num_wg, int *wg_size,
                                       int slm_size = 0, int sg_size = 32,
                                       bool used_barrier = false,
                                       bool used_large_grf = false);
+// Supported group types
+enum class group_type { work_group, sub_group, logical_group, root_group };
+
+// The group_base will dispatch the function call to the specific interface
+// based on the group type.
+template <int dimensions = 3> class group_base {
+public:
+  group_base(sycl::nd_item<dimensions> item);
+
+  // Returns the number of work-items in the group.
+  size_t get_local_linear_range();
+  // Returns the index of the work-item within the group.
+  size_t get_local_linear_id();
+
+  // Wait for all the elements within the group to complete their execution
+  // before proceeding.
+  void barrier();
+};
+
+// Container type that can store supported group_types.
+template <typename GroupT, int dimensions = 3>
+class group : public group_base<dimensions> {
+public:
+  group(GroupT g, sycl::nd_item<dimensions> item);
+};
 
 } // namespace experimental
 } // namespace syclcompat
