@@ -189,8 +189,9 @@ jobs:
     - name: check-sycl-unittests
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
       run: |
-        export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
         # TODO consider moving this to Dockerfile.
+        export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+
         export LD_LIBRARY_PATH=$GITHUB_WORKSPACE/build/lib:$LD_LIBRARY_PATH
         export PATH=$GITHUB_WORKSPACE/build/bin:$PATH
         cmake --build $GITHUB_WORKSPACE/build --target check-sycl-unittests
