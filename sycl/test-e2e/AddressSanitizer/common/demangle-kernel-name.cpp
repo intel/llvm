@@ -1,12 +1,12 @@
-// REQUIRES: linux, cpu, aspect-fp64
+// REQUIRES: linux, cpu
 // RUN: %{build} %device_sanitizer_flags -O2 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 %{run} not %t &> %t.txt ; FileCheck --input-file %t.txt %s
 #include <sycl/sycl.hpp>
 
 int main() {
   sycl::queue Q;
-  constexpr std::size_t N = 123456;
-  auto *array = sycl::malloc_device<double>(N, Q);
+  constexpr std::size_t N = 16;
+  auto *array = sycl::malloc_device<int>(N, Q);
 
   Q.submit([&](sycl::handler &h) {
     h.parallel_for<class MyKernel>(
@@ -16,5 +16,6 @@ int main() {
   Q.wait();
   // CHECK: kernel <typeinfo name for main::{lambda(sycl::_V1::handler&)#1}::operator()(sycl::_V1::handler&) const::MyKernel>
 
+  sycl::free(array, Q);
   return 0;
 }
