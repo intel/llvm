@@ -64,7 +64,9 @@ void matrix_multiply_ref(Ta *A, Tb *B, Tc *C, int M, int N, int K,
             acc += make_fp32(va[i]) * make_fp32(vb[i]);
           else if constexpr (std::is_same_v<Ta, float> &&
                                  std::is_same_v<Tc, float> ||
-                             std::is_integral_v<Ta> && std::is_integral_v<Tc>)
+                             std::is_integral_v<Ta> && std::is_integral_v<Tc> ||
+                             (std::is_same_v<Ta, double> &&
+                              std::is_same_v<Tc, double>))
             acc += va[i] * vb[i];
           else if constexpr (std::is_same_v<Ta, sycl::half> &&
                              std::is_same_v<Tc, float>)
@@ -127,7 +129,8 @@ void matrix_rand(unsigned int rows, unsigned int cols, T *src, T val) {
 
   for (unsigned int i = 0; i < rows; i++) {
     for (unsigned int j = 0; j < cols; j++) {
-      if constexpr (std::is_same_v<T, bfloat16> || std::is_same_v<T, float>) {
+      if constexpr (std::is_same_v<T, bfloat16> || std::is_same_v<T, float> ||
+                    std::is_same_v<T, double>) {
         src[i * cols + j] = T(fdistr(dev));
       } else if constexpr (std::is_same_v<T, int8_t> ||
                            std::is_same_v<T, int32_t>) {

@@ -41,7 +41,7 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
   context Ctx{Plt};
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
 
-  auto buf = sycl::malloc_shared<int>(1, InOrderQueue);
+  auto buf = sycl::malloc_device<int>(1, InOrderQueue);
   event Evt = InOrderQueue.submit(
       [&](sycl::handler &CGH) { CGH.memset(buf, 0, sizeof(buf[0])); });
   InOrderQueue.submit([&](sycl::handler &CGH) { CGH.host_task([=] {}); })
@@ -96,7 +96,7 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
     });
   });
 
-  auto buf = sycl::malloc_shared<int>(1, InOrderQueue);
+  auto buf = sycl::malloc_device<int>(1, InOrderQueue);
 
   event Ev1 = InOrderQueue.submit(
       [&](sycl::handler &CGH) { CGH.memset(buf, 0, sizeof(buf[0])); });
@@ -149,7 +149,7 @@ TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
     });
   });
 
-  auto buf = sycl::malloc_shared<int>(1, InOrderQueue);
+  auto buf = sycl::malloc_device<int>(1, InOrderQueue);
 
   event Ev1 = InOrderQueue.memset(buf, 0, sizeof(buf[0]));
 

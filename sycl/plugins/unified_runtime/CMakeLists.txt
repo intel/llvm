@@ -57,12 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "git@git.office.codeplay.com:orion/unified-runtime.git")
-  # commit be849b2f745fc525cf77bc2fe42c469751093706
-  # Merge: 47102cb2 92a02504
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Feb 12 10:01:50 2024 +0000
-  #     Merge pull request #1324 from raiyanla/event-opt
-  #     [L0] Allocate event pools efficiently in multi-device scenarios
+  # commit 91c6068bb581acf72f02f1284ab0464ec4f03e34 
+  # Merge: de328246 89ad3408
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Fri Feb 23 13:39:03 2024 +0000
+  #     Merge pull request #1274 from isaacault/iault/image_array_copy
+  #     [Bindless][Exp] Add Support For Image Arrays
+  # set(UNIFIED_RUNTIME_TAG 91c6068bb581acf72f02f1284ab0464ec4f03e34 )
   set(UNIFIED_RUNTIME_TAG uwe/subgroups)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
@@ -124,7 +125,7 @@ set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/com
 
 add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 add_library(UnifiedRuntimeCommon ALIAS ur_common)
-add_library(UnifiedMallocFramework ALIAS unified_malloc_framework)
+add_library(UnifiedMemoryFramework ALIAS umf)
 
 add_library(UnifiedRuntime-Headers INTERFACE)
 

@@ -15,7 +15,6 @@
 #include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/queue.hpp>
-#include <sycl/stl.hpp>
 
 #include <algorithm>
 
@@ -360,3 +359,10 @@ void queue::ext_oneapi_set_external_event(const event &external_event) {
 
 } // namespace _V1
 } // namespace sycl
+
+size_t std::hash<sycl::queue>::operator()(const sycl::queue &Q) const {
+  // Compared to using the impl pointer, the unique ID helps avoid hash
+  // collisions with previously destroyed queues.
+  return std::hash<unsigned long long>()(
+      sycl::detail::getSyclObjImpl(Q)->getQueueID());
+}

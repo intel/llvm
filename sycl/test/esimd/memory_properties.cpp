@@ -1282,13 +1282,136 @@ test_gather_scatter(AccType &acc, LocalAccType &local_acc, float *ptrf,
 
   scatter<float, 32, 2>(ptrf, ioffset_n16_view, usm_view);
 
+  // CHECK-COUNT-4: call void @llvm.masked.scatter.v32f32.v32p3(<32 x float> {{[^)]+}}, <32 x ptr addrspace(3)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}})
+  scatter(local_acc, ioffset_n32, usm, mask_n32);
+
+  scatter(local_acc, ioffset_n32, usm);
+
+  scatter(local_acc, ioffset_n32, usm, mask_n32, props_align4);
+
+  scatter(local_acc, ioffset_n32, usm, props_align4);
+
+  // CHECK-COUNT-8: call void @llvm.masked.scatter.v32f32.v32p3(<32 x float> {{[^)]+}}, <32 x ptr addrspace(3)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}})
+  scatter(local_acc, ioffset_n32, usm, mask_n32, props_align4);
+  scatter(local_acc, ioffset_n32, usm, props_align4);
+
+  scatter(local_acc, ioffset_n32_view, usm, mask_n32, props_align4);
+  scatter(local_acc, ioffset_n32_view, usm, props_align4);
+
+  scatter<float, 32>(local_acc, ioffset_n32, usm_view, mask_n32, props_align4);
+  scatter<float, 32>(local_acc, ioffset_n32, usm_view, props_align4);
+
+  scatter<float, 32>(local_acc, ioffset_n32_view, usm_view, mask_n32,
+                     props_align4);
+  scatter<float, 32>(local_acc, ioffset_n32_view, usm_view, props_align4);
+
+  // VS > 1
+  // CHECK-COUNT-8: call void @llvm.genx.lsc.store.slm.v16i1.v16i32.v32i32(<16 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i32> {{[^)]+}}, <32 x i32>{{[^)]+}}, i32 0)
+  scatter<float, 32, 2>(local_acc, ioffset_n16, usm, mask_n16, props_align4);
+
+  scatter<float, 32, 2>(local_acc, ioffset_n16, usm, props_align4);
+
+  scatter<float, 32, 2>(local_acc, ioffset_n16_view, usm, mask_n16,
+                        props_align4);
+  scatter<float, 32, 2>(local_acc, ioffset_n16_view, usm, props_align4);
+
+  scatter<float, 32, 2>(local_acc, ioffset_n16, usm_view, mask_n16,
+                        props_align4);
+  scatter<float, 32, 2>(local_acc, ioffset_n16, usm_view, props_align4);
+
+  scatter<float, 32, 2>(local_acc, ioffset_n16_view, usm_view, mask_n16,
+                        props_align4);
+  scatter<float, 32, 2>(local_acc, ioffset_n16_view, usm_view, props_align4);
+
+  // CHECK-COUNT-8: call void @llvm.genx.lsc.store.slm.v16i1.v16i32.v32i32(<16 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i32> {{[^)]+}}, <32 x i32>{{[^)]+}}, i32 0)
+  scatter<float, 32, 2>(local_acc, ioffset_n16, usm, mask_n16);
+
+  scatter<float, 32, 2>(local_acc, ioffset_n16, usm);
+
+  scatter<float, 32, 2>(local_acc, ioffset_n16_view, usm, mask_n16);
+
+  scatter<float, 32, 2>(local_acc, ioffset_n16_view, usm);
+
+  scatter<float, 32, 2>(local_acc, ioffset_n16, usm_view, mask_n16);
+
+  scatter<float, 32, 2>(local_acc, ioffset_n16, usm_view);
+
+  scatter<float, 32, 2>(local_acc, ioffset_n16_view, usm_view, mask_n16);
+
+  scatter<float, 32, 2>(local_acc, ioffset_n16_view, usm_view);
   simd<uint32_t, 10> ioffset_n10(byte_offset32, 8);
   simd<float, 10> usm_n10;
+
+  // Check special case involving glbal offset and mask
+  // CHECK-COUNT-2: call void @llvm.masked.scatter.v32f32.v32p3(<32 x float> {{[^)]+}}, <32 x ptr addrspace(3)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}})
+  scatter<float, 32>(local_acc, ioffset_n32, usm, 0, 1);
+  scatter<float, 32>(local_acc, ioffset_n32, usm, 0);
 
   // Check special case to verify that for cases when N is not power of 2 llvm
   // intrinsic is used
   // CHECK-COUNT-1: call void @llvm.masked.scatter.v10f32.v10p4(<10 x float> {{[^)]+}}, <10 x ptr addrspace(4)> {{[^)]+}}, i32 4, <10 x i1> {{[^)]+}})
   scatter(ptrf, ioffset_n10, usm_n10);
+
+  // Test accessor
+  // CHECK-STATEFUL-COUNT-4: call void @llvm.genx.scatter.scaled.v32i1.v32i32.v32f32(<32 x i1> {{[^)]+}}, i16 0, i32 {{[^)]+}}, i32 {{[^)]+}}, <32 x i32> {{[^)]+}}, <32 x float> {{[^)]+}})
+  // CHECK-STATELESS-COUNT-4: call void @llvm.masked.scatter.v32f32.v32p4(<32 x float> {{[^)]+}}, <32 x ptr addrspace(4)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}})
+  scatter(acc, ioffset_n32, usm, mask_n32);
+
+  scatter(acc, ioffset_n32, usm);
+
+  scatter(acc, ioffset_n32, usm, mask_n32, props_align4);
+
+  scatter(acc, ioffset_n32, usm, props_align4);
+
+  // CHECK-STATEFUL-COUNT-8: call void @llvm.genx.lsc.store.bti.v32i1.v32i32.v32i32(<32 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <32 x i32> {{[^)]+}}, <32 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  // CHECK-STATELESS-COUNT-8: call void @llvm.genx.lsc.store.stateless.v32i1.v32i64.v32i32(<32 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 1, i8 1, i8 0, <32 x i64> {{[^)]+}}, <32 x i32> {{[^)]+}}, i32 0)
+  scatter(acc, ioffset_n32, usm, mask_n32, props_cache_load);
+  scatter(acc, ioffset_n32, usm, props_cache_load);
+
+  scatter(acc, ioffset_n32_view, usm, mask_n32, props_cache_load);
+  scatter(acc, ioffset_n32_view, usm, props_cache_load);
+
+  scatter<float, 32>(acc, ioffset_n32, usm_view, mask_n32, props_cache_load);
+  scatter<float, 32>(acc, ioffset_n32, usm_view, props_cache_load);
+
+  scatter<float, 32>(acc, ioffset_n32_view, usm_view, mask_n32,
+                     props_cache_load);
+  scatter<float, 32>(acc, ioffset_n32_view, usm_view, props_cache_load);
+
+  // VS > 1
+  // CHECK-STATELESS-COUNT-8: call void @llvm.genx.lsc.store.stateless.v16i1.v16i64.v32i32(<16 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, <32 x i32> {{[^)]+}}, i32 0)
+  // CHECK-STATEFUL-COUNT-8: call void @llvm.genx.lsc.store.bti.v16i1.v16i32.v32i32(<16 x i1> {{[^)]+}}, i8 4, i8 1, i8 1, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i32> {{[^)]+}}, <32 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  scatter<float, 32, 2>(acc, ioffset_n16, usm, mask_n16, props_cache_load);
+
+  scatter<float, 32, 2>(acc, ioffset_n16, usm, props_cache_load);
+
+  scatter<float, 32, 2>(acc, ioffset_n16_view, usm, mask_n16, props_cache_load);
+  scatter<float, 32, 2>(acc, ioffset_n16_view, usm, props_cache_load);
+
+  scatter<float, 32, 2>(acc, ioffset_n16, usm_view, mask_n16, props_cache_load);
+  scatter<float, 32, 2>(acc, ioffset_n16, usm_view, props_cache_load);
+
+  scatter<float, 32, 2>(acc, ioffset_n16_view, usm_view, mask_n16,
+                        props_cache_load);
+  scatter<float, 32, 2>(acc, ioffset_n16_view, usm_view, props_cache_load);
+
+  // CHECK-STATELESS-COUNT-8: call void @llvm.genx.lsc.store.stateless.v16i1.v16i64.v32i32(<16 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i64> {{[^)]+}}, <32 x i32> {{[^)]+}}, i32 0)
+  // CHECK-STATEFUL-COUNT-8:  call void @llvm.genx.lsc.store.bti.v16i1.v16i32.v32i32(<16 x i1> {{[^)]+}}, i8 4, i8 0, i8 0, i16 1, i32 0, i8 3, i8 2, i8 1, i8 0, <16 x i32> {{[^)]+}}, <32 x i32> {{[^)]+}}, i32 {{[^)]+}})
+  scatter<float, 32, 2>(acc, ioffset_n16, usm, mask_n16);
+
+  scatter<float, 32, 2>(acc, ioffset_n16, usm);
+
+  scatter<float, 32, 2>(acc, ioffset_n16_view, usm, mask_n16);
+
+  scatter<float, 32, 2>(acc, ioffset_n16_view, usm);
+
+  scatter<float, 32, 2>(acc, ioffset_n16, usm_view, mask_n16);
+
+  scatter<float, 32, 2>(acc, ioffset_n16, usm_view);
+
+  scatter<float, 32, 2>(acc, ioffset_n16_view, usm_view, mask_n16);
+
+  scatter<float, 32, 2>(acc, ioffset_n16_view, usm_view);
 }
 
 // CHECK-LABEL: define {{.*}} @_Z23test_slm_gather_scatter{{.*}}
@@ -1439,9 +1562,17 @@ test_slm_gather_scatter(int byte_offset32) {
   slm_scatter<float, 32, 2>(ioffset_n16_view, slm_view, mask_n16, props_align4);
 
   simd<uint32_t, 10> ioffset_n10(byte_offset32, 8);
-  simd<float, 10> usm_n10;
+  simd<float, 10> slm_n10;
   // Check special case to verify that for cases when N is not power of 2 llvm
   // intrinsic is used
   // CHECK-COUNT-1: call void @llvm.masked.scatter.v10f32.v10p3(<10 x float> {{[^)]+}}, <10 x ptr addrspace(3)> {{[^)]+}}, i32 4, <10 x i1> {{[^)]+}})
-  slm_scatter(ioffset_n10, usm_n10);
+  slm_scatter(ioffset_n10, slm_n10);
+
+  // Check a case to verify emulation for 64 bit data types
+  // CHECK-COUNT-1: call <32 x i32> @llvm.masked.gather.v32i32.v32p3(<32 x ptr addrspace(3)> {{[^)]+}}, i32 8, <32 x i1> {{[^)]+}}, <32 x i32> {{[^)]+}})
+  // CHECK-COUNT-1: call <32 x i32> @llvm.masked.gather.v32i32.v32p3(<32 x ptr addrspace(3)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}}, <32 x i32> {{[^)]+}})
+  auto slm_64 = slm_gather<int64_t>(ioffset_n32);
+  // CHECK-COUNT-1: call void @llvm.masked.scatter.v32i32.v32p3(<32 x i32> {{[^)]+}}, <32 x ptr addrspace(3)> {{[^)]+}}, i32 8, <32 x i1> {{[^)]+}})
+  // CHECK-COUNT-1: call void @llvm.masked.scatter.v32i32.v32p3(<32 x i32> {{[^)]+}}, <32 x ptr addrspace(3)> {{[^)]+}}, i32 4, <32 x i1> {{[^)]+}})
+  slm_scatter<int64_t>(ioffset_n32, slm_64);
 }

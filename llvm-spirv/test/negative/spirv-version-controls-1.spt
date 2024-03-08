@@ -1,4 +1,4 @@
-119734787 66816 393230 12 0
+119734787 67072 393230 12 0
 2 Capability Addresses
 2 Capability Kernel
 5 ExtInstImport 1 "OpenCL.std"
@@ -29,5 +29,4 @@
 
 ; RUN: not llvm-spirv %s -to-binary -o - 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
 ;
-; CHECK-ERROR: Invalid SPIR-V module: unsupported SPIR-V version number 'unknown (66816)'. Range of supported/known SPIR-V versions is 1.0 (65536) - 1.4 (66560)
-
+; CHECK-ERROR: Invalid SPIR-V module: unsupported SPIR-V version number 'unknown (67072)'. Range of supported/known SPIR-V versions is 1.0 (65536) - 1.5 (66816)
