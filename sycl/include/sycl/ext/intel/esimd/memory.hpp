@@ -105,47 +105,7 @@ ESIMD_INLINE simd<T, N> lsc_format_ret(simd<T1, N> Vals) {
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
 /// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L2H is L2 cache hint.
-/// @tparam N is the number of channels (platform dependent).
-/// @param p is the base pointer.
-/// @param offsets is the zero-based offsets in bytes.
-/// @param pred is predicates.
-/// @return is a vector of type T and size N * NElts
-template <typename T, int NElts, lsc_data_size DS, cache_hint L1H,
-          cache_hint L2H, int N, typename OffsetT>
-__ESIMD_API simd<T, N * NElts> gather_impl(const T *p, simd<OffsetT, N> offsets,
-                                           simd_mask<N> pred) {
-  static_assert(std::is_integral_v<OffsetT>, "Unsupported offset type");
-  check_lsc_vector_size<NElts>();
-  check_lsc_data_size<T, DS>();
-  check_cache_hint<cache_action::load, L1H, L2H>();
-  constexpr uint16_t AddressScale = 1;
-  constexpr int ImmOffset = 0;
-  constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
-  constexpr lsc_vector_size VS = to_lsc_vector_size<NElts>();
-  constexpr auto Transposed = lsc_data_order::nontranspose;
-  using MsgT = typename lsc_expand_type<T>::type;
-  simd<uintptr_t, N> addrs = reinterpret_cast<uintptr_t>(p);
-  addrs += convert<uintptr_t>(offsets);
-  simd<MsgT, N * NElts> Tmp =
-      __esimd_lsc_load_stateless<MsgT, L1H, L2H, AddressScale, ImmOffset, EDS,
-                                 VS, Transposed, N>(pred.data(), addrs.data());
-  return lsc_format_ret<T>(Tmp);
-}
-
-/// USM pointer gather.
-/// Supported platforms: DG2, PVC
-/// VISA instruction: lsc_load.ugm
-///
-/// Collects elements located at specified address and returns them
-/// as a single \ref simd object.
-///
-/// @tparam T is element type.
-/// @tparam NElts is the number of elements to load per address.
-/// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L2H is L2 cache hint.
+/// @tparam PropertyListT is the properties with optional cache hints.
 /// @tparam N is the number of channels (platform dependent).
 /// @param p is the base pointer.
 /// @param offsets is the zero-based offsets in bytes.
@@ -154,15 +114,19 @@ __ESIMD_API simd<T, N * NElts> gather_impl(const T *p, simd<OffsetT, N> offsets,
 /// to the returned result when the corresponding element of \p pred is 0.
 /// @return is a vector of type T and size N * NElts
 ///
-template <typename T, int NElts, lsc_data_size DS, cache_hint L1H,
-          cache_hint L2H, int N, typename OffsetT>
+template <typename T, int NElts, lsc_data_size DS, typename PropertyListT,
+          int N, typename OffsetT>
 __ESIMD_API simd<T, N * NElts> gather_impl(const T *p, simd<OffsetT, N> offsets,
                                            simd_mask<N> pred,
                                            simd<T, N * NElts> pass_thru) {
   static_assert(std::is_integral_v<OffsetT>, "Unsupported offset type");
   check_lsc_vector_size<NElts>();
   check_lsc_data_size<T, DS>();
-  check_cache_hint<cache_action::load, L1H, L2H>();
+  check_cache_hints<cache_action::load, PropertyListT>();
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
@@ -188,22 +152,25 @@ __ESIMD_API simd<T, N * NElts> gather_impl(const T *p, simd<OffsetT, N> offsets,
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to store per address.
 /// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L2H is L2 cache hint.
+/// @tparam PropertyListT is the properties with optional cache hints.
 /// @tparam N is the number of channels (platform dependent).
 /// @param p is the base pointer.
 /// @param offsets is the zero-based offsets in bytes.
 /// @param vals is values to store.
 /// @param pred is predicates.
 ///
-template <typename T, int NElts, lsc_data_size DS, cache_hint L1H,
-          cache_hint L2H, int N, typename Toffset>
+template <typename T, int NElts, lsc_data_size DS, typename PropertyListT,
+          int N, typename Toffset>
 __ESIMD_API void scatter_impl(T *p, simd<Toffset, N> offsets,
                               simd<T, N * NElts> vals, simd_mask<N> pred) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   check_lsc_vector_size<NElts>();
   check_lsc_data_size<T, DS>();
-  check_cache_hint<cache_action::store, L1H, L2H>();
+  check_cache_hints<cache_action::store, PropertyListT>();
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
@@ -318,22 +285,15 @@ gather(const T *p, simd<OffsetT, N / VS> byte_offsets, simd_mask<N / VS> mask,
       detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(T));
   static_assert(Alignment >= sizeof(T),
                 "gather() requires at least element-size alignment");
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
 
-  // Use LSC lowering if L1/L2 or VS > 1. Also, if masked gather is
-  // not available, then LSC is the only lowering option.
-  if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
-                VS > 1 || !detail::isMaskedGatherScatterLLVMAvailable()) {
+  // Use LSC lowering if cache-hints are used or VS > 1. Also, if
+  // llvm.masked.gather is not available, then LSC is the only lowering option.
+  if constexpr (detail::has_cache_hints<PropertyListT>() || VS > 1 ||
+                !detail::isMaskedGatherScatterLLVMAvailable()) {
     static_assert(VS == 1 || sizeof(T) >= 4,
                   "VS > 1 is supprted only for 4- and 8-byte elements");
     return detail::gather_impl<T, VS, detail::lsc_data_size::default_size,
-                               L1Hint, L2Hint>(p, byte_offsets, mask,
-                                               pass_thru);
+                               PropertyListT>(p, byte_offsets, mask, pass_thru);
   } else {
     simd<uint64_t, N> Addrs(reinterpret_cast<uint64_t>(p));
     Addrs = Addrs + convert<uint64_t>(byte_offsets);
@@ -381,19 +341,13 @@ gather(const T *p, simd<OffsetT, N / VS> byte_offsets, simd_mask<N / VS> mask,
       detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(T));
   static_assert(Alignment >= sizeof(T),
                 "gather() requires at least element-size alignment");
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
 
-  if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
-                VS > 1 || detail::isMaskedGatherScatterLLVMAvailable()) {
+  if constexpr (detail::has_cache_hints<PropertyListT>() || VS > 1 ||
+                detail::isMaskedGatherScatterLLVMAvailable() ||
+                !detail::isPowerOf2(N, 32)) {
     simd<T, N> PassThru; // it is intentionally undefined
     return gather<T, N, VS>(p, byte_offsets, mask, PassThru, props);
   } else {
-    static_assert(detail::isPowerOf2(N, 32), "Unsupported value of N");
     simd<uintptr_t, N> Addrs = reinterpret_cast<uintptr_t>(p);
     Addrs += convert<uintptr_t>(byte_offsets);
     using MsgT = detail::__raw_t<T>;
@@ -715,22 +669,15 @@ scatter(T *p, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
       detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(T));
   static_assert(Alignment >= sizeof(T),
                 "scatter() requires at least element-size alignment");
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
 
-  // Use LSC lowering if L1/L2 or VS > 1.
-  if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
-                VS > 1 ||
+  // Use LSC lowering if cache-hints are used or VS > 1.
+  if constexpr (detail::has_cache_hints<PropertyListT>() || VS > 1 ||
                 (!__ESIMD_DNS::isPowerOf2(N, 32) &&
                  !detail::isMaskedGatherScatterLLVMAvailable())) {
     static_assert(VS == 1 || sizeof(T) >= 4,
                   "VS > 1 is supprted only for 4- and 8-byte elements");
     return detail::scatter_impl<T, VS, detail::lsc_data_size::default_size,
-                                L1Hint, L2Hint>(p, byte_offsets, vals, mask);
+                                PropertyListT>(p, byte_offsets, vals, mask);
   } else if constexpr (detail::isMaskedGatherScatterLLVMAvailable()) {
     simd<uint64_t, N> Addrs(reinterpret_cast<uint64_t>(p));
     Addrs = Addrs + convert<uint64_t>(byte_offsets);
@@ -959,6 +906,7 @@ block_load_impl(const T *p, simd_mask<1> pred, simd<T, NElts> pass_thru) {
       getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
   constexpr cache_hint L2H =
       getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size ActualDS =
@@ -2618,8 +2566,7 @@ scatter_impl(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to store per address.
 /// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L2H is L2 cache hint.
+/// @tparam PropertyListT is the properties with optional cache hints.
 /// @tparam N is the number of channels (platform dependent).
 /// @tparam AccessorTy is the \ref sycl::accessor type.
 /// @param acc is the SYCL accessor.
@@ -2627,8 +2574,8 @@ scatter_impl(AccessorTy acc, simd<T, N> vals, simd<uint32_t, N> offsets,
 /// @param vals is values to store.
 /// @param pred is predicates.
 ///
-template <typename T, int NElts, lsc_data_size DS, cache_hint L1H,
-          cache_hint L2H, int N, typename AccessorTy, typename OffsetT>
+template <typename T, int NElts, lsc_data_size DS, typename PropertyListT,
+          int N, typename AccessorTy, typename OffsetT>
 __ESIMD_API std::enable_if_t<
     is_device_accessor_with_v<AccessorTy, accessor_mode_cap::can_write>>
 scatter_impl(AccessorTy acc, simd<OffsetT, N> offsets, simd<T, N * NElts> vals,
@@ -2641,7 +2588,11 @@ scatter_impl(AccessorTy acc, simd<OffsetT, N> offsets, simd<T, N * NElts> vals,
                 "convert offsets to a 32-bit vector");
   check_lsc_vector_size<NElts>();
   check_lsc_data_size<T, DS>();
-  check_cache_hint<cache_action::store, L1H, L2H>();
+  check_cache_hints<cache_action::store, PropertyListT>();
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
@@ -2713,8 +2664,8 @@ gather_impl(AccessorTy acc, simd<uint32_t, N> offsets, uint32_t glob_offset,
 }
 
 #ifndef __ESIMD_FORCE_STATELESS_MEM
-template <typename T, int N, int VS, cache_hint L1H, cache_hint L2H,
-          lsc_data_size DS, typename OffsetT, typename AccessorT>
+template <typename T, int N, int VS, typename PropertyListT, lsc_data_size DS,
+          typename OffsetT, typename AccessorT>
 __ESIMD_API std::enable_if_t<
     is_device_accessor_with_v<AccessorT, accessor_mode_cap::can_read>,
     simd<T, N>>
@@ -2731,13 +2682,17 @@ gather_impl(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
                 "VS > 1 is supprted only for 4- and 8-byte elements");
   check_lsc_vector_size<VS>();
   check_lsc_data_size<T, DS>();
-  check_cache_hint<cache_action::load, L1H, L2H>();
+  check_cache_hints<cache_action::load, PropertyListT>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
   constexpr lsc_vector_size LSCVS = to_lsc_vector_size<VS>();
   constexpr auto Transposed = lsc_data_order::nontranspose;
   using MsgT = typename lsc_expand_type<T>::type;
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
   auto SI = get_surface_index(acc);
   simd<uint32_t, N / VS> ByteOffsets32 = convert<uint32_t>(byte_offsets);
   simd<MsgT, N> PassThruExpanded = lsc_format_input<MsgT>(pass_thru);
@@ -2827,21 +2782,24 @@ __ESIMD_API void slm_scatter_impl(simd<uint32_t, N> offsets,
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
 /// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L2H is L2 cache hint.
+/// @tparam PropertyListT is the properties with optional cache hints.
 /// @tparam N is the number of channels (platform dependent).
 /// @param p is the base pointer.
 /// @param byte_offsets is the zero-based offsets in bytes.
 /// @param pred is predicates.
 ///
-template <typename T, int NElts, lsc_data_size DS, cache_hint L1H,
-          cache_hint L2H, int N, typename Toffset>
+template <typename T, int NElts, lsc_data_size DS, typename PropertyListT,
+          int N, typename Toffset>
 __ESIMD_API void prefetch_impl(const T *p, simd<Toffset, N> byte_offsets,
                                simd_mask<N> pred) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   check_lsc_vector_size<NElts>();
   check_lsc_data_size<T, DS>();
-  check_cache_hint<cache_action::prefetch, L1H, L2H>();
+  check_cache_hints<cache_action::prefetch, PropertyListT>();
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
@@ -2855,13 +2813,17 @@ __ESIMD_API void prefetch_impl(const T *p, simd<Toffset, N> byte_offsets,
                                                        addrs.data());
 }
 
-template <typename T, int NElts, lsc_data_size DS, cache_hint L1H,
-          cache_hint L2H, typename Toffset>
+template <typename T, int NElts, lsc_data_size DS, typename PropertyListT,
+          typename Toffset>
 __ESIMD_API std::enable_if_t<std::is_integral_v<Toffset>>
 prefetch_impl(const T *p, Toffset offset, simd_mask<1> pred) {
   check_lsc_vector_size<NElts>();
   check_lsc_data_size<T, DS>();
-  check_cache_hint<cache_action::prefetch, L1H, L2H>();
+  check_cache_hints<cache_action::prefetch, PropertyListT>();
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = finalize_data_size<T, DS>();
@@ -2889,8 +2851,7 @@ prefetch_impl(const T *p, Toffset offset, simd_mask<1> pred) {
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
 /// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L2H is L2 cache hint.
+/// @tparam PropertyListT is the properties with optional cache hints.
 /// @tparam N is the number of channels (platform dependent).
 /// @tparam AccessorTy is the \ref sycl::accessor type.
 /// @tparam OffsetT is the type of \c byte_offsets.
@@ -2899,8 +2860,8 @@ prefetch_impl(const T *p, Toffset offset, simd_mask<1> pred) {
 /// @param pred is predicates.
 ///
 
-template <typename T, int NElts, lsc_data_size DS, cache_hint L1H,
-          cache_hint L2H, int N, typename AccessorTy, typename OffsetT>
+template <typename T, int NElts, lsc_data_size DS, typename PropertyListT,
+          int N, typename AccessorTy, typename OffsetT>
 __ESIMD_API std::enable_if_t<
     is_device_accessor_with_v<AccessorTy, accessor_mode_cap::can_read>>
 prefetch_impl(AccessorTy acc, simd<OffsetT, N> byte_offsets,
@@ -2913,7 +2874,11 @@ prefetch_impl(AccessorTy acc, simd<OffsetT, N> byte_offsets,
                 "convert offsets to a 32-bit vector");
   check_lsc_vector_size<NElts>();
   check_lsc_data_size<T, DS>();
-  check_cache_hint<cache_action::prefetch, L1H, L2H>();
+  check_cache_hints<cache_action::prefetch, PropertyListT>();
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
@@ -2936,15 +2901,16 @@ prefetch_impl(AccessorTy acc, simd<OffsetT, N> byte_offsets,
 /// @tparam T is element type.
 /// @tparam NElts is the number of elements to load per address.
 /// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L2H is L2 cache hint.
+/// @tparam PropertyListT is the properties with optional cache hints.
 /// @tparam AccessorTy is the \ref sycl::accessor type.
 /// @tparam OffsetT is the type of \c byte_offset.
 /// @param acc is the SYCL accessor.
 /// @param byte_offset is the zero-based offset in bytes.
+/// @param pred is operation predicate. Zero means operation is skipped
+/// entirely, non-zero - operation is performed.
 ///
-template <typename T, int NElts, lsc_data_size DS, cache_hint L1H,
-          cache_hint L2H, typename AccessorTy, typename OffsetT>
+template <typename T, int NElts, lsc_data_size DS, typename PropertyListT,
+          typename AccessorTy, typename OffsetT>
 __ESIMD_API std::enable_if_t<
     std::is_integral_v<OffsetT> &&
     is_device_accessor_with_v<AccessorTy, accessor_mode_cap::can_read>>
@@ -2955,7 +2921,11 @@ prefetch_impl(AccessorTy acc, OffsetT byte_offset, simd_mask<1> pred) {
                 "convert offsets to a 32-bit vector");
   check_lsc_vector_size<NElts>();
   check_lsc_data_size<T, DS>();
-  check_cache_hint<cache_action::prefetch, L1H, L2H>();
+  check_cache_hints<cache_action::prefetch, PropertyListT>();
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = finalize_data_size<T, DS>();
@@ -3020,7 +2990,8 @@ __ESIMD_API
     // Requires DG2 or PVC.
     simd<T, N> PassThru; // Intentionally undefined
     byte_offsets += glob_offset;
-    return detail::gather_impl<T, N, 1, cache_hint::none, cache_hint::none,
+    return detail::gather_impl<T, N, 1,
+                               oneapi::experimental::empty_properties_t,
                                detail::lsc_data_size::default_size>(
         acc, byte_offsets, mask, PassThru);
   } else {
@@ -3151,17 +3122,7 @@ gather(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
   return gather<T, N, VS>(detail::accessorToPointer<T>(acc), byte_offsets, mask,
                           pass_thru, props);
 #else
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
-  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
-                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
-                "hint is cache_level::L2 now.");
-
-  return detail::gather_impl<T, N, VS, L1Hint, L2Hint,
+  return detail::gather_impl<T, N, VS, PropertyListT,
                              detail::lsc_data_size::default_size>(
       acc, byte_offsets, mask, pass_thru);
 #endif // __ESIMD_FORCE_STATELESS_MEM
@@ -3214,20 +3175,11 @@ gather(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
       detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(T));
   static_assert(Alignment >= sizeof(T),
                 "gather() requires at least element-size alignment");
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
-  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
-                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
-                "hint is cache_level::L2 now.");
 
-  if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
-                VS > 1 || !(detail::isPowerOf2(N, 32))) {
+  if constexpr (detail::has_cache_hints<PropertyListT>() || VS > 1 ||
+                !(detail::isPowerOf2(N, 32))) {
     simd<T, N> PassThru; // Intentionally undefined
-    return detail::gather_impl<T, N, VS, L1Hint, L2Hint,
+    return detail::gather_impl<T, N, VS, PropertyListT,
                                detail::lsc_data_size::default_size>(
         acc, byte_offsets, mask, PassThru);
   } else {
@@ -3481,20 +3433,11 @@ scatter(AccessorTy acc, simd<OffsetT, N / VS> byte_offsets, simd<T, N> vals,
       detail::getPropertyValue<PropertyListT, alignment_key>(sizeof(T));
   static_assert(Alignment >= sizeof(T),
                 "gather() requires at least element-size alignment");
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
-  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
-                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
-                "hint is cache_level::L2 now.");
 
-  if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
-                VS > 1 || !detail::isPowerOf2(N, 32)) {
-    detail::scatter_impl<T, VS, detail::lsc_data_size::default_size, L1Hint,
-                         L2Hint>(acc, byte_offsets, vals, mask);
+  if constexpr (detail::has_cache_hints<PropertyListT>() || VS > 1 ||
+                !detail::isPowerOf2(N, 32)) {
+    detail::scatter_impl<T, VS, detail::lsc_data_size::default_size,
+                         PropertyListT>(acc, byte_offsets, vals, mask);
   } else {
     detail::scatter_impl<T, N, AccessorTy>(acc, vals, byte_offsets, 0, mask);
   }
@@ -5896,21 +5839,24 @@ namespace detail {
 /// @tparam T is element type.
 /// @tparam N is the number of channels (platform dependent).
 /// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L2H is L2 cache hint.
+/// @tparam PropertyListT is the properties with optional cache hints.
 /// @param p is the base pointer.
 /// @param offsets is the zero-based offsets.
 /// @param pred is predicates.
 ///
-template <atomic_op Op, typename T, int N, lsc_data_size DS, cache_hint L1H,
-          cache_hint L2H, typename Toffset>
+template <atomic_op Op, typename T, int N, lsc_data_size DS,
+          typename PropertyListT, typename Toffset>
 __ESIMD_API std::enable_if_t<get_num_args<Op>() == 0, simd<T, N>>
 atomic_update_impl(T *p, simd<Toffset, N> offsets, simd_mask<N> pred) {
   static_assert(sizeof(T) > 1, "Unsupported data type");
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   check_atomic<Op, T, N, 0, /*IsLSC*/ true>();
   check_lsc_data_size<T, DS>();
-  check_cache_hint<cache_action::atomic, L1H, L2H>();
+  check_cache_hints<cache_action::atomic, PropertyListT>();
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
@@ -5935,15 +5881,14 @@ atomic_update_impl(T *p, simd<Toffset, N> offsets, simd_mask<N> pred) {
 /// @tparam T is element type.
 /// @tparam N is the number of channels (platform dependent).
 /// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L2H is L2 cache hint.
+/// @tparam PropertyListT is the properties with optional cache hints.
 /// @param p is the base pointer.
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand.
 /// @param pred is predicates.
 ///
-template <atomic_op Op, typename T, int N, lsc_data_size DS, cache_hint L1H,
-          cache_hint L2H, typename Toffset>
+template <atomic_op Op, typename T, int N, lsc_data_size DS,
+          typename PropertyListT, typename Toffset>
 __ESIMD_API std::enable_if_t<get_num_args<Op>() == 1, simd<T, N>>
 atomic_update_impl(T *p, simd<Toffset, N> offsets, simd<T, N> src0,
                    simd_mask<N> pred) {
@@ -5951,7 +5896,11 @@ atomic_update_impl(T *p, simd<Toffset, N> offsets, simd<T, N> src0,
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   check_lsc_data_size<T, DS>();
   check_atomic<Op, T, N, 1, /*IsLSC*/ true>();
-  check_cache_hint<cache_action::atomic, L1H, L2H>();
+  check_cache_hints<cache_action::atomic, PropertyListT>();
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
@@ -5977,16 +5926,15 @@ atomic_update_impl(T *p, simd<Toffset, N> offsets, simd<T, N> src0,
 /// @tparam T is element type.
 /// @tparam N is the number of channels (platform dependent).
 /// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L2H is L2 cache hint.
+/// @tparam PropertyListT is the properties with optional cache hints.
 /// @param p is the base pointer.
 /// @param offsets is the zero-based offsets.
 /// @param src0 is the first atomic operand (expected value).
 /// @param src1 is the second atomic operand (new value).
 /// @param pred predicates.
 ///
-template <atomic_op Op, typename T, int N, lsc_data_size DS, cache_hint L1H,
-          cache_hint L2H, typename Toffset>
+template <atomic_op Op, typename T, int N, lsc_data_size DS,
+          typename PropertyListT, typename Toffset>
 __ESIMD_API std::enable_if_t<get_num_args<Op>() == 2, simd<T, N>>
 atomic_update_impl(T *p, simd<Toffset, N> offsets, simd<T, N> src0,
                    simd<T, N> src1, simd_mask<N> pred) {
@@ -5994,7 +5942,11 @@ atomic_update_impl(T *p, simd<Toffset, N> offsets, simd<T, N> src0,
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   check_lsc_data_size<T, DS>();
   check_atomic<Op, T, N, 2, /*IsLSC*/ true>();
-  check_cache_hint<cache_action::atomic, L1H, L2H>();
+  check_cache_hints<cache_action::atomic, PropertyListT>();
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
@@ -6021,8 +5973,7 @@ atomic_update_impl(T *p, simd<Toffset, N> offsets, simd<T, N> src0,
 /// @tparam T is element type.
 /// @tparam N is the number of channels (platform dependent).
 /// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L2H is L2 cache hint.
+/// @tparam PropertyListT is the properties with optional cache hints.
 /// @tparam AccessorTy is the \ref sycl::accessor type.
 /// @param acc is the SYCL accessor.
 /// @param byte_offsets is the zero-based offsets.
@@ -6031,8 +5982,7 @@ atomic_update_impl(T *p, simd<Toffset, N> offsets, simd<T, N> src0,
 ///   update.
 template <atomic_op Op, typename T, int N,
           lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none,
-          typename AccessorTy, typename Toffset>
+          typename PropertyListT, typename AccessorTy, typename Toffset>
 __ESIMD_API
     std::enable_if_t<get_num_args<Op>() == 0 &&
                          __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy>,
@@ -6040,15 +5990,19 @@ __ESIMD_API
     atomic_update_impl(AccessorTy acc, simd<Toffset, N> byte_offsets,
                        simd_mask<N> pred) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return atomic_update_impl<Op, T, N, DS, L1H, L2H>(accessorToPointer<T>(acc),
-                                                    byte_offsets, pred);
+  return atomic_update_impl<Op, T, N, DS, PropertyListT>(
+      accessorToPointer<T>(acc), byte_offsets, pred);
 #else
   static_assert(sizeof(T) > 1, "Unsupported data type");
   static_assert(std::is_integral_v<Toffset> && sizeof(Toffset) == 4,
                 "Unsupported offset type");
   check_lsc_data_size<T, DS>();
   check_atomic<Op, T, N, 0, /*IsLSC*/ true>();
-  check_cache_hint<cache_action::atomic, L1H, L2H>();
+  check_cache_hints<cache_action::atomic, PropertyListT>();
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
@@ -6073,8 +6027,7 @@ __ESIMD_API
 /// @tparam T is element type.
 /// @tparam N is the number of channels (platform dependent).
 /// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L2H is L2 cache hint.
+/// @tparam PropertyListT is the properties with optional cache hints.
 /// @tparam AccessorTy is the \ref sycl::accessor type.
 /// @param acc is the SYCL accessor.
 /// @param byte_offset is the zero-based offsets.
@@ -6083,8 +6036,8 @@ __ESIMD_API
 ///
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N, lsc_data_size DS, cache_hint L1H,
-          cache_hint L2H, typename AccessorTy, typename Toffset>
+template <atomic_op Op, typename T, int N, lsc_data_size DS,
+          typename PropertyListT, typename AccessorTy, typename Toffset>
 __ESIMD_API
     std::enable_if_t<get_num_args<Op>() == 1 &&
                          __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy>,
@@ -6092,15 +6045,19 @@ __ESIMD_API
     atomic_update_impl(AccessorTy acc, simd<Toffset, N> byte_offset,
                        simd<T, N> src0, simd_mask<N> pred) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return atomic_update_impl<Op, T, N, DS, L1H, L2H>(accessorToPointer<T>(acc),
-                                                    byte_offset, src0, pred);
+  return atomic_update_impl<Op, T, N, DS, PropertyListT>(
+      accessorToPointer<T>(acc), byte_offset, src0, pred);
 #else
   static_assert(sizeof(T) > 1, "Unsupported data type");
   static_assert(std::is_integral_v<Toffset> && sizeof(Toffset) == 4,
                 "Unsupported offset type");
   check_lsc_data_size<T, DS>();
   check_atomic<Op, T, N, 1, /*IsLSC*/ true>();
-  check_cache_hint<cache_action::atomic, L1H, L2H>();
+  check_cache_hints<cache_action::atomic, PropertyListT>();
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
@@ -6126,8 +6083,7 @@ __ESIMD_API
 /// @tparam T is element type.
 /// @tparam N is the number of channels (platform dependent).
 /// @tparam DS is the data size.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L2H is L2 cache hint.
+/// @tparam PropertyListT is the properties with optional cache hints.
 /// @tparam AccessorTy is the \ref sycl::accessor type.
 /// @param acc is the SYCL accessor.
 /// @param byte_offset is the zero-based offsets.
@@ -6137,8 +6093,8 @@ __ESIMD_API
 ///
 /// @return A vector of the old values at the memory locations before the
 ///   update.
-template <atomic_op Op, typename T, int N, lsc_data_size DS, cache_hint L1H,
-          cache_hint L2H, typename AccessorTy, typename Toffset>
+template <atomic_op Op, typename T, int N, lsc_data_size DS,
+          typename PropertyListT, typename AccessorTy, typename Toffset>
 __ESIMD_API
     std::enable_if_t<get_num_args<Op>() == 2 &&
                          __ESIMD_DNS::is_rw_device_accessor_v<AccessorTy>,
@@ -6146,7 +6102,7 @@ __ESIMD_API
     atomic_update_impl(AccessorTy acc, simd<Toffset, N> byte_offset,
                        simd<T, N> src0, simd<T, N> src1, simd_mask<N> pred) {
 #ifdef __ESIMD_FORCE_STATELESS_MEM
-  return atomic_update_impl<Op, T, N, DS, L1H, L2H>(
+  return atomic_update_impl<Op, T, N, DS, PropertyListT>(
       __ESIMD_DNS::accessorToPointer<T>(acc), byte_offset, src0, src1, pred);
 #else
   static_assert(std::is_integral_v<Toffset> && sizeof(Toffset) == 4,
@@ -6154,7 +6110,11 @@ __ESIMD_API
   check_lsc_vector_size<1>();
   check_lsc_data_size<T, DS>();
   check_atomic<Op, T, N, 2, /*IsLSC*/ true>();
-  check_cache_hint<cache_action::atomic, L1H, L2H>();
+  check_cache_hints<cache_action::atomic, PropertyListT>();
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
@@ -6230,22 +6190,10 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd_mask<N> mask,
               PropertyListT props = {}) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
 
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
-
-  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
-                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
-                "hint is cache_level::L2 now.");
-
-  if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
+  if constexpr (detail::has_cache_hints<PropertyListT>() ||
                 !__ESIMD_DNS::isPowerOf2(N, 32)) {
     return detail::atomic_update_impl<
-        Op, T, N, detail::lsc_data_size::default_size, L1Hint, L2Hint, Toffset>(
+        Op, T, N, detail::lsc_data_size::default_size, PropertyListT, Toffset>(
         p, byte_offset, mask);
   } else if constexpr (N == 16 || N == 32) {
     // TODO: In fact GPU BE supports legalization for any N, even for
@@ -6463,25 +6411,13 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
               simd_mask<N> mask, PropertyListT props = {}) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
 
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
-
-  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
-                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
-                "hint is cache_level::L2 now.");
-
   // Auto-convert FP atomics to LSC version.
-  if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
+  if constexpr (detail::has_cache_hints<PropertyListT>() ||
                 (Op == atomic_op::fmin) || (Op == atomic_op::fmax) ||
                 (Op == atomic_op::fadd) || (Op == atomic_op::fsub) ||
                 !__ESIMD_DNS::isPowerOf2(N, 32)) {
     return detail::atomic_update_impl<
-        Op, T, N, detail::lsc_data_size::default_size, L1Hint, L2Hint, Toffset>(
+        Op, T, N, detail::lsc_data_size::default_size, PropertyListT, Toffset>(
         p, byte_offset, src0, mask);
   } else if constexpr (N == 16 || N == 32) {
     // TODO: In fact GPU BE supports legalization for any N, even for
@@ -6726,27 +6662,15 @@ atomic_update(T *p, simd<Toffset, N> byte_offset, simd<T, N> src0,
               simd<T, N> src1, simd_mask<N> mask, PropertyListT props = {}) {
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
 
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
-
-  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
-                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
-                "hint is cache_level::L2 now.");
-
   // Use LSC atomic when cache hints are present, FP atomics is used,
   // non-power of two length is used, or operation width greater than 32.
-  if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
+  if constexpr (detail::has_cache_hints<PropertyListT>() ||
                 Op == atomic_op::fcmpxchg || !__ESIMD_DNS::isPowerOf2(N, 32)) {
     // 2-argument lsc_atomic_update arguments order matches the standard one -
     // expected value first, then new value. But atomic_update uses reverse
     // order, hence the src1/src0 swap.
     return detail::atomic_update_impl<
-        Op, T, N, detail::lsc_data_size::default_size, L1Hint, L2Hint, Toffset>(
+        Op, T, N, detail::lsc_data_size::default_size, PropertyListT, Toffset>(
         p, byte_offset, src1, src0, mask);
   } else if constexpr (N == 16 || N == 32) {
     // TODO: In fact GPU BE supports legalization for any N, even for
@@ -6977,10 +6901,10 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd_mask<N> mask,
 
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
 
-  if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
+  if constexpr (detail::has_cache_hints<PropertyListT>() ||
                 !detail::isPowerOf2(N, 32)) {
     return detail::atomic_update_impl<
-        Op, T, N, detail::lsc_data_size::default_size, L1Hint, L2Hint>(
+        Op, T, N, detail::lsc_data_size::default_size, PropertyListT>(
         acc, byte_offset, mask);
   } else {
     if constexpr (Op == atomic_op::load) {
@@ -7238,26 +7162,15 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
   return atomic_update<Op, T, N>(__ESIMD_DNS::accessorToPointer<T>(acc),
                                  byte_offset, src0, mask, props);
 #else
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
-
-  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
-                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
-                "hint is cache_level::L2 now.");
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   static_assert(sizeof(Toffset) == 4, "Only 32 bit offset is supported");
   // Auto-convert FP atomics to LSC version.
-  if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
+  if constexpr (detail::has_cache_hints<PropertyListT>() ||
                 Op == atomic_op::fmin || Op == atomic_op::fmax ||
                 Op == atomic_op::fadd || Op == atomic_op::fsub ||
                 !__ESIMD_DNS::isPowerOf2(N, 32)) {
     return detail::atomic_update_impl<
-        Op, T, N, detail::lsc_data_size::default_size, L1Hint, L2Hint>(
+        Op, T, N, detail::lsc_data_size::default_size, PropertyListT>(
         acc, byte_offset, src0, mask);
   } else if constexpr (Op == atomic_op::store) {
     if constexpr (std::is_integral_v<T>) {
@@ -7547,28 +7460,17 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd<T, N> src0,
   return atomic_update<Op, T, N>(__ESIMD_DNS::accessorToPointer<T>(acc),
                                  byte_offset, src0, src1, mask, props);
 #else
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::none);
-
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::none);
-
-  static_assert(!PropertyListT::template has_property<cache_hint_L3_key>(),
-                "L3 cache hint is reserved. The old/experimental L3 LSC cache "
-                "hint is cache_level::L2 now.");
   static_assert(std::is_integral_v<Toffset>, "Unsupported offset type");
   static_assert(sizeof(Toffset) == 4, "Only 32 bit offset is supported");
   // Use LSC atomic when cache hints are present, FP atomics is used,
   // non-power of two length is used, or operation width greater than 32.
-  if constexpr (L1Hint != cache_hint::none || L2Hint != cache_hint::none ||
+  if constexpr (detail::has_cache_hints<PropertyListT>() ||
                 Op == atomic_op::fcmpxchg || !__ESIMD_DNS::isPowerOf2(N, 32)) {
     // 2-argument lsc_atomic_update arguments order matches the standard one -
     // expected value first, then new value. But atomic_update uses reverse
     // order, hence the src1/src0 swap.
     return detail::atomic_update_impl<
-        Op, T, N, detail::lsc_data_size::default_size, L1Hint, L2Hint>(
+        Op, T, N, detail::lsc_data_size::default_size, PropertyListT>(
         acc, byte_offset, src1, src0, mask);
   } else {
     detail::check_atomic<Op, T, N, 2>();
@@ -8592,15 +8494,8 @@ __ESIMD_API std::enable_if_t<
 prefetch(const T *p, simd<OffsetT, N / VS> byte_offsets, simd_mask<N / VS> mask,
          PropertyListT props = {}) {
   static_assert(N / VS >= 1 && N % VS == 0, "N must be divisible by VS");
-
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::uncached);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::cached);
-  detail::prefetch_impl<T, VS, detail::lsc_data_size::default_size, L1Hint,
-                        L2Hint>(p, byte_offsets, mask);
+  detail::prefetch_impl<T, VS, detail::lsc_data_size::default_size,
+                        PropertyListT>(p, byte_offsets, mask);
 }
 
 /// template <typename T, int VS, typename OffsetT,
@@ -8767,14 +8662,8 @@ __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 prefetch(const T *p, OffsetT byte_offset, simd_mask<1> mask,
          PropertyListT props = {}) {
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::uncached);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::cached);
-  detail::prefetch_impl<T, VS, detail::lsc_data_size::default_size, L1Hint,
-                        L2Hint>(p, byte_offset, mask);
+  detail::prefetch_impl<T, VS, detail::lsc_data_size::default_size,
+                        PropertyListT>(p, byte_offset, mask);
 }
 
 /// template <typename T, int VS = 1, typename OffsetT,
@@ -8928,15 +8817,8 @@ prefetch(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
                      props);
 #else
   static_assert(N / VS >= 1 && N % VS == 0, "N must be divisible by VS");
-
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::uncached);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::cached);
-  detail::prefetch_impl<T, VS, detail::lsc_data_size::default_size, L1Hint,
-                        L2Hint>(acc, byte_offsets, mask);
+  detail::prefetch_impl<T, VS, detail::lsc_data_size::default_size,
+                        PropertyListT>(acc, byte_offsets, mask);
 #endif // __ESIMD_FORCE_STATELESS_MEM
 }
 
@@ -9128,14 +9010,8 @@ prefetch(AccessorT acc, OffsetT byte_offset, simd_mask<1> mask,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
   prefetch<T, VS>(detail::accessorToPointer<T>(acc), byte_offset, mask, props);
 #else
-  constexpr auto L1Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L1_key>(
-          cache_hint::uncached);
-  constexpr auto L2Hint =
-      detail::getPropertyValue<PropertyListT, cache_hint_L2_key>(
-          cache_hint::cached);
-  detail::prefetch_impl<T, VS, detail::lsc_data_size::default_size, L1Hint,
-                        L2Hint>(acc, byte_offset, mask);
+  detail::prefetch_impl<T, VS, detail::lsc_data_size::default_size,
+                        PropertyListT>(acc, byte_offset, mask);
 #endif // __ESIMD_FORCE_STATELESS_MEM
 }
 

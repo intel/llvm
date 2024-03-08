@@ -337,8 +337,8 @@ id_type get_group_id() const;
 ----
 _Returns_: An `id` representing the index of the ballot-group.
 
-NOTE: This will always be either 0 (representing the group of work-items where
-the predicate was true) or 1 (representing the group of work-items where the
+NOTE: This will always be either 1 (representing the group of work-items where
+the predicate was true) or 0 (representing the group of work-items where the
 predicate was false).
 
 [source,c++]
@@ -357,6 +357,8 @@ _Returns_: A `range` representing the number of ballot-groups.
 NOTE: This will always return a `range` of 2, as there will always be two groups;
 one representing the group of work-items where the predicate was true and
 another representing the group of work-items where the predicate was false.
+It is possible for one of these groups to contain no work-items, if the
+predicate has the same value on all work-items.
 
 [source,c++]
 ----
