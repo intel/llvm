@@ -124,14 +124,14 @@ enum InternalCapability {
   ICapabilityJointMatrixPackedInt2ComponentTypeINTEL = 6438,
   ICapabilityJointMatrixPackedInt4ComponentTypeINTEL = 6439,
   ICapabilityCacheControlsINTEL = 6441,
-  ICapabilitySubgroupRequirementsINTEL = 6445
+  ICapabilitySubgroupRequirementsINTEL = 6445,
 };
 
 enum InternalFunctionControlMask { IFunctionControlOptNoneINTELMask = 0x10000 };
 
 enum InternalExecutionMode {
   IExecModeFastCompositeKernelINTEL = 6088,
-  IExecModeNamedSubgroupSizeINTEL = 6446
+  IExecModeNamedSubgroupSizeINTEL = 6446,
 };
 
 constexpr LinkageType LinkageTypeInternal =
