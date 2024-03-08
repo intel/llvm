@@ -238,7 +238,11 @@ event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
                                        const detail::code_location &CodeLoc) {
-  if (is_in_order() && WaitList.empty()) {
+  bool AllEventsEmpty = std::all_of(
+      begin(WaitList), end(WaitList), [&](const event &Event) -> bool {
+        return !detail::getSyclObjImpl(Event)->isContextInitialized();
+      });
+  if (is_in_order() && AllEventsEmpty) {
     // The last command recorded in the graph is not tracked by the queue but by
     // the graph itself. We must therefore search for the last node/event in the
     // graph.
