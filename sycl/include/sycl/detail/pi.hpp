@@ -164,6 +164,8 @@ using PiInteropMemHandle = ::pi_interop_mem_handle;
 using PiInteropSemaphoreHandle = ::pi_interop_semaphore_handle;
 using PiImageOffset = ::pi_image_offset_struct;
 using PiImageRegion = ::pi_image_region_struct;
+using PiPhysicalMem = ::pi_physical_mem;
+using PiVirtualAccessFlags = ::pi_virtual_access_flags;
 
 __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              pi_context_extended_deleter func,
