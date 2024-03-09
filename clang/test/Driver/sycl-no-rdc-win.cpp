@@ -32,3 +32,9 @@
 // CHECK: 96: clang-offload-wrapper, {95}, object, (device-sycl)
 // CHECK: 97: offload, "device-sycl (spir64-unknown-unknown)" {96}, object
 // CHECK: 98: linker, {9, 19, 90, 97}, image, (host-sycl)
+
+// RUN: %clang -### -fsycl -fno-sycl-rdc -c -fsycl-targets=spir64_gen --sysroot=%S/Inputs/SYCL-windows %t1.cpp 2>&1 | FileCheck -check-prefix=CHECK-EARLY %s
+// RUN: %clang_cl -### -fsycl -fno-sycl-rdc -c -fsycl-targets=spir64_gen /clang:--sysroot=%S/Inputs/SYCL-windows %t1.cpp 2>&1 | FileCheck -check-prefix=CHECK-EARLY %s
+// CHECK-EARLY: llvm-link{{.*}}
+// CHECK-EARLY-NOT: -only-needed
+// CHECK-EARLY: llvm-link{{.*}}-only-needed
