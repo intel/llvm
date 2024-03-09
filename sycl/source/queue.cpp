@@ -205,6 +205,34 @@ void queue::wait_and_throw_proxy(const detail::code_location &CodeLoc) {
   impl->wait_and_throw(CodeLoc);
 }
 
+static event
+getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
+  // The last command recorded in the graph is not tracked by the queue but by
+  // the graph itself. We must therefore search for the last node/event in the
+  // graph.
+  if (auto Graph = QueueImpl->getCommandGraph()) {
+    auto LastEvent =
+        Graph->getEventForNode(Graph->getLastInorderNode(QueueImpl));
+    return sycl::detail::createSyclObjFromImpl<event>(LastEvent);
+  }
+  auto LastEvent = QueueImpl->getLastEvent();
+  if (QueueImpl->MDiscardEvents) {
+    std::cout << "Discard event enabled" << std::endl;
+    return LastEvent;
+  }
+
+  auto LastEventImpl = detail::getSyclObjImpl(LastEvent);
+  // If last event is default constructed event then we want to associate it
+  // with the queue and record submission time if profiling is enabled. Such
+  // event corresponds to NOP and its submit time is same as start time and
+  // end time.
+  if (!LastEventImpl->isContextInitialized()) {
+    LastEventImpl->associateWithQueue(QueueImpl);
+    LastEventImpl->setSubmissionTime();
+  }
+  return detail::createSyclObjFromImpl<event>(LastEventImpl);
+}
+
 /// Prevents any commands submitted afterward to this queue from executing
 /// until all commands previously submitted to this queue have entered the
 /// complete state.
@@ -213,16 +241,8 @@ void queue::wait_and_throw_proxy(const detail::code_location &CodeLoc) {
 /// \return a SYCL event object, which corresponds to the queue the command
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
-  if (is_in_order()) {
-    // The last command recorded in the graph is not tracked by the queue but by
-    // the graph itself. We must therefore search for the last node/event in the
-    // graph.
-    if (auto Graph = impl->getCommandGraph()) {
-      auto LastEvent = Graph->getEventForNode(Graph->getLastInorderNode(impl));
-      return sycl::detail::createSyclObjFromImpl<event>(LastEvent);
-    }
-    return impl->getLastEvent();
-  }
+  if (is_in_order())
+    return getBarrierEventForInorderQueueHelper(impl);
 
   return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
 }
@@ -238,20 +258,13 @@ event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
                                        const detail::code_location &CodeLoc) {
-  bool AllEventsEmpty = std::all_of(
+  bool AllEventsEmptyOrNop = std::all_of(
       begin(WaitList), end(WaitList), [&](const event &Event) -> bool {
-        return !detail::getSyclObjImpl(Event)->isContextInitialized();
+        return !detail::getSyclObjImpl(Event)->isContextInitialized() ||
+               detail::getSyclObjImpl(Event)->isNOP();
       });
-  if (is_in_order() && AllEventsEmpty) {
-    // The last command recorded in the graph is not tracked by the queue but by
-    // the graph itself. We must therefore search for the last node/event in the
-    // graph.
-    if (auto Graph = impl->getCommandGraph()) {
-      auto LastEvent = Graph->getEventForNode(Graph->getLastInorderNode(impl));
-      return sycl::detail::createSyclObjFromImpl<event>(LastEvent);
-    }
-    return impl->getLastEvent();
-  }
+  if (is_in_order() && AllEventsEmptyOrNop)
+    return getBarrierEventForInorderQueueHelper(impl);
 
   return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
                 CodeLoc);
