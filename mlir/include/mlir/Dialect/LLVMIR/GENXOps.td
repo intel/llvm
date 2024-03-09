@@ -255,8 +255,8 @@ def PrecisionType : I32EnumAttr<"PrecisionType", "GENX precision type",
     I32EnumAttrCase<"S2",               6>,
     I32EnumAttrCase<"BF8",              7>,
     I32EnumAttrCase<"TF32",             8>,
-    I32EnumAttrCase<"BF16",             9>,
-    I32EnumAttrCase<"FP16",             10>
+    I32EnumAttrCase<"BF16",             11>,
+    I32EnumAttrCase<"FP16",             12>
   ]> {
   let genSpecializedAttr = 0;
   let cppNamespace = "::mlir::GENX";
@@ -316,9 +316,55 @@ def GENX_MatrixDPASOp : GENX_Op<"matrix.dpas">,
   let hasVerifier = 1;
 }
 
+def GENX_Matrix2DBlockPrefetchOp : GENX_Op<"matrix.2Dblockprefetch">,
+  Arguments<(ins
+    Arg<LLVM_AnyPointer, "", [MemWrite]>:$ptr,
+    I32:$base_width,
+    I32:$base_height,
+    I32:$base_pitch,
+    I32:$x,
+    I32:$y,
+    I32Attr:$elem_size_in_bits,
+    I32Attr:$tile_width,
+    I32Attr:$tile_height,
+    I32Attr:$v_blocks,
+    I1Attr:$transpose,
+    I1Attr:$vnni_transform
+  )> {
+
+  let summary = "GENX 2D block store";
+
+  string baseDescription = [{
+    The 'genx.matrix.2Dblockstore' operation stores to a submatrix from an array in memory.
+    $ptr - the base address of the memory array
+    $base_width, $base_height, $base_pitch - the shape of the memory array
+    $x, $y, $tile_width, $tile_height - the starting offsets and shape of the submatrix to load
+    $elem_size_in_bits - 32 for f32, bf32; 16 for f16, int16, bf16; 8 for int8, int4, int2 and etc
+    $v_blocks - number of blocks to store
+    $transpose - transpose the submatrix in vector register (useful for 32 bit element types)
+    $vnni_transform - transpose and pack the submatrix in register (useful for < 32 bit element types)
+    $stored_val - block to store
+
+    The $transpose and $vnni_transform are mutual exclusive. These transformations are used for
+    the B matrix in MMA (DPAS) operations D = C + A * B, where A should have row-major layout in register
+    and B should have column-major layout.
+
+    If the submatrix contains out of bound elements of the memory array, they are filled with 0.
+  }];
+
+  string llvmBuilder = [{
+    createGenISA2DBlockPrefetch(op, builder, moduleTranslation);
+  }];
+
+  let assemblyFormat = [{
+    operands attr-dict `:` `(` type(operands) `)`
+  }];
+
+}
+
 //def GENX_Matrix2DBlockPrefetchOp : GENX_Op<"matrix.2Dblockprefetch">,
 //  Arguments<(ins
-//    Arg<LLVM_AnyPointer, "", [MemRead]>:$ptr,
+//    Arg<LLVM_AnyPointer, "", [MemWrite]>:$ptr,
 //    I32:$base_width,
 //    I32:$base_height,
 //    I32:$base_pitch,
@@ -334,7 +380,7 @@ def GENX_MatrixDPASOp : GENX_Op<"matrix.dpas">,
 //
 //  let summary = "GENX 2D block prefetch";
 //
-//  string baseDescription = [{
+//  string baseDescription = [{ test
 //  }];
 //
 //  string llvmBuilder = [{

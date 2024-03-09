@@ -313,6 +313,7 @@ enum ID : uint32_t {
   GenISA_HDCCCSFastClear,
   GenISA_LSC2DBlockRead,
   GenISA_LSC2DBlockWrite,
+  GenISA_LSC2DBlockPrefetch,
   GenISA_LSCAtomicFP32,
   GenISA_LSCAtomicFP64,
   GenISA_LSCAtomicInts,
