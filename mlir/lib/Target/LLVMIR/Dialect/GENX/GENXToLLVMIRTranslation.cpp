@@ -192,9 +192,9 @@ createGenISADPAS(GENX::MatrixDPASOp op, llvm::IRBuilderBase &builder,
                              llvm::IRBuilderBase &builder,
                              LLVM::ModuleTranslation &moduleTranslation) {
    llvm::Module *module = builder.GetInsertBlock()->getModule();
-   llvm::Function *fn = llvm::GenISAIntrinsic::getDeclaration(
-       module, llvm::GenISAIntrinsic::GenISA_LSC2DBlockPrefetch, {});
-   assert(fn && "GenISAIntrinsic::getDeclaration() returns NULL");
+   //llvm::Function *fn = llvm::GenISAIntrinsic::getDeclaration(
+       //module, llvm::GenISAIntrinsic::GenISA_LSC2DBlockPrefetch, {});
+   //assert(fn && "GenISAIntrinsic::getDeclaration() returns NULL");
 
    SmallVector<llvm::Value *> args(
        moduleTranslation.lookupValues(op.getOperands()));
@@ -215,7 +215,13 @@ createGenISADPAS(GENX::MatrixDPASOp op, llvm::IRBuilderBase &builder,
    // FIXME: Add argument to control cache.
    args.push_back(llvm::ConstantInt::get(int32Ty, 4));
 
-   return builder.CreateCall(fn, args);
+   SmallVector<llvm::Type *> types;
+   for (auto arg : args)
+     types.push_back(arg->getType());
+
+   return createDeviceFunctionCall(builder, "llvm.genx.GenISA.LSC2DBlockPrefetch.isVoid", builder.getVoidTy(), types, args, true);
+
+   //return builder.CreateCall(fn, args);
  }
 
 static llvm::CallInst *
