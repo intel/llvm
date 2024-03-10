@@ -56,15 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/Bensuo/unified-runtime.git")
-
-  # commit cfba9f160528018055881f1ccf9ab98ec59c963f
-  # Merge: 0bb2cad8 db5c33b2
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit e2ee9a4720414e0a59fa9c911e9575ab564ac57c
+  # Merge: 7a5150cd be622e7c
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Feb 14 11:17:21 2024 +0100
-  #     Merge pull request #1216 from igchor/umf_standalone
-  #     [UR] Remove UMF sources and use standalone UMF repo instead
-  set(UNIFIED_RUNTIME_TAG ewan/coverity_cuda_update)
+  # Date:   Sun Mar 10 18:02:50 2024 +0000
+  #     Merge pull request #1340 from Bensuo/ewan/coverity_cuda_update
+  #     [HIP][CUDA][Command-Buffer] Fix Coverity issues in HIP/CUDA command-buffer code
+  set(UNIFIED_RUNTIME_TAG e2ee9a4720414e0a59fa9c911e9575ab564ac57c)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
