@@ -16,6 +16,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     size_t *pSuggestedLocalWorkSize) {
+  std::ignore = pGlobalWorkOffset;
 
   uint32_t WG[3]{};
   size_t GlobalWorkSize3D[3]{1, 1, 1};
