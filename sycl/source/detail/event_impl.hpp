@@ -223,6 +223,17 @@ public:
     MSubmittedQueue = SubmittedQueue;
   };
 
+  /// Associate event with provided queue.
+  ///
+  /// @return
+  void associateWithQueue(const QueueImplPtr &Queue);
+
+  /// Indicates if this event is not associated with any command and doesn't
+  /// have native handle.
+  ///
+  /// @return true if no associated command and no event handle.
+  bool isNOP() { return !MCommand && !getHandleRef(); }
+
   /// Calling this function queries the current device timestamp and sets it as
   /// submission time for the command associated with this event.
   void setSubmissionTime();
@@ -316,8 +327,8 @@ protected:
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;
-  const bool MIsProfilingEnabled = false;
-  const bool MFallbackProfiling = false;
+  bool MIsProfilingEnabled = false;
+  bool MFallbackProfiling = false;
 
   std::weak_ptr<queue_impl> MWorkerQueue;
   std::weak_ptr<queue_impl> MSubmittedQueue;
