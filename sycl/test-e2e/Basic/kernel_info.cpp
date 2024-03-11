@@ -2,7 +2,7 @@
 // RUN: %{run} %t.out
 //
 // Fail is flaky for level_zero, enable when fixed.
-// UNSUPPORTED: level_zero
+// NSUPPORTED: level_zero
 //
 
 //==--- kernel_info.cpp - SYCL kernel info test ----------------------------==//

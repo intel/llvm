@@ -147,9 +147,7 @@ public:
     return detail::convert_from_abi_neutral(get_info_impl<Param>());
   }
 #else
-  detail::ABINeutralT_t<
-      typename detail::is_kernel_info_desc<Param>::return_type>
-  get_info() const;
+  typename detail::is_kernel_info_desc<Param>::return_type get_info() const;
 #endif
 
   /// Query device-specific information from the kernel object using the
