@@ -12,6 +12,42 @@
 #include <cstdint>
 
 #if defined(__SPIR__)
+// A simple compare function for fp16 type emulated with uint16_t
+// 1:   great than
+// 0:   equal to
+// -1:  less than
+// -2:  can't compare(NAN)
+int fp16_comp(uint16_t a, uint16_t b) {
+  uint16_t a_sig = a >> 15;
+  uint16_t a_exp = (a & 0x7fff) >> 10;
+  uint16_t a_fra = a & 0x3ff;
+  uint16_t b_sig = b >> 15;
+  uint16_t b_exp = (b & 0x7fff) >> 10;
+  uint16_t b_fra = b & 0x3ff;
+  if (((a_exp == 0x1f) && (a_fra != 0x0)) || ((b_exp == 0x1f) && (b_fra != 0x0)))
+    return -2;
+
+  if ((a_sig == 0) && (b_sig == 1))
+    return 1;
+
+  if ((a_sig == 1) && (b_sig == 0))
+    return -1;
+
+  if (a_exp > b_exp)
+    return (a_sig == 0) ? 1 : -1;
+
+  if (a_exp < b_exp)
+    return (a_sig == 0) ? -1 : 1;
+
+  if (a_fra == b_fra)
+    return 0;
+
+  if (a_sig == 0)
+    return (a_fra > b_fra) ? 1 : -1;
+  else
+    return (a_fra > b_fra) ? -1 : 1;
+}
+
 template <typename Tp, typename Compare>
 void bubble_sort(Tp *first, const size_t beg, const size_t end, Compare comp) {
   if (beg < end) {
