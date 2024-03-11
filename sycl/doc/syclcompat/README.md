@@ -1199,7 +1199,8 @@ static kernel_function_info get_kernel_function_info(const void *function);
 
 `syclcompat::fast_length` provides a wrapper to SYCL's
 `fast_length(sycl::vec<float,N>)` that accepts arguments for a C++ array and a
-length.
+length. `syclcompat::length` provides a templated version that wraps over
+`sycl::length`.
 
 `vectorized_max` and `vectorized_min` are binary operations returning the
 max/min of two arguments, where each argument is treated as a `sycl::vec` type.
@@ -1212,6 +1213,9 @@ which accept `sycl::vec<T,2>` arguments representing complex values.
 
 ```cpp
 inline float fast_length(const float *a, int len);
+
+template <typename ValueT>
+inline ValueT length(const ValueT *a, const int len);
 
 template <typename S, typename T> inline T vectorized_max(T a, T b);
 
