@@ -36,7 +36,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
     context.logger.debug("==== urUSMHostAlloc");
 
     return context.interceptor->allocateMemory(
-        hContext, nullptr, pUSMDesc, pool, size, ppMem, USMMemoryType::HOST);
+        hContext, nullptr, pUSMDesc, pool, size, ppMem, AllocType::HOST_USM);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -61,7 +61,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
     context.logger.debug("==== urUSMDeviceAlloc");
 
     return context.interceptor->allocateMemory(
-        hContext, hDevice, pUSMDesc, pool, size, ppMem, USMMemoryType::DEVICE);
+        hContext, hDevice, pUSMDesc, pool, size, ppMem, AllocType::DEVICE_USM);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -86,7 +86,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
     context.logger.debug("==== urUSMSharedAlloc");
 
     return context.interceptor->allocateMemory(
-        hContext, hDevice, pUSMDesc, pool, size, ppMem, USMMemoryType::SHARE);
+        hContext, hDevice, pUSMDesc, pool, size, ppMem, AllocType::SHARED_USM);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -154,6 +154,28 @@ __urdlllocal ur_result_t UR_APICALL urQueueRelease(
     ur_result_t result = pfnRelease(hQueue);
 
     return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramBuild
+__urdlllocal ur_result_t UR_APICALL urProgramBuild(
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_program_handle_t hProgram, ///< [in] handle of the program object
+    const char *pOptions          ///< [in] string of build options
+) {
+    auto pfnProgramBuild = context.urDdiTable.Program.pfnBuild;
+
+    if (nullptr == pfnProgramBuild) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    context.logger.debug("==== urProgramBuild");
+
+    UR_CALL(pfnProgramBuild(hContext, hProgram, pOptions));
+
+    UR_CALL(context.interceptor->registerDeviceGlobals(hContext, hProgram));
+
+    return UR_RESULT_SUCCESS;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -227,7 +249,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_event_handle_t hEvent{};
     ur_result_t result = pfnKernelLaunch(
         hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-        pLocalWorkSize, numEventsInWaitList, phEventWaitList, &hEvent);
+        pLocalWorkSize, hEvents.size(), hEvents.data(), &hEvent);
 
     if (result == UR_RESULT_SUCCESS) {
         context.interceptor->postLaunchKernel(hKernel, hQueue, hEvent,
@@ -376,6 +398,34 @@ __urdlllocal ur_result_t UR_APICALL urGetContextProcAddrTable(
     return result;
 }
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's Program table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL urGetProgramProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_program_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (UR_MAJOR_VERSION(ur_sanitizer_layer::context.version) !=
+            UR_MAJOR_VERSION(version) ||
+        UR_MINOR_VERSION(ur_sanitizer_layer::context.version) >
+            UR_MINOR_VERSION(version)) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    pDdiTable->pfnBuild = ur_sanitizer_layer::urProgramBuild;
+
+    return UR_RESULT_SUCCESS;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Enqueue table
 ///        with current process' addresses
 ///
@@ -504,6 +554,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
     if (UR_RESULT_SUCCESS == result) {
         result = ur_sanitizer_layer::urGetContextProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Context);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        result = ur_sanitizer_layer::urGetProgramProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->Program);
     }
 
     if (UR_RESULT_SUCCESS == result) {

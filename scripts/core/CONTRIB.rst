@@ -167,7 +167,7 @@ available.
 
 .. code-block:: console
 
-    $ cmake build/ -DUR_FORMAT_CPP_STYLE=ON
+    $ cmake -B build/ -DUR_FORMAT_CPP_STYLE=ON
 
 You can then follow the instructions below to use the ``generate`` target to
 regenerate the source.
@@ -207,7 +207,7 @@ equivalent):
 Writing YAML
 ============
 
-Please read the :ref:`core/INTRO:Naming Convention` section prior to making a
+Please read the :ref:`core/CONTRIB:Naming Convention` section prior to making a
 contribution and refer to the `YAML syntax`_ for specifics of how to define the
 required constructs.
 
@@ -271,6 +271,16 @@ Actions workflow and *must* be reviewed by no less than two code owners.
     Source`_. This will automatically resolve conflicts in the generated source
     files, leaving only conflicts in non-generated source files to be resolved,
     if any.
+
+By default, any new fork has all GitHub Actions workflows disabled. If you would
+like to, e.g., test your branch using our CI workflows *before* creating
+a pull request, you have to enter the *Actions* tab on your fork and enable
+workflows for this repository. When they are not needed anymore, you can disable
+them again, but it has to be done one by one. The CI on the upstream repository
+gets busy from time to time. That's why you may want to enable workflows on your
+fork to get the testing results quicker. The disadvantage of the CI on your fork
+is that it may report some failing jobs you may not expect, and it does not run
+some of the jobs (due to a lack of specific hardware from self-hosted runners).
 
 Core Features
 =============
@@ -386,7 +396,7 @@ values.
 
 
 Naming Convention
------------------
+=================
 
 The following naming conventions must be followed:
 
