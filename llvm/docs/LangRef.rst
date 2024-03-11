@@ -15581,7 +15581,7 @@ Semantics:
 If either operand is a NaN, returns NaN. Otherwise returns the lesser
 of the two arguments. -0.0 is considered to be less than +0.0 for this
 intrinsic. Note that these are the semantics specified in the draft of
-IEEE 754-2018.
+IEEE 754-2019.
 
 .. _i_maximum:
 
@@ -15621,7 +15621,7 @@ Semantics:
 If either operand is a NaN, returns NaN. Otherwise returns the greater
 of the two arguments. -0.0 is considered to be less than +0.0 for this
 intrinsic. Note that these are the semantics specified in the draft of
-IEEE 754-2018.
+IEEE 754-2019.
 
 .. _int_copysign:
 
@@ -24276,6 +24276,9 @@ Arguments:
 
 The first operand is the base pointer for the load. It has the same underlying type as the element of the returned vector. The second operand, mask, is a vector of boolean values with the same number of elements as the return type. The third is a pass-through value that is used to fill the masked-off lanes of the result. The return type and the type of the '``passthru``' operand have the same vector type.
 
+The :ref:`align <attr_align>` parameter attribute can be provided for the first
+operand. The pointer alignment defaults to 1.
+
 Semantics:
 """"""""""
 
@@ -24333,6 +24336,8 @@ Arguments:
 
 The first operand is the input vector, from which elements are collected and written to memory. The second operand is the base pointer for the store, it has the same underlying type as the element of the input vector operand. The third operand is the mask, a vector of boolean values. The mask and the input vector must have the same number of vector elements.
 
+The :ref:`align <attr_align>` parameter attribute can be provided for the second
+operand. The pointer alignment defaults to 1.
 
 Semantics:
 """"""""""
@@ -27183,7 +27188,7 @@ The third argument specifies the exception behavior as described above.
 Semantics:
 """"""""""
 
-This function follows semantics specified in the draft of IEEE 754-2018.
+This function follows semantics specified in the draft of IEEE 754-2019.
 
 
 '``llvm.experimental.constrained.minimum``' Intrinsic
@@ -27215,7 +27220,7 @@ The third argument specifies the exception behavior as described above.
 Semantics:
 """"""""""
 
-This function follows semantics specified in the draft of IEEE 754-2018.
+This function follows semantics specified in the draft of IEEE 754-2019.
 
 
 '``llvm.experimental.constrained.ceil``' Intrinsic
@@ -27865,6 +27870,51 @@ has a zeroing treatment of subnormal input values (such as indicated
 by the ``"denormal-fp-math"`` attribute), a subnormal value will be
 observed (will not be implicitly treated as zero).
 
+SYCL Intrinsics
+------------------
+
+This class of intrinsics is designed to support SYCL-specific features.
+
+'``llvm.sycl.alloca``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare ptr @llvm.sycl.alloca(ptr <scuid>, ptr <scptr>, ptr <scbuffer>, <type> <typehint>, <alignty> align)
+
+Overview:
+"""""""""
+
+The '``llvm.sycl.alloca``' intrinsic represents SYCL specialization constant
+length array allocations.
+
+Arguments:
+""""""""""
+
+The first three arguments are used to encode the specialization constant length
+of the allocated array. The first argument is a pointer to the specialization
+constant unique ID and the second one, a pointer to the
+``sycl::specialization_id`` itself. The third argument is a pointer to a buffer
+holding specialization constant values for targets without native specialization
+constant support.
+
+For the last two arguments, ``typehint`` is a helper value of the same type as
+the array element type. The last argument, which must be an immediate value,
+represents the allocation alignment.
+
+Semantics:
+""""""""""
+
+This intrinsic allocates an array of type ``type`` and length given by the input
+specialization constants in SYCL private memory. Array alignment is given by
+``align``. The allocated memory has the same duration as an ``alloca``-defined
+pointer. The allocated memory is uninitialized. This intrinsic has undefined
+behaviour if there is insufficient private memory for the allocation. Note the
+return pointer type address space and the target private address space must
+match.
 
 General Intrinsics
 ------------------
