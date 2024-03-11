@@ -51,6 +51,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ESIMD/ESIMDUtils.cpp
   ESIMD/ESIMDVerifier.cpp
   ESIMD/ESIMDRemoveHostCode.cpp
+  ESIMD/ESIMDRemoveOptnoneNoinline.cpp
   ESIMD/LowerESIMD.cpp
   ESIMD/LowerESIMDKernelAttrs.cpp
   CleanupSYCLMetadata.cpp
@@ -69,6 +70,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   SYCLPropagateAspectsUsage.cpp
   SYCLPropagateJointMatrixUsage.cpp
   SYCLUtils.cpp
+  SanitizeDeviceGlobal.cpp
 
   LocalAccessorToSharedMemory.cpp
   GlobalOffset.cpp

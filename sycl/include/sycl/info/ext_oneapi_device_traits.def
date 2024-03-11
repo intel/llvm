@@ -13,11 +13,6 @@ __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device, matrix_combinations,
                          std::vector<ext::oneapi::experimental::matrix::combination>,
                          PI_EXT_ONEAPI_DEVICE_INFO_MATRIX_COMBINATIONS)
 
-__SYCL_PARAM_TRAITS_SPEC(
-    ext::oneapi::experimental, device, graph_support,
-    ext::oneapi::experimental::graph_support_level,
-    0 /* No PI device code needed */)
-
 // Bindless images pitched allocation
 __SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental, device,
                          image_row_pitch_align, uint32_t,

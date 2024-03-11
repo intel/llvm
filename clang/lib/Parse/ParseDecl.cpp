@@ -291,7 +291,7 @@ static bool attributeHasIdentifierArg(const IdentifierInfo &II) {
 
 /// Determine whether the given attribute has an identifier argument.
 static ParsedAttributeArgumentsProperties
-attributeStringLiteralListArg(const IdentifierInfo &II) {
+attributeStringLiteralListArg(const llvm::Triple &T, const IdentifierInfo &II) {
 #define CLANG_ATTR_STRING_LITERAL_ARG_LIST
   return llvm::StringSwitch<uint32_t>(normalizeAttrName(II.getName()))
 #include "clang/Parse/AttrParserStringSwitches.inc"
@@ -550,7 +550,7 @@ unsigned Parser::ParseAttributeArgsCommon(
 
       ExprVector ParsedExprs;
       ParsedAttributeArgumentsProperties ArgProperties =
-          attributeStringLiteralListArg(*AttrName);
+          attributeStringLiteralListArg(getTargetInfo().getTriple(), *AttrName);
       if (ParseAttributeArgumentList(*AttrName, ParsedExprs, ArgProperties)) {
         SkipUntil(tok::r_paren, StopAtSemi);
         return 0;
@@ -3519,8 +3519,23 @@ void Parser::ParseDeclarationSpecifiers(
       DS.Finish(Actions, Policy);
       return;
 
-    case tok::l_square:
+    // alignment-specifier
+    case tok::kw__Alignas:
+      diagnoseUseOfC11Keyword(Tok);
+      [[fallthrough]];
     case tok::kw_alignas:
+      // _Alignas and alignas (C23, not C++) should parse the same way. The C++
+      // parsing for alignas happens through the usual attribute parsing. This
+      // ensures that an alignas specifier can appear in a type position in C
+      // despite that not being valid in C++.
+      if (getLangOpts().C23 || Tok.getKind() == tok::kw__Alignas) {
+        if (Tok.getKind() == tok::kw_alignas)
+          Diag(Tok, diag::warn_c23_compat_keyword) << Tok.getName();
+        ParseAlignmentSpecifier(DS.getAttributes());
+        continue;
+      }
+      [[fallthrough]];
+    case tok::l_square:
       if (!isAllowedCXX11AttributeSpecifier())
         goto DoneWithDeclSpec;
 
@@ -4169,8 +4184,7 @@ void Parser::ParseDeclarationSpecifiers(
       isStorageClass = true;
       break;
     case tok::kw__Thread_local:
-      if (!getLangOpts().C11)
-        Diag(Tok, diag::ext_c11_feature) << Tok.getName();
+      diagnoseUseOfC11Keyword(Tok);
       isInvalid = DS.SetStorageClassSpecThread(DeclSpec::TSCS__Thread_local,
                                                Loc, PrevSpec, DiagID);
       isStorageClass = true;
@@ -4230,17 +4244,9 @@ void Parser::ParseDeclarationSpecifiers(
       break;
     }
     case tok::kw__Noreturn:
-      if (!getLangOpts().C11)
-        Diag(Tok, diag::ext_c11_feature) << Tok.getName();
+      diagnoseUseOfC11Keyword(Tok);
       isInvalid = DS.setFunctionSpecNoreturn(Loc, PrevSpec, DiagID);
       break;
-
-    // alignment-specifier
-    case tok::kw__Alignas:
-      if (!getLangOpts().C11)
-        Diag(Tok, diag::ext_c11_feature) << Tok.getName();
-      ParseAlignmentSpecifier(DS.getAttributes());
-      continue;
 
     // friend
     case tok::kw_friend:
@@ -4260,6 +4266,8 @@ void Parser::ParseDeclarationSpecifiers(
 
     // constexpr, consteval, constinit specifiers
     case tok::kw_constexpr:
+      if (getLangOpts().C23)
+        Diag(Tok, diag::warn_c23_compat_keyword) << Tok.getName();
       isInvalid = DS.SetConstexprSpec(ConstexprSpecKind::Constexpr, Loc,
                                       PrevSpec, DiagID);
       break;
@@ -4568,9 +4576,7 @@ void Parser::ParseDeclarationSpecifiers(
       //   If the _Atomic keyword is immediately followed by a left parenthesis,
       //   it is interpreted as a type specifier (with a type name), not as a
       //   type qualifier.
-      if (!getLangOpts().C11)
-        Diag(Tok, diag::ext_c11_feature) << Tok.getName();
-
+      diagnoseUseOfC11Keyword(Tok);
       if (NextToken().is(tok::l_paren)) {
         ParseAtomicSpecifier(DS);
         continue;
@@ -5858,6 +5864,11 @@ bool Parser::isDeclarationSpecifier(
   case tok::kw__Atomic:
     return true;
 
+  case tok::kw_alignas:
+    // alignas is a type-specifier-qualifier in C23, which is a kind of
+    // declaration-specifier. Outside of C23 mode (including in C++), it is not.
+    return getLangOpts().C23;
+
     // GNU ObjC bizarre protocol extension: <proto1,proto2> with implicit 'id'.
   case tok::less:
     return getLangOpts().ObjC;
@@ -6141,8 +6152,7 @@ void Parser::ParseTypeQualifierListOpt(
     case tok::kw__Atomic:
       if (!AtomicAllowed)
         goto DoneWithTypeQuals;
-      if (!getLangOpts().C11)
-        Diag(Tok, diag::ext_c11_feature) << Tok.getName();
+      diagnoseUseOfC11Keyword(Tok);
       isInvalid = DS.SetTypeQual(DeclSpec::TQ_atomic, Loc, PrevSpec, DiagID,
                                  getLangOpts());
       break;
@@ -7921,7 +7931,7 @@ void Parser::ParseMisplacedBracketDeclarator(Declarator &D) {
   // Adding back the bracket info to the end of the Declarator.
   for (unsigned i = 0, e = TempDeclarator.getNumTypeObjects(); i < e; ++i) {
     const DeclaratorChunk &Chunk = TempDeclarator.getTypeObject(i);
-    D.AddTypeInfo(Chunk, SourceLocation());
+    D.AddTypeInfo(Chunk, TempDeclarator.getAttributePool(), SourceLocation());
   }
 
   // The missing identifier would have been diagnosed in ParseDirectDeclarator.

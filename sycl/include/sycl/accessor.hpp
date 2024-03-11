@@ -3761,6 +3761,20 @@ public:
   }
 
   /* -- property interface members -- */
+  template <typename Property> bool has_property() const noexcept {
+#ifndef __SYCL_DEVICE_ONLY__
+    return getPropList().template has_property<Property>();
+#else
+    return false;
+#endif
+  }
+  template <typename Property> Property get_property() const {
+#ifndef __SYCL_DEVICE_ONLY__
+    return getPropList().template get_property<Property>();
+#else
+    return Property();
+#endif
+  }
 
   size_t size() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -3886,6 +3900,20 @@ public:
   }
 
   /* -- property interface members -- */
+  template <typename Property> bool has_property() const noexcept {
+#ifndef __SYCL_DEVICE_ONLY__
+    return getPropList().template has_property<Property>();
+#else
+    return false;
+#endif
+  }
+  template <typename Property> Property get_property() const {
+#ifndef __SYCL_DEVICE_ONLY__
+    return getPropList().template get_property<Property>();
+#else
+    return Property();
+#endif
+  }
 
   size_t size() const noexcept { return base_class::getSize().size(); }
 
@@ -4032,6 +4060,20 @@ public:
   }
 
   /* -- property interface members -- */
+  template <typename Property> bool has_property() const noexcept {
+#ifndef __SYCL_DEVICE_ONLY__
+    return getPropList().template has_property<Property>();
+#else
+    return false;
+#endif
+  }
+  template <typename Property> Property get_property() const {
+#ifndef __SYCL_DEVICE_ONLY__
+    return getPropList().template get_property<Property>();
+#else
+    return Property();
+#endif
+  }
 
   size_t size() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -4132,6 +4174,20 @@ public:
   }
 
   /* -- property interface members -- */
+  template <typename Property> bool has_property() const noexcept {
+#ifndef __SYCL_DEVICE_ONLY__
+    return getPropList().template has_property<Property>();
+#else
+    return false;
+#endif
+  }
+  template <typename Property> Property get_property() const {
+#ifndef __SYCL_DEVICE_ONLY__
+    return getPropList().template get_property<Property>();
+#else
+    return Property();
+#endif
+  }
 
   size_t size() const noexcept { return base_class::getSize().size(); }
 
