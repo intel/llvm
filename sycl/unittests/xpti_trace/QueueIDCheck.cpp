@@ -136,6 +136,8 @@ TEST_F(QueueID, QueueCreationAndKernelWithDeps) {
   checkTaskBeginEnd(QueueIDSTr);
 }
 
+// Re-enable this test after fixing
+// https://github.com/intel/llvm/issues/12963
 TEST_F(QueueID, DISABLED_QueueCreationUSMOperations) {
   sycl::queue Q0;
   auto Queue0ImplPtr = sycl::detail::getSyclObjImpl(Q0);
