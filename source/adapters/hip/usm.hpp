@@ -81,6 +81,12 @@ public:
   umf_result_t purge_force(void *, size_t) {
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
   };
+  umf_result_t allocation_merge(void *, void *, size_t) {
+    return UMF_RESULT_ERROR_UNKNOWN;
+  }
+  umf_result_t allocation_split(void *, size_t, size_t) {
+    return UMF_RESULT_ERROR_UNKNOWN;
+  }
   virtual const char *get_name() = 0;
 
   virtual ~USMMemoryProvider() = default;
