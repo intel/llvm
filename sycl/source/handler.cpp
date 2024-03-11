@@ -1152,6 +1152,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  ImageDesc.verify();
+
   MSrcPtr = Src.raw_handle;
   MDstPtr = Dest.raw_handle;
 
@@ -1159,10 +1161,17 @@ void handler::ext_oneapi_copy(
   PiDesc.image_width = ImageDesc.width;
   PiDesc.image_height = ImageDesc.height;
   PiDesc.image_depth = ImageDesc.depth;
-  PiDesc.image_type =
-      ImageDesc.depth > 0
-          ? PI_MEM_TYPE_IMAGE3D
-          : (ImageDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D : PI_MEM_TYPE_IMAGE1D);
+  PiDesc.image_array_size = ImageDesc.array_size;
+  if (ImageDesc.array_size > 1) {
+    // Image Array.
+    PiDesc.image_type = ImageDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
+                                             : PI_MEM_TYPE_IMAGE1D_ARRAY;
+  } else {
+    PiDesc.image_type = ImageDesc.depth > 0
+                            ? PI_MEM_TYPE_IMAGE3D
+                            : (ImageDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                    : PI_MEM_TYPE_IMAGE1D);
+  }
 
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
