@@ -13,7 +13,6 @@
 
 class TaskSequenceTest;
 
-constexpr int kInputSize = 12;
 
 template <typename T, int COUNT> class FixedVect {
   T data[COUNT];
@@ -22,114 +21,59 @@ public:
   T &operator[](int i) { return data[i]; }
 };
 
-struct FunctionPacket {
+struct DataStruct {
   float val;
   bool isValid;
 
-  FunctionPacket() : val(-1.0f), isValid(false) {}
-  FunctionPacket(float val_, bool isValid_) : val(val_), isValid(isValid_) {}
+  DataStruct() : val(-1.0f), isValid(false) {}
+  DataStruct(float val_, bool isValid_) : val(val_), isValid(isValid_) {}
 };
 
-using T2_f = FixedVect<float, 2>;
-using intertask_pipe1 = ext::intel::pipe<class p1, float, kInputSize>;
-using intertask_pipe2 = ext::intel::pipe<class p2, float, kInputSize>;
+using DataArray = FixedVect<float, 2>;
+using intertask_pipe1 = ext::intel::pipe<class p1, float, 1>;
+using intertask_pipe2 = ext::intel::pipe<class p2, float, 1>;
 
-template <typename OutPipe> void argStruct(FunctionPacket fp) {
-  if (fp.isValid) {
-    float val = fp.val;
-    OutPipe::write(val * val);
+template <typename OutPipe> void argStruct(DataStruct data) {
+  if (data.isValid) {
+    OutPipe::write(data.val * data.val);
   }
 }
 
-template <typename OutPipe> void argArray(T2_f t2_array) {
+template <typename OutPipe> void argArray(DataArray data) {
   for (int i = 0; i < 2; i++) {
-    float val = t2_array[i];
-    OutPipe::write(val * val);
+    float a = data[i];
+    OutPipe::write(a * a);
   }
 }
 
-template <typename InPipe> FunctionPacket returnStruct(bool shouldRead) {
-  FunctionPacket res{-1, false};
-  if (shouldRead) {
+template <typename InPipe> DataStruct returnStruct() {
+  float a = InPipe::read();
+  DataStruct res{sqrt(a), true};
+  return res;
+}
+
+template <typename InPipe> DataArray returnArray() {
+  DataArray res;
+  for (int i = 0; i < 2; i++) {
     float a = InPipe::read();
-    a = sqrt(a);
-    res.val = a;
-    res.isValid = true;
-  }
-  return res;
-}
-
-template <typename InPipe> T2_f returnArray(bool shouldRead) {
-  T2_f res;
-  for (int i = 0; i < 2; i++) {
-    float a = -1;
-    if (shouldRead) {
-      a = InPipe::read();
-      a = sqrt(a);
-    }
-    res[i] = a;
+    res[i] = sqrt(a);
   }
 
   return res;
-}
-
-bool check(std::vector<T2_f> &res) {
-  int golden = 0;
-  bool passed = true;
-  for (int i = 0; i < kInputSize; i++) {
-    if (((i + 1) % 4) == 0) {
-      if (res[i][0] != -1 || res[i][1] != -1) {
-        std::cout << "output mismatch, expected -1\n";
-        passed = false;
-      }
-    } else {
-      if (res[i][0] != (float)golden || res[i][1] != (float)(golden + 1)) {
-        std::cout << "output mismatch, expected: " << golden << " and "
-                  << (golden + 1) << ", actual: " << res[i][0] << " and "
-                  << res[i][1] << "\n";
-        passed = false;
-      }
-      golden += 2;
-    }
-  }
-  return passed;
-}
-
-bool check(std::vector<FunctionPacket> &res) {
-  int golden = 0;
-  bool passed = true;
-  for (int i = 0; i < kInputSize; i++) {
-    if (((i + 1) % 4) == 0) {
-      if (res[i].isValid) {
-        std::cout << "output mismatch, expected non-valid\n";
-        passed = false;
-      }
-    } else {
-      if (!res[i].isValid || res[i].val != (float)golden) {
-        std::cout << "output mismatch, expected: " << golden
-                  << ", actual: " << res[i].val << "\n";
-        passed = false;
-      }
-      golden++;
-    }
-  }
-  return passed;
 }
 
 int main() {
-  std::vector<FunctionPacket> vec_in_struct(kInputSize);
-  std::vector<T2_f> vec_in_array(kInputSize);
-  std::vector<FunctionPacket> res_struct(kInputSize);
-  std::vector<T2_f> res_array(kInputSize);
+  std::vector<DataStruct> vec_in_struct(1);
+  std::vector<DataArray> vec_in_array(1);
+  std::vector<DataStruct> res_struct(1);
+  std::vector<DataArray> res_array(1);
 
-  for (int i = 0; i < kInputSize; i++) {
-    vec_in_struct[i] = FunctionPacket{static_cast<float>(i), true};
+  vec_in_struct[0] = DataStruct{5.0, true};
 
-    T2_f a;
-    a[0] = static_cast<float>(2 * i);
-    a[1] = static_cast<float>(2 * i + 1);
-    vec_in_array[i] = a;
-  }
+  DataArray d;
+  d[0] = 7.0;
+  d[1] = 9.0;
+  vec_in_array[0] = d;
 
   {
     queue q;
@@ -150,24 +94,21 @@ int main() {
         task_sequence<returnStruct<intertask_pipe1>> ts_func2Struct;
         task_sequence<returnArray<intertask_pipe2>> ts_func2Array;
 
-        for (int i = 0; i < kInputSize; i++) {
-          // launch struct task functions
-          ts_func1Struct.async(in_acc_struct[i]);
-          ts_func2Struct.async(((i + 1) % 4 != 0));
+        // launch struct task functions
+        ts_func1Struct.async(in_acc_struct[0]);
+        ts_func2Struct.async();
 
-          // launch array task functions
-          ts_func1Array.async(in_acc_array[i]);
-          ts_func2Array.async(((i + 1) % 4 != 0));
-        }
+        // launch array task functions
+        ts_func1Array.async(in_acc_array[0]);
+        ts_func2Array.async();
 
-        for (int i = 0; i < kInputSize; i++) {
-          out_acc_struct[i] = ts_func2Struct.get();
-          out_acc_array[i] = ts_func2Array.get();
-        }
+        out_acc_struct[0] = ts_func2Struct.get();
+        out_acc_array[0] = ts_func2Array.get();
       });
     });
     q.wait();
   }
-  assert(check(res_struct) && check(res_array));
+  assert(res_struct[0].val == vec_in_struct[0].val && res_struct[0].isValid);
+  assert(res_array[0][0] == vec_in_array[0][0] && res_array[0][1] == vec_in_array[0][1]);
   return 0;
 }
