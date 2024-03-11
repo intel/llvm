@@ -46,6 +46,14 @@ if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
     "-nocudalib")
 endif()
 
+if ("AMDGCN" IN_LIST LLVM_TARGETS_TO_BUILD)
+  string(APPEND sycl_targets_opt "amdgcn-amd-amdhsa")
+  list(APPEND compile_opts
+    "-fno-sycl-libspirv"
+    "-fno-bundle-offload-arch")
+endif()
+
+
 if (WIN32)
   list(APPEND compile_opts -D_ALLOW_RUNTIME_LIBRARY_MISMATCH)
   list(APPEND compile_opts -D_ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH)

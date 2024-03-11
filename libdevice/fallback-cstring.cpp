@@ -9,7 +9,7 @@
 #include "wrapper.h"
 #include <cstdint>
 
-#if defined(__SPIR__) || defined(__NVPTX__)
+#if defined(__SPIR__) || defined(__NVPTX__) || defined(__AMDGCN__)
 
 static void *__devicelib_memcpy_uint8_aligned(void *dest, const void *src,
                                               size_t n) {
