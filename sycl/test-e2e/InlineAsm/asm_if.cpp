@@ -1,7 +1,7 @@
-// UNSUPPORTED: cuda || hip_nvidia
-// REQUIRES: gpu,linux
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// UNSUPPORTED: cuda, hip
+// REQUIRES: gpu,linux,sg-16
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include "include/asmhelper.h"
 #include <sycl/sycl.hpp>
@@ -18,7 +18,7 @@ template <typename T = DataType> struct KernelFunctor : WithOutputBuffer<T> {
     bool switchField = false;
     CGH.parallel_for<KernelFunctor<T>>(
         sycl::range<1>{this->getOutputBufferSize()},
-        [=](sycl::id<1> wiID) [[intel::reqd_sub_group_size(16)]] {
+        [=](sycl::id<1> wiID) [[sycl::reqd_sub_group_size(16)]] {
           int Output = 0;
 #if defined(__SYCL_DEVICE_ONLY__)
           asm volatile("{\n"
@@ -42,7 +42,7 @@ template <typename T = DataType> struct KernelFunctor : WithOutputBuffer<T> {
 
 int main() {
   KernelFunctor<> Functor(DEFAULT_PROBLEM_SIZE);
-  if (!launchInlineASMTest(Functor))
+  if (!launchInlineASMTest(Functor, {16}))
     return 0;
 
   if (verify_all_the_same(Functor.getOutputBufferData(), 7))

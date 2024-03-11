@@ -20,7 +20,6 @@ def WriteIMul32     : SchedWrite;    // 32-bit multiply on RV64I
 def WriteJmp        : SchedWrite;    // Jump
 def WriteJal        : SchedWrite;    // Jump and link
 def WriteJalr       : SchedWrite;    // Jump and link register
-def WriteJmpReg     : SchedWrite;    // Jump register
 def WriteNop        : SchedWrite;
 def WriteLDB        : SchedWrite;    // Load byte
 def WriteLDH        : SchedWrite;    // Load half-word
@@ -31,6 +30,8 @@ def WriteSTB        : SchedWrite;    // Store byte
 def WriteSTH        : SchedWrite;    // Store half-word
 def WriteSTW        : SchedWrite;    // Store word
 def WriteSTD        : SchedWrite;    // Store double-word
+def WriteAtomicB    : SchedWrite;    //Atomic memory operation byte size
+def WriteAtomicH    : SchedWrite;    //Atomic memory operation halfword size
 def WriteAtomicW    : SchedWrite;    //Atomic memory operation word size
 def WriteAtomicD    : SchedWrite;    //Atomic memory operation double word size
 def WriteAtomicLDW  : SchedWrite;    // Atomic load word
@@ -77,6 +78,11 @@ def WriteFCvtF32ToF16  : SchedWrite;
 def WriteFCvtF16ToF64  : SchedWrite;
 def WriteFCvtF64ToF16  : SchedWrite;
 
+// Zfa found instructions.
+def WriteFRoundF32     : SchedWrite;
+def WriteFRoundF64     : SchedWrite;
+def WriteFRoundF16     : SchedWrite;
+
 def WriteFClass16   : SchedWrite;    // 16-bit floating point classify
 def WriteFClass32   : SchedWrite;    // 32-bit floating point classify
 def WriteFClass64   : SchedWrite;    // 64-bit floating point classify
@@ -97,6 +103,10 @@ def WriteFMovI32ToF32     : SchedWrite;
 def WriteFMovF64ToI64     : SchedWrite;    // RV64I only
 def WriteFMovI64ToF64     : SchedWrite;    // RV64I only
 
+def WriteFLI16        : SchedWrite;    // Floating point constant load
+def WriteFLI32        : SchedWrite;    // Floating point constant load
+def WriteFLI64        : SchedWrite;    // Floating point constant load
+
 def WriteFLD16        : SchedWrite;    // Floating point sp load
 def WriteFLD32        : SchedWrite;    // Floating point sp load
 def WriteFLD64        : SchedWrite;    // Floating point dp load
@@ -106,7 +116,8 @@ def WriteFST64        : SchedWrite;    // Floating point dp store
 
 // short forward branch for Bullet
 def WriteSFB        : SchedWrite;
-def ReadSFB         : SchedRead;
+def ReadSFBJmp      : SchedRead;
+def ReadSFBALU      : SchedRead;
 
 /// Define scheduler resources associated with use operands.
 def ReadJmp         : SchedRead;
@@ -126,6 +137,10 @@ def ReadIDiv        : SchedRead;
 def ReadIDiv32      : SchedRead;
 def ReadIMul        : SchedRead;
 def ReadIMul32      : SchedRead;
+def ReadAtomicBA    : SchedRead;
+def ReadAtomicBD    : SchedRead;
+def ReadAtomicHA    : SchedRead;
+def ReadAtomicHD    : SchedRead;
 def ReadAtomicWA    : SchedRead;
 def ReadAtomicWD    : SchedRead;
 def ReadAtomicDA    : SchedRead;
@@ -141,8 +156,11 @@ def ReadFMul16      : SchedRead;    // 16-bit floating point multiply
 def ReadFMul32      : SchedRead;    // 32-bit floating point multiply
 def ReadFMul64      : SchedRead;    // 64-bit floating point multiply
 def ReadFMA16       : SchedRead;    // 16-bit floating point fused multiply-add
+def ReadFMA16Addend : SchedRead;    // 16-bit floating point fused multiply-add (addend)
 def ReadFMA32       : SchedRead;    // 32-bit floating point fused multiply-add
+def ReadFMA32Addend : SchedRead;    // 32-bit floating point fused multiply-add (addend)
 def ReadFMA64       : SchedRead;    // 64-bit floating point fused multiply-add
+def ReadFMA64Addend : SchedRead;    // 64-bit floating point fused multiply-add (addend)
 def ReadFDiv16      : SchedRead;    // 16-bit floating point divide
 def ReadFDiv32      : SchedRead;    // 32-bit floating point divide
 def ReadFDiv64      : SchedRead;    // 64-bit floating point divide
@@ -182,6 +200,9 @@ def ReadFCvtF16ToF32     : SchedRead;
 def ReadFCvtF32ToF16     : SchedRead;
 def ReadFCvtF16ToF64     : SchedRead;
 def ReadFCvtF64ToF16     : SchedRead;
+def ReadFRoundF16        : SchedRead;
+def ReadFRoundF32        : SchedRead;
+def ReadFRoundF64        : SchedRead;
 def ReadFClass16         : SchedRead;
 def ReadFClass32         : SchedRead;
 def ReadFClass64         : SchedRead;
@@ -236,7 +257,35 @@ multiclass UnsupportedSchedSFB {
 let Unsupported = true in {
 def : WriteRes<WriteSFB, []>;
 
-def : ReadAdvance<ReadSFB, 0>;
+def : ReadAdvance<ReadSFBJmp, 0>;
+def : ReadAdvance<ReadSFBALU, 0>;
+} // Unsupported = true
+}
+
+multiclass UnsupportedSchedZfa {
+let Unsupported = true in {
+def : WriteRes<WriteFRoundF16, []>;
+def : WriteRes<WriteFRoundF32, []>;
+def : WriteRes<WriteFRoundF64, []>;
+def : WriteRes<WriteFLI16, []>;
+def : WriteRes<WriteFLI32, []>;
+def : WriteRes<WriteFLI64, []>;
+
+def : ReadAdvance<ReadFRoundF32, 0>;
+def : ReadAdvance<ReadFRoundF64, 0>;
+def : ReadAdvance<ReadFRoundF16, 0>;
+} // Unsupported = true
+}
+
+multiclass UnsupportedSchedZabha {
+let Unsupported = true in {
+def : WriteRes<WriteAtomicB, []>;
+def : WriteRes<WriteAtomicH, []>;
+
+def : ReadAdvance<ReadAtomicBA, 0>;
+def : ReadAdvance<ReadAtomicBD, 0>;
+def : ReadAdvance<ReadAtomicHA, 0>;
+def : ReadAdvance<ReadAtomicHD, 0>;
 } // Unsupported = true
 }
 

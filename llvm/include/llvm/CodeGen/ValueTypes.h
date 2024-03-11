@@ -15,8 +15,8 @@
 #ifndef LLVM_CODEGEN_VALUETYPES_H
 #define LLVM_CODEGEN_VALUETYPES_H
 
+#include "llvm/CodeGenTypes/MachineValueType.h"
 #include "llvm/Support/Compiler.h"
-#include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/TypeSize.h"
 #include <cassert>
@@ -107,10 +107,17 @@ namespace llvm {
       return changeExtendedVectorElementType(EltVT);
     }
 
+    /// Return a VT for a type whose attributes match ourselves with the
+    /// exception of the element type that is chosen by the caller.
+    EVT changeElementType(EVT EltVT) const {
+      EltVT = EltVT.getScalarType();
+      return isVector() ? changeVectorElementType(EltVT) : EltVT;
+    }
+
     /// Return the type converted to an equivalently sized integer or vector
     /// with integer element type. Similar to changeVectorElementTypeToInteger,
     /// but also handles scalars.
-    EVT changeTypeToInteger() {
+    EVT changeTypeToInteger() const {
       if (isVector())
         return changeVectorElementTypeToInteger();
 

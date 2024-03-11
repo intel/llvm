@@ -1,11 +1,9 @@
 // for CUDA and HIP the failure happens at compile time, not during runtime
-// UNSUPPORTED: cuda || hip || ze_debug4 || ze_debug-1
+// UNSUPPORTED: cuda || hip || ze_debug
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DGPU %s -o %t_gpu.out
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t_gpu.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -DGPU -o %t_gpu.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %if gpu %{ %t_gpu.out %} %else %{ %t.out %}
 //
 //==--- build-log.cpp - Test log message from faild build ----------==//
 //

@@ -9,4 +9,4 @@
 // REQUIRES: opencl-aot, accelerator
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_fpga %S/Inputs/aot.cpp -o %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{run} %t.out

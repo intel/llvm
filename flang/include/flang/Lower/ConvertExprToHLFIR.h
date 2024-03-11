@@ -27,6 +27,10 @@ namespace mlir {
 class Location;
 } // namespace mlir
 
+namespace hlfir {
+class ElementalAddrOp;
+}
+
 namespace Fortran::lower {
 
 class AbstractConverter;
@@ -108,6 +112,12 @@ fir::ExtendedValue convertToValue(mlir::Location loc,
                                   hlfir::Entity entity,
                                   Fortran::lower::StatementContext &);
 
+fir::ExtendedValue convertDataRefToValue(mlir::Location loc,
+                                         Fortran::lower::AbstractConverter &,
+                                         const Fortran::evaluate::DataRef &,
+                                         Fortran::lower::SymMap &,
+                                         Fortran::lower::StatementContext &);
+
 /// Lower an evaluate::Expr to a fir::MutableBoxValue value.
 /// This can only be called if the Expr is a POINTER or ALLOCATABLE,
 /// otherwise, this will crash.
@@ -115,6 +125,19 @@ fir::MutableBoxValue
 convertExprToMutableBox(mlir::Location loc, Fortran::lower::AbstractConverter &,
                         const Fortran::lower::SomeExpr &,
                         Fortran::lower::SymMap &);
+/// Lower a designator containing vector subscripts into an
+/// hlfir::ElementalAddrOp that will allow looping on the elements to assign
+/// them values. This only intends to cover the cases where such designator
+/// appears on the left-hand side of an assignment or appears in an input IO
+/// statement. These are the only contexts in Fortran where a vector subscripted
+/// entity may be modified. Otherwise, there is no need to do anything special
+/// about vector subscripts, they are automatically turned into array expression
+/// values via an hlfir.elemental in the convertExprToXXX calls.
+hlfir::ElementalAddrOp convertVectorSubscriptedExprToElementalAddr(
+    mlir::Location loc, Fortran::lower::AbstractConverter &,
+    const Fortran::lower::SomeExpr &, Fortran::lower::SymMap &,
+    Fortran::lower::StatementContext &);
+
 } // namespace Fortran::lower
 
 #endif // FORTRAN_LOWER_CONVERTEXPRTOHLFIR_H

@@ -1,7 +1,9 @@
+; XFAIL: *
+
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv -spirv-ext=+SPV_INTEL_function_pointers -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -spirv-ext=+SPV_INTEL_function_pointers %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-unknown"
@@ -10,11 +12,10 @@ target triple = "spir64-unknown-unknown"
 ; when used since they can't be translated directly.
 
 ; CHECK-SPIRV-DAG: Name [[#FOO:]] "foo"
-; CHECK-SPIRV-DAG: Name [[#BAR:]] "bar"
+; CHECK-SPIRV-DAG: EntryPoint [[#]] [[#BAR:]] "bar"
 ; CHECK-SPIRV-DAG: Name [[#Y:]] "y"
 ; CHECK-SPIRV-DAG: Name [[#FOOPTR:]] "foo.alias"
 ; CHECK-SPIRV-DAG: Decorate [[#FOO]] LinkageAttributes "foo" Export
-; CHECK-SPIRV-DAG: Decorate [[#BAR]] LinkageAttributes "bar" Export
 ; CHECK-SPIRV-DAG: TypeInt [[#I32:]] 32 0
 ; CHECK-SPIRV-DAG: TypeInt [[#I64:]] 64 0
 ; CHECK-SPIRV-DAG: TypeFunction [[#FOO_TYPE:]] [[#I32]] [[#I32]]
@@ -41,9 +42,9 @@ define spir_func i32 @foo(i32 %x) {
   ret i32 %x
 }
 
-@foo.alias = internal alias i32 (i32), i32 (i32)* @foo
+@foo.alias = internal alias i32 (i32), ptr @foo
 
-define spir_func void @bar(i64* %y) {
-  store i64 ptrtoint (i32 (i32)* @foo.alias to i64), i64* %y
+define spir_kernel void @bar(ptr %y) {
+  store i64 ptrtoint (ptr @foo.alias to i64), ptr %y
   ret void
 }

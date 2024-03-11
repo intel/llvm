@@ -227,7 +227,8 @@ bool Variable::LocationIsValidForFrame(StackFrame *frame) {
       // contains the current address when converted to a load address
       return m_location_list.ContainsAddress(
           loclist_base_load_addr,
-          frame->GetFrameCodeAddress().GetLoadAddress(target_sp.get()));
+          frame->GetFrameCodeAddressForSymbolication().GetLoadAddress(
+              target_sp.get()));
     }
   }
   return false;
@@ -380,9 +381,8 @@ Status Variable::GetValuesForVariableExpressionPath(
     llvm::SmallVector<llvm::StringRef, 2> matches;
     variable_list.Clear();
     if (!g_regex.Execute(variable_expr_path, &matches)) {
-      error.SetErrorStringWithFormat(
-          "unable to extract a variable name from '%s'",
-          variable_expr_path.str().c_str());
+      error.SetErrorStringWithFormatv(
+          "unable to extract a variable name from '{0}'", variable_expr_path);
       return error;
     }
     std::string variable_name = matches[1].str();
@@ -411,10 +411,9 @@ Status Variable::GetValuesForVariableExpressionPath(
         valobj_sp = variable_valobj_sp->GetValueForExpressionPath(
             variable_sub_expr_path);
         if (!valobj_sp) {
-          error.SetErrorStringWithFormat(
-              "invalid expression path '%s' for variable '%s'",
-              variable_sub_expr_path.str().c_str(),
-              var_sp->GetName().GetCString());
+          error.SetErrorStringWithFormatv(
+              "invalid expression path '{0}' for variable '{1}'",
+              variable_sub_expr_path, var_sp->GetName().GetCString());
           variable_list.RemoveVariableAtIndex(i);
           continue;
         }
@@ -510,15 +509,17 @@ static void PrivateAutoCompleteMembers(
       CompilerType member_compiler_type = compiler_type.GetFieldAtIndex(
           i, member_name, nullptr, nullptr, nullptr);
 
-      if (partial_member_name.empty() ||
-          llvm::StringRef(member_name).startswith(partial_member_name)) {
+      if (partial_member_name.empty()) {
+        request.AddCompletion((prefix_path + member_name).str());
+      } else if (llvm::StringRef(member_name)
+                     .starts_with(partial_member_name)) {
         if (member_name == partial_member_name) {
           PrivateAutoComplete(
               frame, partial_path,
               prefix_path + member_name, // Anything that has been resolved
                                          // already will be in here
               member_compiler_type.GetCanonicalType(), request);
-        } else {
+        } else if (partial_path.empty()) {
           request.AddCompletion((prefix_path + member_name).str());
         }
       }
@@ -686,7 +687,7 @@ static void PrivateAutoComplete(
               continue;
 
             llvm::StringRef variable_name = var_sp->GetName().GetStringRef();
-            if (variable_name.startswith(token)) {
+            if (variable_name.starts_with(token)) {
               if (variable_name == token) {
                 Type *variable_type = var_sp->GetType();
                 if (variable_type) {

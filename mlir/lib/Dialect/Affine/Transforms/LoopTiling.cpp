@@ -28,18 +28,21 @@
 #include <optional>
 
 namespace mlir {
+namespace affine {
 #define GEN_PASS_DEF_AFFINELOOPTILING
 #include "mlir/Dialect/Affine/Passes.h.inc"
+} // namespace affine
 } // namespace mlir
 
 using namespace mlir;
+using namespace mlir::affine;
 
 #define DEBUG_TYPE "affine-loop-tile"
 
 namespace {
 
 /// A pass to perform loop tiling on all suitable loop nests of a Function.
-struct LoopTiling : public impl::AffineLoopTilingBase<LoopTiling> {
+struct LoopTiling : public affine::impl::AffineLoopTilingBase<LoopTiling> {
   LoopTiling() = default;
   explicit LoopTiling(uint64_t cacheSizeBytes, bool avoidMaxMinBounds = true)
       : avoidMaxMinBounds(avoidMaxMinBounds) {
@@ -62,10 +65,11 @@ struct LoopTiling : public impl::AffineLoopTilingBase<LoopTiling> {
 /// Creates a pass to perform loop tiling on all suitable loop nests of a
 /// Function.
 std::unique_ptr<OperationPass<func::FuncOp>>
-mlir::createLoopTilingPass(uint64_t cacheSizeBytes) {
+mlir::affine::createLoopTilingPass(uint64_t cacheSizeBytes) {
   return std::make_unique<LoopTiling>(cacheSizeBytes);
 }
-std::unique_ptr<OperationPass<func::FuncOp>> mlir::createLoopTilingPass() {
+std::unique_ptr<OperationPass<func::FuncOp>>
+mlir::affine::createLoopTilingPass() {
   return std::make_unique<LoopTiling>();
 }
 
@@ -97,7 +101,7 @@ static void adjustToDivisorsOfTripCounts(ArrayRef<AffineForOp> band,
 /// hyper-rectangles, which are scheduled in the lexicographically increasing
 /// order on the vector of loop indices. This function will return failure when
 /// any dependence component is negative along any of `origLoops`.
-static bool checkTilingLegality(MutableArrayRef<mlir::AffineForOp> origLoops) {
+static bool checkTilingLegality(MutableArrayRef<AffineForOp> origLoops) {
   assert(!origLoops.empty() && "no original loops provided");
 
   // We first find out all dependences we intend to check.
@@ -134,8 +138,7 @@ static bool checkTilingLegality(MutableArrayRef<mlir::AffineForOp> origLoops) {
                                 << Twine(d) << " between:\n";);
         LLVM_DEBUG(srcAccess.opInst->dump(););
         LLVM_DEBUG(dstAccess.opInst->dump(););
-        for (unsigned k = 0, e = depComps.size(); k < e; k++) {
-          DependenceComponent depComp = depComps[k];
+        for (const DependenceComponent &depComp : depComps) {
           if (depComp.lb.has_value() && depComp.ub.has_value() &&
               *depComp.lb < *depComp.ub && *depComp.ub < 0) {
             LLVM_DEBUG(llvm::dbgs()

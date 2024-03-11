@@ -91,9 +91,6 @@ class CGDebugInfo {
   /// Cache of previously constructed Types.
   llvm::DenseMap<const void *, llvm::TrackingMDRef> TypeCache;
 
-  std::map<llvm::StringRef, llvm::StringRef, std::greater<llvm::StringRef>>
-      DebugPrefixMap;
-
   /// Cache that maps VLA types to size expressions for that type,
   /// represented by instantiated Metadata nodes.
   llvm::SmallDenseMap<QualType, llvm::Metadata *> SizeExprCache;
@@ -344,6 +341,9 @@ class CGDebugInfo {
   llvm::DIDerivedType *createBitFieldType(const FieldDecl *BitFieldDecl,
                                           llvm::DIScope *RecordTy,
                                           const RecordDecl *RD);
+
+  /// Create type for binding declarations.
+  llvm::DIType *CreateBindingDeclType(const BindingDecl *BD);
 
   /// Create an anonnymous zero-size separator for bit-field-decl if needed on
   /// the target.
@@ -805,6 +805,11 @@ private:
                            llvm::MDTuple *&TemplateParameters,
                            llvm::DIScope *&VDContext);
 
+  /// Create a DIExpression representing the constant corresponding
+  /// to the specified 'Val'. Returns nullptr on failure.
+  llvm::DIExpression *createConstantValueExpression(const clang::ValueDecl *VD,
+                                                    const APValue &Val);
+
   /// Allocate a copy of \p A using the DebugInfoNames allocator
   /// and return a reference to it. If multiple arguments are given the strings
   /// are concatenated.
@@ -837,7 +842,15 @@ public:
   ApplyDebugLocation(ApplyDebugLocation &&Other) : CGF(Other.CGF) {
     Other.CGF = nullptr;
   }
-  ApplyDebugLocation &operator=(ApplyDebugLocation &&) = default;
+
+  // Define copy assignment operator.
+  ApplyDebugLocation &operator=(ApplyDebugLocation &&Other) {
+    if (this != &Other) {
+      CGF = Other.CGF;
+      Other.CGF = nullptr;
+    }
+    return *this;
+  }
 
   ~ApplyDebugLocation();
 
@@ -887,6 +900,8 @@ public:
   /// Restore everything back to the original state.
   ~ApplyInlineDebugLocation();
 };
+
+bool noSystemDebugInfo(const Decl *D, const CodeGenModule &CGM);
 
 } // namespace CodeGen
 } // namespace clang

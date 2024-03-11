@@ -11,6 +11,7 @@
 #include "TypeReferenceTracker.h"
 
 #include "llvm-pdbutil.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/DebugInfo/CodeView/CVRecord.h"
 #include "llvm/DebugInfo/CodeView/CVTypeVisitor.h"
 #include "llvm/DebugInfo/CodeView/CodeView.h"
@@ -124,6 +125,7 @@ static std::string formatCallingConvention(CallingConvention Convention) {
     RETURN_CASE(CallingConvention, PpcCall, "ppccall");
     RETURN_CASE(CallingConvention, SHCall, "shcall");
     RETURN_CASE(CallingConvention, SH5Call, "sh5call");
+    RETURN_CASE(CallingConvention, Swift, "swift");
     RETURN_CASE(CallingConvention, ThisCall, "thiscall");
     RETURN_CASE(CallingConvention, TriCall, "tricall");
   }

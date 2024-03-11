@@ -16,7 +16,6 @@
 #include <sycl/exception_list.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/properties/all_properties.hpp>
-#include <sycl/stl.hpp>
 
 #include <algorithm>
 #include <memory>
@@ -25,14 +24,13 @@
 // 4.6.2 Context class
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
-context::context(const property_list &PropList)
-    : context(default_selector().select_device(), PropList) {}
+context::context(const property_list &PropList) : context(device{}, PropList) {}
 
 context::context(const async_handler &AsyncHandler,
                  const property_list &PropList)
-    : context(default_selector().select_device(), AsyncHandler, PropList) {}
+    : context(device{}, AsyncHandler, PropList) {}
 
 context::context(const device &Device, const property_list &PropList)
     : context(std::vector<device>(1, Device), PropList) {}
@@ -85,9 +83,10 @@ context::context(const std::vector<device> &DeviceList,
   }
 }
 context::context(cl_context ClContext, async_handler AsyncHandler) {
-  const auto &Plugin = RT::getPlugin<backend::opencl>();
+  const auto &Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
   impl = std::make_shared<detail::context_impl>(
-      detail::pi::cast<detail::RT::PiContext>(ClContext), AsyncHandler, Plugin);
+      detail::pi::cast<sycl::detail::pi::PiContext>(ClContext), AsyncHandler,
+      Plugin);
 }
 
 template <typename Param>
@@ -144,5 +143,5 @@ context::context(std::shared_ptr<detail::context_impl> Impl) : impl(Impl) {}
 
 pi_native_handle context::getNative() const { return impl->getNative(); }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

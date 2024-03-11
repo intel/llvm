@@ -207,10 +207,10 @@ define void @lookahead_external_uses(ptr %A, ptr %B, ptr %C, ptr %D, ptr %S, ptr
 ; CHECK-NEXT:    [[B0:%.*]] = load double, ptr [[B]], align 8
 ; CHECK-NEXT:    [[C0:%.*]] = load double, ptr [[C:%.*]], align 8
 ; CHECK-NEXT:    [[D0:%.*]] = load double, ptr [[D:%.*]], align 8
-; CHECK-NEXT:    [[TMP0:%.*]] = load <2 x double>, ptr [[A]], align 8
 ; CHECK-NEXT:    [[B2:%.*]] = load double, ptr [[IDXB2]], align 8
 ; CHECK-NEXT:    [[A2:%.*]] = load double, ptr [[IDXA2]], align 8
 ; CHECK-NEXT:    [[B1:%.*]] = load double, ptr [[IDXB1]], align 8
+; CHECK-NEXT:    [[TMP0:%.*]] = load <2 x double>, ptr [[A]], align 8
 ; CHECK-NEXT:    [[TMP1:%.*]] = insertelement <2 x double> poison, double [[B0]], i32 0
 ; CHECK-NEXT:    [[TMP2:%.*]] = insertelement <2 x double> [[TMP1]], double [[B2]], i32 1
 ; CHECK-NEXT:    [[TMP3:%.*]] = fsub fast <2 x double> [[TMP0]], [[TMP2]]
@@ -285,10 +285,10 @@ define void @lookahead_limit_users_budget(ptr %A, ptr %B, ptr %C, ptr %D, ptr %S
 ; CHECK-NEXT:    [[B0:%.*]] = load double, ptr [[B]], align 8
 ; CHECK-NEXT:    [[C0:%.*]] = load double, ptr [[C:%.*]], align 8
 ; CHECK-NEXT:    [[D0:%.*]] = load double, ptr [[D:%.*]], align 8
-; CHECK-NEXT:    [[TMP0:%.*]] = load <2 x double>, ptr [[A]], align 8
 ; CHECK-NEXT:    [[B2:%.*]] = load double, ptr [[IDXB2]], align 8
 ; CHECK-NEXT:    [[A2:%.*]] = load double, ptr [[IDXA2]], align 8
 ; CHECK-NEXT:    [[B1:%.*]] = load double, ptr [[IDXB1]], align 8
+; CHECK-NEXT:    [[TMP0:%.*]] = load <2 x double>, ptr [[A]], align 8
 ; CHECK-NEXT:    [[TMP1:%.*]] = insertelement <2 x double> poison, double [[B0]], i32 0
 ; CHECK-NEXT:    [[TMP2:%.*]] = insertelement <2 x double> [[TMP1]], double [[B2]], i32 1
 ; CHECK-NEXT:    [[TMP3:%.*]] = fsub fast <2 x double> [[TMP0]], [[TMP2]]
@@ -529,7 +529,7 @@ define i1 @foo(float %a, float %b, float %c, <4 x float> %vec, i64 %idx2) {
 ; CHECK-NEXT:    [[SUB14_I167:%.*]] = fsub float undef, [[VECEXT_I291_I166]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = insertelement <2 x float> poison, float [[A:%.*]], i32 0
 ; CHECK-NEXT:    [[TMP2:%.*]] = insertelement <2 x float> [[TMP1]], float [[C:%.*]], i32 1
-; CHECK-NEXT:    [[TMP3:%.*]] = shufflevector <4 x float> [[VEC]], <4 x float> poison, <2 x i32> <i32 undef, i32 1>
+; CHECK-NEXT:    [[TMP3:%.*]] = shufflevector <4 x float> [[VEC]], <4 x float> poison, <2 x i32> <i32 poison, i32 1>
 ; CHECK-NEXT:    [[TMP4:%.*]] = insertelement <2 x float> [[TMP3]], float [[SUB14_I167]], i32 0
 ; CHECK-NEXT:    [[TMP5:%.*]] = fmul <2 x float> [[TMP2]], [[TMP4]]
 ; CHECK-NEXT:    [[TMP6:%.*]] = insertelement <2 x float> <float poison, float 3.000000e+01>, float [[B:%.*]], i32 0

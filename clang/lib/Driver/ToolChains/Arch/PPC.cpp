@@ -87,10 +87,6 @@ std::string ppc::getPPCTuneCPU(const ArgList &Args, const llvm::Triple &T) {
 /// Get the (LLVM) name of the PowerPC cpu we are targeting.
 std::string ppc::getPPCTargetCPU(const Driver &D, const ArgList &Args,
                                  const llvm::Triple &T) {
-  if (const Arg *A = Args.getLastArg(clang::driver::options::OPT_march_EQ)) {
-    D.Diag(diag::err_drv_unsupported_opt_for_target)
-        << A->getSpelling() << T.getTriple();
-  }
   if (Arg *A = Args.getLastArg(clang::driver::options::OPT_mcpu_EQ))
     return normalizeCPUName(A->getValue(), T);
   return getPPCGenericTargetCPU(T);
@@ -116,7 +112,8 @@ void ppc::getPPCTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   if (Triple.getSubArch() == llvm::Triple::PPCSubArch_spe)
     Features.push_back("+spe");
 
-  handleTargetFeaturesGroup(Args, Features, options::OPT_m_ppc_Features_Group);
+  handleTargetFeaturesGroup(D, Triple, Args, Features,
+                            options::OPT_m_ppc_Features_Group);
 
   ppc::FloatABI FloatABI = ppc::getPPCFloatABI(D, Args);
   if (FloatABI == ppc::FloatABI::Soft)
@@ -125,6 +122,25 @@ void ppc::getPPCTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   ppc::ReadGOTPtrMode ReadGOT = ppc::getPPCReadGOTPtrMode(D, Triple, Args);
   if (ReadGOT == ppc::ReadGOTPtrMode::SecurePlt)
     Features.push_back("+secure-plt");
+
+  bool UseSeparateSections = isUseSeparateSections(Triple);
+  bool HasDefaultDataSections = Triple.isOSBinFormatXCOFF();
+  if (Args.hasArg(options::OPT_maix_small_local_exec_tls)) {
+    if (!Triple.isOSAIX() || !Triple.isArch64Bit())
+      D.Diag(diag::err_opt_not_valid_on_target) << "-maix-small-local-exec-tls";
+
+    // The -maix-small-local-exec-tls option should only be used with
+    // -fdata-sections, as having data sections turned off with this option
+    // is not ideal for performance. Moreover, the small-local-exec-tls region
+    // is a limited resource, and should not be used for variables that may
+    // be replaced.
+    if (!Args.hasFlag(options::OPT_fdata_sections,
+                      options::OPT_fno_data_sections,
+                      UseSeparateSections || HasDefaultDataSections))
+      D.Diag(diag::err_drv_argument_only_allowed_with)
+          << "-maix-small-local-exec-tls"
+          << "-fdata-sections";
+  }
 }
 
 ppc::ReadGOTPtrMode ppc::getPPCReadGOTPtrMode(const Driver &D, const llvm::Triple &Triple,

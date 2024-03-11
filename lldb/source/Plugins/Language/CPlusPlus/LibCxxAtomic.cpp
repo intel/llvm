@@ -55,13 +55,12 @@ lldb_private::formatters::GetLibCxxAtomicValue(ValueObject &valobj) {
   if (!non_sythetic)
     return {};
 
-  ValueObjectSP member__a_ =
-      non_sythetic->GetChildMemberWithName(ConstString("__a_"), true);
+  ValueObjectSP member__a_ = non_sythetic->GetChildMemberWithName("__a_");
   if (!member__a_)
     return {};
 
   ValueObjectSP member__a_value =
-      member__a_->GetChildMemberWithName(ConstString("__a_value"), true);
+      member__a_->GetChildMemberWithName("__a_value");
   if (!member__a_value)
     return member__a_;
 
@@ -95,7 +94,7 @@ public:
 
   lldb::ValueObjectSP GetChildAtIndex(size_t idx) override;
 
-  bool Update() override;
+  lldb::ChildCacheState Update() override;
 
   bool MightHaveChildren() override;
 
@@ -111,12 +110,13 @@ lldb_private::formatters::LibcxxStdAtomicSyntheticFrontEnd::
     LibcxxStdAtomicSyntheticFrontEnd(lldb::ValueObjectSP valobj_sp)
     : SyntheticChildrenFrontEnd(*valobj_sp) {}
 
-bool lldb_private::formatters::LibcxxStdAtomicSyntheticFrontEnd::Update() {
+lldb::ChildCacheState
+lldb_private::formatters::LibcxxStdAtomicSyntheticFrontEnd::Update() {
   ValueObjectSP atomic_value = GetLibCxxAtomicValue(m_backend);
   if (atomic_value)
     m_real_child = GetLibCxxAtomicValue(m_backend).get();
 
-  return false;
+  return lldb::ChildCacheState::eRefetch;
 }
 
 bool lldb_private::formatters::LibcxxStdAtomicSyntheticFrontEnd::

@@ -21,7 +21,7 @@ class TestKernel;
 const static sycl::specialization_id<int> SpecConst1{42};
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 template <>
 struct KernelInfo<TestKernel> : public unittest::MockKernelInfoBase {
@@ -34,7 +34,7 @@ template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {
   return "SC1";
 }
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 static sycl::unittest::PiImage generateImageWithSpecConsts() {

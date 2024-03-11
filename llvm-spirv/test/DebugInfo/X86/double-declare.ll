@@ -1,7 +1,14 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-apple-darwin -O0 -filetype=obj -o - < %t.ll | llvm-dwarfdump -v -debug-info - | FileCheck %s
 
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-apple-darwin -O0 -filetype=obj -o - < %t.ll | llvm-dwarfdump -v -debug-info - | FileCheck %s
+
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-apple-darwin -O0 -filetype=obj -o - < %t.ll | llvm-dwarfdump -v -debug-info - | FileCheck %s
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
@@ -10,22 +17,22 @@ target triple = "spir64-unknown-unknown"
 ; CHECK: DW_TAG_formal_parameter
 ; CHECK: DW_AT_location [DW_FORM_exprloc]
 ; CHECK-NOT: DW_AT_location
-@g = external global i32
-@h = external global i32
+@g = external addrspace(1) global i32
+@h = external addrspace(1) global i32
 
 declare void @llvm.dbg.declare(metadata, metadata, metadata)
 
-define void @f(i32* byval(i32) %p, i1 %c) !dbg !5 {
+define void @f(ptr byval(i32) %p, i1 %c) !dbg !5 {
   br i1 %c, label %x, label %y
 
 x:
-  call void @llvm.dbg.declare(metadata i32* %p, metadata !10, metadata !DIExpression()), !dbg !12
-  store i32 42, i32* @g, !dbg !12
+  call void @llvm.dbg.declare(metadata ptr %p, metadata !10, metadata !DIExpression()), !dbg !12
+  store i32 42, ptr addrspace(1) @g, !dbg !12
   br label %done
 
 y:
-  call void @llvm.dbg.declare(metadata i32* %p, metadata !10, metadata !DIExpression()), !dbg !12
-  store i32 42, i32* @h, !dbg !12
+  call void @llvm.dbg.declare(metadata ptr %p, metadata !10, metadata !DIExpression()), !dbg !12
+  store i32 42, ptr addrspace(1) @h, !dbg !12
   br label %done
 
 done:

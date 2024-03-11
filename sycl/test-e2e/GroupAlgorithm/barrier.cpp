@@ -2,9 +2,10 @@
 // https://github.com/intel/llvm/pull/8412.
 // REQUIRES: TEMPORARY_DISABLED
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_80
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_80
+// RUN: %{run} %t.out
 
+// REQUIRES: aspect-ext_oneapi_cuda_async_barrier
 // REQUIRES: cuda
 
 #include "CL/sycl.hpp"
@@ -83,8 +84,9 @@ void interface() {
         }
         item.barrier(access::fence_space::local_space);
 
-        item.async_work_group_copy(loc.get_pointer(), data_acc.get_pointer(),
-                                   N);
+        item.async_work_group_copy(
+            loc.get_multi_ptr<access::decorated::yes>(),
+            data_acc.get_multi_ptr<access::decorated::yes>(), N);
         loc_barrier[1].arrive_copy_async();
         barrier::arrival_token arr = loc_barrier[1].arrive_no_complete(N - 1);
         loc_barrier[1].arrive_and_wait();
@@ -113,8 +115,9 @@ void interface() {
         loc[dst_idx] = val;
         loc_barrier[0].wait(loc_barrier[0].arrive());
 
-        item.async_work_group_copy(data_acc.get_pointer(), loc.get_pointer(),
-                                   N);
+        item.async_work_group_copy(
+            data_acc.get_multi_ptr<access::decorated::yes>(),
+            loc.get_multi_ptr<access::decorated::yes>(), N);
         loc_barrier[1].arrive_copy_async_no_inc();
         loc_barrier[1].arrive_no_complete(N - 3);
         arr = loc_barrier[1].arrive();
@@ -145,11 +148,6 @@ void interface() {
 
 int main() {
   queue q;
-  if (!q.get_device().has(aspect::ext_oneapi_cuda_async_barrier)) {
-    std::cout << "Barrier is not supported by the device. Skipping test."
-              << std::endl;
-    return 0;
-  }
   basic();
   interface();
 

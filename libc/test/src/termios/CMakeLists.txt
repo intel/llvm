@@ -1,4 +1,4 @@
-add_libc_testsuite(libc_termios_unittests)
+add_custom_target(libc_termios_unittests)
 
 add_libc_unittest(
   termios_test
@@ -18,5 +18,5 @@ add_libc_unittest(
     libc.src.termios.tcgetsid
     libc.src.termios.tcsetattr
     libc.src.unistd.close
-    libc.test.errno_setter_matcher
+    libc.test.UnitTest.ErrnoSetterMatcher
 )

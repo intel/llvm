@@ -1,7 +1,7 @@
 ; Test upgrade of llvm.annotation intrinsics.
 ;
-; RUN: llvm-as < %s | llvm-dis -opaque-pointers | FileCheck %s
-; RUN: llvm-dis -opaque-pointers < %s.bc | FileCheck %s
+; RUN: llvm-as < %s | llvm-dis | FileCheck %s
+; RUN: llvm-dis < %s.bc | FileCheck %s
 
 
 ; TYPED: define i32 @f(i32 [[ARG0:%.*]], ptr [[ARG1:%.*]], ptr [[ARG2:%.*]], i32 [[ARG3:%.*]])

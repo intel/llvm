@@ -7,20 +7,20 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-#include <sycl/context.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/device.hpp>
-#include <sycl/exception.hpp>
-#include <sycl/queue.hpp>
-#include <sycl/usm.hpp>
-#include <sycl/usm/usm_enums.hpp>
+#include <sycl/builtins.hpp>      // for max
+#include <sycl/context.hpp>       // for context
+#include <sycl/detail/common.hpp> // for code_location
+#include <sycl/device.hpp>        // for device
+#include <sycl/exception.hpp>     // for memory_allocation_error
+#include <sycl/property_list.hpp> // for property_list
+#include <sycl/queue.hpp>         // for queue
+#include <sycl/usm/usm_enums.hpp> // for alloc
 
-#include <cstdlib>
-#include <memory>
+#include <cstdlib>     // for size_t, aligned_alloc, free
+#include <type_traits> // for true_type
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 template <typename T, usm::alloc AllocKind, size_t Alignment = 0>
 class usm_allocator {
 public:
@@ -70,6 +70,9 @@ public:
   /// \param NumberOfElements is a count of elements to allocate memory for.
   T *allocate(size_t NumberOfElements, const detail::code_location CodeLoc =
                                            detail::code_location::current()) {
+
+    if (!NumberOfElements)
+      return nullptr;
 
     auto Result = reinterpret_cast<T *>(
         aligned_alloc(getAlignment(), NumberOfElements * sizeof(value_type),
@@ -125,5 +128,5 @@ private:
   property_list MPropList;
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

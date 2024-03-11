@@ -72,6 +72,9 @@ enum class IdentFlag {
 #define OMP_IDENT_FLAG(Enum, ...) constexpr auto Enum = omp::IdentFlag::Enum;
 #include "llvm/Frontend/OpenMP/OMPKinds.def"
 
+// Version of the kernel argument format used by the omp runtime.
+#define OMP_KERNEL_ARG_VERSION 2
+
 /// \note This needs to be kept in sync with kmp.h enum sched_type.
 /// Todo: Update kmp.h to include this file, and remove the enums in kmp.h
 enum class OMPScheduleType {
@@ -272,6 +275,16 @@ enum class RTLDependenceKindTy {
   DepMutexInOutSet = 0x4,
   DepInOutSet = 0x8,
   DepOmpAllMem = 0x80,
+};
+
+/// A type of worksharing loop construct
+enum class WorksharingLoopType {
+  // Worksharing `for`-loop
+  ForStaticLoop,
+  // Worksharing `distrbute`-loop
+  DistributeStaticLoop,
+  // Worksharing `distrbute parallel for`-loop
+  DistributeForStaticLoop
 };
 
 } // end namespace omp

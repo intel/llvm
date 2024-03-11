@@ -120,8 +120,7 @@ const char *AMDGCN::OpenMPLinker::constructLLVMLinkCommand(
   }
 
   AddStaticDeviceLibsLinking(C, *this, JA, Inputs, Args, CmdArgs, "amdgcn",
-                             SubArchName, /*isBitCodeSDL=*/true,
-                             /*postClangLink=*/false);
+                             SubArchName, /*isBitCodeSDL=*/true);
   // Add an intermediate output file.
   CmdArgs.push_back("-o");
   const char *OutputFileName =
@@ -334,6 +333,7 @@ Tool *AMDGPUOpenMPToolChain::buildLinker() const {
 
 void AMDGPUOpenMPToolChain::addClangWarningOptions(
     ArgStringList &CC1Args) const {
+  AMDGPUToolChain::addClangWarningOptions(CC1Args);
   HostTC.addClangWarningOptions(CC1Args);
 }
 

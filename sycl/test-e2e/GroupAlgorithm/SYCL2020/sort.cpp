@@ -1,6 +1,7 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: sg-8
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
+// UNSUPPORTED: accelerator
 
 // The test verifies sort API extension.
 // Currently it checks the following combinations:
@@ -454,8 +455,10 @@ int main() {
     }
 
     std::cout << "Test passed." << std::endl;
+    return 0;
   } catch (std::exception &E) {
     std::cout << "Test failed" << std::endl;
     std::cout << E.what() << std::endl;
+    return 1;
   }
 }

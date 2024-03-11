@@ -11,13 +11,9 @@
 
 #pragma once
 
-// SYCL extension macro definition as required by the SYCL specification.
-// 1 - Initial extension version. Base features are supported.
-#define SYCL_EXT_ONEAPI_INVOKE_SIMD 1
-
+#include <sycl/ext/oneapi/experimental/detail/invoke_simd_types.hpp>
 #include <sycl/ext/oneapi/experimental/uniform.hpp>
 
-#include <std/experimental/simd.hpp>
 #include <sycl/detail/boost/mp11.hpp>
 #include <sycl/sub_group.hpp>
 
@@ -68,28 +64,9 @@ __builtin_invoke_simd(HelperFunc helper, UserSimdFuncAndSpmdArgs... args)
 #endif // __SYCL_DEVICE_ONLY__
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace ext::oneapi::experimental {
-
-// --- Basic definitions prescribed by the spec.
-namespace simd_abi {
-// "Fixed-size simd width of N" ABI based on clang vectors - used as the ABI for
-// SIMD objects this implementation of invoke_simd spec is based on.
-template <class T, int N>
-using native_fixed_size = typename std::experimental::__simd_abi<
-    std::experimental::_StorageKind::_VecExt, N>;
-} // namespace simd_abi
-
-// The SIMD object type, which is the generic std::experimental::simd type with
-// the native fixed size ABI.
-template <class T, int N>
-using simd = std::experimental::simd<T, simd_abi::native_fixed_size<T, N>>;
-
-// The SIMD mask object type.
-template <class T, int N>
-using simd_mask =
-    std::experimental::simd_mask<T, simd_abi::native_fixed_size<T, N>>;
 
 // --- Helpers
 namespace detail {
@@ -388,6 +365,12 @@ constexpr bool has_ref_ret(Ret (*)(Args...)) {
 }
 
 template <typename Ret, typename... Args>
+constexpr bool has_non_uniform_struct_ret(Ret (*)(Args...)) {
+  return std::is_class_v<Ret> && !is_simd_or_mask_type<Ret>::value &&
+         !is_uniform_type<Ret>::value;
+}
+
+template <typename Ret, typename... Args>
 constexpr bool has_non_trivially_copyable_uniform_ret(Ret (*)(Args...)) {
   return is_non_trivially_copyable_uniform_v<Ret>;
 }
@@ -409,6 +392,13 @@ template <class Callable> constexpr void verify_callable() {
     static_assert(
         !callable_has_ref_arg,
         "invoke_simd does not support callables with reference arguments");
+#ifndef __INVOKE_SIMD_ENABLE_STRUCTS
+    constexpr bool callable_has_non_uniform_struct_ret =
+        has_non_uniform_struct_ret(obj);
+    static_assert(!callable_has_non_uniform_struct_ret,
+                  "invoke_simd does not support callables returning "
+                  "non-uniform structures");
+#endif
 #ifdef __SYCL_DEVICE_ONLY__
     constexpr bool callable_has_uniform_non_trivially_copyable_ret =
         has_non_trivially_copyable_uniform_ret(obj);
@@ -429,9 +419,21 @@ constexpr void verify_no_uniform_non_trivially_copyable_args() {
 #endif
 }
 
+template <class... Ts> constexpr void verify_no_non_uniform_struct_args() {
+#if defined(__SYCL_DEVICE_ONLY__) && !defined(__INVOKE_SIMD_ENABLE_STRUCTS)
+  constexpr bool has_non_uniform_struct_arg =
+      (... || (std::is_class_v<Ts> && !is_simd_or_mask_type<Ts>::value &&
+               !is_uniform_type<Ts>::value));
+  static_assert(!has_non_uniform_struct_arg,
+                "Structure arguments must be uniform");
+#endif
+}
+
 template <class Callable, class... Ts>
 constexpr void verify_valid_args_and_ret() {
   verify_no_uniform_non_trivially_copyable_args<Ts...>();
+
+  verify_no_non_uniform_struct_args<Ts...>();
 
   verify_callable<Callable>();
 }
@@ -502,5 +504,5 @@ __attribute__((always_inline)) auto invoke_simd(sycl::sub_group sg,
 }
 
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

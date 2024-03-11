@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-dead-args-optimization %s -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
-// RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
-// RUN: env SYCL_PI_TRACE=2 %ACC_RUN_PLACEHOLDER %t.out 2>&1 %ACC_CHECK_PLACEHOLDER
+// RUN: %{build} -fsycl-dead-args-optimization -o %t.out
+// RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 //
 // XFAIL: hip_nvidia
 
@@ -35,7 +33,7 @@ int main() {
                                      [=](sycl::id<1> Id) { (void)BufAcc[Id]; });
     });
 
-    auto BufHostAcc = Buf.get_access<sycl_access_mode::read>();
+    auto BufHostAcc = Buf.get_host_access();
 
     Queue.wait_and_throw();
 

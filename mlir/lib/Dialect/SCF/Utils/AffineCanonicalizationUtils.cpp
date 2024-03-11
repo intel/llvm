@@ -27,6 +27,7 @@
 #define DEBUG_TYPE "mlir-scf-affine-utils"
 
 using namespace mlir;
+using namespace affine;
 using namespace presburger;
 
 LogicalResult scf::matchForLikeLoop(Value iv, OpFoldResult &lb,
@@ -68,7 +69,7 @@ canonicalizeMinMaxOp(RewriterBase &rewriter, Operation *op,
   RewriterBase::InsertionGuard guard(rewriter);
   rewriter.setInsertionPoint(op);
   FailureOr<AffineValueMap> simplified =
-      mlir::simplifyConstrainedMinMaxOp(op, std::move(constraints));
+      affine::simplifyConstrainedMinMaxOp(op, std::move(constraints));
   if (failed(simplified))
     return failure();
   return rewriter.replaceOpWithNewOp<AffineApplyOp>(
@@ -87,10 +88,10 @@ LogicalResult scf::addLoopRangeConstraints(FlatAffineValueConstraints &cstr,
     return failure();
 
   unsigned dimIv = cstr.appendDimVar(iv);
-  auto lbv = lb.dyn_cast<Value>();
+  auto lbv = llvm::dyn_cast_if_present<Value>(lb);
   unsigned symLb =
       lbv ? cstr.appendSymbolVar(lbv) : cstr.appendSymbolVar(/*num=*/1);
-  auto ubv = ub.dyn_cast<Value>();
+  auto ubv = llvm::dyn_cast_if_present<Value>(ub);
   unsigned symUb =
       ubv ? cstr.appendSymbolVar(ubv) : cstr.appendSymbolVar(/*num=*/1);
 

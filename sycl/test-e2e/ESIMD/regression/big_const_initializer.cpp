@@ -5,11 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl -I%S/.. %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -I%S/.. -o %t.out
+// RUN: %{run} %t.out
 
 // This test checks that ESIMD program with big constant initializer list can
 // compile and run correctly.
@@ -67,7 +64,7 @@ int main(int argc, char **argv) {
     std::cout << "*** EXCEPTION caught: " << e.what() << "\n";
     return 1;
   }
-  auto acc = r.template get_access<sycl::access::mode::read>();
+  auto acc = r.template get_host_access(sycl::read_only);
   for (int i = 0; i < N_PRINT; i++) {
     std::cout << acc[i] << " ";
   }
@@ -81,8 +78,7 @@ int main(int argc, char **argv) {
     if (test != gold) {
       if (++err_cnt < 10) {
         std::cout << "failed at index " << i << ", " << test << " != " << gold
-                  << " (expected)"
-                  << "\n";
+                  << " (expected)" << "\n";
       }
     }
   }

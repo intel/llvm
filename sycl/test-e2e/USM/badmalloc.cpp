@@ -1,10 +1,8 @@
 // UNSUPPORTED: windows
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out
-// RUN: %CPU_RUN_PLACEHOLDER %t1.out
-// RUN: %GPU_RUN_PLACEHOLDER %t1.out
-// RUN: %ACC_RUN_PLACEHOLDER %t1.out
-// UNSUPPORTED: ze_debug-1,ze_debug4
+// RUN: %{build} -o %t1.out
+// RUN: %{run} %t1.out
+// UNSUPPORTED: ze_debug
 
 //==----------------- badmalloc.cpp - Bad Mallocs test ---------------------==//
 //
@@ -28,7 +26,16 @@ int main(int argc, char *argv[]) {
   auto p = malloc(8, q, usm::alloc::unknown);
   if (p != nullptr)
     return 1;
-
+  // check that malloc_shared throws when usm_shared_allocations not supported
+  if (!q.get_device().has(aspect::usm_shared_allocations)) {
+    try {
+      auto p = malloc_shared<int>(1, q);
+      return 11;
+    } catch (const sycl::exception &e) {
+      if (e.code() != sycl::errc::feature_not_supported)
+        return 11;
+    }
+  }
   // Bad size, host
   p = malloc(-1, q, usm::alloc::host);
   std::cout << "p = " << p << std::endl;
@@ -38,10 +45,12 @@ int main(int argc, char *argv[]) {
   std::cout << "p = " << p << std::endl;
   if (p != nullptr)
     return 3;
-  p = malloc(-1, q, usm::alloc::shared);
-  std::cout << "p = " << p << std::endl;
-  if (p != nullptr)
-    return 4;
+  if (q.get_device().has(aspect::usm_shared_allocations)) {
+    p = malloc(-1, q, usm::alloc::shared);
+    std::cout << "p = " << p << std::endl;
+    if (p != nullptr)
+      return 4;
+  }
   p = malloc(-1, q, usm::alloc::unknown);
   std::cout << "p = " << p << std::endl;
   if (p != nullptr)
@@ -56,10 +65,12 @@ int main(int argc, char *argv[]) {
   std::cout << "p = " << p << std::endl;
   if (p != nullptr)
     return 7;
-  p = aligned_alloc(0, -1, q, usm::alloc::shared);
-  std::cout << "p = " << p << std::endl;
-  if (p != nullptr)
-    return 8;
+  if (q.get_device().has(aspect::usm_shared_allocations)) {
+    p = aligned_alloc(0, -1, q, usm::alloc::shared);
+    std::cout << "p = " << p << std::endl;
+    if (p != nullptr)
+      return 8;
+  }
   p = aligned_alloc(0, -1, q, usm::alloc::unknown);
   std::cout << "p = " << p << std::endl;
   if (p != nullptr)

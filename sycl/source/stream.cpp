@@ -11,8 +11,10 @@
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/stream.hpp>
 
+#include <climits>
+
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Maximum possible size of a flush buffer statement in bytes
 static constexpr size_t MAX_STATEMENT_SIZE =
@@ -88,5 +90,5 @@ bool stream::operator!=(const stream &RHS) const { return !(impl == RHS.impl); }
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -41,7 +41,8 @@ enum functions_t {
   XPTI_REGISTER_PAYLOAD,
   XPTI_QUERY_PAYLOAD_BY_UID,
   XPTI_FORCE_SET_TRACE_ENABLED,
-
+  XPTI_CHECK_TRACE_ENABLED,
+  XPTI_RELEASE_EVENT,
   // All additional functions need to appear before
   // the XPTI_FW_API_COUNT enum
   XPTI_FW_API_COUNT ///< This enum must always be the last one in the list
@@ -76,7 +77,9 @@ class ProxyLoader {
       {XPTI_ADD_METADATA, "xptiAddMetadata"},
       {XPTI_QUERY_METADATA, "xptiQueryMetadata"},
       {XPTI_TRACE_ENABLED, "xptiTraceEnabled"},
-      {XPTI_FORCE_SET_TRACE_ENABLED, "xptiForceSetTraceEnabled"}};
+      {XPTI_CHECK_TRACE_ENABLED, "xptiCheckTraceEnabled"},
+      {XPTI_FORCE_SET_TRACE_ENABLED, "xptiForceSetTraceEnabled"},
+      {XPTI_RELEASE_EVENT, "xptiReleaseEvent"}};
 
 public:
   typedef std::vector<xpti_plugin_function_t> dispatch_table_t;
@@ -90,6 +93,8 @@ public:
     //
     tryToEnable();
   }
+
+  ProxyLoader &operator=(const ProxyLoader &) = delete;
 
   ~ProxyLoader() {
     // If the loading of the framework library was
@@ -428,6 +433,17 @@ XPTI_EXPORT_API bool xptiTraceEnabled() {
   return false;
 }
 
+XPTI_EXPORT_API bool xptiCheckTraceEnabled(uint16_t stream, uint16_t ttype) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f =
+        xpti::ProxyLoader::instance().functionByIndex(XPTI_CHECK_TRACE_ENABLED);
+    if (f) {
+      return (*(xpti_check_trace_enabled_t)f)(stream, ttype);
+    }
+  }
+  return false;
+}
+
 XPTI_EXPORT_API void xptiTraceTryToEnable() {
   xpti::ProxyLoader::instance().tryToEnable();
 }
@@ -463,4 +479,13 @@ xptiQueryMetadata(xpti::trace_event_data_t *lookup_object) {
     }
   }
   return nullptr;
+}
+
+XPTI_EXPORT_API void xptiReleaseEvent(xpti::trace_event_data_t *lookup_object) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_RELEASE_EVENT);
+    if (f) {
+      (*(xpti_release_event_t)f)(lookup_object);
+    }
+  }
 }

@@ -5,10 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // The test verifies ESIMD API that substracts 2 32-bit integer scalars/vectors
 // with borrow returning the result as 2 parts: borrow flag the input modified
@@ -22,7 +20,6 @@
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
-namespace iesimd = sycl::ext::intel::experimental::esimd;
 
 template <int N, bool AIsVector, bool BIsVector> bool test(sycl::queue Q) {
   static_assert(AIsVector || BIsVector || N == 1,
@@ -87,7 +84,7 @@ template <int N, bool AIsVector, bool BIsVector> bool test(sycl::queue Q) {
            using ResType = std::conditional_t<AIsVector || BIsVector,
                                               simd<uint32_t, N>, uint32_t>;
            ResType Borrow = 0;
-           ResType Res = iesimd::subb(Borrow, A, B);
+           ResType Res = subb(Borrow, A, B);
 
            if constexpr (AIsVector || BIsVector) {
              Borrow.copy_to(BorrowMatrixPtr + (ValuesToTrySize * AI + BI) * N);

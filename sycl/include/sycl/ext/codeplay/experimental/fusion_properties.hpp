@@ -8,12 +8,15 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/properties/property_traits.hpp>
+#include <sycl/access/access.hpp>              // for mode, placeholder
+#include <sycl/detail/property_helper.hpp>     // for DataLessPropKind, Dat...
+#include <sycl/properties/property_traits.hpp> // for is_property, is_prope...
+#include <sycl/queue.hpp>                      // for queue
+
+#include <type_traits> // for true_type
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::codeplay::experimental::property {
 
 class promote_private
@@ -98,5 +101,5 @@ struct is_property_of<
     ext::codeplay::experimental::property::queue::enable_fusion, queue>
     : std::true_type {};
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

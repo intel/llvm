@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// Generic COFF LinkGraph buliding code.
+// Generic COFF LinkGraph building code.
 //
 //===----------------------------------------------------------------------===//
 #include "COFFLinkGraphBuilder.h"
@@ -24,13 +24,12 @@ static Triple createTripleWithCOFFFormat(Triple T) {
 }
 
 COFFLinkGraphBuilder::COFFLinkGraphBuilder(
-    const object::COFFObjectFile &Obj, Triple TT,
+    const object::COFFObjectFile &Obj, Triple TT, SubtargetFeatures Features,
     LinkGraph::GetEdgeKindNameFunction GetEdgeKindName)
-    : Obj(Obj),
-      G(std::make_unique<LinkGraph>(Obj.getFileName().str(),
-                                    createTripleWithCOFFFormat(TT),
-                                    getPointerSize(Obj), getEndianness(Obj),
-                                    std::move(GetEdgeKindName))) {
+    : Obj(Obj), G(std::make_unique<LinkGraph>(
+                    Obj.getFileName().str(), createTripleWithCOFFFormat(TT),
+                    std::move(Features), getPointerSize(Obj),
+                    getEndianness(Obj), std::move(GetEdgeKindName))) {
   LLVM_DEBUG({
     dbgs() << "Created COFFLinkGraphBuilder for \"" << Obj.getFileName()
            << "\"\n";
@@ -44,9 +43,10 @@ COFFLinkGraphBuilder::getPointerSize(const object::COFFObjectFile &Obj) {
   return Obj.getBytesInAddress();
 }
 
-support::endianness
+llvm::endianness
 COFFLinkGraphBuilder::getEndianness(const object::COFFObjectFile &Obj) {
-  return Obj.isLittleEndian() ? support::little : support::big;
+  return Obj.isLittleEndian() ? llvm::endianness::little
+                              : llvm::endianness::big;
 }
 
 uint64_t COFFLinkGraphBuilder::getSectionSize(const object::COFFObjectFile &Obj,
@@ -135,6 +135,13 @@ Error COFFLinkGraphBuilder::graphifySections() {
       SectionName = *SecNameOrErr;
 
     // FIXME: Skip debug info sections
+    if (SectionName == ".voltbl") {
+      LLVM_DEBUG({
+        dbgs() << "    "
+               << "Skipping section \"" << SectionName << "\"\n";
+      });
+      continue;
+    }
 
     LLVM_DEBUG({
       dbgs() << "    "
@@ -155,7 +162,7 @@ Error COFFLinkGraphBuilder::graphifySections() {
     if (!GraphSec) {
       GraphSec = &G->createSection(SectionName, Prot);
       if ((*Sec)->Characteristics & COFF::IMAGE_SCN_LNK_REMOVE)
-        GraphSec->setMemLifetimePolicy(orc::MemLifetimePolicy::NoAlloc);
+        GraphSec->setMemLifetime(orc::MemLifetime::NoAlloc);
     }
     if (GraphSec->getMemProt() != Prot)
       return make_error<JITLinkError>("MemProt should match");
@@ -600,7 +607,7 @@ COFFLinkGraphBuilder::exportCOMDATSymbol(COFFSymbolIndex SymIndex,
                                          object::COFFSymbolRef Symbol) {
   Block *B = getGraphBlock(Symbol.getSectionNumber());
   auto &PendingComdatExport = PendingComdatExports[Symbol.getSectionNumber()];
-  // NOTE: ComdatDef->Legnth is the size of "section" not size of symbol.
+  // NOTE: ComdatDef->Length is the size of "section" not size of symbol.
   // We use zero symbol size to not reach out of bound of block when symbol
   // offset is non-zero.
   auto GSym = &G->addDefinedSymbol(

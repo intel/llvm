@@ -15,7 +15,6 @@
 
 #include "SDNodeProperties.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/Support/MachineValueType.h"
 #include "llvm/Support/ModRef.h"
 #include <string>
 #include <tuple>
@@ -25,20 +24,13 @@ namespace llvm {
 class Record;
 class RecordKeeper;
 
-// FIXME: Sweep this in the near future.
-namespace tmp {
-/// getValueType - Return the MVT::SimpleValueType that the specified TableGen
-/// record corresponds to.
-MVT::SimpleValueType getValueType(Record *Rec);
-} // namespace tmp
-
 struct CodeGenIntrinsic {
-  Record *TheDef;             // The actual record defining this intrinsic.
-  std::string Name;           // The name of the LLVM function "llvm.bswap.i32"
-  std::string EnumName;       // The name of the enum "bswap_i32"
+  Record *TheDef;       // The actual record defining this intrinsic.
+  std::string Name;     // The name of the LLVM function "llvm.bswap.i32"
+  std::string EnumName; // The name of the enum "bswap_i32"
   std::string ClangBuiltinName; // Name of the corresponding GCC builtin, or "".
-  std::string MSBuiltinName;  // Name of the corresponding MS builtin, or "".
-  std::string TargetPrefix;   // Target prefix, e.g. "ppc" for t-s intrinsics.
+  std::string MSBuiltinName;    // Name of the corresponding MS builtin, or "".
+  std::string TargetPrefix;     // Target prefix, e.g. "ppc" for t-s intrinsics.
 
   /// This structure holds the return values and parameter values of an
   /// intrinsic. If the number of return values is > 1, then the intrinsic
@@ -50,19 +42,13 @@ struct CodeGenIntrinsic {
     /// only populated when in the context of a target .td file. When building
     /// Intrinsics.td, this isn't available, because we don't know the target
     /// pointer size.
-    std::vector<MVT::SimpleValueType> RetVTs;
-
-    /// The records for each return type.
-    std::vector<Record *> RetTypeDefs;
+    std::vector<Record *> RetTys;
 
     /// The MVT::SimpleValueType for each parameter type. Note that this list is
     /// only populated when in the context of a target .td file.  When building
     /// Intrinsics.td, this isn't available, because we don't know the target
     /// pointer size.
-    std::vector<MVT::SimpleValueType> ParamVTs;
-
-    /// The records for each parameter type.
-    std::vector<Record *> ParamTypeDefs;
+    std::vector<Record *> ParamTys;
   };
 
   IntrinsicSignature IS;
@@ -117,6 +103,9 @@ struct CodeGenIntrinsic {
   // True if the intrinsic is marked as speculatable.
   bool isSpeculatable;
 
+  // True if the intrinsic is marked as strictfp.
+  bool isStrictFP;
+
   enum ArgAttrKind {
     NoCapture,
     NoAlias,
@@ -127,7 +116,8 @@ struct CodeGenIntrinsic {
     WriteOnly,
     ReadNone,
     ImmArg,
-    Alignment
+    Alignment,
+    Dereferenceable
   };
 
   struct ArgAttribute {
@@ -146,9 +136,7 @@ struct CodeGenIntrinsic {
 
   void addArgAttribute(unsigned Idx, ArgAttrKind AK, uint64_t V = 0);
 
-  bool hasProperty(enum SDNP Prop) const {
-    return Properties & (1 << Prop);
-  }
+  bool hasProperty(enum SDNP Prop) const { return Properties & (1 << Prop); }
 
   /// Goes through all IntrProperties that have IsDefault
   /// value set and sets the property.
@@ -192,6 +180,6 @@ public:
     return Intrinsics[Pos];
   }
 };
-}
+} // namespace llvm
 
 #endif

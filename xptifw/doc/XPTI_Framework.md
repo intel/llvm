@@ -45,22 +45,8 @@ can use to build performance analytical models. This document describes the
 different components of this framework and a testing methodology to determine
 the cost of using this framework in your applications.
 
-Current implementation of the framework uses std containers by default. There
-is also an implementation that relies on the concurrent containers in
-[Threading Building Blocks(TBB)](github.com/intel/tbb) and this can be enabled
-by using the define `-DXPTI_USE_TBB` with `cmake`. The std container based
-implementation is a thread-safe implementation, but has not been optimized for
-performance. Increasing the number of threads accessing the framework will
-increase the contention costs in the current implementation and may affect the
-performance of the framework.
-
-To enable the build to use TBB for the framework and tests, use the commands as
-shown below:
-
-  ```bash
-  % cd xptifw
-  % cmake -DXPTI_ENABLE_TBB=ON -DXPTI_SOURCE_DIR=$SYCL_HOME/xpti ./
-  ```
+Current implementation of the framework uses std containers by default and is
+thread-safe
 
 > **NOTE:** This document is best viewed with [Markdown Reader](https://chrome.google.com/webstore/detail/markdown-reader/gpoigdifkoadgajcincpilkjmejcaanc)
 > plugin for Chrome or the [Markdown Preview Extension]() for Visual Studio Code.
@@ -244,8 +230,7 @@ document and inspect the generated stream, you can follow the steps outlined
 below.
 
 1. **Build the XPTI framework dispatcher:** The instructions below show how to
-   build the library with standard containers. If you have access to TBB, you
-   can enable the macro `-DXPTI_USE_TBB` in the cmake command.
+   build the library with standard containers.
 
     ```bash
     % cd xptifw

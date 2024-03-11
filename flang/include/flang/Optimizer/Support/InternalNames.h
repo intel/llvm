@@ -80,8 +80,12 @@ struct NameUniquer {
                                      std::int64_t block, llvm::StringRef name,
                                      llvm::ArrayRef<std::int64_t> kinds);
 
-  /// Unique a compiler generated name
+  /// Unique a compiler generated name without scope context.
   static std::string doGenerated(llvm::StringRef name);
+  /// Unique a compiler generated name with scope context.
+  static std::string doGenerated(llvm::ArrayRef<llvm::StringRef> modules,
+                                 llvm::ArrayRef<llvm::StringRef> procs,
+                                 std::int64_t blockId, llvm::StringRef name);
 
   /// Unique an intrinsic type descriptor
   static std::string
@@ -151,6 +155,14 @@ struct NameUniquer {
   /// mangled derived type name.
   static std::string
   getTypeDescriptorBindingTableName(llvm::StringRef mangledTypeName);
+
+  /// Remove markers that have been added when doing partial type
+  /// conversions. mlir::Type cannot be mutated in a pass, so new
+  /// fir::RecordType must be created when lowering member types.
+  /// Suffixes added to these new types are meaningless and are
+  /// dropped in the names passed to LLVM.
+  static llvm::StringRef
+  dropTypeConversionMarkers(llvm::StringRef mangledTypeName);
 
 private:
   static std::string intAsString(std::int64_t i);

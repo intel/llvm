@@ -112,9 +112,12 @@ void populateVectorMaskOpLoweringPatterns(RewritePatternSet &patterns,
                                           PatternBenefit benefit = 1);
 
 /// Collects patterns that lower scalar vector transfer ops to memref loads and
-/// stores when beneficial.
+/// stores when beneficial. If `allowMultipleUses` is set to true, the patterns
+/// are applied to vector transfer reads with any number of uses. Otherwise,
+/// only vector transfer reads with a single use will be lowered.
 void populateScalarVectorTransferLoweringPatterns(RewritePatternSet &patterns,
-                                                  PatternBenefit benefit = 1);
+                                                  PatternBenefit benefit,
+                                                  bool allowMultipleUses);
 
 /// Populate the pattern set with the following patterns:
 ///
@@ -250,6 +253,25 @@ void populateVectorGatherLoweringPatterns(RewritePatternSet &patterns,
 /// not its nested `MaskableOpInterface`.
 void populateVectorMaskLoweringPatternsForSideEffectingOps(
     RewritePatternSet &patterns);
+
+/// Populate the pattern set with the following patterns:
+///
+/// [VectorMaskedLoadOpConverter]
+/// Turns vector.maskedload to scf.if + memref.load
+///
+/// [VectorMaskedStoreOpConverter]
+/// Turns vector.maskedstore to scf.if + memref.store
+void populateVectorMaskedLoadStoreEmulationPatterns(RewritePatternSet &patterns,
+                                                    PatternBenefit benefit = 1);
+
+/// Populate the pattern set with the following patterns:
+///
+/// [UnrollInterleaveOp]
+/// A one-shot unrolling of InterleaveOp to (one or more) ExtractOp +
+/// InterleaveOp (of `targetRank`) + InsertOp.
+void populateVectorInterleaveLoweringPatterns(RewritePatternSet &patterns,
+                                              int64_t targetRank = 1,
+                                              PatternBenefit benefit = 1);
 
 } // namespace vector
 } // namespace mlir

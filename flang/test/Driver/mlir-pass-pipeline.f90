@@ -13,6 +13,10 @@ end program
 
 ! ALL: Fortran::lower::VerifierPass
 ! O2-NEXT: Canonicalizer
+! O2-NEXT: 'func.func' Pipeline
+! O2-NEXT:   SimplifyHLFIRIntrinsics
+! ALL:       InlineElementals
+! ALL: LowerHLFIROrderedAssignments
 ! ALL-NEXT: LowerHLFIRIntrinsics
 ! ALL-NEXT: BufferizeHLFIR
 ! ALL-NEXT: ConvertHLFIRtoFIR
@@ -47,6 +51,8 @@ end program
 
 ! ALL-NEXT: 'func.func' Pipeline
 ! ALL-NEXT:   PolymorphicOpConversion
+! O2-NEXT:  AddAliasTags
+! O2-NEXT:  'func.func' Pipeline
 ! ALL-NEXT:   CFGConversion
 
 ! ALL-NEXT: SCFToControlFlow

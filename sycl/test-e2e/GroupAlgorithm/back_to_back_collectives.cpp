@@ -1,14 +1,12 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include <iostream>
 #include <numeric>
 #include <sycl/sycl.hpp>
 #include <vector>
+
 using namespace sycl;
-using namespace sycl::ext::oneapi;
 
 class back_to_back;
 
@@ -44,9 +42,9 @@ int main() {
         auto g = it.get_group();
         // Loop to increase number of back-to-back calls
         for (int r = 0; r < 10; ++r) {
-          Sum[i] = reduce(g, Input[i], sycl::plus<>());
-          EScan[i] = exclusive_scan(g, Input[i], sycl::plus<>());
-          IScan[i] = inclusive_scan(g, Input[i], sycl::plus<>());
+          Sum[i] = reduce_over_group(g, Input[i], sycl::plus<>());
+          EScan[i] = exclusive_scan_over_group(g, Input[i], sycl::plus<>());
+          IScan[i] = inclusive_scan_over_group(g, Input[i], sycl::plus<>());
         }
       });
     });
@@ -62,6 +60,9 @@ int main() {
   for (int i = 0; i < N; ++i) {
     passed &= (sum == Sum[i]);
   }
+
+  assert(passed);
+
   std::cout << "Test passed." << std::endl;
   return 0;
 }

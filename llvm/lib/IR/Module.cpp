@@ -71,7 +71,8 @@ template class llvm::SymbolTableListTraits<GlobalIFunc>;
 
 Module::Module(StringRef MID, LLVMContext &C)
     : Context(C), ValSymTab(std::make_unique<ValueSymbolTable>(-1)),
-      ModuleID(std::string(MID)), SourceFileName(std::string(MID)), DL("") {
+      ModuleID(std::string(MID)), SourceFileName(std::string(MID)), DL(""),
+      IsNewDbgInfoFormat(false) {
   Context.addModule(this);
 }
 
@@ -82,6 +83,28 @@ Module::~Module() {
   FunctionList.clear();
   AliasList.clear();
   IFuncList.clear();
+}
+
+void Module::removeDebugIntrinsicDeclarations() {
+  auto *DeclareIntrinsicFn =
+      Intrinsic::getDeclaration(this, Intrinsic::dbg_declare);
+  assert((!isMaterialized() || DeclareIntrinsicFn->hasZeroLiveUses()) &&
+         "Debug declare intrinsic should have had uses removed.");
+  DeclareIntrinsicFn->eraseFromParent();
+  auto *ValueIntrinsicFn =
+      Intrinsic::getDeclaration(this, Intrinsic::dbg_value);
+  assert((!isMaterialized() || ValueIntrinsicFn->hasZeroLiveUses()) &&
+         "Debug value intrinsic should have had uses removed.");
+  ValueIntrinsicFn->eraseFromParent();
+  auto *AssignIntrinsicFn =
+      Intrinsic::getDeclaration(this, Intrinsic::dbg_assign);
+  assert((!isMaterialized() || AssignIntrinsicFn->hasZeroLiveUses()) &&
+         "Debug assign intrinsic should have had uses removed.");
+  AssignIntrinsicFn->eraseFromParent();
+  auto *LabelntrinsicFn = Intrinsic::getDeclaration(this, Intrinsic::dbg_label);
+  assert((!isMaterialized() || LabelntrinsicFn->hasZeroLiveUses()) &&
+         "Debug label intrinsic should have had uses removed.");
+  LabelntrinsicFn->eraseFromParent();
 }
 
 std::unique_ptr<RandomNumberGenerator>
@@ -148,18 +171,11 @@ FunctionCallee Module::getOrInsertFunction(StringRef Name, FunctionType *Ty,
   if (!F) {
     // Nope, add it
     Function *New = Function::Create(Ty, GlobalVariable::ExternalLinkage,
-                                     DL.getProgramAddressSpace(), Name);
+                                     DL.getProgramAddressSpace(), Name, this);
     if (!New->isIntrinsic())       // Intrinsics get attrs set on construction
       New->setAttributes(AttributeList);
-    FunctionList.push_back(New);
     return {Ty, New}; // Return the new prototype.
   }
-
-  // If the function exists but has the wrong type, return a bitcast to the
-  // right type.
-  auto *PTy = PointerType::get(Ty, F->getAddressSpace());
-  if (F->getType() != PTy)
-    return {Ty, ConstantExpr::getBitCast(F, PTy)};
 
   // Otherwise, we just found the existing function or a prototype.
   return {Ty, F};
@@ -210,13 +226,6 @@ Constant *Module::getOrInsertGlobal(
   if (!GV)
     GV = CreateGlobalCallback();
   assert(GV && "The CreateGlobalCallback is expected to create a global");
-
-  // If the variable exists but has the wrong type, return a bitcast to the
-  // right type.
-  Type *GVTy = GV->getType();
-  PointerType *PTy = PointerType::get(Ty, GVTy->getPointerAddressSpace());
-  if (GVTy != PTy)
-    return ConstantExpr::getBitCast(GV, PTy);
 
   // Otherwise, we just found the existing function or a prototype.
   return GV;
@@ -394,8 +403,6 @@ void Module::setDataLayout(StringRef Desc) {
 }
 
 void Module::setDataLayout(const DataLayout &Other) { DL = Other; }
-
-const DataLayout &Module::getDataLayout() const { return DL; }
 
 DICompileUnit *Module::debug_compile_units_iterator::operator*() const {
   return cast<DICompileUnit>(CUs->getOperand(Idx));
@@ -633,6 +640,23 @@ void Module::setCodeModel(CodeModel::Model CL) {
   addModuleFlag(ModFlagBehavior::Error, "Code Model", CL);
 }
 
+std::optional<uint64_t> Module::getLargeDataThreshold() const {
+  auto *Val =
+      cast_or_null<ConstantAsMetadata>(getModuleFlag("Large Data Threshold"));
+
+  if (!Val)
+    return std::nullopt;
+
+  return cast<ConstantInt>(Val->getValue())->getZExtValue();
+}
+
+void Module::setLargeDataThreshold(uint64_t Threshold) {
+  // Since the large data threshold goes along with the code model, the merge
+  // behavior is the same.
+  addModuleFlag(ModFlagBehavior::Error, "Large Data Threshold",
+                ConstantInt::get(Type::getInt64Ty(Context), Threshold));
+}
+
 void Module::setProfileSummary(Metadata *M, ProfileSummary::Kind Kind) {
   if (Kind == ProfileSummary::PSK_CSInstr)
     setModuleFlag(ModFlagBehavior::Error, "CSProfileSummary", M);
@@ -670,6 +694,18 @@ bool Module::getRtLibUseGOT() const {
 
 void Module::setRtLibUseGOT() {
   addModuleFlag(ModFlagBehavior::Max, "RtLibUseGOT", 1);
+}
+
+bool Module::getDirectAccessExternalData() const {
+  auto *Val = cast_or_null<ConstantAsMetadata>(
+      getModuleFlag("direct-access-external-data"));
+  if (Val)
+    return cast<ConstantInt>(Val->getValue())->getZExtValue() > 0;
+  return getPICLevel() == PICLevel::NotPIC;
+}
+
+void Module::setDirectAccessExternalData(bool Value) {
+  addModuleFlag(ModFlagBehavior::Max, "direct-access-external-data", Value);
 }
 
 UWTableKind Module::getUwtable() const {

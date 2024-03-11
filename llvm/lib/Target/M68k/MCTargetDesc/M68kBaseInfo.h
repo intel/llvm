@@ -82,11 +82,11 @@ template <typename value_t> value_t swapWord(value_t Val) {
   const unsigned NumWords = sizeof(Val) / 2;
   if (NumWords <= 1)
     return Val;
-  Val = support::endian::byte_swap(Val, support::big);
+  Val = support::endian::byte_swap(Val, llvm::endianness::big);
   value_t NewVal = 0;
   for (unsigned i = 0U; i != NumWords; ++i) {
     uint16_t Part = (Val >> (i * 16)) & 0xFFFF;
-    Part = support::endian::byte_swap(Part, support::big);
+    Part = support::endian::byte_swap(Part, llvm::endianness::big);
     NewVal |= (Part << (i * 16));
   }
   return NewVal;
@@ -157,6 +157,37 @@ enum TOF {
   ///
   ///    name@PLT
   MO_PLT,
+
+  /// On a symbol operand, this indicates that the immediate is the offset to
+  /// the slot in GOT which stores the information for accessing the TLS
+  /// variable. This is used when operating in Global Dynamic mode.
+  ///    name@TLSGD
+  MO_TLSGD,
+
+  /// On a symbol operand, this indicates that the immediate is the offset to
+  /// variable within the thread local storage when operating in Local Dynamic
+  /// mode.
+  ///    name@TLSLD
+  MO_TLSLD,
+
+  /// On a symbol operand, this indicates that the immediate is the offset to
+  /// the slot in GOT which stores the information for accessing the TLS
+  /// variable. This is used when operating in Local Dynamic mode.
+  ///    name@TLSLDM
+  MO_TLSLDM,
+
+  /// On a symbol operand, this indicates that the immediate is the offset to
+  /// the variable within the thread local storage when operating in Initial
+  /// Exec mode.
+  ///    name@TLSIE
+  MO_TLSIE,
+
+  /// On a symbol operand, this indicates that the immediate is the offset to
+  /// the variable within in the thread local storage when operating in Local
+  /// Exec mode.
+  ///    name@TLSLE
+  MO_TLSLE,
+
 }; // enum TOF
 
 /// Return true if the specified TargetFlag operand is a reference to a stub

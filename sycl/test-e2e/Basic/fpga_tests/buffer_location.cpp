@@ -1,5 +1,6 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// REQUIRES: accelerator
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include <sycl/sycl.hpp>
 
@@ -16,7 +17,7 @@ int main() {
 
   Queue.wait();
 
-  auto Acc = Buf.template get_access<sycl::access::mode::read_write>();
+  auto Acc = Buf.get_host_access();
   assert(Acc[0] == 42 && "Value mismatch");
 
   return 0;

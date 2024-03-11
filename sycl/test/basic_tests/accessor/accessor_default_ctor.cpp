@@ -1,4 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %t.out
 
 #include <sycl/sycl.hpp>
 
@@ -14,6 +15,7 @@ int main() {
   assert(B.get_multi_ptr<sycl::access::decorated::yes>() == nullptr);
   assert(B.get_multi_ptr<sycl::access::decorated::no>() == nullptr);
   assert(B.get_multi_ptr<sycl::access::decorated::legacy>() == nullptr);
+  assert(!B.is_placeholder());
 
   return 0;
 }

@@ -14,7 +14,7 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declarations
 class device;
@@ -23,7 +23,11 @@ namespace ext {
 namespace oneapi {
 namespace detail {
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+typedef struct sycl::detail::ods_target filter;
+#else
 typedef struct sycl::detail::device_filter filter;
+#endif
 
 class filter_selector_impl {
 public:
@@ -34,7 +38,6 @@ public:
 private:
   static constexpr int REJECT_DEVICE_SCORE = -1;
   mutable std::vector<filter> mFilters;
-  default_selector mRanker;
   mutable int mNumDevicesSeen;
   int mNumTotalDevices;
   mutable bool mMatchFound;
@@ -46,5 +49,5 @@ private:
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
 using namespace ext::oneapi;
 }
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

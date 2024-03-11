@@ -1,0 +1,307 @@
+= sycl_ext_intel_fpga_datapath
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes. This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023-2023 Intel Corporation. All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc. OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 7 specification. All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension does not depend on other SYCL extensions; it is self-contained. Below is a list of interactions with other SYCL extensions. These extensions don't have to be implemented to support the `sycl_ext_intel_fpga_datapath` extension.
+
+* link:sycl_ext_intel_fpga_mem.asciidoc[sycl_ext_intel_fpga_mem.asciidoc] as described in the <<Interactions with other SYCL extensions>> section below
+
+== Status
+Proposed
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized. *Shipping software products should
+not rely on APIs defined in this specification.*
+
+== Overview
+
+[NOTE]
+====
+In this document, we use `fpga_datapath` to indicate the proposed `sycl::ext::intel::experimental::fpga_datapath`.
+====
+
+The purpose of this document is to clearly describe and specify `fpga_datapath` and 
+related concepts, types, and mechanisms, and to give examples and context for their usage.
+
+=== Motivation
+`fpga_datapath` is a class template templated on a type T, that represents an object of type T. It is a request to the compiler to implement that object, when present in FPGA device code, in the datapath, as opposed to an off-datapath memory.
+
+=== Example
+[source,c++]
+----
+struct MyClass {
+  bool x;
+};
+
+namespace intelexp = sycl::ext::intel::experimental;
+
+sycl::queue q;
+q.single_task([=] {
+  intelexp::fpga_datapath<int[4]> fd1{1, 3, 5, 7};
+  intelexp::fpga_datapath<MyClass> fd2;
+  fm2.get().x = fm1[0];
+});
+----
+
+Above we see an example that declares `fpga_datapath` variables `fd1`, `fd2`, and accesses them. 
+`fd1` creates an allocation on the device that is private to the kernel and contains an array of four ``int``'s that is initialized to `{1, 3, 5, 7}`. `fd2` creates an allocation on the device that is private to the kernel and contains an object of type `MyClass` that is default-initialized.
+
+`fpga_datapath` has reference wrapper-like semantics, and is implicitly convertible to the wrapped type. Of note,
+because {cpp} doesn't allow for overloading of the "dot operator", a `get()`
+member of `fpga_datapath` allows a reference to be extracted, to which the usual
+dot operator may be applied.
+
+== Specification
+
+`fpga_datapath` is a class template templated on a type T, that represents an object of type T. It is a request to the compiler to implement that object, when present in FPGA device code, in the datapath, as opposed to an off-datapath memory.
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification. An implementation supporting this extension must predefine the
+macro `SYCL_EXT_INTEL_FPGA_DATAPATH` to one of the values defined in the table
+below. Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Representation of FPGA datapath
+
+[source,c++]
+----
+namespace sycl::ext::intel::experimental {
+template <typename T>
+class fpga_datapath {
+  ...
+----
+
+`fpga_datapath` is a class template, parameterized by the type of the underlying
+allocation _T_ which encodes the size of the allocation.
+
+`fpga_datapath` initializes the underlying object of type `T` with the values passed into its constructor. If no values are passed into the constructor, the underlying object `T` is default initialized.
+
+[NOTE]
+====
+
+`fpga_datapath` has similar semantics to a reference wrapper. An fpga_datapath templated on a type T can implicitly convert to T, thereby allowing it to be used in most places that an object of type T could be used. The dot operator
+(`operator.`) cannot be overloaded, so a `get()` member is provided to allow a
+reference to be extracted directly when needed.
+====
+
+=== FPGA Datapath Interface
+
+The section below and the table following describe the constructors and member functions for `fpga_datapath`.
+
+[source,c++]
+----
+namespace sycl::ext::intel::experimental {
+
+  template <typename T>
+  class fpga_datapath {
+  public:
+    template <typename... S> constexpr fpga_datapath(S... args);
+
+    fpga_datapath() = default;
+
+    fpga_datapath(const fpga_datapath &) = default;
+    fpga_datapath(fpga_datapath &&) = default;
+    fpga_datapath &operator=(const fpga_datapath &) = default;
+    fpga_datapath &operator=(fpga_datapath &&) = default;
+    
+    // Access the underlying data
+    operator T &() noexcept;
+    constexpr operator const T &() const noexcept;
+
+    T &get() noexcept;
+    constexpr const T &get() const noexcept;
+
+    // Enable assignments from underlying type
+    fpga_datapath &operator=(const T &) noexcept;
+
+    // Note that there is no need for "fpga_datapath" to define member functions
+    // for operators like "++", "[]", "->", comparison, etc. Instead, the type
+    // "T" need only define these operators as non-member functions. Because
+    // there is an implicit conversion from "fpga_datapath" to "T&", the operations
+    // can be applied to objects of type "fpga_datapath<T>"
+  };
+
+} // namespace sycl::ext::intel::experimental
+----
+
+[frame="topbot",options="header"]
+|===
+|Functions |Description
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+template<typename ... S>
+constexpr fpga_datapath(S ... args);
+----
+|
+Constructs a `fpga_datapath` object, and implicit storage for `T`. `T` 's constructor will be called with `args`.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+fpga_datapath() = default;
+----
+|
+Compiler generated default constructor.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+fpga_datapath(const fpga_datapath &) = default;
+----
+|
+Compiler generated copy constructor.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+fpga_datapath(fpga_datapath &&) = default;
+----
+|
+Compiler generated move constructor.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+fpga_datapath &operator=(const fpga_datapath &) = default;
+----
+|
+Compiler generated copy assignment operator.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+fpga_datapath &operator=(fpga_datapath &&) = default;
+----
+|
+Compiler generated move assignment operator.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+operator T&() noexcept;
+constexpr operator const T&() const noexcept;
+----
+|
+Implicit conversion to a reference to the underlying `T`.
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+T& get() noexcept;
+constexpr const T& get() const noexcept;
+----
+|
+Returns a reference to the underlying `T`.
+
+|===
+
+=== Interactions with other SYCL extensions
+
+Below are some non-obvious interactions between `fpga_datapath` and other SYCL extensions. 
+
+* Since fpga_mem and fpga_datapath apply to the entire object that they wrap, conflicting hints may be applied to the same object, such as in the example below.
+
+[source,c++]
+----
+namespace intelexp = sycl::ext::intel::experimental;
+
+struct foo {
+  int b; 
+  intelexp::fpga_datapath<int> c;
+};
+
+const intelexp::fpga_mem<foo> mem1; 
+----
+
+In cases of nested hints the outermost hint will take precedence, and all inner hints will be ignored. In this example `mem1.b`, and `mem1.c` will both be implemented in memory, the hint on `mem1.c` is ignored. Below are more examples of this behavior.
+
+[source,c++]
+----
+namespace intelexp = sycl::ext::intel::experimental;
+
+struct foo {
+  int b; 
+  intelexp::fpga_datapath<int> c;
+};
+
+// mem2 will be implemented in memory, fpga_datapath hint is ignored
+intelexp::fpga_mem<intelexp::fpga_datapath<int[10]>> mem2;
+
+// The compiler is not constrained how to implemented mem3.b
+// mem3.c will be implemented in the datapath
+const foo mem3; 
+
+class bar {
+  intelexp::fpga_mem<int[5]> a;
+  intelexp::fpga_datapath<int[4]> b;
+}
+
+// mem4.a will be implemented off the datapath, in memory
+// mem4.b will be implemented in the datapath
+const bar mem4;
+----

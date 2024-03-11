@@ -1,21 +1,15 @@
-// FIXME: fails on HIP plugin
-// UNSUPPORTED: hip
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-//
-// RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out &> %t.txt
-// RUN: %CPU_RUN_PLACEHOLDER FileCheck %s --input-file %t.txt
-// RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out &> %t.txt
-// RUN: %GPU_RUN_PLACEHOLDER FileCheck %s --input-file %t.txt
-// RUN: env SYCL_PI_TRACE=2 %ACC_RUN_PLACEHOLDER %t.out &> %t.txt
-// RUN: %ACC_RUN_PLACEHOLDER FileCheck %s --input-file %t.txt
-//
+// RUN: %{build} -o %t.out
+
+// RUN: env SYCL_PI_TRACE=2 %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
+// REQUIRES: aspect-usm_shared_allocations
 // The test checks that the last parameter is not `nullptr` for all PI calls
 // that should discard events.
 // {{0|0000000000000000}} is required for various output on Linux and Windows.
-// NOTE: piextUSMEnqueuePrefetch in the CUDA backend may return a warning
-//       result on Windows with error-code -996
-//       (PI_ERROR_PLUGIN_SPECIFIC_ERROR). Since it is a warning it is safe to
-//       ignore for this test.
+// NOTE: piextUSMEnqueuePrefetch and piextUSMEnqueueMemAdvise in the CUDA and
+//       HIP backends may return a warning result on Windows with error-code
+//       -996 (PI_ERROR_PLUGIN_SPECIFIC_ERROR) if USM managed memory is not
+//       supported or if unsupported advice flags are used for the latter API.
+//       Since it is a warning it is safe to ignore for this test.
 //
 // Everything that follows TestQueueOperations()
 // CHECK: ---> piextUSMEnqueueMemset(
@@ -47,7 +41,7 @@
 //
 // CHECK: ---> piextUSMEnqueueMemAdvise(
 // CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// CHECK: --->  pi_result : {{PI_SUCCESS|-996}}
 //
 // CHECK: ---> piEnqueueEventsWaitWithBarrier(
 // CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
@@ -104,7 +98,7 @@
 //
 // CHECK: ---> piextUSMEnqueueMemAdvise(
 // CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
-// CHECK: --->  pi_result : PI_SUCCESS
+// CHECK: --->  pi_result : {{PI_SUCCESS|-996}}
 //
 // CHECK: ---> piEnqueueEventsWaitWithBarrier(
 // CHECK-NOT:        pi_event * : {{0|0000000000000000}}[ nullptr ]

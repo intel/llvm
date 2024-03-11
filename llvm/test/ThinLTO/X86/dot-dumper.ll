@@ -1,6 +1,6 @@
 ; RUN: opt -module-summary %s -o %t1.bc -module-summary-dot-file=%t1.dot
 ; RUN: opt -module-summary %p/Inputs/dot-dumper.ll -o %t2.bc -module-summary-dot-file=%t2.dot
-; RUN: llvm-lto2 run -opaque-pointers -save-temps %t1.bc %t2.bc -o %t3 \
+; RUN: llvm-lto2 run -save-temps %t1.bc %t2.bc -o %t3 \
 ; RUN:  -r=%t1.bc,main,px \
 ; RUN:  -r=%t1.bc,main_alias,p \
 ; RUN:  -r=%t1.bc,foo, \

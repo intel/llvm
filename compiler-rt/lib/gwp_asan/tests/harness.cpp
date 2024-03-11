@@ -47,8 +47,17 @@ void CheckOnlyOneGwpAsanCrash(const std::string &OutputBuffer) {
       << OutputBuffer;
 }
 
+// Fuchsia does not support recoverable GWP-ASan.
+#if defined(__Fuchsia__)
+INSTANTIATE_TEST_SUITE_P(RecoverableAndNonRecoverableTests,
+                         BacktraceGuardedPoolAllocatorDeathTest,
+                         /* Recoverable */ testing::Values(false));
+#else
 INSTANTIATE_TEST_SUITE_P(RecoverableTests, BacktraceGuardedPoolAllocator,
                          /* Recoverable */ testing::Values(true));
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(BacktraceGuardedPoolAllocator);
 INSTANTIATE_TEST_SUITE_P(RecoverableAndNonRecoverableTests,
                          BacktraceGuardedPoolAllocatorDeathTest,
                          /* Recoverable */ testing::Bool());
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(BacktraceGuardedPoolAllocatorDeathTest);
+#endif

@@ -1,19 +1,19 @@
-//==------------ histogram_raw_send.cpp  - DPC++ ESIMD on-device test
-//-------==//
+//==-histogram_raw_send.cpp  - DPC++ ESIMD on-device test-==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===----------------------------------------------------------------------===//
+//===----------------------------------------------------===//
 // REQUIRES: gpu-intel-gen9
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: gpu-intel-dg1,gpu-intel-dg2,cuda,hip, gpu-intel-pvc
-// UNSUPPORTED: ze_debug-1,ze_debug4
-// RUN: %clangxx -fsycl %s -o %t1.out
-// RUN: %GPU_RUN_PLACEHOLDER %t1.out
-// RUN: %clangxx -fsycl -DNEW_API %s -o %t2.out
-// RUN: %GPU_RUN_PLACEHOLDER %t2.out
+// UNSUPPORTED: gpu-intel-dg1,gpu-intel-dg2,gpu-intel-pvc
+// UNSUPPORTED: ze_debug
+// RUN: %{build} -o %t1.out
+// RUN: %{run} %t1.out
+// RUN: %{build} -DUSE_CONSTEXPR_API -o %t2.out
+// RUN: %{run} %t2.out
+// RUN: %{build} -DUSE_SUPPORTED_API -o %t3.out
+// RUN: %{run} %t3.out
 
 // The test checks raw send functionality with atomic write implementation
 // on SKL. It does not work on DG1 due to send instruction incompatibility.
@@ -36,7 +36,7 @@ using namespace sycl;
 #define BLOCK_WIDTH 32
 #define BLOCK_HEIGHT 64
 
-void histogram_CPU(unsigned int width, unsigned int height, unsigned char *srcY,
+void histogram_CPU(unsigned int width, unsigned int height, uint8_t *srcY,
                    unsigned int *cpuHistogram) {
   int i;
   for (i = 0; i < width * height; i++) {
@@ -73,7 +73,7 @@ using namespace sycl::ext::intel::esimd;
 
 template <atomic_op Op, typename T, int n>
 ESIMD_INLINE void atomic_write(T *bins, simd<unsigned, n> offset,
-                               simd<T, n> src0, simd_mask<n> pred) {
+                               simd<T, n> src0) {
   simd<T, n> oldDst;
   simd<uintptr_t, n> vAddr(reinterpret_cast<uintptr_t>(bins));
   simd<uintptr_t, n> vOffset = offset;
@@ -88,14 +88,20 @@ ESIMD_INLINE void atomic_write(T *bins, simd<unsigned, n> offset,
   constexpr uint8_t numSrc1 = 0x1;
   constexpr uint8_t isEOT = 0;
   constexpr uint8_t isSendc = 0;
-#ifdef NEW_API
-  experimental::esimd::raw_sends(oldDst, vAddr, src0, exDesc, desc, execSize,
-                                 sfid, numSrc0, numSrc1, numDst, isEOT, isSendc,
-                                 pred);
+
+#ifdef USE_CONSTEXPR_API
+  experimental::esimd::raw_sends<execSize, sfid, numSrc0, numSrc1, numDst,
+                                 isEOT, isSendc>(oldDst, vAddr, src0, exDesc,
+                                                 desc);
+#elif defined(USE_SUPPORTED_API)
+  esimd::raw_sends<execSize, sfid, numSrc0, numSrc1, numDst,
+                   raw_send_eot::not_eot, raw_send_sendc::not_sendc>(
+      oldDst, vAddr, src0, exDesc, desc);
+
 #else
-  experimental::esimd::raw_sends_load(oldDst, vAddr, src0, exDesc, desc,
-                                      execSize, sfid, numSrc0, numSrc1, numDst,
-                                      isEOT, isSendc, pred);
+  experimental::esimd::raw_sends(oldDst, vAddr, src0, exDesc, desc, execSize,
+                                 sfid, numSrc0, numSrc1, numDst, isEOT,
+                                 isSendc);
 #endif
 }
 
@@ -118,23 +124,18 @@ int main(int argc, char *argv[]) {
 
   // Allocate Input Buffer
   queue q = esimd_test::createQueue();
+  esimd_test::printTestLabel(q);
 
-  auto dev = q.get_device();
-  auto ctxt = q.get_context();
-  unsigned char *srcY =
-      static_cast<unsigned char *>(malloc_shared(width * height, dev, ctxt));
-  unsigned int *bins = static_cast<unsigned int *>(
-      malloc_shared(NUM_BINS * sizeof(unsigned int), dev, ctxt));
-  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
-            << "\n";
+  esimd_test::shared_vector<uint8_t> srcY_vec(
+      width * height, esimd_test::shared_allocator<uint8_t>{q});
+  esimd_test::shared_vector<unsigned int> bins_vec(
+      NUM_BINS, esimd_test::shared_allocator<unsigned int>{q});
+  uint8_t *srcY = srcY_vec.data();
+  ;
+  unsigned int *bins = bins_vec.data();
 
   uint range_width = width / BLOCK_WIDTH;
   uint range_height = height / BLOCK_HEIGHT;
-
-  if (srcY == NULL) {
-    std::cerr << "Out of memory\n";
-    exit(1);
-  }
 
   // Initializes input.
   unsigned int input_size = width * height;
@@ -246,8 +247,8 @@ int main(int argc, char *argv[]) {
 #ifdef __SYCL_DEVICE_ONLY__
                 // flat_atomic<atomic_op::add, unsigned int,
                 // 8>(bins, offset, src, 1);
-                atomic_write<atomic_op::add, unsigned int, 8>(bins, offset, src,
-                                                              1);
+                atomic_write<atomic_op::add, unsigned int, 8>(bins, offset,
+                                                              src);
                 offset += 8 * sizeof(unsigned int);
 #else
                 simd<unsigned int, 8> vals;

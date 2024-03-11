@@ -3,7 +3,7 @@
 #include <sycl/detail/defines_elementary.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 #ifndef __SYCL_DEVICE_ONLY__
@@ -57,5 +57,5 @@ namespace detail {
     static constexpr int64_t getKernelSize() { return 0; }
   };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

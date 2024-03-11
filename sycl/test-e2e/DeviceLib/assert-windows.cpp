@@ -4,7 +4,7 @@
 // Disable the test until the fix reaches SYCL test infrastructure.
 // XFAIL: *
 //
-// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %{build} -o %t.out
 //
 // MSVC implementation of assert does not call an unreachable built-in, so the
 // program doesn't terminate when fallback is used.
@@ -13,15 +13,13 @@
 // explicitly. Since the test is going to crash, we'll have to follow a similar
 // approach as on Linux - call the test in a subprocess.
 //
-// RUN: env SYCL_PI_TRACE=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False %CPU_RUN_PLACEHOLDER %t.out >%t.stdout.pi.fallback
-// RUN: env SHOULD_CRASH=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False %CPU_RUN_PLACEHOLDER %t.out >%t.stdout.msg.fallback
+// RUN: env SYCL_PI_TRACE=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False %{run} %t.out | FileCheck %s --check-prefix=CHECK-FALLBACK
+// RUN: env SHOULD_CRASH=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False %{run} %t.out | FileCheck %s --check-prefix=CHECK-MESSAGE
 //
-// RUN: FileCheck %s --check-prefix=CHECK-MESSAGE --input-file %t.stdout.msg.fallback
 // CHECK-MESSAGE: {{.*}}assert-windows.cpp:{{[0-9]+}}: (null): global id:
 // [{{[0-3]}},0,0], local id: [{{[0-3]}},0,0] Assertion `accessorC[wiID] == 0 &&
 // "Invalid value"` failed.
 //
-// RUN: FileCheck %s --input-file %t.stdout.pi.fallback --check-prefix=CHECK-FALLBACK
 // CHECK-FALLBACK: ---> piProgramLink
 
 #include <array>

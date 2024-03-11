@@ -26,8 +26,8 @@ bool llvm::GenericUniformityAnalysisImpl<SSAContext>::hasDivergentDefs(
 
 template <>
 bool llvm::GenericUniformityAnalysisImpl<SSAContext>::markDefsDivergent(
-    const Instruction &Instr, bool AllDefsDivergent) {
-  return markDivergent(&Instr);
+    const Instruction &Instr) {
+  return markDivergent(cast<Value>(&Instr));
 }
 
 template <> void llvm::GenericUniformityAnalysisImpl<SSAContext>::initialize() {
@@ -49,9 +49,7 @@ void llvm::GenericUniformityAnalysisImpl<SSAContext>::pushUsers(
     const Value *V) {
   for (const auto *User : V->users()) {
     if (const auto *UserInstr = dyn_cast<const Instruction>(User)) {
-      if (markDivergent(*UserInstr)) {
-        Worklist.push_back(UserInstr);
-      }
+      markDivergent(*UserInstr);
     }
   }
 }
@@ -76,6 +74,20 @@ bool llvm::GenericUniformityAnalysisImpl<SSAContext>::usesValueFromCycle(
     }
   }
   return false;
+}
+
+template <>
+void llvm::GenericUniformityAnalysisImpl<
+    SSAContext>::propagateTemporalDivergence(const Instruction &I,
+                                             const Cycle &DefCycle) {
+  if (isDivergent(I))
+    return;
+  for (auto *User : I.users()) {
+    auto *UserInstr = cast<Instruction>(User);
+    if (DefCycle.contains(UserInstr->getParent()))
+      continue;
+    markDivergent(*UserInstr);
+  }
 }
 
 template <>
@@ -106,7 +118,12 @@ llvm::UniformityInfo UniformityInfoAnalysis::run(Function &F,
   auto &DT = FAM.getResult<DominatorTreeAnalysis>(F);
   auto &TTI = FAM.getResult<TargetIRAnalysis>(F);
   auto &CI = FAM.getResult<CycleAnalysis>(F);
-  return UniformityInfo{F, DT, CI, &TTI};
+  UniformityInfo UI{DT, CI, &TTI};
+  // Skip computation if we can assume everything is uniform.
+  if (TTI.hasBranchDivergence(&F))
+    UI.compute();
+
+  return UI;
 }
 
 AnalysisKey UniformityInfoAnalysis::Key;
@@ -154,8 +171,12 @@ bool UniformityInfoWrapperPass::runOnFunction(Function &F) {
       getAnalysis<TargetTransformInfoWrapperPass>().getTTI(F);
 
   m_function = &F;
-  m_uniformityInfo =
-      UniformityInfo{F, domTree, cycleInfo, &targetTransformInfo};
+  m_uniformityInfo = UniformityInfo{domTree, cycleInfo, &targetTransformInfo};
+
+  // Skip computation if we can assume everything is uniform.
+  if (targetTransformInfo.hasBranchDivergence(m_function))
+    m_uniformityInfo.compute();
+
   return false;
 }
 

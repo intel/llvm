@@ -26,7 +26,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
@@ -41,7 +41,7 @@ void event_impl::ensureContextInitialized() {
     QueueImplPtr HostQueue = Scheduler::getInstance().getDefaultHostQueue();
     this->setContextImpl(detail::getSyclObjImpl(HostQueue->get_context()));
   } else {
-    const device &SyclDevice = default_selector().select_device();
+    const device SyclDevice;
     this->setContextImpl(detail::queue_impl::getDefaultOrNew(
         detail::getSyclObjImpl(SyclDevice)));
   }
@@ -55,13 +55,13 @@ bool event_impl::is_host() {
 
 event_impl::~event_impl() {
   if (MEvent)
-    getPlugin().call<PiApiKind::piEventRelease>(MEvent);
+    getPlugin()->call<PiApiKind::piEventRelease>(MEvent);
 }
 
 void event_impl::waitInternal() {
   if (!MHostEvent && MEvent) {
     // Wait for the native event
-    getPlugin().call<PiApiKind::piEventsWait>(1, &MEvent);
+    getPlugin()->call<PiApiKind::piEventsWait>(1, &MEvent);
   } else if (MState == HES_Discarded) {
     // Waiting for the discarded event is invalid
     throw sycl::exception(
@@ -100,15 +100,23 @@ void event_impl::setComplete() {
   assert(false && "setComplete is not supported for non-host event");
 }
 
-const RT::PiEvent &event_impl::getHandleRef() const { return MEvent; }
-RT::PiEvent &event_impl::getHandleRef() { return MEvent; }
+static uint64_t inline getTimestamp() {
+  auto Timestamp = std::chrono::high_resolution_clock::now().time_since_epoch();
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(Timestamp)
+      .count();
+}
+
+const sycl::detail::pi::PiEvent &event_impl::getHandleRef() const {
+  return MEvent;
+}
+sycl::detail::pi::PiEvent &event_impl::getHandleRef() { return MEvent; }
 
 const ContextImplPtr &event_impl::getContextImpl() {
   ensureContextInitialized();
   return MContext;
 }
 
-const plugin &event_impl::getPlugin() {
+const PluginPtr &event_impl::getPlugin() {
   ensureContextInitialized();
   return MContext->getPlugin();
 }
@@ -121,43 +129,48 @@ void event_impl::setContextImpl(const ContextImplPtr &Context) {
   MIsContextInitialized = true;
 }
 
-event_impl::event_impl(RT::PiEvent Event, const context &SyclContext)
+event_impl::event_impl(sycl::detail::pi::PiEvent Event,
+                       const context &SyclContext)
     : MIsContextInitialized(true), MEvent(Event),
       MContext(detail::getSyclObjImpl(SyclContext)), MHostEvent(false),
       MIsFlushed(true), MState(HES_Complete) {
 
   if (MContext->is_host()) {
-    throw sycl::invalid_parameter_error(
-        "The syclContext must match the OpenCL context associated with the "
-        "clEvent.",
-        PI_ERROR_INVALID_CONTEXT);
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "The syclContext must match the OpenCL context "
+                          "associated with the clEvent. " +
+                              codeToString(PI_ERROR_INVALID_CONTEXT));
   }
 
-  RT::PiContext TempContext;
-  getPlugin().call<PiApiKind::piEventGetInfo>(MEvent, PI_EVENT_INFO_CONTEXT,
-                                              sizeof(RT::PiContext),
-                                              &TempContext, nullptr);
+  sycl::detail::pi::PiContext TempContext;
+  getPlugin()->call<PiApiKind::piEventGetInfo>(
+      MEvent, PI_EVENT_INFO_CONTEXT, sizeof(sycl::detail::pi::PiContext),
+      &TempContext, nullptr);
   if (MContext->getHandleRef() != TempContext) {
-    throw sycl::invalid_parameter_error(
-        "The syclContext must match the OpenCL context associated with the "
-        "clEvent.",
-        PI_ERROR_INVALID_CONTEXT);
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "The syclContext must match the OpenCL context "
+                          "associated with the clEvent. " +
+                              codeToString(PI_ERROR_INVALID_CONTEXT));
   }
 }
 
-event_impl::event_impl(const QueueImplPtr &Queue)
-    : MQueue{Queue},
-      MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled},
-      MLimitedProfiling{MIsProfilingEnabled && Queue->isProfilingLimited()} {
+event_impl::event_impl(const QueueImplPtr &Queue) {
   this->setContextImpl(Queue->getContextImplPtr());
+  this->associateWithQueue(Queue);
+}
 
+void event_impl::associateWithQueue(const QueueImplPtr &Queue) {
+  MQueue = Queue;
+  MIsProfilingEnabled = Queue->is_host() || Queue->MIsProfilingEnabled;
+  MFallbackProfiling = MIsProfilingEnabled && Queue->isProfilingFallback();
   if (Queue->is_host()) {
     MState.store(HES_NotComplete);
-
     if (Queue->has_property<property::queue::enable_profiling>()) {
       MHostProfilingInfo.reset(new HostProfilingInfo());
       if (!MHostProfilingInfo)
-        throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
+        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                              "Out of host memory " +
+                                  codeToString(PI_ERROR_OUT_OF_HOST_MEMORY));
     }
     return;
   }
@@ -168,7 +181,8 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
                                         uint64_t &IId) const {
   void *TraceEvent = nullptr;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!xptiTraceEnabled())
+  constexpr uint16_t NotificationTraceType = xpti::trace_wait_begin;
+  if (!xptiCheckTraceEnabled(StreamID, NotificationTraceType))
     return TraceEvent;
   // Use a thread-safe counter to get a unique instance ID for the wait() on the
   // event
@@ -178,7 +192,7 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
   // Create a string with the event address so it
   // can be associated with other debug data
   xpti::utils::StringHelper SH;
-  Name = SH.nameWithAddress<RT::PiEvent>("event.wait", MEvent);
+  Name = SH.nameWithAddress<sycl::detail::pi::PiEvent>("event.wait", MEvent);
 
   // We can emit the wait associated with the graph if the
   // event does not have a command object or associated with
@@ -192,7 +206,7 @@ void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
 
   // Record the current instance ID for use by Epilog
   IId = InstanceID++;
-  xptiNotifySubscribers(StreamID, xpti::trace_wait_begin, nullptr, WaitEvent,
+  xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, WaitEvent,
                         IId, static_cast<const void *>(Name.c_str()));
   TraceEvent = (void *)WaitEvent;
 #endif
@@ -203,12 +217,14 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
                                        const std::string &Name,
                                        int32_t StreamID, uint64_t IId) const {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!(xptiTraceEnabled() && TelemetryEvent))
+  constexpr uint16_t NotificationTraceType = xpti::trace_wait_end;
+  if (!(xptiCheckTraceEnabled(StreamID, NotificationTraceType) &&
+        TelemetryEvent))
     return;
   // Close the wait() scope
   xpti::trace_event_data_t *TraceEvent =
       (xpti::trace_event_data_t *)TelemetryEvent;
-  xptiNotifySubscribers(StreamID, xpti::trace_wait_end, nullptr, TraceEvent,
+  xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, TraceEvent,
                         IId, static_cast<const void *>(Name.c_str()));
 #endif
 }
@@ -218,9 +234,15 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait method cannot be used for a discarded event.");
 
+  if (MGraph.lock()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "wait method cannot be used for an event associated "
+                          "with a command graph.");
+  }
+
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   void *TelemetryEvent = nullptr;
-  uint64_t IId;
+  uint64_t IId = 0;
   std::string Name;
   int32_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
   TelemetryEvent = instrumentationProlog(Name, StreamID, IId);
@@ -266,13 +288,28 @@ template <>
 uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
-  if (MLimitedProfiling)
-    throw sycl::exception(
-        make_error_code(sycl::errc::invalid),
-        "Submit profiling information is temporarily unsupported on this "
-        "device. This is indicated by the lack of queue_profiling aspect, but, "
-        "as a temporary workaround, profiling can still be enabled to use "
-        "command_start and command_end profiling info.");
+
+  // The delay between the submission and the actual start of a CommandBuffer
+  // can be short. Consequently, the submission time, which is based on
+  // an estimated clock and not on the real device clock, may be ahead of the
+  // start time, which is based on the actual device clock.
+  // MSubmitTime is set in a critical performance path.
+  // Force reading the device clock when setting MSubmitTime may deteriorate
+  // the performance.
+  // Since submit time is an estimated time, we implement this little hack
+  // that allows all profiled time to be meaningful.
+  // (Note that the observed time deviation between the estimated clock and
+  // the real device clock is typically less than 0.5ms. The approximation we
+  // made by forcing the re-sync of submit time to start time is less than
+  // 0.5ms. These timing values were obtained empirically using an integrated
+  // Intel GPU).
+  if (MEventFromSubmittedExecCommandBuffer && !MHostEvent && MEvent) {
+    uint64_t StartTime =
+        get_event_profiling_info<info::event_profiling::command_start>(
+            this->getHandleRef(), this->getPlugin());
+    if (StartTime < MSubmitTime)
+      MSubmitTime = StartTime;
+  }
   return MSubmitTime;
 }
 
@@ -280,30 +317,64 @@ template <>
 uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_start>() {
   checkProfilingPreconditions();
+
+  // For nop command start time is equal to submission time.
+  if (isNOP() && MSubmitTime)
+    return MSubmitTime;
+
   if (!MHostEvent) {
-    if (MEvent)
-      return get_event_profiling_info<info::event_profiling::command_start>(
-          this->getHandleRef(), this->getPlugin());
+    if (MEvent) {
+      auto StartTime =
+          get_event_profiling_info<info::event_profiling::command_start>(
+              this->getHandleRef(), this->getPlugin());
+      if (!MFallbackProfiling) {
+        return StartTime;
+      } else {
+        auto DeviceBaseTime =
+            get_event_profiling_info<info::event_profiling::command_submit>(
+                this->getHandleRef(), this->getPlugin());
+        return MHostBaseTime - DeviceBaseTime + StartTime;
+      }
+    }
     return 0;
   }
   if (!MHostProfilingInfo)
-    throw invalid_object_error("Profiling info is not available.",
-                               PI_ERROR_PROFILING_INFO_NOT_AVAILABLE);
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::invalid),
+        "Profiling info is not available. " +
+            codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
   return MHostProfilingInfo->getStartTime();
 }
 
 template <>
 uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   checkProfilingPreconditions();
+
+  // For nop command end time is equal to submission time.
+  if (isNOP() && MSubmitTime)
+    return MSubmitTime;
+
   if (!MHostEvent) {
-    if (MEvent)
-      return get_event_profiling_info<info::event_profiling::command_end>(
-          this->getHandleRef(), this->getPlugin());
+    if (MEvent) {
+      auto EndTime =
+          get_event_profiling_info<info::event_profiling::command_end>(
+              this->getHandleRef(), this->getPlugin());
+      if (!MFallbackProfiling) {
+        return EndTime;
+      } else {
+        auto DeviceBaseTime =
+            get_event_profiling_info<info::event_profiling::command_submit>(
+                this->getHandleRef(), this->getPlugin());
+        return MHostBaseTime - DeviceBaseTime + EndTime;
+      }
+    }
     return 0;
   }
   if (!MHostProfilingInfo)
-    throw invalid_object_error("Profiling info is not available.",
-                               PI_ERROR_PROFILING_INFO_NOT_AVAILABLE);
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::invalid),
+        "Profiling info is not available. " +
+            codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
   return MHostProfilingInfo->getEndTime();
 }
 
@@ -336,12 +407,6 @@ event_impl::get_info<info::event::command_execution_status>() {
              : info::event_command_status::complete;
 }
 
-static uint64_t getTimestamp() {
-  auto TimeStamp = std::chrono::high_resolution_clock::now().time_since_epoch();
-  return std::chrono::duration_cast<std::chrono::nanoseconds>(TimeStamp)
-      .count();
-}
-
 void HostProfilingInfo::start() { StartTime = getTimestamp(); }
 
 void HostProfilingInfo::end() { EndTime = getTimestamp(); }
@@ -353,12 +418,12 @@ pi_native_handle event_impl::getNative() {
   if (!MIsInitialized) {
     MIsInitialized = true;
     auto TempContext = MContext.get()->getHandleRef();
-    Plugin.call<PiApiKind::piEventCreate>(TempContext, &MEvent);
+    Plugin->call<PiApiKind::piEventCreate>(TempContext, &MEvent);
   }
   if (MContext->getBackend() == backend::opencl)
-    Plugin.call<PiApiKind::piEventRetain>(getHandleRef());
+    Plugin->call<PiApiKind::piEventRetain>(getHandleRef());
   pi_native_handle Handle;
-  Plugin.call<PiApiKind::piextEventGetNativeHandle>(getHandleRef(), &Handle);
+  Plugin->call<PiApiKind::piextEventGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;
 }
 
@@ -398,11 +463,11 @@ void event_impl::flushIfNeeded(const QueueImplPtr &UserQueue) {
 
   // Check if the task for this event has already been submitted.
   pi_event_status Status = PI_EVENT_QUEUED;
-  getPlugin().call<PiApiKind::piEventGetInfo>(
+  getPlugin()->call<PiApiKind::piEventGetInfo>(
       MEvent, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS, sizeof(pi_int32), &Status,
       nullptr);
   if (Status == PI_EVENT_QUEUED) {
-    getPlugin().call<PiApiKind::piQueueFlush>(Queue->getHandleRef());
+    getPlugin()->call<PiApiKind::piQueueFlush>(Queue->getHandleRef());
   }
   MIsFlushed = true;
 }
@@ -424,18 +489,34 @@ void event_impl::cleanDepEventsThroughOneLevel() {
 }
 
 void event_impl::setSubmissionTime() {
-  if (!MIsProfilingEnabled || MLimitedProfiling)
+  if (!MIsProfilingEnabled)
     return;
-  if (QueueImplPtr Queue = MQueue.lock()) {
-    try {
-      MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
-    } catch (feature_not_supported &e) {
-      throw sycl::exception(
-          make_error_code(errc::profiling),
-          std::string("Unable to get command group submission time: ") +
-              e.what());
+  if (!MFallbackProfiling) {
+    if (QueueImplPtr Queue = MQueue.lock()) {
+      try {
+        MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
+      } catch (sycl::exception &e) {
+        if (e.code() == sycl::errc::feature_not_supported)
+          throw sycl::exception(
+              make_error_code(errc::profiling),
+              std::string("Unable to get command group submission time: ") +
+                  e.what());
+        std::rethrow_exception(std::current_exception());
+      }
     }
+  } else {
+    // Capture the host timestamp for a return value of function call
+    // <info::event_profiling::command_submit>. See MFallbackProfiling
+    MSubmitTime = getTimestamp();
   }
+}
+
+void event_impl::setHostEnqueueTime() {
+  if (!MIsProfilingEnabled || !MFallbackProfiling)
+    return;
+  // Capture a host timestamp to use normalize profiling time in
+  // <command_start> and <command_end>. See MFallbackProfiling
+  MHostBaseTime = getTimestamp();
 }
 
 uint64_t event_impl::getSubmissionTime() { return MSubmitTime; }
@@ -446,5 +527,5 @@ bool event_impl::isCompleted() {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

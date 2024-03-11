@@ -15,7 +15,7 @@
 #include "MipsMachineFunction.h"
 #include "MipsRegisterBankInfo.h"
 #include "MipsTargetMachine.h"
-#include "llvm/CodeGen/GlobalISel/InstructionSelectorImpl.h"
+#include "llvm/CodeGen/GlobalISel/GIMatchTableExecutorImpl.h"
 #include "llvm/CodeGen/GlobalISel/MachineIRBuilder.h"
 #include "llvm/CodeGen/MachineJumpTableInfo.h"
 #include "llvm/IR/IntrinsicsMips.h"
@@ -355,13 +355,6 @@ bool MipsInstructionSelector::select(MachineInstr &I) {
              .add(I.getOperand(0))
              .add(I.getOperand(1))
              .addImm(0);
-    break;
-  }
-  case G_BRCOND: {
-    MI = BuildMI(MBB, I, I.getDebugLoc(), TII.get(Mips::BNE))
-             .add(I.getOperand(0))
-             .addUse(Mips::ZERO)
-             .add(I.getOperand(1));
     break;
   }
   case G_BRJT: {

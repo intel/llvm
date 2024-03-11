@@ -89,8 +89,6 @@ public:
   llvm::LoadInst *CreateAlignedLoad(llvm::Type *Ty, llvm::Value *Addr,
                                     CharUnits Align,
                                     const llvm::Twine &Name = "") {
-    assert(llvm::cast<llvm::PointerType>(Addr->getType())
-               ->isOpaqueOrPointeeTypeMatches(Ty));
     return CreateAlignedLoad(Ty, Addr, Align.getAsAlign(), Name);
   }
 
@@ -120,57 +118,38 @@ public:
   /// Emit a load from an i1 flag variable.
   llvm::LoadInst *CreateFlagLoad(llvm::Value *Addr,
                                  const llvm::Twine &Name = "") {
-    assert(llvm::cast<llvm::PointerType>(Addr->getType())
-               ->isOpaqueOrPointeeTypeMatches(getInt1Ty()));
     return CreateAlignedLoad(getInt1Ty(), Addr, CharUnits::One(), Name);
   }
 
   /// Emit a store to an i1 flag variable.
   llvm::StoreInst *CreateFlagStore(bool Value, llvm::Value *Addr) {
-    assert(llvm::cast<llvm::PointerType>(Addr->getType())
-               ->isOpaqueOrPointeeTypeMatches(getInt1Ty()));
     return CreateAlignedStore(getInt1(Value), Addr, CharUnits::One());
   }
 
-  // Temporarily use old signature; clang will be updated to an Address overload
-  // in a subsequent patch.
   llvm::AtomicCmpXchgInst *
-  CreateAtomicCmpXchg(llvm::Value *Ptr, llvm::Value *Cmp, llvm::Value *New,
+  CreateAtomicCmpXchg(Address Addr, llvm::Value *Cmp, llvm::Value *New,
                       llvm::AtomicOrdering SuccessOrdering,
                       llvm::AtomicOrdering FailureOrdering,
                       llvm::SyncScope::ID SSID = llvm::SyncScope::System) {
     return CGBuilderBaseTy::CreateAtomicCmpXchg(
-        Ptr, Cmp, New, llvm::MaybeAlign(), SuccessOrdering, FailureOrdering,
-        SSID);
+        Addr.getPointer(), Cmp, New, Addr.getAlignment().getAsAlign(),
+        SuccessOrdering, FailureOrdering, SSID);
   }
 
-  // Temporarily use old signature; clang will be updated to an Address overload
-  // in a subsequent patch.
   llvm::AtomicRMWInst *
-  CreateAtomicRMW(llvm::AtomicRMWInst::BinOp Op, llvm::Value *Ptr,
-                  llvm::Value *Val, llvm::AtomicOrdering Ordering,
+  CreateAtomicRMW(llvm::AtomicRMWInst::BinOp Op, Address Addr, llvm::Value *Val,
+                  llvm::AtomicOrdering Ordering,
                   llvm::SyncScope::ID SSID = llvm::SyncScope::System) {
-    return CGBuilderBaseTy::CreateAtomicRMW(Op, Ptr, Val, llvm::MaybeAlign(),
+    return CGBuilderBaseTy::CreateAtomicRMW(Op, Addr.getPointer(), Val,
+                                            Addr.getAlignment().getAsAlign(),
                                             Ordering, SSID);
   }
 
   using CGBuilderBaseTy::CreateAddrSpaceCast;
   Address CreateAddrSpaceCast(Address Addr, llvm::Type *Ty,
                               const llvm::Twine &Name = "") {
-    assert(cast<llvm::PointerType>(Ty)->isOpaqueOrPointeeTypeMatches(
-               Addr.getElementType()) &&
-           "Should not change the element type");
     return Addr.withPointer(CreateAddrSpaceCast(Addr.getPointer(), Ty, Name),
                             Addr.isKnownNonNull());
-  }
-
-  /// Cast the element type of the given address to a different type,
-  /// preserving information like the alignment and address space.
-  Address CreateElementBitCast(Address Addr, llvm::Type *Ty,
-                               const llvm::Twine &Name = "") {
-    auto *PtrTy = Ty->getPointerTo(Addr.getAddressSpace());
-    return Address(CreateBitCast(Addr.getPointer(), PtrTy, Name), Ty,
-                   Addr.getAlignment(), Addr.isKnownNonNull());
   }
 
   using CGBuilderBaseTy::CreatePointerBitCastOrAddrSpaceCast;

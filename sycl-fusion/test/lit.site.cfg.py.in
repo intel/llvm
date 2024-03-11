@@ -8,6 +8,8 @@ config.llvm_tools_dir = "@LLVM_TOOLS_BINARY_DIR@"
 config.llvm_shlib_ext = "@CMAKE_SHARED_LIBRARY_SUFFIX@"
 # Output directory for shared libraries build for this project.
 config.llvm_shlib_dir = "@CMAKE_LIBRARY_OUTPUT_DIRECTORY@"
+# List of configured targets (determines fusion jit support).
+config.llvm_targets_to_build = "@LLVM_TARGETS_TO_BUILD@"
 
 import lit.llvm
 

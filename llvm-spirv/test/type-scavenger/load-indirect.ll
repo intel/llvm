@@ -13,18 +13,16 @@ target triple = "spir-unknown-unknown"
 ; CHECK-DAG: 4 TypePointer [[FLOATPTR:[0-9]+]] 7 [[FLOAT]]
 ; CHECK-DAG: 4 TypePointer [[CHARPTR:[0-9]+]] 7 [[CHAR]]
 ; CHECK-DAG: 4 TypePointer [[INTPPTR:[0-9]+]] 7 [[INTPTR]]
-; CHECK-DAG: 4 TypePointer [[FLOATPPTR:[0-9]+]] 7 [[FLOATPTR]]
 ; CHECK-DAG: 4 TypePointer [[CHARPPTR:[0-9]+]] 7 [[CHARPTR]]
 
 ; Function Attrs: nounwind
 define spir_kernel void @foo() {
-; CHECK: 4 Variable [[INTPTR]] [[IPTR:[0-9]+]] 7
-; CHECK: 4 Variable [[CHARPPTR]] [[PPTR:[0-9]+]] 7
-; CHECK: 4 Bitcast [[INTPPTR]] [[STOREPTR1:[0-9]+]] [[PPTR]]
-; CHECK: Store [[STOREPTR1]] [[IPTR]]
-; CHECK: 4 Bitcast [[FLOATPPTR]] [[LOADPTR1:[0-9]+]] [[PPTR]]
-; CHECK: Load [[FLOATPTR]] [[LOAD1:[0-9]+]] [[LOADPTR1]]
-; CHECK: Load [[FLOAT]] [[LOAD2:[0-9]+]] [[LOAD1]]
+; CHECK: Variable [[INTPTR]] [[IPTR:[0-9]+]] 7
+; CHECK: Variable [[INTPPTR]] [[PPTR:[0-9]+]] 7
+; CHECK: Store [[PPTR]] [[IPTR]]
+; CHECK: Load [[INTPTR]] [[LOAD1:[0-9]+]] [[PPTR]]
+; CHECK: Bitcast [[FLOATPTR]] [[LOADPTR2:[0-9]+]] [[LOAD1]]
+; CHECK: Load [[FLOAT]] [[LOAD2:[0-9]+]] [[LOADPTR2]]
 entry:
   %iptr = alloca i32, align 4
   %pptr = alloca ptr, align 4

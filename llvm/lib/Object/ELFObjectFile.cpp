@@ -13,7 +13,6 @@
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/MC/MCInstrAnalysis.h"
-#include "llvm/MC/SubtargetFeature.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Object/ELF.h"
 #include "llvm/Object/ELFTypes.h"
@@ -25,6 +24,7 @@
 #include "llvm/Support/RISCVAttributeParser.h"
 #include "llvm/Support/RISCVAttributes.h"
 #include "llvm/Support/RISCVISAInfo.h"
+#include "llvm/TargetParser/SubtargetFeature.h"
 #include "llvm/TargetParser/Triple.h"
 #include <algorithm>
 #include <cstddef>
@@ -292,7 +292,7 @@ Expected<SubtargetFeatures> ELFObjectFileBase::getRISCVFeatures() const {
   unsigned PlatformFlags = getPlatformFlags();
 
   if (PlatformFlags & ELF::EF_RISCV_RVC) {
-    Features.AddFeature("c");
+    Features.AddFeature("zca");
   }
 
   RISCVAttributeParser Attributes;
@@ -315,7 +315,7 @@ Expected<SubtargetFeatures> ELFObjectFileBase::getRISCVFeatures() const {
     else
       llvm_unreachable("XLEN should be 32 or 64.");
 
-    Features.addFeaturesVector(ISAInfo->toFeatureVector());
+    Features.addFeaturesVector(ISAInfo->toFeatures());
   }
 
   return Features;
@@ -358,6 +358,9 @@ std::optional<StringRef> ELFObjectFileBase::tryGetCPUName() const {
   switch (getEMachine()) {
   case ELF::EM_AMDGPU:
     return getAMDGPUCPUName();
+  case ELF::EM_CUDA:
+    return getNVPTXCPUName();
+  case ELF::EM_PPC:
   case ELF::EM_PPC64:
     return StringRef("future");
   default:
@@ -463,6 +466,10 @@ StringRef ELFObjectFileBase::getAMDGPUCPUName() const {
     return "gfx90c";
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX940:
     return "gfx940";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX941:
+    return "gfx941";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX942:
+    return "gfx942";
 
   // AMDGCN GFX10.
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1010:
@@ -497,8 +504,95 @@ StringRef ELFObjectFileBase::getAMDGPUCPUName() const {
     return "gfx1102";
   case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1103:
     return "gfx1103";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1150:
+    return "gfx1150";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1151:
+    return "gfx1151";
+
+  // AMDGCN GFX12.
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1200:
+    return "gfx1200";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX1201:
+    return "gfx1201";
+
+  // Generic AMDGCN targets
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX9_GENERIC:
+    return "gfx9-generic";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX10_1_GENERIC:
+    return "gfx10-1-generic";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX10_3_GENERIC:
+    return "gfx10-3-generic";
+  case ELF::EF_AMDGPU_MACH_AMDGCN_GFX11_GENERIC:
+    return "gfx11-generic";
   default:
     llvm_unreachable("Unknown EF_AMDGPU_MACH value");
+  }
+}
+
+StringRef ELFObjectFileBase::getNVPTXCPUName() const {
+  assert(getEMachine() == ELF::EM_CUDA);
+  unsigned SM = getPlatformFlags() & ELF::EF_CUDA_SM;
+
+  switch (SM) {
+  // Fermi architecture.
+  case ELF::EF_CUDA_SM20:
+    return "sm_20";
+  case ELF::EF_CUDA_SM21:
+    return "sm_21";
+
+  // Kepler architecture.
+  case ELF::EF_CUDA_SM30:
+    return "sm_30";
+  case ELF::EF_CUDA_SM32:
+    return "sm_32";
+  case ELF::EF_CUDA_SM35:
+    return "sm_35";
+  case ELF::EF_CUDA_SM37:
+    return "sm_37";
+
+  // Maxwell architecture.
+  case ELF::EF_CUDA_SM50:
+    return "sm_50";
+  case ELF::EF_CUDA_SM52:
+    return "sm_52";
+  case ELF::EF_CUDA_SM53:
+    return "sm_53";
+
+  // Pascal architecture.
+  case ELF::EF_CUDA_SM60:
+    return "sm_60";
+  case ELF::EF_CUDA_SM61:
+    return "sm_61";
+  case ELF::EF_CUDA_SM62:
+    return "sm_62";
+
+  // Volta architecture.
+  case ELF::EF_CUDA_SM70:
+    return "sm_70";
+  case ELF::EF_CUDA_SM72:
+    return "sm_72";
+
+  // Turing architecture.
+  case ELF::EF_CUDA_SM75:
+    return "sm_75";
+
+  // Ampere architecture.
+  case ELF::EF_CUDA_SM80:
+    return "sm_80";
+  case ELF::EF_CUDA_SM86:
+    return "sm_86";
+  case ELF::EF_CUDA_SM87:
+    return "sm_87";
+
+  // Ada architecture.
+  case ELF::EF_CUDA_SM89:
+    return "sm_89";
+
+  // Hopper architecture.
+  case ELF::EF_CUDA_SM90:
+    return getPlatformFlags() & ELF::EF_CUDA_ACCELERATORS ? "sm_90a" : "sm_90";
+  default:
+    llvm_unreachable("Unknown EF_CUDA_SM value");
   }
 }
 
@@ -597,20 +691,21 @@ void ELFObjectFileBase::setARMSubArch(Triple &TheTriple) const {
   TheTriple.setArchName(Triple);
 }
 
-std::vector<std::pair<std::optional<DataRefImpl>, uint64_t>>
-ELFObjectFileBase::getPltAddresses() const {
+std::vector<ELFPltEntry> ELFObjectFileBase::getPltEntries() const {
   std::string Err;
   const auto Triple = makeTriple();
   const auto *T = TargetRegistry::lookupTarget(Triple.str(), Err);
   if (!T)
     return {};
-  uint64_t JumpSlotReloc = 0;
+  uint32_t JumpSlotReloc = 0, GlobDatReloc = 0;
   switch (Triple.getArch()) {
     case Triple::x86:
       JumpSlotReloc = ELF::R_386_JUMP_SLOT;
+      GlobDatReloc = ELF::R_386_GLOB_DAT;
       break;
     case Triple::x86_64:
       JumpSlotReloc = ELF::R_X86_64_JUMP_SLOT;
+      GlobDatReloc = ELF::R_X86_64_GLOB_DAT;
       break;
     case Triple::aarch64:
     case Triple::aarch64_be:
@@ -624,7 +719,9 @@ ELFObjectFileBase::getPltAddresses() const {
       T->createMCInstrAnalysis(MII.get()));
   if (!MIA)
     return {};
-  std::optional<SectionRef> Plt, RelaPlt, GotPlt;
+  std::vector<std::pair<uint64_t, uint64_t>> PltEntries;
+  std::optional<SectionRef> RelaPlt, RelaDyn;
+  uint64_t GotBaseVA = 0;
   for (const SectionRef &Section : sections()) {
     Expected<StringRef> NameOrErr = Section.getName();
     if (!NameOrErr) {
@@ -633,51 +730,78 @@ ELFObjectFileBase::getPltAddresses() const {
     }
     StringRef Name = *NameOrErr;
 
-    if (Name == ".plt")
-      Plt = Section;
-    else if (Name == ".rela.plt" || Name == ".rel.plt")
+    if (Name == ".rela.plt" || Name == ".rel.plt") {
       RelaPlt = Section;
-    else if (Name == ".got.plt")
-      GotPlt = Section;
-  }
-  if (!Plt || !RelaPlt || !GotPlt)
-    return {};
-  Expected<StringRef> PltContents = Plt->getContents();
-  if (!PltContents) {
-    consumeError(PltContents.takeError());
-    return {};
-  }
-  auto PltEntries = MIA->findPltEntries(Plt->getAddress(),
-                                        arrayRefFromStringRef(*PltContents),
-                                        GotPlt->getAddress(), Triple);
-  // Build a map from GOT entry virtual address to PLT entry virtual address.
-  DenseMap<uint64_t, uint64_t> GotToPlt;
-  for (const auto &Entry : PltEntries)
-    GotToPlt.insert(std::make_pair(Entry.second, Entry.first));
-  // Find the relocations in the dynamic relocation table that point to
-  // locations in the GOT for which we know the corresponding PLT entry.
-  std::vector<std::pair<std::optional<DataRefImpl>, uint64_t>> Result;
-  for (const auto &Relocation : RelaPlt->relocations()) {
-    if (Relocation.getType() != JumpSlotReloc)
-      continue;
-    auto PltEntryIter = GotToPlt.find(Relocation.getOffset());
-    if (PltEntryIter != GotToPlt.end()) {
-      symbol_iterator Sym = Relocation.getSymbol();
-      if (Sym == symbol_end())
-        Result.emplace_back(std::nullopt, PltEntryIter->second);
-      else
-        Result.emplace_back(Sym->getRawDataRefImpl(), PltEntryIter->second);
+    } else if (Name == ".rela.dyn" || Name == ".rel.dyn") {
+      RelaDyn = Section;
+    } else if (Name == ".got.plt") {
+      GotBaseVA = Section.getAddress();
+    } else if (Name == ".plt" || Name == ".plt.got") {
+      Expected<StringRef> PltContents = Section.getContents();
+      if (!PltContents) {
+        consumeError(PltContents.takeError());
+        return {};
+      }
+      llvm::append_range(
+          PltEntries,
+          MIA->findPltEntries(Section.getAddress(),
+                              arrayRefFromStringRef(*PltContents), Triple));
     }
   }
+
+  // Build a map from GOT entry virtual address to PLT entry virtual address.
+  DenseMap<uint64_t, uint64_t> GotToPlt;
+  for (auto [Plt, GotPlt] : PltEntries) {
+    uint64_t GotPltEntry = GotPlt;
+    // An x86-32 PIC PLT uses jmp DWORD PTR [ebx-offset]. Add
+    // _GLOBAL_OFFSET_TABLE_ (EBX) to get the .got.plt (or .got) entry address.
+    // See X86MCTargetDesc.cpp:findPltEntries for the 1 << 32 bit.
+    if (GotPltEntry & (uint64_t(1) << 32) && getEMachine() == ELF::EM_386)
+      GotPltEntry = static_cast<int32_t>(GotPltEntry) + GotBaseVA;
+    GotToPlt.insert(std::make_pair(GotPltEntry, Plt));
+  }
+
+  // Find the relocations in the dynamic relocation table that point to
+  // locations in the GOT for which we know the corresponding PLT entry.
+  std::vector<ELFPltEntry> Result;
+  auto handleRels = [&](iterator_range<relocation_iterator> Rels,
+                        uint32_t RelType, StringRef PltSec) {
+    for (const auto &R : Rels) {
+      if (R.getType() != RelType)
+        continue;
+      auto PltEntryIter = GotToPlt.find(R.getOffset());
+      if (PltEntryIter != GotToPlt.end()) {
+        symbol_iterator Sym = R.getSymbol();
+        if (Sym == symbol_end())
+          Result.push_back(
+              ELFPltEntry{PltSec, std::nullopt, PltEntryIter->second});
+        else
+          Result.push_back(ELFPltEntry{PltSec, Sym->getRawDataRefImpl(),
+                                       PltEntryIter->second});
+      }
+    }
+  };
+
+  if (RelaPlt)
+    handleRels(RelaPlt->relocations(), JumpSlotReloc, ".plt");
+
+  // If a symbol needing a PLT entry also needs a GLOB_DAT relocation, GNU ld's
+  // x86 port places the PLT entry in the .plt.got section.
+  if (RelaDyn)
+    handleRels(RelaDyn->relocations(), GlobDatReloc, ".plt.got");
+
   return Result;
 }
 
 template <class ELFT>
 Expected<std::vector<BBAddrMap>> static readBBAddrMapImpl(
-    const ELFFile<ELFT> &EF, std::optional<unsigned> TextSectionIndex) {
+    const ELFFile<ELFT> &EF, std::optional<unsigned> TextSectionIndex,
+    std::vector<PGOAnalysisMap> *PGOAnalyses) {
   using Elf_Shdr = typename ELFT::Shdr;
   bool IsRelocatable = EF.getHeader().e_type == ELF::ET_REL;
   std::vector<BBAddrMap> BBAddrMaps;
+  if (PGOAnalyses)
+    PGOAnalyses->clear();
 
   const auto &Sections = cantFail(EF.sections());
   auto IsMatch = [&](const Elf_Shdr &Sec) -> Expected<bool> {
@@ -691,7 +815,10 @@ Expected<std::vector<BBAddrMap>> static readBBAddrMapImpl(
       return createError("unable to get the linked-to section for " +
                          describe(EF, Sec) + ": " +
                          toString(TextSecOrErr.takeError()));
-    if (*TextSectionIndex != std::distance(Sections.begin(), *TextSecOrErr))
+    assert(*TextSecOrErr >= Sections.begin() &&
+           "Text section pointer outside of bounds");
+    if (*TextSectionIndex !=
+        (unsigned)std::distance(Sections.begin(), *TextSecOrErr))
       return false;
     return true;
   };
@@ -706,13 +833,20 @@ Expected<std::vector<BBAddrMap>> static readBBAddrMapImpl(
       return createError("unable to get relocation section for " +
                          describe(EF, *Sec));
     Expected<std::vector<BBAddrMap>> BBAddrMapOrErr =
-        EF.decodeBBAddrMap(*Sec, RelocSec);
-    if (!BBAddrMapOrErr)
+        EF.decodeBBAddrMap(*Sec, RelocSec, PGOAnalyses);
+    if (!BBAddrMapOrErr) {
+      if (PGOAnalyses)
+        PGOAnalyses->clear();
       return createError("unable to read " + describe(EF, *Sec) + ": " +
                          toString(BBAddrMapOrErr.takeError()));
+    }
     std::move(BBAddrMapOrErr->begin(), BBAddrMapOrErr->end(),
               std::back_inserter(BBAddrMaps));
   }
+  if (PGOAnalyses)
+    assert(PGOAnalyses->size() == BBAddrMaps.size() &&
+           "The same number of BBAddrMaps and PGOAnalysisMaps should be "
+           "returned when PGO information is requested");
   return BBAddrMaps;
 }
 
@@ -786,13 +920,14 @@ ELFObjectFileBase::readDynsymVersions() const {
 }
 
 Expected<std::vector<BBAddrMap>> ELFObjectFileBase::readBBAddrMap(
-    std::optional<unsigned> TextSectionIndex) const {
+    std::optional<unsigned> TextSectionIndex,
+    std::vector<PGOAnalysisMap> *PGOAnalyses) const {
   if (const auto *Obj = dyn_cast<ELF32LEObjectFile>(this))
-    return readBBAddrMapImpl(Obj->getELFFile(), TextSectionIndex);
+    return readBBAddrMapImpl(Obj->getELFFile(), TextSectionIndex, PGOAnalyses);
   if (const auto *Obj = dyn_cast<ELF64LEObjectFile>(this))
-    return readBBAddrMapImpl(Obj->getELFFile(), TextSectionIndex);
+    return readBBAddrMapImpl(Obj->getELFFile(), TextSectionIndex, PGOAnalyses);
   if (const auto *Obj = dyn_cast<ELF32BEObjectFile>(this))
-    return readBBAddrMapImpl(Obj->getELFFile(), TextSectionIndex);
+    return readBBAddrMapImpl(Obj->getELFFile(), TextSectionIndex, PGOAnalyses);
   return readBBAddrMapImpl(cast<ELF64BEObjectFile>(this)->getELFFile(),
-                           TextSectionIndex);
+                           TextSectionIndex, PGOAnalyses);
 }

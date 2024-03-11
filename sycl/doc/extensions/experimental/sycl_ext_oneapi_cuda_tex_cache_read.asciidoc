@@ -98,7 +98,8 @@ T ldg(const T* ptr);
 `ldg` returns the data of type `T` located at address `ptr`. When called from the `ext_oneapi_cuda` backend the data is cached in the read-only texture cache.
 When called from any other backend a copy of the data stored at address `ptr` is returned without using any special cache.
 
-The template parameter `T` can be one of `char`, `signed char`, `short`, `int`, `long`, `long long`, `unsigned char`, `unsigned short`, `unsigned int`, `unsigned long`, `unsigned long long`, `vec<char, 2>`, `vec<char, 4>`, `vec<short, 2>`, `vec<short, 4>`, `vec<int, 2>`, `vec<int, 4>`, `vec<long long, 2>`, `vec<uchar, 2>`, `vec<uchar, 4>`, `vec<ushort, 2>`, `vec<ushort, 4>`, `vec<uint, 2>`, `vec<uint, 4>`, `vec<unsigned long long, 2>`, `float`, `vec<float, 2>`, `vec<float, 4>`, `double`, or `vec<double, 2>`.
+The template parameter `T` can be one of `char`, `signed char`, `short`, `int`, `long`, `long long`, `unsigned char`, `unsigned short`, `unsigned int`, `unsigned long`, `unsigned long long`, `half`, `float`, `double`, `<char, 2>`, `<char, 3>`, `<char, 4>`, `<signed char, 2>`, `<signed char, 3>`, `<signed char, 4>`, `<short, 2>`, `<short, 3>`, `<short, 4>`, `<int, 2>`, `<int, 3>`, `<int, 4>`, `<long, 2>`, `<long, 3>`, `<long, 4>`, `<long long, 2>`, `<long long, 3>`, `<long long, 4>`, `<unsigned char, 2>`, `<unsigned char, 3>`, `<unsigned char, 4>`, `<unsigned short, 2>`, `<unsigned short, 3>`, `<unsigned short, 4>`, `<unsigned int, 2>`, `<unsigned int, 3>`, `<unsigned int, 4>`, `<unsigned long, 2>`, `<unsigned long, 3>`, `<unsigned long, 4>`, `<unsigned long long, 2>`, `<unsigned long long, 3>`, `<unsigned long long, 4>`, `<half, 2>`, `<half, 3>`, `<half, 4>`, `<float, 2>`, `<float, 3>`, `<float, 4>`, `<double, 2>`, `<double, 3>`, or `<double, 4>`.
+
 
 === Example of usage
 

@@ -9,14 +9,17 @@
 #ifndef MLIR_BINDINGS_PYTHON_GLOBALS_H
 #define MLIR_BINDINGS_PYTHON_GLOBALS_H
 
-#include <string>
-#include <vector>
-#include <optional>
-
 #include "PybindUtils.h"
 
+#include "mlir-c/IR.h"
+#include "mlir/CAPI/Support.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
+
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace mlir {
 namespace python {
@@ -42,27 +45,33 @@ public:
     dialectSearchPrefixes.swap(newValues);
   }
 
-  /// Clears positive and negative caches regarding what implementations are
-  /// available. Future lookups will do more expensive existence checks.
-  void clearImportCache();
-
   /// Loads a python module corresponding to the given dialect namespace.
   /// No-ops if the module has already been loaded or is not found. Raises
   /// an error on any evaluation issues.
   /// Note that this returns void because it is expected that the module
   /// contains calls to decorators and helpers that register the salient
-  /// entities.
-  void loadDialectModule(llvm::StringRef dialectNamespace);
-
-  /// Decorator for registering a custom Dialect class. The class object must
-  /// have a DIALECT_NAMESPACE attribute.
-  pybind11::object registerDialectDecorator(pybind11::object pyClass);
+  /// entities. Returns true if dialect is successfully loaded.
+  bool loadDialectModule(llvm::StringRef dialectNamespace);
 
   /// Adds a user-friendly Attribute builder.
-  /// Raises an exception if the mapping already exists.
+  /// Raises an exception if the mapping already exists and replace == false.
   /// This is intended to be called by implementation code.
   void registerAttributeBuilder(const std::string &attributeKind,
-                                pybind11::function pyFunc);
+                                pybind11::function pyFunc,
+                                bool replace = false);
+
+  /// Adds a user-friendly type caster. Raises an exception if the mapping
+  /// already exists and replace == false. This is intended to be called by
+  /// implementation code.
+  void registerTypeCaster(MlirTypeID mlirTypeID, pybind11::function typeCaster,
+                          bool replace = false);
+
+  /// Adds a user-friendly value caster. Raises an exception if the mapping
+  /// already exists and replace == false. This is intended to be called by
+  /// implementation code.
+  void registerValueCaster(MlirTypeID mlirTypeID,
+                           pybind11::function valueCaster,
+                           bool replace = false);
 
   /// Adds a concrete implementation dialect class.
   /// Raises an exception if the mapping already exists.
@@ -71,14 +80,22 @@ public:
                            pybind11::object pyClass);
 
   /// Adds a concrete implementation operation class.
-  /// Raises an exception if the mapping already exists.
+  /// Raises an exception if the mapping already exists and replace == false.
   /// This is intended to be called by implementation code.
   void registerOperationImpl(const std::string &operationName,
-                             pybind11::object pyClass);
+                             pybind11::object pyClass, bool replace = false);
 
   /// Returns the custom Attribute builder for Attribute kind.
   std::optional<pybind11::function>
   lookupAttributeBuilder(const std::string &attributeKind);
+
+  /// Returns the custom type caster for MlirTypeID mlirTypeID.
+  std::optional<pybind11::function> lookupTypeCaster(MlirTypeID mlirTypeID,
+                                                     MlirDialect dialect);
+
+  /// Returns the custom value caster for MlirTypeID mlirTypeID.
+  std::optional<pybind11::function> lookupValueCaster(MlirTypeID mlirTypeID,
+                                                      MlirDialect dialect);
 
   /// Looks up a registered dialect class by namespace. Note that this may
   /// trigger loading of the defining module and can arbitrarily re-enter.
@@ -101,14 +118,13 @@ private:
   llvm::StringMap<pybind11::object> operationClassMap;
   /// Map of attribute ODS name to custom builder.
   llvm::StringMap<pybind11::object> attributeBuilderMap;
-
+  /// Map of MlirTypeID to custom type caster.
+  llvm::DenseMap<MlirTypeID, pybind11::object> typeCasterMap;
+  /// Map of MlirTypeID to custom value caster.
+  llvm::DenseMap<MlirTypeID, pybind11::object> valueCasterMap;
   /// Set of dialect namespaces that we have attempted to import implementation
   /// modules for.
-  llvm::StringSet<> loadedDialectModulesCache;
-  /// Cache of operation name to external operation class object. This is
-  /// maintained on lookup as a shadow of operationClassMap in order for repeat
-  /// lookups of the classes to only incur the cost of one hashtable lookup.
-  llvm::StringMap<pybind11::object> operationClassMapCache;
+  llvm::StringSet<> loadedDialectModules;
 };
 
 } // namespace python

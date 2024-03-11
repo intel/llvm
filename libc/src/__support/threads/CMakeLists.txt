@@ -4,6 +4,12 @@ add_header_library(
     mutex_common.h
 )
 
+add_header_library(
+  sleep
+  HDRS
+    sleep.h
+)
+
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${LIBC_TARGET_OS})
   add_subdirectory(${LIBC_TARGET_OS})
 endif()
@@ -48,6 +54,7 @@ if(TARGET libc.src.__support.threads.${LIBC_TARGET_OS}.thread)
     DEPENDS
       .mutex
       .${LIBC_TARGET_OS}.thread
+      libc.src.__support.common
       libc.src.__support.fixedvector
       libc.src.__support.CPP.array
       libc.src.__support.CPP.optional

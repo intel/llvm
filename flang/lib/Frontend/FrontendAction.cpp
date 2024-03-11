@@ -86,6 +86,10 @@ bool FrontendAction::beginSourceFile(CompilerInstance &ci,
     invoc.collectMacroDefinitions();
   }
 
+  // Enable CUDA Fortran if source file is *.cuf/*.CUF.
+  invoc.getFortranOpts().features.Enable(Fortran::common::LanguageFeature::CUDA,
+                                         getCurrentInput().getIsCUDAFortran());
+
   // Decide between fixed and free form (if the user didn't express any
   // preference, use the file extension to decide)
   if (invoc.getFrontendOpts().fortranForm == FortranForm::Unknown) {
@@ -167,7 +171,7 @@ bool FrontendAction::runSemanticChecks() {
 
   // Prepare semantics
   ci.setSemantics(std::make_unique<Fortran::semantics::Semantics>(
-      ci.getInvocation().getSemanticsContext(), *parseTree,
+      ci.getSemanticsContext(), *parseTree,
       ci.getInvocation().getDebugModuleDir()));
   auto &semantics = ci.getSemantics();
 
@@ -187,8 +191,7 @@ bool FrontendAction::runSemanticChecks() {
 bool FrontendAction::generateRtTypeTables() {
   getInstance().setRtTyTables(
       std::make_unique<Fortran::semantics::RuntimeDerivedTypeTables>(
-          BuildRuntimeDerivedTypeTables(
-              getInstance().getInvocation().getSemanticsContext())));
+          BuildRuntimeDerivedTypeTables(getInstance().getSemanticsContext())));
 
   // The runtime derived type information table builder may find additional
   // semantic errors. Report them.

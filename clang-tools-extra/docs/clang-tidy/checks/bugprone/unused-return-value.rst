@@ -10,8 +10,9 @@ Options
 
 .. option:: CheckedFunctions
 
-   Semicolon-separated list of functions to check. The function is checked if
-   the name and scope matches, with any arguments.
+   Semicolon-separated list of functions to check.
+   This parameter supports regexp. The function is checked if the name
+   and scope matches, with any arguments.
    By default the following functions are checked:
    ``std::async, std::launder, std::remove, std::remove_if, std::unique,
    std::unique_ptr::release, std::basic_string::empty, std::vector::empty,
@@ -46,5 +47,15 @@ Options
      return value often indicates that the programmer confused the function with
      ``clear()``.
 
-`cert-err33-c <../cert/err33-c.html>`_ is an alias of this check that checks a
+.. option:: CheckedReturnTypes
+
+   Semicolon-separated list of function return types to check.
+   By default the following function return types are checked:
+   `::std::error_code`, `::std::error_condition`, `::std::errc`, `::std::expected`, `::boost::system::error_code`
+
+.. option:: AllowCastToVoid
+
+   Controls whether casting return values to ``void`` is permitted. Default: `false`.
+
+:doc:`cert-err33-c <../cert/err33-c>` is an alias of this check that checks a
 fixed and large set of standard library functions.

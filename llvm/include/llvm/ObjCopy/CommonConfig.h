@@ -27,12 +27,7 @@
 namespace llvm {
 namespace objcopy {
 
-enum class FileFormat {
-  Unspecified,
-  ELF,
-  Binary,
-  IHex,
-};
+enum class FileFormat { Unspecified, ELF, Binary, IHex, SREC };
 
 // This type keeps track of the machine info for various architectures. This
 // lets us map architecture names to ELF types and the e_machine value of the
@@ -69,7 +64,8 @@ enum SectionFlag {
   SecContents = 1 << 10,
   SecShare = 1 << 11,
   SecExclude = 1 << 12,
-  LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/SecExclude)
+  SecLarge = 1 << 13,
+  LLVM_MARK_AS_BITMASK_ENUM(/*LargestValue=*/SecLarge)
 };
 
 struct SectionRename {
@@ -213,8 +209,11 @@ struct CommonConfig {
   // Cached gnu_debuglink's target CRC
   uint32_t GnuDebugLinkCRC32;
   std::optional<StringRef> ExtractPartition;
+  uint8_t GapFill = 0;
+  uint64_t PadTo = 0;
   StringRef SplitDWO;
   StringRef SymbolsPrefix;
+  StringRef SymbolsPrefixRemove;
   StringRef AllocSectionsPrefix;
   DiscardType DiscardMode = DiscardType::None;
 

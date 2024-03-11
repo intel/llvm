@@ -222,18 +222,6 @@ void CoreEngine::dispatchWorkItem(ExplodedNode* Pred, ProgramPoint Loc,
   }
 }
 
-bool CoreEngine::ExecuteWorkListWithInitialState(const LocationContext *L,
-                                                 unsigned Steps,
-                                                 ProgramStateRef InitState,
-                                                 ExplodedNodeSet &Dst) {
-  bool DidNotFinish = ExecuteWorkList(L, Steps, InitState);
-  for (ExplodedGraph::eop_iterator I = G.eop_begin(), E = G.eop_end(); I != E;
-       ++I) {
-    Dst.Add(*I);
-  }
-  return DidNotFinish;
-}
-
 void CoreEngine::HandleBlockEdge(const BlockEdge &L, ExplodedNode *Pred) {
   const CFGBlock *Blk = L.getDst();
   NodeBuilderContext BuilderCtx(*this, Blk, Pred);
@@ -503,8 +491,8 @@ void CoreEngine::HandleVirtualBaseBranch(const CFGBlock *B,
   if (const auto *CallerCtor = dyn_cast_or_null<CXXConstructExpr>(
           LCtx->getStackFrame()->getCallSite())) {
     switch (CallerCtor->getConstructionKind()) {
-    case CXXConstructExpr::CK_NonVirtualBase:
-    case CXXConstructExpr::CK_VirtualBase: {
+    case CXXConstructionKind::NonVirtualBase:
+    case CXXConstructionKind::VirtualBase: {
       BlockEdge Loc(B, *B->succ_begin(), LCtx);
       HandleBlockEdge(Loc, Pred);
       return;

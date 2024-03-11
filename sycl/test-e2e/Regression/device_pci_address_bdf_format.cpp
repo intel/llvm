@@ -1,5 +1,6 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: gpu
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 //==- device_pci_address_bdf_format.cpp - SYCL PCI address BDF format test -==//
 //
@@ -25,10 +26,6 @@ using namespace sycl;
 #endif
 
 int main(int argc, char **argv) {
-  // Must be enabled at the beginning of the application
-  // to obtain the PCI address
-  setenv("SYCL_ENABLE_PCI", "1", 0);
-
   // Expected format is "{domain}:{bus}:{device}.{function} where:
   // * {domain} is a 4 character hexadecimal value.
   // * {bus} is a 2 character hexadecimal value.

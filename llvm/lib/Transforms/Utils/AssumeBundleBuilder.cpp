@@ -19,7 +19,6 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
-#include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/DebugCounter.h"
 #include "llvm/Transforms/Utils/Local.h"
@@ -574,45 +573,6 @@ PreservedAnalyses AssumeSimplifyPass::run(Function &F,
   return PA;
 }
 
-namespace {
-class AssumeSimplifyPassLegacyPass : public FunctionPass {
-public:
-  static char ID;
-
-  AssumeSimplifyPassLegacyPass() : FunctionPass(ID) {
-    initializeAssumeSimplifyPassLegacyPassPass(
-        *PassRegistry::getPassRegistry());
-  }
-  bool runOnFunction(Function &F) override {
-    if (skipFunction(F) || !EnableKnowledgeRetention)
-      return false;
-    AssumptionCache &AC =
-        getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F);
-    DominatorTreeWrapperPass *DTWP =
-        getAnalysisIfAvailable<DominatorTreeWrapperPass>();
-    return simplifyAssumes(F, &AC, DTWP ? &DTWP->getDomTree() : nullptr);
-  }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<AssumptionCacheTracker>();
-
-    AU.setPreservesAll();
-  }
-};
-} // namespace
-
-char AssumeSimplifyPassLegacyPass::ID = 0;
-
-INITIALIZE_PASS_BEGIN(AssumeSimplifyPassLegacyPass, "assume-simplify",
-                      "Assume Simplify", false, false)
-INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
-INITIALIZE_PASS_END(AssumeSimplifyPassLegacyPass, "assume-simplify",
-                    "Assume Simplify", false, false)
-
-FunctionPass *llvm::createAssumeSimplifyPass() {
-  return new AssumeSimplifyPassLegacyPass();
-}
-
 PreservedAnalyses AssumeBuilderPass::run(Function &F,
                                          FunctionAnalysisManager &AM) {
   AssumptionCache *AC = &AM.getResult<AssumptionAnalysis>(F);
@@ -626,37 +586,3 @@ PreservedAnalyses AssumeBuilderPass::run(Function &F,
   PA.preserveSet<CFGAnalyses>();
   return PA;
 }
-
-namespace {
-class AssumeBuilderPassLegacyPass : public FunctionPass {
-public:
-  static char ID;
-
-  AssumeBuilderPassLegacyPass() : FunctionPass(ID) {
-    initializeAssumeBuilderPassLegacyPassPass(*PassRegistry::getPassRegistry());
-  }
-  bool runOnFunction(Function &F) override {
-    AssumptionCache &AC =
-        getAnalysis<AssumptionCacheTracker>().getAssumptionCache(F);
-    DominatorTreeWrapperPass *DTWP =
-        getAnalysisIfAvailable<DominatorTreeWrapperPass>();
-    for (Instruction &I : instructions(F))
-      salvageKnowledge(&I, &AC, DTWP ? &DTWP->getDomTree() : nullptr);
-    return true;
-  }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<AssumptionCacheTracker>();
-
-    AU.setPreservesAll();
-  }
-};
-} // namespace
-
-char AssumeBuilderPassLegacyPass::ID = 0;
-
-INITIALIZE_PASS_BEGIN(AssumeBuilderPassLegacyPass, "assume-builder",
-                      "Assume Builder", false, false)
-INITIALIZE_PASS_DEPENDENCY(AssumptionCacheTracker)
-INITIALIZE_PASS_END(AssumeBuilderPassLegacyPass, "assume-builder",
-                    "Assume Builder", false, false)

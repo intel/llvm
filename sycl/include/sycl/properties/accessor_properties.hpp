@@ -8,14 +8,19 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/ext/oneapi/accessor_property_list.hpp>
-#include <sycl/properties/property_traits.hpp>
-#include <type_traits>
+#include <sycl/access/access.hpp>                     // for mode, target
+#include <sycl/detail/common.hpp>                     // for __SYCL_EBO
+#include <sycl/detail/defines.hpp>                    // for __SYCL_TYPE
+#include <sycl/detail/defines_elementary.hpp>         // for __SYCL2020_DEP...
+#include <sycl/detail/property_helper.hpp>            // for DataLessPropKind
+#include <sycl/ext/oneapi/accessor_property_list.hpp> // for IsCompileTimeP...
+#include <sycl/image.hpp>                             // for image_accessor
+#include <sycl/properties/property_traits.hpp>        // for is_property_of
+
+#include <type_traits> // for true_type, fal...
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace property {
 
 class no_init : public detail::DataLessProperty<detail::NoInit> {};
@@ -96,6 +101,20 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
 class accessor;
 template <typename DataT, int Dimensions, access::mode AccessMode>
 class host_accessor;
+template <typename DataT, int Dimensions>
+class __SYCL_EBO
+    __SYCL_SPECIAL_CLASS __SYCL_TYPE(local_accessor) local_accessor;
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder>
+class image_accessor;
+template <typename DataT, int Dimensions, access_mode AccessMode,
+          image_target AccessTarget>
+class unsampled_image_accessor;
+template <typename DataT, int Dimensions, image_target AccessTarget>
+class sampled_image_accessor;
+template <typename DataT, int Dimensions, access_mode AccessMode>
+class host_unsampled_image_accessor;
+template <typename DataT, int Dimensions> class host_sampled_image_accessor;
 
 namespace detail::acc_properties {
 template <typename T> struct is_accessor : std::false_type {};
@@ -104,11 +123,62 @@ template <typename DataT, int Dimensions, access::mode AccessMode,
           typename PropertyListT>
 struct is_accessor<accessor<DataT, Dimensions, AccessMode, AccessTarget,
                             IsPlaceholder, PropertyListT>> : std::true_type {};
+template <typename T>
+inline constexpr bool is_accessor_v = is_accessor<T>::value;
+
+template <typename T> struct is_sycl2020_image_accessor : std::false_type {};
+template <typename DataT, int Dimensions, access_mode AccessMode,
+          image_target AccessTarget>
+struct is_sycl2020_image_accessor<
+    unsampled_image_accessor<DataT, Dimensions, AccessMode, AccessTarget>>
+    : std::true_type {};
+template <typename DataT, int Dimensions, image_target AccessTarget>
+struct is_sycl2020_image_accessor<
+    sampled_image_accessor<DataT, Dimensions, AccessTarget>> : std::true_type {
+};
+template <typename T>
+inline constexpr bool is_sycl2020_image_accessor_v =
+    is_sycl2020_image_accessor<T>::value;
+
+template <typename T>
+struct is_sycl2020_image_host_accessor : std::false_type {};
+template <typename DataT, int Dimensions, access_mode AccessMode>
+struct is_sycl2020_image_host_accessor<
+    host_unsampled_image_accessor<DataT, Dimensions, AccessMode>>
+    : std::true_type {};
+template <typename DataT, int Dimensions>
+struct is_sycl2020_image_host_accessor<
+    host_sampled_image_accessor<DataT, Dimensions>> : std::true_type {};
+template <typename T>
+inline constexpr bool is_sycl2020_image_host_accessor_v =
+    is_sycl2020_image_host_accessor<T>::value;
 
 template <typename T> struct is_host_accessor : std::false_type {};
 template <typename DataT, int Dimensions, access::mode AccessMode>
 struct is_host_accessor<host_accessor<DataT, Dimensions, AccessMode>>
     : std::true_type {};
+template <typename T>
+inline constexpr bool is_host_accessor_v = is_host_accessor<T>::value;
+
+template <typename T> struct is_local_accessor : std::false_type {};
+template <typename T, int Dimensions>
+struct is_local_accessor<local_accessor<T, Dimensions>> : std::true_type {};
+template <typename T>
+inline constexpr bool is_local_accessor_v = is_local_accessor<T>::value;
+
+template <typename T> struct is_image_accessor : std::false_type {};
+template <typename T, int Dimensions, access::mode AccessMode,
+          access::placeholder IsPlaceholder, typename PropertyListT>
+struct is_image_accessor<
+    accessor<T, Dimensions, AccessMode, access::target::image, IsPlaceholder,
+             PropertyListT>> : std::true_type {};
+template <typename T, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder>
+struct is_image_accessor<
+    image_accessor<T, Dimensions, AccessMode, AccessTarget, IsPlaceholder>>
+    : std::true_type {};
+template <typename T>
+inline constexpr bool is_image_accessor_v = is_image_accessor<T>::value;
 } // namespace detail::acc_properties
 
 // Accessor property trait specializations
@@ -126,8 +196,11 @@ struct is_property_of<property::noinit, T>
 
 template <typename T>
 struct is_property_of<property::no_init, T>
-    : std::bool_constant<detail::acc_properties::is_accessor<T>::value ||
-                         detail::acc_properties::is_host_accessor<T>::value> {};
+    : std::bool_constant<
+          detail::acc_properties::is_accessor_v<T> ||
+          detail::acc_properties::is_host_accessor_v<T> ||
+          detail::acc_properties::is_sycl2020_image_accessor_v<T> ||
+          detail::acc_properties::is_sycl2020_image_host_accessor_v<T>> {};
 
 template <typename T>
 struct is_property_of<ext::oneapi::property::no_offset, T>
@@ -152,5 +225,5 @@ template <>
 struct IsCompileTimePropertyInstance<
     ext::oneapi::property::no_offset::instance<>> : std::true_type {};
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -50,8 +50,8 @@ template <typename Op>
 struct ScalarOpToLibmCall : public OpRewritePattern<Op> {
 public:
   using OpRewritePattern<Op>::OpRewritePattern;
-  ScalarOpToLibmCall<Op>(MLIRContext *context, StringRef floatFunc,
-                         StringRef doubleFunc)
+  ScalarOpToLibmCall(MLIRContext *context, StringRef floatFunc,
+                     StringRef doubleFunc)
       : OpRewritePattern<Op>(context), floatFunc(floatFunc),
         doubleFunc(doubleFunc){};
 
@@ -75,7 +75,7 @@ LogicalResult
 VecOpToScalarOp<Op>::matchAndRewrite(Op op, PatternRewriter &rewriter) const {
   auto opType = op.getType();
   auto loc = op.getLoc();
-  auto vecType = opType.template dyn_cast<VectorType>();
+  auto vecType = dyn_cast<VectorType>(opType);
 
   if (!vecType)
     return failure();
@@ -107,7 +107,7 @@ template <typename Op>
 LogicalResult
 PromoteOpToF32<Op>::matchAndRewrite(Op op, PatternRewriter &rewriter) const {
   auto opType = op.getType();
-  if (!opType.template isa<Float16Type, BFloat16Type>())
+  if (!isa<Float16Type, BFloat16Type>(opType))
     return failure();
 
   auto loc = op.getLoc();
@@ -127,7 +127,7 @@ ScalarOpToLibmCall<Op>::matchAndRewrite(Op op,
                                         PatternRewriter &rewriter) const {
   auto module = SymbolTable::getNearestSymbolTable(op);
   auto type = op.getType();
-  if (!type.template isa<Float32Type, Float64Type>())
+  if (!isa<Float32Type, Float64Type>(type))
     return failure();
 
   auto name = type.getIntOrFloatBitWidth() == 64 ? doubleFunc : floatFunc;
@@ -162,11 +162,17 @@ ScalarOpToLibmCall<Op>::matchAndRewrite(Op op,
 void mlir::populateMathToLibmConversionPatterns(RewritePatternSet &patterns) {
   MLIRContext *ctx = patterns.getContext();
 
+  populatePatternsForOp<math::AcosOp>(patterns, ctx, "acosf", "acos");
+  populatePatternsForOp<math::AcoshOp>(patterns, ctx, "acoshf", "acosh");
+  populatePatternsForOp<math::AsinOp>(patterns, ctx, "asinf", "asin");
+  populatePatternsForOp<math::AsinhOp>(patterns, ctx, "asinhf", "asinh");
   populatePatternsForOp<math::Atan2Op>(patterns, ctx, "atan2f", "atan2");
   populatePatternsForOp<math::AtanOp>(patterns, ctx, "atanf", "atan");
+  populatePatternsForOp<math::AtanhOp>(patterns, ctx, "atanhf", "atanh");
   populatePatternsForOp<math::CbrtOp>(patterns, ctx, "cbrtf", "cbrt");
   populatePatternsForOp<math::CeilOp>(patterns, ctx, "ceilf", "ceil");
   populatePatternsForOp<math::CosOp>(patterns, ctx, "cosf", "cos");
+  populatePatternsForOp<math::CoshOp>(patterns, ctx, "coshf", "cosh");
   populatePatternsForOp<math::ErfOp>(patterns, ctx, "erff", "erf");
   populatePatternsForOp<math::ExpM1Op>(patterns, ctx, "expm1f", "expm1");
   populatePatternsForOp<math::FloorOp>(patterns, ctx, "floorf", "floor");
@@ -175,6 +181,7 @@ void mlir::populateMathToLibmConversionPatterns(RewritePatternSet &patterns) {
                                            "roundeven");
   populatePatternsForOp<math::RoundOp>(patterns, ctx, "roundf", "round");
   populatePatternsForOp<math::SinOp>(patterns, ctx, "sinf", "sin");
+  populatePatternsForOp<math::SinhOp>(patterns, ctx, "sinhf", "sinh");
   populatePatternsForOp<math::TanOp>(patterns, ctx, "tanf", "tan");
   populatePatternsForOp<math::TanhOp>(patterns, ctx, "tanhf", "tanh");
   populatePatternsForOp<math::TruncOp>(patterns, ctx, "truncf", "trunc");

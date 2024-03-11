@@ -1,9 +1,7 @@
 // This test checks kernel execution with array kernel parameters.
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include <iostream>
 #include <sycl/sycl.hpp>
@@ -75,7 +73,7 @@ bool test_one_array(queue &myQueue) {
       output_accessor[index] = input1[0][index] + input2[2][1][index] + 1;
     });
   });
-  const auto HostAccessor = out_buffer.get_access<sycl::access::mode::read>();
+  const auto HostAccessor = out_buffer.get_host_access();
 
   return verify_1D<int *>("One array", c_num_items, output, ref);
 }
@@ -98,7 +96,7 @@ bool test_two_arrays(queue &myQueue) {
       output_accessor[index] = input1[index] + input2[index];
     });
   });
-  const auto HostAccessor = out_buffer.get_access<sycl::access::mode::read>();
+  const auto HostAccessor = out_buffer.get_host_access();
 
   return verify_1D<int *>("Two arrays", c_num_items, output, ref);
 }
@@ -131,7 +129,7 @@ bool test_accessor_arrays_1(queue &myQueue) {
           a[0][index] = a[1][index] + input3[index] + input4[index] + 2;
         });
   });
-  const auto HostAccessor = in_buffer1.get_access<sycl::access::mode::read>();
+  const auto HostAccessor = in_buffer1.get_host_access();
 
   return verify_1D<std::array<int, c_num_items>>("Accessor arrays 1",
                                                  c_num_items, input1, ref);
@@ -164,7 +162,7 @@ bool test_accessor_arrays_2(queue &myQueue) {
           output_accessor[index] = a[0][index] + a[3][index];
         });
   });
-  const auto HostAccessor = out_buffer.get_access<sycl::access::mode::read>();
+  const auto HostAccessor = out_buffer.get_host_access();
 
   return verify_1D<std::array<int, c_num_items>>("Accessor arrays 2",
                                                  c_num_items, output, ref);

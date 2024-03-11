@@ -20,7 +20,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+Copyright (C) 2022-2023 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -65,7 +65,7 @@ new partitioning type
 `info::partition_property::ext_intel_partition_by_cslice`.
 
 The only Intel GPU devices that currently support this type of partitioning
-are the Data Center GPU Max series (aka PVC), and this support is only
+are the Intel(R) Data Center GPU Max Series (aka PVC), and this support is only
 available when the device driver is configured in {multi-CCS}[multi-CCS] mode.
 See that documentation for instructions on how to enable this mode and for
 other important information.  Currently, it is only possible to partition a
@@ -83,20 +83,20 @@ be further partitioned by `ext_intel_partition_by_cslice`.
 
 It is important to understand that the device driver virtualizes work
 submission to the cslice sub-devices.  (More specifically, the device driver
-virtualizes work submission to different CCS-es, and this means that on Data
-Center GPU Max series devices the work submission to a cslice is virtualized.)
-This virtualization happens only between processes, and not within a single
-process.  For example, consider a single process that constructs two SYCL
-queues on cslice sub-device #0.  Kernels submitted to these two queues are
-guaranteed to conflict, both using the same set of execution units.  Therefore,
-if a single process wants to explicitly submit kernels to cslice sub-devices
-and it wants to avoid conflict, it should create queues on different
-sub-devices.  By contrast, consider an example where two separate processes
-create a SYCL queue on cslice sub-device #0.  In this case, the device driver
-virtualizes access to this cslice, and kernels submitted from the first process
-may run on different execution units than kernels submitted from the second
-process.  In this second case, the device driver binds the process's requested
-cslice to a physical cslice according to the overall system load.
+virtualizes work submission to different CCS-es, and this means that on
+Intel(R) Data Center GPU Max Series devices the work submission to a cslice is
+virtualized.)  This virtualization happens only between processes, and not
+within a single process.  For example, consider a single process that
+constructs two SYCL queues on cslice sub-device #0.  Kernels submitted to these
+two queues are guaranteed to conflict, both using the same set of execution
+units.  Therefore, if a single process wants to explicitly submit kernels to
+cslice sub-devices and it wants to avoid conflict, it should create queues on
+different sub-devices.  By contrast, consider an example where two separate
+processes create a SYCL queue on cslice sub-device #0.  In this case, the
+device driver virtualizes access to this cslice, and kernels submitted from the
+first process may run on different execution units than kernels submitted from
+the second process.  In this second case, the device driver binds the process's
+requested cslice to a physical cslice according to the overall system load.
 
 Note that this extension can be supported by any implementation.  If an
 implementation supports a backend or device without the concept of cslice

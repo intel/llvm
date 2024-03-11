@@ -1,0 +1,65 @@
+//===--- llvm/IR/FPAccuracy.def - Mappings for fp accuracy  -----*- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// Defines properties of floating point builtin intrinsics.
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef FP_ACCURACY
+#define FP_ACCURACY(IID,SF,SD,CF,CD)
+#endif
+
+// Each entry below maps an fpbuiltin intrinsic ID to the required accuracy
+// for that operation for single- and double-precision for SYCL and CUDA
+//
+// All accuracies are returned as single-precision floating-point values.
+//
+// Note: for single-precision fdiv and sqrt, the value returned here assumes
+// that options to require correctly rounded results
+// (-cl-fp32-correctly-rounded-divide-sqrt for SYCL, -prec-div=true or
+// -prec-sqrt=true for CUDA) are not used. If such option are used, these
+// operations require special handling elsewhere.
+//
+// FP_ACCURACY(<IID>, <SYCL_FLOAT>, <SYCL_DOUBLE>, <CUDA_FLOAT>, <CUDA_DOUBLE>)
+//
+FP_ACCURACY(fpbuiltin_fadd,   "0.5",  "0.5",  "0.5",  "0.5")
+FP_ACCURACY(fpbuiltin_fsub,   "0.5",  "0.5",  "0.5",  "0.5")
+FP_ACCURACY(fpbuiltin_fmul,   "0.5",  "0.5",  "0.5",  "0.5")
+FP_ACCURACY(fpbuiltin_fdiv,   "2.5",  "0.5",  "2.0",  "0.5")
+FP_ACCURACY(fpbuiltin_frem,   "0.5",  "0.5",  "0.5",  "0.5")
+FP_ACCURACY(fpbuiltin_sin,    "4.0",  "4.0",  "2.0",  "2.0")
+FP_ACCURACY(fpbuiltin_cos,    "4.0",  "4.0",  "2.0",  "2.0")
+FP_ACCURACY(fpbuiltin_tan,    "5.0",  "5.0",  "4.0",  "2.0")
+FP_ACCURACY(fpbuiltin_sinh,   "4.0",  "4.0",  "3.0",  "2.0")
+FP_ACCURACY(fpbuiltin_cosh,   "4.0",  "4.0",  "3.0",  "2.0")
+FP_ACCURACY(fpbuiltin_tanh,   "5.0",  "5.0",  "2.0",  "2.0")
+FP_ACCURACY(fpbuiltin_asin,   "4.0",  "4.0",  "4.0",  "2.0")
+FP_ACCURACY(fpbuiltin_acos,   "4.0",  "4.0",  "3.0",  "2.0")
+FP_ACCURACY(fpbuiltin_atan,   "5.0",  "5.0",  "2.0",  "2.0")
+FP_ACCURACY(fpbuiltin_atan2,  "6.0",  "6.0",  "3.0",  "2.0")
+FP_ACCURACY(fpbuiltin_asinh,  "4.0",  "4.0",  "3.0",  "2.0")
+FP_ACCURACY(fpbuiltin_acosh,  "4.0",  "4.0",  "4.0",  "2.0")
+FP_ACCURACY(fpbuiltin_atanh,  "5.0",  "5.0",  "3.0",  "2.0")
+FP_ACCURACY(fpbuiltin_exp,    "3.0",  "3.0",  "2.0",  "1.0")
+FP_ACCURACY(fpbuiltin_exp2,   "3.0",  "3.0",  "2.0",  "1.0")
+FP_ACCURACY(fpbuiltin_exp10,  "3.0",  "3.0",  "2.0",  "1.0")
+FP_ACCURACY(fpbuiltin_expm1,  "3.0",  "3.0",  "1.0",  "1.0")
+FP_ACCURACY(fpbuiltin_log,    "3.0",  "3.0",  "1.0",  "1.0")
+FP_ACCURACY(fpbuiltin_log2,   "3.0",  "3.0",  "1.0",  "1.0")
+FP_ACCURACY(fpbuiltin_log10,  "3.0",  "3.0",  "2.0",  "1.0")
+FP_ACCURACY(fpbuiltin_log1p,  "2.0",  "2.0",  "1.0",  "1.0")
+FP_ACCURACY(fpbuiltin_hypot,  "4.0",  "4.0",  "3.0",  "2.0")
+FP_ACCURACY(fpbuiltin_pow,   "16.0", "16.0",  "8.0",  "2.0")
+FP_ACCURACY(fpbuiltin_ldexp,  "0.5",  "0.5",  "0.5",  "0.5")
+FP_ACCURACY(fpbuiltin_sqrt,   "2.5",  "0.5",  "2.0",  "0.5")
+FP_ACCURACY(fpbuiltin_rsqrt,  "2.0",  "2.0",  "2.0",  "1.0")
+FP_ACCURACY(fpbuiltin_erf,   "16.0", "16.0",  "2.0",  "2.0")
+FP_ACCURACY(fpbuiltin_erfc,  "16.0", "16.0",  "4.0",  "5.0")
+FP_ACCURACY(fpbuiltin_sincos, "4.0",  "4.0",  "2.0",  "2.0")
+
+#undef FP_ACCURACY

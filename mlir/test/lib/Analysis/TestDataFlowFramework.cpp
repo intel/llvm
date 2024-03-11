@@ -100,7 +100,7 @@ LogicalResult FooAnalysis::initialize(Operation *top) {
     return top->emitError("expected at least one block in the region");
 
   // Initialize the top-level state.
-  getOrCreate<FooState>(&top->getRegion(0).front())->join(0);
+  (void)getOrCreate<FooState>(&top->getRegion(0).front())->join(0);
 
   // Visit all nested blocks and operations.
   for (Block &block : top->getRegion(0)) {
@@ -115,11 +115,11 @@ LogicalResult FooAnalysis::initialize(Operation *top) {
 }
 
 LogicalResult FooAnalysis::visit(ProgramPoint point) {
-  if (auto *op = point.dyn_cast<Operation *>()) {
+  if (auto *op = llvm::dyn_cast_if_present<Operation *>(point)) {
     visitOperation(op);
     return success();
   }
-  if (auto *block = point.dyn_cast<Block *>()) {
+  if (auto *block = llvm::dyn_cast_if_present<Block *>(point)) {
     visitBlock(block);
     return success();
   }

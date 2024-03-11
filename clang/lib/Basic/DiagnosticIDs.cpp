@@ -100,7 +100,7 @@ const uint32_t StaticDiagInfoDescriptionOffsets[] = {
 };
 
 // Diagnostic classes.
-enum {
+enum DiagnosticClass {
   CLASS_NOTE       = 0x01,
   CLASS_REMARK     = 0x02,
   CLASS_WARNING    = 0x03,
@@ -110,15 +110,22 @@ enum {
 
 struct StaticDiagInfoRec {
   uint16_t DiagID;
+  LLVM_PREFERRED_TYPE(diag::Severity)
   uint8_t DefaultSeverity : 3;
+  LLVM_PREFERRED_TYPE(DiagnosticClass)
   uint8_t Class : 3;
+  LLVM_PREFERRED_TYPE(DiagnosticIDs::SFINAEResponse)
   uint8_t SFINAE : 2;
   uint8_t Category : 6;
+  LLVM_PREFERRED_TYPE(bool)
   uint8_t WarnNoWerror : 1;
+  LLVM_PREFERRED_TYPE(bool)
   uint8_t WarnShowInSystemHeader : 1;
+  LLVM_PREFERRED_TYPE(bool)
   uint8_t WarnShowInSystemMacro : 1;
 
   uint16_t OptionGroupIndex : 15;
+  LLVM_PREFERRED_TYPE(bool)
   uint16_t Deferrable : 1;
 
   uint16_t DescriptionLen;
@@ -256,7 +263,7 @@ CATEGORY(REFACTORING, ANALYSIS)
   return Found;
 }
 
-static DiagnosticMapping GetDefaultDiagMapping(unsigned DiagID) {
+DiagnosticMapping DiagnosticIDs::getDefaultMapping(unsigned DiagID) {
   DiagnosticMapping Info = DiagnosticMapping::Make(
       diag::Severity::Fatal, /*IsUser=*/false, /*IsPragma=*/false);
 
@@ -291,21 +298,6 @@ namespace {
       return StringRef(NameStr, NameLen);
     }
   };
-}
-
-// Unfortunately, the split between DiagnosticIDs and Diagnostic is not
-// particularly clean, but for now we just implement this method here so we can
-// access GetDefaultDiagMapping.
-DiagnosticMapping &
-DiagnosticsEngine::DiagState::getOrAddMapping(diag::kind Diag) {
-  std::pair<iterator, bool> Result =
-      DiagMap.insert(std::make_pair(Diag, DiagnosticMapping()));
-
-  // Initialize the entry if we added it.
-  if (Result.second)
-    Result.first->second = GetDefaultDiagMapping(Diag);
-
-  return Result.first->second;
 }
 
 static const StaticDiagCategoryRec CategoryNameTable[] = {
@@ -449,7 +441,7 @@ bool DiagnosticIDs::isBuiltinExtensionDiag(unsigned DiagID,
     return false;
 
   EnabledByDefault =
-      GetDefaultDiagMapping(DiagID).getSeverity() != diag::Severity::Ignored;
+      getDefaultMapping(DiagID).getSeverity() != diag::Severity::Ignored;
   return true;
 }
 
@@ -457,7 +449,7 @@ bool DiagnosticIDs::isDefaultMappingAsError(unsigned DiagID) {
   if (DiagID >= diag::DIAG_UPPER_LIMIT)
     return false;
 
-  return GetDefaultDiagMapping(DiagID).getSeverity() >= diag::Severity::Error;
+  return getDefaultMapping(DiagID).getSeverity() >= diag::Severity::Error;
 }
 
 /// getDescription - Given a diagnostic ID, return a description of the
@@ -868,5 +860,5 @@ bool DiagnosticIDs::isUnrecoverable(unsigned DiagID) const {
 
 bool DiagnosticIDs::isARCDiagnostic(unsigned DiagID) {
   unsigned cat = getCategoryNumberForDiag(DiagID);
-  return DiagnosticIDs::getCategoryNameFromID(cat).startswith("ARC ");
+  return DiagnosticIDs::getCategoryNameFromID(cat).starts_with("ARC ");
 }

@@ -1,0 +1,112 @@
+= sycl_ext_intel_legacy_image
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 7 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This extension is implemented and fully supported by {dpcpp}.
+
+
+== Overview
+
+SYCL 2020 removed the SYCL 1.2.1 `image` class as well as the associated image
+accessors and `sampler` class. However, the device info query for
+`sycl::info::device::image_support` stayed in SYCL 2020 as deprecated. As the
+specification states that this query returns the same value as
+`device::has(aspect::image)`, the user can no longer query support for the SYCL
+1.2.1 images in implementations that support these.
+
+This extension adds the new aspect `sycl::aspect::ext_intel_legacy_image`
+intended for querying if a device supports SYCL 1.2.1 images.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_INTEL_LEGACY_IMAGE` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+
+=== The `ext_intel_legacy_image` aspect
+
+This extension adds the following new value to the SYCL `aspect` enum:
+
+```
+namespace sycl {
+
+enum class aspect {
+  ...
+  ext_intel_legacy_image
+};
+
+} // namespace sycl
+```
+
+The new aspect has the following behaviour when queried via `device::has()`:
+
+[%header,cols="1,5"]
+|===
+|Aspect
+|Description
+
+|`aspect::ext_intel_legacy_image`
+|Indicates that the device supports SYCL 1.2.1 image accessor, as defined in
+ section 4.7.6.11 to 4.7.6.13 of the SYCL 1.2.1 Specification Rev. 7, and
+ samplers, as defined in section 4.7.8 and 4.7.9 of the SYCL 1.2.1 Specification
+ Rev. 7.
+|===
+

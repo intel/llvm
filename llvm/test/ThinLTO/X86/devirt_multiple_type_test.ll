@@ -4,7 +4,7 @@
 ; after inlining into a caller passing a derived type.
 
 ; RUN: opt -module-summary %s -o %t.o
-; RUN: llvm-lto2 run -opaque-pointers -o %t.out %t.o \
+; RUN: llvm-lto2 run -o %t.out %t.o \
 ; RUN:	 -pass-remarks=wholeprogramdevirt \
 ; RUN:	 -r %t.o,_ZN1A3fooEv,px \
 ; RUN:	 -r %t.o,_ZN1B3fooEv,px \

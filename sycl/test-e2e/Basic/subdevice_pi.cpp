@@ -1,10 +1,11 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out separate equally %CPU_CHECK_PLACEHOLDER --check-prefix CHECK-SEPARATE
-// RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out shared equally %CPU_CHECK_PLACEHOLDER --check-prefix CHECK-SHARED --implicit-check-not piContextCreate --implicit-check-not piMemBufferCreate
-// RUN: env SYCL_PI_TRACE=2 %CPU_RUN_PLACEHOLDER %t.out fused  equally %CPU_CHECK_PLACEHOLDER --check-prefix CHECK-FUSED --implicit-check-not piContextCreate --implicit-check-not piMemBufferCreate
-//
 // Intel OpenCL CPU Runtime supports device partition on all (multi-core)
 // platforms. Other devices may not support this.
+// REQUIRES: cpu
+//
+// RUN: %{build} -o %t.out
+// RUN: env SYCL_PI_TRACE=2 %{run} %t.out separate equally | FileCheck %s --check-prefix CHECK-SEPARATE
+// RUN: env SYCL_PI_TRACE=2 %{run} %t.out shared equally | FileCheck %s --check-prefix CHECK-SHARED --implicit-check-not piContextCreate --implicit-check-not piMemBufferCreate
+// RUN: env SYCL_PI_TRACE=2 %{run} %t.out fused  equally | FileCheck %s --check-prefix CHECK-FUSED --implicit-check-not piContextCreate --implicit-check-not piMemBufferCreate
 
 #include <iostream>
 #include <string>
@@ -19,7 +20,7 @@ static void log_pi(const char *msg) { std::cout << msg << std::endl; }
 static void use_mem(buffer<int, 1> buf, queue q) {
   q.submit([&](handler &cgh) {
     auto acc = buf.get_access<access::mode::read_write>(cgh);
-    cgh.parallel_for<class sum1>(range<1>(buf.get_count()),
+    cgh.parallel_for<class sum1>(range<1>(buf.size()),
                                  [=](item<1> itemID) { acc[itemID] += 1; });
   });
   q.wait();

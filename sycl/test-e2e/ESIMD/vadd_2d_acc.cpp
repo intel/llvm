@@ -5,12 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-
-// UNSUPPORTED: cuda || hip
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // The test checks that 2D workitem addressing works correctly with SIMD
 // kernels.

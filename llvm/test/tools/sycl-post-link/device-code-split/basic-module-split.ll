@@ -37,7 +37,7 @@ entry:
   %a = alloca i32, align 4
   %call = call spir_func i32 @_Z3barIiET_S0_(i32 1)
   %add = add nsw i32 2, %call
-  store i32 %add, i32* %a, align 4
+  store i32 %add, ptr %a, align 4
   ret void
 }
 
@@ -48,8 +48,8 @@ entry:
 define linkonce_odr dso_local spir_func i32 @_Z3barIiET_S0_(i32 %arg) comdat {
 entry:
   %arg.addr = alloca i32, align 4
-  store i32 %arg, i32* %arg.addr, align 4
-  %0 = load i32, i32* %arg.addr, align 4
+  store i32 %arg, ptr %arg.addr, align 4
+  %0 = load i32, ptr %arg.addr, align 4
   ret i32 %0
 }
 
@@ -73,7 +73,7 @@ entry:
 define dso_local spir_func void @_Z4foo1v() {
 entry:
   %a = alloca i32, align 4
-  store i32 2, i32* %a, align 4
+  store i32 2, ptr %a, align 4
   ret void
 }
 
@@ -97,10 +97,10 @@ entry:
 define dso_local spir_func void @_Z4foo2v() {
 entry:
   %a = alloca i32, align 4
-; CHECK-TU0: %0 = load i32, i32 addrspace(4)* getelementptr inbounds ([1 x i32], [1 x i32] addrspace(4)* addrspacecast ([1 x i32] addrspace(1)* @{{.*}}GV{{.*}} to [1 x i32] addrspace(4)*), i64 0, i64 0), align 4
-  %0 = load i32, i32 addrspace(4)* getelementptr inbounds ([1 x i32], [1 x i32] addrspace(4)* addrspacecast ([1 x i32] addrspace(1)* @_ZL2GV to [1 x i32] addrspace(4)*), i64 0, i64 0), align 4
+; CHECK-TU0: %0 = load i32, ptr addrspace(4) addrspacecast (ptr addrspace(1) @{{.*}}GV{{.*}} to ptr addrspace(4)), align 4
+  %0 = load i32, ptr addrspace(4) getelementptr inbounds ([1 x i32], ptr addrspace(4) addrspacecast (ptr addrspace(1) @_ZL2GV to ptr addrspace(4)), i64 0, i64 0), align 4
   %add = add nsw i32 4, %0
-  store i32 %add, i32* %a, align 4
+  store i32 %add, ptr %a, align 4
   ret void
 }
 

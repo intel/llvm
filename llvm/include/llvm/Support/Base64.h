@@ -82,8 +82,8 @@ public:
   // Allocate minimum required amount of memory and decode a sequence of given
   // size into it.
   // Returns the decoded result. The size can be obtained via getDecodedSize.
-  static Expected<std::unique_ptr<byte>> decode(const char *Src,
-                                                size_t SrcSize);
+  static Expected<std::unique_ptr<byte[]>> decode(const char *Src,
+                                                  size_t SrcSize);
 };
 
 } // end namespace llvm

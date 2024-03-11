@@ -1,6 +1,6 @@
 // REQUIRES: level_zero, level_zero_dev_kit
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out %level_zero_options
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out %level_zero_options
+// RUN: %{run} %t.out
 
 // Test for Level Zero interop API where SYCL RT doesn't take ownership
 

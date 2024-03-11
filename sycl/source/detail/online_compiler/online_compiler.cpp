@@ -15,7 +15,7 @@
 #include "ocloc_api.h"
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::experimental {
 namespace detail {
 
@@ -94,7 +94,7 @@ compileToSPIRV(const std::string &Source, sycl::info::device_type DeviceType,
 #else
     static const std::string OclocLibraryName = "libocloc.so";
 #endif
-    void *OclocLibrary = sycl::detail::pi::loadOsPluginLibrary(OclocLibraryName);
+    void *OclocLibrary = sycl::detail::pi::loadOsLibrary(OclocLibraryName);
     if (!OclocLibrary)
       throw online_compile_error("Cannot load ocloc library: " +
                                  OclocLibraryName);
@@ -247,5 +247,5 @@ namespace __SYCL2020_DEPRECATED(
     "use 'ext::intel::experimental' instead") INTEL {
 using namespace ext::intel::experimental;
 }
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -270,12 +270,34 @@
 #endif
 
 #if !(defined(_MSC_VER) || defined(__SCE__)) || __has_feature(modules) ||      \
+    defined(__SHA512__)
+#include <sha512intrin.h>
+#endif
+
+#if !(defined(_MSC_VER) || defined(__SCE__)) || __has_feature(modules) ||      \
+    defined(__SM3__)
+#include <sm3intrin.h>
+#endif
+
+#if !(defined(_MSC_VER) || defined(__SCE__)) || __has_feature(modules) ||      \
+    defined(__SM4__)
+#include <sm4intrin.h>
+#endif
+
+#if !(defined(_MSC_VER) || defined(__SCE__)) || __has_feature(modules) ||      \
+    defined(__AVXVNNIINT16__)
+#include <avxvnniint16intrin.h>
+#endif
+
+#if !(defined(_MSC_VER) || defined(__SCE__)) || __has_feature(modules) ||      \
     defined(__RDPID__)
-/// Returns the value of the IA32_TSC_AUX MSR (0xc0000103).
+/// Reads the value of the IA32_TSC_AUX MSR (0xc0000103).
 ///
 /// \headerfile <immintrin.h>
 ///
 /// This intrinsic corresponds to the <c> RDPID </c> instruction.
+///
+/// \returns The 32-bit contents of the MSR.
 static __inline__ unsigned int __attribute__((__always_inline__, __nodebug__, __target__("rdpid")))
 _rdpid_u32(void) {
   return __builtin_ia32_rdpid();
@@ -323,18 +345,14 @@ _rdrand32_step(unsigned int *__p)
 /// \param __p
 ///    A pointer to a 64-bit memory location to place the random value.
 /// \returns 1 if the value was successfully generated, 0 otherwise.
+static __inline__ int __attribute__((__always_inline__, __nodebug__, __target__("rdrnd")))
+_rdrand64_step(unsigned long long *__p)
+{
 #ifdef __x86_64__
-static __inline__ int __attribute__((__always_inline__, __nodebug__, __target__("rdrnd")))
-_rdrand64_step(unsigned long long *__p)
-{
   return (int)__builtin_ia32_rdrand64_step(__p);
-}
 #else
-// We need to emulate the functionality of 64-bit rdrand with 2 32-bit
-// rdrand instructions.
-static __inline__ int __attribute__((__always_inline__, __nodebug__, __target__("rdrnd")))
-_rdrand64_step(unsigned long long *__p)
-{
+  // We need to emulate the functionality of 64-bit rdrand with 2 32-bit
+  // rdrand instructions.
   unsigned int __lo, __hi;
   unsigned int __res_lo = __builtin_ia32_rdrand32_step(&__lo);
   unsigned int __res_hi = __builtin_ia32_rdrand32_step(&__hi);
@@ -345,8 +363,8 @@ _rdrand64_step(unsigned long long *__p)
     *__p = 0;
     return 0;
   }
-}
 #endif
+}
 #endif /* __RDRND__ */
 
 #if !(defined(_MSC_VER) || defined(__SCE__)) || __has_feature(modules) ||      \
@@ -472,6 +490,15 @@ _writegsbase_u64(unsigned long long __V)
  * field inside of it.
  */
 
+/// Load a 16-bit value from memory and swap its bytes.
+///
+/// \headerfile <x86intrin.h>
+///
+/// This intrinsic corresponds to the MOVBE instruction.
+///
+/// \param __P
+///    A pointer to the 16-bit value to load.
+/// \returns The byte-swapped value.
 static __inline__ short __attribute__((__always_inline__, __nodebug__, __target__("movbe")))
 _loadbe_i16(void const * __P) {
   struct __loadu_i16 {
@@ -480,6 +507,16 @@ _loadbe_i16(void const * __P) {
   return (short)__builtin_bswap16(((const struct __loadu_i16*)__P)->__v);
 }
 
+/// Swap the bytes of a 16-bit value and store it to memory.
+///
+/// \headerfile <x86intrin.h>
+///
+/// This intrinsic corresponds to the MOVBE instruction.
+///
+/// \param __P
+///    A pointer to the memory for storing the swapped value.
+/// \param __D
+///    The 16-bit value to be byte-swapped.
 static __inline__ void __attribute__((__always_inline__, __nodebug__, __target__("movbe")))
 _storebe_i16(void * __P, short __D) {
   struct __storeu_i16 {
@@ -488,6 +525,15 @@ _storebe_i16(void * __P, short __D) {
   ((struct __storeu_i16*)__P)->__v = __builtin_bswap16((unsigned short)__D);
 }
 
+/// Load a 32-bit value from memory and swap its bytes.
+///
+/// \headerfile <x86intrin.h>
+///
+/// This intrinsic corresponds to the MOVBE instruction.
+///
+/// \param __P
+///    A pointer to the 32-bit value to load.
+/// \returns The byte-swapped value.
 static __inline__ int __attribute__((__always_inline__, __nodebug__, __target__("movbe")))
 _loadbe_i32(void const * __P) {
   struct __loadu_i32 {
@@ -496,6 +542,16 @@ _loadbe_i32(void const * __P) {
   return (int)__builtin_bswap32(((const struct __loadu_i32*)__P)->__v);
 }
 
+/// Swap the bytes of a 32-bit value and store it to memory.
+///
+/// \headerfile <x86intrin.h>
+///
+/// This intrinsic corresponds to the MOVBE instruction.
+///
+/// \param __P
+///    A pointer to the memory for storing the swapped value.
+/// \param __D
+///    The 32-bit value to be byte-swapped.
 static __inline__ void __attribute__((__always_inline__, __nodebug__, __target__("movbe")))
 _storebe_i32(void * __P, int __D) {
   struct __storeu_i32 {
@@ -505,6 +561,15 @@ _storebe_i32(void * __P, int __D) {
 }
 
 #ifdef __x86_64__
+/// Load a 64-bit value from memory and swap its bytes.
+///
+/// \headerfile <x86intrin.h>
+///
+/// This intrinsic corresponds to the MOVBE instruction.
+///
+/// \param __P
+///    A pointer to the 64-bit value to load.
+/// \returns The byte-swapped value.
 static __inline__ long long __attribute__((__always_inline__, __nodebug__, __target__("movbe")))
 _loadbe_i64(void const * __P) {
   struct __loadu_i64 {
@@ -513,6 +578,16 @@ _loadbe_i64(void const * __P) {
   return (long long)__builtin_bswap64(((const struct __loadu_i64*)__P)->__v);
 }
 
+/// Swap the bytes of a 64-bit value and store it to memory.
+///
+/// \headerfile <x86intrin.h>
+///
+/// This intrinsic corresponds to the MOVBE instruction.
+///
+/// \param __P
+///    A pointer to the memory for storing the swapped value.
+/// \param __D
+///    The 64-bit value to be byte-swapped.
 static __inline__ void __attribute__((__always_inline__, __nodebug__, __target__("movbe")))
 _storebe_i64(void * __P, long long __D) {
   struct __storeu_i64 {
@@ -562,9 +637,13 @@ _storebe_i64(void * __P, long long __D) {
 #include <cetintrin.h>
 #endif
 
-/* Some intrinsics inside adxintrin.h are available only on processors with ADX,
- * whereas others are also available at all times. */
+/* Intrinsics inside adcintrin.h are available at all times. */
+#include <adcintrin.h>
+
+#if !(defined(_MSC_VER) || defined(__SCE__)) || __has_feature(modules) ||      \
+    defined(__ADX__)
 #include <adxintrin.h>
+#endif
 
 #if !(defined(_MSC_VER) || defined(__SCE__)) || __has_feature(modules) ||      \
     defined(__RDSEED__)

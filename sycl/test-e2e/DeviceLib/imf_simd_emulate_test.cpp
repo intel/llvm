@@ -1,12 +1,8 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
-// RUN: %clangxx -fsycl -fno-builtin -fsycl-device-lib-jit-link %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t.out
+// RUN: %{run} %t.out
 //
 // UNSUPPORTED: cuda || hip
 
@@ -1837,4 +1833,5 @@ int main(int, char **) {
   run_veqne_2_4_test(device_queue);
   run_vgelt_2_4_test(device_queue);
   run_vgtle_2_4_test(device_queue);
+  run_vavgs_2_4_test(device_queue);
 }

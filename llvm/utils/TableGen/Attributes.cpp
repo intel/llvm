@@ -55,6 +55,7 @@ void Attributes::emitTargetIndependentNames(raw_ostream &OS) {
   // Emit attribute enums in the same order llvm::Attribute::operator< expects.
   Emit({"EnumAttr", "TypeAttr", "IntAttr"}, "ATTRIBUTE_ENUM");
   Emit({"StrBoolAttr"}, "ATTRIBUTE_STRBOOL");
+  Emit({"ComplexStrAttr"}, "ATTRIBUTE_COMPLEXSTR");
 
   OS << "#undef ATTRIBUTE_ALL\n";
   OS << "#endif\n\n";
@@ -86,7 +87,11 @@ void Attributes::emitFnAttrCompatCheck(raw_ostream &OS, bool IsStringAttr) {
 
   for (auto *Rule : CompatRules) {
     StringRef FuncName = Rule->getValueAsString("CompatFunc");
-    OS << "  Ret &= " << FuncName << "(Caller, Callee);\n";
+    OS << "  Ret &= " << FuncName << "(Caller, Callee";
+    StringRef AttrName = Rule->getValueAsString("AttrName");
+    if (!AttrName.empty())
+      OS << ", \"" << AttrName << "\"";
+    OS << ");\n";
   }
 
   OS << "\n";

@@ -24,8 +24,8 @@ struct CastOpInterface
     auto castOp = cast<CastOp>(op);
     assert(value == castOp.getResult() && "invalid value");
 
-    if (castOp.getResult().getType().isa<RankedTensorType>() &&
-        castOp.getSource().getType().isa<RankedTensorType>()) {
+    if (llvm::isa<RankedTensorType>(castOp.getResult().getType()) &&
+        llvm::isa<RankedTensorType>(castOp.getSource().getType())) {
       cstr.bound(value)[dim] == cstr.getExpr(castOp.getSource(), dim);
     }
   }
@@ -100,7 +100,8 @@ struct RankOpInterface
     auto rankOp = cast<RankOp>(op);
     assert(value == rankOp.getResult() && "invalid value");
 
-    auto tensorType = rankOp.getTensor().getType().dyn_cast<RankedTensorType>();
+    auto tensorType =
+        llvm::dyn_cast<RankedTensorType>(rankOp.getTensor().getType());
     if (!tensorType)
       return;
     cstr.bound(value) == tensorType.getRank();
@@ -119,11 +120,9 @@ void mlir::tensor::registerValueBoundsOpInterfaceExternalModels(
     tensor::EmptyOp::attachInterface<tensor::EmptyOpInterface>(*ctx);
     tensor::ExtractSliceOp::attachInterface<tensor::ExtractSliceOpInterface>(
         *ctx);
-    tensor::InsertOp::attachInterface<
-        DstValueBoundsOpInterfaceExternalModel<tensor::InsertOp>>(*ctx);
-    tensor::InsertSliceOp::attachInterface<
-        DstValueBoundsOpInterfaceExternalModel<tensor::InsertSliceOp>>(*ctx);
     tensor::PadOp::attachInterface<tensor::PadOpInterface>(*ctx);
     tensor::RankOp::attachInterface<tensor::RankOpInterface>(*ctx);
+    // Note: ValueBoundsOpInterface implementation is not required for ops that
+    // implement `DestinationStyleOpInterface` (for querying shaped OpResults).
   });
 }

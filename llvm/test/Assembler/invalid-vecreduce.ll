@@ -1,4 +1,4 @@
-; RUN: not opt -opaque-pointers -S < %s 2>&1 | FileCheck %s
+; RUN: not opt -S < %s 2>&1 | FileCheck %s
 
 ; CHECK: Intrinsic has incorrect return type!
 ; CHECK-NEXT: ptr @llvm.vector.reduce.fadd.f32.f64.v2f64

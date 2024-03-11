@@ -6,14 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++03
+// UNSUPPORTED: c++03, c++11, c++14
+// UNSUPPORTED: no-filesystem
+// UNSUPPORTED: availability-filesystem-missing
 
 // <filesystem>
 
 // path temp_directory_path();
 // path temp_directory_path(error_code& ec);
 
-#include "filesystem_include.h"
+#include <filesystem>
 #include <memory>
 #include <cstdlib>
 #include <cstring>
@@ -21,7 +23,7 @@
 
 #include "test_macros.h"
 #include "filesystem_test_helper.h"
-
+namespace fs = std::filesystem;
 using namespace fs;
 
 void PutEnv(std::string var, fs::path value) {
@@ -93,7 +95,7 @@ static void basic_tests()
         PutEnv(TC.name, dne);
         ec = GetTestEC();
         ret = temp_directory_path(ec);
-        LIBCPP_ONLY(assert(ErrorIs(ec, expect_errc)));
+        LIBCPP_ASSERT(ErrorIs(ec, expect_errc));
         assert(ec != GetTestEC());
         assert(ec);
         assert(ret == "");
@@ -102,7 +104,7 @@ static void basic_tests()
         PutEnv(TC.name, file);
         ec = GetTestEC();
         ret = temp_directory_path(ec);
-        LIBCPP_ONLY(assert(ErrorIs(ec, expect_errc)));
+        LIBCPP_ASSERT(ErrorIs(ec, expect_errc));
         assert(ec != GetTestEC());
         assert(ec);
         assert(ret == "");
@@ -133,8 +135,16 @@ static void basic_tests()
         std::error_code ec = GetTestEC();
         path ret = temp_directory_path(ec);
         assert(!ec);
-#ifndef _WIN32
+#if defined(_WIN32)
         // On Windows, the function falls back to the Windows folder.
+        wchar_t win_dir[MAX_PATH];
+        DWORD win_dir_sz = GetWindowsDirectoryW(win_dir, MAX_PATH);
+        assert(win_dir_sz > 0 && win_dir_sz < MAX_PATH);
+        assert(win_dir[win_dir_sz-1] != L'\\');
+        assert(ret == win_dir);
+#elif defined(__ANDROID__)
+        assert(ret == "/data/local/tmp");
+#else
         assert(ret == "/tmp");
 #endif
         assert(is_directory(ret));

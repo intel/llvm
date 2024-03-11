@@ -33,8 +33,8 @@ testing. NFC (non-functional change) PRs can be accepted without new tests.
 
 Code changes should follow coding standards, which are inherited from [LLVM
 Coding Standards]. Compliance of your code is checked automatically using
-Travis CI. See [clang-format] and [clang-tidy] configs for more details about
-coding standards.
+GitHub Actions. See [clang-format] and [clang-tidy] configs for more details
+about coding standards.
 
 ## How to add an extension
 
@@ -65,7 +65,7 @@ In order to get your PR merged, the following conditions must be met:
 - If you are a first-time contributor, you have to sign the
   [Contributor License Agreement]. Corresponding link and instructions will be
   automatically posted into your PR.
-- [Travis CI testing] jobs must pass on your PR: this includes functional
+- [GitHub CI testing] jobs must pass on your PR: this includes functional
   testing and checking for complying with coding standards.
 - You need to get approval from at least one contributor with merge rights.
 
@@ -108,4 +108,4 @@ it can be merged:
 [SPIR-V Headers repository]: https://github.com/KhronosGroup/SPIRV-Headers
 [internal SPIR-V header file]: https://github.com/KhronosGroup/SPIRV-LLVM-Translator/blob/main/lib/SPIRV/libSPIRV/spirv_internal.hpp
 [Contributor License Agreement]: https://cla-assistant.io/KhronosGroup/SPIRV-LLVM-Translator
-[Travis CI testing]: https://travis-ci.org/KhronosGroup/SPIRV-LLVM-Translator
+[GitHub CI testing]: https://github.com/KhronosGroup/SPIRV-LLVM-Translator/actions

@@ -17,6 +17,8 @@
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
+#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
+#include <sycl/ext/oneapi/matrix/query-types.hpp>
 #include <sycl/feature_test.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/memory_enums.hpp>
@@ -26,7 +28,7 @@
 #include <thread>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 inline std::vector<info::fp_config> read_fp_bitfield(pi_device_fp_config bits) {
@@ -112,10 +114,10 @@ template <> struct sycl_to_pi<bool> {
   using type = pi_bool;
 };
 template <> struct sycl_to_pi<device> {
-  using type = RT::PiDevice;
+  using type = sycl::detail::pi::PiDevice;
 };
 template <> struct sycl_to_pi<platform> {
-  using type = RT::PiPlatform;
+  using type = sycl::detail::pi::PiPlatform;
 };
 
 // Mapping fp_config device info types to the values used to check fp support
@@ -136,7 +138,7 @@ template <> struct check_fp_support<info::device::double_fp_config> {
 template <typename ReturnT, typename Param> struct get_device_info_impl {
   static ReturnT get(const DeviceImplPtr &Dev) {
     typename sycl_to_pi<ReturnT>::type result;
-    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(), PiInfoCode<Param>::value, sizeof(result), &result,
         nullptr);
     return ReturnT(result);
@@ -147,7 +149,7 @@ template <typename ReturnT, typename Param> struct get_device_info_impl {
 template <typename Param> struct get_device_info_impl<platform, Param> {
   static platform get(const DeviceImplPtr &Dev) {
     typename sycl_to_pi<platform>::type result;
-    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(), PiInfoCode<Param>::value, sizeof(result), &result,
         nullptr);
     // TODO: Change PiDevice to device_impl.
@@ -160,16 +162,16 @@ template <typename Param> struct get_device_info_impl<platform, Param> {
 
 // Helper function to allow using the specialization of get_device_info_impl
 // for string return type in other specializations.
-inline std::string
-device_impl::get_device_info_string(RT::PiDeviceInfo InfoCode) const {
+inline std::string device_impl::get_device_info_string(
+    sycl::detail::pi::PiDeviceInfo InfoCode) const {
   size_t resultSize = 0;
-  getPlugin().call<PiApiKind::piDeviceGetInfo>(getHandleRef(), InfoCode, 0,
-                                               nullptr, &resultSize);
+  getPlugin()->call<PiApiKind::piDeviceGetInfo>(getHandleRef(), InfoCode, 0,
+                                                nullptr, &resultSize);
   if (resultSize == 0) {
     return std::string();
   }
   std::unique_ptr<char[]> result(new char[resultSize]);
-  getPlugin().call<PiApiKind::piDeviceGetInfo>(
+  getPlugin()->call<PiApiKind::piDeviceGetInfo>(
       getHandleRef(), InfoCode, resultSize, result.get(), nullptr);
 
   return std::string(result.get());
@@ -199,7 +201,7 @@ struct get_device_info_impl<std::vector<info::fp_config>, Param> {
       return {};
     }
     cl_device_fp_config result;
-    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(), PiInfoCode<Param>::value, sizeof(result), &result,
         nullptr);
     return read_fp_bitfield(result);
@@ -220,35 +222,23 @@ struct get_device_info_impl<std::vector<info::fp_config>,
                             info::device::single_fp_config> {
   static std::vector<info::fp_config> get(const DeviceImplPtr &Dev) {
     pi_device_fp_config result;
-    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(), PiInfoCode<info::device::single_fp_config>::value,
         sizeof(result), &result, nullptr);
     return read_fp_bitfield(result);
   }
 };
 
-inline bool checkNativeQueueProfiling(const DeviceImplPtr &Dev) {
-  pi_queue_properties Properties;
-  Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
-      Dev->getHandleRef(), PiInfoCode<info::device::queue_profiling>::value,
-      sizeof(Properties), &Properties, nullptr);
-  return Properties & PI_QUEUE_FLAG_PROFILING_ENABLE;
-}
-
 // Specialization for queue_profiling. In addition to pi_queue level profiling,
-// piGetDeviceAndHostTimer support is needed for command_submit query support.
+// piGetDeviceAndHostTimer is not supported, command_submit, command_start,
+// command_end will be calculated. See MFallbackProfiling
 template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
   static bool get(const DeviceImplPtr &Dev) {
-    if (!checkNativeQueueProfiling(Dev))
-      return false;
-    RT::PiResult Result =
-        Dev->getPlugin()
-            .call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
-                Dev->getHandleRef(), nullptr, nullptr);
-    if (Result == PI_ERROR_INVALID_OPERATION)
-      return false;
-    Dev->getPlugin().checkPiResult(Result);
-    return true;
+    pi_queue_properties Properties;
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+        Dev->getHandleRef(), PiInfoCode<info::device::queue_profiling>::value,
+        sizeof(Properties), &Properties, nullptr);
+    return Properties & PI_QUEUE_FLAG_PROFILING_ENABLE;
   }
 };
 
@@ -258,7 +248,7 @@ struct get_device_info_impl<std::vector<memory_order>,
                             info::device::atomic_memory_order_capabilities> {
   static std::vector<memory_order> get(const DeviceImplPtr &Dev) {
     pi_memory_order_capabilities result;
-    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<info::device::atomic_memory_order_capabilities>::value,
         sizeof(pi_memory_order_capabilities), &result, nullptr);
@@ -272,7 +262,7 @@ struct get_device_info_impl<std::vector<memory_order>,
                             info::device::atomic_fence_order_capabilities> {
   static std::vector<memory_order> get(const DeviceImplPtr &Dev) {
     pi_memory_order_capabilities result;
-    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<info::device::atomic_fence_order_capabilities>::value,
         sizeof(pi_memory_order_capabilities), &result, nullptr);
@@ -286,7 +276,7 @@ struct get_device_info_impl<std::vector<memory_scope>,
                             info::device::atomic_memory_scope_capabilities> {
   static std::vector<memory_scope> get(const DeviceImplPtr &Dev) {
     pi_memory_scope_capabilities result;
-    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<info::device::atomic_memory_scope_capabilities>::value,
         sizeof(pi_memory_scope_capabilities), &result, nullptr);
@@ -300,7 +290,7 @@ struct get_device_info_impl<std::vector<memory_scope>,
                             info::device::atomic_fence_scope_capabilities> {
   static std::vector<memory_scope> get(const DeviceImplPtr &Dev) {
     pi_memory_scope_capabilities result;
-    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<info::device::atomic_fence_scope_capabilities>::value,
         sizeof(pi_memory_scope_capabilities), &result, nullptr);
@@ -315,8 +305,8 @@ struct get_device_info_impl<bool,
   static bool get(const DeviceImplPtr &Dev) {
     bool result = false;
 
-    RT::PiResult Err =
-        Dev->getPlugin().call_nocheck<PiApiKind::piDeviceGetInfo>(
+    sycl::detail::pi::PiResult Err =
+        Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
             Dev->getHandleRef(),
             PiInfoCode<info::device::ext_oneapi_bfloat16_math_functions>::value,
             sizeof(result), &result, nullptr);
@@ -333,7 +323,7 @@ struct get_device_info_impl<std::vector<info::execution_capability>,
                             info::device::execution_capabilities> {
   static std::vector<info::execution_capability> get(const DeviceImplPtr &Dev) {
     pi_device_exec_capabilities result;
-    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<info::device::execution_capabilities>::value, sizeof(result),
         &result, nullptr);
@@ -402,8 +392,8 @@ struct get_device_info_impl<std::vector<info::partition_property>,
     const auto &Plugin = Dev->getPlugin();
 
     size_t resultSize;
-    Plugin.call<PiApiKind::piDeviceGetInfo>(Dev->getHandleRef(), info_partition,
-                                            0, nullptr, &resultSize);
+    Plugin->call<PiApiKind::piDeviceGetInfo>(
+        Dev->getHandleRef(), info_partition, 0, nullptr, &resultSize);
 
     size_t arrayLength = resultSize / sizeof(cl_device_partition_property);
     if (arrayLength == 0) {
@@ -411,9 +401,9 @@ struct get_device_info_impl<std::vector<info::partition_property>,
     }
     std::unique_ptr<cl_device_partition_property[]> arrayResult(
         new cl_device_partition_property[arrayLength]);
-    Plugin.call<PiApiKind::piDeviceGetInfo>(Dev->getHandleRef(), info_partition,
-                                            resultSize, arrayResult.get(),
-                                            nullptr);
+    Plugin->call<PiApiKind::piDeviceGetInfo>(Dev->getHandleRef(),
+                                             info_partition, resultSize,
+                                             arrayResult.get(), nullptr);
 
     std::vector<info::partition_property> result;
     for (size_t i = 0; i < arrayLength; ++i) {
@@ -435,7 +425,7 @@ struct get_device_info_impl<std::vector<info::partition_affinity_domain>,
   static std::vector<info::partition_affinity_domain>
   get(const DeviceImplPtr &Dev) {
     pi_device_affinity_domain result;
-    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<info::device::partition_affinity_domains>::value,
         sizeof(result), &result, nullptr);
@@ -450,7 +440,7 @@ struct get_device_info_impl<info::partition_affinity_domain,
                             info::device::partition_type_affinity_domain> {
   static info::partition_affinity_domain get(const DeviceImplPtr &Dev) {
     size_t resultSize;
-    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<info::device::partition_type_affinity_domain>::value, 0,
         nullptr, &resultSize);
@@ -458,7 +448,7 @@ struct get_device_info_impl<info::partition_affinity_domain,
       return info::partition_affinity_domain::not_applicable;
     }
     cl_device_partition_property result;
-    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<info::device::partition_type_affinity_domain>::value,
         sizeof(result), &result, nullptr);
@@ -480,7 +470,7 @@ struct get_device_info_impl<info::partition_property,
                             info::device::partition_type_property> {
   static info::partition_property get(const DeviceImplPtr &Dev) {
     size_t resultSize;
-    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(), PI_DEVICE_INFO_PARTITION_TYPE, 0, nullptr,
         &resultSize);
     if (!resultSize)
@@ -490,7 +480,7 @@ struct get_device_info_impl<info::partition_property,
 
     std::unique_ptr<cl_device_partition_property[]> arrayResult(
         new cl_device_partition_property[arrayLength]);
-    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(), PI_DEVICE_INFO_PARTITION_TYPE, resultSize,
         arrayResult.get(), nullptr);
     if (!arrayResult[0])
@@ -504,12 +494,12 @@ struct get_device_info_impl<std::vector<size_t>,
                             info::device::sub_group_sizes> {
   static std::vector<size_t> get(const DeviceImplPtr &Dev) {
     size_t resultSize = 0;
-    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(), PiInfoCode<info::device::sub_group_sizes>::value,
         0, nullptr, &resultSize);
 
     std::vector<size_t> result(resultSize / sizeof(size_t));
-    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(), PiInfoCode<info::device::sub_group_sizes>::value,
         resultSize, result.data(), nullptr);
     return result;
@@ -539,28 +529,413 @@ struct get_device_info_impl<bool, info::device::kernel_kernel_pipe_support> {
   }
 };
 
-template <int Dimensions> id<Dimensions> construct_id(size_t *values) = delete;
+template <int Dimensions>
+range<Dimensions> construct_range(size_t *values) = delete;
 // Due to the flipping of work group dimensions before kernel launch, the values
 // should also be reversed.
-template <> inline id<1> construct_id<1>(size_t *values) { return {values[0]}; }
-template <> inline id<2> construct_id<2>(size_t *values) {
+template <> inline range<1> construct_range<1>(size_t *values) {
+  return {values[0]};
+}
+template <> inline range<2> construct_range<2>(size_t *values) {
   return {values[1], values[0]};
 }
-template <> inline id<3> construct_id<3>(size_t *values) {
+template <> inline range<3> construct_range<3>(size_t *values) {
   return {values[2], values[1], values[0]};
 }
 
 // Specialization for max_work_item_sizes.
 template <int Dimensions>
-struct get_device_info_impl<id<Dimensions>,
+struct get_device_info_impl<range<Dimensions>,
                             info::device::max_work_item_sizes<Dimensions>> {
-  static id<Dimensions> get(const DeviceImplPtr &Dev) {
+  static range<Dimensions> get(const DeviceImplPtr &Dev) {
     size_t result[3];
-    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<info::device::max_work_item_sizes<Dimensions>>::value,
         sizeof(result), &result, nullptr);
-    return construct_id<Dimensions>(result);
+    return construct_range<Dimensions>(result);
+  }
+};
+
+using oneapi_exp_arch = sycl::ext::oneapi::experimental::architecture;
+
+// Only for NVIDIA and AMD GPU architectures
+constexpr std::pair<const char *, oneapi_exp_arch> NvidiaAmdGPUArchitectures[] =
+    {
+        {"5.0", oneapi_exp_arch::nvidia_gpu_sm_50},
+        {"5.2", oneapi_exp_arch::nvidia_gpu_sm_52},
+        {"5.3", oneapi_exp_arch::nvidia_gpu_sm_53},
+        {"6.0", oneapi_exp_arch::nvidia_gpu_sm_60},
+        {"6.1", oneapi_exp_arch::nvidia_gpu_sm_61},
+        {"6.2", oneapi_exp_arch::nvidia_gpu_sm_62},
+        {"7.0", oneapi_exp_arch::nvidia_gpu_sm_70},
+        {"7.2", oneapi_exp_arch::nvidia_gpu_sm_72},
+        {"7.5", oneapi_exp_arch::nvidia_gpu_sm_75},
+        {"8.0", oneapi_exp_arch::nvidia_gpu_sm_80},
+        {"8.6", oneapi_exp_arch::nvidia_gpu_sm_86},
+        {"8.7", oneapi_exp_arch::nvidia_gpu_sm_87},
+        {"8.9", oneapi_exp_arch::nvidia_gpu_sm_89},
+        {"9.0", oneapi_exp_arch::nvidia_gpu_sm_90},
+        {"gfx701", oneapi_exp_arch::amd_gpu_gfx701},
+        {"gfx702", oneapi_exp_arch::amd_gpu_gfx702},
+        {"gfx801", oneapi_exp_arch::amd_gpu_gfx801},
+        {"gfx802", oneapi_exp_arch::amd_gpu_gfx802},
+        {"gfx803", oneapi_exp_arch::amd_gpu_gfx803},
+        {"gfx805", oneapi_exp_arch::amd_gpu_gfx805},
+        {"gfx810", oneapi_exp_arch::amd_gpu_gfx810},
+        {"gfx900", oneapi_exp_arch::amd_gpu_gfx900},
+        {"gfx902", oneapi_exp_arch::amd_gpu_gfx902},
+        {"gfx904", oneapi_exp_arch::amd_gpu_gfx904},
+        {"gfx906", oneapi_exp_arch::amd_gpu_gfx906},
+        {"gfx908", oneapi_exp_arch::amd_gpu_gfx908},
+        {"gfx909", oneapi_exp_arch::amd_gpu_gfx909},
+        {"gfx90a", oneapi_exp_arch::amd_gpu_gfx90a},
+        {"gfx90c", oneapi_exp_arch::amd_gpu_gfx90c},
+        {"gfx940", oneapi_exp_arch::amd_gpu_gfx940},
+        {"gfx941", oneapi_exp_arch::amd_gpu_gfx941},
+        {"gfx942", oneapi_exp_arch::amd_gpu_gfx942},
+        {"gfx1010", oneapi_exp_arch::amd_gpu_gfx1010},
+        {"gfx1011", oneapi_exp_arch::amd_gpu_gfx1011},
+        {"gfx1012", oneapi_exp_arch::amd_gpu_gfx1012},
+        {"gfx1013", oneapi_exp_arch::amd_gpu_gfx1013},
+        {"gfx1030", oneapi_exp_arch::amd_gpu_gfx1030},
+        {"gfx1031", oneapi_exp_arch::amd_gpu_gfx1031},
+        {"gfx1032", oneapi_exp_arch::amd_gpu_gfx1032},
+        {"gfx1033", oneapi_exp_arch::amd_gpu_gfx1033},
+        {"gfx1034", oneapi_exp_arch::amd_gpu_gfx1034},
+        {"gfx1035", oneapi_exp_arch::amd_gpu_gfx1035},
+        {"gfx1036", oneapi_exp_arch::amd_gpu_gfx1036},
+        {"gfx1100", oneapi_exp_arch::amd_gpu_gfx1100},
+        {"gfx1101", oneapi_exp_arch::amd_gpu_gfx1101},
+        {"gfx1102", oneapi_exp_arch::amd_gpu_gfx1102},
+        {"gfx1103", oneapi_exp_arch::amd_gpu_gfx1103},
+        {"gfx1150", oneapi_exp_arch::amd_gpu_gfx1150},
+        {"gfx1151", oneapi_exp_arch::amd_gpu_gfx1151},
+        {"gfx1200", oneapi_exp_arch::amd_gpu_gfx1200},
+        {"gfx1201", oneapi_exp_arch::amd_gpu_gfx1201},
+};
+
+// Only for Intel GPU architectures
+constexpr std::pair<const int, oneapi_exp_arch> IntelGPUArchitectures[] = {
+    {0x02000000, oneapi_exp_arch::intel_gpu_bdw},
+    {0x02400009, oneapi_exp_arch::intel_gpu_skl},
+    {0x02404009, oneapi_exp_arch::intel_gpu_kbl},
+    {0x02408009, oneapi_exp_arch::intel_gpu_cfl},
+    {0x0240c000, oneapi_exp_arch::intel_gpu_apl},
+    {0x02410000, oneapi_exp_arch::intel_gpu_glk},
+    {0x02414000, oneapi_exp_arch::intel_gpu_whl},
+    {0x02418000, oneapi_exp_arch::intel_gpu_aml},
+    {0x0241c000, oneapi_exp_arch::intel_gpu_cml},
+    {0x02c00000, oneapi_exp_arch::intel_gpu_icllp},
+    {0x02c08000, oneapi_exp_arch::intel_gpu_ehl},
+    {0x03000000, oneapi_exp_arch::intel_gpu_tgllp},
+    {0x03004000, oneapi_exp_arch::intel_gpu_rkl},
+    {0x03008000, oneapi_exp_arch::intel_gpu_adl_s},
+    {0x0300c000, oneapi_exp_arch::intel_gpu_adl_p},
+    {0x03010000, oneapi_exp_arch::intel_gpu_adl_n},
+    {0x03028000, oneapi_exp_arch::intel_gpu_dg1},
+    {0x030dc008, oneapi_exp_arch::intel_gpu_acm_g10},
+    {0x030e0005, oneapi_exp_arch::intel_gpu_acm_g11},
+    {0x030e4000, oneapi_exp_arch::intel_gpu_acm_g12},
+    {0x030f0007, oneapi_exp_arch::intel_gpu_pvc},
+    {0x030f4007, oneapi_exp_arch::intel_gpu_pvc_vg},
+};
+
+// Only for Intel CPU architectures
+constexpr std::pair<const int, oneapi_exp_arch> IntelCPUArchitectures[] = {
+    {8, oneapi_exp_arch::intel_cpu_spr},
+    {9, oneapi_exp_arch::intel_cpu_gnr},
+};
+
+template <>
+struct get_device_info_impl<
+    ext::oneapi::experimental::architecture,
+    ext::oneapi::experimental::info::device::architecture> {
+  static ext::oneapi::experimental::architecture get(const DeviceImplPtr &Dev) {
+    backend CurrentBackend = Dev->getBackend();
+    if (Dev->is_gpu() && (backend::ext_oneapi_level_zero == CurrentBackend ||
+                          backend::opencl == CurrentBackend)) {
+      auto MapArchIDToArchName = [](const int arch) {
+        for (const auto &Item : IntelGPUArchitectures) {
+          if (Item.first == arch)
+            return Item.second;
+        }
+        throw sycl::exception(
+            make_error_code(errc::runtime),
+            "The current device architecture is not supported by "
+            "sycl_ext_oneapi_device_architecture.");
+      };
+      uint32_t DeviceIp;
+      Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+          Dev->getHandleRef(),
+          PiInfoCode<
+              ext::oneapi::experimental::info::device::architecture>::value,
+          sizeof(DeviceIp), &DeviceIp, nullptr);
+      return MapArchIDToArchName(DeviceIp);
+    } else if (Dev->is_gpu() && (backend::ext_oneapi_cuda == CurrentBackend ||
+                                 backend::ext_oneapi_hip == CurrentBackend)) {
+      auto MapArchIDToArchName = [](const char *arch) {
+        for (const auto &Item : NvidiaAmdGPUArchitectures) {
+          if (std::string_view(Item.first) == arch)
+            return Item.second;
+        }
+        throw sycl::exception(
+            make_error_code(errc::runtime),
+            "The current device architecture is not supported by "
+            "sycl_ext_oneapi_device_architecture.");
+      };
+      size_t ResultSize = 0;
+      Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+          Dev->getHandleRef(), PiInfoCode<info::device::version>::value, 0,
+          nullptr, &ResultSize);
+      std::unique_ptr<char[]> DeviceArch(new char[ResultSize]);
+      Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+          Dev->getHandleRef(), PiInfoCode<info::device::version>::value,
+          ResultSize, DeviceArch.get(), nullptr);
+      std::string DeviceArchCopy(DeviceArch.get());
+      std::string DeviceArchSubstr =
+          DeviceArchCopy.substr(0, DeviceArchCopy.find(":"));
+      return MapArchIDToArchName(DeviceArchSubstr.data());
+    } else if (Dev->is_cpu() && backend::opencl == CurrentBackend) {
+      auto MapArchIDToArchName = [](const int arch) {
+        for (const auto &Item : IntelCPUArchitectures) {
+          if (Item.first == arch)
+            return Item.second;
+        }
+        return sycl::ext::oneapi::experimental::architecture::x86_64;
+      };
+      uint32_t DeviceIp;
+      Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+          Dev->getHandleRef(),
+          PiInfoCode<
+              ext::oneapi::experimental::info::device::architecture>::value,
+          sizeof(DeviceIp), &DeviceIp, nullptr);
+      return MapArchIDToArchName(DeviceIp);
+    } // else is not needed
+    // TODO: add support of other architectures by extending with else if
+    // Generating a user-friendly error message
+    std::string DeviceStr;
+    if (Dev->is_gpu())
+      DeviceStr = "GPU";
+    else if (Dev->is_cpu())
+      DeviceStr = "CPU";
+    else if (Dev->is_accelerator())
+      DeviceStr = "accelerator";
+    // else if not needed
+    std::stringstream ErrorMessage;
+    ErrorMessage
+        << "sycl_ext_oneapi_device_architecture feature is not supported on "
+        << DeviceStr << " device with sycl::backend::" << CurrentBackend
+        << " backend.";
+    throw sycl::exception(make_error_code(errc::runtime), ErrorMessage.str());
+  }
+};
+
+template <>
+struct get_device_info_impl<
+    std::vector<ext::oneapi::experimental::matrix::combination>,
+    ext::oneapi::experimental::info::device::matrix_combinations> {
+  static std::vector<ext::oneapi::experimental::matrix::combination>
+  get(const DeviceImplPtr &Dev) {
+    using namespace ext::oneapi::experimental::matrix;
+    using namespace ext::oneapi::experimental;
+    backend CurrentBackend = Dev->getBackend();
+    auto get_current_architecture = [&Dev]() -> std::optional<architecture> {
+      // this helper lambda ignores all runtime-related exceptions from
+      // quering the device architecture. For instance, if device architecture
+      // on user's machine is not supported by
+      // sycl_ext_oneapi_device_architecture, the runtime exception is omitted,
+      // and std::nullopt is returned.
+      try {
+        return get_device_info_impl<
+            architecture,
+            ext::oneapi::experimental::info::device::architecture>::get(Dev);
+      } catch (sycl::exception &e) {
+        if (e.code() != errc::runtime)
+          std::rethrow_exception(std::make_exception_ptr(e));
+      }
+      return std::nullopt;
+    };
+    std::optional<architecture> DeviceArchOpt = get_current_architecture();
+    if (!DeviceArchOpt.has_value())
+      return {};
+    architecture DeviceArch = DeviceArchOpt.value();
+    if (architecture::intel_cpu_spr == DeviceArch)
+      return {
+          {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 32, 0, 0, 0, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+      };
+    else if (architecture::intel_cpu_gnr == DeviceArch)
+      return {
+          {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::uint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 64, 0, 0, 0, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {16, 16, 32, 0, 0, 0, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {16, 16, 32, 0, 0, 0, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+      };
+    else if (architecture::intel_gpu_pvc == DeviceArch)
+      return {
+          {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {8, 0, 0, 0, 16, 32, matrix_type::sint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {8, 0, 0, 0, 16, 32, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {8, 0, 0, 0, 16, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {8, 0, 0, 0, 16, 16, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 16, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 32, 64, 16, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {8, 0, 0, 0, 16, 8, matrix_type::tf32, matrix_type::tf32,
+           matrix_type::fp32, matrix_type::fp32},
+      };
+    else if ((architecture::intel_gpu_dg2_g10 == DeviceArch) ||
+             (architecture::intel_gpu_dg2_g11 == DeviceArch) ||
+             (architecture::intel_gpu_dg2_g12 == DeviceArch))
+      return {
+          {8, 0, 0, 0, 8, 32, matrix_type::uint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {8, 0, 0, 0, 8, 32, matrix_type::uint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {8, 0, 0, 0, 8, 32, matrix_type::sint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {8, 0, 0, 0, 8, 32, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {8, 0, 0, 0, 8, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {8, 0, 0, 0, 8, 16, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+      };
+    else if (architecture::amd_gpu_gfx90a == DeviceArch)
+      return {
+          {0, 0, 0, 32, 32, 8, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 32, 32, 8, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {0, 0, 0, 16, 16, 16, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {0, 0, 0, 32, 32, 8, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 16, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 4, matrix_type::fp64, matrix_type::fp64,
+           matrix_type::fp64, matrix_type::fp64},
+      };
+    else if (backend::ext_oneapi_cuda == CurrentBackend) {
+      // TODO: Tho following can be simplified when comparison of architectures
+      // using < and > will be implemented
+      using oneapi_exp_arch = sycl::ext::oneapi::experimental::architecture;
+      constexpr std::pair<float, oneapi_exp_arch> NvidiaArchNumbs[] = {
+          {5.0, oneapi_exp_arch::nvidia_gpu_sm_50},
+          {5.2, oneapi_exp_arch::nvidia_gpu_sm_52},
+          {5.3, oneapi_exp_arch::nvidia_gpu_sm_53},
+          {6.0, oneapi_exp_arch::nvidia_gpu_sm_60},
+          {6.1, oneapi_exp_arch::nvidia_gpu_sm_61},
+          {6.2, oneapi_exp_arch::nvidia_gpu_sm_62},
+          {7.0, oneapi_exp_arch::nvidia_gpu_sm_70},
+          {7.2, oneapi_exp_arch::nvidia_gpu_sm_72},
+          {7.5, oneapi_exp_arch::nvidia_gpu_sm_75},
+          {8.0, oneapi_exp_arch::nvidia_gpu_sm_80},
+          {8.6, oneapi_exp_arch::nvidia_gpu_sm_86},
+          {8.7, oneapi_exp_arch::nvidia_gpu_sm_87},
+          {8.9, oneapi_exp_arch::nvidia_gpu_sm_89},
+          {9.0, oneapi_exp_arch::nvidia_gpu_sm_90},
+      };
+      auto GetArchNum = [&](const architecture &arch) {
+        for (const auto &Item : NvidiaArchNumbs)
+          if (Item.second == arch)
+            return Item.first;
+        return 0.f;
+      };
+      float ComputeCapability = GetArchNum(DeviceArch);
+      std::vector<combination> sm_70_combinations = {
+          {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 8, 32, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 32, 8, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp16, matrix_type::fp16},
+          {0, 0, 0, 8, 32, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp16, matrix_type::fp16},
+          {0, 0, 0, 32, 8, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp16, matrix_type::fp16},
+          {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp16},
+          {0, 0, 0, 8, 32, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp16},
+          {0, 0, 0, 32, 8, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp32, matrix_type::fp16},
+          {0, 0, 0, 16, 16, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp16, matrix_type::fp32},
+          {0, 0, 0, 8, 32, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp16, matrix_type::fp32},
+          {0, 0, 0, 32, 8, 16, matrix_type::fp16, matrix_type::fp16,
+           matrix_type::fp16, matrix_type::fp32}};
+      std::vector<combination> sm_72_combinations = {
+          {0, 0, 0, 16, 16, 16, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {0, 0, 0, 8, 32, 16, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {0, 0, 0, 32, 8, 16, matrix_type::sint8, matrix_type::sint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {0, 0, 0, 16, 16, 16, matrix_type::uint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {0, 0, 0, 8, 32, 16, matrix_type::uint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32},
+          {0, 0, 0, 32, 8, 16, matrix_type::uint8, matrix_type::uint8,
+           matrix_type::sint32, matrix_type::sint32}};
+      std::vector<combination> sm_80_combinations = {
+          {0, 0, 0, 16, 16, 8, matrix_type::tf32, matrix_type::tf32,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 16, 16, 16, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 8, 32, 16, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 32, 8, 16, matrix_type::bf16, matrix_type::bf16,
+           matrix_type::fp32, matrix_type::fp32},
+          {0, 0, 0, 8, 8, 4, matrix_type::fp64, matrix_type::fp64,
+           matrix_type::fp64, matrix_type::fp64}};
+      if (ComputeCapability >= 8.0) {
+        sm_80_combinations.insert(sm_80_combinations.end(),
+                                  sm_72_combinations.begin(),
+                                  sm_72_combinations.end());
+        sm_80_combinations.insert(sm_80_combinations.end(),
+                                  sm_70_combinations.begin(),
+                                  sm_70_combinations.end());
+        return sm_80_combinations;
+      } else if (ComputeCapability >= 7.2) {
+        sm_72_combinations.insert(sm_72_combinations.end(),
+                                  sm_70_combinations.begin(),
+                                  sm_70_combinations.end());
+        return sm_72_combinations;
+      } else if (ComputeCapability >= 7.0)
+        return sm_70_combinations;
+    }
+    return {};
   }
 };
 
@@ -579,7 +954,7 @@ struct get_device_info_impl<
     size_t Limit =
         get_device_info_impl<size_t, ext::oneapi::experimental::info::device::
                                          max_global_work_groups>::get(Dev);
-    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<
             ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
@@ -596,7 +971,7 @@ struct get_device_info_impl<
     size_t Limit =
         get_device_info_impl<size_t, ext::oneapi::experimental::info::device::
                                          max_global_work_groups>::get(Dev);
-    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<
             ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
@@ -613,7 +988,7 @@ struct get_device_info_impl<
     size_t Limit =
         get_device_info_impl<size_t, ext::oneapi::experimental::info::device::
                                          max_global_work_groups>::get(Dev);
-    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<
             ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
@@ -675,7 +1050,7 @@ struct get_device_info_impl<id<3>,
 template <> struct get_device_info_impl<device, info::device::parent_device> {
   static device get(const DeviceImplPtr &Dev) {
     typename sycl_to_pi<device>::type result;
-    Dev->getPlugin().call<PiApiKind::piDeviceGetInfo>(
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(), PiInfoCode<info::device::parent_device>::value,
         sizeof(result), &result, nullptr);
     if (result == nullptr)
@@ -689,6 +1064,14 @@ template <> struct get_device_info_impl<device, info::device::parent_device> {
   }
 };
 
+// Specialization for image_support
+template <> struct get_device_info_impl<bool, info::device::image_support> {
+  static bool get(const DeviceImplPtr &) {
+    // No devices currently support SYCL 2020 images.
+    return false;
+  }
+};
+
 // USM
 
 // Specialization for device usm query.
@@ -696,7 +1079,7 @@ template <>
 struct get_device_info_impl<bool, info::device::usm_device_allocations> {
   static bool get(const DeviceImplPtr &Dev) {
     pi_usm_capabilities caps;
-    pi_result Err = Dev->getPlugin().call_nocheck<PiApiKind::piDeviceGetInfo>(
+    pi_result Err = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<info::device::usm_device_allocations>::value,
         sizeof(pi_usm_capabilities), &caps, nullptr);
@@ -710,7 +1093,7 @@ template <>
 struct get_device_info_impl<bool, info::device::usm_host_allocations> {
   static bool get(const DeviceImplPtr &Dev) {
     pi_usm_capabilities caps;
-    pi_result Err = Dev->getPlugin().call_nocheck<PiApiKind::piDeviceGetInfo>(
+    pi_result Err = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<info::device::usm_host_allocations>::value,
         sizeof(pi_usm_capabilities), &caps, nullptr);
@@ -724,7 +1107,7 @@ template <>
 struct get_device_info_impl<bool, info::device::usm_shared_allocations> {
   static bool get(const DeviceImplPtr &Dev) {
     pi_usm_capabilities caps;
-    pi_result Err = Dev->getPlugin().call_nocheck<PiApiKind::piDeviceGetInfo>(
+    pi_result Err = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<info::device::usm_shared_allocations>::value,
         sizeof(pi_usm_capabilities), &caps, nullptr);
@@ -738,7 +1121,7 @@ struct get_device_info_impl<bool,
                             info::device::usm_restricted_shared_allocations> {
   static bool get(const DeviceImplPtr &Dev) {
     pi_usm_capabilities caps;
-    pi_result Err = Dev->getPlugin().call_nocheck<PiApiKind::piDeviceGetInfo>(
+    pi_result Err = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<info::device::usm_restricted_shared_allocations>::value,
         sizeof(pi_usm_capabilities), &caps, nullptr);
@@ -754,7 +1137,7 @@ template <>
 struct get_device_info_impl<bool, info::device::usm_system_allocations> {
   static bool get(const DeviceImplPtr &Dev) {
     pi_usm_capabilities caps;
-    pi_result Err = Dev->getPlugin().call_nocheck<PiApiKind::piDeviceGetInfo>(
+    pi_result Err = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(),
         PiInfoCode<info::device::usm_system_allocations>::value,
         sizeof(pi_usm_capabilities), &caps, nullptr);
@@ -768,10 +1151,17 @@ struct get_device_info_impl<
     bool, ext::codeplay::experimental::info::device::supports_fusion> {
   static bool get(const DeviceImplPtr &Dev) {
 #if SYCL_EXT_CODEPLAY_KERNEL_FUSION
-    // Currently fusion is only supported for SPIR-V based backends, i.e. OpenCL
-    // and LevelZero.
+    // Currently fusion is only supported for SPIR-V based backends,
+    // CUDA and HIP.
+    if (Dev->getBackend() == backend::opencl) {
+      // Exclude all non-CPU or non-GPU devices on OpenCL, in particular
+      // accelerators.
+      return Dev->is_cpu() || Dev->is_gpu();
+    }
+
     return (Dev->getBackend() == backend::ext_oneapi_level_zero) ||
-           (Dev->getBackend() == backend::opencl);
+           (Dev->getBackend() == backend::ext_oneapi_cuda) ||
+           (Dev->getBackend() == backend::ext_oneapi_hip);
 #else  // SYCL_EXT_CODEPLAY_KERNEL_FUSION
     (void)Dev;
     return false;
@@ -779,10 +1169,94 @@ struct get_device_info_impl<
   }
 };
 
+// Specialization for max registers per work-group
+template <>
+struct get_device_info_impl<
+    uint32_t,
+    ext::codeplay::experimental::info::device::max_registers_per_work_group> {
+  static uint32_t get(const DeviceImplPtr &Dev) {
+    uint32_t maxRegsPerWG;
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+        Dev->getHandleRef(),
+        PiInfoCode<ext::codeplay::experimental::info::device::
+                       max_registers_per_work_group>::value,
+        sizeof(maxRegsPerWG), &maxRegsPerWG, nullptr);
+    return maxRegsPerWG;
+  }
+};
+
+// Specialization for composite devices extension.
+template <>
+struct get_device_info_impl<
+    std::vector<sycl::device>,
+    ext::oneapi::experimental::info::device::component_devices> {
+  static std::vector<sycl::device> get(const DeviceImplPtr &Dev) {
+    if (Dev->getBackend() != backend::ext_oneapi_level_zero)
+      return {};
+    size_t ResultSize = 0;
+    // First call to get DevCount.
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+        Dev->getHandleRef(),
+        PiInfoCode<
+            ext::oneapi::experimental::info::device::component_devices>::value,
+        0, nullptr, &ResultSize);
+    size_t DevCount = ResultSize / sizeof(pi_device);
+    // Second call to get the list.
+    std::vector<pi_device> Devs(DevCount);
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+        Dev->getHandleRef(),
+        PiInfoCode<
+            ext::oneapi::experimental::info::device::component_devices>::value,
+        ResultSize, Devs.data(), nullptr);
+    std::vector<sycl::device> Result;
+    const auto &Platform = Dev->getPlatformImpl();
+    for (const auto &d : Devs)
+      Result.push_back(createSyclObjFromImpl<device>(
+          Platform->getOrMakeDeviceImpl(d, Platform)));
+
+    return Result;
+  }
+};
+template <>
+struct get_device_info_impl<
+    sycl::device, ext::oneapi::experimental::info::device::composite_device> {
+  static sycl::device get(const DeviceImplPtr &Dev) {
+    if (Dev->getBackend() != backend::ext_oneapi_level_zero)
+      return {};
+    if (!Dev->has(sycl::aspect::ext_oneapi_is_component))
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Only devices with aspect::ext_oneapi_is_component "
+                            "can call this function.");
+
+    typename sycl_to_pi<device>::type Result;
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+        Dev->getHandleRef(),
+        PiInfoCode<
+            ext::oneapi::experimental::info::device::composite_device>::value,
+        sizeof(Result), &Result, nullptr);
+
+    if (Result) {
+      const auto &Platform = Dev->getPlatformImpl();
+      return createSyclObjFromImpl<device>(
+          Platform->getOrMakeDeviceImpl(Result, Platform));
+    }
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "A component with aspect::ext_oneapi_is_component "
+                          "must have a composite device.");
+  }
+};
+
 template <typename Param>
 typename Param::return_type get_device_info(const DeviceImplPtr &Dev) {
   static_assert(is_device_info_desc<Param>::value,
                 "Invalid device information descriptor");
+  if (std::is_same<Param,
+                   sycl::_V1::ext::intel::info::device::free_memory>::value) {
+    if (!Dev->has(aspect::ext_intel_free_memory))
+      throw invalid_object_error(
+          "The device does not have the ext_intel_free_memory aspect",
+          PI_ERROR_INVALID_DEVICE);
+  }
   return get_device_info_impl<typename Param::return_type, Param>::get(Dev);
 }
 
@@ -796,6 +1270,12 @@ inline typename Param::return_type get_device_info_host() = delete;
 template <>
 inline std::vector<sycl::aspect> get_device_info_host<info::device::aspects>() {
   return std::vector<sycl::aspect>();
+}
+
+template <>
+inline ext::oneapi::experimental::architecture
+get_device_info_host<ext::oneapi::experimental::info::device::architecture>() {
+  return ext::oneapi::experimental::architecture::x86_64;
 }
 
 template <>
@@ -818,19 +1298,19 @@ inline uint32_t get_device_info_host<info::device::max_work_item_dimensions>() {
 }
 
 template <>
-inline id<1> get_device_info_host<info::device::max_work_item_sizes<1>>() {
+inline range<1> get_device_info_host<info::device::max_work_item_sizes<1>>() {
   // current value is the required minimum
   return {1};
 }
 
 template <>
-inline id<2> get_device_info_host<info::device::max_work_item_sizes<2>>() {
+inline range<2> get_device_info_host<info::device::max_work_item_sizes<2>>() {
   // current value is the required minimum
   return {1, 1};
 }
 
 template <>
-inline id<3> get_device_info_host<info::device::max_work_item_sizes<3>>() {
+inline range<3> get_device_info_host<info::device::max_work_item_sizes<3>>() {
   // current value is the required minimum
   return {1, 1, 1};
 }
@@ -1659,6 +2139,76 @@ inline bool get_device_info_host<
   return false;
 }
 
+template <>
+inline uint32_t get_device_info_host<
+    ext::codeplay::experimental::info::device::max_registers_per_work_group>() {
+  throw runtime_error("Obtaining the maximum number of available registers per "
+                      "work-group is not supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline uint32_t get_device_info_host<
+    ext::oneapi::experimental::info::device::image_row_pitch_align>() {
+  throw runtime_error("Obtaining image pitch alignment is not "
+                      "supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline uint32_t get_device_info_host<
+    ext::oneapi::experimental::info::device::max_image_linear_row_pitch>() {
+  throw runtime_error("Obtaining max image linear pitch is not "
+                      "supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline std::vector<ext::oneapi::experimental::matrix::combination>
+get_device_info_host<
+    ext::oneapi::experimental::info::device::matrix_combinations>() {
+  throw runtime_error("Obtaining matrix combinations is not "
+                      "supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline uint32_t get_device_info_host<
+    ext::oneapi::experimental::info::device::max_image_linear_width>() {
+  throw runtime_error("Obtaining max image linear width is not "
+                      "supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline uint32_t get_device_info_host<
+    ext::oneapi::experimental::info::device::max_image_linear_height>() {
+  throw runtime_error("Obtaining max image linear height is not "
+                      "supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline float get_device_info_host<
+    ext::oneapi::experimental::info::device::mipmap_max_anisotropy>() {
+  throw runtime_error("Bindless image mipaps are not supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline std::vector<sycl::device> get_device_info_host<
+    ext::oneapi::experimental::info::device::component_devices>() {
+  throw runtime_error("Host devices cannot be component devices.",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline sycl::device get_device_info_host<
+    ext::oneapi::experimental::info::device::composite_device>() {
+  throw runtime_error("Host devices cannot be composite devices.",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

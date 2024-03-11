@@ -1,13 +1,13 @@
 // REQUIRES: level_zero
 
-// RUN: %clangxx -O0 -fsycl %s -o %t0.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=level_zero:gpu SYCL_PI_TRACE=-1 %t0.out 2>&1 %GPU_CHECK_PLACEHOLDER --check-prefixes=CHECK0
-// RUN: %clangxx -O1 -fsycl %s -o %t1.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=level_zero:gpu SYCL_PI_TRACE=-1 %t1.out 2>&1 %GPU_CHECK_PLACEHOLDER --check-prefixes=CHECK1
-// RUN: %clangxx -O2 -fsycl %s -o %t2.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=level_zero:gpu SYCL_PI_TRACE=-1 %t2.out 2>&1 %GPU_CHECK_PLACEHOLDER --check-prefixes=CHECK2
-// RUN: %clangxx -O3 -fsycl %s -o %t3.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=level_zero:gpu SYCL_PI_TRACE=-1 %t3.out 2>&1 %GPU_CHECK_PLACEHOLDER --check-prefixes=CHECK3
+// RUN: %{build} %if cl_options %{/Od%} %else %{-O0%} -o %t0.out
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t0.out 2>&1 | FileCheck %s --check-prefixes=CHECK0
+// RUN: %{build} -O1 -o %t1.out
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes=CHECK1
+// RUN: %{build} -O2 -o %t2.out
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t2.out 2>&1 | FileCheck %s --check-prefixes=CHECK1
+// RUN: %{build} -O3 -o %t3.out
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t3.out 2>&1 | FileCheck %s --check-prefixes=CHECK1
 
 // This test verifies the propagation of front-end compiler optimization
 // option to the backend.
@@ -15,8 +15,8 @@
 // Following is expected addition of options for level_zero backend:
 // Front-end option | L0 backend option
 //       -O0        |    -ze-opt-disable
-//       -O1        |    -ze-opt-level=1
-//       -O2        |    -ze-opt-level=1
+//       -O1        |    -ze-opt-level=2
+//       -O2        |    -ze-opt-level=2
 //       -O3        |    -ze-opt-level=2
 
 #include <sycl/sycl.hpp>
@@ -30,7 +30,5 @@ int main() {
 
 // CHECK-LABEL: ---> piProgramBuild(
 // CHECK0: -ze-opt-disable
-// CHECK1: -ze-opt-level=1
-// CHECK2: -ze-opt-level=1
-// CHECK3: -ze-opt-level=2
+// CHECK1: -ze-opt-level=2
 // CHECK: ) ---> pi_result : PI_SUCCESS

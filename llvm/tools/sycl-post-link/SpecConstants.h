@@ -50,10 +50,16 @@ using SpecIDMapTy = MapVector<StringRef, std::vector<SpecConstantDescriptor>>;
 
 class SpecConstantsPass : public PassInfoMixin<SpecConstantsPass> {
 public:
-  // SetValAtRT parameter controls spec constant lowering mode:
-  // - if true, it is lowered to SPIRV intrinsic which retrieves constant value
-  // - if false, it is replaced with C++ default (used for AOT compilers)
-  SpecConstantsPass(bool SetValAtRT = true) : SetValAtRT(SetValAtRT) {}
+  // HandlingMode parameter controls spec constant handling:
+  // - default_values: spec constant uses are replaced by default values.
+  // - emulation: spec constant intrinsics are replaced by RT buffers which
+  //              are passed through kernel parameters.
+  // - native: spec constant intrinsics are lowered to spirv intrinsics which
+  //           retrieve values.
+  enum class HandlingMode { default_values, emulation, native };
+
+public:
+  SpecConstantsPass(HandlingMode Mode) : Mode(Mode) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 
   // Searches given module for occurrences of specialization constant-specific
@@ -67,7 +73,9 @@ public:
                                            std::vector<char> &DefaultValues);
 
 private:
-  bool SetValAtRT;
+  HandlingMode Mode = HandlingMode::emulation;
 };
+
+bool checkModuleContainsSpecConsts(const Module &M);
 
 } // namespace llvm

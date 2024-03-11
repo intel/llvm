@@ -1,6 +1,6 @@
 ; RUN: opt -module-summary -o %t %s
 ; RUN: opt -module-summary -o %t2 %S/Inputs/dead-strip-alias.ll
-; RUN: llvm-lto2 run -opaque-pointers %t -r %t,main,px -r %t,alias,p -r %t,external, \
+; RUN: llvm-lto2 run %t -r %t,main,px -r %t,alias,p -r %t,external, \
 ; RUN:               %t2 -r %t2,external,p \
 ; RUN: -save-temps -o %t3
 ; RUN: llvm-nm %t3.2 | FileCheck %s

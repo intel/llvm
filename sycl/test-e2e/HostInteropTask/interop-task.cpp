@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out %threads_lib %opencl_lib
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out %threads_lib %opencl_lib
+// RUN: %{run} %t.out
 // UNSUPPORTED: level_zero, cuda
 // REQUIRES: opencl, opencl_icd
 
@@ -21,7 +19,7 @@ template <typename T> class Init;
 
 template <typename BufferT, typename ValueT>
 void checkBufferValues(BufferT Buffer, ValueT Value) {
-  auto Acc = Buffer.template get_access<mode::read>();
+  auto Acc = Buffer.get_host_access();
   for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx) {
     if (Acc[Idx] != Value) {
       std::cerr << "buffer[" << Idx << "] = " << Acc[Idx]
@@ -137,7 +135,7 @@ void test2_1(queue &Q) {
   buffer<int, 1> Buffer1{BUFFER_SIZE};
   buffer<int, 1> Buffer2{BUFFER_SIZE};
 
-  auto Device = default_selector().select_device();
+  device Device;
   auto Context = context(Device);
   // init the buffer with a'priori invalid data
   init<int, -1, -2>(Buffer1, Buffer2, Q);

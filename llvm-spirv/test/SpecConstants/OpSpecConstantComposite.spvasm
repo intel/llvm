@@ -11,9 +11,9 @@
 ; CHECK-INFO: Spec const id = 4, size in bytes = 4
 ; CHECK-INFO: Spec const id = 7, size in bytes = 4
 
-; RUN: llvm-spirv -r -emit-opaque-pointers -o - %t.spv | llvm-dis -o %t.default.ll
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis -o %t.default.ll
 ; RUN: FileCheck < %t.default.ll  %s --check-prefixes=CHECK-COMMON,CHECK-DEFAULT
-; RUN: llvm-spirv -r -emit-opaque-pointers -spec-const "3:i32:42 4:f32:2.71 6:i32:43 7:f32:3.14 10:i32:44 11:i32:55" -o - %t.spv | llvm-dis -o %t.spec.ll
+; RUN: llvm-spirv -r -spec-const "3:i32:42 4:f32:2.71 6:i32:43 7:f32:3.14 10:i32:44 11:i32:55" -o - %t.spv | llvm-dis -o %t.spec.ll
 ; RUN: FileCheck < %t.spec.ll %s --check-prefixes=CHECK-COMMON,CHECK-SPEC
 
 

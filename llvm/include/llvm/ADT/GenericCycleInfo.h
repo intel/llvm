@@ -28,10 +28,10 @@
 #ifndef LLVM_ADT_GENERICCYCLEINFO_H
 #define LLVM_ADT_GENERICCYCLEINFO_H
 
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/GenericSSAContext.h"
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/SetVector.h"
-#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -64,7 +64,7 @@ private:
   /// Basic blocks that are contained in the cycle, including entry blocks,
   /// and including blocks that are part of a child cycle.
   using BlockSetVectorT = SetVector<BlockT *, SmallVector<BlockT *, 8>,
-                                    SmallPtrSet<const BlockT *, 8>>;
+                                    DenseSet<const BlockT *>, 8>;
   BlockSetVectorT Blocks;
 
   /// Depth of the cycle in the tree. The root "cycle" is at depth 0.
@@ -248,6 +248,12 @@ private:
   /// the subtree.
   void moveTopLevelCycleToNewParent(CycleT *NewParent, CycleT *Child);
 
+  /// Assumes that \p Cycle is the innermost cycle containing \p Block.
+  /// \p Block will be appended to \p Cycle and all of its parent cycles.
+  /// \p Block will be added to BlockMap with \p Cycle and
+  /// BlockMapTopLevel with \p Cycle's top level parent cycle.
+  void addBlockToCycle(BlockT *Block, CycleT *Cycle);
+
 public:
   GenericCycleInfo() = default;
   GenericCycleInfo(GenericCycleInfo &&) = default;
@@ -255,11 +261,13 @@ public:
 
   void clear();
   void compute(FunctionT &F);
+  void splitCriticalEdge(BlockT *Pred, BlockT *Succ, BlockT *New);
 
-  FunctionT *getFunction() const { return Context.getFunction(); }
+  const FunctionT *getFunction() const { return Context.getFunction(); }
   const ContextT &getSSAContext() const { return Context; }
 
   CycleT *getCycle(const BlockT *Block) const;
+  CycleT *getSmallestCommonCycle(CycleT *A, CycleT *B) const;
   unsigned getCycleDepth(const BlockT *Block) const;
   CycleT *getTopLevelParentCycle(BlockT *Block);
 
@@ -270,6 +278,7 @@ public:
 #endif
   void print(raw_ostream &Out) const;
   void dump() const { print(dbgs()); }
+  Printable print(const CycleT *Cycle) { return Cycle->print(Context); }
   //@}
 
   /// Iteration over top-level cycles.

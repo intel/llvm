@@ -1,7 +1,7 @@
-// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx1100 -mattr=+wavefrontsize32,-wavefrontsize64 -show-encoding %s | FileCheck --check-prefixes=GFX11,W32 %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx1100 -mattr=-wavefrontsize32,+wavefrontsize64 -show-encoding %s | FileCheck --check-prefixes=GFX11,W64 %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx1100 -mattr=+wavefrontsize32,-wavefrontsize64 %s 2>&1 | FileCheck --check-prefix=W32-ERR --implicit-check-not=error: %s
-// RUN: not llvm-mc -arch=amdgcn -mcpu=gfx1100 -mattr=-wavefrontsize32,+wavefrontsize64 %s 2>&1 | FileCheck --check-prefix=W64-ERR --implicit-check-not=error: %s
+// RUN: not llvm-mc -triple=amdgcn -mcpu=gfx1100 -mattr=+wavefrontsize32,-wavefrontsize64 -show-encoding %s | FileCheck --check-prefixes=GFX11,W32 %s
+// RUN: not llvm-mc -triple=amdgcn -mcpu=gfx1100 -mattr=-wavefrontsize32,+wavefrontsize64 -show-encoding %s | FileCheck --check-prefixes=GFX11,W64 %s
+// RUN: not llvm-mc -triple=amdgcn -mcpu=gfx1100 -mattr=+wavefrontsize32,-wavefrontsize64 %s 2>&1 | FileCheck --check-prefix=W32-ERR --implicit-check-not=error: %s
+// RUN: not llvm-mc -triple=amdgcn -mcpu=gfx1100 -mattr=-wavefrontsize32,+wavefrontsize64 %s 2>&1 | FileCheck --check-prefix=W64-ERR --implicit-check-not=error: %s
 
 v_add3_u32 v5, v1, v2, s3
 // GFX11: encoding: [0x05,0x00,0x55,0xd6,0x01,0x05,0x0e,0x00]
@@ -2116,6 +2116,12 @@ v_dot2_bf16_bf16 v5, -src_scc, |vcc_lo|, -1 op_sel:[0,0,1,0]
 v_dot2_bf16_bf16 v255, -|0xfe0b|, -|vcc_hi|, null op_sel:[0,0,0,1]
 // GFX11: encoding: [0xff,0x43,0x67,0xd6,0xff,0xd6,0xf0,0x61,0x0b,0xfe,0x00,0x00]
 
+v_dot2_bf16_bf16 v2, v0, 0x20004000, v2
+// GFX11: v_dot2_bf16_bf16 v2, v0, 0x20004000, v2 ; encoding: [0x02,0x00,0x67,0xd6,0x00,0xff,0x09,0x04,0x00,0x40,0x00,0x20]
+
+v_dot2_bf16_bf16 v2, 0x20004000, v0, v2
+// GFX11: v_dot2_bf16_bf16 v2, 0x20004000, v0, v2 ; encoding: [0x02,0x00,0x67,0xd6,0xff,0x00,0x0a,0x04,0x00,0x40,0x00,0x20]
+
 v_dot2_f16_f16 v5, v1, v2, s3
 // GFX11: encoding: [0x05,0x00,0x66,0xd6,0x01,0x05,0x0e,0x00]
 
@@ -2160,6 +2166,12 @@ v_dot2_f16_f16 v5, -src_scc, |vcc_lo|, -1 op_sel:[0,0,1,0]
 
 v_dot2_f16_f16 v255, -|0xfe0b|, -|vcc_hi|, null op_sel:[0,0,0,1]
 // GFX11: encoding: [0xff,0x43,0x66,0xd6,0xff,0xd6,0xf0,0x61,0x0b,0xfe,0x00,0x00]
+
+v_dot2_f16_f16 v2, v0, 0x20004000, v2
+// GFX11: v_dot2_f16_f16 v2, v0, 0x20004000, v2 ; encoding: [0x02,0x00,0x66,0xd6,0x00,0xff,0x09,0x04,0x00,0x40,0x00,0x20]
+
+v_dot2_f16_f16 v2, 0x20004000, v0, v2
+// GFX11: v_dot2_f16_f16 v2, 0x20004000, v0, v2 ; encoding: [0x02,0x00,0x66,0xd6,0xff,0x00,0x0a,0x04,0x00,0x40,0x00,0x20]
 
 v_fma_dx9_zero_f32 v5, v1, v2, s3
 // GFX11: encoding: [0x05,0x00,0x09,0xd6,0x01,0x05,0x0e,0x00]

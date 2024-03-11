@@ -51,6 +51,7 @@ __CLC_DECLARE_SHUFFLES(short, s);
 __CLC_DECLARE_SHUFFLES(unsigned short, t);
 __CLC_DECLARE_SHUFFLES(int, i);
 __CLC_DECLARE_SHUFFLES(unsigned int, j);
+__CLC_DECLARE_SHUFFLES(half, DF16_);
 __CLC_DECLARE_SHUFFLES(float, f);
 __CLC_DECLARE_SHUFFLES(long, l);
 __CLC_DECLARE_SHUFFLES(unsigned long, m);
@@ -64,8 +65,11 @@ __CLC_DECLARE_SHUFFLES(double, d);
 #define __CLC_MIN(x, y) ((x < y) ? (x) : (y))
 #define __CLC_MAX(x, y) ((x > y) ? (x) : (y))
 #define __CLC_OR(x, y) (x | y)
+#define __CLC_XOR(x, y) (x ^ y)
 #define __CLC_AND(x, y) (x & y)
 #define __CLC_MUL(x, y) (x * y)
+#define __CLC_LOGICAL_OR(x, y) (x || y)
+#define __CLC_LOGICAL_AND(x, y) (x && y)
 
 #define __CLC_SUBGROUP_COLLECTIVE_BODY(OP, TYPE, TYPE_MANGLED, IDENTITY)       \
   uint sg_lid = __spirv_SubgroupLocalInvocationId();                           \
@@ -113,6 +117,7 @@ __CLC_SUBGROUP_COLLECTIVE(IAdd, __CLC_ADD, int, i, 0)
 __CLC_SUBGROUP_COLLECTIVE(IAdd, __CLC_ADD, uint, j, 0)
 __CLC_SUBGROUP_COLLECTIVE(IAdd, __CLC_ADD, long, l, 0)
 __CLC_SUBGROUP_COLLECTIVE(IAdd, __CLC_ADD, ulong, m, 0)
+__CLC_SUBGROUP_COLLECTIVE(FAdd, __CLC_ADD, half, DF16_, 0)
 __CLC_SUBGROUP_COLLECTIVE(FAdd, __CLC_ADD, float, f, 0)
 __CLC_SUBGROUP_COLLECTIVE(FAdd, __CLC_ADD, double, d, 0)
 
@@ -124,6 +129,7 @@ __CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, int, i, 1)
 __CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, uint, j, 1)
 __CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, long, l, 1)
 __CLC_SUBGROUP_COLLECTIVE(IMulKHR, __CLC_MUL, ulong, m, 1)
+__CLC_SUBGROUP_COLLECTIVE(FMulKHR, __CLC_MUL, half, DF16_, 1)
 __CLC_SUBGROUP_COLLECTIVE(FMulKHR, __CLC_MUL, float, f, 1)
 __CLC_SUBGROUP_COLLECTIVE(FMulKHR, __CLC_MUL, double, d, 1)
 
@@ -135,8 +141,9 @@ __CLC_SUBGROUP_COLLECTIVE(SMin, __CLC_MIN, int, i, INT_MAX)
 __CLC_SUBGROUP_COLLECTIVE(UMin, __CLC_MIN, uint, j, UINT_MAX)
 __CLC_SUBGROUP_COLLECTIVE(SMin, __CLC_MIN, long, l, LONG_MAX)
 __CLC_SUBGROUP_COLLECTIVE(UMin, __CLC_MIN, ulong, m, ULONG_MAX)
-__CLC_SUBGROUP_COLLECTIVE(FMin, __CLC_MIN, float, f, FLT_MAX)
-__CLC_SUBGROUP_COLLECTIVE(FMin, __CLC_MIN, double, d, DBL_MAX)
+__CLC_SUBGROUP_COLLECTIVE(FMin, __CLC_MIN, half, DF16_, INFINITY)
+__CLC_SUBGROUP_COLLECTIVE(FMin, __CLC_MIN, float, f, INFINITY)
+__CLC_SUBGROUP_COLLECTIVE(FMin, __CLC_MIN, double, d, INFINITY)
 
 __CLC_SUBGROUP_COLLECTIVE(SMax, __CLC_MAX, char, a, CHAR_MIN)
 __CLC_SUBGROUP_COLLECTIVE(UMax, __CLC_MAX, uchar, h, 0)
@@ -146,11 +153,43 @@ __CLC_SUBGROUP_COLLECTIVE(SMax, __CLC_MAX, int, i, INT_MIN)
 __CLC_SUBGROUP_COLLECTIVE(UMax, __CLC_MAX, uint, j, 0)
 __CLC_SUBGROUP_COLLECTIVE(SMax, __CLC_MAX, long, l, LONG_MIN)
 __CLC_SUBGROUP_COLLECTIVE(UMax, __CLC_MAX, ulong, m, 0)
-__CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, float, f, -FLT_MAX)
-__CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, double, d, -DBL_MAX)
+__CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, half, DF16_, -INFINITY)
+__CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, float, f, -INFINITY)
+__CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, double, d, -INFINITY)
 
 __CLC_SUBGROUP_COLLECTIVE(All, __CLC_AND, bool, a, true)
-__CLC_SUBGROUP_COLLECTIVE(Any, __CLC_OR, bool, a, true)
+__CLC_SUBGROUP_COLLECTIVE(Any, __CLC_OR, bool, a, false)
+
+__CLC_SUBGROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, uchar, h, ~0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, uchar, h, 0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, uchar, h, 0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, char, a, ~0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, char, a, 0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, char, a, 0)
+
+__CLC_SUBGROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, ushort, t, ~0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, ushort, t, 0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, ushort, t, 0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, short, s, ~0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, short, s, 0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, short, s, 0)
+
+__CLC_SUBGROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, uint, j, ~0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, uint, j, 0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, uint, j, 0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, int, i, ~0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, int, i, 0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, int, i, 0)
+
+__CLC_SUBGROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, ulong, m, ~0l)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, ulong, m, 0l)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, ulong, m, 0l)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, long, l, ~0l)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, long, l, 0l)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, long, l, 0l)
+
+__CLC_SUBGROUP_COLLECTIVE(LogicalOrKHR, __CLC_LOGICAL_OR, bool, a, false)
+__CLC_SUBGROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, a, true)
 
 #undef __CLC_SUBGROUP_COLLECTIVE_BODY
 #undef __CLC_SUBGROUP_COLLECTIVE
@@ -177,7 +216,7 @@ __CLC_SUBGROUP_COLLECTIVE(Any, __CLC_OR, bool, a, true)
     /* Perform InclusiveScan over sub-group results */                         \
     TYPE sg_prefix;                                                            \
     TYPE sg_aggregate = scratch[0];                                            \
-    _Pragma("unroll") for (int s = 1; s < num_sg; ++s) {                       \
+    for (int s = 1; s < num_sg; ++s) {                                         \
       if (sg_id == s) {                                                        \
         sg_prefix = sg_aggregate;                                              \
       }                                                                        \
@@ -231,6 +270,7 @@ __CLC_GROUP_COLLECTIVE(IAdd, __CLC_ADD, int, 0)
 __CLC_GROUP_COLLECTIVE(IAdd, __CLC_ADD, uint, 0)
 __CLC_GROUP_COLLECTIVE(IAdd, __CLC_ADD, long, 0)
 __CLC_GROUP_COLLECTIVE(IAdd, __CLC_ADD, ulong, 0)
+__CLC_GROUP_COLLECTIVE(FAdd, __CLC_ADD, half, 0)
 __CLC_GROUP_COLLECTIVE(FAdd, __CLC_ADD, float, 0)
 __CLC_GROUP_COLLECTIVE(FAdd, __CLC_ADD, double, 0)
 
@@ -242,6 +282,7 @@ __CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, int, 1)
 __CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, uint, 1)
 __CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, long, 1)
 __CLC_GROUP_COLLECTIVE(IMulKHR, __CLC_MUL, ulong, 1)
+__CLC_GROUP_COLLECTIVE(FMulKHR, __CLC_MUL, half, 1)
 __CLC_GROUP_COLLECTIVE(FMulKHR, __CLC_MUL, float, 1)
 __CLC_GROUP_COLLECTIVE(FMulKHR, __CLC_MUL, double, 1)
 
@@ -253,8 +294,9 @@ __CLC_GROUP_COLLECTIVE(SMin, __CLC_MIN, int, INT_MAX)
 __CLC_GROUP_COLLECTIVE(UMin, __CLC_MIN, uint, UINT_MAX)
 __CLC_GROUP_COLLECTIVE(SMin, __CLC_MIN, long, LONG_MAX)
 __CLC_GROUP_COLLECTIVE(UMin, __CLC_MIN, ulong, ULONG_MAX)
-__CLC_GROUP_COLLECTIVE(FMin, __CLC_MIN, float, FLT_MAX)
-__CLC_GROUP_COLLECTIVE(FMin, __CLC_MIN, double, DBL_MAX)
+__CLC_GROUP_COLLECTIVE(FMin, __CLC_MIN, half, INFINITY)
+__CLC_GROUP_COLLECTIVE(FMin, __CLC_MIN, float, INFINITY)
+__CLC_GROUP_COLLECTIVE(FMin, __CLC_MIN, double, INFINITY)
 
 __CLC_GROUP_COLLECTIVE(SMax, __CLC_MAX, char, CHAR_MIN)
 __CLC_GROUP_COLLECTIVE(UMax, __CLC_MAX, uchar, 0)
@@ -264,8 +306,52 @@ __CLC_GROUP_COLLECTIVE(SMax, __CLC_MAX, int, INT_MIN)
 __CLC_GROUP_COLLECTIVE(UMax, __CLC_MAX, uint, 0)
 __CLC_GROUP_COLLECTIVE(SMax, __CLC_MAX, long, LONG_MIN)
 __CLC_GROUP_COLLECTIVE(UMax, __CLC_MAX, ulong, 0)
-__CLC_GROUP_COLLECTIVE(FMax, __CLC_MAX, float, -FLT_MAX)
-__CLC_GROUP_COLLECTIVE(FMax, __CLC_MAX, double, -DBL_MAX)
+__CLC_GROUP_COLLECTIVE(FMax, __CLC_MAX, half, -INFINITY)
+__CLC_GROUP_COLLECTIVE(FMax, __CLC_MAX, float, -INFINITY)
+__CLC_GROUP_COLLECTIVE(FMax, __CLC_MAX, double, -INFINITY)
+
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, uchar, ~0)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, uchar, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, uchar, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, char, ~0)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, char, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, char, 0)
+
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, ushort, ~0)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, ushort, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, ushort, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, short, ~0)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, short, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, short, 0)
+
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, uint, ~0)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, uint, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, uint, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, int, ~0)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, int, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, int, 0)
+
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, ulong, ~0l)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, ulong, 0l)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, ulong, 0l)
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, long, ~0l)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, long, 0l)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, long, 0l)
+
+__CLC_GROUP_COLLECTIVE(LogicalOrKHR, __CLC_LOGICAL_OR, bool, false)
+__CLC_GROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, true)
+
+// half requires additional mangled entry points
+#define __CLC_GROUP_COLLECTIVE__DF16(MANGLED_NAME, SPIRV_DISPATCH)             \
+  _CLC_DEF _CLC_CONVERGENT half MANGLED_NAME(uint scope, uint op, half x) {    \
+    return SPIRV_DISPATCH(scope, op, x);                                       \
+  }
+__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFAddjjDF16_, __spirv_GroupFAdd)
+__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFMinjjDF16_, __spirv_GroupFMin)
+__CLC_GROUP_COLLECTIVE__DF16(_Z17__spirv_GroupFMaxjjDF16_, __spirv_GroupFMax)
+__CLC_GROUP_COLLECTIVE__DF16(_Z20__spirv_GroupFMulKHRjjDF16_,
+                             __spirv_GroupFMulKHR)
+#undef __CLC_GROUP_COLLECTIVE__DF16
 
 #undef __CLC_GROUP_COLLECTIVE_4
 #undef __CLC_GROUP_COLLECTIVE_5
@@ -342,6 +428,7 @@ __CLC_GROUP_BROADCAST(int, i)
 __CLC_GROUP_BROADCAST(uint, j)
 __CLC_GROUP_BROADCAST(long, l)
 __CLC_GROUP_BROADCAST(ulong, m)
+__CLC_GROUP_BROADCAST(half, DF16_)
 __CLC_GROUP_BROADCAST(float, f)
 __CLC_GROUP_BROADCAST(double, d)
 

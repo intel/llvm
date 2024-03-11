@@ -23,6 +23,10 @@ lldb::ValueObjectSP
 GetChildMemberWithName(ValueObject &obj,
                        llvm::ArrayRef<ConstString> alternative_names);
 
+lldb::ValueObjectSP GetFirstValueOfLibCXXCompressedPair(ValueObject &pair);
+lldb::ValueObjectSP GetSecondValueOfLibCXXCompressedPair(ValueObject &pair);
+
+
 bool LibcxxStringSummaryProviderASCII(
     ValueObject &valobj, Stream &stream,
     const TypeSummaryOptions &summary_options); // libc++ std::string
@@ -54,10 +58,6 @@ bool LibcxxStringViewSummaryProviderUTF32(
 bool LibcxxWStringViewSummaryProvider(
     ValueObject &valobj, Stream &stream,
     const TypeSummaryOptions &options); // libc++ std::wstring_view
-
-bool LibcxxOptionalSummaryProvider(
-    ValueObject &valobj, Stream &stream,
-    const TypeSummaryOptions &options); // libc++ std::optional<>
 
 bool LibcxxSmartPointerSummaryProvider(
     ValueObject &valobj, Stream &stream,
@@ -91,7 +91,7 @@ public:
 
   lldb::ValueObjectSP GetChildAtIndex(size_t idx) override;
 
-  bool Update() override;
+  lldb::ChildCacheState Update() override;
 
   bool MightHaveChildren() override;
 
@@ -139,7 +139,7 @@ public:
 
   lldb::ValueObjectSP GetChildAtIndex(size_t idx) override;
 
-  bool Update() override;
+  lldb::ChildCacheState Update() override;
 
   bool MightHaveChildren() override;
 
@@ -170,7 +170,7 @@ public:
 
   lldb::ValueObjectSP GetChildAtIndex(size_t idx) override;
 
-  bool Update() override;
+  lldb::ChildCacheState Update() override;
 
   bool MightHaveChildren() override;
 
@@ -190,7 +190,7 @@ public:
 
   lldb::ValueObjectSP GetChildAtIndex(size_t idx) override;
 
-  bool Update() override;
+  lldb::ChildCacheState Update() override;
 
   bool MightHaveChildren() override;
 
@@ -200,6 +200,7 @@ public:
 
 private:
   lldb::ValueObjectSP m_value_ptr_sp;
+  lldb::ValueObjectSP m_deleter_sp;
 };
 
 SyntheticChildrenFrontEnd *
@@ -217,6 +218,10 @@ LibcxxUniquePtrSyntheticFrontEndCreator(CXXSyntheticChildren *,
 SyntheticChildrenFrontEnd *
 LibcxxStdVectorSyntheticFrontEndCreator(CXXSyntheticChildren *,
                                         lldb::ValueObjectSP);
+
+SyntheticChildrenFrontEnd *
+LibcxxStdValarraySyntheticFrontEndCreator(CXXSyntheticChildren *,
+                                          lldb::ValueObjectSP);
 
 SyntheticChildrenFrontEnd *
 LibcxxStdListSyntheticFrontEndCreator(CXXSyntheticChildren *,
@@ -259,6 +264,26 @@ LibcxxStdSpanSyntheticFrontEndCreator(CXXSyntheticChildren *,
 SyntheticChildrenFrontEnd *
 LibcxxStdRangesRefViewSyntheticFrontEndCreator(CXXSyntheticChildren *,
                                                lldb::ValueObjectSP);
+
+bool LibcxxChronoSysSecondsSummaryProvider(
+    ValueObject &valobj, Stream &stream,
+    const TypeSummaryOptions &options); // libc++ std::chrono::sys_seconds
+
+bool LibcxxChronoSysDaysSummaryProvider(
+    ValueObject &valobj, Stream &stream,
+    const TypeSummaryOptions &options); // libc++ std::chrono::sys_days
+
+bool LibcxxChronoMonthSummaryProvider(
+    ValueObject &valobj, Stream &stream,
+    const TypeSummaryOptions &options); // libc++ std::chrono::month
+
+bool LibcxxChronoWeekdaySummaryProvider(
+    ValueObject &valobj, Stream &stream,
+    const TypeSummaryOptions &options); // libc++ std::chrono::weekday
+
+bool LibcxxChronoYearMonthDaySummaryProvider(
+    ValueObject &valobj, Stream &stream,
+    const TypeSummaryOptions &options); // libc++ std::chrono::year_month_day
 
 } // namespace formatters
 } // namespace lldb_private

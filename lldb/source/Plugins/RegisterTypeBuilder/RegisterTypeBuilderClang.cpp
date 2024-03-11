@@ -48,7 +48,7 @@ CompilerType RegisterTypeBuilderClang::GetRegisterType(
   // See if we have made this type before and can reuse it.
   CompilerType fields_type =
       type_system->GetTypeForIdentifier<clang::CXXRecordDecl>(
-          ConstString(register_type_name.c_str()));
+          register_type_name);
 
   if (!fields_type) {
     // In most ABI, a change of field type means a change in storage unit.
@@ -60,7 +60,8 @@ CompilerType RegisterTypeBuilderClang::GetRegisterType(
 
     fields_type = type_system->CreateRecordType(
         nullptr, OptionalClangModuleID(), lldb::eAccessPublic,
-        register_type_name, clang::TTK_Struct, lldb::eLanguageTypeC);
+        register_type_name, llvm::to_underlying(clang::TagTypeKind::Struct),
+        lldb::eLanguageTypeC);
     type_system->StartTagDeclarationDefinition(fields_type);
 
     // We assume that RegisterFlags has padded and sorted the fields

@@ -1,9 +1,7 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// REQUIRES: aspect-atomic64
+// RUN: %{build} -o %t.out
 //
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
-
+// RUN: %{run} %t.out
 // Tests that a previously known case for reduction doesn't cause a requirement
 // for atomic64.
 // TODO: When aspect requirements are added to testing, this test could be set
@@ -20,14 +18,7 @@ using namespace sycl;
 int main() {
   queue Q;
 
-  if (Q.get_device().has(aspect::atomic64)) {
-    std::cout << "Device supports aspect::atomic64 so we do not need to run "
-                 "the test."
-              << std::endl;
-    return 0;
-  }
-
-  long long *Out = malloc_shared<long long>(1, Q);
+  long long *Out = malloc_device<long long>(1, Q);
 
   // Case 1: nd_range reduction with 64-bit integer and either sycl::plus,
   // sycl::minimum or sycl::maximum. group_reduce_and_atomic_cross_wg strategy

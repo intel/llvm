@@ -51,7 +51,11 @@ cc_library(
         ],
     ) + [
     ],
-    hdrs = ["googletest/include/gtest/gtest.h", "googletest/include/gtest/gtest-spi.h"],
+    hdrs = [
+        "googletest/include/gtest/gtest.h",
+        "googletest/include/gtest/gtest-spi.h",
+        "googletest/include/gtest/internal/gtest-port.h",
+    ],
     copts = llvm_copts,
     defines = [
         "GTEST_HAS_RTTI=0",

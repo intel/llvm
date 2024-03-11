@@ -13,7 +13,7 @@
 ; RUN:          -enable-lto-internalization=false --exported-symbol=_foo
 ; RUN: llvm-dis < %t1.bc.thinlto.internalized.bc | FileCheck %s --check-prefix=INTERNALIZE-OPTION-DISABLE
 
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc -o %t.o -save-temps \
+; RUN: llvm-lto2 run %t1.bc -o %t.o -save-temps \
 ; RUN:     -r=%t1.bc,_foo,pxl \
 ; RUN:     -r=%t1.bc,_bar,pl \
 ; RUN:     -r=%t1.bc,_linkonce_func,pl \
@@ -25,7 +25,7 @@
 ; Test the enable-lto-internalization option by setting it to false.
 ; This makes sure indices are not marked as internallinkage and therefore
 ; internalization does not happen.
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc -o %t.o -save-temps -enable-lto-internalization=false \
+; RUN: llvm-lto2 run %t1.bc -o %t.o -save-temps -enable-lto-internalization=false \
 ; RUN:     -r=%t1.bc,_foo,pxl \
 ; RUN:     -r=%t1.bc,_bar,pl \
 ; RUN:     -r=%t1.bc,_linkonce_func,pl \

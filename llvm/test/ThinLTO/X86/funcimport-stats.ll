@@ -1,9 +1,9 @@
 ; REQUIRES: asserts
-; RUN: opt -opaque-pointers -module-summary %p/funcimport.ll -o %t.bc
-; RUN: opt -opaque-pointers -module-summary %p/Inputs/funcimport.ll -o %t2.bc
-; RUN: llvm-lto -opaque-pointers -thinlto-action=thinlink -o %t3.bc %t.bc %t2.bc
+; RUN: opt -module-summary %p/funcimport.ll -o %t.bc
+; RUN: opt -module-summary %p/Inputs/funcimport.ll -o %t2.bc
+; RUN: llvm-lto -thinlto-action=thinlink -o %t3.bc %t.bc %t2.bc
 
-; RUN: llvm-lto -opaque-pointers -thinlto-action=import %t2.bc -thinlto-index=%t3.bc -o /dev/null -debug-only=function-import -stats > %t4 2>&1
+; RUN: llvm-lto -thinlto-action=import %t2.bc -thinlto-index=%t3.bc -o /dev/null -debug-only=function-import -stats > %t4 2>&1
 ; RUN: cat %t4 | grep 'Is importing global' | count 4
 ; RUN: cat %t4 | grep 'Is importing function' | count 8
 ; RUN: cat %t4 | grep 'Is importing aliasee' | count 1

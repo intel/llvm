@@ -71,7 +71,7 @@ public:
 
   bool isValidCPUName(StringRef Name) const override;
 
-  unsigned getMinGlobalAlign(uint64_t) const override;
+  unsigned getMinGlobalAlign(uint64_t, bool HasNonWeakDef) const override;
 
   ArrayRef<Builtin::Info> getTargetBuiltins() const override;
 
@@ -82,7 +82,7 @@ public:
   bool validateAsmConstraint(const char *&Name,
                              TargetInfo::ConstraintInfo &info) const override;
 
-  const char *getClobbers() const override { return ""; }
+  std::string_view getClobbers() const override { return ""; }
 
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override;

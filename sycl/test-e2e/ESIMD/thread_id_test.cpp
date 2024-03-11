@@ -1,8 +1,5 @@
-// REQUIRES: gpu
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// XFAIL: linux && gpu && !esimd_emulator
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //==- thread_id_test.cpp - Test to verify thread id functionlity-==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -12,8 +9,6 @@
 //===----------------------------------------------------------------------===//
 
 // This is basic test to validate thread id functions.
-// TODO: Enable the test once the GPU RT supporting the functionality reaches
-// the CI
 
 #include <cmath>
 #include <iostream>

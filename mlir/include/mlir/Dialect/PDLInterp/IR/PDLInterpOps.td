@@ -14,7 +14,7 @@
 #define MLIR_DIALECT_PDLINTERP_IR_PDLINTERPOPS
 
 include "mlir/Dialect/PDL/IR/PDLTypes.td"
-include "mlir/IR/FunctionInterfaces.td"
+include "mlir/Interfaces/FunctionInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
@@ -88,8 +88,11 @@ def PDLInterp_ApplyConstraintOp : PDLInterp_PredicateOp<"apply_constraint"> {
   let description = [{
     `pdl_interp.apply_constraint` operations apply a generic constraint, that
     has been registered with the interpreter, with a given set of positional
-    values. On success, this operation branches to the true destination,
-    otherwise the false destination is taken.
+    values.
+    The constraint function may return any number of results.
+    On success, this operation branches to the true destination,
+    otherwise the false destination is taken. This behavior can be reversed
+    by setting the attribute `isNegated` to true.
 
     Example:
 
@@ -100,9 +103,13 @@ def PDLInterp_ApplyConstraintOp : PDLInterp_PredicateOp<"apply_constraint"> {
     ```
   }];
 
-  let arguments = (ins StrAttr:$name, Variadic<PDL_AnyType>:$args);
+  let arguments = (ins StrAttr:$name, 
+                       Variadic<PDL_AnyType>:$args,
+                       DefaultValuedAttr<BoolAttr, "false">:$isNegated);
+  let results = (outs Variadic<PDL_AnyType>:$results);
   let assemblyFormat = [{
-    $name `(` $args `:` type($args) `)` attr-dict `->` successors
+    $name `(` $args `:` type($args) `)` (`:` type($results)^)? attr-dict 
+    `->` successors
   }];
 }
 
@@ -558,7 +565,7 @@ def PDLInterp_ExtractOp
   let builders = [
     OpBuilder<(ins "Value":$range, "unsigned":$index), [{
       build($_builder, $_state,
-            range.getType().cast<pdl::RangeType>().getElementType(),
+            ::llvm::cast<pdl::RangeType>(range.getType()).getElementType(),
             range, index);
     }]>,
   ];
@@ -674,6 +681,8 @@ def PDLInterp_FuncOp : PDLInterp_Op<"func", [
 
     /// Returns the result types of this function.
     ArrayRef<Type> getResultTypes() { return getFunctionType().getResults(); }
+
+    Region *getCallableRegion() { return &getBody(); }
   }];
   let hasCustomAssemblyFormat = 1;
   let skipDefaultBuilders = 1;
@@ -963,7 +972,7 @@ def PDLInterp_GetValueTypeOp : PDLInterp_Op<"get_value_type", [Pure,
       Type valType = value.getType();
       Type typeType = $_builder.getType<pdl::TypeType>();
       build($_builder, $_state,
-            valType.isa<pdl::RangeType>() ? pdl::RangeType::get(typeType)
+            ::llvm::isa<pdl::RangeType>(valType) ? pdl::RangeType::get(typeType)
                                           : typeType,
             value);
     }]>

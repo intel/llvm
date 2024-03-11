@@ -12,11 +12,11 @@ target triple = "spir64-unknown-unknown"
 
 define spir_func void @_Z1f() {
   %1 = alloca [3 x i32], align 4
-  %2 = tail call spir_func float @_Z27__spirv_ConvertBF16ToFINTELf([3 x i32]* %1)
+  %2 = tail call spir_func float @_Z27__spirv_ConvertBF16ToFINTELf(ptr %1)
   ret void
 }
 
-declare spir_func float @_Z27__spirv_ConvertBF16ToFINTELf([3 x i32]*)
+declare spir_func float @_Z27__spirv_ConvertBF16ToFINTELf(ptr)
 
 !opencl.spir.version = !{!0}
 !spirv.Source = !{!1}

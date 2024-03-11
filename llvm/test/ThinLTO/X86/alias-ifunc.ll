@@ -6,7 +6,7 @@
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-QUUX
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-CORGE
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-GRAULT
-; RUN: llvm-lto2 run -opaque-pointers %t.bc -r %t.bc,foo,px -r %t.bc,bar,px -r %t.bc,baz,px -r %t.bc,qux,px -r %t.bc,grault,px -o %t2
+; RUN: llvm-lto2 run %t.bc -r %t.bc,foo,px -r %t.bc,bar,px -r %t.bc,baz,px -r %t.bc,qux,px -r %t.bc,grault,px -o %t2
 ; RUN: llvm-nm %t2.1 | FileCheck %s --check-prefix=CHECK-SYMBOL
 
 ; CHECK-SYMBOL: i bar

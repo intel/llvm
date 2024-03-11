@@ -15,6 +15,7 @@
 #include "clang/Parse/Parser.h"
 #include "clang/Parse/RAIIObjectsForParser.h"
 #include "clang/Sema/Designator.h"
+#include "clang/Sema/EnterExpressionEvaluationContext.h"
 #include "clang/Sema/Ownership.h"
 #include "clang/Sema/Scope.h"
 #include "llvm/ADT/STLExtras.h"
@@ -430,7 +431,7 @@ ExprResult Parser::ParseInitializerWithPotentialDesignator(
 ///       initializer: [C99 6.7.8]
 ///         '{' initializer-list '}'
 ///         '{' initializer-list ',' '}'
-/// [C2x]   '{' '}'
+/// [C23]   '{' '}'
 ///
 ///       initializer-list:
 ///         designation[opt] initializer ...[opt]
@@ -448,10 +449,10 @@ ExprResult Parser::ParseBraceInitializer() {
   ExprVector InitExprs;
 
   if (Tok.is(tok::r_brace)) {
-    // Empty initializers are a C++ feature and a GNU extension to C before C2x.
+    // Empty initializers are a C++ feature and a GNU extension to C before C23.
     if (!getLangOpts().CPlusPlus) {
-      Diag(LBraceLoc, getLangOpts().C2x
-                          ? diag::warn_c2x_compat_empty_initializer
+      Diag(LBraceLoc, getLangOpts().C23
+                          ? diag::warn_c23_compat_empty_initializer
                           : diag::ext_c_empty_initializer);
     }
     // Match the '}'.

@@ -90,9 +90,7 @@ private:
                                  RewriteKind rewrite) const;
 
   void AddClangCLArgs(const llvm::opt::ArgList &Args, types::ID InputType,
-                      llvm::opt::ArgStringList &CmdArgs,
-                      llvm::codegenoptions::DebugInfoKind *DebugInfoKind,
-                      bool *EmitCodeView) const;
+                      llvm::opt::ArgStringList &CmdArgs) const;
 
   void ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
                                 const InputInfo &Output,
@@ -130,6 +128,8 @@ class LLVM_LIBRARY_VISIBILITY ClangAs : public Tool {
 public:
   ClangAs(const ToolChain &TC)
       : Tool("clang::as", "clang integrated assembler", TC) {}
+  void AddLoongArchTargetArgs(const llvm::opt::ArgList &Args,
+                              llvm::opt::ArgStringList &CmdArgs) const;
   void AddMIPSTargetArgs(const llvm::opt::ArgList &Args,
                          llvm::opt::ArgStringList &CmdArgs) const;
   void AddX86TargetArgs(const llvm::opt::ArgList &Args,
@@ -218,19 +218,6 @@ class LLVM_LIBRARY_VISIBILITY SPIRVTranslator final : public Tool {
 public:
   SPIRVTranslator(const ToolChain &TC)
       : Tool("SPIR-V translator", "llvm-spirv", TC) {}
-
-  bool hasIntegratedCPP() const override { return false; }
-  void ConstructJob(Compilation &C, const JobAction &JA,
-                    const InputInfo &Output, const InputInfoList &Inputs,
-                    const llvm::opt::ArgList &TCArgs,
-                    const char *LinkingOutput) const override;
-};
-
-/// SPIR Checking tool.
-class LLVM_LIBRARY_VISIBILITY SPIRCheck final : public Tool {
-public:
-  SPIRCheck(const ToolChain &TC)
-      : Tool("SPIR Checker", "llvm-no-spir-kernel", TC) {}
 
   bool hasIntegratedCPP() const override { return false; }
   void ConstructJob(Compilation &C, const JobAction &JA,

@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out
-// RUN: %CPU_RUN_PLACEHOLDER %t1.out
-// RUN: %GPU_RUN_PLACEHOLDER  %t1.out
-// RUN: %ACC_RUN_PLACEHOLDER %t1.out
+// RUN: %{build} -o %t1.out
+// RUN: %{run} %t1.out
 
 // This test is expected to reliably work with USM allocator which is
 // currently enabled only on level zero.
@@ -81,12 +79,12 @@ int main() {
   }
 
   q.submit([&](handler &h) {
-    h.single_task<class foo1>([=]() {
-      for (size_t i = 0; i < count; ++i) {
-        *ptrs[i] = 1;
-      }
-    });
-  });
+     h.single_task<class foo1>([=]() {
+       for (size_t i = 0; i < count; ++i) {
+         *ptrs[i] = 1;
+       }
+     });
+   }).wait();
 
   size_t *res =
       (size_t *)aligned_alloc_shared(alignof(size_t), sizeof(size_t), q);

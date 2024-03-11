@@ -1,8 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel -o %t.out %s \
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out \
 // RUN: -fsycl-dead-args-optimization
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{run} %t.out
 //
 // XFAIL: hip_nvidia
 

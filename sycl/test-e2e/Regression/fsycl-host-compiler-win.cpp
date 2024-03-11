@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-host-compiler=cl -DDEFINE_CHECK -fsycl-host-compiler-options="-DDEFINE_CHECK /std:c++17 /Zc:__cplusplus" -o %t.exe %s
-// RUN: %CPU_RUN_PLACEHOLDER %t.exe
-// RUN: %GPU_RUN_PLACEHOLDER %t.exe
-// RUN: %ACC_RUN_PLACEHOLDER %t.exe
+// RUN: %{build} -fsycl-host-compiler=cl -DDEFINE_CHECK -fsycl-host-compiler-options="-DDEFINE_CHECK /std:c++17 /Zc:__cplusplus" -o %t.exe
+// RUN: %{run} %t.exe
 // REQUIRES: windows
 //
 //==------- fsycl-host-compiler-win.cpp - external host compiler test ------==//

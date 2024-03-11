@@ -1,23 +1,21 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-device-code-split=per_kernel %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-finite-math-only%} %else %{-fno-finite-math-only%}
+
+// RUN: %{build} -fsycl-device-code-split=per_kernel %{mathflags} -o %t.out
+// RUN: %{run} %t.out
 
 #include "sycl_complex_helper.hpp"
 
 template <typename T> struct test_sycl_stream_operator {
   bool operator()(sycl::queue &Q, cmplx<T> init) {
-    auto *cplx_out = sycl::malloc_shared<experimental::complex<T>>(1, Q);
-    cplx_out[0] = experimental::complex<T>(init.re, init.im);
-
+    experimental::complex<T> cplx(init.re, init.im);
+    sycl::buffer<experimental::complex<T>> cplx_out_buf{&cplx, sycl::range{1}};
     Q.submit([&](sycl::handler &CGH) {
+       sycl::accessor cplx_out{cplx_out_buf, CGH};
        sycl::stream Out(512, 20, CGH);
        CGH.parallel_for<>(sycl::range<1>(1), [=](sycl::id<1> idx) {
          Out << cplx_out[idx] << sycl::endl;
        });
      }).wait();
-
-    sycl::free(cplx_out, Q);
     return true;
   }
 };

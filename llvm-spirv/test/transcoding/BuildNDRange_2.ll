@@ -18,15 +18,15 @@
 ;; }
 ;; bash$ $PATH_TO_GEN/bin/clang -cc1 -x cl -cl-std=CL2.0 -triple spir64-unknown-unknown -emit-llvm  -include opencl-20.h  BuildNDRange_2.cl -o BuildNDRange_2.ll
 
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
-; RUN: llvm-spirv %t.bc -opaque-pointers=0 -spirv-text -o %t.spv.txt
+; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-spirv %t.bc -spirv-text -o %t.spv.txt
 ; RUN: FileCheck < %t.spv.txt %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv %t.bc -opaque-pointers=0 -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
 
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv --spirv-target-env=SPV-IR -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv --spirv-target-env=SPV-IR -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM-SPV
 
@@ -73,42 +73,38 @@ target triple = "spir64-unknown-unknown"
 
 %struct.ndrange_t = type { i32, [3 x i64], [3 x i64], [3 x i64] }
 
-@test_ndrange_2D3D.lsize2 = private constant [2 x i64] [i64 1, i64 1], align 8
-@test_ndrange_2D3D.lsize3 = private constant [3 x i64] [i64 1, i64 1, i64 1], align 8
+@test_ndrange_2D3D.lsize2 = private addrspace(1) constant [2 x i64] [i64 1, i64 1], align 8
+@test_ndrange_2D3D.lsize3 = private addrspace(1) constant [3 x i64] [i64 1, i64 1, i64 1], align 8
 
 
 ; Function Attrs: nounwind
 define spir_func void @test_ndrange_2D3D() #0 {
 entry:
-  %lsize2 = alloca [2 x i64], align 8
+  %lsize2 = alloca [2 x i64], align 8, addrspace(1)
   %tmp = alloca %struct.ndrange_t, align 8
-  %lsize3 = alloca [3 x i64], align 8
+  %lsize3 = alloca [3 x i64], align 8, addrspace(1)
   %tmp3 = alloca %struct.ndrange_t, align 8
-  %0 = bitcast [2 x i64]* %lsize2 to i8*
-  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %0, i8* align 8 bitcast ([2 x i64]* @test_ndrange_2D3D.lsize2 to i8*), i64 16, i1 false)
-  %arraydecay = getelementptr inbounds [2 x i64], [2 x i64]* %lsize2, i64 0, i64 0
-  call spir_func void @_Z10ndrange_2DPKm(%struct.ndrange_t* sret(%struct.ndrange_t) %tmp, i64* %arraydecay) #2
-  %1 = bitcast [3 x i64]* %lsize3 to i8*
-  call void @llvm.memcpy.p0i8.p0i8.i64(i8* align 8 %1, i8* align 8 bitcast ([3 x i64]* @test_ndrange_2D3D.lsize3 to i8*), i64 24, i1 false)
-  %arraydecay2 = getelementptr inbounds [3 x i64], [3 x i64]* %lsize3, i64 0, i64 0
-  call spir_func void @_Z10ndrange_3DPKm(%struct.ndrange_t* sret(%struct.ndrange_t) %tmp3, i64* %arraydecay2) #2
+  call void @llvm.memcpy.p1.p1.i64(ptr addrspace(1) align 8 %lsize2, ptr addrspace(1) align 8 @test_ndrange_2D3D.lsize2, i64 16, i1 false)
+  call spir_func void @_Z10ndrange_2DPKm(ptr sret(%struct.ndrange_t) %tmp, ptr addrspace(1) %lsize2) #2
+  call void @llvm.memcpy.p1.p1.i64(ptr addrspace(1) align 8 %lsize3, ptr addrspace(1) align 8 @test_ndrange_2D3D.lsize3, i64 24, i1 false)
+  call spir_func void @_Z10ndrange_3DPKm(ptr sret(%struct.ndrange_t) %tmp3, ptr addrspace(1) %lsize3) #2
   ret void
 }
 
 ; Function Attrs: nounwind
-declare void @llvm.memcpy.p0i8.p0i8.i64(i8* nocapture, i8* nocapture readonly, i64, i1) #2
+declare void @llvm.memcpy.p1.p1.i64(ptr addrspace(1) nocapture, ptr addrspace(1) nocapture readonly, i64, i1) #2
 
-declare spir_func void @_Z10ndrange_2DPKm(%struct.ndrange_t* sret(%struct.ndrange_t), i64*) #1
+declare spir_func void @_Z10ndrange_2DPKm(ptr sret(%struct.ndrange_t), ptr addrspace(1)) #1
 
-declare spir_func void @_Z10ndrange_3DPKm(%struct.ndrange_t* sret(%struct.ndrange_t), i64*) #1
+declare spir_func void @_Z10ndrange_3DPKm(ptr sret(%struct.ndrange_t), ptr addrspace(1)) #1
 
 ; Function Attrs: nounwind
 define spir_func void @test_ndrange_const_2D3D() #0 {
 entry:
   %tmp = alloca %struct.ndrange_t, align 8
   %tmp1 = alloca %struct.ndrange_t, align 8
-  call spir_func void @_Z10ndrange_2DPKm(%struct.ndrange_t* sret(%struct.ndrange_t) %tmp, i64* getelementptr inbounds ([2 x i64], [2 x i64]* @test_ndrange_2D3D.lsize2, i64 0, i64 0)) #2
-  call spir_func void @_Z10ndrange_3DPKm(%struct.ndrange_t* sret(%struct.ndrange_t) %tmp1, i64* getelementptr inbounds ([3 x i64], [3 x i64]* @test_ndrange_2D3D.lsize3, i64 0, i64 0)) #2
+  call spir_func void @_Z10ndrange_2DPKm(ptr sret(%struct.ndrange_t) %tmp, ptr addrspace(1) @test_ndrange_2D3D.lsize2) #2
+  call spir_func void @_Z10ndrange_3DPKm(ptr sret(%struct.ndrange_t) %tmp1, ptr addrspace(1) @test_ndrange_2D3D.lsize3) #2
   ret void
 }
 

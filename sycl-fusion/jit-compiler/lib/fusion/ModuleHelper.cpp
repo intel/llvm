@@ -8,6 +8,7 @@
 
 #include "ModuleHelper.h"
 
+#include "target/TargetFusionInfo.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -21,6 +22,13 @@ helper::ModuleHelper::cloneAndPruneModule(Module *Mod,
   // one of the root nodes in CGRoots.
   SmallPtrSet<Function *, 16> UnusedFunctions;
   identifyUnusedFunctions(Mod, CGRoots, UnusedFunctions);
+
+  {
+    TargetFusionInfo TFI{Mod};
+    SmallVector<Function *> Unused{UnusedFunctions.begin(),
+                                   UnusedFunctions.end()};
+    TFI.notifyFunctionsDelete(Unused);
+  }
 
   // Clone the module, but use an external reference in place of the global
   // definition for unused functions.

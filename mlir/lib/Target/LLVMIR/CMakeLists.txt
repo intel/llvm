@@ -39,6 +39,7 @@ add_mlir_translation_library(MLIRTargetLLVMIRExport
   MLIRLLVMDialect
   MLIRLLVMIRTransforms
   MLIRTranslateLib
+  MLIRTransformUtils
   )
 
 add_mlir_translation_library(MLIRToLLVMIRTranslationRegistration
@@ -46,6 +47,7 @@ add_mlir_translation_library(MLIRToLLVMIRTranslationRegistration
 
   LINK_LIBS PUBLIC
   MLIRArmNeonToLLVMIRTranslation
+  MLIRArmSMEToLLVMIRTranslation
   MLIRArmSVEToLLVMIRTranslation
   MLIRAMXToLLVMIRTranslation
   MLIRBuiltinToLLVMIRTranslation
@@ -56,6 +58,8 @@ add_mlir_translation_library(MLIRToLLVMIRTranslationRegistration
   MLIROpenACCToLLVMIRTranslation
   MLIROpenMPToLLVMIRTranslation
   MLIRROCDLToLLVMIRTranslation
+  MLIRSPIRVToLLVMIRTranslation
+  MLIRVCIXToLLVMIRTranslation
   )
 
 add_mlir_translation_library(MLIRTargetLLVMIRImport
@@ -83,4 +87,5 @@ add_mlir_translation_library(MLIRFromLLVMIRTranslationRegistration
 
   LINK_LIBS PUBLIC
   MLIRLLVMIRToLLVMTranslation
+  MLIRLLVMIRToNVVMTranslation
   )

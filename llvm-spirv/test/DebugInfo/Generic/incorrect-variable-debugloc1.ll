@@ -6,7 +6,7 @@
 
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple -O2  -dwarf-version 2 -filetype=obj < %t.ll | llvm-dwarfdump - | FileCheck %s  --check-prefix=DWARF23
 ; RUN: llc -mtriple=%triple -O2  -dwarf-version 3 -filetype=obj < %t.ll | llvm-dwarfdump - | FileCheck %s  --check-prefix=DWARF23
@@ -42,12 +42,12 @@ define i32 @main() #0 !dbg !4 {
 entry:
   %c = alloca i32, align 4
   tail call void @llvm.dbg.value(metadata i32 13, metadata !10, metadata !16), !dbg !17
-  store volatile i32 13, i32* %c, align 4, !dbg !18
+  store volatile i32 13, ptr %c, align 4, !dbg !18
   %call = tail call i32 @_Z4funcv(), !dbg !19
   tail call void @llvm.dbg.value(metadata i32 %call, metadata !10, metadata !16), !dbg !17
-  store volatile i32 %call, i32* %c, align 4, !dbg !19
-  tail call void @llvm.dbg.value(metadata i32* %c, metadata !10, metadata !21), !dbg !17
-  %c.0.c.0. = load volatile i32, i32* %c, align 4, !dbg !20
+  store volatile i32 %call, ptr %c, align 4, !dbg !19
+  tail call void @llvm.dbg.value(metadata ptr %c, metadata !10, metadata !21), !dbg !17
+  %c.0.c.0. = load volatile i32, ptr %c, align 4, !dbg !20
   ret i32 %c.0.c.0., !dbg !20
 }
 

@@ -6,7 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++03
+// UNSUPPORTED: c++03, c++11, c++14
+// UNSUPPORTED: no-filesystem
+// UNSUPPORTED: availability-filesystem-missing
 
 // The string reported on errors changed, which makes those tests fail when run
 // against already-released libc++'s.
@@ -20,7 +22,7 @@
 // void last_write_time(const path& p, file_time_type new_type,
 //                      std::error_code& ec) noexcept;
 
-#include "filesystem_include.h"
+#include <filesystem>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -38,7 +40,7 @@
 #include <sys/time.h>
 #include <sys/stat.h>
 #endif
-
+namespace fs = std::filesystem;
 using namespace fs;
 
 using Sec = std::chrono::duration<file_time_type::rep>;

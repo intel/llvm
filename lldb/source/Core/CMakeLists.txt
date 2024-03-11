@@ -10,9 +10,9 @@ set(LLDB_CURSES_LIBS)
 set(LLDB_LIBEDIT_LIBS)
 
 if (LLDB_ENABLE_CURSES)
-  list(APPEND LLDB_CURSES_LIBS ${CURSES_LIBRARIES} ${PANEL_LIBRARIES})
+  list(APPEND LLDB_CURSES_LIBS ${PANEL_LIBRARIES} ${CURSES_LIBRARIES})
   if(LLVM_ENABLE_TERMINFO)
-    list(APPEND LLDB_CURSES_LIBS ${TERMINFO_LIB})
+    list(APPEND LLDB_CURSES_LIBS ${Terminfo_LIBRARIES})
   endif()
   if (LLVM_BUILD_STATIC)
     list(APPEND LLDB_CURSES_LIBS gpm)
@@ -33,10 +33,10 @@ add_lldb_library(lldbCore
   Disassembler.cpp
   DumpDataExtractor.cpp
   DumpRegisterValue.cpp
+  DumpRegisterInfo.cpp
   DynamicLoader.cpp
   EmulateInstruction.cpp
   FileLineResolver.cpp
-  FileSpecList.cpp
   FormatEntity.cpp
   Highlighter.cpp
   IOHandler.cpp
@@ -54,7 +54,6 @@ add_lldb_library(lldbCore
   SourceLocationSpec.cpp
   SourceManager.cpp
   StreamAsynchronousIO.cpp
-  StreamFile.cpp
   ThreadedCommunication.cpp
   UserSettingsController.cpp
   Value.cpp
@@ -72,6 +71,7 @@ add_lldb_library(lldbCore
   ValueObjectSyntheticFilter.cpp
   ValueObjectUpdater.cpp
   ValueObjectVariable.cpp
+  ValueObjectVTable.cpp
 
   DEPENDS
     clang-tablegen-targets

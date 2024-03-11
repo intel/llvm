@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //==------------------- BasicSchedulerTests.cpp ----------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -61,8 +59,8 @@ int main() {
             BufSize, [=](sycl::id<1> Id) { Buf1Acc[Id] = Buf2Acc[Id]; });
       });
 
-      auto Buf1HostAcc = Buf1.get_access<sycl_access_mode::read>();
-      auto Buf2HostAcc = Buf2.get_access<sycl_access_mode::read>();
+      auto Buf1HostAcc = Buf1.get_host_access();
+      auto Buf2HostAcc = Buf2.get_host_access();
     });
 
   } catch (...) {

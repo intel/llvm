@@ -1,7 +1,7 @@
 // REQUIRES: opencl, opencl_icd
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out %opencl_lib
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out %opencl_lib
+// RUN: %{run} %t.out
 
 //==------------- fpga_queue.cpp - SYCL FPGA queues test -------------------==//
 //
@@ -116,7 +116,7 @@ int main() {
       return -1;
     }
 
-    auto readBufferC = bufC.get_access<access::mode::read>();
+    auto readBufferC = bufC.get_host_access();
     for (size_t i = 0; i != dataSize; ++i) {
       if (readBufferC[i] != 2 * i) {
         std::cout << "Result mismatches " << readBufferC[i] << " Vs expected "

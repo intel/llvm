@@ -1,8 +1,8 @@
 // Check the basic reporting/warning and the application of constraints.
 // RUN: %clang_analyze_cc1 %s \
 // RUN:   -analyzer-checker=core \
-// RUN:   -analyzer-checker=apiModeling.StdCLibraryFunctions \
-// RUN:   -analyzer-checker=alpha.unix.StdCLibraryFunctionArgs \
+// RUN:   -analyzer-checker=unix.StdCLibraryFunctions \
+// RUN:   -analyzer-config unix.StdCLibraryFunctions:ModelPOSIX=true \
 // RUN:   -analyzer-checker=debug.StdCLibraryFunctionsTester \
 // RUN:   -analyzer-checker=debug.ExprInspection \
 // RUN:   -triple x86_64-unknown-linux-gnu \
@@ -11,22 +11,20 @@
 // Check the bugpath related to the reports.
 // RUN: %clang_analyze_cc1 %s \
 // RUN:   -analyzer-checker=core \
-// RUN:   -analyzer-checker=apiModeling.StdCLibraryFunctions \
-// RUN:   -analyzer-checker=alpha.unix.StdCLibraryFunctionArgs \
+// RUN:   -analyzer-checker=unix.StdCLibraryFunctions \
+// RUN:   -analyzer-config unix.StdCLibraryFunctions:ModelPOSIX=true \
 // RUN:   -analyzer-checker=debug.StdCLibraryFunctionsTester \
 // RUN:   -analyzer-checker=debug.ExprInspection \
 // RUN:   -triple x86_64-unknown-linux-gnu \
 // RUN:   -analyzer-output=text \
 // RUN:   -verify=bugpath
 
+#include "Inputs/std-c-library-functions-POSIX.h"
+
 void clang_analyzer_eval(int);
 void clang_analyzer_warnIfReached();
 
 int glob;
-
-#define EOF -1
-
-int isalnum(int);
 
 void test_alnum_concrete(int v) {
   int ret = isalnum(256); // \
@@ -37,8 +35,7 @@ void test_alnum_concrete(int v) {
 }
 
 void test_alnum_symbolic(int x) {
-  int ret = isalnum(x); // \
-  // bugpath-note{{Assuming the character is non-alphanumeric}}
+  int ret = isalnum(x);
   (void)ret;
 
   clang_analyzer_eval(EOF <= x && x <= 255); // \
@@ -62,8 +59,6 @@ void test_alnum_symbolic2(int x) {
     (void)ret;
   }
 }
-
-int toupper(int);
 
 void test_toupper_concrete(int v) {
   int ret = toupper(256); // \
@@ -99,8 +94,6 @@ void test_toupper_symbolic2(int x) {
   }
 }
 
-int tolower(int);
-
 void test_tolower_concrete(int v) {
   int ret = tolower(256); // \
   // report-warning{{The 1st argument to 'tolower' is 256 but should be an unsigned char value or EOF}} \
@@ -134,8 +127,6 @@ void test_tolower_symbolic2(int x) {
     (void)ret;
   }
 }
-
-int toascii(int);
 
 void test_toascii_concrete(int v) {
   int ret = toascii(256); // \
@@ -171,9 +162,6 @@ void test_toascii_symbolic2(int x) {
   }
 }
 
-typedef struct FILE FILE;
-typedef typeof(sizeof(int)) size_t;
-size_t fread(void *restrict, size_t, size_t, FILE *restrict);
 void test_notnull_concrete(FILE *fp) {
   fread(0, sizeof(int), 10, fp); // \
   // report-warning{{The 1st argument to 'fread' is NULL but should not be NULL}} \
@@ -196,6 +184,44 @@ void test_notnull_symbolic2(FILE *fp, int *buf) {
     // bugpath-warning{{The 1st argument to 'fread' is NULL but should not be NULL}} \
     // bugpath-note{{The 1st argument to 'fread' is NULL but should not be NULL}}
 }
+
+int __not_null_buffer(void *, int, int);
+
+void test_notnull_buffer_1(void *buf) {
+  __not_null_buffer(buf, 0, 1);
+  clang_analyzer_eval(buf != 0); // \
+  // report-warning{{TRUE}} \
+  // bugpath-warning{{TRUE}} \
+  // report-warning{{FALSE}} \
+  // bugpath-warning{{FALSE}} \
+  // bugpath-note{{TRUE}} \
+  // bugpath-note{{FALSE}} \
+  // bugpath-note{{Assuming 'buf' is equal to null}} \
+  // bugpath-note{{Assuming 'buf' is not equal to null}}
+}
+
+void test_notnull_buffer_2(void *buf) {
+  __not_null_buffer(buf, 1, 0);
+  clang_analyzer_eval(buf != 0); // \
+  // report-warning{{TRUE}} \
+  // bugpath-warning{{TRUE}} \
+  // report-warning{{FALSE}} \
+  // bugpath-warning{{FALSE}} \
+  // bugpath-note{{TRUE}} \
+  // bugpath-note{{FALSE}} \
+  // bugpath-note{{Assuming 'buf' is equal to null}} \
+  // bugpath-note{{Assuming 'buf' is not equal to null}}
+}
+
+void test_notnull_buffer_3(void *buf) {
+  __not_null_buffer(buf, 1, 1);
+  clang_analyzer_eval(buf != 0); // \
+  // report-warning{{TRUE}} \
+  // bugpath-warning{{TRUE}} \
+  // bugpath-note{{TRUE}} \
+  // bugpath-note{{'buf' is not equal to null}}
+}
+
 void test_no_node_after_bug(FILE *fp, size_t size, size_t n, void *buf) {
   if (fp) // \
   // bugpath-note{{Assuming 'fp' is null}} \
@@ -208,7 +234,6 @@ void test_no_node_after_bug(FILE *fp, size_t size, size_t n, void *buf) {
   clang_analyzer_warnIfReached(); // not reachable
 }
 
-typedef __WCHAR_TYPE__ wchar_t;
 // This is one test case for the ARR38-C SEI-CERT rule.
 void ARR38_C_F(FILE *file) {
   enum { BUFFER_SIZE = 1024 };
@@ -220,9 +245,9 @@ void ARR38_C_F(FILE *file) {
   // The 3rd parameter should be the number of elements to read, not
   // the size in bytes.
   fread(wbuf, size, nitems, file); // \
-  // report-warning{{The 1st argument to 'fread' is out of the accepted range; It should be a buffer with size equal to or greater than the value of the 2nd argument times the 3rd argument}} \
-  // bugpath-warning{{The 1st argument to 'fread' is out of the accepted range; It should be a buffer with size equal to or greater than the value of the 2nd argument times the 3rd argument}} \
-  // bugpath-note{{The 1st argument to 'fread' is out of the accepted range; It should be a buffer with size equal to or greater than the value of the 2nd argument times the 3rd argument}}
+  // report-warning{{The 1st argument to 'fread' is a buffer with size 4096 but should be a buffer with size equal to or greater than the value of the 2nd argument (which is 4) times the 3rd argument (which is 4096)}} \
+  // bugpath-warning{{The 1st argument to 'fread' is a buffer with size 4096 but should be a buffer with size equal to or greater than the value of the 2nd argument (which is 4) times the 3rd argument (which is 4096)}} \
+  // bugpath-note{{The 1st argument to 'fread' is a buffer with size 4096 but should be a buffer with size equal to or greater than the value of the 2nd argument (which is 4) times the 3rd argument (which is 4096)}}
 }
 
 int __two_constrained_args(int, int);
@@ -264,9 +289,9 @@ int __buf_size_arg_constraint(const void *, size_t);
 void test_buf_size_concrete(void) {
   char buf[3];                       // bugpath-note{{'buf' initialized here}}
   __buf_size_arg_constraint(buf, 4); // \
-  // report-warning{{The 1st argument to '__buf_size_arg_constraint' is out of the accepted range; It should be a buffer with size equal to or greater than the value of the 2nd argument}} \
-  // bugpath-warning{{The 1st argument to '__buf_size_arg_constraint' is out of the accepted range; It should be a buffer with size equal to or greater than the value of the 2nd argument}} \
-  // bugpath-note{{The 1st argument to '__buf_size_arg_constraint' is out of the accepted range; It should be a buffer with size equal to or greater than the value of the 2nd argument}}
+  // report-warning{{The 1st argument to '__buf_size_arg_constraint' is a buffer with size 3 but should be a buffer with size equal to or greater than the value of the 2nd argument (which is 4)}} \
+  // bugpath-warning{{The 1st argument to '__buf_size_arg_constraint' is a buffer with size 3 but should be a buffer with size equal to or greater than the value of the 2nd argument (which is 4)}} \
+  // bugpath-note{{The 1st argument to '__buf_size_arg_constraint' is a buffer with size 3 but should be a buffer with size equal to or greater than the value of the 2nd argument (which is 4)}}
 }
 void test_buf_size_symbolic(int s) {
   char buf[3];
@@ -291,9 +316,9 @@ int __buf_size_arg_constraint_mul(const void *, size_t, size_t);
 void test_buf_size_concrete_with_multiplication(void) {
   short buf[3];                                         // bugpath-note{{'buf' initialized here}}
   __buf_size_arg_constraint_mul(buf, 4, sizeof(short)); // \
-  // report-warning{{The 1st argument to '__buf_size_arg_constraint_mul' is out of the accepted range; It should be a buffer with size equal to or greater than the value of the 2nd argument times the 3rd argument}} \
-  // bugpath-warning{{The 1st argument to '__buf_size_arg_constraint_mul' is out of the accepted range; It should be a buffer with size equal to or greater than the value of the 2nd argument times the 3rd argument}} \
-  // bugpath-note{{The 1st argument to '__buf_size_arg_constraint_mul' is out of the accepted range; It should be a buffer with size equal to or greater than the value of the 2nd argument times the 3rd argument}}
+  // report-warning{{The 1st argument to '__buf_size_arg_constraint_mul' is a buffer with size 6 but should be a buffer with size equal to or greater than the value of the 2nd argument (which is 4) times the 3rd argument (which is 2)}} \
+  // bugpath-warning{{The 1st argument to '__buf_size_arg_constraint_mul' is a buffer with size 6 but should be a buffer with size equal to or greater than the value of the 2nd argument (which is 4) times the 3rd argument (which is 2)}} \
+  // bugpath-note{{The 1st argument to '__buf_size_arg_constraint_mul' is a buffer with size 6 but should be a buffer with size equal to or greater than the value of the 2nd argument (which is 4) times the 3rd argument (which is 2)}}
 }
 void test_buf_size_symbolic_with_multiplication(size_t s) {
   short buf[3];
@@ -317,7 +342,31 @@ int __buf_size_arg_constraint_concrete(const void *);
 void test_min_buf_size(void) {
   char buf[9];// bugpath-note{{'buf' initialized here}}
   __buf_size_arg_constraint_concrete(buf); // \
-  // report-warning{{The 1st argument to '__buf_size_arg_constraint_concrete' is out of the accepted range; It should be a buffer with size equal to or greater than 10}} \
-  // bugpath-warning{{The 1st argument to '__buf_size_arg_constraint_concrete' is out of the accepted range; It should be a buffer with size equal to or greater than 10}} \
-  // bugpath-note{{The 1st argument to '__buf_size_arg_constraint_concrete' is out of the accepted range; It should be a buffer with size equal to or greater than 10}}
+  // report-warning{{The 1st argument to '__buf_size_arg_constraint_concrete' is a buffer with size 9 but should be a buffer with size equal to or greater than 10}} \
+  // bugpath-warning{{The 1st argument to '__buf_size_arg_constraint_concrete' is a buffer with size 9 but should be a buffer with size equal to or greater than 10}} \
+  // bugpath-note{{The 1st argument to '__buf_size_arg_constraint_concrete' is a buffer with size 9 but should be a buffer with size equal to or greater than 10}}
+}
+
+void test_file_fd_at_functions() {
+  (void)linkat(-22, "from", AT_FDCWD, "to", 0); // \
+  // report-warning{{The 1st argument to 'linkat' is -22 but should be a valid file descriptor or AT_FDCWD}} \
+  // bugpath-warning{{The 1st argument to 'linkat' is -22 but should be a valid file descriptor or AT_FDCWD}} \
+  // bugpath-note{{The 1st argument to 'linkat' is -22 but should be a valid file descriptor or AT_FDCWD}}
+
+  // no warning for these functions if the AT_FDCWD value is used
+  (void)openat(AT_FDCWD, "path", 0);
+  (void)linkat(AT_FDCWD, "from", AT_FDCWD, "to", 0);
+  (void)faccessat(AT_FDCWD, "path", 0, 0);
+  (void)symlinkat("oldpath", AT_FDCWD, "newpath");
+  (void)mkdirat(AT_FDCWD, "path", 0);
+  (void)mknodat(AT_FDCWD, "path", 0, 0);
+  (void)fchmodat(AT_FDCWD, "path", 0, 0);
+  (void)fchownat(AT_FDCWD, "path", 0, 0, 0);
+  (void)linkat(AT_FDCWD, "oldpath", AT_FDCWD, "newpath", 0);
+  (void)unlinkat(AT_FDCWD, "newpath", 0);
+  struct stat St;
+  (void)fstatat(AT_FDCWD, "newpath", &St, 0);
+  char Buf[10];
+  (void)readlinkat(AT_FDCWD, "newpath", Buf, 10);
+  (void)renameat(AT_FDCWD, "oldpath", AT_FDCWD, "newpath");
 }

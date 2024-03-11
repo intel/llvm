@@ -10,6 +10,7 @@
 #define SYCL_FUSION_PASSES_CLEANUP_H
 
 #include "Kernel.h"
+#include "target/TargetFusionInfo.h"
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/BitVector.h>
 #include <llvm/ADT/StringRef.h>
@@ -24,8 +25,9 @@ namespace llvm {
 /// @param[in] F Function to be cleaned.
 /// @param[in] AM Module analysis manager.
 /// @param[in] EraseMD Keys of metadata to remove.
-void fullCleanup(const jit_compiler::ArgUsageMask &ArgUsageInfo, Function *F,
-                 ModuleAnalysisManager &AM, ArrayRef<StringRef> EraseMD);
+void fullCleanup(ArrayRef<::jit_compiler::ArgUsageUT> ArgUsageInfo, Function *F,
+                 ModuleAnalysisManager &AM, TargetFusionInfo &TFI,
+                 ArrayRef<StringRef> EraseMD);
 } // namespace llvm
 
 #endif // SYCL_FUSION_PASSES_CLEANUP_H

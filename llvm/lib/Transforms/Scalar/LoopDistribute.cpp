@@ -52,13 +52,10 @@
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/Value.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
@@ -107,9 +104,9 @@ static cl::opt<unsigned> DistributeSCEVCheckThreshold(
 static cl::opt<unsigned> PragmaDistributeSCEVCheckThreshold(
     "loop-distribute-scev-check-threshold-with-pragma", cl::init(128),
     cl::Hidden,
-    cl::desc(
-        "The maximum number of SCEV checks allowed for Loop "
-        "Distribution for loop marked with #pragma loop distribute(enable)"));
+    cl::desc("The maximum number of SCEV checks allowed for Loop "
+             "Distribution for loop marked with #pragma clang loop "
+             "distribute(enable)"));
 
 static cl::opt<bool> EnableLoopDistribute(
     "enable-loop-distribute", cl::Hidden,

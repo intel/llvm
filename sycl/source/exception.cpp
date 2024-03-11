@@ -14,20 +14,24 @@
 #include <cstring>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 exception::exception(std::error_code EC, const char *Msg)
     : exception(EC, nullptr, Msg) {}
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 exception::exception(std::error_code EC, const std::string &Msg)
     : exception(EC, nullptr, Msg) {}
+#endif
 
 // new SYCL 2020 constructors
 exception::exception(std::error_code EC) : exception(EC, nullptr, "") {}
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 exception::exception(int EV, const std::error_category &ECat,
                      const std::string &WhatArg)
     : exception({EV, ECat}, nullptr, WhatArg) {}
+#endif
 
 exception::exception(int EV, const std::error_category &ECat,
                      const char *WhatArg)
@@ -58,12 +62,21 @@ exception::exception(context Ctx, int EV, const std::error_category &ECat)
     : exception(Ctx, EV, ECat, "") {}
 
 // protected base constructor for all SYCL 2020 constructors
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+exception::exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
+                     const char *WhatArg)
+    : MMsg(std::make_shared<std::string>(WhatArg)),
+      MPIErr(PI_ERROR_INVALID_VALUE), MContext(SharedPtrCtx), MErrC(EC) {
+  detail::GlobalHandler::instance().TraceEventXPTI(MMsg->c_str());
+}
+#else
 exception::exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
                      const std::string &WhatArg)
     : MMsg(std::make_shared<std::string>(WhatArg)),
       MPIErr(PI_ERROR_INVALID_VALUE), MContext(SharedPtrCtx), MErrC(EC) {
   detail::GlobalHandler::instance().TraceEventXPTI(MMsg->c_str());
 }
+#endif
 
 exception::~exception() {}
 
@@ -79,7 +92,7 @@ bool exception::has_context() const noexcept { return (MContext != nullptr); }
 
 context exception::get_context() const {
   if (!has_context())
-    throw invalid_object_error();
+    throw sycl::exception(sycl::errc::invalid);
 
   return *MContext;
 }
@@ -95,5 +108,5 @@ std::error_code make_error_code(sycl::errc Err) noexcept {
   return {static_cast<int>(Err), sycl_category()};
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

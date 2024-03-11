@@ -208,14 +208,14 @@ int main() {
 
 // Check Kernel_TemplatedStructArray parameters
 // CHECK: FunctionDecl {{.*}}Kernel_TemplatedStructArray{{.*}} 'void (S<int>)'
-// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_s 'S<int>':'S<int>'
+// CHECK-NEXT: ParmVarDecl {{.*}} used _arg_s 'S<int>'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: DeclStmt
 // CHECK-NEXT: VarDecl {{.*}} used __SYCLKernel '(lambda at {{.*}}array-kernel-param.cpp{{.*}})' cinit
 // CHECK-NEXT: InitListExpr {{.*}} '(lambda at {{.*}}array-kernel-param.cpp{{.*}})'
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'S<int>':'S<int>' 'void (const S<int> &) noexcept'
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'S<int>' 'void (const S<int> &) noexcept'
 // CHECK-NEXT: ImplicitCastExpr
-// CHECK-NEXT: DeclRefExpr {{.*}} 'S<int>':'S<int>' lvalue ParmVar {{.*}} '_arg_s' 'S<int>':'S<int>'
+// CHECK-NEXT: DeclRefExpr {{.*}} 'S<int>' lvalue ParmVar {{.*}} '_arg_s' 'S<int>'
 
 // Check Kernel_Array_2D parameters
 // CHECK: FunctionDecl {{.*}}Kernel_Array_2D{{.*}} 'void (__wrapper_class)'
@@ -262,7 +262,7 @@ int main() {
 // CHECK-NEXT: MemberExpr {{.*}} 'NonDecomposedStruct[2]' lvalue .
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_NonDecompStructArray' '__wrapper_class'
 // CHECK-NEXT: CXXConstructExpr {{.*}}'NonDecomposedStruct' 'void (const NonDecomposedStruct &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const NonDecomposedStruct':'const NonDecomposedStruct' lvalue <NoOp>
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const NonDecomposedStruct' lvalue <NoOp>
 // CHECK-NEXT: ArraySubscriptExpr {{.*}}'NonDecomposedStruct' lvalue
 // CHECK-NEXT: ImplicitCastExpr {{.*}} 'NonDecomposedStruct *' <ArrayToPointerDecay>
 // CHECK-NEXT: OpaqueValueExpr {{.*}} 'NonDecomposedStruct[2]' lvalue
@@ -280,9 +280,9 @@ int main() {
 // CHECK-NEXT: InitListExpr
 // CHECK-NEXT: InitListExpr {{.*}} 'StructWithPointers[2]'
 // Initializer for StructWithPointersArray[0]
-// CHECK-NEXT: CXXConstructExpr {{.*}} 'StructWithPointers':'StructWithPointers' 'void (const StructWithPointers &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const StructWithPointers':'const StructWithPointers' lvalue <NoOp>
-// CHECK-NEXT: UnaryOperator {{.*}} 'StructWithPointers':'StructWithPointers' lvalue prefix '*' cannot overflow
+// CHECK-NEXT: CXXConstructExpr {{.*}} 'StructWithPointers' 'void (const StructWithPointers &) noexcept'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const StructWithPointers' lvalue <NoOp>
+// CHECK-NEXT: UnaryOperator {{.*}} 'StructWithPointers' lvalue prefix '*' cannot overflow
 // CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'StructWithPointers *' reinterpret_cast<StructWithPointers *> <BitCast>
 // CHECK-NEXT: UnaryOperator {{.*}} '__generated_StructWithPointers *' prefix '&' cannot overflow
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} '__generated_StructWithPointers' lvalue
@@ -291,9 +291,9 @@ int main() {
 // CHECK-NEXT: DeclRefExpr {{.*}} '__wrapper_class' lvalue ParmVar {{.*}} '_arg_StructWithPointersArray'
 // CHECK-NEXT: IntegerLiteral {{.*}} 0
 // Initializer for StructWithPointersArray[1]
-// CHECK: CXXConstructExpr {{.*}} 'StructWithPointers':'StructWithPointers' 'void (const StructWithPointers &) noexcept'
-// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const StructWithPointers':'const StructWithPointers' lvalue <NoOp>
-// CHECK-NEXT: UnaryOperator {{.*}} 'StructWithPointers':'StructWithPointers' lvalue prefix '*' cannot overflow
+// CHECK: CXXConstructExpr {{.*}} 'StructWithPointers' 'void (const StructWithPointers &) noexcept'
+// CHECK-NEXT: ImplicitCastExpr {{.*}} 'const StructWithPointers' lvalue <NoOp>
+// CHECK-NEXT: UnaryOperator {{.*}} 'StructWithPointers' lvalue prefix '*' cannot overflow
 // CHECK-NEXT: CXXReinterpretCastExpr {{.*}} 'StructWithPointers *' reinterpret_cast<StructWithPointers *> <BitCast>
 // CHECK-NEXT: UnaryOperator {{.*}} '__generated_StructWithPointers *' prefix '&' cannot overflow
 // CHECK-NEXT: ArraySubscriptExpr {{.*}} '__generated_StructWithPointers' lvalue

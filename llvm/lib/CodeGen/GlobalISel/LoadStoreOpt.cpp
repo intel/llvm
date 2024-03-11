@@ -20,7 +20,7 @@
 #include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
 #include "llvm/CodeGen/GlobalISel/Utils.h"
-#include "llvm/CodeGen/LowLevelType.h"
+#include "llvm/CodeGen/LowLevelTypeUtils.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -934,9 +934,8 @@ void LoadStoreOpt::initializeStoreMergeTargetInfo(unsigned AddrSpace) {
   BitVector LegalSizes(MaxStoreSizeToForm * 2);
   const auto &LI = *MF->getSubtarget().getLegalizerInfo();
   const auto &DL = MF->getFunction().getParent()->getDataLayout();
-  Type *IntPtrIRTy =
-      DL.getIntPtrType(MF->getFunction().getContext(), AddrSpace);
-  LLT PtrTy = getLLTForType(*IntPtrIRTy->getPointerTo(AddrSpace), DL);
+  Type *IRPtrTy = PointerType::get(MF->getFunction().getContext(), AddrSpace);
+  LLT PtrTy = getLLTForType(*IRPtrTy, DL);
   // We assume that we're not going to be generating any stores wider than
   // MaxStoreSizeToForm bits for now.
   for (unsigned Size = 2; Size <= MaxStoreSizeToForm; Size *= 2) {

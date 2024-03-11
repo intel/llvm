@@ -9,8 +9,7 @@
 ; RUN: opt -thinlto-bc -o %t3.o %s
 ; RUN: opt -thinlto-bc -o %t4.o %p/Inputs/devirt_promote.ll
 
-; RUN: llvm-lto2 run -opaque-pointers %t3.o %t4.o -save-temps -pass-remarks=. \
-; RUN:   -opaque-pointers \
+; RUN: llvm-lto2 run %t3.o %t4.o -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
 ; RUN:   -wholeprogramdevirt-print-index-based \
 ; RUN:   -o %t5 \
@@ -64,7 +63,7 @@ entry:
 ; CHECK-IR1-LABEL: ret i32
 ; CHECK-IR1-LABEL: }
 
-; CHECK-IR2: define i32 @test2
+; CHECK-IR2: define noundef i32 @test2
 ; Check that the call was devirtualized.
 ; CHECK-IR2:   %call4 = tail call i32 @_ZN1A1nEi
 

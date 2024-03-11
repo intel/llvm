@@ -1,4 +1,4 @@
-! RUN: bbc -emit-fir -o - %s | FileCheck %s
+! RUN: bbc -emit-fir -hlfir=false -o - %s | FileCheck %s
 
   ! CHECK-LABEL: sinteger
   function sinteger(n)
@@ -412,6 +412,27 @@
     ! CHECK: ^bb3:  // 2 preds: ^bb1, ^bb2
     print*, array(1)
   end subroutine sforall
+
+  ! CHECK-LABEL: func @_QPsnested
+  subroutine snested(str)
+    character(*), optional :: str
+    integer :: num
+
+    if (present(str)) then
+      select case (trim(str))
+        case ('a')
+          num = 10
+        case default
+          num = 20
+      end select
+      ! CHECK: ^bb5:  // 2 preds: ^bb3, ^bb4
+      ! CHECK: fir.freemem %{{[0-9]+}} : !fir.heap<!fir.char<1,?>>
+      ! CHECK: cf.br ^bb7
+    else
+      num = 30
+    end if
+    ! CHECK: ^bb7:  // 2 preds: ^bb5, ^bb6
+  end subroutine snested
 
   ! CHECK-LABEL: main
   program p

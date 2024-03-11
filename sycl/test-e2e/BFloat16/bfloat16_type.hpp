@@ -25,7 +25,7 @@ void verify_conv_implicit(queue &q, buffer<float, 1> &a, range<1> &r,
     });
   });
 
-  assert_close(a.get_access<access::mode::read>(), ref);
+  assert_close(host_accessor(a, read_only), ref);
 }
 
 void verify_conv_explicit(queue &q, buffer<float, 1> &a, range<1> &r,
@@ -38,7 +38,7 @@ void verify_conv_explicit(queue &q, buffer<float, 1> &a, range<1> &r,
     });
   });
 
-  assert_close(a.get_access<access::mode::read>(), ref);
+  assert_close(host_accessor(a, read_only), ref);
 }
 
 void verify_add(queue &q, buffer<float, 1> &a, buffer<float, 1> &b, range<1> &r,
@@ -57,7 +57,7 @@ void verify_add(queue &q, buffer<float, 1> &a, buffer<float, 1> &b, range<1> &r,
     });
   });
 
-  assert_close(c.get_access<access::mode::read>(), ref);
+  assert_close(host_accessor(c, read_only), ref);
 }
 
 void verify_sub(queue &q, buffer<float, 1> &a, buffer<float, 1> &b, range<1> &r,
@@ -76,7 +76,7 @@ void verify_sub(queue &q, buffer<float, 1> &a, buffer<float, 1> &b, range<1> &r,
     });
   });
 
-  assert_close(c.get_access<access::mode::read>(), ref);
+  assert_close(host_accessor(c, read_only), ref);
 }
 
 void verify_minus(queue &q, buffer<float, 1> &a, range<1> &r, const float ref) {
@@ -92,7 +92,7 @@ void verify_minus(queue &q, buffer<float, 1> &a, range<1> &r, const float ref) {
     });
   });
 
-  assert_close(c.get_access<access::mode::read>(), ref);
+  assert_close(host_accessor(c, read_only), ref);
 }
 
 void verify_mul(queue &q, buffer<float, 1> &a, buffer<float, 1> &b, range<1> &r,
@@ -111,7 +111,7 @@ void verify_mul(queue &q, buffer<float, 1> &a, buffer<float, 1> &b, range<1> &r,
     });
   });
 
-  assert_close(c.get_access<access::mode::read>(), ref);
+  assert_close(host_accessor(c, read_only), ref);
 }
 
 void verify_div(queue &q, buffer<float, 1> &a, buffer<float, 1> &b, range<1> &r,
@@ -130,7 +130,7 @@ void verify_div(queue &q, buffer<float, 1> &a, buffer<float, 1> &b, range<1> &r,
     });
   });
 
-  assert_close(c.get_access<access::mode::read>(), ref);
+  assert_close(host_accessor(c, read_only), ref);
 }
 
 void verify_logic(queue &q, buffer<float, 1> &a, buffer<float, 1> &b,
@@ -162,7 +162,7 @@ void verify_logic(queue &q, buffer<float, 1> &a, buffer<float, 1> &b,
     });
   });
 
-  assert_close(c.get_access<access::mode::read>(), ref);
+  assert_close(host_accessor(c, read_only), ref);
 }
 
 int run_tests() {

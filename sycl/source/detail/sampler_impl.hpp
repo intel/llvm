@@ -11,12 +11,14 @@
 #include <CL/__spirv/spirv_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/pi.hpp>
 #include <sycl/property_list.hpp>
 
+#include <mutex>
 #include <unordered_map>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 enum class addressing_mode : unsigned int;
 enum class filtering_mode : unsigned int;
@@ -37,7 +39,7 @@ public:
 
   coordinate_normalization_mode get_coordinate_normalization_mode() const;
 
-  RT::PiSampler getOrCreateSampler(const context &Context);
+  sycl::detail::pi::PiSampler getOrCreateSampler(const context &Context);
 
   /// Checks if this sampler_impl has a property of type propertyT.
   ///
@@ -62,7 +64,7 @@ private:
   /// Protects all the fields that can be changed by class' methods.
   std::mutex MMutex;
 
-  std::unordered_map<context, RT::PiSampler> MContextToSampler;
+  std::unordered_map<context, sycl::detail::pi::PiSampler> MContextToSampler;
 
   coordinate_normalization_mode MCoordNormMode;
   addressing_mode MAddrMode;
@@ -71,5 +73,5 @@ private:
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

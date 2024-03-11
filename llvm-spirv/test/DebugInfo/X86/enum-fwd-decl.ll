@@ -1,6 +1,6 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -O0 -mtriple=x86_64-apple-darwin %t.ll -o %t -filetype=obj
 ; RUN: llvm-dwarfdump -debug-info %t | FileCheck %s
@@ -10,7 +10,7 @@ target triple = "spir64-unknown-unknown"
 
 source_filename = "test/DebugInfo/X86/enum-fwd-decl.ll"
 
-@e = global i16 0, align 2, !dbg !0
+@e = addrspace(1) global i16 0, align 2, !dbg !0
 
 !llvm.dbg.cu = !{!4}
 !llvm.module.flags = !{!7}

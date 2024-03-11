@@ -24,7 +24,7 @@ using namespace sycl;
 class MultipleDevsCacheTestKernel;
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 template <>
 struct KernelInfo<MultipleDevsCacheTestKernel>
@@ -35,7 +35,7 @@ struct KernelInfo<MultipleDevsCacheTestKernel>
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 static sycl::unittest::PiImage generateDefaultImage() {
@@ -172,7 +172,7 @@ TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
     // MultipleDevsCacheTestKernel.
     EXPECT_EQ(BundleImpl->size(), size_t{1});
 
-    int NumRetains = BundleImpl->size() * 2;
+    int NumRetains = 1 + BundleImpl->size() * 2;
     EXPECT_EQ(RetainCounter, NumRetains)
         << "Expect " << NumRetains << " piProgramRetain calls";
 
@@ -191,6 +191,6 @@ TEST_F(MultipleDeviceCacheTest, ProgramRetain) {
   // programs. Also the kernel is retained in kernel_bundle::get_kernel(). A
   // kernel is removed from cache if piKernelRelease was called for it, so it
   // will not be removed twice for the other programs. As a result we must
-  // expect 2 piKernelRelease calls.
-  EXPECT_EQ(KernelReleaseCounter, 2) << "Expect 2 piKernelRelease calls";
+  // expect 3 piKernelRelease calls.
+  EXPECT_EQ(KernelReleaseCounter, 3) << "Expect 3 piKernelRelease calls";
 }

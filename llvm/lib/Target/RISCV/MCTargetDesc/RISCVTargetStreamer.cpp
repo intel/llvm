@@ -33,6 +33,8 @@ void RISCVTargetStreamer::emitDirectiveOptionRVC() {}
 void RISCVTargetStreamer::emitDirectiveOptionNoRVC() {}
 void RISCVTargetStreamer::emitDirectiveOptionRelax() {}
 void RISCVTargetStreamer::emitDirectiveOptionNoRelax() {}
+void RISCVTargetStreamer::emitDirectiveOptionArch(
+    ArrayRef<RISCVOptionArchArg> Args) {}
 void RISCVTargetStreamer::emitDirectiveVariantCC(MCSymbol &Symbol) {}
 void RISCVTargetStreamer::emitAttribute(unsigned Attribute, unsigned Value) {}
 void RISCVTargetStreamer::finishAttributeSection() {}
@@ -46,11 +48,24 @@ void RISCVTargetStreamer::setTargetABI(RISCVABI::ABI ABI) {
   TargetABI = ABI;
 }
 
-void RISCVTargetStreamer::emitTargetAttributes(const MCSubtargetInfo &STI) {
-  if (STI.hasFeature(RISCV::FeatureRVE))
-    report_fatal_error("Codegen not yet implemented for RVE");
+void RISCVTargetStreamer::setFlagsFromFeatures(const MCSubtargetInfo &STI) {
+  HasRVC = STI.hasFeature(RISCV::FeatureStdExtC) ||
+           STI.hasFeature(RISCV::FeatureStdExtZca);
+  HasTSO = STI.hasFeature(RISCV::FeatureStdExtZtso);
+}
 
-  emitAttribute(RISCVAttrs::STACK_ALIGN, RISCVAttrs::ALIGN_16);
+void RISCVTargetStreamer::emitTargetAttributes(const MCSubtargetInfo &STI,
+                                               bool EmitStackAlign) {
+  if (EmitStackAlign) {
+    unsigned StackAlign;
+    if (TargetABI == RISCVABI::ABI_ILP32E)
+      StackAlign = 4;
+    else if (TargetABI == RISCVABI::ABI_LP64E)
+      StackAlign = 8;
+    else
+      StackAlign = 16;
+    emitAttribute(RISCVAttrs::STACK_ALIGN, StackAlign);
+  }
 
   auto ParseResult = RISCVFeatures::parseFeatureBits(
       STI.hasFeature(RISCV::Feature64Bit), STI.getFeatureBits());
@@ -97,6 +112,26 @@ void RISCVTargetAsmStreamer::emitDirectiveOptionRelax() {
 
 void RISCVTargetAsmStreamer::emitDirectiveOptionNoRelax() {
   OS << "\t.option\tnorelax\n";
+}
+
+void RISCVTargetAsmStreamer::emitDirectiveOptionArch(
+    ArrayRef<RISCVOptionArchArg> Args) {
+  OS << "\t.option\tarch";
+  for (const auto &Arg : Args) {
+    OS << ", ";
+    switch (Arg.Type) {
+    case RISCVOptionArchArgType::Full:
+      break;
+    case RISCVOptionArchArgType::Plus:
+      OS << "+";
+      break;
+    case RISCVOptionArchArgType::Minus:
+      OS << "-";
+      break;
+    }
+    OS << Arg.Value;
+  }
+  OS << "\n";
 }
 
 void RISCVTargetAsmStreamer::emitDirectiveVariantCC(MCSymbol &Symbol) {

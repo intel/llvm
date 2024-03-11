@@ -8,12 +8,19 @@
 
 #pragma once
 
+#include <sycl/detail/pi.h> // for pi_device_info
+
+#include <type_traits> // for true_type
+
+// FIXME: .def files included to this file use all sorts of SYCL objects like
+// id, range, traits, etc. We have to include some headers before including .def
+// files.
 #include <sycl/aspects.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/id.hpp>
 #include <sycl/info/info_desc.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 template <typename T> struct PiInfoCode;
 template <typename T> struct is_platform_info_desc : std::false_type {};
@@ -119,5 +126,5 @@ struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

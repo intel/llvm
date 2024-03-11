@@ -2,7 +2,7 @@
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.txt
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 ; RUN: llvm-spirv %t.bc -spirv-text --spirv-max-version=1.0 -o - | FileCheck %s --check-prefix=CHECK-SPIRV_1_0
 
@@ -24,15 +24,15 @@ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:2
 target triple = "spir-unknown-unknown"
 
 ; Function Attrs: nounwind
-define spir_kernel void @worker(i8 addrspace(3)* dereferenceable(12) %ptr) #0 {
+define spir_kernel void @worker(ptr addrspace(3) dereferenceable(12) %ptr) #0 {
 entry:
-  %ptr.addr = alloca i8 addrspace(3)*, align 4
-  store i8 addrspace(3)* %ptr, i8 addrspace(3)** %ptr.addr, align 4
+  %ptr.addr = alloca ptr addrspace(3), align 4
+  store ptr addrspace(3) %ptr, ptr %ptr.addr, align 4
   ret void
 }
 
 ; Function Attrs: nounwind
-define spir_func void @not_a_kernel(i8 addrspace(3)* dereferenceable(123) %ptr2) #0 {
+define spir_func void @not_a_kernel(ptr addrspace(3) dereferenceable(123) %ptr2) #0 {
 entry:
   ret void
 }

@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 //==------------ subdevice.cpp - SYCL subdevice basic test -----------------==//
 //
@@ -50,8 +48,10 @@ int main() {
         assert(sycl::get_native<sycl::backend::opencl>(
                    SubDevicesEq[0].get_info<info::device::parent_device>()) ==
                sycl::get_native<sycl::backend::opencl>(dev));
-      } catch (feature_not_supported) {
-        // okay skip it
+      } catch (const sycl::exception &e) {
+        if (e.code() != sycl::errc::feature_not_supported)
+          std::rethrow_exception(std::current_exception());
+        // otherwise okay skip it
       }
 
       try {
@@ -67,8 +67,10 @@ int main() {
         assert(SubDevicesByCount[0]
                    .get_info<info::device::partition_type_property>() ==
                info::partition_property::partition_by_counts);
-      } catch (feature_not_supported) {
-        // okay skip it
+      } catch (const sycl::exception &e) {
+        if (e.code() != sycl::errc::feature_not_supported)
+          std::rethrow_exception(std::current_exception());
+        // otherwise okay skip it
       }
 
       try {
@@ -90,8 +92,10 @@ int main() {
                   << " sub-subdevices from subdevice 0 using partition by numa "
                      "affinity domain scheme."
                   << std::endl;
-      } catch (feature_not_supported) {
-        // okay skip it
+      } catch (const sycl::exception &e) {
+        if (e.code() != sycl::errc::feature_not_supported)
+          std::rethrow_exception(std::current_exception());
+        // otherwise okay skip it
       }
 
       try {
@@ -101,8 +105,10 @@ int main() {
         std::cout << "Created " << SubDevicesDomainL4.size()
                   << " subdevices using partition by L4 cache domain scheme."
                   << std::endl;
-      } catch (feature_not_supported) {
-        // okay skip it
+      } catch (const sycl::exception &e) {
+        if (e.code() != sycl::errc::feature_not_supported)
+          std::rethrow_exception(std::current_exception());
+        // otherwise okay skip it
       }
 
       try {
@@ -112,8 +118,10 @@ int main() {
         std::cout << "Created " << SubDevicesDomainL3.size()
                   << " subdevices using partition by L3 cache domain scheme."
                   << std::endl;
-      } catch (feature_not_supported) {
-        // okay skip it
+      } catch (const sycl::exception &e) {
+        if (e.code() != sycl::errc::feature_not_supported)
+          std::rethrow_exception(std::current_exception());
+        // otherwise okay skip it
       }
 
       try {
@@ -123,8 +131,10 @@ int main() {
         std::cout << "Created " << SubDevicesDomainL2.size()
                   << " subdevices using partition by L2 cache domain scheme."
                   << std::endl;
-      } catch (feature_not_supported) {
-        // okay skip it
+      } catch (const sycl::exception &e) {
+        if (e.code() != sycl::errc::feature_not_supported)
+          std::rethrow_exception(std::current_exception());
+        // otherwise okay skip it
       }
 
       try {
@@ -134,8 +144,10 @@ int main() {
         std::cout << "Created " << SubDevicesDomainL1.size()
                   << " subdevices using partition by L1 cache domain scheme."
                   << std::endl;
-      } catch (feature_not_supported) {
-        // okay skip it
+      } catch (const sycl::exception &e) {
+        if (e.code() != sycl::errc::feature_not_supported)
+          std::rethrow_exception(std::current_exception());
+        // otherwise okay skip it
       }
 
       try {
@@ -156,8 +168,10 @@ int main() {
                   << " sub-subdevices from subdevice 0 using partition by next "
                      "partitionable domain scheme."
                   << std::endl;
-      } catch (feature_not_supported) {
-        // okay skip it
+      } catch (const sycl::exception &e) {
+        if (e.code() != sycl::errc::feature_not_supported)
+          std::rethrow_exception(std::current_exception());
+        // otherwise okay skip it
       }
     }
   } catch (exception e) {

@@ -127,6 +127,8 @@ typedef SPIRVMap<OCLMemOrderKind, unsigned, MemorySemanticsMask> OCLMemOrderMap;
 
 typedef SPIRVMap<OCLScopeKind, Scope> OCLMemScopeMap;
 
+typedef SPIRVMap<std::string, Scope> OCLStrMemScopeMap;
+
 typedef SPIRVMap<std::string, SPIRVGroupOperationKind>
     SPIRSPIRVGroupOperationMap;
 
@@ -488,11 +490,6 @@ mapSPIRVMemSemanticToOCL(unsigned Sema) {
 inline OCLMemOrderKind mapSPIRVMemOrderToOCL(unsigned Sema) {
   return OCLMemOrderMap::rmap(extractSPIRVMemOrderSemantic(Sema));
 }
-
-/// If the value is a special type initializer (something that bitcasts from
-/// spirv.ConstantSampler to spirv.Sampler or likewise for PipeStorage), get the
-/// original type initializer, unwrap the bitcast. Otherwise, return nullptr.
-Value *unwrapSpecialTypeInitializer(Value *V);
 
 bool isPipeOrAddressSpaceCastBI(const StringRef MangledName);
 bool isEnqueueKernelBI(const StringRef MangledName);

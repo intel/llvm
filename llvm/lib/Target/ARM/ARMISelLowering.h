@@ -23,13 +23,13 @@
 #include "llvm/CodeGen/SelectionDAGNodes.h"
 #include "llvm/CodeGen/TargetLowering.h"
 #include "llvm/CodeGen/ValueTypes.h"
+#include "llvm/CodeGenTypes/MachineValueType.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/CallingConv.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/Support/CodeGen.h"
-#include "llvm/Support/MachineValueType.h"
 #include <optional>
 #include <utility>
 
@@ -375,6 +375,14 @@ class VectorType;
 
   // Bit position of rounding mode bits in FPSCR.
   const unsigned RoundingBitsPos = 22;
+
+  // Bits of floating-point status. These are NZCV flags, QC bit and cumulative
+  // FP exception bits.
+  const unsigned FPStatusBits = 0xf800009f;
+
+  // Some bits in the FPSCR are not yet defined.  They must be preserved when
+  // modifying the contents.
+  const unsigned FPReservedBits = 0x00006060;
   } // namespace ARM
 
   /// Define some predicates that are used for node matching.
@@ -530,33 +538,33 @@ class VectorType;
     /// vector.  If it is invalid, don't add anything to Ops. If hasMemory is
     /// true it means one of the asm constraint of the inline asm instruction
     /// being processed is 'm'.
-    void LowerAsmOperandForConstraint(SDValue Op, std::string &Constraint,
+    void LowerAsmOperandForConstraint(SDValue Op, StringRef Constraint,
                                       std::vector<SDValue> &Ops,
                                       SelectionDAG &DAG) const override;
 
-    unsigned
+    InlineAsm::ConstraintCode
     getInlineAsmMemConstraint(StringRef ConstraintCode) const override {
       if (ConstraintCode == "Q")
-        return InlineAsm::Constraint_Q;
-      else if (ConstraintCode.size() == 2) {
+        return InlineAsm::ConstraintCode::Q;
+      if (ConstraintCode.size() == 2) {
         if (ConstraintCode[0] == 'U') {
           switch(ConstraintCode[1]) {
           default:
             break;
           case 'm':
-            return InlineAsm::Constraint_Um;
+            return InlineAsm::ConstraintCode::Um;
           case 'n':
-            return InlineAsm::Constraint_Un;
+            return InlineAsm::ConstraintCode::Un;
           case 'q':
-            return InlineAsm::Constraint_Uq;
+            return InlineAsm::ConstraintCode::Uq;
           case 's':
-            return InlineAsm::Constraint_Us;
+            return InlineAsm::ConstraintCode::Us;
           case 't':
-            return InlineAsm::Constraint_Ut;
+            return InlineAsm::ConstraintCode::Ut;
           case 'v':
-            return InlineAsm::Constraint_Uv;
+            return InlineAsm::ConstraintCode::Uv;
           case 'y':
-            return InlineAsm::Constraint_Uy;
+            return InlineAsm::ConstraintCode::Uy;
           }
         }
       }
@@ -738,6 +746,9 @@ class VectorType;
     bool shouldFoldConstantShiftPairToMask(const SDNode *N,
                                            CombineLevel Level) const override;
 
+    bool shouldFoldSelectWithIdentityConstant(unsigned BinOpcode,
+                                              EVT VT) const override;
+
     bool preferIncOfAddToSubOfNot(EVT VT) const override;
 
     bool shouldConvertFpToSat(unsigned Op, EVT FPVT, EVT VT) const override;
@@ -747,9 +758,13 @@ class VectorType;
         ComplexDeinterleavingOperation Operation, Type *Ty) const override;
 
     Value *createComplexDeinterleavingIR(
-        Instruction *I, ComplexDeinterleavingOperation OperationType,
+        IRBuilderBase &B, ComplexDeinterleavingOperation OperationType,
         ComplexDeinterleavingRotation Rotation, Value *InputA, Value *InputB,
         Value *Accumulator = nullptr) const override;
+
+    bool softPromoteHalfType() const override { return true; }
+
+    bool useFPRegsForHalfType() const override { return true; }
 
   protected:
     std::pair<const TargetRegisterClass *, uint8_t>
@@ -764,9 +779,6 @@ class VectorType;
     const TargetRegisterInfo *RegInfo;
 
     const InstrItineraryData *Itins;
-
-    /// ARMPCLabelIndex - Keep track of the number of ARM PC labels created.
-    unsigned ARMPCLabelIndex;
 
     // TODO: remove this, and have shouldInsertFencesForAtomic do the proper
     // check.
@@ -821,7 +833,6 @@ class VectorType;
                                  TLSModel::Model model) const;
     SDValue LowerGlobalTLSAddressDarwin(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerGlobalTLSAddressWindows(SDValue Op, SelectionDAG &DAG) const;
-    SDValue LowerGLOBAL_OFFSET_TABLE(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerBR_JT(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSignedALUO(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerUnsignedALUO(SDValue Op, SelectionDAG &DAG) const;
@@ -836,6 +847,8 @@ class VectorType;
     SDValue LowerShiftLeftParts(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerGET_ROUNDING(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSET_ROUNDING(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerSET_FPMODE(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerRESET_FPMODE(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerConstantFP(SDValue Op, SelectionDAG &DAG,
                             const ARMSubtarget *ST) const;
     SDValue LowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG,
@@ -970,8 +983,6 @@ class VectorType;
                                 MachineBasicBlock *DispatchBB, int FI) const;
 
     void EmitSjLjDispatchBlock(MachineInstr &MI, MachineBasicBlock *MBB) const;
-
-    bool RemapAddSubWithFlags(MachineInstr &MI, MachineBasicBlock *BB) const;
 
     MachineBasicBlock *EmitStructByval(MachineInstr &MI,
                                        MachineBasicBlock *MBB) const;

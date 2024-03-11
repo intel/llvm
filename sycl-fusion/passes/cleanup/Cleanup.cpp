@@ -45,11 +45,13 @@ static void copyAttributesFrom(const BitVector &Mask, Function *NF,
                                        PAL.getRetAttrs(), Attributes));
 }
 
-static Function *createMaskedFunction(const BitVector &Mask, Function *F) {
+static Function *createMaskedFunction(const BitVector &Mask, Function *F,
+                                      TargetFusionInfo &TFI) {
   // Declare
   FunctionType *NFTy = createMaskedFunctionType(Mask, F->getFunctionType());
   Function *NF = Function::Create(NFTy, F->getLinkage(), F->getAddressSpace(),
                                   F->getName(), F->getParent());
+  NF->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
   copyAttributesFrom(Mask, NF, F);
   NF->setComdat(F->getComdat());
   NF->takeName(F);
@@ -78,15 +80,15 @@ static Function *createMaskedFunction(const BitVector &Mask, Function *F) {
   }
 
   // Erase old function
+  TFI.notifyFunctionsDelete(F);
   F->eraseFromParent();
+  TFI.addKernelFunction(NF);
   return NF;
 }
 
 static void updateArgUsageMask(jit_compiler::SYCLKernelInfo *Info,
-                               const jit_compiler::ArgUsageMask &NewArgInfo) {
-  // Masks iterator.
-  jit_compiler::ArgUsageMask &KernelMask = Info->Args.UsageMask;
-
+                               ArrayRef<jit_compiler::ArgUsageUT> NewArgInfo) {
+  auto &KernelMask = Info->Args.UsageMask;
   auto New = NewArgInfo.begin();
   for (auto &C : KernelMask) {
     if (C & jit_compiler::ArgUsage::Used) {
@@ -102,11 +104,11 @@ static void updateArgUsageMask(jit_compiler::SYCLKernelInfo *Info,
   }
 }
 
-static void applyArgMask(const jit_compiler::ArgUsageMask &NewArgInfo,
+static void applyArgMask(ArrayRef<jit_compiler::ArgUsageUT> NewArgInfo,
                          const BitVector &Mask, Function *F,
-                         ModuleAnalysisManager &AM) {
+                         ModuleAnalysisManager &AM, TargetFusionInfo &TFI) {
   // Create the function without the masked-out args.
-  Function *NF = createMaskedFunction(Mask, F);
+  Function *NF = createMaskedFunction(Mask, F, TFI);
   // Update the unused args mask.
   jit_compiler::SYCLModuleInfo *ModuleInfo =
       AM.getResult<SYCLModuleInfoAnalysis>(*NF->getParent()).ModuleInfo;
@@ -125,9 +127,7 @@ static void maskMD(const BitVector &Mask, Function *F) {
   SmallVector<std::pair<unsigned, MDNode *>> MD;
   F->getAllMetadata(MD);
   for (const auto &Entry : MD) {
-    auto MDKind = Entry.first;
-    if (MDKind == F->getContext().getMDKindID("reqd_work_group_size") ||
-        MDKind == F->getContext().getMDKindID("work_group_size_hint")) {
+    if (Entry.second->getNumOperands() != Mask.size()) {
       // Some metadata, e.g., the metadata for reqd_work_group_size and
       // work_group_size_hint is independent from the number of arguments
       // and must not be filtered by the argument usage mask.
@@ -142,9 +142,9 @@ static void maskMD(const BitVector &Mask, Function *F) {
   }
 }
 
-void llvm::fullCleanup(const jit_compiler::ArgUsageMask &ArgUsageInfo,
+void llvm::fullCleanup(ArrayRef<jit_compiler::ArgUsageUT> ArgUsageInfo,
                        Function *F, ModuleAnalysisManager &AM,
-                       ArrayRef<StringRef> MDToErase) {
+                       TargetFusionInfo &TFI, ArrayRef<StringRef> MDToErase) {
   // Erase metadata.
   for (auto Key : MDToErase) {
     F->setMetadata(Key, nullptr);
@@ -158,5 +158,5 @@ void llvm::fullCleanup(const jit_compiler::ArgUsageMask &ArgUsageInfo,
   // Update metadata.
   maskMD(CleanupMask, F);
   // Remove arguments.
-  applyArgMask(ArgUsageInfo, CleanupMask, F, AM);
+  applyArgMask(ArgUsageInfo, CleanupMask, F, AM, TFI);
 }

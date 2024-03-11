@@ -40,5 +40,5 @@
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fsycl-device-obj=spirv -### %t.o 2>&1 | \
 // RUN:  FileCheck %s -check-prefixes=OPT_WARNING,LLVM_SPIRV_R
 // OPT_WARNING: warning: argument unused during compilation: '-fsycl-device-obj=spirv'
-// LLVM_SPIRV_R: spirv-to-ir-wrapper{{.*}} "-llvm-spirv-opts" "--spirv-preserve-auxdata"
+// LLVM_SPIRV_R: spirv-to-ir-wrapper{{.*}} "-llvm-spirv-opts" "--spirv-preserve-auxdata --spirv-target-env=SPV-IR --spirv-builtin-format=global"
 // LLVM_SPIRV_R-NOT: llvm-spirv{{.*}} "-r"

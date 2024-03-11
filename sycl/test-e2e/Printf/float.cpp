@@ -7,24 +7,16 @@
 // UNSUPPORTED: hip_amd
 // XFAIL: cuda && windows
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
-// RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
-// RUN: %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out | FileCheck %s
 // FIXME: Remove dedicated non-variadic printf testing once the headers
 //        enforce it by default.
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.nonvar.out \
-// RUN: -D__SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
-// RUN: %CPU_RUN_PLACEHOLDER %t.nonvar.out %CPU_CHECK_PLACEHOLDER
-// RUN: %GPU_RUN_PLACEHOLDER %t.nonvar.out %GPU_CHECK_PLACEHOLDER
-// RUN: %ACC_RUN_PLACEHOLDER %t.nonvar.out %ACC_CHECK_PLACEHOLDER
+// RUN: %{build} -o %t.nonvar.out -D__SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
+// RUN: %{run} %t.nonvar.out | FileCheck %s
 // FIXME: Remove dedicated constant address space testing once generic AS
 //        support is considered stable.
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.constant.out \
-// RUN: -DTEST_CONSTANT_AS
-// RUN: %CPU_RUN_PLACEHOLDER %t.constant.out %CPU_CHECK_PLACEHOLDER
-// RUN: %GPU_RUN_PLACEHOLDER %t.constant.out %GPU_CHECK_PLACEHOLDER
-// RUN: %ACC_RUN_PLACEHOLDER %t.constant.out %ACC_CHECK_PLACEHOLDER
+// RUN: %{build} -o %t.constant.out -DTEST_CONSTANT_AS
+// RUN: %{run} %t.constant.out | FileCheck %s
 //
 // CHECK: 3.140000e+00, 3.140000E+00
 // CHECK: 0x1.91eb86{{0*}}p+1, 0X1.91EB86{{0*}}P+1

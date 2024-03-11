@@ -1,16 +1,15 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: gpu
+// REQUIRES: aspect-fp64
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
-// RUN: %clangxx -fsycl -fno-builtin -fsycl-device-lib-jit-link %s -o %t1.out
-// RUN: %GPU_RUN_PLACEHOLDER %t1.out
+// RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t1.out
+// RUN: %{run} %t1.out
 //
 // UNSUPPORTED: cuda || hip
 
 #include "imf_utils.hpp"
-
-extern "C" {
-uint16_t __imf_double2bfloat16(double);
-}
+#include <sycl/ext/intel/math.hpp>
 
 int main() {
 
@@ -18,11 +17,6 @@ int main() {
   std::cout << "Running on "
             << device_queue.get_device().get_info<sycl::info::device::name>()
             << "\n";
-
-  if (!device_queue.get_device().has(sycl::aspect::fp64)) {
-    std::cout << "Test skipped on platform without fp64 support." << std::endl;
-    return 0;
-  }
 
   {
     std::initializer_list<double> input_vals = {
@@ -56,8 +50,10 @@ int main() {
         0x0,    0x7F80, 0xFF80, 0x4134, 0x4481, 0x4780, 0xC780, 0xC69C, 0x44FD,
         0x4771, 0xC771, 0x47D5, 0xCD3F, 0x21B8, 0xA58E, 0x0F82, 0x8CE1, 0x7F80,
         0x7F80, 0x7F7E, 0xFF80, 0xFF80, 0xFF7E, 0x2,    0x80};
-    test_host(input_vals, ref_vals, F(__imf_double2bfloat16));
-    test(device_queue, input_vals, ref_vals, F(__imf_double2bfloat16));
+    test_host(input_vals, ref_vals,
+              FT(uint16_t, sycl::ext::intel::math::double2bfloat16));
+    test(device_queue, input_vals, ref_vals,
+         FT(uint16_t, sycl::ext::intel::math::double2bfloat16));
   }
 
   return 0;

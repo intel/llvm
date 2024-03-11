@@ -1,8 +1,8 @@
-// RUN: %clangxx %debug_option -fsycl -fsycl-targets=%sycl_triple %s -Ofast -o %t.out
-// RUN: %clangxx %debug_option -fsycl -fsycl-targets=%sycl_triple %s -Os -o %t.out
-// RUN: %clangxx %debug_option -fsycl -fsycl-targets=%sycl_triple %s -Oz -o %t.out
-// RUN: %clangxx %debug_option -fsycl -fsycl-targets=%sycl_triple %s -Og -o %t.out
-// RUN: %clangxx %debug_option -fsycl -fsycl-targets=%sycl_triple %s -O -o %t.out
+// RUN: %{build} %debug_option -Ofast -o %t.out
+// RUN: %{build} %debug_option -Os -o %t.out
+// RUN: %{build} %debug_option -Oz -o %t.out
+// RUN: %{build} %debug_option -Og -o %t.out
+// RUN: %{build} %debug_option -O -o %t.out
 
 // NOTE: Tests that debugging information can be generated for all special-name
 // optimization levels.

@@ -1,6 +1,9 @@
-// REQUIRES: level_zero, level_zero_dev_kit
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN:  %GPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: level_zero, level_zero_dev_kit, aspect-ext_intel_legacy_image
+// RUN: %{build} %level_zero_options -o %t.out
+// RUN: %{run} %t.out
+
+// spir-v gen for legacy images at O0 not working
+// UNSUPPORTED: O0
 
 // This test verifies that make_image is working for 1D, 2D and 3D images.
 // We instantiate an image with L0, set its body, then use a host accessor to

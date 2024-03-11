@@ -7,13 +7,16 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/__spirv/spirv_ops.hpp>
-#include <CL/__spirv/spirv_vars.hpp>
-#include <sycl/ext/oneapi/sub_group_mask.hpp>
-#include <sycl/types.hpp>
+
+#include <sycl/ext/oneapi/sub_group_mask.hpp> // for sub_group_mask
+#include <sycl/marray.hpp>                    // for marray
+#include <sycl/types.hpp>                     // for vec
+
+#include <stddef.h> // for size_t
+#include <stdint.h> // for uint32_t
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 
@@ -31,18 +34,24 @@ inline sycl::vec<unsigned, 4> ExtractMask(ext::oneapi::sub_group_mask Mask) {
 // TODO: This may need to be generalized beyond uint32_t for big masks
 inline uint32_t CallerPositionInMask(ext::oneapi::sub_group_mask Mask) {
   sycl::vec<unsigned, 4> MemberMask = ExtractMask(Mask);
-  auto OCLMask =
-      sycl::detail::ConvertToOpenCLType_t<sycl::vec<unsigned, 4>>(MemberMask);
   return __spirv_GroupNonUniformBallotBitCount(
       __spv::Scope::Subgroup, (int)__spv::GroupOperation::ExclusiveScan,
-      OCLMask);
+      sycl::detail::convertToOpenCLType(MemberMask));
 }
 #endif
 
 template <typename NonUniformGroup>
+inline ext::oneapi::sub_group_mask GetMask(NonUniformGroup Group) {
+  return Group.Mask;
+}
+
+template <typename NonUniformGroup>
 inline uint32_t IdToMaskPosition(NonUniformGroup Group, uint32_t Id) {
+  sycl::vec<unsigned, 4> MemberMask = ExtractMask(GetMask(Group));
+#if defined(__NVPTX__)
+  return __nvvm_fns(MemberMask[0], 0, Id + 1);
+#else
   // TODO: This will need to be optimized
-  sycl::vec<unsigned, 4> MemberMask = ExtractMask(Group.Mask);
   uint32_t Count = 0;
   for (int i = 0; i < 4; ++i) {
     for (int b = 0; b < 32; ++b) {
@@ -55,6 +64,7 @@ inline uint32_t IdToMaskPosition(NonUniformGroup Group, uint32_t Id) {
     }
   }
   return Count;
+#endif
 }
 
 } // namespace detail
@@ -69,5 +79,5 @@ class opportunistic_group;
 
 } // namespace ext::oneapi::experimental
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

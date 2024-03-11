@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %opencl_lib %s -o %t1.out
-// RUN: %CPU_RUN_PLACEHOLDER %t1.out
-// RUN: %GPU_RUN_PLACEHOLDER %t1.out
-// RUN: %ACC_RUN_PLACEHOLDER %t1.out
+// RUN: %{build} %opencl_lib -o %t1.out
+// RUN: %{run} %t1.out
 // REQUIRES: opencl,opencl_icd
 
 #include <CL/cl.h>

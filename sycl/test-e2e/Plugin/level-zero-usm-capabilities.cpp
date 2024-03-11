@@ -1,6 +1,6 @@
 // REQUIRES: gpu, level_zero, level_zero_dev_kit
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
+// RUN: %{build} %level_zero_options -o %t.out
+// RUN: %{run} %t.out 2>&1 | FileCheck %s
 
 #include <iostream>
 #include <sycl/sycl.hpp>
@@ -13,7 +13,7 @@
 // CHECK:  usm_shared_allocations: 1
 // CHECK:  usm_system_allocations: 0
 // CHECK:  usm_atomic_host_allocations: 0
-// CHECK:  usm_atomic_shared_allocations: 0
+// usm_atomic_shared_allocations is device and driver version dependent.
 
 using namespace sycl;
 

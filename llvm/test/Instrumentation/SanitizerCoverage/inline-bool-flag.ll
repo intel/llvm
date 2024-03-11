@@ -1,5 +1,5 @@
 ; Test -sanitizer-coverage-inline-bool-flag=1
-; RUN: opt -opaque-pointers < %s -passes='module(sancov-module)' -sanitizer-coverage-level=1 -sanitizer-coverage-inline-bool-flag=1  -S | FileCheck %s
+; RUN: opt < %s -passes='module(sancov-module)' -sanitizer-coverage-level=1 -sanitizer-coverage-inline-bool-flag=1  -S | FileCheck %s
 
 ; CHECK:      $foo = comdat nodeduplicate
 ; CHECK:      @__sancov_gen_ = private global [1 x i1] zeroinitializer, section "__sancov_bools", comdat($foo), align 1{{$}}

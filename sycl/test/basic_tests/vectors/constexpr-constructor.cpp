@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsyntax-only -Wno-deprecated-declarations %s
-// RUN: %clangxx -fsycl -D__NO_EXT_VECTOR_TYPE_ON_HOST__ -fsyntax-only -Wno-deprecated-declarations %s
+// RUN: %if preview-breaking-changes-supported %{%clangxx -fsycl -fsyntax-only -fpreview-breaking-changes -Wno-deprecated-declarations %s%}
 
 #include <sycl/sycl.hpp>
 

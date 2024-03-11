@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //==-------- ordered_buffs.cpp - SYCL buffers in ordered queues test--------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -53,7 +51,7 @@ int main() {
       cgh.parallel_for<class ordered_reader>(myRange, myKernel);
     });
 
-    auto readBufferB = bufB.get_access<access::mode::read>();
+    auto readBufferB = bufB.get_host_access();
     for (size_t i = 0; i != dataSize; ++i) {
       if (readBufferB[i] != i) {
         std::cout << "Result mismatches " << readBufferB[i] << " vs expected "

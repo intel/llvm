@@ -101,7 +101,7 @@ target triple = "spir64"
 
 ; CHECK-LLVM-LABEL: define spir_kernel void @test
 ; Function Attrs: convergent norecurse nounwind
-define dso_local spir_kernel void @test(i32 addrspace(1)* nocapture noundef readnone align 4 %0) local_unnamed_addr #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
+define dso_local spir_kernel void @test(ptr addrspace(1) nocapture noundef readnone align 4 %0) local_unnamed_addr #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !5 !kernel_arg_type !6 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
   tail call spir_func void @_Z33__spirv_ControlBarrierArriveINTELiii(i32 noundef 2, i32 noundef 2, i32 noundef 260) #2
     ; CHECK-LLVM: call spir_func void @_Z33__spirv_ControlBarrierArriveINTELiii(i32 2, i32 2, i32 260) #1
   tail call spir_func void @_Z31__spirv_ControlBarrierWaitINTELiii(i32 noundef 2, i32 noundef 2, i32 noundef 258) #2

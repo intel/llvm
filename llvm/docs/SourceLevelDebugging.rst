@@ -250,14 +250,14 @@ the complex expression derives the direct value.
                         Value *Address,
                         DIExpression *AddressExpression)
 
-This intrinsic marks the position in IR where a source assignment occured. It
+This intrinsic marks the position in IR where a source assignment occurred. It
 encodes the value of the variable. It references the store, if any, that
 performs the assignment, and the destination address.
 
 The first three arguments are the same as for an ``llvm.dbg.value``. The fourth
 argument is a ``DIAssignID`` used to reference a store. The fifth is the
 destination of the store (wrapped as metadata), and the sixth is a `complex
-expression <LangRef.html#diexpression>`_ that modfies it.
+expression <LangRef.html#diexpression>`_ that modifies it.
 
 The formal LLVM-IR signature is:
 
@@ -436,7 +436,7 @@ trust in the debugger.
 
 Sometimes perfectly preserving variable locations is not possible, often when a
 redundant calculation is optimized out. In such cases, a ``llvm.dbg.value``
-with operand ``undef`` should be used, to terminate earlier variable locations
+with operand ``poison`` should be used, to terminate earlier variable locations
 and let the debugger present ``optimized out`` to the developer. Withholding
 these potentially stale variable values from the developer diminishes the
 amount of available debug information, but increases the reliability of the
@@ -508,7 +508,7 @@ might consider this placement of dbg.values:
 However, this will cause ``!3`` to have the return value of ``@gazonk()`` at
 the same time as ``!1`` has the constant value zero -- a pair of assignments
 that never occurred in the unoptimized program. To avoid this, we must terminate
-the range that ``!1`` has the constant value assignment by inserting an undef
+the range that ``!1`` has the constant value assignment by inserting a poison
 dbg.value before the dbg.value for ``!3``:
 
 .. code-block:: llvm
@@ -517,7 +517,7 @@ dbg.value before the dbg.value for ``!3``:
   entry:
     call @llvm.dbg.value(metadata i32 0, metadata !1, metadata !2)
     %g = call i32 @gazonk()
-    call @llvm.dbg.value(metadata i32 undef, metadata !1, metadata !2)
+    call @llvm.dbg.value(metadata i32 poison, metadata !1, metadata !2)
     call @llvm.dbg.value(metadata i32 %g, metadata !3, metadata !2)
     %addoper = select i1 %cond, i32 11, i32 12
     %plusten = add i32 %bar, %addoper
@@ -526,9 +526,26 @@ dbg.value before the dbg.value for ``!3``:
     ret i32 %toret
   }
 
+There are a few other dbg.value configurations that mean it terminates
+dominating location definitions without adding a new location. The complete
+list is:
+
+* Any location operand is ``poison`` (or ``undef``).
+* Any location operand is an empty metadata tuple (``!{}``) (which cannot
+  occur in a ``!DIArgList``).
+* There are no location operands (empty ``DIArgList``) and the ``DIExpression``
+  is empty.
+
+This class of dbg.value that kills variable locations is called a "kill
+dbg.value" or "kill location", and for legacy reasons the term "undef
+dbg.value" may be used in existing code. The ``DbgVariableIntrinsic`` methods
+``isKillLocation`` and ``setKillLocation`` should be used where possible rather
+than inspecting location operands directly to check or set whether a dbg.value
+is a kill location.
+
 In general, if any dbg.value has its operand optimized out and cannot be
-recovered, then an undef dbg.value is necessary to terminate earlier variable
-locations. Additional undef dbg.values may be necessary when the debugger can
+recovered, then a kill dbg.value is necessary to terminate earlier variable
+locations. Additional kill dbg.values may be necessary when the debugger can
 observe re-ordering of assignments.
 
 How variable location metadata is transformed during CodeGen
@@ -624,7 +641,7 @@ And has the following operands:
    operand of the ``DBG_VALUE`` instruction above. These variable location
    operands are inserted into the final DWARF Expression in positions indicated
    by the DW_OP_LLVM_arg operator in the `DIExpression
-   <LangRef.html#diexpression>`.
+   <LangRef.html#diexpression>`_.
 
 The position at which the DBG_VALUEs are inserted should correspond to the
 positions of their matching ``llvm.dbg.value`` intrinsics in the IR block.  As
@@ -824,7 +841,7 @@ presents several difficulties:
   falsebr:
     call void @llvm.dbg.value(metadata i32 %input, metadata !30, metadata !DIExpression()), !dbg !24
     call void @llvm.dbg.value(metadata i32 2, metadata !23, metadata !DIExpression()), !dbg !24
-    %value = add i32 %input, 2
+    %value2 = add i32 %input, 2
     br label %bb1
 
   exit:

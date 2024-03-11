@@ -9,4 +9,4 @@
 // whatever plugin THIS is
 // CHECK: ---> DLL_PROCESS_DETACH
 
-// CHECK: ---> DLL_PROCESS_DETACH win_proxy_loader.dll
+// CHECK: ---> DLL_PROCESS_DETACH pi_win_proxy_loader.dll

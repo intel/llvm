@@ -6,9 +6,8 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-has-no-incomplete-format
 // TODO FMT __builtin_memcpy isn't constexpr in GCC
-// UNSUPPORTED: gcc-12
+// UNSUPPORTED: gcc-13
 
 // <format>
 
@@ -51,7 +50,7 @@ struct Tester {
     std::formatter<Str, CharT> formatter;
     static_assert(std::semiregular<decltype(formatter)>);
 
-    auto it = formatter.parse(parse_ctx);
+    std::same_as<typename std::basic_string_view<CharT>::iterator> auto it = formatter.parse(parse_ctx);
     assert(it == fmt.end() - offset);
 
     std::basic_string<CharT> result;

@@ -11,6 +11,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/Support/Alignment.h"
 #include "gtest/gtest.h"
 #include <array>
 #include <optional>
@@ -1378,6 +1379,23 @@ TEST(APIntTest, toString) {
   EXPECT_EQ(std::string(S), "0");
   S.clear();
 
+  // with separators
+  APInt(64, 140).toString(S, 2, false, true, false, true);
+  EXPECT_EQ(std::string(S), "0b1000'1100");
+  S.clear();
+  APInt(64, 1024).toString(S, 8, false, true, false, true);
+  EXPECT_EQ(std::string(S), "02'000");
+  S.clear();
+  APInt(64, 1000000).toString(S, 10, false, true, false, true);
+  EXPECT_EQ(std::string(S), "1'000'000");
+  S.clear();
+  APInt(64, 1000000).toString(S, 16, false, true, true, true);
+  EXPECT_EQ(std::string(S), "0xF'4240");
+  S.clear();
+  APInt(64, 1'000'000'000).toString(S, 36, false, false, false, true);
+  EXPECT_EQ(std::string(S), "gj'dgxs");
+  S.clear();
+
   isSigned = false;
   APInt(8, 255, isSigned).toString(S, 2, isSigned, true);
   EXPECT_EQ(std::string(S), "0b11111111");
@@ -1387,6 +1405,9 @@ TEST(APIntTest, toString) {
   S.clear();
   APInt(8, 255, isSigned).toString(S, 10, isSigned, true);
   EXPECT_EQ(std::string(S), "255");
+  S.clear();
+  APInt(8, 255, isSigned).toString(S, 16, isSigned, true, /*UpperCase=*/false);
+  EXPECT_EQ(std::string(S), "0xff");
   S.clear();
   APInt(8, 255, isSigned).toString(S, 16, isSigned, true);
   EXPECT_EQ(std::string(S), "0xFF");
@@ -1410,6 +1431,24 @@ TEST(APIntTest, toString) {
   S.clear();
   APInt(8, 255, isSigned).toString(S, 36, isSigned, false);
   EXPECT_EQ(std::string(S), "-1");
+  S.clear();
+
+  // negative with separators
+  APInt(64, -140, isSigned).toString(S, 2, isSigned, true, false, true);
+  EXPECT_EQ(std::string(S), "-0b1000'1100");
+  S.clear();
+  APInt(64, -1024, isSigned).toString(S, 8, isSigned, true, false, true);
+  EXPECT_EQ(std::string(S), "-02'000");
+  S.clear();
+  APInt(64, -1000000, isSigned).toString(S, 10, isSigned, true, false, true);
+  EXPECT_EQ(std::string(S), "-1'000'000");
+  S.clear();
+  APInt(64, -1000000, isSigned).toString(S, 16, isSigned, true, true, true);
+  EXPECT_EQ(std::string(S), "-0xF'4240");
+  S.clear();
+  APInt(64, -1'000'000'000, isSigned)
+      .toString(S, 36, isSigned, false, false, true);
+  EXPECT_EQ(std::string(S), "-gj'dgxs");
   S.clear();
 }
 
@@ -1847,6 +1886,25 @@ TEST(APIntTest, isNegatedPowerOf2) {
       EXPECT_TRUE(ShiftMaskVal.isNegatedPowerOf2());
     }
   }
+}
+
+TEST(APIntTest, isAligned) {
+  struct {
+    uint64_t alignment;
+    uint64_t offset;
+    bool isAligned;
+  } Tests[] = {
+      {1, 0, true},  {1, 1, true},  {1, 5, true},  {2, 0, true},
+      {2, 1, false}, {2, 2, true},  {2, 7, false}, {2, 16, true},
+      {4, 0, true},  {4, 1, false}, {4, 4, true},  {4, 6, false},
+  };
+  for (const auto &T : Tests)
+    EXPECT_EQ(APInt(32, T.offset).isAligned(Align(T.alignment)), T.isAligned);
+  // Tests for APInt that can't represent the alignment.
+  // Here APInt(4, I) can represent values from 0 to 15.
+  EXPECT_TRUE(APInt(4, 0).isAligned(Align(32))); // zero is always aligned.
+  for (int I = 1; I < 16; ++I)
+    EXPECT_FALSE(APInt(4, I).isAligned(Align(32)));
 }
 
 // Test that self-move works with EXPENSIVE_CHECKS. It calls std::shuffle which
@@ -2474,6 +2532,40 @@ TEST(APIntTest, clearLowBits) {
   EXPECT_EQ(16u, i32hi16.popcount());
 }
 
+TEST(APIntTest, AbsDiff) {
+  using APIntOps::absdiff;
+
+  APInt MaxU1(1, 1, false);
+  APInt MinU1(1, 0, false);
+  EXPECT_EQ(1u, absdiff(MaxU1, MinU1).getZExtValue());
+  EXPECT_EQ(1u, absdiff(MinU1, MaxU1).getZExtValue());
+
+  APInt MaxU4(4, 15, false);
+  APInt MinU4(4, 0, false);
+  EXPECT_EQ(15u, absdiff(MaxU4, MinU4).getZExtValue());
+  EXPECT_EQ(15u, absdiff(MinU4, MaxU4).getZExtValue());
+
+  APInt MaxS8(8, 127, true);
+  APInt MinS8(8, -128, true);
+  EXPECT_EQ(1u, absdiff(MaxS8, MinS8).getZExtValue());
+  EXPECT_EQ(1u, absdiff(MinS8, MaxS8).getZExtValue());
+
+  APInt MaxU16(16, 65535, false);
+  APInt MinU16(16, 0, false);
+  EXPECT_EQ(65535u, absdiff(MaxU16, MinU16).getZExtValue());
+  EXPECT_EQ(65535u, absdiff(MinU16, MaxU16).getZExtValue());
+
+  APInt MaxS16(16, 32767, true);
+  APInt MinS16(16, -32768, true);
+  APInt ZeroS16(16, 0, true);
+  EXPECT_EQ(1u, absdiff(MaxS16, MinS16).getZExtValue());
+  EXPECT_EQ(1u, absdiff(MinS16, MaxS16).getZExtValue());
+  EXPECT_EQ(32768u, absdiff(ZeroS16, MinS16));
+  EXPECT_EQ(32768u, absdiff(MinS16, ZeroS16));
+  EXPECT_EQ(32767u, absdiff(ZeroS16, MaxS16));
+  EXPECT_EQ(32767u, absdiff(MaxS16, ZeroS16));
+}
+
 TEST(APIntTest, GCD) {
   using APIntOps::GreatestCommonDivisor;
 
@@ -3049,6 +3141,7 @@ TEST(APIntTest, ZeroWidth) {
   EXPECT_EQ(0U, APInt::getLowBitsSet(0, 0).getBitWidth());
   EXPECT_EQ(0U, APInt::getSplat(0, ZW).getBitWidth());
   EXPECT_EQ(0U, APInt(4, 10).extractBits(0, 2).getBitWidth());
+  EXPECT_EQ(0U, APInt(4, 10).extractBitsAsZExtValue(0, 2));
 
   // Logical operators.
   ZW |= ZW2;

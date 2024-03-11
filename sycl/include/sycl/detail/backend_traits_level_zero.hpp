@@ -15,17 +15,24 @@
 
 #pragma once
 
-#include <sycl/accessor.hpp>
-#include <sycl/context.hpp>
-#include <sycl/detail/backend_traits.hpp>
-#include <sycl/detail/defines.hpp>
-#include <sycl/device.hpp>
-#include <sycl/event.hpp>
-#include <sycl/ext/oneapi/backend/level_zero_ownership.hpp>
-#include <sycl/ext/oneapi/filter_selector.hpp>
-#include <sycl/kernel_bundle.hpp>
-#include <sycl/queue.hpp>
-#include <variant>
+#include <sycl/backend_types.hpp>                           // for backend
+#include <sycl/context.hpp>                                 // for context
+#include <sycl/detail/backend_traits.hpp>                   // for BackendI...
+#include <sycl/device.hpp>                                  // for device
+#include <sycl/event.hpp>                                   // for event
+#include <sycl/ext/oneapi/backend/level_zero_ownership.hpp> // for ownership
+#include <sycl/handler.hpp>                                 // for buffer
+#include <sycl/image.hpp>                                   // for image
+#include <sycl/kernel.hpp>                                  // for kernel
+#include <sycl/kernel_bundle.hpp>                           // for kernel_b...
+#include <sycl/kernel_bundle_enums.hpp>                     // for bundle_s...
+#include <sycl/platform.hpp>                                // for platform
+#include <sycl/property_list.hpp>                           // for property...
+#include <sycl/queue.hpp>                                   // for queue
+#include <sycl/range.hpp>                                   // for range
+
+#include <variant> // for variant
+#include <vector>  // for vector
 
 typedef struct _ze_command_queue_handle_t *ze_command_queue_handle_t;
 typedef struct _ze_command_list_handle_t *ze_command_list_handle_t;
@@ -38,7 +45,7 @@ typedef struct _ze_kernel_handle_t *ze_kernel_handle_t;
 typedef struct _ze_module_handle_t *ze_module_handle_t;
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // Forward declarations
@@ -46,9 +53,7 @@ class device_impl;
 
 // TODO the interops for context, device, event, platform and program
 // may be removed after removing the deprecated 'get_native()' methods
-// from the corresponding classes. The interop<backend, queue> specialization
-// is also used in the get_queue() method of the deprecated class
-// interop_handler and also can be removed after API cleanup.
+// from the corresponding classes.
 template <> struct interop<backend::ext_oneapi_level_zero, context> {
   using type = ze_context_handle_t;
 };
@@ -68,30 +73,6 @@ template <> struct interop<backend::ext_oneapi_level_zero, queue> {
 
 template <> struct interop<backend::ext_oneapi_level_zero, platform> {
   using type = ze_driver_handle_t;
-};
-
-// TODO the interops for accessor is used in the already deprecated class
-// interop_handler and can be removed after API cleanup.
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::ext_oneapi_level_zero,
-               accessor<DataT, Dimensions, AccessMode, access::target::device,
-                        access::placeholder::false_t>> {
-  using type = char *;
-};
-
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<
-    backend::ext_oneapi_level_zero,
-    accessor<DataT, Dimensions, AccessMode, access::target::constant_buffer,
-             access::placeholder::false_t>> {
-  using type = char *;
-};
-
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::ext_oneapi_level_zero,
-               accessor<DataT, Dimensions, AccessMode, access::target::image,
-                        access::placeholder::false_t>> {
-  using type = ze_image_handle_t;
 };
 
 template <> struct interop<backend::ext_oneapi_level_zero, kernel> {
@@ -239,5 +220,5 @@ template <> struct InteropFeatureSupportMap<backend::ext_oneapi_level_zero> {
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

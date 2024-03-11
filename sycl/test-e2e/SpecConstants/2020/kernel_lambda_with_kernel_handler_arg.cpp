@@ -1,5 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: cpu
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // This test checks all possible scenarios of running single_task, parallel_for
 // and parallel_for_work_group to verify that this code compiles and runs

@@ -8,16 +8,19 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
+#include <sycl/detail/pi.h>                // for PI_ERROR_INVALID_VALUE
+#include <sycl/detail/property_helper.hpp> // for DataLessPropKind, Propert...
+#include <sycl/exception.hpp>              // for invalid_object_error
 
-#include <bitset>
-#include <memory>
-#include <vector>
+#include <algorithm>   // for iter_swap
+#include <bitset>      // for bitset
+#include <memory>      // for shared_ptr, __shared_ptr_...
+#include <type_traits> // for enable_if_t
+#include <utility>     // for move
+#include <vector>      // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 class PropertyListBase {
 protected:
@@ -130,5 +133,5 @@ protected:
   std::vector<std::shared_ptr<PropertyWithDataBase>> MPropsWithData;
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

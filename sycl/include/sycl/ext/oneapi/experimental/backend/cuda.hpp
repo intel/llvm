@@ -15,7 +15,7 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::cuda {
 
 // Implementation of ext_oneapi_cuda::make<device>
@@ -91,10 +91,13 @@ template <>
 inline queue make_queue<backend::ext_oneapi_cuda>(
     const backend_input_t<backend::ext_oneapi_cuda, queue> &BackendObject,
     const context &TargetContext, const async_handler Handler) {
+  int32_t nativeHandleDesc = 0;
+  const property_list &PropList{};
   return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
-                            TargetContext, nullptr, true, Handler,
+                            nativeHandleDesc, TargetContext, nullptr, true,
+                            PropList, Handler,
                             /*Backend*/ backend::ext_oneapi_cuda);
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

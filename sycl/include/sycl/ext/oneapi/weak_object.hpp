@@ -8,17 +8,28 @@
 
 #pragma once
 
-#include <sycl/buffer.hpp>
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
-#include <sycl/stream.hpp>
+#include <sycl/access/access.hpp>     // for target, mode
+#include <sycl/accessor.hpp>          // for accessor
+#include <sycl/buffer.hpp>            // for buffer
+#include <sycl/detail/impl_utils.hpp> // for createSyc...
+#include <sycl/detail/memcpy.hpp>     // for detail
+#include <sycl/exception.hpp>         // for make_erro...
+#include <sycl/ext/codeplay/experimental/fusion_properties.hpp> // for buffer
+#include <sycl/ext/oneapi/weak_object_base.hpp> // for weak_obje...
+#include <sycl/range.hpp>                       // for range
+#include <sycl/stream.hpp>                      // for stream
 
-#include <optional>
+#include <memory>   // for shared_ptr
+#include <optional> // for optional
+#include <stddef.h> // for size_t
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi {
 namespace detail {
+// Import from detail:: into ext::oneapi::detail:: to improve readability later
+using namespace ::sycl::detail;
+
 // Helper for creating ranges for empty weak_objects.
 template <int Dims> static range<Dims> createDummyRange() {
   static_assert(Dims >= 0 && Dims < 4, "Invalid dimensionality in range.");
@@ -224,5 +235,5 @@ private:
 };
 
 } // namespace ext::oneapi
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -1,9 +1,7 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-//
-// Unsupported hip call on AMD
-// UNSUPPORTED: hip_amd, gpu-intel-pvc
+// REQUIRES: aspect-ext_intel_legacy_image
+
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // Test image-specific printers of the Plugin Interace
 //
@@ -31,11 +29,15 @@ int main() {
   {
     sycl::image<2> Img(ImgHostData.data(), ChanOrder, ChanType, ImgSize);
     queue Q;
+
+// legacy Images uses an API that is not supported in hip 4.x
+#if HIP_VERSION_MAJOR >= 5
     Q.submit([&](sycl::handler &CGH) {
       auto ImgAcc = Img.get_access<sycl::float4, SYCLWrite>(CGH);
 
       CGH.single_task<class EmptyTask>([=]() {});
     });
+#endif
   }
   return 0;
 }

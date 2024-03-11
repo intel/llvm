@@ -26,8 +26,6 @@
 #include "llvm/IR/Dominators.h"
 
 #include "llvm/IR/PatternMatch.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/LoopPassManager.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
 
@@ -454,6 +452,13 @@ static LoopDeletionResult deleteLoopIfDead(Loop *L, DominatorTree &DT,
 
   BasicBlock *ExitBlock = L->getUniqueExitBlock();
 
+  // We can't directly branch to an EH pad. Don't bother handling this edge
+  // case.
+  if (ExitBlock && ExitBlock->isEHPad()) {
+    LLVM_DEBUG(dbgs() << "Cannot delete loop exiting to EH pad.\n");
+    return LoopDeletionResult::Unmodified;
+  }
+
   if (ExitBlock && isLoopNeverExecuted(L)) {
     LLVM_DEBUG(dbgs() << "Loop is proven to never execute, delete it!\n");
     // We need to forget the loop before setting the incoming values of the exit
@@ -488,6 +493,7 @@ static LoopDeletionResult deleteLoopIfDead(Loop *L, DominatorTree &DT,
     LLVM_DEBUG(dbgs() << "Deletion requires at most one exit block.\n");
     return LoopDeletionResult::Unmodified;
   }
+
   // Finally, we have to check that the loop really is dead.
   bool Changed = false;
   if (!isLoopDead(L, SE, ExitingBlocks, ExitBlock, Changed, Preheader, LI)) {

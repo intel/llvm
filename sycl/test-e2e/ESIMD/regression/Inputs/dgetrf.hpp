@@ -18,6 +18,8 @@
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
+#include "../../esimd_test_utils.hpp"
+
 #define ABS(x) ((x) >= 0 ? (x) : -(x))
 #define MIN(x, y) ((x) <= (y) ? (x) : (y))
 #define MAX(x, y) ((x) >= (y) ? (x) : (y))
@@ -47,7 +49,7 @@ using namespace sycl;
 using namespace std;
 using namespace sycl::ext::intel::esimd;
 
-ESIMD_PRIVATE ESIMD_REGISTER(192) simd<double, 3 * 32 * 4> GRF;
+ESIMD_PRIVATE ESIMD_REGISTER(256) simd<double, 3 * 32 * 4> GRF;
 
 #define V(x, w, i) (x).template select<w, 1>(i)
 #define V1(x, i) V(x, 1, i)
@@ -445,7 +447,8 @@ void dgetrfnp_batch_strided_c(int64_t m, int64_t n, double *a, int64_t lda,
                               int64_t *info);
 
 int main(int argc, char *argv[]) {
-  queue queue((gpu_selector()));
+  queue queue(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
+  esimd_test::printTestLabel(queue);
 
   if (!queue.get_device().has(aspect::fp64))
     return 0;

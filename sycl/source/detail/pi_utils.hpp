@@ -15,24 +15,25 @@
 #include <optional>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // RAII object for keeping ownership of a PI event.
 struct OwnedPiEvent {
-  OwnedPiEvent(const plugin &Plugin) : MEvent{std::nullopt}, MPlugin{Plugin} {}
-  OwnedPiEvent(RT::PiEvent Event, const plugin &Plugin,
+  OwnedPiEvent(const PluginPtr &Plugin)
+      : MEvent{std::nullopt}, MPlugin{Plugin} {}
+  OwnedPiEvent(sycl::detail::pi::PiEvent Event, const PluginPtr &Plugin,
                bool TakeOwnership = false)
       : MEvent(Event), MPlugin(Plugin) {
     // If it is not instructed to take ownership, retain the event to share
     // ownership of it.
     if (!TakeOwnership)
-      MPlugin.call<PiApiKind::piEventRetain>(*MEvent);
+      MPlugin->call<PiApiKind::piEventRetain>(*MEvent);
   }
   ~OwnedPiEvent() {
     // Release the event if the ownership was not transferred.
     if (MEvent.has_value())
-      MPlugin.call<PiApiKind::piEventRelease>(*MEvent);
+      MPlugin->call<PiApiKind::piEventRelease>(*MEvent);
   }
 
   OwnedPiEvent(OwnedPiEvent &&Other)
@@ -46,21 +47,21 @@ struct OwnedPiEvent {
 
   operator bool() { return MEvent.has_value(); }
 
-  RT::PiEvent GetEvent() { return *MEvent; }
+  sycl::detail::pi::PiEvent GetEvent() { return *MEvent; }
 
   // Transfers the ownership of the event to the caller. The destructor will
   // no longer release the event.
-  RT::PiEvent TransferOwnership() {
-    RT::PiEvent Event = *MEvent;
+  sycl::detail::pi::PiEvent TransferOwnership() {
+    sycl::detail::pi::PiEvent Event = *MEvent;
     MEvent = std::nullopt;
     return Event;
   }
 
 private:
-  std::optional<RT::PiEvent> MEvent;
-  const plugin &MPlugin;
+  std::optional<sycl::detail::pi::PiEvent> MEvent;
+  const PluginPtr &MPlugin;
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

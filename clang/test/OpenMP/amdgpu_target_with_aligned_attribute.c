@@ -6,7 +6,7 @@
 #define HEADER
 
 // RUN: %clang_cc1 -verify -fopenmp -x c -triple powerpc64le-unknown-unknown -fopenmp-targets=amdgcn-amd-amdhsa -emit-llvm-bc %s -o %t-ppc-host-amd.bc
-// RUN: %clang_cc1 -verify -fopenmp -x c -triple amdgcn-amd-amdhsa -fopenmp-targets=amdgcn-amd-amdhsa -emit-llvm %s -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host-amd.bc -o - | FileCheck %s --check-prefix=CHECK-AMD
+// RUN: %clang_cc1 -verify -fopenmp -x c -triple amdgcn-amd-amdhsa -fopenmp-targets=amdgcn-amd-amdhsa -emit-llvm %s -fopenmp-is-target-device -fopenmp-host-ir-file-path %t-ppc-host-amd.bc -o - | FileCheck %s --check-prefix=CHECK-AMD
 
 
 void write_to_aligned_array(int *a, int N) {
@@ -19,39 +19,42 @@ void write_to_aligned_array(int *a, int N) {
 
 #endif
 // CHECK-AMD-LABEL: define {{[^@]+}}@{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}_write_to_aligned_array_l14
-// CHECK-AMD-SAME: (i64 noundef [[N:%.*]], ptr noundef [[APTR:%.*]]) #[[ATTR0:[0-9]+]] {
+// CHECK-AMD-SAME: (ptr noalias noundef [[DYN_PTR:%.*]], i64 noundef [[N:%.*]], ptr noundef [[APTR:%.*]]) #[[ATTR0:[0-9]+]] {
 // CHECK-AMD-NEXT:  entry:
+// CHECK-AMD-NEXT:    [[DYN_PTR_ADDR:%.*]] = alloca ptr, align 8, addrspace(5)
 // CHECK-AMD-NEXT:    [[N_ADDR:%.*]] = alloca i64, align 8, addrspace(5)
 // CHECK-AMD-NEXT:    [[APTR_ADDR:%.*]] = alloca ptr, align 8, addrspace(5)
 // CHECK-AMD-NEXT:    [[N_CASTED:%.*]] = alloca i64, align 8, addrspace(5)
 // CHECK-AMD-NEXT:    [[DOTZERO_ADDR:%.*]] = alloca i32, align 4, addrspace(5)
 // CHECK-AMD-NEXT:    [[DOTTHREADID_TEMP_:%.*]] = alloca i32, align 4, addrspace(5)
+// CHECK-AMD-NEXT:    [[DYN_PTR_ADDR_ASCAST:%.*]] = addrspacecast ptr addrspace(5) [[DYN_PTR_ADDR]] to ptr
 // CHECK-AMD-NEXT:    [[N_ADDR_ASCAST:%.*]] = addrspacecast ptr addrspace(5) [[N_ADDR]] to ptr
 // CHECK-AMD-NEXT:    [[APTR_ADDR_ASCAST:%.*]] = addrspacecast ptr addrspace(5) [[APTR_ADDR]] to ptr
 // CHECK-AMD-NEXT:    [[N_CASTED_ASCAST:%.*]] = addrspacecast ptr addrspace(5) [[N_CASTED]] to ptr
 // CHECK-AMD-NEXT:    [[DOTZERO_ADDR_ASCAST:%.*]] = addrspacecast ptr addrspace(5) [[DOTZERO_ADDR]] to ptr
 // CHECK-AMD-NEXT:    [[DOTTHREADID_TEMP__ASCAST:%.*]] = addrspacecast ptr addrspace(5) [[DOTTHREADID_TEMP_]] to ptr
+// CHECK-AMD-NEXT:    store ptr [[DYN_PTR]], ptr [[DYN_PTR_ADDR_ASCAST]], align 8
 // CHECK-AMD-NEXT:    store i64 [[N]], ptr [[N_ADDR_ASCAST]], align 8
 // CHECK-AMD-NEXT:    store ptr [[APTR]], ptr [[APTR_ADDR_ASCAST]], align 8
-// CHECK-AMD-NEXT:    [[TMP0:%.*]] = call i32 @__kmpc_target_init(ptr addrspacecast (ptr addrspace(1) @[[GLOB1:[0-9]+]] to ptr), i8 2, i1 false)
+// CHECK-AMD-NEXT:    [[TMP0:%.*]] = call i32 @__kmpc_target_init(ptr addrspacecast (ptr addrspace(1) @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}_write_to_aligned_array_l14_kernel_environment to ptr), ptr [[DYN_PTR]])
 // CHECK-AMD-NEXT:    [[EXEC_USER_CODE:%.*]] = icmp eq i32 [[TMP0]], -1
 // CHECK-AMD-NEXT:    br i1 [[EXEC_USER_CODE]], label [[USER_CODE_ENTRY:%.*]], label [[WORKER_EXIT:%.*]]
 // CHECK-AMD:       user_code.entry:
-// CHECK-AMD-NEXT:    [[TMP1:%.*]] = call i32 @__kmpc_global_thread_num(ptr addrspacecast (ptr addrspace(1) @[[GLOB1]] to ptr))
+// CHECK-AMD-NEXT:    [[TMP1:%.*]] = call i32 @__kmpc_global_thread_num(ptr addrspacecast (ptr addrspace(1) @[[GLOB1:[0-9]+]] to ptr))
 // CHECK-AMD-NEXT:    [[TMP2:%.*]] = load i32, ptr [[N_ADDR_ASCAST]], align 4
 // CHECK-AMD-NEXT:    store i32 [[TMP2]], ptr [[N_CASTED_ASCAST]], align 4
 // CHECK-AMD-NEXT:    [[TMP3:%.*]] = load i64, ptr [[N_CASTED_ASCAST]], align 8
 // CHECK-AMD-NEXT:    [[TMP4:%.*]] = load ptr, ptr [[APTR_ADDR_ASCAST]], align 8
 // CHECK-AMD-NEXT:    store i32 0, ptr [[DOTZERO_ADDR_ASCAST]], align 4
 // CHECK-AMD-NEXT:    store i32 [[TMP1]], ptr [[DOTTHREADID_TEMP__ASCAST]], align 4
-// CHECK-AMD-NEXT:    call void @__omp_outlined__(ptr [[DOTTHREADID_TEMP__ASCAST]], ptr [[DOTZERO_ADDR_ASCAST]], i64 [[TMP3]], ptr [[TMP4]]) #[[ATTR2:[0-9]+]]
-// CHECK-AMD-NEXT:    call void @__kmpc_target_deinit(ptr addrspacecast (ptr addrspace(1) @[[GLOB1]] to ptr), i8 2)
+// CHECK-AMD-NEXT:    call void @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}_write_to_aligned_array_l14_omp_outlined(ptr [[DOTTHREADID_TEMP__ASCAST]], ptr [[DOTZERO_ADDR_ASCAST]], i64 [[TMP3]], ptr [[TMP4]]) #[[ATTR2:[0-9]+]]
+// CHECK-AMD-NEXT:    call void @__kmpc_target_deinit()
 // CHECK-AMD-NEXT:    ret void
 // CHECK-AMD:       worker.exit:
 // CHECK-AMD-NEXT:    ret void
 //
 //
-// CHECK-AMD-LABEL: define {{[^@]+}}@__omp_outlined__
+// CHECK-AMD-LABEL: define {{[^@]+}}@{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}_write_to_aligned_array_l14_omp_outlined
 // CHECK-AMD-SAME: (ptr noalias noundef [[DOTGLOBAL_TID_:%.*]], ptr noalias noundef [[DOTBOUND_TID_:%.*]], i64 noundef [[N:%.*]], ptr noundef [[APTR:%.*]]) #[[ATTR1:[0-9]+]] {
 // CHECK-AMD-NEXT:  entry:
 // CHECK-AMD-NEXT:    [[DOTGLOBAL_TID__ADDR:%.*]] = alloca ptr, align 8, addrspace(5)
@@ -155,7 +158,7 @@ void write_to_aligned_array(int *a, int N) {
 // CHECK-AMD-NEXT:    store ptr [[TMP19]], ptr [[TMP26]], align 8
 // CHECK-AMD-NEXT:    [[TMP27:%.*]] = load ptr, ptr [[DOTGLOBAL_TID__ADDR_ASCAST]], align 8
 // CHECK-AMD-NEXT:    [[TMP28:%.*]] = load i32, ptr [[TMP27]], align 4
-// CHECK-AMD-NEXT:    call void @__kmpc_parallel_51(ptr addrspacecast (ptr addrspace(1) @[[GLOB1]] to ptr), i32 [[TMP28]], i32 1, i32 -1, i32 -1, ptr @__omp_outlined__.1, ptr null, ptr [[CAPTURED_VARS_ADDRS_ASCAST]], i64 4)
+// CHECK-AMD-NEXT:    call void @__kmpc_parallel_51(ptr addrspacecast (ptr addrspace(1) @[[GLOB1]] to ptr), i32 [[TMP28]], i32 1, i32 -1, i32 -1, ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}_write_to_aligned_array_l14_omp_outlined_omp_outlined, ptr null, ptr [[CAPTURED_VARS_ADDRS_ASCAST]], i64 4)
 // CHECK-AMD-NEXT:    br label [[OMP_INNER_FOR_INC:%.*]]
 // CHECK-AMD:       omp.inner.for.inc:
 // CHECK-AMD-NEXT:    [[TMP29:%.*]] = load i32, ptr [[DOTOMP_IV_ASCAST]], align 4
@@ -197,7 +200,7 @@ void write_to_aligned_array(int *a, int N) {
 // CHECK-AMD-NEXT:    ret void
 //
 //
-// CHECK-AMD-LABEL: define {{[^@]+}}@__omp_outlined__.1
+// CHECK-AMD-LABEL: define {{[^@]+}}@{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}_write_to_aligned_array_l14_omp_outlined_omp_outlined
 // CHECK-AMD-SAME: (ptr noalias noundef [[DOTGLOBAL_TID_:%.*]], ptr noalias noundef [[DOTBOUND_TID_:%.*]], i64 noundef [[DOTPREVIOUS_LB_:%.*]], i64 noundef [[DOTPREVIOUS_UB_:%.*]], i64 noundef [[N:%.*]], ptr noundef [[APTR:%.*]]) #[[ATTR1]] {
 // CHECK-AMD-NEXT:  entry:
 // CHECK-AMD-NEXT:    [[DOTGLOBAL_TID__ADDR:%.*]] = alloca ptr, align 8, addrspace(5)

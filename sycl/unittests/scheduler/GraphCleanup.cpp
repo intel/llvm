@@ -99,12 +99,14 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
   MS.updateLeaves({AllocaCmd}, Record, access::mode::read_write, ToCleanUp);
 
   EXPECT_TRUE(ToCleanUp.empty());
-  std::unique_ptr<detail::CG> CG{new detail::CGFill(/*Pattern*/ {}, &MockReq,
-                                                    /*ArgsStorage*/ {},
-                                                    /*AccStorage*/ {},
-                                                    /*SharedPtrStorage*/ {},
-                                                    /*Requirements*/ {&MockReq},
-                                                    /*Events*/ {})};
+  std::unique_ptr<detail::CG> CG{
+      new detail::CGFill(/*Pattern*/ {}, &MockReq,
+                         detail::CG::StorageInitHelper(
+                             /*ArgsStorage*/ {},
+                             /*AccStorage*/ {},
+                             /*SharedPtrStorage*/ {},
+                             /*Requirements*/ {&MockReq},
+                             /*Events*/ {}))};
   detail::EventImplPtr Event = MS.addCG(std::move(CG), QueueImpl);
   auto *Cmd = static_cast<detail::Command *>(Event->getCommand());
   verifyCleanup(Record, AllocaCmd, MockCmd, CommandDeleted);

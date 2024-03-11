@@ -160,8 +160,6 @@ def CConvFast : LLVM_EnumAttrCase<"Fast", "fastcc", "Fast", 8>;
 def CConvCold : LLVM_EnumAttrCase<"Cold", "coldcc", "Cold", 9>;
 def CConvGHC : LLVM_EnumAttrCase<"GHC", "cc_10", "GHC", 10>;
 def CConvHiPE : LLVM_EnumAttrCase<"HiPE", "cc_11", "HiPE", 11>;
-def CConvWebKitJS : LLVM_EnumAttrCase<"WebKit_JS", "webkit_jscc",
-                                      "WebKit_JS", 12>;
 def CConvAnyReg : LLVM_EnumAttrCase<"AnyReg", "anyregcc", "AnyReg", 13>;
 def CConvPreserveMost : LLVM_EnumAttrCase<"PreserveMost", "preserve_mostcc",
                                           "PreserveMost", 14>;
@@ -254,7 +252,7 @@ def CConvEnum : LLVM_CEnumAttr<
     "CConv",
     "::llvm::CallingConv",
     "Calling Conventions",
-    [CConvC, CConvFast, CConvCold, CConvGHC, CConvHiPE, CConvWebKitJS,
+    [CConvC, CConvFast, CConvCold, CConvGHC, CConvHiPE,
      CConvAnyReg, CConvPreserveMost, CConvPreserveAll, CConvSwift,
      CConvCXXFastTLS, CConvTail, CConvCFGuard_Check, CConvSwiftTail,
      CConvX86_StdCall, CConvX86_FastCall, CConvARM_APCS,
@@ -272,7 +270,7 @@ def CConvEnum : LLVM_CEnumAttr<
 
 def CConv : DialectAttr<
     LLVM_Dialect,
-    CPred<"$_self.isa<::mlir::LLVM::CConvAttr>()">,
+    CPred<"::llvm::isa<::mlir::LLVM::CConvAttr>($_self)">,
     "LLVM Calling Convention specification"> {
   let storageType = "::mlir::LLVM::CConvAttr";
   let returnType = "::mlir::LLVM::cconv::CConv";
@@ -431,6 +429,29 @@ def DISubprogramFlags : I32BitEnumAttr<
 }
 
 //===----------------------------------------------------------------------===//
+// IntegerOverflowFlags
+//===----------------------------------------------------------------------===//
+
+def IOFnone : I32BitEnumAttrCaseNone<"none">;
+def IOFnsw  : I32BitEnumAttrCaseBit<"nsw", 0>;
+def IOFnuw  : I32BitEnumAttrCaseBit<"nuw", 1>;
+
+def IntegerOverflowFlags : I32BitEnumAttr<
+    "IntegerOverflowFlags",
+    "LLVM integer overflow flags",
+    [IOFnone, IOFnsw, IOFnuw]> {
+  let separator = ", ";
+  let cppNamespace = "::mlir::LLVM";
+  let genSpecializedAttr = 0;
+  let printBitEnumPrimaryGroups = 1;
+}
+
+def LLVM_IntegerOverflowFlagsAttr :
+    EnumAttr<LLVM_Dialect, IntegerOverflowFlags, "overflow"> {
+  let assemblyFormat = "`<` $value `>`";
+}
+
+//===----------------------------------------------------------------------===//
 // FastmathFlags
 //===----------------------------------------------------------------------===//
 
@@ -580,13 +601,37 @@ def LinkageEnum : LLVM_EnumAttr<
 
 def Linkage : DialectAttr<
     LLVM_Dialect,
-    CPred<"$_self.isa<::mlir::LLVM::LinkageAttr>()">,
+    CPred<"::llvm::isa<::mlir::LLVM::LinkageAttr>($_self)">,
     "LLVM Linkage specification"> {
   let storageType = "::mlir::LLVM::LinkageAttr";
   let returnType = "::mlir::LLVM::Linkage";
   let convertFromStorage = "$_self.getLinkage()";
   let constBuilderCall =
           "::mlir::LLVM::LinkageAttr::get($_builder.getContext(), $0)";
+}
+
+//===----------------------------------------------------------------------===//
+// Comdat
+//===----------------------------------------------------------------------===//
+
+def ComdatAny
+    : LLVM_EnumAttrCase<"Any", "any", "Any", 0>;
+def ComdatExactMatch
+    : LLVM_EnumAttrCase<"ExactMatch", "exactmatch", "ExactMatch", 1>;
+def ComdatLargest
+    : LLVM_EnumAttrCase<"Largest", "largest", "Largest", 2>;
+def ComdatNoDeduplicate
+    : LLVM_EnumAttrCase<"NoDeduplicate", "nodeduplicate", "NoDeduplicate", 3>;
+def ComdatSameSize
+    : LLVM_EnumAttrCase<"SameSize", "samesize", "SameSize", 4>;
+
+def Comdat : LLVM_EnumAttr<
+  "Comdat",
+  "::llvm::Comdat::SelectionKind",
+  "LLVM Comdat Types",
+  [ComdatAny, ComdatExactMatch, ComdatLargest,
+   ComdatNoDeduplicate, ComdatSameSize]> {
+  let cppNamespace = "::mlir::LLVM::comdat";
 }
 
 //===----------------------------------------------------------------------===//
@@ -639,6 +684,25 @@ def ModRefInfoEnum : LLVM_EnumAttr<
     "LLVM ModRefInfo",
     [ModRefInfoNoModRef, ModRefInfoRef, ModRefInfoMod, ModRefInfoModRef]> {
   let cppNamespace = "::mlir::LLVM";
+}
+
+//===----------------------------------------------------------------------===//
+// FramePointerKind
+//===----------------------------------------------------------------------===//
+
+def FramePointerKindNone
+    : LLVM_EnumAttrCase<"None", "none", "None", 0>;
+def FramePointerKindNonLeaf
+    : LLVM_EnumAttrCase<"NonLeaf", "non-leaf", "NonLeaf", 1>;
+def FramePointerKindAll
+    : LLVM_EnumAttrCase<"All", "all", "All", 2>;
+
+def FramePointerKindEnum : LLVM_EnumAttr<
+    "FramePointerKind",
+    "::llvm::FramePointerKind",
+    "LLVM FramePointerKind",
+    [FramePointerKindNone, FramePointerKindNonLeaf, FramePointerKindAll]> {
+  let cppNamespace = "::mlir::LLVM::framePointerKind";
 }
 
 #endif // LLVMIR_ENUMS

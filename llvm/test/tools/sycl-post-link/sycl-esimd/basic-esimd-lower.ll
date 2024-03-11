@@ -23,10 +23,14 @@ target triple = "spir64-unknown-linux"
 
 @__spirv_BuiltInGlobalInvocationId = external dso_local local_unnamed_addr addrspace(1) constant <3 x i64>, align 32
 
+declare dso_local spir_func void @_Z13__esimd_fenceh(i8 noundef zeroext)
+declare dso_local spir_func void @_Z15__esimd_barrierv()
+
 define dso_local spir_kernel void @ESIMD_kernel() #0 !sycl_explicit_simd !3 {
 entry:
   %0 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*), align 32
   %1 = extractelement <3 x i64> %0, i64 0
+  call spir_func void @_Z15__esimd_barrierv()
   ret void
 }
 
@@ -46,20 +50,22 @@ attributes #0 = { "sycl-module-id"="a.cpp" }
 ; CHECK-NO-LOWERING: entry:
 ; CHECK-NO-LOWERING:   %0 = load <3 x i64>, {{.*}} addrspacecast {{.*}} @__spirv_BuiltInGlobalInvocationId
 ; CHECK-NO-LOWERING:   %1 = extractelement <3 x i64> %0, i64 0
+; CHECK-NO-LOWERING:   call spir_func void @_Z15__esimd_barrierv()
 ; CHECK-NO-LOWERING:   ret void
 ; CHECK-NO-LOWERING: }
 
 ; With -O0, we only lower ESIMD code, but no other optimizations
 ; CHECK-O0: define dso_local spir_kernel void @ESIMD_kernel() #{{[0-9]}} !sycl_explicit_simd !3 !intel_reqd_sub_group_size !4 {
 ; CHECK-O0: entry:
-; CHECK-O0:   call <3 x i32> @llvm.genx.local.id.v3i32()
-; CHECK-O0:   call <3 x i32> @llvm.genx.local.size.v3i32()
-; CHECK-O0:   call i32 @llvm.genx.group.id.x()
+; CHECK-O0:   %0 = load <3 x i64>, {{.*}} addrspacecast {{.*}} @__spirv_BuiltInGlobalInvocationId
+; CHECK-O0:   %1 = extractelement <3 x i64> %0, i64 0
+; CHECK-O0:   call void @llvm.genx.barrier()
 ; CHECK-O0:   ret void
 ; CHECK-O0: }
 
 ; With -O2, unused call was optimized away
 ; CHECK-O2: define dso_local spir_kernel void @ESIMD_kernel()
 ; CHECK-O2: entry:
+; CHECK-O2:   call void @llvm.genx.barrier()
 ; CHECK-O2:   ret void
 ; CHECK-O2: }

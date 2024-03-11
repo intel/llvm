@@ -190,23 +190,10 @@ in a data section.
 
 These are APIs needed to implement DPC++ runtime interoperability with
 underlying "native" device runtimes such as OpenCL.
-There are some OpenCL interoperability APIs, which are to be implemented
-by the OpenCL PI plugin only. These APIs match semantics of the corresponding
-OpenCL APIs exactly.
-For example:
 
-```
-pi_result piclProgramCreateWithSource(
-  pi_context        context,
-  pi_uint32         count,
-  const char **     strings,
-  const size_t *    lengths,
-  pi_program *      ret_program);
-```
-
-Some interoperability extension APIs have been added to get native runtime
-handles from the backend-agnostic PI Objects or to create PI Objects using the
-native handles. Eg:
+Interoperability extension APIs have been added to get native runtime handles
+from the backend-agnostic PI Objects or to create PI Objects using the native
+handles. Eg:
 
 ```
 pi_result piextDeviceGetNativeHandle(

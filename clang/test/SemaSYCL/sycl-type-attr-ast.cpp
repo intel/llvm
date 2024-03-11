@@ -20,14 +20,11 @@ class [[__sycl_detail__::sycl_type(local_accessor)]] local_accessor {};
 // CHECK: CXXRecordDecl {{.*}} class local_accessor definition
 // CHECK: SYCLTypeAttr {{.*}} local_accessor
 
-class [[__sycl_detail__::sycl_type(spec_constant)]]
-[[__sycl_detail__::sycl_type(spec_constant)]] spec_constant;
-// CHECK: CXXRecordDecl {{.*}} spec_constant
-// CHECK: SYCLTypeAttr {{.*}} spec_constant
-// CHECK-NOT: SYCLTypeAttr {{.*}} spec_constant
-
 template <>
 class [[__sycl_detail__::sycl_type(local_accessor)]] local_accessor <int> {};
 // CHECK: ClassTemplateSpecializationDecl {{.*}} class local_accessor definition
 // CHECK: SYCLTypeAttr {{.*}} local_accessor
 
+class [[__sycl_detail__::sycl_type(multi_ptr)]] multi_ptr {};
+// CHECK: CXXRecordDecl {{.*}} class multi_ptr definition
+// CHECK: SYCLTypeAttr {{.*}} multi_ptr

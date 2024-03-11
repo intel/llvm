@@ -1,8 +1,10 @@
+// REQUIRES: aspect-ext_intel_legacy_image
 // UNSUPPORTED: hip
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUNx: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
+
+// UNSUPPORTED: gpu
 
 //==------------------- image.cpp - SYCL image basic test -----------------==//
 //
@@ -98,8 +100,8 @@ int main() {
         ResAcc[GET_RANGE] |= sycl::range<1>(ImgAcc.get_range()[0]) !=
                              ImgArrayAcc[CoordI.y()].get_range();
 
-        ResAcc[GET_COUNT] |= (ImgAcc.get_count() / ImgSize[1]) !=
-                             ImgArrayAcc[CoordI.y()].get_count();
+        ResAcc[GET_COUNT] |=
+            (ImgAcc.size() / ImgSize[1]) != ImgArrayAcc[CoordI.y()].size();
       });
     });
 

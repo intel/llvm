@@ -267,6 +267,9 @@ public:
 
   ~ToolInvocation();
 
+  ToolInvocation(const ToolInvocation &) = delete;
+  ToolInvocation &operator=(const ToolInvocation &) = delete;
+
   /// Set a \c DiagnosticConsumer to use during driver command-line parsing and
   /// the action invocation itself.
   void setDiagnosticConsumer(DiagnosticConsumer *DiagConsumer) {
@@ -361,11 +364,6 @@ public:
   /// append them to ASTs.
   int buildASTs(std::vector<std::unique_ptr<ASTUnit>> &ASTs);
 
-  /// Sets whether working directory should be restored after calling run(). By
-  /// default, working directory is restored. However, it could be useful to
-  /// turn this off when running on multiple threads to avoid the raciness.
-  void setRestoreWorkingDir(bool RestoreCWD);
-
   /// Sets whether an error message should be printed out if an action fails. By
   /// default, if an action fails, a message is printed out to stderr.
   void setPrintErrorMessage(bool PrintErrorMessage);
@@ -395,7 +393,6 @@ private:
 
   DiagnosticConsumer *DiagConsumer = nullptr;
 
-  bool RestoreCWD = true;
   bool PrintErrorMessage = true;
 };
 

@@ -15,24 +15,22 @@
 #include "test/UnitTest/Test.h"
 #include <math.h>
 
-using RunContext = __llvm_libc::testing::RunContext;
-
 TEST_F(LlvmLibcILogbTest, SpecialNumbers_ilogbl) {
-  test_special_numbers<long double>(&__llvm_libc::ilogbl);
+  test_special_numbers<long double>(&LIBC_NAMESPACE::ilogbl);
 }
 
 TEST_F(LlvmLibcILogbTest, PowersOfTwo_ilogbl) {
-  test_powers_of_two<long double>(&__llvm_libc::ilogbl);
+  test_powers_of_two<long double>(&LIBC_NAMESPACE::ilogbl);
 }
 
 TEST_F(LlvmLibcILogbTest, SomeIntegers_ilogbl) {
-  test_some_integers<long double>(&__llvm_libc::ilogbl);
+  test_some_integers<long double>(&LIBC_NAMESPACE::ilogbl);
 }
 
 TEST_F(LlvmLibcILogbTest, SubnormalRange_ilogbl) {
-  test_subnormal_range<long double>(&__llvm_libc::ilogbl);
+  test_subnormal_range<long double>(&LIBC_NAMESPACE::ilogbl);
 }
 
 TEST_F(LlvmLibcILogbTest, NormalRange_ilogbl) {
-  test_normal_range<long double>(&__llvm_libc::ilogbl);
+  test_normal_range<long double>(&LIBC_NAMESPACE::ilogbl);
 }

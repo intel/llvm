@@ -16,15 +16,16 @@
 //                                       Cmp comp)
 //       -> decltype(comp(*b1, *b2));
 
-#include <array>
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <compare>
 #include <concepts>
 #include <limits>
+#include <vector>
 
-#include "test_macros.h"
 #include "test_iterators.h"
+#include "test_macros.h"
 
 using std::array;
 
@@ -55,8 +56,8 @@ static_assert(has_lexicographical_compare<decltype(compare_int_result)>);
 
 template <typename Iter1, typename Iter2, typename C1, typename C2, typename Order, typename Comparator>
 constexpr void test_lexicographical_compare(C1 a, C2 b, Comparator comp, Order expected) {
-  std::same_as<Order> decltype(auto) result =
-      std::lexicographical_compare_three_way(Iter1{a.begin()}, Iter1{a.end()}, Iter2{b.begin()}, Iter2{b.end()}, comp);
+  std::same_as<Order> decltype(auto) result = std::lexicographical_compare_three_way(
+      Iter1{a.data()}, Iter1{a.data() + a.size()}, Iter2{b.data()}, Iter2{b.data() + b.size()}, comp);
   assert(expected == result);
 }
 
@@ -155,13 +156,25 @@ constexpr void test_comparator_invocation_count() {
   // The comparator is invoked only `min(left.size(), right.size())` times
   test_lexicographical_compare<const int*, const int*>(
       std::array{0, 1, 2}, std::array{0, 1, 2, 3}, compare_last_digit_counting, std::strong_ordering::less);
-  assert(compare_invocation_count == 3);
+#if _LIBCPP_HARDENING_MODE != _LIBCPP_HARDENING_MODE_DEBUG
+  assert(compare_invocation_count <= 3);
+#else
+  assert(compare_invocation_count <= 6);
+#endif
+}
+
+// Check that it works with proxy iterators
+constexpr void test_proxy_iterators() {
+    std::vector<bool> vec(10, true);
+    auto result = std::lexicographical_compare_three_way(vec.begin(), vec.end(), vec.begin(), vec.end(), compare_last_digit_strong);
+    assert(result == std::strong_ordering::equal);
 }
 
 constexpr bool test() {
   test_iterator_types();
   test_comparison_categories();
   test_comparator_invocation_count();
+  test_proxy_iterators();
 
   return true;
 }

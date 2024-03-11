@@ -15,7 +15,9 @@
 
 using namespace llvm;
 
-const char *llvm::getMinimalTypeForRange(uint64_t Range, unsigned MaxSize LLVM_ATTRIBUTE_UNUSED) {
+const char *
+llvm::getMinimalTypeForRange(uint64_t Range,
+                             unsigned MaxSize LLVM_ATTRIBUTE_UNUSED) {
   // TODO: The original callers only used 32 and 64 so these are the only
   //       values permitted. Rather than widen the supported values we should
   //       allow 64 for the callers that currently use 32 and remove the
@@ -33,12 +35,4 @@ const char *llvm::getMinimalTypeForRange(uint64_t Range, unsigned MaxSize LLVM_A
   if (Range > 0xFF)
     return "uint16_t";
   return "uint8_t";
-}
-
-const char *llvm::getMinimalTypeForEnumBitfield(uint64_t Size) {
-  uint64_t MaxIndex = Size;
-  if (MaxIndex > 0)
-    MaxIndex--;
-  assert(MaxIndex <= 64 && "Too many bits");
-  return getMinimalTypeForRange(1ULL << MaxIndex);
 }

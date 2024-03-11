@@ -8,14 +8,16 @@
 
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
-
 #ifdef __SYCL_DEVICE_ONLY__
+
+#include <sycl/detail/defines_elementary.hpp> // for __DPCPP_SYCL_EXTERNAL
+
+#include <cstddef> // for size_t
+#include <cstdint> // for uint8_t
 
 #define __SPIRV_VAR_QUALIFIERS extern "C" const
 
-#if defined(__NVPTX__) || defined(__AMDGCN__)
+#if defined(__NVPTX__) || defined(__AMDGCN__) || defined(__SYCL_NATIVE_CPU__)
 
 __DPCPP_SYCL_EXTERNAL size_t __spirv_GlobalInvocationId_x();
 __DPCPP_SYCL_EXTERNAL size_t __spirv_GlobalInvocationId_y();
@@ -190,7 +192,7 @@ namespace __spirv {
     }                                                                          \
   };                                                                           \
                                                                                \
-  template <int Dims, class DstT> static DstT init##POSTFIX() {                \
+  template <int Dims, class DstT> DstT init##POSTFIX() {                       \
     return InitSizesST##POSTFIX<Dims, DstT>::initSize();                       \
   }
 

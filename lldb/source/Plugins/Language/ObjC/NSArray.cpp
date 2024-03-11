@@ -54,7 +54,7 @@ public:
 
   lldb::ValueObjectSP GetChildAtIndex(size_t idx) override;
 
-  bool Update() override = 0;
+  lldb::ChildCacheState Update() override = 0;
 
   bool MightHaveChildren() override;
 
@@ -81,7 +81,7 @@ public:
 
   ~GenericNSArrayMSyntheticFrontEnd() override;
 
-  bool Update() override;
+  lldb::ChildCacheState Update() override;
 
 protected:
   lldb::addr_t GetDataAddress() override;
@@ -218,7 +218,7 @@ public:
 
   lldb::ValueObjectSP GetChildAtIndex(size_t idx) override;
 
-  bool Update() override;
+  lldb::ChildCacheState Update() override;
 
   bool MightHaveChildren() override;
 
@@ -306,7 +306,7 @@ public:
 
   lldb::ValueObjectSP GetChildAtIndex(size_t idx) override;
 
-  bool Update() override;
+  lldb::ChildCacheState Update() override;
 
   bool MightHaveChildren() override;
 
@@ -323,7 +323,7 @@ public:
 
   lldb::ValueObjectSP GetChildAtIndex(size_t idx) override;
 
-  bool Update() override;
+  lldb::ChildCacheState Update() override;
 
   bool MightHaveChildren() override;
 
@@ -334,7 +334,7 @@ public:
 
 bool lldb_private::formatters::NSArraySummaryProvider(
     ValueObject &valobj, Stream &stream, const TypeSummaryOptions &options) {
-  static ConstString g_TypeHint("NSArray");
+  static constexpr llvm::StringLiteral g_TypeHint("NSArray");
 
   ProcessSP process_sp = valobj.GetProcessSP();
   if (!process_sp)
@@ -445,17 +445,13 @@ bool lldb_private::formatters::NSArraySummaryProvider(
       return false;
   }
 
-  std::string prefix, suffix;
-  if (Language *language = Language::FindPlugin(options.GetLanguage())) {
-    if (!language->GetFormatterPrefixSuffix(valobj, g_TypeHint, prefix,
-                                            suffix)) {
-      prefix.clear();
-      suffix.clear();
-    }
-  }
+  llvm::StringRef prefix, suffix;
+  if (Language *language = Language::FindPlugin(options.GetLanguage()))
+    std::tie(prefix, suffix) = language->GetFormatterPrefixSuffix(g_TypeHint);
 
-  stream.Printf("%s%" PRIu64 " %s%s%s", prefix.c_str(), value, "element",
-                value == 1 ? "" : "s", suffix.c_str());
+  stream << prefix;
+  stream.Printf("%" PRIu64 " %s%s", value, "element", value == 1 ? "" : "s");
+  stream << suffix;
   return true;
 }
 
@@ -504,9 +500,8 @@ lldb_private::formatters::NSArrayMSyntheticFrontEndBase::GetChildAtIndex(
 }
 
 template <typename D32, typename D64>
-bool
-lldb_private::formatters::
-  GenericNSArrayMSyntheticFrontEnd<D32, D64>::Update() {
+lldb::ChildCacheState
+lldb_private::formatters::GenericNSArrayMSyntheticFrontEnd<D32, D64>::Update() {
   ValueObjectSP valobj_sp = m_backend.GetSP();
   m_ptr_size = 0;
   delete m_data_32;
@@ -514,13 +509,13 @@ lldb_private::formatters::
   delete m_data_64;
   m_data_64 = nullptr;
   if (!valobj_sp)
-    return false;
+    return lldb::ChildCacheState::eRefetch;
   m_exe_ctx_ref = valobj_sp->GetExecutionContextRef();
   Status error;
   error.Clear();
   lldb::ProcessSP process_sp(valobj_sp->GetProcessSP());
   if (!process_sp)
-    return false;
+    return lldb::ChildCacheState::eRefetch;
   m_ptr_size = process_sp->GetAddressByteSize();
   uint64_t data_location = valobj_sp->GetValueAsUnsigned(0) + m_ptr_size;
   if (m_ptr_size == 4) {
@@ -533,7 +528,8 @@ lldb_private::formatters::
                            error);
   }
 
-  return error.Success();
+  return error.Success() ? lldb::ChildCacheState::eReuse
+                         : lldb::ChildCacheState::eRefetch;
 }
 
 bool
@@ -552,9 +548,8 @@ lldb_private::formatters::NSArrayMSyntheticFrontEndBase::GetIndexOfChildWithName
 }
 
 template <typename D32, typename D64>
-lldb_private::formatters::
-  GenericNSArrayMSyntheticFrontEnd<D32, D64>::
-    ~GenericNSArrayMSyntheticFrontEnd<D32, D64>() {
+lldb_private::formatters::GenericNSArrayMSyntheticFrontEnd<D32, D64>::
+    GenericNSArrayMSyntheticFrontEnd::~GenericNSArrayMSyntheticFrontEnd() {
   delete m_data_32;
   m_data_32 = nullptr;
   delete m_data_64;
@@ -620,7 +615,7 @@ lldb_private::formatters::GenericNSArrayISyntheticFrontEnd<D32, D64, Inline>::
 
 template <typename D32, typename D64, bool Inline>
 lldb_private::formatters::GenericNSArrayISyntheticFrontEnd<D32, D64, Inline>::
-  ~GenericNSArrayISyntheticFrontEnd<D32, D64, Inline>() {
+    GenericNSArrayISyntheticFrontEnd::~GenericNSArrayISyntheticFrontEnd() {
   delete m_data_32;
   m_data_32 = nullptr;
   delete m_data_64;
@@ -646,9 +641,9 @@ lldb_private::formatters::GenericNSArrayISyntheticFrontEnd<D32, D64, Inline>::
 }
 
 template <typename D32, typename D64, bool Inline>
-bool
-lldb_private::formatters::GenericNSArrayISyntheticFrontEnd<D32, D64, Inline>::
-  Update() {
+lldb::ChildCacheState
+lldb_private::formatters::GenericNSArrayISyntheticFrontEnd<D32, D64,
+                                                           Inline>::Update() {
   ValueObjectSP valobj_sp = m_backend.GetSP();
   m_ptr_size = 0;
   delete m_data_32;
@@ -656,13 +651,13 @@ lldb_private::formatters::GenericNSArrayISyntheticFrontEnd<D32, D64, Inline>::
   delete m_data_64;
   m_data_64 = nullptr;
   if (!valobj_sp)
-    return false;
+    return lldb::ChildCacheState::eRefetch;
   m_exe_ctx_ref = valobj_sp->GetExecutionContextRef();
   Status error;
   error.Clear();
   lldb::ProcessSP process_sp(valobj_sp->GetProcessSP());
   if (!process_sp)
-    return false;
+    return lldb::ChildCacheState::eRefetch;
   m_ptr_size = process_sp->GetAddressByteSize();
   uint64_t data_location = valobj_sp->GetValueAsUnsigned(0) + m_ptr_size;
   if (m_ptr_size == 4) {
@@ -675,7 +670,8 @@ lldb_private::formatters::GenericNSArrayISyntheticFrontEnd<D32, D64, Inline>::
                            error);
   }
 
-  return error.Success();
+  return error.Success() ? lldb::ChildCacheState::eReuse
+                         : lldb::ChildCacheState::eRefetch;
 }
 
 template <typename D32, typename D64, bool Inline>
@@ -728,8 +724,9 @@ lldb_private::formatters::NSArray0SyntheticFrontEnd::CalculateNumChildren() {
   return 0;
 }
 
-bool lldb_private::formatters::NSArray0SyntheticFrontEnd::Update() {
-  return false;
+lldb::ChildCacheState
+lldb_private::formatters::NSArray0SyntheticFrontEnd::Update() {
+  return lldb::ChildCacheState::eRefetch;
 }
 
 bool lldb_private::formatters::NSArray0SyntheticFrontEnd::MightHaveChildren() {
@@ -762,8 +759,9 @@ lldb_private::formatters::NSArray1SyntheticFrontEnd::CalculateNumChildren() {
   return 1;
 }
 
-bool lldb_private::formatters::NSArray1SyntheticFrontEnd::Update() {
-  return false;
+lldb::ChildCacheState
+lldb_private::formatters::NSArray1SyntheticFrontEnd::Update() {
+  return lldb::ChildCacheState::eRefetch;
 }
 
 bool lldb_private::formatters::NSArray1SyntheticFrontEnd::MightHaveChildren() {

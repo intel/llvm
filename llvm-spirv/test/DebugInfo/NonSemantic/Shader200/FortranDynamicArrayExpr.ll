@@ -10,7 +10,7 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text --spirv-debug-info-version=nonsemantic-shader-200 -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV-DAG: ExtInstImport [[#Import:]] "NonSemantic.Shader.DebugInfo.200"
@@ -25,8 +25,8 @@
 ; CHECK-SPIRV: ExtInst [[#VoidT]] [[#DbgExprAssociated:]] [[#Import]] DebugExpression [[#]] [[#]] [[#]] [[#]] {{$}}
 ; CHECK-SPIRV: ExtInst [[#VoidT]] [[#DbgExprLowerBound:]] [[#Import]] DebugExpression [[#]] [[#]] [[#]] {{$}}
 ; CHECK-SPIRV: ExtInst [[#VoidT]] [[#DbgExprUpperBound:]] [[#Import]] DebugExpression [[#]] [[#]] [[#]] [[#]] [[#]] [[#]] [[#]] [[#]] [[#]] {{$}}
-; CHECK-SPIRV: ExtInst [[#VoidT]] [[#DbgExprCount:]] [[#Import]] DebugExpression [[#]] [[#]] [[#]] {{$}}
-; CHECK-SPIRV: ExtInst [[#VoidT]] [[#DbgSubRangeId:]] [[#Import]] DebugTypeSubrange [[#DbgInfoNone]] [[#DbgExprLowerBound]] [[#DbgExprUpperBound]] [[#DbgExprCount]]
+; CHECK-SPIRV: ExtInst [[#VoidT]] [[#DbgExprStride:]] [[#Import]] DebugExpression [[#]] [[#]] [[#]] {{$}}
+; CHECK-SPIRV: ExtInst [[#VoidT]] [[#DbgSubRangeId:]] [[#Import]] DebugTypeSubrange [[#DbgExprLowerBound]] [[#DbgExprUpperBound]] [[#DbgInfoNone]] [[#DbgExprStride]]
 ; CHECK-SPIRV: ExtInst [[#VoidT]] [[#DbgArrayId:]] [[#Import]] DebugTypeArrayDynamic [[#ArrayBasicT]] [[#DbgExprLocation]] [[#DbgExprAssociated]] [[#DbgInfoNone]] [[#DbgInfoNone]] [[#DbgSubRangeId]]
 
 ; CHECK-LLVM: %[[#Array:]] = alloca
@@ -44,13 +44,13 @@ source_filename = "test.f90"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64"
 
-%qnca = type { i32 addrspace(4)*, i64, i64, i64, i64, i64, [1 x { i64, i64, i64 }] }
+%qnca = type { ptr addrspace(4), i64, i64, i64, i64, i64, [1 x { i64, i64, i64 }] }
 
 ; Function Attrs: noinline nounwind optnone
 define weak dso_local spir_kernel void @TEST() #0 !dbg !5 {
 newFuncRoot:
   %0 = alloca %qnca, align 8
-  call void @llvm.dbg.value(metadata %qnca* %0, metadata !8, metadata !DIExpression()), !dbg !14
+  call void @llvm.dbg.value(metadata ptr %0, metadata !8, metadata !DIExpression()), !dbg !14
   ret void
 }
 

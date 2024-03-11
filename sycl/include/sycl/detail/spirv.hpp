@@ -7,26 +7,23 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/__spirv/spirv_ops.hpp>
-#include <CL/__spirv/spirv_types.hpp>
-#include <CL/__spirv/spirv_vars.hpp>
-#include <cstring>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/detail/helpers.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
-#include <sycl/id.hpp>
-#include <sycl/memory_enums.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
+
+#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp> // for IdToMaskPosition
+
+#include <sycl/detail/memcpy.hpp> // sycl::detail::memcpy
+
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
+struct sub_group;
 namespace ext {
 namespace oneapi {
 struct sub_group;
 namespace experimental {
 template <typename ParentGroup> class ballot_group;
 template <size_t PartitionSize, typename ParentGroup> class fixed_size_group;
+template <int Dimensions> class root_group;
 template <typename ParentGroup> class tangle_group;
 class opportunistic_group;
 } // namespace experimental
@@ -55,11 +52,19 @@ namespace spirv {
 
 template <typename Group> struct group_scope {};
 
+template <int Dimensions>
+struct group_scope<sycl::ext::oneapi::experimental::root_group<Dimensions>> {
+  static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Device;
+};
+
 template <int Dimensions> struct group_scope<group<Dimensions>> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Workgroup;
 };
 
 template <> struct group_scope<::sycl::ext::oneapi::sub_group> {
+  static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
+};
+template <> struct group_scope<::sycl::sub_group> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
 };
 
@@ -151,7 +156,7 @@ template <typename ParentGroup>
 bool GroupAll(ext::oneapi::experimental::tangle_group<ParentGroup>, bool pred) {
   return __spirv_GroupNonUniformAll(group_scope<ParentGroup>::value, pred);
 }
-template <typename Group>
+
 bool GroupAll(const ext::oneapi::experimental::opportunistic_group &,
               bool pred) {
   return __spirv_GroupNonUniformAll(
@@ -237,10 +242,11 @@ using EnableIfGenericBroadcast = std::enable_if_t<
 // FIXME: Disable widening once all backends support all data types.
 template <typename T>
 using WidenOpenCLTypeTo32_t = std::conditional_t<
-    std::is_same<T, cl_char>() || std::is_same<T, cl_short>(), cl_int,
-    std::conditional_t<std::is_same<T, cl_uchar>() ||
-                           std::is_same<T, cl_ushort>(),
-                       cl_uint, T>>;
+    std::is_same<T, opencl::cl_char>() || std::is_same<T, opencl::cl_short>(),
+    opencl::cl_int,
+    std::conditional_t<std::is_same<T, opencl::cl_uchar>() ||
+                           std::is_same<T, opencl::cl_ushort>(),
+                       opencl::cl_uint, T>>;
 
 // Broadcast with scalar local index
 // Work-group supports any integral type
@@ -251,16 +257,16 @@ template <typename Group> struct GroupId {
 template <> struct GroupId<::sycl::ext::oneapi::sub_group> {
   using type = uint32_t;
 };
+template <> struct GroupId<::sycl::sub_group> {
+  using type = uint32_t;
+};
 template <typename Group, typename T, typename IdT>
 EnableIfNativeBroadcast<T, IdT> GroupBroadcast(Group, T x, IdT local_id) {
-  using GroupIdT = typename GroupId<Group>::type;
-  GroupIdT GroupLocalId = static_cast<GroupIdT>(local_id);
-  using OCLT = detail::ConvertToOpenCLType_t<T>;
-  using WidenedT = WidenOpenCLTypeTo32_t<OCLT>;
-  using OCLIdT = detail::ConvertToOpenCLType_t<GroupIdT>;
-  WidenedT OCLX = detail::convertDataToType<T, OCLT>(x);
-  OCLIdT OCLId = detail::convertDataToType<GroupIdT, OCLIdT>(GroupLocalId);
-  return __spirv_GroupBroadcast(group_scope<Group>::value, OCLX, OCLId);
+  auto GroupLocalId = static_cast<typename GroupId<Group>::type>(local_id);
+  auto OCLX = detail::convertToOpenCLType(x);
+  WidenOpenCLTypeTo32_t<decltype(OCLX)> WideOCLX = OCLX;
+  auto OCLId = detail::convertToOpenCLType(GroupLocalId);
+  return __spirv_GroupBroadcast(group_scope<Group>::value, WideOCLX, OCLId);
 }
 template <typename ParentGroup, typename T, typename IdT>
 EnableIfNativeBroadcast<T, IdT>
@@ -270,23 +276,20 @@ GroupBroadcast(sycl::ext::oneapi::experimental::ballot_group<ParentGroup> g,
   auto LocalId = detail::IdToMaskPosition(g, local_id);
 
   // TODO: Refactor to avoid duplication after design settles.
-  using GroupIdT = typename GroupId<ParentGroup>::type;
-  GroupIdT GroupLocalId = static_cast<GroupIdT>(LocalId);
-  using OCLT = detail::ConvertToOpenCLType_t<T>;
-  using WidenedT = WidenOpenCLTypeTo32_t<OCLT>;
-  using OCLIdT = detail::ConvertToOpenCLType_t<GroupIdT>;
-  WidenedT OCLX = detail::convertDataToType<T, OCLT>(x);
-  OCLIdT OCLId = detail::convertDataToType<GroupIdT, OCLIdT>(GroupLocalId);
+  auto GroupLocalId = static_cast<typename GroupId<ParentGroup>::type>(LocalId);
+  auto OCLX = detail::convertToOpenCLType(x);
+  WidenOpenCLTypeTo32_t<decltype(OCLX)> WideOCLX = OCLX;
+  auto OCLId = detail::convertToOpenCLType(GroupLocalId);
 
   // ballot_group partitions its parent into two groups (0 and 1)
   // We have to force each group down different control flow
   // Work-items in the "false" group (0) may still be active
   if (g.get_group_id() == 1) {
     return __spirv_GroupNonUniformBroadcast(group_scope<ParentGroup>::value,
-                                            OCLX, OCLId);
+                                            WideOCLX, OCLId);
   } else {
     return __spirv_GroupNonUniformBroadcast(group_scope<ParentGroup>::value,
-                                            OCLX, OCLId);
+                                            WideOCLX, OCLId);
   }
 }
 template <size_t PartitionSize, typename ParentGroup, typename T, typename IdT>
@@ -297,20 +300,17 @@ EnableIfNativeBroadcast<T, IdT> GroupBroadcast(
   auto LocalId = g.get_group_linear_id() * PartitionSize + local_id;
 
   // TODO: Refactor to avoid duplication after design settles.
-  using GroupIdT = typename GroupId<ParentGroup>::type;
-  GroupIdT GroupLocalId = static_cast<GroupIdT>(LocalId);
-  using OCLT = detail::ConvertToOpenCLType_t<T>;
-  using WidenedT = WidenOpenCLTypeTo32_t<OCLT>;
-  using OCLIdT = detail::ConvertToOpenCLType_t<GroupIdT>;
-  WidenedT OCLX = detail::convertDataToType<T, OCLT>(x);
-  OCLIdT OCLId = detail::convertDataToType<GroupIdT, OCLIdT>(GroupLocalId);
+  auto GroupLocalId = static_cast<typename GroupId<ParentGroup>::type>(LocalId);
+  auto OCLX = detail::convertToOpenCLType(x);
+  WidenOpenCLTypeTo32_t<decltype(OCLX)> WideOCLX = OCLX;
+  auto OCLId = detail::convertToOpenCLType(GroupLocalId);
 
   // NonUniformBroadcast requires Id to be dynamically uniform, which does not
   // hold here; each partition is broadcasting a separate index. We could
   // fallback to either NonUniformShuffle or a NonUniformBroadcast per
   // partition, and it's unclear which will be faster in practice.
-  return __spirv_GroupNonUniformShuffle(group_scope<ParentGroup>::value, OCLX,
-                                        OCLId);
+  return __spirv_GroupNonUniformShuffle(group_scope<ParentGroup>::value,
+                                        WideOCLX, OCLId);
 }
 template <typename ParentGroup, typename T, typename IdT>
 EnableIfNativeBroadcast<T, IdT>
@@ -320,16 +320,13 @@ GroupBroadcast(ext::oneapi::experimental::tangle_group<ParentGroup> g, T x,
   auto LocalId = detail::IdToMaskPosition(g, local_id);
 
   // TODO: Refactor to avoid duplication after design settles.
-  using GroupIdT = typename GroupId<ParentGroup>::type;
-  GroupIdT GroupLocalId = static_cast<GroupIdT>(LocalId);
-  using OCLT = detail::ConvertToOpenCLType_t<T>;
-  using WidenedT = WidenOpenCLTypeTo32_t<OCLT>;
-  using OCLIdT = detail::ConvertToOpenCLType_t<GroupIdT>;
-  WidenedT OCLX = detail::convertDataToType<T, OCLT>(x);
-  OCLIdT OCLId = detail::convertDataToType<GroupIdT, OCLIdT>(GroupLocalId);
+  auto GroupLocalId = static_cast<typename GroupId<ParentGroup>::type>(LocalId);
+  auto OCLX = detail::convertToOpenCLType(x);
+  WidenOpenCLTypeTo32_t<decltype(OCLX)> WideOCLX = OCLX;
+  auto OCLId = detail::convertToOpenCLType(GroupLocalId);
 
-  return __spirv_GroupNonUniformBroadcast(group_scope<ParentGroup>::value, OCLX,
-                                          OCLId);
+  return __spirv_GroupNonUniformBroadcast(group_scope<ParentGroup>::value,
+                                          WideOCLX, OCLId);
 }
 template <typename T, typename IdT>
 EnableIfNativeBroadcast<T, IdT>
@@ -339,25 +336,23 @@ GroupBroadcast(const ext::oneapi::experimental::opportunistic_group &g, T x,
   auto LocalId = detail::IdToMaskPosition(g, local_id);
 
   // TODO: Refactor to avoid duplication after design settles.
-  using GroupIdT = typename GroupId<sycl::ext::oneapi::sub_group>::type;
-  GroupIdT GroupLocalId = static_cast<GroupIdT>(LocalId);
-  using OCLT = detail::ConvertToOpenCLType_t<T>;
-  using WidenedT = WidenOpenCLTypeTo32_t<OCLT>;
-  using OCLIdT = detail::ConvertToOpenCLType_t<GroupIdT>;
-  WidenedT OCLX = detail::convertDataToType<T, OCLT>(x);
-  OCLIdT OCLId = detail::convertDataToType<GroupIdT, OCLIdT>(GroupLocalId);
+  auto GroupLocalId =
+      static_cast<typename GroupId<::sycl::sub_group>::type>(LocalId);
+  auto OCLX = detail::convertToOpenCLType(x);
+  WidenOpenCLTypeTo32_t<decltype(OCLX)> WideOCLX = OCLX;
+  auto OCLId = detail::convertToOpenCLType(GroupLocalId);
 
   return __spirv_GroupNonUniformBroadcast(
-      group_scope<ext::oneapi::experimental::opportunistic_group>::value, OCLX,
-      OCLId);
+      group_scope<ext::oneapi::experimental::opportunistic_group>::value,
+      WideOCLX, OCLId);
 }
 
 template <typename Group, typename T, typename IdT>
 EnableIfBitcastBroadcast<T, IdT> GroupBroadcast(Group g, T x, IdT local_id) {
   using BroadcastT = ConvertToNativeBroadcastType_t<T>;
-  auto BroadcastX = bit_cast<BroadcastT>(x);
+  auto BroadcastX = sycl::bit_cast<BroadcastT>(x);
   BroadcastT Result = GroupBroadcast(g, BroadcastX, local_id);
-  return bit_cast<T>(Result);
+  return sycl::bit_cast<T>(Result);
 }
 template <typename Group, typename T, typename IdT>
 EnableIfGenericBroadcast<T, IdT> GroupBroadcast(Group g, T x, IdT local_id) {
@@ -367,9 +362,9 @@ EnableIfGenericBroadcast<T, IdT> GroupBroadcast(Group g, T x, IdT local_id) {
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto BroadcastBytes = [=](size_t Offset, size_t Size) {
     uint64_t BroadcastX, BroadcastResult;
-    std::memcpy(&BroadcastX, XBytes + Offset, Size);
+    detail::memcpy(&BroadcastX, XBytes + Offset, Size);
     BroadcastResult = GroupBroadcast(g, BroadcastX, local_id);
-    std::memcpy(ResultBytes + Offset, &BroadcastResult, Size);
+    detail::memcpy(ResultBytes + Offset, &BroadcastResult, Size);
   };
   GenericCall<T>(BroadcastBytes);
   return Result;
@@ -383,16 +378,14 @@ EnableIfNativeBroadcast<T> GroupBroadcast(Group g, T x,
     return GroupBroadcast(g, x, local_id[0]);
   }
   using IdT = vec<size_t, Dimensions>;
-  using OCLT = detail::ConvertToOpenCLType_t<T>;
-  using WidenedT = WidenOpenCLTypeTo32_t<OCLT>;
-  using OCLIdT = detail::ConvertToOpenCLType_t<IdT>;
   IdT VecId;
   for (int i = 0; i < Dimensions; ++i) {
     VecId[i] = local_id[Dimensions - i - 1];
   }
-  WidenedT OCLX = detail::convertDataToType<T, OCLT>(x);
-  OCLIdT OCLId = detail::convertDataToType<IdT, OCLIdT>(VecId);
-  return __spirv_GroupBroadcast(group_scope<Group>::value, OCLX, OCLId);
+  auto OCLX = detail::convertToOpenCLType(x);
+  WidenOpenCLTypeTo32_t<decltype(OCLX)> WideOCLX = OCLX;
+  auto OCLId = detail::convertToOpenCLType(VecId);
+  return __spirv_GroupBroadcast(group_scope<Group>::value, WideOCLX, OCLId);
 }
 template <typename ParentGroup, typename T>
 EnableIfNativeBroadcast<T>
@@ -405,9 +398,9 @@ template <typename Group, typename T, int Dimensions>
 EnableIfBitcastBroadcast<T> GroupBroadcast(Group g, T x,
                                            id<Dimensions> local_id) {
   using BroadcastT = ConvertToNativeBroadcastType_t<T>;
-  auto BroadcastX = bit_cast<BroadcastT>(x);
+  auto BroadcastX = sycl::bit_cast<BroadcastT>(x);
   BroadcastT Result = GroupBroadcast(g, BroadcastX, local_id);
-  return bit_cast<T>(Result);
+  return sycl::bit_cast<T>(Result);
 }
 template <typename Group, typename T, int Dimensions>
 EnableIfGenericBroadcast<T> GroupBroadcast(Group g, T x,
@@ -421,9 +414,9 @@ EnableIfGenericBroadcast<T> GroupBroadcast(Group g, T x,
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto BroadcastBytes = [=](size_t Offset, size_t Size) {
     uint64_t BroadcastX, BroadcastResult;
-    std::memcpy(&BroadcastX, XBytes + Offset, Size);
+    detail::memcpy(&BroadcastX, XBytes + Offset, Size);
     BroadcastResult = GroupBroadcast(g, BroadcastX, local_id);
-    std::memcpy(ResultBytes + Offset, &BroadcastResult, Size);
+    detail::memcpy(ResultBytes + Offset, &BroadcastResult, Size);
   };
   GenericCall<T>(BroadcastBytes);
   return Result;
@@ -432,7 +425,7 @@ EnableIfGenericBroadcast<T> GroupBroadcast(Group g, T x,
 // Single happens-before means semantics should always apply to all spaces
 // Although consume is unsupported, forwarding to acquire is valid
 template <typename T>
-static inline constexpr
+static constexpr
     typename std::enable_if<std::is_same<T, sycl::memory_order>::value,
                             __spv::MemorySemanticsMask::Flag>::type
     getMemorySemanticsMask(T Order) {
@@ -461,7 +454,7 @@ static inline constexpr
       __spv::MemorySemanticsMask::CrossWorkgroupMemory);
 }
 
-static inline constexpr __spv::Scope::Flag getScope(memory_scope Scope) {
+static constexpr __spv::Scope::Flag getScope(memory_scope Scope) {
   switch (Scope) {
   case memory_scope::work_item:
     return __spv::Scope::Invocation;
@@ -501,11 +494,11 @@ AtomicCompareExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr,
   auto SPIRVFailure = getMemorySemanticsMask(Failure);
   auto SPIRVScope = getScope(Scope);
   auto *PtrInt = GetMultiPtrDecoratedAs<I>(MPtr);
-  I DesiredInt = bit_cast<I>(Desired);
-  I ExpectedInt = bit_cast<I>(Expected);
+  I DesiredInt = sycl::bit_cast<I>(Desired);
+  I ExpectedInt = sycl::bit_cast<I>(Expected);
   I ResultInt = __spirv_AtomicCompareExchange(
       PtrInt, SPIRVScope, SPIRVSuccess, SPIRVFailure, DesiredInt, ExpectedInt);
-  return bit_cast<T>(ResultInt);
+  return sycl::bit_cast<T>(ResultInt);
 }
 
 template <typename T, access::address_space AddressSpace,
@@ -529,7 +522,7 @@ AtomicLoad(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
   I ResultInt = __spirv_AtomicLoad(PtrInt, SPIRVScope, SPIRVOrder);
-  return bit_cast<T>(ResultInt);
+  return sycl::bit_cast<T>(ResultInt);
 }
 
 template <typename T, access::address_space AddressSpace,
@@ -552,7 +545,7 @@ AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
   auto *PtrInt = GetMultiPtrDecoratedAs<I>(MPtr);
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
-  I ValueInt = bit_cast<I>(Value);
+  I ValueInt = sycl::bit_cast<I>(Value);
   __spirv_AtomicStore(PtrInt, SPIRVScope, SPIRVOrder, ValueInt);
 }
 
@@ -576,10 +569,10 @@ AtomicExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
   auto *PtrInt = GetMultiPtrDecoratedAs<I>(MPtr);
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
-  I ValueInt = bit_cast<I>(Value);
+  I ValueInt = sycl::bit_cast<I>(Value);
   I ResultInt =
       __spirv_AtomicExchange(PtrInt, SPIRVScope, SPIRVOrder, ValueInt);
-  return bit_cast<T>(ResultInt);
+  return sycl::bit_cast<T>(ResultInt);
 }
 
 template <typename T, access::address_space AddressSpace,
@@ -696,14 +689,19 @@ AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 // - The Intel SPIR-V extension natively supports all arithmetic types.
 //   However, OpenCL extension natively supports float vectors,
 //   integer vectors, half scalar and double scalar.
-//   For double vectors we perform emulation with scalar version.
+//   For double, long, long long, unsigned long, unsigned long long
+//   and half vectors we perform emulation with scalar version.
 // - The CUDA shfl intrinsics do not support vectors, and we use the _i32
 //   variants for all scalar types
 #ifndef __NVPTX__
 
+using ProhibitedTypesForShuffleEmulation =
+    type_list<double, long, long long, unsigned long, unsigned long long, half>;
+
 template <typename T>
 struct TypeIsProhibitedForShuffleEmulation
-    : std::bool_constant<std::is_same_v<vector_element_t<T>, double>> {};
+    : std::bool_constant<is_contained<
+          vector_element_t<T>, ProhibitedTypesForShuffleEmulation>::value> {};
 
 template <typename T>
 struct VecTypeIsProhibitedForShuffleEmulation
@@ -791,6 +789,12 @@ template <typename T>
 EnableIfBitcastShuffle<T> SubgroupShuffleXor(T x, id<1> local_id);
 
 template <typename T>
+EnableIfBitcastShuffle<T> SubgroupShuffleDown(T x, uint32_t delta);
+
+template <typename T>
+EnableIfBitcastShuffle<T> SubgroupShuffleUp(T x, uint32_t delta);
+
+template <typename T>
 EnableIfGenericShuffle<T> SubgroupShuffle(T x, id<1> local_id);
 
 template <typename T>
@@ -805,8 +809,7 @@ EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, uint32_t delta);
 template <typename T>
 EnableIfNativeShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
 #ifndef __NVPTX__
-  using OCLT = detail::ConvertToOpenCLType_t<T>;
-  return __spirv_SubgroupShuffleINTEL(OCLT(x),
+  return __spirv_SubgroupShuffleINTEL(convertToOpenCLType(x),
                                       static_cast<uint32_t>(local_id.get(0)));
 #else
   return __nvvm_shfl_sync_idx_i32(membermask(), x, local_id.get(0), 0x1f);
@@ -816,9 +819,8 @@ EnableIfNativeShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
 template <typename T>
 EnableIfNativeShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
 #ifndef __NVPTX__
-  using OCLT = detail::ConvertToOpenCLType_t<T>;
   return __spirv_SubgroupShuffleXorINTEL(
-      OCLT(x), static_cast<uint32_t>(local_id.get(0)));
+      convertToOpenCLType(x), static_cast<uint32_t>(local_id.get(0)));
 #else
   return __nvvm_shfl_sync_bfly_i32(membermask(), x, local_id.get(0), 0x1f);
 #endif
@@ -827,8 +829,8 @@ EnableIfNativeShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
 template <typename T>
 EnableIfNativeShuffle<T> SubgroupShuffleDown(T x, uint32_t delta) {
 #ifndef __NVPTX__
-  using OCLT = detail::ConvertToOpenCLType_t<T>;
-  return __spirv_SubgroupShuffleDownINTEL(OCLT(x), OCLT(x), delta);
+  return __spirv_SubgroupShuffleDownINTEL(convertToOpenCLType(x),
+                                          convertToOpenCLType(x), delta);
 #else
   return __nvvm_shfl_sync_down_i32(membermask(), x, delta, 0x1f);
 #endif
@@ -837,8 +839,8 @@ EnableIfNativeShuffle<T> SubgroupShuffleDown(T x, uint32_t delta) {
 template <typename T>
 EnableIfNativeShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
 #ifndef __NVPTX__
-  using OCLT = detail::ConvertToOpenCLType_t<T>;
-  return __spirv_SubgroupShuffleUpINTEL(OCLT(x), OCLT(x), delta);
+  return __spirv_SubgroupShuffleUpINTEL(convertToOpenCLType(x),
+                                        convertToOpenCLType(x), delta);
 #else
   return __nvvm_shfl_sync_up_i32(membermask(), x, delta, 0);
 #endif
@@ -886,7 +888,7 @@ using ConvertToNativeShuffleType_t = select_cl_scalar_integral_unsigned_t<T>;
 template <typename T>
 EnableIfBitcastShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
   using ShuffleT = ConvertToNativeShuffleType_t<T>;
-  auto ShuffleX = bit_cast<ShuffleT>(x);
+  auto ShuffleX = sycl::bit_cast<ShuffleT>(x);
 #ifndef __NVPTX__
   ShuffleT Result = __spirv_SubgroupShuffleINTEL(
       ShuffleX, static_cast<uint32_t>(local_id.get(0)));
@@ -894,13 +896,13 @@ EnableIfBitcastShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
   ShuffleT Result =
       __nvvm_shfl_sync_idx_i32(membermask(), ShuffleX, local_id.get(0), 0x1f);
 #endif
-  return bit_cast<T>(Result);
+  return sycl::bit_cast<T>(Result);
 }
 
 template <typename T>
 EnableIfBitcastShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
   using ShuffleT = ConvertToNativeShuffleType_t<T>;
-  auto ShuffleX = bit_cast<ShuffleT>(x);
+  auto ShuffleX = sycl::bit_cast<ShuffleT>(x);
 #ifndef __NVPTX__
   ShuffleT Result = __spirv_SubgroupShuffleXorINTEL(
       ShuffleX, static_cast<uint32_t>(local_id.get(0)));
@@ -908,32 +910,32 @@ EnableIfBitcastShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
   ShuffleT Result =
       __nvvm_shfl_sync_bfly_i32(membermask(), ShuffleX, local_id.get(0), 0x1f);
 #endif
-  return bit_cast<T>(Result);
+  return sycl::bit_cast<T>(Result);
 }
 
 template <typename T>
 EnableIfBitcastShuffle<T> SubgroupShuffleDown(T x, uint32_t delta) {
   using ShuffleT = ConvertToNativeShuffleType_t<T>;
-  auto ShuffleX = bit_cast<ShuffleT>(x);
+  auto ShuffleX = sycl::bit_cast<ShuffleT>(x);
 #ifndef __NVPTX__
   ShuffleT Result = __spirv_SubgroupShuffleDownINTEL(ShuffleX, ShuffleX, delta);
 #else
   ShuffleT Result =
       __nvvm_shfl_sync_down_i32(membermask(), ShuffleX, delta, 0x1f);
 #endif
-  return bit_cast<T>(Result);
+  return sycl::bit_cast<T>(Result);
 }
 
 template <typename T>
 EnableIfBitcastShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
   using ShuffleT = ConvertToNativeShuffleType_t<T>;
-  auto ShuffleX = bit_cast<ShuffleT>(x);
+  auto ShuffleX = sycl::bit_cast<ShuffleT>(x);
 #ifndef __NVPTX__
   ShuffleT Result = __spirv_SubgroupShuffleUpINTEL(ShuffleX, ShuffleX, delta);
 #else
   ShuffleT Result = __nvvm_shfl_sync_up_i32(membermask(), ShuffleX, delta, 0);
 #endif
-  return bit_cast<T>(Result);
+  return sycl::bit_cast<T>(Result);
 }
 
 template <typename T>
@@ -943,9 +945,9 @@ EnableIfGenericShuffle<T> SubgroupShuffle(T x, id<1> local_id) {
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
-    std::memcpy(&ShuffleX, XBytes + Offset, Size);
+    detail::memcpy(&ShuffleX, XBytes + Offset, Size);
     ShuffleResult = SubgroupShuffle(ShuffleX, local_id);
-    std::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
+    detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
   return Result;
@@ -958,9 +960,9 @@ EnableIfGenericShuffle<T> SubgroupShuffleXor(T x, id<1> local_id) {
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
-    std::memcpy(&ShuffleX, XBytes + Offset, Size);
+    detail::memcpy(&ShuffleX, XBytes + Offset, Size);
     ShuffleResult = SubgroupShuffleXor(ShuffleX, local_id);
-    std::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
+    detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
   return Result;
@@ -973,9 +975,9 @@ EnableIfGenericShuffle<T> SubgroupShuffleDown(T x, uint32_t delta) {
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
-    std::memcpy(&ShuffleX, XBytes + Offset, Size);
+    detail::memcpy(&ShuffleX, XBytes + Offset, Size);
     ShuffleResult = SubgroupShuffleDown(ShuffleX, delta);
-    std::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
+    detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
   return Result;
@@ -988,9 +990,9 @@ EnableIfGenericShuffle<T> SubgroupShuffleUp(T x, uint32_t delta) {
   char *ResultBytes = reinterpret_cast<char *>(&Result);
   auto ShuffleBytes = [=](size_t Offset, size_t Size) {
     ShuffleChunkT ShuffleX, ShuffleResult;
-    std::memcpy(&ShuffleX, XBytes + Offset, Size);
+    detail::memcpy(&ShuffleX, XBytes + Offset, Size);
     ShuffleResult = SubgroupShuffleUp(ShuffleX, delta);
-    std::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
+    detail::memcpy(ResultBytes + Offset, &ShuffleResult, Size);
   };
   GenericCall<T>(ShuffleBytes);
   return Result;
@@ -1010,8 +1012,11 @@ ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
 template <typename Group>
 typename std::enable_if_t<
     ext::oneapi::experimental::is_user_constructed_group_v<Group>>
-ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
-#if defined(__SPIR__)
+ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
+#if defined(__NVPTX__)
+  __nvvm_bar_warp_sync(detail::ExtractMask(detail::GetMask(g))[0]);
+#else
+  (void)g;
   // SPIR-V does not define an instruction to synchronize partial groups.
   // However, most (possibly all?) of the current SPIR-V targets execute
   // work-items in lockstep, so we can probably get away with a MemoryBarrier.
@@ -1021,8 +1026,6 @@ ControlBarrier(Group, memory_scope FenceScope, memory_order Order) {
                             __spv::MemorySemanticsMask::SubgroupMemory |
                             __spv::MemorySemanticsMask::WorkgroupMemory |
                             __spv::MemorySemanticsMask::CrossWorkgroupMemory);
-#elif defined(__NVPTX__)
-  // TODO: Call syncwarp with appropriate mask extracted from the group
 #endif
 }
 
@@ -1043,16 +1046,16 @@ struct is_tangle_or_opportunistic_group<
   template <__spv::GroupOperation Op, typename Group, typename T>              \
   inline typename std::enable_if_t<                                            \
       ext::oneapi::experimental::is_fixed_topology_group_v<Group>, T>          \
-      Group##Instruction(Group G, T x) {                                       \
+      Group##Instruction(Group, T x) {                                         \
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
     using OCLT = std::conditional_t<                                           \
-        std::is_same<ConvertedT, cl_char>() ||                                 \
-            std::is_same<ConvertedT, cl_short>(),                              \
-        cl_int,                                                                \
-        std::conditional_t<std::is_same<ConvertedT, cl_uchar>() ||             \
-                               std::is_same<ConvertedT, cl_ushort>(),          \
-                           cl_uint, ConvertedT>>;                              \
+        std::is_same<ConvertedT, opencl::cl_char>() ||                         \
+            std::is_same<ConvertedT, opencl::cl_short>(),                      \
+        opencl::cl_int,                                                        \
+        std::conditional_t<std::is_same<ConvertedT, opencl::cl_uchar>() ||     \
+                               std::is_same<ConvertedT, opencl::cl_ushort>(),  \
+                           opencl::cl_uint, ConvertedT>>;                      \
     OCLT Arg = x;                                                              \
     OCLT Ret = __spirv_Group##Instruction(group_scope<Group>::value,           \
                                           static_cast<unsigned int>(Op), Arg); \
@@ -1065,12 +1068,12 @@ struct is_tangle_or_opportunistic_group<
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
     using OCLT = std::conditional_t<                                           \
-        std::is_same<ConvertedT, cl_char>() ||                                 \
-            std::is_same<ConvertedT, cl_short>(),                              \
-        cl_int,                                                                \
-        std::conditional_t<std::is_same<ConvertedT, cl_uchar>() ||             \
-                               std::is_same<ConvertedT, cl_ushort>(),          \
-                           cl_uint, ConvertedT>>;                              \
+        std::is_same<ConvertedT, opencl::cl_char>() ||                         \
+            std::is_same<ConvertedT, opencl::cl_short>(),                      \
+        opencl::cl_int,                                                        \
+        std::conditional_t<std::is_same<ConvertedT, opencl::cl_uchar>() ||     \
+                               std::is_same<ConvertedT, opencl::cl_ushort>(),  \
+                           opencl::cl_uint, ConvertedT>>;                      \
     OCLT Arg = x;                                                              \
     /* ballot_group partitions its parent into two groups (0 and 1) */         \
     /* We have to force each group down different control flow */              \
@@ -1093,12 +1096,12 @@ struct is_tangle_or_opportunistic_group<
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
     using OCLT = std::conditional_t<                                           \
-        std::is_same<ConvertedT, cl_char>() ||                                 \
-            std::is_same<ConvertedT, cl_short>(),                              \
-        cl_int,                                                                \
-        std::conditional_t<std::is_same<ConvertedT, cl_uchar>() ||             \
-                               std::is_same<ConvertedT, cl_ushort>(),          \
-                           cl_uint, ConvertedT>>;                              \
+        std::is_same<ConvertedT, opencl::cl_char>() ||                         \
+            std::is_same<ConvertedT, opencl::cl_short>(),                      \
+        opencl::cl_int,                                                        \
+        std::conditional_t<std::is_same<ConvertedT, opencl::cl_uchar>() ||     \
+                               std::is_same<ConvertedT, opencl::cl_ushort>(),  \
+                           opencl::cl_uint, ConvertedT>>;                      \
     OCLT Arg = x;                                                              \
     constexpr auto Scope = group_scope<ParentGroup>::value;                    \
     /* SPIR-V only defines a ClusteredReduce, with no equivalents for scan. */ \
@@ -1127,12 +1130,12 @@ struct is_tangle_or_opportunistic_group<
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
     using OCLT = std::conditional_t<                                           \
-        std::is_same<ConvertedT, cl_char>() ||                                 \
-            std::is_same<ConvertedT, cl_short>(),                              \
-        cl_int,                                                                \
-        std::conditional_t<std::is_same<ConvertedT, cl_uchar>() ||             \
-                               std::is_same<ConvertedT, cl_ushort>(),          \
-                           cl_uint, ConvertedT>>;                              \
+        std::is_same<ConvertedT, opencl::cl_char>() ||                         \
+            std::is_same<ConvertedT, opencl::cl_short>(),                      \
+        opencl::cl_int,                                                        \
+        std::conditional_t<std::is_same<ConvertedT, opencl::cl_uchar>() ||     \
+                               std::is_same<ConvertedT, opencl::cl_ushort>(),  \
+                           opencl::cl_uint, ConvertedT>>;                      \
     OCLT Arg = x;                                                              \
     OCLT Ret = __spirv_GroupNonUniform##Instruction(                           \
         group_scope<Group>::value, static_cast<unsigned int>(Op), Arg);        \
@@ -1158,8 +1161,35 @@ __SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseOrKHR)
 __SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseXorKHR)
 __SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseAndKHR)
 
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(LogicalAndKHR)
+__SYCL_GROUP_COLLECTIVE_OVERLOAD(LogicalOrKHR)
+
+template <access::address_space Space, typename T>
+auto GenericCastToPtr(T *Ptr) ->
+    typename multi_ptr<T, Space, access::decorated::yes>::pointer {
+  if constexpr (Space == access::address_space::global_space) {
+    return __SYCL_GenericCastToPtr_ToGlobal<T>(Ptr);
+  } else if constexpr (Space == access::address_space::local_space) {
+    return __SYCL_GenericCastToPtr_ToLocal<T>(Ptr);
+  } else if constexpr (Space == access::address_space::private_space) {
+    return __SYCL_GenericCastToPtr_ToPrivate<T>(Ptr);
+  }
+}
+
+template <access::address_space Space, typename T>
+auto GenericCastToPtrExplicit(T *Ptr) ->
+    typename multi_ptr<T, Space, access::decorated::yes>::pointer {
+  if constexpr (Space == access::address_space::global_space) {
+    return __SYCL_GenericCastToPtrExplicit_ToGlobal<T>(Ptr);
+  } else if constexpr (Space == access::address_space::local_space) {
+    return __SYCL_GenericCastToPtrExplicit_ToLocal<T>(Ptr);
+  } else if constexpr (Space == access::address_space::private_space) {
+    return __SYCL_GenericCastToPtrExplicit_ToPrivate<T>(Ptr);
+  }
+}
+
 } // namespace spirv
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 #endif //  __SYCL_DEVICE_ONLY__

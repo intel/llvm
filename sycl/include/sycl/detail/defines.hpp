@@ -8,11 +8,10 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-
-#include <climits>
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ID_QUERIES_FIT_...
 
 #if __SYCL_ID_QUERIES_FIT_IN_INT__ && __has_builtin(__builtin_assume)
+#include <climits>
 #define __SYCL_ASSUME_INT(x) __builtin_assume((x) <= INT_MAX)
 #else
 #define __SYCL_ASSUME_INT(x)
@@ -39,10 +38,3 @@
 #else
 #define __SYCL_TYPE(x)
 #endif
-
-// joint matrix should only be included by default for SPIR or NVPTX backends
-#if defined __SPIR__ || defined __NVPTX__ || !defined __SYCL_DEVICE_ONLY__
-#ifndef SYCL_EXT_ONEAPI_MATRIX_VERSION
-#define SYCL_EXT_ONEAPI_MATRIX_VERSION 4
-#endif // SYCL_EXT_ONEAPI_MATRIX_VERSION
-#endif // __SPIR__ || __NVPTX__ || !__SYCL_DEVICE_ONLY

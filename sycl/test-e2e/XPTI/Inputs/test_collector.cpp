@@ -19,54 +19,23 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int MajorVersion,
                                      const char *StreamName) {
   std::cout << "xptiTraceInit: Stream Name = " << StreamName << "\n";
   std::string_view NameView{StreamName};
+  using type = xpti::trace_point_type_t;
 
   if (NameView == "sycl.pi") {
     uint8_t StreamID = xptiRegisterStream(StreamName);
-    xptiRegisterCallback(
-        StreamID,
-        static_cast<uint16_t>(xpti::trace_point_type_t::function_begin),
-        syclPiCallback);
-    xptiRegisterCallback(
-        StreamID,
-        static_cast<uint16_t>(xpti::trace_point_type_t::function_with_args_end),
-        syclPiCallback);
+    for (type t : std::initializer_list<type>{type::function_begin,
+                                              type::function_with_args_end})
+      xptiRegisterCallback(StreamID, static_cast<uint16_t>(t), syclPiCallback);
   }
   if (NameView == "sycl") {
     uint8_t StreamID = xptiRegisterStream(StreamName);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::graph_create),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::node_create),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::edge_create),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::task_begin),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::task_end),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::signal),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID,
-        static_cast<uint16_t>(xpti::trace_point_type_t::barrier_begin),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::barrier_end),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::wait_begin),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::wait_end),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::signal),
-        syclCallback);
+
+    for (type t : std::initializer_list<type>{
+             type::graph_create, type::node_create, type::edge_create,
+             type::task_begin, type::task_end, type::signal,
+             type::barrier_begin, type::barrier_end, type::wait_begin,
+             type::wait_end})
+      xptiRegisterCallback(StreamID, static_cast<uint16_t>(t), syclCallback);
   }
 }
 
@@ -133,6 +102,6 @@ XPTI_CALLBACK_API void syclCallback(uint16_t TraceType,
   xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
   for (auto &Item : *Metadata) {
     std::cout << "  " << xptiLookupString(Item.first) << " : "
-              << xptiLookupString(Item.second) << "\n";
+              << xpti::readMetadata(Item) << "\n";
   }
 }

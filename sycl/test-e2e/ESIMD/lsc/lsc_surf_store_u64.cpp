@@ -5,10 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc || esimd_emulator
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: gpu-intel-pvc || gpu-intel-dg2
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include "Inputs/lsc_surf_store.hpp"
 
@@ -37,9 +36,12 @@ template <int TestCastNum, typename T> bool tests() {
 int main(void) {
   srand(seed);
   bool passed = true;
+  auto Q = queue{gpu_selector_v};
 
   passed &= tests<0, uint64_t>();
-  passed &= tests<11, double>();
+  if (Q.get_device().has(sycl::aspect::fp64)) {
+    passed &= tests<11, double>();
+  }
 
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;

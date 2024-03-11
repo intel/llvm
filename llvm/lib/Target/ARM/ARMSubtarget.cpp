@@ -187,10 +187,12 @@ void ARMSubtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
   // Assert this for now to make the change obvious.
   assert(hasV6T2Ops() || !hasThumb2());
 
-  // Execute only support requires movt support
   if (genExecuteOnly()) {
-    NoMovt = false;
-    assert(hasV8MBaselineOps() && "Cannot generate execute-only code for this target");
+    // Execute only support for >= v8-M Baseline requires movt support
+    if (hasV8MBaselineOps())
+      NoMovt = false;
+    if (!hasV6MOps())
+      report_fatal_error("Cannot generate execute-only code for this target");
   }
 
   // Keep a pointer to static instruction cost data for the specified CPU.
@@ -296,6 +298,7 @@ void ARMSubtarget::initSubtargetFeatures(StringRef CPU, StringRef FS) {
   case CortexM3:
   case CortexM7:
   case CortexR52:
+  case CortexM52:
   case CortexX1:
   case CortexX1C:
     break;
@@ -363,8 +366,7 @@ bool ARMSubtarget::isGVIndirectSymbol(const GlobalValue *GV) const {
 }
 
 bool ARMSubtarget::isGVInGOT(const GlobalValue *GV) const {
-  return isTargetELF() && TM.isPositionIndependent() &&
-         !TM.shouldAssumeDSOLocal(*GV->getParent(), GV);
+  return isTargetELF() && TM.isPositionIndependent() && !GV->isDSOLocal();
 }
 
 unsigned ARMSubtarget::getMispredictionPenalty() const {

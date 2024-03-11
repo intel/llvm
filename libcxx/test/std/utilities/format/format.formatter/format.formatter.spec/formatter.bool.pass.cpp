@@ -6,7 +6,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-has-no-incomplete-format
 
 // <format>
 
@@ -38,7 +37,7 @@ void test(StringT expected, StringViewT fmt, bool arg, std::size_t offset) {
   std::formatter<bool, CharT> formatter;
   static_assert(std::semiregular<decltype(formatter)>);
 
-  auto it = formatter.parse(parse_ctx);
+  std::same_as<typename StringViewT::iterator> auto it = formatter.parse(parse_ctx);
   assert(it == fmt.end() - offset);
 
   StringT result;

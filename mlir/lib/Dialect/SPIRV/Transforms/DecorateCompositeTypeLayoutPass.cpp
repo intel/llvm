@@ -42,8 +42,8 @@ public:
                                 PatternRewriter &rewriter) const override {
     SmallVector<NamedAttribute, 4> globalVarAttrs;
 
-    auto ptrType = op.getType().cast<spirv::PointerType>();
-    auto pointeeType = ptrType.getPointeeType().cast<spirv::StructType>();
+    auto ptrType = cast<spirv::PointerType>(op.getType());
+    auto pointeeType = cast<spirv::StructType>(ptrType.getPointeeType());
     spirv::StructType structType = VulkanLayoutUtils::decorateType(pointeeType);
 
     if (!structType)
@@ -91,8 +91,8 @@ public:
   LogicalResult
   matchAndRewrite(OpT op, typename OpT::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    rewriter.updateRootInPlace(op,
-                               [&] { op->setOperands(adaptor.getOperands()); });
+    rewriter.modifyOpInPlace(op,
+                             [&] { op->setOperands(adaptor.getOperands()); });
     return success();
   }
 };

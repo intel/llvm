@@ -5,8 +5,7 @@
 ; RUN: llvm-nm %t1.bc.thinlto.o | FileCheck  %s --check-prefix=NM0
 ; RUN: llvm-nm %t2.bc.thinlto.o | FileCheck  %s --check-prefix=NM1
 
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -o %t.o -save-temps \
-; RUN:     -opaque-pointers \
+; RUN: llvm-lto2 run %t1.bc %t2.bc -o %t.o -save-temps \
 ; RUN:     -r=%t1.bc,foo,lx \
 ; RUN:     -r=%t1.bc,foo,plx \
 ; RUN:     -r=%t1.bc,_simplefunction,pl \

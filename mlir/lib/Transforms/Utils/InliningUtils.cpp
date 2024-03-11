@@ -97,7 +97,7 @@ void InlinerInterface::handleTerminator(Operation *op, Block *newDest) const {
 /// Handle the given inlined terminator by replacing it with a new operation
 /// as necessary.
 void InlinerInterface::handleTerminator(Operation *op,
-                                        ArrayRef<Value> valuesToRepl) const {
+                                        ValueRange valuesToRepl) const {
   auto *handler = getInterfaceFor(op);
   assert(handler && "expected valid dialect handler");
   handler->handleTerminator(op, valuesToRepl);
@@ -166,7 +166,7 @@ static void handleArgumentImpl(InlinerInterface &interface, OpBuilder &builder,
   SmallVector<DictionaryAttr> argAttrs(
       callable.getCallableRegion()->getNumArguments(),
       builder.getDictionaryAttr({}));
-  if (ArrayAttr arrayAttr = callable.getCallableArgAttrs()) {
+  if (ArrayAttr arrayAttr = callable.getArgAttrsAttr()) {
     assert(arrayAttr.size() == argAttrs.size());
     for (auto [idx, attr] : llvm::enumerate(arrayAttr))
       argAttrs[idx] = cast<DictionaryAttr>(attr);
@@ -191,7 +191,7 @@ static void handleResultImpl(InlinerInterface &interface, OpBuilder &builder,
   // Unpack the result attributes if there are any.
   SmallVector<DictionaryAttr> resAttrs(results.size(),
                                        builder.getDictionaryAttr({}));
-  if (ArrayAttr arrayAttr = callable.getCallableResAttrs()) {
+  if (ArrayAttr arrayAttr = callable.getResAttrsAttr()) {
     assert(arrayAttr.size() == resAttrs.size());
     for (auto [idx, attr] : llvm::enumerate(arrayAttr))
       resAttrs[idx] = cast<DictionaryAttr>(attr);
@@ -222,7 +222,7 @@ inlineRegionImpl(InlinerInterface &interface, Region *src, Block *inlineBlock,
                  Block::iterator inlinePoint, IRMapping &mapper,
                  ValueRange resultsToReplace, TypeRange regionResultTypes,
                  std::optional<Location> inlineLoc,
-                 bool shouldCloneInlinedRegion, Operation *call = nullptr) {
+                 bool shouldCloneInlinedRegion, CallOpInterface call = {}) {
   assert(resultsToReplace.size() == regionResultTypes.size());
   // We expect the region to have at least one block.
   if (src->empty())
@@ -266,7 +266,7 @@ inlineRegionImpl(InlinerInterface &interface, Region *src, Block *inlineBlock,
 
   // Remap the locations of the inlined operations if a valid source location
   // was provided.
-  if (inlineLoc && !inlineLoc->isa<UnknownLoc>())
+  if (inlineLoc && !llvm::isa<UnknownLoc>(*inlineLoc))
     remapInlinedLocations(newBlocks, *inlineLoc);
 
   // If the blocks were moved in-place, make sure to remap any necessary
@@ -289,8 +289,7 @@ inlineRegionImpl(InlinerInterface &interface, Region *src, Block *inlineBlock,
                        firstBlockTerminator->getOperands());
 
     // Have the interface handle the terminator of this block.
-    interface.handleTerminator(firstBlockTerminator,
-                               llvm::to_vector<6>(resultsToReplace));
+    interface.handleTerminator(firstBlockTerminator, resultsToReplace);
     firstBlockTerminator->erase();
 
     // Merge the post insert block into the cloned entry block.
@@ -328,7 +327,7 @@ static LogicalResult
 inlineRegionImpl(InlinerInterface &interface, Region *src, Block *inlineBlock,
                  Block::iterator inlinePoint, ValueRange inlinedOperands,
                  ValueRange resultsToReplace, std::optional<Location> inlineLoc,
-                 bool shouldCloneInlinedRegion, Operation *call = nullptr) {
+                 bool shouldCloneInlinedRegion, CallOpInterface call = {}) {
   // We expect the region to have at least one block.
   if (src->empty())
     return failure();
@@ -434,7 +433,7 @@ LogicalResult mlir::inlineCall(InlinerInterface &interface,
   if (src->empty())
     return failure();
   auto *entryBlock = &src->front();
-  ArrayRef<Type> callableResultTypes = callable.getCallableResults();
+  ArrayRef<Type> callableResultTypes = callable.getResultTypes();
 
   // Make sure that the number of arguments and results matchup between the call
   // and the region.

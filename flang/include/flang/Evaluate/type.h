@@ -22,6 +22,7 @@
 #include "integer.h"
 #include "logical.h"
 #include "real.h"
+#include "flang/Common/Fortran-features.h"
 #include "flang/Common/Fortran.h"
 #include "flang/Common/idioms.h"
 #include "flang/Common/real.h"
@@ -37,7 +38,12 @@ class DeclTypeSpec;
 class DerivedTypeSpec;
 class ParamValue;
 class Symbol;
+// IsDescriptor() is true when an object requires the use of a descriptor
+// in memory when "at rest".  IsPassedViaDescriptor() is sometimes false
+// when IsDescriptor() is true, including the cases of CHARACTER dummy
+// arguments and explicit & assumed-size dummy arrays.
 bool IsDescriptor(const Symbol &);
+bool IsPassedViaDescriptor(const Symbol &);
 } // namespace Fortran::semantics
 
 namespace Fortran::evaluate {
@@ -177,6 +183,7 @@ public:
   constexpr bool IsUnlimitedPolymorphic() const { // TYPE(*) or CLASS(*)
     return IsPolymorphic() && !derived_;
   }
+  bool IsLengthlessIntrinsicType() const;
   constexpr const semantics::DerivedTypeSpec &GetDerivedTypeSpec() const {
     return DEREF(derived_);
   }
@@ -190,6 +197,7 @@ public:
   // relation.  Kind type parameters must match, but CHARACTER lengths
   // need not do so.
   bool IsTkCompatibleWith(const DynamicType &) const;
+  bool IsTkCompatibleWith(const DynamicType &, common::IgnoreTKRSet) const;
 
   // A stronger compatibility check that does not allow distinct known
   // values for CHARACTER lengths for e.g. MOVE_ALLOC().
@@ -199,6 +207,10 @@ public:
   std::optional<bool> ExtendsTypeOf(const DynamicType &) const;
   // SAME_TYPE_AS (16.9.165); ignores type parameter values
   std::optional<bool> SameTypeAs(const DynamicType &) const;
+
+  // 7.5.2.4 type equivalence; like operator==(), but SEQUENCE/BIND(C)
+  // derived types can be structurally equivalent.
+  bool IsEquivalentTo(const DynamicType &) const;
 
   // Result will be missing when a symbol is absent or
   // has an erroneous type, e.g., REAL(KIND=666).
@@ -223,6 +235,12 @@ public:
       return std::nullopt;
     }
   }
+
+  // Get a copy of this dynamic type where charLengthParamValue_ is reset if it
+  // is not a constant expression. This avoids propagating symbol references in
+  // scopes where they do not belong. Returns the type unmodified if it is not
+  // a character or if the length is not explicit.
+  DynamicType DropNonConstantCharacterLength() const;
 
 private:
   // Special kind codes are used to distinguish the following Fortran types.
@@ -254,7 +272,8 @@ const semantics::DerivedTypeSpec *GetDerivedTypeSpec(
 const semantics::DerivedTypeSpec *GetParentTypeSpec(
     const semantics::DerivedTypeSpec &);
 
-std::string DerivedTypeSpecAsFortran(const semantics::DerivedTypeSpec &);
+std::string DerivedTypeSpecAsFortran(const semantics::DerivedTypeSpec &,
+    const parser::CharBlock *derivedTypeRename = nullptr);
 
 template <TypeCategory CATEGORY, int KIND = 0> struct TypeBase {
   static constexpr TypeCategory category{CATEGORY};
@@ -466,7 +485,10 @@ int SelectedCharKind(const std::string &, int defaultKind);
 std::optional<DynamicType> ComparisonType(
     const DynamicType &, const DynamicType &);
 
-bool IsInteroperableIntrinsicType(const DynamicType &);
+bool IsInteroperableIntrinsicType(const DynamicType &,
+    const common::LanguageFeatureControl * = nullptr,
+    bool checkCharLength = true);
+bool IsCUDAIntrinsicType(const DynamicType &);
 
 // Determine whether two derived type specs are sufficiently identical
 // to be considered the "same" type even if declared separately.

@@ -2,7 +2,7 @@
 
 // CHECK-LABEL: verifyDirectPattern
 func.func @verifyDirectPattern() -> i32 {
-  // CHECK-NEXT:  "test.legal_op_a"() {status = "Success"}
+  // CHECK-NEXT:  "test.legal_op_a"() <{status = "Success"}
   %result = "test.illegal_op_a"() : () -> (i32)
   // expected-remark@+1 {{op 'func.return' is not legalizable}}
   return %result : i32
@@ -10,7 +10,7 @@ func.func @verifyDirectPattern() -> i32 {
 
 // CHECK-LABEL: verifyLargerBenefit
 func.func @verifyLargerBenefit() -> i32 {
-  // CHECK-NEXT:  "test.legal_op_a"() {status = "Success"}
+  // CHECK-NEXT:  "test.legal_op_a"() <{status = "Success"}
   %result = "test.illegal_op_c"() : () -> (i32)
   // expected-remark@+1 {{op 'func.return' is not legalizable}}
   return %result : i32
@@ -310,16 +310,6 @@ builtin.module {
 
 // -----
 
-// The "passthrough_fold" folder will naively return its operand, but we don't
-// want to fold here because of the type mismatch.
-func.func @typemismatch(%arg: f32) -> i32 {
-  // expected-remark@+1 {{op 'test.passthrough_fold' is not legalizable}}
-  %0 = "test.passthrough_fold"(%arg) : (f32) -> (i32)
-  "test.return"(%0) : (i32) -> ()
-}
-
-// -----
-
 // expected-remark @below {{applyPartialConversion failed}}
 module {
   func.func private @callee(%0 : f32) -> f32
@@ -329,4 +319,42 @@ module {
     %1 = func.call @callee(%arg) : (f32) -> f32
     return
   }
+}
+
+// -----
+
+// CHECK-LABEL: func @test_move_op_before_rollback()
+func.func @test_move_op_before_rollback() {
+  // CHECK: "test.one_region_op"()
+  // CHECK: "test.hoist_me"()
+  "test.one_region_op"() ({
+    // expected-remark @below{{'test.hoist_me' is not legalizable}}
+    %0 = "test.hoist_me"() : () -> (i32)
+    "test.valid"(%0) : (i32) -> ()
+  }) : () -> ()
+  "test.return"() : () -> ()
+}
+
+// -----
+
+// CHECK-LABEL: func @test_properties_rollback()
+func.func @test_properties_rollback() {
+  // CHECK: test.with_properties <{a = 32 : i64,
+  // expected-remark @below{{op 'test.with_properties' is not legalizable}}
+  test.with_properties
+      <{a = 32 : i64, array = array<i64: 1, 2, 3, 4>, b = "foo"}>
+      {modify_inplace}
+  "test.return"() : () -> ()
+}
+
+// -----
+
+//      CHECK: func.func @use_of_replaced_bbarg(
+// CHECK-SAME:     %[[arg0:.*]]: f64)
+//      CHECK:   "test.valid"(%[[arg0]])
+func.func @use_of_replaced_bbarg(%arg0: i64) {
+  %0 = "test.op_with_region_fold"(%arg0) ({
+    "foo.op_with_region_terminator"() : () -> ()
+  }) : (i64) -> (i64)
+  "test.invalid"(%0) : (i64) -> ()
 }

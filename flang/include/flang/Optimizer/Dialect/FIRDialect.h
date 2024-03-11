@@ -47,6 +47,9 @@ private:
   void registerAttributes();
   // Register the Types of this dialect.
   void registerTypes();
+  // Register external interfaces on operations of
+  // this dialect.
+  void registerOpExternalInterfaces();
 };
 
 /// The FIR codegen dialect is a dialect containing a small set of transient
@@ -63,6 +66,12 @@ public:
 bool canLegallyInline(mlir::Operation *op, mlir::Region *reg, bool,
                       mlir::IRMapping &map);
 bool canLegallyInline(mlir::Operation *, mlir::Operation *, bool);
+
+// Register the FIRInlinerInterface to FIROpsDialect
+void addFIRInlinerExtension(mlir::DialectRegistry &registry);
+
+// Register implementation of LLVMTranslationDialectInterface.
+void addFIRToLLVMIRExtension(mlir::DialectRegistry &registry);
 
 } // namespace fir
 

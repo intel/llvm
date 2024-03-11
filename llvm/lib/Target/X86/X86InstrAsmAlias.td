@@ -55,6 +55,11 @@ multiclass CMPCCXADD_Aliases<string Cond, int CC> {
                   (CMPCCXADDmr32 GR32:$dst, i32mem:$dstsrc2, GR32:$src3, CC), 0>;
   def : InstAlias<"cmp"#Cond#"xadd"#"\t{$src3, $dst, $dstsrc2|$dstsrc2, $dst, $src3}",
                   (CMPCCXADDmr64 GR64:$dst, i64mem:$dstsrc2, GR64:$src3, CC), 0>;
+
+  def : InstAlias<"cmp"#Cond#"xadd"#"\t{$src3, $dst, $dstsrc2|$dstsrc2, $dst, $src3}",
+                  (CMPCCXADDmr32_EVEX GR32:$dst, i32mem:$dstsrc2, GR32:$src3, CC), 0>;
+  def : InstAlias<"cmp"#Cond#"xadd"#"\t{$src3, $dst, $dstsrc2|$dstsrc2, $dst, $src3}",
+                  (CMPCCXADDmr64_EVEX GR64:$dst, i64mem:$dstsrc2, GR64:$src3, CC), 0>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -551,34 +556,6 @@ def : InstAlias<"shrd{w}\t{$reg, $mem|$mem, $reg}", (SHRD16mrCL i16mem:$mem, GR1
 def : InstAlias<"shrd{l}\t{$reg, $mem|$mem, $reg}", (SHRD32mrCL i32mem:$mem, GR32:$reg), 0>;
 def : InstAlias<"shrd{q}\t{$reg, $mem|$mem, $reg}", (SHRD64mrCL i64mem:$mem, GR64:$reg), 0>;
 
-/*  FIXME: This is disabled because the asm matcher is currently incapable of
- *  matching a fixed immediate like $1.
-// "shl X, $1" is an alias for "shl X".
-multiclass ShiftRotateByOneAlias<string Mnemonic, string Opc> {
- def : InstAlias<!strconcat(Mnemonic, "b $op, $$1"),
-                 (!cast<Instruction>(!strconcat(Opc, "8r1")) GR8:$op)>;
- def : InstAlias<!strconcat(Mnemonic, "w $op, $$1"),
-                 (!cast<Instruction>(!strconcat(Opc, "16r1")) GR16:$op)>;
- def : InstAlias<!strconcat(Mnemonic, "l $op, $$1"),
-                 (!cast<Instruction>(!strconcat(Opc, "32r1")) GR32:$op)>;
- def : InstAlias<!strconcat(Mnemonic, "q $op, $$1"),
-                 (!cast<Instruction>(!strconcat(Opc, "64r1")) GR64:$op)>;
- def : InstAlias<!strconcat(Mnemonic, "b $op, $$1"),
-                 (!cast<Instruction>(!strconcat(Opc, "8m1")) i8mem:$op)>;
- def : InstAlias<!strconcat(Mnemonic, "w $op, $$1"),
-                 (!cast<Instruction>(!strconcat(Opc, "16m1")) i16mem:$op)>;
- def : InstAlias<!strconcat(Mnemonic, "l $op, $$1"),
-                 (!cast<Instruction>(!strconcat(Opc, "32m1")) i32mem:$op)>;
- def : InstAlias<!strconcat(Mnemonic, "q $op, $$1"),
-                 (!cast<Instruction>(!strconcat(Opc, "64m1")) i64mem:$op)>;
-}
-
-defm : ShiftRotateByOneAlias<"rcl", "RCL">;
-defm : ShiftRotateByOneAlias<"rcr", "RCR">;
-defm : ShiftRotateByOneAlias<"rol", "ROL">;
-defm : ShiftRotateByOneAlias<"ror", "ROR">;
-FIXME */
-
 // test: We accept "testX <reg>, <mem>" and "testX <mem>, <reg>" as synonyms.
 def : InstAlias<"test{b}\t{$mem, $val|$val, $mem}",
                 (TEST8mr  i8mem :$mem, GR8 :$val), 0>;
@@ -714,3 +691,11 @@ def : InstAlias<"vmsave\t{%rax|rax}", (VMSAVE64), 0>, Requires<[In64BitMode]>;
 def : InstAlias<"invlpga\t{%eax, %ecx|eax, ecx}", (INVLPGA32), 0>, Requires<[Not64BitMode]>;
 def : InstAlias<"invlpga\t{%rax, %ecx|rax, ecx}", (INVLPGA64), 0>, Requires<[In64BitMode]>;
 
+// Aliases with explicit %xmm0
+def : InstAlias<"sha256rnds2\t{$src2, $dst|$dst, $src2}",
+                (SHA256RNDS2rr VR128:$dst, VR128:$src2), 0>;
+def : InstAlias<"sha256rnds2\t{$src2, $dst|$dst, $src2}",
+                (SHA256RNDS2rm VR128:$dst, i128mem:$src2), 0>;
+
+def : InstAlias<"sha256rnds2\t{$src2, $dst|$dst, $src2}",
+                (SHA256RNDS2rm_EVEX VR128:$dst, i128mem:$src2), 0>;

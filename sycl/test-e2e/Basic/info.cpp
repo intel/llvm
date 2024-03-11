@@ -1,7 +1,5 @@
-// RUN: %clangxx -D__SYCL_INTERNAL_API -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -D__SYCL_INTERNAL_API -o %t.out
+// RUN: %{run} %t.out
 
 //==----------------info.cpp - SYCL objects get_info() test ----------------==//
 //
@@ -169,7 +167,7 @@ template <> std::string info_to_string(device info) {
   return "SYCL OpenCL device";
 }
 
-template <int Dim> std::string info_to_string(id<Dim> info) {
+template <int Dim> std::string info_to_string(range<Dim> info) {
   std::string str;
   for (size_t i = 0; i < Dim; ++i) {
     str += info_to_string(info[i]) + " ";
@@ -218,11 +216,11 @@ int main() {
       dev, "Max compute units");
   print_info<info::device::max_work_item_dimensions, std::uint32_t>(
       dev, "Max work item dimensions");
-  print_info<info::device::max_work_item_sizes<1>, id<1>>(
+  print_info<info::device::max_work_item_sizes<1>, range<1>>(
       dev, "Max work item sizes 1D");
-  print_info<info::device::max_work_item_sizes<2>, id<2>>(
+  print_info<info::device::max_work_item_sizes<2>, range<2>>(
       dev, "Max work item sizes 2D");
-  print_info<info::device::max_work_item_sizes<3>, id<3>>(
+  print_info<info::device::max_work_item_sizes<3>, range<3>>(
       dev, "Max work item sizes 3D");
   print_info<info::device::max_work_group_size, size_t>(dev,
                                                         "Max work group size");
@@ -339,7 +337,7 @@ int main() {
       dev, "Preferred interop user sync");
   try {
     print_info<info::device::parent_device, device>(dev, "Parent device");
-  } catch (invalid_object_error e) {
+  } catch (sycl::exception e) {
     std::cout << "Expected exception has been caught: " << e.what()
               << std::endl;
   }

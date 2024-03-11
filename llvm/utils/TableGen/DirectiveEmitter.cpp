@@ -720,6 +720,8 @@ static void GenerateFlangClausesParser(const DirectiveLanguage &DirLang,
     if (Clause.isValueOptional())
       OS << "maybe(";
     OS << "parenthesized(";
+    if (Clause.isValueList())
+      OS << "nonemptyList(";
 
     if (!Clause.getPrefix().empty())
       OS << "\"" << Clause.getPrefix() << ":\" >> ";
@@ -734,12 +736,15 @@ static void GenerateFlangClausesParser(const DirectiveLanguage &DirLang,
             .Case("Name", "name")
             .Case("ScalarIntConstantExpr", "scalarIntConstantExpr")
             .Case("ScalarIntExpr", "scalarIntExpr")
+            .Case("ScalarExpr", "scalarExpr")
             .Case("ScalarLogicalExpr", "scalarLogicalExpr")
             .Default(("Parser<" + Clause.getFlangClass() + ">{}")
                          .toStringRef(Scratch));
     OS << Parser;
     if (!Clause.getPrefix().empty() && Clause.isPrefixOptional())
       OS << " || " << Parser;
+    if (Clause.isValueList()) // close nonemptyList(.
+      OS << ")";
     OS << ")"; // close parenthesized(.
 
     if (Clause.isValueOptional()) // close maybe(.
@@ -837,6 +842,7 @@ static void GenerateClauseClassMacro(const DirectiveLanguage &DirLang,
   OS << "\n";
   OS << "#undef __IMPLICIT_CLAUSE_NO_CLASS\n";
   OS << "#undef __IMPLICIT_CLAUSE_CLASS\n";
+  OS << "#undef __CLAUSE_NO_CLASS\n";
   OS << "#undef __CLAUSE\n";
   OS << "#undef CLAUSE_NO_CLASS\n";
   OS << "#undef CLAUSE_CLASS\n";

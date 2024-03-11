@@ -424,15 +424,14 @@ func.func @write_only_alloca_fold(%v: f32) {
 // CHECK-LABEL: func @dead_block_elim
 func.func @dead_block_elim() {
   // CHECK-NOT: ^bb
-  func.func @nested() {
-    return
+  builtin.module {
+    func.func @nested() {
+      return
 
-  ^bb1:
-    return
+    ^bb1:
+      return
+    }
   }
-  return
-
-^bb1:
   return
 }
 
@@ -1107,14 +1106,10 @@ func.func @fold_trunci_vector(%arg0: vector<4xi1>) -> vector<4xi1> attributes {}
 
 // -----
 
-// TODO Canonicalize this into:
-//   arith.extui %arg0 : i1 to i2
-
-// CHECK-LABEL: func @do_not_fold_trunci
+// CHECK-LABEL: func @fold_trunci
 // CHECK-SAME:    (%[[ARG0:[0-9a-z]*]]: i1)
-func.func @do_not_fold_trunci(%arg0: i1) -> i2 attributes {} {
-  // CHECK-NEXT: arith.extui %[[ARG0]] : i1 to i8
-  // CHECK-NEXT: %[[RES:[0-9a-z]*]] = arith.trunci %{{.*}} : i8 to i2
+func.func @fold_trunci(%arg0: i1) -> i2 attributes {} {
+  // CHECK-NEXT: %[[RES:[0-9a-z]*]] = arith.extui %[[ARG0]] : i1 to i2
   // CHECK-NEXT: return %[[RES]] : i2
   %0 = arith.extui %arg0 : i1 to i8
   %1 = arith.trunci %0 : i8 to i2
@@ -1123,11 +1118,10 @@ func.func @do_not_fold_trunci(%arg0: i1) -> i2 attributes {} {
 
 // -----
 
-// CHECK-LABEL: func @do_not_fold_trunci_vector
+// CHECK-LABEL: func @fold_trunci_vector
 // CHECK-SAME:    (%[[ARG0:[0-9a-z]*]]: vector<4xi1>)
-func.func @do_not_fold_trunci_vector(%arg0: vector<4xi1>) -> vector<4xi2> attributes {} {
-  // CHECK-NEXT: arith.extui %[[ARG0]] : vector<4xi1> to vector<4xi8>
-  // CHECK-NEXT: %[[RES:[0-9a-z]*]] = arith.trunci %{{.*}} : vector<4xi8> to vector<4xi2>
+func.func @fold_trunci_vector(%arg0: vector<4xi1>) -> vector<4xi2> attributes {} {
+  // CHECK-NEXT: %[[RES:[0-9a-z]*]] = arith.extui %[[ARG0]] : vector<4xi1> to vector<4xi2>
   // CHECK-NEXT: return %[[RES]] : vector<4xi2>
   %0 = arith.extui %arg0 : vector<4xi1> to vector<4xi8>
   %1 = arith.trunci %0 : vector<4xi8> to vector<4xi2>
@@ -1229,3 +1223,14 @@ func.func @clone_nested_region(%arg0: index, %arg1: index, %arg2: index) -> memr
 // CHECK-NEXT: scf.yield %[[ALLOC3_2]]
 //      CHECK: memref.dealloc %[[ALLOC1]]
 // CHECK-NEXT: return %[[ALLOC2]]
+
+// -----
+
+// CHECK-LABEL: func @test_materialize_failure
+func.func @test_materialize_failure() -> i64 {
+  %const = index.constant 1234
+  // Cannot materialize this castu's output constant.
+  // CHECK: index.castu
+  %u = index.castu %const : index to i64
+  return %u: i64
+}

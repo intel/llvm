@@ -244,7 +244,7 @@ Value *MVEGatherScatterLowering::decomposePtr(Value *Ptr, Value *&Offsets,
   if (PtrTy->getNumElements() != 4 || MemoryTy->getScalarSizeInBits() == 32)
     return nullptr;
   Value *Zero = ConstantInt::get(Builder.getInt32Ty(), 0);
-  Value *BasePtr = Builder.CreateIntToPtr(Zero, Builder.getInt8PtrTy());
+  Value *BasePtr = Builder.CreateIntToPtr(Zero, Builder.getPtrTy());
   Offsets = Builder.CreatePtrToInt(
       Ptr, FixedVectorType::get(Builder.getInt32Ty(), 4));
   Scale = 0;
@@ -898,8 +898,8 @@ void MVEGatherScatterLowering::pushOutAdd(PHINode *&Phi,
   Phi->addIncoming(NewIndex, Phi->getIncomingBlock(StartIndex));
   Phi->addIncoming(Phi->getIncomingValue(IncrementIndex),
                    Phi->getIncomingBlock(IncrementIndex));
-  Phi->removeIncomingValue(IncrementIndex);
-  Phi->removeIncomingValue(StartIndex);
+  Phi->removeIncomingValue(1);
+  Phi->removeIncomingValue((unsigned)0);
 }
 
 void MVEGatherScatterLowering::pushOutMulShl(unsigned Opcode, PHINode *&Phi,
@@ -1060,7 +1060,7 @@ bool MVEGatherScatterLowering::optimiseOffsets(Value *Offsets, BasicBlock *BB,
     NewPhi = Phi;
   } else {
     // There are other users -> create a new phi
-    NewPhi = PHINode::Create(Phi->getType(), 2, "NewPhi", Phi);
+    NewPhi = PHINode::Create(Phi->getType(), 2, "NewPhi", Phi->getIterator());
     // Copy the incoming values of the old phi
     NewPhi->addIncoming(Phi->getIncomingValue(IncrementingBlock == 1 ? 0 : 1),
                         Phi->getIncomingBlock(IncrementingBlock == 1 ? 0 : 1));
@@ -1224,7 +1224,7 @@ bool MVEGatherScatterLowering::optimiseAddress(Value *Address, BasicBlock *BB,
     // pointer.
     if (Offsets && Base && Base != GEP) {
       assert(Scale == 1 && "Expected to fold GEP to a scale of 1");
-      Type *BaseTy = Builder.getInt8PtrTy();
+      Type *BaseTy = Builder.getPtrTy();
       if (auto *VecTy = dyn_cast<FixedVectorType>(Base->getType()))
         BaseTy = FixedVectorType::get(BaseTy, VecTy);
       GetElementPtrInst *NewAddress = GetElementPtrInst::Create(

@@ -19,12 +19,12 @@
 #include "llvm/MC/MCInstrDesc.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
-#include "llvm/MC/SubtargetFeature.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/SubtargetFeature.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -135,9 +135,9 @@ public:
   ARMDisassembler(const MCSubtargetInfo &STI, MCContext &Ctx,
                   const MCInstrInfo *MCII)
       : MCDisassembler(STI, Ctx), MCII(MCII) {
-    InstructionEndianness = STI.hasFeature(ARM::ModeBigEndianInstructions)
-                                ? llvm::support::big
-                                : llvm::support::little;
+        InstructionEndianness = STI.hasFeature(ARM::ModeBigEndianInstructions)
+                                    ? llvm::endianness::big
+                                    : llvm::endianness::little;
   }
 
   ~ARMDisassembler() override = default;
@@ -166,7 +166,7 @@ private:
   DecodeStatus AddThumbPredicate(MCInst&) const;
   void UpdateThumbVFPPredicate(DecodeStatus &, MCInst&) const;
 
-  llvm::support::endianness InstructionEndianness;
+  llvm::endianness InstructionEndianness;
 };
 
 } // end anonymous namespace
@@ -6204,7 +6204,7 @@ static DecodeStatus DecoderForMRRC2AndMCRR2(MCInst &Inst, unsigned Val,
   // We have to check if the instruction is MRRC2
   // or MCRR2 when constructing the operands for
   // Inst. Reason is because MRRC2 stores to two
-  // registers so it's tablegen desc has has two
+  // registers so it's tablegen desc has two
   // outputs whereas MCRR doesn't store to any
   // registers so all of it's operands are listed
   // as inputs, therefore the operand order for

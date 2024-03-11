@@ -30,7 +30,7 @@ public:
 
   lldb::ValueObjectSP GetChildAtIndex(size_t idx) override;
 
-  bool Update() override;
+  lldb::ChildCacheState Update() override;
 
   bool MightHaveChildren() override;
 
@@ -61,9 +61,8 @@ lldb_private::formatters::LibcxxInitializerListSyntheticFrontEnd::
 
 size_t lldb_private::formatters::LibcxxInitializerListSyntheticFrontEnd::
     CalculateNumChildren() {
-  static ConstString g_size_("__size_");
   m_num_elements = 0;
-  ValueObjectSP size_sp(m_backend.GetChildMemberWithName(g_size_, true));
+  ValueObjectSP size_sp(m_backend.GetChildMemberWithName("__size_"));
   if (size_sp)
     m_num_elements = size_sp->GetValueAsUnsigned(0);
   return m_num_elements;
@@ -83,23 +82,21 @@ lldb::ValueObjectSP lldb_private::formatters::
                                       m_element_type);
 }
 
-bool lldb_private::formatters::LibcxxInitializerListSyntheticFrontEnd::
-    Update() {
-  static ConstString g_begin_("__begin_");
-
+lldb::ChildCacheState
+lldb_private::formatters::LibcxxInitializerListSyntheticFrontEnd::Update() {
   m_start = nullptr;
   m_num_elements = 0;
   m_element_type = m_backend.GetCompilerType().GetTypeTemplateArgument(0);
   if (!m_element_type.IsValid())
-    return false;
+    return lldb::ChildCacheState::eRefetch;
 
   if (std::optional<uint64_t> size = m_element_type.GetByteSize(nullptr)) {
     m_element_size = *size;
     // Store raw pointers or end up with a circular dependency.
-    m_start = m_backend.GetChildMemberWithName(g_begin_, true).get();
+    m_start = m_backend.GetChildMemberWithName("__begin_").get();
   }
 
-  return false;
+  return lldb::ChildCacheState::eRefetch;
 }
 
 bool lldb_private::formatters::LibcxxInitializerListSyntheticFrontEnd::

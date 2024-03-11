@@ -1,6 +1,6 @@
 ; RUN: opt -thinlto-bc %s -o %t1.bc
 ; RUN: opt -thinlto-bc %p/Inputs/import-metadata.ll -o %t2.bc
-; RUN: llvm-lto2 run -opaque-pointers -save-temps %t1.bc %t2.bc -o %t-out \
+; RUN: llvm-lto2 run -save-temps %t1.bc %t2.bc -o %t-out \
 ; RUN:    -r=%t1.bc,main,plx \
 ; RUN:    -r=%t1.bc,foo,l \
 ; RUN:    -r=%t2.bc,foo,pl

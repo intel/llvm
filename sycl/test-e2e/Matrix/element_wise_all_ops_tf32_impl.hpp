@@ -1,7 +1,5 @@
-
 #define TM 8
-#define TN SG_SZ
-#define TK 16
+#define TK 8
 
 template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
 public:
@@ -23,10 +21,10 @@ void assert_ops_ref(host_accessor<T, 2, access::mode::read> C,
              std::numeric_limits<float>::epsilon());
     }
 }
-template <typename T, typename Ts, size_t M, size_t N>
-void matrix_verify_add(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
+template <typename T, typename Ts, size_t M, size_t K>
+void matrix_verify_add(queue q, big_matrix<Ts, M, K> &A, nd_range<2> &r,
                        const float ref) {
-  buffer<Ts, 2> bufA(A.get_data(), range<2>(M, N));
+  buffer<Ts, 2> bufA(A.get_data(), range<2>(M, K));
 
   q.submit([&](handler &cgh) {
      sycl::accessor accA{bufA, cgh, sycl::read_write};
@@ -43,26 +41,23 @@ void matrix_verify_add(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
 
            joint_matrix_fill(sg, sub_a, round_to_tf32(5.0));
 
-           auto wi_slice_a =
-               ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
-           for (int i = 0; i < wi_slice_a.length(); i++) {
-             wi_slice_a[i] = wi_slice_a[i] + 2;
-           }
+           joint_matrix_apply(sg, sub_a,
+                              [&](float &x) { x = x + round_to_tf32(2); });
 
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
-               accA.get_pointer() + (sg_startx * TM) * N +
-                   sg_starty / SG_SZ * TN,
-               N);
+               accA.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * TM) * K + sg_starty / SG_SZ * TK,
+               K);
          }); // parallel for
    }).wait();
-  assert_ops_ref<Ts, M, N>(bufA.get_host_access(sycl::read_only), ref);
+  assert_ops_ref<Ts, M, K>(bufA.get_host_access(sycl::read_only), ref);
 }
 
-template <typename T, typename Ts, size_t M, size_t N>
-void matrix_verify_sub(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
+template <typename T, typename Ts, size_t M, size_t K>
+void matrix_verify_sub(queue q, big_matrix<Ts, M, K> &A, nd_range<2> &r,
                        const float ref) {
-  buffer<Ts, 2> bufA(A.get_data(), range<2>(M, N));
+  buffer<Ts, 2> bufA(A.get_data(), range<2>(M, K));
 
   q.submit([&](handler &cgh) {
      sycl::accessor accA{bufA, cgh, sycl::read_write};
@@ -79,25 +74,23 @@ void matrix_verify_sub(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
 
            joint_matrix_fill(sg, sub_a, round_to_tf32(5.0));
 
-           auto wi_slice_a =
-               ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
-           for (int i = 0; i < wi_slice_a.length(); i++) {
-             wi_slice_a[i] = wi_slice_a[i] - round_to_tf32(2);
-           }
+           joint_matrix_apply(sg, sub_a,
+                              [&](float &x) { x = x - round_to_tf32(2); });
+
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
-               accA.get_pointer() + (sg_startx * TM) * N +
-                   sg_starty / SG_SZ * TN,
-               N);
+               accA.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * TM) * K + sg_starty / SG_SZ * TK,
+               K);
          }); // parallel for
    }).wait();
-  assert_ops_ref<Ts, M, N>(bufA.get_host_access(sycl::read_only), ref);
+  assert_ops_ref<Ts, M, K>(bufA.get_host_access(sycl::read_only), ref);
 }
 
-template <typename T, typename Ts, size_t M, size_t N>
-void matrix_verify_mul(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
+template <typename T, typename Ts, size_t M, size_t K>
+void matrix_verify_mul(queue q, big_matrix<Ts, M, K> &A, nd_range<2> &r,
                        const float ref) {
-  buffer<Ts, 2> bufA(A.get_data(), range<2>(M, N));
+  buffer<Ts, 2> bufA(A.get_data(), range<2>(M, K));
 
   q.submit([&](handler &cgh) {
      sycl::accessor accA{bufA, cgh, sycl::read_write};
@@ -113,25 +106,22 @@ void matrix_verify_mul(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
            joint_matrix<sub_group, T, use::a, TM, TK, layout::row_major> sub_a;
            joint_matrix_fill(sg, sub_a, round_to_tf32(5.0));
 
-           auto wi_slice_a =
-               ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
-           for (int i = 0; i < wi_slice_a.length(); i++) {
-             wi_slice_a[i] = wi_slice_a[i] * round_to_tf32(3.0);
-           }
+           joint_matrix_apply(sg, sub_a,
+                              [&](float &x) { x = x * round_to_tf32(3.0); });
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
-               accA.get_pointer() + (sg_startx * TM) * N +
-                   sg_starty / SG_SZ * TN,
-               N);
+               accA.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * TM) * K + sg_starty / SG_SZ * TK,
+               K);
          }); // parallel for
    }).wait();
-  assert_ops_ref<Ts, M, N>(bufA.get_host_access(sycl::read_only), ref);
+  assert_ops_ref<Ts, M, K>(bufA.get_host_access(sycl::read_only), ref);
 }
 
-template <typename T, typename Ts, size_t M, size_t N>
-void matrix_verify_div(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
+template <typename T, typename Ts, size_t M, size_t K>
+void matrix_verify_div(queue q, big_matrix<Ts, M, K> &A, nd_range<2> &r,
                        const float ref) {
-  buffer<Ts, 2> bufA(A.get_data(), range<2>(M, N));
+  buffer<Ts, 2> bufA(A.get_data(), range<2>(M, K));
 
   q.submit([&](handler &cgh) {
      sycl::accessor accA{bufA, cgh, sycl::read_write};
@@ -148,25 +138,22 @@ void matrix_verify_div(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
 
            joint_matrix_fill(sg, sub_a, round_to_tf32(4.0));
 
-           auto wi_slice_a =
-               ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
-           for (int i = 0; i < wi_slice_a.length(); i++) {
-             wi_slice_a[i] = wi_slice_a[i] / round_to_tf32(2.0);
-           }
+           joint_matrix_apply(sg, sub_a,
+                              [&](float &x) { x = x / round_to_tf32(2); });
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
-               accA.get_pointer() + (sg_startx * TM) * N +
-                   sg_starty / SG_SZ * TN,
-               N);
+               accA.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * TM) * K + sg_starty / SG_SZ * TK,
+               K);
          }); // parallel for
    }).wait();
-  assert_ops_ref<Ts, M, N>(bufA.get_host_access(sycl::read_only), ref);
+  assert_ops_ref<Ts, M, K>(bufA.get_host_access(sycl::read_only), ref);
 }
 
-template <typename T, typename Ts, size_t M, size_t N>
-void matrix_verify_logic(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
+template <typename T, typename Ts, size_t M, size_t K>
+void matrix_verify_logic(queue q, big_matrix<Ts, M, K> &A, nd_range<2> &r,
                          const float ref) {
-  buffer<Ts, 2> bufA(A.get_data(), range<2>(M, N));
+  buffer<Ts, 2> bufA(A.get_data(), range<2>(M, K));
 
   q.submit([&](handler &cgh) {
      sycl::accessor accA{bufA, cgh, sycl::read_write};
@@ -182,57 +169,53 @@ void matrix_verify_logic(queue q, big_matrix<Ts, M, N> &A, nd_range<2> &r,
 
            joint_matrix_fill(sg, sub_a, round_to_tf32(5.0));
 
-           auto wi_slice_a =
-               ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
-           for (int i = 0; i < wi_slice_a.length(); i++) {
-             if (wi_slice_a[i]) {
-               if (wi_slice_a[i] > 2.0 || wi_slice_a[i] >= 2.0 ||
-                   wi_slice_a[i] < 2.0 || wi_slice_a[i] <= 2.0) {
-                 Ts val = (wi_slice_a[i] != 2.0) ? wi_slice_a[i] : 2.0;
-                 val = val - static_cast<float>(1);
-                 val = val + static_cast<float>(1);
-                 if (wi_slice_a[i] == 2.0) {
-                   val = val - static_cast<float>(2);
-                   val = val * static_cast<float>(3);
-                   val = val / static_cast<float>(2);
-
+           joint_matrix_apply(sg, sub_a, [&](float &x) {
+             if (x) {
+               if (x > 2 || x >= 2 || x < 2 || x <= 2) {
+                 float val = (x != 2) ? x : 2;
+                 val--;
+                 val++;
+                 if (x == 2) {
+                   val -= 2;
+                   val *= 3;
+                   val /= 2;
                  } else {
-                   val = val + static_cast<float>(2);
+                   val += 2;
                  }
-                 wi_slice_a[i] = val;
+                 x = val;
                }
              }
-           }
+           });
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_a,
-               accA.get_pointer() + (sg_startx * TM) * N +
-                   sg_starty / SG_SZ * TN,
-               N);
+               accA.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * TM) * K + sg_starty / SG_SZ * TK,
+               K);
          }); // parallel for
    }).wait();
-  assert_ops_ref<Ts, M, N>(bufA.get_host_access(sycl::read_only), ref);
+  assert_ops_ref<Ts, M, K>(bufA.get_host_access(sycl::read_only), ref);
 }
 
 static constexpr size_t MATRIX_M = TM * 2;
-static constexpr size_t MATRIX_N = TN * 2;
-float A[MATRIX_M][MATRIX_N];
-float D[MATRIX_M][MATRIX_N];
+static constexpr size_t MATRIX_K = TK * 2;
+float A[MATRIX_M][MATRIX_K];
+float D[MATRIX_M][MATRIX_K];
 
 int main() {
 
-  big_matrix<float, MATRIX_M, MATRIX_N> MD((float *)&D);
-  big_matrix<float, MATRIX_M, MATRIX_N> MA((float *)&A);
+  big_matrix<float, MATRIX_M, MATRIX_K> MD((float *)&D);
+  big_matrix<float, MATRIX_M, MATRIX_K> MA((float *)&A);
 
   size_t NDRangeM = MATRIX_M / TM;
-  size_t NDRangeN = MATRIX_N / TN;
+  size_t NDRangeK = MATRIX_K / TK;
   queue q;
-  nd_range<2> r({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ});
+  nd_range<2> r({NDRangeM, NDRangeK * SG_SZ}, {1, 1 * SG_SZ});
 
-  matrix_verify_add<precision::tf32, float, MATRIX_M, MATRIX_N>(q, MA, r, 7.0);
-  matrix_verify_sub<precision::tf32, float, MATRIX_M, MATRIX_N>(q, MA, r, 3.0);
-  matrix_verify_mul<precision::tf32, float, MATRIX_M, MATRIX_N>(q, MA, r, 15.0);
-  matrix_verify_div<precision::tf32, float, MATRIX_M, MATRIX_N>(q, MA, r, 2.0);
-  matrix_verify_logic<precision::tf32, float, MATRIX_M, MATRIX_N>(q, MA, r,
+  matrix_verify_add<precision::tf32, float, MATRIX_M, MATRIX_K>(q, MA, r, 7.0);
+  matrix_verify_sub<precision::tf32, float, MATRIX_M, MATRIX_K>(q, MA, r, 3.0);
+  matrix_verify_mul<precision::tf32, float, MATRIX_M, MATRIX_K>(q, MA, r, 15.0);
+  matrix_verify_div<precision::tf32, float, MATRIX_M, MATRIX_K>(q, MA, r, 2.0);
+  matrix_verify_logic<precision::tf32, float, MATRIX_M, MATRIX_K>(q, MA, r,
                                                                   7.0);
 
   return 0;

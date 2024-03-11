@@ -48,6 +48,8 @@ std::optional<MemoryBufferRef> readFile(StringRef path);
 // Add symbols in File to the symbol table.
 void parseFile(InputFile *file);
 
+void parseArmCMSEImportLib(InputFile *file);
+
 // The root class of input files.
 class InputFile {
 protected:
@@ -61,14 +63,17 @@ public:
     SharedKind,
     BitcodeKind,
     BinaryKind,
+    InternalKind,
   };
 
+  InputFile(Kind k, MemoryBufferRef m);
   Kind kind() const { return fileKind; }
 
   bool isElf() const {
     Kind k = kind();
     return k == ObjKind || k == SharedKind;
   }
+  bool isInternal() const { return kind() == InternalKind; }
 
   StringRef getName() const { return mb.getBufferIdentifier(); }
   MemoryBufferRef mb;
@@ -88,12 +93,18 @@ public:
     return {symbols.get(), numSymbols};
   }
 
+  MutableArrayRef<Symbol *> getMutableSymbols() {
+    assert(fileKind == BinaryKind || fileKind == ObjKind ||
+           fileKind == BitcodeKind);
+    return {symbols.get(), numSymbols};
+  }
+
   // Get filename to use for linker script processing.
   StringRef getNameForScript() const;
 
   // Check if a non-common symbol should be extracted to override a common
   // definition.
-  bool shouldExtractForCommon(StringRef name);
+  bool shouldExtractForCommon(StringRef name) const;
 
   // .got2 in the current file. This is used by PPC32 -fPIC/-fPIE to compute
   // offsets in PLT call stubs.
@@ -118,14 +129,14 @@ public:
   uint8_t osabi = 0;
   uint8_t abiVersion = 0;
 
-  // True if this is a relocatable object file/bitcode file between --start-lib
-  // and --end-lib.
+  // True if this is a relocatable object file/bitcode file in an ar archive
+  // or between --start-lib and --end-lib.
   bool lazy = false;
 
   // True if this is an argument for --just-symbols. Usually false.
   bool justSymbols = false;
 
-  std::string getSrcMsg(const Symbol &sym, InputSectionBase &sec,
+  std::string getSrcMsg(const Symbol &sym, const InputSectionBase &sec,
                         uint64_t offset);
 
   // On PPC64 we need to keep track of which files contain small code model
@@ -142,9 +153,6 @@ public:
   // True if the file has TLSGD/TLSLD GOT relocations without R_PPC64_TLSGD or
   // R_PPC64_TLSLD. Disable TLS relaxation to avoid bad code generation.
   bool ppc64DisableTLSRelax = false;
-
-protected:
-  InputFile(Kind k, MemoryBufferRef m);
 
 public:
   // If not empty, this stores the name of the archive containing this file.
@@ -247,7 +255,8 @@ public:
     return getSymbol(symIndex);
   }
 
-  std::optional<llvm::DILineInfo> getDILineInfo(InputSectionBase *, uint64_t);
+  std::optional<llvm::DILineInfo> getDILineInfo(const InputSectionBase *,
+                                                uint64_t);
   std::optional<std::pair<std::string, unsigned>>
   getVariableLoc(StringRef name);
 
@@ -280,6 +289,7 @@ public:
 
   void initSectionsAndLocalSyms(bool ignoreComdats);
   void postParse();
+  void importCmseSymbols();
 
 private:
   void initializeSections(bool ignoreComdats,
@@ -370,6 +380,7 @@ public:
   void parse();
 };
 
+InputFile *createInternalFile(StringRef name);
 ELFFileBase *createObjFile(MemoryBufferRef mb, StringRef archiveName = "",
                            bool lazy = false);
 

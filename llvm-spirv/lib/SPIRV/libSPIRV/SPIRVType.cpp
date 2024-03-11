@@ -115,6 +115,9 @@ SPIRVType *SPIRVType::getVectorComponentType() const {
     return static_cast<const SPIRVTypeVector *>(this)->getComponentType();
   if (OpCode == internal::OpTypeJointMatrixINTEL)
     return static_cast<const SPIRVTypeJointMatrixINTEL *>(this)->getCompType();
+  if (OpCode == OpTypeCooperativeMatrixKHR)
+    return static_cast<const SPIRVTypeCooperativeMatrixKHR *>(this)
+        ->getCompType();
   assert(0 && "getVectorComponentType(): Not a vector or joint matrix type");
   return nullptr;
 }
@@ -156,7 +159,7 @@ bool SPIRVType::isTypeBool() const { return OpCode == OpTypeBool; }
 
 bool SPIRVType::isTypeComposite() const {
   return isTypeVector() || isTypeArray() || isTypeStruct() ||
-         isTypeJointMatrixINTEL();
+         isTypeJointMatrixINTEL() || isTypeCooperativeMatrixKHR();
 }
 
 bool SPIRVType::isTypeFloat(unsigned Bits) const {
@@ -203,6 +206,10 @@ bool SPIRVType::isTypeJointMatrixINTEL() const {
          OpCode == internal::OpTypeJointMatrixINTELv2;
 }
 
+bool SPIRVType::isTypeCooperativeMatrixKHR() const {
+  return OpCode == OpTypeCooperativeMatrixKHR;
+}
+
 bool SPIRVType::isTypeVectorBool() const {
   return isTypeVector() && getVectorComponentType()->isTypeBool();
 }
@@ -230,6 +237,10 @@ bool SPIRVType::isTypeSubgroupAvcINTEL() const {
 bool SPIRVType::isTypeSubgroupAvcMceINTEL() const {
   return OpCode == OpTypeAvcMcePayloadINTEL ||
          OpCode == OpTypeAvcMceResultINTEL;
+}
+
+bool SPIRVType::isTypeTaskSequenceINTEL() const {
+  return OpCode == internal::OpTypeTaskSequenceINTEL;
 }
 
 bool SPIRVType::isTypeVectorOrScalarInt() const {
@@ -304,6 +315,44 @@ void SPIRVTypeJointMatrixINTEL::encode(spv_ostream &O) const {
 void SPIRVTypeJointMatrixINTEL::decode(std::istream &I) {
   auto Decoder = getDecoder(I);
   Decoder >> Id >> CompType >> Args;
+}
+
+SPIRVTypeCooperativeMatrixKHR::SPIRVTypeCooperativeMatrixKHR(
+    SPIRVModule *M, SPIRVId TheId, SPIRVType *CompType,
+    std::vector<SPIRVValue *> Args)
+    : SPIRVType(M, FixedWC, OpTypeCooperativeMatrixKHR, TheId),
+      CompType(CompType), Args(std::move(Args)) {}
+
+SPIRVTypeCooperativeMatrixKHR::SPIRVTypeCooperativeMatrixKHR()
+    : SPIRVType(OpTypeCooperativeMatrixKHR), CompType(nullptr),
+      Args({nullptr, nullptr, nullptr, nullptr}) {}
+
+void SPIRVTypeCooperativeMatrixKHR::encode(spv_ostream &O) const {
+  auto Encoder = getEncoder(O);
+  Encoder << Id << CompType << Args;
+}
+
+void SPIRVTypeCooperativeMatrixKHR::decode(std::istream &I) {
+  auto Decoder = getDecoder(I);
+  Decoder >> Id >> CompType >> Args;
+}
+
+void SPIRVTypeCooperativeMatrixKHR::validate() const {
+  SPIRVEntry::validate();
+  SPIRVErrorLog &SPVErrLog = this->getModule()->getErrorLog();
+  SPIRVConstant *UseConst = static_cast<SPIRVConstant *>(this->getUse());
+  auto InstName = OpCodeNameMap::map(OC);
+  uint64_t UseValue = UseConst->getZExtIntValue();
+  SPVErrLog.checkError(
+      (UseValue <= CooperativeMatrixUseMatrixAccumulatorKHR),
+      SPIRVEC_InvalidInstruction,
+      InstName + "\nIncorrect Use parameter, should be MatrixA, MatrixB or "
+                 "Accumulator\n");
+  SPIRVConstant *ScopeConst = static_cast<SPIRVConstant *>(this->getScope());
+  uint64_t ScopeValue = ScopeConst->getZExtIntValue();
+  SPVErrLog.checkError((ScopeValue <= ScopeInvocation),
+                       SPIRVEC_InvalidInstruction,
+                       InstName + "\nUnsupported Scope parameter\n");
 }
 
 } // namespace SPIRV

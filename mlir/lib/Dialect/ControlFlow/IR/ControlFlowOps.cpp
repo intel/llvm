@@ -8,8 +8,8 @@
 
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 
+#include "mlir/Conversion/ConvertToLLVM/ToLLVMInterface.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
-#include "mlir/Dialect/CommonFolders.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Builders.h"
@@ -68,6 +68,7 @@ void ControlFlowDialect::initialize() {
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.cpp.inc"
       >();
   addInterfaces<ControlFlowInlinerInterface>();
+  declarePromisedInterface<ControlFlowDialect, ConvertToLLVMPatternInterface>();
 }
 
 //===----------------------------------------------------------------------===//
@@ -125,7 +126,7 @@ static LogicalResult collapseBranch(Block *&successor,
 
   // Otherwise, we need to remap any argument operands.
   for (Value operand : operands) {
-    BlockArgument argOperand = operand.dyn_cast<BlockArgument>();
+    BlockArgument argOperand = llvm::dyn_cast<BlockArgument>(operand);
     if (argOperand && argOperand.getOwner() == successor)
       argStorage.push_back(successorOperands[argOperand.getArgNumber()]);
     else
@@ -402,8 +403,8 @@ struct CondBranchTruthPropagation : public OpRewritePattern<CondBranchOp> {
             constantTrue = rewriter.create<arith::ConstantOp>(
                 condbr.getLoc(), ty, rewriter.getBoolAttr(true));
 
-          rewriter.updateRootInPlace(use.getOwner(),
-                                     [&] { use.set(constantTrue); });
+          rewriter.modifyOpInPlace(use.getOwner(),
+                                   [&] { use.set(constantTrue); });
         }
       }
     }
@@ -417,8 +418,8 @@ struct CondBranchTruthPropagation : public OpRewritePattern<CondBranchOp> {
             constantFalse = rewriter.create<arith::ConstantOp>(
                 condbr.getLoc(), ty, rewriter.getBoolAttr(false));
 
-          rewriter.updateRootInPlace(use.getOwner(),
-                                     [&] { use.set(constantFalse); });
+          rewriter.modifyOpInPlace(use.getOwner(),
+                                   [&] { use.set(constantFalse); });
         }
       }
     }
@@ -442,7 +443,8 @@ SuccessorOperands CondBranchOp::getSuccessorOperands(unsigned index) {
 }
 
 Block *CondBranchOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
-  if (IntegerAttr condAttr = operands.front().dyn_cast_or_null<IntegerAttr>())
+  if (IntegerAttr condAttr =
+          llvm::dyn_cast_or_null<IntegerAttr>(operands.front()))
     return condAttr.getValue().isOne() ? getTrueDest() : getFalseDest();
   return nullptr;
 }
@@ -601,7 +603,7 @@ Block *SwitchOp::getSuccessorForOperands(ArrayRef<Attribute> operands) {
     return getDefaultDestination();
 
   SuccessorRange caseDests = getCaseDestinations();
-  if (auto value = operands.front().dyn_cast_or_null<IntegerAttr>()) {
+  if (auto value = llvm::dyn_cast_or_null<IntegerAttr>(operands.front())) {
     for (const auto &it : llvm::enumerate(caseValues->getValues<APInt>()))
       if (it.value() == value.getValue())
         return caseDests[it.index()];

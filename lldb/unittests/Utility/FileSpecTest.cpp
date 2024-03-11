@@ -456,7 +456,7 @@ TEST(FileSpecTest, TestFileNameExtensions) {
   FileSpec just_dot = PosixSpec("/tmp/bar.");
 
   EXPECT_TRUE(dylib.GetFileNameExtension() == ".dylib");
-  EXPECT_TRUE(exe.GetFileNameExtension() == ConstString(nullptr));
+  EXPECT_TRUE(exe.GetFileNameExtension() == llvm::StringRef());
   EXPECT_TRUE(dSYM.GetFileNameExtension() == ".dSYM");
   EXPECT_TRUE(just_dot.GetFileNameExtension() == ".");
 
@@ -464,7 +464,7 @@ TEST(FileSpecTest, TestFileNameExtensions) {
   FileSpec win_noext = WindowsSpec("C:\\tmp\\foo");
 
   EXPECT_TRUE(dll.GetFileNameExtension() == ".dll");
-  EXPECT_TRUE(win_noext.GetFileNameExtension() == ConstString(nullptr));
+  EXPECT_TRUE(win_noext.GetFileNameExtension() == llvm::StringRef());
 }
 
 TEST(FileSpecTest, TestFileNameStrippingExtension) {
@@ -503,4 +503,34 @@ TEST(FileSpecTest, TestIsSourceImplementationFile) {
   EXPECT_FALSE(dll.IsSourceImplementationFile());
   EXPECT_FALSE(win_noext.IsSourceImplementationFile());
   EXPECT_FALSE(exe.IsSourceImplementationFile());
+}
+
+TEST(FileSpecTest, TestGetComponents) {
+  std::pair<llvm::StringRef, std::vector<llvm::StringRef>> PosixTests[] = {
+      {"/", {}},
+      {"/foo", {"foo"}},
+      {"/foo/", {"foo"}},
+      {"/foo/bar", {"foo", "bar"}},
+      {"/llvm-project/lldb/unittests/Utility/FileSpecTest.cpp",
+       {"llvm-project", "lldb", "unittests", "Utility", "FileSpecTest.cpp"}},
+  };
+
+  for (const auto &pair : PosixTests) {
+    FileSpec file_spec = PosixSpec(pair.first);
+    EXPECT_EQ(file_spec.GetComponents(), pair.second);
+  }
+
+  std::pair<llvm::StringRef, std::vector<llvm::StringRef>> WindowsTests[] = {
+      {"C:\\", {"C:"}},
+      {"C:\\Windows\\", {"C:", "Windows"}},
+      {"C:\\Windows\\System32", {"C:", "Windows", "System32"}},
+      {"C:\\llvm-project\\lldb\\unittests\\Utility\\FileSpecTest.cpp",
+       {"C:", "llvm-project", "lldb", "unittests", "Utility",
+        "FileSpecTest.cpp"}},
+  };
+
+  for (const auto &pair : WindowsTests) {
+    FileSpec file_spec = WindowsSpec(pair.first);
+    EXPECT_EQ(file_spec.GetComponents(), pair.second);
+  }
 }

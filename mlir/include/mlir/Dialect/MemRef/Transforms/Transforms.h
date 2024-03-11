@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-/// This header declares functions that assit transformations in the MemRef
+/// This header declares functions that assist transformations in the MemRef
 /// dialect.
 //
 //===----------------------------------------------------------------------===//
@@ -15,17 +15,25 @@
 #define MLIR_DIALECT_MEMREF_TRANSFORMS_TRANSFORMS_H
 
 #include "mlir/Support/LogicalResult.h"
+#include "llvm/ADT/STLFunctionalExtras.h"
 
 namespace mlir {
+class OpBuilder;
 class RewritePatternSet;
 class RewriterBase;
+class Value;
+class ValueRange;
 
 namespace arith {
 class WideIntEmulationConverter;
+class NarrowTypeEmulationConverter;
 } // namespace arith
 
 namespace memref {
 class AllocOp;
+class AllocaOp;
+class DeallocOp;
+
 //===----------------------------------------------------------------------===//
 // Patterns
 //===----------------------------------------------------------------------===//
@@ -39,9 +47,9 @@ void populateFoldMemRefAliasOpPatterns(RewritePatternSet &patterns);
 
 /// Appends patterns that resolve `memref.dim` operations with values that are
 /// defined by operations that implement the
-/// `ReifyRankedShapeTypeShapeOpInterface`, in terms of shapes of its input
+/// `ReifyRankedShapedTypeOpInterface`, in terms of shapes of its input
 /// operands.
-void populateResolveRankedShapeTypeResultDimsPatterns(
+void populateResolveRankedShapedTypeResultDimsPatterns(
     RewritePatternSet &patterns);
 
 /// Appends patterns that resolve `memref.dim` operations with values that are
@@ -57,16 +65,31 @@ void populateExpandStridedMetadataPatterns(RewritePatternSet &patterns);
 /// `memref.extract_strided_metadata` of its source.
 void populateResolveExtractStridedMetadataPatterns(RewritePatternSet &patterns);
 
+/// Appends patterns for expanding `memref.realloc` operations.
+void populateExpandReallocPatterns(RewritePatternSet &patterns,
+                                   bool emitDeallocs = true);
+
 /// Appends patterns for emulating wide integer memref operations with ops over
 /// narrower integer types.
 void populateMemRefWideIntEmulationPatterns(
     arith::WideIntEmulationConverter &typeConverter,
     RewritePatternSet &patterns);
 
-/// Appends type converions for emulating wide integer memref operations with
+/// Appends type conversions for emulating wide integer memref operations with
 /// ops over narrowe integer types.
 void populateMemRefWideIntEmulationConversions(
     arith::WideIntEmulationConverter &typeConverter);
+
+/// Appends patterns for emulating memref operations over narrow types with ops
+/// over wider types.
+void populateMemRefNarrowTypeEmulationPatterns(
+    arith::NarrowTypeEmulationConverter &typeConverter,
+    RewritePatternSet &patterns);
+
+/// Appends type conversions for emulating memref operations over narrow types
+/// with ops over wider types.
+void populateMemRefNarrowTypeEmulationConversions(
+    arith::NarrowTypeEmulationConverter &typeConverter);
 
 /// Transformation to do multi-buffering/array expansion to remove dependencies
 /// on the temporary allocation between consecutive loop iterations.
@@ -120,6 +143,69 @@ FailureOr<memref::AllocOp> multiBuffer(memref::AllocOp allocOp,
 /// memref.load %new_base[%c0,...]
 /// ```
 void populateExtractAddressComputationsPatterns(RewritePatternSet &patterns);
+
+/// Build a new memref::AllocaOp whose dynamic sizes are independent of all
+/// given independencies. If the op is already independent of all
+/// independencies, the same AllocaOp result is returned.
+///
+/// Failure indicates the no suitable upper bound for the dynamic sizes could be
+/// found.
+FailureOr<Value> buildIndependentOp(OpBuilder &b, AllocaOp allocaOp,
+                                    ValueRange independencies);
+
+/// Build a new memref::AllocaOp whose dynamic sizes are independent of all
+/// given independencies. If the op is already independent of all
+/// independencies, the same AllocaOp result is returned.
+///
+/// The original AllocaOp is replaced with the new one, wrapped in a SubviewOp.
+/// The result type of the replacement is different from the original allocation
+/// type: it has the same shape, but a different layout map. This function
+/// updates all users that do not have a memref result or memref region block
+/// argument, and some frequently used memref dialect ops (such as
+/// memref.subview). It does not update other uses such as the init_arg of an
+/// scf.for op. Such uses are wrapped in unrealized_conversion_cast.
+///
+/// Failure indicates the no suitable upper bound for the dynamic sizes could be
+/// found.
+///
+/// Example (make independent of %iv):
+/// ```
+/// scf.for %iv = %c0 to %sz step %c1 {
+///   %0 = memref.alloca(%iv) : memref<?xf32>
+///   %1 = memref.subview %0[0][5][1] : ...
+///   linalg.generic outs(%1 : ...) ...
+///   %2 = scf.for ... iter_arg(%arg0 = %0) ...
+///   ...
+/// }
+/// ```
+///
+/// The above IR is rewritten to:
+///
+/// ```
+/// scf.for %iv = %c0 to %sz step %c1 {
+///   %0 = memref.alloca(%sz - 1) : memref<?xf32>
+///   %0_subview = memref.subview %0[0][%iv][1]
+///       : memref<?xf32> to memref<?xf32, #map>
+///   %1 = memref.subview %0_subview[0][5][1] : ...
+///   linalg.generic outs(%1 : ...) ...
+///   %cast = unrealized_conversion_cast %0_subview
+///       : memref<?xf32, #map> to memref<?xf32>
+///   %2 = scf.for ... iter_arg(%arg0 = %cast) ...
+///  ...
+/// }
+/// ```
+FailureOr<Value> replaceWithIndependentOp(RewriterBase &rewriter,
+                                          memref::AllocaOp allocaOp,
+                                          ValueRange independencies);
+
+/// Replaces the given `alloc` with the corresponding `alloca` and returns it if
+/// the following conditions are met:
+///   - the corresponding dealloc is available in the same block as the alloc;
+///   - the filter, if provided, succeeds on the alloc/dealloc pair.
+/// Otherwise returns nullptr and leaves the IR unchanged.
+memref::AllocaOp allocToAlloca(
+    RewriterBase &rewriter, memref::AllocOp alloc,
+    function_ref<bool(memref::AllocOp, memref::DeallocOp)> filter = nullptr);
 
 } // namespace memref
 } // namespace mlir

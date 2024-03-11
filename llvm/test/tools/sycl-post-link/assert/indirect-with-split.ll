@@ -7,7 +7,21 @@
 ; marked as using asserts.
 
 ; RUN: sycl-post-link -split=auto -symbols -S < %s -o %t.table
-; RUN: FileCheck %s -input-file=%t_0.prop
+; RUN: FileCheck %s -input-file=%t_0.prop --check-prefixes=CHECK,CHECK1 \
+; RUN:     --implicit-check-not TU0
+; RUN: FileCheck %s -input-file=%t_1.prop --check-prefixes=CHECK,CHECK0 \
+; RUN:     --implicit-check-not TU1 --implicit-check-not kernel1
+;
+; With recent improvements to device code split, this file is actually being
+; split to two modules and one of them does not contain "indirectly-referenced"
+; function, meaning that only direct users of 'assert' will be mentioned in
+; device image properties.
+;
+; CHECK: [SYCL/assert used]
+; CHECK0: main_TU0_kernel0
+;
+; CHECK1-DAG: main_TU1_kernel0
+; CHECK1-DAG: main_TU1_kernel1
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-linux"
@@ -20,9 +34,6 @@ target triple = "spir64-unknown-linux"
 @__spirv_BuiltInLocalInvocationId = external dso_local local_unnamed_addr addrspace(1) constant <3 x i64>, align 32
 @_ZL10assert_fmt = internal addrspace(2) constant [85 x i8] c"%s:%d: %s: global id: [%lu,%lu,%lu], local id: [%lu,%lu,%lu] Assertion `%s` failed.\0A\00", align 1
 
-; CHECK: [SYCL/assert used]
-
-; CHECK-DAG: main_TU0_kernel0
 define dso_local spir_kernel void @main_TU0_kernel0() #0 {
 entry:
   call spir_func void @_Z3foov()
@@ -40,7 +51,6 @@ entry:
   ret void
 }
 
-; CHECK-DAG: main_TU0_kernel1
 define dso_local spir_kernel void @main_TU0_kernel1() #0 {
 entry:
   call spir_func void @_Z4foo1v()
@@ -55,14 +65,12 @@ entry:
   ret void
 }
 
-; CHECK-DAG: main_TU1_kernel0
 define dso_local spir_kernel void @main_TU1_kernel0() #2 {
 entry:
   call spir_func void @_Z3foov()
   ret void
 }
 
-; CHECK-DAG: main_TU1_kernel1
 define dso_local spir_kernel void @main_TU1_kernel1() #2 {
 entry:
   call spir_func void @_Z4foo2v()

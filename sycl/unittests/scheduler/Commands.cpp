@@ -26,11 +26,12 @@ pi_result redefinePiEnqueueEventsWaitWithBarrier(pi_queue Queue,
 }
 
 // Hack that allows to return a context in redefinePiEventGetInfo
-RT::PiContext queue_global_context = nullptr;
+sycl::detail::pi::PiContext queue_global_context = nullptr;
 
 pi_result redefinePiEventGetInfo(pi_event, pi_event_info, size_t,
                                  void *param_value, size_t *) {
-  *reinterpret_cast<RT::PiContext *>(param_value) = queue_global_context;
+  *reinterpret_cast<sycl::detail::pi::PiContext *>(param_value) =
+      queue_global_context;
   return PI_SUCCESS;
 }
 
@@ -77,9 +78,9 @@ TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
   MockScheduler MS;
 
   for (auto &Arg : InputEventWaitLists) {
-    std::unique_ptr<detail::CG> CommandGroup(
-        new detail::CGBarrier(std::move(Arg), {}, {}, {}, {}, {},
-                              detail::CG::CGTYPE::BarrierWaitlist, {}));
+    std::unique_ptr<detail::CG> CommandGroup(new detail::CGBarrier(
+        std::move(Arg), detail::CG::StorageInitHelper({}, {}, {}, {}, {}),
+        detail::CG::CGTYPE::BarrierWaitlist, {}));
     MS.Scheduler::addCG(std::move(CommandGroup), QueueImpl);
   }
 }

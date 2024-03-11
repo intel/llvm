@@ -16,11 +16,16 @@
 #include "WebAssembly.h"
 #include "WebAssemblyMachineFunctionInfo.h"
 #include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/Function.h"
 
 using namespace llvm;
 
 WebAssemblyDebugValueManager::WebAssemblyDebugValueManager(MachineInstr *Def)
     : Def(Def) {
+  if (!Def->getMF()->getFunction().getSubprogram())
+    return;
+
   // This code differs from MachineInstr::collectDebugValues in that it scans
   // the whole BB, not just contiguous DBG_VALUEs, until another definition to
   // the same register is encountered.
@@ -106,7 +111,7 @@ WebAssemblyDebugValueManager::getSinkableDebugValues(
   SmallDenseMap<DebugVariable, SmallVector<MachineInstr *, 2>>
       SeenDbgVarToDbgValues;
   for (auto *DV : DbgValuesInBetween) {
-    if (std::find(DbgValues.begin(), DbgValues.end(), DV) == DbgValues.end()) {
+    if (!llvm::is_contained(DbgValues, DV)) {
       DebugVariable Var(DV->getDebugVariable(), DV->getDebugExpression(),
                         DV->getDebugLoc()->getInlinedAt());
       SeenDbgVarToDbgValues[Var].push_back(DV);
@@ -219,7 +224,7 @@ bool WebAssemblyDebugValueManager::isInsertSamePlace(
   for (MachineBasicBlock::iterator MI = std::next(Def->getIterator()),
                                    ME = Insert;
        MI != ME; ++MI) {
-    if (std::find(DbgValues.begin(), DbgValues.end(), MI) == DbgValues.end()) {
+    if (!llvm::is_contained(DbgValues, MI)) {
       return false;
     }
   }
@@ -334,7 +339,6 @@ void WebAssemblyDebugValueManager::sink(MachineInstr *Insert) {
     DV->setDebugValueUndef();
 
   DbgValues.swap(NewDbgValues);
-  return;
 }
 
 // Clone 'Def', and also clone its eligible DBG_VALUEs to the place before

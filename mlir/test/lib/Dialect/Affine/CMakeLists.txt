@@ -3,6 +3,7 @@ add_mlir_library(MLIRAffineTransformsTestPasses
   TestAffineDataCopy.cpp
   TestAffineLoopUnswitching.cpp
   TestAffineLoopParametricTiling.cpp
+  TestAccessAnalysis.cpp
   TestDecomposeAffineOps.cpp
   TestReifyValueBounds.cpp
   TestLoopFusion.cpp
@@ -20,6 +21,8 @@ add_mlir_library(MLIRAffineTransformsTestPasses
   Core
 
   LINK_LIBS PUBLIC
+  MLIRArithTransforms
+  MLIRAffineAnalysis
   MLIRAffineTransforms
   MLIRAffineUtils
   MLIRIR

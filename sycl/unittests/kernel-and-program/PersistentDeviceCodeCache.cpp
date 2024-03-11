@@ -9,14 +9,16 @@
 // Detailed description of the tests cases can be seen per test function.
 #include "../thread_safety/ThreadUtils.h"
 #include "detail/persistent_device_code_cache.hpp"
-#include <cstdio>
 #include <detail/device_binary_image.hpp>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
 #include <llvm/Support/FileSystem.h>
-#include <optional>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/sycl.hpp>
+
+#include <cstdio>
+#include <fstream>
+#include <optional>
 #include <vector>
 
 #define ASSERT_NO_ERROR(x)                                                     \
@@ -217,7 +219,6 @@ public:
   }
 
 protected:
-  detail::OSModuleHandle ModuleHandle = detail::OSUtil::ExeModuleHandle;
   unittest::PiMock Mock;
   platform Plt;
   device Dev;
@@ -236,8 +237,8 @@ protected:
                                     /*PropertySetsBegin*/ nullptr,
                                     /*PropertySetsEnd*/ nullptr};
   pi_device_binary Bin = &BinStruct;
-  detail::RTDeviceBinaryImage Img{Bin, ModuleHandle};
-  RT::PiProgram NativeProg;
+  detail::RTDeviceBinaryImage Img{Bin};
+  sycl::detail::pi::PiProgram NativeProg;
 };
 
 /* Checks that key values with \0 symbols are processed correctly

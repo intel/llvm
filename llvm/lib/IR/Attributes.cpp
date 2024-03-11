@@ -23,6 +23,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/Config/llvm-config.h"
+#include "llvm/IR/AttributeMask.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Type.h"
@@ -522,7 +523,7 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
 
     // Print access kind for "other" as the default access kind. This way it
     // will apply to any new location kinds that get split out of "other".
-    ModRefInfo OtherMR = ME.getModRef(MemoryEffects::Other);
+    ModRefInfo OtherMR = ME.getModRef(IRMemLocation::Other);
     if (OtherMR != ModRefInfo::NoModRef || ME.getModRef() == OtherMR) {
       First = false;
       OS << getModRefStr(OtherMR);
@@ -538,13 +539,13 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
       First = false;
 
       switch (Loc) {
-      case MemoryEffects::ArgMem:
+      case IRMemLocation::ArgMem:
         OS << "argmem: ";
         break;
-      case MemoryEffects::InaccessibleMem:
+      case IRMemLocation::InaccessibleMem:
         OS << "inaccessiblemem: ";
         break;
-      case MemoryEffects::Other:
+      case IRMemLocation::Other:
         llvm_unreachable("This is represented as the default access kind");
       }
       OS << getModRefStr(MR);
@@ -1960,7 +1961,9 @@ AttributeMask AttributeFuncs::typeIncompatible(Type *Ty,
           .addAttribute(Attribute::ReadNone)
           .addAttribute(Attribute::ReadOnly)
           .addAttribute(Attribute::Dereferenceable)
-          .addAttribute(Attribute::DereferenceableOrNull);
+          .addAttribute(Attribute::DereferenceableOrNull)
+          .addAttribute(Attribute::Writable)
+          .addAttribute(Attribute::DeadOnUnwind);
     if (ASK & ASK_UNSAFE_TO_DROP)
       Incompatible.addAttribute(Attribute::Nest)
           .addAttribute(Attribute::SwiftError)
@@ -2001,10 +2004,57 @@ AttributeMask AttributeFuncs::getUBImplyingAttributes() {
   return AM;
 }
 
+/// Callees with dynamic denormal modes are compatible with any caller mode.
+static bool denormModeCompatible(DenormalMode CallerMode,
+                                 DenormalMode CalleeMode) {
+  if (CallerMode == CalleeMode || CalleeMode == DenormalMode::getDynamic())
+    return true;
+
+  // If they don't exactly match, it's OK if the mismatched component is
+  // dynamic.
+  if (CalleeMode.Input == CallerMode.Input &&
+      CalleeMode.Output == DenormalMode::Dynamic)
+    return true;
+
+  if (CalleeMode.Output == CallerMode.Output &&
+      CalleeMode.Input == DenormalMode::Dynamic)
+    return true;
+  return false;
+}
+
+static bool checkDenormMode(const Function &Caller, const Function &Callee) {
+  DenormalMode CallerMode = Caller.getDenormalModeRaw();
+  DenormalMode CalleeMode = Callee.getDenormalModeRaw();
+
+  if (denormModeCompatible(CallerMode, CalleeMode)) {
+    DenormalMode CallerModeF32 = Caller.getDenormalModeF32Raw();
+    DenormalMode CalleeModeF32 = Callee.getDenormalModeF32Raw();
+    if (CallerModeF32 == DenormalMode::getInvalid())
+      CallerModeF32 = CallerMode;
+    if (CalleeModeF32 == DenormalMode::getInvalid())
+      CalleeModeF32 = CalleeMode;
+    return denormModeCompatible(CallerModeF32, CalleeModeF32);
+  }
+
+  return false;
+}
+
+static bool checkStrictFP(const Function &Caller, const Function &Callee) {
+  // Do not inline strictfp function into non-strictfp one. It would require
+  // conversion of all FP operations in host function to constrained intrinsics.
+  return !Callee.getAttributes().hasFnAttr(Attribute::StrictFP) ||
+         Caller.getAttributes().hasFnAttr(Attribute::StrictFP);
+}
+
 template<typename AttrClass>
 static bool isEqual(const Function &Caller, const Function &Callee) {
   return Caller.getFnAttribute(AttrClass::getKind()) ==
          Callee.getFnAttribute(AttrClass::getKind());
+}
+
+static bool isEqual(const Function &Caller, const Function &Callee,
+                    const StringRef &AttrName) {
+  return Caller.getFnAttribute(AttrName) == Callee.getFnAttribute(AttrName);
 }
 
 /// Compute the logical AND of the attributes of the caller and the

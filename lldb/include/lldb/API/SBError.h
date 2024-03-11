@@ -13,6 +13,9 @@
 
 namespace lldb_private {
 class ScriptInterpreter;
+namespace python {
+class SWIGBridge;
+}
 } // namespace lldb_private
 
 namespace lldb {
@@ -23,9 +26,7 @@ public:
 
   SBError(const lldb::SBError &rhs);
 
-#ifndef SWIG
-  SBError(const lldb_private::Status &error);
-#endif
+  SBError(const char *message);
 
   ~SBError();
 
@@ -79,6 +80,7 @@ protected:
   friend class SBData;
   friend class SBDebugger;
   friend class SBFile;
+  friend class SBFormat;
   friend class SBHostOS;
   friend class SBPlatform;
   friend class SBProcess;
@@ -92,6 +94,9 @@ protected:
   friend class SBWatchpoint;
 
   friend class lldb_private::ScriptInterpreter;
+  friend class lldb_private::python::SWIGBridge;
+
+  SBError(const lldb_private::Status &error);
 
   lldb_private::Status *get();
 

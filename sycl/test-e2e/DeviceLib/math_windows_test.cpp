@@ -2,10 +2,9 @@
 // Disabled on windows due to bug VS 2019 missing math builtins
 
 // REQUIRES: (accelerator || cpu) && windows
-// RUN: %clangxx -fsycl -c %s -o %t.o
+// RUN: %{build} -c -o %t.o
 // RUN: %clangxx -fsycl %t.o %sycl_libs_dir/../bin/libsycl-cmath.o -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{run} %t.out
 #include "math_utils.hpp"
 #include <iostream>
 #include <math.h>

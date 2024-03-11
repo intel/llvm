@@ -289,6 +289,7 @@ public:
     return Id;
   }
   std::shared_ptr<const SPIRVLine> getLine() const { return Line; }
+  std::shared_ptr<const SPIRVExtInst> getDebugLine() const { return DebugLine; }
   SPIRVLinkageTypeKind getLinkageType() const;
   Op getOpCode() const { return OpCode; }
   SPIRVModule *getModule() const { return Module; }
@@ -361,10 +362,11 @@ public:
   void setHasNoId() { Attrib |= SPIRVEA_NOID; }
   void setId(SPIRVId TheId) { Id = TheId; }
   void setLine(const std::shared_ptr<const SPIRVLine> &L);
+  void setDebugLine(const std::shared_ptr<const SPIRVExtInst> &DL);
   void setLinkageType(SPIRVLinkageTypeKind);
   void setModule(SPIRVModule *TheModule);
   void setName(const std::string &TheName);
-  virtual void setScope(SPIRVEntry *Scope){};
+  virtual void setScope(SPIRVEntry *Scope) {}
   void takeAnnotations(SPIRVForward *);
   void takeDecorates(SPIRVEntry *);
   void takeDecorateIds(SPIRVEntry *);
@@ -387,6 +389,7 @@ public:
   friend spv_ostream &operator<<(spv_ostream &O, const SPIRVEntry &E);
   friend std::istream &operator>>(std::istream &I, SPIRVEntry &E);
   virtual void encodeLine(spv_ostream &O) const;
+  virtual void encodeDebugLine(spv_ostream &O) const;
   virtual void encodeAll(spv_ostream &O) const;
   virtual void encodeName(spv_ostream &O) const;
   virtual void encodeChildren(spv_ostream &O) const;
@@ -451,6 +454,7 @@ protected:
   DecorateIdMapType DecorateIds;
   MemberDecorateMapType MemberDecorates;
   std::shared_ptr<const SPIRVLine> Line;
+  std::shared_ptr<const SPIRVExtInst> DebugLine;
 };
 
 class SPIRVEntryNoIdGeneric : public SPIRVEntry {
@@ -517,22 +521,24 @@ protected:
   SPIRVId Target;
 };
 
-template <Op OC> class SPIRVAnnotation : public SPIRVAnnotationGeneric {
+class SPIRVAnnotation : public SPIRVAnnotationGeneric {
 public:
   // Complete constructor
-  SPIRVAnnotation(const SPIRVEntry *TheTarget, unsigned TheWordCount)
+  SPIRVAnnotation(Op OC, const SPIRVEntry *TheTarget, unsigned TheWordCount)
       : SPIRVAnnotationGeneric(TheTarget->getModule(), TheWordCount, OC,
                                TheTarget->getId()) {}
-  // Incomplete constructor
-  SPIRVAnnotation() : SPIRVAnnotationGeneric(OC) {}
+  // Incomplete constructors
+  SPIRVAnnotation(Op OC) : SPIRVAnnotationGeneric(OC) {}
+  SPIRVAnnotation() : SPIRVAnnotationGeneric(OpNop) {}
 };
 
-class SPIRVEntryPoint : public SPIRVAnnotation<OpEntryPoint> {
+class SPIRVEntryPoint : public SPIRVAnnotation {
 public:
+  static const SPIRVWord FixedWC = 4;
   SPIRVEntryPoint(SPIRVModule *TheModule, SPIRVExecutionModelKind,
                   SPIRVId TheId, const std::string &TheName,
                   std::vector<SPIRVId> Variables);
-  SPIRVEntryPoint() {}
+  SPIRVEntryPoint() : SPIRVAnnotation(OpEntryPoint) {}
 
   _SPIRV_DCL_ENCDEC
 protected:
@@ -543,12 +549,12 @@ private:
   std::vector<SPIRVId> Variables;
 };
 
-class SPIRVName : public SPIRVAnnotation<OpName> {
+class SPIRVName : public SPIRVAnnotation {
 public:
   // Complete constructor
   SPIRVName(const SPIRVEntry *TheTarget, const std::string &TheStr);
   // Incomplete constructor
-  SPIRVName() {}
+  SPIRVName() : SPIRVAnnotation(OpName) {}
 
 protected:
   _SPIRV_DCL_ENCDEC
@@ -557,18 +563,18 @@ protected:
   std::string Str;
 };
 
-class SPIRVMemberName : public SPIRVAnnotation<OpName> {
+class SPIRVMemberName : public SPIRVAnnotation {
 public:
   static const SPIRVWord FixedWC = 3;
   // Complete constructor
   SPIRVMemberName(const SPIRVEntry *TheTarget, SPIRVWord TheMemberNumber,
                   const std::string &TheStr)
-      : SPIRVAnnotation(TheTarget, FixedWC + getSizeInWords(TheStr)),
+      : SPIRVAnnotation(OpName, TheTarget, FixedWC + getSizeInWords(TheStr)),
         MemberNumber(TheMemberNumber), Str(TheStr) {
     validate();
   }
   // Incomplete constructor
-  SPIRVMemberName() : MemberNumber(SPIRVWORD_MAX) {}
+  SPIRVMemberName() : SPIRVAnnotation(OpName), MemberNumber(SPIRVWORD_MAX) {}
 
 protected:
   _SPIRV_DCL_ENCDEC
@@ -644,31 +650,33 @@ protected:
   SPIRVWord Column;
 };
 
-class SPIRVExecutionMode : public SPIRVAnnotation<OpExecutionMode> {
+class SPIRVExecutionMode : public SPIRVAnnotation {
 public:
   // Complete constructor for LocalSize, LocalSizeHint
-  SPIRVExecutionMode(SPIRVEntry *TheTarget, SPIRVExecutionModeKind TheExecMode,
-                     SPIRVWord X, SPIRVWord Y, SPIRVWord Z)
-      : SPIRVAnnotation(TheTarget, 6), ExecMode(TheExecMode) {
+  SPIRVExecutionMode(Op OC, SPIRVEntry *TheTarget,
+                     SPIRVExecutionModeKind TheExecMode, SPIRVWord X,
+                     SPIRVWord Y, SPIRVWord Z)
+      : SPIRVAnnotation(OC, TheTarget, 6), ExecMode(TheExecMode) {
     WordLiterals.push_back(X);
     WordLiterals.push_back(Y);
     WordLiterals.push_back(Z);
     updateModuleVersion();
   }
   // Complete constructor for VecTypeHint, SubgroupSize, SubgroupsPerWorkgroup
-  SPIRVExecutionMode(SPIRVEntry *TheTarget, SPIRVExecutionModeKind TheExecMode,
-                     SPIRVWord Code)
-      : SPIRVAnnotation(TheTarget, 4), ExecMode(TheExecMode) {
+  SPIRVExecutionMode(Op OC, SPIRVEntry *TheTarget,
+                     SPIRVExecutionModeKind TheExecMode, SPIRVWord Code)
+      : SPIRVAnnotation(OC, TheTarget, 4), ExecMode(TheExecMode) {
     WordLiterals.push_back(Code);
-    updateModuleVersion();
   }
   // Complete constructor for ContractionOff
-  SPIRVExecutionMode(SPIRVEntry *TheTarget, SPIRVExecutionModeKind TheExecMode)
-      : SPIRVAnnotation(TheTarget, 3), ExecMode(TheExecMode) {
+  SPIRVExecutionMode(Op OC, SPIRVEntry *TheTarget,
+                     SPIRVExecutionModeKind TheExecMode)
+      : SPIRVAnnotation(OC, TheTarget, 3), ExecMode(TheExecMode) {
     updateModuleVersion();
   }
   // Incomplete constructor
-  SPIRVExecutionMode() : ExecMode(ExecutionModeInvocations) {}
+  SPIRVExecutionMode()
+      : SPIRVAnnotation(OpExecutionMode), ExecMode(ExecutionModeInvocations) {}
   SPIRVExecutionModeKind getExecutionMode() const { return ExecMode; }
   const std::vector<SPIRVWord> &getLiterals() const { return WordLiterals; }
   SPIRVCapVec getRequiredCapability() const override {
@@ -688,10 +696,43 @@ public:
     }
   }
 
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    switch (static_cast<unsigned>(ExecMode)) {
+    case ExecutionModeMaximumRegistersINTEL:
+    case ExecutionModeMaximumRegistersIdINTEL:
+    case ExecutionModeNamedMaximumRegistersINTEL:
+      return ExtensionID::SPV_INTEL_maximum_registers;
+    default:
+      return {};
+    }
+  }
+
 protected:
   _SPIRV_DCL_ENCDEC
   SPIRVExecutionModeKind ExecMode;
   std::vector<SPIRVWord> WordLiterals;
+};
+
+class SPIRVExecutionModeId : public SPIRVExecutionMode {
+public:
+  // Complete constructor for LocalSizeId, LocalSizeHintId
+  SPIRVExecutionModeId(SPIRVEntry *TheTarget,
+                       SPIRVExecutionModeKind TheExecMode, SPIRVWord X,
+                       SPIRVWord Y, SPIRVWord Z)
+      : SPIRVExecutionMode(OpExecutionModeId, TheTarget, TheExecMode, X, Y, Z) {
+    updateModuleVersion();
+  }
+  // Complete constructor for SubgroupsPerWorkgroupId
+  SPIRVExecutionModeId(SPIRVEntry *TheTarget,
+                       SPIRVExecutionModeKind TheExecMode, SPIRVWord Code)
+      : SPIRVExecutionMode(OpExecutionModeId, TheTarget, TheExecMode, Code) {
+    updateModuleVersion();
+  }
+  // Incomplete constructor
+  SPIRVExecutionModeId() : SPIRVExecutionMode() {}
+  SPIRVWord getRequiredSPIRVVersion() const override {
+    return static_cast<SPIRVWord>(VersionNumber::SPIRV_1_2);
+  }
 };
 
 class SPIRVComponentExecutionModes {
@@ -727,6 +768,11 @@ public:
       return IsDenorm(EMK) || IsRoundingMode(EMK) || IsFPMode(EMK) ||
              IsOtherFP(EMK);
     };
+    auto IsMaxRegisters = [&](auto EMK) {
+      return EMK == ExecutionModeMaximumRegistersINTEL ||
+             EMK == ExecutionModeMaximumRegistersIdINTEL ||
+             EMK == ExecutionModeNamedMaximumRegistersINTEL;
+    };
     auto IsCompatible = [&](SPIRVExecutionMode *EM0, SPIRVExecutionMode *EM1) {
       if (EM0->getTargetId() != EM1->getTargetId())
         return true;
@@ -740,7 +786,8 @@ public:
         return true;
       return !(IsDenorm(EMK0) && IsDenorm(EMK1)) &&
              !(IsRoundingMode(EMK0) && IsRoundingMode(EMK1)) &&
-             !(IsFPMode(EMK0) && IsFPMode(EMK1));
+             !(IsFPMode(EMK0) && IsFPMode(EMK1)) &&
+             !(IsMaxRegisters(EMK0) && IsMaxRegisters(EMK1));
     };
     for (auto I = ExecModes.begin(); I != ExecModes.end(); ++I) {
       assert(IsCompatible(ExecMode, (*I).second) &&
@@ -855,6 +902,8 @@ public:
       return ExtensionID::SPV_INTEL_vector_compute;
     case internal::CapabilityFastCompositeINTEL:
       return ExtensionID::SPV_INTEL_fast_composite;
+    case internal::CapabilitySubgroupRequirementsINTEL:
+      return ExtensionID::SPV_INTEL_subgroup_requirements;
     default:
       return {};
     }
@@ -903,7 +952,7 @@ public:
   }
 
   SPIRVCapVec getRequiredCapability() const override {
-    return getVec(CapabilityLongConstantCompositeINTEL);
+    return getVec(CapabilityLongCompositesINTEL);
   }
 
   std::optional<ExtensionID> getRequiredExtension() const override {
@@ -1004,8 +1053,6 @@ _SPIRV_OP(ImageDrefGather)
 _SPIRV_OP(QuantizeToF16)
 _SPIRV_OP(ArrayLength)
 _SPIRV_OP(OuterProduct)
-_SPIRV_OP(IAddCarry)
-_SPIRV_OP(ISubBorrow)
 _SPIRV_OP(SMulExtended)
 _SPIRV_OP(UMulExtended)
 _SPIRV_OP(DPdx)

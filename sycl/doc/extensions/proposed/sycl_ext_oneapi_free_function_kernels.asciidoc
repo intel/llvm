@@ -1,0 +1,1016 @@
+= sycl_ext_oneapi_free_function_kernels
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023-2024 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.
+OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 8 specification.
+All references below to the "core SYCL specification" or to section numbers in
+the SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../proposed/sycl_ext_oneapi_free_function_queries.asciidoc[
+  sycl_ext_oneapi_free_function_queries]
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
+  sycl_ext_oneapi_properties]
+* link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
+  sycl_ext_oneapi_kernel_properties]
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.
+Interfaces defined in this specification may not be implemented yet or may be
+in a preliminary state.
+The specification itself may also change in incompatible ways before it is
+finalized.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Overview
+
+This extension introduces a new way to define a kernel as a simple C++
+function, where the kernel arguments are parameters to the function.
+This is different from standard SYCL kernels, where the kernel arguments are
+either captures of a lambda expression or member variables of a callable
+object.
+
+The primary motivation for this extension is the
+link:../experimental/sycl_ext_oneapi_kernel_compiler.asciidoc[
+sycl_ext_oneapi_kernel_compiler], which allows online compilation of a kernel
+from source code.
+These kernels must have a clean separation between host and device code, and
+they must have a defined order to their arguments because the application sets
+the argument values by their "index" via `handler::set_arg(index, value)`.
+Because variables captured by lambda expressions have no defined order, we need
+some other way to define kernel arguments for use with the
+sycl_ext_oneapi_kernel_compiler extension, and the
+sycl_ext_oneapi_free_function_kernels extension provides that mechanism.
+The "free function kernel" feature is a separate extension, though, because it
+can also be used independently from sycl_ext_oneapi_kernel_compiler.
+For example, some users may find it more familiar to define kernels as plain
+functions or they might have other reasons to prefer a clean separation between
+host and device code.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.
+An implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_FREE_FUNCTION_KERNELS`
+to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Defining a free function kernel
+
+A free function kernel is a normal C++ function definition, where the function
+declaration is decorated with either the `nd_range_kernel` compile-time
+property or the `single_task_kernel` compile-time property.
+
+When a function declaration is decorated with one of these properties, the
+following rules must be observed:
+
+* The function must be declared at either namespace scope or at class scope as
+  a static member function.
+
+* The function's return type must be `void`.
+
+* The function must not accept variadic arguments.
+
+* Each of the function's arguments must have a type that is an allowed kernel
+  parameter type as specified in section 4.12.4 "Rules for parameter passing to
+  kernels" of the core SYCL specification.
+  The function must not be declared with parameters of type `reducer` or
+  `kernel_handler`.
+  These special kernel arguments cannot be passed to a free function kernel.
+
+* All declarations of the function must provide no default parameter values.
+
+* The property must appear on the first declaration of the function in the
+  translation unit.
+  Redeclarations of the function may optionally be decorated with the same
+  property if the property argument is the same.
+  The effect is the same regardless of whether redeclarations are so decorated.
+
+* The same function may be decorated with at most one of these properties.
+  However, the same function may be decorated multiple times with the same
+  property (with the same argument).
+  Programs that decorate the same function with more than one of these
+  properties or with multiple instances of the same property with different
+  argument are ill formed.
+
+* If a function is decorated with one of these properties in one translation
+  unit, any other translation unit that declares the same function must also
+  decorate the function with the same property (with the same argument).
+
+The following table provides additional details about these compile-time
+properties.
+
+|====
+a|
+*`nd_range_kernel` property*
+
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct nd_range_kernel_key {
+  template <int Dims>
+  using value_t = property_value<nd_range_kernel_key, Dims>;
+};
+
+template<int Dims>
+inline constexpr nd_range_kernel_key::value_t<Dims> nd_range_kernel;
+
+template<>
+struct is_property_key<nd_range_kernel_key> : std::true_type {};
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+Indicates that the function is a free function kernel that is invoked with an
+`nd_range` iteration space of `Dims` dimensions.
+
+The `property_value` struct has the following member variables:
+
+[%header,cols="1,1"]
+!====
+!Member
+!Description
+
+a!
+[source]
+----
+static constexpr int dimensions = Dims
+----
+!
+The number of dimensions of the kernel's range.
+!====
+
+a|
+*`single_task_kernel` property*
+
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct single_task_kernel_key {
+  using value_t = property_value<single_task_kernel_key>;
+};
+
+inline constexpr single_task_kernel_key::value_t single_task_kernel;
+
+template<>
+struct is_property_key<single_task_kernel_key> : std::true_type {};
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+Indicates that the function is a free function kernel that is invoked via
+`single_task` (i.e. without any iteration space).
+|====
+
+When a function is defined as a free function kernel, each parameter to the
+function is a kernel argument.
+
+The following example demonstrates how a free function kernel using a
+3-dimensional nd-range iteration space can be defined:
+
+```
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<3>))
+void iota(float start, float *ptr) {
+   // ...
+}
+```
+
+A function decorated with one of these properties can still be called as a
+normal function in either host or device code.
+The property has no effect in such cases.
+
+=== New traits for kernel functions
+
+This extension defines the following traits that can be used to tell whether a
+function is declared as a free function kernel.
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<auto *Func, int Dims>
+struct is_nd_range_kernel;
+
+template<auto *Func, int Dims>
+inline constexpr bool is_nd_range_kernel_v = is_nd_range_kernel<Func, Dims>::value;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+If `Func` is the address of a function whose declaration is decorated with the
+`nd_range_kernel<Dims>` property, the `is_nd_range_kernel<Func, Dims>` trait
+provides the member constant `value` equal to `true`.
+Otherwise `value` is `false`.
+
+The helper trait `is_nd_range_kernel_v` provides the value of `value`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<auto *Func>
+struct is_single_task_kernel;
+
+template<auto *Func>
+inline constexpr bool is_single_task_kernel_v = is_single_task_kernel<Func>::value;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+If `Func` is the address of a function whose declaration is decorated with the
+`single_task_kernel` property, the `is_single_task_kernel<Func>` trait provides
+the member constant `value` equal to `true`.
+Otherwise `value` is `false`.
+
+The helper trait `is_single_task_kernel_v` provides the value of `value`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template<auto *Func>
+struct is_kernel;
+
+template<auto *Func>
+inline constexpr bool is_kernel_v = is_kernel<Func>::value;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+If `Func` is the address of a function whose declaration is decorated with
+either the `nd_range_kernel` property or the `single_task_kernel` property, the
+`is_kernel<Func>` trait provides the member constant `value` equal to `true`.
+Otherwise `value` is `false`.
+
+The helper trait `is_kernel_v` provides the value of `value`.
+|====
+
+
+=== New kernel bundle member functions
+
+This extension adds the following new functions which add kernel bundle support
+for free function kernels.
+
+[_Note:_ Many of the functions in this section have a template parameter
+`Func`, which identifies a free function kernel.
+This kernel function may be defined in any translation unit in the application.
+_{endnote}_]
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <auto *Func>
+kernel_id get_kernel_id();
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints_: Available only if `is_kernel_v<Func>` is `true`.
+
+_Returns:_ The kernel identifier that is associated with that kernel.
+
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <auto *Func, bundle_state State>                                // (1)
+kernel_bundle<State> get_kernel_bundle(const context& ctxt);
+
+template <auto *Func, bundle_state State>                                // (2)
+kernel_bundle<State> get_kernel_bundle(const context& ctxt,
+                                       const std::vector<device>& devs);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints_: Available only if `is_kernel_v<Func>` is `true`.
+
+_Returns: (1)_ The same value as
+`get_kernel_bundle<State>(ctxt, ctxt.get_devices(), {get_kernel_id<Func>()})`.
+
+_Returns: (2)_ The same value as
+`get_kernel_bundle<State>(ctxt, devs, {get_kernel_id<Func>()})`.
+
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <auto *Func, bundle_state State>                                     // (1)
+bool has_kernel_bundle(const context& ctxt);
+
+template <auto *Func, bundle_state State>                                     // (2)
+bool has_kernel_bundle(const context& ctxt, const std::vector<device>& devs);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints_: Available only if `is_kernel_v<Func>` is `true`.
+
+_Returns: (1)_ The same value as
+`has_kernel_bundle<State>(ctxt, {get_kernel_id<Func>()})`.
+
+_Returns: (2)_ The same value as
+`has_kernel_bundle<State>(ctxt, devs, {get_kernel_id<Func>()})`.
+
+!====
+a!
+[source]
+----
+namespace sycl::ext::oneapi::experimental {
+
+template <auto *Func> bool is_compatible(const device& dev);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+!====
+
+_Constraints_: Available only if `is_kernel_v<Func>` is `true`.
+
+_Returns:_ The same value as
+`is_compatible<State>({get_kernel_id<Func>()}, dev)`.
+
+|====
+
+This extension also adds the following new member functions to the
+`kernel_bundle` class:
+
+```
+namespace sycl {
+
+template <bundle_state State>
+class kernel_bundle {
+  // ...
+
+  template<auto *Func>
+  bool ext_oneapi_has_kernel();
+
+  template<auto *Func>
+  bool ext_oneapi_has_kernel(const device &dev);
+
+  template<auto *Func>
+  kernel ext_oneapi_get_kernel();
+};
+
+} // namespace sycl
+```
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source]
+----
+template<auto *Func>                           // (1)
+bool ext_oneapi_has_kernel()
+
+template<auto *Func>                           // (2)
+bool ext_oneapi_has_kernel(const device &dev)
+----
+!====
+
+_Constraints_: Available only if `is_kernel_v<Func>` is `true`.
+
+_Returns: (1)_: The value `true` only if the kernel bundle contains the free
+function kernel whose address is `Func`.
+
+_Returns: (2)_: The value `true` only if the kernel bundle contains the free
+function kernel whose address is `Func` and if that kernel is compatible with
+the device `dev`.
+
+!====
+a!
+[source]
+----
+template<auto *Func>
+kernel ext_oneapi_get_kernel()
+----
+!====
+
+_Constraints:_ Available only if `State` is `bundle_state::executable` and if
+`is_kernel_v<Func>` is `true`.
+
+_Returns:_ If the kernel whose address is `Func` resides in this kernel bundle,
+returns the `kernel` object representing that kernel.
+
+_Throws_: An `exception` with the error code `errc::invalid` if the kernel with
+address `Func` does not reside in this kernel bundle.
+|====
+
+=== Behavior with kernel bundle functions in the core SYCL specification
+
+Free function kernels that are defined by the application have a corresponding
+kernel identifier (`kernel_id`) and are contained by the device images in the
+SYCL application.
+This section defines the ramifications this has on the kernel bundle functions
+defined by the core SYCL specification.
+
+* The function `get_kernel_ids()` returns the kernel identifiers for any free
+  function kernels defined by the application, in addition to identifiers for
+  any kernels defined as lambda expressions or named kernel objects.
+
+* The kernel bundle returned by
+  `get_kernel_bundle(const context&, const std::vector<device>& devs)` contains
+  all of the free function kernels defined by the application that are
+  compatible with at least one of the devices in `devs`, in addition to all of
+  the kernels defined as lambda expressions or named kernel objects that are
+  compatible with one of these devices.
+
+* The function `has_kernel_bundle(const context&, const std::vector<device>&)`
+  considers free function kernels defined by the application when computing its
+  return value.
+
+The information descriptor `info::kernel::num_args` may be used to query a
+`kernel` object that represents a free function kernel.
+The return value tells the number of formal parameters in the function's
+definition.
+
+=== Enqueuing a free function kernel and setting parameter values
+
+Once the application obtains a `kernel` object for a free function kernel, it
+can enqueue the kernel to a device using any of the SYCL functions that allow
+a kernel to be enqueued via a `kernel` object.
+The application must enqueue the free function kernel according to its type.
+For example, a free function kernel defined via `nd_range_kernel` can be
+enqueued by calling the `handler::parallel_for` overload taking an `nd_range`.
+A free function kernel defined via `single_task_kernel` can be enqueued by
+calling `handler::single_task`.
+
+Attempting to enqueue a free function kernel using a mechanism that does not
+match its type results in undefined behavior.
+Attempting to enqueue a free function kernel with an `nd_range` whose
+dimensionality does not match the free function kernel definition results in
+undefined behavior.
+
+The application is also responsible for setting the values of any kernel
+arguments when the kernel is enqueued.
+For example, when enqueuing a kernel with `handler::parallel_for` or
+`handler::single_task`, the kernel argument values must be set via
+`handler::set_arg` or `handler::set_args`.
+The application must abide by the following rules, otherwise the behavior is
+undefined:
+
+* The application must set a value for each kernel argument.
+* The application must not set a value for a kernel argument that does not
+  exist (e.g. specifying an argument index to `handler::set_arg` that is out of
+  range).
+* The type of the expression used to set the argument's value must match the
+  type of the corresponding formal parameter in the free function kernel.
+
+=== Obtaining the iteration id for a kernel
+
+In a standard SYCL kernel, the iteration ID is passed as a parameter to the
+kernel's callable object.
+However, this is not the case for a free function kernel because the function
+parameters are used to pass the kernel arguments instead.
+Therefore, a free function kernel must obtain the iteration ID in some other
+way.
+Typically, a free function kernel uses the functions specified in
+link:../proposed/sycl_ext_oneapi_free_function_queries.asciidoc[
+sycl_ext_oneapi_free_function_queries] for this purpose.
+
+=== Address space of kernel arguments
+
+The arguments to a free function kernel are in the private address space.
+As a result, a kernel can modify its arguments, but the modification is visible
+only within the work-item.
+
+[_Note:_ This applies only to the arguments themselves, not to memory that the
+arguments point to.
+For example, with a USM pointer argument, the pointer argument itself is in the
+private address space, but the memory it points to is in the global address
+space.
+_{endnote}_]
+
+=== Interaction with kernel properties
+
+A free function kernel may also be decorated with any of the properties defined
+in link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
+sycl_ext_oneapi_kernel_properties] by applying the properties to the function
+declaration as illustrated below.
+
+```
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::work_group_size<32>))
+void iota(float start, float *ptr) {
+   // ...
+}
+```
+
+The kernel properties may appear either before or after the `nd_range_kernel`
+or `single_task_kernel` property.
+
+As with standard SYCL kernels, these kernel properties can be queried via
+`kernel::get_info` using either the `info::kernel::attributes` information
+descriptor or the `info::kernel_device_specific` information descriptors.
+
+=== Restrictions for integration header implementations
+
+[_Note:_ The {dpcpp} implementation of this extension currently has the
+restrictions listed in this section.
+In the future, restrictions tied to the integration header approach might be
+formalized in the core SYCL specification and tied to a macro, similar to the
+feature set macros that exist already.
+_{endnote}_]
+
+Implementations of SYCL that use the integration header technique have
+additional restrictions for functions that are declared as free function
+kernels.
+These implementations automatically insert forward declarations of the free
+function kernels at the top of the translation unit.
+This has ramifications on how the application may declare the free function
+kernels, on the types that may be used in those declarations, and on the way
+the application may reference these kernel identifiers.
+The following example illustrates the forward declarations that the
+implementation inserts:
+
+```
+// Forward declarations of types used by the kernel functions.
+struct mystruct;
+enum myenum : int;
+
+// Each kernel is forward declared in the same namespace in which the
+// application declares it.
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void kernel1(int *);
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void kernel2(mystruct, myenum);
+
+template<typename T>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void kernel3(T *);
+
+namespace ns {
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void kernel4(int *);
+}
+```
+
+(The lines using `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` are exposition-only.
+Implementations will probably emit some implementation-specific code here
+instead of using the macro because the macro and the `nd_range_kernel` property
+are probably defined in the `<sycl/sycl.hpp>` header, which does not get
+included until after the integration header.)
+
+As a result, these implementations impose additional restrictions for functions
+that are declared as free function kernels:
+
+* The function must be declared at namespace scope.
+
+* Any type used in the declaration of a parameter must be one of the allowed
+  types listed below.
+
+* If the function is instantiated from a template, any type used to instantiate
+  the template must be one of the allowed types listed below.
+
+* Uses of function identifiers in the application must assume that the free
+  function kernels are forward declared at the top of the translation unit.
+  Note that this can also affect references to functions that are not declared
+  as free functions kernels as illustrated below.
++
+```
+void foo(int) {/*...*/}
+
+void caller() {
+  auto *pf = foo;  // This is ambiguous because foo(float) is forward declared
+                   // in the integration header
+}
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void foo(float) {/*...*/}
+```
+
+The allowed types are:
+
+* A {cpp} fundamental type.
+* A class or struct that is defined at namespace scope.
+* A scoped enumeration that is defined at namespace scope.
+* An unscoped enumeration that has an explicit underlying type, where the
+  enumeration is defined at namespace scope.
+* A type alias to one of the above types.
+
+
+== Examples
+
+=== Basic invocation
+
+The following example demonstrates how to define a free function kernel and then
+enqueue it on a device.
+
+```
+#include <sycl/sycl.hpp>
+namespace syclext = sycl::ext::oneapi;
+namespace syclexp = sycl::ext::oneapi::experimental;
+
+static constexpr size_t NUM = 1024;
+static constexpr size_t WGSIZE = 16;
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void iota(float start, float *ptr) {
+  // Get the ID of this kernel iteration.
+  size_t id = syclext::this_work_item::get_nd_item().get_global_linear_id();
+
+  ptr[id] = start + static_cast<float>(id);
+}
+
+void main() {
+  sycl::queue q;
+  sycl::context ctxt = q.get_context();
+
+  // Get a kernel bundle that contains the free function kernel "iota".
+  auto exe_bndl =
+    syclexp::get_kernel_bundle<iota, sycl::bundle_state::executable>(ctxt);
+
+  // Get a kernel object for the "iota" function from that bundle.
+  sycl::kernel k_iota = exe_bndl.ext_oneapi_get_kernel<iota>();
+
+  float *ptr = sycl::malloc_shared<float>(NUM, q);
+  q.submit([&](sycl::handler &cgh) {
+    // Set the values of the kernel arguments.
+    cgh.set_args(3.14f, ptr);
+
+    sycl::nd_range ndr{{NUM}, {WGSIZE}};
+    cgh.parallel_for(ndr, k_iota);
+  }).wait();
+}
+```
+
+=== Free function kernels which are templates or overloaded
+
+A free function kernel may be defined as a function template.
+It is also legal to define several overloads for a free function kernel.
+The following example demonstrates how to get a kernel identifier in such
+cases.
+
+```
+#include <sycl/sycl.hpp>
+namespace syclexp = sycl::ext::oneapi::experimental;
+
+template<typename T>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void iota(T start, T *ptr) {
+  // ...
+}
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
+void ping(float *x) {
+  // ...
+}
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::single_task_kernel))
+void ping(int *x) {
+  // ...
+}
+
+int main() {
+  // When the free function kernel is templated, pass the address of a
+  // specific instantiation.
+  sycl::kernel_id iota_float = syclexp::get_kernel_id<iota<float>>();
+  sycl::kernel_id iota_int = syclexp::get_kernel_id<iota<int>>();
+
+  // When there are multiple overloads of a free function kernel, use a cast
+  // to disambiguate.
+  sycl::kernel_id ping_float = syclexp::get_kernel_id<(void(*)(float))ping>();
+  sycl::kernel_id ping_int = syclexp::get_kernel_id<(void(*)(int))ping>();
+}
+```
+
+
+== Implementation notes
+
+=== Compiler diagnostics
+
+Our expectation is that {dpcpp} will emit a diagnostic if a function is
+decorated as a free function kernel (e.g. via `syclexp::nd_range_kernel`) and
+the function violates any of the restrictions listed above under "Defining a
+free function kernel".
+(Except, of course, no diagnostic is required for violations of the last bullet
+because that cannot be diagnosed when compiling a single translation unit.)
+
+It is probably not practical to diagnose violations for all the extra
+restrictions listed under "Restrictions for integration header
+implementations".
+However, we should diagnose as many as are practical.
+In particular, it seems easy to emit a diagnostic if a free function kernel
+is defined as a static member function.
+
+=== Integration header
+
+Our expectation is that {dpcpp} will use the integration header to implement
+the traits and the queries like `get_kernel_id<Func>()`.
+The integration header will probably start with forward declarations of types
+used for the parameters to the free function kernels.
+Following this, the header can contain forward declarations of the free
+function kernels themselves.
+In order to avoid problems where functions with the same name in different
+namespaces "shadow" each other, the structure can look like this:
+
+```
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void same_name(int arg1);
+static constexpr auto __sycl_shim1() {return (void(*)(int))same_name;}
+
+inline namespace {
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+  void same_name(int arg1);
+  static constexpr auto __sycl_shim2() {return (void(*)(int))same_name;}
+}
+
+namespace sycl {
+  template<> struct is_nd_range_kernel<__sycl_shim1()> : std::true_type {};
+  template<> struct is_nd_range_kernel<__sycl_shim2()> : std::true_type {};
+}
+```
+
+The helper functions `+__sycl_shim1+`, etc. avoid the shadowing problem because
+they are defined in the same namespace as the user's kernel function.
+Thus, the {cpp} unqualified name lookup algorithm, finds the correct function
+definition.
+However, each helper function has a unique name, so it can be uniquely
+identified from the `sycl` namespace, where it is called to specialize the
+`is_nd_range_kernel` trait.
+
+=== Decomposed kernel arguments
+
+The {dpcpp} implementation currently "decomposes" certain kernel argument
+types, meaning that some argument types are actually passed as several separate
+arguments when the SYCL runtime invokes the kernel using the underlying
+backend.
+For example, `accessor` consists of several internal member variables.
+On the OpenCL backend, one of these member variables is `cl_mem`, and OpenCL
+restrictions require this variable to be passed directly as an OpenCL kernel
+argument.
+(It cannot be passed as a member embedded within a structure.)
+As a result, {dpcpp} passes each member variable as a separate OpenCL kernel
+argument.
+
+A decomposed argument like this is still represented as a single argument in
+SYCL source code.
+When invoking a free function kernel, the application sets the value of such an
+argument with a single call to `handler::set_arg`.
+For example, the application sets the value of an `accessor` by calling
+`set_arg(acc)`, where `acc` is a variable of type `accessor`.
+
+It is the responsibility of the implementation to translate these calls to
+`set_arg` into multiple backend argument-setting calls when necessary.
+For example, a call to `set_arg(acc)` may actually result in several OpenCL
+calls to `clSetKernelArg`, one for each of the member variables in `accessor`.
+
+=== Kernel arguments that are optimized away
+
+The {dpcpp} implementation currently has the ability to optimize away unused
+kernel arguments.
+For example, if a kernel is declared to take an argument `foo` which is never
+used by the kernel, the implementation may eliminate the argument entirely and
+avoid calling the backend argument-setting API.
+It is still possible to perform these sorts of optimizations for a free
+function kernel, but the logic inside of `handler::set_arg` needs to know when
+an argument has been optimized away.
+
+Of course, the application is still responsible for calling `set_arg` for all
+kernel arguments, even if the implementation has optimized the argument away.
+(The application has no way of knowing whether the optimization has been
+performed.)
+Therefore, `set_arg` must know whether the argument has been optimized away,
+and it must not call the underlying backend argument-setting API for such an
+argument, effectively turning the call into a no-op.
+
+
+== Issues
+
+* We're pretty sure that we want to define some syntax that allows a free
+  function kernel to be enqueued using the APIs defined in
+  link:../proposed/sycl_ext_oneapi_enqueue_functions.asciidoc[
+  sycl_ext_oneapi_enqueue_functions], but we haven't settled on the exact API
+  yet.
+  One option is like this:
++
+```
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void iota(float start, float *ptr) { /*...*/  }
+
+int main() {
+  sycl::queue q;
+  float *ptr = sycl::malloc_shared<float>(N, q);
+  sycl::nd_launch<iota>(q, sycl::nd_range{{N}, {WGS}}, 1.f, ptr);
+}
+```
++
+Another option is like this:
++
+```
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void iota(float start, float *ptr) { /*...*/  }
+
+int main() {
+  sycl::queue q;
+  float *ptr = sycl::malloc_shared<float>(N, q);
+  sycl::nd_launch(q, sycl::nd_range{{N}, {WGS}}, kfp<iota>, 1.f, ptr);
+}
+```
++
+Where `kfp` would have some nicer name.
+
+* We are debating whether we should allow a free function kernel to be defined
+  with an initial "iteration index" parameter such as:
++
+--
+```
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void iota(sycl::nd_item<1> nditem, float start, float *ptr) { /*...*/  }
+```
+
+The advantage is that the user wouldn't need to use the functions in
+link:../proposed/sycl_ext_oneapi_free_function_queries.asciidoc[
+sycl_ext_oneapi_free_function_queries] to get the iteration index.
+Doing this raises some new questions, though:
+
+** When the application sets the value of a kernel parameter via `set_arg`,
+   does argument index `0` correspond to the `nd_item` or to the first
+   parameter after `nd_item`?
+   For example, to set the value of `start` in the example above, does the
+   application call `+set_arg(0, ...)+` or `+set_arg(1, ...)+`?
+   Both seem like reasonable choices, so many users may need to read the
+   documentation to determine what is right.
+
+** If the first parameter is an index like `sycl::nd_item<1>`, then the
+   property `syclexp::nd_range_kernel<1>` is somewhat redundant.
+   Should the compiler raise a diagnostic if they do not match?
+   Or, should we invent a new property like:
++
+```
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::kernel_function))
+void iota(sycl::nd_item<1> item, float start, float *ptr) { /*...*/  }
+```
+
+** In a standard SYCL nd-range kernel, the iteration index can be anything that
+   is convertible from `sycl::nd_item`.
+   For example, an application can define its own type like this:
++
+```
+struct global_index {
+  global_index(const sycl::nd_item<1> &ndi) {id = ndi.get_global_linear_id();}
+  size_t id;
+};
+
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((syclexp::nd_range_kernel<1>))
+void iota(global_index i, float start, float *ptr) { /*...*/  }
+```
++
+However, this is potentially ambiguous.
+Is `i` the kernel's iteration index, or is it simply a kernel argument whose
+type is `global_index`?
+--
++
+We agreed that we _do_ need to support free function kernels that do not have
+an initial iteration index parameter (as this spec is currently written)
+because this is necessary when migrating some CUDA code.
+Therefore, the question is whether we _also_ want to support a syntax where the
+first parameter is an iteration index.
+
+* Should the spec require an implementation to emit a diagnostic if a free
+  function kernel violates the restrictions listed in "Defining a free function
+  kernel"?
+  For now, I've listed this under "Implementation notes" because I expect
+  {dpcpp} to emit a diagnostic in this case.
+  We should decide if it is reasonable to require a diagnostic for all
+  implementations of this extensions.
+
+* We currently say it is UB if there is a mismatch between a free function
+  kernel's type or dimensionality and the call to `parallel_for` or
+  `single_task`.
+  Should we go a step further and require an exception to be thrown in these
+  cases?
+  I'm a little hesitant to require an error check here because this is on the
+  critical path for enqueuing a kernel.
+  However, {dpcpp} is still allowed to throw an exception in this case if the
+  overhead is not too high (I'd suggest `errc::invalid`).
+  I think we should decide during implementation whether the overhead is
+  minimal enough that we can mandate an error in the spec.
+
+* We currently say it is UB if a free function kernel is enqueued without
+  setting a value for each of its arguments.
+  Should we go a step further and require an exception in this case (again
+  probably `errc::invalid`)?
+  Again, I think we should decide during implementation whether the overhead is
+  minimal enough that we can mandate an error in the spec.
+
+
+== Resolved issues
+
+* We considered supporting simple range kernels with the free function kernel
+  syntax, but we decided against it.
+  We want to give the implementation greater freedom to handle unusual ranges
+  for these kernels.
+  For example, we want to allow the implementation to do "range rounding" when
+  the range is not evenly divisible by a convenient work-group size.
+  To do this, the implementation rounds the range up to a convenient value and
+  also wraps the user's kernel with a function that skips the extra iterations.
+  We also want to allow the implementation to support very large ranges via a
+  wrapper that invokes the user's kernel multiple times for each invocation of
+  the wrapped kernel.
+  In both cases, the wrapper function would need to synthesize an `item` object
+  and pass this object to the user's kernel.
+  This is not possible, though, if the user's kernel gets the `item` object via
+  a free function like `this_work_item::get_item()`.
+  Since free function kernels are an advanced feature, we think it is OK if
+  they are limited to nd-range kernels.
+  Since single-task kernels present no obstacles, we also support these with
+  the free function kernel syntax.

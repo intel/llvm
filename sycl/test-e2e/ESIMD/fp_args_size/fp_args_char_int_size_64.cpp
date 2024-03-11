@@ -5,11 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -Xclang -fsycl-allow-func-ptr -fsycl -I%S/.. %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -Xclang -fsycl-allow-func-ptr -I%S/.. -o %t.out
+// RUN: %{run} %t.out
 
 #include <cstdint>
 

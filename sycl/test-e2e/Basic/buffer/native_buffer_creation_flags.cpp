@@ -1,5 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %CPU_RUN_PLACEHOLDER %t.out 2>&1 %CPU_CHECK_PLACEHOLDER
+// REQUIRES: cpu
+// RUN: %{build} -o %t.out
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s
 
 #include <sycl/sycl.hpp>
 
@@ -13,7 +14,7 @@ int main() {
   {
     // This should trigger memory allocation on host since the pointer passed by
     // the user is read-only.
-    auto BufAcc = Buf.get_access<access::mode::write>();
+    host_accessor BufAcc(Buf, write_only);
   }
 
   Q.submit([&](handler &Cgh) {

@@ -12,7 +12,7 @@
 #include "src/__support/fixedvector.h"
 #include "src/__support/threads/mutex.h"
 
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE {
 
 namespace {
 
@@ -28,7 +28,14 @@ struct AtExitUnit {
   constexpr AtExitUnit(AtExitCallback *c, void *p) : callback(c), payload(p) {}
 };
 
-#ifdef LIBC_COPT_PUBLIC_PACKAGING
+#if defined(LIBC_TARGET_ARCH_IS_GPU)
+// The GPU build cannot handle the potentially recursive definitions required by
+// the BlockStore class. Additionally, the liklihood that someone exceeds this
+// while executing on the GPU is extremely small.
+// FIXME: It is not generally safe to use 'atexit' on the GPU because the
+//        mutexes simply passthrough. We will need a lock free stack.
+using ExitCallbackList = FixedVector<AtExitUnit, 64>;
+#elif defined(LIBC_COPT_PUBLIC_PACKAGING)
 using ExitCallbackList = cpp::ReverseOrderBlockStore<AtExitUnit, 32>;
 #else
 // BlockStore uses dynamic memory allocation. To avoid dynamic memory
@@ -83,4 +90,4 @@ LLVM_LIBC_FUNCTION(int, atexit, (StdCAtExitCallback * callback)) {
       {&stdc_at_exit_func, reinterpret_cast<void *>(callback)});
 }
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE

@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN:  %t.out
+// RUN: %{build} -o %t.out -DSYCL_DISABLE_IMAGE_ASPECT_WARNING
+// RUN: %{run-unfiltered-devices} %t.out
 
 #include <sycl/sycl.hpp>
 using namespace sycl;

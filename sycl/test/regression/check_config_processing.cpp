@@ -26,7 +26,7 @@ int main() {
   // Config check
   if (testEnvVarValue == "CORRECT_CONFIG_FILE") {
     sycl::buffer<int, 1> Buf(sycl::range<1>{1});
-    auto Acc = Buf.get_access<sycl::access::mode::read>();
+    auto Acc = Buf.get_host_access();
     return 0;
   }
   throw std::logic_error("Environment is incorrect");

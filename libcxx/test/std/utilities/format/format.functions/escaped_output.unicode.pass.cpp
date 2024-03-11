@@ -6,17 +6,10 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17, c++20
-// UNSUPPORTED: libcpp-has-no-incomplete-format
+// UNSUPPORTED: GCC-ALWAYS_INLINE-FIXME
 
 // This version runs the test when the platform has Unicode support.
 // UNSUPPORTED: libcpp-has-no-unicode
-
-// TODO FMT Investigate Windows and AIX issues.
-// UNSUPPORTED: msvc, target={{.+}}-windows-gnu
-// UNSUPPORTED: LIBCXX-AIX-FIXME
-
-// TODO FMT Fix this test using GCC, it currently crashes.
-// UNSUPPORTED: gcc-12
 
 // TODO FMT This test should not require std::to_chars(floating-point)
 // XFAIL: availability-fp_to_chars-missing
@@ -159,7 +152,7 @@ void test_char() {
   // *** P2286 examples ***
   test_format(SV("['\\'', '\"']"), SV("[{:?}, {:?}]"), CharT('\''), CharT('"'));
 
-  // *** Specical cases ***
+  // *** Special cases ***
   test_format(SV("'\\t'"), SV("{:?}"), CharT('\t'));
   test_format(SV("'\\n'"), SV("{:?}"), CharT('\n'));
   test_format(SV("'\\r'"), SV("{:?}"), CharT('\r'));
@@ -328,7 +321,7 @@ void test_string() {
 
   test_format(SV(R"(["🤷🏻\u{200d}♂\u{fe0f}"])"), SV("[{:?}]"), SV("🤷🏻‍♂️"));
 
-  // *** Specical cases ***
+  // *** Special cases ***
   test_format(SV(R"("\t\n\r\\'\" ")"), SV("{:?}"), SV("\t\n\r\\'\" "));
 
   // *** Printable ***
@@ -505,6 +498,12 @@ static void test_ill_formed_utf8() {
               "\xf7\xbf\xbf"
               "a");
 
+  test_format(R"("a\x{f1}\x{80}\x{80}\x{e1}\x{80}\x{c2}b")"sv,
+              "{:?}",
+              "a"
+              "\xf1\x80\x80\xe1\x80\xc2"
+              "b");
+
   // Code unit out of range
   test_format(R"("\u{10ffff}")"sv, "{:?}", "\xf4\x8f\xbf\xbf");               // last valid code point
   test_format(R"("\x{f4}\x{90}\x{80}\x{80}")"sv, "{:?}", "\xf4\x90\x80\x80"); // first invalid code point
@@ -513,7 +512,7 @@ static void test_ill_formed_utf8() {
 }
 
 #ifndef TEST_HAS_NO_WIDE_CHARACTERS
-#  ifdef _LIBCPP_SHORT_WCHAR
+#  ifdef TEST_SHORT_WCHAR
 static void test_ill_formed_utf16() {
   using namespace std::literals;
 
@@ -541,7 +540,7 @@ static void test_ill_formed_utf16() {
               L"\xdbff"
               "a");
 }
-#  else // _LIBCPP_SHORT_WCHAR
+#  else // TEST_SHORT_WCHAR
 static void test_ill_formed_utf32() {
   using namespace std::literals;
 
@@ -550,7 +549,7 @@ static void test_ill_formed_utf32() {
   test_format(LR"("\x{ffffffff}")"sv, L"{:?}", L"\xffffffff"); // largest encoded code point
 }
 
-#  endif // _LIBCPP_SHORT_WCHAR
+#  endif // TEST_SHORT_WCHAR
 #endif   // TEST_HAS_NO_WIDE_CHARACTERS
 
 int main(int, char**) {
@@ -561,12 +560,11 @@ int main(int, char**) {
 
   test_ill_formed_utf8();
 #ifndef TEST_HAS_NO_WIDE_CHARACTERS
-#  ifdef _LIBCPP_SHORT_WCHAR
+#  ifdef TEST_SHORT_WCHAR
   test_ill_formed_utf16();
-  assert(false);
-#  else  // _LIBCPP_SHORT_WCHAR
+#  else  // TEST_SHORT_WCHAR
   test_ill_formed_utf32();
-#  endif // _LIBCPP_SHORT_WCHAR
+#  endif // TEST_SHORT_WCHAR
 #endif   // TEST_HAS_NO_WIDE_CHARACTERS
 
   return 0;

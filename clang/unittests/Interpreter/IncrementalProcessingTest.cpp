@@ -44,7 +44,7 @@ const char TestProgram2[] = "extern \"C\" int funcForProg2() { return 42; }\n"
 
 const Function *getGlobalInit(llvm::Module *M) {
   for (const auto &Func : *M)
-    if (Func.hasName() && Func.getName().startswith("_GLOBAL__sub_I_"))
+    if (Func.hasName() && Func.getName().starts_with("_GLOBAL__sub_I_"))
       return &Func;
 
   return nullptr;
@@ -52,7 +52,9 @@ const Function *getGlobalInit(llvm::Module *M) {
 
 TEST(IncrementalProcessing, EmitCXXGlobalInitFunc) {
   std::vector<const char *> ClangArgv = {"-Xclang", "-emit-llvm-only"};
-  auto CI = llvm::cantFail(IncrementalCompilerBuilder::create(ClangArgv));
+  auto CB = clang::IncrementalCompilerBuilder();
+  CB.SetCompilerArgs(ClangArgv);
+  auto CI = cantFail(CB.CreateCpp());
   auto Interp = llvm::cantFail(Interpreter::create(std::move(CI)));
 
   std::array<clang::PartialTranslationUnit *, 2> PTUs;

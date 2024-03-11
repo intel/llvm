@@ -3,7 +3,7 @@
 ; RUN: opt -module-summary %t/b.ll -o %tb.bc
 
 ;; Test visibility propagation. The prevailing definitions are all from %tb.bc.
-; RUN: llvm-lto2 run -opaque-pointers -save-temps -enable-import-metadata -o %t1.bc %ta.bc %tb.bc \
+; RUN: llvm-lto2 run -save-temps -enable-import-metadata -o %t1.bc %ta.bc %tb.bc \
 ; RUN:   -r=%ta.bc,_var1,l -r=%ta.bc,_var2,l \
 ; RUN:   -r=%ta.bc,_hidden_def_weak_def,l -r=%ta.bc,_not_imported,l -r=%ta.bc,_hidden_def_ref,l \
 ; RUN:   -r=%ta.bc,_hidden_def_weak_ref,l \
@@ -30,8 +30,8 @@ declare void @ext(ptr)
 ;; Currently the visibility is not propagated onto an unimported function,
 ;; because we don't have summaries for declarations.
 ; CHECK: declare extern_weak dso_local void @not_imported()
-; CHECK: define available_externally hidden void @hidden_def_ref() !thinlto_src_module !0
-; CHECK: define available_externally hidden void @hidden_def_weak_ref() !thinlto_src_module !0
+; CHECK: define available_externally hidden void @hidden_def_ref() !thinlto_src_module !0 !thinlto_src_file !1
+; CHECK: define available_externally hidden void @hidden_def_weak_ref() !thinlto_src_module !0 !thinlto_src_file !1
 
 ; CHECK2: define hidden i32 @hidden_def_weak_def()
 ; CHECK2: define hidden void @hidden_def_ref()

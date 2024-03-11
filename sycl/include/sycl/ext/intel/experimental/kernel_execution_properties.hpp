@@ -8,10 +8,13 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/properties/property.hpp>
+#include <sycl/ext/oneapi/properties/property.hpp> // for PropKind, IsRunti...
+
+#include <cstdint>     // for uint16_t
+#include <type_traits> // for true_type
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::experimental {
 
 template <typename T, typename PropertyListT> class gpu_kernel_attribute;
@@ -23,7 +26,8 @@ inline constexpr cache_config_enum large_slm =
 inline constexpr cache_config_enum large_data =
     cache_config_enum::large_data;
 
-struct cache_config {
+struct cache_config : oneapi::experimental::detail::run_time_property_key<
+                          oneapi::experimental::detail::PropKind::CacheConfig> {
   cache_config(cache_config_enum v) : value(v) {}
   cache_config_enum value;
 };
@@ -42,26 +46,12 @@ inline bool operator!=(const cache_config &lhs,
 } // namespace ext::intel::experimental
 
 namespace ext::oneapi::experimental {
-template <>
-struct is_property_key<intel::experimental::cache_config_key>
-    : std::true_type {};
-
 template <typename T, typename PropertyListT>
 struct is_property_key_of<
     intel::experimental::cache_config_key,
     intel::experimental::gpu_kernel_attribute<T, PropertyListT>>
     : std::true_type {};
 
-namespace detail {
-template <> struct PropertyToKind<intel::experimental::cache_config_key> {
-  static constexpr PropKind Kind = PropKind::CacheConfig;
-};
-
-template <>
-struct IsRuntimeProperty<intel::experimental::cache_config_key>
-    : std::true_type {};
-
-} // namespace detail
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
