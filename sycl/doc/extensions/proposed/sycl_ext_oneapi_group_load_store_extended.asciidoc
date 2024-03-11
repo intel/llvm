@@ -87,7 +87,7 @@ in the group.
 ._Constraints_:
 * Only available if `Group` is a work-group or sub-group.
 * `OutputIteratorT` suppose to be a random access iterator.
-* InputT must be convertible to value type of `OutputIteratorT`.
+* `InputT` must be convertible to value type of `OutputIteratorT`.
 
 _Effects_: Stores single element `in` to `out_ptr` by using the `g` group
 object to identify memory location as `out_ptr` + `g.get_local_linear_id()`
@@ -122,7 +122,7 @@ in the group.
 ._Constraints_:
 * Only available if `Group` is a work-group or sub-group.
 * `InputIteratorT` suppose to be a random access iterator.
-* value type of `InputIteratorT` and OutputT types must be convertible basic
+* value type of `InputIteratorT` and `OutputT` types must be convertible basic
 scalar types supported in device code.
 
 _Effects_: Loads `N` elements from `in_ptr` to `out`
@@ -140,7 +140,7 @@ in the group.
 ._Constraints_:
 * Only available if `Group` is a work-group or sub-group.
 * `OutputIteratorT` suppose to be a random access iterator.
-* value type of `OutputIteratorT` and InputT types must be convertible basic
+* value type of `OutputIteratorT` and `InputT` types must be convertible basic
 scalar types supported in device code.
 
 _Effects_: Stores `N` elements from `in` vec to `out_ptr`
@@ -159,7 +159,7 @@ This API provides the following features:
 * load/store with temporary memory buffer, which can be passed via GroupHelper
 such as `group_with_scratchpad` link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc#group-helper[group_with_scratchpad description from sort over group proposal]
 
-* load/store flexible amount of elements per work item as sycl::span
+* load/store flexible amount of elements per work item as `sycl::span`
 
 * specify data placement type via properties (6) or extra options such as
 setting boundary values or limiting numbers of work items (TODO in design
@@ -203,7 +203,7 @@ work-group or sub-group or `GroupHelper` was created with a
 work-group or sub-group and some associated scratch space
 (link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc[`group_with_scratchpad`]).
 * `InputIteratorT` suppose to be a random access iterator.
-* Value type of `InputIteratorT` must be convertible to OutputT.
+* Value type of `InputIteratorT` must be convertible to `OutputT`.
 
 _Effects_: Loads `ElementsPerWorkItem` elements from `in_ptr` to `out`
 using the `gh` group helper object.
@@ -224,7 +224,7 @@ work-group or sub-group or `GroupHelper` was created with a
 work-group or sub-group and some associated scratch space
 (link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc[`group_with_scratchpad`]).
 * `OutputIteratorT` suppose to be a random access iterator.
-* InputT must be convertible to value type of `OutputIteratorT`.
+* `InputT` must be convertible to value type of `OutputIteratorT`.
 
 _Effects_: Stores `ElementsPerWorkItem` elements from `in` span to `out_ptr`
 using the `gh` group helper object.
@@ -238,8 +238,8 @@ for `i` between `0` and `ItemsPerWorkItem`.
 
 (8)_Effects_: Returns size of temporary memory (in bytes) that is required for
 scratch space in `GroupHelper`. Result depends on type `T`, `ElementsPerWorkItem`
-and the scope parameter: use sycl::memory_scope::work_group to get memory size
-required for each work-group; use sycl::memory_scope::sub_group to get memory
+and the scope parameter: use `sycl::memory_scope::work_group` to get memory size
+required for each work-group; use `sycl::memory_scope::sub_group` to get memory
 size required for each sub-group. If other scope values are passed, behavior is
 unspecified.
 `block_size` represents the a range size for load/store, e.g. work group size.
@@ -419,7 +419,7 @@ q.submit([&](sycl::handler& cgh) {
 
 == Design Considerations
 
-* consider extending sycl::span to std::mdspan for C++23 for 2d and 3d kernels
+* consider extending `sycl::span` to `std::mdspan` for C++23 for 2d and 3d kernels
 
 * TODO: consider adding extra properties for setting boundary values or limiting
 number of work-items
