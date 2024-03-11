@@ -111,6 +111,26 @@ void SYCL::constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
         C.getArgs().MakeArgString("--out-dir=" + OutputDirName));
   }
 
+  // If fsycl-dump-device-code is passed, put the PTX files
+  // into the path provided in fsycl-dump-device-code.
+  if (T->getToolChain().getTriple().isNVPTX() &&
+      C.getDriver().isDumpDeviceCodeEnabled() && Ext.equals("s")) {
+    SmallString<128> OutputDir;
+
+    Arg *DumpDeviceCodeArg =
+        C.getArgs().getLastArg(options::OPT_fsycl_dump_device_code_EQ);
+
+    OutputDir = (DumpDeviceCodeArg ? DumpDeviceCodeArg->getValue() : "");
+
+    // If the output directory path is empty, put the PTX files in the
+    // current directory.
+    if (OutputDir.empty())
+      llvm::sys::path::native(OutputDir = "./");
+    else
+      OutputDir.append(llvm::sys::path::get_separator());
+    ForeachArgs.push_back(C.getArgs().MakeArgString("--out-dir=" + OutputDir));
+  }
+
   ForeachArgs.push_back(C.getArgs().MakeArgString("--"));
   ForeachArgs.push_back(
       C.getArgs().MakeArgString(InputCommand->getExecutable()));
@@ -351,6 +371,8 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList {
   "bfloat16", "crt", "cmath", "cmath-fp64", "complex", "complex-fp64",
 #if defined(_WIN32)
       "msvc-math",
+#else
+      "sanitizer",
 #endif
       "imf", "imf-fp64", "itt-compiler-wrappers", "itt-stubs",
       "itt-user-wrappers", "fallback-cassert", "fallback-cstring",
@@ -381,8 +403,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
   // instead of the original object.
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
     bool IsRDC = !shouldDoPerObjectFileLinking(C);
-    const bool IsSYCLNativeCPU = isSYCLNativeCPU(
-        this->getToolChain(), *C.getSingleOffloadToolChain<Action::OFK_Host>());
+    const bool IsSYCLNativeCPU = isSYCLNativeCPU(this->getToolChain());
     auto isNoRDCDeviceCodeLink = [&](const InputInfo &II) {
       if (IsRDC)
         return false;
@@ -395,12 +416,11 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     auto isSYCLDeviceLib = [&](const InputInfo &II) {
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       StringRef LibPostfix = ".o";
-      if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
-          C.getDriver().IsCLMode())
-        LibPostfix = ".obj";
-      else if (isNoRDCDeviceCodeLink(II))
+      if (isNoRDCDeviceCodeLink(II))
         LibPostfix = ".bc";
-
+      else if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
+               C.getDriver().IsCLMode())
+        LibPostfix = ".obj";
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
       const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();

@@ -9,15 +9,59 @@
 #pragma once
 
 #include <sycl/ext/intel/experimental/fpga_utils.hpp>
-#include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp>
+#include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
+#include <utility>
 
 #define SYCL_EXT_INTEL_ESIMD_MEMORY_PROPERTIES 1
 
 namespace sycl {
 inline namespace _V1 {
 namespace ext::intel::esimd {
+
+/// L1, L2 or L3 cache hint levels. L3 is reserved for future use.
+enum class cache_level : uint8_t { L1 = 1, L2 = 2, L3 = 3 };
+
+/// L1, L2 or L3 cache hints.
+enum class cache_hint : uint8_t {
+  none = 0,
+  /// load/store/atomic: do not cache data to cache;
+  uncached = 1,
+
+  // load: cache data to cache;
+  cached = 2,
+
+  /// store: write data into cache level and mark the cache line as "dirty".
+  /// Upon eviction, the "dirty" data will be written into the furthest
+  /// subsequent cache;
+  write_back = 3,
+
+  /// store: immediately write data to the subsequent furthest cache, marking
+  /// the cache line in the current cache as "not dirty";
+  write_through = 4,
+
+  /// load: cache data to cache using the evict-first policy to minimize cache
+  /// pollution caused by temporary streaming data that may only be accessed
+  /// once or twice;
+  /// store/atomic: same as write-through, but use the evict-first policy
+  /// to limit cache pollution by streaming;
+  streaming = 5,
+
+  /// load: asserts that the cache line containing the data will not be read
+  /// again until it’s overwritten, therefore the load operation can invalidate
+  /// the cache line and discard "dirty" data. If the assertion is violated
+  /// (the cache line is read again) then behavior is undefined.
+  read_invalidate = 6,
+
+  // TODO: Implement the verification of this enum in check_cache_hint().
+  /// load, L2 cache only, next gen GPU after Xe required: asserts that
+  /// the L2 cache line containing the data will not be written until all
+  /// invocations of the shader or kernel execution are finished.
+  /// If the assertion is violated (the cache line is written), the behavior
+  /// is undefined.
+  const_cached = 7
+};
 
 template <typename PropertiesT>
 class properties
@@ -59,17 +103,23 @@ template <int K> inline constexpr alignment_key::value_t<K> alignment;
 /// L2 cache hint property must be used for the old/experimental LSC L3 cache
 /// hints.
 /// L3 cache property is reserved for future devices.
-struct cache_hint_L1_key {
+struct cache_hint_L1_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::ESIMDL1CacheHint> {
   template <cache_hint Hint>
   using value_t = ext::oneapi::experimental::property_value<
       cache_hint_L1_key, std::integral_constant<cache_hint, Hint>>;
 };
-struct cache_hint_L2_key {
+struct cache_hint_L2_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::ESIMDL2CacheHint> {
   template <cache_hint Hint>
   using value_t = ext::oneapi::experimental::property_value<
       cache_hint_L2_key, std::integral_constant<cache_hint, Hint>>;
 };
-struct cache_hint_L3_key {
+struct cache_hint_L3_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::ESIMDL3CacheHint> {
   template <cache_hint Hint>
   using value_t = ext::oneapi::experimental::property_value<
       cache_hint_L3_key, std::integral_constant<cache_hint, Hint>>;
@@ -104,12 +154,18 @@ using default_cache_hint_L2 = cache_hint_L2_key::value_t<cache_hint::none>;
 using default_cache_hint_L3 = cache_hint_L3_key::value_t<cache_hint::none>;
 
 namespace detail {
+
+template <typename PropsT>
+using is_property_list = ext::oneapi::experimental::is_property_list<PropsT>;
+
+template <typename PropsT>
+inline constexpr bool is_property_list_v = is_property_list<PropsT>::value;
+
 /// Helper-function that returns the value of the compile time property `KeyT`
 /// if `PropertiesT` includes it. If it does not then the default value
 /// \p DefaultValue is returned.
 template <typename PropertiesT, typename KeyT, typename KeyValueT,
-          typename = std::enable_if_t<
-              ext::oneapi::experimental::is_property_list_v<PropertiesT>>>
+          typename = std::enable_if_t<is_property_list_v<PropertiesT>>>
 constexpr auto getPropertyValue(KeyValueT DefaultValue) {
   if constexpr (!PropertiesT::template has_property<KeyT>()) {
     return DefaultValue;
@@ -123,8 +179,77 @@ constexpr auto getPropertyValue(KeyValueT DefaultValue) {
     return ValueT.value;
   }
 }
-} // namespace detail
 
+/// This helper returns the ext::oneapi::experimental::properties class for
+/// ext::oneapi::experimental::properties and it's child in esimd namespace.
+template <typename PropertiesT> struct get_ext_oneapi_properties;
+template <typename PropertiesT>
+struct get_ext_oneapi_properties<
+    ext::oneapi::experimental::properties<PropertiesT>> {
+  using type = ext::oneapi::experimental::properties<PropertiesT>;
+};
+template <typename PropertiesT>
+struct get_ext_oneapi_properties<properties<PropertiesT>> {
+  using type = ext::oneapi::experimental::properties<PropertiesT>;
+};
+
+/// Simply returns 'PropertyListT' as it already has the alignment property.
+template <typename PropertyListT, size_t Alignment, bool HasAlignment = true>
+struct add_alignment_property_helper {
+  using type = PropertyListT;
+};
+/// Returns a new property list type that contains the properties from
+/// 'PropertyListT' and the newly added alignment property.
+template <typename PropertyListT, size_t Alignment>
+struct add_alignment_property_helper<PropertyListT, Alignment, false> {
+  using ExpPropertyListT =
+      typename get_ext_oneapi_properties<PropertyListT>::type;
+  using AlignmentPropList =
+      typename ext::oneapi::experimental::detail::properties_t<
+          alignment_key::value_t<Alignment>>;
+
+  using type =
+      ext::oneapi::experimental::detail::merged_properties_t<ExpPropertyListT,
+                                                             AlignmentPropList>;
+};
+
+// Creates and adds a compile-time property 'alignment<Alignment>' if
+// the given property list 'PropertyListT' does not yet have the 'alignment'
+// property in it.
+template <typename PropertyListT, size_t Alignment>
+class add_alignment_property {
+  using ExpPropertyListT =
+      typename get_ext_oneapi_properties<PropertyListT>::type;
+
+public:
+  using type = typename add_alignment_property_helper<
+      ExpPropertyListT, Alignment,
+      ExpPropertyListT::template has_property<alignment_key>()>::type;
+};
+template <typename PropertyListT, size_t Alignment>
+using add_alignment_property_t =
+    typename add_alignment_property<PropertyListT, Alignment>::type;
+
+// Creates the type for the list of L1, L2, and alignment properties.
+template <cache_hint L1H, cache_hint L2H, size_t Alignment>
+struct make_L1_L2_alignment_properties {
+  using type = ext::oneapi::experimental::detail::properties_t<
+      alignment_key::value_t<Alignment>, cache_hint_L1_key::value_t<L1H>,
+      cache_hint_L2_key::value_t<L2H>>;
+};
+template <cache_hint L1H, cache_hint L2H, size_t Alignment>
+using make_L1_L2_alignment_properties_t =
+    typename make_L1_L2_alignment_properties<L1H, L2H, Alignment>::type;
+
+// Creates the type for the list of L1 and L2 properties.
+template <cache_hint L1H, cache_hint L2H> struct make_L1_L2_properties {
+  using type = ext::oneapi::experimental::detail::properties_t<
+      cache_hint_L1_key::value_t<L1H>, cache_hint_L2_key::value_t<L2H>>;
+};
+template <cache_hint L1H, cache_hint L2H>
+using make_L1_L2_properties_t = typename make_L1_L2_properties<L1H, L2H>::type;
+
+} // namespace detail
 } // namespace ext::intel::esimd
 
 namespace ext::oneapi::experimental {
@@ -151,45 +276,17 @@ struct property_value<__ESIMD_NS::cache_hint_L3_key,
   static constexpr __ESIMD_NS::cache_hint hint = Hint;
 };
 
-template <>
-struct is_property_key<sycl::ext::intel::esimd::cache_hint_L1_key>
-    : std::true_type {};
-template <>
-struct is_property_key<sycl::ext::intel::esimd::cache_hint_L2_key>
-    : std::true_type {};
-template <>
-struct is_property_key<sycl::ext::intel::esimd::cache_hint_L3_key>
-    : std::true_type {};
-
 // Declare that esimd::properties is a property_list.
 template <typename... PropertyValueTs>
 struct is_property_list<__ESIMD_NS::properties<std::tuple<PropertyValueTs...>>>
     : is_property_list<properties<std::tuple<PropertyValueTs...>>> {};
 
 namespace detail {
-template <> struct PropertyToKind<sycl::ext::intel::esimd::cache_hint_L1_key> {
-  static constexpr PropKind Kind = PropKind::ESIMDL1CacheHint;
-};
-template <> struct PropertyToKind<sycl::ext::intel::esimd::cache_hint_L2_key> {
-  static constexpr PropKind Kind = PropKind::ESIMDL2CacheHint;
-};
-template <> struct PropertyToKind<sycl::ext::intel::esimd::cache_hint_L3_key> {
-  static constexpr PropKind Kind = PropKind::ESIMDL3CacheHint;
-};
-
-template <>
-struct IsCompileTimeProperty<__ESIMD_NS::cache_hint_L1_key> : std::true_type {};
-template <>
-struct IsCompileTimeProperty<__ESIMD_NS::cache_hint_L2_key> : std::true_type {};
-template <>
-struct IsCompileTimeProperty<__ESIMD_NS::cache_hint_L3_key> : std::true_type {};
-
 // We do not override the class ConflictingProperties for cache_hint properties
 // because that mechanism would only allow to verify few obvious restrictions
 // without the knowledge of the context in which the cache_hint properties are
 // used (load, store, prefetch, atomic). Thus the function
 // __ESIMD_DNS::check_cache_hint() is used to verify correctness of properties.
-
 } // namespace detail
 } // namespace ext::oneapi::experimental
 } // namespace _V1

@@ -290,8 +290,10 @@ areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
     // Events that don't have an initialized context are throwaway events that
     // don't represent actual dependencies. Calling getContextImpl() would set
     // their context, which we wish to avoid as it is expensive.
-    if (!SyclEventImplPtr->isContextInitialized() &&
-        !SyclEventImplPtr->is_host()) {
+    // NOP events also don't represent actual dependencies.
+    if ((!SyclEventImplPtr->isContextInitialized() &&
+         !SyclEventImplPtr->is_host()) ||
+        SyclEventImplPtr->isNOP()) {
       return true;
     }
     if (SyclEventImplPtr->is_host()) {
@@ -510,11 +512,16 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 
   std::vector<EventImplPtr> StreamsServiceEvents;
   {
-    std::lock_guard<std::mutex> Lock(MMutex);
+    std::lock_guard<std::mutex> Lock(MStreamsServiceEventsMutex);
     StreamsServiceEvents.swap(MStreamsServiceEvents);
   }
   for (const EventImplPtr &Event : StreamsServiceEvents)
     Event->wait(Event);
+
+  // If there is an external event set, we need to wait on it.
+  std::optional<event> ExternalEvent = popExternalEvent();
+  if (ExternalEvent)
+    ExternalEvent->wait();
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);

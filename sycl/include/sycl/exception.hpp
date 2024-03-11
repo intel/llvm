@@ -74,11 +74,21 @@ public:
 
   exception(std::error_code, const char *Msg);
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  exception(std::error_code Ec, const std::string &Msg)
+      : exception(Ec, nullptr, Msg.c_str()) {}
+#else
   exception(std::error_code, const std::string &Msg);
+#endif
 
   // new SYCL 2020 constructors
   exception(std::error_code);
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  exception(int EV, const std::error_category &ECat, const std::string &WhatArg)
+      : exception(EV, ECat, WhatArg.c_str()) {}
+#else
   exception(int, const std::error_category &, const std::string &);
+#endif
   exception(int, const std::error_category &, const char *);
   exception(int, const std::error_category &);
 
@@ -111,13 +121,13 @@ private:
 
 protected:
   // base constructors used by SYCL 1.2.1 exception subclasses
-  exception(std::error_code ec, const char *Msg, const pi_int32 PIErr,
+  exception(std::error_code Ec, const char *Msg, const pi_int32 PIErr,
             std::shared_ptr<context> Context = nullptr)
-      : exception(ec, std::string(Msg), PIErr, Context) {}
+      : exception(Ec, std::string(Msg), PIErr, Context) {}
 
-  exception(std::error_code ec, const std::string &Msg, const pi_int32 PIErr,
+  exception(std::error_code Ec, const std::string &Msg, const pi_int32 PIErr,
             std::shared_ptr<context> Context = nullptr)
-      : exception(ec, Context, Msg + " " + detail::codeToString(PIErr)) {
+      : exception(Ec, Context, Msg + " " + detail::codeToString(PIErr)) {
     MPIErr = PIErr;
   }
 
@@ -125,10 +135,18 @@ protected:
       : MMsg(std::make_shared<std::string>(Msg)), MContext(nullptr) {}
 
   // base constructor for all SYCL 2020 constructors
-  // exception(context *ctxPtr, std::error_code ec, const std::string
+  // exception(context *ctxPtr, std::error_code Ec, const std::string
   // &what_arg);
-  exception(std::error_code ec, std::shared_ptr<context> SharedPtrCtx,
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
+            const std::string &what_arg)
+      : exception(Ec, SharedPtrCtx, what_arg.c_str()) {}
+  exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
+            const char *WhatArg);
+#else
+  exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
             const std::string &what_arg);
+#endif
 };
 
 class __SYCL2020_DEPRECATED(
@@ -143,12 +161,12 @@ public:
   runtime_error(const std::string &Msg, pi_int32 Err)
       : exception(make_error_code(errc::runtime), Msg, Err) {}
 
-  runtime_error(std::error_code ec, const std::string &Msg,
+  runtime_error(std::error_code Ec, const std::string &Msg,
                 const pi_int32 PIErr)
-      : exception(ec, Msg, PIErr) {}
+      : exception(Ec, Msg, PIErr) {}
 
 protected:
-  runtime_error(std::error_code ec) : exception(ec) {}
+  runtime_error(std::error_code Ec) : exception(Ec) {}
 };
 
 class __SYCL2020_DEPRECATED("use sycl::exception with sycl::errc::kernel or "
@@ -230,10 +248,10 @@ public:
       : exception(make_error_code(errc::invalid), Msg, Err) {}
 
 protected:
-  device_error(std::error_code ec) : exception(ec) {}
+  device_error(std::error_code Ec) : exception(Ec) {}
 
-  device_error(std::error_code ec, const std::string &Msg, const pi_int32 PIErr)
-      : exception(ec, Msg, PIErr) {}
+  device_error(std::error_code Ec, const std::string &Msg, const pi_int32 PIErr)
+      : exception(Ec, Msg, PIErr) {}
 };
 
 class __SYCL2020_DEPRECATED(
