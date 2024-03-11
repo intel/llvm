@@ -393,7 +393,7 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_submit>(
   }
 
   if (auto ExecGraphSP = MExecGraph.lock()) {
-    // check if the node belongs to the graph.
+    // Check if the node belongs to the graph.
     try {
       ExecGraphSP->getSyncPointFromNode(NodeImpl);
     } catch (...) {

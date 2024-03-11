@@ -1223,7 +1223,7 @@ private:
   std::vector<std::shared_ptr<partition>> MPartitions;
   /// Storage for copies of nodes from the original modifiable graph.
   std::vector<std::shared_ptr<node_impl>> MNodeStorage;
-  /// Map of original modifiable nodes (keys) to new duplicated nodes (values)
+  /// Map of original modifiable nodes (keys) to new duplicated nodes (values).
   std::map<std::shared_ptr<node_impl>, std::shared_ptr<node_impl>> NodesMap;
 };
 

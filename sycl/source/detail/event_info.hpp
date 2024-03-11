@@ -39,7 +39,7 @@ get_event_profiling_info(sycl::detail::pi::PiEvent Event,
   static_assert(is_event_profiling_info_desc<Param>::value,
                 "Unexpected event profiling info descriptor");
   typename Param::return_type Result{0};
-  // TODO catch an exception and put it to list of asynchronous exceptions
+  // TODO catch an exception and put it to list of asynchronous exceptions.
   Plugin->call<PiApiKind::piextSyncPointGetProfilingInfo>(
       Event, SyncPoint, PiInfoCode<Param>::value, sizeof(Result), &Result,
       nullptr);

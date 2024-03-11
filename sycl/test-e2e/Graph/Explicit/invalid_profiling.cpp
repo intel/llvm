@@ -32,7 +32,7 @@ int main() {
   BufferB.set_write_back(false);
   BufferC.set_write_back(false);
   {
-    // kernel launch
+    // Kernel launch.
     exp_ext::command_graph KernelGraph{
         Queue.get_context(),
         Queue.get_device(),
