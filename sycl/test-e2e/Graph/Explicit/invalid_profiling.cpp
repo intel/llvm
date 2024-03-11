@@ -48,12 +48,12 @@ int main() {
 
     auto KernelGraphExec = KernelGraph.finalize();
 
-    // Run graphs
+    // Run graphs.
     auto GraphEvent = Queue.submit(
         [&](handler &CGH) { CGH.ext_oneapi_graph(KernelGraphExec); });
     Queue.wait_and_throw();
 
-    // get Submit timestamp should NOT work
+    // Get Submit timestamp should NOT work.
     std::error_code ExceptionCode = make_error_code(sycl::errc::success);
     try {
       auto Submit = GraphEvent.get_profiling_info<
@@ -62,7 +62,7 @@ int main() {
       ExceptionCode = Exception.code();
     }
     assert(ExceptionCode == sycl::errc::invalid);
-    // get Start timestamp should NOT work
+    // Get Start timestamp should NOT work.
     ExceptionCode = make_error_code(sycl::errc::success);
     try {
       auto Start =
@@ -72,7 +72,7 @@ int main() {
       ExceptionCode = Exception.code();
     }
     assert(ExceptionCode == sycl::errc::invalid);
-    // get End timestamp should NOT work
+    // Get End timestamp should NOT work.
     ExceptionCode = make_error_code(sycl::errc::success);
     try {
       auto End =
@@ -83,7 +83,7 @@ int main() {
     }
     assert(ExceptionCode == sycl::errc::invalid);
 
-    // get Submit timestamp should NOT work
+    // Get Submit timestamp should NOT work.
     ExceptionCode = make_error_code(sycl::errc::success);
     try {
       auto NodeSubmit = GraphEvent.ext_oneapi_get_profiling_info<
@@ -92,7 +92,7 @@ int main() {
       ExceptionCode = Exception.code();
     }
     assert(ExceptionCode == sycl::errc::invalid);
-    // get Start timestamp should NOT work
+    // Get Start timestamp should NOT work.
     ExceptionCode = make_error_code(sycl::errc::success);
     try {
       auto NodeStart = GraphEvent.ext_oneapi_get_profiling_info<
@@ -101,7 +101,7 @@ int main() {
       ExceptionCode = Exception.code();
     }
     assert(ExceptionCode == sycl::errc::invalid);
-    // get End timestamp should NOT work
+    // Get End timestamp should NOT work.
     ExceptionCode = make_error_code(sycl::errc::success);
     try {
       auto NodeEnd = GraphEvent.ext_oneapi_get_profiling_info<
@@ -116,19 +116,19 @@ int main() {
         Queue.get_device(),
         {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
 
-    // Add nodes
+    // Add nodes.
     auto SecondGraphNodes =
         add_kernels(SecondGraph, Size, BufferA, BufferB, BufferC);
 
     auto SecondGraphExec = SecondGraph.finalize();
 
-    // Run graphs
+    // Run graphs.
     auto SecondGraphEvent = Queue.submit(
         [&](handler &CGH) { CGH.ext_oneapi_graph(SecondGraphExec); });
     Queue.wait_and_throw();
 
     // Query profiling of a node that do not belong to the executed graph.
-    // get Submit timestamp should NOT work
+    // Get Submit timestamp should NOT work.
     ExceptionCode = make_error_code(sycl::errc::success);
     try {
       auto NodeSubmit = SecondGraphEvent.ext_oneapi_get_profiling_info<
@@ -137,7 +137,7 @@ int main() {
       ExceptionCode = Exception.code();
     }
     assert(ExceptionCode == sycl::errc::invalid);
-    // get Start timestamp should NOT work
+    // Get Start timestamp should NOT work.
     ExceptionCode = make_error_code(sycl::errc::success);
     try {
       auto NodeStart = SecondGraphEvent.ext_oneapi_get_profiling_info<
@@ -146,7 +146,7 @@ int main() {
       ExceptionCode = Exception.code();
     }
     assert(ExceptionCode == sycl::errc::invalid);
-    // get End timestamp should NOT work
+    // Get End timestamp should NOT work.
     ExceptionCode = make_error_code(sycl::errc::success);
     try {
       auto NodeEnd = SecondGraphEvent.ext_oneapi_get_profiling_info<

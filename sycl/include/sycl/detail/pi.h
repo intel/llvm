@@ -2607,7 +2607,7 @@ piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer, pi_queue queue,
 /// The sync-point passed in parameter corresponds therefore to the node from
 /// which we want to get the profiling information. returns an error if the node
 /// is found.
-/// \param event PI event that has been return from the command-buffer
+/// \param event PI event that has been returned from the command-buffer
 /// submission.
 /// \param sync_point The sync-point corresponding to the node from which
 /// we want to get the profiling information.

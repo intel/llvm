@@ -101,7 +101,7 @@ int main() {
   BufferA.set_write_back(false);
   BufferB.set_write_back(false);
   BufferC.set_write_back(false);
-  { // buffer copy
+  { // Buffer copy.
     exp_ext::command_graph CopyGraph{
         Queue.get_context(),
         Queue.get_device(),
@@ -115,7 +115,7 @@ int main() {
       Cgh.copy(AccessorFrom, AccessorTo);
     });
 
-    // kernel launch
+    // Kernel launch.
     exp_ext::command_graph KernelGraph{
         Queue.get_context(),
         Queue.get_device(),
@@ -127,7 +127,7 @@ int main() {
     auto KernelGraphExec = KernelGraph.finalize();
 
     event CopyEvent, KernelEvent1, KernelEvent2;
-    // Run graphs
+    // Run graphs.
 #if GRAPH_TESTS_VERBOSE_PRINT
     auto StartCopyGraph = std::chrono::high_resolution_clock::now();
 #endif
@@ -191,7 +191,7 @@ int main() {
     assert((CopyStart == NodeCopyStart) && "Copy start times differ");
     assert((CopyEnd == NodeCopyEnd) && "Copy end times differ");
 
-    // Check first execution
+    // Check first execution.
 
     auto Submit =
         KernelEvent1
@@ -221,13 +221,13 @@ int main() {
       GlobalRuntime += (NodeEnd[i] - NodeStart[i]);
     }
 
-    // submit time should be all the same
+    // Submit time should be all the same.
     assert((Submit == NodeSubmit[0]) && "Submit times differ");
     assert((Submit == NodeSubmit[1]) && "Submit times differ");
     assert((Submit == NodeSubmit[2]) && "Submit times differ");
     assert((Submit == NodeSubmit[3]) && "Submit times differ");
 
-    // check start timestamps order
+    // Check start timestamps order.
     assert((Start == NodeStart[0]) &&
            "Graph timestamp and First node timestamp differ");
     assert(NodeStart[0] < NodeStart[1]);
@@ -258,7 +258,7 @@ int main() {
     // Checks profiling times for two executions of the same graph.
     assert(compareProfiling(KernelEvent1, KernelEvent2));
 
-    // Check second execution
+    // Check second execution.
     auto Submit2 =
         KernelEvent2
             .get_profiling_info<sycl::info::event_profiling::command_submit>();
@@ -287,13 +287,13 @@ int main() {
       GlobalRuntime2 += (NodeEnd2[i] - NodeStart2[i]);
     }
 
-    // submit time should be all the same
+    // Submit time should be all the same.
     assert((Submit2 == NodeSubmit2[0]) && "Submit times differ");
     assert((Submit2 == NodeSubmit2[1]) && "Submit times differ");
     assert((Submit2 == NodeSubmit2[2]) && "Submit times differ");
     assert((Submit2 == NodeSubmit2[3]) && "Submit times differ");
 
-    // check start timestamps order
+    // Check start timestamps order.
     assert((Start2 == NodeStart2[0]) &&
            "Graph timestamp and First node timestamp differ");
     assert(NodeStart2[0] < NodeStart2[1]);

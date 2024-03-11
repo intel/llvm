@@ -16,7 +16,7 @@ int main() {
     return 0;
   }
 
-  // We do not excpeted to get exception with level-zero backend since node
+  // We do not expect to get exception with level-zero backend since node
   // profiling is supported by this backend.
   if (Dev.get_backend() == backend::ext_oneapi_level_zero) {
     return 0;
@@ -37,7 +37,7 @@ int main() {
   BufferB.set_write_back(false);
   BufferC.set_write_back(false);
   {
-    // kernel launch
+    // Kernel launch.
     exp_ext::command_graph KernelGraph{
         Queue.get_context(),
         Queue.get_device(),
@@ -47,12 +47,12 @@ int main() {
 
     auto KernelGraphExec = KernelGraph.finalize();
 
-    // Run graphs
+    // Run graphs.
     auto KernelEvent = Queue.submit(
         [&](handler &CGH) { CGH.ext_oneapi_graph(KernelGraphExec); });
     Queue.wait_and_throw();
 
-    // get Submit timestamp should NOT work for backend other than level-zero
+    // Get Submit timestamp should NOT work for backend other than level-zero.
     std::error_code ExceptionCode = make_error_code(sycl::errc::success);
     try {
       auto NodeSubmit = KernelEvent.ext_oneapi_get_profiling_info<
@@ -61,7 +61,7 @@ int main() {
       ExceptionCode = Exception.code();
     }
     assert(ExceptionCode == sycl::errc::invalid);
-    // get Start timestamp should NOT work for backend other than level-zero
+    // Get Start timestamp should NOT work for backend other than level-zero.
     ExceptionCode = make_error_code(sycl::errc::success);
     try {
       auto NodeStart = KernelEvent.ext_oneapi_get_profiling_info<
@@ -70,7 +70,7 @@ int main() {
       ExceptionCode = Exception.code();
     }
     assert(ExceptionCode == sycl::errc::invalid);
-    // get End timestamp should NOT work for backend other than level-zero
+    // Get End timestamp should NOT work for backend other than level-zero.
     ExceptionCode = make_error_code(sycl::errc::success);
     try {
       auto NodeEnd = KernelEvent.ext_oneapi_get_profiling_info<
