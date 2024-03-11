@@ -116,14 +116,15 @@ jobs:
       working-directory: ${{github.workspace}}/build
       run: ctest -C ${{matrix.build_type}} --output-on-failure -L "umf|loader|validation|tracing|unit|urtrace"
 
-  fuzztest-build:
-    name: Build and run quick fuzztest scenarios
+  fuzztest-build-hw:
+    name: Build and run quick fuzztest scenarios on L0 HW
+    if: github.repository == 'oneapi-src/unified-runtime'  # run only on upstream; forks won't have the HW
     strategy:
       matrix:
         build_type: [Debug, Release]
         compiler: [{c: clang, cxx: clang++}]
 
-    runs-on: 'ubuntu-22.04'
+    runs-on: 'FUZZTESTS'
 
     steps:
     - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
@@ -133,13 +134,19 @@ jobs:
 
     - name: Download DPC++
       run: |
-        sudo apt install libncurses5
         wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/sycl-nightly%2F20230626/dpcpp-compiler.tar.gz
         tar -xvf ${{github.workspace}}/dpcpp_compiler.tar.gz
 
     - name: Setup DPC++
       run: |
         source ${{github.workspace}}/dpcpp_compiler/startup.sh
+
+    - name: Build level zero
+      run: |
+        git clone -b v1.17.6 --depth=1 https://github.com/oneapi-src/level-zero.git ${{github.workspace}}/level-zero
+        cd ${{github.workspace}}/level-zero
+        cmake -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++
+        cmake --build build -j $(nproc)
 
     - name: Configure CMake
       run: >
@@ -152,7 +159,11 @@ jobs:
         -DUR_BUILD_TESTS=ON
         -DUR_USE_ASAN=ON
         -DUR_USE_UBSAN=ON
+        -DUR_BUILD_ADAPTER_L0=ON
+        -DUR_LEVEL_ZERO_LOADER_LIBRARY=${{github.workspace}}/level-zero/build/lib/libze_loader.so
+        -DUR_LEVEL_ZERO_INCLUDE_DIR=${{github.workspace}}/level-zero/include/
         -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
+        -DUR_SYCL_LIBRARY_DIR=${{github.workspace}}/dpcpp_compiler/lib
 
     - name: Build
       run: cmake --build ${{github.workspace}}/build -j $(nproc)
@@ -160,6 +171,10 @@ jobs:
     - name: Fuzz test
       working-directory: ${{github.workspace}}/build
       run: ctest -C ${{matrix.build_type}} --output-on-failure -L "fuzz-short" --verbose
+      
+    - name: Get information about platform
+      if: ${{ always() }}
+      run: .github/scripts/get_system_info.sh
 
   level-zero:
     name: Level Zero
