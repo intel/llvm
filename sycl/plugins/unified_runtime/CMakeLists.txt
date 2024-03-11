@@ -63,7 +63,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date: Fri Jan 12 16:14:44 2024 +0000
   #     Merge pull request #1186 from hdelan/device-global-hip
   #     [HIP] Add support for global variable read write
-  set(UNIFIED_RUNTIME_TAG cb37f2d169b375bf15258618a2aae1a33ae2ffe7)
+  set(UNIFIED_RUNTIME_TAG a07b0ed5f7d263a6fbbd1c75d9a8cd18d09329a2)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
