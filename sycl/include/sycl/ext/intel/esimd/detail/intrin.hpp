@@ -17,7 +17,6 @@
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 #include <sycl/ext/intel/esimd/detail/util.hpp>
 
-#include <assert.h>
 #include <cstdint>
 
 // \brief __esimd_rdregion: region access intrinsic.
@@ -66,12 +65,13 @@ template <typename T, int N, int M, int VStride, int Width, int Stride,
           int ParentWidth = 0>
 __ESIMD_INTRIN std::enable_if_t<(Width > 0) && M % Width == 0,
                                 __ESIMD_DNS::vector_type_t<T, M>>
-__esimd_rdregion(__ESIMD_DNS::vector_type_t<T, N> Input, uint16_t Offset);
+__esimd_rdregion(__ESIMD_DNS::vector_type_t<T, N> Input,
+                 uint16_t Offset) __ESIMD_INTRIN_END;
 
 template <typename T, int N, int M, int ParentWidth = 0>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<T, M>
-__esimd_rdindirect(__ESIMD_DNS::vector_type_t<T, N> Input,
-                   __ESIMD_DNS::vector_type_t<uint16_t, M> Offset);
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<T, M> __esimd_rdindirect(
+    __ESIMD_DNS::vector_type_t<T, N> Input,
+    __ESIMD_DNS::vector_type_t<uint16_t, M> Offset) __ESIMD_INTRIN_END;
 
 // __esimd_wrregion returns the updated vector with the region updated.
 //
@@ -125,14 +125,16 @@ __ESIMD_INTRIN std::enable_if_t<M <= N && (Width > 0) && M % Width == 0,
                                 __ESIMD_DNS::vector_type_t<T, N>>
 __esimd_wrregion(__ESIMD_DNS::vector_type_t<T, N> OldVal,
                  __ESIMD_DNS::vector_type_t<T, M> NewVal, uint16_t Offset,
-                 __ESIMD_DNS::simd_mask_storage_t<M> Mask = 1);
+                 __ESIMD_DNS::simd_mask_storage_t<M> Mask = 1)
+    __ESIMD_INTRIN_END;
 
 template <typename T, int N, int M, int ParentWidth = 0>
 __ESIMD_INTRIN std::enable_if_t<M <= N, __ESIMD_DNS::vector_type_t<T, N>>
 __esimd_wrindirect(__ESIMD_DNS::vector_type_t<T, N> OldVal,
                    __ESIMD_DNS::vector_type_t<T, M> NewVal,
                    __ESIMD_DNS::vector_type_t<uint16_t, M> Offset,
-                   __ESIMD_DNS::simd_mask_storage_t<M> Mask = 1);
+                   __ESIMD_DNS::simd_mask_storage_t<M> Mask = 1)
+    __ESIMD_INTRIN_END;
 
 namespace sycl {
 inline namespace _V1 {
@@ -142,9 +144,9 @@ template <class T> using __st = __raw_t<T>;
 
 /// read from a basic region of a vector, return a vector
 template <typename BT, int BN, typename RTy>
-__ESIMD_DNS::vector_type_t<__st<typename RTy::element_type>,
-                           RTy::length> ESIMD_INLINE
-readRegion(const __ESIMD_DNS::vector_type_t<__st<BT>, BN> &Base, RTy Region) {
+__ESIMD_DNS::vector_type_t<__st<typename RTy::element_type>, RTy::length>
+    ESIMD_INLINE readRegion(
+        const __ESIMD_DNS::vector_type_t<__st<BT>, BN> &Base, RTy Region) {
   using ElemTy = __st<typename RTy::element_type>;
   auto Base1 = bitcast<ElemTy, __st<BT>, BN>(Base);
   constexpr int Bytes = BN * sizeof(BT);
@@ -220,137 +222,32 @@ ESIMD_INLINE
 //
 template <typename T, int N>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<T, N>
-__esimd_vload(const __ESIMD_DNS::vector_type_t<T, N> *ptr);
+__esimd_vload(const __ESIMD_DNS::vector_type_t<T, N> *ptr) __ESIMD_INTRIN_END;
 
 // vstore
 //
 // map to the backend vstore intrinsic, used by compiler to control
 // optimization on simd object
 template <typename T, int N>
-__ESIMD_INTRIN void __esimd_vstore(__ESIMD_DNS::vector_type_t<T, N> *ptr,
-                                   __ESIMD_DNS::vector_type_t<T, N> vals);
+__ESIMD_INTRIN void
+__esimd_vstore(__ESIMD_DNS::vector_type_t<T, N> *ptr,
+               __ESIMD_DNS::vector_type_t<T, N> vals) __ESIMD_INTRIN_END;
 
 template <typename T, int N>
 __ESIMD_INTRIN uint16_t __esimd_any(__ESIMD_DNS::vector_type_t<T, N> src)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  for (unsigned int i = 0; i != N; i++) {
-    if (src[i] != 0)
-      return 1;
-  }
-  return 0;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_INTRIN_END;
 
 template <typename T, int N>
 __ESIMD_INTRIN uint16_t __esimd_all(__ESIMD_DNS::vector_type_t<T, N> src)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  for (unsigned int i = 0; i != N; i++) {
-    if (src[i] == 0)
-      return 0;
-  }
-  return 1;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_INTRIN_END;
 
-#ifndef __SYCL_DEVICE_ONLY__
-
-// Implementations of ESIMD intrinsics for the SYCL host device
-template <typename T, int N, int M, int VStride, int Width, int Stride,
-          int ParentWidth>
-__ESIMD_INTRIN std::enable_if_t<(Width > 0) && M % Width == 0,
-                                __ESIMD_DNS::vector_type_t<T, M>>
-__esimd_rdregion(__ESIMD_DNS::vector_type_t<T, N> Input, uint16_t Offset) {
-  uint16_t EltOffset = Offset / sizeof(T);
-  assert(Offset % sizeof(T) == 0);
-
-  int NumRows = M / Width;
-  assert(M % Width == 0);
-
-  __ESIMD_DNS::vector_type_t<T, M> Result;
-  int Index = 0;
-  for (int i = 0; i < NumRows; ++i) {
-    for (int j = 0; j < Width; ++j) {
-      Result[Index++] = Input[i * VStride + j * Stride + EltOffset];
-    }
-  }
-  return Result;
-}
-
-template <typename T, int N, int M, int ParentWidth>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<T, M>
-__esimd_rdindirect(__ESIMD_DNS::vector_type_t<T, N> Input,
-                   __ESIMD_DNS::vector_type_t<uint16_t, M> Offset) {
-  __ESIMD_DNS::vector_type_t<T, M> Result;
-  for (int i = 0; i < M; ++i) {
-    uint16_t EltOffset = Offset[i] / sizeof(T);
-    assert(Offset[i] % sizeof(T) == 0);
-    assert(EltOffset < N);
-    Result[i] = Input[EltOffset];
-  }
-  return Result;
-}
-
-template <typename T, int N, int M, int VStride, int Width, int Stride,
-          int ParentWidth>
-__ESIMD_INTRIN std::enable_if_t<M <= N && (Width > 0) && M % Width == 0,
-                                __ESIMD_DNS::vector_type_t<T, N>>
-__esimd_wrregion(__ESIMD_DNS::vector_type_t<T, N> OldVal,
-                 __ESIMD_DNS::vector_type_t<T, M> NewVal, uint16_t Offset,
-                 __ESIMD_DNS::simd_mask_storage_t<M> Mask) {
-  uint16_t EltOffset = Offset / sizeof(T);
-  assert(Offset % sizeof(T) == 0);
-
-  int NumRows = M / Width;
-  assert(M % Width == 0);
-
-  __ESIMD_DNS::vector_type_t<T, N> Result = OldVal;
-  int Index = 0;
-  for (int i = 0; i < NumRows; ++i) {
-    for (int j = 0; j < Width; ++j) {
-      if (Mask[Index])
-        Result[i * VStride + j * Stride + EltOffset] = NewVal[Index];
-      ++Index;
-    }
-  }
-  return Result;
-}
-
-template <typename T, int N, int M, int ParentWidth>
-__ESIMD_INTRIN std::enable_if_t<M <= N, __ESIMD_DNS::vector_type_t<T, N>>
-__esimd_wrindirect(__ESIMD_DNS::vector_type_t<T, N> OldVal,
-                   __ESIMD_DNS::vector_type_t<T, M> NewVal,
-                   __ESIMD_DNS::vector_type_t<uint16_t, M> Offset,
-                   __ESIMD_DNS::simd_mask_storage_t<M> Mask) {
-  __ESIMD_DNS::vector_type_t<T, N> Result = OldVal;
-  for (int i = 0; i < M; ++i) {
-    if (Mask[i]) {
-      uint16_t EltOffset = Offset[i] / sizeof(T);
-      assert(Offset[i] % sizeof(T) == 0);
-      assert(EltOffset < N);
-      Result[EltOffset] = NewVal[i];
-    }
-  }
-  return Result;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-#ifdef __SYCL_DEVICE_ONLY__
 // This intrinsic requires one of the types to be _Float16, which is absent on
 // host, so it can't be represented on host. Callers must emulate it.
 template <class To, class From, int N>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<To, N>
-__esimd_bf_cvt(__ESIMD_DNS::vector_type_t<From, N> Val);
-#endif // __SYCL_DEVICE_ONLY__
+__esimd_bf_cvt(__ESIMD_DNS::vector_type_t<From, N> Val) __ESIMD_INTRIN_END;
 
-#ifdef __SYCL_DEVICE_ONLY__
 template <class To, class From, int N>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<To, N>
-__esimd_tf32_cvt(__ESIMD_DNS::vector_type_t<From, N> Val);
-#endif // __SYCL_DEVICE_ONLY__
-       /// @endcond ESIMD_DETAIL
+__esimd_tf32_cvt(__ESIMD_DNS::vector_type_t<From, N> Val) __ESIMD_INTRIN_END;
+/// @endcond ESIMD_DETAIL
