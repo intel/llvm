@@ -57,14 +57,14 @@
 // COMMON-PHASES: [[#OFFLOAD+1]]: compiler, {[[#OFFLOAD]]}, ir, (host-sycl)
 // COMMON-PHASES: [[#OFFLOAD+2]]: backend, {[[#OFFLOAD+1]]}, assembler, (host-sycl)
 // COMMON-PHASES: [[#OFFLOAD+3]]: assembler, {[[#OFFLOAD+2]]}, object, (host-sycl)
-// COMMON-PHASES: [[#OFFLOAD+4]]: linker, {[[#OFFLOAD+3]]}, image, (host-sycl)
-// COMMON-PHASES: [[#OFFLOAD+5]]: linker, {[[#DEVICE_IR]]}, ir, (device-sycl)
-// COMMON-PHASES: [[#OFFLOAD+6]]: sycl-post-link, {[[#OFFLOAD+5]]}, tempfiletable, (device-sycl)
-// COMMON-PHASES: [[#OFFLOAD+7]]: file-table-tform, {[[#OFFLOAD+6]]}, tempfilelist, (device-sycl)
-// COMMON-PHASES: [[#OFFLOAD+8]]: llvm-spirv, {[[#OFFLOAD+7]]}, tempfilelist, (device-sycl)
-// COMMON-PHASES: [[#OFFLOAD+9]]: file-table-tform, {[[#OFFLOAD+6]], [[#OFFLOAD+8]]}, tempfiletable, (device-sycl)
-// COMMON-PHASES: [[#OFFLOAD+10]]: clang-offload-wrapper, {[[#OFFLOAD+9]]}, object, (device-sycl)
-// COMMON-PHASES: [[#OFFLOAD+11]]: offload, "host-sycl (x86_64-{{.*}})" {[[#OFFLOAD+4]]}, "device-sycl (spir64-unknown-unknown)" {[[#OFFLOAD+10]]}, image
+// COMMON-PHASES: [[#OFFLOAD+4]]: linker, {[[#DEVICE_IR]]}, ir, (device-sycl)
+// COMMON-PHASES: [[#OFFLOAD+5]]: sycl-post-link, {[[#OFFLOAD+4]]}, tempfiletable, (device-sycl)
+// COMMON-PHASES: [[#OFFLOAD+6]]: file-table-tform, {[[#OFFLOAD+5]]}, tempfilelist, (device-sycl)
+// COMMON-PHASES: [[#OFFLOAD+7]]: llvm-spirv, {[[#OFFLOAD+6]]}, tempfilelist, (device-sycl)
+// COMMON-PHASES: [[#OFFLOAD+8]]: file-table-tform, {[[#OFFLOAD+5]], [[#OFFLOAD+7]]}, tempfiletable, (device-sycl)
+// COMMON-PHASES: [[#OFFLOAD+9]]: clang-offload-wrapper, {[[#OFFLOAD+8]]}, object, (device-sycl)
+// COMMON-PHASES: [[#OFFLOAD+10]]: offload, "device-sycl (spir64-unknown-unknown)" {[[#OFFLOAD+9]]}, object
+// COMMON-PHASES: [[#OFFLOAD+11]]: linker, {[[#OFFLOAD+3]], [[#OFFLOAD+10]]}, image, (host-sycl)
 
 /// Test for -fsycl-footer-path=<dir>
 // RUN:  %clangxx -fsycl -fsycl-footer-path=dummy_dir %s -### 2>&1 \
