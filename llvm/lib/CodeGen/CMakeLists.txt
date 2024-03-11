@@ -76,6 +76,7 @@ add_llvm_component_library(LLVMCodeGen
   IfConversion.cpp
   ImplicitNullChecks.cpp
   IndirectBrExpandPass.cpp
+  InitUndef.cpp
   InlineSpiller.cpp
   InterferenceCache.cpp
   InterleavedAccessPass.cpp
@@ -110,6 +111,7 @@ add_llvm_component_library(LLVMCodeGen
   MachineBranchProbabilityInfo.cpp
   MachineCFGPrinter.cpp
   MachineCombiner.cpp
+  MachineConvergenceVerifier.cpp
   MachineCopyPropagation.cpp
   MachineCSE.cpp
   MachineCheckDebugify.cpp

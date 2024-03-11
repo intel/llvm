@@ -18,7 +18,7 @@ endif()
 function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   # Add an optional argument so we can get the library name to
   # link with for Windows Debug version
-  cmake_parse_arguments(ARG "" "XPTI_LIB" "COMPILE_OPTIONS;SOURCES" ${ARGN})
+  cmake_parse_arguments(ARG "" "XPTI_LIB;IMPLIB_NAME" "COMPILE_OPTIONS;SOURCES" ${ARGN})
 
   add_library(${LIB_OBJ_NAME} OBJECT ${ARG_SOURCES})
   add_library(${LIB_NAME} SHARED
@@ -75,12 +75,12 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   if (WIN32)
     include_directories(${LLVM_EXTERNAL_SYCL_SOURCE_DIR}/pi_win_proxy_loader)
     if(WIN_DUPE)
-    target_link_libraries(${LIB_NAME} PUBLIC pi_win_proxy_loaderd)
+      target_link_libraries(${LIB_NAME} PUBLIC pi_win_proxy_loaderd)
       set(MANIFEST_FILE_NAME "sycld.manifest")
-  else()
-    target_link_libraries(${LIB_NAME} PUBLIC pi_win_proxy_loader)
+    else()
+      target_link_libraries(${LIB_NAME} PUBLIC pi_win_proxy_loader)
       set(MANIFEST_FILE_NAME "sycl.manifest")
-  endif()
+    endif()
     # Embed manifest into the sycl.dll where pi_win_proxy_loader.dll is described as sycl.dll's private dll and will always be loaded from the same directory.
     # 0x2000: LOAD_LIBRARY_SAFE_CURRENT_DIRS flag. Using this flag means that loading dependency DLLs (of sycl.dll)
     # from the current directory is only allowed if it is under a directory in the Safe load list.
@@ -92,6 +92,16 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   if (WIN32) 
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_BUILD_SYCL_DLL )
     target_link_libraries(${LIB_NAME} PRIVATE shlwapi)
+    if (ARG_IMPLIB_NAME)
+      add_custom_command(
+        TARGET ${LIB_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${LIB_NAME}.lib ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ARG_IMPLIB_NAME}.lib
+        COMMENT "Creating version-agnostic copy of the import library.")
+      install(
+        FILES ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${ARG_IMPLIB_NAME}.lib
+        DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT sycl)
+    endif()
   endif()
 
   if (MSVC)
@@ -277,14 +287,14 @@ if (MSVC)
 
   set(WIN_DUPE "1")
   if (SYCL_ENABLE_XPTI_TRACING)
-    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_NON_PREVIEW_SOURCES})
+    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_NON_PREVIEW_SOURCES} IMPLIB_NAME sycld)
     if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-      add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}-previewd sycl-previewd_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" "/D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES})
+      add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}-previewd sycl-previewd_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" "/D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES} IMPLIB_NAME sycl-previewd)
     endif()
   else()
-    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_NON_PREVIEW_SOURCES})
+    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_NON_PREVIEW_SOURCES} IMPLIB_NAME sycld)
     if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-      add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}-previewd sycl-previewd_object COMPILE_OPTIONS "/MDd" "/D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES})
+      add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}-previewd sycl-previewd_object COMPILE_OPTIONS "/MDd" "/D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES} IMPLIB_NAME sycl-previewd)
     endif()
   endif()
   unset(WIN_DUPE)
@@ -307,16 +317,18 @@ set(LIB_NAME "sycl${SYCL_MAJOR_VERSION}")
 else()
 set(LIB_NAME "sycl")
 endif()
+# Version-agnostic name of the import library, has effect on Windows only.
+set(IMPLIB_NAME "sycl")
 
 if (SYCL_ENABLE_XPTI_TRACING)
-  add_sycl_rt_library(${LIB_NAME} sycl_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS}  SOURCES ${SYCL_NON_PREVIEW_SOURCES})
+  add_sycl_rt_library(${LIB_NAME} sycl_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS}  SOURCES ${SYCL_NON_PREVIEW_SOURCES} IMPLIB_NAME ${IMPLIB_NAME})
   if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-    add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES})
+    add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES} IMPLIB_NAME ${IMPLIB_NAME}-preview)
   endif()
 else()
-  add_sycl_rt_library(${LIB_NAME} sycl_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_NON_PREVIEW_SOURCES})
+  add_sycl_rt_library(${LIB_NAME} sycl_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_NON_PREVIEW_SOURCES} IMPLIB_NAME ${IMPLIB_NAME})
   if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-    add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES})
+    add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES} IMPLIB_NAME ${IMPLIB_NAME}-preview)
   endif()
 endif()
 
