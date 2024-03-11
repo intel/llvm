@@ -1,6 +1,5 @@
 
-//==--- fallback_gsort_fp32.cpp - fallback implementation of group sort
-//-----==//
+//==------ fallback_gsort.cpp - fallback implementation of group sort-------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -446,61 +445,55 @@ void __devicelib_default_work_group_joint_sort_descending_p3f32_u32_p3i8(
   merge_sort(first, n, scratch, std::greater<float>{});
 }
 
+// TODO: split all f16 functions into separate libraries in case some platform
+// doesn't support native fp16
 //=============== default work grop joint sort for fp16 ======================
 DEVICE_EXTERN_C_INLINE
 void __devicelib_default_work_group_joint_sort_ascending_p1f16_u32_p1i8(
-    uint16_t *first, uint32_t n, uint8_t *scratch) {
-  merge_sort(first, n, scratch,
-             [](uint16_t a, uint16_t b) { return (fp16_comp(a, b) == -1); });
+    _Float16 *first, uint32_t n, uint8_t *scratch) {
+  merge_sort(first, n, scratch, [](_Float16 a, _Float16 b) { return (a < b); });
 }
 
 DEVICE_EXTERN_C_INLINE
 void __devicelib_default_work_group_joint_sort_ascending_p1f16_u32_p3i8(
-    uint16_t *first, uint32_t n, uint8_t *scratch) {
-  merge_sort(first, n, scratch,
-             [](uint16_t a, uint16_t b) { return (fp16_comp(a, b) == -1); });
+    _Float16 *first, uint32_t n, uint8_t *scratch) {
+  merge_sort(first, n, scratch, [](_Float16 a, _Float16 b) { return (a < b); });
 }
 
 DEVICE_EXTERN_C_INLINE
 void __devicelib_default_work_group_joint_sort_ascending_p3f16_u32_p1i8(
-    uint16_t *first, uint32_t n, uint8_t *scratch) {
-  merge_sort(first, n, scratch,
-             [](uint16_t a, uint16_t b) { return (fp16_comp(a, b) == -1); });
+    _Float16 *first, uint32_t n, uint8_t *scratch) {
+  merge_sort(first, n, scratch, [](_Float16 a, _Float16 b) { return (a < b); });
 }
 
 DEVICE_EXTERN_C_INLINE
 void __devicelib_default_work_group_joint_sort_ascending_p3f16_u32_p3i8(
-    uint16_t *first, uint32_t n, uint8_t *scratch) {
-  merge_sort(first, n, scratch,
-             [](uint16_t a, uint16_t b) { return (fp16_comp(a, b) == -1); });
+    _Float16 *first, uint32_t n, uint8_t *scratch) {
+  merge_sort(first, n, scratch, [](_Float16 a, _Float16 b) { return (a < b); });
 }
 
 DEVICE_EXTERN_C_INLINE
 void __devicelib_default_work_group_joint_sort_descending_p1f16_u32_p1i8(
-    uint16_t *first, uint32_t n, uint8_t *scratch) {
-  merge_sort(first, n, scratch,
-             [](uint16_t a, uint16_t b) { return (fp16_comp(a, b) == 1); });
+    _Float16 *first, uint32_t n, uint8_t *scratch) {
+  merge_sort(first, n, scratch, [](_Float16 a, _Float16 b) { return (a > b); });
 }
 
 DEVICE_EXTERN_C_INLINE
 void __devicelib_default_work_group_joint_sort_descending_p1f16_u32_p3i8(
-    uint16_t *first, uint32_t n, uint8_t *scratch) {
-  merge_sort(first, n, scratch,
-             [](uint16_t a, uint16_t b) { return (fp16_comp(a, b) == 1); });
+    _Float16 *first, uint32_t n, uint8_t *scratch) {
+  merge_sort(first, n, scratch, [](_Float16 a, _Float16 b) { return (a > b); });
 }
 
 DEVICE_EXTERN_C_INLINE
 void __devicelib_default_work_group_joint_sort_descending_p3f16_u32_p1i8(
-    uint16_t *first, uint32_t n, uint8_t *scratch) {
-  merge_sort(first, n, scratch,
-             [](uint16_t a, uint16_t b) { return (fp16_comp(a, b) == 1); });
+    _Float16 *first, uint32_t n, uint8_t *scratch) {
+  merge_sort(first, n, scratch, [](_Float16 a, _Float16 b) { return (a > b); });
 }
 
 DEVICE_EXTERN_C_INLINE
 void __devicelib_default_work_group_joint_sort_descending_p3f16_u32_p3i8(
-    uint16_t *first, uint32_t n, uint8_t *scratch) {
-  merge_sort(first, n, scratch,
-             [](uint16_t a, uint16_t b) { return (fp16_comp(a, b) == 1); });
+    _Float16 *first, uint32_t n, uint8_t *scratch) {
+  merge_sort(first, n, scratch, [](_Float16 a, _Float16 b) { return (a > b); });
 }
 
 //============ default work grop private sort for signed integer ==============
@@ -942,6 +935,64 @@ void __devicelib_default_work_group_private_sort_spread_descending_p1f32_u32_p3i
   private_merge_sort_spread(first, n, scratch, std::greater<float>{});
 }
 
+//================= default work grop private sort for fp16 ====================
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_close_ascending_p1f16_u32_p1i8(
+    _Float16 *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_close(first, n, scratch,
+                           [](_Float16 a, _Float16 b) { return (a < b); });
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_close_ascending_p1f16_u32_p3i8(
+    _Float16 *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_close(first, n, scratch,
+                           [](_Float16 a, _Float16 b) { return (a < b); });
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_close_descending_p1f16_u32_p1i8(
+    _Float16 *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_close(first, n, scratch,
+                           [](_Float16 a, _Float16 b) { return (a > b); });
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_close_descending_p1f16_u32_p3i8(
+    _Float16 *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_close(first, n, scratch,
+                           [](_Float16 a, _Float16 b) { return (a > b); });
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_spread_ascending_p1f16_u32_p1i8(
+    _Float16 *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_spread(first, n, scratch,
+                            [](_Float16 a, _Float16 b) { return (a < b); });
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_spread_ascending_p1f16_u32_p3i8(
+    _Float16 *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_spread(first, n, scratch,
+                            [](_Float16 a, _Float16 b) { return (a < b); });
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_spread_descending_p1f16_u32_p1i8(
+    _Float16 *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_spread(first, n, scratch,
+                            [](_Float16 a, _Float16 b) { return (a > b); });
+}
+
+DEVICE_EXTERN_C_INLINE
+void __devicelib_default_work_group_private_sort_spread_descending_p1f16_u32_p3i8(
+    _Float16 *first, uint32_t n, uint8_t *scratch) {
+  private_merge_sort_spread(first, n, scratch,
+                            [](_Float16 a, _Float16 b) { return (a > b); });
+}
+
 //============= default sub group private sort for signed integer =============
 DEVICE_EXTERN_C_INLINE
 int8_t
@@ -1006,6 +1057,14 @@ float __devicelib_default_sub_group_private_sort_ascending_f32(
 }
 
 DEVICE_EXTERN_C_INLINE
+_Float16
+__devicelib_default_sub_group_private_sort_ascending_f16(_Float16 value,
+                                                         uint8_t *scratch) {
+  return sub_group_merge_sort(value, scratch,
+                              [](_Float16 a, _Float16 b) { return (a < b); });
+}
+
+DEVICE_EXTERN_C_INLINE
 int8_t
 __devicelib_default_sub_group_private_sort_descending_i8(int8_t value,
                                                          uint8_t *scratch) {
@@ -1065,6 +1124,14 @@ DEVICE_EXTERN_C_INLINE
 float __devicelib_default_sub_group_private_sort_descending_f32(
     float value, uint8_t *scratch) {
   return sub_group_merge_sort(value, scratch, std::greater<float>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+_Float16
+__devicelib_default_sub_group_private_sort_descending_f16(_Float16 value,
+                                                          uint8_t *scratch) {
+  return sub_group_merge_sort(value, scratch,
+                              [](_Float16 a, _Float16 b) { return (a > b); });
 }
 
 #endif
