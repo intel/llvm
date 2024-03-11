@@ -1,15 +1,24 @@
-add_llvm_library(sycl-fusion-common
+add_library(sycl-fusion-common
   lib/NDRangesHelper.cpp
-
-  LINK_COMPONENTS
-   Support
 )
 
+llvm_map_components_to_libnames(llvm_libs
+  Support
+)
+
+target_compile_options(sycl-fusion-common PRIVATE ${SYCL_FUSION_WARNING_FLAGS})
+
+target_include_directories(sycl-fusion-common
+  SYSTEM PRIVATE
+  ${LLVM_MAIN_INCLUDE_DIR}
+)
 target_include_directories(sycl-fusion-common
   PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}/lib
 )
+
+target_link_libraries(sycl-fusion-common PRIVATE ${llvm_libs})
 
 if (BUILD_SHARED_LIBS)
   if(NOT MSVC AND NOT APPLE)

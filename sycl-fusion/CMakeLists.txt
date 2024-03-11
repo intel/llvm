@@ -9,6 +9,9 @@ set(SYCL_JIT_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 # directories, similar to how clang/CMakeLists.txt does it.
 set(LLVM_SPIRV_INCLUDE_DIRS "${LLVM_MAIN_SRC_DIR}/../llvm-spirv/include")
 
+# Set library-wide warning options.
+set(SYCL_FUSION_WARNING_FLAGS -Werror -Wall -Wextra)
+
 if(WIN32)
   message(WARNING "Kernel fusion not yet supported on Windows")
 else(WIN32)

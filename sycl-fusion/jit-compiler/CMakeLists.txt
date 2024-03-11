@@ -1,5 +1,5 @@
 
-add_llvm_library(sycl-fusion
+add_library(sycl-fusion
    lib/KernelFusion.cpp
    lib/translation/KernelTranslation.cpp
    lib/translation/SPIRVLLVMTranslation.cpp
@@ -8,11 +8,11 @@ add_llvm_library(sycl-fusion
    lib/fusion/JITContext.cpp
    lib/fusion/ModuleHelper.cpp
    lib/helper/ConfigHelper.cpp
+)
 
-   DEPENDS
-   intrinsics_gen
+add_dependencies(sycl-fusion intrinsics_gen)
 
-   LINK_COMPONENTS
+llvm_map_components_to_libnames(llvm_libs
    BitReader
    Core
    Support
@@ -29,6 +29,13 @@ add_llvm_library(sycl-fusion
    ${LLVM_TARGETS_TO_BUILD}
 )
 
+target_compile_options(sycl-fusion PRIVATE -fno-rtti ${SYCL_FUSION_WARNING_FLAGS})
+
+target_include_directories(sycl-fusion
+  SYSTEM PRIVATE
+  ${LLVM_MAIN_INCLUDE_DIR}
+  ${LLVM_SPIRV_INCLUDE_DIRS}
+)
 target_include_directories(sycl-fusion
   PUBLIC
   $<INSTALL_INTERFACE:include>
@@ -36,7 +43,6 @@ target_include_directories(sycl-fusion
   $<BUILD_INTERFACE:${SYCL_JIT_BASE_DIR}/common/include>
   PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/lib
-  ${LLVM_SPIRV_INCLUDE_DIRS}
 )
 
 find_package(Threads REQUIRED)
@@ -47,6 +53,7 @@ target_link_libraries(sycl-fusion
   LLVMSPIRVLib
   SYCLKernelFusionPasses
   ${CMAKE_THREAD_LIBS_INIT}
+  ${llvm_libs}
 )
 
 if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)

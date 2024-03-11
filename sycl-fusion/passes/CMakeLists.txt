@@ -1,5 +1,5 @@
 # Module library for usage as library/pass-plugin with LLVM opt.
-add_llvm_library(SYCLKernelFusion MODULE
+add_library(SYCLKernelFusion MODULE
   SYCLFusionPasses.cpp
   kernel-fusion/Builtins.cpp
   kernel-fusion/SYCLKernelFusion.cpp
@@ -9,11 +9,16 @@ add_llvm_library(SYCLKernelFusion MODULE
   cleanup/Cleanup.cpp
   debug/PassDebug.cpp
   target/TargetFusionInfo.cpp
-
-  DEPENDS
-  intrinsics_gen
 )
 
+add_dependencies(SYCLKernelFusion intrinsics_gen)
+
+target_compile_options(SYCLKernelFusion PRIVATE ${SYCL_FUSION_WARNING_FLAGS})
+
+target_include_directories(SYCLKernelFusion
+  SYSTEM PRIVATE
+  ${LLVM_MAIN_INCLUDE_DIR}
+)
 target_include_directories(SYCLKernelFusion
   PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
@@ -35,7 +40,7 @@ if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
 endif()
 
 # Static library for linking with the jit_compiler
-add_llvm_library(SYCLKernelFusionPasses
+add_library(SYCLKernelFusionPasses
   SYCLFusionPasses.cpp
   kernel-fusion/Builtins.cpp
   kernel-fusion/SYCLKernelFusion.cpp
@@ -45,11 +50,11 @@ add_llvm_library(SYCLKernelFusionPasses
   cleanup/Cleanup.cpp
   debug/PassDebug.cpp
   target/TargetFusionInfo.cpp
+)
 
-  DEPENDS
-  intrinsics_gen
+add_dependencies(SYCLKernelFusionPasses intrinsics_gen)
 
-  LINK_COMPONENTS
+llvm_map_components_to_libnames(llvm_libs
   Core
   Support
   TransformUtils
@@ -57,6 +62,12 @@ add_llvm_library(SYCLKernelFusionPasses
   TargetParser
 )
 
+target_compile_options(SYCLKernelFusionPasses PRIVATE -fno-rtti ${SYCL_FUSION_WARNING_FLAGS})
+
+target_include_directories(SYCLKernelFusionPasses
+  SYSTEM PRIVATE
+  ${LLVM_MAIN_INCLUDE_DIR}
+)
 target_include_directories(SYCLKernelFusionPasses
   PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
@@ -67,6 +78,7 @@ target_include_directories(SYCLKernelFusionPasses
 target_link_libraries(SYCLKernelFusionPasses
   PRIVATE
   sycl-fusion-common
+  ${llvm_libs}
 )
 
 if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)

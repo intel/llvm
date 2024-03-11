@@ -198,8 +198,7 @@ static bool needsGuard(const jit_compiler::NDRange &SrcNDRange,
 static FusionInsertPoints addGuard(IRBuilderBase &Builder,
                                    const TargetFusionInfo &TargetInfo,
                                    const jit_compiler::NDRange &SrcNDRange,
-                                   const jit_compiler::NDRange &FusedNDRange,
-                                   bool IsLast) {
+                                   const jit_compiler::NDRange &FusedNDRange) {
   // Guard:
 
   // entry:
@@ -240,8 +239,7 @@ static Expected<CallInst *> createFusionCall(
     const jit_compiler::NDRange &FusedNDRange, bool IsLast,
     jit_compiler::BarrierFlags BarriersFlags, jit_compiler::Remapper &Remapper,
     bool ShouldRemap, TargetFusionInfo &TargetInfo) {
-  const auto IPs =
-      addGuard(Builder, TargetInfo, SrcNDRange, FusedNDRange, IsLast);
+  const auto IPs = addGuard(Builder, TargetInfo, SrcNDRange, FusedNDRange);
 
   if (ShouldRemap) {
     auto FOrErr = Remapper.remapBuiltins(F, SrcNDRange, FusedNDRange);
