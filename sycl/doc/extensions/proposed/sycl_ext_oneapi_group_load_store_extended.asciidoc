@@ -28,7 +28,7 @@ permission by Khronos.
 
 == Dependencies
 
-This extension is written against the SYCL 2020 specification, Revision 6.
+This extension is written against the SYCL 2020 specification, Revision 8.
 All references below to the "core SYCL specification" or to section numbers in
 the SYCL specification refer to that revision.
 
