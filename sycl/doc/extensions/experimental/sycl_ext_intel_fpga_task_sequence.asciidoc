@@ -496,24 +496,26 @@ threads go through the following execution flow:
 These rules were chosen to provide the same guarantees as std::thread and match
 most programmers' intuition about how launching new threads should behave.
 
-- `async` is a *Release* operation scoped to include the kernel/task function
-that called it and the task thread that is created from it; No reads or writes
-in the kernel can be reordered after the creation of the task thread
+- `async` is an implicit `atomic_fence` with `memory_order::release` operation
+scoped to include the kernel/task_sequence that called it and the creation of
+task thread _T_; No reads or writes in the caller can be reordered after
+the creation of _T_
 
-- The beginning of a task thread _T_ is an *Acquire* operation scoped to include
-the kernel/task function that called `async` in order to create _T_ and _T_
-itself; no reads or writes in the task thread can be reordered before the start
-of the task thread.
+- The beginning of a task thread _T_ is an implicit `atomic_fence` with
+`memory_order::acquire` operation scoped to include the kernel/task_sequence
+that called `async` in order to create _T_ and _T_ itself; no reads or writes in
+_T_ can be reordered before the start of _T_.
 
-- The end of a task thread _T_ is a *Release* operation scoped to include _T_
-itself and the kernel/task that called `async` in order to create _T_; no reads
-or writes in the task thread can be reordered after the end of the task thread,
+- The end of a task thread _T_ is an implicit `atomic_fence` with
+`memory_order::release` operation scoped to include _T_ itself and the
+kernel/task_sequence that called `async` in order to create _T_; no reads
+or writes in the task thread can be reordered after the end of _T_,
 which is when the output is written to the output data structure _D_.
 
-- `get` is an *Acquire* operation scoped to include the task thread _T_ that is
-being retrieved by `get` and the kernel/task function that is calling `get`; no
-reads or writes in the kernel can be reordered before the retrieval of the
-return data for the particular task thread
+- `get` is an implicit `atomic_fence` with `memory_order::acquire` operation
+scoped to include the task thread _T_ that is being retrieved by `get` and the
+kernel/task_sequence that is calling `get`; no reads or writes in the caller can
+be reordered before the retrieval of the return data for _T_
 
 
 == Revision History
