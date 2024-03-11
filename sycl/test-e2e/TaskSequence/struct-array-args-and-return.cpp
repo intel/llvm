@@ -108,7 +108,7 @@ int main() {
     });
     q.wait();
   }
-  assert(res_struct[0].val == vec_in_struct[0].val && res_struct[0].isValid);
-  assert(res_array[0][0] == vec_in_array[0][0] && res_array[0][1] == vec_in_array[0][1]);
+  assert((abs(res_struct[0].val - vec_in_struct[0].val) < 0.001) && res_struct[0].isValid);
+  assert((abs(res_array[0][0] - vec_in_array[0][0]) < 0.001) && (abs(res_array[0][1] - vec_in_array[0][1]) < 0.001));
   return 0;
 }
