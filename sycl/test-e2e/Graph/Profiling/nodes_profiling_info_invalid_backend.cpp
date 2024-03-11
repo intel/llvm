@@ -12,10 +12,6 @@ int main() {
   device Dev;
   queue Queue{Dev, {sycl::property::queue::enable_profiling()}};
 
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
-
   // We do not expect to get exception with level-zero backend since node
   // profiling is supported by this backend.
   if (Dev.get_backend() == backend::ext_oneapi_level_zero) {
