@@ -1223,6 +1223,9 @@ template <>
 inline unsigned vectorized_isgreater<sycl::ushort2, unsigned>(unsigned a,
                                                               unsigned b);
 
+template <typename VecT>
+inline unsigned vectorized_sum_abs_diff(unsigned a, unsigned b);
+
 template <typename T>
 sycl::vec<T, 2> cmul(sycl::vec<T, 2> x, sycl::vec<T, 2> y);
 
@@ -1234,6 +1237,65 @@ template <typename T> T cabs(sycl::vec<T, 2> x);
 template <typename T> sycl::vec<T, 2> conj(sycl::vec<T, 2> x);
 
 template <typename ValueT> inline ValueT reverse_bits(ValueT a);
+```
+
+`vectorized_binary` computes the `BinaryOperation` for two operands,
+with each value treated as a vector type. `vectorized_unary` offers the same
+interface for operations with a single operand.
+The implemented `BinaryOperation`s are `abs_diff`, `add_sat`, `rhadd`, `hadd`, `maximum`, `minimum`, and `sub_sat`.
+
+```cpp
+namespace syclcompat {
+  
+template <typename VecT, class UnaryOperation>
+inline unsigned vectorized_unary(unsigned a, const UnaryOperation unary_op);
+
+// A sycl::abs wrapper functor.
+struct abs {
+  template <typename ValueT> auto operator()(const ValueT x) const;
+};
+
+template <typename VecT, class BinaryOperation>
+inline unsigned vectorized_binary(unsigned a, unsigned b,
+                                  const BinaryOperation binary_op);
+
+// A sycl::abs_diff wrapper functor.
+struct abs_diff {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::add_sat wrapper functor.
+struct add_sat {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::rhadd wrapper functor.
+struct rhadd {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::hadd wrapper functor.
+struct hadd {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::max wrapper functor.
+struct maximum {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::min wrapper functor.
+struct minimum {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::sub_sat wrapper functor.
+struct sub_sat {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+
+} // namespace syclcompat
 ```
 
 ## Sample Code
