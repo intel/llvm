@@ -41,26 +41,18 @@ __ESIMD_INTRIN void __esimd_nbarrier(uint8_t mode, uint8_t id,
 /// @param count  - number of named barriers
 __ESIMD_INTRIN void __esimd_nbarrier_init(uint8_t count) __ESIMD_INTRIN_END;
 
-/// Raw send signal to perform signal operation on named barriers
+/// Perform signal operation on named barriers
 /// Available only on PVC
-/// @tparam Ty  - message element type
+/// @param id - barrier id
 ///
-/// @tparam N  - message length
+/// @param thread_role - thread role
 ///
-/// @param is_sendc  - is sendc
+/// @param num_producers - number of producers
 ///
-/// @param extended_descriptor  - extended message descriptor
-///
-/// @param descriptor  - message descriptor
-///
-/// @param msg_var  - source operand of send message
-///
-/// @param pred  - predicate for enabled channels
-template <typename Ty, int N>
-__ESIMD_INTRIN void __esimd_raw_send_nbarrier_signal(
-    uint32_t is_sendc, uint32_t extended_descriptor, uint32_t descriptor,
-    __ESIMD_DNS::vector_type_t<Ty, N> msg_var,
-    uint16_t pred = 1) __ESIMD_INTRIN_END;
+/// @param num_consumers - number of consumers
+__ESIMD_INTRIN void
+__esimd_nbarrier_arrive(uint8_t id, uint8_t thread_role, uint8_t num_producers,
+                        uint8_t num_consumers) __ESIMD_INTRIN_END;
 
 /// 2D USM pointer block load.
 /// Supported platforms: PVC
