@@ -602,6 +602,9 @@ bool device_impl::has(aspect Aspect) const {
 
     return Result != nullptr;
   }
+  case aspect::ext_oneapi_limited_graph: {
+    return getBackend() != backend::ext_oneapi_cuda;
+  }
   }
   throw runtime_error("This device aspect has not been implemented yet.",
                       PI_ERROR_INVALID_DEVICE);
