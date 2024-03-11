@@ -93,6 +93,18 @@ def main():
             print_incorrect_match(match_idx + 1, input_lines[input_idx].strip(), "");
             print_content(input_lines, match_lines, ignored_lines)
             sys.exit(1)
+        elif status == Status.INPUT_END:
+        # If we get to the end of the input, but still have pending matches,
+        # then that's a failure unless all pending matches are optional -
+        # otherwise we're done
+            while match_idx < len(match_lines):
+                if not (match_lines[match_idx].startswith(Tag.OPT.value) or
+                        match_lines[match_idx].startswith(Tag.IGNORE.value)):
+                    print_incorrect_match(match_idx + 1, "", match_lines[match_idx]);
+                    print_content(input_lines, match_lines, ignored_lines)
+                    sys.exit(1)
+                match_idx += 1
+            sys.exit(0)
 
         input_line = input_lines[input_idx].strip() if input_idx < len(input_lines) else ""
         match_line = match_lines[match_idx]

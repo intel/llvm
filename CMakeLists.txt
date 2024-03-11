@@ -53,6 +53,9 @@ set(UR_CONFORMANCE_TARGET_TRIPLES "" CACHE STRING
     "List of sycl targets to build CTS device binaries for")
 set(UR_CONFORMANCE_AMD_ARCH "" CACHE STRING "AMD device target ID to build CTS binaries for")
 
+# There's little reason not to generate the compile_commands.json
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 include(Assertions)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
