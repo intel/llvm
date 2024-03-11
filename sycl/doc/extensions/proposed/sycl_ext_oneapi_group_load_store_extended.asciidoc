@@ -72,7 +72,7 @@ in the group.
 ._Constraints_:
 * Only available if `Group` is a work-group or sub-group.
 * `InputIteratorT` suppose to be a random access iterator.
-* Value type of `InputIteratorT` must be convertible to OutputT.
+* Value type of `InputIteratorT` must be convertible to `OutputT`.
 
 _Effects_: Loads single element from `in_ptr` to `out` by using the `g` group
 object to identify memory location as `in_ptr` + `g.get_local_linear_id()`.
