@@ -41,9 +41,9 @@
 #include "SPIRVLowerBitCastToNonStandardType.h"
 #include "SPIRVLowerBool.h"
 #include "SPIRVLowerConstExpr.h"
+#include "SPIRVLowerLLVMIntrinsic.h"
 #include "SPIRVLowerMemmove.h"
 #include "SPIRVLowerOCLBlocks.h"
-#include "SPIRVLowerSaddWithOverflow.h"
 #include "SPIRVRegularizeLLVM.h"
 #include "SPIRVToOCL.h"
 #include "SPIRVWriter.h"
@@ -106,8 +106,8 @@ PassPluginLibraryInfo getSPIRVPluginInfo() {
                 PM.addPass(SPIRVLowerOCLBlocksPass());
                 return true;
               }
-              if (Name.equals("spirv-lower-sadd-with-overflow")) {
-                PM.addPass(SPIRVLowerSaddWithOverflowPass());
+              if (Name.equals("spirv-lower-llvm-intrinsic")) {
+                PM.addPass(SPIRVLowerLLVMIntrinsicPass(TranslatorOpts{}));
                 return true;
               }
               if (Name.equals("spirv-regularize-llvm")) {
