@@ -18,6 +18,7 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Operator.h"
 
 #include <vector>
@@ -818,8 +819,11 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
     if (!F.isDeclaration())
       continue;
 
+    const bool IsSYCLAlloca = F.getIntrinsicID() == Intrinsic::sycl_alloca;
+
     if (!F.getName().starts_with(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) &&
-        !F.getName().starts_with(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL))
+        !F.getName().starts_with(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL) &&
+        !IsSYCLAlloca)
       continue;
 
     SmallVector<CallInst *, 32> SCIntrCalls;
@@ -845,6 +849,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       bool HasSretParameter = Callee->hasStructRetAttr();
       // Structs are returned via 'sret' arguments if they are larger than 64b
       if (HasSretParameter) {
+        assert(!IsSYCLAlloca && "Expecting ptr return");
         // Get structure type stored in an argument annotated with 'sret'
         // parameter attribute and skip it.
         SCTy = Callee->getParamStructRetType(NameArgNo++);
@@ -853,6 +858,11 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       Value *Replacement = nullptr;
 
       Constant *DefaultValue = getSpecConstInitializerFromCI(CI, NameArgNo + 1);
+
+      if (IsSYCLAlloca) {
+        // Get array length type from default value.
+        SCTy = DefaultValue->getType();
+      }
 
       bool IsNewSpecConstant = false;
       unsigned Padding = 0;
@@ -872,6 +882,17 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         //  3. Transform to spirv intrinsic _Z*__spirv_SpecConstant* or
         //  _Z*__spirv_SpecConstantComposite
         Replacement = emitSpecConstantRecursive(SCTy, CI, IDs, DefaultValue);
+        if (IsSYCLAlloca) {
+          // In case this is a 'sycl.llvm.alloca' intrinsic, use the emitted
+          // specialization constant as the allocation size.
+          auto *Intr = cast<SYCLAllocaInst>(CI);
+          Value *ArraySize = Replacement;
+          assert(ArraySize->getType()->isIntegerTy() &&
+                 "Expecting integer type");
+          Replacement =
+              new AllocaInst(Intr->getAllocatedType(), Intr->getAddressSpace(),
+                             ArraySize, Intr->getAlign(), "alloca", CI);
+        }
         if (IsNewSpecConstant) {
           // emitSpecConstantRecursive might emit more than one spec constant
           // (because of composite types) and therefore, we need to adjust
@@ -884,6 +905,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
               M, SymID, SCTy, IDs, /* is native spec constant */ true);
         }
       } else if (Mode == HandlingMode::emulation) {
+        assert(!IsSYCLAlloca && "sycl_ext_oneapi_private_alloca not yet "
+                                "supported in emulation mode");
         // 2a. Spec constant will be passed as kernel argument;
 
         // Replace it with a load from the pointer to the specialization
@@ -1043,7 +1066,8 @@ bool SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
 bool llvm::checkModuleContainsSpecConsts(const Module &M) {
   for (const Function &F : M.functions()) {
     if (F.getName().starts_with(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) ||
-        F.getName().starts_with(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL))
+        F.getName().starts_with(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL) ||
+        F.getIntrinsicID() == llvm::Intrinsic::sycl_alloca)
       return true;
   }
 
