@@ -718,7 +718,7 @@ levels is performed.
 sample, with the minimum value being 0.
 
 `max_mipmap_level_clamp` defines the maximum mipmap level from which we can 
-sample. This cannot value cannot be higher than the number of allocated levels.
+sample. This value cannot be higher than the number of allocated levels.
 
 `max_anisotropy` dictates the anisotropic ratio used when sampling the mipmap 
 with anisotropic filtering.
