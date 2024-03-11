@@ -34,7 +34,7 @@ the SYCL specification refer to that revision.
 
 This extension also depends on the following other SYCL extensions:
 
-* link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc[
+* link:../proposed/sycl_ext_oneapi_group_sort.asciidoc[
   sycl_ext_oneapi_group_sort] (`group_with_scratchpad` class used as GroupHelper).
 
 * link:../experimental/sycl_ext_oneapi_properties.asciidoc[
