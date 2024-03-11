@@ -14,7 +14,7 @@
  *
  *  SYCLcompat API
  *
- *  util_complex.cpp
+ *  math_complex.cpp
  *
  *  Description:
  *    Complex operations tests
@@ -40,30 +40,26 @@
 #include <sycl/sycl.hpp>
 #include <syclcompat.hpp>
 
-template <typename T> bool check(T x, float e[], int &index) {
+template <typename T> bool check(T x, float *e) {
   float precision = 0.001f;
-  if ((x.x() - e[index] < precision) && (x.x() - e[index] > -precision) &&
-      (x.y() - e[index + 1] < precision) &&
-      (x.y() - e[index + 1] > -precision)) {
-    index += 2;
+  if ((x.x() - e[0] < precision) && (x.x() - e[0] > -precision) &&
+      (x.y() - e[1] < precision) && (x.y() - e[1] > -precision)) {
     return true;
   }
   return false;
 }
 
-template <> bool check<float>(float x, float e[], int &index) {
+template <> bool check<float>(float x, float *e) {
   float precision = 0.001f;
-  if ((x - e[index] < precision) && (x - e[index] > -precision)) {
-    index++;
+  if ((x - e[0] < precision) && (x - e[0] > -precision)) {
     return true;
   }
   return false;
 }
 
-template <> bool check<double>(double x, float e[], int &index) {
+template <> bool check<double>(double x, float *e) {
   float precision = 0.001f;
-  if ((x - e[index] < precision) && (x - e[index] > -precision)) {
-    index++;
+  if ((x - e[0] < precision) && (x - e[0] > -precision)) {
     return true;
   }
   return false;
@@ -96,19 +92,16 @@ void kernel_abs(int *result) {
   sycl::double2 d1, d2;
 
   f1 = sycl::float2(1.8, -2.7);
-  f2 = sycl::float2(-3.6, 4.5);
   d1 = sycl::double2(5.4, -6.3);
-  d2 = sycl::double2(-7.2, 8.1);
 
-  int index = 0;
   bool r = true;
   float expect[2] = {8.297590, 3.244996};
 
   auto a1 = syclcompat::cabs(d1);
-  r = r && check(a1, expect, index);
+  r = r && check(a1, expect);
 
   auto a2 = syclcompat::cabs(f1);
-  r = r && check(a2, expect, index);
+  r = r && check(a2, expect + 1);
 
   *result = r;
 }
@@ -123,15 +116,14 @@ void kernel_conj(int *result) {
   d1 = sycl::double2(5.4, -6.3);
   d2 = sycl::double2(-7.2, 8.1);
 
-  int index = 0;
   bool r = true;
   float expect[4] = {5.400000, 6.300000, 1.800000, 2.700000};
 
   auto a1 = syclcompat::conj(d1);
-  r = r && check(a1, expect, index);
+  r = r && check(a1, expect);
 
   auto a2 = syclcompat::conj(f1);
-  r = r && check(a2, expect, index);
+  r = r && check(a2, expect + 2);
 
   *result = r;
 }
@@ -146,15 +138,14 @@ void kernel_div(int *result) {
   d1 = sycl::double2(5.4, -6.3);
   d2 = sycl::double2(-7.2, 8.1);
 
-  int index = 0;
   bool r = true;
   float expect[4] = {-0.765517, 0.013793, -0.560976, 0.048780};
 
   auto a1 = syclcompat::cdiv(d1, d2);
-  r = r && check(a1, expect, index);
+  r = r && check(a1, expect);
 
   auto a2 = syclcompat::cdiv(f1, f2);
-  r = r && check(a2, expect, index);
+  r = r && check(a2, expect + 2);
 
   *result = r;
 }
@@ -169,15 +160,14 @@ void kernel_mul(int *result) {
   d1 = sycl::double2(5.4, -6.3);
   d2 = sycl::double2(-7.2, 8.1);
 
-  int index = 0;
   bool r = true;
   float expect[4] = {12.150000, 89.100000, 5.670001, 17.820000};
 
   auto a1 = syclcompat::cmul(d1, d2);
-  r = r && check(a1, expect, index);
+  r = r && check(a1, expect);
 
   auto a2 = syclcompat::cmul(f1, f2);
-  r = r && check(a2, expect, index);
+  r = r && check(a2, expect + 2);
 
   *result = r;
 }
