@@ -5,10 +5,6 @@
 int main() {
   queue Queue{};
 
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
-
   int DotpData = 0;
 
   const size_t N = 10;
