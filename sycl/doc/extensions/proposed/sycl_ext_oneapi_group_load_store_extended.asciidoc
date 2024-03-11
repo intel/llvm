@@ -51,7 +51,7 @@ group scope.
 ----
 namespace sycl::ext::oneapi::experimental {
 
-// Load API scalar
+// Load scalar
 template<typename Group, typename InputIteratorT,
          typename OutputT, typename Properties = decltype(properties())>
 void group_load(Group g, InputIteratorT in_iter,
