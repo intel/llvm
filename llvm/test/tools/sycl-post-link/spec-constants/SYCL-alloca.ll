@@ -8,7 +8,7 @@
 %"class.sycl::_V1::specialization_id" = type { i64 }
 %"class.sycl::_V1::specialization_id.0" = type { i32 }
 %"class.sycl::_V1::specialization_id.1" = type { i16 }
-%my_range = type { ptr addrspace(4), ptr addrspace(4)}
+%my_range = type { ptr addrspace(4), ptr addrspace(4) }
 
 @size_i64 = internal addrspace(1) constant %"class.sycl::_V1::specialization_id" { i64 10 }, align 8
 @size_i32 = internal addrspace(1) constant %"class.sycl::_V1::specialization_id.0" { i32 120 }, align 4
