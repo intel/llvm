@@ -8,6 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "enqueue.hpp"
 #include "common.hpp"
 #include "context.hpp"
 #include "event.hpp"
