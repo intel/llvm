@@ -448,6 +448,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
       pGlobalWorkSize, pSuggestedLocalWorkSize));
   return UR_RESULT_SUCCESS;
 #else  // #if defined(cl_khr_suggested_local_work_size)
+
+  std::ignore = hKernel;
+  std::ignore = hQueue;
+  std::ignore = workDim;
+  std::ignore = pGlobalWorkOffset;
+  std::ignore = pGlobalWorkSize;
+  std::ignore = pSuggestedLocalWorkSize;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 #endif // #if defined(cl_khr_suggested_local_work_size)
 }
