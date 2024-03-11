@@ -43,6 +43,7 @@ Dan Holmes, Intel +
 Greg Lueck, Intel +
 Steffen Larsen, Intel +
 Jaime Arteaga Molina, Intel +
+Andrei Elovikov, Intel +
 Ewan Crawford, Codeplay +
 Ben Tracy, Codeplay +
 Duncan McBain, Codeplay +
@@ -296,37 +297,18 @@ Adding an executable graph as a sub-graph does not affect its existing node
 dependencies, such that it could be submitted in future without any side
 effects of prior uses as a sub-graph.
 
-=== Device Info Query
-
-[source, c++]
-----
-namespace sycl::ext::oneapi::experimental {
-enum class graph_support_level {
-  unsupported,
-  native,
-  emulated
-};
-}
-----
+=== Querying Device Support
 
 Due to the experimental nature of the extension, support is not available across
-all devices. The following device support query is added to the
-`sycl::ext::oneapi::experimental` namespace for reporting devices which are
-are currently supported, and how that support is implemented.
+all devices.
 
-Table {counter: tableNumber}. Device Info Queries.
+Table {counter: tableNumber}. Device Support Aspect.
 [%header]
 |===
-| Device Descriptors | Return Type | Description
+| Device Descriptor | Description
 
-|`info::device::graph_support`
-|`graph_support_level`
-|When passed to `device::get_info<...>()`, the function returns `native`
-if there is an underlying SYCL backend command-buffer construct which is used
-to propagate the graph to the backend. If no backend construct exists, or
-building on top of it has not yet been implemented, then `emulated` is
-returned. Otherwise `unsupported` is returned if the SYCL device doesn't
-support using this graph extension.
+|`aspect::ext_oneapi_graph`
+| Indicates that the device supports the APIs described in this extension.
 
 |===
 
