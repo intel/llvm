@@ -240,7 +240,7 @@ static ur_result_t enqueueCommandBufferFillHelper(
           CommandBuffer->Device->getContext()));
 
       // Get sync point and register the cuNode with it.
-      *SyncPoint = CommandBuffer->AddSyncPoint(
+      *SyncPoint = CommandBuffer->addSyncPoint(
           std::make_shared<CUgraphNode>(GraphNodeFirst));
 
       DepsList.clear();
@@ -273,7 +273,7 @@ static ur_result_t enqueueCommandBufferFillHelper(
 
         GraphNodePtr = std::make_shared<CUgraphNode>(GraphNode);
         // Get sync point and register the cuNode with it.
-        *SyncPoint = CommandBuffer->AddSyncPoint(GraphNodePtr);
+        *SyncPoint = CommandBuffer->addSyncPoint(GraphNodePtr);
 
         DepsList.clear();
         DepsList.push_back(*GraphNodePtr.get());
