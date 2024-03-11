@@ -130,6 +130,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
   DIE_NO_IMPLEMENTATION
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
+    ur_device_handle_t, ur_program_handle_t hProgram,
+    const char *pGlobalVariableName, size_t *pGlobalVariableSizeRet,
+    void **ppGlobalVariablePointerRet) {
+  std::ignore = hProgram;
+  std::ignore = pGlobalVariableName;
+  std::ignore = pGlobalVariableSizeRet;
+  std::ignore = ppGlobalVariablePointerRet;
+
+  DIE_NO_IMPLEMENTATION
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
                  size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
