@@ -11,6 +11,7 @@
 #include "kernel.hpp"
 #include "enqueue.hpp"
 #include "memory.hpp"
+#include "queue.hpp"
 #include "sampler.hpp"
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -390,6 +391,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     size_t *pSuggestedLocalWorkSize) {
+  std::ignore = pGlobalWorkOffset;
   ur_context_handle_t Context = hQueue->getContext();
   ur_device_handle_t Device = hQueue->Device;
   ur_result_t Result = UR_RESULT_SUCCESS;
