@@ -52,7 +52,7 @@ Specifically, this library depends on the following SYCL extensions:
 
 If available, the following extensions extend SYCLcompat functionality:
 
-* [sycl_ext_intel_device_info](../extensions/supported/sycl_ext_intel_device_info.md) \[Optional\]
+* [sycl_ext_intel_device_info](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_intel_device_info.md) \[Optional\]
 
 ## Usage
 
