@@ -144,7 +144,7 @@ void kernel_div(int *result) {
   auto a1 = syclcompat::cdiv(d1, d2);
   r = r && check(a1, expect);
 
-  auto a2 = syclcompat::conj(f1);
+  auto a2 = syclcompat::cdiv(f1, f2);
   r = r && check(a2, expect + 2);
 
   *result = r;
