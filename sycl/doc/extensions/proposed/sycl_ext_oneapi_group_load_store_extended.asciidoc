@@ -54,7 +54,7 @@ namespace sycl::ext::oneapi::experimental {
 // Load API scalar
 template<typename Group, typename InputIteratorT,
          typename OutputT, typename Properties = decltype(properties())>
-void group_load(Group g, InputIteratorT in_ptr,
+void group_load(Group g, InputIteratorT in_iter,
                       OutputT& out, Properties = {}); // (1)
 
 // Store API scalar
