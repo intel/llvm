@@ -3421,7 +3421,8 @@ ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Get the suggested local work-item number from runtime implementation.
+/// @brief Get the suggested local work size for a kernel from runtime
+///        implementation.
 ///
 /// @details
 ///     - pLocalWorkSize can be omitted in urEnqueueKernelLaunch(), but beside
@@ -3446,22 +3447,21 @@ ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
 ///         + `NULL == pSuggestedLocalWorkSize`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
-    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel.
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel
     ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
     uint32_t
         workDim, ///< [in] number of dimensions, from 1 to 3, to specify the global
                  ///< and work-group work-items
     const size_t *
         pGlobalWorkOffset, ///< [in] pointer to an array of workDim unsigned values that specify
-    ///< the offset used to calculate the global ID of a work-item"
+    ///< the offset used to calculate the global ID of a work-item
     const size_t *
         pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify
     ///< the number of global work-items in workDim that will execute the
     ///< kernel function
     size_t *
         pSuggestedLocalWorkSize ///< [out] pointer to an array of workDim unsigned values that specify
-    ///< the number of local work-items forming a work-group that will
-    ///< execute the kernel function.
+    ///< suggested local work size that shall be used when executing
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
