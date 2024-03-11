@@ -1206,6 +1206,8 @@ max/min of two arguments, where each argument is treated as a `sycl::vec` type.
 `vectorized_isgreater` performs elementwise `isgreater`, treating each argument
 as a vector of elements, and returning `0` for vector components for which
 `isgreater` is false, and `-1` when true.
+`vectorized_sum_abs_diff` calculates the absolute difference for two values
+without modulo overflow for vector types.
 
 The functions `cmul`,`cdiv`,`cabs`, and `conj` define complex math operations
 which accept `sycl::vec<T,2>` arguments representing complex values.
@@ -1242,7 +1244,8 @@ template <typename ValueT> inline ValueT reverse_bits(ValueT a);
 `vectorized_binary` computes the `BinaryOperation` for two operands,
 with each value treated as a vector type. `vectorized_unary` offers the same
 interface for operations with a single operand.
-The implemented `BinaryOperation`s are `abs_diff`, `add_sat`, `rhadd`, `hadd`, `maximum`, `minimum`, and `sub_sat`.
+The implemented `BinaryOperation`s are `abs_diff`, `add_sat`, `rhadd`, `hadd`,
+`maximum`, `minimum`, and `sub_sat`.
 
 ```cpp
 namespace syclcompat {
