@@ -241,6 +241,14 @@ template <cache_hint L1H, cache_hint L2H, size_t Alignment>
 using make_L1_L2_alignment_properties_t =
     typename make_L1_L2_alignment_properties<L1H, L2H, Alignment>::type;
 
+// Creates the type for the list of L1 and L2 properties.
+template <cache_hint L1H, cache_hint L2H> struct make_L1_L2_properties {
+  using type = ext::oneapi::experimental::detail::properties_t<
+      cache_hint_L1_key::value_t<L1H>, cache_hint_L2_key::value_t<L2H>>;
+};
+template <cache_hint L1H, cache_hint L2H>
+using make_L1_L2_properties_t = typename make_L1_L2_properties<L1H, L2H>::type;
+
 } // namespace detail
 } // namespace ext::intel::esimd
 
