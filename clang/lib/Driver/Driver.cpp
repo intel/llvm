@@ -9097,7 +9097,6 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       else
         DependentOffloadKind = UI.DependentOffloadKind;
 
-
       CachedResults[{A, GetTriplePlusArchString(UI.DependentToolChain, Arch,
                                                 DependentOffloadKind)}] = {
           CurI};
