@@ -15,10 +15,6 @@
 int main() {
   queue Queue{};
 
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
-
   // Use a large N to try and make the kernel slow
   const size_t N = 1 << 16;
   // Loop inside kernel to make even slower (too large N runs out of memory)

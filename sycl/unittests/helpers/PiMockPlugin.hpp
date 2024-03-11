@@ -208,6 +208,7 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
   case PI_DEVICE_INFO_AVAILABLE:
   case PI_DEVICE_INFO_LINKER_AVAILABLE:
   case PI_DEVICE_INFO_COMPILER_AVAILABLE:
+  case PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_SUPPORT:
   case PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT: {
     if (param_value)
       *static_cast<pi_bool *>(param_value) = PI_TRUE;

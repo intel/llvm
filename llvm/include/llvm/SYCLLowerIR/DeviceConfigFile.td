@@ -70,6 +70,7 @@ def AspectExt_intel_matrix : Aspect<"ext_intel_matrix">;
 def AspectExt_oneapi_is_composite : Aspect<"ext_oneapi_is_composite">;
 def AspectExt_oneapi_is_component : Aspect<"ext_oneapi_is_component">;
 def AspectExt_oneapi_graph : Aspect<"ext_oneapi_graph">;
+def AspectExt_oneapi_limited_graph : Aspect<"ext_oneapi_limited_graph">;
 // Deprecated aspects
 def AspectInt64_base_atomics : Aspect<"int64_base_atomics">;
 def AspectInt64_extended_atomics : Aspect<"int64_extended_atomics">;
