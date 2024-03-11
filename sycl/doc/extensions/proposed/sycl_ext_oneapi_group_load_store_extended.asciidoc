@@ -20,7 +20,7 @@ IMPORTANT: This specification is a draft.
 == Notice
 
 [%hardbreaks]
-Copyright (c) 2023 Intel Corporation.  All rights reserved.
+Copyright (c) 2024 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -328,17 +328,27 @@ of global memory from `input` to the private array `data` and store it back to
 ----
 namespace sycl_exp = sycl::ext::oneapi::experimental;
 
+constexpr std::size_t block_size = 32;
+constexpr std::size_t items_per_thread = 4;
+constexpr std::size_t block_count = 2;
+constexpr std::size_t size = block_count * block_size * items_per_thread;
+
+sycl::queue q;
+sycl::usm_allocator<T, sycl::usm::alloc::device, 64> allocator(q);
+std::vector<T, decltype(allocator)> input(size, allocator);
+std::vector<T, decltype(allocator)> output(size, allocator);
+
 q.submit([&](sycl::handler& cgh) {
     cgh.parallel_for(
-        sycl::nd_range<1>(global_size, local_size),
+        sycl::nd_range<1>(size, block_size),
         [=](sycl::nd_item<1> item) {
             T data[items_per_thread];
 
-            sycl_exp::group_load(item.get_group(), input, sycl::span{ data });
+            sycl_exp::group_load(item.get_group(), input.data(), sycl::span{ data });
 
             // Work with data...
 
-            sycl_exp::group_store(item.get_group(), output, sycl::span{ data });
+            sycl_exp::group_store(item.get_group(), output.data(), sycl::span{ data });
         });
 });
 ----
@@ -363,11 +373,11 @@ q.submit([&](sycl::handler& cgh) {
             sycl_exp::group_with_scratchpad gh{ item.get_group(),
                                                 sycl::span{ buf_ptr, temp_memory_size } };
 
-            sycl_exp::group_load(gh, input, sycl::span{ data });
+            sycl_exp::group_load(gh, input.data(), sycl::span{ data });
 
             // Work with data...
 
-            sycl_exp::group_store(gh, output, sycl::span{ data });
+            sycl_exp::group_store(gh, output.data(), sycl::span{ data });
         });
 });
 ----
@@ -396,12 +406,12 @@ q.submit([&](sycl::handler& cgh) {
             sycl_exp::group_with_scratchpad gh{ item.get_group(),
                                                 sycl::span{ buf_ptr, temp_memory_size } };
 
-            sycl_exp::group_load(gh, input, sycl::span{ data },
+            sycl_exp::group_load(gh, input.data(), sycl::span{ data },
                                  sycl::properties<sycl_exp::data_placement<sycl_exp::striped>>{});
 
             // Work with data...
 
-            sycl_exp::group_store(gh, output, sycl::span{ data },
+            sycl_exp::group_store(gh, output.data(), sycl::span{ data },
                                   sycl::properties<sycl_exp::data_placement<sycl_exp::striped>>{});
         });
 });
