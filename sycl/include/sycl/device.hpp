@@ -8,24 +8,31 @@
 
 #pragma once
 
-#include <sycl/aspects.hpp>                                     // for aspect
-#include <sycl/backend_types.hpp>                               // for backend
-#include <sycl/detail/defines_elementary.hpp>                   // for __SY...
-#include <sycl/detail/export.hpp>                               // for __SY...
-#include <sycl/detail/info_desc_helpers.hpp>                    // for is_d...
-#include <sycl/detail/owner_less_base.hpp>                      // for Owne...
-#include <sycl/detail/pi.h>                                     // for pi_n...
-#include <sycl/device_selector.hpp>                             // for Enab...
-#include <sycl/ext/oneapi/experimental/device_architecture.hpp> // for arch...
-#include <sycl/info/info_desc.hpp>                              // for part...
-#include <sycl/platform.hpp>                                    // for plat...
+#include <sycl/aspects.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/export.hpp>
+#include <sycl/detail/info_desc_helpers.hpp>
+#include <sycl/detail/owner_less_base.hpp>
+#include <sycl/detail/pi.h>
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#include <sycl/detail/string.hpp>
+#include <sycl/detail/string_view.hpp>
+#endif
+#include <sycl/detail/util.hpp>
+#include <sycl/device_selector.hpp>
+#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
+#include <sycl/info/info_desc.hpp>
+#include <sycl/kernel_bundle_enums.hpp>
+#include <sycl/platform.hpp>
 
-#include <cstddef>     // for size_t
-#include <memory>      // for shar...
-#include <string>      // for string
-#include <type_traits> // for add_...
-#include <variant>     // for hash
-#include <vector>      // for vector
+#include <cstddef>
+#include <memory>
+#include <string>
+#include <type_traits>
+#include <typeinfo>
+#include <variant>
+#include <vector>
 
 namespace sycl {
 inline namespace _V1 {
@@ -214,8 +221,17 @@ public:
   /// type associated with the param parameter.
   ///
   /// \return device info of type described in Table 4.20.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
-  typename detail::is_device_info_desc<Param>::return_type get_info() const;
+  typename detail::is_device_info_desc<Param>::return_type get_info() const {
+    return detail::convert_from_abi_neutral(get_info_impl<Param>());
+  }
+#else
+  template <typename Param>
+  detail::ABINeutralT_t<
+      typename detail::is_device_info_desc<Param>::return_type>
+  get_info() const;
+#endif
 
   /// Check SYCL extension support by device
   ///
@@ -267,6 +283,68 @@ public:
   /// the function.
   bool ext_oneapi_architecture_is(ext::oneapi::experimental::architecture arch);
 
+  /// Indicates if the SYCL device architecture is in the category passed
+  /// to the function.
+  ///
+  /// \param category is one of the architecture categories from arch_category
+  /// enum described in sycl_ext_oneapi_device_architecture specification.
+  ///
+  /// \return true if the SYCL device architecture is in the category passed to
+  /// the function.
+  bool
+  ext_oneapi_architecture_is(ext::oneapi::experimental::arch_category category);
+
+  /// kernel_compiler extension
+
+  /// Indicates if the device can compile a kernel for the given language.
+  ///
+  /// \param Language is one of the values from the
+  /// kernel_bundle::source_language enumeration described in the
+  /// sycl_ext_oneapi_kernel_compiler specification
+  ///
+  /// \return true only if the device supports kernel bundles written in the
+  /// source language `lang`.
+  bool
+  ext_oneapi_can_compile(ext::oneapi::experimental::source_language Language);
+
+  /// Indicates if the device supports a given feature when compiling the OpenCL
+  /// C language
+  ///
+  /// \param Feature
+  ///
+  /// \return true if supported
+  bool ext_oneapi_supports_cl_c_feature(const std::string &Feature);
+
+  /// Indicates if the device supports kernel bundles written in a particular
+  /// OpenCL C version
+  ///
+  /// \param Version
+  ///
+  /// \return true only if the device supports kernel bundles written in the
+  /// version identified by `Version`.
+  bool ext_oneapi_supports_cl_c_version(
+      const ext::oneapi::experimental::cl_version &Version) const;
+
+  /// If the device supports kernel bundles using the OpenCL extension
+  /// identified by `name` and if `version` is not a null pointer, the supported
+  /// version of the extension is written to `version`.
+  ///
+  /// \return true only if the device supports kernel bundles using the OpenCL
+  /// extension identified by `name`.
+  bool ext_oneapi_supports_cl_extension(
+      const std::string &name,
+      ext::oneapi::experimental::cl_version *version = nullptr) const;
+
+  /// Retrieve the OpenCl Device Profile
+  ///
+  /// \return If the device supports kernel bundles written in
+  /// `source_language::opencl`, returns the name of the OpenCL profile that is
+  /// supported. The profile name is the same string that is returned by the
+  /// query `CL_DEVICE_PROFILE`, as defined in section 4.2 "Querying Devices" of
+  /// the OpenCL specification. If the device does not support kernel bundles
+  /// written in `source_language::opencl`, returns the empty string.
+  std::string ext_oneapi_cl_profile() const;
+
 // TODO: Remove this diagnostics when __SYCL_WARN_IMAGE_ASPECT is removed.
 #if defined(__clang__)
 #pragma clang diagnostic pop
@@ -291,6 +369,13 @@ private:
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
+
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  template <typename Param>
+  typename detail::ABINeutralT_t<
+      typename detail::is_device_info_desc<Param>::return_type>
+  get_info_impl() const;
+#endif
 };
 
 } // namespace _V1

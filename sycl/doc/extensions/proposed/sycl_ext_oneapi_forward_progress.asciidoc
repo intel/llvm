@@ -254,7 +254,7 @@ of forward progress guarantee defined in the {cpp} core language specification.
 
 [source,c++]
 ----
-namespace ext::oneapi::experimental::sycl {
+namespace sycl::ext::oneapi::experimental {
 
 enum class forward_progress_guarantee {
   concurrent,
@@ -279,7 +279,7 @@ execution within a SYCL implementation.
 
 [source,c++]
 ----
-namespace ext::oneapi::experimental::sycl {
+namespace sycl::ext::oneapi::experimental {
 
 enum class execution_scope {
   work_item,

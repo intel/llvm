@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 91c6068bb581acf72f02f1284ab0464ec4f03e34 
-  # Merge: de328246 89ad3408
+  # commit e2ee9a4720414e0a59fa9c911e9575ab564ac57c
+  # Merge: 7a5150cd be622e7c
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Feb 23 13:39:03 2024 +0000
-  #     Merge pull request #1274 from isaacault/iault/image_array_copy
-  #     [Bindless][Exp] Add Support For Image Arrays
-  set(UNIFIED_RUNTIME_TAG 91c6068bb581acf72f02f1284ab0464ec4f03e34 )
+  # Date:   Sun Mar 10 18:02:50 2024 +0000
+  #     Merge pull request #1340 from Bensuo/ewan/coverity_cuda_update
+  #     [HIP][CUDA][Command-Buffer] Fix Coverity issues in HIP/CUDA command-buffer code
+  set(UNIFIED_RUNTIME_TAG e2ee9a4720414e0a59fa9c911e9575ab564ac57c)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

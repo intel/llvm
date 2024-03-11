@@ -28,7 +28,6 @@
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
 #include <sycl/exception.hpp>
-#include <sycl/stl.hpp>
 
 #include <sycl/ext/oneapi/matrix/query-types.hpp>
 
@@ -689,10 +688,13 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
     Plugin->call<errc::kernel_not_supported, PiApiKind::piKernelCreate>(
         Program, KernelName.c_str(), &Kernel);
 
-    // Some PI Plugins (like OpenCL) require this call to enable USM
-    // For others, PI will turn this into a NOP.
-    Plugin->call<PiApiKind::piKernelSetExecInfo>(Kernel, PI_USM_INDIRECT_ACCESS,
-                                                 sizeof(pi_bool), &PI_TRUE);
+    // Only set PI_USM_INDIRECT_ACCESS if the platform can handle it.
+    if (ContextImpl->getPlatformImpl()->supports_usm()) {
+      // Some PI Plugins (like OpenCL) require this call to enable USM
+      // For others, PI will turn this into a NOP.
+      Plugin->call<PiApiKind::piKernelSetExecInfo>(
+          Kernel, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
+    }
 
     const KernelArgMask *ArgMask = nullptr;
     if (!m_UseSpvFile)
@@ -944,7 +946,7 @@ ProgramManager::ProgramManager() : m_AsanFoundInImage(false) {
     // blocked until the construction of the ProgramManager singleton is
     // finished.
     m_SpvFileImage =
-        make_unique_ptr<DynRTDeviceBinaryImage>(std::move(Data), Size);
+        std::make_unique<DynRTDeviceBinaryImage>(std::move(Data), Size);
 
     if (DbgProgMgr > 0) {
       std::cerr << "loaded device image binary from " << SpvFile << "\n";
@@ -1263,7 +1265,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
     if (EntriesB == EntriesE)
       continue;
 
-    auto Img = make_unique_ptr<RTDeviceBinaryImage>(RawImg);
+    auto Img = std::make_unique<RTDeviceBinaryImage>(RawImg);
     static uint32_t SequenceID = 0;
 
     // Fill the kernel argument mask map
@@ -2361,8 +2363,10 @@ ProgramManager::getOrCreateKernel(const context &Context,
     Plugin->call<PiApiKind::piKernelCreate>(Program, KernelName.c_str(),
                                             &Kernel);
 
-    Plugin->call<PiApiKind::piKernelSetExecInfo>(Kernel, PI_USM_INDIRECT_ACCESS,
-                                                 sizeof(pi_bool), &PI_TRUE);
+    // Only set PI_USM_INDIRECT_ACCESS if the platform can handle it.
+    if (Ctx->getPlatformImpl()->supports_usm())
+      Plugin->call<PiApiKind::piKernelSetExecInfo>(
+          Kernel, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
 
     // Ignore possible m_UseSpvFile for now.
     // TODO consider making m_UseSpvFile interact with kernel bundles as well.
