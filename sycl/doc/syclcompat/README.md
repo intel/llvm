@@ -1159,7 +1159,7 @@ inline int calculate_max_active_wg_per_xecore(int *num_wg, int wg_size,
                                               bool used_large_grf = false);
 
 inline int calculate_max_potential_wg(int *num_wg, int *wg_size,
-                                      int max_ws_size_for_device_code,
+                                      int max_wg_size_for_device_code,
                                       int slm_size = 0, int sg_size = 32,
                                       bool used_barrier = false,
                                       bool used_large_grf = false);
