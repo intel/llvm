@@ -856,13 +856,25 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       Value *Replacement = nullptr;
 
       Constant *DefaultValue = getSpecConstInitializerFromCI(CI, NameArgNo + 1);
-      Type *SCTy = [=]() {
-        if (HasSretParameter)
-          return Callee->getParamStructRetType(0);
-        if (IsSYCLAlloca)
-          return DefaultValue->getType();
-        return CI->getType();
-      }();
+      Type *SCTy;
+      if (HasSretParameter) {
+        // Specialization constant type is given by the 'sret' parameter.
+        SCTy = Callee->getParamStructRetType(0);
+      } else if (IsSYCLAlloca) {
+        // 'llvm.sycl.alloca' returns a pointer, so we need to take the
+        // specialization constant type from the default value. At this stage,
+        // we will have lost the original scalar representation of the type, so
+        // we have to take the in-memory representation. This is only relevant
+        // when a 'bool' ('i1' scalar representation and 'i8' in-memory
+        // representation) specialization constant is used as size. In that
+        // case, for a value of 'true' (the only legal value), the default value
+        // will be 1 ('i8'), thus keeping the original semantics.
+        SCTy = DefaultValue->getType();
+      } else {
+        // Specialization constant type is the same as the one returned by the
+        // function in the general case.
+        SCTy = CI->getType();
+      }
 
       bool IsNewSpecConstant = false;
       unsigned Padding = 0;
