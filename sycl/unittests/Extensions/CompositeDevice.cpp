@@ -7,9 +7,9 @@
 #include <algorithm>
 
 namespace {
-constexpr int COMPOSITE_DEVICE = 1;
-constexpr int COMPONENT_DEVICE_A = 2;
-constexpr int COMPONENT_DEVICE_B = 3;
+const auto COMPOSITE_DEVICE = reinterpret_cast<pi_device>(1u);
+const auto COMPONENT_DEVICE_A = reinterpret_cast<pi_device>(2u);
+const auto COMPONENT_DEVICE_B = reinterpret_cast<pi_device>(3u);
 
 pi_result redefine_piDevicesGet(pi_platform platform, pi_device_type,
                                 pi_uint32 num_entries, pi_device *devices,
@@ -18,9 +18,9 @@ pi_result redefine_piDevicesGet(pi_platform platform, pi_device_type,
     *num_devices = 2;
   if (devices) {
     if (num_entries > 0)
-      devices[0] = reinterpret_cast<pi_device>(COMPONENT_DEVICE_A);
+      devices[0] = COMPONENT_DEVICE_A;
     if (num_entries > 1)
-      devices[1] = reinterpret_cast<pi_device>(COMPONENT_DEVICE_B);
+      devices[1] = COMPONENT_DEVICE_B;
   }
   return PI_SUCCESS;
 }
@@ -33,10 +33,8 @@ pi_result after_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     if (param_value_size_ret)
       *param_value_size_ret = sizeof(pi_device);
     if (param_value) {
-      if (device == reinterpret_cast<pi_device>(COMPONENT_DEVICE_A) ||
-          device == reinterpret_cast<pi_device>(COMPONENT_DEVICE_B)) {
-        *static_cast<pi_device *>(param_value) =
-            reinterpret_cast<pi_device>(COMPOSITE_DEVICE);
+      if (device == COMPONENT_DEVICE_A || device == COMPONENT_DEVICE_B) {
+        *static_cast<pi_device *>(param_value) = COMPOSITE_DEVICE;
       } else
         *static_cast<pi_device *>(param_value) = nullptr;
     }
@@ -44,16 +42,14 @@ pi_result after_piDeviceGetInfo(pi_device device, pi_device_info param_name,
     return PI_SUCCESS;
 
   case PI_EXT_ONEAPI_DEVICE_INFO_COMPONENT_DEVICES:
-    if (device == reinterpret_cast<pi_device>(COMPOSITE_DEVICE)) {
+    if (device == COMPOSITE_DEVICE) {
       if (param_value_size_ret)
         *param_value_size_ret = 2 * sizeof(pi_device);
       if (param_value) {
         if (param_value_size >= sizeof(pi_device))
-          static_cast<pi_device *>(param_value)[0] =
-              reinterpret_cast<pi_device>(COMPONENT_DEVICE_A);
+          static_cast<pi_device *>(param_value)[0] = COMPONENT_DEVICE_A;
         if (param_value_size >= 2 * sizeof(pi_device))
-          static_cast<pi_device *>(param_value)[1] =
-              reinterpret_cast<pi_device>(COMPONENT_DEVICE_B);
+          static_cast<pi_device *>(param_value)[1] = COMPONENT_DEVICE_B;
       }
 
     } else {
@@ -99,8 +95,7 @@ TEST(CompositeDeviceTest, DescendentDeviceSupport) {
   sycl::context Ctx(RootDevice);
   // We expect to only see the passed device
   ASSERT_EQ(DevicesUsedInContextCreation.size(), 1u);
-  ASSERT_EQ(DevicesUsedInContextCreation.front(),
-            reinterpret_cast<pi_device>(COMPONENT_DEVICE_A));
+  ASSERT_EQ(DevicesUsedInContextCreation.front(), COMPONENT_DEVICE_A);
 
   auto CompositeDevice = RootDevice.get_info<
       sycl::ext::oneapi::experimental::info::device::composite_device>();
@@ -110,20 +105,14 @@ TEST(CompositeDeviceTest, DescendentDeviceSupport) {
   // the context under the hood.
   ASSERT_EQ(DevicesUsedInContextCreation.size(), 3u);
   ASSERT_TRUE(std::any_of(DevicesUsedInContextCreation.begin(),
-                          DevicesUsedInContextCreation.end(), [=](pi_device D) {
-                            return D == reinterpret_cast<pi_device>(
-                                            COMPOSITE_DEVICE);
-                          }));
-  ASSERT_TRUE(std::any_of(DevicesUsedInContextCreation.begin(),
-                          DevicesUsedInContextCreation.end(), [=](pi_device D) {
-                            return D == reinterpret_cast<pi_device>(
-                                            COMPONENT_DEVICE_A);
-                          }));
-  ASSERT_TRUE(std::any_of(DevicesUsedInContextCreation.begin(),
-                          DevicesUsedInContextCreation.end(), [=](pi_device D) {
-                            return D == reinterpret_cast<pi_device>(
-                                            COMPONENT_DEVICE_B);
-                          }));
+                          DevicesUsedInContextCreation.end(),
+                          [=](pi_device D) { return D == COMPOSITE_DEVICE; }));
+  ASSERT_TRUE(std::any_of(
+      DevicesUsedInContextCreation.begin(), DevicesUsedInContextCreation.end(),
+      [=](pi_device D) { return D == COMPONENT_DEVICE_A; }));
+  ASSERT_TRUE(std::any_of(
+      DevicesUsedInContextCreation.begin(), DevicesUsedInContextCreation.end(),
+      [=](pi_device D) { return D == COMPONENT_DEVICE_B; }));
   // Even though under the hood we have created context for 3 devices,
   // user-visible interface should only report the exact list of devices passed
   // by user to the context constructor.
