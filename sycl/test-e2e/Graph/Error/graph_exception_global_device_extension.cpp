@@ -5,7 +5,7 @@
 // when trying to use sycl_ext_oneapi_device_global
 // along with Graph.
 
-#include "graph_common.hpp"
+#include "../graph_common.hpp"
 
 using TestProperties = decltype(sycl::ext::oneapi::experimental::properties{});
 
@@ -142,10 +142,6 @@ template <OperationPath PathKind> void test(queue Queue) {
 
 int main() {
   queue Queue;
-
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
 
   test<OperationPath::Explicit>(Queue);
   test<OperationPath::RecordReplay>(Queue);

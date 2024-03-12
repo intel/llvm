@@ -1185,34 +1185,6 @@ struct get_device_info_impl<
   }
 };
 
-// Specialization for graph extension support
-template <>
-struct get_device_info_impl<
-    ext::oneapi::experimental::graph_support_level,
-    ext::oneapi::experimental::info::device::graph_support> {
-  static ext::oneapi::experimental::graph_support_level
-  get(const DeviceImplPtr &Dev) {
-    size_t ResultSize = 0;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PI_DEVICE_INFO_EXTENSIONS, 0, nullptr,
-        &ResultSize);
-    if (ResultSize == 0)
-      return ext::oneapi::experimental::graph_support_level::unsupported;
-
-    std::unique_ptr<char[]> Result(new char[ResultSize]);
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PI_DEVICE_INFO_EXTENSIONS, ResultSize,
-        Result.get(), nullptr);
-
-    std::string_view ExtensionsString(Result.get());
-    bool CmdBufferSupport =
-        ExtensionsString.find("ur_exp_command_buffer") != std::string::npos;
-    return CmdBufferSupport
-               ? ext::oneapi::experimental::graph_support_level::native
-               : ext::oneapi::experimental::graph_support_level::unsupported;
-  }
-};
-
 // Specialization for composite devices extension.
 template <>
 struct get_device_info_impl<
@@ -2173,13 +2145,6 @@ inline uint32_t get_device_info_host<
   throw runtime_error("Obtaining the maximum number of available registers per "
                       "work-group is not supported on HOST device",
                       PI_ERROR_INVALID_DEVICE);
-}
-
-template <>
-inline ext::oneapi::experimental::graph_support_level
-get_device_info_host<ext::oneapi::experimental::info::device::graph_support>() {
-  // No support for graphs on the host device.
-  return ext::oneapi::experimental::graph_support_level::unsupported;
 }
 
 template <>

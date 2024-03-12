@@ -15193,6 +15193,9 @@ private:
 
   bool CheckIntelSYCLPtrAnnotationBuiltinFunctionCall(unsigned BuiltinID,
                                                       CallExpr *Call);
+  bool CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned BuiltinID,
+                                               CallExpr *Call);
+
 private:
   // We store SYCL Kernels here and handle separately -- which is a hack.
   // FIXME: It would be best to refactor this.
@@ -15336,6 +15339,9 @@ public:
            VDecl->hasGlobalStorage() &&
            (VDecl->getType().getAddressSpace() == LangAS::sycl_private);
   }
+
+  /// Check whether \p Ty corresponds to a SYCL type of name \p TypeName.
+  static bool isSyclType(QualType Ty, SYCLTypeAttr::SYCLType TypeName);
 };
 
 DeductionFailureInfo

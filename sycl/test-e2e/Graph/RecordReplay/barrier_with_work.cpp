@@ -64,10 +64,6 @@ event run_kernels_usm_with_barrier(queue Q, const size_t Size, T *DataA,
 int main() {
   queue Queue;
 
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
-
   using T = int;
 
   std::vector<T> DataA(Size), DataB(Size), DataC(Size);

@@ -14,14 +14,14 @@
  *
  *  SYCLcompat API
  *
- *  util_vectorized_max_test.cpp
+ *  math_vectorized_min_test.cpp
  *
  *  Description:
- *    vectorized_max tests
+ *    vectorized_min tests
  **************************************************************************/
 
 // The original source was under the license below:
-// ====------ UtilVectorizedMaxTest.cpp---------- -*- C++ -* ----===////
+// ====------ UtilVectorizedMinTest.cpp---------- -*- C++ -* ----===////
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -36,7 +36,7 @@
 #include <sycl/sycl.hpp>
 #include <syclcompat.hpp>
 
-void test_kernel_vect_max(unsigned int vect_count, unsigned int *input_1,
+void test_kernel_vect_min(unsigned int vect_count, unsigned int *input_1,
                           unsigned int *input_2, unsigned int *output,
                           sycl::nd_item<3> item_ct1) {
 
@@ -45,11 +45,11 @@ void test_kernel_vect_max(unsigned int vect_count, unsigned int *input_1,
 
   if (index < vect_count) {
     output[index] =
-        syclcompat::vectorized_max<sycl::char4>(input_1[index], input_2[index]);
+        syclcompat::vectorized_min<sycl::char4>(input_1[index], input_2[index]);
   }
 }
 
-void test_vec_max() {
+void test_vec_min() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   syclcompat::device_ext &dev_ct1 = syclcompat::get_current_device();
@@ -86,7 +86,7 @@ void test_vec_max() {
         sycl::nd_range<3>(sycl::range<3>(1, 1, 3) * sycl::range<3>(1, 1, 3),
                           sycl::range<3>(1, 1, 3)),
         [=](sycl::nd_item<3> item_ct1) {
-          test_kernel_vect_max(num_data, d_in_data_1, d_in_data_2, d_out_data,
+          test_kernel_vect_min(num_data, d_in_data_1, d_in_data_2, d_out_data,
                                item_ct1);
         });
   });
@@ -94,7 +94,7 @@ void test_vec_max() {
 
   q_ct1->memcpy(h_out_data, d_out_data, mem_size).wait();
 
-  unsigned int ref_data[num_data] = {6, 5, 4, 3, 4, 5, 6};
+  unsigned int ref_data[num_data] = {0, 1, 2, 3, 2, 1, 0};
   for (unsigned int i = 0; i < num_data; i++) {
     if (h_out_data[i] != ref_data[i])
       exit(-1);
@@ -108,7 +108,7 @@ void test_vec_max() {
 }
 
 int main() {
-  test_vec_max();
+  test_vec_min();
 
   return 0;
 }

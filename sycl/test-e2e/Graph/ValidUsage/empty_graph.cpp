@@ -8,14 +8,10 @@
 // Tests the ability to finalize and submit a command graph which doesn't
 // contain any nodes.
 
-#include "graph_common.hpp"
+#include "../graph_common.hpp"
 
 int main() {
   queue Queue{};
-
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
 
   ext::oneapi::experimental::command_graph Graph{Queue.get_context(),
                                                  Queue.get_device()};

@@ -4,14 +4,10 @@
 // Tests that calling handler::depends_on() for events not part of the graph
 // throws.
 
-#include "graph_common.hpp"
+#include "../graph_common.hpp"
 
 int main() {
   queue Queue{};
-
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
 
   ext::oneapi::experimental::command_graph Graph{Queue.get_context(),
                                                  Queue.get_device()};

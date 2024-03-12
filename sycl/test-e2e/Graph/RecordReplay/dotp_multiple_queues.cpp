@@ -14,10 +14,6 @@ int main() {
   property_list Properties{property::queue::in_order{}};
   queue QueueA{Properties};
 
-  if (!are_graphs_supported(QueueA)) {
-    return 0;
-  }
-
   queue QueueB{QueueA.get_context(), QueueA.get_device(), Properties};
 
   exp_ext::command_graph Graph{QueueA.get_context(), QueueA.get_device()};

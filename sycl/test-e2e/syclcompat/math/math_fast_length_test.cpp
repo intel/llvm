@@ -14,7 +14,7 @@
  *
  *  SYCLcompat API
  *
- *  util_fast_length_test.cpp
+ *  math_fast_length_test.cpp
  *
  *  Description:
  *    Fast length tests

@@ -101,19 +101,19 @@
 // STATIC_LIB_SRC: 8: compiler, {7}, ir, (host-sycl)
 // STATIC_LIB_SRC: 9: backend, {8}, assembler, (host-sycl)
 // STATIC_LIB_SRC: 10: assembler, {9}, object, (host-sycl)
-// STATIC_LIB_SRC: 11: linker, {0, 10}, image, (host-sycl)
-// STATIC_LIB_SRC: 12: linker, {0, 10}, host_dep_image, (host-sycl)
-// STATIC_LIB_SRC: 13: clang-offload-deps, {12}, ir, (host-sycl)
-// STATIC_LIB_SRC: 14: input, "[[INPUTA]]", archive
-// STATIC_LIB_SRC: 15: clang-offload-unbundler, {14}, tempfilelist
-// STATIC_LIB_SRC: 16: spirv-to-ir-wrapper, {15}, tempfilelist, (device-sycl)
-// STATIC_LIB_SRC: 17: linker, {6, 13, 16}, ir, (device-sycl)
-// STATIC_LIB_SRC: 18: sycl-post-link, {17}, tempfiletable, (device-sycl)
-// STATIC_LIB_SRC: 19: file-table-tform, {18}, tempfilelist, (device-sycl)
-// STATIC_LIB_SRC: 20: llvm-spirv, {19}, tempfilelist, (device-sycl)
-// STATIC_LIB_SRC: 21: file-table-tform, {18, 20}, tempfiletable, (device-sycl)
-// STATIC_LIB_SRC: 22: clang-offload-wrapper, {21}, object, (device-sycl)
-// STATIC_LIB_SRC: 23: offload, "host-sycl (x86_64-unknown-linux-gnu)" {11}, "device-sycl (spir64-unknown-unknown)" {22}, image
+// STATIC_LIB_SRC: 11: linker, {0, 10}, host_dep_image, (host-sycl)
+// STATIC_LIB_SRC: 12: clang-offload-deps, {11}, ir, (host-sycl)
+// STATIC_LIB_SRC: 13: input, "[[INPUTA]]", archive
+// STATIC_LIB_SRC: 14: clang-offload-unbundler, {13}, tempfilelist
+// STATIC_LIB_SRC: 15: spirv-to-ir-wrapper, {14}, tempfilelist, (device-sycl)
+// STATIC_LIB_SRC: 16: linker, {6, 12, 15}, ir, (device-sycl)
+// STATIC_LIB_SRC: 17: sycl-post-link, {16}, tempfiletable, (device-sycl)
+// STATIC_LIB_SRC: 18: file-table-tform, {17}, tempfilelist, (device-sycl)
+// STATIC_LIB_SRC: 19: llvm-spirv, {18}, tempfilelist, (device-sycl)
+// STATIC_LIB_SRC: 20: file-table-tform, {17, 19}, tempfiletable, (device-sycl)
+// STATIC_LIB_SRC: 21: clang-offload-wrapper, {20}, object, (device-sycl)
+// STATIC_LIB_SRC: 22: offload, "device-sycl (spir64-unknown-unknown)" {21}, object
+// STATIC_LIB_SRC: 23: linker, {0, 10, 22}, image, (host-sycl)
 
 // STATIC_LIB_SRC-CUDA: 0: input, "[[INPUTA:.+\.a]]", object, (host-sycl)
 // STATIC_LIB_SRC-CUDA: 1: input, "[[INPUTC:.+\.cpp]]", c++, (host-sycl)
@@ -126,21 +126,21 @@
 // STATIC_LIB_SRC-CUDA: 8: compiler, {7}, ir, (host-sycl)
 // STATIC_LIB_SRC-CUDA: 9: backend, {8}, assembler, (host-sycl)
 // STATIC_LIB_SRC-CUDA: 10: assembler, {9}, object, (host-sycl)
-// STATIC_LIB_SRC-CUDA: 11: linker, {0, 10}, image, (host-sycl)
-// STATIC_LIB_SRC-CUDA: 12: linker, {0, 10}, host_dep_image, (host-sycl)
-// STATIC_LIB_SRC-CUDA: 13: clang-offload-deps, {12}, ir, (host-sycl)
-// STATIC_LIB_SRC-CUDA: 14: input, "[[INPUTA]]", archive
-// STATIC_LIB_SRC-CUDA: 15: clang-offload-unbundler, {14}, archive
-// STATIC_LIB_SRC-CUDA: 16: linker, {6, 13, 15}, ir, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 17: sycl-post-link, {16}, ir, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 18: file-table-tform, {17}, ir, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 19: backend, {18}, assembler, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 20: assembler, {19}, object, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 21: linker, {19, 20}, cuda-fatbin, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 22: foreach, {18, 21}, cuda-fatbin, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 23: file-table-tform, {17, 22}, tempfiletable, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 24: clang-offload-wrapper, {23}, object, (device-sycl, sm_50)
-// STATIC_LIB_SRC-CUDA: 25: offload, "host-sycl (x86_64-unknown-linux-gnu)" {11}, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {24}, image
+// STATIC_LIB_SRC-CUDA: 11: linker, {0, 10}, host_dep_image, (host-sycl)
+// STATIC_LIB_SRC-CUDA: 12: clang-offload-deps, {11}, ir, (host-sycl)
+// STATIC_LIB_SRC-CUDA: 13: input, "[[INPUTA]]", archive
+// STATIC_LIB_SRC-CUDA: 14: clang-offload-unbundler, {13}, archive
+// STATIC_LIB_SRC-CUDA: 15: linker, {6, 12, 14}, ir, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 16: sycl-post-link, {15}, ir, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 17: file-table-tform, {16}, ir, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 18: backend, {17}, assembler, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 19: assembler, {18}, object, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 20: linker, {18, 19}, cuda-fatbin, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 21: foreach, {17, 20}, cuda-fatbin, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 22: file-table-tform, {16, 21}, tempfiletable, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 23: clang-offload-wrapper, {22}, object, (device-sycl, sm_50)
+// STATIC_LIB_SRC-CUDA: 24: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {23}, object
+// STATIC_LIB_SRC-CUDA: 25: linker, {0, 10, 24}, image, (host-sycl)
 
 /// ###########################################################################
 

@@ -263,8 +263,9 @@ std::vector<sycl::detail::pi::PiEvent> Command::getPiEventsBlocking(
     // Throwaway events created with empty constructor will not have a context
     // (which is set lazily) calling getContextImpl() would set that
     // context, which we wish to avoid as it is expensive.
-    // Skip host task also.
-    if (!EventImpl->isContextInitialized() || EventImpl->is_host())
+    // Skip host task and NOP events also.
+    if (!EventImpl->isContextInitialized() || EventImpl->is_host() ||
+        EventImpl->isNOP())
       continue;
     // In this path nullptr native event means that the command has not been
     // enqueued. It may happen if async enqueue in a host task is involved.

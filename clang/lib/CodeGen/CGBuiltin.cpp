@@ -5923,6 +5923,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     return EmitIntelFPGAMemBuiltin(E);
   case Builtin::BI__builtin_intel_sycl_ptr_annotation:
     return EmitIntelSYCLPtrAnnotationBuiltin(E);
+  case Builtin::BI__builtin_intel_sycl_alloca:
+    return EmitIntelSYCLAllocaBuiltin(E, ReturnValue);
   case Builtin::BI__builtin_get_device_side_mangled_name: {
     auto Name = CGM.getCUDARuntime().getDeviceSideName(
         cast<DeclRefExpr>(E->getArg(0)->IgnoreImpCasts())->getDecl());
@@ -23653,6 +23655,84 @@ RValue CodeGenFunction::EmitIntelSYCLPtrAnnotationBuiltin(const CallExpr *E) {
   llvm::Value *Ann =
       EmitSYCLAnnotationCall(F, PtrVal, E->getExprLoc(), Properties);
   return RValue::get(Ann);
+}
+
+RValue
+CodeGenFunction::EmitIntelSYCLAllocaBuiltin(const CallExpr *E,
+                                            ReturnValueSlot ReturnValue) {
+  const FunctionDecl *FD = E->getDirectCallee();
+  assert(FD && "Expecting direct call to builtin");
+
+  SourceLocation Loc = E->getExprLoc();
+
+  // Get specialization constant ID.
+  ValueDecl *SpecConst =
+      FD->getTemplateSpecializationArgs()->get(1).getAsDecl();
+  DeclRefExpr *Ref = DeclRefExpr::Create(
+      getContext(), NestedNameSpecifierLoc(), SourceLocation(), SpecConst,
+      /*RefersToEnclosingVariableOrCapture=*/false, E->getExprLoc(),
+      SpecConst->getType(), ExprValueKind::VK_LValue);
+  llvm::Value *UID = EmitScalarExpr(
+      SYCLUniqueStableIdExpr::Create(getContext(), Loc, Loc, Loc, Ref));
+
+  // Get specialization ID pointer.
+  llvm::Value *SpecConstPtr =
+      EmitLValue(Ref, clang::CodeGen::KnownNonNull).getPointer(*this);
+
+  // Get specialization constant buffer.
+  // TODO: When this extension supports more targets, get RTBufferPtr from input
+  // sycl::kernel_handler &.
+  llvm::Value *RTBufferPtr = llvm::ConstantPointerNull::get(
+      cast<llvm::PointerType>(SpecConstPtr->getType()));
+
+  // Get allocation type.
+  const TemplateArgumentList &TAL =
+      cast<ClassTemplateSpecializationDecl>(E->getType()->getAsCXXRecordDecl())
+          ->getTemplateArgs();
+  QualType AllocaType = TAL.get(0).getAsType();
+  llvm::Type *Ty = CGM.getTypes().ConvertTypeForMem(AllocaType);
+  unsigned AllocaAS = CGM.getDataLayout().getAllocaAddrSpace();
+  llvm::Type *AllocaTy = llvm::PointerType::get(Builder.getContext(), AllocaAS);
+
+  llvm::Constant *EltTyConst = llvm::Constant::getNullValue(Ty);
+
+  llvm::Constant *Align = Builder.getInt64(
+      getContext().getTypeAlignInChars(AllocaType).getAsAlign().value());
+
+  llvm::Value *Allocation = [&]() {
+    // To implement automatic storage duration of the underlying memory object,
+    // insert intrinsic call before `AllocaInsertPt`. These will be lowered to
+    // an `alloca` or an equivalent construct in later compilation stages.
+    IRBuilderBase::InsertPointGuard IPG(Builder);
+    Builder.SetInsertPoint(AllocaInsertPt);
+    return Builder.CreateIntrinsic(
+        AllocaTy, Intrinsic::sycl_alloca,
+        {UID, SpecConstPtr, RTBufferPtr, EltTyConst, Align}, nullptr, "alloca");
+  }();
+
+  // Perform AS cast if needed.
+
+  constexpr int NoDecorated = 0;
+  llvm::APInt Decorated = TAL.get(2).getAsIntegral();
+  // Both 'sycl::access::decorated::{yes and legacy}' lead to decorated (private
+  // AS) pointer type. Perform cast if 'sycl::access::decorated::no'.
+  if (Decorated == NoDecorated) {
+    IRBuilderBase::InsertPointGuard IPG(Builder);
+    Builder.SetInsertPoint(getPostAllocaInsertPoint());
+    unsigned DestAddrSpace =
+        getContext().getTargetAddressSpace(LangAS::Default);
+    llvm::PointerType *DestTy =
+        llvm::PointerType::get(Builder.getContext(), DestAddrSpace);
+    Allocation = Builder.CreateAddrSpaceCast(Allocation, DestTy);
+  }
+
+  // If no slot is provided, simply return allocation.
+  if (ReturnValue.isNull())
+    return RValue::get(Allocation);
+
+  // If a slot is provided, store pointer there.
+  Builder.CreateStore(Allocation, ReturnValue.getValue());
+  return RValue::getAggregate(ReturnValue.getValue());
 }
 
 Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,

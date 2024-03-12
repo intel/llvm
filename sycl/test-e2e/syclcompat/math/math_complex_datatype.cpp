@@ -14,7 +14,7 @@
  *
  *  SYCLcompat API
  *
- *  util_complex_datatype.cpp
+ *  math_complex_datatype.cpp
  *
  *  Description:
  *    Complex operations tests
@@ -33,6 +33,7 @@
 // RUN: %{run} %t.out
 
 #include <iostream>
+#include <syclcompat/math.hpp>
 #include <syclcompat/util.hpp>
 
 void test_datatype() {

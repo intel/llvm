@@ -5,22 +5,19 @@
 // The test checks that invalid exception is thrown
 // when trying to create a graph with an unsupported backend.
 
-#include "graph_common.hpp"
+#include "../graph_common.hpp"
 
 int GetUnsupportedBackend(const sycl::device &Dev) {
   // Return 1 if the device backend is unsupported or 0 else.
   // 0 does not prevent another device to be picked as a second choice
-  return Dev.get_info<
-             ext::oneapi::experimental::info::device::graph_support>() ==
-         ext::oneapi::experimental::graph_support_level::unsupported;
+  return !Dev.has(aspect::ext_oneapi_graph);
 }
 
 int main() {
   sycl::device Dev{GetUnsupportedBackend};
   queue Queue{Dev};
 
-  if (Dev.get_info<ext::oneapi::experimental::info::device::graph_support>() !=
-      ext::oneapi::experimental::graph_support_level::unsupported)
+  if (Dev.has(aspect::ext_oneapi_graph))
     return 0;
 
   std::error_code ExceptionCode = make_error_code(sycl::errc::success);

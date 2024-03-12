@@ -16,10 +16,6 @@ int main() {
   property_list Properties{property::queue::in_order{}};
   queue Queue{Properties};
 
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
-
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
   int *Dotp = malloc_device<int>(1, Queue);

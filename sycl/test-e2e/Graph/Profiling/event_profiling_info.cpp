@@ -11,7 +11,7 @@
 // It first tests a graph made exclusively of memory operations,
 // then tests a graph made of kernels.
 
-#include "graph_common.hpp"
+#include "../graph_common.hpp"
 
 #define GRAPH_TESTS_VERBOSE_PRINT 0
 

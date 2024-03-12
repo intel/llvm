@@ -63,19 +63,19 @@
 // FOFFLOAD_STATIC_LIB_SRC: 8: compiler, {7}, ir, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 9: backend, {8}, assembler, (host-sycl)
 // FOFFLOAD_STATIC_LIB_SRC: 10: assembler, {9}, object, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 11: linker, {0, 10}, image, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 12: linker, {0, 10}, host_dep_image, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 13: clang-offload-deps, {12}, ir, (host-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 14: input, "[[INPUTA]]", archive
-// FOFFLOAD_STATIC_LIB_SRC: 15: clang-offload-unbundler, {14}, tempfilelist
-// FOFFLOAD_STATIC_LIB_SRC: 16: spirv-to-ir-wrapper, {15}, tempfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 17: linker, {6, 13, 16}, ir, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 18: sycl-post-link, {17}, tempfiletable, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 19: file-table-tform, {18}, tempfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 20: llvm-spirv, {19}, tempfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 21: file-table-tform, {18, 20}, tempfiletable, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 22: clang-offload-wrapper, {21}, object, (device-sycl)
-// FOFFLOAD_STATIC_LIB_SRC: 23: offload, "host-sycl (x86_64-unknown-linux-gnu)" {11}, "device-sycl (spir64-unknown-unknown)" {22}, image
+// FOFFLOAD_STATIC_LIB_SRC: 11: linker, {0, 10}, host_dep_image, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 12: clang-offload-deps, {11}, ir, (host-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 13: input, "[[INPUTA]]", archive
+// FOFFLOAD_STATIC_LIB_SRC: 14: clang-offload-unbundler, {13}, tempfilelist
+// FOFFLOAD_STATIC_LIB_SRC: 15: spirv-to-ir-wrapper, {14}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 16: linker, {6, 12, 15}, ir, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 17: sycl-post-link, {16}, tempfiletable, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 18: file-table-tform, {17}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 19: llvm-spirv, {18}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 20: file-table-tform, {17, 19}, tempfiletable, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 21: clang-offload-wrapper, {20}, object, (device-sycl)
+// FOFFLOAD_STATIC_LIB_SRC: 22: offload, "device-sycl (spir64-unknown-unknown)" {21}, object
+// FOFFLOAD_STATIC_LIB_SRC: 23: linker, {0, 10, 22}, image, (host-sycl)
 
 /// ###########################################################################
 
@@ -138,19 +138,19 @@
 // RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -L/dummy/dir -foffload-whole-static-lib=%t.a -### -ccc-print-phases 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=FOFFLOAD_STATIC_LIB_NOSRC_PHASES
 // FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 0: input, "[[INPUTA:.+\.a]]", object, (host-sycl)
-// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 1: linker, {0}, image, (host-sycl)
-// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 2: linker, {0}, host_dep_image, (host-sycl)
-// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 3: clang-offload-deps, {2}, ir, (host-sycl)
-// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 4: input, "[[INPUTA]]", archive
-// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 5: clang-offload-unbundler, {4}, tempfilelist
-// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 6: spirv-to-ir-wrapper, {5}, tempfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 7: linker, {3, 6}, ir, (device-sycl)
-// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 8: sycl-post-link, {7}, tempfiletable, (device-sycl)
-// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 9: file-table-tform, {8}, tempfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 10: llvm-spirv, {9}, tempfilelist, (device-sycl)
-// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 11: file-table-tform, {8, 10}, tempfiletable, (device-sycl)
-// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 12: clang-offload-wrapper, {11}, object, (device-sycl)
-// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 13: offload, "host-sycl (x86_64-unknown-linux-gnu)" {1}, "device-sycl (spir64-unknown-unknown)" {12}, image
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 1: linker, {0}, host_dep_image, (host-sycl)
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 2: clang-offload-deps, {1}, ir, (host-sycl)
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 3: input, "[[INPUTA]]", archive
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 4: clang-offload-unbundler, {3}, tempfilelist
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 5: spirv-to-ir-wrapper, {4}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 6: linker, {2, 5}, ir, (device-sycl)
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 7: sycl-post-link, {6}, tempfiletable, (device-sycl)
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 8: file-table-tform, {7}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 9: llvm-spirv, {8}, tempfilelist, (device-sycl)
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 10: file-table-tform, {7, 9}, tempfiletable, (device-sycl)
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 11: clang-offload-wrapper, {10}, object, (device-sycl)
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 12: offload, "device-sycl (spir64-unknown-unknown)" {11}, object
+// FOFFLOAD_STATIC_LIB_NOSRC_PHASES: 13: linker, {0, 12}, image, (host-sycl)
 
 /// ###########################################################################
 

@@ -27870,6 +27870,51 @@ has a zeroing treatment of subnormal input values (such as indicated
 by the ``"denormal-fp-math"`` attribute), a subnormal value will be
 observed (will not be implicitly treated as zero).
 
+SYCL Intrinsics
+------------------
+
+This class of intrinsics is designed to support SYCL-specific features.
+
+'``llvm.sycl.alloca``' Intrinsic
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Syntax:
+"""""""
+
+::
+
+      declare ptr @llvm.sycl.alloca(ptr <scuid>, ptr <scptr>, ptr <scbuffer>, <type> <typehint>, <alignty> align)
+
+Overview:
+"""""""""
+
+The '``llvm.sycl.alloca``' intrinsic represents SYCL specialization constant
+length array allocations.
+
+Arguments:
+""""""""""
+
+The first three arguments are used to encode the specialization constant length
+of the allocated array. The first argument is a pointer to the specialization
+constant unique ID and the second one, a pointer to the
+``sycl::specialization_id`` itself. The third argument is a pointer to a buffer
+holding specialization constant values for targets without native specialization
+constant support.
+
+For the last two arguments, ``typehint`` is a helper value of the same type as
+the array element type. The last argument, which must be an immediate value,
+represents the allocation alignment.
+
+Semantics:
+""""""""""
+
+This intrinsic allocates an array of type ``type`` and length given by the input
+specialization constants in SYCL private memory. Array alignment is given by
+``align``. The allocated memory has the same duration as an ``alloca``-defined
+pointer. The allocated memory is uninitialized. This intrinsic has undefined
+behaviour if there is insufficient private memory for the allocation. Note the
+return pointer type address space and the target private address space must
+match.
 
 General Intrinsics
 ------------------

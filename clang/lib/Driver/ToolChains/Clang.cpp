@@ -9747,6 +9747,53 @@ void OffloadBundler::ConstructJobMultipleOutputs(
 
 // Begin OffloadWrapper
 
+static void addRunTimeWrapperOpts(Compilation &C,
+                                  Action::OffloadKind DeviceOffloadKind,
+                                  const llvm::opt::ArgList &TCArgs,
+                                  ArgStringList &CmdArgs,
+                                  const ToolChain &TC,
+                                  const JobAction &JA) {
+  // Grab any Target specific options that need to be added to the wrapper
+  // information.
+  ArgStringList BuildArgs;
+  auto createArgString = [&](const char *Opt) {
+    if (BuildArgs.empty())
+      return;
+    SmallString<128> AL;
+    for (const char *A : BuildArgs) {
+      if (AL.empty()) {
+        AL = A;
+        continue;
+      }
+      AL += " ";
+      AL += A;
+    }
+    CmdArgs.push_back(C.getArgs().MakeArgString(Twine(Opt) + AL));
+  };
+  const toolchains::SYCLToolChain &SYCLTC =
+            static_cast<const toolchains::SYCLToolChain &>(TC);
+  llvm::Triple TT = SYCLTC.getTriple();
+  // TODO: Consider separating the mechanisms for:
+  // - passing standard-defined options to AOT/JIT compilation steps;
+  // - passing AOT-compiler specific options.
+  // This would allow retaining standard language options in the
+  // image descriptor, while excluding tool-specific options that
+  // have been known to confuse RT implementations.
+  if (TT.getSubArch() == llvm::Triple::NoSubArch) {
+    // Only store compile/link opts in the image descriptor for the SPIR-V
+    // target; AOT compilation has already been performed otherwise.
+    const ArgList &Args = C.getArgsForToolChain(nullptr, StringRef(),
+                                                DeviceOffloadKind);
+    const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+    SYCLTC.AddImpliedTargetArgs(TT, Args, BuildArgs, JA, *HostTC);
+    SYCLTC.TranslateBackendTargetArgs(TT, Args, BuildArgs);
+    createArgString("-compile-opts=");
+    BuildArgs.clear();
+    SYCLTC.TranslateLinkerTargetArgs(TT, Args, BuildArgs);
+    createArgString("-link-opts=");
+  }
+}
+
 void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
                                   const InputInfo &Output,
                                   const InputInfoList &Inputs,
@@ -9792,6 +9839,9 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       if (A->getValue() == StringRef("image"))
         WrapperArgs.push_back(C.getArgs().MakeArgString("--emit-reg-funcs=0"));
     }
+    addRunTimeWrapperOpts(C, OffloadingKind, TCArgs, WrapperArgs,
+                          getToolChain(), JA);
+
     // When wrapping an FPGA device binary, we need to be sure to apply the
     // appropriate triple that corresponds (fpga_aocr-intel-<os>)
     // to the target triple setting.
@@ -9807,42 +9857,8 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       TT.setVendorName("intel");
       TargetTripleOpt = TT.str();
     }
-    // Grab any Target specific options that need to be added to the wrapper
-    // information.
-    ArgStringList BuildArgs;
-    auto createArgString = [&](const char *Opt) {
-      if (BuildArgs.empty())
-        return;
-      SmallString<128> AL;
-      for (const char *A : BuildArgs) {
-        if (AL.empty()) {
-          AL = A;
-          continue;
-        }
-        AL += " ";
-        AL += A;
-      }
-      WrapperArgs.push_back(C.getArgs().MakeArgString(Twine(Opt) + AL));
-    };
     const toolchains::SYCLToolChain &TC =
               static_cast<const toolchains::SYCLToolChain &>(getToolChain());
-    // TODO: Consider separating the mechanisms for:
-    // - passing standard-defined options to AOT/JIT compilation steps;
-    // - passing AOT-compiler specific options.
-    // This would allow retaining standard language options in the
-    // image descriptor, while excluding tool-specific options that
-    // have been known to confuse RT implementations.
-    if (TC.getTriple().getSubArch() == llvm::Triple::NoSubArch) {
-      // Only store compile/link opts in the image descriptor for the SPIR-V
-      // target; AOT compilation has already been performed otherwise.
-      const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-      TC.AddImpliedTargetArgs(TT, TCArgs, BuildArgs, JA, *HostTC);
-      TC.TranslateBackendTargetArgs(TT, TCArgs, BuildArgs);
-      createArgString("-compile-opts=");
-      BuildArgs.clear();
-      TC.TranslateLinkerTargetArgs(TT, TCArgs, BuildArgs);
-      createArgString("-link-opts=");
-    }
     bool IsEmbeddedIR = cast<OffloadWrapperJobAction>(JA).isEmbeddedIR();
     if (IsEmbeddedIR) {
       // When the offload-wrapper is called to embed LLVM IR, add a prefix to
@@ -9984,8 +10000,18 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // And add it to the offload targets.
     CmdArgs.push_back(C.getArgs().MakeArgString(
         Twine("-kind=") + Action::GetOffloadKindName(DeviceKind)));
-    CmdArgs.push_back(TCArgs.MakeArgString(Twine("-target=") +
-                                           DeviceTC->getTriple().normalize()));
+    std::string TargetTripleOpt = DeviceTC->getTriple().normalize();
+    // SYCL toolchain target only uses the arch name.
+    if (DeviceKind == Action::OFK_SYCL)
+      TargetTripleOpt = DeviceTC->getTriple().getArchName();
+    CmdArgs.push_back(
+        TCArgs.MakeArgString(Twine("-target=") + TargetTripleOpt));
+    addRunTimeWrapperOpts(C, DeviceKind, TCArgs, CmdArgs, *DeviceTC, JA);
+
+    if (Inputs[I].getType() == types::TY_Tempfiletable ||
+        Inputs[I].getType() == types::TY_Tempfilelist)
+      // wrapper actual input files are passed via the batch job file table:
+      CmdArgs.push_back(C.getArgs().MakeArgString("-batch"));
 
     // Add input.
     assert(Inputs[I].isFilename() && "Invalid input.");

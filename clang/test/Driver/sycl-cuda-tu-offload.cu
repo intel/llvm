@@ -50,8 +50,6 @@
 // DEFAULT-PHASES2:                +- 16: offload, "host-cuda-sycl (x86_64-unknown-linux-gnu)" {7}, "device-cuda (nvptx64-nvidia-cuda)" {15}, ir
 // DEFAULT-PHASES2:             +- 17: backend, {16}, assembler, (host-cuda-sycl)
 // DEFAULT-PHASES2:          +- 18: assembler, {17}, object, (host-cuda-sycl)
-// DEFAULT-PHASES2:       +- 19: offload, "host-cuda-sycl (x86_64-unknown-linux-gnu)" {18}, object
-// DEFAULT-PHASES2:    +- 20: linker, {19}, image, (host-cuda-sycl)
-// DEFAULT-PHASES2:    |              |- 21: offload, "device-cuda (nvptx64-nvidia-cuda:sm_80)" {10}, ir
-// DEFAULT-PHASES2:    |           +- 22: linker, {5, 21}, ir, (device-sycl, sm_80)
-// DEFAULT-PHASES2:    {{.*}}: offload, "host-cuda-sycl (x86_64-unknown-linux-gnu)" {20}, "device-sycl (nvptx64-nvidia-cuda:sm_80)" {{{.*}}}, image
+// DEFAULT-PHASES2: +- 19: offload, "host-cuda-sycl (x86_64-unknown-linux-gnu)" {18}, object
+// DEFAULT-PHASES2: |                 |- 20: offload, "device-cuda (nvptx64-nvidia-cuda:sm_80)" {10}, ir
+// DEFAULT-PHASES2: |              +- 21: linker, {5, 20}, ir, (device-sycl, sm_80)

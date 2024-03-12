@@ -14,10 +14,6 @@
 int main() {
   queue Queue;
 
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
-
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
   {
     queue MyQueue(Queue.get_context(), Queue.get_device());

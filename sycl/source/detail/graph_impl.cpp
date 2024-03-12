@@ -16,10 +16,6 @@
 #include <sycl/feature_test.hpp>
 #include <sycl/queue.hpp>
 
-// Developer switch to use emulation mode on all backends, even those that
-// report native support, this is useful for debugging.
-#define FORCE_EMULATION_MODE 0
-
 namespace sycl {
 inline namespace _V1 {
 
@@ -1288,21 +1284,9 @@ void executable_command_graph::finalizeImpl() {
   impl->makePartitions();
 
   auto Device = impl->getGraphImpl()->getDevice();
-  bool CmdBufSupport =
-      Device
-          .get_info<ext::oneapi::experimental::info::device::graph_support>() ==
-      graph_support_level::native;
-
-#if FORCE_EMULATION_MODE
-  // Above query should still succeed in emulation mode, but ignore the
-  // result and use emulation.
-  CmdBufSupport = false;
-#endif
-  if (CmdBufSupport) {
-    for (auto Partition : impl->getPartitions()) {
-      if (!Partition->isHostTask()) {
-        impl->createCommandBuffers(Device, Partition);
-      }
+  for (auto Partition : impl->getPartitions()) {
+    if (!Partition->isHostTask()) {
+      impl->createCommandBuffers(Device, Partition);
     }
   }
 }

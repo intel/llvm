@@ -4635,6 +4635,12 @@ def IntelSYCLPtrAnnotation : Builtin {
   let Prototype = "void(...)";
 }
 
+def IntelSYCLAlloca : Builtin {
+  let Spellings = ["__builtin_intel_sycl_alloca"];
+  let Attributes = [NoThrow, CustomTypeChecking];
+  let Prototype = "void *(void &)";
+}
+
 // Builtins for Intel FPGA
 def IntelSYCLFPGAReg : Builtin {
   let Spellings = ["__builtin_intel_fpga_reg"];

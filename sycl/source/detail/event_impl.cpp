@@ -154,11 +154,15 @@ event_impl::event_impl(sycl::detail::pi::PiEvent Event,
   }
 }
 
-event_impl::event_impl(const QueueImplPtr &Queue)
-    : MQueue{Queue},
-      MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled},
-      MFallbackProfiling{MIsProfilingEnabled && Queue->isProfilingFallback()} {
+event_impl::event_impl(const QueueImplPtr &Queue) {
   this->setContextImpl(Queue->getContextImplPtr());
+  this->associateWithQueue(Queue);
+}
+
+void event_impl::associateWithQueue(const QueueImplPtr &Queue) {
+  MQueue = Queue;
+  MIsProfilingEnabled = Queue->is_host() || Queue->MIsProfilingEnabled;
+  MFallbackProfiling = MIsProfilingEnabled && Queue->isProfilingFallback();
   if (Queue->is_host()) {
     MState.store(HES_NotComplete);
     if (Queue->has_property<property::queue::enable_profiling>()) {
@@ -284,6 +288,7 @@ template <>
 uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
+
   // The delay between the submission and the actual start of a CommandBuffer
   // can be short. Consequently, the submission time, which is based on
   // an estimated clock and not on the real device clock, may be ahead of the
@@ -312,6 +317,11 @@ template <>
 uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_start>() {
   checkProfilingPreconditions();
+
+  // For nop command start time is equal to submission time.
+  if (isNOP() && MSubmitTime)
+    return MSubmitTime;
+
   if (!MHostEvent) {
     if (MEvent) {
       auto StartTime =
@@ -339,6 +349,11 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
 template <>
 uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   checkProfilingPreconditions();
+
+  // For nop command end time is equal to submission time.
+  if (isNOP() && MSubmitTime)
+    return MSubmitTime;
+
   if (!MHostEvent) {
     if (MEvent) {
       auto EndTime =
