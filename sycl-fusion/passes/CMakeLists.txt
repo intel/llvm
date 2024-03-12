@@ -13,7 +13,9 @@ add_library(SYCLKernelFusion MODULE
 
 add_dependencies(SYCLKernelFusion intrinsics_gen)
 
-target_compile_options(SYCLKernelFusion PRIVATE ${SYCL_FUSION_WARNING_FLAGS})
+target_compile_options(SYCLKernelFusion PRIVATE -fno-rtti ${SYCL_FUSION_WARNING_FLAGS})
+
+set_target_properties(SYCLKernelFusion PROPERTIES PREFIX "")
 
 target_include_directories(SYCLKernelFusion
   SYSTEM PRIVATE
