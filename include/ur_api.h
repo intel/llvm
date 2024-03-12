@@ -5165,8 +5165,8 @@ urKernelCreateWithNativeHandle(
 ///        implementation.
 ///
 /// @details
-///     - Query a suggested group size for a kernel given a global size for each
-///       dimension.
+///     - Query a suggested local work size for a kernel given a global size for
+///       each dimension.
 ///     - The application may call this function from simultaneous threads for
 ///       the same context.
 ///     - The implementation of this function should be thread-safe.
@@ -5196,7 +5196,7 @@ urKernelGetSuggestedLocalWorkSize(
                                      ///< the number of global work-items in workDim that will execute the
                                      ///< kernel function
     size_t *pSuggestedLocalWorkSize  ///< [out] pointer to an array of workDim unsigned values that specify
-                                     ///< suggested local work size that shall be used when executing the kernel
+                                     ///< suggested local work size that will contain the result of the query
 );
 
 #if !defined(__GNUC__)

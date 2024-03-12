@@ -18,17 +18,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     size_t *pSuggestedLocalWorkSize) {
   std::ignore = pGlobalWorkOffset;
 
-  uint32_t WG[3]{};
+  uint32_t LocalWorkSize[3];
   size_t GlobalWorkSize3D[3]{1, 1, 1};
   std::copy(pGlobalWorkSize, pGlobalWorkSize + workDim, GlobalWorkSize3D);
 
   ze_kernel_handle_t ZeKernel{};
   UR_CALL(getZeKernel(hQueue, hKernel, &ZeKernel));
 
-  UR_CALL(getSuggestedLocalWorkSize(Queue, ZeKernel, GlobalWorkSize3D, WG));
+  UR_CALL(getSuggestedLocalWorkSize(Queue, ZeKernel, GlobalWorkSize3D,
+                                    LocalWorkSize));
 
   UR_ASSERT(pSuggestedLocalWorkSize != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
-  std::copy(WG, WG + workDim, pSuggestedLocalWorkSize);
+  std::copy(LocalWorkSize, LocalWorkSize + workDim, pSuggestedLocalWorkSize);
   return UR_RESULT_SUCCESS;
 }
 

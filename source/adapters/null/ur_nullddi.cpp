@@ -2600,7 +2600,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     ///< kernel function
     size_t *
         pSuggestedLocalWorkSize ///< [out] pointer to an array of workDim unsigned values that specify
-    ///< suggested local work size that shall be used when executing the kernel
+    ///< suggested local work size that will contain the result of the query
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
