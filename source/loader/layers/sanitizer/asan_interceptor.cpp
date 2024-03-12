@@ -64,6 +64,10 @@ struct ManagedQueue {
         assert(Result == UR_RESULT_SUCCESS);
     }
 
+    // Disable copy semantics
+    ManagedQueue(const ManagedQueue &) = delete;
+    ManagedQueue &operator=(const ManagedQueue &) = delete;
+
     operator ur_queue_handle_t() { return Handle; }
 
   private:
@@ -129,11 +133,6 @@ ur_result_t SanitizerInterceptor::allocateMemory(
     ur_context_handle_t Context, ur_device_handle_t Device,
     const ur_usm_desc_t *Properties, ur_usm_pool_handle_t Pool, size_t Size,
     void **ResultPtr, AllocType Type) {
-
-    if (Size == 0) {
-        *ResultPtr = nullptr;
-        return UR_RESULT_SUCCESS;
-    }
 
     auto ContextInfo = getContextInfo(Context);
     std::shared_ptr<DeviceInfo> DeviceInfo =
