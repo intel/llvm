@@ -210,7 +210,7 @@ __SYCL_EXPORT half sincos_impl(half x, half *p) { return __sincos(x, p); }
   __SYCL_EXPORT float __##NAME##_impl(float x, int y) { return IMPL(x, y); }   \
   __SYCL_EXPORT double __##NAME##_impl(double x, int y) { return IMPL(x, y); } \
   __SYCL_EXPORT half __##NAME##_impl(half x, int y) { return IMPL(x, y); }     \
-  HOST_IMPL(NAME, pown /* delegate to scalar */)                               \
+  HOST_IMPL(NAME, NAME /* delegate to scalar */)                               \
   FOR_EACH1(EXPORT_VEC_LAST_INT_1_16, NAME, FP_TYPES)
 
 BUILTIN_MATH_LAST_INT(pown, std::pow)

@@ -263,8 +263,9 @@ std::vector<sycl::detail::pi::PiEvent> Command::getPiEventsBlocking(
     // Throwaway events created with empty constructor will not have a context
     // (which is set lazily) calling getContextImpl() would set that
     // context, which we wish to avoid as it is expensive.
-    // Skip host task also.
-    if (!EventImpl->isContextInitialized() || EventImpl->is_host())
+    // Skip host task and NOP events also.
+    if (!EventImpl->isContextInitialized() || EventImpl->is_host() ||
+        EventImpl->isNOP())
       continue;
     // In this path nullptr native event means that the command has not been
     // enqueued. It may happen if async enqueue in a host task is involved.
@@ -300,9 +301,12 @@ bool Command::isHostTask() const {
 }
 
 bool Command::isFusable() const {
-  return (MType == CommandType::RUN_CG) &&
-         ((static_cast<const ExecCGCommand *>(this))->getCG().getType() ==
-          CG::CGTYPE::Kernel);
+  if ((MType != CommandType::RUN_CG)) {
+    return false;
+  }
+  const auto &CG = (static_cast<const ExecCGCommand &>(*this)).getCG();
+  return (CG.getType() == CG::CGTYPE::Kernel) &&
+         (!static_cast<const CGExecKernel &>(CG).MKernelIsCooperative);
 }
 
 static void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls,
@@ -2343,7 +2347,8 @@ static pi_result SetKernelParamsAndLaunch(
     std::vector<sycl::detail::pi::PiEvent> &RawEvents,
     const detail::EventImplPtr &OutEventImpl,
     const KernelArgMask *EliminatedArgMask,
-    const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
+    bool IsCooperative) {
   const PluginPtr &Plugin = Queue->getPlugin();
 
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
@@ -2381,11 +2386,18 @@ static pi_result SetKernelParamsAndLaunch(
   }
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
-  pi_result Error = Plugin->call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
-      Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
-      &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
-      RawEvents.empty() ? nullptr : &RawEvents[0],
-      OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
+  pi_result Error =
+      [&](auto... Args) {
+        if (IsCooperative) {
+          return Plugin
+              ->call_nocheck<PiApiKind::piextEnqueueCooperativeKernelLaunch>(
+                  Args...);
+        }
+        return Plugin->call_nocheck<PiApiKind::piEnqueueKernelLaunch>(Args...);
+      }(Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
+        &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
+        RawEvents.empty() ? nullptr : &RawEvents[0],
+        OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
   return Error;
 }
 
@@ -2525,7 +2537,8 @@ pi_int32 enqueueImpKernel(
     std::vector<sycl::detail::pi::PiEvent> &RawEvents,
     const detail::EventImplPtr &OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig) {
+    sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
+    const bool KernelIsCooperative) {
 
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2616,7 +2629,8 @@ pi_int32 enqueueImpKernel(
 
     Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
                                      NDRDesc, EventsWaitList, OutEventImpl,
-                                     EliminatedArgMask, getMemAllocationFunc);
+                                     EliminatedArgMask, getMemAllocationFunc,
+                                     KernelIsCooperative);
 
     const PluginPtr &Plugin = Queue->getPlugin();
     if (!SyclKernelImpl && !MSyclKernel) {
@@ -2988,7 +3002,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     return enqueueImpKernel(
         MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
         KernelName, RawEvents, EventImpl, getMemAllocationFunc,
-        ExecKernel->MKernelCacheConfig);
+        ExecKernel->MKernelCacheConfig, ExecKernel->MKernelIsCooperative);
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
