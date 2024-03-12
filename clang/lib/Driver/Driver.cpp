@@ -5047,8 +5047,6 @@ class OffloadingActionBuilder final {
           // action or fat binary.
           SYCLDeviceActions.clear();
 
-          for (auto SDA : SYCLDeviceActions)
-            SYCLLinkBinaryList.push_back(SDA);
           if (WrapDeviceOnlyBinary)
             return ABRT_Success;
           auto *Link =
@@ -7512,9 +7510,12 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   }
 
   // Add a link action if necessary.
+  // When offloading with -fsycl-link-targets, no link action is processed
+  // as we stop at the spirv-translation step.
   Arg *FinalPhaseArg;
   if (!UseNewOffloadingDriver &&
-      getFinalPhase(Args, &FinalPhaseArg) == phases::Link) {
+      getFinalPhase(Args, &FinalPhaseArg) == phases::Link &&
+      !Args.hasArg(options::OPT_fsycl_link_targets_EQ)) {
     if (LinkerInputs.empty() && DeviceAOTLinkerInputs.empty())
       OffloadBuilder->appendDeviceLinkActions(Actions);
 
