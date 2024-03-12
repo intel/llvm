@@ -68,7 +68,7 @@ private:
   llvm::Module *M;
   llvm::LLVMContext *Ctx;
   // Map of argument/Function -> adapted type (probably TypedPointerType)
-  std::map<llvm::Value *, llvm::Type *> AdaptedTy;
+  std::unordered_map<llvm::Value *, llvm::Type *> AdaptedTy;
   std::set<llvm::Function *> WorkSet; // Functions to be adapted
 
   void adaptFunctionArguments(llvm::Function *F);

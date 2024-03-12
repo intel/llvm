@@ -290,8 +290,10 @@ areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
     // Events that don't have an initialized context are throwaway events that
     // don't represent actual dependencies. Calling getContextImpl() would set
     // their context, which we wish to avoid as it is expensive.
-    if (!SyclEventImplPtr->isContextInitialized() &&
-        !SyclEventImplPtr->is_host()) {
+    // NOP events also don't represent actual dependencies.
+    if ((!SyclEventImplPtr->isContextInitialized() &&
+         !SyclEventImplPtr->is_host()) ||
+        SyclEventImplPtr->isNOP()) {
       return true;
     }
     if (SyclEventImplPtr->is_host()) {

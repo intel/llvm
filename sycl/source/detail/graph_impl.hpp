@@ -586,9 +586,7 @@ public:
       MAllowBuffers = true;
     }
 
-    if (SyclDevice.get_info<
-            ext::oneapi::experimental::info::device::graph_support>() ==
-        graph_support_level::unsupported) {
+    if (!SyclDevice.has(aspect::ext_oneapi_graph)) {
       std::stringstream Stream;
       Stream << SyclDevice.get_backend();
       std::string BackendString = Stream.str();
@@ -1190,9 +1188,6 @@ private:
   std::vector<sycl::detail::EventImplPtr> MExecutionEvents;
   /// List of the partitions that compose the exec graph.
   std::vector<std::shared_ptr<partition>> MPartitions;
-  /// Map of the partitions to their execution events
-  std::unordered_map<std::shared_ptr<partition>, sycl::detail::EventImplPtr>
-      MPartitionsExecutionEvents;
   /// Storage for copies of nodes from the original modifiable graph.
   std::vector<std::shared_ptr<node_impl>> MNodeStorage;
 };
