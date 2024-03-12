@@ -6,8 +6,6 @@
 
 #include <sycl/ext/oneapi/experimental/alloca.hpp>
 
-#include <algorithm>
-
 template <typename ElementType, typename SizeType,
           sycl::access::decorated DecorateAddress>
 class Kernel;
@@ -34,8 +32,16 @@ void test() {
                 ElementType, Size, DecorateAddress>(h);
             const std::size_t M = h.get_specialization_constant<Size>();
             ptr[0] = static_cast<ElementType>(M);
-            std::iota(ptr.get() + 1, ptr.get() + M, ElementType{1});
-            std::copy_n(ptr.get(), M, acc.begin());
+            ElementType value{1};
+            for (auto begin = ptr.get() + 1, end = ptr.get() + M; begin < end;
+                 ++begin, ++value) {
+              *begin = value;
+            }
+            auto accBegin = acc.begin();
+            for (auto begin = ptr.get(), end = ptr.get() + M; begin < end;
+                 ++begin, ++accBegin) {
+              *accBegin = *begin;
+            }
           });
     });
     q.wait_and_throw();
