@@ -56,8 +56,13 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/Bensuo/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG ben/cuda-param-fix)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 1f6cbe61d9a142d88d8edf90c655e3cb9f0b6fb9
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Tue Mar 12 10:35:28 2024 +0000
+  #     Merge pull request #1426 from Bensuo/ben/cuda-param-fix
+  #     [CUDA] Fix build issue with version < 12.0
+  set(UNIFIED_RUNTIME_TAG 1f6cbe61d9a142d88d8edf90c655e3cb9f0b6fb9)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
