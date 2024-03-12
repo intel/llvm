@@ -10468,14 +10468,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
 
   // Add output file table file option
   assert(Output.isFilename() && "output must be a filename");
-  StringRef Device = JA.getOffloadingArch();
-  std::string OutputArg = Output.getFilename();
-  if (T.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
-    if (Device.data())
-      OutputArg = ("intel_gpu_" + Device + "," + OutputArg).str();
-  }
-
-  addArgs(CmdArgs, TCArgs, {"-o", OutputArg});
+  addArgs(CmdArgs, TCArgs, {"-o", Output.getFilename()});
 
   const toolchains::SYCLToolChain &TC =
       static_cast<const toolchains::SYCLToolChain &>(getToolChain());
