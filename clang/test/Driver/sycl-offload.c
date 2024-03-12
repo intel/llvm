@@ -337,10 +337,8 @@
 // RUN:   | FileCheck -check-prefixes=CHK-FSYCL-LINK-UB,CHK-FSYCL-LINK-UB-WIN %s
 // CHK-FSYCL-LINK-UB: clang-offload-bundler{{.*}} "-type=o" "-targets=host{{.*}},sycl-spir64_gen-unknown-unknown" "-input=[[INPUT:.+\.o]]" "-output={{.*}}" "-output=[[DEVICE_O:.+]]" "-unbundle"
 // CHK-FSYCL-LINK-UB: spirv-to-ir-wrapper{{.*}} "[[DEVICE_O]]" "-o" "[[DEVICE_BC:.+\.bc]]"
-// CHK-FSYCL-LINK-UB-LIN: llvm-link{{.*}} "[[DEVICE_BC]]" "-o" "[[LINKED_BC:.+\.bc]]"
-// CHK-FSYCL-LINK-UB-LIN: llvm-link{{.*}} "-only-needed" "[[LINKED_BC]]"{{.*}} "[[FINAL_BC:.+\.bc]]"
-// CHK-FSYCL-LINK-UB-WIN: llvm-link{{.*}} "[[DEVICE_BC]]" "-o" "[[FINAL_BC:.+\.bc]]"
-// CHK-FSYCL-LINK-UB: sycl-post-link{{.*}} "-o" "[[POST_LINK_TABLE:.+\.table]]" "[[FINAL_BC]]"
+// CHK-FSYCL-LINK-UB: llvm-link{{.*}} "[[DEVICE_BC]]"
+// CHK-FSYCL-LINK-UB: sycl-post-link{{.*}} "-o" "[[POST_LINK_TABLE:.+\.table]]"
 // CHK-FSYCL-LINK-UB: file-table-tform{{.*}} "-o" "[[TFORM_TABLE:.+\.txt]]" "[[POST_LINK_TABLE]]"
 // CHK-FSYCL-LINK-UB: llvm-spirv{{.*}} "-o" "[[SPIRV:.+\.txt]]"{{.*}} "[[TFORM_TABLE]]"
 // CHK-FSYCL-LINK-UB-LIN: ocloc{{.*}} "-output" "[[OCLOC_OUT:.+\.out]]
