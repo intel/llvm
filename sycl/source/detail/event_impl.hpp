@@ -366,7 +366,8 @@ protected:
   // stored here.
   sycl::detail::pi::PiExtSyncPoint MSyncPoint;
 
-  // Signifies whether this event is
+  // Signifies whether this event is the result of a profiling tag command. This
+  // allows for profiling, even if the queue does not have profiling enabled.
   bool MProfilingTagEvent = false;
 
   friend std::vector<sycl::detail::pi::PiEvent>
