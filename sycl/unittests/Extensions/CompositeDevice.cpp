@@ -98,7 +98,7 @@ TEST(CompositeDeviceTest, DescendentDeviceSupport) {
   ASSERT_TRUE(RootDevice.has(sycl::aspect::ext_oneapi_is_component));
   sycl::context Ctx(RootDevice);
   // We expect to only see the passed device
-  ASSERT_EQ(DevicesUsedInContextCreation.size(), 1);
+  ASSERT_EQ(DevicesUsedInContextCreation.size(), 1u);
   ASSERT_EQ(DevicesUsedInContextCreation.front(),
             reinterpret_cast<pi_device>(COMPONENT_DEVICE_A));
 
@@ -108,7 +108,7 @@ TEST(CompositeDeviceTest, DescendentDeviceSupport) {
   // To make sure that component devices an also be used within a context
   // created for a composite device, we expect them to be implicitly added to
   // the context under the hood.
-  ASSERT_EQ(DevicesUsedInContextCreation.size(), 3);
+  ASSERT_EQ(DevicesUsedInContextCreation.size(), 3u);
   ASSERT_TRUE(std::any_of(DevicesUsedInContextCreation.begin(),
                           DevicesUsedInContextCreation.end(), [=](pi_device D) {
                             return D == reinterpret_cast<pi_device>(
@@ -127,6 +127,6 @@ TEST(CompositeDeviceTest, DescendentDeviceSupport) {
   // Even though under the hood we have created context for 3 devices,
   // user-visible interface should only report the exact list of devices passed
   // by user to the context constructor.
-  ASSERT_EQ(CompositeDevContext.get_devices().size(), 1);
+  ASSERT_EQ(CompositeDevContext.get_devices().size(), 1u);
   ASSERT_EQ(CompositeDevContext.get_devices().front(), CompositeDevice);
 }
