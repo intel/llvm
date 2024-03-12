@@ -214,8 +214,8 @@ public:
         USMAnalyzer::handleUSMSharedAlloc);
     ArgHandlerPreCall.set_piextUSMFree(USMAnalyzer::handleUSMFree);
     ArgHandlerPreCall.set_piMemBufferCreate(USMAnalyzer::handleMemBufferCreate);
-    ArgHandlerPreCall.set_piextUSMEnqueueMemset(
-        USMAnalyzer::handleUSMEnqueueMemset);
+    ArgHandlerPreCall.set_piextUSMEnqueueFill(
+        USMAnalyzer::handleUSMEnqueueFill);
     ArgHandlerPreCall.set_piextUSMEnqueueMemcpy(
         USMAnalyzer::handleUSMEnqueueMemcpy);
     ArgHandlerPreCall.set_piextUSMEnqueuePrefetch(
@@ -350,11 +350,11 @@ public:
     }
   }
 
-  static void handleUSMEnqueueMemset(const pi_plugin &,
-                                     std::optional<pi_result>, pi_queue,
-                                     void *ptr, pi_int32, size_t numBytes,
-                                     pi_uint32, const pi_event *, pi_event *) {
-    CheckPointerValidness("input parameter", ptr, numBytes, "memset");
+  static void handleUSMEnqueueFill(const pi_plugin &, std::optional<pi_result>,
+                                   pi_queue, void *ptr, const void *, size_t,
+                                   size_t numBytes, pi_uint32, const pi_event *,
+                                   pi_event *) {
+    CheckPointerValidness("input parameter", ptr, numBytes, "fill");
   }
 
   static void handleUSMEnqueueMemcpy(const pi_plugin &,

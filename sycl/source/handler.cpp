@@ -952,7 +952,7 @@ void handler::memset(void *Dest, int Value, size_t Count) {
   MDstPtr = Dest;
   MPattern.push_back(static_cast<char>(Value));
   MLength = Count;
-  setUserFacingNodeType(ext::oneapi::experimental::node_type::memset);
+  setUserFacingNodeType(ext::oneapi::experimental::node_type::memfill);
   setType(detail::CG::FillUSM);
 }
 
@@ -969,6 +969,17 @@ void handler::mem_advise(const void *Ptr, size_t Count, int Advice) {
   MLength = Count;
   MImpl->MAdvice = static_cast<pi_mem_advice>(Advice);
   setType(detail::CG::AdviseUSM);
+}
+
+void handler::fill_impl(void *Dest, const void *Value, size_t ValueSize,
+                        size_t Count) {
+  throwIfActionIsCreated();
+  MDstPtr = Dest;
+  MPattern.resize(ValueSize);
+  std::memcpy(MPattern.data(), Value, ValueSize);
+  MLength = Count * ValueSize;
+  setUserFacingNodeType(ext::oneapi::experimental::node_type::memfill);
+  setType(detail::CG::FillUSM);
 }
 
 void handler::ext_oneapi_memcpy2d_impl(void *Dest, size_t DestPitch,

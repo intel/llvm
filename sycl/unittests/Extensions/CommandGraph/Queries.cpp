@@ -110,7 +110,7 @@ TEST_F(CommandGraphTest, NodeTypeQueries) {
 
   auto NodeMemset = Graph.add(
       [&](sycl::handler &cgh) { cgh.memset(PtrB, 7, 16 * sizeof(int)); });
-  ASSERT_EQ(NodeMemset.get_type(), experimental::node_type::memset);
+  ASSERT_EQ(NodeMemset.get_type(), experimental::node_type::memfill);
 
   auto NodeMemfill =
       Graph.add([&](sycl::handler &cgh) { cgh.fill(PtrB, 7, 16); });
