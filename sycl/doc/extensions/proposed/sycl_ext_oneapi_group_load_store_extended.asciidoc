@@ -12,11 +12,6 @@
 :dpcpp: pass:[DPC++]
 :language: {basebackend@docbook:c++:cpp}
 
-== Introduction
-
-IMPORTANT: This specification is a draft.
-
-
 == Notice
 
 [%hardbreaks]
@@ -26,28 +21,61 @@ Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
 permission by Khronos.
 
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
 == Dependencies
 
-This extension is written against the SYCL 2020 specification, Revision 8.
-All references below to the "core SYCL specification" or to section numbers in
-the SYCL specification refer to that revision.
+This extension is written against the SYCL 2020 revision 8 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
 
 This extension also depends on the following other SYCL extensions:
 
-* link:../proposed/sycl_ext_oneapi_group_sort.asciidoc[
-  sycl_ext_oneapi_group_sort] (`group_with_scratchpad` class used as GroupHelper).
-
 * link:../experimental/sycl_ext_oneapi_properties.asciidoc[
   sycl_ext_oneapi_properties].
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
 
 == Overview
 
 This extension defines free functions for load/store operations within the
 group scope.
 
-== Load API
+== Specification
 
-=== Single Value Overload
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_GROUP_LOAD_STORE` to one of the values defined in the
+table below. Applications can test for the existence of this macro to determine
+if the implementation supports this feature, or applications can test the
+macro's value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== Load API
+
+==== Single Value Overload
 
 [source,c++]
 ----
@@ -55,14 +83,13 @@ namespace sycl::ext::oneapi::experimental {
 
 // Load scalar
 template<typename Group, typename InputIteratorT,
-         typename OutputT, typename Properties = decltype(properties())>
+         typename OutputT, typename Properties = empty_properties_t>
 void group_load(Group g, InputIteratorT in_iter,
-                      OutputT& out, Properties = {}); // (1)
-
+                      OutputT& out, Properties = {});
 }
 ----
 
-(1) _Preconditions_: `in_iter` must be the same for all work-items
+_Preconditions_: `in_iter` must be the same for all work-items
 in the group.
 
 ._Constraints_:
@@ -74,10 +101,12 @@ _Effects_: Loads single element from `in_iter` to `out` by using the `g` group
 object to identify memory location as `in_iter` + `g.get_local_linear_id()`.
 
 `Properties` argument is reserved for future revisions of this extention and is
-ignored now. Default value is empty `sycl::ext::oneapi::experimental::properties<>`.
-May be used in future for setting boundary values or limiting numbers of work items.
+ignored now. Default value is empty
+`sycl::ext::oneapi::experimental::empty_properties_t`.
+May be used in future for setting boundary values or limiting numbers of work
+items.
 
-=== `sycl::vec` Overload
+==== `sycl::vec` Overload
 
 [source,c++]
 ----
@@ -85,13 +114,13 @@ namespace sycl::ext::oneapi::experimental {
 
 // Load API sycl::vec overload
 template<typename Group, typename InputIteratorT,
-         typename OutputT, int N, typename Properties = properties<>>
+         typename OutputT, int N, typename Properties = empty_properties_t>
 void group_load(Group g, InputIteratorT in_iter,
-                      sycl::vec<OutputT, N>& out, Properties = {}); // (2)
+                      sycl::vec<OutputT, N>& out, Properties = {});
 }
 ----
 
-(2) _Preconditions_: `in_iter` must be the same for all work-items
+_Preconditions_: `in_iter` must be the same for all work-items
 in the group.
 
 ._Constraints_:
@@ -109,18 +138,7 @@ in striped case:
 `out[i]` = `in_iter[g.get_local_linear_id() + g.get_local_linear_range() * i];`
 for `i` between `0` and `N`.
 
-=== Fixed-size array Overload
-
-This API provides the following features:
-
-* load with temporary memory buffer, which can be passed via `GroupHelper`
-such as `group_with_scratchpad` link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc#group-helper[group_with_scratchpad description from sort over group proposal]
-
-* load flexible amount of elements per work item as `sycl::span`
-
-* specify data placement type via properties (3) or extra options such as
-setting boundary values or limiting numbers of work items (TODO in design
-considerations)
+==== Fixed-size array Overload
 
 [source,c++]
 ----
@@ -128,30 +146,19 @@ namespace sycl::ext::oneapi::experimental {
 
 // Load API
 template<typename GroupHelper, typename InputIteratorT, typename OutputT,
-        std::size_t ElementsPerWorkItem, typename Properties = properties<>>
+        std::size_t ElementsPerWorkItem, typename Properties = empty_properties_t>
 void group_load(GroupHelper gh, InputIteratorT in_iter,
-                sycl::span<OutputT, ElementsPerWorkItem> out, Properties = {}); // (3)
-
-
-// Support memory function to define the needed amount of temporary memory
-// needed (name TBD)
-
-template<typename T, std::size_t ElementsPerWorkItem>
-constexpr std::size_t memory_required(sycl::memory_scope scope,
-                                      std::size_t block_size); // (4)
-
+                sycl::span<OutputT, ElementsPerWorkItem> out, Properties = {});
 }
 ----
 
-.(3) _Preconditions_:
+._Preconditions_:
 * `in_iter` must be the same for all work-items in the group.
 * `out` must be a `sycl::span` made from a pointer to the private memory space.
 
 ._Constraints_:
 * Only available if `GroupHelper` is a
-work-group or sub-group or `GroupHelper` was created with a
-work-group or sub-group and some associated scratch space
-(link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc[`group_with_scratchpad`]).
+work-group or sub-group.
 * `InputIteratorT` suppose to be a random access iterator.
 * Value type of `InputIteratorT` must be convertible to `OutputT`.
 
@@ -164,17 +171,10 @@ in striped case:
 `out[i]` = `in_iter[gh.get_local_linear_id() + gh.get_local_linear_range() * i];`
 for `i` between `0` and `ElementsPerWorkItem`.
 
-(4) _Effects_: Returns size of temporary memory (in bytes) that is required for
-scratch space in `GroupHelper`. Result depends on type `T`, `ElementsPerWorkItem`
-and the scope parameter: use `sycl::memory_scope::work_group` to get memory size
-required for each work-group; use `sycl::memory_scope::sub_group` to get memory
-size required for each sub-group. If other scope values are passed, behavior is
-unspecified.
-`block_size` represents the a range size for load/store, e.g. work group size.
 
-== Store API
+=== Store API
 
-=== Single Value Overload
+==== Single Value Overload
 
 [source,c++]
 ----
@@ -182,14 +182,14 @@ namespace sycl::ext::oneapi::experimental {
 
 // Store API scalar
 template<typename Group, typename InputT,
-         typename OutputIteratorT, typename Properties = properties<>>
+         typename OutputIteratorT, typename Properties = empty_properties_t>
 void group_store(Group g, const InputT& in,
-                      OutputIteratorT out_iter, Properties = {}); // (5)
+                      OutputIteratorT out_iter, Properties = {});
 
 }
 ----
 
-(5) _Preconditions_: `out_iter` must be the same for all work-items
+_Preconditions_: `out_iter` must be the same for all work-items
 in the group.
 
 ._Constraints_:
@@ -201,10 +201,12 @@ _Effects_: Stores single element `in` to `out_iter` by using the `g` group
 object to identify memory location as `out_iter` + `g.get_local_linear_id()`
 
 `Properties` argument is reserved for future revisions of this extention and is
-ignored now. Default value is empty `sycl::ext::oneapi::experimental::properties<>`
-May be used in future for setting boundary values or limiting numbers of work items.
+ignored now.
+Default value is empty `sycl::ext::oneapi::experimental::empty_properties_t`
+May be used in future for setting boundary values or limiting numbers of work
+items.
 
-=== `sycl::vec` Overload
+==== `sycl::vec` Overload
 
 [source,c++]
 ----
@@ -212,13 +214,13 @@ namespace sycl::ext::oneapi::experimental {
 
 // Store API sycl::vec overload
 template<typename Group, typename InputT, int N,
-         typename OutputIteratorT, typename Properties = properties<>>
+         typename OutputIteratorT, typename Properties = empty_properties_t>
 void group_store(Group g, const sycl::vec<InputT, N>& in,
-                      OutputIteratorT out_iter, Properties = {}); // (6)
+                      OutputIteratorT out_iter, Properties = {});
 }
 ----
 
-(6) _Preconditions_: `out_iter` must be the same for all work-items
+_Preconditions_: `out_iter` must be the same for all work-items
 in the group.
 
 ._Constraints_:
@@ -236,41 +238,28 @@ in striped case:
 `out_iter[g.get_local_linear_id() + g.get_local_linear_range() * i]` = `in[i];`
 for `i` between `0` and `N`.
 
-=== Fixed-size array Overload
-
-This API provides the following features:
-
-* store with temporary memory buffer, which can be passed via GroupHelper
-such as `group_with_scratchpad` link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc#group-helper[group_with_scratchpad description from sort over group proposal]
-
-* store flexible amount of elements per work item as `sycl::span`
-
-* specify data placement type via properties (6) or extra options such as
-setting boundary values or limiting numbers of work items (TODO in design
-considerations)
+==== Fixed-size array Overload
 
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
-
 // Store API
 template<typename GroupHelper, typename OutputIteratorT, typename InputT,
-        std::size_t ElementsPerWorkItem, typename Properties = properties<>>
+        std::size_t ElementsPerWorkItem, typename Properties = empty_properties_t>
 void group_store(GroupHelper gh, sycl::span<InputT, ItemsPerWorkItem> in,
-                 OutputIteratorT out_iter,  Properties = {}); // (7)
+                 OutputIteratorT out_iter,  Properties = {});
 
+}
 ----
 
-.(7) _Preconditions_:
+._Preconditions_:
 * `out_iter` must be the same for all work-items in the group.
 * `in` must be a `sycl::span` made from a pointer to the private memory space.
 
 ._Constraints_:
 * Only available if `GroupHelper` is a
-work-group or sub-group or `GroupHelper` was created with a
-work-group or sub-group and some associated scratch space
-(link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc[`group_with_scratchpad`]).
+work-group or sub-group.
 * `OutputIteratorT` suppose to be a random access iterator.
 * `InputT` must be convertible to value type of `OutputIteratorT`.
 
@@ -284,12 +273,14 @@ in striped case:
 `out_iter[gh.get_local_linear_id() + gh.get_local_linear_range() * i]` = `in[i];`
 for `i` between `0` and `ItemsPerWorkItem`.
 
-== Data placement
+
+=== Data Placement
 
 anchor:data_placement[]
 
 To specify a correct data placement for placing of resulting data
-there is a enum (proposed in link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc[`group_sort extention`]):
+there is a enum
+(proposed in link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc[`group_sort extention`]):
 
 [source,c++]
 ----
@@ -348,19 +339,19 @@ link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_e
 namespace sycl::ext::oneapi::experimental::property
 {
     template<group_algorithm_data_placement type>
-    struct data_placement; // (8)
+    struct data_placement;
 }
 ----
 
-(8) Specifies data layout used in group_load/store for `sycl::vec` or fixed-size
+Specifies data layout used in group_load/store for `sycl::vec` or fixed-size
 arrays functions.
 
 Example:
 `group_load(g, input, output_span, properties<data_placement<blocked>>{});`
 
-== Usage Examples
+=== Usage Example
 
-1.Example shows the simplest case without local memory usage of blocked load
+Example shows the simplest case without local memory usage of blocked load
 of global memory from `input` to the private array `data` and store it back to
 `output`
 
@@ -393,7 +384,44 @@ q.submit([&](sycl::handler& cgh) {
 });
 ----
 
-2.Example shows the simple case of blocked load of global memory from `input` to
+=== Future Directions
+
+As a future extension load/store can be used with temporary memory buffer,
+which can be passed via `GroupHelper` such as `group_with_scratchpad`.
+Support function determining memory size required for scratch space in
+`GroupHelper` can be the following:
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+// Support memory function to define the needed amount of temporary memory
+// needed (name TBD)
+
+template<typename T, std::size_t ElementsPerWorkItem>
+constexpr std::size_t memory_required(sycl::memory_scope scope,
+                                      std::size_t block_size);
+
+}
+----
+
+_Effects_: Returns size of temporary memory (in bytes) that is required for
+scratch space in `GroupHelper`. Result depends on type `T`, `ElementsPerWorkItem`
+and the scope parameter: use `sycl::memory_scope::work_group` to get memory size
+required for each work-group; use `sycl::memory_scope::sub_group` to get memory
+size required for each sub-group. If other scope values are passed, behavior is
+unspecified.
+`block_size` represents the a range size for load/store, e.g. work group size.
+
+==== Dependency:
+
+* link:../proposed/sycl_ext_oneapi_group_sort.asciidoc[
+  sycl_ext_oneapi_group_sort] (`group_with_scratchpad` class used as GroupHelper).
+
+
+==== Examples for `group_with_scratchpad`
+
+1.Example shows the simple case of blocked load of global memory from `input` to
 the private array `data` and store it back to `output`
 The temporary memory is allocated via `sycl::local_accessor`
 
@@ -424,7 +452,7 @@ q.submit([&](sycl::handler& cgh) {
 });
 ----
 
-3.Example shows the case of striped load of global memory from `input` to
+2.Example shows the case of striped load of global memory from `input` to
 the private array `data` and store it back to `output`
 The temporary memory is allocated via `group_local_memory` API, described in
 link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_oneapi_local_memory.asciidoc[sycl_ext_oneapi_local_memory]
