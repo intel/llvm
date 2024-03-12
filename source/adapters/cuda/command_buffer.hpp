@@ -183,7 +183,7 @@ static inline const char *getUrResultString(ur_result_t Result) {
 struct ur_exp_command_buffer_command_handle_t_ {
   ur_exp_command_buffer_command_handle_t_(
       ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
-      std::shared_ptr<CUgraphNode> Node, CUDA_KERNEL_NODE_PARAMS Params,
+      std::shared_ptr<CUgraphNode> &&Node, CUDA_KERNEL_NODE_PARAMS Params,
       uint32_t WorkDim, const size_t *GlobalWorkOffsetPtr,
       const size_t *GlobalWorkSizePtr, const size_t *LocalWorkSizePtr);
 
