@@ -108,7 +108,7 @@ cl::opt<std::string> OutputDir{
     cl::value_desc("dirname"), cl::cat(PostLinkCat)};
 
 struct TargetFilenamePair {
-  std::string Target;
+  std::optional<std::string> Target;
   std::string Filename;
 };
 
@@ -118,13 +118,10 @@ struct TargetFilenamePairParser : public cl::basic_parser<TargetFilenamePair> {
              TargetFilenamePair &Val) const {
     auto FirstComma = ArgValue.find(",");
     if (FirstComma == ArgValue.npos) {
-      Val = {"", ArgValue.str()};
+      Val = {{}, ArgValue.str()};
       return false;
     }
     auto Target = ArgValue.substr(0, FirstComma).str();
-    if (!is_contained(DeviceConfigFile::TargetTable, Target))
-      return O.error("'" + Target + "' is not a recognized target!");
-
     Val = {Target, ArgValue.substr(FirstComma + 1).str()};
     return false;
   }
@@ -975,12 +972,25 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
 // information comes from the device config file (DeviceConfigFile.td).
 // For example, the intel_gpu_tgllp target does not support fp64 - therefore,
 // a module using fp64 would *not* be compatible with intel_gpu_tgllp.
-bool isTargetCompatibleWithModule(StringRef Target,
+bool isTargetCompatibleWithModule(const std::optional<std::string> &Target,
                                   module_split::ModuleDesc &IrMD) {
-  if (Target == "")
+  // When the user does not specify a target,
+  // (e.g. -o out.table compared to -o intel_gpu_pvc,out-pvc.table)
+  // Target will have no value and we will not want to perform any filtering, so
+  // we return true here.
+  if (!Target.has_value())
     return true;
+
+  // TODO: If a target not found in the device config file is passed,
+  // to sycl-post-link, then we should probably throw an error. However,
+  // since not all the information for all the targets is filled out
+  // right now, we return true, having the affect that unrecognized
+  // targets have no filtering applied to them.
+  if (!is_contained(DeviceConfigFile::TargetTable, *Target))
+    return true;
+
   const DeviceConfigFile::TargetInfo &TargetInfo =
-      DeviceConfigFile::TargetTable[Target.str()];
+      DeviceConfigFile::TargetTable[*Target];
   const SYCLDeviceRequirements &ModuleReqs =
       IrMD.getOrComputeDeviceRequirements();
   // The device config file data stores the target's supported
@@ -1311,7 +1321,7 @@ int main(int argc, char **argv) {
   if (OutputFiles.getNumOccurrences() == 0) {
     StringRef S =
         IROutputOnly ? (OutputAssembly ? ".out.ll" : "out.bc") : ".files";
-    OutputFiles.push_back({"", (sys::path::stem(InputFilename) + S).str()});
+    OutputFiles.push_back({{}, (sys::path::stem(InputFilename) + S).str()});
   }
 
   std::vector<std::unique_ptr<util::SimpleTable>> Tables =
