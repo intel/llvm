@@ -2,8 +2,8 @@
 // RUN: echo 1  | %{run} %t.out
 // UNSUPPORTED: cuda || hip
 
-// Test checking size of 'bool' type. This is not expected to be used by users,
-// but, as 'bool' is an integral type, it is a possible scenario.
+// Test checking size of 'bool' type. This is not expected to ever be used, but,
+// as 'bool' is an integral type, it is a possible scenario.
 
 #include "Inputs/private_alloca_test.hpp"
 
