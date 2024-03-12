@@ -3421,8 +3421,7 @@ ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Get the suggested local work size for a kernel from runtime
-///        implementation.
+/// @brief Get the suggested local work size for a kernel.
 ///
 /// @details
 ///     - Query a suggested local work size for a kernel given a global size for

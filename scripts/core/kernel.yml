@@ -536,7 +536,7 @@ returns:
         - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Get the suggested local work size for a kernel from runtime implementation."
+desc: "Get the suggested local work size for a kernel."
 class: $xKernel
 name: GetSuggestedLocalWorkSize
 ordinal: "0"
