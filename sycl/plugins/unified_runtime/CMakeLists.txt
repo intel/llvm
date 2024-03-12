@@ -56,8 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/wenju-he/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 2b3d016a8a9779225725d3010452f79211c10132)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 93e84695190d0b985b3c4b2fb7ea896e1f3e529e
+  # Merge: 1f6cbe61 2b3d016a
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Tue Mar 12 15:22:59 2024 +0000
+  #     Merge pull request #1406 from wenju-he/urBindlessImagesSampledImageCreateExp-Coverity
+  #     [Coverity][L0] Remove overlapping mem copy in urBindlessImagesSampledImageCreateExp
+  set(UNIFIED_RUNTIME_TAG 93e84695190d0b985b3c4b2fb7ea896e1f3e529e)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
