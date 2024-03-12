@@ -25,7 +25,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   ze_kernel_handle_t ZeKernel{};
   UR_CALL(getZeKernel(hQueue, hKernel, &ZeKernel));
 
-  UR_CALL(getSuggestedLocalWorkSize(Queue, ZeKernel, GlobalWorkSize3D,
+  UR_CALL(getSuggestedLocalWorkSize(hQueue, ZeKernel, GlobalWorkSize3D,
                                     LocalWorkSize));
 
   UR_ASSERT(pSuggestedLocalWorkSize != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
