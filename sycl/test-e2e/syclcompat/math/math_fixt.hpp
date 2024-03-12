@@ -86,7 +86,7 @@ template <typename ValueT> struct should_skip {
     else                                                                       \
       assert(fabs(RESULT - EXPECTED) < ERROR_TOLERANCE);                       \
   } else if constexpr (contained_is_floating_point_v<ResultT>) {               \
-    for (size_t i = 0; i < RESULT->size(); i++)                                \
+    for (size_t i = 0; i < RESULT.size(); i++)                                 \
       assert(fabs(RESULT[i] - EXPECTED[i]) < ERROR_TOLERANCE);                 \
   } else {                                                                     \
     static_assert(0, "Math_fixt.hpp should not have arrived here.");           \
