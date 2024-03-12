@@ -494,6 +494,8 @@ event handler::finalize() {
     } else {
       event GraphCompletionEvent =
           MExecGraph->enqueue(MQueue, std::move(CGData));
+      sycl::detail::getSyclObjImpl(GraphCompletionEvent)
+          ->setExecGraph(MExecGraph);
       MLastEvent = GraphCompletionEvent;
       return MLastEvent;
     }

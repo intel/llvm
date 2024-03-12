@@ -7,21 +7,21 @@
 //
 // CHECK: digraph dot {
 // CHECK-NEXT: "0x[[#%x,NODE1:]]"
-// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE1]]\nTYPE = CGExecKernel \nNAME = _ZTSZZ11add_kernelsItEN4sycl3_V13ext6oneapi12experimental4nodeENS4_13command_graphILNS4_11graph_stateE0EEEmNS1_6bufferIT_Li1ENS1_6detail17aligned_allocatorINSt12remove_constISA_E4typeEEEvEESH_SH_ENKUlRNS1_7handlerEE_clESJ_EUlNS1_4itemILi1ELb1EEEE_\n
+// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE1]]\nTYPE = CGExecKernel \nNAME = _ZTSZZ11add_kernelsItESt6vectorIN4sycl3_V13ext6oneapi12experimental4nodeESaIS6_EENS5_13command_graphILNS5_11graph_stateE0EEEmNS2_6bufferIT_Li1ENS2_6detail17aligned_allocatorINSt12remove_constISD_E4typeEEEvEESK_SK_ENKUlRNS2_7handlerEE_clESM_EUlNS2_4itemILi1ELb1EEEE_\n
 // CHECK-SAME: ARGS = \n0) Type: Accessor Ptr: 0x[[#%x,ADDR1:]]\n1) Type: STD_Layout Ptr: 0x[[#%x,ADDR2:]]\n2) Type: STD_Layout Ptr: 0x[[#%x,ADDR3:]]\n
 // CHECK-SAME: 3) Type: STD_Layout Ptr: 0x[[#ADDR1]]\n"];
 // CHECK-NEXT: "0x[[#%x,NODE2:]]"
-// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE2]]\nTYPE = CGExecKernel \nNAME = _ZTSZZ11add_kernelsItEN4sycl3_V13ext6oneapi12experimental4nodeENS4_13command_graphILNS4_11graph_stateE0EEEmNS1_6bufferIT_Li1ENS1_6detail17aligned_allocatorINSt12remove_constISA_E4typeEEEvEESH_SH_ENKUlRNS1_7handlerEE0_clESJ_EUlNS1_4itemILi1ELb1EEEE_\n
+// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE2]]\nTYPE = CGExecKernel \nNAME = _ZTSZZ11add_kernelsItESt6vectorIN4sycl3_V13ext6oneapi12experimental4nodeESaIS6_EENS5_13command_graphILNS5_11graph_stateE0EEEmNS2_6bufferIT_Li1ENS2_6detail17aligned_allocatorINSt12remove_constISD_E4typeEEEvEESK_SK_ENKUlRNS2_7handlerEE0_clESM_EUlNS2_4itemILi1ELb1EEEE_\n
 // CHECK-SAME: ARGS = \n0) Type: Accessor Ptr: 0x[[#%x,ADDR4:]]\n1) Type: STD_Layout Ptr: 0x[[#%x,ADDR5:]]\n2) Type: STD_Layout Ptr: 0x[[#%x,ADDR6:]]\n
 // CHECK-SAME: 3) Type: STD_Layout Ptr: 0x[[#ADDR4]]\n4) Type: Accessor Ptr: 0x[[#%x,ADDR7:]]\n5) Type: STD_Layout Ptr: 0x[[#%x,ADDR8:]]\n6) Type: STD_Layout Ptr: 0x[[#%x,ADDR9:]]\n7) Type: STD_Layout Ptr: 0x[[#%x,ADDR10:]]\n"];
 // CHECK-NEXT: "0x[[#NODE1]]" -> "0x[[#NODE2]]"
 // CHECK-NEXT: "0x[[#%x,NODE3:]]"
-// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE3]]\nTYPE = CGExecKernel \nNAME = _ZTSZZ11add_kernelsItEN4sycl3_V13ext6oneapi12experimental4nodeENS4_13command_graphILNS4_11graph_stateE0EEEmNS1_6bufferIT_Li1ENS1_6detail17aligned_allocatorINSt12remove_constISA_E4typeEEEvEESH_SH_ENKUlRNS1_7handlerEE1_clESJ_EUlNS1_4itemILi1ELb1EEEE_\n
+// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE3]]\nTYPE = CGExecKernel \nNAME = _ZTSZZ11add_kernelsItESt6vectorIN4sycl3_V13ext6oneapi12experimental4nodeESaIS6_EENS5_13command_graphILNS5_11graph_stateE0EEEmNS2_6bufferIT_Li1ENS2_6detail17aligned_allocatorINSt12remove_constISD_E4typeEEEvEESK_SK_ENKUlRNS2_7handlerEE1_clESM_EUlNS2_4itemILi1ELb1EEEE_\n
 // CHECK-SAME: ARGS = \n0) Type: Accessor Ptr: 0x[[#%x,ADDR11:]]\n1) Type: STD_Layout Ptr: 0x[[#%x,ADDR12:]]\n2) Type: STD_Layout Ptr: 0x[[#%x,ADDR13:]]\n
 // CHECK-SAME: 3) Type: STD_Layout Ptr: 0x[[#ADDR11]]\n4) Type: Accessor Ptr: 0x[[#%x,ADDR14:]]\n5) Type: STD_Layout Ptr: 0x[[#%x,ADDR15:]]\n6) Type: STD_Layout Ptr: 0x[[#%x,ADDR16:]]\n7) Type: STD_Layout Ptr: 0x[[#%x,ADDR17:]]\n"];
 // CHECK-NEXT: "0x[[#NODE2]]" -> "0x[[#NODE3]]"
 // CHECK-NEXT: "0x[[#%x,NODE4:]]"
-// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE4]]\nTYPE = CGExecKernel \nNAME = _ZTSZZ11add_kernelsItEN4sycl3_V13ext6oneapi12experimental4nodeENS4_13command_graphILNS4_11graph_stateE0EEEmNS1_6bufferIT_Li1ENS1_6detail17aligned_allocatorINSt12remove_constISA_E4typeEEEvEESH_SH_ENKUlRNS1_7handlerEE2_clESJ_EUlNS1_4itemILi1ELb1EEEE_\n
+// CHECK-SAME: [style=bold, label="ID = 0x[[#NODE4]]\nTYPE = CGExecKernel \nNAME = _ZTSZZ11add_kernelsItESt6vectorIN4sycl3_V13ext6oneapi12experimental4nodeESaIS6_EENS5_13command_graphILNS5_11graph_stateE0EEEmNS2_6bufferIT_Li1ENS2_6detail17aligned_allocatorINSt12remove_constISD_E4typeEEEvEESK_SK_ENKUlRNS2_7handlerEE2_clESM_EUlNS2_4itemILi1ELb1EEEE_\n
 // CHECK-SAME: ARGS = \n0) Type: Accessor Ptr: 0x[[#%x,ADDR18:]]\n1) Type: STD_Layout Ptr: 0x[[#%x,ADDR19:]]\n2) Type: STD_Layout Ptr: 0x[[#%x,ADDR20:]]\n
 // CHECK-SAME: 3) Type: STD_Layout Ptr: 0x[[#ADDR18]]\n4) Type: Accessor Ptr: 0x[[#%x,ADDR21:]]\n5) Type: STD_Layout Ptr: 0x[[#%x,ADDR22:]]\n6) Type: STD_Layout Ptr: 0x[[#%x,ADDR23:]]\n7) Type: STD_Layout Ptr: 0x[[#%x,ADDR24:]]\n"];
 // CHECK-DAG: "0x[[#NODE3]]" -> "0x[[#NODE4]]"

@@ -1426,6 +1426,12 @@ inline pi_result mock_piextCommandBufferAdviseUSM(
   return PI_SUCCESS;
 }
 
+inline pi_result mock_piextSyncPointGetProfilingInfo(
+    pi_event event, pi_ext_sync_point sync_point, pi_profiling_info param_name,
+    size_t param_value_size, void *param_value, size_t *param_value_size_ret) {
+  return PI_SUCCESS;
+}
+
 inline pi_result mock_piTearDown(void *PluginParameter) { return PI_SUCCESS; }
 
 inline pi_result mock_piPluginGetLastError(char **message) {

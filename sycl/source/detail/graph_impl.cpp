@@ -871,7 +871,6 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
         NewEvent = sycl::detail::Scheduler::getInstance().addCG(
             std::move(CommandGroup), Queue);
       }
-      NewEvent->setEventFromSubmittedExecCommandBuffer(true);
     } else if ((CurrentPartition->MSchedule.size() > 0) &&
                (CurrentPartition->MSchedule.front()->MCGType ==
                 sycl::detail::CG::CGTYPE::CodeplayHostTask)) {
@@ -933,6 +932,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       NewEvent->setStateIncomplete();
       NewEvent->getPreparedDepsEvents() = ScheduledEvents;
     }
+    NewEvent->setEventFromSubmittedExecGraph(true);
     PartitionsExecutionEvents[CurrentPartition] = NewEvent;
   }
 
@@ -952,9 +952,6 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
 }
 
 void exec_graph_impl::duplicateNodes() {
-  // Map of original modifiable nodes (keys) to new duplicated nodes (values)
-  std::map<std::shared_ptr<node_impl>, std::shared_ptr<node_impl>> NodesMap;
-
   const std::vector<std::shared_ptr<node_impl>> &ModifiableNodes =
       MGraphImpl->MNodeStorage;
   std::deque<std::shared_ptr<node_impl>> NewNodes;
