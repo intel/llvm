@@ -730,6 +730,9 @@ bool device_impl::has(aspect Aspect) const {
             sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
     return call_successful && support;
   }
+  case aspect::ext_intel_fpga_task_sequence: {
+    return is_accelerator();
+  }
   }
 
   return false; // This device aspect has not been implemented yet.
