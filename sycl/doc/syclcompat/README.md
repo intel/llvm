@@ -1273,7 +1273,9 @@ static kernel_function_info get_kernel_function_info(const void *function);
 `syclcompat::fast_length` provides a wrapper to SYCL's
 `fast_length(sycl::vec<float,N>)` that accepts arguments for a C++ array and a
 length. `syclcompat::length` provides a templated version that wraps over
-`sycl::length`.
+`sycl::length`. There are wrappers for `clamp`, `isnan`, `cbrt`, `min`, `max`,
+`fmax_nan`, `fmin_nan`, and `pow`, as well as an implementation of `relu`
+saturation is also provided.
 
 `vectorized_max` and `vectorized_min` are binary operations returning the
 max/min of two arguments, where each argument is treated as a `sycl::vec` type.
@@ -1291,6 +1293,98 @@ inline float fast_length(const float *a, int len);
 
 template <typename ValueT>
 inline ValueT length(const ValueT *a, const int len);
+
+inline ValueT clamp(ValueT val, ValueT min_val, ValueT max_val);
+
+// Determine whether 2 element value is NaN.
+template <typename ValueT>
+inline std::enable_if_t<ValueT::size() == 2, ValueT> isnan(const ValueT a);
+
+// cbrt function wrapper.
+template <typename ValueT>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        ValueT>
+cbrt(ValueT val) {
+  return sycl::cbrt(static_cast<ValueT>(val));
+}
+
+// min function overloads.
+// For floating-point types, `float` or `double` arguments are acceptable.
+// For integer types, `std::uint32_t`, `std::int32_t`, `std::uint64_t` or
+// `std::int64_t` type arguments are acceptable.
+// sycl::half supported as well.
+template <typename T1, typename T2>
+std::enable_if_t<std::is_integral_v<T1> && std::is_integral_v<T2>,
+                 std::common_type_t<T1, T2>>
+min(T1 a, T2 b);
+template <typename T1, typename T2>
+std::enable_if_t<std::is_floating_point_v<T1> && std::is_floating_point_v<T2>,
+                 std::common_type_t<T1, T2>>
+min(T1 a, T2 b);
+
+sycl::half min(sycl::half a, sycl::half b);
+
+template <typename T1, typename T2>
+std::enable_if_t<std::is_integral_v<T1> && std::is_integral_v<T2>,
+                 std::common_type_t<T1, T2>>
+max(T1 a, T2 b);
+template <typename T1, typename T2>
+std::enable_if_t<std::is_floating_point_v<T1> && std::is_floating_point_v<T2>,
+                 std::common_type_t<T1, T2>>
+max(T1 a, T2 b);
+
+sycl::half max(sycl::half a, sycl::half b);
+
+// Performs 2 elements comparison and returns the bigger one. If either of
+// inputs is NaN, then return NaN.
+template <typename ValueT, typename ValueU>
+inline std::common_type_t<ValueT, ValueU> fmax_nan(const ValueT a,
+                                                   const ValueU b);
+
+template <typename ValueT, typename ValueU>
+inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
+fmax_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b);
+
+// Performs 2 elements comparison and returns the smaller one. If either of
+// inputs is NaN, then return NaN.
+template <typename ValueT, typename ValueU>
+inline std::common_type_t<ValueT, ValueU> fmin_nan(const ValueT a,
+                                                   const ValueU b);
+template <typename ValueT, typename ValueU>
+inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
+fmin_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b);
+
+inline float pow(const float a, const int b) { return sycl::pown(a, b); }
+inline double pow(const double a, const int b) { return sycl::pown(a, b); }
+
+template <typename ValueT, typename ValueU>
+inline typename std::enable_if_t<std::is_floating_point_v<ValueT>, ValueT>
+pow(const ValueT a, const ValueU b);
+
+// Requires aspect::fp64, as it casts to double internally.
+template <typename ValueT, typename ValueU>
+inline typename std::enable_if_t<!std::is_floating_point_v<ValueT>, double>
+pow(const ValueT a, const ValueU b);
+
+template <typename ValueT>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        ValueT>
+relu(const ValueT a);
+
+template <class ValueT>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        sycl::vec<ValueT, 2>>
+relu(const sycl::vec<ValueT, 2> a);
+
+template <class ValueT>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        sycl::marray<ValueT, 2>>
+relu(const sycl::marray<ValueT, 2> a);
+
 
 template <typename S, typename T> inline T vectorized_max(T a, T b);
 

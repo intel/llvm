@@ -47,6 +47,30 @@ namespace complex_namespace = sycl::ext::oneapi::experimental;
 template <typename ValueT>
 using complex_type = detail::complex_namespace::complex<ValueT>;
 
+template <typename ValueT>
+inline ValueT clamp(ValueT val, ValueT min_val, ValueT max_val) {
+  return sycl::clamp(val, min_val, max_val);
+}
+#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
+template <>
+inline sycl::ext::oneapi::bfloat16 clamp(sycl::ext::oneapi::bfloat16 val,
+                                         sycl::ext::oneapi::bfloat16 min_val,
+                                         sycl::ext::oneapi::bfloat16 max_val) {
+  if (val < min_val)
+    return min_val;
+  if (val > max_val)
+    return max_val;
+  return val;
+}
+#endif
+template <typename ValueT>
+inline sycl::marray<ValueT, 2> clamp(sycl::marray<ValueT, 2> val,
+                                     sycl::marray<ValueT, 2> min_val,
+                                     sycl::marray<ValueT, 2> max_val) {
+  return {clamp(val[0], min_val[0], max_val[0]),
+          clamp(val[1], min_val[1], max_val[1])};
+}
+
 template <typename VecT, class BinaryOperation, class = void>
 class vectorized_binary {
 public:
@@ -58,6 +82,15 @@ public:
     return v4;
   }
 };
+
+template <typename ValueT> inline bool isnan(const ValueT a) {
+  return sycl::isnan(a);
+}
+#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
+inline bool isnan(const sycl::ext::oneapi::bfloat16 a) {
+  return sycl::ext::oneapi::experimental::isnan(a);
+}
+#endif
 
 } // namespace detail
 
@@ -206,6 +239,151 @@ inline unsigned vectorized_isgreater<sycl::ushort2, unsigned>(unsigned a,
   v4[1] = v2[1] > v3[1];
   v0 = v4.template as<sycl::vec<unsigned, 1>>();
   return v0;
+}
+
+/// Returns min(max(val, min_val), max_val)
+/// \param [in] val The input value
+/// \param [in] min_val The minimum value
+/// \param [in] max_val The maximum value
+/// \returns the value between min_val and max_val
+template <typename ValueT>
+inline ValueT clamp(ValueT val, ValueT min_val, ValueT max_val) {
+  return detail::clamp(val, min_val, max_val);
+}
+
+/// Determine whether 2 element value is NaN.
+/// \param [in] a The input value
+/// \returns the comparison result
+template <typename ValueT>
+inline std::enable_if_t<ValueT::size() == 2, ValueT> isnan(const ValueT a) {
+  return {detail::isnan(a[0]), detail::isnan(a[1])};
+}
+
+/// cbrt function wrapper.
+template <typename ValueT>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        ValueT>
+cbrt(ValueT val) {
+  return sycl::cbrt(static_cast<ValueT>(val));
+}
+
+// min/max function overloads.
+// For floating-point types, `float` or `double` arguments are acceptable.
+// For integer types, `std::uint32_t`, `std::int32_t`, `std::uint64_t` or
+// `std::int64_t` type arguments are acceptable.
+// sycl::half supported as well.
+template <typename T1, typename T2>
+std::enable_if_t<std::is_integral_v<T1> && std::is_integral_v<T2>,
+                 std::common_type_t<T1, T2>>
+min(T1 a, T2 b) {
+  return sycl::min<std::common_type_t<T1, T2>>(a, b);
+}
+template <typename T1, typename T2>
+std::enable_if_t<std::is_floating_point_v<T1> && std::is_floating_point_v<T2>,
+                 std::common_type_t<T1, T2>>
+min(T1 a, T2 b) {
+  return sycl::fmin<std::common_type_t<T1, T2>>(a, b);
+}
+sycl::half min(sycl::half a, sycl::half b) {
+  return sycl::fmin<sycl::half>(a, b);
+}
+
+template <typename T1, typename T2>
+std::enable_if_t<std::is_integral_v<T1> && std::is_integral_v<T2>,
+                 std::common_type_t<T1, T2>>
+max(T1 a, T2 b) {
+  return sycl::max<std::common_type_t<T1, T2>>(a, b);
+}
+template <typename T1, typename T2>
+std::enable_if_t<std::is_floating_point_v<T1> && std::is_floating_point_v<T2>,
+                 std::common_type_t<T1, T2>>
+max(T1 a, T2 b) {
+  return sycl::fmax<std::common_type_t<T1, T2>>(a, b);
+}
+sycl::half max(sycl::half a, sycl::half b) {
+  return sycl::fmax<sycl::half>(a, b);
+}
+
+/// Performs 2 elements comparison and returns the bigger one. If either of
+/// inputs is NaN, then return NaN.
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \returns the bigger value
+template <typename ValueT, typename ValueU>
+inline std::common_type_t<ValueT, ValueU> fmax_nan(const ValueT a,
+                                                   const ValueU b) {
+  if (detail::isnan(a) || detail::isnan(b))
+    return NAN;
+  return sycl::fmax<std::common_type_t<ValueT, ValueU>>(a, b);
+}
+template <typename ValueT, typename ValueU>
+inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
+fmax_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b) {
+  return {fmax_nan(a[0], b[0]), fmax_nan(a[1], b[1])};
+}
+
+/// Performs 2 elements comparison and returns the smaller one. If either of
+/// inputs is NaN, then return NaN.
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \returns the smaller value
+template <typename ValueT, typename ValueU>
+inline std::common_type_t<ValueT, ValueU> fmin_nan(const ValueT a,
+                                                   const ValueU b) {
+  if (detail::isnan(a) || detail::isnan(b))
+    return NAN;
+  return sycl::fmin<std::common_type_t<ValueT, ValueU>>(a, b);
+}
+template <typename ValueT, typename ValueU>
+inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
+fmin_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b) {
+  return {fmin_nan(a[0], b[0]), fmin_nan(a[1], b[1])};
+}
+
+// pow functions overload.
+inline float pow(const float a, const int b) { return sycl::pown(a, b); }
+inline double pow(const double a, const int b) { return sycl::pown(a, b); }
+
+template <typename ValueT, typename ValueU>
+inline typename std::enable_if_t<std::is_floating_point_v<ValueT>, ValueT>
+pow(const ValueT a, const ValueU b) {
+  return sycl::pow(a, static_cast<ValueT>(b));
+}
+
+// FIXME: non-floating point values default to double, requires fp64. Affects
+// testing and documentation as well.
+template <typename ValueT, typename ValueU>
+inline typename std::enable_if_t<!std::is_floating_point_v<ValueT>, double>
+pow(const ValueT a, const ValueU b) {
+  return sycl::pow(static_cast<double>(a), static_cast<double>(b));
+}
+
+/// Performs relu saturation.
+/// \param [in] a The input value
+/// \returns the relu saturation result
+template <typename ValueT>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        ValueT>
+relu(const ValueT a) {
+  if (!detail::isnan(a) && a < 0.f)
+    return 0.f;
+  return a;
+}
+template <class ValueT>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        sycl::vec<ValueT, 2>>
+relu(const sycl::vec<ValueT, 2> a) {
+  return {relu(a[0]), relu(a[1])};
+}
+template <class ValueT>
+inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
+                            std::is_same_v<sycl::half, ValueT>,
+                        sycl::marray<ValueT, 2>>
+relu(const sycl::marray<ValueT, 2> a) {
+  return {relu(a[0]), relu(a[1])};
 }
 
 /// Computes the multiplication of two complex numbers.
