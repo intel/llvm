@@ -41,7 +41,7 @@ template <typename ElementType, auto &SizeSpecName,
           access::decorated DecorateAddress>
 private_ptr<ElementType, DecorateAddress> private_alloca(kernel_handler &kh) {
   throw feature_not_supported("sycl::ext::oneapi::experimental::private_alloca "
-                              "is not supported by host device",
+                              "is not supported on host",
                               PI_ERROR_INVALID_OPERATION);
 }
 
