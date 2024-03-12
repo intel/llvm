@@ -3425,13 +3425,11 @@ ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
 ///        implementation.
 ///
 /// @details
-///     - pLocalWorkSize can be omitted in urEnqueueKernelLaunch(), but beside
-///       from
-///     - OpenCL, LocalWorkSize will need to be calculated or guessed before
-///       enqueue
-///     - the kernel. This function will get the LocalWorkSize value used when
-///       enqueueing
-///     - the kernel.
+///     - Query a suggested group size for a kernel given a global size for each
+///       dimension.
+///     - The application may call this function from simultaneous threads for
+///       the same context.
+///     - The implementation of this function should be thread-safe.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -3445,7 +3443,7 @@ ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
 ///         + `NULL == pGlobalWorkOffset`
 ///         + `NULL == pGlobalWorkSize`
 ///         + `NULL == pSuggestedLocalWorkSize`
-///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel
     ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
@@ -3461,7 +3459,7 @@ ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     ///< kernel function
     size_t *
         pSuggestedLocalWorkSize ///< [out] pointer to an array of workDim unsigned values that specify
-    ///< suggested local work size that shall be used when executing
+    ///< suggested local work size that shall be used when executing the kernel
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
