@@ -76,18 +76,18 @@ template <typename ValueT> struct should_skip {
   }
 };
 
-#define CHECK(ResultT, RESULT_PTR, EXPECTED)                                   \
+#define CHECK(ResultT, RESULT, EXPECTED)                                       \
   if constexpr (std::is_integral_v<ResultT>) {                                 \
-    assert(*RESULT_PTR == EXPECTED);                                           \
+    assert(RESULT == EXPECTED);                                                \
   } else if constexpr (std::is_floating_point_v<ResultT> ||                    \
                        std::is_same_v<ResultT, sycl::half>) {                  \
-    if (sycl::isnan(*RESULT_PTR))                                              \
+    if (sycl::isnan(RESULT))                                                   \
       assert(sycl::isnan(EXPECTED));                                           \
     else                                                                       \
-      assert(fabs(*RESULT_PTR - EXPECTED) < ERROR_TOLERANCE);                  \
+      assert(fabs(RESULT - EXPECTED) < ERROR_TOLERANCE);                       \
   } else if constexpr (contained_is_floating_point_v<ResultT>) {               \
-    for (size_t i = 0; i < RESULT_PTR->size(); i++)                            \
-      assert(fabs((*RESULT_PTR)[i] - EXPECTED[i]) < ERROR_TOLERANCE);          \
+    for (size_t i = 0; i < RESULT->size(); i++)                                \
+      assert(fabs(RESULT[i] - EXPECTED[i]) < ERROR_TOLERANCE);                 \
   } else {                                                                     \
     static_assert(0, "Math_fixt.hpp should not have arrived here.");           \
   }
@@ -96,12 +96,13 @@ class OpTestLauncher {
 protected:
   syclcompat::dim3 grid_;
   syclcompat::dim3 threads_;
+  size_t data_size_;
   bool skip_;
 
 public:
   OpTestLauncher(const syclcompat::dim3 &grid, const syclcompat::dim3 &threads,
-                 const bool skip)
-      : grid_{grid}, threads_{threads}, skip_{skip} {}
+                 const size_t data_size, const bool skip)
+      : grid_{grid}, threads_{threads}, data_size_{data_size}, skip_{skip} {}
 };
 
 // Templated ResultT to support both arithmetic and boolean operators
@@ -111,20 +112,20 @@ class BinaryOpTestLauncher : OpTestLauncher {
 protected:
   ValueT *op1_;
   ValueU *op2_;
-  ResultT *res_;
+  ResultT res_h_, *res_;
 
 public:
   BinaryOpTestLauncher(const syclcompat::dim3 &grid,
                        const syclcompat::dim3 &threads,
                        const size_t data_size = 1)
       : OpTestLauncher{
-            grid, threads,
+            grid, threads, data_size,
             should_skip<ValueT>()(syclcompat::get_current_device())} {
     if (skip_)
       return;
-    op1_ = syclcompat::malloc_shared<ValueT>(data_size);
-    op2_ = syclcompat::malloc_shared<ValueU>(data_size);
-    res_ = syclcompat::malloc_shared<ResultT>(data_size);
+    op1_ = syclcompat::malloc<ValueT>(data_size);
+    op2_ = syclcompat::malloc<ValueU>(data_size);
+    res_ = syclcompat::malloc<ResultT>(data_size);
   };
 
   virtual ~BinaryOpTestLauncher() {
@@ -139,12 +140,13 @@ public:
   void launch_test(ValueT op1, ValueU op2, ResultT expected) {
     if (skip_)
       return;
-    *op1_ = op1;
-    *op2_ = op2;
+    syclcompat::memcpy<ValueT>(op1_, &op1, data_size_);
+    syclcompat::memcpy<ValueU>(op2_, &op2, data_size_);
     syclcompat::launch<Kernel>(grid_, threads_, op1_, op2_, res_);
     syclcompat::wait();
+    syclcompat::memcpy<ResultT>(&res_h_, res_, data_size_);
 
-    CHECK(ResultT, res_, expected);
+    CHECK(ResultT, res_h_, expected);
   };
 };
 
@@ -152,19 +154,19 @@ template <typename ValueT, typename ResultT = ValueT>
 class UnaryOpTestLauncher : OpTestLauncher {
 protected:
   ValueT *op_;
-  ValueT *res_;
+  ResultT res_h_, *res_;
 
 public:
   UnaryOpTestLauncher(const syclcompat::dim3 &grid,
                       const syclcompat::dim3 &threads,
                       const size_t data_size = 1)
       : OpTestLauncher{
-            grid, threads,
+            grid, threads, data_size,
             should_skip<ValueT>()(syclcompat::get_current_device())} {
     if (skip_)
       return;
-    op_ = syclcompat::malloc_shared<ValueT>(data_size);
-    res_ = syclcompat::malloc_shared<ValueT>(data_size);
+    op_ = syclcompat::malloc<ValueT>(data_size);
+    res_ = syclcompat::malloc<ResultT>(data_size);
   };
 
   virtual ~UnaryOpTestLauncher() {
@@ -177,10 +179,11 @@ public:
   template <auto Kernel> void launch_test(ValueT op, ResultT expected) {
     if (skip_)
       return;
-    *op_ = op;
+    syclcompat::memcpy<ValueT>(op_, &op, data_size_);
     syclcompat::launch<Kernel>(grid_, threads_, op_, res_);
     syclcompat::wait();
+    syclcompat::memcpy<ResultT>(&res_h_, res_, data_size_);
 
-    CHECK(ResultT, res_, expected);
+    CHECK(ResultT, res_h_, expected);
   }
 };
