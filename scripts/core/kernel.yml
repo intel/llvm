@@ -541,10 +541,9 @@ class: $xKernel
 name: GetSuggestedLocalWorkSize
 ordinal: "0"
 details:
-    - "pLocalWorkSize can be omitted in urEnqueueKernelLaunch(), but beside from"
-    - "OpenCL, LocalWorkSize will need to be calculated or guessed before enqueue"
-    - "the kernel. This function will get the LocalWorkSize value used when enqueueing"
-    - "the kernel."
+    - "Query a suggested group size for a kernel given a global size for each dimension."
+    - "The application may call this function from simultaneous threads for the same context."
+    - "The implementation of this function should be thread-safe."
 params:
     - type: $x_kernel_handle_t
       name: hKernel
@@ -574,6 +573,6 @@ params:
       name: pSuggestedLocalWorkSize
       desc: |
             [out] pointer to an array of workDim unsigned values that specify
-            suggested local work size that shall be used when executing
+            suggested local work size that shall be used when executing the kernel
 returns:
-    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE

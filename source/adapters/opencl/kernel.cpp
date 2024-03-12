@@ -424,7 +424,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue, uint32_t workDim,
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     size_t *pSuggestedLocalWorkSize) {
-#if defined(cl_khr_suggested_local_work_size)
   cl_device_id Device;
   cl_platform_id Platform;
 
@@ -447,14 +446,4 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
       cl_adapter::cast<cl_kernel>(hKernel), workDim, pGlobalWorkOffset,
       pGlobalWorkSize, pSuggestedLocalWorkSize));
   return UR_RESULT_SUCCESS;
-#else  // #if defined(cl_khr_suggested_local_work_size)
-
-  std::ignore = hKernel;
-  std::ignore = hQueue;
-  std::ignore = workDim;
-  std::ignore = pGlobalWorkOffset;
-  std::ignore = pGlobalWorkSize;
-  std::ignore = pSuggestedLocalWorkSize;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-#endif // #if defined(cl_khr_suggested_local_work_size)
 }

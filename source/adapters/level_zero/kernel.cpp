@@ -23,14 +23,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   std::copy(pGlobalWorkSize, pGlobalWorkSize + workDim, GlobalWorkSize3D);
 
   ze_kernel_handle_t ZeKernel{};
-  if (ur_result_t Result = getZeKernel(hQueue, hKernel, &ZeKernel);
-      Result != UR_RESULT_SUCCESS)
-    return Result;
+  UR_CALL(getZeKernel(hQueue, hKernel, &ZeKernel));
 
-  if (ur_result_t Result =
-          getSuggestedLocalWorkSize(hQueue, ZeKernel, GlobalWorkSize3D, WG);
-      Result != UR_RESULT_SUCCESS)
-    return Result;
+  UR_CALL(getSuggestedLocalWorkSize(Queue, ZeKernel, GlobalWorkSize3D, WG));
 
   UR_ASSERT(pSuggestedLocalWorkSize != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
   std::copy(WG, WG + workDim, pSuggestedLocalWorkSize);
@@ -87,14 +82,15 @@ ur_result_t getSuggestedLocalWorkSize(ur_queue_handle_t hQueue,
         --GroupSize[I];
       }
       if (GlobalWorkSize3D[I] / GroupSize[I] > UINT32_MAX) {
-        urPrint("urEnqueueKernelLaunch: can't find a WG size "
+        urPrint("getSuggestedLocalWorkSize: can't find a WG size "
                 "suitable for global work size > UINT32_MAX\n");
         return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
       }
       WG[I] = GroupSize[I];
     }
-    urPrint("urEnqueueKernelLaunch: using computed WG size = {%d, %d, %d}\n",
-            WG[0], WG[1], WG[2]);
+    urPrint(
+        "getSuggestedLocalWorkSize: using computed WG size = {%d, %d, %d}\n",
+        WG[0], WG[1], WG[2]);
   }
 
   return UR_RESULT_SUCCESS;
@@ -131,9 +127,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                   ///< this particular kernel execution instance.
 ) {
   ze_kernel_handle_t ZeKernel{};
-  if (ur_result_t Result = getZeKernel(Queue, Kernel, &ZeKernel);
-      Result != UR_RESULT_SUCCESS)
-    return Result;
+  UR_CALL(getZeKernel(Queue, Kernel, &ZeKernel));
 
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
@@ -177,10 +171,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       WG[I] = static_cast<uint32_t>(LocalWorkSize[I]);
     }
   } else {
-    if (ur_result_t Result =
-            getSuggestedLocalWorkSize(Queue, ZeKernel, GlobalWorkSize3D, WG);
-        Result != UR_RESULT_SUCCESS)
-      return Result;
+    UR_CALL(getSuggestedLocalWorkSize(Queue, ZeKernel, GlobalWorkSize3D, WG));
   }
 
   // TODO: assert if sizes do not fit into 32-bit?

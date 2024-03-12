@@ -403,17 +403,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   try {
     // Set the active context here as guessLocalWorkSize needs an active context
     ScopedContext Active(Context);
-    {
-      MaxWorkGroupSize = Device->getMaxWorkGroupSize();
-      Device->getMaxWorkItemSizes(sizeof(MaxThreadsPerBlock),
-                                  MaxThreadsPerBlock);
-      guessLocalWorkSize(Device, ThreadsPerBlock, pGlobalWorkSize, workDim,
-                         MaxThreadsPerBlock, hKernel, LocalSize);
 
-      if (MaxWorkGroupSize <
-          ThreadsPerBlock[0] * ThreadsPerBlock[1] * ThreadsPerBlock[2]) {
-        return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-      }
+    MaxWorkGroupSize = Device->getMaxWorkGroupSize();
+    Device->getMaxWorkItemSizes(sizeof(MaxThreadsPerBlock), MaxThreadsPerBlock);
+    guessLocalWorkSize(Device, ThreadsPerBlock, pGlobalWorkSize, workDim,
+                       MaxThreadsPerBlock, hKernel, LocalSize);
+
+    if (MaxWorkGroupSize <
+        ThreadsPerBlock[0] * ThreadsPerBlock[1] * ThreadsPerBlock[2]) {
+      return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
     }
 
     std::copy(ThreadsPerBlock, ThreadsPerBlock + workDim,
