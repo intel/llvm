@@ -105,7 +105,7 @@ TEST(CompositeDeviceTest, DescendentDeviceSupport) {
   auto CompositeDevice = RootDevice.get_info<
       sycl::ext::oneapi::experimental::info::device::composite_device>();
   sycl::context CompositeDevContext(CompositeDevice);
-  // To make sure that component devices an also be used within a context
+  // To make sure that component devices can also be used within a context
   // created for a composite device, we expect them to be implicitly added to
   // the context under the hood.
   ASSERT_EQ(DevicesUsedInContextCreation.size(), 3u);
