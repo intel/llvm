@@ -8,8 +8,6 @@
 
 #include <sycl/ext/oneapi/experimental/alloca.hpp>
 
-#include <sycl/detail/pi.h>
-
 constexpr sycl::specialization_id<int> size(10);
 
 int main() {
