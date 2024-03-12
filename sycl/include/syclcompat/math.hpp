@@ -73,6 +73,29 @@ inline float fast_length(const float *a, int len) {
   }
 }
 
+/// Calculate the square root of the input array.
+/// \param [in] a The array pointer
+/// \param [in] len Length of the array
+/// \returns The square root
+template <typename ValueT>
+inline ValueT length(const ValueT *a, const int len) {
+  switch (len) {
+  case 1:
+    return a[0];
+  case 2:
+    return sycl::length(sycl::vec<ValueT, 2>(a[0], a[1]));
+  case 3:
+    return sycl::length(sycl::vec<ValueT, 3>(a[0], a[1], a[2]));
+  case 4:
+    return sycl::length(sycl::vec<ValueT, 4>(a[0], a[1], a[2], a[3]));
+  default:
+    ValueT ret = 0;
+    for (int i = 0; i < len; ++i)
+      ret += a[i] * a[i];
+    return sycl::sqrt(ret);
+  }
+}
+
 /// Compute vectorized max for two values, with each value treated as a vector
 /// type \p S
 /// \param [in] S The type of the vector
