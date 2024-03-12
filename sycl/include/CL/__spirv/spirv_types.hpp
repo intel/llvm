@@ -124,6 +124,8 @@ template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
           MatrixUse U = MatrixUse::MatrixA>
 struct __spirv_JointMatrixINTEL;
 
+struct __spirv_TaskSequenceINTEL;
+
 } // namespace __spv
 
 #ifdef __SYCL_DEVICE_ONLY__
