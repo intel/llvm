@@ -50,6 +50,10 @@ Specifically, this library depends on the following SYCL extensions:
     ../extensions/supported/sycl_ext_oneapi_enqueue_barrier.asciidoc)
 * [sycl_ext_oneapi_usm_device_read_only](../extensions/supported/sycl_ext_oneapi_usm_device_read_only.asciidoc)
 
+If available, the following extensions extend SYCLcompat functionality:
+
+* [sycl_ext_intel_device_info](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_intel_device_info.md) \[Optional\]
+
 ## Usage
 
 All functionality is available under the `syclcompat::` namespace, imported
@@ -1117,6 +1121,8 @@ ValueT permute_sub_group_by_xor(sycl::sub_group g, ValueT x, unsigned int mask,
 The function `experimental::nd_range_barrier` synchronizes work items from all
 work groups within a SYCL kernel. This is not officially supported by the SYCL
 spec, and so should be used with caution.
+`experimental::calculate_max_active_wg_per_xecore` and
+`experimental::calculate_max_potential_wg` are used for occupancy calculation.
 
 ```c++
 namespace syclcompat {
@@ -1145,6 +1151,18 @@ public:
   uint32_t get_local_linear_range() const;
   uint32_t get_group_linear_range() const;
 };
+
+inline int calculate_max_active_wg_per_xecore(int *num_wg, int wg_size,
+                                              int slm_size = 0,
+                                              int sg_size = 32,
+                                              bool used_barrier = false,
+                                              bool used_large_grf = false);
+
+inline int calculate_max_potential_wg(int *num_wg, int *wg_size,
+                                      int max_wg_size_for_device_code,
+                                      int slm_size = 0, int sg_size = 32,
+                                      bool used_barrier = false,
+                                      bool used_large_grf = false);
 
 } // namespace experimental
 } // namespace syclcompat
