@@ -621,11 +621,13 @@ bool device_impl::has(aspect Aspect) const {
     }
 
     std::string_view ExtensionsString(Result.get());
-    std::cout << ExtensionsString;
     const bool Support =
         ExtensionsString.find("ur_exp_command_buffer") != std::string::npos;
 
     return Support;
+  }
+  case aspect::ext_intel_fpga_task_sequence: {
+    return is_accelerator();
   }
   }
   throw runtime_error("This device aspect has not been implemented yet.",
