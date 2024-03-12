@@ -7,19 +7,14 @@
 //
 // UNSUPPORTED: opencl, level_zero
 
-// Tests that updating a graph is ordered with respect to previous executions of
-// the graph which may be in flight.
+// Tests updating a graph node using index-based explicit update
 
 #include "../graph_common.hpp"
 
 int main() {
   queue Queue{};
 
-  // Use a large N to try and make the kernel slow
-  const size_t N = 1 << 16;
-  // Loop inside kernel to make even slower (too large N runs out of memory)
-  const size_t NumKernelLoops = 4;
-  const size_t NumSubmitLoops = 8;
+  const size_t N = 1024;
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
@@ -35,42 +30,38 @@ int main() {
   exp_ext::dynamic_parameter InputParam(Graph, PtrA);
 
   auto KernelNode = Graph.add([&](handler &cgh) {
-    // Register the input pointer, we should be using set_arg but can't
-    // currently test that with CUDA
-    // cgh.set_arg(0, PtrA)
-    InputParam.register_with_node(cgh, 0);
+    cgh.set_arg(0, InputParam);
+    // TODO: Use the free function kernel extension instead of regular kernels
+    // when available.
     cgh.single_task([=]() {
-      for (size_t j = 0; j < NumKernelLoops; j++) {
-        for (size_t i = 0; i < N; i++) {
-          PtrA[i] += i;
-        }
+      for (size_t i = 0; i < N; i++) {
+        PtrA[i] = i;
       }
     });
   });
 
   auto ExecGraph = Graph.finalize(exp_ext::property::graph::updatable{});
 
-  // Submit a bunch of graphs without waiting
-  for (size_t i = 0; i < NumSubmitLoops; i++) {
-    Queue.ext_oneapi_graph(ExecGraph);
-  }
-
-  // Swap PtrB to be the input
-  InputParam.update(PtrB);
-
-  ExecGraph.update(KernelNode);
-
-  // Submit another set of graphs then wait on all submissions
-  for (size_t i = 0; i < NumSubmitLoops; i++) {
-    Queue.ext_oneapi_graph(ExecGraph);
-  }
-  Queue.wait_and_throw();
+  // PtrA should be filled with values
+  Queue.ext_oneapi_graph(ExecGraph).wait();
 
   Queue.copy(PtrA, HostDataA.data(), N).wait();
   Queue.copy(PtrB, HostDataB.data(), N).wait();
   for (size_t i = 0; i < N; i++) {
-    assert(HostDataA[i] == i * NumKernelLoops * NumSubmitLoops);
-    assert(HostDataB[i] == i * NumKernelLoops * NumSubmitLoops);
+    assert(HostDataA[i] == i);
+    assert(HostDataB[i] == 0);
+  }
+
+  // Swap PtrB to be the input
+  InputParam.update(PtrB);
+  ExecGraph.update(KernelNode);
+  Queue.ext_oneapi_graph(ExecGraph).wait();
+
+  Queue.copy(PtrA, HostDataA.data(), N).wait();
+  Queue.copy(PtrB, HostDataB.data(), N).wait();
+  for (size_t i = 0; i < N; i++) {
+    assert(HostDataA[i] == i);
+    assert(HostDataB[i] == i);
   }
   return 0;
 }

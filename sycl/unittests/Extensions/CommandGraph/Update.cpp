@@ -35,7 +35,7 @@ TEST_F(CommandGraphTest, DynamicParamRegister) {
       experimental::command_graph(Queue.get_context(), Queue.get_device());
   auto Node = OtherGraph.add([&](sycl::handler &cgh) {
     // This should throw since OtherGraph is not associated with DynamicParam
-    EXPECT_ANY_THROW(DynamicParam.register_with_node(cgh, 0));
+    EXPECT_ANY_THROW(cgh.set_arg(0, DynamicParam));
     cgh.single_task<TestKernel<>>([]() {});
   });
 }
@@ -75,37 +75,37 @@ TEST_F(CommandGraphTest, UpdateNodeTypeExceptions) {
   experimental::dynamic_parameter DynamicParam{Graph, int{}};
 
   ASSERT_NO_THROW(auto NodeKernel = Graph.add([&](sycl::handler &cgh) {
-    DynamicParam.register_with_node(cgh, 0);
+    cgh.set_arg(0, DynamicParam);
     cgh.single_task<TestKernel<>>([]() {});
   }));
 
   ASSERT_ANY_THROW(auto NodeMemcpy = Graph.add([&](sycl::handler &cgh) {
-    DynamicParam.register_with_node(cgh, 0);
+    cgh.set_arg(0, DynamicParam);
     cgh.memcpy(PtrA, PtrB, 16 * sizeof(int));
   }));
 
   ASSERT_ANY_THROW(auto NodeMemset = Graph.add([&](sycl::handler &cgh) {
-    DynamicParam.register_with_node(cgh, 0);
+    cgh.set_arg(0, DynamicParam);
     cgh.memset(PtrB, 7, 16 * sizeof(int));
   }));
 
   ASSERT_ANY_THROW(auto NodeMemfill = Graph.add([&](sycl::handler &cgh) {
-    DynamicParam.register_with_node(cgh, 0);
+    cgh.set_arg(0, DynamicParam);
     cgh.fill(PtrB, 7, 16);
   }));
 
   ASSERT_ANY_THROW(auto NodePrefetch = Graph.add([&](sycl::handler &cgh) {
-    DynamicParam.register_with_node(cgh, 0);
+    cgh.set_arg(0, DynamicParam);
     cgh.prefetch(PtrA, 16 * sizeof(int));
   }));
 
   ASSERT_ANY_THROW(auto NodeMemadvise = Graph.add([&](sycl::handler &cgh) {
-    DynamicParam.register_with_node(cgh, 0);
+    cgh.set_arg(0, DynamicParam);
     cgh.mem_advise(PtrA, 16 * sizeof(int), 1);
   }));
 
   ASSERT_ANY_THROW(auto NodeHostTask = Graph.add([&](sycl::handler &cgh) {
-    DynamicParam.register_with_node(cgh, 0);
+    cgh.set_arg(0, DynamicParam);
     cgh.host_task([]() {});
   }));
 
@@ -117,7 +117,7 @@ TEST_F(CommandGraphTest, UpdateNodeTypeExceptions) {
 
   auto SubgraphExec = Subgraph.finalize();
   ASSERT_ANY_THROW(auto NodeSubgraph = Graph.add([&](sycl::handler &cgh) {
-    DynamicParam.register_with_node(cgh, 0);
+    cgh.set_arg(0, DynamicParam);
     cgh.ext_oneapi_graph(SubgraphExec);
   }));
 }

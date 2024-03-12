@@ -7,9 +7,8 @@
 //
 // UNSUPPORTED: opencl, level_zero
 
-// Tests updating a graph node in an executable graph that was used as a
-// subgraph node in another executable graph is not reflected in the graph
-// containing the subgraph node.
+// Tests updating a single dynamic parameter which is registered with multiple
+// graph nodes
 
 #include "../graph_common.hpp"
 
@@ -19,7 +18,6 @@ int main() {
   const size_t N = 1024;
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
-  exp_ext::command_graph SubGraph{Queue.get_context(), Queue.get_device()};
 
   int *PtrA = malloc_device<int>(N, Queue);
   int *PtrB = malloc_device<int>(N, Queue);
@@ -30,23 +28,12 @@ int main() {
   Queue.memset(PtrA, 0, N * sizeof(int)).wait();
   Queue.memset(PtrB, 0, N * sizeof(int)).wait();
 
-  exp_ext::dynamic_parameter InputParam(SubGraph, PtrA);
+  exp_ext::dynamic_parameter InputParam(Graph, PtrA);
 
-  auto SubKernelNode = SubGraph.add([&](handler &cgh) {
-    // Register the input pointer, we should be using set_arg but can't
-    // currently test that with CUDA
-    // cgh.set_arg(0, PtrA)
-    InputParam.register_with_node(cgh, 0);
-    cgh.single_task([=]() {
-      for (size_t i = 0; i < N; i++) {
-        PtrA[i] += i;
-      }
-    });
-  });
-
-  auto SubExecGraph = SubGraph.finalize(exp_ext::property::graph::updatable{});
-
-  auto KernelNode = Graph.add([&](handler &cgh) {
+  auto KernelNodeA = Graph.add([&](handler &cgh) {
+    cgh.set_arg(0, InputParam);
+    // TODO: Use the free function kernel extension instead of regular kernels
+    // when available.
     cgh.single_task([=]() {
       for (size_t i = 0; i < N; i++) {
         PtrA[i] = i;
@@ -54,18 +41,22 @@ int main() {
     });
   });
 
-  Graph.add([&](handler &cgh) { cgh.ext_oneapi_graph(SubExecGraph); },
-            exp_ext::property::node::depends_on{KernelNode});
+  auto KernelNodeB = Graph.add(
+      [&](handler &cgh) {
+        cgh.set_arg(0, InputParam);
+        // TODO: Use the free function kernel extension instead of regular
+        // kernels when available.
+        cgh.single_task([=]() {
+          for (size_t i = 0; i < N; i++) {
+            PtrA[i] += i;
+          }
+        });
+      },
+      exp_ext::property::node::depends_on{KernelNodeA});
 
-  // Finalize the parent graph with the original values
-  auto ExecGraph = Graph.finalize();
+  auto ExecGraph = Graph.finalize(exp_ext::property::graph::updatable{});
 
-  // Swap PtrB to be the input
-  InputParam.update(PtrB);
-  // Update the executable graph that was used as a subgraph with the new value,
-  // this should not affect ExecGraph
-  SubExecGraph.update(SubKernelNode);
-  // Only PtrA should be filled with values
+  // PtrA should be filled with values
   Queue.ext_oneapi_graph(ExecGraph).wait();
 
   Queue.copy(PtrA, HostDataA.data(), N).wait();
@@ -73,6 +64,18 @@ int main() {
   for (size_t i = 0; i < N; i++) {
     assert(HostDataA[i] == i * 2);
     assert(HostDataB[i] == 0);
+  }
+
+  // Swap PtrB to be the input
+  InputParam.update(PtrB);
+  ExecGraph.update({KernelNodeA, KernelNodeB});
+  Queue.ext_oneapi_graph(ExecGraph).wait();
+
+  Queue.copy(PtrA, HostDataA.data(), N).wait();
+  Queue.copy(PtrB, HostDataB.data(), N).wait();
+  for (size_t i = 0; i < N; i++) {
+    assert(HostDataA[i] == i * 2);
+    assert(HostDataB[i] == i * 2);
   }
   return 0;
 }

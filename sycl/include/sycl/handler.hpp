@@ -216,6 +216,11 @@ __SYCL_EXPORT device getDeviceFromHandler(handler &);
 // Checks if a device_global has any registered kernel usage.
 __SYCL_EXPORT bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr);
 
+// Extracts a pointer to the value inside a dynamic parameter
+__SYCL_EXPORT void *getValueFromDynamicParameter(
+    ext::oneapi::experimental::detail::dynamic_parameter_base
+        &DynamicParamBase);
+
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
 template <typename T> struct NotIntMsg;
 
@@ -707,6 +712,30 @@ private:
     MArgs.emplace_back(detail::kernel_param_kind_t::kind_sampler, StoredArg,
                        sizeof(sampler), ArgIndex);
   }
+
+  // setArgHelper for graph dynamic_parameters
+  template <typename T>
+  void
+  setArgHelper(int ArgIndex,
+               ext::oneapi::experimental::dynamic_parameter<T> DynamicParam) {
+    // Extract and copy arg so we can move it into setArgHelper
+    T ArgValue =
+        *static_cast<T *>(detail::getValueFromDynamicParameter(DynamicParam));
+    // Set the arg in the handler as normal
+    setArgHelper(ArgIndex, std::move(ArgValue));
+    // Register the dynamic parameter with the handler for later association
+    // with the node being added
+    registerDynamicParameter(DynamicParam, ArgIndex);
+  }
+
+  /// Registers a dynamic parameter with the handler for later association with
+  /// the node being created
+  /// @param DynamicParamBase
+  /// @param ArgIndex
+  void registerDynamicParameter(
+      ext::oneapi::experimental::detail::dynamic_parameter_base
+          &DynamicParamBase,
+      int ArgIndex);
 
   // TODO: Unusued. Remove when ABI break is allowed.
   void verifyKernelInvoc(const kernel &Kernel) {
@@ -1865,6 +1894,26 @@ public:
       associateWithHandler(&Acc, AccTarget);
   }
 
+  /// Requires access to the memory object associated with the placeholder
+  /// accessor contained in a dynamic_parameter object. Calling this function
+  /// with a non-placeholder accessor has no effect.
+  ///
+  /// The command group has a requirement to gain access to the given memory
+  /// object before executing.
+  ///
+  /// \param Acc is a SYCL accessor describing required memory region.
+  template <typename DataT, int Dims, access::mode AccMode,
+            access::target AccTarget, access::placeholder isPlaceholder>
+  void require(ext::oneapi::experimental::dynamic_parameter<
+               accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder>>
+                   DynamicParamAcc) {
+    using AccT = accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder>;
+    AccT Acc = *static_cast<AccT *>(
+        detail::getValueFromDynamicParameter(DynamicParamAcc));
+    if (Acc.is_placeholder())
+      associateWithHandler(&Acc, AccTarget);
+  }
+
   /// Registers event dependencies on this command group.
   ///
   /// \param Event is a valid SYCL event to wait on.
@@ -1916,6 +1965,13 @@ public:
   template <typename DataT, int Dims>
   void set_arg(int ArgIndex, local_accessor<DataT, Dims> Arg) {
     setArgHelper(ArgIndex, std::move(Arg));
+  }
+
+  // set_arg for graph dynamic_parameters
+  template <typename T>
+  void set_arg(int ArgIndex,
+               ext::oneapi::experimental::dynamic_parameter<T> &DynamicParam) {
+    setArgHelper(ArgIndex, DynamicParam);
   }
 
   /// Sets arguments for OpenCL interoperability kernels.

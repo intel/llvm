@@ -40,12 +40,11 @@ int main() {
   exp_ext::dynamic_parameter ParamOut(Graph, PtrC);
 
   auto KernelNode = Graph.add([&](handler &cgh) {
-    // Register the input pointers, we should be using set_arg but can't
-    // currently test that with CUDA e.g.
-    // cgh.set_arg(0, PtrA)
-    ParamOut.register_with_node(cgh, 0);
-    ParamA.register_with_node(cgh, 1);
-    ParamB.register_with_node(cgh, 2);
+    cgh.set_arg(0, ParamOut);
+    cgh.set_arg(1, ParamA);
+    cgh.set_arg(2, ParamB);
+    // TODO: Use the free function kernel extension instead of regular kernels
+    // when available.
     cgh.parallel_for(range<1>{Size}, [=](item<1> Item) {
       size_t ID = Item.get_id();
       PtrC[ID] += PtrA[ID] * PtrB[ID];

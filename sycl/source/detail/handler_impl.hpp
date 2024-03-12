@@ -131,10 +131,11 @@ public:
   // created for later query by users.
   sycl::ext::oneapi::experimental::node_type MUserFacingNodeType =
       sycl::ext::oneapi::experimental::node_type::empty;
-      
+
   // Storage for any SYCL Graph dynamic parameters which have been flagged for
-  // registration in the CG
-  std::vector<ext::oneapi::experimental::detail::dynamic_parameter_impl *>
+  // registration in the CG, along with the argument index for the parameter.
+  std::vector<std::pair<
+      ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
       MDynamicParameters;
 
   // Track whether an NDRange was used when submitting a kernel (as opposed to a

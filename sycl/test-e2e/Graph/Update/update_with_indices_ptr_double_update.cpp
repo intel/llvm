@@ -7,7 +7,7 @@
 //
 // UNSUPPORTED: opencl, level_zero
 
-// Tests updating a graph node before finalization
+// Tests updating a graph node using index-based explicit update
 
 #include "../graph_common.hpp"
 
@@ -20,40 +20,58 @@ int main() {
 
   int *PtrA = malloc_device<int>(N, Queue);
   int *PtrB = malloc_device<int>(N, Queue);
+  int *PtrUnused = malloc_device<int>(N, Queue);
 
   std::vector<int> HostDataA(N);
   std::vector<int> HostDataB(N);
+  std::vector<int> HostDataUnused(N);
 
   Queue.memset(PtrA, 0, N * sizeof(int)).wait();
   Queue.memset(PtrB, 0, N * sizeof(int)).wait();
+  Queue.memset(PtrUnused, 0, N * sizeof(int)).wait();
 
   exp_ext::dynamic_parameter InputParam(Graph, PtrA);
 
   auto KernelNode = Graph.add([&](handler &cgh) {
-    // Register the input pointer, we should be using set_arg but can't
-    // currently test that with CUDA
-    // cgh.set_arg(0, PtrA)
-    InputParam.register_with_node(cgh, 0);
+    cgh.set_arg(0, InputParam);
+    // TODO: Use the free function kernel extension instead of regular kernels
+    // when available.
     cgh.single_task([=]() {
       for (size_t i = 0; i < N; i++) {
         PtrA[i] = i;
       }
     });
   });
-  // Swap PtrB to be the input
-  InputParam.update(PtrB);
 
   auto ExecGraph = Graph.finalize(exp_ext::property::graph::updatable{});
 
-  // Only PtrB should be filled with values
+  // PtrA should be filled with values
   Queue.ext_oneapi_graph(ExecGraph).wait();
 
   Queue.copy(PtrA, HostDataA.data(), N).wait();
   Queue.copy(PtrB, HostDataB.data(), N).wait();
+  Queue.copy(PtrUnused, HostDataUnused.data(), N).wait();
   for (size_t i = 0; i < N; i++) {
-    assert(HostDataA[i] == 0);
-    assert(HostDataB[i] == i);
+    assert(HostDataA[i] == i);
+    assert(HostDataB[i] == 0);
+    assert(HostDataUnused[i] == 0);
   }
 
+  // Swap PtrUnused to be the input, then swap to PtrB without executing
+  InputParam.update(PtrUnused);
+  InputParam.update(PtrB);
+
+  ExecGraph.update(KernelNode);
+  Queue.ext_oneapi_graph(ExecGraph).wait();
+
+  Queue.copy(PtrA, HostDataA.data(), N).wait();
+  Queue.copy(PtrB, HostDataB.data(), N).wait();
+  Queue.copy(PtrUnused, HostDataUnused.data(), N).wait();
+  for (size_t i = 0; i < N; i++) {
+    assert(HostDataA[i] == i);
+    assert(HostDataB[i] == i);
+    // Check that PtrUnused was never actually used in a kernel
+    assert(HostDataUnused[i] == 0);
+  }
   return 0;
 }

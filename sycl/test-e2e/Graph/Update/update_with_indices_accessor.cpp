@@ -16,48 +16,53 @@ int main() {
 
   const size_t N = 1024;
 
-  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
+  exp_ext::command_graph Graph{
+      Queue.get_context(),
+      Queue.get_device(),
+      {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
+  std::vector<int> HostDataA(N, 0);
+  std::vector<int> HostDataB(N, 0);
 
-  int *DeviceData = malloc_device<int>(N, Queue);
-
-  int ScalarValue = 17;
-
-  std::vector<int> HostData(N);
-
-  Queue.memset(DeviceData, 0, N * sizeof(int)).wait();
-
-  exp_ext::dynamic_parameter InputParam(Graph, ScalarValue);
+  buffer BufA{HostDataA};
+  buffer BufB{HostDataB};
+  BufA.set_write_back(false);
+  BufB.set_write_back(false);
+  // Initial accessor for use in kernel and dynamic parameter
+  auto Acc = BufA.get_access();
+  exp_ext::dynamic_parameter InputParam(Graph, Acc);
 
   auto KernelNode = Graph.add([&](handler &cgh) {
-    // Register the input scalar, we should be using set_arg but can't
-    // currently test that with CUDA
-    // cgh.set_arg(1, ScalarValue)
-    InputParam.register_with_node(cgh, 1);
+    cgh.require(InputParam);
+    cgh.set_arg(0, InputParam);
+    // TODO: Use the free function kernel extension instead of regular kernels
+    // when available.
     cgh.single_task([=]() {
       for (size_t i = 0; i < N; i++) {
-        DeviceData[i] = ScalarValue;
+        Acc[i] = i;
       }
     });
   });
 
   auto ExecGraph = Graph.finalize(exp_ext::property::graph::updatable{});
 
-  // DeviceData should be filled with current ScalarValue (17)
+  // BufA should be filled with values
   Queue.ext_oneapi_graph(ExecGraph).wait();
 
-  Queue.copy(DeviceData, HostData.data(), N).wait();
+  Queue.copy(BufA.get_access(), HostDataA.data()).wait();
   for (size_t i = 0; i < N; i++) {
-    assert(HostData[i] == 17);
+    assert(HostDataA[i] == i);
+    assert(HostDataB[i] == 0);
   }
 
-  // Update ScalarValue to be 99 instead
-  InputParam.update(99);
+  // Swap BufB to be the input
+  InputParam.update(BufB.get_access());
   ExecGraph.update(KernelNode);
   Queue.ext_oneapi_graph(ExecGraph).wait();
 
-  Queue.copy(DeviceData, HostData.data(), N).wait();
+  Queue.copy(BufB.get_access(), HostDataB.data()).wait();
   for (size_t i = 0; i < N; i++) {
-    assert(HostData[i] == 99);
+    assert(HostDataA[i] == i);
+    assert(HostDataB[i] == i);
   }
   return 0;
 }

@@ -429,15 +429,18 @@ class __SYCL_EXPORT dynamic_parameter_base {
 public:
   dynamic_parameter_base(
       sycl::ext::oneapi::experimental::command_graph<graph_state::modifiable>
-          Graph);
-
-  void register_with_node(handler &CGH, int ArgIndex);
+          Graph,
+      size_t ParamSize, const void *Data);
 
 protected:
-  void updateValue(void *NewValue, size_t Size);
+  void updateValue(const void *NewValue, size_t Size);
 
-  void updateAccessor(sycl::detail::AccessorBaseHost *Acc);
+  void updateAccessor(const sycl::detail::AccessorBaseHost *Acc);
   std::shared_ptr<dynamic_parameter_impl> impl;
+
+  template <class Obj>
+  friend decltype(Obj::impl)
+  sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 };
 } // namespace detail
 
@@ -457,21 +460,17 @@ public:
   /// @param Param A reference value for this parameter used for CTAD.
   dynamic_parameter(experimental::command_graph<graph_state::modifiable> Graph,
                     const ValueT &Param)
-      : detail::dynamic_parameter_base(Graph), MValue() {}
+      : detail::dynamic_parameter_base(Graph, sizeof(ValueT), &Param) {}
 
   /// Updates this dynamic parameter and all registered nodes with a new value.
   /// @param NewValue The new value for the parameter.
   void update(const ValueT &NewValue) {
-    MValue = NewValue;
     if constexpr (IsAccessor) {
-      detail::dynamic_parameter_base::updateAccessor(&MValue);
+      detail::dynamic_parameter_base::updateAccessor(&NewValue);
     } else {
-      detail::dynamic_parameter_base::updateValue(&MValue, sizeof(ValueT));
+      detail::dynamic_parameter_base::updateValue(&NewValue, sizeof(ValueT));
     }
   }
-
-private:
-  ValueT MValue;
 };
 
 /// Additional CTAD deduction guides.

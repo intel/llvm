@@ -402,8 +402,8 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
                           "nodes which do not represent kernel executions");
   }
 
-  for (auto &DynamicParam : DynamicParams) {
-    DynamicParam->registerNode(NodeImpl);
+  for (auto &[DynamicParam, ArgIndex] : DynamicParams) {
+    DynamicParam->registerNode(NodeImpl, ArgIndex);
   }
 
   return NodeImpl;
@@ -1613,34 +1613,18 @@ void executable_command_graph::update(const std::vector<node> &Nodes) {
   impl->update(NodeImpls);
 }
 
-void dynamic_parameter_impl::registerWithNode(int ArgIndex,
-                                              sycl::handler &CGH) {
-  if (CGH.MGraph != MGraph) {
-    throw sycl::exception(sycl::make_error_code(errc::invalid),
-                          "Dynamic parameters cannot be registered with nodes "
-                          "associated with graphs other than the one used to "
-                          "construct the dynamic parameter object.");
-  }
-
-  CGH.MImpl->MDynamicParameters.push_back(this);
-  MIndex = ArgIndex;
-}
-
 dynamic_parameter_base::dynamic_parameter_base(
-    command_graph<graph_state::modifiable> Graph)
+    command_graph<graph_state::modifiable> Graph, size_t ParamSize,
+    const void *Data)
     : impl(std::make_shared<dynamic_parameter_impl>(
-          sycl::detail::getSyclObjImpl(Graph))) {}
+          sycl::detail::getSyclObjImpl(Graph), ParamSize, Data)) {}
 
-void dynamic_parameter_base::register_with_node(handler &CGH, int ArgIndex) {
-  impl->registerWithNode(ArgIndex, CGH);
-}
-
-void dynamic_parameter_base::updateValue(void *NewValue, size_t Size) {
+void dynamic_parameter_base::updateValue(const void *NewValue, size_t Size) {
   impl->updateValue(NewValue, Size);
 }
 
 void dynamic_parameter_base::updateAccessor(
-    sycl::detail::AccessorBaseHost *Acc) {
+    const sycl::detail::AccessorBaseHost *Acc) {
   impl->updateAccessor(Acc);
 }
 

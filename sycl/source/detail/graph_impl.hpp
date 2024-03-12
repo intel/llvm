@@ -357,7 +357,7 @@ public:
   /// handled specifically compared to other argument values.
   /// @param ArgIndex The index of the accessor arg to be updated
   /// @param Acc Pointer to the new accessor value
-  void updateAccessor(int ArgIndex, sycl::detail::AccessorBaseHost *Acc) {
+  void updateAccessor(int ArgIndex, const sycl::detail::AccessorBaseHost *Acc) {
     auto &Args =
         static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get())->MArgs;
     auto NewAccImpl = sycl::detail::getSyclObjImpl(*Acc);
@@ -410,7 +410,7 @@ public:
     }
   }
 
-  void updateArgValue(int ArgIndex, void *NewValue, size_t Size) {
+  void updateArgValue(int ArgIndex, const void *NewValue, size_t Size) {
 
     auto &Args =
         static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get())->MArgs;
@@ -791,7 +791,8 @@ public:
       MAllowBuffers = true;
     }
 
-    if (!SyclDevice.has(aspect::ext_oneapi_graph)) {
+    if (!SyclDevice.has(aspect::ext_oneapi_limited_graph) &&
+        !SyclDevice.has(aspect::ext_oneapi_graph)) {
       std::stringstream Stream;
       Stream << SyclDevice.get_backend();
       std::string BackendString = Stream.str();
@@ -1411,38 +1412,58 @@ private:
 
 class dynamic_parameter_impl {
 public:
-  dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl)
-      : MGraph(GraphImpl) {}
-  void registerWithNode(int ArgIndex, sycl::handler &CGH);
-
-  void registerNode(std::shared_ptr<node_impl> NodeImpl) {
-    MNodes.push_back(NodeImpl);
+  dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl,
+                         size_t ParamSize, const void *Data)
+      : MGraph(GraphImpl), MValueStorage(ParamSize) {
+    std::memcpy(MValueStorage.data(), Data, ParamSize);
   }
 
-  void updateValue(void *NewValue, size_t Size) {
-    for (auto &NodeWeak : MNodes) {
+  /// Register a node with this dynamic parameter
+  /// @param NodeImpl The node to be registered
+  /// @param ArgIndex The arg index for the kernel arg associated with this
+  /// dynamic_parameter in NodeImpl
+  void registerNode(std::shared_ptr<node_impl> NodeImpl, int ArgIndex) {
+    MNodes.emplace_back(NodeImpl, ArgIndex);
+  }
+
+  /// Get a pointer to the internal value of this dynamic parameter
+  void *getValue() { return MValueStorage.data(); }
+
+  /// Update the internal value of this dynamic parameter as well as the value
+  /// of this parameter in all registered nodes.
+  /// @param NewValue Pointer to the new value
+  /// @param Size Size of the data pointer to by NewValue
+  void updateValue(const void *NewValue, size_t Size) {
+    for (auto &[NodeWeak, ArgIndex] : MNodes) {
       auto NodeShared = NodeWeak.lock();
       if (NodeShared) {
-        NodeShared->updateArgValue(MIndex, NewValue, Size);
+        NodeShared->updateArgValue(ArgIndex, NewValue, Size);
       }
     }
+    std::memcpy(MValueStorage.data(), NewValue, Size);
   }
 
-  void updateAccessor(sycl::detail::AccessorBaseHost *Acc) {
-    for (auto &NodeWeak : MNodes) {
+  /// Update the internal value of this dynamic parameter as well as the value
+  /// of this parameter in all registered nodes. Should only be called for
+  /// accessor dynamic_parameters.
+  /// @param Acc The new accessor value
+  void updateAccessor(const sycl::detail::AccessorBaseHost *Acc) {
+    for (auto &[NodeWeak, ArgIndex] : MNodes) {
       auto NodeShared = NodeWeak.lock();
       // Should we fail here if the node isn't alive anymore?
       if (NodeShared) {
-        NodeShared->updateAccessor(MIndex, Acc);
+        NodeShared->updateAccessor(ArgIndex, Acc);
       }
     }
+    std::memcpy(MValueStorage.data(), Acc,
+                sizeof(sycl::detail::AccessorBaseHost));
   }
 
   // Weak ptrs to node_impls which will be updated
-  std::vector<std::weak_ptr<node_impl>> MNodes;
+  std::vector<std::pair<std::weak_ptr<node_impl>, int>> MNodes;
 
-  int MIndex;
   std::shared_ptr<graph_impl> MGraph;
+  std::vector<std::byte> MValueStorage;
 };
 
 } // namespace detail

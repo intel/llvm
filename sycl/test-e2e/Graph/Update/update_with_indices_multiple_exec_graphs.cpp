@@ -31,10 +31,9 @@ int main() {
   exp_ext::dynamic_parameter InputParam(Graph, PtrA);
 
   auto KernelNode = Graph.add([&](handler &cgh) {
-    // Register the input pointer, we should be using set_arg but can't
-    // currently test that with CUDA
-    // cgh.set_arg(0, PtrA)
-    InputParam.register_with_node(cgh, 0);
+    cgh.set_arg(0, InputParam);
+    // TODO: Use the free function kernel extension instead of regular kernels
+    // when available.
     cgh.single_task([=]() {
       for (size_t i = 0; i < N; i++) {
         PtrA[i] += i;
