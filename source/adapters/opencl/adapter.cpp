@@ -10,10 +10,6 @@
 
 #include "common.hpp"
 
-#ifdef _WIN32
-#include <windows.h>
-#endif
-
 struct ur_adapter_handle_t_ {
   std::atomic<uint32_t> RefCount = 0;
   std::mutex Mutex;
