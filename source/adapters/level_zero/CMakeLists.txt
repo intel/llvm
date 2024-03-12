@@ -1,4 +1,4 @@
-# Copyright (C) 2022 Intel Corporation
+# Copyright (C) 2022-2024 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -121,6 +121,13 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/image.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
 )
+
+if(NOT WIN32)
+    target_sources(ur_adapter_level_zero
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/adapter_lib_init_linux.cpp
+    )
+endif()
 
 # TODO: fix level_zero adapter conversion warnings
 target_compile_options(${TARGET_NAME} PRIVATE
