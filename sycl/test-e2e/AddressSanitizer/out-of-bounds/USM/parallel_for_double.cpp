@@ -13,7 +13,7 @@
 
 int main() {
   sycl::queue Q;
-  constexpr std::size_t N = 0;
+  constexpr std::size_t N = 4;
 #if defined(MALLOC_HOST)
   auto *array = sycl::malloc_host<double>(N, Q);
 #elif defined(MALLOC_SHARED)
