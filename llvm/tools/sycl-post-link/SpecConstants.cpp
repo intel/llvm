@@ -842,27 +842,27 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
 
       SmallVector<Instruction *, 3> DelInsts;
       DelInsts.push_back(CI);
-      Type *SCTy = CI->getType();
-      unsigned NameArgNo = 0;
       Function *Callee = CI->getCalledFunction();
       assert(Callee && "Failed to get spec constant call");
-      bool HasSretParameter = Callee->hasStructRetAttr();
+
       // Structs are returned via 'sret' arguments if they are larger than 64b
-      if (HasSretParameter) {
-        assert(!IsSYCLAlloca && "Expecting ptr return");
-        // Get structure type stored in an argument annotated with 'sret'
-        // parameter attribute and skip it.
-        SCTy = Callee->getParamStructRetType(NameArgNo++);
-      }
+      bool HasSretParameter = Callee->hasStructRetAttr();
+      assert(!(HasSretParameter && IsSYCLAlloca) &&
+             "'llvm.sycl.alloca' returns a pointer");
+      // Skip 'sret' parameter.
+      unsigned NameArgNo = HasSretParameter ? 1 : 0;
+
       StringRef SymID = getStringLiteralArg(CI, NameArgNo, DelInsts);
       Value *Replacement = nullptr;
 
       Constant *DefaultValue = getSpecConstInitializerFromCI(CI, NameArgNo + 1);
-
-      if (IsSYCLAlloca) {
-        // Get array length type from default value.
-        SCTy = DefaultValue->getType();
-      }
+      Type *SCTy = [=]() {
+        if (HasSretParameter)
+          return Callee->getParamStructRetType(0);
+        if (IsSYCLAlloca)
+          return DefaultValue->getType();
+        return CI->getType();
+      }();
 
       bool IsNewSpecConstant = false;
       unsigned Padding = 0;
