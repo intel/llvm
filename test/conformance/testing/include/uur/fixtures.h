@@ -323,7 +323,8 @@ struct urQueueTest : urContextTest {
 struct urHostPipeTest : urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
-        uur::KernelsEnvironment::instance->LoadSource("foo", 0, il_binary);
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::KernelsEnvironment::instance->LoadSource("foo", 0, il_binary));
         ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
             platform, context, device, *il_binary, nullptr, &program));
 
@@ -1070,8 +1071,9 @@ std::string deviceTestWithParamPrinter<BoolTestParam>(
 struct urProgramTest : urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
-        uur::KernelsEnvironment::instance->LoadSource(program_name, 0,
-                                                      il_binary);
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::KernelsEnvironment::instance->LoadSource(program_name, 0,
+                                                          il_binary));
 
         const ur_program_properties_t properties = {
             UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES, nullptr,
@@ -1097,8 +1099,9 @@ struct urProgramTest : urQueueTest {
 template <class T> struct urProgramTestWithParam : urContextTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
-        uur::KernelsEnvironment::instance->LoadSource(program_name, 0,
-                                                      il_binary);
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::KernelsEnvironment::instance->LoadSource(program_name, 0,
+                                                          il_binary));
         ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
             this->platform, this->context, this->device, *il_binary, nullptr,
             &program));
