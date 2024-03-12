@@ -25,6 +25,8 @@
 #include <sycl/half_type.hpp>
 #include <tuple>
 
+constexpr double ERROR_TOLERANCE = 1e-5;
+
 // Typed call helper
 // Iterates over all types and calls Functor f for each of them
 template <typename tuple, typename Functor>
