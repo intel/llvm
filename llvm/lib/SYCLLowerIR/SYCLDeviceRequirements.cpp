@@ -35,8 +35,9 @@ static llvm::StringRef ExtractStringFromMDNodeOperand(const MDNode *N,
   return S->getString();
 }
 
-SYCLDeviceRequirements::SYCLDeviceRequirements(
-    const module_split::ModuleDesc &MD) {
+SYCLDeviceRequirements
+llvm::getSYCLDeviceRequirements(const module_split::ModuleDesc &MD) {
+  SYCLDeviceRequirements Reqs;
   // Process all functions in the module
   for (const Function &F : MD.getModule()) {
     if (auto *MDN = F.getMetadata("sycl_used_aspects")) {
@@ -45,14 +46,14 @@ SYCLDeviceRequirements::SYCLDeviceRequirements(
         // Don't put internal aspects (with negative integer value) into the
         // requirements, they are used only for device image splitting.
         if (Val >= 0)
-          Aspects.insert(Val);
+          Reqs.Aspects.insert(Val);
       }
     }
 
     if (auto *MDN = F.getMetadata("sycl_fixed_targets")) {
       for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
         auto Val = ExtractUnsignedIntegerFromMDNodeOperand(MDN, I);
-        FixedTarget.insert(Val);
+        Reqs.FixedTarget.insert(Val);
       }
     }
 
@@ -61,20 +62,20 @@ SYCLDeviceRequirements::SYCLDeviceRequirements(
       for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I)
         NewReqdWorkGroupSize.push_back(
             ExtractUnsignedIntegerFromMDNodeOperand(MDN, I));
-      if (!ReqdWorkGroupSize.has_value())
-        ReqdWorkGroupSize = NewReqdWorkGroupSize;
+      if (!Reqs.ReqdWorkGroupSize.has_value())
+        Reqs.ReqdWorkGroupSize = NewReqdWorkGroupSize;
     }
 
     if (auto *MDN = F.getMetadata("sycl_joint_matrix")) {
       auto Val = ExtractStringFromMDNodeOperand(MDN, 0);
       if (!Val.empty())
-        JointMatrix = Val;
+        Reqs.JointMatrix = Val;
     }
 
     if (auto *MDN = F.getMetadata("sycl_joint_matrix_mad")) {
       auto Val = ExtractStringFromMDNodeOperand(MDN, 0);
       if (!Val.empty())
-        JointMatrixMad = Val;
+        Reqs.JointMatrixMad = Val;
     }
   }
 
@@ -92,12 +93,13 @@ SYCLDeviceRequirements::SYCLDeviceRequirements(
           MDN->getNumOperands() == 1 &&
           "intel_reqd_sub_group_size metadata expects exactly one argument!");
       auto MDValue = ExtractUnsignedIntegerFromMDNodeOperand(MDN, 0);
-      if (!SubGroupSize)
-        SubGroupSize = MDValue;
+      if (!Reqs.SubGroupSize)
+        Reqs.SubGroupSize = MDValue;
       else
-        assert(*SubGroupSize == static_cast<uint32_t>(MDValue));
+        assert(*Reqs.SubGroupSize == static_cast<uint32_t>(MDValue));
     }
   }
+  return Reqs;
 }
 
 std::map<StringRef, util::PropertyValue> SYCLDeviceRequirements::asMap() const {

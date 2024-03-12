@@ -28,7 +28,6 @@ class PropertyValue;
 }
 
 struct SYCLDeviceRequirements {
-  SYCLDeviceRequirements(const module_split::ModuleDesc &M);
   std::set<uint32_t> Aspects;
   std::set<uint32_t> FixedTarget;
   std::optional<llvm::SmallVector<uint64_t, 3>> ReqdWorkGroupSize;
@@ -38,4 +37,8 @@ struct SYCLDeviceRequirements {
 
   std::map<StringRef, util::PropertyValue> asMap() const;
 };
+
+SYCLDeviceRequirements
+getSYCLDeviceRequirements(const module_split::ModuleDesc &M);
+
 } // namespace llvm
