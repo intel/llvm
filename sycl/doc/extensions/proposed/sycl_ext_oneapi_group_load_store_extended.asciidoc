@@ -138,7 +138,7 @@ in striped case:
 `out[i]` = `in_iter[g.get_local_linear_id() + g.get_local_linear_range() * i];`
 for `i` between `0` and `N`.
 
-==== Fixed-size array Overload
+==== Fixed-size Array Overload
 
 [source,c++]
 ----
@@ -238,7 +238,7 @@ in striped case:
 `out_iter[g.get_local_linear_id() + g.get_local_linear_range() * i]` = `in[i];`
 for `i` between `0` and `N`.
 
-==== Fixed-size array Overload
+==== Fixed-size Array Overload
 
 [source,c++]
 ----
@@ -429,7 +429,15 @@ The temporary memory is allocated via `sycl::local_accessor`
 ----
 namespace sycl_exp = sycl::ext::oneapi::experimental;
 
-// Same input/output as in Example 1
+constexpr std::size_t block_size = 32;
+constexpr std::size_t items_per_thread = 4;
+constexpr std::size_t block_count = 2;
+constexpr std::size_t size = block_count * block_size * items_per_thread;
+
+sycl::queue q;
+sycl::usm_allocator<T, sycl::usm::alloc::device, 64> allocator(q);
+std::vector<T, decltype(allocator)> input(size, allocator);
+std::vector<T, decltype(allocator)> output(size, allocator);
 
 q.submit([&](sycl::handler& cgh) {
     constexpr auto temp_memory_size = sycl_exp::memory_required<T, items_per_thread>(
