@@ -56,14 +56,8 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit e2ee9a4720414e0a59fa9c911e9575ab564ac57c
-  # Merge: 7a5150cd be622e7c
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Sun Mar 10 18:02:50 2024 +0000
-  #     Merge pull request #1340 from Bensuo/ewan/coverity_cuda_update
-  #     [HIP][CUDA][Command-Buffer] Fix Coverity issues in HIP/CUDA command-buffer code
-  set(UNIFIED_RUNTIME_TAG e2ee9a4720414e0a59fa9c911e9575ab564ac57c)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/Bensuo/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG ben/cuda-param-fix)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
