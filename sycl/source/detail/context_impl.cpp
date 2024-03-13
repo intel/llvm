@@ -47,22 +47,20 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
       MSupportBufferLocationByDevices(NotChecked) {
   MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   std::vector<sycl::detail::pi::PiDevice> DeviceIds;
-  for (size_t I = 0, E = MDevices.size(); I != E; ++I) {
-    if (MDevices[I].has(aspect::ext_oneapi_is_composite)) {
+  for (const auto &D : MDevices) {
+    if (D.has(aspect::ext_oneapi_is_composite)) {
       // Component devices are considered to be descendent devices from a
       // composite device and therefore context created for a composite
       // device should also work for a component device.
       // In order to achieve that, we implicitly add all component devices to
       // the list if a composite device was passed by user to us.
-      std::vector<device> ComponentDevices =
-          MDevices[I]
-              .get_info<
-                  ext::oneapi::experimental::info::device::component_devices>();
+      std::vector<device> ComponentDevices = D.get_info<
+          ext::oneapi::experimental::info::device::component_devices>();
       for (const auto &CD : ComponentDevices)
         DeviceIds.push_back(getSyclObjImpl(CD)->getHandleRef());
     }
 
-    DeviceIds.push_back(getSyclObjImpl(MDevices[I])->getHandleRef());
+    DeviceIds.push_back(getSyclObjImpl(D)->getHandleRef());
   }
 
   if (getBackend() == backend::ext_oneapi_cuda) {
