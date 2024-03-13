@@ -112,6 +112,6 @@ int main() {
     return 0;
   }
 
-  std::cout << "Test passed!" << std::endl;
+  std::cout << "Test failed!" << std::endl;
   return 3;
 }
