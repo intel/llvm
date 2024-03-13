@@ -147,7 +147,7 @@ namespace sycl::ext::oneapi::experimental {
 // Load API
 template<typename Group, typename InputIteratorT, typename OutputT,
         std::size_t ElementsPerWorkItem, typename Properties = empty_properties_t>
-void group_load(Group gh, InputIteratorT in_iter,
+void group_load(Group g, InputIteratorT in_iter,
                 sycl::span<OutputT, ElementsPerWorkItem> out, Properties = {});
 }
 ----
