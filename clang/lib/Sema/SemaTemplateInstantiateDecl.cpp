@@ -608,6 +608,29 @@ static void instantiateDependentAMDGPUWavesPerEUAttr(
   S.addAMDGPUWavesPerEUAttr(New, Attr, MinExpr, MaxExpr);
 }
 
+static void instantiateDependentAMDGPUMaxNumWorkGroupsAttr(
+    Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
+    const AMDGPUMaxNumWorkGroupsAttr &Attr, Decl *New) {
+  EnterExpressionEvaluationContext Unevaluated(
+      S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
+
+  ExprResult ResultX = S.SubstExpr(Attr.getMaxNumWorkGroupsX(), TemplateArgs);
+  if (!ResultX.isUsable())
+    return;
+  ExprResult ResultY = S.SubstExpr(Attr.getMaxNumWorkGroupsY(), TemplateArgs);
+  if (!ResultY.isUsable())
+    return;
+  ExprResult ResultZ = S.SubstExpr(Attr.getMaxNumWorkGroupsZ(), TemplateArgs);
+  if (!ResultZ.isUsable())
+    return;
+
+  Expr *XExpr = ResultX.getAs<Expr>();
+  Expr *YExpr = ResultY.getAs<Expr>();
+  Expr *ZExpr = ResultZ.getAs<Expr>();
+
+  S.addAMDGPUMaxNumWorkGroupsAttr(New, Attr, XExpr, YExpr, ZExpr);
+}
+
 static void instantiateSYCLIntelForcePow2DepthAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const SYCLIntelForcePow2DepthAttr *Attr, Decl *New) {
@@ -1262,6 +1285,13 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
       instantiateSYCLUsesAspectsAttr(*this, TemplateArgs, A, New);
       continue;
     }
+
+    if (const auto *AMDGPUMaxNumWorkGroups =
+            dyn_cast<AMDGPUMaxNumWorkGroupsAttr>(TmplAttr)) {
+      instantiateDependentAMDGPUMaxNumWorkGroupsAttr(
+          *this, TemplateArgs, *AMDGPUMaxNumWorkGroups, New);
+    }
+
     if (const auto *ParamAttr = dyn_cast<HLSLParamModifierAttr>(TmplAttr)) {
       instantiateDependentHLSLParamModifierAttr(*this, TemplateArgs, ParamAttr,
                                                 New);
