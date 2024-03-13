@@ -123,7 +123,7 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_oneapi_mipmap, AspectExt_oneapi_mipmap_anisotropy, AspectExt_oneapi_mipmap_level_reference, AspectExt_intel_esimd,
     AspectExt_oneapi_ballot_group, AspectExt_oneapi_fixed_size_group, AspectExt_oneapi_opportunistic_group,
     AspectExt_oneapi_tangle_group, AspectExt_intel_matrix, AspectExt_oneapi_is_composite, AspectExt_oneapi_is_component,
-    AspectExt_oneapi_graph, AspectExt_intel_fpga_task_sequence],
+    AspectExt_oneapi_graph, AspectExt_intel_fpga_task_sequence, AspectExt_oneapi_limited_graph],
     []>;
 // This definition serves the only purpose of testing whether the deprecated aspect list defined in here and in SYCL RT
 // match.
