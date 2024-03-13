@@ -145,9 +145,9 @@ for `i` between `0` and `N`.
 namespace sycl::ext::oneapi::experimental {
 
 // Load API
-template<typename GroupHelper, typename InputIteratorT, typename OutputT,
+template<typename Group, typename InputIteratorT, typename OutputT,
         std::size_t ElementsPerWorkItem, typename Properties = empty_properties_t>
-void group_load(GroupHelper gh, InputIteratorT in_iter,
+void group_load(Group gh, InputIteratorT in_iter,
                 sycl::span<OutputT, ElementsPerWorkItem> out, Properties = {});
 }
 ----
@@ -157,7 +157,7 @@ void group_load(GroupHelper gh, InputIteratorT in_iter,
 * `out` must be a `sycl::span` made from a pointer to the private memory space.
 
 ._Constraints_:
-* Only available if `GroupHelper` is a
+* Only available if `Group` is a
 work-group or sub-group.
 * `InputIteratorT` suppose to be a random access iterator.
 * Value type of `InputIteratorT` must be convertible to `OutputT`.
@@ -245,9 +245,9 @@ for `i` between `0` and `N`.
 namespace sycl::ext::oneapi::experimental {
 
 // Store API
-template<typename GroupHelper, typename OutputIteratorT, typename InputT,
+template<typename Group, typename OutputIteratorT, typename InputT,
         std::size_t ElementsPerWorkItem, typename Properties = empty_properties_t>
-void group_store(GroupHelper gh, sycl::span<InputT, ItemsPerWorkItem> in,
+void group_store(Group gh, sycl::span<InputT, ItemsPerWorkItem> in,
                  OutputIteratorT out_iter,  Properties = {});
 
 }
@@ -258,7 +258,7 @@ void group_store(GroupHelper gh, sycl::span<InputT, ItemsPerWorkItem> in,
 * `in` must be a `sycl::span` made from a pointer to the private memory space.
 
 ._Constraints_:
-* Only available if `GroupHelper` is a
+* Only available if `Group` is a
 work-group or sub-group.
 * `OutputIteratorT` suppose to be a random access iterator.
 * `InputT` must be convertible to value type of `OutputIteratorT`.
@@ -387,9 +387,9 @@ q.submit([&](sycl::handler& cgh) {
 === Future Directions
 
 As a future extension load/store can be used with temporary memory buffer,
-which can be passed via `GroupHelper` such as `group_with_scratchpad`.
+which can be passed via `Group` such as `group_with_scratchpad`.
 Support function determining memory size required for scratch space in
-`GroupHelper` can be the following:
+`group_with_scratchpad` can be the following:
 
 [source,c++]
 ----
@@ -406,7 +406,7 @@ constexpr std::size_t memory_required(sycl::memory_scope scope,
 ----
 
 _Effects_: Returns size of temporary memory (in bytes) that is required for
-scratch space in `GroupHelper`. Result depends on type `T`, `ElementsPerWorkItem`
+scratch space in `Group`. Result depends on type `T`, `ElementsPerWorkItem`
 and the scope parameter: use `sycl::memory_scope::work_group` to get memory size
 required for each work-group; use `sycl::memory_scope::sub_group` to get memory
 size required for each sub-group. If other scope values are passed, behavior is
@@ -416,7 +416,8 @@ unspecified.
 ==== Dependency:
 
 * link:../proposed/sycl_ext_oneapi_group_sort.asciidoc[
-  sycl_ext_oneapi_group_sort] (`group_with_scratchpad` class used as GroupHelper).
+  sycl_ext_oneapi_group_sort] (`group_with_scratchpad` class used as `Group` or
+  `GroupHelper`).
 
 
 ==== Examples for `group_with_scratchpad`
