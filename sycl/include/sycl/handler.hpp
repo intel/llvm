@@ -1368,8 +1368,7 @@ private:
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
-#if defined(SYCL2020_CONFORMANT_APIS) ||                                       \
-    defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+#if defined(SYCL2020_CONFORMANT_APIS)
     static_assert(
         std::is_convertible_v<sycl::nd_item<Dims>, LambdaArgType>,
         "Kernel argument of a sycl::parallel_for with sycl::nd_range "
