@@ -154,11 +154,6 @@ class SanitizerInterceptor {
                              std::shared_ptr<DeviceInfo> &CI);
     ur_result_t eraseDevice(ur_device_handle_t Device);
 
-    ur_result_t insertQueue(ur_context_handle_t Context,
-                            ur_queue_handle_t Queue);
-    ur_result_t eraseQueue(ur_context_handle_t Context,
-                           ur_queue_handle_t Queue);
-
     std::optional<AllocationIterator> findAllocInfoByAddress(uptr Address);
 
   private:
