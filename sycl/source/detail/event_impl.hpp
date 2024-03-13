@@ -303,6 +303,10 @@ public:
   const std::vector<EventImplPtr> &getPostCompleteEvents() const {
     return MPostCompleteEvents;
   }
+  
+  void markAsProfilingTagEvent() { MProfilingTagEvent = true; }
+
+  bool isProfilingTagEvent() const noexcept { return MProfilingTagEvent; }
 
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
@@ -361,6 +365,10 @@ protected:
   // sycl::detail::pi::PiExtCommandBuffer the sync point for that submission is
   // stored here.
   sycl::detail::pi::PiExtSyncPoint MSyncPoint;
+
+  // Signifies whether this event is the result of a profiling tag command. This
+  // allows for profiling, even if the queue does not have profiling enabled.
+  bool MProfilingTagEvent = false;
 
   friend std::vector<sycl::detail::pi::PiEvent>
   getOrWaitEvents(std::vector<sycl::event> DepEvents,

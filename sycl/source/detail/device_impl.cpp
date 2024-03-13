@@ -629,6 +629,14 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_intel_fpga_task_sequence: {
     return is_accelerator();
   }
+  case aspect::ext_oneapi_queue_profiling_tag: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
   }
   throw runtime_error("This device aspect has not been implemented yet.",
                       PI_ERROR_INVALID_DEVICE);

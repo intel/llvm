@@ -154,9 +154,11 @@
 // 15.44 Add coarse-grain memory advice flag for HIP.
 // 15.45 Added piextKernelSuggestMaxCooperativeGroupCount and
 //       piextEnqueueCooperativeKernelLaunch.
+// 15.46 Added piEnqueueTimestampRecordingExp and
+//       PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT.
 
 #define _PI_H_VERSION_MAJOR 15
-#define _PI_H_VERSION_MINOR 45
+#define _PI_H_VERSION_MINOR 46
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -437,6 +439,8 @@ typedef enum {
   PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT = 0x2010D,
   PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT = 0x2010E,
   PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT = 0x2010F,
+
+  PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT = 0x20110,
 
   PI_EXT_ONEAPI_DEVICE_INFO_MATRIX_COMBINATIONS = 0x20110,
 
@@ -1720,6 +1724,10 @@ __SYCL_EXPORT pi_result piEventSetStatus(pi_event event,
 __SYCL_EXPORT pi_result piEventRetain(pi_event event);
 
 __SYCL_EXPORT pi_result piEventRelease(pi_event event);
+
+__SYCL_EXPORT pi_result piEnqueueTimestampRecordingExp(
+    pi_queue queue, pi_bool blocking, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event);
 
 /// Gets the native handle of a PI event object.
 ///

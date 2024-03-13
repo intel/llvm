@@ -629,6 +629,14 @@ pi_result piextEventCreateWithNativeHandle(pi_native_handle NativeHandle,
                                                  OwnNativeHandle, Event);
 }
 
+pi_result piEnqueueTimestampRecordingExp(pi_queue Queue, pi_bool Blocking,
+                                         pi_uint32 NumEventsInWaitList,
+                                         const pi_event *EventWaitList,
+                                         pi_event *Event) {
+  return pi2ur::piEnqueueTimestampRecordingExp(
+      Queue, Blocking, NumEventsInWaitList, EventWaitList, Event);
+}
+
 //
 // Sampler
 //

@@ -1272,6 +1272,9 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
     PI_TO_UR_MAP_DEVICE_INFO(
         PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT,
         UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP)
+    PI_TO_UR_MAP_DEVICE_INFO(
+        PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT,
+        UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP)
     PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT,
                              UR_DEVICE_INFO_ESIMD_SUPPORT)
     PI_TO_UR_MAP_DEVICE_INFO(PI_EXT_ONEAPI_DEVICE_INFO_COMPONENT_DEVICES,
@@ -4308,6 +4311,23 @@ inline pi_result piEventRelease(pi_event Event) {
 
   ur_event_handle_t UREvent = reinterpret_cast<ur_event_handle_t>(Event);
   HANDLE_ERRORS(urEventRelease(UREvent));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piEnqueueTimestampRecordingExp(pi_queue Queue,
+                                                pi_bool Blocking,
+                                                pi_uint32 NumEventsInWaitList,
+                                                const pi_event *EventWaitList,
+                                                pi_event *Event) {
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  const ur_event_handle_t *UrEventWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventWaitList);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(Event);
+
+  HANDLE_ERRORS(urEnqueueTimestampRecordingExp(
+      UrQueue, Blocking, NumEventsInWaitList, UrEventWaitList, UREvent));
 
   return PI_SUCCESS;
 }
