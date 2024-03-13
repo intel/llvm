@@ -408,7 +408,7 @@ public:
   }
 
   Function *createRemapperFunction(
-      const Remapper &R, BuiltinKind K, StringRef OrigName [[maybe_unused]],
+      const Remapper &R, BuiltinKind K, [[maybe_unused]] StringRef OrigName,
       Module *M, const jit_compiler::NDRange &SrcNDRange,
       const jit_compiler::NDRange &FusedNDRange) const override {
     const auto Name = Remapper::getFunctionName(K, SrcNDRange, FusedNDRange);
@@ -551,7 +551,7 @@ public:
                                                   uint32_t Idx) const = 0;
 
   Value *getGlobalIDWithoutOffset(IRBuilderBase &Builder,
-                                  const NDRange &FusedNDRange [[maybe_unused]],
+                                  [[maybe_unused]] const NDRange &FusedNDRange,
                                   uint32_t Idx) const override {
     // Construct (or reuse) a helper function to query the global ID.
     std::string GetGlobalIDName =
@@ -687,7 +687,7 @@ public:
     switch (K) {
     case BuiltinKind::NumWorkGroupsRemapper:
     case BuiltinKind::GroupIDRemapper:
-      return WrapValInFunc([&](uint32_t Idx [[maybe_unused]]) {
+      return WrapValInFunc([&]([[maybe_unused]] uint32_t Idx) {
         return Builder.getInt32(R.getDefaultValue(K));
       });
     case BuiltinKind::LocalSizeRemapper:
