@@ -24,6 +24,15 @@ function(add_adapter_test name)
 
     target_compile_definitions(${target} PRIVATE
         ${args_FIXTURE}_ENVIRONMENT)
+
+    if(${args_FIXTURE} STREQUAL "KERNELS")
+        target_compile_definitions(${target} PRIVATE KERNELS_ENVIRONMENT PRIVATE
+            KERNELS_DEFAULT_DIR="${UR_CONFORMANCE_DEVICE_BINARIES_DIR}")
+        target_include_directories(${target}
+            PRIVATE ${UR_CONFORMANCE_DEVICE_BINARIES_DIR})
+        add_dependencies(${target} generate_device_binaries kernel_names_header)
+    endif()
+
     target_link_libraries(${target} PRIVATE
         ${PROJECT_NAME}::loader
         ${PROJECT_NAME}::headers
@@ -45,4 +54,8 @@ endif()
 
 if(UR_BUILD_ADAPTER_HIP OR UR_BUILD_ADAPTER_ALL)
     add_subdirectory(hip)
+endif()
+
+if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_ALL)
+    add_subdirectory(level_zero)
 endif()
