@@ -29,6 +29,16 @@ add_llvm_library(sycl-fusion
    ${LLVM_TARGETS_TO_BUILD}
 )
 
+target_compile_options(sycl-fusion PRIVATE ${SYCL_FUSION_WARNING_FLAGS})
+
+# Mark LLVM and SPIR-V headers as system headers to ignore warnigns in them.
+# This classification remains intact even if the same paths are added as normal
+# include paths in GCC and Clang.
+target_include_directories(sycl-fusion
+  SYSTEM PRIVATE
+  ${LLVM_MAIN_INCLUDE_DIR}
+  ${LLVM_SPIRV_INCLUDE_DIRS}
+)
 target_include_directories(sycl-fusion
   PUBLIC
   $<INSTALL_INTERFACE:include>
@@ -36,7 +46,6 @@ target_include_directories(sycl-fusion
   $<BUILD_INTERFACE:${SYCL_JIT_BASE_DIR}/common/include>
   PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/lib
-  ${LLVM_SPIRV_INCLUDE_DIRS}
 )
 
 find_package(Threads REQUIRED)
