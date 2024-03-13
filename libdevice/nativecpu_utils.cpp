@@ -337,15 +337,36 @@ GEN_xyz(__spirv_NumWorkgroups, __mux_get_num_groups)
 GEN_xyz(__spirv_WorkgroupSize, __mux_get_local_size)
 GEN_xyz(__spirv_WorkgroupId, __mux_get_group_id)
 
+#define NCPUPREFIX(name) __dpcpp_nativecpu##name
+
+template <class T> using MakeGlobalType =
+  typename sycl::detail::DecoratedType < T, sycl::access::address_space::
+                                                     global_space>::type;
+
 #define DefStateSetWithType(name, field, type)                                 \
-  DEVICE_EXTERNAL_C void name(type value, __nativecpu_state *s) {              \
+  DEVICE_EXTERNAL_C void NCPUPREFIX(name)(                                     \
+      type value, MakeGlobalType<__nativecpu_state> *s) {                      \
     s->field = value;                                                          \
   }
 
-DefStateSetWithType(__dpcpp_nativecpu_set_num_sub_groups, NumSubGroups,
-                    uint32_t)
-DefStateSetWithType(__dpcpp_nativecpu_set_sub_group_id, SubGroup_id, uint32_t)
-DefStateSetWithType(__dpcpp_nativecpu_set_max_sub_group_size, SubGroup_size,
-                    uint32_t)
+// Sub group setters
+DefStateSetWithType(_set_num_sub_groups, NumSubGroups, uint32_t)
+DefStateSetWithType(_set_sub_group_id, SubGroup_id, uint32_t)
+DefStateSetWithType(_set_max_sub_group_size, SubGroup_size, uint32_t)
+
+#define DefineStateGetWithType(name, field, type)\
+  DEVICE_EXTERNAL_C type NCPUPREFIX(name)(                                     \
+      MakeGlobalType<__nativecpu_state> *s) {                                  \
+    return s->field;                                                           \
+  }
+#define DefineStateGet_U32(name, field)                                        \
+  DefineStateGetWithType(name, field, uint32_t)
+
+
+DefineStateGet_U32(_get_sub_group_id, SubGroup_id)
+DefineStateGet_U32(_get_sub_group_local_id, SubGroup_local_id)
+DefineStateGet_U32(_get_sub_group_size, SubGroup_size)
+DefineStateGet_U32(_get_max_sub_group_size, SubGroup_size)
+DefineStateGet_U32(_get_num_sub_groups, NumSubGroups)
 
 #endif // __SYCL_NATIVE_CPU__

@@ -249,36 +249,6 @@ static const StringMap<unsigned> OffsetMap{
 //declare i32 @__mux_get_sub_group_size()
 
 
-static Function* addSetSubGroupValFunc(Module& M, StringRef Name, Type* StateType) {
-  /*
-  void __dpcpp_nativecpu_set_num_sub_groups(size_t value,
-                                            __nativecpu_state *s) {
-    s->Name = value;
-  }
-  */
-  auto& Ctx = M.getContext();
-  Type* I32Ty = Type::getInt32Ty(Ctx);
-  Type* I64Ty = Type::getInt64Ty(Ctx);
-  Type* RetTy = Type::getVoidTy(Ctx);
-  Type* PtrTy = PointerType::get(Ctx, NativeCPUGlobalAS);
-  static FunctionType* FTy =
-    FunctionType::get(RetTy, { I32Ty, PtrTy }, false);
-  auto FCallee = M.getOrInsertFunction(Name, FTy);
-  auto* F = dyn_cast<Function>(FCallee.getCallee());
-  IRBuilder<> Builder(Ctx);
-  BasicBlock* BB = BasicBlock::Create(Ctx, "entry", F);
-  Builder.SetInsertPoint(BB);
-  auto* StatePtr = F->getArg(1);
-  auto* Zero = ConstantInt::get(I64Ty, 0);
-  auto* Offset = ConstantInt::get(I32Ty, OffsetMap.at(Name));
-  auto* GEP = Builder.CreateGEP(StateType, StatePtr, { Zero, Offset });
-  // store local id
-  auto* Val = F->getArg(0);
-  Builder.CreateStore(Val, GEP);
-  Builder.CreateRetVoid();
-  return F;
-}
-
 static Function *addSetLocalIdFunc(Module &M, StringRef Name, Type *StateType) {
   /*
   void __dpcpp_nativecpu_set_local_id(unsigned dim, size_t value,
@@ -353,41 +323,10 @@ static Function *addGetFunc(Module &M, StringRef Name, Type *StateType) {
   return F;
 }
 
-static Function* addSubGroupGetFunc(Module& M, StringRef Name, Type* StateType) {
-  auto& Ctx = M.getContext();
-  Type* I64Ty = Type::getInt64Ty(Ctx);
-  Type* I32Ty = Type::getInt32Ty(Ctx);
-  Type* RetTy = I32Ty;
-  Type* PtrTy = PointerType::get(Ctx, NativeCPUGlobalAS);
-  static FunctionType* FTy = FunctionType::get(RetTy, { PtrTy }, false);
-  auto FCallee = M.getOrInsertFunction(Name, FTy);
-  auto* F = dyn_cast<Function>(FCallee.getCallee());
-  IRBuilder<> Builder(Ctx);
-  BasicBlock* BB = BasicBlock::Create(Ctx, "entry", F);
-  Builder.SetInsertPoint(BB);
-  auto* Zero = ConstantInt::get(I64Ty, 0);
-  auto* Offset = ConstantInt::get(I32Ty, OffsetMap.at(Name));
-  auto* GEP =
-    Builder.CreateGEP(StateType, F->getArg(0), { Zero, Offset});
-  auto* Load = Builder.CreateLoad(I32Ty, GEP);
-  Builder.CreateRet(Load);
-  return F;
-}
-
 static Function *addReplaceFunc(Module &M, StringRef Name, Type *StateType) {
   Function *Res;
   const char GetPrefix[] = "__dpcpp_nativecpu_get";
-  if (Name == NativeCPUNumSubGroups ||
-    Name == NativeCPUSubGroup_id ||
-    Name == NativeCPUSubGroup_local_id ||
-    Name == NativeCPUSubGroup_max_size ||
-    Name == NativeCPUSubGroup_size) {
-    Res = addSubGroupGetFunc(M, Name, StateType);
-  } else if (Name == NativeCPUSetNumSubgroups ||
-             Name == NativeCPUSetSubgroupId ||
-             Name == NativeCPUSetMaxSubgroupSize) {
-    Res = addSetSubGroupValFunc(M, Name, StateType);
-  } else if (Name.starts_with(GetPrefix)) {
+  if (Name.starts_with(GetPrefix)) {
     Res = addGetFunc(M, Name, StateType);
   } else if (Name == NativeCPUSetLocalId) {
     Res = addSetLocalIdFunc(M, Name, StateType);
@@ -443,27 +382,9 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
                                                 ModuleAnalysisManager &MAM) {
   bool ModuleChanged = false;
   SmallVector<Function *> OldKernels;
-  {
-    SmallVector<Function *> ToRemove;
-    for (auto &F : M) {
-      if (F.getCallingConv() == llvm::CallingConv::SPIR_KERNEL)
-        OldKernels.push_back(&F);
-      else if (F.getNumUses() == 0) {
-        if (F.isDeclaration()) {
-        } else if (F.hasFnAttribute(llvm::Attribute::AlwaysInline)) {
-          StringRef val = F.getFnAttribute("sycl-module-id").getValueAsString();
-          if (val.endswith("libdevice/nativecpu_utils.cpp"))
-            // We remove all unused, always-inlined functions llvm-linked from
-            // the nativecpu device builtin library from the module.
-            ToRemove.push_back(&F);
-        }
-      }
-    }
-    for (Function *f : ToRemove) {
-      f->eraseFromParent();
-      ModuleChanged = true;
-    }
-  }
+  for (auto &F : M)
+    if (F.getCallingConv() == llvm::CallingConv::SPIR_KERNEL)
+      OldKernels.push_back(&F);
 
   // Materialize builtins
   // First we add a pointer to the Native CPU state as arg to all the
@@ -624,5 +545,23 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     Builder.CreateRetVoid();
   }
 #endif
+
+  SmallVector<Function *> UnusedLibBuiltins;
+  for (auto &F : M) {
+    if (F.getCallingConv() != llvm::CallingConv::SPIR_KERNEL &&
+        F.getNumUses() == 0 && !F.isDeclaration()) {
+      if (F.hasFnAttribute(llvm::Attribute::AlwaysInline)) {
+        StringRef val = F.getFnAttribute("sycl-module-id").getValueAsString();
+        if (val.endswith("libdevice/nativecpu_utils.cpp"))
+          // We remove all unused, always-inlined functions llvm-linked from
+          // the nativecpu device builtin library from the module.
+          UnusedLibBuiltins.push_back(&F);
+      }
+    }
+  }
+  for (Function *f : UnusedLibBuiltins) {
+    f->eraseFromParent();
+    ModuleChanged = true;
+  }
   return ModuleChanged ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
