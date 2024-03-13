@@ -11,6 +11,7 @@
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
+#include <cerrno>
 #include <cstdio>
 #include <fstream>
 #include <optional>
@@ -38,7 +39,8 @@ LockCacheItem::LockCacheItem(const std::string &Path)
     close(fd);
     Owned = true;
   } else {
-    PersistentDeviceCodeCache::trace("Failed to aquire lock file: " + FileName);
+    PersistentDeviceCodeCache::trace("Failed to aquire lock file: " + FileName +
+                                     " " + std::strerror(errno));
   }
 }
 
