@@ -254,8 +254,8 @@ struct ur_exp_command_buffer_handle_t_ {
   ~ur_exp_command_buffer_handle_t_();
 
   void registerSyncPoint(ur_exp_command_buffer_sync_point_t SyncPoint,
-                         std::shared_ptr<hipGraphNode_t> HIPNode) {
-    SyncPoints[SyncPoint] = HIPNode;
+                         std::shared_ptr<hipGraphNode_t> &&HIPNode) {
+    SyncPoints[SyncPoint] = std::move(HIPNode);
     NextSyncPoint++;
   }
 
@@ -269,7 +269,7 @@ struct ur_exp_command_buffer_handle_t_ {
   ur_exp_command_buffer_sync_point_t
   addSyncPoint(std::shared_ptr<hipGraphNode_t> HIPNode) {
     ur_exp_command_buffer_sync_point_t SyncPoint = NextSyncPoint;
-    registerSyncPoint(SyncPoint, HIPNode);
+    registerSyncPoint(SyncPoint, std::move(HIPNode));
     return SyncPoint;
   }
   uint32_t incrementInternalReferenceCount() noexcept {

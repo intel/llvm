@@ -17,7 +17,16 @@ TEST_P(urQueueCreateTest, Success) {
 using urQueueCreateWithParamTest = uur::urContextTestWithParam<ur_queue_flag_t>;
 UUR_TEST_SUITE_P(urQueueCreateWithParamTest,
                  testing::Values(UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE,
-                                 UR_QUEUE_FLAG_PROFILING_ENABLE),
+                                 UR_QUEUE_FLAG_PROFILING_ENABLE,
+                                 UR_QUEUE_FLAG_ON_DEVICE,
+                                 UR_QUEUE_FLAG_ON_DEVICE_DEFAULT,
+                                 UR_QUEUE_FLAG_DISCARD_EVENTS,
+                                 UR_QUEUE_FLAG_PRIORITY_LOW,
+                                 UR_QUEUE_FLAG_PRIORITY_HIGH,
+                                 UR_QUEUE_FLAG_SUBMISSION_BATCHED,
+                                 UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE,
+                                 UR_QUEUE_FLAG_USE_DEFAULT_STREAM,
+                                 UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM),
                  uur::deviceTestWithParamPrinter<ur_queue_flag_t>);
 
 TEST_P(urQueueCreateWithParamTest, SuccessWithProperties) {
