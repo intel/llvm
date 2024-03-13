@@ -247,7 +247,7 @@ namespace sycl::ext::oneapi::experimental {
 // Store API
 template<typename Group, typename OutputIteratorT, typename InputT,
         std::size_t ElementsPerWorkItem, typename Properties = empty_properties_t>
-void group_store(Group gh, sycl::span<InputT, ItemsPerWorkItem> in,
+void group_store(Group g, sycl::span<InputT, ItemsPerWorkItem> in,
                  OutputIteratorT out_iter,  Properties = {});
 
 }
