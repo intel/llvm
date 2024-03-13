@@ -21,14 +21,21 @@ TEST_P(urEnqueueMemBufferMapTest, SuccessRead) {
     }
 }
 
-TEST_P(urEnqueueMemBufferMapTest, SuccessWrite) {
+using urEnqueueMemBufferMapTestWithWriteFlagParam =
+    uur::urMemBufferQueueTestWithParam<ur_map_flag_t>;
+UUR_TEST_SUITE_P(urEnqueueMemBufferMapTestWithWriteFlagParam,
+                 ::testing::Values(UR_MAP_FLAG_WRITE,
+                                   UR_MAP_FLAG_WRITE_INVALIDATE_REGION),
+                 uur::deviceTestWithParamPrinter<ur_map_flag_t>);
+
+TEST_P(urEnqueueMemBufferMapTestWithWriteFlagParam, SuccessWrite) {
     const std::vector<uint32_t> input(count, 0);
     ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, buffer, true, 0, size,
                                            input.data(), 0, nullptr, nullptr));
 
     uint32_t *map = nullptr;
-    ASSERT_SUCCESS(urEnqueueMemBufferMap(queue, buffer, true, UR_MAP_FLAG_WRITE,
-                                         0, size, 0, nullptr, nullptr,
+    ASSERT_SUCCESS(urEnqueueMemBufferMap(queue, buffer, true, getParam(), 0,
+                                         size, 0, nullptr, nullptr,
                                          (void **)&map));
     for (unsigned i = 0; i < count; ++i) {
         map[i] = 42;
