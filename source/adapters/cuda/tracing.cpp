@@ -27,20 +27,20 @@
 using tracing_event_t = xpti_td *;
 using subscriber_handle_t = CUpti_SubscriberHandle;
 
-using cuptiSubscribe_fn = CUPTIAPI
-CUptiResult (*)(CUpti_SubscriberHandle *subscriber, CUpti_CallbackFunc callback,
-                void *userdata);
+using cuptiSubscribe_fn =
+    CUptiResult(CUPTIAPI *)(CUpti_SubscriberHandle *subscriber,
+                            CUpti_CallbackFunc callback, void *userdata);
 
-using cuptiUnsubscribe_fn = CUPTIAPI
-CUptiResult (*)(CUpti_SubscriberHandle subscriber);
+using cuptiUnsubscribe_fn =
+    CUptiResult(CUPTIAPI *)(CUpti_SubscriberHandle subscriber);
 
-using cuptiEnableDomain_fn = CUPTIAPI
-CUptiResult (*)(uint32_t enable, CUpti_SubscriberHandle subscriber,
-                CUpti_CallbackDomain domain);
+using cuptiEnableDomain_fn =
+    CUptiResult(CUPTIAPI *)(uint32_t enable, CUpti_SubscriberHandle subscriber,
+                            CUpti_CallbackDomain domain);
 
-using cuptiEnableCallback_fn = CUPTIAPI
-CUptiResult (*)(uint32_t enable, CUpti_SubscriberHandle subscriber,
-                CUpti_CallbackDomain domain, CUpti_CallbackId cbid);
+using cuptiEnableCallback_fn =
+    CUptiResult(CUPTIAPI *)(uint32_t enable, CUpti_SubscriberHandle subscriber,
+                            CUpti_CallbackDomain domain, CUpti_CallbackId cbid);
 
 #define LOAD_CUPTI_SYM(p, lib, x)                                              \
   p.x = (cupti##x##_fn)ur_loader::LibLoader::getFunctionPtr(lib.get(),         \
