@@ -56,14 +56,14 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/Seanst98/unified-runtime.git")
-  # commit 79c28d0f0713f58358d5080653d95803fd131749
-  # Merge: 25e0b603 45d76b78
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date: Fri Jan 12 16:14:44 2024 +0000
-  #     Merge pull request #1186 from hdelan/device-global-hip
-  #     [HIP] Add support for global variable read write
-  set(UNIFIED_RUNTIME_TAG 3ca422a21e9f230fac614b53d237877a1c845498)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit f17c0e918330174c7ecf90c5e16c160e308feda2
+  # Merge: 1cf9a08e 3ca422a2
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Wed Mar 13 14:17:50 2024 +0000
+  #     Merge pull request #1351 from Seanst98/sean/interop-mipmaps
+  #     [Bindless][CUDA] Mipmap interop
+  set(UNIFIED_RUNTIME_TAG f17c0e918330174c7ecf90c5e16c160e308feda2)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
