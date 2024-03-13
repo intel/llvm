@@ -481,9 +481,7 @@ namespace ext::oneapi::experimental{
 template <typename ValueT>
 class dynamic_parameter {
 public:
-  dynamic_parameter(command_graph<graph_state::modifiable> graph, const ValueT &param);
-
-  void register_with_node(int argIndex, const handler& cgh);
+  dynamic_parameter(command_graph<graph_state::modifiable> graph, const ValueT &initialValue);
 
   void update(const ValueT& newValue);
 };
@@ -506,12 +504,9 @@ link:../proposed/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_ker
 Dynamic parameters are registered with nodes in a modifiable graph, with each
 registration associating one or more node arguments to the dynamic parameter
 instance. Registration happens inside the command-group that the node represents
-, and is done using the argument index (known when argument originally set using
-`set_arg()`/`set_args()`). It is valid for a node argument to be registered with
-more than one dynamic parameter instance.
-
-Registration is done by using the argument index (known when argument
-originally set using `set_arg()`/`set_args()`).
+, and is done when dynamic parameters are set as parameters to the kernel using
+`handler::set_arg()`/`handler::set_args()`). It is valid for a node argument to
+be registered with more than one dynamic parameter instance.
 
 See <<executable-graph-update, Executable Graph Update>> for more information
 about updating node parameters.
@@ -526,44 +521,16 @@ Table {counter: tableNumber}. Member functions of the `dynamic_parameter` class.
 |
 [source,c++]
 ----
-dynamic_parameter(command_graph<graph_state::modifiable> graph, const ValueT &param);
+dynamic_parameter(command_graph<graph_state::modifiable> graph, const ValueT
+&initialValue);
 ----
 |Constructs a dynamic parameter object that can be registered with command graph
-nodes. The param argument is used only to deduce the template parameter
-`ValueT`, which is the type of the kernel argument this `dynamic_parameter`
-represents.
+nodes with an initial value.
 
 Parameters:
 
 * `graph` - Graph containing the nodes which will have dynamic parameters.
-* `param` - Value used for CTAD.
-
-|
-[source,c++]
-----
-void register_with_node(const handler &cgh, int argIndex);
-----
-|Callable only from command-group scope when adding a node to a graph
-using the explicit API. Associate the dynamic parameter
-with the kernel parameter of the node that encapsulates this command-group.
-Parameters are associated by their index which was given when they were
-registered with `handler`.
-
-This function should only be used when kernel arguments are being set explicitly
-using indices, such as when using `handler::set_arg()`.
-
-Parameters:
-
-* `handler` - SYCL handler object.
-* `argIndex` - Kernel argument index starting from zero to associate with
-  the dynamic parameter.
-
-Exceptions:
-
-* Throws with error code `invalid` if `argIndex` is not a valid argument index
-  for the resulting node.
-* Throws with error code `invalid` if the resulting node is not associated with
-  the graph that this dynamic parameter was created with.
+* `initialValue` - Initial value of this parameter.
 
 |
 [source,c++]
@@ -1507,6 +1474,66 @@ Exceptions:
   to a queue which is associated with a device or context that is different
   from the device and context used on creation of the graph.
 
+|
+[source,c++]
+----
+template <typename DataT, int Dims, access::mode AccMode, access::target
+AccTarget, access::placeholder isPlaceholder> void
+handler::require(ext::oneapi::experimental::dynamic_parameter<
+              accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder>>
+                  DynamicParamAcc)
+----
+
+|Requires access to a memory object associated with an accessor contained in a
+dynamic parameter.
+
+Parameters:
+
+* `DynamicParamAcc` - The dynamic parameter which contains the accessor that is
+required.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if this function is called from
+a command-group submitted to a queue with is currently recording to a graph.
+
+* Throws synchronously with error code `invalid` if this function is called from
+a normal SYCL command-group submission.
+
+* Throws synchronously with error code `invalid` if the graph which will be
+associated with the graph node resulting from this command-group submission is
+different from the one with which the dynamic_parameter was created.
+
+|
+[source,c++]
+----
+template <typename T>
+void handler::set_arg(int ArgIndex,
+              ext::oneapi::experimental::dynamic_parameter<T> &DynamicParam);
+----
+
+|Sets an argument to a kernel based on the value inside a dynamic parameter, and
+registers that dynamic parameter with the graph node encapsulating the
+submission of the command-group that calls this function.
+
+Parameters:
+
+* `ArgIndex` - The index of the kernel argument.
+
+* `DynamicParam` - The dynamic parameter which contains the argument.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if this function is called from
+a command-group submitted to a queue with is currently recording to a graph.
+
+* Throws synchronously with error code `invalid` if this function is called from
+a normal SYCL command-group submission.
+
+* Throws synchronously with error code `invalid` if the graph which will be
+associated with the graph node resulting from this command-group submission is
+different from the one with which the dynamic_parameter was created.
+
 |===
 
 === Thread Safety
@@ -1992,10 +2019,7 @@ dynamic_parameter dynParamScalar(myGraph, myScalar);
 // First node uses ptrX as an input & output parameter, with operand
 // mySclar as another argument.
 node nodeA = myGraph.add([&](handler& cgh) {
-    cgh.set_args(ptrX, ptrY, myScalar);
-    // Register nodeA dynamic parameters
-    dynParamInput.register_with_node(cgh, 0);  // Argument index 0 is ptrX
-    dynParamScalar.register_with_node(cgh, 2);  // Argument index 2 is myScalar
+    cgh.set_args(dynParamInput, ptrY, dynParamScalar);
     cgh.parallel_for(range {n}, builtinKernel);
 });
 
@@ -2037,11 +2061,10 @@ sycl::buffer bufferB{...};
 dynamic_parameter dynParamAccessor(myGraph, bufferA.get_access());
 
 node nodeA = myGraph.add([&](handler& cgh) {
-    // Create a non-placeholder accessor for the kernel
-    auto accA = bufferA.get_access(cgh);
-    cgh.set_args(accA);
-    // Register nodeA dynamic parameters
-    dynParamAccessor.register_with_node(cgh, 0);  // Argument index 0 is accA
+    // Require the accessor contained in the dynamic paramter
+    cgh.require(dynParamAccessor);
+    // Set the arg on the kernel using the dynamic parameter directly
+    cgh.set_args(dynParamAccessor);
     cgh.parallel_for(range {n}, builtinKernel);
 });
 
