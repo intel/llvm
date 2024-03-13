@@ -62,7 +62,7 @@ namespace syclcompat {
 
 template <typename AllocT> auto *local_mem() {
   sycl::multi_ptr<AllocT, sycl::access::address_space::local_space>
-      As_multi_ptr = sycl::ext::oneapi::group_local_memory<AllocT>(
+      As_multi_ptr = sycl::ext::oneapi::group_local_memory_for_overwrite<AllocT>(
           sycl::ext::oneapi::experimental::this_nd_item<3>().get_group());
   auto *As = *As_multi_ptr;
   return As;

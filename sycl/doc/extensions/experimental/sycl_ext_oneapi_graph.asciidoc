@@ -43,6 +43,7 @@ Dan Holmes, Intel +
 Greg Lueck, Intel +
 Steffen Larsen, Intel +
 Jaime Arteaga Molina, Intel +
+Andrei Elovikov, Intel +
 Ewan Crawford, Codeplay +
 Ben Tracy, Codeplay +
 Duncan McBain, Codeplay +
@@ -297,25 +298,32 @@ Adding an executable graph as a sub-graph does not affect its existing node
 dependencies, such that it could be submitted in future without any side
 effects of prior uses as a sub-graph.
 
-=== API Modifications
+=== Querying Device Support
+
+Due to the experimental nature of the extension, support is not available across
+all devices.
+
+Table {counter: tableNumber}. Device Support Aspect.
+[%header]
+|===
+| Device Descriptor | Description
+
+|`aspect::ext_oneapi_graph`
+| Indicates that the device supports all the APIs described in this extension.
+|`aspect::ext_oneapi_limited_graph`
+| Indicates that the device supports all the APIs described in this extension
+except for those described in the <<executable-graph-update, Executable Graph
+Update>> section. This is a temporary aspect that we intend to remove once
+devices with full graph support are more prevalent.
+
+|===
+
+
+=== Node
 
 [source, c++]
 ----
-namespace sycl {
-namespace ext::oneapi::experimental {
-
-// State of a queue, returned by queue::ext_oneapi_get_state()
-enum class queue_state {
-  executing,
-  recording
-};
-
-enum class graph_support_level {
-  unsupported,
-  native,
-  emulated
-};
-
+namespace sycl::ext::oneapi::experimental {
 enum class node_type {
   empty,
   subgraph,
@@ -327,61 +335,6 @@ enum class node_type {
   memadvise,
   ext_oneapi_barrier,
   host_task,
-};
-
-namespace property {
-
-namespace graph {
-
-class no_cycle_check {
-  public:
-    no_cycle_check() = default;
-};
-
-class assume_buffer_outlives_graph {
-  public:
-    assume_buffer_outlives_graph() = default;
-};
-
-class updatable {
-  public:
-    updatable() = default;
-};
-} // namespace graph
-
-namespace node {
-
-class depends_on {
-  public:
-    template<typename... NodeTN>
-    depends_on(NodeTN... nodes);
-};
-
-class depends_on_all_leaves {
-  public:
-    depends_on_all_leaves() = default;
-};
-
-} // namespace node
-} // namespace property
-
-// Device query for level of support
-namespace info {
-namespace device {
-
-struct graphs_support;
-
-} // namespace device
-} // namespace info
-
-template <typename ValueT>
-class dynamic_parameter {
-public:
-  dynamic_parameter(command_graph<graph_state::modifiable> graph, const ValueT &param);
-
-  void register_with_node(int argIndex, const handler& cgh);
-
-  void update(const ValueT& newValue);
 };
 
 class node {
@@ -403,132 +356,8 @@ public:
   void update_range(range<Dimensions> executionRange);
 };
 
-// State of a graph
-enum class graph_state {
-  modifiable,
-  executable
-};
-
-// New object representing graph
-template<graph_state State = graph_state::modifiable>
-class command_graph {};
-
-template<>
-class command_graph<graph_state::modifiable> {
-public:
-  command_graph(const context& syclContext, const device& syclDevice,
-                const property_list& propList = {});
-
-  command_graph(const queue& syclQueue,
-                const property_list& propList = {});
-
-  command_graph<graph_state::executable>
-  finalize(const property_list& propList = {}) const;
-
-  bool begin_recording(queue& recordingQueue, const property_list& propList = {});
-  bool begin_recording(const std::vector<queue>& recordingQueues, const property_list& propList = {});
-
-  bool end_recording();
-  bool end_recording(queue& recordingQueue);
-  bool end_recording(const std::vector<queue>& recordingQueues);
-
-  node add(const property_list& propList = {});
-
-  template<typename T>
-  node add(T cgf, const property_list& propList = {});
-
-  void make_edge(node& src, node& dest);
-
-  void print_graph(std::string path, bool verbose = false) const;
-
-  std::vector<node> get_nodes() const;
-  std::vector<node> get_root_nodes() const;
-};
-
-template<>
-class command_graph<graph_state::executable> {
-public:
-  command_graph() = delete;
-
-  void update(node& node);
-  void update(const std::vector<node>& nodes);
-};
-}  // namespace ext::oneapi::experimental
-
-// New methods added to the sycl::queue class
-using namespace ext::oneapi::experimental;
-class queue {
-public:
-
-  ext::oneapi::experimental::queue_state
-  ext_oneapi_get_state() const;
-
-  ext::oneapi::experimental::command_graph<graph_state::modifiable> 
-  ext_oneapi_get_graph() const;
-
-  /* -- graph convenience shortcuts -- */
-
-  event ext_oneapi_graph(command_graph<graph_state::executable>& graph);
-  event ext_oneapi_graph(command_graph<graph_state::executable>& graph,
-                   event depEvent);
-  event ext_oneapi_graph(command_graph<graph_state::executable>& graph,
-                   const std::vector<event>& depEvents);
-};
-
-// New methods added to the sycl::handler class
-class handler {
-public:
-  void ext_oneapi_graph(command_graph<graph_state::executable>& graph);
-}
-
-}  // namespace sycl
+}  // sycl::namespace ext::oneapi::experimental
 ----
-
-=== Querying Graph Supoport
-
-Due to the experimental nature of the extension, support is not available across
-all devices. The following device support query is added to the
-`sycl::ext::oneapi::experimental` namespace for reporting devices which are
-are currently supported, and how that support is implemented.
-
-Table {counter: tableNumber}. Device Info Queries.
-[%header]
-|===
-| Device Descriptors | Return Type | Description
-
-|`info::device::graph_support`
-|`graph_support_level`
-|When passed to `device::get_info<...>()`, the function returns `native`
-if there is an underlying SYCL backend command-buffer construct which is used
-to propagate the graph to the backend. If no backend construct exists, or
-building on top of it has not yet been implemented, then `emulated` is
-returned. Otherwise `unsupported` is returned if the SYCL device doesn't
-support using this graph extension.
-
-|===
-
-Command-graph update support may also not be available across all devices. The
-following extension to the `aspect` enum class can be used to query for graph
-update support:
-
-[source]
-----
-namespace sycl {
-enum class aspect {
-  ...
-  ext_oneapi_limited_graph
-}
-}
-----
-
-If a SYCL device has the `ext_oneapi_limited_graph` aspect, then it
-supports all graph functionality except that which is described in the
-<<executable-graph-update, Executable Graph Update>> section. This is a
-temporary aspect that we intend to remove once devices with full graph support
-are more prevalent.
-
-
-=== Node
 
 :crs: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:reference-semantics
 
@@ -646,6 +475,21 @@ Exceptions:
 
 ==== Dynamic Parameters
 
+[source,c++]
+----
+namespace ext::oneapi::experimental{
+template <typename ValueT>
+class dynamic_parameter {
+public:
+  dynamic_parameter(command_graph<graph_state::modifiable> graph, const ValueT &param);
+
+  void register_with_node(int argIndex, const handler& cgh);
+
+  void update(const ValueT& newValue);
+};
+}
+----
+
 Dynamic parameters are arguments to a node's command-group which can be updated
 by the user after the node has been added to a graph. Updating the value of a
 dynamic parameter will be reflected in the modifiable graph which contains this
@@ -745,13 +589,6 @@ Parameters:
 
 ==== Depends-On Property
 
-The API for explicitly adding nodes to a `command_graph` includes a
-`property_list` parameter. This extension defines the `depends_on` property to
-be passed here. `depends_on` defines any `node` objects for the created node to
-be dependent on, and therefore form an edge with. These nodes are in addition to
-the dependent nodes identified from the command-group requisites of the created
-node.
-
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental::property::node {
@@ -763,22 +600,87 @@ class depends_on {
 }
 ----
 
-==== Depends-On-All-Leaves Property
 The API for explicitly adding nodes to a `command_graph` includes a
-`property_list` parameter. This extension defines the `depends_on_all_leaves`
-property to be passed here. `depends_on_all_leaves` provides a shortcut for
-adding all the current leaves of a graph as dependencies.
+`property_list` parameter. This extension defines the `depends_on` property to
+be passed here. `depends_on` defines any `node` objects for the created node to
+be dependent on, and therefore form an edge with. These nodes are in addition to
+the dependent nodes identified from the command-group requisites of the created
+node.
+
+==== Depends-On-All-Leaves Property
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental::property::node {
 class depends_on_all_leaves {
   public:
-    depends_on_all_leaves();
+    depends_on_all_leaves() = default;
 };
 }
 ----
 
+The API for explicitly adding nodes to a `command_graph` includes a
+`property_list` parameter. This extension defines the `depends_on_all_leaves`
+property to be passed here. `depends_on_all_leaves` provides a shortcut for
+adding all the current leaves of a graph as dependencies.
+
 === Graph
+
+[source, c++]
+----
+namespace sycl::ext::oneapi::experimental {
+// State of a graph
+enum class graph_state {
+  modifiable,
+  executable
+};
+
+// New object representing graph
+template<graph_state State = graph_state::modifiable>
+class command_graph {};
+
+template<>
+class command_graph<graph_state::modifiable> {
+public:
+  command_graph(const context& syclContext, const device& syclDevice,
+                const property_list& propList = {});
+
+  command_graph(const queue& syclQueue,
+                const property_list& propList = {});
+
+  command_graph<graph_state::executable>
+  finalize(const property_list& propList = {}) const;
+
+  bool begin_recording(queue& recordingQueue, const property_list& propList = {});
+  bool begin_recording(const std::vector<queue>& recordingQueues, const property_list& propList = {});
+
+  bool end_recording();
+  bool end_recording(queue& recordingQueue);
+  bool end_recording(const std::vector<queue>& recordingQueues);
+
+  node add(const property_list& propList = {});
+
+  template<typename T>
+  node add(T cgf, const property_list& propList = {});
+
+  void make_edge(node& src, node& dest);
+
+  void print_graph(std::string path, bool verbose = false) const;
+
+  std::vector<node> get_nodes() const;
+  std::vector<node> get_root_nodes() const;
+};
+
+template<>
+class command_graph<graph_state::executable> {
+public:
+    command_graph() = delete;
+
+    void update(node& node);
+    void update(const std::vector<node>& nodes);
+};
+
+}  // namespace sycl::ext::oneapi::experimental
+----
 
 This extension adds a new `command_graph` object which follows the
 {crs}[common reference semantics] of other SYCL runtime objects.
@@ -820,7 +722,7 @@ graph LR
     Modifiable -->|Finalize| Executable
 ....
 
-==== Executable Graph Update
+==== Executable Graph Update [[executable-graph-upate]]
 
 A graph in the executable state can have the configuration of its nodes modified
 using a concept called graph _update_. This avoids a user having to rebuild and
@@ -882,6 +784,16 @@ will maintain the graphs data dependencies.
 
 ===== No-Cycle-Check Property
 
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::property::graph {
+class no_cycle_check {
+  public:
+    no_cycle_check() = default;
+};
+}
+----
+
 The `property::graph::no_cycle_check` property disables any checks if a newly
 added dependency will lead to a cycle in a specific `command_graph` and can be
 passed to a `command_graph` on construction via the property list parameter.
@@ -894,6 +806,16 @@ behavior.
 
 ===== Assume-Buffer-Outlives-Graph Property [[assume-buffer-outlives-graph-property]]
 
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::property::graph {
+class assume_buffer_outlives_graph {
+  public:
+    assume_buffer_outlives_graph() = default;
+};
+}
+----
+
 The `property::graph::assume_buffer_outlives_graph` property disables
 <<buffer-limitations, restrictions on using buffers>> in a `command_graph` and
 can be passed to a `command_graph` on construction via the property list
@@ -901,6 +823,23 @@ parameter. This property represents a promise from the user that any buffer
 which is used in a graph will be kept alive on the host for the lifetime of the
 graph. Destroying that buffer during the lifetime of a `command_graph`
 constructed with this property results in undefined behavior.
+
+===== Updatable Property [[updatable-property]]
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::property::graph {
+class updatable {
+  public:
+    updatable() = default;
+};
+}
+----
+
+The `property::graph::updatable` property enables updating a `command_graph`
+when passed on finalization of a modifiable `command_graph`. For further
+information see <<executable-graph-update, the section on Executable Graph
+Update>>.
 
 ==== Graph Member Functions
 
@@ -920,7 +859,7 @@ command_graph(const context& syclContext,
 `syclContext` and device `syclDevice`. Zero or more properties can be provided
 to the constructed SYCL `command_graph` via an instance of `property_list`.
 
-Preconditions:
+Constraints:
 
 * This constructor is only available when the `command_graph` state is
   `graph_state::modifiable`.
@@ -955,7 +894,7 @@ command_graph(const queue& syclQueue,
 Zero or more properties can be provided to the constructed SYCL `command_graph`
 via an instance of `property_list`.
 
-Preconditions:
+Constraints:
 
 * This constructor is only available when the `command_graph` state is
   `graph_state::modifiable`.
@@ -990,7 +929,7 @@ node add(const property_list& propList = {});
 to make a connection point inside a graph between groups of nodes, and can
 significantly reduce the number of edges ( O(n) vs. O(n^2^) ).
 
-Preconditions:
+Constraints:
 
 * This member function is only available when the `command_graph` state is
   `graph_state::modifiable`.
@@ -1025,7 +964,7 @@ into the graph and executed asynchronously when the graph is submitted to a
 queue. The requisites of `cgf` will be used to identify any dependent nodes in
 the graph to form edges with.
 
-Preconditions:
+Constraints:
 
 * This member function is only available when the `command_graph` state is
   `graph_state::modifiable`.
@@ -1060,7 +999,7 @@ void make_edge(node& src, node& dest);
 
 |Creates a dependency between two nodes representing a happens-before relationship.
 
-Preconditions:
+Constraints:
 
 * This member function is only available when the `command_graph` state is
   `graph_state::modifiable`.
@@ -1099,7 +1038,7 @@ to create subsequent executable graphs. It is also valid to continue to add new
 nodes to the modifiable graph instance after calling this function. It is valid
 to finalize an empty graph instance with no recorded commands.
 
-Preconditions:
+Constraints:
 
 * This member function is only available when the `command_graph` state is
   `graph_state::modifiable`.
@@ -1173,7 +1112,7 @@ updated inside the executable graph to reflect the current values in `node`.
 
 Updating these values will not change the structure of the graph.
 
-Preconditions:
+Constraints:
 
 * This member function is only available when the `command_graph` state is
   `graph_state::executable`.
@@ -1202,7 +1141,7 @@ void update(const std::vector<node>& nodes);
 each node will be updated inside the executable graph to reflect the current
 values in each node in `nodes`.
 
-Preconditions:
+Constraints:
 
 * This member function is only available when the `command_graph` state is
   `graph_state::executable`.
@@ -1348,6 +1287,39 @@ Exceptions:
 |===
 
 === Queue Class Modifications
+
+[source, c++]
+----
+namespace sycl {
+namespace ext::oneapi::experimental {
+enum class queue_state {
+  executing,
+  recording
+};
+
+} // namespace ext::oneapi::experimental
+
+// New methods added to the sycl::queue class
+using namespace ext::oneapi::experimental;
+class queue {
+public:
+
+  ext::oneapi::experimental::queue_state
+  ext_oneapi_get_state() const;
+
+  ext::oneapi::experimental::command_graph<graph_state::modifiable> 
+  ext_oneapi_get_graph() const;
+
+  /* -- graph convenience shortcuts -- */
+
+  event ext_oneapi_graph(command_graph<graph_state::executable>& graph);
+  event ext_oneapi_graph(command_graph<graph_state::executable>& graph,
+                   event depEvent);
+  event ext_oneapi_graph(command_graph<graph_state::executable>& graph,
+                   const std::vector<event>& depEvents);
+};
+} // namespace sycl
+----
 
 :queue-class: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:interface.queue.class
 
@@ -2192,7 +2164,7 @@ update results in undefined behavior:
 The effects of the update will be visible on the next submission of the
 executable graph without the need for additional user synchronization.
 
-Preconditions:
+Constraints:
 
 * This member function is only available when the `command_graph` state is
   `graph_state::executable`.
