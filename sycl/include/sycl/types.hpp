@@ -1849,6 +1849,25 @@ public:
 #ifdef __SYCL_OPASSIGN
 #error "Undefine __SYCL_OPASSIGN macro."
 #endif
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#define __SYCL_OPASSIGN(OPASSIGN, OP)                                          \
+  friend const SwizzleOp &operator OPASSIGN(const SwizzleOp & Lhs,             \
+                                            const DataT & Rhs) {               \
+    Lhs.operatorHelper<OP>(vec_t(Rhs));                                        \
+    return Lhs;                                                                \
+  }                                                                            \
+  template <typename RhsOperation>                                             \
+  friend const SwizzleOp &operator OPASSIGN(const SwizzleOp & Lhs,             \
+                                            const RhsOperation & Rhs) {        \
+    Lhs.operatorHelper<OP>(Rhs);                                               \
+    return Lhs;                                                                \
+  }                                                                            \
+  friend const SwizzleOp &operator OPASSIGN(const SwizzleOp & Lhs,             \
+                                            const vec_t & Rhs) {               \
+    Lhs.operatorHelper<OP>(Rhs);                                               \
+    return Lhs;                                                                \
+  }
+#else // __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_OPASSIGN(OPASSIGN, OP)                                          \
   SwizzleOp &operator OPASSIGN(const DataT & Rhs) {                            \
     operatorHelper<OP>(vec_t(Rhs));                                            \
@@ -1859,6 +1878,7 @@ public:
     operatorHelper<OP>(Rhs);                                                   \
     return *this;                                                              \
   }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   __SYCL_OPASSIGN(+=, std::plus)
   __SYCL_OPASSIGN(-=, std::minus)
@@ -1875,6 +1895,18 @@ public:
 #ifdef __SYCL_UOP
 #error "Undefine __SYCL_UOP macro"
 #endif
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#define __SYCL_UOP(UOP, OPASSIGN)                                              \
+  friend const SwizzleOp &operator UOP(const SwizzleOp & sv) {                 \
+    sv OPASSIGN static_cast<DataT>(1);                                         \
+    return sv;                                                                 \
+  }                                                                            \
+  friend vec_t operator UOP(const SwizzleOp &sv, int) {                        \
+    vec_t Ret = sv;                                                            \
+    sv OPASSIGN static_cast<DataT>(1);                                         \
+    return Ret;                                                                \
+  }
+#else // __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_UOP(UOP, OPASSIGN)                                              \
   SwizzleOp &operator UOP() {                                                  \
     *this OPASSIGN static_cast<DataT>(1);                                      \
@@ -1885,6 +1917,7 @@ public:
     *this OPASSIGN static_cast<DataT>(1);                                      \
     return Ret;                                                                \
   }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   __SYCL_UOP(++, +=)
   __SYCL_UOP(--, -=)
@@ -2416,7 +2449,7 @@ private:
   }
 
   template <template <typename> class Operation, typename RhsOperation>
-  void operatorHelper(const RhsOperation &Rhs) {
+  void operatorHelper(const RhsOperation &Rhs) const {
     Operation<vec_data_t<DataT>> Op;
     std::array<int, getNumElements()> Idxs{Indexes...};
     for (size_t I = 0; I < Idxs.size(); ++I) {
