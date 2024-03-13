@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit f17c0e918330174c7ecf90c5e16c160e308feda2
-  # Merge: 1cf9a08e 3ca422a2
+  # commit 1cf9a08e6a98381fadbc065de2700b463d2a44a4
+  # Merge: c49b116f 0446c65e
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Mar 13 14:17:50 2024 +0000
-  #     Merge pull request #1351 from Seanst98/sean/interop-mipmaps
-  #     [Bindless][CUDA] Mipmap interop
-  set(UNIFIED_RUNTIME_TAG f17c0e918330174c7ecf90c5e16c160e308feda2)
+  # Date:   Wed Mar 13 09:48:36 2024 +0000
+  #     Merge pull request #1368 from konradkusiak97/xptiWindowsFix
+  #     [CUDA][XPTI] Fix function pointer typedefs in xpti tracing
+  set(UNIFIED_RUNTIME_TAG 1cf9a08e6a98381fadbc065de2700b463d2a44a4)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
