@@ -15,7 +15,7 @@ struct ur_adapter_handle_t_ {
   std::mutex Mutex;
 };
 
-static ur_adapter_handle_t_ *adapter = new ur_adapter_handle_t_();
+static ur_adapter_handle_t_ *adapter = nullptr;
 
 static void globalAdapterShutdown() {
   if (cl_ext::ExtFuncPtrCache) {
@@ -32,14 +32,19 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urAdapterGet(uint32_t NumEntries, ur_adapter_handle_t *phAdapters,
              uint32_t *pNumAdapters) {
   if (NumEntries > 0 && phAdapters) {
+    // Sometimes urAdaterGet may be called after the library already been torn
+    // down, we also need to create a temporary handle for it.
+    if (!adapter) {
+      adapter = new ur_adapter_handle_t_();
+      atexit(globalAdapterShutdown);
+    }
+
     std::lock_guard<std::mutex> Lock{adapter->Mutex};
     if (adapter->RefCount++ == 0) {
       cl_ext::ExtFuncPtrCache = new cl_ext::ExtFuncPtrCacheT();
     }
 
     *phAdapters = adapter;
-
-    atexit(globalAdapterShutdown);
   }
 
   if (pNumAdapters) {
