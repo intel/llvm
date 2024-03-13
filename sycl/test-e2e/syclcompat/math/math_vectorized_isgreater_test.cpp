@@ -14,7 +14,7 @@
  *
  *  SYCLcompat API
  *
- *  util_vectorized_isgreater_test.cpp
+ *  math_vectorized_isgreater_test.cpp
  *
  *  Description:
  *    vectorized_isgreater tests

@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit e2ee9a4720414e0a59fa9c911e9575ab564ac57c
-  # Merge: 7a5150cd be622e7c
+  # commit 93e84695190d0b985b3c4b2fb7ea896e1f3e529e
+  # Merge: 1f6cbe61 2b3d016a
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Sun Mar 10 18:02:50 2024 +0000
-  #     Merge pull request #1340 from Bensuo/ewan/coverity_cuda_update
-  #     [HIP][CUDA][Command-Buffer] Fix Coverity issues in HIP/CUDA command-buffer code
-  set(UNIFIED_RUNTIME_TAG 1f6cbe61d9a142d88d8edf90c655e3cb9f0b6fb9)
+  # Date:   Tue Mar 12 15:22:59 2024 +0000
+  #     Merge pull request #1406 from wenju-he/urBindlessImagesSampledImageCreateExp-Coverity
+  #     [Coverity][L0] Remove overlapping mem copy in urBindlessImagesSampledImageCreateExp
+  set(UNIFIED_RUNTIME_TAG 93e84695190d0b985b3c4b2fb7ea896e1f3e529e)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
