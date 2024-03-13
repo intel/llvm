@@ -8,13 +8,13 @@
 
 #pragma once
 
-#include <sycl/accessor.hpp>
+#include <sycl/accessor.hpp>      // for detail::AccessorBaseHost
 #include <sycl/context.hpp>       // for context
 #include <sycl/detail/export.hpp> // for __SYCL_EXPORT
-#include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/kernel_desc.hpp>     // for kernel_param_kind_t
 #include <sycl/detail/property_helper.hpp> // for DataLessPropKind, PropWith...
 #include <sycl/device.hpp>                 // for device
-#include <sycl/nd_range.hpp>
+#include <sycl/nd_range.hpp>               // for range, nd_range
 #include <sycl/properties/property_traits.hpp> // for is_property, is_property_of
 #include <sycl/property_list.hpp>              // for property_list
 
