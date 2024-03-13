@@ -39,8 +39,8 @@ LockCacheItem::LockCacheItem(const std::string &Path)
     close(fd);
     Owned = true;
   } else {
-    PersistentDeviceCodeCache::trace("Failed to aquire lock file: " + FileName +
-                                     " " + std::strerror(errno));
+    PersistentDeviceCodeCache::trace("Failed to acquire lock file: " +
+                                     FileName + " " + std::strerror(errno));
   }
 }
 
@@ -106,7 +106,8 @@ void PersistentDeviceCodeCache::putItemToDisc(
   std::string FileName;
   do {
     FileName = DirName + "/" + std::to_string(i++);
-  } while (OSUtil::isPathPresent(FileName + ".bin"));
+  } while (OSUtil::isPathPresent(FileName + ".bin") ||
+           OSUtil::isPathPresent(FileName + ".lock"));
 
   unsigned int DeviceNum = 0;
 
