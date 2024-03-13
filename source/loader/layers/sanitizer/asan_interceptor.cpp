@@ -51,29 +51,6 @@ constexpr auto kSPIR_DeviceSanitizerReportMem = "__DeviceSanitizerReportMem";
 constexpr auto kSPIR_AsanDeviceGlobalCount = "__AsanDeviceGlobalCount";
 constexpr auto kSPIR_AsanDeviceGlobalMetadata = "__AsanDeviceGlobalMetadata";
 
-struct ManagedQueue {
-    ManagedQueue(ur_context_handle_t Context, ur_device_handle_t Device) {
-        [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnCreate(
-            Context, Device, nullptr, &Handle);
-        assert(Result == UR_RESULT_SUCCESS);
-    }
-
-    ~ManagedQueue() {
-        [[maybe_unused]] auto Result =
-            context.urDdiTable.Queue.pfnRelease(Handle);
-        assert(Result == UR_RESULT_SUCCESS);
-    }
-
-    // Disable copy semantics
-    ManagedQueue(const ManagedQueue &) = delete;
-    ManagedQueue &operator=(const ManagedQueue &) = delete;
-
-    operator ur_queue_handle_t() { return Handle; }
-
-  private:
-    ur_queue_handle_t Handle = nullptr;
-};
-
 uptr MemToShadow_CPU(uptr USM_SHADOW_BASE, uptr UPtr) {
     return USM_SHADOW_BASE + (UPtr >> 3);
 }

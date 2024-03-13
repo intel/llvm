@@ -16,6 +16,20 @@
 
 namespace ur_sanitizer_layer {
 
+struct ManagedQueue {
+    ManagedQueue(ur_context_handle_t Context, ur_device_handle_t Device);
+    ~ManagedQueue();
+
+    // Disable copy semantics
+    ManagedQueue(const ManagedQueue &) = delete;
+    ManagedQueue &operator=(const ManagedQueue &) = delete;
+
+    operator ur_queue_handle_t() { return Handle; }
+
+  private:
+    ur_queue_handle_t Handle = nullptr;
+};
+
 ur_context_handle_t GetContext(ur_queue_handle_t Queue);
 ur_context_handle_t GetContext(ur_program_handle_t Program);
 ur_device_handle_t GetDevice(ur_queue_handle_t Queue);

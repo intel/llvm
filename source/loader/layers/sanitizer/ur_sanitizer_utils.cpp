@@ -15,6 +15,18 @@
 
 namespace ur_sanitizer_layer {
 
+ManagedQueue::ManagedQueue(ur_context_handle_t Context,
+                           ur_device_handle_t Device) {
+    [[maybe_unused]] auto Result =
+        context.urDdiTable.Queue.pfnCreate(Context, Device, nullptr, &Handle);
+    assert(Result == UR_RESULT_SUCCESS);
+}
+
+ManagedQueue::~ManagedQueue() {
+    [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnRelease(Handle);
+    assert(Result == UR_RESULT_SUCCESS);
+}
+
 ur_context_handle_t GetContext(ur_queue_handle_t Queue) {
     ur_context_handle_t Context{};
     [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnGetInfo(
