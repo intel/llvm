@@ -50,7 +50,7 @@ ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, bool IsUpdatable)
     : Context(hContext), Device(hDevice),
       IsUpdatable(IsUpdatable), HIPGraph{nullptr}, HIPGraphExec{nullptr},
-      RefCountInternal{1}, RefCountExternal{1} {
+      RefCountInternal{1}, RefCountExternal{1}, NextSyncPoint{0} {
   urContextRetain(hContext);
   urDeviceRetain(hDevice);
 }
@@ -65,11 +65,11 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   UR_TRACE(urDeviceRelease(Device));
 
   // Release the memory allocated to the HIPGraph
-  UR_CHECK_ERROR(hipGraphDestroy(HIPGraph));
+  (void)hipGraphDestroy(HIPGraph);
 
   // Release the memory allocated to the HIPGraphExec
   if (HIPGraphExec) {
-    UR_CHECK_ERROR(hipGraphExecDestroy(HIPGraphExec));
+    (void)hipGraphExecDestroy(HIPGraphExec);
   }
 }
 

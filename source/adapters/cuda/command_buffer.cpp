@@ -66,17 +66,20 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   cuGraphDestroy(CudaGraph);
 
   // Release the memory allocated to the CudaGraphExec
-  cuGraphExecDestroy(CudaGraphExec);
+  if (CudaGraphExec) {
+    cuGraphExecDestroy(CudaGraphExec);
+  }
 }
 
 ur_exp_command_buffer_command_handle_t_::
     ur_exp_command_buffer_command_handle_t_(
         ur_exp_command_buffer_handle_t CommandBuffer, ur_kernel_handle_t Kernel,
-        std::shared_ptr<CUgraphNode> Node, CUDA_KERNEL_NODE_PARAMS Params,
+        std::shared_ptr<CUgraphNode> &&Node, CUDA_KERNEL_NODE_PARAMS Params,
         uint32_t WorkDim, const size_t *GlobalWorkOffsetPtr,
         const size_t *GlobalWorkSizePtr, const size_t *LocalWorkSizePtr)
-    : CommandBuffer(CommandBuffer), Kernel(Kernel), Node(Node), Params(Params),
-      WorkDim(WorkDim), RefCountInternal(1), RefCountExternal(1) {
+    : CommandBuffer(CommandBuffer), Kernel(Kernel), Node{std::move(Node)},
+      Params(Params), WorkDim(WorkDim), RefCountInternal(1),
+      RefCountExternal(1) {
   CommandBuffer->incrementInternalReferenceCount();
 
   const size_t CopySize = sizeof(size_t) * WorkDim;
@@ -365,7 +368,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   try {
     // Set node param structure with the kernel related data
     auto &ArgIndices = hKernel->getArgIndices();
-    CUDA_KERNEL_NODE_PARAMS NodeParams;
+    CUDA_KERNEL_NODE_PARAMS NodeParams = {};
     NodeParams.func = CuFunc;
     NodeParams.gridDimX = BlocksPerGrid[0];
     NodeParams.gridDimY = BlocksPerGrid[1];
@@ -375,7 +378,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     NodeParams.blockDimZ = ThreadsPerBlock[2];
     NodeParams.sharedMemBytes = LocalSize;
     NodeParams.kernelParams = const_cast<void **>(ArgIndices.data());
-    NodeParams.extra = nullptr;
 
     // Create and add an new kernel node to the Cuda graph
     UR_CHECK_ERROR(cuGraphAddKernelNode(&GraphNode, hCommandBuffer->CudaGraph,
@@ -392,8 +394,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     }
 
     auto NewCommand = new ur_exp_command_buffer_command_handle_t_{
-        hCommandBuffer, hKernel,           NodeSP,          NodeParams,
-        workDim,        pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize};
+        hCommandBuffer, hKernel,           std::move(NodeSP), NodeParams,
+        workDim,        pGlobalWorkOffset, pGlobalWorkSize,   pLocalWorkSize};
 
     NewCommand->incrementInternalReferenceCount();
     hCommandBuffer->CommandHandles.push_back(NewCommand);
