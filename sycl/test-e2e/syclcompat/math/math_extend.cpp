@@ -40,6 +40,7 @@
 
 #include <syclcompat/device.hpp>
 #include <syclcompat/math.hpp>
+#include <syclcompat/memory.hpp>
 
 #define CHECK(S, REF)                                                          \
   {                                                                            \
@@ -169,14 +170,16 @@ void test(const sycl::stream &s, int *ec) {
 
 int main() {
   sycl::queue q = syclcompat::get_default_queue();
-  int *ec = nullptr;
-  ec = sycl::malloc_shared<int>(1, q);
-  *ec = 0;
+  int *ec = syclcompat::malloc<int>(1);
+  syclcompat::fill<int>(ec, 0, 1);
   q.submit([&](sycl::handler &cgh) {
     sycl::stream out(1024, 256, cgh);
     cgh.parallel_for(1, [=](sycl::item<1> it) { test(out, ec); });
   });
   q.wait_and_throw();
 
-  return *ec;
+  int ec_h;
+  syclcompat::memcpy<int>(&ec_h, ec, 1);
+
+  return ec_h;
 }
