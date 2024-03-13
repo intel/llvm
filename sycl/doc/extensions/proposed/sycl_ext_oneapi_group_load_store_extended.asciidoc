@@ -264,13 +264,13 @@ work-group or sub-group.
 * `InputT` must be convertible to value type of `OutputIteratorT`.
 
 _Effects_: Stores `ElementsPerWorkItem` elements from `in` span to `out_iter`
-using the `gh` group helper object.
+using the `g` group object.
 
 Properties may specify xref:data_placement[data placement].
 Default placement is a blocked one:
-`out_iter[gh.get_local_linear_id() * ItemsPerWorkItem + i]` = `in[i];`
+`out_iter[g.get_local_linear_id() * ItemsPerWorkItem + i]` = `in[i];`
 in striped case:
-`out_iter[gh.get_local_linear_id() + gh.get_local_linear_range() * i]` = `in[i];`
+`out_iter[g.get_local_linear_id() + gh.get_local_linear_range() * i]` = `in[i];`
 for `i` between `0` and `ItemsPerWorkItem`.
 
 
