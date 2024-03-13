@@ -1,5 +1,5 @@
 # Module library for usage as library/pass-plugin with LLVM opt.
-add_library(SYCLKernelFusion MODULE
+add_llvm_library(SYCLKernelFusion MODULE
   SYCLFusionPasses.cpp
   kernel-fusion/Builtins.cpp
   kernel-fusion/SYCLKernelFusion.cpp
@@ -9,14 +9,16 @@ add_library(SYCLKernelFusion MODULE
   cleanup/Cleanup.cpp
   debug/PassDebug.cpp
   target/TargetFusionInfo.cpp
+
+  DEPENDS
+  intrinsics_gen
 )
 
-add_dependencies(SYCLKernelFusion intrinsics_gen)
+target_compile_options(SYCLKernelFusion PRIVATE ${SYCL_FUSION_WARNING_FLAGS})
 
-target_compile_options(SYCLKernelFusion PRIVATE -fno-rtti ${SYCL_FUSION_WARNING_FLAGS})
-
-set_target_properties(SYCLKernelFusion PROPERTIES PREFIX "")
-
+# Mark LLVM headers as system headers to ignore warnigns in them. This
+# classification remains intact even if the same path is added as a normal
+# include path in GCC and Clang.
 target_include_directories(SYCLKernelFusion
   SYSTEM PRIVATE
   ${LLVM_MAIN_INCLUDE_DIR}
@@ -42,7 +44,7 @@ if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
 endif()
 
 # Static library for linking with the jit_compiler
-add_library(SYCLKernelFusionPasses
+add_llvm_library(SYCLKernelFusionPasses
   SYCLFusionPasses.cpp
   kernel-fusion/Builtins.cpp
   kernel-fusion/SYCLKernelFusion.cpp
@@ -52,11 +54,11 @@ add_library(SYCLKernelFusionPasses
   cleanup/Cleanup.cpp
   debug/PassDebug.cpp
   target/TargetFusionInfo.cpp
-)
 
-add_dependencies(SYCLKernelFusionPasses intrinsics_gen)
+  DEPENDS
+  intrinsics_gen
 
-llvm_map_components_to_libnames(llvm_libs
+  LINK_COMPONENTS
   Core
   Support
   TransformUtils
@@ -64,8 +66,11 @@ llvm_map_components_to_libnames(llvm_libs
   TargetParser
 )
 
-target_compile_options(SYCLKernelFusionPasses PRIVATE -fno-rtti ${SYCL_FUSION_WARNING_FLAGS})
+target_compile_options(SYCLKernelFusionPasses PRIVATE ${SYCL_FUSION_WARNING_FLAGS})
 
+# Mark LLVM headers as system headers to ignore warnigns in them. This
+# classification remains intact even if the same path is added as a normal
+# include path in GCC and Clang.
 target_include_directories(SYCLKernelFusionPasses
   SYSTEM PRIVATE
   ${LLVM_MAIN_INCLUDE_DIR}
@@ -80,7 +85,6 @@ target_include_directories(SYCLKernelFusionPasses
 target_link_libraries(SYCLKernelFusionPasses
   PRIVATE
   sycl-fusion-common
-  ${llvm_libs}
 )
 
 if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
