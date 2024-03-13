@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit c49b116fe10fabc98e8eccb1f6f3ed445df10ee8
-  # Merge: 654e5564 11ecfd3e
+  # commit 1cf9a08e6a98381fadbc065de2700b463d2a44a4
+  # Merge: c49b116f 0446c65e
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Mar 12 23:13:28 2024 +0000
-  #     Merge pull request #1372 from raiyanla/in-order-lists
-  #     [L0] Add support for in-order lists using L0 driver
-  set(UNIFIED_RUNTIME_TAG c49b116fe10fabc98e8eccb1f6f3ed445df10ee8)
+  # Date:   Wed Mar 13 09:48:36 2024 +0000
+  #     Merge pull request #1368 from konradkusiak97/xptiWindowsFix
+  #     [CUDA][XPTI] Fix function pointer typedefs in xpti tracing
+  set(UNIFIED_RUNTIME_TAG 1cf9a08e6a98381fadbc065de2700b463d2a44a4)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
