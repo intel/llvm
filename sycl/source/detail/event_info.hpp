@@ -40,6 +40,14 @@ typename Param::return_type get_event_info(sycl::detail::pi::PiEvent Event,
   // TODO catch an exception and put it to list of asynchronous exceptions
   Plugin->call<PiApiKind::piEventGetInfo>(Event, PiInfoCode<Param>::value,
                                           sizeof(Result), &Result, nullptr);
+
+  //       If the status is unknown, that means that PI is returning
+  //       PI_EVENT_STATUS_QUEUED We need to change it since QUEUED is not a
+  //       valid status in sycl.
+  if constexpr (std::is_same<Param,
+                             info::event::command_execution_status>::value)
+    Result = sycl::info::event_command_status::submitted;
+
   return Result;
 }
 
