@@ -69,15 +69,16 @@ int main() {
           .get_info<sycl::ext::oneapi::experimental::info::device::
                         matrix_combinations>();
   bool support_p = false;
-  for (int i = 0; i < combinations.size(); i++) {
-    if (combinations[i].atype == matrix_type::tf32) {
+  // joint_matrix_prefetch is not supported on DG2
+  for (unsigned int i = 0; i < combinations.size(); i++) {
+    if (combinations[i].nsize == 0 || combinations[i].nsize == 16) {
       support_p = true;
       break;
     }
   }
   if (!support_p) {
     std::cout << "Prefetch not supported on this device" << std::endl;
-    // Once the test is not marke as XFAIL, this should change to return 0;
+    // Once the test is not marked as XFAIL, this should change to return 0;
     return 1;
   }
   static constexpr size_t M = TM * 2;
