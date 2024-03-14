@@ -57,13 +57,15 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1cf9a08e6a98381fadbc065de2700b463d2a44a4
-  # Merge: c49b116f 0446c65e
+  # commit d99d5f742cea18d7204c59c4320b8ea0329b49eb (HEAD -> main)
+  # Merge: f17c0e91 c3809c61
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Mar 13 09:48:36 2024 +0000
-  #     Merge pull request #1368 from konradkusiak97/xptiWindowsFix
-  #     [CUDA][XPTI] Fix function pointer typedefs in xpti tracing
-  set(UNIFIED_RUNTIME_TAG 1cf9a08e6a98381fadbc065de2700b463d2a44a4)
+  # Date:   Wed Mar 13 19:47:39 2024 +0000
+  #
+  #     Merge pull request #1431 from zhaomaosu/fix-ocl-adapter-tear-down
+  #
+  #     [CL] Gracefully tear down adapter in case that some globals have been released
+  set(UNIFIED_RUNTIME_TAG d99d5f742cea18d7204c59c4320b8ea0329b49eb)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
