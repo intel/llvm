@@ -56,14 +56,8 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 418ad5354ca24a6dfbd01df803949855b7a6c3dd
-  # Merge: d99d5f74 26682290
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Mar 14 10:19:56 2024 +0000
-  #     Merge pull request #1365 from Bensuo/maxime/improve-L0-cmd-buffer-enqueing
-  #     [EXP][CMDBUF] Move event reset commands to dedicated cmd-list
-  set(UNIFIED_RUNTIME_TAG 418ad5354ca24a6dfbd01df803949855b7a6c3dd)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/raiyanla/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG f67dc0c6ec93058feb08b305b6c0d23fef7f7694)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
