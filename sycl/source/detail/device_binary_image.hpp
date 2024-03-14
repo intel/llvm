@@ -243,7 +243,7 @@ protected:
 
 private:
   static std::atomic<uintptr_t> ImageCounter;
-  uintptr_t ImageId;
+  uintptr_t ImageId = 0;
 };
 
 // Dynamically allocated device binary image, which de-allocates its binary
