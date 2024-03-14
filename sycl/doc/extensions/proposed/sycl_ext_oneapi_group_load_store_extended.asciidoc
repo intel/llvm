@@ -349,7 +349,7 @@ arrays functions.
 Example:
 `group_load(g, input, output_span, properties<data_placement<blocked>>{});`
 
-=== Usage Example
+== Usage Example
 
 Example shows the simplest case without local memory usage of blocked load
 of global memory from `input` to the private array `data` and store it back to
