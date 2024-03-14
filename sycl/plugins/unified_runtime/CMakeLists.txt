@@ -56,7 +56,7 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/fabiomestre/unified-runtime.git")
   # commit d99d5f742cea18d7204c59c4320b8ea0329b49eb (HEAD -> main)
   # Merge: f17c0e91 c3809c61
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
@@ -65,7 +65,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   #     Merge pull request #1431 from zhaomaosu/fix-ocl-adapter-tear-down
   #
   #     [CL] Gracefully tear down adapter in case that some globals have been released
-  set(UNIFIED_RUNTIME_TAG d99d5f742cea18d7204c59c4320b8ea0329b49eb)
+  set(UNIFIED_RUNTIME_TAG 886e7ac8184a5882b031b205893af36985b8536e)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
