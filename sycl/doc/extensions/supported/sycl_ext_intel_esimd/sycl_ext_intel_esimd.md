@@ -365,8 +365,8 @@ memory access interface. It supports main SYCL's device memory representations:
 
 Only small subset of `sycl::accessor` APIs is supported in ESIMD context:
 - accessor::accessor();
-- accessor::get_pointer(); // Supported only with the `-fsycl-esimd-force-stateless-mem` switch.
-- accessor::operator[]; // Supported only with the `-fsycl-esimd-force-stateless-mem` switch.
+- accessor::get_pointer(); // Supported only with the `-fsycl-esimd-force-stateless-mem` switch (turned ON by default).
+- accessor::operator[]; // Supported only with the `-fsycl-esimd-force-stateless-mem` switch (turned ON by default).
 
 ESIMD provides special APIs to access memory through accessors. Those APIs
 accept an accessor object as a base reference to the addressed memory and
@@ -419,6 +419,8 @@ They go through extra layer of faster cache.
 load/store scalar values through accessors. In case of USM pointers, usual
 C++ dereference operator can be used. SLM versions are also available.
 
+See the more detailed list of available memory APIs [here](./sycl_ext_intel_esimd_functions.md).
+
 
 #### Shared local memory access
 
@@ -428,13 +430,13 @@ This memory is shared between work items in a workgroup - basically
 it is ESIMD variant of the SYCL `local` memory.
 
 SLM variants of APIs have 'slm_' prefix in their names,
-e.g. ext::intel::esimd::slm_block_load() or ext::intel::experimental::esimd::lsc_slm_gather().
+e.g. ext::intel::esimd::slm_block_load() or ext::intel::esimd::slm_gather().
 
 SLM memory must be explicitly allocated before it is read or written.
 
 There are 3 different ways of SLM allocation in ESIMD:
-* static allocation using slm_init<SLMByteSize>() and slm_init(SpecializationConstSLMByteSize)
-* semi-dynamic allocation using slm_allocator<SLMByteSize> class
+* static allocation using `slm_init<SLMByteSize>()` and `slm_init(SpecializationConstSLMByteSize)`
+* semi-dynamic allocation using `slm_allocator<SLMByteSize>` class
 * SYCL local accessors
 
 ##### Static allocation of SLM using slm_init function.
@@ -457,6 +459,7 @@ Restrictions:
 * The call of `slm_init` must be placed in the beginning of the kernel.
 If `slm_init` is called in some function 'F' called from kernel, then inlining
 of 'F' to the kernel must be forced/guaranteed.
+* `slm_init` cannot be used together with `local_accessor` in the same kernel.
 
 ##### Semi-dynamic allocation of SLM.
 The class `slm_allocator` is designed to be used in basic blocks or functions
