@@ -90,8 +90,8 @@ sycl::event launch(const sycl::nd_range<3> &range, size_t mem_size,
 } // namespace detail
 
 template <int Dim>
-sycl::nd_range<Dim> compute_nd_range(sycl::range<Dim> global_size_in,
-                                     sycl::range<Dim> work_group_size) {
+inline sycl::nd_range<Dim> compute_nd_range(sycl::range<Dim> global_size_in,
+                                            sycl::range<Dim> work_group_size) {
 
   if (global_size_in.size() == 0 || work_group_size.size() == 0) {
     throw std::invalid_argument("Global or local size is zero!");
