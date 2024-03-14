@@ -154,6 +154,20 @@ public:
         MCGType(Other.MCGType), MNodeType(Other.MNodeType),
         MCommandGroup(Other.getCGCopy()), MSubGraphImpl(Other.MSubGraphImpl) {}
 
+  /// Copy-assignment operator. This will perform a deep-copy of the
+  /// command group object associated with this node.
+  node_impl &operator=(node_impl &Other) {
+    if (this != &Other) {
+      MSuccessors = Other.MSuccessors;
+      MPredecessors = Other.MPredecessors;
+      MCGType = Other.MCGType;
+      MNodeType = Other.MNodeType;
+      MCommandGroup = Other.getCGCopy();
+      MSubGraphImpl = Other.MSubGraphImpl;
+    }
+    return *this;
+  }
+
   /// Checks if this node has a given requirement.
   /// @param Requirement Requirement to lookup.
   /// @return True if \p Requirement is present in node, false otherwise.
@@ -586,9 +600,7 @@ public:
       MAllowBuffers = true;
     }
 
-    if (SyclDevice.get_info<
-            ext::oneapi::experimental::info::device::graph_support>() ==
-        graph_support_level::unsupported) {
+    if (!SyclDevice.has(aspect::ext_oneapi_graph)) {
       std::stringstream Stream;
       Stream << SyclDevice.get_backend();
       std::string BackendString = Stream.str();
@@ -671,7 +683,7 @@ public:
   void addEventForNode(std::shared_ptr<graph_impl> GraphImpl,
                        std::shared_ptr<sycl::detail::event_impl> EventImpl,
                        std::shared_ptr<node_impl> NodeImpl) {
-    if (!EventImpl->getCommandGraph())
+    if (!(EventImpl->getCommandGraph()))
       EventImpl->setCommandGraph(GraphImpl);
     MEventsMap[EventImpl] = NodeImpl;
   }
@@ -1190,9 +1202,6 @@ private:
   std::vector<sycl::detail::EventImplPtr> MExecutionEvents;
   /// List of the partitions that compose the exec graph.
   std::vector<std::shared_ptr<partition>> MPartitions;
-  /// Map of the partitions to their execution events
-  std::unordered_map<std::shared_ptr<partition>, sycl::detail::EventImplPtr>
-      MPartitionsExecutionEvents;
   /// Storage for copies of nodes from the original modifiable graph.
   std::vector<std::shared_ptr<node_impl>> MNodeStorage;
 };

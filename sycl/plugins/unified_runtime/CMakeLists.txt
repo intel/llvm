@@ -57,14 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-
-  # commit a2757b2931daa2f8d7c9dd51b0fc846be1fd49a7
-  # Merge:  9b936b5 + f78d369
+  # commit 418ad5354ca24a6dfbd01df803949855b7a6c3dd
+  # Merge: d99d5f74 26682290
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Feb 27 11:34:58 2024 +0000
-  #     Merge pull request #1254 from Bensuo/cmdbuf-support-hip
-  #     [EXP][CMDBUF] HIP adapter support for command buffers
-  set(UNIFIED_RUNTIME_TAG a2757b2931daa2f8d7c9dd51b0fc846be1fd49a7 )
+  # Date:   Thu Mar 14 10:19:56 2024 +0000
+  #     Merge pull request #1365 from Bensuo/maxime/improve-L0-cmd-buffer-enqueing
+  #     [EXP][CMDBUF] Move event reset commands to dedicated cmd-list
+  set(UNIFIED_RUNTIME_TAG 418ad5354ca24a6dfbd01df803949855b7a6c3dd)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
