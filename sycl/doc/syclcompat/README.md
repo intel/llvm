@@ -50,6 +50,10 @@ Specifically, this library depends on the following SYCL extensions:
     ../extensions/supported/sycl_ext_oneapi_enqueue_barrier.asciidoc)
 * [sycl_ext_oneapi_usm_device_read_only](../extensions/supported/sycl_ext_oneapi_usm_device_read_only.asciidoc)
 
+If available, the following extensions extend SYCLcompat functionality:
+
+* [sycl_ext_intel_device_info](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/supported/sycl_ext_intel_device_info.md) \[Optional\]
+
 ## Usage
 
 All functionality is available under the `syclcompat::` namespace, imported
@@ -1117,6 +1121,8 @@ ValueT permute_sub_group_by_xor(sycl::sub_group g, ValueT x, unsigned int mask,
 The function `experimental::nd_range_barrier` synchronizes work items from all
 work groups within a SYCL kernel. This is not officially supported by the SYCL
 spec, and so should be used with caution.
+`experimental::calculate_max_active_wg_per_xecore` and
+`experimental::calculate_max_potential_wg` are used for occupancy calculation.
 
 ```c++
 namespace syclcompat {
@@ -1145,6 +1151,18 @@ public:
   uint32_t get_local_linear_range() const;
   uint32_t get_group_linear_range() const;
 };
+
+inline int calculate_max_active_wg_per_xecore(int *num_wg, int wg_size,
+                                              int slm_size = 0,
+                                              int sg_size = 32,
+                                              bool used_barrier = false,
+                                              bool used_large_grf = false);
+
+inline int calculate_max_potential_wg(int *num_wg, int *wg_size,
+                                      int max_wg_size_for_device_code,
+                                      int slm_size = 0, int sg_size = 32,
+                                      bool used_barrier = false,
+                                      bool used_large_grf = false);
 
 } // namespace experimental
 } // namespace syclcompat
@@ -1199,19 +1217,25 @@ static kernel_function_info get_kernel_function_info(const void *function);
 
 `syclcompat::fast_length` provides a wrapper to SYCL's
 `fast_length(sycl::vec<float,N>)` that accepts arguments for a C++ array and a
-length.
+length. `syclcompat::length` provides a templated version that wraps over
+`sycl::length`.
 
 `vectorized_max` and `vectorized_min` are binary operations returning the
 max/min of two arguments, where each argument is treated as a `sycl::vec` type.
 `vectorized_isgreater` performs elementwise `isgreater`, treating each argument
 as a vector of elements, and returning `0` for vector components for which
 `isgreater` is false, and `-1` when true.
+`vectorized_sum_abs_diff` calculates the absolute difference for two values
+without modulo overflow for vector types.
 
 The functions `cmul`,`cdiv`,`cabs`, and `conj` define complex math operations
 which accept `sycl::vec<T,2>` arguments representing complex values.
 
 ```cpp
 inline float fast_length(const float *a, int len);
+
+template <typename ValueT>
+inline ValueT length(const ValueT *a, const int len);
 
 template <typename S, typename T> inline T vectorized_max(T a, T b);
 
@@ -1222,6 +1246,9 @@ template <typename S, typename T> inline T vectorized_isgreater(T a, T b);
 template <>
 inline unsigned vectorized_isgreater<sycl::ushort2, unsigned>(unsigned a,
                                                               unsigned b);
+
+template <typename VecT>
+inline unsigned vectorized_sum_abs_diff(unsigned a, unsigned b);
 
 template <typename T>
 sycl::vec<T, 2> cmul(sycl::vec<T, 2> x, sycl::vec<T, 2> y);
@@ -1234,6 +1261,66 @@ template <typename T> T cabs(sycl::vec<T, 2> x);
 template <typename T> sycl::vec<T, 2> conj(sycl::vec<T, 2> x);
 
 template <typename ValueT> inline ValueT reverse_bits(ValueT a);
+```
+
+`vectorized_binary` computes the `BinaryOperation` for two operands,
+with each value treated as a vector type. `vectorized_unary` offers the same
+interface for operations with a single operand.
+The implemented `BinaryOperation`s are `abs_diff`, `add_sat`, `rhadd`, `hadd`,
+`maximum`, `minimum`, and `sub_sat`.
+
+```cpp
+namespace syclcompat {
+  
+template <typename VecT, class UnaryOperation>
+inline unsigned vectorized_unary(unsigned a, const UnaryOperation unary_op);
+
+// A sycl::abs wrapper functor.
+struct abs {
+  template <typename ValueT> auto operator()(const ValueT x) const;
+};
+
+template <typename VecT, class BinaryOperation>
+inline unsigned vectorized_binary(unsigned a, unsigned b,
+                                  const BinaryOperation binary_op);
+
+// A sycl::abs_diff wrapper functor.
+struct abs_diff {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::add_sat wrapper functor.
+struct add_sat {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::rhadd wrapper functor.
+struct rhadd {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::hadd wrapper functor.
+struct hadd {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::max wrapper functor.
+struct maximum {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::min wrapper functor.
+struct minimum {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+// A sycl::sub_sat wrapper functor.
+struct sub_sat {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y) const;
+};
+
+} // namespace syclcompat
 ```
 
 ## Sample Code
