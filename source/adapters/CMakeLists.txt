@@ -30,21 +30,37 @@ endfunction()
 
 add_subdirectory(null)
 
+function(add_ur_adapter_subdirectory name)
+    string(TOUPPER ${name} NAME)
+    if(UR_ADAPTER_${NAME}_SOURCE_DIR)
+        if(NOT IS_DIRECTORY ${UR_ADAPTER_${NAME}_SOURCE_DIR})
+            message(FATAL_ERROR
+                "UR_ADAPTER_${NAME}_SOURCE_DIR is not a directory: "
+                "${UR_ADAPTER_${NAME}_SOURCE_DIR}")
+        endif()
+        add_subdirectory(
+            "${UR_ADAPTER_${NAME}_SOURCE_DIR}"
+            "${CMAKE_CURRENT_BINARY_DIR}/${name}")
+    else()
+        add_subdirectory(${name})
+    endif()
+endfunction()
+
 if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_ALL)
-    add_subdirectory(level_zero)
+    add_ur_adapter_subdirectory(level_zero)
 endif()
 
 if(UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_ALL)
-    add_subdirectory(cuda)
+    add_ur_adapter_subdirectory(cuda)
 endif()
 
 if(UR_BUILD_ADAPTER_HIP OR UR_BUILD_ADAPTER_ALL)
-    add_subdirectory(hip)
+    add_ur_adapter_subdirectory(hip)
 endif()
 
 if(UR_BUILD_ADAPTER_OPENCL OR UR_BUILD_ADAPTER_ALL)
-    add_subdirectory(opencl)
+    add_ur_adapter_subdirectory(opencl)
 endif()
 if(UR_BUILD_ADAPTER_NATIVE_CPU OR UR_BUILD_ADAPTER_ALL)
-    add_subdirectory(native_cpu)
+    add_ur_adapter_subdirectory(native_cpu)
 endif()
