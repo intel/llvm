@@ -67,6 +67,10 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   #     [CL] Gracefully tear down adapter in case that some globals have been released
   set(UNIFIED_RUNTIME_TAG d99d5f742cea18d7204c59c4320b8ea0329b49eb)
 
+  # DO NOT MERGE. Leaving the above to avoid merge conflicts
+  set(UNIFIED_RUNTIME_REPO "https://github.com/hdelan/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG event-wait-with-good-context)
+
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
   endif()
