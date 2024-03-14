@@ -40,14 +40,10 @@ template <int Arg> class syclcompat_kernel_scalar;
 #if defined(_MSC_VER)
 #define __syclcompat_align__(n) __declspec(align(n))
 #define __syclcompat_inline__ __forceinline
+#define __syclcompat_noinline__ __declspec(noinline)
 #else
 #define __syclcompat_align__(n) __attribute__((aligned(n)))
 #define __syclcompat_inline__ __inline__ __attribute__((always_inline))
-#endif
-
-#if defined(_MSC_VER)
-#define __syclcompat_noinline__ __declspec(noinline)
-#else
 #define __syclcompat_noinline__ __attribute__((noinline))
 #endif
 
