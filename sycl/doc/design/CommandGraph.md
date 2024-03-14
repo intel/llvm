@@ -250,59 +250,107 @@ there are no parameters to take a wait-list, and the only sync primitive
 returned is blocking on host.
 
 In order to achieve the expected UR command-buffer enqueue semantics with Level
-Zero, the adapter implementation adds extra commands to the Level Zero
-command-list representing a UR command-buffer.
+Zero, the adapter implementation needs extra commands.
 
-* Prefix - Commands added to the start of the L0 command-list by L0 adapter.
-* Suffix - Commands added to the end of the L0 command-list by L0 adapter.
+* Prefix - Commands added **before** the graph workload.
+* Suffix - Commands added **after** the graph workload.
 
-These extra commands operate on L0 event synchronisation primitives, used by the
-command-list to interact with the external UR wait-list and UR return event
-required for the enqueue interface.
+These extra commands operate on L0 event synchronisation primitives, 
+used by the command-list to interact with the external UR wait-list 
+and UR return event required for the enqueue interface.
+Unlike the graph workload (i.e. commands needed to perform the graph workload) 
+the external UR wait-list and UR return event are submission dependent, 
+which mean they can change from one submission to the next.
 
-The `ur_exp_command_buffer_handle_t` class for this adapter contains a
-*SignalEvent* which signals the completion of the command-list in the suffix,
-and is reset in the prefix. This signal is detected by a new UR return event
-created on UR command-buffer enqueue.
+For performance concerns, the command-list that will execute the graph
+workload is made only once (during the command-buffer finalization stage).
+This allows the adapter to save time when submitting the command-buffer, 
+by executing only this command-list (i.e. without enqueuing any commands 
+of the graph workload).
 
-There is also a *WaitEvent* used by the `ur_exp_command_buffer_handle_t` class
-in the prefix to wait on any dependencies passed in the enqueue wait-list.
-This WaitEvent is reset in the suffix.
+#### Prefix
 
-A command-buffer is expected to be submitted multiple times. Consequently,
+The prefix's commands aim to: 
+1. Handle the the list on events to wait on, which is passed by the runtime
+when the UR command-buffer enqueue function is called.
+As mentioned above, this list of events changes from one submission 
+to the next.
+Consequently, managing this mutable dependency in the graph-workload 
+command-list implies rebuilding the command-list for each submission 
+(note that this can change with mutable command-list).
+To avoid the signifiant time penalty of rebuilding this potentially large 
+command-list each time, we prefer to add an extra command handling the
+wait list into another command-list (*wait command-list*). 
+This command-list consists of a single L0 command: a barrier that waits for 
+dependencies passed by the wait-list and signals a signal 
+called *WaitEvent* when the barrier is complete.
+This *WaitEvent* is defined in the `ur_exp_command_buffer_handle_t` class.
+In the front of the graph workload command list, an extra barrier command 
+waiting for this event is added (when the command-buffer is created).
+This ensures that the graph workload does not start running before 
+the dependencies to be completed.
+The *WaitEvent* event is reset in the suffix.
+
+
+2. Reset events associated with the command-buffer except the 
+*WaitEvent* event.
+Indeed, L0 events needs to be explicitly reset by an API call 
+(L0 command in our case).
+Since a command-buffer is expected to be submitted multiple times,
 we need to ensure that L0 events associated with graph commands have not
 been signaled by a previous execution. These events are therefore reset to the
-non-signaled state before running the actual graph associated commands. Note
+non-signaled state before running the graph-workload command-list. Note
 that this reset is performed in the prefix and not in the suffix to avoid
 additional synchronization w.r.t profiling data extraction.
+We use a new command list (*reset command-list*) for performance concerns. 
+Indeed:
+   * This allows the *WaitEvent* to be signaled directly on the host if 
+   the waiting list is empty, thus avoiding the need to submit a command list.
+   * Enqueuing a reset L0 command for all events in the command-buffer is time
+   consumming, especially for large graphs.
+   However, this task is not needed for every submission, but only once, when the
+   command-buffer is fixed, i.e. when the command-buffer is finalized. The
+   decorellation between the reset command-list and the wait command-list allow us to
+   create and enqueue the reset commands when finalizing the command-buffer, 
+   and only create the wait command-list at submission.
 
-If a command-buffer is about to be submitted to a queue with the profiling
-property enabled, an extra command that copies timestamps of L0 events
-associated with graph commands into a dedicated memory which is attached to the
-returned UR event. This memory stores the profiling information that
-corresponds to the current submission of the command-buffer.
+This command list is consist of a reset command for each of the graph commands 
+and another reset command for resetting the signal we use to signal the completion 
+of the graph workload. This signal is called *SignalEvent* and is defined in 
+in the `ur_exp_command_buffer_handle_t` class.
 
-![L0 command-buffer diagram](images/L0_UR_command-buffer-v3.jpg)
+#### Suffix
+
+The suffix's commands aim to:
+1) Handle the completion of the graph workload and signal 
+an UR return event.
+Thus, at the end of the graph workload command-list a command, which 
+signals the *SignalEvent*, is added (when the command-buffer is finalized).
+In an additional command-list (*signal command-list*), a barrier waiting for 
+this event is also added.
+This barrier signals, in turn, the UR return event that has be defined by 
+the runtime layer when calling the `urCommandBufferEnqueueExp` function.
+
+2) Manage the profiling. If a command-buffer is about to be submitted to 
+a queue with the profiling property enabled, an extra command that copies 
+timestamps of L0 events associated with graph commands into a dedicated 
+memory which is attached to the returned UR event. 
+This memory stores the profiling information that corresponds to 
+the current submission of the command-buffer.
+
+![L0 command-buffer diagram](images/L0_UR_command-buffer-v5.jpg)
 
 For a call to `urCommandBufferEnqueueExp` with an `event_list` *EL*,
-command-buffer *CB*, and return event *RE* our implementation has to submit two
-new command-lists for the above approach to work. One before
+command-buffer *CB*, and return event *RE* our implementation has to submit 
+three new command-lists for the above approach to work. Two before
 the command-list with extra commands associated with *CB*, and the other
-after *CB*. These two new command-lists are retrieved from the UR queue, which
+after *CB*. These new command-lists are retrieved from the UR queue, which
 will likely reuse existing command-lists and only create a new one in the worst
 case.
 
-The L0 command-list created on `urCommandBufferEnqueueExp` to execute **before**
-*CB* contains a single command. This command is a barrier on *EL* that signals
-*CB*'s *WaitEvent* when completed.
-
-The L0 command-list created on `urCommandBufferEnqueueExp` to execute **after**
-*CB* also contains a single command. This command is a barrier on *CB*'s
-*SignalEvent* that signals *RE* when completed.
-
 #### Drawbacks
 
-There are two drawbacks of this approach to implementing UR command-buffers for
+There are three drawbacks of this approach to implementing UR command-buffers for
 Level Zero:
 
 1. 3x the command-list resources are used, if there are many UR command-buffers in

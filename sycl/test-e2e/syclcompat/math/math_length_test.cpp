@@ -14,10 +14,10 @@
  *
  *  SYCLcompat API
  *
- *  math_fast_length_test.cpp
+ *  math_length_test.cpp
  *
  *  Description:
- *    Fast length tests
+ *    vector length tests
  **************************************************************************/
 
 // The original source was under the license below:
@@ -41,22 +41,26 @@
 
 #define MAX_LEN 5
 
-void compute_length(float *d_A, size_t n, float *ans) {
+void compute_fast_length(float *d_A, size_t n, float *ans) {
   *ans = syclcompat::fast_length(d_A, n);
 }
 
-class FastLengthLauncher {
+void compute_length(float *d_A, size_t n, float *ans) {
+  *ans = syclcompat::length(d_A, n);
+}
+
+class LengthLauncher {
 protected:
   float *data_;
   float *result_;
   float host_result_{0.0};
 
 public:
-  FastLengthLauncher() {
+  LengthLauncher() {
     data_ = (float *)syclcompat::malloc(MAX_LEN * sizeof(float));
     result_ = (float *)syclcompat::malloc(sizeof(float));
   };
-  ~FastLengthLauncher() {
+  ~LengthLauncher() {
     syclcompat::free(data_);
     syclcompat::free(result_);
   }
@@ -68,13 +72,13 @@ public:
     assert(diff <= 1.e-5);
   }
 
-  void launch(std::vector<float> vec) {
+  template <auto F> void launch(std::vector<float> vec) {
     size_t n = vec.size();
     syclcompat::memcpy(data_, vec.data(), sizeof(float) * n);
     auto data = data_;
     auto result = result_;
     syclcompat::get_default_queue().single_task(
-        [data, result, n]() { compute_length(data, n, result); });
+        [data, result, n]() { F(data, n, result); });
     syclcompat::memcpy(&host_result_, result_, sizeof(float));
     check_result(vec);
   }
@@ -83,18 +87,36 @@ public:
 void test_fast_length() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
-  auto launcher = FastLengthLauncher();
-  launcher.launch(std::vector<float>{0.8970062715});
-  launcher.launch(std::vector<float>{0.8335529744, 0.7346600673});
-  launcher.launch(std::vector<float>{0.1658983906, 0.590226484, 0.4891553616});
-  launcher.launch(std::vector<float>{0.6041178723, 0.7760620605, 0.2944284976,
-                                     0.6851913766});
-  launcher.launch(std::vector<float>{0.6041178723, 0.7760620605, 0.2944284976,
-                                     0.6851913766, 0.6851913766});
+  auto launcher = LengthLauncher();
+  launcher.launch<compute_fast_length>(std::vector<float>{0.8970062715});
+  launcher.launch<compute_fast_length>(
+      std::vector<float>{0.8335529744, 0.7346600673});
+  launcher.launch<compute_fast_length>(
+      std::vector<float>{0.1658983906, 0.590226484, 0.4891553616});
+  launcher.launch<compute_fast_length>(std::vector<float>{
+      0.6041178723, 0.7760620605, 0.2944284976, 0.6851913766});
+  launcher.launch<compute_fast_length>(std::vector<float>{
+      0.6041178723, 0.7760620605, 0.2944284976, 0.6851913766, 0.6851913766});
+}
+
+void test_length() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  auto launcher = LengthLauncher();
+  launcher.launch<compute_length>(std::vector<float>{0.8970062715});
+  launcher.launch<compute_length>(
+      std::vector<float>{0.8335529744, 0.7346600673});
+  launcher.launch<compute_length>(
+      std::vector<float>{0.1658983906, 0.590226484, 0.4891553616});
+  launcher.launch<compute_length>(std::vector<float>{
+      0.6041178723, 0.7760620605, 0.2944284976, 0.6851913766});
+  launcher.launch<compute_length>(std::vector<float>{
+      0.6041178723, 0.7760620605, 0.2944284976, 0.6851913766, 0.6851913766});
 }
 
 int main() {
   test_fast_length();
+  test_length();
 
   return 0;
 }
