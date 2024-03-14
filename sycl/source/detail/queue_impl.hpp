@@ -767,7 +767,7 @@ protected:
       //    the RT but will not be passed to the backend. See getPIEvents in
       //    Command.
       auto &EventToBuildDeps =
-          MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
+          MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
       if (EventToBuildDeps)
         Handler.depends_on(
             createSyclObjFromImpl<sycl::event>(EventToBuildDeps));
