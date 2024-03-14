@@ -282,7 +282,7 @@ there is a enum
 
 [source,c++]
 ----
-namespace sycl::ext::oneapi::experimental {
+namespace sycl::ext::oneapi::experimental::property {
 
 // Properties:
 enum class data_placement_enum {
@@ -290,7 +290,7 @@ enum class data_placement_enum {
   striped
 };
 
-}
+} // namespace sycl::ext::oneapi::experimental::property
 ----
 
 Data placement layout example on group_load:
@@ -301,7 +301,7 @@ Data placement layout example on group_load:
 
 Consider 2 layouts:
 
-1.`sycl::ext::oneapi::experimental::data_placement_enum::blocked`.
+1.`sycl::ext::oneapi::experimental::property::data_placement_enum::blocked`.
 
 |===
 |Work-item id|Output stored in private fixed-size array
@@ -314,7 +314,7 @@ Consider 2 layouts:
 |{8, 9, 10, 11}
 |===
 
-2.`sycl::ext::oneapi::experimental::data_placement_enum::striped`.
+2.`sycl::ext::oneapi::experimental::property::data_placement_enum::striped`.
 
 |===
 |Work-item id|Output stored in private fixed-size array
