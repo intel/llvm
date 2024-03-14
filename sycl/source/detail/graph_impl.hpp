@@ -154,6 +154,20 @@ public:
         MCGType(Other.MCGType), MNodeType(Other.MNodeType),
         MCommandGroup(Other.getCGCopy()), MSubGraphImpl(Other.MSubGraphImpl) {}
 
+  /// Copy-assignment operator. This will perform a deep-copy of the
+  /// command group object associated with this node.
+  node_impl &operator=(node_impl &Other) {
+    if (this != &Other) {
+      MSuccessors = Other.MSuccessors;
+      MPredecessors = Other.MPredecessors;
+      MCGType = Other.MCGType;
+      MNodeType = Other.MNodeType;
+      MCommandGroup = Other.getCGCopy();
+      MSubGraphImpl = Other.MSubGraphImpl;
+    }
+    return *this;
+  }
+
   /// Checks if this node has a given requirement.
   /// @param Requirement Requirement to lookup.
   /// @return True if \p Requirement is present in node, false otherwise.
@@ -669,7 +683,7 @@ public:
   void addEventForNode(std::shared_ptr<graph_impl> GraphImpl,
                        std::shared_ptr<sycl::detail::event_impl> EventImpl,
                        std::shared_ptr<node_impl> NodeImpl) {
-    if (!EventImpl->getCommandGraph())
+    if (!(EventImpl->getCommandGraph()))
       EventImpl->setCommandGraph(GraphImpl);
     MEventsMap[EventImpl] = NodeImpl;
   }

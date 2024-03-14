@@ -35,13 +35,15 @@
 // RUN: %{run} %t.out
 
 #include <complex>
-
 #include <iostream>
+
 #include <sycl/sycl.hpp>
 #include <syclcompat.hpp>
 
+#include "../common.hpp"
+
 template <typename T> bool check(T x, float *e) {
-  float precision = 0.001f;
+  float precision = ERROR_TOLERANCE;
   if ((x.x() - e[0] < precision) && (x.x() - e[0] > -precision) &&
       (x.y() - e[1] < precision) && (x.y() - e[1] > -precision)) {
     return true;
@@ -50,7 +52,7 @@ template <typename T> bool check(T x, float *e) {
 }
 
 template <> bool check<float>(float x, float *e) {
-  float precision = 0.001f;
+  float precision = ERROR_TOLERANCE;
   if ((x - e[0] < precision) && (x - e[0] > -precision)) {
     return true;
   }
@@ -58,7 +60,7 @@ template <> bool check<float>(float x, float *e) {
 }
 
 template <> bool check<double>(double x, float *e) {
-  float precision = 0.001f;
+  float precision = ERROR_TOLERANCE;
   if ((x - e[0] < precision) && (x - e[0] > -precision)) {
     return true;
   }
