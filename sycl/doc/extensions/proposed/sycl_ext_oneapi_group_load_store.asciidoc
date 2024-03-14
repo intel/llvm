@@ -282,7 +282,7 @@ there is a enum
 
 [source,c++]
 ----
-namespace sycl::ext::oneapi::experimental::property {
+namespace sycl::ext::oneapi::experimental {
 
 // Properties:
 enum class data_placement_enum {
@@ -290,7 +290,7 @@ enum class data_placement_enum {
   striped
 };
 
-} // namespace sycl::ext::oneapi::experimental::property
+} // namespace sycl::ext::oneapi::experimental
 ----
 
 Data placement layout example on group_load:
@@ -301,7 +301,7 @@ Data placement layout example on group_load:
 
 Consider 2 layouts:
 
-1.`sycl::ext::oneapi::experimental::property::data_placement_enum::blocked`.
+1.`sycl::ext::oneapi::experimental::data_placement_enum::blocked`.
 
 |===
 |Work-item id|Output stored in private fixed-size array
@@ -314,7 +314,7 @@ Consider 2 layouts:
 |{8, 9, 10, 11}
 |===
 
-2.`sycl::ext::oneapi::experimental::property::data_placement_enum::striped`.
+2.`sycl::ext::oneapi::experimental::data_placement_enum::striped`.
 
 |===
 |Work-item id|Output stored in private fixed-size array
@@ -334,7 +334,7 @@ link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_e
 `input_data_placement` and `output_data_placement`:
 [source,c++]
 ----
-namespace sycl::ext::oneapi::experimental::property {
+namespace sycl::ext::oneapi::experimental {
 
 struct data_placement_key {
   template <data_placement_enum Type>
@@ -349,14 +349,14 @@ inline constexpr data_placement_key::value_t<Type> data_placement;
 inline constexpr data_placement_key::value_t<data_placement_enum::blocked> data_placement_blocked;
 inline constexpr data_placement_key::value_t<data_placement_enum::striped> data_placement_striped;
 
-} // namespace sycl::ext::oneapi::experimental::property
+} // namespace sycl::ext::oneapi::experimental
 ----
 
 Specifies data layout used in group_load/store for `sycl::vec` or fixed-size
 arrays functions.
 
 Example:
-`group_load(g, input, output_span, property::data_placement_blocked);`
+`group_load(g, input, output_span, data_placement_blocked);`
 
 == Usage Example
 
@@ -505,11 +505,11 @@ q.submit([&](sycl::handler& cgh) {
             sycl_exp::group_with_scratchpad gh{ g,
                                                 sycl::span{ buf_ptr, temp_memory_size } };
 
-            sycl_exp::group_load(gh, input + offset, sycl::span{ data }, property::data_placement_striped);
+            sycl_exp::group_load(gh, input + offset, sycl::span{ data }, data_placement_striped);
 
             // Work with data...
 
-            sycl_exp::group_store(gh, output + offset, sycl::span{ data }, property::data_placement_striped);
+            sycl_exp::group_store(gh, output + offset, sycl::span{ data }, data_placement_striped);
         });
 });
 ----
