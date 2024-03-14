@@ -603,18 +603,8 @@ bool device_impl::has(aspect Aspect) const {
     return Result != nullptr;
   }
   case aspect::ext_oneapi_graph: {
-    pi_bool SupportsCommandBuffers = false;
-    bool CallSuccessful =
-        getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_SUPPORT,
-            sizeof(SupportsCommandBuffers), &SupportsCommandBuffers,
-            nullptr) == PI_SUCCESS;
-    if (!CallSuccessful) {
-      return PI_FALSE;
-    }
-
     pi_bool SupportsCommandBufferUpdate = false;
-    CallSuccessful =
+    bool CallSuccessful =
         getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
             MDevice, PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT,
             sizeof(SupportsCommandBufferUpdate), &SupportsCommandBufferUpdate,
@@ -623,7 +613,7 @@ bool device_impl::has(aspect Aspect) const {
       return PI_FALSE;
     }
 
-    return SupportsCommandBuffers && SupportsCommandBufferUpdate;
+    return has(aspect::ext_oneapi_limited_graph) && SupportsCommandBufferUpdate;
   }
   case aspect::ext_oneapi_limited_graph: {
     pi_bool SupportsCommandBuffers = false;
