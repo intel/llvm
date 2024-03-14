@@ -43,6 +43,20 @@ static const bool UseMultipleCmdlistBarriers = [] {
   return std::atoi(UseMultipleCmdlistBarriersFlag) > 0;
 }();
 
+bool WaitListEmptyOrAllEventsFromSameQueue(
+    ur_queue_handle_t Queue, uint32_t NumEventsInWaitList,
+    const ur_event_handle_t *EventWaitList) {
+  if (!NumEventsInWaitList)
+    return true;
+
+  for (uint32_t i = 0; i < NumEventsInWaitList; ++i) {
+    if (Queue != EventWaitList[i]->UrQueue)
+      return false;
+  }
+
+  return true;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
     ur_queue_handle_t Queue,      ///< [in] handle of the queue object
     uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
@@ -206,21 +220,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
   bool IsInternal = OutEvent == nullptr;
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
 
-  auto WaitListEmptyOrAllEventsFromSameQueue = [Queue, NumEventsInWaitList,
-                                                EventWaitList]() {
-    if (!NumEventsInWaitList)
-      return true;
-
-    for (uint32_t I = 0; I < NumEventsInWaitList; ++I)
-      if (Queue != EventWaitList[I]->UrQueue)
-        return false;
-
-    return true;
-  };
-
   // For in-order queue and wait-list which is empty or has events from
   // the same queue just use the last command event as the barrier event.
-  if (Queue->isInOrderQueue() && WaitListEmptyOrAllEventsFromSameQueue() &&
+  if (Queue->isInOrderQueue() &&
+      WaitListEmptyOrAllEventsFromSameQueue(Queue, NumEventsInWaitList,
+                                            EventWaitList) &&
       Queue->LastCommandEvent && !Queue->LastCommandEvent->IsDiscarded) {
     UR_CALL(urEventRetain(Queue->LastCommandEvent));
     *Event = Queue->LastCommandEvent;
@@ -1189,6 +1193,23 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
       CurQueue->LastCommandEvent && CurQueue->LastCommandEvent->IsDiscarded)
     IncludeLastCommandEvent = false;
 
+  // If we are using L0 native implementation for handling in-order queues,
+  // then we don't need to add the last enqueued event into the waitlist, as
+  // the native driver implementation will already ensure in-order semantics.
+  // The only exception is when a different immediate command was last used on
+  // the same UR Queue.
+  if (CurQueue->Device->useDriverInOrderLists() && CurQueue->isInOrderQueue() &&
+      CurQueue->UsingImmCmdLists) {
+    auto QueueGroup = CurQueue->getQueueGroup(UseCopyEngine);
+    uint32_t QueueGroupOrdinal, QueueIndex;
+    auto NextIndex = QueueGroup.getQueueIndex(&QueueGroupOrdinal, &QueueIndex,
+                                              /*QueryOnly */ true);
+    auto NextImmCmdList = QueueGroup.ImmCmdLists[NextIndex];
+    IncludeLastCommandEvent &=
+        CurQueue->LastUsedCommandList != CurQueue->CommandListMap.end() &&
+        NextImmCmdList != CurQueue->LastUsedCommandList;
+  }
+
   try {
     uint32_t TmpListLength = 0;
 
@@ -1203,6 +1224,16 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
     } else if (EventListLength > 0) {
       this->ZeEventList = new ze_event_handle_t[EventListLength];
       this->UrEventList = new ur_event_handle_t[EventListLength];
+    }
+
+    // For in-order queue and wait-list which is empty or has events only from
+    // the same queue then we don't need to wait on any other additional events
+    if (CurQueue->Device->useDriverInOrderLists() &&
+        CurQueue->isInOrderQueue() &&
+        WaitListEmptyOrAllEventsFromSameQueue(CurQueue, EventListLength,
+                                              EventList)) {
+      this->Length = TmpListLength;
+      return UR_RESULT_SUCCESS;
     }
 
     if (EventListLength > 0) {

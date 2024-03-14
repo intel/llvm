@@ -12,6 +12,11 @@ TEST_P(urProgramBuildTest, Success) {
     ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
 }
 
+TEST_P(urProgramBuildTest, SuccessWithOptions) {
+    const char *pOptions = "";
+    ASSERT_SUCCESS(urProgramBuild(context, program, pOptions));
+}
+
 TEST_P(urProgramBuildTest, InvalidNullHandleContext) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urProgramBuild(nullptr, program, nullptr));
