@@ -636,17 +636,7 @@ bool device_impl::has(aspect Aspect) const {
       return PI_FALSE;
     }
 
-    pi_bool SupportsCommandBufferUpdate = false;
-    CallSuccessful =
-        getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT,
-            sizeof(SupportsCommandBufferUpdate), &SupportsCommandBufferUpdate,
-            nullptr) == PI_SUCCESS;
-    if (!CallSuccessful) {
-      return PI_FALSE;
-    }
-
-    return SupportsCommandBuffers && !SupportsCommandBufferUpdate;
+    return SupportsCommandBuffers;
   }
   case aspect::ext_intel_fpga_task_sequence: {
     return is_accelerator();

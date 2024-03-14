@@ -24,8 +24,9 @@ int main() {
 
   } else if (Backend == backend::ext_oneapi_cuda) {
     assert(SupportsGraphs);
-    assert(!SupportsLimitedGraphs);
+    assert(SupportsLimitedGraphs);
   } else {
     assert(!SupportsGraphs);
+    assert(!SupportsLimitedGraphs);
   }
 }
