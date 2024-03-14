@@ -40,7 +40,7 @@ __AMDGCN_CLC_SUBGROUP_SUB_I32(unsigned short, t);
 _CLC_DEF half _Z28__spirv_SubgroupShuffleINTELIDF16_ET_S0_j(
     half Data, unsigned int InvocationId) {
   union {
-    int i;
+    unsigned i;
     half h;
   } tmp;
   tmp.h = Data;
@@ -182,7 +182,7 @@ __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(unsigned short, t);
 _CLC_DEF half _Z31__spirv_SubgroupShuffleXorINTELIDF16_ET_S0_j(
     half Data, unsigned int InvocationId) {
   union {
-    int i;
+    unsigned i;
     half h;
   } tmp;
   tmp.h = Data;
@@ -342,12 +342,12 @@ __AMDGCN_CLC_SUBGROUP_UP_SUB_I32(unsigned short, t);
 _CLC_DEF half _Z30__spirv_SubgroupShuffleUpINTELIDF16_ET_S0_S0_j(
     half previous, half current, unsigned int delta) {
   union {
-    int i;
+    unsigned i;
     half h;
   } tmp_p;
   tmp_p.h = previous;
   union {
-    int i;
+    unsigned i;
     half h;
   } tmp_c;
   tmp_c.h = current;
@@ -510,12 +510,12 @@ __AMDGCN_CLC_SUBGROUP_DOWN_TO_I32(unsigned short, t);
 _CLC_DEF half _Z32__spirv_SubgroupShuffleDownINTELIDF16_ET_S0_S0_j(
     half current, half next, unsigned int delta) {
   union {
-    int i;
+    unsigned i;
     half h;
   } tmp_c;
   tmp_c.h = current;
   union {
-    int i;
+    unsigned i;
     half h;
   } tmp_n;
   tmp_n.h = next;
