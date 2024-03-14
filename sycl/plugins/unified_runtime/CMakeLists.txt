@@ -57,15 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit d99d5f742cea18d7204c59c4320b8ea0329b49eb (HEAD -> main)
-  # Merge: f17c0e91 c3809c61
+  # commit 418ad5354ca24a6dfbd01df803949855b7a6c3dd
+  # Merge: d99d5f74 26682290
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Mar 13 19:47:39 2024 +0000
-  #
-  #     Merge pull request #1431 from zhaomaosu/fix-ocl-adapter-tear-down
-  #
-  #     [CL] Gracefully tear down adapter in case that some globals have been released
-  set(UNIFIED_RUNTIME_TAG d99d5f742cea18d7204c59c4320b8ea0329b49eb)
+  # Date:   Thu Mar 14 10:19:56 2024 +0000
+  #     Merge pull request #1365 from Bensuo/maxime/improve-L0-cmd-buffer-enqueing
+  #     [EXP][CMDBUF] Move event reset commands to dedicated cmd-list
+  set(UNIFIED_RUNTIME_TAG 418ad5354ca24a6dfbd01df803949855b7a6c3dd)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
