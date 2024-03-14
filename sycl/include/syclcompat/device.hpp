@@ -45,7 +45,9 @@
 #include <unistd.h>
 #endif
 #if defined(_WIN64)
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <windows.h>
 #endif
 
@@ -56,11 +58,10 @@
 
 namespace syclcompat {
 
-// Note: this is all code from SYCLomatic's device.hpp helper header
 namespace detail {
 
 /// SYCL default exception handler
-auto exception_handler = [](sycl::exception_list exceptions) {
+inline auto exception_handler = [](sycl::exception_list exceptions) {
   for (std::exception_ptr const &e : exceptions) {
     try {
       std::rethrow_exception(e);
@@ -514,8 +515,8 @@ private:
 
 } // namespace detail
 
-inline sycl::queue create_queue(bool print_on_async_exceptions = false,
-                                bool in_order = true) {
+static inline sycl::queue create_queue(bool print_on_async_exceptions = false,
+                                       bool in_order = true) {
   return *detail::dev_mgr::instance().current_device().create_queue(
       print_on_async_exceptions, in_order);
 }
@@ -537,7 +538,11 @@ static inline void set_default_queue(const sycl::queue &q) {
   detail::dev_mgr::instance().current_device().set_default_queue(q);
 }
 
-inline void wait(sycl::queue q = get_default_queue()) { q.wait(); }
+static inline void wait(sycl::queue q = get_default_queue()) { q.wait(); }
+
+static inline void wait_and_throw(sycl::queue q = get_default_queue()) {
+  q.wait_and_throw();
+}
 
 /// Util function to get the id of current device in
 /// device manager.

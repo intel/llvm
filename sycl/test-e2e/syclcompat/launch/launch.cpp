@@ -23,11 +23,13 @@
 // RUN: %clangxx -std=c++20 -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
+#include <type_traits>
+
 #include <sycl/sycl.hpp>
+
 #include <syclcompat/device.hpp>
 #include <syclcompat/launch.hpp>
-
-#include <type_traits>
+#include <syclcompat/memory.hpp>
 
 #include "../common.hpp"
 #include "launch_fixt.hpp"
