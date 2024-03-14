@@ -7,7 +7,8 @@
 ; RUN: -o %t.table \
 ; RUN: -o intel_gpu_pvc,%t-pvc.table \
 ; RUN: -o intel_gpu_tgllp,%t-tgllp.table \
-; RUN: -o intel_gpu_cfl,%t-cfl.table
+; RUN: -o intel_gpu_cfl,%t-cfl.table \
+; RUN: -o unrecognized_target,%t-unrecognized.table
 
 ; RUN: FileCheck %s -input-file=%t_0.sym -check-prefix=CHECK-DOUBLE
 ; RUN: FileCheck %s -input-file=%t_1.sym -check-prefix=CHECK-SG8
@@ -17,6 +18,7 @@
 ; RUN: FileCheck %s -input-file=%t_5.sym -check-prefix=CHECK-SG16
 
 ; RUN: FileCheck %s -input-file=%t.table -check-prefix=CHECK-ALL
+; RUN: FileCheck %s -input-file=%t-unrecognized.table -check-prefix=CHECK-ALL
 ; RUN: FileCheck %s -input-file=%t-pvc.table -check-prefix=CHECK-PVC
 ; RUN: FileCheck %s -input-file=%t-tgllp.table -check-prefix=CHECK-TGLLP
 ; RUN: FileCheck %s -input-file=%t-cfl.table -check-prefix=CHECK-CFL
@@ -28,6 +30,8 @@
 ; CHECK-SG32: reqd_sub_group_size_kernel_32
 ; CHECK-SG64: reqd_sub_group_size_kernel_64
 
+; An output without a target will have no filtering performed on the output table.
+; Additionally, an unrecognized target will perform the same.
 ; CHECK-ALL:      _0.sym
 ; CHECK-ALL-NEXT: _1.sym
 ; CHECK-ALL-NEXT: _2.sym
