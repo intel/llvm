@@ -384,7 +384,7 @@ q.submit([&](sycl::handler& cgh) {
 });
 ----
 
-=== Future Directions
+== Future Directions
 
 As a future extension load/store can be used with temporary memory buffer,
 which can be passed via `Group` such as `group_with_scratchpad`.
