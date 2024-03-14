@@ -57,13 +57,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/fabiomestre/unified-runtime.git")
-  # commit 588615e90bfd2b889834120dfff172236c6b8aa8
-  # Merge: 4e69cc60 47084751
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Feb 22 16:10:13 2024 +0000
-  #     Merge pull request #1371 from pbalcer/l0-query-status-sync-deadlock
-  #     [L0] fix a deadlock in queue sync and event status query
-  set(UNIFIED_RUNTIME_TAG 1bc658a97c53c093b63ee1950147813401c8fd21)
+  set(UNIFIED_RUNTIME_TAG 6297b7fa772d93bfb4844836fe8b3e1036dd29a1)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
