@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1cf9a08e6a98381fadbc065de2700b463d2a44a4
-  # Merge: c49b116f 0446c65e
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Mar 13 09:48:36 2024 +0000
-  #     Merge pull request #1368 from konradkusiak97/xptiWindowsFix
-  #     [CUDA][XPTI] Fix function pointer typedefs in xpti tracing
-  set(UNIFIED_RUNTIME_TAG 1cf9a08e6a98381fadbc065de2700b463d2a44a4)
+  # commit ec634ff05b067d7922ec45059dda94665e5dcd9b
+  # Merge: 418ad535 8714b853
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Thu Mar 14 15:52:52 2024 +0100
+  #     Merge pull request #1438 from PatKamin/disable-fuzztests
+  #     Disable fuzz tests on ubuntu-22.04 runner
+  set(UNIFIED_RUNTIME_TAG ec634ff05b067d7922ec45059dda94665e5dcd9b)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
