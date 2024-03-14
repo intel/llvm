@@ -126,8 +126,7 @@ in the group.
 ._Constraints_:
 * Only available if `Group` is a work-group or sub-group.
 * `InputIteratorT` suppose to be a random access iterator.
-* value type of `InputIteratorT` and `OutputT` types must be convertible basic
-scalar types supported in device code.
+* Value type of `InputIteratorT` must be convertible to `OutputT`.
 
 _Effects_: Loads `N` elements from `in_iter` to `out`
 using the `g` group object.
@@ -226,8 +225,7 @@ in the group.
 ._Constraints_:
 * Only available if `Group` is a work-group or sub-group.
 * `OutputIteratorT` suppose to be a random access iterator.
-* value type of `OutputIteratorT` and `InputT` types must be convertible basic
-scalar types supported in device code.
+* `InputT` must be convertible to value type of `OutputIteratorT`.
 
 _Effects_: Stores `N` elements from `in` vec to `out_iter`
 using the `g` group object.
@@ -287,7 +285,7 @@ there is a enum
 namespace sycl::ext::oneapi::experimental {
 
 // Properties:
-enum class group_algorithm_data_placement {
+enum class data_placement_enum {
   blocked,
   striped
 };
@@ -303,7 +301,7 @@ Data placement layout example on group_load:
 
 Consider 2 layouts:
 
-1.`sycl::ext::oneapi::experimental::group_algorithm_data_placement::blocked`.
+1.`sycl::ext::oneapi::experimental::data_placement_enum::blocked`.
 
 |===
 |Work-item id|Output stored in private fixed-size array
@@ -316,7 +314,7 @@ Consider 2 layouts:
 |{8, 9, 10, 11}
 |===
 
-2.`sycl::ext::oneapi::experimental::group_algorithm_data_placement::striped`.
+2.`sycl::ext::oneapi::experimental::data_placement_enum::striped`.
 
 |===
 |Work-item id|Output stored in private fixed-size array
@@ -336,18 +334,29 @@ link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_e
 `input_data_placement` and `output_data_placement`:
 [source,c++]
 ----
-namespace sycl::ext::oneapi::experimental::property
-{
-    template<group_algorithm_data_placement type>
-    struct data_placement;
-}
+namespace sycl::ext::oneapi::experimental::property {
+
+struct data_placement_key {
+  template <data_placement_enum Type>
+  using value_t =
+      property_value<data_placement_key,
+                     std::integral_constant<data_placement_enum, Type>>;
+};
+
+template <data_placement_enum Type>
+inline constexpr data_placement_key::value_t<Type> data_placement;
+
+inline constexpr data_placement_key::value_t<data_placement_enum::blocked> data_placement_blocked;
+inline constexpr data_placement_key::value_t<data_placement_enum::striped> data_placement_striped;
+
+} // namespace sycl::ext::oneapi::experimental::property
 ----
 
 Specifies data layout used in group_load/store for `sycl::vec` or fixed-size
 arrays functions.
 
 Example:
-`group_load(g, input, output_span, properties<data_placement<blocked>>{});`
+`group_load(g, input, output_span, property::data_placement_blocked);`
 
 == Usage Example
 
@@ -365,9 +374,8 @@ constexpr std::size_t block_count = 2;
 constexpr std::size_t size = block_count * block_size * items_per_thread;
 
 sycl::queue q;
-sycl::usm_allocator<T, sycl::usm::alloc::device, 64> allocator(q);
-std::vector<T, decltype(allocator)> input(size, allocator);
-std::vector<T, decltype(allocator)> output(size, allocator);
+T* input = sycl::malloc_device<T>(size, q);
+T* output = sycl::malloc_device<T>(size, q);
 
 q.submit([&](sycl::handler& cgh) {
     cgh.parallel_for(
@@ -375,11 +383,16 @@ q.submit([&](sycl::handler& cgh) {
         [=](sycl::nd_item<1> item) {
             T data[items_per_thread];
 
-            sycl_exp::group_load(item.get_group(), input.data(), sycl::span{ data });
+            auto g = item.get_group();
+
+            auto offset = g.get_group_id(0) * g.get_local_range(0) *
+                                       items_per_thread;
+
+            sycl_exp::group_load(g, input + offset, sycl::span{ data });
 
             // Work with data...
 
-            sycl_exp::group_store(item.get_group(), output.data(), sycl::span{ data });
+            sycl_exp::group_store(g, output + offset, sycl::span{ data });
         });
 });
 ----
@@ -413,14 +426,14 @@ size required for each sub-group. If other scope values are passed, behavior is
 unspecified.
 `block_size` represents the a range size for load/store, e.g. work group size.
 
-==== Dependency:
+=== Dependency:
 
 * link:../proposed/sycl_ext_oneapi_group_sort.asciidoc[
   sycl_ext_oneapi_group_sort] (`group_with_scratchpad` class used as `Group` or
   `GroupHelper`).
 
 
-==== Examples for `group_with_scratchpad`
+=== Examples for `group_with_scratchpad`
 
 1.Example shows the simple case of blocked load of global memory from `input` to
 the private array `data` and store it back to `output`
@@ -436,9 +449,8 @@ constexpr std::size_t block_count = 2;
 constexpr std::size_t size = block_count * block_size * items_per_thread;
 
 sycl::queue q;
-sycl::usm_allocator<T, sycl::usm::alloc::device, 64> allocator(q);
-std::vector<T, decltype(allocator)> input(size, allocator);
-std::vector<T, decltype(allocator)> output(size, allocator);
+T* input = sycl::malloc_device<T>(size, q);
+T* output = sycl::malloc_device<T>(size, q);
 
 q.submit([&](sycl::handler& cgh) {
     constexpr auto temp_memory_size = sycl_exp::memory_required<T, items_per_thread>(
@@ -447,16 +459,20 @@ q.submit([&](sycl::handler& cgh) {
     cgh.parallel_for(
         sycl::nd_range<1>(block_count * block_size, block_size),
         [=](sycl::nd_item<1> item) {
+            auto g = item.get_group();
+
+            auto offset = g.get_group_id(0) * g.get_local_range(0) * items_per_thread;
+
             T data[items_per_thread];
             std::byte* buf_ptr = buf.get_pointer().get();
-            sycl_exp::group_with_scratchpad gh{ item.get_group(),
+            sycl_exp::group_with_scratchpad gh{ g,
                                                 sycl::span{ buf_ptr, temp_memory_size } };
 
-            sycl_exp::group_load(gh, input.data(), sycl::span{ data });
+            sycl_exp::group_load(gh, input + offset, sycl::span{ data });
 
             // Work with data...
 
-            sycl_exp::group_store(gh, output.data(), sycl::span{ data });
+            sycl_exp::group_store(gh, output + offset, sycl::span{ data });
         });
 });
 ----
@@ -478,22 +494,22 @@ q.submit([&](sycl::handler& cgh) {
     cgh.parallel_for(
         sycl::nd_range<1>(block_count * block_size, block_size),
         [=](sycl::nd_item<1> item) {
+            auto g = item.get_group();
+
+            auto offset = g.get_group_id(0) * g.get_local_range(0) * items_per_thread;
             T data[items_per_thread];
             auto scratch =
-                sycl::ext::oneapi::group_local_memory<std::byte[temp_memory_size]>(
-                    item.get_group());
+                sycl::ext::oneapi::group_local_memory<std::byte[temp_memory_size]>(g);
             std::byte* buf_ptr = (std::byte*)(scratch.get());
 
-            sycl_exp::group_with_scratchpad gh{ item.get_group(),
+            sycl_exp::group_with_scratchpad gh{ g,
                                                 sycl::span{ buf_ptr, temp_memory_size } };
 
-            sycl_exp::group_load(gh, input.data(), sycl::span{ data },
-                                 sycl::properties<sycl_exp::data_placement<sycl_exp::striped>>{});
+            sycl_exp::group_load(gh, input + offset, sycl::span{ data }, property::data_placement_striped);
 
             // Work with data...
 
-            sycl_exp::group_store(gh, output.data(), sycl::span{ data },
-                                  sycl::properties<sycl_exp::data_placement<sycl_exp::striped>>{});
+            sycl_exp::group_store(gh, output + offset, sycl::span{ data }, property::data_placement_striped);
         });
 });
 ----
