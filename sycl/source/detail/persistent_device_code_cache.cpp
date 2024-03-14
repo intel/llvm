@@ -142,9 +142,13 @@ void PersistentDeviceCodeCache::putItemToDisc(
                       BuildOptionsString);
     }
   } catch ( std::exception &e){
-    PersistentDeviceCodeCache::trace(std::string("exception encountered making persistent cache: ") + e.what());
+    PersistentDeviceCodeCache::trace(
+        std::string("exception encountered making persistent cache: ") +
+        e.what());
   } catch (...) {
-    PersistentDeviceCodeCache::trace(std::string("error outputting persistent cache: ") + std::strerror(errno));
+    PersistentDeviceCodeCache::trace(
+        std::string("error outputting persistent cache: ") +
+        std::strerror(errno));
  }
 }
 
