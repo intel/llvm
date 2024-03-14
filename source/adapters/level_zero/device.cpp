@@ -1060,7 +1060,7 @@ bool ur_device_handle_t_::useDriverInOrderLists() {
   static const bool UseDriverInOrderLists = [] {
     const char *UrRet = std::getenv("UR_L0_USE_DRIVER_INORDER_LISTS");
     if (!UrRet)
-      return false;
+      return true;
     return std::atoi(UrRet) != 0;
   }();
 
