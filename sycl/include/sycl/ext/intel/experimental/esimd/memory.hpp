@@ -602,11 +602,13 @@ lsc_slm_gather(__ESIMD_NS::simd<uint32_t, N> offsets,
 /// is not performed and the returned value is undefined.
 /// @return is a vector of type T and size NElts
 ///
-template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size>
+template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
+          typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
 __ESIMD_API __ESIMD_NS::simd<T, NElts>
-lsc_slm_block_load(uint32_t offset, __ESIMD_NS::simd_mask<1> pred = 1) {
-  constexpr size_t DefaultAlignment = sizeof(T) <= 4 ? 4 : sizeof(T);
-  __ESIMD_NS::properties Props{__ESIMD_NS::alignment<DefaultAlignment>};
+lsc_slm_block_load(uint32_t offset, __ESIMD_NS::simd_mask<1> pred = 1,
+                   FlagsT flags = FlagsT{}) {
+  __ESIMD_NS::properties Props{__ESIMD_NS::alignment<
+      FlagsT::template alignment<__ESIMD_NS::simd<T, NElts>>>};
   return __ESIMD_NS::slm_block_load<T, NElts>(offset, pred, Props);
 }
 
@@ -627,12 +629,13 @@ lsc_slm_block_load(uint32_t offset, __ESIMD_NS::simd_mask<1> pred = 1) {
 /// the parameter \p pred contains 0.
 /// @return is a vector of type T and size NElts.
 ///
-template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size>
+template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
+          typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
 __ESIMD_API __ESIMD_NS::simd<T, NElts>
 lsc_slm_block_load(uint32_t offset, __ESIMD_NS::simd_mask<1> pred,
                    __ESIMD_NS::simd<T, NElts> pass_thru) {
-  constexpr size_t DefaultAlignment = sizeof(T) <= 4 ? 4 : sizeof(T);
-  __ESIMD_NS::properties Props{__ESIMD_NS::alignment<DefaultAlignment>};
+  __ESIMD_NS::properties Props{__ESIMD_NS::alignment<
+      FlagsT::template alignment<__ESIMD_NS::simd<T, NElts>>>};
   return __ESIMD_NS::slm_block_load<T, NElts>(offset, pred, pass_thru, Props);
 }
 
@@ -1086,7 +1089,7 @@ __ESIMD_API std::enable_if_t<
 lsc_block_load(AccessorTy acc, uint32_t offset,
                __ESIMD_NS::simd_mask<1> pred = 1, FlagsT flags = FlagsT{}) {
   return lsc_slm_block_load<T, NElts, DS>(
-      offset + __ESIMD_DNS::localAccessorToOffset(acc), pred);
+      offset + __ESIMD_DNS::localAccessorToOffset(acc), pred, flags);
 }
 
 /// A variation of lsc_block_load without predicate parameter to simplify use
@@ -1207,7 +1210,7 @@ __ESIMD_API std::enable_if_t<
 lsc_block_load(AccessorTy acc, uint32_t offset, __ESIMD_NS::simd_mask<1> pred,
                __ESIMD_NS::simd<T, NElts> pass_thru, FlagsT flags = FlagsT{}) {
   return lsc_slm_block_load<T, NElts, DS>(
-      offset + __ESIMD_DNS::localAccessorToOffset(acc), pred, pass_thru);
+      offset + __ESIMD_DNS::localAccessorToOffset(acc), pred, pass_thru, flags);
 }
 
 /// USM pointer prefetch gather.
@@ -1395,12 +1398,14 @@ __ESIMD_API void lsc_slm_scatter(__ESIMD_NS::simd<uint32_t, N> offsets,
 /// @param offset is the zero-based offset for SLM buffer in bytes.
 /// @param vals is values to store.
 ///
-template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size>
+template <typename T, int NElts, lsc_data_size DS = lsc_data_size::default_size,
+          typename FlagsT = __ESIMD_DNS::dqword_element_aligned_tag>
 __ESIMD_API void lsc_slm_block_store(uint32_t offset,
-                                     __ESIMD_NS::simd<T, NElts> vals) {
+                                     __ESIMD_NS::simd<T, NElts> vals,
+                                     FlagsT flags = FlagsT{}) {
   // Make sure we generate an LSC block store
-  constexpr size_t DefaultAlignment = sizeof(T) <= 4 ? 4 : sizeof(T);
-  __ESIMD_NS::properties Props{__ESIMD_NS::alignment<DefaultAlignment>};
+  __ESIMD_NS::properties Props{__ESIMD_NS::alignment<
+      FlagsT::template alignment<__ESIMD_NS::simd<T, NElts>>>};
   __ESIMD_NS::simd_mask<1> pred = 1;
   __ESIMD_NS::slm_block_store<T, NElts>(offset, vals, pred, Props);
 }
@@ -1666,7 +1671,7 @@ __ESIMD_API std::enable_if_t<
 lsc_block_store(AccessorTy acc, uint32_t offset,
                 __ESIMD_NS::simd<T, NElts> vals, FlagsT flags = FlagsT{}) {
   lsc_slm_block_store<T, NElts, DS>(
-      offset + __ESIMD_DNS::localAccessorToOffset(acc), vals);
+      offset + __ESIMD_DNS::localAccessorToOffset(acc), vals, flags);
 }
 
 /// A variation of lsc_block_store without predicate parameter to simplify
