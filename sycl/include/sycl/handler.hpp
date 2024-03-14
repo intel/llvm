@@ -937,8 +937,9 @@ private:
     } else {
       // In case w/o the integration header it is necessary to process
       // accessors from the list(which are associated with this handler) as
-      // arguments.
-      MArgs = std::move(MAssociatedAccesors);
+      // arguments. We must copy the associated accessors as they are checked
+      // later during finalize.
+      MArgs = MAssociatedAccesors;
     }
 
     // If the kernel lambda is callable with a kernel_handler argument, manifest
@@ -1818,7 +1819,9 @@ private:
     throwIfActionIsCreated();
 
     MNDRDesc.set(range<1>(1));
-    MArgs = std::move(MAssociatedAccesors);
+    // Need to copy these rather than move so that we can check associated
+    // accessors during finalize
+    MArgs = MAssociatedAccesors;
 
     MHostTask.reset(new detail::HostTask(std::move(Func)));
 
