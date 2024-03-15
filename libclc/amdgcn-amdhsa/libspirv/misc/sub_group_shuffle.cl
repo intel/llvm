@@ -39,12 +39,10 @@ __AMDGCN_CLC_SUBGROUP_SUB_I32(unsigned short, t);
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable
 _CLC_DEF half _Z28__spirv_SubgroupShuffleINTELIDF16_ET_S0_j(
     half Data, unsigned int InvocationId) {
-  unsigned short *DataPtr = (unsigned short *)&Data;
-  unsigned short tmp = DataPtr[0];
+  unsigned short tmp = as_ushort(Data);
   tmp = (unsigned short)_Z28__spirv_SubgroupShuffleINTELIiET_S0_j((int)tmp,
                                                                   InvocationId);
-  DataPtr[0] = tmp;
-  return Data;
+  return as_half(tmp);
 }
 #endif // cl_khr_fp16
 
@@ -180,12 +178,10 @@ __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32(unsigned short, t);
 #ifdef cl_khr_fp16
 _CLC_DEF half _Z31__spirv_SubgroupShuffleXorINTELIDF16_ET_S0_j(
     half Data, unsigned int InvocationId) {
-  unsigned short *DataPtr = (unsigned short *)&Data;
-  unsigned short tmp = DataPtr[0];
+  unsigned short tmp = as_ushort(Data);
   tmp = (unsigned short)_Z31__spirv_SubgroupShuffleXorINTELIiET_S0_j(
       (int)tmp, InvocationId);
-  DataPtr[0] = tmp;
-  return Data;
+  return as_half(tmp);
 }
 #endif // cl_khr_fp16
 #undef __AMDGCN_CLC_SUBGROUP_XOR_SUB_I32
@@ -339,14 +335,11 @@ __AMDGCN_CLC_SUBGROUP_UP_SUB_I32(unsigned short, t);
 #ifdef cl_khr_fp16
 _CLC_DEF half _Z30__spirv_SubgroupShuffleUpINTELIDF16_ET_S0_S0_j(
     half previous, half current, unsigned int delta) {
-  unsigned short *previousPtr = (unsigned short *)&previous;
-  unsigned short *currentPtr = (unsigned short *)&current;
-  unsigned short tmpP = previousPtr[0];
-  unsigned short tmpC = currentPtr[0];
+  unsigned short tmpP = as_ushort(previous);
+  unsigned short tmpC = as_ushort(current);
   tmpC = (unsigned short)_Z30__spirv_SubgroupShuffleUpINTELIiET_S0_S0_j(
       (int)tmpP, (int)tmpC, delta);
-  currentPtr[0] = tmpC;
-  return current;
+  return as_half(tmpC);
 }
 #endif // cl_khr_fp16
 #undef __AMDGCN_CLC_SUBGROUP_UP_SUB_I32
@@ -502,14 +495,11 @@ __AMDGCN_CLC_SUBGROUP_DOWN_TO_I32(unsigned short, t);
 #ifdef cl_khr_fp16
 _CLC_DEF half _Z32__spirv_SubgroupShuffleDownINTELIDF16_ET_S0_S0_j(
     half current, half next, unsigned int delta) {
-  unsigned short *currentPtr = (unsigned short *)&current;
-  unsigned short *nextPtr = (unsigned short *)&next;
-  unsigned short tmpC = currentPtr[0];
-  unsigned short tmpN = nextPtr[0];
+  unsigned short tmpC = as_ushort(current);
+  unsigned short tmpN = as_ushort(next);
   tmpC = (unsigned short)_Z32__spirv_SubgroupShuffleDownINTELIiET_S0_S0_j(
       (int)tmpC, (int)tmpN, delta);
-  currentPtr[0] = tmpC;
-  return current;
+  return as_half(tmpC);
 }
 #endif // cl_khr_fp16
 #undef __AMDGCN_CLC_SUBGROUP_DOWN_TO_I32
