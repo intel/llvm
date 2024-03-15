@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "git@git.office.codeplay.com:orion/unified-runtime.git")
-  # commit 1cf9a08e6a98381fadbc065de2700b463d2a44a4
-  # Merge: c49b116f 0446c65e
+  # commit 418ad5354ca24a6dfbd01df803949855b7a6c3dd
+  # Merge: d99d5f74 26682290
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Mar 13 09:48:36 2024 +0000
-  #     Merge pull request #1368 from konradkusiak97/xptiWindowsFix
-  #     [CUDA][XPTI] Fix function pointer typedefs in xpti tracing
-  # set(UNIFIED_RUNTIME_TAG 1cf9a08e6a98381fadbc065de2700b463d2a44a4)
+  # Date:   Thu Mar 14 10:19:56 2024 +0000
+  #     Merge pull request #1365 from Bensuo/maxime/improve-L0-cmd-buffer-enqueing
+  #     [EXP][CMDBUF] Move event reset commands to dedicated cmd-list
+  # set(UNIFIED_RUNTIME_TAG 418ad5354ca24a6dfbd01df803949855b7a6c3dd)
   set(UNIFIED_RUNTIME_TAG uwe/subgroups)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
