@@ -20,7 +20,7 @@ namespace ext::intel::experimental::esimd::detail {
 
 template <unsigned int N, unsigned int M>
 constexpr unsigned int roundUpNextMultiple() {
-  return ((N + M - 1) / M) * M;
+  return __ESIMD_DNS::roundUpNextMultiple<N, M>();
 }
 
 /// Compile-time checks if first template parameter is equal for any other
