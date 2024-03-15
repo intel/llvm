@@ -77,16 +77,6 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   #     [Bindless][CUDA] Unique addressing modes per dimension
 #  set(UNIFIED_RUNTIME_TAG 3225b822b5d8cbfa85d7fc1bd5a5bf96e5bb8c1a)
 
-=======
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ec634ff05b067d7922ec45059dda94665e5dcd9b
-  # Merge: 418ad535 8714b853
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Thu Mar 14 15:52:52 2024 +0100
-  #     Merge pull request #1438 from PatKamin/disable-fuzztests
-  #     Disable fuzz tests on ubuntu-22.04 runner
-  set(UNIFIED_RUNTIME_TAG ec634ff05b067d7922ec45059dda94665e5dcd9b)
->>>>>>> sycl
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
