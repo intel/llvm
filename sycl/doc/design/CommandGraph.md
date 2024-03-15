@@ -389,7 +389,7 @@ the other commands are enqueued in the general command-list.
 On submission, if not empty, the *copy* command-list is sent to 
 the main copy command-queue while the general command-list is sent to 
 the compute command-queue.
-Both are executed concurrently. Synchonization between the command-lists is 
+Both are executed concurrently. Synchronization between the command-lists is 
 handled by Level-Zero events.
 
 ### CUDA
