@@ -409,15 +409,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueReadHostPipe(
           cl_ext::EnqueueReadHostPipeName, &FuncPtr));
 
   if (FuncPtr) {
-    RetVal = mapCLErrorToUR(
+    CL_RETURN_ON_FAILURE(mapCLErrorToUR(
         FuncPtr(cl_adapter::cast<cl_command_queue>(hQueue),
                 cl_adapter::cast<cl_program>(hProgram), pipe_symbol, blocking,
                 pDst, size, numEventsInWaitList,
                 cl_adapter::cast<const cl_event *>(phEventWaitList),
-                cl_adapter::cast<cl_event *>(phEvent)));
+                cl_adapter::cast<cl_event *>(phEvent))));
   }
 
-  return RetVal;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
@@ -441,13 +441,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
           cl_ext::EnqueueWriteHostPipeName, &FuncPtr));
 
   if (FuncPtr) {
-    RetVal = mapCLErrorToUR(
+    CL_RETURN_ON_FAILURE(mapCLErrorToUR(
         FuncPtr(cl_adapter::cast<cl_command_queue>(hQueue),
                 cl_adapter::cast<cl_program>(hProgram), pipe_symbol, blocking,
                 pSrc, size, numEventsInWaitList,
                 cl_adapter::cast<const cl_event *>(phEventWaitList),
-                cl_adapter::cast<cl_event *>(phEvent)));
+                cl_adapter::cast<cl_event *>(phEvent))));
   }
 
-  return RetVal;
+  return UR_RESULT_SUCCESS;
 }
