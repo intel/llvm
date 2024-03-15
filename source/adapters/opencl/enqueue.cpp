@@ -351,8 +351,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
       Ctx, cl_ext::ExtFuncPtrCache->clEnqueueWriteGlobalVariableCache,
       cl_ext::EnqueueWriteGlobalVariableName, &F);
 
-  if (!F || Res != CL_SUCCESS)
-    return UR_RESULT_ERROR_INVALID_OPERATION;
+  if (Res != CL_SUCCESS)
+    return Res;
 
   Res = F(cl_adapter::cast<cl_command_queue>(hQueue),
           cl_adapter::cast<cl_program>(hProgram), name, blockingWrite, count,
@@ -382,8 +382,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
       Ctx, cl_ext::ExtFuncPtrCache->clEnqueueReadGlobalVariableCache,
       cl_ext::EnqueueReadGlobalVariableName, &F);
 
-  if (!F || Res != CL_SUCCESS)
-    return UR_RESULT_ERROR_INVALID_OPERATION;
+  if (Res != CL_SUCCESS)
+    return Res;
 
   Res = F(cl_adapter::cast<cl_command_queue>(hQueue),
           cl_adapter::cast<cl_program>(hProgram), name, blockingRead, count,
