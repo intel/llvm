@@ -26,8 +26,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
           CLContext, cl_ext::ExtFuncPtrCache->clCreateCommandBufferKHRCache,
           cl_ext::CreateCommandBufferName, &clCreateCommandBufferKHR);
 
-  if (!clCreateCommandBufferKHR || Res != CL_SUCCESS)
-    return UR_RESULT_ERROR_INVALID_OPERATION;
+  if (Res != CL_SUCCESS)
+    return Res;
 
   auto CLCommandBuffer = clCreateCommandBufferKHR(
       1, cl_adapter::cast<cl_command_queue *>(&Queue), nullptr, &Res);
@@ -55,8 +55,8 @@ urCommandBufferRetainExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
       CLContext, cl_ext::ExtFuncPtrCache->clRetainCommandBufferKHRCache,
       cl_ext::RetainCommandBufferName, &clRetainCommandBuffer);
 
-  if (!clRetainCommandBuffer || Res != CL_SUCCESS)
-    return UR_RESULT_ERROR_INVALID_OPERATION;
+  if (Res != CL_SUCCESS)
+    return Res;
 
   CL_RETURN_ON_FAILURE(clRetainCommandBuffer(hCommandBuffer->CLCommandBuffer));
   return UR_RESULT_SUCCESS;
@@ -73,8 +73,8 @@ urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
           CLContext, cl_ext::ExtFuncPtrCache->clReleaseCommandBufferKHRCache,
           cl_ext::ReleaseCommandBufferName, &clReleaseCommandBufferKHR);
 
-  if (!clReleaseCommandBufferKHR || Res != CL_SUCCESS)
-    return UR_RESULT_ERROR_INVALID_OPERATION;
+  if (Res != CL_SUCCESS)
+    return Res;
 
   CL_RETURN_ON_FAILURE(
       clReleaseCommandBufferKHR(hCommandBuffer->CLCommandBuffer));
@@ -90,8 +90,8 @@ urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
           CLContext, cl_ext::ExtFuncPtrCache->clFinalizeCommandBufferKHRCache,
           cl_ext::FinalizeCommandBufferName, &clFinalizeCommandBufferKHR);
 
-  if (!clFinalizeCommandBufferKHR || Res != CL_SUCCESS)
-    return UR_RESULT_ERROR_INVALID_OPERATION;
+  if (Res != CL_SUCCESS)
+    return Res;
 
   CL_RETURN_ON_FAILURE(
       clFinalizeCommandBufferKHR(hCommandBuffer->CLCommandBuffer));
@@ -114,8 +114,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
           CLContext, cl_ext::ExtFuncPtrCache->clCommandNDRangeKernelKHRCache,
           cl_ext::CommandNRRangeKernelName, &clCommandNDRangeKernelKHR);
 
-  if (!clCommandNDRangeKernelKHR || Res != CL_SUCCESS)
-    return UR_RESULT_ERROR_INVALID_OPERATION;
+  if (Res != CL_SUCCESS)
+    return Res;
 
   CL_RETURN_ON_FAILURE(clCommandNDRangeKernelKHR(
       hCommandBuffer->CLCommandBuffer, nullptr, nullptr,
@@ -161,8 +161,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
       CLContext, cl_ext::ExtFuncPtrCache->clCommandCopyBufferKHRCache,
       cl_ext::CommandCopyBufferName, &clCommandCopyBufferKHR);
 
-  if (!clCommandCopyBufferKHR || Res != CL_SUCCESS)
-    return UR_RESULT_ERROR_INVALID_OPERATION;
+  if (Res != CL_SUCCESS)
+    return Res;
 
   CL_RETURN_ON_FAILURE(clCommandCopyBufferKHR(
       hCommandBuffer->CLCommandBuffer, nullptr,
@@ -198,8 +198,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
           CLContext, cl_ext::ExtFuncPtrCache->clCommandCopyBufferRectKHRCache,
           cl_ext::CommandCopyBufferRectName, &clCommandCopyBufferRectKHR);
 
-  if (!clCommandCopyBufferRectKHR || Res != CL_SUCCESS)
-    return UR_RESULT_ERROR_INVALID_OPERATION;
+  if (Res != CL_SUCCESS)
+    return Res;
 
   CL_RETURN_ON_FAILURE(clCommandCopyBufferRectKHR(
       hCommandBuffer->CLCommandBuffer, nullptr,
@@ -287,8 +287,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
       CLContext, cl_ext::ExtFuncPtrCache->clCommandFillBufferKHRCache,
       cl_ext::CommandFillBufferName, &clCommandFillBufferKHR);
 
-  if (!clCommandFillBufferKHR || Res != CL_SUCCESS)
-    return UR_RESULT_ERROR_INVALID_OPERATION;
+  if (Res != CL_SUCCESS)
+    return Res;
 
   CL_RETURN_ON_FAILURE(clCommandFillBufferKHR(
       hCommandBuffer->CLCommandBuffer, nullptr,
@@ -344,8 +344,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
           CLContext, cl_ext::ExtFuncPtrCache->clEnqueueCommandBufferKHRCache,
           cl_ext::EnqueueCommandBufferName, &clEnqueueCommandBufferKHR);
 
-  if (!clEnqueueCommandBufferKHR || Res != CL_SUCCESS)
-    return UR_RESULT_ERROR_INVALID_OPERATION;
+  if (Res != CL_SUCCESS)
+    return Res;
 
   const uint32_t NumberOfQueues = 1;
 
@@ -387,8 +387,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
           CLContext, cl_ext::ExtFuncPtrCache->clGetCommandBufferInfoKHRCache,
           cl_ext::GetCommandBufferInfoName, &clGetCommandBufferInfoKHR);
 
-  if (!clGetCommandBufferInfoKHR || Res != CL_SUCCESS)
-    return UR_RESULT_ERROR_INVALID_OPERATION;
+  if (Res != CL_SUCCESS)
+    return Res;
 
   if (propName != UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT) {
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
