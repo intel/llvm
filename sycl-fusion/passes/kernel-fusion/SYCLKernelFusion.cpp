@@ -404,8 +404,10 @@ Error SYCLKernelFusion::fuseKernel(
       if (IdenticalIdx >= 0) {
         // There is another parameter with identical value. Use the existing
         // mapping of that other parameter and do not add this argument to the
-        // fused function.
-        ParamMapping.insert({{FuncIndex, ParamIndex}, IdenticalIdx});
+        // fused function. Static cast IdenticalIdx to silence the warnings, it
+        // is safe as we guarantee that it's >= 0.
+        ParamMapping.insert(
+            {{FuncIndex, ParamIndex}, static_cast<unsigned>(IdenticalIdx)});
         ++ParamFront;
         UsedArgsMask.push_back(false);
       } else {
