@@ -1809,7 +1809,7 @@ public:
   }
 };
 
-/// This represents the llvm.sycl.alloca intrinsic
+/// This represents the llvm.sycl.alloca intrinsic.
 class SYCLAllocaInst : public IntrinsicInst {
 public:
   static bool classof(const IntrinsicInst *I) {

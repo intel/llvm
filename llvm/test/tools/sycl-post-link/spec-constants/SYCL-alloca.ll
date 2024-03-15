@@ -14,10 +14,10 @@
 @size_i32 = internal addrspace(1) constant %"class.sycl::_V1::specialization_id.0" { i32 120 }, align 4
 @size_i16 = internal addrspace(1) constant %"class.sycl::_V1::specialization_id.1" { i16 1 }, align 2
 
-; check that the following globals are preserved: even though they are won't be
-; used in the module anymore, they could still be referenced by debug info
-; metadata (specialization_id objects are used as template arguments in SYCL
-; specialization constant APIs)
+; Check that the following globals are preserved: even though they are not used
+; in the module anymore, they could still be referenced by debug info metadata
+; (specialization_id objects are used as template arguments in SYCL
+; specialization constant APIs).
 ; CHECK: @size_i64
 ; CHECK: @size_i32
 ; CHECK: @size_i16

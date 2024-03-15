@@ -36,7 +36,6 @@ private_ptr<ElementType, DecorateAddress> private_alloca(kernel_handler &kh);
 #else
 
 // On the host, throw, this is not supported.
-
 template <typename ElementType, auto &SizeSpecName,
           access::decorated DecorateAddress>
 private_ptr<ElementType, DecorateAddress> private_alloca(kernel_handler &kh) {
