@@ -26,6 +26,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
           CLContext, cl_ext::ExtFuncPtrCache->clCreateCommandBufferKHRCache,
           cl_ext::CreateCommandBufferName, &clCreateCommandBufferKHR));
 
+  cl_int Res = CL_SUCCESS;
   auto CLCommandBuffer = clCreateCommandBufferKHR(
       1, cl_adapter::cast<cl_command_queue *>(&Queue), nullptr, &Res);
   CL_RETURN_ON_FAILURE_AND_SET_NULL(Res, phCommandBuffer);
