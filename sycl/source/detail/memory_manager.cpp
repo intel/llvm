@@ -1533,7 +1533,7 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
             SrcXOffBytes, SrcAccessRangeWidthBytes, DstMem + DstXOffBytes,
             Deps.size(), Deps.data(), OutSyncPoint);
 
-    if (Result == PI_ERROR_INVALID_OPERATION) {
+    if (Result == PI_ERROR_UNSUPPORTED_FEATURE) {
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Device-to-host buffer copy command not supported by graph backend");
@@ -1563,7 +1563,7 @@ void MemoryManager::ext_oneapi_copyD2H_cmd_buffer(
             &BufferOffset, &HostOffset, &RectRegion, BufferRowPitch,
             BufferSlicePitch, HostRowPitch, HostSlicePitch, DstMem, Deps.size(),
             Deps.data(), OutSyncPoint);
-    if (Result == PI_ERROR_INVALID_OPERATION) {
+    if (Result == PI_ERROR_UNSUPPORTED_FEATURE) {
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Device-to-host buffer copy command not supported by graph backend");
@@ -1610,7 +1610,7 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
             DstXOffBytes, DstAccessRangeWidthBytes, SrcMem + SrcXOffBytes,
             Deps.size(), Deps.data(), OutSyncPoint);
 
-    if (Result == PI_ERROR_INVALID_OPERATION) {
+    if (Result == PI_ERROR_UNSUPPORTED_FEATURE) {
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Host-to-device buffer copy command not supported by graph backend");
@@ -1641,7 +1641,7 @@ void MemoryManager::ext_oneapi_copyH2D_cmd_buffer(
             BufferSlicePitch, HostRowPitch, HostSlicePitch, SrcMem, Deps.size(),
             Deps.data(), OutSyncPoint);
 
-    if (Result == PI_ERROR_INVALID_OPERATION) {
+    if (Result == PI_ERROR_UNSUPPORTED_FEATURE) {
       throw sycl::exception(
           sycl::make_error_code(sycl::errc::feature_not_supported),
           "Host-to-device buffer copy command not supported by graph backend");
@@ -1665,7 +1665,7 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
       Plugin->call_nocheck<PiApiKind::piextCommandBufferMemcpyUSM>(
           CommandBuffer, DstMem, SrcMem, Len, Deps.size(), Deps.data(),
           OutSyncPoint);
-  if (Result == PI_ERROR_INVALID_OPERATION) {
+  if (Result == PI_ERROR_UNSUPPORTED_FEATURE) {
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "USM copy command not supported by graph backend");
