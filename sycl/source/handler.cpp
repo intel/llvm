@@ -293,10 +293,15 @@ event handler::finalize() {
                                           : nullptr);
           Result = PI_SUCCESS;
         } else {
+          detail::RTDeviceBinaryImage *BinImage = nullptr;
+          if (detail::SYCLConfig<detail::SYCL_JIT_KERNELS>::get())
+            BinImage = detail::retrieveAMDGCNOrNVPTXKernelBinary(
+                MQueue->getDeviceImplPtr(), MKernelName.c_str());
+
           Result = enqueueImpKernel(
               MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
               MKernelName.c_str(), RawEvents, NewEvent, nullptr,
-              MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative);
+              MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative, BinImage);
         }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         // Emit signal only when event is created

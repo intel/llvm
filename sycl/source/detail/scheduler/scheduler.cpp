@@ -9,6 +9,10 @@
 #include "detail/sycl_mem_obj_i.hpp"
 #include <detail/global_handler.hpp>
 #include <detail/graph_impl.hpp>
+#include <sycl/feature_test.hpp>
+#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+#include <detail/jit_compiler.hpp>
+#endif
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
@@ -631,6 +635,23 @@ void Scheduler::cancelFusion(QueueImplPtr Queue) {
     MGraphBuilder.cancelFusion(Queue, ToEnqueue);
   }
   enqueueCommandForCG(nullptr, ToEnqueue);
+}
+
+sycl::detail::pi::PiKernel Scheduler::completeSpecConstMaterialization(
+    QueueImplPtr Queue, RTDeviceBinaryImage *BinImage,
+    const std::string &KernelName, std::vector<unsigned char> &SpecConstBlob) {
+#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+  return detail::jit_compiler::get_instance().materializeSpecConstants(
+      Queue, BinImage, KernelName, SpecConstBlob);
+#else  // SYCL_EXT_CODEPLAY_KERNEL_FUSION
+  printFusionWarning(
+      "Materialization of spec constants not supported by this build");
+  (void)Queue;
+  (void)BinImage;
+  (void)KernelName;
+  (void)SpecConstBlob;
+  return nullptr;
+#endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION
 }
 
 EventImplPtr Scheduler::completeFusion(QueueImplPtr Queue,

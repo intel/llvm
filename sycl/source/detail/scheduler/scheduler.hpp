@@ -467,6 +467,9 @@ public:
   void cancelFusion(QueueImplPtr Queue);
 
   EventImplPtr completeFusion(QueueImplPtr Queue, const property_list &);
+  sycl::detail::pi::PiKernel completeSpecConstMaterialization(
+      QueueImplPtr Queue, RTDeviceBinaryImage *BinImage,
+      const std::string &KernelName, std::vector<unsigned char> &SpecConstBlob);
 
   bool isInFusionMode(QueueIdT Queue);
 

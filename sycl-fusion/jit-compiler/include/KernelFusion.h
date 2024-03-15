@@ -63,6 +63,11 @@ FusionResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
                          View<ParameterInternalization> Internalization,
                          View<jit_compiler::JITConstant> JITConstants);
 
+FusionResult
+materializeSpecConstants(const char *KernelName,
+                         jit_compiler::SYCLKernelBinaryInfo &BinInfo,
+                         std::vector<unsigned char> &SpecConstBlob);
+
 /// Clear all previously set options.
 void resetJITConfiguration();
 

@@ -64,6 +64,16 @@ jit_compiler::jit_compiler() {
       return false;
     }
 
+    this->MaterializeSpecConstHandle =
+        reinterpret_cast<MaterializeSpecConstFuncT>(
+            sycl::detail::pi::getOsLibraryFuncAddress(
+                LibraryPtr, "materializeSpecConstants"));
+    if (!this->MaterializeSpecConstHandle) {
+      printPerformanceWarning(
+          "Cannot resolve JIT library function entry point");
+      return false;
+    }
+
     return true;
   };
   Available = checkJITLibrary();
@@ -676,6 +686,87 @@ updatePromotedArgs(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
       ++ArgIndex;
     }
   }
+}
+
+sycl::detail::pi::PiKernel jit_compiler::materializeSpecConstants(
+    QueueImplPtr Queue, RTDeviceBinaryImage *BinImage,
+    const std::string &KernelName, std::vector<unsigned char> &SpecConstBlob) {
+  if (!BinImage) {
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "No suitable IR available for materializing");
+    return nullptr;
+  }
+  if (KernelName.empty()) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::invalid),
+        "Cannot jit kernel with invalid kernel function name");
+    return nullptr;
+  }
+
+  auto &RawDeviceImage = BinImage->getRawData();
+  auto DeviceImageSize = static_cast<size_t>(RawDeviceImage.BinaryEnd -
+                                             RawDeviceImage.BinaryStart);
+  // Set 0 as the number of address bits, because the JIT compiler can set
+  // this field based on information from SPIR-V/LLVM module's data-layout.
+  auto BinaryImageFormat = translateBinaryImageFormat(BinImage->getFormat());
+  if (BinaryImageFormat == ::jit_compiler::BinaryFormat::INVALID) {
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "No suitable IR available for materializing");
+    return nullptr;
+  }
+  ::jit_compiler::SYCLKernelBinaryInfo BinInfo{
+      BinaryImageFormat, 0, RawDeviceImage.BinaryStart, DeviceImageSize};
+
+  ::jit_compiler::TargetInfo TargetInfo = getTargetInfo(Queue);
+  ::jit_compiler::BinaryFormat TargetFormat = TargetInfo.getFormat();
+  AddToConfigHandle(
+      ::jit_compiler::option::JITTargetInfo::set(std::move(TargetInfo)));
+  bool DebugEnabled =
+      detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0;
+  AddToConfigHandle(
+      ::jit_compiler::option::JITEnableVerbose::set(DebugEnabled));
+  AddToConfigHandle(::jit_compiler::option::JITEnableCaching::set(
+      detail::SYCLConfig<detail::SYCL_ENABLE_FUSION_CACHING>::get()));
+
+  auto MaterializerResult =
+      MaterializeSpecConstHandle(KernelName.c_str(), BinInfo, SpecConstBlob);
+  if (MaterializerResult.failed()) {
+    std::string Message{"Compilation for kernel failed with message:\n"};
+    Message.append(MaterializerResult.getErrorMessage());
+    if (DebugEnabled) {
+      std::cerr << Message << "\n";
+    }
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid), Message);
+    return nullptr;
+  }
+
+  auto &MaterializerKernelInfo = MaterializerResult.getKernelInfo();
+  auto PIDeviceBinaries =
+      createPIDeviceBinary(MaterializerKernelInfo, TargetFormat);
+  auto &PM = detail::ProgramManager::getInstance();
+  PM.addImages(PIDeviceBinaries);
+
+  const bool OrigCacheCfg = SYCLConfig<SYCL_CACHE_IN_MEM>::get();
+  if (OrigCacheCfg) {
+    if (0 != setenv("SYCL_CACHE_IN_MEM", "0", true)) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::invalid),
+          "Failed to set env variable in materialize spec constel.");
+    }
+    SYCLConfig<SYCL_CACHE_IN_MEM>::reset();
+  }
+  auto NewKernel = std::get<0>(PM.getOrCreateKernel(
+      Queue->getContextImplPtr(), Queue->getDeviceImplPtr(), KernelName));
+  if (OrigCacheCfg) {
+    if (0 != setenv("SYCL_CACHE_IN_MEM", "1", true)) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::invalid),
+          "Failed to set env variable in materialize spec const.");
+    }
+    SYCLConfig<SYCL_CACHE_IN_MEM>::reset();
+  }
+
+  return NewKernel;
 }
 
 std::unique_ptr<detail::CG>

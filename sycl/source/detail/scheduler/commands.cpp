@@ -76,6 +76,33 @@ void emitInstrumentationGeneral(uint32_t StreamID, uint64_t InstanceID,
 }
 #endif
 
+RTDeviceBinaryImage *
+retrieveAMDGCNOrNVPTXKernelBinary(const DeviceImplPtr DeviceImpl,
+                                  const std::string &KernelName) {
+  const bool IsNvidia = DeviceImpl->getBackend() == backend::ext_oneapi_cuda;
+  const bool IsHIP = DeviceImpl->getBackend() == backend::ext_oneapi_hip;
+  if (!(IsNvidia || IsHIP))
+    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                          "Unsupported backend" +
+                              codeToString(PI_ERROR_INVALID_VALUE));
+  auto &PM = ProgramManager::getInstance();
+  const auto KernelID = PM.getSYCLKernelID(KernelName);
+  std::vector<kernel_id> KernelIds{KernelID};
+  const auto DeviceImages = PM.getRawDeviceImages(KernelIds);
+  const auto DeviceImage = std::find_if(
+      DeviceImages.begin(), DeviceImages.end(),
+      [IsNvidia](RTDeviceBinaryImage *DI) {
+        const std::string &TargetSpec =
+            IsNvidia ? std::string("llvm_nvptx64") : std::string("llvm_amdgcn");
+        return DI->getFormat() == PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE &&
+               DI->getRawData().DeviceTargetSpec == TargetSpec;
+      });
+  if (DeviceImage == DeviceImages.end())
+    return nullptr;
+
+  return *DeviceImage;
+}
+
 #ifdef __SYCL_ENABLE_GNU_DEMANGLING
 struct DemangleHandle {
   char *p;
@@ -111,7 +138,7 @@ static std::string deviceToString(device Device) {
 void applyFuncOnFilteredArgs(
     const KernelArgMask *EliminatedArgMask, std::vector<ArgDesc> &Args,
     std::function<void(detail::ArgDesc &Arg, int NextTrueIndex)> Func) {
-  if (!EliminatedArgMask) {
+  if (!EliminatedArgMask || EliminatedArgMask->size() == 0) {
     for (ArgDesc &Arg : Args) {
       Func(Arg, Arg.MIndex);
     }
@@ -2388,9 +2415,15 @@ static pi_result SetKernelParamsAndLaunch(
     const detail::EventImplPtr &OutEventImpl,
     const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    bool IsCooperative) {
+    bool IsCooperative, RTDeviceBinaryImage *BinImage,
+    const std::string &KernelName) {
   const PluginPtr &Plugin = Queue->getPlugin();
 
+  auto &SpecConstBlob = DeviceImageImpl->get_spec_const_blob_ref();
+  if (SYCLConfig<SYCL_JIT_KERNELS>::get() && !SpecConstBlob.empty()) {
+    Kernel = Scheduler::getInstance().completeSpecConstMaterialization(
+        Queue, BinImage, KernelName, SpecConstBlob);
+  }
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
                   &Queue](detail::ArgDesc &Arg, size_t NextTrueIndex) {
     SetArgBasedOnType(Plugin, Kernel, DeviceImageImpl, getMemAllocationFunc,
@@ -2579,7 +2612,7 @@ pi_int32 enqueueImpKernel(
     const detail::EventImplPtr &OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
-    const bool KernelIsCooperative) {
+    const bool KernelIsCooperative, RTDeviceBinaryImage *BinImage) {
 
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2671,7 +2704,7 @@ pi_int32 enqueueImpKernel(
     Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
                                      NDRDesc, EventsWaitList, OutEventImpl,
                                      EliminatedArgMask, getMemAllocationFunc,
-                                     KernelIsCooperative);
+                                     KernelIsCooperative, BinImage, KernelName);
 
     const PluginPtr &Plugin = Queue->getPlugin();
     if (!SyclKernelImpl && !MSyclKernel) {
@@ -3039,10 +3072,16 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       }
     }
 
+    RTDeviceBinaryImage *BinImage = nullptr;
+    if (detail::SYCLConfig<detail::SYCL_JIT_KERNELS>::get())
+      BinImage = retrieveAMDGCNOrNVPTXKernelBinary(MQueue->getDeviceImplPtr(),
+                                                   KernelName);
+
     return enqueueImpKernel(
         MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
         KernelName, RawEvents, EventImpl, getMemAllocationFunc,
-        ExecKernel->MKernelCacheConfig, ExecKernel->MKernelIsCooperative);
+        ExecKernel->MKernelCacheConfig, ExecKernel->MKernelIsCooperative,
+        BinImage);
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();

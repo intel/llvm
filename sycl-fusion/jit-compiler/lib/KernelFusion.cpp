@@ -71,6 +71,49 @@ static bool isTargetFormatSupported(BinaryFormat TargetFormat) {
 }
 
 extern "C" FusionResult
+materializeSpecConstants(const char *KernelName,
+                         jit_compiler::SYCLKernelBinaryInfo &BinInfo,
+                         std::vector<unsigned char> &SpecConstBlob) {
+  auto &JITCtx = JITContext::getInstance();
+
+  TargetInfo TargetInfo = ConfigHelper::get<option::JITTargetInfo>();
+  BinaryFormat TargetFormat = TargetInfo.getFormat();
+  if (TargetFormat != BinaryFormat::PTX &&
+      TargetFormat != BinaryFormat::AMDGCN) {
+    return FusionResult(
+        "Fusion output target format not supported by this build");
+  }
+
+  ::jit_compiler::SYCLKernelInfo KernelInfo{
+      KernelName, ::jit_compiler::SYCLArgumentDescriptor{},
+      ::jit_compiler::NDRange{}, BinInfo};
+  SYCLModuleInfo ModuleInfo;
+  ModuleInfo.kernels().insert(ModuleInfo.kernels().end(), KernelInfo);
+  // Load all input kernels from their respective SPIR-V modules into a single
+  // LLVM IR module.
+  llvm::Expected<std::unique_ptr<llvm::Module>> ModOrError =
+      translation::KernelTranslator::loadKernels(*JITCtx.getLLVMContext(),
+                                                 ModuleInfo.kernels());
+  if (auto Error = ModOrError.takeError()) {
+    return errorToFusionResult(std::move(Error), "Failed to load kernels");
+  }
+  std::unique_ptr<llvm::Module> NewMod = std::move(*ModOrError);
+  if (!fusion::FusionPipeline::runMaterializerPasses(*NewMod, SpecConstBlob) ||
+      !NewMod->getFunction(KernelName)) {
+    return FusionResult{"Materializer passes should not fail"};
+  }
+
+  SYCLKernelInfo &MaterializerKernelInfo = *ModuleInfo.getKernelFor(KernelName);
+  if (auto Error = translation::KernelTranslator::translateKernel(
+          MaterializerKernelInfo, *NewMod, JITCtx, TargetFormat)) {
+    return errorToFusionResult(std::move(Error),
+                               "Translation to output format failed");
+  }
+
+  return FusionResult{MaterializerKernelInfo};
+}
+
+extern "C" FusionResult
 fuseKernels(View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
             View<ParameterIdentity> Identities, BarrierFlags BarriersFlags,
             View<ParameterInternalization> Internalization,
