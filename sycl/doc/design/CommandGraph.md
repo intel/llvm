@@ -8,7 +8,7 @@ This document describes the implementation design of the
 * A recording of a presentation on the extension can be found
   [on Youtube](https://www.youtube.com/watch?v=aOTAmyr04rM).
 * A blog post introducing the extension can be found
-  [here](https://codeplay.com/portal/blogs/2024/01/22/sycl-graphs).
+  [on Codeplay.com](https://codeplay.com/portal/blogs/2024/01/22/sycl-graphs).
 
 ## Requirements
 
@@ -116,7 +116,7 @@ When individual graph nodes have requirements from SYCL accessors, the
 underlying `sycl::detail::CG` object stored in the node is copied and passed to
 the scheduler for adding to the UR command-buffer, otherwise the node can
 be appended directly as a command in the UR command-buffer. This is in-keeping
-with the existing behaviour of the handler with normal queue submissions.
+with the existing behavior of the handler with normal queue submissions.
 
 Scheduler commands for adding graph nodes differ from typical command-group
 submission in the scheduler, in that they do not launch any asynchronous work
@@ -254,7 +254,7 @@ Zero, the adapter implementation needs extra commands.
 * Prefix - Commands added **before** the graph workload.
 * Suffix - Commands added **after** the graph workload.
 
-These extra commands operate on L0 event synchronisation primitives, used by
+These extra commands operate on L0 event synchronization primitives, used by
 the command-list to interact with the external UR wait-list and UR return event
 required for the enqueue interface. Unlike the graph workload (i.e. commands
 needed to perform the graph workload) the external UR wait-list and UR return
@@ -274,7 +274,7 @@ when the UR command-buffer enqueue function is called. As mentioned above, this
 list of events changes from one submission to the next. Consequently, managing
 this mutable dependency in the graph-workload command-list implies rebuilding
 the command-list for each submission (note that this can change with mutable
-command-list). To avoid the signifiant time penalty of rebuilding this
+command-list). To avoid the significant time penalty of rebuilding this
 potentially large command-list each time, we prefer to add an extra command
 handling the wait list into another command-list (*wait command-list*). This
 command-list consists of a single L0 command: a barrier that waits for
@@ -290,13 +290,13 @@ reset in the suffix.
 Indeed, L0 events needs to be explicitly reset by an API call  (L0 command in
 our case). Since a command-buffer is expected to be submitted multiple times,
 we need to ensure that L0 events associated with graph commands have not been
-signalled by a previous execution. These events are therefore reset to the
-non-signalled state before running the graph-workload command-list. Note that
+signaled by a previous execution. These events are therefore reset to the
+non-signaled state before running the graph-workload command-list. Note that
 this reset is performed in the prefix and not in the suffix to avoid additional
 synchronization w.r.t profiling data extraction. We use a new command list
 (*reset command-list*) for performance concerns.
 Indeed:
-   * This allows the *WaitEvent* to be signalled directly on the host if the
+   * This allows the *WaitEvent* to be signaled directly on the host if the
    waiting list is empty, thus avoiding the need to submit a command list.
    * Enqueuing a reset L0 command for all events in the command-buffer is time
    consuming, especially for large graphs. However, this task is not needed for
@@ -306,7 +306,7 @@ Indeed:
    reset commands when finalizing the command-buffer, and only create the wait
    command-list at submission.
 
-This command list is consist of a reset command for each of the graph commands
+This command list consist of a reset command for each of the graph commands
 and another reset command for resetting the signal we use to signal the
 completion of the graph workload. This signal is called *SignalEvent* and is
 defined in the `ur_exp_command_buffer_handle_t` class.
@@ -358,7 +358,7 @@ Level Zero:
    *WaitEvent* are redefined by this second submission. Therefore, this can
    lead to an undefined behavior and potential hangs especially if the
    conditions of the first submissions were not yet satisfied and the event has
-   not yet been signalled.
+   not yet been signaled.
 
 Future work will include exploring L0 API extensions to improve the mapping of
 UR command-buffer to L0 command-list.
@@ -379,7 +379,7 @@ dependencies.
 
 Executable CUDA Graphs can be submitted to a CUDA stream in the same way as
 regular kernels. The CUDA backend enables enqueuing events to wait for into a
-stream. It also allows signalling the completion of a submission with an event.
+stream. It also allows signaling the completion of a submission with an event.
 Therefore, submitting a UR command-buffer consists only of submitting to a
 stream the executable CUDA Graph that represent this series of operations.
 
@@ -398,7 +398,7 @@ UR commands (e.g. kernels) are mapped as graph nodes using the
 Synchronization between commands (UR sync-points) is implemented using graph
 dependencies. Executable HIP Graphs can be submitted to a HIP stream in the
 same way as regular kernels. The HIP backend enables enqueuing events to wait
-for into a stream. It also allows signalling the completion of a submission
+for into a stream. It also allows signaling the completion of a submission
 with an event. Therefore, submitting a UR command-buffer consists only of
 submitting to a stream the executable HIP Graph that represent this series of
 operations.
