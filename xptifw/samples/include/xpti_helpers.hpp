@@ -123,14 +123,14 @@ private:
 
 class list_t {
 public:
-  using strings_t = std::unordered_set<std::string>;
+  using strings_t = std::unordered_map<std::string, bool>;
   list_t() = default;
   ~list_t() = default;
 
   const char *add(const char *stream) {
-    auto res = m_streams.insert(stream);
+    auto res = m_streams.insert(std::make_pair(stream, false));
     if (res.second) {
-      return (*res.first).c_str();
+      return (*res.first).first.c_str();
     }
     return nullptr;
   }
@@ -138,17 +138,37 @@ public:
   bool empty() { return (m_streams.size() == 0); }
 
   bool check(const char *str) {
-    auto res = m_streams.find(str);
-    if (res == m_streams.end())
-      return false;
-    else
+    if (m_streams.count(str)) {
+      m_streams[str] = true;
       return true;
+    }
+    return false;
+  }
+
+  void compact() {
+    std::vector<std::string> UnavailableStreams;
+    for (auto &e : m_streams) {
+      if (!e.second) {
+        UnavailableStreams.push_back(e.first);
+      }
+    }
+    for (auto &s : UnavailableStreams) {
+      remove(s.c_str());
+    }
   }
 
   void remove(const char *stream) {
+    // print();
     auto res = m_streams.erase(stream);
-    std::cout << "Unregistering stream: " << stream << ": Return Value (" << res
-              << ") <-> Size: " << m_streams.size() << std::endl;
+    // std::cout << "Unregistering stream: " << stream << ": Return Value (" <<
+    // res
+    //           << ") <-> Size: " << m_streams.size() << std::endl;
+  }
+
+  void print() {
+    for (auto &e : m_streams) {
+      std::cout << "Streams: " << e.first << "\n";
+    }
   }
 
 private:
