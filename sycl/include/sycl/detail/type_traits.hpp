@@ -89,6 +89,8 @@ template <typename T>
 struct is_generic_group
     : std::integral_constant<bool,
                              is_group<T>::value || is_sub_group<T>::value> {};
+template <typename T>
+inline constexpr bool is_generic_group_v = is_generic_group<T>::value;
 
 namespace half_impl {
 class half;
