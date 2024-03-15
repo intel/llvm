@@ -720,7 +720,7 @@ public:
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
     std::lock_guard<std::mutex> Lock(MMutex);
     MGraph = Graph;
-    MGraphLastEventPtr = nullptr;
+    MExtGraphDeps.LastEventPtr = nullptr;
   }
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
@@ -768,7 +768,7 @@ protected:
       //    the RT but will not be passed to the backend. See getPIEvents in
       //    Command.
       auto &EventToBuildDeps =
-          MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
+          MGraph.lock() ? MExtGraphDeps.LastEventPtr : MDefaultGraphDeps.LastEventPtr;
       if (EventToBuildDeps)
         Handler.depends_on(
             createSyclObjFromImpl<sycl::event>(EventToBuildDeps));
@@ -933,13 +933,15 @@ protected:
   buffer<AssertHappened, 1> MAssertHappenedBuffer;
 #endif
 
-  // This event is employed for enhanced dependency tracking with in-order queue
-  // Access to the event should be guarded with MMutex
-  EventImplPtr MLastEventPtr;
-  // Same as above but for graph begin-end recording cycle.
-  // Track deps within graph commands separately.
-  // Protected by common queue object mutex MMutex.
-  EventImplPtr MGraphLastEventPtr;
+  // Access should be guarded with MMutex
+  struct DependencyTrackingItems
+  {
+    // This event is employed for enhanced dependency tracking with in-order queue
+    EventImplPtr LastEventPtr;
+    // The following two items is employed for proper out of order enqueue ordering
+    std::vector<EventImplPtr> NotEnqueuedCmdEvents;
+    EventImplPtr LastBarrier;
+  } MDefaultGraphDeps, MExtGraphDeps;
 
   const bool MIsInorder;
 

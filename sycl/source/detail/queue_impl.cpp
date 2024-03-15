@@ -80,7 +80,7 @@ queue_impl::getExtendDependencyList(const std::vector<event> &DepEvents,
 
   QueueLock.lock();
   EventImplPtr ExtraEvent =
-      MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
+      MGraph.expired() ? MDefaultGraphDeps.LastEventPtr : MExtGraphDeps.LastEventPtr;
   std::optional<event> ExternalEvent = popExternalEvent();
 
   if (!ExternalEvent && !ExtraEvent)
@@ -223,11 +223,11 @@ event queue_impl::getLastEvent() {
   std::lock_guard<std::mutex> Lock{MMutex};
   if (MDiscardEvents)
     return createDiscardedEvent();
-  if (!MGraph.expired() && MGraphLastEventPtr)
-    return detail::createSyclObjFromImpl<event>(MGraphLastEventPtr);
-  if (!MLastEventPtr)
-    MLastEventPtr = std::make_shared<event_impl>(std::nullopt);
-  return detail::createSyclObjFromImpl<event>(MLastEventPtr);
+  if (!MGraph.expired() && MExtGraphDeps.LastEventPtr)
+    return detail::createSyclObjFromImpl<event>(MExtGraphDeps.LastEventPtr);
+  if (!MDefaultGraphDeps.LastEventPtr)
+    MDefaultGraphDeps.LastEventPtr = std::make_shared<event_impl>(std::nullopt);
+  return detail::createSyclObjFromImpl<event>(MDefaultGraphDeps.LastEventPtr);
 }
 
 void queue_impl::addEvent(const event &Event) {
@@ -361,7 +361,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
 
       if (isInOrder()) {
         auto &EventToStoreIn =
-            MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
+            MGraph.lock() ? MExtGraphDeps.LastEventPtr : MDefaultGraphDeps.LastEventPtr;
         EventToStoreIn = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
@@ -550,8 +550,8 @@ bool queue_impl::ext_oneapi_empty() const {
   // the status of the last event.
   if (isInOrder() && !MDiscardEvents) {
     std::lock_guard<std::mutex> Lock(MMutex);
-    return !MLastEventPtr ||
-           MLastEventPtr->get_info<info::event::command_execution_status>() ==
+    return !MDefaultGraphDeps.LastEventPtr ||
+           MDefaultGraphDeps.LastEventPtr->get_info<info::event::command_execution_status>() ==
                info::event_command_status::complete;
   }
 
