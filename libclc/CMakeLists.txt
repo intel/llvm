@@ -281,6 +281,12 @@ add_custom_command(
 	DEPENDS ${clc_script_loc} )
 add_custom_target( "generate_convert_clc.cl" DEPENDS convert-clc.cl )
 
+add_custom_command(
+	OUTPUT clspv-convert.cl
+	COMMAND ${Python3_EXECUTABLE} ${script_loc} --clspv > clspv-convert.cl
+	DEPENDS ${script_loc} )
+add_custom_target( "clspv-generate_convert.cl" DEPENDS clspv-convert.cl )
+
 enable_testing()
 
 if (LIBCLC_STANDALONE_BUILD)
@@ -342,11 +348,14 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 	# Add the generated convert.cl here to prevent adding
 	# the one listed in SOURCES
 	if( NOT ${ARCH} STREQUAL "spirv" AND NOT ${ARCH} STREQUAL "spirv64" )
-		set( rel_files convert.cl )
-		set( objects convert.cl )
 		if( NOT ENABLE_RUNTIME_SUBNORMAL AND NOT ${ARCH} STREQUAL "clspv" AND
 		    NOT ${ARCH} STREQUAL "clspv64" )
+			set( rel_files convert.cl )
+			set( objects convert.cl )
 			list( APPEND rel_files generic/lib/subnormal_use_default.ll )
+		elseif(${ARCH} STREQUAL "clspv" OR ${ARCH} STREQUAL "clspv64")
+			set( rel_files clspv-convert.cl )
+			set( objects clspv-convert.cl )
 		endif()
 	else()
 		set( rel_files )
