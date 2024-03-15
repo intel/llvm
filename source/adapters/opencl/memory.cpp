@@ -232,11 +232,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     clCreateBufferWithPropertiesINTEL_fn FuncPtr = nullptr;
     cl_context CLContext = cl_adapter::cast<cl_context>(hContext);
     // First we need to look up the function pointer
-    RetErr =
+    UR_RETURN_ON_FAILURE(
         cl_ext::getExtFuncFromContext<clCreateBufferWithPropertiesINTEL_fn>(
             CLContext,
             cl_ext::ExtFuncPtrCache->clCreateBufferWithPropertiesINTELCache,
-            cl_ext::CreateBufferWithPropertiesName, &FuncPtr);
+            cl_ext::CreateBufferWithPropertiesName, &FuncPtr));
     if (FuncPtr) {
       std::vector<cl_mem_properties_intel> PropertiesIntel;
       auto Prop = static_cast<ur_base_properties_t *>(pProperties->pNext);
