@@ -67,15 +67,6 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   #     [UR] add dependent-load flag to exclude CWD from default search path …
   set(UNIFIED_RUNTIME_TAG 35b6cd09dd92b04eae8195a706ef6c63541b3cf1)
 #=======
-#  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime")
-  # commit 73d85ef9f48ec4d1f213066a31ed7e4402b5499b
-  # Merge: e46dc359 7985d3ee
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Jan 29 14:26:08 2024 +0000
-  #     Merge pull request #1289 from nrspruit/fix_multiDevice
-  #     [L0] Fix native kernel usage, multi device kernel pointer and WorkSize
- # set(UNIFIED_RUNTIME_TAG 73d85ef9f48ec4d1f213066a31ed7e4402b5499b)
-#>>>>>>> sycl
 
 #  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime")
   # commit 3225b822b5d8cbfa85d7fc1bd5a5bf96e5bb8c1a
@@ -86,6 +77,16 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   #     [Bindless][CUDA] Unique addressing modes per dimension
 #  set(UNIFIED_RUNTIME_TAG 3225b822b5d8cbfa85d7fc1bd5a5bf96e5bb8c1a)
 
+=======
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit ec634ff05b067d7922ec45059dda94665e5dcd9b
+  # Merge: 418ad535 8714b853
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Thu Mar 14 15:52:52 2024 +0100
+  #     Merge pull request #1438 from PatKamin/disable-fuzztests
+  #     Disable fuzz tests on ubuntu-22.04 runner
+  set(UNIFIED_RUNTIME_TAG ec634ff05b067d7922ec45059dda94665e5dcd9b)
+>>>>>>> sycl
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
@@ -146,7 +147,7 @@ set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/com
 
 add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 add_library(UnifiedRuntimeCommon ALIAS ur_common)
-add_library(UnifiedMallocFramework ALIAS unified_malloc_framework)
+add_library(UnifiedMemoryFramework ALIAS umf)
 
 add_library(UnifiedRuntime-Headers INTERFACE)
 
@@ -224,6 +225,13 @@ endif()
 
 if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
     add_dependencies(sycl-runtime-libraries ur_adapter_opencl)
+
+    # Install the UR adapters too
+    install(TARGETS ur_adapter_opencl
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+      ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+      RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+    )
 endif()
 
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)

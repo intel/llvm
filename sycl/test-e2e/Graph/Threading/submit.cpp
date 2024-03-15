@@ -1,14 +1,11 @@
 // RUN: %{build_pthread_inc} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %if level_zero %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s %}
-//
-// CHECK-NOT: LEAK
+// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// Extra run to check for immediate-command-list in Level Zero
+// RUN: %if level_zero && linux %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
 // Test submitting a graph in a threaded situation.
-// The second run is to check that there are no leaks reported with the embedded
-// UR_L0_LEAKS_DEBUG=1 testing capability.
-
-// Note that we do not check the outputs becuse multiple concurrent executions
+// Note that we do not check the outputs because multiple concurrent executions
 // is indeterministic (and depends on the backend command management).
 // However, this test verifies that concurrent graph submissions do not trigger
 // errors nor memory leaks.
@@ -18,11 +15,7 @@
 #include <thread>
 
 int main() {
-  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
-
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
+  queue Queue;
 
   using T = int;
 

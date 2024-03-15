@@ -5,6 +5,7 @@
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   cmake_minimum_required(VERSION 3.20.0)
 
+  set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
   project(CompilerRTBuiltins C ASM)
   set(COMPILER_RT_STANDALONE_BUILD TRUE)
   set(COMPILER_RT_BUILTINS_STANDALONE_BUILD TRUE)
@@ -55,8 +56,6 @@ if (COMPILER_RT_STANDALONE_BUILD)
     "Turns on or off -fPIC for the builtin library source"
     ON)
 endif()
-
-set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 
 include(builtin-config-ix)
 include(CMakeDependentOption)
@@ -191,6 +190,7 @@ set(GENERIC_SOURCES
 
 # We only build BF16 files when "__bf16" is available.
 set(BF16_SOURCES
+    extendbfsf2.c
     truncdfbf2.c
     truncsfbf2.c
 )
@@ -917,7 +917,7 @@ cmake_dependent_option(COMPILER_RT_BUILD_CRT "Build crtbegin.o/crtend.o" ON "COM
 if (COMPILER_RT_BUILD_CRT)
   add_compiler_rt_component(crt)
 
-  option(COMPILER_RT_CRT_USE_EH_FRAME_REGISTRY "Use eh_frame in crtbegin.o/crtend.o" ON)
+  option(COMPILER_RT_CRT_USE_EH_FRAME_REGISTRY "Use eh_frame in crtbegin.o/crtend.o" OFF)
 
   include(CheckSectionExists)
   check_section_exists(".init_array" COMPILER_RT_HAS_INITFINI_ARRAY

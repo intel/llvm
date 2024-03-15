@@ -58,6 +58,18 @@
 
 namespace SPIRV {
 
+namespace {
+std::string to_string(uint32_t Version) {
+  std::string Res(formatVersionNumber(Version));
+  Res += " (" + std::to_string(Version) + ")";
+  return Res;
+}
+
+std::string to_string(VersionNumber Version) {
+  return to_string(static_cast<uint32_t>(Version));
+}
+} // Anonymous namespace
+
 SPIRVModule::SPIRVModule()
     : AutoAddCapability(true), ValidateCapability(false), IsValid(true) {}
 
@@ -173,7 +185,16 @@ public:
   void insertEntryNoId(SPIRVEntry *Entry) override { EntryNoId.insert(Entry); }
 
   void setSPIRVVersion(SPIRVWord Ver) override {
-    assert(this->isAllowedToUseVersion(static_cast<VersionNumber>(Ver)));
+    if (!this->isAllowedToUseVersion(static_cast<VersionNumber>(Ver))) {
+      std::stringstream SS;
+      SS << "SPIR-V version was restricted to at most "
+         << to_string(getMaximumAllowedSPIRVVersion())
+         << " but a construct from the input requires SPIR-V version "
+         << to_string(Ver) << " or above\n";
+      getErrorLog().checkError(false, SPIRVEC_RequiresVersion, SS.str());
+      setInvalid();
+      return;
+    }
     SPIRVVersion = Ver;
   }
 
@@ -247,6 +268,7 @@ public:
   addJointMatrixINTELType(SPIRVType *, std::vector<SPIRVValue *>) override;
   SPIRVTypeCooperativeMatrixKHR *
   addCooperativeMatrixKHRType(SPIRVType *, std::vector<SPIRVValue *>) override;
+  SPIRVTypeTaskSequenceINTEL *addTaskSequenceINTELType() override;
   SPIRVType *addOpaqueGenericType(Op) override;
   SPIRVTypeDeviceEvent *addDeviceEventType() override;
   SPIRVTypeQueue *addQueueType() override;
@@ -483,7 +505,7 @@ private:
   SPIRVAddressingModelKind AddrModel;
   SPIRVMemoryModelKind MemoryModel;
 
-  typedef std::map<SPIRVId, SPIRVEntry *> SPIRVIdToEntryMap;
+  typedef std::unordered_map<SPIRVId, SPIRVEntry *> SPIRVIdToEntryMap;
   typedef std::set<SPIRVEntry *> SPIRVEntrySet;
   typedef std::set<SPIRVId> SPIRVIdSet;
   typedef std::vector<SPIRVId> SPIRVIdVec;
@@ -499,12 +521,16 @@ private:
   typedef std::vector<SPIRVAsmTargetINTEL *> SPIRVAsmTargetVector;
   typedef std::vector<SPIRVAsmINTEL *> SPIRVAsmVector;
   typedef std::vector<SPIRVEntryPoint *> SPIRVEntryPointVec;
-  typedef std::map<SPIRVId, SPIRVExtInstSetKind> SPIRVIdToInstructionSetMap;
-  std::map<SPIRVExtInstSetKind, SPIRVId> ExtInstSetIds;
-  typedef std::map<SPIRVId, SPIRVExtInstSetKind> SPIRVIdToBuiltinSetMap;
-  typedef std::map<SPIRVExecutionModelKind, SPIRVIdSet> SPIRVExecModelIdSetMap;
+  typedef std::unordered_map<SPIRVId, SPIRVExtInstSetKind>
+      SPIRVIdToInstructionSetMap;
+  std::unordered_map<SPIRVExtInstSetKind, SPIRVId> ExtInstSetIds;
+  typedef std::unordered_map<SPIRVId, SPIRVExtInstSetKind>
+      SPIRVIdToBuiltinSetMap;
+  typedef std::unordered_map<SPIRVExecutionModelKind, SPIRVIdSet>
+      SPIRVExecModelIdSetMap;
   typedef std::unordered_map<std::string, SPIRVString *> SPIRVStringMap;
-  typedef std::map<SPIRVTypeStruct *, std::vector<std::pair<unsigned, SPIRVId>>>
+  typedef std::unordered_map<SPIRVTypeStruct *,
+                             std::vector<std::pair<unsigned, SPIRVId>>>
       SPIRVUnknownStructFieldMap;
   typedef std::vector<SPIRVEntry *> SPIRVAliasInstMDVec;
   typedef std::unordered_map<llvm::MDNode *, SPIRVEntry *> SPIRVAliasInstMDMap;
@@ -538,7 +564,7 @@ private:
   SPIRVTypeVoid *VoidTy;
   SmallDenseMap<unsigned, SPIRVTypeInt *, 4> IntTypeMap;
   SmallDenseMap<unsigned, SPIRVTypeFloat *, 4> FloatTypeMap;
-  std::map<unsigned, SPIRVConstant *> LiteralMap;
+  std::unordered_map<unsigned, SPIRVConstant *> LiteralMap;
   std::vector<SPIRVExtInst *> DebugInstVec;
   std::vector<SPIRVExtInst *> AuxDataInstVec;
   std::vector<SPIRVModuleProcessed *> ModuleProcessedVec;
@@ -1019,6 +1045,10 @@ SPIRVModuleImpl::addCooperativeMatrixKHRType(SPIRVType *CompType,
                                              std::vector<SPIRVValue *> Args) {
   return addType(
       new SPIRVTypeCooperativeMatrixKHR(this, getId(), CompType, Args));
+}
+
+SPIRVTypeTaskSequenceINTEL *SPIRVModuleImpl::addTaskSequenceINTELType() {
+  return addType(new SPIRVTypeTaskSequenceINTEL(this, getId()));
 }
 
 SPIRVType *SPIRVModuleImpl::addOpaqueGenericType(Op TheOpCode) {
@@ -2091,16 +2121,6 @@ SPIRVMemberName *SPIRVModuleImpl::addMemberName(SPIRVTypeStruct *ST,
 void SPIRVModuleImpl::addUnknownStructField(SPIRVTypeStruct *Struct, unsigned I,
                                             SPIRVId ID) {
   UnknownStructFieldMap[Struct].push_back(std::make_pair(I, ID));
-}
-
-static std::string to_string(uint32_t Version) {
-  std::string Res(formatVersionNumber(Version));
-  Res += " (" + std::to_string(Version) + ")";
-  return Res;
-}
-
-static std::string to_string(VersionNumber Version) {
-  return to_string(static_cast<uint32_t>(Version));
 }
 
 std::istream &operator>>(std::istream &I, SPIRVModule &M) {

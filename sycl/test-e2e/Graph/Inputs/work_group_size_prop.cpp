@@ -188,11 +188,7 @@ template <size_t... Is> int test(queue &Queue) {
 }
 
 int main() {
-  queue Queue({sycl::ext::intel::property::queue::no_immediate_command_list{}});
-
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
+  queue Queue{};
 
   int Res = 0;
   Res += test<4>(Queue);

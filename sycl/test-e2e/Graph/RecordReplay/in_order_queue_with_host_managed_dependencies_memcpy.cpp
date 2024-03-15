@@ -1,6 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// REQUIRES: aspect-usm_shared_allocations
+
 // Tests submitting memcpy to an in-order queue before recording
 // commands from it.
 
@@ -9,16 +11,7 @@
 int main() {
   using T = int;
 
-  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{},
-               sycl::property::queue::in_order{}}};
-
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
-
-  // Check if device has usm shared allocation
-  if (!Queue.get_device().has(sycl::aspect::usm_shared_allocations))
-    return 0;
+  queue Queue{sycl::property::queue::in_order{}};
 
   std::vector<T> TestDataIn(Size);
   T *TestData = sycl::malloc_shared<T>(Size, Queue);

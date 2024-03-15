@@ -31,7 +31,6 @@
 #include <sycl/properties/queue_properties.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/queue.hpp>
-#include <sycl/stl.hpp>
 
 #include "detail/graph_impl.hpp"
 
@@ -115,8 +114,8 @@ public:
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MHasDiscardEventsSupport(MDiscardEvents &&
-                                 (MHostQueue ? true : MIsInorder)),
+        MSupportsDiscardingPiEvents(MDiscardEvents &&
+                                    (MHostQueue ? true : MIsInorder)),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
     if (has_property<property::queue::enable_profiling>()) {
@@ -292,8 +291,8 @@ public:
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MHasDiscardEventsSupport(MDiscardEvents &&
-                                 (MHostQueue ? true : MIsInorder)),
+        MSupportsDiscardingPiEvents(MDiscardEvents &&
+                                    (MHostQueue ? true : MIsInorder)),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
     queue_impl_interop(PiQueue);
@@ -317,8 +316,8 @@ public:
         MDiscardEvents(
             has_property<ext::oneapi::property::queue::discard_events>()),
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
-        MHasDiscardEventsSupport(MDiscardEvents &&
-                                 (MHostQueue ? true : MIsInorder)) {
+        MSupportsDiscardingPiEvents(MDiscardEvents &&
+                                    (MHostQueue ? true : MIsInorder)) {
     queue_impl_interop(PiQueue);
   }
 
@@ -374,7 +373,9 @@ public:
   bool is_host() const { return MHostQueue; }
 
   /// \return true if this queue has discard_events support.
-  bool has_discard_events_support() const { return MHasDiscardEventsSupport; }
+  bool supportsDiscardingPiEvents() const {
+    return MSupportsDiscardingPiEvents;
+  }
 
   bool isInOrder() const { return MIsInorder; }
 
@@ -687,7 +688,7 @@ public:
 #endif
 
   void registerStreamServiceEvent(const EventImplPtr &Event) {
-    std::lock_guard<std::mutex> Lock(MMutex);
+    std::lock_guard<std::mutex> Lock(MStreamsServiceEventsMutex);
     MStreamsServiceEvents.push_back(Event);
   }
 
@@ -835,10 +836,9 @@ protected:
 
       if (IsKernel)
         // Kernel only uses assert if it's non interop one
-        KernelUsesAssert =
-            !(Handler.MKernel && Handler.MKernel->isInterop()) &&
-            ProgramManager::getInstance().kernelUsesAssert(Handler.MKernelName);
-
+        KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
+                           ProgramManager::getInstance().kernelUsesAssert(
+                               Handler.MKernelName.c_str());
       finalizeHandler(Handler, Event);
 
       (*PostProcess)(IsKernel, KernelUsesAssert, Event);
@@ -943,6 +943,7 @@ protected:
   const bool MIsInorder;
 
   std::vector<EventImplPtr> MStreamsServiceEvents;
+  std::mutex MStreamsServiceEventsMutex;
 
   // All member variable defined here  are needed for the SYCL instrumentation
   // layer. Do not guard these variables below with XPTI_ENABLE_INSTRUMENTATION
@@ -970,12 +971,11 @@ public:
   const bool MIsProfilingEnabled;
 
 protected:
-  // This flag says if we can discard events based on a queue "setup" which will
-  // be common for all operations submitted to the queue. This is a must
-  // condition for discarding, but even if it's true, in some cases, we won't be
-  // able to discard events, because the final decision is made right before the
-  // operation itself.
-  const bool MHasDiscardEventsSupport;
+  // Indicates whether the queue supports discarding PI events for tasks
+  // submitted to it. This condition is necessary but not sufficient, PI events
+  // should be discarded only if they also don't represent potential implicit
+  // dependencies for future tasks in other queues.
+  const bool MSupportsDiscardingPiEvents;
 
   // Command graph which is associated with this queue for the purposes of
   // recording commands to it.

@@ -235,9 +235,9 @@ __SYCL_EXPORT pi_result piMemBufferPartition(
                                      BufferCreateInfo, RetMem);
 }
 
-__SYCL_EXPORT pi_result
-piextMemGetNativeHandle(pi_mem Mem, pi_native_handle *NativeHandle) {
-  return pi2ur::piextMemGetNativeHandle(Mem, NativeHandle);
+__SYCL_EXPORT pi_result piextMemGetNativeHandle(
+    pi_mem Mem, pi_device Dev, pi_native_handle *NativeHandle) {
+  return pi2ur::piextMemGetNativeHandle(Mem, Dev, NativeHandle);
 }
 
 __SYCL_EXPORT pi_result
@@ -1345,10 +1345,15 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   HANDLE_ERRORS(urLoaderConfigCreate(&LoaderConfig));
 
   if (PluginInit->SanitizeType == _PI_SANITIZE_TYPE_ADDRESS) {
-    HANDLE_ERRORS(urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN"));
+    auto Result = urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN");
+    if (Result != UR_RESULT_SUCCESS) {
+      urLoaderConfigRelease(LoaderConfig);
+      return ur2piResult(Result);
+    }
   }
 
   HANDLE_ERRORS(urLoaderInit(0, LoaderConfig));
+  HANDLE_ERRORS(urLoaderConfigRelease(LoaderConfig));
 
   uint32_t NumAdapters;
   HANDLE_ERRORS(urAdapterGet(0, nullptr, &NumAdapters));

@@ -2129,12 +2129,6 @@ static void handleTLSModelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
   }
 
-  if (S.Context.getTargetInfo().getTriple().isOSAIX() &&
-      Model == "local-dynamic") {
-    S.Diag(LiteralLoc, diag::err_aix_attr_unsupported_tls_model) << Model;
-    return;
-  }
-
   D->addAttr(::new (S.Context) TLSModelAttr(S.Context, AL, Model));
 }
 
@@ -5004,9 +4998,16 @@ bool Sema::checkTargetAttr(SourceLocation LiteralLoc, StringRef AttrStr) {
   return false;
 }
 
+static bool hasArmStreamingInterface(const FunctionDecl *FD) {
+  if (const auto *T = FD->getType()->getAs<FunctionProtoType>())
+    if (T->getAArch64SMEAttributes() & FunctionType::SME_PStateSMEnabledMask)
+      return true;
+  return false;
+}
+
 // Check Target Version attrs
-bool Sema::checkTargetVersionAttr(SourceLocation LiteralLoc, StringRef &AttrStr,
-                                  bool &isDefault) {
+bool Sema::checkTargetVersionAttr(SourceLocation LiteralLoc, Decl *D,
+                                  StringRef &AttrStr, bool &isDefault) {
   enum FirstParam { Unsupported };
   enum SecondParam { None };
   enum ThirdParam { Target, TargetClones, TargetVersion };
@@ -5022,6 +5023,8 @@ bool Sema::checkTargetVersionAttr(SourceLocation LiteralLoc, StringRef &AttrStr,
       return Diag(LiteralLoc, diag::warn_unsupported_target_attribute)
              << Unsupported << None << CurFeature << TargetVersion;
   }
+  if (hasArmStreamingInterface(cast<FunctionDecl>(D)))
+    return Diag(LiteralLoc, diag::err_sme_streaming_cannot_be_multiversioned);
   return false;
 }
 
@@ -5030,7 +5033,7 @@ static void handleTargetVersionAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   SourceLocation LiteralLoc;
   bool isDefault = false;
   if (!S.checkStringLiteralArgumentAttr(AL, 0, Str, &LiteralLoc) ||
-      S.checkTargetVersionAttr(LiteralLoc, Str, isDefault))
+      S.checkTargetVersionAttr(LiteralLoc, D, Str, isDefault))
     return;
   // Do not create default only target_version attribute
   if (!isDefault) {
@@ -5053,7 +5056,7 @@ static void handleTargetAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
 bool Sema::checkTargetClonesAttrString(
     SourceLocation LiteralLoc, StringRef Str, const StringLiteral *Literal,
-    bool &HasDefault, bool &HasCommas, bool &HasNotDefault,
+    Decl *D, bool &HasDefault, bool &HasCommas, bool &HasNotDefault,
     SmallVectorImpl<SmallString<64>> &StringsBuffer) {
   enum FirstParam { Unsupported, Duplicate, Unknown };
   enum SecondParam { None, CPU, Tune };
@@ -5122,6 +5125,9 @@ bool Sema::checkTargetClonesAttrString(
           HasNotDefault = true;
         }
       }
+      if (hasArmStreamingInterface(cast<FunctionDecl>(D)))
+        return Diag(LiteralLoc,
+                    diag::err_sme_streaming_cannot_be_multiversioned);
     } else {
       // Other targets ( currently X86 )
       if (Cur.starts_with("arch=")) {
@@ -5174,7 +5180,7 @@ static void handleTargetClonesAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     if (!S.checkStringLiteralArgumentAttr(AL, I, CurStr, &LiteralLoc) ||
         S.checkTargetClonesAttrString(
             LiteralLoc, CurStr,
-            cast<StringLiteral>(AL.getArgAsExpr(I)->IgnoreParenCasts()),
+            cast<StringLiteral>(AL.getArgAsExpr(I)->IgnoreParenCasts()), D,
             HasDefault, HasCommas, HasNotDefault, StringsBuffer))
       return;
   }
@@ -6862,6 +6868,9 @@ static void handleCallConvAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   case ParsedAttr::AT_M68kRTD:
     D->addAttr(::new (S.Context) M68kRTDAttr(S.Context, AL));
     return;
+  case ParsedAttr::AT_PreserveNone:
+    D->addAttr(::new (S.Context) PreserveNoneAttr(S.Context, AL));
+    return;
   default:
     llvm_unreachable("unexpected attribute kind");
   }
@@ -6872,11 +6881,6 @@ static void handleSuppressAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     // Suppression attribute with GSL spelling requires at least 1 argument.
     if (!AL.checkAtLeastNumArgs(S, 1))
       return;
-  } else if (!isa<VarDecl>(D)) {
-    // Analyzer suppression applies only to variables and statements.
-    S.Diag(AL.getLoc(), diag::err_attribute_wrong_decl_type_str)
-        << AL << 0 << "variables and statements";
-    return;
   }
 
   std::vector<StringRef> DiagnosticIdentifiers;
@@ -7068,6 +7072,9 @@ bool Sema::CheckCallingConvAttr(const ParsedAttr &Attrs, CallingConv &CC,
     break;
   case ParsedAttr::AT_M68kRTD:
     CC = CC_M68kRTD;
+    break;
+  case ParsedAttr::AT_PreserveNone:
+    CC = CC_PreserveNone;
     break;
   default: llvm_unreachable("unexpected attribute kind");
   }
@@ -7430,6 +7437,24 @@ static bool checkForDuplicateAttribute(Sema &S, Decl *D,
   return false;
 }
 
+// Checks if FPGA memory attributes apply on valid variables.
+// Returns true if an error occured.
+static bool CheckValidFPGAMemoryAttributesVar(Sema &S, Decl *D) {
+  if (const auto *VD = dyn_cast<VarDecl>(D)) {
+    if (!(isa<FieldDecl>(D) ||
+          (VD->getKind() != Decl::ImplicitParam &&
+           VD->getKind() != Decl::NonTypeTemplateParm &&
+           (S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+                VD->getType()) ||
+            VD->getType().isConstQualified() ||
+            VD->getType().getAddressSpace() == LangAS::opencl_constant ||
+            VD->getStorageClass() == SC_Static || VD->hasLocalStorage())))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void Sema::AddSYCLIntelNoGlobalWorkOffsetAttr(Decl *D,
                                               const AttributeCommonInfo &CI,
                                               Expr *E) {
@@ -7508,6 +7533,17 @@ static void handleSYCLIntelSinglePumpAttr(Sema &S, Decl *D,
     }
   }
 
+  // Check attribute applies to field, constant variables, local variables,
+  // static variables, non-static data members, and device_global variables
+  // for the device compilation.
+  if (S.Context.getLangOpts().SYCLIsDevice &&
+      ((D->getKind() == Decl::ParmVar) ||
+       CheckValidFPGAMemoryAttributesVar(S, D))) {
+    S.Diag(AL.getLoc(), diag::err_fpga_attribute_incorrect_variable)
+        << AL << /*agent memory arguments*/ 0;
+    return;
+  }
+
   // If the declaration does not have an [[intel::fpga_memory]]
   // attribute, this creates one as an implicit attribute.
   if (!D->hasAttr<SYCLIntelMemoryAttr>())
@@ -7529,6 +7565,17 @@ static void handleSYCLIntelDoublePumpAttr(Sema &S, Decl *D,
       S.Diag(ExistingAttr->getLoc(), diag::note_previous_attribute);
       return;
     }
+  }
+
+  // Check attribute applies to field, constant variables, local variables,
+  // static variables, non-static data members, and device_global variables
+  // for the device compilation.
+  if (S.Context.getLangOpts().SYCLIsDevice &&
+      ((D->getKind() == Decl::ParmVar) ||
+       CheckValidFPGAMemoryAttributesVar(S, D))) {
+    S.Diag(AL.getLoc(), diag::err_fpga_attribute_incorrect_variable)
+        << AL << /*agent memory arguments*/ 0;
+    return;
   }
 
   // If the declaration does not have an [[intel::fpga_memory]]
@@ -7578,6 +7625,16 @@ static void handleSYCLIntelMemoryAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     D->dropAttr<SYCLIntelMemoryAttr>();
   }
 
+  // Check attribute applies to field, constant variables, local variables,
+  // static variables, agent memory arguments, non-static data members,
+  // and device_global variables for the device compilation.
+  if (S.Context.getLangOpts().SYCLIsDevice &&
+      CheckValidFPGAMemoryAttributesVar(S, D)) {
+    S.Diag(AL.getLoc(), diag::err_fpga_attribute_incorrect_variable)
+        << AL << /*agent memory arguments*/ 1;
+    return;
+  }
+
   D->addAttr(::new (S.Context) SYCLIntelMemoryAttr(S.Context, AL, Kind));
 }
 
@@ -7608,6 +7665,17 @@ static void handleSYCLIntelRegisterAttr(Sema &S, Decl *D,
       S.Diag(ExistingAttr->getLoc(), diag::note_previous_attribute);
       return;
     }
+  }
+
+  // Check attribute applies to field, constant variables, local variables,
+  // static variables, non-static data members, and device_global variables
+  // for the device compilation.
+  if (S.Context.getLangOpts().SYCLIsDevice &&
+      ((D->getKind() == Decl::ParmVar) ||
+       CheckValidFPGAMemoryAttributesVar(S, D))) {
+    S.Diag(A.getLoc(), diag::err_fpga_attribute_incorrect_variable)
+        << A << /*agent memory arguments*/ 0;
+    return;
   }
 
   if (checkIntelFPGARegisterAttrCompatibility(S, D, A))
@@ -7645,6 +7713,16 @@ void Sema::AddSYCLIntelBankWidthAttr(Decl *D, const AttributeCommonInfo &CI,
     if (!ArgVal.isPowerOf2()) {
       Diag(E->getExprLoc(), diag::err_attribute_argument_not_power_of_two)
           << CI;
+      return;
+    }
+
+    // Check attribute applies to field, constant variables, local variables,
+    // static variables, agent memory arguments, non-static data members,
+    // and device_global variables for the device compilation.
+    if (Context.getLangOpts().SYCLIsDevice &&
+        CheckValidFPGAMemoryAttributesVar(*this, D)) {
+      Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable)
+          << CI << /*agent memory arguments*/ 1;
       return;
     }
 
@@ -7732,6 +7810,16 @@ void Sema::AddSYCLIntelNumBanksAttr(Decl *D, const AttributeCommonInfo &CI,
       }
     }
 
+    // Check attribute applies to constant variables, local variables,
+    // static variables, agent memory arguments, non-static data members,
+    // and device_global variables for the device compilation.
+    if (Context.getLangOpts().SYCLIsDevice &&
+        CheckValidFPGAMemoryAttributesVar(*this, D)) {
+      Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable)
+          << CI << /*agent memory arguments*/ 1;
+      return;
+    }
+
     // Check to see if there's a duplicate attribute with different values
     // already applied to the declaration.
     if (const auto *DeclAttr = D->getAttr<SYCLIntelNumBanksAttr>()) {
@@ -7799,6 +7887,16 @@ static void handleIntelSimpleDualPortAttr(Sema &S, Decl *D,
     }
   }
 
+  // Check attribute applies to field, constant variables, local variables,
+  // static variables, agent memory arguments, non-static data members,
+  // and device_global variables for the device compilation.
+  if (S.Context.getLangOpts().SYCLIsDevice &&
+      CheckValidFPGAMemoryAttributesVar(S, D)) {
+      S.Diag(AL.getLoc(), diag::err_fpga_attribute_incorrect_variable)
+          << AL << /*agent memory arguments*/ 1;
+      return;
+  }
+
   if (!D->hasAttr<SYCLIntelMemoryAttr>())
     D->addAttr(SYCLIntelMemoryAttr::CreateImplicit(
         S.Context, SYCLIntelMemoryAttr::Default));
@@ -7824,6 +7922,17 @@ void Sema::AddSYCLIntelMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
           << CI << /*positive*/ 0;
       return;
     }
+
+    // Check attribute applies to field, constant variables, local variables,
+    // static variables, agent memory arguments, non-static data members,
+    // and device_global variables for the device compilation.
+    if (Context.getLangOpts().SYCLIsDevice &&
+        CheckValidFPGAMemoryAttributesVar(*this, D)) {
+      Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable)
+          << CI << /*agent memory arguments*/ 1;
+      return;
+    }
+
     // Check to see if there's a duplicate attribute with different values
     // already applied to the declaration.
     if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxReplicatesAttr>()) {
@@ -7904,6 +8013,17 @@ static void handleSYCLIntelMergeAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
       S.Diag(Existing->getLoc(), diag::note_previous_attribute);
     }
     // If there is no mismatch, drop any duplicate attributes.
+    return;
+  }
+
+  // Check attribute applies to field, constant variables, local variables,
+  // static variables, non-static data members, and device_global variables
+  // for the device compilation.
+  if (S.Context.getLangOpts().SYCLIsDevice &&
+      ((D->getKind() == Decl::ParmVar) ||
+       CheckValidFPGAMemoryAttributesVar(S, D))) {
+    S.Diag(AL.getLoc(), diag::err_fpga_attribute_incorrect_variable)
+        << AL << /*agent memory arguments*/ 0;
     return;
   }
 
@@ -7992,6 +8112,16 @@ void Sema::AddSYCLIntelBankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
     D->addAttr(SYCLIntelNumBanksAttr::CreateImplicit(Context, NBE));
   }
 
+  // Check attribute applies to field, constant variables, local variables,
+  // static variables, agent memory arguments, non-static data members,
+  // and device_global variables for the device compilation.
+  if (Context.getLangOpts().SYCLIsDevice &&
+      CheckValidFPGAMemoryAttributesVar(*this, D)) {
+    Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable)
+        << CI << /*agent memory arguments*/ 1;
+    return;
+  }
+
   if (!D->hasAttr<SYCLIntelMemoryAttr>())
     D->addAttr(SYCLIntelMemoryAttr::CreateImplicit(
         Context, SYCLIntelMemoryAttr::Default));
@@ -8017,6 +8147,24 @@ void Sema::AddSYCLIntelPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
           << CI << /*non-negative*/ 1;
       return;
     }
+
+    // Check attribute applies to field as well as const variables, non-static
+    // local variables, non-static data members, and device_global variables.
+    // for the device compilation.
+    if (const auto *VD = dyn_cast<VarDecl>(D)) {
+      if (Context.getLangOpts().SYCLIsDevice &&
+	  (!(isa<FieldDecl>(D) ||
+            (VD->getKind() != Decl::ImplicitParam &&
+             VD->getKind() != Decl::NonTypeTemplateParm &&
+             VD->getKind() != Decl::ParmVar &&
+             (VD->hasLocalStorage() ||
+              isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
+                  VD->getType())))))) {
+        Diag(CI.getLoc(), diag::err_fpga_attribute_invalid_decl) << CI;
+        return;
+      }
+    }
+
     // Check to see if there's a duplicate attribute with different values
     // already applied to the declaration.
     if (const auto *DeclAttr = D->getAttr<SYCLIntelPrivateCopiesAttr>()) {
@@ -8064,6 +8212,16 @@ void Sema::AddSYCLIntelForcePow2DepthAttr(Decl *D,
     // This attribute accepts values 0 and 1 only.
     if (ArgVal < 0 || ArgVal > 1) {
       Diag(E->getBeginLoc(), diag::err_attribute_argument_is_not_valid) << CI;
+      return;
+    }
+
+    // Check attribute applies to field, constant variables, local variables,
+    // static variables, agent memory arguments, non-static data members,
+    // and device_global variables for the device compilation.
+    if (Context.getLangOpts().SYCLIsDevice &&
+        CheckValidFPGAMemoryAttributesVar(*this, D)) {
+      Diag(CI.getLoc(), diag::err_fpga_attribute_incorrect_variable)
+          << CI << /*agent memory arguments*/ 1;
       return;
     }
 
@@ -8701,6 +8859,11 @@ static bool RISCVAliasValid(unsigned BuiltinID, StringRef AliasName) {
          BuiltinID <= RISCV::LastRVVBuiltin;
 }
 
+static bool SYCLAliasValid(ASTContext &Context, unsigned BuiltinID) {
+  constexpr llvm::StringLiteral Prefix = "__builtin_intel_sycl";
+  return Context.BuiltinInfo.getName(BuiltinID).starts_with(Prefix);
+}
+
 static void handleBuiltinAliasAttr(Sema &S, Decl *D,
                                         const ParsedAttr &AL) {
   if (!AL.isArgIdent(0)) {
@@ -8717,11 +8880,13 @@ static void handleBuiltinAliasAttr(Sema &S, Decl *D,
   bool IsARM = S.Context.getTargetInfo().getTriple().isARM();
   bool IsRISCV = S.Context.getTargetInfo().getTriple().isRISCV();
   bool IsHLSL = S.Context.getLangOpts().HLSL;
+  bool IsSYCL = S.Context.getLangOpts().isSYCL();
   if ((IsAArch64 && !ArmSveAliasValid(S.Context, BuiltinID, AliasName)) ||
       (IsARM && !ArmMveAliasValid(BuiltinID, AliasName) &&
        !ArmCdeAliasValid(BuiltinID, AliasName)) ||
       (IsRISCV && !RISCVAliasValid(BuiltinID, AliasName)) ||
-      (!IsAArch64 && !IsARM && !IsRISCV && !IsHLSL)) {
+      (IsSYCL && !SYCLAliasValid(S.Context, BuiltinID)) ||
+      (!IsAArch64 && !IsARM && !IsRISCV && !IsHLSL && !IsSYCL)) {
     S.Diag(AL.getLoc(), diag::err_attribute_builtin_alias) << AL;
     return;
   }
@@ -9477,13 +9642,10 @@ validateSwiftFunctionName(Sema &S, const ParsedAttr &AL, SourceLocation Loc,
 
   // Check whether this will be mapped to a getter or setter of a property.
   bool IsGetter = false, IsSetter = false;
-  if (Name.starts_with("getter:")) {
+  if (Name.consume_front("getter:"))
     IsGetter = true;
-    Name = Name.substr(7);
-  } else if (Name.starts_with("setter:")) {
+  else if (Name.consume_front("setter:"))
     IsSetter = true;
-    Name = Name.substr(7);
-  }
 
   if (Name.back() != ')') {
     S.Diag(Loc, diag::warn_attr_swift_name_function) << AL;
@@ -12557,6 +12719,7 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
   case ParsedAttr::AT_AArch64SVEPcs:
   case ParsedAttr::AT_AMDGPUKernelCall:
   case ParsedAttr::AT_M68kRTD:
+  case ParsedAttr::AT_PreserveNone:
     handleCallConvAttr(S, D, AL);
     break;
   case ParsedAttr::AT_Suppress:
@@ -13207,6 +13370,9 @@ void Sema::ProcessDeclAttributes(Scope *S, Decl *D, const Declarator &PD) {
 
   // Apply additional attributes specified by '#pragma clang attribute'.
   AddPragmaAttributes(S, D);
+
+  // Look for API notes that map to attributes.
+  ProcessAPINotes(D);
 }
 
 /// Is the given declaration allowed to use a forbidden type?

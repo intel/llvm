@@ -5,8 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Use -O2 to avoid huge stack usage under -O0.
-// RUN: %{build} -O2 -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // This test implements parallel radix sort on GPU
@@ -299,7 +298,7 @@ void cmk_prefix_iterative(unsigned *buf, unsigned h_pos,
     if (i == n_iter - 1)
       cnt_table.column(31) -= cnt_table.column(30);
 
-    scatter_rgba<unsigned int, 32, GATHER_SCATTER_MASK>(buf, element_offset, S);
+    scatter_rgba<GATHER_SCATTER_MASK>(buf, element_offset, S);
 
     element_offset += stride_elems * TUPLE_SZ * sizeof(unsigned) * 32;
     prev = cnt_table.column(31);
@@ -397,7 +396,7 @@ void cmk_radix_count(
   simd<unsigned, N_WI> elem_offset =
       (init * N_ELEM_WI + offset) * sizeof(unsigned); // byte offset
 
-  simd<unsigned, RADIX *N_WI> V = 0;
+  simd<unsigned, RADIX * N_WI> V = 0;
   auto counters = V.bit_cast_view<unsigned, RADIX, N_WI>();
 
   // each WI process N_ELEM_WI. each iteration reads in 4 elements (gather_rgba)

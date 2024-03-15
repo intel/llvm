@@ -240,8 +240,9 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
                                  HostPtr, RetImage);
 }
 
-pi_result piextMemGetNativeHandle(pi_mem Mem, pi_native_handle *NativeHandle) {
-  return pi2ur::piextMemGetNativeHandle(Mem, NativeHandle);
+pi_result piextMemGetNativeHandle(pi_mem Mem, pi_device Dev,
+                                  pi_native_handle *NativeHandle) {
+  return pi2ur::piextMemGetNativeHandle(Mem, Dev, NativeHandle);
 }
 
 pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
@@ -1249,6 +1250,20 @@ pi_result piextCommandBufferAdviseUSM(
   return pi2ur::piextCommandBufferAdviseUSM(CommandBuffer, Ptr, Length, Advice,
                                             NumSyncPointsInWaitList,
                                             SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextEnqueueCooperativeKernelLaunch(
+    pi_queue , pi_kernel , pi_uint32 ,
+    const size_t *, const size_t *,
+    const size_t *, pi_uint32 ,
+    const pi_event *, pi_event *) {
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+pi_result piextKernelSuggestMaxCooperativeGroupCount(
+    pi_kernel , size_t , size_t ,
+    pi_uint32 *) {
+  return PI_ERROR_INVALID_OPERATION;
 }
 
 // Initialize function table with stubs.

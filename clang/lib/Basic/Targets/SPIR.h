@@ -131,7 +131,9 @@ protected:
       LongAlign = HostTarget->getLongAlign();
       LongLongWidth = HostTarget->getLongLongWidth();
       LongLongAlign = HostTarget->getLongLongAlign();
-      MinGlobalAlign = HostTarget->getMinGlobalAlign(/* TypeSize = */ 0);
+      MinGlobalAlign =
+          HostTarget->getMinGlobalAlign(/* TypeSize = */ 0,
+                                        /* HasNonWeakDef = */ true);
       NewAlign = HostTarget->getNewAlign();
       DefaultAlignForAttributeAligned =
           HostTarget->getDefaultAlignForAttributeAligned();
@@ -419,6 +421,7 @@ public:
     assert(Triple.getEnvironment() >= llvm::Triple::Pixel &&
            Triple.getEnvironment() <= llvm::Triple::Amplification &&
            "Logical SPIR-V environment must be a valid shader stage.");
+    PointerWidth = PointerAlign = 64;
 
     // SPIR-V IDs are represented with a single 32-bit word.
     SizeType = TargetInfo::UnsignedInt;

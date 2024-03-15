@@ -42,6 +42,24 @@ namespace sub_group {
 template <typename T>
 using SelectBlockT = select_cl_scalar_integral_unsigned_t<T>;
 
+template <typename MultiPtrTy> auto convertToBlockPtr(MultiPtrTy MultiPtr) {
+  static_assert(is_multi_ptr_v<MultiPtrTy>);
+  auto DecoratedPtr = convertToOpenCLType(MultiPtr);
+  using DecoratedPtrTy = decltype(DecoratedPtr);
+  using ElemTy = remove_decoration_t<std::remove_pointer_t<DecoratedPtrTy>>;
+
+  using TargetElemTy = SelectBlockT<ElemTy>;
+  // TODO: Handle cv qualifiers.
+#ifdef __SYCL_DEVICE_ONLY__
+  using ResultTy =
+      typename DecoratedType<TargetElemTy,
+                             deduce_AS<DecoratedPtrTy>::value>::type *;
+#else
+  using ResultTy = TargetElemTy *;
+#endif
+  return reinterpret_cast<ResultTy>(DecoratedPtr);
+}
+
 template <typename T, access::address_space Space>
 using AcceptableForGlobalLoadStore =
     std::bool_constant<!std::is_same_v<void, SelectBlockT<T>> &&
@@ -57,11 +75,7 @@ template <typename T, access::address_space Space,
           access::decorated DecorateAddress>
 T load(const multi_ptr<T, Space, DecorateAddress> src) {
   using BlockT = SelectBlockT<T>;
-  using PtrT = sycl::detail::ConvertToOpenCLType_t<
-      const multi_ptr<BlockT, Space, DecorateAddress>>;
-
-  BlockT Ret =
-      __spirv_SubgroupBlockReadINTEL<BlockT>(reinterpret_cast<PtrT>(src.get()));
+  BlockT Ret = __spirv_SubgroupBlockReadINTEL<BlockT>(convertToBlockPtr(src));
 
   return sycl::bit_cast<T>(Ret);
 }
@@ -71,11 +85,7 @@ template <int N, typename T, access::address_space Space,
 vec<T, N> load(const multi_ptr<T, Space, DecorateAddress> src) {
   using BlockT = SelectBlockT<T>;
   using VecT = sycl::detail::ConvertToOpenCLType_t<vec<BlockT, N>>;
-  using PtrT = sycl::detail::ConvertToOpenCLType_t<
-      const multi_ptr<BlockT, Space, DecorateAddress>>;
-
-  VecT Ret =
-      __spirv_SubgroupBlockReadINTEL<VecT>(reinterpret_cast<PtrT>(src.get()));
+  VecT Ret = __spirv_SubgroupBlockReadINTEL<VecT>(convertToBlockPtr(src));
 
   return sycl::bit_cast<typename vec<T, N>::vector_t>(Ret);
 }
@@ -84,10 +94,8 @@ template <typename T, access::address_space Space,
           access::decorated DecorateAddress>
 void store(multi_ptr<T, Space, DecorateAddress> dst, const T &x) {
   using BlockT = SelectBlockT<T>;
-  using PtrT = sycl::detail::ConvertToOpenCLType_t<
-      multi_ptr<BlockT, Space, DecorateAddress>>;
 
-  __spirv_SubgroupBlockWriteINTEL(reinterpret_cast<PtrT>(dst.get()),
+  __spirv_SubgroupBlockWriteINTEL(convertToBlockPtr(dst),
                                   sycl::bit_cast<BlockT>(x));
 }
 
@@ -96,10 +104,8 @@ template <int N, typename T, access::address_space Space,
 void store(multi_ptr<T, Space, DecorateAddress> dst, const vec<T, N> &x) {
   using BlockT = SelectBlockT<T>;
   using VecT = sycl::detail::ConvertToOpenCLType_t<vec<BlockT, N>>;
-  using PtrT = sycl::detail::ConvertToOpenCLType_t<
-      const multi_ptr<BlockT, Space, DecorateAddress>>;
 
-  __spirv_SubgroupBlockWriteINTEL(reinterpret_cast<PtrT>(dst.get()),
+  __spirv_SubgroupBlockWriteINTEL(convertToBlockPtr(dst),
                                   sycl::bit_cast<VecT>(x));
 }
 #endif // __SYCL_DEVICE_ONLY__
@@ -213,10 +219,11 @@ struct sub_group {
 
   /* --- one-input shuffles --- */
   /* indices in [0 , sub_group size) */
-
-  template <typename T> T shuffle(T x, id_type local_id) const {
+  template <typename T>
+  __SYCL_DEPRECATED("Shuffles in the sub-group class are deprecated.")
+  T shuffle(T x, id_type local_id) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::SubgroupShuffle(x, local_id);
+    return sycl::detail::spirv::Shuffle(*this, x, local_id);
 #else
     (void)x;
     (void)local_id;
@@ -225,9 +232,11 @@ struct sub_group {
 #endif
   }
 
-  template <typename T> T shuffle_down(T x, uint32_t delta) const {
+  template <typename T>
+  __SYCL_DEPRECATED("Shuffles in the sub-group class are deprecated.")
+  T shuffle_down(T x, uint32_t delta) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::SubgroupShuffleDown(x, delta);
+    return sycl::detail::spirv::ShuffleDown(*this, x, delta);
 #else
     (void)x;
     (void)delta;
@@ -236,9 +245,11 @@ struct sub_group {
 #endif
   }
 
-  template <typename T> T shuffle_up(T x, uint32_t delta) const {
+  template <typename T>
+  __SYCL_DEPRECATED("Shuffles in the sub-group class are deprecated.")
+  T shuffle_up(T x, uint32_t delta) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::SubgroupShuffleUp(x, delta);
+    return sycl::detail::spirv::ShuffleUp(*this, x, delta);
 #else
     (void)x;
     (void)delta;
@@ -247,9 +258,11 @@ struct sub_group {
 #endif
   }
 
-  template <typename T> T shuffle_xor(T x, id_type value) const {
+  template <typename T>
+  __SYCL_DEPRECATED("Shuffles in the sub-group class are deprecated.")
+  T shuffle_xor(T x, id_type value) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::SubgroupShuffleXor(x, value);
+    return sycl::detail::spirv::ShuffleXor(*this, x, value);
 #else
     (void)x;
     (void)value;
@@ -352,7 +365,7 @@ struct sub_group {
     }
     return res;
   }
-#else // __NVPTX__ || __AMDGCN__
+#else  // __NVPTX__ || __AMDGCN__
   template <int N, typename CVT, access::address_space Space,
             access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
   std::enable_if_t<
@@ -602,6 +615,7 @@ struct sub_group {
   }
 
   /* --- synchronization functions --- */
+  __SYCL_DEPRECATED("Sub-group barrier with no arguments is deprecated.")
   void barrier() const {
 #ifdef __SYCL_DEVICE_ONLY__
     __spirv_ControlBarrier(
@@ -630,6 +644,7 @@ struct sub_group {
 #endif
   }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES__
   /* --- deprecated collective functions --- */
   template <typename T>
   __SYCL_DEPRECATED("Collectives in the sub-group class are deprecated. Use "
@@ -746,6 +761,7 @@ struct sub_group {
                           "Sub-groups are not supported on host.");
 #endif
   }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES__
 
   linear_id_type get_group_linear_range() const {
 #ifdef __SYCL_DEVICE_ONLY__

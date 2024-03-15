@@ -34,13 +34,13 @@ constexpr char SLM_ALLOCATOR_DTOR_SUFFIX[] = "EED2Ev";
 bool isSlmAllocatorConstructor(const Function &F) {
   auto Name = F.getName();
   return Name.starts_with(SLM_ALLOCATOR_CTOR_DTOR_PREFIX) &&
-         Name.endswith(SLM_ALLOCATOR_CTOR_SUFFIX);
+         Name.ends_with(SLM_ALLOCATOR_CTOR_SUFFIX);
 }
 
 bool isSlmAllocatorDestructor(const Function &F) {
   auto Name = F.getName();
   return Name.starts_with(SLM_ALLOCATOR_CTOR_DTOR_PREFIX) &&
-         Name.endswith(SLM_ALLOCATOR_DTOR_SUFFIX);
+         Name.ends_with(SLM_ALLOCATOR_DTOR_SUFFIX);
 }
 
 bool isSlmInit(const Function &F) {

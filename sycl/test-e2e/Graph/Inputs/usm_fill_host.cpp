@@ -3,15 +3,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
-
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
-
-  if (!Queue.get_device().has(sycl::aspect::usm_host_allocations)) {
-    return 0;
-  }
+  queue Queue{};
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 

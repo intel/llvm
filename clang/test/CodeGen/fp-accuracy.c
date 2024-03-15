@@ -177,7 +177,7 @@ double rsqrt(double);
 // CHECK-F3: call double @llvm.fpbuiltin.atanh.f64(double {{.*}}) #[[ATTR_F3_HIGH]]
 // CHECK-F3: call double @llvm.fpbuiltin.cos.f64(double {{.*}}) #[[ATTR_F3_HIGH]]
 // CHECK-F3: call double @llvm.fpbuiltin.cosh.f64(double {{.*}}) #[[ATTR_F3_HIGH]]
-// CHECk-F3: call double @llvm.fpbuiltin.erf.f64(double {{.*}}) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.erf.f64(double {{.*}}) #[[ATTR_F3_HIGH]]
 // CHECK-F3: call double @llvm.fpbuiltin.erfc.f64(double {{.*}}) #[[ATTR_F3_HIGH]]
 // CHECK-F3: call double @llvm.fpbuiltin.exp.f64(double {{.*}}) #[[ATTR_F3_HIGH]]
 // CHECK-F3: call double @llvm.fpbuiltin.exp10.f64(double {{.*}}) #[[ATTR_F3_HIGH]]
@@ -202,6 +202,21 @@ double rsqrt(double);
 // CHECK-F3: call double @llvm.fpbuiltin.sqrt.f64(double {{.*}}) #[[ATTR_F3_HIGH]]
 // CHECK-F3: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F3_LOW:[0-9]+]]
 // CHECK-F3: call double @llvm.fpbuiltin.tanh.f64(double {{.*}}) #[[ATTR_F3_HIGH]]
+
+// CHECK-F3-LABEL: define dso_local void @f2
+// CHECK-F3: call float @llvm.fpbuiltin.cos.f32(float {{.*}}) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call float @llvm.fpbuiltin.sin.f32(float {{.*}}) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F3_LOW]]
+// CHECK-F3: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_F3_MEDIUM]]
+// CHECK-F3: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F3_MEDIUM]]
+// CHECK-F3: call float @llvm.fpbuiltin.tan.f32(float {{.*}}) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call float @llvm.fpbuiltin.hypot.f32(float {{.*}}, float {{.*}}) #[[ATTR_F3_HIGH]]
+
+// CHECK-F3-LABEL: define dso_local float @fake_exp10
+
+// CHECK-F3-LABEL: define dso_local void @f4
+// CHECK-F3: call double @llvm.fpbuiltin.exp.f64(double {{.*}}) #[[ATTR_F3_HIGH]]
+// CHECK-F3: call double @llvm.fpbuiltin.cos.f64(double {{.*}}) #[[ATTR_F3_HIGH]]
 
 // CHECK-F3: attributes #[[ATTR_F3_HIGH]] = {{.*}}"fpbuiltin-max-error"="1.0"
 // CHECK-F3: attributes #[[ATTR_F3_MEDIUM]] = {{.*}}"fpbuiltin-max-error"="4.0"
@@ -396,7 +411,9 @@ void f1(float a, float b) {
 // CHECK: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_HIGH]]
 // CHECK: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_HIGH]]
 // CHECK: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_HIGH]]
-// CHECK: call float @tanf(float {{.*}})
+// CHECK: call float @llvm.fpbuiltin.tan.f32(float {{.*}}) #[[ATTR_HIGH]]
+// CHECK: call float @llvm.fpbuiltin.hypot.f32(float {{.*}}, float {{.*}}) #[[ATTR_HIGH]]
+// CHECK: call float @llvm.fpbuiltin.ldexp.f32(float {{.*}}, i32 {{.*}}) #[[ATTR_HIGH]]
 //
 // CHECK-F1-LABEL: define dso_local void @f2
 // CHECK-F1: call float @llvm.cos.f32(float {{.*}})
@@ -405,6 +422,8 @@ void f1(float a, float b) {
 // CHECK-F1: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_F1_MEDIUM]]
 // CHECK-F1: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F1_MEDIUM]]
 // CHECK-F1: call float @tanf(float {{.*}})
+// CHECK-F1: call float @hypotf(float {{.*}}, float {{.*}})
+// CHECK-F1: call float @ldexpf(float {{.*}}, i32 {{.*}})
 //
 // CHECK-F2-LABEL: define dso_local void @f2
 // CHECK-F2: call float @llvm.fpbuiltin.cos.f32(float {{.*}}) #[[ATTR_F2_MEDIUM]]
@@ -412,16 +431,31 @@ void f1(float a, float b) {
 // CHECK-F2: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F2_HIGH]]
 // CHECK-F2: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_F2_MEDIUM]]
 // CHECK-F2: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F2_MEDIUM]]
-// CHECK-F2: call float @tanf(float {{.*}})
+// CHECK-F2: call float @llvm.fpbuiltin.tan.f32(float {{.*}}) #[[ATTR_F2_MEDIUM]]
+// CHECK-F2: call float @llvm.fpbuiltin.hypot.f32(float {{.*}}, float {{.*}}) #[[ATTR_F2_MEDIUM]]
+// CHECK-F2: call float @llvm.fpbuiltin.ldexp.f32(float {{.*}}, i32 {{.*}}) #[[ATTR_F2_MEDIUM]]
 //
-// CHECK-LABEL-F4: define dso_local void @f2
+// CHECK-F4-LABEL: define dso_local void @f2
 // CHECK-F4: call float @llvm.fpbuiltin.cos.f32(float {{.*}}) #[[ATTR_F4_MEDIUM]]
 // CHECK-F4: call float @llvm.fpbuiltin.sin.f32(float {{.*}}) #[[ATTR_F4_MEDIUM]]
 // CHECK-F4: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
 // CHECK-F4: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
 // CHECK-F4: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F4_MEDIUM]]
-// CHECK-F4: call float @tanf(float {{.*}})
+// CHECK-F4: call float @llvm.fpbuiltin.tan.f32(float {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call float @llvm.fpbuiltin.hypot.f32(float {{.*}}, float {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call float @llvm.fpbuiltin.ldexp.f32(float {{.*}}, i32 {{.*}}) #[[ATTR_F4_MEDIUM]]
 //
+// CHECK-F4-LABEL: define dso_local float @fake_exp10
+
+// CHECK-F4-LABEL: define dso_local void @f3
+// CHECK-F4: call float @fake_exp10(float {{.*}})
+
+// CHECK-F4-LABEL: define dso_local void @f4
+// CHECK-F4: call double @llvm.fpbuiltin.exp.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+// CHECK-F4: call double @llvm.fpbuiltin.cos.f64(double {{.*}}) #[[ATTR_F4_MEDIUM]]
+
+// CHECK-F4: attributes #[[ATTR_F4_MEDIUM]] = {{.*}}"fpbuiltin-max-error"="4.0"
+
 // CHECK-F5-LABEL: define dso_local void @f2
 // CHECK-F5: call float @llvm.cos.f32(float {{.*}})
 // CHECK-F5: call float @llvm.sin.f32(float {{.*}})
@@ -429,7 +463,18 @@ void f1(float a, float b) {
 // CHECK-F5: call double @llvm.log10.f64(double {{.*}})
 // CHECK-F5: call i32 (double, ptr, ptr, ...) @sincos(double {{.*}}, ptr {{.*}}, ptr {{.*}})
 // CHECK-F5: call float @tanf(float {{.*}})
+// CHECK-F5: call float @hypotf(float {{.*}}, float {{.*}})
+// CHECK-F5: call float @ldexpf(float {{.*}}, i32 {{.*}})
 //
+// CHECK-F5-LABEL: define dso_local float @fake_exp10
+
+// CHECK-F5-LABEL: define dso_local void @f3
+// CHECK-F5: call float @fake_exp10(float {{.*}})
+
+// CHECK-F5-LABEL: define dso_local void @f4
+// CHECK-F5: call double @llvm.exp.f64(double {{.*}})
+// CHECK-F5: call double @llvm.fpbuiltin.cos.f64(double {{.*}}) #[[ATTR_F5_MEDIUM]]
+
 // CHECK-F5: attributes #[[ATTR_F5_MEDIUM]] = {{.*}}"fpbuiltin-max-error"="4.0"
 // CHECK-F5: attributes #[[ATTR_F5_HIGH]] = {{.*}}"fpbuiltin-max-error"="1.0"
 //
@@ -439,8 +484,19 @@ void f1(float a, float b) {
 // CHECK-F6: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_F6_MEDIUM]]
 // CHECK-F6: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_F6_MEDIUM]]
 // CHECK-F6: call void @llvm.fpbuiltin.sincos.f64(double {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_F6_MEDIUM]]
-// CHECK-F6: call float @tanf(float {{.*}}) #[[ATTR8:[0-9]+]]
+// CHECK-F6: call float @llvm.fpbuiltin.tan.f32(float {{.*}}) #[[ATTR_F6_MEDIUM]]
+// CHECK-F6: call float @llvm.fpbuiltin.hypot.f32(float {{.*}}, float {{.*}}) #[[ATTR_F6_MEDIUM]]
+// CHECK-F6: call float @llvm.fpbuiltin.ldexp.f32(float {{.*}}, i32 {{.*}}) #[[ATTR_F6_MEDIUM]]
 //
+// CHECK-F6-LABEL: define dso_local float @fake_exp10
+//
+// CHECK-F6-LABEL: define dso_local void @f3
+// CHECK-F6: call float @fake_exp10(float {{.*}})
+
+// CHECK-F6-LABEL: define dso_local void @f4
+// CHECK-F6: call double @llvm.fpbuiltin.exp.f64(double {{.*}}) #[[ATTR_F6_MEDIUM]]
+// CHECK-F6: call double @llvm.fpbuiltin.cos.f64(double {{.*}}) #[[ATTR_F6_MEDIUM]]
+
 // CHECK-F6: attributes #[[ATTR_F6_MEDIUM]] = {{.*}}"fpbuiltin-max-error"="4.0"
 // CHECK-F6: attributes #[[ATTR_F6_HIGH]] = {{.*}}"fpbuiltin-max-error"="1.0"
 //
@@ -450,15 +506,39 @@ void f1(float a, float b) {
 // CHECK-SPIR: call double @llvm.fpbuiltin.tan.f64(double {{.*}}) #[[ATTR_SYCL2]]
 // CHECK-SPIR: call double @llvm.fpbuiltin.log10.f64(double {{.*}}) #[[ATTR_SYCL5]]
 // CHECK-SPIR: call void @llvm.fpbuiltin.sincos.f32(float {{.*}}, ptr {{.*}}, ptr {{.*}}) #[[ATTR_SYCL1]]
-// CHECK-SPIR: call spir_func float @tanf(float {{.*}})
+// CHECK-SPIR: call float @llvm.fpbuiltin.tan.f32(float {{.*}}) #[[ATTR_SYCL2]]
 
 // CHECK-LABEL: define dso_local void @f3
 // CHECK: call float @fake_exp10(float {{.*}})
+
+// CHECK-LABEL: define dso_local void @f4
+// CHECK: call double @llvm.fpbuiltin.exp.f64(double {{.*}}) #[[ATTR_HIGH]]
+// CHECK: call double @llvm.fpbuiltin.cos.f64(double {{.*}}) #[[ATTR_HIGH]]
+
+// CHECK-F1-LABEL: define dso_local void @f3
 // CHECK-F1: call float @fake_exp10(float {{.*}})
+
+// CHECK-F1-LABEL: define dso_local void @f4
+// CHECK-F1: call double @llvm.exp.f64(double {{.*}})
+// CHECK-F1: call double @llvm.fpbuiltin.cos.f64(double {{.*}}) #[[ATTR_F1_HIGH]]
+
+// CHECK-F2-LABEL: define dso_local float @fake_exp10
+
+// CHECK-F2-LABEL: define dso_local void @f3
 // CHECK-F2: call float @fake_exp10(float {{.*}})
 
+// CHECK-F2-LABEL: define dso_local void @f4
+// CHECK-F2: call double @llvm.fpbuiltin.exp.f64(double {{.*}}) #[[ATTR_F2_MEDIUM]]
+// CHECK-F2: call double @llvm.fpbuiltin.cos.f64(double {{.*}})  #[[ATTR_F2_CUDA]]
+
+// CHECK-SPIR-LABEL: define dso_local spir_func float @fake_exp10
+//
 // CHECK-SPIR-LABEL: define dso_local spir_func void @f3
 // CHECK-SPIR: call spir_func float @fake_exp10(float {{.*}})
+
+// CHECK-SPIR-LABEL: define dso_local spir_func void @f4
+// CHECK-SPIR: call double @llvm.fpbuiltin.exp.f64(double {{.*}}) #[[ATTR_SYCL5]]
+// CHECK-SPIR: call double @llvm.fpbuiltin.cos.f64(double {{.*}}) #[[ATTR_SYCL1]]
 
 // CHECK: attributes #[[ATTR_HIGH]] = {{.*}}"fpbuiltin-max-error"="1.0"
 
@@ -522,9 +602,14 @@ void f1(float a, float b) {
 // CHECK-DEFAULT: call double @llvm.log10.f64(double {{.*}})
 // CHECK-DEFAULT: call i32 (double, ptr, ptr, ...) @sincos(double {{.*}}, ptr {{.*}}, ptr {{.*}})
 // CHECK-DEFAULT: call float @tanf(float {{.*}})
-
+// CHECK-DEFAULT: call float @hypotf(float {{.*}}, float {{.*}})
+//
 // CHECK-DEFAULT-LABEL: define dso_local void @f3
 // CHECK-DEFAULT: call float @fake_exp10(float {{.*}})
+
+// CHECK-DEFAULT-LABEL: define dso_local void @f4
+// CHECK-DEFAULT: call double @llvm.exp.f64(double {{.*}})
+// CHECK-DEFAULT: call double @llvm.cos.f64(double {{.*}})
 
 void f2(float a, float b) {
   float sin = 0.f, cos = 0.f;
@@ -535,9 +620,24 @@ void f2(float a, float b) {
   b = log10(b);
   sincos(b, &sin, &cos);
   b = tanf(b);
+  b = hypotf(b,b);
+  b = ldexpf(b,b);
 }
 
 float fake_exp10(float a) __attribute__((no_builtin)){}
 void f3(float a, float b) {
   a = fake_exp10(b);
+}
+
+#define sz 2
+double in[sz];
+double out[sz];
+
+double getInput(int i) {
+  return in[i];
+}
+
+void f4() {
+  for (int i = 0; i < sz; i++)
+    out[i] = cos(exp(getInput(i)));
 }

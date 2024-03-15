@@ -97,6 +97,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
+#include "llvm/SYCLLowerIR/UtilsSYCLNativeCPU.h"
 #include "llvm/Support/CommandLine.h"
 
 #ifndef NDEBUG
@@ -405,9 +406,7 @@ static void copyBetweenPrivateAndShadow(Value *L, GlobalVariable *Shadow,
   assert(T && "Unexpected type");
 
   if (T->isAggregateType()) {
-    // TODO: we should use methods which directly return MaybeAlign once such
-    // are added to LLVM for AllocaInst and GlobalVariable
-    auto ShdAlign = MaybeAlign(Shadow->getAlignment());
+    auto ShdAlign = Shadow->getAlign();
     Module &M = *Shadow->getParent();
     auto SizeVal = M.getDataLayout().getTypeStoreSize(T);
     auto Size = ConstantInt::get(getSizeTTy(M), SizeVal);
@@ -900,7 +899,7 @@ GlobalVariable *spirv::createWGLocalVariable(Module &M, Type *T,
 // Return a value equals to 0 if and only if the local linear id is 0.
 Value *spirv::genPseudoLocalID(Instruction &Before, const Triple &TT) {
   Module &M = *Before.getModule();
-  if (TT.isNVPTX() || TT.isAMDGCN()) {
+  if (TT.isNVPTX() || TT.isAMDGCN() || sycl::utils::isSYCLNativeCPU(M)) {
     LLVMContext &Ctx = Before.getContext();
     Type *RetTy = getSizeTTy(M);
 
