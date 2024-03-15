@@ -52,6 +52,16 @@ set(UR_SYCL_LIBRARY_DIR "" CACHE PATH
 set(UR_CONFORMANCE_TARGET_TRIPLES "" CACHE STRING
     "List of sycl targets to build CTS device binaries for")
 set(UR_CONFORMANCE_AMD_ARCH "" CACHE STRING "AMD device target ID to build CTS binaries for")
+set(UR_ADAPTER_LEVEL_ZERO_SOURCE_DIR "" CACHE PATH
+    "Path to external 'level_zero' adapter source dir")
+set(UR_ADAPTER_OPENCL_SOURCE_DIR "" CACHE PATH
+    "Path to external 'opencl' adapter source dir")
+set(UR_ADAPTER_CUDA_SOURCE_DIR "" CACHE PATH
+    "Path to external 'cuda' adapter source dir")
+set(UR_ADAPTER_HIP_SOURCE_DIR "" CACHE PATH
+    "Path to external 'hip' adapter source dir")
+set(UR_ADAPTER_NATIVE_CPU_SOURCE_DIR "" CACHE PATH
+    "Path to external 'native_cpu' adapter source dir")
 
 # There's little reason not to generate the compile_commands.json
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
