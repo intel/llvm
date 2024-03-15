@@ -155,19 +155,22 @@ if lit_config.params.get("gpu-intel-dg1", False):
     config.available_features.add("gpu-intel-dg1")
 if lit_config.params.get("gpu-intel-dg2", False):
     config.available_features.add("gpu-intel-dg2")
-if lit_config.params.get("gpu-intel-pvc", False) or \
-   lit_config.params.get("gpu-intel-pvc-vg", False) :
-    if lit_config.params.get("gpu-intel-pvc", False):
-        config.available_features.add("gpu-intel-pvc")
-    else:
-        config.available_features.add("gpu-intel-pvc-vg")
+if lit_config.params.get("gpu-intel-pvc", False):
+    config.available_features.add("gpu-intel-pvc")
     config.available_features.add(
         "matrix-fp16"
-    )  # PVC/PVC-VG implies the support of FP16 matrix
+    )  # PVC implies the support of FP16 matrix
     config.available_features.add(
         "matrix-tf32"
-    )  # PVC/PVC-VG implies the support of TF32 matrix
-
+    )  # PVC implies the support of TF32 matrix
+if lit_config.params.get("gpu-intel-pvc-vg", False):
+    config.available_features.add("gpu-intel-pvc-vg")
+    config.available_features.add(
+        "matrix-fp16"
+    )  # PVC-VG implies the support of FP16 matrix
+    config.available_features.add(
+        "matrix-tf32"
+    )  # PVC-VG implies the support of TF32 matrix    
 if lit_config.params.get("matrix", False):
     config.available_features.add("matrix")
 
