@@ -21,7 +21,7 @@ clear='\033[0m'
 help()
 {
     echo -e "Usage: sycl-perf.sh [-f,--format] ${yellow}<Value1> ${clear}[-i,--ignore] ${yellow}<Value2> ${clear}[-p,--projection] ${yellow}<Value3> ${clear}[-c,--color] [-s,--streams] ${yellow}<Value4> ${clear}[-h,--help] -- <executable> <arguments>"
-    echo -e "          ${green}-f,--format     Allowed values for ${yellow}<Value1>${green} are ${yellow}json,table,stack,all${green}"
+    echo -e "          ${green}-f,--format     Allowed values for ${yellow}<Value1>${green} are ${yellow}json,table,stack,all,none${green}"
     echo "          -i,--ignore     First time execution of certain calls take an order of magnitude more"
     echo -e "                          time than subsequent calls listed in ${yellow}<Value2>${green}"
     echo -e "                          Example:- ${yellow}piPlatformGet,piProgramBuild ${green}"
@@ -120,10 +120,8 @@ done
 #
 ############################################################################################
 
-if [[ "$format" == "json" || "$format" == "csv" || "$format" == "table" || "$format" == "stack" || "$format" == "all" ]]; then
+if [[ -n $format ]]; then
 export XPTI_SYCL_PERF_OUTPUT=$format
-else
-echo "Bad --format="$format " provided, will default to collector implementation.."
 fi
 
 if [[ -n "$ignore_list"  ]]; then

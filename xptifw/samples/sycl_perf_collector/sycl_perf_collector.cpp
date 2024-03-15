@@ -25,7 +25,7 @@ bool MeasureEventCost = true;
 bool ShowDebugInformation = false;
 bool ShowInColors;
 
-uint64_t GOutputFormats = (uint64_t)xpti::FileFormat::Stack;
+uint64_t GOutputFormats = 0;
 // Data structure to keep track of the streams to monitor
 xpti::utils::string::list_t *GStreams = nullptr;
 xpti::utils::string::list_t GAllStreams;
@@ -292,6 +292,9 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
             GOutputFormats |= (uint64_t)xpti::FileFormat::Stack;
           } else if (o == "all") {
             GOutputFormats |= (uint64_t)xpti::FileFormat::All;
+          } else if (o == "none") {
+            GOutputFormats = 0;
+            break;
           } else {
             std::cerr << "Invalid format provided: " << o
                       << " - Ignoring format!\n";
@@ -301,6 +304,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     } else {
       GOutputFormats = (uint64_t)xpti::FileFormat::JSON;
     }
+    std::cout << "Output format: " << GOutputFormats << "\n";
 
     // Check to see if the data model is uninitialized
     // if (GDataModel.get() == nullptr) {
@@ -493,8 +497,10 @@ XPTI_CALLBACK_API void xptiTraceFinish(const char *stream_name) {
       // At this point, the XPTI framework has indicated that all streams we
       // have subscribed have completed sending their events. We can use the
       // data model we have created to output in one or many formats.
-      if (GDataModel) {
-        GDataModel->finalize();
+      if (GDataModel && !CalibrationRun) {
+        // Only create an ordered data set if an output file format is requsted
+        if (GOutputFormats)
+          GDataModel->finalize();
 
         if (GOutputFormats & (uint16_t)xpti::FileFormat::Table) {
           xpti::writer *writer =
