@@ -2773,6 +2773,16 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
     if (CheckIntelSYCLPtrAnnotationBuiltinFunctionCall(BuiltinID, TheCall))
       return ExprError();
     break;
+  case Builtin::BI__builtin_intel_sycl_alloca:
+    if (!Context.getLangOpts().SYCLIsDevice) {
+      Diag(TheCall->getBeginLoc(), diag::err_builtin_requires_language)
+          << "__builtin_intel_sycl_alloca"
+          << "SYCL device";
+      return ExprError();
+    }
+    if (CheckIntelSYCLAllocaBuiltinFunctionCall(BuiltinID, TheCall))
+      return ExprError();
+    break;
   case Builtin::BI__builtin_intel_fpga_mem:
     if (!Context.getLangOpts().SYCLIsDevice) {
       Diag(TheCall->getBeginLoc(), diag::err_builtin_requires_language)
@@ -7484,6 +7494,97 @@ bool Sema::CheckIntelSYCLPtrAnnotationBuiltinFunctionCall(unsigned BuiltinID,
 
   // Set the return type to be the same as the type of the first argument
   TheCall->setType(PointerArgType);
+  return false;
+}
+
+bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
+  assert(getLangOpts().SYCLIsDevice &&
+         "Builtin can only be used in SYCL device code");
+
+  SourceLocation Loc = Call->getBeginLoc();
+
+  // This builtin cannot be called directly. As it needs to pass template
+  // arguments, this is always an alias.
+  const FunctionDecl *FD = Call->getDirectCallee();
+  assert(FD && "Builtin cannot be called from a function pointer");
+  if (!FD->hasAttr<BuiltinAliasAttr>()) {
+    Diag(Loc, diag::err_intel_sycl_alloca_no_alias);
+    return true;
+  }
+
+  // Check a single argument is passed
+  if (checkArgCount(*this, Call, 1))
+    return true;
+
+  // Check three template arguments are passed
+  if (const TemplateArgumentList *TAL = FD->getTemplateSpecializationArgs();
+      !TAL || TAL->size() != 3) {
+    Diag(Loc, diag::err_intel_sycl_alloca_wrong_template_arg_count)
+        << (TAL ? TAL->size() : 0);
+    return true;
+  }
+
+  // Check the single argument is of type `sycl::kernel_handler &`
+  constexpr auto CheckArg = [](QualType Ty) {
+    if (!Ty->isLValueReferenceType())
+      return true;
+    Ty = Ty->getPointeeType();
+    return !(Ty.getQualifiers().empty() &&
+             isSyclType(Ty, SYCLTypeAttr::kernel_handler));
+  };
+  if (CheckArg(FD->getParamDecl(0)->getType())) {
+    Diag(Loc, diag::err_intel_sycl_alloca_wrong_arg)
+        << FD->getParamDecl(0)->getType();
+    return true;
+  }
+
+  // Check the return type is `sycl::multi_ptr<ET,
+  // sycl::access::address_space::private_space, DecoratedAddress>`:
+  // - `ET`: non-const, non-volatile, non-void, non-function, non-reference type
+  constexpr auto CheckType = [](QualType RT) {
+    if (!isSyclType(RT, SYCLTypeAttr::multi_ptr))
+      return true;
+    // Check element type
+    const TemplateArgumentList &TAL =
+        cast<ClassTemplateSpecializationDecl>(RT->getAsRecordDecl())
+            ->getTemplateArgs();
+    QualType ET = TAL.get(0).getAsType();
+    if (ET.isConstQualified() || ET.isVolatileQualified() || ET->isVoidType() ||
+        ET->isFunctionType() || ET->isReferenceType())
+      return true;
+    constexpr uint64_t PrivateAS = 0;
+    return TAL.get(1).getAsIntegral() != PrivateAS;
+  };
+  if (CheckType(FD->getReturnType())) {
+    Diag(Loc, diag::err_intel_sycl_alloca_wrong_type) << FD->getReturnType();
+    return true;
+  }
+
+  // Check size is passed as a specialization constant
+  constexpr auto CheckSize = [](const ASTContext &Ctx,
+                                const TemplateArgumentList *CST) {
+    QualType Ty = CST->get(1).getNonTypeTemplateArgumentType();
+    if (Ty.isNull() || !Ty->isReferenceType())
+      return true;
+    Ty = Ty->getPointeeType();
+    if (!isSyclType(Ty, SYCLTypeAttr::specialization_id))
+      return true;
+    const TemplateArgumentList &TAL =
+        cast<ClassTemplateSpecializationDecl>(Ty->getAsCXXRecordDecl())
+            ->getTemplateArgs();
+    return !TAL.get(0).getAsType()->isIntegralType(Ctx);
+  };
+  const TemplateArgumentList *CST = FD->getTemplateSpecializationArgs();
+  if (CheckSize(getASTContext(), CST)) {
+    TemplateArgument TA = CST->get(1);
+    QualType Ty = TA.getNonTypeTemplateArgumentType();
+    if (Ty.isNull())
+      Diag(Loc, diag::err_intel_sycl_alloca_no_size) << TA;
+    else
+      Diag(Loc, diag::err_intel_sycl_alloca_wrong_size) << TA << Ty;
+    return true;
+  }
+
   return false;
 }
 

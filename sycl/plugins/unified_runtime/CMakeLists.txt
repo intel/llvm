@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 78e09f717f56ea8d6e5eb3aa1a22107cf58a8d41
-  # Merge: e0393a45 8a5d6d39
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Feb 29 12:49:08 2024 +0000
-  #     Merge pull request #1392 from pbalcer/event-cache-different-fix
-  #     [L0] Event cache different fix
-  set(UNIFIED_RUNTIME_TAG 78e09f717f56ea8d6e5eb3aa1a22107cf58a8d41)
+  # commit ec634ff05b067d7922ec45059dda94665e5dcd9b
+  # Merge: 418ad535 8714b853
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Thu Mar 14 15:52:52 2024 +0100
+  #     Merge pull request #1438 from PatKamin/disable-fuzztests
+  #     Disable fuzz tests on ubuntu-22.04 runner
+  set(UNIFIED_RUNTIME_TAG ec634ff05b067d7922ec45059dda94665e5dcd9b)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

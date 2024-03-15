@@ -4446,6 +4446,8 @@ public:
   RValue EmitIntelFPGAMemBuiltin(const CallExpr *E);
 
   RValue EmitIntelSYCLPtrAnnotationBuiltin(const CallExpr *E);
+  RValue EmitIntelSYCLAllocaBuiltin(const CallExpr *E,
+                                    ReturnValueSlot ReturnValue);
 
   llvm::CallInst *
   MaybeEmitFPBuiltinofFD(llvm::FunctionType *IRFuncTy,

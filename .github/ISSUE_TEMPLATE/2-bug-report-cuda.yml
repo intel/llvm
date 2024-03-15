@@ -1,7 +1,8 @@
 name: CUDA-specific bug report
-description: Please use this template in case of CUDA-specific issue.
-Before submitting an issue check that it is not already covered in the
-[troubleshooting guide](https://developer.codeplay.com/products/oneapi/nvidia/latest/guides/troubleshooting)
+description: >
+  Please use this template in case of CUDA-specific issue.
+  Check https://developer.codeplay.com/products/oneapi/nvidia/latest/guides/troubleshooting
+  before submitting a bug report.
 labels: ["bug", "cuda"]
 body:
   - type: textarea
