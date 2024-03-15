@@ -308,9 +308,10 @@ areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
     return SyclEventImplPtr->getHandleRef() != nullptr;
   };
 
-  return std::all_of(
-      DepEvents.begin(), DepEvents.end(),
-      [&CheckEvent](const sycl::event &Event) { return CheckEvent(Event); });
+  return std::all_of(DepEvents.begin(), DepEvents.end(),
+                     [&Context, &CheckEvent](const sycl::event &Event) {
+                       return CheckEvent(Event);
+                     });
 }
 
 template <typename HandlerFuncT>
