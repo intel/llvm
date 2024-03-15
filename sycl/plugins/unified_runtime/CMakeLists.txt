@@ -65,7 +65,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Fri Jan 26 12:20:20 2024 +0000
   #     Merge pull request #1205 from ykhatav/ur_dependentload
   #     [UR] add dependent-load flag to exclude CWD from default search path …
-  set(UNIFIED_RUNTIME_TAG d0e7f0e90e934e8c2d87f3f48e1d9b009b821827)
+  set(UNIFIED_RUNTIME_TAG 35b6cd09dd92b04eae8195a706ef6c63541b3cf1)
 #=======
 #  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime")
   # commit 73d85ef9f48ec4d1f213066a31ed7e4402b5499b
