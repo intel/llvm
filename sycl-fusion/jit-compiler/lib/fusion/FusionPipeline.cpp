@@ -12,6 +12,7 @@
 #include "helper/ConfigHelper.h"
 #include "internalization/Internalization.h"
 #include "kernel-fusion/SYCLKernelFusion.h"
+#include "kernel-fusion/SYCLSpecConstMaterializer.h"
 #include "kernel-info/SYCLKernelInfo.h"
 #include "syclcp/SYCLCP.h"
 
@@ -140,4 +141,52 @@ FusionPipeline::runFusionPasses(Module &Mod, SYCLModuleInfo &InputInfo,
   assert(NewModInfo.ModuleInfo && "Failed to retrieve SYCL module info");
 
   return std::make_unique<SYCLModuleInfo>(std::move(*NewModInfo.ModuleInfo));
+}
+
+bool FusionPipeline::runMaterializerPasses(
+    llvm::Module &Mod, std::vector<unsigned char> &SpecConstBlob) {
+  PassBuilder PB;
+  LoopAnalysisManager LAM;
+  FunctionAnalysisManager FAM;
+  CGSCCAnalysisManager CGAM;
+  ModuleAnalysisManager MAM;
+  PB.registerModuleAnalyses(MAM);
+  PB.registerCGSCCAnalyses(CGAM);
+  PB.registerFunctionAnalyses(FAM);
+  PB.registerLoopAnalyses(LAM);
+  PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
+
+  // Base the pipeline on O3 opt level.
+  ModulePassManager MPM =
+      PB.buildPerModuleDefaultPipeline(OptimizationLevel::O3);
+  // Register inserter and materializer passes.
+  {
+    FunctionPassManager FPM;
+    MPM.addPass(
+        SYCLSpecConstDataInserter{SpecConstBlob.data(), SpecConstBlob.size()});
+    FPM.addPass(SYCLSpecConstMaterializer{});
+    MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
+  }
+  // Add generic optimizations,
+  {
+    FunctionPassManager FPM;
+    MPM.addPass(AlwaysInlinerPass{});
+    FPM.addPass(SROAPass{SROAOptions::ModifyCFG});
+    FPM.addPass(SCCPPass{});
+    FPM.addPass(ADCEPass{});
+    FPM.addPass(EarlyCSEPass{/*UseMemorySSA*/ true});
+    MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
+  }
+  // followed by unrolling.
+  {
+    FunctionPassManager FPM;
+    FPM.addPass(createFunctionToLoopPassAdaptor(IndVarSimplifyPass{}));
+    LoopUnrollOptions UnrollOptions;
+    FPM.addPass(LoopUnrollPass{UnrollOptions});
+    MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
+  }
+
+  MPM.run(Mod, MAM);
+
+  return true;
 }
