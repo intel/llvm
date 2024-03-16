@@ -15,6 +15,14 @@
 #include <unordered_set>
 #include <vector>
 
+#define SAFE_DELETE(p)                                                         \
+  {                                                                            \
+    if (p) {                                                                   \
+      delete p;                                                                \
+      p = nullptr;                                                             \
+    }                                                                          \
+  }
+
 namespace xpti {
 namespace utils {
 // We are using C++ 11, hence we cannot use
