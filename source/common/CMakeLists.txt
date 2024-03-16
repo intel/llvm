@@ -4,9 +4,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 add_ur_library(ur_common STATIC
-    umf_helpers.hpp
-    umf_pools/disjoint_pool_config_parser.cpp
-    ur_pool_manager.hpp
     ur_util.cpp
     ur_util.hpp
     $<$<PLATFORM_ID:Windows>:windows/ur_lib_loader.cpp>
@@ -52,9 +49,6 @@ FetchContent_MakeAvailable(unified-memory-framework)
 FetchContent_GetProperties(unified-memory-framework)
 
 target_link_libraries(ur_common PUBLIC
-    umf::umf
-    umf::headers
-    umf::disjoint_pool
     ${CMAKE_DL_LIBS}
     ${PROJECT_NAME}::headers
 )
@@ -71,4 +65,19 @@ install(TARGETS ur_common
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+
+add_library(ur_umf INTERFACE)
+target_sources(ur_umf INTERFACE
+    umf_helpers.hpp
+    umf_pools/disjoint_pool_config_parser.cpp
+    ur_pool_manager.hpp
+)
+
+add_library(${PROJECT_NAME}::umf ALIAS ur_umf)
+
+target_link_libraries(ur_umf INTERFACE
+    umf::umf
+    umf::headers
+    umf::disjoint_pool
 )
