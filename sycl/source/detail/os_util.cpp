@@ -20,6 +20,7 @@
 #include <cstdio>
 #include <cstring>
 #include <dlfcn.h>
+#include <filesystem> // C++17 std::create_directories
 #include <fstream>
 #include <libgen.h> // for dirname
 #include <link.h>
@@ -32,7 +33,6 @@
 #include <detail/windows_os_utils.hpp>
 
 #include <Windows.h>
-#include <direct.h>
 #include <malloc.h>
 #include <shlwapi.h>
 
@@ -242,20 +242,8 @@ int OSUtil::makeDir(const char *Dir) {
   if (isPathPresent(Dir))
     return 0;
 
-  std::string Path{Dir}, CurPath;
-  size_t pos = 0;
+  std::filesystem::create_directories(Dir);
 
-  do {
-    pos = Path.find_first_of("/\\", ++pos);
-    CurPath = Path.substr(0, pos);
-#if defined(__SYCL_RT_OS_POSIX_SUPPORT)
-    auto Res = mkdir(CurPath.c_str(), 0777);
-#else
-    auto Res = _mkdir(CurPath.c_str());
-#endif
-    if (Res && errno != EEXIST)
-      return Res;
-  } while (pos != std::string::npos);
   return 0;
 }
 
