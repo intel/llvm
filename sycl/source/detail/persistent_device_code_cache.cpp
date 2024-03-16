@@ -133,8 +133,6 @@ void PersistentDeviceCodeCache::putItemToDisc(
 
   try {
     OSUtil::makeDir(DirName.c_str());
-    PersistentDeviceCodeCache::trace("cache directory creation did not throw" +
-                                     DirName);
     LockCacheItem Lock{FileName};
     if (Lock.isOwned()) {
       std::string FullFileName = FileName + ".bin";
