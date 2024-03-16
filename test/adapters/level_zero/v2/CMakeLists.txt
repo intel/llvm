@@ -23,6 +23,7 @@ function(add_unittest name)
 
     target_link_libraries(${target} PRIVATE
         ${PROJECT_NAME}::common
+        ${PROJECT_NAME}::umf
         LevelZeroLoader
         LevelZeroLoader-Headers
     )
