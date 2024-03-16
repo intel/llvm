@@ -9,6 +9,7 @@
 #include <sycl/detail/os_util.hpp>
 
 #include <cassert>
+#include <filesystem> // C++17 std::create_directories
 #include <limits>
 
 #if defined(__SYCL_RT_OS_LINUX)
@@ -20,7 +21,6 @@
 #include <cstdio>
 #include <cstring>
 #include <dlfcn.h>
-#include <filesystem> // C++17 std::create_directories
 #include <fstream>
 #include <libgen.h> // for dirname
 #include <link.h>
