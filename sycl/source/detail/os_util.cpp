@@ -233,15 +233,17 @@ void OSUtil::alignedFree(void *Ptr) {
 #endif
 }
 
-// throws on error
-void OSUtil::makeDir(const char *Dir) {
+// throws on error.
+// TODO: remove return value at next ABI breaking window
+int OSUtil::makeDir(const char *Dir) {
   assert((Dir != nullptr) && "Passed null-pointer as directory name.");
   if (isPathPresent(Dir))
-    return;
+    return 0;
 
   std::filesystem::path path(Dir);
 
   std::filesystem::create_directories(path.make_preferred());
+  return 0;
 }
 
 } // namespace detail

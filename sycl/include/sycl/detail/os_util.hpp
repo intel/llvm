@@ -66,7 +66,7 @@ public:
   static void alignedFree(void *Ptr);
 
   /// Make directory throw if error
-  static void makeDir(const char *Dir);
+  static int makeDir(const char *Dir);
 
   /// Checks if specified path is present
   static bool isPathPresent(const std::string &Path) {
