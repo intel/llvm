@@ -133,6 +133,8 @@ void PersistentDeviceCodeCache::putItemToDisc(
 
   try {
     OSUtil::makeDir(DirName.c_str());
+    PersistentDeviceCodeCache::trace("cache directory creation did not throw" +
+                                     DirName);
     LockCacheItem Lock{FileName};
     if (Lock.isOwned()) {
       std::string FullFileName = FileName + ".bin";
@@ -140,6 +142,8 @@ void PersistentDeviceCodeCache::putItemToDisc(
       trace("device binary has been cached: " + FullFileName);
       writeSourceItem(FileName + ".src", Device, Img, SpecConsts,
                       BuildOptionsString);
+    } else {
+      PersistentDeviceCodeCache::trace("cache lock not owned " + FileName);
     }
   } catch ( std::exception &e){
     PersistentDeviceCodeCache::trace(

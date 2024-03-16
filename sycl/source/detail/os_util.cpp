@@ -233,18 +233,15 @@ void OSUtil::alignedFree(void *Ptr) {
 #endif
 }
 
-/* This is temporary solution until std::filesystem is available when SYCL RT
- * is moved to c++17 standard*/
-
-/* Create directory recursively and return non zero code on success*/
-int OSUtil::makeDir(const char *Dir) {
+// throws on error
+void OSUtil::makeDir(const char *Dir) {
   assert((Dir != nullptr) && "Passed null-pointer as directory name.");
   if (isPathPresent(Dir))
-    return 0;
+    return;
 
-  std::filesystem::create_directories(Dir);
+  std::filesystem::path path(Dir);
 
-  return 0;
+  std::filesystem::create_directories(path.make_preferred());
 }
 
 } // namespace detail
