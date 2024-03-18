@@ -224,10 +224,6 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
     if (!hPlatform) {
         return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
     }
-    // NumEntries is max number of devices wanted by the caller (max usable length of phDevices)
-    if (NumEntries < 0) {
-        return UR_RESULT_ERROR_INVALID_SIZE;
-    }
     if (NumEntries > 0 && !phDevices) {
         return UR_RESULT_ERROR_INVALID_NULL_POINTER;
     }
@@ -426,8 +422,10 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
 
     for (auto &termPair : mapODS) {
         std::string backend = termPair.first;
-        if (backend
-                .empty()) { // FIXME: never true because getenv_to_map rejects this case
+        // TODO: Figure out how to process all ODS errors rather than returning
+        // on the first error.
+        if (backend.empty()) {
+            // FIXME: never true because getenv_to_map rejects this case
             // malformed term: missing backend -- output ERROR, then continue
             logger::error("ERROR: missing backend, format of filter = "
                           "'[!]backend:filterStrings'");
@@ -459,20 +457,19 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                                    std::tolower(static_cast<unsigned char>(b));
                         })) {
             // irrelevant term for current request: different backend -- silently ignore
-            logger::warning(
-                "WARNING: ignoring term with irrelevant backend '{}'", backend);
-            continue;
+            logger::error("unrecognised backend '{}'", backend);
+            return UR_RESULT_ERROR_INVALID_VALUE;
         }
         if (termPair.second.size() == 0) {
-            // malformed term: missing filterStrings -- output ERROR, then continue
-            logger::error("ERROR missing filterStrings, format of filter = "
+            // malformed term: missing filterStrings -- output ERROR
+            logger::error("missing filterStrings, format of filter = "
                           "'[!]backend:filterStrings'");
-            continue;
+            return UR_RESULT_ERROR_INVALID_VALUE;
         }
         if (std::find_if(termPair.second.cbegin(), termPair.second.cend(),
                          [](const auto &s) { return s.empty(); }) !=
-            termPair.second
-                .cend()) { // FIXME: never true because getenv_to_map rejects this case
+            termPair.second.cend()) {
+            // FIXME: never true because getenv_to_map rejects this case
             // malformed term: missing filterString -- output warning, then continue
             logger::warning(
                 "WARNING: empty filterString, format of filterStrings "
@@ -483,10 +480,10 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                          [](const auto &s) {
                              return std::count(s.cbegin(), s.cend(), '.') > 2;
                          }) != termPair.second.cend()) {
-            // malformed term: too many dots in filterString -- output warning, then continue
-            logger::warning("WARNING: too many dots in filterString, format of "
-                            "filterString = 'root[.sub[.subsub]]'");
-            continue;
+            // malformed term: too many dots in filterString
+            logger::error("too many dots in filterString, format of "
+                          "filterString = 'root[.sub[.subsub]]'");
+            return UR_RESULT_ERROR_INVALID_VALUE;
         }
         if (std::find_if(
                 termPair.second.cbegin(), termPair.second.cend(),
@@ -504,10 +501,9 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
                     }
                     return false; // no BAD things, so must be okay
                 }) != termPair.second.cend()) {
-            // malformed term: star dot no-star in filterString -- output warning, then continue
-            logger::warning(
-                "WARNING: invalid wildcard in filterString, '*.' => '*.*'");
-            continue;
+            // malformed term: star dot no-star in filterString
+            logger::error("invalid wildcard in filterString, '*.' => '*.*'");
+            return UR_RESULT_ERROR_INVALID_VALUE;
         }
 
         // TODO -- use regex validation_pattern to catch all other syntax errors in the ODS string
@@ -552,7 +548,7 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
 
     if (acceptDeviceList.size() == 0 && discardDeviceList.size() == 0) {
         // nothing in env var was understood as a valid term
-        return UR_RESULT_ERROR_INVALID_VALUE;
+        return UR_RESULT_SUCCESS;
     } else if (acceptDeviceList.size() == 0) {
         // no accept terms were understood, but at least one discard term was
         // we are magnanimous to the user when there were bad/ignored accept terms

@@ -1870,6 +1870,10 @@ ur_result_t ur_queue_handle_t_::createCommandList(
   ZeStruct<ze_command_list_desc_t> ZeCommandListDesc;
   ZeCommandListDesc.commandQueueGroupOrdinal = QueueGroupOrdinal;
 
+  if (Device->useDriverInOrderLists() && isInOrderQueue()) {
+    ZeCommandListDesc.flags = ZE_COMMAND_LIST_FLAG_IN_ORDER;
+  }
+
   ZE2UR_CALL(zeCommandListCreate, (Context->ZeContext, Device->ZeDevice,
                                    &ZeCommandListDesc, &ZeCommandList));
 
@@ -1985,7 +1989,11 @@ ur_command_list_ptr_t &ur_queue_handle_t_::ur_queue_group_t::getImmCmdList() {
 
   // Evaluate performance of explicit usage for "0" index.
   if (QueueIndex != 0) {
-    ZeCommandQueueDesc.flags = ZE_COMMAND_QUEUE_FLAG_EXPLICIT_ONLY;
+    ZeCommandQueueDesc.flags |= ZE_COMMAND_QUEUE_FLAG_EXPLICIT_ONLY;
+  }
+
+  if (Queue->Device->useDriverInOrderLists() && Queue->isInOrderQueue()) {
+    ZeCommandQueueDesc.flags |= ZE_COMMAND_QUEUE_FLAG_IN_ORDER;
   }
 
   // Check if context's command list cache has an immediate command list with

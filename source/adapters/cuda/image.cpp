@@ -1006,17 +1006,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     ArrayDesc.Format = format;
 
     CUDA_EXTERNAL_MEMORY_MIPMAPPED_ARRAY_DESC mipmapDesc = {};
-    mipmapDesc.numLevels = 1;
+    mipmapDesc.numLevels = pImageDesc->numMipLevel;
     mipmapDesc.arrayDesc = ArrayDesc;
 
+    // External memory is mapped to a CUmipmappedArray
+    // If desired, a CUarray is retrieved from the mipmaps 0th level
     CUmipmappedArray memMipMap;
     UR_CHECK_ERROR(cuExternalMemoryGetMappedMipmappedArray(
         &memMipMap, (CUexternalMemory)hInteropMem, &mipmapDesc));
 
-    CUarray memArray;
-    UR_CHECK_ERROR(cuMipmappedArrayGetLevel(&memArray, memMipMap, 0));
+    if (pImageDesc->numMipLevel > 1) {
+      *phImageMem = (ur_exp_image_mem_handle_t)memMipMap;
+    } else {
+      CUarray memArray;
+      UR_CHECK_ERROR(cuMipmappedArrayGetLevel(&memArray, memMipMap, 0));
 
-    *phImageMem = (ur_exp_image_mem_handle_t)memArray;
+      *phImageMem = (ur_exp_image_mem_handle_t)memArray;
+    }
 
   } catch (ur_result_t Err) {
     return Err;
