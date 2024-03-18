@@ -1274,6 +1274,109 @@ struct urBaseKernelExecutionTest : urBaseKernelTest {
     uint32_t current_arg_index = 0;
 };
 
+template <typename T>
+struct urBaseKernelExecutionTestWithParam : urBaseKernelTestWithParam<T> {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTestWithParam<T>::SetUp());
+        UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTestWithParam<T>::Build());
+        context = urBaseKernelTestWithParam<T>::context;
+        kernel = urBaseKernelTestWithParam<T>::kernel;
+        ASSERT_SUCCESS(urQueueCreate(
+            context, urBaseKernelTestWithParam<T>::device, 0, &queue));
+    }
+
+    void TearDown() override {
+        for (auto &buffer : buffer_args) {
+            ASSERT_SUCCESS(urMemRelease(buffer));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTestWithParam<T>::TearDown());
+        if (queue) {
+            EXPECT_SUCCESS(urQueueRelease(queue));
+        }
+    }
+
+    // Adds a kernel arg representing a sycl buffer constructed with a 1D range.
+    void AddBuffer1DArg(size_t size, ur_mem_handle_t *out_buffer) {
+        ur_mem_handle_t mem_handle = nullptr;
+        ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, size,
+                                         nullptr, &mem_handle));
+        char zero = 0;
+        ASSERT_SUCCESS(urEnqueueMemBufferFill(queue, mem_handle, &zero,
+                                              sizeof(zero), 0, size, 0, nullptr,
+                                              nullptr));
+        ASSERT_SUCCESS(urQueueFinish(queue));
+        ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, current_arg_index, nullptr,
+                                            mem_handle));
+
+        // SYCL device kernels have different interfaces depending on the
+        // backend being used. Typically a kernel which takes a buffer argument
+        // will take a pointer to the start of the buffer and a sycl::id param
+        // which is a struct that encodes the accessor to the buffer. However
+        // the AMD backend handles this differently and uses three separate
+        // arguments for each of the three dimensions of the accessor.
+
+        ur_platform_backend_t backend;
+        ASSERT_SUCCESS(urPlatformGetInfo(urBaseKernelTestWithParam<T>::platform,
+                                         UR_PLATFORM_INFO_BACKEND,
+                                         sizeof(backend), &backend, nullptr));
+        if (backend == UR_PLATFORM_BACKEND_HIP) {
+            // this emulates the three offset params for buffer accessor on AMD.
+            size_t val = 0;
+            ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 1,
+                                               sizeof(size_t), nullptr, &val));
+            ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 2,
+                                               sizeof(size_t), nullptr, &val));
+            ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 3,
+                                               sizeof(size_t), nullptr, &val));
+            current_arg_index += 4;
+        } else {
+            // This emulates the offset struct sycl adds for a 1D buffer accessor.
+            struct {
+                size_t offsets[1] = {0};
+            } accessor;
+            ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index + 1,
+                                               sizeof(accessor), nullptr,
+                                               &accessor));
+            current_arg_index += 2;
+        }
+
+        buffer_args.push_back(mem_handle);
+        *out_buffer = mem_handle;
+    }
+
+    template <class U> void AddPodArg(U data) {
+        ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_arg_index,
+                                           sizeof(data), nullptr, &data));
+        current_arg_index++;
+    }
+
+    // Validate the contents of `buffer` according to the given validator.
+    template <class U>
+    void ValidateBuffer(ur_mem_handle_t buffer, size_t size,
+                        std::function<bool(U &)> validator) {
+        std::vector<U> read_buffer(size / sizeof(U));
+        ASSERT_SUCCESS(urEnqueueMemBufferRead(queue, buffer, true, 0, size,
+                                              read_buffer.data(), 0, nullptr,
+                                              nullptr));
+        ASSERT_TRUE(
+            std::all_of(read_buffer.begin(), read_buffer.end(), validator));
+    }
+
+    // Helper that uses the generic validate function to check for a given value.
+    template <class U>
+    void ValidateBuffer(ur_mem_handle_t buffer, size_t size, U value) {
+        auto validator = [&value](U result) -> bool { return result == value; };
+
+        ValidateBuffer<U>(buffer, size, validator);
+    }
+
+    std::vector<ur_mem_handle_t> buffer_args;
+    uint32_t current_arg_index = 0;
+    ur_context_handle_t context;
+    ur_kernel_handle_t kernel;
+    ur_queue_handle_t queue;
+};
+
 struct urKernelExecutionTest : urBaseKernelExecutionTest {
     void SetUp() {
         UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelExecutionTest::SetUp());
