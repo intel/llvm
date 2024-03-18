@@ -43,7 +43,7 @@ macro(add_sycl_unittest test_dirname link_variant)
     SYCL_CONFIG_FILE_NAME=null.cfg
     SYCL_DEVICELIB_NO_FALLBACK=1
     SYCL_CACHE_DIR="${CMAKE_BINARY_DIR}/sycl_cache"
-    PATH="${CMAKE_BINARY_DIR};${PATH}"
+    PATH="${CMAKE_BINARY_DIR}/bin;${PATH}"
     ${CMAKE_CURRENT_BINARY_DIR}/${test_dirname}
     DEPENDS
     ${test_dirname}
