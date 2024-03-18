@@ -81,6 +81,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
+set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
   # commit 29ee45c4451a682f744146cc9dbeb2617ecdd6b3
   # Merge: db4b0c14 4f5d005a
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
