@@ -242,9 +242,19 @@ static int unsetFilterEnvVarsAndFork() {
   // Wait for child process to finish.
   WaitForSingleObject(pi.hProcess, INFINITE);
 
+  // Check child process's exit code and propagate it.
+  DWORD exitCode;
+  if (!GetExitCodeProcess(pi.hProcess, &exitCode)) {
+    std::cerr << "Error getting exit code. Aborting!" << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  assert(exitCode != STILL_ACTIVE &&
+         "The child process should have already terminated");
+
   CloseHandle(pi.hProcess);
   CloseHandle(pi.hThread);
-  return EXIT_SUCCESS;
+  return exitCode;
 }
 #endif
 
