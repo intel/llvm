@@ -7,8 +7,8 @@
 //
 // UNSUPPORTED: opencl, level_zero
 
-// Tests updating a graph node accessor argument using index-based explicit
-// update
+// Tests updating a graph node accessor argument multiple times before the graph
+// is updated, using index-based explicit update
 
 #include "../graph_common.hpp"
 
@@ -23,11 +23,14 @@ int main() {
       {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
   std::vector<int> HostDataA(N, 0);
   std::vector<int> HostDataB(N, 0);
+  std::vector<int> HostDataC(N, 0);
 
   buffer BufA{HostDataA};
   buffer BufB{HostDataB};
+  buffer BufC{HostDataC};
   BufA.set_write_back(false);
   BufB.set_write_back(false);
+  BufC.set_write_back(false);
   // Initial accessor for use in kernel and dynamic parameter
   auto Acc = BufA.get_access();
   exp_ext::dynamic_parameter InputParam(Graph, Acc);
@@ -51,21 +54,27 @@ int main() {
 
   Queue.copy(BufA.get_access(), HostDataA.data()).wait();
   Queue.copy(BufB.get_access(), HostDataB.data()).wait();
+  Queue.copy(BufC.get_access(), HostDataC.data()).wait();
   for (size_t i = 0; i < N; i++) {
     assert(HostDataA[i] == i);
     assert(HostDataB[i] == 0);
+    assert(HostDataC[i] == 0);
   }
+  // Update to BufC first
+  InputParam.update(BufC.get_access());
 
-  // Swap BufB to be the input
+  // Swap BufB to be the input instead
   InputParam.update(BufB.get_access());
   ExecGraph.update(KernelNode);
   Queue.ext_oneapi_graph(ExecGraph).wait();
 
   Queue.copy(BufA.get_access(), HostDataA.data()).wait();
   Queue.copy(BufB.get_access(), HostDataB.data()).wait();
+  Queue.copy(BufC.get_access(), HostDataC.data()).wait();
   for (size_t i = 0; i < N; i++) {
     assert(HostDataA[i] == i);
     assert(HostDataB[i] == i);
+    assert(HostDataC[i] == 0);
   }
   return 0;
 }

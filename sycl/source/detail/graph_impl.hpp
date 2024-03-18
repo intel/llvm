@@ -104,11 +104,6 @@ public:
   /// cannot be used to find out the partion of a node outside of this process.
   int MPartitionNum = -1;
 
-  /// Cache of accessors which have been updated on this node
-  std::vector<std::pair<sycl::detail::AccessorImplHost *,
-                        sycl::detail::AccessorImplHost *>>
-      MUpdatedAccessorsCache;
-
   /// Track whether an ND-Range was used for kernel nodes
   bool MNDRangeUsed = false;
 
@@ -401,10 +396,6 @@ public:
           Req = NewReq;
         }
       }
-      // Cache the old and new values so the graph can access it when updating
-      MUpdatedAccessorsCache.push_back(std::make_pair(
-          static_cast<sycl::detail::AccessorImplHost *>(Arg.MPtr),
-          NewAccImpl.get()));
       Arg.MPtr = NewAccImpl.get();
       break;
     }
@@ -494,8 +485,6 @@ public:
     auto &NewArgStorage = ExecCG->getArgsStorage();
     // Rebuild the arg storage and update the args
     rebuildArgStorage(ExecCG->MArgs, OldArgStorage, NewArgStorage);
-
-    MUpdatedAccessorsCache = Other->MUpdatedAccessorsCache;
   }
 
   id_type getID() const { return MID; }

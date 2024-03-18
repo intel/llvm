@@ -762,19 +762,11 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
       MIsUpdatable(PropList.has_property<property::graph::updatable>()) {
 
   // If the graph has been marked as updatable then check if the backend
-  // actually supports that.
+  // actually supports that. Devices supporting aspect::ext_oneapi_graph must
+  // have support for graph update.
   if (MIsUpdatable) {
-    pi_bool SupportsUpdate = PI_FALSE;
-    bool CallSuccessful =
-        sycl::detail::getSyclObjImpl(MContext)
-            ->getPlugin()
-            ->call_nocheck<sycl::detail::PiApiKind::piDeviceGetInfo>(
-                sycl::detail::getSyclObjImpl(MGraphImpl->getDevice())
-                    ->getHandleRef(),
-                PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT,
-                sizeof(pi_bool), &SupportsUpdate, nullptr) == PI_SUCCESS;
-
-    if (!CallSuccessful || !SupportsUpdate) {
+    bool SupportsUpdate = MGraphImpl->getDevice().has(aspect::ext_oneapi_graph);
+    if (!SupportsUpdate) {
       throw sycl::exception(sycl::make_error_code(errc::feature_not_supported),
                             "Device does not support Command Graph update");
     }
@@ -1170,6 +1162,10 @@ void exec_graph_impl::update(
   // scheduler to ensure that any allocations have taken place before trying to
   // update.
   bool NeedScheduledUpdate = false;
+  std::vector<sycl::detail::AccessorImplHost *> UpdateRequirements;
+  // At worst we may have as many requirements as there are for the entire graph
+  // for updating.
+  UpdateRequirements.reserve(MRequirements.size());
   for (auto &Node : Nodes) {
     // Check if node(s) derived from this modifiable node exists in this graph
     if (MIDCache.count(Node->getID()) == 0) {
@@ -1185,15 +1181,10 @@ void exec_graph_impl::update(
       continue;
     }
     NeedScheduledUpdate = true;
-    // Update cached requirements for this graph with updated node ones
-    auto UpdatedReqs = Node->MUpdatedAccessorsCache;
-    for (auto &CachedReq : MRequirements) {
-      for (auto &UpdatedReq : UpdatedReqs) {
-        if (CachedReq == UpdatedReq.first) {
-          CachedReq = UpdatedReq.second;
-        }
-      }
-    }
+
+    UpdateRequirements.insert(UpdateRequirements.end(),
+                              Node->MCommandGroup->getRequirements().begin(),
+                              Node->MCommandGroup->getRequirements().end());
   }
 
   // Clean up any execution events which have finished so we don't pass them to
@@ -1217,11 +1208,19 @@ void exec_graph_impl::update(
         sycl::async_handler{}, sycl::property_list{});
     // Don't need to care about the return event here because it is synchronous
     sycl::detail::Scheduler::getInstance().addCommandGraphUpdate(
-        this, Nodes, AllocaQueue, MRequirements, MExecutionEvents);
+        this, Nodes, AllocaQueue, UpdateRequirements, MExecutionEvents);
   } else {
     for (auto &Node : Nodes) {
       updateImpl(Node);
     }
+  }
+
+  // Rebuild cached requirements for this graph with updated nodes
+  MRequirements.clear();
+  for (auto &Node : MNodeStorage) {
+    MRequirements.insert(MRequirements.end(),
+                         Node->MCommandGroup->getRequirements().begin(),
+                         Node->MCommandGroup->getRequirements().end());
   }
 }
 
@@ -1278,16 +1277,13 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
         MaskedArgs.emplace_back(Arg.MType, Arg.MPtr, Arg.MSize, NextTrueIndex);
       });
 
-  // Remember this information before the range dimensions are reversed
-  const bool HasLocalSize = (NDRDesc.LocalSize[0] != 0);
-
   // Reverse kernel dims
   sycl::detail::ReverseRangeDimensionsForKernel(NDRDesc);
 
   size_t RequiredWGSize[3] = {0, 0, 0};
   size_t *LocalSize = nullptr;
 
-  if (HasLocalSize)
+  if (NDRDesc.LocalSize[0] != 0)
     LocalSize = &NDRDesc.LocalSize[0];
   else {
     Plugin->call<sycl::detail::PiApiKind::piKernelGetGroupInfo>(
@@ -1382,9 +1378,10 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
 
   // Update ExecNode with new values from Node, in case we ever need to
   // rebuild the command buffers
-  (*ExecNode).second->updateFromOtherNode(Node);
+  ExecNode->second->updateFromOtherNode(Node);
 
-  auto Command = MCommandMap[(*ExecNode).second];
+  sycl::detail::pi::PiExtCommandBufferCommand Command =
+      MCommandMap[ExecNode->second];
   pi_result Res = Plugin->call_nocheck<
       sycl::detail::PiApiKind::piextCommandBufferUpdateKernelLaunch>(
       Command, &UpdateDesc);
@@ -1598,7 +1595,6 @@ void executable_command_graph::update(
                         "Method not yet implemented");
 }
 
-
 void executable_command_graph::update(const node &Node) {
   impl->update(sycl::detail::getSyclObjImpl(Node));
 }
@@ -1630,7 +1626,6 @@ void dynamic_parameter_base::updateAccessor(
 
 } // namespace detail
 
-
 node_type node::get_type() const { return impl->MNodeType; }
 
 std::vector<node> node::get_predecessors() const {
@@ -1648,7 +1643,6 @@ node node::get_node_from_event(event nodeEvent) {
   return sycl::detail::createSyclObjFromImpl<node>(
       GraphImpl->getNodeForEvent(EventImpl));
 }
-
 
 template <> void node::update_nd_range<1>(nd_range<1> NDRange) {
   impl->updateNDRange(NDRange);

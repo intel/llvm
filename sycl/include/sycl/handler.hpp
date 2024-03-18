@@ -1909,10 +1909,10 @@ public:
             access::target AccTarget, access::placeholder isPlaceholder>
   void require(ext::oneapi::experimental::dynamic_parameter<
                accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder>>
-                   DynamicParamAcc) {
+                   dynamicParamAcc) {
     using AccT = accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder>;
     AccT Acc = *static_cast<AccT *>(
-        detail::getValueFromDynamicParameter(DynamicParamAcc));
+        detail::getValueFromDynamicParameter(dynamicParamAcc));
     if (Acc.is_placeholder())
       associateWithHandler(&Acc, AccTarget);
   }
@@ -1972,9 +1972,9 @@ public:
 
   // set_arg for graph dynamic_parameters
   template <typename T>
-  void set_arg(int ArgIndex,
-               ext::oneapi::experimental::dynamic_parameter<T> &DynamicParam) {
-    setArgHelper(ArgIndex, DynamicParam);
+  void set_arg(int argIndex,
+               ext::oneapi::experimental::dynamic_parameter<T> &dynamicParam) {
+    setArgHelper(argIndex, dynamicParam);
   }
 
   /// Sets arguments for OpenCL interoperability kernels.
