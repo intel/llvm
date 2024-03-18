@@ -81,14 +81,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 6513abc404979fa109d64500bf899e632d511291
-  # Merge: 09be0881 6d586094
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Mar 14 22:38:53 2024 +0000
-  #     Merge pull request #1410 from kbenzie/benie/cmake-external-adapter-source-dirs
-  #     [CMake] Support external adapter source dirs
-  set(UNIFIED_RUNTIME_TAG 6513abc404979fa109d64500bf899e632d511291)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/kbenzie/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG a85eae7b3fc582b2540e8f511b8418f3112db89e)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
