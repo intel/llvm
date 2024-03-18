@@ -9091,7 +9091,8 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       // in this instance
       Action::OffloadKind DependentOffloadKind;
       if (UI.DependentOffloadKind == Action::OFK_SYCL &&
-          TargetDeviceOffloadKind == Action::OFK_None)
+          TargetDeviceOffloadKind == Action::OFK_None &&
+          !(isSYCLNativeCPU(Args) &&  isSYCLNativeCPU(C.getDefaultToolChain().getTriple(), TC->getTriple())))
         DependentOffloadKind = Action::OFK_Host;
       else
         DependentOffloadKind = UI.DependentOffloadKind;
