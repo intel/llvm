@@ -179,6 +179,35 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramLink
+/// TODO: It is technically possible that user directly calls urProgramLinkExp
+/// instead of urProgramLink, intercept urProgramLinkExp if that happens.
+__urdlllocal ur_result_t UR_APICALL urProgramLink(
+    ur_context_handle_t hContext, ///< [in] handle of the context instance.
+    uint32_t count, ///< [in] number of program handles in `phPrograms`.
+    const ur_program_handle_t *
+        phPrograms, ///< [in][range(0, count)] pointer to array of program handles.
+    const char *
+        pOptions, ///< [in][optional] pointer to linker options null-terminated string.
+    ur_program_handle_t
+        *phProgram ///< [out] pointer to handle of program object created.
+) {
+    auto pfnProgramLink = context.urDdiTable.Program.pfnLink;
+
+    if (nullptr == pfnProgramLink) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    context.logger.debug("==== urProgramLink");
+
+    UR_CALL(pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram));
+
+    UR_CALL(context.interceptor->registerDeviceGlobals(hContext, *phProgram));
+
+    return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueKernelLaunch
 __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
@@ -422,6 +451,7 @@ __urdlllocal ur_result_t UR_APICALL urGetProgramProcAddrTable(
     }
 
     pDdiTable->pfnBuild = ur_sanitizer_layer::urProgramBuild;
+    pDdiTable->pfnLink = ur_sanitizer_layer::urProgramLink;
 
     return UR_RESULT_SUCCESS;
 }
