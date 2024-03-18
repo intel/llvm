@@ -26,7 +26,7 @@ typedef uint32_t Toffset;
 
 template <typename T, uint16_t VL, uint16_t VS,
           lsc_data_size DS = lsc_data_size::default_size,
-          cache_hint L1H = cache_hint::none, cache_hint L3H = cache_hint::none,
+          cache_hint L1H = cache_hint::none, cache_hint L2H = cache_hint::none,
           bool use_prefetch = false, bool use_old_values = false>
 bool test(queue q, uint32_t Groups, uint32_t Threads,
           uint32_t pmask = 0xffffffff) {
@@ -90,15 +90,15 @@ bool test(queue q, uint32_t Groups, uint32_t Threads,
 
        simd<T, VS * VL> vals;
        if constexpr (use_prefetch) {
-         lsc_prefetch<T, VS, DS, L1H, L3H, VL>(in, offset, pred);
+         lsc_prefetch<T, VS, DS, L1H, L2H, VL>(in, offset, pred);
          vals = lsc_gather<T, VS, DS, cache_hint::none, cache_hint::none, VL>(
              in, offset, pred);
        } else if constexpr (!use_old_values) {
-         vals = lsc_gather<T, VS, DS, L1H, L3H, VL>(in, offset, pred);
+         vals = lsc_gather<T, VS, DS, L1H, L2H, VL>(in, offset, pred);
        } else { // use_old_values
          simd<T, VS *VL> old_values = merge_value;
          vals =
-             lsc_gather<T, VS, DS, L1H, L3H, VL>(in, offset, pred, old_values);
+             lsc_gather<T, VS, DS, L1H, L2H, VL>(in, offset, pred, old_values);
        }
 
        if constexpr (DS == lsc_data_size::u8u32 || DS == lsc_data_size::u16u32)
@@ -158,38 +158,38 @@ template <typename T, lsc_data_size DS = lsc_data_size::default_size,
           bool DoPrefetch>
 bool test_lsc_gather_prefetch(queue q) {
   constexpr cache_hint L1H = cache_hint::cached;
-  constexpr cache_hint L3H = cache_hint::uncached;
+  constexpr cache_hint L2H = cache_hint::uncached;
   constexpr bool DoMerging = true;
 
   bool Passed = true;
   Passed &=
-      test<T, 1, 1, DS, L1H, L3H, DoPrefetch, !DoMerging>(q, 4, 4, rand());
+      test<T, 1, 1, DS, L1H, L2H, DoPrefetch, !DoMerging>(q, 4, 4, rand());
   if constexpr (!DoPrefetch)
     Passed &=
-        test<T, 1, 1, DS, L1H, L3H, DoPrefetch, DoMerging>(q, 4, 4, rand());
+        test<T, 1, 1, DS, L1H, L2H, DoPrefetch, DoMerging>(q, 4, 4, rand());
 
 #ifndef USE_SCALAR_OFFSET
   // These tests use lsc_scatter with scalar offset when USE_SCALAR_OFFSET macro
   // is set, which is UB and thus guarded by the macro here.
-  Passed &= test<T, 32, 1, DS, L1H, L3H, DoPrefetch>(q, 1, 4, rand());
-  Passed &= test<T, 16, 1, DS, L1H, L3H, DoPrefetch>(q, 2, 4, rand());
-  Passed &= test<T, 8, 1, DS, L1H, L3H, DoPrefetch>(q, 2, 2, rand());
-  Passed &= test<T, 4, 1, DS, L1H, L3H, DoPrefetch>(q, 4, 2, rand());
-  Passed &= test<T, 2, 1, DS, L1H, L3H, DoPrefetch>(q, 4, 16, rand());
+  Passed &= test<T, 32, 1, DS, L1H, L2H, DoPrefetch>(q, 1, 4, rand());
+  Passed &= test<T, 16, 1, DS, L1H, L2H, DoPrefetch>(q, 2, 4, rand());
+  Passed &= test<T, 8, 1, DS, L1H, L2H, DoPrefetch>(q, 2, 2, rand());
+  Passed &= test<T, 4, 1, DS, L1H, L2H, DoPrefetch>(q, 4, 2, rand());
+  Passed &= test<T, 2, 1, DS, L1H, L2H, DoPrefetch>(q, 4, 16, rand());
 
   // The next block of tests is only for gather with merging semantics,
   // not for prefetch tests.
   if constexpr (!DoPrefetch) {
     Passed &=
-        test<T, 32, 1, DS, L1H, L3H, DoPrefetch, DoMerging>(q, 1, 4, rand());
+        test<T, 32, 1, DS, L1H, L2H, DoPrefetch, DoMerging>(q, 1, 4, rand());
     Passed &=
-        test<T, 2, 1, DS, L1H, L3H, DoPrefetch, DoMerging>(q, 4, 16, rand());
+        test<T, 2, 1, DS, L1H, L2H, DoPrefetch, DoMerging>(q, 4, 16, rand());
   }
 
   if constexpr (((DS == lsc_data_size::default_size && sizeof(T) >= 4) ||
                  DS == lsc_data_size::u32 || DS == lsc_data_size::u32) &&
                 !DoPrefetch) {
-    Passed &= test<T, 32, 2, DS, L1H, L3H, DoPrefetch>(q, 2, 4, rand());
+    Passed &= test<T, 32, 2, DS, L1H, L2H, DoPrefetch>(q, 2, 4, rand());
   }
 #endif // !USE_SCALAR_OFFSET
 

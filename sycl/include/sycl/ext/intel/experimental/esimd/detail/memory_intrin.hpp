@@ -41,78 +41,18 @@ __ESIMD_INTRIN void __esimd_nbarrier(uint8_t mode, uint8_t id,
 /// @param count  - number of named barriers
 __ESIMD_INTRIN void __esimd_nbarrier_init(uint8_t count) __ESIMD_INTRIN_END;
 
-/// Raw send signal to perform signal operation on named barriers
+/// Perform signal operation on named barriers
 /// Available only on PVC
-/// @tparam Ty  - message element type
+/// @param id - barrier id
 ///
-/// @tparam N  - message length
+/// @param thread_role - thread role
 ///
-/// @param is_sendc  - is sendc
+/// @param num_producers - number of producers
 ///
-/// @param extended_descriptor  - extended message descriptor
-///
-/// @param descriptor  - message descriptor
-///
-/// @param msg_var  - source operand of send message
-///
-/// @param pred  - predicate for enabled channels
-template <typename Ty, int N>
-__ESIMD_INTRIN void __esimd_raw_send_nbarrier_signal(
-    uint32_t is_sendc, uint32_t extended_descriptor, uint32_t descriptor,
-    __ESIMD_DNS::vector_type_t<Ty, N> msg_var,
-    uint16_t pred = 1) __ESIMD_INTRIN_END;
-
-/// Surface-based prefetch gather.
-/// Supported platforms: DG2, PVC
-///
-/// Prefetches elements located at surface.
-///
-/// @tparam Ty is element type.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
-/// @tparam AddressScale is the address scale.
-/// @tparam ImmOffset is the immediate offset added to each address.
-/// @tparam DS is the data size.
-/// @tparam VS is the number of elements to load per address.
-/// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access)
-/// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
-/// @param pred is predicates.
-/// @param offsets is the zero-based offsets in bytes.
-/// @param surf_ind is the surface index.
-template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
-          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
-          __ESIMD_EDNS::lsc_vector_size VS,
-          __ESIMD_EDNS::lsc_data_order _Transposed, int N,
-          typename SurfIndAliasTy>
+/// @param num_consumers - number of consumers
 __ESIMD_INTRIN void
-__esimd_lsc_prefetch_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
-                         __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
-                         SurfIndAliasTy surf_ind) __ESIMD_INTRIN_END;
-
-/// USM pointer prefetch gather.
-/// Supported platforms: DG2, PVC
-///
-/// Prefetches elements located at specified address.
-///
-/// @tparam Ty is element type.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
-/// @tparam AddressScale is the address scale.
-/// @tparam ImmOffset is the immediate offset added to each address.
-/// @tparam DS is the data size.
-/// @tparam VS is the number of elements to load per address.
-/// @tparam Transposed indicates if the data is transposed during the transfer.
-/// @tparam N is the SIMD size of operation (the number of addresses to access)
-/// @param pred is predicates.
-/// @param addrs is the prefetch addresses.
-template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
-          uint16_t AddressScale, int ImmOffset, __ESIMD_ENS::lsc_data_size DS,
-          __ESIMD_EDNS::lsc_vector_size VS,
-          __ESIMD_EDNS::lsc_data_order _Transposed, int N>
-__ESIMD_INTRIN void __esimd_lsc_prefetch_stateless(
-    __ESIMD_DNS::simd_mask_storage_t<N> pred,
-    __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs) __ESIMD_INTRIN_END;
+__esimd_nbarrier_arrive(uint8_t id, uint8_t thread_role, uint8_t num_producers,
+                        uint8_t num_consumers) __ESIMD_INTRIN_END;
 
 /// 2D USM pointer block load.
 /// Supported platforms: PVC
@@ -122,7 +62,7 @@ __ESIMD_INTRIN void __esimd_lsc_prefetch_stateless(
 ///
 /// @tparam Ty is element type.
 /// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
+/// @tparam L2H is L2 cache hint.
 /// @tparam DS is the data size.
 /// @tparam Transposed is the transposed version or not.
 /// @tparam NBlocks is the number of blocks.
@@ -144,7 +84,7 @@ __ESIMD_INTRIN void __esimd_lsc_prefetch_stateless(
 ///  otherwise,
 ///  N = roundUpNextMultiple(BlockHeight, 4 / sizeof(T)) *
 ///   getNextPowerOf2(BlockWidth) * NBlocks
-template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L2H,
           __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_data_order _Transposed, uint8_t NBlocks,
           int BlockWidth, int BlockHeight, bool Transformed, int N>
@@ -160,7 +100,7 @@ __esimd_lsc_load2d_stateless(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
 ///
 /// @tparam Ty is element type.
 /// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
+/// @tparam L2H is L2 cache hint.
 /// @tparam DS is the data size.
 /// @tparam NBlocks is the number of blocks.
 /// @tparam Transposed is the transposed version or not.
@@ -177,7 +117,7 @@ __esimd_lsc_load2d_stateless(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
 /// number of elements.
 /// @param Y is zero based Y-coordinate of the left upper rectangle corner in
 /// rows.
-template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L2H,
           __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_data_order _Transposed, uint8_t NBlocks,
           int BlockWidth, int BlockHeight, bool Transformed, int N>
@@ -192,7 +132,7 @@ __ESIMD_INTRIN void __esimd_lsc_prefetch2d_stateless(
 ///
 /// @tparam Ty is element type.
 /// @tparam L1H is L1 cache hint.
-/// @tparam L3H is L3 cache hint.
+/// @tparam L2H is L2 cache hint.
 /// @tparam DS is the data size.
 /// @tparam Transposed is the transposed version or not.
 /// @tparam NBlocks is the number of blocks.
@@ -214,7 +154,7 @@ __ESIMD_INTRIN void __esimd_lsc_prefetch2d_stateless(
 ///  otherwise,
 ///  N = roundUpNextMultiple(BlockHeight, 4 / sizeof(T)) *
 ///   getNextPowerOf2(BlockWidth) * NBlocks
-template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L3H,
+template <typename Ty, __ESIMD_ENS::cache_hint L1H, __ESIMD_ENS::cache_hint L2H,
           __ESIMD_ENS::lsc_data_size DS,
           __ESIMD_EDNS::lsc_data_order _Transposed, uint8_t NBlocks,
           int BlockWidth, int BlockHeight, bool Transformed, int N>

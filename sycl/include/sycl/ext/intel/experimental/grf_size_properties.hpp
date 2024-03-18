@@ -36,7 +36,7 @@ inline constexpr grf_size_key::value_t<Size> grf_size;
 inline constexpr grf_size_automatic_key::value_t grf_size_automatic;
 
 } // namespace ext::intel::experimental
-namespace ext::oneapi::experimental {
+namespace ext::oneapi::experimental::detail {
 template <unsigned int Size>
 struct PropertyMetaInfo<
     sycl::ext::intel::experimental::grf_size_key::value_t<Size>> {
@@ -79,7 +79,6 @@ struct ConflictingProperties<sycl::detail::register_alloc_mode_key, Properties>
               sycl::ext::intel::experimental::grf_size_automatic_key,
               Properties>::value> {};
 
-} // namespace detail
-} // namespace ext::oneapi::experimental
+} // namespace ext::oneapi::experimental::detail
 } // namespace _V1
 } // namespace sycl

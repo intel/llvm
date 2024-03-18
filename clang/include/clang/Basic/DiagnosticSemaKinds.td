@@ -177,6 +177,28 @@ def err_intel_sycl_ptr_annotation_mismatch
             "a pointer"
             "|a string literal or constexpr const char*}0">;
 
+def err_intel_sycl_alloca_no_alias
+    : Error<"__builtin_intel_sycl_alloca cannot be used in source code. "
+            "Use the private_alloca alias instead">;
+def err_intel_sycl_alloca_wrong_arg_count
+    : Error<"__builtin_intel_sycl_alloca expects to be passed a single "
+            "argument. Got %0">;
+def err_intel_sycl_alloca_wrong_template_arg_count
+    : Error<"__builtin_intel_sycl_alloca expects to be passed three template "
+            "arguments. Got %0">;
+def err_intel_sycl_alloca_wrong_arg
+    : Error<"__builtin_intel_sycl_alloca expects to be passed an argument of type "
+            "'sycl::kernel_handler &'. Got %0">;
+def err_intel_sycl_alloca_wrong_type
+    : Error<"__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' "
+            "to a cv-unqualified object type. Got %0">;
+def err_intel_sycl_alloca_wrong_size
+    : Error<"__builtin_intel_sycl_alloca must be passed a specialization "
+            "constant of integral value type as a template argument. Got %1 (%0)">;
+def err_intel_sycl_alloca_no_size
+    : Error<"__builtin_intel_sycl_alloca must be passed a specialization "
+            "constant of integral value type as a template argument. Got %0">;
+
 // C99 variable-length arrays
 def ext_vla : Extension<"variable length arrays are a C99 feature">,
   InGroup<VLAExtension>;
@@ -808,7 +830,7 @@ def err_builtin_redeclare : Error<"cannot redeclare builtin function %0">;
 def err_arm_invalid_specialreg : Error<"invalid special register for builtin">;
 def err_arm_invalid_coproc : Error<"coprocessor %0 must be configured as "
   "%select{GCP|CDE}1">;
-def err_invalid_cpu_supports : Error<"invalid cpu feature string for builtin">;
+def warn_invalid_cpu_supports : Warning<"invalid cpu feature string for builtin">;
 def err_invalid_cpu_is : Error<"invalid cpu name for builtin">;
 def err_invalid_cpu_specific_dispatch_value : Error<
 "invalid option '%0' for %select{cpu_specific|cpu_dispatch}1">;
@@ -2989,6 +3011,18 @@ def warn_private_extern : Warning<
 def note_private_extern : Note<
   "use __attribute__((visibility(\"hidden\"))) attribute instead">;
 
+// C23 constexpr
+def err_c23_constexpr_not_variable : Error<
+  "'constexpr' can only be used in variable declarations">;
+def err_c23_constexpr_invalid_type : Error<
+  "constexpr variable cannot have type %0">;
+def err_c23_constexpr_init_not_representable : Error<
+  "constexpr initializer evaluates to %0 which is not exactly representable in type %1">;
+def err_c23_constexpr_init_type_mismatch : Error<
+  "constexpr initializer for type %0 is of type %1">;
+def err_c23_constexpr_pointer_not_null : Error<
+  "constexpr pointer initializer is not null">;
+
 // C++ Concepts
 def err_concept_decls_may_only_appear_in_global_namespace_scope : Error<
   "concept declarations may only appear in global or namespace scope">;
@@ -4185,8 +4219,8 @@ def ext_ms_impcast_fn_obj : ExtWarn<
   "Microsoft extension">, InGroup<MicrosoftCast>;
 
 def warn_impcast_pointer_to_bool : Warning<
-    "address of%select{| function| array}0 '%1' will always evaluate to "
-    "'true'">,
+    "address of %select{'%1'|function '%1'|array '%1'|lambda function pointer "
+    "conversion operator}0 will always evaluate to 'true'">,
     InGroup<PointerBoolConversion>;
 def warn_cast_nonnull_to_bool : Warning<
     "nonnull %select{function call|parameter}0 '%1' will evaluate to "
@@ -4458,7 +4492,7 @@ def err_attribute_preferred_name_arg_invalid : Error<
   "argument %0 to 'preferred_name' attribute is not a typedef for "
   "a specialization of %1">;
 def err_attribute_builtin_alias : Error<
-  "%0 attribute can only be applied to a ARM, HLSL or RISC-V builtin">;
+  "%0 attribute can only be applied to a ARM, HLSL, SYCL or RISC-V builtin">;
 
 // called-once attribute diagnostics.
 def err_called_once_attribute_wrong_type : Error<
@@ -5037,6 +5071,9 @@ def err_template_param_shadow : Error<
   "declaration of %0 shadows template parameter">;
 def ext_template_param_shadow : ExtWarn<
   err_template_param_shadow.Summary>, InGroup<MicrosoftTemplateShadow>;
+def ext_compat_template_param_shadow : ExtWarn<
+  err_template_param_shadow.Summary>, InGroup<
+  DiagGroup<"strict-primary-template-shadow">>, DefaultError;
 def note_template_param_here : Note<"template parameter is declared here">;
 def note_template_param_external : Note<
   "template parameter from hidden source: %0">;
@@ -6227,6 +6264,10 @@ def ext_initializer_string_for_char_array_too_long : ExtWarn<
 def warn_missing_field_initializers : Warning<
   "missing field %0 initializer">,
   InGroup<MissingFieldInitializers>, DefaultIgnore;
+// The same warning, but another group is needed to disable it separately.
+def warn_missing_designated_field_initializers : Warning<
+  warn_missing_field_initializers.Summary>,
+  InGroup<MissingDesignatedFieldInitializers>, DefaultIgnore;
 def warn_braces_around_init : Warning<
   "braces around %select{scalar |}0initializer">,
   InGroup<DiagGroup<"braced-scalar-init">>;
@@ -9973,7 +10014,7 @@ def err_lifetimebound_ctor_dtor : Error<
 // CHECK: returning address/reference of stack memory
 def warn_ret_stack_addr_ref : Warning<
   "%select{address of|reference to}0 stack memory associated with "
-  "%select{local variable|parameter}2 %1 returned">,
+  "%select{local variable|parameter|compound literal}2 %1 returned">,
   InGroup<ReturnStackAddress>;
 def warn_ret_local_temp_addr_ref : Warning<
   "returning %select{address of|reference to}0 local temporary object">,
@@ -10342,9 +10383,9 @@ def err_sizeless_nonlocal : Error<
   "non-local variable with sizeless type %0">;
 
 def err_vec_builtin_non_vector : Error<
- "first two arguments to %0 must be vectors">;
+ "%select{first two|all}1 arguments to %0 must be vectors">;
 def err_vec_builtin_incompatible_vector : Error<
-  "first two arguments to %0 must have the same type">;
+  "%select{first two|all}1 arguments to %0 must have the same type">;
 def err_vsx_builtin_nonconstant_argument : Error<
   "argument %0 to %1 must be a 2-bit unsigned literal (i.e. 0, 1, 2 or 3)">;
 
@@ -10439,6 +10480,8 @@ def err_x86_builtin_tile_arg_duplicate : Error<
 
 def err_builtin_target_unsupported : Error<
   "builtin is not supported on this target">;
+def err_builtin_aix_os_unsupported : Error<
+  "this builtin is available only on AIX 7.2 and later operating systems">;
 def err_builtin_longjmp_unsupported : Error<
   "__builtin_longjmp is not supported for the current target">;
 def err_builtin_setjmp_unsupported : Error<
@@ -10839,6 +10882,13 @@ def warn_imp_cast_drops_unaligned : Warning<
   InGroup<DiagGroup<"unaligned-qualifier-implicit-cast">>;
 
 } // end of sema category
+
+let CategoryName = "API Notes Issue" in {
+
+def err_incompatible_replacement_type : Error<
+  "API notes replacement type %0 has a different size from original type %1">;
+
+} // end of API Notes category
 
 let CategoryName = "OpenMP Issue" in {
 // OpenMP support.
@@ -12056,7 +12106,8 @@ def err_builtin_invalid_arg_type: Error <
   "pointer to a valid matrix element type|"
   "signed integer or floating point type|vector type|"
   "floating point type|"
-  "vector of integers}1 (was %2)">;
+  "vector of integers|"
+  "type of unsigned integer}1 (was %2)">;
 
 def err_builtin_matrix_disabled: Error<
   "matrix types extension is disabled. Pass -fenable-matrix to enable it">;
@@ -12218,6 +12269,13 @@ def err_sycl_attribute_internal_decl
             "in an anonymous namespace">;
 def err_sycl_attribute_not_device_global
     : Error<"%0 attribute can only be applied to 'device_global' variables">;
+def err_fpga_attribute_incorrect_variable
+    : Error<"%0 attribute only applies to constant variables, local variables, "
+            "static variables, %select{|agent memory arguments, }1non-static data "
+            "members and device_global variables">;
+def err_fpga_attribute_invalid_decl
+    : Error<"%0 attribute only applies to const variables, local variables, "
+            "non-static data members and device_global variables">;
 def err_sycl_compiletime_property_duplication : Error<
   "can't apply %0 property twice to the same accessor">;
 def err_sycl_invalid_property_list_param_number : Error<
@@ -12458,4 +12516,11 @@ def warn_acc_clause_unimplemented
 def err_acc_construct_appertainment
     : Error<"OpenACC construct '%0' cannot be used here; it can only "
             "be used in a statement context">;
+def err_acc_branch_in_out_compute_construct
+    : Error<"invalid %select{branch|return|throw}0 %select{out of|into}1 "
+            "OpenACC Compute Construct">;
+def note_acc_branch_into_compute_construct
+    : Note<"invalid branch into OpenACC Compute Construct">;
+def note_acc_branch_out_of_compute_construct
+    : Note<"invalid branch out of OpenACC Compute Construct">;
 } // end of sema component.

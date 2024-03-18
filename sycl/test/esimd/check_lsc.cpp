@@ -18,23 +18,23 @@ using namespace sycl;
 // --- Postive tests.
 
 template <class T, int BLOCK_WIDTH, int BLOCK_HEIGHT, int NUM_BLOCKS,
-          bool TRANSPOSE, bool TRANSFORM, cache_hint L1H, cache_hint L3H,
+          bool TRANSPOSE, bool TRANSFORM, cache_hint L1H, cache_hint L2H,
           int N = __ESIMD_EDNS::get_lsc_block_2d_data_size<
               T, NUM_BLOCKS, BLOCK_HEIGHT, BLOCK_WIDTH, TRANSPOSE, TRANSFORM>()>
 SYCL_EXTERNAL auto test_load(T *ptr, int width, int height,
                              int pitch) SYCL_ESIMD_FUNCTION {
   return lsc_load_2d<T, BLOCK_WIDTH, BLOCK_HEIGHT, NUM_BLOCKS, TRANSPOSE,
-                     TRANSFORM, L1H, L3H>(
+                     TRANSFORM, L1H, L2H>(
       ptr, width * sizeof(T) - 1, height - 1, pitch * sizeof(T) - 1, 0, 0);
 }
 
 template <class T, int BLOCK_WIDTH, int BLOCK_HEIGHT, int NUM_BLOCKS,
-          cache_hint L1H, cache_hint L3H,
+          cache_hint L1H, cache_hint L2H,
           int N = __ESIMD_EDNS::get_lsc_block_2d_data_size<
               T, NUM_BLOCKS, BLOCK_HEIGHT, BLOCK_WIDTH, false, false>()>
 SYCL_EXTERNAL void test_store(T *ptr, simd<T, N> v, int width, int height,
                               int pitch) SYCL_ESIMD_FUNCTION {
-  lsc_store_2d<T, BLOCK_WIDTH, BLOCK_HEIGHT, L1H, L3H>(
+  lsc_store_2d<T, BLOCK_WIDTH, BLOCK_HEIGHT, L1H, L2H>(
       ptr, width * sizeof(T) - 1, height - 1, pitch * sizeof(T) - 1, 0, 0, v);
 }
 

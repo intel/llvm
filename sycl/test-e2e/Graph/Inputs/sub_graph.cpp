@@ -6,10 +6,6 @@
 int main() {
   queue Queue{};
 
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
-
   using T = short;
 
   // Values used to modify data inside kernels.
