@@ -1096,9 +1096,9 @@ template <class Emitter>
 bool ByteCodeExprGen<Emitter>::VisitUnaryExprOrTypeTraitExpr(
     const UnaryExprOrTypeTraitExpr *E) {
   UnaryExprOrTypeTrait Kind = E->getKind();
-  ASTContext &ASTCtx = Ctx.getASTContext();
+  const ASTContext &ASTCtx = Ctx.getASTContext();
 
-  if (Kind == UETT_SizeOf) {
+  if (Kind == UETT_SizeOf || Kind == UETT_DataSizeOf) {
     QualType ArgType = E->getTypeOfArgument();
 
     // C++ [expr.sizeof]p2: "When applied to a reference or a reference type,
@@ -1113,7 +1113,10 @@ bool ByteCodeExprGen<Emitter>::VisitUnaryExprOrTypeTraitExpr(
       if (ArgType->isDependentType() || !ArgType->isConstantSizeType())
         return false;
 
-      Size = ASTCtx.getTypeSizeInChars(ArgType);
+      if (Kind == UETT_SizeOf)
+        Size = ASTCtx.getTypeSizeInChars(ArgType);
+      else
+        Size = ASTCtx.getTypeInfoDataSizeInChars(ArgType).Width;
     }
 
     if (DiscardResult)
@@ -1752,6 +1755,14 @@ bool ByteCodeExprGen<Emitter>::VisitTypeTraitExpr(const TypeTraitExpr *E) {
     return true;
   if (E->getType()->isBooleanType())
     return this->emitConstBool(E->getValue(), E);
+  return this->emitConst(E->getValue(), E);
+}
+
+template <class Emitter>
+bool ByteCodeExprGen<Emitter>::VisitArrayTypeTraitExpr(
+    const ArrayTypeTraitExpr *E) {
+  if (DiscardResult)
+    return true;
   return this->emitConst(E->getValue(), E);
 }
 
@@ -2905,11 +2916,7 @@ template <class Emitter>
 bool ByteCodeExprGen<Emitter>::VisitCXXDefaultInitExpr(
     const CXXDefaultInitExpr *E) {
   SourceLocScope<Emitter> SLS(this, E);
-  if (Initializing)
-    return this->visitInitializer(E->getExpr());
-
-  assert(classify(E->getType()));
-  return this->visit(E->getExpr());
+  return this->delegate(E->getExpr());
 }
 
 template <class Emitter>
@@ -3295,7 +3302,8 @@ bool ByteCodeExprGen<Emitter>::VisitDeclRefExpr(const DeclRefExpr *E) {
   if (Ctx.getLangOpts().CPlusPlus) {
     if (const auto *VD = dyn_cast<VarDecl>(D)) {
       // Visit local const variables like normal.
-      if (VD->isLocalVarDecl() && VD->getType().isConstQualified()) {
+      if ((VD->isLocalVarDecl() || VD->isStaticDataMember()) &&
+          VD->getType().isConstQualified()) {
         if (!this->visitVarDecl(VD))
           return false;
         // Retry.
