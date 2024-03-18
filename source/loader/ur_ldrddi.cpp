@@ -2556,6 +2556,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
         *phProgram ///< [out] pointer to handle of program object created.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
+    if (nullptr != phProgram) {
+        *phProgram = nullptr;
+    }
 
     // extract platform's function pointer table
     auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
@@ -2578,14 +2581,12 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
     result =
         pfnLink(hContext, count, phProgramsLocal.data(), pOptions, phProgram);
 
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
     try {
         // convert platform handle to loader handle
-        *phProgram = reinterpret_cast<ur_program_handle_t>(
-            ur_program_factory.getInstance(*phProgram, dditable));
+        if (nullptr != phProgram) {
+            *phProgram = reinterpret_cast<ur_program_handle_t>(
+                ur_program_factory.getInstance(*phProgram, dditable));
+        }
     } catch (std::bad_alloc &) {
         result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
@@ -7909,6 +7910,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
         *phProgram ///< [out] pointer to handle of program object created.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
+    if (nullptr != phProgram) {
+        *phProgram = nullptr;
+    }
 
     // extract platform's function pointer table
     auto dditable = reinterpret_cast<ur_context_object_t *>(hContext)->dditable;
@@ -7938,14 +7942,12 @@ __urdlllocal ur_result_t UR_APICALL urProgramLinkExp(
     result = pfnLinkExp(hContext, numDevices, phDevicesLocal.data(), count,
                         phProgramsLocal.data(), pOptions, phProgram);
 
-    if (UR_RESULT_SUCCESS != result) {
-        return result;
-    }
-
     try {
         // convert platform handle to loader handle
-        *phProgram = reinterpret_cast<ur_program_handle_t>(
-            ur_program_factory.getInstance(*phProgram, dditable));
+        if (nullptr != phProgram) {
+            *phProgram = reinterpret_cast<ur_program_handle_t>(
+                ur_program_factory.getInstance(*phProgram, dditable));
+        }
     } catch (std::bad_alloc &) {
         result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
