@@ -653,6 +653,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
     }
 
     if (UR_RESULT_SUCCESS == result) {
+        result = ur_sanitizer_layer::urGetProgramExpProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->ProgramExp);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
         result = ur_sanitizer_layer::urGetEnqueueProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Enqueue);
     }
