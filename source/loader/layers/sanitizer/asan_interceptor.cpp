@@ -537,14 +537,28 @@ ur_result_t SanitizerInterceptor::enqueueAllocInfo(
     }
 
     // Left red zone
-    UR_CALL(enqueueMemSetShadow(Context, Device, Queue, AllocInfo->AllocBegin,
-                                AllocInfo->UserBegin - AllocInfo->AllocBegin,
-                                ShadowByte, LastEvent, &LastEvent));
+    uptr LeftRZSize = AllocInfo->UserBegin - AllocInfo->AllocBegin;
+    if (LeftRZSize != 0) {
+        UR_CALL(enqueueMemSetShadow(Context, Device, Queue,
+                                    AllocInfo->AllocBegin, LeftRZSize,
+                                    ShadowByte, LastEvent, &LastEvent));
+    } else {
+        context.logger.debug(
+            "Try to create empty left red zone, Alloc Begin {}",
+            (void *)AllocInfo->AllocBegin);
+    }
 
     // Right red zone
-    UR_CALL(enqueueMemSetShadow(Context, Device, Queue, TailBegin,
-                                TailEnd - TailBegin, ShadowByte, LastEvent,
-                                &LastEvent));
+    uptr RightRZSize = TailEnd - TailBegin;
+    if (RightRZSize != 0) {
+        UR_CALL(enqueueMemSetShadow(Context, Device, Queue, TailBegin,
+                                    RightRZSize, ShadowByte, LastEvent,
+                                    &LastEvent));
+    } else {
+        context.logger.debug(
+            "Try to create empty right red zone, Alloc Begin {}",
+            (void *)TailBegin);
+    }
 
     return UR_RESULT_SUCCESS;
 }
