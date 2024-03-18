@@ -259,7 +259,7 @@ elements that correspond to a joint matrix. When the global matrix
 size does not evenly divide by the joint matrix size, some of these
 loads or stores access the extra elements marked "x" in the diagram
 above. The standard joint matrix functions (`joint_matrix_load`,
-`joint_matrix_store` and `joint_matrix_fill` do not do any bounds
+`joint_matrix_store` and `joint_matrix_fill`) do not do any bounds
 checking in this case, so they simply load or store to these extra
 elements. This could cause unexpected values to be loaded into the
 joint matrix for these elements. These functions could also cause a
@@ -285,14 +285,9 @@ arguments.
 * These variants take extra arguments to determine the global bounds
 `GlobalRows` and `GlobalCols` of the global matrix.
 
-The out of bounds functions check that the joint matrix block starting at the
-address `base_src` and ending at `base_src + Rows * Stride + Cols`
-does not exceed the global matrix block starting at `[base_src]` and
-ending at `base_src + GlobalRows * Stride + GlobalCols`.
-
-To illustrate, consider the global matrix shown above which has 13
-columns and 3 rows (`GlobalRows=3` and `GlobalCols=13`), where the
-joint matrix size is 8 columns by 2 rows defined as
+To illustrate the out-of-bounds checking, consider the global matrix
+shown above which has 13 columns and 3 rows (`GlobalRows=3` and
+`GlobalCols=13`), where the joint matrix size is 8 columns by 2 rows defined as
 ```
 joint_matrix<sub_group, bfloat16, use::b, 2, 8, layout::row_major> sub_b;
 ```
@@ -436,9 +431,11 @@ the following queries to get these requirements:
 |Tells the required alignment (in bytes) of the base pointer for
 `joint_matrix_load_checked` and `joint_matrix_store_checked`.
 |`ext::intel::experimental::info::device::matrix_checked_rowindex_multiple_of<T>`|
-`size_t`|Returns a value, of which `RowIndex` must be multiple of.
+`size_t`|Returns a value, of which `RowIndex` must be multiple of;
+where T is the element type of the matrix.
 |`ext::intel::experimental::info::device::matrix_checked_globalcols_multiple_of<T>`|
-`size_t` | Returns a value, of which `GlobalCols` must be multiple of.
+`size_t` | Returns a value, of which `GlobalCols` must be multiple of;
+where T is the element type of the matrix.
 |======================
 
 ==== Appendix: Restrictions Per Hardware
@@ -453,7 +450,7 @@ these checked APIs:
 data type, `RowIndex` must be a multiple of 2. So `RowIndex` must be a
 multiple of 4 divided by size of the element type (`4/sizeof(T)`).
 
-- For 8 bits data type, `GlobalCols` must be a multiple of 4, For 16 bits
+- For 8 bits data type, `GlobalCols` must be a multiple of 4. For 16 bits
 data type, `GlobalCols` must be a multiple of 2. So `GlobalCols` must be a
 multiple of 4 divided by size of the element type (`4/sizeof(T)`).
 
