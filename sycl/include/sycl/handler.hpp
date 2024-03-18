@@ -1904,7 +1904,8 @@ public:
   /// The command group has a requirement to gain access to the given memory
   /// object before executing.
   ///
-  /// \param Acc is a SYCL accessor describing required memory region.
+  /// \param dynamicParamAcc is dynamic_parameter containing a SYCL accessor
+  /// describing required memory region.
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder isPlaceholder>
   void require(ext::oneapi::experimental::dynamic_parameter<
