@@ -747,6 +747,12 @@ public:
                           std::vector<event> &MutableVec,
                           std::unique_lock<std::mutex> &QueueLock);
 
+    // Helps to manage host tasks presence in scenario with barrier usage. Approach that tracks almost all tasks to provide barrier sync for both pi tasks and host tasks is applicable for out of order queues only. Not needed for in order ones.
+  void tryToResetEnqueuedBarrierDep(const EventImplPtr& EnqueuedBarrierEvent);
+
+  // Called on host task completion that could block some kernels from enqueue. Approach that tracks almost all tasks to provide barrier sync for both pi tasks and host tasks is applicable for out of order queues only. Not neede for in order ones.
+  void revisitNotEnqueuedCommandsState(const EventImplPtr& CompletedHostTask);
+
 protected:
   event discard_or_return(const event &Event);
   // Hook to the scheduler to clean up any fusion command held on destruction.
@@ -783,7 +789,28 @@ protected:
       EventRet = Handler.finalize();
       EventToBuildDeps = getSyclObjImpl(EventRet);
     } else
+    {
+      // The following code supports barrier synchronization if host task is involve to the scenario.
+      // Native barriers could not handle host task dependency so in case if some commands was not enqueued - blocked we track them to prevent barrier to be enqueued earlier.
+      std::lock_guard<std::mutex> Lock{MMutex};
+      auto &Deps =
+          MGraph.expired() ? MDefaultGraphDeps : MExtGraphDeps;
+      if (Type == CG::Barrier && !Deps.NotEnqueuedCmdEvents.empty())
+      {
+        Handler.depends_on(Deps.NotEnqueuedCmdEvents);
+      }
+      if (Deps.LastBarrier)
+        Handler.depends_on(Deps.LastBarrier);
       EventRet = Handler.finalize();
+      EventImplPtr EventRetImpl = getSyclObjImpl(EventRet);
+      if (Type == CG::CodeplayHostTask || !EventRetImpl->getHandleRef())
+        Deps.NotEnqueuedCmdEvents.push_back(EventRetImpl);
+      if (Type == CG::Barrier || Type == CG::BarrierWaitlist)
+      {
+        Deps.LastBarrier = EventRetImpl;
+        Deps.NotEnqueuedCmdEvents.clear();
+      }
+    }
   }
 
 protected:

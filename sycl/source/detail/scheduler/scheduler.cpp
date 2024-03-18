@@ -487,12 +487,14 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
       Cmd->MMarkedForCleanup = true;
     }
 
+    auto& CmdEvent = Cmd->getEvent();
     {
       std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
       // update self-event status
-      Cmd->getEvent()->setComplete();
+      CmdEvent->setComplete();
     }
     Scheduler::enqueueUnblockedCommands(Cmd->MBlockedUsers, Lock, ToCleanUp);
+    Cmd->getQueue()->revisitNotEnqueuedCommandsState(CmdEvent);
   }
   cleanupCommands(ToCleanUp);
 }

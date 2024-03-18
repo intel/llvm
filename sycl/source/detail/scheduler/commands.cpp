@@ -3126,6 +3126,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   }
   case CG::CGTYPE::Barrier: {
     if (MQueue->getDeviceImplPtr()->is_host()) {
+      MQueue->tryToResetEnqueuedBarrierDep(MEvent);
       // NOP for host device.
       return PI_SUCCESS;
     }
@@ -3134,6 +3135,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       MEvent->setHostEnqueueTime();
     Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
         MQueue->getHandleRef(), 0, nullptr, Event);
+    MQueue->tryToResetEnqueuedBarrierDep(MEvent);
 
     return PI_SUCCESS;
   }
@@ -3143,6 +3145,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     std::vector<sycl::detail::pi::PiEvent> PiEvents =
         getPiEventsBlocking(Events);
     if (MQueue->getDeviceImplPtr()->is_host() || PiEvents.empty()) {
+      MQueue->tryToResetEnqueuedBarrierDep(MEvent);
       // NOP for host device.
       // If Events is empty, then the barrier has no effect.
       return PI_SUCCESS;
@@ -3152,6 +3155,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       MEvent->setHostEnqueueTime();
     Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
         MQueue->getHandleRef(), PiEvents.size(), &PiEvents[0], Event);
+    MQueue->tryToResetEnqueuedBarrierDep(MEvent);
 
     return PI_SUCCESS;
   }

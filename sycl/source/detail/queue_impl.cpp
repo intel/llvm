@@ -594,6 +594,48 @@ event queue_impl::discard_or_return(const event &Event) {
   return createDiscardedEvent();
 }
 
+  void queue_impl::tryToResetEnqueuedBarrierDep(const EventImplPtr& EnqueuedBarrierEvent)
+  {
+    if (MIsInorder)
+      return;
+    auto tryToCleanup = [&EnqueuedBarrierEvent](DependencyTrackingItems& Deps){
+      if (Deps.LastBarrier == EnqueuedBarrierEvent)
+      {
+        Deps.LastBarrier = nullptr;
+        Deps.NotEnqueuedCmdEvents.clear();
+      }
+    };
+    std::lock_guard<std::mutex> Lock{MMutex};
+    // Barrier enqueue could be significantly postponed due to host task dependency if any.
+    // No guarantee that it will happen while same graph deps are still recording.
+    if (auto Graph = EnqueuedBarrierEvent->getCommandGraph())
+    { 
+      if (Graph == getCommandGraph())
+        tryToCleanup(MExtGraphDeps);
+    }
+    else
+      tryToCleanup(MDefaultGraphDeps);
+  }
+
+  void queue_impl::revisitNotEnqueuedCommandsState(const EventImplPtr& CompletedHostTask)
+  {
+    if (MIsInorder)
+      return;
+    auto tryToCleanup = [&CompletedHostTask](DependencyTrackingItems& Deps){
+      if (Deps.NotEnqueuedCmdEvents.empty())
+      return;
+    Deps.NotEnqueuedCmdEvents.erase(std::remove_if(Deps.NotEnqueuedCmdEvents.begin(), Deps.NotEnqueuedCmdEvents.end(), [&CompletedHostTask](const EventImplPtr& CommandEvent){ return (CommandEvent == CompletedHostTask) || (CommandEvent->producesPiEvent() && CommandEvent->getHandleRef()); }), Deps.NotEnqueuedCmdEvents.end());
+    };
+    std::lock_guard<std::mutex> Lock{MMutex};
+    if (auto Graph = CompletedHostTask->getCommandGraph())
+    { 
+      if (Graph == getCommandGraph())
+        return tryToCleanup(MExtGraphDeps);
+    }
+    else
+      tryToCleanup(MDefaultGraphDeps);
+  }
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
