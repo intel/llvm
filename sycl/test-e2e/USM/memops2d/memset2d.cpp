@@ -8,6 +8,8 @@
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// Certain rocm versions fail due to driver bug.
+// XFAIL: hip_amd
 
 #include <sycl/sycl.hpp>
 

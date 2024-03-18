@@ -11,6 +11,8 @@
 
 // Temporarily disabled until the failure is addressed.
 // UNSUPPORTED: (level_zero && windows)
+// Certain rocm versions fail due to driver bug.
+// XFAIL: hip_amd
 
 #include "copy2d_common.hpp"
 
