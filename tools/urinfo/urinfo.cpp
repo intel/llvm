@@ -14,6 +14,8 @@
 namespace urinfo {
 struct app {
     bool verbose = false;
+    bool linear_ids = true;
+    bool ignore_device_selector = false;
     ur_loader_config_handle_t loaderConfig = nullptr;
     std::vector<ur_adapter_handle_t> adapters;
     std::unordered_map<ur_adapter_handle_t, std::vector<ur_platform_handle_t>>
@@ -23,6 +25,16 @@ struct app {
 
     app(int argc, const char **argv) {
         parseArgs(argc, argv);
+        if (!ignore_device_selector) {
+            if (auto device_selector = std::getenv("ONEAPI_DEVICE_SELECTOR")) {
+                std::fprintf(stderr,
+                             "info: Output filtered by ONEAPI_DEVICE_SELECTOR "
+                             "environment variable, which is set to \"%s\".\n"
+                             "To see all devices, use the "
+                             "--ignore-device-selector CLI option.\n\n",
+                             device_selector);
+            }
+        }
         UR_CHECK(urLoaderConfigCreate(&loaderConfig));
         UR_CHECK(urLoaderConfigEnableLayer(loaderConfig,
                                            "UR_LAYER_FULL_VALIDATION"));
@@ -40,6 +52,10 @@ options:
   -h, --help            show this help message and exit
   --version             show version number and exit
   -v, --verbose         print additional information
+  --no-linear-ids       do not show linear device ids
+  --ignore-device-selector
+                        do not use ONEAPI_DEVICE_SELECTOR to filter list of
+                        devices
 )";
         for (int argi = 1; argi < argc; argi++) {
             std::string_view arg{argv[argi]};
@@ -51,6 +67,10 @@ options:
                 std::exit(0);
             } else if (arg == "-v" || arg == "--verbose") {
                 verbose = true;
+            } else if (arg == "--no-linear-ids") {
+                linear_ids = false;
+            } else if (arg == "--ignore-device-selector") {
+                ignore_device_selector = true;
             } else {
                 std::fprintf(stderr, "error: invalid argument: %s\n",
                              argv[argi]);
@@ -65,11 +85,13 @@ options:
         uint32_t numAdapters = 0;
         UR_CHECK(urAdapterGet(0, nullptr, &numAdapters));
         if (numAdapters == 0) {
-            std::cout << "No adapters found.\n";
             std::exit(0);
         }
         adapters.resize(numAdapters);
         UR_CHECK(urAdapterGet(numAdapters, adapters.data(), nullptr));
+
+        auto urDeviceGetFn =
+            ignore_device_selector ? urDeviceGet : urDeviceGetSelected;
 
         for (size_t adapterIndex = 0; adapterIndex < adapters.size();
              adapterIndex++) {
@@ -78,8 +100,6 @@ options:
             uint32_t numPlatforms = 0;
             UR_CHECK(urPlatformGet(&adapter, 1, 0, nullptr, &numPlatforms));
             if (numPlatforms == 0) {
-                std::cout << "No platforms found in adapter " << adapterIndex
-                          << ".\n";
                 continue;
             }
             adapterPlatformsMap[adapter].resize(numPlatforms);
@@ -92,17 +112,15 @@ options:
                 auto platform = adapterPlatformsMap[adapter][platformIndex];
                 // Enumerate devices
                 uint32_t numDevices = 0;
-                UR_CHECK(urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr,
-                                     &numDevices));
+                UR_CHECK(urDeviceGetFn(platform, UR_DEVICE_TYPE_ALL, 0, nullptr,
+                                       &numDevices));
                 if (numDevices == 0) {
-                    std::cout << "No devices found platform " << platformIndex
-                              << ".\n";
                     continue;
                 }
                 platformDevicesMap[platform].resize(numDevices);
-                UR_CHECK(urDeviceGet(platform, UR_DEVICE_TYPE_ALL, numDevices,
-                                     platformDevicesMap[platform].data(),
-                                     nullptr));
+                UR_CHECK(urDeviceGetFn(platform, UR_DEVICE_TYPE_ALL, numDevices,
+                                       platformDevicesMap[platform].data(),
+                                       nullptr));
             }
         }
     }
@@ -112,6 +130,8 @@ options:
              adapterIndex++) {
             auto adapter = adapters[adapterIndex];
             auto &platforms = adapterPlatformsMap[adapter];
+            size_t adapter_device_id = 0;
+            std::string adapter_backend = urinfo::getAdapterBackend(adapter);
             for (size_t platformIndex = 0; platformIndex < platforms.size();
                  platformIndex++) {
                 auto platform = platforms[platformIndex];
@@ -119,16 +139,28 @@ options:
                 for (size_t deviceIndex = 0; deviceIndex < devices.size();
                      deviceIndex++) {
                     auto device = devices[deviceIndex];
-                    std::cout << "[adapter(" << adapterIndex << ","
-                              << urinfo::getAdapterBackend(adapter) << "):"
-                              << "platform(" << platformIndex << "):"
-                              << "device(" << deviceIndex << ","
-                              << urinfo::getDeviceType(device) << ")] "
-                              << urinfo::getPlatformName(platform) << ", "
-                              << urinfo::getDeviceName(device) << " "
+                    auto device_type = urinfo::getDeviceType(device);
+
+                    if (linear_ids) {
+                        std::cout << "[" << adapter_backend << ":"
+                                  << device_type << "]";
+                        std::cout << "[" << adapter_backend << ":"
+                                  << adapter_device_id << "]";
+                    } else {
+                        std::cout << "[adapter(" << adapterIndex << ","
+                                  << adapter_backend << "):"
+                                  << "platform(" << platformIndex << "):"
+                                  << "device(" << deviceIndex << ","
+                                  << device_type << ")]";
+                    }
+
+                    std::cout << " " << urinfo::getPlatformName(platform)
+                              << ", " << urinfo::getDeviceName(device) << " "
                               << urinfo::getDeviceVersion(device) << " "
                               << "[" << urinfo::getDeviceDriverVersion(device)
                               << "]\n";
+
+                    adapter_device_id++;
                 }
             }
         }

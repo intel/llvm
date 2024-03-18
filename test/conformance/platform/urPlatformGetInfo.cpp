@@ -19,7 +19,7 @@ INSTANTIATE_TEST_SUITE_P(
     urPlatformGetInfo, urPlatformGetInfoTest,
     ::testing::Values(UR_PLATFORM_INFO_NAME, UR_PLATFORM_INFO_VENDOR_NAME,
                       UR_PLATFORM_INFO_VERSION, UR_PLATFORM_INFO_EXTENSIONS,
-                      UR_PLATFORM_INFO_PROFILE),
+                      UR_PLATFORM_INFO_PROFILE, UR_PLATFORM_INFO_BACKEND),
     [](const ::testing::TestParamInfo<ur_platform_info_t> &info) {
         std::stringstream ss;
         ss << info.param;
@@ -30,11 +30,17 @@ TEST_P(urPlatformGetInfoTest, Success) {
     size_t size = 0;
     ur_platform_info_t info_type = GetParam();
     ASSERT_SUCCESS(urPlatformGetInfo(platform, info_type, 0, nullptr, &size));
-    ASSERT_NE(size, 0);
+    if (info_type == UR_PLATFORM_INFO_BACKEND) {
+        ASSERT_EQ(size, sizeof(ur_platform_backend_t));
+    } else {
+        ASSERT_NE(size, 0);
+    }
     std::vector<char> name(size);
     ASSERT_SUCCESS(
         urPlatformGetInfo(platform, info_type, size, name.data(), nullptr));
-    ASSERT_EQ(size, std::strlen(name.data()) + 1);
+    if (info_type != UR_PLATFORM_INFO_BACKEND) {
+        ASSERT_EQ(size, std::strlen(name.data()) + 1);
+    }
 }
 
 TEST_P(urPlatformGetInfoTest, InvalidNullHandlePlatform) {

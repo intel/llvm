@@ -48,6 +48,18 @@ UUR_TEST_SUITE_P(urMemBufferCreateWithHostPtrFlagsTest,
                                    UR_MEM_FLAG_USE_HOST_POINTER),
                  uur::deviceTestWithParamPrinter<ur_mem_flag_t>);
 
+TEST_P(urMemBufferCreateWithHostPtrFlagsTest, SUCCESS) {
+    uur::raii::Mem host_ptr_buffer = nullptr;
+    ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_ALLOC_HOST_POINTER,
+                                     4096, nullptr, host_ptr_buffer.ptr()));
+
+    ur_buffer_properties_t properties{UR_STRUCTURE_TYPE_BUFFER_PROPERTIES,
+                                      nullptr, host_ptr_buffer.ptr()};
+    uur::raii::Mem buffer = nullptr;
+    ASSERT_SUCCESS(urMemBufferCreate(context, getParam(), 4096, &properties,
+                                     buffer.ptr()));
+}
+
 TEST_P(urMemBufferCreateWithHostPtrFlagsTest, InvalidHostPtr) {
     uur::raii::Mem buffer = nullptr;
     ASSERT_EQ_RESULT(

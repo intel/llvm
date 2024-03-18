@@ -36,6 +36,15 @@ TEST_P(urProgramCreateWithILTest, Success) {
     ASSERT_SUCCESS(urProgramRelease(program));
 }
 
+TEST_P(urProgramCreateWithILTest, SuccessWithProperties) {
+    ur_program_properties_t properties{UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES};
+    ur_program_handle_t program = nullptr;
+    ASSERT_SUCCESS(urProgramCreateWithIL(
+        context, il_binary->data(), il_binary->size(), &properties, &program));
+    ASSERT_NE(nullptr, program);
+    ASSERT_SUCCESS(urProgramRelease(program));
+}
+
 TEST_P(urProgramCreateWithILTest, InvalidNullHandle) {
     ur_program_handle_t program = nullptr;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
