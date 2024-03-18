@@ -546,8 +546,8 @@ template <typename Type, int NumElements> class vec {
 
 public:
   using element_type = DataT;
+  using value_type = DataT;
   using rel_t = detail::rel_t<DataT>;
-
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
   using vector_t =
@@ -1790,6 +1790,11 @@ class SwizzleOp {
 
 public:
   using element_type = DataT;
+  using value_type = DataT;
+
+#ifdef __SYCL_DEVICE_ONLY__
+  using vector_t = typename vec_t::vector_t;
+#endif // __SYCL_DEVICE_ONLY__
 
   const DataT &operator[](int i) const {
     std::array<int, getNumElements()> Idxs{Indexes...};

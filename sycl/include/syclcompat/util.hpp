@@ -31,14 +31,12 @@
 
 #pragma once
 
-#define SYCL_EXT_ONEAPI_COMPLEX
-
 #include <cassert>
-#include <complex>
-#include <sycl/ext/oneapi/experimental/complex/complex.hpp>
-#include <sycl/sycl.hpp>
 #include <type_traits>
 
+#include <sycl/sycl.hpp>
+
+#include <syclcompat/math.hpp>
 #include <syclcompat/memory.hpp>
 
 namespace syclcompat {
@@ -48,23 +46,23 @@ template <typename T> struct DataType {
   using T2 = T;
 };
 template <typename T> struct DataType<sycl::vec<T, 2>> {
-  using T2 = sycl::ext::oneapi::experimental::complex<T>;
+  using T2 = detail::complex_type<T>;
 };
 
 inline void matrix_mem_copy(void *to_ptr, const void *from_ptr, int to_ld,
                             int from_ld, int rows, int cols, int elem_size,
-                            sycl::queue queue = get_default_queue(),
+                            sycl::queue queue = syclcompat::get_default_queue(),
                             bool async = false) {
   if (to_ptr == from_ptr && to_ld == from_ld) {
     return;
   }
 
   if (to_ld == from_ld) {
-    size_t cpoy_size = elem_size * ((cols - 1) * to_ld + rows);
+    size_t copy_size = elem_size * ((cols - 1) * (size_t)to_ld + rows);
     if (async)
-      detail::memcpy(queue, (void *)to_ptr, (void *)from_ptr, cpoy_size);
+      detail::memcpy(queue, (void *)to_ptr, (void *)from_ptr, copy_size);
     else
-      detail::memcpy(queue, (void *)to_ptr, (void *)from_ptr, cpoy_size).wait();
+      detail::memcpy(queue, (void *)to_ptr, (void *)from_ptr, copy_size).wait();
   } else {
     if (async)
       detail::memcpy(queue, to_ptr, from_ptr, elem_size * to_ld,
@@ -117,96 +115,6 @@ inline double cast_ints_to_double(int high32, int low32) {
   sycl::int2 v0{high32, low32};
   auto v1 = v0.as<sycl::vec<double, 1>>();
   return v1;
-}
-
-/// Compute fast_length for variable-length array
-/// \param [in] a The array
-/// \param [in] len Length of the array
-/// \returns The computed fast_length
-inline float fast_length(const float *a, int len) {
-  switch (len) {
-  case 1:
-    return sycl::fast_length(a[0]);
-  case 2:
-    return sycl::fast_length(sycl::float2(a[0], a[1]));
-  case 3:
-    return sycl::fast_length(sycl::float3(a[0], a[1], a[2]));
-  case 4:
-    return sycl::fast_length(sycl::float4(a[0], a[1], a[2], a[3]));
-  case 0:
-    return 0;
-  default:
-    float f = 0;
-    for (int i = 0; i < len; ++i)
-      f += a[i] * a[i];
-    return sycl::sqrt(f);
-  }
-}
-
-/// Compute vectorized max for two values, with each value treated as a vector
-/// type \p S
-/// \param [in] S The type of the vector
-/// \param [in] T The type of the original values
-/// \param [in] a The first value
-/// \param [in] b The second value
-/// \returns The vectorized max of the two values
-template <typename S, typename T> inline T vectorized_max(T a, T b) {
-  sycl::vec<T, 1> v0{a}, v1{b};
-  auto v2 = v0.template as<S>();
-  auto v3 = v1.template as<S>();
-  v2 = sycl::max(v2, v3);
-  v0 = v2.template as<sycl::vec<T, 1>>();
-  return v0;
-}
-
-/// Compute vectorized min for two values, with each value treated as a vector
-/// type \p S
-/// \param [in] S The type of the vector
-/// \param [in] T The type of the original values
-/// \param [in] a The first value
-/// \param [in] b The second value
-/// \returns The vectorized min of the two values
-template <typename S, typename T> inline T vectorized_min(T a, T b) {
-  sycl::vec<T, 1> v0{a}, v1{b};
-  auto v2 = v0.template as<S>();
-  auto v3 = v1.template as<S>();
-  v2 = sycl::min(v2, v3);
-  v0 = v2.template as<sycl::vec<T, 1>>();
-  return v0;
-}
-
-/// Compute vectorized isgreater for two values, with each value treated as a
-/// vector type \p S
-/// \param [in] S The type of the vector
-/// \param [in] T The type of the original values
-/// \param [in] a The first value
-/// \param [in] b The second value
-/// \returns The vectorized greater than of the two values
-template <typename S, typename T> inline T vectorized_isgreater(T a, T b) {
-  sycl::vec<T, 1> v0{a}, v1{b};
-  auto v2 = v0.template as<S>();
-  auto v3 = v1.template as<S>();
-  auto v4 = sycl::isgreater(v2, v3);
-  v0 = v4.template as<sycl::vec<T, 1>>();
-  return v0;
-}
-
-/// Compute vectorized isgreater for two unsigned int values, with each value
-/// treated as a vector of two unsigned short
-/// \param [in] a The first value
-/// \param [in] b The second value
-/// \returns The vectorized greater than of the two values
-template <>
-inline unsigned vectorized_isgreater<sycl::ushort2, unsigned>(unsigned a,
-                                                              unsigned b) {
-  sycl::vec<unsigned, 1> v0{a}, v1{b};
-  auto v2 = v0.template as<sycl::ushort2>();
-  auto v3 = v1.template as<sycl::ushort2>();
-  sycl::ushort2 v4;
-  v4[0] = v2[0] > v3[0];
-  v4[1] = v2[1] > v3[1];
-  v0 = v4.template as<sycl::vec<unsigned, 1>>();
-  return v0;
 }
 
 /// Reverse the bit order of an unsigned integer
@@ -361,49 +269,6 @@ T permute_sub_group_by_xor(sycl::sub_group g, T x, unsigned int mask,
                                      : id);
 }
 
-/// Computes the multiplication of two complex numbers.
-/// \tparam T Complex element type
-/// \param [in] x The first input complex number
-/// \param [in] y The second input complex number
-/// \returns The result
-template <typename T>
-sycl::vec<T, 2> cmul(sycl::vec<T, 2> x, sycl::vec<T, 2> y) {
-  sycl::ext::oneapi::experimental::complex<T> t1(x[0], x[1]), t2(y[0], y[1]);
-  t1 = t1 * t2;
-  return sycl::vec<T, 2>(t1.real(), t1.imag());
-}
-
-/// Computes the division of two complex numbers.
-/// \tparam T Complex element type
-/// \param [in] x The first input complex number
-/// \param [in] y The second input complex number
-/// \returns The result
-template <typename T>
-sycl::vec<T, 2> cdiv(sycl::vec<T, 2> x, sycl::vec<T, 2> y) {
-  sycl::ext::oneapi::experimental::complex<T> t1(x[0], x[1]), t2(y[0], y[1]);
-  t1 = t1 / t2;
-  return sycl::vec<T, 2>(t1.real(), t1.imag());
-}
-
-/// Computes the magnitude of a complex number.
-/// \tparam T Complex element type
-/// \param [in] x The input complex number
-/// \returns The result
-template <typename T> T cabs(sycl::vec<T, 2> x) {
-  sycl::ext::oneapi::experimental::complex<T> t(x[0], x[1]);
-  return abs(t);
-}
-
-/// Computes the complex conjugate of a complex number.
-/// \tparam T Complex element type
-/// \param [in] x The input complex number
-/// \returns The result
-template <typename T> sycl::vec<T, 2> conj(sycl::vec<T, 2> x) {
-  sycl::ext::oneapi::experimental::complex<T> t(x[0], x[1]);
-  t = conj(t);
-  return sycl::vec<T, 2>(t.real(), t.imag());
-}
-
 /// Inherited from the original SYCLomatic compatibility headers.
 /// @return compiler's SYCL version if defined, 202000 otherwise.
 inline int get_sycl_language_version() {
@@ -538,6 +403,131 @@ public:
     return _group_linear_range_in_parent;
   }
 };
+
+// The original source of the functions calculate_max_active_wg_per_xecore and
+// calculate_max_potential_wg were under the license below:
+//
+// Copyright (C) Intel Corporation
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+//
+/// This function is used for occupancy calculation, it computes the max active
+/// work-group number per Xe-Core. Ref to
+/// https://github.com/oneapi-src/oneAPI-samples/tree/master/Tools/GPU-Occupancy-Calculator
+/// \param [out] num_wg Active work-group number.
+/// \param [in] wg_size Work-group size.
+/// \param [in] slm_size Share local memory size.
+/// \param [in] sg_size Sub-group size.
+/// \param [in] used_barrier Whether barrier is used.
+/// \param [in] used_large_grf Whether large General Register File is used.
+/// \return If no error, returns 0.
+/// If \p wg_size exceeds the max work-group size, the max work-group size will
+/// be used instead of \p wg_size and returns -1.
+inline int calculate_max_active_wg_per_xecore(int *num_wg, int wg_size,
+                                              int slm_size = 0,
+                                              int sg_size = 32,
+                                              bool used_barrier = false,
+                                              bool used_large_grf = false) {
+  int ret = 0;
+  const int slm_size_per_xe_core = 64 * 1024;
+  const int max_barrier_registers = 32;
+  syclcompat::device_ext &dev = syclcompat::get_current_device();
+
+  size_t max_wg_size = dev.get_info<sycl::info::device::max_work_group_size>();
+  if (wg_size > max_wg_size) {
+    wg_size = max_wg_size;
+    ret = -1;
+  }
+
+  int num_threads_ss = 56;
+  int max_num_wg = 56;
+  if (dev.has(sycl::aspect::ext_intel_gpu_eu_count_per_subslice) &&
+      dev.has(sycl::aspect::ext_intel_gpu_hw_threads_per_eu)) {
+    auto eu_count =
+        dev.get_info<sycl::info::device::ext_intel_gpu_eu_count_per_subslice>();
+    auto threads_count =
+        dev.get_info<sycl::ext::intel::info::device::gpu_hw_threads_per_eu>();
+    num_threads_ss = eu_count * threads_count;
+    max_num_wg = eu_count * threads_count;
+  }
+
+  if (used_barrier) {
+    max_num_wg = max_barrier_registers;
+  }
+
+  // Calculate num_wg_slm
+  int num_wg_slm = 0;
+  if (slm_size == 0) {
+    num_wg_slm = max_num_wg;
+  } else {
+    num_wg_slm = std::floor((float)slm_size_per_xe_core / slm_size);
+  }
+
+  // Calculate num_wg_threads
+  if (used_large_grf)
+    num_threads_ss = num_threads_ss / 2;
+  int num_threads = std::ceil((float)wg_size / sg_size);
+  int num_wg_threads = std::floor((float)num_threads_ss / num_threads);
+
+  // Calculate num_wg
+  *num_wg = std::min(num_wg_slm, num_wg_threads);
+  *num_wg = std::min(*num_wg, max_num_wg);
+  return ret;
+}
+
+/// This function is used for occupancy calculation, it computes the work-group
+/// number and the work-group size which achieves the maximum occupancy of the
+/// device potentially. Ref to
+/// https://github.com/oneapi-src/oneAPI-samples/tree/master/Tools/GPU-Occupancy-Calculator
+/// \param [out] num_wg Work-group number.
+/// \param [out] wg_size Work-group size.
+/// \param [in] max_wg_size_for_device_code The maximum working work-group size
+/// for current device code logic. Zero means no limitation.
+/// \param [in] slm_size Share local memory size.
+/// \param [in] sg_size Sub-group size.
+/// \param [in] used_barrier Whether barrier is used.
+/// \param [in] used_large_grf Whether large General Register File is used.
+/// \return Returns 0.
+inline int calculate_max_potential_wg(int *num_wg, int *wg_size,
+                                      int max_wg_size_for_device_code,
+                                      int slm_size = 0, int sg_size = 32,
+                                      bool used_barrier = false,
+                                      bool used_large_grf = false) {
+  sycl::device &dev = syclcompat::get_current_device();
+  size_t max_wg_size = dev.get_info<sycl::info::device::max_work_group_size>();
+  if (max_wg_size_for_device_code == 0 ||
+      max_wg_size_for_device_code >= max_wg_size)
+    *wg_size = (int)max_wg_size;
+  else
+    *wg_size = max_wg_size_for_device_code;
+  calculate_max_active_wg_per_xecore(num_wg, *wg_size, slm_size, sg_size,
+                                     used_barrier, used_large_grf);
+  std::uint32_t num_ss = 1;
+  if (dev.has(sycl::aspect::ext_intel_gpu_slices) &&
+      dev.has(sycl::aspect::ext_intel_gpu_subslices_per_slice)) {
+    num_ss =
+        dev.get_info<sycl::ext::intel::info::device::gpu_slices>() *
+        dev.get_info<sycl::ext::intel::info::device::gpu_subslices_per_slice>();
+  }
+  num_wg[0] = num_ss * num_wg[0];
+  return 0;
+}
 
 } // namespace experimental
 } // namespace syclcompat

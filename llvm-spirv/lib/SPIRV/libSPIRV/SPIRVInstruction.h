@@ -446,7 +446,7 @@ public:
       : SPIRVInstruction(TheInitializer ? 5 : 4, OpVariable, TheType, TheId,
                          TheBB, TheM),
         StorageClass(TheStorageClass) {
-    if (TheInitializer)
+    if (TheInitializer && !TheInitializer->isUndef())
       Initializer.push_back(TheInitializer->getId());
     Name = TheName;
     validate();
@@ -2213,15 +2213,11 @@ public:
 protected:
   void validate() const override {
     SPIRVInstruction::validate();
-    SPIRVId Vector1 = Ops[0];
-    SPIRVId Vector2 = Ops[1];
+    [[maybe_unused]] SPIRVId Vector1 = Ops[0];
     assert(OpCode == OpVectorShuffle);
     assert(Type->isTypeVector());
     assert(Type->getVectorComponentType() ==
            getValueType(Vector1)->getVectorComponentType());
-    if (getValue(Vector1)->isForward() || getValue(Vector2)->isForward())
-      return;
-    assert(getValueType(Vector1) == getValueType(Vector2));
     assert(Ops.size() - 2 == Type->getVectorComponentCount());
   }
 };
@@ -3904,21 +3900,21 @@ protected:
         ClusterMode >= -1 && ClusterMode <= 1, SPIRVEC_InvalidInstruction,
         InstName + "\nClusterMode valid values are -1, 0, 1.\n");
 
-    const uint32_t GetCapacity =
+    const int GetCapacity =
         static_cast<SPIRVConstant *>(
             const_cast<SPIRVTaskSequenceCreateINTELInst *>(this)->getOperand(3))
             ->getZExtIntValue();
     SPVErrLog.checkError(
-        GetCapacity, SPIRVEC_InvalidInstruction,
-        InstName + "\nGetCapacity must be unsigned 32 bit integer.\n");
+        GetCapacity >= 0, SPIRVEC_InvalidInstruction,
+        InstName + "\nGetCapacity must be an unsigned 32-bit integer.\n");
 
-    const uint32_t AsyncCapacity =
+    const int AsyncCapacity =
         static_cast<SPIRVConstant *>(
             const_cast<SPIRVTaskSequenceCreateINTELInst *>(this)->getOperand(4))
             ->getZExtIntValue();
     SPVErrLog.checkError(
-        AsyncCapacity, SPIRVEC_InvalidInstruction,
-        InstName + "\nAsyncCapacity must be unsigned 32 bit integer.\n");
+        AsyncCapacity >= 0, SPIRVEC_InvalidInstruction,
+        InstName + "\nAsyncCapacity must be an unsigned 32-bit integer.\n");
   }
 };
 

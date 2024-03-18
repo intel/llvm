@@ -290,8 +290,10 @@ areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
     // Events that don't have an initialized context are throwaway events that
     // don't represent actual dependencies. Calling getContextImpl() would set
     // their context, which we wish to avoid as it is expensive.
-    if (!SyclEventImplPtr->isContextInitialized() &&
-        !SyclEventImplPtr->is_host()) {
+    // NOP events also don't represent actual dependencies.
+    if ((!SyclEventImplPtr->isContextInitialized() &&
+         !SyclEventImplPtr->is_host()) ||
+        SyclEventImplPtr->isNOP()) {
       return true;
     }
     if (SyclEventImplPtr->is_host()) {
@@ -340,7 +342,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
 
     // If we have a command graph set we need to capture the op through the
     // handler rather than by-passing the scheduler.
-    if (!MGraph.lock() &&
+    if (MGraph.expired() &&
         areEventsSafeForSchedulerBypass(ExpandedDepEvents, MContext)) {
       if (MSupportsDiscardingPiEvents) {
         MemOpFunc(MemOpArgs..., getPIEvents(ExpandedDepEvents),
@@ -358,7 +360,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
 
       if (isInOrder()) {
         auto &EventToStoreIn =
-            MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
+            MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
         EventToStoreIn = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
