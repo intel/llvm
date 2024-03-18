@@ -56,14 +56,8 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 09be0881b727fadb1c04b38c00d2562d7dc6875f
-  # Merge: bb589ca8 e9f855d4
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Mar 14 22:10:28 2024 +0000
-  #     Merge pull request #1429 from nrspruit/l0_p2p_device_query
-  #     [L0] Support for urUsmP2PPeerAccessGetInfoExp to query p2p access info
-  set(UNIFIED_RUNTIME_TAG 09be0881b727fadb1c04b38c00d2562d7dc6875f)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/jinge90/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG 62132026f2aad94611e98a4db172e658f72c7611)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
