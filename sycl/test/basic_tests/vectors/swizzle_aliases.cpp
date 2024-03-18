@@ -10,7 +10,7 @@ int main() {
     static_assert(std::is_same_v<decltype(X.swizzle<0>())::value_type, int>);
 #ifdef __SYCL_DEVICE_ONLY__
     static_assert(std::is_same_v<decltype(X.swizzle<0>())::vector_t,
-                                 decltype(X)::vector_t>);
+                                 sycl::vec<int, 1>::vector_t>);
 #endif // __SYCL_DEVICE_ONLY__
   });
   return 0;

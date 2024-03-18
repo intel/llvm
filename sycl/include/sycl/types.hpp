@@ -1793,7 +1793,7 @@ public:
   using value_type = DataT;
 
 #ifdef __SYCL_DEVICE_ONLY__
-  using vector_t = typename VecT::vector_t;
+  using vector_t = typename vec_t::vector_t;
 #endif // __SYCL_DEVICE_ONLY__
 
   const DataT &operator[](int i) const {
