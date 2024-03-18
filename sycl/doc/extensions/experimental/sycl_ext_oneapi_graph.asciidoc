@@ -503,10 +503,10 @@ link:../proposed/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_ker
 
 Dynamic parameters are registered with nodes in a modifiable graph, with each
 registration associating one or more node arguments to the dynamic parameter
-instance. Registration happens inside the command-group that the node represents
-, and is done when dynamic parameters are set as parameters to the kernel using
-`handler::set_arg()`/`handler::set_args()`). It is valid for a node argument to
-be registered with more than one dynamic parameter instance.
+instance. Registration happens inside the command-group that the node
+represents, and is done when dynamic parameters are set as parameters to the
+kernel using `handler::set_arg()`/`handler::set_args()`. It is valid for a node
+argument to be registered with more than one dynamic parameter instance.
 
 See <<executable-graph-update, Executable Graph Update>> for more information
 about updating node parameters.
@@ -521,8 +521,8 @@ Table {counter: tableNumber}. Member functions of the `dynamic_parameter` class.
 |
 [source,c++]
 ----
-dynamic_parameter(command_graph<graph_state::modifiable> graph, const ValueT
-&initialValue);
+dynamic_parameter(command_graph<graph_state::modifiable> graph, 
+                  const ValueT &initialValue);
 ----
 |Constructs a dynamic parameter object that can be registered with command graph
 nodes with an initial value.
@@ -716,19 +716,21 @@ possible.
 
 ===== Individual Node Update
 
-Parameters to individual nodes in a graph in the `executable` state
-can be updated between graph executions using dynamic parameters. When a
-`dynamic_parameter` instance is created with a modifiable state graph it is
-empty, with no associated kernel arguments. The `dynamic_parameter`
-can be used to update that node argument in the future.
+Parameters to individual nodes in a graph in the `executable` state can be
+updated between graph executions using dynamic parameters. A `dynamic_parameter`
+object is created with a modifiable state graph and an initial value for the
+parameter. Dynamic parameters can then be registered with nodes in that graph
+when passed to calls to `set_arg()/set_args()`.
 
-Parameter updates are performed using a `dynamic_parameter` instance by
-calling `dynamic_parameter::update()` to update all the parameters of nodes to
-which the `dynamic_parameter` is registered.
+Parameter updates are performed using a `dynamic_parameter` instance by calling
+`dynamic_parameter::update()` to update all the parameters of nodes to which the
+`dynamic_parameter` is registered. Updates will not affect any nodes which were
+not registered, even if they use the same parameter value as a
+`dynamic_parameter`.
 
-The other node configuration that can be updated is the ND-Range, this can
-be set through `node::update_nd_range()` but does not require any prior
-registration.
+The other node configuration that can be updated is the execution range of the
+kernel, this can be set through `node::update_nd_range()` or
+`node::update_range()` but does not require any prior registration.
 
 These updated nodes can then be passed to 
 `command_graph<graph_state::executable>::update()` which will update the
@@ -1081,7 +1083,7 @@ updated inside the executable graph to reflect the current values in `node`.
 
 Updating these values will not change the structure of the graph.
 
-Note: The implementation may perform a blocking wait during this call on any
+The implementation may perform a blocking wait during this call on any
 in-flight executions of that same graph if required by the backend.
 
 Constraints:
@@ -1491,7 +1493,7 @@ template <typename DataT, int Dims, access::mode AccMode, access::target
 AccTarget, access::placeholder isPlaceholder> void
 handler::require(ext::oneapi::experimental::dynamic_parameter<
               accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder>>
-                  DynamicParamAcc)
+                  dynamicParamAcc)
 ----
 
 |Requires access to a memory object associated with an accessor contained in a
@@ -1499,7 +1501,7 @@ dynamic parameter.
 
 Parameters:
 
-* `DynamicParamAcc` - The dynamic parameter which contains the accessor that is
+* `dynamicParamAcc` - The dynamic parameter which contains the accessor that is
 required.
 
 Exceptions:
@@ -1518,8 +1520,8 @@ different from the one with which the dynamic_parameter was created.
 [source,c++]
 ----
 template <typename T>
-void handler::set_arg(int ArgIndex,
-              ext::oneapi::experimental::dynamic_parameter<T> &DynamicParam);
+void handler::set_arg(int argIndex,
+              ext::oneapi::experimental::dynamic_parameter<T> &dynamicParam);
 ----
 
 |Sets an argument to a kernel based on the value inside a dynamic parameter, and
@@ -1528,9 +1530,9 @@ submission of the command-group that calls this function.
 
 Parameters:
 
-* `ArgIndex` - The index of the kernel argument.
+* `argIndex` - The index of the kernel argument.
 
-* `DynamicParam` - The dynamic parameter which contains the argument.
+* `dynamicParam` - The dynamic parameter which contains the argument.
 
 Exceptions:
 
