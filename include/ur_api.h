@@ -8928,6 +8928,13 @@ urUSMReleaseExp(
 #pragma region usm p2p(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
+#ifndef UR_USM_P2P_EXTENSION_STRING_EXP
+/// @brief The extension string that defines support for USM P2P which is
+///        returned when querying device extensions.
+#define UR_USM_P2P_EXTENSION_STRING_EXP "ur_exp_usm_p2p"
+#endif // UR_USM_P2P_EXTENSION_STRING_EXP
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Supported peer info
 typedef enum ur_exp_peer_info_t {
     UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED = 0,  ///< [uint32_t] 1 if P2P access is supported otherwise P2P access is not
