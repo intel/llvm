@@ -56,7 +56,7 @@ template <int Arg> class syclcompat_kernel_scalar;
 #endif
 
 namespace syclcompat {
-enum error_code { SUCCESS = 0, DEFAULT_ERROR = 999 };
+enum error_code { SUCCESS = 0, BACKEND_ERROR = 1, DEFAULT_ERROR = 999 };
 }
 
 #define SYCLCOMPAT_CHECK_ERROR(expr)                                           \
@@ -65,6 +65,9 @@ enum error_code { SUCCESS = 0, DEFAULT_ERROR = 999 };
       expr;                                                                    \
       return syclcompat::error_code::SUCCESS;                                  \
     } catch (sycl::exception const &e) {                                       \
+      std::cerr << e.what() << std::endl;                                      \
+      return syclcompat::error_code::BACKEND_ERROR;                            \
+    } catch (std::runtime_error const &e) {                                    \
       std::cerr << e.what() << std::endl;                                      \
       return syclcompat::error_code::DEFAULT_ERROR;                            \
     }                                                                          \

@@ -45,14 +45,20 @@ void test_align() {
 void test_check_error() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
-  auto error_throw = []() {
+  auto sycl_error_throw = []() {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Expected invalid exception in test_check_error");
   };
 
+  auto runtime_error_throw = []() {
+    throw std::runtime_error("Expected invalid exception in test_check_error");
+  };
+
   assert(syclcompat::error_code::SUCCESS == SYCLCOMPAT_CHECK_ERROR());
+  assert(syclcompat::error_code::BACKEND_ERROR ==
+         SYCLCOMPAT_CHECK_ERROR(sycl_error_throw()));
   assert(syclcompat::error_code::DEFAULT_ERROR ==
-         SYCLCOMPAT_CHECK_ERROR(error_throw()));
+         SYCLCOMPAT_CHECK_ERROR(runtime_error_throw()));
 }
 
 int main() {

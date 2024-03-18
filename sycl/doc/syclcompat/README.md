@@ -1178,10 +1178,13 @@ kernel names during machine translation.
 SYCL spec supported by the current SYCL compiler.
 
 The `SYCLCOMPAT_CHECK_ERROR` macro encapsulates an error-handling mechanism for
-expressions that might throw `sycl::exception`. If no exceptions are thrown, it
-returns `syclcompat::error_code::SUCCESS`. If an exception is caught, it prints
-the error message to the standard error stream and returns
-`syclcompat::error_code::DEFAULT_ERROR`.
+expressions that might throw `sycl::exception` and `std::runtime_error`.
+If no exceptions are thrown, it returns `syclcompat::error_code::SUCCESS`.
+If a `sycl::exception` is caught, it returns `syclcompat::error_code::BACKEND_ERROR`.
+If a `std::runtime_error` exception is caught,
+`syclcompat::error_code::DEFAULT_ERROR` is returned instead.
+For both cases, it prints the error message to the standar
+d error stream.
 
 ``` c++
 namespace syclcompat {
