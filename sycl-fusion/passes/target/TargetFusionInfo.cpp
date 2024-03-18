@@ -375,7 +375,7 @@ public:
   }
 
   Value *getGlobalIDWithoutOffset(IRBuilderBase &Builder,
-                                  const NDRange &FusedNDRange,
+                                  [[maybe_unused]] const NDRange &FusedNDRange,
                                   uint32_t Idx) const override {
     // The SPIR-V target only remaps IDs (and thus queries this method) if no
     // global offset is given.
