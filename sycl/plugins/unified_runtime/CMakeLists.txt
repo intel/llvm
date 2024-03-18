@@ -56,27 +56,39 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  #set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime")
-  set(UNIFIED_RUNTIME_REPO "https://github.com/JackAKirk/unified-runtime.git")
+  # The fetch_adapter_source function can be used to perform a separate content
+  # fetch for a UR adapter, this allows development of adapters to be decoupled
+  # from each other.
+  #
+  # Args:
+  #   * name - Must be the directory name of the adapter
+  #   * repo - A valid Git URL of a Unified Runtime repo
+  #   * tag - A valid Git branch/tag/commit in the Unified Runtime repo
+  function(fetch_adapter_source name repo tag)
+    message(STATUS "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
+    set(fetch-name unified-runtime-${name})
+    FetchContent_Declare(${fetch-name}
+      GIT_REPOSITORY ${repo} GIT_TAG ${tag})
+    # We don't want to add this repo to the build, only fetch its source.
+    FetchContent_Populate(${fetch-name})
+    # Get the path to the source directory
+    string(TOUPPER ${name} NAME)
+    set(source_dir_var UR_ADAPTER_${NAME}_SOURCE_DIR)
+    FetchContent_GetProperties(${fetch-name} SOURCE_DIR UR_ADAPTER_${NAME}_SOURCE_DIR)
+    # Set the variable which informs UR where to get the adapter source from.
+    set(UR_ADAPTER_${NAME}_SOURCE_DIR
+      "${UR_ADAPTER_${NAME}_SOURCE_DIR}/source/adapters/${name}"
+      CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
+  endfunction()
 
-  # commit 51d7180c344bbc2f942533e5fc51b0b04871f8d5
-  # Merge: b66cf9b1 0e37380e
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 6513abc404979fa109d64500bf899e632d511291
+  # Merge: 09be0881 6d586094
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Jan 26 12:20:20 2024 +0000
-  #     Merge pull request #1205 from ykhatav/ur_dependentload
-  #     [UR] add dependent-load flag to exclude CWD from default search path …
-  set(UNIFIED_RUNTIME_TAG 35b6cd09dd92b04eae8195a706ef6c63541b3cf1)
-#=======
-
-#  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime")
-  # commit 3225b822b5d8cbfa85d7fc1bd5a5bf96e5bb8c1a
-  # Merge: edb281f3 5fc41099
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Jan 30 12:31:44 2024 +0000
-  #     Merge pull request #1168 from Seanst98/sean/unique-addr-mode-per-dim-adapters
-  #     [Bindless][CUDA] Unique addressing modes per dimension
-#  set(UNIFIED_RUNTIME_TAG 3225b822b5d8cbfa85d7fc1bd5a5bf96e5bb8c1a)
-
+  # Date:   Thu Mar 14 22:38:53 2024 +0000
+  #     Merge pull request #1410 from kbenzie/benie/cmake-external-adapter-source-dirs
+  #     [CMake] Support external adapter source dirs
+  set(UNIFIED_RUNTIME_TAG 6513abc404979fa109d64500bf899e632d511291)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
