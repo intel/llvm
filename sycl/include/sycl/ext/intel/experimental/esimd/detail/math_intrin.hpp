@@ -12,7 +12,6 @@
 
 /// @cond ESIMD_DETAIL
 
-#include <cmath>
 #include <sycl/ext/intel/esimd/detail/defines_elementary.hpp>
 #include <sycl/ext/intel/esimd/detail/math_intrin.hpp>
 #include <sycl/ext/intel/esimd/detail/types.hpp>

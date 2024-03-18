@@ -80,12 +80,6 @@ llvm_config.with_system_environment(
 
 llvm_config.with_environment("PATH", config.lit_tools_dir, append_path=True)
 
-if "cuda:gpu" in config.sycl_devices:
-    llvm_config.with_system_environment("CUDA_PATH")
-
-if "hip:gpu" in config.sycl_devices:
-    llvm_config.with_system_environment("ROCM_PATH")
-
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
 if platform.system() == "Linux":
     config.available_features.add("linux")
@@ -163,7 +157,14 @@ if lit_config.params.get("gpu-intel-pvc", False):
     config.available_features.add(
         "matrix-tf32"
     )  # PVC implies the support of TF32 matrix
-
+if lit_config.params.get("gpu-intel-pvc-vg", False):
+    config.available_features.add("gpu-intel-pvc-vg")
+    config.available_features.add(
+        "matrix-fp16"
+    )  # PVC-VG implies the support of FP16 matrix
+    config.available_features.add(
+        "matrix-tf32"
+    )  # PVC-VG implies the support of TF32 matrix    
 if lit_config.params.get("matrix", False):
     config.available_features.add("matrix")
 
@@ -455,6 +456,9 @@ if config.hip_platform not in supported_hip_platforms:
         + "' supported platforms are "
         + ", ".join(supported_hip_platforms)
     )
+
+if "cuda:gpu" in config.sycl_devices:
+    llvm_config.with_system_environment("CUDA_PATH")
 
 # FIXME: This needs to be made per-device as well, possibly with a helper.
 if "hip:gpu" in config.sycl_devices and config.hip_platform == "AMD":

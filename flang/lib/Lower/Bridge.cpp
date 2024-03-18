@@ -1000,6 +1000,17 @@ private:
       if (sym.detailsIf<Fortran::semantics::CommonBlockDetails>())
         return symMap->lookupSymbol(sym);
 
+      // For symbols to be privatized in OMP, the symbol is mapped to an
+      // instance of `SymbolBox::Intrinsic` (i.e. a direct mapping to an MLIR
+      // SSA value). This MLIR SSA value is the block argument to the
+      // `omp.private`'s `alloc` block. If this is the case, we return this
+      // `SymbolBox::Intrinsic` value.
+      if (Fortran::lower::SymbolBox v = symMap->lookupSymbol(sym))
+        return v.match(
+            [&](const Fortran::lower::SymbolBox::Intrinsic &)
+                -> Fortran::lower::SymbolBox { return v; },
+            [](const auto &) -> Fortran::lower::SymbolBox { return {}; });
+
       return {};
     }
     if (Fortran::lower::SymbolBox v = symMap->lookupSymbol(sym))
@@ -1018,7 +1029,7 @@ private:
   /// Find the symbol in one level up of symbol map such as for host-association
   /// in OpenMP code or return null.
   Fortran::lower::SymbolBox
-  lookupOneLevelUpSymbol(const Fortran::semantics::Symbol &sym) {
+  lookupOneLevelUpSymbol(const Fortran::semantics::Symbol &sym) override {
     if (Fortran::lower::SymbolBox v = localSymbols.lookupOneLevelUpSymbol(sym))
       return v;
     return {};
@@ -2622,6 +2633,9 @@ private:
         ompDeviceCodeFound ||
         Fortran::lower::isOpenMPDeviceDeclareTarget(
             *this, bridge.getSemanticsContext(), getEval(), ompDecl);
+    Fortran::lower::gatherOpenMPDeferredDeclareTargets(
+        *this, bridge.getSemanticsContext(), getEval(), ompDecl,
+        ompDeferredDeclareTarget);
     genOpenMPDeclarativeConstruct(
         *this, localSymbols, bridge.getSemanticsContext(), getEval(), ompDecl);
     builder->restoreInsertionPoint(insertPt);
@@ -4477,7 +4491,16 @@ private:
     assert(builder && "FirOpBuilder did not instantiate");
     builder->setFastMathFlags(bridge.getLoweringOptions().getMathOptions());
     builder->setInsertionPointToStart(&func.front());
-    func.setVisibility(mlir::SymbolTable::Visibility::Public);
+    if (funit.parent.isA<Fortran::lower::pft::FunctionLikeUnit>()) {
+      // Give internal linkage to internal functions. There are no name clash
+      // risks, but giving global linkage to internal procedure will break the
+      // static link register in shared libraries because of the system calls.
+      // Also, it should be possible to eliminate the procedure code if all the
+      // uses have been inlined.
+      fir::factory::setInternalLinkage(func);
+    } else {
+      func.setVisibility(mlir::SymbolTable::Visibility::Public);
+    }
     assert(blockId == 0 && "invalid blockId");
     assert(activeConstructStack.empty() && "invalid construct stack state");
 
@@ -5151,6 +5174,13 @@ private:
   /// lowering.
   void finalizeOpenMPLowering(
       const Fortran::semantics::Symbol *globalOmpRequiresSymbol) {
+    if (!ompDeferredDeclareTarget.empty()) {
+      bool deferredDeviceFuncFound =
+          Fortran::lower::markOpenMPDeferredDeclareTargetFunctions(
+              getModuleOp().getOperation(), ompDeferredDeclareTarget, *this);
+      ompDeviceCodeFound = ompDeviceCodeFound || deferredDeviceFuncFound;
+    }
+
     // Set the module attribute related to OpenMP requires directives
     if (ompDeviceCodeFound)
       Fortran::lower::genOpenMPRequires(getModuleOp().getOperation(),
@@ -5206,6 +5236,13 @@ private:
   /// Whether an OpenMP target region or declare target function/subroutine
   /// intended for device offloading has been detected
   bool ompDeviceCodeFound = false;
+
+  /// Keeps track of symbols defined as declare target that could not be
+  /// processed at the time of lowering the declare target construct, such
+  /// as certain cases where interfaces are declared but not defined within
+  /// a module.
+  llvm::SmallVector<Fortran::lower::OMPDeferredDeclareTargetInfo>
+      ompDeferredDeclareTarget;
 
   const Fortran::lower::ExprToValueMap *exprValueOverrides{nullptr};
 

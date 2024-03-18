@@ -37,6 +37,12 @@ DeviceGlobal<DeviceType> __DeviceType;
 #if defined(__SPIR__)
 
 #ifdef __SYCL_DEVICE_ONLY__
+#define __USE_SPIR_BUILTIN__ 1
+#else
+#define __USE_SPIR_BUILTIN__
+#endif
+
+#if __USE_SPIR_BUILTIN__
 extern SYCL_EXTERNAL int
 __spirv_ocl_printf(const __SYCL_CONSTANT__ char *Format, ...);
 
@@ -251,6 +257,12 @@ bool __asan_region_is_value(uptr addr, int32_t as, std::size_t size,
   return true;
 }
 
+#ifdef __SYCL_DEVICE_ONLY__
+#define __DEVICE_SANITIZER_REPORT_ACCESSOR __DeviceSanitizerReportMem.get()
+#else
+#define __DEVICE_SANITIZER_REPORT_ACCESSOR
+#endif
+
 static void __asan_internal_report_save(
     uptr ptr, int32_t as, const char __SYCL_CONSTANT__ *file, int32_t line,
     const char __SYCL_CONSTANT__ *func, bool is_write, uint32_t access_size,
@@ -259,7 +271,7 @@ static void __asan_internal_report_save(
 
   const int Expected = ASAN_REPORT_NONE;
   int Desired = ASAN_REPORT_START;
-  if (atomicCompareAndSet(&__DeviceSanitizerReportMem.get().Flag, Desired,
+  if (atomicCompareAndSet(&__DEVICE_SANITIZER_REPORT_ACCESSOR.Flag, Desired,
                           Expected) == Expected) {
 
     int FileLength = 0;
@@ -272,8 +284,8 @@ static void __asan_internal_report_save(
       for (auto *C = func; *C != '\0'; ++C, ++FuncLength)
         ;
 
-    int MaxFileIdx = sizeof(__DeviceSanitizerReportMem.get().File) - 1;
-    int MaxFuncIdx = sizeof(__DeviceSanitizerReportMem.get().Func) - 1;
+    int MaxFileIdx = sizeof(__DEVICE_SANITIZER_REPORT_ACCESSOR.File) - 1;
+    int MaxFuncIdx = sizeof(__DEVICE_SANITIZER_REPORT_ACCESSOR.Func) - 1;
 
     if (FileLength < MaxFileIdx)
       MaxFileIdx = FileLength;
@@ -281,29 +293,29 @@ static void __asan_internal_report_save(
       MaxFuncIdx = FuncLength;
 
     for (int Idx = 0; Idx < MaxFileIdx; ++Idx)
-      __DeviceSanitizerReportMem.get().File[Idx] = file[Idx];
-    __DeviceSanitizerReportMem.get().File[MaxFileIdx] = '\0';
+      __DEVICE_SANITIZER_REPORT_ACCESSOR.File[Idx] = file[Idx];
+    __DEVICE_SANITIZER_REPORT_ACCESSOR.File[MaxFileIdx] = '\0';
 
     for (int Idx = 0; Idx < MaxFuncIdx; ++Idx)
-      __DeviceSanitizerReportMem.get().Func[Idx] = func[Idx];
-    __DeviceSanitizerReportMem.get().Func[MaxFuncIdx] = '\0';
+      __DEVICE_SANITIZER_REPORT_ACCESSOR.Func[Idx] = func[Idx];
+    __DEVICE_SANITIZER_REPORT_ACCESSOR.Func[MaxFuncIdx] = '\0';
 
-    __DeviceSanitizerReportMem.get().Line = line;
-    __DeviceSanitizerReportMem.get().GID0 = __spirv_GlobalInvocationId_x();
-    __DeviceSanitizerReportMem.get().GID1 = __spirv_GlobalInvocationId_y();
-    __DeviceSanitizerReportMem.get().GID2 = __spirv_GlobalInvocationId_z();
-    __DeviceSanitizerReportMem.get().LID0 = __spirv_LocalInvocationId_x();
-    __DeviceSanitizerReportMem.get().LID1 = __spirv_LocalInvocationId_y();
-    __DeviceSanitizerReportMem.get().LID2 = __spirv_LocalInvocationId_z();
+    __DEVICE_SANITIZER_REPORT_ACCESSOR.Line = line;
+    __DEVICE_SANITIZER_REPORT_ACCESSOR.GID0 = __spirv_GlobalInvocationId_x();
+    __DEVICE_SANITIZER_REPORT_ACCESSOR.GID1 = __spirv_GlobalInvocationId_y();
+    __DEVICE_SANITIZER_REPORT_ACCESSOR.GID2 = __spirv_GlobalInvocationId_z();
+    __DEVICE_SANITIZER_REPORT_ACCESSOR.LID0 = __spirv_LocalInvocationId_x();
+    __DEVICE_SANITIZER_REPORT_ACCESSOR.LID1 = __spirv_LocalInvocationId_y();
+    __DEVICE_SANITIZER_REPORT_ACCESSOR.LID2 = __spirv_LocalInvocationId_z();
 
-    __DeviceSanitizerReportMem.get().IsWrite = is_write;
-    __DeviceSanitizerReportMem.get().AccessSize = access_size;
-    __DeviceSanitizerReportMem.get().ErrorType = error_type;
-    __DeviceSanitizerReportMem.get().MemoryType = memory_type;
-    __DeviceSanitizerReportMem.get().IsRecover = is_recover;
+    __DEVICE_SANITIZER_REPORT_ACCESSOR.IsWrite = is_write;
+    __DEVICE_SANITIZER_REPORT_ACCESSOR.AccessSize = access_size;
+    __DEVICE_SANITIZER_REPORT_ACCESSOR.ErrorType = error_type;
+    __DEVICE_SANITIZER_REPORT_ACCESSOR.MemoryType = memory_type;
+    __DEVICE_SANITIZER_REPORT_ACCESSOR.IsRecover = is_recover;
 
     // Show we've done copying
-    atomicStore(&__DeviceSanitizerReportMem.get().Flag, ASAN_REPORT_FINISH);
+    atomicStore(&__DEVICE_SANITIZER_REPORT_ACCESSOR.Flag, ASAN_REPORT_FINISH);
   }
 }
 

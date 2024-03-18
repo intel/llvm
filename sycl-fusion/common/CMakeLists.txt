@@ -5,6 +5,15 @@ add_llvm_library(sycl-fusion-common
    Support
 )
 
+target_compile_options(sycl-fusion-common PRIVATE ${SYCL_FUSION_WARNING_FLAGS})
+
+# Mark LLVM headers as system headers to ignore warnigns in them. This
+# classification remains intact even if the same path is added as a normal
+# include path in GCC and Clang.
+target_include_directories(sycl-fusion-common
+  SYSTEM PRIVATE
+  ${LLVM_MAIN_INCLUDE_DIR}
+)
 target_include_directories(sycl-fusion-common
   PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include

@@ -57,14 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-
-  # commit a2757b2931daa2f8d7c9dd51b0fc846be1fd49a7
-  # Merge:  9b936b5 + f78d369
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Feb 27 11:34:58 2024 +0000
-  #     Merge pull request #1254 from Bensuo/cmdbuf-support-hip
-  #     [EXP][CMDBUF] HIP adapter support for command buffers
-  set(UNIFIED_RUNTIME_TAG a2757b2931daa2f8d7c9dd51b0fc846be1fd49a7 )
+  # commit ec634ff05b067d7922ec45059dda94665e5dcd9b
+  # Merge: 418ad535 8714b853
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Thu Mar 14 15:52:52 2024 +0100
+  #     Merge pull request #1438 from PatKamin/disable-fuzztests
+  #     Disable fuzz tests on ubuntu-22.04 runner
+  set(UNIFIED_RUNTIME_TAG ec634ff05b067d7922ec45059dda94665e5dcd9b)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

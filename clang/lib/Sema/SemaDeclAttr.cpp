@@ -2129,12 +2129,6 @@ static void handleTLSModelAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     return;
   }
 
-  if (S.Context.getTargetInfo().getTriple().isOSAIX() &&
-      Model == "local-dynamic") {
-    S.Diag(LiteralLoc, diag::err_aix_attr_unsupported_tls_model) << Model;
-    return;
-  }
-
   D->addAttr(::new (S.Context) TLSModelAttr(S.Context, AL, Model));
 }
 
@@ -8865,6 +8859,11 @@ static bool RISCVAliasValid(unsigned BuiltinID, StringRef AliasName) {
          BuiltinID <= RISCV::LastRVVBuiltin;
 }
 
+static bool SYCLAliasValid(ASTContext &Context, unsigned BuiltinID) {
+  constexpr llvm::StringLiteral Prefix = "__builtin_intel_sycl";
+  return Context.BuiltinInfo.getName(BuiltinID).starts_with(Prefix);
+}
+
 static void handleBuiltinAliasAttr(Sema &S, Decl *D,
                                         const ParsedAttr &AL) {
   if (!AL.isArgIdent(0)) {
@@ -8881,11 +8880,13 @@ static void handleBuiltinAliasAttr(Sema &S, Decl *D,
   bool IsARM = S.Context.getTargetInfo().getTriple().isARM();
   bool IsRISCV = S.Context.getTargetInfo().getTriple().isRISCV();
   bool IsHLSL = S.Context.getLangOpts().HLSL;
+  bool IsSYCL = S.Context.getLangOpts().isSYCL();
   if ((IsAArch64 && !ArmSveAliasValid(S.Context, BuiltinID, AliasName)) ||
       (IsARM && !ArmMveAliasValid(BuiltinID, AliasName) &&
        !ArmCdeAliasValid(BuiltinID, AliasName)) ||
       (IsRISCV && !RISCVAliasValid(BuiltinID, AliasName)) ||
-      (!IsAArch64 && !IsARM && !IsRISCV && !IsHLSL)) {
+      (IsSYCL && !SYCLAliasValid(S.Context, BuiltinID)) ||
+      (!IsAArch64 && !IsARM && !IsRISCV && !IsHLSL && !IsSYCL)) {
     S.Diag(AL.getLoc(), diag::err_attribute_builtin_alias) << AL;
     return;
   }
