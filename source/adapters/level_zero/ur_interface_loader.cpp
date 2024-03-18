@@ -215,6 +215,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
   pDdiTable->pfnRetain = urProgramRetain;
   pDdiTable->pfnRelease = urProgramRelease;
   pDdiTable->pfnGetFunctionPointer = urProgramGetFunctionPointer;
+  pDdiTable->pfnGetGlobalVariablePointer = urProgramGetGlobalVariablePointer;
   pDdiTable->pfnGetInfo = urProgramGetInfo;
   pDdiTable->pfnGetBuildInfo = urProgramGetBuildInfo;
   pDdiTable->pfnSetSpecializationConstants =

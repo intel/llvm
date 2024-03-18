@@ -495,3 +495,38 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
 
   return UR_RESULT_SUCCESS;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
+    ur_device_handle_t hDevice, ur_program_handle_t hProgram,
+    const char *pGlobalVariableName, size_t *pGlobalVariableSizeRet,
+    void **ppGlobalVariablePointerRet) {
+
+  cl_context CLContext = nullptr;
+  CL_RETURN_ON_FAILURE(clGetProgramInfo(cl_adapter::cast<cl_program>(hProgram),
+                                        CL_PROGRAM_CONTEXT, sizeof(CLContext),
+                                        &CLContext, nullptr));
+
+  cl_ext::clGetDeviceGlobalVariablePointer_fn FuncT = nullptr;
+
+  UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<
+                       cl_ext::clGetDeviceGlobalVariablePointer_fn>(
+      CLContext, cl_ext::ExtFuncPtrCache->clGetDeviceGlobalVariablePointerCache,
+      cl_ext::GetDeviceGlobalVariablePointerName, &FuncT));
+
+  const cl_int CLResult =
+      FuncT(cl_adapter::cast<cl_device_id>(hDevice),
+            cl_adapter::cast<cl_program>(hProgram), pGlobalVariableName,
+            pGlobalVariableSizeRet, ppGlobalVariablePointerRet);
+
+  if (CLResult != CL_SUCCESS) {
+    *ppGlobalVariablePointerRet = nullptr;
+
+    if (CLResult == CL_INVALID_ARG_VALUE) {
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
+
+    CL_RETURN_ON_FAILURE(CLResult);
+  }
+
+  return UR_RESULT_SUCCESS;
+}

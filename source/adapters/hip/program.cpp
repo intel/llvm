@@ -227,6 +227,25 @@ ur_result_t ur_program_handle_t_::buildProgram(const char *BuildOptions) {
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t ur_program_handle_t_::getGlobalVariablePointer(
+    const char *name, hipDeviceptr_t *DeviceGlobal, size_t *DeviceGlobalSize) {
+  // Since HIP requires a the global variable to be referenced by name, we use
+  // metadata to find the correct name to access it by.
+  auto DeviceGlobalNameIt = this->GlobalIDMD.find(name);
+  if (DeviceGlobalNameIt == this->GlobalIDMD.end())
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  std::string DeviceGlobalName = DeviceGlobalNameIt->second;
+
+  try {
+    UR_CHECK_ERROR(hipModuleGetGlobal(DeviceGlobal, DeviceGlobalSize,
+                                      this->get(), DeviceGlobalName.c_str()));
+  } catch (ur_result_t Err) {
+    return Err;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 /// Finds kernel names by searching for entry points in the PTX source, as the
 /// HIP driver API doesn't expose an operation for this.
 /// Note: This is currently only being used by the SYCL program class for the
@@ -494,4 +513,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
   }
 
   return Result;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
+    ur_device_handle_t, ur_program_handle_t hProgram,
+    const char *pGlobalVariableName, size_t *pGlobalVariableSizeRet,
+    void **ppGlobalVariablePointerRet) {
+  return hProgram->getGlobalVariablePointer(
+      pGlobalVariableName, ppGlobalVariablePointerRet, pGlobalVariableSizeRet);
 }
