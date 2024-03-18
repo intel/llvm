@@ -195,7 +195,6 @@ enum class image_type : /* unspecified */ {
   standard,
   mipmap,
   array,
-  interop,
 };
 
 struct image_descriptor {
@@ -233,7 +232,7 @@ struct image_descriptor {
 
 The image descriptor represents the image dimensions, channel type, and channel 
 order. An `image_type` member is also present to allow for implementation of 
-mipmapped and interop images.
+mipmapped images.
 
 The `image_descriptor` shall be default constructible and follow by-value 
 semantics.
@@ -1372,40 +1371,58 @@ memory or semaphore objects. CUDA for example only supports importation of
 external memory and semaphores, but provides no support for their exportation.
 ====
 
-=== Importing external memory objects
+=== External Resource types
 
-In order to import a memory object, an external API must provide an appropriate 
-handle to that memory. The exact structure and type of this handle can depend on 
-the external API, and the operating system the application is running on.
-
-In order to facilitate a number of different external memory handle types, we 
-propose the following structures.
+In order to facilitate the importing of a number of different external memory 
+and external semaphore handle types, we propose the following resource 
+structures.
 
 [NOTE]
 ====
-We only show two examples of external memory handle types here, but the 
-`external_mem_descriptor` struct could be templated by any number of handle 
+We only show three examples of external resource handle types here, but the 
+`external_mem_descriptor` and `external_semaphore_descriptor` structs, as 
+defined in <<importing_external_memory_objects>> and 
+<<importing_external_semaphores>>, could be templated by any number of handle 
 types, provided that the SYCL implementation provides support for them.
 ====
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
-// POSIX file descriptor memory handle type
-struct external_mem_fd {
+// POSIX file descriptor handle type
+struct resource_fd {
   int file_descriptor;
 };
 
-// Windows NT memory handle type
-struct external_mem_win32 {
+// Windows NT handle type
+struct resource_win32_handle {
   void *handle;
+};
+
+// Windows NT name type
+struct resource_win32_name {
   const void *name;
 };
 
-// Descriptor templated on specific external memory handle type
-template <typename external_mem_handle_type>
-struct external_mem_handle_type {
-  external_mem_handle_type external_handle;
+}
+```
+
+=== Importing external memory objects [[importing_external_memory_objects]]
+
+In order to import a memory object, an external API must provide an appropriate 
+handle to that memory. The exact structure and type of this handle can depend on 
+the external API, and the operating system the application is running on.
+
+External memory import is facilitated through the following proposed descriptor 
+struct.
+
+```cpp
+namespace sycl::ext::oneapi::experimental {
+
+// Descriptor templated on specific resource type
+template <typename ResourceType>
+struct external_mem_descriptor {
+  ResourceType external_resource;
   size_t size_in_bytes;
 };
 
@@ -1413,12 +1430,12 @@ struct external_mem_handle_type {
 ```
 
 The user should create an `external_mem_descriptor` templated on the appropriate 
-handle type for their purposes, e.g. `external_mem_fd` to describe a POSIX file 
-descriptor resource on Linux systems, or an `external_mem_win32` for Windows NT 
-resource handles.
+handle type, `ResourceType`, for their purposes, e.g. `resource_fd` to describe 
+a POSIX file descriptor resource on Linux systems, or a `resource_win32_handle` 
+for Windows NT resource handles.
 
 Once the user populates the `external_mem_descriptor` with the appropriate 
-`external_mem_handle_type` values, and the size of the external memory in bytes,
+`ResourceType` values, and the size of the external memory in bytes,
 they can then import that memory into SYCL through `import_external_memory`.
 
 ```cpp
@@ -1429,15 +1446,15 @@ struct interop_mem_handle {
   raw_handle_type raw_handle;
 };
 
-template <typename external_mem_handle_type>
+template <typename ResourceType>
 interop_mem_handle import_external_memory(
-    external_mem_descriptor<external_mem_handle_type> externalMemDescriptor,
+    external_mem_descriptor<ResourceType> externalMemDescriptor,
     const sycl::device &syclDevice,
     const sycl::context &syclContext);
 
-template <typename external_mem_handle_type>
+template <typename ResourceType>
 interop_mem_handle import_external_memory(
-    external_mem_descriptor<external_mem_handle_type> externalMemDescriptor,
+    external_mem_descriptor<ResourceType> externalMemDescriptor,
     const sycl::queue &syclQueue);
 
 image_mem_handle map_external_image_memory(
@@ -1461,8 +1478,12 @@ When calling `create_image` with an `image_mem_handle` mapped from an external
 memory object, the user must ensure that the image descriptor they pass to 
 `create_image` has members that match or map to those of the external API. 
 A mismatch between any of the `width`, `height`, `depth`, `image_channel_type`,
-or `image_channel_order` members will result in undefined behavior. The 
-`image_type` member must be set to `image_type::interop`.
+or `image_channel_order` members will result in undefined behavior.
+
+Additionally, the `image_type` describing the image must match to the image of 
+the external API. The current supported importable image types are `standard` 
+and `mipmap`. Attempting to import other image types will result in undefined 
+behaviour.
 
 Once a user has finished operating on imported memory, they must ensure that 
 they destroy the imported memory handle through `release_external_memory`.
@@ -1484,7 +1505,7 @@ void release_external_memory(interop_mem_handle interopMem,
 Destroying or freeing any imported memory through `image_mem_free` or 
 `sycl::free` will result in undefined behavior.
 
-=== Importing external semaphores
+=== Importing external semaphores [[importing_external_semaphores]]
 
 In addition to proposing importation of external memory resources, we also 
 propose importation of synchronization primitives. Just like the sharing of 
@@ -1494,47 +1515,29 @@ memory resources handles can take different forms of structure and type
 depending on the API and operating system, so do external semaphore resource 
 handles.
 
-In order to facilitate a number of different external semaphore handle types, we 
-propose the following structures.
-
-[NOTE]
-====
-We only show two examples of external semaphore resource handle types here, but 
-the `external_semaphore_descriptor` struct could be templated by any number of 
-handle types, provided that the SYCL implementation provides support for them.
-====
+External semaphore import is facilitated through the following proposed 
+descriptor struct.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
-// POSIX file descriptor semaphore handle
-struct external_semaphore_fd {
-  int file_descriptor;
-};
-
-// Windows NT semaphore handle
-struct external_semaphore_win32 {
-  void *handle;
-  const void *name;
-};
-
-// Descriptor templated on specific external semaphore handle type
-template <typename external_semaphore_handle_type>
+// Descriptor templated on specific resource type
+template <typename ResourceType>
 struct external_semaphore_descriptor {
-  external_semaphore_handle_type external_handle;
+  ResourceType external_resource;
 };
 
 }
 ```
 
 The user should create an `external_semaphore_descriptor` templated on the 
-appropriate handle type for their purposes, e.g. `external_semaphore_fd` to 
-describe a POSIX file descriptor resource on Linux systems, or an 
-`external_mem_win32` for Windows NT resource handles.
+appropriate handle type, `ResourceType`, for their purposes, e.g. `resource_fd` 
+to describe a POSIX file descriptor resource on Linux systems, or a 
+`resource_win32_handle` for Windows NT resource handles.
 
 Once the user populates the `external_semaphore_descriptor` with the appropriate 
-`external_semaphore_handle_type` values, they can then import that semaphore 
-into SYCL through `import_external_semaphore`.
+`ResourceType` values, they can then import that semaphore into SYCL through 
+`import_external_semaphore`.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
@@ -1544,17 +1547,17 @@ struct interop_semaphore_handle {
   raw_handle_type raw_handle;
 };
 
-template <typename external_semaphore_handle_type>
+template <typename ResourceType>
 interop_semaphore_handle import_external_semaphore(
-    external_semaphore_descriptor<external_semaphore_handle_type>
+    external_semaphore_descriptor<ResourceType>
         externalSemaphoreDescriptor,
     const sycl::device &syclDevice,
     const sycl::context &syclContext);
 }
 
-template <typename external_semaphore_handle_type>
+template <typename ResourceType>
 interop_semaphore_handle import_external_semaphore(
-    external_semaphore_descriptor<external_semaphore_handle_type>
+    external_semaphore_descriptor<ResourceType>
         externalSemaphoreDescriptor,
     const sycl::queue &syclQueue);
 }
@@ -2046,10 +2049,8 @@ sycl::ext::oneapi::experimental::image_channel_type channel_type =
     /* we assume sycl::image_channel_type::unsigned_int32 */;
 
 // Image descriptor - mapped to external API image layout
-//                    with `image_type::interop`
 sycl::ext::oneapi::experimental::image_descriptor desc(
-    {width, height}, channel_order, channel_type,
-    sycl::ext::oneapi::experimental::image_type::interop);
+    {width, height}, channel_order, channel_type);
 
 size_t img_size_in_bytes = width * height * sizeof(uint32_t);
 
@@ -2058,12 +2059,12 @@ int external_output_image_file_descriptor = /* passed from external API */
 
 // Extension: populate external memory descriptors
 sycl::ext::oneapi::experimental::external_mem_descriptor<
-    sycl::ext::oneapi::experimental::external_mem_fd>
+    sycl::ext::oneapi::experimental::resource_fd>
     input_ext_mem_desc{external_input_image_file_descriptor, 
                        img_size_in_bytes};
 
 sycl::ext::oneapi::experimental::external_mem_descriptor<
-    sycl::ext::oneapi::experimental::external_mem_fd>
+    sycl::ext::oneapi::experimental::resource_fd>
     output_ext_mem_desc{external_output_image_file_descriptor,
                         img_size_in_bytes};
 
@@ -2078,11 +2079,11 @@ int done_semaphore_file_descriptor = /* passed from external API */;
 // Extension: populate external semaphore descriptor.
 //            We assume POSIX file descriptor resource types
 sycl::ext::oneapi::experimental::external_semaphore_descriptor<
-    sycl::ext::oneapi::experimental::external_semaphore_fd>
+    sycl::ext::oneapi::experimental::resource_fd>
     wait_external_semaphore_desc{wait_semaphore_file_descriptor};
 
 sycl::ext::oneapi::experimental::external_semaphore_descriptor<
-    sycl::ext::oneapi::experimental::external_semaphore_fd>
+    sycl::ext::oneapi::experimental::resource_fd>
     done_external_semaphore_desc{done_semaphore_file_descriptor};
 
 try {
@@ -2351,4 +2352,6 @@ These features still need to be handled:
                  - `image_type::array` added to enum.
                  - `array_size` member added to `image_descriptor`.
                  - `image_descriptor::verify()` member function added.
+|5.5|2024-02-27| - Update interop with mipmap interop and slight redesign
+                 - `interop` removed from `image_type`
 |======================

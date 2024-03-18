@@ -2,8 +2,8 @@
 // REQUIRES: cuda
 // REQUIRES: vulkan
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %link-vulkan %s -o %t.out
-// RUN: %t.out
+// RUN: %{build} %link-vulkan -o %t.out
+// RUN: %{run} %t.out
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -20,11 +20,11 @@ struct handles_t {
   syclexp::interop_mem_handle inputInteropMemHandle;
 };
 
-handles_t create_test_handles(sycl::context &ctxt, sycl::device &dev,
-                              const syclexp::bindless_image_sampler &samp,
-                              int input_image_fd,
-                              syclexp::image_descriptor desc,
-                              const size_t imgSize) {
+handles_t create_handles(sycl::context &ctxt, sycl::device &dev,
+                         const syclexp::bindless_image_sampler &samp,
+                         int input_image_fd, syclexp::image_descriptor desc,
+                         size_t imgSize) {
+
   // Extension: external memory descriptor
   syclexp::external_mem_descriptor<syclexp::resource_fd> inputExtMemDesc{
       input_image_fd, imgSize};
@@ -49,22 +49,22 @@ template <int NDims, typename DType, int NChannels,
           sycl::image_channel_type CType, sycl::image_channel_order COrder,
           typename KernelName>
 bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
-              int input_image_fd) {
+              int input_image_fd, size_t mipLevels, size_t reqSize) {
   sycl::device dev;
   sycl::queue q(dev);
   auto ctxt = q.get_context();
 
   // Image descriptor - mapped to Vulkan image layout
-  syclexp::image_descriptor desc(globalSize, COrder, CType);
+  syclexp::image_descriptor desc(globalSize, COrder, CType,
+                                 syclexp::image_type::mipmap, mipLevels);
 
   syclexp::bindless_image_sampler samp(
       sycl::addressing_mode::repeat,
       sycl::coordinate_normalization_mode::normalized,
-      sycl::filtering_mode::linear);
+      sycl::filtering_mode::nearest, sycl::filtering_mode::linear, 0.0f,
+      (float)mipLevels, 8.0f);
 
-  const auto numElems = globalSize.size();
-
-  const size_t img_size = numElems * sizeof(DType) * NChannels;
+  const auto mip0Elems = globalSize.size();
 
   auto width = globalSize[0];
   auto height = globalSize[1];
@@ -80,10 +80,9 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
 
   using VecType = sycl::vec<DType, NChannels>;
 
-  auto handles =
-      create_test_handles(ctxt, dev, samp, input_image_fd, desc, img_size);
+  auto handles = create_handles(ctxt, dev, samp, input_image_fd, desc, reqSize);
 
-  std::vector<VecType> out(numElems);
+  std::vector<VecType> out(mip0Elems);
   try {
 
     sycl::buffer<VecType, NDims> buf((VecType *)out.data(), outBufferRange);
@@ -103,14 +102,16 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
               float fdim1 = float(dim1 + 0.5f) / (float)height;
               float fdim2 = float(dim2 + 0.5f) / (float)depth;
 
-              // Extension: sample image data from handle (Vulkan imported)
-              VecType pixel;
-              pixel = syclexp::sample_image<
+              // Extension: read image data from handle (Vulkan imported)
+              VecType pixel1 = syclexp::sample_mipmap<
                   std::conditional_t<NChannels == 1, DType, VecType>>(
-                  handles.imgInput, sycl::float3(fdim0, fdim1, fdim2));
+                  handles.imgInput, sycl::float3(fdim0, fdim1, fdim2), 0.0f);
 
-              pixel *= static_cast<DType>(10.1f);
-              outAcc[sycl::id{dim2, dim1, dim0}] = pixel;
+              VecType pixel2 = syclexp::sample_mipmap<
+                  std::conditional_t<NChannels == 1, DType, VecType>>(
+                  handles.imgInput, sycl::float3(fdim0, fdim1, fdim2), 1.0f);
+
+              outAcc[sycl::id{dim2, dim1, dim0}] = pixel1 + pixel2;
             } else {
               size_t dim0 = it.get_global_id(0);
               size_t dim1 = it.get_global_id(1);
@@ -119,20 +120,23 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
               float fdim0 = float(dim0 + 0.5f) / (float)width;
               float fdim1 = float(dim1 + 0.5f) / (float)height;
 
-              // Extension: sample image data from handle (Vulkan imported)
-              VecType pixel = syclexp::sample_image<
+              // Extension: read image data from handle (Vulkan imported)
+              VecType pixel1 = syclexp::sample_mipmap<
                   std::conditional_t<NChannels == 1, DType, VecType>>(
-                  handles.imgInput, sycl::float2(fdim0, fdim1));
+                  handles.imgInput, sycl::float2(fdim0, fdim1), 0.0f);
 
-              pixel *= static_cast<DType>(10.1f);
-              outAcc[sycl::id{dim1, dim0}] = pixel;
+              VecType pixel2 = syclexp::sample_mipmap<
+                  std::conditional_t<NChannels == 1, DType, VecType>>(
+                  handles.imgInput, sycl::float2(fdim0, fdim1), 1.0f);
+
+              outAcc[sycl::id{dim1, dim0}] = pixel1 + pixel2;
             }
           });
     });
     q.wait_and_throw();
 
     syclexp::destroy_image_handle(handles.imgInput, dev, ctxt);
-    syclexp::free_image_mem(handles.imgMem, syclexp::image_type::standard, dev,
+    syclexp::free_image_mem(handles.imgMem, syclexp::image_type::mipmap, dev,
                             ctxt);
     syclexp::release_external_memory(handles.inputInteropMemHandle, dev, ctxt);
   } catch (sycl::exception e) {
@@ -144,23 +148,68 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
   }
 
   printString("Validating\n");
+  // Expected is sum of first two levels in the mipmap
+  // Each subsequent level repeats in each dimension
   bool validated = true;
-  for (int i = 0; i < globalSize.size(); i++) {
-    bool mismatch = false;
-    VecType expected =
-        initVector<DType, NChannels>(i) * static_cast<DType>(10.1f);
-    if (!equal_vec<DType, NChannels>(out[i], expected)) {
-      mismatch = true;
-      validated = false;
-    }
+  if constexpr (NDims == 3) {
+    for (int i = 0; i < width; ++i) {
+      for (int j = 0; j < height; ++j) {
+        for (int k = 0; k < depth; ++k) {
+          bool mismatch = false;
+          float norm_coord_x = ((i + 0.5f) / (float)width);
+          int x = norm_coord_x * (width >> 1);
+          float norm_coord_y = ((j + 0.5f) / (float)height);
+          int y = norm_coord_y * (height >> 1);
+          float norm_coord_z = ((k + 0.5f) / (float)depth);
+          int z = norm_coord_z * (depth >> 1);
 
-    if (mismatch) {
+          VecType expected =
+              initVector<DType, NChannels>(i + width * (j + height * k)) +
+              initVector<DType, NChannels>(x + (width / 2) *
+                                                   (y + (height / 2) * z));
+
+          if (!equal_vec<DType, NChannels>(out[i + width * (j + height * k)],
+                                           expected)) {
+            mismatch = true;
+            validated = false;
+          }
+          if (mismatch) {
 #ifdef VERBOSE_PRINT
-      std::cout << "Result mismatch! Expected: " << expected
-                << ", Actual: " << out[i] << "\n";
+            std::cout << "Result mismatch! Expected: " << expected
+                      << ", Actual: " << out[i + width * (j + height * k)]
+                      << "\n";
 #else
-      break;
+            break;
 #endif
+          }
+        }
+      }
+    }
+  } else {
+    for (int i = 0; i < width; i++) {
+      for (int j = 0; j < height; j++) {
+        bool mismatch = false;
+        float norm_coord_x = ((i + 0.5f) / (float)width);
+        int x = norm_coord_x * (width >> 1);
+        float norm_coord_y = ((j + 0.5f) / (float)height);
+        int y = norm_coord_y * (height >> 1);
+
+        VecType expected = initVector<DType, NChannels>(j + (width * i)) +
+                           initVector<DType, NChannels>(y + (width / 2 * x));
+
+        if (!equal_vec<DType, NChannels>(out[j + (width * i)], expected)) {
+          mismatch = true;
+          validated = false;
+        }
+        if (mismatch) {
+#ifdef VERBOSE_PRINT
+          std::cout << "Result mismatch! Expected: " << expected
+                    << ", Actual: " << out[j + (width * i)] << "\n";
+#else
+          break;
+#endif
+        }
+      }
     }
   }
   if (validated) {
@@ -174,29 +223,28 @@ template <int NDims, typename DType, int NChannels,
           sycl::image_channel_type CType, sycl::image_channel_order COrder,
           typename KernelName>
 bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
-              unsigned int seed = 0) {
+              size_t mipLevels, unsigned int seed = 0) {
+
   uint32_t width = static_cast<uint32_t>(dims[0]);
   uint32_t height = 1;
   uint32_t depth = 1;
 
-  size_t numElems = dims[0];
+  size_t mip0Elems = dims[0];
   VkImageType imgType = VK_IMAGE_TYPE_1D;
 
   if constexpr (NDims > 1) {
-    numElems *= dims[1];
+    mip0Elems *= dims[1];
     height = static_cast<uint32_t>(dims[1]);
     imgType = VK_IMAGE_TYPE_2D;
   }
   if constexpr (NDims > 2) {
-    numElems *= dims[2];
+    mip0Elems *= dims[2];
     depth = static_cast<uint32_t>(dims[2]);
     imgType = VK_IMAGE_TYPE_3D;
   }
 
   using VecType = sycl::vec<DType, NChannels>;
-
   VkFormat format = vkutil::to_vulkan_format(COrder, CType);
-  const size_t imageSizeBytes = numElems * NChannels * sizeof(DType);
 
   printString("Creating input image\n");
   // Create input image memory
@@ -204,25 +252,25 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
                                         VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                                             VK_IMAGE_USAGE_TRANSFER_DST_BIT |
                                             VK_IMAGE_USAGE_STORAGE_BIT,
-                                        1 /*mipLevels*/);
+                                        mipLevels);
   VkMemoryRequirements memRequirements;
   auto inputImageMemoryTypeIndex = vkutil::getImageMemoryTypeIndex(
       inputImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memRequirements);
-  auto inputMemory =
-      vkutil::allocateDeviceMemory(imageSizeBytes, inputImageMemoryTypeIndex);
+  auto inputMemory = vkutil::allocateDeviceMemory(memRequirements.size,
+                                                  inputImageMemoryTypeIndex);
   VK_CHECK_CALL(vkBindImageMemory(vk_device, inputImage, inputMemory,
                                   0 /*memoryOffset*/));
 
   printString("Creating staging buffers\n");
   // Create input staging memory
   auto inputStagingBuffer = vkutil::createBuffer(
-      imageSizeBytes,
+      memRequirements.size,
       VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
   auto inputStagingMemoryTypeIndex = vkutil::getBufferMemoryTypeIndex(
       inputStagingBuffer, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
   auto inputStagingMemory = vkutil::allocateDeviceMemory(
-      imageSizeBytes, inputStagingMemoryTypeIndex, false /*exportable*/);
+      memRequirements.size, inputStagingMemoryTypeIndex, false /*exportable*/);
   VK_CHECK_CALL(vkBindBufferMemory(vk_device, inputStagingBuffer,
                                    inputStagingMemory, 0 /*memoryOffset*/));
 
@@ -230,10 +278,20 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   // Populate staging memory
   VecType *inputStagingData = nullptr;
   VK_CHECK_CALL(vkMapMemory(vk_device, inputStagingMemory, 0 /*offset*/,
-                            imageSizeBytes, 0 /*flags*/,
+                            memRequirements.size, 0 /*flags*/,
                             (void **)&inputStagingData));
-  for (int i = 0; i < numElems; ++i) {
-    inputStagingData[i] = initVector<DType, NChannels>(i);
+
+  // Set input data as each mip level -- 0 -> mip size e.g. (0,1,...,63,0,1,...)
+  size_t offset = 0;
+  size_t mipElems = mip0Elems;
+  for (int i = 0; i < mipLevels; ++i) {
+    mipElems = (std::max(width >> i, (uint32_t)1) *
+                std::max(height >> i, (uint32_t)1) *
+                std::max(depth >> i, (uint32_t)1));
+    for (int j = 0; j < mipElems; ++j) {
+      inputStagingData[j + offset] = initVector<DType, NChannels>(j);
+    }
+    offset += mipElems;
   }
   vkUnmapMemory(vk_device, inputStagingMemory);
 
@@ -241,7 +299,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   // Transition image layouts
   {
     VkImageMemoryBarrier barrierInput =
-        vkutil::createImageMemoryBarrier(inputImage, 1 /*mipLevels*/);
+        vkutil::createImageMemoryBarrier(inputImage, mipLevels);
 
     VkCommandBufferBeginInfo cbbi = {};
     cbbi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -266,36 +324,50 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   printString("Copying staging memory to images\n");
   // Copy staging to main image memory
   {
-    VkCommandBufferBeginInfo cbbi = {};
-    cbbi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    cbbi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    VkDeviceSize currentOffset{0};
 
-    VkBufferImageCopy copyRegion = {};
-    copyRegion.imageExtent = {width, height, depth};
-    copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    copyRegion.imageSubresource.layerCount = 1;
+    // Copy each mip level individually
+    for (int i = 0; i < mipLevels; ++i) {
+      VkCommandBufferBeginInfo cbbi = {};
+      cbbi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+      cbbi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    VK_CHECK_CALL(vkBeginCommandBuffer(vk_transferCmdBuffers[0], &cbbi));
-    vkCmdCopyBufferToImage(vk_transferCmdBuffers[0], inputStagingBuffer,
-                           inputImage, VK_IMAGE_LAYOUT_GENERAL,
-                           1 /*regionCount*/, &copyRegion);
-    VK_CHECK_CALL(vkEndCommandBuffer(vk_transferCmdBuffers[0]));
+      VkBufferImageCopy copyRegion = {};
+      copyRegion.imageExtent = {std::max(width >> i, (uint32_t)1),
+                                std::max(height >> i, (uint32_t)1),
+                                std::max(depth >> i, (uint32_t)1)};
+      copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+      copyRegion.imageSubresource.layerCount = 1;
+      copyRegion.imageSubresource.mipLevel = i;
+      copyRegion.bufferOffset = currentOffset;
 
-    VkSubmitInfo submission = {};
-    submission.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submission.commandBufferCount = 1;
-    submission.pCommandBuffers = &vk_transferCmdBuffers[0];
+      currentOffset += std::max(width >> i, (uint32_t)1) *
+                       std::max(height >> i, (uint32_t)1) *
+                       std::max(depth >> i, (uint32_t)1) * NChannels *
+                       sizeof(DType);
 
-    VK_CHECK_CALL(vkQueueSubmit(vk_transfer_queue, 1 /*submitCount*/,
-                                &submission, VK_NULL_HANDLE /*fence*/));
-    VK_CHECK_CALL(vkQueueWaitIdle(vk_transfer_queue));
+      VK_CHECK_CALL(vkBeginCommandBuffer(vk_transferCmdBuffers[0], &cbbi));
+      vkCmdCopyBufferToImage(vk_transferCmdBuffers[0], inputStagingBuffer,
+                             inputImage, VK_IMAGE_LAYOUT_GENERAL,
+                             1 /*regionCount*/, &copyRegion);
+      VK_CHECK_CALL(vkEndCommandBuffer(vk_transferCmdBuffers[0]));
+
+      VkSubmitInfo submission = {};
+      submission.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+      submission.commandBufferCount = 1;
+      submission.pCommandBuffers = &vk_transferCmdBuffers[0];
+
+      VK_CHECK_CALL(vkQueueSubmit(vk_transfer_queue, 1 /*submitCount*/,
+                                  &submission, VK_NULL_HANDLE /*fence*/));
+      VK_CHECK_CALL(vkQueueWaitIdle(vk_transfer_queue));
+    }
   }
 
   printString("Getting memory file descriptors and calling into SYCL\n");
   // Pass memory to SYCL for modification
   auto input_fd = vkutil::getMemoryOpaqueFD(inputMemory);
   bool result = run_sycl<NDims, DType, NChannels, CType, COrder, KernelName>(
-      dims, localSize, input_fd);
+      dims, localSize, input_fd, mipLevels, memRequirements.size);
 
   // Cleanup
   vkDestroyBuffer(vk_device, inputStagingBuffer, nullptr);
@@ -309,35 +381,35 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
 bool run_tests() {
   bool valid = run_test<2, float, 4, sycl::image_channel_type::fp32,
                         sycl::image_channel_order::rgba, class float_2d>(
-      {16, 16}, {2, 2}, 0);
+      {16, 16}, {2, 2}, 2, 0);
 
   valid &= run_test<2, float, 2, sycl::image_channel_type::fp32,
                     sycl::image_channel_order::rg, class float_2d_large>(
-      {1024, 1024}, {4, 2}, 0);
+      {8, 8}, {4, 2}, 2, 0);
 
   valid &= run_test<3, char, 2, sycl::image_channel_type::signed_int8,
                     sycl::image_channel_order::rg, class float_3d>(
-      {256, 16, 2}, {2, 2, 2}, 0);
+      {8, 8, 8}, {2, 2, 2}, 2, 0);
 
   valid &= run_test<2, uint32_t, 1, sycl::image_channel_type::unsigned_int32,
-                    sycl::image_channel_order::r, class uint32_2d>({64, 32},
-                                                                   {4, 2}, 0);
+                    sycl::image_channel_order::r, class uint32_2d>(
+      {32, 32}, {4, 2}, 2, 0);
 
   valid &= run_test<3, uint32_t, 4, sycl::image_channel_type::unsigned_int32,
                     sycl::image_channel_order::rgba, class uint_3d_large>(
-      {1024, 256, 16}, {2, 2, 4}, 0);
+      {8, 8, 8}, {2, 2, 4}, 2, 0);
 
   valid &= run_test<2, int32_t, 1, sycl::image_channel_type::signed_int32,
-                    sycl::image_channel_order::r, class int32_2d>({64, 32},
-                                                                  {4, 2}, 0);
+                    sycl::image_channel_order::r, class int32_2d>({64, 64},
+                                                                  {4, 2}, 2, 0);
 
   valid &= run_test<3, int32_t, 2, sycl::image_channel_type::signed_int32,
                     sycl::image_channel_order::rg, class int32_3d>(
-      {64, 32, 64}, {4, 2, 4}, 0);
+      {8, 8, 8}, {4, 2, 4}, 2, 0);
 
   valid &= run_test<3, int16_t, 1, sycl::image_channel_type::signed_int16,
-                    sycl::image_channel_order::r, class int16_3d>({64, 32, 64},
-                                                                  {4, 2, 4}, 0);
+                    sycl::image_channel_order::r, class int16_3d>(
+      {32, 32, 32}, {4, 2, 4}, 2, 0);
 
   return valid;
 }
