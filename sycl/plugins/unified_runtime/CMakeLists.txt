@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ec634ff05b067d7922ec45059dda94665e5dcd9b
-  # Merge: 418ad535 8714b853
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Thu Mar 14 15:52:52 2024 +0100
-  #     Merge pull request #1438 from PatKamin/disable-fuzztests
-  #     Disable fuzz tests on ubuntu-22.04 runner
-  set(UNIFIED_RUNTIME_TAG ec634ff05b067d7922ec45059dda94665e5dcd9b)
+  # commit 09be0881b727fadb1c04b38c00d2562d7dc6875f
+  # Merge: bb589ca8 e9f855d4
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Thu Mar 14 22:10:28 2024 +0000
+  #     Merge pull request #1429 from nrspruit/l0_p2p_device_query
+  #     [L0] Support for urUsmP2PPeerAccessGetInfoExp to query p2p access info
+  set(UNIFIED_RUNTIME_TAG 09be0881b727fadb1c04b38c00d2562d7dc6875f)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
