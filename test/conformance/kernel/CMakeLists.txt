@@ -18,4 +18,5 @@ add_conformance_test_with_kernels_environment(kernel
     urKernelSetArgSampler.cpp
     urKernelSetArgValue.cpp
     urKernelSetExecInfo.cpp
-    urKernelSetSpecializationConstants.cpp)
+    urKernelSetSpecializationConstants.cpp
+    urKernelGetSuggestedLocalWorkSize.cpp)

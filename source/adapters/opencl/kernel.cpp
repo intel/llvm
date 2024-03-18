@@ -441,9 +441,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   if (GetKernelSuggestedLocalWorkSizeFuncPtr == nullptr)
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  CL_RETURN_ON_FAILURE(GetKernelSuggestedLocalWorkSizeFuncPtr(
+  // CL_RETURN_ON_FAILURE(GetKernelSuggestedLocalWorkSizeFuncPtr(
+  //     cl_adapter::cast<cl_command_queue>(hQueue),
+  //     cl_adapter::cast<cl_kernel>(hKernel), workDim, pGlobalWorkOffset,
+  //     pGlobalWorkSize, pSuggestedLocalWorkSize));
+  auto cl_res = GetKernelSuggestedLocalWorkSizeFuncPtr(
       cl_adapter::cast<cl_command_queue>(hQueue),
       cl_adapter::cast<cl_kernel>(hKernel), workDim, pGlobalWorkOffset,
-      pGlobalWorkSize, pSuggestedLocalWorkSize));
+      pGlobalWorkSize, pSuggestedLocalWorkSize);
+
+  if (cl_res != CL_SUCCESS) {
+    fprintf(stderr, "WYC ERR:%d\n", cl_res);
+    return mapCLErrorToUR(cl_res);
+  }
+
   return UR_RESULT_SUCCESS;
 }

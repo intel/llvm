@@ -7,11 +7,9 @@
 
 struct urKernelGetSuggestedLocalWorkSizeTest : uur::urKernelExecutionTest {
     void SetUp() override {
-        program_name = "fill";
+        program_name = "bar";
         UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
     }
-
-    uint32_t val = 42;
     size_t global_size = 32;
     size_t global_offset = 0;
     size_t n_dimensions = 1;
@@ -21,15 +19,35 @@ struct urKernelGetSuggestedLocalWorkSizeTest : uur::urKernelExecutionTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urKernelGetSuggestedLocalWorkSizeTest);
 
 TEST_P(urKernelGetSuggestedLocalWorkSizeTest, Success) {
-    ur_mem_handle_t buffer = nullptr;
-    AddBuffer1DArg(sizeof(val) * global_size, &buffer);
-    AddPodArg(val);
-
     suggested_local_work_size = SIZE_MAX;
     ASSERT_SUCCESS(urKernelGetSuggestedLocalWorkSize(
         kernel, queue, n_dimensions, &global_offset, &global_size,
         &suggested_local_work_size));
     ASSERT_LE(suggested_local_work_size, global_size);
+}
+
+TEST_P(urKernelGetSuggestedLocalWorkSizeTest, Success2D) {
+    size_t global_size_2d[2] = {32, 32};
+    size_t global_offset_2d[2] = {0, 0};
+    size_t suggested_local_work_size_2d[2] = {SIZE_MAX, SIZE_MAX};
+    ASSERT_SUCCESS(urKernelGetSuggestedLocalWorkSize(
+        kernel, queue, 2, global_offset_2d, global_size_2d,
+        suggested_local_work_size_2d));
+    for (int I = 0; I < 2; ++I) {
+        ASSERT_LE(suggested_local_work_size_2d[I], global_size_2d[I]);
+    }
+}
+
+TEST_P(urKernelGetSuggestedLocalWorkSizeTest, Success3D) {
+    size_t global_size_3d[3] = {32, 32, 32};
+    size_t global_offset_3d[3] = {0, 0, 0};
+    size_t suggested_local_work_size_3d[3] = {SIZE_MAX, SIZE_MAX, SIZE_MAX};
+    ASSERT_SUCCESS(urKernelGetSuggestedLocalWorkSize(
+        kernel, queue, 3, global_offset_3d, global_size_3d,
+        suggested_local_work_size_3d));
+    for (int I = 0; I < 3; ++I) {
+        ASSERT_LE(suggested_local_work_size_3d[I], global_size_3d[I]);
+    }
 }
 
 TEST_P(urKernelGetSuggestedLocalWorkSizeTest, InvalidNullHandleKernel) {
@@ -39,8 +57,8 @@ TEST_P(urKernelGetSuggestedLocalWorkSizeTest, InvalidNullHandleKernel) {
                      UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
-TEST_P(urEnqueueKernelLaunchTest, InvalidNullHandleQueue) {
-    // LATER: some adapter's implementation of the API does not require queue, 
+TEST_P(urKernelGetSuggestedLocalWorkSizeTest, InvalidNullHandleQueue) {
+    // LATER: some adapter's implementation of the API does not require queue,
     // do we still need to test for it?
     ASSERT_EQ_RESULT(urKernelGetSuggestedLocalWorkSize(
                          kernel, nullptr, n_dimensions, &global_offset,
@@ -48,13 +66,21 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidNullHandleQueue) {
                      UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
-TEST_P(urEnqueueKernelLaunchTest, InvalidWorkDimension) {
+TEST_P(urKernelGetSuggestedLocalWorkSizeTest, InvalidWorkDimension) {
     uint32_t max_work_item_dimensions = 0;
     ASSERT_SUCCESS(urDeviceGetInfo(
         device, UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS,
         sizeof(max_work_item_dimensions), &max_work_item_dimensions, nullptr));
     ASSERT_EQ_RESULT(urKernelGetSuggestedLocalWorkSize(
-                         kernel, queue, n_dimensions, &global_offset,
-                         &global_size, &suggested_local_work_size),
+                         kernel, queue, max_work_item_dimensions + 1,
+                         &global_offset, &global_size,
+                         &suggested_local_work_size),
                      UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+}
+
+TEST_P(urKernelGetSuggestedLocalWorkSizeTest, InvalidSuggestedLocalWorkSize) {
+    ASSERT_EQ_RESULT(
+        urKernelGetSuggestedLocalWorkSize(
+            kernel, queue, n_dimensions, &global_offset, &global_size, nullptr),
+        UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
