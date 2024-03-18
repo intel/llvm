@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 09be0881b727fadb1c04b38c00d2562d7dc6875f
-  # Merge: bb589ca8 e9f855d4
+  # commit 29ee45c4451a682f744146cc9dbeb2617ecdd6b3
+  # Merge: db4b0c14 4f5d005a
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Mar 14 22:10:28 2024 +0000
-  #     Merge pull request #1429 from nrspruit/l0_p2p_device_query
-  #     [L0] Support for urUsmP2PPeerAccessGetInfoExp to query p2p access info
-  set(UNIFIED_RUNTIME_TAG 09be0881b727fadb1c04b38c00d2562d7dc6875f)
+  # Date:   Mon Mar 18 12:14:26 2024 +0000
+  #     Merge pull request #1291 from JackAKirk/cuda-seq-cst-b
+  #     [CUDA] Report that devices with cc >= sm_70 support seq_cst
+  set(UNIFIED_RUNTIME_TAG 29ee45c4451a682f744146cc9dbeb2617ecdd6b3)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
