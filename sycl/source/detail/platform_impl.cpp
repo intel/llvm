@@ -611,7 +611,8 @@ typename Param::return_type platform_impl::get_info() const {
 }
 
 template <>
-std::string platform_impl::get_backend_info<info::platform::version>() const {
+typename info::platform::version::return_type
+platform_impl::get_backend_info<info::platform::version>() const {
   if (getBackend() != backend::opencl) {
     throw sycl::exception(errc::backend_mismatch,
                           "the info::platform::version info descriptor can "
@@ -621,7 +622,8 @@ std::string platform_impl::get_backend_info<info::platform::version>() const {
 }
 
 template <>
-std::string platform_impl::get_backend_info<info::device::version>() const {
+typename info::device::version::return_type
+platform_impl::get_backend_info<info::device::version>() const {
   if (getBackend() != backend::opencl) {
     throw sycl::exception(errc::backend_mismatch,
                           "the info::device::version info descriptor can only "
@@ -632,7 +634,7 @@ std::string platform_impl::get_backend_info<info::device::version>() const {
 }
 
 template <>
-std::string
+typename info::device::backend_version::return_type
 platform_impl::get_backend_info<info::device::backend_version>() const {
   if (getBackend() != backend::ext_oneapi_level_zero) {
     throw sycl::exception(errc::backend_mismatch,

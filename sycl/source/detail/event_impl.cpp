@@ -408,7 +408,8 @@ event_impl::get_info<info::event::command_execution_status>() {
 }
 
 template <>
-std::string event_impl::get_backend_info<info::platform::version>() const {
+typename info::platform::version::return_type
+event_impl::get_backend_info<info::platform::version>() const {
   if (MContext->getBackend() != backend::opencl) {
     throw sycl::exception(errc::backend_mismatch,
                           "the info::platform::version info descriptor can "
@@ -428,7 +429,8 @@ std::string event_impl::get_backend_info<info::platform::version>() const {
 }
 
 template <>
-std::string event_impl::get_backend_info<info::device::version>() const {
+typename info::device::version::return_type
+event_impl::get_backend_info<info::device::version>() const {
   if (MContext->getBackend() != backend::opencl) {
     throw sycl::exception(errc::backend_mismatch,
                           "the info::device::version info descriptor can only "
@@ -446,7 +448,7 @@ std::string event_impl::get_backend_info<info::device::version>() const {
 }
 
 template <>
-std::string
+typename info::device::backend_version::return_type
 event_impl::get_backend_info<info::device::backend_version>() const {
   if (MContext->getBackend() != backend::ext_oneapi_level_zero) {
     throw sycl::exception(errc::backend_mismatch,

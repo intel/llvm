@@ -58,7 +58,8 @@ template <> device queue_impl::get_info<info::queue::device>() const {
 }
 
 template <>
-std::string queue_impl::get_backend_info<info::platform::version>() const {
+typename info::platform::version::return_type
+queue_impl::get_backend_info<info::platform::version>() const {
   if (getContextImplPtr()->getBackend() != backend::opencl) {
     throw sycl::exception(errc::backend_mismatch,
                           "the info::platform::version info descriptor can "
@@ -68,7 +69,8 @@ std::string queue_impl::get_backend_info<info::platform::version>() const {
 }
 
 template <>
-std::string queue_impl::get_backend_info<info::device::version>() const {
+typename info::device::version::return_type
+queue_impl::get_backend_info<info::device::version>() const {
   if (getContextImplPtr()->getBackend() != backend::opencl) {
     throw sycl::exception(errc::backend_mismatch,
                           "the info::device::version info descriptor can only "
@@ -78,7 +80,7 @@ std::string queue_impl::get_backend_info<info::device::version>() const {
 }
 
 template <>
-std::string
+typename info::device::backend_version::return_type
 queue_impl::get_backend_info<info::device::backend_version>() const {
   if (getContextImplPtr()->getBackend() != backend::ext_oneapi_level_zero) {
     throw sycl::exception(errc::backend_mismatch,
