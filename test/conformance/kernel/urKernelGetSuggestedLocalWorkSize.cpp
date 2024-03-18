@@ -78,6 +78,20 @@ TEST_P(urKernelGetSuggestedLocalWorkSizeTest, InvalidWorkDimension) {
                      UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 }
 
+TEST_P(urKernelGetSuggestedLocalWorkSizeTest, InvalidGlobalOffset) {
+    ASSERT_EQ_RESULT(urKernelGetSuggestedLocalWorkSize(
+                         kernel, queue, n_dimensions, nullptr, &global_size,
+                         &suggested_local_work_size),
+                     UR_RESULT_ERROR_INVALID_NULL_POINTER);
+}
+
+TEST_P(urKernelGetSuggestedLocalWorkSizeTest, InvalidGlobalSize) {
+    ASSERT_EQ_RESULT(
+        urKernelGetSuggestedLocalWorkSize(kernel, queue, n_dimensions,
+                                          &global_offset, nullptr, nullptr),
+        UR_RESULT_ERROR_INVALID_NULL_POINTER);
+}
+
 TEST_P(urKernelGetSuggestedLocalWorkSizeTest, InvalidSuggestedLocalWorkSize) {
     ASSERT_EQ_RESULT(
         urKernelGetSuggestedLocalWorkSize(
