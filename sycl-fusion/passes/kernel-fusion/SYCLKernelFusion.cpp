@@ -405,7 +405,8 @@ Error SYCLKernelFusion::fuseKernel(
         // There is another parameter with identical value. Use the existing
         // mapping of that other parameter and do not add this argument to the
         // fused function.
-        ParamMapping.insert({{FuncIndex, ParamIndex}, IdenticalIdx});
+        ParamMapping.insert(
+            {{FuncIndex, ParamIndex}, static_cast<unsigned>(IdenticalIdx)});
         ++ParamFront;
         UsedArgsMask.push_back(false);
       } else {

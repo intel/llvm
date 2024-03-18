@@ -187,7 +187,7 @@ static void printWarningIfFiltersUsed(bool &SuppressNumberPrinting) {
 // Unset filter related environment variables namely, SYCL_DEVICE_FILTER,
 // ONEAPI_DEVICE_SELECTOR, and SYCL_DEVICE_ALLOWLIST.
 static void unsetFilterEnvVars() {
-  for (auto it : FilterEnvVars) {
+  for (const auto &it : FilterEnvVars) {
 #ifdef _WIN32
     _putenv_s(it.c_str(), "");
 #else

@@ -82,9 +82,9 @@ namespace syclcompat {
 class dim3 {
 public:
   const size_t x, y, z;
-  constexpr dim3(const sycl::range<3> &r);
-  constexpr dim3(const sycl::range<2> &r);
-  constexpr dim3(const sycl::range<1> &r);
+  dim3(const sycl::range<3> &r);
+  dim3(const sycl::range<2> &r);
+  dim3(const sycl::range<1> &r);
   constexpr dim3(size_t x, size_t y = 1, size_t z = 1);
 
   constexpr size_t size();
@@ -95,9 +95,9 @@ public:
 };
 
 // Element-wise operators
-dim3 operator*(const dim3 &a, const dim3 &b);
-dim3 operator+(const dim3 &a, const dim3 &b);
-dim3 operator-(const dim3 &a, const dim3 &b);
+inline dim3 operator*(const dim3 &a, const dim3 &b);
+inline dim3 operator+(const dim3 &a, const dim3 &b);
+inline dim3 operator-(const dim3 &a, const dim3 &b);
 
 } // syclcompat
 ```
@@ -113,39 +113,39 @@ addition to the global range, the following helper functions are also provided:
 namespace syclcompat {
 
 namespace local_id {
-size_t x();
-size_t y();
-size_t z();
+inline size_t x();
+inline size_t y();
+inline size_t z();
 } // namespace local_id
 
 namespace local_range {
-size_t x();
-size_t y();
-size_t z();
+inline size_t x();
+inline size_t y();
+inline size_t z();
 } // namespace local_range
 
 namespace work_group_id {
-size_t x();
-size_t y();
-size_t z();
+inline size_t x();
+inline size_t y();
+inline size_t z();
 } // namespace work_group_id
 
 namespace work_group_range {
-size_t x();
-size_t y();
-size_t z();
+inline size_t x();
+inline size_t y();
+inline size_t z();
 } // namespace work_group_range
 
 namespace global_range {
-size_t x();
-size_t y();
-size_t z();
+inline size_t x();
+inline size_t y();
+inline size_t z();
 } // namespace global_range
 
 namespace global_id {
-size_t x();
-size_t y();
-size_t z();
+inline size_t x();
+inline size_t y();
+inline size_t z();
 } // namespace global_id
 
 } // syclcompat
@@ -308,12 +308,13 @@ group size in each dimension.
 ```c++
 namespace syclcompat {
 
-void wg_barrier();
+inline void wg_barrier();
 
 template <int Dim>
-sycl::nd_range<Dim> compute_nd_range(sycl::range<Dim> global_size_in,
-                                     sycl::range<Dim> work_group_size);
-sycl::nd_range<1> compute_nd_range(int global_size_in, int work_group_size);
+inline sycl::nd_range<Dim> compute_nd_range(sycl::range<Dim> global_size_in,
+                                            sycl::range<Dim> work_group_size);
+inline sycl::nd_range<1> compute_nd_range(int global_size_in, 
+                                          int work_group_size);
 
 } // syclcompat
 ```
@@ -330,8 +331,8 @@ out-of-order queue, either created manually or retrieved via a call to
 ```c++
 namespace syclcompat {
 
-sycl::queue create_queue(bool print_on_async_exceptions = false,
-                         bool in_order = true);
+inline sycl::queue create_queue(bool print_on_async_exceptions = false,
+                                bool in_order = true);
 
 } // syclcompat
 ```
@@ -739,12 +740,12 @@ follows:
 namespace syclcompat {
 
 // Util function to create a new queue for the current device
-sycl::queue create_queue(bool print_on_async_exceptions = false,
-                         bool in_order = true);
+static inline sycl::queue create_queue(bool print_on_async_exceptions = false,
+                                       bool in_order = true);
 
 // Util function to get the default queue of current device in
 // device manager.
-sycl::queue get_default_queue();
+static inline sycl::queue get_default_queue();
 
 // Util function to set the default queue of the current device in the
 // device manager.
@@ -752,33 +753,33 @@ sycl::queue get_default_queue();
 // the previous saved queue will be overwritten as well.
 // This function will be blocking if there are submitted kernels in the
 // previous default queue.
-void set_default_queue(const sycl::queue &q);
+static inline void set_default_queue(const sycl::queue &q);
 
 // Util function to wait for the queued kernels.
-void wait(sycl::queue q = get_default_queue());
+static inline void wait(sycl::queue q = get_default_queue());
 
 // Util function to wait for the queued kernels and throw unhandled errors.
-void wait_and_throw(sycl::queue q = get_default_queue());
+static inline void wait_and_throw(sycl::queue q = get_default_queue());
 
 // Util function to get the id of current device in
 // device manager.
-unsigned int get_current_device_id();
+static inline unsigned int get_current_device_id();
 
 // Util function to get the current device.
-device_ext &get_current_device();
+static inline device_ext &get_current_device();
 
 // Util function to get a device by id.
-device_ext &get_device(unsigned int id);
+static inline device_ext &get_device(unsigned int id);
 
 // Util function to get the context of the default queue of current
 // device in device manager.
-sycl::context get_default_context();
+static inline sycl::context get_default_context();
 
 // Util function to get a CPU device.
-device_ext &cpu_device();
+static inline device_ext &cpu_device();
 
 // Util function to select a device by its id
-unsigned int select_device(unsigned int id);
+static inline unsigned int select_device(unsigned int id);
 
 } // syclcompat
 ```

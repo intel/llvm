@@ -258,6 +258,9 @@ configure specific single test execution in the command line:
  * **gpu-intel-pvc** - tells LIT infra that Intel GPU PVC is present in the
    system. It is developer / CI infra responsibility to make sure that the
    device is available in the system.
+ * **gpu-intel-pvc-vg** - tells LIT infra that Intel GPU PVC-VG is present in the
+   system. It is developer / CI infra responsibility to make sure that the
+   device is available in the system.
  * **extra_environment** - comma-separated list of variables with values to be
    added to test environment. Can be also set by LIT_EXTRA_ENVIRONMENT variable
    in cmake.

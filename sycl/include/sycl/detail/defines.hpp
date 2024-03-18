@@ -38,3 +38,9 @@
 #else
 #define __SYCL_TYPE(x)
 #endif
+
+#if __has_cpp_attribute(clang::builtin_alias)
+#define __SYCL_BUILTIN_ALIAS(x) [[clang::builtin_alias(x)]]
+#else
+#define __SYCL_BUILTIN_ALIAS(x)
+#endif
