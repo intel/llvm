@@ -56,13 +56,39 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
+  # The fetch_adapter_source function can be used to perform a separate content
+  # fetch for a UR adapter, this allows development of adapters to be decoupled
+  # from each other.
+  #
+  # Args:
+  #   * name - Must be the directory name of the adapter
+  #   * repo - A valid Git URL of a Unified Runtime repo
+  #   * tag - A valid Git branch/tag/commit in the Unified Runtime repo
+  function(fetch_adapter_source name repo tag)
+    message(STATUS "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
+    set(fetch-name unified-runtime-${name})
+    FetchContent_Declare(${fetch-name}
+      GIT_REPOSITORY ${repo} GIT_TAG ${tag})
+    # We don't want to add this repo to the build, only fetch its source.
+    FetchContent_Populate(${fetch-name})
+    # Get the path to the source directory
+    string(TOUPPER ${name} NAME)
+    set(source_dir_var UR_ADAPTER_${NAME}_SOURCE_DIR)
+    FetchContent_GetProperties(${fetch-name} SOURCE_DIR UR_ADAPTER_${NAME}_SOURCE_DIR)
+    # Set the variable which informs UR where to get the adapter source from.
+    set(UR_ADAPTER_${NAME}_SOURCE_DIR
+      "${UR_ADAPTER_${NAME}_SOURCE_DIR}/source/adapters/${name}"
+      CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
+  endfunction()
+
   set(UNIFIED_RUNTIME_REPO "https://github.com/Seanst98/unified-runtime.git")
-  # commit 1f6cbe61d9a142d88d8edf90c655e3cb9f0b6fb9
+  # commit 6513abc404979fa109d64500bf899e632d511291
+  # Merge: 09be0881 6d586094
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Mar 12 10:35:28 2024 +0000
-  #     Merge pull request #1426 from Bensuo/ben/cuda-param-fix
-  #     [CUDA] Fix build issue with version < 12.0
-  set(UNIFIED_RUNTIME_TAG 97cc87142d9f24215e1dba79962b0033147b538b)
+  # Date:   Thu Mar 14 22:38:53 2024 +0000
+  #     Merge pull request #1410 from kbenzie/benie/cmake-external-adapter-source-dirs
+  #     [CMake] Support external adapter source dirs
+  set(UNIFIED_RUNTIME_TAG 908b122da0dde79666cd4cd79fed2e0ef4aac71c)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

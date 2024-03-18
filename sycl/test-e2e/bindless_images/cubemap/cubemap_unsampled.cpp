@@ -75,7 +75,6 @@ bool run_test(sycl::range<2> dims, sycl::range<3> localSize,
   using VecType = sycl::vec<DType, NChannels>;
 
   sycl::queue q(dev);
-  auto ctxt = q.get_context();
 
   // skip half tests if not supported
   if constexpr (std::is_same_v<DType, sycl::half>) {
