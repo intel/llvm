@@ -1248,6 +1248,30 @@ def get_pfntables(specs, meta, namespace, tags):
 
     return tables
 
+"""
+Public:
+    returns an expression setting required output parameters to null on entry
+"""
+def get_initial_null_set(obj):
+    cname = obj_traits.class_name(obj)
+    lvalue = {
+        ('$xProgram', 'Link'): 'phProgram',
+        ('$xProgram', 'LinkExp'): 'phProgram',
+    }.get((cname, obj['name']))
+    if lvalue is not None:
+        return 'if (nullptr != {0}) {{*{0} = nullptr;}}'.format(lvalue)
+    return ""
+
+"""
+Public:
+    returns true if the function always wraps output pointers in loader handles
+"""
+def always_wrap_outputs(obj):
+    cname = obj_traits.class_name(obj)
+    return (cname, obj['name']) in [
+        ('$xProgram', 'Link'),
+        ('$xProgram', 'LinkExp'),
+    ]
 
 """
 Private:
