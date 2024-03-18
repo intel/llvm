@@ -43,6 +43,39 @@ using namespace llvm;
 using namespace llvm::offloading;
 using namespace llvm::util;
 
+LazyMemoryBuffer::LazyMemoryBuffer(llvm::StringRef Filename)
+    : Filename(std::move(Filename)) {}
+
+Error LazyMemoryBuffer::materialize() {
+  auto MBOrErr = MemoryBuffer::getFile(Filename, false, false);
+  if (!MBOrErr)
+    return createFileError(Filename, MBOrErr.getError());
+
+  MB = std::move(*MBOrErr);
+  isMaterialized = true;
+  return Error::success();
+}
+
+MemoryBuffer &LazyMemoryBuffer::getBuffer() {
+  assert(isMaterialized && "MemoryBuffer isn't materialized");
+  return *MB;
+}
+
+const MemoryBuffer &LazyMemoryBuffer::getBuffer() const {
+  assert(isMaterialized && "MemoryBuffer isn't materialized");
+  return *MB;
+}
+
+size_t LazyMemoryBuffer::getBufferSize() const {
+  assert(isMaterialized && "MemoryBuffer isn't materialized");
+  return MB->getBufferEnd() - MB->getBufferStart();
+}
+
+void LazyMemoryBuffer::release() {
+  MB.release();
+  isMaterialized = false;
+}
+
 namespace {
 
 /// Note: Returned values are a part of ABI. If you want to change them
@@ -556,8 +589,10 @@ struct Wrapper {
     if (Image.Target == "native_cpu")
       Binary = addDeclarationsForNativeCPU(Image.Entries);
     else {
+      auto &MB = Image.Image.getBuffer();
       Binary = addDeviceImageToModule(
-          Image.Image, Twine(OffloadKindTag) + ImageID + ".data", Image.Target);
+          ArrayRef<char>(MB.getBufferStart(), MB.getBufferEnd()),
+          Twine(OffloadKindTag) + ImageID + ".data", Image.Target);
     }
 
     // TODO: Manifests are going to be removed.
@@ -576,8 +611,8 @@ struct Wrapper {
         PropSets.first, PropSets.second);
 
     if (Options.EmitRegistrationFunctions)
-      emitRegistrationFunctions(Binary.first, Image.Image.size(), ImageID,
-                                OffloadKindTag);
+      emitRegistrationFunctions(Binary.first, Image.Image.getBufferSize(),
+                                ImageID, OffloadKindTag);
 
     return WrappedImage;
   }
@@ -669,13 +704,16 @@ struct Wrapper {
   /// \endcode
   ///
   /// \returns Global variable that represents FatbinDesc.
-  GlobalVariable *createFatbinDesc(SmallVector<SYCLImage> &Images) {
+  Expected<GlobalVariable *> createFatbinDesc(SmallVector<SYCLImage> &Images) {
     const char *OffloadKindTag = ".sycl_offloading.";
     SmallVector<Constant *> WrappedImages;
     WrappedImages.reserve(Images.size());
     for (size_t i = 0; i != Images.size(); ++i) {
+      if (Error E = Images[i].Image.materialize())
+        return std::move(E);
+
       WrappedImages.push_back(wrapImage(Images[i], Twine(i), OffloadKindTag));
-      Images[i].Image.clear(); // This is just for economy of RAM.
+      Images[i].Image.release(); // This is important for economy of RAM.
     }
 
     return combineWrappedImages(WrappedImages, OffloadKindTag);
@@ -732,12 +770,11 @@ Error llvm::offloading::wrapSYCLBinaries(llvm::Module &M,
                                          SmallVector<SYCLImage> &Images,
                                          SYCLWrappingOptions Options) {
   Wrapper W(M, Options);
-  GlobalVariable *Desc = W.createFatbinDesc(Images);
-  if (!Desc)
-    return createStringError(inconvertibleErrorCode(),
-                             "No binary descriptors created.");
+  Expected<GlobalVariable *> DescOrErr = W.createFatbinDesc(Images);
+  if (!DescOrErr)
+    return DescOrErr.takeError();
 
-  W.createRegisterFatbinFunction(Desc);
-  W.createUnregisterFunction(Desc);
+  W.createRegisterFatbinFunction(*DescOrErr);
+  W.createUnregisterFunction(*DescOrErr);
   return Error::success();
 }

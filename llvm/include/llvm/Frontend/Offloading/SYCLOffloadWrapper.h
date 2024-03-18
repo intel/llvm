@@ -12,6 +12,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/PropertySetIO.h"
 
 #include <string>
@@ -29,8 +30,51 @@ enum class SYCLBinaryImageFormat {
   BIF_LLVMBC  // LLVM bitcode
 };
 
+/// This is a wrapper over MemoryBuffer that is stored in the Filesystem
+/// and can be loaded on request.
+///
+/// Note: The buffer must be materialized before use.
+class LazyMemoryBuffer {
+private:
+  std::string Filename;
+  std::unique_ptr<llvm::MemoryBuffer> MB;
+  bool isMaterialized = false;
+
+public:
+  LazyMemoryBuffer() = default;
+  LazyMemoryBuffer(const LazyMemoryBuffer &) = delete;
+  LazyMemoryBuffer &operator=(const LazyMemoryBuffer &) = delete;
+  LazyMemoryBuffer(LazyMemoryBuffer &&) = default;
+  LazyMemoryBuffer &operator=(LazyMemoryBuffer &&) = default;
+
+  LazyMemoryBuffer(llvm::StringRef Filename);
+
+  llvm::Error materialize();
+
+  void release();
+
+  llvm::MemoryBuffer &getBuffer();
+
+  const llvm::MemoryBuffer &getBuffer() const;
+
+  size_t getBufferSize() const;
+};
+
 struct SYCLImage {
-  std::vector<char> Image;
+  SYCLImage() = default;
+  SYCLImage(SYCLImage &) = delete;
+  SYCLImage &operator=(SYCLImage &) = delete;
+  SYCLImage(SYCLImage &&) = default;
+  SYCLImage &operator=(SYCLImage &&) = default;
+
+  SYCLImage(LazyMemoryBuffer Buf,
+            const llvm::util::PropertySetRegistry &Registry,
+            llvm::StringRef Entries, llvm::StringRef Target = "")
+      : Image(std::move(Buf)), PropertyRegistry(std::move(Registry)),
+        Entries(Entries.begin(), Entries.size()),
+        Target(Target.begin(), Target.size()) {}
+
+  LazyMemoryBuffer Image;
   llvm::util::PropertySetRegistry PropertyRegistry;
 
   std::string Entries;

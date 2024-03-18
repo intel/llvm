@@ -704,16 +704,6 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef InputTable,
   return *Output;
 }
 
-Expected<std::vector<char>> readBinaryFile(StringRef File) {
-  auto MBOrErr = MemoryBuffer::getFile(File, /*IsText*/ false,
-                                       /*RequiresNullTerminator */ false);
-  if (!MBOrErr)
-    return createFileError(File, MBOrErr.getError());
-
-  auto &MB = *MBOrErr;
-  return std::vector<char>(MB->getBufferStart(), MB->getBufferEnd());
-}
-
 Expected<std::string> readTextFile(StringRef File) {
   auto MBOrErr = MemoryBuffer::getFile(File, /*IsText*/ true,
                                        /*RequiresNullTerminator */ true);
@@ -758,10 +748,6 @@ readSYCLImagesFromTable(StringRef TableFile, const ArgList &Args) {
 
   SmallVector<offloading::SYCLImage> Images;
   for (const util::SimpleTable::Row &row : Table->rows()) {
-    auto ImageOrErr = readBinaryFile(row.getCell("Code"));
-    if (!ImageOrErr)
-      return ImageOrErr.takeError();
-
     auto PropertiesOrErr =
         readPropertyRegistryFromFile(row.getCell("Properties"));
     if (!PropertiesOrErr)
@@ -772,7 +758,7 @@ readSYCLImagesFromTable(StringRef TableFile, const ArgList &Args) {
       return SymbolsOrErr.takeError();
 
     offloading::SYCLImage Image;
-    Image.Image = std::move(*ImageOrErr);
+    Image.Image = offloading::LazyMemoryBuffer(row.getCell("Code"));
     Image.PropertyRegistry = std::move(**PropertiesOrErr);
     Image.Entries = std::move(*SymbolsOrErr);
     Images.push_back(std::move(Image));
