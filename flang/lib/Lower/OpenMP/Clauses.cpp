@@ -42,7 +42,7 @@ static llvm::omp::Clause getClauseId(const Fortran::parser::OmpClause &clause) {
                     clause.u);
 }
 
-namespace omp {
+namespace Fortran::lower::omp {
 using SymbolWithDesignator = std::tuple<semantics::Symbol *, MaybeExpr>;
 
 struct SymbolAndDesignatorExtractor {
@@ -209,12 +209,6 @@ namespace clause {
 #include "llvm/Frontend/OpenMP/OMP.inc"
 #undef EMPTY_CLASS
 #undef WRAPPER_CLASS
-
-using DefinedOperator = tomp::clause::DefinedOperatorT<SymIdent, SymReference>;
-using ProcedureDesignator =
-    tomp::clause::ProcedureDesignatorT<SymIdent, SymReference>;
-using ReductionOperator =
-    tomp::clause::ReductionOperatorT<SymIdent, SymReference>;
 
 DefinedOperator makeDefinedOperator(const parser::DefinedOperator &inp,
                                     semantics::SemanticsContext &semaCtx) {
@@ -725,10 +719,10 @@ Clause makeClause(const Fortran::parser::OmpClause &cls,
       cls.u);
 }
 
-omp::List<Clause> makeList(const parser::OmpClauseList &clauses,
-                           semantics::SemanticsContext &semaCtx) {
+List<Clause> makeList(const parser::OmpClauseList &clauses,
+                      semantics::SemanticsContext &semaCtx) {
   return makeList(clauses.v, [&](const parser::OmpClause &s) {
     return makeClause(s, semaCtx);
   });
 }
-} // namespace omp
+} // namespace Fortran::lower::omp
