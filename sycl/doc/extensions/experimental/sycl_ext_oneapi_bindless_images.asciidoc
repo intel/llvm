@@ -195,11 +195,7 @@ enum class image_type : /* unspecified */ {
   standard,
   mipmap,
   array,
-<<<<<<< HEAD
-  interop,
   cubemap,
-=======
->>>>>>> sycl
 };
 
 struct image_descriptor {
@@ -237,11 +233,7 @@ struct image_descriptor {
 
 The image descriptor represents the image dimensions, channel type, and channel 
 order. An `image_type` member is also present to allow for implementation of 
-<<<<<<< HEAD
-mipmapped, interop, and cubemapped images.
-=======
-mipmapped images.
->>>>>>> sycl
+mipmapped, image array, and cubemapped images.
 
 The `image_descriptor` shall be default constructible and follow by-value 
 semantics.
