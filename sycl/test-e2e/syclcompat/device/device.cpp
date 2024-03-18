@@ -36,44 +36,6 @@
 
 #include "device_fixt.hpp"
 
-
-  /*
-    Device Tests
-  */
-void test_at_least_one_device() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-  DeviceTestsFixt dtf;
-  assert(dtf.get_n_devices() > 0);
-}
-
-  // Check the device returned matches the device ID
-void test_matches_id() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-  assert(syclcompat::get_device(syclcompat::get_current_device_id()) ==
-         syclcompat::get_current_device());
-}
-
-  // Check error on insufficient devices
-void test_not_enough_devices() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-  DeviceTestsFixt dtf;
-  try {
-    syclcompat::select_device(dtf.get_n_devices());
-  } catch (std::runtime_error const &e) {
-    std::cout << "Expected SYCL exception caught: " << e.what();
-  }
-}
-
-  // Check the default context matches default queue's context
-void test_default_context() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-  DeviceTestsFixt dtf;
-  assert(dtf.get_queue().get_context() == syclcompat::get_default_context());
-}
-
-  /*
-    Queue Tests
-  */
 void test_set_default_queue() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
@@ -85,6 +47,43 @@ void test_set_default_queue() {
   assert(*dev_.default_queue() != old_default_queue);
 }
 
+/*
+  Device Tests
+*/
+void test_at_least_one_device() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  DeviceTestsFixt dtf;
+  assert(dtf.get_n_devices() > 0);
+}
+
+// Check the device returned matches the device ID
+void test_matches_id() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  assert(syclcompat::get_device(syclcompat::get_current_device_id()) ==
+         syclcompat::get_current_device());
+}
+
+// Check error on insufficient devices
+void test_not_enough_devices() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  DeviceTestsFixt dtf;
+  try {
+    syclcompat::select_device(dtf.get_n_devices());
+  } catch (std::runtime_error const &e) {
+    std::cout << "Expected SYCL exception caught: " << e.what();
+  }
+}
+
+// Check the default context matches default queue's context
+void test_default_context() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  DeviceTestsFixt dtf;
+  assert(dtf.get_queue().get_context() == syclcompat::get_default_context());
+}
+
+/*
+  Queue Tests
+*/
 void test_make_in_order_queue() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   sycl::queue q = syclcompat::get_default_queue();
@@ -97,7 +96,7 @@ void test_check_default_device() {
   assert(q.get_device() == sycl::device{sycl::default_selector_v});
 }
 
-  // Check behaviour of in order & out of order queue construction
+// Check behaviour of in order & out of order queue construction
 void test_create_queue_arguments() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   sycl::queue q_create_def{syclcompat::create_queue()};
@@ -108,9 +107,9 @@ void test_create_queue_arguments() {
   assert(!q_out_order.is_in_order());
 }
 
-  /*
-    Device Extension Tests
-  */
+/*
+  Device Extension Tests
+*/
 void test_device_ext_api() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   DeviceExtFixt dev_ext;
@@ -151,7 +150,7 @@ void test_saved_queue() {
   assert(q == *dev_.get_saved_queue());
 }
 
-  // Check reset() resets the queues etc
+// Check reset() resets the queues etc
 void test_reset() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   DeviceExtFixt dev_ext;
