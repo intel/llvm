@@ -43,12 +43,22 @@ static bool instrumentDeviceGlobal(Module &M) {
   //  size_t beginning address of the device global
   StructType *StructTy = StructType::get(IntTy, IntTy, IntTy);
 
+  GlobalVariable *OMPOffloadEntry =
+      M.getGlobalVariable(".omp_offloading.entry_name");
   for (auto &G : M.globals()) {
-    // Non image scope device globals are implemented by device USM, and the
-    // out-of-bounds check for them will be done by sanitizer USM part. So we
-    // exclude them here.
-    if (!isDeviceGlobalVariable(G) || !hasDeviceImageScopeProperty(G))
-      continue;
+    if (OMPOffloadEntry) {
+      // For openmp offloading, the scope is to check external global variables
+      // within '#pragma declare target' block and ignore all internal names.
+      if (G.getName().starts_with("__") || G.getName().starts_with(".") ||
+          (G.getLinkage() != GlobalValue::ExternalLinkage))
+        continue;
+    } else {
+      // For SYCL, non image scope device globals are implemented by device USM,
+      // and the out-of-bounds check for them will be done by sanitizer USM
+      // part. So we exclude them here.
+      if (!isDeviceGlobalVariable(G) || !hasDeviceImageScopeProperty(G))
+        continue;
+    }
 
     Type *Ty = G.getValueType();
     const uint64_t SizeInBytes = DL.getTypeAllocSize(Ty);
@@ -128,7 +138,7 @@ static bool instrumentDeviceGlobal(Module &M) {
   return true;
 }
 
-}
+} // namespace
 
 namespace llvm {
 
@@ -141,4 +151,4 @@ PreservedAnalyses SanitizeDeviceGlobalPass::run(Module &M,
   return Modified ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
 
-}
+} // namespace llvm
