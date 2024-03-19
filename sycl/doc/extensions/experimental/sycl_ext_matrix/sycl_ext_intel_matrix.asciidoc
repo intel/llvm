@@ -432,10 +432,14 @@ the following queries to get these requirements:
 `joint_matrix_load_checked` and `joint_matrix_store_checked`.
 |`ext::intel::experimental::info::device::matrix_checked_rowindex_multiple_of<T>`|
 `size_t`|Returns a value, of which `RowIndex` must be multiple of;
-where T is the element type of the matrix.
+where `T` is the element type of the matrix. When using the matrices
+with the machine learning types, `T` should be the element type
+(e.g. `precision::tf32`) not the storage type.
 |`ext::intel::experimental::info::device::matrix_checked_globalcols_multiple_of<T>`|
 `size_t` | Returns a value, of which `GlobalCols` must be multiple of;
-where T is the element type of the matrix.
+where `T` is the element type of the matrix. When using the matrices
+with the machine learning types, `T` should be the element type
+(e.g. `precision::tf32`) not the storage type.
 |======================
 
 ==== Appendix: Restrictions Per Hardware
