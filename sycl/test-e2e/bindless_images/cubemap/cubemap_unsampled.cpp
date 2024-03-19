@@ -117,7 +117,6 @@ bool run_test(sycl::range<2> dims, sycl::range<3> localSize,
     q.wait();
     {
       sycl::range<3> globalSize = {dims[0], dims[1], 6};
-      q.wait();
       util::run_ndim_test<DType, NChannels, KernelName>(
           q, globalSize, localSize, img_input_0, img_input_1, img_output);
       q.wait();

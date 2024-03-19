@@ -72,6 +72,15 @@ _CLC_OVERLOAD _CLC_DECL void __spirv_MemoryBarrier(unsigned int, unsigned int);
   }                                                                            \
   }
 
+#define __CLC_NVVM_FENCE_SC_SM70()                                             \
+  if (scope == CrossDevice) {                                                  \
+    __asm__ __volatile__("fence.sc.sys;");                                     \
+  } else if (scope == Device) {                                                \
+    __asm__ __volatile__("fence.sc.gpu;");                                     \
+  } else {                                                                     \
+    __asm__ __volatile__("fence.sc.cta;");                                     \
+  }
+
 #define __CLC_NVVM_ATOMIC_IMPL(                                                \
     TYPE, TYPE_MANGLED, TYPE_NV, TYPE_MANGLED_NV, OP, NAME_MANGLED,            \
     ADDR_SPACE, POINTER_AND_ADDR_SPACE_MANGLED, ADDR_SPACE_NV, SUBSTITUTION)   \
@@ -117,6 +126,13 @@ Memory order is stored in the lowest 5 bits */                                 \
                                              OP, ADDR_SPACE, ADDR_SPACE_NV)    \
       }                                                                        \
       break;                                                                   \
+    case SequentiallyConsistent:                                               \
+      if (__clc_nvvm_reflect_arch() >= 700) {                                  \
+        __CLC_NVVM_FENCE_SC_SM70()                                             \
+        __CLC_NVVM_ATOMIC_IMPL_ORDER(TYPE, TYPE_NV, TYPE_MANGLED_NV, OP,       \
+                                     ADDR_SPACE, ADDR_SPACE_NV, _acq_rel)      \
+        break;                                                                 \
+      }                                                                        \
     }                                                                          \
     __builtin_trap();                                                          \
     __builtin_unreachable();                                                   \
