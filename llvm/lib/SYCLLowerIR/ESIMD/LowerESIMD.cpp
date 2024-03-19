@@ -1758,42 +1758,28 @@ static void checkSLMInit(Module &M) {
 
   for (auto &F : M) {
     if (!isSlmInit(F)) {
-      bool LocalAccessorUsed = false;
-      if (F.getName().starts_with(SPIRV_LOCAL_ACCESSOR_PREF)) {
-        LocalAccessorUsed = true;
-      } else {
-        unsigned Idx = 0;
-        for (const Argument &Arg : F.args()) {
-          if (Arg.getType()->isPointerTy()) {
-            auto *KernelArgAccPtrs = F.getMetadata("kernel_arg_accessor_ptr");
+      if (!llvm::esimd::isESIMDKernel(F))
+        continue;
+      unsigned Idx = 0;
+      for (const Argument &Arg : F.args()) {
+        if (Arg.getType()->isPointerTy()) {
+          auto *KernelArgAccPtrs = F.getMetadata("kernel_arg_accessor_ptr");
 
-            if (KernelArgAccPtrs) {
-              auto *AccMD =
-                  cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx));
-              auto AccMDVal = cast<ConstantInt>(AccMD->getValue())->getValue();
-              bool IsAcc = static_cast<unsigned>(AccMDVal.getZExtValue());
+          if (KernelArgAccPtrs) {
+            auto *AccMD =
+                cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx));
+            auto AccMDVal = cast<ConstantInt>(AccMD->getValue())->getValue();
+            bool IsAcc = static_cast<unsigned>(AccMDVal.getZExtValue());
 
-              constexpr unsigned LocalAS{3};
-              if (IsAcc &&
-                  cast<PointerType>(Arg.getType())->getAddressSpace() ==
-                      LocalAS) {
-                LocalAccessorUsed = true;
-                break;
-              }
+            constexpr unsigned LocalAS{3};
+            if (IsAcc && cast<PointerType>(Arg.getType())->getAddressSpace() ==
+                             LocalAS) {
+              LocalAccessorKernels.insert(&F);
+              break;
             }
           }
-          Idx++;
         }
-      }
-      if (LocalAccessorUsed) {
-        sycl::utils::traverseCallgraphUp(
-            &F,
-            [&](Function *GraphNode) {
-              if (llvm::esimd::isESIMDKernel(*GraphNode)) {
-                LocalAccessorKernels.insert(GraphNode);
-              }
-            },
-            false);
+        Idx++;
       }
     } else {
       for (User *U : F.users()) {
