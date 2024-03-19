@@ -18,6 +18,7 @@
 
 #include <cmath>
 #include <cuda.h>
+#include <ur/ur.hpp>
 
 ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue, CUstream Stream,
                               uint32_t NumEventsInWaitList,
@@ -140,12 +141,10 @@ ur_result_t setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
 void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
                         const size_t *GlobalWorkSize, const uint32_t WorkDim,
                         const size_t MaxThreadsPerBlock[3],
-                        ur_kernel_handle_t Kernel, uint32_t LocalSize) {
+                        ur_kernel_handle_t Kernel) {
   assert(ThreadsPerBlock != nullptr);
   assert(GlobalWorkSize != nullptr);
   assert(Kernel != nullptr);
-  int MinGrid, MaxBlockSize;
-  size_t MaxBlockDim[3];
 
   // The below assumes a three dimensional range but this is not guaranteed by
   // UR.
@@ -154,33 +153,18 @@ void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
     GlobalSizeNormalized[i] = GlobalWorkSize[i];
   }
 
+  size_t MaxBlockDim[3];
+  MaxBlockDim[0] = MaxThreadsPerBlock[0];
   MaxBlockDim[1] = Device->getMaxBlockDimY();
   MaxBlockDim[2] = Device->getMaxBlockDimZ();
 
-  UR_CHECK_ERROR(
-      cuOccupancyMaxPotentialBlockSize(&MinGrid, &MaxBlockSize, Kernel->get(),
-                                       NULL, LocalSize, MaxThreadsPerBlock[0]));
+  int MinGrid, MaxBlockSize;
+  UR_CHECK_ERROR(cuOccupancyMaxPotentialBlockSize(
+      &MinGrid, &MaxBlockSize, Kernel->get(), NULL, Kernel->getLocalSize(),
+      MaxThreadsPerBlock[0]));
 
-  ThreadsPerBlock[2] = std::min(GlobalSizeNormalized[2], MaxBlockDim[2]);
-  ThreadsPerBlock[1] =
-      std::min(GlobalSizeNormalized[1],
-               std::min(MaxBlockSize / ThreadsPerBlock[2], MaxBlockDim[1]));
-  MaxBlockDim[0] = MaxBlockSize / (ThreadsPerBlock[1] * ThreadsPerBlock[2]);
-  ThreadsPerBlock[0] = std::min(
-      MaxThreadsPerBlock[0], std::min(GlobalSizeNormalized[0], MaxBlockDim[0]));
-
-  static auto IsPowerOf2 = [](size_t Value) -> bool {
-    return Value && !(Value & (Value - 1));
-  };
-
-  // Find a local work group size that is a divisor of the global
-  // work group size to produce uniform work groups.
-  // Additionally, for best compute utilisation, the local size has
-  // to be a power of two.
-  while (0u != (GlobalSizeNormalized[0] % ThreadsPerBlock[0]) ||
-         !IsPowerOf2(ThreadsPerBlock[0])) {
-    --ThreadsPerBlock[0];
-  }
+  roundToHighestFactorOfGlobalSizeIn3d(ThreadsPerBlock, GlobalSizeNormalized,
+                                       MaxBlockDim, MaxBlockSize);
 }
 
 // Helper to verify out-of-registers case (exceeded block max registers).
@@ -261,7 +245,7 @@ setKernelParams(const ur_context_handle_t Context,
         }
       } else {
         guessLocalWorkSize(Device, ThreadsPerBlock, GlobalWorkSize, WorkDim,
-                           MaxThreadsPerBlock, Kernel, LocalSize);
+                           MaxThreadsPerBlock, Kernel);
       }
     }
 
