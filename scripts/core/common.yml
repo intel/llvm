@@ -205,8 +205,6 @@ etors:
       desc: "Invalid image size"
     - name: ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
       desc: "Invalid image format descriptor"
-    - name: ERROR_IMAGE_FORMAT_NOT_SUPPORTED
-      desc: "Image format not supported"
     - name: ERROR_MEM_OBJECT_ALLOCATION_FAILURE
       desc: "Memory object allocation failure"
     - name: ERROR_INVALID_PROGRAM_EXECUTABLE

@@ -199,6 +199,7 @@ public:
   CUDA_ARRAY3D_DESCRIPTOR ArrayDesc;
   size_t PixelTypeSizeBytes;
   void *HostPtr;
+  ur_result_t error = UR_RESULT_SUCCESS;
 
   SurfaceMem(ur_context_handle_t Context, ur_mem_handle_t OuterMemStruct,
              ur_image_format_t ImageFormat, ur_image_desc_t ImageDesc,
@@ -233,6 +234,7 @@ public:
       ArrayDesc.Format = CU_AD_FORMAT_UNSIGNED_INT8;
       PixelTypeSizeBytes = 1;
       break;
+    case UR_IMAGE_CHANNEL_TYPE_SNORM_INT8:
     case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8:
       ArrayDesc.Format = CU_AD_FORMAT_SIGNED_INT8;
       PixelTypeSizeBytes = 1;
@@ -242,6 +244,7 @@ public:
       ArrayDesc.Format = CU_AD_FORMAT_UNSIGNED_INT16;
       PixelTypeSizeBytes = 2;
       break;
+    case UR_IMAGE_CHANNEL_TYPE_SNORM_INT16:
     case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16:
       ArrayDesc.Format = CU_AD_FORMAT_SIGNED_INT16;
       PixelTypeSizeBytes = 2;
@@ -263,8 +266,7 @@ public:
       PixelTypeSizeBytes = 4;
       break;
     default:
-      detail::ur::die(
-          "urMemImageCreate given unsupported image_channel_data_type");
+      break;
     }
   }
 

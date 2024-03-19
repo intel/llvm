@@ -32,6 +32,28 @@ size_t imageElementByteSize(hipArray_Format ArrayFormat) {
   return 0;
 }
 
+ur_result_t
+checkSupportedImageChannelType(ur_image_channel_type_t ImageChannelType) {
+  switch (ImageChannelType) {
+  case UR_IMAGE_CHANNEL_TYPE_SNORM_INT8:
+  case UR_IMAGE_CHANNEL_TYPE_SNORM_INT16:
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT8:
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8:
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8:
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT16:
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16:
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16:
+  case UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT:
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32:
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32:
+  case UR_IMAGE_CHANNEL_TYPE_FLOAT:
+    return UR_RESULT_SUCCESS;
+  default:
+    return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
 /// Decreases the reference count of the Mem object.
 /// If this is zero, calls the relevant HIP Free function
 /// \return UR_RESULT_SUCCESS unless deallocation error
@@ -339,7 +361,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
 
   UR_ASSERT(pImageDesc->stype == UR_STRUCTURE_TYPE_IMAGE_DESC,
             UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
-  UR_ASSERT(pImageDesc->type <= UR_MEM_TYPE_IMAGE1D_BUFFER,
+  UR_ASSERT(pImageDesc->type <= UR_MEM_TYPE_IMAGE1D_ARRAY,
             UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
   UR_ASSERT(pImageDesc->numMipLevel == 0,
             UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
@@ -355,7 +377,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
   // We only support RBGA channel order
   // TODO: check SYCL CTS and spec. May also have to support BGRA
   UR_ASSERT(pImageFormat->channelOrder == UR_IMAGE_CHANNEL_ORDER_RGBA,
-            UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION);
+            UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT);
+
+  UR_CHECK_ERROR(checkSupportedImageChannelType(pImageFormat->channelType));
 
   auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(
       new ur_mem_handle_t_{hContext, flags, *pImageFormat, *pImageDesc, pHost});

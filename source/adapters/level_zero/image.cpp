@@ -766,7 +766,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
             UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(!(UR_EXP_IMAGE_COPY_FLAGS_MASK & imageCopyFlags),
             UR_RESULT_ERROR_INVALID_ENUMERATION);
-  UR_ASSERT(!(pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type),
+  UR_ASSERT(!(pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type),
             UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR);
 
   ZeStruct<ze_image_desc_t> ZeImageDesc;
