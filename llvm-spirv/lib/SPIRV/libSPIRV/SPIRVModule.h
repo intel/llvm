@@ -240,7 +240,7 @@ public:
   virtual void eraseInstruction(SPIRVInstruction *, SPIRVBasicBlock *) = 0;
 
   // Type creation functions
-  virtual SPIRVTypeArray *addArrayType(SPIRVType *, SPIRVConstant *) = 0;
+  virtual SPIRVTypeArray *addArrayType(SPIRVType *, SPIRVValue *) = 0;
   virtual SPIRVTypeBool *addBoolType() = 0;
   virtual SPIRVTypeFloat *addFloatType(unsigned) = 0;
   virtual SPIRVTypeFunction *

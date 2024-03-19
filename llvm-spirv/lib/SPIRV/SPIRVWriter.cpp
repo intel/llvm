@@ -2280,6 +2280,29 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
   if (AllocaInst *Alc = dyn_cast<AllocaInst>(V)) {
     SPIRVType *TranslatedTy = transScavengedType(V);
     if (Alc->isArrayAllocation()) {
+      SPIRVValue *Length = transValue(Alc->getArraySize(), BB);
+      assert(Length && "Couldn't translate array size!");
+
+      if (isSpecConstantOpCode(Length->getOpCode())) {
+        // SPIR-V arrays length can be expressed using a specialization
+        // constant.
+        //
+        // Spec Constant Length Arrays need special treatment, as the allocation
+        // type will be 'OpTypePointer(Function, OpTypeArray(ElementType,
+        // Length))', we need to bitcast the obtained pointer to the expected
+        // type: 'OpTypePointer(Function, ElementType).
+        SPIRVType *AllocationType = BM->addPointerType(
+            StorageClassFunction,
+            BM->addArrayType(transType(Alc->getAllocatedType()), Length));
+        SPIRVValue *Arr = BM->addVariable(
+            AllocationType, false, spv::internal::LinkageTypeInternal, nullptr,
+            Alc->getName().str() + "_alloca", StorageClassFunction, BB);
+        // Manually set alignment. OpBitcast created below will be decorated as
+        // that's the SPIR-V value mapped to the original LLVM one.
+        transAlign(Alc, Arr);
+        return mapValue(V, BM->addUnaryInst(OpBitcast, TranslatedTy, Arr, BB));
+      }
+
       if (!BM->checkExtension(ExtensionID::SPV_INTEL_variable_length_array,
                               SPIRVEC_InvalidInstruction,
                               toString(Alc) +
@@ -2287,8 +2310,6 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                                   "SPV_INTEL_variable_length_array extension."))
         return nullptr;
 
-      SPIRVValue *Length = transValue(Alc->getArraySize(), BB);
-      assert(Length && "Couldn't translate array size!");
       return mapValue(V,
                       BM->addInstTemplate(OpVariableLengthArrayINTEL,
                                           {Length->getId()}, BB, TranslatedTy));
