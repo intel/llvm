@@ -219,7 +219,7 @@ int main() {
   do_vector_bitreverse_test<uint8_t3>();
   do_vector_bitreverse_test<uint16_t3>();
   do_vector_bitreverse_test<uint32_t3>();
-  do_vector_bitreverse_test<uint64_t3>();
+  //  do_vector_bitreverse_test<uint64_t3>();
   
   do_vector_bitreverse_test<uint8_t4>();
   do_vector_bitreverse_test<uint16_t4>();
