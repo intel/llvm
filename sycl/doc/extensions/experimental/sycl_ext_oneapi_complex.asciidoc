@@ -205,7 +205,7 @@ public:
 
   /// Compares complex numbers z and w and returns true if they are different, otherwise false.
   friend constexpr bool operator!=(const complex<value_type> &z, const complex<value_type> &w);
-  ///Compares complex number z and real y and returns true if they are different, otherwise false.
+  /// Compares complex number z and real y and returns true if they are different, otherwise false.
   friend constexpr bool operator!=(const complex<value_type> &z, value_type y);
   /// Compares real x and complex number w and returns true if they are different, otherwise false.
   friend constexpr bool operator!=(value_type x, const complex<value_type> &w);
