@@ -196,7 +196,6 @@ typedef enum ur_function_t {
     UR_FUNCTION_ADAPTER_RETAIN = 179,                                          ///< Enumerator for ::urAdapterRetain
     UR_FUNCTION_ADAPTER_GET_LAST_ERROR = 180,                                  ///< Enumerator for ::urAdapterGetLastError
     UR_FUNCTION_ADAPTER_GET_INFO = 181,                                        ///< Enumerator for ::urAdapterGetInfo
-    UR_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP = 182,                 ///< Enumerator for ::urCommandBufferUpdateKernelLaunchExp
     UR_FUNCTION_PROGRAM_BUILD_EXP = 197,                                       ///< Enumerator for ::urProgramBuildExp
     UR_FUNCTION_PROGRAM_COMPILE_EXP = 198,                                     ///< Enumerator for ::urProgramCompileExp
     UR_FUNCTION_PROGRAM_LINK_EXP = 199,                                        ///< Enumerator for ::urProgramLinkExp
@@ -216,12 +215,14 @@ typedef enum ur_function_t {
     UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP = 213,                    ///< Enumerator for ::urCommandBufferAppendUSMAdviseExp
     UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP = 214,                   ///< Enumerator for ::urEnqueueCooperativeKernelLaunchExp
     UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP = 215,          ///< Enumerator for ::urKernelSuggestMaxCooperativeGroupCountExp
-    UR_FUNCTION_COMMAND_BUFFER_RETAIN_COMMAND_EXP = 216,                       ///< Enumerator for ::urCommandBufferRetainCommandExp
-    UR_FUNCTION_COMMAND_BUFFER_RELEASE_COMMAND_EXP = 217,                      ///< Enumerator for ::urCommandBufferReleaseCommandExp
-    UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP = 218,                             ///< Enumerator for ::urCommandBufferGetInfoExp
-    UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP = 219,                     ///< Enumerator for ::urCommandBufferCommandGetInfoExp
-    UR_FUNCTION_DEVICE_GET_SELECTED = 220,                                     ///< Enumerator for ::urDeviceGetSelected
-    UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE = 224,                    ///< Enumerator for ::urKernelGetSuggestedLocalWorkSize
+    UR_FUNCTION_PROGRAM_GET_GLOBAL_VARIABLE_POINTER = 216,                     ///< Enumerator for ::urProgramGetGlobalVariablePointer
+    UR_FUNCTION_DEVICE_GET_SELECTED = 217,                                     ///< Enumerator for ::urDeviceGetSelected
+    UR_FUNCTION_COMMAND_BUFFER_RETAIN_COMMAND_EXP = 218,                       ///< Enumerator for ::urCommandBufferRetainCommandExp
+    UR_FUNCTION_COMMAND_BUFFER_RELEASE_COMMAND_EXP = 219,                      ///< Enumerator for ::urCommandBufferReleaseCommandExp
+    UR_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP = 220,                 ///< Enumerator for ::urCommandBufferUpdateKernelLaunchExp
+    UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP = 221,                             ///< Enumerator for ::urCommandBufferGetInfoExp
+    UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP = 222,                     ///< Enumerator for ::urCommandBufferCommandGetInfoExp
+    UR_FUNCTION_KERNEL_GET_SUGGESTED_LOCAL_WORK_SIZE = 223,                    ///< Enumerator for ::urKernelGetSuggestedLocalWorkSize
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -4326,6 +4327,42 @@ urProgramGetFunctionPointer(
                                   ///< otherwise ::UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE is returned.
     const char *pFunctionName,    ///< [in] A null-terminates string denoting the mangled function name.
     void **ppFunctionPointer      ///< [out] Returns the pointer to the function if it is found in the program.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Retrieves a pointer to a device global variable.
+///
+/// @details
+///     - Retrieves a pointer to a device global variable.
+///     - The application may call this function from simultaneous threads for
+///       the same device.
+///     - The implementation of this function should be thread-safe.
+///
+/// @remarks
+///   _Analogues_
+///     - **clGetDeviceGlobalVariablePointerINTEL**
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hDevice`
+///         + `NULL == hProgram`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalVariableName`
+///         + `NULL == ppGlobalVariablePointerRet`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + `name` is not a valid variable in the program.
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramGetGlobalVariablePointer(
+    ur_device_handle_t hDevice,       ///< [in] handle of the device to retrieve the pointer for.
+    ur_program_handle_t hProgram,     ///< [in] handle of the program where the global variable is.
+    const char *pGlobalVariableName,  ///< [in] mangled name of the global variable to retrieve the pointer for.
+    size_t *pGlobalVariableSizeRet,   ///< [out][optional] Returns the size of the global variable if it is found
+                                      ///< in the program.
+    void **ppGlobalVariablePointerRet ///< [out] Returns the pointer to the global variable if it is found in the program.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8967,6 +9004,13 @@ urUSMReleaseExp(
 #pragma region usm p2p(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
+#ifndef UR_USM_P2P_EXTENSION_STRING_EXP
+/// @brief The extension string that defines support for USM P2P which is
+///        returned when querying device extensions.
+#define UR_USM_P2P_EXTENSION_STRING_EXP "ur_exp_usm_p2p"
+#endif // UR_USM_P2P_EXTENSION_STRING_EXP
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Supported peer info
 typedef enum ur_exp_peer_info_t {
     UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED = 0,  ///< [uint32_t] 1 if P2P access is supported otherwise P2P access is not
@@ -9501,6 +9545,18 @@ typedef struct ur_program_get_function_pointer_params_t {
     const char **ppFunctionName;
     void ***pppFunctionPointer;
 } ur_program_get_function_pointer_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urProgramGetGlobalVariablePointer
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_program_get_global_variable_pointer_params_t {
+    ur_device_handle_t *phDevice;
+    ur_program_handle_t *phProgram;
+    const char **ppGlobalVariableName;
+    size_t **ppGlobalVariableSizeRet;
+    void ***pppGlobalVariablePointerRet;
+} ur_program_get_global_variable_pointer_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urProgramGetInfo

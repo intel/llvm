@@ -581,6 +581,33 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
   return ze2urResult(ZeResult);
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
+    ur_device_handle_t
+        Device, ///< [in] handle of the device to retrieve the pointer for.
+    ur_program_handle_t
+        Program, ///< [in] handle of the program where the global variable is.
+    const char *GlobalVariableName, ///< [in] mangled name of the global
+                                    ///< variable to retrieve the pointer for.
+    size_t *GlobalVariableSizeRet,  ///< [out][optional] Returns the size of the
+                                    ///< global variable if it is found in the
+                                    ///< program.
+    void **GlobalVariablePointerRet ///< [out] Returns the pointer to the global
+                                    ///< variable if it is found in the program.
+) {
+  std::ignore = Device;
+  std::scoped_lock<ur_shared_mutex> lock(Program->Mutex);
+
+  ze_result_t ZeResult =
+      zeModuleGetGlobalPointer(Program->ZeModule, GlobalVariableName,
+                               GlobalVariableSizeRet, GlobalVariablePointerRet);
+
+  if (ZeResult == ZE_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+
+  return ze2urResult(ZeResult);
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urProgramGetInfo(
     ur_program_handle_t Program, ///< [in] handle of the Program object
     ur_program_info_t PropName,  ///< [in] name of the Program property to query
