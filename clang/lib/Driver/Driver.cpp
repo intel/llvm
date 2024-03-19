@@ -4341,7 +4341,7 @@ class OffloadingActionBuilder final {
                      OffloadingActionBuilder &OAB)
         : CudaActionBuilderBase(C, Args, Inputs, Action::OFK_HIP, OAB) {
 
-      DefaultCudaArch = CudaArch::GFX906;
+      DefaultCudaArch = CudaArch::HIPDefault;
 
       if (Args.hasArg(options::OPT_fhip_emit_relocatable,
                       options::OPT_fno_hip_emit_relocatable)) {
@@ -5047,8 +5047,6 @@ class OffloadingActionBuilder final {
           // action or fat binary.
           SYCLDeviceActions.clear();
 
-          for (auto SDA : SYCLDeviceActions)
-            SYCLLinkBinaryList.push_back(SDA);
           if (WrapDeviceOnlyBinary)
             return ABRT_Success;
           auto *Link =
@@ -7512,9 +7510,12 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   }
 
   // Add a link action if necessary.
+  // When offloading with -fsycl-link-targets, no link action is processed
+  // as we stop at the spirv-translation step.
   Arg *FinalPhaseArg;
   if (!UseNewOffloadingDriver &&
-      getFinalPhase(Args, &FinalPhaseArg) == phases::Link) {
+      getFinalPhase(Args, &FinalPhaseArg) == phases::Link &&
+      !Args.hasArg(options::OPT_fsycl_link_targets_EQ)) {
     if (LinkerInputs.empty() && DeviceAOTLinkerInputs.empty())
       OffloadBuilder->appendDeviceLinkActions(Actions);
 
@@ -7922,12 +7923,25 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
       DDeps.add(*A, *TCAndArch->first, TCAndArch->second.data(), Kind);
       OffloadAction::DeviceDependences DDep;
       DDep.add(*A, *TCAndArch->first, TCAndArch->second.data(), Kind);
+
+      // Compiling CUDA in non-RDC mode uses the PTX output if available.
+      for (Action *Input : A->getInputs())
+        if (Kind == Action::OFK_Cuda && A->getType() == types::TY_Object &&
+            !Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc,
+                          false))
+          DDep.add(*Input, *TCAndArch->first, TCAndArch->second.data(), Kind);
       OffloadActions.push_back(C.MakeAction<OffloadAction>(DDep, A->getType()));
+
       ++TCAndArch;
     }
   }
 
-  if (offloadDeviceOnly())
+  // All kinds exit now in device-only mode except for non-RDC mode HIP.
+  if (offloadDeviceOnly() &&
+      (!C.isOffloadingHostKind(Action::OFK_HIP) ||
+       !Args.hasFlag(options::OPT_gpu_bundle_output,
+                     options::OPT_no_gpu_bundle_output, true) ||
+       Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, false)))
     return C.MakeAction<OffloadAction>(DDeps, types::TY_Nothing);
 
   if (OffloadActions.empty())
@@ -7959,6 +7973,10 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
     DDep.add(*PackagerAction, *C.getSingleOffloadToolChain<Action::OFK_Host>(),
              nullptr, C.getActiveOffloadKinds());
   }
+
+  // HIP wants '--offload-device-only' to create a fatbinary by default.
+  if (offloadDeviceOnly())
+    return C.MakeAction<OffloadAction>(DDep, types::TY_Nothing);
 
   // If we are unable to embed a single device output into the host, we need to
   // add each device output as a host dependency to ensure they are still built.
