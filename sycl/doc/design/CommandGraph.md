@@ -19,8 +19,8 @@ represents a series of operations to be enqueued to the backend device and
 their dependencies. A single command-graph can be partitioned into more
 than one command-buffer by the runtime. The SYCL Graph extension
 distinguishes between backends that support the command-buffer extension
-and those that do not, and only reports support for the extension using an
-aspect on backends that do support command-buffers.
+and those that do not, and only reports support for the extension via the
+`aspect::ext_oneapi_graph` aspect on backends that do support command-buffers.
 
 See the [Backend Implementation](#backend-implementation) section of this
 document for details of support of different SYCL backends.
