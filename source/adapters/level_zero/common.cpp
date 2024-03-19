@@ -58,6 +58,8 @@ ur_result_t ze2urResult(ze_result_t ZeResult) {
     return UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY;
   case ZE_RESULT_ERROR_OUT_OF_HOST_MEMORY:
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  case ZE_RESULT_ERROR_UNSUPPORTED_FEATURE:
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   default:
     return UR_RESULT_ERROR_UNKNOWN;
   }
@@ -170,6 +172,40 @@ template <> ze_structure_type_t getZeStructureType<ze_fence_desc_t>() {
 }
 template <> ze_structure_type_t getZeStructureType<ze_command_list_desc_t>() {
   return ZE_STRUCTURE_TYPE_COMMAND_LIST_DESC;
+}
+template <>
+ze_structure_type_t
+getZeStructureType<ze_mutable_command_list_exp_properties_t>() {
+  return ZE_STRUCTURE_TYPE_MUTABLE_COMMAND_LIST_EXP_PROPERTIES;
+}
+template <>
+ze_structure_type_t getZeStructureType<ze_mutable_command_list_exp_desc_t>() {
+  return ZE_STRUCTURE_TYPE_MUTABLE_COMMAND_LIST_EXP_DESC;
+}
+template <>
+ze_structure_type_t getZeStructureType<ze_mutable_command_id_exp_desc_t>() {
+  return ZE_STRUCTURE_TYPE_MUTABLE_COMMAND_ID_EXP_DESC;
+}
+template <>
+ze_structure_type_t getZeStructureType<ze_mutable_group_count_exp_desc_t>() {
+  return ZE_STRUCTURE_TYPE_MUTABLE_GROUP_COUNT_EXP_DESC;
+}
+template <>
+ze_structure_type_t getZeStructureType<ze_mutable_group_size_exp_desc_t>() {
+  return ZE_STRUCTURE_TYPE_MUTABLE_GROUP_SIZE_EXP_DESC;
+}
+template <>
+ze_structure_type_t getZeStructureType<ze_mutable_global_offset_exp_desc_t>() {
+  return ZE_STRUCTURE_TYPE_MUTABLE_GLOBAL_OFFSET_EXP_DESC;
+}
+template <>
+ze_structure_type_t
+getZeStructureType<ze_mutable_kernel_argument_exp_desc_t>() {
+  return ZE_STRUCTURE_TYPE_MUTABLE_KERNEL_ARGUMENT_EXP_DESC;
+}
+template <>
+ze_structure_type_t getZeStructureType<ze_mutable_commands_exp_desc_t>() {
+  return ZE_STRUCTURE_TYPE_MUTABLE_COMMANDS_EXP_DESC;
 }
 template <> ze_structure_type_t getZeStructureType<ze_context_desc_t>() {
   return ZE_STRUCTURE_TYPE_CONTEXT_DESC;

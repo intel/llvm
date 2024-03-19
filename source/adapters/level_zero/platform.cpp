@@ -206,6 +206,39 @@ ur_result_t ur_platform_handle_t_::initialize() {
   // If yes, then set up L0 API pointers if the platform supports it.
   ZeUSMImport.setZeUSMImport(this);
 
+  // Check if mutable command list extension is supported and initialize
+  // function pointers.
+  ZeMutableCmdListExt.Supported |=
+      (ZE_CALL_NOCHECK(
+           zeDriverGetExtensionFunctionAddress,
+           (ZeDriver, "zeCommandListGetNextCommandIdExp",
+            reinterpret_cast<void **>(
+                &ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp))) == 0);
+
+  ZeMutableCmdListExt.Supported &=
+      (ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                       (ZeDriver, "zeCommandListUpdateMutableCommandsExp",
+                        reinterpret_cast<void **>(
+                            &ZeMutableCmdListExt
+                                 .zexCommandListUpdateMutableCommandsExp))) ==
+       0);
+
+  ZeMutableCmdListExt.Supported &=
+      (ZE_CALL_NOCHECK(
+           zeDriverGetExtensionFunctionAddress,
+           (ZeDriver, "zeCommandListUpdateMutableCommandSignalEventExp",
+            reinterpret_cast<void **>(
+                &ZeMutableCmdListExt
+                     .zexCommandListUpdateMutableCommandSignalEventExp))) == 0);
+
+  ZeMutableCmdListExt.Supported &=
+      (ZE_CALL_NOCHECK(
+           zeDriverGetExtensionFunctionAddress,
+           (ZeDriver, "zeCommandListUpdateMutableCommandWaitEventsExp",
+            reinterpret_cast<void **>(
+                &ZeMutableCmdListExt
+                     .zexCommandListUpdateMutableCommandWaitEventsExp))) == 0);
+
   return UR_RESULT_SUCCESS;
 }
 
