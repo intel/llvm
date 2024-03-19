@@ -341,8 +341,8 @@
 // CHK-FSYCL-LINK-UB: sycl-post-link{{.*}} "-o" "[[POST_LINK_TABLE:.+\.table]]"
 // CHK-FSYCL-LINK-UB: file-table-tform{{.*}} "-o" "[[TFORM_TABLE:.+\.txt]]" "[[POST_LINK_TABLE]]"
 // CHK-FSYCL-LINK-UB: llvm-spirv{{.*}} "-o" "[[SPIRV:.+\.txt]]"{{.*}} "[[TFORM_TABLE]]"
-// CHK-FSYCL-LINK-UB-LIN: ocloc{{.*}} "-output" "[[OCLOC_OUT:.+\.out]]
-// CHK-FSYCL-LINK-UB-WIN: ocloc{{.*}} "-output" "[[OCLOC_OUT:.+\.exe]]
+// CHK-FSYCL-LINK-UB-LIN: ocloc{{.*}} "-output" "[[OCLOC_OUT:.+\.out]]"
+// CHK-FSYCL-LINK-UB-WIN: ocloc{{.*}} "-output" "[[OCLOC_OUT:.+\.exe]]"
 // CHK-FSYCL-LINK-UB: file-table-tform{{.*}} "-o" "[[TFORM_TABLE2:.+\.table]]" "[[POST_LINK_TABLE]]" "[[OCLOC_OUT]]"
 // CHK-FSYCL-LINK-UB: clang-offload-wrapper{{.*}} "-o" "[[WRAPPER_OUT:.+\.bc]]"{{.*}} "-batch" "[[TFORM_TABLE2]]"
 // CHK-FSYCL-LINK-UB: clang{{.*}} "-cc1"{{.*}} "-o" "{{.*}}.out" "-x" "ir" "[[WRAPPER_OUT]]"
