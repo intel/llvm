@@ -1937,8 +1937,24 @@ Instruction *InstCombinerImpl::foldItoFPtoI(CastInst &FI) {
   return replaceInstUsesWith(FI, X);
 }
 
+static Instruction *foldFPtoI(Instruction &FI, InstCombiner &IC) {
+  // fpto{u/s}i non-norm --> 0
+  FPClassTest Mask =
+      FI.getOpcode() == Instruction::FPToUI ? fcPosNormal : fcNormal;
+  KnownFPClass FPClass =
+      computeKnownFPClass(FI.getOperand(0), Mask, /*Depth=*/0,
+                          IC.getSimplifyQuery().getWithInstruction(&FI));
+  if (FPClass.isKnownNever(Mask))
+    return IC.replaceInstUsesWith(FI, ConstantInt::getNullValue(FI.getType()));
+
+  return nullptr;
+}
+
 Instruction *InstCombinerImpl::visitFPToUI(FPToUIInst &FI) {
   if (Instruction *I = foldItoFPtoI(FI))
+    return I;
+
+  if (Instruction *I = foldFPtoI(FI, *this))
     return I;
 
   return commonCastTransforms(FI);
@@ -1946,6 +1962,9 @@ Instruction *InstCombinerImpl::visitFPToUI(FPToUIInst &FI) {
 
 Instruction *InstCombinerImpl::visitFPToSI(FPToSIInst &FI) {
   if (Instruction *I = foldItoFPtoI(FI))
+    return I;
+
+  if (Instruction *I = foldFPtoI(FI, *this))
     return I;
 
   return commonCastTransforms(FI);
