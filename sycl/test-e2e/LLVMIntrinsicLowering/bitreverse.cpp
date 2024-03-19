@@ -211,6 +211,11 @@ int main() {
   do_scalar_bitreverse_test<uint32_t>();
   do_scalar_bitreverse_test<uint64_t>();
 
+  do_vector_bitreverse_test<uint8_t2>();
+  do_vector_bitreverse_test<uint16_t2>();
+  do_vector_bitreverse_test<uint32_t2>();
+  do_vector_bitreverse_test<uint64_t2>();
+
   do_vector_bitreverse_test<uint8_t3>();
   do_vector_bitreverse_test<uint16_t3>();
   do_vector_bitreverse_test<uint32_t3>();
