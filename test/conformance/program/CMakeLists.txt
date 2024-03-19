@@ -11,6 +11,7 @@ add_conformance_test_with_kernels_environment(program
     urProgramCreateWithNativeHandle.cpp
     urProgramGetBuildInfo.cpp
     urProgramGetFunctionPointer.cpp
+    urProgramGetGlobalVariablePointer.cpp
     urProgramGetInfo.cpp
     urProgramGetNativeHandle.cpp
     urProgramLink.cpp

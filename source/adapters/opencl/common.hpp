@@ -39,7 +39,7 @@
  * error is mapped to UR
  */
 #define CL_RETURN_ON_FAILURE_AND_SET_NULL(clCall, outPtr)                      \
-  if (const cl_int cl_result_macro = clCall != CL_SUCCESS) {                   \
+  if (const cl_int cl_result_macro = clCall; cl_result_macro != CL_SUCCESS) {  \
     if (outPtr != nullptr) {                                                   \
       *outPtr = nullptr;                                                       \
     }                                                                          \
@@ -197,6 +197,8 @@ CONSTFIX char SetProgramSpecializationConstantName[] =
     "clSetProgramSpecializationConstant";
 CONSTFIX char GetDeviceFunctionPointerName[] =
     "clGetDeviceFunctionPointerINTEL";
+CONSTFIX char GetDeviceGlobalVariablePointerName[] =
+    "clGetDeviceGlobalVariablePointerINTEL";
 CONSTFIX char EnqueueWriteGlobalVariableName[] =
     "clEnqueueWriteGlobalVariableINTEL";
 CONSTFIX char EnqueueReadGlobalVariableName[] =
@@ -221,6 +223,10 @@ CONSTFIX char GetCommandBufferInfoName[] = "clGetCommandBufferInfoKHR";
 using clGetDeviceFunctionPointer_fn = CL_API_ENTRY
 cl_int(CL_API_CALL *)(cl_device_id device, cl_program program,
                       const char *FuncName, cl_ulong *ret_ptr);
+
+using clGetDeviceGlobalVariablePointer_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
+    cl_device_id device, cl_program program, const char *globalVariableName,
+    size_t *globalVariableSizeRet, void **globalVariablePointerRet);
 
 using clEnqueueWriteGlobalVariable_fn = CL_API_ENTRY
 cl_int(CL_API_CALL *)(cl_command_queue, cl_program, const char *, cl_bool,
@@ -319,6 +325,8 @@ struct ExtFuncPtrCacheT {
   FuncPtrCache<clDeviceMemAllocINTEL_fn> clDeviceMemAllocINTELCache;
   FuncPtrCache<clSharedMemAllocINTEL_fn> clSharedMemAllocINTELCache;
   FuncPtrCache<clGetDeviceFunctionPointer_fn> clGetDeviceFunctionPointerCache;
+  FuncPtrCache<clGetDeviceGlobalVariablePointer_fn>
+      clGetDeviceGlobalVariablePointerCache;
   FuncPtrCache<clCreateBufferWithPropertiesINTEL_fn>
       clCreateBufferWithPropertiesINTELCache;
   FuncPtrCache<clMemBlockingFreeINTEL_fn> clMemBlockingFreeINTELCache;
