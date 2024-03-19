@@ -51,6 +51,8 @@ template <typename T> void test_host() {
   USMTest<T> usm_fixture;
   if (usm_fixture.skip)
     return; // Skip unsupported
+  if (!usm_fixture.q_.get_device().has(sycl::aspect::usm_host_allocations))
+    return; // Skip unsupported
 
   usm_fixture.d_A = syclcompat::malloc_host<T>(usm_fixture.size_);
   usm_fixture.launch_kernel();
@@ -72,6 +74,8 @@ void test_non_templated_malloc() {
 void test_non_templated_host() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   USMTest<int> usm_fixture;
+  if (!usm_fixture.q_.get_device().has(sycl::aspect::usm_host_allocations))
+    return; // Skip unsupported
 
   usm_fixture.d_A = static_cast<int *>(
       syclcompat::malloc_host(usm_fixture.size_ * sizeof(int)));
@@ -86,6 +90,8 @@ void test_deduce() {
 
   using memcpy_direction = syclcompat::detail::memcpy_direction;
   auto default_queue = syclcompat::get_default_queue();
+  if (!default_queue.get_device().has(sycl::aspect::usm_host_allocations))
+    return; // Skip unsupported
 
   int *h_ptr = (int *)syclcompat::malloc_host(sizeof(int));
   int *sys_ptr = (int *)std::malloc(sizeof(int));
