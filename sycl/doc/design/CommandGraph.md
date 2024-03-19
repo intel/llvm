@@ -203,8 +203,8 @@ host-task in each branch.
 
 When executing this graph, the partitions were enqueued one after the other,
 with each partition waiting for the previous one to complete (see top of the
-following diagram). However, for multi-root graph, this behavior adds
-unnecessary dependency between partitions, slowing down the execution of the
+following diagram). However, for a multi-root graph, this behavior adds
+unnecessary dependencies between partitions, slowing down the execution of the
 whole graph. Now, we keep track of the actual predecessors of each partition
 and only enforce dependencies between partitions when necessary.
 In our example, the extra dependency is therefore removed and both branches can
@@ -306,7 +306,7 @@ Indeed:
    reset commands when finalizing the command-buffer, and only create the wait
    command-list at submission.
 
-This command list consist of a reset command for each of the graph commands
+This command list consists of a reset command for each of the graph commands
 and another reset command for resetting the signal we use to signal the
 completion of the graph workload. This signal is called *SignalEvent* and is
 defined in the `ur_exp_command_buffer_handle_t` class.
