@@ -2172,6 +2172,14 @@ ur_result_t urPrintProgramGetFunctionPointerParams(
     return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintProgramGetGlobalVariablePointerParams(
+    const struct ur_program_get_global_variable_pointer_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << params;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t
 urPrintProgramGetInfoParams(const struct ur_program_get_info_params_t *params,
                             char *buffer, const size_t buff_size,

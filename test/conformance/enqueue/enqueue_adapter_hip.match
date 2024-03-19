@@ -1,6 +1,3 @@
-{{OPT}}urEnqueueDeviceGetGlobalVariableReadTest.Success/AMD_HIP_BACKEND___{{.*}}_
-{{OPT}}urEnqueueDeviceGetGlobalVariableReadTest.InvalidEventWaitInvalidEvent/AMD_HIP_BACKEND___{{.*}}_
-{{OPT}}urEnqueueDeviceGetGlobalVariableWriteTest.InvalidEventWaitInvalidEvent/AMD_HIP_BACKEND___{{.*}}_
 {{OPT}}urEnqueueMemBufferCopyRectTestWithParam.Success/AMD_HIP_BACKEND___{{.*}}___copy_row_2D
 {{OPT}}urEnqueueMemBufferCopyRectTestWithParam.Success/AMD_HIP_BACKEND___{{.*}}___copy_3d_2d
 {{OPT}}urEnqueueMemBufferCopyRectTest.InvalidSize/AMD_HIP_BACKEND___{{.*}}_
