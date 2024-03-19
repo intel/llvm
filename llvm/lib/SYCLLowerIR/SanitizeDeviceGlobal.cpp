@@ -43,8 +43,8 @@ static bool instrumentDeviceGlobal(Module &M) {
   //  size_t beginning address of the device global
   StructType *StructTy = StructType::get(IntTy, IntTy, IntTy);
 
-  GlobalVariable *OMPOffloadEntry =
-      M.getGlobalVariable(".omp_offloading.entry_name");
+  const GlobalVariable *OMPOffloadEntry =
+      M.getNamedGlobal(".omp_offloading.entry_name");
   for (auto &G : M.globals()) {
     if (OMPOffloadEntry) {
       // For openmp offloading, the scope is to check external global variables
