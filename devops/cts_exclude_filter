@@ -1,8 +1,2 @@
-reduction
-accessor
-vector_swizzles
 kernel_bundle
-spec_constants
 marray
-group_functions
-atomic_ref
