@@ -2,6 +2,18 @@
 #include <random>
 #include <sycl/sycl.hpp>
 
+template <typename DType, int NChannels>
+std::ostream &operator<<(std::ostream &os,
+                         const sycl::vec<DType, NChannels> &vec) {
+  std::string str{""};
+  for (int i = 0; i < NChannels; ++i) {
+    str += std::to_string(vec[i]) + ",";
+  }
+  str.pop_back();
+  os << str;
+  return os;
+}
+
 namespace bindless_helpers {
 
 template <typename DType, int NChannel>
@@ -16,6 +28,16 @@ constexpr sycl::vec<DType, NChannel> init_vector(DType val) {
     std::cerr << "Unsupported number of channels " << NChannel << "\n";
     exit(-1);
   }
+}
+
+template <typename DType, int NChannels>
+bool equal_vec(sycl::vec<DType, NChannels> v1, sycl::vec<DType, NChannels> v2) {
+  for (int i = 0; i < NChannels; ++i) {
+    if (v1[i] != v2[i]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 template <typename DType, int NChannels>

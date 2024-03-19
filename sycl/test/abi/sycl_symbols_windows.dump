@@ -417,8 +417,12 @@
 ??$has_property@Vuse_primary_context@cuda@context@property@_V1@sycl@@@stream@_V1@sycl@@QEBA_NXZ
 ??$import_external_memory@Uexternal_mem_fd@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA?AUinterop_mem_handle@01234@U?$external_mem_descriptor@Uexternal_mem_fd@experimental@oneapi@ext@_V1@sycl@@@01234@AEBVdevice@34@AEBVcontext@34@@Z
 ??$import_external_memory@Uexternal_mem_fd@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA?AUinterop_mem_handle@01234@U?$external_mem_descriptor@Uexternal_mem_fd@experimental@oneapi@ext@_V1@sycl@@@01234@AEBVqueue@34@@Z
+??$import_external_memory@Uresource_fd@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA?AUinterop_mem_handle@01234@U?$external_mem_descriptor@Uresource_fd@experimental@oneapi@ext@_V1@sycl@@@01234@AEBVdevice@34@AEBVcontext@34@@Z
+??$import_external_memory@Uresource_fd@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA?AUinterop_mem_handle@01234@U?$external_mem_descriptor@Uresource_fd@experimental@oneapi@ext@_V1@sycl@@@01234@AEBVqueue@34@@Z
 ??$import_external_semaphore@Uexternal_semaphore_fd@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA?AUinterop_semaphore_handle@01234@U?$external_semaphore_descriptor@Uexternal_semaphore_fd@experimental@oneapi@ext@_V1@sycl@@@01234@AEBVdevice@34@AEBVcontext@34@@Z
 ??$import_external_semaphore@Uexternal_semaphore_fd@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA?AUinterop_semaphore_handle@01234@U?$external_semaphore_descriptor@Uexternal_semaphore_fd@experimental@oneapi@ext@_V1@sycl@@@01234@AEBVqueue@34@@Z
+??$import_external_semaphore@Uresource_fd@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA?AUinterop_semaphore_handle@01234@U?$external_semaphore_descriptor@Uresource_fd@experimental@oneapi@ext@_V1@sycl@@@01234@AEBVdevice@34@AEBVcontext@34@@Z
+??$import_external_semaphore@Uresource_fd@experimental@oneapi@ext@_V1@sycl@@@experimental@oneapi@ext@_V1@sycl@@YA?AUinterop_semaphore_handle@01234@U?$external_semaphore_descriptor@Uresource_fd@experimental@oneapi@ext@_V1@sycl@@@01234@AEBVqueue@34@@Z
 ??0AccessorBaseHost@detail@_V1@sycl@@IEAA@AEBV?$shared_ptr@VAccessorImplHost@detail@_V1@sycl@@@std@@@Z
 ??0AccessorBaseHost@detail@_V1@sycl@@QEAA@$$QEAV0123@@Z
 ??0AccessorBaseHost@detail@_V1@sycl@@QEAA@AEBV0123@@Z
