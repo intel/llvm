@@ -224,6 +224,7 @@ public:
       ArrayDesc.Format = HIP_AD_FORMAT_UNSIGNED_INT8;
       PixelTypeSizeBytes = 1;
       break;
+    case UR_IMAGE_CHANNEL_TYPE_SNORM_INT8:
     case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8:
       ArrayDesc.Format = HIP_AD_FORMAT_SIGNED_INT8;
       PixelTypeSizeBytes = 1;
@@ -233,6 +234,7 @@ public:
       ArrayDesc.Format = HIP_AD_FORMAT_UNSIGNED_INT16;
       PixelTypeSizeBytes = 2;
       break;
+    case UR_IMAGE_CHANNEL_TYPE_SNORM_INT16:
     case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16:
       ArrayDesc.Format = HIP_AD_FORMAT_SIGNED_INT16;
       PixelTypeSizeBytes = 2;

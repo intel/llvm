@@ -41,8 +41,6 @@ desc: "Memory types"
 class: $xMem
 name: $x_mem_type_t
 etors:
-    - name: BUFFER
-      desc: "Buffer object"
     - name: IMAGE2D
       desc: "2D image object"
     - name: IMAGE3D
@@ -53,8 +51,6 @@ etors:
       desc: "1D image object"
     - name: IMAGE1D_ARRAY
       desc: "1D image array object"
-    - name: IMAGE1D_BUFFER
-      desc: "1D image buffer object"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Memory Information type"
@@ -213,6 +209,15 @@ name: ImageCreate
 ordinal: "0"
 analogue:
     - "**clCreateImage**"
+details:
+    - |
+      The primary $x_image_format_t that must be supported by all the adapters are {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNORM_INT8}, 
+      {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNORM_INT16}, {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SNORM_INT8}, 
+      {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SNORM_INT16}, {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8}, 
+      {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16}, {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32}, 
+      {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8}, {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16}, 
+      {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32}, {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT}, 
+      {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_FLOAT}.
 params:
     - type: $x_context_handle_t
       name: hContext
@@ -236,12 +241,13 @@ returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
-      - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`"
+      - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`"
     - $X_RESULT_ERROR_INVALID_IMAGE_SIZE
     - $X_RESULT_ERROR_INVALID_OPERATION
     - $X_RESULT_ERROR_INVALID_HOST_PTR:
       - "`pHost == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0`"
       - "`pHost != NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) == 0`"
+    - $X_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------

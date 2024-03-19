@@ -1441,9 +1441,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
     case UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
         os << "UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR";
         break;
-    case UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED:
-        os << "UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED";
-        break;
     case UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE:
         os << "UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE";
         break;
@@ -5453,9 +5450,6 @@ inline ur_result_t printFlag<ur_mem_flag_t>(std::ostream &os, uint32_t flag) {
 ///     std::ostream &
 inline std::ostream &operator<<(std::ostream &os, enum ur_mem_type_t value) {
     switch (value) {
-    case UR_MEM_TYPE_BUFFER:
-        os << "UR_MEM_TYPE_BUFFER";
-        break;
     case UR_MEM_TYPE_IMAGE2D:
         os << "UR_MEM_TYPE_IMAGE2D";
         break;
@@ -5470,9 +5464,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_mem_type_t value) {
         break;
     case UR_MEM_TYPE_IMAGE1D_ARRAY:
         os << "UR_MEM_TYPE_IMAGE1D_ARRAY";
-        break;
-    case UR_MEM_TYPE_IMAGE1D_BUFFER:
-        os << "UR_MEM_TYPE_IMAGE1D_BUFFER";
         break;
     case UR_MEM_TYPE_IMAGE_CUBEMAP_EXP:
         os << "UR_MEM_TYPE_IMAGE_CUBEMAP_EXP";
