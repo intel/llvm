@@ -79,6 +79,7 @@ struct KernelsEnvironment : DevicesEnvironment {
                               ur_context_handle_t hContext,
                               ur_device_handle_t hDevice,
                               const std::vector<char> &binary,
+                              const ur_program_properties_t *properties,
                               ur_program_handle_t *phProgram);
 
     std::vector<std::string> GetEntryPointNames(std::string program);

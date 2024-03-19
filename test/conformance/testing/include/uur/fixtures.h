@@ -325,7 +325,7 @@ struct urHostPipeTest : urQueueTest {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
         uur::KernelsEnvironment::instance->LoadSource("foo", 0, il_binary);
         ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-            platform, context, device, *il_binary, &program));
+            platform, context, device, *il_binary, nullptr, &program));
 
         size_t size = 0;
         ASSERT_SUCCESS(urDeviceGetInfo(
@@ -1072,8 +1072,13 @@ struct urProgramTest : urQueueTest {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
         uur::KernelsEnvironment::instance->LoadSource(program_name, 0,
                                                       il_binary);
+
+        const ur_program_properties_t properties = {
+            UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES, nullptr,
+            static_cast<uint32_t>(metadatas.size()),
+            metadatas.empty() ? nullptr : metadatas.data()};
         ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-            platform, context, device, *il_binary, &program));
+            platform, context, device, *il_binary, &properties, &program));
     }
 
     void TearDown() override {
@@ -1086,6 +1091,7 @@ struct urProgramTest : urQueueTest {
     std::shared_ptr<std::vector<char>> il_binary;
     std::string program_name = "foo";
     ur_program_handle_t program = nullptr;
+    std::vector<ur_program_metadata_t> metadatas{};
 };
 
 template <class T> struct urProgramTestWithParam : urContextTestWithParam<T> {
@@ -1094,7 +1100,8 @@ template <class T> struct urProgramTestWithParam : urContextTestWithParam<T> {
         uur::KernelsEnvironment::instance->LoadSource(program_name, 0,
                                                       il_binary);
         ASSERT_SUCCESS(uur::KernelsEnvironment::instance->CreateProgram(
-            this->platform, this->context, this->device, *il_binary, &program));
+            this->platform, this->context, this->device, *il_binary, nullptr,
+            &program));
     }
 
     void TearDown() override {
@@ -1286,13 +1293,27 @@ template <class T> struct GlobalVar {
     T value;
 };
 
+using namespace std::string_literals;
 struct urGlobalVariableTest : uur::urKernelExecutionTest {
     void SetUp() override {
+
         program_name = "device_global";
         global_var = {"_Z7dev_var", 0};
+
+        /* Some adapters cannot use the mangled variable name directly.
+         * Instead, in order to map the mangled variable to the internal name,
+         * they rely on metadata set when creating the program */
+        const std::string metadata_name = "_Z7dev_var@global_id_mapping";
+        ur_program_metadata_value_t metadata_value;
+        metadata_value.pData = (void *)metadataData.c_str();
+        metadatas.push_back({metadata_name.c_str(),
+                             UR_PROGRAM_METADATA_TYPE_BYTE_ARRAY,
+                             metadataData.size(), metadata_value});
         UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::SetUp());
     }
 
+    /* We pad the first 8 bytes of the metadata since they are ignored */
+    std::string metadataData = "\0\0\0\0\0\0\0\0dev_var"s;
     GlobalVar<int> global_var;
 };
 

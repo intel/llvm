@@ -311,6 +311,43 @@ params:
       desc: |
             [out] Returns the pointer to the function if it is found in the program.
 --- #--------------------------------------------------------------------------
+type: function
+desc: "Retrieves a pointer to a device global variable."
+class: $xProgram
+name: GetGlobalVariablePointer
+decl: static
+ordinal: "7"
+analogue:
+    - "**clGetDeviceGlobalVariablePointerINTEL**"
+details:
+    - "Retrieves a pointer to a device global variable."
+    - "The application may call this function from simultaneous threads for the same device."
+    - "The implementation of this function should be thread-safe."
+params:
+    - type: "$x_device_handle_t"
+      name: hDevice
+      desc: |
+            [in] handle of the device to retrieve the pointer for.
+    - type: "$x_program_handle_t"
+      name: hProgram
+      desc: |
+            [in] handle of the program where the global variable is.
+    - type: "const char*"
+      name: pGlobalVariableName
+      desc: |
+            [in] mangled name of the global variable to retrieve the pointer for.
+    - type: "size_t*"
+      name: pGlobalVariableSizeRet
+      desc: |
+        [out][optional] Returns the size of the global variable if it is found in the program.
+    - type: "void**"
+      name: ppGlobalVariablePointerRet
+      desc: |
+            [out] Returns the pointer to the global variable if it is found in the program.
+returns:
+  - $X_RESULT_ERROR_INVALID_VALUE:
+      - "`name` is not a valid variable in the program."
+--- #--------------------------------------------------------------------------
 type: enum
 desc: "Get Program object information"
 class: $xProgram
