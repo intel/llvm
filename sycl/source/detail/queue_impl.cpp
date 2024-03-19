@@ -624,7 +624,7 @@ event queue_impl::discard_or_return(const event &Event) {
     auto tryToCleanup = [&CompletedHostTask](DependencyTrackingItems& Deps){
       if (Deps.NotEnqueuedCmdEvents.empty())
       return;
-    Deps.NotEnqueuedCmdEvents.erase(std::remove_if(Deps.NotEnqueuedCmdEvents.begin(), Deps.NotEnqueuedCmdEvents.end(), [&CompletedHostTask](const EventImplPtr& CommandEvent){ return (CommandEvent == CompletedHostTask) || (CommandEvent->producesPiEvent() && CommandEvent->getHandleRef()); }), Deps.NotEnqueuedCmdEvents.end());
+     Deps.NotEnqueuedCmdEvents.erase(std::remove_if(Deps.NotEnqueuedCmdEvents.begin(), Deps.NotEnqueuedCmdEvents.end(), [&CompletedHostTask](const EventImplPtr& CommandEvent){ return (CommandEvent == CompletedHostTask) || (CommandEvent->is_host() ? CommandEvent->isCompleted() : CommandEvent->getHandleRef() != nullptr); }), Deps.NotEnqueuedCmdEvents.end());
     };
     std::lock_guard<std::mutex> Lock{MMutex};
     if (auto Graph = CompletedHostTask->getCommandGraph())

@@ -776,8 +776,7 @@ protected:
       auto &EventToBuildDeps =
           MGraph.lock() ? MExtGraphDeps.LastEventPtr : MDefaultGraphDeps.LastEventPtr;
       if (EventToBuildDeps)
-        Handler.depends_on(
-            createSyclObjFromImpl<sycl::event>(EventToBuildDeps));
+        Handler.depends_on(EventToBuildDeps);
 
       // If there is an external event set, add it as a dependency and clear it.
       // We do not need to hold the lock as MLastEventMtx will ensure the last
