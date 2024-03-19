@@ -37,11 +37,8 @@ macro(add_sycl_unittest test_dirname link_variant)
     )
   endif()
 
-  # if(WIN32)
-  # set(ENV{PATH} "${CMAKE_BINARY_DIR}/bin;$ENV{PATH}")
-  # else()
-  # set(ENV{PATH} "${CMAKE_BINARY_DIR}/bin:$ENV{PATH}")
-  # endif()
+  set(path_env_var $ENV{PATH})
+  cmake_path(APPEND_STRING path_env_var "${CMAKE_BINARY_DIR}/bin")
 
   add_custom_target(check-sycl-${test_dirname}
     ${CMAKE_COMMAND} -E env
@@ -49,7 +46,7 @@ macro(add_sycl_unittest test_dirname link_variant)
     SYCL_CONFIG_FILE_NAME=null.cfg
     SYCL_DEVICELIB_NO_FALLBACK=1
     SYCL_CACHE_DIR="${CMAKE_BINARY_DIR}/sycl_cache"
-    PATH="${CMAKE_BINARY_DIR}/bin;$ENV{PATH}"
+    PATH="${path_env_var}"
     ${CMAKE_CURRENT_BINARY_DIR}/${test_dirname}
     DEPENDS
     ${test_dirname}
