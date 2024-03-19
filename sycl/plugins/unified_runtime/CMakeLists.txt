@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 29ee45c4451a682f744146cc9dbeb2617ecdd6b3
-  # Merge: db4b0c14 4f5d005a
+  # commit 4d0183a8e3152f7c5b7a814d5001c90cb2412051
+  # Merge: 29ee45c4 ca3da5aa
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Mar 18 12:14:26 2024 +0000
-  #     Merge pull request #1291 from JackAKirk/cuda-seq-cst-b
-  #     [CUDA] Report that devices with cc >= sm_70 support seq_cst
-  set(UNIFIED_RUNTIME_TAG 29ee45c4451a682f744146cc9dbeb2617ecdd6b3)
+  # Date:   Mon Mar 18 23:56:24 2024 +0000
+  #     Merge pull request #1255 from fabiomestre/fabio/add_global_variable_pointer
+  #     [SPEC] Add urProgramGetGlobalVariablePointer entrypoint
+  set(UNIFIED_RUNTIME_TAG 4d0183a8e3152f7c5b7a814d5001c90cb2412051)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
