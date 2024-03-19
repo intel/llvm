@@ -20,6 +20,7 @@
  *    USM allocation tests
  **************************************************************************/
 
+// REQUIRES: usm_shared_allocations
 // RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
@@ -34,54 +35,32 @@
 #include "memory_common.hpp"
 #include "memory_fixt.hpp"
 
-template <typename T> void test_malloc() {
+template <typename T> void test_shared() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   USMTest<T> usm_fixture;
+
   if (usm_fixture.skip)
     return; // Skip unsupported
 
-  usm_fixture.d_A = syclcompat::malloc<T>(usm_fixture.size_);
+  usm_fixture.d_A = syclcompat::malloc_shared<T>(usm_fixture.size_);
   usm_fixture.launch_kernel();
   usm_fixture.check_result();
   syclcompat::free(usm_fixture.d_A);
 }
 
-template <typename T> void test_host() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-  USMTest<T> usm_fixture;
-  if (usm_fixture.skip)
-    return; // Skip unsupported
-
-  usm_fixture.d_A = syclcompat::malloc_host<T>(usm_fixture.size_);
-  usm_fixture.launch_kernel();
-  usm_fixture.check_result();
-  syclcompat::free(usm_fixture.d_A);
-}
-
-void test_non_templated_malloc() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-  USMTest<int> usm_fixture;
-
-  usm_fixture.d_A =
-      static_cast<int *>(syclcompat::malloc(usm_fixture.size_ * sizeof(int)));
-  usm_fixture.launch_kernel();
-  usm_fixture.check_result();
-  syclcompat::free(usm_fixture.d_A);
-}
-
-void test_non_templated_host() {
+void test_non_templated_shared() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   USMTest<int> usm_fixture;
 
   usm_fixture.d_A = static_cast<int *>(
-      syclcompat::malloc_host(usm_fixture.size_ * sizeof(int)));
+      syclcompat::malloc_shared(usm_fixture.size_ * sizeof(int)));
   usm_fixture.launch_kernel();
   usm_fixture.check_result();
   syclcompat::free(usm_fixture.d_A);
 }
 
 // Test deduce direction
-void test_deduce() {
+void test_deduce_shared() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   using memcpy_direction = syclcompat::detail::memcpy_direction;
@@ -90,53 +69,45 @@ void test_deduce() {
   int *h_ptr = (int *)syclcompat::malloc_host(sizeof(int));
   int *sys_ptr = (int *)std::malloc(sizeof(int));
   int *d_ptr = (int *)syclcompat::malloc(sizeof(int));
+  int *s_ptr = (int *)syclcompat::malloc_shared(sizeof(int));
 
   // * to host
   assert(syclcompat::detail::deduce_memcpy_direction(default_queue, h_ptr,
-                                                     h_ptr) ==
-         memcpy_direction::device_to_device);
-  assert(syclcompat::detail::deduce_memcpy_direction(
-             default_queue, h_ptr, sys_ptr) == memcpy_direction::host_to_host);
-  assert(syclcompat::detail::deduce_memcpy_direction(default_queue, h_ptr,
-                                                     d_ptr) ==
+                                                     s_ptr) ==
          memcpy_direction::device_to_device);
 
   // * to sys
   assert(syclcompat::detail::deduce_memcpy_direction(
-             default_queue, sys_ptr, h_ptr) == memcpy_direction::host_to_host);
-  assert(syclcompat::detail::deduce_memcpy_direction(default_queue, sys_ptr,
-                                                     sys_ptr) ==
-         memcpy_direction::host_to_host);
-  assert(syclcompat::detail::deduce_memcpy_direction(default_queue, sys_ptr,
-                                                     d_ptr) ==
-         memcpy_direction::device_to_host);
+             default_queue, sys_ptr, s_ptr) == memcpy_direction::host_to_host);
 
   // * to dev
   assert(syclcompat::detail::deduce_memcpy_direction(default_queue, d_ptr,
-                                                     h_ptr) ==
-         memcpy_direction::device_to_device);
-  assert(syclcompat::detail::deduce_memcpy_direction(default_queue, d_ptr,
-                                                     sys_ptr) ==
-         memcpy_direction::host_to_device);
-  assert(syclcompat::detail::deduce_memcpy_direction(default_queue, d_ptr,
-                                                     d_ptr) ==
+                                                     s_ptr) ==
          memcpy_direction::device_to_device);
 
+  // * to shared
+  assert(syclcompat::detail::deduce_memcpy_direction(default_queue, s_ptr,
+                                                     h_ptr) ==
+         memcpy_direction::device_to_device);
+  assert(syclcompat::detail::deduce_memcpy_direction(
+             default_queue, s_ptr, sys_ptr) == memcpy_direction::host_to_host);
+  assert(syclcompat::detail::deduce_memcpy_direction(default_queue, s_ptr,
+                                                     d_ptr) ==
+         memcpy_direction::device_to_device);
+  assert(syclcompat::detail::deduce_memcpy_direction(default_queue, s_ptr,
+                                                     s_ptr) ==
+         memcpy_direction::device_to_device);
+
+  syclcompat::free(s_ptr);
   std::free(sys_ptr);
   syclcompat::free(h_ptr);
   syclcompat::free(d_ptr);
 }
 
 int main() {
-  INSTANTIATE_ALL_TYPES(value_type_list, test_malloc);
-  INSTANTIATE_ALL_TYPES(value_type_list, test_host);
-
-  // Avoid combinatorial explosion by only testing non-templated
-  // syclcompat::malloc with int type
-  test_non_templated_malloc();
-  test_non_templated_host();
-
-  test_deduce();
+  INSTANTIATE_ALL_TYPES(value_type_list, test_shared);
+  test_non_templated_shared();
+  test_deduce_shared();
 
   return 0;
 }

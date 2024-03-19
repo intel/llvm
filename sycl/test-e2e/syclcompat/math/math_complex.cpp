@@ -30,7 +30,6 @@
 //===---------------------------------------------------------------===//
 
 // REQUIRES: aspect-fp64
-// REQUIRES: usm_shared_allocations
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
@@ -72,10 +71,11 @@ template <auto F> class ComplexLauncher {
 protected:
   int *result_;
   int cpu_result_{0};
+  int h_result_;
 
 public:
   ComplexLauncher() {
-    result_ = (int *)syclcompat::malloc_shared(sizeof(int));
+    result_ = (int *)syclcompat::malloc(sizeof(int));
     *result_ = 0;
   };
   ~ComplexLauncher() { syclcompat::free(result_); }
@@ -83,7 +83,8 @@ public:
     F(&cpu_result_);                      // Run on host
     syclcompat::launch<F>(1, 1, result_); // Run on device
     syclcompat::wait();
-    assert(*result_ == 1);
+    syclcompat::memcpy<int>(&h_result_, result_, 1);
+    assert(h_result_ == 1);
     assert(cpu_result_ == 1);
   }
 };
