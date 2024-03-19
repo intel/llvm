@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 4d0183a8e3152f7c5b7a814d5001c90cb2412051
-  # Merge: 29ee45c4 ca3da5aa
+  # commit ca5c34213c3484072f32a9ab2b56b0f49ebe712e
+  # Merge: 4d0183a8 c9be1e28
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Mar 18 23:56:24 2024 +0000
-  #     Merge pull request #1255 from fabiomestre/fabio/add_global_variable_pointer
-  #     [SPEC] Add urProgramGetGlobalVariablePointer entrypoint
-  set(UNIFIED_RUNTIME_TAG 4d0183a8e3152f7c5b7a814d5001c90cb2412051)
+  # Date:   Tue Mar 19 16:58:27 2024 +0000
+  #     Merge pull request #1353 from againull/againull/l0_adapter_update_cmd_buffer
+  #     [L0] Support updating kernel commands in command buffers
+  set(UNIFIED_RUNTIME_TAG ca5c34213c3484072f32a9ab2b56b0f49ebe712e)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
