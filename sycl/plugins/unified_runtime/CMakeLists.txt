@@ -82,17 +82,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 4d0183a8e3152f7c5b7a814d5001c90cb2412051
-  # Merge: 29ee45c4 ca3da5aa
+  # commit ed1f8bf618c88eaabea6bde0f6c06fc265f3b49f
+  # Merge: ca5c3421 69c43b45
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Mar 18 23:56:24 2024 +0000
-  #     Merge pull request #1255 from fabiomestre/fabio/add_global_variable_pointer
-  #     [SPEC] Add urProgramGetGlobalVariablePointer entrypoint
-  set(UNIFIED_RUNTIME_TAG 4d0183a8e3152f7c5b7a814d5001c90cb2412051)
-
-  # DO NOT MERGE
-  set(UNIFIED_RUNTIME_REPO "https://github.com/hdelan/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG refactor-guess-local-worksize)
+  # Date:   Tue Mar 19 21:00:20 2024 +0000
+  #     Merge pull request #1326 from hdelan/refactor-guess-local-worksize
+  #     [CUDA][HIP] Fix bug in guess local worksize funcs and improve local worksize guessing in HIP adapter
+  set(UNIFIED_RUNTIME_TAG ed1f8bf618c88eaabea6bde0f6c06fc265f3b49f)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
