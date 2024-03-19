@@ -160,6 +160,9 @@ def Arith_IntegerOverflowAttr :
 // Arith_RoundingMode
 //===----------------------------------------------------------------------===//
 
+// These correspond to LLVM's values defined in:
+// llvm/include/llvm/ADT/FloatingPointMode.h
+
 def Arith_RToNearestTiesToEven       // Round to nearest, ties to even
     : I32EnumAttrCase<"tonearesteven", 0>;
 def Arith_RDownward                  // Round toward -inf
