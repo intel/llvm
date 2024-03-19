@@ -249,70 +249,70 @@ public:
 
   /* ... */
 
-  /// Adds and assigns marray rhs to marray lhs.
+  /// Adds marray rhs to marray lhs and assigns the result to lhs.
   friend marray &operator +=(marray &lhs, const marray &rhs);
-  /// Adds and assigns complex number rhs to marray lhs.
+  /// Adds complex number rhs to marray lhs and assigns the result to lhs.
   friend marray &operator +=(marray &lhs, const value_type &rhs);
 
-  /// Subtracts and assigns marray rhs to marray lhs.
+  /// Subtracts marray rhs from marray lhs and assigns the result to lhs.
   friend marray &operator -=(marray &lhs, const marray &rhs);
-  /// Subtracts and assigns complex number rhs to marray lhs.
+  /// Subtracts complex number rhs from marray lhs and assigns the result to lhs.
   friend marray &operator -=(marray &lhs, const value_type &rhs);
 
-  /// Multiplies and assigns marray rhs to marray lhs.
+  /// Multiplies marray rhs to marray lhs and assigns the result to lhs.
   friend marray &operator *=(marray &lhs, const marray &rhs);
-  /// Multiplies and assigns complex number rhs to marray lhs.
+  /// Multiplies complex number rhs to marray lhs and assigns the result to lhs.
   friend marray &operator *=(marray &lhs, const value_type &rhs);
 
-  /// Divides and assigns marray rhs to marray lhs.
+  /// Divides marray lhs by marray rhs and assigns the result to lhs.
   friend marray &operator /=(marray &lhs, const marray &rhs);
-  /// Divides and assigns complex number rhs to marray lhs.
+  /// Divides marray lhs by complex number rhs and assigns the result to lhs.
   friend marray &operator /=(marray &lhs, const value_type &rhs);
 
-  /// Adds marray rhs and marray lhs and returns the result.
+  /// Adds marray rhs to marray lhs and returns the result.
   friend marray operator +(const marray &lhs, const marray &rhs);
-  /// Adds complex number rhs and marray lhs and returns the result.
+  /// Adds complex number rhs to marray lhs and returns the result.
   friend marray operator +(const marray &lhs, const value_type &rhs);
-  /// Adds marray rhs and complex number lhs and returns the result.
+  /// Adds marray rhs to complex number lhs and returns the result.
   friend marray operator +(const value_type &lhs, const marray &rhs);
-  /// Returns a copy of the input marray.
+  /// Returns a copy of marray lhs.
   friend marray operator +(const marray &lhs);
 
-  /// Subtracts marray rhs and marray lhs and returns the result.
+  /// Subtracts marray rhs from marray lhs and returns the result.
   friend marray operator -(const marray &lhs, const marray &rhs);
-  /// Subtracts complex number rhs and marray lhs and returns the result.
+  /// Subtracts complex number rhs from marray lhs and returns the result.
   friend marray operator -(const marray &lhs, const value_type &rhs);
-  /// Subtracts marray rhs and complex number lhs and returns the result.
+  /// Subtracts marray rhs from complex number lhs and returns the result.
   friend marray operator -(const value_type &lhs, const marray &rhs);
-  /// Negates each element of the input marray.
+  /// Negates each element of marray lhs.
   friend marray operator -(const marray &lhs);
 
-  /// Mulitplies marray rhs and marray lhs and returns the result.
+  /// Multiplies marray rhs to marray lhs and returns the result.
   friend marray operator *(const marray &lhs, const marray &rhs);
-  /// Multiplies complex number rhs and marray lhs and returns the result.
+  /// Multiplies complex number rhs to marray lhs and returns the result.
   friend marray operator *(const marray &lhs, const value_type &rhs);
-  /// Multiplies marray rhs and complex number lhs and returns the result.
+  /// Multiplies marray rhs to complex number lhs and returns the result.
   friend marray operator *(const value_type &lhs, const marray &rhs);
 
-  /// Divides marray rhs and marray lhs and returns the result.
+  /// Divides marray lhs by marray rhs and returns the result.
   friend marray operator /(const marray &lhs, const marray &rhs);
-  /// Divides complex number rhs and marray lhs and returns the result.
+  /// Divides marray lhs by complex number rhs and returns the result.
   friend marray operator /(const marray &lhs, const value_type &rhs);
-  /// Divides marray rhs and complex number lhs and returns the result.
+  /// Divides complex number lhs by marray rhs and returns the result.
   friend marray operator /(const value_type &lhs, const marray &rhs);
 
-  /// Compares marray rhs and marray lhs, returning an marray of booleans where each element is true if the corresponding elements in lhs and rhs are the same, otherwise false.
+  /// Compares marray rhs to marray lhs and returns an marray of booleans where each element is true if the corresponding elements in lhs and rhs are the same, otherwise false.
   friend marray<bool, NumElements> operator ==(const marray &lhs, const marray &rhs);
-  /// Compares complex number rhs and marray lhs, returning an marray of booleans where each element is true if the corresponding elements in lhs and rhs are the same, otherwise false.
+  /// Compares complex number rhs to marray lhs and returns an marray of booleans where each element is true if the corresponding elements in lhs and rhs are the same, otherwise false.
   friend marray<bool, NumElements> operator ==(const marray &lhs, const value_type &rhs);
-  /// Compares marray rhs and complex number lhs, returning an marray of booleans where each element is true if the corresponding elements in lhs and rhs are the same, otherwise false.
+  /// Compares marray rhs to complex number lhs and returns an marray of booleans where each element is true if the corresponding elements in lhs and rhs are the same, otherwise false.
   friend marray<bool, NumElements> operator ==(const value_type &lhs, const marray &rhs);
 
-  /// Compares marray rhs and marray lhs, returning an marray of booleans where each element is true if the corresponding elements in lhs and rhs differs, otherwise false.
+  /// Compares marray rhs to marray lhs and returns an marray of booleans where each element is true if the corresponding elements in lhs and rhs differs, otherwise false.
   friend marray<bool, NumElements> operator !=(const marray &lhs, const marray &rhs);
-  /// Compares complex number rhs and marray lhs, returning an marray of booleans where each element is true if the corresponding elements in lhs and rhs differs, otherwise false.
+  /// Compares complex number rhs to marray lhs and returns an marray of booleans where each element is true if the corresponding elements in lhs and rhs differs, otherwise false.
   friend marray<bool, NumElements> operator !=(const marray &lhs, const value_type &rhs);
-  /// Compares marray rhs and complex number lhs, returning an marray of booleans where each element is true if the corresponding elements in lhs and rhs dffers, otherwise false.
+  /// Compares marray rhs to complex number lhs and returns an marray of booleans where each element is true if the corresponding elements in lhs and rhs differs, otherwise false.
   friend marray<bool, NumElements> operator !=(const value_type &lhs, const marray &rhs);
 
   /* ... */
