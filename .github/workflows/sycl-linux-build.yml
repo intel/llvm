@@ -192,6 +192,8 @@ jobs:
         # TODO consider moving this to Dockerfile.
         export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
 
+        # In CI, for some reason, check-sycl-unittests was using an old sycl library. To get
+        # around this problem, we add the new sycl library to the LD_LIBRARY_PATH.
         export LD_LIBRARY_PATH=$GITHUB_WORKSPACE/build/lib:$LD_LIBRARY_PATH
         cmake --build $GITHUB_WORKSPACE/build --target check-sycl-unittests
     - name: check-llvm-spirv

@@ -97,10 +97,10 @@ jobs:
       shell: bash
       run: |
         cmake --build build --target sycl-toolchain
-    # - name: Setup SYCL toolchain
-    #   run: |
-    #     # Need this for check-sycl-unittests.
-    #     echo "PATH=$env:GITHUB_WORKSPACE\\build\\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    - name: Setup SYCL toolchain
+      run: |
+        # Need this for check-sycl-unittests.
+        echo "PATH=$env:GITHUB_WORKSPACE\\build\\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
     - name: check-llvm
       if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       run: |
