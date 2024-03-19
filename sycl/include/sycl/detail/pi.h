@@ -154,9 +154,10 @@
 // 15.44 Add coarse-grain memory advice flag for HIP.
 // 15.45 Added piextKernelSuggestMaxCooperativeGroupCount and
 //       piextEnqueueCooperativeKernelLaunch.
+// 15.46 Add piextGetGlobalVariablePointer
 
 #define _PI_H_VERSION_MAJOR 15
-#define _PI_H_VERSION_MINOR 45
+#define _PI_H_VERSION_MINOR 46
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
