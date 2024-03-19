@@ -3034,8 +3034,8 @@ constexpr void check_lsc_block_2d_restrictions() {
 /// @tparam NBlocks is the number of blocks.
 /// @tparam Transposed is the transposed version or not.
 /// @tparam Transformed is apply VNNI transform or not.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L2H is L2 cache hint.
+/// @tparam PropertyListT The compile-time properties. Only cache hint
+/// properties are used.
 /// @tparam N is the data size
 /// @param Ptr is the surface base address for this operation.
 /// @param SurfaceWidth is the surface width minus 1 in bytes
@@ -3056,9 +3056,9 @@ template <
     bool Transformed, typename PropertyListT,
     int N = get_lsc_block_2d_data_size<__raw_t<T>, NBlocks, BlockHeight,
                                        BlockWidth, Transposed, Transformed>()>
-__ESIMD_API __ESIMD_NS::simd<T, N>
-load_2d_impl(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
-             unsigned SurfacePitch, int X, int Y) {
+__ESIMD_API simd<T, N> load_2d_impl(const T *Ptr, unsigned SurfaceWidth,
+                                    unsigned SurfaceHeight,
+                                    unsigned SurfacePitch, int X, int Y) {
 
   check_cache_hints<cache_action::load, PropertyListT>();
   constexpr cache_hint L1H =
@@ -3151,8 +3151,8 @@ load_2d_impl(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
 /// @tparam BlockWidth is the block width in number of elements.
 /// @tparam BlockHeight is the block height in number of elements.
 /// @tparam NBlocks is the number of blocks.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L2H is L2 cache hint.
+/// @tparam PropertyListT The compile-time properties. Only cache hint
+/// properties are used.
 /// @tparam N is the data size
 /// @param Ptr is the surface base address for this operation.
 /// @param SurfaceWidth is the surface width minus 1 in bytes
@@ -3166,7 +3166,8 @@ load_2d_impl(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
 template <typename T, int BlockWidth, int BlockHeight, int NBlocks,
           typename PropertyListT,
           int N = get_lsc_block_2d_data_size<__raw_t<T>, NBlocks, BlockHeight,
-                                             BlockWidth, false, false>()>
+                                             BlockWidth, false /*Transposed*/,
+                                             false /*Transformed*/>()>
 __ESIMD_API void prefetch_2d_impl(const T *Ptr, unsigned SurfaceWidth,
                                   unsigned SurfaceHeight, unsigned SurfacePitch,
                                   int X, int Y) {
@@ -3197,8 +3198,8 @@ __ESIMD_API void prefetch_2d_impl(const T *Ptr, unsigned SurfaceWidth,
 /// @tparam T is element type.
 /// @tparam BlockWidth is the block width in number of elements.
 /// @tparam BlockHeight is the block height in number of elements.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L2H is L2 cache hint.
+/// @tparam PropertyListT The compile-time properties. Only cache hint
+/// properties are used.
 /// @tparam N is the data size
 /// @param Ptr is the surface base address for this operation.
 /// @param SurfaceWidth is the surface width minus 1 in bytes
@@ -3214,7 +3215,8 @@ __ESIMD_API void prefetch_2d_impl(const T *Ptr, unsigned SurfaceWidth,
 ///
 template <typename T, int BlockWidth, int BlockHeight, typename PropertyListT,
           int N = detail::get_lsc_block_2d_data_size<
-              __raw_t<T>, 1u, BlockHeight, BlockWidth, false, false>()>
+              __raw_t<T>, 1u, BlockHeight, BlockWidth, false /*Transposed*/,
+              false /*Transformed*/>()>
 __ESIMD_API void store_2d_impl(T *Ptr, unsigned SurfaceWidth,
                                unsigned SurfaceHeight, unsigned SurfacePitch,
                                int X, int Y, simd<T, N> Vals) {
@@ -9492,7 +9494,8 @@ load_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
 template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
           typename PropertyListT = oneapi::experimental::empty_properties_t,
           int N = detail::get_lsc_block_2d_data_size<
-              T, NBlocks, BlockHeight, BlockWidth, false, false>()>
+              T, NBlocks, BlockHeight, BlockWidth, false /*Transposed*/,
+                                             false /*Transformed*/>()>
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 prefetch_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
@@ -9510,8 +9513,6 @@ prefetch_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
 /// @tparam T is element type.
 /// @tparam BlockWidth is the block width in number of elements.
 /// @tparam BlockHeight is the block height in number of elements.
-/// @tparam L1H is L1 cache hint.
-/// @tparam L2H is L2 cache hint.
 /// @tparam N is the data size
 /// @param Ptr is the surface base address for this operation.
 /// @param SurfaceWidth is the surface width minus 1 in bytes
@@ -9529,7 +9530,8 @@ prefetch_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
 template <typename T, int BlockWidth, int BlockHeight = 1,
           typename PropertyListT = oneapi::experimental::empty_properties_t,
           int N = detail::get_lsc_block_2d_data_size<
-              T, 1u, BlockHeight, BlockWidth, false, false>()>
+              T, 1u, BlockHeight, BlockWidth, false /*Transposed*/,
+              false /*Transformed*/>()>
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 store_2d(T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,

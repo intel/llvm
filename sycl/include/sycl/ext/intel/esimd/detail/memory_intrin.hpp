@@ -1052,9 +1052,9 @@ __ESIMD_INTRIN void __esimd_raw_send2_noresult(
 ///  N = roundUpNextMultiple(BlockHeight, 4 / sizeof(T)) *
 ///   getNextPowerOf2(BlockWidth) * NBlocks
 template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
-          __ESIMD_DNS::lsc_data_size DS,
-          __ESIMD_DNS::lsc_data_order _Transposed, uint8_t NBlocks,
-          int BlockWidth, int BlockHeight, bool Transformed, int N>
+          __ESIMD_DNS::lsc_data_size DS, __ESIMD_DNS::lsc_data_order Transposed,
+          uint8_t NBlocks, int BlockWidth, int BlockHeight, bool Transformed,
+          int N>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
 __esimd_lsc_load2d_stateless(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
                              uintptr_t Ptr, int SurfaceWidth, int SurfaceHeight,
@@ -1069,8 +1069,8 @@ __esimd_lsc_load2d_stateless(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
 /// @tparam L1H is L1 cache hint.
 /// @tparam L2H is L2 cache hint.
 /// @tparam DS is the data size.
-/// @tparam NBlocks is the number of blocks.
 /// @tparam Transposed is the transposed version or not.
+/// @tparam NBlocks is the number of blocks.
 /// @tparam BlockWidth is the block width in number of elements.
 /// @tparam BlockHeight is the block height in number of elements.
 /// @tparam Transformed is apply VNNI transform or not.
@@ -1085,9 +1085,9 @@ __esimd_lsc_load2d_stateless(__ESIMD_DNS::simd_mask_storage_t<N> Pred,
 /// @param Y is zero based Y-coordinate of the left upper rectangle corner in
 /// rows.
 template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
-          __ESIMD_DNS::lsc_data_size DS,
-          __ESIMD_DNS::lsc_data_order _Transposed, uint8_t NBlocks,
-          int BlockWidth, int BlockHeight, bool Transformed, int N>
+          __ESIMD_DNS::lsc_data_size DS, __ESIMD_DNS::lsc_data_order Transposed,
+          uint8_t NBlocks, int BlockWidth, int BlockHeight, bool Transformed,
+          int N>
 __ESIMD_INTRIN void __esimd_lsc_prefetch2d_stateless(
     __ESIMD_DNS::simd_mask_storage_t<N> Pred, uintptr_t Ptr, int SurfaceWidth,
     int SurfaceHeight, int SurfacePitch, int X, int Y) __ESIMD_INTRIN_END;
@@ -1122,9 +1122,9 @@ __ESIMD_INTRIN void __esimd_lsc_prefetch2d_stateless(
 ///  N = roundUpNextMultiple(BlockHeight, 4 / sizeof(T)) *
 ///   getNextPowerOf2(BlockWidth) * NBlocks
 template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
-          __ESIMD_DNS::lsc_data_size DS,
-          __ESIMD_DNS::lsc_data_order _Transposed, uint8_t NBlocks,
-          int BlockWidth, int BlockHeight, bool Transformed, int N>
+          __ESIMD_DNS::lsc_data_size DS, __ESIMD_DNS::lsc_data_order Transposed,
+          uint8_t NBlocks, int BlockWidth, int BlockHeight, bool Transformed,
+          int N>
 __ESIMD_INTRIN void __esimd_lsc_store2d_stateless(
     __ESIMD_DNS::simd_mask_storage_t<N> Pred, uintptr_t Ptr, int SurfaceWidth,
     int SurfaceHeight, int SurfacePitch, int X, int Y,
