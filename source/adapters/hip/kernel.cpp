@@ -358,8 +358,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   MaxThreadsPerBlock[0] = hQueue->Device->getMaxBlockDimX();
   MaxThreadsPerBlock[1] = hQueue->Device->getMaxBlockDimY();
   MaxThreadsPerBlock[2] = hQueue->Device->getMaxBlockDimZ();
-  simpleGuessLocalWorkSize(ThreadsPerBlock, pGlobalWorkSize, MaxThreadsPerBlock,
-                           hKernel);
+
+  ur_device_handle_t Device = hQueue->getDevice();
+  ScopedContext Active(Device);
+
+  guessLocalWorkSize(Device, ThreadsPerBlock, pGlobalWorkSize, workDim,
+                     MaxThreadsPerBlock);
   std::copy(ThreadsPerBlock, ThreadsPerBlock + workDim,
             pSuggestedLocalWorkSize);
   return UR_RESULT_SUCCESS;
