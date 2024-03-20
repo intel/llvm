@@ -1,0 +1,11 @@
+// RUN: %clangxx -fsycl -fpreview-breaking-changes  %s -fsyntax-only
+#include <sycl/sycl.hpp>
+// TODO: There are some spec discussions currently on hold about whether sycl::vec should even be allowed to be instantiated with a 
+// const-qualified type. If that discussion eventually resolves to the answer no, then this test will probably fail compilation 
+// at line 9 and will need to be deleted.
+int main() {
+    sycl::queue Q;
+    sycl::vec<int, 16> my_vec{};
+    sycl::vec<const int, 16> my_const_vec{};
+    return 0;
+}
