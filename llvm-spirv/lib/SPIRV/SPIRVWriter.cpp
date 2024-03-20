@@ -6146,7 +6146,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     OC = OpAtomicCompareExchange;
   if (isGroupOpCode(OC))
     BM->addCapability(CapabilityGroups);
-  switch (OC) {
+  switch (static_cast<size_t>(OC)) {
   case OpControlBarrier: {
     auto BArgs = transValue(getArguments(CI), BB);
     return BM->addControlBarrierInst(BArgs[0], BArgs[1], BArgs[2], BB);
@@ -6450,6 +6450,25 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       return APIntInst;
     return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), APIntInst, {},
                             BB);
+  }
+  case internal::OpTaskSequenceGetINTEL: {
+    Type *ResTy = nullptr;
+    auto OpItr = CI->value_op_begin();
+
+    if (CI->hasStructRetAttr()) {
+      assert(CI->getType()->isVoidTy() && "Return type is not void");
+      ResTy = CI->getParamStructRetType(0);
+      OpItr++;
+    }
+
+    SPIRVType *RetTy = ResTy ? transType(ResTy) : transScavengedType(CI);
+    auto *TaskSeqGet =
+        BM->addTaskSequenceGetINTELInst(RetTy, transValue(*OpItr++, BB), BB);
+
+    if (!CI->hasStructRetAttr())
+      return TaskSeqGet;
+    return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), TaskSeqGet,
+                            {}, BB);
   }
   case OpLoad: {
     std::vector<SPIRVWord> MemoryAccess;
