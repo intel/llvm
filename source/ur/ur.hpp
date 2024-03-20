@@ -321,3 +321,56 @@ public:
 private:
   std::variant<ur_result_t, T> value_or_err;
 };
+
+// Helper to make sure each x, y, z dim divide the global dimension.
+//
+// In/Out: ThreadsPerBlockInDim - The dimension of workgroup in some dimension
+// In:     GlobalWorkSizeInDim  - The global size in some dimension
+static inline void
+roundToHighestFactorOfGlobalSize(size_t &ThreadsPerBlockInDim,
+                                 const size_t GlobalWorkSizeInDim) {
+  while (ThreadsPerBlockInDim > 1 &&
+         GlobalWorkSizeInDim % ThreadsPerBlockInDim) {
+    --ThreadsPerBlockInDim;
+  }
+}
+
+// Returns whether or not Value is a power of 2
+template <typename T> inline bool isPowerOf2(const T &Value) {
+  return Value && !(Value & (Value - 1));
+}
+
+// Helper to make sure each x, y, z dim divide the global dimension.
+// Additionally it makes sure that the inner dimension always is a power of 2
+//
+// In/Out: ThreadsPerBlock      - The size of wg in 3d
+// In:     GlobalSize           - The global size in 3d (if dim < 3 then outer
+//                                                       dims == 1)
+// In:     MaxBlockDim          - The max size of block in 3d
+// In:     MaxBlockSize         - The max total size of block in all dimensions
+// In:     WorkDim              - The workdim (1, 2 or 3)
+static inline void roundToHighestFactorOfGlobalSizeIn3d(
+    size_t *ThreadsPerBlock, const size_t *GlobalSize,
+    const size_t *MaxBlockDim, const size_t MaxBlockSize) {
+  assert(GlobalSize[0] && "GlobalSize[0] cannot be zero");
+  assert(GlobalSize[1] && "GlobalSize[1] cannot be zero");
+  assert(GlobalSize[2] && "GlobalSize[2] cannot be zero");
+
+  ThreadsPerBlock[0] =
+      std::min(GlobalSize[0], std::min(MaxBlockSize, MaxBlockDim[0]));
+  do {
+    roundToHighestFactorOfGlobalSize(ThreadsPerBlock[0], GlobalSize[0]);
+  } while (!isPowerOf2(ThreadsPerBlock[0]) && ThreadsPerBlock[0] > 32 &&
+           --ThreadsPerBlock[0]);
+
+  ThreadsPerBlock[1] =
+      std::min(GlobalSize[1],
+               std::min(MaxBlockSize / ThreadsPerBlock[0], MaxBlockDim[1]));
+  roundToHighestFactorOfGlobalSize(ThreadsPerBlock[1], GlobalSize[1]);
+
+  ThreadsPerBlock[2] = std::min(
+      GlobalSize[2],
+      std::min(MaxBlockSize / (ThreadsPerBlock[1] * ThreadsPerBlock[0]),
+               MaxBlockDim[2]));
+  roundToHighestFactorOfGlobalSize(ThreadsPerBlock[2], GlobalSize[2]);
+}
