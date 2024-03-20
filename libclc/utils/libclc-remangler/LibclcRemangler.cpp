@@ -777,12 +777,17 @@ public:
 
   void Initialize(ASTContext &C) override {
     ASTCtx = &C;
-    SMDiagnostic Err;
     std::unique_ptr<MemoryBuffer> const Buff = ExitOnErr(
         errorOrToExpected(MemoryBuffer::getFileOrSTDIN(InputIRFilename)));
+
+    SMDiagnostic Err;
     std::unique_ptr<llvm::Module> const M =
-        ExitOnErr(Expected<std::unique_ptr<llvm::Module>>(
-            parseIR(Buff.get()->getMemBufferRef(), Err, LLVMCtx)));
+        parseIR(Buff.get()->getMemBufferRef(), Err, LLVMCtx);
+
+    if (!M) {
+      Err.print("libclc-remangler", errs());
+      exit(1);
+    }
 
     handleModule(M.get());
   }
