@@ -81,14 +81,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 29ee45c4451a682f744146cc9dbeb2617ecdd6b3
-  # Merge: db4b0c14 4f5d005a
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit ed1f8bf618c88eaabea6bde0f6c06fc265f3b49f
+  # Merge: ca5c3421 69c43b45
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Mar 18 12:14:26 2024 +0000
-  #     Merge pull request #1291 from JackAKirk/cuda-seq-cst-b
-  #     [CUDA] Report that devices with cc >= sm_70 support seq_cst
-  set(UNIFIED_RUNTIME_TAG 29ee45c4451a682f744146cc9dbeb2617ecdd6b3)
+  # Date:   Tue Mar 19 21:00:20 2024 +0000
+  #     Merge pull request #1326 from hdelan/refactor-guess-local-worksize
+  #     [CUDA][HIP] Fix bug in guess local worksize funcs and improve local worksize guessing in HIP adapter
+  set(UNIFIED_RUNTIME_TAG ed1f8bf618c88eaabea6bde0f6c06fc265f3b49f)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
