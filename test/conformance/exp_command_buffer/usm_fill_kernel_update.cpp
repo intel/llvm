@@ -87,8 +87,9 @@ TEST_P(USMFillCommandTest, UpdateParameters) {
     ASSERT_SUCCESS(urQueueFinish(queue));
     Validate((uint32_t *)shared_ptr, global_size, val);
 
-    // Allocate a new USM pointer of larger size
-    size_t new_global_size = 64;
+    // Allocate a new USM pointer of larger size if feature is supported.
+    size_t new_global_size =
+        updatable_execution_range_support ? 64 : global_size;
     const size_t new_allocation_size = sizeof(val) * new_global_size;
     ASSERT_SUCCESS(urUSMSharedAlloc(context, device, nullptr, nullptr,
                                     new_allocation_size, &new_shared_ptr));
@@ -128,8 +129,9 @@ TEST_P(USMFillCommandTest, UpdateParameters) {
         &new_input_desc,  // pNewValueArgList
         nullptr,          // pNewExecInfoList
         nullptr,          // pNewGlobalWorkOffset
-        &new_global_size, // pNewGlobalWorkSize
-        nullptr,          // pNewLocalWorkSize
+        updatable_execution_range_support ? &new_global_size
+                                          : nullptr, // pNewGlobalWorkSize
+        nullptr,                                     // pNewLocalWorkSize
     };
 
     // Update kernel and enqueue command-buffer again

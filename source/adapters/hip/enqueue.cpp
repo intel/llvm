@@ -16,6 +16,8 @@
 #include "memory.hpp"
 #include "queue.hpp"
 
+#include <ur/ur.hpp>
+
 extern size_t imageElementByteSize(hipArray_Format ArrayFormat);
 
 ur_result_t enqueueEventsWait(ur_queue_handle_t, hipStream_t Stream,
@@ -48,23 +50,29 @@ ur_result_t enqueueEventsWait(ur_queue_handle_t, hipStream_t Stream,
   }
 }
 
-void simpleGuessLocalWorkSize(size_t *ThreadsPerBlock,
-                              const size_t *GlobalWorkSize,
-                              const size_t MaxThreadsPerBlock[3],
-                              ur_kernel_handle_t Kernel) {
+// Determine local work sizes that result in uniform work groups.
+// The default threadsPerBlock only require handling the first work_dim
+// dimension.
+void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
+                        const size_t *GlobalWorkSize, const uint32_t WorkDim,
+                        const size_t MaxThreadsPerBlock[3]) {
   assert(ThreadsPerBlock != nullptr);
   assert(GlobalWorkSize != nullptr);
-  assert(Kernel != nullptr);
 
-  std::ignore = Kernel;
-
-  ThreadsPerBlock[0] = std::min(MaxThreadsPerBlock[0], GlobalWorkSize[0]);
-
-  // Find a local work group size that is a divisor of the global
-  // work group size to produce uniform work groups.
-  while (GlobalWorkSize[0] % ThreadsPerBlock[0]) {
-    --ThreadsPerBlock[0];
+  // FIXME: The below assumes a three dimensional range but this is not
+  // guaranteed by UR.
+  size_t GlobalSizeNormalized[3] = {1, 1, 1};
+  for (uint32_t i = 0; i < WorkDim; i++) {
+    GlobalSizeNormalized[i] = GlobalWorkSize[i];
   }
+
+  size_t MaxBlockDim[3];
+  MaxBlockDim[0] = MaxThreadsPerBlock[0];
+  MaxBlockDim[1] = Device->getMaxBlockDimY();
+  MaxBlockDim[2] = Device->getMaxBlockDimZ();
+
+  roundToHighestFactorOfGlobalSizeIn3d(ThreadsPerBlock, GlobalSizeNormalized,
+                                       MaxBlockDim, MaxThreadsPerBlock[0]);
 }
 
 namespace {
@@ -1786,8 +1794,8 @@ setKernelParams(const ur_device_handle_t Device, const uint32_t WorkDim,
             return err;
         }
       } else {
-        simpleGuessLocalWorkSize(ThreadsPerBlock, GlobalWorkSize,
-                                 MaxThreadsPerBlock, Kernel);
+        guessLocalWorkSize(Device, ThreadsPerBlock, GlobalWorkSize, WorkDim,
+                           MaxThreadsPerBlock);
       }
     }
 
