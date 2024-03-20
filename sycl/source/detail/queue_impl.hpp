@@ -92,7 +92,7 @@ public:
   /// \param PropList is a list of properties to use for queue construction.
   queue_impl(const DeviceImplPtr &Device, const async_handler &AsyncHandler,
              const property_list &PropList)
-      : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList){};
+      : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList) {};
 
   /// Constructs a SYCL queue with an async_handler and property_list provided
   /// form a device and a context.
@@ -767,7 +767,7 @@ protected:
       //    the RT but will not be passed to the backend. See getPIEvents in
       //    Command.
       auto &EventToBuildDeps =
-          MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
+          MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
       if (EventToBuildDeps)
         Handler.depends_on(
             createSyclObjFromImpl<sycl::event>(EventToBuildDeps));
