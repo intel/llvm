@@ -2001,6 +2001,39 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetFunctionPointer(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramGetGlobalVariablePointer
+__urdlllocal ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
+    ur_device_handle_t
+        hDevice, ///< [in] handle of the device to retrieve the pointer for.
+    ur_program_handle_t
+        hProgram, ///< [in] handle of the program where the global variable is.
+    const char *
+        pGlobalVariableName, ///< [in] mangled name of the global variable to retrieve the pointer for.
+    size_t *
+        pGlobalVariableSizeRet, ///< [out][optional] Returns the size of the global variable if it is found
+                                ///< in the program.
+    void **
+        ppGlobalVariablePointerRet ///< [out] Returns the pointer to the global variable if it is found in the program.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnGetGlobalVariablePointer =
+        d_context.urDdiTable.Program.pfnGetGlobalVariablePointer;
+    if (nullptr != pfnGetGlobalVariablePointer) {
+        result = pfnGetGlobalVariablePointer(
+            hDevice, hProgram, pGlobalVariableName, pGlobalVariableSizeRet,
+            ppGlobalVariablePointerRet);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramGetInfo
 __urdlllocal ur_result_t UR_APICALL urProgramGetInfo(
     ur_program_handle_t hProgram, ///< [in] handle of the Program object
@@ -6328,6 +6361,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
     pDdiTable->pfnRelease = driver::urProgramRelease;
 
     pDdiTable->pfnGetFunctionPointer = driver::urProgramGetFunctionPointer;
+
+    pDdiTable->pfnGetGlobalVariablePointer =
+        driver::urProgramGetGlobalVariablePointer;
 
     pDdiTable->pfnGetInfo = driver::urProgramGetInfo;
 

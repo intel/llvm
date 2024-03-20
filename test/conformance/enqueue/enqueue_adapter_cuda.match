@@ -1,6 +1,3 @@
-{{OPT}}urEnqueueDeviceGetGlobalVariableReadTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}_
-{{OPT}}urEnqueueDeviceGetGlobalVariableReadTest.InvalidEventWaitInvalidEvent/NVIDIA_CUDA_BACKEND___{{.*}}_
-{{OPT}}urEnqueueDeviceGetGlobalVariableWriteTest.InvalidEventWaitInvalidEvent/NVIDIA_CUDA_BACKEND___{{.*}}_
 {{OPT}}urEnqueueKernelLaunchWithVirtualMemory.Success/NVIDIA_CUDA_BACKEND___{{.*}}_
 {{OPT}}urEnqueueMemBufferCopyRectTest.InvalidSize/NVIDIA_CUDA_BACKEND___{{.*}}_
 {{OPT}}urEnqueueMemBufferFillTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___size__256__patternSize__256
