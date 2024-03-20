@@ -856,6 +856,35 @@ llvm::CallInst *mlir::LLVM::detail::createIntrinsicCall(
   return builder.CreateCall(llvmIntr, args);
 }
 
+llvm::CallInst *mlir::LLVM::detail::createConstrainedIntrinsicCall(
+    llvm::IRBuilderBase &builder, ModuleTranslation &moduleTranslation,
+    Operation *intrOp, llvm::Intrinsic::ID intrinsic, bool hasRoundingMode) {
+  llvm::Module *module = builder.GetInsertBlock()->getModule();
+  SmallVector<llvm::Type *> overloadedTypes{
+      moduleTranslation.convertType(intrOp->getResult(0).getType()),
+      moduleTranslation.convertType(intrOp->getOperand(0).getType())};
+  llvm::Function *callee =
+      llvm::Intrinsic::getDeclaration(module, intrinsic, overloadedTypes);
+  SmallVector<llvm::Value *> args =
+      moduleTranslation.lookupValues(intrOp->getOperands());
+  std::optional<llvm::RoundingMode> rounding =
+      hasRoundingMode
+          ? std::optional<llvm::RoundingMode>{convertRoundingModeToLLVM(
+                intrOp
+                    ->getAttrOfType<RoundingModeAttr>(
+                        cast<RoundingModeOpInterface>(intrOp)
+                            .getRoundingModeAttrName())
+                    .getValue())}
+          : std::optional<llvm::RoundingMode>{};
+  llvm::fp::ExceptionBehavior except = convertExceptionBehaviorToLLVM(
+      intrOp
+          ->getAttrOfType<ExceptionBehaviorAttr>(
+              cast<ExceptionBehaviorOpInterface>(intrOp)
+                  .getExceptionBehaviorAttrName())
+          .getValue());
+  return builder.CreateConstrainedFPCall(callee, args, "", rounding, except);
+}
+
 /// Given a single MLIR operation, create the corresponding LLVM IR operation
 /// using the `builder`.
 LogicalResult ModuleTranslation::convertOperation(Operation &op,

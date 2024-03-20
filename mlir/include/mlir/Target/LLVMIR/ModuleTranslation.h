@@ -421,6 +421,10 @@ llvm::CallInst *createIntrinsicCall(
     ArrayRef<unsigned> immArgPositions,
     ArrayRef<StringLiteral> immArgAttrNames);
 
+llvm::CallInst *createConstrainedIntrinsicCall(
+    llvm::IRBuilderBase &builder, ModuleTranslation &moduleTranslation,
+    Operation *intrOp, llvm::Intrinsic::ID intrinsic, bool hasRoundingMode);
+
 } // namespace detail
 
 } // namespace LLVM

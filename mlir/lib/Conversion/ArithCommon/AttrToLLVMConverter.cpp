@@ -55,3 +55,37 @@ LLVM::IntegerOverflowFlagsAttr mlir::arith::convertArithOverflowAttrToLLVM(
   return LLVM::IntegerOverflowFlagsAttr::get(
       flagsAttr.getContext(), convertArithOverflowFlagsToLLVM(arithFlags));
 }
+
+LLVM::RoundingMode
+mlir::arith::convertArithRoundingModeToLLVM(arith::RoundingMode roundingMode) {
+  // Sorted array
+  constexpr std::array<std::pair<arith::RoundingMode, LLVM::RoundingMode>, 5>
+      values{
+          {{arith::RoundingMode::tonearesteven,
+            LLVM::RoundingMode::NearestTiesToEven},
+           {arith::RoundingMode::downward, LLVM::RoundingMode::TowardNegative},
+           {arith::RoundingMode::upward, LLVM::RoundingMode::TowardPositive},
+           {arith::RoundingMode::towardzero, LLVM::RoundingMode::TowardZero},
+           {arith::RoundingMode::tonearestaway,
+            LLVM::RoundingMode::NearestTiesToAway}}};
+  auto *found = llvm::lower_bound(
+      values, roundingMode, [](const auto &entry, arith::RoundingMode value) {
+        return entry.first < value;
+      });
+  assert(found != values.end());
+  return found->second;
+}
+
+LLVM::RoundingModeAttr mlir::arith::convertArithRoundingModeAttrToLLVM(
+    arith::RoundingModeAttr roundingModeAttr) {
+  arith::RoundingMode roundingMode = roundingModeAttr.getValue();
+  return LLVM::RoundingModeAttr::get(
+      roundingModeAttr.getContext(),
+      convertArithRoundingModeToLLVM(roundingMode));
+}
+
+LLVM::ExceptionBehaviorAttr
+mlir::arith::getDefaultExceptionBehaviorAttr(MLIRContext *context) {
+  return LLVM::ExceptionBehaviorAttr::get(context,
+                                          LLVM::ExceptionBehavior::Ignore);
+}
