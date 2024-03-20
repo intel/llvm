@@ -12,6 +12,11 @@ type: header
 desc: "Intel $OneApi Unified Runtime Experimental APIs for USM P2P"
 ordinal: "99"
 --- #--------------------------------------------------------------------------
+type: macro
+desc: "The extension string that defines support for USM P2P which is returned when querying device extensions."
+name: $X_USM_P2P_EXTENSION_STRING_EXP
+value: "\"$x_exp_usm_p2p\""
+--- #--------------------------------------------------------------------------
 type: enum
 desc: "Supported peer info"
 class: $xUsmP2P
