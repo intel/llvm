@@ -963,7 +963,7 @@ int main(int argc, const char **argv) {
 
   // Use a default Compilation DB instead of the build one, as it might contain
   // toolchain specific options, not compatible with clang.
-  FixedCompilationDatabase Compilations("/", std::vector<std::string>());
+  FixedCompilationDatabase Compilations(".", std::vector<std::string>());
   ClangTool Tool(Compilations, ExpectedParser->getSourcePathList());
 
   LibCLCRemanglerActionFactory LRAF{};
