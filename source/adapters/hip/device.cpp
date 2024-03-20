@@ -539,8 +539,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // native asserts are in progress
     std::string SupportedExtensions = "";
     SupportedExtensions += "pi_ext_intel_devicelib_assert ";
-    // Return supported for the UR command-buffer experimental feature
-    SupportedExtensions += "ur_exp_command_buffer ";
+
+    int RuntimeVersion = 0;
+    UR_CHECK_ERROR(hipRuntimeGetVersion(&RuntimeVersion));
+
+    // Return supported for the UR command-buffer experimental feature on
+    // ROCM 5.5.1 and later. This is to workaround HIP driver bug
+    // https://github.com/ROCm/HIP/issues/2450 in older versions.
+    //
+    // The version is returned as (10000000 major + 1000000 minor + patch).
+    const int CmdBufDriverMinVersion = 50530202; // ROCM 5.5.1
+    if (RuntimeVersion >= CmdBufDriverMinVersion) {
+      SupportedExtensions += "ur_exp_command_buffer ";
+    }
+
     SupportedExtensions += " ";
 
     hipDeviceProp_t Props;
@@ -844,9 +856,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
 
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
-  case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP:
-    return ReturnValue(true);
+  case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP: {
+    int DriverVersion = 0;
+    UR_CHECK_ERROR(hipDriverGetVersion(&DriverVersion));
 
+    // Return supported for the UR command-buffer experimental feature on
+    // ROCM 5.5.1 and later. This is to workaround HIP driver bug
+    // https://github.com/ROCm/HIP/issues/2450 in older versions.
+    //
+    // The version is returned as (10000000 major + 1000000 minor + patch).
+    const int CmdBufDriverMinVersion = 50530202; // ROCM 5.5.1
+    return ReturnValue(DriverVersion >= CmdBufDriverMinVersion);
+  }
   default:
     break;
   }
