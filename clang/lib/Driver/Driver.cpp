@@ -5871,6 +5871,7 @@ class OffloadingActionBuilder final {
                 C.MakeAction<OffloadUnbundlingJobAction>(
                     SYCLDeviceLibsInputAction);
 
+            if (TC->getTriple().isNVPTX()) {
             // We are using BoundArch="" here since the NVPTX bundles in
             // the devicelib .o files do not contain any arch information
             SYCLDeviceLibsUnbundleAction->registerDependentActionInfo(
@@ -5883,6 +5884,10 @@ class OffloadingActionBuilder final {
                     Dep, SYCLDeviceLibsUnbundleAction->getType());
 
             DeviceLinkObjects.push_back(SYCLDeviceLibsDependenciesAction);
+            } else {
+              addDeviceDependences(SYCLDeviceLibsUnbundleAction);
+              DeviceLinkObjects.push_back(SYCLDeviceLibsUnbundleAction);
+            }
             if (!LibLocSelected)
               LibLocSelected = !LibLocSelected;
           }

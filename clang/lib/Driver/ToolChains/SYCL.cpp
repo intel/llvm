@@ -286,8 +286,9 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   };
 
   addLibraries(SYCLDeviceWrapperLibs);
-  if (IsSpirvAOT || TargetTriple.isNVPTX())
+  if (IsSpirvAOT || TargetTriple.isNVPTX() || TargetTriple.isAMDGCN()) {
     addLibraries(SYCLDeviceFallbackLibs);
+  }
 
   bool NativeBfloatLibs;
   bool NeedBfloatLibs = selectBfloatLibs(TargetTriple, C, NativeBfloatLibs);
