@@ -37,6 +37,9 @@ macro(add_sycl_unittest test_dirname link_variant)
     )
   endif()
 
+  # check-sycl-unittests was using an old sycl library. So, to get
+  # around this problem, we add the new sycl library to the PATH and
+  # LD_LIBRARY_PATH on Windows and Linux respectively.
   if (WIN32)
     add_custom_target(check-sycl-${test_dirname}
         ${CMAKE_COMMAND} -E env
@@ -56,9 +59,6 @@ macro(add_sycl_unittest test_dirname link_variant)
         SYCL_CONFIG_FILE_NAME=null.cfg
         SYCL_DEVICELIB_NO_FALLBACK=1
         SYCL_CACHE_DIR="${CMAKE_BINARY_DIR}/sycl_cache"
-        "PATH=${CMAKE_BINARY_DIR}/bin:$ENV{PATH}"
-        # In CI, for some reason, check-sycl-unittests was using an old sycl library. To get
-        # around this problem, we add the new sycl library to the LD_LIBRARY_PATH.
         "LD_LIBRARY_PATH=${CMAKE_BINARY_DIR}/lib:$ENV{LD_LIBRARY_PATH}"
         ${CMAKE_CURRENT_BINARY_DIR}/${test_dirname}
         DEPENDS
