@@ -1534,3 +1534,7 @@ def ReadOnlyPlacementChecks : DiagGroup<"read-only-types">;
 // Warnings and fixes to support the "safe buffers" programming model.
 def UnsafeBufferUsageInContainer : DiagGroup<"unsafe-buffer-usage-in-container">;
 def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage", [UnsafeBufferUsageInContainer]>;
+
+// Warnings and notes InstallAPI verification.
+def InstallAPIViolation : DiagGroup<"installapi-violation">;
+

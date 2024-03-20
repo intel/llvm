@@ -5532,6 +5532,16 @@ bool CheckFloatOrHalfRepresentations(Sema *S, CallExpr *TheCall) {
                                   checkFloatorHalf);
 }
 
+bool CheckNoDoubleVectors(Sema *S, CallExpr *TheCall) {
+  auto checkDoubleVector = [](clang::QualType PassedType) -> bool {
+    if (const auto *VecTy = PassedType->getAs<VectorType>())
+      return VecTy->getElementType()->isDoubleType();
+    return false;
+  };
+  return CheckArgsTypesAreCorrect(S, TheCall, S->Context.FloatTy,
+                                  checkDoubleVector);
+}
+
 void SetElementTypeAsReturnType(Sema *S, CallExpr *TheCall,
                                 QualType ReturnType) {
   auto *VecTyA = TheCall->getArg(0)->getType()->getAs<VectorType>();
@@ -5567,6 +5577,8 @@ bool Sema::CheckHLSLBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
     if (CheckVectorElementCallArgs(this, TheCall))
       return true;
     if (SemaBuiltinVectorToScalarMath(TheCall))
+      return true;
+    if (CheckNoDoubleVectors(this, TheCall))
       return true;
     break;
   }

@@ -288,6 +288,7 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
     case Type::PackExpansion:
     case Type::SubstTemplateTypeParm:
     case Type::MacroQualified:
+    case Type::CountAttributed:
       CanPrefixQualifiers = false;
       break;
 
@@ -1743,6 +1744,36 @@ void TypePrinter::printPackExpansionAfter(const PackExpansionType *T,
   OS << "...";
 }
 
+static void printCountAttributedImpl(const CountAttributedType *T,
+                                     raw_ostream &OS,
+                                     const PrintingPolicy &Policy) {
+  if (T->isCountInBytes() && T->isOrNull())
+    OS << " __sized_by_or_null(";
+  else if (T->isCountInBytes())
+    OS << " __sized_by(";
+  else if (T->isOrNull())
+    OS << " __counted_by_or_null(";
+  else
+    OS << " __counted_by(";
+  if (T->getCountExpr())
+    T->getCountExpr()->printPretty(OS, nullptr, Policy);
+  OS << ')';
+}
+
+void TypePrinter::printCountAttributedBefore(const CountAttributedType *T,
+                                             raw_ostream &OS) {
+  printBefore(T->desugar(), OS);
+  if (!T->desugar()->isArrayType())
+    printCountAttributedImpl(T, OS, Policy);
+}
+
+void TypePrinter::printCountAttributedAfter(const CountAttributedType *T,
+                                            raw_ostream &OS) {
+  printAfter(T->desugar(), OS);
+  if (T->desugar()->isArrayType())
+    printCountAttributedImpl(T, OS, Policy);
+}
+
 void TypePrinter::printAttributedBefore(const AttributedType *T,
                                         raw_ostream &OS) {
   // FIXME: Generate this with TableGen.
@@ -1877,6 +1908,7 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
     OS << "pipe";
     break;
 
+  case attr::CountedBy:
   case attr::LifetimeBound:
   case attr::TypeNonNull:
   case attr::TypeNullable:
