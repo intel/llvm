@@ -56,14 +56,39 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
+  # The fetch_adapter_source function can be used to perform a separate content
+  # fetch for a UR adapter, this allows development of adapters to be decoupled
+  # from each other.
+  #
+  # Args:
+  #   * name - Must be the directory name of the adapter
+  #   * repo - A valid Git URL of a Unified Runtime repo
+  #   * tag - A valid Git branch/tag/commit in the Unified Runtime repo
+  function(fetch_adapter_source name repo tag)
+    message(STATUS "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
+    set(fetch-name unified-runtime-${name})
+    FetchContent_Declare(${fetch-name}
+      GIT_REPOSITORY ${repo} GIT_TAG ${tag})
+    # We don't want to add this repo to the build, only fetch its source.
+    FetchContent_Populate(${fetch-name})
+    # Get the path to the source directory
+    string(TOUPPER ${name} NAME)
+    set(source_dir_var UR_ADAPTER_${NAME}_SOURCE_DIR)
+    FetchContent_GetProperties(${fetch-name} SOURCE_DIR UR_ADAPTER_${NAME}_SOURCE_DIR)
+    # Set the variable which informs UR where to get the adapter source from.
+    set(UR_ADAPTER_${NAME}_SOURCE_DIR
+      "${UR_ADAPTER_${NAME}_SOURCE_DIR}/source/adapters/${name}"
+      CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
+  endfunction()
+
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1cf9a08e6a98381fadbc065de2700b463d2a44a4
-  # Merge: c49b116f 0446c65e
+  # commit ca5c34213c3484072f32a9ab2b56b0f49ebe712e
+  # Merge: 4d0183a8 c9be1e28
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Wed Mar 13 09:48:36 2024 +0000
-  #     Merge pull request #1368 from konradkusiak97/xptiWindowsFix
-  #     [CUDA][XPTI] Fix function pointer typedefs in xpti tracing
-  set(UNIFIED_RUNTIME_TAG 1cf9a08e6a98381fadbc065de2700b463d2a44a4)
+  # Date:   Tue Mar 19 16:58:27 2024 +0000
+  #     Merge pull request #1353 from againull/againull/l0_adapter_update_cmd_buffer
+  #     [L0] Support updating kernel commands in command buffers
+  set(UNIFIED_RUNTIME_TAG ca5c34213c3484072f32a9ab2b56b0f49ebe712e)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
