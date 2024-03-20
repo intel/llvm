@@ -546,8 +546,8 @@ template <typename Type, int NumElements> class vec {
 
 public:
   using element_type = DataT;
+  using value_type = DataT;
   using rel_t = detail::rel_t<DataT>;
-
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
   using vector_t =
@@ -905,11 +905,46 @@ public:
   // Implement operator [] in the same way for host and device.
   // TODO: change host side implementation when underlying type for host side
   // will be changed to std::array.
-  const DataT &operator[](int i) const {
+  // NOTE: aliasing the incompatible types of bfloat16 may lead to problems if
+  // aggressively optimized. Specializing with noinline to avoid as workaround.
+
+  template <typename T = DataT>
+  typename std::enable_if_t<!std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
+                            const DataT &>
+  operator[](int i) const {
     return reinterpret_cast<const DataT *>(&m_Data)[i];
   }
 
-  DataT &operator[](int i) { return reinterpret_cast<DataT *>(&m_Data)[i]; }
+  template <typename T = DataT>
+  typename std::enable_if_t<!std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
+                            DataT &>
+  operator[](int i) {
+    return reinterpret_cast<DataT *>(&m_Data)[i];
+  }
+
+#ifdef _MSC_VER
+#define __SYCL_NOINLINE_BF16 __declspec(noinline)
+#else
+#define __SYCL_NOINLINE_BF16 __attribute__((noinline))
+#endif
+
+  template <typename T = DataT>
+  __SYCL_NOINLINE_BF16
+      typename std::enable_if_t<std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
+                                const DataT &>
+      operator[](int i) const {
+    return reinterpret_cast<const DataT *>(&m_Data)[i];
+  }
+
+  template <typename T = DataT>
+  __SYCL_NOINLINE_BF16
+      typename std::enable_if_t<std::is_same_v<T, sycl::ext::oneapi::bfloat16>,
+                                DataT &>
+      operator[](int i) {
+    return reinterpret_cast<DataT *>(&m_Data)[i];
+  }
+
+#undef __SYCL_NOINLINE_BF16
 
   // Begin hi/lo, even/odd, xyzw, and rgba swizzles.
 private:
@@ -1755,6 +1790,11 @@ class SwizzleOp {
 
 public:
   using element_type = DataT;
+  using value_type = DataT;
+
+#ifdef __SYCL_DEVICE_ONLY__
+  using vector_t = typename vec_t::vector_t;
+#endif // __SYCL_DEVICE_ONLY__
 
   const DataT &operator[](int i) const {
     std::array<int, getNumElements()> Idxs{Indexes...};

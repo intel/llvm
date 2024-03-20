@@ -153,7 +153,13 @@ get_ballot_group(Group group, bool predicate) {
   if (predicate) {
     return ballot_group<sycl::sub_group>(mask, predicate);
   } else {
-    return ballot_group<sycl::sub_group>(~mask, predicate);
+    // To negate the mask for the false-predicate group, we also need to exclude
+    // all parts of the mask that is not part of the group.
+    sub_group_mask::BitsType participant_filter =
+        (~sub_group_mask::BitsType{0}) >>
+        (sub_group_mask::max_bits - group.get_local_linear_range());
+    return ballot_group<sycl::sub_group>((~mask) & participant_filter,
+                                         predicate);
   }
 #endif
 #else

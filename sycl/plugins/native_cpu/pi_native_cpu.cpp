@@ -852,6 +852,15 @@ pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
                                               FunctionPointerRet);
 }
 
+pi_result piextGetGlobalVariablePointer(pi_device Device, pi_program Program,
+                                        const char *GlobalVariableName,
+                                        size_t *GlobalVariableSize,
+                                        void **GlobalVariablePointerRet) {
+  return pi2ur::piextGetGlobalVariablePointer(
+      Device, Program, GlobalVariableName, GlobalVariableSize,
+      GlobalVariablePointerRet);
+}
+
 pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
                               pi_device Device,
                               pi_usm_mem_properties *Properties, size_t Size,
@@ -1250,6 +1259,20 @@ pi_result piextCommandBufferAdviseUSM(
   return pi2ur::piextCommandBufferAdviseUSM(CommandBuffer, Ptr, Length, Advice,
                                             NumSyncPointsInWaitList,
                                             SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextEnqueueCooperativeKernelLaunch(
+    pi_queue , pi_kernel , pi_uint32 ,
+    const size_t *, const size_t *,
+    const size_t *, pi_uint32 ,
+    const pi_event *, pi_event *) {
+  return PI_ERROR_UNSUPPORTED_FEATURE;
+}
+
+pi_result piextKernelSuggestMaxCooperativeGroupCount(
+    pi_kernel , size_t , size_t ,
+    pi_uint32 *) {
+  return PI_ERROR_UNSUPPORTED_FEATURE;
 }
 
 // Initialize function table with stubs.

@@ -16,10 +16,6 @@
 #include <sycl/feature_test.hpp>
 #include <sycl/queue.hpp>
 
-// Developer switch to use emulation mode on all backends, even those that
-// report native support, this is useful for debugging.
-#define FORCE_EMULATION_MODE 0
-
 namespace sycl {
 inline namespace _V1 {
 
@@ -138,7 +134,7 @@ void propagatePartitionDown(
 /// @param Node node to test
 /// @return True is `Node` is a root of its partition
 bool isPartitionRoot(std::shared_ptr<node_impl> Node) {
-  for (auto Predecessor : Node->MPredecessors) {
+  for (auto &Predecessor : Node->MPredecessors) {
     if (Predecessor.lock()->MPartitionNum == Node->MPartitionNum) {
       return false;
     }
@@ -234,12 +230,12 @@ void exec_graph_impl::makePartitions() {
     }
     if (HostTaskList.size() > TmpSize) {
       // At least one HostTask has been re-numbered so group merge opportunities
-      for (auto HT : HostTaskList) {
+      for (const auto &HT : HostTaskList) {
         auto HTPartitionNum = HT->MPartitionNum;
         if (HTPartitionNum != -1) {
           // can merge predecessors of node `Node` with predecessors of node
           // `HT` (HTPartitionNum-1) since HT must be reprocessed
-          for (auto NodeImpl : MNodeStorage) {
+          for (const auto &NodeImpl : MNodeStorage) {
             if (NodeImpl->MPartitionNum == Node->MPartitionNum - 1) {
               NodeImpl->MPartitionNum = HTPartitionNum - 1;
             }
@@ -255,7 +251,7 @@ void exec_graph_impl::makePartitions() {
   int PartitionFinalNum = 0;
   for (int i = -1; i <= CurrentPartition; i++) {
     const std::shared_ptr<partition> &Partition = std::make_shared<partition>();
-    for (auto Node : MNodeStorage) {
+    for (auto &Node : MNodeStorage) {
       if (Node->MPartitionNum == i) {
         MPartitionNodes[Node] = PartitionFinalNum;
         if (isPartitionRoot(Node)) {
@@ -276,13 +272,13 @@ void exec_graph_impl::makePartitions() {
   }
 
   // Make global schedule list
-  for (auto Partition : MPartitions) {
+  for (const auto &Partition : MPartitions) {
     MSchedule.insert(MSchedule.end(), Partition->MSchedule.begin(),
                      Partition->MSchedule.end());
   }
 
   // Compute partition dependencies
-  for (auto Partition : MPartitions) {
+  for (const auto &Partition : MPartitions) {
     for (auto const &Root : Partition->MRoots) {
       auto RootNode = Root.lock();
       for (const auto &Dep : RootNode->MPredecessors) {
@@ -599,7 +595,7 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
 std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents() {
   std::vector<sycl::detail::EventImplPtr> Events;
 
-  for (auto Node : MNodeStorage) {
+  for (auto &Node : MNodeStorage) {
     if (Node->MSuccessors.empty()) {
       Events.push_back(getEventForNode(Node));
     }
@@ -764,7 +760,9 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
                          sycl::detail::CG::StorageInitHelper CGData) {
   WriteLock Lock(MMutex);
 
-  std::vector<sycl::detail::EventImplPtr> PartitionEvents;
+  // Map of the partitions to their execution events
+  std::unordered_map<std::shared_ptr<partition>, sycl::detail::EventImplPtr>
+      PartitionsExecutionEvents;
 
   auto CreateNewEvent([&]() {
     auto NewEvent = std::make_shared<sycl::detail::event_impl>(Queue);
@@ -787,7 +785,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
     }
 
     for (auto const &DepPartition : CurrentPartition->MPredecessors) {
-      CGData.MEvents.push_back(MPartitionsExecutionEvents[DepPartition]);
+      CGData.MEvents.push_back(PartitionsExecutionEvents[DepPartition]);
     }
 
     auto CommandBuffer =
@@ -819,7 +817,13 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
               sycl::backend::ext_oneapi_level_zero) {
             Event->wait(Event);
           } else {
+            auto &AttachedEventsList = Event->getPostCompleteEvents();
+            CGData.MEvents.reserve(AttachedEventsList.size() + 1);
             CGData.MEvents.push_back(Event);
+            // Add events of the previous execution of all graph partitions.
+            for (auto &AttachedEvent : AttachedEventsList) {
+              CGData.MEvents.push_back(AttachedEvent);
+            }
           }
           ++It;
         } else {
@@ -907,7 +911,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
               // TODO: Pass accessor mem allocations
               nullptr,
               // TODO: Extract from handler
-              PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT);
+              PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT, CG->MKernelIsCooperative);
           if (Res != pi_result::PI_SUCCESS) {
             throw sycl::exception(
                 sycl::make_error_code(sycl::errc::kernel),
@@ -929,7 +933,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       NewEvent->setStateIncomplete();
       NewEvent->getPreparedDepsEvents() = ScheduledEvents;
     }
-    MPartitionsExecutionEvents[CurrentPartition] = NewEvent;
+    PartitionsExecutionEvents[CurrentPartition] = NewEvent;
   }
 
   // Keep track of this execution event so we can make sure it's completed in
@@ -937,7 +941,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
   MExecutionEvents.push_back(NewEvent);
   // Attach events of previous partitions to ensure that when the returned event
   // is complete all execution associated with the graph have been completed.
-  for (auto const &Elem : MPartitionsExecutionEvents) {
+  for (auto const &Elem : PartitionsExecutionEvents) {
     if (Elem.second != NewEvent) {
       NewEvent->attachEventToComplete(Elem.second);
     }
@@ -1280,21 +1284,9 @@ void executable_command_graph::finalizeImpl() {
   impl->makePartitions();
 
   auto Device = impl->getGraphImpl()->getDevice();
-  bool CmdBufSupport =
-      Device
-          .get_info<ext::oneapi::experimental::info::device::graph_support>() ==
-      graph_support_level::native;
-
-#if FORCE_EMULATION_MODE
-  // Above query should still succeed in emulation mode, but ignore the
-  // result and use emulation.
-  CmdBufSupport = false;
-#endif
-  if (CmdBufSupport) {
-    for (auto Partition : impl->getPartitions()) {
-      if (!Partition->isHostTask()) {
-        impl->createCommandBuffers(Device, Partition);
-      }
+  for (auto Partition : impl->getPartitions()) {
+    if (!Partition->isHostTask()) {
+      impl->createCommandBuffers(Device, Partition);
     }
   }
 }

@@ -494,8 +494,7 @@ public:
         {"dpasw", {"dpasw", {a(0), a(1), a(2), t(0)}}},
         {"dpasw_nosrc0", {"dpasw.nosrc0", {a(0), a(1), t(0)}}},
         {"nbarrier", {"nbarrier", {a(0), a(1), a(2)}}},
-        {"raw_send_nbarrier_signal",
-         {"raw.send.noresult", {a(0), ai1(4), a(1), a(2), a(3)}}},
+        {"nbarrier_arrive", {"nbarrier.arrive", {a(0), a(1), a(2), a(3)}}},
         {"lsc_load_slm",
          {"lsc.load.slm",
           {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
@@ -512,10 +511,6 @@ public:
          {"lsc.load.merge.bti",
           {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
            t8(6), t8(7), c8(0), a(1), aSI(2), a(3)}}},
-        {"lsc_load_stateless",
-         {"lsc.load.stateless",
-          {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
-           t8(6), t8(7), c8(0), a(1), c32(0)}}},
         {"lsc_load_merge_stateless",
          {"lsc.load.merge.stateless",
           {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
@@ -1750,6 +1745,83 @@ void lowerGlobalsToVector(Module &M) {
 
 } // namespace
 
+static void checkSLMInit(Module &M) {
+  SmallPtrSet<const Function *, 8u> SLMInitKernels;
+  SmallPtrSet<const Function *, 8u> LocalAccessorKernels;
+
+  for (auto &F : M) {
+    if (!isSlmInit(F)) {
+      if (!llvm::esimd::isESIMDKernel(F))
+        continue;
+      unsigned Idx = 0;
+      for (const Argument &Arg : F.args()) {
+        if (Arg.getType()->isPointerTy()) {
+          auto *KernelArgAccPtrs = F.getMetadata("kernel_arg_accessor_ptr");
+
+          if (KernelArgAccPtrs) {
+            auto *AccMD =
+                cast<ConstantAsMetadata>(KernelArgAccPtrs->getOperand(Idx));
+            auto AccMDVal = cast<ConstantInt>(AccMD->getValue())->getValue();
+            bool IsAcc = static_cast<unsigned>(AccMDVal.getZExtValue());
+
+            constexpr unsigned LocalAS{3};
+            if (IsAcc && cast<PointerType>(Arg.getType())->getAddressSpace() ==
+                             LocalAS) {
+              LocalAccessorKernels.insert(&F);
+              break;
+            }
+          }
+        }
+        Idx++;
+      }
+    } else {
+      for (User *U : F.users()) {
+        auto *FCall = dyn_cast<CallInst>(U);
+        if (FCall && FCall->getCalledFunction() == &F) {
+          Function *GenF = FCall->getFunction();
+          SmallPtrSet<Function *, 32> Visited;
+          sycl::utils::traverseCallgraphUp(
+              GenF,
+              [&](Function *GraphNode) {
+                if (llvm::esimd::isESIMDKernel(*GraphNode)) {
+                  if (SLMInitKernels.contains(GraphNode)) {
+                    StringRef KernelName = GraphNode->getName();
+                    std::string ErrorMsg =
+                        std::string("slm_init is called more than once "
+                                    "from kernel '") +
+                        demangle(KernelName.str()) + "'.";
+                    GraphNode->getContext().emitError(ErrorMsg);
+                  } else {
+                    SLMInitKernels.insert(GraphNode);
+                  }
+                }
+              },
+              Visited, false);
+          bool VisitedKernel = false;
+          for (const Function *Caller : Visited) {
+            if (llvm::esimd::isESIMDKernel(*Caller)) {
+              VisitedKernel = true;
+              break;
+            }
+          }
+          if (!VisitedKernel) {
+            F.getContext().emitError(
+                "slm_init must be called directly from ESIMD kernel.");
+          }
+        } else {
+          F.getContext().emitError(
+              "slm_init can only be used as a direct call.");
+        }
+      }
+    }
+    for (const Function *Kernel : LocalAccessorKernels) {
+      if (SLMInitKernels.contains(Kernel))
+        F.getContext().emitError(
+            "slm_init can not be used with local accessors.");
+    }
+  }
+}
+
 bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
 
   auto markAlwaysInlined = [](Function &F) -> bool {
@@ -1834,6 +1906,15 @@ bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
       continue;
     }
 
+    // If we are splitting by ESIMD, we are guarenteed the entire
+    // module only contains ESIMD code, so remove optnone/noinline
+    // from ALL functions as VC does not support these attributes
+    // and programs produce wrong answers or crash if they are kept.
+    if (!ModuleContainsScalarCode && !F.hasFnAttribute("CMGenxSIMT")) {
+      F.removeFnAttr(Attribute::NoInline);
+      F.removeFnAttr(Attribute::OptimizeNone);
+    }
+
     // TODO: The next code and comment was placed to ESIMDLoweringPass
     // 2 years ago, when GPU VC BE did not support function calls and
     // required everything to be inlined right into the kernel unless
@@ -1908,6 +1989,10 @@ static void fixFunctionReadWriteAttributes(Module &M) {
 
 PreservedAnalyses SYCLLowerESIMDPass::run(Module &M,
                                           ModuleAnalysisManager &MAM) {
+
+  // Check validity of slm_init calls.
+  checkSLMInit(M);
+
   // AlwaysInlinerPass is required for correctness.
   bool ForceInline = prepareForAlwaysInliner(M);
   if (ForceInline) {
@@ -1938,17 +2023,6 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
                                          SmallPtrSetImpl<Type *> &GVTS) {
   SmallVector<CallInst *, 32> ESIMDIntrCalls;
   SmallVector<Instruction *, 8> ToErase;
-
-  // The VC backend doesn't support debugging, and trying to use
-  // non-optimized code often produces crashes or wrong answers.
-  // The recommendation from the VC team was always optimize code,
-  // even if the user requested no optimization. We already drop
-  // debugging flags in the SYCL runtime, so also drop optnone and
-  // noinline here.
-  if (isESIMD(F) && F.hasFnAttribute(Attribute::OptimizeNone)) {
-    F.removeFnAttr(Attribute::OptimizeNone);
-    F.removeFnAttr(Attribute::NoInline);
-  }
 
   for (Instruction &I : instructions(F)) {
     if (auto CastOp = dyn_cast<llvm::CastInst>(&I)) {

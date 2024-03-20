@@ -1,8 +1,7 @@
-// Sporadic fails on DG2
-// TODO: Reenable when internal ticket is resolved
-// UNSUPPORTED: gpu-intel-dg2
 // RUN: %{build} -o %t.out
-// RUN: %{run-unfiltered-devices} %t.out
+// FPGA RT returns random CL_INVALID_CONTEXT in some configurations, tracked
+// internally. Avoid FPGA devices until that is fixed.
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu;*:cpu" %{run-unfiltered-devices} %t.out
 //
 //==----------------- get_backend.cpp ------------------------==//
 // This is a test of get_backend().

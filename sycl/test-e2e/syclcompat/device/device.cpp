@@ -36,6 +36,17 @@
 
 #include "device_fixt.hpp"
 
+void test_set_default_queue() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  DeviceExtFixt dev_ext;
+  auto &dev_ = dev_ext.get_dev_ext();
+  sycl::queue old_default_queue = syclcompat::get_default_queue();
+  dev_.set_default_queue(syclcompat::create_queue());
+  assert(*dev_.default_queue() == *dev_.get_saved_queue());
+  assert(*dev_.default_queue() != old_default_queue);
+}
+
 int main() {
   /*
     Device Tests

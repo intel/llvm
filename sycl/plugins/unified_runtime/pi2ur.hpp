@@ -100,8 +100,9 @@ static pi_result ur2piResult(ur_result_t urResult) {
   case UR_RESULT_ERROR_PROGRAM_LINK_FAILURE:
     return PI_ERROR_LINK_PROGRAM_FAILURE;
   case UR_RESULT_ERROR_UNSUPPORTED_VERSION:
-  case UR_RESULT_ERROR_UNSUPPORTED_FEATURE:
     return PI_ERROR_INVALID_OPERATION;
+  case UR_RESULT_ERROR_UNSUPPORTED_FEATURE:
+    return PI_ERROR_UNSUPPORTED_FEATURE;
   case UR_RESULT_ERROR_INVALID_ARGUMENT:
   case UR_RESULT_ERROR_INVALID_NULL_HANDLE:
   case UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE:
@@ -2162,6 +2163,22 @@ inline pi_result piextGetDeviceFunctionPointer(pi_device Device,
   return PI_SUCCESS;
 }
 
+inline pi_result piextGetGlobalVariablePointer(
+    pi_device Device, pi_program Program, const char *GlobalVariableName,
+    size_t *GlobalVariableSize, void **GlobalVariablePointerRet) {
+  PI_ASSERT(Program, PI_ERROR_INVALID_PROGRAM);
+
+  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+
+  ur_program_handle_t UrProgram =
+      reinterpret_cast<ur_program_handle_t>(Program);
+
+  HANDLE_ERRORS(urProgramGetGlobalVariablePointer(
+      UrDevice, UrProgram, GlobalVariableName, GlobalVariableSize,
+      GlobalVariablePointerRet));
+  return PI_SUCCESS;
+}
+
 // Special version of piKernelSetArg to accept pi_mem.
 inline pi_result
 piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,
@@ -2595,6 +2612,19 @@ inline pi_result piextKernelGetNativeHandle(pi_kernel Kernel,
   HANDLE_ERRORS(urKernelGetNativeHandle(UrKernel, &NativeKernel));
 
   *NativeHandle = reinterpret_cast<pi_native_handle>(NativeKernel);
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextKernelSuggestMaxCooperativeGroupCount(
+    pi_kernel Kernel, size_t LocalWorkSize, size_t DynamicSharedMemorySize,
+    pi_uint32 *GroupCountRet) {
+  PI_ASSERT(Kernel, PI_ERROR_INVALID_KERNEL);
+  PI_ASSERT(GroupCountRet, PI_ERROR_INVALID_VALUE);
+
+  ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
+  HANDLE_ERRORS(urKernelSuggestMaxCooperativeGroupCountExp(
+      UrKernel, LocalWorkSize, DynamicSharedMemorySize, GroupCountRet));
 
   return PI_SUCCESS;
 }
@@ -3663,6 +3693,30 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   HANDLE_ERRORS(urEnqueueKernelLaunch(
+      UrQueue, UrKernel, WorkDim, GlobalWorkOffset, GlobalWorkSize,
+      LocalWorkSize, NumEventsInWaitList, UrEventsWaitList, UREvent));
+
+  return PI_SUCCESS;
+}
+
+inline pi_result piextEnqueueCooperativeKernelLaunch(
+    pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
+    const size_t *LocalWorkSize, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventsWaitList, pi_event *OutEvent) {
+
+  PI_ASSERT(Kernel, PI_ERROR_INVALID_KERNEL);
+  PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
+  PI_ASSERT((WorkDim > 0) && (WorkDim < 4), PI_ERROR_INVALID_WORK_DIMENSION);
+
+  ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
+  ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
+  const ur_event_handle_t *UrEventsWaitList =
+      reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
+
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+
+  HANDLE_ERRORS(urEnqueueCooperativeKernelLaunchExp(
       UrQueue, UrKernel, WorkDim, GlobalWorkOffset, GlobalWorkSize,
       LocalWorkSize, NumEventsInWaitList, UrEventsWaitList, UREvent));
 

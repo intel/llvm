@@ -159,6 +159,9 @@ if config.level_zero_be == "ON":
 if config.native_cpu_be == "ON":
     config.available_features.add("native_cpu_be")
 
+if config.native_cpu_ock == "ON":
+    config.available_features.add("native_cpu_ock")
+
 if "nvptx64-nvidia-cuda" in triple:
     llvm_config.with_system_environment("CUDA_PATH")
     config.available_features.add("cuda")

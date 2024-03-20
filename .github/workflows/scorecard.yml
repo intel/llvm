@@ -2,7 +2,7 @@
 # by a third-party and are governed by separate terms of service, privacy
 # policy, and support documentation.
 
-# Check current LLVM-Project results here: https://securityscorecards.dev/viewer/?uri=github.com/llvm/llvm-project
+# Check current LLVM-Project results here: https://securityscorecards.dev/viewer/?uri=github.com/intel/llvm
 
 name: Scorecard supply-chain security
 on:
@@ -12,7 +12,7 @@ on:
   # To guarantee Maintained check is occasionally updated. See
   # https://github.com/ossf/scorecard/blob/main/docs/checks.md#maintained
   schedule:
-    - cron: '38 20 * * *'
+    - cron: '30 20 * * *'
 
 # Declare default permissions as read only.
 permissions:
@@ -22,7 +22,7 @@ jobs:
   analysis:
     name: Scorecard analysis
     runs-on: ubuntu-latest
-    if: github.repository == 'llvm/llvm-project'
+    if: github.repository == 'intel/llvm'
     permissions:
       # Needed to upload the results to code-scanning dashboard.
       security-events: write

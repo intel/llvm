@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_legacy_image
-// Use -O2 to avoid huge stack usage under -O0.
-// RUN: %{build} -O2 -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include "esimd_test_utils.hpp"
@@ -34,7 +33,7 @@ typedef uint64_t Toffset;
 typedef uint32_t Toffset;
 #endif
 
-void histogram_CPU(unsigned int width, unsigned int height, unsigned char *srcY,
+void histogram_CPU(unsigned int width, unsigned int height, uint8_t *srcY,
                    unsigned int *cpuHistogram) {
   int i;
   for (i = 0; i < width * height; i++) {
@@ -85,16 +84,15 @@ int main(int argc, char *argv[]) {
 
   // Allocate Input Buffer
   queue q = esimd_test::createQueue();
+  esimd_test::printTestLabel(q);
 
-  auto dev = q.get_device();
-  unsigned char *srcY = malloc_shared<unsigned char>(width * height, q);
-  if (srcY == NULL) {
-    std::cerr << "Out of memory\n";
-    exit(1);
-  }
-
-  unsigned int *bins = malloc_shared<unsigned int>(NUM_BINS, q);
-  std::cout << "Running on " << dev.get_info<info::device::name>() << "\n";
+  esimd_test::shared_vector<uint8_t> srcY_vec(
+      width * height, esimd_test::shared_allocator<uint8_t>{q});
+  esimd_test::shared_vector<unsigned int> bins_vec(
+      NUM_BINS, esimd_test::shared_allocator<unsigned int>{q});
+  uint8_t *srcY = srcY_vec.data();
+  ;
+  unsigned int *bins = bins_vec.data();
 
   uint range_width = width / BLOCK_WIDTH;
   uint range_height = height / BLOCK_HEIGHT;
@@ -107,16 +105,12 @@ int main(int argc, char *argv[]) {
     FILE *f = fopen(input_file, "rb");
     if (f == NULL) {
       std::cerr << "Error opening file " << input_file;
-      free(srcY, q);
-      free(bins, q);
       std::exit(1);
     }
 
-    unsigned int cnt = fread(srcY, sizeof(unsigned char), input_size, f);
+    unsigned int cnt = fread(srcY, sizeof(uint8_t), input_size, f);
     if (cnt != input_size) {
       std::cerr << "Error reading input from " << input_file;
-      free(srcY, q);
-      free(bins, q);
       std::exit(1);
     }
   } else {
@@ -173,9 +167,9 @@ int main(int argc, char *argv[]) {
               uint h_pos = ndi.get_group(0) * BLOCK_WIDTH;
               uint v_pos = ndi.get_group(1) * BLOCK_HEIGHT;
 
-              // Declare a 8x32 uchar matrix to store the input block pixel
+              // Declare a 8x32 uint8_t matrix to store the input block pixel
               // value
-              simd<unsigned char, 8 * 32> in;
+              simd<uint8_t, 8 * 32> in;
 
               // Declare a vector to store the local histogram
               simd<unsigned int, NUM_BINS> histogram(0);
@@ -183,8 +177,7 @@ int main(int argc, char *argv[]) {
               // Each thread handles BLOCK_HEIGHTxBLOCK_WIDTH pixel block
               for (int y = 0; y < BLOCK_HEIGHT / 8; y++) {
                 // Perform 2D media block read to load 8x32 pixel block
-                in = media_block_load<unsigned char, 8, 32>(readAcc, h_pos,
-                                                            v_pos);
+                in = media_block_load<uint8_t, 8, 32>(readAcc, h_pos, v_pos);
 
             // Accumulate local histogram for each pixel value
 #pragma unroll
@@ -239,8 +232,6 @@ int main(int argc, char *argv[]) {
     // make sure data is given back to the host at the end of this scope
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
-    free(srcY, q);
-    free(bins, q);
     return 1;
   }
 
@@ -254,8 +245,6 @@ int main(int argc, char *argv[]) {
   writeHist(cpuHistogram);
   // Checking Histogram
   int result = checkHistogram(cpuHistogram, bins);
-  free(srcY, q);
-  free(bins, q);
   if (result) {
     std::cerr << "PASSED\n";
     return 0;

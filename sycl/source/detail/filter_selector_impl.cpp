@@ -12,7 +12,6 @@
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/exception.hpp>
-#include <sycl/stl.hpp>
 
 #include <cctype>
 #include <regex>

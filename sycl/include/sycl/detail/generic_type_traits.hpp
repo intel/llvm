@@ -28,30 +28,12 @@ namespace detail {
 template <int N> struct Boolean;
 
 template <typename T>
-inline constexpr bool is_floatn_v = is_contained_v<T, gtl::vector_float_list>;
-
-template <typename T>
-inline constexpr bool is_genfloatf_v = is_contained_v<T, gtl::float_list>;
-
-template <typename T>
 inline constexpr bool is_svgenfloatf_v =
     is_contained_v<T, gtl::scalar_vector_float_list>;
 
 template <typename T>
-inline constexpr bool is_doublen_v = is_contained_v<T, gtl::vector_double_list>;
-
-template <typename T>
-inline constexpr bool is_genfloatd_v = is_contained_v<T, gtl::double_list>;
-
-template <typename T>
 inline constexpr bool is_svgenfloatd_v =
     is_contained_v<T, gtl::scalar_vector_double_list>;
-
-template <typename T>
-inline constexpr bool is_halfn_v = is_contained_v<T, gtl::vector_half_list>;
-
-template <typename T>
-inline constexpr bool is_genfloath_v = is_contained_v<T, gtl::half_list>;
 
 template <typename T>
 inline constexpr bool is_half_v = is_contained_v<T, gtl::scalar_half_list>;
@@ -144,47 +126,6 @@ inline constexpr bool is_gencrossmarray_v =
     is_contained_v<T, gtl::cross_marray_list>;
 
 template <typename T>
-inline constexpr bool is_charn_v =
-    is_contained_v<T, gtl::vector_default_char_list>;
-
-template <typename T>
-inline constexpr bool is_scharn_v =
-    is_contained_v<T, gtl::vector_signed_char_list>;
-
-template <typename T>
-inline constexpr bool is_ucharn_v =
-    is_contained_v<T, gtl::vector_unsigned_char_list>;
-
-template <typename T>
-inline constexpr bool is_igenchar_v = is_contained_v<T, gtl::signed_char_list>;
-
-template <typename T>
-inline constexpr bool is_ugenchar_v =
-    is_contained_v<T, gtl::unsigned_char_list>;
-
-template <typename T>
-inline constexpr bool is_genchar_v = is_contained_v<T, gtl::char_list>;
-
-template <typename T>
-inline constexpr bool is_shortn_v =
-    is_contained_v<T, gtl::vector_signed_short_list>;
-
-template <typename T>
-inline constexpr bool is_genshort_v = is_contained_v<T, gtl::signed_short_list>;
-
-template <typename T>
-inline constexpr bool is_ushortn_v =
-    is_contained_v<T, gtl::vector_unsigned_short_list>;
-
-template <typename T>
-inline constexpr bool is_ugenshort_v =
-    is_contained_v<T, gtl::unsigned_short_list>;
-
-template <typename T>
-inline constexpr bool is_uintn_v =
-    is_contained_v<T, gtl::vector_unsigned_int_list>;
-
-template <typename T>
 inline constexpr bool is_ugenint_v = is_contained_v<T, gtl::unsigned_int_list>;
 
 template <typename T>
@@ -193,30 +134,6 @@ inline constexpr bool is_intn_v =
 
 template <typename T>
 inline constexpr bool is_genint_v = is_contained_v<T, gtl::signed_int_list>;
-
-template <typename T>
-inline constexpr bool is_ulonglongn_v =
-    is_contained_v<T, gtl::vector_unsigned_longlong_list>;
-
-template <typename T>
-inline constexpr bool is_ugenlonglong_v =
-    is_contained_v<T, gtl::unsigned_longlong_list>;
-
-template <typename T>
-inline constexpr bool is_longlongn_v =
-    is_contained_v<T, gtl::vector_signed_longlong_list>;
-
-template <typename T>
-inline constexpr bool is_genlonglong_v =
-    is_contained_v<T, gtl::signed_longlong_list>;
-
-template <typename T>
-inline constexpr bool is_igenlonginteger_v =
-    is_contained_v<T, gtl::signed_long_integer_list>;
-
-template <typename T>
-inline constexpr bool is_ugenlonginteger_v =
-    is_contained_v<T, gtl::unsigned_long_integer_list>;
 
 template <typename T>
 inline constexpr bool is_geninteger_v = is_contained_v<T, gtl::integer_list>;
@@ -307,22 +224,6 @@ inline constexpr bool is_ugeninteger64bit_v =
     is_gen_based_on_type_sizeof_v<T, 8, is_ugeninteger>;
 
 template <typename T>
-inline constexpr bool is_geninteger8bit_v =
-    is_gen_based_on_type_sizeof_v<T, 1, is_geninteger>;
-
-template <typename T>
-inline constexpr bool is_geninteger16bit_v =
-    is_gen_based_on_type_sizeof_v<T, 2, is_geninteger>;
-
-template <typename T>
-inline constexpr bool is_geninteger32bit_v =
-    is_gen_based_on_type_sizeof_v<T, 4, is_geninteger>;
-
-template <typename T>
-inline constexpr bool is_geninteger64bit_v =
-    is_gen_based_on_type_sizeof_v<T, 8, is_geninteger>;
-
-template <typename T>
 inline constexpr bool is_genintptr_v =
     is_pointer_v<T> && is_genint_v<remove_pointer_t<T>> &&
     is_address_space_compliant_v<T, gvl::nonconst_address_space_list>;
@@ -350,11 +251,6 @@ inline constexpr bool is_genfloatptr_marray_v =
                                  gvl::nonconst_address_space_list> &&
     (IsDecorated == access::decorated::yes ||
      IsDecorated == access::decorated::no);
-
-template <typename T>
-inline constexpr bool is_genptr_v =
-    is_pointer_v<T> && is_gentype_v<remove_pointer_t<T>> &&
-    is_address_space_compliant_v<T, gvl::nonconst_address_space_list>;
 
 template <typename T>
 inline constexpr bool is_nan_type_v = is_contained_v<T, gtl::nan_list>;
@@ -404,34 +300,6 @@ using make_singed_integer_t = make_type_t<T, gtl::scalar_signed_integer_list>;
 template <typename T>
 using make_unsinged_integer_t =
     make_type_t<T, gtl::scalar_unsigned_integer_list>;
-
-template <typename T, typename B, typename Enable = void>
-struct convert_data_type_impl;
-
-template <typename T, typename B>
-struct convert_data_type_impl<T, B, std::enable_if_t<is_sgentype_v<T>, T>> {
-  B operator()(T t) { return static_cast<B>(t); }
-};
-
-template <typename T, typename B>
-struct convert_data_type_impl<T, B, std::enable_if_t<is_vgentype_v<T>, T>> {
-  vec<B, T::size()> operator()(T t) { return t.template convert<B>(); }
-};
-
-template <typename T, typename B>
-using convert_data_type = convert_data_type_impl<T, B, T>;
-
-// TryToGetElementType<T>::type is T::element_type or T::value_type if those
-// exist, otherwise T.
-template <typename T> class TryToGetElementType {
-  static T check(...);
-  template <typename A> static typename A::element_type check(const A &);
-  template <typename A> static typename A::value_type check(const A &);
-
-public:
-  using type = decltype(check(T()));
-  static constexpr bool value = !std::is_same_v<T, type>;
-};
 
 // select_apply_cl_scalar_t selects from T8/T16/T32/T64 basing on
 // sizeof(IN).  expected to handle scalar types.
@@ -643,6 +511,20 @@ template <typename T, typename Enable = void> struct RelConverter {
 #endif
 
   static R apply(value_t value) { return value; }
+};
+
+// TryToGetElementType<T>::type is T::element_type or T::value_type if those
+// exist, otherwise T.
+template <typename T> class TryToGetElementType {
+  static T check(...);
+  template <typename A> static typename A::element_type check(const A &);
+  template <typename A, typename = std::enable_if_t<!std::is_same_v<
+                            typename A::element_type, typename A::value_type>>>
+  static typename A::value_type check(const A &);
+
+public:
+  using type = decltype(check(T()));
+  static constexpr bool value = !std::is_same_v<T, type>;
 };
 
 template <typename T>

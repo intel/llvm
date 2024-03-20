@@ -589,6 +589,11 @@ bool platform_impl::has_extension(const std::string &ExtensionName) const {
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }
 
+bool platform_impl::supports_usm() const {
+  return getBackend() != backend::opencl ||
+         has_extension("cl_intel_unified_shared_memory");
+}
+
 pi_native_handle platform_impl::getNative() const {
   const auto &Plugin = getPlugin();
   pi_native_handle Handle;
