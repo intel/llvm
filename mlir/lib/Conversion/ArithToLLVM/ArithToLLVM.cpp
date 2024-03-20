@@ -28,6 +28,33 @@ using namespace mlir;
 
 namespace {
 
+/// Operations whose conversion will depend on whether they are passed a
+/// rounding mode attribute or not.
+///
+/// \tparam SourceOp is the source operation; \tparam TargetOp, the operation it
+/// will lower to; \tparam AttrConvert is the attribute conversion to convert
+/// the rounding mode attribute.
+template <
+    typename SourceOp, typename TargetOp, bool Constrained,
+    template <typename, typename> typename AttrConvert = AttrConvertPassThrough,
+    std::enable_if_t<
+        SourceOp::template hasTrait<arith::ArithRoundingModeInterface::Trait>(),
+        bool> = true>
+struct ConstrainedVectorConvertToLLVMPattern
+    : public VectorConvertToLLVMPattern<SourceOp, TargetOp> {
+  using VectorConvertToLLVMPattern<SourceOp,
+                                   TargetOp>::VectorConvertToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(SourceOp op, typename SourceOp::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (Constrained != static_cast<bool>(op.getRoundingModeAttr()))
+      return failure();
+    return VectorConvertToLLVMPattern<SourceOp, TargetOp>::matchAndRewrite(
+        op, adaptor, rewriter);
+  }
+};
+
 //===----------------------------------------------------------------------===//
 // Straightforward Op Lowerings
 //===----------------------------------------------------------------------===//
@@ -112,7 +139,8 @@ using SubIOpLowering =
     VectorConvertToLLVMPattern<arith::SubIOp, LLVM::SubOp,
                                arith::AttrConvertOverflowToLLVM>;
 using TruncFOpLowering =
-    VectorConvertToLLVMPattern<arith::TruncFOp, LLVM::FPTruncOp>;
+    ConstrainedVectorConvertToLLVMPattern<arith::TruncFOp, LLVM::FPTruncOp,
+                                          false>;
 using TruncIOpLowering =
     VectorConvertToLLVMPattern<arith::TruncIOp, LLVM::TruncOp>;
 using UIToFPOpLowering =
