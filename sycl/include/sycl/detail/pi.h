@@ -154,7 +154,9 @@
 // 15.44 Add coarse-grain memory advice flag for HIP.
 // 15.45 Added piextKernelSuggestMaxCooperativeGroupCount and
 //       piextEnqueueCooperativeKernelLaunch.
-// 15.46 Added cubemap support
+// 15.46 Add piextGetGlobalVariablePointer
+// 15.47 Added PI_ERROR_FEATURE_UNSUPPORTED.
+// 15.48 Added cubemap support
 //        - Added cubemap image type, PI_MEM_TYPE_IMAGE_CUBEMAP, to _pi_mem_type
 //        - Added cubemap sampling capabilities
 //          - _pi_sampler_cubemap_filter_mode
@@ -164,7 +166,7 @@
 //          - PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT
 
 #define _PI_H_VERSION_MAJOR 15
-#define _PI_H_VERSION_MINOR 46
+#define _PI_H_VERSION_MINOR 48
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -1307,6 +1309,10 @@ __SYCL_EXPORT pi_result piextDeviceSelectBinary(pi_device device,
 __SYCL_EXPORT pi_result piextGetDeviceFunctionPointer(
     pi_device device, pi_program program, const char *function_name,
     pi_uint64 *function_pointer_ret);
+
+__SYCL_EXPORT pi_result piextGetGlobalVariablePointer(
+    pi_device Device, pi_program Program, const char *GlobalVariableName,
+    size_t *GlobalVariableSize, void **GlobalVariablePointerRet);
 
 //
 // Context

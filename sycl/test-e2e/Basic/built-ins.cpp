@@ -1,8 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s
 
-// RUN: %{build} -D__SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__ -o %t_nonvar.out
-// RUN: %{run} %t_nonvar.out | FileCheck %s
+// RUN: %{build} -D__SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__ -o %t_var.out
+// RUN: %{run} %t_var.out | FileCheck %s
 
 // Hits an assertion with AMD:
 // XFAIL: hip_amd
@@ -26,12 +26,11 @@ static const CONSTANT char format[] = "Hello, World! %d %f\n";
 int main() {
   s::queue q{};
 
-#ifndef __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
+#ifdef __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__
   if (!q.get_device().has(sycl::aspect::fp64)) {
-    std::cout
-        << "Test without __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__ defined is "
-           "skipped because the device did not have fp64."
-        << std::endl;
+    std::cout << "Test with __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__ defined is "
+                 "skipped because the device did not have fp64."
+              << std::endl;
     return 0;
   }
 #endif

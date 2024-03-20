@@ -100,8 +100,9 @@ static pi_result ur2piResult(ur_result_t urResult) {
   case UR_RESULT_ERROR_PROGRAM_LINK_FAILURE:
     return PI_ERROR_LINK_PROGRAM_FAILURE;
   case UR_RESULT_ERROR_UNSUPPORTED_VERSION:
-  case UR_RESULT_ERROR_UNSUPPORTED_FEATURE:
     return PI_ERROR_INVALID_OPERATION;
+  case UR_RESULT_ERROR_UNSUPPORTED_FEATURE:
+    return PI_ERROR_UNSUPPORTED_FEATURE;
   case UR_RESULT_ERROR_INVALID_ARGUMENT:
   case UR_RESULT_ERROR_INVALID_NULL_HANDLE:
   case UR_RESULT_ERROR_HANDLE_OBJECT_IN_USE:
@@ -2164,6 +2165,22 @@ inline pi_result piextGetDeviceFunctionPointer(pi_device Device,
 
   HANDLE_ERRORS(urProgramGetFunctionPointer(UrDevice, UrProgram, FunctionName,
                                             FunctionPointer));
+  return PI_SUCCESS;
+}
+
+inline pi_result piextGetGlobalVariablePointer(
+    pi_device Device, pi_program Program, const char *GlobalVariableName,
+    size_t *GlobalVariableSize, void **GlobalVariablePointerRet) {
+  PI_ASSERT(Program, PI_ERROR_INVALID_PROGRAM);
+
+  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+
+  ur_program_handle_t UrProgram =
+      reinterpret_cast<ur_program_handle_t>(Program);
+
+  HANDLE_ERRORS(urProgramGetGlobalVariablePointer(
+      UrDevice, UrProgram, GlobalVariableName, GlobalVariableSize,
+      GlobalVariablePointerRet));
   return PI_SUCCESS;
 }
 
