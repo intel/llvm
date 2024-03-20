@@ -81,14 +81,20 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ed1f8bf618c88eaabea6bde0f6c06fc265f3b49f
-  # Merge: ca5c3421 69c43b45
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Mar 19 21:00:20 2024 +0000
-  #     Merge pull request #1326 from hdelan/refactor-guess-local-worksize
-  #     [CUDA][HIP] Fix bug in guess local worksize funcs and improve local worksize guessing in HIP adapter
-  set(UNIFIED_RUNTIME_TAG ed1f8bf618c88eaabea6bde0f6c06fc265f3b49f)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/RossBrunton/unified-runtime.git")
+  # Author: Ross Brunton <ross@codeplay.com>
+  # Date:   Tue Mar 12 11:34:56 2024 +0000
+  #
+  #     [CTS] Don't segfault when failing to load a kernel
+  #
+  #     If LoadSource fails, we don't exit immediately and continue running
+  #     the test. This then attempts to dereference a null shared pointer
+  #     and segfaults.
+  #
+  #     This by itself won't fix buggy test environments, but will make it
+  #     so that they fail the test with a sensible message rather than
+  #     crashing everything.
+  set(UNIFIED_RUNTIME_TAG "e0415a0a731b5d76fdc3a5d669bfc90a5e6c5caa")
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
