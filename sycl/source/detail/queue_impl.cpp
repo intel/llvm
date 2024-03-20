@@ -113,6 +113,9 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
     xpti::addMetadata(TEvent, "memory_size", Count);
     xpti::addMetadata(TEvent, "queue_id", MQueueID);
   });
+  // Before we notifiy the subscribers, we broadcast the 'queue_id', which was a
+  // metadata entry to TLS for use by callback handlers
+  xpti::framework::stash_tuple("queue_id", MQueueID);
   // Notify XPTI about the memset submission
   PrepareNotify.notify();
   // Emit a begin/end scope for this call
@@ -159,6 +162,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     xpti::addMetadata(TEvent, "memory_size", Count);
     xpti::addMetadata(TEvent, "queue_id", MQueueID);
   });
+  xpti::framework::stash_tuple("queue_id", MQueueID);
   // Notify XPTI about the memset submission
   PrepareNotify.notify();
   // Emit a begin/end scope for this call

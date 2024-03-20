@@ -170,6 +170,46 @@ public:
   /// actions in case the code location information is not available
   /// @param TraceType The type of trace event being created
   /// @param StreamName  The stream which will emit these notifications
+  /// @param InstanceID The instance ID associated with an object, otherwise 0
+  /// will auto-generate
+  /// @param UserData String value that provides metadata about the
+  /// instrumentation
+  XPTIScope(void *CodePtr, uint16_t TraceType, const char *StreamName,
+            uint64_t InstanceID, const char *UserData)
+      : MUserData(UserData), MStreamID(0), MInstanceID(InstanceID),
+        MScopedNotify(false), MTraceType(0) {
+    detail::tls_code_loc_t Tls;
+    auto TData = Tls.query();
+    // If TLS is not set, we can still genertate universal IDs with user data
+    // and CodePtr information
+    const char *FuncName = TData.functionName();
+    if (!TData.functionName() && !TData.fileName())
+      FuncName = UserData;
+    // Create a tracepoint object that has a lifetime of this class
+    MTP = new TracePoint(TData.fileName(), FuncName, TData.lineNumber(),
+                         TData.columnNumber(), CodePtr);
+    if (TraceType == (uint16_t)xpti::trace_point_type_t::graph_create ||
+        TraceType == (uint16_t)xpti::trace_point_type_t::node_create ||
+        TraceType == (uint16_t)xpti::trace_point_type_t::edge_create ||
+        TraceType == (uint16_t)xpti::trace_point_type_t::queue_create ||
+        TraceType == (uint16_t)xpti::trace_point_type_t::edge_create)
+      MTP->parent_event(GSYCLGraphEvent);
+    // Now if tracing is enabled, create trace events and notify
+    if (xptiTraceEnabled() && MTP) {
+      MTP->stream(StreamName).trace_type((xpti::trace_point_type_t)TraceType);
+      MTraceEvent = const_cast<xpti::trace_event_data_t *>(MTP->trace_event());
+      MStreamID = MTP->stream_id();
+      // This constructor uses a manual override for the instance ID as some
+      // objects such as queues keep track of instance IDs
+      MTP->override_instance_id(MInstanceID);
+    }
+  }
+
+  /// @brief Scoped class for XPTI instrumentation using TLS data
+  /// @param CodePtr  The address of the class/function to help differentiate
+  /// actions in case the code location information is not available
+  /// @param TraceType The type of trace event being created
+  /// @param StreamName  The stream which will emit these notifications
   /// @param UserData String value that provides metadata about the
   /// instrumentation
   XPTIScope(void *CodePtr, uint16_t TraceType, const char *StreamName,
@@ -188,6 +228,8 @@ public:
                          TData.columnNumber(), CodePtr);
     if (TraceType == (uint16_t)xpti::trace_point_type_t::graph_create ||
         TraceType == (uint16_t)xpti::trace_point_type_t::node_create ||
+        TraceType == (uint16_t)xpti::trace_point_type_t::edge_create ||
+        TraceType == (uint16_t)xpti::trace_point_type_t::queue_create ||
         TraceType == (uint16_t)xpti::trace_point_type_t::edge_create)
       MTP->parent_event(GSYCLGraphEvent);
     // Now if tracing is enabled, create trace events and notify
@@ -243,6 +285,8 @@ public:
           MTraceType == (uint16_t)xpti::trace_point_type_t::graph_create ||
           MTraceType == (uint16_t)xpti::trace_point_type_t::node_create ||
           MTraceType == (uint16_t)xpti::trace_point_type_t::edge_create ||
+          MTraceType == (uint16_t)xpti::trace_point_type_t::queue_create ||
+          MTraceType == (uint16_t)xpti::trace_point_type_t::queue_destroy ||
           MTraceType == (uint16_t)xpti::trace_point_type_t::diagnostics)
         return;
 
