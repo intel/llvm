@@ -41,36 +41,48 @@ bool test(StorePropertiesT StoreProperties) {
                                 SurfaceHeight / BlockHeight};
   sycl::range<2> LocalRange = {1, 1};
 
-  Q.parallel_for(sycl::nd_range<2>(GlobalRange, LocalRange),
-                 [=](sycl::nd_item<2> item) SYCL_ESIMD_KERNEL {
-                   const auto x = item.get_global_id(0);
-                   const auto y = item.get_global_id(1);
-                   simd<T, BlockWidth * BlockHeight> tmp(
-                       x * BlockWidth + y * SurfaceWidth, 1);
-                   if constexpr (CheckProperties) {
-                     if (y % 2 == 0)
-                       store_2d<T, BlockWidth, BlockHeight>(
-                           B, SurfaceWidth * sizeof(T) - 1, SurfaceHeight - 1,
-                           SurfacePitch * sizeof(T) - 1, x * BlockWidth,
-                           y * BlockHeight, tmp, StoreProperties);
-                     else if (y % 2 == 1)
-                       store_2d<T, BlockWidth>(
-                           B, SurfaceWidth * sizeof(T) - 1, SurfaceHeight - 1,
-                           SurfacePitch * sizeof(T) - 1, x * BlockWidth,
-                           y * BlockHeight, tmp, StoreProperties);
-                   } else {
-                     if (y % 2 == 0)
-                       store_2d<T, BlockWidth, BlockHeight>(
-                           B, SurfaceWidth * sizeof(T) - 1, SurfaceHeight - 1,
-                           SurfacePitch * sizeof(T) - 1, x * BlockWidth,
-                           y * BlockHeight, tmp);
-                     else if (y % 2 == 1)
-                       store_2d<T, BlockWidth>(
-                           B, SurfaceWidth * sizeof(T) - 1, SurfaceHeight - 1,
-                           SurfacePitch * sizeof(T) - 1, x * BlockWidth,
-                           y * BlockHeight, tmp);
-                   }
-                 })
+  Q.parallel_for(
+       sycl::nd_range<2>(GlobalRange, LocalRange),
+       [=](sycl::nd_item<2> item) SYCL_ESIMD_KERNEL {
+         const auto x = item.get_global_id(0);
+         const auto y = item.get_global_id(1);
+         simd<T, BlockWidth * BlockHeight> tmp(
+             x * BlockWidth + y * SurfaceWidth, 1);
+         if constexpr (CheckProperties) {
+           if (y % 3 == 0)
+             store_2d<T, BlockWidth, BlockHeight>(
+                 B, SurfaceWidth * sizeof(T) - 1, SurfaceHeight - 1,
+                 SurfacePitch * sizeof(T) - 1, x * BlockWidth, y * BlockHeight,
+                 tmp, StoreProperties);
+           else if (y % 3 == 1)
+             store_2d<T, BlockWidth>(
+                 B, SurfaceWidth * sizeof(T) - 1, SurfaceHeight - 1,
+                 SurfacePitch * sizeof(T) - 1, x * BlockWidth, y * BlockHeight,
+                 tmp, StoreProperties);
+           else if (y % 3 == 2)
+             store_2d<T, BlockWidth, BlockHeight, BlockWidth * BlockHeight>(
+                 B, SurfaceWidth * sizeof(T) - 1, SurfaceHeight - 1,
+                 SurfacePitch * sizeof(T) - 1, x * BlockWidth, y * BlockHeight,
+                 tmp.template select<BlockWidth * BlockHeight, 1>(),
+                 StoreProperties);
+         } else {
+           if (y % 3 == 0)
+             store_2d<T, BlockWidth, BlockHeight>(
+                 B, SurfaceWidth * sizeof(T) - 1, SurfaceHeight - 1,
+                 SurfacePitch * sizeof(T) - 1, x * BlockWidth, y * BlockHeight,
+                 tmp);
+           else if (y % 3 == 1)
+             store_2d<T, BlockWidth>(B, SurfaceWidth * sizeof(T) - 1,
+                                     SurfaceHeight - 1,
+                                     SurfacePitch * sizeof(T) - 1,
+                                     x * BlockWidth, y * BlockHeight, tmp);
+           else if (y % 3 == 2)
+             store_2d<T, BlockWidth, BlockHeight, BlockWidth * BlockHeight>(
+                 B, SurfaceWidth * sizeof(T) - 1, SurfaceHeight - 1,
+                 SurfacePitch * sizeof(T) - 1, x * BlockWidth, y * BlockHeight,
+                 tmp.template select<BlockWidth * BlockHeight, 1>());
+         }
+       })
       .wait();
 
   bool error = false;

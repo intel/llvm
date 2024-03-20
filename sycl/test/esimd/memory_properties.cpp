@@ -1706,6 +1706,8 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_2d(float *ptr) {
   properties props_cache_load{cache_hint_L1<cache_hint::streaming>,
                               cache_hint_L2<cache_hint::uncached>};
   simd<float, 16> Vals;
+  auto Vals_view = Vals.select<16, 1>();
+
   constexpr int BlockWidth = 16;
   constexpr int BlockHeight = 1;
   constexpr int NBlocks = 1;
@@ -1759,15 +1761,21 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_2d(float *ptr) {
   Vals = load_2d<float, BlockWidth>(ptr, SurfaceWidth, SurfaceHeight,
                                     SurfacePitch, X, Y);
 
-  // CHECK-COUNT-2: call void @llvm.genx.lsc.store2d.stateless.v16i1.i64.v16f32(<16 x i1> {{[^)]+}}, i8 5, i8 1, i8 3, i8 1, i8 1, i16 16, i16 1, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, <16 x float> {{[^)]+}})
+  // CHECK-COUNT-3: call void @llvm.genx.lsc.store2d.stateless.v16i1.i64.v16f32(<16 x i1> {{[^)]+}}, i8 5, i8 1, i8 3, i8 1, i8 1, i16 16, i16 1, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, <16 x float> {{[^)]+}})
   store_2d<float, BlockWidth, BlockHeight>(ptr, SurfaceWidth, SurfaceHeight,
                                            SurfacePitch, X, Y, Vals,
                                            props_cache_load);
   store_2d<float, BlockWidth>(ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X,
                               Y, Vals, props_cache_load);
-  // CHECK-COUNT-2: call void @llvm.genx.lsc.store2d.stateless.v16i1.i64.v16f32(<16 x i1> {{[^)]+}}, i8 0, i8 0, i8 3, i8 1, i8 1, i16 16, i16 1, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, <16 x float> {{[^)]+}})
+  store_2d<float, BlockWidth, BlockHeight, 16>(ptr, SurfaceWidth, SurfaceHeight,
+                                               SurfacePitch, X, Y, Vals_view,
+                                               props_cache_load);
+
+  // CHECK-COUNT-3: call void @llvm.genx.lsc.store2d.stateless.v16i1.i64.v16f32(<16 x i1> {{[^)]+}}, i8 0, i8 0, i8 3, i8 1, i8 1, i16 16, i16 1, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, <16 x float> {{[^)]+}})
   store_2d<float, BlockWidth, BlockHeight>(ptr, SurfaceWidth, SurfaceHeight,
                                            SurfacePitch, X, Y, Vals);
   store_2d<float, BlockWidth>(ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X,
                               Y, Vals);
+  store_2d<float, BlockWidth, BlockHeight, 16>(ptr, SurfaceWidth, SurfaceHeight,
+                                               SurfacePitch, X, Y, Vals_view);
 }

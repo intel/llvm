@@ -9495,7 +9495,7 @@ template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
           typename PropertyListT = oneapi::experimental::empty_properties_t,
           int N = detail::get_lsc_block_2d_data_size<
               T, NBlocks, BlockHeight, BlockWidth, false /*Transposed*/,
-                                             false /*Transformed*/>()>
+              false /*Transformed*/>()>
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 prefetch_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
@@ -9528,10 +9528,10 @@ prefetch_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
 /// properties are used.
 ///
 template <typename T, int BlockWidth, int BlockHeight = 1,
-          typename PropertyListT = oneapi::experimental::empty_properties_t,
           int N = detail::get_lsc_block_2d_data_size<
               T, 1u, BlockHeight, BlockWidth, false /*Transposed*/,
-              false /*Transformed*/>()>
+              false /*Transformed*/>(),
+          typename PropertyListT = oneapi::experimental::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 store_2d(T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
