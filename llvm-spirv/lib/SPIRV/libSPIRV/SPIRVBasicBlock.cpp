@@ -91,7 +91,10 @@ SPIRVInstruction *SPIRVBasicBlock::getVariableInsertionPoint() const {
   auto IP =
       std::find_if(InstVec.begin(), InstVec.end(), [](SPIRVInstruction *Inst) {
         return !(isa<OpVariable>(Inst) || isa<OpLine>(Inst) ||
-                 isa<OpNoLine>(Inst));
+                 isa<OpNoLine>(Inst) ||
+                 // Note: OpVariable and OpPhi instructions do not belong to the
+                 // same block in a valid SPIR-V module.
+                 isa<OpPhi>(Inst));
       });
   if (IP == InstVec.end())
     return nullptr;
