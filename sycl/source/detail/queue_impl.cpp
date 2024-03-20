@@ -342,7 +342,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
 
     // If we have a command graph set we need to capture the op through the
     // handler rather than by-passing the scheduler.
-    if (!MGraph.lock() &&
+    if (MGraph.expired() &&
         areEventsSafeForSchedulerBypass(ExpandedDepEvents, MContext)) {
       if (MSupportsDiscardingPiEvents) {
         MemOpFunc(MemOpArgs..., getPIEvents(ExpandedDepEvents),
@@ -360,7 +360,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
 
       if (isInOrder()) {
         auto &EventToStoreIn =
-            MGraph.lock() ? MGraphLastEventPtr : MLastEventPtr;
+            MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
         EventToStoreIn = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
