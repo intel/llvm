@@ -6,9 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// FIXME: re-enable the test when compfail below is fixed:
-// # | llvm-foreach: Segmentation fault (core dumped)
-// # | clang++: error: fpga compiler command failed with exit code 254 (use -v to see invocation)
+// FIXME: failure in post-commit, re-enable when fixed:
 // UNSUPPORTED: linux
 
 // REQUIRES: aspect-ext_intel_fpga_task_sequence
