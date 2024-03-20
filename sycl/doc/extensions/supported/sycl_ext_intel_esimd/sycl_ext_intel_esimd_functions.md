@@ -24,24 +24,19 @@ Look for more general ESIMD documentation [here](./sycl_ext_intel_esimd.md).
 ---
 ## Stateless/stateful memory mode
 ESIMD functions may assume `stateful` and `stateless` access to the memory.  
-`Stateless` read/write/prefetch is such that uses USM pointer to global memory,
+`Stateless` read/write/prefetch is such that uses a pointer to global memory,
 which also may be adjusted by a scalar/vector 64-bit offset.  
-'Stateful' read/write/prefetch is the access to memory that uses a
-`surface-index` and `32-bit` scalar/vector offset. Originally the ESIMD
-functions accepting `device accessors` were translated into `stateful`
-read/write/prefetch instructions. After the recent enabling of the `stateless`
-memory enforcement mode was turned ON by default, the device-accessor-based APIs
-started being translated into `stateless` access instructions too.  
-The `-fsycl-esimd-force-stateless-mem` compilation option (it is ON by default)
-specifies how to handle the functions accepting `device-accessors`. In the default
-mode the functions are translated into `stateless` memory accesses and the functions also
-may accept 64-bit scalar/vector offset.  
-With `-fno-sycl-esimd-force-stateless-mem` compilation switch the functions
-accepting `device accessors` are translated into `stateful` memory accesses and
-the functions may accept only 32-bit scalar/vector offsets.
+`Stateful` read/write/prefetch is the access to memory that uses a
+`surface-index` and `32-bit` scalar/vector offset.
 
-Some of ESIMD memory API are considered `stateless`. Those are the functions that accept USM pointer
-as a reference to memory. Such functions address 64-bit add
+The `-fsycl-esimd-force-stateless-mem` compilation option (it is ON by default)
+forces the translation of ESIMD memory API functions to `stateless` accesses.
+In this mode the ESIMD functions that accept a byte-offset argument accept it as
+a 64-bit scalar/vector.  
+`-fno-sycl-esimd-force-stateless-mem` compilation option may be used to translate
+ESIMD functions accepting `SYCL device accessor` to `stateful` accesses. In this case
+the corresponding ESIMD functions accept only 32-bit scalar/vector byte offsets.
+
 
 ## Compile time properties
 ```C++
@@ -75,7 +70,7 @@ namespace sycl::ext::intel::esimd {
 template <typename T, int N, typename PropertyListT = empty_properties_t>
 // block load from USM memory.
 /*usm-1*/ simd<T, N> block_load(const T* ptr, props={});
-/*usm-2*/ simd<T, N> block_load(const T* ptr, size_t byte_offset, props={});
+/*usm-2*/ simd<T, N> block_load(const T* ptr, size_t byte_offsetc, props={});
 /*usm-3*/ simd<T, N> block_load(const T* ptr, simd_mask<1> pred, props={});
 /*usm-4*/ simd<T, N> block_load(const T* ptr, size_t byte_offset, simd_mask<1> pred, props={});
 /*usm-5*/ simd<T, N> block_load(const T* ptr, simd_mask<1> pred, simd<T, N> pass_thru, props={});
@@ -113,7 +108,7 @@ If `pred` is zero and `pass_thru` operand was not passed, then the function retu
 The optional [compile-time properties](#compile-time-properties) list `props` may specify `alignment` and/or `cache-hints`. The cache-hints are ignored for `(lacc-*)` and `(slm-*)` functions.
 
 ### Restrictions/assumptions:
-`Alignment` - if not specified by the `props` param, then `assumed` alignment is used. If the actual memory reference requires a smaller alignment than the `assumed`, then it must be explicitly passed in `props` argument.
+`Alignment` - if not specified by the `props` param, then `assumed` alignment is used. If the actual memory reference has a smaller alignment than the `assumed`, then it must be explicitly passed in `props` argument.
 
 | `Function` | `Assumed` alignment   | `Minimally required` alignment |
 |-|-|-|
