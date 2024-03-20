@@ -845,7 +845,7 @@ private:
   }
 
   bool remangleFunction(Function &Func, llvm::Module *M) {
-    if (!Func.getName().startswith("_Z"))
+    if (!Func.getName().starts_with("_Z"))
       return true;
 
     std::string const MangledName = Func.getName().str();
