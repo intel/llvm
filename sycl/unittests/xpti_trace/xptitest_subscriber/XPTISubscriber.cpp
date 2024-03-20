@@ -37,10 +37,10 @@ XPTI_CALLBACK_API void testCallback(uint16_t TraceType,
 
   // Since "queue_id" is no longer a metadata item, we have to retrieve it from
   // TLS using new XPTI API
-  std::string Key;
+  char *Key = 0;
   uint64_t Value;
   bool HaveKeyValue =
-      (xptiGetStashedTuple(Key, Value) == xpti::result_t::XPTI_RESULT_SUCCESS);
+      (xptiGetStashedTuple(&Key, Value) == xpti::result_t::XPTI_RESULT_SUCCESS);
 
   if (TraceType == xpti::trace_diagnostics) {
     std::string AggregatedData;

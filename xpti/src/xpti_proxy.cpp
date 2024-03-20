@@ -266,7 +266,7 @@ XPTI_EXPORT_API xpti::result_t xptiStashTuple(const char *key, uint64_t value) {
   return xpti::result_t::XPTI_RESULT_FAIL;
 }
 
-XPTI_EXPORT_API xpti::result_t xptiSetGetStashedTuple(std::string &key,
+XPTI_EXPORT_API xpti::result_t xptiSetGetStashedTuple(char **key,
                                                       uint64_t &value) {
   if (xpti::ProxyLoader::instance().noErrors()) {
     auto f =

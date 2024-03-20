@@ -99,9 +99,9 @@ XPTI_EXPORT_API void xptiSetUniversalId(uint64_t uid);
 /// the call
 /// @param value The value that corresponds to key
 /// @return The result code is XPTI_RESULT_SUCCESS when successful and
-/// XPTI_RESULT_NOTFOUND if there is nothing stashed
-XPTI_EXPORT_API xpti::result_t xptiGetStashedTuple(std::string &key,
-                                                   uint64_t &value);
+/// XPTI_RESULT_NOTFOUND if there is nothing stashed. Also returns error if
+/// 'key' argument is invalid (XPTI_RESULT_INVALIDARG)
+XPTI_EXPORT_API xpti::result_t xptiGetStashedTuple(char **key, uint64_t &value);
 
 /// @brief Stash a key-value tuple
 /// @details Certain notifications in XPTI may want to provide mutable values
@@ -534,8 +534,7 @@ typedef uint64_t (*xpti_get_universal_id_t)();
 typedef void (*xpti_set_universal_id_t)(uint64_t uid);
 typedef uint64_t (*xpti_get_unique_id_t)();
 typedef xpti::result_t (*xpti_stash_tuple_t)(const char *key, uint64_t value);
-typedef xpti::result_t (*xpti_get_stashed_tuple_t)(std::string &key,
-                                                   uint64_t &value);
+typedef xpti::result_t (*xpti_get_stashed_tuple_t)(char **key, uint64_t &value);
 typedef void (*xpti_unstash_tuple_t)();
 typedef xpti::string_id_t (*xpti_register_string_t)(const char *, char **);
 typedef const char *(*xpti_lookup_string_t)(xpti::string_id_t);

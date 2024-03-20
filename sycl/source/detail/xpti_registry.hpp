@@ -194,8 +194,7 @@ public:
     if (TraceType == (uint16_t)xpti::trace_point_type_t::graph_create ||
         TraceType == (uint16_t)xpti::trace_point_type_t::node_create ||
         TraceType == (uint16_t)xpti::trace_point_type_t::edge_create ||
-        TraceType == (uint16_t)xpti::trace_point_type_t::queue_create ||
-        TraceType == (uint16_t)xpti::trace_point_type_t::edge_create)
+        TraceType == (uint16_t)xpti::trace_point_type_t::queue_create)
       MTP->parent_event(GSYCLGraphEvent);
     // Now if tracing is enabled, create trace events and notify
     if (xptiTraceEnabled() && MTP) {
@@ -232,8 +231,7 @@ public:
     if (TraceType == (uint16_t)xpti::trace_point_type_t::graph_create ||
         TraceType == (uint16_t)xpti::trace_point_type_t::node_create ||
         TraceType == (uint16_t)xpti::trace_point_type_t::edge_create ||
-        TraceType == (uint16_t)xpti::trace_point_type_t::queue_create ||
-        TraceType == (uint16_t)xpti::trace_point_type_t::edge_create)
+        TraceType == (uint16_t)xpti::trace_point_type_t::queue_create)
       MTP->parent_event(GSYCLGraphEvent);
     // Now if tracing is enabled, create trace events and notify
     if (xptiTraceEnabled() && MTP) {

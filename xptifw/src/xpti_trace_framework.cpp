@@ -366,7 +366,7 @@ public:
       xpti::result_t res;
       std::lock_guard<std::mutex> HashLock(MMetadataMutex);
       if (Event->reserved.metadata.count(KeyID)) {
-        // One already existsed, but we overwrote it
+        // One already existed, but we overwrote it
         res = xpti::result_t::XPTI_RESULT_DUPLICATE;
       } else {
         res = xpti::result_t::XPTI_RESULT_SUCCESS;
@@ -835,12 +835,15 @@ public:
     return xpti::result_t::XPTI_RESULT_SUCCESS;
   }
 
-  xpti::result_t getStashedTuple(std::string &key, uint64_t &value) {
-    if (!std::get<0>(g_tls_stash_tuple))
-      return xpti::result_t::XPTI_RESULT_NOTFOUND;
+  xpti::result_t getStashedTuple(char **key, uint64_t &value) {
+    if (!key)
+      return xpti::result_t::XPTI_RESULT_INVALIDARG;
 
     const char *tls_key = std::get<0>(g_tls_stash_tuple);
-    key = tls_key;
+    if (!tls_key)
+      return xpti::result_t::XPTI_RESULT_NOTFOUND;
+
+    (*key) = const_cast<char *>(tls_key);
     value = std::get<1>(g_tls_stash_tuple);
     return xpti::result_t::XPTI_RESULT_SUCCESS;
   }
@@ -1127,7 +1130,7 @@ XPTI_EXPORT_API xpti::result_t xptiStashTuple(const char *key, uint64_t value) {
   return xpti::Framework::instance().stashTuple(key, value);
 }
 
-XPTI_EXPORT_API xpti::result_t xptiGetStashedTuple(std::string &key,
+XPTI_EXPORT_API xpti::result_t xptiGetStashedTuple(char **key,
                                                    uint64_t &value) {
   return xpti::Framework::instance().getStashedTuple(key, value);
 }
