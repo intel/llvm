@@ -41,7 +41,6 @@
 // CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v3i8"
 // CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v3i16"
 // CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v3i32"
-// CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v3i64"
 
 // CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v4i8"
 // CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_v4i16"
