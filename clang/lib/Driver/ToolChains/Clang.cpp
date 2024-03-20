@@ -5427,6 +5427,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                       options::OPT_fno_sycl_esimd_force_stateless_mem, true))
       CmdArgs.push_back("-fno-sycl-esimd-force-stateless-mem");
 
+    if (Arg *A = Args.getLastArg(options::OPT_fsycl_range_rounding_EQ))
+      A->render(Args, CmdArgs);
+
     // Add the Unique ID prefix
     StringRef UniqueID = D.getSYCLUniqueID(Input.getBaseInput());
     if (!UniqueID.empty())
@@ -5451,10 +5454,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     bool DisableRangeRounding = false;
     if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
       if (A->getOption().matches(options::OPT_O0))
-        DisableRangeRounding = true;
+        // If the user has set some range rounding preference then let that
+        // override not range rounding at -O0
+        if (!Args.getLastArg(options::OPT_fsycl_range_rounding_EQ))
+          DisableRangeRounding = true;
     }
     if (DisableRangeRounding || HasFPGA)
-      CmdArgs.push_back("-fsycl-disable-range-rounding");
+      CmdArgs.push_back("-fsycl-range-rounding=disable");
 
     if (HasFPGA) {
       // Pass -fintelfpga to both the host and device SYCL compilations if set.

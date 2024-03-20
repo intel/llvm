@@ -1159,6 +1159,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   checkSingleArgValidity(DeviceCodeSplit,
                          {"per_kernel", "per_source", "auto", "off"});
 
+  Arg *RangeRoundingPreference =
+      C.getInputArgs().getLastArg(options::OPT_fsycl_range_rounding_EQ);
+  checkSingleArgValidity(RangeRoundingPreference, {"disable", "force", "on"});
+
   Arg *SYCLForceTarget =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_force_target_EQ);
   if (SYCLForceTarget) {
