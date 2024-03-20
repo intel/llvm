@@ -90,16 +90,8 @@ void TraceQueueLifetimeSignals(xpti::trace_event_data_t * /*Parent*/,
   if (!Event)
     return;
 
-  char *Key = 0;
-  uint64_t Value;
-  bool HaveKeyValue =
-      (xptiGetStashedTuple(&Key, Value) == xpti::result_t::XPTI_RESULT_SUCCESS);
-
   std::cout << "[SYCL] Queue " << (IsCreation ? "create" : "destroy") << ": "
             << std::endl;
-  if (HaveKeyValue) {
-    std::cout << "\t" << Key << " : " << Value << std::endl;
-  }
   xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
   for (auto &Item : *Metadata) {
     std::string_view Key{xptiLookupString(Item.first)};
