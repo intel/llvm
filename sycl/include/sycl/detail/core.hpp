@@ -8,6 +8,16 @@
 
 #pragma once
 
+// This is an ongoing experimental activity in its early stage. No code outside
+// this project must rely on the behavior of this header file - keep using
+// <sycl/sycl.hpp>.
+//
+// Short-term plan/action items (in no particular order):
+//  * Update more tests to use this instead of full <sycl/sycl.hpp>.
+//  * Refactor includes so that transitive dependencies don't bring as much as
+//    they currently do.
+//  * Determine what else should be included here.
+
 #include <sycl/accessor.hpp>
 #include <sycl/buffer.hpp>
 #include <sycl/queue.hpp>
