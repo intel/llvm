@@ -398,7 +398,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   size_t MaxWorkGroupSize = 0u;
   size_t ThreadsPerBlock[3] = {};
   size_t MaxThreadsPerBlock[3] = {};
-  uint32_t LocalSize = hKernel->getLocalSize();
 
   try {
     // Set the active context here as guessLocalWorkSize needs an active context
@@ -407,7 +406,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     MaxWorkGroupSize = Device->getMaxWorkGroupSize();
     Device->getMaxWorkItemSizes(sizeof(MaxThreadsPerBlock), MaxThreadsPerBlock);
     guessLocalWorkSize(Device, ThreadsPerBlock, pGlobalWorkSize, workDim,
-                       MaxThreadsPerBlock, hKernel, LocalSize);
+                       MaxThreadsPerBlock, hKernel);
 
     if (MaxWorkGroupSize <
         ThreadsPerBlock[0] * ThreadsPerBlock[1] * ThreadsPerBlock[2]) {
