@@ -155,9 +155,10 @@
 // 15.45 Added piextKernelSuggestMaxCooperativeGroupCount and
 //       piextEnqueueCooperativeKernelLaunch.
 // 15.46 Add piextGetGlobalVariablePointer
+// 15.47 Added PI_ERROR_FEATURE_UNSUPPORTED.
 
 #define _PI_H_VERSION_MAJOR 15
-#define _PI_H_VERSION_MINOR 46
+#define _PI_H_VERSION_MINOR 47
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)

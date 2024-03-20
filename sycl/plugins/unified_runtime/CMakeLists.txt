@@ -57,12 +57,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 65af257bb4adeb59c7cdfec9246e6b4fc4312343
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Fri Apr 5 14:26:59 2024 +0100
-  #     Merge pull request #1486 from nrspruit/fix_memfree_report
-  #     [L0] Fix DeviceInfo global mem free to report unsupported given MemCount==0
-  set(UNIFIED_RUNTIME_TAG 65af257bb4adeb59c7cdfec9246e6b4fc4312343)
+  # commit 410c02365eb8505ace69d3cb6b8192dbe0077161
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Thu Apr 4 10:23:33 2024 +0200
+  #     Merge pull request #1448 from steffenlarsen/steffen/make_ext_func_fail_unsupported
+  #     [OpenCL] Make extension function lookup return unusupported error
+  set(UNIFIED_RUNTIME_TAG 410c02365eb8505ace69d3cb6b8192dbe0077161)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
