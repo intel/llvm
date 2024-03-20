@@ -1,36 +1,36 @@
-// Test that llvm.bitreverse is lowered correctly by llvm-spirv
+// Test that llvm.bitreverse is lowered correctly by llvm-spirv.
 
 // UNSUPPORTED: hip || cuda
 
-// Make dump directory
+// Make dump directory.
 // RUN: rm -rf %t.spvdir && mkdir %t.spvdir
 
 // Ensure that SPV_KHR_bit_instructions is disabled so that translator
 // will lower llvm.bitreverse.* intrinsics instead of relying on SPIRV
 // BitReverse instruction.
-// Also build executable with SPV dump
+// Also build executable with SPV dump.
 // RUN: %{build} -o %t.out -O2 -Xspirv-translator --spirv-ext=-SPV_KHR_bit_instructions -fsycl-dump-device-code=%t.spvdir
 
-// Rename SPV file to explictly known filename
+// Rename SPV file to explictly known filename.
 // RUN: mv %t.spvdir/*.spv %t.spvdir/dump.spv
 
-// Convert to text
+// Convert to text.
 // RUN: llvm-spirv -to-text %t.spvdir/dump.spv
 
-// Check that all lowerings are done by llvm-spirv
+// Check that all lowerings are done by llvm-spirv.
 // RUN: cat %t.spvdir/dump.spt | FileCheck %s --check-prefix CHECK-SPV --implicit-check-not=BitReverse
 
-// Execute to ensure lowering has correct functionality
+// Execute to ensure lowering has correct functionality.
 // RUN: %{run} %t.out
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// TODO FIXME  Change NOT_READY to RUN when llvm.bitreverse.* is supported
+// TODO FIXME  Change NOT_READY to RUN when llvm.bitreverse.* is supported.
 
-// Build without lowering explicitly disabled
+// Build without lowering explicitly disabled.
 // NOT_READY: %{build} -o %t.bitinstructions.out
 
-// Execution should still be correct
+// Execution should still be correct.
 // NOT_READY: %{run} %t.bitinstructions.out
 
 // CHECK-SPV: Name {{[0-9]+}} "llvm_bitreverse_i8"
@@ -104,12 +104,12 @@ __attribute__((optnone, noinline)) TYPE reference_reverse(TYPE a, const int bitl
 template <typename TYPE>
 __attribute__((noinline)) TYPE reverse(TYPE a, int bitlength) {
   if (bitlength==8) {
-    // avoid bug with __builtin_elementwise_bitreverse(a) on scalar 8-bit types
+    // Avoid bug with __builtin_elementwise_bitreverse(a) on scalar 8-bit types.
     a = ((0x55 & a) << 1) | (0x55 & (a >> 1));
     a = ((0x33 & a) << 2) | (0x33 & (a >> 2));
     return (a << 4) | (a >> 4);
   } else if (bitlength==16) {
-    // avoid bug with __builtin_elementwise_bitreverse(a) on scalar 16-bit types
+    // Avoid bug with __builtin_elementwise_bitreverse(a) on scalar 16-bit types.
     a = ((0x5555 & a) << 1) | (0x5555 & (a >> 1));
     a = ((0x3333 & a) << 2) | (0x3333 & (a >> 2));
     a = ((0x0F0F & a) << 4) | (0x0F0F & (a >> 4));
