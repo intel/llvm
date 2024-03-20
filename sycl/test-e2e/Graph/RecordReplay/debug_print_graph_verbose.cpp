@@ -20,8 +20,8 @@
 // CHECK-SAME: [style=bold, label="ID = 0x[[#NODE3]]\nTYPE = CGExecKernel \nNAME = _ZTSZZ11run_kernelsItEN4sycl3_V15eventENS1_5queueEmNS1_6bufferIT_Li1ENS1_6detail17aligned_allocatorINSt12remove_constIS5_E4typeEEEvEESC_SC_ENKUlRNS1_7handlerEE2_clESE_EUlNS1_4itemILi1ELb1EEEE_\n
 // CHECK-SAME: ARGS = \n0) Type: Accessor Ptr: 0x[[#%x,ADDR11:]]\n1) Type: STD_Layout Ptr: 0x[[#%x,ADDR12:]]\n2) Type: STD_Layout Ptr: 0x[[#%x,ADDR13:]]\n
 // CHECK-SAME: 3) Type: STD_Layout Ptr: 0x[[#ADDR11]]\n4) Type: Accessor Ptr: 0x[[#%x,ADDR14:]]\n5) Type: STD_Layout Ptr: 0x[[#%x,ADDR15:]]\n6) Type: STD_Layout Ptr: 0x[[#%x,ADDR16:]]\n7) Type: STD_Layout Ptr: 0x[[#%x,ADDR17:]]\n"];
-// CHECK-NEXT: "0x[[#NODE2]]" -> "0x[[#NODE3]]"
-// CHECK-NEXT: "0x[[#%x,NODE7:]]" -> "0x[[#NODE3]]"
+// CHECK-DAG: "0x[[#NODE2]]" -> "0x[[#NODE3]]"
+// CHECK-DAG: "0x[[#%x,NODE7:]]" -> "0x[[#NODE3]]"
 // CHECK-NEXT: "0x[[#%x,NODE4:]]"
 // CHECK-SAME: [style=bold, label="ID = 0x[[#NODE4]]\nTYPE = CGCopy Device-to-Device \nSrc: 0x[[#%x,ADDR18:]] Dst: 0x[[#%x,ADDR19:]]\n"];
 // CHECK-DAG: "0x[[#NODE3]]" -> "0x[[#NODE4]]"
