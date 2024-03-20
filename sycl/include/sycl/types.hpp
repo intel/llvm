@@ -2391,8 +2391,10 @@ public:
 
   // Leave store() interface to automatic conversion to vec<>.
   // Load to vec_t and then assign to swizzle.
-  template <access::address_space Space, access::decorated DecorateAddress>
-  void load(size_t offset, multi_ptr<DataT, Space, DecorateAddress> ptr) {
+  template <access::address_space Space, access::decorated DecorateAddress,
+            typename RelayVecT = VecT>
+  std::enable_if_t<VecIsMutable<RelayVecT>, void>
+  load(size_t offset, multi_ptr<DataT, Space, DecorateAddress> ptr) const {
     vec_t Tmp;
     Tmp.template load(offset, ptr);
     *this = Tmp;
