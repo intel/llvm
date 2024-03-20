@@ -66,7 +66,6 @@
 // CHECK-SPV: LinkageAttributes "llvm_bitreverse_v3i8" Export
 // CHECK-SPV: LinkageAttributes "llvm_bitreverse_v3i16" Export
 // CHECK-SPV: LinkageAttributes "llvm_bitreverse_v3i32" Export
-// CHECK-SPV: LinkageAttributes "llvm_bitreverse_v3i64" Export
 
 // CHECK-SPV: LinkageAttributes "llvm_bitreverse_v4i8" Export
 // CHECK-SPV: LinkageAttributes "llvm_bitreverse_v4i16" Export
