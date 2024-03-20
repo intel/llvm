@@ -16,21 +16,25 @@ namespace sycl {
 namespace ext {
 namespace oneapi {
 namespace experimental {
+inline constexpr detail::PropKind fakePropKind(int N) {
+  return static_cast<detail::PropKind>(
+      static_cast<std::uint32_t>(detail::PropKind::PropKindSize) + N);
+}
 
-struct bar_key {
+struct bar_key : detail::compile_time_property_key<fakePropKind(0)> {
   using value_t = property_value<bar_key>;
 };
 
-struct baz_key {
+struct baz_key : detail::compile_time_property_key<fakePropKind(1)> {
   template <int K>
   using value_t = property_value<baz_key, std::integral_constant<int, K>>;
 };
 
-struct boo_key {
+struct boo_key : detail::compile_time_property_key<fakePropKind(2)> {
   template <typename... Ts> using value_t = property_value<boo_key, Ts...>;
 };
 
-struct foo {
+struct foo : detail::run_time_property_key<fakePropKind(3)> {
   constexpr foo(int v) : value(v) {}
   int value;
 };
@@ -40,7 +44,7 @@ inline bool operator==(const foo &lhs, const foo &rhs) {
 }
 inline bool operator!=(const foo &lhs, const foo &rhs) { return !(lhs == rhs); }
 
-struct foz {
+struct foz : detail::run_time_property_key<fakePropKind(4)> {
   constexpr foz(float v1, bool v2) : value1(v1), value2(v2) {}
   // Define copy constructor to make foz non-trivially copyable
   constexpr foz(const foz &f) {
@@ -56,7 +60,7 @@ inline bool operator==(const foz &lhs, const foz &rhs) {
 }
 inline bool operator!=(const foz &lhs, const foz &rhs) { return !(lhs == rhs); }
 
-struct fir {
+struct fir : detail::run_time_property_key<fakePropKind(5)> {
   // Intentionally not constexpr to test for properties that cannot be constexpr
   fir(float v1, bool v2) : value1(v1), value2(v2) {}
   // Define copy constructor to make foz non-trivially copyable
@@ -81,13 +85,6 @@ using foo_key = foo;
 using foz_key = foz;
 using fir_key = fir;
 
-template <> struct is_property_key<bar_key> : std::true_type {};
-template <> struct is_property_key<baz_key> : std::true_type {};
-template <> struct is_property_key<boo_key> : std::true_type {};
-template <> struct is_property_key<foo_key> : std::true_type {};
-template <> struct is_property_key<foz_key> : std::true_type {};
-template <> struct is_property_key<fir_key> : std::true_type {};
-
 template <typename syclObjectT>
 struct is_property_key_of<bar_key, syclObjectT> : std::true_type {};
 template <typename syclObjectT>
@@ -102,39 +99,6 @@ template <typename syclObjectT>
 struct is_property_key_of<fir_key, syclObjectT> : std::true_type {};
 
 namespace detail {
-template <> struct PropertyToKind<bar_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 0);
-};
-template <> struct PropertyToKind<baz_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 1);
-};
-template <> struct PropertyToKind<foo_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 2);
-};
-template <> struct PropertyToKind<boo_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 3);
-};
-template <> struct PropertyToKind<foz_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4);
-};
-template <> struct PropertyToKind<fir_key> {
-  static constexpr PropKind Kind = static_cast<enum PropKind>(
-      static_cast<std::uint32_t>(PropKind::PropKindSize) + 4);
-};
-
-template <> struct IsCompileTimeProperty<bar_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<baz_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<boo_key> : std::true_type {};
-
-template <> struct IsRuntimeProperty<foo_key> : std::true_type {};
-template <> struct IsRuntimeProperty<foz_key> : std::true_type {};
-template <> struct IsRuntimeProperty<fir_key> : std::true_type {};
-
 template <typename Properties>
 struct ConflictingProperties<boo_key, Properties>
     : ContainsProperty<fir_key, Properties> {};

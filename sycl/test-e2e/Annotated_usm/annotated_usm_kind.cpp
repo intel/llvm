@@ -124,22 +124,23 @@ template <typename T> void testUsmKind(sycl::queue &q) {
           [&]() { return TAnnotated(dev, Ctx, properties{usm_kind_host}); },
           [&]() { return ATHost(1, q); }, [&]() { return ATHost(1, Ctx); },
           [&]() { return ATAnnotated(1, dev, Ctx, alloc::host); }});
-
-  CheckUsmKindAll(
-      alloc::shared,
-      std::tuple{
-          [&]() { return MShared(q); }, [&]() { return MShared(dev, Ctx); },
-          [&]() { return MAnnotated(dev, Ctx, alloc::shared); },
-          [&]() { return MAnnotated(dev, Ctx, properties{usm_kind_shared}); },
-          [&]() { return AShared(1, q); },
-          [&]() { return AShared(1, dev, Ctx); },
-          [&]() { return AAnnotated(1, dev, Ctx, alloc::shared); },
-          [&]() { return TShared(q); }, [&]() { return TShared(dev, Ctx); },
-          [&]() { return TAnnotated(dev, Ctx, alloc::shared); },
-          [&]() { return TAnnotated(dev, Ctx, properties{usm_kind_shared}); },
-          [&]() { return ATShared(1, q); },
-          [&]() { return ATShared(1, dev, Ctx); },
-          [&]() { return ATAnnotated(1, dev, Ctx, alloc::shared); }});
+  if (dev.has(sycl::aspect::usm_shared_allocations)) {
+    CheckUsmKindAll(
+        alloc::shared,
+        std::tuple{
+            [&]() { return MShared(q); }, [&]() { return MShared(dev, Ctx); },
+            [&]() { return MAnnotated(dev, Ctx, alloc::shared); },
+            [&]() { return MAnnotated(dev, Ctx, properties{usm_kind_shared}); },
+            [&]() { return AShared(1, q); },
+            [&]() { return AShared(1, dev, Ctx); },
+            [&]() { return AAnnotated(1, dev, Ctx, alloc::shared); },
+            [&]() { return TShared(q); }, [&]() { return TShared(dev, Ctx); },
+            [&]() { return TAnnotated(dev, Ctx, alloc::shared); },
+            [&]() { return TAnnotated(dev, Ctx, properties{usm_kind_shared}); },
+            [&]() { return ATShared(1, q); },
+            [&]() { return ATShared(1, dev, Ctx); },
+            [&]() { return ATAnnotated(1, dev, Ctx, alloc::shared); }});
+  }
 }
 
 int main() {

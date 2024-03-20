@@ -690,7 +690,7 @@ bool VPIntrinsic::canIgnoreVectorLengthParam() const {
   if (EC.isScalable()) {
     // Compare vscale patterns
     uint64_t VScaleFactor;
-    if (match(VLParam, m_c_Mul(m_ConstantInt(VScaleFactor), m_VScale())))
+    if (match(VLParam, m_Mul(m_VScale(), m_ConstantInt(VScaleFactor))))
       return VScaleFactor >= EC.getKnownMinValue();
     return (EC.getKnownMinValue() == 1) && match(VLParam, m_VScale());
   }
@@ -733,6 +733,8 @@ Function *VPIntrinsic::getDeclarationForParams(Module *M, Intrinsic::ID VPID,
   case Intrinsic::vp_fpext:
   case Intrinsic::vp_ptrtoint:
   case Intrinsic::vp_inttoptr:
+  case Intrinsic::vp_lrint:
+  case Intrinsic::vp_llrint:
     VPFunc =
         Intrinsic::getDeclaration(M, VPID, {ReturnType, Params[0]->getType()});
     break;
@@ -977,4 +979,22 @@ Value *GCRelocateInst::getDerivedPtr() const {
   if (auto Opt = GCInst->getOperandBundle(LLVMContext::OB_gc_live))
     return *(Opt->Inputs.begin() + getDerivedPtrIndex());
   return *(GCInst->arg_begin() + getDerivedPtrIndex());
+}
+
+unsigned SYCLAllocaInst::getAddressSpace() const {
+  return getType()->getPointerAddressSpace();
+}
+
+Value *SYCLAllocaInst::getSizeSymbolicID() const { return getArgOperand(0); }
+
+Value *SYCLAllocaInst::getSizeDefaultValue() const { return getArgOperand(1); }
+
+Value *SYCLAllocaInst::getRTBuffer() const { return getArgOperand(2); }
+
+Type *SYCLAllocaInst::getAllocatedType() const {
+  return getFunctionType()->getFunctionParamType(3);
+}
+
+Align SYCLAllocaInst::getAlign() const {
+  return cast<ConstantInt>(getArgOperand(4))->getAlignValue();
 }

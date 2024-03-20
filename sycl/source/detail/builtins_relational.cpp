@@ -147,7 +147,7 @@ template <typename T, typename T2> inline T2 __vselect(T2 a, T2 b, T c) {
 
 // ---------- 4.13.7 Relational functions. Host implementations. ---------------
 
-using rel_res_t = d::select_cl_scalar_t<bool>;
+using rel_res_t = d::ConvertToOpenCLType_t<bool>;
 
 // FOrdEqual-isequal
 __SYCL_EXPORT rel_res_t sycl_host_FOrdEqual(s::cl_float x,

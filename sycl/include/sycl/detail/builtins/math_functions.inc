@@ -394,7 +394,7 @@ detail::builtin_enable_math_allow_scalar_t<T0> modf(
 #else
 #define SCALAR_EXTERN_LAST_INT(NAME, TYPE)                                     \
   inline TYPE NAME(TYPE x, int y) {                                            \
-    extern TYPE __##NAME##_impl(TYPE, int);                                    \
+    extern SYCL_BUILTIN_EXPORT TYPE __##NAME##_impl(TYPE, int);                \
     return __##NAME##_impl(x, y);                                              \
   }
 #define BUILTIN_MATH_LAST_INT(NAME)                                            \
@@ -488,15 +488,15 @@ inline int ilogb(half x) {
 DEVICE_IMPL_TEMPLATE(ONE_ARG, ilogb, builtin_enable_ilogb_t, __spirv_ocl_ilogb)
 #else
 inline int ilogb(float x) {
-  extern int __ilogb_impl(float);
+  extern SYCL_BUILTIN_EXPORT int __ilogb_impl(float);
   return __ilogb_impl(x);
 }
 inline int ilogb(double x) {
-  extern int __ilogb_impl(double);
+  extern SYCL_BUILTIN_EXPORT int __ilogb_impl(double);
   return __ilogb_impl(x);
 }
 inline int ilogb(half x) {
-  extern int __ilogb_impl(half);
+  extern SYCL_BUILTIN_EXPORT int __ilogb_impl(half);
   return __ilogb_impl(x);
 }
 HOST_IMPL_TEMPLATE(ONE_ARG, ilogb, builtin_enable_ilogb_t, math,

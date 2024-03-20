@@ -14,7 +14,6 @@
 #include <sycl/detail/host_profiling_info.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/info/info_desc.hpp>
-#include <sycl/stl.hpp>
 
 #include <atomic>
 #include <cassert>
@@ -224,6 +223,17 @@ public:
     MSubmittedQueue = SubmittedQueue;
   };
 
+  /// Associate event with provided queue.
+  ///
+  /// @return
+  void associateWithQueue(const QueueImplPtr &Queue);
+
+  /// Indicates if this event is not associated with any command and doesn't
+  /// have native handle.
+  ///
+  /// @return true if no associated command and no event handle.
+  bool isNOP() { return !MCommand && !getHandleRef(); }
+
   /// Calling this function queries the current device timestamp and sets it as
   /// submission time for the command associated with this event.
   void setSubmissionTime();
@@ -282,12 +292,16 @@ public:
     return MGraph.lock();
   }
 
-  void setEventFromSubmitedExecCommandBuffer(bool value) {
-    MEventFromSubmitedExecCommandBuffer = value;
+  void setEventFromSubmittedExecCommandBuffer(bool value) {
+    MEventFromSubmittedExecCommandBuffer = value;
   }
 
-  bool isEventFromSubmitedExecCommandBuffer() const {
-    return MEventFromSubmitedExecCommandBuffer;
+  bool isEventFromSubmittedExecCommandBuffer() const {
+    return MEventFromSubmittedExecCommandBuffer;
+  }
+
+  const std::vector<EventImplPtr> &getPostCompleteEvents() const {
+    return MPostCompleteEvents;
   }
 
 protected:
@@ -313,8 +327,8 @@ protected:
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;
-  const bool MIsProfilingEnabled = false;
-  const bool MFallbackProfiling = false;
+  bool MIsProfilingEnabled = false;
+  bool MFallbackProfiling = false;
 
   std::weak_ptr<queue_impl> MWorkerQueue;
   std::weak_ptr<queue_impl> MSubmittedQueue;
@@ -340,8 +354,8 @@ protected:
   /// Store the command graph associated with this event, if any.
   /// This event is also be stored in the graph so a weak_ptr is used.
   std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph;
-  /// Indicates that the event results from a command graph submission
-  bool MEventFromSubmitedExecCommandBuffer = false;
+  /// Indicates that the event results from a command graph submission.
+  bool MEventFromSubmittedExecCommandBuffer = false;
 
   // If this event represents a submission to a
   // sycl::detail::pi::PiExtCommandBuffer the sync point for that submission is

@@ -1,0 +1,56 @@
+name: Reusable SYCL macOS build and test workflow
+
+on:
+  workflow_call:
+    inputs:
+      build_ref:
+        type: string
+        required: false
+      build_cache_suffix:
+        type: string
+        required: false
+        default: "default"
+      build_cache_size:
+        type: string
+        required: false
+        default: 2G
+      build_configure_extra_args:
+        type: string
+        required: false
+        default: ""
+
+jobs:
+  build:
+    name: Build
+    runs-on: macos-12
+    env:
+      CCACHE_DIR: $GITHUB_WORKSPACE/build_cache_${{ inputs.build_cache_suffix }}
+      CCACHE_MAXSIZE: ${{ inputs.build_cache_size }}
+    steps:
+    - name: Install dependencies
+      run: brew install ccache ninja
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.build_ref }}
+        path: src
+    - uses: actions/cache@v4
+      with:
+        path: build_cache_${{ inputs.build_cache_suffix }}
+        key: sycl-${{ runner.os }}-${{ inputs.build_cache_suffix }}-${{ github.sha }}
+        restore-keys: sycl-${{ runner.os }}-${{ inputs.build_cache_suffix }}-
+    - name: Configure
+      env:
+        ARGS: ${{ inputs.build_configure_extra_args }}
+      run: |
+        mkdir -p $CCACHE_DIR
+        mkdir -p $GITHUB_WORKSPACE/build
+        cd $GITHUB_WORKSPACE/build
+        python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
+          -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
+          --ci-defaults $ARGS \
+          --cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=ccache \
+          --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+          --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
+          --cmake-opt="-DSYCL_PI_TESTS=OFF"
+    - name: Compile
+      run: cmake --build $GITHUB_WORKSPACE/build --target deploy-sycl-toolchain

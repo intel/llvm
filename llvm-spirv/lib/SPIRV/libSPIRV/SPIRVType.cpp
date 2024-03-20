@@ -239,6 +239,10 @@ bool SPIRVType::isTypeSubgroupAvcMceINTEL() const {
          OpCode == OpTypeAvcMceResultINTEL;
 }
 
+bool SPIRVType::isTypeTaskSequenceINTEL() const {
+  return OpCode == internal::OpTypeTaskSequenceINTEL;
+}
+
 bool SPIRVType::isTypeVectorOrScalarInt() const {
   return isTypeInt() || isTypeVectorInt();
 }

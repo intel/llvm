@@ -45,9 +45,9 @@ template <class T>
 inline constexpr bool is_fixed_topology_group_v =
     is_fixed_topology_group<T>::value;
 
-#ifdef SYCL_EXT_ONEAPI_ROOT_GROUP
-template <> struct is_fixed_topology_group<root_group> : std::true_type {};
-#endif
+template <int Dimensions> class root_group;
+template <int Dimensions>
+struct is_fixed_topology_group<root_group<Dimensions>> : std::true_type {};
 
 template <int Dimensions>
 struct is_fixed_topology_group<sycl::group<Dimensions>> : std::true_type {};
@@ -342,6 +342,12 @@ template <typename T>
 struct is_bool
     : std::bool_constant<is_scalar_bool<vector_element_t<T>>::value> {};
 
+// is_boolean
+template <int N> struct Boolean;
+template <typename T> struct is_boolean : std::false_type {};
+template <int N> struct is_boolean<Boolean<N>> : std::true_type {};
+template <typename T> inline constexpr bool is_boolean_v = is_boolean<T>::value;
+
 // is_pointer
 template <typename T> struct is_pointer_impl : std::false_type {};
 
@@ -532,6 +538,20 @@ struct map_type<T, From, To, Rest...> {
   using type = std::conditional_t<std::is_same_v<From, T>, To,
                                   typename map_type<T, Rest...>::type>;
 };
+template <typename T, typename... Ts> constexpr bool CheckTypeIn() {
+  constexpr bool SameType[] = {
+      std::is_same_v<std::remove_cv_t<T>, std::remove_cv_t<Ts>>...};
+  // Replace with std::any_of with C++20.
+  for (size_t I = 0; I < sizeof...(Ts); ++I)
+    if (SameType[I])
+      return true;
+  return false;
+}
+
+// NOTE: We need a constexpr variable definition for the constexpr functions
+//       as MSVC thinks function definitions are the same otherwise.
+template <typename... Ts> constexpr bool check_type_in_v = CheckTypeIn<Ts...>();
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

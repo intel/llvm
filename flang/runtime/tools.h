@@ -266,7 +266,8 @@ inline RT_API_ATTRS RESULT ApplyIntegerKind(
   }
 }
 
-template <template <int KIND> class FUNC, typename RESULT, typename... A>
+template <template <int KIND> class FUNC, typename RESULT,
+    bool NEEDSMATH = false, typename... A>
 inline RT_API_ATTRS RESULT ApplyFloatingPointKind(
     int kind, Terminator &terminator, A &&...x) {
   switch (kind) {
@@ -287,7 +288,13 @@ inline RT_API_ATTRS RESULT ApplyFloatingPointKind(
     break;
   case 16:
     if constexpr (HasCppTypeFor<TypeCategory::Real, 16>) {
-      return FUNC<16>{}(std::forward<A>(x)...);
+      // If FUNC implemenation relies on FP math functions,
+      // then we should not be here. The compiler should have
+      // generated a call to an entry in FortranFloat128Math
+      // library.
+      if constexpr (!NEEDSMATH) {
+        return FUNC<16>{}(std::forward<A>(x)...);
+      }
     }
     break;
   }
@@ -441,8 +448,8 @@ RT_API_ATTRS void ShallowCopy(const Descriptor &to, const Descriptor &from);
 // size memory for null-terminator if necessary. Returns the original or a newly
 // allocated null-terminated string (responsibility for deallocation is on the
 // caller).
-RT_API_ATTRS const char *EnsureNullTerminated(
-    const char *str, std::size_t length, Terminator &terminator);
+RT_API_ATTRS char *EnsureNullTerminated(
+    char *str, std::size_t length, Terminator &terminator);
 
 RT_API_ATTRS bool IsValidCharDescriptor(const Descriptor *value);
 

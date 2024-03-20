@@ -69,8 +69,16 @@ enum InternalOp {
   IOpJointMatrixUSMadINTEL = 6129,
   IOpJointMatrixUUMadINTEL = 6130,
   IOpArithmeticFenceINTEL = 6145,
+  IOpTaskSequenceCreateINTEL = 6163,
+  IOpTaskSequenceAsyncINTEL = 6164,
+  IOpTaskSequenceGetINTEL = 6165,
+  IOpTaskSequenceReleaseINTEL = 6166,
   IOpTypeJointMatrixINTELv2 = 6184,
+  IOpCooperativeMatrixLoadCheckedINTEL = 6193,
+  IOpCooperativeMatrixStoreCheckedINTEL = 6194,
+  IOpCooperativeMatrixConstructCheckedINTEL = 6195,
   IOpJointMatrixWorkItemLengthINTEL = 6410,
+  IOpTypeTaskSequenceINTEL = 6411,
   IOpComplexFMulINTEL = 6415,
   IOpComplexFDivINTEL = 6416,
   IOpRoundFToTF32INTEL = 6426,
@@ -90,8 +98,6 @@ enum InternalDecoration {
   IDecInitModeINTEL = 6148,
   IDecImplementInCSRINTEL = 6149,
   IDecArgumentAttributeINTEL = 6409,
-  IDecCacheControlLoadINTEL = 6442,
-  IDecCacheControlStoreINTEL = 6443,
   IDecFuncParamKindINTEL = 9624,
   IDecFuncParamDescINTEL = 9625
 };
@@ -105,6 +111,8 @@ enum InternalCapability {
   ICapabilityHWThreadQueryINTEL = 6134,
   ICapFPArithmeticFenceINTEL = 6144,
   ICapGlobalVariableDecorationsINTEL = 6146,
+  ICapabilityTaskSequenceINTEL = 6162,
+  ICapabilityCooperativeMatrixCheckedInstructionsINTEL = 6192,
   ICapabilityCooperativeMatrixPrefetchINTEL = 6411,
   ICapabilityComplexFloatMulDivINTEL = 6414,
   ICapabilityTensorFloat32RoundingINTEL = 6425,
@@ -115,13 +123,15 @@ enum InternalCapability {
   ICapabilityJointMatrixBF16ComponentTypeINTEL = 6437,
   ICapabilityJointMatrixPackedInt2ComponentTypeINTEL = 6438,
   ICapabilityJointMatrixPackedInt4ComponentTypeINTEL = 6439,
-  ICapabilityCacheControlsINTEL = 6441
+  ICapabilityCacheControlsINTEL = 6441,
+  ICapabilitySubgroupRequirementsINTEL = 6445,
 };
 
 enum InternalFunctionControlMask { IFunctionControlOptNoneINTELMask = 0x10000 };
 
 enum InternalExecutionMode {
   IExecModeFastCompositeKernelINTEL = 6088,
+  IExecModeNamedSubgroupSizeINTEL = 6446,
 };
 
 constexpr LinkageType LinkageTypeInternal =
@@ -149,21 +159,6 @@ enum InternalBuiltIn {
   IBuiltInGlobalHWThreadIDINTEL = 6136,
 };
 
-enum class LoadCacheControlINTEL {
-  Uncached = 0,
-  Cached = 1,
-  Streaming = 2,
-  InvalidateAfterRead = 3,
-  ConstCached = 4
-};
-
-enum class StoreCacheControlINTEL {
-  Uncached = 0,
-  WriteThrough = 1,
-  WriteBack = 2,
-  Streaming = 3
-};
-
 #define _SPIRV_OP(x, y) constexpr x x##y = static_cast<x>(I##x##y);
 _SPIRV_OP(Capability, JointMatrixINTEL)
 _SPIRV_OP(Capability, JointMatrixWIInstructionsINTEL)
@@ -185,6 +180,11 @@ _SPIRV_OP(Op, JointMatrixGetElementCoordINTEL)
 _SPIRV_OP(Capability, CooperativeMatrixPrefetchINTEL)
 _SPIRV_OP(Op, CooperativeMatrixPrefetchINTEL)
 
+_SPIRV_OP(Capability, CooperativeMatrixCheckedInstructionsINTEL)
+_SPIRV_OP(Op, CooperativeMatrixLoadCheckedINTEL)
+_SPIRV_OP(Op, CooperativeMatrixStoreCheckedINTEL)
+_SPIRV_OP(Op, CooperativeMatrixConstructCheckedINTEL)
+
 _SPIRV_OP(Capability, CooperativeMatrixInvocationInstructionsINTEL)
 _SPIRV_OP(Op, CooperativeMatrixApplyFunctionINTEL)
 
@@ -204,6 +204,16 @@ _SPIRV_OP(Capability, TensorFloat32RoundingINTEL)
 _SPIRV_OP(Op, RoundFToTF32INTEL)
 
 _SPIRV_OP(Capability, CacheControlsINTEL)
+
+_SPIRV_OP(Capability, SubgroupRequirementsINTEL)
+
+_SPIRV_OP(Capability, TaskSequenceINTEL)
+_SPIRV_OP(Op, TaskSequenceCreateINTEL)
+_SPIRV_OP(Op, TaskSequenceAsyncINTEL)
+_SPIRV_OP(Op, TaskSequenceGetINTEL)
+_SPIRV_OP(Op, TaskSequenceReleaseINTEL)
+_SPIRV_OP(Op, TypeTaskSequenceINTEL)
+
 #undef _SPIRV_OP
 
 constexpr SourceLanguage SourceLanguagePython =
@@ -269,10 +279,6 @@ constexpr Decoration DecorationFuncParamKindINTEL =
     static_cast<Decoration>(IDecFuncParamKindINTEL);
 constexpr Decoration DecorationFuncParamDescINTEL =
     static_cast<Decoration>(IDecFuncParamDescINTEL);
-constexpr Decoration DecorationCacheControlLoadINTEL =
-    static_cast<Decoration>(IDecCacheControlLoadINTEL);
-constexpr Decoration DecorationCacheControlStoreINTEL =
-    static_cast<Decoration>(IDecCacheControlStoreINTEL);
 
 constexpr Capability CapabilityFastCompositeINTEL =
     static_cast<Capability>(ICapFastCompositeINTEL);
@@ -292,6 +298,9 @@ constexpr FunctionControlMask FunctionControlOptNoneINTELMask =
 
 constexpr ExecutionMode ExecutionModeFastCompositeKernelINTEL =
     static_cast<ExecutionMode>(IExecModeFastCompositeKernelINTEL);
+
+constexpr ExecutionMode ExecutionModeNamedSubgroupSizeINTEL =
+    static_cast<ExecutionMode>(IExecModeNamedSubgroupSizeINTEL);
 
 } // namespace internal
 } // namespace spv

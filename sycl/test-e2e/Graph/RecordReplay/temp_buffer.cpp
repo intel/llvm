@@ -1,9 +1,10 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
-// RUN: %if level_zero %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s %}
+// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// Extra run to check for immediate-command-list in Level Zero
+// RUN: %if level_zero && linux %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 //
-// CHECK-NOT: LEAK
 
 // This test should be removed or modified as using buffers that don't exceed
 // the lifetime of the graph doesn't satisfy valid usage of the graphs
@@ -16,11 +17,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
-
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
+  queue Queue;
 
   using T = int;
 

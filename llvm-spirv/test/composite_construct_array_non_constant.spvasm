@@ -7,13 +7,13 @@
 
 ; CHECK: define spir_func [4 x i8] @non_constant_array_elements(i8 %[[#ARG0:]], i8 %[[#ARG1:]])
 ; CHECK: %[[#ArrayPtr:]] = alloca [4 x i8]
-; CHECK: %[[GEP:[0-9a-z.]+]] = getelementptr inbounds i8, ptr %[[#ArrayPtr]], i32 0
+; CHECK: %[[GEP:[0-9a-z.]+]] = getelementptr inbounds [4 x i8], ptr %[[#ArrayPtr]], i32 0, i32 0
 ; CHECK: store i8 %[[#ARG1]], ptr %[[GEP]]
-; CHECK: %[[GEP1:[0-9a-z.]+]] = getelementptr inbounds i8, ptr %[[#ArrayPtr]], i32 1
+; CHECK: %[[GEP1:[0-9a-z.]+]] = getelementptr inbounds [4 x i8], ptr %[[#ArrayPtr]], i32 0, i32 1
 ; CHECK: store i8 %[[#ARG0]], ptr %[[GEP1]]
-; CHECK: %[[GEP2:[0-9a-z.]+]] = getelementptr inbounds i8, ptr %[[#ArrayPtr]], i32 2
+; CHECK: %[[GEP2:[0-9a-z.]+]] = getelementptr inbounds [4 x i8], ptr %[[#ArrayPtr]], i32 0, i32 2
 ; CHECK: store i8 0, ptr %[[GEP2]]
-; CHECK: %[[GEP3:[0-9a-z.]+]] = getelementptr inbounds i8, ptr %[[#ArrayPtr]], i32 3
+; CHECK: %[[GEP3:[0-9a-z.]+]] = getelementptr inbounds [4 x i8], ptr %[[#ArrayPtr]], i32 0, i32 3
 ; CHECK: store i8 10, ptr %[[GEP3]]
 
 ; CHECK: %[[LoadArr:[0-9a-z.]+]] = load [4 x i8], ptr %[[#ArrayPtr]]

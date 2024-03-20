@@ -121,6 +121,7 @@ namespace clang {
     const CodeGenOptions &CodeGenOpts;
     const TargetOptions &TargetOpts;
     const LangOptions &LangOpts;
+    const FileManager &FileMgr;
     std::unique_ptr<raw_pwrite_stream> AsmOutStream;
     ASTContext *Context;
     IntrusiveRefCntPtr<llvm::vfs::FileSystem> FS;
@@ -161,12 +162,14 @@ namespace clang {
                     const PreprocessorOptions &PPOpts,
                     const CodeGenOptions &CodeGenOpts,
                     const TargetOptions &TargetOpts,
-                    const LangOptions &LangOpts, const std::string &InFile,
+                    const LangOptions &LangOpts, const FileManager &FileMgr,
+                    const std::string &InFile,
                     SmallVector<LinkModule, 4> LinkModules,
                     std::unique_ptr<raw_pwrite_stream> OS, LLVMContext &C,
                     CoverageSourceInfo *CoverageInfo = nullptr)
         : Diags(Diags), Action(Action), HeaderSearchOpts(HeaderSearchOpts),
           CodeGenOpts(CodeGenOpts), TargetOpts(TargetOpts), LangOpts(LangOpts),
+          FileMgr(FileMgr),
           AsmOutStream(std::move(OS)), Context(nullptr), FS(VFS),
           LLVMIRGeneration("irgen", "LLVM IR Generation Time"),
           LLVMIRGenerationRefCount(0),
@@ -187,12 +190,13 @@ namespace clang {
                     const PreprocessorOptions &PPOpts,
                     const CodeGenOptions &CodeGenOpts,
                     const TargetOptions &TargetOpts,
-                    const LangOptions &LangOpts, llvm::Module *Module,
+                    const LangOptions &LangOpts,const FileManager &FileMgr,
+                    llvm::Module *Module,
                     SmallVector<LinkModule, 4> LinkModules, LLVMContext &C,
                     CoverageSourceInfo *CoverageInfo = nullptr)
         : Diags(Diags), Action(Action), HeaderSearchOpts(HeaderSearchOpts),
           CodeGenOpts(CodeGenOpts), TargetOpts(TargetOpts), LangOpts(LangOpts),
-          Context(nullptr), FS(VFS),
+          FileMgr(FileMgr),Context(nullptr), FS(VFS),
           LLVMIRGeneration("irgen", "LLVM IR Generation Time"),
           LLVMIRGenerationRefCount(0),
           Gen(CreateLLVMCodeGen(Diags, "", std::move(VFS), HeaderSearchOpts,
@@ -269,6 +273,36 @@ namespace clang {
         HandleTopLevelDecl(D);
     }
 
+    bool ReloadModules(llvm::Module *M) {
+      for (const CodeGenOptions::BitcodeFileToLink &F :
+           CodeGenOpts.LinkBitcodeFiles) {
+        auto BCBuf = FileMgr.getBufferForFile(F.Filename);
+        if (!BCBuf) {
+          Diags.Report(diag::err_cannot_open_file)
+              << F.Filename << BCBuf.getError().message();
+          LinkModules.clear();
+          return true;
+        }
+
+        LLVMContext &Ctx = getModule()->getContext();
+        Expected<std::unique_ptr<llvm::Module>> ModuleOrErr =
+            getOwningLazyBitcodeModule(std::move(*BCBuf), Ctx);
+
+        if (!ModuleOrErr) {
+          handleAllErrors(ModuleOrErr.takeError(), [&](ErrorInfoBase &EIB) {
+            Diags.Report(diag::err_cannot_open_file) << F.Filename
+                                       << EIB.message();
+          });
+           LinkModules.clear();
+          return true;
+        }
+        LinkModules.push_back({std::move(ModuleOrErr.get()), F.PropagateAttrs,
+                               F.Internalize, F.LinkFlags});
+      }
+
+      return false; // success
+    }
+
     // Links each entry in LinkModules into our module.  Returns true on error.
     bool LinkInModules(llvm::Module *M) {
       for (auto &LM : LinkModules) {
@@ -286,36 +320,22 @@ namespace clang {
         CurLinkModule = LM.Module.get();
 
         bool Err;
-        auto DoLink = [&](auto &Mod) {
-          if (LM.Internalize) {
-            Err = Linker::linkModules(
-                *M, std::move(Mod), LM.LinkFlags,
-                [](llvm::Module &M, const llvm::StringSet<> &GVS) {
-                  internalizeModule(M, [&GVS](const llvm::GlobalValue &GV) {
-                    return !GV.hasName() || (GVS.count(GV.getName()) == 0);
-                  });
-                });
-          } else
-            Err = Linker::linkModules(*M, std::move(Mod), LM.LinkFlags);
-        };
+        if (LM.Internalize) {
+          Err = Linker::linkModules(
+            *M, std::move(LM.Module), LM.LinkFlags,
+          [](llvm::Module &M, const llvm::StringSet<> &GVS) {
+              internalizeModule(M, [&GVS](const llvm::GlobalValue &GV) {
+              return !GV.hasName() || (GVS.count(GV.getName()) == 0);
+             });
+            });
+        } else
+          Err = Linker::linkModules(*M, std::move(LM.Module), LM.LinkFlags);
 
-        // Create a Clone to move to the linker, which preserves the original
-        // linking modules, allowing them to be linked again in the future
-        if (ClRelinkBuiltinBitcodePostop) {
-          // TODO: If CloneModule() is updated to support cloning of
-          // unmaterialized modules, we can remove this
-          if (Error E = CurLinkModule->materializeAll())
-            return false;
-
-          std::unique_ptr<llvm::Module> Clone = llvm::CloneModule(*LM.Module);
-
-          DoLink(Clone);
-        }
-        // Otherwise we can link (and clean up) the original modules
-        else {
-          DoLink(LM.Module);
-        }
+        if (Err)
+          return true;
       }
+
+      LinkModules.clear();
       return false; // success
     }
 
@@ -1136,8 +1156,9 @@ CodeGenAction::CreateASTConsumer(CompilerInstance &CI, StringRef InFile) {
   std::unique_ptr<BackendConsumer> Result(new BackendConsumer(
       BA, CI.getDiagnostics(), &CI.getVirtualFileSystem(),
       CI.getHeaderSearchOpts(), CI.getPreprocessorOpts(), CI.getCodeGenOpts(),
-      CI.getTargetOpts(), CI.getLangOpts(), std::string(InFile),
-      std::move(LinkModules), std::move(OS), *VMContext, CoverageInfo));
+      CI.getTargetOpts(), CI.getLangOpts(), CI.getFileManager(),
+      std::string(InFile), std::move(LinkModules), std::move(OS), *VMContext,
+      CoverageInfo));
   BEConsumer = Result.get();
 
   // Enable generating macro debug info only when debug info is not disabled and
@@ -1340,7 +1361,7 @@ void CodeGenAction::ExecuteAction() {
   BackendConsumer Result(BA, CI.getDiagnostics(), &CI.getVirtualFileSystem(),
                          CI.getHeaderSearchOpts(), CI.getPreprocessorOpts(),
                          CI.getCodeGenOpts(), CI.getTargetOpts(),
-                         CI.getLangOpts(), TheModule.get(),
+                         CI.getLangOpts(), CI.getFileManager(), TheModule.get(),
                          std::move(LinkModules), *VMContext, nullptr);
 
   // Link in each pending link module.

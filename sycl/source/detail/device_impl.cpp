@@ -567,6 +567,68 @@ bool device_impl::has(aspect Aspect) const {
     return (this->getBackend() == backend::ext_oneapi_level_zero) ||
            (this->getBackend() == backend::opencl);
   }
+  case aspect::ext_intel_matrix: {
+    using arch = sycl::ext::oneapi::experimental::architecture;
+    const std::vector<arch> supported_archs = {
+        arch::intel_cpu_spr, arch::intel_gpu_pvc, arch::intel_gpu_dg2_g10,
+        arch::intel_gpu_dg2_g11, arch::intel_gpu_dg2_g12};
+    try {
+      return std::any_of(
+          supported_archs.begin(), supported_archs.end(),
+          [=](const arch a) { return this->extOneapiArchitectureIs(a); });
+    } catch (const sycl::exception &) {
+      // If we're here it means the device does not support architecture
+      // querying
+      return false;
+    }
+  }
+  case aspect::ext_oneapi_is_composite: {
+    auto components = get_info<
+        sycl::ext::oneapi::experimental::info::device::component_devices>();
+    // Any device with ext_oneapi_is_composite aspect will have at least two
+    // constituent component devices.
+    return components.size() >= 2;
+  }
+  case aspect::ext_oneapi_is_component: {
+    if (getBackend() != backend::ext_oneapi_level_zero)
+      return false;
+
+    typename sycl_to_pi<device>::type Result;
+    getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+        getHandleRef(),
+        PiInfoCode<
+            ext::oneapi::experimental::info::device::composite_device>::value,
+        sizeof(Result), &Result, nullptr);
+
+    return Result != nullptr;
+  }
+  case aspect::ext_oneapi_graph: {
+    size_t ResultSize = 0;
+    bool CallSuccessful = getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+                              MDevice, PI_DEVICE_INFO_EXTENSIONS, 0, nullptr,
+                              &ResultSize) == PI_SUCCESS;
+    if (!CallSuccessful || ResultSize == 0) {
+      return PI_FALSE;
+    }
+
+    std::unique_ptr<char[]> Result(new char[ResultSize]);
+    CallSuccessful = getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+                         MDevice, PI_DEVICE_INFO_EXTENSIONS, ResultSize,
+                         Result.get(), nullptr) == PI_SUCCESS;
+
+    if (!CallSuccessful) {
+      return PI_FALSE;
+    }
+
+    std::string_view ExtensionsString(Result.get());
+    const bool Support =
+        ExtensionsString.find("ur_exp_command_buffer") != std::string::npos;
+
+    return Support;
+  }
+  case aspect::ext_intel_fpga_task_sequence: {
+    return is_accelerator();
+  }
   }
   throw runtime_error("This device aspect has not been implemented yet.",
                       PI_ERROR_INVALID_DEVICE);
@@ -670,6 +732,15 @@ bool device_impl::isGetDeviceAndHostTimerSupported() {
       Plugin->call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
           MDevice, &DeviceTime, &HostTime);
   return Result != PI_ERROR_INVALID_OPERATION;
+}
+
+bool device_impl::extOneapiCanCompile(
+    ext::oneapi::experimental::source_language Language) {
+  try {
+    return is_source_kernel_bundle_supported(getBackend(), Language);
+  } catch (sycl::exception &) {
+    return false;
+  }
 }
 
 } // namespace detail

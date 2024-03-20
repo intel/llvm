@@ -18,9 +18,12 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Operator.h"
 
 #include <vector>
+
+#define DEBUG_TYPE "SpecConst"
 
 using namespace llvm;
 
@@ -306,6 +309,9 @@ void collectCompositeElementsDefaultValuesRecursive(
     size_t NumBytes = M.getDataLayout().getTypeStoreSize(C->getType());
     std::fill_n(std::back_inserter(DefaultValues), NumBytes, 0);
     Offset += NumBytes;
+    // Print tuple {Offset, Size, DefaultValue}.
+    LLVM_DEBUG(dbgs() << "{" << Offset - NumBytes << ", " << NumBytes << ", "
+                      << 0 << "}\n");
     return;
   }
 
@@ -368,6 +374,9 @@ void collectCompositeElementsDefaultValuesRecursive(
     auto Val = IntConst->getValue().getZExtValue();
     std::copy_n(reinterpret_cast<char *>(&Val), NumBytes,
                 std::back_inserter(DefaultValues));
+    // Print tuple {Offset, Size, DefaultValue}.
+    LLVM_DEBUG(dbgs() << "{" << Offset << ", " << NumBytes << ", " << Val
+                      << "}\n");
   } else if (auto *FPConst = dyn_cast<ConstantFP>(C)) {
     auto Val = FPConst->getValue();
 
@@ -377,14 +386,23 @@ void collectCompositeElementsDefaultValuesRecursive(
       auto Storage = static_cast<uint16_t>(IVal.getZExtValue());
       std::copy_n(reinterpret_cast<char *>(&Storage), NumBytes,
                   std::back_inserter(DefaultValues));
+      // Print tuple {Offset, Size, DefaultValue}.
+      LLVM_DEBUG(dbgs() << "{" << Offset << ", " << NumBytes << ", " << IVal
+                        << "}\n");
     } else if (NumBytes == 4) {
       float V = Val.convertToFloat();
       std::copy_n(reinterpret_cast<char *>(&V), NumBytes,
                   std::back_inserter(DefaultValues));
+      // Print tuple {Offset, Size, DefaultValue}.
+      LLVM_DEBUG(dbgs() << "{" << Offset << ", " << NumBytes << ", " << V
+                        << "}\n");
     } else if (NumBytes == 8) {
       double V = Val.convertToDouble();
       std::copy_n(reinterpret_cast<char *>(&V), NumBytes,
                   std::back_inserter(DefaultValues));
+      // Print tuple {Offset, Size, DefaultValue}.
+      LLVM_DEBUG(dbgs() << "{" << Offset << ", " << NumBytes << ", " << V
+                        << "}\n");
     } else {
       llvm_unreachable("Unexpected constant floating point type");
     }
@@ -801,8 +819,11 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
     if (!F.isDeclaration())
       continue;
 
-    if (!F.getName().startswith(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) &&
-        !F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL))
+    const bool IsSYCLAlloca = F.getIntrinsicID() == Intrinsic::sycl_alloca;
+
+    if (!F.getName().starts_with(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) &&
+        !F.getName().starts_with(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL) &&
+        !IsSYCLAlloca)
       continue;
 
     SmallVector<CallInst *, 32> SCIntrCalls;
@@ -821,21 +842,39 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
 
       SmallVector<Instruction *, 3> DelInsts;
       DelInsts.push_back(CI);
-      Type *SCTy = CI->getType();
-      unsigned NameArgNo = 0;
       Function *Callee = CI->getCalledFunction();
       assert(Callee && "Failed to get spec constant call");
-      bool HasSretParameter = Callee->hasStructRetAttr();
+
       // Structs are returned via 'sret' arguments if they are larger than 64b
-      if (HasSretParameter) {
-        // Get structure type stored in an argument annotated with 'sret'
-        // parameter attribute and skip it.
-        SCTy = Callee->getParamStructRetType(NameArgNo++);
-      }
+      bool HasSretParameter = Callee->hasStructRetAttr();
+      assert(!(HasSretParameter && IsSYCLAlloca) &&
+             "'llvm.sycl.alloca' returns a pointer");
+      // Skip 'sret' parameter.
+      unsigned NameArgNo = HasSretParameter ? 1 : 0;
+
       StringRef SymID = getStringLiteralArg(CI, NameArgNo, DelInsts);
       Value *Replacement = nullptr;
 
       Constant *DefaultValue = getSpecConstInitializerFromCI(CI, NameArgNo + 1);
+      Type *SCTy;
+      if (HasSretParameter) {
+        // Specialization constant type is given by the 'sret' parameter.
+        SCTy = Callee->getParamStructRetType(0);
+      } else if (IsSYCLAlloca) {
+        // 'llvm.sycl.alloca' returns a pointer, so we need to take the
+        // specialization constant type from the default value. At this stage,
+        // we will have lost the original scalar representation of the type, so
+        // we have to take the in-memory representation. This is only relevant
+        // when a 'bool' ('i1' scalar representation and 'i8' in-memory
+        // representation) specialization constant is used as size. In that
+        // case, for a value of 'true' (the only legal value), the default value
+        // will be 1 ('i8'), thus keeping the original semantics.
+        SCTy = DefaultValue->getType();
+      } else {
+        // Specialization constant type is the same as the one returned by the
+        // function in the general case.
+        SCTy = CI->getType();
+      }
 
       bool IsNewSpecConstant = false;
       unsigned Padding = 0;
@@ -855,6 +894,17 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         //  3. Transform to spirv intrinsic _Z*__spirv_SpecConstant* or
         //  _Z*__spirv_SpecConstantComposite
         Replacement = emitSpecConstantRecursive(SCTy, CI, IDs, DefaultValue);
+        if (IsSYCLAlloca) {
+          // In case this is a 'sycl.llvm.alloca' intrinsic, use the emitted
+          // specialization constant as the allocation size.
+          auto *Intr = cast<SYCLAllocaInst>(CI);
+          Value *ArraySize = Replacement;
+          assert(ArraySize->getType()->isIntegerTy() &&
+                 "Expecting integer type");
+          Replacement =
+              new AllocaInst(Intr->getAllocatedType(), Intr->getAddressSpace(),
+                             ArraySize, Intr->getAlign(), "alloca", CI);
+        }
         if (IsNewSpecConstant) {
           // emitSpecConstantRecursive might emit more than one spec constant
           // (because of composite types) and therefore, we need to adjust
@@ -867,6 +917,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
               M, SymID, SCTy, IDs, /* is native spec constant */ true);
         }
       } else if (Mode == HandlingMode::emulation) {
+        assert(!IsSYCLAlloca && "sycl_ext_oneapi_private_alloca not yet "
+                                "supported in emulation mode");
         // 2a. Spec constant will be passed as kernel argument;
 
         // Replace it with a load from the pointer to the specialization
@@ -979,6 +1031,10 @@ bool SpecConstantsPass::collectSpecConstantMetadata(const Module &M,
     return static_cast<unsigned>(C->getUniqueInteger().getZExtValue());
   };
 
+  // Print MD name only if there are any operands.
+  if (MD->getNumOperands() > 0)
+    LLVM_DEBUG(dbgs() << MD->getName() << "\n");
+
   for (const auto *Node : MD->operands()) {
     StringRef ID = cast<MDString>(Node->getOperand(0).get())->getString();
     assert((Node->getNumOperands() - 1) % 3 == 0 &&
@@ -988,6 +1044,9 @@ bool SpecConstantsPass::collectSpecConstantMetadata(const Module &M,
       Descs[I].ID = ExtractIntegerFromMDNodeOperand(Node, NI + 0);
       Descs[I].Offset = ExtractIntegerFromMDNodeOperand(Node, NI + 1);
       Descs[I].Size = ExtractIntegerFromMDNodeOperand(Node, NI + 2);
+      // Print Node ID along with tuple {ID, Offset, Size}.
+      LLVM_DEBUG(dbgs() << ID << "={" << Descs[I].ID << ", " << Descs[I].Offset
+                        << ", " << Descs[I].Size << "}\n");
     }
 
     IDMap[ID] = Descs;
@@ -1002,6 +1061,10 @@ bool SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
   if (!N)
     return false;
 
+  // Print N name only if there are any operands.
+  if (N->getNumOperands() > 0)
+    LLVM_DEBUG(dbgs() << N->getName() << "\n");
+
   unsigned Offset = 0;
   for (const auto *Node : N->operands()) {
     auto *Constant = cast<ConstantAsMetadata>(Node->getOperand(0))->getValue();
@@ -1014,8 +1077,9 @@ bool SpecConstantsPass::collectSpecConstantDefaultValuesMetadata(
 
 bool llvm::checkModuleContainsSpecConsts(const Module &M) {
   for (const Function &F : M.functions()) {
-    if (F.getName().startswith(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) ||
-        F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL))
+    if (F.getName().starts_with(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) ||
+        F.getName().starts_with(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL) ||
+        F.getIntrinsicID() == llvm::Intrinsic::sycl_alloca)
       return true;
   }
 

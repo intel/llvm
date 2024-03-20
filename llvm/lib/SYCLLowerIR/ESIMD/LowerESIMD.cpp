@@ -58,7 +58,7 @@ using namespace llvm::esimd;
 cl::opt<bool> ForceStatelessMem(
     "lower-esimd-force-stateless-mem", llvm::cl::Optional, llvm::cl::Hidden,
     llvm::cl::desc("Use stateless API for accessor based API."),
-    llvm::cl::init(false));
+    llvm::cl::init(true));
 
 namespace {
 SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &);
@@ -494,8 +494,7 @@ public:
         {"dpasw", {"dpasw", {a(0), a(1), a(2), t(0)}}},
         {"dpasw_nosrc0", {"dpasw.nosrc0", {a(0), a(1), t(0)}}},
         {"nbarrier", {"nbarrier", {a(0), a(1), a(2)}}},
-        {"raw_send_nbarrier_signal",
-         {"raw.send.noresult", {a(0), ai1(4), a(1), a(2), a(3)}}},
+        {"nbarrier_arrive", {"nbarrier.arrive", {a(0), a(1), a(2), a(3)}}},
         {"lsc_load_slm",
          {"lsc.load.slm",
           {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
@@ -512,10 +511,6 @@ public:
          {"lsc.load.merge.bti",
           {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
            t8(6), t8(7), c8(0), a(1), aSI(2), a(3)}}},
-        {"lsc_load_stateless",
-         {"lsc.load.stateless",
-          {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
-           t8(6), t8(7), c8(0), a(1), c32(0)}}},
         {"lsc_load_merge_stateless",
          {"lsc.load.merge.stateless",
           {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
@@ -704,17 +699,17 @@ static std::string mangleFunction(StringRef FunctionName) {
   // These functions are defined as extern "C" which Demangler that is used
   // fails to handle properly.
   if (isDevicelibFunction(FunctionName)) {
-    if (FunctionName.startswith("__devicelib_ConvertFToBF16INTEL")) {
+    if (FunctionName.starts_with("__devicelib_ConvertFToBF16INTEL")) {
       return (Twine("_Z31") + FunctionName + "RKf").str();
     }
-    if (FunctionName.startswith("__devicelib_ConvertBF16ToFINTEL")) {
+    if (FunctionName.starts_with("__devicelib_ConvertBF16ToFINTEL")) {
       return (Twine("_Z31") + FunctionName + "RKt").str();
     }
   }
   // Every inserted vstore gets its own function with the same name,
   // so they are mangled with ".[0-9]+". Just use the
   // raw name to pass through the demangler.
-  if (FunctionName.startswith(ESIMD_INSERTED_VSTORE_FUNC_NAME))
+  if (FunctionName.starts_with(ESIMD_INSERTED_VSTORE_FUNC_NAME))
     return ESIMD_INSERTED_VSTORE_FUNC_NAME;
   return FunctionName.str();
 }
@@ -1002,6 +997,37 @@ static void translateGatherLoad(CallInst &CI, bool IsSLM) {
                                        PassThroughOp);
   LI->setDebugLoc(CI.getDebugLoc());
   CI.replaceAllUsesWith(LI);
+}
+
+static void translateScatterStore(CallInst &CI, bool IsSLM) {
+  IRBuilder<> Builder(&CI);
+  constexpr int AlignmentTemplateArgIdx = 2;
+  APInt Val = parseTemplateArg(CI, AlignmentTemplateArgIdx,
+                               ESIMDIntrinDesc::GenXArgConversion::TO_I64);
+  Align AlignValue(Val.getZExtValue());
+
+  auto ValsOp = CI.getArgOperand(0);
+  auto OffsetsOp = CI.getArgOperand(1);
+  auto MaskOp = CI.getArgOperand(2);
+  auto DataType = ValsOp->getType();
+
+  // Convert the mask from <N x i16> to <N x i1>.
+  Value *Zero = ConstantInt::get(MaskOp->getType(), 0);
+  MaskOp = Builder.CreateICmp(ICmpInst::ICMP_NE, MaskOp, Zero);
+
+  // The address space may be 3-SLM, 1-global or private.
+  // At the moment of calling 'scatter()' operation the pointer passed to it
+  // is already 4-generic. Thus, simply use 4-generic for global and private
+  // and let GPU BE deduce the actual address space from the use-def graph.
+  unsigned AS = IsSLM ? 3 : 4;
+  auto ElemType = DataType->getScalarType();
+  auto NumElems = (cast<VectorType>(DataType))->getElementCount();
+  auto VPtrType = VectorType::get(PointerType::get(ElemType, AS), NumElems);
+  auto VPtrOp = Builder.CreateIntToPtr(OffsetsOp, VPtrType);
+
+  auto SI = Builder.CreateMaskedScatter(ValsOp, VPtrOp, AlignValue, MaskOp);
+  SI->setDebugLoc(CI.getDebugLoc());
+  CI.replaceAllUsesWith(SI);
 }
 
 // TODO Specify document behavior for slm_init and nbarrier_init when:
@@ -1596,15 +1622,15 @@ SmallPtrSet<Type *, 4> collectGenXVolatileTypes(Module &M) {
     // TODO FIXME relying on type name in LLVM IR is fragile, needs rework
     if (!GTy || !GTy->getName()
                      .rtrim(".0123456789")
-                     .endswith("sycl::_V1::ext::intel::esimd::simd"))
+                     .ends_with("sycl::_V1::ext::intel::esimd::simd"))
       continue;
     assert(GTy->getNumContainedTypes() == 1);
     auto VTy = GTy->getContainedType(0);
     if ((GTy = dyn_cast<StructType>(VTy))) {
-      assert(
-          GTy->getName()
-              .rtrim(".0123456789")
-              .endswith("sycl::_V1::ext::intel::esimd::detail::simd_obj_impl"));
+      assert(GTy->getName()
+                 .rtrim(".0123456789")
+                 .ends_with(
+                     "sycl::_V1::ext::intel::esimd::detail::simd_obj_impl"));
       VTy = GTy->getContainedType(0);
     }
     assert(VTy->isVectorTy());
@@ -1737,6 +1763,42 @@ bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
     F.addFnAttr(llvm::Attribute::NoInline);
   };
 
+  bool ModuleContainsGenXVolatile =
+      std::any_of(M.global_begin(), M.global_end(), [](const auto &Global) {
+        return Global.hasAttribute("genx_volatile");
+      });
+
+  auto requiresInlining = [=](Function &F) {
+    // If there are any genx_volatile globals in the module, inline
+    // noinline functions because load/store semantics are not valid for
+    // these globals and we cannot know for sure if the load/store target
+    // is one of these globals without inlining.
+    if (ModuleContainsGenXVolatile)
+      return true;
+
+    // Otherwise, only inline esimd namespace functions.
+    StringRef MangledName = F.getName();
+    id::ManglingParser<SimpleAllocator> Parser(MangledName.begin(),
+                                               MangledName.end());
+    id::Node *AST = Parser.parse();
+    if (!AST || AST->getKind() != id::Node::KFunctionEncoding)
+      return false;
+
+    auto *FE = static_cast<id::FunctionEncoding *>(AST);
+    const id::Node *NameNode = FE->getName();
+    if (!NameNode)
+      return false;
+
+    if (NameNode->getKind() == id::Node::KLocalName)
+      return false;
+
+    id::OutputBuffer NameBuf;
+    NameNode->print(NameBuf);
+    StringRef Name(NameBuf.getBuffer(), NameBuf.getCurrentPosition());
+
+    return Name.starts_with("sycl::_V1::ext::intel::esimd::") ||
+           Name.starts_with("sycl::_V1::ext::intel::experimental::esimd::");
+  };
   bool NeedInline = false;
   for (auto &F : M) {
     // If some function already has 'alwaysinline' attribute, then request
@@ -1767,13 +1829,22 @@ bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
       continue;
     }
 
+    // If we are splitting by ESIMD, we are guarenteed the entire
+    // module only contains ESIMD code, so remove optnone/noinline
+    // from ALL functions as VC does not support these attributes
+    // and programs produce wrong answers or crash if they are kept.
+    if (!ModuleContainsScalarCode && !F.hasFnAttribute("CMGenxSIMT")) {
+      F.removeFnAttr(Attribute::NoInline);
+      F.removeFnAttr(Attribute::OptimizeNone);
+    }
+
     // TODO: The next code and comment was placed to ESIMDLoweringPass
     // 2 years ago, when GPU VC BE did not support function calls and
     // required everything to be inlined right into the kernel unless
     // it had noinline or VCStackCall attrubute.
     // This code migrated to here without changes, but... VC BE does support
     //  the calls of spir_func these days, so this code needs re-visiting.
-    if (!F.hasFnAttribute(Attribute::NoInline))
+    if (!F.hasFnAttribute(Attribute::NoInline) || requiresInlining(F))
       NeedInline |= markAlwaysInlined(F);
 
     if (!isSlmInit(F))
@@ -1872,17 +1943,6 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
   SmallVector<CallInst *, 32> ESIMDIntrCalls;
   SmallVector<Instruction *, 8> ToErase;
 
-  // The VC backend doesn't support debugging, and trying to use
-  // non-optimized code often produces crashes or wrong answers.
-  // The recommendation from the VC team was always optimize code,
-  // even if the user requested no optimization. We already drop
-  // debugging flags in the SYCL runtime, so also drop optnone and
-  // noinline here.
-  if (isESIMD(F) && F.hasFnAttribute(Attribute::OptimizeNone)) {
-    F.removeFnAttr(Attribute::OptimizeNone);
-    F.removeFnAttr(Attribute::NoInline);
-  }
-
   for (Instruction &I : instructions(F)) {
     if (auto CastOp = dyn_cast<llvm::CastInst>(&I)) {
       llvm::Type *DstTy = CastOp->getDestTy();
@@ -1932,36 +1992,43 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       // process ESIMD builtins that go through special handling instead of
       // the translation procedure
 
-      if (Name.startswith("__esimd_svm_block_ld") ||
-          Name.startswith("__esimd_slm_block_ld")) {
-        translateBlockLoad(*CI, Name.startswith("__esimd_slm_block_ld"));
+      if (Name.starts_with("__esimd_svm_block_ld") ||
+          Name.starts_with("__esimd_slm_block_ld")) {
+        translateBlockLoad(*CI, Name.starts_with("__esimd_slm_block_ld"));
         ToErase.push_back(CI);
         continue;
       }
-      if (Name.startswith("__esimd_svm_block_st") ||
-          Name.startswith("__esimd_slm_block_st")) {
-        translateBlockStore(*CI, Name.startswith("__esimd_slm_block_st"));
+      if (Name.starts_with("__esimd_svm_block_st") ||
+          Name.starts_with("__esimd_slm_block_st")) {
+        translateBlockStore(*CI, Name.starts_with("__esimd_slm_block_st"));
         ToErase.push_back(CI);
         continue;
       }
-      if (Name.startswith("__esimd_gather_ld") ||
-          Name.startswith("__esimd_slm_gather_ld")) {
-        translateGatherLoad(*CI, Name.startswith("__esimd_slm_gather_ld"));
+      if (Name.starts_with("__esimd_gather_ld") ||
+          Name.starts_with("__esimd_slm_gather_ld")) {
+        translateGatherLoad(*CI, Name.starts_with("__esimd_slm_gather_ld"));
         ToErase.push_back(CI);
         continue;
       }
 
-      if (Name.startswith("__esimd_nbarrier_init")) {
+      if (Name.starts_with("__esimd_scatter_st") ||
+          Name.starts_with("__esimd_slm_scatter_st")) {
+        translateScatterStore(*CI, Name.starts_with("__esimd_slm_scatter_st"));
+        ToErase.push_back(CI);
+        continue;
+      }
+
+      if (Name.starts_with("__esimd_nbarrier_init")) {
         translateNbarrierInit(*CI);
         ToErase.push_back(CI);
         continue;
       }
-      if (Name.startswith("__esimd_pack_mask")) {
+      if (Name.starts_with("__esimd_pack_mask")) {
         translatePackMask(*CI);
         ToErase.push_back(CI);
         continue;
       }
-      if (Name.startswith("__esimd_unpack_mask")) {
+      if (Name.starts_with("__esimd_unpack_mask")) {
         translateUnPackMask(*CI);
         ToErase.push_back(CI);
         continue;
@@ -1970,13 +2037,13 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       // those globals marked as genx_volatile, We can translate
       // them directly into generic load/store inst. In this way
       // those insts can be optimized by llvm ASAP.
-      if (Name.startswith("__esimd_vload")) {
+      if (Name.starts_with("__esimd_vload")) {
         if (translateVLoad(*CI, GVTS)) {
           ToErase.push_back(CI);
           continue;
         }
       }
-      if (Name.startswith("__esimd_vstore")) {
+      if (Name.starts_with("__esimd_vstore")) {
         if (translateVStore(*CI, GVTS)) {
           ToErase.push_back(CI);
           continue;
@@ -1984,7 +2051,7 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       }
 
       if (Name.empty() ||
-          (!Name.startswith(ESIMD_INTRIN_PREF1) && !isDevicelibFunction(Name)))
+          (!Name.starts_with(ESIMD_INTRIN_PREF1) && !isDevicelibFunction(Name)))
         continue;
       // this is ESIMD intrinsic - record for later translation
       ESIMDIntrCalls.push_back(CI);
@@ -2009,7 +2076,7 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       }
 
       if (!isa<GlobalVariable>(SpirvGlobal) ||
-          !SpirvGlobal->getName().startswith(SPIRV_INTRIN_PREF))
+          !SpirvGlobal->getName().starts_with(SPIRV_INTRIN_PREF))
         continue;
 
       auto PrefLen = StringRef(SPIRV_INTRIN_PREF).size();

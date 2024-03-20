@@ -13,7 +13,6 @@
 // - specialization constant intrinsic transformation
 //===----------------------------------------------------------------------===//
 
-#include "ModuleSplitter.h"
 #include "SYCLDeviceLibReqMask.h"
 #include "SYCLDeviceRequirements.h"
 #include "SYCLKernelParamOptInfo.h"
@@ -40,7 +39,9 @@
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
+#include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
+#include "llvm/SYCLLowerIR/SanitizeDeviceGlobal.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/InitLLVM.h"
@@ -313,8 +314,7 @@ std::vector<StringRef> getKernelNamesUsingAssert(const Module &M) {
 }
 
 bool isModuleUsingAsan(const Module &M) {
-  auto *AsanInitFunction = M.getFunction("__asan_init");
-  return AsanInitFunction;
+  return nullptr != M.getNamedGlobal("__DeviceSanitizerReportMem");
 }
 
 // Gets reqd_work_group_size information for function Func.
@@ -340,7 +340,7 @@ std::string makeResultFileName(Twine Ext, int I, StringRef Suffix) {
                              : sys::path::parent_path(OutputFilename);
   const StringRef Sep = sys::path::get_separator();
   std::string Dir = Dir0.str();
-  if (!Dir0.empty() && !Dir0.endswith(Sep))
+  if (!Dir0.empty() && !Dir0.ends_with(Sep))
     Dir += Sep.str();
   return Dir + sys::path::stem(OutputFilename).str() + Suffix.str() + "_" +
          std::to_string(I) + Ext.str();
@@ -434,8 +434,7 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
       // so they won't make it into the export list. Should the check be
       // F->getCallingConv() != CallingConv::SPIR_KERNEL?
       if (F->getCallingConv() == CallingConv::SPIR_FUNC) {
-        PropSet[PropSetRegTy::SYCL_EXPORTED_SYMBOLS].insert(
-            {F->getName(), true});
+        PropSet.add(PropSetRegTy::SYCL_EXPORTED_SYMBOLS, F->getName(), true);
       }
     }
   }
@@ -444,8 +443,6 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   SmallVector<std::string, 4> MetadataNames;
 
   if (GlobProps.EmitProgramMetadata) {
-    auto &ProgramMetadata = PropSet[PropSetRegTy::SYCL_PROGRAM_METADATA];
-
     // Add reqd_work_group_size information to program metadata
     for (const Function &Func : M.functions()) {
       std::vector<uint32_t> KernelReqdWorkGroupSize =
@@ -453,7 +450,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
       if (KernelReqdWorkGroupSize.empty())
         continue;
       MetadataNames.push_back(Func.getName().str() + "@reqd_work_group_size");
-      ProgramMetadata.insert({MetadataNames.back(), KernelReqdWorkGroupSize});
+      PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
+                  KernelReqdWorkGroupSize);
     }
 
     // Add global_id_mapping information with mapping between device-global
@@ -464,11 +462,12 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
 
       StringRef GlobalID = getGlobalVariableUniqueId(GV);
       MetadataNames.push_back(GlobalID.str() + "@global_id_mapping");
-      ProgramMetadata.insert({MetadataNames.back(), GV.getName()});
+      PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
+                  GV.getName());
     }
   }
   if (MD.isESIMD()) {
-    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isEsimdImage", true});
+    PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "isEsimdImage", true);
   }
   {
     StringRef RegAllocModeAttr = "sycl-register-alloc-mode";
@@ -482,8 +481,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
       return true;
     });
     if (HasRegAllocMode) {
-      PropSet[PropSetRegTy::SYCL_MISC_PROP].insert(
-          {RegAllocModeAttr, RegAllocModeVal});
+      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, RegAllocModeAttr,
+                  RegAllocModeVal);
     }
   }
 
@@ -499,7 +498,7 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
       return true;
     });
     if (HasGRFSize) {
-      PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({GRFSizeAttr, GRFSizeVal});
+      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, GRFSizeAttr, GRFSizeVal);
     }
   }
 
@@ -534,17 +533,17 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     }
 
     if (OptLevel != -1)
-      PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"optLevel", OptLevel});
+      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "optLevel", OptLevel);
   }
   {
     std::vector<StringRef> FuncNames = getKernelNamesUsingAssert(M);
     for (const StringRef &FName : FuncNames)
-      PropSet[PropSetRegTy::SYCL_ASSERT_USED].insert({FName, true});
+      PropSet.add(PropSetRegTy::SYCL_ASSERT_USED, FName, true);
   }
 
   {
     if (isModuleUsingAsan(M))
-      PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"asanUsed", true});
+      PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "asanUsed", true);
   }
 
   if (GlobProps.EmitDeviceGlobalPropSet) {
@@ -560,8 +559,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   }
 
   if (MD.isSpecConstantDefault())
-    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert(
-        {"specConstsReplacedWithDefault", 1});
+    PropSet.add(PropSetRegTy::SYCL_MISC_PROP, "specConstsReplacedWithDefault",
+                1);
 
   std::error_code EC;
   std::string SCFile = makeResultFileName(".prop", I, Suff);
@@ -623,7 +622,7 @@ bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
   PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
 
   ModulePassManager MPM;
-  MPM.addPass(SYCLLowerESIMDPass{});
+  MPM.addPass(SYCLLowerESIMDPass(!SplitEsimd));
 
   if (!OptLevelO0) {
     FunctionPassManager FPM;
@@ -979,6 +978,11 @@ processInputModule(std::unique_ptr<Module> M) {
   // "llvm.compiler.used" they can be erased safely.
   Modified |= removeDeviceGlobalFromCompilerUsed(*M.get());
 
+  // Instrument each image scope device globals if the module has been
+  // instrumented by sanitizer pass.
+  if (isModuleUsingAsan(*M))
+    Modified |= runModulePass<SanitizeDeviceGlobalPass>(*M);
+
   // Do invoke_simd processing before splitting because this:
   // - saves processing time (the pass is run once, even though on larger IR)
   // - doing it before SYCL/ESIMD splitting is required for correctness
@@ -1008,8 +1012,11 @@ processInputModule(std::unique_ptr<Module> M) {
   Modified |= SplitOccurred;
 
   // FIXME: this check is not performed for ESIMD splits
-  if (DeviceGlobals)
-    Splitter->verifyNoCrossModuleDeviceGlobalUsage();
+  if (DeviceGlobals) {
+    auto E = Splitter->verifyNoCrossModuleDeviceGlobalUsage();
+    if (E)
+      error(toString(std::move(E)));
+  }
 
   // It is important that we *DO NOT* preserve all the splits in memory at the
   // same time, because it leads to a huge RAM consumption by the tool on bigger

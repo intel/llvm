@@ -1,5 +1,5 @@
 // UNSUPPORTED: cuda, hip
-// REQUIRES: gpu,linux
+// REQUIRES: gpu,linux,sg-16
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -25,7 +25,7 @@ struct KernelFunctor : WithInputBuffers<T, 1>, WithOutputBuffer<T> {
 
     cgh.parallel_for<KernelFunctor<T>>(
         sycl::range<1>{this->getOutputBufferSize()},
-        [=](sycl::id<1> wiID) [[intel::reqd_sub_group_size(16)]] {
+        [=](sycl::id<1> wiID) [[sycl::reqd_sub_group_size(16)]] {
 #if defined(__SYCL_DEVICE_ONLY__)
           asm("mov (M1, 16) %0(0, 0)<1> (-)%1(0, 0)<1;1,0>"
               : "=rw"(B[wiID])
@@ -45,7 +45,7 @@ int main() {
     input[i] = 1.0 / i;
 
   KernelFunctor<> f(input);
-  if (!launchInlineASMTest(f))
+  if (!launchInlineASMTest(f, {16}))
     return 0;
 
   auto &R = f.getOutputBufferData();

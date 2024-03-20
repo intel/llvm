@@ -250,12 +250,15 @@ configure specific single test execution in the command line:
    system. It is developer / CI infra responsibility to make sure that the
    device is available in the system. Tests requiring DG1 to run must use proper
    device selector to ensure that. Use SYCL_DEVICE_ALLOWLIST or
-   SYCL_DEVICE_FILTER to get proper configuration (see
+   ONEAPI_DEVICE_SELECTOR to get proper configuration (see
    [EnvironmentVariables.md](https://github.com/intel/llvm/blob/sycl/sycl/doc/EnvironmentVariables.md));
  * **gpu-intel-dg2** - tells LIT infra that Intel GPU DG2 is present in the
    system. It is developer / CI infra responsibility to make sure that the
    device is available in the system.
  * **gpu-intel-pvc** - tells LIT infra that Intel GPU PVC is present in the
+   system. It is developer / CI infra responsibility to make sure that the
+   device is available in the system.
+ * **gpu-intel-pvc-vg** - tells LIT infra that Intel GPU PVC-VG is present in the
    system. It is developer / CI infra responsibility to make sure that the
    device is available in the system.
  * **extra_environment** - comma-separated list of variables with values to be

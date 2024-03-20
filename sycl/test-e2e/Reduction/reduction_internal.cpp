@@ -80,13 +80,13 @@ static void test(RedStorage &Storage, RangeTy Range) {
          cgh, Range, ext::oneapi::experimental::empty_properties_t{}, RedSycl,
          [=](auto Item, auto &Red) { Red.combine(T{1}); });
    }).wait();
-
-  auto *Result = malloc_shared<T>(1, q);
+  sycl::buffer<T> ResultBuf{sycl::range{1}};
   q.submit([&](handler &cgh) {
-     auto RedAcc = GetRedAcc(cgh);
-     cgh.single_task([=]() { *Result = RedAcc[0]; });
-   }).wait();
-
+    sycl::accessor Result{ResultBuf, cgh};
+    auto RedAcc = GetRedAcc(cgh);
+    cgh.single_task([=]() { Result[0] = RedAcc[0]; });
+  });
+  sycl::host_accessor Result{ResultBuf};
   auto N = get_global_range(Range).size();
   int Expected = InitToIdentity ? N : Init + N;
 #if defined(__PRETTY_FUNCTION__)
@@ -94,10 +94,8 @@ static void test(RedStorage &Storage, RangeTy Range) {
 #elif defined(__FUNCSIG__)
   std::cout << __FUNCSIG__;
 #endif
-  std::cout << ": " << *Result << ", expected " << Expected << std::endl;
-  assert(*Result == Expected);
-
-  free(Result, q);
+  std::cout << ": " << Result[0] << ", expected " << Expected << std::endl;
+  assert(Result[0] == Expected);
 }
 
 template <int... Inds, class F>

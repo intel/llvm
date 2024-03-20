@@ -152,7 +152,7 @@ executes the `if_device_has` function has **all** of the aspects listed in this
 pack.  If the condition is `true`, the implementation calls `fn`.  Otherwise,
 the function `fn` is potentially discarded as described below.
 
-=== Fallback code
+=== Generic code
 
 The value returned by `if_device_has` is an object _F_ of an unspecified type,
 which provides the following member functions:
@@ -200,7 +200,7 @@ void frob() {
   }).else_if_device_has<aspect::bar>([] {
     // code that uses features tied to "bar" aspect
   }).otherwise([] {
-    // fallback code that works on all devices
+    // generic code that works on all devices
   });
 }
 ```

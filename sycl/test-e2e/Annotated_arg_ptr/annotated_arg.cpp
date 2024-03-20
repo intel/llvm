@@ -1,6 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
+// REQUIRES: aspect-usm_shared_allocations
 
 #include "common.hpp"
 

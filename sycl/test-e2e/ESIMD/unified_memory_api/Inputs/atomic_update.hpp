@@ -706,13 +706,13 @@ bool test_int_types_and_sizes(queue q, const Config &cfg) {
 
   passed &=
       test_int_types<8, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(q, cfg);
+  passed &=
+      test_int_types<16, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(q, cfg);
+  passed &=
+      test_int_types<32, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(q, cfg);
 
   // Supported by LSC atomic:
   if constexpr (UseLSCFeatures) {
-    passed &= test_int_types<16, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(
-        q, cfg);
-    passed &= test_int_types<32, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(
-        q, cfg);
     passed &= test_int_types<64, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(
         q, cfg);
     // non power of two values are supported only in newer driver.

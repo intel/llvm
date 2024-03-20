@@ -10,11 +10,12 @@ using AtomicRefT =
 
 int main() {
   queue q;
-  auto *p = malloc_shared<unsigned long long>(1, q);
+  sycl::buffer<unsigned long long> p_buf{sycl::range{1}};
   try {
     q.submit([&](sycl::handler &cgh) {
+       sycl::accessor p{p_buf, cgh};
        cgh.parallel_for_work_group(range{1}, range{1}, [=](group<1>) {
-         AtomicRefT feature(*p);
+         AtomicRefT feature(p[0]);
          feature += 42;
        });
      }).wait();

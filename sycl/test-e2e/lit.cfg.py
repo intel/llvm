@@ -157,7 +157,14 @@ if lit_config.params.get("gpu-intel-pvc", False):
     config.available_features.add(
         "matrix-tf32"
     )  # PVC implies the support of TF32 matrix
-
+if lit_config.params.get("gpu-intel-pvc-vg", False):
+    config.available_features.add("gpu-intel-pvc-vg")
+    config.available_features.add(
+        "matrix-fp16"
+    )  # PVC-VG implies the support of FP16 matrix
+    config.available_features.add(
+        "matrix-tf32"
+    )  # PVC-VG implies the support of TF32 matrix    
 if lit_config.params.get("matrix", False):
     config.available_features.add("matrix")
 
@@ -427,7 +434,7 @@ if len(config.sycl_devices) > 1:
 config.sycl_devices = [x.replace("ext_oneapi_", "") for x in config.sycl_devices]
 
 available_devices = {
-    "opencl": ("cpu", "gpu", "acc"),
+    "opencl": ("cpu", "gpu", "fpga"),
     "cuda": "gpu",
     "level_zero": "gpu",
     "hip": "gpu",
@@ -449,6 +456,9 @@ if config.hip_platform not in supported_hip_platforms:
         + "' supported platforms are "
         + ", ".join(supported_hip_platforms)
     )
+
+if "cuda:gpu" in config.sycl_devices:
+    llvm_config.with_system_environment("CUDA_PATH")
 
 # FIXME: This needs to be made per-device as well, possibly with a helper.
 if "hip:gpu" in config.sycl_devices and config.hip_platform == "AMD":
@@ -669,7 +679,7 @@ for sycl_device in config.sycl_devices:
     features.update(sg_size_features)
 
     be, dev = sycl_device.split(":")
-    features.add(dev.replace("acc", "accelerator"))
+    features.add(dev.replace("fpga", "accelerator"))
     # Use short names for LIT rules.
     features.add(be)
 
@@ -686,3 +696,7 @@ try:
     lit_config.maxIndividualTestTime = 600
 except ImportError:
     pass
+
+config.substitutions.append(
+    ("%device_sanitizer_flags", "-Xsycl-target-frontend -fsanitize=address")
+)

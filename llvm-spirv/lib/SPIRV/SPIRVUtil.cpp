@@ -94,6 +94,24 @@ void removeFnAttr(CallInst *Call, Attribute::AttrKind Attr) {
   Call->removeFnAttr(Attr);
 }
 
+Value *extendVector(Value *V, FixedVectorType *NewType,
+                    IRBuilderBase &Builder) {
+  unsigned OldSize = cast<FixedVectorType>(V->getType())->getNumElements();
+  unsigned NewSize = NewType->getNumElements();
+  assert(OldSize < NewSize);
+  std::vector<Constant *> Components;
+  IntegerType *Int32Ty = Builder.getInt32Ty();
+  for (unsigned I = 0; I < NewSize; I++) {
+    if (I < OldSize)
+      Components.push_back(ConstantInt::get(Int32Ty, I));
+    else
+      Components.push_back(PoisonValue::get(Int32Ty));
+  }
+
+  return Builder.CreateShuffleVector(V, PoisonValue::get(V->getType()),
+                                     ConstantVector::get(Components), "vecext");
+}
+
 void saveLLVMModule(Module *M, const std::string &OutputFile) {
   std::error_code EC;
   ToolOutputFile Out(OutputFile.c_str(), EC, sys::fs::OF_None);
@@ -167,7 +185,7 @@ StructType *getOrCreateOpaqueStructType(Module *M, StringRef Name) {
 }
 
 void getFunctionTypeParameterTypes(llvm::FunctionType *FT,
-                                   std::vector<Type *> &ArgTys) {
+                                   SmallVector<Type *> &ArgTys) {
   for (auto I = FT->param_begin(), E = FT->param_end(); I != E; ++I) {
     ArgTys.push_back(*I);
   }
@@ -871,6 +889,46 @@ bool getParameterTypes(Function *F, SmallVectorImpl<Type *> &ArgTys,
   return DemangledSuccessfully;
 }
 
+bool getRetParamSignedness(Function *F, ParamSignedness &RetSignedness,
+                           SmallVectorImpl<ParamSignedness> &ArgSignedness) {
+  using namespace llvm::itanium_demangle;
+  StringRef Name = F->getName();
+  if (!Name.starts_with("_Z") || F->arg_empty())
+    return false;
+
+  ManglingParser<DefaultAllocator> Demangler(Name.begin(), Name.end());
+  // If it's not a function name encoding, bail out.
+  auto *RootNode = dyn_cast_or_null<FunctionEncoding>(Demangler.parse());
+  if (!RootNode)
+    return false;
+
+  auto GetSignedness = [](const itanium_demangle::Node *N) {
+    if (!N)
+      return ParamSignedness::Unknown;
+    if (const auto *Vec = dyn_cast<itanium_demangle::VectorType>(N))
+      N = Vec->getBaseType();
+    if (const auto *Name = dyn_cast<NameType>(N)) {
+      StringRef Arg(stringify(Name));
+      if (Arg.starts_with("unsigned"))
+        return ParamSignedness::Unsigned;
+      if (Arg.equals("char") || Arg.equals("short") || Arg.equals("int") ||
+          Arg.equals("long"))
+        return ParamSignedness::Signed;
+    }
+    return ParamSignedness::Unknown;
+  };
+  RetSignedness = GetSignedness(RootNode->getReturnType());
+  ArgSignedness.resize(F->arg_size());
+  for (const auto &[I, ParamType] : llvm::enumerate(RootNode->getParams())) {
+    if (F->getArg(I)->getType()->isIntOrIntVectorTy())
+      ArgSignedness[I] = GetSignedness(ParamType);
+    else
+      ArgSignedness[I] = ParamSignedness::Unknown;
+  }
+
+  return true;
+}
+
 CallInst *mutateCallInst(
     Module *M, CallInst *CI,
     std::function<std::string(CallInst *, std::vector<Value *> &)> ArgMutate,
@@ -1214,7 +1272,8 @@ SPIR::TypePrimitiveEnum getOCLTypePrimitiveEnum(StringRef TyName) {
 /// \param Signed indicates integer type should be translated as signed.
 /// \param VoidPtr indicates i8* should be translated as void*.
 static SPIR::RefParamType transTypeDesc(Type *Ty,
-                                        const BuiltinArgTypeMangleInfo &Info) {
+                                        const BuiltinArgTypeMangleInfo &Info,
+                                        StringRef InstName = "") {
   bool Signed = Info.IsSigned;
   unsigned Attr = Info.Attr;
   bool VoidPtr = Info.IsVoidPtr;
@@ -1323,8 +1382,14 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
     auto *ET = TPT->getElementType();
     SPIR::ParamType *EPT = nullptr;
     if (isa<FunctionType>(ET)) {
-      assert(isVoidFuncTy(cast<FunctionType>(ET)) && "Not supported");
-      EPT = new SPIR::BlockType;
+      FunctionType *FT = cast<FunctionType>(ET);
+      if (InstName.consume_front(kSPIRVName::Prefix) &&
+          InstName.starts_with("TaskSequence")) {
+        EPT = new SPIR::PointerType(transTypeDesc(FT->getReturnType(), Info));
+      } else {
+        assert((isVoidFuncTy(FT)) && "Not supported");
+        EPT = new SPIR::BlockType;
+      }
     } else if (auto *StructTy = dyn_cast<StructType>(ET)) {
       LLVM_DEBUG(dbgs() << "ptr to struct: " << *Ty << '\n');
       auto TyName = StructTy->getStructName();
@@ -1652,7 +1717,7 @@ std::string mangleBuiltin(StringRef UniqName, ArrayRef<Type *> ArgTypes,
         T = MangleInfo.PointerTy;
       }
       FD.Parameters.emplace_back(
-          transTypeDesc(T, BtnInfo->getTypeMangleInfo(I)));
+          transTypeDesc(T, BtnInfo->getTypeMangleInfo(I), UniqName));
     }
   }
   // Ellipsis must be the last argument of any function
@@ -2129,11 +2194,23 @@ bool postProcessBuiltinReturningStruct(Function *F) {
   SmallVector<Instruction *, 32> InstToRemove;
   for (auto *U : F->users()) {
     if (auto *CI = dyn_cast<CallInst>(U)) {
-      auto *ST = cast<StoreInst>(*(CI->user_begin()));
-      std::vector<Type *> ArgTys;
+      IRBuilder<> Builder(CI->getParent());
+      Builder.SetInsertPoint(CI);
+      SmallVector<User *> Users(CI->users());
+      Value *A = nullptr;
+      for (auto *U : Users) {
+        if (auto *SI = dyn_cast<StoreInst>(U)) {
+          A = SI->getPointerOperand();
+          InstToRemove.push_back(SI);
+          break;
+        }
+      }
+      if (!A) {
+        A = Builder.CreateAlloca(F->getReturnType());
+      }
+      SmallVector<Type *> ArgTys;
       getFunctionTypeParameterTypes(F->getFunctionType(), ArgTys);
-      ArgTys.insert(ArgTys.begin(),
-                    PointerType::get(F->getReturnType(), SPIRAS_Private));
+      ArgTys.insert(ArgTys.begin(), A->getType());
       auto *NewF =
           getOrCreateFunction(M, Type::getVoidTy(*Context), ArgTys, Name);
       auto SretAttr = Attribute::get(*Context, Attribute::AttrKind::StructRet,
@@ -2141,11 +2218,14 @@ bool postProcessBuiltinReturningStruct(Function *F) {
       NewF->addParamAttr(0, SretAttr);
       NewF->setCallingConv(F->getCallingConv());
       auto Args = getArguments(CI);
-      Args.insert(Args.begin(), ST->getPointerOperand());
-      auto *NewCI = CallInst::Create(NewF, Args, CI->getName(), CI);
+      Args.insert(Args.begin(), A);
+      CallInst *NewCI = Builder.CreateCall(NewF, Args, CI->getName());
       NewCI->addParamAttr(0, SretAttr);
       NewCI->setCallingConv(CI->getCallingConv());
-      InstToRemove.push_back(ST);
+      SmallVector<User *> CIUsers(CI->users());
+      for (auto *CIUser : CIUsers) {
+        CIUser->replaceUsesOfWith(CI, A);
+      }
       InstToRemove.push_back(CI);
     }
   }

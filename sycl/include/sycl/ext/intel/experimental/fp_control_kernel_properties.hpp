@@ -85,7 +85,9 @@ constexpr fp_mode setDefaultValuesIfNeeded(fp_mode mode) {
 }
 } // namespace detail
 
-struct fp_control_key {
+struct fp_control_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::FloatingPointControls> {
   template <fp_mode option>
   using value_t = ext::oneapi::experimental::property_value<
       fp_control_key, std::integral_constant<fp_mode, option>>;
@@ -97,9 +99,6 @@ inline constexpr fp_control_key::value_t<option> fp_control;
 } // namespace ext::intel::experimental
 
 namespace ext::oneapi::experimental {
-template <>
-struct is_property_key<intel::experimental::fp_control_key> : std::true_type {};
-
 template <typename T, typename PropertyListT>
 struct is_property_key_of<
     intel::experimental::fp_control_key,
@@ -107,14 +106,6 @@ struct is_property_key_of<
 };
 
 namespace detail {
-template <> struct PropertyToKind<intel::experimental::fp_control_key> {
-  static constexpr PropKind Kind = FloatingPointControls;
-};
-
-template <>
-struct IsCompileTimeProperty<intel::experimental::fp_control_key>
-    : std::true_type {};
-
 template <intel::experimental::fp_mode FPMode>
 struct PropertyMetaInfo<intel::experimental::fp_control_key::value_t<FPMode>> {
   static_assert(intel::experimental::detail::checkMutuallyExclusive(FPMode),

@@ -64,7 +64,7 @@ void SYCLModuleInfoAnalysis::loadModuleInfoFromMetadata(Module &M) {
     ++It;
 
     assert(ArgsKindsMD->getNumOperands() == ArgsUsageMaskMD->getNumOperands());
-    SYCLKernelInfo KernelInfo{Name, ArgsKindsMD->getNumOperands()};
+    SYCLKernelInfo KernelInfo{Name.c_str(), ArgsKindsMD->getNumOperands()};
 
     llvm::transform(
         ArgsKindsMD->operands(), KernelInfo.Args.Kinds.begin(),
@@ -134,7 +134,7 @@ PreservedAnalyses SYCLModuleInfoPrinter::run(Module &Mod,
   for (const auto &KernelInfo : ModuleInfo->kernels()) {
     Out << "KernelName:";
     Out.PadToColumn(Pad);
-    Out << KernelInfo.Name << '\n';
+    Out << KernelInfo.Name.c_str() << '\n';
 
     Out.indent(Indent) << "Args:\n";
     Out.indent(Indent * 2) << "Kinds:";

@@ -14,9 +14,9 @@ if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
 
-    # Date:   Dec 14, 2023
-    # Add support for XeHPCVG platform
-    set(LLVMGenXIntrinsics_GIT_TAG da892e1982b6c25b9a133f85b4ac97142d8a3def)
+    # Date: 13 Feb 2024
+    # Add an intrinsic for named barrier arrive/signal operation
+    set(LLVMGenXIntrinsics_GIT_TAG f9c34404d0ea9abad83875a10bd48d88cea90ebd)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
@@ -51,6 +51,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ESIMD/ESIMDUtils.cpp
   ESIMD/ESIMDVerifier.cpp
   ESIMD/ESIMDRemoveHostCode.cpp
+  ESIMD/ESIMDRemoveOptnoneNoinline.cpp
   ESIMD/LowerESIMD.cpp
   ESIMD/LowerESIMDKernelAttrs.cpp
   CleanupSYCLMetadata.cpp
@@ -62,17 +63,21 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LowerInvokeSimd.cpp
   LowerWGLocalMemory.cpp
   LowerWGScope.cpp
+  ModuleSplitter.cpp
   MutatePrintfAddrspace.cpp
   SYCLAddOptLevelAttribute.cpp
   SYCLPropagateAspectsUsage.cpp
   SYCLPropagateJointMatrixUsage.cpp
   SYCLUtils.cpp
+  SanitizeDeviceGlobal.cpp
 
   LocalAccessorToSharedMemory.cpp
   GlobalOffset.cpp
   TargetHelpers.cpp
   PrepareSYCLNativeCPU.cpp
   RenameKernelSYCLNativeCPU.cpp
+  ConvertToMuxBuiltinsSYCLNativeCPU.cpp
+  PipelineSYCLNativeCPU.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR

@@ -877,7 +877,7 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
 
   prettyPrintAttributes(D, Out, AttrPrintLoc::Right);
 
-  if (D->isPure())
+  if (D->isPureVirtual())
     Out << " = 0";
   else if (D->isDeletedAsWritten())
     Out << " = delete";
@@ -1221,6 +1221,10 @@ void DeclPrinter::printTemplateParameters(const TemplateParameterList *Params,
                                           bool OmitTemplateKW) {
   assert(Params);
 
+  // Don't print invented template parameter lists.
+  if (!Params->empty() && Params->getParam(0)->isImplicit())
+    return;
+
   if (!OmitTemplateKW)
     Out << "template ";
   Out << '<';
@@ -1519,6 +1523,11 @@ void DeclPrinter::VisitObjCInterfaceDecl(ObjCInterfaceDecl *OID) {
     return;
   }
   bool eolnOut = false;
+  if (OID->hasAttrs()) {
+    prettyPrintAttributes(OID);
+    Out << "\n";
+  }
+
   Out << "@interface " << I;
 
   if (auto TypeParams = OID->getTypeParamListAsWritten()) {

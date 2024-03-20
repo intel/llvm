@@ -154,10 +154,10 @@ EventImplPtr Scheduler::addCG(
     for (const auto &StreamImplPtr : Streams) {
       StreamImplPtr->flush(NewEvent);
     }
-
-    if (!AuxiliaryResources.empty())
-      registerAuxiliaryResources(NewEvent, std::move(AuxiliaryResources));
   }
+
+  if (!AuxiliaryResources.empty())
+    registerAuxiliaryResources(NewEvent, std::move(AuxiliaryResources));
 
   return NewEvent;
 }
@@ -558,10 +558,35 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
   }
 }
 
+static void registerAuxiliaryResourcesNoLock(
+    std::unordered_map<EventImplPtr, std::vector<std::shared_ptr<const void>>>
+        &AuxiliaryResources,
+    const EventImplPtr &Event,
+    std::vector<std::shared_ptr<const void>> &&Resources) {
+  std::vector<std::shared_ptr<const void>> &StoredResources =
+      AuxiliaryResources[Event];
+  StoredResources.insert(StoredResources.end(),
+                         std::make_move_iterator(Resources.begin()),
+                         std::make_move_iterator(Resources.end()));
+}
+
+void Scheduler::takeAuxiliaryResources(const EventImplPtr &Dst,
+                                       const EventImplPtr &Src) {
+  std::unique_lock<std::mutex> Lock{MAuxiliaryResourcesMutex};
+  auto Iter = MAuxiliaryResources.find(Src);
+  if (Iter == MAuxiliaryResources.end()) {
+    return;
+  }
+  registerAuxiliaryResourcesNoLock(MAuxiliaryResources, Dst,
+                                   std::move(Iter->second));
+  MAuxiliaryResources.erase(Iter);
+}
+
 void Scheduler::registerAuxiliaryResources(
     EventImplPtr &Event, std::vector<std::shared_ptr<const void>> Resources) {
   std::unique_lock<std::mutex> Lock{MAuxiliaryResourcesMutex};
-  MAuxiliaryResources.insert({Event, std::move(Resources)});
+  registerAuxiliaryResourcesNoLock(MAuxiliaryResources, Event,
+                                   std::move(Resources));
 }
 
 void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {

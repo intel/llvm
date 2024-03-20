@@ -242,11 +242,18 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
     ExtraOpts.push_back("relro");
   }
 
-  // Android ARM/AArch64 use max-page-size=4096 to reduce VMA usage. Note, lld
-  // from 11 onwards default max-page-size to 65536 for both ARM and AArch64.
-  if ((Triple.isARM() || Triple.isAArch64()) && Triple.isAndroid()) {
-    ExtraOpts.push_back("-z");
-    ExtraOpts.push_back("max-page-size=4096");
+  // Note, lld from 11 onwards default max-page-size to 65536 for both ARM and
+  // AArch64.
+  if (Triple.isAndroid()) {
+    if (Triple.isARM()) {
+      // Android ARM uses max-page-size=4096 to reduce VMA usage.
+      ExtraOpts.push_back("-z");
+      ExtraOpts.push_back("max-page-size=4096");
+    } else if (Triple.isAArch64()) {
+      // Android AArch64 uses max-page-size=16384 to support 4k/16k page sizes.
+      ExtraOpts.push_back("-z");
+      ExtraOpts.push_back("max-page-size=16384");
+    }
   }
 
   if (GCCInstallation.getParentLibPath().contains("opt/rh/"))
@@ -344,7 +351,7 @@ Linux::Linux(const Driver &D, const llvm::Triple &Triple, const ArgList &Args)
   // The deprecated -DLLVM_ENABLE_PROJECTS=libcxx configuration installs
   // libc++.so in D.Dir+"/../lib/". Detect this path.
   // TODO Remove once LLVM_ENABLE_PROJECTS=libcxx is unsupported.
-  if (StringRef(D.Dir).startswith(SysRoot) &&
+  if (StringRef(D.Dir).starts_with(SysRoot) &&
       (Args.hasArg(options::OPT_fsycl) ||
        D.getVFS().exists(D.Dir + "/../lib/libsycl.so")))
     addPathIfExists(D, D.Dir + "/../lib", Paths);
@@ -390,7 +397,7 @@ std::string Linux::computeSysRoot() const {
   if (getTriple().isAndroid()) {
     // Android toolchains typically include a sysroot at ../sysroot relative to
     // the clang binary.
-    const StringRef ClangDir = getDriver().getInstalledDir();
+    const StringRef ClangDir = getDriver().Dir;
     std::string AndroidSysRootPath = (ClangDir + "/../sysroot").str();
     if (getVFS().exists(AndroidSysRootPath))
       return AndroidSysRootPath;

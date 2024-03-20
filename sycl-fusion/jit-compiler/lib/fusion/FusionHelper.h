@@ -27,27 +27,25 @@ public:
   /// Representation of a fused kernel named FusedName and fusing
   /// all the kernels listed in FusedKernels.
   struct FusedFunction {
-    FusedFunction(const std::string &FusedName,
-                  const std::vector<std::string> &FusedKernels,
-                  const jit_compiler::ParamIdentList &ParameterIdentities,
-                  llvm::ArrayRef<jit_compiler::ParameterInternalization>
-                      ParameterInternalization,
-                  llvm::ArrayRef<jit_compiler::JITConstant> Constants,
-                  llvm::ArrayRef<jit_compiler::NDRange> NDRanges)
+    FusedFunction(
+        const char *FusedName, llvm::ArrayRef<std::string> FusedKernels,
+        llvm::ArrayRef<jit_compiler::ParameterIdentity> ParameterIdentities,
+        llvm::ArrayRef<jit_compiler::ParameterInternalization>
+            ParameterInternalization,
+        llvm::ArrayRef<jit_compiler::JITConstant> Constants,
+        const jit_compiler::FusedNDRange &FusedNDRange)
         : FusedName{FusedName}, FusedKernels{FusedKernels},
           ParameterIdentities{ParameterIdentities},
           ParameterInternalization{ParameterInternalization},
-          Constants{Constants}, NDRanges{NDRanges},
-          FusedNDRange{jit_compiler::combineNDRanges(NDRanges)} {}
+          Constants{Constants}, FusedNDRange{FusedNDRange} {}
 
-    std::string FusedName;
-    std::vector<std::string> FusedKernels;
-    jit_compiler::ParamIdentList ParameterIdentities;
+    const char *FusedName;
+    llvm::ArrayRef<std::string> FusedKernels;
+    llvm::ArrayRef<jit_compiler::ParameterIdentity> ParameterIdentities;
     llvm::ArrayRef<jit_compiler::ParameterInternalization>
         ParameterInternalization;
     llvm::ArrayRef<jit_compiler::JITConstant> Constants;
-    llvm::ArrayRef<jit_compiler::NDRange> NDRanges;
-    jit_compiler::NDRange FusedNDRange;
+    jit_compiler::FusedNDRange FusedNDRange;
   };
 
   ///

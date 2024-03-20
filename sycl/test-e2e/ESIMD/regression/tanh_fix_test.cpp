@@ -1,5 +1,4 @@
-// Use -O2 to avoid huge stack usage under -O0.
-// RUN: %{build} -O2 -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 //==- tanh_fix_test.cpp - Test for tanh -==//

@@ -7,6 +7,9 @@
 //
 // REQUIRES: linux
 //
+// Re-enable once internal ticket is resolved.
+// UNSUPPORTED: gpu
+//
 // RUN: %clangxx -fsycl -fPIC -O3 %S/Inputs/complex-lib-sycl.cpp -c -o %t-lib-sycl.o
 // RUN: %clangxx -fsycl -fPIC -O3 %S/Inputs/complex-lib-esimd.cpp -c -o %t-lib-esimd.o
 // RUN: %clangxx -fsycl -fPIC -O3 %S/Inputs/complex-lib-test.cpp -c -o %t-test.o

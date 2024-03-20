@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
+// REQUIRES: usm_shared_allocations
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
 

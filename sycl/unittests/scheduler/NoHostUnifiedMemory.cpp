@@ -211,7 +211,7 @@ TEST_F(SchedulerTest, NoHostUnifiedMemory) {
     InteropPiContext = detail::getSyclObjImpl(InteropContext)->getHandleRef();
     auto BufI = std::make_shared<detail::buffer_impl>(
         detail::pi::cast<pi_native_handle>(MockInteropBuffer), Q.get_context(),
-        make_unique_ptr<
+        std::make_unique<
             detail::SYCLMemObjAllocatorHolder<buffer_allocator<char>, char>>(),
         /* OwnNativeHandle */ true, event());
 

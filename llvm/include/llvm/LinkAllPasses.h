@@ -63,6 +63,7 @@ namespace {
       if (std::getenv("bar") != (char*) -1)
         return;
 
+      (void)llvm::createAtomicExpandLegacyPass();
       (void) llvm::createBasicAAWrapperPass();
       (void) llvm::createSCEVAAWrapperPass();
       (void) llvm::createTypeBasedAAWrapperPass();
@@ -93,7 +94,6 @@ namespace {
       (void) llvm::createLoopSimplifyPass();
       (void) llvm::createLoopStrengthReducePass();
       (void) llvm::createLoopUnrollPass();
-      (void) llvm::createLoopRotatePass();
       (void) llvm::createLowerConstantIntrinsicsPass();
       (void) llvm::createLowerGlobalDtorsLegacyPass();
       (void) llvm::createLowerInvokePass();

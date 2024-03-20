@@ -514,8 +514,8 @@ namespace sycl::ext::oneapi::experimental {
         void operator()(Group g, Ptr first, Ptr last); // (2)
 
         template<typename T>
-        static constexpr size_t
-        memory_required(sycl::memory_scope scope, std::size_t range_size); // (3)
+        static size_t
+        memory_required(sycl::device d, sycl::memory_scope scope, std::size_t range_size); // (3)
     };
 
     template<typename T,
@@ -534,8 +534,8 @@ namespace sycl::ext::oneapi::experimental {
                         sycl::span<T, ElementsPerWorkItem> values,
                         Properties properties); // (6)
 
-        static constexpr size_t
-        memory_required(sycl::memory_scope scope, std::size_t range_size); // (7)
+        static size_t
+        memory_required(sycl::device d, sycl::memory_scope scope, std::size_t range_size); // (7)
     };
 
     template<typename T,
@@ -557,8 +557,8 @@ namespace sycl::ext::oneapi::experimental {
                         sycl::span<U, ElementsPerWorkItem> values,
                         Properties property); // (10)
 
-        static constexpr std::size_t
-        memory_required(sycl::memory_scope scope, std::size_t range_size); // (11)
+        static std::size_t
+        memory_required(sycl::device d, sycl::memory_scope scope, std::size_t range_size); // (11)
     };
   }
 
@@ -671,9 +671,11 @@ the `joint_sort` algorithm.
 _Complexity_: Let `N` be `last - first`. `O(N*log(N)*log(N))` comparisons.
 
 (3) Returns size of temporary memory (in bytes) that is required by
-the default sorting algorithm defined by the sorter calling by `joint_sort`.
+the default sorting algorithm defined by the sorter calling by `joint_sort`
+depending on `d`.
 `range_size` represents a range size for sorting,
 e.g. `last-first` from `operator()` arguments.
+It mustn't be called within a SYCL kernel, only on host.
 Result depends on the `scope` parameter:
 use `sycl::memory_scope::work_group` to get memory size required
 for each work-group;
@@ -694,9 +696,11 @@ _Complexity_: Let `N` be the `Group` size multiplied by `ElementsPerWorkItem`.
 `O(N*log(N)*log(N))` comparisons.
 
 (7) Returns the size of temporary memory (in bytes) that is required by the default
-sorting algorithm defined by the sorter calling by `sort_over_group`.
+sorting algorithm defined by the sorter calling by `sort_over_group`
+depending on `d`.
 `ElementsPerWorkItem` is the extent parameter for `sycl::span`
 that is an input parameter for `sort_over_group`.
+It mustn't be called within a SYCL kernel, only on host.
 If `scope == sycl::memory_scope::work_group`,
 `range_size` is the size of the local range for `sycl::nd_range`
 that was used to run the kernel;
@@ -719,7 +723,9 @@ _Complexity_: Let `N` be the `Group` size multiplied by `ElementsPerWorkItem`.
 
 (11) Returns size of temporary memory (in bytes) that is required by
 the default key-value
-sorting algorithm defined by the sorter calling by `sort_key_value_over_group`.
+sorting algorithm defined by the sorter calling by `sort_key_value_over_group`
+depending on `d`.
+It mustn't be called within a SYCL kernel, only on host.
 If `scope == sycl::memory_scope::work_group`,
 `range_size` is the size of the local range for `sycl::nd_range`
 that was used to run the kernel;
@@ -998,7 +1004,7 @@ namespace my_sycl = sycl::ext::oneapi::experimental;
 // calculate required local memory size
 size_t temp_memory_size =
     my_sycl::default_sorters::joint_sorter<>::memory_required<T>(
-      sycl::memory_scope::work_group, n);
+      d, sycl::memory_scope::work_group, n);
 
 q.submit([&](sycl::handler& h) {
   auto acc = sycl::accessor(buf, h);
@@ -1075,7 +1081,7 @@ using TupleType =
 // calculate required local memory size
 size_t temp_memory_size =
     my_sycl::default_sorters::joint_sorter<>::memory_required<TupleType>(
-      sycl::memory_scope::work_group, n);
+      d, sycl::memory_scope::work_group, n);
 
 q.submit([&](sycl::handler& h) {
   auto keys_acc = sycl::accessor(keys_buf, h);
@@ -1185,8 +1191,6 @@ because it's easy to pass different comparator types.
 . Think about reducing overloads for sorting functions. The thing is that
 overloads with `Compare` objects seems extra and overloads with sorters,
 without sorters are enough.
-. It would be better if `memory_required` methods had a `sycl::device` parameter
-because different devices can require different amount of memory.
 
 == Non-implemented features
 Please, note that following is not inplemented yet for the open-source repo:
@@ -1206,4 +1210,5 @@ Please, note that following is not inplemented yet for the open-source repo:
 |3|2021-12-16|Andrey Fedorov|Some refactoring, sections reordering,
 making the entire extension experimental
 |4|2022-11-14|Andrey Fedorov|Fixed size arrays, key-value sorting and properties
+|5|2023-11-09|Andrey Fedorov|Changed `memory_required` functions for default sorters
 |========================================

@@ -194,7 +194,7 @@ enum class image_channel_type : /* unspecified */ {
 enum class image_type : /* unspecified */ {
   standard,
   mipmap,
-  interop,
+  array,
 };
 
 struct image_descriptor {
@@ -205,23 +205,26 @@ struct image_descriptor {
   image_channel_order channel_order;
   image_type type;
   unsigned int num_levels;
+  unsigned int array_size;
 
   image_descriptor(sycl::range<1> dims, image_channel_order channel_order,
                    image_channel_type channel_type, 
                    image_type type = image_type::standard, 
-                   unsigned int num_levels = 1);
+                   unsigned int num_levels = 1, unsigned int array_size = 1);
 
   image_descriptor(sycl::range<2> dims, image_channel_order channel_order,
                    image_channel_type channel_type, 
                    image_type type = image_type::standard, 
-                   unsigned int num_levels = 1);
+                   unsigned int num_levels = 1, unsigned int array_size = 1);
 
   image_descriptor(sycl::range<3> dims, image_channel_order channel_order,
                    image_channel_type channel_type, 
                    image_type type = image_type::standard, 
-                   unsigned int num_levels = 1);
+                   unsigned int num_levels = 1, unsigned int array_size = 1);
 
   image_descriptor get_mip_level_desc(unsigned int level) const;
+
+  void verify() const;
 };
 
 }
@@ -229,14 +232,14 @@ struct image_descriptor {
 
 The image descriptor represents the image dimensions, channel type, and channel 
 order. An `image_type` member is also present to allow for implementation of 
-mipmapped and interop images.
+mipmapped images.
 
 The `image_descriptor` shall be default constructible and follow by-value 
 semantics.
 
 [NOTE]
 ====
-Additional future `image_type`s _may_ include "layered" and/or "cubemap".
+Additional future `image_type`s _may_ include "cubemap".
 ====
 
 Note that `image_channel_type` and `image_channel_order` existed in SYCL 1.2.1,
@@ -244,7 +247,13 @@ but were removed in SYCL 2020 in favor of a single, unified enum class.
 We propose separating them again to enable better flexibility
 and to avoid combinatorial complexity.
 
-For the `standard` image type, the value of `num_levels` must be `1`.
+The `verify` member function is available to check the validity of the image
+descriptor against the limitations outlined below. If the given descriptor is 
+deemed invalid, then a `sycl::exception` will be thrown with error code 
+`sycl::errc::invalid`.
+
+For the `standard` image type, the value of `num_levels` and `array_size` must
+both be `1`.
 
 The `type` member will inform the implementation of the type of image to 
 create, allocate, or free.
@@ -253,6 +262,8 @@ Only mipmap image types support more than one level. For mipmap images, the
 member function `get_mip_level_desc` will return an `image_descriptor` for 
 a given level of a mipmap, with valid dimension values for that level, and the 
 type of the returned `image_descriptor` will be `image_type::standard`.
+
+Only array image types support more than one array layer.
 
 === Allocating image memory
 
@@ -652,6 +663,7 @@ namespace sycl::ext::oneapi::experimental {
 
 struct bindless_image_sampler {
 
+  // Assign addressing mode to all dimensions
   bindless_image_sampler(sycl::addressing_mode addressing,
                          sycl::coordinate_normalization_mode coordinate,
                          sycl::filtering_mode filtering);
@@ -663,7 +675,20 @@ struct bindless_image_sampler {
                          float minMipmapLevelClamp, float maxMipmapLevelClamp,
                          float maxAnisotropy);
 
-  sycl::addressing_mode addressing = sycl::addressing_mode::none;
+  // Specific addressing modes per dimension
+  bindless_image_sampler(sycl::addressing_mode addressing[3],
+                         sycl::coordinate_normalization_mode coordinate,
+                         sycl::filtering_mode filtering);
+
+  bindless_image_sampler(sycl::addressing_mode addressing[3],
+                         sycl::coordinate_normalization_mode coordinate,
+                         sycl::filtering_mode filtering,
+                         sycl::filtering_mode mipmapFiltering,
+                         float minMipmapLevelClamp, float maxMipmapLevelClamp,
+                         float maxAnisotropy);
+
+
+  sycl::addressing_mode addressing[3] = {sycl::addressing_mode::none};
   sycl::coordinate_normalization_mode coordinate =
       sycl::coordinate_normalization_mode::unnormalized;
   sycl::filtering_mode filtering = sycl::filtering_mode::nearest;
@@ -681,6 +706,10 @@ semantics. The value for the addressing mode, `addressing_mode::none`,
 represents the backend's default addressing mode. On CUDA this is `Wrap`, i.e. 
 `addressing_mode::repeat`.
 
+`addressing[3]` defines the addressing mode per texture dimension. A 
+`bindless_image_sampler` can be constructed with a singular 
+`sycl::addressing_mode`, where this parameter will define all dimensions.
+
 `mipmap_filtering` dictates the method in which sampling between mipmap 
 levels is performed.
 
@@ -688,7 +717,7 @@ levels is performed.
 sample, with the minimum value being 0.
 
 `max_mipmap_level_clamp` defines the maximum mipmap level from which we can 
-sample. This cannot value cannot be higher than the number of allocated levels.
+sample. This value cannot be higher than the number of allocated levels.
 
 `max_anisotropy` dictates the anisotropic ratio used when sampling the mipmap 
 with anisotropic filtering.
@@ -968,11 +997,11 @@ listed above caused the failure.
 namespace sycl::ext::oneapi::experimental {
 
 template <typename DataT, typename HintT = DataT, typename CoordT>
-DataT read_image(const unsampled_image_handle &ImageHandle,
-                 const CoordT &Coords);
+DataT fetch_image(const unsampled_image_handle &ImageHandle,
+                  const CoordT &Coords);
 template <typename DataT, typename HintT = DataT, typename CoordT>
-DataT read_image(const sampled_image_handle &ImageHandle, 
-                 const CoordT &Coords);
+DataT sample_image(const sampled_image_handle &ImageHandle, 
+                   const CoordT &Coords);
 
 template <typename DataT, typename CoordT>
 void write_image(unsampled_image_handle &ImageHandle,
@@ -980,27 +1009,29 @@ void write_image(unsampled_image_handle &ImageHandle,
 }
 ```
 
-Inside a kernel, it's possible to read an image via `read_image`, passing 
-the image handle. For the form that takes `unsampled_image_handle`, image data 
-will be fetched exactly as is in device memory. For the form that takes a 
-`sampled_image_handle`, the image will be sampled according to the 
+Inside a kernel, it's possible to retrieve data from an image via `fetch_image` 
+or  `sample_image`, passing the appropirate image handle. The `fetch_image` API 
+is only applicable to unsampled images, and the data will be fetched exactly as 
+is in device memory. The `sample_image` API is only applicable to sampled 
+images, the image data will be sampled according to the 
 `bindless_image_sampler` that was passed to the image upon construction.
 
 The user is required to pass a `DataT` template parameter, which specifies the
-return type of the `read_image` function. If `DataT` is not a recognized 
-standard type, as defined in <<recognized_standard_types>>, and instead a 
-user-defined type, the user must provide a `HintT` template parameter to the 
-`read_image` function, to allow the backend to select the correct device 
-intrinsic to fetch or sample their data.
+return type of the `fetch_image` and `sample_image` functions. If `DataT` is 
+not a recognized standard type, as defined in <<recognized_standard_types>>, 
+and instead a user-defined type, the user must provide a `HintT` template 
+parameter to the `fetch_image` and `sample_image` functions, to allow the 
+backend to select the correct device intrinsic to fetch or sample their data.
+
 `HintT` must be one of the the <<recognized_standard_types>>, and must be the 
 same size as `DataT`.
 If `DataT` is a recognized standard type, and `HintT` is also passed, `HintT` 
 will be ignored.
 
-When reading a texture backed by a normalized integer channel type, either 
-`DataT` must be a 32-bit or 16-bit floating point value, a `sycl::vec` of 
-32-bit or 16-bit floating point values, or, in the case `DataT` is not one of 
-the above, then `HintT` must be one of the above, and be of the same size as 
+When fetching or sampling an image backed by a normalized integer channel type, 
+either `DataT` must be a 32-bit or 16-bit floating point value, a `sycl::vec` 
+of 32-bit or 16-bit floating point values, or, in the case `DataT` is not one 
+of the above, then `HintT` must be one of the above, and be of the same size as 
 `DataT`.
 
 It's possible to write to an unsampled image via `write_image` passing the 
@@ -1011,16 +1042,12 @@ of the <<recognized_standard_types>>.
 
 Sampled images cannot be written to using `write_image`.
 
-For reading and writing of unsampled images, coordinates are specified by `int`, 
-`sycl::vec<int, 2>`, and `sycl::vec<int, 4>` for 1D, 2D, and 3D images, 
+For fetching and writing of unsampled images, coordinates are specified by 
+`int`, `sycl::vec<int, 2>`, and `sycl::vec<int, 3>` for 1D, 2D, and 3D images, 
 respectively.
 
 Sampled image reads take `float`, `sycl::vec<float, 2>`, and 
-`sycl::vec<float, 4>` coordinate types for 1D, 2D, and 3D images, respectively.
-
-Note that in the case of 3D reads or writes, coordinates for 3D images take a 
-vector of size 4, not 3, as the fourth element in the coordinate vector is 
-ignored.
+`sycl::vec<float, 3>` coordinate types for 1D, 2D, and 3D images, respectively.
 
 Note also that all images must be used in either read-only or write-only fashion 
 within a single kernel invocation; read/write images are not supported.
@@ -1032,8 +1059,8 @@ kernel must be submitted for the written data to be accessible.
 
 [NOTE]
 ====
-Attempting to read an image with `read_mipmap` or any other defined read 
-function will result in undefined behaviour.
+Attempting to sample a standard sampled image with `sample_mipmap` or any other 
+defined sampling function will result in undefined behaviour.
 ====
 
 === Recognized standard types [[recognized_standard_types]]
@@ -1043,7 +1070,8 @@ standard types.
 
 * All POD types (`char`, `short`, `int`, `float`, etc.) excluding `double`
 * `sycl::half`
-* Variants of `sycl::vec<T, N>` where `T` is one of the above, and `N` is `1`, `2`, or `4`
+* Variants of `sycl::vec<T, N>` where `T` is one of the above, and `N` is `1`, 
+  `2`, or `3`
 
 Any other types are classified as user-defined types.
 
@@ -1062,7 +1090,7 @@ struct my_short2 {
 ```
 
 When providing the above types as `DataT` parameters to an image read function, 
-the corresponding `HintT` parameters to use would be `sycl::vec<float, 4>` and 
+the corresponding `HintT` parameters to use would be `sycl::vec<float, 4>` and
 `sycl::vec<short, 2>`, respectively.
 
 == Mipmapped images
@@ -1154,26 +1182,26 @@ level of a given top-level descriptor.
 
 === Reading a mipmap
 
-Inside the kernel, it's possible to read a mipmap via `read_mipmap`, passing the 
-`sampled_image_handle`, the coordinates, and either the level or anisotropic 
-gradient values.
+Inside the kernel, it's possible to sample a mipmap via `sample_mipmap`, 
+passing the `sampled_image_handle`, the coordinates, and either the level or 
+anisotropic gradient values.
 
-The method of sampling a mipmap is different based on which `read_mipmap` 
+The method of sampling a mipmap is different based on which `sample_mipmap` 
 function is used, and the sampler attributes passed upon creation of the 
 mipmap.
 
 ```c++
 // Nearest/linear filtering between mip levels
 template <typename DataT, typename HintT = DataT, typename CoordT>
-DataT read_mipmap(const sampled_image_handle &ImageHandle,
-                  const CoordT &Coords,
-                  const float Level);
+DataT sample_mipmap(const sampled_image_handle &ImageHandle,
+                    const CoordT &Coords,
+                    const float Level);
 
 // Anisotropic filtering
 template <typename DataT, typename HintT = DataT, typename CoordT>
-DataT read_mipmap(const sampled_image_handle &ImageHandle,
-                  const CoordT &Coords,
-                  const CoordT &Dx, const CoordT &Dy);
+DataT sample_mipmap(const sampled_image_handle &ImageHandle,
+                    const CoordT &Coords,
+                    const CoordT &Dx, const CoordT &Dy);
 ```
 
 Reading a mipmap follows the same restrictions on what coordinate types may be 
@@ -1185,8 +1213,108 @@ the restrictions as laid out in <<reading_writing_inside_kernel>>.
 
 [NOTE]
 ====
-Attempting to read a mipmap with `read_image` or any other defined read function 
-will result in undefined behaviour.
+Attempting to sample a mipmap with `sample_image` or any other defined sample 
+function will result in undefined behaviour.
+====
+
+== Image arrays
+
+Another type of image we propose support for is image arrays. Image arrays are 
+images made up of multiple array indices where each index is itself an image and
+every index has the same dimensionality, size, and data type.
+
+Image arrays may also be referred to as layered images, and the array indices 
+may be referred to layers.
+
+=== Allocation of image arrays
+
+Image arrays are allocated in a similar manner to standard images.
+
+Image array memory is allocated through `alloc_image_mem`. The user should 
+populate the `image_descriptor` with the image type of `image_type::array`, 
+and provide the size of the array they wish to allocate. The value of 
+`array_size` must be greater than `1`.
+
+Image array memory allocated this way requires the user to free that memory 
+after all operations using the memory are completed and no more operations 
+operating on the memory will be scheduled. This is done using `free_image_mem`, 
+passing `image_type::array`.
+
+The RAII class `image_mem` may also be used to perform allocation and 
+deallocation of arrayed image device memory. The constructor and destructor act 
+as a wrapper for the functions `alloc_image_mem` and `free_image_mem` 
+respectively.
+
+[NOTE]
+====
+Currently there is no support for image arrays backed by USM.
+====
+
+=== Obtaining a handle to an image array
+
+A handle to an image array is acquired in the same way as 
+`unsampled_image_handle`. We create the handle through the `create_image` 
+functions which take `image_descriptor` that has `image_type::array` and 
+`array_size` greater than `1`.
+
+[NOTE]
+====
+Currently there is no support for sampled image arrays.
+====
+
+=== Copying image array data
+
+When copying to or from image arrays, the user should copy to/from the entire 
+array of images in one call to `ext_oneapi_copy` by passing the image arrays'
+`image_mem_handle`.
+
+=== Reading an image array
+
+Inside the kernel, it's possible to fetch data from an unsampled image array 
+via `fetch_image_array`, passing the `unsampled_image_handle`, the coordinates, 
+and the array index.
+
+```c++
+// Fetch an unsampled image array
+template <typename DataT, typename HintT = DataT, typename CoordT>
+DataT fetch_image_array(const unsampled_image_handle &ImageHandle,
+                       const CoordT &Coords, const unsigned int ArrayLayer);
+```
+
+Fetching an image array follows the same restrictions on what coordinate types 
+may be used as laid out in <<reading_writing_inside_kernel>>.
+
+Fetching an image array by providing a user-defined return `DataT` type also 
+follows the restrictions as laid out in <<reading_writing_inside_kernel>>.
+
+[NOTE]
+====
+Attempting to fetch an image array with `fetch_image` or any other defined 
+fetch function will result in undefined behaviour.
+====
+
+=== Writing an image array
+
+Inside the kernel, it's possible to write to an image array via 
+`write_image_array`, passing the `unsampled_image_handle`, the coordinates, the 
+array index, and the data to write. User-defined types are allowed to be written 
+provided that type is trivially copyable.
+
+```c++
+// Write to an unsampled image array
+template <typename DataT, typename CoordT>
+DataT write_image_array(const unsampled_image_handle &ImageHandle,
+                       const CoordT &Coords, const unsigned int ArrayLayer
+                       const DataT &Color);
+```
+
+Writing to an image array follows the same restrictions on what coordinate types 
+may be used as laid out in <<reading_writing_inside_kernel>>.
+
+[NOTE]
+====
+Attempting to write to an image array with `write_image` or any other defined 
+write function will result in undefined behaviour.
 ====
 
 == Interoperability
@@ -1219,40 +1347,58 @@ memory or semaphore objects. CUDA for example only supports importation of
 external memory and semaphores, but provides no support for their exportation.
 ====
 
-=== Importing external memory objects
+=== External Resource types
 
-In order to import a memory object, an external API must provide an appropriate 
-handle to that memory. The exact structure and type of this handle can depend on 
-the external API, and the operating system the application is running on.
-
-In order to facilitate a number of different external memory handle types, we 
-propose the following structures.
+In order to facilitate the importing of a number of different external memory 
+and external semaphore handle types, we propose the following resource 
+structures.
 
 [NOTE]
 ====
-We only show two examples of external memory handle types here, but the 
-`external_mem_descriptor` struct could be templated by any number of handle 
+We only show three examples of external resource handle types here, but the 
+`external_mem_descriptor` and `external_semaphore_descriptor` structs, as 
+defined in <<importing_external_memory_objects>> and 
+<<importing_external_semaphores>>, could be templated by any number of handle 
 types, provided that the SYCL implementation provides support for them.
 ====
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
-// POSIX file descriptor memory handle type
-struct external_mem_fd {
+// POSIX file descriptor handle type
+struct resource_fd {
   int file_descriptor;
 };
 
-// Windows NT memory handle type
-struct external_mem_win32 {
+// Windows NT handle type
+struct resource_win32_handle {
   void *handle;
+};
+
+// Windows NT name type
+struct resource_win32_name {
   const void *name;
 };
 
-// Descriptor templated on specific external memory handle type
-template <typename external_mem_handle_type>
-struct external_mem_handle_type {
-  external_mem_handle_type external_handle;
+}
+```
+
+=== Importing external memory objects [[importing_external_memory_objects]]
+
+In order to import a memory object, an external API must provide an appropriate 
+handle to that memory. The exact structure and type of this handle can depend on 
+the external API, and the operating system the application is running on.
+
+External memory import is facilitated through the following proposed descriptor 
+struct.
+
+```cpp
+namespace sycl::ext::oneapi::experimental {
+
+// Descriptor templated on specific resource type
+template <typename ResourceType>
+struct external_mem_descriptor {
+  ResourceType external_resource;
   size_t size_in_bytes;
 };
 
@@ -1260,12 +1406,12 @@ struct external_mem_handle_type {
 ```
 
 The user should create an `external_mem_descriptor` templated on the appropriate 
-handle type for their purposes, e.g. `external_mem_fd` to describe a POSIX file 
-descriptor resource on Linux systems, or an `external_mem_win32` for Windows NT 
-resource handles.
+handle type, `ResourceType`, for their purposes, e.g. `resource_fd` to describe 
+a POSIX file descriptor resource on Linux systems, or a `resource_win32_handle` 
+for Windows NT resource handles.
 
 Once the user populates the `external_mem_descriptor` with the appropriate 
-`external_mem_handle_type` values, and the size of the external memory in bytes,
+`ResourceType` values, and the size of the external memory in bytes,
 they can then import that memory into SYCL through `import_external_memory`.
 
 ```cpp
@@ -1276,15 +1422,15 @@ struct interop_mem_handle {
   raw_handle_type raw_handle;
 };
 
-template <typename external_mem_handle_type>
+template <typename ResourceType>
 interop_mem_handle import_external_memory(
-    external_mem_descriptor<external_mem_handle_type> externalMemDescriptor,
+    external_mem_descriptor<ResourceType> externalMemDescriptor,
     const sycl::device &syclDevice,
     const sycl::context &syclContext);
 
-template <typename external_mem_handle_type>
+template <typename ResourceType>
 interop_mem_handle import_external_memory(
-    external_mem_descriptor<external_mem_handle_type> externalMemDescriptor,
+    external_mem_descriptor<ResourceType> externalMemDescriptor,
     const sycl::queue &syclQueue);
 
 image_mem_handle map_external_image_memory(
@@ -1308,8 +1454,12 @@ When calling `create_image` with an `image_mem_handle` mapped from an external
 memory object, the user must ensure that the image descriptor they pass to 
 `create_image` has members that match or map to those of the external API. 
 A mismatch between any of the `width`, `height`, `depth`, `image_channel_type`,
-or `image_channel_order` members will result in undefined behavior. The 
-`image_type` member must be set to `image_type::interop`.
+or `image_channel_order` members will result in undefined behavior.
+
+Additionally, the `image_type` describing the image must match to the image of 
+the external API. The current supported importable image types are `standard` 
+and `mipmap`. Attempting to import other image types will result in undefined 
+behaviour.
 
 Once a user has finished operating on imported memory, they must ensure that 
 they destroy the imported memory handle through `release_external_memory`.
@@ -1331,7 +1481,7 @@ void release_external_memory(interop_mem_handle interopMem,
 Destroying or freeing any imported memory through `image_mem_free` or 
 `sycl::free` will result in undefined behavior.
 
-=== Importing external semaphores
+=== Importing external semaphores [[importing_external_semaphores]]
 
 In addition to proposing importation of external memory resources, we also 
 propose importation of synchronization primitives. Just like the sharing of 
@@ -1341,47 +1491,29 @@ memory resources handles can take different forms of structure and type
 depending on the API and operating system, so do external semaphore resource 
 handles.
 
-In order to facilitate a number of different external semaphore handle types, we 
-propose the following structures.
-
-[NOTE]
-====
-We only show two examples of external semaphore resource handle types here, but 
-the `external_semaphore_descriptor` struct could be templated by any number of 
-handle types, provided that the SYCL implementation provides support for them.
-====
+External semaphore import is facilitated through the following proposed 
+descriptor struct.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
-// POSIX file descriptor semaphore handle
-struct external_semaphore_fd {
-  int file_descriptor;
-};
-
-// Windows NT semaphore handle
-struct external_semaphore_win32 {
-  void *handle;
-  const void *name;
-};
-
-// Descriptor templated on specific external semaphore handle type
-template <typename external_semaphore_handle_type>
+// Descriptor templated on specific resource type
+template <typename ResourceType>
 struct external_semaphore_descriptor {
-  external_semaphore_handle_type external_handle;
+  ResourceType external_resource;
 };
 
 }
 ```
 
 The user should create an `external_semaphore_descriptor` templated on the 
-appropriate handle type for their purposes, e.g. `external_semaphore_fd` to 
-describe a POSIX file descriptor resource on Linux systems, or an 
-`external_mem_win32` for Windows NT resource handles.
+appropriate handle type, `ResourceType`, for their purposes, e.g. `resource_fd` 
+to describe a POSIX file descriptor resource on Linux systems, or a 
+`resource_win32_handle` for Windows NT resource handles.
 
 Once the user populates the `external_semaphore_descriptor` with the appropriate 
-`external_semaphore_handle_type` values, they can then import that semaphore 
-into SYCL through `import_external_semaphore`.
+`ResourceType` values, they can then import that semaphore into SYCL through 
+`import_external_semaphore`.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
@@ -1391,17 +1523,17 @@ struct interop_semaphore_handle {
   raw_handle_type raw_handle;
 };
 
-template <typename external_semaphore_handle_type>
+template <typename ResourceType>
 interop_semaphore_handle import_external_semaphore(
-    external_semaphore_descriptor<external_semaphore_handle_type>
+    external_semaphore_descriptor<ResourceType>
         externalSemaphoreDescriptor,
     const sycl::device &syclDevice,
     const sycl::context &syclContext);
 }
 
-template <typename external_semaphore_handle_type>
+template <typename ResourceType>
 interop_semaphore_handle import_external_semaphore(
-    external_semaphore_descriptor<external_semaphore_handle_type>
+    external_semaphore_descriptor<ResourceType>
         externalSemaphoreDescriptor,
     const sycl::queue &syclQueue);
 }
@@ -1530,7 +1662,7 @@ try {
 
     cgh.parallel_for(width, [=](sycl::id<1> id) {
       // Extension: read image data from handle
-      float pixel = sycl::ext::oneapi::experimental::read_image<float>(
+      float pixel = sycl::ext::oneapi::experimental::fetch_image<float>(
           imgIn, int(id[0]));
 
       // Extension: write to image data using handle
@@ -1632,7 +1764,7 @@ try {
           float sum = 0;
           for (int i = 0; i < numImages; i++) {
             // Extension: read image data from handle
-            sum += (sycl::ext::oneapi::experimental::read_image<float>(
+            sum += (sycl::ext::oneapi::experimental::fetch_image<float>(
                 imgHandleAcc[i], sycl::vec<int, 2>(dim0, dim1)));
           }
           outAcc[sycl::id{dim1, dim0}] = sum;
@@ -1722,9 +1854,9 @@ try {
       float x = (static_cast<float>(id[0]) + 0.5f) / static_cast<float>(width);
       // Read mipmap level 0 with anisotropic filtering
       // and level 1 with level filtering
-      float px1 = sycl::ext::oneapi::experimental::read_mipmap<float>(
+      float px1 = sycl::ext::oneapi::experimental::sample_mipmap<float>(
           mipHandle, x, 0.0f, 0.0f);
-      float px2 = sycl::ext::oneapi::experimental::read_mipmap<float>(
+      float px2 = sycl::ext::oneapi::experimental::sample_mipmap<float>(
           mipHandle, x, 1.0f);
 
       sum = px1 + px2;
@@ -1749,6 +1881,130 @@ try {
 bool validated = (dataOut == dataExpected);
 ```
 
+=== 1D image array read/write
+```cpp
+using VecType = sycl::vec<float, 4>;
+
+sycl::device dev;
+sycl::queue q(dev);
+auto ctxt = q.get_context();
+
+// declare image data
+constexpr size_t width = 5;
+constexpr size_t array_size = 2;
+constexpr size_t N = width;
+std::vector<VecType> out(N * array_size);
+std::vector<float> expected(N * array_size);
+std::vector<float> outBuf(N);
+std::vector<VecType> dataIn1(N * array_size);
+std::vector<VecType> dataIn2(N * array_size);
+
+for (int i = 0; i < N * array_size; i++) {
+  // Populate input data (to-be image arrays)
+  dataIn1[i] = VecType(i);
+  dataIn2[i] = VecType(2*i);
+}
+
+// Populate expected output
+for (int i = 0; i < width; i++) {
+  for (int l = 0; l < array_size; l++) {
+    expected[l * N + i] = dataIn1[l * N + i][0] + dataIn2[l * N + i][0];
+  }
+}
+
+try {
+  // Extension: image descriptor -- number of layers
+  sycl::ext::oneapi::experimental::image_descriptor desc(
+      {width}, sycl::image_channel_order::rgba, sycl::image_channel_type::fp32,
+      sycl::ext::oneapi::experimental::image_type::array, 1, array_size);
+
+  // Extension: allocate image array memory on device
+  sycl::ext::oneapi::experimental::image_mem arrayMem1(desc, dev, ctxt);
+  sycl::ext::oneapi::experimental::image_mem arrayMem2(desc, dev, ctxt);
+  sycl::ext::oneapi::experimental::image_mem outMem(desc, dev, ctxt);
+
+  // Extension: copy over data to device
+  q.ext_oneapi_copy(dataIn1.data(), arrayMem1.get_handle(), desc);
+  q.ext_oneapi_copy(dataIn2.data(), arrayMem2.get_handle(), desc);
+  q.wait_and_throw();
+
+  // Extension: create a unsampled image handles to represent the image arrays
+  sycl::ext::oneapi::experimental::unsampled_image_handle arrayHandle1 =
+      sycl::ext::oneapi::experimental::create_image(arrayMem1, desc, dev,
+                                                    ctxt);
+  sycl::ext::oneapi::experimental::unsampled_image_handle arrayHandle2 =
+      sycl::ext::oneapi::experimental::create_image(arrayMem2, desc, dev,
+                                                    ctxt);
+  sycl::ext::oneapi::experimental::unsampled_image_handle outHandle =
+      sycl::ext::oneapi::experimental::create_image(outMem, desc, dev,
+                                                    ctxt);
+
+  q.submit([&](sycl::handler &cgh) {
+
+    cgh.parallel_for<kernel>(N, [=](sycl::id<1> id) {
+      float sum1 = 0;
+      float sum2 = 0;
+      
+      // Extension: read image layers 0 and 1
+      VecType px1 = sycl::ext::oneapi::experimental::fetch_image_array<VecType>(
+          arrayHandle1, int(id[0]), 0);
+      VecType px2 = sycl::ext::oneapi::experimental::fetch_image_array<VecType>(
+          arrayHandle1, int(id[0]), 1);
+
+      // Extension: read image layers 0 and 1
+      VecType px3 = sycl::ext::oneapi::experimental::fetch_image_array<VecType>(
+          arrayHandle2, int(id[0]), 0);
+      VecType px4 = sycl::ext::oneapi::experimental::fetch_image_array<VecType>(
+          arrayHandle2, int(id[0]), 1);
+
+      sum1 = px1[0] + px3[0];
+      sum2 = px2[0] + px4[0];
+
+      // Extension: write to image layers with handle
+      sycl::ext::oneapi::experimental::write_image_array<VecType>(
+          outHandle, int(id[0]), 0, VecType(sum1));
+      sycl::ext::oneapi::experimental::write_image_array<VecType>(
+          outHandle, int(id[0]), 1, VecType(sum2));
+    });
+  });
+
+  q.wait_and_throw();
+
+  // Extension: copy data from device to host
+  q.ext_oneapi_copy(outMem.get_handle(), out.data(), desc);
+  q.wait_and_throw();
+
+  // Extension: cleanup
+  sycl::ext::oneapi::experimental::destroy_image_handle(arrayHandle1, dev, ctxt);
+  sycl::ext::oneapi::experimental::destroy_image_handle(arrayHandle2, dev, ctxt);
+  sycl::ext::oneapi::experimental::destroy_image_handle(outHandle, dev, ctxt);
+
+} catch (sycl::exception e) {
+  std::cerr << "SYCL exception caught! : " << e.what() << "\n";
+  std::cout << "Test failed!" << std::endl;
+  exit(1);
+} catch (...) {
+  std::cerr << "Unknown exception caught!\n";
+  std::cout << "Test failed!" << std::endl;
+  exit(2);
+}
+
+// collect and validate output
+bool validated = true;
+for (int i = 0; i < N * array_size; i++) {
+  bool mismatch = false;
+  if (out[i][0] != expected[i]) {
+    mismatch = true;
+    validated = false;
+  }
+}
+if (validated) {
+  return 0;
+}
+
+return 1;
+```
+
 === Using imported memory and semaphore objects
 
 ```c++
@@ -1769,10 +2025,8 @@ sycl::ext::oneapi::experimental::image_channel_type channel_type =
     /* we assume sycl::image_channel_type::unsigned_int32 */;
 
 // Image descriptor - mapped to external API image layout
-//                    with `image_type::interop`
 sycl::ext::oneapi::experimental::image_descriptor desc(
-    {width, height}, channel_order, channel_type,
-    sycl::ext::oneapi::experimental::image_type::interop);
+    {width, height}, channel_order, channel_type);
 
 size_t img_size_in_bytes = width * height * sizeof(uint32_t);
 
@@ -1781,12 +2035,12 @@ int external_output_image_file_descriptor = /* passed from external API */
 
 // Extension: populate external memory descriptors
 sycl::ext::oneapi::experimental::external_mem_descriptor<
-    sycl::ext::oneapi::experimental::external_mem_fd>
+    sycl::ext::oneapi::experimental::resource_fd>
     input_ext_mem_desc{external_input_image_file_descriptor, 
                        img_size_in_bytes};
 
 sycl::ext::oneapi::experimental::external_mem_descriptor<
-    sycl::ext::oneapi::experimental::external_mem_fd>
+    sycl::ext::oneapi::experimental::resource_fd>
     output_ext_mem_desc{external_output_image_file_descriptor,
                         img_size_in_bytes};
 
@@ -1801,11 +2055,11 @@ int done_semaphore_file_descriptor = /* passed from external API */;
 // Extension: populate external semaphore descriptor.
 //            We assume POSIX file descriptor resource types
 sycl::ext::oneapi::experimental::external_semaphore_descriptor<
-    sycl::ext::oneapi::experimental::external_semaphore_fd>
+    sycl::ext::oneapi::experimental::resource_fd>
     wait_external_semaphore_desc{wait_semaphore_file_descriptor};
 
 sycl::ext::oneapi::experimental::external_semaphore_descriptor<
-    sycl::ext::oneapi::experimental::external_semaphore_fd>
+    sycl::ext::oneapi::experimental::resource_fd>
     done_external_semaphore_desc{done_semaphore_file_descriptor};
 
 try {
@@ -1860,7 +2114,7 @@ try {
 
           // Extension: read image data from handle to imported image
           uint32_t pixel =
-              sycl::ext::oneapi::experimental::read_image<uint32_t>(
+              sycl::ext::oneapi::experimental::fetch_image<uint32_t>(
                   img_input, sycl::vec<int, 2>(dim0, dim1));
 
           // Modify the data before writing back
@@ -1933,7 +2187,6 @@ There are dimension specific limitations:
 These features still need to be handled:
 
 * Level Zero and SPIR-V support
-* Layered images
 * Cubemap images
 
 == Revision History
@@ -2060,4 +2313,19 @@ These features still need to be handled:
                    wording around what types are allowed to be read or written.
                  - Allow `read_image` and `read_mipmap` to return a 
                    user-defined type.
+|5.1|2023-12-06| - Added unique addressing modes per dimension to the 
+                   `bindless_image_sampler`
+|5.2|2024-02-14| - Image read and write functions now accept 3-component 
+                   coordinates for 3D reads, instead of 4-component coordinates.
+|5.3|2024-02-16| - Replace `read_image` and `read_mipmap` APIs in favor of more 
+                   descriptive naming, with `fetch_image`, `sample_image`, and
+                   `sample_mipmap`.
+|5.4|2024-02-23| - Added support for unsampled image arrays.
+                 - Creation of unsampled image arrays.
+                 - Fetching/writing of unsampled image arrays.
+                 - `image_type::array` added to enum.
+                 - `array_size` member added to `image_descriptor`.
+                 - `image_descriptor::verify()` member function added.
+|5.5|2024-02-27| - Update interop with mipmap interop and slight redesign
+                 - `interop` removed from `image_type`
 |======================

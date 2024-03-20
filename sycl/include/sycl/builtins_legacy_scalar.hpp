@@ -330,6 +330,22 @@ inline constexpr bool is_non_deprecated_nan_type_v =
     std::is_same_v<get_elem_type_t<T>, uint16_t> ||
     std::is_same_v<get_elem_type_t<T>, uint32_t> ||
     std::is_same_v<get_elem_type_t<T>, uint64_t>;
+
+template <typename T, typename B, typename Enable = void>
+struct convert_data_type_impl;
+
+template <typename T, typename B>
+struct convert_data_type_impl<T, B, std::enable_if_t<is_sgentype_v<T>, T>> {
+  B operator()(T t) { return static_cast<B>(t); }
+};
+
+template <typename T, typename B>
+struct convert_data_type_impl<T, B, std::enable_if_t<is_vgentype_v<T>, T>> {
+  vec<B, T::size()> operator()(T t) { return t.template convert<B>(); }
+};
+
+template <typename T, typename B>
+using convert_data_type = convert_data_type_impl<T, B, T>;
 } // namespace detail
 
 template <typename T>

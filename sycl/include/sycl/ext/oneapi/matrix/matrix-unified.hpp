@@ -524,8 +524,9 @@ joint_matrix_prefetch(Group sg, T *Ptr, size_t stride,
   // Will be removed once SPIRV implementation also uses offsetpointer
   size_t coordX = 0;
   size_t coordY = 0;
-  __spirv_JointMatrixPrefetchINTEL<T, NumRows, NumCols>(
-      Ptr, coordX, coordY, detail::PropertyMetaInfo<decltype(prop)>::value,
+  __spirv_CooperativeMatrixPrefetchINTEL<T>(
+      Ptr, coordX, coordY, NumRows, NumCols,
+      detail::PropertyMetaInfo<decltype(prop)>::value,
       sycl::detail::joint_matrix_layout_to_spv(Layout), stride);
 #endif // defined(__NVPTX__)
 #else

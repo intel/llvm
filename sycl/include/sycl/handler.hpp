@@ -21,6 +21,10 @@
 #include <sycl/detail/pi.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/detail/reduction_forward.hpp>
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#include <sycl/detail/string.hpp>
+#include <sycl/detail/string_view.hpp>
+#endif
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
@@ -32,6 +36,7 @@
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
+#include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group.hpp>
@@ -414,6 +419,10 @@ template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
   }
   return true;
 }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+using string = std::string;
+using string_view = std::string;
+#endif
 
 } // namespace detail
 
@@ -542,7 +551,7 @@ private:
                   bool IsKernelCreatedFromSource, bool IsESIMD);
 
   /// \return a string containing name of SYCL kernel.
-  std::string getKernelName();
+  detail::string getKernelName();
 
   template <typename LambdaNameT> bool lambdaAndKernelHaveEqualName() {
     // TODO It is unclear a kernel and a lambda/functor must to be equal or not
@@ -552,8 +561,8 @@ private:
     // values of arguments for the kernel.
     assert(MKernel && "MKernel is not initialized");
     const std::string LambdaName = detail::KernelInfo<LambdaNameT>::getName();
-    const std::string KernelName = getKernelName();
-    return LambdaName == KernelName;
+    detail::string KernelName = getKernelName();
+    return KernelName == LambdaName;
   }
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
@@ -836,7 +845,14 @@ private:
   ///
   /// \param KernelName is the name of the SYCL kernel to check that the used
   ///                   kernel bundle contains.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  void verifyUsedKernelBundle(const std::string &KernelName) {
+    verifyUsedKernelBundleInternal(detail::string_view{KernelName});
+  }
+  void verifyUsedKernelBundleInternal(detail::string_view KernelName);
+#else
   void verifyUsedKernelBundle(const std::string &KernelName);
+#endif
 
   /// Stores lambda to the template-free object
   ///
@@ -933,6 +949,10 @@ private:
     } else {
       std::ignore = Props;
     }
+
+    constexpr bool UsesRootSync = PropertiesT::template has_property<
+        sycl::ext::oneapi::experimental::use_root_sync_key>();
+    setKernelIsCooperative(UsesRootSync);
   }
 
   /// Checks whether it is possible to copy the source shape to the destination
@@ -1776,6 +1796,14 @@ private:
   /// the appropriate constructor.
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
   getCommandGraph() const;
+
+  /// Sets the user facing node type of this operation, used for operations
+  /// which are recorded to a graph. Since some operations may actually be a
+  /// different type than the user submitted, e.g. a fill() which is performed
+  /// as a kernel submission.
+  /// @param Type The actual type based on what handler functions the user
+  /// called.
+  void setUserFacingNodeType(ext::oneapi::experimental::node_type Type);
 
 public:
   handler(const handler &) = delete;
@@ -2720,6 +2748,7 @@ public:
       checkIfPlaceholderIsBoundToHandler(Dst);
 
     throwIfActionIsCreated();
+    setUserFacingNodeType(ext::oneapi::experimental::node_type::memfill);
     // TODO add check:T must be an integral scalar value or a SYCL vector type
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the fill method.");
@@ -2758,6 +2787,7 @@ public:
   /// \param Count is the number of times to fill Pattern into Ptr.
   template <typename T> void fill(void *Ptr, const T &Pattern, size_t Count) {
     throwIfActionIsCreated();
+    setUserFacingNodeType(ext::oneapi::experimental::node_type::memfill);
     static_assert(is_device_copyable<T>::value,
                   "Pattern must be device copyable");
     parallel_for<__usmfill<T>>(range<1>(Count), [=](id<1> Index) {
@@ -3292,7 +3322,7 @@ private:
   std::vector<detail::ArgDesc> MAssociatedAccesors;
   /// Struct that encodes global size, local size, ...
   detail::NDRDescT MNDRDesc;
-  std::string MKernelName;
+  detail::string MKernelName;
   /// Storage for a sycl::kernel object.
   std::shared_ptr<detail::kernel_impl> MKernel;
   /// Type of the command group, e.g. kernel, fill. Can also encode version.
@@ -3394,8 +3424,17 @@ private:
   ///        expr m_Storage member
   /// \param Size the size of data getting read back / to.
   /// \param Block if read operation is blocking, default to false.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  void ext_intel_read_host_pipe(const std::string &Name, void *Ptr, size_t Size,
+                                bool Block = false) {
+    ext_intel_read_host_pipe(detail::string_view(Name), Ptr, Size, Block);
+  }
+  void ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
+                                size_t Size, bool Block = false);
+#else
   void ext_intel_read_host_pipe(const std::string &Name, void *Ptr, size_t Size,
                                 bool Block = false);
+#endif
 
   /// Write to host pipes given a host address and
   /// \param Name name of the host pipe to be passed into lower level runtime
@@ -3403,8 +3442,17 @@ private:
   /// expr m_Storage member
   /// \param Size the size of data getting read back / to.
   /// \param Block if write opeartion is blocking, default to false.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
+                                 size_t Size, bool Block = false) {
+    ext_intel_write_host_pipe(detail::string_view(Name), Ptr, Size, Block);
+  }
+  void ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
+                                 size_t Size, bool Block = false);
+#else
   void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
                                  size_t Size, bool Block = false);
+#endif
   friend class ext::oneapi::experimental::detail::graph_impl;
 
   bool DisableRangeRounding();
@@ -3612,6 +3660,8 @@ private:
 
   // Set value of the gpu cache configuration for the kernel.
   void setKernelCacheConfig(sycl::detail::pi::PiKernelCacheConfig);
+  // Set value of the kernel is cooperative flag
+  void setKernelIsCooperative(bool);
 
   template <
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures FeatureT>

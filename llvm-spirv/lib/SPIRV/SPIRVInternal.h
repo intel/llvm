@@ -60,6 +60,7 @@ using namespace llvm;
 
 namespace llvm {
 class IntrinsicInst;
+class IRBuilderBase;
 }
 
 namespace SPIRV {
@@ -551,6 +552,10 @@ std::string mapLLVMTypeToOCLType(const Type *Ty, bool Signed,
                                  Type *PointerElementType = nullptr);
 SPIRVDecorate *mapPostfixToDecorate(StringRef Postfix, SPIRVEntry *Target);
 
+/// Return vector V extended with poison elements to match the number of
+/// components of NewType.
+Value *extendVector(Value *V, FixedVectorType *NewType, IRBuilderBase &Builder);
+
 /// Add decorations to a SPIR-V entry.
 /// \param Decs Each string is a postfix without _ at the beginning.
 SPIRVValue *addDecorations(SPIRVValue *Target,
@@ -876,6 +881,13 @@ inline bool getParameterTypes(CallInst *CI, SmallVectorImpl<Type *> &ArgTys) {
   return getParameterTypes(CI->getCalledFunction(), ArgTys);
 }
 
+enum class ParamSignedness { Signed = 0, Unsigned, Unknown };
+
+/// Extract signedness of return type and parameter types from a mangled
+/// function name.
+bool getRetParamSignedness(Function *F, ParamSignedness &RetSignedness,
+                           SmallVectorImpl<ParamSignedness> &ArgSignedness);
+
 /// Mangle a function from OpenCL extended instruction set in SPIR-V friendly IR
 /// manner
 std::string getSPIRVFriendlyIRFunctionName(OCLExtOpKind ExtOpId,
@@ -930,6 +942,7 @@ template <> inline void SPIRVMap<std::string, Op, SPIRVOpaqueType>::init() {
   _SPIRV_OP(CooperativeMatrixKHR)
 #undef _SPIRV_OP
   add("JointMatrixINTEL", internal::OpTypeJointMatrixINTEL);
+  add("TaskSequenceINTEL", internal::OpTypeTaskSequenceINTEL);
 }
 
 // Check if the module contains llvm.loop.* metadata

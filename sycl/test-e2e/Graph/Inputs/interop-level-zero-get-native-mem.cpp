@@ -31,14 +31,7 @@ int main() {
 
     device Dev1 = Devices[0];
     context Context1{Dev1};
-    queue Queue{
-        Context1,
-        Dev1,
-        {sycl::ext::intel::property::queue::no_immediate_command_list{}}};
-
-    if (!are_graphs_supported(Queue)) {
-      return 0;
-    }
+    queue Queue{Context1, Dev1};
 
     auto Context = Queue.get_context();
     auto Device = Queue.get_info<info::queue::device>();

@@ -141,15 +141,6 @@ event handler::finalize() {
     return MLastEvent;
   MIsFinalized = true;
 
-  // If we have a subgraph node that means that a subgraph was recorded as
-  // part of this queue submission, so we skip adding a new node here since
-  // they have already been added, and return the event associated with the
-  // subgraph node.
-  if (MQueue && MQueue->getCommandGraph() && MSubgraphNode) {
-    return detail::createSyclObjFromImpl<event>(
-        MQueue->getCommandGraph()->getEventForNode(MSubgraphNode));
-  }
-
   // According to 4.7.6.9 of SYCL2020 spec, if a placeholder accessor is passed
   // to a command without being bound to a command group, an exception should
   // be thrown.
@@ -182,7 +173,12 @@ event handler::finalize() {
           !MImpl->isStateExplicitKernelBundle()) {
         auto Dev = MGraph ? MGraph->getDevice() : MQueue->get_device();
         kernel_id KernelID =
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+            detail::ProgramManager::getInstance().getSYCLKernelID(
+                MKernelName.c_str());
+#else
             detail::ProgramManager::getInstance().getSYCLKernelID(MKernelName);
+#endif
         bool KernelInserted = KernelBundleImpPtr->add_kernel(KernelID, Dev);
         // If kernel was not inserted and the bundle is in input mode we try
         // building it and trying to find the kernel in executable mode
@@ -241,7 +237,11 @@ event handler::finalize() {
       // uint32_t StreamID, uint64_t InstanceID, xpti_td* TraceEvent,
       int32_t StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
       auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+          StreamID, MKernel, MCodeLoc, MKernelName.c_str(), MQueue, MNDRDesc,
+#else
           StreamID, MKernel, MCodeLoc, MKernelName, MQueue, MNDRDesc,
+#endif
           KernelBundleImpPtr, MArgs);
       auto EnqueueKernel = [&, CmdTraceEvent = CmdTraceEvent,
                             InstanceID = InstanceID]() {
@@ -265,17 +265,38 @@ event handler::finalize() {
             // Capture the host timestamp for profiling (queue time)
             if (NewEvent != nullptr)
               NewEvent->setHostEnqueueTime();
-            MQueue->getPlugin()->call<detail::PiApiKind::piEnqueueKernelLaunch>(
-                nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
-                MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0],
-                &MNDRDesc.GlobalSize[0], &MNDRDesc.LocalSize[0], 0, nullptr,
-                nullptr);
+            [&](auto... Args) {
+              if (MImpl->MKernelIsCooperative) {
+                MQueue->getPlugin()
+                    ->call<
+                        detail::PiApiKind::piextEnqueueCooperativeKernelLaunch>(
+                        Args...);
+              } else {
+                MQueue->getPlugin()
+                    ->call<detail::PiApiKind::piEnqueueKernelLaunch>(Args...);
+              }
+            }(/* queue */
+              nullptr,
+              /* kernel */
+              reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
+              /* work_dim */
+              MNDRDesc.Dims,
+              /* global_work_offset */ &MNDRDesc.GlobalOffset[0],
+              /* global_work_size */ &MNDRDesc.GlobalSize[0],
+              /* local_work_size */ &MNDRDesc.LocalSize[0],
+              /* num_events_in_wait_list */ 0,
+              /* event_wait_list */ nullptr,
+              /* event */ nullptr);
             Result = PI_SUCCESS;
           } else {
-            Result =
-                enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
-                                 MKernel, MKernelName, RawEvents, NewEvent,
-                                 nullptr, MImpl->MKernelCacheConfig);
+            Result = enqueueImpKernel(
+                MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+                MKernelName.c_str(), RawEvents, NewEvent, nullptr,
+#else
+                MKernelName, RawEvents, NewEvent, nullptr,
+#endif
+                MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative);
           }
         }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -292,11 +313,16 @@ event handler::finalize() {
       };
 
       bool DiscardEvent = false;
-      if (MQueue->has_discard_events_support()) {
+      if (MQueue->supportsDiscardingPiEvents()) {
         // Kernel only uses assert if it's non interop one
         bool KernelUsesAssert =
             !(MKernel && MKernel->isInterop()) &&
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+            detail::ProgramManager::getInstance().kernelUsesAssert(
+                MKernelName.c_str());
+#else
             detail::ProgramManager::getInstance().kernelUsesAssert(MKernelName);
+#endif
         DiscardEvent = !KernelUsesAssert;
       }
 
@@ -332,9 +358,13 @@ event handler::finalize() {
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(MImpl->MKernelBundle), std::move(CGData), std::move(MArgs),
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+        MKernelName.c_str(), std::move(MStreamStorage),
+#else
         MKernelName, std::move(MStreamStorage),
+#endif
         std::move(MImpl->MAuxiliaryResources), MCGType,
-        MImpl->MKernelCacheConfig, MCodeLoc));
+        MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative, MCodeLoc));
     break;
   }
   case detail::CG::CopyAccToPtr:
@@ -442,16 +472,32 @@ event handler::finalize() {
         MCodeLoc));
     break;
   }
-  case detail::CG::ExecCommandBuffer:
-    // If we have a subgraph node we don't want to actually execute this command
-    // graph submission.
-    if (!MSubgraphNode) {
+  case detail::CG::ExecCommandBuffer: {
+    std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> ParentGraph =
+        MQueue ? MQueue->getCommandGraph() : MGraph;
+
+    // If a parent graph is set that means we are adding or recording a subgraph
+    // and we don't want to actually execute this command graph submission.
+    if (ParentGraph) {
+      ext::oneapi::experimental::detail::graph_impl::WriteLock ParentLock;
+      if (MQueue) {
+        ParentLock = ext::oneapi::experimental::detail::graph_impl::WriteLock(
+            ParentGraph->MMutex);
+      }
+      CGData.MRequirements = MExecGraph->getRequirements();
+      // Here we are using the CommandGroup without passing a CommandBuffer to
+      // pass the exec_graph_impl and event dependencies. Since this subgraph CG
+      // will not be executed this is fine.
+      CommandGroup.reset(new sycl::detail::CGExecCommandBuffer(
+          nullptr, MExecGraph, std::move(CGData)));
+
+    } else {
       event GraphCompletionEvent =
           MExecGraph->enqueue(MQueue, std::move(CGData));
       MLastEvent = GraphCompletionEvent;
       return MLastEvent;
     }
-    break;
+  } break;
   case detail::CG::CopyImage:
     CommandGroup.reset(new detail::CGCopyImage(
         MSrcPtr, MDstPtr, MImpl->MImageDesc, MImpl->MImageFormat,
@@ -485,7 +531,7 @@ event handler::finalize() {
     break;
   }
 
-  if (!MSubgraphNode && !CommandGroup)
+  if (!CommandGroup)
     throw sycl::runtime_error(
         "Internal Error. Command group cannot be constructed.",
         PI_ERROR_INVALID_OPERATION);
@@ -511,6 +557,12 @@ event handler::finalize() {
     ext::oneapi::experimental::detail::graph_impl::WriteLock Lock(
         GraphImpl->MMutex);
 
+    ext::oneapi::experimental::node_type NodeType =
+        MImpl->MUserFacingNodeType !=
+                ext::oneapi::experimental::node_type::empty
+            ? MImpl->MUserFacingNodeType
+            : ext::oneapi::experimental::detail::getNodeTypeFromCG(MCGType);
+
     // Create a new node in the graph representing this command-group
     if (MQueue->isInOrder()) {
       // In-order queues create implicit linear dependencies between nodes.
@@ -519,22 +571,20 @@ event handler::finalize() {
       auto DependentNode = GraphImpl->getLastInorderNode(MQueue);
 
       NodeImpl = DependentNode
-                     ? GraphImpl->add(MCGType, std::move(CommandGroup),
+                     ? GraphImpl->add(NodeType, std::move(CommandGroup),
                                       {DependentNode})
-                     : GraphImpl->add(MCGType, std::move(CommandGroup));
+                     : GraphImpl->add(NodeType, std::move(CommandGroup));
 
       // If we are recording an in-order queue remember the new node, so it
       // can be used as a dependency for any more nodes recorded from this
       // queue.
       GraphImpl->setLastInorderNode(MQueue, NodeImpl);
     } else {
-      NodeImpl = GraphImpl->add(MCGType, std::move(CommandGroup));
+      NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup));
     }
 
     // Associate an event with this new node and return the event.
-    GraphImpl->addEventForNode(EventImpl, NodeImpl);
-
-    EventImpl->setCommandGraph(GraphImpl);
+    GraphImpl->addEventForNode(GraphImpl, EventImpl, NodeImpl);
 
     return detail::createSyclObjFromImpl<event>(EventImpl);
   }
@@ -838,11 +888,15 @@ void handler::extractArgsAndReqsFromLambda(
 // Calling methods of kernel_impl requires knowledge of class layout.
 // As this is impossible in header, there's a function that calls necessary
 // method inside the library and returns the result.
-std::string handler::getKernelName() {
-  return MKernel->get_info<info::kernel::function_name>();
+detail::string handler::getKernelName() {
+  return detail::string{MKernel->get_info<info::kernel::function_name>()};
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
+#else
 void handler::verifyUsedKernelBundle(const std::string &KernelName) {
+#endif
   auto UsedKernelBundleImplPtr =
       getOrInsertHandlerKernelBundle(/*Insert=*/false);
   if (!UsedKernelBundleImplPtr)
@@ -898,6 +952,7 @@ void handler::memset(void *Dest, int Value, size_t Count) {
   MDstPtr = Dest;
   MPattern.push_back(static_cast<char>(Value));
   MLength = Count;
+  setUserFacingNodeType(ext::oneapi::experimental::node_type::memset);
   setType(detail::CG::FillUSM);
 }
 
@@ -959,6 +1014,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  Desc.verify();
+
   MSrcPtr = Src;
   MDstPtr = Dest.raw_handle;
 
@@ -966,9 +1023,18 @@ void handler::ext_oneapi_copy(
   PiDesc.image_width = Desc.width;
   PiDesc.image_height = Desc.height;
   PiDesc.image_depth = Desc.depth;
-  PiDesc.image_type = Desc.depth > 0 ? PI_MEM_TYPE_IMAGE3D
-                                     : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D
-                                                        : PI_MEM_TYPE_IMAGE1D);
+  PiDesc.image_array_size = Desc.array_size;
+
+  if (Desc.array_size > 1) {
+    // Image Array.
+    PiDesc.image_type =
+        Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+  } else {
+    PiDesc.image_type =
+        Desc.depth > 0
+            ? PI_MEM_TYPE_IMAGE3D
+            : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D : PI_MEM_TYPE_IMAGE1D);
+  }
 
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
@@ -995,6 +1061,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  DestImgDesc.verify();
+
   MSrcPtr = Src;
   MDstPtr = Dest.raw_handle;
 
@@ -1002,10 +1070,18 @@ void handler::ext_oneapi_copy(
   PiDesc.image_width = DestImgDesc.width;
   PiDesc.image_height = DestImgDesc.height;
   PiDesc.image_depth = DestImgDesc.depth;
-  PiDesc.image_type = DestImgDesc.depth > 0
-                          ? PI_MEM_TYPE_IMAGE3D
-                          : (DestImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
-                                                    : PI_MEM_TYPE_IMAGE1D);
+  PiDesc.image_array_size = DestImgDesc.array_size;
+
+  if (DestImgDesc.array_size > 1) {
+    // Image Array.
+    PiDesc.image_type = DestImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
+                                               : PI_MEM_TYPE_IMAGE1D_ARRAY;
+  } else {
+    PiDesc.image_type = DestImgDesc.depth > 0
+                            ? PI_MEM_TYPE_IMAGE3D
+                            : (DestImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                      : PI_MEM_TYPE_IMAGE1D);
+  }
 
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
@@ -1030,6 +1106,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  Desc.verify();
+
   MSrcPtr = Src.raw_handle;
   MDstPtr = Dest;
 
@@ -1037,9 +1115,18 @@ void handler::ext_oneapi_copy(
   PiDesc.image_width = Desc.width;
   PiDesc.image_height = Desc.height;
   PiDesc.image_depth = Desc.depth;
-  PiDesc.image_type = Desc.depth > 0 ? PI_MEM_TYPE_IMAGE3D
-                                     : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D
-                                                        : PI_MEM_TYPE_IMAGE1D);
+  PiDesc.image_array_size = Desc.array_size;
+
+  if (Desc.array_size > 1) {
+    // Image Array.
+    PiDesc.image_type =
+        Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+  } else {
+    PiDesc.image_type =
+        Desc.depth > 0
+            ? PI_MEM_TYPE_IMAGE3D
+            : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D : PI_MEM_TYPE_IMAGE1D);
+  }
 
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
@@ -1066,6 +1153,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  SrcImgDesc.verify();
+
   MSrcPtr = Src.raw_handle;
   MDstPtr = Dest;
 
@@ -1073,10 +1162,18 @@ void handler::ext_oneapi_copy(
   PiDesc.image_width = SrcImgDesc.width;
   PiDesc.image_height = SrcImgDesc.height;
   PiDesc.image_depth = SrcImgDesc.depth;
-  PiDesc.image_type =
-      SrcImgDesc.depth > 0
-          ? PI_MEM_TYPE_IMAGE3D
-          : (SrcImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D : PI_MEM_TYPE_IMAGE1D);
+  PiDesc.image_array_size = SrcImgDesc.array_size;
+
+  if (SrcImgDesc.array_size > 1) {
+    // Image Array.
+    PiDesc.image_type = SrcImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
+                                              : PI_MEM_TYPE_IMAGE1D_ARRAY;
+  } else {
+    PiDesc.image_type = SrcImgDesc.depth > 0
+                            ? PI_MEM_TYPE_IMAGE3D
+                            : (SrcImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                     : PI_MEM_TYPE_IMAGE1D);
+  }
 
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
@@ -1101,6 +1198,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  Desc.verify();
+
   MSrcPtr = Src;
   MDstPtr = Dest;
 
@@ -1108,9 +1207,18 @@ void handler::ext_oneapi_copy(
   PiDesc.image_width = Desc.width;
   PiDesc.image_height = Desc.height;
   PiDesc.image_depth = Desc.depth;
-  PiDesc.image_type = Desc.depth > 0 ? PI_MEM_TYPE_IMAGE3D
-                                     : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D
-                                                        : PI_MEM_TYPE_IMAGE1D);
+  PiDesc.image_array_size = Desc.array_size;
+
+  if (Desc.array_size > 1) {
+    // Image Array.
+    PiDesc.image_type =
+        Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+  } else {
+    PiDesc.image_type =
+        Desc.depth > 0
+            ? PI_MEM_TYPE_IMAGE3D
+            : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D : PI_MEM_TYPE_IMAGE1D);
+  }
 
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
@@ -1139,6 +1247,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  DeviceImgDesc.verify();
+
   MSrcPtr = Src;
   MDstPtr = Dest;
 
@@ -1146,10 +1256,18 @@ void handler::ext_oneapi_copy(
   PiDesc.image_width = DeviceImgDesc.width;
   PiDesc.image_height = DeviceImgDesc.height;
   PiDesc.image_depth = DeviceImgDesc.depth;
-  PiDesc.image_type = DeviceImgDesc.depth > 0
-                          ? PI_MEM_TYPE_IMAGE3D
-                          : (DeviceImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
-                                                      : PI_MEM_TYPE_IMAGE1D);
+  PiDesc.image_array_size = DeviceImgDesc.array_size;
+
+  if (DeviceImgDesc.array_size > 1) {
+    // Image Array.
+    PiDesc.image_type = DeviceImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
+                                                 : PI_MEM_TYPE_IMAGE1D_ARRAY;
+  } else {
+    PiDesc.image_type = DeviceImgDesc.depth > 0
+                            ? PI_MEM_TYPE_IMAGE3D
+                            : (DeviceImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                        : PI_MEM_TYPE_IMAGE1D);
+  }
 
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
@@ -1293,9 +1411,15 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
+                                       size_t Size, bool Block) {
+  MImpl->HostPipeName = Name.data();
+#else
 void handler::ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
                                        size_t Size, bool Block) {
   MImpl->HostPipeName = Name;
+#endif
   MImpl->HostPipePtr = Ptr;
   MImpl->HostPipeTypeSize = Size;
   MImpl->HostPipeBlocking = Block;
@@ -1303,9 +1427,15 @@ void handler::ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
   setType(detail::CG::ReadWriteHostPipe);
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+void handler::ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
+                                        size_t Size, bool Block) {
+  MImpl->HostPipeName = Name.data();
+#else
 void handler::ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
                                         size_t Size, bool Block) {
   MImpl->HostPipeName = Name;
+#endif
   MImpl->HostPipePtr = Ptr;
   MImpl->HostPipeTypeSize = Size;
   MImpl->HostPipeBlocking = Block;
@@ -1387,53 +1517,16 @@ void handler::setKernelCacheConfig(
   MImpl->MKernelCacheConfig = Config;
 }
 
+void handler::setKernelIsCooperative(bool KernelIsCooperative) {
+  MImpl->MKernelIsCooperative = KernelIsCooperative;
+}
+
 void handler::ext_oneapi_graph(
     ext::oneapi::experimental::command_graph<
         ext::oneapi::experimental::graph_state::executable>
         Graph) {
   MCGType = detail::CG::ExecCommandBuffer;
-  auto GraphImpl = detail::getSyclObjImpl(Graph);
-  // GraphImpl is only read in this scope so we lock this graph for read only
-  ext::oneapi::experimental::detail::graph_impl::ReadLock Lock(
-      GraphImpl->MMutex);
-
-  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> ParentGraph;
-  if (MQueue) {
-    ParentGraph = MQueue->getCommandGraph();
-  } else {
-    ParentGraph = MGraph;
-  }
-
-  ext::oneapi::experimental::detail::graph_impl::WriteLock ParentLock;
-  // If a parent graph is set that means we are adding or recording a subgraph
-  if (ParentGraph) {
-    // ParentGraph is read and written in this scope so we lock this graph
-    // with full priviledges.
-    // We only lock for Record&Replay API because the graph has already been
-    // lock if this function was called from the explicit API function add
-    if (MQueue) {
-      ParentLock = ext::oneapi::experimental::detail::graph_impl::WriteLock(
-          ParentGraph->MMutex);
-    }
-    // Store the node representing the subgraph in the handler so that we can
-    // return it to the user later.
-    // The nodes of the subgraph are duplicated when added to its parents.
-    // This avoids changing properties of the graph added as a subgraph.
-    MSubgraphNode = ParentGraph->addSubgraphNodes(GraphImpl);
-
-    // If we are recording an in-order queue remember the subgraph node, so it
-    // can be used as a dependency for any more nodes recorded from this queue.
-    if (MQueue && MQueue->isInOrder()) {
-      ParentGraph->setLastInorderNode(MQueue, MSubgraphNode);
-    }
-    // Associate an event with the subgraph node.
-    auto SubgraphEvent = std::make_shared<event_impl>();
-    SubgraphEvent->setCommandGraph(ParentGraph);
-    ParentGraph->addEventForNode(SubgraphEvent, MSubgraphNode);
-  } else {
-    // Set the exec graph for execution during finalize.
-    MExecGraph = GraphImpl;
-  }
+  MExecGraph = detail::getSyclObjImpl(Graph);
 }
 
 std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
@@ -1442,6 +1535,10 @@ handler::getCommandGraph() const {
     return MGraph;
   }
   return MQueue->getCommandGraph();
+}
+
+void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
+  MImpl->MUserFacingNodeType = Type;
 }
 
 std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {

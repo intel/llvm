@@ -152,7 +152,9 @@ int main() {
   // CHECK: Local(8), Local(16)
   // CHECK: WARNING: Not performing specified local promotion due to work-group size mismatch
   // CHECK: ERROR: JIT compilation for kernel fusion failed with message:
-  // CHECK: Cannot fuse kernels with different offsets or local sizes
+  // CHECK: Illegal ND-range combination
+  // CHECK: Detailed information:
+  // CHECK: Cannot fuse kernels with different local sizes
   // CHECK: COMPUTATION OK
 
   // Scenario: One accessor with local internalization, one with private

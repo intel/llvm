@@ -1,9 +1,10 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
-// RUN: %if level_zero %{env UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s %}
+// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// Extra run to check for immediate-command-list in Level Zero
+// RUN: %if level_zero && linux %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 //
-// CHECK-NOT: LEAK
 
 // Tests that a command-group function can capture variables by reference
 // and still work correctly as a graph node.
@@ -25,12 +26,7 @@ void run_some_kernel(queue Queue, int *Data) {
 }
 
 int main() {
-  queue Queue{default_selector_v,
-              {sycl::ext::intel::property::queue::no_immediate_command_list{}}};
-
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
+  queue Queue{default_selector_v};
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
