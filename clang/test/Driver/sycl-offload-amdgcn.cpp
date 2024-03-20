@@ -9,6 +9,11 @@
 // RUN: | FileCheck -check-prefix=CHK-ARCH %s
 // CHK-ARCH: error: missing AMDGPU architecture for SYCL offloading; specify it with '-Xsycl-target-backend --offload-arch'
 
+// RUN: not %clangxx -### -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
+// RUN: -fsycl-targets=spir64,amdgcn-amd-amdhsa %s 2>&1 \
+// RUN: | FileCheck -check-prefix=CHK-MULTI-ARCH %s
+// CHK-MULTI-ARCH: error: missing AMDGPU architecture for SYCL offloading; specify it with '-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch'
+
 /// Check action graph.
 // RUN: %clangxx -### -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
 // RUN: -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx906 -nogpulib\
