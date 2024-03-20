@@ -3,7 +3,7 @@
 // RUN: env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s
 
 #include <iostream>
-#include <sycl/accessor.hpp>
+
 #include <sycl/detail/core.hpp>
 
 using namespace sycl;
