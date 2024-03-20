@@ -917,8 +917,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP:
-    return ReturnValue(false);
+  case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP: {
+    // TODO: Level Zero API allows to check support for all sub-features:
+    // ZE_MUTABLE_COMMAND_EXP_FLAG_KERNEL_ARGUMENTS,
+    // ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_COUNT,
+    // ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_SIZE,
+    // ZE_MUTABLE_COMMAND_EXP_FLAG_GLOBAL_OFFSET,
+    // ZE_MUTABLE_COMMAND_EXP_FLAG_SIGNAL_EVENT,
+    // ZE_MUTABLE_COMMAND_EXP_FLAG_WAIT_EVENTS
+    // but UR has only one property to check the mutable command lists feature
+    // support. For now return true if kernel arguments can be updated.
+    auto KernelArgUpdateSupport =
+        Device->ZeDeviceMutableCmdListsProperties->mutableCommandFlags &
+        ZE_MUTABLE_COMMAND_EXP_FLAG_KERNEL_ARGUMENTS;
+    return ReturnValue(KernelArgUpdateSupport &&
+                       Device->Platform->ZeMutableCmdListExt.Supported);
+  }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP:
     return ReturnValue(true);
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP:
@@ -1140,6 +1154,15 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
           Count = 1;
         ZE_CALL_NOCHECK(zeDeviceGetCacheProperties,
                         (ZeDevice, &Count, &Properties));
+      };
+
+  ZeDeviceMutableCmdListsProperties.Compute =
+      [ZeDevice](
+          ZeStruct<ze_mutable_command_list_exp_properties_t> &Properties) {
+        ze_device_properties_t P;
+        P.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+        P.pNext = &Properties;
+        ZE_CALL_NOCHECK(zeDeviceGetProperties, (ZeDevice, &P));
       };
 
   ImmCommandListUsed = this->useImmediateCommandLists();
