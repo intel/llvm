@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 constexpr int size = 2;
 

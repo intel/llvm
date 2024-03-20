@@ -38,7 +38,7 @@
 #include <iostream>
 #include <numeric>
 
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <syclcompat/atomic.hpp>
 

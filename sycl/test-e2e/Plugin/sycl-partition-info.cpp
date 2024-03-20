@@ -5,7 +5,7 @@
 // supports ensure we are only returning SYCL standard  partition properties.
 
 #include <cassert>
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

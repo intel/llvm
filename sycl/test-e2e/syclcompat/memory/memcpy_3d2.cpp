@@ -34,7 +34,7 @@
 
 #include <malloc.h>
 #include <stdio.h>
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <syclcompat/memory.hpp>
 

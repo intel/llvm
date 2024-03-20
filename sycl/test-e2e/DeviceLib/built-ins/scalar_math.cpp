@@ -3,7 +3,7 @@
 // RUN: %{build} %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <sycl/builtins.hpp>
 

@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::queue Queue;

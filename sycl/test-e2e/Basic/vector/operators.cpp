@@ -10,7 +10,7 @@
 //===----------------------------------------------------------------------===//
 
 #define SYCL_SIMPLE_SWIZZLES
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 namespace s = sycl;
 
 template <typename ResultVecT>

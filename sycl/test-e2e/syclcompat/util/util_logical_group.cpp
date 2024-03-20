@@ -36,7 +36,7 @@
 
 #include <cstdio>
 
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 #include <syclcompat.hpp>
 
 // work-item:

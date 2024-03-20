@@ -4,7 +4,7 @@
 // RUN: %{build} -o %t.out %{mathflags}
 // RUN: %{run} %t.out
 
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <sycl/builtins.hpp>
 

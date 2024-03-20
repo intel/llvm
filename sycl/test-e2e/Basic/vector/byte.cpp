@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <cstddef> // std::byte
 #include <tuple>   // std::ignore

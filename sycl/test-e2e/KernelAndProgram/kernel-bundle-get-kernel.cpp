@@ -5,7 +5,7 @@
 // kernel_bundle::get_kernel<typename KernelName>() is the same as a Kernel
 // object retrieved via other methods.
 
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 class KernelA;
 

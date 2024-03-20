@@ -11,7 +11,7 @@
 
 #include <iostream>
 #include <sycl/backend_types.hpp>
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

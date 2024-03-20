@@ -3,7 +3,7 @@
 
 // UNSUPPORTED: hip
 
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 #define CHECK_INVALID_REQD_WORK_GROUP_SIZE(Dim, ...)                           \
   {                                                                            \

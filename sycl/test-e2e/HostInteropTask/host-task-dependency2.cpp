@@ -5,7 +5,7 @@
 // RUN: %{run} %t.out 10
 
 #include <iostream>
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 using namespace sycl::access;

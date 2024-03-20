@@ -2,7 +2,7 @@
 // RUN: %{run} %t.out
 
 #include <sycl/aspects.hpp>
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::queue Queue;

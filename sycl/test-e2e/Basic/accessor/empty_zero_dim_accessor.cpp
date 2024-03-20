@@ -3,7 +3,7 @@
 
 // Tests the size and iterator members of an empty zero-dimensional accessor.
 
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

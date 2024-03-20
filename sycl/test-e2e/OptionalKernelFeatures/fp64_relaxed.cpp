@@ -5,7 +5,7 @@
 
 // Tests that aspect::fp64 requirements are affected by optimizations.
 
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::queue Q;

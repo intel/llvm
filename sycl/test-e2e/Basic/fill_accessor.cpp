@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <algorithm>
 #include <array>

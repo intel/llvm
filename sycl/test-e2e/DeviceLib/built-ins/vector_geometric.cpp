@@ -1,7 +1,7 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <sycl/builtins.hpp>
 

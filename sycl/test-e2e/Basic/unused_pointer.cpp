@@ -10,7 +10,7 @@
 //==----------------------------------------------------------------------==//
 
 #include <iostream>
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace std;
 

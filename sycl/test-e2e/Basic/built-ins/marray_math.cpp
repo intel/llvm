@@ -6,7 +6,7 @@
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t_preview.out%}
 
 #include <cmath>
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <sycl/builtins.hpp>
 

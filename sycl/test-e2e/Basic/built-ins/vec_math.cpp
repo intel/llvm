@@ -5,7 +5,7 @@
 // RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes %{mathflags} -o %t2.out %}
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <sycl/builtins.hpp>
 

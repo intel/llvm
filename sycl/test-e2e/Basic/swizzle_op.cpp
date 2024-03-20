@@ -10,7 +10,7 @@
 #define SYCL_SIMPLE_SWIZZLES
 
 #include <cassert>
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

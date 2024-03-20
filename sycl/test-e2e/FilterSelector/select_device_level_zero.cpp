@@ -9,7 +9,7 @@
 // REQUIRES: level_zero,gpu
 
 #include <iostream>
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 using namespace std;

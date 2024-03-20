@@ -2,7 +2,7 @@
 // RUN: %{run} %t.out
 
 #include <cassert>
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 constexpr auto sycl_read_write = sycl::access::mode::read_write;
 constexpr auto sycl_device = sycl::access::target::device;

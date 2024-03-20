@@ -33,7 +33,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 #include <syclcompat.hpp>
 
 void test_kernel_vect_min(unsigned int vect_count, unsigned int *input_1,

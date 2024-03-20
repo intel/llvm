@@ -9,7 +9,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/core.hpp>
+#include <sycl/detail/core.hpp>
 
 template <typename F, typename B>
 void run(sycl::queue &q, B &buf, const F &func) {
