@@ -1266,13 +1266,13 @@ pi_result piextEnqueueCooperativeKernelLaunch(
     const size_t *, const size_t *,
     const size_t *, pi_uint32 ,
     const pi_event *, pi_event *) {
-  return PI_ERROR_INVALID_OPERATION;
+  return PI_ERROR_UNSUPPORTED_FEATURE;
 }
 
 pi_result piextKernelSuggestMaxCooperativeGroupCount(
     pi_kernel , size_t , size_t ,
     pi_uint32 *) {
-  return PI_ERROR_INVALID_OPERATION;
+  return PI_ERROR_UNSUPPORTED_FEATURE;
 }
 
 // Initialize function table with stubs.
