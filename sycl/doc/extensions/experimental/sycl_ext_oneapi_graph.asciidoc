@@ -443,6 +443,31 @@ The API for explicitly adding nodes to a `command_graph` includes a
 property to be passed here. `depends_on_all_leaves` provides a shortcut for
 adding all the current leaves of a graph as dependencies.
 
+==== Enable-Profiling Property [[enable-profiling]]
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::property::node {
+class enable_profiling {
+  public:
+    enable_profiling() = default;
+};
+}
+----
+
+The `property::graph::enable_profiling` property can be passed to a
+`command_graph::add()` function and enables profiling support 
+for the node in the `command_graph<graph_state::executable>`.
+Passing this property implies disabling certain optimizations.
+This is why profiling is by default disabled on graphs, unless users
+explicitly require it using either the `property::graph::enable_profiling` 
+property in building mode or the `property::queue::enable_profiling` on 
+the recorded queue (Record&Replay API).
+As a result, the execution time of a graph finalized with profiling enabled 
+is longer than that of a graph without profiling capability.
+An error will be thrown when attempting to profile an event 
+from a graph submission that was created without this property.
+
+
 === Graph
 
 [source, c++]
@@ -681,6 +706,8 @@ Parameters:
 * `propList` - Zero or more properties can be provided to the constructed node
   via an instance of `property_list`. The `property::node::depends_on` property
   can be passed here with a list of nodes to create dependency edges on.
+  The `enable_profiling` property enables the profiling of this node. 
+  See <<enable-profiling, Enable-Profiling>> for more details.
 
 
 Returns: The empty node which has been added to the graph.
@@ -718,6 +745,9 @@ Parameters:
 * `propList` - Zero or more properties can be provided to the constructed node
   via an instance of `property_list`. The `property::node::depends_on` property
   can be passed here with a list of nodes to create dependency edges on.
+  The `enable_profiling` property enables the profiling of this node. 
+  See <<enable-profiling, Enable-Profiling>> for more details.
+
 
 Returns: The command-group function object node which has been added to the graph.
 
@@ -1043,10 +1073,12 @@ ways:
    an implicit dependency before and after the graph execution, as if the graph
    execution is one command-group submitted to the in-order queue.
 
-2. `property::queue::enable_profiling` - This property has no effect on graph
-   recording. When set on the queue a graph is submitted to however, it allows
-   profiling information to be obtained from the event returned by a graph
-   submission. As it is not defined how a submitted graph will be split up for
+2. `property::queue::enable_profiling` - This property must be set on the queue
+   in recording mode if users want to profile the commands recorded to 
+   the graph.This property must also be set on the queue the queue a graph is 
+   submitted to. It allows profiling information to be obtained from the event 
+   returned by a graph submission. 
+   As it is not defined how a submitted graph will be split up for
    scheduling at runtime, the `uint64_t` timestamp reported from a profiling
    query on a graph execution event has the following semantics, which may be
    pessimistic about execution time on device.

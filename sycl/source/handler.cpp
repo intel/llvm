@@ -582,7 +582,7 @@ event handler::finalize() {
     } else {
       NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup));
     }
-
+    NodeImpl->MProfilingEnabled = MQueue->MIsProfilingEnabled;
     // Associate an event with this new node and return the event.
     GraphImpl->addEventForNode(GraphImpl, EventImpl, NodeImpl);
 

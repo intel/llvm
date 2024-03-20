@@ -188,6 +188,13 @@ void exec_graph_impl::makePartitions() {
     if (Node->MCGType == sycl::detail::CG::CodeplayHostTask) {
       HostTaskList.push_back(Node);
     }
+    // Next line is supposed to be temporary.
+    // Nodes are not profiled individually, but the profiling of the whole graph
+    // is enabled if at least one node has profiling enabled. This should be
+    // changed once the PR https://github.com/intel/llvm/pull/12592 on node
+    // profiling is merged. This also will involve updating all the UR enqueue
+    // cmd functions to add a new parameter containing the profiling status.
+    MEnableProfiling |= Node->MProfilingEnabled;
   }
 
   // Annotate nodes
@@ -261,6 +268,7 @@ void exec_graph_impl::makePartitions() {
     }
     if (Partition->MRoots.size() > 0) {
       Partition->schedule();
+      Partition->checkIfGraphIsSinglePath();
       MPartitions.push_back(Partition);
       PartitionFinalNum++;
     }
@@ -676,7 +684,10 @@ sycl::detail::pi::PiExtSyncPoint exec_graph_impl::enqueueNode(
 void exec_graph_impl::createCommandBuffers(
     sycl::device Device, std::shared_ptr<partition> &Partition) {
   sycl::detail::pi::PiExtCommandBuffer OutCommandBuffer;
-  sycl::detail::pi::PiExtCommandBufferDesc Desc{};
+  sycl::detail::pi::PiExtCommandBufferDesc Desc{
+      pi_ext_structure_type::PI_EXT_STRUCTURE_TYPE_COMMAND_BUFFER_DESC, nullptr,
+      pi_bool(Partition->MIsInOrderGraph && !MEnableProfiling),
+      pi_bool(MEnableProfiling)};
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(Device);
@@ -946,6 +957,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       NewEvent->attachEventToComplete(Elem.second);
     }
   }
+  NewEvent->setProfilingEnabled(MEnableProfiling);
   sycl::event QueueEvent =
       sycl::detail::createSyclObjFromImpl<sycl::event>(NewEvent);
   return QueueEvent;
@@ -1106,7 +1118,8 @@ modifiable_command_graph::modifiable_command_graph(
     : impl(std::make_shared<detail::graph_impl>(
           SyclQueue.get_context(), SyclQueue.get_device(), PropList)) {}
 
-node modifiable_command_graph::addImpl(const std::vector<node> &Deps) {
+node modifiable_command_graph::addImpl(const std::vector<node> &Deps,
+                                       const bool EnableProfiling) {
   impl->throwIfGraphRecordingQueue("Explicit API \"Add()\" function");
   std::vector<std::shared_ptr<detail::node_impl>> DepImpls;
   for (auto &D : Deps) {
@@ -1115,11 +1128,13 @@ node modifiable_command_graph::addImpl(const std::vector<node> &Deps) {
 
   graph_impl::WriteLock Lock(impl->MMutex);
   std::shared_ptr<detail::node_impl> NodeImpl = impl->add(impl, DepImpls);
+  NodeImpl->MProfilingEnabled = EnableProfiling;
   return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
 }
 
 node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
-                                       const std::vector<node> &Deps) {
+                                       const std::vector<node> &Deps,
+                                       const bool EnableProfiling) {
   impl->throwIfGraphRecordingQueue("Explicit API \"Add()\" function");
   std::vector<std::shared_ptr<detail::node_impl>> DepImpls;
   for (auto &D : Deps) {
@@ -1129,6 +1144,7 @@ node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
   graph_impl::WriteLock Lock(impl->MMutex);
   std::shared_ptr<detail::node_impl> NodeImpl =
       impl->add(impl, CGF, {}, DepImpls);
+  NodeImpl->MProfilingEnabled = EnableProfiling;
   return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
 }
 
@@ -1156,12 +1172,12 @@ void modifiable_command_graph::make_edge(node &Src, node &Dest) {
 }
 
 command_graph<graph_state::executable>
-modifiable_command_graph::finalize(const sycl::property_list &) const {
+modifiable_command_graph::finalize(const sycl::property_list &PropList) const {
   // Graph is read and written in this scope so we lock
   // this graph with full priviledges.
   graph_impl::WriteLock Lock(impl->MMutex);
-  return command_graph<graph_state::executable>{this->impl,
-                                                this->impl->getContext()};
+  return command_graph<graph_state::executable>{
+      this->impl, this->impl->getContext(), PropList};
 }
 
 bool modifiable_command_graph::begin_recording(queue &RecordingQueue) {
@@ -1275,8 +1291,9 @@ std::vector<node> modifiable_command_graph::get_root_nodes() const {
 }
 
 executable_command_graph::executable_command_graph(
-    const std::shared_ptr<detail::graph_impl> &Graph, const sycl::context &Ctx)
-    : impl(std::make_shared<detail::exec_graph_impl>(Ctx, Graph)) {
+    const std::shared_ptr<detail::graph_impl> &Graph, const sycl::context &Ctx,
+    const property_list &PropList)
+    : impl(std::make_shared<detail::exec_graph_impl>(Ctx, Graph, PropList)) {
   finalizeImpl(); // Create backend representation for executable graph
 }
 

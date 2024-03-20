@@ -81,6 +81,8 @@ bool compareProfiling(event Event1, event Event2) {
 // event to complete execution.
 int main() {
   device Dev;
+  // The queue on which the graph is recorded must have the `enable_profiling`
+  // set to enable graph profiling.
   queue Queue{Dev, {sycl::property::queue::enable_profiling()}};
 
   const size_t Size = 100000;
@@ -107,17 +109,16 @@ int main() {
         Queue.get_context(),
         Queue.get_device(),
         {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
-    CopyGraph.begin_recording(Queue);
 
-    Queue.submit([&](sycl::handler &Cgh) {
-      accessor<int, 1, access::mode::read, access::target::device> AccessorFrom(
-          BufferFrom, Cgh, range<1>(Size));
-      accessor<int, 1, access::mode::write, access::target::device> AccessorTo(
-          BufferTo, Cgh, range<1>(Size));
-      Cgh.copy(AccessorFrom, AccessorTo);
-    });
-
-    CopyGraph.end_recording(Queue);
+    CopyGraph.add(
+        ([&](sycl::handler &Cgh) {
+          accessor<int, 1, access::mode::read, access::target::device>
+              AccessorFrom(BufferFrom, Cgh, range<1>(Size));
+          accessor<int, 1, access::mode::write, access::target::device>
+              AccessorTo(BufferTo, Cgh, range<1>(Size));
+          Cgh.copy(AccessorFrom, AccessorTo);
+        }),
+        {exp_ext::property::node::enable_profiling{}});
 
     // kernel launch
     exp_ext::command_graph KernelGraph{
