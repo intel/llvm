@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl %s -fsyntax-only
+// RUN: %clangxx -fsycl -fpreview-breaking-changes %s -fsyntax-only
 #include <sycl/sycl.hpp>
 // TODO: There are some spec discussions currently on hold about whether
 // sycl::vec should even be allowed to be instantiated with a const-qualified
