@@ -155,6 +155,8 @@ void do_vector_bitreverse_test() {
   VTYPE *Input = (VTYPE *) malloc_shared(sizeof(VTYPE) * NUM_TESTS, q.get_device(), q.get_context());
   VTYPE *Output = (VTYPE *) malloc_shared(sizeof(VTYPE) * NUM_TESTS, q.get_device(), q.get_context());
 
+  std::cerr << "Starting sizeof=" << sizeof(Input[0][0]) << " elements=" << __builtin_vectorelements(VTYPE) << "\n";
+        
   for (unsigned i=0; i<NUM_TESTS; i++)
     for (unsigned j=0; j<__builtin_vectorelements(VTYPE); j++)
       Input[i][j] = get_rand<typename std::decay<decltype(Input[0][0])>::type>();
