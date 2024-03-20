@@ -968,18 +968,22 @@ public:
 
   template <access::address_space Space, access::decorated DecorateAddress>
   void load(size_t Offset,
-            multi_ptr<std::add_const_t<DataT>, Space, DecorateAddress> Ptr) {
+            multi_ptr<const DataT, Space, DecorateAddress> Ptr) {
     for (int I = 0; I < NumElements; I++) {
       setValue(I, *multi_ptr<const DataT, Space, DecorateAddress>(
                       Ptr + Offset * NumElements + I));
     }
   }
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES__
   template <access::address_space Space, access::decorated DecorateAddress>
   void load(size_t Offset,
-            multi_ptr<std::remove_const_t<DataT>, Space, DecorateAddress> Ptr) {
+            multi_ptr<DataT, Space, DecorateAddress> Ptr) {
     multi_ptr<const DataT, Space, DecorateAddress> ConstPtr(Ptr);
     load(Offset, ConstPtr);
   }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+
   template <int Dimensions, access::mode Mode,
             access::placeholder IsPlaceholder, access::target Target,
             typename PropertyListT>
