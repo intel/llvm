@@ -2163,6 +2163,22 @@ inline pi_result piextGetDeviceFunctionPointer(pi_device Device,
   return PI_SUCCESS;
 }
 
+inline pi_result piextGetGlobalVariablePointer(
+    pi_device Device, pi_program Program, const char *GlobalVariableName,
+    size_t *GlobalVariableSize, void **GlobalVariablePointerRet) {
+  PI_ASSERT(Program, PI_ERROR_INVALID_PROGRAM);
+
+  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+
+  ur_program_handle_t UrProgram =
+      reinterpret_cast<ur_program_handle_t>(Program);
+
+  HANDLE_ERRORS(urProgramGetGlobalVariablePointer(
+      UrDevice, UrProgram, GlobalVariableName, GlobalVariableSize,
+      GlobalVariablePointerRet));
+  return PI_SUCCESS;
+}
+
 // Special version of piKernelSetArg to accept pi_mem.
 inline pi_result
 piextKernelSetArgMemObj(pi_kernel Kernel, pi_uint32 ArgIndex,

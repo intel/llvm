@@ -763,6 +763,15 @@ __SYCL_EXPORT pi_result piextGetDeviceFunctionPointer(
                                               FunctionPointerRet);
 }
 
+__SYCL_EXPORT pi_result piextGetGlobalVariablePointer(
+    pi_device Device, pi_program Program, const char *GlobalVariableName,
+    size_t *GlobalVariableSize, void **GlobalVariablePointerRet) {
+
+  return pi2ur::piextGetGlobalVariablePointer(
+      Device, Program, GlobalVariableName, GlobalVariableSize,
+      GlobalVariablePointerRet);
+}
+
 /// Hint to migrate memory to the device
 ///
 /// @param Queue is the queue to submit to
@@ -1428,6 +1437,7 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piProgramCompile)
   _PI_API(piProgramGetBuildInfo)
   _PI_API(piextGetDeviceFunctionPointer)
+  _PI_API(piextGetGlobalVariablePointer)
 
   _PI_API(piMemBufferCreate)
   _PI_API(piMemGetInfo)
