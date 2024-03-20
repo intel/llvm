@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ca5c34213c3484072f32a9ab2b56b0f49ebe712e
-  # Merge: 4d0183a8 c9be1e28
+  # commit ed1f8bf618c88eaabea6bde0f6c06fc265f3b49f
+  # Merge: ca5c3421 69c43b45
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Mar 19 16:58:27 2024 +0000
-  #     Merge pull request #1353 from againull/againull/l0_adapter_update_cmd_buffer
-  #     [L0] Support updating kernel commands in command buffers
-  set(UNIFIED_RUNTIME_TAG ca5c34213c3484072f32a9ab2b56b0f49ebe712e)
+  # Date:   Tue Mar 19 21:00:20 2024 +0000
+  #     Merge pull request #1326 from hdelan/refactor-guess-local-worksize
+  #     [CUDA][HIP] Fix bug in guess local worksize funcs and improve local worksize guessing in HIP adapter
+  set(UNIFIED_RUNTIME_TAG ed1f8bf618c88eaabea6bde0f6c06fc265f3b49f)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
