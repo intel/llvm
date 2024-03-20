@@ -1007,7 +1007,8 @@ void AllocaCommandBase::emitInstrumentationData() {
     xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
     // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple("queue_id", MQueue->getQueueID());
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 MQueue->getQueueID());
   }
 #endif
 }
@@ -1126,8 +1127,8 @@ void AllocaSubBufCommand::emitInstrumentationData() {
                       this->MRequirement.MAccessRange[0]);
     xpti::addMetadata(TE, "access_range_end",
                       this->MRequirement.MAccessRange[1]);
-    xpti::addMetadata(TE, "queue_id", MQueue->getQueueID());
-    xpti::framework::stash_tuple("queue_id", MQueue->getQueueID());
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 MQueue->getQueueID());
     makeTraceEventEpilog();
   }
 #endif
@@ -1207,7 +1208,8 @@ void ReleaseCommand::emitInstrumentationData() {
                       commandToName(MAllocaCmd->getType()));
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
     // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple("queue_id", MQueue->getQueueID());
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 MQueue->getQueueID());
     makeTraceEventEpilog();
   }
 #endif
@@ -1329,7 +1331,8 @@ void MapMemObject::emitInstrumentationData() {
     xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
     // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple("queue_id", MQueue->getQueueID());
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 MQueue->getQueueID());
     makeTraceEventEpilog();
   }
 #endif
@@ -1393,7 +1396,8 @@ void UnMapMemObject::emitInstrumentationData() {
     xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
     // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple("queue_id", MQueue->getQueueID());
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 MQueue->getQueueID());
     makeTraceEventEpilog();
   }
 #endif
@@ -1497,7 +1501,8 @@ void MemCpyCommand::emitInstrumentationData() {
         reinterpret_cast<size_t>(getSyclObjImpl(MQueue->get_device()).get()));
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
     // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple("queue_id", MQueue->getQueueID());
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 MQueue->getQueueID());
     makeTraceEventEpilog();
   }
 #endif
@@ -1674,7 +1679,8 @@ void MemCpyCommandHost::emitInstrumentationData() {
         reinterpret_cast<size_t>(getSyclObjImpl(MQueue->get_device()).get()));
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
     // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple("queue_id", MQueue->getQueueID());
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 MQueue->getQueueID());
     makeTraceEventEpilog();
   }
 #endif
@@ -1766,7 +1772,8 @@ void EmptyCommand::emitInstrumentationData() {
                       reinterpret_cast<size_t>(MAddress));
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
     // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple("queue_id", MQueue->getQueueID());
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 MQueue->getQueueID());
     makeTraceEventEpilog();
   }
 #endif
@@ -1839,7 +1846,8 @@ void UpdateHostRequirementCommand::emitInstrumentationData() {
                       reinterpret_cast<size_t>(MAddress));
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
     // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple("queue_id", MQueue->getQueueID());
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 MQueue->getQueueID());
     makeTraceEventEpilog();
   }
 #endif
@@ -2109,7 +2117,8 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
 
   if (CmdTraceEvent) {
     // Stash the queue_id mutable metadata in TLS
-    xpti::framework::stash_tuple("queue_id", Queue->getQueueID());
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 Queue->getQueueID());
 
     instrumentationAddExtraKernelMetadata(CmdTraceEvent, NDRDesc,
                                           KernelBundleImplPtr, SyclKernelName,
@@ -2154,7 +2163,8 @@ void ExecCGCommand::emitInstrumentationData() {
                                 CmdTraceEvent);
 
   if (CmdTraceEvent) {
-    xpti::framework::stash_tuple("queue_id", MQueue->getQueueID());
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 MQueue->getQueueID());
     MTraceEvent = static_cast<void *>(CmdTraceEvent);
     if (MCommandGroup->getType() == detail::CG::Kernel) {
       auto KernelCG =
@@ -3371,7 +3381,8 @@ void KernelFusionCommand::emitInstrumentationData() {
   if (MFirstInstance) {
     // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
     // as this data is mutable and the metadata is supposed to be invariant
-    xpti::framework::stash_tuple("queue_id", MQueue->getQueueID());
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 MQueue->getQueueID());
     xptiNotifySubscribers(MStreamID, NotificationTraceType,
                           detail::GSYCLGraphEvent,
                           static_cast<xpti_td *>(MTraceEvent), MInstanceID,

@@ -211,7 +211,7 @@ public:
                             reinterpret_cast<size_t>(getHandleRef()));
       });
       // Also publish to TLS
-      xpti::framework::stash_tuple("queue_id", MQueueID);
+      xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
       PrepareNotify.notify();
     }
 #endif
@@ -275,7 +275,7 @@ private:
           xpti::addMetadata(TEvent, "queue_handle", getHandleRef());
       });
       // Also publish to TLS before notification
-      xpti::framework::stash_tuple("queue_id", MQueueID);
+      xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
       PrepareNotify.notify();
     }
 #endif

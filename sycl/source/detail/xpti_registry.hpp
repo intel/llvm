@@ -42,6 +42,9 @@ extern uint8_t GMemAllocStreamID;
 extern xpti::trace_event_data_t *GMemAllocEvent;
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
 
+// We will pick a global constant so that the pointer in TLS never goes stale
+inline constexpr auto XPTI_QUEUE_INSTANCE_ID_KEY = "queue_id";
+
 #define STR(x) #x
 #define SYCL_VERSION_STR                                                       \
   "sycl " STR(__LIBSYCL_MAJOR_VERSION) "." STR(__LIBSYCL_MINOR_VERSION)
