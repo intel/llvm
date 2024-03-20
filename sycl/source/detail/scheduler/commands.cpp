@@ -2725,7 +2725,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
           ? nullptr
           : &MEvent->getHandleRef();
   sycl::detail::pi::PiExtSyncPoint OutSyncPoint;
-  sycl::detail::pi::PiExtCommandBufferCommand OutCommand;
+  sycl::detail::pi::PiExtCommandBufferCommand OutCommand = nullptr;
   switch (MCommandGroup->getType()) {
   case CG::CGTYPE::Kernel: {
     CGExecKernel *ExecKernel = (CGExecKernel *)MCommandGroup.get();

@@ -1386,6 +1386,16 @@ pi_result piextCommandBufferUpdateKernelLaunch(
   return pi2ur::piextCommandBufferUpdateKernelLaunch(Command, Desc);
 }
 
+pi_result
+piextCommandBufferRetainCommand(pi_ext_command_buffer_command Command) {
+  return pi2ur::piextCommandBufferRetainCommand(Command);
+}
+
+pi_result
+piextCommandBufferReleaseCommand(pi_ext_command_buffer_command Command) {
+  return pi2ur::piextCommandBufferReleaseCommand(Command);
+}
+
 const char SupportedVersion[] = _PI_LEVEL_ZERO_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) { // missing

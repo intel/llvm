@@ -796,6 +796,15 @@ exec_graph_impl::~exec_graph_impl() {
       }
     }
   }
+
+  for (auto &Iter : MCommandMap) {
+    if (auto Command = Iter.second; Command) {
+      pi_result Res = Plugin->call_nocheck<
+          sycl::detail::PiApiKind::piextCommandBufferReleaseCommand>(Command);
+      (void)Res;
+      assert(Res == pi_result::PI_SUCCESS);
+    }
+  }
 }
 
 sycl::event

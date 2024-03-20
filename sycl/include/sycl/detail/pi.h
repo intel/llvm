@@ -2658,6 +2658,17 @@ __SYCL_EXPORT pi_result piextCommandBufferUpdateKernelLaunch(
     pi_ext_command_buffer_command command,
     pi_ext_command_buffer_update_kernel_launch_desc *desc);
 
+/// API to increment the reference count of a command-buffer command.
+/// \param command The command to release.
+__SYCL_EXPORT pi_result
+piextCommandBufferRetainCommand(pi_ext_command_buffer_command command);
+
+/// API to decrement the reference count of a command-buffer command. After the
+/// command reference count becomes zero, the command is deleted.
+/// \param command The command to release.
+__SYCL_EXPORT pi_result
+piextCommandBufferReleaseCommand(pi_ext_command_buffer_command command);
+
 /// API to destroy bindless unsampled image handles.
 ///
 /// \param context is the pi_context

@@ -4879,6 +4879,22 @@ inline pi_result piextCommandBufferUpdateKernelLaunch(
   return PI_SUCCESS;
 }
 
+inline pi_result
+piextCommandBufferRetainCommand(pi_ext_command_buffer_command command) {
+  ur_exp_command_buffer_command_handle_t UrCommand =
+      reinterpret_cast<ur_exp_command_buffer_command_handle_t>(command);
+  HANDLE_ERRORS(urCommandBufferRetainCommandExp(UrCommand));
+  return PI_SUCCESS;
+}
+
+inline pi_result
+piextCommandBufferReleaseCommand(pi_ext_command_buffer_command command) {
+  ur_exp_command_buffer_command_handle_t UrCommand =
+      reinterpret_cast<ur_exp_command_buffer_command_handle_t>(command);
+  HANDLE_ERRORS(urCommandBufferReleaseCommandExp(UrCommand));
+  return PI_SUCCESS;
+}
+
 // Command-buffer extension
 ///////////////////////////////////////////////////////////////////////////////
 

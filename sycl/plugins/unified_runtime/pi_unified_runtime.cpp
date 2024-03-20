@@ -1167,6 +1167,16 @@ pi_result piextCommandBufferUpdateKernelLaunch(
   return pi2ur::piextCommandBufferUpdateKernelLaunch(Command, Desc);
 }
 
+pi_result
+piextCommandBufferRetainCommand(pi_ext_command_buffer_command Command) {
+  return pi2ur::piextCommandBufferRetainCommand(Command);
+}
+
+pi_result
+piextCommandBufferReleaseCommand(pi_ext_command_buffer_command Command) {
+  return pi2ur::piextCommandBufferReleaseCommand(Command);
+}
+
 __SYCL_EXPORT pi_result piGetDeviceAndHostTimer(pi_device Device,
                                                 uint64_t *DeviceTime,
                                                 uint64_t *HostTime) {

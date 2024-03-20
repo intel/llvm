@@ -1225,6 +1225,16 @@ pi_result piextCommandBufferUpdateKernelLaunch(
   return pi2ur::piextCommandBufferUpdateKernelLaunch(Command, Desc);
 }
 
+pi_result
+piextCommandBufferRetainCommand(pi_ext_command_buffer_command Command) {
+  return pi2ur::piextCommandBufferRetainCommand(Command);
+}
+
+pi_result
+piextCommandBufferReleaseCommand(pi_ext_command_buffer_command Command) {
+  return pi2ur::piextCommandBufferReleaseCommand(Command);
+}
+
 pi_result piextPluginGetOpaqueData(void *opaque_data_param,
                                    void **opaque_data_return) {
   return pi2ur::piextPluginGetOpaqueData(opaque_data_param, opaque_data_return);

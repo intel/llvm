@@ -376,7 +376,7 @@ protected:
   // If this event represents a submission to a
   // sycl::detail::pi::PiExtCommandBuffer the command-buffer command
   // (if any) associated with that submission is stored here.
-  sycl::detail::pi::PiExtCommandBufferCommand MCommandBufferCommand;
+  sycl::detail::pi::PiExtCommandBufferCommand MCommandBufferCommand = nullptr;
 
   friend std::vector<sycl::detail::pi::PiEvent>
   getOrWaitEvents(std::vector<sycl::event> DepEvents,

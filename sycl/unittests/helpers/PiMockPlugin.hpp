@@ -1387,6 +1387,16 @@ inline pi_result mock_piextCommandBufferUpdateKernelLaunch(
   return PI_SUCCESS;
 }
 
+inline pi_result
+mock_piextCommandBufferRetainCommand(pi_ext_command_buffer_command Command) {
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextCommandBufferReleaseCommand(pi_ext_command_buffer_command Command) {
+  return PI_SUCCESS;
+}
+
 inline pi_result mock_piextCommandBufferMemBufferCopy(
     pi_ext_command_buffer command_buffer, pi_mem src_buffer, pi_mem dst_buffer,
     size_t src_offset, size_t dst_offset, size_t size,

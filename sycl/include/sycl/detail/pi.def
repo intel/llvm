@@ -185,6 +185,8 @@ _PI_API(piextCommandBufferPrefetchUSM)
 _PI_API(piextCommandBufferAdviseUSM)
 _PI_API(piextEnqueueCommandBuffer)
 _PI_API(piextCommandBufferUpdateKernelLaunch)
+_PI_API(piextCommandBufferRetainCommand)
+_PI_API(piextCommandBufferReleaseCommand)
 
 _PI_API(piextUSMPitchedAlloc)
 
