@@ -110,7 +110,8 @@ template <typename SourceOp, typename TargetOp,
 class AttrConverterConstrainedFPToLLVM {
 public:
   AttrConverterConstrainedFPToLLVM(
-      SourceOp srcOp) { // Copy the source attributes.
+      SourceOp srcOp) {
+    // Copy the source attributes.
     convertedAttr = NamedAttrList{srcOp->getAttrs()};
 
     if constexpr (TargetOp::template hasTrait<
