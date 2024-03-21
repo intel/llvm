@@ -1242,66 +1242,28 @@ private:
     };
 
 #ifdef __SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__
-    // Experimental rounded range kernel will always make range 1d and will use
-    // the UserRange in kernel to calculate the indexes
-    // In kernel ID "getter" funcs will be calculated using UserRange:
-    //
-    // globalIDRounded:
-    //    [0]: globalInvocationId.x % UserRange[0];
-    //    [1]: globalInvocationId.x / UserRange[0];
-    //    [2]: globalInvocationId.x / UserRange[1] * UserRange[0];
-    //
+    size_t GoodExpFactor = 1;
+    switch (Dims) {
+    case 1:
+      GoodExpFactor = 32; // Make global range multiple of {32}
+      break;
+    case 2:
+      GoodExpFactor = 16; // Make global range multiple of {16, 16}
+      break;
+    case 3:
+      GoodExpFactor = 8; // Make global range multiple of {8, 8, 8}
+      break;
+    }
+
+    // Check if rounding parameters have been set through environment:
+    // SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS=MinRound:PreferredRound:MinRange
+    this->GetRangeRoundingSettings(MinFactorX, GoodExpFactor, MinRangeX);
+
     for (auto i = 0; i < Dims; ++i)
-      RoundedRange[i] = 1;
-
-    static auto MultiplyingOverflows = [](size_t a, size_t b) {
-      if (a == 0 || b == 0)
-        return false;
-      return a > std::numeric_limits<size_t>::max() / b;
-    };
-
-    // Default assume that making 1d range will work
-    DidAdjust = true;
-    auto RangeInnerIdx = Dims - 1;
-    for (auto i = RangeInnerIdx; i >= 0; --i) {
-      if (MultiplyingOverflows(RoundedRange[RangeInnerIdx], UserRange[i])) {
-        // Abort experimental range rounding if we cannot combine all dims into
-        // the inner dimension
-        RoundedRange = UserRange;
-        DidAdjust = false;
-        break;
+      if (UserRange[i] % GoodExpFactor) {
+        Adjust(i, ((UserRange[i] / GoodExpFactor) + 1) * GoodExpFactor);
       }
-      RoundedRange[RangeInnerIdx] *= UserRange[i];
-    }
-
-    if (DidAdjust) {
-      // Round inner range up to the nearest GoodFactor
-      if (RoundedRange[RangeInnerIdx] % GoodFactor) {
-        RoundedRange[RangeInnerIdx] =
-            ((RoundedRange[RangeInnerIdx] / GoodFactor) + 1) * GoodFactor;
-      }
-
-      if (this->RangeRoundingTrace()) {
-        std::cout << "parallel_for range adjusted using experimental range "
-                     "rounding from ";
-        if constexpr (Dims == 1)
-          std::cout << "(" << UserRange[0] << ")";
-        else if constexpr (Dims == 2)
-          std::cout << "(" << UserRange[0] << ", " << UserRange[1] << ")";
-        else if constexpr (Dims == 3)
-          std::cout << "(" << UserRange[0] << ", " << UserRange[1] << ", "
-                    << UserRange[2] << ")";
-
-        std::cout << " to 1D range: (" << RoundedRange[RangeInnerIdx] << ")"
-                  << std::endl;
-      }
-
-      bool HasBeenRounded =
-          RoundedRange[RangeInnerIdx] != UserRange[RangeInnerIdx];
-      return {RoundedRange, HasBeenRounded};
-    }
-#endif // __SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__
-
+#else // __SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__
     // Perform range rounding if there are sufficient work-items to
     // need rounding and the user-specified range is not a multiple of
     // a "good" value.
@@ -1312,6 +1274,7 @@ private:
       // will yield a rounded-up value for the total range.
       Adjust(0, ((RoundedRange[0] + GoodFactor - 1) / GoodFactor) * GoodFactor);
     }
+#endif // __SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__
 #ifdef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
     // If we are forcing range rounding kernels to be used, we always want the
     // rounded range kernel to be generated, even if rounding isn't needed
