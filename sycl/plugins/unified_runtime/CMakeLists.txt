@@ -81,8 +81,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/nrspruit/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG 9b3cf9d398db7189f88094272e6da701696d7df7)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit c98fdbcf1f43ce132fbae75336bda984e4ce2e78
+  # Merge: 5f4dd113 9b3cf9d3
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Thu Mar 21 10:51:45 2024 +0000
+  #     Merge pull request #1439 from nrspruit/fix_device_native_proxy_buffer
+  #     [L0] Fix Native Host memory usage on device with copy back sync
+  set(UNIFIED_RUNTIME_TAG c98fdbcf1f43ce132fbae75336bda984e4ce2e78)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
