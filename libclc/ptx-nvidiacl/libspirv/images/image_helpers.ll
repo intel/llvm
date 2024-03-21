@@ -625,3 +625,28 @@ entry:
   %1 = tail call <4 x i32> @__clc_struct32_to_vector({i32,i32,i32,i32} %0)
   ret <4 x i32> %1
 }
+
+; <--- CUBEMAP --->
+declare {float,float,float,float} @llvm.nvvm.tex.unified.cube.v4f32.f32(i64, float, float, float)
+define <4 x float> @__clc_llvm_nvvm_tex_cube_v4f32_f32(i64 %img, float %x, float %y, float %z) nounwind alwaysinline {
+entry:
+  %0 = tail call {float,float,float,float} @llvm.nvvm.tex.unified.cube.v4f32.f32(i64 %img, float %x, float %y, float %z);
+  %1 = tail call <4 x float> @__clc_structf32_to_vector({float,float,float,float} %0)
+  ret <4 x float> %1
+}
+
+declare {i32,i32,i32,i32} @llvm.nvvm.tex.unified.cube.v4s32.f32(i64, float, float, float)
+define <4 x i32> @__clc_llvm_nvvm_tex_cube_v4i32_f32(i64 %img, float %x, float %y, float %z) nounwind alwaysinline {
+entry:
+  %0 = tail call {i32,i32,i32,i32} @llvm.nvvm.tex.unified.cube.v4s32.f32(i64 %img, float %x, float %y, float %z);
+  %1 = tail call <4 x i32> @__clc_struct32_to_vector({i32,i32,i32,i32} %0)
+  ret <4 x i32> %1
+}
+
+declare {i32,i32,i32,i32} @llvm.nvvm.tex.unified.cube.v4u32.f32(i64, float, float, float)
+define <4 x i32> @__clc_llvm_nvvm_tex_cube_v4j32_f32(i64 %img, float %x, float %y, float %z) nounwind alwaysinline {
+entry:
+  %0 = tail call {i32,i32,i32,i32} @llvm.nvvm.tex.unified.cube.v4u32.f32(i64 %img, float %x, float %y, float %z);
+  %1 = tail call <4 x i32> @__clc_struct32_to_vector({i32,i32,i32,i32} %0)
+  ret <4 x i32> %1
+}

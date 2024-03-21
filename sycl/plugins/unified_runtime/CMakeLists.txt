@@ -81,14 +81,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ed1f8bf618c88eaabea6bde0f6c06fc265f3b49f
-  # Merge: ca5c3421 69c43b45
+  set(UNIFIED_RUNTIME_REPO "https://github.com/Seanst98/unified-runtime.git")
+  # commit 6513abc404979fa109d64500bf899e632d511291
+  # Merge: 09be0881 6d586094
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Mar 19 21:00:20 2024 +0000
-  #     Merge pull request #1326 from hdelan/refactor-guess-local-worksize
-  #     [CUDA][HIP] Fix bug in guess local worksize funcs and improve local worksize guessing in HIP adapter
-  set(UNIFIED_RUNTIME_TAG ed1f8bf618c88eaabea6bde0f6c06fc265f3b49f)
+  # Date:   Thu Mar 14 22:38:53 2024 +0000
+  #     Merge pull request #1410 from kbenzie/benie/cmake-external-adapter-source-dirs
+  #     [CMake] Support external adapter source dirs
+  set(UNIFIED_RUNTIME_TAG bda7c5608c2f6f9c5fab4b46e6a22c47f6e38925)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
