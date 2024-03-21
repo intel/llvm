@@ -368,8 +368,8 @@ Example:
 
 anchor:optimization_hints[]
 
-As `InputIteratorT` and `OutputIteratorT` are supposed to be random access but
-not garanteed to be contiguous, the following property is introduced to be used
+As `InputIteratorT` and `OutputIteratorT` are permitted to be random access iterators they
+are not guaranteed to be contiguous. The following property is introduced to be used
 as a hint to the implementation for optimization purposes:
 
 [source,c++]
