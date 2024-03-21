@@ -646,28 +646,16 @@ void SparseTensorEncodingAttr::printDimensions(
   }
 }
 
-std::string getNOutOfMString(LevelType lt) {
-  if (isNOutOfMLT(lt)) {
-    unsigned n = getN(lt);
-    unsigned m = getM(lt);
-    auto output = "[" + std::to_string(n) + ", " + std::to_string(m) + "]";
-    return output;
-  }
-  return "";
-}
-
 void SparseTensorEncodingAttr::printLevels(AffineMap &map, AsmPrinter &printer,
                                            ArrayRef<LevelType> lvlTypes) const {
   for (unsigned i = 0, n = map.getNumResults() - 1; i < n; i++) {
     map.getResult(i).print(printer.getStream());
-    printer << " : " << toMLIRString(lvlTypes[i])
-            << getNOutOfMString(lvlTypes[i]) << ", ";
+    printer << " : " << toMLIRString(lvlTypes[i]) << ", ";
   }
   if (map.getNumResults() >= 1) {
     auto lastIndex = map.getNumResults() - 1;
     map.getResult(lastIndex).print(printer.getStream());
-    printer << " : " << toMLIRString(lvlTypes[lastIndex])
-            << getNOutOfMString(lvlTypes[lastIndex]);
+    printer << " : " << toMLIRString(lvlTypes[lastIndex]);
   }
 }
 
@@ -1750,15 +1738,6 @@ LogicalResult ConcatenateOp::verify() {
     }
   }
 
-  return success();
-}
-
-LogicalResult InsertOp::verify() {
-  const auto stt = getSparseTensorType(getTensor());
-  if (stt.getEncoding().getBatchLvlRank() > 0)
-    return emitOpError("batched sparse tensor insertion not implemented");
-  if (stt.getLvlRank() != static_cast<Level>(getLvlCoords().size()))
-    return emitOpError("incorrect number of coordinates");
   return success();
 }
 
