@@ -1,7 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUNx: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
 
 int main() {
   sycl::queue testQueue;
