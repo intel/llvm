@@ -79,8 +79,8 @@ queue_impl::getExtendDependencyList(const std::vector<event> &DepEvents,
     return DepEvents;
 
   QueueLock.lock();
-  EventImplPtr ExtraEvent =
-      MGraph.expired() ? MDefaultGraphDeps.LastEventPtr : MExtGraphDeps.LastEventPtr;
+  EventImplPtr ExtraEvent = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
+                                             : MExtGraphDeps.LastEventPtr;
   std::optional<event> ExternalEvent = popExternalEvent();
 
   if (!ExternalEvent && !ExtraEvent)
@@ -360,8 +360,8 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
         return MDiscardEvents ? createDiscardedEvent() : event();
 
       if (isInOrder()) {
-        auto &EventToStoreIn =
-            MGraph.lock() ? MExtGraphDeps.LastEventPtr : MDefaultGraphDeps.LastEventPtr;
+        auto &EventToStoreIn = MGraph.lock() ? MExtGraphDeps.LastEventPtr
+                                             : MDefaultGraphDeps.LastEventPtr;
         EventToStoreIn = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
@@ -551,7 +551,8 @@ bool queue_impl::ext_oneapi_empty() const {
   if (isInOrder() && !MDiscardEvents) {
     std::lock_guard<std::mutex> Lock(MMutex);
     return !MDefaultGraphDeps.LastEventPtr ||
-           MDefaultGraphDeps.LastEventPtr->get_info<info::event::command_execution_status>() ==
+           MDefaultGraphDeps.LastEventPtr
+                   ->get_info<info::event::command_execution_status>() ==
                info::event_command_status::complete;
   }
 
@@ -594,47 +595,52 @@ event queue_impl::discard_or_return(const event &Event) {
   return createDiscardedEvent();
 }
 
-  void queue_impl::tryToResetEnqueuedBarrierDep(const EventImplPtr& EnqueuedBarrierEvent)
-  {
-    if (MIsInorder)
-      return;
-    auto tryToCleanup = [&EnqueuedBarrierEvent](DependencyTrackingItems& Deps){
-      if (Deps.LastBarrier == EnqueuedBarrierEvent)
-      {
-        Deps.LastBarrier = nullptr;
-        Deps.NotEnqueuedCmdEvents.clear();
-      }
-    };
-    std::lock_guard<std::mutex> Lock{MMutex};
-    // Barrier enqueue could be significantly postponed due to host task dependency if any.
-    // No guarantee that it will happen while same graph deps are still recording.
-    if (auto Graph = EnqueuedBarrierEvent->getCommandGraph())
-    { 
-      if (Graph == getCommandGraph())
-        tryToCleanup(MExtGraphDeps);
+void queue_impl::tryToResetEnqueuedBarrierDep(
+    const EventImplPtr &EnqueuedBarrierEvent) {
+  if (MIsInorder)
+    return;
+  auto tryToCleanup = [&EnqueuedBarrierEvent](DependencyTrackingItems &Deps) {
+    if (Deps.LastBarrier == EnqueuedBarrierEvent) {
+      Deps.LastBarrier = nullptr;
+      Deps.NotEnqueuedCmdEvents.clear();
     }
-    else
-      tryToCleanup(MDefaultGraphDeps);
-  }
+  };
+  std::lock_guard<std::mutex> Lock{MMutex};
+  // Barrier enqueue could be significantly postponed due to host task
+  // dependency if any. No guarantee that it will happen while same graph deps
+  // are still recording.
+  if (auto Graph = EnqueuedBarrierEvent->getCommandGraph()) {
+    if (Graph == getCommandGraph())
+      tryToCleanup(MExtGraphDeps);
+  } else
+    tryToCleanup(MDefaultGraphDeps);
+}
 
-  void queue_impl::revisitNotEnqueuedCommandsState(const EventImplPtr& CompletedHostTask)
-  {
-    if (MIsInorder)
+void queue_impl::revisitNotEnqueuedCommandsState(
+    const EventImplPtr &CompletedHostTask) {
+  if (MIsInorder)
+    return;
+  auto tryToCleanup = [&CompletedHostTask](DependencyTrackingItems &Deps) {
+    if (Deps.NotEnqueuedCmdEvents.empty())
       return;
-    auto tryToCleanup = [&CompletedHostTask](DependencyTrackingItems& Deps){
-      if (Deps.NotEnqueuedCmdEvents.empty())
-      return;
-     Deps.NotEnqueuedCmdEvents.erase(std::remove_if(Deps.NotEnqueuedCmdEvents.begin(), Deps.NotEnqueuedCmdEvents.end(), [&CompletedHostTask](const EventImplPtr& CommandEvent){ return (CommandEvent == CompletedHostTask) || (CommandEvent->is_host() ? CommandEvent->isCompleted() : CommandEvent->getHandleRef() != nullptr); }), Deps.NotEnqueuedCmdEvents.end());
-    };
-    std::lock_guard<std::mutex> Lock{MMutex};
-    if (auto Graph = CompletedHostTask->getCommandGraph())
-    { 
-      if (Graph == getCommandGraph())
-        return tryToCleanup(MExtGraphDeps);
-    }
-    else
-      tryToCleanup(MDefaultGraphDeps);
-  }
+    Deps.NotEnqueuedCmdEvents.erase(
+        std::remove_if(Deps.NotEnqueuedCmdEvents.begin(),
+                       Deps.NotEnqueuedCmdEvents.end(),
+                       [&CompletedHostTask](const EventImplPtr &CommandEvent) {
+                         return (CommandEvent == CompletedHostTask) ||
+                                (CommandEvent->is_host()
+                                     ? CommandEvent->isCompleted()
+                                     : CommandEvent->getHandleRef() != nullptr);
+                       }),
+        Deps.NotEnqueuedCmdEvents.end());
+  };
+  std::lock_guard<std::mutex> Lock{MMutex};
+  if (auto Graph = CompletedHostTask->getCommandGraph()) {
+    if (Graph == getCommandGraph())
+      return tryToCleanup(MExtGraphDeps);
+  } else
+    tryToCleanup(MDefaultGraphDeps);
+}
 
 } // namespace detail
 } // namespace _V1

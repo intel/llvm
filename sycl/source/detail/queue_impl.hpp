@@ -92,7 +92,7 @@ public:
   /// \param PropList is a list of properties to use for queue construction.
   queue_impl(const DeviceImplPtr &Device, const async_handler &AsyncHandler,
              const property_list &PropList)
-      : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList){};
+      : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList) {};
 
   /// Constructs a SYCL queue with an async_handler and property_list provided
   /// form a device and a context.
@@ -747,11 +747,17 @@ public:
                           std::vector<event> &MutableVec,
                           std::unique_lock<std::mutex> &QueueLock);
 
-    // Helps to manage host tasks presence in scenario with barrier usage. Approach that tracks almost all tasks to provide barrier sync for both pi tasks and host tasks is applicable for out of order queues only. Not needed for in order ones.
-  void tryToResetEnqueuedBarrierDep(const EventImplPtr& EnqueuedBarrierEvent);
+  // Helps to manage host tasks presence in scenario with barrier usage.
+  // Approach that tracks almost all tasks to provide barrier sync for both pi
+  // tasks and host tasks is applicable for out of order queues only. Not needed
+  // for in order ones.
+  void tryToResetEnqueuedBarrierDep(const EventImplPtr &EnqueuedBarrierEvent);
 
-  // Called on host task completion that could block some kernels from enqueue. Approach that tracks almost all tasks to provide barrier sync for both pi tasks and host tasks is applicable for out of order queues only. Not neede for in order ones.
-  void revisitNotEnqueuedCommandsState(const EventImplPtr& CompletedHostTask);
+  // Called on host task completion that could block some kernels from enqueue.
+  // Approach that tracks almost all tasks to provide barrier sync for both pi
+  // tasks and host tasks is applicable for out of order queues only. Not neede
+  // for in order ones.
+  void revisitNotEnqueuedCommandsState(const EventImplPtr &CompletedHostTask);
 
 protected:
   event discard_or_return(const event &Event);
@@ -773,8 +779,8 @@ protected:
       //    by a host task. This dependency allows to build the enqueue order in
       //    the RT but will not be passed to the backend. See getPIEvents in
       //    Command.
-      auto &EventToBuildDeps =
-          MGraph.lock() ? MExtGraphDeps.LastEventPtr : MDefaultGraphDeps.LastEventPtr;
+      auto &EventToBuildDeps = MGraph.lock() ? MExtGraphDeps.LastEventPtr
+                                             : MDefaultGraphDeps.LastEventPtr;
       if (EventToBuildDeps)
         Handler.depends_on(EventToBuildDeps);
 
@@ -787,15 +793,14 @@ protected:
 
       EventRet = Handler.finalize();
       EventToBuildDeps = getSyclObjImpl(EventRet);
-    } else
-    {
-      // The following code supports barrier synchronization if host task is involve to the scenario.
-      // Native barriers could not handle host task dependency so in case if some commands was not enqueued - blocked we track them to prevent barrier to be enqueued earlier.
+    } else {
+      // The following code supports barrier synchronization if host task is
+      // involve to the scenario. Native barriers could not handle host task
+      // dependency so in case if some commands was not enqueued - blocked we
+      // track them to prevent barrier to be enqueued earlier.
       std::lock_guard<std::mutex> Lock{MMutex};
-      auto &Deps =
-          MGraph.expired() ? MDefaultGraphDeps : MExtGraphDeps;
-      if (Type == CG::Barrier && !Deps.NotEnqueuedCmdEvents.empty())
-      {
+      auto &Deps = MGraph.expired() ? MDefaultGraphDeps : MExtGraphDeps;
+      if (Type == CG::Barrier && !Deps.NotEnqueuedCmdEvents.empty()) {
         Handler.depends_on(Deps.NotEnqueuedCmdEvents);
       }
       if (Deps.LastBarrier)
@@ -804,8 +809,7 @@ protected:
       EventImplPtr EventRetImpl = getSyclObjImpl(EventRet);
       if (Type == CG::CodeplayHostTask || !EventRetImpl->getHandleRef())
         Deps.NotEnqueuedCmdEvents.push_back(EventRetImpl);
-      if (Type == CG::Barrier || Type == CG::BarrierWaitlist)
-      {
+      if (Type == CG::Barrier || Type == CG::BarrierWaitlist) {
         Deps.LastBarrier = EventRetImpl;
         Deps.NotEnqueuedCmdEvents.clear();
       }
@@ -960,11 +964,12 @@ protected:
 #endif
 
   // Access should be guarded with MMutex
-  struct DependencyTrackingItems
-  {
-    // This event is employed for enhanced dependency tracking with in-order queue
+  struct DependencyTrackingItems {
+    // This event is employed for enhanced dependency tracking with in-order
+    // queue
     EventImplPtr LastEventPtr;
-    // The following two items is employed for proper out of order enqueue ordering
+    // The following two items is employed for proper out of order enqueue
+    // ordering
     std::vector<EventImplPtr> NotEnqueuedCmdEvents;
     EventImplPtr LastBarrier;
   } MDefaultGraphDeps, MExtGraphDeps;

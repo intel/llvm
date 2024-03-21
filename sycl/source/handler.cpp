@@ -1343,8 +1343,7 @@ void handler::depends_on(const std::vector<event> &Events) {
   }
 }
 
-void handler::depends_on(const detail::EventImplPtr& EventImpl)
-{
+void handler::depends_on(const detail::EventImplPtr &EventImpl) {
   if (!EventImpl)
     return;
   if (EventImpl->isDiscarded()) {
@@ -1354,8 +1353,7 @@ void handler::depends_on(const detail::EventImplPtr& EventImpl)
   CGData.MEvents.push_back(EventImpl);
 }
 
-void handler::depends_on(const std::vector<detail::EventImplPtr> &Events)
-{
+void handler::depends_on(const std::vector<detail::EventImplPtr> &Events) {
   for (const EventImplPtr &Event : Events) {
     depends_on(Event);
   }
