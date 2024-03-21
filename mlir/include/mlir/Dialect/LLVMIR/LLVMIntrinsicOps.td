@@ -332,8 +332,7 @@ class LLVM_ConstrainedIntr<string mnem, int numArgs, bit hasRoundingMode>
   let llvmBuilder = [{
     $res = LLVM::detail::createConstrainedIntrinsicCall(
       builder, moduleTranslation, &opInst, llvm::Intrinsic::experimental_constrained_}]
-       # mnem # ", "
-       # /*hasRoundingMode=*/!cond(!gt(hasRoundingMode, 0) : "true", true : "false")
+       # mnem
        # [{);
   }];
   let mlirBuilder = [{

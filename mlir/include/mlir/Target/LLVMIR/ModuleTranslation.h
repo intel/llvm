@@ -423,7 +423,7 @@ llvm::CallInst *createIntrinsicCall(
 
 llvm::CallInst *createConstrainedIntrinsicCall(
     llvm::IRBuilderBase &builder, ModuleTranslation &moduleTranslation,
-    Operation *intrOp, llvm::Intrinsic::ID intrinsic, bool hasRoundingMode);
+    Operation *intrOp, llvm::Intrinsic::ID intrinsic);
 
 } // namespace detail
 

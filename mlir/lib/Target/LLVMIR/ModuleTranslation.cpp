@@ -858,7 +858,7 @@ llvm::CallInst *mlir::LLVM::detail::createIntrinsicCall(
 
 llvm::CallInst *mlir::LLVM::detail::createConstrainedIntrinsicCall(
     llvm::IRBuilderBase &builder, ModuleTranslation &moduleTranslation,
-    Operation *intrOp, llvm::Intrinsic::ID intrinsic, bool hasRoundingMode) {
+    Operation *intrOp, llvm::Intrinsic::ID intrinsic) {
   llvm::Module *module = builder.GetInsertBlock()->getModule();
   SmallVector<llvm::Type *> overloadedTypes{
       moduleTranslation.convertType(intrOp->getResult(0).getType()),
@@ -867,21 +867,15 @@ llvm::CallInst *mlir::LLVM::detail::createConstrainedIntrinsicCall(
       llvm::Intrinsic::getDeclaration(module, intrinsic, overloadedTypes);
   SmallVector<llvm::Value *> args =
       moduleTranslation.lookupValues(intrOp->getOperands());
-  std::optional<llvm::RoundingMode> rounding =
-      hasRoundingMode
-          ? std::optional<llvm::RoundingMode>{convertRoundingModeToLLVM(
-                intrOp
-                    ->getAttrOfType<RoundingModeAttr>(
-                        cast<RoundingModeOpInterface>(intrOp)
-                            .getRoundingModeAttrName())
-                    .getValue())}
-          : std::optional<llvm::RoundingMode>{};
-  llvm::fp::ExceptionBehavior except = convertExceptionBehaviorToLLVM(
-      intrOp
-          ->getAttrOfType<ExceptionBehaviorAttr>(
-              cast<ExceptionBehaviorOpInterface>(intrOp)
-                  .getExceptionBehaviorAttrName())
-          .getValue());
+  std::optional<llvm::RoundingMode> rounding;
+  if (auto roundingModeOp = dyn_cast<RoundingModeOpInterface>(intrOp)) {
+    rounding = convertRoundingModeToLLVM(
+        roundingModeOp.getRoundingModeAttr().getValue());
+  }
+  llvm::fp::ExceptionBehavior except =
+      convertExceptionBehaviorToLLVM(cast<ExceptionBehaviorOpInterface>(intrOp)
+                                         .getExceptionBehaviorAttr()
+                                         .getValue());
   return builder.CreateConstrainedFPCall(callee, args, "", rounding, except);
 }
 
