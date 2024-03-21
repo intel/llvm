@@ -9,8 +9,6 @@ add_mlir_conversion_library(MLIRGENToLLVM
 
   LINK_LIBS PUBLIC
   MLIRGENDialect  
-  MLIRIR
+  MLIRLLVMCommonConversion
   MLIRLLVMDialect
-  MLIRPass
-  MLIRSupport
 )
