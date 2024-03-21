@@ -74,12 +74,12 @@ void matrix_multiply_ref(Ta *A, Tb *B, Tc *C, int M, int N, int K,
           else
             assert(false && "Unsupported type in matrix_multiply_ref.");
         }
-        *(C + c_ind) = acc;
       }
 
       if constexpr (!std::is_same_v<F, std::nullptr_t>) {
-        lambda(*(C + c_ind));
+        lambda(acc);
       }
+      *(C + c_ind) = acc;
     }
   }
 }
