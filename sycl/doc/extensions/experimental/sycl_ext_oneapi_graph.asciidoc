@@ -454,18 +454,18 @@ class enable_profiling {
 }
 ----
 
-The `property::graph::enable_profiling` property can be passed to a
+The `property::node::enable_profiling` property can be passed to a
 `command_graph::add()` function and enables profiling support 
 for the node in the `command_graph<graph_state::executable>`.
 Passing this property implies disabling certain optimizations.
 This is why profiling is by default disabled on graphs, unless users
-explicitly require it using either the `property::graph::enable_profiling` 
-property in building mode or the `property::queue::enable_profiling` on 
-the recorded queue (Record&Replay API).
-As a result, the execution time of a graph finalized with profiling enabled 
-is longer than that of a graph without profiling capability.
-An error will be thrown when attempting to profile an event 
-from a graph submission that was created without this property.
+explicitly require it using either the `property::node::enable_profiling` 
+property when using the explicit graph creation API or the
+`property::queue::enable_profiling` on the recorded queue in the Record & Replay
+API. As a result, the execution time of a graph finalized with profiling enabled
+is longer than that of a graph without profiling capability. An error will be
+thrown when attempting to profile an event from a graph submission that was
+created without this property.
 
 
 === Graph
@@ -1075,9 +1075,9 @@ ways:
 
 2. `property::queue::enable_profiling` - This property must be set on the queue
    in recording mode if users want to profile the commands recorded to 
-   the graph.This property must also be set on the queue the queue a graph is 
-   submitted to. It allows profiling information to be obtained from the event 
-   returned by a graph submission. 
+   the graph. This property must also be set on the queue the queue an
+   executable graph is submitted to. It allows profiling information to be
+   obtained from the event returned by a graph submission. 
    As it is not defined how a submitted graph will be split up for
    scheduling at runtime, the `uint64_t` timestamp reported from a profiling
    query on a graph execution event has the following semantics, which may be
