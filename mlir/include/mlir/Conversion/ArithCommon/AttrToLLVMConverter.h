@@ -36,11 +36,11 @@ convertArithOverflowFlagsToLLVM(arith::IntegerOverflowFlags arithFlags);
 LLVM::IntegerOverflowFlagsAttr
 convertArithOverflowAttrToLLVM(arith::IntegerOverflowFlagsAttr flagsAttr);
 
-/// Maps arithmetic rounding enum vales to LLVM enum values.
+/// Maps arithmetic rounding enum values to LLVM enum values.
 LLVM::RoundingMode
 convertArithRoundingModeToLLVM(arith::RoundingMode roundingMode);
 
-/// Creates an LLVM rounding mnode attribute from a given arithmetic rounding
+/// Creates an LLVM rounding mode attribute from a given arithmetic rounding
 /// mode attribute.
 LLVM::RoundingModeAttr
 convertArithRoundingModeAttrToLLVM(arith::RoundingModeAttr roundingModeAttr);

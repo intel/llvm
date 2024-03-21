@@ -709,6 +709,8 @@ def FramePointerKindEnum : LLVM_EnumAttr<
 // RoundingMode
 //===----------------------------------------------------------------------===//
 
+// These values must match llvm::RoundingMode ones.
+// See llvm/include/llvm/ADT/FloatingPointMode.h.
 def RoundTowardZero
     : LLVM_EnumAttrCase<"TowardZero", "towardzero", "TowardZero", 0>;
 def RoundNearestTiesToEven
@@ -721,7 +723,8 @@ def RoundNearestTiesToAway
     : LLVM_EnumAttrCase<"NearestTiesToAway", "tonearestaway", "NearestTiesToAway", 4>;
 def RoundDynamic
     : LLVM_EnumAttrCase<"Dynamic", "dynamic", "Dynamic", 7>;
-def RoundInvalid // Needed as llvm::RoundingMode defines this.
+// Needed as llvm::RoundingMode defines this.
+def RoundInvalid
     : LLVM_EnumAttrCase<"Invalid", "invalid", "Invalid", -1>;
 
 // RoundingModeAttr should not be used in operations definitions.
@@ -741,6 +744,8 @@ def ValidRoundingModeAttr : ConfinedAttr<RoundingModeAttr, [IntMinValue<0>]>;
 // ExceptionBehavior
 //===----------------------------------------------------------------------===//
 
+// These values must match llvm::fp::ExceptionBehavior ones.
+// See llvm/include/llvm/IR/FPEnv.h.
 def ExceptionBehaviorIgnore
     : LLVM_EnumAttrCase<"Ignore", "ignore", "ebIgnore", 0>;
 def ExceptionBehaviorMayTrap

@@ -58,22 +58,18 @@ LLVM::IntegerOverflowFlagsAttr mlir::arith::convertArithOverflowAttrToLLVM(
 
 LLVM::RoundingMode
 mlir::arith::convertArithRoundingModeToLLVM(arith::RoundingMode roundingMode) {
-  // Sorted array
-  constexpr std::array<std::pair<arith::RoundingMode, LLVM::RoundingMode>, 5>
-      values{
-          {{arith::RoundingMode::tonearesteven,
-            LLVM::RoundingMode::NearestTiesToEven},
-           {arith::RoundingMode::downward, LLVM::RoundingMode::TowardNegative},
-           {arith::RoundingMode::upward, LLVM::RoundingMode::TowardPositive},
-           {arith::RoundingMode::towardzero, LLVM::RoundingMode::TowardZero},
-           {arith::RoundingMode::tonearestaway,
-            LLVM::RoundingMode::NearestTiesToAway}}};
-  auto *found = llvm::lower_bound(
-      values, roundingMode, [](const auto &entry, arith::RoundingMode value) {
-        return entry.first < value;
-      });
-  assert(found != values.end());
-  return found->second;
+  switch (roundingMode) {
+  case arith::RoundingMode::tonearesteven:
+    return LLVM::RoundingMode::NearestTiesToEven;
+  case arith::RoundingMode::downward:
+    return LLVM::RoundingMode::TowardNegative;
+  case arith::RoundingMode::upward:
+    return LLVM::RoundingMode::TowardPositive;
+  case arith::RoundingMode::towardzero:
+    return LLVM::RoundingMode::TowardZero;
+  case arith::RoundingMode::tonearestaway:
+    return LLVM::RoundingMode::NearestTiesToAway;
+  }
 }
 
 LLVM::RoundingModeAttr mlir::arith::convertArithRoundingModeAttrToLLVM(
