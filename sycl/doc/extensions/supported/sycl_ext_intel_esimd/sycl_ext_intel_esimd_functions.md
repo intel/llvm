@@ -32,7 +32,7 @@ which also may be adjusted by a scalar/vector 64-bit offset.
 The `-fsycl-esimd-force-stateless-mem` compilation option (it is ON by default)
 forces the translation of ESIMD memory API functions to `stateless` accesses.
 In this mode the ESIMD functions that accept a byte-offset argument accept it as
-a 64-bit scalar/vector.  
+any integral type scalar/vector.  
 `-fno-sycl-esimd-force-stateless-mem` compilation option may be used to translate
 ESIMD functions accepting `SYCL device accessor` to `stateful` accesses. In this case
 the corresponding ESIMD functions accept only 32-bit scalar/vector byte offsets.
