@@ -30,36 +30,6 @@ enum class SYCLBinaryImageFormat {
   BIF_LLVMBC  // LLVM bitcode
 };
 
-/// This is a wrapper over MemoryBuffer that is stored in the Filesystem
-/// and can be loaded on request.
-///
-/// Note: The buffer must be materialized before use.
-class LazyMemoryBuffer {
-private:
-  std::string Filename;
-  std::unique_ptr<llvm::MemoryBuffer> MB;
-  bool isMaterialized = false;
-
-public:
-  LazyMemoryBuffer() = default;
-  LazyMemoryBuffer(const LazyMemoryBuffer &) = delete;
-  LazyMemoryBuffer &operator=(const LazyMemoryBuffer &) = delete;
-  LazyMemoryBuffer(LazyMemoryBuffer &&) = default;
-  LazyMemoryBuffer &operator=(LazyMemoryBuffer &&) = default;
-
-  LazyMemoryBuffer(llvm::StringRef Filename);
-
-  llvm::Error materialize();
-
-  void release();
-
-  llvm::MemoryBuffer &getBuffer();
-
-  const llvm::MemoryBuffer &getBuffer() const;
-
-  size_t getBufferSize() const;
-};
-
 struct SYCLImage {
   SYCLImage() = default;
   SYCLImage(SYCLImage &) = delete;
@@ -67,14 +37,14 @@ struct SYCLImage {
   SYCLImage(SYCLImage &&) = default;
   SYCLImage &operator=(SYCLImage &&) = default;
 
-  SYCLImage(LazyMemoryBuffer Buf,
+  SYCLImage(std::unique_ptr<llvm::MemoryBuffer> Image,
             const llvm::util::PropertySetRegistry &Registry,
             llvm::StringRef Entries, llvm::StringRef Target = "")
-      : Image(std::move(Buf)), PropertyRegistry(std::move(Registry)),
+      : Image(std::move(Image)), PropertyRegistry(std::move(Registry)),
         Entries(Entries.begin(), Entries.size()),
         Target(Target.begin(), Target.size()) {}
 
-  LazyMemoryBuffer Image;
+  std::unique_ptr<llvm::MemoryBuffer> Image;
   llvm::util::PropertySetRegistry PropertyRegistry;
 
   std::string Entries;
@@ -101,7 +71,7 @@ struct SYCLWrappingOptions {
 /// as global symbols and registers the images with the SYCL Runtime.
 /// \param Options Settings that allows to turn on optional data and settings.
 llvm::Error
-wrapSYCLBinaries(llvm::Module &M, llvm::SmallVector<SYCLImage> &Images,
+wrapSYCLBinaries(llvm::Module &M, const llvm::SmallVector<SYCLImage> &Images,
                  SYCLWrappingOptions Options = SYCLWrappingOptions());
 
 } // namespace offloading

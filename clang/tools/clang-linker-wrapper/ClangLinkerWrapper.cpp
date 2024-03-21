@@ -748,6 +748,11 @@ readSYCLImagesFromTable(StringRef TableFile, const ArgList &Args) {
 
   SmallVector<offloading::SYCLImage> Images;
   for (const util::SimpleTable::Row &row : Table->rows()) {
+    auto ImagePath = row.getCell("Code");
+    auto ImageOrErr = MemoryBuffer::getFile(ImagePath);
+    if (!ImageOrErr)
+      return createFileError(ImagePath, ImageOrErr.getError());
+
     auto PropertiesOrErr =
         readPropertyRegistryFromFile(row.getCell("Properties"));
     if (!PropertiesOrErr)
@@ -758,7 +763,7 @@ readSYCLImagesFromTable(StringRef TableFile, const ArgList &Args) {
       return SymbolsOrErr.takeError();
 
     offloading::SYCLImage Image;
-    Image.Image = offloading::LazyMemoryBuffer(row.getCell("Code"));
+    Image.Image = std::move(*ImageOrErr);
     Image.PropertyRegistry = std::move(**PropertiesOrErr);
     Image.Entries = std::move(*SymbolsOrErr);
     Images.push_back(std::move(Image));
