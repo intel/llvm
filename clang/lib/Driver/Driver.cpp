@@ -5890,22 +5890,22 @@ class OffloadingActionBuilder final {
                 C.MakeAction<OffloadUnbundlingJobAction>(
                     SYCLDeviceLibsInputAction);
 
-            if (TC->getTriple().isNVPTX()) {
+          const char* BoundArch="";
+
+            if (TC->getTriple().isAMDGCN()) {
             // We are using BoundArch="" here since the NVPTX bundles in
             // the devicelib .o files do not contain any arch information
+              BoundArch="gfx940";
+            }
             SYCLDeviceLibsUnbundleAction->registerDependentActionInfo(
-                TC, /*BoundArch=*/"", Action::OFK_SYCL);
+                TC, BoundArch, Action::OFK_SYCL);
             OffloadAction::DeviceDependences Dep;
-            Dep.add(*SYCLDeviceLibsUnbundleAction, *TC, /*BoundArch=*/"",
+            Dep.add(*SYCLDeviceLibsUnbundleAction, *TC, BoundArch,
                     Action::OFK_SYCL);
             auto *SYCLDeviceLibsDependenciesAction =
                 C.MakeAction<OffloadAction>(
                     Dep, SYCLDeviceLibsUnbundleAction->getType());
             DeviceLinkObjects.push_back(SYCLDeviceLibsDependenciesAction);
-            } else {
-              addDeviceDependences(SYCLDeviceLibsUnbundleAction);
-              DeviceLinkObjects.push_back(SYCLDeviceLibsUnbundleAction);
-            }
             if (!LibLocSelected)
               LibLocSelected = !LibLocSelected;
           }

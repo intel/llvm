@@ -46,11 +46,12 @@ if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
     "-nocudalib")
 endif()
 
-if ("AMDGCN" IN_LIST LLVM_TARGETS_TO_BUILD)
-  string(APPEND sycl_targets_opt "amdgcn-amd-amdhsa")
+if ("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
+  message("Hello")
+  string(APPEND sycl_targets_opt ",amdgcn-amd-amdhsa")
   list(APPEND compile_opts
-    "-fno-sycl-libspirv"
-    "-fno-bundle-offload-arch")
+    "-Xsycl-target-backend=amdgcn-amd-amdhsa"
+    "--offload-arch=gfx940")
 endif()
 
 
