@@ -30,7 +30,7 @@
 //===---------------------------------------------------------------===//
 
 // REQUIRES: aspect-fp64
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
 #include <complex>
@@ -76,7 +76,7 @@ protected:
 public:
   ComplexLauncher() {
     result_ = (int *)syclcompat::malloc(sizeof(int));
-    *result_ = 0;
+    syclcompat::memset(result_, 0, sizeof(int));
   };
   ~ComplexLauncher() { syclcompat::free(result_); }
   void launch() {
