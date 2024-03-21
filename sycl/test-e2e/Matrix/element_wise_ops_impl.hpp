@@ -116,22 +116,33 @@ int main() {
 
   bool passed = true;
   for (unsigned int i = 0; i < combinations.size(); i++) {
-    if (combinations[i].atype == matrix_type::sint8 &&
-        combinations[i].btype == matrix_type::sint8) {
-      if (combinations[i].nsize == 0 || combinations[i].nsize == 16) {
-        passed &= test<int8_t, int32_t, 8, 16, 32, 4, class test8x16x32>();
-      }
-      if (combinations[i].nsize == 8) {
-        passed &= test<int8_t, int32_t, 8, 8, 32, 4, class test8x8x32>();
-      }
+    if (combinations[i].nsize == 0) { // Intel AMX
+      passed &= test<uint8_t, int32_t, 8, 16, 32, 4, class amx_uint_8x16x32>();
+      passed &= test<int8_t, int32_t, 8, 16, 32, 4, class amx_sint_8x16x32>();
+      passed &= test<bfloat16, float, 8, 16, 32, 2, class amx_bf16_8x16x32>();
+      break;
     }
-// This combination is not currently supported for sub group size = 32 in IGC
+
+    if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
+      passed &= test<uint8_t, int32_t, 8, 16, 32, 4, class pvc_uint_8x16x32>();
+      passed &= test<int8_t, int32_t, 8, 16, 32, 4, class pvc_sint_8x16x32>();
+      passed &= test<bfloat16, float, 8, 16, 16, 2, class pvc_bf16_8x16x16>();
 #if (!defined(SG_SZ) || SG_SZ != 32)
-    if (combinations[i].atype == matrix_type::bf16 &&
-        combinations[i].msize == 32 && combinations[i].nsize == 64) {
-      passed &= test<bfloat16, float, 32, 64, 16, 2, class test32x64x16>();
-    }
+      // These combination are not currently supported for subgroup size = 32 in
+      // IGC
+      passed &= test<bfloat16, float, 16, 16, 16, 2, class pvc_bf16_16x16x16>();
+      passed &= test<bfloat16, float, 32, 64, 16, 2, class pvc_bf16_32x64x16>();
 #endif
+      break;
+    }
+
+    if (combinations[i].nsize == 8) { // architecture::intel_gpu_dg2*
+      passed &= test<uint8_t, int32_t, 8, 8, 32, 4, class dg2_uint_8x8x32>();
+      passed &= test<int8_t, int32_t, 8, 8, 32, 4, class dg2_sint_8x8x32>();
+      passed &= test<bfloat16, float, 8, 8, 16, 2, class dg2_bf16_8x16x16>();
+      break;
+    }
   }
+
   return !passed;
 }

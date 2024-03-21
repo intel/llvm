@@ -132,8 +132,7 @@ void matrix_rand(unsigned int rows, unsigned int cols, T *src, T val) {
       if constexpr (std::is_same_v<T, bfloat16> || std::is_same_v<T, float> ||
                     std::is_same_v<T, double>) {
         src[i * cols + j] = T(fdistr(dev));
-      } else if constexpr (std::is_same_v<T, int8_t> ||
-                           std::is_same_v<T, int32_t>) {
+      } else if constexpr (std::is_integral_v<T>) {
         src[i * cols + j] = T(idistr(dev));
       } else {
         assert(false && "Unsupported type in matrix_rand.");
