@@ -96,12 +96,13 @@ bool test() {
   big_matrix<Tc, MATRIX_M, MATRIX_N> MD((Tc *)&D);
   big_matrix<Ta, MATRIX_M, MATRIX_K> MA((Ta *)&A);
   big_matrix<Ta, MATRIX_K / VF, MATRIX_N * VF> MB((Ta *)&B);
+
   matrix_multiply<TM, TN, TK, VF, kernel_name>(MC, MA, MB);
   matrix_multiply_ref<Ta, Ta, Tc, VF>((Ta *)A, (Ta *)B, (Tc *)D, MATRIX_M,
-                                      MATRIX_N, MATRIX_K / VF);
-  matrix_apply(MATRIX_M, MATRIX_N, (Tc *)D, [](Tc &x) { x = x * 2; });
-
+                                      MATRIX_N, MATRIX_K / VF, false, false,
+                                      false, [](Tc &x) { x = x * 2; });
   bool res = matrix_compare(MATRIX_M, MATRIX_N, (Tc *)C, (Tc *)D);
+
   std::cout << TM << "x" << TN << "x" << TK << ": "
             << (res ? "passed" : "failed") << std::endl;
   return res;

@@ -42,21 +42,21 @@ float make_fp32(bfloat16 x) {
   return *res;
 }
 
-template <typename Ta, typename Tb, typename Tc, unsigned int VF = 1>
+template <typename Ta, typename Tb, typename Tc, unsigned int VF = 1,
+          typename F = std::nullptr_t>
 void matrix_multiply_ref(Ta *A, Tb *B, Tc *C, int M, int N, int K,
                          bool transpose_c = false, bool colmajor_a = false,
-                         bool colmajor_b = false) {
+                         bool colmajor_b = false, F &&lambda = {}) {
   for (unsigned int m = 0; m < M; m++) {
     for (unsigned int n = 0; n < N; n++) {
-      for (unsigned int k = 0; k < K; k++) {
+      int c_ind = transpose_c ? (n * M + m) : m * N + n;
+      Tc acc = *(C + c_ind);
 
+      for (unsigned int k = 0; k < K; k++) {
         int a_ind = colmajor_a ? (k * M + m) : m * K + k;
         int b_ind = colmajor_b ? (n * K + k) : k * N + n;
-        int c_ind = transpose_c ? (n * M + m) : m * N + n;
-
         Ta *va = (Ta *)(A + a_ind * VF);
         Tb *vb = (Tb *)(B + b_ind * VF);
-        Tc acc = *(C + c_ind);
 
         for (unsigned int i = 0; i < VF; i++) {
           if constexpr (std::is_same_v<Ta, bfloat16> &&
@@ -74,8 +74,11 @@ void matrix_multiply_ref(Ta *A, Tb *B, Tc *C, int M, int N, int K,
           else
             assert(false && "Unsupported type in matrix_multiply_ref.");
         }
-
         *(C + c_ind) = acc;
+      }
+
+      if constexpr (!std::is_same_v<F, std::nullptr_t>) {
+        lambda(*(C + c_ind));
       }
     }
   }
@@ -146,15 +149,6 @@ void matrix_copy(unsigned int rows, unsigned int cols, T *src, T *dst) {
   for (unsigned int i = 0; i < rows; i++) {
     for (unsigned int j = 0; j < cols; j++) {
       dst[i * cols + j] = src[i * cols + j];
-    }
-  }
-}
-
-template <typename T, typename F>
-void matrix_apply(unsigned int rows, unsigned int cols, T *src, F &&lambda) {
-  for (unsigned int i = 0; i < rows; i++) {
-    for (unsigned int j = 0; j < cols; j++) {
-      lambda(src[i * cols + j]);
     }
   }
 }
