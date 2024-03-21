@@ -5917,7 +5917,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
-    ur_mem_handle_t *phMem, ///< [out] pointer to handle of image object created
     ur_exp_image_handle_t
         *phImage ///< [out] pointer to handle of image object created
 ) {
@@ -5942,19 +5941,11 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
         reinterpret_cast<ur_exp_image_mem_object_t *>(hImageMem)->handle;
 
     // forward to device-platform
-    result = pfnUnsampledImageCreateExp(
-        hContext, hDevice, hImageMem, pImageFormat, pImageDesc, phMem, phImage);
+    result = pfnUnsampledImageCreateExp(hContext, hDevice, hImageMem,
+                                        pImageFormat, pImageDesc, phImage);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
-    }
-
-    try {
-        // convert platform handle to loader handle
-        *phMem = reinterpret_cast<ur_mem_handle_t>(
-            ur_mem_factory.getInstance(*phMem, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
 
     try {
@@ -5979,7 +5970,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_sampler_handle_t hSampler,      ///< [in] sampler to be used
-    ur_mem_handle_t *phMem, ///< [out] pointer to handle of image object created
     ur_exp_image_handle_t
         *phImage ///< [out] pointer to handle of image object created
 ) {
@@ -6009,18 +5999,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     // forward to device-platform
     result =
         pfnSampledImageCreateExp(hContext, hDevice, hImageMem, pImageFormat,
-                                 pImageDesc, hSampler, phMem, phImage);
+                                 pImageDesc, hSampler, phImage);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
-    }
-
-    try {
-        // convert platform handle to loader handle
-        *phMem = reinterpret_cast<ur_mem_handle_t>(
-            ur_mem_factory.getInstance(*phMem, dditable));
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
 
     try {
