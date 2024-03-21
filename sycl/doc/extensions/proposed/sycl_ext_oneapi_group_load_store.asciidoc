@@ -386,8 +386,10 @@ inline constexpr contiguous_memory_hint::value_t contiguous_memory;
 } // namespace sycl::ext::oneapi::experimental
 ----
 
-Example, we imply that `input` is contiguous iterator:
+For example, we can assert that `input` is a contiguous iterator:
 `group_load(g, input, output_span, contiguous_memory);`
+
+If `input` isn't a contiguous iterator, the behavior is undefined.
 
 == Usage Example
 
