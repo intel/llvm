@@ -136,6 +136,8 @@ Default data placement is a blocked one:
 in striped case:
 `out[i]` = `in_iter[g.get_local_linear_id() + g.get_local_linear_range() * i];`
 for `i` between `0` and `N`.
+Properties may also provide a hint for optimization purposes
+xref:optimization_hints[optimization_hints].
 
 ==== Fixed-size Array Overload
 
@@ -169,7 +171,8 @@ Default placement is a blocked one:
 in striped case:
 `out[i]` = `in_iter[g.get_local_linear_id() + g.get_local_linear_range() * i];`
 for `i` between `0` and `ElementsPerWorkItem`.
-
+Properties may also provide a hint for optimization purposes
+xref:optimization_hints[optimization_hints].
 
 === Store API
 
@@ -235,6 +238,8 @@ Default placement is a blocked one:
 in striped case:
 `out_iter[g.get_local_linear_id() + g.get_local_linear_range() * i]` = `in[i];`
 for `i` between `0` and `N`.
+Properties may also provide a hint for optimization purposes
+xref:optimization_hints[optimization_hints].
 
 ==== Fixed-size Array Overload
 
@@ -270,7 +275,8 @@ Default placement is a blocked one:
 in striped case:
 `out_iter[g.get_local_linear_id() + g.get_local_linear_range() * i]` = `in[i];`
 for `i` between `0` and `ItemsPerWorkItem`.
-
+Properties may also provide a hint for optimization purposes
+xref:optimization_hints[optimization_hints].
 
 === Data Placement
 
@@ -358,6 +364,31 @@ arrays functions.
 Example:
 `group_load(g, input, output_span, data_placement_blocked);`
 
+=== Optimization Hints
+
+anchor:optimization_hints[]
+
+As `InputIteratorT` and `OutputIteratorT` are supposed to be random access but
+not garanteed to be contiguous, the following property is introduced to be used
+as a hint to the implementation for optimization purposes:
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct contiguous_memory_hint {
+  using value_t =
+      property_value<contiguous_memory_hint>;
+};
+
+inline constexpr contiguous_memory_hint::value_t contiguous_memory;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+Example, we imply that `input` is contiguous iterator:
+`group_load(g, input, output_span, contiguous_memory);`
+
 == Usage Example
 
 Example shows the simplest case without local memory usage of blocked load
@@ -388,11 +419,11 @@ q.submit([&](sycl::handler& cgh) {
             auto offset = g.get_group_id(0) * g.get_local_range(0) *
                                        items_per_thread;
 
-            sycl_exp::group_load(g, input + offset, sycl::span{ data });
+            sycl_exp::group_load(g, input + offset, sycl::span{ data }, sycl::contiguous_memory);
 
             // Work with data...
 
-            sycl_exp::group_store(g, output + offset, sycl::span{ data });
+            sycl_exp::group_store(g, output + offset, sycl::span{ data }, sycl::contiguous_memory);
         });
 });
 ----
@@ -468,11 +499,11 @@ q.submit([&](sycl::handler& cgh) {
             sycl_exp::group_with_scratchpad gh{ g,
                                                 sycl::span{ buf_ptr, temp_memory_size } };
 
-            sycl_exp::group_load(gh, input + offset, sycl::span{ data });
+            sycl_exp::group_load(gh, input + offset, sycl::span{ data }, sycl_exp::contiguous_memory);
 
             // Work with data...
 
-            sycl_exp::group_store(gh, output + offset, sycl::span{ data });
+            sycl_exp::group_store(gh, output + offset, sycl::span{ data }, sycl_exp::contiguous_memory);
         });
 });
 ----
@@ -505,11 +536,11 @@ q.submit([&](sycl::handler& cgh) {
             sycl_exp::group_with_scratchpad gh{ g,
                                                 sycl::span{ buf_ptr, temp_memory_size } };
 
-            sycl_exp::group_load(gh, input + offset, sycl::span{ data }, data_placement_striped);
+            sycl_exp::group_load(gh, input + offset, sycl::span{ data }, sycl_exp::data_placement_striped);
 
             // Work with data...
 
-            sycl_exp::group_store(gh, output + offset, sycl::span{ data }, data_placement_striped);
+            sycl_exp::group_store(gh, output + offset, sycl::span{ data }, sycl_exp::data_placement_striped);
         });
 });
 ----
