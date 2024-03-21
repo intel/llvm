@@ -390,6 +390,10 @@ void Scheduler::enqueueUnblockedCommands(
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.",
                           PI_ERROR_INVALID_OPERATION);
+    const auto& CmdEvent = Cmd->getEvent();
+    if (Enqueued && Cmd->isBarrier())
+      Cmd->getQueue()->tryToResetEnqueuedBarrierDep(CmdEvent);
+    Cmd->getQueue()->revisitNotEnqueuedCommandsState(CmdEvent);
   }
 }
 
@@ -494,7 +498,6 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
       CmdEvent->setComplete();
     }
     Scheduler::enqueueUnblockedCommands(Cmd->MBlockedUsers, Lock, ToCleanUp);
-    Cmd->getQueue()->revisitNotEnqueuedCommandsState(CmdEvent);
   }
   cleanupCommands(ToCleanUp);
 }
