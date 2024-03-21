@@ -119,12 +119,11 @@ public:
       // Get the name of the rounding mode attribute.
       StringRef arithAttrName = srcOp.getRoundingModeAttrName();
       // Remove the source attribute.
-      auto arithAttr = dyn_cast_if_present<arith::RoundingModeAttr>(
-          convertedAttr.erase(arithAttrName));
-      if (arithAttr) {
-        convertedAttr.set(TargetOp::getRoundingModeAttrName(),
-                          convertArithRoundingModeAttrToLLVM(arithAttr));
-      }
+      auto arithAttr =
+          cast<arith::RoundingModeAttr>(convertedAttr.erase(arithAttrName));
+      // Set the target attribute.
+      convertedAttr.set(TargetOp::getRoundingModeAttrName(),
+                        convertArithRoundingModeAttrToLLVM(arithAttr));
     }
     convertedAttr.set(TargetOp::getExceptionBehaviorAttrName(),
                       getDefaultExceptionBehaviorAttr(srcOp->getContext()));
