@@ -149,7 +149,6 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
   }
 
   using bindless_helpers::equal_vec;
-  using bindless_helpers::init_vector;
 
   printString("Validating\n");
   // Expected is sum of first two levels in the mipmap
@@ -167,10 +166,10 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
           float norm_coord_z = ((k + 0.5f) / (float)depth);
           int z = norm_coord_z * (depth >> 1);
 
-          VecType expected =
-              init_vector<DType, NChannels>(i + width * (j + height * k)) +
-              init_vector<DType, NChannels>(x + (width / 2) *
-                                                   (y + (height / 2) * z));
+          VecType expected = bindless_helpers::init_vector<DType, NChannels>(
+                                 i + width * (j + height * k)) +
+                             bindless_helpers::init_vector<DType, NChannels>(
+                                 x + (width / 2) * (y + (height / 2) * z));
 
           if (!equal_vec<DType, NChannels>(out[i + width * (j + height * k)],
                                            expected)) {
@@ -198,8 +197,10 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
         float norm_coord_y = ((j + 0.5f) / (float)height);
         int y = norm_coord_y * (height >> 1);
 
-        VecType expected = init_vector<DType, NChannels>(j + (width * i)) +
-                           init_vector<DType, NChannels>(y + (width / 2 * x));
+        VecType expected =
+            bindless_helpers::init_vector<DType, NChannels>(j + (width * i)) +
+            bindless_helpers::init_vector<DType, NChannels>(y +
+                                                            (width / 2 * x));
 
         if (!equal_vec<DType, NChannels>(out[j + (width * i)], expected)) {
           mismatch = true;
