@@ -454,6 +454,16 @@ def ConvertGENToLLVM : Pass<"convert-gen-to-llvm", "ModuleOp"> {
 }
 
 //===----------------------------------------------------------------------===//
+// GENToSPIRV
+//===----------------------------------------------------------------------===//
+
+def ConvertGENToSPIRV : Pass<"convert-gen-to-spirv"> {
+  let summary = "Convert GEN dialect to SPIR-V dialect";
+  let constructor = "mlir::GEN::createConvertGENToSPIRVPass()";
+  let dependentDialects = ["spirv::SPIRVDialect"];
+}
+
+//===----------------------------------------------------------------------===//
 // GPUCommon
 //===----------------------------------------------------------------------===//
 
