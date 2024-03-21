@@ -39,7 +39,7 @@ namespace ext {
 namespace intel {
 namespace experimental {
 
-// A helper templateless base class to get the host_pipe name.
+// A helper templateless base class.
 class pipe_base {
 
 protected:
@@ -47,6 +47,7 @@ protected:
   ~pipe_base();
 
   __SYCL_EXPORT static std::string get_pipe_name(const void *HostPipePtr);
+  __SYCL_EXPORT static bool wait_non_blocking(const event &E);
 };
 
 template <class _name, class _dataT, int32_t _min_capacity = 0,
@@ -95,15 +96,8 @@ public:
       CGH.ext_intel_read_host_pipe(PipeName, DataPtr,
                                    sizeof(_dataT) /* non-blocking */);
     });
-    E.wait();
-    if (E.get_info<sycl::info::event::command_execution_status>() ==
-        sycl::info::event_command_status::complete) {
-      Success = true;
-      return *(_dataT *)DataPtr;
-    } else {
-      Success = false;
-      return _dataT();
-    }
+    Success = wait_non_blocking(E);
+    return Success ? *(_dataT *)DataPtr : _dataT();
   }
 
   static void write(queue &Q, const _dataT &Data, bool &Success,
@@ -126,9 +120,7 @@ public:
       CGH.ext_intel_write_host_pipe(PipeName, DataPtr,
                                     sizeof(_dataT) /* non-blocking */);
     });
-    E.wait();
-    Success = E.get_info<sycl::info::event::command_execution_status>() ==
-              sycl::info::event_command_status::complete;
+    Success = wait_non_blocking(E);
   }
 
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V

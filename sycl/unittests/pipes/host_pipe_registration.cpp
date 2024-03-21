@@ -81,12 +81,14 @@ static int PipeWriteVal = 0;
 pi_result redefinedEnqueueReadHostPipe(pi_queue, pi_program, const char *,
                                        pi_bool, void *ptr, size_t, pi_uint32,
                                        const pi_event *, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   *(((int *)ptr)) = PipeReadVal;
   return PI_SUCCESS;
 }
 pi_result redefinedEnqueueWriteHostPipe(pi_queue, pi_program, const char *,
                                         pi_bool, void *ptr, size_t, pi_uint32,
                                         const pi_event *, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   PipeWriteVal = 9;
   return PI_SUCCESS;
 }
@@ -142,14 +144,15 @@ protected:
   queue q;
 };
 
+static sycl::unittest::PiImage Img = generateDefaultImage();
+static sycl::unittest::PiImageArray<1> ImgArray{&Img};
+
 TEST_F(PipeTest, Basic) {
   // Fake extension
   Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
       after_piDeviceGetInfo);
 
   // Device registration
-  static sycl::unittest::PiImage Img = generateDefaultImage();
-  static sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
   // Testing read
   int HostPipeReadData;
@@ -160,4 +163,22 @@ TEST_F(PipeTest, Basic) {
   int HostPipeWriteData = 9;
   Pipe::write(q, HostPipeWriteData);
   EXPECT_EQ(PipeWriteVal, 9);
+}
+
+pi_result redefinedEventsWait(pi_uint32 num_events,
+                              const pi_event *event_list) {
+  return PI_ERROR_UNKNOWN;
+}
+
+TEST_F(PipeTest, NonBlockingOperations) {
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+      after_piDeviceGetInfo);
+  Mock.redefine<sycl::detail::PiApiKind::piEventsWait>(redefinedEventsWait);
+
+  bool Success = false;
+  Pipe::read(q, Success);
+  ASSERT_FALSE(Success);
+
+  Pipe::write(q, 0, Success);
+  ASSERT_FALSE(Success);
 }
