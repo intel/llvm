@@ -2508,20 +2508,12 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     return mapValue(BV,
                     transRelational(static_cast<SPIRVInstruction *>(BV), BB));
   case OpIAddCarry: {
-    IRBuilder Builder(BB);
     auto *BC = static_cast<SPIRVBinary *>(BV);
-    return mapValue(BV, Builder.CreateBinaryIntrinsic(
-                            Intrinsic::uadd_with_overflow,
-                            transValue(BC->getOperand(0), F, BB),
-                            transValue(BC->getOperand(1), F, BB)));
+    return mapValue(BV, transBuiltinFromInst("__spirv_IAddCarry", BC, BB));
   }
   case OpISubBorrow: {
-    IRBuilder Builder(BB);
     auto *BC = static_cast<SPIRVBinary *>(BV);
-    return mapValue(BV, Builder.CreateBinaryIntrinsic(
-                            Intrinsic::usub_with_overflow,
-                            transValue(BC->getOperand(0), F, BB),
-                            transValue(BC->getOperand(1), F, BB)));
+    return mapValue(BV, transBuiltinFromInst("__spirv_ISubBorrow", BC, BB));
   }
   case OpGetKernelWorkGroupSize:
   case OpGetKernelPreferredWorkGroupSizeMultiple:

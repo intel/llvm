@@ -42,5 +42,8 @@ rounding will only be used if the SYCL runtime X dimension exceeds some minimum
 value, which can be configured using the
 `SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS` environment variable.
 
-Generation of range rounded kernels can be disabled by using the compiler flag
-`-fsycl-disable-range-rounding`.
+In order to reduce binary size, the user can tell the compiler only to generate
+the range rounded kernel, `-fsycl-range-rounding=force`. The user can also tell
+the SYCL implementation to only produce the unrounded kernel using the flag
+`-fsycl-range-rounding=disable`. By default both kernels will be generated,
+which is equivalent to `-fsycl-range-rounding=on`.
