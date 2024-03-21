@@ -4292,7 +4292,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
-    ur_mem_handle_t *phMem, ///< [out] pointer to handle of image object created
     ur_exp_image_handle_t
         *phImage ///< [out] pointer to handle of image object created
     ) try {
@@ -4303,12 +4302,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
         d_context.urDdiTable.BindlessImagesExp.pfnUnsampledImageCreateExp;
     if (nullptr != pfnUnsampledImageCreateExp) {
         result = pfnUnsampledImageCreateExp(hContext, hDevice, hImageMem,
-                                            pImageFormat, pImageDesc, phMem,
-                                            phImage);
+                                            pImageFormat, pImageDesc, phImage);
     } else {
         // generic implementation
-        *phMem = reinterpret_cast<ur_mem_handle_t>(d_context.get());
-
         *phImage = reinterpret_cast<ur_exp_image_handle_t>(d_context.get());
     }
 
@@ -4328,7 +4324,6 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_sampler_handle_t hSampler,      ///< [in] sampler to be used
-    ur_mem_handle_t *phMem, ///< [out] pointer to handle of image object created
     ur_exp_image_handle_t
         *phImage ///< [out] pointer to handle of image object created
     ) try {
@@ -4340,11 +4335,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     if (nullptr != pfnSampledImageCreateExp) {
         result =
             pfnSampledImageCreateExp(hContext, hDevice, hImageMem, pImageFormat,
-                                     pImageDesc, hSampler, phMem, phImage);
+                                     pImageDesc, hSampler, phImage);
     } else {
         // generic implementation
-        *phMem = reinterpret_cast<ur_mem_handle_t>(d_context.get());
-
         *phImage = reinterpret_cast<ur_exp_image_handle_t>(d_context.get());
     }
 
