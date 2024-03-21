@@ -81,14 +81,30 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit  5f4dd113824e90522d813420932c14072dc3049d
-  # Merge:  ed1f8bf b551c77
-  # Author: Ewan Crawford <ewan@codeplay.com>
-  # Date:   Fri Mar 15 10:22:39 2024 +0000
-  #     Merge pull request #1447 from Bensuo/ewan/rocm_5_5_1
-  #     [HIP][CMDBUF] Require ROCm 5.5.1 for HIP command-buffers
-  set(UNIFIED_RUNTIME_TAG 5f4dd113824e90522d813420932c14072dc3049d)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/RossBrunton/unified-runtime.git")
+  # Author: Ross Brunton <ross@codeplay.com>
+  # Date:   Mon Mar 18 18:02:35 2024 +0000
+  #
+  #     [UR] Improve handling of error cases in urProgramLink
+  #
+  #     Note that this change includes a specification change:
+  #     urProgramLink now requires the output parameter to contain either
+  #     nullptr or some unspecified binary on failure.
+  #
+  #     As well as this change, a number of bugs have been fixed:
+  #     * The Level Zero adapter now correctly returns
+  #       `UR_RESULT_ERROR_PROGRAM_LINK_FAILURE` when linking fails, rather
+  #       than `UR_RESULT_ERROR_UNKNOWN`.
+  #     * A workaround has been added for some OpenCL devices that return
+  #       `CL_INVALID_BINARY` rather than `CL_LINK_PROGRAM_FAILURE` on
+  #       linker failure.
+  #     * The `phProgram` handle is wrapped in a loader handle by the
+  #       loader even if an error would be returned. This is required by
+  #       Level Zero, which outputs a "dummy" program to store the linker
+  #       log.
+  #
+  #     Conformance tests have also been added.
+  set(UNIFIED_RUNTIME_TAG "4a516fb60cc6bb591f9e2ddefe76dbe4ae7f4688")
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
