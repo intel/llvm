@@ -1141,7 +1141,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       // used only with spir triple.
       if (CodeGenOpts.SPIRITTAnnotations) {
         assert(
-            TargetTriple.isSPIR() &&
+            (TargetTriple.isSPIR() || TargetTriple.isSPIRV()) &&
             "ITT annotations can only be added to a module with spir target");
         MPM.addPass(SPIRITTAnnotationsPass());
       }

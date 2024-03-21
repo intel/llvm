@@ -618,7 +618,9 @@ class ObjectFileHandler final : public FileHandler {
       if (isBitcode((const unsigned char *)Buf->getBufferStart(),
                     (const unsigned char *)Buf->getBufferEnd()))
         if (getTargetTriple(BundlerConfig.TargetNames[I], BundlerConfig)
-                .isSPIR()) {
+                .isSPIR() ||
+            getTargetTriple(BundlerConfig.TargetNames[I], BundlerConfig)
+                .isSPIRV()) {
           SMDiagnostic Err;
           std::unique_ptr<Module> Mod = parseIR(*Buf, Err, Context);
           if (!Mod)
