@@ -37,6 +37,9 @@ These changes are ones which we think may surprise users when upgrading to
 Clang |release| because of the opportunity they pose for disruption to existing
 code bases.
 
+- Setting the deprecated CMake variable ``GCC_INSTALL_PREFIX`` (which sets the
+  default ``--gcc-toolchain=``) now leads to a fatal error.
+
 C/C++ Language Potentially Breaking Changes
 -------------------------------------------
 
@@ -176,6 +179,8 @@ Non-comprehensive list of changes in this release
   ``__builtin_popcount{,l,ll}`` with support for any unsigned integer type. Like
   the previous builtins, this new builtin is constexpr and may be used in
   constant expressions.
+
+- Lambda expressions are now accepted in C++03 mode as an extension.
 
 New Compiler Flags
 ------------------

@@ -67,8 +67,8 @@ class VectorCombine {
 public:
   VectorCombine(Function &F, const TargetTransformInfo &TTI,
                 const DominatorTree &DT, AAResults &AA, AssumptionCache &AC,
-                bool TryEarlyFoldsOnly)
-      : F(F), Builder(F.getContext()), TTI(TTI), DT(DT), AA(AA), AC(AC),
+                const DataLayout *DL, bool TryEarlyFoldsOnly)
+      : F(F), Builder(F.getContext()), TTI(TTI), DT(DT), AA(AA), AC(AC), DL(DL),
         TryEarlyFoldsOnly(TryEarlyFoldsOnly) {}
 
   bool run();
@@ -80,6 +80,7 @@ private:
   const DominatorTree &DT;
   AAResults &AA;
   AssumptionCache &AC;
+  const DataLayout *DL;
 
   /// If true, only perform beneficial early IR transforms. Do not introduce new
   /// vector operations.
@@ -187,7 +188,6 @@ bool VectorCombine::vectorizeLoadInsert(Instruction &I) {
   // We use minimal alignment (maximum flexibility) because we only care about
   // the dereferenceable region. When calculating cost and creating a new op,
   // we may use a larger value based on alignment attributes.
-  const DataLayout &DL = I.getModule()->getDataLayout();
   Value *SrcPtr = Load->getPointerOperand()->stripPointerCasts();
   assert(isa<PointerType>(SrcPtr->getType()) && "Expected a pointer type");
 
@@ -195,15 +195,15 @@ bool VectorCombine::vectorizeLoadInsert(Instruction &I) {
   auto *MinVecTy = VectorType::get(ScalarTy, MinVecNumElts, false);
   unsigned OffsetEltIndex = 0;
   Align Alignment = Load->getAlign();
-  if (!isSafeToLoadUnconditionally(SrcPtr, MinVecTy, Align(1), DL, Load, &AC,
+  if (!isSafeToLoadUnconditionally(SrcPtr, MinVecTy, Align(1), *DL, Load, &AC,
                                    &DT)) {
     // It is not safe to load directly from the pointer, but we can still peek
     // through gep offsets and check if it safe to load from a base address with
     // updated alignment. If it is, we can shuffle the element(s) into place
     // after loading.
-    unsigned OffsetBitWidth = DL.getIndexTypeSizeInBits(SrcPtr->getType());
+    unsigned OffsetBitWidth = DL->getIndexTypeSizeInBits(SrcPtr->getType());
     APInt Offset(OffsetBitWidth, 0);
-    SrcPtr = SrcPtr->stripAndAccumulateInBoundsConstantOffsets(DL, Offset);
+    SrcPtr = SrcPtr->stripAndAccumulateInBoundsConstantOffsets(*DL, Offset);
 
     // We want to shuffle the result down from a high element of a vector, so
     // the offset must be positive.
@@ -221,7 +221,7 @@ bool VectorCombine::vectorizeLoadInsert(Instruction &I) {
     if (OffsetEltIndex >= MinVecNumElts)
       return false;
 
-    if (!isSafeToLoadUnconditionally(SrcPtr, MinVecTy, Align(1), DL, Load, &AC,
+    if (!isSafeToLoadUnconditionally(SrcPtr, MinVecTy, Align(1), *DL, Load, &AC,
                                      &DT))
       return false;
 
@@ -233,7 +233,7 @@ bool VectorCombine::vectorizeLoadInsert(Instruction &I) {
 
   // Original pattern: insertelt undef, load [free casts of] PtrOp, 0
   // Use the greater of the alignment on the load or its source pointer.
-  Alignment = std::max(SrcPtr->getPointerAlignment(DL), Alignment);
+  Alignment = std::max(SrcPtr->getPointerAlignment(*DL), Alignment);
   Type *LoadTy = Load->getType();
   unsigned AS = Load->getPointerAddressSpace();
   InstructionCost OldCost =
@@ -304,14 +304,13 @@ bool VectorCombine::widenSubvectorLoad(Instruction &I) {
   // the dereferenceable region. When calculating cost and creating a new op,
   // we may use a larger value based on alignment attributes.
   auto *Ty = cast<FixedVectorType>(I.getType());
-  const DataLayout &DL = I.getModule()->getDataLayout();
   Value *SrcPtr = Load->getPointerOperand()->stripPointerCasts();
   assert(isa<PointerType>(SrcPtr->getType()) && "Expected a pointer type");
   Align Alignment = Load->getAlign();
-  if (!isSafeToLoadUnconditionally(SrcPtr, Ty, Align(1), DL, Load, &AC, &DT))
+  if (!isSafeToLoadUnconditionally(SrcPtr, Ty, Align(1), *DL, Load, &AC, &DT))
     return false;
 
-  Alignment = std::max(SrcPtr->getPointerAlignment(DL), Alignment);
+  Alignment = std::max(SrcPtr->getPointerAlignment(*DL), Alignment);
   Type *LoadTy = Load->getType();
   unsigned AS = Load->getPointerAddressSpace();
 
@@ -860,7 +859,6 @@ bool VectorCombine::scalarizeVPIntrinsic(Instruction &I) {
   // Scalarize the intrinsic
   ElementCount EC = cast<VectorType>(Op0->getType())->getElementCount();
   Value *EVL = VPI.getArgOperand(3);
-  const DataLayout &DL = VPI.getModule()->getDataLayout();
 
   // If the VP op might introduce UB or poison, we can scalarize it provided
   // that we know the EVL > 0: If the EVL is zero, then the original VP op
@@ -873,7 +871,7 @@ bool VectorCombine::scalarizeVPIntrinsic(Instruction &I) {
   else
     SafeToSpeculate = isSafeToSpeculativelyExecuteWithOpcode(
         *FunctionalOpcode, &VPI, nullptr, &AC, &DT);
-  if (!SafeToSpeculate && !isKnownNonZero(EVL, DL, 0, &AC, &VPI, &DT))
+  if (!SafeToSpeculate && !isKnownNonZero(EVL, *DL, 0, &AC, &VPI, &DT))
     return false;
 
   Value *ScalarVal =
@@ -1252,12 +1250,11 @@ bool VectorCombine::foldSingleElementStore(Instruction &I) {
 
   if (auto *Load = dyn_cast<LoadInst>(Source)) {
     auto VecTy = cast<VectorType>(SI->getValueOperand()->getType());
-    const DataLayout &DL = I.getModule()->getDataLayout();
     Value *SrcAddr = Load->getPointerOperand()->stripPointerCasts();
     // Don't optimize for atomic/volatile load or store. Ensure memory is not
     // modified between, vector type matches store size, and index is inbounds.
     if (!Load->isSimple() || Load->getParent() != SI->getParent() ||
-        !DL.typeSizeEqualsStoreSize(Load->getType()->getScalarType()) ||
+        !DL->typeSizeEqualsStoreSize(Load->getType()->getScalarType()) ||
         SrcAddr != SI->getPointerOperand()->stripPointerCasts())
       return false;
 
@@ -1276,7 +1273,7 @@ bool VectorCombine::foldSingleElementStore(Instruction &I) {
     NSI->copyMetadata(*SI);
     Align ScalarOpAlignment = computeAlignmentAfterScalarization(
         std::max(SI->getAlign(), Load->getAlign()), NewElement->getType(), Idx,
-        DL);
+        *DL);
     NSI->setAlignment(ScalarOpAlignment);
     replaceValue(I, *NSI);
     eraseInstruction(I);
@@ -1294,8 +1291,7 @@ bool VectorCombine::scalarizeLoadExtract(Instruction &I) {
 
   auto *VecTy = cast<VectorType>(I.getType());
   auto *LI = cast<LoadInst>(&I);
-  const DataLayout &DL = I.getModule()->getDataLayout();
-  if (LI->isVolatile() || !DL.typeSizeEqualsStoreSize(VecTy->getScalarType()))
+  if (LI->isVolatile() || !DL->typeSizeEqualsStoreSize(VecTy->getScalarType()))
     return false;
 
   InstructionCost OriginalCost =
@@ -1373,7 +1369,7 @@ bool VectorCombine::scalarizeLoadExtract(Instruction &I) {
         VecTy->getElementType(), GEP, EI->getName() + ".scalar"));
 
     Align ScalarOpAlignment = computeAlignmentAfterScalarization(
-        LI->getAlign(), VecTy->getElementType(), Idx, DL);
+        LI->getAlign(), VecTy->getElementType(), Idx, *DL);
     NewLoad->setAlignment(ScalarOpAlignment);
 
     replaceValue(*EI, *NewLoad);
@@ -2048,7 +2044,8 @@ PreservedAnalyses VectorCombinePass::run(Function &F,
   TargetTransformInfo &TTI = FAM.getResult<TargetIRAnalysis>(F);
   DominatorTree &DT = FAM.getResult<DominatorTreeAnalysis>(F);
   AAResults &AA = FAM.getResult<AAManager>(F);
-  VectorCombine Combiner(F, TTI, DT, AA, AC, TryEarlyFoldsOnly);
+  const DataLayout *DL = &F.getParent()->getDataLayout();
+  VectorCombine Combiner(F, TTI, DT, AA, AC, DL, TryEarlyFoldsOnly);
   if (!Combiner.run())
     return PreservedAnalyses::all();
   PreservedAnalyses PA;
