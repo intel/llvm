@@ -82,13 +82,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ed1f8bf618c88eaabea6bde0f6c06fc265f3b49f
-  # Merge: ca5c3421 69c43b45
+  # commit c98fdbcf1f43ce132fbae75336bda984e4ce2e78
+  # Merge: 5f4dd113 9b3cf9d3
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Mar 19 21:00:20 2024 +0000
-  #     Merge pull request #1326 from hdelan/refactor-guess-local-worksize
-  #     [CUDA][HIP] Fix bug in guess local worksize funcs and improve local worksize guessing in HIP adapter
-  set(UNIFIED_RUNTIME_TAG ed1f8bf618c88eaabea6bde0f6c06fc265f3b49f)
+  # Date:   Thu Mar 21 10:51:45 2024 +0000
+  #     Merge pull request #1439 from nrspruit/fix_device_native_proxy_buffer
+  #     [L0] Fix Native Host memory usage on device with copy back sync
+  set(UNIFIED_RUNTIME_TAG c98fdbcf1f43ce132fbae75336bda984e4ce2e78)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

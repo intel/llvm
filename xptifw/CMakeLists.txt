@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.8)
 
-set(XPTI_VERSION 0.4.1)
+set(XPTI_VERSION 0.6.0)
 
 project (xptifw VERSION "${XPTI_VERSION}" LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
