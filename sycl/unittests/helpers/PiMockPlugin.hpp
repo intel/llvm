@@ -482,7 +482,7 @@ inline pi_result mock_piextMemMipmapFree(pi_context context, pi_device device,
 
 inline pi_result mock_piextMemUnsampledImageCreate(
     pi_context context, pi_device device, pi_image_mem_handle img_mem,
-    pi_image_format *image_format, pi_image_desc *desc, pi_mem *ret_mem,
+    pi_image_format *image_format, pi_image_desc *desc,
     pi_image_handle *ret_handle) {
   return PI_SUCCESS;
 }
@@ -552,7 +552,7 @@ inline pi_result mock_piextMemSampledImageCreateInterop(
 inline pi_result mock_piextMemSampledImageCreate(
     pi_context context, pi_device device, pi_image_mem_handle img_mem,
     pi_image_format *image_format, pi_image_desc *desc, pi_sampler sampler,
-    pi_mem *ret_mem, pi_image_handle *ret_handle) {
+    pi_image_handle *ret_handle) {
   return PI_SUCCESS;
 }
 

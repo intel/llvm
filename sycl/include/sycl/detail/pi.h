@@ -2758,7 +2758,7 @@ __SYCL_EXPORT pi_result piextMemMipmapFree(pi_context context, pi_device device,
 /// \param ret_handle is the returning memory handle to newly allocated memory
 __SYCL_EXPORT pi_result piextMemUnsampledImageCreate(
     pi_context context, pi_device device, pi_image_mem_handle img_mem,
-    pi_image_format *image_format, pi_image_desc *image_desc, pi_mem *ret_mem,
+    pi_image_format *image_format, pi_image_desc *image_desc,
     pi_image_handle *ret_handle);
 
 /// API to create sampled bindless image handles.
@@ -2774,7 +2774,7 @@ __SYCL_EXPORT pi_result piextMemUnsampledImageCreate(
 __SYCL_EXPORT pi_result piextMemSampledImageCreate(
     pi_context context, pi_device device, pi_image_mem_handle img_mem,
     pi_image_format *image_format, pi_image_desc *image_desc,
-    pi_sampler sampler, pi_mem *ret_mem, pi_image_handle *ret_handle);
+    pi_sampler sampler, pi_image_handle *ret_handle);
 
 /// API to create samplers for bindless images.
 ///
