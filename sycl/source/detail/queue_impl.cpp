@@ -85,7 +85,7 @@ queue_impl::get_backend_info<info::device::backend_version>() const {
   if (getContextImplPtr()->getBackend() != backend::ext_oneapi_level_zero) {
     throw sycl::exception(errc::backend_mismatch,
                           "the info::device::backend_version info descriptor "
-                          "can only be queried with a level0 backend");
+                          "can only be queried with a Level Zero backend");
   }
   return "";
   // Currently The Level Zero backend does not define the value of this

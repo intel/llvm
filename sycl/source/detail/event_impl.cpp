@@ -410,6 +410,9 @@ event_impl::get_info<info::event::command_execution_status>() {
 template <>
 typename info::platform::version::return_type
 event_impl::get_backend_info<info::platform::version>() const {
+  if (!MIsContextInitialized) {
+    return "Context not initialized, no backend info available";
+  }
   if (MContext->getBackend() != backend::opencl) {
     throw sycl::exception(errc::backend_mismatch,
                           "the info::platform::version info descriptor can "
@@ -431,6 +434,9 @@ event_impl::get_backend_info<info::platform::version>() const {
 template <>
 typename info::device::version::return_type
 event_impl::get_backend_info<info::device::version>() const {
+  if (!MIsContextInitialized) {
+    return "Context not initialized, no backend info available";
+  }
   if (MContext->getBackend() != backend::opencl) {
     throw sycl::exception(errc::backend_mismatch,
                           "the info::device::version info descriptor can only "
@@ -450,10 +456,13 @@ event_impl::get_backend_info<info::device::version>() const {
 template <>
 typename info::device::backend_version::return_type
 event_impl::get_backend_info<info::device::backend_version>() const {
+  if (!MIsContextInitialized) {
+    return "Context not initialized, no backend info available";
+  }
   if (MContext->getBackend() != backend::ext_oneapi_level_zero) {
     throw sycl::exception(errc::backend_mismatch,
                           "the info::device::backend_version info descriptor "
-                          "can only be queried with a level0 backend");
+                          "can only be queried with a Level Zero backend");
   }
   return "";
   // Currently The Level Zero backend does not define the value of this
