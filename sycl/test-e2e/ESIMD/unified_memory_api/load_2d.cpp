@@ -11,6 +11,7 @@
 
 // The test verifies esimd::load_2d() function accepting USM pointer
 // and optional compile-time esimd::properties.
+#include "../esimd_test_utils.hpp"
 #include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
@@ -23,9 +24,7 @@ template <typename T, int BlockWidth, unsigned SurfaceWidth,
           typename LoadPropertiesT>
 bool test(LoadPropertiesT LoadProperties) {
   sycl::queue Q(sycl::gpu_selector_v);
-  auto dev = Q.get_device();
-  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
-            << "\n";
+  esimd_test::printTestLabel(Q);
 
   constexpr int BlockHeight = 1;
   constexpr int NBlocks = 1;

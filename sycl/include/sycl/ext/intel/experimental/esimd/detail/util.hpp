@@ -18,11 +18,6 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::intel::experimental::esimd::detail {
 
-template <unsigned int N, unsigned int M>
-constexpr unsigned int roundUpNextMultiple() {
-  return __ESIMD_DNS::roundUpNextMultiple<N, M>();
-}
-
 /// Compile-time checks if first template parameter is equal for any other
 template <typename...> struct is_one_of {
   static constexpr bool value = false;

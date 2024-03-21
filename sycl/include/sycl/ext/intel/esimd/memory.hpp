@@ -9410,10 +9410,10 @@ prefetch(AccessorT acc, PropertyListT props = {}) {
 
 /// template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
 ///          bool Transposed = false, bool Transformed = false,
-///          typename PropertyListT = empty_properties_t,
 ///          int N = detail::get_lsc_block_2d_data_size<
 ///              T, NBlocks, BlockHeight, BlockWidth, Transposed,
-///              Transformed>()>
+///              Transformed>(),
+///          typename PropertyListT = empty_properties_t>
 /// simd<T, N>
 /// load_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
 ///             unsigned SurfacePitch, int X, int Y,
@@ -9450,9 +9450,9 @@ prefetch(AccessorT acc, PropertyListT props = {}) {
 ///
 template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
           bool Transposed = false, bool Transformed = false,
-          typename PropertyListT = oneapi::experimental::empty_properties_t,
           int N = detail::get_lsc_block_2d_data_size<
-              T, NBlocks, BlockHeight, BlockWidth, Transposed, Transformed>()>
+              T, NBlocks, BlockHeight, BlockWidth, Transposed, Transformed>(),
+          typename PropertyListT = oneapi::experimental::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
 load_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
@@ -9463,9 +9463,9 @@ load_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
 }
 
 /// template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
-///          typename PropertyListT = empty_properties_t,
 ///          int N = detail::get_lsc_block_2d_data_size<
-///              T, NBlocks, BlockHeight, BlockWidth, false, false>()>
+///              T, NBlocks, BlockHeight, BlockWidth, false, false>(),
+///          typename PropertyListT = empty_properties_t>
 /// void
 /// prefetch_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
 ///            unsigned SurfacePitch, int X, int Y, PropertyListT props = {});
@@ -9488,14 +9488,14 @@ load_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
 /// in number of elements.
 /// @param Y is zero based Y-coordinate of the left upper rectangle corner
 /// in rows.
-/// @param props The optional compile-time properties. Only cache hint
+/// @param props The compile-time properties. Only cache hint
 /// properties are used.
 ///
 template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
-          typename PropertyListT = oneapi::experimental::empty_properties_t,
           int N = detail::get_lsc_block_2d_data_size<
               T, NBlocks, BlockHeight, BlockWidth, false /*Transposed*/,
-              false /*Transformed*/>()>
+              false /*Transformed*/>(),
+          typename PropertyListT = oneapi::experimental::empty_properties_t>
 __ESIMD_API std::enable_if_t<
     ext::oneapi::experimental::is_property_list_v<PropertyListT>>
 prefetch_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,

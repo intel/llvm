@@ -2075,7 +2075,7 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
                          : BlockHeight);
   constexpr int GRFBlockSize = GRFRowPitch * GRFColSize;
   constexpr int GRFBlockPitch =
-      detail::roundUpNextMultiple<64 / sizeof(T), GRFBlockSize>();
+      __ESIMD_DNS::roundUpNextMultiple<64 / sizeof(T), GRFBlockSize>();
   constexpr int ActualN = NBlocks * GRFBlockPitch;
 
   constexpr int DstBlockElements = GRFColSize * GRFRowSize;
@@ -2083,7 +2083,7 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
 
   constexpr uint32_t GrfBytes = 64;
   constexpr uint32_t DstBlockSize =
-      detail::roundUpNextMultiple<DstElements * sizeof(T), GrfBytes>();
+      __ESIMD_DNS::roundUpNextMultiple<DstElements * sizeof(T), GrfBytes>();
   constexpr uint32_t DstLength =
       (DstBlockSize / GrfBytes) > 31 ? 31 : (DstBlockSize / GrfBytes);
   constexpr uint32_t DstLengthMask = DstLength << 20;
