@@ -319,8 +319,12 @@ static void flushCrossQueueDeps(const std::vector<EventImplPtr> &EventImpls,
 class DispatchHostTask {
   ExecCGCommand *MThisCmd;
   std::vector<interop_handle::ReqToMem> MReqToMem;
+  EventImplPtr MEvent; // If we want to add native events within the host task
+                       // using the interop_handle then we need to have a ptr
+                       // to the event impl of the sycl event returned at
+                       // CGSubmit
 
-  pi_result waitForEvents() const {
+  pi_result waitForNativeDepEvents() const {
     std::map<const PluginPtr, std::vector<EventImplPtr>>
         RequiredEventsPerPlugin;
 
@@ -338,8 +342,9 @@ class DispatchHostTask {
       std::vector<sycl::detail::pi::PiEvent> RawEvents =
           MThisCmd->getPiEvents(PluginWithEvents.second);
       try {
-        PluginWithEvents.first->call<PiApiKind::piEventsWait>(RawEvents.size(),
-                                                              RawEvents.data());
+        if (RawEvents.size())
+          PluginWithEvents.first->call<PiApiKind::piEventsWait>(
+              RawEvents.size(), RawEvents.data());
       } catch (const sycl::exception &E) {
         CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
         HostTask.MQueue->reportAsyncException(std::current_exception());
@@ -355,6 +360,8 @@ class DispatchHostTask {
     // Host events can't throw exceptions so don't try to catch it.
     for (const EventImplPtr &Event : MThisCmd->MPreparedHostDepsEvents) {
       Event->waitInternal();
+      if (Event->hasHostTaskNativeEvents())
+        Event->waitForHostTaskNativeEvents();
     }
 
     return PI_SUCCESS;
@@ -362,8 +369,9 @@ class DispatchHostTask {
 
 public:
   DispatchHostTask(ExecCGCommand *ThisCmd,
-                   std::vector<interop_handle::ReqToMem> ReqToMem)
-      : MThisCmd{ThisCmd}, MReqToMem(std::move(ReqToMem)) {}
+                   std::vector<interop_handle::ReqToMem> ReqToMem,
+                   EventImplPtr MEvent)
+      : MThisCmd{ThisCmd}, MReqToMem(std::move(ReqToMem)), MEvent(MEvent) {}
 
   void operator()() const {
     assert(MThisCmd->getCG().getType() == CG::CGTYPE::CodeplayHostTask);
@@ -382,16 +390,18 @@ public:
     }
 #endif
 
-    pi_result WaitResult = waitForEvents();
-    if (WaitResult != PI_SUCCESS) {
-      std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
-          std::string("Couldn't wait for host-task's dependencies"),
-          WaitResult));
-      HostTask.MQueue->reportAsyncException(EPtr);
-      // reset host-task's lambda and quit
-      HostTask.MHostTask.reset();
-      Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
-      return;
+    if (!HostTask.MHostTask->isManualInteropSync()) {
+      pi_result WaitResult = waitForNativeDepEvents();
+      if (WaitResult != PI_SUCCESS) {
+        std::exception_ptr EPtr = std::make_exception_ptr(sycl::runtime_error(
+            std::string("Couldn't wait for host-task's dependencies"),
+            WaitResult));
+        HostTask.MQueue->reportAsyncException(EPtr);
+        // reset host-task's lambda and quit
+        HostTask.MHostTask.reset();
+        Scheduler::getInstance().NotifyHostTaskCompletion(MThisCmd);
+        return;
+      }
     }
 
     try {
@@ -399,7 +409,7 @@ public:
       if (HostTask.MHostTask->isInteropTask()) {
         interop_handle IH{MReqToMem, HostTask.MQueue,
                           HostTask.MQueue->getDeviceImplPtr(),
-                          HostTask.MQueue->getContextImplPtr()};
+                          HostTask.MQueue->getContextImplPtr(), MEvent};
 
         HostTask.MHostTask->call(MThisCmd->MEvent->getHostProfilingInfo(), IH);
       } else
@@ -1051,7 +1061,7 @@ void AllocaCommand::emitInstrumentationData() {
 
 pi_int32 AllocaCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getAllPreparedDepsEvents();
 
   sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
 
@@ -1148,7 +1158,7 @@ void *AllocaSubBufCommand::getMemAllocation() const {
 
 pi_int32 AllocaSubBufCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getAllPreparedDepsEvents();
   sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
 
   MMemAllocation = MemoryManager::allocateMemSubBuffer(
@@ -1217,7 +1227,7 @@ void ReleaseCommand::emitInstrumentationData() {
 
 pi_int32 ReleaseCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getAllPreparedDepsEvents();
   std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
   bool SkipRelease = false;
 
@@ -1340,7 +1350,7 @@ void MapMemObject::emitInstrumentationData() {
 
 pi_int32 MapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getAllPreparedDepsEvents();
   std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
@@ -1426,7 +1436,7 @@ bool UnMapMemObject::producesPiEvent() const {
 
 pi_int32 UnMapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getAllPreparedDepsEvents();
   std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
@@ -1536,7 +1546,7 @@ bool MemCpyCommand::producesPiEvent() const {
 
 pi_int32 MemCpyCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getAllPreparedDepsEvents();
 
   sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
 
@@ -1599,7 +1609,7 @@ void ExecCGCommand::clearAuxiliaryResources() {
 
 pi_int32 UpdateHostRequirementCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getAllPreparedDepsEvents();
   sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
   Command::waitForEvents(MQueue, EventImpls, Event);
 
@@ -1693,7 +1703,7 @@ const ContextImplPtr &MemCpyCommandHost::getWorkerContext() const {
 pi_int32 MemCpyCommandHost::enqueueImp() {
   const QueueImplPtr &Queue = getWorkerQueue();
   waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getAllPreparedDepsEvents();
   std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
 
   sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
@@ -1725,7 +1735,8 @@ EmptyCommand::EmptyCommand(QueueImplPtr Queue)
 
 pi_int32 EmptyCommand::enqueueImp() {
   waitForPreparedHostEvents();
-  waitForEvents(MQueue, MPreparedDepsEvents, MEvent->getHandleRef());
+  auto DepEvents = getAllPreparedDepsEvents();
+  waitForEvents(MQueue, DepEvents, MEvent->getHandleRef());
 
   return PI_SUCCESS;
 }
@@ -2735,7 +2746,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
   // Any device dependencies need to be waited on here since subsequent
   // submissions of the command buffer itself will not receive dependencies on
   // them, e.g. initial copies from host to device
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getAllPreparedDepsEvents();
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
   std::vector<sycl::detail::pi::PiEvent> RawEvents = getPiEvents(EventImpls);
   if (!RawEvents.empty()) {
@@ -2887,7 +2898,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
 pi_int32 ExecCGCommand::enqueueImpQueue() {
   if (getCG().getType() != CG::CGTYPE::CodeplayHostTask)
     waitForPreparedHostEvents();
-  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  std::vector<EventImplPtr> EventImpls = getAllPreparedDepsEvents();
   auto RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
@@ -3144,7 +3155,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     copySubmissionCodeLocation();
 
     MQueue->getThreadPool().submit<DispatchHostTask>(
-        DispatchHostTask(this, std::move(ReqToMem)));
+        DispatchHostTask(this, std::move(ReqToMem), MEvent));
 
     MShouldCompleteEventIfPossible = false;
 

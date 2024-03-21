@@ -57,7 +57,12 @@ bool Scheduler::GraphProcessor::handleBlockingCmd(Command *Cmd,
     std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
     if (Cmd->isBlocking()) {
       const EventImplPtr &RootCmdEvent = RootCommand->getEvent();
-      Cmd->addBlockedUserUnique(RootCmdEvent);
+      // Host tasks don't need to be added to wait list. When host tasks are
+      // enqueued, a new thread is created which waits on dep events via
+      // condition variables, so they don't need to be enqueued by other
+      // additional means
+      if (!RootCommand->isHostTask())
+        Cmd->addBlockedUserUnique(RootCmdEvent);
       EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);
 
       // Blocked command will be enqueued asynchronously from submission so we
