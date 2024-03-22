@@ -36,6 +36,19 @@ convertArithOverflowFlagsToLLVM(arith::IntegerOverflowFlags arithFlags);
 LLVM::IntegerOverflowFlagsAttr
 convertArithOverflowAttrToLLVM(arith::IntegerOverflowFlagsAttr flagsAttr);
 
+/// Maps arithmetic rounding enum values to LLVM enum values.
+LLVM::RoundingMode
+convertArithRoundingModeToLLVM(arith::RoundingMode roundingMode);
+
+/// Creates an LLVM rounding mode attribute from a given arithmetic rounding
+/// mode attribute.
+LLVM::RoundingModeAttr
+convertArithRoundingModeAttrToLLVM(arith::RoundingModeAttr roundingModeAttr);
+
+/// Return the default LLVM exception behavior attribute.
+LLVM::ExceptionBehaviorAttr
+getDefaultExceptionBehaviorAttr(MLIRContext *context);
+
 // Attribute converter that populates a NamedAttrList by removing the fastmath
 // attribute from the source operation attributes, and replacing it with an
 // equivalent LLVM fastmath attribute.
@@ -89,6 +102,39 @@ public:
 private:
   NamedAttrList convertedAttr;
 };
+
+template <typename SourceOp, typename TargetOp,
+          std::enable_if_t<TargetOp::template hasTrait<
+                               LLVM::ExceptionBehaviorOpInterface::Trait>(),
+                           bool> = true>
+class AttrConverterConstrainedFPToLLVM {
+public:
+  AttrConverterConstrainedFPToLLVM(
+      SourceOp srcOp) {
+    // Copy the source attributes.
+    convertedAttr = NamedAttrList{srcOp->getAttrs()};
+
+    if constexpr (TargetOp::template hasTrait<
+                      LLVM::RoundingModeOpInterface::Trait>()) {
+      // Get the name of the rounding mode attribute.
+      StringRef arithAttrName = srcOp.getRoundingModeAttrName();
+      // Remove the source attribute.
+      auto arithAttr =
+          cast<arith::RoundingModeAttr>(convertedAttr.erase(arithAttrName));
+      // Set the target attribute.
+      convertedAttr.set(TargetOp::getRoundingModeAttrName(),
+                        convertArithRoundingModeAttrToLLVM(arithAttr));
+    }
+    convertedAttr.set(TargetOp::getExceptionBehaviorAttrName(),
+                      getDefaultExceptionBehaviorAttr(srcOp->getContext()));
+  }
+
+  ArrayRef<NamedAttribute> getAttrs() const { return convertedAttr.getAttrs(); }
+
+private:
+  NamedAttrList convertedAttr;
+};
+
 } // namespace arith
 } // namespace mlir
 

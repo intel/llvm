@@ -55,3 +55,33 @@ LLVM::IntegerOverflowFlagsAttr mlir::arith::convertArithOverflowAttrToLLVM(
   return LLVM::IntegerOverflowFlagsAttr::get(
       flagsAttr.getContext(), convertArithOverflowFlagsToLLVM(arithFlags));
 }
+
+LLVM::RoundingMode
+mlir::arith::convertArithRoundingModeToLLVM(arith::RoundingMode roundingMode) {
+  switch (roundingMode) {
+  case arith::RoundingMode::tonearesteven:
+    return LLVM::RoundingMode::NearestTiesToEven;
+  case arith::RoundingMode::downward:
+    return LLVM::RoundingMode::TowardNegative;
+  case arith::RoundingMode::upward:
+    return LLVM::RoundingMode::TowardPositive;
+  case arith::RoundingMode::towardzero:
+    return LLVM::RoundingMode::TowardZero;
+  case arith::RoundingMode::tonearestaway:
+    return LLVM::RoundingMode::NearestTiesToAway;
+  }
+}
+
+LLVM::RoundingModeAttr mlir::arith::convertArithRoundingModeAttrToLLVM(
+    arith::RoundingModeAttr roundingModeAttr) {
+  arith::RoundingMode roundingMode = roundingModeAttr.getValue();
+  return LLVM::RoundingModeAttr::get(
+      roundingModeAttr.getContext(),
+      convertArithRoundingModeToLLVM(roundingMode));
+}
+
+LLVM::ExceptionBehaviorAttr
+mlir::arith::getDefaultExceptionBehaviorAttr(MLIRContext *context) {
+  return LLVM::ExceptionBehaviorAttr::get(context,
+                                          LLVM::ExceptionBehavior::Ignore);
+}
