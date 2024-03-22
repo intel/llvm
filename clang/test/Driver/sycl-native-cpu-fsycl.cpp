@@ -3,6 +3,11 @@
 //RUN: %clang -fsycl -fsycl-targets=native_cpu -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | FileCheck %s --check-prefix=CHECK_INVO
 //RUN: %clang -fsycl -fsycl-targets=native_cpu -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -target aarch64-unknown-linux-gnu -ccc-print-phases %s 2>&1 | FileCheck %s --check-prefix=CHECK_ACTIONS-AARCH64
 
+//Link together multiple TUs.
+//RUN: touch %t_1.o 
+//RUN: touch %t_2.o 
+//RUN: %clang -fsycl -fsycl-targets=native_cpu -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc %t_1.o %t_2.o -ccc-print-bindings 2>&1 | FileCheck %s --check-prefix=CHECK_BINDINGS_MULTI_TU
+
 
 //CHECK_ACTIONS:                     +- 0: input, "{{.*}}sycl-native-cpu-fsycl.cpp", c++, (host-sycl)
 //CHECK_ACTIONS:                  +- 1: append-footer, {0}, c++, (host-sycl)
@@ -45,3 +50,16 @@
 //CHECK_ACTIONS-AARCH64:            +- 6: offload, "host-sycl (aarch64-unknown-linux-gnu)" {2}, "device-sycl (aarch64-unknown-linux-gnu)" {5}, c++-cpp-output
 //CHECK_ACTIONS-AARCH64:|- 15: offload, "device-sycl (aarch64-unknown-linux-gnu)" {14}, object
 //CHECK_ACTIONS-AARCH64:|- 18: offload, "device-sycl (aarch64-unknown-linux-gnu)" {17}, object
+
+// checks that bindings are correct when linking together multiple TUs on native cpu
+//CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "offload bundler", inputs: ["{{.*}}.o"], outputs: ["[[FILE1HOST:.*]].o", "[[FILE1DEV:.*]].o"] 
+//CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "offload bundler", inputs: ["{{.*}}.o"], outputs: ["[[FILE2HOST:.*]].o", "[[FILE2DEV:.*]].o"] 
+//CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "Convert SPIR-V to LLVM-IR if needed", inputs: ["[[FILE1DEV]].o"], output: "[[FILE1SPV:.*]].bc"
+//CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "Convert SPIR-V to LLVM-IR if needed", inputs: ["[[FILE2DEV]].o"], output: "[[FILE2SPV:.*]].bc"
+//CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "SYCL::Linker", inputs: ["[[FILE1SPV]].bc", "[[FILE2SPV]].bc"], output: "[[LINK1:.*]].bc"
+//CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "SYCL::Linker", inputs: ["[[LINK1]].bc", "{{.*}}.bc"], output: "[[LINK2:.*]].bc"
+//CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "clang", inputs: ["[[LINK2]].bc"], output: "[[KERNELO:.*]].o"
+//CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "SYCL post link", inputs: ["[[LINK2]].bc"], output: "[[POSTL:.*]].table"
+//CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "offload wrapper", inputs: ["[[POSTL]].table"], output: "[[WRAP:.*]].o"
+//CHECK_BINDINGS_MULTI_TU:# "{{.*}}" - "{{.*}}::Linker", inputs: ["[[FILE1HOST]].o", "[[FILE2HOST]].o", "[[KERNELO]].o", "[[WRAP]].o"], output: "{{.*}}"
+

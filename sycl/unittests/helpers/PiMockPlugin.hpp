@@ -280,6 +280,12 @@ mock_piextGetDeviceFunctionPointer(pi_device device, pi_program program,
   return PI_SUCCESS;
 }
 
+inline pi_result mock_piextGetGlobalVariablePointer(
+    pi_device device, pi_program program, const char *global_variable_name,
+    size_t *global_variable_size, void **global_variable_size_ret) {
+  return PI_SUCCESS;
+}
+
 //
 // Context
 //

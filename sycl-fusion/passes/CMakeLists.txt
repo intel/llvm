@@ -14,6 +14,15 @@ add_llvm_library(SYCLKernelFusion MODULE
   intrinsics_gen
 )
 
+target_compile_options(SYCLKernelFusion PRIVATE ${SYCL_FUSION_WARNING_FLAGS})
+
+# Mark LLVM headers as system headers to ignore warnigns in them. This
+# classification remains intact even if the same path is added as a normal
+# include path in GCC and Clang.
+target_include_directories(SYCLKernelFusion
+  SYSTEM PRIVATE
+  ${LLVM_MAIN_INCLUDE_DIR}
+)
 target_include_directories(SYCLKernelFusion
   PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
@@ -57,6 +66,15 @@ add_llvm_library(SYCLKernelFusionPasses
   TargetParser
 )
 
+target_compile_options(SYCLKernelFusionPasses PRIVATE ${SYCL_FUSION_WARNING_FLAGS})
+
+# Mark LLVM headers as system headers to ignore warnigns in them. This
+# classification remains intact even if the same path is added as a normal
+# include path in GCC and Clang.
+target_include_directories(SYCLKernelFusionPasses
+  SYSTEM PRIVATE
+  ${LLVM_MAIN_INCLUDE_DIR}
+)
 target_include_directories(SYCLKernelFusionPasses
   PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>

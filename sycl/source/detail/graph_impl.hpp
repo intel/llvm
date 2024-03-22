@@ -154,16 +154,51 @@ public:
         MCGType(Other.MCGType), MNodeType(Other.MNodeType),
         MCommandGroup(Other.getCGCopy()), MSubGraphImpl(Other.MSubGraphImpl) {}
 
-  /// Checks if this node has a given requirement.
-  /// @param Requirement Requirement to lookup.
-  /// @return True if \p Requirement is present in node, false otherwise.
-  bool hasRequirement(sycl::detail::AccessorImplHost *IncomingReq) {
+  /// Copy-assignment operator. This will perform a deep-copy of the
+  /// command group object associated with this node.
+  node_impl &operator=(node_impl &Other) {
+    if (this != &Other) {
+      MSuccessors = Other.MSuccessors;
+      MPredecessors = Other.MPredecessors;
+      MCGType = Other.MCGType;
+      MNodeType = Other.MNodeType;
+      MCommandGroup = Other.getCGCopy();
+      MSubGraphImpl = Other.MSubGraphImpl;
+    }
+    return *this;
+  }
+  /// Checks if this node should be a dependency of another node based on
+  /// accessor requirements. This is calculated using access modes if a
+  /// requirement to the same buffer is found inside this node.
+  /// @param IncomingReq Incoming requirement.
+  /// @return True if a dependency is needed, false if not.
+  bool hasRequirementDependency(sycl::detail::AccessorImplHost *IncomingReq) {
+    access_mode InMode = IncomingReq->MAccessMode;
+    switch (InMode) {
+    case access_mode::read:
+    case access_mode::read_write:
+    case access_mode::atomic:
+      break;
+    // These access modes don't care about existing buffer data, so we don't
+    // need a dependency.
+    case access_mode::write:
+    case access_mode::discard_read_write:
+    case access_mode::discard_write:
+      return false;
+    }
+
     for (sycl::detail::AccessorImplHost *CurrentReq :
          MCommandGroup->getRequirements()) {
       if (IncomingReq->MSYCLMemObj == CurrentReq->MSYCLMemObj) {
-        return true;
+        access_mode CurrentMode = CurrentReq->MAccessMode;
+        // Since we have an incoming read requirement, we only care
+        // about requirements on this node if they are write
+        if (CurrentMode != access_mode::read) {
+          return true;
+        }
       }
     }
+    // No dependency necessary
     return false;
   }
 
@@ -669,7 +704,7 @@ public:
   void addEventForNode(std::shared_ptr<graph_impl> GraphImpl,
                        std::shared_ptr<sycl::detail::event_impl> EventImpl,
                        std::shared_ptr<node_impl> NodeImpl) {
-    if (!EventImpl->getCommandGraph())
+    if (!(EventImpl->getCommandGraph()))
       EventImpl->setCommandGraph(GraphImpl);
     MEventsMap[EventImpl] = NodeImpl;
   }

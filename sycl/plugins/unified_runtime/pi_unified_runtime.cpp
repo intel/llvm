@@ -763,6 +763,15 @@ __SYCL_EXPORT pi_result piextGetDeviceFunctionPointer(
                                               FunctionPointerRet);
 }
 
+__SYCL_EXPORT pi_result piextGetGlobalVariablePointer(
+    pi_device Device, pi_program Program, const char *GlobalVariableName,
+    size_t *GlobalVariableSize, void **GlobalVariablePointerRet) {
+
+  return pi2ur::piextGetGlobalVariablePointer(
+      Device, Program, GlobalVariableName, GlobalVariableSize,
+      GlobalVariablePointerRet);
+}
+
 /// Hint to migrate memory to the device
 ///
 /// @param Queue is the queue to submit to
@@ -1345,7 +1354,11 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   HANDLE_ERRORS(urLoaderConfigCreate(&LoaderConfig));
 
   if (PluginInit->SanitizeType == _PI_SANITIZE_TYPE_ADDRESS) {
-    HANDLE_ERRORS(urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN"));
+    auto Result = urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN");
+    if (Result != UR_RESULT_SUCCESS) {
+      urLoaderConfigRelease(LoaderConfig);
+      return ur2piResult(Result);
+    }
   }
 
   HANDLE_ERRORS(urLoaderInit(0, LoaderConfig));
@@ -1424,6 +1437,7 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piProgramCompile)
   _PI_API(piProgramGetBuildInfo)
   _PI_API(piextGetDeviceFunctionPointer)
+  _PI_API(piextGetGlobalVariablePointer)
 
   _PI_API(piMemBufferCreate)
   _PI_API(piMemGetInfo)
