@@ -148,8 +148,6 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
     exit(-1);
   }
 
-  using bindless_helpers::equal_vec;
-
   printString("Validating\n");
   // Expected is sum of first two levels in the mipmap
   // Each subsequent level repeats in each dimension
@@ -171,8 +169,8 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
                              bindless_helpers::init_vector<DType, NChannels>(
                                  x + (width / 2) * (y + (height / 2) * z));
 
-          if (!equal_vec<DType, NChannels>(out[i + width * (j + height * k)],
-                                           expected)) {
+          if (!bindless_helpers::equal_vec<DType, NChannels>(
+                  out[i + width * (j + height * k)], expected)) {
             mismatch = true;
             validated = false;
           }

@@ -144,15 +144,13 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
     exit(-1);
   }
 
-  using bindless_helpers::equal_vec;
-
   printString("Validating\n");
   bool validated = true;
   for (int i = 0; i < globalSize.size(); i++) {
     bool mismatch = false;
     VecType expected = bindless_helpers::init_vector<DType, NChannels>(i) *
                        static_cast<DType>(10.1f);
-    if (!equal_vec<DType, NChannels>(out[i], expected)) {
+    if (!bindless_helpers::equal_vec<DType, NChannels>(out[i], expected)) {
       mismatch = true;
       validated = false;
     }
