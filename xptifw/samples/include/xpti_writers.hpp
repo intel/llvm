@@ -318,7 +318,7 @@ public:
     }
     if (root.m_children.size())
       root.m_per_empty_adj =
-          (curr_duration - recorded_time) / (parent_duration)*100.0;
+          (curr_duration - recorded_time) / (parent_duration) * 100.0;
     else
       root.m_per_empty_adj = 0;
   }

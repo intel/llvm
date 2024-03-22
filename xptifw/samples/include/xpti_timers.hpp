@@ -142,7 +142,7 @@ public:
   // https://learn.microsoft.com/en-us/windows/win32/sysinfo/acquiring-high-resolution-time-stamps
   inline double microseconds() { (double)(clock()) * 1000000 / m_frequency; }
   inline double clock_to_microsecs(uint64_t clocks) {
-    return ((double)(clocks)*1000000.0 / m_frequency);
+    return ((double)(clocks) * 1000000.0 / m_frequency);
   }
 #if (defined(__x86_64_) || defined(__i386__) || defined(_i386))
   uint64_t clockticks() { return __rdtsc(); }
