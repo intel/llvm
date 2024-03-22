@@ -106,7 +106,7 @@ Accepts an unsigned integer and converts to image type.
 Unsigned integer is either a 64 or 32 bit unsigned integer.
 Depending on whether *OpMemoryModel* is set to *Physical32* or *Physical64*.
 
-Return type must be an `OpTypeImage`.
+_Result type_ must be an `OpTypeImage`.
 
 | 4 | 6529 | '<id> Result Type' | 'Result <id>' | '<id> Operand'
 |======
@@ -120,7 +120,7 @@ Accepts an unsigned integer and converts to sampler type.
 Unsigned integer is either a 64 or 32 bit unsigned integer.
 Depending on whether *OpMemoryModel* is set to *Physical32* or *Physical64*.
 
-Return type must be an `OpTypeSampler`.
+_Result type_ must be an `OpTypeSampler`.
 
 | 4 | 6530 | '<id> Result Type' | 'Result <id>' | '<id> Operand'
 |======
