@@ -620,7 +620,7 @@ gather(const Tx *p, Toffset offset, simd_mask<N> mask = 1) {
 /// 	PropertyListT props = {});                         // (usm-sc-2)
 
 /// The next two functions are similar to usm-sc-{1,2} with the 'byte_offsets'
-/// parameter represerented as 'simd_view'.
+/// parameter represented as 'simd_view'.
 
 /// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
 /// 	  typename PropertyListT = empty_properties_t>
@@ -4385,15 +4385,15 @@ __ESIMD_API void slm_init(uint32_t size) { __esimd_slm_init(size); }
 /// The next 3 functions are variations of the first 3 above (slm-ga-1,2,3)
 /// and were added only to support simd_view instead of simd for byte_offsets
 /// and/or pass_thru operands.
-/// template <typename T, int N, int VS = 1, typename OffsetObjT,
-///           typename OffsetRegionT, typename PropertyListT = empty_props_t>
-/// simd <T, N> slm_gather(simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
-///             simd_mask<N / VS> mask, simd<T, N> pass_thru,
-///             PropertyListT props = {});                         // (slm-ga-7)
-/// simd <T, N> slm_gather(simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
-///             simd_mask<N / VS> mask, PropertyListT props = {}); // (slm-ga-8)
-/// simd <T, N> slm_gather(simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
-///             PropertyListT props = {});                         // (slm-ga-9)
+/// template <typename T, int N, int VS = 1, typename OffsetSimdViewT
+///           typename PropertyListT = empty_props_t>
+/// simd <T, N> slm_gather(OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
+///                        simd<T, N> pass_thru
+///                        PropertyListT props = {});              // (slm-ga-7)
+/// simd <T, N> slm_gather(OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
+///                        PropertyListT props = {});              // (slm-ga-8)
+/// simd <T, N> slm_gather(OffsetSimdViewT byte_offsets,
+///                        PropertyListT props = {});              // (slm-ga-9)
 
 /// template <typename T, int N, int VS,
 ///           typename PropertyListT = empty_properties_t>
