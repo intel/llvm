@@ -1833,6 +1833,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
     UR_CALL(
         Buffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only, Device));
 
+    // Indicate that this buffer has the device buffer mapped to a native buffer
+    // and track the native pointer such that the memory is synced later at
+    // memory free.
+    Buffer->DeviceMappedHostNativePtr = Ptr;
     // zeCommandListAppendMemoryCopy must not be called from simultaneous
     // threads with the same command list handle, so we need exclusive lock.
     std::scoped_lock<ur_mutex> Lock(Context->ImmediateCommandListMutex);
@@ -2169,6 +2173,17 @@ ur_result_t _ur_buffer::free() {
                                                  ? Plt->ContextsMutex
                                                  : UrContext->Mutex);
 
+      // If this memory was allocated as a proxy device buffer, then we must
+      // copy the final memory contents back to the original native pointer
+      // before releasing the buffer memory.
+      if (DeviceMappedHostNativePtr != nullptr) {
+        // zeCommandListAppendMemoryCopy must not be called from simultaneous
+        // threads with the same command list handle, so we need exclusive lock.
+        std::scoped_lock<ur_mutex> Lock(UrContext->ImmediateCommandListMutex);
+        ZE2UR_CALL(zeCommandListAppendMemoryCopy,
+                   (UrContext->ZeCommandListInit, DeviceMappedHostNativePtr,
+                    ZeHandle, Size, nullptr, 0, nullptr));
+      }
       UR_CALL(USMFreeHelper(reinterpret_cast<ur_context_handle_t>(UrContext),
                             ZeHandle));
       break;
