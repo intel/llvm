@@ -47,14 +47,19 @@ This extension requires SPIR-V 1.0.
 == Overview
 
 This extension adds support for bindless images.
-This is done by adding support for SPIR-V to convert unsigned integer handles to images/samplers.
+This is done by adding support for SPIR-V to convert unsigned integer handles to
+images/samplers.
 
-Bindless images are a feature that provides flexibility on how images are accessed and used, such as removing limitations on how many images can be accessed as well as potentially improving performance.
-This is an improvement on the legacy bound images model which is a holdover from binding slots in hardware which used to be limited in number.
+Bindless images are a feature that provides flexibility on how images are
+accessed and used, such as removing limitations on how many images can be
+accessed as well as potentially improving performance.
+This is an improvement on the legacy bound images model which is a holdover from
+binding slots in hardware which used to be limited in number.
 
 == Extension Name
 
-To use this extension within a SPIR-V module, the following *OpExtension* must be present in the module:
+To use this extension within a SPIR-V module, the following *OpExtension* must
+be present in the module:
 
 ----
 OpExtension "SPV_INTEL_bindless_images"
@@ -135,7 +140,9 @@ None Yet.
 |1|2023-03-23|Duncan Brawley|*Initial public release*
 |2|2023-03-30|Duncan Brawley| Updated token assignments
 |3|2023-05-29|Duncan Brawley| Updated token assignments and fix capitalization
-|4|2023-06-13|Duncan Brawley| Remove need for OpHandleAddressingModeINTEL instruction
-|5|2024-02-23|Duncan Brawley| Remove OpConvertHandleToSampledImageINTEL instruction and clarify return types
+|4|2023-06-13|Duncan Brawley| Remove need for OpHandleAddressingModeINTEL 
+                              instruction
+|5|2024-02-23|Duncan Brawley| Remove OpConvertHandleToSampledImageINTEL
+                              instruction and clarify return types
 |========================================
 
