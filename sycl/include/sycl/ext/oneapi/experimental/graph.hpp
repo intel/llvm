@@ -174,6 +174,15 @@ public:
   depends_on_all_leaves() = default;
 };
 
+/// Property used to enable node profiling.
+/// Passing this property to the `command_graph::add()` function
+/// ensures that profiling can be queried on this node.
+class enable_profiling : public ::sycl::detail::DataLessProperty<
+                             ::sycl::detail::GraphEnableProfiling> {
+public:
+  enable_profiling() = default;
+};
+
 } // namespace node
 } // namespace property
 
@@ -200,15 +209,17 @@ public:
   /// @param PropList Property list used to pass [0..n] predecessor nodes.
   /// @return Constructed empty node which has been added to the graph.
   node add(const property_list &PropList = {}) {
+    bool EnableProfiling =
+        PropList.has_property<property::node::enable_profiling>();
     if (PropList.has_property<property::node::depends_on>()) {
       auto Deps = PropList.get_property<property::node::depends_on>();
-      node Node = addImpl(Deps.get_dependencies());
+      node Node = addImpl(Deps.get_dependencies(), EnableProfiling);
       if (PropList.has_property<property::node::depends_on_all_leaves>()) {
         addGraphLeafDependencies(Node);
       }
       return Node;
     }
-    node Node = addImpl({});
+    node Node = addImpl({}, EnableProfiling);
     if (PropList.has_property<property::node::depends_on_all_leaves>()) {
       addGraphLeafDependencies(Node);
     }
@@ -220,15 +231,17 @@ public:
   /// @param PropList Property list used to pass [0..n] predecessor nodes.
   /// @return Constructed node which has been added to the graph.
   template <typename T> node add(T CGF, const property_list &PropList = {}) {
+    bool EnableProfiling =
+        PropList.has_property<property::node::enable_profiling>();
     if (PropList.has_property<property::node::depends_on>()) {
       auto Deps = PropList.get_property<property::node::depends_on>();
-      node Node = addImpl(CGF, Deps.get_dependencies());
+      node Node = addImpl(CGF, Deps.get_dependencies(), EnableProfiling);
       if (PropList.has_property<property::node::depends_on_all_leaves>()) {
         addGraphLeafDependencies(Node);
       }
       return Node;
     }
-    node Node = addImpl(CGF, {});
+    node Node = addImpl(CGF, {}, EnableProfiling);
     if (PropList.has_property<property::node::depends_on_all_leaves>()) {
       addGraphLeafDependencies(Node);
     }
@@ -303,14 +316,16 @@ protected:
   /// Template-less implementation of add() for CGF nodes.
   /// @param CGF Command-group function to add.
   /// @param Dep List of predecessor nodes.
+  /// @param EnableProfiling Enable node profiling.
   /// @return Node added to the graph.
-  node addImpl(std::function<void(handler &)> CGF,
-               const std::vector<node> &Dep);
+  node addImpl(std::function<void(handler &)> CGF, const std::vector<node> &Dep,
+               const bool EnableProfiling);
 
   /// Template-less implementation of add() for empty nodes.
   /// @param Dep List of predecessor nodes.
+  /// @param EnableProfiling Enable node profiling.
   /// @return Node added to the graph.
-  node addImpl(const std::vector<node> &Dep);
+  node addImpl(const std::vector<node> &Dep, const bool EnableProfiling);
 
   /// Adds all graph leaves as dependencies
   /// @param Node Destination node to which the leaves of the graph will be
@@ -340,8 +355,10 @@ protected:
   /// Constructor used by internal runtime.
   /// @param Graph Detail implementation class to construct with.
   /// @param Ctx Context to use for graph.
+  /// @param PropList Optional list of properties to pass.
   executable_command_graph(const std::shared_ptr<detail::graph_impl> &Graph,
-                           const sycl::context &Ctx);
+                           const sycl::context &Ctx,
+                           const property_list &PropList = {});
 
   template <class Obj>
   friend decltype(Obj::impl)

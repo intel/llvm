@@ -300,6 +300,8 @@ public:
     return MEventFromSubmittedExecCommandBuffer;
   }
 
+  void setProfilingEnabled(bool Value) { MIsProfilingEnabled = Value; }
+
   const std::vector<EventImplPtr> &getPostCompleteEvents() const {
     return MPostCompleteEvents;
   }
