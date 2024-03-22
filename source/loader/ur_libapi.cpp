@@ -3488,6 +3488,11 @@ ur_result_t UR_APICALL urProgramGetBuildInfo(
 ///         + `NULL == pSpecConstants`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `count == 0`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + A pSpecConstant entry contains a size that does not match that of the specialization constant in the module.
+///         + A pSpecConstant entry contains a nullptr pValue.
+///     - ::UR_RESULT_ERROR_INVALID_SPEC_ID
+///         + Any id specified in a pSpecConstant entry is not a valid specialization constant identifier.
 ur_result_t UR_APICALL urProgramSetSpecializationConstants(
     ur_program_handle_t hProgram, ///< [in] handle of the Program object
     uint32_t count, ///< [in] the number of elements in the pSpecConstants array
@@ -4082,6 +4087,11 @@ ur_result_t UR_APICALL urKernelSetArgMemObj(
 ///         + `count == 0`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 ///         + If ::UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS query is false
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + A pSpecConstant entry contains a size that does not match that of the specialization constant in the module.
+///         + A pSpecConstant entry contains a nullptr pValue.
+///     - ::UR_RESULT_ERROR_INVALID_SPEC_ID
+///         + Any id specified in a pSpecConstant entry is not a valid specialization constant identifier.
 ur_result_t UR_APICALL urKernelSetSpecializationConstants(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
     uint32_t count, ///< [in] the number of elements in the pSpecConstants array

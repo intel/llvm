@@ -172,6 +172,10 @@ urKernelSetSpecializationConstantsTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU
 urKernelSetSpecializationConstantsTest.InvalidNullHandleKernel/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urKernelSetSpecializationConstantsTest.InvalidNullPointerSpecConstants/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urKernelSetSpecializationConstantsTest.InvalidSizeCount/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+urKernelSetSpecializationConstantsTest.InvalidValueSize/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+urKernelSetSpecializationConstantsTest.InvalidValueId/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+urKernelSetSpecializationConstantsTest.InvalidValuePtr/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+urKernelSetSpecializationConstantsNegativeTest.Unsupported/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urKernelGetSuggestedLocalWorkSizeTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urKernelGetSuggestedLocalWorkSizeTest.Success2D/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urKernelGetSuggestedLocalWorkSizeTest.Success3D/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
