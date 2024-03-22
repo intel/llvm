@@ -57,13 +57,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit c98fdbcf1f43ce132fbae75336bda984e4ce2e78
-  # Merge: 5f4dd113 9b3cf9d3
+  # commit 4c22f5c69dc0c36ad135a3f3bc4021b47b22585e
+  # Merge: c98fdbcf f67dc0c6
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Mar 21 10:51:45 2024 +0000
-  #     Merge pull request #1439 from nrspruit/fix_device_native_proxy_buffer
-  #     [L0] Fix Native Host memory usage on device with copy back sync
-  set(UNIFIED_RUNTIME_TAG c98fdbcf1f43ce132fbae75336bda984e4ce2e78)
+  # Date:   Thu Mar 21 17:08:13 2024 +0000
+  #     Merge pull request #1445 from raiyanla/enable-in-order
+  #     [L0] Enable default support for L0 in-order lists
+  set(UNIFIED_RUNTIME_TAG 4c22f5c69dc0c36ad135a3f3bc4021b47b22585e)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
