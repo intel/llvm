@@ -52,8 +52,6 @@
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 #include <sycl/sampler.hpp>
-#include <sycl/usm/usm_enums.hpp>
-#include <sycl/usm/usm_pointer_info.hpp>
 
 #include <assert.h>
 #include <functional>
@@ -2963,44 +2961,7 @@ public:
   template <typename T = unsigned char,
             typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
   void ext_oneapi_memcpy2d(void *Dest, size_t DestPitch, const void *Src,
-                           size_t SrcPitch, size_t Width, size_t Height) {
-    throwIfGraphAssociated<
-        ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
-            sycl_ext_oneapi_memcpy2d>();
-    throwIfActionIsCreated();
-    if (Width > DestPitch)
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "Destination pitch must be greater than or equal "
-                            "to the width specified in 'ext_oneapi_memcpy2d'");
-    if (Width > SrcPitch)
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "Source pitch must be greater than or equal "
-                            "to the width specified in 'ext_oneapi_memcpy2d'");
-
-    // Get the type of the pointers.
-    context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());
-    usm::alloc SrcAllocType = get_pointer_type(Src, Ctx);
-    usm::alloc DestAllocType = get_pointer_type(Dest, Ctx);
-    bool SrcIsHost =
-        SrcAllocType == usm::alloc::unknown || SrcAllocType == usm::alloc::host;
-    bool DestIsHost = DestAllocType == usm::alloc::unknown ||
-                      DestAllocType == usm::alloc::host;
-
-    // Do the following:
-    // 1. If both are host, use host_task to copy.
-    // 2. If either pointer is host or the backend supports native memcpy2d, use
-    //    special command.
-    // 3. Otherwise, launch a kernel for copying.
-    if (SrcIsHost && DestIsHost) {
-      commonUSMCopy2DFallbackHostTask<T>(Src, SrcPitch, Dest, DestPitch, Width,
-                                         Height);
-    } else if (SrcIsHost || DestIsHost || supportsUSMMemcpy2D()) {
-      ext_oneapi_memcpy2d_impl(Dest, DestPitch, Src, SrcPitch, Width, Height);
-    } else {
-      commonUSMCopy2DFallbackKernel<T>(Src, SrcPitch, Dest, DestPitch, Width,
-                                       Height);
-    }
-  }
+                           size_t SrcPitch, size_t Width, size_t Height);
 
   /// Copies data from one 2D memory region to another, both pointed by
   /// USM pointers.
@@ -3017,41 +2978,7 @@ public:
   /// \param Height is the height in number of rows of the 2D region to copy.
   template <typename T>
   void ext_oneapi_copy2d(const T *Src, size_t SrcPitch, T *Dest,
-                         size_t DestPitch, size_t Width, size_t Height) {
-    if (Width > DestPitch)
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "Destination pitch must be greater than or equal "
-                            "to the width specified in 'ext_oneapi_copy2d'");
-    if (Width > SrcPitch)
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "Source pitch must be greater than or equal "
-                            "to the width specified in 'ext_oneapi_copy2d'");
-
-    // Get the type of the pointers.
-    context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());
-    usm::alloc SrcAllocType = get_pointer_type(Src, Ctx);
-    usm::alloc DestAllocType = get_pointer_type(Dest, Ctx);
-    bool SrcIsHost =
-        SrcAllocType == usm::alloc::unknown || SrcAllocType == usm::alloc::host;
-    bool DestIsHost = DestAllocType == usm::alloc::unknown ||
-                      DestAllocType == usm::alloc::host;
-
-    // Do the following:
-    // 1. If both are host, use host_task to copy.
-    // 2. If either pointer is host or of the backend supports native memcpy2d,
-    //    use special command.
-    // 3. Otherwise, launch a kernel for copying.
-    if (SrcIsHost && DestIsHost) {
-      commonUSMCopy2DFallbackHostTask<T>(Src, SrcPitch, Dest, DestPitch, Width,
-                                         Height);
-    } else if (SrcIsHost || DestIsHost || supportsUSMMemcpy2D()) {
-      ext_oneapi_memcpy2d_impl(Dest, DestPitch * sizeof(T), Src,
-                               SrcPitch * sizeof(T), Width * sizeof(T), Height);
-    } else {
-      commonUSMCopy2DFallbackKernel<T>(Src, SrcPitch, Dest, DestPitch, Width,
-                                       Height);
-    }
-  }
+                         size_t DestPitch, size_t Width, size_t Height);
 
   /// Fills the memory pointed by a USM pointer with the value specified.
   /// No operations is done if \p Width or \p Height is zero. An exception is
@@ -3071,27 +2998,7 @@ public:
   template <typename T = unsigned char,
             typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
   void ext_oneapi_memset2d(void *Dest, size_t DestPitch, int Value,
-                           size_t Width, size_t Height) {
-    throwIfActionIsCreated();
-    if (Width > DestPitch)
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "Destination pitch must be greater than or equal "
-                            "to the width specified in 'ext_oneapi_memset2d'");
-    T CharVal = static_cast<T>(Value);
-
-    context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());
-    usm::alloc DestAllocType = get_pointer_type(Dest, Ctx);
-
-    // If the backends supports 2D fill we use that. Otherwise we use a fallback
-    // kernel. If the target is on host we will always do the operation on host.
-    if (DestAllocType == usm::alloc::unknown ||
-        DestAllocType == usm::alloc::host)
-      commonUSMFill2DFallbackHostTask(Dest, DestPitch, CharVal, Width, Height);
-    else if (supportsUSMMemset2D())
-      ext_oneapi_memset2d_impl(Dest, DestPitch, Value, Width, Height);
-    else
-      commonUSMFill2DFallbackKernel(Dest, DestPitch, CharVal, Width, Height);
-  }
+                           size_t Width, size_t Height);
 
   /// Fills the memory pointed by a USM pointer with the value specified.
   /// No operations is done if \p Width or \p Height is zero. An exception is
@@ -3107,29 +3014,7 @@ public:
   /// \param Height is the height in number of rows of the 2D region to fill.
   template <typename T>
   void ext_oneapi_fill2d(void *Dest, size_t DestPitch, const T &Pattern,
-                         size_t Width, size_t Height) {
-    throwIfActionIsCreated();
-    static_assert(is_device_copyable<T>::value,
-                  "Pattern must be device copyable");
-    if (Width > DestPitch)
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "Destination pitch must be greater than or equal "
-                            "to the width specified in 'ext_oneapi_fill2d'");
-
-    context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());
-    usm::alloc DestAllocType = get_pointer_type(Dest, Ctx);
-
-    // If the backends supports 2D fill we use that. Otherwise we use a fallback
-    // kernel. If the target is on host we will always do the operation on host.
-    if (DestAllocType == usm::alloc::unknown ||
-        DestAllocType == usm::alloc::host)
-      commonUSMFill2DFallbackHostTask(Dest, DestPitch, Pattern, Width, Height);
-    else if (supportsUSMFill2D())
-      ext_oneapi_fill2d_impl(Dest, DestPitch, &Pattern, sizeof(T), Width,
-                             Height);
-    else
-      commonUSMFill2DFallbackKernel(Dest, DestPitch, Pattern, Width, Height);
-  }
+                         size_t Width, size_t Height);
 
   /// Copies data from a USM memory region to a device_global.
   /// Throws an exception if the copy operation intends to write outside the

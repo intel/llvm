@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/memcpy2d.hpp>
 #include <sycl/usm.hpp>
 
 using namespace sycl;
