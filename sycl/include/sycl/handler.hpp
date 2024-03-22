@@ -1263,7 +1263,7 @@ private:
       if (UserRange[i] % GoodExpFactor) {
         Adjust(i, ((UserRange[i] / GoodExpFactor) + 1) * GoodExpFactor);
       }
-#else // __SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__
+#else
     // Perform range rounding if there are sufficient work-items to
     // need rounding and the user-specified range is not a multiple of
     // a "good" value.
