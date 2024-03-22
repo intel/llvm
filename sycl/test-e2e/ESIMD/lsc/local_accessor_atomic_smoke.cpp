@@ -221,6 +221,7 @@ bool test(queue q) {
                   ;
               }
             }
+            barrier();
             auto data0 = gather<T, size>(accessor, LocalOffsets, 0);
             data0.copy_to(arr);
           });

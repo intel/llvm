@@ -161,6 +161,7 @@ bool test(queue q) {
                   ;
               }
             }
+            barrier();
             auto data0 = lsc_slm_gather<T>(slm_offsets);
             data0.copy_to(arr);
           });
