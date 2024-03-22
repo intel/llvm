@@ -1,6 +1,8 @@
 #pragma once
 #include <random>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 namespace bindless_helpers {
 
