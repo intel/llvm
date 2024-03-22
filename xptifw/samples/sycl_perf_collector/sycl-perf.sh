@@ -20,7 +20,7 @@ clear='\033[0m'
 
 help()
 {
-    echo -e "Usage: sycl-perf.sh [-f,--format] ${yellow}<Value1> ${clear}[-i,--ignore] ${yellow}<Value2> ${clear}[-p,--projection] ${yellow}<Value3> ${clear}[-c,--color] [-s,--streams] ${yellow}<Value4> ${clear}[-h,--help] -- <executable> <arguments>"
+    echo -e "Usage: sycl-perf.sh [-f,--format] ${yellow}<Value1> ${clear}[-i,--ignore] ${yellow}<Value2> ${clear}[-p,--projection] ${yellow}<Value3> ${clear}[-c,--color] [-s,--streams] ${yellow}<Value4> ${clear}[-h,--help] [-v, --verbose] -- <executable> <arguments>"
     echo -e "          ${green}-f,--format     Allowed values for ${yellow}<Value1>${green} are ${yellow}json,table,stack,all,none${green}"
     echo "          -i,--ignore     First time execution of certain calls take an order of magnitude more"
     echo -e "                          time than subsequent calls listed in ${yellow}<Value2>${green}"
@@ -34,6 +34,7 @@ help()
     echo -e "                          as comma separated values for ${yellow}<Value4>${green}"
     echo -e "                          Example:- ${yellow}sycl,sycl.pi,sycl.perf ${clear}${green}"
     echo "          -e,--calibrate  Boolean option, if provided will run the application with an empty collector."
+    echo "          -v,--verbose    Boolean option, if provided will display debug output"
     echo "  "
     echo -e "                          The script requires you to set the environment variable XPTI_PERF_DIR"
     echo -e "                          before executing this script."
@@ -67,9 +68,10 @@ fi
 # Default color is normal text and we change the colors only when the option is provided
 color=0
 calibrate_flag=0
+verbose_flag=0
 
-SHORT=f:,s:,i:,p:,h,c,e
-LONG=format:,streams:,ignore:,projection:,help,color,calibrate
+SHORT=f:,s:,i:,p:,h,c,e,v
+LONG=format:,streams:,ignore:,projection:,help,color,calibrate,verbose
 OPTS=$(getopt -a -n sycl-perf --options $SHORT --longoptions $LONG -- "$@")
 
 if [[ $? -ne 0 ]]; then
@@ -98,6 +100,10 @@ while [ : ]; do
         ;;
     -e | --calibrate)
         calibrate_flag=1
+        shift;
+        ;;
+    -v | --verbose)
+        verbose_flag=1
         shift;
         ;;
     -s | --streams)
@@ -142,6 +148,10 @@ fi
 
 if [[ $calibrate_flag == 1 || $calibrate_flag == 0 ]]; then
 export XPTI_CALIBRATE=$calibrate_flag
+fi
+
+if [[ $verbose_flag == 1 || $verbose_flag == 0 ]]; then
+export XPTI_VERBOSE=$verbose_flag
 fi
 
 ############################################################################################

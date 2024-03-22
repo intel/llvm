@@ -33,7 +33,7 @@ xpti::utils::string::list_t GAllStreams;
 xpti::utils::string::first_check_map_t *GIgnoreList = nullptr;
 
 using incomplete_records_t = std::unordered_map<uint64_t, xpti::record_t>;
-incomplete_records_t GRecordsInProgress;
+incomplete_records_t *GRecordsInProgress = nullptr;
 xpti::utils::timer::measurement_t GMeasure;
 
 // Scoped measurement object used in the callback handlers
@@ -193,6 +193,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
   // registering with and create some writer objects for formatted output
   static bool InitStreams = true;
   if (InitStreams) {
+    GRecordsInProgress = new incomplete_records_t;
     std::set<std::string> OutputFormats{"json", "csv", "table", "stack", "all"};
     xpti::utils::string::simple_string_decoder_t D(",");
     GStreams = new xpti::utils::string::list_t;
@@ -234,6 +235,9 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     const char *CalibrationFlag = std::getenv("XPTI_CALIBRATE");
     if (CalibrationFlag)
       std::cout << "XPTI_SIMULATION=" << CalibrationFlag << "\n";
+    const char *VerboseFlag = std::getenv("XPTI_VERBOSE");
+    if (VerboseFlag)
+      std::cout << "XPTI_VERBOSE=" << VerboseFlag << "\n";
 
     // Get the streams to monitor from the environment variable
     // In order to determine if the environment variable contains valid stream
@@ -336,6 +340,17 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
         CalibrationRun = true;
     } else {
       CalibrationRun = false;
+    }
+
+    // Check the environment variable for verbose output and set the appropriate
+    // flag, if the variable is set
+    if (VerboseFlag) {
+      if (std::stoi(VerboseFlag) == 0)
+        ShowDebugInformation = false;
+      else
+        ShowDebugInformation = true;
+    } else {
+      ShowDebugInformation = false;
     }
 
     // Disable initialization
@@ -657,51 +672,54 @@ void print_record(uint16_t TraceType, xpti::record_t &r) {
 void record_and_save(const char *StreamName, xpti::trace_event_data_t *Event,
                      uint16_t TraceType, uint64_t Instance,
                      const void *UserData) {
-  // For `function_begin` trace point type, the Parent and Event parameters
-  // can be null. However, the `UserData` field must be present and contain
-  // the function name that these trace points are defined to trace.
-  MeasureHandlers timer;
+  if (GRecordsInProgress) {
 
-  char *Name;
-  // Register string - it may have already been registered, so we will get a
-  // populated string pointer that has a lifetime of XPTI framework
-  xptiRegisterString((UserData ? (const char *)UserData : "unknown"), &Name);
-  xpti::record_t r;
+    // For `function_begin` trace point type, the Parent and Event parameters
+    // can be null. However, the `UserData` field must be present and contain
+    // the function name that these trace points are defined to trace.
+    MeasureHandlers timer;
 
-  if (TraceType & 0x0001) {
-    // We are the closing scope step
-    {
-      std::lock_guard<std::mutex> _{GRecMutex};
-      auto ele = GRecordsInProgress.find(Instance);
-      if (ele != GRecordsInProgress.end()) {
-        // Copy so the incomplete record can be deleted
-        r = ele->second;
-        GRecordsInProgress.erase(ele);
-      } else {
-        throw std::runtime_error("Instance id/correlation ID collision!");
+    char *Name;
+    // Register string - it may have already been registered, so we will get a
+    // populated string pointer that has a lifetime of XPTI framework
+    xptiRegisterString((UserData ? (const char *)UserData : "unknown"), &Name);
+    xpti::record_t r;
+
+    if (TraceType & 0x0001) {
+      // We are the closing scope step
+      {
+        std::lock_guard<std::mutex> _{GRecMutex};
+        auto ele = GRecordsInProgress->find(Instance);
+        if (ele != GRecordsInProgress->end()) {
+          // Copy so the incomplete record can be deleted
+          r = ele->second;
+          GRecordsInProgress->erase(ele);
+        } else {
+          throw std::runtime_error("Instance id/correlation ID collision!");
+        }
+        // We are operating on a copy, so no data races
+        record_state(r, false);
+        if (ShowDebugInformation)
+          print_record(TraceType, r);
+        // if (GDataModel.get())
+        if (GDataModel)
+          GDataModel->add(r);
       }
-    }
-    // We are operating on a copy, so no data races
-    record_state(r, false);
-    if (ShowDebugInformation)
-      print_record(TraceType, r);
-    // if (GDataModel.get())
-    if (GDataModel)
-      GDataModel->add(r);
-  } else {
-    // Create record and save as we are at the begin scope step
-    record_state(r, true);
-    r.Name = Name;
-    if (GOutputFormats & (uint64_t)xpti::FileFormat::JSON)
-      r.Category = StreamName;
-    r.Flags |= (uint64_t)(xpti::RecordFlags::NamePresent);
-    {
-      std::lock_guard<std::mutex> _{GRecMutex};
-      r.CorrID = Instance;
-      if (GRecordsInProgress.count(Instance)) {
-        throw std::runtime_error("Instance id/correlation ID collision!");
+    } else {
+      // Create record and save as we are at the begin scope step
+      record_state(r, true);
+      r.Name = Name;
+      if (GOutputFormats & (uint64_t)xpti::FileFormat::JSON)
+        r.Category = StreamName;
+      r.Flags |= (uint64_t)(xpti::RecordFlags::NamePresent);
+      {
+        std::lock_guard<std::mutex> _{GRecMutex};
+        r.CorrID = Instance;
+        if (GRecordsInProgress->count(Instance)) {
+          throw std::runtime_error("Instance id/correlation ID collision!");
+        }
+        (*GRecordsInProgress)[Instance] = r;
       }
-      GRecordsInProgress[Instance] = r;
     }
   }
 }
@@ -862,6 +880,10 @@ __attribute__((constructor)) static void framework_init() {
 }
 
 __attribute__((destructor)) static void framework_fini() {
+  if (GRecordsInProgress) {
+    delete GRecordsInProgress;
+    GRecordsInProgress = nullptr;
+  }
   if (ShowDebugInformation)
     std::cout << "Collector unloaded\n";
 }
