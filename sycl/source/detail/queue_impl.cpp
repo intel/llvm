@@ -79,8 +79,8 @@ queue_impl::getExtendDependencyList(const std::vector<event> &DepEvents,
     return DepEvents;
 
   QueueLock.lock();
-  EventImplPtr ExtraEvent =
-      MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
+  EventImplPtr ExtraEvent = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
+                                             : MExtGraphDeps.LastEventPtr;
   std::optional<event> ExternalEvent = popExternalEvent();
 
   if (!ExternalEvent && !ExtraEvent)
@@ -227,11 +227,11 @@ event queue_impl::getLastEvent() {
   std::lock_guard<std::mutex> Lock{MMutex};
   if (MDiscardEvents)
     return createDiscardedEvent();
-  if (!MGraph.expired() && MGraphLastEventPtr)
-    return detail::createSyclObjFromImpl<event>(MGraphLastEventPtr);
-  if (!MLastEventPtr)
-    MLastEventPtr = std::make_shared<event_impl>(std::nullopt);
-  return detail::createSyclObjFromImpl<event>(MLastEventPtr);
+  if (!MGraph.expired() && MExtGraphDeps.LastEventPtr)
+    return detail::createSyclObjFromImpl<event>(MExtGraphDeps.LastEventPtr);
+  if (!MDefaultGraphDeps.LastEventPtr)
+    MDefaultGraphDeps.LastEventPtr = std::make_shared<event_impl>(std::nullopt);
+  return detail::createSyclObjFromImpl<event>(MDefaultGraphDeps.LastEventPtr);
 }
 
 void queue_impl::addEvent(const event &Event) {
@@ -312,9 +312,10 @@ areEventsSafeForSchedulerBypass(const std::vector<sycl::event> &DepEvents,
     return SyclEventImplPtr->getHandleRef() != nullptr;
   };
 
-  return std::all_of(
-      DepEvents.begin(), DepEvents.end(),
-      [&CheckEvent](const sycl::event &Event) { return CheckEvent(Event); });
+  return std::all_of(DepEvents.begin(), DepEvents.end(),
+                     [&Context, &CheckEvent](const sycl::event &Event) {
+                       return CheckEvent(Event);
+                     });
 }
 
 template <typename HandlerFuncT>
@@ -363,8 +364,8 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
         return MDiscardEvents ? createDiscardedEvent() : event();
 
       if (isInOrder()) {
-        auto &EventToStoreIn =
-            MGraph.expired() ? MLastEventPtr : MGraphLastEventPtr;
+        auto &EventToStoreIn = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
+                                                : MExtGraphDeps.LastEventPtr;
         EventToStoreIn = EventImpl;
       }
       // Track only if we won't be able to handle it with piQueueFinish.
@@ -553,8 +554,9 @@ bool queue_impl::ext_oneapi_empty() const {
   // the status of the last event.
   if (isInOrder() && !MDiscardEvents) {
     std::lock_guard<std::mutex> Lock(MMutex);
-    return !MLastEventPtr ||
-           MLastEventPtr->get_info<info::event::command_execution_status>() ==
+    return !MDefaultGraphDeps.LastEventPtr ||
+           MDefaultGraphDeps.LastEventPtr
+                   ->get_info<info::event::command_execution_status>() ==
                info::event_command_status::complete;
   }
 
@@ -595,6 +597,53 @@ event queue_impl::discard_or_return(const event &Event) {
   if (!(MDiscardEvents))
     return Event;
   return createDiscardedEvent();
+}
+
+void queue_impl::tryToResetEnqueuedBarrierDep(
+    const EventImplPtr &EnqueuedBarrierEvent) {
+  if (MIsInorder)
+    return;
+  auto tryToCleanup = [&EnqueuedBarrierEvent](DependencyTrackingItems &Deps) {
+    if (Deps.LastBarrier == EnqueuedBarrierEvent) {
+      Deps.LastBarrier = nullptr;
+      Deps.NotEnqueuedCmdEvents.clear();
+    }
+  };
+  std::lock_guard<std::mutex> Lock{MMutex};
+  // Barrier enqueue could be significantly postponed due to host task
+  // dependency if any. No guarantee that it will happen while same graph deps
+  // are still recording.
+  if (auto Graph = EnqueuedBarrierEvent->getCommandGraph()) {
+    if (Graph == getCommandGraph())
+      tryToCleanup(MExtGraphDeps);
+  } else
+    tryToCleanup(MDefaultGraphDeps);
+}
+
+void queue_impl::revisitNotEnqueuedCommandsState(
+    const EventImplPtr &CompletedHostTask) {
+  if (MIsInorder)
+    return;
+  auto tryToCleanup = [&CompletedHostTask](DependencyTrackingItems &Deps) {
+    if (Deps.NotEnqueuedCmdEvents.empty())
+      return;
+    Deps.NotEnqueuedCmdEvents.erase(
+        std::remove_if(Deps.NotEnqueuedCmdEvents.begin(),
+                       Deps.NotEnqueuedCmdEvents.end(),
+                       [&CompletedHostTask](const EventImplPtr &CommandEvent) {
+                         return (CommandEvent == CompletedHostTask) ||
+                                (CommandEvent->is_host()
+                                     ? CommandEvent->isCompleted()
+                                     : CommandEvent->getHandleRef() != nullptr);
+                       }),
+        Deps.NotEnqueuedCmdEvents.end());
+  };
+  std::lock_guard<std::mutex> Lock{MMutex};
+  if (auto Graph = CompletedHostTask->getCommandGraph()) {
+    if (Graph == getCommandGraph())
+      return tryToCleanup(MExtGraphDeps);
+  } else
+    tryToCleanup(MDefaultGraphDeps);
 }
 
 } // namespace detail

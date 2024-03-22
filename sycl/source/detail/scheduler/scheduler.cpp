@@ -390,6 +390,10 @@ void Scheduler::enqueueUnblockedCommands(
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.",
                           PI_ERROR_INVALID_OPERATION);
+    const auto &CmdEvent = Cmd->getEvent();
+    if (Enqueued && Cmd->isBarrier())
+      Cmd->getQueue()->tryToResetEnqueuedBarrierDep(CmdEvent);
+    Cmd->getQueue()->revisitNotEnqueuedCommandsState(CmdEvent);
   }
 }
 
@@ -487,10 +491,11 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
       Cmd->MMarkedForCleanup = true;
     }
 
+    auto &CmdEvent = Cmd->getEvent();
     {
       std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
       // update self-event status
-      Cmd->getEvent()->setComplete();
+      CmdEvent->setComplete();
     }
     Scheduler::enqueueUnblockedCommands(Cmd->MBlockedUsers, Lock, ToCleanUp);
   }

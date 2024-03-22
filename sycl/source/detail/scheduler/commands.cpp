@@ -300,6 +300,16 @@ bool Command::isHostTask() const {
           CG::CGTYPE::CodeplayHostTask);
 }
 
+bool Command::isBarrier() const {
+  if ((MType != CommandType::RUN_CG)) {
+    return false;
+  }
+  const auto CGType =
+      (static_cast<const ExecCGCommand &>(*this)).getCG().getType();
+  return (CGType == CG::CGTYPE::Barrier ||
+          CGType == CG::CGTYPE::BarrierWaitlist);
+}
+
 bool Command::isFusable() const {
   if ((MType != CommandType::RUN_CG)) {
     return false;
@@ -1783,8 +1793,7 @@ void EmptyCommand::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#8d8f29\", label=\"";
 
   Stream << "ID = " << this << "\\n";
-  Stream << "EMPTY NODE"
-         << "\\n";
+  Stream << "EMPTY NODE" << "\\n";
 
   Stream << "\"];" << std::endl;
 
