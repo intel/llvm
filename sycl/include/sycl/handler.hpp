@@ -1211,7 +1211,6 @@ private:
     // non-32-bit global range, we wrap the old kernel in a new kernel
     // that has each work item peform multiple invocations the old
     // kernel in a 32-bit global range.
-    auto Dev = detail::getSyclObjImpl(detail::getDeviceFromHandler(*this));
     id<Dims> MaxNWGs = [&] {
       auto [MaxWGs, HasMaxWGs] = getMaxWorkGroups_v2();
       if (!HasMaxWGs) {
@@ -1254,6 +1253,11 @@ private:
       // will yield a rounded-up value for the total range.
       Adjust(0, ((RoundedRange[0] + GoodFactor - 1) / GoodFactor) * GoodFactor);
     }
+#ifdef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
+    // If we are forcing range rounding kernels to be used, we always want the
+    // rounded range kernel to be generated, even if rounding isn't needed
+    DidAdjust = true;
+#endif // __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
 
     for (int i = 0; i < Dims; ++i)
       if (RoundedRange[i] > MaxRange[i])
@@ -1361,6 +1365,9 @@ private:
     {
       (void)UserRange;
       (void)Props;
+#ifndef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
+      // If parallel_for range rounding is forced then only range rounded
+      // kernel is generated
       kernel_parallel_for_wrapper<NameT, TransformedArgType, KernelType,
                                   PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
@@ -1372,6 +1379,9 @@ private:
       setType(detail::CG::Kernel);
       setNDRangeUsed(false);
 #endif
+#else
+      (void)KernelFunc;
+#endif // __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
     }
   }
 

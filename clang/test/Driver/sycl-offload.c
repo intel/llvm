@@ -508,13 +508,33 @@
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS2 %s
 // CHK-TOOLS-OPTS2: clang-offload-wrapper{{.*}} "-link-opts=-DFOO1 -DFOO2"
 
-/// -fsycl-disable-range-rounding settings
+/// -fsycl-range-rounding settings
+///
+/// // Check that driver flag is passed to cc1
+// RUN: %clang -### -fsycl -fsycl-range-rounding=disable %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-DRIVER-RANGE-ROUNDING-DISABLE %s
+// RUN: %clang -### -fsycl -fsycl-range-rounding=force %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-DRIVER-RANGE-ROUNDING-FORCE %s
+// RUN: %clang -### -fsycl -fsycl-range-rounding=on %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-DRIVER-RANGE-ROUNDING-ON %s
+// CHK-DRIVER-RANGE-ROUNDING-DISABLE: "-cc1{{.*}}-fsycl-range-rounding=disable"
+// CHK-DRIVER-RANGE-ROUNDING-FORCE: "-cc1{{.*}}-fsycl-range-rounding=force"
+// CHK-DRIVER-RANGE-ROUNDING-ON: "-cc1{{.*}}-fsycl-range-rounding=on"
+///
+///
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl \
 // RUN:        -fsycl-targets=spir64 -O0 %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DISABLE-RANGE-ROUNDING %s
 // RUN: %clang_cl -### -fsycl -fsycl-targets=spir64 -Od %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DISABLE-RANGE-ROUNDING %s
-// CHK-DISABLE-RANGE-ROUNDING: "-fsycl-disable-range-rounding"
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl \
+// RUN:        -O0 -fsycl-range-rounding=force %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OVERRIDE-RANGE-ROUNDING %s
+// RUN: %clang_cl -### -fsycl -Od %s 2>&1 -fsycl-range-rounding=force %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OVERRIDE-RANGE-ROUNDING %s
+// CHK-DISABLE-RANGE-ROUNDING: "-fsycl-range-rounding=disable"
+// CHK-OVERRIDE-RANGE-ROUNDING: "-fsycl-range-rounding=force"
+// CHK-OVERRIDE-RANGE-ROUNDING-NOT: "-fsycl-range-rounding=disable"
 
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl \
 // RUN:        -fsycl-targets=spir64 -O2 %s 2>&1 \
@@ -527,6 +547,8 @@
 // RUN: %clang_cl -### -fsycl -fsycl-targets=spir64 %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-RANGE-ROUNDING %s
 // CHK-RANGE-ROUNDING-NOT: "-fsycl-disable-range-rounding"
+// CHK-RANGE-ROUNDING-NOT: "-fsycl-range-rounding=disable"
+// CHK-RANGE-ROUNDING-NOT: "-fsycl-range-rounding=force"
 
 /// ###########################################################################
 

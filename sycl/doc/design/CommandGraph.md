@@ -447,8 +447,10 @@ The HIP backend offers a Graph managemenet API very similar to CUDA Graph
 feature for batching series of operations.
 The SYCL Graph HIP backend implementation is therefore very similar to that of CUDA.
 
+The minimum version of ROCm required to support `sycl_ext_oneapi_graph` is 5.5.1.
+
 UR commands (e.g. kernels) are mapped as graph nodes using the
-[HIP Management API](https://docs.amd.com/projects/HIP/en/docs-5.5.0/doxygen/html/group___graph.html).
+[HIP Management API](https://rocm.docs.amd.com/projects/HIP/en/docs-5.5.1/doxygen/html/group___graph.html).
 Synchronization between commands (UR sync-points) is implemented
 using graph dependencies.
 Executable HIP Graphs can be submitted to a HIP stream
