@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/GEN/IR/GENDialect.h"
+#include "mlir/Dialect/GEN/IR/GENOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -23,6 +24,12 @@
 using namespace mlir;
 using namespace mlir::GEN;
 
+#include "mlir/Dialect/GEN/IR/GENOpsDialect.cpp.inc"
+
+//===----------------------------------------------------------------------===//
+// GEN dialect.
+//===----------------------------------------------------------------------===//
+
 void GENDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
@@ -33,10 +40,3 @@ void GENDialect::initialize() {
 #include "mlir/Dialect/GEN/IR/GENOpsAttrDefs.cpp.inc"
       >();
 }
-
-#include "mlir/Dialect/GEN/IR/Dialect.cpp.inc"
-#include "mlir/Dialect/GEN/IR/GENOpsEnums.cpp.inc"
-#define GET_ATTRDEF_CLASSES
-#include "mlir/Dialect/GEN/IR/GENOpsAttrDefs.cpp.inc"
-#define GET_OP_CLASSES
-#include "mlir/Dialect/GEN/IR/GENOps.cpp.inc"
