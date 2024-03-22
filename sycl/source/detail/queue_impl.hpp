@@ -92,7 +92,7 @@ public:
   /// \param PropList is a list of properties to use for queue construction.
   queue_impl(const DeviceImplPtr &Device, const async_handler &AsyncHandler,
              const property_list &PropList)
-      : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList) {};
+      : queue_impl(Device, getDefaultOrNew(Device), AsyncHandler, PropList){};
 
   /// Constructs a SYCL queue with an async_handler and property_list provided
   /// form a device and a context.
@@ -176,13 +176,16 @@ public:
       // This section is the second part of the instrumentation that uses the
       // tracepoint information and notifies
     }
+
     // We enable XPTI tracing events using the TLS mechanism; if the code
     // location data is available, then the tracing data will be rich.
 #if XPTI_ENABLE_INSTRUMENTATION
     constexpr uint16_t NotificationTraceType =
         static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
+    // Using the instance override constructor for use with queues as queues
+    // maintain instance IDs in the object
     XPTIScope PrepareNotify((void *)this, NotificationTraceType,
-                            SYCL_STREAM_NAME, "queue_create");
+                            SYCL_STREAM_NAME, MQueueID, "queue_create");
     // Cache the trace event, stream id and instance IDs for the destructor
     if (xptiCheckTraceEnabled(PrepareNotify.streamID(),
                               NotificationTraceType)) {
@@ -207,6 +210,8 @@ public:
           xpti::addMetadata(TEvent, "queue_handle",
                             reinterpret_cast<size_t>(getHandleRef()));
       });
+      // Also publish to TLS
+      xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
       PrepareNotify.notify();
     }
 #endif
@@ -244,7 +249,7 @@ private:
     constexpr uint16_t NotificationTraceType =
         static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
     XPTIScope PrepareNotify((void *)this, NotificationTraceType,
-                            SYCL_STREAM_NAME, "queue_create");
+                            SYCL_STREAM_NAME, MQueueID, "queue_create");
     if (xptiCheckTraceEnabled(PrepareNotify.streamID(),
                               NotificationTraceType)) {
       // Cache the trace event, stream id and instance IDs for the destructor
@@ -269,6 +274,8 @@ private:
         if (!MHostQueue)
           xpti::addMetadata(TEvent, "queue_handle", getHandleRef());
       });
+      // Also publish to TLS before notification
+      xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
       PrepareNotify.notify();
     }
 #endif
