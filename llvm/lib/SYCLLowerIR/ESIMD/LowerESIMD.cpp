@@ -511,6 +511,13 @@ public:
          {"lsc.load.merge.bti",
           {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
            t8(6), t8(7), c8(0), a(1), aSI(2), a(3)}}},
+        // lsc_load_stateless is not used in ESIMD headers, it is kept for
+        // backward compatibility of sycl-post-link, e.g. to support object
+        // files and/or static libraries compiled by the older compilers.
+        {"lsc_load_stateless",
+         {"lsc.load.stateless",
+          {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
+           t8(6), t8(7), c8(0), a(1), c32(0)}}},
         {"lsc_load_merge_stateless",
          {"lsc.load.merge.stateless",
           {ai1(0), c8(lsc_subopcode::load), t8(1), t8(2), t16(3), t32(4), t8(5),
