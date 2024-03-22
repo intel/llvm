@@ -103,12 +103,14 @@ private:
   NamedAttrList convertedAttr;
 };
 
-template <typename SourceOp, typename TargetOp,
-          std::enable_if_t<TargetOp::template hasTrait<
-                               LLVM::ExceptionBehaviorOpInterface::Trait>(),
-                           bool> = true>
+template <typename SourceOp, typename TargetOp>
 class AttrConverterConstrainedFPToLLVM {
 public:
+  static_assert(
+      TargetOp::template hasTrait<LLVM::ExceptionBehaviorOpInterface::Trait>(),
+      "Target constrained FP operations must implement "
+      "LLVM::ExceptionBehaviorOpInterface");
+
   AttrConverterConstrainedFPToLLVM(
       SourceOp srcOp) {
     // Copy the source attributes.
