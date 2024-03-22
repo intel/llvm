@@ -235,8 +235,7 @@
 // CHECK_TOOLS_BEOPTS_MIX: ocloc{{.*}} "-device" "skl"{{.*}}"-DSKL2"
 
 /// Check that target is passed to sycl-post-link for filtering
-// RUN: %clangxx -fsycl-targets=intel_gpu_pvc,intel_gpu_dg1 \
-// RUN:   -fsycl -fno-sycl-device-lib=all -fno-sycl-instrument-device-code \
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc,intel_gpu_dg1 \
 // RUN:   -### %s 2>&1 | FileCheck %s --check-prefix=CHECK_TOOLS_FILTER
 // CHECK_TOOLS_FILTER: sycl-post-link{{.*}} "-o" "intel_gpu_pvc,{{.*}}"
 // CHECK_TOOLS_FILTER: sycl-post-link{{.*}} "-o" "intel_gpu_dg1,{{.*}}"
