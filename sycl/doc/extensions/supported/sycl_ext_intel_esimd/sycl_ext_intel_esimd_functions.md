@@ -23,18 +23,18 @@ See more general ESIMD documentation [here](./sycl_ext_intel_esimd.md).
 
 ---
 ## Stateless/stateful memory mode
-ESIMD functions may assume `stateful` and `stateless` access to the memory.  
-`Stateless` read/write/prefetch is such that uses a pointer to global memory,
+ESIMD functions have two memory assumption modes: `stateful` and `stateless`.
+`Stateless` read/write/prefetch uses a pointer to global memory,
 which also may be adjusted by a scalar/vector 64-bit offset.  
-`Stateful` read/write/prefetch is the access to memory that uses a
-`surface-index` and `32-bit` scalar/vector offset.
+`Stateful` read/write/prefetch accesses memory using a
+`surface-index` and a `32-bit` scalar/vector offset.
 
-The `-fsycl-esimd-force-stateless-mem` compilation option (it is ON by default)
+The `-fsycl-esimd-force-stateless-mem` compilation option (which is ON by default)
 forces the translation of ESIMD memory API functions to `stateless` accesses.
 In this mode the ESIMD functions that accept a byte-offset argument accept it as
 any integral type scalar/vector.  
-`-fno-sycl-esimd-force-stateless-mem` compilation option may be used to translate
-ESIMD functions accepting `SYCL device accessor` to `stateful` accesses. In this case
+The `-fno-sycl-esimd-force-stateless-mem` compilation option may be used to translate
+ESIMD functions accepting a `SYCL device accessor` to `stateful` accesses. In this case
 the corresponding ESIMD functions accept only 32-bit scalar/vector byte offsets.
 
 
@@ -48,9 +48,9 @@ template <cache_hint Hint> inline constexpr cache_hint_L2_key::value_t<Hint> cac
 template <cache_hint Hint> inline constexpr cache_hint_L3_key::value_t<Hint> cache_hint_L3;
 }
 ```
-Many of ESIMD functions have an optional argument `alignment`, `L1-cache-hint`, `L2-cache-hint`,
-`L3-cache-hint`(reserved). The list may be extended in future. The properties may be added
-to the properties list in any order. See the example of using the properties below:
+Many ESIMD functions have an optional argument `alignment`, `L1-cache-hint`, `L2-cache-hint`,
+`L3-cache-hint`(reserved). The list may be extended in the future. The properties may be added
+to the properties list in any order. See an example of using the properties below:
 ```C++
 using namespace sycl::ext::intel::esimd;
 
@@ -62,7 +62,7 @@ properties props{cache_hint_L1<cache_hint::uncached>, alignment<4> cache_hint_L1
 auto vec_b = block_load<float, 16>(f32_ptr + 1, props);
 ```
 
-Cache-hint properties (if passed) currently add the restriction to the target-device, it must be Intel® Arc Series (aka DG2) or Intel® Data Center GPU Max Series (aka PVC).
+Cache-hint properties (if passed) currently adds a restriction on the target-device, it must be a Intel® Arc Series (aka DG2) or Intel® Data Center GPU Max Series (aka PVC).
 
 ## block_load(...) - fast load from a contiguous memory block
 ```C++
@@ -70,7 +70,7 @@ Cache-hint properties (if passed) currently add the restriction to the target-de
 namespace sycl::ext::intel::esimd {
 template <typename T, int N, typename PropertyListT = empty_properties_t>
 /*usm-bl-1*/ simd<T, N> block_load(const T* ptr, PropertyListT props={});
-/*usm-bl-2*/ simd<T, N> block_load(const T* ptr, size_t byte_offsetc, PropertyListT props={});
+/*usm-bl-2*/ simd<T, N> block_load(const T* ptr, size_t byte_offset, PropertyListT props={});
 /*usm-bl-3*/ simd<T, N> block_load(const T* ptr, simd_mask<1> pred, PropertyListT props={});
 /*usm-bl-4*/ simd<T, N> block_load(const T* ptr, size_t byte_offset, simd_mask<1> pred, PropertyListT props={});
 /*usm-bl-5*/ simd<T, N> block_load(const T* ptr, simd_mask<1> pred, simd<T, N> pass_thru, PropertyListT props={});
@@ -102,12 +102,12 @@ template <typename T, int N, typename PropertyListT = empty_properties_t>
 }
 ```
 ### Description
-`(usm-bl-*)`: Loads a contiguous memory block from the global memory referenced by the USM pointer `ptr` optionally adjusted by `byte_offset`.  
-`(acc-bl-*)`, `(lacc-bl-*)`: Loads a contiguous memory block from the memory  referenced referenced by the accessor optionally adjusted by `byte_offset`.  
-`(slm-bl-*)`: Loads a contiguous memory block from the shared local memory  referenced by `byte_offset`.  
+`(usm-bl-*)`: Loads a contiguous memory block from global memory referenced by the USM pointer `ptr` optionally adjusted by `byte_offset`.  
+`(acc-bl-*)`, `(lacc-bl-*)`: Loads a contiguous memory block from the memory referenced by the accessor optionally adjusted by `byte_offset`.  
+`(slm-bl-*)`: Loads a contiguous memory block from the shared local memory referenced by `byte_offset`.  
 The optional parameter `byte_offset` has a scalar integer 64-bit type for `(usm-bl-*)`, 32-bit type for `(lacc-bl-*)` and `(slm-bl-*)`, 32-bit for `(acc-bl-*)` in [stateful](#statelessstateful-memory-mode) mode, and 64-bit for `(acc-bl-*)` in [stateless](#statelessstateful-memory-mode) mode.  
 The optional parameter `pred` provides a 1-element `simd_mask`. If zero mask is passed, then the load is skipped and the `pass_thru` value is returned.  
-If `pred` is zero and `pass_thru` operand was not passed, then the function returns an undefined value.  
+If `pred` is zero and the `pass_thru` operand was not passed, then the function returns an undefined value.  
 The optional [compile-time properties](#compile-time-properties) list `props` may specify `alignment` and/or `cache-hints`. The cache-hints are ignored for `(lacc-bl-*)` and `(slm-bl-*)` functions.
 
 ### Restrictions/assumptions:
@@ -132,7 +132,7 @@ The optional [compile-time properties](#compile-time-properties) list `props` ma
 | `(lacc-bl-3,4,5,6)`, `(slm-bl-2,3)`  | `pred` is passed | `N` must be from [Table1 below] | Any Intel GPU |
 
 
-#### Table1 - Valid values of `N` if cache-hints used or `pred` parameter is passed:
+#### Table1 - Valid values of `N` if cache-hints are used or `pred` parameter is passed:
 | sizeof(`T`) | Valid values of `N` | Special case - PVC only - the maximal `N`: requires bigger alignment: 8 or more |
 |---|--------------------------------|-----|
 | 1 | 4, 8, 12, 16, 32, 64, 128, 256 | 512 |
@@ -332,7 +332,7 @@ template <typename T, int N, int VS = 1, typename OffsetSimdViewT, typename Prop
 
 ### Description
 `(usm-ga-*)`: Loads ("gathers") elements of the type `T` from global memory locations addressed by the base USM pointer `p` and byte-offsets `byte_offsets`.  
-`(acc-ga-*)`, `(lacc-ga-*)`: Loads ("gathers") elements of the type `T` from memory locations addressed by the the accessor and byte-offsets `byte_offsets`.  
+`(acc-ga-*)`, `(lacc-ga-*)`: Loads ("gathers") elements of the type `T` from memory locations addressed by the accessor and byte-offsets `byte_offsets`.  
 `(slm-ga-*)`: Loads ("gathers") elements of the type `T` from shared local memory locations addressed by `byte_offsets`.  
 The parameter `byte_offset` is a vector of any integral type elements for `(usm-ga-*)`, 32-bit integer elements for `(lacc-ga-*)` and `(slm-ga-*)`, any integral type integer elements for `(acc-ga-*)` in [stateless](#statelessstateful-memory-mode) mode(default),
 and up-to-32-bit integer elements for `(acc-ga-*)` in [stateful](#statelessstateful-memory-mode) mode.  
@@ -551,7 +551,7 @@ template <typename T, int N, int VS, typename OffsetT, typename PropertyListT = 
 /*usm-pf-2*/ void prefetch(const T *p, simd<OffsetT, N / VS> byte_offsets,
                            PropertyListT props = {});
 
-// The next 2 are similar (usm-pf-1,2). `VS` parameter is set to 1,
+// The next 2 are similar to (usm-pf-1,2). `VS` parameter is set to 1,
 // which allows callers to omit explicit specification of `T` and `N` params.
 template <typename T, int N, typename OffsetT, typename PropertyListT = empty_properties_t>
 /*usm-pf-3*/ void prefetch(const T *p, simd<OffsetT, N> byte_offsets,
