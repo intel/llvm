@@ -274,6 +274,8 @@ etors:
              via the urPlatformGetLastError entry point."
     - name: ERROR_LAYER_NOT_PRESENT
       desc: "A requested layer was not found by the loader."
+    - name: ERROR_IN_EVENT_LIST_EXEC_STATUS
+      desc: "An event in the provided wait list has $X_EVENT_STATUS_ERROR."
     - name: ERROR_UNKNOWN
       value: "0x7ffffffe"
       desc: "Unknown or internal error"
