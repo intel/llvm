@@ -110,7 +110,7 @@ class ModuleDesc {
   std::unique_ptr<Module> M;
   EntryPointGroup EntryPoints;
   bool IsTopLevel = false;
-  std::optional<SYCLDeviceRequirements> Reqs;
+  mutable std::optional<SYCLDeviceRequirements> Reqs;
 
 public:
   struct Properties {
@@ -196,7 +196,7 @@ public:
 
   ModuleDesc clone() const;
 
-  const SYCLDeviceRequirements &getOrComputeDeviceRequirements() {
+  const SYCLDeviceRequirements &getOrComputeDeviceRequirements() const {
     if (!Reqs.has_value())
       Reqs = getSYCLDeviceRequirements(*this);
     return *Reqs;

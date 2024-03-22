@@ -116,13 +116,10 @@ struct TargetFilenamePairParser : public cl::basic_parser<TargetFilenamePair> {
   using cl::basic_parser<TargetFilenamePair>::basic_parser;
   bool parse(cl::Option &O, StringRef ArgName, StringRef &ArgValue,
              TargetFilenamePair &Val) const {
-    auto FirstComma = ArgValue.find(",");
-    if (FirstComma == ArgValue.npos) {
-      Val = {{}, ArgValue.str()};
-      return false;
-    }
-    auto Target = ArgValue.substr(0, FirstComma).str();
-    Val = {Target, ArgValue.substr(FirstComma + 1).str()};
+    auto [Target, Filename] = ArgValue.split(",");
+    if (Filename == "")
+      std::swap(Target, Filename);
+    Val = {Target.str(), Filename.str()};
     return false;
   }
 };
@@ -1031,12 +1028,9 @@ bool isTargetCompatibleWithModule(const std::optional<std::string> &Target,
   }
 
   // Check if module sub group size is compatible with the target.
-  if (ModuleReqs.SubGroupSize.has_value()) {
-    auto Begin = TargetInfo.subGroupSizes.begin();
-    auto End = TargetInfo.subGroupSizes.end();
-    if (std::find(Begin, End, *ModuleReqs.SubGroupSize) == End)
-      return false;
-  }
+  if (ModuleReqs.SubGroupSize.has_value() &&
+      !is_contained(TargetInfo.subGroupSizes, *ModuleReqs.SubGroupSize))
+    return false;
 
   return true;
 }
