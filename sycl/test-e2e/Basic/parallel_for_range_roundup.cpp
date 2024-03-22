@@ -7,6 +7,9 @@
 
 // RUN: %{build} -fsycl-exp-range-rounding -o %t.out
 // RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t.out | FileCheck %s --check-prefix=CHECK-EXP
+
+// RUN: %{build} -fsycl-range-rounding=force -fsycl-exp-range-rounding -o %t.out
+// RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t.out | FileCheck %s --check-prefix=CHECK-EXP
 //
 // These tests test 3 things:
 //
