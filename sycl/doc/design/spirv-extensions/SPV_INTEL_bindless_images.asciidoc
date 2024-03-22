@@ -101,7 +101,7 @@ OpConvertHandleToSamplerINTEL
 |======
 5+|[[OpConvertHandleToImageINTEL]]*OpConvertHandleToImageINTEL* +
  +
-Accepts an unsigned integer and converts to image type.
+Converts an unsigned integer pointed by _Operand_ to image type.
 
 Unsigned integer is either a 64 or 32 bit unsigned integer.
 Depending on whether *OpMemoryModel* is set to *Physical32* or *Physical64*.
@@ -115,7 +115,7 @@ _Result type_ must be an `OpTypeImage`.
 |======
 5+|[[OpConvertHandleToSamplerINTEL]]*OpConvertHandleToSamplerINTEL* +
  +
-Accepts an unsigned integer and converts to sampler type.
+Converts an unsigned integer pointed by _Operand_ to sampler type.
 
 Unsigned integer is either a 64 or 32 bit unsigned integer.
 Depending on whether *OpMemoryModel* is set to *Physical32* or *Physical64*.
