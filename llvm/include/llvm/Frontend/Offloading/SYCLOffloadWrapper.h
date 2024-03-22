@@ -32,8 +32,8 @@ enum class SYCLBinaryImageFormat {
 
 struct SYCLImage {
   SYCLImage() = default;
-  SYCLImage(SYCLImage &) = delete;
-  SYCLImage &operator=(SYCLImage &) = delete;
+  SYCLImage(const SYCLImage &) = delete;
+  SYCLImage &operator=(const SYCLImage &) = delete;
   SYCLImage(SYCLImage &&) = default;
   SYCLImage &operator=(SYCLImage &&) = default;
 
