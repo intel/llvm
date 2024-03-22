@@ -155,7 +155,6 @@ void group_load(Group g, InputIteratorT in_iter,
 
 ._Preconditions_:
 * `in_iter` must be the same for all work-items in the group.
-* `out` must be a `sycl::span` made from a pointer to the private memory space.
 
 ._Constraints_:
 * Only available if `Group` is a
@@ -258,7 +257,6 @@ void group_store(Group g, sycl::span<InputT, ItemsPerWorkItem> in,
 
 ._Preconditions_:
 * `out_iter` must be the same for all work-items in the group.
-* `in` must be a `sycl::span` made from a pointer to the private memory space.
 
 ._Constraints_:
 * Only available if `Group` is a
@@ -310,7 +308,7 @@ Consider 2 layouts:
 1.`sycl::ext::oneapi::experimental::data_placement_enum::blocked`.
 
 |===
-|Work-item id|Output stored in private fixed-size array
+|Work-item id|Output stored in a fixed-size array
 
 |0
 |{0, 1, 2, 3}
@@ -323,7 +321,7 @@ Consider 2 layouts:
 2.`sycl::ext::oneapi::experimental::data_placement_enum::striped`.
 
 |===
-|Work-item id|Output stored in private fixed-size array
+|Work-item id|Output stored in a fixed-size array
 
 |0
 |{0, 3, 6, 9}
@@ -368,8 +366,11 @@ Example:
 
 anchor:optimization_hints[]
 
-As `InputIteratorT` and `OutputIteratorT` are permitted to be random access iterators they
-are not guaranteed to be contiguous. The following property is introduced to be used
+==== Contiguous memory
+
+As `InputIteratorT` and `OutputIteratorT` are permitted to be random access
+iterators they are not guaranteed to be contiguous.
+The following property is introduced to be used
 as a hint to the implementation for optimization purposes:
 
 [source,c++]
@@ -391,10 +392,42 @@ For example, we can assert that `input` is a contiguous iterator:
 
 If `input` isn't a contiguous iterator, the behavior is undefined.
 
+==== Groups partitioning
+
+The following properties  is introduced to be used
+as a hint that implementation can use get_max_local_range():
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+struct full_work_group_hint {
+  using value_t =
+      property_value<full_work_group_hint>;
+};
+
+inline constexpr full_work_group_hint::value_t full_work_group;
+
+struct full_sub_group_hint {
+  using value_t =
+      property_value<full_sub_group_hint>;
+};
+
+inline constexpr full_sub_group_hint::value_t full_sub_group;
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+For example, we can assert that there is no uneven group partition,
+so the implementation can rely on get_max_local_range() range size:
+`group_load(sg, input, output_span, full_sub_group);`
+
+If partition is uneven the behavior is undefined.
+
 == Usage Example
 
 Example shows the simplest case without local memory usage of blocked load
-of global memory from `input` to the private array `data` and store it back to
+of global memory from `input` to the array `data` and store it back to
 `output`
 
 [source,c++]
