@@ -5,8 +5,7 @@
 #include <CL/cl.h>
 #include <iostream>
 #include <sycl/backend/opencl.hpp>
-#include <sycl/detail/core.hpp>
-#include <sycl/usm.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
