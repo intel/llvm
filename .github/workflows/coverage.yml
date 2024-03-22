@@ -1,6 +1,9 @@
 name: Coverage
 
-on: [push, pull_request]
+# Don't run this workflow on push trigger, because it requires
+# a token, which we don't have and can't generate.
+# Long term solution is to switch to a different tool, ref. #1465
+on: [pull_request]
 
 permissions:
   contents: read
