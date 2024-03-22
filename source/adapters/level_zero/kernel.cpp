@@ -204,7 +204,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   default:
     urPrint("urEnqueueKernelLaunch: unsupported work_dim\n");
-    return UR_RESULT_ERROR_INVALID_VALUE;
+    return UR_RESULT_ERROR_INVALID_WORK_DIMENSION;
   }
 
   // Error handling for non-uniform group size case
