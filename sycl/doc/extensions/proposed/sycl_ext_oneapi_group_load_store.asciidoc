@@ -395,7 +395,7 @@ If `input` isn't a contiguous iterator, the behavior is undefined.
 ==== Groups partitioning
 
 The following properties  is introduced to be used
-as a hint that implementation can use get_max_local_range():
+as a hint that implementation can use `get_max_local_range()`:
 
 [source,c++]
 ----
@@ -419,7 +419,7 @@ inline constexpr full_sub_group_hint::value_t full_sub_group;
 ----
 
 For example, we can assert that there is no uneven group partition,
-so the implementation can rely on get_max_local_range() range size:
+so the implementation can rely on `get_max_local_range()` range size:
 `group_load(sg, input, output_span, full_sub_group);`
 
 If partition is uneven the behavior is undefined.
