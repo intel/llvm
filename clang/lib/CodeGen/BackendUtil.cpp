@@ -1138,7 +1138,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
       // Add SPIRITTAnnotations pass to the pass manager if
       // -fsycl-instrument-device-code option was passed. This option can be
-      // used only with spir triple.
+      // used only with spir or spirv triple.
       if (CodeGenOpts.SPIRITTAnnotations) {
         assert(
             TargetTriple.isSPIROrSPIRV() &&

@@ -805,10 +805,10 @@ static bool isValidSYCLTriple(llvm::Triple T) {
     return true;
 
   // Check for invalid SYCL device triple values.
-  // Non-SPIR arch.
+  // Non-SPIR/SPIRV arch.
   if (!T.isSPIROrSPIRV())
     return false;
-  // SPIR arch, but has invalid SubArch for AOT.
+  // SPIR/SPIRV arch, but has invalid SubArch for AOT.
   StringRef A(T.getArchName());
   if (T.getSubArch() == llvm::Triple::NoSubArch &&
       ((T.getArch() == llvm::Triple::spir && !A.equals("spir")) ||
@@ -6363,7 +6363,7 @@ class OffloadingActionBuilder final {
               // When users specify the target as 'intel_gpu_*', the proper
               // triple is 'spir64_gen'.  The given string from intel_gpu_*
               // is the target device.
-              if (TT.isSPIROrSPIRV() &&
+              if (TT.isSPIR() &&
                   TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
                 StringRef Device(GpuArchList[I].second);
                 SYCLTargetInfoList.emplace_back(

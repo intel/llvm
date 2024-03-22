@@ -1452,8 +1452,8 @@ void SYCLToolChain::TranslateBackendTargetArgs(
     //   -XsDFOO -XsDBAR
     // All of the above examples will pass -DFOO -DBAR to the backend compiler.
 
-    // Do not add the -Xs to the default SYCL triple (spir64) when we know we
-    // have implied the setting.
+    // Do not add the -Xs to the default SYCL triple when we know we have
+    // implied the setting.
     if ((A->getOption().matches(options::OPT_Xs) ||
          A->getOption().matches(options::OPT_Xs_separate)) &&
         Triple.getSubArch() == llvm::Triple::NoSubArch &&
@@ -1476,7 +1476,7 @@ void SYCLToolChain::TranslateBackendTargetArgs(
       continue;
     }
   }
-  // Do not process -Xsycl-target-backend for implied spir64
+  // Do not process -Xsycl-target-backend for implied spir64/spirv64
   if (Triple.getSubArch() == llvm::Triple::NoSubArch &&
       Triple.isSPIROrSPIRV() && getDriver().isSYCLDefaultTripleImplied())
     return;
@@ -1489,7 +1489,7 @@ void SYCLToolChain::TranslateBackendTargetArgs(
 void SYCLToolChain::TranslateLinkerTargetArgs(
     const llvm::Triple &Triple, const llvm::opt::ArgList &Args,
     llvm::opt::ArgStringList &CmdArgs) const {
-  // Do not process -Xsycl-target-linker for implied spir64
+  // Do not process -Xsycl-target-linker for implied spir64/spirv64
   if (Triple.getSubArch() == llvm::Triple::NoSubArch &&
       Triple.isSPIROrSPIRV() && getDriver().isSYCLDefaultTripleImplied())
     return;
