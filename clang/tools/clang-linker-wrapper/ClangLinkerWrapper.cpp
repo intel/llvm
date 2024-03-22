@@ -779,7 +779,7 @@ readSYCLImagesFromTable(StringRef TableFile, const ArgList &Args) {
     Images.push_back(std::move(Image));
   }
 
-  return Images;
+  return std::move(Images);
 }
 
 /// Reads device images from the given \p InputFile and wraps them
