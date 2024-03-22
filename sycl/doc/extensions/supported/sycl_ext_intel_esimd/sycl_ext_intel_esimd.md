@@ -419,7 +419,7 @@ They go through extra layer of faster cache.
 load/store scalar values through accessors. In case of USM pointers, usual
 C++ dereference operator can be used. SLM versions are also available.
 
-See the more detailed list of available memory APIs [here](./sycl_ext_intel_esimd_functions.md).
+See a more detailed list of available memory APIs [here](./sycl_ext_intel_esimd_functions.md).
 
 
 #### Shared local memory access
