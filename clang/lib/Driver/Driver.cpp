@@ -806,7 +806,7 @@ static bool isValidSYCLTriple(llvm::Triple T) {
 
   // Check for invalid SYCL device triple values.
   // Non-SPIR arch.
-  if (!T.isSPIR() && !T.isSPIRV())
+  if (!T.isSPIROrSPIRV())
     return false;
   // SPIR arch, but has invalid SubArch for AOT.
   StringRef A(T.getArchName());
@@ -832,10 +832,7 @@ static bool addSYCLDefaultTriple(Compilation &C,
     return false;
   for (const auto &SYCLTriple : SYCLTriples) {
     if (SYCLTriple.getSubArch() == llvm::Triple::NoSubArch &&
-        SYCLTriple.isSPIR())
-      return false;
-    if (SYCLTriple.getSubArch() == llvm::Triple::NoSubArch &&
-        SYCLTriple.isSPIRV())
+        SYCLTriple.isSPIROrSPIRV())
       return false;
     // If we encounter a known non-spir* target, do not add the default triple.
     if (SYCLTriple.isNVPTX() || SYCLTriple.isAMDGCN())
@@ -3692,8 +3689,7 @@ bool Driver::checkForSYCLDefaultDevice(Compilation &C,
   if (const Arg *A = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
     for (const char *Val : A->getValues()) {
       llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
-      if ((TT.isSPIR() || TT.isSPIRV()) &&
-          TT.getSubArch() == llvm::Triple::NoSubArch)
+      if ((TT.isSPIROrSPIRV()) && TT.getSubArch() == llvm::Triple::NoSubArch)
         // Default triple found
         return false;
     }
@@ -4171,8 +4167,7 @@ class OffloadingActionBuilder final {
       // supported GPUs.  sm_20 code should work correctly, if
       // suboptimally, on all newer GPUs.
       if (GpuArchList.empty()) {
-        if (ToolChains.front()->getTriple().isSPIR() ||
-            ToolChains.front()->getTriple().isSPIRV())
+        if (ToolChains.front()->getTriple().isSPIROrSPIRV())
           GpuArchList.push_back(CudaArch::Generic);
         else
           GpuArchList.push_back(DefaultCudaArch);
@@ -4444,8 +4439,7 @@ class OffloadingActionBuilder final {
             // compiler phases, including backend and assemble phases.
             ActionList AL;
             Action *BackendAction = nullptr;
-            if (ToolChains.front()->getTriple().isSPIR() ||
-                ToolChains.front()->getTriple().isSPIRV()) {
+            if (ToolChains.front()->getTriple().isSPIROrSPIRV()) {
               // Emit LLVM bitcode for SPIR-V targets. SPIR-V device tool chain
               // (HIPSPVToolChain) runs post-link LLVM IR passes.
               types::ID Output = Args.hasArg(options::OPT_S)
@@ -4766,8 +4760,7 @@ class OffloadingActionBuilder final {
         DA->registerDependentActionInfo(
             ToolChains[I], /*BoundArch=*/StringRef(), Action::OFK_OpenMP);
 
-        if (!ToolChains[I]->getTriple().isSPIR() &&
-            !ToolChains[I]->getTriple().isSPIRV()) {
+        if (!ToolChains[I]->getTriple().isSPIROrSPIRV()) {
           // Create object from the deps bitcode.
           auto *BA = C.MakeAction<BackendJobAction>(DA, types::TY_PP_Asm);
           auto *AA = C.MakeAction<AssembleJobAction>(BA, types::TY_Object);
@@ -5310,7 +5303,7 @@ class OffloadingActionBuilder final {
       auto TargetTriple = TC->getTriple();
       auto IsNVPTX = TargetTriple.isNVPTX();
       auto IsAMDGCN = TargetTriple.isAMDGCN();
-      auto IsSPIR = TargetTriple.isSPIR() || TargetTriple.isSPIRV();
+      auto IsSPIR = TargetTriple.isSPIROrSPIRV();
       bool IsSpirvAOT = TargetTriple.isSPIRAOT();
       const bool IsSYCLNativeCPU =
           TC->getAuxTriple() &&
@@ -6165,8 +6158,7 @@ class OffloadingActionBuilder final {
         // If any section found is an 'image' based object that was created
         // with the intention of not requiring the matching SYCL target, do
         // not emit the diagnostic.
-        if (SyclTarget.TC->getTriple().isSPIR() ||
-            SyclTarget.TC->getTriple().isSPIRV()) {
+        if (SyclTarget.TC->getTriple().isSPIROrSPIRV()) {
           bool SectionFound = false;
           for (auto Section : UniqueSections) {
             if (SectionFound)
@@ -6371,7 +6363,7 @@ class OffloadingActionBuilder final {
               // When users specify the target as 'intel_gpu_*', the proper
               // triple is 'spir64_gen'.  The given string from intel_gpu_*
               // is the target device.
-              if ((TT.isSPIR() || TT.isSPIRV()) &&
+              if (TT.isSPIROrSPIRV() &&
                   TT.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
                 StringRef Device(GpuArchList[I].second);
                 SYCLTargetInfoList.emplace_back(
@@ -6748,8 +6740,7 @@ public:
            ++TI) {
         HasFPGATarget |= TI->second->getTriple().getSubArch() ==
                          llvm::Triple::SPIRSubArch_fpga;
-        HasSPIRTarget |= TI->second->getTriple().isSPIR() ||
-                         TI->second->getTriple().isSPIRV();
+        HasSPIRTarget |= TI->second->getTriple().isSPIROrSPIRV();
       }
       bool isArchive = !(HostAction->getType() == types::TY_Object &&
                          isObjectFile(InputArg->getAsString(Args)));
@@ -9046,9 +9037,8 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       } else if (types::isFPGA(JA->getType())) {
         std::string Ext(types::getTypeTempSuffix(JA->getType()));
         types::ID TI = types::TY_Object;
-        if (EffectiveTriple.isSPIR() || EffectiveTriple.isSPIRV()) {
-          if (!UI.DependentToolChain->getTriple().isSPIR() &&
-              !UI.DependentToolChain->getTriple().isSPIRV())
+        if (EffectiveTriple.isSPIROrSPIRV()) {
+          if (!UI.DependentToolChain->getTriple().isSPIROrSPIRV())
             continue;
           // Output file from unbundle is FPGA device. Name the file
           // accordingly.

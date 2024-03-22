@@ -4971,7 +4971,7 @@ static void ProcessVSRuntimeLibrary(const ArgList &Args,
                                     const ToolChain &TC) {
   unsigned RTOptionID = options::OPT__SLASH_MT;
 
-  bool isSPIR = TC.getTriple().isSPIR() || TC.getTriple().isSPIRV();
+  bool isSPIR = TC.getTriple().isSPIROrSPIRV();
   bool isSYCL = Args.hasArg(options::OPT_fsycl);
   // For SYCL Windows, /MD is the default.
   if (isSYCL)
@@ -5282,7 +5282,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                       options::OPT_fno_sycl_early_optimizations,
                       !IsFPGASYCLOffloadDevice))
       CmdArgs.push_back("-fno-sycl-early-optimizations");
-    else if (RawTriple.isSPIR() || RawTriple.isSPIRV()) {
+    else if (RawTriple.isSPIROrSPIRV()) {
       // Set `sycl-opt` option to configure LLVM passes for SPIR target
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-sycl-opt");
@@ -5326,7 +5326,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Forward -fsycl-instrument-device-code option to cc1. This option will
     // only be used for SPIR-V-based targets.
-    if (Triple.isSPIR() || Triple.isSPIRV())
+    if (Triple.isSPIROrSPIRV())
       if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
                        options::OPT_fno_sycl_instrument_device_code, true))
         CmdArgs.push_back("-fsycl-instrument-device-code");
@@ -5412,8 +5412,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fno-sycl-force-inline-kernel-lambda");
 
     // Add -ffine-grained-bitfield-accesses option. This will be added
-    // only for SPIR based targets.
-    if (Triple.isSPIR() || Triple.isSPIRV()) {
+    // only for SPIR-V based targets.
+    if (Triple.isSPIROrSPIRV()) {
       // It cannot be enabled together with a sanitizer
       if (!Args.getLastArg(options::OPT_fsanitize_EQ))
         CmdArgs.push_back("-ffine-grained-bitfield-accesses");
@@ -5507,11 +5507,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // between device and host where we should be able to use the offloading
     // arch to add the macro to the host compile.
     auto addTargetMacros = [&](const llvm::Triple &Triple) {
-      if (!Triple.isSPIR() && !Triple.isSPIRV() && !Triple.isNVPTX() &&
-          !Triple.isAMDGCN())
+      if (!Triple.isSPIROrSPIRV() && !Triple.isNVPTX() && !Triple.isAMDGCN())
         return;
       SmallString<64> Macro;
-      if (((Triple.isSPIR() || Triple.isSPIRV()) &&
+      if ((Triple.isSPIR() &&
            Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) ||
           Triple.isNVPTX() || Triple.isAMDGCN()) {
         StringRef Device = JA.getOffloadingArch();
@@ -5568,7 +5567,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   TC.addClangWarningOptions(CmdArgs);
 
   // FIXME: Subclass ToolChain for SPIR and move this to addClangWarningOptions.
-  if (Triple.isSPIR() || Triple.isSPIRV())
+  if (Triple.isSPIROrSPIRV())
     CmdArgs.push_back("-Wspir-compat");
 
   // Select the appropriate action.
@@ -6348,7 +6347,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Arg *A = Args.getLastArg(options::OPT_LongDouble_Group)) {
     if (TC.getTriple().isX86())
       A->render(Args, CmdArgs);
-    else if ((TC.getTriple().isSPIR() || TC.getTriple().isSPIRV()) &&
+    else if (TC.getTriple().isSPIROrSPIRV() &&
              (A->getOption().getID() == options::OPT_mlong_double_64))
       // Only allow for -mlong-double-64 for SPIR-V
       A->render(Args, CmdArgs);
@@ -9400,7 +9399,7 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     // Special handling for FPGA AOC[RX] binaries that are bundled prior to
     // being added to the generated archive.
     llvm::Triple Triple = CurTC->getTriple();
-    bool IsFPGA = (Triple.isSPIR() || Triple.isSPIRV()) &&
+    bool IsFPGA = Triple.isSPIR() &&
                   Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga;
     Arg *A = TCArgs.getLastArg(options::OPT_fsycl_link_EQ);
     if (A && IsFPGA) {
@@ -9573,8 +9572,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     TypeArg = (InputType == types::TY_FPGA_AOCX) ? "aocx" : "aocr";
     // When the output is a Tempfilelist, we know we are unbundling
     // the .bc files from the archive.
-    if ((!getToolChain().getTriple().isSPIR() &&
-         !getToolChain().getTriple().isSPIRV()) ||
+    if (!getToolChain().getTriple().isSPIROrSPIRV() ||
         JA.getType() == types::TY_Tempfilelist)
       TypeArg = "aoo";
   }
@@ -9588,7 +9586,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   auto SYCLTCRange = C.getOffloadToolChains<Action::OFK_SYCL>();
   for (auto TI = SYCLTCRange.first, TE = SYCLTCRange.second; TI != TE; ++TI) {
     llvm::Triple TT(TI->second->getTriple());
-    if (TT.isSPIR() || TT.isSPIRV()) {
+    if (TT.isSPIROrSPIRV()) {
       HasSPIRTarget = true;
       if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
         HasFPGATarget = true;
@@ -9625,8 +9623,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     // aocx or aocr type bundles.  Also, we only do a specific target
     // unbundling, skipping the host side or device side.
     if (types::isFPGA(InputType) || InputType == types::TY_Tempfilelist) {
-      if (getToolChain().getTriple().isSPIR() ||
-          getToolChain().getTriple().isSPIRV()) {
+      if (getToolChain().getTriple().isSPIROrSPIRV()) {
         if (Dep.DependentToolChain->getTriple().getSubArch() ==
             llvm::Triple::SPIRSubArch_fpga) {
           StringRef TypeName(types::getTypeName(InputType));
@@ -9916,8 +9913,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // For FPGA toolchains, we can provide previously wrapped bc input files to
     // the wrapper step.  This is done for AOCR based files that will need the
     // Symbols and Properties from a previous compilation step.
-    if ((TC.getTriple().isSPIR() || TC.getTriple().isSPIRV()) &&
-        Inputs.size() == 2 &&
+    if (TC.getTriple().isSPIR() && Inputs.size() == 2 &&
         TC.getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
       // If there is an additional input argument passed in, that is considered
       // the .bc file to include in this wrapping job.
@@ -10213,7 +10209,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     const toolchains::SYCLToolChain &TC =
         static_cast<const toolchains::SYCLToolChain &>(getToolChain());
     llvm::Triple Triple = TC.getTriple();
-    bool IsCPU = (Triple.isSPIR() || Triple.isSPIRV()) &&
+    bool IsCPU = Triple.isSPIR() &&
                  Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
     TranslatorArgs.push_back("-spirv-max-version=1.4");
     TranslatorArgs.push_back("-spirv-debug-info-version=ocl-100");
@@ -10456,7 +10452,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     addArgs(CmdArgs, TCArgs, {"-ir-output-only"});
   } else {
     assert(SYCLPostLink->getTrueType() == types::TY_Tempfiletable);
-    bool SplitEsimdByDefault = T.isSPIR() || T.isSPIRV();
+    bool SplitEsimdByDefault = T.isSPIROrSPIRV();
     bool SplitEsimd = TCArgs.hasFlag(
         options::OPT_fsycl_device_code_split_esimd,
         options::OPT_fno_sycl_device_code_split_esimd, SplitEsimdByDefault);
@@ -10802,16 +10798,17 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     for (auto &I :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = I.second;
-      if ((TC->getTriple().isSPIR() || TC->getTriple().isSPIRV()) &&
+      if (TC->getTriple().isSPIROrSPIRV() &&
           TC->getTriple().getSubArch() == llvm::Triple::NoSubArch) {
         TargetTriple = TC->getTriple();
         break;
       }
     }
     // Pass the device triple to the linker wrapper tool for SYCL offload.
-    // Only spirv64 is currently passed.
+    // Only spir64 or spirv64 is currently passed.
     // TODO(NOM1): Support target triples in a more generic way.
-    // TODO(NOM3): Investigate why passing spirv64-unknown-unknown does not work.
+    // TODO(NOM3): Investigate why passing spirv64-unknown-unknown does not
+    // work.
     if (TargetTriple.isSPIR())
       CmdArgs.push_back("--triple=spir64");
     else

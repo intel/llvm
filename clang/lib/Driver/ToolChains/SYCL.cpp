@@ -565,8 +565,7 @@ void SYCL::Linker::ConstructJob(Compilation &C, const JobAction &JA,
                                 const ArgList &Args,
                                 const char *LinkingOutput) const {
 
-  assert((getToolChain().getTriple().isSPIR() ||
-          getToolChain().getTriple().isSPIRV() ||
+  assert((getToolChain().getTriple().isSPIROrSPIRV() ||
           getToolChain().getTriple().isNVPTX() ||
           getToolChain().getTriple().isAMDGCN() || isSYCLNativeCPU(Args)) &&
          "Unsupported target");
@@ -668,11 +667,7 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
     Compilation &C, const JobAction &JA, const InputInfo &Output,
     const InputInfoList &Inputs, const ArgList &Args,
     const char *LinkingOutput) const {
-  assert((getToolChain().getTriple().getArch() == llvm::Triple::spir ||
-          getToolChain().getTriple().getArch() == llvm::Triple::spir64 ||
-          getToolChain().getTriple().getArch() == llvm::Triple::spirv32 ||
-          getToolChain().getTriple().getArch() == llvm::Triple::spirv64) &&
-         "Unsupported target");
+  assert(getToolChain().getTriple().isSPIROrSPIRV() && "Unsupported target");
 
   // Grab the -Xsycl-target* options.
   const toolchains::SYCLToolChain &TC =
@@ -850,11 +845,7 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
                                               const InputInfoList &Inputs,
                                               const ArgList &Args,
                                               const char *LinkingOutput) const {
-  assert((getToolChain().getTriple().getArch() == llvm::Triple::spir ||
-          getToolChain().getTriple().getArch() == llvm::Triple::spir64 ||
-          getToolChain().getTriple().getArch() == llvm::Triple::spirv32 ||
-          getToolChain().getTriple().getArch() == llvm::Triple::spirv64) &&
-         "Unsupported target");
+  assert(getToolChain().getTriple().isSPIROrSPIRV() && "Unsupported target");
   ArgStringList CmdArgs{"-output", Output.getFilename()};
   InputInfoList ForeachInputs;
   for (const auto &II : Inputs) {
@@ -1251,8 +1242,7 @@ static void WarnForDeprecatedBackendOpts(const Driver &D,
   // Make sure to only warn for once for gen targets as the translate
   // options tree is called twice but only the second time has the
   // device set.
-  if ((Triple.isSPIR() || Triple.isSPIRV()) &&
-      Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
+  if (Triple.isSPIR() && Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
       !A->isClaimed())
     return;
   for (const auto &[Mode, Flag] : GRFModeFlagMap)
@@ -1273,7 +1263,7 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
       // Passing device args: -X<Opt>=<triple> -opt=val.
       StringRef GenDevice = SYCL::gen::resolveGenDevice(A->getValue());
       bool IsGenTriple =
-          (getTriple().isSPIR() || getTriple().isSPIRV()) &&
+          getTriple().isSPIR() &&
           getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen;
       if (Device != GenDevice)
         continue;
@@ -1357,7 +1347,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
         // option to honor the user's specification.
         PerDeviceArgs.push_back(
             {DeviceName, Args.MakeArgString(BackendOptName)});
-      } else if ((Triple.isSPIR() || Triple.isSPIRV()) &&
+      } else if (Triple.isSPIROrSPIRV() &&
                  Triple.getSubArch() == llvm::Triple::NoSubArch) {
         // For JIT, pass -ftarget-register-alloc-mode=Device:BackendOpt to
         // clang-offload-wrapper to be processed by the runtime.
@@ -1376,7 +1366,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     StringRef BackendOptName = SYCL::gen::getGenGRFFlag("auto");
     if (IsGen)
       PerDeviceArgs.push_back({DeviceName, Args.MakeArgString(BackendOptName)});
-    else if ((Triple.isSPIR() || Triple.isSPIRV()) &&
+    else if (Triple.isSPIROrSPIRV() &&
              Triple.getSubArch() == llvm::Triple::NoSubArch) {
       BeArgs.push_back(Args.MakeArgString(RegAllocModeOptName + DeviceName +
                                           ":" + BackendOptName));
@@ -1417,7 +1407,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
                      options::OPT_fno_target_export_symbols, false))
       BeArgs.push_back("-library-compilation");
   } else if (Triple.getSubArch() == llvm::Triple::NoSubArch &&
-             (Triple.isSPIR() || Triple.isSPIRV())) {
+             Triple.isSPIROrSPIRV()) {
     // -ftarget-compile-fast JIT
     Args.AddLastArg(BeArgs, options::OPT_ftarget_compile_fast);
   }
@@ -1467,8 +1457,7 @@ void SYCLToolChain::TranslateBackendTargetArgs(
     if ((A->getOption().matches(options::OPT_Xs) ||
          A->getOption().matches(options::OPT_Xs_separate)) &&
         Triple.getSubArch() == llvm::Triple::NoSubArch &&
-        (Triple.isSPIR() || Triple.isSPIRV()) &&
-        getDriver().isSYCLDefaultTripleImplied())
+        Triple.isSPIROrSPIRV() && getDriver().isSYCLDefaultTripleImplied())
       continue;
 
     if (A->getOption().matches(options::OPT_Xs)) {
@@ -1489,8 +1478,7 @@ void SYCLToolChain::TranslateBackendTargetArgs(
   }
   // Do not process -Xsycl-target-backend for implied spir64
   if (Triple.getSubArch() == llvm::Triple::NoSubArch &&
-      (Triple.isSPIR() || Triple.isSPIRV()) &&
-      getDriver().isSYCLDefaultTripleImplied())
+      Triple.isSPIROrSPIRV() && getDriver().isSYCLDefaultTripleImplied())
     return;
   // Handle -Xsycl-target-backend.
   TranslateTargetOpt(Args, CmdArgs, options::OPT_Xsycl_backend,
@@ -1503,8 +1491,7 @@ void SYCLToolChain::TranslateLinkerTargetArgs(
     llvm::opt::ArgStringList &CmdArgs) const {
   // Do not process -Xsycl-target-linker for implied spir64
   if (Triple.getSubArch() == llvm::Triple::NoSubArch &&
-      (Triple.isSPIR() || Triple.isSPIRV()) &&
-      getDriver().isSYCLDefaultTripleImplied())
+      Triple.isSPIROrSPIRV() && getDriver().isSYCLDefaultTripleImplied())
     return;
   // Handle -Xsycl-target-linker.
   TranslateTargetOpt(Args, CmdArgs, options::OPT_Xsycl_linker,

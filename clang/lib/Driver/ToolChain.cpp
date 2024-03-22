@@ -1544,7 +1544,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
         continue;
       }
       // SPIR-V special case for -mlong-double
-      if ((getTriple().isSPIR() || getTriple().isSPIRV()) &&
+      if (getTriple().isSPIROrSPIRV() &&
           A->getOption().matches(options::OPT_LongDouble_Group)) {
         DAL->append(A);
         continue;
