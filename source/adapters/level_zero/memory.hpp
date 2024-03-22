@@ -158,6 +158,10 @@ struct _ur_buffer final : ur_mem_handle_t_ {
   // Tells the host allocation to use for buffer map operations.
   char *MapHostPtr{nullptr};
 
+  // Pointer to the original native buffer handle given this memory is a proxy
+  // device buffer.
+  void *DeviceMappedHostNativePtr{nullptr};
+
   // Supplementary data to keep track of the mappings of this buffer
   // created with piEnqueueMemBufferMap.
   struct Mapping {
