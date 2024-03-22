@@ -310,7 +310,7 @@ public:
   sycl::detail::pi::PiExtCommandBufferCommand getCommandBufferCommand() const {
     return MCommandBufferCommand;
   }
-  
+
   const std::vector<EventImplPtr> &getPostCompleteEvents() const {
     return MPostCompleteEvents;
   }

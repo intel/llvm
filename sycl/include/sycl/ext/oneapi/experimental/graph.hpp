@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <sycl/accessor.hpp>      // for detail::AccessorBaseHost
-#include <sycl/context.hpp>       // for context
-#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
+#include <sycl/accessor.hpp>               // for detail::AccessorBaseHost
+#include <sycl/context.hpp>                // for context
+#include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
 #include <sycl/detail/kernel_desc.hpp>     // for kernel_param_kind_t
 #include <sycl/detail/property_helper.hpp> // for DataLessPropKind, PropWith...
 #include <sycl/device.hpp>                 // for device
@@ -450,9 +450,9 @@ class dynamic_parameter : public detail::dynamic_parameter_base {
       std::is_base_of_v<sycl::detail::AccessorBaseHost, ValueT>;
   static constexpr sycl::detail::kernel_param_kind_t ParamType =
       IsAccessor ? sycl::detail::kernel_param_kind_t::kind_accessor
-                 : std::is_pointer_v<ValueT>
-                       ? sycl::detail::kernel_param_kind_t::kind_pointer
-                       : sycl::detail::kernel_param_kind_t::kind_std_layout;
+      : std::is_pointer_v<ValueT>
+          ? sycl::detail::kernel_param_kind_t::kind_pointer
+          : sycl::detail::kernel_param_kind_t::kind_std_layout;
 
 public:
   /// Constructs a new dynamic parameter.
