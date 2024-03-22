@@ -70,6 +70,7 @@ mlir::arith::convertArithRoundingModeToLLVM(arith::RoundingMode roundingMode) {
   case arith::RoundingMode::tonearestaway:
     return LLVM::RoundingMode::NearestTiesToAway;
   }
+  llvm_unreachable("Invalid rounding mode");
 }
 
 LLVM::RoundingModeAttr mlir::arith::convertArithRoundingModeAttrToLLVM(

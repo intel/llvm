@@ -34,12 +34,15 @@ namespace {
 /// \tparam SourceOp is the source operation; \tparam TargetOp, the operation it
 /// will lower to; \tparam AttrConvert is the attribute conversion to convert
 /// the rounding mode attribute.
-template <
-    typename SourceOp, typename TargetOp, bool Constrained,
-    template <typename, typename> typename AttrConvert = AttrConvertPassThrough,
-    std::enable_if_t<
-        SourceOp::template hasTrait<arith::ArithRoundingModeInterface::Trait>(),
-        bool> = true>
+template <typename SourceOp, typename TargetOp, bool Constrained,
+          template <typename, typename> typename AttrConvert =
+              AttrConvertPassThrough,
+          // Target constrained operations must implement the
+          // ExceptionBehaviorOpInterface.
+          std::enable_if_t<!Constrained ||
+                               TargetOp::template hasTrait<
+                                   LLVM::ExceptionBehaviorOpInterface::Trait>(),
+                           bool> = true>
 struct ConstrainedVectorConvertToLLVMPattern
     : public VectorConvertToLLVMPattern<SourceOp, TargetOp, AttrConvert> {
   using VectorConvertToLLVMPattern<SourceOp, TargetOp,
