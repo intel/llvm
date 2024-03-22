@@ -76,3 +76,6 @@ range will divide `256` in all dimensions
 {43, 257, 7} -> {256, 512, 256}
 ```
 
+`-fsycl-range-rounding=disable` will override `-fsycl-exp-range-rounding`. If
+both are used in conjunction then no range rounding will happen.
+
