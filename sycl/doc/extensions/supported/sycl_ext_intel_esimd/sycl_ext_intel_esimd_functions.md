@@ -173,7 +173,7 @@ template <typename T, int N, typename PropertyListT = empty_properties_t>
 ```
 ### Description
 `(usm-bs-*)`: Stores `vals` to a contiguous global memory block referenced by the USM pointer `ptr` optionally adjusted by `byte_offset`.  
-`(acc-bs-*)`, `(lacc-bs-*)`: Stores `vals` to a contiguous global memory block referenced by the accessor optionally adjusted by `byte_offset`.  
+`(acc-bs-*)`, `(lacc-bs-*)`: Stores `vals` to a contiguous memory block referenced by the accessor optionally adjusted by `byte_offset`.  
 `(slm-bs-*)`: Stores `vals` to a contiguous shared-local-memory block referenced by `byte_offset`.  
 The optional parameter `byte_offset` has a scalar integer 64-bit type for `(usm-bs-*)`, 32-bit type for `(lacc-bs-*)` and `(slm-bs-*)`, 32-bit for `(acc-bs-*)` in [stateful](#statelessstateful-memory-mode) mode, and 64-bit for `(acc-bs-*)` in [stateless](#statelessstateful-memory-mode) mode.  
 The optional parameter `pred` provides a 1-element `simd_mask`. If zero mask is passed, then the store is skipped.  
