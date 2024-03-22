@@ -9,7 +9,9 @@
 #pragma once
 
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+
 #include <cstdint>
 #include <map>
 #include <optional>
