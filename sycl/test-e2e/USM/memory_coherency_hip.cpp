@@ -12,8 +12,9 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/core.hpp>
-#include <sycl/usm.hpp>
+
 #include <sycl/atomic_ref.hpp>
+#include <sycl/usm.hpp>
 
 #include <chrono>
 #include <iostream>
