@@ -10500,10 +10500,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   assert(Output.isFilename() && "output must be a filename");
   StringRef Device = JA.getOffloadingArch();
   std::string OutputArg = Output.getFilename();
-  if (T.getSubArch() == llvm::Triple::SPIRSubArch_gen) {
-    if (Device.data())
-      OutputArg = ("intel_gpu_" + Device + "," + OutputArg).str();
-  }
+  if (T.getSubArch() == llvm::Triple::SPIRSubArch_gen && Device.data())
+    OutputArg = ("intel_gpu_" + Device + "," + OutputArg).str();
 
   addArgs(CmdArgs, TCArgs, {"-o", OutputArg});
 
