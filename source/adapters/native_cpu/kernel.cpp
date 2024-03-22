@@ -286,7 +286,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetSpecializationConstants(
   std::ignore = count;
   std::ignore = pSpecConstants;
 
-  DIE_NO_IMPLEMENTATION
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
