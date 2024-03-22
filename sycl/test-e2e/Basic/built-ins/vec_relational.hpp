@@ -1,6 +1,8 @@
 #pragma once
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
 
 #define TEST(FUNC, TYPE, EXPECTED, N, ...)                                     \
   {                                                                            \

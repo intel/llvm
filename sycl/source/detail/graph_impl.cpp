@@ -439,12 +439,12 @@ graph_impl::add(node_type NodeType,
     }
     // Look through the graph for nodes which share this requirement
     for (auto &Node : MNodeStorage) {
-      if (Node->hasRequirement(Req)) {
+      if (Node->hasRequirementDependency(Req)) {
         bool ShouldAddDep = true;
         // If any of this node's successors have this requirement then we skip
         // adding the current node as a dependency.
         for (auto &Succ : Node->MSuccessors) {
-          if (Succ.lock()->hasRequirement(Req)) {
+          if (Succ.lock()->hasRequirementDependency(Req)) {
             ShouldAddDep = false;
             break;
           }
