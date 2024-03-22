@@ -349,7 +349,7 @@ template <class T> using MakeGlobalType =
     s->field = value;                                                          \
   }
 
-// Sub group setters
+// Sub-group setters
 DefStateSetWithType(_set_num_sub_groups, NumSubGroups, uint32_t)
 DefStateSetWithType(_set_sub_group_id, SubGroup_id, uint32_t)
 DefStateSetWithType(_set_max_sub_group_size, SubGroup_size, uint32_t)
@@ -362,11 +362,37 @@ DefStateSetWithType(_set_max_sub_group_size, SubGroup_size, uint32_t)
 #define DefineStateGet_U32(name, field)                                        \
   DefineStateGetWithType(name, field, uint32_t)
 
-
+// Sub-group getters
 DefineStateGet_U32(_get_sub_group_id, SubGroup_id)
 DefineStateGet_U32(_get_sub_group_local_id, SubGroup_local_id)
 DefineStateGet_U32(_get_sub_group_size, SubGroup_size)
 DefineStateGet_U32(_get_max_sub_group_size, SubGroup_size)
 DefineStateGet_U32(_get_num_sub_groups, NumSubGroups)
+
+#define DefineStateGetWithType2(name, field, rtype, ptype)                     \
+  DEVICE_EXTERNAL_C rtype NCPUPREFIX(name)(ptype dim,                          \
+      MakeGlobalType<__nativecpu_state> *s) {                                  \
+    return s->field[dim];                                                      \
+  }
+
+#define DefineStateGet_U64(name, field)                                        \
+  DefineStateGetWithType2(name, field, uint64_t, uint32_t)
+
+// Workgroup getters
+DefineStateGet_U64(_get_global_id, MGlobal_id)
+DefineStateGet_U64(_get_global_range, MGlobal_range)
+DefineStateGet_U64(_get_global_offset, MGlobalOffset)
+DefineStateGet_U64(_get_local_id, MLocal_id)
+DefineStateGet_U64(_get_num_groups, MNumGroups)
+DefineStateGet_U64(_get_wg_size, MWorkGroup_size)
+DefineStateGet_U64(_get_wg_id, MWorkGroup_id)
+
+DEVICE_EXTERNAL_C void
+    __dpcpp_nativecpu_set_local_id(uint32_t dim, uint64_t value,
+                                   MakeGlobalType<__nativecpu_state> *s) {
+  s->MLocal_id[dim] = value;
+  s->MGlobal_id[dim] = s->MWorkGroup_size[dim] * s->MWorkGroup_id[dim] +
+                       s->MLocal_id[dim] + s->MGlobalOffset[dim];
+}
 
 #endif // __SYCL_NATIVE_CPU__

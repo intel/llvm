@@ -226,127 +226,21 @@ static Type *getStateType(Module &M) {
   return StateType;
 }
 
-static const StringMap<unsigned> OffsetMap{
-    {NativeCPUGlobalId, 0},    {NativeCPUGlobaRange, 1},
-    {NativeCPUWGSize, 2},      {NativeCPUWGId, 3},
-    {NativeCPULocalId, 4},     {NativeCPUNumGroups, 5},
-    {NativeCPUGlobalOffset, 6},
-// Subgroup offsets
-    {NativeCPUNumSubGroups, 7}, {NativeCPUSetNumSubGroups, 7},
-    {NativeCPUSubGroup_id, 8}, {NativeCPUSetSubGroup_id, 8},
-    {NativeCPUSubGroup_local_id, 9},
-    {NativeCPUSubGroup_size, 10}, {NativeCPUSetSubGroup_size, 10},
-    {NativeCPUSubGroup_max_size, 10}, {NativeCPUSetMaxSubgroupSize, 10} //todo
-};
-
-//declare void @__mux_set_num_sub_groups(i32% val) #2
-//declare void @__mux_set_sub_group_id(i32 % val) #2
-//declare void @__mux_set_max_sub_group_size(i32 % val)
-
-//declare i32 @__mux_get_sub_group_local_id()
-//declare i32 @__mux_get_sub_group_id()
-//declare i32 @__mux_get_num_sub_groups()
-//declare i32 @__mux_get_sub_group_size()
-
-
-static Function *addSetLocalIdFunc(Module &M, StringRef Name, Type *StateType) {
-  /*
-  void __dpcpp_nativecpu_set_local_id(unsigned dim, size_t value,
-                                 __nativecpu_state *s) {
-    s->MLocal_id[dim] = value;
-    s->MGlobal_id[dim] = s->MWorkGroup_size[dim] * s->MWorkGroup_id[dim] +
-                         s->MLocal_id[dim] + s->MGlobalOffset[dim];
-  }
-  */
+static Function *addReplaceFunc(Module &M, StringRef Name, Type *StateType) {
+  // emit empty functions for now.
   auto &Ctx = M.getContext();
-  Type *I64Ty = Type::getInt64Ty(Ctx);
   Type *I32Ty = Type::getInt32Ty(Ctx);
   Type *RetTy = Type::getVoidTy(Ctx);
-  Type *DimTy = I32Ty;
-  Type *ValTy = I64Ty;
+  Type *ValTy = I32Ty;
   Type *PtrTy = PointerType::get(Ctx, NativeCPUGlobalAS);
-  FunctionType *FTy = FunctionType::get(RetTy, {DimTy, ValTy, PtrTy}, false);
+  static FunctionType *FTy = FunctionType::get(RetTy, {ValTy, PtrTy}, false);
   auto FCallee = M.getOrInsertFunction(Name, FTy);
   auto *F = cast<Function>(FCallee.getCallee());
   IRBuilder<> Builder(Ctx);
   BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
   Builder.SetInsertPoint(BB);
-  auto *StatePtr = F->getArg(2);
-  auto *IdxProm = Builder.CreateZExt(F->getArg(0), DimTy, "idxprom");
-  auto *Zero = ConstantInt::get(I64Ty, 0);
-  auto *Offset = ConstantInt::get(I32Ty, OffsetMap.at(NativeCPULocalId));
-  auto *GEP = Builder.CreateGEP(StateType, StatePtr, {Zero, Offset, IdxProm});
-  // store local id
-  auto *Val = F->getArg(1);
-  Builder.CreateStore(Val, GEP);
-  // update global id
-  auto loadHelper = [&](const char *BTName) {
-    auto *Offset = ConstantInt::get(I32Ty, OffsetMap.at(BTName));
-    auto *Addr =
-        Builder.CreateGEP(StateType, StatePtr, {Zero, Offset, IdxProm});
-    auto *Load = Builder.CreateLoad(I64Ty, Addr);
-    return Load;
-  };
-  auto *WGId = loadHelper(NativeCPUWGId);
-  auto *WGSize = loadHelper(NativeCPUWGSize);
-  auto *GlobalOffset = loadHelper(NativeCPUGlobalOffset);
-  auto *Mul = Builder.CreateMul(WGId, WGSize);
-  auto *GId = Builder.CreateAdd(Builder.CreateAdd(Mul, GlobalOffset), Val);
-  auto *GIdOffset = ConstantInt::get(I32Ty, OffsetMap.at(NativeCPUGlobalId));
-  auto *GIdAddr =
-      Builder.CreateGEP(StateType, StatePtr, {Zero, GIdOffset, IdxProm});
-  Builder.CreateStore(GId, GIdAddr);
   Builder.CreateRetVoid();
-  return F;
-}
-
-static Function *addGetFunc(Module &M, StringRef Name, Type *StateType) {
-  auto &Ctx = M.getContext();
-  Type *I64Ty = Type::getInt64Ty(Ctx);
-  Type *I32Ty = Type::getInt32Ty(Ctx);
-  Type *RetTy = I64Ty;
-  Type *DimTy = I32Ty;
-  Type *PtrTy = PointerType::get(Ctx, NativeCPUGlobalAS);
-  static FunctionType *FTy = FunctionType::get(RetTy, {DimTy, PtrTy}, false);
-  auto FCallee = M.getOrInsertFunction(Name, FTy);
-  auto *F = cast<Function>(FCallee.getCallee());
-  IRBuilder<> Builder(Ctx);
-  BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
-  Builder.SetInsertPoint(BB);
-  auto *IdxProm = Builder.CreateZExt(F->getArg(0), DimTy, "idxprom");
-  auto *Zero = ConstantInt::get(I64Ty, 0);
-  auto *Offset = ConstantInt::get(I32Ty, OffsetMap.at(Name));
-  auto *GEP =
-      Builder.CreateGEP(StateType, F->getArg(1), {Zero, Offset, IdxProm});
-  auto *Load = Builder.CreateLoad(I64Ty, GEP);
-  Builder.CreateRet(Load);
-  return F;
-}
-
-static Function *addReplaceFunc(Module &M, StringRef Name, Type *StateType) {
-  Function *Res;
-  const char GetPrefix[] = "__dpcpp_nativecpu_get";
-  if (Name.starts_with(GetPrefix)) {
-    Res = addGetFunc(M, Name, StateType);
-  } else if (Name == NativeCPUSetLocalId) {
-    Res = addSetLocalIdFunc(M, Name, StateType);
-  } else {
-    // the other __dpcpp_nativecpu_set* builtins are subgroup-related and
-    // not supported yet, emit empty functions for now.
-    auto &Ctx = M.getContext();
-    Type *I32Ty = Type::getInt32Ty(Ctx);
-    Type *RetTy = Type::getVoidTy(Ctx);
-    Type *ValTy = I32Ty;
-    Type *PtrTy = PointerType::get(Ctx, NativeCPUGlobalAS);
-    static FunctionType *FTy = FunctionType::get(RetTy, {ValTy, PtrTy}, false);
-    auto FCallee = M.getOrInsertFunction(Name, FTy);
-    auto *F = cast<Function>(FCallee.getCallee());
-    IRBuilder<> Builder(Ctx);
-    BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
-    Builder.SetInsertPoint(BB);
-    Builder.CreateRetVoid();
-    Res = F;
-  }
+  Function *Res = F;
   Res->setLinkage(GlobalValue::LinkageTypes::InternalLinkage);
   return Res;
 }
