@@ -11,20 +11,14 @@
  */
 
 #include "stacktrace.hpp"
-#include "symbolizer_llvm.hpp"
 #include "ur_sanitizer_layer.hpp"
 
 namespace ur_sanitizer_layer {
 
 namespace {
 
-std::string GetFileName(const std::string &FilePath) {
-    auto p = FilePath.find_last_of('/');
-    return FilePath.substr(p + 1);
-}
-
-bool StartWith(const std::string &Str, const char *Pattern) {
-    return Str.rfind(Pattern, 0) == 0;
+bool Contains(const std::string &s, const char *p) {
+    return s.find(p) != std::string::npos;
 }
 
 } // namespace
@@ -37,28 +31,13 @@ void StackTrace::print() const {
     unsigned index = 0;
 
     for (auto &BI : stack) {
-        auto ModuleFile = GetFileName(BI.module);
-        if (StartWith(ModuleFile, "libsycl.so") ||
-            StartWith(ModuleFile, "libpi_unified_runtime.so") ||
-            StartWith(ModuleFile, "libur_loader.so")) {
+        // Skip runtime modules
+        if (Contains(BI, "libsycl.so") ||
+            Contains(BI, "libpi_unified_runtime.so") ||
+            Contains(BI, "libur_loader.so")) {
             continue;
         }
-
-        SourceInfo SI;
-        for (auto &symbolizer : SymbolizerTools) {
-            if (symbolizer->symbolizePC(BI, SI)) {
-                break;
-            }
-        }
-
-        if (!SI.file.empty()) {
-            context.logger.always("  #{} {} in {} {}:{}:{}", index,
-                                  (void *)BI.offset, SI.function, SI.file,
-                                  SI.line, SI.column);
-        } else {
-            context.logger.always("  #{} {} in {} {}", index, (void *)BI.offset,
-                                  SI.function, BI.module);
-        }
+        context.logger.always("  #{} {}", index, BI);
         ++index;
     }
     context.logger.always("");
