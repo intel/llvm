@@ -27,15 +27,19 @@ or copying the memory located on a separate "peer" device.
 
 Motivation
 --------------------------------------------------------------------------------
-Several important projects that the SYCL programming model aims to support use
-fine-grained peer to peer memory access controls.
-Two such examples that SYCL supports are Pytorch and Gromacs.
-This experimental extension to UR aims to provide a portable interface that can
-call appropriate driver functions to query and control peer memory access
-across the CUDA, HIP and L0 adapters.
+Programming models like SYCL or OpenMP aim to support several important
+projects that utilise fine-grained peer-to-peer memory access controls.
+This experimental extension to the Unified-Runtime API aims to provide a
+portable interface that can call appropriate driver functions to query and
+control peer memory access within different adapters such as CUDA, HIP and
+Level Zero.
 
 API
 --------------------------------------------------------------------------------
+
+Macros
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+* ${X}_USM_P2P_EXTENSION_STRING_EXP
 
 Enums
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -48,14 +52,23 @@ Functions
 * ${x}UsmP2PDisablePeerAccessExp
 * ${x}UsmP2PPeerAccessGetInfoExp
 
+Support
+--------------------------------------------------------------------------------
+
+Adapters which support this experimental feature *must* return the valid string
+defined in ``${X}_USM_P2P_EXTENSION_STRING_EXP`` as one of the options from
+${x}DeviceGetInfo when querying for ${X}_DEVICE_INFO_EXTENSIONS.
+
 Changelog
 --------------------------------------------------------------------------------
 
-+-----------+------------------------+
-| Revision  | Changes                |
-+===========+========================+
-| 1.0       | Initial Draft          |
-+-----------+------------------------+
++-----------+---------------------------------------------+
+| Revision  | Changes                                     |
++===========+=============================================+
+| 1.0       | Initial Draft                               |
++-----------+---------------------------------------------+
+| 1.1       | Added USM_P2P_EXTENSION_STRING_EXP ID Macro |
++-----------+---------------------------------------------+
 
 Contributors
 --------------------------------------------------------------------------------

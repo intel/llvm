@@ -25,11 +25,12 @@ struct command_buffer_profiling_t {
 };
 
 struct ur_exp_command_buffer_handle_t_ : public _ur_object {
-  ur_exp_command_buffer_handle_t_(ur_context_handle_t Context,
-                                  ur_device_handle_t Device,
-                                  ze_command_list_handle_t CommandList,
-                                  ZeStruct<ze_command_list_desc_t> ZeDesc,
-                                  const ur_exp_command_buffer_desc_t *Desc);
+  ur_exp_command_buffer_handle_t_(
+      ur_context_handle_t Context, ur_device_handle_t Device,
+      ze_command_list_handle_t CommandList,
+      ze_command_list_handle_t CommandListResetEvents,
+      ZeStruct<ze_command_list_desc_t> ZeDesc,
+      const ur_exp_command_buffer_desc_t *Desc);
 
   ~ur_exp_command_buffer_handle_t_();
 
@@ -49,6 +50,8 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   ur_device_handle_t Device;
   // Level Zero command list handle
   ze_command_list_handle_t ZeCommandList;
+  // Level Zero command list handle
+  ze_command_list_handle_t ZeCommandListResetEvents;
   // Level Zero command list descriptor
   ZeStruct<ze_command_list_desc_t> ZeCommandListDesc;
   // List of Level Zero fences created when submitting a graph.
@@ -64,10 +67,32 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   // Next sync_point value (may need to consider ways to reuse values if 32-bits
   // is not enough)
   ur_exp_command_buffer_sync_point_t NextSyncPoint;
+  // List of Level Zero events associated to submitted commands.
+  std::vector<ze_event_handle_t> ZeEventsList;
   // Event which will signals the most recent execution of the command-buffer
   // has finished
   ur_event_handle_t SignalEvent = nullptr;
   // Event which a command-buffer waits on until the wait-list dependencies
   // passed to a command-buffer enqueue have been satisfied.
   ur_event_handle_t WaitEvent = nullptr;
+  // Event which a command-buffer waits on until the main command-list event
+  // have been reset.
+  ur_event_handle_t AllResetEvent = nullptr;
+  // Indicates if command-buffer commands can be updated after it is closed.
+  bool IsUpdatable = false;
+  // Indicates if command buffer was finalized.
+  bool IsFinalized = false;
+};
+
+struct ur_exp_command_buffer_command_handle_t_ : public _ur_object {
+  ur_exp_command_buffer_command_handle_t_(ur_exp_command_buffer_handle_t,
+                                          uint64_t, ur_kernel_handle_t);
+
+  ~ur_exp_command_buffer_command_handle_t_();
+
+  // Command-buffer of this command.
+  ur_exp_command_buffer_handle_t CommandBuffer;
+
+  uint64_t CommandId;
+  ur_kernel_handle_t Kernel;
 };

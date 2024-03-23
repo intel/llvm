@@ -48,6 +48,7 @@ jobs:
         LD_LIBRARY_PATH=${{github.workspace}}/dpcpp_compiler/lib
         cmake --build ${{github.workspace}}/build -j $(nproc)
 
-    - name: Fuzz long test
-      working-directory: ${{github.workspace}}/build
-      run: ctest -C ${{matrix.build_type}} --output-on-failure -L "fuzz-long"
+    # Disable long fuzz tests until the ubuntu-22.04 runner is fixed
+    # - name: Fuzz long test
+    #   working-directory: ${{github.workspace}}/build
+    #   run: ctest -C ${{matrix.build_type}} --output-on-failure -L "fuzz-long"

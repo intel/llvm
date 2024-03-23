@@ -77,53 +77,93 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidWorkDimension) {
                      UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 }
 
-struct urEnqueueKernelLaunch2DTest : uur::urKernelExecutionTest {
-    void SetUp() override {
-        program_name = "fill_2d";
-        UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
-    }
-
-    uint32_t val = 42;
-    size_t global_size[2] = {8, 8};
-    size_t global_offset[2] = {0, 0};
-    size_t buffer_size = sizeof(val) * global_size[0] * global_size[1];
-    size_t n_dimensions = 2;
+struct testParametersEnqueueKernel {
+    size_t X, Y, Z;
+    size_t Dims;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunch2DTest);
 
-TEST_P(urEnqueueKernelLaunch2DTest, Success) {
-    ur_mem_handle_t buffer = nullptr;
-    AddBuffer1DArg(buffer_size, &buffer);
-    AddPodArg(val);
-    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                         global_offset, global_size, nullptr, 0,
-                                         nullptr, nullptr));
-    ASSERT_SUCCESS(urQueueFinish(queue));
-    ValidateBuffer(buffer, buffer_size, val);
+template <typename T>
+inline std::string printKernelLaunchTestString(
+    const testing::TestParamInfo<typename T::ParamType> &info) {
+    const auto device_handle = std::get<0>(info.param);
+    const auto platform_device_name =
+        uur::GetPlatformAndDeviceName(device_handle);
+    std::stringstream test_name;
+    test_name << platform_device_name << "__" << std::get<1>(info.param).Dims
+              << "D_" << std::get<1>(info.param).X;
+    if (std::get<1>(info.param).Dims > 1) {
+        test_name << "_" << std::get<1>(info.param).Y;
+    }
+    if (std::get<1>(info.param).Dims > 2) {
+        test_name << "_" << std::get<1>(info.param).Z;
+    }
+    test_name << "";
+    return test_name.str();
 }
 
-struct urEnqueueKernelLaunch3DTest : uur::urKernelExecutionTest {
+struct urEnqueueKernelLaunchTestWithParam
+    : uur::urBaseKernelExecutionTestWithParam<testParametersEnqueueKernel> {
     void SetUp() override {
-        program_name = "fill_3d";
-        UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
+        global_range[0] = std::get<1>(GetParam()).X;
+        global_range[1] = std::get<1>(GetParam()).Y;
+        global_range[2] = std::get<1>(GetParam()).Z;
+        buffer_size = sizeof(val) * global_range[0];
+        n_dimensions = std::get<1>(GetParam()).Dims;
+        if (n_dimensions == 1) {
+            program_name = "fill";
+        } else if (n_dimensions == 2) {
+            program_name = "fill_2d";
+            buffer_size *= global_range[1];
+        } else {
+            assert(n_dimensions == 3);
+            program_name = "fill_3d";
+            buffer_size *= global_range[1] * global_range[2];
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(
+            urBaseKernelExecutionTestWithParam::SetUp());
+    }
+
+    void TearDown() override {
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urBaseKernelExecutionTestWithParam<
+                                    testParametersEnqueueKernel>::TearDown());
     }
 
     uint32_t val = 42;
-    size_t global_size[3] = {4, 4, 4};
+    size_t global_range[3];
     size_t global_offset[3] = {0, 0, 0};
-    size_t buffer_size =
-        sizeof(val) * global_size[0] * global_size[1] * global_size[2];
-    size_t n_dimensions = 3;
+    size_t n_dimensions;
+    size_t buffer_size;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunch3DTest);
 
-TEST_P(urEnqueueKernelLaunch3DTest, Success) {
+static std::vector<testParametersEnqueueKernel> test_cases{// 1D
+                                                           {1, 1, 1, 1},
+                                                           {31, 1, 1, 1},
+                                                           {1027, 1, 1, 1},
+                                                           {32, 1, 1, 1},
+                                                           {256, 1, 1, 1},
+                                                           // 2D
+                                                           {1, 1, 1, 2},
+                                                           {31, 7, 1, 2},
+                                                           {1027, 1, 1, 2},
+                                                           {1, 32, 1, 2},
+                                                           {256, 79, 1, 2},
+                                                           // 3D
+                                                           {1, 1, 1, 3},
+                                                           {31, 7, 1, 3},
+                                                           {1027, 1, 19, 3},
+                                                           {1, 53, 19, 3},
+                                                           {256, 79, 8, 3}};
+UUR_TEST_SUITE_P(
+    urEnqueueKernelLaunchTestWithParam, testing::ValuesIn(test_cases),
+    printKernelLaunchTestString<urEnqueueKernelLaunchTestWithParam>);
+
+TEST_P(urEnqueueKernelLaunchTestWithParam, Success) {
     ur_mem_handle_t buffer = nullptr;
     AddBuffer1DArg(buffer_size, &buffer);
     AddPodArg(val);
     ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
-                                         global_offset, global_size, nullptr, 0,
-                                         nullptr, nullptr));
+                                         global_offset, global_range, nullptr,
+                                         0, nullptr, nullptr));
     ASSERT_SUCCESS(urQueueFinish(queue));
     ValidateBuffer(buffer, buffer_size, val);
 }

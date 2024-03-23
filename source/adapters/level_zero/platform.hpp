@@ -55,4 +55,22 @@ struct ur_platform_handle_t_ : public _ur_platform {
   // in the driver.
   std::list<ur_context_handle_t> Contexts;
   ur_shared_mutex ContextsMutex;
+
+  // Structure with function pointers for mutable command list extension.
+  // Not all drivers may support it, so considering that the platform object is
+  // associated with particular Level Zero driver, store this extension here.
+  struct ZeMutableCmdListExtension {
+    bool Supported = false;
+    ze_result_t (*zexCommandListGetNextCommandIdExp)(
+        ze_command_list_handle_t, const ze_mutable_command_id_exp_desc_t *,
+        uint64_t *) = nullptr;
+    ze_result_t (*zexCommandListUpdateMutableCommandsExp)(
+        ze_command_list_handle_t,
+        const ze_mutable_commands_exp_desc_t *) = nullptr;
+    ze_result_t (*zexCommandListUpdateMutableCommandSignalEventExp)(
+        ze_command_list_handle_t, uint64_t, ze_event_handle_t) = nullptr;
+    ze_result_t (*zexCommandListUpdateMutableCommandWaitEventsExp)(
+        ze_command_list_handle_t, uint64_t, uint32_t,
+        ze_event_handle_t *) = nullptr;
+  } ZeMutableCmdListExt;
 };
