@@ -7979,16 +7979,23 @@ enum fence_mask : uint8_t {
   global_coherent_fence = 0x1,
   /// Flush the instruction cache.
   l2_flush_instructions = 0x2,
-  l3_flush_instructions __SYCL_DEPRECATED("it actually means L2 here, use l2_flush_instructions") = l2_flush_instructions,
+  l3_flush_instructions __SYCL_DEPRECATED(
+      "it actually means L2 here, use l2_flush_instructions") =
+      l2_flush_instructions,
   /// Flush sampler (texture) cache.
   l2_flush_texture_data = 0x4,
-  l3_flush_texture_data = __SYCL_DEPRECATED("it actually means L2 here, use l2_flush_texture_data") l2_flush_texture_data,
+  l3_flush_texture_data =
+      __SYCL_DEPRECATED("it actually means L2 here, use l2_flush_texture_data")
+          l2_flush_texture_data,
   /// Flush constant cache.
   l2_flush_constant_data = 0x8,
-  l3_flush_constant_data = __SYCL_DEPRECATED("it actually means L2 here, use l2_flush_constant_data") l2_flush_constant_data,
+  l3_flush_constant_data =
+      __SYCL_DEPRECATED("it actually means L2 here, use l2_flush_constant_data")
+          l2_flush_constant_data,
   /// Flush constant cache.
   l2_flush_rw_data = 0x10,
-  l3_flush_rw_data = __SYCL_DEPRECATED("it actually means L2 here, use l2_flush_rw_data") l2_flush_rw_data,
+  l3_flush_rw_data = __SYCL_DEPRECATED(
+      "it actually means L2 here, use l2_flush_rw_data") l2_flush_rw_data,
   /// Issue SLM memory barrier only. If not set, the memory barrier is global.
   local_barrier = 0x20,
   /// Flush L1 read - only data cache.
