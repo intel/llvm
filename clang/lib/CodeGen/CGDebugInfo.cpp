@@ -6056,6 +6056,7 @@ bool clang::CodeGen::noSystemDebugInfo(const Decl *D,
     if (isa<TypedefDecl>(D))
       return false;
 
+#ifndef WINDOWS
     // Generate debug for _M_insert_aux to allow debugging for
     // deque's value_type.
     const auto *Constructor = dyn_cast<CXXConstructorDecl>(D);
@@ -6064,6 +6065,7 @@ bool clang::CodeGen::noSystemDebugInfo(const Decl *D,
     const auto *Method = dyn_cast<CXXMethodDecl>(D);
     if (Method && Method->getNameAsString() == "_M_insert_aux")
       return false;
+#endif
 
     // -fno-system-debug was used.  Do not generate debug info.
     if (CGM.getCodeGenOpts().NoSystemDebug)
