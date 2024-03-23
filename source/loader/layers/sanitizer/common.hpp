@@ -82,11 +82,7 @@ inline constexpr uptr ComputeRZLog(uptr user_requested_size) {
             return Result;                                                     \
     }
 
-struct BacktraceInfo {
-    uptr offset;
-    std::string module;
-    std::string debug;
-};
+using BacktraceInfo = std::string;
 
 struct SourceInfo {
     std::string file;
