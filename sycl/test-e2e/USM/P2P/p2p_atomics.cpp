@@ -4,9 +4,12 @@
 
 #include <cassert>
 #include <numeric>
-#include <sycl/detail/core.hpp>
-#include <sycl/usm.hpp>
 #include <vector>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/atomic_ref.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 
