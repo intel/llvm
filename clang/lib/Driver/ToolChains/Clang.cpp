@@ -4643,6 +4643,8 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
   // -fno-system-debug turns off debug info generation for system headers
   // Enable by default
   CmdArgs.push_back("-fno-system-debug");
+  // Claim `-fno-system-debug` to avoid unused warnings.
+  Args.ClaimAllArgs(options::OPT_fno_system_debug);
 
   // -ggnu-pubnames turns on gnu style pubnames in the backend.
   const auto *PubnamesArg =
