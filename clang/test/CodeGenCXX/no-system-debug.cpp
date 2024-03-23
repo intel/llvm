@@ -26,10 +26,10 @@
 // RUN: %clang -emit-llvm -S -g %s -o  %t.standalone_debug                -fstandalone-debug                -DINSERT
 // RUN: %clang -emit-llvm -S -g %s -o  %t.no_eliminate_unused_debug_types -fno-eliminate-unused-debug-types -DINSERT
 
-// RUN: grep DISubprogram %t.default                         | FileCheck --check-prefix=CHECK-ALL-DEBUG %t.check_results
+// RUN: grep DISubprogram %t.default                         | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 // RUN: grep DISubprogram %t.no_system_debug                 | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
-// RUN: grep DISubprogram %t.standalone_debug                | FileCheck --check-prefix=CHECK-ALL-DEBUG %t.check_results
-// RUN: grep DISubprogram %t.no_eliminate_unused_debug_types | FileCheck --check-prefix=CHECK-ALL-DEBUG %t.check_results
+// RUN: grep DISubprogram %t.standalone_debug                | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
+// RUN: grep DISubprogram %t.no_eliminate_unused_debug_types | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // vector::pop_back and vector::insert are both in user source
@@ -39,10 +39,10 @@
 // RUN: %clang -emit-llvm -S -g %s -o  %t.standalone_debug                -fstandalone-debug                -DINSERT -DPOP_BACK
 // RUN: %clang -emit-llvm -S -g %s -o  %t.no_eliminate_unused_debug_types -fno-eliminate-unused-debug-types -DINSERT -DPOP_BACK
 
-// RUN: grep DISubprogram %t.default                         | FileCheck --check-prefix=CHECK-ALL-DEBUG %t.check_results
+// RUN: grep DISubprogram %t.default                         | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 // RUN: grep DISubprogram %t.no_system_debug                 | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
-// RUN: grep DISubprogram %t.standalone_debug                | FileCheck --check-prefix=CHECK-ALL-DEBUG %t.check_results
-// RUN: grep DISubprogram %t.no_eliminate_unused_debug_types | FileCheck --check-prefix=CHECK-ALL-DEBUG %t.check_results
+// RUN: grep DISubprogram %t.standalone_debug                | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
+// RUN: grep DISubprogram %t.no_eliminate_unused_debug_types | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // class vector<int> is explicitly instantiated.
@@ -53,10 +53,10 @@
 // RUN: %clang -emit-llvm -S -g %s -o  %t.standalone_debug                -fstandalone-debug                -DEXPLICIT_INSTANTIATION
 // RUN: %clang -emit-llvm -S -g %s -o  %t.no_eliminate_unused_debug_types -fno-eliminate-unused-debug-types -DEXPLICIT_INSTANTIATION
 
-// RUN: grep DISubprogram %t.default                         | FileCheck --check-prefix=CHECK-ALL-DEBUG %t.check_results
+// RUN: grep DISubprogram %t.default                         | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 // RUN: grep DISubprogram %t.no_system_debug                 | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
-// RUN: grep DISubprogram %t.standalone_debug                | FileCheck --check-prefix=CHECK-ALL-DEBUG %t.check_results
-// RUN: grep DISubprogram %t.no_eliminate_unused_debug_types | FileCheck --check-prefix=CHECK-ALL-DEBUG %t.check_results
+// RUN: grep DISubprogram %t.standalone_debug                | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
+// RUN: grep DISubprogram %t.no_eliminate_unused_debug_types | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // class vector<int> is explicitly instantiated.
@@ -67,10 +67,10 @@
 // RUN: %clang -emit-llvm -S -g %s -o  %t.standalone_debug                -fstandalone-debug                -DEXPLICIT_INSTANTIATION -DINSERT -DPOP_BACK
 // RUN: %clang -emit-llvm -S -g %s -o  %t.no_eliminate_unused_debug_types -fno-eliminate-unused-debug-types -DEXPLICIT_INSTANTIATION -DINSERT -DPOP_BACK
 
-// RUN: grep DISubprogram %t.default                         | FileCheck --check-prefix=CHECK-ALL-DEBUG %t.check_results
+// RUN: grep DISubprogram %t.default                         | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 // RUN: grep DISubprogram %t.no_system_debug                 | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
-// RUN: grep DISubprogram %t.standalone_debug                | FileCheck --check-prefix=CHECK-ALL-DEBUG %t.check_results
-// RUN: grep DISubprogram %t.no_eliminate_unused_debug_types | FileCheck --check-prefix=CHECK-ALL-DEBUG %t.check_results
+// RUN: grep DISubprogram %t.standalone_debug                | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
+// RUN: grep DISubprogram %t.no_eliminate_unused_debug_types | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
