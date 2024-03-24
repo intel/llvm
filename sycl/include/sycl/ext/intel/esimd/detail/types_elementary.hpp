@@ -124,6 +124,14 @@ struct vector_element_type<T __attribute__((ext_vector_type(N)))> {
 template <class T>
 using vector_element_type_t = typename vector_element_type<T>::type;
 
+// Accessors may get either 32-bit offset or 64-bit depending on
+// the -fsycl-esimd-force-stateles-mem mode setting.
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+using DeviceAccessorOffsetT = uint64_t;
+#else
+using DeviceAccessorOffsetT = uint32_t;
+#endif
+
 } // namespace detail
 
 /// @endcond ESIMD_DETAIL
