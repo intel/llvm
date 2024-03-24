@@ -1,5 +1,5 @@
-// FIXME unsupported on CUDA and HIP until fallback libdevice becomes available
-// UNSUPPORTED: cuda || hip
+// FIXME unsupported on HIP until fallback libdevice becomes available
+// UNSUPPORTED: hip
 //
 // UNSUPPORTED: ze_debug
 // RUN: %{build} -o %t.out
