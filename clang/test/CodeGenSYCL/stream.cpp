@@ -5,7 +5,7 @@
 // CHECK: %[[ID_TYPE:"struct.*sycl::_V1::id"]]
 
 // CHECK: define dso_local spir_kernel void @{{.*}}StreamTester
-// CHECK-SAME: ptr addrspace(1) noundef align 1 [[ACC_DATA:%[a-zA-Z0-9_]+]],
+// CHECK-SAME: ptr addrspace(1) noundef [[ACC_DATA:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: ptr noundef byval(%[[RANGE_TYPE]]) align 4 [[ACC_RANGE1:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: ptr noundef byval(%[[RANGE_TYPE]]) align 4 [[ACC_RANGE2:%[a-zA-Z0-9_]+]],
 // CHECK-SAME: ptr noundef byval(%[[ID_TYPE]]) align 4 [[ACC_ID:%[a-zA-Z0-9_]+]],
