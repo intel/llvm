@@ -26,7 +26,8 @@ class QuarantineCache {
     using Element = AllocationIterator;
     using List = std::queue<Element>;
 
-    explicit QuarantineCache() {}
+    // The following methods are not thread safe, use this lock
+    ur_mutex Mutex;
 
     // Total memory used, including internal accounting.
     uptr size() const { return m_Size; }
@@ -62,7 +63,13 @@ class Quarantine {
                                         AllocationIterator &Ptr);
 
   private:
+    QuarantineCache &getCache(ur_device_handle_t Device) {
+        std::scoped_lock<ur_mutex> Guard(m_Mutex);
+        return m_Map[Device];
+    }
+
     std::unordered_map<ur_device_handle_t, QuarantineCache> m_Map;
+    ur_mutex m_Mutex;
     size_t m_MaxQuarantineSize;
 };
 

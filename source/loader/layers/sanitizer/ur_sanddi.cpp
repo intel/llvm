@@ -58,7 +58,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
     context.logger.debug("==== urUSMHostAlloc");
 
     return context.interceptor->allocateMemory(
-        hContext, nullptr, pUSMDesc, pool, size, ppMem, AllocType::HOST_USM);
+        hContext, nullptr, pUSMDesc, pool, size, AllocType::HOST_USM, ppMem);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -83,7 +83,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
     context.logger.debug("==== urUSMDeviceAlloc");
 
     return context.interceptor->allocateMemory(
-        hContext, hDevice, pUSMDesc, pool, size, ppMem, AllocType::DEVICE_USM);
+        hContext, hDevice, pUSMDesc, pool, size, AllocType::DEVICE_USM, ppMem);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -108,7 +108,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
     context.logger.debug("==== urUSMSharedAlloc");
 
     return context.interceptor->allocateMemory(
-        hContext, hDevice, pUSMDesc, pool, size, ppMem, AllocType::SHARED_USM);
+        hContext, hDevice, pUSMDesc, pool, size, AllocType::SHARED_USM, ppMem);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -214,24 +214,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
     context.logger.debug("==== urEnqueueKernelLaunch");
 
-    LaunchInfo LaunchInfo(GetContext(hQueue));
-    const size_t *pUserLocalWorkSize = pLocalWorkSize;
-    if (!pUserLocalWorkSize) {
-        pUserLocalWorkSize = LaunchInfo.LocalWorkSize;
-        // FIXME: This is W/A until urKernelSuggestGroupSize is added
-        LaunchInfo.LocalWorkSize[0] = 1;
-        LaunchInfo.LocalWorkSize[1] = 1;
-        LaunchInfo.LocalWorkSize[2] = 1;
-    }
+    LaunchInfo LaunchInfo(GetContext(hQueue), pGlobalWorkSize, pLocalWorkSize,
+                          pGlobalWorkOffset, workDim);
 
-    uint32_t numWork = 1;
-    for (uint32_t dim = 0; dim < workDim; ++dim) {
-        numWork *= (pGlobalWorkSize[dim] + pUserLocalWorkSize[dim] - 1) /
-                   pUserLocalWorkSize[dim];
-    }
-
-    UR_CALL(context.interceptor->preLaunchKernel(hKernel, hQueue, LaunchInfo,
-                                                 numWork));
+    UR_CALL(context.interceptor->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
     ur_event_handle_t hEvent{};
     ur_result_t result = pfnKernelLaunch(
@@ -239,8 +225,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
         pLocalWorkSize, numEventsInWaitList, phEventWaitList, &hEvent);
 
     if (result == UR_RESULT_SUCCESS) {
-        context.interceptor->postLaunchKernel(hKernel, hQueue, hEvent,
-                                              LaunchInfo);
+        UR_CALL(context.interceptor->postLaunchKernel(hKernel, hQueue, hEvent,
+                                                      LaunchInfo));
     }
 
     if (phEvent) {

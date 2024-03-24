@@ -11,9 +11,10 @@
  */
 
 #include "asan_report.hpp"
+
 #include "asan_allocator.hpp"
 #include "asan_interceptor.hpp"
-#include "device_sanitizer_report.hpp"
+#include "asan_libdevice.hpp"
 #include "ur_sanitizer_layer.hpp"
 #include "ur_sanitizer_utils.hpp"
 
@@ -35,7 +36,7 @@ void ReportBadFree(uptr Addr, const StackTrace &stack,
 
     context.logger.always("{} is located inside of {} region [{}, {})",
                           (void *)Addr, ToString(AI->Type),
-                          (void *)AI->UserBegin, (void *)(AI->UserEnd + 1));
+                          (void *)AI->UserBegin, (void *)AI->UserEnd);
     context.logger.always("allocated here:");
     AI->AllocStack.print();
 
@@ -51,7 +52,7 @@ void ReportBadContext(uptr Addr, const StackTrace &stack,
 
     context.logger.always("{} is located inside of {} region [{}, {})",
                           (void *)Addr, ToString(AI->Type),
-                          (void *)AI->UserBegin, (void *)(AI->UserEnd + 1));
+                          (void *)AI->UserBegin, (void *)AI->UserEnd);
     context.logger.always("allocated here:");
     AI->AllocStack.print();
 
@@ -72,7 +73,7 @@ void ReportDoubleFree(uptr Addr, const StackTrace &Stack,
 
     context.logger.always("{} is located inside of {} region [{}, {})",
                           (void *)Addr, ToString(AI->Type),
-                          (void *)AI->UserBegin, (void *)(AI->UserEnd + 1));
+                          (void *)AI->UserBegin, (void *)AI->UserEnd);
     context.logger.always("freed here:");
     AI->ReleaseStack.print();
     context.logger.always("previously allocated here:");
@@ -120,7 +121,7 @@ void ReportUseAfterFree(const DeviceSanitizerReport &Report,
     KernelName = DemangleName(KernelName);
 
     context.logger.always("\n====ERROR: DeviceSanitizer: {} on address {}",
-                          ToString(Report.ErrorType), (void *)Report.Addr);
+                          ToString(Report.ErrorType), (void *)Report.Address);
     context.logger.always(
         "{} of size {} at kernel <{}> LID({}, {}, {}) GID({}, "
         "{}, {})",
@@ -131,24 +132,24 @@ void ReportUseAfterFree(const DeviceSanitizerReport &Report,
     context.logger.always("");
 
     auto AllocInfoItOp =
-        context.interceptor->findAllocInfoByAddress(Report.Addr);
+        context.interceptor->findAllocInfoByAddress(Report.Address);
     if (!AllocInfoItOp) {
         context.logger.always("Failed to find which chunck {} is allocated",
-                              (void *)Report.Addr);
+                              (void *)Report.Address);
         return;
     }
 
     auto &AllocInfo = (*AllocInfoItOp)->second;
     if (AllocInfo->Context != Context) {
         context.logger.always("Failed to find which chunck {} is allocated",
-                              (void *)Report.Addr);
+                              (void *)Report.Address);
     }
     assert(AllocInfo->IsReleased);
 
     context.logger.always("{} is located inside of {} region [{}, {})",
-                          (void *)Report.Addr, ToString(AllocInfo->Type),
+                          (void *)Report.Address, ToString(AllocInfo->Type),
                           (void *)AllocInfo->UserBegin,
-                          (void *)(AllocInfo->UserEnd + 1));
+                          (void *)AllocInfo->UserEnd);
     context.logger.always("allocated here:");
     AllocInfo->AllocStack.print();
     context.logger.always("released here:");
