@@ -23,26 +23,26 @@ int main() {
   // 1. allocated size: {currently the size of all allocated memory} <= {maximum
   // size of quarantine cache}"
   // 2. 1052672 = 1024*1024 + 4096, 4096 is the size of red zone
-  // CHECK: AllocBegin=[[ADDR1:0x[0-9a-f]+]]
+  // CHECK: Alloc={{\[}}[[ADDR1:0x[0-9a-f]+]]
   sycl::free(array, Q);
 
   auto *temp =
       sycl::malloc_device<char>(N, Q); // allocated size: 1052672*2 <= 5242880
-  // CHECK: AllocBegin=[[ADDR2:0x[0-9a-f]+]]
+  // CHECK: Alloc={{\[}}[[ADDR2:0x[0-9a-f]+]]
   sycl::free(temp, Q);
 
   temp =
       sycl::malloc_device<char>(N, Q); // allocated size: 1052672*3 <= 5242880
-  // CHECK: AllocBegin=[[ADDR3:0x[0-9a-f]+]]
+  // CHECK: Alloc={{\[}}[[ADDR3:0x[0-9a-f]+]]
   sycl::free(temp, Q);
 
   temp =
       sycl::malloc_device<char>(N, Q); // allocated size: 1052672*4 <= 5242880
-  // CHECK: AllocBegin=[[ADDR4:0x[0-9a-f]+]]
+  // CHECK: Alloc={{\[}}[[ADDR4:0x[0-9a-f]+]]
   sycl::free(temp, Q);
 
   temp = sycl::malloc_device<char>(N, Q); // allocated size: 1052672*5 > 5242880
-  // CHECK: AllocBegin=[[ADDR5:0x[0-9a-f]+]]
+  // CHECK: Alloc={{\[}}[[ADDR5:0x[0-9a-f]+]]
   sycl::free(temp, Q);
   // CHECK: Quarantine Free: [[ADDR1]]
 

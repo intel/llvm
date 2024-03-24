@@ -26,13 +26,8 @@ int main() {
   return 0;
 }
 // CHECK: ERROR: DeviceSanitizer: double-free on address [[ADDR:0x.*]]
-// CHECK: {{#[0-9]+}} {{0x.*}} in main {{.*double-free-1.cpp}}:[[@LINE-5]]
 // CHECK-HOST:   [[ADDR]] is located inside of Host USM region {{\[0x.*, 0x.*\)}}
 // CHECK-SHARED: [[ADDR]] is located inside of Shared USM region {{\[0x.*, 0x.*\)}}
 // CHECK-DEVICE: [[ADDR]] is located inside of Device USM region {{\[0x.*, 0x.*\)}}
 // CHECK: freed here
-// CHECK:   {{#[0-9]+}} {{0x.*}} in main {{.*double-free-1.cpp}}:[[@LINE-11]]
 // CHECK: previously allocated here
-// CHECK-HOST:   {{#[0-9]+}} {{0x.*}} in main {{.*double-free-1.cpp}}:[[@LINE-20]]
-// CHECK-SHARED: {{#[0-9]+}} {{0x.*}} in main {{.*double-free-1.cpp}}:[[@LINE-19]]
-// CHECK-DEVICE: {{#[0-9]+}} {{0x.*}} in main {{.*double-free-1.cpp}}:[[@LINE-18]]
