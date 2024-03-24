@@ -180,7 +180,7 @@ void test_memcpy_async_pitched() {
   check(h_data, h_ref, width * height);
 
   // memset device data.
-  syclcompat::memset_async(d_data, d_pitch, 0x1, sizeof(float) * width, height);
+  syclcompat::memset_d32_async(d_data, d_pitch, 0x1, width, height);
 
   // copy back to host
   syclcompat::memcpy_async(h_data, h_pitch, d_data, d_pitch,
@@ -228,8 +228,7 @@ void test_memcpy_async_pitched_q() {
   check(h_data, h_ref, width * height);
 
   // memset device data.
-  syclcompat::memset_async(d_data, d_pitch, 0x1, sizeof(float) * width, height,
-                           q);
+  syclcompat::memset_d32_async(d_data, d_pitch, 0x1, width, height, q);
 
   // copy back to host
   syclcompat::memcpy_async(h_data, h_pitch, d_data, d_pitch,
@@ -259,7 +258,7 @@ void test_memset_async() {
   syclcompat::memcpy_async((void *)d_A, (void *)h_A, Num * sizeof(int));
 
   // set d_A[0,..., 6] = 0
-  syclcompat::memset_async((void *)d_A, 0, (Num - 3) * sizeof(int));
+  syclcompat::memset_async<int>((void *)d_A, 0, (Num - 3));
 
   // deviceA -> hostA
   syclcompat::memcpy_async((void *)h_A, (void *)d_A, Num * sizeof(int));
@@ -297,7 +296,7 @@ void test_memset_async_q() {
   syclcompat::memcpy_async((void *)d_A, (void *)h_A, Num * sizeof(int), q);
 
   // set d_A[0,..., 6] = 0
-  syclcompat::memset_async((void *)d_A, 0, (Num - 3) * sizeof(int), q);
+  syclcompat::memset_async<int>((void *)d_A, 0, Num - 3, q);
 
   // deviceA -> hostA
   syclcompat::memcpy_async((void *)h_A, (void *)d_A, Num * sizeof(int), q);
@@ -395,91 +394,6 @@ template <typename T> void test_memcpy_async_t() {
   free(h_A);
   free(h_B);
   free(h_C);
-}
-
-template <typename T> void test_fill_async() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-  bool skip = should_skip<T>(syclcompat::get_current_device());
-  if (skip) // Unsupported aspect
-    return;
-
-  constexpr int Num = 10;
-  T *h_A = (T *)malloc(Num * sizeof(T));
-
-  for (int i = 0; i < Num; i++) {
-    h_A[i] = static_cast<T>(4);
-  }
-
-  T *d_A = nullptr;
-
-  d_A = syclcompat::malloc<T>(Num);
-  // hostA -> deviceA
-  syclcompat::memcpy((void *)d_A, (void *)h_A, Num * sizeof(T));
-
-  // set d_A[0,..., 6] = 0
-  syclcompat::fill_async((void *)d_A, static_cast<T>(0), (Num - 3));
-
-  // deviceA -> hostA
-  syclcompat::memcpy((void *)h_A, (void *)d_A, Num * sizeof(T));
-
-  syclcompat::get_default_queue().wait_and_throw();
-
-  syclcompat::free((void *)d_A);
-
-  // check d_A[0,..., 6] = 0
-  for (int i = 0; i < Num - 3; i++) {
-    assert(h_A[i] == static_cast<T>(0));
-  }
-
-  // check d_A[7,..., 9] = 4
-  for (int i = Num - 3; i < Num; i++) {
-    assert(h_A[i] == static_cast<T>(4));
-  }
-
-  free(h_A);
-}
-
-template <typename T> void test_fill_async_q() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-  bool skip = should_skip<T>(syclcompat::get_current_device());
-  if (skip) // Unsupported aspect
-    return;
-
-  sycl::queue q{{sycl::property::queue::in_order()}};
-  constexpr int Num = 10;
-  T *h_A = (T *)malloc(Num * sizeof(T));
-
-  for (int i = 0; i < Num; i++) {
-    h_A[i] = static_cast<T>(4);
-  }
-
-  T *d_A = nullptr;
-
-  d_A = syclcompat::malloc<T>(Num, q);
-  // hostA -> deviceA
-  syclcompat::memcpy((void *)d_A, (void *)h_A, Num * sizeof(T), q);
-
-  // set d_A[0,..., 6] = 0
-  syclcompat::fill_async((void *)d_A, static_cast<T>(0), (Num - 3), q);
-
-  // deviceA -> hostA
-  syclcompat::memcpy((void *)h_A, (void *)d_A, Num * sizeof(T), q);
-
-  q.wait_and_throw();
-
-  syclcompat::free((void *)d_A, q);
-
-  // check d_A[0,..., 6] = 0
-  for (int i = 0; i < Num - 3; i++) {
-    assert(h_A[i] == static_cast<T>(0));
-  }
-
-  // check d_A[7,..., 9] = 4
-  for (int i = Num - 3; i < Num; i++) {
-    assert(h_A[i] == static_cast<T>(4));
-  }
-
-  free(h_A);
 }
 
 void test_constant_memcpy_async() {
@@ -615,8 +529,6 @@ int main() {
 
   INSTANTIATE_ALL_TYPES(value_type_list, test_memcpy_async_t);
   INSTANTIATE_ALL_TYPES(value_type_list, test_memcpy_async_t_q);
-  INSTANTIATE_ALL_TYPES(value_type_list, test_fill_async);
-  INSTANTIATE_ALL_TYPES(value_type_list, test_fill_async_q);
 
   return 0;
 }
