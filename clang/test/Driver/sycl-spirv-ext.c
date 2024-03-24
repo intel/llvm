@@ -53,6 +53,7 @@
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_joint_matrix
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_hw_thread_queries
 // CHECK-DEFAULT-SAME:,+SPV_KHR_uniform_group_instructions
+// CHECK-DEFAULT-SAME:,+SPV_INTEL_memory_access_aliasing
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_masked_gather_scatter
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_tensor_float32_conversion
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_optnone"
