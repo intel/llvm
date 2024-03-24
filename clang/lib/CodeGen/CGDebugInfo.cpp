@@ -6067,8 +6067,8 @@ bool clang::CodeGen::noSystemDebugInfo(const Decl *D,
       return false;
 #endif
 
-    // -fno-system-debug was used.  Do not generate debug info.
-    if (CGM.getCodeGenOpts().NoSystemDebug)
+    // -fsystem-debug was not used.  Do not generate debug info.
+    if (!CGM.getCodeGenOpts().SystemDebug)
       return true;
   }
   return false;

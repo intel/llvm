@@ -4640,11 +4640,12 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
                              D, TC))
       CmdArgs.push_back("-debug-info-macro");
 
-  // -fno-system-debug turns off debug info generation for system headers
-  // Enable by default
-  CmdArgs.push_back("-fno-system-debug");
-  // Claim `-fno-system-debug` to avoid unused warnings.
-  Args.ClaimAllArgs(options::OPT_fno_system_debug);
+  // -fsystem-debug turns on debug info generation for system headers.
+  if (Args.hasFlag(options::OPT_fsystem_debug, options::OPT_fno_system_debug,
+                   false))
+    if (checkDebugInfoOption(Args.getLastArg(options::OPT_fsystem_debug), Args,
+                             D, TC))
+      CmdArgs.push_back("-system-debug");
 
   // -ggnu-pubnames turns on gnu style pubnames in the backend.
   const auto *PubnamesArg =
