@@ -1,3 +1,4 @@
+// REQUIRES-INTEL-DRIVER: lin: 26690
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
