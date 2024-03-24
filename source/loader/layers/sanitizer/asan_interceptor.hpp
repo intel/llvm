@@ -13,8 +13,8 @@
 #pragma once
 
 #include "asan_allocator.hpp"
+#include "asan_libdevice.hpp"
 #include "common.hpp"
-#include "device_sanitizer_report.hpp"
 #include "ur_sanitizer_layer.hpp"
 
 #include <memory>
@@ -61,7 +61,8 @@ struct DeviceInfo {
 
 struct QueueInfo {
     ur_queue_handle_t Handle;
-    ur_mutex Mutex;
+
+    ur_shared_mutex Mutex;
     ur_event_handle_t LastEvent;
 
     explicit QueueInfo(ur_queue_handle_t Queue)
@@ -112,9 +113,14 @@ struct LaunchInfo {
     DeviceSanitizerReport SPIR_DeviceSanitizerReportMem;
 
     ur_context_handle_t Context = nullptr;
-    size_t LocalWorkSize[3] = {0};
+    const size_t *GlobalWorkSize = nullptr;
+    const size_t *GlobalWorkOffset = nullptr;
+    std::vector<size_t> LocalWorkSize;
+    uint32_t WorkDim = 0;
 
-    explicit LaunchInfo(ur_context_handle_t Context);
+    LaunchInfo(ur_context_handle_t Context, const size_t *GlobalWorkSize,
+               const size_t *LocalWorkSize, const size_t *GlobalWorkOffset,
+               uint32_t WorkDim);
     ~LaunchInfo();
 };
 
@@ -134,17 +140,20 @@ class SanitizerInterceptor {
                                ur_device_handle_t Device,
                                const ur_usm_desc_t *Properties,
                                ur_usm_pool_handle_t Pool, size_t Size,
-                               void **ResultPtr, AllocType Type);
+                               AllocType Type, void **ResultPtr);
     ur_result_t releaseMemory(ur_context_handle_t Context, void *Ptr);
 
     ur_result_t registerDeviceGlobals(ur_context_handle_t Context,
                                       ur_program_handle_t Program);
 
     ur_result_t preLaunchKernel(ur_kernel_handle_t Kernel,
-                                ur_queue_handle_t Queue, LaunchInfo &LaunchInfo,
-                                uint32_t numWorkgroup);
-    void postLaunchKernel(ur_kernel_handle_t Kernel, ur_queue_handle_t Queue,
-                          ur_event_handle_t &Event, LaunchInfo &LaunchInfo);
+                                ur_queue_handle_t Queue,
+                                LaunchInfo &LaunchInfo);
+
+    ur_result_t postLaunchKernel(ur_kernel_handle_t Kernel,
+                                 ur_queue_handle_t Queue,
+                                 ur_event_handle_t &Event,
+                                 LaunchInfo &LaunchInfo);
 
     ur_result_t insertContext(ur_context_handle_t Context,
                               std::shared_ptr<ContextInfo> &CI);
@@ -155,6 +164,12 @@ class SanitizerInterceptor {
     ur_result_t eraseDevice(ur_device_handle_t Device);
 
     std::optional<AllocationIterator> findAllocInfoByAddress(uptr Address);
+
+    std::shared_ptr<ContextInfo> getContextInfo(ur_context_handle_t Context) {
+        std::shared_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
+        assert(m_ContextMap.find(Context) != m_ContextMap.end());
+        return m_ContextMap[Context];
+    }
 
   private:
     ur_result_t updateShadowMemory(std::shared_ptr<ContextInfo> &ContextInfo,
@@ -169,8 +184,8 @@ class SanitizerInterceptor {
     ur_result_t prepareLaunch(ur_context_handle_t Context,
                               std::shared_ptr<DeviceInfo> &DeviceInfo,
                               ur_queue_handle_t Queue,
-                              ur_kernel_handle_t Kernel, LaunchInfo &LaunchInfo,
-                              uint32_t numWorkgroup);
+                              ur_kernel_handle_t Kernel,
+                              LaunchInfo &LaunchInfo);
 
     ur_result_t allocShadowMemory(ur_context_handle_t Context,
                                   std::shared_ptr<DeviceInfo> &DeviceInfo);
@@ -178,12 +193,6 @@ class SanitizerInterceptor {
                                     std::shared_ptr<DeviceInfo> &DeviceInfo,
                                     ur_queue_handle_t Queue, uptr Addr,
                                     uptr Size, u8 Value);
-
-    std::shared_ptr<ContextInfo> getContextInfo(ur_context_handle_t Context) {
-        std::shared_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
-        assert(m_ContextMap.find(Context) != m_ContextMap.end());
-        return m_ContextMap[Context];
-    }
 
     std::shared_ptr<DeviceInfo> getDeviceInfo(ur_device_handle_t Device) {
         std::shared_lock<ur_shared_mutex> Guard(m_DeviceMapMutex);
@@ -206,6 +215,7 @@ class SanitizerInterceptor {
 
     uint64_t cl_Debug = 0;
     uint32_t cl_MaxQuarantineSizeMB = 0;
+    bool cl_DetectLocals = true;
 
     std::unique_ptr<Quarantine> m_Quarantine;
 };

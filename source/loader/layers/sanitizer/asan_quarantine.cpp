@@ -18,8 +18,10 @@ std::vector<AllocationIterator> Quarantine::put(ur_device_handle_t Device,
                                                 AllocationIterator &It) {
     auto &AI = It->second;
     auto AllocSize = AI->AllocSize;
-    auto &Cache = m_Map[Device];
+    auto &Cache = getCache(Device);
+
     std::vector<AllocationIterator> DequeueList;
+    std::scoped_lock<ur_mutex> Guard(Cache.Mutex);
     while (Cache.size() + AllocSize > m_MaxQuarantineSize) {
         auto ElementOp = Cache.dequeue();
         if (!ElementOp) {

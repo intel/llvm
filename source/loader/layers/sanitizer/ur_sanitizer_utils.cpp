@@ -20,10 +20,19 @@ ManagedQueue::ManagedQueue(ur_context_handle_t Context,
     [[maybe_unused]] auto Result =
         context.urDdiTable.Queue.pfnCreate(Context, Device, nullptr, &Handle);
     assert(Result == UR_RESULT_SUCCESS);
+    context.logger.debug(">>> ManagedQueue {}", (void *)Handle);
 }
 
 ManagedQueue::~ManagedQueue() {
-    [[maybe_unused]] auto Result = context.urDdiTable.Queue.pfnRelease(Handle);
+    context.logger.debug("<<< ~ManagedQueue {}", (void *)Handle);
+
+    [[maybe_unused]] ur_result_t Result;
+    Result = context.urDdiTable.Queue.pfnFinish(Handle);
+    if (Result != UR_RESULT_SUCCESS) {
+        context.logger.error("Failed to finish ManagedQueue: {}", Result);
+    }
+    assert(Result == UR_RESULT_SUCCESS);
+    Result = context.urDdiTable.Queue.pfnRelease(Handle);
     assert(Result == UR_RESULT_SUCCESS);
 }
 
@@ -40,6 +49,15 @@ ur_context_handle_t GetContext(ur_program_handle_t Program) {
     ur_context_handle_t Context{};
     [[maybe_unused]] auto Result = context.urDdiTable.Program.pfnGetInfo(
         Program, UR_PROGRAM_INFO_CONTEXT, sizeof(ur_context_handle_t), &Context,
+        nullptr);
+    assert(Result == UR_RESULT_SUCCESS && "getContext() failed");
+    return Context;
+}
+
+ur_context_handle_t GetContext(ur_kernel_handle_t Kernel) {
+    ur_context_handle_t Context{};
+    [[maybe_unused]] auto Result = context.urDdiTable.Kernel.pfnGetInfo(
+        Kernel, UR_KERNEL_INFO_CONTEXT, sizeof(ur_context_handle_t), &Context,
         nullptr);
     assert(Result == UR_RESULT_SUCCESS && "getContext() failed");
     return Context;
@@ -129,6 +147,25 @@ std::vector<ur_device_handle_t> GetProgramDevices(ur_program_handle_t Program) {
     assert(Result == UR_RESULT_SUCCESS);
 
     return Devices;
+}
+
+size_t GetKernelNumArgs(ur_kernel_handle_t Kernel) {
+    size_t NumArgs = 0;
+    [[maybe_unused]] auto Res = context.urDdiTable.Kernel.pfnGetInfo(
+        Kernel, UR_KERNEL_INFO_NUM_ARGS, sizeof(NumArgs), &NumArgs, nullptr);
+    assert(Res == UR_RESULT_SUCCESS);
+    return NumArgs;
+}
+
+size_t GetVirtualMemGranularity(ur_context_handle_t Context,
+                                ur_device_handle_t Device) {
+    size_t Size;
+    [[maybe_unused]] auto Result =
+        context.urDdiTable.VirtualMem.pfnGranularityGetInfo(
+            Context, Device, UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED,
+            sizeof(Size), &Size, nullptr);
+    assert(Result == UR_RESULT_SUCCESS);
+    return Size;
 }
 
 } // namespace ur_sanitizer_layer

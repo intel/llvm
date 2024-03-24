@@ -28,9 +28,6 @@ using uptr = uintptr_t;
 using u8 = unsigned char;
 using u32 = unsigned int;
 
-constexpr unsigned ASAN_SHADOW_SCALE = 3;
-constexpr unsigned ASAN_SHADOW_GRANULARITY = 1ULL << ASAN_SHADOW_SCALE;
-
 inline constexpr bool IsPowerOfTwo(uptr x) {
     return (x & (x - 1)) == 0 && x != 0;
 }
