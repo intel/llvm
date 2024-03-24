@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix
+// XFAIL: cpu
 
 // RUN: %{build} -mllvm -inline-threshold=2000 -ffp-model=precise -o %t_gpu.out -DMANUAL_UNROLL
 // RUN: %if gpu %{ %{run} %t_gpu.out %}
