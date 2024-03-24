@@ -421,7 +421,7 @@ template <class T> void RunOverType(sycl::queue &Q, size_t DataSize) {
 
     if (Q.get_backend() == sycl::backend::ext_oneapi_cuda ||
         Q.get_backend() == sycl::backend::ext_oneapi_hip) {
-      std::cout << "Note! Skipping sub group testing on CUDA BE" << std::endl;
+      std::cout << "Note! Skipping sub group testing on CUDA and/or HIP BE" << std::endl;
       return;
     }
 
