@@ -1,12 +1,12 @@
 /////////////////////////////////////////////////////////////////////////////////////////
-// Ensure that debug info for _M_insert_aux method is generated even if -fno-system-debug
-// is used.  This is necessary for debugger access to ::value_type.
+// Ensure that debug info for _M_insert_aux method is generated with -fsystem-debug.
+// This is necessary for debugger access to ::value_type.
 /////////////////////////////////////////////////////////////////////////////////////////
 
 // _M_insert_aux is not in Windows implementation
 // UNSUPPORTED: system-windows
 
-// RUN: %clang -fno-system-debug -emit-llvm -S -g %s -o %t.ll
+// RUN: %clang -fsystem-debug -emit-llvm -S -g %s -o %t.ll
 // RUN: FileCheck --check-prefix=CHECK %s < %t.ll
 
 // CHECK: DISubprogram(name: "_M_insert_aux",
