@@ -24,7 +24,7 @@ namespace GEN {
 /// GEN memory space identifiers following SPIRV storage class convention
 /// https://github.com/KhronosGroup/SPIRV-LLVM-Translator/blob/main/docs/SPIRVRepresentationInLLVM.rst#address-spaces
 ///
-enum GENStorageClass {
+enum class GENStorageClass {
   Function = 0,        // OpenCL workitem address space
   CrossWorkgroup = 1,  // OpenCL Global memory
   UniformConstant = 2, // OpenCL Constant memory
