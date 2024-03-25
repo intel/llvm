@@ -852,7 +852,7 @@ class device_ext : public sycl::device {
   int get_max_work_group_size() const;
   int get_mem_base_addr_align() const;
   size_t get_global_mem_size() const;
-  void get_memory_info(size_t &free_memory, size_t &total_memory);
+  void get_memory_info(size_t &free_memory, size_t &total_memory) const;
 
   void get_device_info(device_info &out) const;
   device_info get_device_info() const;
@@ -869,7 +869,7 @@ class device_ext : public sycl::device {
   sycl::context get_context();
 
   void
-  has_capability_or_fail(const std::initializer_list<sycl::aspect> &props);
+  has_capability_or_fail(const std::initializer_list<sycl::aspect> &props) const;
 };
 
 } // syclcompat

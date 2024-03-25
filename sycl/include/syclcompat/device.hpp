@@ -278,8 +278,8 @@ public:
           "Device does not support device USM allocations");
     }
     // calls create_queue since we don't have a locked m_mutex
-    _saved_queue = _default_queue =
-        create_queue(print_on_async_exceptions, in_order);
+    _default_queue = create_queue(print_on_async_exceptions, in_order);
+    _saved_queue = _default_queue;
   }
 
   bool is_native_host_atomic_supported() { return false; }
@@ -327,17 +327,19 @@ public:
   /// device.
   /// \param [out] total_memory The number of bytes of total memory on the SYCL
   /// device.
-  void get_memory_info(size_t &free_memory, size_t &total_memory) {
+  void get_memory_info(size_t &free_memory, size_t &total_memory) const {
 #if (defined(__SYCL_COMPILER_VERSION) && __SYCL_COMPILER_VERSION >= 20221105)
     if (!has(sycl::aspect::ext_intel_free_memory)) {
-      std::cerr << "get_memory_info: ext_intel_free_memory is not supported."
+      std::cerr << "[SYCLCompat] get_memory_info: ext_intel_free_memory is not "
+                   "supported."
                 << std::endl;
       free_memory = 0;
     } else {
       free_memory = get_info<sycl::ext::intel::info::device::free_memory>();
     }
 #else
-    std::cerr << "get_memory_info: ext_intel_free_memory is not supported."
+    std::cerr << "[SYCLCompat] get_memory_info: ext_intel_free_memory is not "
+                 "supported."
               << std::endl;
     free_memory = 0;
 #if defined(_MSC_VER) && !defined(__clang__)
@@ -461,7 +463,7 @@ Use 64 bits as memory_bus_width default value."
     _default_queue = _queues.front().get();
   }
 
-  sycl::queue *default_queue() { return _default_queue; }
+  queue_ptr default_queue() { return _default_queue; }
 
   void queues_wait_and_throw() {
     std::unique_lock<std::mutex> lock(m_mutex);
@@ -473,12 +475,12 @@ Use 64 bits as memory_bus_width default value."
     // Guard the destruct of current_queues to make sure the ref count is safe.
     lock.lock();
   }
-  sycl::queue *create_queue(bool print_on_async_exceptions = false,
+  queue_ptr create_queue(bool print_on_async_exceptions = false,
                             bool in_order = true) {
     std::lock_guard<std::mutex> lock(m_mutex);
     return create_queue_impl(print_on_async_exceptions, in_order);
   }
-  void destroy_queue(sycl::queue *&queue) {
+  void destroy_queue(queue_ptr &queue) {
     std::lock_guard<std::mutex> lock(m_mutex);
     _queues.erase(
         std::remove_if(_queues.begin(), _queues.end(),
@@ -488,11 +490,11 @@ Use 64 bits as memory_bus_width default value."
         _queues.end());
     queue = nullptr;
   }
-  void set_saved_queue(sycl::queue *q) {
+  void set_saved_queue(queue_ptr q) {
     std::lock_guard<std::mutex> lock(m_mutex);
     _saved_queue = q;
   }
-  sycl::queue *get_saved_queue() const {
+  queue_ptr get_saved_queue() const {
     std::lock_guard<std::mutex> lock(m_mutex);
     return _saved_queue;
   }
@@ -500,8 +502,8 @@ Use 64 bits as memory_bus_width default value."
 
   /// Util function to check whether a device supports some kinds of
   /// sycl::aspect.
-  void
-  has_capability_or_fail(const std::initializer_list<sycl::aspect> &props) {
+  void has_capability_or_fail(
+      const std::initializer_list<sycl::aspect> &props) const {
     for (const auto &it : props) {
       if (has(it))
         continue;
