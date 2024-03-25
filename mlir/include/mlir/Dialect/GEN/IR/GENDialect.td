@@ -21,9 +21,6 @@ def GEN_Dialect : Dialect {
   }];
 
   let extraClassDeclaration = [{
-    /// Get the name of the attribute used to annotate kernels.
-    static StringRef getKernelFuncAttrName() { return "gen.kernel"; }
-
     /// Get the name of the attribute used to annotate max work group size
     /// required for kernels.
     static StringRef getMaxWorkGroupSizeAttrName() {
