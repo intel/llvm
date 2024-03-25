@@ -377,7 +377,7 @@ as a hint to the implementation for optimization purposes:
 ----
 namespace sycl::ext::oneapi::experimental {
 
-struct contiguous_memory_hint {
+struct contiguous_memory_key {
   using value_t =
       property_value<contiguous_memory_hint>;
 };
