@@ -198,7 +198,7 @@ public:
 
   const SYCLDeviceRequirements &getOrComputeDeviceRequirements() const {
     if (!Reqs.has_value())
-      Reqs = getSYCLDeviceRequirements(*this);
+      Reqs = computeDeviceRequirements(*this);
     return *Reqs;
   }
 

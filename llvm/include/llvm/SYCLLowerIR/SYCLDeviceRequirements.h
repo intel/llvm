@@ -41,6 +41,6 @@ struct SYCLDeviceRequirements {
 };
 
 SYCLDeviceRequirements
-getSYCLDeviceRequirements(const module_split::ModuleDesc &M);
+computeDeviceRequirements(const module_split::ModuleDesc &M);
 
 } // namespace llvm

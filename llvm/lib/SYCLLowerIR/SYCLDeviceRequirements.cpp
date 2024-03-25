@@ -36,7 +36,7 @@ static llvm::StringRef ExtractStringFromMDNodeOperand(const MDNode *N,
 }
 
 SYCLDeviceRequirements
-llvm::getSYCLDeviceRequirements(const module_split::ModuleDesc &MD) {
+llvm::computeDeviceRequirements(const module_split::ModuleDesc &MD) {
   SYCLDeviceRequirements Reqs;
   // Process all functions in the module
   for (const Function &F : MD.getModule()) {
