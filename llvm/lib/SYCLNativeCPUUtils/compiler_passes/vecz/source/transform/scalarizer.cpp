@@ -720,21 +720,21 @@ void Scalarizer::scalarizeDI(Instruction *Original, const SimdPacket *Packet,
   };
 
 #if LLVM_VERSION_GREATER_EQUAL(19, 0)
-  for (DPValue *const DPV : LAM->getAllDPValueUsers()) {
+  for (DbgVariableRecord *const DVR : LAM->getAllDbgVariableRecordUsers()) {
     DILocalVariable *DILocal = nullptr;
     DebugLoc DILoc;
 
-    switch (DPV->getType()) {
-      case DPValue::LocationType::Value:
-      case DPValue::LocationType::Declare:
-        DILocal = DPV->getVariable();
-        DILoc = DPV->getDebugLoc();
+    switch (DVR->getType()) {
+      case DbgVariableRecord::LocationType::Value:
+      case DbgVariableRecord::LocationType::Declare:
+        DILocal = DVR->getVariable();
+        DILoc = DVR->getDebugLoc();
         break;
       default:
         continue;
     }
 
-    // Create new DPValue across enabled SIMD lanes
+    // Create new DbgVariableRecord across enabled SIMD lanes
     CreateAndInsertDIExpr([&](Value *LaneVal, DIExpression *DIExpr) {
       DIB.insertDbgValueIntrinsic(LaneVal, DILocal, DIExpr, DILoc, Original);
     });
