@@ -694,7 +694,7 @@ graph LR
 A graph in the executable state can have the configuration of its nodes modified
 using a concept called graph _update_. This avoids a user having to rebuild and
 finalize a new executable graph when only the inputs & outputs to a graph change
-between submissions. 
+between submissions.
 
 Updates to a graph will be scheduled after any in-flight executions of the same
 graph and will not affect previous submissions of the same graph. The user is
@@ -1117,7 +1117,7 @@ values in each node in `nodes`.
 
 Updating these values will not change the structure of the graph.
 
-Note: The implementation may perform a blocking wait during this call on any
+The implementation may perform a blocking wait during this call on any
 in-flight executions of that same graph if required by the backend.
 
 Constraints:
@@ -1514,7 +1514,7 @@ a normal SYCL command-group submission.
 
 * Throws synchronously with error code `invalid` if the graph which will be
 associated with the graph node resulting from this command-group submission is
-different from the one with which the dynamic_parameter was created.
+different from the one with which `dynamicParameterAcc` was created.
 
 |
 [source,c++]
@@ -2145,7 +2145,7 @@ if all the commands accessing this buffer use `access_mode::write` or the
 Note, however, that these cases require the application to disable copy-back
 as described in <<buffer-limitations, Buffer Limitations>>.
 
-==== Executable Graph Update
+==== Whole Graph Update
 
 A graph in the executable state can have each nodes inputs & outputs updated
 using the `command_graph::update()` method. This takes a graph in the
