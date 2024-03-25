@@ -6,8 +6,9 @@ add_mlir_dialect_library(MLIRGENDialect
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/GEN
 
   DEPENDS
-  MLIRGENTableGen
-  MLIRGENAttrDefsIncGen
+  MLIRGENOpsIncGen
+  MLIRGENOpsEnumsIncGen
+  MLIRGENOpsAttrDefsIncGen
 
   LINK_LIBS PUBLIC
   MLIRIR
