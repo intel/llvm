@@ -707,7 +707,7 @@ enum class fence_scope : uint8_t {
 } // end namespace sycl::ext::intel::esimd
 ```
 ### Description
-`(fence-1)`: Sets the memory read/write order. This function has pretty limited functionality comparing to `(fence-2)`. It accepts 8-bit `ctrl_mask` containing one or more `fence_mask` enum values in it. It can be used for any Intel GPU.
+`(fence-1)`: Sets the memory read/write order. This function has pretty limited functionality compared to `(fence-2)`. It accepts an 8-bit `ctrl_mask` containing one or more `fence_mask` enum values in it. It can be used for any Intel GPU.
 
 `(fence-2)`: Sets the memory read/write order. This function provide a bit more flexible controls comparing to `(fence-1)`, but requires `Intel® Arc Series` (aka `DG2`) or `Intel® Data Center GPU Max Series` (aka `PVC`) to run.
 
