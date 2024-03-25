@@ -40,10 +40,10 @@ template <typename T> void test_malloc() {
   if (usm_fixture.skip)
     return; // Skip unsupported
 
-  usm_fixture.d_A = syclcompat::malloc<T>(usm_fixture.size_);
+  usm_fixture.data = syclcompat::malloc<T>(usm_fixture.size_);
   usm_fixture.launch_kernel();
   usm_fixture.check_result();
-  syclcompat::free(usm_fixture.d_A);
+  syclcompat::free(usm_fixture.data);
 }
 
 template <typename T> void test_host() {
@@ -54,21 +54,21 @@ template <typename T> void test_host() {
   if (!usm_fixture.q_.get_device().has(sycl::aspect::usm_host_allocations))
     return; // Skip unsupported
 
-  usm_fixture.d_A = syclcompat::malloc_host<T>(usm_fixture.size_);
+  usm_fixture.data = syclcompat::malloc_host<T>(usm_fixture.size_);
   usm_fixture.launch_kernel();
   usm_fixture.check_result();
-  syclcompat::free(usm_fixture.d_A);
+  syclcompat::free(usm_fixture.data);
 }
 
 void test_non_templated_malloc() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   USMTest<int> usm_fixture;
 
-  usm_fixture.d_A =
+  usm_fixture.data =
       static_cast<int *>(syclcompat::malloc(usm_fixture.size_ * sizeof(int)));
   usm_fixture.launch_kernel();
   usm_fixture.check_result();
-  syclcompat::free(usm_fixture.d_A);
+  syclcompat::free(usm_fixture.data);
 }
 
 void test_non_templated_host() {
@@ -77,11 +77,11 @@ void test_non_templated_host() {
   if (!usm_fixture.q_.get_device().has(sycl::aspect::usm_host_allocations))
     return; // Skip unsupported
 
-  usm_fixture.d_A = static_cast<int *>(
+  usm_fixture.data = static_cast<int *>(
       syclcompat::malloc_host(usm_fixture.size_ * sizeof(int)));
   usm_fixture.launch_kernel();
   usm_fixture.check_result();
-  syclcompat::free(usm_fixture.d_A);
+  syclcompat::free(usm_fixture.data);
 }
 
 // Test deduce direction
