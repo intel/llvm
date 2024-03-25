@@ -1790,6 +1790,11 @@ class SwizzleOp {
 
 public:
   using element_type = DataT;
+  using value_type = DataT;
+
+#ifdef __SYCL_DEVICE_ONLY__
+  using vector_t = typename vec_t::vector_t;
+#endif // __SYCL_DEVICE_ONLY__
 
   const DataT &operator[](int i) const {
     std::array<int, getNumElements()> Idxs{Indexes...};

@@ -13,7 +13,7 @@
 #include <cstring>
 #include <iostream>
 #include <iterator>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

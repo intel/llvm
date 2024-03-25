@@ -9,7 +9,9 @@
 // Tests that additional resources required by discard_write reductions do not
 // leak.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/reduction.hpp>
 
 using namespace sycl;
 

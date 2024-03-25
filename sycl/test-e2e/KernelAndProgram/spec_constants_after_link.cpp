@@ -13,7 +13,9 @@
 // This test checks that specialization constant information is available on
 // kernel bundles produced by sycl::link.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/specialization_id.hpp>
 
 #include <optional>
 #include <vector>

@@ -4,7 +4,7 @@
 // Failing negative test with HIP. Temporarily disabled for CUDA.
 // XFAIL: hip, cuda
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <iostream>
 

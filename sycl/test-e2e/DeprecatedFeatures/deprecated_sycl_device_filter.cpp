@@ -18,7 +18,7 @@
 // This test is to check if a warning message is displayed when using the
 // enviroment variable SYCL_DEVICE_FILTER
 // TODO: Remove test when SYCL_DEVICE_FILTER is removed
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   using namespace sycl;

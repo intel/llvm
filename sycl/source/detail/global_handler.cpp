@@ -357,7 +357,9 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
   case DLL_PROCESS_ATTACH:
     if (PrintPiTrace)
       std::cout << "---> DLL_PROCESS_ATTACH syclx.dll\n" << std::endl;
+    break;
   case DLL_THREAD_ATTACH:
+    break;
   case DLL_THREAD_DETACH:
     break;
   }

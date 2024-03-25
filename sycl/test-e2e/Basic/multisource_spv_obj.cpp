@@ -28,7 +28,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t.init.o %t.calc.o %t.main.o -o %t.fat
 // RUN: %{run} %t.fat
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <iostream>
 

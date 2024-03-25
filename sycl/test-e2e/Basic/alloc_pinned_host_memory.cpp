@@ -4,7 +4,7 @@
 // RUN: env SYCL_PI_TRACE=2 UR_L0_DEBUG=1 %{run} %t2.out %if level_zero %{ 2>&1 | FileCheck %s %}
 // RUN: %{run} %t2.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <cassert>
 #include <string>

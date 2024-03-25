@@ -4,7 +4,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <unistd.h>
 
 using namespace sycl;

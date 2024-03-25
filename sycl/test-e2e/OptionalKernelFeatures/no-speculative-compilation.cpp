@@ -5,7 +5,7 @@
 // i.e. there are no exceptions thrown about aspects fp16 or fp64 being
 // unsuppored on device.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 void foo(sycl::half &value) { value += sycl::half(1.0f); }
 

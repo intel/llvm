@@ -5,7 +5,7 @@
 
 #ifdef SOURCE1
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using accT = sycl::accessor<int, 1>;
 constexpr int value = 42;
@@ -34,7 +34,7 @@ int main() {
 #endif // SOURCE1
 
 #ifdef SOURCE2
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 constexpr int value = 42;
 

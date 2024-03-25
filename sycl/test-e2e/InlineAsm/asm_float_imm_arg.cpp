@@ -6,7 +6,7 @@
 #include "include/asmhelper.h"
 #include <cmath>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <vector>
 
 constexpr float IMM_ARGUMENT = 0.5;

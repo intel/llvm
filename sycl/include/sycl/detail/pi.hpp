@@ -156,6 +156,7 @@ using PiKernelCacheConfig = ::pi_kernel_cache_config;
 using PiExtSyncPoint = ::pi_ext_sync_point;
 using PiExtCommandBuffer = ::pi_ext_command_buffer;
 using PiExtCommandBufferDesc = ::pi_ext_command_buffer_desc;
+using PiExtCommandBufferCommand = ::pi_ext_command_buffer_command;
 using PiPeerAttr = ::pi_peer_attr;
 using PiImageHandle = ::pi_image_handle;
 using PiImageMemHandle = ::pi_image_mem_handle;

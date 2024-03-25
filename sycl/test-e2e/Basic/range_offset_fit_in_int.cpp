@@ -4,7 +4,7 @@
 
 #include <climits>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 namespace S = sycl;
 

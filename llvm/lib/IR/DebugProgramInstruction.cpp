@@ -138,9 +138,36 @@ DbgRecord::createDebugIntrinsic(Module *M, Instruction *InsertBefore) const {
   llvm_unreachable("unsupported DbgRecord kind");
 }
 
+DPLabel::DPLabel(MDNode *Label, MDNode *DL)
+    : DbgRecord(LabelKind, DebugLoc(DL)), Label(Label) {
+  assert(Label && "Unexpected nullptr");
+  assert((isa<DILabel>(Label) || Label->isTemporary()) &&
+         "Label type must be or resolve to a DILabel");
+}
 DPLabel::DPLabel(DILabel *Label, DebugLoc DL)
     : DbgRecord(LabelKind, DL), Label(Label) {
   assert(Label && "Unexpected nullptr");
+}
+
+DPLabel *DPLabel::createUnresolvedDPLabel(MDNode *Label, MDNode *DL) {
+  return new DPLabel(Label, DL);
+}
+
+DPValue::DPValue(DPValue::LocationType Type, Metadata *Val, MDNode *Variable,
+                 MDNode *Expression, MDNode *AssignID, Metadata *Address,
+                 MDNode *AddressExpression, MDNode *DI)
+    : DbgRecord(ValueKind, DebugLoc(DI)),
+      DebugValueUser({Val, Address, AssignID}), Type(Type), Variable(Variable),
+      Expression(Expression), AddressExpression(AddressExpression) {}
+
+DPValue *DPValue::createUnresolvedDPValue(DPValue::LocationType Type,
+                                          Metadata *Val, MDNode *Variable,
+                                          MDNode *Expression, MDNode *AssignID,
+                                          Metadata *Address,
+                                          MDNode *AddressExpression,
+                                          MDNode *DI) {
+  return new DPValue(Type, Val, Variable, Expression, AssignID, Address,
+                     AddressExpression, DI);
 }
 
 DPValue *DPValue::createDPValue(Value *Location, DILocalVariable *DV,
@@ -191,7 +218,7 @@ DPValue *DPValue::createLinkedDPVAssign(Instruction *LinkedInstr, Value *Val,
   auto *NewDPVAssign = DPValue::createDPVAssign(Val, Variable, Expression,
                                                 cast<DIAssignID>(Link), Address,
                                                 AddressExpression, DI);
-  LinkedInstr->getParent()->insertDPValueAfter(NewDPVAssign, LinkedInstr);
+  LinkedInstr->getParent()->insertDbgRecordAfter(NewDPVAssign, LinkedInstr);
   return NewDPVAssign;
 }
 
@@ -488,7 +515,7 @@ void DbgRecord::insertBefore(DbgRecord *InsertBefore) {
   assert(InsertBefore->getMarker() &&
          "Cannot insert a DbgRecord before a DbgRecord that does not have a "
          "DPMarker!");
-  InsertBefore->getMarker()->insertDPValue(this, InsertBefore);
+  InsertBefore->getMarker()->insertDbgRecord(this, InsertBefore);
 }
 void DbgRecord::insertAfter(DbgRecord *InsertAfter) {
   assert(!getMarker() &&
@@ -496,7 +523,7 @@ void DbgRecord::insertAfter(DbgRecord *InsertAfter) {
   assert(InsertAfter->getMarker() &&
          "Cannot insert a DbgRecord after a DbgRecord that does not have a "
          "DPMarker!");
-  InsertAfter->getMarker()->insertDPValueAfter(this, InsertAfter);
+  InsertAfter->getMarker()->insertDbgRecordAfter(this, InsertAfter);
 }
 void DbgRecord::moveBefore(DbgRecord *MoveBefore) {
   assert(getMarker() &&
@@ -517,7 +544,7 @@ void DbgRecord::moveAfter(DbgRecord *MoveAfter) {
 // DPValues.
 DPMarker DPMarker::EmptyDPMarker;
 
-void DPMarker::dropDbgValues() {
+void DPMarker::dropDbgRecords() {
   while (!StoredDPValues.empty()) {
     auto It = StoredDPValues.begin();
     DbgRecord *DR = &*It;
@@ -526,7 +553,7 @@ void DPMarker::dropDbgValues() {
   }
 }
 
-void DPMarker::dropOneDbgValue(DbgRecord *DR) {
+void DPMarker::dropOneDbgRecord(DbgRecord *DR) {
   assert(DR->getMarker() == this);
   StoredDPValues.erase(DR->getIterator());
   DR->deleteRecord();
@@ -560,7 +587,7 @@ void DPMarker::removeMarker() {
     // marker becomes the trailing marker of a degenerate block.
     BasicBlock::iterator NextIt = std::next(Owner->getIterator());
     if (NextIt == getParent()->end()) {
-      getParent()->setTrailingDPValues(this);
+      getParent()->setTrailingDbgRecords(this);
       MarkedInstr = nullptr;
     } else {
       NextIt->DbgMarker = this;
@@ -578,15 +605,15 @@ void DPMarker::removeFromParent() {
 void DPMarker::eraseFromParent() {
   if (MarkedInstr)
     removeFromParent();
-  dropDbgValues();
+  dropDbgRecords();
   delete this;
 }
 
-iterator_range<DbgRecord::self_iterator> DPMarker::getDbgValueRange() {
+iterator_range<DbgRecord::self_iterator> DPMarker::getDbgRecordRange() {
   return make_range(StoredDPValues.begin(), StoredDPValues.end());
 }
 iterator_range<DbgRecord::const_self_iterator>
-DPMarker::getDbgValueRange() const {
+DPMarker::getDbgRecordRange() const {
   return make_range(StoredDPValues.begin(), StoredDPValues.end());
 }
 
@@ -600,18 +627,18 @@ void DbgRecord::eraseFromParent() {
   deleteRecord();
 }
 
-void DPMarker::insertDPValue(DbgRecord *New, bool InsertAtHead) {
+void DPMarker::insertDbgRecord(DbgRecord *New, bool InsertAtHead) {
   auto It = InsertAtHead ? StoredDPValues.begin() : StoredDPValues.end();
   StoredDPValues.insert(It, *New);
   New->setMarker(this);
 }
-void DPMarker::insertDPValue(DbgRecord *New, DbgRecord *InsertBefore) {
+void DPMarker::insertDbgRecord(DbgRecord *New, DbgRecord *InsertBefore) {
   assert(InsertBefore->getMarker() == this &&
          "DPValue 'InsertBefore' must be contained in this DPMarker!");
   StoredDPValues.insert(InsertBefore->getIterator(), *New);
   New->setMarker(this);
 }
-void DPMarker::insertDPValueAfter(DbgRecord *New, DbgRecord *InsertAfter) {
+void DPMarker::insertDbgRecordAfter(DbgRecord *New, DbgRecord *InsertAfter) {
   assert(InsertAfter->getMarker() == this &&
          "DPValue 'InsertAfter' must be contained in this DPMarker!");
   StoredDPValues.insert(++(InsertAfter->getIterator()), *New);

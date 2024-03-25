@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out -DSYCL_DISABLE_IMAGE_ASPECT_WARNING
 // RUN: %{run-unfiltered-devices} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 using namespace sycl;
 
 auto exception_handler_lambda = [](exception_list elist) {

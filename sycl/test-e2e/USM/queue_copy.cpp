@@ -3,11 +3,13 @@
 // RUN: %if level_zero && linux %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{run} %t.out %}
 //
 
-#include <iostream>
-#include <sycl/sycl.hpp>
-
 #include <cassert>
 #include <cstddef>
+#include <iostream>
+#include <numeric>
+
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 

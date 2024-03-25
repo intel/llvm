@@ -4,7 +4,7 @@
 // This test checks that the queue constructor throws a sycl::exception if the
 // device selected by the provided selector is not in the specified context.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <iostream>
 #include <optional>

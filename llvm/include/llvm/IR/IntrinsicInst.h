@@ -1809,6 +1809,25 @@ public:
   }
 };
 
+/// This represents the llvm.sycl.alloca intrinsic.
+class SYCLAllocaInst : public IntrinsicInst {
+public:
+  static bool classof(const IntrinsicInst *I) {
+    return I->getIntrinsicID() == Intrinsic::sycl_alloca;
+  }
+
+  static bool classof(const Value *V) {
+    return isa<IntrinsicInst>(V) && classof(cast<IntrinsicInst>(V));
+  }
+
+  unsigned getAddressSpace() const;
+  Value *getSizeSymbolicID() const;
+  Value *getSizeDefaultValue() const;
+  Value *getRTBuffer() const;
+  Type *getAllocatedType() const;
+  Align getAlign() const;
+};
+
 } // end namespace llvm
 
 #endif // LLVM_IR_INTRINSICINST_H

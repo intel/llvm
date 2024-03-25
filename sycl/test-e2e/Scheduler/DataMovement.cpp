@@ -12,7 +12,7 @@
 // The test checks that no additional host allocation is performed by the SYCL
 // RT if host ptr is used
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <vector>
 

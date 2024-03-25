@@ -10,7 +10,7 @@
 // CHECK: Memory bus width
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 using namespace sycl;
 
 int main() {

@@ -7,7 +7,7 @@
 
 #include <chrono>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <vector>
 
 using namespace sycl;

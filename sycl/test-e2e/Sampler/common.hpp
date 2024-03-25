@@ -1,8 +1,11 @@
 #include <iostream>
 #include <limits>
 #include <string>
-#include <sycl/sycl.hpp>
 #include <vector>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
 
 using namespace sycl;
 

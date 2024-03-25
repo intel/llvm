@@ -6,7 +6,7 @@
 // UNSUPPORTED: windows
 
 #include <sycl/ext/intel/fpga_device_selector.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::context Context;

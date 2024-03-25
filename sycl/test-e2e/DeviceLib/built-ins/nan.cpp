@@ -5,9 +5,11 @@
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 
 #include <iostream>
-#include <sycl/sycl.hpp>
-
 #include <cassert>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
 
 namespace s = sycl;
 using namespace std;

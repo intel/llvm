@@ -5540,7 +5540,13 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   }
 
   // OpenCL v2.0, s6.13.17 - Enqueue kernel function.
-  // It contains four different overload formats specified in Table 6.13.17.1.
+  // Table 6.13.17.1 specifies four overload forms of enqueue_kernel.
+  // The code below expands the builtin call to a call to one of the following
+  // functions that an OpenCL runtime library will have to provide:
+  //   __enqueue_kernel_basic
+  //   __enqueue_kernel_varargs
+  //   __enqueue_kernel_basic_events
+  //   __enqueue_kernel_events_varargs
   case Builtin::BIenqueue_kernel: {
     StringRef Name; // Generated function call name
     unsigned NumArgs = E->getNumArgs();
@@ -18537,6 +18543,17 @@ Value *CodeGenFunction::EmitAMDGPUBuiltinExpr(unsigned BuiltinID,
     llvm::Function *F =
         CGM.getIntrinsic(Intrinsic::amdgcn_global_load_tr, {ArgTy});
     return Builder.CreateCall(F, {Addr});
+  }
+  case AMDGPU::BI__builtin_amdgcn_get_fpenv: {
+    Function *F = CGM.getIntrinsic(Intrinsic::get_fpenv,
+                                   {llvm::Type::getInt64Ty(getLLVMContext())});
+    return Builder.CreateCall(F);
+  }
+  case AMDGPU::BI__builtin_amdgcn_set_fpenv: {
+    Function *F = CGM.getIntrinsic(Intrinsic::set_fpenv,
+                                   {llvm::Type::getInt64Ty(getLLVMContext())});
+    llvm::Value *Env = EmitScalarExpr(E->getArg(0));
+    return Builder.CreateCall(F, {Env});
   }
   case AMDGPU::BI__builtin_amdgcn_read_exec:
     return EmitAMDGCNBallotForExec(*this, E, Int64Ty, Int64Ty, false);

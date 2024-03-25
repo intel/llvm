@@ -12,7 +12,10 @@
 // UNSUPPORTED: cpu, hip, cuda, accelerator
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/experimental/address_cast.hpp>
 
 int main() {
 

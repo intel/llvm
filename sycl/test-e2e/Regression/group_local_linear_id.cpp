@@ -5,7 +5,8 @@
 // corresponding group.
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
 
 int main() {
   const sycl::range<3> GlobalRange(2, 8, 16);

@@ -2,6 +2,7 @@
 // RUN: %{run} %t.out
 
 #include "atomic_memory_order.h"
+#include <cmath>
 #include <iostream>
 #include <numeric>
 using namespace sycl;
@@ -12,8 +13,8 @@ size_t CalculateIterations(device &device, size_t iter_cap) {
   uint64_t max_chars_alloc =
       device.get_info<info::device::max_mem_alloc_size>() / sizeof(char);
   size_t max_iter =
-      (sycl::sqrt(static_cast<double>(max_chars_alloc)) - 1) / (N_items / 2);
-  return sycl::min(max_iter, iter_cap);
+      (std::sqrt(static_cast<double>(max_chars_alloc)) - 1) / (N_items / 2);
+  return std::min(max_iter, iter_cap);
 }
 
 void check(queue &q, buffer<int, 2> &res_buf, size_t N_iters) {

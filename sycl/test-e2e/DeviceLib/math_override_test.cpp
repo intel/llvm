@@ -2,7 +2,7 @@
 // RUN: %clangxx -fsycl %s -o %t.out -fno-builtin
 #include <iostream>
 #include <math.h>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include "math_utils.hpp"
 namespace s = sycl;

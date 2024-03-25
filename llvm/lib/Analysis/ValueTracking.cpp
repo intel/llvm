@@ -294,9 +294,11 @@ bool llvm::isKnownPositive(const Value *V, const SimplifyQuery &SQ,
   if (auto *CI = dyn_cast<ConstantInt>(V))
     return CI->getValue().isStrictlyPositive();
 
-  // TODO: We'd doing two recursive queries here.  We should factor this such
-  // that only a single query is needed.
-  return isKnownNonNegative(V, SQ, Depth) && ::isKnownNonZero(V, Depth, SQ);
+  // If `isKnownNonNegative` ever becomes more sophisticated, make sure to keep
+  // this updated.
+  KnownBits Known = computeKnownBits(V, Depth, SQ);
+  return Known.isNonNegative() &&
+         (Known.isNonZero() || ::isKnownNonZero(V, Depth, SQ));
 }
 
 bool llvm::isKnownNegative(const Value *V, const SimplifyQuery &SQ,
@@ -708,6 +710,25 @@ static void computeKnownBitsFromCmp(const Value *V, CmpInst::Predicate Pred,
   }
 }
 
+static void computeKnownBitsFromICmpCond(const Value *V, ICmpInst *Cmp,
+                                         KnownBits &Known,
+                                         const SimplifyQuery &SQ, bool Invert) {
+  ICmpInst::Predicate Pred =
+      Invert ? Cmp->getInversePredicate() : Cmp->getPredicate();
+  Value *LHS = Cmp->getOperand(0);
+  Value *RHS = Cmp->getOperand(1);
+
+  // Handle icmp pred (trunc V), C
+  if (match(LHS, m_Trunc(m_Specific(V)))) {
+    KnownBits DstKnown(LHS->getType()->getScalarSizeInBits());
+    computeKnownBitsFromCmp(LHS, Pred, LHS, RHS, DstKnown, SQ);
+    Known = Known.unionWith(DstKnown.anyext(Known.getBitWidth()));
+    return;
+  }
+
+  computeKnownBitsFromCmp(V, Pred, LHS, RHS, Known, SQ);
+}
+
 static void computeKnownBitsFromCond(const Value *V, Value *Cond,
                                      KnownBits &Known, unsigned Depth,
                                      const SimplifyQuery &SQ, bool Invert) {
@@ -727,9 +748,7 @@ static void computeKnownBitsFromCond(const Value *V, Value *Cond,
   }
 
   if (auto *Cmp = dyn_cast<ICmpInst>(Cond))
-    computeKnownBitsFromCmp(
-        V, Invert ? Cmp->getInversePredicate() : Cmp->getPredicate(),
-        Cmp->getOperand(0), Cmp->getOperand(1), Known, SQ);
+    computeKnownBitsFromICmpCond(V, Cmp, Known, SQ, Invert);
 }
 
 void llvm::computeKnownBitsFromContext(const Value *V, KnownBits &Known,
@@ -815,8 +834,7 @@ void llvm::computeKnownBitsFromContext(const Value *V, KnownBits &Known,
     if (!isValidAssumeForContext(I, Q.CxtI, Q.DT))
       continue;
 
-    computeKnownBitsFromCmp(V, Cmp->getPredicate(), Cmp->getOperand(0),
-                            Cmp->getOperand(1), Known, Q);
+    computeKnownBitsFromICmpCond(V, Cmp, Known, Q, /*Invert=*/false);
   }
 
   // Conflicting assumption: Undefined behavior will occur on this execution
@@ -1124,9 +1142,10 @@ static void computeKnownBitsFromOperator(const Operator *I,
     break;
   }
   case Instruction::LShr: {
-    auto KF = [](const KnownBits &KnownVal, const KnownBits &KnownAmt,
-                 bool ShAmtNonZero) {
-      return KnownBits::lshr(KnownVal, KnownAmt, ShAmtNonZero);
+    bool Exact = Q.IIQ.isExact(cast<BinaryOperator>(I));
+    auto KF = [Exact](const KnownBits &KnownVal, const KnownBits &KnownAmt,
+                      bool ShAmtNonZero) {
+      return KnownBits::lshr(KnownVal, KnownAmt, ShAmtNonZero, Exact);
     };
     computeKnownBitsFromShiftOperator(I, DemandedElts, Known, Known2, Depth, Q,
                                       KF);
@@ -1137,9 +1156,10 @@ static void computeKnownBitsFromOperator(const Operator *I,
     break;
   }
   case Instruction::AShr: {
-    auto KF = [](const KnownBits &KnownVal, const KnownBits &KnownAmt,
-                 bool ShAmtNonZero) {
-      return KnownBits::ashr(KnownVal, KnownAmt, ShAmtNonZero);
+    bool Exact = Q.IIQ.isExact(cast<BinaryOperator>(I));
+    auto KF = [Exact](const KnownBits &KnownVal, const KnownBits &KnownAmt,
+                      bool ShAmtNonZero) {
+      return KnownBits::ashr(KnownVal, KnownAmt, ShAmtNonZero, Exact);
     };
     computeKnownBitsFromShiftOperator(I, DemandedElts, Known, Known2, Depth, Q,
                                       KF);
@@ -1458,6 +1478,12 @@ static void computeKnownBitsFromOperator(const Operator *I,
       if (RV->getType() == I->getType()) {
         computeKnownBits(RV, Known2, Depth + 1, Q);
         Known = Known.unionWith(Known2);
+        // If the function doesn't return properly for all input values
+        // (e.g. unreachable exits) then there might be conflicts between the
+        // argument value and the range metadata. Simply discard the known bits
+        // in case of conflicts.
+        if (Known.hasConflict())
+          Known.resetAll();
       }
     }
     if (const IntrinsicInst *II = dyn_cast<IntrinsicInst>(I)) {
@@ -5683,7 +5709,7 @@ llvm::FindInsertedValue(Value *V, ArrayRef<unsigned> idx_range,
       // looking for, then.
       if (*req_idx != *i)
         return FindInsertedValue(I->getAggregateOperand(), idx_range,
-                                 *InsertBefore);
+                                 InsertBefore);
     }
     // If we end up here, the indices of the insertvalue match with those
     // requested (though possibly only partially). Now we recursively look at
@@ -6105,6 +6131,8 @@ void llvm::getUnderlyingObjects(const Value *V,
       if (!LI || !LI->isLoopHeader(PN->getParent()) ||
           isSameUnderlyingObjectInLoop(PN, LI))
         append_range(Worklist, PN->incoming_values());
+      else
+        Objects.push_back(P);
       continue;
     }
 
@@ -9133,7 +9161,7 @@ addValueAffectedByCondition(Value *V,
 
     // Peek through unary operators to find the source of the condition.
     Value *Op;
-    if (match(I, m_PtrToInt(m_Value(Op)))) {
+    if (match(I, m_CombineOr(m_PtrToInt(m_Value(Op)), m_Trunc(m_Value(Op))))) {
       if (isa<Instruction>(Op) || isa<Argument>(Op))
         InsertAffected(Op);
     }

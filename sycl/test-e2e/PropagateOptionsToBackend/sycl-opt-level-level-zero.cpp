@@ -19,7 +19,7 @@
 //       -O2        |    -ze-opt-level=2
 //       -O3        |    -ze-opt-level=2
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::queue q;

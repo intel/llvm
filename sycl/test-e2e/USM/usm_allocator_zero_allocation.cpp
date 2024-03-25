@@ -1,7 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
+#include <sycl/usm/usm_allocator.hpp>
 
 using namespace sycl;
 

@@ -8,9 +8,13 @@
 #include <cassert>
 #include <iostream>
 #include <numeric>
-#include <sycl/sycl.hpp>
 #include <type_traits>
 #include <vector>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/atomic_ref.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 

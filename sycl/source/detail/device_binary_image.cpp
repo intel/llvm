@@ -153,6 +153,7 @@ RTDeviceBinaryImage::getProperty(const char *PropName) const {
 }
 
 void RTDeviceBinaryImage::init(pi_device_binary Bin) {
+  // Bin != nullptr is guaranteed here.
   this->Bin = Bin;
   // If device binary image format wasn't set by its producer, then can't change
   // now, because 'Bin' data is part of the executable image loaded into memory
@@ -177,8 +178,7 @@ void RTDeviceBinaryImage::init(pi_device_binary Bin) {
   DeviceRequirements.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS);
   HostPipes.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_HOST_PIPES);
 
-  if (Bin)
-    ImageId = ImageCounter++;
+  ImageId = ImageCounter++;
 }
 
 std::atomic<uintptr_t> RTDeviceBinaryImage::ImageCounter = 1;

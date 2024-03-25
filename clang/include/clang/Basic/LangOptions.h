@@ -151,6 +151,12 @@ public:
     undefined
   };
 
+  enum class SYCLRangeRoundingPreference {
+    On,
+    Disable,
+    Force,
+  };
+
   enum HLSLLangStd {
     HLSL_Unset = 0,
     HLSL_2015 = 2015,
@@ -595,11 +601,6 @@ public:
     return getCompilingModule() != CMK_None;
   }
 
-  /// Are we compiling a standard c++ module interface?
-  bool isCompilingModuleInterface() const {
-    return getCompilingModule() == CMK_ModuleInterface;
-  }
-
   /// Are we compiling a module implementation?
   bool isCompilingModuleImplementation() const {
     return !isCompilingModule() && !ModuleName.empty();
@@ -1028,8 +1029,8 @@ enum TranslationUnitKind {
   /// not complete.
   TU_Prefix,
 
-  /// The translation unit is a module.
-  TU_Module,
+  /// The translation unit is a clang module.
+  TU_ClangModule,
 
   /// The translation unit is a is a complete translation unit that we might
   /// incrementally extend later.

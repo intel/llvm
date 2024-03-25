@@ -658,3 +658,12 @@ _CLC_V_V_VP_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_lgamma_r, half,
 #define __CLC_BODY <lgamma_r.inc>
 #include <clc/math/gentype.inc>
 #undef __CLC_ADDRSPACE
+
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+#define __CLC_ADDRSPACE generic
+#define __CLC_BODY <lgamma_r.inc>
+#include <clc/math/gentype.inc>
+#undef __CLC_ADDRSPACE
+#endif

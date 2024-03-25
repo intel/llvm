@@ -10,4 +10,4 @@
 // LLVM-SPIRV is not called in dry-run
 // CHK-CMDS-NEXT: offload-wrapper: input: [[LLVMSPIRVOUT:.*]].table, output: [[WRAPPEROUT:.*]].bc
 // CHK-CMDS-NEXT: "{{.*}}llc" -filetype=obj -o [[LLCOUT:.*]].o [[WRAPPEROUT]].bc
-// CHK-CMDS-NEXT: "{{.*}}/ld" HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}test-sycl.o
+// CHK-CMDS-NEXT: "{{.*}}/ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT]].o HOST_LIB_PATH HOST_STAT_LIB {{.*}}test-sycl.o

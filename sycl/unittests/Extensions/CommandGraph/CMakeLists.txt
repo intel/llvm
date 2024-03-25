@@ -7,5 +7,7 @@ add_sycl_unittest(CommandGraphExtensionTests OBJECT
   InOrderQueue.cpp
   MultiThreaded.cpp
   Queries.cpp
+  Regressions.cpp
   Subgraph.cpp
+  Update.cpp
 )

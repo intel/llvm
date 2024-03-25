@@ -5,7 +5,7 @@
 
 // This test verifies SPIR-V based fat objects.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::buffer<size_t, 1> Buffer(4);

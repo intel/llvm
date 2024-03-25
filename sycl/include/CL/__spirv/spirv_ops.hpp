@@ -1183,7 +1183,11 @@ __clc_BarrierTestWait(int64_t *state, int64_t arrival) noexcept;
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT void
 __clc_BarrierArriveAndWait(int64_t *state) noexcept;
 
-#ifdef __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
+#ifdef __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__
+extern __DPCPP_SYCL_EXTERNAL int
+__spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format, ...);
+extern __DPCPP_SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format, ...);
+#else
 template <typename... Args>
 extern __DPCPP_SYCL_EXTERNAL int
 __spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format,
@@ -1191,10 +1195,6 @@ __spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format,
 template <typename... Args>
 extern __DPCPP_SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format,
                                                     Args... args);
-#else
-extern __DPCPP_SYCL_EXTERNAL int
-__spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format, ...);
-extern __DPCPP_SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format, ...);
 #endif
 
 // Native builtin extension

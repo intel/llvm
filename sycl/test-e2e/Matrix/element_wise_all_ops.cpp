@@ -14,5 +14,4 @@
 // RUN: %{run} %t.out
 
 #include "common.hpp"
-
 #include "element_wise_all_ops_impl.hpp"

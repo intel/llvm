@@ -11,7 +11,7 @@
 
 #include "imf_utils.hpp"
 #include <sycl/ext/intel/math.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::queue device_queue(sycl::default_selector_v);

@@ -10,7 +10,7 @@
 // Tests the constructors, size and get_range APIs.
 
 #include <cassert>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 void no_delete(void *) {}
 

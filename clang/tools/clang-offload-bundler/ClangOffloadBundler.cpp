@@ -182,6 +182,9 @@ int main(int argc, const char **argv) {
                          cl::init(false), cl::cat(ClangOffloadBundlerCategory));
   cl::opt<bool> Verbose("verbose", cl::desc("Print debug information.\n"),
                         cl::init(false), cl::cat(ClangOffloadBundlerCategory));
+  cl::opt<int> CompressionLevel(
+      "compression-level", cl::desc("Specify the compression level (integer)"),
+      cl::value_desc("n"), cl::Optional, cl::cat(ClangOffloadBundlerCategory));
 
   // Process commandline options and report errors
   sys::PrintStackTraceOnErrorSignal(argv[0]);
@@ -221,6 +224,8 @@ int main(int argc, const char **argv) {
     BundlerConfig.Compress = Compress;
   if (Verbose.getNumOccurrences() > 0)
     BundlerConfig.Verbose = Verbose;
+  if (CompressionLevel.getNumOccurrences() > 0)
+    BundlerConfig.CompressionLevel = CompressionLevel;
 
   BundlerConfig.TargetNames = TargetNames;
   BundlerConfig.ExcludedTargetNames = ExcludedTargetNames;

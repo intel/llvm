@@ -19,7 +19,7 @@ endif()
 
 # This must be in sync with llvm/sycl/CMakeLists.txt.
 SET_SOURCE_FILES_PROPERTIES( ToolChains/MSVC.cpp ToolChains/Clang.cpp
-  PROPERTIES COMPILE_DEFINITIONS SYCL_MAJOR_VERSION="7" )
+  PROPERTIES COMPILE_DEFINITIONS SYCL_MAJOR_VERSION="8" )
 
 add_clang_library(clangDriver
   Action.cpp

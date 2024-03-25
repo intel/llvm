@@ -36,6 +36,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
 test_slm_gather_scatter(int byte_offset32);
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void
 test_prefetch(AccType &, float *, int byte_offset32, size_t byte_offset64);
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_2d(float *);
 
 class EsimdFunctor {
 public:
@@ -52,6 +53,7 @@ public:
     test_gather_scatter(acc, local_acc, ptr, byte_offset32, byte_offset64);
     test_slm_gather_scatter(byte_offset32);
     test_prefetch(acc, ptr, byte_offset32, byte_offset64);
+    test_2d(ptr);
   }
 };
 
@@ -1697,4 +1699,83 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_prefetch(AccType &acc, float *ptrf,
   // CHECK-STATELESS-COUNT-2: call void @llvm.genx.lsc.prefetch.stateless.v1i1.v1i64(<1 x i1> {{[^)]+}}, i8 0, i8 2, i8 1, i16 1, i32 0, i8 3, i8 7, i8 2, i8 0, <1 x i64> {{[^)]+}}, i32 0)
   prefetch<float, 32>(acc, 0, props_cache_load);
   prefetch<float, 32>(acc, 0, 1, props_cache_load);
+}
+
+// CHECK-LABEL: define {{.*}} @_Z7test_2d{{.*}}
+SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void test_2d(float *ptr) {
+  properties props_cache_load{cache_hint_L1<cache_hint::streaming>,
+                              cache_hint_L2<cache_hint::uncached>};
+  simd<float, 16> Vals;
+  auto Vals_view = Vals.select<16, 1>();
+
+  constexpr int BlockWidth = 16;
+  constexpr int BlockHeight = 1;
+  constexpr int NBlocks = 1;
+  constexpr bool Transposed = false;
+  constexpr bool Transformed = false;
+
+  unsigned SurfaceWidth;
+  unsigned SurfaceHeight;
+  unsigned SurfacePitch;
+  int X;
+  int Y;
+  // Test USM 2d API using this plan:
+  // 1) prefetch_2d(): combinations of explicit and default template parameters
+  // 2) load_2d(): combinations of explicit and default template parameters
+  // 3) same as (2) but without compile time properties
+  // 4) store_2d(): combinations of explicit and default template parameters
+  // 5) same as (4) but without compile time properties
+
+  // CHECK-COUNT-3: call void @llvm.genx.lsc.prefetch2d.stateless.v16i1.i64(<16 x i1> {{[^)]+}}, i8 5, i8 1, i8 3, i8 1, i8 1, i16 16, i16 1, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}})
+  prefetch_2d<float, BlockWidth, BlockHeight, NBlocks>(
+      ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y, props_cache_load);
+  prefetch_2d<float, BlockWidth, BlockHeight>(
+      ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y, props_cache_load);
+  prefetch_2d<float, BlockWidth>(ptr, SurfaceWidth, SurfaceHeight, SurfacePitch,
+                                 X, Y, props_cache_load);
+
+  // CHECK-COUNT-5: call <16 x float> @llvm.genx.lsc.load2d.stateless.v16f32.v16i1.i64(<16 x i1> {{[^)]+}}, i8 5, i8 1, i8 3, i8 1, i8 1, i16 16, i16 1, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}})
+  Vals =
+      load_2d<float, BlockWidth, BlockHeight, NBlocks, Transposed, Transformed>(
+          ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y,
+          props_cache_load);
+  Vals = load_2d<float, BlockWidth, BlockHeight, NBlocks, Transposed>(
+      ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y, props_cache_load);
+  Vals = load_2d<float, BlockWidth, BlockHeight, NBlocks>(
+      ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y, props_cache_load);
+  Vals = load_2d<float, BlockWidth, BlockHeight>(
+      ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y, props_cache_load);
+  Vals = load_2d<float, BlockWidth>(ptr, SurfaceWidth, SurfaceHeight,
+                                    SurfacePitch, X, Y, props_cache_load);
+
+  // CHECK-COUNT-5: call <16 x float> @llvm.genx.lsc.load2d.stateless.v16f32.v16i1.i64(<16 x i1> {{[^)]+}}, i8 0, i8 0, i8 3, i8 1, i8 1, i16 16, i16 1, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}})
+  Vals =
+      load_2d<float, BlockWidth, BlockHeight, NBlocks, Transposed, Transformed>(
+          ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y);
+  Vals = load_2d<float, BlockWidth, BlockHeight, NBlocks, Transposed>(
+      ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y);
+  Vals = load_2d<float, BlockWidth, BlockHeight, NBlocks>(
+      ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y);
+  Vals = load_2d<float, BlockWidth, BlockHeight>(
+      ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y);
+  Vals = load_2d<float, BlockWidth>(ptr, SurfaceWidth, SurfaceHeight,
+                                    SurfacePitch, X, Y);
+
+  // CHECK-COUNT-3: call void @llvm.genx.lsc.store2d.stateless.v16i1.i64.v16f32(<16 x i1> {{[^)]+}}, i8 5, i8 1, i8 3, i8 1, i8 1, i16 16, i16 1, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, <16 x float> {{[^)]+}})
+  store_2d<float, BlockWidth, BlockHeight>(ptr, SurfaceWidth, SurfaceHeight,
+                                           SurfacePitch, X, Y, Vals,
+                                           props_cache_load);
+  store_2d<float, BlockWidth>(ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X,
+                              Y, Vals, props_cache_load);
+  store_2d<float, BlockWidth, BlockHeight, 16>(ptr, SurfaceWidth, SurfaceHeight,
+                                               SurfacePitch, X, Y, Vals_view,
+                                               props_cache_load);
+
+  // CHECK-COUNT-3: call void @llvm.genx.lsc.store2d.stateless.v16i1.i64.v16f32(<16 x i1> {{[^)]+}}, i8 0, i8 0, i8 3, i8 1, i8 1, i16 16, i16 1, i8 0, i64 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, i32 {{[^)]+}}, <16 x float> {{[^)]+}})
+  store_2d<float, BlockWidth, BlockHeight>(ptr, SurfaceWidth, SurfaceHeight,
+                                           SurfacePitch, X, Y, Vals);
+  store_2d<float, BlockWidth>(ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X,
+                              Y, Vals);
+  store_2d<float, BlockWidth, BlockHeight, 16>(ptr, SurfaceWidth, SurfaceHeight,
+                                               SurfacePitch, X, Y, Vals_view);
 }

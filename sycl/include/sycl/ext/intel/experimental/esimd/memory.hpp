@@ -437,10 +437,8 @@ namespace detail {
 template <typename T, int NBlocks, int Height, int Width, bool Transposed,
           bool Transformed>
 constexpr int get_lsc_block_2d_data_size() {
-  if constexpr (Transformed)
-    return detail::roundUpNextMultiple<Height, 4 / sizeof(T)>() *
-           __ESIMD_DNS::getNextPowerOf2<Width>() * NBlocks;
-  return Width * Height * NBlocks;
+  return __ESIMD_DNS::get_lsc_block_2d_data_size<T, NBlocks, Height, Width,
+                                                 Transposed, Transformed>();
 }
 
 // Format u8 and u16 to u8u32 and u16u32 by doing garbage-extension.
@@ -1709,78 +1707,6 @@ lsc_block_store(AccessorTy acc, __ESIMD_DNS::DeviceAccessorOffsetT offset,
                                           __ESIMD_NS::simd_mask<1>(1), flags);
 }
 
-namespace detail {
-#ifndef __ESIMD_DWORD_BLOCK_2D_WIDTH_SCALE
-#define __ESIMD_DWORD_BLOCK_2D_WIDTH_SCALE (1)
-#endif
-
-#ifndef __ESIMD_BLOCK_2D_WIDTH_CHECK
-#define __ESIMD_BLOCK_2D_WIDTH_CHECK(OP, BLOCK_WIDTH, NBLOCKS, SIZE)           \
-  static_assert((BLOCK_WIDTH) * (NBLOCKS) * (SIZE) <= 64,                      \
-                "Unsupported block width");
-#endif
-
-enum class block_2d_op { prefetch, load, store };
-
-// Compile-time checks for lsc_load_2d/prefetch_2d/store_2d restrictions.
-template <typename T, int BlockWidth, int BlockHeight, int NBlocks,
-          bool Transposed, bool Transformed, block_2d_op Op>
-constexpr void check_lsc_block_2d_restrictions() {
-  constexpr int GRFByteSize = BlockWidth * BlockHeight * NBlocks * sizeof(T);
-  static_assert(BlockWidth > 0, "Block width must be positive");
-  static_assert(BlockHeight > 0, "Block height must be positive");
-  // Restrictions based on documentation.
-  if constexpr (Op == block_2d_op::store)
-    static_assert(GRFByteSize <= 512, "2D store supports 512 bytes max");
-  else
-    static_assert(GRFByteSize <= 2048,
-                  "2D load/prefetch supports 2048 bytes max");
-  static_assert(!Transposed || !Transformed,
-                "Transposed and transformed is not supported");
-  static_assert((sizeof(T) * BlockWidth) % 4 == 0,
-                "Block width must be aligned by DW");
-  if constexpr (Transposed) {
-    static_assert(NBlocks == 1, "Transposed expected to be 1 block only");
-    static_assert(sizeof(T) == 4 || sizeof(T) == 8,
-                  "Transposed load is supported only for data size u32 or u64");
-    static_assert(sizeof(T) == 8 ? BlockHeight == 8
-                                 : BlockHeight >= 1 && BlockHeight <= 32,
-                  "Unsupported block height");
-    static_assert(sizeof(T) == 8
-                      ? __ESIMD_DNS::isPowerOf2(BlockWidth, 4)
-                      : BlockWidth >= 1 &&
-                            BlockWidth <=
-                                8 * __ESIMD_DWORD_BLOCK_2D_WIDTH_SCALE,
-                  "Unsupported block width");
-  } else if constexpr (Transformed) {
-    static_assert(sizeof(T) == 1 || sizeof(T) == 2,
-                  "VNNI transform is supported only for data size u8 or u16");
-    static_assert(__ESIMD_DNS::isPowerOf2(NBlocks, 4),
-                  "Unsupported number of blocks");
-    static_assert(BlockHeight * sizeof(T) >= 4 && BlockHeight <= 32,
-                  "Unsupported block height");
-    static_assert(BlockWidth * sizeof(T) >= 4 && BlockWidth <= 16 &&
-                      BlockWidth * NBlocks * sizeof(T) <= 64,
-                  "Unsupported block width");
-  } else {
-    if constexpr (Op == block_2d_op::store) {
-      static_assert(NBlocks == 1, "Unsupported number of blocks for 2D store");
-      static_assert(BlockHeight <= 8, "Unsupported block height for store");
-    } else {
-      static_assert(
-          __ESIMD_DNS::isPowerOf2(NBlocks, sizeof(T) == 1 ? 4 : 8 / sizeof(T)),
-          "Unsupported number of blocks for 2D load/prefetch");
-      static_assert(BlockHeight <= 32, "Unsupported block height for load");
-    }
-    static_assert(BlockWidth * sizeof(T) >= 4, "Unsupported block width");
-    __ESIMD_BLOCK_2D_WIDTH_CHECK(Op, BlockWidth, NBlocks, sizeof(T));
-  }
-}
-#undef __ESIMD_DWORD_BLOCK_2D_WIDTH_SCALE
-#undef __ESIMD_BLOCK_2D_WIDTH_CHECK
-
-} // namespace detail
-
 /// 2D USM pointer block load.
 /// Supported platforms: PVC
 /// VISA instruction: lsc_load_block2d.ugm
@@ -1820,86 +1746,9 @@ __ESIMD_API __ESIMD_NS::simd<T, N>
 lsc_load_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
             unsigned SurfacePitch, int X, int Y) {
   using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;
-  __ESIMD_DNS::check_cache_hints<__ESIMD_DNS::cache_action::load,
-                                 PropertyListT>();
-  using RawT = __ESIMD_DNS::__raw_t<T>;
-  detail::check_lsc_block_2d_restrictions<RawT, BlockWidth, BlockHeight,
-                                          NBlocks, Transposed, Transformed,
-                                          detail::block_2d_op::load>();
-  // For Load BlockWidth is padded up to the next power-of-two value.
-  // For Load with Transpose the pre-operation BlockHeight is padded up
-  // to the next power-of-two value.
-  // For Load with Transform pre-operation BlockHeight is padded up to
-  // multiple of K, where K = 4B / sizeof(T).
-  constexpr int ElemsPerDword = 4 / sizeof(RawT);
-  constexpr int GRFRowSize = Transposed    ? BlockHeight
-                             : Transformed ? BlockWidth * ElemsPerDword
-                                           : BlockWidth;
-  constexpr int GRFRowPitch = __ESIMD_DNS::getNextPowerOf2<GRFRowSize>();
-  constexpr int GRFColSize =
-      Transposed
-          ? BlockWidth
-          : (Transformed ? (BlockHeight + ElemsPerDword - 1) / ElemsPerDword
-                         : BlockHeight);
-  constexpr int GRFBlockSize = GRFRowPitch * GRFColSize;
-  constexpr int GRFBlockPitch =
-      detail::roundUpNextMultiple<64 / sizeof(RawT), GRFBlockSize>();
-  constexpr int ActualN = NBlocks * GRFBlockPitch;
-
-  constexpr int DstBlockElements = GRFColSize * GRFRowSize;
-  constexpr int DstElements = DstBlockElements * NBlocks;
-
-  static_assert(N == ActualN || N == DstElements, "Incorrect element count");
-
-  constexpr lsc_data_size DS =
-      detail::finalize_data_size<RawT, lsc_data_size::default_size>();
-  __ESIMD_NS::simd_mask<ActualN> pred = 1;
-  uintptr_t surf_addr = reinterpret_cast<uintptr_t>(Ptr);
-  constexpr detail::lsc_data_order _Transposed =
-      Transposed ? detail::lsc_data_order::transpose
-                 : detail::lsc_data_order::nontranspose;
-  __ESIMD_NS::simd<RawT, ActualN> Raw =
-      __esimd_lsc_load2d_stateless<RawT, L1H, L2H, DS, _Transposed, NBlocks,
-                                   BlockWidth, BlockHeight, Transformed,
-                                   ActualN>(pred.data(), surf_addr,
-                                            SurfaceWidth, SurfaceHeight,
-                                            SurfacePitch, X, Y);
-
-  if constexpr (ActualN == N) {
-    return Raw;
-  } else {
-    // HW restrictions force data which is read to contain padding filled with
-    // zeros for 2d lsc loads. This code eliminates such padding.
-
-    // For example, 2D block load of 5 elements of 1 byte data type will
-    // take 8 bytes per row for each block.
-    //
-    // +----+----+----+----+----+----+-----+-----+
-    // | 00 | 01 | 02 | 03 | 04 | 05 | 06* | 07* |
-    // +----+----+----+----+----+----+-----+-----+
-    // | 10 | 11 | 12 | 13 | 14 | 15 | 16* | 17* |
-    // +----+----+----+----+----+----+-----+-----+
-    // | 20 | 21 | 22 | 23 | 24 | 25 | 26* | 27* |
-    // +----+----+----+----+----+----+-----+-----+
-    // | 30 | 31 | 32 | 33 | 34 | 35 | 36* | 37* |
-    // +----+----+----+----+----+----+-----+-----+
-    // * signifies the padded element.
-
-    __ESIMD_NS::simd<RawT, DstElements> Dst;
-
-    for (auto i = 0; i < NBlocks; i++) {
-      auto DstBlock =
-          Dst.template select<DstBlockElements, 1>(i * DstBlockElements);
-
-      auto RawBlock = Raw.template select<GRFBlockSize, 1>(i * GRFBlockPitch);
-      DstBlock =
-          RawBlock.template bit_cast_view<RawT, GRFColSize, GRFRowPitch>()
-              .template select<GRFColSize, 1, GRFRowSize, 1>(0, 0)
-              .template bit_cast_view<RawT>();
-    }
-
-    return Dst;
-  }
+  return __ESIMD_DNS::load_2d_impl<T, BlockWidth, BlockHeight, NBlocks,
+                                   Transposed, Transformed, PropertyListT>(
+      Ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y);
 }
 
 /// 2D USM pointer block prefetch.
@@ -1932,20 +1781,9 @@ __ESIMD_API void lsc_prefetch_2d(const T *Ptr, unsigned SurfaceWidth,
                                  unsigned SurfaceHeight, unsigned SurfacePitch,
                                  int X, int Y) {
   using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;
-  __ESIMD_DNS::check_cache_hints<__ESIMD_DNS::cache_action::prefetch,
-                                 PropertyListT>();
-  detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
-                                          false, false,
-                                          detail::block_2d_op::prefetch>();
-  constexpr lsc_data_size DS =
-      detail::finalize_data_size<T, lsc_data_size::default_size>();
-  __ESIMD_NS::simd_mask<N> pred = 1;
-  uintptr_t surf_addr = reinterpret_cast<uintptr_t>(Ptr);
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::nontranspose;
-  __esimd_lsc_prefetch2d_stateless<T, L1H, L2H, DS, _Transposed, NBlocks,
-                                   BlockWidth, BlockHeight, false, N>(
-      pred.data(), surf_addr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y);
+  __ESIMD_DNS::prefetch_2d_impl<T, BlockWidth, BlockHeight, NBlocks,
+                                PropertyListT>(Ptr, SurfaceWidth, SurfaceHeight,
+                                               SurfacePitch, X, Y);
 }
 
 /// 2D USM pointer block store.
@@ -1979,37 +1817,9 @@ template <typename T, int BlockWidth, int BlockHeight = 1,
 __ESIMD_API void lsc_store_2d(T *Ptr, unsigned SurfaceWidth,
                               unsigned SurfaceHeight, unsigned SurfacePitch,
                               int X, int Y, __ESIMD_NS::simd<T, N> Vals) {
-  using RawT = __ESIMD_DNS::__raw_t<T>;
   using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;
-  __ESIMD_DNS::check_cache_hints<__ESIMD_DNS::cache_action::store,
-                                 PropertyListT>();
-  detail::check_lsc_block_2d_restrictions<RawT, BlockWidth, BlockHeight, 1,
-                                          false, false,
-                                          detail::block_2d_op::store>();
-  constexpr lsc_data_size DS =
-      detail::finalize_data_size<RawT, lsc_data_size::default_size>();
-  uintptr_t surf_addr = reinterpret_cast<uintptr_t>(Ptr);
-  constexpr detail::lsc_data_order _Transposed =
-      detail::lsc_data_order::nontranspose;
-
-  constexpr int Pitch = __ESIMD_DNS::getNextPowerOf2<BlockWidth>();
-  __ESIMD_NS::simd<RawT, BlockHeight * Pitch> Raw;
-
-  if constexpr (BlockHeight * Pitch == N) {
-    Raw = Vals;
-  } else {
-    // For store with padding, allocate the block with padding, and place
-    // original data there.
-    auto Data2D = Vals.template bit_cast_view<RawT, BlockHeight, BlockWidth>();
-    auto Raw2D = Raw.template bit_cast_view<RawT, BlockHeight, Pitch>();
-    Raw2D.template select<BlockHeight, 1, BlockWidth, 1>(0, 0) = Data2D;
-  }
-
-  __ESIMD_NS::simd_mask<BlockHeight * Pitch> pred = 1;
-  __esimd_lsc_store2d_stateless<RawT, L1H, L2H, DS, _Transposed, 1u, BlockWidth,
-                                BlockHeight, false, BlockHeight * Pitch>(
-      pred.data(), surf_addr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y,
-      Raw.data());
+  __ESIMD_DNS::store_2d_impl<T, BlockWidth, BlockHeight, PropertyListT>(
+      Ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y, Vals);
 }
 
 /// <summary>
@@ -2243,9 +2053,9 @@ template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
               T, NBlocks, BlockHeight, BlockWidth, Transposed, Transformed>()>
 ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
     config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload) {
-  detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
-                                          Transposed, Transformed,
-                                          detail::block_2d_op::load>();
+  __ESIMD_DNS::check_lsc_block_2d_restrictions<
+      T, BlockWidth, BlockHeight, NBlocks, Transposed, Transformed,
+      __ESIMD_DNS::block_2d_op::load>();
   using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;
   __ESIMD_DNS::check_cache_hints<__ESIMD_DNS::cache_action::load,
                                  PropertyListT>();
@@ -2261,7 +2071,7 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
                          : BlockHeight);
   constexpr int GRFBlockSize = GRFRowPitch * GRFColSize;
   constexpr int GRFBlockPitch =
-      detail::roundUpNextMultiple<64 / sizeof(T), GRFBlockSize>();
+      __ESIMD_DNS::roundUpNextMultiple<64 / sizeof(T), GRFBlockSize>();
   constexpr int ActualN = NBlocks * GRFBlockPitch;
 
   constexpr int DstBlockElements = GRFColSize * GRFRowSize;
@@ -2269,7 +2079,7 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
 
   constexpr uint32_t GrfBytes = 64;
   constexpr uint32_t DstBlockSize =
-      detail::roundUpNextMultiple<DstElements * sizeof(T), GrfBytes>();
+      __ESIMD_DNS::roundUpNextMultiple<DstElements * sizeof(T), GrfBytes>();
   constexpr uint32_t DstLength =
       (DstBlockSize / GrfBytes) > 31 ? 31 : (DstBlockSize / GrfBytes);
   constexpr uint32_t DstLengthMask = DstLength << 20;
@@ -2342,9 +2152,9 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION void lsc_prefetch_2d(
   using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;
   __ESIMD_DNS::check_cache_hints<__ESIMD_DNS::cache_action::load,
                                  PropertyListT>();
-  detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
-                                          Transposed, Transformed,
-                                          detail::block_2d_op::prefetch>();
+  __ESIMD_DNS::check_lsc_block_2d_restrictions<
+      T, BlockWidth, BlockHeight, NBlocks, Transposed, Transformed,
+      __ESIMD_DNS::block_2d_op::prefetch>();
   static_assert(!Transposed || !Transformed,
                 "Transposed and transformed is not supported");
   constexpr uint32_t cache_mask = detail::get_lsc_load_cache_mask<L1H, L2H>()
@@ -2385,9 +2195,9 @@ template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
 ESIMD_INLINE SYCL_ESIMD_FUNCTION void
 lsc_store_2d(config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload,
              __ESIMD_NS::simd<T, N> Data) {
-  detail::check_lsc_block_2d_restrictions<T, BlockWidth, BlockHeight, NBlocks,
-                                          false, false,
-                                          detail::block_2d_op::store>();
+  __ESIMD_DNS::check_lsc_block_2d_restrictions<
+      T, BlockWidth, BlockHeight, NBlocks, false, false,
+      __ESIMD_DNS::block_2d_op::store>();
   using PropertyListT = __ESIMD_DNS::make_L1_L2_properties_t<L1H, L2H>;
   __ESIMD_DNS::check_cache_hints<__ESIMD_DNS::cache_action::store,
                                  PropertyListT>();

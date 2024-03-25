@@ -13,7 +13,7 @@
 // RUN: %{run} %t.exe
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #ifdef SOURCE1
 int bar(int b);

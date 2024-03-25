@@ -1,8 +1,11 @@
 #include <cassert>
 #include <cstdio>
 #include <iostream>
-#include <sycl/sycl.hpp>
 #include <thread>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
 
 using namespace sycl;
 using namespace sycl::access;

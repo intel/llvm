@@ -224,8 +224,9 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, // handle to DLL module
     if (PrintPiTrace)
       std::cout << "---> DLL_PROCESS_DETACH pi_win_proxy_loader.dll\n"
                 << std::endl;
-
+    break;
   case DLL_THREAD_ATTACH:
+    break;
   case DLL_THREAD_DETACH:
     break;
   }

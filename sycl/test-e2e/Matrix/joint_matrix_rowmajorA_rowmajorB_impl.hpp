@@ -122,7 +122,8 @@ int main() {
                        float>();
       }
     }
-    if (combinations[i].atype == matrix_type::sint8) {
+    if (combinations[i].atype == matrix_type::sint8 &&
+        combinations[i].btype == matrix_type::sint8) {
       if (combinations[i].nsize == 0 ||
           (combinations[i].nsize == 16 && combinations[i].max_msize == 8 &&
            combinations[i].ksize == 32)) {

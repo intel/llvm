@@ -101,6 +101,9 @@ _PI_ERRC(PI_ERROR_VA_API_MEDIA_SURFACE_NOT_ACQUIRED_INTEL, -1101)
 _PI_ERRC(PI_ERROR_UNINITIALIZED, -1102)
 
 // PI specific error codes
+// PI_ERROR_UNSUPPORTED_FEATURE indicates that the backend or the corresponding
+// device does not support the feature.
+_PI_ERRC_WITH_MSG(PI_ERROR_UNSUPPORTED_FEATURE, -995, "The plugin or device does not support the called function")
 // PI_ERROR_PLUGIN_SPECIFIC_ERROR indicates that an backend spcific error or
 // warning has been emitted by the plugin.
 _PI_ERRC_WITH_MSG(PI_ERROR_PLUGIN_SPECIFIC_ERROR, -996, "The plugin has emitted a backend specific error")

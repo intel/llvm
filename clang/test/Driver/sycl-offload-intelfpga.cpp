@@ -26,13 +26,13 @@
 // CHK-HOST-DEVICE: clang{{.*}} "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-fintelfpga"
 // CHK-HOST-DEVICE: clang{{.*}} "-cc1"{{.*}} "-fintelfpga"{{.*}} "-fsycl-is-host"
 
-/// FPGA target implies -fsycl-disable-range-rounding
+/// FPGA target implies -fsycl-range-rounding=disable
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fintelfpga %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-RANGE-ROUNDING %s
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-RANGE-ROUNDING %s
-// CHK-RANGE-ROUNDING: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-disable-range-rounding"
-// CHK-RANGE-ROUNDING: clang{{.*}} "-fsycl-disable-range-rounding"{{.*}} "-fsycl-is-host"
+// CHK-RANGE-ROUNDING: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-range-rounding=disable"
+// CHK-RANGE-ROUNDING: clang{{.*}} "-fsycl-range-rounding=disable"{{.*}} "-fsycl-is-host"
 
 /// FPGA target implies -emit-only-kernels-as-entry-points in sycl-post-link
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fintelfpga %s 2>&1 \
@@ -41,12 +41,12 @@
 // RUN:   | FileCheck -check-prefix=CHK-NON-KERNEL-ENTRY-POINTS %s
 // CHK-NON-KERNEL-ENTRY-POINTS: sycl-post-link{{.*}} "-emit-only-kernels-as-entry-points"
 
-/// -fsycl-disable-range-rounding is applied to all compilations if fpga is used
+/// -fsycl-range-rounding=disable is applied to all compilations if fpga is used
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown,spir64_gen-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-RANGE-ROUNDING-MULTI %s
-// CHK-RANGE-ROUNDING-MULTI: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-disable-range-rounding"
-// CHK-RANGE-ROUNDING-MULTI: clang{{.*}} "-fsycl-disable-range-rounding"{{.*}} "-fsycl-is-host"
-// CHK-RANGE-ROUNDING-MULTI: clang{{.*}} "-triple" "spir64_fpga-unknown-unknown"{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-disable-range-rounding"
+// CHK-RANGE-ROUNDING-MULTI: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-range-rounding=disable"
+// CHK-RANGE-ROUNDING-MULTI: clang{{.*}} "-fsycl-range-rounding=disable"{{.*}} "-fsycl-is-host"
+// CHK-RANGE-ROUNDING-MULTI: clang{{.*}} "-triple" "spir64_fpga-unknown-unknown"{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-range-rounding=disable"
 
 /// -fintelfpga with -reuse-exe=
 // RUN:  touch %t.cpp

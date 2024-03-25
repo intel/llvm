@@ -6,7 +6,9 @@
 // simple example without crashes/assertions firing at llvm-spirv step due to
 // debug info corrupted by sycl-post-link
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/specialization_id.hpp>
 
 constexpr sycl::specialization_id<int> test_id_1{42};
 

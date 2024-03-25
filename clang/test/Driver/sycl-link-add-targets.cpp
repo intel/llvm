@@ -78,6 +78,14 @@
 // CHK-LINK-TARGETS-UB: 2: linker, {1}, image, (device-sycl)
 // CHK-LINK-TARGETS-UB: 3: llvm-spirv, {2}, image, (device-sycl)
 // CHK-LINK-TARGETS-UB: 4: offload, "device-sycl (spir64-unknown-unknown)" {3}, image
+// CHK-LINK-TARGETS-UB-NOT: offload
+
+// RUN: %clangxx -ccc-print-bindings --target=x86_64-unknown-linux-gnu \
+// RUN:          -fsycl -o checkme.out -fsycl-link-targets=spir64 %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK-LINK-TARGETS-BINDINGS %s
+// CHK-LINK-TARGETS-BINDINGS: "spir64-unknown-unknown" - "clang", inputs: [{{.*}}], output: "[[IR_OUTPUT_BC:.+\.bc]]"
+// CHK-LINK-TARGETS-BINDINGS: "spir64-unknown-unknown" - "SYCL::Linker", inputs: ["[[IR_OUTPUT_BC]]"], output: "[[LLVM_LINK_OUTPUT:.+\.out]]"
+// CHK-LINK-TARGETS-BINDINGS: "spir64-unknown-unknown" - "SPIR-V translator", inputs: ["[[LLVM_LINK_OUTPUT]]"], output: "checkme.out"
 
 /// Check -fsycl-link-targets=<triple> behaviors unbundle multiple objects
 // RUN:   touch %t-a.o

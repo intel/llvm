@@ -4,7 +4,7 @@
 // Note: Tests that non-trivially copyable types marked as device-copyable are
 // copied and used correctly on the device.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <iostream>
 

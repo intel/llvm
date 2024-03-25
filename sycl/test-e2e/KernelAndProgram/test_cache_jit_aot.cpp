@@ -71,7 +71,7 @@
 // RESULT2: Result (1): 2
 // RESULT2: Result (2): 2
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   for (int i = 0; i < 3; ++i) {

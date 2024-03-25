@@ -10,7 +10,7 @@
 //===----------------------------------------------------------------------===//
 #include <cassert>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 struct IdxID1 {
   int x;

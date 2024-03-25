@@ -8,7 +8,8 @@
 
 #pragma once
 
-#include <sycl/accessor.hpp>
+#include <sycl/detail/core.hpp>
+
 #include <sycl/aspects.hpp>
 #include <sycl/atomic.hpp>
 #include <sycl/atomic_fence.hpp>
@@ -17,7 +18,6 @@
 #if SYCL_BACKEND_OPENCL
 #include <sycl/backend/opencl.hpp>
 #endif
-#include <sycl/buffer.hpp>
 #include <sycl/builtins.hpp>
 #include <sycl/context.hpp>
 #include <sycl/define_vendors.hpp>
@@ -47,7 +47,6 @@
 #include <sycl/platform.hpp>
 #include <sycl/pointers.hpp>
 #include <sycl/properties/all_properties.hpp>
-#include <sycl/queue.hpp>
 #include <sycl/range.hpp>
 #include <sycl/reduction.hpp>
 #include <sycl/sampler.hpp>

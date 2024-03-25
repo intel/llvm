@@ -14,13 +14,19 @@ int main() {
 
   auto Device = Queue.get_device();
   bool SupportsGraphs = Device.has(aspect::ext_oneapi_graph);
+  bool SupportsLimitedGraphs = Device.has(aspect::ext_oneapi_limited_graph);
   auto Backend = Device.get_backend();
 
-  if ((Backend == backend::ext_oneapi_level_zero) ||
-      (Backend == backend::ext_oneapi_cuda) ||
-      (Backend == backend::ext_oneapi_hip)) {
+  if ((Backend == backend::ext_oneapi_level_zero)) {
+    assert(!SupportsGraphs);
+    assert(SupportsLimitedGraphs);
+
+  } else if ((Backend == backend::ext_oneapi_cuda) ||
+             (Backend == backend::ext_oneapi_hip)) {
     assert(SupportsGraphs);
+    assert(SupportsLimitedGraphs);
   } else {
     assert(!SupportsGraphs);
+    assert(!SupportsLimitedGraphs);
   }
 }

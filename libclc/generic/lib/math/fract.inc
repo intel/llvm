@@ -31,18 +31,19 @@
 #define ZERO 0.0h
 #endif
 
-_CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE fract(__CLC_GENTYPE x, private __CLC_GENTYPE *iptr) {
-  return __spirv_ocl_fract(x, iptr);
-}
-
-
 #define FRACT_DEF(addrspace) \
   _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE fract(__CLC_GENTYPE x, addrspace __CLC_GENTYPE *iptr) { \
     return __spirv_ocl_fract(x, iptr); \
  }
 
+FRACT_DEF(private);
 FRACT_DEF(local);
 FRACT_DEF(global);
+#if __OPENCL_C_VERSION__ == CL_VERSION_2_0 ||                                  \
+    (__OPENCL_C_VERSION__ >= CL_VERSION_3_0 &&                                 \
+     defined(__opencl_c_generic_address_space))
+FRACT_DEF(generic);
+#endif
 
 #undef MIN_CONSTANT
 #undef ZERO

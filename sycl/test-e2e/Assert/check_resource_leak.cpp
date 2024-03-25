@@ -8,7 +8,10 @@
 // UNSUPPORTED: hip
 #define SYCL_FALLBACK_ASSERT 1
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
+#include <sycl/ext/oneapi/sub_group_mask.hpp>
 
 // DeviceGlobalUSMMem::~DeviceGlobalUSMMem() has asserts to ensure some
 // resources have been cleaned up when it's executed. Those asserts used to fail

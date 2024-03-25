@@ -7,7 +7,11 @@
 // CHECK-NOT: ---> urEnqueueEventsWaitWithBarrier
 
 #include <condition_variable>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 
 namespace syclex = sycl::ext::oneapi::experimental;
 

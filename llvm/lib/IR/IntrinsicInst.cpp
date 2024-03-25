@@ -980,3 +980,21 @@ Value *GCRelocateInst::getDerivedPtr() const {
     return *(Opt->Inputs.begin() + getDerivedPtrIndex());
   return *(GCInst->arg_begin() + getDerivedPtrIndex());
 }
+
+unsigned SYCLAllocaInst::getAddressSpace() const {
+  return getType()->getPointerAddressSpace();
+}
+
+Value *SYCLAllocaInst::getSizeSymbolicID() const { return getArgOperand(0); }
+
+Value *SYCLAllocaInst::getSizeDefaultValue() const { return getArgOperand(1); }
+
+Value *SYCLAllocaInst::getRTBuffer() const { return getArgOperand(2); }
+
+Type *SYCLAllocaInst::getAllocatedType() const {
+  return getFunctionType()->getFunctionParamType(3);
+}
+
+Align SYCLAllocaInst::getAlign() const {
+  return cast<ConstantInt>(getArgOperand(4))->getAlignValue();
+}

@@ -2167,32 +2167,6 @@ public:
   //
   //
 
-  SYCLIntelIVDepAttr *
-  BuildSYCLIntelIVDepAttr(const AttributeCommonInfo &CI, Expr *Expr1,
-                          Expr *Expr2);
-  LoopUnrollHintAttr *BuildLoopUnrollHintAttr(const AttributeCommonInfo &A,
-                                              Expr *E);
-  OpenCLUnrollHintAttr *
-  BuildOpenCLLoopUnrollHintAttr(const AttributeCommonInfo &A, Expr *E);
-
-  SYCLIntelLoopCountAttr *
-  BuildSYCLIntelLoopCountAttr(const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelInitiationIntervalAttr *
-  BuildSYCLIntelInitiationIntervalAttr(const AttributeCommonInfo &CI,
-                                       Expr *E);
-  SYCLIntelMaxConcurrencyAttr *
-  BuildSYCLIntelMaxConcurrencyAttr(const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelMaxInterleavingAttr *
-  BuildSYCLIntelMaxInterleavingAttr(const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelSpeculatedIterationsAttr *
-  BuildSYCLIntelSpeculatedIterationsAttr(const AttributeCommonInfo &CI,
-                                         Expr *E);
-  SYCLIntelLoopCoalesceAttr *
-  BuildSYCLIntelLoopCoalesceAttr(const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelMaxReinvocationDelayAttr *
-  BuildSYCLIntelMaxReinvocationDelayAttr(const AttributeCommonInfo &CI,
-                                         Expr *E);
-
   /// \name Casts
   /// Implementations are in SemaCast.cpp
   ///@{
@@ -2422,30 +2396,16 @@ public:
   };
 
   bool IsLayoutCompatible(QualType T1, QualType T2) const;
-  template <typename AttrTy>
-  static bool isTypeDecoratedWithDeclAttribute(QualType Ty) {
-    const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
-    if (!RecTy)
-      return false;
 
-    if (RecTy->hasAttr<AttrTy>())
-      return true;
+  bool CheckFunctionCall(FunctionDecl *FDecl, CallExpr *TheCall,
+                         const FunctionProtoType *Proto);
 
-    if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RecTy)) {
-      ClassTemplateDecl *Template = CTSD->getSpecializedTemplate();
-      if (CXXRecordDecl *RD = Template->getTemplatedDecl())
-        return RD->hasAttr<AttrTy>();
-    }
-    return false;
-  }
 private:
   void CheckArrayAccess(const Expr *BaseExpr, const Expr *IndexExpr,
                         const ArraySubscriptExpr *ASE = nullptr,
                         bool AllowOnePastEnd = true, bool IndexNegated = false);
   void CheckArrayAccess(const Expr *E);
 
-  bool CheckFunctionCall(FunctionDecl *FDecl, CallExpr *TheCall,
-                         const FunctionProtoType *Proto);
   bool CheckObjCMethodCall(ObjCMethodDecl *Method, SourceLocation loc,
                            ArrayRef<const Expr *> Args);
   bool CheckPointerCall(NamedDecl *NDecl, CallExpr *TheCall,
@@ -2685,6 +2645,13 @@ private:
   /// Adds an expression to the set of gathered misaligned members.
   void AddPotentialMisalignedMembers(Expr *E, RecordDecl *RD, ValueDecl *MD,
                                      CharUnits Alignment);
+
+  bool CheckIntelFPGARegBuiltinFunctionCall(unsigned BuiltinID, CallExpr *Call);
+  bool CheckIntelFPGAMemBuiltinFunctionCall(CallExpr *Call);
+  bool CheckIntelSYCLPtrAnnotationBuiltinFunctionCall(unsigned BuiltinID,
+                                                      CallExpr *Call);
+  bool CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned BuiltinID,
+                                               CallExpr *Call);
   ///@}
 
   //
@@ -3549,7 +3516,8 @@ public:
   Decl *ActOnFileScopeAsmDecl(Expr *expr, SourceLocation AsmLoc,
                               SourceLocation RParenLoc);
 
-  Decl *ActOnTopLevelStmtDecl(Stmt *Statement);
+  TopLevelStmtDecl *ActOnStartTopLevelStmtDecl(Scope *S);
+  void ActOnFinishTopLevelStmtDecl(TopLevelStmtDecl *D, Stmt *Statement);
 
   void ActOnPopScope(SourceLocation Loc, Scope *S);
 
@@ -3940,6 +3908,8 @@ public:
   // Whether the callee should be ignored in CUDA/HIP/OpenMP host/device check.
   bool shouldIgnoreInHostDeviceCheck(FunctionDecl *Callee);
 
+  DeviceDiagnosticReason getEmissionReason(const FunctionDecl *Decl);
+
 private:
   /// Function or variable declarations to be checked for whether the deferred
   /// diagnostics should be emitted.
@@ -4196,20 +4166,16 @@ public:
   void addAMDGPUWavesPerEUAttr(Decl *D, const AttributeCommonInfo &CI,
                                Expr *Min, Expr *Max);
 
-  /// addSYCLIntelPipeIOAttr - Adds a pipe I/O attribute to a particular
-  /// declaration.
-  void addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &CI, Expr *ID);
-  SYCLIntelPipeIOAttr *MergeSYCLIntelPipeIOAttr(Decl *D,
-                                                const SYCLIntelPipeIOAttr &A);
+  /// Create an AMDGPUMaxNumWorkGroupsAttr attribute.
+  AMDGPUMaxNumWorkGroupsAttr *
+  CreateAMDGPUMaxNumWorkGroupsAttr(const AttributeCommonInfo &CI, Expr *XExpr,
+                                   Expr *YExpr, Expr *ZExpr);
 
-  /// AddSYCLIntelMaxConcurrencyAttr - Adds a max_concurrency attribute to a
-  /// particular declaration.
-  void AddSYCLIntelMaxConcurrencyAttr(Decl *D,
-                                      const AttributeCommonInfo &CI,
-                                      Expr *E);
+  /// addAMDGPUMaxNumWorkGroupsAttr - Adds an amdgpu_max_num_work_groups
+  /// attribute to a particular declaration.
+  void addAMDGPUMaxNumWorkGroupsAttr(Decl *D, const AttributeCommonInfo &CI,
+                                     Expr *XExpr, Expr *YExpr, Expr *ZExpr);
 
-  bool checkAllowedSYCLInitializer(VarDecl *VD);
-  //===--------------------------------------------------------------------===//
   DLLImportAttr *mergeDLLImportAttr(Decl *D, const AttributeCommonInfo &CI);
   DLLExportAttr *mergeDLLExportAttr(Decl *D, const AttributeCommonInfo &CI);
   MSInheritanceAttr *mergeMSInheritanceAttr(Decl *D,
@@ -4217,19 +4183,9 @@ public:
                                             bool BestCase,
                                             MSInheritanceModel Model);
 
-  bool CheckCountedByAttr(Scope *Scope, const FieldDecl *FD);
-
   EnforceTCBAttr *mergeEnforceTCBAttr(Decl *D, const EnforceTCBAttr &AL);
   EnforceTCBLeafAttr *mergeEnforceTCBLeafAttr(Decl *D,
                                               const EnforceTCBLeafAttr &AL);
-
-public:
-
-  DeviceDiagnosticReason getEmissionReason(const FunctionDecl *Decl);
-
-  //@}
-
-  // More parsing and symbol table subroutines.
 
   // Helper for delayed processing of attributes.
   void ProcessDeclAttributeDelayed(Decl *D,
@@ -4287,8 +4243,173 @@ public:
 
   void redelayDiagnostics(sema::DelayedDiagnosticPool &pool);
 
+  void AddSYCLIntelBankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
+                                Expr **Exprs, unsigned Size);
+  bool AnyWorkGroupSizesDiffer(const Expr *LHSXDim, const Expr *LHSYDim,
+                               const Expr *LHSZDim, const Expr *RHSXDim,
+                               const Expr *RHSYDim, const Expr *RHSZDim);
+  bool AllWorkGroupSizesSame(const Expr *LHSXDim, const Expr *LHSYDim,
+                             const Expr *LHSZDim, const Expr *RHSXDim,
+                             const Expr *RHSYDim, const Expr *RHSZDim);
+  void AddSYCLWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
+                                    Expr *XDim, Expr *YDim, Expr *ZDim);
+  SYCLWorkGroupSizeHintAttr *
+  MergeSYCLWorkGroupSizeHintAttr(Decl *D, const SYCLWorkGroupSizeHintAttr &A);
+  void AddIntelReqdSubGroupSize(Decl *D, const AttributeCommonInfo &CI,
+                                Expr *E);
+  IntelReqdSubGroupSizeAttr *
+  MergeIntelReqdSubGroupSizeAttr(Decl *D, const IntelReqdSubGroupSizeAttr &A);
+  IntelNamedSubGroupSizeAttr *
+  MergeIntelNamedSubGroupSizeAttr(Decl *D, const IntelNamedSubGroupSizeAttr &A);
+  void AddSYCLIntelNumSimdWorkItemsAttr(Decl *D, const AttributeCommonInfo &CI,
+                                        Expr *E);
+  SYCLIntelNumSimdWorkItemsAttr *
+  MergeSYCLIntelNumSimdWorkItemsAttr(Decl *D,
+                                     const SYCLIntelNumSimdWorkItemsAttr &A);
+  void AddSYCLIntelESimdVectorizeAttr(Decl *D, const AttributeCommonInfo &CI,
+                                      Expr *E);
+  SYCLIntelESimdVectorizeAttr *
+  MergeSYCLIntelESimdVectorizeAttr(Decl *D,
+                                   const SYCLIntelESimdVectorizeAttr &A);
+  void AddSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
+                                              const AttributeCommonInfo &CI,
+                                              Expr *E);
+  SYCLIntelSchedulerTargetFmaxMhzAttr *MergeSYCLIntelSchedulerTargetFmaxMhzAttr(
+      Decl *D, const SYCLIntelSchedulerTargetFmaxMhzAttr &A);
+  void AddSYCLIntelNoGlobalWorkOffsetAttr(Decl *D,
+                                          const AttributeCommonInfo &CI,
+                                          Expr *E);
+  SYCLIntelNoGlobalWorkOffsetAttr *MergeSYCLIntelNoGlobalWorkOffsetAttr(
+      Decl *D, const SYCLIntelNoGlobalWorkOffsetAttr &A);
+  void AddSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
+                                Expr *E);
+  SYCLIntelLoopFuseAttr *
+  MergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &A);
+  void AddSYCLIntelPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
+                                     Expr *E);
+  void AddSYCLIntelMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
+                                     Expr *E);
+  SYCLIntelMaxReplicatesAttr *
+  MergeSYCLIntelMaxReplicatesAttr(Decl *D, const SYCLIntelMaxReplicatesAttr &A);
+  void AddSYCLIntelForcePow2DepthAttr(Decl *D, const AttributeCommonInfo &CI,
+                                      Expr *E);
+  SYCLIntelForcePow2DepthAttr *
+  MergeSYCLIntelForcePow2DepthAttr(Decl *D,
+                                   const SYCLIntelForcePow2DepthAttr &A);
+  void AddSYCLIntelInitiationIntervalAttr(Decl *D,
+                                          const AttributeCommonInfo &CI,
+                                          Expr *E);
+  SYCLIntelInitiationIntervalAttr *MergeSYCLIntelInitiationIntervalAttr(
+      Decl *D, const SYCLIntelInitiationIntervalAttr &A);
+
+  SYCLIntelMaxConcurrencyAttr *
+  MergeSYCLIntelMaxConcurrencyAttr(Decl *D,
+                                   const SYCLIntelMaxConcurrencyAttr &A);
+  void AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D, const AttributeCommonInfo &CI,
+                                        Expr *E);
+  SYCLIntelMaxGlobalWorkDimAttr *
+  MergeSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
+                                     const SYCLIntelMaxGlobalWorkDimAttr &A);
+  void AddSYCLIntelMinWorkGroupsPerComputeUnitAttr(
+      Decl *D, const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelMinWorkGroupsPerComputeUnitAttr *
+  MergeSYCLIntelMinWorkGroupsPerComputeUnitAttr(
+      Decl *D, const SYCLIntelMinWorkGroupsPerComputeUnitAttr &A);
+  void AddSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
+      Decl *D, const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelMaxWorkGroupsPerMultiprocessorAttr *
+  MergeSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
+      Decl *D, const SYCLIntelMaxWorkGroupsPerMultiprocessorAttr &A);
+  void AddSYCLIntelBankWidthAttr(Decl *D, const AttributeCommonInfo &CI,
+                                 Expr *E);
+  SYCLIntelBankWidthAttr *
+  MergeSYCLIntelBankWidthAttr(Decl *D, const SYCLIntelBankWidthAttr &A);
+  void AddSYCLIntelNumBanksAttr(Decl *D, const AttributeCommonInfo &CI,
+                                Expr *E);
+  SYCLIntelNumBanksAttr *
+  MergeSYCLIntelNumBanksAttr(Decl *D, const SYCLIntelNumBanksAttr &A);
+  SYCLDeviceHasAttr *MergeSYCLDeviceHasAttr(Decl *D,
+                                            const SYCLDeviceHasAttr &A);
+  void AddSYCLDeviceHasAttr(Decl *D, const AttributeCommonInfo &CI,
+                            Expr **Exprs, unsigned Size);
+  SYCLUsesAspectsAttr *MergeSYCLUsesAspectsAttr(Decl *D,
+                                                const SYCLUsesAspectsAttr &A);
+  void AddSYCLUsesAspectsAttr(Decl *D, const AttributeCommonInfo &CI,
+                              Expr **Exprs, unsigned Size);
+  bool CheckMaxAllowedWorkGroupSize(const Expr *RWGSXDim, const Expr *RWGSYDim,
+                                    const Expr *RWGSZDim, const Expr *MWGSXDim,
+                                    const Expr *MWGSYDim, const Expr *MWGSZDim);
+  void AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
+                                        Expr *XDim, Expr *YDim, Expr *ZDim);
+  SYCLIntelMaxWorkGroupSizeAttr *
+  MergeSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
+                                     const SYCLIntelMaxWorkGroupSizeAttr &A);
+  void CheckSYCLAddIRAttributesFunctionAttrConflicts(Decl *D);
+  SYCLAddIRAttributesFunctionAttr *MergeSYCLAddIRAttributesFunctionAttr(
+      Decl *D, const SYCLAddIRAttributesFunctionAttr &A);
+  void AddSYCLAddIRAttributesFunctionAttr(Decl *D,
+                                          const AttributeCommonInfo &CI,
+                                          MutableArrayRef<Expr *> Args);
+  SYCLAddIRAttributesKernelParameterAttr *
+  MergeSYCLAddIRAttributesKernelParameterAttr(
+      Decl *D, const SYCLAddIRAttributesKernelParameterAttr &A);
+  void AddSYCLAddIRAttributesKernelParameterAttr(Decl *D,
+                                                 const AttributeCommonInfo &CI,
+                                                 MutableArrayRef<Expr *> Args);
+  SYCLAddIRAttributesGlobalVariableAttr *
+  MergeSYCLAddIRAttributesGlobalVariableAttr(
+      Decl *D, const SYCLAddIRAttributesGlobalVariableAttr &A);
+  void AddSYCLAddIRAttributesGlobalVariableAttr(Decl *D,
+                                                const AttributeCommonInfo &CI,
+                                                MutableArrayRef<Expr *> Args);
+  SYCLAddIRAnnotationsMemberAttr *
+  MergeSYCLAddIRAnnotationsMemberAttr(Decl *D,
+                                      const SYCLAddIRAnnotationsMemberAttr &A);
+  void AddSYCLAddIRAnnotationsMemberAttr(Decl *D, const AttributeCommonInfo &CI,
+                                         MutableArrayRef<Expr *> Args);
+  void AddSYCLReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
+                                    Expr *XDim, Expr *YDim, Expr *ZDim);
+  SYCLReqdWorkGroupSizeAttr *
+  MergeSYCLReqdWorkGroupSizeAttr(Decl *D, const SYCLReqdWorkGroupSizeAttr &A);
+
+  SYCLTypeAttr *MergeSYCLTypeAttr(Decl *D, const AttributeCommonInfo &CI,
+                                  SYCLTypeAttr::SYCLType TypeName);
+
+  /// Emit a diagnostic about the given attribute having a deprecated name, and
+  /// also emit a fixit hint to generate the new attribute name.
+  void DiagnoseDeprecatedAttribute(const ParsedAttr &A, StringRef NewScope,
+                                   StringRef NewName);
+
+  /// Diagnoses an attribute in the 'intelfpga' namespace and suggests using
+  /// the attribute in the 'intel' namespace instead.
+  void CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
+                                            StringRef NewName = "");
+
+  /// addSYCLIntelPipeIOAttr - Adds a pipe I/O attribute to a particular
+  /// declaration.
+  void addSYCLIntelPipeIOAttr(Decl *D, const AttributeCommonInfo &CI, Expr *ID);
+  SYCLIntelPipeIOAttr *MergeSYCLIntelPipeIOAttr(Decl *D,
+                                                const SYCLIntelPipeIOAttr &A);
+
+  /// AddSYCLIntelMaxConcurrencyAttr - Adds a max_concurrency attribute to a
+  /// particular declaration.
+  void AddSYCLIntelMaxConcurrencyAttr(Decl *D, const AttributeCommonInfo &CI,
+                                      Expr *E);
+
+  bool CheckCountedByAttr(Scope *Scope, const FieldDecl *FD);
+
   ///@}
+
   //
+  //
+  // -------------------------------------------------------------------------
+  //
+  //
+
+  /// \name C++ Declarations
+  /// Implementations are in SemaDeclCXX.cpp
+  ///@{
+
 public:
   void CheckDelegatingCtorCycles();
 
@@ -5926,13 +6047,6 @@ public:
                                            SourceLocation RParen,
                                            ParsedType ParsedTy);
 
-  ExprResult BuildSYCLUniqueStableIdExpr(SourceLocation OpLoc,
-                                         SourceLocation LParen,
-                                         SourceLocation RParen, Expr *E);
-  ExprResult ActOnSYCLUniqueStableIdExpr(SourceLocation OpLoc,
-                                         SourceLocation LParen,
-                                         SourceLocation RParen, Expr *E);
-
   bool CheckLoopHintExpr(Expr *E, SourceLocation Loc);
 
   ExprResult ActOnNumericConstant(const Token &Tok, Scope *UDLScope = nullptr);
@@ -6983,6 +7097,14 @@ private:
   /// of them are eventually taken.
   void CheckSubscriptAccessOfNoDeref(const ArraySubscriptExpr *E);
   void CheckAddressOfNoDeref(const Expr *E);
+
+public:
+  ExprResult BuildSYCLUniqueStableIdExpr(SourceLocation OpLoc,
+                                         SourceLocation LParen,
+                                         SourceLocation RParen, Expr *E);
+  ExprResult ActOnSYCLUniqueStableIdExpr(SourceLocation OpLoc,
+                                         SourceLocation LParen,
+                                         SourceLocation RParen, Expr *E);
 
   ///@}
 
@@ -8362,13 +8484,13 @@ public:
 
   /// The parser has processed a module import translated from a
   /// #include or similar preprocessing directive.
-  void ActOnModuleInclude(SourceLocation DirectiveLoc, Module *Mod);
+  void ActOnAnnotModuleInclude(SourceLocation DirectiveLoc, Module *Mod);
   void BuildModuleInclude(SourceLocation DirectiveLoc, Module *Mod);
 
   /// The parsed has entered a submodule.
-  void ActOnModuleBegin(SourceLocation DirectiveLoc, Module *Mod);
+  void ActOnAnnotModuleBegin(SourceLocation DirectiveLoc, Module *Mod);
   /// The parser has left a submodule.
-  void ActOnModuleEnd(SourceLocation DirectiveLoc, Module *Mod);
+  void ActOnAnnotModuleEnd(SourceLocation DirectiveLoc, Module *Mod);
 
   /// Create an implicit import of the given module at the given
   /// source location, for error recovery, if possible.
@@ -9311,6 +9433,36 @@ public:
   void ProcessStmtAttributes(Stmt *Stmt, const ParsedAttributes &InAttrs,
                              SmallVectorImpl<const Attr *> &OutAttrs);
 
+  ExprResult ActOnCXXAssumeAttr(Stmt *St, const ParsedAttr &A,
+                                SourceRange Range);
+  ExprResult BuildCXXAssumeExpr(Expr *Assumption,
+                                const IdentifierInfo *AttrName,
+                                SourceRange Range);
+
+  SYCLIntelIVDepAttr *BuildSYCLIntelIVDepAttr(const AttributeCommonInfo &CI,
+                                              Expr *Expr1, Expr *Expr2);
+  LoopUnrollHintAttr *BuildLoopUnrollHintAttr(const AttributeCommonInfo &A,
+                                              Expr *E);
+  OpenCLUnrollHintAttr *
+  BuildOpenCLLoopUnrollHintAttr(const AttributeCommonInfo &A, Expr *E);
+
+  SYCLIntelLoopCountAttr *
+  BuildSYCLIntelLoopCountAttr(const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelInitiationIntervalAttr *
+  BuildSYCLIntelInitiationIntervalAttr(const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelMaxConcurrencyAttr *
+  BuildSYCLIntelMaxConcurrencyAttr(const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelMaxInterleavingAttr *
+  BuildSYCLIntelMaxInterleavingAttr(const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelSpeculatedIterationsAttr *
+  BuildSYCLIntelSpeculatedIterationsAttr(const AttributeCommonInfo &CI,
+                                         Expr *E);
+  SYCLIntelLoopCoalesceAttr *
+  BuildSYCLIntelLoopCoalesceAttr(const AttributeCommonInfo &CI, Expr *E);
+  SYCLIntelMaxReinvocationDelayAttr *
+  BuildSYCLIntelMaxReinvocationDelayAttr(const AttributeCommonInfo &CI,
+                                         Expr *E);
+
   ///@}
 
   //
@@ -10135,6 +10287,12 @@ public:
                           ArrayRef<TemplateArgument> TemplateArgs,
                           sema::TemplateDeductionInfo &Info);
 
+  TemplateDeductionResult DeduceTemplateArguments(
+      TemplateParameterList *TemplateParams, ArrayRef<TemplateArgument> Ps,
+      ArrayRef<TemplateArgument> As, sema::TemplateDeductionInfo &Info,
+      SmallVectorImpl<DeducedTemplateArgument> &Deduced,
+      bool NumberOfArgumentsMustMatch);
+
   TemplateDeductionResult SubstituteExplicitTemplateArguments(
       FunctionTemplateDecl *FunctionTemplate,
       TemplateArgumentListInfo &ExplicitTemplateArgs,
@@ -10261,7 +10419,8 @@ public:
   FunctionTemplateDecl *getMoreSpecializedTemplate(
       FunctionTemplateDecl *FT1, FunctionTemplateDecl *FT2, SourceLocation Loc,
       TemplatePartialOrderingContext TPOC, unsigned NumCallArguments1,
-      unsigned NumCallArguments2, bool Reversed = false);
+      QualType RawObj1Ty = {}, QualType RawObj2Ty = {}, bool Reversed = false);
+
   UnresolvedSetIterator
   getMostSpecialized(UnresolvedSetIterator SBegin, UnresolvedSetIterator SEnd,
                      TemplateSpecCandidateSet &FailedCandidates,
@@ -10685,6 +10844,9 @@ public:
     InstantiatingTemplate &operator=(const InstantiatingTemplate &) = delete;
   };
 
+  bool SubstTemplateArgument(const TemplateArgumentLoc &Input,
+                             const MultiLevelTemplateArgumentList &TemplateArgs,
+                             TemplateArgumentLoc &Output);
   bool
   SubstTemplateArguments(ArrayRef<TemplateArgumentLoc> Args,
                          const MultiLevelTemplateArgumentList &TemplateArgs,
@@ -11169,9 +11331,11 @@ public:
                                   ParmVarDecl *Param);
   void InstantiateExceptionSpec(SourceLocation PointOfInstantiation,
                                 FunctionDecl *Function);
-  FunctionDecl *InstantiateFunctionDeclaration(FunctionTemplateDecl *FTD,
-                                               const TemplateArgumentList *Args,
-                                               SourceLocation Loc);
+  FunctionDecl *InstantiateFunctionDeclaration(
+      FunctionTemplateDecl *FTD, const TemplateArgumentList *Args,
+      SourceLocation Loc,
+      CodeSynthesisContext::SynthesisKind CSC =
+          CodeSynthesisContext::ExplicitTemplateArgumentSubstitution);
   void InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
                                      FunctionDecl *Function,
                                      bool Recursive = false,
@@ -11914,12 +12078,14 @@ private:
       LocalInstantiationScope &Scope,
       const MultiLevelTemplateArgumentList &TemplateArgs);
 
-  /// used by SetupConstraintCheckingTemplateArgumentsAndScope to recursively(in
+  /// Used by SetupConstraintCheckingTemplateArgumentsAndScope to recursively(in
   /// the case of lambdas) set up the LocalInstantiationScope of the current
   /// function.
-  bool SetupConstraintScope(
-      FunctionDecl *FD, std::optional<ArrayRef<TemplateArgument>> TemplateArgs,
-      MultiLevelTemplateArgumentList MLTAL, LocalInstantiationScope &Scope);
+  bool
+  SetupConstraintScope(FunctionDecl *FD,
+                       std::optional<ArrayRef<TemplateArgument>> TemplateArgs,
+                       const MultiLevelTemplateArgumentList &MLTAL,
+                       LocalInstantiationScope &Scope);
 
   /// Used during constraint checking, sets up the constraint template argument
   /// lists, and calls SetupConstraintScope to set up the
@@ -12667,138 +12833,6 @@ public:
   void AddFactoryMethodToGlobalPool(ObjCMethodDecl *Method, bool impl = false) {
     AddMethodToGlobalPool(Method, impl, /*instance*/ false);
   }
-
-  void AddSYCLIntelBankBitsAttr(Decl *D, const AttributeCommonInfo &CI,
-                                Expr **Exprs, unsigned Size);
-  bool AnyWorkGroupSizesDiffer(const Expr *LHSXDim, const Expr *LHSYDim,
-                               const Expr *LHSZDim, const Expr *RHSXDim,
-                               const Expr *RHSYDim, const Expr *RHSZDim);
-  bool AllWorkGroupSizesSame(const Expr *LHSXDim, const Expr *LHSYDim,
-                             const Expr *LHSZDim, const Expr *RHSXDim,
-                             const Expr *RHSYDim, const Expr *RHSZDim);
-  void AddSYCLWorkGroupSizeHintAttr(Decl *D, const AttributeCommonInfo &CI,
-                                    Expr *XDim, Expr *YDim, Expr *ZDim);
-  SYCLWorkGroupSizeHintAttr *
-  MergeSYCLWorkGroupSizeHintAttr(Decl *D, const SYCLWorkGroupSizeHintAttr &A);
-  void AddIntelReqdSubGroupSize(Decl *D, const AttributeCommonInfo &CI,
-                                Expr *E);
-  IntelReqdSubGroupSizeAttr *
-  MergeIntelReqdSubGroupSizeAttr(Decl *D, const IntelReqdSubGroupSizeAttr &A);
-  IntelNamedSubGroupSizeAttr *
-  MergeIntelNamedSubGroupSizeAttr(Decl *D, const IntelNamedSubGroupSizeAttr &A);
-  void AddSYCLIntelNumSimdWorkItemsAttr(Decl *D, const AttributeCommonInfo &CI,
-                                        Expr *E);
-  SYCLIntelNumSimdWorkItemsAttr *
-  MergeSYCLIntelNumSimdWorkItemsAttr(Decl *D,
-                                     const SYCLIntelNumSimdWorkItemsAttr &A);
-  void AddSYCLIntelESimdVectorizeAttr(Decl *D, const AttributeCommonInfo &CI,
-                                      Expr *E);
-  SYCLIntelESimdVectorizeAttr *
-  MergeSYCLIntelESimdVectorizeAttr(Decl *D,
-                                   const SYCLIntelESimdVectorizeAttr &A);
-  void AddSYCLIntelSchedulerTargetFmaxMhzAttr(Decl *D,
-                                              const AttributeCommonInfo &CI,
-                                              Expr *E);
-  SYCLIntelSchedulerTargetFmaxMhzAttr *MergeSYCLIntelSchedulerTargetFmaxMhzAttr(
-      Decl *D, const SYCLIntelSchedulerTargetFmaxMhzAttr &A);
-  void AddSYCLIntelNoGlobalWorkOffsetAttr(Decl *D,
-                                          const AttributeCommonInfo &CI,
-                                          Expr *E);
-  SYCLIntelNoGlobalWorkOffsetAttr *MergeSYCLIntelNoGlobalWorkOffsetAttr(
-      Decl *D, const SYCLIntelNoGlobalWorkOffsetAttr &A);
-  void AddSYCLIntelLoopFuseAttr(Decl *D, const AttributeCommonInfo &CI,
-                                Expr *E);
-  SYCLIntelLoopFuseAttr *
-  MergeSYCLIntelLoopFuseAttr(Decl *D, const SYCLIntelLoopFuseAttr &A);
-  void AddSYCLIntelPrivateCopiesAttr(Decl *D, const AttributeCommonInfo &CI,
-                                     Expr *E);
-  void AddSYCLIntelMaxReplicatesAttr(Decl *D, const AttributeCommonInfo &CI,
-                                     Expr *E);
-  SYCLIntelMaxReplicatesAttr *
-  MergeSYCLIntelMaxReplicatesAttr(Decl *D, const SYCLIntelMaxReplicatesAttr &A);
-  void AddSYCLIntelForcePow2DepthAttr(Decl *D, const AttributeCommonInfo &CI,
-                                      Expr *E);
-  SYCLIntelForcePow2DepthAttr *
-  MergeSYCLIntelForcePow2DepthAttr(Decl *D,
-                                   const SYCLIntelForcePow2DepthAttr &A);
-  void AddSYCLIntelInitiationIntervalAttr(Decl *D,
-                                          const AttributeCommonInfo &CI,
-                                          Expr *E);
-  SYCLIntelInitiationIntervalAttr *MergeSYCLIntelInitiationIntervalAttr(
-      Decl *D, const SYCLIntelInitiationIntervalAttr &A);
-
-  SYCLIntelMaxConcurrencyAttr *MergeSYCLIntelMaxConcurrencyAttr(
-      Decl *D, const SYCLIntelMaxConcurrencyAttr &A);
-  void AddSYCLIntelMaxGlobalWorkDimAttr(Decl *D, const AttributeCommonInfo &CI,
-                                        Expr *E);
-  SYCLIntelMaxGlobalWorkDimAttr *
-  MergeSYCLIntelMaxGlobalWorkDimAttr(Decl *D,
-                                     const SYCLIntelMaxGlobalWorkDimAttr &A);
-  void AddSYCLIntelMinWorkGroupsPerComputeUnitAttr(
-      Decl *D, const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelMinWorkGroupsPerComputeUnitAttr *
-  MergeSYCLIntelMinWorkGroupsPerComputeUnitAttr(
-      Decl *D, const SYCLIntelMinWorkGroupsPerComputeUnitAttr &A);
-  void AddSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
-      Decl *D, const AttributeCommonInfo &CI, Expr *E);
-  SYCLIntelMaxWorkGroupsPerMultiprocessorAttr *
-  MergeSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
-      Decl *D, const SYCLIntelMaxWorkGroupsPerMultiprocessorAttr &A);
-  void AddSYCLIntelBankWidthAttr(Decl *D, const AttributeCommonInfo &CI,
-                                 Expr *E);
-  SYCLIntelBankWidthAttr *
-  MergeSYCLIntelBankWidthAttr(Decl *D, const SYCLIntelBankWidthAttr &A);
-  void AddSYCLIntelNumBanksAttr(Decl *D, const AttributeCommonInfo &CI,
-                                Expr *E);
-  SYCLIntelNumBanksAttr *
-  MergeSYCLIntelNumBanksAttr(Decl *D, const SYCLIntelNumBanksAttr &A);
-  SYCLDeviceHasAttr *MergeSYCLDeviceHasAttr(Decl *D,
-                                            const SYCLDeviceHasAttr &A);
-  void AddSYCLDeviceHasAttr(Decl *D, const AttributeCommonInfo &CI,
-                            Expr **Exprs, unsigned Size);
-  SYCLUsesAspectsAttr *MergeSYCLUsesAspectsAttr(Decl *D,
-                                                const SYCLUsesAspectsAttr &A);
-  void AddSYCLUsesAspectsAttr(Decl *D, const AttributeCommonInfo &CI,
-                              Expr **Exprs, unsigned Size);
-  bool CheckMaxAllowedWorkGroupSize(const Expr *RWGSXDim, const Expr *RWGSYDim,
-                                    const Expr *RWGSZDim, const Expr *MWGSXDim,
-                                    const Expr *MWGSYDim, const Expr *MWGSZDim);
-  void AddSYCLIntelMaxWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
-                                        Expr *XDim, Expr *YDim, Expr *ZDim);
-  SYCLIntelMaxWorkGroupSizeAttr *
-  MergeSYCLIntelMaxWorkGroupSizeAttr(Decl *D,
-                                     const SYCLIntelMaxWorkGroupSizeAttr &A);
-  void CheckSYCLAddIRAttributesFunctionAttrConflicts(Decl *D);
-  SYCLAddIRAttributesFunctionAttr *MergeSYCLAddIRAttributesFunctionAttr(
-      Decl *D, const SYCLAddIRAttributesFunctionAttr &A);
-  void AddSYCLAddIRAttributesFunctionAttr(Decl *D,
-                                          const AttributeCommonInfo &CI,
-                                          MutableArrayRef<Expr *> Args);
-  SYCLAddIRAttributesKernelParameterAttr *
-  MergeSYCLAddIRAttributesKernelParameterAttr(
-      Decl *D, const SYCLAddIRAttributesKernelParameterAttr &A);
-  void AddSYCLAddIRAttributesKernelParameterAttr(Decl *D,
-                                                 const AttributeCommonInfo &CI,
-                                                 MutableArrayRef<Expr *> Args);
-  SYCLAddIRAttributesGlobalVariableAttr *
-  MergeSYCLAddIRAttributesGlobalVariableAttr(
-      Decl *D, const SYCLAddIRAttributesGlobalVariableAttr &A);
-  void AddSYCLAddIRAttributesGlobalVariableAttr(Decl *D,
-                                                const AttributeCommonInfo &CI,
-                                                MutableArrayRef<Expr *> Args);
-  SYCLAddIRAnnotationsMemberAttr *
-  MergeSYCLAddIRAnnotationsMemberAttr(Decl *D,
-                                      const SYCLAddIRAnnotationsMemberAttr &A);
-  void AddSYCLAddIRAnnotationsMemberAttr(Decl *D, const AttributeCommonInfo &CI,
-                                         MutableArrayRef<Expr *> Args);
-  void AddSYCLReqdWorkGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
-                                    Expr *XDim, Expr *YDim, Expr *ZDim);
-  SYCLReqdWorkGroupSizeAttr *
-  MergeSYCLReqdWorkGroupSizeAttr(Decl *D, const SYCLReqdWorkGroupSizeAttr &A);
-
-  SYCLTypeAttr *MergeSYCLTypeAttr(Decl *D, const AttributeCommonInfo &CI,
-                                  SYCLTypeAttr::SYCLType TypeName);
-
 
 private:
   /// AddMethodToGlobalPool - Add an instance or factory method to the global
@@ -15146,10 +15180,10 @@ private:
   SmallVector<OMPDeclareVariantScope, 4> OMPDeclareVariantScopes;
 
   /// The current `omp begin/end assumes` scopes.
-  SmallVector<AssumptionAttr *, 4> OMPAssumeScoped;
+  SmallVector<OMPAssumeAttr *, 4> OMPAssumeScoped;
 
   /// All `omp assumes` we encountered so far.
-  SmallVector<AssumptionAttr *, 4> OMPAssumeGlobal;
+  SmallVector<OMPAssumeAttr *, 4> OMPAssumeGlobal;
 
   /// OMPD_loop is mapped to OMPD_for, OMPD_distribute or OMPD_simd depending
   /// on the parameter of the bind clause. In the methods for the
@@ -15187,16 +15221,6 @@ private:
   void CheckSYCLKernelCall(FunctionDecl *CallerFunc,
                            ArrayRef<const Expr *> Args);
 
-
-  bool CheckIntelFPGARegBuiltinFunctionCall(unsigned BuiltinID, CallExpr *Call);
-  bool CheckIntelFPGAMemBuiltinFunctionCall(CallExpr *Call);
-
-  bool CheckIntelSYCLPtrAnnotationBuiltinFunctionCall(unsigned BuiltinID,
-                                                      CallExpr *Call);
-  bool CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned BuiltinID,
-                                               CallExpr *Call);
-
-private:
   // We store SYCL Kernels here and handle separately -- which is a hack.
   // FIXME: It would be best to refactor this.
   llvm::SetVector<Decl *> SyclDeviceDecls;
@@ -15288,15 +15312,7 @@ public:
   ExprResult BuildSYCLBuiltinBaseTypeExpr(SourceLocation Loc, QualType SourceTy,
                                           Expr *Idx);
 
-  /// Emit a diagnostic about the given attribute having a deprecated name, and
-  /// also emit a fixit hint to generate the new attribute name.
-  void DiagnoseDeprecatedAttribute(const ParsedAttr &A, StringRef NewScope,
-                                   StringRef NewName);
-
-  /// Diagnoses an attribute in the 'intelfpga' namespace and suggests using
-  /// the attribute in the 'intel' namespace instead.
-  void CheckDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
-                                            StringRef NewName = "");
+  bool checkAllowedSYCLInitializer(VarDecl *VD);
 
   /// Creates a SemaDiagnosticBuilder that emits the diagnostic if the current
   /// context is "used as device code".
@@ -15340,8 +15356,27 @@ public:
            (VDecl->getType().getAddressSpace() == LangAS::sycl_private);
   }
 
+  template <typename AttrTy>
+  static bool isTypeDecoratedWithDeclAttribute(QualType Ty) {
+    const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
+    if (!RecTy)
+      return false;
+
+    if (RecTy->hasAttr<AttrTy>())
+      return true;
+
+    if (auto *CTSD = dyn_cast<ClassTemplateSpecializationDecl>(RecTy)) {
+      ClassTemplateDecl *Template = CTSD->getSpecializedTemplate();
+      if (CXXRecordDecl *RD = Template->getTemplatedDecl())
+        return RD->hasAttr<AttrTy>();
+    }
+    return false;
+  }
+
   /// Check whether \p Ty corresponds to a SYCL type of name \p TypeName.
   static bool isSyclType(QualType Ty, SYCLTypeAttr::SYCLType TypeName);
+
+  ///@}
 };
 
 DeductionFailureInfo

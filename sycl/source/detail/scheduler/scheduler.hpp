@@ -173,6 +173,10 @@ class MockScheduler;
 
 namespace sycl {
 inline namespace _V1 {
+namespace ext::oneapi::experimental::detail {
+class exec_graph_impl;
+class node_impl;
+} // namespace ext::oneapi::experimental::detail
 namespace detail {
 class queue_impl;
 class event_impl;
@@ -468,6 +472,20 @@ public:
                            std::vector<Command *> &AuxilaryCmds,
                            BlockingT Blocking = NON_BLOCKING);
 
+  /// Adds a command buffer update operation to the execution graph. This is
+  /// required when buffers/accessors are updated to ensure that the memory has
+  /// been allocated when updating.
+  /// \param Graph The executable graph to be updated.
+  /// \param Nodes The list of Nodes which are to be updated in the graph.
+  /// \param Requirements List of accessor requirements for this update.
+  /// \param Events List of events that this update operation depends on
+  EventImplPtr addCommandGraphUpdate(
+      ext::oneapi::experimental::detail::exec_graph_impl *Graph,
+      std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
+          Nodes,
+      const QueueImplPtr &Queue, std::vector<Requirement *> Requirements,
+      std::vector<detail::EventImplPtr> &Events);
+
 protected:
   using RWLockT = std::shared_timed_mutex;
   using ReadLockT = std::shared_lock<RWLockT>;
@@ -667,6 +685,23 @@ protected:
                                 const property_list &);
 
     bool isInFusionMode(QueueIdT queue);
+
+    /// Adds a command buffer update operation to the execution graph. This is
+    /// required when buffers/accessors are updated to ensure that the memory
+    /// has been allocated when updating.
+    /// \param Graph The executable graph to be updated.
+    /// \param Nodes The list of Nodes which are to be updated in the graph.
+    /// \param Requirements List of accessor requirements for this update.
+    /// \param Events List of events that this operation depends on.
+    /// \param ToEnqueue List of commands which need to be enqueued.
+    Command *addCommandGraphUpdate(
+        ext::oneapi::experimental::detail::exec_graph_impl *Graph,
+        std::vector<
+            std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
+            Nodes,
+        const QueueImplPtr &Queue, std::vector<Requirement *> Requirements,
+        std::vector<detail::EventImplPtr> &Events,
+        std::vector<Command *> &ToEnqueue);
 
     std::vector<SYCLMemObjI *> MMemObjs;
 

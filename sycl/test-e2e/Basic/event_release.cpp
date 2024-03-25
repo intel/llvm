@@ -3,7 +3,7 @@
 // RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 #include <cassert>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 // The test checks that pi_events are released without queue destruction
 // or call to queue::wait, when the corresponding commands are cleaned up.

@@ -6,8 +6,11 @@
 
 #include <iostream>
 #include <mutex>
-#include <sycl/sycl.hpp>
 #include <thread>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/properties/all_properties.hpp>
 
 static constexpr int niter = 1024;
 static constexpr int nthreads = 2;

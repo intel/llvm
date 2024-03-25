@@ -9,7 +9,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/intel/experimental/usm_properties.hpp>
+#include <sycl/usm.hpp>
 
 #include <cassert>
 

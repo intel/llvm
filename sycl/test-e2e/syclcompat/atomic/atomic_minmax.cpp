@@ -37,7 +37,7 @@
 
 #include <type_traits>
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <syclcompat/atomic.hpp>
 #include <syclcompat/device.hpp>
