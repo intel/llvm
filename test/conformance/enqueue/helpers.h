@@ -66,18 +66,6 @@ struct TestParameters2D {
     size_t height;
 };
 
-inline std::string USMKindToString(USMKind kind) {
-    switch (kind) {
-    case USMKind::Device:
-        return "Device";
-    case USMKind::Host:
-        return "Host";
-    case USMKind::Shared:
-    default:
-        return "Shared";
-    }
-}
-
 template <typename T>
 inline std::string
 print2DTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
@@ -91,8 +79,7 @@ print2DTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
               << std::get<0>(std::get<1>(info.param)).pitch << "__width__"
               << std::get<0>(std::get<1>(info.param)).width << "__height__"
               << std::get<0>(std::get<1>(info.param)).height << "__src__"
-              << USMKindToString(src_kind) << "__dst__"
-              << USMKindToString(dst_kind);
+              << src_kind << "__dst__" << dst_kind;
     return test_name.str();
 }
 
