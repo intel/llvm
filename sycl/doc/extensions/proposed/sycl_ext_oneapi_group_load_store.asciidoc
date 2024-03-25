@@ -454,7 +454,7 @@ q.submit([&](sycl::handler& cgh) {
             auto offset = g.get_group_id(0) * g.get_local_range(0) *
                                        items_per_thread;
 
-            sycl_exp::group_load(g, input + offset, sycl::span{ data }, sycl::contiguous_memory);
+            sycl_exp::group_load(g, input + offset, sycl::span{ data }, sycl_exp::contiguous_memory);
 
             // Work with data...
 
