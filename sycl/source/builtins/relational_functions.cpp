@@ -72,14 +72,14 @@ REL_BUILTIN(TWO_ARGS, isunordered)
 REL_BUILTIN_CUSTOM(TWO_ARGS, isordered,
                    ([](auto x, auto y) { return !sycl::isunordered(x, y); }))
 
-#define GCC_VERSION                                                            \
+#define _SYCL_BUILTINS_GCC_VER                                                 \
   (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
 
 #if defined(__GNUC__) && !defined(__clang__) &&                                \
-    ((GCC_VERSION >= 100000 && GCC_VERSION < 110000) ||                        \
-     (GCC_VERSION >= 110000 && GCC_VERSION < 110500) ||                        \
-     (GCC_VERSION >= 120000 && GCC_VERSION < 120400) ||                        \
-     (GCC_VERSION >= 130000 && GCC_VERSION < 130300))
+    ((_SYCL_BUILTINS_GCC_VER >= 100000 && _SYCL_BUILTINS_GCC_VER < 110000) ||  \
+     (_SYCL_BUILTINS_GCC_VER >= 110000 && _SYCL_BUILTINS_GCC_VER < 110500) ||  \
+     (_SYCL_BUILTINS_GCC_VER >= 120000 && _SYCL_BUILTINS_GCC_VER < 120400) ||  \
+     (_SYCL_BUILTINS_GCC_VER >= 130000 && _SYCL_BUILTINS_GCC_VER < 130300))
 // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=112816
 // The reproducers in that ticket only affect GCCs 10 to 13. Release
 // branches 11.5, 12.4, and 13.3 have been updated with the fix; release branch
@@ -98,7 +98,9 @@ REL_BUILTIN(ONE_ARG, signbit)
 
 GCC_PR112816_RESTORE_OPT
 
-#undef GCC_VERSION
+#undef GCC_PR112816_RESTORE_OPT
+#undef GCC_PR112816_DISABLE_OPT
+#undef _SYCL_BUILTINS_GCC_VER
 
 HOST_IMPL(bitselect, [](auto x, auto y, auto z) {
   using T0 = decltype(x);
