@@ -1307,6 +1307,15 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
           }
         }
 
+        ur_command_list_ptr_t CommandList;
+        if (Queue && Queue->Device != CurQueue->Device) {
+          // Get a command list prior to acquiring an event lock.
+          // This prevents a potential deadlock with recursive
+          // event locks.
+          UR_CALL(Queue->Context->getAvailableCommandList(Queue, CommandList,
+                                                          false, true));
+        }
+
         std::shared_lock<ur_shared_mutex> Lock(EventList[I]->Mutex);
 
         if (Queue && Queue->Device != CurQueue->Device &&
@@ -1315,10 +1324,6 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
           ur_event_handle_t MultiDeviceEvent;
           bool IsInternal = true;
           bool IsMultiDevice = true;
-
-          ur_command_list_ptr_t CommandList{};
-          UR_CALL(Queue->Context->getAvailableCommandList(Queue, CommandList,
-                                                          false, true));
 
           UR_CALL(createEventAndAssociateQueue(
               Queue, &MultiDeviceEvent, EventList[I]->CommandType, CommandList,
