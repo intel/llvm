@@ -48,8 +48,8 @@ static bool instrumentDeviceGlobal(Module &M) {
     if (OMPDeviceMD) {
       // For openmp offloading, the scope is to check external global variables
       // within '#pragma declare target' block and ignore all internal names.
-      if (G.getName().starts_with("__") || G.getName().starts_with(".") ||
-          !G.hasExternalLinkage())
+      if (!G.hasExternalLinkage() || G.getName().starts_with("__") ||
+          G.getName().starts_with("."))
         continue;
     } else {
       // For SYCL, non image scope device globals are implemented by device USM,
