@@ -44,7 +44,7 @@ double cast_value(const double &val) {
   int lo = syclcompat::cast_double_to_int(val, false);
   int hi = syclcompat::cast_double_to_int(val);
   return syclcompat::cast_ints_to_double(hi, lo);
-}
+  }
 
 void test_kernel_cast_value(double *g_odata) {
   double a = 1.12123515e-25f;
@@ -72,9 +72,13 @@ void test_cast_value() {
   d_out_data = (double *)sycl::malloc_device(mem_size, q);
   q.memcpy(d_out_data, h_out_data, mem_size).wait();
 
-  q.parallel_for(
-      sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-      [=](sycl::nd_item<3> item_ct1) { test_kernel_cast_value(d_out_data); });
+  auto range =
+      sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1));
+  q.submit([&](sycl::handler &cgh) {
+    cgh.parallel_for(range, [=](sycl::nd_item<3> item_ct1) {
+      test_kernel_cast_value(d_out_data);
+    });
+  });
 
   q.memcpy(h_out_data, d_out_data, mem_size).wait();
 
