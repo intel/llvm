@@ -167,7 +167,7 @@ def GEN_SubGroupShuffleOp : GEN_Op<"sub_group_shuffle", [
   }];
 
   let assemblyFormat = [{
-    $kind $value `,` $mask attr-dict `:` functional-type($value, $res)
+    $kind $value `,` $mask attr-dict `:` type($res)
   }];
 }
 

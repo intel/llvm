@@ -78,39 +78,39 @@ llvm.func @gen.sub_group_shuffle() {
   // CHECK: llvm.call @_Z20sub_group_shuffle_upij([[ZERO]], [[ZERO]]) {passthrough = ["convergent"]} : (i32, i32) -> i32
   // CHECK: llvm.call @_Z22sub_group_shuffle_downij([[ZERO]], [[ZERO]]) {passthrough = ["convergent"]} : (i32, i32) -> i32
   // CHECK: llvm.call @_Z17sub_group_shuffleij([[ZERO]], [[ZERO]]) {passthrough = ["convergent"]} : (i32, i32) -> i32
-  %1 = gen.sub_group_shuffle xor %0, %0 : (i32) -> i32
-  %2 = gen.sub_group_shuffle up %0, %0 : (i32) -> i32
-  %3 = gen.sub_group_shuffle down %0, %0 : (i32) -> i32
-  %4 = gen.sub_group_shuffle idx %0, %0 : (i32) -> i32
+  %1 = gen.sub_group_shuffle xor %0, %0 : i32
+  %2 = gen.sub_group_shuffle up %0, %0 : i32
+  %3 = gen.sub_group_shuffle down %0, %0 : i32
+  %4 = gen.sub_group_shuffle idx %0, %0 : i32
 
   // CHECK: [[ZERO1:%.*]] = llvm.mlir.constant(0 : i8) : i8
   // CHECK: llvm.call @_Z21sub_group_shuffle_xorcj([[ZERO1]], [[ZERO]]) {passthrough = ["convergent"]} : (i8, i32) -> i8
   %5 = llvm.mlir.constant(0 : i8) : i8
-  %6 = gen.sub_group_shuffle xor %5, %0 : (i8) -> i8
+  %6 = gen.sub_group_shuffle xor %5, %0 : i8
 
   // CHECK: [[ZERO2:%.*]] = llvm.mlir.constant(0 : i16) : i16
   // CHECK: llvm.call @_Z21sub_group_shuffle_xorsj([[ZERO2]], [[ZERO]]) {passthrough = ["convergent"]} : (i16, i32) -> i16
   %7 = llvm.mlir.constant(0 : i16) : i16
-  %8 = gen.sub_group_shuffle xor %7, %0 : (i16) -> i16
+  %8 = gen.sub_group_shuffle xor %7, %0 : i16
 
   // CHECK: [[ZERO3:%.*]] = llvm.mlir.constant(0 : i64) : i64
   // CHECK: llvm.call @_Z21sub_group_shuffle_xorlj([[ZERO3]], [[ZERO]]) {passthrough = ["convergent"]} : (i64, i32) -> i64
   %9 = llvm.mlir.constant(0 : i64) : i64
-  %10 = gen.sub_group_shuffle xor %9, %0 : (i64) -> i64
+  %10 = gen.sub_group_shuffle xor %9, %0 : i64
 
   // CHECK: [[ZERO4:%.*]] = llvm.mlir.constant(0.000000e+00 : f16) : f16
   // CHECK: llvm.call @_Z21sub_group_shuffle_xorDhj([[ZERO4]], [[ZERO]]) {passthrough = ["convergent"]} : (f16, i32) -> f16
   %11 = llvm.mlir.constant(0.0 : f16) : f16
-  %12 = gen.sub_group_shuffle xor %11, %0 : (f16) -> f16
+  %12 = gen.sub_group_shuffle xor %11, %0 : f16
 
   // CHECK: [[ZERO5:%.*]] = llvm.mlir.constant(0.000000e+00 : f32) : f32
   // CHECK: llvm.call @_Z21sub_group_shuffle_xorfj([[ZERO5]], [[ZERO]]) {passthrough = ["convergent"]} : (f32, i32) -> f32
   %13 = llvm.mlir.constant(0.0 : f32) : f32
-  %14 = gen.sub_group_shuffle xor %13, %0 : (f32) -> f32
+  %14 = gen.sub_group_shuffle xor %13, %0 : f32
 
   // CHECK: [[ZERO6:%.*]] = llvm.mlir.constant(0.000000e+00 : f64) : f64
   // CHECK: llvm.call @_Z21sub_group_shuffle_xordj([[ZERO6]], [[ZERO]]) {passthrough = ["convergent"]} : (f64, i32) -> f64
   %15 = llvm.mlir.constant(0.0 : f64) : f64
-  %16 = gen.sub_group_shuffle xor %15, %0 : (f64) -> f64
+  %16 = gen.sub_group_shuffle xor %15, %0 : f64
   llvm.return
 }
