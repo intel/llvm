@@ -44,7 +44,7 @@
 #include <cassert>
 #include <chrono>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <thread>
 
 int main(void) {

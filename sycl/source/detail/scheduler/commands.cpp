@@ -1005,7 +1005,10 @@ void AllocaCommandBase::emitInstrumentationData() {
     xpti::addMetadata(TE, "sycl_device_name",
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
     xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
-    xpti::addMetadata(TE, "queue_id", MQueue->getQueueID());
+    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
+    // as this data is mutable and the metadata is supposed to be invariant
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 MQueue->getQueueID());
   }
 #endif
 }
@@ -1124,7 +1127,8 @@ void AllocaSubBufCommand::emitInstrumentationData() {
                       this->MRequirement.MAccessRange[0]);
     xpti::addMetadata(TE, "access_range_end",
                       this->MRequirement.MAccessRange[1]);
-    xpti::addMetadata(TE, "queue_id", MQueue->getQueueID());
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 MQueue->getQueueID());
     makeTraceEventEpilog();
   }
 #endif
@@ -1202,8 +1206,10 @@ void ReleaseCommand::emitInstrumentationData() {
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
     xpti::addMetadata(TE, "allocation_type",
                       commandToName(MAllocaCmd->getType()));
-    xpti::addMetadata(TE, "queue_id", MQueue->getQueueID());
-
+    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
+    // as this data is mutable and the metadata is supposed to be invariant
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 MQueue->getQueueID());
     makeTraceEventEpilog();
   }
 #endif
@@ -1323,8 +1329,10 @@ void MapMemObject::emitInstrumentationData() {
     xpti::addMetadata(TE, "sycl_device_name",
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
     xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
-    xpti::addMetadata(TE, "queue_id", MQueue->getQueueID());
-
+    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
+    // as this data is mutable and the metadata is supposed to be invariant
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 MQueue->getQueueID());
     makeTraceEventEpilog();
   }
 #endif
@@ -1386,8 +1394,10 @@ void UnMapMemObject::emitInstrumentationData() {
     xpti::addMetadata(TE, "sycl_device_name",
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
     xpti::addMetadata(TE, "memory_object", reinterpret_cast<size_t>(MAddress));
-    xpti::addMetadata(TE, "queue_id", MQueue->getQueueID());
-
+    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
+    // as this data is mutable and the metadata is supposed to be invariant
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 MQueue->getQueueID());
     makeTraceEventEpilog();
   }
 #endif
@@ -1489,8 +1499,10 @@ void MemCpyCommand::emitInstrumentationData() {
     xpti::addMetadata(
         CmdTraceEvent, "copy_to",
         reinterpret_cast<size_t>(getSyclObjImpl(MQueue->get_device()).get()));
-    xpti::addMetadata(CmdTraceEvent, "queue_id", MQueue->getQueueID());
-
+    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
+    // as this data is mutable and the metadata is supposed to be invariant
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 MQueue->getQueueID());
     makeTraceEventEpilog();
   }
 #endif
@@ -1665,8 +1677,10 @@ void MemCpyCommandHost::emitInstrumentationData() {
     xpti::addMetadata(
         CmdTraceEvent, "copy_to",
         reinterpret_cast<size_t>(getSyclObjImpl(MQueue->get_device()).get()));
-    xpti::addMetadata(CmdTraceEvent, "queue_id", MQueue->getQueueID());
-
+    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
+    // as this data is mutable and the metadata is supposed to be invariant
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 MQueue->getQueueID());
     makeTraceEventEpilog();
   }
 #endif
@@ -1756,8 +1770,10 @@ void EmptyCommand::emitInstrumentationData() {
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
     xpti::addMetadata(CmdTraceEvent, "memory_object",
                       reinterpret_cast<size_t>(MAddress));
-    xpti::addMetadata(CmdTraceEvent, "queue_id", MQueue->getQueueID());
-
+    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
+    // as this data is mutable and the metadata is supposed to be invariant
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 MQueue->getQueueID());
     makeTraceEventEpilog();
   }
 #endif
@@ -1828,8 +1844,10 @@ void UpdateHostRequirementCommand::emitInstrumentationData() {
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
     xpti::addMetadata(CmdTraceEvent, "memory_object",
                       reinterpret_cast<size_t>(MAddress));
-    xpti::addMetadata(CmdTraceEvent, "queue_id", MQueue->getQueueID());
-
+    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
+    // as this data is mutable and the metadata is supposed to be invariant
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 MQueue->getQueueID());
     makeTraceEventEpilog();
   }
 #endif
@@ -2063,7 +2081,9 @@ void instrumentationFillCommonData(const std::string &KernelName,
       xpti::addMetadata(CmdTraceEvent, "sym_column_no",
                         static_cast<int>(Column));
     }
-    xpti::addMetadata(CmdTraceEvent, "queue_id", Queue->getQueueID());
+    // We no longer set the 'queue_id' in the metadata structure as it is a
+    // mutable value and multiple threads using the same queue created at the
+    // same location will overwrite the metadata values creating inconsistencies
   }
 }
 #endif
@@ -2096,6 +2116,10 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
                                 FromSource, InstanceID, CmdTraceEvent);
 
   if (CmdTraceEvent) {
+    // Stash the queue_id mutable metadata in TLS
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 Queue->getQueueID());
+
     instrumentationAddExtraKernelMetadata(CmdTraceEvent, NDRDesc,
                                           KernelBundleImplPtr, SyclKernelName,
                                           SyclKernel, Queue, CGArgs);
@@ -2139,6 +2163,8 @@ void ExecCGCommand::emitInstrumentationData() {
                                 CmdTraceEvent);
 
   if (CmdTraceEvent) {
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 MQueue->getQueueID());
     MTraceEvent = static_cast<void *>(CmdTraceEvent);
     if (MCommandGroup->getType() == detail::CG::Kernel) {
       auto KernelCG =
@@ -2432,6 +2458,7 @@ pi_int32 enqueueImpCommandBufferKernel(
     const CGExecKernel &CommandGroup,
     std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints,
     sycl::detail::pi::PiExtSyncPoint *OutSyncPoint,
+    sycl::detail::pi::PiExtCommandBufferCommand *OutCommand,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
   auto ContextImpl = sycl::detail::getSyclObjImpl(Ctx);
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
@@ -2513,7 +2540,8 @@ pi_int32 enqueueImpCommandBufferKernel(
       sycl::detail::PiApiKind::piextCommandBufferNDRangeKernel>(
       CommandBuffer, PiKernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
       &NDRDesc.GlobalSize[0], LocalSize, SyncPoints.size(),
-      SyncPoints.size() ? SyncPoints.data() : nullptr, OutSyncPoint);
+      SyncPoints.size() ? SyncPoints.data() : nullptr, OutSyncPoint,
+      OutCommand);
 
   if (!SyclKernelImpl && !Kernel) {
     Plugin->call<PiApiKind::piKernelRelease>(PiKernel);
@@ -2723,6 +2751,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
           ? nullptr
           : &MEvent->getHandleRef();
   sycl::detail::pi::PiExtSyncPoint OutSyncPoint;
+  sycl::detail::pi::PiExtCommandBufferCommand OutCommand = nullptr;
   switch (MCommandGroup->getType()) {
   case CG::CGTYPE::Kernel: {
     CGExecKernel *ExecKernel = (CGExecKernel *)MCommandGroup.get();
@@ -2744,8 +2773,10 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
     }
     auto result = enqueueImpCommandBufferKernel(
         MQueue->get_context(), MQueue->getDeviceImplPtr(), MCommandBuffer,
-        *ExecKernel, MSyncPointDeps, &OutSyncPoint, getMemAllocationFunc);
+        *ExecKernel, MSyncPointDeps, &OutSyncPoint, &OutCommand,
+        getMemAllocationFunc);
     MEvent->setSyncPoint(OutSyncPoint);
+    MEvent->setCommandBufferCommand(OutCommand);
     return result;
   }
   case CG::CGTYPE::CopyUSM: {
@@ -3351,10 +3382,12 @@ void KernelFusionCommand::emitInstrumentationData() {
                       deviceToString(MQueue->get_device()));
     xpti::addMetadata(CmdTraceEvent, "sycl_device_name",
                       getSyclObjImpl(MQueue->get_device())->getDeviceName());
-    xpti::addMetadata(CmdTraceEvent, "queue_id", MQueue->getQueueID());
   }
-
   if (MFirstInstance) {
+    // Since we do NOT add queue_id value to metadata, we are stashing it to TLS
+    // as this data is mutable and the metadata is supposed to be invariant
+    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                 MQueue->getQueueID());
     xptiNotifySubscribers(MStreamID, NotificationTraceType,
                           detail::GSYCLGraphEvent,
                           static_cast<xpti_td *>(MTraceEvent), MInstanceID,
@@ -3395,6 +3428,67 @@ void KernelFusionCommand::printDot(std::ostream &Stream) const {
            << std::endl;
   }
 }
+
+UpdateCommandBufferCommand::UpdateCommandBufferCommand(
+    QueueImplPtr Queue,
+    ext::oneapi::experimental::detail::exec_graph_impl *Graph,
+    std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
+        Nodes)
+    : Command(CommandType::UPDATE_CMD_BUFFER, Queue), MGraph(Graph),
+      MNodes(Nodes) {}
+
+pi_int32 UpdateCommandBufferCommand::enqueueImp() {
+  waitForPreparedHostEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  auto RawEvents = getPiEvents(EventImpls);
+  flushCrossQueueDeps(EventImpls, getWorkerQueue());
+
+  for (auto &Node : MNodes) {
+    auto CG = static_cast<CGExecKernel *>(Node->MCommandGroup.get());
+    for (auto &Arg : CG->MArgs) {
+      if (Arg.MType != kernel_param_kind_t::kind_accessor) {
+        continue;
+      }
+      // Search through deps to get actual allocation for accessor args.
+      for (const DepDesc &Dep : MDeps) {
+        Requirement *Req = static_cast<AccessorImplHost *>(Arg.MPtr);
+        if (Dep.MDepRequirement == Req) {
+          if (Dep.MAllocaCmd) {
+            Req->MData = Dep.MAllocaCmd->getMemAllocation();
+          } else {
+            throw sycl::exception(make_error_code(errc::invalid),
+                                  "No allocation available for accessor when "
+                                  "updating command buffer!");
+          }
+        }
+      }
+    }
+    MGraph->updateImpl(Node);
+  }
+
+  return PI_SUCCESS;
+}
+
+void UpdateCommandBufferCommand::printDot(std::ostream &Stream) const {
+  Stream << "\"" << this << "\" [style=filled, fillcolor=\"#8d8f29\", label=\"";
+
+  Stream << "ID = " << this << "\\n";
+  Stream << "CommandBuffer Command Update"
+         << "\\n";
+
+  Stream << "\"];" << std::endl;
+
+  for (const auto &Dep : MDeps) {
+    Stream << "  \"" << this << "\" -> \"" << Dep.MDepCommand << "\""
+           << " [ label = \"Access mode: "
+           << accessModeToString(Dep.MDepRequirement->MAccessMode) << "\\n"
+           << "MemObj: " << Dep.MDepRequirement->MSYCLMemObj << " \" ]"
+           << std::endl;
+  }
+}
+
+void UpdateCommandBufferCommand::emitInstrumentationData() {}
+bool UpdateCommandBufferCommand::producesPiEvent() const { return false; }
 
 } // namespace detail
 } // namespace _V1
