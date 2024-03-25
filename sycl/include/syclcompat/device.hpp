@@ -476,7 +476,7 @@ Use 64 bits as memory_bus_width default value."
     lock.lock();
   }
   queue_ptr create_queue(bool print_on_async_exceptions = false,
-                            bool in_order = true) {
+                         bool in_order = true) {
     std::lock_guard<std::mutex> lock(m_mutex);
     return create_queue_impl(print_on_async_exceptions, in_order);
   }
