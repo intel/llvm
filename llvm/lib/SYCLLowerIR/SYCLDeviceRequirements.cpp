@@ -105,10 +105,12 @@ llvm::getSYCLDeviceRequirements(const module_split::ModuleDesc &MD) {
 std::map<StringRef, util::PropertyValue> SYCLDeviceRequirements::asMap() const {
   std::map<StringRef, util::PropertyValue> Requirements;
 
+  // For all properties except for "aspects", we'll only add the
+  // value to the map if the corresponding value from
+  // SYCLDeviceRequirements has a value/is non-empty.
   Requirements["aspects"] =
       std::vector<uint32_t>(Aspects.begin(), Aspects.end());
 
-  // We don't need the "fixed_target" property if it's empty
   if (!FixedTarget.empty())
     Requirements["fixed_target"] =
         std::vector<uint32_t>(FixedTarget.begin(), FixedTarget.end());
@@ -128,7 +130,6 @@ std::map<StringRef, util::PropertyValue> SYCLDeviceRequirements::asMap() const {
   if (JointMatrixMad.has_value())
     Requirements["joint_matrix_mad"] = *JointMatrixMad;
 
-  // Do not attach reqd_sub_group_size if there is no attached metadata
   if (SubGroupSize.has_value())
     Requirements["reqd_sub_group_size"] = *SubGroupSize;
 
