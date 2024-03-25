@@ -128,6 +128,15 @@ _Result type_ must be an `OpTypeSampler`.
 | 4 | 6530 | '<id> Result Type' | 'Result <id>' | '<id> Operand'
 |======
 
+Modify Section 3.31, Capability, adding row to the capability table:
+
+[width="40%"]
+[options="header"]
+|====
+2+^| Capability ^| Implicitly Declares
+| 6528 | BindlessImagesINTEL |
+|====
+
 
 == Issues
 
