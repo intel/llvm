@@ -1063,8 +1063,7 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
 
     if (const auto *SYCLIntelMaxConcurrency =
             dyn_cast<SYCLIntelMaxConcurrencyAttr>(A)) {
-      const auto *CE =
-          cast<ConstantExpr>(SYCLIntelMaxConcurrency->getNExpr());
+      const auto *CE = cast<ConstantExpr>(SYCLIntelMaxConcurrency->getNExpr());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       setSYCLMaxConcurrencyNThreads(ArgVal.getSExtValue());
     }
