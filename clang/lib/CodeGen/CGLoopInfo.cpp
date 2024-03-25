@@ -1056,7 +1056,7 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
 
     if (const auto *SYCLIntelII =
             dyn_cast<SYCLIntelInitiationIntervalAttr>(A)) {
-      const auto *CE = cast<ConstantExpr>(SYCLIntelII->getIntervalExpr());
+      const auto *CE = cast<ConstantExpr>(SYCLIntelII->getNExpr());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       setSYCLIInterval(ArgVal.getSExtValue());
     }
@@ -1064,7 +1064,7 @@ void LoopInfoStack::push(BasicBlock *Header, clang::ASTContext &Ctx,
     if (const auto *SYCLIntelMaxConcurrency =
             dyn_cast<SYCLIntelMaxConcurrencyAttr>(A)) {
       const auto *CE =
-          cast<ConstantExpr>(SYCLIntelMaxConcurrency->getNThreadsExpr());
+          cast<ConstantExpr>(SYCLIntelMaxConcurrency->getNExpr());
       llvm::APSInt ArgVal = CE->getResultAsAPSInt();
       setSYCLMaxConcurrencyNThreads(ArgVal.getSExtValue());
     }

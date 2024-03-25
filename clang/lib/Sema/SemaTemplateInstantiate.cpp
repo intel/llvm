@@ -2068,7 +2068,7 @@ const SYCLIntelInitiationIntervalAttr *
 TemplateInstantiator::TransformSYCLIntelInitiationIntervalAttr(
     const SYCLIntelInitiationIntervalAttr *II) {
   Expr *TransformedExpr =
-      getDerived().TransformExpr(II->getIntervalExpr()).get();
+      getDerived().TransformExpr(II->getNExpr()).get();
   return getSema().BuildSYCLIntelInitiationIntervalAttr(*II,
                                                             TransformedExpr);
 }
@@ -2077,7 +2077,7 @@ const SYCLIntelMaxConcurrencyAttr *
 TemplateInstantiator::TransformSYCLIntelMaxConcurrencyAttr(
     const SYCLIntelMaxConcurrencyAttr *MC) {
   Expr *TransformedExpr =
-      getDerived().TransformExpr(MC->getNThreadsExpr()).get();
+      getDerived().TransformExpr(MC->getNExpr()).get();
   return getSema().BuildSYCLIntelMaxConcurrencyAttr(*MC, TransformedExpr);
 }
 

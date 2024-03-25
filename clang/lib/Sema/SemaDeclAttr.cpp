@@ -4251,7 +4251,7 @@ void Sema::AddSYCLIntelInitiationIntervalAttr(Decl *D,
       // have converted it to a constant expression yet and thus we test
       // whether this is a null pointer.
       if (const auto *DeclExpr =
-              dyn_cast<ConstantExpr>(DeclAttr->getIntervalExpr())) {
+              dyn_cast<ConstantExpr>(DeclAttr->getNExpr())) {
         if (ArgVal != DeclExpr->getResultAsAPSInt()) {
           Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
           Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
@@ -4274,8 +4274,8 @@ Sema::MergeSYCLIntelInitiationIntervalAttr(
   if (const auto *DeclAttr =
           D->getAttr<SYCLIntelInitiationIntervalAttr>()) {
     if (const auto *DeclExpr =
-            dyn_cast<ConstantExpr>(DeclAttr->getIntervalExpr())) {
-      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getIntervalExpr())) {
+            dyn_cast<ConstantExpr>(DeclAttr->getNExpr())) {
+      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getNExpr())) {
         if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
           Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
           Diag(A.getLoc(), diag::note_previous_attribute);
@@ -4287,7 +4287,7 @@ Sema::MergeSYCLIntelInitiationIntervalAttr(
   }
 
   return ::new (Context)
-      SYCLIntelInitiationIntervalAttr(Context, A, A.getIntervalExpr());
+      SYCLIntelInitiationIntervalAttr(Context, A, A.getNExpr());
 }
 
 static void handleSYCLIntelInitiationIntervalAttr(Sema &S, Decl *D,
@@ -8419,8 +8419,8 @@ SYCLIntelMaxConcurrencyAttr *Sema::MergeSYCLIntelMaxConcurrencyAttr(
   // already applied to the declaration.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxConcurrencyAttr>()) {
     if (const auto *DeclExpr =
-            dyn_cast<ConstantExpr>(DeclAttr->getNThreadsExpr())) {
-      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getNThreadsExpr())) {
+            dyn_cast<ConstantExpr>(DeclAttr->getNExpr())) {
+      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getNExpr())) {
         if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
           Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
           Diag(A.getLoc(), diag::note_previous_attribute);
@@ -8432,7 +8432,7 @@ SYCLIntelMaxConcurrencyAttr *Sema::MergeSYCLIntelMaxConcurrencyAttr(
   }
 
   return ::new (Context)
-      SYCLIntelMaxConcurrencyAttr(Context, A, A.getNThreadsExpr());
+      SYCLIntelMaxConcurrencyAttr(Context, A, A.getNExpr());
 }
 
 void Sema::AddSYCLIntelMaxConcurrencyAttr(Decl *D,
@@ -8459,7 +8459,7 @@ void Sema::AddSYCLIntelMaxConcurrencyAttr(Decl *D,
       // have converted it to a constant expression yet and thus we test
       // whether this is a null pointer.
       if (const auto *DeclExpr =
-              dyn_cast<ConstantExpr>(DeclAttr->getNThreadsExpr())) {
+              dyn_cast<ConstantExpr>(DeclAttr->getNExpr())) {
         if (ArgVal != DeclExpr->getResultAsAPSInt()) {
           Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
           Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
