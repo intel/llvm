@@ -878,6 +878,106 @@ struct urUSMDeviceAllocTest : urQueueTest {
   void *ptr = nullptr;
 };
 
+struct urUSMShareAllocTest : urQueueTest {
+  void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
+    ur_device_usm_access_capability_flags_t device_usm = 0;
+    ASSERT_SUCCESS(GetDeviceUSMHostSupport(device, device_usm));
+    if (!device_usm) {
+      GTEST_SKIP() << "Device USM in not supported";
+    }
+    ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr,
+                                    allocation_size, &ptr));
+    ur_event_handle_t event = nullptr;
+
+    uint8_t fillPattern = 0;
+    ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(fillPattern),
+                                    &fillPattern, allocation_size, 0, nullptr,
+                                    &event));
+
+    EXPECT_SUCCESS(urQueueFlush(queue));
+    ASSERT_SUCCESS(urEventWait(1, &event));
+    EXPECT_SUCCESS(urEventRelease(event));
+  }
+
+  void TearDown() override {
+    ASSERT_SUCCESS(urUSMFree(context, ptr));
+    uur::urQueueTest::TearDown();
+  }
+
+  size_t allocation_size = sizeof(int);
+  void *ptr = nullptr;
+};
+
+struct USMFlagsTestParams {
+  unsigned URFlagInput;
+  unsigned ExpectedFlagsSet;
+};
+inline std::ostream &operator<<(std::ostream &o, const USMFlagsTestParams &v) {
+  o << "{" << v.URFlagInput << ", " << v.ExpectedFlagsSet << "}";
+  return o;
+}
+
+struct USMFlagsTest : uur::urPlatformTestWithParam<USMFlagsTestParams> {
+  void SetUp() override {
+    UUR_RETURN_ON_FATAL_FAILURE(
+        uur::urPlatformTestWithParam<USMFlagsTestParams>::SetUp());
+    ASSERT_SUCCESS(urContextCreate(1, &device, nullptr, &context));
+    ASSERT_NE(context, nullptr);
+  }
+
+  virtual unsigned getAllocationFlags(void *mem) = 0;
+
+  void testParamWithHostAlloc() {
+    auto Values = getParam();
+    ur_usm_desc_t desc{};
+    desc.hints = Values.URFlagInput;
+    desc.stype = UR_STRUCTURE_TYPE_USM_HOST_DESC;
+    void *mem = nullptr;
+
+    ASSERT_SUCCESS(urUSMHostAlloc(context, &desc, /*pool handle*/ nullptr,
+                                  alloc_size, &mem));
+    ASSERT_NE(mem, nullptr);
+    ASSERT_EQ(getAllocationFlags(mem), Values.ExpectedFlagsSet);
+  }
+
+  void testParamWithDeviceAlloc() {
+    auto Values = getParam();
+    ur_usm_desc_t desc{};
+    desc.hints = Values.URFlagInput;
+    desc.stype = UR_STRUCTURE_TYPE_USM_HOST_DESC;
+    void *mem = nullptr;
+
+    ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, &desc,
+                                    /*pool handle*/ nullptr, alloc_size, &mem));
+    ASSERT_NE(mem, nullptr);
+    ASSERT_EQ(getAllocationFlags(mem), Values.ExpectedFlagsSet);
+  }
+
+  void testParamWithSharedAlloc() {
+    auto Values = getParam();
+    ur_usm_desc_t desc{};
+    desc.hints = Values.URFlagInput;
+    desc.stype = UR_STRUCTURE_TYPE_USM_HOST_DESC;
+    void *mem = nullptr;
+
+    ASSERT_SUCCESS(urUSMSharedAlloc(context, device, &desc,
+                                    /*pool handle*/ nullptr, alloc_size, &mem));
+    ASSERT_NE(mem, nullptr);
+    ASSERT_EQ(getAllocationFlags(mem), Values.ExpectedFlagsSet);
+  }
+
+  void TearDown() override {
+    EXPECT_SUCCESS(urContextRelease(context));
+    UUR_RETURN_ON_FATAL_FAILURE(
+        urPlatformTestWithParam<USMFlagsTestParams>::TearDown());
+  }
+
+  ur_device_handle_t device = nullptr;
+  ur_context_handle_t context = nullptr;
+  static constexpr size_t alloc_size = 4096;
+};
+
 struct urUSMPoolTest : urContextTest {
   void SetUp() override {
     UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());

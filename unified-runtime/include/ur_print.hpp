@@ -7167,6 +7167,36 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_USM_HOST_MEM_FLAG_INITIAL_PLACEMENT:
     os << "UR_USM_HOST_MEM_FLAG_INITIAL_PLACEMENT";
     break;
+  case UR_USM_HOST_MEM_FLAG_HOST_READ_ONLY:
+    os << "UR_USM_HOST_MEM_FLAG_HOST_READ_ONLY";
+    break;
+  case UR_USM_HOST_MEM_FLAG_HOST_WRITE_ONLY:
+    os << "UR_USM_HOST_MEM_FLAG_HOST_WRITE_ONLY";
+    break;
+  case UR_USM_HOST_MEM_FLAG_HOST_COHERENT:
+    os << "UR_USM_HOST_MEM_FLAG_HOST_COHERENT";
+    break;
+  case UR_USM_HOST_MEM_FLAG_HOST_NON_COHERENT:
+    os << "UR_USM_HOST_MEM_FLAG_HOST_NON_COHERENT";
+    break;
+  case UR_USM_HOST_MEM_FLAG_HOST_ACCESS_RANDOM:
+    os << "UR_USM_HOST_MEM_FLAG_HOST_ACCESS_RANDOM";
+    break;
+  case UR_USM_HOST_MEM_FLAG_HOST_ACCESS_SEQUENTIAL:
+    os << "UR_USM_HOST_MEM_FLAG_HOST_ACCESS_SEQUENTIAL";
+    break;
+  case UR_USM_HOST_MEM_FLAG_HOST_ACCESS_HOT:
+    os << "UR_USM_HOST_MEM_FLAG_HOST_ACCESS_HOT";
+    break;
+  case UR_USM_HOST_MEM_FLAG_HOST_ACCESS_COLD:
+    os << "UR_USM_HOST_MEM_FLAG_HOST_ACCESS_COLD";
+    break;
+  case UR_USM_HOST_MEM_FLAG_HOST_UNCACHED:
+    os << "UR_USM_HOST_MEM_FLAG_HOST_UNCACHED";
+    break;
+  case UR_USM_HOST_MEM_FLAG_WRITE_COMBINE:
+    os << "UR_USM_HOST_MEM_FLAG_WRITE_COMBINE";
+    break;
   default:
     os << "unknown enumerator";
     break;
@@ -7193,6 +7223,116 @@ inline ur_result_t printFlag<ur_usm_host_mem_flag_t>(std::ostream &os,
     }
     os << UR_USM_HOST_MEM_FLAG_INITIAL_PLACEMENT;
   }
+
+  if ((val & UR_USM_HOST_MEM_FLAG_HOST_READ_ONLY) ==
+      (uint32_t)UR_USM_HOST_MEM_FLAG_HOST_READ_ONLY) {
+    val ^= (uint32_t)UR_USM_HOST_MEM_FLAG_HOST_READ_ONLY;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_USM_HOST_MEM_FLAG_HOST_READ_ONLY;
+  }
+
+  if ((val & UR_USM_HOST_MEM_FLAG_HOST_WRITE_ONLY) ==
+      (uint32_t)UR_USM_HOST_MEM_FLAG_HOST_WRITE_ONLY) {
+    val ^= (uint32_t)UR_USM_HOST_MEM_FLAG_HOST_WRITE_ONLY;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_USM_HOST_MEM_FLAG_HOST_WRITE_ONLY;
+  }
+
+  if ((val & UR_USM_HOST_MEM_FLAG_HOST_COHERENT) ==
+      (uint32_t)UR_USM_HOST_MEM_FLAG_HOST_COHERENT) {
+    val ^= (uint32_t)UR_USM_HOST_MEM_FLAG_HOST_COHERENT;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_USM_HOST_MEM_FLAG_HOST_COHERENT;
+  }
+
+  if ((val & UR_USM_HOST_MEM_FLAG_HOST_NON_COHERENT) ==
+      (uint32_t)UR_USM_HOST_MEM_FLAG_HOST_NON_COHERENT) {
+    val ^= (uint32_t)UR_USM_HOST_MEM_FLAG_HOST_NON_COHERENT;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_USM_HOST_MEM_FLAG_HOST_NON_COHERENT;
+  }
+
+  if ((val & UR_USM_HOST_MEM_FLAG_HOST_ACCESS_RANDOM) ==
+      (uint32_t)UR_USM_HOST_MEM_FLAG_HOST_ACCESS_RANDOM) {
+    val ^= (uint32_t)UR_USM_HOST_MEM_FLAG_HOST_ACCESS_RANDOM;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_USM_HOST_MEM_FLAG_HOST_ACCESS_RANDOM;
+  }
+
+  if ((val & UR_USM_HOST_MEM_FLAG_HOST_ACCESS_SEQUENTIAL) ==
+      (uint32_t)UR_USM_HOST_MEM_FLAG_HOST_ACCESS_SEQUENTIAL) {
+    val ^= (uint32_t)UR_USM_HOST_MEM_FLAG_HOST_ACCESS_SEQUENTIAL;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_USM_HOST_MEM_FLAG_HOST_ACCESS_SEQUENTIAL;
+  }
+
+  if ((val & UR_USM_HOST_MEM_FLAG_HOST_ACCESS_HOT) ==
+      (uint32_t)UR_USM_HOST_MEM_FLAG_HOST_ACCESS_HOT) {
+    val ^= (uint32_t)UR_USM_HOST_MEM_FLAG_HOST_ACCESS_HOT;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_USM_HOST_MEM_FLAG_HOST_ACCESS_HOT;
+  }
+
+  if ((val & UR_USM_HOST_MEM_FLAG_HOST_ACCESS_COLD) ==
+      (uint32_t)UR_USM_HOST_MEM_FLAG_HOST_ACCESS_COLD) {
+    val ^= (uint32_t)UR_USM_HOST_MEM_FLAG_HOST_ACCESS_COLD;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_USM_HOST_MEM_FLAG_HOST_ACCESS_COLD;
+  }
+
+  if ((val & UR_USM_HOST_MEM_FLAG_HOST_UNCACHED) ==
+      (uint32_t)UR_USM_HOST_MEM_FLAG_HOST_UNCACHED) {
+    val ^= (uint32_t)UR_USM_HOST_MEM_FLAG_HOST_UNCACHED;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_USM_HOST_MEM_FLAG_HOST_UNCACHED;
+  }
+
+  if ((val & UR_USM_HOST_MEM_FLAG_WRITE_COMBINE) ==
+      (uint32_t)UR_USM_HOST_MEM_FLAG_WRITE_COMBINE) {
+    val ^= (uint32_t)UR_USM_HOST_MEM_FLAG_WRITE_COMBINE;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_USM_HOST_MEM_FLAG_WRITE_COMBINE;
+  }
   if (val != 0) {
     std::bitset<32> bits(val);
     if (!first) {
@@ -7212,14 +7352,38 @@ inline ur_result_t printFlag<ur_usm_host_mem_flag_t>(std::ostream &os,
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_usm_device_mem_flag_t value) {
   switch (value) {
-  case UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINED:
-    os << "UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINED";
+  case UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINE:
+    os << "UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINE";
     break;
   case UR_USM_DEVICE_MEM_FLAG_INITIAL_PLACEMENT:
     os << "UR_USM_DEVICE_MEM_FLAG_INITIAL_PLACEMENT";
     break;
   case UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY:
     os << "UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY";
+    break;
+  case UR_USM_DEVICE_MEM_FLAG_DEVICE_WRITE_ONLY:
+    os << "UR_USM_DEVICE_MEM_FLAG_DEVICE_WRITE_ONLY";
+    break;
+  case UR_USM_DEVICE_MEM_FLAG_DEVICE_COHERENT:
+    os << "UR_USM_DEVICE_MEM_FLAG_DEVICE_COHERENT";
+    break;
+  case UR_USM_DEVICE_MEM_FLAG_DEVICE_NON_COHERENT:
+    os << "UR_USM_DEVICE_MEM_FLAG_DEVICE_NON_COHERENT";
+    break;
+  case UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_RANDOM:
+    os << "UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_RANDOM";
+    break;
+  case UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_SEQUENTIAL:
+    os << "UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_SEQUENTIAL";
+    break;
+  case UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_HOT:
+    os << "UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_HOT";
+    break;
+  case UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_COLD:
+    os << "UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_COLD";
+    break;
+  case UR_USM_DEVICE_MEM_FLAG_DEVICE_UNCACHED:
+    os << "UR_USM_DEVICE_MEM_FLAG_DEVICE_UNCACHED";
     break;
   default:
     os << "unknown enumerator";
@@ -7237,15 +7401,15 @@ inline ur_result_t printFlag<ur_usm_device_mem_flag_t>(std::ostream &os,
   uint32_t val = flag;
   bool first = true;
 
-  if ((val & UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINED) ==
-      (uint32_t)UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINED) {
-    val ^= (uint32_t)UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINED;
+  if ((val & UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINE) ==
+      (uint32_t)UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINE) {
+    val ^= (uint32_t)UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINE;
     if (!first) {
       os << " | ";
     } else {
       first = false;
     }
-    os << UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINED;
+    os << UR_USM_DEVICE_MEM_FLAG_WRITE_COMBINE;
   }
 
   if ((val & UR_USM_DEVICE_MEM_FLAG_INITIAL_PLACEMENT) ==
@@ -7268,6 +7432,94 @@ inline ur_result_t printFlag<ur_usm_device_mem_flag_t>(std::ostream &os,
       first = false;
     }
     os << UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY;
+  }
+
+  if ((val & UR_USM_DEVICE_MEM_FLAG_DEVICE_WRITE_ONLY) ==
+      (uint32_t)UR_USM_DEVICE_MEM_FLAG_DEVICE_WRITE_ONLY) {
+    val ^= (uint32_t)UR_USM_DEVICE_MEM_FLAG_DEVICE_WRITE_ONLY;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_USM_DEVICE_MEM_FLAG_DEVICE_WRITE_ONLY;
+  }
+
+  if ((val & UR_USM_DEVICE_MEM_FLAG_DEVICE_COHERENT) ==
+      (uint32_t)UR_USM_DEVICE_MEM_FLAG_DEVICE_COHERENT) {
+    val ^= (uint32_t)UR_USM_DEVICE_MEM_FLAG_DEVICE_COHERENT;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_USM_DEVICE_MEM_FLAG_DEVICE_COHERENT;
+  }
+
+  if ((val & UR_USM_DEVICE_MEM_FLAG_DEVICE_NON_COHERENT) ==
+      (uint32_t)UR_USM_DEVICE_MEM_FLAG_DEVICE_NON_COHERENT) {
+    val ^= (uint32_t)UR_USM_DEVICE_MEM_FLAG_DEVICE_NON_COHERENT;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_USM_DEVICE_MEM_FLAG_DEVICE_NON_COHERENT;
+  }
+
+  if ((val & UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_RANDOM) ==
+      (uint32_t)UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_RANDOM) {
+    val ^= (uint32_t)UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_RANDOM;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_RANDOM;
+  }
+
+  if ((val & UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_SEQUENTIAL) ==
+      (uint32_t)UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_SEQUENTIAL) {
+    val ^= (uint32_t)UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_SEQUENTIAL;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_SEQUENTIAL;
+  }
+
+  if ((val & UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_HOT) ==
+      (uint32_t)UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_HOT) {
+    val ^= (uint32_t)UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_HOT;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_HOT;
+  }
+
+  if ((val & UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_COLD) ==
+      (uint32_t)UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_COLD) {
+    val ^= (uint32_t)UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_COLD;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_USM_DEVICE_MEM_FLAG_DEVICE_ACCESS_COLD;
+  }
+
+  if ((val & UR_USM_DEVICE_MEM_FLAG_DEVICE_UNCACHED) ==
+      (uint32_t)UR_USM_DEVICE_MEM_FLAG_DEVICE_UNCACHED) {
+    val ^= (uint32_t)UR_USM_DEVICE_MEM_FLAG_DEVICE_UNCACHED;
+    if (!first) {
+      os << " | ";
+    } else {
+      first = false;
+    }
+    os << UR_USM_DEVICE_MEM_FLAG_DEVICE_UNCACHED;
   }
   if (val != 0) {
     std::bitset<32> bits(val);
