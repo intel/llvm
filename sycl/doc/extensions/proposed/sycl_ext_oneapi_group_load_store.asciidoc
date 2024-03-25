@@ -127,6 +127,8 @@ in the group.
 * Only available if `Group` is a work-group or sub-group.
 * `InputIteratorT` suppose to be a random access iterator.
 * Value type of `InputIteratorT` must be convertible to `OutputT`.
+* Value type of `InputIteratorT` must be trivially copyable
+ and default constructible.
 
 _Effects_: Loads `N` elements from `in_iter` to `out`
 using the `g` group object.
@@ -161,6 +163,8 @@ void group_load(Group g, InputIteratorT in_iter,
 work-group or sub-group.
 * `InputIteratorT` suppose to be a random access iterator.
 * Value type of `InputIteratorT` must be convertible to `OutputT`.
+* Value type of `InputIteratorT` must be trivially copyable
+ and default constructible.
 
 _Effects_: Loads `ElementsPerWorkItem` elements from `in_iter` to `out`
 using the `g` group object.
@@ -228,6 +232,8 @@ in the group.
 * Only available if `Group` is a work-group or sub-group.
 * `OutputIteratorT` suppose to be a random access iterator.
 * `InputT` must be convertible to value type of `OutputIteratorT`.
+* Value type of `OutputIteratorT` must be trivially copyable
+ and default constructible.
 
 _Effects_: Stores `N` elements from `in` vec to `out_iter`
 using the `g` group object.
@@ -263,6 +269,8 @@ void group_store(Group g, sycl::span<InputT, ItemsPerWorkItem> in,
 work-group or sub-group.
 * `OutputIteratorT` suppose to be a random access iterator.
 * `InputT` must be convertible to value type of `OutputIteratorT`.
+* Value type of `OutputIteratorT` must be trivially copyable
+ and default constructible.
 
 _Effects_: Stores `ElementsPerWorkItem` elements from `in` span to `out_iter`
 using the `g` group object.
@@ -394,33 +402,35 @@ If `input` isn't a contiguous iterator, the behavior is undefined.
 
 ==== Groups partitioning
 
-The following properties  is introduced to be used
-as a hint that implementation can use `get_max_local_range()`:
+The following property can be used as a hint that
+`get_local_range()` is equal to `get_max_local_range()`,
+which may enable more aggressive optimizations for some
+implementations.
+
+[NOTE]
+====
+Using `full_group` is necessary to generate SPIR-V block read
+and block write instructions, because these instructions are
+defined to use the maximum group size as the stride.
+====
 
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
 
-struct full_work_group_hint {
+struct full_group_key {
   using value_t =
-      property_value<full_work_group_hint>;
+      property_value<full_group_key>;
 };
 
-inline constexpr full_work_group_hint::value_t full_work_group;
-
-struct full_sub_group_hint {
-  using value_t =
-      property_value<full_sub_group_hint>;
-};
-
-inline constexpr full_sub_group_hint::value_t full_sub_group;
+inline constexpr full_group_key::value_t full_group;
 
 } // namespace sycl::ext::oneapi::experimental
 ----
 
 For example, we can assert that there is no uneven group partition,
 so the implementation can rely on `get_max_local_range()` range size:
-`group_load(sg, input, output_span, full_sub_group);`
+`group_load(sg, input, output_span, full_group);`
 
 If partition is uneven the behavior is undefined.
 
@@ -458,7 +468,7 @@ q.submit([&](sycl::handler& cgh) {
 
             // Work with data...
 
-            sycl_exp::group_store(g, output + offset, sycl::span{ data }, sycl::contiguous_memory);
+            sycl_exp::group_store(g, output + offset, sycl::span{ data }, sycl_exp::contiguous_memory);
         });
 });
 ----
