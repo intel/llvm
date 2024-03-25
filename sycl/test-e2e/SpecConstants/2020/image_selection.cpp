@@ -1,4 +1,4 @@
-// REQUIRES: opencl, level-zero, gpu, ocloc
+// REQUIRES: (opencl || level-zero) && gpu && ocloc
 
 // Check the case when -fsycl-add-default-spec-consts-image option is used which
 // results in generation of two types of images: where specialization constants
@@ -42,7 +42,10 @@
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-DEFAULT-BACK-TO-DEFAULT %s
 // clang-format on
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/specialization_id.hpp>
+#include <sycl/usm.hpp>
 
 constexpr sycl::specialization_id<int> int_id(3);
 

@@ -1322,6 +1322,10 @@ def fno_gpu_sanitize : Flag<["-"], "fno-gpu-sanitize">, Group<f_Group>;
 def offload_compress : Flag<["--"], "offload-compress">,
   HelpText<"Compress offload device binaries (HIP only)">;
 def no_offload_compress : Flag<["--"], "no-offload-compress">;
+
+def offload_compression_level_EQ : Joined<["--"], "offload-compression-level=">,
+  Flags<[HelpHidden]>,
+  HelpText<"Compression level for offload device binaries (HIP only)">;
 }
 
 // CUDA options
@@ -3694,6 +3698,27 @@ def fpass_plugin_EQ : Joined<["-"], "fpass-plugin=">,
   MetaVarName<"<dsopath>">,
   HelpText<"Load pass plugin from a dynamic shared object file (only with new pass manager).">,
   MarshallingInfoStringVector<CodeGenOpts<"PassPlugins">>;
+defm tocdata : BoolOption<"m","tocdata",
+  CodeGenOpts<"AllTocData">, DefaultFalse,
+  PosFlag<SetTrue, [], [ClangOption, CC1Option],
+  "All suitable variables will have the TOC data transformation applied">,
+  NegFlag<SetFalse, [], [ClangOption, CC1Option],
+  "This is the default. TOC data transformation is not applied to any"
+  "variables. Only variables specified explicitly in -mtocdata= will"
+  "have the TOC data transformation.">,
+  BothFlags<[TargetSpecific], [ClangOption, CLOption]>>, Group<m_Group>;
+def mtocdata_EQ : CommaJoined<["-"], "mtocdata=">,
+  Visibility<[ClangOption, CC1Option]>,
+  Flags<[TargetSpecific]>, Group<m_Group>,
+  HelpText<"Specifies a list of variables to which the TOC data transformation"
+           "will be applied.">,
+  MarshallingInfoStringVector<CodeGenOpts<"TocDataVarsUserSpecified">>;
+def mno_tocdata_EQ : CommaJoined<["-"], "mno-tocdata=">,
+  Visibility<[ClangOption, CC1Option]>,
+  Flags<[TargetSpecific]>, Group<m_Group>,
+  HelpText<"Specifies a list of variables to be exempt from the TOC data"
+           "transformation.">,
+  MarshallingInfoStringVector<CodeGenOpts<"NoTocDataVars">>;
 defm preserve_as_comments : BoolFOption<"preserve-as-comments",
   CodeGenOpts<"PreserveAsmComments">, DefaultTrue,
   NegFlag<SetFalse, [], [ClangOption, CC1Option],
@@ -3972,6 +3997,21 @@ def fsycl_host_compiler_options_EQ : Joined<["-"], "fsycl-host-compiler-options=
   Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"When performing the host compilation with "
   "-fsycl-host-compiler specified, use the given options during that compile. "
   "Options are expected to be a quoted list of space separated options.">;
+def fsycl_range_rounding_EQ : Joined<["-"], "fsycl-range-rounding=">,
+  Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
+  Values<"on,disable,force">,
+  NormalizedValuesScope<"LangOptions::SYCLRangeRoundingPreference">,
+  NormalizedValues<["On", "Disable", "Force"]>,
+  MarshallingInfoEnum<LangOpts<"SYCLRangeRounding">, "On">,
+  HelpText<"Options for range rounding of SYCL range kernels: "
+  "disable (do not generate range rounded kernels) "
+  "force (only generate range rounded kernels) "
+  "on (generate range rounded kernels as well as unrounded kernels). Default is 'on'">;
+def fsycl_disable_range_rounding : Flag<["-"], "fsycl-disable-range-rounding">,
+  Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
+  Alias<fsycl_range_rounding_EQ>, AliasArgs<["disable"]>,
+  HelpText<"Deprecated: please use -fsycl-range-rounding=disable instead.">,
+  Flags<[Deprecated]>;
 def fno_sycl_use_footer : Flag<["-"], "fno-sycl-use-footer">, Visibility<[ClangOption, CLOption, DXCOption]>,
   HelpText<"Disable usage of the integration footer during SYCL enabled "
    "compilations.">;
@@ -4059,6 +4099,12 @@ def foptimization_record_passes_EQ : Joined<["-"], "foptimization-record-passes=
   Group<f_Group>,
   HelpText<"Only include passes which match a specified regular expression in the generated optimization record (by default, include all passes)">,
   MetaVarName<"<regex>">;
+
+defm assumptions : BoolFOption<"assumptions",
+  LangOpts<"CXXAssumptions">, DefaultTrue,
+  NegFlag<SetFalse, [], [ClangOption, CC1Option],
+          "Disable codegen and compile-time checks for C++23's [[assume]] attribute">,
+  PosFlag<SetTrue>>;
 
 def fvectorize : Flag<["-"], "fvectorize">, Group<f_Group>,
   HelpText<"Enable the loop vectorization passes">;
@@ -7732,7 +7778,9 @@ def ast_view : Flag<["-"], "ast-view">,
 def emit_module : Flag<["-"], "emit-module">,
   HelpText<"Generate pre-compiled module file from a module map">;
 def emit_module_interface : Flag<["-"], "emit-module-interface">,
-  HelpText<"Generate pre-compiled module file from a C++ module interface">;
+  HelpText<"Generate pre-compiled module file from a standard C++ module interface unit">;
+def emit_reduced_module_interface : Flag<["-"], "emit-reduced-module-interface">,
+  HelpText<"Generate reduced prebuilt module interface from a standard C++ module interface unit">;
 def emit_header_unit : Flag<["-"], "emit-header-unit">,
   HelpText<"Generate C++20 header units from header files">;
 def emit_pch : Flag<["-"], "emit-pch">,
@@ -8223,9 +8271,6 @@ defm sycl_allow_func_ptr: BoolFOption<"sycl-allow-func-ptr",
 def fenable_sycl_dae : Flag<["-"], "fenable-sycl-dae">,
   HelpText<"Enable Dead Argument Elimination in SPIR kernels">,
   MarshallingInfoFlag<LangOpts<"EnableDAEInSpirKernels">>;
-def fsycl_disable_range_rounding : Flag<["-"], "fsycl-disable-range-rounding">,
-  HelpText<"Disable parallel for range rounding.">,
-  MarshallingInfoFlag<LangOpts<"SYCLDisableRangeRounding">>;
 def fsycl_enable_int_header_diags: Flag<["-"], "fsycl-enable-int-header-diags">,
   HelpText<"Enable diagnostics that require the SYCL integration header.">,
   MarshallingInfoFlag<LangOpts<"SYCLEnableIntHeaderDiags">>;

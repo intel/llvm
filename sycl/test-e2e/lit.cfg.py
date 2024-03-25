@@ -157,7 +157,14 @@ if lit_config.params.get("gpu-intel-pvc", False):
     config.available_features.add(
         "matrix-tf32"
     )  # PVC implies the support of TF32 matrix
-
+if lit_config.params.get("gpu-intel-pvc-vg", False):
+    config.available_features.add("gpu-intel-pvc-vg")
+    config.available_features.add(
+        "matrix-fp16"
+    )  # PVC-VG implies the support of FP16 matrix
+    config.available_features.add(
+        "matrix-tf32"
+    )  # PVC-VG implies the support of TF32 matrix    
 if lit_config.params.get("matrix", False):
     config.available_features.add("matrix")
 
@@ -333,7 +340,7 @@ if cl_options:
         (
             "%sycl_options",
             " "
-            + os.path.normpath(os.path.join(config.sycl_libs_dir + "/../lib/sycl7.lib"))
+            + os.path.normpath(os.path.join(config.sycl_libs_dir + "/../lib/sycl8.lib"))
             + " /I"
             + config.sycl_include
             + " /I"
@@ -349,7 +356,7 @@ else:
     config.substitutions.append(
         (
             "%sycl_options",
-            (" -lsycl7" if platform.system() == "Windows" else " -lsycl")
+            (" -lsycl8" if platform.system() == "Windows" else " -lsycl")
             + " -I"
             + config.sycl_include
             + " -I"
