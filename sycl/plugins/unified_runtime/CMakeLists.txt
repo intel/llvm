@@ -82,13 +82,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 6513abc404979fa109d64500bf899e632d511291
-  # Merge: 09be0881 6d586094
+  # commit 4c22f5c69dc0c36ad135a3f3bc4021b47b22585e
+  # Merge: c98fdbcf f67dc0c6
   # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Mar 14 22:38:53 2024 +0000
-  #     Merge pull request #1410 from kbenzie/benie/cmake-external-adapter-source-dirs
-  #     [CMake] Support external adapter source dirs
-  set(UNIFIED_RUNTIME_TAG 6513abc404979fa109d64500bf899e632d511291)
+  # Date:   Thu Mar 21 17:08:13 2024 +0000
+  #     Merge pull request #1445 from raiyanla/enable-in-order
+  #     [L0] Enable default support for L0 in-order lists
+  set(UNIFIED_RUNTIME_TAG 4c22f5c69dc0c36ad135a3f3bc4021b47b22585e)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

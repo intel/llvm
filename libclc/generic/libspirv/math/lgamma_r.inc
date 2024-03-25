@@ -8,7 +8,7 @@
 
 _CLC_OVERLOAD _CLC_DEF __CLC_GENTYPE
 __spirv_ocl_lgamma_r(__CLC_GENTYPE x, __CLC_ADDRSPACE __CLC_INTN *iptr) {
-  __CLC_INTN private_iptr;
+  private __CLC_INTN private_iptr;
   __CLC_GENTYPE ret = __spirv_ocl_lgamma_r(x, &private_iptr);
   *iptr = private_iptr;
   return ret;

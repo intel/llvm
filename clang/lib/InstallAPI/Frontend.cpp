@@ -8,6 +8,7 @@
 
 #include "clang/InstallAPI/Frontend.h"
 #include "clang/AST/Availability.h"
+#include "clang/InstallAPI/FrontendRecords.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
 
@@ -19,9 +20,10 @@ namespace clang::installapi {
 GlobalRecord *FrontendRecordsSlice::addGlobal(
     StringRef Name, RecordLinkage Linkage, GlobalRecord::Kind GV,
     const clang::AvailabilityInfo Avail, const Decl *D, const HeaderType Access,
-    SymbolFlags Flags) {
+    SymbolFlags Flags, bool Inlined) {
 
-  auto *GR = llvm::MachO::RecordsSlice::addGlobal(Name, Linkage, GV, Flags);
+  auto *GR =
+      llvm::MachO::RecordsSlice::addGlobal(Name, Linkage, GV, Flags, Inlined);
   FrontendRecords.insert({GR, FrontendAttrs{Avail, D, Access}});
   return GR;
 }
@@ -136,9 +138,9 @@ std::unique_ptr<MemoryBuffer> createInputBuffer(InstallAPIContext &Ctx) {
     else
       OS << "#import ";
     if (H.useIncludeName())
-      OS << "<" << H.getIncludeName() << ">";
+      OS << "<" << H.getIncludeName() << ">\n";
     else
-      OS << "\"" << H.getPath() << "\"";
+      OS << "\"" << H.getPath() << "\"\n";
 
     Ctx.addKnownHeader(H);
   }
