@@ -629,7 +629,7 @@ public:
     return *_devs[dev_id];
   }
   device_ext &cpu_device() const {
-    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    std::lock_guard<std::mutex> lock(m_mutex);
     if (_cpu_device == -1) {
       throw std::runtime_error("[SYCLcompat] No valid cpu device");
     } else {
@@ -637,12 +637,12 @@ public:
     }
   }
   device_ext &get_device(unsigned int id) const {
-    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    std::lock_guard<std::mutex> lock(m_mutex);
     check_id(id);
     return *_devs[id];
   }
   unsigned int current_device_id() const {
-    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    std::lock_guard<std::mutex> lock(m_mutex);
     auto it = _thread2dev_map.find(get_tid());
     if (it != _thread2dev_map.end())
       return it->second;
@@ -653,7 +653,7 @@ public:
   /// \param [in] id The id of the device which can
   /// be obtained through get_device_id(const sycl::device).
   void select_device(unsigned int id) {
-    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    std::lock_guard<std::mutex> lock(m_mutex);
     check_id(id);
     _thread2dev_map[get_tid()] = id;
   }
@@ -693,7 +693,7 @@ public:
   dev_mgr &operator=(dev_mgr &&) = delete;
 
 private:
-  mutable std::recursive_mutex m_mutex;
+  mutable std::mutex m_mutex;
 
   dev_mgr() {
     sycl::device default_device = sycl::device(sycl::default_selector_v);
