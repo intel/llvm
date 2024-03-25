@@ -123,8 +123,8 @@ bool test(queue q) {
   try {
     auto e = q.submit([&](handler &cgh) {
       cgh.parallel_for<TestID<T, N, ImplF>>(
-          rng, [=](id<1> ii) SYCL_ESIMD_KERNEL {
-            int i = ii;
+          rng, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+            int i = ndi.get_global_id(0);
             slm_init<32768>();
             simd<uint32_t, N> offsets(start_ind * sizeof(T),
                                       stride * sizeof(T));
@@ -162,8 +162,10 @@ bool test(queue q) {
               }
             }
             barrier();
-            auto data0 = lsc_slm_gather<T>(slm_offsets);
-            data0.copy_to(arr);
+            if (ndi.get_local_id(0) == 0) {
+              auto data0 = lsc_slm_gather<T>(slm_offsets);
+              data0.copy_to(arr);
+            }
           });
     });
     e.wait();
