@@ -6059,6 +6059,8 @@ bool clang::CodeGen::noSystemDebugInfo(const Decl *D,
 #ifndef WINDOWS
     // Generate debug for _M_insert_aux to allow debugging for
     // deque's value_type.
+    // _M_insert_aux is not used by Windows implementation, so
+    // there is no need for this check on Windows.
     const auto *Constructor = dyn_cast<CXXConstructorDecl>(D);
     if (Constructor && Constructor->getNameAsString() == "deque")
       return false;
@@ -6067,7 +6069,7 @@ bool clang::CodeGen::noSystemDebugInfo(const Decl *D,
       return false;
 #endif
 
-    // -fsystem-debug was not used.  Do not generate debug info.
+    // Generate debug info only if -fsystem-debug is specified
     if (!CGM.getCodeGenOpts().SystemDebug)
       return true;
   }
