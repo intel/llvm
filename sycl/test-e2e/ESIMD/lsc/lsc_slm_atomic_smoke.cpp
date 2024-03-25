@@ -132,7 +132,8 @@ bool test(queue q) {
             data.copy_from(arr);
 
             simd<uint32_t, size> slm_offsets(0, sizeof(T));
-            lsc_slm_scatter(slm_offsets, data);
+            if (ndi.get_local_id(0) == 0)
+              lsc_slm_scatter(slm_offsets, data);
 
             simd_mask<N> m = 1;
             if (masked_lane < N)

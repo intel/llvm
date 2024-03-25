@@ -192,7 +192,8 @@ bool test(queue q) {
             data.copy_from(arr);
 
             simd<uint32_t, size> LocalOffsets(0, sizeof(T));
-            scatter<T, size>(accessor, LocalOffsets, data, 0, 1);
+            if (ndi.get_local_id(0) == 0)
+              scatter<T, size>(accessor, LocalOffsets, data, 0, 1);
             simd_mask<N> m = 1;
             if (masked_lane < N)
               m[masked_lane] = 0;
