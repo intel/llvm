@@ -199,23 +199,23 @@ static inline sycl::event memset(sycl::queue q, void *dev_ptr, int value,
   return q.memset(dev_ptr, value, size);
 }
 
-/// Set \p value to the 3D memory region pointed by \p data in \p q. \p size
-/// specifies the 3D memory size to set.
-///
-/// \param q The queue in which the operation is done.
-/// \param data Pointer to the device memory region.
-/// \param value Value to be set.
-/// \param size Memory region size.
-/// \returns An event list representing the memset operations.
-static inline std::vector<sycl::event> memset(sycl::queue q, pitched_data data,
-                                              int value, sycl::range<3> size) {
+/// \brief Sets \p value to the 3D memory region pointed by \p data in \p q.
+/// \tparam T The type of the element to be set.
+/// \param [in] q The queue in which the operation is done.
+/// \param [in] data Pointer to the pitched device memory region.
+/// \param [in] value The value to be set.
+/// \param [in] size 3D memory region by number of elements.
+/// \return An event list representing the memset operations.
+template <typename T>
+static inline std::vector<sycl::event>
+memset(sycl::queue q, pitched_data data, const T &value, sycl::range<3> size) {
   std::vector<sycl::event> event_list;
   size_t slice = data.get_pitch() * data.get_y();
   unsigned char *data_surface = (unsigned char *)data.get_data_ptr();
   for (size_t z = 0; z < size.get(2); ++z) {
     unsigned char *data_ptr = data_surface;
     for (size_t y = 0; y < size.get(1); ++y) {
-      event_list.push_back(memset(q, data_ptr, value, size.get(0)));
+      event_list.push_back(detail::fill<T>(q, data_ptr, value, size.get(0)));
       data_ptr += data.get_pitch();
     }
     data_surface += slice;
@@ -225,6 +225,7 @@ static inline std::vector<sycl::event> memset(sycl::queue q, pitched_data data,
 
 /// \brief Sets \p val to the pitched 2D memory region pointed by \p ptr in \p
 /// q.
+/// \tparam T The type of the element to be set.
 /// \param [in] q The queue in which the operation is done.
 /// \param [in] ptr Pointer to the virtual device memory.
 /// \param [in] pitch The pitch size by number of elements, including padding.
@@ -232,8 +233,10 @@ static inline std::vector<sycl::event> memset(sycl::queue q, pitched_data data,
 /// \param [in] x The width of memory region by number of elements.
 /// \param [in] y The height of memory region by number of elements.
 /// \return An event list representing the memset operations.
-static inline std::vector<sycl::event>
-memset(sycl::queue q, void *ptr, size_t pitch, int value, size_t x, size_t y) {
+template <typename T>
+static inline std::vector<sycl::event> memset(sycl::queue q, void *ptr,
+                                              size_t pitch, const T &value,
+                                              size_t x, size_t y) {
   return memset(q, pitched_data(ptr, pitch, x, 1), value,
                 sycl::range<3>(x, y, 1));
 }
@@ -731,7 +734,7 @@ static void inline fill(void *dev_ptr, const T &pattern, size_t count,
 /// \param pattern Pattern of type \p T to be set.
 /// \param count Number of elements to be set to the patten.
 /// \param q The queue in which the operation is done.
-/// \returns no return value.
+/// \returns An event representing the fill operation.
 template <class T>
 static sycl::event inline fill_async(void *dev_ptr, const T &pattern,
                                      size_t count,
@@ -752,51 +755,151 @@ static void memset(void *dev_ptr, int value, size_t size,
   detail::memset(q, dev_ptr, value, size).wait();
 }
 
-/// Asynchronously sets \p value to the first \p size bytes starting from \p
-/// dev_ptr. The return of the function does NOT guarantee the memset operation
-/// is completed.
-///
+/// \brief Sets 2 bytes data \p value to the first \p size elements starting
+/// from \p dev_ptr in \p q synchronously.
+/// \param [in] dev_ptr Pointer to the virtual device memory address.
+/// \param [in] value The value to be set.
+/// \param [in] size Number of elements to be set to the value.
+/// \param [in] q The queue in which the operation is done.
+static inline void memset_d16(void *dev_ptr, unsigned short value, size_t size,
+                              sycl::queue q = get_default_queue()) {
+  detail::fill<unsigned short>(q, dev_ptr, value, size).wait();
+}
+
+/// \brief Sets 4 bytes data \p value to the first \p size elements starting
+/// from \p dev_ptr in \p q synchronously.
+/// \param [in] dev_ptr Pointer to the virtual device memory address.
+/// \param [in] value The value to be set.
+/// \param [in] size Number of elements to be set to the value.
+/// \param [in] q The queue in which the operation is done.
+static inline void memset_d32(void *dev_ptr, unsigned int value, size_t size,
+                              sycl::queue q = get_default_queue()) {
+  detail::fill<unsigned int>(q, dev_ptr, value, size).wait();
+}
+
+/// \brief Sets 1 byte data \p value to the first \p size elements starting
+/// from \p dev_ptr in \p q asynchronously.
 /// \param dev_ptr Pointer to the device memory address.
 /// \param value Value to be set.
 /// \param size Number of bytes to be set to the value.
-/// \returns no return value.
+/// \returns An event representing the memset operation.
 static sycl::event memset_async(void *dev_ptr, int value, size_t size,
                                 sycl::queue q = get_default_queue()) {
   return detail::memset(q, dev_ptr, value, size);
 }
 
-/// Sets \p value to the 2D memory region pointed by \p ptr in \p q. \p x and
-/// \p y specify the setted 2D memory size. \p pitch is the bytes in linear
-/// dimension, including padding bytes. The function will return after the
-/// memset operation is completed.
-///
-/// \param ptr Pointer to the device memory region.
-/// \param pitch Bytes in linear dimension, including padding bytes.
-/// \param value Value to be set.
-/// \param x The setted memory size in linear dimension.
-/// \param y The setted memory size in second dimension.
-/// \param q The queue in which the operation is done.
-/// \returns no return value.
+/// \brief Sets 2 bytes data \p value to the first \p size elements starting
+/// from \p dev_ptr in \p q asynchronously.
+/// \param [in] dev_ptr Pointer to the virtual device memory address.
+/// \param [in] value The value to be set.
+/// \param [in] size Number of elements to be set to the value.
+/// \param [in] q The queue in which the operation is done.
+/// \returns An event representing the memset operation.
+static inline sycl::event
+memset_d16_async(void *dev_ptr, unsigned short value, size_t size,
+                 sycl::queue q = get_default_queue()) {
+  return detail::fill<unsigned short>(q, dev_ptr, value, size);
+}
+
+/// \brief Sets 4 bytes data \p value to the first \p size elements starting
+/// from \p dev_ptr in \p q asynchronously.
+/// \param [in] dev_ptr Pointer to the virtual device memory address.
+/// \param [in] value The value to be set.
+/// \param [in] size Number of elements to be set to the value.
+/// \param [in] q The queue in which the operation is done.
+/// \returns An event representing the memset operation.
+static inline sycl::event
+memset_d32_async(void *dev_ptr, unsigned int value, size_t size,
+                 sycl::queue q = get_default_queue()) {
+  return detail::fill<unsigned int>(q, dev_ptr, value, size);
+}
+
+/// \brief Sets 1 byte data \p val to the pitched 2D memory region pointed by \p
+/// ptr in \p q synchronously.
+/// \param [in] ptr Pointer to the virtual device memory.
+/// \param [in] pitch The pitch size by number of elements, including padding.
+/// \param [in] val The value to be set.
+/// \param [in] x The width of memory region by number of elements.
+/// \param [in] y The height of memory region by number of elements.
+/// \param [in] q The queue in which the operation is done.
 static inline void memset(void *ptr, size_t pitch, int val, size_t x, size_t y,
                           sycl::queue q = get_default_queue()) {
+  sycl::event::wait(detail::memset<unsigned char>(q, ptr, pitch, val, x, y));
+}
+
+/// \brief Sets 2 bytes data \p val to the pitched 2D memory region pointed by
+/// ptr in \p q synchronously.
+/// \param [in] ptr Pointer to the virtual device memory.
+/// \param [in] pitch The pitch size by number of elements, including padding.
+/// \param [in] val The value to be set.
+/// \param [in] x The width of memory region by number of elements.
+/// \param [in] y The height of memory region by number of elements.
+/// \param [in] q The queue in which the operation is done.
+static inline void memset_d16(void *ptr, size_t pitch, unsigned short val,
+                              size_t x, size_t y,
+                              sycl::queue q = get_default_queue()) {
   sycl::event::wait(detail::memset(q, ptr, pitch, val, x, y));
 }
 
-/// Sets \p value to the 2D memory region pointed by \p ptr in \p q. \p x and
-/// \p y specify the setted 2D memory size. \p pitch is the bytes in linear
-/// dimension, including padding bytes. The return of the function does NOT
-/// guarantee the memset operation is completed.
-///
-/// \param ptr Pointer to the device memory region.
-/// \param pitch Bytes in linear dimension, including padding bytes.
-/// \param value Value to be set.
-/// \param x The setted memory size in linear dimension.
-/// \param y The setted memory size in second dimension.
-/// \param q The queue in which the operation is done.
-/// \returns no return value.
+/// \brief Sets 4 bytes data \p val to the pitched 2D memory region pointed by
+/// ptr in \p q synchronously.
+/// \param [in] ptr Pointer to the virtual device memory.
+/// \param [in] pitch The pitch size by number of elements, including padding.
+/// \param [in] val The value to be set.
+/// \param [in] x The width of memory region by number of elements.
+/// \param [in] y The height of memory region by number of elements.
+/// \param [in] q The queue in which the operation is done.
+static inline void memset_d32(void *ptr, size_t pitch, unsigned int val,
+                              size_t x, size_t y,
+                              sycl::queue q = get_default_queue()) {
+  sycl::event::wait(detail::memset(q, ptr, pitch, val, x, y));
+}
+
+/// \brief Sets 1 byte data \p val to the pitched 2D memory region pointed by \p
+/// ptr in \p q asynchronously.
+/// \param [in] ptr Pointer to the virtual device memory.
+/// \param [in] pitch The pitch size by number of elements, including padding.
+/// \param [in] val The value to be set.
+/// \param [in] x The width of memory region by number of elements.
+/// \param [in] y The height of memory region by number of elements.
+/// \param [in] q The queue in which the operation is done.
+/// \returns An event representing the memset operation.
 static inline sycl::event memset_async(void *ptr, size_t pitch, int val,
                                        size_t x, size_t y,
                                        sycl::queue q = get_default_queue()) {
+
+  auto events = detail::memset<unsigned char>(q, ptr, pitch, val, x, y);
+  return detail::combine_events(events, q);
+}
+
+/// \brief Sets 2 bytes data \p val to the pitched 2D memory region pointed by
+/// \p ptr in \p q asynchronously.
+/// \param [in] ptr Pointer to the virtual device memory.
+/// \param [in] pitch The pitch size by number of elements, including padding.
+/// \param [in] val The value to be set.
+/// \param [in] x The width of memory region by number of elements.
+/// \param [in] y The height of memory region by number of elements.
+/// \param [in] q The queue in which the operation is done.
+/// \returns An event representing the memset operation.
+static inline sycl::event
+memset_d16_async(void *ptr, size_t pitch, unsigned short val, size_t x,
+                 size_t y, sycl::queue q = get_default_queue()) {
+  auto events = detail::memset(q, ptr, pitch, val, x, y);
+  return detail::combine_events(events, q);
+}
+
+/// \brief Sets 4 bytes data \p val to the pitched 2D memory region pointed by
+/// \p ptr in \p q asynchronously.
+/// \param [in] ptr Pointer to the virtual device memory.
+/// \param [in] pitch The pitch size by number of elements, including padding.
+/// \param [in] val The value to be set.
+/// \param [in] x The width of memory region by number of elements.
+/// \param [in] y The height of memory region by number of elements.
+/// \param [in] q The queue in which the operation is done.
+/// \returns An event representing the memset operation.
+static inline sycl::event
+memset_d32_async(void *ptr, size_t pitch, unsigned int val, size_t x, size_t y,
+                 sycl::queue q = get_default_queue()) {
   auto events = detail::memset(q, ptr, pitch, val, x, y);
   return detail::combine_events(events, q);
 }
@@ -812,7 +915,7 @@ static inline sycl::event memset_async(void *ptr, size_t pitch, int val,
 /// \returns no return value.
 static inline void memset(pitched_data pitch, int val, sycl::range<3> size,
                           sycl::queue q = get_default_queue()) {
-  sycl::event::wait(detail::memset(q, pitch, val, size));
+  sycl::event::wait(detail::memset<unsigned char>(q, pitch, val, size));
 }
 
 /// Sets \p value to the 3D memory region specified by \p pitch in \p q. \p size
@@ -823,11 +926,11 @@ static inline void memset(pitched_data pitch, int val, sycl::range<3> size,
 /// \param value Value to be set.
 /// \param size The setted 3D memory size.
 /// \param q The queue in which the operation is done.
-/// \returns no return value.
+/// \returns An event representing the memset operation.
 static inline sycl::event memset_async(pitched_data pitch, int val,
                                        sycl::range<3> size,
                                        sycl::queue q = get_default_queue()) {
-  auto events = detail::memset(q, pitch, val, size);
+  auto events = detail::memset<unsigned char>(q, pitch, val, size);
   return detail::combine_events(events, q);
 }
 
