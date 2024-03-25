@@ -31,13 +31,13 @@ option(NATIVECPU_OCK_USE_FETCHCONTENT "Use FetchContent to acquire oneAPI Constr
 if(NATIVECPU_USE_OCK)
   if(NATIVECPU_OCK_USE_FETCHCONTENT)
     set(OCK_GIT_INTERNAL_REPO "https://github.com/codeplaysoftware/oneapi-construction-kit.git")
-    # commit 342f06e2bba2ad5c3bb3773505fce1d0e3f872d9
-    # Merge: 51c1b31c d74b3e1a
+    # commit d27e6cfb836f306d2dcefbc418c73c16877ef4eb
+    # Merge: f02b80de 0fa75c83
     # Author: Harald van Dijk <harald.vandijk@codeplay.com>
-    # Date:   Thu Mar 7 14:19:58 2024 +0000
-    # Merge pull request #397 from hvdijk/ignore-gl_test
-    # Ignore test_gl test.
-    set(OCK_GIT_INTERNAL_TAG  342f06e2bba2ad5c3bb3773505fce1d0e3f872d9)
+    # Date:   Mon Mar 18 17:44:12 2024 +0000
+    # Merge pull request #406 from hvdijk/fix-vkeiep
+    # Fix vkEnumerateInstanceExtensionProperties.
+    set(OCK_GIT_INTERNAL_TAG  d27e6cfb836f306d2dcefbc418c73c16877ef4eb)
 
     # Overwrite OCK_GIT_INTERNAL_REPO/OCK_GIT_INTERNAL_TAG if the corresponding options are set
     if(OCK_GIT_REPO)

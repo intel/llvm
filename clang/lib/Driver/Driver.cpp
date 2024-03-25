@@ -1158,6 +1158,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   checkSingleArgValidity(DeviceCodeSplit,
                          {"per_kernel", "per_source", "auto", "off"});
 
+  Arg *RangeRoundingPreference =
+      C.getInputArgs().getLastArg(options::OPT_fsycl_range_rounding_EQ);
+  checkSingleArgValidity(RangeRoundingPreference, {"disable", "force", "on"});
+
   Arg *SYCLForceTarget =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_force_target_EQ);
   if (SYCLForceTarget) {
@@ -5047,10 +5051,8 @@ class OffloadingActionBuilder final {
           // action or fat binary.
           SYCLDeviceActions.clear();
 
-          for (auto SDA : SYCLDeviceActions)
-            SYCLLinkBinaryList.push_back(SDA);
           if (WrapDeviceOnlyBinary)
-            return ABRT_Success;
+            return ABRT_Ignore_Host;
           auto *Link =
               C.MakeAction<LinkJobAction>(SYCLLinkBinaryList, types::TY_Image);
           SYCLLinkBinary =
@@ -6098,7 +6100,8 @@ class OffloadingActionBuilder final {
         if (Triple.isAMDGCN() && llvm::none_of(GpuArchList, [&](auto &P) {
               return P.first.isAMDGCN();
             })) {
-          C.getDriver().Diag(clang::diag::err_drv_sycl_missing_amdgpu_arch);
+          C.getDriver().Diag(clang::diag::err_drv_sycl_missing_amdgpu_arch)
+              << (SYCLTripleList.size() > 1) << Triple.str();
           return true;
         }
       }
@@ -6749,9 +6752,8 @@ public:
         return false;
       if (HasFPGATarget && !updateInputForFPGA(A, InputArg, Args))
         return false;
-      // FIXME - unbundling action is being split into two different actions
-      // when unbundling objects.  One action for the host, the other for the
-      // device.
+      // FIXME - unbundling action with -fsycl-link is unbundling for both host
+      // and device, where only the device is needed.
       auto UnbundlingHostAction = C.MakeAction<OffloadUnbundlingJobAction>(
           A, (HasSPIRTarget && HostAction->getType() == types::TY_Archive)
                  ? types::TY_Tempfilelist
@@ -7325,7 +7327,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   ExtractAPIJobAction *ExtractAPIAction = nullptr;
   ActionList LinkerInputs;
   ActionList MergerInputs;
-  ActionList DeviceAOTLinkerInputs;
   ActionList HostActions;
   llvm::SmallVector<const Arg *, 6> LinkerInputArgs;
   llvm::SmallVector<phases::ID, phases::MaxNumberOfPhases> PL;
@@ -7361,17 +7362,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       // Queue linker inputs.
       if (Phase == phases::Link) {
         assert(Phase == PL.back() && "linking must be final compilation step.");
-
-        // When performing -fsycl-link the current inputs are not expected to
-        // be passed to the final host link step.  Instead, take these inputs
-        // and redirect them to the associated wrapping step to create the
-        // final object.
-        if (C.getInputArgs().hasArg(options::OPT_fsycl_link_EQ) &&
-            !Args.hasArg(options::OPT_fintelfpga)) {
-          DeviceAOTLinkerInputs.push_back(Current);
-          Current = nullptr;
-          break;
-        }
 
         // We don't need to generate additional link commands if emitting AMD
         // bitcode or compiling only for the offload device
@@ -7512,14 +7502,13 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   }
 
   // Add a link action if necessary.
+  // When offloading with -fsycl-link-targets, no link action is processed
+  // as we stop at the spirv-translation step.
   Arg *FinalPhaseArg;
   if (!UseNewOffloadingDriver &&
-      getFinalPhase(Args, &FinalPhaseArg) == phases::Link) {
-    if (LinkerInputs.empty() && DeviceAOTLinkerInputs.empty())
-      OffloadBuilder->appendDeviceLinkActions(Actions);
-
-    if (!DeviceAOTLinkerInputs.empty() &&
-        Args.hasArg(options::OPT_fsycl_link_EQ) &&
+      getFinalPhase(Args, &FinalPhaseArg) == phases::Link &&
+      !Args.hasArg(options::OPT_fsycl_link_targets_EQ)) {
+    if (Args.hasArg(options::OPT_fsycl_link_EQ) &&
         !Args.hasArg(options::OPT_fintelfpga)) {
       ActionList LAList;
       OffloadBuilder->makeHostLinkDeviceOnlyAction(LAList);
@@ -7528,7 +7517,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         LA = OffloadBuilder->processHostLinkAction(LA);
         Actions.push_back(LA);
       }
-    }
+    } else if (LinkerInputs.empty())
+      OffloadBuilder->appendDeviceLinkActions(Actions);
   }
 
   if (!LinkerInputs.empty()) {
@@ -9016,6 +9006,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       InputInfo CurI;
       bool IsFPGAObjLink =
           (JA->getType() == types::TY_Object &&
+           EffectiveTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
            C.getInputArgs().hasArg(options::OPT_fsycl_link_EQ));
       if (C.getDriver().getOffloadStaticLibSeen() &&
           (JA->getType() == types::TY_Archive ||
