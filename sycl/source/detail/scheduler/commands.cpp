@@ -2458,6 +2458,7 @@ pi_int32 enqueueImpCommandBufferKernel(
     const CGExecKernel &CommandGroup,
     std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints,
     sycl::detail::pi::PiExtSyncPoint *OutSyncPoint,
+    sycl::detail::pi::PiExtCommandBufferCommand *OutCommand,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
   auto ContextImpl = sycl::detail::getSyclObjImpl(Ctx);
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
@@ -2539,7 +2540,8 @@ pi_int32 enqueueImpCommandBufferKernel(
       sycl::detail::PiApiKind::piextCommandBufferNDRangeKernel>(
       CommandBuffer, PiKernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
       &NDRDesc.GlobalSize[0], LocalSize, SyncPoints.size(),
-      SyncPoints.size() ? SyncPoints.data() : nullptr, OutSyncPoint);
+      SyncPoints.size() ? SyncPoints.data() : nullptr, OutSyncPoint,
+      OutCommand);
 
   if (!SyclKernelImpl && !Kernel) {
     Plugin->call<PiApiKind::piKernelRelease>(PiKernel);
@@ -2749,6 +2751,7 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
           ? nullptr
           : &MEvent->getHandleRef();
   sycl::detail::pi::PiExtSyncPoint OutSyncPoint;
+  sycl::detail::pi::PiExtCommandBufferCommand OutCommand = nullptr;
   switch (MCommandGroup->getType()) {
   case CG::CGTYPE::Kernel: {
     CGExecKernel *ExecKernel = (CGExecKernel *)MCommandGroup.get();
@@ -2770,8 +2773,10 @@ pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
     }
     auto result = enqueueImpCommandBufferKernel(
         MQueue->get_context(), MQueue->getDeviceImplPtr(), MCommandBuffer,
-        *ExecKernel, MSyncPointDeps, &OutSyncPoint, getMemAllocationFunc);
+        *ExecKernel, MSyncPointDeps, &OutSyncPoint, &OutCommand,
+        getMemAllocationFunc);
     MEvent->setSyncPoint(OutSyncPoint);
+    MEvent->setCommandBufferCommand(OutCommand);
     return result;
   }
   case CG::CGTYPE::CopyUSM: {
@@ -3423,6 +3428,67 @@ void KernelFusionCommand::printDot(std::ostream &Stream) const {
            << std::endl;
   }
 }
+
+UpdateCommandBufferCommand::UpdateCommandBufferCommand(
+    QueueImplPtr Queue,
+    ext::oneapi::experimental::detail::exec_graph_impl *Graph,
+    std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
+        Nodes)
+    : Command(CommandType::UPDATE_CMD_BUFFER, Queue), MGraph(Graph),
+      MNodes(Nodes) {}
+
+pi_int32 UpdateCommandBufferCommand::enqueueImp() {
+  waitForPreparedHostEvents();
+  std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
+  auto RawEvents = getPiEvents(EventImpls);
+  flushCrossQueueDeps(EventImpls, getWorkerQueue());
+
+  for (auto &Node : MNodes) {
+    auto CG = static_cast<CGExecKernel *>(Node->MCommandGroup.get());
+    for (auto &Arg : CG->MArgs) {
+      if (Arg.MType != kernel_param_kind_t::kind_accessor) {
+        continue;
+      }
+      // Search through deps to get actual allocation for accessor args.
+      for (const DepDesc &Dep : MDeps) {
+        Requirement *Req = static_cast<AccessorImplHost *>(Arg.MPtr);
+        if (Dep.MDepRequirement == Req) {
+          if (Dep.MAllocaCmd) {
+            Req->MData = Dep.MAllocaCmd->getMemAllocation();
+          } else {
+            throw sycl::exception(make_error_code(errc::invalid),
+                                  "No allocation available for accessor when "
+                                  "updating command buffer!");
+          }
+        }
+      }
+    }
+    MGraph->updateImpl(Node);
+  }
+
+  return PI_SUCCESS;
+}
+
+void UpdateCommandBufferCommand::printDot(std::ostream &Stream) const {
+  Stream << "\"" << this << "\" [style=filled, fillcolor=\"#8d8f29\", label=\"";
+
+  Stream << "ID = " << this << "\\n";
+  Stream << "CommandBuffer Command Update"
+         << "\\n";
+
+  Stream << "\"];" << std::endl;
+
+  for (const auto &Dep : MDeps) {
+    Stream << "  \"" << this << "\" -> \"" << Dep.MDepCommand << "\""
+           << " [ label = \"Access mode: "
+           << accessModeToString(Dep.MDepRequirement->MAccessMode) << "\\n"
+           << "MemObj: " << Dep.MDepRequirement->MSYCLMemObj << " \" ]"
+           << std::endl;
+  }
+}
+
+void UpdateCommandBufferCommand::emitInstrumentationData() {}
+bool UpdateCommandBufferCommand::producesPiEvent() const { return false; }
 
 } // namespace detail
 } // namespace _V1

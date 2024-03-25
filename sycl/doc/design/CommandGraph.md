@@ -46,6 +46,7 @@ with the following entry-points:
 | `urCommandBufferAppendMemBufferReadRectExp`  | Append a rectangular memory read command to a command-buffer object. |
 | `urCommandBufferAppendMemBufferFillExp`      | Append a memory fill command to a command-buffer object. |
 | `urCommandBufferEnqueueExp`                  | Submit command-buffer to a command-queue for execution. |
+| `urCommandBufferUpdateKernelLaunchExp`       | Updates the parameters of a previous kernel launch command. |
 
 See the [UR EXP-COMMAND-BUFFER](https://oneapi-src.github.io/unified-runtime/core/EXP-COMMAND-BUFFER.html)
 specification for more details.
@@ -229,6 +230,47 @@ Buffers and accessors are supported in a command-graph. There are
 on buffer usage in a graph so that their lifetime semantics are compatible with
 a lazy work execution model. However these changes to storage lifetimes have not
 yet been implemented.
+
+## Graph Update
+
+### Design Challenges
+
+Graph update faces significant design challenges in SYCL:
+
+* Lambda capture order is explicitly undefined in C++, so the user cannot reason
+  about the indices of arguments captured by kernel lambdas.
+* Once arguments have been captured the actual type information is lost in the
+  transition through the integration header and extracting arguments in the SYCL
+  runtime, therefore we cannot automatically match new argument values by
+  querying the captured arguments without significant possibility for
+  collisions. For example, if a kernel captures two USM pointers and the user
+  wishes to update one, we cannot reason about which pointer they actually want
+  to update when we only know that: they are pointer args of a certain size.
+
+The current approach is to limit graph update to the explicit APIs and where the
+user is using `handler::set_arg()` or some equivalent to manually set kernel
+arguments using indices. Therefore when updating we can use indices to avoid
+collisions. In practice there are only a few current scenarios where `set_arg()`
+can be used:
+
+* The proposed ["Free Function Kernel"
+  extension](../extensions/proposed/sycl_ext_oneapi_free_function_kernels.asciidoc)
+* OpenCL interop kernels created from SPIR-V source at runtime.
+
+A possible future workaround lambda capture issues could be "Whole-Graph Update"
+where if we can guarantee that lambda capture order is the same across two
+different recordings we can then match parameter order when updating.
+
+### Scheduler Integration
+
+Graph updates in the runtime are synchronous calls however they can optionally
+be done through the scheduler using a new command,
+`sycl::detail::UpdateCommandBufferCommand`. This is needed when dealing with
+accessor updates. Since a new buffer which the user creates for updating may not
+yet have been lazily initialized on device we schedule a new command which has
+requirements for these new accessors to correctly trigger allocations before
+updating. This is similar to how individual graph commands are enqueued when
+accessors are used in a graph node.
 
 ## Backend Implementation
 

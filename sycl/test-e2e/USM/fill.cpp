@@ -9,7 +9,8 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t1.out
 // RUN: %{run} %t1.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 
