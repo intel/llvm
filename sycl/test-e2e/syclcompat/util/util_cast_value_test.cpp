@@ -44,7 +44,7 @@ double cast_value(const double &val) {
   int lo = syclcompat::cast_double_to_int(val, false);
   int hi = syclcompat::cast_double_to_int(val);
   return syclcompat::cast_ints_to_double(hi, lo);
-  }
+}
 
 void test_kernel_cast_value(double *g_odata) {
   double a = 1.12123515e-25f;
