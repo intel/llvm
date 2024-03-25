@@ -1,7 +1,10 @@
 #pragma once
 
 #include <algorithm>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/atomic_ref.hpp>
 
 using namespace sycl;
 

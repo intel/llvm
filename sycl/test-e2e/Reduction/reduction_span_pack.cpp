@@ -9,7 +9,10 @@
 // This test performs basic checks of reductions initialized with a pack
 // containing at least one sycl::span
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/reduction.hpp>
+
 using namespace sycl;
 
 int NumErrors = 0;
