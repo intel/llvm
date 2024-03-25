@@ -3,8 +3,12 @@
 This document describes the implementation design of the
 [SYCL Graph Extension](../extensions/experimental/sycl_ext_oneapi_graph.asciidoc).
 
-A related presentation can be found
-[here](https://www.youtube.com/watch?v=aOTAmyr04rM).
+## Resources
+
+* A recording of a presentation on the extension can be found
+  [on Youtube](https://www.youtube.com/watch?v=aOTAmyr04rM).
+* A blog post introducing the extension can be found
+  [on Codeplay.com](https://codeplay.com/portal/blogs/2024/01/22/sycl-graphs).
 
 ## Requirements
 
@@ -15,13 +19,11 @@ represents a series of operations to be enqueued to the backend device and
 their dependencies. A single command-graph can be partitioned into more
 than one command-buffer by the runtime. The SYCL Graph extension
 distinguishes between backends that support the command-buffer extension
-and those that do not. Currently command-buffer extensions are only supported
-by Level Zero. All other backends would fall back to an emulation mode, or not
-be reported as supported.
+and those that do not, and only reports support for the extension via the
+`aspect::ext_oneapi_graph` aspect on backends that do support command-buffers.
 
-The emulation mode targets support of functionality only, without potentially
-resulting performance improvements, i.e. execution of a closed Level Zero
-command-list multiple times.
+See the [Backend Implementation](#backend-implementation) section of this
+document for details of support of different SYCL backends.
 
 ### UR Command-Buffer Experimental Feature
 
@@ -115,7 +117,7 @@ When individual graph nodes have requirements from SYCL accessors, the
 underlying `sycl::detail::CG` object stored in the node is copied and passed to
 the scheduler for adding to the UR command-buffer, otherwise the node can
 be appended directly as a command in the UR command-buffer. This is in-keeping
-with the existing behaviour of the handler with normal queue submissions.
+with the existing behavior of the handler with normal queue submissions.
 
 Scheduler commands for adding graph nodes differ from typical command-group
 submission in the scheduler, in that they do not launch any asynchronous work
@@ -164,12 +166,13 @@ potential backward dependencies that could be created using
 the `make_edge` function.
 
 ### Example
+
 The partitioning process is achieved is two main stages:
 
 1 - Nodes are assigned to a temporary group/partition.
 
-2 - Once all the nodes have been annotated with a group number, 
-actual partitions are created based on these annotations.
+2 - Once all the nodes have been annotated with a group number, actual
+partitions are created based on these annotations.
 
 The following diagrams show the annotation process:
 
@@ -180,10 +183,9 @@ The following diagrams show the annotation process:
 ![Graph partition illustration step 5.](images/SYCL-Graph-partitions_step5.jpg)
 ![Graph partition illustration step 6.](images/SYCL-Graph-partitions_step6.jpg)
 
-Now consider a slightly different graph. 
-We used the `make_edge` function to create a dependency between Node E and 
-Node HT1. The first 5 steps are identical.
-However, from the step 6 the process changes and a group merge is needed as 
+Now consider a slightly different graph. We used the `make_edge` function to
+create a dependency between Node E and Node HT1. The first 5 steps are identical.
+However, from the step 6 the process changes and a group merge is needed as
 illustrated in the following diagrams:
 
 ![Graph partition illustration step 6b.](images/SYCL-Graph-partitions_step7.jpg)
@@ -194,30 +196,27 @@ illustrated in the following diagrams:
 ![Graph partition illustration step 11b.](images/SYCL-Graph-partitions_step12.jpg)
 
 ### Multiple Roots Execution Flow
-The following diagram shows the partitions of a graph with two roots 
-and a host-task in each branch.
+
+The following diagram shows the partitions of a graph with two roots and a
+host-task in each branch.
 
 ![Multiple roots graph partition illustration.](images/SYCL-Graph-multiple_roots_partitions.jpg)
 
-When executing this graph, the partitions were enqueued one after the other, 
-with each partition waiting for the previous one to complete 
-(see top of the following diagram).
-However, for multi-root graph, this behavior adds unnecessary dependency 
-between partitions, slowing down the execution of the whole graph.
-Now, we keep track of the actual predecessors of each partition and 
-only enforce dependencies between partitions when necessary.
-In our example, the extra dependency is therefore removed and 
-both branches can be executed concurrently.
-But as we can see on this diagram, this new approach can involve 
-multiple execution tails, which leads to difficulties when 
-we want to know when the graph execution has finished.
-To cope with this issue, the events associated to the completion of 
-each partition are linked to the event returned to users. 
-Hence, when the returned event is complete, we can guarantee that 
-all work associated with the graph has been completed.  
+When executing this graph, the partitions were enqueued one after the other,
+with each partition waiting for the previous one to complete (see top of the
+following diagram). However, for a multi-root graph, this behavior adds
+unnecessary dependencies between partitions, slowing down the execution of the
+whole graph. Now, we keep track of the actual predecessors of each partition
+and only enforce dependencies between partitions when necessary.
+In our example, the extra dependency is therefore removed and both branches can
+be executed concurrently. But as we can see on this diagram, this new approach
+can involve multiple execution tails, which leads to difficulties when we want
+to know when the graph execution has finished. To cope with this issue, the
+events associated to the completion of each partition are linked to the event
+returned to users. Hence, when the returned event is complete, we can guarantee
+that all work associated with the graph has been completed.
 
 ![Multiple roots graph partition execution flow.](images/SYCL-Graph-partition_execution_flow.jpg)
-
 
 ## Memory handling: Buffer and Accessor
 
@@ -274,8 +273,8 @@ accessors are used in a graph node.
 
 ## Backend Implementation
 
-Implementation of UR command-buffers
-for each of the supported SYCL 2020 backends.
+Implementation of UR command-buffers for each of the supported SYCL 2020
+backends.
 
 Backends which are implemented currently are: [Level Zero](#level-zero),
 [CUDA](#cuda), [HIP](#hip) and partial support for [OpenCL](#opencl).
@@ -297,98 +296,88 @@ Zero, the adapter implementation needs extra commands.
 * Prefix - Commands added **before** the graph workload.
 * Suffix - Commands added **after** the graph workload.
 
-These extra commands operate on L0 event synchronisation primitives, 
-used by the command-list to interact with the external UR wait-list 
-and UR return event required for the enqueue interface.
-Unlike the graph workload (i.e. commands needed to perform the graph workload) 
-the external UR wait-list and UR return event are submission dependent, 
-which mean they can change from one submission to the next.
+These extra commands operate on L0 event synchronization primitives, used by
+the command-list to interact with the external UR wait-list and UR return event
+required for the enqueue interface. Unlike the graph workload (i.e. commands
+needed to perform the graph workload) the external UR wait-list and UR return
+event are submission dependent, which mean they can change from one submission
+to the next.
 
-For performance concerns, the command-list that will execute the graph
-workload is made only once (during the command-buffer finalization stage).
-This allows the adapter to save time when submitting the command-buffer, 
-by executing only this command-list (i.e. without enqueuing any commands 
-of the graph workload).
+For performance concerns, the command-list that will execute the graph workload
+is made only once (during the command-buffer finalization stage). This allows
+the adapter to save time when submitting the command-buffer, by executing only
+this command-list (i.e. without enqueuing any commands of the graph workload).
 
 #### Prefix
 
-The prefix's commands aim to: 
-1. Handle the the list on events to wait on, which is passed by the runtime
-when the UR command-buffer enqueue function is called.
-As mentioned above, this list of events changes from one submission 
-to the next.
-Consequently, managing this mutable dependency in the graph-workload 
-command-list implies rebuilding the command-list for each submission 
-(note that this can change with mutable command-list).
-To avoid the signifiant time penalty of rebuilding this potentially large 
-command-list each time, we prefer to add an extra command handling the
-wait list into another command-list (*wait command-list*). 
-This command-list consists of a single L0 command: a barrier that waits for 
-dependencies passed by the wait-list and signals a signal 
-called *WaitEvent* when the barrier is complete.
-This *WaitEvent* is defined in the `ur_exp_command_buffer_handle_t` class.
-In the front of the graph workload command list, an extra barrier command 
-waiting for this event is added (when the command-buffer is created).
-This ensures that the graph workload does not start running before 
-the dependencies to be completed.
-The *WaitEvent* event is reset in the suffix.
+The prefix's commands aim to:
+1. Handle the list of events to wait on, which is passed by the runtime
+when the UR command-buffer enqueue function is called. As mentioned above, this
+list of events changes from one submission to the next. Consequently, managing
+this mutable dependency in the graph-workload command-list implies rebuilding
+the command-list for each submission (note that this can change with mutable
+command-list). To avoid the significant time penalty of rebuilding this
+potentially large command-list each time, we prefer to add an extra command
+handling the wait list into another command-list (*wait command-list*). This
+command-list consists of a single L0 command: a barrier that waits for
+dependencies passed by the wait-list and signals a signal called *WaitEvent*
+when the barrier is complete. This *WaitEvent* is defined in the
+`ur_exp_command_buffer_handle_t` class. In the front of the graph workload
+command list, an extra barrier command waiting for this event is added (when
+the command-buffer is created). This ensures that the graph workload does not
+start running before the dependencies to be completed. The *WaitEvent* event is
+reset in the suffix.
 
-
-2. Reset events associated with the command-buffer except the 
-*WaitEvent* event.
-Indeed, L0 events needs to be explicitly reset by an API call 
-(L0 command in our case).
-Since a command-buffer is expected to be submitted multiple times,
-we need to ensure that L0 events associated with graph commands have not
-been signaled by a previous execution. These events are therefore reset to the
-non-signaled state before running the graph-workload command-list. Note
-that this reset is performed in the prefix and not in the suffix to avoid
-additional synchronization w.r.t profiling data extraction.
-We use a new command list (*reset command-list*) for performance concerns. 
+2. Reset events associated with the command-buffer except the *WaitEvent* event.
+Indeed, L0 events needs to be explicitly reset by an API call  (L0 command in
+our case). Since a command-buffer is expected to be submitted multiple times,
+we need to ensure that L0 events associated with graph commands have not been
+signaled by a previous execution. These events are therefore reset to the
+non-signaled state before running the graph-workload command-list. Note that
+this reset is performed in the prefix and not in the suffix to avoid additional
+synchronization w.r.t profiling data extraction. We use a new command list
+(*reset command-list*) for performance concerns.
 Indeed:
-   * This allows the *WaitEvent* to be signaled directly on the host if 
-   the waiting list is empty, thus avoiding the need to submit a command list.
+   * This allows the *WaitEvent* to be signaled directly on the host if the
+   waiting list is empty, thus avoiding the need to submit a command list.
    * Enqueuing a reset L0 command for all events in the command-buffer is time
-   consumming, especially for large graphs.
-   However, this task is not needed for every submission, but only once, when the
-   command-buffer is fixed, i.e. when the command-buffer is finalized. The
-   decorellation between the reset command-list and the wait command-list allow us to
-   create and enqueue the reset commands when finalizing the command-buffer, 
-   and only create the wait command-list at submission.
+   consuming, especially for large graphs. However, this task is not needed for
+   every submission, but only once, when the command-buffer is fixed, i.e. when
+   the command-buffer is finalized. The decorrelation between the reset
+   command-list and the wait command-list allow us to create and enqueue the
+   reset commands when finalizing the command-buffer, and only create the wait
+   command-list at submission.
 
-This command list is consist of a reset command for each of the graph commands 
-and another reset command for resetting the signal we use to signal the completion 
-of the graph workload. This signal is called *SignalEvent* and is defined in 
-in the `ur_exp_command_buffer_handle_t` class.
+This command list consists of a reset command for each of the graph commands
+and another reset command for resetting the signal we use to signal the
+completion of the graph workload. This signal is called *SignalEvent* and is
+defined in the `ur_exp_command_buffer_handle_t` class.
 
 #### Suffix
 
 The suffix's commands aim to:
-1) Handle the completion of the graph workload and signal 
-an UR return event.
-Thus, at the end of the graph workload command-list a command, which 
-signals the *SignalEvent*, is added (when the command-buffer is finalized).
-In an additional command-list (*signal command-list*), a barrier waiting for 
-this event is also added.
-This barrier signals, in turn, the UR return event that has be defined by 
-the runtime layer when calling the `urCommandBufferEnqueueExp` function.
+1) Handle the completion of the graph workload and signal a UR return event.
+Thus, at the end of the graph workload command-list a command, which signals
+the *SignalEvent*, is added (when the command-buffer is finalized). In an
+additional command-list (*signal command-list*), a barrier waiting for this
+event is also added. This barrier signals, in turn, the UR return event that
+has be defined by the runtime layer when calling the
+`urCommandBufferEnqueueExp` function.
 
-2) Manage the profiling. If a command-buffer is about to be submitted to 
-a queue with the profiling property enabled, an extra command that copies 
-timestamps of L0 events associated with graph commands into a dedicated 
-memory which is attached to the returned UR event. 
-This memory stores the profiling information that corresponds to 
-the current submission of the command-buffer.
+2) Manage the profiling. If a command-buffer is about to be submitted to a
+queue with the profiling property enabled, an extra command that copies
+timestamps of L0 events associated with graph commands into a dedicated memory
+which is attached to the returned UR event. This memory stores the profiling
+information that corresponds to the current submission of the command-buffer.
 
 ![L0 command-buffer diagram](images/L0_UR_command-buffer-v5.jpg)
 
 For a call to `urCommandBufferEnqueueExp` with an `event_list` *EL*,
-command-buffer *CB*, and return event *RE* our implementation has to submit 
-three new command-lists for the above approach to work. Two before
-the command-list with extra commands associated with *CB*, and the other
-after *CB*. These new command-lists are retrieved from the UR queue, which
-will likely reuse existing command-lists and only create a new one in the worst
-case.
+command-buffer *CB*, and return event *RE* our implementation has to submit three
+new command-lists for the above approach to work. Two before the command-list
+with extra commands associated with *CB*, and the other after *CB*. These new
+command-lists are retrieved from the UR queue, which will likely reuse existing
+command-lists and only create a new one in the worst case.
 
 #### Drawbacks
 
@@ -407,11 +396,11 @@ Level Zero:
    executing a UR command-buffer.
 
 3. Dependencies between multiple submissions must be handled by the runtime.
-   Indeed, when a second submission is performed the signal conditions 
-   of *WaitEvent* are redefined by this second submission. 
-   Therefore, this can lead to an undefined behavior and potential
-   hangs especially if the conditions of the first submissions were not yet 
-   satisfied and the event has not yet been signaled.
+   Indeed, when a second submission is performed the signal conditions of
+   *WaitEvent* are redefined by this second submission. Therefore, this can
+   lead to an undefined behavior and potential hangs especially if the
+   conditions of the first submissions were not yet satisfied and the event has
+   not yet been signaled.
 
 Future work will include exploring L0 API extensions to improve the mapping of
 UR command-buffer to L0 command-list.
@@ -420,45 +409,43 @@ UR command-buffer to L0 command-list.
 
 The SYCL Graph CUDA backend relies on the
 [CUDA Graphs feature](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#cuda-graphs),
-which is the CUDA public API for batching series of operations,
-such as kernel launches, connected by dependencies.
+which is the CUDA public API for batching series of operations, such as kernel
+launches, connected by dependencies.
 
 UR commands (e.g. kernels) are mapped as graph nodes using the
 [CUDA Driver API](https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__GRAPH.html#group__CUDA__GRAPH).
-The CUDA Driver API is preferred over the CUDA Runtime API to implement
-the SYCL Graph backend to remain consistent with other UR functions.
-Synchronization between commands (UR sync-points) is implemented
-using graph dependencies.
+The CUDA Driver API is preferred over the CUDA Runtime API to implement the
+SYCL Graph backend to remain consistent with other UR functions.
+Synchronization between commands (UR sync-points) is implemented using graph
+dependencies.
 
-Executable CUDA Graphs can be submitted to a CUDA stream
-in the same way as regular kernels.
-The CUDA backend enables enqueuing events to wait for into a stream.
-It also allows signaling the completion of a submission with an event.
-Therefore, submitting a UR command-buffer consists only of submitting to a stream
-the executable CUDA Graph that represent this series of operations.
+Executable CUDA Graphs can be submitted to a CUDA stream in the same way as
+regular kernels. The CUDA backend enables enqueuing events to wait for into a
+stream. It also allows signaling the completion of a submission with an event.
+Therefore, submitting a UR command-buffer consists only of submitting to a
+stream the executable CUDA Graph that represent this series of operations.
 
 An executable CUDA Graph, which contains all commands and synchronization
-information, is saved in the UR command-buffer to allow for efficient
-graph resubmission.
+information, is saved in the UR command-buffer to allow for efficient graph
+resubmission.
 
 ### HIP
 
-The HIP backend offers a Graph managemenet API very similar to CUDA Graph
-feature for batching series of operations.
-The SYCL Graph HIP backend implementation is therefore very similar to that of CUDA.
+The HIP backend offers a graph management API very similar to CUDA Graph
+feature for batching series of operations. The SYCL Graph HIP backend
+implementation is therefore very similar to that of CUDA.
 
 The minimum version of ROCm required to support `sycl_ext_oneapi_graph` is 5.5.1.
 
 UR commands (e.g. kernels) are mapped as graph nodes using the
 [HIP Management API](https://rocm.docs.amd.com/projects/HIP/en/docs-5.5.1/doxygen/html/group___graph.html).
-Synchronization between commands (UR sync-points) is implemented
-using graph dependencies.
-Executable HIP Graphs can be submitted to a HIP stream
-in the same way as regular kernels.
-The HIP backend enables enqueuing events to wait for into a stream.
-It also allows signaling the completion of a submission with an event.
-Therefore, submitting a UR command-buffer consists only of submitting to a stream
-the executable HIP Graph that represent this series of operations.
+Synchronization between commands (UR sync-points) is implemented using graph
+dependencies. Executable HIP Graphs can be submitted to a HIP stream in the
+same way as regular kernels. The HIP backend enables enqueuing events to wait
+for into a stream. It also allows signaling the completion of a submission
+with an event. Therefore, submitting a UR command-buffer consists only of
+submitting to a stream the executable HIP Graph that represent this series of
+operations.
 
 An executable HIP Graph, which contains all commands and synchronization
 information, is saved in the UR command-buffer to allow for efficient
@@ -483,7 +470,7 @@ support.
 Due to the API mapping gaps documented in the following section, OpenCL as a
 SYCL backend cannot fully support the graph API. Instead, there are
 limitations in the types of nodes which a user can add to a graph, using
-an unsupported node type will cause a sycl exception to be thrown in graph
+an unsupported node type will cause a SYCL exception to be thrown in graph
 finalization with error code `sycl::errc::feature_not_supported` and a message
 mentioning the unsupported command. For example,
 
@@ -566,7 +553,8 @@ custom defined symbols with the ones from OpenCL-Headers.
 Publicly available implementations of `cl_khr_command_buffer` that can be used
 to enable the graph extension in OpenCL:
 
-- [OneAPI Construction Kit](https://github.com/codeplaysoftware/oneapi-construction-kit) (must enable `OCL_EXTENSION_cl_khr_command_buffer` when building)
+- [OneAPI Construction Kit](https://github.com/codeplaysoftware/oneapi-construction-kit)
+  (must enable `OCL_EXTENSION_cl_khr_command_buffer` when building)
 - [PoCL](http://portablecl.org/)
 - [Command-Buffer Emulation Layer](https://github.com/bashbaug/SimpleOpenCLSamples/tree/efeae73139ddf064fafce565cc39640af10d900f/layers/10_cmdbufemu)
 

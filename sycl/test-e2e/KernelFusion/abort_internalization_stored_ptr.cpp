@@ -10,7 +10,9 @@
 // it just fails for a slightly different reason.
 // CHECK-HIP-NEXT: Failed to promote argument 0 of function {{.*}}: Do not know how to handle value to promote
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 #include <array>
 
