@@ -107,10 +107,10 @@ bool test() {
       apply_two_matrices<Tc, Ta, TM, TN, TK, M, N, kernel_name>(C, D, A, Ar, q);
 
   if constexpr (std::is_same_v<Ta, bfloat16>)
-    std::cout << "int8_t " << TM << "x" << TN << ": "
+    std::cout << "bfloat16 " << TM << "x" << TN << ": "
               << (res ? "passed" : "failed") << std::endl;
   else if constexpr (std::is_same_v<Ta, int8_t>)
-    std::cout << "bfloat16 " << TM << "x" << TN << ": "
+    std::cout << "int8_t " << TM << "x" << TN << ": "
               << (res ? "passed" : "failed") << std::endl;
   return res;
 }
