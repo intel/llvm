@@ -461,7 +461,7 @@ static inline void invoke_kernel_function(kernel_function &function,
                                           sycl::range<3> group_range,
                                           sycl::range<3> local_range,
                                           unsigned int local_mem_size,
-                                          void **kernelParams, void **extra) {
+                                          void **kernel_params, void **extra) {
   function(queue, sycl::nd_range<3>(group_range * local_range, local_range),
            local_mem_size, kernel_params, extra);
 }
