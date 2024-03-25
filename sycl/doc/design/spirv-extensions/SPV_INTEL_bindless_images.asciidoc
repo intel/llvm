@@ -1,3 +1,7 @@
+:capability_token: 6528
+:handle_to_image_token: 6529
+:handle_to_sampler_token: 6530
+
 SPV_INTEL_bindless_images
 =========================
 
@@ -33,7 +37,7 @@ In Development
 
 [width="40%",cols="25,25"]
 |========================================
-| Last Modified Date | 2024-02-23
+| Last Modified Date | 2024-03-25
 | Revision           | 6
 |========================================
 
@@ -89,9 +93,9 @@ OpConvertHandleToSamplerINTEL
 [cols="70%,30%"]
 [grid="rows"]
 |====
-|BindlessImagesINTEL                |6528
-|OpConvertHandleToImageINTEL        |6529
-|OpConvertHandleToSamplerINTEL      |6530
+|BindlessImagesINTEL                |{capability_token}
+|OpConvertHandleToImageINTEL        |{handle_to_image_token}
+|OpConvertHandleToSamplerINTEL      |{handle_to_sampler_token}
 |====
 --
 
@@ -111,7 +115,8 @@ Depending on if the addressing model is set to *Physical32* or *Physical64*.
 
 _Result type_ must be an `OpTypeImage`.
 
-| 4 | 6529 | '<id> Result Type' | 'Result <id>' | '<id> Operand'
+| 4 | {handle_to_image_token} | '<id> Result Type' | 'Result <id>' |
+'<id> Operand'
 |======
 
 [cols="2*1,3*2"]
@@ -125,7 +130,8 @@ Depending on if the addressing model is set to *Physical32* or *Physical64*.
 
 _Result type_ must be an `OpTypeSampler`.
 
-| 4 | 6530 | '<id> Result Type' | 'Result <id>' | '<id> Operand'
+| 4 | {handle_to_sampler_token} | '<id> Result Type' | 'Result <id>' |
+'<id> Operand'
 |======
 
 Modify Section 3.31, Capability, adding row to the capability table:
@@ -134,7 +140,7 @@ Modify Section 3.31, Capability, adding row to the capability table:
 [options="header"]
 |====
 2+^| Capability ^| Implicitly Declares
-| 6528 | BindlessImagesINTEL |
+| {capability_token} | BindlessImagesINTEL |
 |====
 
 
@@ -156,5 +162,8 @@ None Yet.
                               instruction
 |5|2024-02-23|Duncan Brawley| Remove OpConvertHandleToSampledImageINTEL
                               instruction and clarify return types
+|6|2024-03-25|Duncan Brawley| Wording/formatting improvements, clarify sections
+                              edited, make capability addition explicit and
+                              substitute instruction numbers            
 |========================================
 
