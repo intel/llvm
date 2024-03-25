@@ -103,8 +103,8 @@ OpConvertHandleToSamplerINTEL
  +
 Converts an unsigned integer pointed by _Operand_ to image type.
 
-Unsigned integer is either a 64 or 32 bit unsigned integer.
-Depending on whether *OpMemoryModel* is set to *Physical32* or *Physical64*.
+Unsigned integer is either a 32 or 64 bit unsigned integer.
+Depending on if the addressing model is set to *Physical32* or *Physical64*.
 
 _Result type_ must be an `OpTypeImage`.
 
@@ -117,8 +117,8 @@ _Result type_ must be an `OpTypeImage`.
  +
 Converts an unsigned integer pointed by _Operand_ to sampler type.
 
-Unsigned integer is either a 64 or 32 bit unsigned integer.
-Depending on whether *OpMemoryModel* is set to *Physical32* or *Physical64*.
+Unsigned integer is either a 32 or 64 bit unsigned integer.
+Depending on if the addressing model is set to *Physical32* or *Physical64*.
 
 _Result type_ must be an `OpTypeSampler`.
 
