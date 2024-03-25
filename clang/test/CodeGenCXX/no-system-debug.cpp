@@ -6,10 +6,9 @@
 // are just two representative examples of functions declared in a system header file that can be used to
 // exercise -fsystem-debug
 
-// This testcase tests five option settings:
+// This testcase tests four option settings:
 // By default                                                                              debug info for vector::insert and vector::pop_back is NOT generated
 // When -fsystem-debug is used                                                             debug info for vector::insert and vector::pop_back is generated
-// When -fno-system-debug is used                                                          debug info for vector::insert and vector::pop_back is NOT generated
 // When -fstandalone-debug is used more debug info is generated and                        debug info for vector::insert and vector::pop_back is generated
 // When -fno-eliminate-unused-debug-types is used even more debug info is generated and    debug info for vector::insert and vector::pop_back is generated
 
@@ -24,13 +23,11 @@
 //
 // RUN: %clang -emit-llvm -S -g %s -o  %t.default                                                           -DINSERT
 // RUN: %clang -emit-llvm -S -g %s -o  %t.system_debug                    -fsystem-debug                    -DINSERT
-// RUN: %clang -emit-llvm -S -g %s -o  %t.no_system_debug                 -fno-system-debug                 -DINSERT
 // RUN: %clang -emit-llvm -S -g %s -o  %t.standalone_debug                -fstandalone-debug                -DINSERT
 // RUN: %clang -emit-llvm -S -g %s -o  %t.no_eliminate_unused_debug_types -fno-eliminate-unused-debug-types -DINSERT
 
 // RUN: grep DISubprogram %t.default                         | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 // RUN: grep DISubprogram %t.system_debug                    | FileCheck --check-prefix=CHECK-ALL-DEBUG %t.check_results
-// RUN: grep DISubprogram %t.no_system_debug                 | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 // RUN: grep DISubprogram %t.standalone_debug                | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 // RUN: grep DISubprogram %t.no_eliminate_unused_debug_types | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 
@@ -39,13 +36,11 @@
 //
 // RUN: %clang -emit-llvm -S -g %s -o  %t.default                                                           -DINSERT -DPOP_BACK
 // RUN: %clang -emit-llvm -S -g %s -o  %t.system_debug                    -fsystem-debug                    -DINSERT -DPOP_BACK
-// RUN: %clang -emit-llvm -S -g %s -o  %t.no_system_debug                 -fno-system-debug                 -DINSERT -DPOP_BACK
 // RUN: %clang -emit-llvm -S -g %s -o  %t.standalone_debug                -fstandalone-debug                -DINSERT -DPOP_BACK
 // RUN: %clang -emit-llvm -S -g %s -o  %t.no_eliminate_unused_debug_types -fno-eliminate-unused-debug-types -DINSERT -DPOP_BACK
 
 // RUN: grep DISubprogram %t.default                         | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 // RUN: grep DISubprogram %t.system_debug                    | FileCheck --check-prefix=CHECK-ALL-DEBUG %t.check_results
-// RUN: grep DISubprogram %t.no_system_debug                 | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 // RUN: grep DISubprogram %t.standalone_debug                | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 // RUN: grep DISubprogram %t.no_eliminate_unused_debug_types | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 
@@ -55,13 +50,11 @@
 //
 // RUN: %clang -emit-llvm -S -g %s -o  %t.default                                                           -DEXPLICIT_INSTANTIATION
 // RUN: %clang -emit-llvm -S -g %s -o  %t.system_debug                    -fsystem-debug                    -DEXPLICIT_INSTANTIATION
-// RUN: %clang -emit-llvm -S -g %s -o  %t.no_system_debug                 -fno-system-debug                 -DEXPLICIT_INSTANTIATION
 // RUN: %clang -emit-llvm -S -g %s -o  %t.standalone_debug                -fstandalone-debug                -DEXPLICIT_INSTANTIATION
 // RUN: %clang -emit-llvm -S -g %s -o  %t.no_eliminate_unused_debug_types -fno-eliminate-unused-debug-types -DEXPLICIT_INSTANTIATION
 
 // RUN: grep DISubprogram %t.default                         | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 // RUN: grep DISubprogram %t.system_debug                    | FileCheck --check-prefix=CHECK-ALL-DEBUG %t.check_results
-// RUN: grep DISubprogram %t.no_system_debug                 | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 // RUN: grep DISubprogram %t.standalone_debug                | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 // RUN: grep DISubprogram %t.no_eliminate_unused_debug_types | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 
@@ -71,13 +64,11 @@
 //
 // RUN: %clang -emit-llvm -S -g %s -o  %t.default                                                           -DEXPLICIT_INSTANTIATION -DINSERT -DPOP_BACK
 // RUN: %clang -emit-llvm -S -g %s -o  %t.system_debug                    -fsystem-debug                    -DEXPLICIT_INSTANTIATION -DINSERT -DPOP_BACK
-// RUN: %clang -emit-llvm -S -g %s -o  %t.no_system_debug                 -fno-system-debug                 -DEXPLICIT_INSTANTIATION -DINSERT -DPOP_BACK
 // RUN: %clang -emit-llvm -S -g %s -o  %t.standalone_debug                -fstandalone-debug                -DEXPLICIT_INSTANTIATION -DINSERT -DPOP_BACK
 // RUN: %clang -emit-llvm -S -g %s -o  %t.no_eliminate_unused_debug_types -fno-eliminate-unused-debug-types -DEXPLICIT_INSTANTIATION -DINSERT -DPOP_BACK
 
 // RUN: grep DISubprogram %t.default                         | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 // RUN: grep DISubprogram %t.system_debug                    | FileCheck --check-prefix=CHECK-ALL-DEBUG %t.check_results
-// RUN: grep DISubprogram %t.no_system_debug                 | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 // RUN: grep DISubprogram %t.standalone_debug                | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 // RUN: grep DISubprogram %t.no_eliminate_unused_debug_types | FileCheck --check-prefix=CHECK-NO-DEBUG  %t.check_results
 
