@@ -95,7 +95,10 @@ OpConvertHandleToSamplerINTEL
 |====
 --
 
-== Modifications to the SPIR-V Specification, Version 1.6
+== Modifications to the SPIR-V Specification, Version 1.6, Revision 2
+
+Modify Section 3.49.10, Image Instructions, adding to the end of the list of
+instructions:
 
 [cols="2*1,3*2"]
 |======
