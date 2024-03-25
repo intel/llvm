@@ -689,7 +689,7 @@ graph LR
     Modifiable -->|Finalize| Executable
 ....
 
-==== Executable Graph Update [[executable-graph-upate]]
+==== Executable Graph Update [[executable-graph-update]]
 
 A graph in the executable state can have the configuration of its nodes modified
 using a concept called graph _update_. This avoids a user having to rebuild and
