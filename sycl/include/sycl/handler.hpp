@@ -21,6 +21,10 @@
 #include <sycl/detail/pi.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/detail/reduction_forward.hpp>
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#include <sycl/detail/string.hpp>
+#include <sycl/detail/string_view.hpp>
+#endif
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
@@ -32,6 +36,7 @@
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
+#include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group.hpp>
@@ -210,6 +215,11 @@ __SYCL_EXPORT device getDeviceFromHandler(handler &);
 
 // Checks if a device_global has any registered kernel usage.
 __SYCL_EXPORT bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr);
+
+// Extracts a pointer to the value inside a dynamic parameter
+__SYCL_EXPORT void *getValueFromDynamicParameter(
+    ext::oneapi::experimental::detail::dynamic_parameter_base
+        &DynamicParamBase);
 
 #if __SYCL_ID_QUERIES_FIT_IN_INT__
 template <typename T> struct NotIntMsg;
@@ -414,6 +424,10 @@ template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
   }
   return true;
 }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+using string = std::string;
+using string_view = std::string;
+#endif
 
 } // namespace detail
 
@@ -542,7 +556,7 @@ private:
                   bool IsKernelCreatedFromSource, bool IsESIMD);
 
   /// \return a string containing name of SYCL kernel.
-  std::string getKernelName();
+  detail::string getKernelName();
 
   template <typename LambdaNameT> bool lambdaAndKernelHaveEqualName() {
     // TODO It is unclear a kernel and a lambda/functor must to be equal or not
@@ -552,8 +566,8 @@ private:
     // values of arguments for the kernel.
     assert(MKernel && "MKernel is not initialized");
     const std::string LambdaName = detail::KernelInfo<LambdaNameT>::getName();
-    const std::string KernelName = getKernelName();
-    return LambdaName == KernelName;
+    detail::string KernelName = getKernelName();
+    return KernelName == LambdaName;
   }
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
@@ -699,6 +713,30 @@ private:
                        sizeof(sampler), ArgIndex);
   }
 
+  // setArgHelper for graph dynamic_parameters
+  template <typename T>
+  void
+  setArgHelper(int ArgIndex,
+               ext::oneapi::experimental::dynamic_parameter<T> DynamicParam) {
+    // Extract and copy arg so we can move it into setArgHelper
+    T ArgValue =
+        *static_cast<T *>(detail::getValueFromDynamicParameter(DynamicParam));
+    // Set the arg in the handler as normal
+    setArgHelper(ArgIndex, std::move(ArgValue));
+    // Register the dynamic parameter with the handler for later association
+    // with the node being added
+    registerDynamicParameter(DynamicParam, ArgIndex);
+  }
+
+  /// Registers a dynamic parameter with the handler for later association with
+  /// the node being created
+  /// @param DynamicParamBase
+  /// @param ArgIndex
+  void registerDynamicParameter(
+      ext::oneapi::experimental::detail::dynamic_parameter_base
+          &DynamicParamBase,
+      int ArgIndex);
+
   // TODO: Unusued. Remove when ABI break is allowed.
   void verifyKernelInvoc(const kernel &Kernel) {
     std::ignore = Kernel;
@@ -836,7 +874,14 @@ private:
   ///
   /// \param KernelName is the name of the SYCL kernel to check that the used
   ///                   kernel bundle contains.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  void verifyUsedKernelBundle(const std::string &KernelName) {
+    verifyUsedKernelBundleInternal(detail::string_view{KernelName});
+  }
+  void verifyUsedKernelBundleInternal(detail::string_view KernelName);
+#else
   void verifyUsedKernelBundle(const std::string &KernelName);
+#endif
 
   /// Stores lambda to the template-free object
   ///
@@ -892,8 +937,9 @@ private:
     } else {
       // In case w/o the integration header it is necessary to process
       // accessors from the list(which are associated with this handler) as
-      // arguments.
-      MArgs = std::move(MAssociatedAccesors);
+      // arguments. We must copy the associated accessors as they are checked
+      // later during finalize.
+      MArgs = MAssociatedAccesors;
     }
 
     // If the kernel lambda is callable with a kernel_handler argument, manifest
@@ -933,6 +979,10 @@ private:
     } else {
       std::ignore = Props;
     }
+
+    constexpr bool UsesRootSync = PropertiesT::template has_property<
+        sycl::ext::oneapi::experimental::use_root_sync_key>();
+    setKernelIsCooperative(UsesRootSync);
   }
 
   /// Checks whether it is possible to copy the source shape to the destination
@@ -1161,7 +1211,6 @@ private:
     // non-32-bit global range, we wrap the old kernel in a new kernel
     // that has each work item peform multiple invocations the old
     // kernel in a 32-bit global range.
-    auto Dev = detail::getSyclObjImpl(detail::getDeviceFromHandler(*this));
     id<Dims> MaxNWGs = [&] {
       auto [MaxWGs, HasMaxWGs] = getMaxWorkGroups_v2();
       if (!HasMaxWGs) {
@@ -1204,6 +1253,11 @@ private:
       // will yield a rounded-up value for the total range.
       Adjust(0, ((RoundedRange[0] + GoodFactor - 1) / GoodFactor) * GoodFactor);
     }
+#ifdef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
+    // If we are forcing range rounding kernels to be used, we always want the
+    // rounded range kernel to be generated, even if rounding isn't needed
+    DidAdjust = true;
+#endif // __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
 
     for (int i = 0; i < Dims; ++i)
       if (RoundedRange[i] > MaxRange[i])
@@ -1302,6 +1356,7 @@ private:
       StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
           std::move(Wrapper));
       setType(detail::CG::Kernel);
+      setNDRangeUsed(false);
 #endif
     } else
 #endif // !__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ &&
@@ -1310,6 +1365,9 @@ private:
     {
       (void)UserRange;
       (void)Props;
+#ifndef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
+      // If parallel_for range rounding is forced then only range rounded
+      // kernel is generated
       kernel_parallel_for_wrapper<NameT, TransformedArgType, KernelType,
                                   PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
@@ -1319,7 +1377,11 @@ private:
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
           std::move(KernelFunc));
       setType(detail::CG::Kernel);
+      setNDRangeUsed(false);
 #endif
+#else
+      (void)KernelFunc;
+#endif // __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
     }
   }
 
@@ -1373,6 +1435,7 @@ private:
     StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
         std::move(KernelFunc));
     setType(detail::CG::Kernel);
+    setNDRangeUsed(true);
 #endif
   }
 
@@ -1390,6 +1453,7 @@ private:
     detail::checkValueRange<Dims>(NumWorkItems);
     MNDRDesc.set(std::move(NumWorkItems));
     setType(detail::CG::Kernel);
+    setNDRangeUsed(false);
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -1428,6 +1492,7 @@ private:
     MNDRDesc.setNumWorkGroups(NumWorkGroups);
     StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
     setType(detail::CG::Kernel);
+    setNDRangeUsed(false);
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -1764,7 +1829,9 @@ private:
     throwIfActionIsCreated();
 
     MNDRDesc.set(range<1>(1));
-    MArgs = std::move(MAssociatedAccesors);
+    // Need to copy these rather than move so that we can check associated
+    // accessors during finalize
+    MArgs = MAssociatedAccesors;
 
     MHostTask.reset(new detail::HostTask(std::move(Func)));
 
@@ -1840,6 +1907,27 @@ public:
       associateWithHandler(&Acc, AccTarget);
   }
 
+  /// Requires access to the memory object associated with the placeholder
+  /// accessor contained in a dynamic_parameter object. Calling this function
+  /// with a non-placeholder accessor has no effect.
+  ///
+  /// The command group has a requirement to gain access to the given memory
+  /// object before executing.
+  ///
+  /// \param dynamicParamAcc is dynamic_parameter containing a SYCL accessor
+  /// describing required memory region.
+  template <typename DataT, int Dims, access::mode AccMode,
+            access::target AccTarget, access::placeholder isPlaceholder>
+  void require(ext::oneapi::experimental::dynamic_parameter<
+               accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder>>
+                   dynamicParamAcc) {
+    using AccT = accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder>;
+    AccT Acc = *static_cast<AccT *>(
+        detail::getValueFromDynamicParameter(dynamicParamAcc));
+    if (Acc.is_placeholder())
+      associateWithHandler(&Acc, AccTarget);
+  }
+
   /// Registers event dependencies on this command group.
   ///
   /// \param Event is a valid SYCL event to wait on.
@@ -1891,6 +1979,13 @@ public:
   template <typename DataT, int Dims>
   void set_arg(int ArgIndex, local_accessor<DataT, Dims> Arg) {
     setArgHelper(ArgIndex, std::move(Arg));
+  }
+
+  // set_arg for graph dynamic_parameters
+  template <typename T>
+  void set_arg(int argIndex,
+               ext::oneapi::experimental::dynamic_parameter<T> &dynamicParam) {
+    setArgHelper(argIndex, dynamicParam);
   }
 
   /// Sets arguments for OpenCL interoperability kernels.
@@ -1981,6 +2076,7 @@ public:
     StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
         std::move(KernelFunc));
     setType(detail::CG::Kernel);
+    setNDRangeUsed(false);
 #endif
   }
 
@@ -2073,6 +2169,7 @@ public:
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     setType(detail::CG::Kernel);
+    setNDRangeUsed(false);
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -2091,6 +2188,7 @@ public:
     detail::checkValueRange<Dims>(NDRange);
     MNDRDesc.set(std::move(NDRange));
     setType(detail::CG::Kernel);
+    setNDRangeUsed(true);
     extractArgsAndReqs();
     MKernelName = getKernelName();
   }
@@ -2153,6 +2251,7 @@ public:
     MNDRDesc.set(std::move(NumWorkItems));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CG::Kernel);
+    setNDRangeUsed(false);
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -2192,6 +2291,7 @@ public:
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CG::Kernel);
+    setNDRangeUsed(false);
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -2230,6 +2330,7 @@ public:
     MNDRDesc.set(std::move(NDRange));
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     setType(detail::CG::Kernel);
+    setNDRangeUsed(true);
     if (!MIsHost && !lambdaAndKernelHaveEqualName<NameT>()) {
       extractArgsAndReqs();
       MKernelName = getKernelName();
@@ -3302,7 +3403,7 @@ private:
   std::vector<detail::ArgDesc> MAssociatedAccesors;
   /// Struct that encodes global size, local size, ...
   detail::NDRDescT MNDRDesc;
-  std::string MKernelName;
+  detail::string MKernelName;
   /// Storage for a sycl::kernel object.
   std::shared_ptr<detail::kernel_impl> MKernel;
   /// Type of the command group, e.g. kernel, fill. Can also encode version.
@@ -3404,8 +3505,17 @@ private:
   ///        expr m_Storage member
   /// \param Size the size of data getting read back / to.
   /// \param Block if read operation is blocking, default to false.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  void ext_intel_read_host_pipe(const std::string &Name, void *Ptr, size_t Size,
+                                bool Block = false) {
+    ext_intel_read_host_pipe(detail::string_view(Name), Ptr, Size, Block);
+  }
+  void ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
+                                size_t Size, bool Block = false);
+#else
   void ext_intel_read_host_pipe(const std::string &Name, void *Ptr, size_t Size,
                                 bool Block = false);
+#endif
 
   /// Write to host pipes given a host address and
   /// \param Name name of the host pipe to be passed into lower level runtime
@@ -3413,9 +3523,19 @@ private:
   /// expr m_Storage member
   /// \param Size the size of data getting read back / to.
   /// \param Block if write opeartion is blocking, default to false.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
+                                 size_t Size, bool Block = false) {
+    ext_intel_write_host_pipe(detail::string_view(Name), Ptr, Size, Block);
+  }
+  void ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
+                                 size_t Size, bool Block = false);
+#else
   void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
                                  size_t Size, bool Block = false);
+#endif
   friend class ext::oneapi::experimental::detail::graph_impl;
+  friend class ext::oneapi::experimental::detail::dynamic_parameter_impl;
 
   bool DisableRangeRounding();
 
@@ -3622,6 +3742,8 @@ private:
 
   // Set value of the gpu cache configuration for the kernel.
   void setKernelCacheConfig(sycl::detail::pi::PiKernelCacheConfig);
+  // Set value of the kernel is cooperative flag
+  void setKernelIsCooperative(bool);
 
   template <
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures FeatureT>
@@ -3637,6 +3759,9 @@ private:
                                 "for use with the SYCL Graph extension.");
     }
   }
+
+  // Set that an ND Range was used during a call to parallel_for
+  void setNDRangeUsed(bool Value);
 };
 } // namespace _V1
 } // namespace sycl

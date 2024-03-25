@@ -133,7 +133,7 @@ for include_dir in [
 config.substitutions.append(("%fsycl-host-only", sycl_host_only_options))
 
 config.substitutions.append(
-    ("%sycl_lib", " -lsycl7" if platform.system() == "Windows" else "-lsycl")
+    ("%sycl_lib", " -lsycl8" if platform.system() == "Windows" else "-lsycl")
 )
 
 llvm_config.add_tool_substitutions(["llvm-spirv"], [config.sycl_tools_dir])
@@ -158,6 +158,9 @@ if config.level_zero_be == "ON":
 
 if config.native_cpu_be == "ON":
     config.available_features.add("native_cpu_be")
+
+if config.native_cpu_ock == "ON":
+    config.available_features.add("native_cpu_ock")
 
 if "nvptx64-nvidia-cuda" in triple:
     llvm_config.with_system_environment("CUDA_PATH")

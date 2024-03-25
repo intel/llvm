@@ -416,6 +416,7 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
 
   if (AttrKindStr == "sycl-streaming-interface") {
     // generate either:
+    //   !ip_interface !N
     //   !N = !{!"streaming"} or
     //   !N = !{!"streaming", !"stall_free_return"}
     SmallVector<Metadata *, 2> MD;
@@ -428,6 +429,7 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
 
   if (AttrKindStr == "sycl-register-map-interface") {
     // generate either:
+    //   !ip_interface !N
     //   !N = !{!"csr"} or
     //   !N = !{!"csr", !"wait_for_done_write"}
     SmallVector<Metadata *, 2> MD;
@@ -436,6 +438,20 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
       MD.push_back(MDString::get(Ctx, "wait_for_done_write"));
     return std::pair<std::string, MDNode *>("ip_interface",
                                             MDNode::get(Ctx, MD));
+  }
+
+  if (AttrKindStr == "sycl-fpga-cluster") {
+    // generate either:
+    //   !stall_free !N
+    //   !N = !{i32 1} or
+    //   !stall_enable !N
+    //   !N = !{i32 1}
+    std::string ClusterType =
+        getAttributeAsInteger<uint32_t>(Attr) ? "stall_enable" : "stall_free";
+    Metadata *ClusterMDArgs[] = {
+        ConstantAsMetadata::get(ConstantInt::get(Type::getInt32Ty(Ctx), 1))};
+    return std::pair<std::string, MDNode *>(ClusterType,
+                                            MDNode::get(Ctx, ClusterMDArgs));
   }
 
   if ((AttrKindStr == SYCL_REGISTER_ALLOC_MODE_ATTR ||
@@ -685,7 +701,7 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
                                   : PreservedAnalyses::all();
 }
 
-void CompileTimePropertiesPass::parseAlignmentAndApply(
+bool CompileTimePropertiesPass::parseAlignmentAndApply(
     Module &M, IntrinsicInst *IntrInst) {
   // Get the global variable with the annotation string.
   const GlobalVariable *AnnotStrArgGV = nullptr;
@@ -695,11 +711,11 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
   else if (auto *GEP = dyn_cast<GEPOperator>(IntrAnnotStringArg))
     AnnotStrArgGV = dyn_cast<GlobalVariable>(GEP->getOperand(0));
   if (!AnnotStrArgGV)
-    return;
+    return false;
 
   std::optional<StringRef> AnnotStr = getGlobalVariableString(AnnotStrArgGV);
   if (!AnnotStr)
-    return;
+    return false;
 
   // parse properties string to decoration-value pairs
   auto Properties = parseSYCLPropertiesString(M, IntrInst);
@@ -710,6 +726,7 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
   getUserListIgnoringCast<StoreInst>(IntrInst, TargetedInstList);
   getUserListIgnoringCast<MemTransferInst>(IntrInst, TargetedInstList);
 
+  bool AlignApplied = false;
   for (auto &Property : Properties) {
     auto DecorStr = Property.first->str();
     auto DecorValue = Property.second;
@@ -733,18 +750,26 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
         auto Op_num = Pair.second;
         if (auto *LInst = dyn_cast<LoadInst>(Inst)) {
           LInst->setAlignment(Align_val);
+          AlignApplied = true;
         } else if (auto *SInst = dyn_cast<StoreInst>(Inst)) {
-          if (Op_num == 1)
+          if (Op_num == 1) {
             SInst->setAlignment(Align_val);
+            AlignApplied = true;
+          }
         } else if (auto *MI = dyn_cast<MemTransferInst>(Inst)) {
-          if (Op_num == 0)
+          if (Op_num == 0) {
             MI->setDestAlignment(Align_val);
-          else if (Op_num == 1)
+            AlignApplied = true;
+          } else if (Op_num == 1) {
             MI->setSourceAlignment(Align_val);
+            AlignApplied = true;
+          }
         }
       }
     }
   }
+
+  return AlignApplied;
 }
 
 // Returns true if the transformation changed IntrInst.
@@ -773,7 +798,7 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
     return false;
 
   // check alignment annotation and apply it to load/store
-  parseAlignmentAndApply(M, IntrInst);
+  bool AlignApplied = parseAlignmentAndApply(M, IntrInst);
 
   // Read the annotation values and create new annotation strings.
   std::string NewAnnotString = "";
@@ -782,9 +807,9 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   bool CacheProp = false;
   bool FPGAProp = false;
   for (const auto &[PropName, PropVal] : Properties) {
-    // sycl-alignment is converted to align on
-    // previous parseAlignmentAndApply(), dropping here
-    if (PropName == "sycl-alignment")
+    // if sycl-alignment is converted to align on IR constructs
+    // during parseAlignmentAndApply(), dropping here
+    if (PropName == "sycl-alignment" && AlignApplied)
       continue;
 
     auto DecorIt = SpirvDecorMap.find(*PropName);

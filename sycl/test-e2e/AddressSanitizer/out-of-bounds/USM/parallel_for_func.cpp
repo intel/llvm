@@ -7,12 +7,15 @@
 // RUN: env SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-HOST --input-file %t.txt %s
 // RUN: %{build} %device_sanitizer_flags -DMALLOC_SHARED -O2 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-SHARED --input-file %t.txt %s
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/usm.hpp>
 
 __attribute__((noinline)) void foo(int *array, size_t i) { array[i] = 1; }
-// CHECK-DEVICE: ERROR: DeviceSanitizer: out-of-bounds-access on USM Device Memory
-// CHECK-HOST:   ERROR: DeviceSanitizer: out-of-bounds-access on USM Host Memory
-// CHECK-SHARED: ERROR: DeviceSanitizer: out-of-bounds-access on USM Shared Memory
+// CHECK-DEVICE: ERROR: DeviceSanitizer: out-of-bounds-access on Device USM
+// CHECK-HOST:   ERROR: DeviceSanitizer: out-of-bounds-access on Host USM
+// CHECK-SHARED: ERROR: DeviceSanitizer: out-of-bounds-access on Shared USM
 // CHECK: {{WRITE of size 4 at kernel <.*MyKernel> LID\(0, 0, 0\) GID\(123, 0, 0\)}}
 // CHECK: {{  #0 foo\(int\*, unsigned long\) .*parallel_for_func.cpp:}}[[@LINE-5]]
 

@@ -616,7 +616,7 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_fill_checked(
   using storage_element_type =
       typename oneapi::detail::jm_type_interpretation_helper_trait<
           T>::storage_element_type;
-  Res.spvm = __spirv_CompositeConstructCheckedINTEL<
+  Res.spvm = __spirv_CooperativeMatrixConstructCheckedINTEL<
       storage_element_type, T, NumRows, NumCols,
       spv_matrix_use_traits<Use>::value,
       spv_matrix_layout_traits<Layout>::value>(

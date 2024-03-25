@@ -8,12 +8,11 @@
 
 #pragma once
 
-#include <sycl/builtins.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/group.hpp>
 #include <sycl/memory_enums.hpp>
-#include <sycl/queue.hpp>
-
-#define SYCL_EXT_ONEAPI_ROOT_GROUP 1
+#include <sycl/nd_item.hpp>
+#include <sycl/sub_group.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -27,20 +26,12 @@ struct max_num_work_group_sync {
 };
 } // namespace info::kernel_queue_specific
 
-struct use_root_sync_key {
+struct use_root_sync_key
+    : detail::compile_time_property_key<detail::PropKind::UseRootSync> {
   using value_t = property_value<use_root_sync_key>;
 };
 
 inline constexpr use_root_sync_key::value_t use_root_sync;
-
-template <> struct is_property_key<use_root_sync_key> : std::true_type {};
-
-template <> struct detail::PropertyToKind<use_root_sync_key> {
-  static constexpr PropKind Kind = PropKind::UseRootSync;
-};
-
-template <>
-struct detail::IsCompileTimeProperty<use_root_sync_key> : std::true_type {};
 
 template <int Dimensions> class root_group {
 public:
@@ -106,31 +97,25 @@ template <int Dimensions> root_group<Dimensions> get_root_group() {
 
 } // namespace ext::oneapi::experimental
 
-template <>
-typename ext::oneapi::experimental::info::kernel_queue_specific::
-    max_num_work_group_sync::return_type
-    kernel::ext_oneapi_get_info<
-        ext::oneapi::experimental::info::kernel_queue_specific::
-            max_num_work_group_sync>(const queue &q) const {
-  // TODO: query the backend to return a value >= 1.
-  return 1;
-}
-
 template <int dimensions>
 void group_barrier(ext::oneapi::experimental::root_group<dimensions> G,
                    memory_scope FenceScope = decltype(G)::fence_scope) {
+#ifdef __SYCL_DEVICE_ONLY__
+  // Root group barrier synchronizes using a work group barrier if there's only
+  // one work group. This allows backends to ignore the ControlBarrier with
+  // Device scope if their maximum number of work groups is 1. This is a
+  // workaround that's not intended to reduce the bar for SPIR-V modules
+  // acceptance, but rather make a pessimistic case work until we have full
+  // support for the device barrier built-in from backends.
+  const auto ChildGroup = ext::oneapi::experimental::get_child_group(G);
+  if (ChildGroup.get_group_linear_range() == 1) {
+    group_barrier(ChildGroup);
+  } else {
+    detail::spirv::ControlBarrier(G, FenceScope, memory_order::seq_cst);
+  }
+#else
   (void)G;
   (void)FenceScope;
-#ifdef __SYCL_DEVICE_ONLY__
-  // TODO: Change __spv::Scope::Workgroup to __spv::Scope::Device once backends
-  // support device scope. __spv::Scope::Workgroup is only valid when
-  // max_num_work_group_sync is 1, so that all work items in a root group will
-  // also be in the same work group.
-  __spirv_ControlBarrier(__spv::Scope::Workgroup, __spv::Scope::Workgroup,
-                         __spv::MemorySemanticsMask::SubgroupMemory |
-                             __spv::MemorySemanticsMask::WorkgroupMemory |
-                             __spv::MemorySemanticsMask::CrossWorkgroupMemory);
-#else
   throw sycl::runtime_error("Barriers are not supported on host device",
                             PI_ERROR_INVALID_DEVICE);
 #endif

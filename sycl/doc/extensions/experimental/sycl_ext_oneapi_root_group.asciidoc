@@ -1,0 +1,554 @@
+= sycl_ext_oneapi_root_group
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022-2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 5 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
+  sycl_ext_oneapi_properties]
+* link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
+  sycl_ext_oneapi_kernel_properties]
+* link:../proposed/sycl_ext_oneapi_launch_queries.asciidoc[
+  sycl_ext_oneapi_launch_queries]
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Overview
+
+SYCL enables synchronization between work-items in the same sub-group or
+work-group using the `sycl::group_barrier` function, but does not provide any
+mechanism for synchronization between work-items in different work-groups.
+Although some devices support synchronization between work-items via memory
+using `sycl::atomic_ref`, any such behavior is implementation-defined --
+developers therefore cannot reason about cross-work-group synchronization in a
+portable manner.
+
+Both Level Zero and CUDA provide support for special "cooperative kernel"
+launches that permit cross-work-group synchronization, but the semantics are
+not identical. For example, the CUDA execution model provides stronger forward
+progress guarantees for "CUDA threads", enabling developers to build their own
+synchronization routines on top of atomic operations. It is highly likely that
+the cross-work-group synchronization capabilities of other devices and backends
+will differ in other ways, and so the extension proposed here does not seek to
+expose "cooperative" kernel launches directly; instead, it introduces a
+high-level abstraction for cross-work-group synchronization without other
+changes to the SYCL execution model. Additional execution model guarantees may
+be addressed by a dedicated extension in the future.
+
+The key component of this extension is a new group type that represents all
+work-items executing a given kernel. This "root-group" is represented by a new
+`root_group` class, and is intended to behave similarly to other SYCL groups.
+This allows for cross-work-group synchronization to be expressed using
+`sycl::group_barrier`, and allows functions currently targeting other groups
+(e.g. the SYCL group algorithms) to extend support to all work-items executing
+the kernel in a natural way.
+
+An instance of the `root_group` class can be accessed by any ND-range kernel,
+since all information it exposes via its member functions is equivalent to
+information already available via members of `sycl::nd_item`. Functionality
+requiring cross-work-group synchronization is only supported in kernels with
+a compatible launch configuration: it is a user's responsibility to provide
+the requisite properties and to determine an appropriate `sycl::nd_range`
+using device queries, as shown in the example below.
+
+[source,c++]
+----
+auto bundle = sycl::get_kernel_bundle(q.get_context());
+auto kernel = bundle.get_kernel<class KernelName>();
+auto maxWGs = kernel.ext_oneapi_get_info<sycl::ext::oneapi::experimental::info::kernel_queue_specific::max_num_work_group_sync>(q);
+auto range = sycl::nd_range<1>{maxWGs * 32, 32};
+auto props = sycl::ext::oneapi::experimental::properties{sycl::ext::oneapi::experimental::use_root_sync};
+q.parallel_for<class KernelName>(range, props, [=](sycl::nd_item<1> it) {
+
+    // Get a handle to the root-group
+    auto root = it.ext_oneapi_get_root_group();
+
+    // Write to some global memory location
+    data[root.get_local_id()] = root.get_local_id();
+
+    // Synchronize all work-items executing the kernel, making all writes visible
+    sycl::group_barrier(root);
+
+});
+----
+
+NOTE: SYCL 2020 requires lambdas to be named in order to locate the associated
+`sycl::kernel` object used to query information descriptors. Reducing the
+verbosity of the queries shown above is left to a future extension.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_ROOT_GROUP` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+
+=== Kernel properties
+
+[source,c++]
+----
+namespace sycl {
+namespace ext {
+namespace oneapi {
+namespace experimental {
+
+struct use_root_sync_key {
+  using value_t = property_value<use_root_sync_key>;
+};
+inline constexpr use_root_sync_key::value_t use_root_sync;
+
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+----
+
+|===
+|Property|Description
+
+|`use_root_sync`
+|The `use_root_sync` property adds the requirement that the kernel must be
+ launched in a manner that is compatible with using a root-group in group
+ functions and algorithms. If the `sycl::nd_range` parameter used to launch the
+ kernel is incompatible with the results of the launch queries described in the
+ sycl_ext_oneapi_launch_queries extension, an implementation must throw a
+ synchronous exception with the `errc::nd_range` error code.
+|===
+
+
+=== The `root_group` class
+
+The `root_group` class implements all member functions common to the
+`sycl::group` and `sycl::sub_group` classes and also contains own
+additional functions.
+
+[source,c++]
+----
+namespace sycl {
+namespace ext {
+namespace oneapi {
+namespace experimental {
+
+enum class execution_scope {
+  work_item,
+  sub_group,
+  work_group,
+  root_group,
+};
+
+template <int Dimensions>
+class root_group {
+public:
+
+  using id_type = id<Dimensions>;
+  using range_type = range<Dimensions>;
+  using linear_id_type = size_t;
+  static constexpr int dimensions = Dimensions;
+  static constexpr memory_scope fence_scope = memory_scope::device;
+
+  id<Dimensions> get_group_id() const;
+
+  id<Dimensions> get_local_id() const;
+
+  range<Dimensions> get_group_range() const;
+
+  range<Dimensions> get_local_range() const;
+
+  range<Dimensions> get_max_local_range() const;
+
+  size_t get_group_linear_id() const;
+
+  size_t get_local_linear_id() const;
+
+  size_t get_group_linear_range() const;
+
+  size_t get_local_linear_range() const;
+
+  bool leader() const;
+
+  template <execution_scope Scope>
+  std::enable_if_t<(Scope == execution_scope::work_item ||
+                    Scope == execution_scope::work_group),
+                   id<Dimensions>>
+  get_id() const;
+
+  template <execution_scope Scope>
+  std::enable_if_t<Scope == execution_scope::sub_group, id<1>> get_id() const;
+
+  template <execution_scope Scope>
+  size_t get_linear_id() const;
+
+  template <execution_scope Scope>
+  std::enable_if_t<(Scope == execution_scope::work_item ||
+                    Scope == execution_scope::work_group),
+                   range<Dimensions>>
+  get_range() const;
+
+  template <execution_scope Scope>
+  std::enable_if_t<Scope == execution_scope::sub_group, range<1>>
+  get_range() const;
+
+  template <execution_scope Scope>
+  size_t get_linear_range() const;
+
+};
+
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+----
+
+[source,c++]
+----
+id<Dimensions> get_group_id() const;
+----
+_Returns_: An `id` representing the index of the root-group.
+
+NOTE: This will always be an `id` with all values set to 0, since there can
+only be one root-group.
+
+[source,c++]
+----
+id<Dimensions> get_local_id() const;
+----
+_Returns_: An `id` representing the calling work-item's position within
+the root-group.
+
+NOTE: This is equivalent to calling `nd_item::get_global_id()`.
+
+[source,c++]
+----
+range<Dimensions> get_group_range() const;
+----
+_Returns_: A `range` representing the number of root-groups.
+
+NOTE: This will always return a `range` with all values set to 1, since there
+can only be one root-group.
+
+[source,c++]
+----
+range<Dimensions> get_local_range() const;
+----
+_Returns_: A `range` representing the number of work-items in the root-group.
+
+NOTE: This is equivalent to calling `nd_item::get_global_range()`.
+
+[source,c++]
+----
+range<Dimensions> get_max_local_range() const;
+----
+_Returns_: A `range` representing the number of work-items in the root-group.
+
+NOTE: This is equivalent to calling `get_local_range()`. Since there is only
+one root-group, there is only one way to define the local range. This function
+is defined here only because it is defined in the `sub_group` class.
+
+[source,c++]
+----
+size_t get_group_linear_id() const;
+----
+_Returns_: A linearized version of the `id` returned by `get_group_id()`.
+
+[source,c++]
+----
+size_t get_local_linear_id() const;
+----
+_Returns_: A linearized version of the `id` returned by `get_local_id()`.
+
+[source,c++]
+----
+size_t get_group_linear_range() const;
+----
+_Returns_: A linearized version of the `range` returned by `get_group_range()`.
+
+[source,c++]
+----
+size_t get_local_linear_range() const;
+----
+_Returns_: A linearized version of the `range` returned by `get_local_range()`.
+
+[source,c++]
+----
+bool leader() const;
+----
+_Returns_: `true` for exactly one work-item in the root-group, if the calling
+work-item is the leader of the root-group, and `false` for all other work-items
+in the root-group. The leader of the root-group is guaranteed to be the
+work-item for which `get_local_id()` returns 0.
+
+[source,c++]
+----
+template <execution_scope Scope>
+std::enable_if_t<(Scope == execution_scope::work_item ||
+                  Scope == execution_scope::work_group),
+                 id<Dimensions>>
+get_id() const;
+----
+_Returns_: An `id` representing the index of the current work-group or work-item at `Scope`
+hierarchy level within the `root_group` object.
+
+[source,c++]
+----
+template <execution_scope Scope>
+std::enable_if_t<Scope == execution_scope::sub_group, id<1>> get_id() const;
+----
+_Returns_: An `id` representing the index of the current sub-group within the
+`root_group` object.
+
+[source,c++]
+----
+template <execution_scope Scope>
+size_t get_linear_id() const;
+----
+_Constraints_: `Scope` must be narrower than
+`execution_scope::root_group`.
+
+_Returns_: A linearized number of the current work-group or work-item at `Scope` hierarchy
+level within the `root_group` object.
+
+[source,c++]
+----
+template <execution_scope Scope>
+std::enable_if_t<(Scope == execution_scope::work_item ||
+                  Scope == execution_scope::work_group),
+                 range<Dimensions>>
+get_range() const;
+----
+_Returns_: A `range` representing the number of work-groups or work-items of `Scope`
+hierarchy level within the `root_group` object.
+
+[source,c++]
+----
+template <execution_scope Scope>
+std::enable_if_t<Scope == execution_scope::sub_group, range<1>>
+get_range() const;
+----
+_Returns_: A `range` representing the number of sub-groups within the `root_group`
+object.
+
+[source,c++]
+----
+template <execution_scope Scope>
+size_t get_linear_range() const;
+----
+_Constraints_: `Scope` must be narrower than
+`execution_scope::root_group`.
+
+_Returns_: The number of work-groups or work-items of `Scope` hierarchy level within the
+`root_group` object.
+
+
+=== Using a `root_group`
+
+`root_group` provides an alternative representation of the work-items executing
+an ND-range kernel and exposes equivalent functionality to `sycl::nd_item` for
+querying a work-item's position in the global range. In order to provide access
+to information pertaining to a work-item's position in the work-group or
+sub-group local range, `root_group` needs to provide a new mechanism to access
+instances of the `sycl::group` and `sycl::sub_group` classes. The
+`get_child_group` function provides a general form of this mechanism, allowing
+developers to move down the hierarchy of fixed topology groups.
+
+[source,c++]
+----
+template <typename Group>
+/* type of child group */ get_child_group(Group g);
+----
+_Constraints_: `Group` must be one of `root_group` or `sycl::group`.
+
+_Returns_: An instance of another fixed topology group type, representing the
+child of group _g_ to which the calling work-item belongs. If `Group` is
+`root_group`, the child group type is `sycl::group` with the same
+dimensionality. If `Group` is `sycl::group`, the child group type is
+`sycl::sub_group`.
+
+NOTE: Although `sycl::sub_group` is a fixed topology group, it is currently
+the lowest level of the hierarchy and cannot be passed to `get_child_group`.
+
+NOTE: This extension does not provide a `get_parent_group` function because it
+would be easy to use incorrectly. It is good practice for a function accepting
+a group _g_ to only use the work-items in that group, to assist developers in
+reasoning about requirements of the call context (e.g. converged control flow).
+Dividing a group into its children is consistent with this practice, whereas
+accessing the parent group is not. Developers seeking this functionality should
+use the free function queries instead.
+
+
+=== Synchronizing a `root_group`
+
+Overloads accepting a `root_group` are added for the following group functions
+and algorithms:
+
+- `sycl::group_barrier`
+
+NOTE: Support for passing the `root_group` to other group functions and
+algorithms may be added in a future version of this extension.
+
+These group functions and algorithms act as synchronization points, and can
+only be used in kernels launched with the `use_root_sync` property.
+Attempting to call these functions in kernels that were not launched with the
+`use_root_sync` property results in undefined behavior.
+
+NOTE: Implementations are encouraged to throw a synchronous error with the
+`errc::invalid` error code if they are able to detect that a developer has
+attempted to synchronize a `root_group` from an incompatible kernel launch.
+
+
+=== Accessing the `root_group` instance
+
+[source,c++]
+----
+namespace sycl {
+
+template <int Dimensions = 1>
+class nd_item {
+ public:
+   sycl::ext::oneapi::experimental::root_group<Dimensions> ext_oneapi_get_root_group() const;
+};
+
+namespace ext {
+namespace oneapi {
+namespace experimental {
+namespace this_kernel {
+
+template <int Dimensions>
+root_group<Dimensions> get_root_group();
+
+} // namespace this_kernel
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+----
+
+[source,c++]
+----
+root_group<Dimensions> ext_oneapi_get_root_group() const;
+----
+_Returns_: A `root_group` instance representing the root-group to which the
+calling work-item belongs.
+
+[source,c++]
+----
+template <int Dimensions>
+root_group<Dimensions> get_root_group();
+----
+_Preconditions_: `Dimensions` must match the dimensionality of the currently
+executing kernel. The currently executing kernel must have been launched with
+a `sycl::nd_range` argument.
+
+_Returns_: A `root_group` instance representing the root-group to which the
+calling work-item belongs.
+
+
+== Implementation notes
+
+This non-normative section provides information about one possible
+implementation of this extension.  It is not part of the specification of the
+extension's API.
+
+An implementation of this extension using Level Zero could launch kernels
+associated with the `use_root_sync` property via
+`zeCommandListAppendLaunchCooperativeKernel`, and could query launch
+configuration requirements using `zeKernelSuggestMaxCooperativeGroupCount`.
+
+Similarly, an implementation of this extension using CUDA could launch kernels
+associated with the `use_root_sync` property via
+`cudaLaunchCooperativeKernel`, and could query launch configuration
+requirements using a combination of
+`cudaOccupancyMaxActiveBlocksPerMultiprocessor` and
+`cudaDevAttrMultiProcessorCount`.
+
+If a device or backend does not natively support some form of "cooperative
+kernel" launch or cross-work-group synchronization, an implementation can
+always fall back to a trivial implementation (e.g. kernels using root-group
+synchronization are restricted to launching at most one work-group).
+
+Detecting that a developer has attempted to synchronize a `root_group` from
+an incompatible kernel launch could use a similar mechanism to that outlined in
+the
+link:../../../doc/design/OptionalDeviceFeatures.md[optional device features]
+design document. Specifically, the overload of `sycl::group_barrier` accepting
+a `root_group` could be marked with an attribute denoting that the function
+requires root-group synchronization, and the compiler could propagate that
+information up the static call graph.
+
+
+== Issues
+
+. Should there be a way to determine if a `root_group` supports
+synchronization within a kernel?
++
+--
+*UNRESOLVED*: Adding this information to the type system would require a new
+template argument for `sycl::nd_item<>`. Adding a runtime query would require
+`sycl::nd_item<>` (or the compiler) to carry more information through the
+callstack. It's unclear if this functionality is necessary or just nice to
+have -- resolution of this issue depends on user and implementation experience.
+--
+

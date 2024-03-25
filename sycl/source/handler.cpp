@@ -69,6 +69,12 @@ getPiImageCopyFlags(sycl::usm::alloc SrcPtrType, sycl::usm::alloc DstPtrType) {
                         "Unknown copy destination location");
 }
 
+void *getValueFromDynamicParameter(
+    ext::oneapi::experimental::detail::dynamic_parameter_base
+        &DynamicParamBase) {
+  return sycl::detail::getSyclObjImpl(DynamicParamBase)->getValue();
+}
+
 } // namespace detail
 
 handler::handler(std::shared_ptr<detail::queue_impl> Queue, bool IsHost)
@@ -158,6 +164,22 @@ event handler::finalize() {
           throw sycl::exception(make_error_code(errc::kernel_argument),
                                 "placeholder accessor must be bound by calling "
                                 "handler::require() before it can be used.");
+
+        // Check associated accessors
+        bool AccFound = false;
+        for (detail::ArgDesc &Acc : MAssociatedAccesors) {
+          if (Acc.MType == detail::kernel_param_kind_t::kind_accessor &&
+              static_cast<detail::Requirement *>(Acc.MPtr) == AccImpl) {
+            AccFound = true;
+            break;
+          }
+        }
+
+        if (!AccFound) {
+          throw sycl::exception(make_error_code(errc::kernel_argument),
+                                "placeholder accessor must be bound by calling "
+                                "handler::require() before it can be used.");
+        }
       }
     }
   }
@@ -173,7 +195,12 @@ event handler::finalize() {
           !MImpl->isStateExplicitKernelBundle()) {
         auto Dev = MGraph ? MGraph->getDevice() : MQueue->get_device();
         kernel_id KernelID =
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+            detail::ProgramManager::getInstance().getSYCLKernelID(
+                MKernelName.c_str());
+#else
             detail::ProgramManager::getInstance().getSYCLKernelID(MKernelName);
+#endif
         bool KernelInserted = KernelBundleImpPtr->add_kernel(KernelID, Dev);
         // If kernel was not inserted and the bundle is in input mode we try
         // building it and trying to find the kernel in executable mode
@@ -232,7 +259,11 @@ event handler::finalize() {
       // uint32_t StreamID, uint64_t InstanceID, xpti_td* TraceEvent,
       int32_t StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
       auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+          StreamID, MKernel, MCodeLoc, MKernelName.c_str(), MQueue, MNDRDesc,
+#else
           StreamID, MKernel, MCodeLoc, MKernelName, MQueue, MNDRDesc,
+#endif
           KernelBundleImpPtr, MArgs);
       auto EnqueueKernel = [&, CmdTraceEvent = CmdTraceEvent,
                             InstanceID = InstanceID]() {
@@ -256,17 +287,38 @@ event handler::finalize() {
             // Capture the host timestamp for profiling (queue time)
             if (NewEvent != nullptr)
               NewEvent->setHostEnqueueTime();
-            MQueue->getPlugin()->call<detail::PiApiKind::piEnqueueKernelLaunch>(
-                nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
-                MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0],
-                &MNDRDesc.GlobalSize[0], &MNDRDesc.LocalSize[0], 0, nullptr,
-                nullptr);
+            [&](auto... Args) {
+              if (MImpl->MKernelIsCooperative) {
+                MQueue->getPlugin()
+                    ->call<
+                        detail::PiApiKind::piextEnqueueCooperativeKernelLaunch>(
+                        Args...);
+              } else {
+                MQueue->getPlugin()
+                    ->call<detail::PiApiKind::piEnqueueKernelLaunch>(Args...);
+              }
+            }(/* queue */
+              nullptr,
+              /* kernel */
+              reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
+              /* work_dim */
+              MNDRDesc.Dims,
+              /* global_work_offset */ &MNDRDesc.GlobalOffset[0],
+              /* global_work_size */ &MNDRDesc.GlobalSize[0],
+              /* local_work_size */ &MNDRDesc.LocalSize[0],
+              /* num_events_in_wait_list */ 0,
+              /* event_wait_list */ nullptr,
+              /* event */ nullptr);
             Result = PI_SUCCESS;
           } else {
-            Result =
-                enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
-                                 MKernel, MKernelName, RawEvents, NewEvent,
-                                 nullptr, MImpl->MKernelCacheConfig);
+            Result = enqueueImpKernel(
+                MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+                MKernelName.c_str(), RawEvents, NewEvent, nullptr,
+#else
+                MKernelName, RawEvents, NewEvent, nullptr,
+#endif
+                MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative);
           }
         }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -287,7 +339,12 @@ event handler::finalize() {
         // Kernel only uses assert if it's non interop one
         bool KernelUsesAssert =
             !(MKernel && MKernel->isInterop()) &&
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+            detail::ProgramManager::getInstance().kernelUsesAssert(
+                MKernelName.c_str());
+#else
             detail::ProgramManager::getInstance().kernelUsesAssert(MKernelName);
+#endif
         DiscardEvent = !KernelUsesAssert;
       }
 
@@ -323,9 +380,13 @@ event handler::finalize() {
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(MImpl->MKernelBundle), std::move(CGData), std::move(MArgs),
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+        MKernelName.c_str(), std::move(MStreamStorage),
+#else
         MKernelName, std::move(MStreamStorage),
+#endif
         std::move(MImpl->MAuxiliaryResources), MCGType,
-        MImpl->MKernelCacheConfig, MCodeLoc));
+        MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative, MCodeLoc));
     break;
   }
   case detail::CG::CopyAccToPtr:
@@ -546,6 +607,8 @@ event handler::finalize() {
 
     // Associate an event with this new node and return the event.
     GraphImpl->addEventForNode(GraphImpl, EventImpl, NodeImpl);
+
+    NodeImpl->MNDRangeUsed = MImpl->MNDRangeUsed;
 
     return detail::createSyclObjFromImpl<event>(EventImpl);
   }
@@ -849,11 +912,15 @@ void handler::extractArgsAndReqsFromLambda(
 // Calling methods of kernel_impl requires knowledge of class layout.
 // As this is impossible in header, there's a function that calls necessary
 // method inside the library and returns the result.
-std::string handler::getKernelName() {
-  return MKernel->get_info<info::kernel::function_name>();
+detail::string handler::getKernelName() {
+  return detail::string{MKernel->get_info<info::kernel::function_name>()};
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
+#else
 void handler::verifyUsedKernelBundle(const std::string &KernelName) {
+#endif
   auto UsedKernelBundleImplPtr =
       getOrInsertHandlerKernelBundle(/*Insert=*/false);
   if (!UsedKernelBundleImplPtr)
@@ -971,6 +1038,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  Desc.verify();
+
   MSrcPtr = Src;
   MDstPtr = Dest.raw_handle;
 
@@ -978,9 +1047,18 @@ void handler::ext_oneapi_copy(
   PiDesc.image_width = Desc.width;
   PiDesc.image_height = Desc.height;
   PiDesc.image_depth = Desc.depth;
-  PiDesc.image_type = Desc.depth > 0 ? PI_MEM_TYPE_IMAGE3D
-                                     : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D
-                                                        : PI_MEM_TYPE_IMAGE1D);
+  PiDesc.image_array_size = Desc.array_size;
+
+  if (Desc.array_size > 1) {
+    // Image Array.
+    PiDesc.image_type =
+        Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+  } else {
+    PiDesc.image_type =
+        Desc.depth > 0
+            ? PI_MEM_TYPE_IMAGE3D
+            : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D : PI_MEM_TYPE_IMAGE1D);
+  }
 
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
@@ -1007,6 +1085,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  DestImgDesc.verify();
+
   MSrcPtr = Src;
   MDstPtr = Dest.raw_handle;
 
@@ -1014,10 +1094,18 @@ void handler::ext_oneapi_copy(
   PiDesc.image_width = DestImgDesc.width;
   PiDesc.image_height = DestImgDesc.height;
   PiDesc.image_depth = DestImgDesc.depth;
-  PiDesc.image_type = DestImgDesc.depth > 0
-                          ? PI_MEM_TYPE_IMAGE3D
-                          : (DestImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
-                                                    : PI_MEM_TYPE_IMAGE1D);
+  PiDesc.image_array_size = DestImgDesc.array_size;
+
+  if (DestImgDesc.array_size > 1) {
+    // Image Array.
+    PiDesc.image_type = DestImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
+                                               : PI_MEM_TYPE_IMAGE1D_ARRAY;
+  } else {
+    PiDesc.image_type = DestImgDesc.depth > 0
+                            ? PI_MEM_TYPE_IMAGE3D
+                            : (DestImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                      : PI_MEM_TYPE_IMAGE1D);
+  }
 
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
@@ -1042,6 +1130,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  Desc.verify();
+
   MSrcPtr = Src.raw_handle;
   MDstPtr = Dest;
 
@@ -1049,9 +1139,18 @@ void handler::ext_oneapi_copy(
   PiDesc.image_width = Desc.width;
   PiDesc.image_height = Desc.height;
   PiDesc.image_depth = Desc.depth;
-  PiDesc.image_type = Desc.depth > 0 ? PI_MEM_TYPE_IMAGE3D
-                                     : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D
-                                                        : PI_MEM_TYPE_IMAGE1D);
+  PiDesc.image_array_size = Desc.array_size;
+
+  if (Desc.array_size > 1) {
+    // Image Array.
+    PiDesc.image_type =
+        Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+  } else {
+    PiDesc.image_type =
+        Desc.depth > 0
+            ? PI_MEM_TYPE_IMAGE3D
+            : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D : PI_MEM_TYPE_IMAGE1D);
+  }
 
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
@@ -1078,6 +1177,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  SrcImgDesc.verify();
+
   MSrcPtr = Src.raw_handle;
   MDstPtr = Dest;
 
@@ -1085,10 +1186,18 @@ void handler::ext_oneapi_copy(
   PiDesc.image_width = SrcImgDesc.width;
   PiDesc.image_height = SrcImgDesc.height;
   PiDesc.image_depth = SrcImgDesc.depth;
-  PiDesc.image_type =
-      SrcImgDesc.depth > 0
-          ? PI_MEM_TYPE_IMAGE3D
-          : (SrcImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D : PI_MEM_TYPE_IMAGE1D);
+  PiDesc.image_array_size = SrcImgDesc.array_size;
+
+  if (SrcImgDesc.array_size > 1) {
+    // Image Array.
+    PiDesc.image_type = SrcImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
+                                              : PI_MEM_TYPE_IMAGE1D_ARRAY;
+  } else {
+    PiDesc.image_type = SrcImgDesc.depth > 0
+                            ? PI_MEM_TYPE_IMAGE3D
+                            : (SrcImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                     : PI_MEM_TYPE_IMAGE1D);
+  }
 
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
@@ -1113,6 +1222,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  Desc.verify();
+
   MSrcPtr = Src;
   MDstPtr = Dest;
 
@@ -1120,9 +1231,18 @@ void handler::ext_oneapi_copy(
   PiDesc.image_width = Desc.width;
   PiDesc.image_height = Desc.height;
   PiDesc.image_depth = Desc.depth;
-  PiDesc.image_type = Desc.depth > 0 ? PI_MEM_TYPE_IMAGE3D
-                                     : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D
-                                                        : PI_MEM_TYPE_IMAGE1D);
+  PiDesc.image_array_size = Desc.array_size;
+
+  if (Desc.array_size > 1) {
+    // Image Array.
+    PiDesc.image_type =
+        Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY : PI_MEM_TYPE_IMAGE1D_ARRAY;
+  } else {
+    PiDesc.image_type =
+        Desc.depth > 0
+            ? PI_MEM_TYPE_IMAGE3D
+            : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D : PI_MEM_TYPE_IMAGE1D);
+  }
 
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
@@ -1151,6 +1271,8 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
+  DeviceImgDesc.verify();
+
   MSrcPtr = Src;
   MDstPtr = Dest;
 
@@ -1158,10 +1280,18 @@ void handler::ext_oneapi_copy(
   PiDesc.image_width = DeviceImgDesc.width;
   PiDesc.image_height = DeviceImgDesc.height;
   PiDesc.image_depth = DeviceImgDesc.depth;
-  PiDesc.image_type = DeviceImgDesc.depth > 0
-                          ? PI_MEM_TYPE_IMAGE3D
-                          : (DeviceImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
-                                                      : PI_MEM_TYPE_IMAGE1D);
+  PiDesc.image_array_size = DeviceImgDesc.array_size;
+
+  if (DeviceImgDesc.array_size > 1) {
+    // Image Array.
+    PiDesc.image_type = DeviceImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D_ARRAY
+                                                 : PI_MEM_TYPE_IMAGE1D_ARRAY;
+  } else {
+    PiDesc.image_type = DeviceImgDesc.depth > 0
+                            ? PI_MEM_TYPE_IMAGE3D
+                            : (DeviceImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                        : PI_MEM_TYPE_IMAGE1D);
+  }
 
   sycl::detail::pi::PiMemImageFormat PiFormat;
   PiFormat.image_channel_data_type =
@@ -1305,9 +1435,15 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
+                                       size_t Size, bool Block) {
+  MImpl->HostPipeName = Name.data();
+#else
 void handler::ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
                                        size_t Size, bool Block) {
   MImpl->HostPipeName = Name;
+#endif
   MImpl->HostPipePtr = Ptr;
   MImpl->HostPipeTypeSize = Size;
   MImpl->HostPipeBlocking = Block;
@@ -1315,9 +1451,15 @@ void handler::ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
   setType(detail::CG::ReadWriteHostPipe);
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+void handler::ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
+                                        size_t Size, bool Block) {
+  MImpl->HostPipeName = Name.data();
+#else
 void handler::ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
                                         size_t Size, bool Block) {
   MImpl->HostPipeName = Name;
+#endif
   MImpl->HostPipePtr = Ptr;
   MImpl->HostPipeTypeSize = Size;
   MImpl->HostPipeBlocking = Block;
@@ -1399,6 +1541,10 @@ void handler::setKernelCacheConfig(
   MImpl->MKernelCacheConfig = Config;
 }
 
+void handler::setKernelIsCooperative(bool KernelIsCooperative) {
+  MImpl->MKernelIsCooperative = KernelIsCooperative;
+}
+
 void handler::ext_oneapi_graph(
     ext::oneapi::experimental::command_graph<
         ext::oneapi::experimental::graph_state::executable>
@@ -1440,5 +1586,30 @@ std::tuple<std::array<size_t, 3>, bool> handler::getMaxWorkGroups_v2() {
   return {std::array<size_t, 3>{0, 0, 0}, false};
 }
 
+void handler::setNDRangeUsed(bool Value) { MImpl->MNDRangeUsed = Value; }
+
+void handler::registerDynamicParameter(
+    ext::oneapi::experimental::detail::dynamic_parameter_base &DynamicParamBase,
+    int ArgIndex) {
+  if (MQueue && MQueue->getCommandGraph()) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Dynamic Parameters cannot be used with Graph Queue recording.");
+  }
+  if (!MGraph) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Dynamic Parameters cannot be used with normal SYCL submissions");
+  }
+
+  auto ParamImpl = detail::getSyclObjImpl(DynamicParamBase);
+  if (ParamImpl->MGraph != this->MGraph) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Cannot use a Dynamic Parameter with a node associated with a graph "
+        "other than the one it was created with.");
+  }
+  MImpl->MDynamicParameters.emplace_back(ParamImpl.get(), ArgIndex);
+}
 } // namespace _V1
 } // namespace sycl

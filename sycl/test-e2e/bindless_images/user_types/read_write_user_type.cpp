@@ -4,12 +4,12 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// Uncomment to print additional test information
+// #define VERBOSE_PRINT
+
 #include "user_types_common.hpp"
 #include <iostream>
 #include <sycl/sycl.hpp>
-
-// Uncomment to print additional test information
-// #define VERBOSE_PRINT
 
 template <typename MyType, int NElems, typename OutType,
           sycl::image_channel_order ChannelOrder,
@@ -72,12 +72,12 @@ bool run_test() {
 
         MyType myPixel{};
 
-        // Unsampled read
-        myPixel = syclexp::read_image<MyType, OutType>(unsampledImgIn, coords);
+        // Unsampled fetch
+        myPixel = syclexp::fetch_image<MyType, OutType>(unsampledImgIn, coords);
 
         // Sampled read
         myPixel +=
-            syclexp::read_image<MyType, OutType>(sampledImgIn, floatCoords);
+            syclexp::sample_image<MyType, OutType>(sampledImgIn, floatCoords);
 
         syclexp::write_image(imgOut, coords, myPixel);
       });
@@ -86,6 +86,10 @@ bool run_test() {
 
     q.ext_oneapi_copy(imgMemoryOut.get_handle(), dataOut, desc);
     q.wait_and_throw();
+
+    syclexp::destroy_image_handle(unsampledImgIn, q);
+    syclexp::destroy_image_handle(sampledImgIn, q);
+    syclexp::destroy_image_handle(imgOut, q);
   } catch (sycl::exception e) {
     std::cout << "SYCL exception caught: " << e.what() << "\n";
     return false;
@@ -146,24 +150,24 @@ int main() {
                sycl::image_channel_order::rg,
                sycl::image_channel_type::unsigned_int32, class myuint_2>();
 
-  printTestName("Running my_short4");
+  printTestName("Running my_ushort4");
   validated &=
       run_test<my_ushort4, 4, sycl::vec<uint16_t, 4>,
                sycl::image_channel_order::rgba,
                sycl::image_channel_type::unsigned_int16, class myushort_4>();
 
-  printTestName("Running my_short2");
+  printTestName("Running my_ushort2");
   validated &=
       run_test<my_ushort2, 2, sycl::vec<uint16_t, 2>,
                sycl::image_channel_order::rg,
                sycl::image_channel_type::unsigned_int16, class myushort_2>();
 
-  printTestName("Running my_char4");
+  printTestName("Running my_uchar4");
   validated &=
       run_test<my_uchar4, 4, sycl::vec<uint8_t, 4>,
                sycl::image_channel_order::rgba,
                sycl::image_channel_type::unsigned_int8, class myuchar_4>();
-  printTestName("Running my_char2");
+  printTestName("Running my_uchar2");
   validated &=
       run_test<my_uchar2, 2, sycl::vec<uint8_t, 2>,
                sycl::image_channel_order::rg,

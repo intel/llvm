@@ -49,13 +49,24 @@ kernel::get_kernel_bundle() const {
 }
 
 template <typename Param>
-typename detail::is_kernel_info_desc<Param>::return_type
+detail::ABINeutralT_t<typename detail::is_kernel_info_desc<Param>::return_type>
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+kernel::get_info_impl() const {
+#else
 kernel::get_info() const {
-  return impl->get_info<Param>();
+#endif
+  return detail::convert_to_abi_neutral(impl->template get_info<Param>());
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template __SYCL_EXPORT ReturnT kernel::get_info<info::kernel::Desc>() const;
+  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
+  kernel::get_info_impl<info::kernel::Desc>() const;
+#else
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
+  kernel::get_info<info::kernel::Desc>() const;
+#endif
 
 #include <sycl/info/kernel_traits.def>
 
@@ -89,6 +100,18 @@ kernel::get_info(const device &Device, const range<3> &WGSize) const {
 template __SYCL_EXPORT uint32_t
 kernel::get_info<info::kernel_device_specific::max_sub_group_size>(
     const device &, const sycl::range<3> &) const;
+
+template <typename Param>
+typename Param::return_type
+kernel::ext_oneapi_get_info(const queue &Queue) const {
+  return impl->ext_oneapi_get_info<Param>(Queue);
+}
+
+template __SYCL_EXPORT typename ext::oneapi::experimental::info::
+    kernel_queue_specific::max_num_work_group_sync::return_type
+    kernel::ext_oneapi_get_info<
+        ext::oneapi::experimental::info::kernel_queue_specific::
+            max_num_work_group_sync>(const queue &Queue) const;
 
 kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
 

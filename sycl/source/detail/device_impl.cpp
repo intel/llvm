@@ -602,6 +602,35 @@ bool device_impl::has(aspect Aspect) const {
 
     return Result != nullptr;
   }
+  case aspect::ext_oneapi_graph: {
+    pi_bool SupportsCommandBufferUpdate = false;
+    bool CallSuccessful =
+        getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT,
+            sizeof(SupportsCommandBufferUpdate), &SupportsCommandBufferUpdate,
+            nullptr) == PI_SUCCESS;
+    if (!CallSuccessful) {
+      return PI_FALSE;
+    }
+
+    return has(aspect::ext_oneapi_limited_graph) && SupportsCommandBufferUpdate;
+  }
+  case aspect::ext_oneapi_limited_graph: {
+    pi_bool SupportsCommandBuffers = false;
+    bool CallSuccessful =
+        getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_SUPPORT,
+            sizeof(SupportsCommandBuffers), &SupportsCommandBuffers,
+            nullptr) == PI_SUCCESS;
+    if (!CallSuccessful) {
+      return PI_FALSE;
+    }
+
+    return SupportsCommandBuffers;
+  }
+  case aspect::ext_intel_fpga_task_sequence: {
+    return is_accelerator();
+  }
   }
   throw runtime_error("This device aspect has not been implemented yet.",
                       PI_ERROR_INVALID_DEVICE);
@@ -705,6 +734,15 @@ bool device_impl::isGetDeviceAndHostTimerSupported() {
       Plugin->call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
           MDevice, &DeviceTime, &HostTime);
   return Result != PI_ERROR_INVALID_OPERATION;
+}
+
+bool device_impl::extOneapiCanCompile(
+    ext::oneapi::experimental::source_language Language) {
+  try {
+    return is_source_kernel_bundle_supported(getBackend(), Language);
+  } catch (sycl::exception &) {
+    return false;
+  }
 }
 
 } // namespace detail

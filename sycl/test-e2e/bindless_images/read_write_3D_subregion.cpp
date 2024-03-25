@@ -109,10 +109,10 @@ int main() {
             size_t dim1 = it.get_global_id(1);
             size_t dim2 = it.get_global_id(2);
             float sum = 0;
-            // Extension: read image data from handle
-            float px1 = sycl::ext::oneapi::experimental::read_image<float>(
+            // Extension: fetch image data from handle
+            float px1 = sycl::ext::oneapi::experimental::fetch_image<float>(
                 imgHandle1, sycl::int3(dim0, dim1, dim2));
-            float px2 = sycl::ext::oneapi::experimental::read_image<float>(
+            float px2 = sycl::ext::oneapi::experimental::fetch_image<float>(
                 imgHandle2, sycl::int3(dim0, dim1, dim2));
 
             sum = px1 + px2;
