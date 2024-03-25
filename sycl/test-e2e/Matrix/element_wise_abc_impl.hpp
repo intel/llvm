@@ -8,8 +8,6 @@
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
-#include <sycl/builtins.hpp>
-#include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
 
 using namespace sycl;
