@@ -797,62 +797,70 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
   const auto &ZeCommandList = CommandList->first;
   const auto &WaitList = (*Event)->WaitList;
 
+  uint32_t PixelSizeInBytes = getPixelSizeBytes(pImageFormat);
+
   if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
+    uint32_t SrcRowPitch = hostExtent.width * PixelSizeInBytes;
+    uint32_t SrcSlicePitch = SrcRowPitch * hostExtent.height;
     if (pImageDesc->rowPitch == 0) {
       // Copy to Non-USM memory
       ze_image_region_t DstRegion;
       UR_CALL(getImageRegionHelper(ZeImageDesc, &dstOffset, &copyExtent,
                                    DstRegion));
       auto *UrImage = static_cast<_ur_image *>(pDst);
-      ZE2UR_CALL(zeCommandListAppendImageCopyFromMemory,
-                 (ZeCommandList, UrImage->ZeImage, pSrc, &DstRegion, ZeEvent,
-                  WaitList.Length, WaitList.ZeEventList));
+      char *SrcPtr = static_cast<char *>(pSrc) + srcOffset.z * SrcSlicePitch +
+                     srcOffset.y * SrcRowPitch + srcOffset.x * PixelSizeInBytes;
+      ZE2UR_CALL(zeCommandListAppendImageCopyFromMemoryExt,
+                 (ZeCommandList, UrImage->ZeImage, SrcPtr, &DstRegion,
+                  SrcRowPitch, SrcSlicePitch, ZeEvent, WaitList.Length,
+                  WaitList.ZeEventList));
     } else {
       // Copy to pitched USM memory
-      uint32_t DstPitch = pImageDesc->rowPitch;
+      uint32_t DstRowPitch = pImageDesc->rowPitch;
       ze_copy_region_t ZeDstRegion = {
           (uint32_t)dstOffset.x,       (uint32_t)dstOffset.y,
-          (uint32_t)dstOffset.z,       DstPitch,
+          (uint32_t)dstOffset.z,       DstRowPitch,
           (uint32_t)copyExtent.height, (uint32_t)copyExtent.depth};
       uint32_t DstSlicePitch = 0;
-      uint32_t SrcPitch = hostExtent.width * getPixelSizeBytes(pImageFormat);
       ze_copy_region_t ZeSrcRegion = {
           (uint32_t)srcOffset.x,       (uint32_t)srcOffset.y,
-          (uint32_t)srcOffset.z,       SrcPitch,
+          (uint32_t)srcOffset.z,       SrcRowPitch,
           (uint32_t)copyExtent.height, (uint32_t)copyExtent.depth};
-      uint32_t SrcSlicePitch = 0;
       ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
-                 (ZeCommandList, pDst, &ZeDstRegion, DstPitch, DstSlicePitch,
-                  pSrc, &ZeSrcRegion, SrcPitch, SrcSlicePitch, ZeEvent,
+                 (ZeCommandList, pDst, &ZeDstRegion, DstRowPitch, DstSlicePitch,
+                  pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, ZeEvent,
                   WaitList.Length, WaitList.ZeEventList));
     }
   } else if (imageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
+    uint32_t DstRowPitch = hostExtent.width * PixelSizeInBytes;
+    uint32_t DstSlicePitch = DstRowPitch * hostExtent.height;
     if (pImageDesc->rowPitch == 0) {
       // Copy from Non-USM memory to host
       ze_image_region_t SrcRegion;
       UR_CALL(getImageRegionHelper(ZeImageDesc, &srcOffset, &copyExtent,
                                    SrcRegion));
       auto *UrImage = static_cast<_ur_image *>(pSrc);
-      ZE2UR_CALL(zeCommandListAppendImageCopyToMemory,
-                 (ZeCommandList, pDst, UrImage->ZeImage, &SrcRegion, ZeEvent,
-                  WaitList.Length, WaitList.ZeEventList));
+      char *DstPtr = static_cast<char *>(pDst) + dstOffset.z * DstSlicePitch +
+                     dstOffset.y * DstRowPitch + dstOffset.x * PixelSizeInBytes;
+      ZE2UR_CALL(zeCommandListAppendImageCopyToMemoryExt,
+                 (ZeCommandList, DstPtr, UrImage->ZeImage, &SrcRegion,
+                  DstRowPitch, DstSlicePitch, ZeEvent, WaitList.Length,
+                  WaitList.ZeEventList));
     } else {
       // Copy from pitched USM memory to host
-      uint32_t DstPitch = copyExtent.width * getPixelSizeBytes(pImageFormat);
       ze_copy_region_t ZeDstRegion = {
           (uint32_t)dstOffset.x,       (uint32_t)dstOffset.y,
-          (uint32_t)dstOffset.z,       DstPitch,
+          (uint32_t)dstOffset.z,       DstRowPitch,
           (uint32_t)copyExtent.height, (uint32_t)copyExtent.depth};
-      uint32_t DstSlicePitch = 0;
-      uint32_t SrcPitch = pImageDesc->rowPitch;
+      uint32_t SrcRowPitch = pImageDesc->rowPitch;
       ze_copy_region_t ZeSrcRegion = {
           (uint32_t)srcOffset.x,       (uint32_t)srcOffset.y,
-          (uint32_t)srcOffset.z,       SrcPitch,
+          (uint32_t)srcOffset.z,       SrcRowPitch,
           (uint32_t)copyExtent.height, (uint32_t)copyExtent.depth};
       uint32_t SrcSlicePitch = 0;
       ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
-                 (ZeCommandList, pDst, &ZeDstRegion, DstPitch, DstSlicePitch,
-                  pSrc, &ZeSrcRegion, SrcPitch, SrcSlicePitch, ZeEvent,
+                 (ZeCommandList, pDst, &ZeDstRegion, DstRowPitch, DstSlicePitch,
+                  pSrc, &ZeSrcRegion, SrcRowPitch, SrcSlicePitch, ZeEvent,
                   WaitList.Length, WaitList.ZeEventList));
     }
   } else {
