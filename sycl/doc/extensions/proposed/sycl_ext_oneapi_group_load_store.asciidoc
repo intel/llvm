@@ -96,6 +96,8 @@ in the group.
 * Only available if `Group` is a work-group or sub-group.
 * `InputIteratorT` suppose to be a random access iterator.
 * Value type of `InputIteratorT` must be convertible to `OutputT`.
+* Value type of `InputIteratorT` and `OutputT` must be trivially copyable
+ and default constructible.
 
 _Effects_: Loads single element from `in_iter` to `out` by using the `g` group
 object to identify memory location as `in_iter` + `g.get_local_linear_id()`.
@@ -127,7 +129,7 @@ in the group.
 * Only available if `Group` is a work-group or sub-group.
 * `InputIteratorT` suppose to be a random access iterator.
 * Value type of `InputIteratorT` must be convertible to `OutputT`.
-* Value type of `InputIteratorT` must be trivially copyable
+* Value type of `InputIteratorT` and `OutputT` must be trivially copyable
  and default constructible.
 
 _Effects_: Loads `N` elements from `in_iter` to `out`
@@ -163,7 +165,7 @@ void group_load(Group g, InputIteratorT in_iter,
 work-group or sub-group.
 * `InputIteratorT` suppose to be a random access iterator.
 * Value type of `InputIteratorT` must be convertible to `OutputT`.
-* Value type of `InputIteratorT` must be trivially copyable
+* Value type of `InputIteratorT` and `OutputT` must be trivially copyable
  and default constructible.
 
 _Effects_: Loads `ElementsPerWorkItem` elements from `in_iter` to `out`
@@ -201,6 +203,8 @@ in the group.
 * Only available if `Group` is a work-group or sub-group.
 * `OutputIteratorT` suppose to be a random access iterator.
 * `InputT` must be convertible to value type of `OutputIteratorT`.
+* `InputT` and value type of `OutputIteratorT` must be trivially copyable
+ and default constructible.
 
 _Effects_: Stores single element `in` to `out_iter` by using the `g` group
 object to identify memory location as `out_iter` + `g.get_local_linear_id()`
@@ -232,7 +236,7 @@ in the group.
 * Only available if `Group` is a work-group or sub-group.
 * `OutputIteratorT` suppose to be a random access iterator.
 * `InputT` must be convertible to value type of `OutputIteratorT`.
-* Value type of `OutputIteratorT` must be trivially copyable
+* `InputT` and value type of `OutputIteratorT` must be trivially copyable
  and default constructible.
 
 _Effects_: Stores `N` elements from `in` vec to `out_iter`
@@ -269,7 +273,7 @@ void group_store(Group g, sycl::span<InputT, ItemsPerWorkItem> in,
 work-group or sub-group.
 * `OutputIteratorT` suppose to be a random access iterator.
 * `InputT` must be convertible to value type of `OutputIteratorT`.
-* Value type of `OutputIteratorT` must be trivially copyable
+* `InputT` and value type of `OutputIteratorT` must be trivially copyable
  and default constructible.
 
 _Effects_: Stores `ElementsPerWorkItem` elements from `in` span to `out_iter`
