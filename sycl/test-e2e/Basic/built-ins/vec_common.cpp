@@ -1,7 +1,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -o %t2.out %}
-// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 
 #ifdef _WIN32
 #define _USE_MATH_DEFINES // To use math constants
@@ -139,7 +137,6 @@ int main() {
          va12);
   }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   // sycl::clamp swizzled
   TEST(sycl::clamp, float, 2, EXPECTED(float, 3.0f, 2.0f), 0,
        va16.swizzle<1, 0>(), va2, va3);
@@ -320,7 +317,6 @@ int main() {
     TEST(sycl::sign, sycl::half, 3, EXPECTED(sycl::half, 1.0, 1.0, 1.0), 0,
          va12.swizzle<2, 1, 0>());
   }
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   return 0;
 }
