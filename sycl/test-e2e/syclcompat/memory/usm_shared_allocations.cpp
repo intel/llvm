@@ -42,21 +42,21 @@ template <typename T> void test_shared() {
   if (usm_fixture.skip)
     return; // Skip unsupported
 
-  usm_fixture.d_A = syclcompat::malloc_shared<T>(usm_fixture.size_);
+  usm_fixture.data = syclcompat::malloc_shared<T>(usm_fixture.size_);
   usm_fixture.launch_kernel();
   usm_fixture.check_result();
-  syclcompat::free(usm_fixture.d_A);
+  syclcompat::free(usm_fixture.data);
 }
 
 void test_non_templated_shared() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   USMTest<int> usm_fixture;
 
-  usm_fixture.d_A = static_cast<int *>(
+  usm_fixture.data = static_cast<int *>(
       syclcompat::malloc_shared(usm_fixture.size_ * sizeof(int)));
   usm_fixture.launch_kernel();
   usm_fixture.check_result();
-  syclcompat::free(usm_fixture.d_A);
+  syclcompat::free(usm_fixture.data);
 }
 
 // Test deduce direction
