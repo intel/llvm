@@ -2779,6 +2779,7 @@ def SYCLIntelForcePow2Depth : InheritableAttr {
   let Documentation = [SYCLIntelForcePow2DepthAttrDocs];
 }
 def : MutualExclusions<[SYCLIntelRegister, SYCLIntelForcePow2Depth]>;
+def : MutualExclusions<[SYCLIntelRegister, SYCLIntelMemory]>;
 
 def Naked : InheritableAttr {
   let Spellings = [GCC<"naked">, Declspec<"naked">];
