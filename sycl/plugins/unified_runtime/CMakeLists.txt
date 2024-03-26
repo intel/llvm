@@ -90,6 +90,9 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   #     [CI] remove coverage workflow
   set(UNIFIED_RUNTIME_TAG 1f4b703d8a136d49e4e98ca5f017727f3aaa41dc)
 
+  set(UNIFIED_RUNTIME_REPO "https://github.com/yingcong-wu/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG "yc/new-api-suggestgroupsize") #20240308
+
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
   endif()
