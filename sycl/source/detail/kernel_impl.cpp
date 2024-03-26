@@ -41,7 +41,7 @@ kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
                          KernelBundleImplPtr KernelBundleImpl,
                          const KernelArgMask *ArgMask)
     : MKernel(Kernel), MContext(ContextImpl),
-      MProgramImpl(std::move(ProgramImpl)),
+      MProgram(ProgramImpl->getHandleRef()),
       MCreatedFromSource(IsCreatedFromSource),
       MKernelBundleImpl(std::move(KernelBundleImpl)),
       MKernelArgMaskPtr{ArgMask} {
@@ -55,15 +55,16 @@ kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
         "Input context must be the same as the context of cl_kernel",
         PI_ERROR_INVALID_CONTEXT);
 
-  MIsInterop = MProgramImpl->isInterop();
+  MIsInterop = ProgramImpl->isInterop();
 }
 
 kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
                          ContextImplPtr ContextImpl,
                          DeviceImageImplPtr DeviceImageImpl,
                          KernelBundleImplPtr KernelBundleImpl,
-                         const KernelArgMask *ArgMask, std::mutex *CacheMutex)
-    : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgramImpl(nullptr),
+                         const KernelArgMask *ArgMask, ProgramPIPtr ProgramPI,
+                         std::mutex *CacheMutex)
+    : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgram(ProgramPI),
       MCreatedFromSource(false), MDeviceImageImpl(std::move(DeviceImageImpl)),
       MKernelBundleImpl(std::move(KernelBundleImpl)),
       MKernelArgMaskPtr{ArgMask}, MCacheMutex{CacheMutex} {
@@ -71,7 +72,7 @@ kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
 }
 
 kernel_impl::kernel_impl(ContextImplPtr Context, ProgramImplPtr ProgramImpl)
-    : MContext(Context), MProgramImpl(std::move(ProgramImpl)) {}
+    : MContext(Context), MProgram(ProgramImpl->getHandleRef()) {}
 
 kernel_impl::~kernel_impl() {
   // TODO catch an exception and put it to list of asynchronous exceptions
