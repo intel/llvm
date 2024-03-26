@@ -40,8 +40,10 @@
 
 #include <sycl/sycl.hpp>
 
+#include <syclcompat/defs.hpp>
 #include <syclcompat/device.hpp>
 #include <syclcompat/kernel.hpp>
+#include <syclcompat/memory.hpp>
 
 template <class T> void testTemplateKernel(T *data) {}
 
@@ -62,76 +64,98 @@ int getFuncAttrs() {
   return threadPerBlock;
 }
 
-#ifdef WIN32
-
-#define DECLARE_MODULE_VAR(var) HMODULE var
-#define LOAD_LIB(lib) LoadLibraryA(lib)
-#define LOAD_FUNCTOR(module, name) GetProcAddress(module, name)
-#define FREE_LIB(module) FreeLibrary(module)
-
-#else // LINUX
-
-#define DECLARE_MODULE_VAR(var) void *var
-#define LOAD_LIB(lib) dlopen(lib, RTLD_LAZY)
-#define LOAD_FUNCTOR(module, name) dlsym(module, name)
-#define FREE_LIB(module) dlclose(module)
-
-#endif
-
-void test_kernel_functor_ptr() {
+void test_get_func_attrs() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
-
   syclcompat::device_ext &dev_ct1 = syclcompat::get_current_device();
-  sycl::queue *q_ct1 = dev_ct1.default_queue();
 
-  int Size = dev_ct1.get_info<sycl::info::device::max_work_group_size>();
-  assert(getTemplateFuncAttrs<int>() == Size);
-  assert(getFuncAttrs() == Size);
+  int size = dev_ct1.get_info<sycl::info::device::max_work_group_size>();
+  assert(getTemplateFuncAttrs<int>() == size);
+  assert(getFuncAttrs() == size);
+}
 
-  DECLARE_MODULE_VAR(M);
-  M = LOAD_LIB(TEST_SHARED_LIB);
+void call_library_func(syclcompat::kernel_library kernel_lib) {
+  sycl::queue q_ct1 = syclcompat::get_default_queue();
 
-  if (M == NULL) {
-    std::cout << "Could not load the library" << std::endl;
-    std::cout << "  " << TEST_SHARED_LIB << std::endl << std::flush;
-    assert(false); // FAIL
-  }
+  std::string FunctionName = "foo";
+  syclcompat::kernel_function func;
+  SYCLCOMPAT_CHECK_ERROR(
+      func = syclcompat::get_kernel_function(kernel_lib, FunctionName.c_str()));
 
-  std::string FunctionName = "foo_wrapper";
-  syclcompat::kernel_functor F;
-  F = (syclcompat::kernel_functor)LOAD_FUNCTOR(M, FunctionName.c_str());
-
-  if (F == NULL) {
+  if (func == nullptr) {
     std::cout << "Could not load function pointer" << std::endl << std::flush;
-    FREE_LIB(M);
+    syclcompat::unload_kernel_library(kernel_lib);
     assert(false); // FAIL
   }
 
   int sharedSize = 10;
   void **param = nullptr, **extra = nullptr;
-  if (!q_ct1->get_device().has(sycl::aspect::usm_shared_allocations))
-    return;
-  int *dev = sycl::malloc_shared<int>(16, *q_ct1);
-  for (int i = 0; i < 16; i++) {
-    dev[i] = 0;
-  }
+
+  constexpr size_t NUM_ELEMENTS = 16;
+  int *dev = syclcompat::malloc<int>(NUM_ELEMENTS);
+  syclcompat::fill<int>(dev, 0, NUM_ELEMENTS);
+
   param = (void **)(&dev);
-  F(*q_ct1,
-    sycl::nd_range<3>(sycl::range<3>(1, 1, 2) * sycl::range<3>(1, 1, 8),
-                      sycl::range<3>(1, 1, 8)),
-    sharedSize, param, extra);
-  q_ct1->wait_and_throw();
+  SYCLCOMPAT_CHECK_ERROR(syclcompat::invoke_kernel_function(
+      func, q_ct1, sycl::range<3>(1, 1, 2), sycl::range<3>(1, 1, 8), sharedSize,
+      param, extra));
+  syclcompat::wait_and_throw();
 
-  for (int i = 0; i < 16; i++) {
-    assert(dev[i] == i);
+  int *host_mem = syclcompat::malloc_host<int>(NUM_ELEMENTS);
+  syclcompat::memcpy<int>(host_mem, dev, NUM_ELEMENTS);
+  for (int i = 0; i < NUM_ELEMENTS; i++) {
+    assert(host_mem[i] == i);
   }
 
-  sycl::free(dev, *q_ct1);
-  FREE_LIB(M);
+  SYCLCOMPAT_CHECK_ERROR(syclcompat::unload_kernel_library(kernel_lib));
+
+  syclcompat::free(dev);
+  syclcompat::free(host_mem);
+}
+
+void test_kernel_functor_ptr() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  syclcompat::kernel_library kernel_lib;
+  SYCLCOMPAT_CHECK_ERROR(kernel_lib =
+                             syclcompat::load_kernel_library(TEST_SHARED_LIB));
+
+  if (kernel_lib == nullptr) {
+    std::cout << "Could not load the library" << std::endl;
+    std::cout << "  " << TEST_SHARED_LIB << std::endl << std::flush;
+    assert(false); // FAIL
+  }
+
+  call_library_func(kernel_lib);
+}
+
+void test_kernel_functor_ptr_memory() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  sycl::queue q_ct1 = syclcompat::get_default_queue();
+
+  std::ifstream ifs;
+  ifs.open(TEST_SHARED_LIB, std::ios::in | std::ios::binary);
+
+  std::stringstream buffer;
+  buffer << ifs.rdbuf();
+
+  syclcompat::kernel_library kernel_lib;
+  SYCLCOMPAT_CHECK_ERROR(
+      kernel_lib = syclcompat::load_kernel_library_mem(buffer.str().c_str()));
+
+  if (kernel_lib == nullptr) {
+    std::cout << "Could not load the library" << std::endl;
+    std::cout << "  " << TEST_SHARED_LIB << std::endl << std::flush;
+    assert(false);
+  }
+
+  call_library_func(kernel_lib);
 }
 
 int main() {
+  test_get_func_attrs();
   test_kernel_functor_ptr();
+  test_kernel_functor_ptr_memory();
 
   return 0;
 }
