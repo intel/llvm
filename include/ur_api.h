@@ -2645,6 +2645,7 @@ typedef struct ur_buffer_alloc_location_properties_t {
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_BUFFER_SIZE
+///         + `size == 0`
 ///     - ::UR_RESULT_ERROR_INVALID_HOST_PTR
 ///         + `pProperties == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0`
 ///         + `pProperties != NULL && pProperties->pHost == NULL && (flags & (UR_MEM_FLAG_USE_HOST_POINTER | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0`
@@ -2753,6 +2754,8 @@ typedef enum ur_buffer_create_type_t {
 ///     - ::UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_BUFFER_SIZE
+///         + `pRegion && pRegion->size == 0`
+///         + hBuffer allocation size < (pRegion->origin + pRegion->size)
 ///     - ::UR_RESULT_ERROR_INVALID_HOST_PTR
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
