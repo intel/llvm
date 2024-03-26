@@ -63,6 +63,10 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
   NoAsmVariants = true;
   GPU = CudaArch::UNUSED;
 
+  // PTX supports f16 as a fundamental type.
+  HasLegalHalfType = true;
+  HasFloat16 = true;
+
   if (TargetPointerWidth == 32)
     resetDataLayout("e-p:32:32-i64:64-i128:128-v16:16-v32:32-n16:32:64");
   else if (Opts.NVPTXUseShortPointers)
@@ -280,10 +284,10 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
 
     if (Opts.SYCLIsDevice) {
       Builder.defineMacro("__SYCL_CUDA_ARCH__", CUDAArchCode);
-    } else if (GPU == CudaArch::SM_90a) {
-      Builder.defineMacro("__CUDA_ARCH_FEAT_SM90_ALL", "1");
     } else {
       Builder.defineMacro("__CUDA_ARCH__", CUDAArchCode);
+      if (GPU == CudaArch::SM_90a)
+        Builder.defineMacro("__CUDA_ARCH_FEAT_SM90_ALL", "1");
     }
   }
 }

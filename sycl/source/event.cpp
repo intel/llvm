@@ -15,7 +15,6 @@
 #include <sycl/detail/pi.hpp>
 #include <sycl/event.hpp>
 #include <sycl/info/info_desc.hpp>
-#include <sycl/stl.hpp>
 
 #include <memory>
 #include <unordered_set>

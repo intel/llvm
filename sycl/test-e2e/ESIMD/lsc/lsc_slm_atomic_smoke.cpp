@@ -41,10 +41,16 @@ template <class, int, template <class, int> class> class TestID;
 
 const char *to_string(LSCAtomicOp op) {
   switch (op) {
+  case LSCAtomicOp::predec:
+    return "lsc::predec";
   case LSCAtomicOp::add:
     return "lsc::add";
   case LSCAtomicOp::sub:
     return "lsc::sub";
+  case LSCAtomicOp::fadd:
+    return "lsc::fadd";
+  case LSCAtomicOp::fsub:
+    return "lsc::fsub";
   case LSCAtomicOp::inc:
     return "lsc::inc";
   case LSCAtomicOp::dec:
@@ -53,6 +59,8 @@ const char *to_string(LSCAtomicOp op) {
     return "lsc::umin";
   case LSCAtomicOp::umax:
     return "lsc::umax";
+  case LSCAtomicOp::xchg:
+    return "lsc::xchg";
   case LSCAtomicOp::cmpxchg:
     return "lsc::cmpxchg";
   case LSCAtomicOp::bit_and:

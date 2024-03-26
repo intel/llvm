@@ -1,3 +1,4 @@
+// REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
@@ -13,10 +14,6 @@
 #include "../graph_common.hpp"
 int main() {
   queue Queue{};
-
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 

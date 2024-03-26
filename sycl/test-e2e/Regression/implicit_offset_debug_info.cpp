@@ -4,7 +4,8 @@
 
 // NOTE: Tests that the implicit global offset pass copies debug information
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
 using namespace sycl;
 
 int main() {

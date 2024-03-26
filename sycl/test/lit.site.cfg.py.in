@@ -31,6 +31,7 @@ config.hip_be = '@SYCL_BUILD_PI_HIP@'
 config.opencl_be = '@SYCL_BUILD_PI_OPENCL@'
 config.level_zero_be = '@SYCL_BUILD_PI_LEVEL_ZERO@'
 config.native_cpu_be = '@SYCL_BUILD_NATIVE_CPU@'
+config.native_cpu_ock = '@NATIVECPU_USE_OCK@'
 config.sycl_preview_lib_enabled = '@SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB@'
 
 import lit.llvm

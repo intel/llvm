@@ -1,31 +1,5 @@
-context
-device
-event
-exceptions
-kernel
-multi_ptr
-platform
-queue
-reduction
-optional_kernel_features
-accessor
-accessor_legacy
-vector_alias
-vector_api
-vector_constructors
-vector_load_store
-vector_operators
-vector_swizzle_assignment
-vector_swizzles
+# These two take too much time
 kernel_bundle
-specialization_constants
-device_selector
-math_builtin_api
-stream
 marray
-image_accessor
-atomic_fence
-function_objects
-group_functions
-image
-atomic_ref
+# https://github.com/intel/llvm/issues/12926
+h_item

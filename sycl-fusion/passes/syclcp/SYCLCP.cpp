@@ -63,7 +63,7 @@ static Expected<SmallVector<ConstantInfo>> getCPFromMD(Function *F) {
 ///
 /// Returns a constant of the given scalar type and value.
 static Expected<Constant *> getConstantValue(const unsigned char **ValPtr,
-                                             Type *Ty, bool ByVal) {
+                                             Type *Ty) {
   if (Ty->isIntegerTy()) {
     unsigned NumBytes = Ty->getIntegerBitWidth() / 8;
     uint64_t IntValue = 0;
@@ -99,7 +99,7 @@ static Error initializeAggregateConstant(const unsigned char **ValPtr,
                                          ArrayRef<Value *> Indices) {
   if (CurrentTy->isIntegerTy() || CurrentTy->isFloatTy() ||
       CurrentTy->isDoubleTy()) {
-    Expected<Value *> CVal = getConstantValue(ValPtr, CurrentTy, false);
+    Expected<Value *> CVal = getConstantValue(ValPtr, CurrentTy);
     if (auto E = CVal.takeError()) {
       return E;
     }
@@ -185,8 +185,7 @@ static bool propagateConstants(Function *F, ArrayRef<ConstantInfo> Constants) {
       }
       CVal = AggVal.get();
     } else {
-      Expected<Constant *> ScalarVal =
-          getConstantValue(&ValPtr, ArgTy, Arg->hasByValAttr());
+      Expected<Constant *> ScalarVal = getConstantValue(&ValPtr, ArgTy);
       if (auto E = ScalarVal.takeError()) {
         handleAllErrors(std::move(E), [](const StringError &SE) {
           FUSION_DEBUG(llvm::dbgs() << SE.message() << "\n");

@@ -1,7 +1,6 @@
 // TODO enable on Windows
 // REQUIRES: linux
-// Use -O2 to avoid huge stack usage under -O0.
-// RUN: %{build} -O2 -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out 16
 
 #include "esimd_test_utils.hpp"
@@ -41,7 +40,7 @@ ESIMD_INLINE void histogram_atomic(const uint32_t *input_ptr, uint32_t *output,
   for (int y = 0; y < num_blocks; y++) {
     auto start_addr = ((unsigned int *)input_ptr) + start_off;
     auto data = block_load<uint, 32>(start_addr);
-    auto in = data.bit_cast_view<uchar>();
+    auto in = data.bit_cast_view<uint8_t>();
 
 #pragma unroll
     for (int j = 0; j < BLOCK_WIDTH * sizeof(int); j += 16) {
@@ -71,7 +70,7 @@ void HistogramCPU(unsigned int size, unsigned int *src,
                   unsigned int *cpu_histogram) {
   for (int i = 0; i < size; i++) {
     unsigned int x = src[i];
-    cpu_histogram[(x)&0xFFU] += 1;
+    cpu_histogram[(x) & 0xFFU] += 1;
     cpu_histogram[(x >> 8) & 0xFFU] += 1;
     cpu_histogram[(x >> 16) & 0xFFU] += 1;
     cpu_histogram[(x >> 24) & 0xFFU] += 1;
@@ -103,8 +102,7 @@ class histogram_slm;
 
 int main(int argc, char **argv) {
   queue q = esimd_test::createQueue();
-  auto dev = q.get_device();
-  auto ctxt = q.get_context();
+  esimd_test::printTestLabel(q);
 
   const char *input_file = nullptr;
   unsigned int width = 1024 * sizeof(unsigned int);
@@ -112,8 +110,10 @@ int main(int argc, char **argv) {
 
   // Initializes input.
   unsigned int input_size = width * height;
-  unsigned int *input_ptr =
-      (unsigned int *)malloc_shared(input_size, dev, ctxt);
+  esimd_test::shared_vector<unsigned int> input_vec(
+      input_size, esimd_test::shared_allocator<unsigned int>{q});
+  unsigned int *input_ptr = input_vec.data();
+
   printf("Processing %dx%d inputs\n", (int)(width / sizeof(unsigned int)),
          height);
 
@@ -128,12 +128,8 @@ int main(int argc, char **argv) {
 
   // Allocates system memory for output buffer.
   int buffer_size = sizeof(unsigned int) * NUM_BINS;
-  unsigned int *hist = new unsigned int[buffer_size];
-  if (hist == nullptr) {
-    std::cerr << "Out of memory\n";
-    exit(1);
-  }
-  memset(hist, 0, buffer_size);
+  std::vector<unsigned int> hist_vec(buffer_size, 0);
+  unsigned int *hist = hist_vec.data();
 
   // Uses the CPU to calculate the histogram output data.
   unsigned int cpu_histogram[NUM_BINS];
@@ -144,9 +140,9 @@ int main(int argc, char **argv) {
   std::cout << "finish cpu_histogram\n";
 
   // Uses the GPU to calculate the histogram output data.
-  unsigned int *output_surface =
-      (uint32_t *)malloc_shared(4 * NUM_BINS, dev, ctxt);
-  memset(output_surface, 0, 4 * NUM_BINS);
+  esimd_test::shared_vector<unsigned int> output_vec(
+      NUM_BINS, esimd_test::shared_allocator<unsigned int>{q});
+  unsigned int *output_surface = output_vec.data();
 
   unsigned int num_blocks{NUM_BLOCKS};
   if (argc == 2) {
@@ -188,11 +184,11 @@ int main(int argc, char **argv) {
       e.wait();
       if (profiling) {
         etime = esimd_test::report_time("kernel time", e, e);
-      if (iter > 0)
-        kernel_times += etime;
+        if (iter > 0)
+          kernel_times += etime;
       }
       if (iter == 0)
-      start = timer.Elapsed();
+        start = timer.Elapsed();
     }
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
@@ -209,10 +205,6 @@ int main(int argc, char **argv) {
 
   memcpy(hist, output_surface, 4 * NUM_BINS);
 
-  free(output_surface, ctxt);
-
-  free(input_ptr, ctxt);
-
   // Compares the CPU histogram output data with the
   // GPU histogram output data.
   // If there is no difference, the result is correct.
@@ -222,8 +214,6 @@ int main(int argc, char **argv) {
     std::cout << "PASSED\n";
   else
     std::cout << "FAILED\n";
-
-  delete[] hist;
 
   return res ? 0 : -1;
 }

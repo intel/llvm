@@ -1,3 +1,5 @@
+// https://github.com/intel/llvm/issues/12797
+// UNSUPPORTED: windows
 // REQUIRES: windows
 // RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out %threads_lib
 //
@@ -14,11 +16,11 @@
 //
 // FIXME Windows version prints '(null)' instead of '<unknown func>' once in a
 // while for some insane reason.
-// CHECK:      {{.*}}assert_in_simultaneous_kernels.hpp:13: {{<unknown func>|(null)}}: global id: [9,7,0], local id: [0,0,0]
+// CHECK:      {{.*}}assert_in_simultaneous_kernels.hpp:16: {{<unknown func>|(null)}}: global id: [9,7,0], local id: [0,0,0]
 // CHECK-SAME: Assertion `false && "from assert statement"` failed.
 // CHECK-NOT:  The test ended.
 //
-// CHECK-ACC-NOT: {{.*}}assert_in_simultaneous_kernels.hpp:13: {{<unknown func>|(null)}}: global id: [9,7,0], local id: [0,0,0]
+// CHECK-ACC-NOT: {{.*}}assert_in_simultaneous_kernels.hpp:16: {{<unknown func>|(null)}}: global id: [9,7,0], local id: [0,0,0]
 // CHECK-ACC:  The test ended.
 
 #include "assert_in_simultaneous_kernels.hpp"

@@ -45,7 +45,9 @@
 #include <unistd.h>
 #endif
 #if defined(_WIN64)
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <windows.h>
 #endif
 
@@ -56,11 +58,10 @@
 
 namespace syclcompat {
 
-// Note: this is all code from SYCLomatic's device.hpp helper header
 namespace detail {
 
 /// SYCL default exception handler
-auto exception_handler = [](sycl::exception_list exceptions) {
+inline auto exception_handler = [](sycl::exception_list exceptions) {
   for (std::exception_ptr const &e : exceptions) {
     try {
       std::rethrow_exception(e);
@@ -309,6 +310,15 @@ public:
     _saved_queue = _default_queue = _queues.front().get();
   }
 
+  void set_default_queue(const sycl::queue &q) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    _queues.front().get()->wait_and_throw();
+    _queues[0] = std::make_shared<sycl::queue>(q);
+    if (_saved_queue == _default_queue)
+      _saved_queue = _queues.front().get();
+    _default_queue = _queues.front().get();
+  }
+
   sycl::queue *default_queue() { return _default_queue; }
 
   void queues_wait_and_throw() {
@@ -505,8 +515,8 @@ private:
 
 } // namespace detail
 
-inline sycl::queue create_queue(bool print_on_async_exceptions = false,
-                                bool in_order = true) {
+static inline sycl::queue create_queue(bool print_on_async_exceptions = false,
+                                       bool in_order = true) {
   return *detail::dev_mgr::instance().current_device().create_queue(
       print_on_async_exceptions, in_order);
 }
@@ -517,7 +527,22 @@ static inline sycl::queue get_default_queue() {
   return *detail::dev_mgr::instance().current_device().default_queue();
 }
 
-inline void wait(sycl::queue q = get_default_queue()) { q.wait(); }
+/// Util function to change the default queue of the current device in the
+/// device manager
+/// If the device extension saved queue is the default queue,
+/// the previous saved queue will be overwritten as well.
+/// This function will be blocking if there are submitted kernels in the
+/// previous default queue.
+/// @param q New user-defined queue
+static inline void set_default_queue(const sycl::queue &q) {
+  detail::dev_mgr::instance().current_device().set_default_queue(q);
+}
+
+static inline void wait(sycl::queue q = get_default_queue()) { q.wait(); }
+
+static inline void wait_and_throw(sycl::queue q = get_default_queue()) {
+  q.wait_and_throw();
+}
 
 /// Util function to get the id of current device in
 /// device manager.
