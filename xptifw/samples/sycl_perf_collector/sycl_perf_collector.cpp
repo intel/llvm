@@ -266,8 +266,6 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
       GAllStreams.add(GStreamCuda);
       // GAllStreams.add(GStreamBuffer);
       GAllStreams.add(GStreamImage);
-      GAllStreams.add("sycl.perf");
-      GAllStreams.add("sycl.perf.detail");
     }
 
     // Capture the user input on the first calls to ignore; some calls,
