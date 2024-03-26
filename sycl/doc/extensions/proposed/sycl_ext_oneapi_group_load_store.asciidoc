@@ -206,11 +206,8 @@ in the group.
 _Effects_: Stores single element `in` to `out_iter` by using the `g` group
 object to identify memory location as `out_iter` + `g.get_local_linear_id()`
 
-`Properties` argument is reserved for future revisions of this extention and is
-ignored now.
-Default value is empty `sycl::ext::oneapi::experimental::empty_properties_t`
-May be used in future for setting boundary values or limiting numbers of work
-items.
+Properties may provide a hint for optimization purposes
+xref:optimization_hints[optimization_hints].
 
 ==== `sycl::vec` Overload
 
