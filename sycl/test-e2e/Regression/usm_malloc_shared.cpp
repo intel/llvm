@@ -9,7 +9,11 @@
 
 #include <iostream>
 #include <stdlib.h>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/usm.hpp>
+
 using namespace sycl;
 
 int main(int argc, char *argv[]) {

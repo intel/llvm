@@ -16,7 +16,9 @@
     (ie, byte size versus vector size)
 */
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/group_algorithm.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 

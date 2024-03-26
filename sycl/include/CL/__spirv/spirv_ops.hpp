@@ -1183,7 +1183,11 @@ __clc_BarrierTestWait(int64_t *state, int64_t arrival) noexcept;
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT void
 __clc_BarrierArriveAndWait(int64_t *state) noexcept;
 
-#ifdef __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
+#ifdef __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__
+extern __DPCPP_SYCL_EXTERNAL int
+__spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format, ...);
+extern __DPCPP_SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format, ...);
+#else
 template <typename... Args>
 extern __DPCPP_SYCL_EXTERNAL int
 __spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format,
@@ -1191,10 +1195,6 @@ __spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format,
 template <typename... Args>
 extern __DPCPP_SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format,
                                                     Args... args);
-#else
-extern __DPCPP_SYCL_EXTERNAL int
-__spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format, ...);
-extern __DPCPP_SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format, ...);
 #endif
 
 // Native builtin extension
@@ -1266,6 +1266,25 @@ template <typename from, typename to>
 extern __DPCPP_SYCL_EXTERNAL
     std::enable_if_t<std::is_integral_v<to> && std::is_unsigned_v<to>, to>
     __spirv_ConvertPtrToU(from val) noexcept;
+
+template <typename RetT, typename... ArgsT>
+extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_TaskSequenceINTEL *
+__spirv_TaskSequenceCreateINTEL(RetT (*f)(ArgsT...), int Pipelined = -1,
+                                int ClusterMode = -1,
+                                unsigned int ResponseCapacity = 0,
+                                unsigned int InvocationCapacity = 0) noexcept;
+
+template <typename... ArgsT>
+extern __DPCPP_SYCL_EXTERNAL void
+__spirv_TaskSequenceAsyncINTEL(__spv::__spirv_TaskSequenceINTEL *TaskSequence,
+                               ArgsT... Args) noexcept;
+
+template <typename RetT>
+extern __DPCPP_SYCL_EXTERNAL RetT __spirv_TaskSequenceGetINTEL(
+    __spv::__spirv_TaskSequenceINTEL *TaskSequence) noexcept;
+
+extern __DPCPP_SYCL_EXTERNAL void __spirv_TaskSequenceReleaseINTEL(
+    __spv::__spirv_TaskSequenceINTEL *TaskSequence) noexcept;
 
 #else  // if !__SYCL_DEVICE_ONLY__
 

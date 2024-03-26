@@ -1,7 +1,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
-// UNSUPPORTED: cuda || hip
 
 #include <complex>
 #include <numeric>
