@@ -733,6 +733,10 @@ Error llvm::offloading::wrapSYCLBinaries(llvm::Module &M,
                                          SYCLWrappingOptions Options) {
   Wrapper W(M, Options);
   GlobalVariable *Desc = W.createFatbinDesc(Images);
+  if (!Desc)
+    return createStringError(inconvertibleErrorCode(),
+                             "No binary descriptors created.");
+
   W.createRegisterFatbinFunction(Desc);
   W.createUnregisterFunction(Desc);
   return Error::success();
