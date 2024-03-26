@@ -3,3 +3,7 @@ urKernelSetSpecializationConstantsTest.Success/Intel_R__OpenCL___{{.*}}
 urKernelSetSpecializationConstantsTest.InvalidNullHandleKernel/Intel_R__OpenCL___{{.*}}
 urKernelSetSpecializationConstantsTest.InvalidNullPointerSpecConstants/Intel_R__OpenCL___{{.*}}
 urKernelSetSpecializationConstantsTest.InvalidSizeCount/Intel_R__OpenCL___{{.*}}
+urKernelGetSuggestedLocalWorkSizeTest.Success/Intel_R__OpenCL___{{.*}}
+urKernelGetSuggestedLocalWorkSizeTest.Success2D/Intel_R__OpenCL___{{.*}}
+urKernelGetSuggestedLocalWorkSizeTest.Success3D/Intel_R__OpenCL___{{.*}}
+urKernelGetSuggestedLocalWorkSizeTest.InvalidWorkDimension/Intel_R__OpenCL___{{.*}}
