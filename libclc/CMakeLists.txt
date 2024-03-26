@@ -453,7 +453,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       string( APPEND CL_3_0_EXTENSIONS ",+__opencl_c_generic_address_space" )
     else()
       # Explictly disable opencl_c_generic_address_space (it may be enabled
-      # by default on some targets). We also disable opecl_c_pipes and
+      # by default on some targets). We also disable opencl_c_pipes and
       # opencl_c_device_enqueue since they require generic address space.
       string( APPEND CL_3_0_EXTENSIONS ",-__opencl_c_generic_address_space" )
       string( APPEND CL_3_0_EXTENSIONS ",-__opencl_c_pipes" )
