@@ -1,8 +1,8 @@
+// GStreamBuffer
 //
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//  Part of the LLVM Project, under the Apache License v2.0 with LLVM
+//  Exceptions. See https://llvm.org/LICENSE.txt for license information.
+//  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //
 #include "xpti/xpti_trace_framework.h"
@@ -35,6 +35,14 @@ xpti::utils::string::first_check_map_t *GIgnoreList = nullptr;
 using incomplete_records_t = std::unordered_map<uint64_t, xpti::record_t>;
 incomplete_records_t *GRecordsInProgress = nullptr;
 xpti::utils::timer::measurement_t GMeasure;
+
+constexpr const char *GStreamBasic = "sycl";
+constexpr const char *GStreamPI = "sycl.pi";
+constexpr const char *GStreamMemory = "sycl.experimental.mem_alloc";
+constexpr const char *GStreamL0 = "sycl.experimental.level_zero.call";
+constexpr const char *GStreamCuda = "sycl.experimental.cuda.call";
+constexpr const char *GStreamBuffer = "sycl.experimental.buffer";
+constexpr const char *GStreamImage = "sycl.experimental.image";
 
 // Scoped measurement object used in the callback handlers
 class MeasureHandlers {
@@ -144,11 +152,6 @@ XPTI_CALLBACK_API void syclPiCallback(uint16_t trace_type,
                                       xpti::trace_event_data_t *parent,
                                       xpti::trace_event_data_t *event,
                                       uint64_t instance, const void *user_data);
-XPTI_CALLBACK_API void syclPerfCallback(uint16_t trace_type,
-                                        xpti::trace_event_data_t *parent,
-                                        xpti::trace_event_data_t *event,
-                                        uint64_t instance,
-                                        const void *user_data);
 XPTI_CALLBACK_API void syclMemCallback(uint16_t trace_type,
                                        xpti::trace_event_data_t *parent,
                                        xpti::trace_event_data_t *event,
@@ -256,13 +259,13 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
       std::cout << "Streams to monitor:  default\n";
       // If the environment variable is not set, pick the default streams we
       // would like to monitor
-      GAllStreams.add("sycl");
-      GAllStreams.add("sycl.pi");
-      GAllStreams.add("sycl.experimental.mem_alloc");
-      GAllStreams.add("sycl.experimental.level_zero.call");
-      GAllStreams.add("sycl.experimental.cuda.call");
-      // GAllStreams.add("sycl.experimental.buffer");
-      GAllStreams.add("sycl.experimental.image");
+      GAllStreams.add(GStreamBasic);
+      GAllStreams.add(GStreamPI);
+      GAllStreams.add(GStreamMemory);
+      GAllStreams.add(GStreamL0);
+      GAllStreams.add(GStreamCuda);
+      // GAllStreams.add(GStreamBuffer);
+      GAllStreams.add(GStreamImage);
       GAllStreams.add("sycl.perf");
       GAllStreams.add("sycl.perf.detail");
     }
@@ -366,7 +369,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
   if (Check)
     GStreams->add(stream_name);
 
-  if (std::string("sycl") == stream_name && Check) {
+  if (std::string(GStreamBasic) == stream_name && Check) {
     auto StreamID = xptiRegisterStream(stream_name);
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::wait_begin,
@@ -393,8 +396,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::edge_create,
                          graphCallback);
-  } else if (std::string("sycl.experimental.mem_alloc") == stream_name &&
-             Check) {
+  } else if (std::string(GStreamMemory) == stream_name && Check) {
     auto StreamID = xptiRegisterStream(stream_name);
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::node_create,
@@ -414,7 +416,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::mem_release_end,
                          syclMemCallback);
-  } else if (std::string("sycl.pi") == stream_name && Check) {
+  } else if (std::string(GStreamPI) == stream_name && Check) {
     auto StreamID = xptiRegisterStream(stream_name);
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::function_begin,
@@ -422,24 +424,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::function_end,
                          syclPiCallback);
-  } else if (std::string("sycl.perf") == stream_name && Check) {
-    auto StreamID = xptiRegisterStream(stream_name);
-    xptiRegisterCallback(StreamID,
-                         (uint16_t)xpti::trace_point_type_t::function_begin,
-                         syclPerfCallback);
-    xptiRegisterCallback(StreamID,
-                         (uint16_t)xpti::trace_point_type_t::function_end,
-                         syclPerfCallback);
-  } else if (std::string("sycl.perf.detail") == stream_name && Check) {
-    auto StreamID = xptiRegisterStream(stream_name);
-    xptiRegisterCallback(StreamID,
-                         (uint16_t)xpti::trace_point_type_t::function_begin,
-                         syclPerfCallback);
-    xptiRegisterCallback(StreamID,
-                         (uint16_t)xpti::trace_point_type_t::function_end,
-                         syclPerfCallback);
-  } else if (std::string("sycl.experimental.level_zero.call") == stream_name &&
-             Check) {
+  } else if (std::string(GStreamL0) == stream_name && Check) {
     auto StreamID = xptiRegisterStream(stream_name);
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::function_begin,
@@ -447,8 +432,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::function_end,
                          syclL0Callback);
-  } else if (std::string("sycl.experimental.cuda.call") == stream_name &&
-             Check) {
+  } else if (std::string(GStreamCuda) == stream_name && Check) {
     auto StreamID = xptiRegisterStream(stream_name);
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::function_begin,
@@ -456,7 +440,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::function_end,
                          syclCudaCallback);
-  } else if (std::string("sycl.experimental.buffer") == stream_name && Check) {
+  } else if (std::string(GStreamBuffer) == stream_name && Check) {
     auto StreamID = xptiRegisterStream(stream_name);
     xptiRegisterCallback(
         StreamID, (uint16_t)xpti::trace_offload_alloc_memory_object_construct,
@@ -470,7 +454,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     xptiRegisterCallback(
         StreamID, (uint16_t)xpti::trace_offload_alloc_memory_object_destruct,
         syclBufferCallback);
-  } else if (std::string("sycl.experimental.image") == stream_name && Check) {
+  } else if (std::string(GStreamImage) == stream_name && Check) {
     auto StreamID = xptiRegisterStream(stream_name);
     xptiRegisterCallback(
         StreamID, (uint16_t)xpti::trace_offload_alloc_memory_object_construct,
@@ -587,10 +571,10 @@ void print_record(uint16_t TraceType, xpti::record_t &r) {
     trace_origin = "lock_end";
     break;
   case (uint16_t)xpti::trace_point_type_t::signal:
-    trace_origin = "transfer_begin";
+    trace_origin = "signal";
     break;
   case (uint16_t)xpti::trace_point_type_t::transfer_begin:
-    trace_origin = "transfer_end";
+    trace_origin = "transfer_begin";
     break;
   case (uint16_t)xpti::trace_point_type_t::transfer_end:
     trace_origin = "transfer_end";
@@ -734,7 +718,8 @@ XPTI_CALLBACK_API void traceCallback(uint16_t TraceType,
   const char *UD = (Event->reserved.payload->name)
                        ? Event->reserved.payload->name
                        : "Unknown";
-  record_and_save("sycl", (Event ? Event : Parent), TraceType, Instance, UD);
+  record_and_save(GStreamBasic, (Event ? Event : Parent), TraceType, Instance,
+                  UD);
 }
 
 XPTI_CALLBACK_API
@@ -753,10 +738,9 @@ XPTI_CALLBACK_API void syclMemCallback(uint16_t TraceType,
                                        const void *UserData) {
   if (CalibrationRun)
     return;
-  record_and_save("sycl.experimental.mem_alloc", (Event ? Event : Parent),
-                  TraceType, Instance,
-                  (TraceType & 0x0001) ? "Memory_allocation_end"
-                                       : "Memory_allocation_begin");
+  record_and_save(GStreamMemory, (Event ? Event : Parent), TraceType, Instance,
+                  (TraceType & 0x0001) ? "memory_allocation_end"
+                                       : "memory_allocation_begin");
 }
 
 XPTI_CALLBACK_API void syclImageCallback(uint16_t TraceType,
@@ -766,8 +750,7 @@ XPTI_CALLBACK_API void syclImageCallback(uint16_t TraceType,
                                          const void *UserData) {
   if (CalibrationRun)
     return;
-  record_and_save("sycl.experimental.image", (Event ? Event : Parent),
-                  TraceType, Instance,
+  record_and_save(GStreamImage, (Event ? Event : Parent), TraceType, Instance,
                   (TraceType & 0x0001) ? "image_destruct" : "image_construct");
 }
 
@@ -786,16 +769,16 @@ XPTI_CALLBACK_API void syclBufferCallback(uint16_t TraceType,
             ? Event->reserved.payload->name
             : ((TraceType & 0x0001) ? "buffer_allocation_destruct"
                                     : "buffer_allocation_construct");
-    record_and_save("sycl.experimental.buffer", (Event ? Event : Parent),
-                    TraceType, Instance, UD);
+    record_and_save(GStreamBuffer, (Event ? Event : Parent), TraceType,
+                    Instance, UD);
   } else {
     const char *UD =
         (Event->reserved.payload->name)
             ? Event->reserved.payload->name
             : ((TraceType & 0x0001) ? "buffer_allocation_release"
                                     : "buffer_allocation_associate");
-    record_and_save("sycl.experimental.buffer", (Event ? Event : Parent),
-                    TraceType, Instance, UD);
+    record_and_save(GStreamBuffer, (Event ? Event : Parent), TraceType,
+                    Instance, UD);
   }
 }
 
@@ -805,8 +788,8 @@ XPTI_CALLBACK_API void syclL0Callback(uint16_t TraceType,
                                       uint64_t Instance, const void *UserData) {
   if (CalibrationRun)
     return;
-  record_and_save("sycl.experimental.level_zero.call", (Event ? Event : Parent),
-                  TraceType, Instance, UserData);
+  record_and_save(GStreamL0, (Event ? Event : Parent), TraceType, Instance,
+                  UserData);
 }
 
 XPTI_CALLBACK_API void syclCudaCallback(uint16_t TraceType,
@@ -816,8 +799,8 @@ XPTI_CALLBACK_API void syclCudaCallback(uint16_t TraceType,
                                         const void *UserData) {
   if (CalibrationRun)
     return;
-  record_and_save("sycl.experimental.cuda.call", (Event ? Event : Parent),
-                  TraceType, Instance, UserData);
+  record_and_save(GStreamCuda, (Event ? Event : Parent), TraceType, Instance,
+                  UserData);
 }
 
 XPTI_CALLBACK_API void graphMemCallback(uint16_t TraceType,
@@ -836,18 +819,7 @@ XPTI_CALLBACK_API void syclPiCallback(uint16_t TraceType,
                                       uint64_t Instance, const void *UserData) {
   if (CalibrationRun)
     return;
-  record_and_save("sycl.pi", (Event ? Event : Parent), TraceType, Instance,
-                  UserData);
-}
-
-XPTI_CALLBACK_API void syclPerfCallback(uint16_t TraceType,
-                                        xpti::trace_event_data_t *Parent,
-                                        xpti::trace_event_data_t *Event,
-                                        uint64_t Instance,
-                                        const void *UserData) {
-  if (CalibrationRun)
-    return;
-  record_and_save("sycl.perf", (Event ? Event : Parent), TraceType, Instance,
+  record_and_save(GStreamPI, (Event ? Event : Parent), TraceType, Instance,
                   UserData);
 }
 
