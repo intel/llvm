@@ -16,6 +16,7 @@
 #include <map>
 #include <optional>
 #include <system_error>
+#include <unordered_map>
 
 namespace llvm {
 class raw_ostream;
@@ -85,7 +86,7 @@ public:
 
   /// Read the serialized address translation tables and load them internally
   /// in memory. Return a parse error if failed.
-  std::error_code parse(StringRef Buf);
+  std::error_code parse(raw_ostream &OS, StringRef Buf);
 
   /// Dump the parsed address translation tables
   void dump(raw_ostream &OS);
@@ -110,6 +111,23 @@ public:
   /// True if the input binary has a translation table we can use to convert
   /// addresses when aggregating profile
   bool enabledFor(llvm::object::ELFObjectFileBase *InputFile) const;
+
+  /// Save function and basic block hashes used for metadata dump.
+  void saveMetadata(BinaryContext &BC);
+
+  /// Returns BB hash by function output address (after BOLT) and basic block
+  /// input offset.
+  size_t getBBHash(uint64_t FuncOutputAddress, uint32_t BBInputOffset) const;
+
+  /// Returns BF hash by function output address (after BOLT).
+  size_t getBFHash(uint64_t OutputAddress) const;
+
+  /// Returns BB index by function output address (after BOLT) and basic block
+  /// input offset.
+  unsigned getBBIndex(uint64_t FuncOutputAddress, uint32_t BBInputOffset) const;
+
+  /// True if a given \p Address is a function with translation table entry.
+  bool isBATFunction(uint64_t Address) const { return Maps.count(Address); }
 
 private:
   /// Helper to update \p Map by inserting one or more BAT entries reflecting
@@ -140,8 +158,15 @@ private:
 
   std::map<uint64_t, MapTy> Maps;
 
+  /// Map basic block input offset to a basic block index and hash pair.
+  using BBHashMap = std::unordered_map<uint32_t, std::pair<unsigned, size_t>>;
+  std::unordered_map<uint64_t, std::pair<size_t, BBHashMap>> FuncHashes;
+
   /// Links outlined cold bocks to their original function
   std::map<uint64_t, uint64_t> ColdPartSource;
+
+  /// Links output address of a main fragment back to input address.
+  std::unordered_map<uint64_t, uint64_t> ReverseMap;
 
   /// Identifies the address of a control-flow changing instructions in a
   /// translation map entry

@@ -60,6 +60,7 @@ add_mlir_translation_library(MLIRToLLVMIRTranslationRegistration
   MLIROpenMPToLLVMIRTranslation
   MLIRROCDLToLLVMIRTranslation
   MLIRSPIRVToLLVMIRTranslation
+  MLIRVCIXToLLVMIRTranslation
   )
 
 add_mlir_translation_library(MLIRTargetLLVMIRImport
