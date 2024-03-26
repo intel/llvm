@@ -89,6 +89,27 @@ class GENX_DeviceFunctionOp<string mnemonic, string fnName,
   let assemblyFormat = "attr-dict `:` type($res)";
 }
 
+class GENX_DeviceFunctionOp2<string mnemonic, string fnName,
+                            list<Trait> traits = []>
+  : GENX_Op<mnemonic, !listconcat(traits, [Pure])>,
+    Results<(outs LLVM_Type:$res)>, Arguments<(ins)> {
+  string llvmBuilder = [{
+    llvm::Type *retType = builder.getInt32Ty();
+    llvm::CallInst *ci = createDeviceFunctionCall(builder, "}] # fnName # [{",
+        retType, {}, {});
+    llvm::Type *opRetType = cast<llvm::IntegerType>(
+        moduleTranslation.convertType(op->getResultTypes()[0]));
+    if (opRetType == retType)
+      $res = ci;
+    else {
+      llvm::Instruction::CastOps opcode =
+          llvm::CastInst::getCastOpcode(ci, false, opRetType, false);
+      $res = builder.CreateCast(opcode, ci, opRetType);
+    }
+  }];
+
+  let assemblyFormat = "attr-dict `:` type($res)";
+}
 //===----------------------------------------------------------------------===//
 // Thread index and Block index
 
@@ -120,6 +141,9 @@ def GENX_GridDimYOp : GENX_DeviceFunctionOp<"grid.dim.y",
                         "_Z14get_num_groupsj", 1>;
 def GENX_GridDimZOp : GENX_DeviceFunctionOp<"grid.dim.z",
                         "_Z14get_num_groupsj", 2>;
+
+def GENX_SubgroupIdOp : GENX_DeviceFunctionOp2<"subgroup.id",
+                        "_Z25__spirv_BuiltInSubgroupIdv">;
 
 //===----------------------------------------------------------------------===//
 // Synchronization

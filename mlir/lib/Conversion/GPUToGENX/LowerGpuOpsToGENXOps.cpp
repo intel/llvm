@@ -51,29 +51,30 @@ using namespace mlir;
 
 namespace {
 
-//struct GPUSubgroupIdOpLowering : public ConvertOpToLLVMPattern<gpu::SubgroupIdOp> {
-//  using ConvertOpToLLVMPattern<gpu::SubgroupIdOp>::ConvertOpToLLVMPattern;
-//  LogicalResult
-//  matchAndRewrite(gpu::SubgroupIdOp op, OpAdaptor adaptor,
-//                  ConversionPatternRewriter &rewriter) const override {
-//    Location loc = op->getLoc();
-//    auto i32Type = rewriter.getI32Type();
-//    Value threadX = rewriter.create<genx::ThreadIdXOp>(loc, i32Type);
-//    Value threadY = rewriter.create<genx::ThreadIdYOp>(loc, i32Type);
-//    Value threadZ = rewriter.create<genx::ThreadIdZOp>(loc, i32Type);
-//    Value blockX = rewriter.create<genx::BlockDimXOp>(loc, i32Type);
-//    Value blockY = rewriter.create<genx::BlockDimYOp>(loc, i32Type);
-//    Value llid = rewriter.create<arith::MulIOp>(loc, threadZ, blockY);
-//    llid = rewriter.create<arith::AddIOp>(loc, llid, threadY);
-//    llid = rewriter.create<arith::MulIOp>(loc, llid, blockX);
-//    llid = rewriter.create<arith::AddIOp>(loc, llid, threadX);
-//    // fixme: replace cst16 with subgroupSize
-//    Value cst16 = rewriter.create<arith::ConstantOp>(loc, i32Type, 16);
-//    Value subgroupId = rewriter.create<arith::DivUIOp>(loc, llid, cst16);
-//    rewriter.replaceOp(op, subgroupId);
-//    return success();
-//  }
-//};
+// struct GPUSubgroupIdOpLowering : public
+// ConvertOpToLLVMPattern<gpu::SubgroupIdOp> {
+//   using ConvertOpToLLVMPattern<gpu::SubgroupIdOp>::ConvertOpToLLVMPattern;
+//   LogicalResult
+//   matchAndRewrite(gpu::SubgroupIdOp op, OpAdaptor adaptor,
+//                   ConversionPatternRewriter &rewriter) const override {
+//     Location loc = op->getLoc();
+//     auto i32Type = rewriter.getI32Type();
+//     Value threadX = rewriter.create<genx::ThreadIdXOp>(loc, i32Type);
+//     Value threadY = rewriter.create<genx::ThreadIdYOp>(loc, i32Type);
+//     Value threadZ = rewriter.create<genx::ThreadIdZOp>(loc, i32Type);
+//     Value blockX = rewriter.create<genx::BlockDimXOp>(loc, i32Type);
+//     Value blockY = rewriter.create<genx::BlockDimYOp>(loc, i32Type);
+//     Value llid = rewriter.create<arith::MulIOp>(loc, threadZ, blockY);
+//     llid = rewriter.create<arith::AddIOp>(loc, llid, threadY);
+//     llid = rewriter.create<arith::MulIOp>(loc, llid, blockX);
+//     llid = rewriter.create<arith::AddIOp>(loc, llid, threadX);
+//     // fixme: replace cst16 with subgroupSize
+//     Value cst16 = rewriter.create<arith::ConstantOp>(loc, i32Type, 16);
+//     Value subgroupId = rewriter.create<arith::DivUIOp>(loc, llid, cst16);
+//     rewriter.replaceOp(op, subgroupId);
+//     return success();
+//   }
+// };
 
 /// Import the GPU Ops to GENX Patterns.
 #include "GPUToGENX.cpp.inc"
@@ -171,16 +172,18 @@ static void populateOpPatterns(LLVMTypeConverter &converter,
 void mlir::populateGpuToGENXConversionPatterns(LLVMTypeConverter &converter,
                                                RewritePatternSet &patterns) {
   populateWithGenerated(patterns);
-  patterns
-      .add<GPUIndexIntrinsicOpLowering<gpu::ThreadIdOp, GENX::ThreadIdXOp,
-                                       GENX::ThreadIdYOp, GENX::ThreadIdZOp>,
-           GPUIndexIntrinsicOpLowering<gpu::BlockIdOp, GENX::BlockIdXOp,
-                                       GENX::BlockIdYOp, GENX::BlockIdZOp>,
-           GPUIndexIntrinsicOpLowering<gpu::BlockDimOp, GENX::BlockDimXOp,
-                                       GENX::BlockDimYOp, GENX::BlockDimZOp>,
-           GPUIndexIntrinsicOpLowering<gpu::GridDimOp, GENX::GridDimXOp,
-                                       GENX::GridDimYOp, GENX::GridDimZOp>>(converter);
-          //GPUSubgroupIdOpLowering>(
+  patterns.add<
+      GPUIndexIntrinsicOpLowering<gpu::ThreadIdOp, GENX::ThreadIdXOp,
+                                  GENX::ThreadIdYOp, GENX::ThreadIdZOp>,
+      GPUIndexIntrinsicOpLowering<gpu::BlockIdOp, GENX::BlockIdXOp,
+                                  GENX::BlockIdYOp, GENX::BlockIdZOp>,
+      GPUIndexIntrinsicOpLowering<gpu::BlockDimOp, GENX::BlockDimXOp,
+                                  GENX::BlockDimYOp, GENX::BlockDimZOp>,
+      GPUIndexIntrinsicOpLowering<gpu::GridDimOp, GENX::GridDimXOp,
+                                  GENX::GridDimYOp, GENX::GridDimZOp>,
+      SingleDimLaunchConfigLowering<gpu::SubgroupIdOp, GENX::SubgroupIdOp>>(
+      converter);
+  // GPUSubgroupIdOpLowering>(
   patterns.add<GPUFuncOpLowering>(
       converter,
       /*allocaAddrSpace=*/GENX::GENXMemorySpace::kFunction,
@@ -190,17 +193,13 @@ void mlir::populateGpuToGENXConversionPatterns(LLVMTypeConverter &converter,
 
   const llvm::StringRef prefix("_Z15__spirv_ocl_");
 
-  populateOpPatterns<math::ExpOp>(converter, patterns,
-                                  (prefix + "expf").str(),
+  populateOpPatterns<math::ExpOp>(converter, patterns, (prefix + "expf").str(),
                                   (prefix + "expd").str());
-  populateOpPatterns<math::LogOp>(converter, patterns,
-                                  (prefix + "logf").str(),
+  populateOpPatterns<math::LogOp>(converter, patterns, (prefix + "logf").str(),
                                   (prefix + "logd").str());
-  populateOpPatterns<math::CosOp>(converter, patterns,
-                                  (prefix + "cosf").str(),
+  populateOpPatterns<math::CosOp>(converter, patterns, (prefix + "cosf").str(),
                                   (prefix + "cosd").str());
-  populateOpPatterns<math::SinOp>(converter, patterns,
-                                  (prefix + "sinf").str(),
+  populateOpPatterns<math::SinOp>(converter, patterns, (prefix + "sinf").str(),
                                   (prefix + "sind").str());
 }
 
