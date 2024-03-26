@@ -16,6 +16,9 @@
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/pi.h>                   // for pi_int32
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#include <sycl/context.hpp>
+#endif
 
 #include <exception>    // for exception
 #include <memory>       // for allocator, shared_ptr, make...
@@ -26,8 +29,10 @@
 namespace sycl {
 inline namespace _V1 {
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 // Forward declaration
 class context;
+#endif
 
 enum class errc : unsigned int {
   success = 0,
@@ -92,12 +97,21 @@ public:
   exception(int, const std::error_category &, const char *);
   exception(int, const std::error_category &);
 
-  exception(context, std::error_code, const std::string &);
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  exception(context Ctx, std::error_code Ec, const std::string &WhatArg)
+      : exception(EC, std::make_shared<context>(Ctx), WhatArg.c_str()) {}
+  exception(context Ctx, int EV, const std::error_category &ECat,
+            const std::string &WhatArg)
+      : exception(Ctx, {EV, ECat}, WhatArg) {}
+#else
+  exception(context Ctx, std::error_code Ec, const std::string &Str);
   exception(context, std::error_code, const char *);
   exception(context, std::error_code);
-  exception(context, int, const std::error_category &, const std::string &);
+  exception(context Ctx, int, const std::error_category &Ec,
+            const std::string &Str);
   exception(context, int, const std::error_category &, const char *);
   exception(context, int, const std::error_category &);
+#endif
 
   const std::error_code &code() const noexcept;
   const std::error_category &category() const noexcept;
