@@ -253,17 +253,23 @@ struct PropertyMetaInfo<device_has_key::value_t<Aspects...>> {
 };
 template <int Dims>
 struct PropertyMetaInfo<range_kernel_key::value_t<Dims>> {
+  //static constexpr const char* name = "sycl-range-kernel";
   static constexpr const char* name = "sycl-range-kernel";
   static constexpr int value = Dims;
+  //static constexpr const char *value =
+  //    SizeListToStr<static_cast<size_t>(Dims)>::value;
 };
 template <int Dims>
 struct PropertyMetaInfo<nd_range_kernel_key::value_t<Dims>> {
+  //static constexpr const char* name = "sycl-nd-range-kernel";
   static constexpr const char* name = "sycl-nd-range-kernel";
   static constexpr int value = Dims;
 };
 template <>
 struct PropertyMetaInfo<single_task_kernel_key::value_t> {
+  //static constexpr const char* name = "sycl-single-task-kernel";
   static constexpr const char* name = "sycl-single-task-kernel";
+  static constexpr int value = 0;
 };
 
 template <typename T, typename = void>
@@ -283,40 +289,15 @@ struct HasKernelPropertiesGetMethod<T,
 } // namespace _V1
 } // namespace sycl
 
+//      {"sycl-device-has"}, 
+//      {"sycl-function-property"}, 
 #ifdef __SYCL_DEVICE_ONLY__
 #define SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(PROP)                                \
   [[__sycl_detail__::add_ir_attributes_function(                               \
-      {"sycl-device-has"},                                                     \
       sycl::ext::oneapi::experimental::detail::PropertyMetaInfo<               \
           std::remove_cv_t<std::remove_reference_t<decltype(PROP)>>>::name,    \
       sycl::ext::oneapi::experimental::detail::PropertyMetaInfo<               \
           std::remove_cv_t<std::remove_reference_t<decltype(PROP)>>>::value)]]
-
-#define SYCL_EXT_ONEAPI_RANGE_KERNEL_PROPERTY(PROP)                            \
-  [[__sycl_detail__::add_ir_attributes_function(                               \
-      {"sycl-range-kernel"},                                                   \
-      sycl::ext::oneapi::experimental::detail::PropertyMetaInfo<               \
-          std::remove_cv_t<std::remove_reference_t<decltype(PROP)>>>::name,    \
-      sycl::ext::oneapi::experimental::detail::PropertyMetaInfo<               \
-          std::remove_cv_t<std::remove_reference_t<decltype(PROP)>>>::value)]]
-
-#define SYCL_EXT_ONEAPI_ND_RANGE_KERNEL_PROPERTY(PROP)                         \
-  [[__sycl_detail__::add_ir_attributes_function(                               \
-      {"sycl-nd-range-kernel"},                                                \
-      sycl::ext::oneapi::experimental::detail::PropertyMetaInfo<               \
-          std::remove_cv_t<std::remove_reference_t<decltype(PROP)>>>::name,    \
-      sycl::ext::oneapi::experimental::detail::PropertyMetaInfo<               \
-          std::remove_cv_t<std::remove_reference_t<decltype(PROP)>>>::value)]]
-
-#define SYCL_EXT_ONEAPI_SINGLE_TASK_KERNEL_PROPERTY(PROP)                      \
-  [[__sycl_detail__::add_ir_attributes_function(                               \
-      {"sycl-single-task-kernel"},                                             \
-      sycl::ext::oneapi::experimental::detail::PropertyMetaInfo<               \
-          std::remove_cv_t<std::remove_reference_t<decltype(PROP)>>>::name,    \
-      0)]]
 #else
 #define SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(PROP)
-#define SYCL_EXT_ONEAPI_RANGE_KERNEL_PROPERTY(PROP)
-#define SYCL_EXT_ONEAPI_ND_RANGE_KERNEL_PROPERTY(PROP)
-#define SYCL_EXT_ONEAPI_SINGLE_TASK_KERNEL_PROPERTY(PROP)
 #endif
