@@ -326,6 +326,27 @@
 // CHK-LINK-UB: 10: backend, {9}, assembler, (host-sycl)
 // CHK-LINK-UB: 11: assembler, {10}, object, (host-sycl)
 
+/// Check -fsycl-link tool calls
+// RUN:   %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl -o %t.out \
+// RUN:            -fsycl-targets=spir64_gen -fsycl-link \
+// RUN:            -fno-sycl-device-lib=all %t.o 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-FSYCL-LINK-UB,CHK-FSYCL-LINK-UB-LIN %s
+// RUN:   %clang_cl -### --target=x86_64-pc-windows-msvc -fsycl -o %t.out \
+// RUN:            -fsycl-targets=spir64_gen -fsycl-link \
+// RUN:            -fno-sycl-device-lib=all %t.o 2>&1 \
+// RUN:   | FileCheck -check-prefixes=CHK-FSYCL-LINK-UB,CHK-FSYCL-LINK-UB-WIN %s
+// CHK-FSYCL-LINK-UB: clang-offload-bundler{{.*}} "-type=o" "-targets=host{{.*}},sycl-spir64_gen-unknown-unknown" "-input=[[INPUT:.+\.o]]" "-output={{.*}}" "-output=[[DEVICE_O:.+]]" "-unbundle"
+// CHK-FSYCL-LINK-UB: spirv-to-ir-wrapper{{.*}} "[[DEVICE_O]]" "-o" "[[DEVICE_BC:.+\.bc]]"
+// CHK-FSYCL-LINK-UB: llvm-link{{.*}} "[[DEVICE_BC]]"
+// CHK-FSYCL-LINK-UB: sycl-post-link{{.*}} "-o" "[[POST_LINK_TABLE:.+\.table]]"
+// CHK-FSYCL-LINK-UB: file-table-tform{{.*}} "-o" "[[TFORM_TABLE:.+\.txt]]" "[[POST_LINK_TABLE]]"
+// CHK-FSYCL-LINK-UB: llvm-spirv{{.*}} "-o" "[[SPIRV:.+\.txt]]"{{.*}} "[[TFORM_TABLE]]"
+// CHK-FSYCL-LINK-UB-LIN: ocloc{{.*}} "-output" "[[OCLOC_OUT:.+\.out]]"
+// CHK-FSYCL-LINK-UB-WIN: ocloc{{.*}} "-output" "[[OCLOC_OUT:.+\.exe]]"
+// CHK-FSYCL-LINK-UB: file-table-tform{{.*}} "-o" "[[TFORM_TABLE2:.+\.table]]" "[[POST_LINK_TABLE]]" "[[OCLOC_OUT]]"
+// CHK-FSYCL-LINK-UB: clang-offload-wrapper{{.*}} "-o" "[[WRAPPER_OUT:.+\.bc]]"{{.*}} "-batch" "[[TFORM_TABLE2]]"
+// CHK-FSYCL-LINK-UB: clang{{.*}} "-cc1"{{.*}} "-o" "{{.*}}.out" "-x" "ir" "[[WRAPPER_OUT]]"
+
 /// Check -fsycl-link AOT unbundle
 // RUN:   %clang -### -ccc-print-phases -target x86_64-unknown-linux-gnu \
 // RUN:     -fsycl -o %t.out -fsycl-link -fno-sycl-instrument-device-code \
@@ -487,13 +508,33 @@
 // RUN:   | FileCheck -check-prefix=CHK-TOOLS-OPTS2 %s
 // CHK-TOOLS-OPTS2: clang-offload-wrapper{{.*}} "-link-opts=-DFOO1 -DFOO2"
 
-/// -fsycl-disable-range-rounding settings
+/// -fsycl-range-rounding settings
+///
+/// // Check that driver flag is passed to cc1
+// RUN: %clang -### -fsycl -fsycl-range-rounding=disable %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-DRIVER-RANGE-ROUNDING-DISABLE %s
+// RUN: %clang -### -fsycl -fsycl-range-rounding=force %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-DRIVER-RANGE-ROUNDING-FORCE %s
+// RUN: %clang -### -fsycl -fsycl-range-rounding=on %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-DRIVER-RANGE-ROUNDING-ON %s
+// CHK-DRIVER-RANGE-ROUNDING-DISABLE: "-cc1{{.*}}-fsycl-range-rounding=disable"
+// CHK-DRIVER-RANGE-ROUNDING-FORCE: "-cc1{{.*}}-fsycl-range-rounding=force"
+// CHK-DRIVER-RANGE-ROUNDING-ON: "-cc1{{.*}}-fsycl-range-rounding=on"
+///
+///
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl \
 // RUN:        -fsycl-targets=spir64 -O0 %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DISABLE-RANGE-ROUNDING %s
 // RUN: %clang_cl -### -fsycl -fsycl-targets=spir64 -Od %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-DISABLE-RANGE-ROUNDING %s
-// CHK-DISABLE-RANGE-ROUNDING: "-fsycl-disable-range-rounding"
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl \
+// RUN:        -O0 -fsycl-range-rounding=force %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OVERRIDE-RANGE-ROUNDING %s
+// RUN: %clang_cl -### -fsycl -Od %s 2>&1 -fsycl-range-rounding=force %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-OVERRIDE-RANGE-ROUNDING %s
+// CHK-DISABLE-RANGE-ROUNDING: "-fsycl-range-rounding=disable"
+// CHK-OVERRIDE-RANGE-ROUNDING: "-fsycl-range-rounding=force"
+// CHK-OVERRIDE-RANGE-ROUNDING-NOT: "-fsycl-range-rounding=disable"
 
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl \
 // RUN:        -fsycl-targets=spir64 -O2 %s 2>&1 \
@@ -506,6 +547,8 @@
 // RUN: %clang_cl -### -fsycl -fsycl-targets=spir64 %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-RANGE-ROUNDING %s
 // CHK-RANGE-ROUNDING-NOT: "-fsycl-disable-range-rounding"
+// CHK-RANGE-ROUNDING-NOT: "-fsycl-range-rounding=disable"
+// CHK-RANGE-ROUNDING-NOT: "-fsycl-range-rounding=force"
 
 /// ###########################################################################
 

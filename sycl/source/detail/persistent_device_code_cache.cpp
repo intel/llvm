@@ -12,6 +12,7 @@
 #include <detail/program_manager/program_manager.hpp>
 
 #include <cerrno>
+#include <cerrno>
 #include <cstdio>
 #include <fstream>
 #include <optional>
@@ -39,6 +40,8 @@ LockCacheItem::LockCacheItem(const std::string &Path)
     close(fd);
     Owned = true;
   } else {
+    PersistentDeviceCodeCache::trace("Failed to acquire lock file: " +
+                                     FileName + " " + std::strerror(errno));
     PersistentDeviceCodeCache::trace("Failed to acquire lock file: " +
                                      FileName + " " + std::strerror(errno));
   }
@@ -131,6 +134,13 @@ void PersistentDeviceCodeCache::putItemToDisc(
   } while (OSUtil::isPathPresent(FileName + ".bin") ||
            OSUtil::isPathPresent(FileName + ".lock"));
 
+  size_t i = 0;
+  std::string FileName;
+  do {
+    FileName = DirName + "/" + std::to_string(i++);
+  } while (OSUtil::isPathPresent(FileName + ".bin") ||
+           OSUtil::isPathPresent(FileName + ".lock"));
+
   try {
     OSUtil::makeDir(DirName.c_str());
     LockCacheItem Lock{FileName};
@@ -142,8 +152,10 @@ void PersistentDeviceCodeCache::putItemToDisc(
                       BuildOptionsString);
     } else {
       PersistentDeviceCodeCache::trace("cache lock not owned " + FileName);
+    } else {
+      PersistentDeviceCodeCache::trace("cache lock not owned " + FileName);
     }
-  } catch ( std::exception &e){
+  } catch (std::exception &e) {
     PersistentDeviceCodeCache::trace(
         std::string("exception encountered making persistent cache: ") +
         e.what());
@@ -151,7 +163,7 @@ void PersistentDeviceCodeCache::putItemToDisc(
     PersistentDeviceCodeCache::trace(
         std::string("error outputting persistent cache: ") +
         std::strerror(errno));
- }
+  }
 }
 
 /* Program binaries built for one or more devices are read from persistent

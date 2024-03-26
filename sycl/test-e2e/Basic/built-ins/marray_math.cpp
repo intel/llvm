@@ -6,7 +6,9 @@
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t_preview.out%}
 
 #include <cmath>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
 
 // Reference
 // https://github.com/KhronosGroup/SYCL-CTS/blob/SYCL-2020/util/accuracy.h

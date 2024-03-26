@@ -12,6 +12,12 @@
 #include <filesystem> // C++17 std::create_directories
 #include <limits>
 
+#if __GNUC__ && __GNUC__ < 8
+// Don't include <filesystem> for GCC versions less than 8
+#else
+#include <filesystem> // C++ 17 std::create_directories
+#endif
+
 #if defined(__SYCL_RT_OS_LINUX)
 
 #ifndef _GNU_SOURCE
@@ -234,15 +240,32 @@ void OSUtil::alignedFree(void *Ptr) {
 }
 
 // throws on error.
-// TODO: remove return value at next ABI breaking window
 int OSUtil::makeDir(const char *Dir) {
   assert((Dir != nullptr) && "Passed null-pointer as directory name.");
   if (isPathPresent(Dir))
     return 0;
 
-  std::filesystem::path path(Dir);
+// older GCC doesn't have full C++ 17 support.
+#if __GNUC__ && __GNUC__ < 8
+  std::string Path{Dir}, CurPath;
+  size_t pos = 0;
 
+  do {
+    pos = Path.find_first_of("/\\", ++pos);
+    CurPath = Path.substr(0, pos);
+#if defined(__SYCL_RT_OS_POSIX_SUPPORT)
+    auto Res = mkdir(CurPath.c_str(), 0777);
+#else
+    auto Res = _mkdir(CurPath.c_str());
+#endif
+    if (Res && errno != EEXIST)
+      return Res;
+  } while (pos != std::string::npos);
+#else
+  // using filesystem is simpler, more reliable, works better on Win
+  std::filesystem::path path(Dir);
   std::filesystem::create_directories(path.make_preferred());
+#endif
   return 0;
 }
 
