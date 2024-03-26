@@ -21,9 +21,12 @@ inline namespace _V1 {
 platform::platform() : platform(default_selector_v) {}
 
 platform::platform(cl_platform_id PlatformId) {
-  impl = detail::platform_impl::getOrMakePlatformImpl(
-      detail::pi::cast<sycl::detail::pi::PiPlatform>(PlatformId),
-      sycl::detail::pi::getPlugin<backend::opencl>());
+  sycl::detail::pi::PiPlatform Platform;
+  auto Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
+  Plugin->call<detail::PiApiKind::piextPlatformCreateWithNativeHandle>(
+      detail::pi::cast<pi_native_handle>(PlatformId), &Platform);
+
+  impl = detail::platform_impl::getOrMakePlatformImpl(Platform, Plugin);
 }
 
 // protected constructor for internal use
