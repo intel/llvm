@@ -65,7 +65,7 @@ public:
   /// Deallocates the memory referenced by \p Ptr.
   static void alignedFree(void *Ptr);
 
-  /// Make directory recursively and returns zero code on success
+  /// Make directory throw if error
   static int makeDir(const char *Dir);
 
   /// Checks if specified path is present
