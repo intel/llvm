@@ -4,7 +4,7 @@
 // RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS=16:32:0 \
 // RUN:     SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 \
 // RUN: %{run} %t.out | FileCheck %s
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 constexpr int N = 3;
 

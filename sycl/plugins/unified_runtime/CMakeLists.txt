@@ -56,14 +56,39 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
+  # The fetch_adapter_source function can be used to perform a separate content
+  # fetch for a UR adapter, this allows development of adapters to be decoupled
+  # from each other.
+  #
+  # Args:
+  #   * name - Must be the directory name of the adapter
+  #   * repo - A valid Git URL of a Unified Runtime repo
+  #   * tag - A valid Git branch/tag/commit in the Unified Runtime repo
+  function(fetch_adapter_source name repo tag)
+    message(STATUS "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
+    set(fetch-name unified-runtime-${name})
+    FetchContent_Declare(${fetch-name}
+      GIT_REPOSITORY ${repo} GIT_TAG ${tag})
+    # We don't want to add this repo to the build, only fetch its source.
+    FetchContent_Populate(${fetch-name})
+    # Get the path to the source directory
+    string(TOUPPER ${name} NAME)
+    set(source_dir_var UR_ADAPTER_${NAME}_SOURCE_DIR)
+    FetchContent_GetProperties(${fetch-name} SOURCE_DIR UR_ADAPTER_${NAME}_SOURCE_DIR)
+    # Set the variable which informs UR where to get the adapter source from.
+    set(UR_ADAPTER_${NAME}_SOURCE_DIR
+      "${UR_ADAPTER_${NAME}_SOURCE_DIR}/source/adapters/${name}"
+      CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
+  endfunction()
+
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 09be0881b727fadb1c04b38c00d2562d7dc6875f
-  # Merge: bb589ca8 e9f855d4
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Mar 14 22:10:28 2024 +0000
-  #     Merge pull request #1429 from nrspruit/l0_p2p_device_query
-  #     [L0] Support for urUsmP2PPeerAccessGetInfoExp to query p2p access info
-  set(UNIFIED_RUNTIME_TAG 09be0881b727fadb1c04b38c00d2562d7dc6875f)
+  # commit  5f4dd113824e90522d813420932c14072dc3049d
+  # Merge:  ed1f8bf b551c77
+  # Author: Ewan Crawford <ewan@codeplay.com>
+  # Date:   Fri Mar 15 10:22:39 2024 +0000
+  #     Merge pull request #1447 from Bensuo/ewan/rocm_5_5_1
+  #     [HIP][CMDBUF] Require ROCm 5.5.1 for HIP command-buffers
+  set(UNIFIED_RUNTIME_TAG 5f4dd113824e90522d813420932c14072dc3049d)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
