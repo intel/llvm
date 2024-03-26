@@ -58,8 +58,6 @@ TEST_P(urKernelGetSuggestedLocalWorkSizeTest, InvalidNullHandleKernel) {
 }
 
 TEST_P(urKernelGetSuggestedLocalWorkSizeTest, InvalidNullHandleQueue) {
-    // LATER: some adapter's implementation of the API does not require queue,
-    // do we still need to test for it?
     ASSERT_EQ_RESULT(urKernelGetSuggestedLocalWorkSize(
                          kernel, nullptr, n_dimensions, &global_offset,
                          &global_size, &suggested_local_work_size),
