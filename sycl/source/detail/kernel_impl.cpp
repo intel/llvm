@@ -62,7 +62,7 @@ kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
                          ContextImplPtr ContextImpl,
                          DeviceImageImplPtr DeviceImageImpl,
                          KernelBundleImplPtr KernelBundleImpl,
-                         const KernelArgMask *ArgMask, ProgramPIPtr ProgramPI,
+                         const KernelArgMask *ArgMask, PiProgram ProgramPI,
                          std::mutex *CacheMutex)
     : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgram(ProgramPI),
       MCreatedFromSource(false), MDeviceImageImpl(std::move(DeviceImageImpl)),
