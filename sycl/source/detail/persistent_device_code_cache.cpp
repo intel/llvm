@@ -12,7 +12,6 @@
 #include <detail/program_manager/program_manager.hpp>
 
 #include <cerrno>
-#include <cerrno>
 #include <cstdio>
 #include <fstream>
 #include <optional>
@@ -126,14 +125,6 @@ void PersistentDeviceCodeCache::putItemToDisc(
   Plugin->call<PiApiKind::piProgramGetInfo>(NativePrg, PI_PROGRAM_INFO_BINARIES,
                                             sizeof(char *) * Pointers.size(),
                                             Pointers.data(), nullptr);
-
-  size_t i = 0;
-  std::string FileName;
-  do {
-    FileName = DirName + "/" + std::to_string(i++);
-  } while (OSUtil::isPathPresent(FileName + ".bin") ||
-           OSUtil::isPathPresent(FileName + ".lock"));
-
   size_t i = 0;
   std::string FileName;
   do {
@@ -150,8 +141,6 @@ void PersistentDeviceCodeCache::putItemToDisc(
       trace("device binary has been cached: " + FullFileName);
       writeSourceItem(FileName + ".src", Device, Img, SpecConsts,
                       BuildOptionsString);
-    } else {
-      PersistentDeviceCodeCache::trace("cache lock not owned " + FileName);
     } else {
       PersistentDeviceCodeCache::trace("cache lock not owned " + FileName);
     }
