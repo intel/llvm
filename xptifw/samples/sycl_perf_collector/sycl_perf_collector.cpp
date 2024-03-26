@@ -23,6 +23,7 @@ uint64_t GProcessID = 0;
 bool CalibrationRun = false;
 bool MeasureEventCost = true;
 bool ShowDebugInformation = false;
+bool ShowVerboseOutput = false;
 bool ShowInColors;
 
 uint64_t GOutputFormats = 0;
@@ -92,15 +93,17 @@ records_t &data_model::data() { return m_records; }
 ordered_records_t &data_model::ordered_data() { return m_ordered_records; }
 
 void data_model::print(char *Name) {
-  if (!Name) {
-    std::cout << "++# of records: " << m_records.size() << "\n";
-  } else {
-    std::cout << "++# of records: " << m_records.size() << " : " << Name
-              << "\n";
-  }
-  std::lock_guard<std::mutex> _{GDataMutex};
-  for (auto &r : m_records) {
-    std::cout << "--->" << r.TSBegin << " : " << r.Name << "\n";
+  if (ShowDebugInformation) {
+    if (!Name) {
+      std::cout << "++# of records: " << m_records.size() << "\n";
+    } else {
+      std::cout << "++# of records: " << m_records.size() << " : " << Name
+                << "\n";
+    }
+    std::lock_guard<std::mutex> _{GDataMutex};
+    for (auto &r : m_records) {
+      std::cout << "--->" << r.TSBegin << " : " << r.Name << "\n";
+    }
   }
 }
 
@@ -190,8 +193,6 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
                                      unsigned int minor_version,
                                      const char *version_str,
                                      const char *stream_name) {
-  if (ShowDebugInformation)
-    std::cout << "Initializing stream: " << stream_name << "\n";
   // On first use, set up some data structures to track the streams we are
   // registering with and create some writer objects for formatted output
   static bool InitStreams = true;
@@ -220,33 +221,74 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     // 4. XPTI_IGNORE_LIST=piPlatformsGet,piProgramBuild
     // 5. XPTI_SIMULATION=10,20,50,100
     //
+
+    // Set up the Verbose output flag first so we can provide progress output of
+    // the collector
+    const char *VerboseFlag = std::getenv("XPTI_VERBOSE");
+    // Check the environment variable for verbose output and set the appropriate
+    // flag, if the variable is set
+    if (VerboseFlag) {
+      if (std::stoi(VerboseFlag) == 0)
+        ShowVerboseOutput = false;
+      else
+        ShowVerboseOutput = true;
+    } else {
+      ShowVerboseOutput = false;
+    }
+
+    const char *DebugFlag = std::getenv("XPTI_DEBUG");
+    // Check the environment variable for debug output and set the appropriate
+    // flag, if the variable is set
+    if (DebugFlag) {
+      if (std::stoi(DebugFlag) == 0)
+        ShowDebugInformation = false;
+      else {
+        ShowDebugInformation = true;
+        ShowVerboseOutput = true;
+      }
+    } else {
+      ShowDebugInformation = false;
+    }
+
     const char *ProfOutFile = std::getenv("XPTI_SYCL_PERF_OUTPUT");
-    if (ProfOutFile)
+    if (ShowVerboseOutput && ProfOutFile)
       std::cout << "XPTI_SYCL_PERF_OUTPUT=" << ProfOutFile << "\n";
     const char *StreamsToMonitor = std::getenv("XPTI_STREAMS");
-    if (StreamsToMonitor)
+    if (ShowVerboseOutput && StreamsToMonitor)
       std::cout << "XPTI_STREAMS=" << StreamsToMonitor << "\n";
     const char *ColorOutput = std::getenv("XPTI_STDOUT_USE_COLOR");
-    if (ColorOutput)
+    if (ShowVerboseOutput && ColorOutput)
       std::cout << "XPTI_STDOUT_USE_COLOR=" << ColorOutput << "\n";
     const char *FirstCallsToIgnore = std::getenv("XPTI_IGNORE_LIST");
-    if (FirstCallsToIgnore)
+    if (ShowVerboseOutput && FirstCallsToIgnore)
       std::cout << "XPTI_IGNORE_LIST=" << FirstCallsToIgnore << "\n";
     const char *SimulationOverheads = std::getenv("XPTI_SIMULATION");
-    if (SimulationOverheads)
+    if (ShowVerboseOutput && SimulationOverheads)
       std::cout << "XPTI_SIMULATION=" << SimulationOverheads << "\n";
     const char *CalibrationFlag = std::getenv("XPTI_CALIBRATE");
-    if (CalibrationFlag)
+    if (ShowVerboseOutput && CalibrationFlag)
       std::cout << "XPTI_SIMULATION=" << CalibrationFlag << "\n";
-    const char *VerboseFlag = std::getenv("XPTI_VERBOSE");
-    if (VerboseFlag)
+    if (ShowVerboseOutput && VerboseFlag)
       std::cout << "XPTI_VERBOSE=" << VerboseFlag << "\n";
+    if (ShowVerboseOutput && DebugFlag)
+      std::cout << "XPTI_DEBUG=" << DebugFlag << "\n";
+
+    // Check the environment variable for colored output and set the appropriate
+    // flag, if the variable is set
+    if (CalibrationFlag) {
+      if (std::stoi(CalibrationFlag) == 0)
+        CalibrationRun = false;
+      else
+        CalibrationRun = true;
+    } else {
+      CalibrationRun = false;
+    }
 
     // Get the streams to monitor from the environment variable
     // In order to determine if the environment variable contains valid stream
     // names, a catalog of all streams must be check against to validate the
     // strings
-    if (StreamsToMonitor) {
+    if (ShowVerboseOutput && StreamsToMonitor) {
       std::cout << "Monitoring streams: ";
 
       auto streams = D.decode(StreamsToMonitor);
@@ -254,16 +296,16 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
         std::cout << s << ", ";
         GAllStreams.add(s.c_str());
       }
-      std::cout << "null\n";
+      if (ShowVerboseOutput)
+        std::cout << "null\n";
     } else {
-      std::cout << "Streams to monitor:  default\n";
+      if (ShowVerboseOutput)
+        std::cout << "Streams to monitor:  default\n";
       // If the environment variable is not set, pick the default streams we
       // would like to monitor
       GAllStreams.add(GStreamBasic);
       GAllStreams.add(GStreamPI);
       GAllStreams.add(GStreamMemory);
-      GAllStreams.add(GStreamL0);
-      GAllStreams.add(GStreamCuda);
       // GAllStreams.add(GStreamBuffer);
       GAllStreams.add(GStreamImage);
     }
@@ -286,19 +328,31 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     // Check the output format environmental variable and only accept valid
     // types
     if (ProfOutFile) {
+      if (ShowVerboseOutput)
+        std::cout << "Output format: ";
       auto outputs = D.decode(ProfOutFile);
       for (auto &o : outputs) {
         if (OutputFormats.count(o)) {
           if (o == "json") {
             GOutputFormats |= (uint64_t)xpti::FileFormat::JSON;
+            if (ShowVerboseOutput)
+              std::cout << "JSON,";
           } else if (o == "table") {
             GOutputFormats |= (uint64_t)xpti::FileFormat::Table;
+            if (ShowVerboseOutput)
+              std::cout << "Table,";
           } else if (o == "stack") {
             GOutputFormats |= (uint64_t)xpti::FileFormat::Stack;
+            if (ShowVerboseOutput)
+              std::cout << "Stack,";
           } else if (o == "all") {
             GOutputFormats |= (uint64_t)xpti::FileFormat::All;
+            if (ShowVerboseOutput)
+              std::cout << "All,";
           } else if (o == "none") {
             GOutputFormats = 0;
+            if (ShowVerboseOutput)
+              std::cout << "None,";
             break;
           } else {
             std::cerr << "Invalid format provided: " << o
@@ -306,10 +360,11 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
           }
         }
       }
+      if (ShowVerboseOutput)
+        std::cout << "null\n";
     } else {
       GOutputFormats = (uint64_t)xpti::FileFormat::JSON;
     }
-    std::cout << "Output format: " << GOutputFormats << "\n";
 
     // Check to see if the data model is uninitialized
     // if (GDataModel.get() == nullptr) {
@@ -332,31 +387,12 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
       ShowInColors = false;
     }
 
-    // Check the environment variable for colored output and set the appropriate
-    // flag, if the variable is set
-    if (CalibrationFlag) {
-      if (std::stoi(CalibrationFlag) == 0)
-        CalibrationRun = false;
-      else
-        CalibrationRun = true;
-    } else {
-      CalibrationRun = false;
-    }
-
-    // Check the environment variable for verbose output and set the appropriate
-    // flag, if the variable is set
-    if (VerboseFlag) {
-      if (std::stoi(VerboseFlag) == 0)
-        ShowDebugInformation = false;
-      else
-        ShowDebugInformation = true;
-    } else {
-      ShowDebugInformation = false;
-    }
-
     // Disable initialization
     InitStreams = false;
   } // First time inititalization complete
+
+  if (ShowVerboseOutput)
+    std::cout << "Initializing stream: " << stream_name << "\n";
 
   // Post initialization: Once the needed data structures are created, we
   // register callbacks to the streams requsted by the end-user;
@@ -469,10 +505,12 @@ std::once_flag GFinalize, GCompaction;
 // terminated sending events in its stream
 XPTI_CALLBACK_API void xptiTraceFinish(const char *stream_name) {
   {
+    if (ShowVerboseOutput)
+      std::cout << "Unregistering stream: " << stream_name << "\n";
     std::lock_guard<std::mutex> _{GStreamMutex};
     // Filter the streams to what is requested by the user that intersects with
     // the streams being generated by the application and middleware
-    std::call_once(GCompaction, []() { GStreams->compact(); });
+    // std::call_once(GCompaction, []() { GStreams->compact(); });
 
     GStreams->remove(stream_name);
   }
@@ -481,7 +519,6 @@ XPTI_CALLBACK_API void xptiTraceFinish(const char *stream_name) {
   // registered streams have closed their data streams, we finalize the data and
   // serialize to file in the format(s) requested from the command line
   if (GStreams->empty()) {
-    std::cout << "All subscribed streams have been unregistered!\n";
     std::call_once(GFinalize, []() {
       if (MeasureEventCost && !CalibrationRun) {
         std::cout << "Event handler cost: " << std::fixed << GEventStats.mean()
@@ -489,6 +526,9 @@ XPTI_CALLBACK_API void xptiTraceFinish(const char *stream_name) {
                   << GEventStats.count()
                   << " events] [Min time: " << GEventStats.min() << " ns]\n";
       }
+      if (ShowVerboseOutput)
+        std::cout << "All subscribed streams have been unregistered!\n";
+
       if (ShowDebugInformation)
         GDataModel->print();
       // At this point, the XPTI framework has indicated that all streams we
@@ -647,8 +687,10 @@ void print_record(uint16_t TraceType, xpti::record_t &r) {
     break;
   }
 
-  std::cout << "Record[" << count++ << "] -> " << trace_origin << " details("
-            << r.TSBegin << "," << r.CorrID << "," << r.Name << ")\n";
+  if (ShowDebugInformation) {
+    std::cout << "Record[" << count++ << "] -> " << trace_origin << " details("
+              << r.TSBegin << "," << r.CorrID << "," << r.Name << ")\n";
+  }
 }
 
 void record_and_save(const char *StreamName, xpti::trace_event_data_t *Event,
@@ -845,7 +887,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fwdReason, LPVOID lpvReserved) {
 #else // Linux (possibly macOS?)
 
 __attribute__((constructor)) static void framework_init() {
-  if (ShowDebugInformation)
+  if (ShowVerboseOutput)
     std::cout << "Collector loaded\n";
 }
 
@@ -854,7 +896,7 @@ __attribute__((destructor)) static void framework_fini() {
     delete GRecordsInProgress;
     GRecordsInProgress = nullptr;
   }
-  if (ShowDebugInformation)
+  if (ShowVerboseOutput)
     std::cout << "Collector unloaded\n";
 }
 
