@@ -1,4 +1,4 @@
-// REQUIRES: (opencl || level-zero) && gpu && ocloc
+// REQUIRES: (opencl || level_zero) && gpu && ocloc
 
 // Check the case when -fsycl-add-default-spec-consts-image option is used which
 // results in generation of two types of images: where specialization constants

@@ -13,6 +13,7 @@ See more general ESIMD documentation [here](./sycl_ext_intel_esimd.md).
 - [scatter(...)](#scatter---store-to-memory-locations-addressed-by-a-vector-of-offsets)
 - [atomic_update(...)](#atomic_update)
 - [prefetch(...)](#prefetch)
+- [fence(...) - set the memory read/write order](#fence---set-the-memory-readwrite-order)
 - [Examples](#examples)
 
 ## Other content:
@@ -99,7 +100,7 @@ template <typename T, int N, typename PropertyListT = empty_properties_t>
 /*slm-bl-1*/ simd<T, N> slm_block_load(uint32_t byte_offset, PropertyListT props={});
 /*slm-bl-2*/ simd<T, N> slm_block_load(uint32_t byte_offset, simd_mask<1> pred, PropertyListT props={});
 /*slm-bl-3*/ simd<T, N> slm_block_load(uint32_t byte_offset, simd_mask<1> pred, simd<T, N> pass_thru, PropertyListT props={});
-}
+} // end namespace sycl::ext::intel::esimd
 ```
 ### Description
 `(usm-bl-*)`: Loads a contiguous memory block from global memory referenced by the USM pointer `ptr` optionally adjusted by `byte_offset`.  
@@ -169,7 +170,7 @@ void block_store(AccessorT lacc, simd<T, N> vals, simd_mask<1> pred, PropertyLis
 template <typename T, int N, typename PropertyListT = empty_properties_t>
 /*slm-bs-1*/ void slm_block_store(uint32_t byte_offset, simd<T, N> vals, simd_mask<1> pred, PropertyListT props={});
 /*slm-bs-2*/ void slm_block_store(uint32_t byte_offset, simd<T, N> vals, PropertyListT props={});
-}
+} // end namespace sycl::ext::intel::esimd
 ```
 ### Description
 `(usm-bs-*)`: Stores `vals` to a contiguous global memory block referenced by the USM pointer `ptr` optionally adjusted by `byte_offset`.  
@@ -328,6 +329,7 @@ template <typename T, int N, int VS = 1, typename OffsetSimdViewT, typename Prop
                                 simd_mask<N / VS> mask, PropertyListT props = {});
 /*slm-ga-9*/ simd <T, N> gather(OffsetSimdViewT byte_offsets,
                                 PropertyListT props = {});
+} // end namespace sycl::ext::intel::esimd
 ```
 
 ### Description
@@ -399,6 +401,7 @@ template <typename T, int N, int VS = 1, typename OffsetSimdViewT, typename Prop
                           simd_mask<N / VS> mask, PropertyListT props = {});
 /*slm-sc-4*/ void scatter(OffsetSimdViewT byte_offsets, simd<T, N> vals,
                           PropertyListT props = {});
+} // end namespace sycl::ext::intel::esimd
 ```
 
 ### Description
@@ -414,6 +417,7 @@ The optional [compile-time properties](#compile-time-properties) list `props` ma
 
 ### atomic_update() with 0 operands (inc, dec, load)
 ```C++
+namespace sycl::ext::intel::esimd {
 // Atomic update the USM memory locations - zero operands (dec, load, etc.).
 template <atomic_op Op, typename T, int N, typename Toffset, typename PropertyListT = empty_properties_t>
 /*usm-au0-1*/ simd<T, N> atomic_update(T *p, simd<Toffset, N> byte_offset, simd_mask<N> mask, props = {});
@@ -533,6 +537,7 @@ template <atomic_op Op, typename T, int N, typename AccessorT>
 template <atomic_op Op, typename T, int N>
 /*slm-au2-1*/ simd<T, N> slm_atomic_update(simd<uint32_t, N> byte_offset,
                                            simd<T, N> src0, simd<T, N> src1, simd_mask<N> mask = 1);
+} // end namespace sycl::ext::intel::esimd
 ```
 ### Description
 `(usm-*)`: Atomically updates the global memory locations addressed by the base USM pointer `ptr` and byte-offsets `byte_offset`.  
@@ -545,6 +550,7 @@ The optional parameter `pred` provides a `simd_mask`. If some element in `pred` 
 
 ## prefetch(...)
 ```C++
+namespace sycl::ext::intel::esimd {
 template <typename T, int N, int VS, typename OffsetT, typename PropertyListT = empty_properties_t>
 /*usm-pf-1*/ void prefetch(const T *p, simd<OffsetT, N / VS> byte_offsets,
                            simd_mask<N / VS> mask, PropertyListT props = {});
@@ -612,6 +618,7 @@ template <typename T, int VS = 1, typename AccessorT,
           typename PropertyListT = empty_properties_t>
 /*acc-pf-9*/ void prefetch(AccessorT acc, simd_mask<1> mask, PropertyListT props = {});
 /*acc-pf-10*/ void prefetch(AccessorT acc, PropertyListT props = {});
+} // end namespace sycl::ext::intel::esimd
 ```
 ### Description
 `(usm-pf-1,2,3,4,5,6)`: Prefetches the memory locations addressed by the base USM pointer `ptr` and the vector of any integral type byte-offsets `byte_offsets`.
@@ -630,6 +637,79 @@ The `byte_offsets` is a vector of any integral type elements, limited in [statef
 
 `(usm-pf-*)`, `(acc-pf-*)`: The [compile-time properties](#compile-time-properties) list `props` must specify `cache-hints`.
 
+
+## fence(...) - set the memory read/write order
+```C++
+namespace sycl::ext::intel::esimd {
+enum fence_mask : uint8_t {
+  /// “Commit enable” - wait for fence to complete before continuing.
+  global_coherent_fence = 0x1,
+  /// Flush the instruction cache.
+  l2_flush_instructions = 0x2,
+  /// Flush sampler (texture) cache.
+  l2_flush_texture_data = 0x4,
+  /// Flush constant cache.
+  l2_flush_constant_data = 0x8,
+  /// Flush constant cache.
+  l2_flush_rw_data = 0x10,
+  /// Issue SLM memory barrier only. If not set, the memory barrier is global.
+  local_barrier = 0x20,
+  /// Flush L1 read - only data cache.
+  l1_flush_ro_data = 0x40
+};
+/*fence-1*/template <uint8_t ctrl_mask> void fence();
+
+
+/// The target memory kind for fence() operation.
+enum class memory_kind : uint8_t {
+  global = 0, /// untyped global memory
+  image = 2, /// image (also known as typed global memory)
+  local = 3, /// shared local memory
+};
+/// The cache flush operation to apply to caches after fence() is complete.
+enum class fence_flush_op : uint8_t {
+  none = 0,       /// no operation;
+  evict = 1,      /// R/W: evict dirty lines; R/W and RO: invalidate clean lines
+  invalidate = 2, /// R/W and RO: invalidate all clean lines;
+  clean = 4 /// R/W: dirty lines are written to memory, but retained in
+            /// cache in clean state; RO: no effect.
+};
+/// The scope that fence() operation should apply to.
+enum class fence_scope : uint8_t {
+  /// Wait until all previous memory transactions from this thread are observed
+  /// within the local thread-group.
+  group = 0,
+  /// Wait until all previous memory transactions from this thread are observed
+  /// within the local sub-slice.
+  local = 1,
+  /// Wait until all previous memory transactions from this thread are observed
+  /// in the local tile.
+  tile = 2,
+  /// Wait until all previous memory transactions from this thread are observed
+  /// in the local GPU.
+  gpu = 3,
+  /// Wait until all previous memory transactions from this thread are observed
+  /// across all GPUs in the system.
+  gpus = 4,
+  /// Global memory data-port only: wait until all previous memory transactions
+  /// from this thread are observed at the "system" level.
+  system = 5,
+  /// Global memory data-port only: for GPUs that do not follow
+  /// PCIe Write ordering for downstream writes targeting device memory,
+  /// this op will commit to device memory all downstream and peer writes that
+  /// have reached the device.
+  system_acquire = 6
+};
+
+/*fence-2*/template <memory_kind Kind = memory_kind::global,
+                     fence_flush_op FenceOp = fence_flush_op::none,
+                     fence_scope Scope = fence_scope::group> void fence();
+} // end namespace sycl::ext::intel::esimd
+```
+### Description
+`(fence-1)`: Sets the memory read/write order. This function has pretty limited functionality compared to `(fence-2)`. It accepts an 8-bit `ctrl_mask` containing one or more `fence_mask` enum values in it. It can be used for any Intel GPU.
+
+`(fence-2)`: Sets the memory read/write order. This function provide a bit more flexible controls comparing to `(fence-1)`, but requires `Intel® Arc Series` (aka `DG2`) or `Intel® Data Center GPU Max Series` (aka `PVC`) to run.
 
 ## Examples
 ```C++
