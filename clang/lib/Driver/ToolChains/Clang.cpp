@@ -10812,8 +10812,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // work.
     if (TargetTriple.isSPIR())
       CmdArgs.push_back("--triple=spir64");
-    else
+    else if (TargetTriple.isSPIRV())
       CmdArgs.push_back("--triple=spirv64");
+
     SmallVector<std::string, 8> SYCLDeviceLibs;
     SYCLDeviceLibs = SYCL::getDeviceLibraries(C, TargetTriple,
                                               /*IsSpirvAOT=*/false);
