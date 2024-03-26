@@ -451,7 +451,10 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       "+cl_khr_3d_image_writes")
     if(supports_generic_addrspace)
       string( APPEND CL_3_0_EXTENSIONS ",+__opencl_c_generic_address_space" )
-    elseif( ${ARCH} STREQUAL "x86_64")
+    else()
+      # Explictly disable opencl_c_generic_address_space (it may be enabled
+      # by default on some targets). We also disable opecl_c_pipes and
+      # opencl_c_device_enqueue since they require generic address space.
       string( APPEND CL_3_0_EXTENSIONS ",-__opencl_c_generic_address_space" )
       string( APPEND CL_3_0_EXTENSIONS ",-__opencl_c_pipes" )
       string( APPEND CL_3_0_EXTENSIONS ",-__opencl_c_device_enqueue" )
