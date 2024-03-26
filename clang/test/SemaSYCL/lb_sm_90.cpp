@@ -1,5 +1,7 @@
 // RUN: %clang_cc1 -internal-isystem %S/Inputs %s -triple nvptx64-nvidia-cuda -target-cpu sm_90 -fsycl-is-device -fsyntax-only -Wno-c++23-extensions -verify -S -o %t
 
+// REQUIRES: nvptx64-nvidia-cuda
+
 // Maximum work groups per multi-processor, mapped to maxclusterrank PTX
 // directive, is an SM_90 feature. Attributes need to be used in sequence:
 // max_work_group_size, min_work_groups_per_cu, max_work_groups_per_mp, warn on
