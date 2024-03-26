@@ -1881,8 +1881,6 @@ if used in application code.
 
 . Using reductions in a graph node.
 . Using sycl streams in a graph node.
-. Profiling an event returned from graph submission with
-  `event::get_profiling_info()`.
 . Synchronization between multiple executions of the same command-buffer 
   must be handled in the host for level-zero backend, which may involve 
   extra latency for subsequent submissions.
