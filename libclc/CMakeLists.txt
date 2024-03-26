@@ -280,6 +280,12 @@ add_custom_command(
   DEPENDS ${clc_script_loc} )
 add_custom_target( "generate_convert_clc.cl" DEPENDS convert-clc.cl )
 
+add_custom_command(
+	OUTPUT clspv-convert.cl
+	COMMAND ${Python3_EXECUTABLE} ${script_loc} --clspv > clspv-convert.cl
+	DEPENDS ${script_loc} )
+add_custom_target( "clspv-generate_convert.cl" DEPENDS clspv-convert.cl )
+
 enable_testing()
 
 if (LIBCLC_STANDALONE_BUILD)
