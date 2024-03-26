@@ -180,12 +180,13 @@
 
 #define DEVICE_IMPL_TEMPLATE_CUSTOM_DELEGATE(                                  \
     NUM_ARGS, NAME, ENABLER, DELEGATOR, NS, /*SCALAR_VEC_IMPL*/...)            \
+  /* Use (NAME)/(NS::NAME) to deal win min/max macros in windows.h */          \
   template <NUM_ARGS##_TYPENAME_TYPE>                                          \
-  detail::ENABLER<NUM_ARGS##_TEMPLATE_TYPE> NAME(                              \
+  detail::ENABLER<NUM_ARGS##_TEMPLATE_TYPE>(NAME)(                             \
       NUM_ARGS##_TEMPLATE_TYPE_ARG) {                                          \
     if constexpr (detail::is_marray_v<T0>) {                                   \
       return detail::DELEGATOR(                                                \
-          [](NUM_ARGS##_AUTO_ARG) { return NS::NAME(NUM_ARGS##_ARG); },        \
+          [](NUM_ARGS##_AUTO_ARG) { return (NS::NAME)(NUM_ARGS##_ARG); },      \
           NUM_ARGS##_ARG);                                                     \
     } else {                                                                   \
       return __VA_ARGS__(NUM_ARGS##_CONVERTED_ARG);                            \
