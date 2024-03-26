@@ -77,8 +77,9 @@ int main() {
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
-        cgh.single_task<class maxSLL2SLL1>(
-            [=]() { AccR[0] = s::max(T{5, 3}, 2ll); });
+        cgh.single_task<class maxSLL2SLL1>([=]() {
+          AccR[0] = s::max(T{5, 3}, 2ll);
+        });
       });
     }
     int64_t r1 = r.x();
@@ -115,8 +116,9 @@ int main() {
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
-        cgh.single_task<class maxULL2ULL1>(
-            [=]() { AccR[0] = s::max(T{5, 3}, 2ull); });
+        cgh.single_task<class maxULL2ULL1>([=]() {
+          AccR[0] = s::max(T{5, 3}, 2ull);
+        });
       });
     }
     uint64_t r1 = r.x();
