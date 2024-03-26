@@ -2338,11 +2338,12 @@ block_store(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
       PropertyListT::template has_property<alignment_key>() && Alignment < 16;
   using Tx = detail::__raw_t<T>;
   constexpr unsigned Sz = sizeof(Tx) * N;
+  constexpr bool SzRequiresLSC =
+      Sz < detail::OperandSize::OWORD || Sz % detail::OperandSize::OWORD != 0 ||
+      !detail::isPowerOf2(Sz / detail::OperandSize::OWORD) ||
+      Sz > 8 * detail::OperandSize::OWORD;
   if constexpr (detail::has_cache_hints<PropertyListT>() ||
-                AlignmentRequiresLSC || Sz < detail::OperandSize::OWORD ||
-                Sz % detail::OperandSize::OWORD != 0 ||
-                !detail::isPowerOf2(Sz / detail::OperandSize::OWORD) ||
-                Sz > 8 * detail::OperandSize::OWORD) {
+                AlignmentRequiresLSC || SzRequiresLSC) {
     using NewPropertyListT =
         detail::add_alignment_property_t<PropertyListT, DefaultLSCAlignment>;
     simd_mask<1> Mask = 1;
