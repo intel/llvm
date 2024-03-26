@@ -1010,7 +1010,8 @@ def : Joined<["-"], "Xclang=">, Group<CompileOnly_Group>,
 def Xcuda_fatbinary : Separate<["-"], "Xcuda-fatbinary">,
   HelpText<"Pass <arg> to fatbinary invocation">, MetaVarName<"<arg>">;
 def Xcuda_ptxas : Separate<["-"], "Xcuda-ptxas">,
-  HelpText<"Pass <arg> to the ptxas assembler">, MetaVarName<"<arg>">;
+  HelpText<"Pass <arg> to the ptxas assembler">, MetaVarName<"<arg>">,
+  Visibility<[ClangOption, CLOption]>;
 def Xdevice_post_link : Separate<["-"], "Xdevice-post-link">,
   HelpText<"Pass <arg> to the device post-link tool.">, MetaVarName<"<arg>">,
   Flags<[HelpHidden]>, Visibility<[ClangOption, CLOption, DXCOption]>;
