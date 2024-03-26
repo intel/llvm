@@ -82,13 +82,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit  5f4dd113824e90522d813420932c14072dc3049d
-  # Merge:  ed1f8bf b551c77
-  # Author: Ewan Crawford <ewan@codeplay.com>
-  # Date:   Fri Mar 15 10:22:39 2024 +0000
-  #     Merge pull request #1447 from Bensuo/ewan/rocm_5_5_1
-  #     [HIP][CMDBUF] Require ROCm 5.5.1 for HIP command-buffers
-  set(UNIFIED_RUNTIME_TAG 5f4dd113824e90522d813420932c14072dc3049d)
+  # commit 1f4b703d8a136d49e4e98ca5f017727f3aaa41dc
+  # Merge: 6883118 a187fbb
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Mon Mar 25 11:22:45 2024 +0100
+  #     Merge pull request #1471 from pbalcer/remove-coverage
+  #     [CI] remove coverage workflow
+  set(UNIFIED_RUNTIME_TAG 1f4b703d8a136d49e4e98ca5f017727f3aaa41dc)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

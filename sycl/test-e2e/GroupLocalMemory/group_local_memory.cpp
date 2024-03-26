@@ -3,7 +3,9 @@
 //
 // XFAIL: hip_nvidia
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/group_local_memory.hpp>
 
 #include <cassert>
 #include <vector>
