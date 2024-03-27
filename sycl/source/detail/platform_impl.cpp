@@ -629,7 +629,33 @@ platform_impl::get_backend_info<info::device::version>() const {
                           "the info::device::version info descriptor can only "
                           "be queried with an OpenCL backend");
   }
-  auto Devices = get_devices();
+  auto Devices = get_devices(info::device_type::all);
+  if (Devices.empty()) {
+    return "No available device";
+  }
+  ods_target_list *OdsTargetList = SYCLConfig<ONEAPI_DEVICE_SELECTOR>::get();
+  std::vector<ods_target> vector_target_list = OdsTargetList->get();
+  for (auto &single_target : vector_target_list) {
+    if (single_target.Backend != backend::opencl) {
+      continue; // ignore targets that are don't have opencl backend
+    }
+    // for targets that have opencl backend, check if one of the devices match
+    // its criterion for device type
+    for (auto &single_device : Devices) {
+      if ((single_target.DeviceType == info::device_type::all) ||
+          (single_target.DeviceType == info::device_type::cpu &&
+           single_device.is_cpu()) ||
+          (single_target.DeviceType == info::device_type::gpu &&
+           single_device.is_gpu()) ||
+          (single_target.DeviceType == info::device_type::accelerator &&
+           single_device.is_accelerator())) {
+        return single_device.get_info<info::device::version>();
+      }
+    }
+  }
+  // if there's no explicit match with a target in the ods target list specified
+  // by ONEAPI_DEVICE_SELECTOR, return the device version of the first device in
+  // Devices[]
   return Devices[0].get_info<info::device::version>();
 }
 
