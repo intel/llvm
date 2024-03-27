@@ -100,6 +100,4 @@ void *GetMemFunctionPointer(const char *);
 
 std::string DemangleName(const std::string &name);
 
-std::string RunCommand(const char *cmd);
-
 } // namespace ur_sanitizer_layer
