@@ -5,7 +5,9 @@
 // setting a specialization ID from host) only builds the device image
 // containing the kernel it launches.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/specialization_id.hpp>
 
 #include <iostream>
 

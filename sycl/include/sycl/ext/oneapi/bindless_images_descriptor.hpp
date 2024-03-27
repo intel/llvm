@@ -27,7 +27,6 @@ enum class image_type : unsigned int {
   mipmap = 1,
   array = 2,
   cubemap = 3, /* Not implemented */
-  interop = 4,
 };
 
 /// A struct to describe the properties of an image.
@@ -155,10 +154,6 @@ struct image_descriptor {
                               "Mipmap images must have num_levels greater than "
                               "1! Use image_type::standard otherwise.");
       }
-      return;
-
-    case image_type::interop:
-      // No checks to be made.
       return;
 
     default:

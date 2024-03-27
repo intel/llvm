@@ -8,8 +8,11 @@
 // RUN: %{build} %device_sanitizer_flags -DMALLOC_HOST -O2 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-HOST %s
 // RUN: %{build} %device_sanitizer_flags -DMALLOC_SHARED -O2 -g -o %t
-// RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-SHARED %s
-#include <sycl/sycl.hpp>
+// RUN: env SYCL_PREFER_UR=1 ONEAPI_DEVICE_SELECTOR=opencl:cpu %{run-unfiltered-devices} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-SHARED --input-file %t.txt %s
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/usm.hpp>
 
 int main() {
   sycl::queue Q;

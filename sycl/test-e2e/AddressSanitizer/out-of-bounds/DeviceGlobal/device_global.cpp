@@ -6,7 +6,9 @@
 // RUN: %{build} %device_sanitizer_flags -O2 -g -o %t.out
 // RUN: env SYCL_PREFER_UR=1 %{run} not %t.out 2>&1 | FileCheck %s
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/device_global/device_global.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi;

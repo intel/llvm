@@ -563,9 +563,9 @@ public:
             MContext, KernelID.get_name(), /*PropList=*/{},
             SelectedImage->get_program_ref());
 
-    std::shared_ptr<kernel_impl> KernelImpl =
-        std::make_shared<kernel_impl>(Kernel, detail::getSyclObjImpl(MContext),
-                                      SelectedImage, Self, ArgMask, CacheMutex);
+    std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
+        Kernel, detail::getSyclObjImpl(MContext), SelectedImage, Self, ArgMask,
+        SelectedImage->get_program_ref(), CacheMutex);
 
     return detail::createSyclObjFromImpl<kernel>(KernelImpl);
   }
