@@ -56,7 +56,7 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
-  set(UNIFIED_RUNTIME_REPO "git@git.office.codeplay.com:orion/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/PietroGhg/unified-runtime.git")
   # commit 47102cb2b275472054803a9399b5b977ef210b23
   # Merge: 186bfb9d 2390664d
   # Author: aarongreig <aaron.greig@codeplay.com>
