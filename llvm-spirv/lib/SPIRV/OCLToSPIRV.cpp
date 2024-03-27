@@ -52,6 +52,7 @@
 #include "llvm/Support/Debug.h"
 
 #include <algorithm>
+#include <regex>
 #include <set>
 
 using namespace llvm;
@@ -724,6 +725,13 @@ void OCLToSPIRVBase::visitCallBarrier(CallInst *CI) {
 
 void OCLToSPIRVBase::visitCallConvert(CallInst *CI, StringRef MangledName,
                                       StringRef DemangledName) {
+  // OpenCL Explicit Conversions (6.4.3) formed as below for scalars:
+  // destType convert_destType<_sat><_roundingMode>(sourceType)
+  // and for vector type:
+  // destTypeN convert_destTypeN<_sat><_roundingMode>(sourceTypeN)
+  // If the demangled name is not matching the suggested pattern and does not
+  // meet allowed destination type restrictions - this is not an OpenCL builtin,
+  // return from the function and translate such CallInst as a function call.
   if (eraseUselessConvert(CI, MangledName, DemangledName))
     return;
   Op OC = OpNop;
@@ -734,16 +742,56 @@ void OCLToSPIRVBase::visitCallConvert(CallInst *CI, StringRef MangledName,
   if (auto *VecTy = dyn_cast<VectorType>(SrcTy))
     SrcTy = VecTy->getElementType();
   auto IsTargetInt = isa<IntegerType>(TargetTy);
+  auto TargetSigned = DemangledName[8] != 'u';
 
   std::string TargetTyName(
       DemangledName.substr(strlen(kOCLBuiltinName::ConvertPrefix)));
   auto FirstUnderscoreLoc = TargetTyName.find('_');
   if (FirstUnderscoreLoc != std::string::npos)
     TargetTyName = TargetTyName.substr(0, FirstUnderscoreLoc);
+
+  // Validate target type name
+  std::regex Expr("([a-z]+)([0-9]*)$");
+  std::smatch DestTyMatch;
+  if (!std::regex_match(TargetTyName, DestTyMatch, Expr))
+    return;
+
+  // The first sub_match is the whole string; the next
+  // sub_match is the first parenthesized expression.
+  std::string DestTy = DestTyMatch[1].str();
+
+  // check it's valid type name
+  static std::unordered_set<std::string> ValidTypes = {
+      "float",  "double", "half", "char", "uchar", "short",
+      "ushort", "int",    "uint", "long", "ulong"};
+
+  if (ValidTypes.find(DestTy) == ValidTypes.end())
+    return;
+
+  // check that it's allowed vector size
+  std::string VecSize = DestTyMatch[2].str();
+  if (!VecSize.empty()) {
+    int Size = stoi(VecSize);
+    switch (Size) {
+    case 2:
+    case 3:
+    case 4:
+    case 8:
+    case 16:
+      break;
+    default:
+      return;
+    }
+  }
+  DemangledName = DemangledName.drop_front(
+      strlen(kOCLBuiltinName::ConvertPrefix) + TargetTyName.size());
   TargetTyName = std::string("_R") + TargetTyName;
 
+  if (!DemangledName.empty() && !DemangledName.starts_with("_sat") &&
+      !DemangledName.starts_with("_rt"))
+    return;
+
   std::string Sat = DemangledName.find("_sat") != StringRef::npos ? "_sat" : "";
-  auto TargetSigned = DemangledName[8] != 'u';
   if (isa<IntegerType>(SrcTy)) {
     bool Signed = isLastFuncParamSigned(MangledName);
     if (IsTargetInt) {
