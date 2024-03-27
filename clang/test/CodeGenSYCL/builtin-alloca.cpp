@@ -46,3 +46,12 @@ SYCL_EXTERNAL void test(sycl::kernel_handler &kh) {
   auto ptr1 = sycl::ext::oneapi::experimental::private_alloca<int, intSize, sycl::access::decorated::legacy>(kh);
   auto ptr2 = sycl::ext::oneapi::experimental::private_alloca<myStruct, intSize, sycl::access::decorated::no>(kh);
 }
+
+// CHECK: declare !sycl_used_aspects ![[#USED_ASPECTS:]] ptr @llvm.sycl.alloca.p0.p4.p4.p4.f64
+
+// CHECK: declare !sycl_used_aspects ![[#USED_ASPECTS]] ptr @llvm.sycl.alloca.p0.p4.p4.p4.i32
+
+// CHECK: declare !sycl_used_aspects ![[#USED_ASPECTS]] ptr @llvm.sycl.alloca.p0.p4.p4.p4.s_struct.myStructs
+
+// CHECK-DAG: ![[#USED_ASPECTS]] = !{i32 [[#PRIVATE_ALLOCA_ASPECT:]]}
+// CHECK-DAG: !{!"ext_oneapi_private_alloca", i32 [[#PRIVATE_ALLOCA_ASPECT]]}
