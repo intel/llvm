@@ -416,6 +416,88 @@ ur_result_t DeviceInfo::allocShadowMemory(ur_context_handle_t Context) {
     return UR_RESULT_SUCCESS;
 }
 
+/// Each 8 bytes of application memory are mapped into one byte of shadow memory
+/// The meaning of that byte:
+///  - Negative: All bytes are not accessible (poisoned)
+///  - 0: All bytes are accessible
+///  - 1 <= k <= 7: Only the first k bytes is accessible
+///
+/// ref: https://github.com/google/sanitizers/wiki/AddressSanitizerAlgorithm#mapping
+ur_result_t SanitizerInterceptor::enqueueAllocInfo(
+    ur_context_handle_t Context, std::shared_ptr<DeviceInfo> &DeviceInfo,
+    ur_queue_handle_t Queue, std::shared_ptr<AllocInfo> &AI) {
+    if (AI->IsReleased) {
+        int ShadowByte;
+        switch (AI->Type) {
+        case AllocType::HOST_USM:
+            ShadowByte = kUsmHostDeallocatedMagic;
+            break;
+        case AllocType::DEVICE_USM:
+            ShadowByte = kUsmDeviceDeallocatedMagic;
+            break;
+        case AllocType::SHARED_USM:
+            ShadowByte = kUsmSharedDeallocatedMagic;
+            break;
+        case AllocType::MEM_BUFFER:
+            ShadowByte = kMemBufferDeallocatedMagic;
+            break;
+        default:
+            ShadowByte = 0xff;
+            assert(false && "Unknow AllocInfo Type");
+        }
+        UR_CALL(enqueueMemSetShadow(Context, DeviceInfo, Queue, AI->AllocBegin,
+                                    AI->AllocSize, ShadowByte));
+        return UR_RESULT_SUCCESS;
+    }
+
+    // Init zero
+    UR_CALL(enqueueMemSetShadow(Context, DeviceInfo, Queue, AI->AllocBegin,
+                                AI->AllocSize, 0));
+
+    uptr TailBegin = RoundUpTo(AI->UserEnd, ASAN_SHADOW_GRANULARITY);
+    uptr TailEnd = AI->AllocBegin + AI->AllocSize;
+
+    // User tail
+    if (TailBegin != AI->UserEnd) {
+        auto Value =
+            AI->UserEnd - RoundDownTo(AI->UserEnd, ASAN_SHADOW_GRANULARITY);
+        UR_CALL(enqueueMemSetShadow(Context, DeviceInfo, Queue, AI->UserEnd, 1,
+                                    static_cast<u8>(Value)));
+    }
+
+    int ShadowByte;
+    switch (AI->Type) {
+    case AllocType::HOST_USM:
+        ShadowByte = kUsmHostRedzoneMagic;
+        break;
+    case AllocType::DEVICE_USM:
+        ShadowByte = kUsmDeviceRedzoneMagic;
+        break;
+    case AllocType::SHARED_USM:
+        ShadowByte = kUsmSharedRedzoneMagic;
+        break;
+    case AllocType::MEM_BUFFER:
+        ShadowByte = kMemBufferRedzoneMagic;
+        break;
+    case AllocType::DEVICE_GLOBAL:
+        ShadowByte = kDeviceGlobalRedzoneMagic;
+        break;
+    default:
+        ShadowByte = 0xff;
+        assert(false && "Unknow AllocInfo Type");
+    }
+
+    // Left red zone
+    UR_CALL(enqueueMemSetShadow(Context, DeviceInfo, Queue, AI->AllocBegin,
+                                AI->UserBegin - AI->AllocBegin, ShadowByte));
+
+    // Right red zone
+    UR_CALL(enqueueMemSetShadow(Context, DeviceInfo, Queue, TailBegin,
+                                TailEnd - TailBegin, ShadowByte));
+
+    return UR_RESULT_SUCCESS;
+}
+
 ur_result_t SanitizerInterceptor::updateShadowMemory(
     std::shared_ptr<ContextInfo> &ContextInfo,
     std::shared_ptr<DeviceInfo> &DeviceInfo, ur_queue_handle_t Queue) {
