@@ -1,5 +1,4 @@
-// Use -O2 to avoid huge stack usage under -O0.
-// RUN: %{build} -O2 -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //==- bit_shift_compilation_test.cpp - Test for compilation of bit shift
 // functions -==//

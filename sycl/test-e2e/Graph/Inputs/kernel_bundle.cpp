@@ -12,10 +12,6 @@ int main() {
 
   queue Queue{Ctx, Dev};
 
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
-
   sycl::kernel_id KernelID = sycl::get_kernel_id<Kernel1Name>();
 
   sycl::kernel_bundle KernelBundleInput =

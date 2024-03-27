@@ -9,6 +9,7 @@
 #include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/kernel_compiler/kernel_compiler_opencl.hpp>
 #include <sycl/detail/device_filter.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/device.hpp>
@@ -285,9 +286,79 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
 
   return value == 1;
 }
+
 bool device::ext_oneapi_architecture_is(
     ext::oneapi::experimental::architecture arch) {
   return impl->extOneapiArchitectureIs(arch);
+}
+
+bool device::ext_oneapi_architecture_is(
+    ext::oneapi::experimental::arch_category category) {
+  return impl->extOneapiArchitectureIs(category);
+}
+
+// kernel_compiler extension methods
+bool device::ext_oneapi_can_compile(
+    ext::oneapi::experimental::source_language Language) {
+  return impl->extOneapiCanCompile(Language);
+}
+
+bool device::ext_oneapi_supports_cl_c_feature(const std::string &Feature) {
+  const detail::pi::PiDevice Device = impl->getHandleRef();
+  auto Plugin = impl->getPlugin();
+  uint32_t ipVersion = 0;
+  auto res = Plugin->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+      Device, PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
+      &ipVersion, nullptr);
+  if (res != PI_SUCCESS)
+    return false;
+
+  return ext::oneapi::experimental::detail::OpenCLC_Feature_Available(
+      Feature, ipVersion);
+}
+
+bool device::ext_oneapi_supports_cl_c_version(
+    const ext::oneapi::experimental::cl_version &Version) const {
+  const detail::pi::PiDevice Device = impl->getHandleRef();
+  auto Plugin = impl->getPlugin();
+  uint32_t ipVersion = 0;
+  auto res = Plugin->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+      Device, PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
+      &ipVersion, nullptr);
+  if (res != PI_SUCCESS)
+    return false;
+
+  return ext::oneapi::experimental::detail::OpenCLC_Supports_Version(Version,
+                                                                     ipVersion);
+}
+
+bool device::ext_oneapi_supports_cl_extension(
+    const std::string &Name,
+    ext::oneapi::experimental::cl_version *VersionPtr) const {
+  const detail::pi::PiDevice Device = impl->getHandleRef();
+  auto Plugin = impl->getPlugin();
+  uint32_t ipVersion = 0;
+  auto res = Plugin->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+      Device, PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
+      &ipVersion, nullptr);
+  if (res != PI_SUCCESS)
+    return false;
+
+  return ext::oneapi::experimental::detail::OpenCLC_Supports_Extension(
+      Name, VersionPtr, ipVersion);
+}
+
+std::string device::ext_oneapi_cl_profile() const {
+  const detail::pi::PiDevice Device = impl->getHandleRef();
+  auto Plugin = impl->getPlugin();
+  uint32_t ipVersion = 0;
+  auto res = Plugin->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+      Device, PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
+      &ipVersion, nullptr);
+  if (res != PI_SUCCESS)
+    return "";
+
+  return ext::oneapi::experimental::detail::OpenCLC_Profile(ipVersion);
 }
 
 } // namespace _V1

@@ -32,6 +32,7 @@ class kernel_bundle_impl;
 using ContextImplPtr = std::shared_ptr<context_impl>;
 using ProgramImplPtr = std::shared_ptr<program_impl>;
 using KernelBundleImplPtr = std::shared_ptr<kernel_bundle_impl>;
+using sycl::detail::pi::PiProgram;
 class kernel_impl {
 public:
   /// Constructs a SYCL kernel instance from a PiKernel
@@ -74,7 +75,8 @@ public:
   kernel_impl(sycl::detail::pi::PiKernel Kernel, ContextImplPtr ContextImpl,
               DeviceImageImplPtr DeviceImageImpl,
               KernelBundleImplPtr KernelBundleImpl,
-              const KernelArgMask *ArgMask, std::mutex *CacheMutex);
+              const KernelArgMask *ArgMask, PiProgram ProgramPI,
+              std::mutex *CacheMutex);
 
   /// Constructs a SYCL kernel for host device
   ///
@@ -179,7 +181,7 @@ public:
 
   bool isInterop() const { return MIsInterop; }
 
-  ProgramImplPtr getProgramImpl() const { return MProgramImpl; }
+  PiProgram getProgramRef() const { return MProgram; }
   ContextImplPtr getContextImplPtr() const { return MContext; }
 
   std::mutex &getNoncacheableEnqueueMutex() {
@@ -192,7 +194,7 @@ public:
 private:
   sycl::detail::pi::PiKernel MKernel;
   const ContextImplPtr MContext;
-  const ProgramImplPtr MProgramImpl;
+  const PiProgram MProgram = nullptr;
   bool MCreatedFromSource = true;
   const DeviceImageImplPtr MDeviceImageImpl;
   const KernelBundleImplPtr MKernelBundleImpl;

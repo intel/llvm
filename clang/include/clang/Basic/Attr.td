@@ -1024,6 +1024,8 @@ def Availability : InheritableAttr {
              .Case("watchos_app_extension", "watchOS (App Extension)")
              .Case("maccatalyst", "macCatalyst")
              .Case("maccatalyst_app_extension", "macCatalyst (App Extension)")
+             .Case("xros", "visionOS")
+             .Case("xros_app_extension", "visionOS (App Extension)")
              .Case("swift", "Swift")
              .Case("shadermodel", "HLSL ShaderModel")
              .Case("ohos", "OpenHarmony OS")
@@ -1041,6 +1043,8 @@ static llvm::StringRef getPlatformNameSourceSpelling(llvm::StringRef Platform) {
              .Case("watchos_app_extension", "watchOSApplicationExtension")
              .Case("maccatalyst", "macCatalyst")
              .Case("maccatalyst_app_extension", "macCatalystApplicationExtension")
+             .Case("xros", "visionOS")
+             .Case("xros_app_extension", "visionOSApplicationExtension")
              .Case("zos", "z/OS")
              .Case("shadermodel", "ShaderModel")
              .Default(Platform);
@@ -1057,6 +1061,10 @@ static llvm::StringRef canonicalizePlatformName(llvm::StringRef Platform) {
              .Case("watchOSApplicationExtension", "watchos_app_extension")
              .Case("macCatalyst", "maccatalyst")
              .Case("macCatalystApplicationExtension", "maccatalyst_app_extension")
+             .Case("visionOS", "xros")
+             .Case("visionOSApplicationExtension", "xros_app_extension")
+             .Case("visionos", "xros")
+             .Case("visionos_app_extension", "xros_app_extension")
              .Case("ShaderModel", "shadermodel")
              .Default(Platform);
 } }];
@@ -1450,12 +1458,12 @@ def SYCLType: InheritableAttr {
                             "specialization_id", "kernel_handler", "buffer_location",
                             "no_alias", "accessor_property_list", "group",
                             "private_memory", "aspect", "annotated_ptr", "annotated_arg",
-                            "stream", "sampler", "host_pipe"],
+                            "stream", "sampler", "host_pipe", "multi_ptr"],
                            ["accessor", "local_accessor",
                             "specialization_id", "kernel_handler", "buffer_location",
                             "no_alias", "accessor_property_list", "group",
                             "private_memory", "aspect", "annotated_ptr", "annotated_arg",
-                            "stream", "sampler", "host_pipe"]>];
+                            "stream", "sampler", "host_pipe", "multi_ptr"]>];
   // Only used internally by SYCL implementation
   let Documentation = [InternalOnly];
 }
@@ -2213,6 +2221,13 @@ def Unlikely : StmtAttr {
 }
 def : MutualExclusions<[Likely, Unlikely]>;
 
+def CXXAssume : StmtAttr {
+  let Spellings = [CXX11<"", "assume", 202207>];
+  let Subjects = SubjectList<[NullStmt], ErrorDiag, "empty statements">;
+  let Args = [ExprArgument<"Assumption">];
+  let Documentation = [CXXAssumeDocs];
+}
+
 def NoMerge : DeclOrStmtAttr {
   let Spellings = [Clang<"nomerge">];
   let Documentation = [NoMergeDocs];
@@ -2646,50 +2661,14 @@ def SYCLIntelEnableLoopPipelining : StmtAttr {
 def : MutualExclusions<[SYCLIntelDisableLoopPipelining,
                         SYCLIntelEnableLoopPipelining]>;
 
-def SYCLIntelLocalNonConstVar : SubsetSubject<Var,
-                              [{S->hasLocalStorage() &&
-                                S->getKind() != Decl::ImplicitParam &&
-                                S->getKind() != Decl::ParmVar &&
-                                S->getKind() != Decl::NonTypeTemplateParm &&
-                                !S->getType().isConstQualified()}],
-                              "local non-const variables">;
-
-def SYCLIntelConstVar : SubsetSubject<Var,
-                      [{S->getKind() != Decl::ImplicitParam &&
-                        S->getKind() != Decl::ParmVar &&
-                        S->getKind() != Decl::NonTypeTemplateParm &&
-                        (S->getType().isConstQualified() ||
-                         S->getType().getAddressSpace() ==
-                            LangAS::opencl_constant)}],
-                      "constant variables">;
-
-def SYCLIntelLocalStaticAgentMemVar : SubsetSubject<Var,
-      [{S->getKind() != Decl::ImplicitParam &&
-        S->getKind() != Decl::NonTypeTemplateParm &&
-       (S->getStorageClass() == SC_Static ||
-        S->hasLocalStorage())}],
-        "local variables, static variables, agent memory arguments">;
-
-def SYCLIntelLocalOrStaticVar : SubsetSubject<Var,
-                              [{S->getKind() != Decl::ImplicitParam &&
-                                S->getKind() != Decl::ParmVar &&
-                                S->getKind() != Decl::NonTypeTemplateParm &&
-                                (S->getStorageClass() == SC_Static ||
-                                 S->hasLocalStorage())}],
-                              "local variables, static variables">;
-
 def SYCLIntelDoublePump : Attr {
   let Spellings = [CXX11<"intel", "doublepump">];
-  let Subjects = SubjectList<[SYCLIntelConstVar, SYCLIntelLocalOrStaticVar,
-                              Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelDoublePumpAttrDocs];
 }
 
 def SYCLIntelSinglePump : Attr {
   let Spellings = [CXX11<"intel", "singlepump">];
-  let Subjects = SubjectList<[SYCLIntelConstVar, SYCLIntelLocalOrStaticVar,
-                              Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelSinglePumpAttrDocs];
 }
@@ -2708,17 +2687,12 @@ def SYCLIntelMemory : Attr {
       }
     }
   }];
-  let Subjects = SubjectList<[SYCLIntelConstVar,
-                              SYCLIntelLocalStaticAgentMemVar,
-                              Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelMemoryAttrDocs];
 }
 
 def SYCLIntelRegister : Attr {
   let Spellings = [CXX11<"intel", "fpga_register">];
-  let Subjects = SubjectList<[SYCLIntelConstVar, SYCLIntelLocalOrStaticVar,
-                              Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelRegisterAttrDocs];
 }
@@ -2729,9 +2703,6 @@ def : MutualExclusions<[SYCLIntelDoublePump, SYCLIntelSinglePump,
 def SYCLIntelBankWidth : InheritableAttr {
   let Spellings = [CXX11<"intel", "bankwidth">];
   let Args = [ExprArgument<"Value">];
-  let Subjects = SubjectList<[SYCLIntelConstVar,
-                              SYCLIntelLocalStaticAgentMemVar,
-                              Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelBankWidthAttrDocs];
 }
@@ -2740,9 +2711,6 @@ def : MutualExclusions<[SYCLIntelRegister, SYCLIntelBankWidth]>;
 def SYCLIntelNumBanks : InheritableAttr {
   let Spellings = [CXX11<"intel", "numbanks">];
   let Args = [ExprArgument<"Value">];
-  let Subjects = SubjectList<[SYCLIntelConstVar,
-                              SYCLIntelLocalStaticAgentMemVar,
-                              Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelNumBanksAttrDocs];
 }
@@ -2751,7 +2719,6 @@ def SYCLIntelPrivateCopies : InheritableAttr {
   let Spellings = [CXX11<"intel", "private_copies">];
   let Args = [ExprArgument<"Value">];
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
-  let Subjects = SubjectList<[SYCLIntelLocalNonConstVar, Field], ErrorDiag>;
   let Documentation = [SYCLIntelPrivateCopiesAttrDocs];
 }
 def : MutualExclusions<[SYCLIntelRegister, SYCLIntelPrivateCopies]>;
@@ -2760,8 +2727,6 @@ def : MutualExclusions<[SYCLIntelRegister, SYCLIntelPrivateCopies]>;
 def SYCLIntelMerge : Attr {
   let Spellings = [CXX11<"intel", "merge">];
   let Args = [StringArgument<"Name">, StringArgument<"Direction">];
-  let Subjects = SubjectList<[SYCLIntelConstVar, SYCLIntelLocalOrStaticVar,
-                              Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelMergeAttrDocs];
 }
@@ -2770,9 +2735,6 @@ def : MutualExclusions<[SYCLIntelRegister, SYCLIntelMerge]>;
 def SYCLIntelMaxReplicates : InheritableAttr {
   let Spellings = [CXX11<"intel", "max_replicates">];
   let Args = [ExprArgument<"Value">];
-  let Subjects = SubjectList<[SYCLIntelConstVar,
-                              SYCLIntelLocalStaticAgentMemVar,
-                              Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelMaxReplicatesAttrDocs];
 }
@@ -2780,9 +2742,6 @@ def : MutualExclusions<[SYCLIntelRegister, SYCLIntelMaxReplicates]>;
 
 def SYCLIntelSimpleDualPort : Attr {
   let Spellings = [CXX11<"intel", "simple_dual_port">];
-  let Subjects = SubjectList<[SYCLIntelConstVar,
-                              SYCLIntelLocalStaticAgentMemVar,
-                              Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelSimpleDualPortAttrDocs];
 }
@@ -2807,9 +2766,6 @@ def SYCLIntelPipeIO : InheritableAttr {
 def SYCLIntelBankBits : Attr {
   let Spellings = [CXX11<"intel", "bank_bits">];
   let Args = [VariadicExprArgument<"Args">];
-  let Subjects = SubjectList<[SYCLIntelConstVar,
-                              SYCLIntelLocalStaticAgentMemVar,
-                              Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelBankBitsDocs];
 }
@@ -2819,9 +2775,6 @@ def : MutualExclusions<[SYCLIntelRegister, SYCLIntelNumBanks]>;
 def SYCLIntelForcePow2Depth : InheritableAttr {
   let Spellings = [CXX11<"intel", "force_pow2_depth">];
   let Args = [ExprArgument<"Value">];
-  let Subjects = SubjectList<[SYCLIntelConstVar,
-                              SYCLIntelLocalStaticAgentMemVar,
-                              Field], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelForcePow2DepthAttrDocs];
 }
@@ -3020,6 +2973,13 @@ def AMDGPUNumVGPR : InheritableAttr {
   let Spellings = [Clang<"amdgpu_num_vgpr", 0>];
   let Args = [UnsignedArgument<"NumVGPR">];
   let Documentation = [AMDGPUNumSGPRNumVGPRDocs];
+  let Subjects = SubjectList<[Function], ErrorDiag, "kernel functions">;
+}
+
+def AMDGPUMaxNumWorkGroups : InheritableAttr {
+  let Spellings = [Clang<"amdgpu_max_num_work_groups", 0>];
+  let Args = [ExprArgument<"MaxNumWorkGroupsX">, ExprArgument<"MaxNumWorkGroupsY", 1>, ExprArgument<"MaxNumWorkGroupsZ", 1>];
+  let Documentation = [AMDGPUMaxNumWorkGroupsDocs];
   let Subjects = SubjectList<[Function], ErrorDiag, "kernel functions">;
 }
 
@@ -3979,7 +3939,7 @@ def Suppress : DeclOrStmtAttr {
 def SysVABI : DeclOrTypeAttr {
   let Spellings = [GCC<"sysv_abi">];
 //  let Subjects = [Function, ObjCMethod];
-  let Documentation = [Undocumented];
+  let Documentation = [SysVABIDocs];
 }
 
 def ThisCall : DeclOrTypeAttr {
@@ -5210,11 +5170,11 @@ def OMPDeclareVariant : InheritableAttr {
   }];
 }
 
-def Assumption : InheritableAttr {
-  let Spellings = [Clang<"assume">];
+def OMPAssume : InheritableAttr {
+  let Spellings = [Clang<"assume">, CXX11<"omp", "assume">];
   let Subjects = SubjectList<[Function, ObjCMethod]>;
   let InheritEvenIfAlreadyPresent = 1;
-  let Documentation = [AssumptionDocs];
+  let Documentation = [OMPAssumeDocs];
   let Args = [StringArgument<"Assumption">];
 }
 

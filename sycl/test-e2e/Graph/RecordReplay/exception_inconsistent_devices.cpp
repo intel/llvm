@@ -2,7 +2,7 @@
 // RUN: %{run-unfiltered-devices} %t.out
 //
 
-// This test checks that an expection is thrown when we try to
+// This test checks that an exception is thrown when we try to
 // record a graph whose device differs from the queue device.
 // We ensure that the exception code matches the expected code.
 
@@ -30,12 +30,12 @@ int main() {
     return 0;
   }
 
-  queue Queue{Dev1};
-
-  if (!are_graphs_supported(Queue)) {
+  if (!Dev0.has(aspect::ext_oneapi_limited_graph)) {
+    std::cout << "Test skipped: device doesn't support graphs" << std::endl;
     return 0;
   }
 
+  queue Queue{Dev1};
   exp_ext::command_graph Graph{Queue.get_context(), Dev0};
 
   std::error_code ExceptionCode = make_error_code(sycl::errc::success);
