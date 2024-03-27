@@ -82,13 +82,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1f4b703d8a136d49e4e98ca5f017727f3aaa41dc
-  # Merge: 6883118 a187fbb
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Mon Mar 25 11:22:45 2024 +0100
-  #     Merge pull request #1471 from pbalcer/remove-coverage
-  #     [CI] remove coverage workflow
-  set(UNIFIED_RUNTIME_TAG 1f4b703d8a136d49e4e98ca5f017727f3aaa41dc)
+  # commit 8dba1fdf44c31faf82a3de6947fbd58643883320
+  # Merge: 1f4b703d 39c0023c
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Mon Mar 25 14:45:32 2024 +0000
+  #     Merge pull request #1468 from pbalcer/l0-recursive-event-deadlock
+  #     [L0] fix a deadlock on a recursive event rwlock
+  set(UNIFIED_RUNTIME_TAG 8dba1fdf44c31faf82a3de6947fbd58643883320)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
