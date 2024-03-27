@@ -61,15 +61,17 @@ int main(void) {
   }
 
   nd_range<1> Range(range<1>{GlobalRange}, range<1>{LocalRange});
- 
-  sycl::ext::oneapi::experimental::properties prop{sycl::ext::intel::experimental::grf_size<256>};
+
+  sycl::ext::oneapi::experimental::properties prop{
+      sycl::ext::intel::experimental::grf_size<256>};
   try {
     q.submit([&](handler &cgh) {
-      cgh.parallel_for<Test>(Range, prop, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
-         atomic_add_float(A, 1);
-         simd_mask<16> M({0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1});
-         atomic_add_float(C, M);
-       });
+       cgh.parallel_for<Test>(
+           Range, prop, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+             atomic_add_float(A, 1);
+             simd_mask<16> M({0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1});
+             atomic_add_float(C, M);
+           });
      }).wait();
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
