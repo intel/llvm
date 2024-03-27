@@ -6,6 +6,7 @@
 // the maximum or minimum operator is computed correctly.
 #include "../helpers.hpp"
 #include <numeric>
+
 #include <sycl/sycl.hpp>
 
 using namespace sycl;

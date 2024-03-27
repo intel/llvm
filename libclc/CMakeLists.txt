@@ -280,6 +280,12 @@ add_custom_command(
   DEPENDS ${clc_script_loc} )
 add_custom_target( "generate_convert_clc.cl" DEPENDS convert-clc.cl )
 
+add_custom_command(
+	OUTPUT clspv-convert.cl
+	COMMAND ${Python3_EXECUTABLE} ${script_loc} --clspv > clspv-convert.cl
+	DEPENDS ${script_loc} )
+add_custom_target( "clspv-generate_convert.cl" DEPENDS clspv-convert.cl )
+
 enable_testing()
 
 if (LIBCLC_STANDALONE_BUILD)
@@ -400,6 +406,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     endif()
     message( "    DEVICE: ${d} ( ${${d}_aliases} )" )
 
+    set ( supports_generic_addrspace TRUE )
     if ( ${ARCH} STREQUAL "spirv" OR ${ARCH} STREQUAL "spirv64" )
       if( ${ARCH} STREQUAL "spirv" )
         set( t "spir--" )
@@ -416,6 +423,14 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     elseif( ${ARCH} STREQUAL "nvptx" OR ${ARCH} STREQUAL "nvptx64" )
       set( build_flags )
       set( opt_flags -O3 "--nvvm-reflect-enable=false" )
+      # Note: when declaring builtins, we don't consider NVIDIA as supporting
+      # the generic address space. This is because it maps to the same target
+      # address space as the private address space, resulting in a mangling
+      # clash.
+      # Since we can't declare builtins overloaded on both address spaces
+      # simultaneously, we choose declare the builtins using the private space,
+      # which will also work for the generic address space.
+      set( supports_generic_addrspace FALSE )
     elseif( ${ARCH} STREQUAL "clspv64" )
       set( t "spir64--" )
       set( build_flags "-Wno-unknown-assumption")
@@ -437,8 +452,10 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       "+cl_khr_fp16,"
       "+__opencl_c_3d_image_writes,"
       "+__opencl_c_images,"
-      "+cl_khr_3d_image_writes,"
-      "+__opencl_c_generic_address_space")
+      "+cl_khr_3d_image_writes")
+    if(supports_generic_addrspace)
+      string( APPEND CL_3_0_EXTENSIONS ",+__opencl_c_generic_address_space" )
+    endif()
     list( APPEND flags ${CL_3_0_EXTENSIONS})
 
     # Add platform specific flags

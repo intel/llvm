@@ -3,18 +3,25 @@
 
 // RUN: %{build} -o %t.out
 
-// RUN: env ZEX_NUMBER_OF_CCS=0:4 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
+// TODO - at this time ZEX_NUMBER_OF_CCS is not working with FLAT hierachy,
+// which is the new default on PVC.  Once it is supported, we'll test on both.
+// In the interim, these are the environment vars that must be set to get cslice
+// or the extra level of partition_by_affinity_domain with the "EXPOSE_" env
+// var.
+// DEFINE: %{setup_env} = env ZE_FLAT_DEVICE_HIERARCHY=COMPOSITE ZE_AFFINITY_MASK=0 ZEX_NUMBER_OF_CCS=0:4
 
-// RUN: env SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING=1 \
-// RUN:   ZEX_NUMBER_OF_CCS=0:4 UR_L0_DEBUG=1 %{run} %t.out  2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
+// RUN: %{setup_env} env UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
+
+// RUN: %{setup_env} env SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING=1 \
+// RUN:  UR_L0_DEBUG=1 %{run} %t.out  2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
 
 // Same, but without using immediate commandlists:
 
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 ZEX_NUMBER_OF_CCS=0:4 \
+// RUN: %{setup_env} env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0  \
 // RUN:   UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
 
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING=1 \
-// RUN:   ZEX_NUMBER_OF_CCS=0:4 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
+// RUN: %{setup_env} env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING=1 \
+// RUN:  UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
 
 #include <sycl/sycl.hpp>
 
