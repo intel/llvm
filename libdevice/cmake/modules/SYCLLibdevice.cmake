@@ -46,6 +46,15 @@ if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
     "-nocudalib")
 endif()
 
+if ("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
+  message("Hello")
+  string(APPEND sycl_targets_opt ",amdgcn-amd-amdhsa")
+  list(APPEND compile_opts
+    "-Xsycl-target-backend=amdgcn-amd-amdhsa"
+    "--offload-arch=gfx940")
+endif()
+
+
 if (WIN32)
   list(APPEND compile_opts -D_ALLOW_RUNTIME_LIBRARY_MISMATCH)
   list(APPEND compile_opts -D_ALLOW_ITERATOR_DEBUG_LEVEL_MISMATCH)

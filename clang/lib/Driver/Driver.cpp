@@ -5547,7 +5547,7 @@ class OffloadingActionBuilder final {
         // device libraries are only needed when current toolchain is using
         // AOT compilation.
         bool SYCLDeviceLibLinked = false;
-        if (IsSPIR || IsNVPTX) {
+        if (IsSPIR || IsNVPTX || IsAMDGCN) {
           bool UseJitLink =
               IsSPIR &&
               Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
@@ -5899,12 +5899,17 @@ class OffloadingActionBuilder final {
                 C.MakeAction<OffloadUnbundlingJobAction>(
                     SYCLDeviceLibsInputAction);
 
+          const char* BoundArch="";
+
+            if (TC->getTriple().isAMDGCN()) {
             // We are using BoundArch="" here since the NVPTX bundles in
             // the devicelib .o files do not contain any arch information
+              BoundArch="gfx940";
+            }
             SYCLDeviceLibsUnbundleAction->registerDependentActionInfo(
-                TC, /*BoundArch=*/"", Action::OFK_SYCL);
+                TC, BoundArch, Action::OFK_SYCL);
             OffloadAction::DeviceDependences Dep;
-            Dep.add(*SYCLDeviceLibsUnbundleAction, *TC, /*BoundArch=*/"",
+            Dep.add(*SYCLDeviceLibsUnbundleAction, *TC, BoundArch,
                     Action::OFK_SYCL);
             auto *SYCLDeviceLibsDependenciesAction =
                 C.MakeAction<OffloadAction>(

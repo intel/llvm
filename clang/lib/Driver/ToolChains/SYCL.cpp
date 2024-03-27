@@ -306,8 +306,9 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   };
 
   addLibraries(SYCLDeviceWrapperLibs);
-  if (IsSpirvAOT || TargetTriple.isNVPTX())
+  if (IsSpirvAOT || TargetTriple.isNVPTX() || TargetTriple.isAMDGCN()) {
     addLibraries(SYCLDeviceFallbackLibs);
+  }
 
   bool NativeBfloatLibs;
   bool NeedBfloatLibs = selectBfloatLibs(TargetTriple, C, NativeBfloatLibs);
@@ -424,7 +425,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
       const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
-      if (IsNVPTX || IsSYCLNativeCPU) {
+      const bool IsAMDGCN = this->getToolChain().getTriple().isAMDGCN();
+      if (IsNVPTX || IsAMDGCN || IsSYCLNativeCPU) {
         // Linking SYCL Device libs requires libclc as well as libdevice
         if ((InputFilename.find("libspirv") != InputFilename.npos ||
              InputFilename.find("libdevice") != InputFilename.npos))
