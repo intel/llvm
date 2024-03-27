@@ -2,13 +2,39 @@
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-
 #include <uur/fixtures.h>
 
-struct urUSMDeviceAllocTest : uur::urQueueTestWithParam<uur::BoolTestParam> {
+using USMDeviceAllocParams = std::tuple<uur::BoolTestParam, uint32_t, size_t>;
+
+template <typename T>
+inline std::string printUSMDeviceAllocTestString(
+    const testing::TestParamInfo<typename T::ParamType> &info) {
+    // ParamType will be std::tuple<ur_device_handle_t, USMDeviceAllocParams>
+    const auto device_handle = std::get<0>(info.param);
+    const auto platform_device_name =
+        uur::GetPlatformAndDeviceName(device_handle);
+    const auto usmDeviceAllocParams = std::get<1>(info.param);
+    const auto BoolParam = std::get<0>(usmDeviceAllocParams);
+
+    std::stringstream ss;
+    ss << BoolParam.name << (BoolParam.value ? "Enabled" : "Disabled");
+
+    const auto alignment = std::get<1>(usmDeviceAllocParams);
+    const auto size = std::get<2>(usmDeviceAllocParams);
+    if (alignment && size > 0) {
+        ss << "_";
+        ss << std::get<1>(usmDeviceAllocParams);
+        ss << "_";
+        ss << std::get<2>(usmDeviceAllocParams);
+    }
+
+    return platform_device_name + "__" + ss.str();
+}
+
+struct urUSMDeviceAllocTest : uur::urQueueTestWithParam<USMDeviceAllocParams> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(
-            uur::urQueueTestWithParam<uur::BoolTestParam>::SetUp());
+            uur::urQueueTestWithParam<USMDeviceAllocParams>::SetUp());
         ur_device_usm_access_capability_flags_t deviceUSMSupport = 0;
         ASSERT_SUCCESS(
             uur::GetDeviceUSMDeviceSupport(device, deviceUSMSupport));
@@ -16,7 +42,7 @@ struct urUSMDeviceAllocTest : uur::urQueueTestWithParam<uur::BoolTestParam> {
             GTEST_SKIP() << "Device USM is not supported.";
         }
 
-        if (getParam().value) {
+        if (usePool) {
             ur_usm_pool_desc_t pool_desc = {};
             ASSERT_SUCCESS(urUSMPoolCreate(context, &pool_desc, &pool));
         }
@@ -27,16 +53,20 @@ struct urUSMDeviceAllocTest : uur::urQueueTestWithParam<uur::BoolTestParam> {
             ASSERT_SUCCESS(urUSMPoolRelease(pool));
         }
         UUR_RETURN_ON_FATAL_FAILURE(
-            uur::urQueueTestWithParam<uur::BoolTestParam>::TearDown());
+            uur::urQueueTestWithParam<USMDeviceAllocParams>::TearDown());
     }
 
     ur_usm_pool_handle_t pool = nullptr;
+    bool usePool = std::get<0>(getParam()).value;
 };
 
+// The 0 value parameters are not relevant for urUSMDeviceAllocTest tests, they are used below in urUSMDeviceAllocAlignmentTest
 UUR_TEST_SUITE_P(
     urUSMDeviceAllocTest,
-    testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UsePool")),
-    uur::deviceTestWithParamPrinter<uur::BoolTestParam>);
+    testing::Combine(
+        testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UsePool")),
+        testing::Values(0), testing::Values(0)),
+    printUSMDeviceAllocTestString<urUSMDeviceAllocTest>);
 
 TEST_P(urUSMDeviceAllocTest, Success) {
     void *ptr = nullptr;
@@ -69,6 +99,7 @@ TEST_P(urUSMDeviceAllocTest, SuccessWithDescriptors) {
     size_t allocation_size = sizeof(int);
     ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, &usm_desc, pool,
                                     allocation_size, &ptr));
+    ASSERT_NE(ptr, nullptr);
 
     ur_event_handle_t event = nullptr;
     uint8_t pattern = 0;
@@ -115,4 +146,39 @@ TEST_P(urUSMDeviceAllocTest, InvalidValueAlignPowerOfTwo) {
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_VALUE,
         urUSMDeviceAlloc(context, device, &desc, pool, sizeof(int), &ptr));
+}
+
+using urUSMDeviceAllocAlignmentTest = urUSMDeviceAllocTest;
+
+UUR_TEST_SUITE_P(
+    urUSMDeviceAllocAlignmentTest,
+    testing::Combine(
+        testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UsePool")),
+        testing::Values(4, 8, 16, 32, 64), testing::Values(8, 512, 2048)),
+    printUSMDeviceAllocTestString<urUSMDeviceAllocAlignmentTest>);
+
+TEST_P(urUSMDeviceAllocAlignmentTest, SuccessAlignedAllocations) {
+    uint32_t alignment = std::get<1>(getParam());
+    size_t allocation_size = std::get<2>(getParam());
+
+    ur_usm_device_desc_t usm_device_desc{UR_STRUCTURE_TYPE_USM_DEVICE_DESC,
+                                         nullptr,
+                                         /* device flags */ 0};
+
+    ur_usm_desc_t usm_desc{UR_STRUCTURE_TYPE_USM_DESC, &usm_device_desc,
+                           /* mem advice flags */ UR_USM_ADVICE_FLAG_DEFAULT,
+                           alignment};
+    void *ptr = nullptr;
+    ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, &usm_desc, pool,
+                                    allocation_size, &ptr));
+    ASSERT_NE(ptr, nullptr);
+
+    ur_event_handle_t event = nullptr;
+    uint8_t pattern = 0;
+    ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
+                                    allocation_size, 0, nullptr, &event));
+    ASSERT_SUCCESS(urEventWait(1, &event));
+
+    ASSERT_SUCCESS(urUSMFree(context, ptr));
+    EXPECT_SUCCESS(urEventRelease(event));
 }
