@@ -9,7 +9,6 @@
 #include <sycl/detail/os_util.hpp>
 
 #include <cassert>
-#include <filesystem> // C++17 std::create_directories
 #include <limits>
 
 #if __GNUC__ && __GNUC__ < 8
