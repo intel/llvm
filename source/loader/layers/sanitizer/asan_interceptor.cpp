@@ -97,17 +97,17 @@ ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
                     }
                 }
 
-                // context.logger.debug("urVirtualMemMap: {} ~ {}",
-                //                      (void *)MappedPtr,
-                //                      (void *)(MappedPtr + PageSize - 1));
+                context.logger.debug("urVirtualMemMap: {} ~ {}",
+                                     (void *)MappedPtr,
+                                     (void *)(MappedPtr + PageSize - 1));
 
                 // FIXME: No flag to check the failed reason is VA is already mapped
                 auto URes = context.urDdiTable.VirtualMem.pfnMap(
                     Context, (void *)MappedPtr, PageSize, PhysicalMem, 0,
                     UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE);
-                // if (URes != UR_RESULT_SUCCESS) {
-                //     context.logger.debug("urVirtualMemMap(): {}", URes);
-                // }
+                if (URes != UR_RESULT_SUCCESS) {
+                    context.logger.debug("urVirtualMemMap(): {}", URes);
+                }
 
                 // Initialize to zero
                 if (URes == UR_RESULT_SUCCESS) {
@@ -173,7 +173,7 @@ SanitizerInterceptor::SanitizerInterceptor() {
     KV = Options->find("detect_locals");
     if (KV != Options->end()) {
         auto Value = KV->second.front();
-        cl_DetectLocals = Value == "1" || Value == "true" ? 1 : 0;
+        cl_DetectLocals = Value == "1" || Value == "true" ? true : false;
     }
 }
 
@@ -576,7 +576,7 @@ SanitizerInterceptor::insertContext(ur_context_handle_t Context,
 
     CI = std::make_shared<ContextInfo>(Context);
 
-    m_ContextMap.emplace(Context, CI);
+    m_ContextMap.emplace(Context, std::move(CI));
 
     return UR_RESULT_SUCCESS;
 }
@@ -612,7 +612,7 @@ SanitizerInterceptor::insertDevice(ur_device_handle_t Device,
         Device, UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN, sizeof(DI->Alignment),
         &DI->Alignment, nullptr));
 
-    m_DeviceMap.emplace(Device, DI);
+    m_DeviceMap.emplace(Device, std::move(DI));
 
     return UR_RESULT_SUCCESS;
 }

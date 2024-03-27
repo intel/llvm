@@ -47,8 +47,6 @@ class QuarantineCache {
         return It;
     }
 
-    void printStats() const {}
-
   private:
     List m_List;
     std::atomic_uintptr_t m_Size = 0;
