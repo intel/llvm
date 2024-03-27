@@ -96,7 +96,12 @@ public:
       CGH.ext_intel_read_host_pipe(PipeName, DataPtr,
                                    sizeof(_dataT) /* non-blocking */);
     });
-    Success = wait_non_blocking(E);
+    // In OpenCL 1.0 waiting for a failed event does not return an error, so we
+    // need to check the execution status here as well.
+    Success = wait_non_blocking(E) &&
+              E.get_info<sycl::info::event::command_execution_status>() ==
+                  sycl::info::event_command_status::complete;
+    ;
     return Success ? *(_dataT *)DataPtr : _dataT();
   }
 
@@ -120,7 +125,11 @@ public:
       CGH.ext_intel_write_host_pipe(PipeName, DataPtr,
                                     sizeof(_dataT) /* non-blocking */);
     });
-    Success = wait_non_blocking(E);
+    // In OpenCL 1.0 waiting for a failed event does not return an error, so we
+    // need to check the execution status here as well.
+    Success = wait_non_blocking(E) &&
+              E.get_info<sycl::info::event::command_execution_status>() ==
+                  sycl::info::event_command_status::complete;
   }
 
   // Reading from pipe is lowered to SPIR-V instruction OpReadPipe via SPIR-V

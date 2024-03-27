@@ -165,9 +165,22 @@ TEST_F(PipeTest, Basic) {
   EXPECT_EQ(PipeWriteVal, 9);
 }
 
+bool EventsWaitFails = true;
 pi_result redefinedEventsWait(pi_uint32 num_events,
                               const pi_event *event_list) {
-  return PI_ERROR_UNKNOWN;
+  return EventsWaitFails ? PI_ERROR_UNKNOWN : PI_SUCCESS;
+}
+
+pi_result after_piEventGetInfo(pi_event event, pi_event_info param_name,
+                               size_t param_value_size, void *param_value,
+                               size_t *param_value_size_ret) {
+  if (param_name == PI_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
+    if (param_value)
+      *static_cast<pi_event_status *>(param_value) = pi_event_status(-1);
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(pi_event_status);
+  }
+  return PI_SUCCESS;
 }
 
 TEST_F(PipeTest, NonBlockingOperations) {
@@ -176,6 +189,16 @@ TEST_F(PipeTest, NonBlockingOperations) {
   Mock.redefine<sycl::detail::PiApiKind::piEventsWait>(redefinedEventsWait);
 
   bool Success = false;
+  Pipe::read(q, Success);
+  ASSERT_FALSE(Success);
+
+  Pipe::write(q, 0, Success);
+  ASSERT_FALSE(Success);
+
+  EventsWaitFails = false;
+  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
+      after_piEventGetInfo);
+
   Pipe::read(q, Success);
   ASSERT_FALSE(Success);
 
