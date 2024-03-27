@@ -10,10 +10,11 @@
 
 #ifndef __SYCL_DEVICE_ONLY
 
-#include <cstring>
-#include <mutex>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/string.hpp>
+
+#include <cstring>
+#include <mutex>
 #include <vector>
 
 namespace sycl {
