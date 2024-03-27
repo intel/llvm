@@ -5,7 +5,6 @@ import platform
 import re
 import subprocess
 import tempfile
-from distutils.spawn import find_executable
 
 import lit.formats
 import lit.util
