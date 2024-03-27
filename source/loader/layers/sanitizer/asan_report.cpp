@@ -136,24 +136,23 @@ void ReportUseAfterFree(const DeviceSanitizerReport &Report,
     if (!AllocInfoItOp) {
         context.logger.always("Failed to find which chunck {} is allocated",
                               (void *)Report.Address);
-        return;
-    }
+    } else {
+        auto &AllocInfo = (*AllocInfoItOp)->second;
+        if (AllocInfo->Context != Context) {
+            context.logger.always("Failed to find which chunck {} is allocated",
+                                  (void *)Report.Address);
+        }
+        assert(AllocInfo->IsReleased);
 
-    auto &AllocInfo = (*AllocInfoItOp)->second;
-    if (AllocInfo->Context != Context) {
-        context.logger.always("Failed to find which chunck {} is allocated",
-                              (void *)Report.Address);
+        context.logger.always("{} is located inside of {} region [{}, {})",
+                              (void *)Report.Address, ToString(AllocInfo->Type),
+                              (void *)AllocInfo->UserBegin,
+                              (void *)AllocInfo->UserEnd);
+        context.logger.always("allocated here:");
+        AllocInfo->AllocStack.print();
+        context.logger.always("released here:");
+        AllocInfo->ReleaseStack.print();
     }
-    assert(AllocInfo->IsReleased);
-
-    context.logger.always("{} is located inside of {} region [{}, {})",
-                          (void *)Report.Address, ToString(AllocInfo->Type),
-                          (void *)AllocInfo->UserBegin,
-                          (void *)AllocInfo->UserEnd);
-    context.logger.always("allocated here:");
-    AllocInfo->AllocStack.print();
-    context.logger.always("released here:");
-    AllocInfo->ReleaseStack.print();
 
     exit(1);
 }
