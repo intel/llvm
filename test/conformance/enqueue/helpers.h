@@ -101,6 +101,25 @@ struct mem_buffer_test_parameters_t {
     ur_mem_flag_t mem_flag;
 };
 
+static std::vector<mem_buffer_test_parameters_t> mem_buffer_test_parameters{
+    {1024, UR_MEM_FLAG_READ_WRITE},
+    {2500, UR_MEM_FLAG_READ_WRITE},
+    {4096, UR_MEM_FLAG_READ_WRITE},
+    {6000, UR_MEM_FLAG_READ_WRITE},
+    {1024, UR_MEM_FLAG_WRITE_ONLY},
+    {2500, UR_MEM_FLAG_WRITE_ONLY},
+    {4096, UR_MEM_FLAG_WRITE_ONLY},
+    {6000, UR_MEM_FLAG_WRITE_ONLY},
+    {1024, UR_MEM_FLAG_READ_ONLY},
+    {2500, UR_MEM_FLAG_READ_ONLY},
+    {4096, UR_MEM_FLAG_READ_ONLY},
+    {6000, UR_MEM_FLAG_READ_ONLY},
+    {1024, UR_MEM_FLAG_ALLOC_HOST_POINTER},
+    {2500, UR_MEM_FLAG_ALLOC_HOST_POINTER},
+    {4096, UR_MEM_FLAG_ALLOC_HOST_POINTER},
+    {6000, UR_MEM_FLAG_ALLOC_HOST_POINTER},
+};
+
 struct mem_buffer_map_write_test_parameters_t {
     size_t count;
     ur_mem_flag_t mem_flag;

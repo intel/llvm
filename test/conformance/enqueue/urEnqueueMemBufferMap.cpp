@@ -8,27 +8,9 @@
 using urEnqueueMemBufferMapTestWithParam =
     uur::urMemBufferQueueTestWithParam<uur::mem_buffer_test_parameters_t>;
 
-static std::vector<uur::mem_buffer_test_parameters_t> test_parameters{
-    {1024, UR_MEM_FLAG_READ_WRITE},
-    {2500, UR_MEM_FLAG_READ_WRITE},
-    {4096, UR_MEM_FLAG_READ_WRITE},
-    {6000, UR_MEM_FLAG_READ_WRITE},
-    {1024, UR_MEM_FLAG_WRITE_ONLY},
-    {2500, UR_MEM_FLAG_WRITE_ONLY},
-    {4096, UR_MEM_FLAG_WRITE_ONLY},
-    {6000, UR_MEM_FLAG_WRITE_ONLY},
-    {1024, UR_MEM_FLAG_READ_ONLY},
-    {2500, UR_MEM_FLAG_READ_ONLY},
-    {4096, UR_MEM_FLAG_READ_ONLY},
-    {6000, UR_MEM_FLAG_READ_ONLY},
-    {1024, UR_MEM_FLAG_ALLOC_HOST_POINTER},
-    {2500, UR_MEM_FLAG_ALLOC_HOST_POINTER},
-    {4096, UR_MEM_FLAG_ALLOC_HOST_POINTER},
-    {6000, UR_MEM_FLAG_ALLOC_HOST_POINTER},
-};
-
 UUR_TEST_SUITE_P(
-    urEnqueueMemBufferMapTestWithParam, ::testing::ValuesIn(test_parameters),
+    urEnqueueMemBufferMapTestWithParam,
+    ::testing::ValuesIn(uur::mem_buffer_test_parameters),
     uur::printMemBufferTestString<urEnqueueMemBufferMapTestWithParam>);
 
 TEST_P(urEnqueueMemBufferMapTestWithParam, SuccessRead) {
