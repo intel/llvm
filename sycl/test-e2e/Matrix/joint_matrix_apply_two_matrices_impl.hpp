@@ -1,5 +1,4 @@
-//==------- joint_matrix_apply_two_matrices_impl.hpp  - DPC++
-// joint_matrix---==//
+//==------- joint_matrix_apply_two_matrices_impl.hpp  - DPC++ joint_matrix--==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,19 +6,20 @@
 //
 //===----------------------------------------------------------------------===//
 template <typename Tc, typename Ta, size_t M, size_t N>
-bool assert_ops_ref(Tc *C, Tc *D, Ta *A, Ta *Ar) {
+bool apply_verify(Tc *C, Tc *D, Ta *A, Ta *Ar) {
   for (size_t i = 0; i < M; i++)
     for (size_t j = 0; j < N; j++) {
       Tc diffc = D[i * N + j] - C[i * N + j] * 2;
       Ta diffa = Ar[i * N + j] - (A[i * N + j] + 42);
       if constexpr (std::is_same_v<Ta, bfloat16>) {
         if (std::fabs(diffc) > FLOAT_EPSILON ||
-            std::fabs(diffa) > FLOAT_EPSILON) {
+            std::fabs(diffa) > FLOAT_EPSILON || std::isnan(C[i * N + j]) ||
+            std::isnan(A[i * N + j])) {
           return false;
-        } else {
-          if (std::fabs(diffc) > 0 || std::fabs(diffa) > 0) {
-            return false;
-          }
+        }
+      } else {
+        if (std::abs(diffc) > 0 || std::abs(diffa) > 0) {
+          return false;
         }
       }
     }
@@ -69,22 +69,21 @@ bool apply_two_matrices(Tc *C, Tc *D, Ta *A, Ta *Ar, queue q) {
                sg, sub_c, pC + (sg_startx * TM) * N + sg_starty / sg_size * TN,
                N, layout::row_major);
            joint_matrix_apply(sg, sub_c, sub_d,
-                              [](Tc &x, Tc &y) { y = x * 2; });
+                              [](const Tc &x, Tc &y) { y = x * 2; });
            joint_matrix_store(
                sg, sub_d, pD + (sg_startx * TM) * N + sg_starty / sg_size * TN,
                N, layout::row_major);
-           group wg = spmd_item.get_group();
            joint_matrix_load(
                sg, sub_a, pA + (sg_startx * TM) * N + sg_starty / sg_size * TK,
                N);
            joint_matrix_apply(sg, sub_a, sub_ar,
-                              [](Ta &x, Ta &y) { y = x + 42; });
+                              [](const Ta &x, Ta &y) { y = x + 42; });
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_ar,
                pAr + (sg_startx * TM) * N + sg_starty / sg_size * TK, N);
          }); // parallel for
    }).wait();
-  return assert_ops_ref<Tc, Ta, M, N>(C, D, A, Ar);
+  return apply_verify<Tc, Ta, M, N>(C, D, A, Ar);
 }
 
 template <typename Ta, typename Tc, size_t TM, size_t TN, size_t TK,
