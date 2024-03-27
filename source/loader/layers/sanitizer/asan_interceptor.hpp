@@ -120,7 +120,17 @@ struct LaunchInfo {
 
     LaunchInfo(ur_context_handle_t Context, const size_t *GlobalWorkSize,
                const size_t *LocalWorkSize, const size_t *GlobalWorkOffset,
-               uint32_t WorkDim);
+               uint32_t WorkDim)
+        : Context(Context), GlobalWorkSize(GlobalWorkSize),
+          GlobalWorkOffset(GlobalWorkOffset), WorkDim(WorkDim) {
+        [[maybe_unused]] auto Result =
+            context.urDdiTable.Context.pfnRetain(Context);
+        assert(Result == UR_RESULT_SUCCESS);
+        if (LocalWorkSize) {
+            this->LocalWorkSize =
+                std::vector<size_t>(LocalWorkSize, LocalWorkSize + WorkDim);
+        }
+    }
     ~LaunchInfo();
 };
 
@@ -189,10 +199,6 @@ class SanitizerInterceptor {
 
     ur_result_t allocShadowMemory(ur_context_handle_t Context,
                                   std::shared_ptr<DeviceInfo> &DeviceInfo);
-    ur_result_t enqueueMemSetShadow(ur_context_handle_t Context,
-                                    std::shared_ptr<DeviceInfo> &DeviceInfo,
-                                    ur_queue_handle_t Queue, uptr Addr,
-                                    uptr Size, u8 Value);
 
     std::shared_ptr<DeviceInfo> getDeviceInfo(ur_device_handle_t Device) {
         std::shared_lock<ur_shared_mutex> Guard(m_DeviceMapMutex);
@@ -209,10 +215,11 @@ class SanitizerInterceptor {
         m_DeviceMap;
     ur_shared_mutex m_DeviceMapMutex;
 
-    /// Assumption: all usm chunks are allocated in one VA
+    /// Assumption: all USM chunks are allocated in one VA
     AllocationMap m_AllocationMap;
     ur_shared_mutex m_AllocationMapMutex;
 
+    // We use "uint64_t" here because EnqueueWriteGlobal will fail when it's "uint32_t"
     uint64_t cl_Debug = 0;
     uint32_t cl_MaxQuarantineSizeMB = 0;
     bool cl_DetectLocals = true;
