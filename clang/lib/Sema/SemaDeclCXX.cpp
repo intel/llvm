@@ -5309,7 +5309,7 @@ static bool isIncompleteOrZeroLengthArrayType(ASTContext &Context, QualType T) {
     return true;
 
   while (const ConstantArrayType *ArrayT = Context.getAsConstantArrayType(T)) {
-    if (!ArrayT->getSize())
+    if (ArrayT->isZeroSize())
       return true;
 
     T = ArrayT->getElementType();
@@ -11380,7 +11380,7 @@ Decl *Sema::ActOnConversionDeclarator(CXXConversionDecl *Conversion) {
     if (ConvType->isUndeducedAutoType()) {
       Diag(Conversion->getTypeSpecStartLoc(), diag::err_auto_not_allowed)
           << getReturnTypeLoc(Conversion).getSourceRange()
-          << llvm::to_underlying(ConvType->getAs<AutoType>()->getKeyword())
+          << llvm::to_underlying(ConvType->castAs<AutoType>()->getKeyword())
           << /* in declaration of conversion function template= */ 24;
     }
 

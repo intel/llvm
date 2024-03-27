@@ -394,7 +394,7 @@ bool Sema::isDeclAllowedInSYCLDeviceCode(const Decl *D) {
 
 static bool isZeroSizedArray(Sema &SemaRef, QualType Ty) {
   if (const auto *CAT = SemaRef.getASTContext().getAsConstantArrayType(Ty))
-    return CAT->getSize() == 0;
+    return CAT->isZeroSize();
   return false;
 }
 
