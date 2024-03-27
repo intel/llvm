@@ -167,6 +167,55 @@ private:
 
 } // end anonymous namespace
 
+// FIXME:
+// Lower the intrinisc in CoroEarly phase if coroutine frame doesn't escape
+// and it is known that other transformations, for example, sanitizers
+// won't lead to incorrect code.
+static void lowerAwaitSuspend(IRBuilder<> &Builder, CoroAwaitSuspendInst *CB) {
+  auto Wrapper = CB->getWrapperFunction();
+  auto Awaiter = CB->getAwaiter();
+  auto FramePtr = CB->getFrame();
+
+  Builder.SetInsertPoint(CB);
+
+  CallBase *NewCall = nullptr;
+  // await_suspend has only 2 parameters, awaiter and handle.
+  // Copy parameter attributes from the intrinsic call, but remove the last,
+  // because the last parameter now becomes the function that is being called.
+  AttributeList NewAttributes =
+      CB->getAttributes().removeParamAttributes(CB->getContext(), 2);
+
+  if (auto Invoke = dyn_cast<InvokeInst>(CB)) {
+    auto WrapperInvoke =
+        Builder.CreateInvoke(Wrapper, Invoke->getNormalDest(),
+                             Invoke->getUnwindDest(), {Awaiter, FramePtr});
+
+    WrapperInvoke->setCallingConv(Invoke->getCallingConv());
+    std::copy(Invoke->bundle_op_info_begin(), Invoke->bundle_op_info_end(),
+              WrapperInvoke->bundle_op_info_begin());
+    WrapperInvoke->setAttributes(NewAttributes);
+    WrapperInvoke->setDebugLoc(Invoke->getDebugLoc());
+    NewCall = WrapperInvoke;
+  } else if (auto Call = dyn_cast<CallInst>(CB)) {
+    auto WrapperCall = Builder.CreateCall(Wrapper, {Awaiter, FramePtr});
+
+    WrapperCall->setAttributes(NewAttributes);
+    WrapperCall->setDebugLoc(Call->getDebugLoc());
+    NewCall = WrapperCall;
+  } else {
+    llvm_unreachable("Unexpected coro_await_suspend invocation method");
+  }
+
+  CB->replaceAllUsesWith(NewCall);
+  CB->eraseFromParent();
+}
+
+static void lowerAwaitSuspends(Function &F, coro::Shape &Shape) {
+  IRBuilder<> Builder(F.getContext());
+  for (auto *AWS : Shape.CoroAwaitSuspends)
+    lowerAwaitSuspend(Builder, AWS);
+}
+
 static void maybeFreeRetconStorage(IRBuilder<> &Builder,
                                    const coro::Shape &Shape, Value *FramePtr,
                                    CallGraph *CG) {
@@ -630,17 +679,18 @@ static void replaceSwiftErrorOps(Function &F, coro::Shape &Shape,
 }
 
 /// Returns all DbgVariableIntrinsic in F.
-static std::pair<SmallVector<DbgVariableIntrinsic *, 8>, SmallVector<DPValue *>>
+static std::pair<SmallVector<DbgVariableIntrinsic *, 8>,
+                 SmallVector<DbgVariableRecord *>>
 collectDbgVariableIntrinsics(Function &F) {
   SmallVector<DbgVariableIntrinsic *, 8> Intrinsics;
-  SmallVector<DPValue *> DPValues;
+  SmallVector<DbgVariableRecord *> DbgVariableRecords;
   for (auto &I : instructions(F)) {
-    for (DPValue &DPV : DPValue::filter(I.getDbgValueRange()))
-      DPValues.push_back(&DPV);
+    for (DbgVariableRecord &DVR : filterDbgVars(I.getDbgRecordRange()))
+      DbgVariableRecords.push_back(&DVR);
     if (auto *DVI = dyn_cast<DbgVariableIntrinsic>(&I))
       Intrinsics.push_back(DVI);
   }
-  return {Intrinsics, DPValues};
+  return {Intrinsics, DbgVariableRecords};
 }
 
 void CoroCloner::replaceSwiftErrorOps() {
@@ -648,7 +698,7 @@ void CoroCloner::replaceSwiftErrorOps() {
 }
 
 void CoroCloner::salvageDebugInfo() {
-  auto [Worklist, DPValues] = collectDbgVariableIntrinsics(*NewF);
+  auto [Worklist, DbgVariableRecords] = collectDbgVariableIntrinsics(*NewF);
   SmallDenseMap<Argument *, AllocaInst *, 4> ArgToAllocaMap;
 
   // Only 64-bit ABIs have a register we can refer to with the entry value.
@@ -657,8 +707,8 @@ void CoroCloner::salvageDebugInfo() {
   for (DbgVariableIntrinsic *DVI : Worklist)
     coro::salvageDebugInfo(ArgToAllocaMap, *DVI, Shape.OptimizeFrame,
                            UseEntryValue);
-  for (DPValue *DPV : DPValues)
-    coro::salvageDebugInfo(ArgToAllocaMap, *DPV, Shape.OptimizeFrame,
+  for (DbgVariableRecord *DVR : DbgVariableRecords)
+    coro::salvageDebugInfo(ArgToAllocaMap, *DVR, Shape.OptimizeFrame,
                            UseEntryValue);
 
   // Remove all salvaged dbg.declare intrinsics that became
@@ -683,7 +733,7 @@ void CoroCloner::salvageDebugInfo() {
     }
   };
   for_each(Worklist, RemoveOne);
-  for_each(DPValues, RemoveOne);
+  for_each(DbgVariableRecords, RemoveOne);
 }
 
 void CoroCloner::replaceEntryBlock() {
@@ -2025,6 +2075,8 @@ splitCoroutine(Function &F, SmallVectorImpl<Function *> &Clones,
   if (!Shape.CoroBegin)
     return Shape;
 
+  lowerAwaitSuspends(F, Shape);
+
   simplifySuspendPoints(Shape);
   buildCoroutineFrame(F, Shape, TTI, MaterializableCallback);
   replaceFrameSizeAndAlignment(Shape);
@@ -2056,12 +2108,12 @@ splitCoroutine(Function &F, SmallVectorImpl<Function *> &Clones,
   // original function. The Cloner has already salvaged debug info in the new
   // coroutine funclets.
   SmallDenseMap<Argument *, AllocaInst *, 4> ArgToAllocaMap;
-  auto [DbgInsts, DPValues] = collectDbgVariableIntrinsics(F);
+  auto [DbgInsts, DbgVariableRecords] = collectDbgVariableIntrinsics(F);
   for (auto *DDI : DbgInsts)
     coro::salvageDebugInfo(ArgToAllocaMap, *DDI, Shape.OptimizeFrame,
                            false /*UseEntryValue*/);
-  for (DPValue *DPV : DPValues)
-    coro::salvageDebugInfo(ArgToAllocaMap, *DPV, Shape.OptimizeFrame,
+  for (DbgVariableRecord *DVR : DbgVariableRecords)
+    coro::salvageDebugInfo(ArgToAllocaMap, *DVR, Shape.OptimizeFrame,
                            false /*UseEntryValue*/);
   return Shape;
 }

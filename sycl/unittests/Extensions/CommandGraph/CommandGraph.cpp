@@ -81,7 +81,7 @@ TEST_F(CommandGraphTest, Finalize) {
 
   // Add a node that depends on Node1 due to the accessor
   auto Node3 = Graph.add([&](sycl::handler &cgh) {
-    sycl::accessor A(Buf, cgh, sycl::write_only, sycl::no_init);
+    sycl::accessor A(Buf, cgh, sycl::read_write);
     cgh.single_task<TestKernel<>>([]() {});
   });
 
@@ -509,4 +509,122 @@ TEST_F(CommandGraphTest, FillMemsetNodes) {
     EXPECT_NE(MemsetNodeAImpl, MemsetNodeBImpl);
     sycl::free(USMPtr, Queue);
   }
+}
+
+// Test that the expected dependencies are created when recording a graph node
+// containing an accessor with mode FirstMode, followed by one containing an
+// accessor with mode SecondMode
+template <sycl::access_mode FirstMode, sycl::access_mode SecondMode,
+          bool ShouldCreateDep>
+void testAccessorModeCombo(sycl::queue Queue) {
+  buffer<int> Buffer{range<1>{16}};
+
+  ext::oneapi::experimental::command_graph Graph{
+      Queue.get_context(),
+      Queue.get_device(),
+      {experimental::property::graph::assume_buffer_outlives_graph{}}};
+
+  Graph.begin_recording(Queue);
+  // Create the first node with a write mode
+  auto EventFirst = Queue.submit([&](handler &CGH) {
+    auto Acc = Buffer.get_access<FirstMode>(CGH);
+    CGH.single_task<TestKernel<>>([]() {});
+  });
+
+  auto EventSecond = Queue.submit([&](handler &CGH) {
+    auto Acc = Buffer.get_access<SecondMode>(CGH);
+    CGH.single_task<TestKernel<>>([]() {});
+  });
+  Graph.end_recording(Queue);
+
+  EXPECT_EQ(Graph.get_root_nodes().size(), ShouldCreateDep ? 1ul : 2ul);
+
+  experimental::node NodeFirst =
+      experimental::node::get_node_from_event(EventFirst);
+  EXPECT_EQ(NodeFirst.get_predecessors().size(), 0ul);
+  EXPECT_EQ(NodeFirst.get_successors().size(), ShouldCreateDep ? 1ul : 0ul);
+
+  experimental::node NodeSecond =
+      experimental::node::get_node_from_event(EventSecond);
+  EXPECT_EQ(NodeSecond.get_predecessors().size(), ShouldCreateDep ? 1ul : 0ul);
+  EXPECT_EQ(NodeSecond.get_successors().size(), 0ul);
+}
+
+// Tests that access modes are correctly respected when recording graph nodes
+TEST_F(CommandGraphTest, AccessorModeEdges) {
+
+  // Testing access_mode::write and others
+  testAccessorModeCombo<access_mode::write, access_mode::discard_read_write,
+                        false>(Queue);
+  testAccessorModeCombo<access_mode::write, access_mode::discard_write, false>(
+      Queue);
+  testAccessorModeCombo<access_mode::write, access_mode::read, true>(Queue);
+  testAccessorModeCombo<access_mode::write, access_mode::write, false>(Queue);
+  testAccessorModeCombo<access_mode::write, access_mode::read_write, true>(
+      Queue);
+  testAccessorModeCombo<access_mode::write, access_mode::atomic, true>(Queue);
+
+  // Testing access_mode::read and others
+  testAccessorModeCombo<access_mode::read, access_mode::discard_read_write,
+                        false>(Queue);
+  testAccessorModeCombo<access_mode::read, access_mode::discard_write, false>(
+      Queue);
+  testAccessorModeCombo<access_mode::read, access_mode::read, false>(Queue);
+  testAccessorModeCombo<access_mode::read, access_mode::write, false>(Queue);
+  testAccessorModeCombo<access_mode::read, access_mode::read_write, false>(
+      Queue);
+  testAccessorModeCombo<access_mode::read, access_mode::atomic, false>(Queue);
+
+  // Testing access_mode::read_write and others
+  testAccessorModeCombo<access_mode::read_write,
+                        access_mode::discard_read_write, false>(Queue);
+  testAccessorModeCombo<access_mode::read_write, access_mode::discard_write,
+                        false>(Queue);
+  testAccessorModeCombo<access_mode::read_write, access_mode::read, true>(
+      Queue);
+  testAccessorModeCombo<access_mode::read_write, access_mode::write, false>(
+      Queue);
+  testAccessorModeCombo<access_mode::read_write, access_mode::read_write, true>(
+      Queue);
+  testAccessorModeCombo<access_mode::read_write, access_mode::atomic, true>(
+      Queue);
+
+  // Testing access_mode::discard_read_write and others
+  testAccessorModeCombo<access_mode::discard_read_write,
+                        access_mode::discard_read_write, false>(Queue);
+  testAccessorModeCombo<access_mode::discard_read_write,
+                        access_mode::discard_write, false>(Queue);
+  testAccessorModeCombo<access_mode::discard_read_write, access_mode::read,
+                        true>(Queue);
+  testAccessorModeCombo<access_mode::discard_read_write, access_mode::write,
+                        false>(Queue);
+  testAccessorModeCombo<access_mode::discard_read_write,
+                        access_mode::read_write, true>(Queue);
+  testAccessorModeCombo<access_mode::discard_read_write, access_mode::atomic,
+                        true>(Queue);
+
+  // Testing access_mode::discard_write and others
+  testAccessorModeCombo<access_mode::discard_write, access_mode::discard_write,
+                        false>(Queue);
+  testAccessorModeCombo<access_mode::discard_write, access_mode::discard_write,
+                        false>(Queue);
+  testAccessorModeCombo<access_mode::discard_write, access_mode::read, true>(
+      Queue);
+  testAccessorModeCombo<access_mode::discard_write, access_mode::write, false>(
+      Queue);
+  testAccessorModeCombo<access_mode::discard_write, access_mode::read_write,
+                        true>(Queue);
+  testAccessorModeCombo<access_mode::discard_write, access_mode::atomic, true>(
+      Queue);
+
+  // Testing access_mode::atomic and others
+  testAccessorModeCombo<access_mode::atomic, access_mode::discard_write, false>(
+      Queue);
+  testAccessorModeCombo<access_mode::atomic, access_mode::discard_write, false>(
+      Queue);
+  testAccessorModeCombo<access_mode::atomic, access_mode::read, true>(Queue);
+  testAccessorModeCombo<access_mode::atomic, access_mode::write, false>(Queue);
+  testAccessorModeCombo<access_mode::atomic, access_mode::read_write, true>(
+      Queue);
+  testAccessorModeCombo<access_mode::atomic, access_mode::atomic, true>(Queue);
 }

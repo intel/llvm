@@ -280,7 +280,7 @@ public:
   }
 
   // Sets a sync point which is used when this event represents an enqueue to a
-  // Command Bufferr.
+  // Command Buffer.
   void setSyncPoint(sycl::detail::pi::PiExtSyncPoint SyncPoint) {
     MSyncPoint = SyncPoint;
   }
@@ -304,6 +304,17 @@ public:
 
   bool isEventFromSubmittedExecCommandBuffer() const {
     return MEventFromSubmittedExecCommandBuffer;
+  }
+
+  // Sets a command-buffer command when this event represents an enqueue to a
+  // Command Buffer.
+  void
+  setCommandBufferCommand(sycl::detail::pi::PiExtCommandBufferCommand Command) {
+    MCommandBufferCommand = Command;
+  }
+
+  sycl::detail::pi::PiExtCommandBufferCommand getCommandBufferCommand() const {
+    return MCommandBufferCommand;
   }
 
   const std::vector<EventImplPtr> &getPostCompleteEvents() const {
@@ -367,6 +378,11 @@ protected:
   // sycl::detail::pi::PiExtCommandBuffer the sync point for that submission is
   // stored here.
   sycl::detail::pi::PiExtSyncPoint MSyncPoint;
+
+  // If this event represents a submission to a
+  // sycl::detail::pi::PiExtCommandBuffer the command-buffer command
+  // (if any) associated with that submission is stored here.
+  sycl::detail::pi::PiExtCommandBufferCommand MCommandBufferCommand = nullptr;
 
   friend std::vector<sycl::detail::pi::PiEvent>
   getOrWaitEvents(std::vector<sycl::event> DepEvents,
