@@ -894,17 +894,6 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         //  3. Transform to spirv intrinsic _Z*__spirv_SpecConstant* or
         //  _Z*__spirv_SpecConstantComposite
         Replacement = emitSpecConstantRecursive(SCTy, CI, IDs, DefaultValue);
-        if (IsSYCLAlloca) {
-          // In case this is a 'sycl.llvm.alloca' intrinsic, use the emitted
-          // specialization constant as the allocation size.
-          auto *Intr = cast<SYCLAllocaInst>(CI);
-          Value *ArraySize = Replacement;
-          assert(ArraySize->getType()->isIntegerTy() &&
-                 "Expecting integer type");
-          Replacement =
-              new AllocaInst(Intr->getAllocatedType(), Intr->getAddressSpace(),
-                             ArraySize, Intr->getAlign(), "alloca", CI);
-        }
         if (IsNewSpecConstant) {
           // emitSpecConstantRecursive might emit more than one spec constant
           // (because of composite types) and therefore, we need to adjust
@@ -917,8 +906,6 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
               M, SymID, SCTy, IDs, /* is native spec constant */ true);
         }
       } else if (Mode == HandlingMode::emulation) {
-        assert(!IsSYCLAlloca && "sycl_ext_oneapi_private_alloca not yet "
-                                "supported in emulation mode");
         // 2a. Spec constant will be passed as kernel argument;
 
         // Replace it with a load from the pointer to the specialization
@@ -980,6 +967,21 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         }
         DefaultsMetadata.push_back(
             generateSpecConstDefaultValueMetadata(DefaultValue));
+      }
+
+      if (IsSYCLAlloca) {
+        // In case this is a 'sycl.llvm.alloca' intrinsic, use the emitted
+        // specialization constant as the allocation size.
+        auto *Intr = cast<SYCLAllocaInst>(CI);
+        // For emulation mode, use the default value for now. This code should
+        // never be run, as the runtime should throw a 'kernel_not_supported'
+        // exception.
+        Value *ArraySize =
+            Mode == HandlingMode::emulation ? DefaultValue : Replacement;
+        assert(ArraySize->getType()->isIntegerTy() && "Expecting integer type");
+        Replacement =
+            new AllocaInst(Intr->getAllocatedType(), Intr->getAddressSpace(),
+                           ArraySize, Intr->getAlign(), "alloca", CI);
       }
 
       if (HasSretParameter)

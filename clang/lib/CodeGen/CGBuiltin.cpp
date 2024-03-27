@@ -23838,9 +23838,24 @@ CodeGenFunction::EmitIntelSYCLAllocaBuiltin(const CallExpr *E,
     // an `alloca` or an equivalent construct in later compilation stages.
     IRBuilderBase::InsertPointGuard IPG(Builder);
     Builder.SetInsertPoint(AllocaInsertPt);
-    return Builder.CreateIntrinsic(
+    llvm::CallInst *CI = Builder.CreateIntrinsic(
         AllocaTy, Intrinsic::sycl_alloca,
         {UID, SpecConstPtr, RTBufferPtr, EltTyConst, Align}, nullptr, "alloca");
+
+    // Propagate function used aspects.
+    llvm::Function *F = CI->getCalledFunction();
+    constexpr llvm::StringLiteral MDName = "sycl_used_aspects";
+    if (!F->getMetadata(MDName)) {
+      auto *AspectAttr = FD->getAttr<SYCLUsesAspectsAttr>();
+      assert(AspectAttr && AspectAttr->aspects_size() == 1 &&
+             "Expecting a single aspect");
+      llvm::APSInt AspectInt =
+          (*AspectAttr->aspects_begin())->EvaluateKnownConstInt(getContext());
+      llvm::Constant *C = Builder.getInt32(static_cast<int32_t>(AspectInt.getZExtValue()));
+      llvm::Metadata *AspectMD = llvm::ConstantAsMetadata::get(C);
+      F->setMetadata(MDName, llvm::MDNode::get(Builder.getContext(), AspectMD));
+    }
+    return CI;
   }();
 
   // Perform AS cast if needed.
