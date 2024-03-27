@@ -183,7 +183,7 @@ pi_result after_piEventGetInfo(pi_event event, pi_event_info param_name,
   return PI_SUCCESS;
 }
 
-TEST_F(PipeTest, NonBlockingOperations) {
+TEST_F(PipeTest, NonBlockingOperationFail) {
   Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
       after_piDeviceGetInfo);
   Mock.redefine<sycl::detail::PiApiKind::piEventsWait>(redefinedEventsWait);
@@ -195,6 +195,7 @@ TEST_F(PipeTest, NonBlockingOperations) {
   Pipe::write(q, 0, Success);
   ASSERT_FALSE(Success);
 
+  // Test the OpenCL 1.0 case: no error code after waiting.
   EventsWaitFails = false;
   Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
       after_piEventGetInfo);
