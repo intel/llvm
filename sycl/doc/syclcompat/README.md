@@ -1088,6 +1088,10 @@ functionality to `sycl::select_from_group`, `sycl::shift_group_left`,
 However, they provide an optional argument to represent the `logical_group` size
 (default 32).
 
+Experimental support for masked versions of `select_from_sub_group`,
+`shift_sub_group_left`, `shift_sub_group_right` and `permute_sub_group_by_xor` is
+provided only for SPIRV devices.
+
 ```c++
 namespace syclcompat {
 
@@ -1116,6 +1120,25 @@ template <typename ValueT>
 ValueT permute_sub_group_by_xor(sycl::sub_group g, ValueT x, unsigned int mask,
                            int logical_sub_group_size = 32);
 
+namespace experimental {
+
+template <typename ValueT>
+ValueT select_from_sub_group(unsigned int member_mask, sycl::sub_group g, ValueT x,
+                             int remote_local_id, int logical_sub_group_size = 32);
+
+template <typename ValueT>
+ValueT shift_sub_group_left(unsigned int member_mask, sycl::sub_group g, ValueT x,
+                            unsigned int delta, int logical_sub_group_size = 32);
+
+template <typename ValueT>
+ValueT shift_sub_group_right(unsigned int member_mask, sycl::sub_group g, ValueT x,
+                             unsigned int delta, int logical_sub_group_size = 32);
+
+template <typename ValueT>
+ValueT permute_sub_group_by_xor(unsigned int member_mask, sycql::sub_group g, ValueT x,
+                                unsigned int mask, int logical_sub_group_size = 32);
+
+} // namespace experimental
 } // namespace syclcompat
 ```
 
