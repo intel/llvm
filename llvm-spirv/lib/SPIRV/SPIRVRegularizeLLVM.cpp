@@ -364,12 +364,13 @@ static void simplifyBuiltinVarAccesses(GlobalValue *GV) {
   }
 
   Type *Int32Ty = Type::getInt32Ty(GV->getContext());
-  auto GetGep = [&](unsigned Offset) {
+  auto GetGep = [&](unsigned Offset,
+                    std::optional<ConstantRange> InRange = std::nullopt) {
     return ConstantExpr::getGetElementPtr(
         Ty, GV,
         ArrayRef<Constant *>(
             {ConstantInt::get(Int32Ty, 0), ConstantInt::get(Int32Ty, Offset)}),
-        true);
+        true, InRange);
   };
 
   const DataLayout &DL = GV->getParent()->getDataLayout();
@@ -384,7 +385,7 @@ static void simplifyBuiltinVarAccesses(GlobalValue *GV) {
       APInt::udivrem(Offset, ScalarTy->getScalarSizeInBits() / 8, Index,
                      Remainder);
       assert(Remainder == 0 && "Cannot handle misaligned access to builtins");
-      GEP->replaceAllUsesWith(GetGep(Index.getZExtValue()));
+      GEP->replaceAllUsesWith(GetGep(Index.getZExtValue(), GEP->getInRange()));
       if (auto *Inst = dyn_cast<Instruction>(GEP))
         Inst->eraseFromParent();
     }
