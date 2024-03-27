@@ -1718,7 +1718,7 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
     SmallString<256> AnnotStr;
     CGM.generateIntelFPGAAnnotation(&D, AnnotStr);
     if (!AnnotStr.empty()) {
-      llvm::Value *V = address.emitRawPointer(*this);
+      llvm::Value *V = address.getPointer();
       llvm::Type *DestPtrTy = llvm::PointerType::get(
           CGM.getLLVMContext(), address.getAddressSpace());
       llvm::Value *Arg = Builder.CreateBitCast(V, DestPtrTy, V->getName());
@@ -2635,7 +2635,7 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
       auto PtrTy = getContext().getPointerType(Ty);
       AllocaPtr = CreateMemTemp(PtrTy, getContext().getTypeAlignInChars(PtrTy),
                                 D.getName() + ".indirect_addr");
-      EmitStoreOfScalar(DeclPtr.emitRawPointer(*this), AllocaPtr, /* Volatile */ false,
+      EmitStoreOfScalar(DeclPtr.getPointer(), AllocaPtr, /* Volatile */ false,
                         PtrTy);
     }
 
