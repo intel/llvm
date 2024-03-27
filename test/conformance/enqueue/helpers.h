@@ -110,7 +110,7 @@ struct mem_buffer_map_write_test_parameters_t {
 template <typename T>
 inline std::string printMemBufferTestString(
     const testing::TestParamInfo<typename T::ParamType> &info) {
-    // ParamType will be std::tuple<ur_device_handle_t, test_parameters_t>
+    // ParamType will be std::tuple<ur_device_handle_t, mem_buffer_test_parameters_t>
     const auto device_handle = std::get<0>(info.param);
     const auto platform_device_name = GetPlatformAndDeviceName(device_handle);
 
