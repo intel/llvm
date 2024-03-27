@@ -436,9 +436,10 @@ joint_matrix_apply(sg, C, [=](T &x) {
 ===== Input and output matrix are different
 In this case, `joint_matrix_apply` takes two `joint_matrix` arguments:
 `srcjm` and `destjm` that have the same `use`, type, number of rows,
-number of columns, and `layout`. The callable object must be invocable
-with two parameters of type `T&`. Commonly, applications pass a lambda
-expression.
+number of columns, and `layout`. `srcjm` is a read-only argument but
+`destjm` is a read and write argument. The callable object must be
+invocable with two parameters of type `T&`. Commonly, applications
+pass a lambda expression.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -458,7 +459,7 @@ multiplied by `alpha`. The result is returned into a different matrix
 `D`.
 
 ```c++
-joint_matrix_apply(sg, C, D, [=](T &x, T &y) {
+joint_matrix_apply(sg, C, D, [=](const T &x, T &y) {
     y = x * alpha;
 });
 ```
