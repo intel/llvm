@@ -57,12 +57,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 9da95681cb411bcb10f21566a8a341e10f0e8a4e
+  # commit f67c6e43969ee90abd3ff41af13c9d90a2fba679
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Mar 25 10:03:01 2024 +0000
-  #     Merge pull request #1461 from Bensuo/coverity_L0_update
-  #     [Cmd-Buf][L0] Fix Coverity unsigned comparison report
-  set(UNIFIED_RUNTIME_TAG 9da95681cb411bcb10f21566a8a341e10f0e8a4e)
+  # Date:   Mon Mar 25 14:45:32 2024 +0000
+  #     Merge pull request #1468 from pbalcer/l0-recursive-event-deadlock
+  #     [L0] fix a deadlock on a recursive event rwlock
+  set(UNIFIED_RUNTIME_TAG f67c6e43969ee90abd3ff41af13c9d90a2fba679)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
