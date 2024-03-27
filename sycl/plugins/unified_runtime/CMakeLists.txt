@@ -90,6 +90,10 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   #     [CI] remove coverage workflow
   set(UNIFIED_RUNTIME_TAG 1f4b703d8a136d49e4e98ca5f017727f3aaa41dc)
 
+  # DO NOT MERGE. Leaving the above to avoid merge conflicts
+  set(UNIFIED_RUNTIME_REPO "https://github.com/hdelan/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG event-wait-with-good-context)
+
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
   endif()
