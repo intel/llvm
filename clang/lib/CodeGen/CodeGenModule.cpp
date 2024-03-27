@@ -4431,7 +4431,6 @@ void CodeGenModule::EmitMultiVersionFunctionDefinition(GlobalDecl GD,
     GetOrCreateMultiVersionResolver(GD);
   } else
     EmitGlobalFunctionDefinition(GD, GV);
-
   // Defer the resolver emission until we can reason whether the TU
   // contains a default target version implementation.
   if (FD->isTargetVersionMultiVersion())
@@ -4624,19 +4623,17 @@ void CodeGenModule::emitMultiVersionFunctions() {
       ResolverConstant = IFunc->getResolver();
       if (FD->isTargetClonesMultiVersion() ||
           FD->isTargetVersionMultiVersion()) {
+        const CGFunctionInfo &FI = getTypes().arrangeGlobalDeclaration(GD);
+        llvm::FunctionType *DeclTy = getTypes().GetFunctionType(FI);
         std::string MangledName = getMangledNameImpl(
             *this, GD, FD, /*OmitMultiVersionMangling=*/true);
-        if (!GetGlobalValue(MangledName + ".ifunc")) {
-          const CGFunctionInfo &FI = getTypes().arrangeGlobalDeclaration(GD);
-          llvm::FunctionType *DeclTy = getTypes().GetFunctionType(FI);
-          // In prior versions of Clang, the mangling for ifuncs incorrectly
-          // included an .ifunc suffix. This alias is generated for backward
-          // compatibility. It is deprecated, and may be removed in the future.
-          auto *Alias = llvm::GlobalAlias::create(
-              DeclTy, 0, getMultiversionLinkage(*this, GD),
-              MangledName + ".ifunc", IFunc, &getModule());
-          SetCommonAttributes(FD, Alias);
-        }
+        // In prior versions of Clang, the mangling for ifuncs incorrectly
+        // included an .ifunc suffix. This alias is generated for backward
+        // compatibility. It is deprecated, and may be removed in the future.
+        auto *Alias = llvm::GlobalAlias::create(
+            DeclTy, 0, getMultiversionLinkage(*this, GD),
+            MangledName + ".ifunc", IFunc, &getModule());
+        SetCommonAttributes(FD, Alias);
       }
     }
     llvm::Function *ResolverFunc = cast<llvm::Function>(ResolverConstant);
@@ -4846,7 +4843,7 @@ llvm::Constant *CodeGenModule::GetOrCreateMultiVersionResolver(GlobalDecl GD) {
   // The resolver needs to be created. For target and target_clones, defer
   // creation until the end of the TU.
   if (FD->isTargetMultiVersion() || FD->isTargetClonesMultiVersion())
-    AddDeferredMultiVersionResolverToEmit(GD);
+    MultiVersionFuncs.push_back(GD);
 
   // For cpu_specific, don't create an ifunc yet because we don't know if the
   // cpu_dispatch will be emitted in this translation unit.

@@ -391,6 +391,70 @@ static void simplifyBuiltinVarAccesses(GlobalValue *GV) {
   }
 }
 
+namespace {
+void regularizeWithOverflowInstrinsics(StringRef MangledName, CallInst *Call,
+                                       Module *M,
+                                       std::vector<Instruction *> &ToErase) {
+  IRBuilder Builder(Call);
+  Function *Builtin = Call->getModule()->getFunction(MangledName);
+  AllocaInst *A;
+  StructType *StructBuiltinTy;
+  if (Builtin) {
+    StructBuiltinTy = cast<StructType>(Builtin->getParamStructRetType(0));
+    {
+      IRBuilderBase::InsertPointGuard Guard(Builder);
+      Builder.SetInsertPointPastAllocas(Call->getParent()->getParent());
+      A = Builder.CreateAlloca(StructBuiltinTy);
+    }
+    CallInst *C = Builder.CreateCall(
+        Builtin, {A, Call->getArgOperand(0), Call->getArgOperand(1)});
+    auto SretAttr = Attribute::get(
+        Builder.getContext(), Attribute::AttrKind::StructRet, StructBuiltinTy);
+    C->addParamAttr(0, SretAttr);
+  } else {
+    StructBuiltinTy = StructType::create(
+        Call->getContext(),
+        {Call->getArgOperand(0)->getType(), Call->getArgOperand(1)->getType()});
+    {
+      IRBuilderBase::InsertPointGuard Guard(Builder);
+      Builder.SetInsertPointPastAllocas(Call->getParent()->getParent());
+      A = Builder.CreateAlloca(StructBuiltinTy);
+    }
+    FunctionType *FT =
+        FunctionType::get(Builder.getVoidTy(),
+                          {A->getType(), Call->getArgOperand(0)->getType(),
+                           Call->getArgOperand(1)->getType()},
+                          false);
+    Builtin =
+        Function::Create(FT, GlobalValue::ExternalLinkage, MangledName, M);
+    Builtin->setCallingConv(CallingConv::SPIR_FUNC);
+    Builtin->addFnAttr(Attribute::NoUnwind);
+    auto SretAttr = Attribute::get(
+        Builder.getContext(), Attribute::AttrKind::StructRet, StructBuiltinTy);
+    Builtin->addParamAttr(0, SretAttr);
+    CallInst *C = Builder.CreateCall(
+        Builtin, {A, Call->getArgOperand(0), Call->getArgOperand(1)});
+    C->addParamAttr(0, SretAttr);
+  }
+  Type *RetTy = Call->getArgOperand(0)->getType();
+  Constant *ConstZero = ConstantInt::get(RetTy, 0);
+  Value *L = Builder.CreateLoad(StructBuiltinTy, A);
+  Value *V0 = Builder.CreateExtractValue(L, {0});
+  Value *V1 = Builder.CreateExtractValue(L, {1});
+  Value *V2 = Builder.CreateICmpNE(V1, ConstZero);
+  Type *StructI32I1Ty =
+      StructType::create(Call->getContext(), {RetTy, V2->getType()});
+  Value *Undef = UndefValue::get(StructI32I1Ty);
+  Value *V3 = Builder.CreateInsertValue(Undef, V0, {0});
+  Value *V4 = Builder.CreateInsertValue(V3, V2, {1});
+  SmallVector<User *> Users(Call->users());
+  for (User *U : Users) {
+    U->replaceUsesOfWith(Call, V4);
+  }
+  ToErase.push_back(Call);
+}
+} // namespace
+
 /// Remove entities not representable by SPIR-V
 bool SPIRVRegularizeLLVMBase::regularize() {
   eraseUselessFunctions(M);
@@ -430,6 +494,23 @@ bool SPIRVRegularizeLLVMBase::regularize() {
               lowerFunnelShift(II);
             else if (II->getIntrinsicID() == Intrinsic::umul_with_overflow)
               lowerUMulWithOverflow(II);
+            else if (II->getIntrinsicID() == Intrinsic::uadd_with_overflow) {
+              BuiltinFuncMangleInfo Info;
+              std::string MangledName =
+                  mangleBuiltin("__spirv_IAddCarry",
+                                {Call->getArgOperand(0)->getType(),
+                                 Call->getArgOperand(1)->getType()},
+                                &Info);
+              regularizeWithOverflowInstrinsics(MangledName, Call, M, ToErase);
+            } else if (II->getIntrinsicID() == Intrinsic::usub_with_overflow) {
+              BuiltinFuncMangleInfo Info;
+              std::string MangledName =
+                  mangleBuiltin("__spirv_ISubBorrow",
+                                {Call->getArgOperand(0)->getType(),
+                                 Call->getArgOperand(1)->getType()},
+                                &Info);
+              regularizeWithOverflowInstrinsics(MangledName, Call, M, ToErase);
+            }
           }
         }
 

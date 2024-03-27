@@ -3912,12 +3912,12 @@ def fsycl_device_code_split_esimd : Flag<["-"], "fsycl-device-code-split-esimd">
 def fno_sycl_device_code_split_esimd : Flag<["-"], "fno-sycl-device-code-split-esimd">,
   Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"do not split ESIMD and SYCL device code into separate device binary images. Has effect only for SPIR-based targets. (experimental)">;
 defm sycl_add_default_spec_consts_image : BoolOptionWithoutMarshalling<"f", "sycl-add-default-spec-consts-image",
-  PosFlag<SetTrue, [], [ClangOption],
+  PosFlag<SetTrue, [], [ClangOption, CLOption],
            "Generates a copy of every device image that uses a specialization constant and "
            "replaces all usages of specialization constant with default values specified by specialization_id. "
            "If a device image doesn't use a specialization constant at all then no copy is generated. "
            "This option is only useful if used in conjunction with Ahead of Time Compilation (-fsycl-target command line option).">,
-  NegFlag<SetFalse, [], [ClangOption],
+  NegFlag<SetFalse, [], [ClangOption, CLOption],
            "Turns off generation of device image where all specialization constant usages are replaced "
            "with default values.">
 >;

@@ -350,12 +350,12 @@ private:
   /// yet.
   llvm::DenseMap<StringRef, GlobalDecl> DeferredDecls;
 
+  llvm::StringSet<llvm::BumpPtrAllocator> DeferredResolversToEmit;
+
   /// This contains all the aliases that are deferred for emission until
   /// they or what they alias are actually used.  Note that the StringRef
   /// associated in this map is that of the aliasee.
   std::map<StringRef, GlobalDecl> DeferredAliases;
-
-  llvm::StringSet<llvm::BumpPtrAllocator> DeferredResolversToEmit;
 
   /// This is a list of deferred decls which we have seen that *are* actually
   /// referenced. These get code generated when the module is done.
