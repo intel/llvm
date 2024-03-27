@@ -7810,7 +7810,7 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
   // Check the return type is `sycl::multi_ptr<ET,
   // sycl::access::address_space::private_space, DecoratedAddress>`:
   // - `ET`: cv-unqualified trivial type
-  constexpr auto CheckType = [](QualType RT, ASTContext &Ctx) {
+  constexpr auto CheckType = [](QualType RT, const ASTContext &Ctx) {
     if (!isSyclType(RT, SYCLTypeAttr::multi_ptr))
       return true;
     // Check element type
