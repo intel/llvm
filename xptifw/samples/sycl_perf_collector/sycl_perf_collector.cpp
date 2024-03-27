@@ -1,4 +1,4 @@
-// GStreamBuffer
+//
 //
 //  Part of the LLVM Project, under the Apache License v2.0 with LLVM
 //  Exceptions. See https://llvm.org/LICENSE.txt for license information.
@@ -227,28 +227,18 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     const char *VerboseFlag = std::getenv("XPTI_VERBOSE");
     // Check the environment variable for verbose output and set the appropriate
     // flag, if the variable is set
-    if (VerboseFlag) {
-      if (std::stoi(VerboseFlag) == 0)
-        ShowVerboseOutput = false;
-      else
-        ShowVerboseOutput = true;
-    } else {
+    if (VerboseFlag && std::stoi(VerboseFlag) != 0)
+      ShowVerboseOutput = true;
+    else
       ShowVerboseOutput = false;
-    }
 
     const char *DebugFlag = std::getenv("XPTI_DEBUG");
     // Check the environment variable for debug output and set the appropriate
     // flag, if the variable is set
-    if (DebugFlag) {
-      if (std::stoi(DebugFlag) == 0)
-        ShowDebugInformation = false;
-      else {
-        ShowDebugInformation = true;
-        ShowVerboseOutput = true;
-      }
-    } else {
+    if (DebugFlag && std::stoi(DebugFlag) != 0)
+      ShowDebugInformation = true;
+    else
       ShowDebugInformation = false;
-    }
 
     const char *ProfOutFile = std::getenv("XPTI_SYCL_PERF_OUTPUT");
     if (ShowVerboseOutput && ProfOutFile)
@@ -275,14 +265,10 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
 
     // Check the environment variable for colored output and set the appropriate
     // flag, if the variable is set
-    if (CalibrationFlag) {
-      if (std::stoi(CalibrationFlag) == 0)
-        CalibrationRun = false;
-      else
-        CalibrationRun = true;
-    } else {
+    if (CalibrationFlag && std::stoi(CalibrationFlag) != 0)
+      CalibrationRun = true;
+    else
       CalibrationRun = false;
-    }
 
     // Get the streams to monitor from the environment variable
     // In order to determine if the environment variable contains valid stream
