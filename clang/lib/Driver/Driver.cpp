@@ -92,6 +92,7 @@
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/RISCVISAInfo.h"
+#include "llvm/Support/Regex.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/VirtualFileSystem.h"
 #include "llvm/Support/raw_ostream.h"
@@ -1157,6 +1158,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   checkSingleArgValidity(SYCLLink, {"early", "image"});
   checkSingleArgValidity(DeviceCodeSplit,
                          {"per_kernel", "per_source", "auto", "off"});
+
+  Arg *RangeRoundingPreference =
+      C.getInputArgs().getLastArg(options::OPT_fsycl_range_rounding_EQ);
+  checkSingleArgValidity(RangeRoundingPreference, {"disable", "force", "on"});
 
   Arg *SYCLForceTarget =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_force_target_EQ);
@@ -2675,6 +2680,12 @@ bool Driver::HandleImmediateArgs(const Compilation &C) {
         llvm::outs() << Path;
     }
     llvm::outs() << "\n";
+    return false;
+  }
+
+  if (C.getArgs().hasArg(options::OPT_print_std_module_manifest_path)) {
+    llvm::outs() << GetStdModuleManifestPath(C, C.getDefaultToolChain())
+                 << '\n';
     return false;
   }
 
@@ -5048,10 +5059,8 @@ class OffloadingActionBuilder final {
           // action or fat binary.
           SYCLDeviceActions.clear();
 
-          for (auto SDA : SYCLDeviceActions)
-            SYCLLinkBinaryList.push_back(SDA);
           if (WrapDeviceOnlyBinary)
-            return ABRT_Success;
+            return ABRT_Ignore_Host;
           auto *Link =
               C.MakeAction<LinkJobAction>(SYCLLinkBinaryList, types::TY_Image);
           SYCLLinkBinary =
@@ -6099,7 +6108,8 @@ class OffloadingActionBuilder final {
         if (Triple.isAMDGCN() && llvm::none_of(GpuArchList, [&](auto &P) {
               return P.first.isAMDGCN();
             })) {
-          C.getDriver().Diag(clang::diag::err_drv_sycl_missing_amdgpu_arch);
+          C.getDriver().Diag(clang::diag::err_drv_sycl_missing_amdgpu_arch)
+              << (SYCLTripleList.size() > 1) << Triple.str();
           return true;
         }
       }
@@ -6750,9 +6760,8 @@ public:
         return false;
       if (HasFPGATarget && !updateInputForFPGA(A, InputArg, Args))
         return false;
-      // FIXME - unbundling action is being split into two different actions
-      // when unbundling objects.  One action for the host, the other for the
-      // device.
+      // FIXME - unbundling action with -fsycl-link is unbundling for both host
+      // and device, where only the device is needed.
       auto UnbundlingHostAction = C.MakeAction<OffloadUnbundlingJobAction>(
           A, (HasSPIRTarget && HostAction->getType() == types::TY_Archive)
                  ? types::TY_Tempfilelist
@@ -7326,7 +7335,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   ExtractAPIJobAction *ExtractAPIAction = nullptr;
   ActionList LinkerInputs;
   ActionList MergerInputs;
-  ActionList DeviceAOTLinkerInputs;
   ActionList HostActions;
   llvm::SmallVector<const Arg *, 6> LinkerInputArgs;
   llvm::SmallVector<phases::ID, phases::MaxNumberOfPhases> PL;
@@ -7362,17 +7370,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       // Queue linker inputs.
       if (Phase == phases::Link) {
         assert(Phase == PL.back() && "linking must be final compilation step.");
-
-        // When performing -fsycl-link the current inputs are not expected to
-        // be passed to the final host link step.  Instead, take these inputs
-        // and redirect them to the associated wrapping step to create the
-        // final object.
-        if (C.getInputArgs().hasArg(options::OPT_fsycl_link_EQ) &&
-            !Args.hasArg(options::OPT_fintelfpga)) {
-          DeviceAOTLinkerInputs.push_back(Current);
-          Current = nullptr;
-          break;
-        }
 
         // We don't need to generate additional link commands if emitting AMD
         // bitcode or compiling only for the offload device
@@ -7513,14 +7510,13 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
   }
 
   // Add a link action if necessary.
+  // When offloading with -fsycl-link-targets, no link action is processed
+  // as we stop at the spirv-translation step.
   Arg *FinalPhaseArg;
   if (!UseNewOffloadingDriver &&
-      getFinalPhase(Args, &FinalPhaseArg) == phases::Link) {
-    if (LinkerInputs.empty() && DeviceAOTLinkerInputs.empty())
-      OffloadBuilder->appendDeviceLinkActions(Actions);
-
-    if (!DeviceAOTLinkerInputs.empty() &&
-        Args.hasArg(options::OPT_fsycl_link_EQ) &&
+      getFinalPhase(Args, &FinalPhaseArg) == phases::Link &&
+      !Args.hasArg(options::OPT_fsycl_link_targets_EQ)) {
+    if (Args.hasArg(options::OPT_fsycl_link_EQ) &&
         !Args.hasArg(options::OPT_fintelfpga)) {
       ActionList LAList;
       OffloadBuilder->makeHostLinkDeviceOnlyAction(LAList);
@@ -7529,7 +7525,8 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         LA = OffloadBuilder->processHostLinkAction(LA);
         Actions.push_back(LA);
       }
-    }
+    } else if (LinkerInputs.empty())
+      OffloadBuilder->appendDeviceLinkActions(Actions);
   }
 
   if (!LinkerInputs.empty()) {
@@ -7938,7 +7935,8 @@ Action *Driver::BuildOffloadingActions(Compilation &C,
 
   // All kinds exit now in device-only mode except for non-RDC mode HIP.
   if (offloadDeviceOnly() &&
-      (!C.isOffloadingHostKind(Action::OFK_HIP) ||
+      (getFinalPhase(Args) == phases::Preprocess ||
+       !C.isOffloadingHostKind(Action::OFK_HIP) ||
        !Args.hasFlag(options::OPT_gpu_bundle_output,
                      options::OPT_no_gpu_bundle_output, true) ||
        Args.hasFlag(options::OPT_fgpu_rdc, options::OPT_fno_gpu_rdc, false)))
@@ -9017,6 +9015,7 @@ InputInfoList Driver::BuildJobsForActionNoCache(
       InputInfo CurI;
       bool IsFPGAObjLink =
           (JA->getType() == types::TY_Object &&
+           EffectiveTriple.getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
            C.getInputArgs().hasArg(options::OPT_fsycl_link_EQ));
       if (C.getDriver().getOffloadStaticLibSeen() &&
           (JA->getType() == types::TY_Archive ||
@@ -9803,6 +9802,44 @@ std::string Driver::GetProgramPath(StringRef Name, const ToolChain &TC) const {
   return std::string(Name);
 }
 
+std::string Driver::GetStdModuleManifestPath(const Compilation &C,
+                                             const ToolChain &TC) const {
+  std::string error = "<NOT PRESENT>";
+
+  switch (TC.GetCXXStdlibType(C.getArgs())) {
+  case ToolChain::CST_Libcxx: {
+    std::string lib = GetFilePath("libc++.so", TC);
+
+    // Note when there are multiple flavours of libc++ the module json needs to
+    // look at the command-line arguments for the proper json.
+    // These flavours do not exist at the moment, but there are plans to
+    // provide a variant that is built with sanitizer instrumentation enabled.
+
+    // For example
+    //  StringRef modules = [&] {
+    //    const SanitizerArgs &Sanitize = TC.getSanitizerArgs(C.getArgs());
+    //    if (Sanitize.needsAsanRt())
+    //      return "modules-asan.json";
+    //    return "modules.json";
+    //  }();
+
+    SmallString<128> path(lib.begin(), lib.end());
+    llvm::sys::path::remove_filename(path);
+    llvm::sys::path::append(path, "modules.json");
+    if (TC.getVFS().exists(path))
+      return static_cast<std::string>(path);
+
+    return error;
+  }
+
+  case ToolChain::CST_Libstdcxx:
+    // libstdc++ does not provide Standard library modules yet.
+    return error;
+  }
+
+  return error;
+}
+
 std::string Driver::GetTemporaryPath(StringRef Prefix, StringRef Suffix) const {
   SmallString<128> Path;
   std::error_code EC = llvm::sys::fs::createTemporaryFile(Prefix, Suffix, Path);
@@ -10451,5 +10488,133 @@ void Driver::populateSYCLDeviceTraitsMacrosArgs(
     MacroAllDevices += TargetKey;
     MacroAllDevices += "__=1";
     SYCLDeviceTraitsMacrosArgs.push_back(Args.MakeArgString(MacroAllDevices));
+  }
+}
+
+static const char *GetStableCStr(llvm::StringSet<> &SavedStrings, StringRef S) {
+  return SavedStrings.insert(S).first->getKeyData();
+}
+
+/// Apply a list of edits to the input argument lists.
+///
+/// The input string is a space separated list of edits to perform,
+/// they are applied in order to the input argument lists. Edits
+/// should be one of the following forms:
+///
+///  '#': Silence information about the changes to the command line arguments.
+///
+///  '^': Add FOO as a new argument at the beginning of the command line.
+///
+///  '+': Add FOO as a new argument at the end of the command line.
+///
+///  's/XXX/YYY/': Substitute the regular expression XXX with YYY in the command
+///  line.
+///
+///  'xOPTION': Removes all instances of the literal argument OPTION.
+///
+///  'XOPTION': Removes all instances of the literal argument OPTION,
+///  and the following argument.
+///
+///  'Ox': Removes all flags matching 'O' or 'O[sz0-9]' and adds 'Ox'
+///  at the end of the command line.
+///
+/// \param OS - The stream to write edit information to.
+/// \param Args - The vector of command line arguments.
+/// \param Edit - The override command to perform.
+/// \param SavedStrings - Set to use for storing string representations.
+static void applyOneOverrideOption(raw_ostream &OS,
+                                   SmallVectorImpl<const char *> &Args,
+                                   StringRef Edit,
+                                   llvm::StringSet<> &SavedStrings) {
+  // This does not need to be efficient.
+
+  if (Edit[0] == '^') {
+    const char *Str = GetStableCStr(SavedStrings, Edit.substr(1));
+    OS << "### Adding argument " << Str << " at beginning\n";
+    Args.insert(Args.begin() + 1, Str);
+  } else if (Edit[0] == '+') {
+    const char *Str = GetStableCStr(SavedStrings, Edit.substr(1));
+    OS << "### Adding argument " << Str << " at end\n";
+    Args.push_back(Str);
+  } else if (Edit[0] == 's' && Edit[1] == '/' && Edit.ends_with("/") &&
+             Edit.slice(2, Edit.size() - 1).contains('/')) {
+    StringRef MatchPattern = Edit.substr(2).split('/').first;
+    StringRef ReplPattern = Edit.substr(2).split('/').second;
+    ReplPattern = ReplPattern.slice(0, ReplPattern.size() - 1);
+
+    for (unsigned i = 1, e = Args.size(); i != e; ++i) {
+      // Ignore end-of-line response file markers
+      if (Args[i] == nullptr)
+        continue;
+      std::string Repl = llvm::Regex(MatchPattern).sub(ReplPattern, Args[i]);
+
+      if (Repl != Args[i]) {
+        OS << "### Replacing '" << Args[i] << "' with '" << Repl << "'\n";
+        Args[i] = GetStableCStr(SavedStrings, Repl);
+      }
+    }
+  } else if (Edit[0] == 'x' || Edit[0] == 'X') {
+    auto Option = Edit.substr(1);
+    for (unsigned i = 1; i < Args.size();) {
+      if (Option == Args[i]) {
+        OS << "### Deleting argument " << Args[i] << '\n';
+        Args.erase(Args.begin() + i);
+        if (Edit[0] == 'X') {
+          if (i < Args.size()) {
+            OS << "### Deleting argument " << Args[i] << '\n';
+            Args.erase(Args.begin() + i);
+          } else
+            OS << "### Invalid X edit, end of command line!\n";
+        }
+      } else
+        ++i;
+    }
+  } else if (Edit[0] == 'O') {
+    for (unsigned i = 1; i < Args.size();) {
+      const char *A = Args[i];
+      // Ignore end-of-line response file markers
+      if (A == nullptr)
+        continue;
+      if (A[0] == '-' && A[1] == 'O' &&
+          (A[2] == '\0' || (A[3] == '\0' && (A[2] == 's' || A[2] == 'z' ||
+                                             ('0' <= A[2] && A[2] <= '9'))))) {
+        OS << "### Deleting argument " << Args[i] << '\n';
+        Args.erase(Args.begin() + i);
+      } else
+        ++i;
+    }
+    OS << "### Adding argument " << Edit << " at end\n";
+    Args.push_back(GetStableCStr(SavedStrings, '-' + Edit.str()));
+  } else {
+    OS << "### Unrecognized edit: " << Edit << "\n";
+  }
+}
+
+void driver::applyOverrideOptions(SmallVectorImpl<const char *> &Args,
+                                  const char *OverrideStr,
+                                  llvm::StringSet<> &SavedStrings,
+                                  raw_ostream *OS) {
+  if (!OS)
+    OS = &llvm::nulls();
+
+  if (OverrideStr[0] == '#') {
+    ++OverrideStr;
+    OS = &llvm::nulls();
+  }
+
+  *OS << "### CCC_OVERRIDE_OPTIONS: " << OverrideStr << "\n";
+
+  // This does not need to be efficient.
+
+  const char *S = OverrideStr;
+  while (*S) {
+    const char *End = ::strchr(S, ' ');
+    if (!End)
+      End = S + strlen(S);
+    if (End != S)
+      applyOneOverrideOption(*OS, Args, std::string(S, End), SavedStrings);
+    S = End;
+    if (*S != '\0')
+      ++S;
   }
 }
