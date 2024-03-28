@@ -10,6 +10,24 @@ def get_latest_release(repo):
     return json.loads(releases)[0]
 
 
+def get_latest_workflow_runs(repo, workflow_name):
+    action_runs = urlopen(
+        "https://api.github.com/repos/"
+        + repo
+        + "/actions/workflows/"
+        + workflow_name
+        + ".yml/runs?status=success"
+    ).read()
+    return json.loads(action_runs)["workflow_runs"][0]
+
+
+def get_artifacts_download_url(repo, name):
+    artifacts = urlopen(
+        "https://api.github.com/repos/" + repo + "/actions/artifacts?name=" + name
+    ).read()
+    return json.loads(artifacts)["artifacts"][0]["archive_download_url"]
+
+
 def uplift_linux_igfx_driver(config, platform_tag):
     compute_runtime = get_latest_release('intel/compute-runtime')
 
@@ -27,6 +45,15 @@ def uplift_linux_igfx_driver(config, platform_tag):
                 config[platform_tag]['igc']['version'] = ver
                 config[platform_tag]['igc']['url'] = 'https://github.com/intel/intel-graphics-compiler/releases/tag/igc-' + ver
                 break
+
+    igc_dev = get_latest_workflow_runs("intel/intel-graphics-compiler", "build-IGC")
+    igcdevver = igc_dev["head_sha"][:7]
+    config[platform_tag]["igc_dev"]["github_tag"] = "igc-dev-" + igcdevver
+    config[platform_tag]["igc_dev"]["version"] = igcdevver
+    config[platform_tag]["igc_dev"]["updated_at"] = igc_dev["updated_at"]
+    config[platform_tag]["igc_dev"]["url"] = get_artifacts_download_url(
+        "intel/intel-graphics-compiler", "IGC_Ubuntu22.04_llvm14_clang-" + igcdevver
+    )
 
     cm = get_latest_release('intel/cm-compiler')
     config[platform_tag]['cm']['github_tag'] = cm['tag_name']
