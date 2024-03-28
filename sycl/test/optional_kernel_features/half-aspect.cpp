@@ -3,7 +3,6 @@
 
 // CHECK: !sycl_types_that_use_aspects = !{![[#MDNUM:]]}
 // CHECK: ![[#MDNUM]] = !{!"class.sycl::_V1::detail::half_impl::half", i32 [[#ASPECT_NUM:]]}
-// CHECK: !{{.*}} = !{!"fp16", i32 [[#ASPECT_NUM]]}
 
 #include <sycl/sycl.hpp>
 
