@@ -1539,6 +1539,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
     case UR_RESULT_ERROR_LAYER_NOT_PRESENT:
         os << "UR_RESULT_ERROR_LAYER_NOT_PRESENT";
         break;
+    case UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        os << "UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS";
+        break;
     case UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP:
         os << "UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP";
         break;
@@ -8672,6 +8675,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_event_status_t value) 
         break;
     case UR_EVENT_STATUS_QUEUED:
         os << "UR_EVENT_STATUS_QUEUED";
+        break;
+    case UR_EVENT_STATUS_ERROR:
+        os << "UR_EVENT_STATUS_ERROR";
         break;
     default:
         os << "unknown enumerator";
