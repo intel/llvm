@@ -3312,8 +3312,6 @@ public:
                                     TemplateIdAnnotation *TemplateId,
                                     bool IsMemberSpecialization);
 
-  bool checkConstantPointerAuthKey(Expr *keyExpr, unsigned &key);
-
   void DiagnoseFunctionSpecifiers(const DeclSpec &DS);
   NamedDecl *getShadowedDeclaration(const TypedefNameDecl *D,
                                     const LookupResult &R);
@@ -5656,7 +5654,6 @@ public:
     enum ExpressionKind {
       EK_Decltype,
       EK_TemplateArgument,
-      EK_BoundsAttrArgument,
       EK_Other
     } ExprContext;
 
@@ -5773,12 +5770,6 @@ public:
            "Must be in an expression evaluation context");
     return ExprEvalContexts.back();
   };
-
-  bool isBoundsAttrContext() const {
-    return ExprEvalContexts.back().ExprContext ==
-           ExpressionEvaluationContextRecord::ExpressionKind::
-               EK_BoundsAttrArgument;
-  }
 
   /// Increment when we find a reference; decrement when we find an ignored
   /// assignment.  Ultimately the value is 0 if every reference is an ignored
@@ -9667,7 +9658,7 @@ public:
 
   bool AttachTypeConstraint(NestedNameSpecifierLoc NS,
                             DeclarationNameInfo NameInfo,
-                            ConceptDecl *NamedConcept, NamedDecl *FoundDecl,
+                            ConceptDecl *NamedConcept,
                             const TemplateArgumentListInfo *TemplateArgs,
                             TemplateTypeParmDecl *ConstrainedParameter,
                             SourceLocation EllipsisLoc);
@@ -12196,8 +12187,6 @@ public:
                               SourceLocation AttrLoc);
   QualType BuildMatrixType(QualType T, Expr *NumRows, Expr *NumColumns,
                            SourceLocation AttrLoc);
-
-  QualType BuildCountAttributedArrayType(QualType WrappedTy, Expr *CountExpr);
 
   QualType BuildAddressSpaceAttr(QualType &T, LangAS ASIdx, Expr *AddrSpace,
                                  SourceLocation AttrLoc);
@@ -15299,7 +15288,8 @@ public:
   void copySYCLKernelAttrs(CXXMethodDecl *CallOperator);
   void ConstructOpenCLKernel(FunctionDecl *KernelCallerFunc, MangleContext &MC);
   void SetSYCLKernelNames();
-  void ProcessDeviceFunctions();
+  void MarkDevices();
+  void ProcessFreeFunctions();
 
   /// Get the number of fields or captures within the parsed type.
   ExprResult ActOnSYCLBuiltinNumFieldsExpr(ParsedType PT);

@@ -1147,7 +1147,7 @@ static bool IsFreeFunction(Sema &SemaRef, const FunctionDecl *FD) {
           dyn_cast<SYCLAddIRAttributesFunctionAttr>(Attrs[i]);
       if (AnAttr) {
         SmallVector<std::pair<std::string, std::string>, 4> NameValuePairs =
-            AnAttr->getFilteredAttributeNameValuePairs(SemaRef.Context);
+            AnAttr->getAttributeNameValuePairs(SemaRef.Context);
         for (const auto &NameValuePair : NameValuePairs) {
           if (NameValuePair.first == "sycl-range-kernel" ||
               NameValuePair.first == "sycl-nd-range-kernel" ||
@@ -5643,13 +5643,12 @@ static void PropagateAndDiagnoseDeviceAttr(
   }
 }
 
-void Sema::ProcessDeviceFunctions() {
+void Sema::MarkDevices() {
   // This Tracker object ensures that the SyclDeviceDecls collection includes
   // the SYCL_EXTERNAL functions, and manages the diagnostics for all of the
   // functions in the kernel.
   DeviceFunctionTracker Tracker(*this);
 
-  SmallVector<FunctionDecl*, 4> FreeFunctions;
   for (Decl *D : syclDeviceDecls()) {
     auto *SYCLKernel = cast<FunctionDecl>(D);
 
@@ -5664,31 +5663,44 @@ void Sema::ProcessDeviceFunctions() {
       PropagateAndDiagnoseDeviceAttr(*this, T, A, T.GetSYCLKernel(),
                                      T.GetKernelBody());
     CheckSYCLAddIRAttributesFunctionAttrConflicts(T.GetSYCLKernel());
-
-    if (IsFreeFunction(*this, SYCLKernel))
-      FreeFunctions.push_back(SYCLKernel);
   }
+}
 
-  for (FunctionDecl *FF : FreeFunctions) {
-    SyclKernelDecompMarker DecompMarker(*this);
-    SyclKernelFieldChecker FieldChecker(*this);
-    SyclKernelUnionChecker UnionChecker(*this);
+void Sema::ProcessFreeFunctions() {
+  // This Tracker object ensures that the SyclDeviceDecls collection includes
+  // the SYCL_EXTERNAL functions, and manages the diagnostics for all of the
+  // functions in the kernel.
+  DeviceFunctionTracker Tracker(*this);
 
-    KernelObjVisitor Visitor{*this};
+  for (Decl *D : syclDeviceDecls()) {
+    auto *SYCLKernel = cast<FunctionDecl>(D);
 
-    DiagnosingSYCLKernel = true;
+    // This type does the actual analysis on a per-kernel basis. It does this to
+    // make sure that we're only ever dealing with the context of a single
+    // kernel at a time.
+    SingleDeviceFunctionTracker T{Tracker, SYCLKernel};
 
-    // Check parameters of free function.
-    Visitor.VisitFunctionParameters(FF, DecompMarker, FieldChecker,
-                                    UnionChecker);
+    if (IsFreeFunction(*this, SYCLKernel)) {
+      SyclKernelDecompMarker DecompMarker(*this);
+      SyclKernelFieldChecker FieldChecker(*this);
+      SyclKernelUnionChecker UnionChecker(*this);
 
-    DiagnosingSYCLKernel = false;
+      KernelObjVisitor Visitor{*this};
 
-    // Ignore the free function if any of the checkers fail validation.
-    if (!FieldChecker.isValid() || !UnionChecker.isValid())
-      return;
+      DiagnosingSYCLKernel = true;
 
-    ConstructFreeFunctionKernel(*this, FF);
+      // Check parameters of free function.
+      Visitor.VisitFunctionParameters(SYCLKernel, DecompMarker, FieldChecker,
+                                      UnionChecker);
+
+      DiagnosingSYCLKernel = false;
+
+      // Ignore the free function if any of the checkers fail validation.
+      if (!FieldChecker.isValid() || !UnionChecker.isValid())
+        return;
+
+      ConstructFreeFunctionKernel(*this, SYCLKernel);
+    }
   }
 }
 

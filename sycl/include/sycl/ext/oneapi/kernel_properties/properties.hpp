@@ -289,8 +289,6 @@ struct HasKernelPropertiesGetMethod<T,
 } // namespace _V1
 } // namespace sycl
 
-//      {"sycl-device-has"}, 
-//      {"sycl-function-property"}, 
 #ifdef __SYCL_DEVICE_ONLY__
 #define SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(PROP)                                \
   [[__sycl_detail__::add_ir_attributes_function(                               \
