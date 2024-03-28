@@ -853,17 +853,6 @@ static llvm::MDNode *getAspectsMD(ASTContext &ASTContext,
   return llvm::MDNode::get(Ctx, AspectsMD);
 }
 
-static llvm::MDNode *getAspectEnumValueMD(ASTContext &ASTContext,
-                                          llvm::LLVMContext &Ctx,
-                                          const EnumConstantDecl *ECD) {
-  SmallVector<llvm::Metadata *, 2> AspectEnumValMD;
-  AspectEnumValMD.push_back(llvm::MDString::get(Ctx, ECD->getName()));
-  AspectEnumValMD.push_back(
-      llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
-          llvm::Type::getInt32Ty(Ctx), ECD->getInitVal().getSExtValue())));
-  return llvm::MDNode::get(Ctx, AspectEnumValMD);
-}
-
 static bool isStackProtectorOn(const LangOptions &LangOpts,
                                const llvm::Triple &Triple,
                                clang::LangOptions::StackProtectorMode Mode) {
@@ -1336,15 +1325,6 @@ void CodeGenModule::Release() {
                                            Name,
                                            RD->getAttr<SYCLUsesAspectsAttr>()));
       }
-    }
-
-    // Emit metadata for all aspects defined in the aspects enum.
-    if (AspectsEnumDecl) {
-      llvm::NamedMDNode *AspectEnumValsMD =
-          TheModule.getOrInsertNamedMetadata("sycl_aspects");
-      for (const EnumConstantDecl *ECD : AspectsEnumDecl->enumerators())
-        AspectEnumValsMD->addOperand(
-            getAspectEnumValueMD(Context, TheModule.getContext(), ECD));
     }
   }
 
@@ -5691,16 +5671,6 @@ void CodeGenModule::maybeSetTrivialComdat(const Decl &D,
   if (!shouldBeInCOMDAT(*this, D))
     return;
   GO.setComdat(TheModule.getOrInsertComdat(GO.getName()));
-}
-
-void CodeGenModule::setAspectsEnumDecl(const EnumDecl *ED) {
-  if (AspectsEnumDecl && AspectsEnumDecl != ED) {
-    // Conflicting definitions of the aspect enum are not allowed.
-    Error(ED->getLocation(), "redefinition of aspect enum");
-    getDiags().Report(AspectsEnumDecl->getLocation(),
-                      diag::note_previous_definition);
-  }
-  AspectsEnumDecl = ED;
 }
 
 void CodeGenModule::generateIntelFPGAAnnotation(

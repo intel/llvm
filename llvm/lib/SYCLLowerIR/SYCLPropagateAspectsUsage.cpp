@@ -38,6 +38,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
+#include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Path.h"
 
@@ -91,33 +92,7 @@ TypeToAspectsMapTy getTypesThatUseAspectsFromMetadata(const Module &M) {
   return Result;
 }
 
-using AspectValueToNameMapTy = SmallMapVector<StringRef, int, 32>;
-
-/// Retrieves from metadata (sycl_aspects) the mapping between SYCL aspect names
-/// and their integral values.
-AspectValueToNameMapTy getAspectsFromMetadata(const Module &M) {
-  const NamedMDNode *Node = M.getNamedMetadata("sycl_aspects");
-  AspectValueToNameMapTy Result;
-  if (!Node)
-    return Result;
-
-  for (const MDNode *N : Node->operands()) {
-    assert(N->getNumOperands() == 2 &&
-           "Each operand of sycl_aspects must be a pair.");
-
-    // The aspect's name is the first operand.
-    const auto *AspectName = cast<MDString>(N->getOperand(0));
-
-    // The aspect's integral value is the second operand.
-    const auto *AspectCAM = cast<ConstantAsMetadata>(N->getOperand(1));
-    const Constant *AspectC = AspectCAM->getValue();
-
-    Result[AspectName->getString()] =
-        cast<ConstantInt>(AspectC)->getSExtValue();
-  }
-
-  return Result;
-}
+using AspectValueToNameMapTy = DeviceConfigFile::AspectTable_t;
 
 using TypesEdgesTy =
     std::unordered_map<const Type *, std::vector<const Type *>>;
@@ -163,8 +138,8 @@ void propagateAspectsThroughTypes(const TypesEdgesTy &Edges, const Type *Start,
 /// Time complexity: O((V + E) * T) where T is the number of input types
 /// containing aspects.
 void propagateAspectsToOtherTypesInModule(
-    const Module &M, TypeToAspectsMapTy &TypesWithAspects,
-    AspectValueToNameMapTy &AspectValues) {
+    const Module &M, TypeToAspectsMapTy &TypesWithAspects) {
+  const AspectValueToNameMapTy &AspectValues = DeviceConfigFile::AspectTable;
   std::unordered_set<const Type *> TypesToProcess;
   const Type *DoubleTy = Type::getDoubleTy(M.getContext());
 
@@ -365,9 +340,9 @@ void createUsedAspectsMetadataForFunctions(
 /// that function's sycl_declared_aspects metadata if present. A warning
 /// diagnostic is produced for each aspect this check fails for.
 void validateUsedAspectsForFunctions(const FunctionToAspectsMapTy &Map,
-                                     const AspectValueToNameMapTy &AspectValues,
                                      const std::vector<Function *> &EntryPoints,
                                      const CallGraphTy &CG) {
+  const AspectValueToNameMapTy &AspectValues = DeviceConfigFile::AspectTable;
   for (auto &It : Map) {
     const AspectsSetTy &Aspects = It.second;
     if (Aspects.empty())
@@ -529,8 +504,8 @@ bool isEntryPoint(const Function &F) {
 }
 
 void setSyclFixedTargetsMD(const std::vector<Function *> &EntryPoints,
-                           const SmallVector<StringRef, 8> &Targets,
-                           AspectValueToNameMapTy &AspectValues) {
+                           const SmallVector<StringRef, 8> &Targets) {
+  const AspectValueToNameMapTy &AspectValues = DeviceConfigFile::AspectTable;
   if (EntryPoints.empty())
     return;
 
@@ -539,7 +514,7 @@ void setSyclFixedTargetsMD(const std::vector<Function *> &EntryPoints,
 
   for (const auto &Target : Targets) {
     if (!Target.empty()) {
-      auto AspectIt = AspectValues.find(Target);
+      auto AspectIt = AspectValues.find(Target.str());
       if (AspectIt != AspectValues.end()) {
         auto ConstIntTarget =
             ConstantInt::getSigned(Type::getInt32Ty(C), AspectIt->second);
@@ -556,7 +531,6 @@ void setSyclFixedTargetsMD(const std::vector<Function *> &EntryPoints,
 /// Returns a map of functions with corresponding used aspects.
 std::pair<FunctionToAspectsMapTy, FunctionToAspectsMapTy>
 buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
-                           const AspectValueToNameMapTy &AspectValues,
                            const std::vector<Function *> &EntryPoints,
                            bool ValidateAspects) {
   FunctionToAspectsMapTy FunctionToUsedAspects;
@@ -573,8 +547,7 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
     propagateAspectsThroughCG(F, CG, FunctionToUsedAspects, Visited);
 
   if (ValidateAspects)
-    validateUsedAspectsForFunctions(FunctionToUsedAspects, AspectValues,
-                                    EntryPoints, CG);
+    validateUsedAspectsForFunctions(FunctionToUsedAspects, EntryPoints, CG);
 
   // The set of aspects from FunctionToDeclaredAspects should be merged to the
   // set of FunctionToUsedAspects after validateUsedAspectsForFunctions call to
@@ -592,17 +565,7 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
 PreservedAnalyses
 SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
   TypeToAspectsMapTy TypesWithAspects = getTypesThatUseAspectsFromMetadata(M);
-  AspectValueToNameMapTy AspectValues = getAspectsFromMetadata(M);
-
-  // If there is no metadata for aspect values the source code must not have
-  // included the SYCL headers. In that case there should also not be any types
-  // that use aspects, so we can skip this pass.
-  if (AspectValues.empty()) {
-    assert(TypesWithAspects.empty() &&
-           "sycl_aspects metadata is missing but "
-           "sycl_types_that_use_aspects is present.");
-    return PreservedAnalyses::all();
-  }
+  const AspectValueToNameMapTy &AspectValues = DeviceConfigFile::AspectTable;
 
   if (ClSyclFixedTargets.getNumOccurrences() > 0)
     StringRef(ClSyclFixedTargets)
@@ -621,16 +584,16 @@ SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
     if (isEntryPoint(F))
       EntryPoints.push_back(&F);
 
-  propagateAspectsToOtherTypesInModule(M, TypesWithAspects, AspectValues);
+  propagateAspectsToOtherTypesInModule(M, TypesWithAspects);
 
   auto [FunctionToUsedAspects, FunctionToDeclaredAspects] =
-      buildFunctionsToAspectsMap(M, TypesWithAspects, AspectValues, EntryPoints,
+      buildFunctionsToAspectsMap(M, TypesWithAspects, EntryPoints,
                                  ValidateAspectUsage);
 
   // Create a set of excluded aspect values.
   AspectsSetTy ExcludedAspectVals;
   for (const StringRef &AspectName : ExcludedAspects) {
-    const auto AspectValIter = AspectValues.find(AspectName);
+    const auto AspectValIter = AspectValues.find(AspectName.str());
     assert(AspectValIter != AspectValues.end() &&
            "Excluded aspect does not have a corresponding value.");
     ExcludedAspectVals.insert(AspectValIter->second);
@@ -639,7 +602,7 @@ SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
   createUsedAspectsMetadataForFunctions(
       FunctionToUsedAspects, FunctionToDeclaredAspects, ExcludedAspectVals);
 
-  setSyclFixedTargetsMD(EntryPoints, TargetFixedAspects, AspectValues);
+  setSyclFixedTargetsMD(EntryPoints, TargetFixedAspects);
 
   return PreservedAnalyses::all();
 }

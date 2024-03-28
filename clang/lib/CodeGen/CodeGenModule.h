@@ -615,7 +615,6 @@ private:
   MetadataTypeMap GeneralizedMetadataIdMap;
 
   llvm::DenseMap<StringRef, const RecordDecl *> TypesWithAspects;
-  const EnumDecl *AspectsEnumDecl = nullptr;
   // Helps squashing blocks of TopLevelStmtDecl into a single llvm::Function
   // when used with -fincremental-extensions.
   std::pair<std::unique_ptr<CodeGenFunction>, const TopLevelStmtDecl *>
@@ -1119,8 +1118,6 @@ public:
   void addTypeWithAspects(StringRef TypeName, const RecordDecl *RD) {
     TypesWithAspects[TypeName] = RD;
   }
-
-  void setAspectsEnumDecl(const EnumDecl *ED);
 
   void generateIntelFPGAAnnotation(const Decl *D,
                                      llvm::SmallString<256> &AnnotStr);

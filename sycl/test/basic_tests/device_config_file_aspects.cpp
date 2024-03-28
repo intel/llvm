@@ -36,6 +36,19 @@ int main() {
 #include <sycl/info/aspects_deprecated.def>
 
 #undef __SYCL_ASPECT_DEPRECATED
+
+  const auto &aspectTable = DeviceConfigFile::AspectTable;
+#define __SYCL_ASPECT(ASPECT, ASPECT_VAL)                                      \
+  {auto res = aspectTable.find(#ASPECT);                                       \
+  assert(res != aspectTable.end() && #ASPECT);                                 \
+  assert(res->second == ASPECT_VAL && #ASPECT);                                \
+  }
+#define __SYCL_ASPECT_DEPRECATED(ASPECT, ASPECT_VAL, MSG)                      \
+  __SYCL_ASPECT(ASPECT, ASPECT_VAL)
+#define __SYCL_ASPECT_DEPRECATED_ALIAS(ASPECT, ID, MESSAGE)
+#include <sycl/info/aspects.def>
+#include <sycl/info/aspects_deprecated.def>
+#undef __SYCL_ASPECT
 }
 
 #undef __SYCL_ASPECT_DEPRECATED_ALIAS

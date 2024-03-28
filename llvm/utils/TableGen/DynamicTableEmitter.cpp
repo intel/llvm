@@ -66,6 +66,8 @@ private:
 
       return SI->getAsString();
     }
+    if (IntInit *II = dyn_cast<IntInit>(I))
+      return Twine(getAsInt(II)).str();
     if (BitsInit *BI = dyn_cast<BitsInit>(I))
       return "0x" + utohexstr(getAsInt(BI));
     if (BitInit *BI = dyn_cast<BitInit>(I))
@@ -121,8 +123,8 @@ void DynamicTableEmitter::emitDynamicTable(const DynamicTable &Table,
   emitIfdef((Twine("GET_") + Table.PreprocessorGuard + "_IMPL"), OS);
 
   // The primary data table contains all the fields defined for this map.
-  OS << "std::map<std::string, " << Table.CppTypeName << "> " << Table.Name
-     << " = {\n";
+  OS << "static std::map<std::string, " << Table.CppTypeName << "> "
+     << Table.Name << " = {\n";
   // Iterate over the key-value pairs the dynamic table will contain.
   for (unsigned I = 0; I < Table.Entries.size(); ++I) {
     Record *Entry = Table.Entries[I];
