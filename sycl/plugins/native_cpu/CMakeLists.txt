@@ -31,13 +31,13 @@ option(NATIVECPU_OCK_USE_FETCHCONTENT "Use FetchContent to acquire oneAPI Constr
 if(NATIVECPU_USE_OCK)
   if(NATIVECPU_OCK_USE_FETCHCONTENT)
     set(OCK_GIT_INTERNAL_REPO "https://github.com/codeplaysoftware/oneapi-construction-kit.git")
-    # commit d27e6cfb836f306d2dcefbc418c73c16877ef4eb
-    # Merge: f02b80de 0fa75c83
+    # commit 85dfbf7e8c70e01b37daea0dee20e89ccd7af5f7
+    # Merge: 96ae65b1 86ac90a5
     # Author: Harald van Dijk <harald.vandijk@codeplay.com>
-    # Date:   Mon Mar 18 17:44:12 2024 +0000
-    # Merge pull request #406 from hvdijk/fix-vkeiep
-    # Fix vkEnumerateInstanceExtensionProperties.
-    set(OCK_GIT_INTERNAL_TAG  d27e6cfb836f306d2dcefbc418c73c16877ef4eb)
+    # Date:   Wed Mar 27 09:46:31 2024 +0000
+    # Merge pull request #417 from hvdijk/aarch64-suitofp-scalarize
+    # [AArch64] Scalarize vector int-to-fp conversions.
+    set(OCK_GIT_INTERNAL_TAG  85dfbf7e8c70e01b37daea0dee20e89ccd7af5f7)
 
     # Overwrite OCK_GIT_INTERNAL_REPO/OCK_GIT_INTERNAL_TAG if the corresponding options are set
     if(OCK_GIT_REPO)
