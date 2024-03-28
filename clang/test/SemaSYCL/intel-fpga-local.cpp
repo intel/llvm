@@ -67,11 +67,17 @@ void diagnostics()
   //expected-note@-2 {{conflicting attribute is here}}
   unsigned int reg_dpump[64];
 
-  //expected-error@+2{{attributes are not compatible}}
+  //expected-error@+2{{'fpga_memory' and 'fpga_register' attributes are not compatible}}
   [[intel::fpga_register]]
   [[intel::fpga_memory]]
   //expected-note@-2 {{conflicting attribute is here}}
   unsigned int reg_memory[64];
+
+  //expected-error@+2{{'fpga_register' and 'fpga_memory' attributes are not compatible}}
+  [[intel::fpga_memory]]
+  [[intel::fpga_register]]
+  //expected-note@-2 {{conflicting attribute is here}}
+  unsigned int reg_fp_memory[64];
 
   //expected-error@+2{{'bank_bits' and 'fpga_register' attributes are not compatible}}
   [[intel::fpga_register]]
