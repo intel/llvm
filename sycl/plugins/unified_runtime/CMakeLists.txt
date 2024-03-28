@@ -7,7 +7,7 @@
 set(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO
   "https://github.com/GeorgeWeb/unified-runtime.git" CACHE STRING "Override the Unified Runtime FetchContent repository")
 set(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG
-  "eec7aa47fb7ddf9f659984ae1fd6d67eb3252f3d" CACHE STRING "Override the Unified Runtime FetchContent tag")
+  "78a71f3aa7a66f5592de6c910eb6bee2a2f97fcf" CACHE STRING "Override the Unified Runtime FetchContent tag")
 
 # Options to disable use of FetchContent to include Unified Runtime source code
 # to improve developer workflow.
