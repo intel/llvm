@@ -10502,6 +10502,8 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   std::string OutputArg = Output.getFilename();
   if (T.getSubArch() == llvm::Triple::SPIRSubArch_gen && Device.data())
     OutputArg = ("intel_gpu_" + Device + "," + OutputArg).str();
+  else if (T.getSubArch() == llvm::Triple::SPIRSubArch_x86_64) 
+    OutputArg = "spir64_x86_64," + OutputArg;
 
   addArgs(CmdArgs, TCArgs, {"-o", OutputArg});
 
