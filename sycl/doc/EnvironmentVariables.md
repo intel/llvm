@@ -280,4 +280,4 @@ variables in production code.</span>
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
 [xpti]: https://github.com/intel/llvm/blob/sycl/xptifw/doc/XPTI_Framework.md
-[range-rounding]: https://github.com/intel/llvm/blob/sycl/doc/design/ParallelForRangeRounding.md
+[range-rounding]: https://github.com/intel/llvm/blob/sycl/sycl/doc/design/ParallelForRangeRounding.md
