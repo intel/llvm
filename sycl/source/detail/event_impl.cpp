@@ -58,10 +58,23 @@ event_impl::~event_impl() {
     getPlugin()->call<PiApiKind::piEventRelease>(MEvent);
 }
 
-void event_impl::waitInternal() {
+void event_impl::waitInternal(bool *Success) {
   if (!MHostEvent && MEvent) {
     // Wait for the native event
-    getPlugin()->call<PiApiKind::piEventsWait>(1, &MEvent);
+    sycl::detail::pi::PiResult Err =
+        getPlugin()->call_nocheck<PiApiKind::piEventsWait>(1, &MEvent);
+    // TODO drop the PI_ERROR_UKNOWN from here once the UR counterpart to
+    // PI_ERROR_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST is added:
+    // https://github.com/oneapi-src/unified-runtime/issues/1459
+    if (Success != nullptr &&
+        (Err == PI_ERROR_UNKNOWN ||
+         Err == PI_ERROR_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST))
+      *Success = false;
+    else {
+      getPlugin()->checkPiResult(Err);
+      if (Success != nullptr)
+        *Success = true;
+    }
   } else if (MState == HES_Discarded) {
     // Waiting for the discarded event is invalid
     throw sycl::exception(
@@ -154,11 +167,15 @@ event_impl::event_impl(sycl::detail::pi::PiEvent Event,
   }
 }
 
-event_impl::event_impl(const QueueImplPtr &Queue)
-    : MQueue{Queue},
-      MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled},
-      MFallbackProfiling{MIsProfilingEnabled && Queue->isProfilingFallback()} {
+event_impl::event_impl(const QueueImplPtr &Queue) {
   this->setContextImpl(Queue->getContextImplPtr());
+  this->associateWithQueue(Queue);
+}
+
+void event_impl::associateWithQueue(const QueueImplPtr &Queue) {
+  MQueue = Queue;
+  MIsProfilingEnabled = Queue->is_host() || Queue->MIsProfilingEnabled;
+  MFallbackProfiling = MIsProfilingEnabled && Queue->isProfilingFallback();
   if (Queue->is_host()) {
     MState.store(HES_NotComplete);
     if (Queue->has_property<property::queue::enable_profiling>()) {
@@ -225,7 +242,8 @@ void event_impl::instrumentationEpilog(void *TelemetryEvent,
 #endif
 }
 
-void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
+void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
+                      bool *Success) {
   if (MState == HES_Discarded)
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait method cannot be used for a discarded event.");
@@ -247,9 +265,9 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
   if (MEvent)
     // presence of MEvent means the command has been enqueued, so no need to
     // go via the slow path event waiting in the scheduler
-    waitInternal();
+    waitInternal(Success);
   else if (MCommand)
-    detail::Scheduler::getInstance().waitForEvent(Self);
+    detail::Scheduler::getInstance().waitForEvent(Self, Success);
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
@@ -284,6 +302,7 @@ template <>
 uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
+
   // The delay between the submission and the actual start of a CommandBuffer
   // can be short. Consequently, the submission time, which is based on
   // an estimated clock and not on the real device clock, may be ahead of the
@@ -312,6 +331,11 @@ template <>
 uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_start>() {
   checkProfilingPreconditions();
+
+  // For nop command start time is equal to submission time.
+  if (isNOP() && MSubmitTime)
+    return MSubmitTime;
+
   if (!MHostEvent) {
     if (MEvent) {
       auto StartTime =
@@ -339,6 +363,11 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
 template <>
 uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   checkProfilingPreconditions();
+
+  // For nop command end time is equal to submission time.
+  if (isNOP() && MSubmitTime)
+    return MSubmitTime;
+
   if (!MHostEvent) {
     if (MEvent) {
       auto EndTime =

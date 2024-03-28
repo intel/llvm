@@ -2823,8 +2823,8 @@ static void CollectArgsForIntegratedAssembler(Compilation &C,
   }
 }
 
-static StringRef EnumComplexRangeToStr(LangOptions::ComplexRangeKind Range) {
-  StringRef RangeStr = "";
+static StringRef EnumComplexRangeToStr(LangOptions::ComplexRangeKind Range,
+                                       StringRef Option) {
   switch (Range) {
   case LangOptions::ComplexRangeKind::CX_Limited:
     return "-fcx-limited-range";
@@ -2833,17 +2833,32 @@ static StringRef EnumComplexRangeToStr(LangOptions::ComplexRangeKind Range) {
     return "-fcx-fortran-rules";
     break;
   default:
-    return RangeStr;
+    return Option;
     break;
   }
 }
 
 static void EmitComplexRangeDiag(const Driver &D,
                                  LangOptions::ComplexRangeKind Range1,
-                                 LangOptions::ComplexRangeKind Range2) {
-  if (Range1 != Range2 && Range1 != LangOptions::ComplexRangeKind::CX_None)
-    D.Diag(clang::diag::warn_drv_overriding_option)
-        << EnumComplexRangeToStr(Range1) << EnumComplexRangeToStr(Range2);
+                                 LangOptions::ComplexRangeKind Range2,
+                                 StringRef Option = StringRef()) {
+  if (Range1 != Range2 && Range1 != LangOptions::ComplexRangeKind::CX_None) {
+    bool NegateFortranOption = false;
+    bool NegateLimitedOption = false;
+    if (!Option.empty()) {
+      NegateFortranOption =
+          Range1 == LangOptions::ComplexRangeKind::CX_Fortran &&
+          Option == "-fno-cx-fortran-rules";
+      NegateLimitedOption =
+          Range1 == LangOptions::ComplexRangeKind::CX_Limited &&
+          Option == "-fno-cx-limited-range";
+    }
+    if (Option.empty() ||
+        (!Option.empty() && !NegateFortranOption && !NegateLimitedOption))
+      D.Diag(clang::diag::warn_drv_overriding_option)
+          << EnumComplexRangeToStr(Range1, Option)
+          << EnumComplexRangeToStr(Range2, Option);
+  }
 }
 
 static std::string
@@ -2957,7 +2972,8 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       break;
     }
     case options::OPT_fno_cx_limited_range:
-      EmitComplexRangeDiag(D, Range, LangOptions::ComplexRangeKind::CX_Full);
+      EmitComplexRangeDiag(D, Range, LangOptions::ComplexRangeKind::CX_Full,
+                           "-fno-cx-limited-range");
       Range = LangOptions::ComplexRangeKind::CX_Full;
       break;
     case options::OPT_fcx_fortran_rules: {
@@ -2966,7 +2982,8 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       break;
     }
     case options::OPT_fno_cx_fortran_rules:
-      EmitComplexRangeDiag(D, Range, LangOptions::ComplexRangeKind::CX_Full);
+      EmitComplexRangeDiag(D, Range, LangOptions::ComplexRangeKind::CX_Full,
+                           "-fno-cx-fortran-rules");
       Range = LangOptions::ComplexRangeKind::CX_Full;
       break;
     case options::OPT_ffp_model_EQ: {
@@ -4632,14 +4649,20 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
       Args.getLastArg(options::OPT_ggnu_pubnames, options::OPT_gno_gnu_pubnames,
                       options::OPT_gpubnames, options::OPT_gno_pubnames);
   if (DwarfFission != DwarfFissionKind::None ||
-      (PubnamesArg && checkDebugInfoOption(PubnamesArg, Args, D, TC)))
-    if (!PubnamesArg ||
-        (!PubnamesArg->getOption().matches(options::OPT_gno_gnu_pubnames) &&
-         !PubnamesArg->getOption().matches(options::OPT_gno_pubnames)))
+      (PubnamesArg && checkDebugInfoOption(PubnamesArg, Args, D, TC))) {
+    const bool OptionSet =
+        (PubnamesArg &&
+         (PubnamesArg->getOption().matches(options::OPT_gpubnames) ||
+          PubnamesArg->getOption().matches(options::OPT_ggnu_pubnames)));
+    if ((DebuggerTuning != llvm::DebuggerKind::LLDB || OptionSet) &&
+        (!PubnamesArg ||
+         (!PubnamesArg->getOption().matches(options::OPT_gno_gnu_pubnames) &&
+          !PubnamesArg->getOption().matches(options::OPT_gno_pubnames))))
       CmdArgs.push_back(PubnamesArg && PubnamesArg->getOption().matches(
                                            options::OPT_gpubnames)
                             ? "-gpubnames"
                             : "-ggnu-pubnames");
+  }
   const auto *SimpleTemplateNamesArg =
       Args.getLastArg(options::OPT_gsimple_template_names,
                       options::OPT_gno_simple_template_names);
@@ -5404,6 +5427,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                       options::OPT_fno_sycl_esimd_force_stateless_mem, true))
       CmdArgs.push_back("-fno-sycl-esimd-force-stateless-mem");
 
+    if (Arg *A = Args.getLastArg(options::OPT_fsycl_range_rounding_EQ))
+      A->render(Args, CmdArgs);
+
     // Add the Unique ID prefix
     StringRef UniqueID = D.getSYCLUniqueID(Input.getBaseInput());
     if (!UniqueID.empty())
@@ -5428,10 +5454,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     bool DisableRangeRounding = false;
     if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
       if (A->getOption().matches(options::OPT_O0))
-        DisableRangeRounding = true;
+        // If the user has set some range rounding preference then let that
+        // override not range rounding at -O0
+        if (!Args.getLastArg(options::OPT_fsycl_range_rounding_EQ))
+          DisableRangeRounding = true;
     }
     if (DisableRangeRounding || HasFPGA)
-      CmdArgs.push_back("-fsycl-disable-range-rounding");
+      CmdArgs.push_back("-fsycl-range-rounding=disable");
 
     if (HasFPGA) {
       // Pass -fintelfpga to both the host and device SYCL compilations if set.
@@ -7763,6 +7792,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                         (!IsWindowsMSVC || IsMSVC2015Compatible)))
     CmdArgs.push_back("-fno-threadsafe-statics");
 
+  // Add -fno-assumptions, if it was specified.
+  if (!Args.hasFlag(options::OPT_fassumptions, options::OPT_fno_assumptions,
+                    true))
+    CmdArgs.push_back("-fno-assumptions");
+
   // -fgnu-keywords default varies depending on language; only pass if
   // specified.
   Args.AddLastArg(CmdArgs, options::OPT_fgnu_keywords,
@@ -7957,6 +7991,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   // -fno-common is the default, set -fcommon only when that flag is set.
   Args.addOptInFlag(CmdArgs, options::OPT_fcommon, options::OPT_fno_common);
+
+  if (Args.hasFlag(options::OPT_fptrauth_intrinsics,
+                   options::OPT_fno_ptrauth_intrinsics, false))
+    CmdArgs.push_back("-fptrauth-intrinsics");
 
   // -fsigned-bitfields is default, and clang doesn't yet support
   // -funsigned-bitfields.
@@ -9262,6 +9300,14 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
   case llvm::Triple::riscv64:
     AddRISCVTargetArgs(Args, CmdArgs);
     break;
+
+  case llvm::Triple::hexagon:
+    if (Args.hasFlag(options::OPT_mdefault_build_attributes,
+                     options::OPT_mno_default_build_attributes, true)) {
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-hexagon-add-build-attributes");
+    }
+    break;
   }
 
   // Consume all the warning flags. Usually this would be handled more
@@ -9331,7 +9377,6 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
 }
 
 // Begin OffloadBundler
-
 void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
                                   const InputInfo &Output,
                                   const InputInfoList &Inputs,
@@ -9499,11 +9544,7 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     if (!DepFile.empty())
       CmdArgs.push_back(TCArgs.MakeArgString("-input=" + DepFile));
   }
-  if (TCArgs.hasFlag(options::OPT_offload_compress,
-                     options::OPT_no_offload_compress, false))
-    CmdArgs.push_back("-compress");
-  if (TCArgs.hasArg(options::OPT_v))
-    CmdArgs.push_back("-verbose");
+  addOffloadCompressArgs(TCArgs, CmdArgs);
   // All the inputs are encoded as commands.
   C.addCommand(std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
@@ -9747,6 +9788,53 @@ void OffloadBundler::ConstructJobMultipleOutputs(
 
 // Begin OffloadWrapper
 
+static void addRunTimeWrapperOpts(Compilation &C,
+                                  Action::OffloadKind DeviceOffloadKind,
+                                  const llvm::opt::ArgList &TCArgs,
+                                  ArgStringList &CmdArgs,
+                                  const ToolChain &TC,
+                                  const JobAction &JA) {
+  // Grab any Target specific options that need to be added to the wrapper
+  // information.
+  ArgStringList BuildArgs;
+  auto createArgString = [&](const char *Opt) {
+    if (BuildArgs.empty())
+      return;
+    SmallString<128> AL;
+    for (const char *A : BuildArgs) {
+      if (AL.empty()) {
+        AL = A;
+        continue;
+      }
+      AL += " ";
+      AL += A;
+    }
+    CmdArgs.push_back(C.getArgs().MakeArgString(Twine(Opt) + AL));
+  };
+  const toolchains::SYCLToolChain &SYCLTC =
+            static_cast<const toolchains::SYCLToolChain &>(TC);
+  llvm::Triple TT = SYCLTC.getTriple();
+  // TODO: Consider separating the mechanisms for:
+  // - passing standard-defined options to AOT/JIT compilation steps;
+  // - passing AOT-compiler specific options.
+  // This would allow retaining standard language options in the
+  // image descriptor, while excluding tool-specific options that
+  // have been known to confuse RT implementations.
+  if (TT.getSubArch() == llvm::Triple::NoSubArch) {
+    // Only store compile/link opts in the image descriptor for the SPIR-V
+    // target; AOT compilation has already been performed otherwise.
+    const ArgList &Args = C.getArgsForToolChain(nullptr, StringRef(),
+                                                DeviceOffloadKind);
+    const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+    SYCLTC.AddImpliedTargetArgs(TT, Args, BuildArgs, JA, *HostTC);
+    SYCLTC.TranslateBackendTargetArgs(TT, Args, BuildArgs);
+    createArgString("-compile-opts=");
+    BuildArgs.clear();
+    SYCLTC.TranslateLinkerTargetArgs(TT, Args, BuildArgs);
+    createArgString("-link-opts=");
+  }
+}
+
 void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
                                   const InputInfo &Output,
                                   const InputInfoList &Inputs,
@@ -9792,6 +9880,9 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       if (A->getValue() == StringRef("image"))
         WrapperArgs.push_back(C.getArgs().MakeArgString("--emit-reg-funcs=0"));
     }
+    addRunTimeWrapperOpts(C, OffloadingKind, TCArgs, WrapperArgs,
+                          getToolChain(), JA);
+
     // When wrapping an FPGA device binary, we need to be sure to apply the
     // appropriate triple that corresponds (fpga_aocr-intel-<os>)
     // to the target triple setting.
@@ -9807,42 +9898,8 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       TT.setVendorName("intel");
       TargetTripleOpt = TT.str();
     }
-    // Grab any Target specific options that need to be added to the wrapper
-    // information.
-    ArgStringList BuildArgs;
-    auto createArgString = [&](const char *Opt) {
-      if (BuildArgs.empty())
-        return;
-      SmallString<128> AL;
-      for (const char *A : BuildArgs) {
-        if (AL.empty()) {
-          AL = A;
-          continue;
-        }
-        AL += " ";
-        AL += A;
-      }
-      WrapperArgs.push_back(C.getArgs().MakeArgString(Twine(Opt) + AL));
-    };
     const toolchains::SYCLToolChain &TC =
               static_cast<const toolchains::SYCLToolChain &>(getToolChain());
-    // TODO: Consider separating the mechanisms for:
-    // - passing standard-defined options to AOT/JIT compilation steps;
-    // - passing AOT-compiler specific options.
-    // This would allow retaining standard language options in the
-    // image descriptor, while excluding tool-specific options that
-    // have been known to confuse RT implementations.
-    if (TC.getTriple().getSubArch() == llvm::Triple::NoSubArch) {
-      // Only store compile/link opts in the image descriptor for the SPIR-V
-      // target; AOT compilation has already been performed otherwise.
-      const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-      TC.AddImpliedTargetArgs(TT, TCArgs, BuildArgs, JA, *HostTC);
-      TC.TranslateBackendTargetArgs(TT, TCArgs, BuildArgs);
-      createArgString("-compile-opts=");
-      BuildArgs.clear();
-      TC.TranslateLinkerTargetArgs(TT, TCArgs, BuildArgs);
-      createArgString("-link-opts=");
-    }
     bool IsEmbeddedIR = cast<OffloadWrapperJobAction>(JA).isEmbeddedIR();
     if (IsEmbeddedIR) {
       // When the offload-wrapper is called to embed LLVM IR, add a prefix to
@@ -9984,8 +10041,18 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // And add it to the offload targets.
     CmdArgs.push_back(C.getArgs().MakeArgString(
         Twine("-kind=") + Action::GetOffloadKindName(DeviceKind)));
-    CmdArgs.push_back(TCArgs.MakeArgString(Twine("-target=") +
-                                           DeviceTC->getTriple().normalize()));
+    std::string TargetTripleOpt = DeviceTC->getTriple().normalize();
+    // SYCL toolchain target only uses the arch name.
+    if (DeviceKind == Action::OFK_SYCL)
+      TargetTripleOpt = DeviceTC->getTriple().getArchName();
+    CmdArgs.push_back(
+        TCArgs.MakeArgString(Twine("-target=") + TargetTripleOpt));
+    addRunTimeWrapperOpts(C, DeviceKind, TCArgs, CmdArgs, *DeviceTC, JA);
+
+    if (Inputs[I].getType() == types::TY_Tempfiletable ||
+        Inputs[I].getType() == types::TY_Tempfilelist)
+      // wrapper actual input files are passed via the batch job file table:
+      CmdArgs.push_back(C.getArgs().MakeArgString("-batch"));
 
     // Add input.
     assert(Inputs[I].isFilename() && "Invalid input.");
@@ -10209,7 +10276,8 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         ",+SPV_INTEL_fpga_buffer_location"
         ",+SPV_INTEL_fpga_argument_interfaces"
         ",+SPV_INTEL_fpga_invocation_pipelining_attributes"
-        ",+SPV_INTEL_fpga_latency_control";
+        ",+SPV_INTEL_fpga_latency_control"
+        ",+SPV_INTEL_task_sequence";
     ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
     if (C.getDriver().IsFPGAHWMode())
       // Enable several extensions on FPGA H/W exclusively
@@ -10859,9 +10927,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   // Add the linker arguments to be forwarded by the wrapper.
   CmdArgs.push_back(Args.MakeArgString(Twine("--linker-path=") +
                                        LinkCommand->getExecutable()));
-  CmdArgs.push_back("--");
   for (const char *LinkArg : LinkCommand->getArguments())
     CmdArgs.push_back(LinkArg);
+
+  addOffloadCompressArgs(Args, CmdArgs);
 
   const char *Exec =
       Args.MakeArgString(getToolChain().GetProgramPath("clang-linker-wrapper"));

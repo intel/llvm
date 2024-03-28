@@ -518,7 +518,9 @@ template <typename T, typename Enable = void> struct RelConverter {
 template <typename T> class TryToGetElementType {
   static T check(...);
   template <typename A> static typename A::element_type check(const A &);
-  template <typename A> static typename A::value_type check(const A &);
+  template <typename A, typename = std::enable_if_t<!std::is_same_v<
+                            typename A::element_type, typename A::value_type>>>
+  static typename A::value_type check(const A &);
 
 public:
   using type = decltype(check(T()));
