@@ -1286,6 +1286,14 @@ extern __DPCPP_SYCL_EXTERNAL RetT __spirv_TaskSequenceGetINTEL(
 extern __DPCPP_SYCL_EXTERNAL void __spirv_TaskSequenceReleaseINTEL(
     __spv::__spirv_TaskSequenceINTEL *TaskSequence) noexcept;
 
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL std::pair<__ocl_vec_t<T, N>, __ocl_vec_t<T, N>>
+__spirv_IAddCarry(__ocl_vec_t<T, N> src0, __ocl_vec_t<T, N> src1);
+
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL std::pair<__ocl_vec_t<T, N>, __ocl_vec_t<T, N>>
+__spirv_ISubBorrow(__ocl_vec_t<T, N> src0, __ocl_vec_t<T, N> src1);
+
 #else  // if !__SYCL_DEVICE_ONLY__
 
 template <typename dataT>
