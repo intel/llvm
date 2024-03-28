@@ -175,6 +175,13 @@ set(SYCL_COMMON_SOURCES
     "backend/opencl.cpp"
     "backend/level_zero.cpp"
     "backend.cpp"
+    "builtins/common_functions.cpp"
+    "builtins/geometric_functions.cpp"
+    "builtins/half_precision_math_functions.cpp"
+    "builtins/integer_functions.cpp"
+    "builtins/math_functions.cpp"
+    "builtins/native_math_functions.cpp"
+    "builtins/relational_functions.cpp"
     "detail/accessor_impl.cpp"
     "detail/allowlist.cpp"
     "detail/bindless_images.cpp"
@@ -254,22 +261,10 @@ set(SYCL_COMMON_SOURCES
 )
 
 set(SYCL_NON_PREVIEW_SOURCES "${SYCL_COMMON_SOURCES}"
-    "detail/builtins_common.cpp"
-    "detail/builtins_geometric.cpp"
-    "detail/builtins_integer.cpp"
-    "detail/builtins_math.cpp"
-    "detail/builtins_relational.cpp"
 )
 
 
 set(SYCL_PREVIEW_SOURCES "${SYCL_COMMON_SOURCES}"
-    "builtins/common_functions.cpp"
-    "builtins/geometric_functions.cpp"
-    "builtins/half_precision_math_functions.cpp"
-    "builtins/integer_functions.cpp"
-    "builtins/math_functions.cpp"
-    "builtins/native_math_functions.cpp"
-    "builtins/relational_functions.cpp"
 )
 
 if (MSVC)
