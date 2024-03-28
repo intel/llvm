@@ -390,7 +390,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       elseif( ${ARCH} STREQUAL amdgcn )
         # AMDGCN needs libclc to be compiled to high bc version since all atomic
         # clang builtins need to be accessible
-        set( flags "SHELL:-mcpu=gfx940")
+        set( flags "SHELL:-mcpu=gfx940" "SHELL:-mllvm --amdgpu-oclc-reflect-enable=false")
       elseif( ${ARCH}  STREQUAL x86_64)
         # TODO: This is used by SYCL Native Cpu, we should define an option to set this flags
         set( flags "SHELL:-Xclang -target-feature -Xclang +avx"
@@ -431,6 +431,9 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       # simultaneously, we choose declare the builtins using the private space,
       # which will also work for the generic address space.
       set( supports_generic_addrspace FALSE )
+    elseif( ${ARCH} STREQUAL "amdgcn" )
+      set( build_flags )
+      set( opt_flags -O3 "--amdgpu-oclc-reflect-enable=false" )
     elseif( ${ARCH} STREQUAL "clspv64" )
       set( t "spir64--" )
       set( build_flags "-Wno-unknown-assumption")
