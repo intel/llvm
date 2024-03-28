@@ -10,7 +10,8 @@
 // so when run on gpu. This maybe because the gpu runtime has different
 // behavior. Therefore, GPU is unsupported until issue #12638 gets resolved.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 #include <complex>
 #include <numeric>

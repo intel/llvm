@@ -1299,7 +1299,7 @@ public:
       EVT MemVT, MachinePointerInfo PtrInfo, Align Alignment,
       MachineMemOperand::Flags Flags = MachineMemOperand::MOLoad |
                                        MachineMemOperand::MOStore,
-      uint64_t Size = 0, const AAMDNodes &AAInfo = AAMDNodes());
+      LocationSize Size = 0, const AAMDNodes &AAInfo = AAMDNodes());
 
   inline SDValue getMemIntrinsicNode(
       unsigned Opcode, const SDLoc &dl, SDVTList VTList, ArrayRef<SDValue> Ops,
@@ -1307,7 +1307,7 @@ public:
       MaybeAlign Alignment = std::nullopt,
       MachineMemOperand::Flags Flags = MachineMemOperand::MOLoad |
                                        MachineMemOperand::MOStore,
-      uint64_t Size = 0, const AAMDNodes &AAInfo = AAMDNodes()) {
+      LocationSize Size = 0, const AAMDNodes &AAInfo = AAMDNodes()) {
     // Ensure that codegen never sees alignment 0
     return getMemIntrinsicNode(Opcode, dl, VTList, Ops, MemVT, PtrInfo,
                                Alignment.value_or(getEVTAlign(MemVT)), Flags,
@@ -1488,9 +1488,6 @@ public:
                               SDValue Chain, SDValue Ptr, SDValue Stride,
                               SDValue Mask, SDValue EVL, EVT MemVT,
                               MachineMemOperand *MMO, bool IsExpanding = false);
-  SDValue getIndexedStridedLoadVP(SDValue OrigLoad, const SDLoc &DL,
-                                  SDValue Base, SDValue Offset,
-                                  ISD::MemIndexedMode AM);
   SDValue getStridedStoreVP(SDValue Chain, const SDLoc &DL, SDValue Val,
                             SDValue Ptr, SDValue Offset, SDValue Stride,
                             SDValue Mask, SDValue EVL, EVT MemVT,
@@ -1501,9 +1498,6 @@ public:
                                  SDValue Ptr, SDValue Stride, SDValue Mask,
                                  SDValue EVL, EVT SVT, MachineMemOperand *MMO,
                                  bool IsCompressing = false);
-  SDValue getIndexedStridedStoreVP(SDValue OrigStore, const SDLoc &DL,
-                                   SDValue Base, SDValue Offset,
-                                   ISD::MemIndexedMode AM);
 
   SDValue getGatherVP(SDVTList VTs, EVT VT, const SDLoc &dl,
                       ArrayRef<SDValue> Ops, MachineMemOperand *MMO,

@@ -20,7 +20,7 @@
 // CHECK-NEXT: <unknown> :
 // CHECK-NEXT: <unknown> : 3
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main(int argc, const char **argv) {
 

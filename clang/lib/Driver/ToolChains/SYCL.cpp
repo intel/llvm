@@ -416,12 +416,11 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     auto isSYCLDeviceLib = [&](const InputInfo &II) {
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       StringRef LibPostfix = ".o";
-      if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
-          C.getDriver().IsCLMode())
-        LibPostfix = ".obj";
-      else if (isNoRDCDeviceCodeLink(II))
+      if (isNoRDCDeviceCodeLink(II))
         LibPostfix = ".bc";
-
+      else if (HostTC->getTriple().isWindowsMSVCEnvironment() &&
+               C.getDriver().IsCLMode())
+        LibPostfix = ".obj";
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
       const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();

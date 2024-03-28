@@ -56,14 +56,39 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
+  # The fetch_adapter_source function can be used to perform a separate content
+  # fetch for a UR adapter, this allows development of adapters to be decoupled
+  # from each other.
+  #
+  # Args:
+  #   * name - Must be the directory name of the adapter
+  #   * repo - A valid Git URL of a Unified Runtime repo
+  #   * tag - A valid Git branch/tag/commit in the Unified Runtime repo
+  function(fetch_adapter_source name repo tag)
+    message(STATUS "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
+    set(fetch-name unified-runtime-${name})
+    FetchContent_Declare(${fetch-name}
+      GIT_REPOSITORY ${repo} GIT_TAG ${tag})
+    # We don't want to add this repo to the build, only fetch its source.
+    FetchContent_Populate(${fetch-name})
+    # Get the path to the source directory
+    string(TOUPPER ${name} NAME)
+    set(source_dir_var UR_ADAPTER_${NAME}_SOURCE_DIR)
+    FetchContent_GetProperties(${fetch-name} SOURCE_DIR UR_ADAPTER_${NAME}_SOURCE_DIR)
+    # Set the variable which informs UR where to get the adapter source from.
+    set(UR_ADAPTER_${NAME}_SOURCE_DIR
+      "${UR_ADAPTER_${NAME}_SOURCE_DIR}/source/adapters/${name}"
+      CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
+  endfunction()
+
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 78e09f717f56ea8d6e5eb3aa1a22107cf58a8d41
-  # Merge: e0393a45 8a5d6d39
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Feb 29 12:49:08 2024 +0000
-  #     Merge pull request #1392 from pbalcer/event-cache-different-fix
-  #     [L0] Event cache different fix
-  set(UNIFIED_RUNTIME_TAG 78e09f717f56ea8d6e5eb3aa1a22107cf58a8d41)
+  # commit ff276ab1cd584557f8ed4d176109057684a5f4ca
+  # Merge: ed949ecd 2968cc14
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Wed Mar 27 11:28:34 2024 +0000
+  #     Merge pull request #1363 from hdelan/refactor-device-initialization
+  #     [CUDA] Refactor device initialization
+  set(UNIFIED_RUNTIME_TAG ff276ab1cd584557f8ed4d176109057684a5f4ca)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

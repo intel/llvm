@@ -4,7 +4,9 @@
 // Test complete fusion with local internalization and an local accessor that
 // already exists in one of the input kernels.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 using namespace sycl;
 

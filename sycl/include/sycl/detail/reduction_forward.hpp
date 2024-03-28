@@ -68,8 +68,28 @@ template <typename KernelName,
 void reduction_parallel_for(handler &CGH, nd_range<Dims> NDRange,
                             PropertiesT Properties, RestT... Rest);
 
-template <typename T> struct IsReduction;
-template <typename FirstT, typename... RestT> struct AreAllButLastReductions;
+/// Base non-template class which is a base class for all reduction
+/// implementation classes. It is needed to detect the reduction classes.
+class reduction_impl_base {};
+
+/// Predicate returning true if a type is a reduction.
+template <typename T> struct IsReduction {
+  static constexpr bool value =
+      std::is_base_of_v<reduction_impl_base, std::remove_reference_t<T>>;
+};
+
+/// Predicate returning true if all template type parameters except the last one
+/// are reductions.
+template <typename FirstT, typename... RestT> struct AreAllButLastReductions {
+  static constexpr bool value =
+      IsReduction<FirstT>::value && AreAllButLastReductions<RestT...>::value;
+};
+
+/// Helper specialization of AreAllButLastReductions for one element only.
+/// Returns true if the template parameter is not a reduction.
+template <typename T> struct AreAllButLastReductions<T> {
+  static constexpr bool value = !IsReduction<T>::value;
+};
 
 } // namespace detail
 } // namespace _V1

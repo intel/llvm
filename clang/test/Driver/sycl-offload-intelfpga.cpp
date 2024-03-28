@@ -26,13 +26,13 @@
 // CHK-HOST-DEVICE: clang{{.*}} "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-fintelfpga"
 // CHK-HOST-DEVICE: clang{{.*}} "-cc1"{{.*}} "-fintelfpga"{{.*}} "-fsycl-is-host"
 
-/// FPGA target implies -fsycl-disable-range-rounding
+/// FPGA target implies -fsycl-range-rounding=disable
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fintelfpga %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-RANGE-ROUNDING %s
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-RANGE-ROUNDING %s
-// CHK-RANGE-ROUNDING: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-disable-range-rounding"
-// CHK-RANGE-ROUNDING: clang{{.*}} "-fsycl-disable-range-rounding"{{.*}} "-fsycl-is-host"
+// CHK-RANGE-ROUNDING: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-range-rounding=disable"
+// CHK-RANGE-ROUNDING: clang{{.*}} "-fsycl-range-rounding=disable"{{.*}} "-fsycl-is-host"
 
 /// FPGA target implies -emit-only-kernels-as-entry-points in sycl-post-link
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fintelfpga %s 2>&1 \
@@ -41,12 +41,12 @@
 // RUN:   | FileCheck -check-prefix=CHK-NON-KERNEL-ENTRY-POINTS %s
 // CHK-NON-KERNEL-ENTRY-POINTS: sycl-post-link{{.*}} "-emit-only-kernels-as-entry-points"
 
-/// -fsycl-disable-range-rounding is applied to all compilations if fpga is used
+/// -fsycl-range-rounding=disable is applied to all compilations if fpga is used
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown,spir64_gen-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-RANGE-ROUNDING-MULTI %s
-// CHK-RANGE-ROUNDING-MULTI: clang{{.*}} "-triple" "spir64_fpga-unknown-unknown"{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-disable-range-rounding"
-// CHK-RANGE-ROUNDING-MULTI: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-disable-range-rounding"
-// CHK-RANGE-ROUNDING-MULTI: clang{{.*}} "-fsycl-disable-range-rounding"{{.*}} "-fsycl-is-host"
+// CHK-RANGE-ROUNDING-MULTI: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-range-rounding=disable"
+// CHK-RANGE-ROUNDING-MULTI: clang{{.*}} "-fsycl-range-rounding=disable"{{.*}} "-fsycl-is-host"
+// CHK-RANGE-ROUNDING-MULTI: clang{{.*}} "-triple" "spir64_fpga-unknown-unknown"{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-range-rounding=disable"
 
 /// -fintelfpga with -reuse-exe=
 // RUN:  touch %t.cpp
@@ -78,8 +78,6 @@
 // CHK-FPGA-DEP-FILES-HOST: clang{{.*}} "-triple" "spir64_fpga-unknown-unknown"{{.*}} "-dependency-file" "[[INPUT1:.+\.d]]" "-MT" "{{.*}}.o"
 // CHK-FPGA-DEP-FILES-HOST: clang{{.*}} "-triple" "spir64_fpga-unknown-unknown"{{.*}} "-dependency-file" "[[INPUT2:.+\.d]]" "-MT" "{{.*}}.o"
 // CHK-FPGA-DEP-FILES-HOST: aoc{{.*}} "-dep-files={{.*}}[[INPUT1]],{{.*}}[[INPUT2]]"
-// CHK-FPGA-DEP-FILES-HOST: clang{{.*}} "-fsycl-is-host"{{.*}}
-// CHK-FPGA-DEP-FILES-HOST: clang{{.*}} "-fsycl-is-host"{{.*}}
 
 /// -fintelfpga dependency file generation test to object
 // RUN: %clangxx -### -fintelfpga -target x86_64-unknown-linux-gnu %t-1.cpp %t-2.cpp -c 2>&1 \
@@ -124,17 +122,17 @@
 // RUN:  | FileCheck -check-prefix=CHK-FPGA-DEP-FILES-OBJ-PHASES %s
 // CHK-FPGA-DEP-FILES-OBJ-PHASES: 0: input, "{{.*}}-1.o", object, (host-sycl)
 // CHK-FPGA-DEP-FILES-OBJ-PHASES: 1: clang-offload-unbundler, {0}, object, (host-sycl)
-// CHK-FPGA-DEP-FILES-OBJ-PHASES: 2: linker, {1}, image, (host-sycl)
-// CHK-FPGA-DEP-FILES-OBJ-PHASES: 3: spirv-to-ir-wrapper, {1}, ir, (device-sycl)
-// CHK-FPGA-DEP-FILES-OBJ-PHASES: 4: linker, {3}, ir, (device-sycl)
-// CHK-FPGA-DEP-FILES-OBJ-PHASES: 5: sycl-post-link, {4}, tempfiletable, (device-sycl)
-// CHK-FPGA-DEP-FILES-OBJ-PHASES: 6: file-table-tform, {5}, tempfilelist, (device-sycl)
-// CHK-FPGA-DEP-FILES-OBJ-PHASES: 7: llvm-spirv, {6}, tempfilelist, (device-sycl)
-// CHK-FPGA-DEP-FILES-OBJ-PHASES: 8: clang-offload-unbundler, {0}, fpga_dep
-// CHK-FPGA-DEP-FILES-OBJ-PHASES: 9: backend-compiler, {7, 8}, fpga_aocx, (device-sycl)
-// CHK-FPGA-DEP-FILES-OBJ-PHASES: 10: file-table-tform, {5, 9}, tempfiletable, (device-sycl)
-// CHK-FPGA-DEP-FILES-OBJ-PHASES: 11: clang-offload-wrapper, {10}, object, (device-sycl)
-// CHK-FPGA-DEP-FILES-OBJ-PHASES: 12: offload, "host-sycl ({{.*}})" {2}, "device-sycl (spir64_fpga-unknown-unknown)" {11}, image
+// CHK-FPGA-DEP-FILES-OBJ-PHASES: 2: spirv-to-ir-wrapper, {1}, ir, (device-sycl)
+// CHK-FPGA-DEP-FILES-OBJ-PHASES: 3: linker, {2}, ir, (device-sycl)
+// CHK-FPGA-DEP-FILES-OBJ-PHASES: 4: sycl-post-link, {3}, tempfiletable, (device-sycl)
+// CHK-FPGA-DEP-FILES-OBJ-PHASES: 5: file-table-tform, {4}, tempfilelist, (device-sycl)
+// CHK-FPGA-DEP-FILES-OBJ-PHASES: 6: llvm-spirv, {5}, tempfilelist, (device-sycl)
+// CHK-FPGA-DEP-FILES-OBJ-PHASES: 7: clang-offload-unbundler, {0}, fpga_dep
+// CHK-FPGA-DEP-FILES-OBJ-PHASES: 8: backend-compiler, {6, 7}, fpga_aocx, (device-sycl)
+// CHK-FPGA-DEP-FILES-OBJ-PHASES: 9: file-table-tform, {4, 8}, tempfiletable, (device-sycl)
+// CHK-FPGA-DEP-FILES-OBJ-PHASES: 10: clang-offload-wrapper, {9}, object, (device-sycl)
+// CHK-FPGA-DEP-FILES-OBJ-PHASES: 11: offload, "device-sycl (spir64_fpga-unknown-unknown)" {10}, object
+// CHK-FPGA-DEP-FILES-OBJ-PHASES: 12: linker, {1, 11}, image, (host-sycl)
 
 /// -fintelfpga output report file test
 // RUN: mkdir -p %t_dir
