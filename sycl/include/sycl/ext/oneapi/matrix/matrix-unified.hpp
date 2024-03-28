@@ -113,6 +113,42 @@ joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, Layout> &jm,
   return;
 }
 
+template <typename Group, typename T, use Use, size_t M, size_t N,
+          layout Layout, typename F>
+inline __SYCL_ALWAYS_INLINE void
+joint_matrix_apply(Group sg, joint_matrix<Group, T, Use, M, N, Layout> &jmsrc,
+                   joint_matrix<Group, T, Use, M, N, Layout> &jmdest,
+                   F &&lambda) {
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__) || defined(__HIP_PLATFORM_AMD_MFMA__)
+  std::ignore = sg;
+  for (int i = 0; i < jmsrc.matrix_impl.wi_marray.size(); i++) {
+    lambda(jmsrc.matrix_impl.wi_marray[i], jmdest.matrix_impl.wi_marray[i]);
+  }
+#else // NVPTX
+  using storage_element_type =
+      typename oneapi::detail::jm_type_interpretation_helper_trait<
+          T>::storage_element_type;
+  auto wi_data_c = sycl::ext::oneapi::detail::get_wi_data(sg, jmsrc);
+  auto wi_data_d = sycl::ext::oneapi::detail::get_wi_data(sg, jmdest);
+  for (int i = 0; i < wi_data_c.length(); i++) {
+    storage_element_type elementsrc = wi_data_c[i];
+    storage_element_type elementdest = wi_data_d[i];
+    lambda(elementsrc, elementdest);
+    wi_data_d[i] = elementdest;
+  }
+#endif
+#else
+  std::ignore = sg;
+  std::ignore = jmsrc;
+  std::ignore = jmdest;
+  std::ignore = lambda;
+  throw runtime_error("joint matrix is not supported on host device.",
+                      PI_ERROR_INVALID_DEVICE);
+#endif
+  return;
+}
+
 template <typename Group, typename T, size_t NumRows, size_t NumCols, use Use,
           layout Layout, typename T2>
 inline __SYCL_ALWAYS_INLINE void
