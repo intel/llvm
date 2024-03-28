@@ -544,7 +544,7 @@ private:
 
   void visitTemplateParams(const MDNode &N, const Metadata &RawParams);
 
-  void visit(DPLabel &DPL);
+  void visit(DbgLabelRecord &DLR);
   void visit(DbgVariableRecord &DVR);
   // InstVisitor overrides...
   using InstVisitor<Verifier>::visit;
@@ -678,15 +678,15 @@ private:
   } while (false)
 
 void Verifier::visitDbgRecords(Instruction &I) {
-  if (!I.DbgMarker)
+  if (!I.DebugMarker)
     return;
-  CheckDI(I.DbgMarker->MarkedInstr == &I, "Instruction has invalid DbgMarker",
-          &I);
+  CheckDI(I.DebugMarker->MarkedInstr == &I,
+          "Instruction has invalid DebugMarker", &I);
   CheckDI(!isa<PHINode>(&I) || !I.hasDbgRecords(),
           "PHI Node must not have any attached DbgRecords", &I);
   for (DbgRecord &DR : I.getDbgRecordRange()) {
-    CheckDI(DR.getMarker() == I.DbgMarker, "DbgRecord had invalid DbgMarker",
-            &I, &DR);
+    CheckDI(DR.getMarker() == I.DebugMarker,
+            "DbgRecord had invalid DebugMarker", &I, &DR);
     if (auto *Loc =
             dyn_cast_or_null<DILocation>(DR.getDebugLoc().getAsMDNode()))
       visitMDNode(*Loc, AreDebugLocsAllowed::Yes);
@@ -696,8 +696,8 @@ void Verifier::visitDbgRecords(Instruction &I) {
       // intrinsic behaviour.
       verifyFragmentExpression(*DVR);
       verifyNotEntryValue(*DVR);
-    } else if (auto *DPL = dyn_cast<DPLabel>(&DR)) {
-      visit(*DPL);
+    } else if (auto *DLR = dyn_cast<DbgLabelRecord>(&DR)) {
+      visit(*DLR);
     }
   }
 }
@@ -5015,7 +5015,7 @@ void Verifier::visitInstruction(Instruction &I) {
                 F->getIntrinsicID() == Intrinsic::coro_await_suspend_handle ||
                 F->getIntrinsicID() ==
                     Intrinsic::experimental_patchpoint_void ||
-                F->getIntrinsicID() == Intrinsic::experimental_patchpoint_i64 ||
+                F->getIntrinsicID() == Intrinsic::experimental_patchpoint ||
                 F->getIntrinsicID() == Intrinsic::experimental_gc_statepoint ||
                 F->getIntrinsicID() == Intrinsic::wasm_rethrow ||
                 IsAttachedCallOperand(F, CBI, i),
@@ -5094,6 +5094,9 @@ void Verifier::visitInstruction(Instruction &I) {
 
   if (MDNode *TBAA = I.getMetadata(LLVMContext::MD_tbaa))
     TBAAVerifyHelper.visitTBAAMetadata(I, TBAA);
+
+  if (MDNode *TBAA = I.getMetadata(LLVMContext::MD_tbaa_struct))
+    TBAAVerifyHelper.visitTBAAStructMetadata(I, TBAA);
 
   if (MDNode *MD = I.getMetadata(LLVMContext::MD_noalias))
     visitAliasScopeListMetadata(MD);
@@ -5657,6 +5660,13 @@ void Verifier::visitIntrinsicCall(Intrinsic::ID ID, CallBase &Call) {
             "gc.relocate: relocated value must be a gc pointer", Call);
       Check(isGCPtr(DerivedType),
             "gc.relocate: relocated value must be a gc pointer", Call);
+    }
+    break;
+  }
+  case Intrinsic::experimental_patchpoint: {
+    if (Call.getCallingConv() == CallingConv::AnyReg) {
+      Check(Call.getType()->isSingleValueType(),
+            "patchpoint: invalid return type used with anyregcc", Call);
     }
     break;
   }
@@ -6243,22 +6253,22 @@ static DISubprogram *getSubprogram(Metadata *LocalScope) {
   return nullptr;
 }
 
-void Verifier::visit(DPLabel &DPL) {
-  CheckDI(isa<DILabel>(DPL.getRawLabel()),
-          "invalid #dbg_label intrinsic variable", &DPL, DPL.getRawLabel());
+void Verifier::visit(DbgLabelRecord &DLR) {
+  CheckDI(isa<DILabel>(DLR.getRawLabel()),
+          "invalid #dbg_label intrinsic variable", &DLR, DLR.getRawLabel());
 
   // Ignore broken !dbg attachments; they're checked elsewhere.
-  if (MDNode *N = DPL.getDebugLoc().getAsMDNode())
+  if (MDNode *N = DLR.getDebugLoc().getAsMDNode())
     if (!isa<DILocation>(N))
       return;
 
-  BasicBlock *BB = DPL.getParent();
+  BasicBlock *BB = DLR.getParent();
   Function *F = BB ? BB->getParent() : nullptr;
 
   // The scopes for variables and !dbg attachments must agree.
-  DILabel *Label = DPL.getLabel();
-  DILocation *Loc = DPL.getDebugLoc();
-  CheckDI(Loc, "#dbg_label record requires a !dbg attachment", &DPL, BB, F);
+  DILabel *Label = DLR.getLabel();
+  DILocation *Loc = DLR.getDebugLoc();
+  CheckDI(Loc, "#dbg_label record requires a !dbg attachment", &DLR, BB, F);
 
   DISubprogram *LabelSP = getSubprogram(Label->getRawScope());
   DISubprogram *LocSP = getSubprogram(Loc->getRawScope());
@@ -6267,7 +6277,7 @@ void Verifier::visit(DPLabel &DPL) {
 
   CheckDI(LabelSP == LocSP,
           "mismatched subprogram between #dbg_label label and !dbg attachment",
-          &DPL, BB, F, Label, Label->getScope()->getSubprogram(), Loc,
+          &DLR, BB, F, Label, Label->getScope()->getSubprogram(), Loc,
           Loc->getScope()->getSubprogram());
 }
 
@@ -7408,6 +7418,35 @@ bool TBAAVerifier::visitTBAAMetadata(Instruction &I, const MDNode *MD) {
 
   CheckTBAA(SeenAccessTypeInPath, "Did not see access type in access path!", &I,
             MD);
+  return true;
+}
+
+bool TBAAVerifier::visitTBAAStructMetadata(Instruction &I, const MDNode *MD) {
+  CheckTBAA(MD->getNumOperands() % 3 == 0,
+            "tbaa.struct operands must occur in groups of three", &I, MD);
+
+  // Each group of three operands must consist of two integers and a
+  // tbaa node. Moreover, the regions described by the offset and size
+  // operands must be non-overlapping.
+  std::optional<APInt> NextFree;
+  for (unsigned int Idx = 0; Idx < MD->getNumOperands(); Idx += 3) {
+    auto *OffsetCI =
+        mdconst::dyn_extract_or_null<ConstantInt>(MD->getOperand(Idx));
+    CheckTBAA(OffsetCI, "Offset must be a constant integer", &I, MD);
+
+    auto *SizeCI =
+        mdconst::dyn_extract_or_null<ConstantInt>(MD->getOperand(Idx + 1));
+    CheckTBAA(SizeCI, "Size must be a constant integer", &I, MD);
+
+    MDNode *TBAA = dyn_cast_or_null<MDNode>(MD->getOperand(Idx + 2));
+    CheckTBAA(TBAA, "TBAA tag missing", &I, MD);
+    visitTBAAMetadata(I, TBAA);
+
+    bool NonOverlapping = !NextFree || NextFree->ule(OffsetCI->getValue());
+    CheckTBAA(NonOverlapping, "Overlapping tbaa.struct regions", &I, MD);
+
+    NextFree = OffsetCI->getValue() + SizeCI->getValue();
+  }
   return true;
 }
 

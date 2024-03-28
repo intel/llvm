@@ -1646,7 +1646,7 @@ LLVMValueRef LLVMConstNSWNeg(LLVMValueRef ConstantVal) {
 }
 
 LLVMValueRef LLVMConstNUWNeg(LLVMValueRef ConstantVal) {
-  return wrap(ConstantExpr::getNUWNeg(unwrap<Constant>(ConstantVal)));
+  return wrap(ConstantExpr::getNeg(unwrap<Constant>(ConstantVal)));
 }
 
 
@@ -3555,7 +3555,10 @@ LLVMValueRef LLVMBuildNSWNeg(LLVMBuilderRef B, LLVMValueRef V,
 
 LLVMValueRef LLVMBuildNUWNeg(LLVMBuilderRef B, LLVMValueRef V,
                              const char *Name) {
-  return wrap(unwrap(B)->CreateNUWNeg(unwrap(V), Name));
+  Value *Neg = unwrap(B)->CreateNeg(unwrap(V), Name);
+  if (auto *I = dyn_cast<BinaryOperator>(Neg))
+    I->setHasNoUnsignedWrap();
+  return wrap(Neg);
 }
 
 LLVMValueRef LLVMBuildFNeg(LLVMBuilderRef B, LLVMValueRef V, const char *Name) {

@@ -78,7 +78,7 @@ enum InternalOp {
   IOpCooperativeMatrixStoreCheckedINTEL = 6194,
   IOpCooperativeMatrixConstructCheckedINTEL = 6195,
   IOpJointMatrixWorkItemLengthINTEL = 6410,
-  IOpTypeTaskSequenceINTEL = 6411,
+  IOpTypeTaskSequenceINTEL = 6199,
   IOpComplexFMulINTEL = 6415,
   IOpComplexFDivINTEL = 6416,
   IOpRoundFToTF32INTEL = 6426,

@@ -369,7 +369,7 @@ static void simplifyBuiltinVarAccesses(GlobalValue *GV) {
         Ty, GV,
         ArrayRef<Constant *>(
             {ConstantInt::get(Int32Ty, 0), ConstantInt::get(Int32Ty, Offset)}),
-        true, 0);
+        true);
   };
 
   const DataLayout &DL = GV->getParent()->getDataLayout();
