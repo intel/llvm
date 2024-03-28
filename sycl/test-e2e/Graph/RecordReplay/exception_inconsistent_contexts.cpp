@@ -13,10 +13,6 @@
 int main() {
   queue Queue;
 
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
-
   context InOrderContext;
 
   exp_ext::command_graph Graph{InOrderContext, Queue.get_device()};

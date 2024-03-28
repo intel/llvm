@@ -311,12 +311,12 @@ struct VPTransformState {
   void set(VPValue *Def, Value *V, const VPIteration &Instance) {
     auto Iter = Data.PerPartScalars.insert({Def, {}});
     auto &PerPartVec = Iter.first->second;
-    while (PerPartVec.size() <= Instance.Part)
-      PerPartVec.emplace_back();
+    if (PerPartVec.size() <= Instance.Part)
+      PerPartVec.resize(Instance.Part + 1);
     auto &Scalars = PerPartVec[Instance.Part];
     unsigned CacheIdx = Instance.Lane.mapToCacheIndex(VF);
-    while (Scalars.size() <= CacheIdx)
-      Scalars.push_back(nullptr);
+    if (Scalars.size() <= CacheIdx)
+      Scalars.resize(CacheIdx + 1);
     assert(!Scalars[CacheIdx] && "should overwrite existing value");
     Scalars[CacheIdx] = V;
   }
@@ -1125,6 +1125,12 @@ public:
     assert(OpType == OperationType::OverflowingBinOp &&
            "recipe doesn't have a NSW flag");
     return WrapFlags.HasNSW;
+  }
+
+  bool isDisjoint() const {
+    assert(OpType == OperationType::DisjointOp &&
+           "recipe cannot have a disjoing flag");
+    return DisjointFlags.IsDisjoint;
   }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
@@ -2136,6 +2142,8 @@ public:
     assert(isPredicated() && "Trying to get the mask of a unpredicated recipe");
     return getOperand(getNumOperands() - 1);
   }
+
+  unsigned getOpcode() const { return getUnderlyingInstr()->getOpcode(); }
 };
 
 /// A recipe for generating conditional branches on the bits of a mask.
@@ -2931,6 +2939,14 @@ public:
     return TripCount;
   }
 
+  /// Resets the trip count for the VPlan. The caller must make sure all uses of
+  /// the original trip count have been replaced.
+  void resetTripCount(VPValue *NewTripCount) {
+    assert(TripCount && NewTripCount && TripCount->getNumUsers() == 0 &&
+           "TripCount always must be set");
+    TripCount = NewTripCount;
+  }
+
   /// The backedge taken count of the original loop.
   VPValue *getOrCreateBackedgeTakenCount() {
     if (!BackedgeTakenCount)
@@ -2984,13 +3000,11 @@ public:
     Value2VPValue[V] = VPV;
   }
 
-  /// Returns the VPValue for \p V. \p OverrideAllowed can be used to disable
-  ///   /// checking whether it is safe to query VPValues using IR Values.
-  VPValue *getVPValue(Value *V, bool OverrideAllowed = false) {
+  /// Returns the VPValue for \p V.
+  VPValue *getVPValue(Value *V) {
     assert(V && "Trying to get the VPValue of a null Value");
     assert(Value2VPValue.count(V) && "Value does not exist in VPlan");
-    assert((Value2VPValueEnabled || OverrideAllowed ||
-            Value2VPValue[V]->isLiveIn()) &&
+    assert((Value2VPValueEnabled || Value2VPValue[V]->isLiveIn()) &&
            "Value2VPValue mapping may be out of date!");
     return Value2VPValue[V];
   }

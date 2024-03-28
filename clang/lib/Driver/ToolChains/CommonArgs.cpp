@@ -748,7 +748,8 @@ bool tools::isTLSDESCEnabled(const ToolChain &TC,
     SupportedArgument = V == "desc" || V == "trad";
     EnableTLSDESC = V == "desc";
   } else if (Triple.isX86()) {
-    SupportedArgument = V == "gnu";
+    SupportedArgument = V == "gnu" || V == "gnu2";
+    EnableTLSDESC = V == "gnu2";
   } else {
     Unsupported = true;
   }
@@ -2791,13 +2792,9 @@ void tools::addOpenMPDeviceRTL(const Driver &D,
                                const llvm::opt::ArgList &DriverArgs,
                                llvm::opt::ArgStringList &CC1Args,
                                StringRef BitcodeSuffix,
-                               const llvm::Triple &Triple) {
+                               const llvm::Triple &Triple,
+                               const ToolChain &HostTC) {
   SmallVector<StringRef, 8> LibraryPaths;
-
-  // Add path to clang lib / lib64 folder.
-  SmallString<256> DefaultLibPath = llvm::sys::path::parent_path(D.Dir);
-  llvm::sys::path::append(DefaultLibPath, CLANG_INSTALL_LIBDIR_BASENAME);
-  LibraryPaths.emplace_back(DefaultLibPath.c_str());
 
   // Add user defined library paths from LIBRARY_PATH.
   std::optional<std::string> LibPath =
@@ -2809,6 +2806,10 @@ void tools::addOpenMPDeviceRTL(const Driver &D,
     for (StringRef Path : Frags)
       LibraryPaths.emplace_back(Path.trim());
   }
+
+  // Check all of the standard library search paths used by the compiler.
+  for (const auto &LibPath : HostTC.getFilePaths())
+    LibraryPaths.emplace_back(LibPath);
 
   OptSpecifier LibomptargetBCPathOpt =
       Triple.isAMDGCN() ? options::OPT_libomptarget_amdgpu_bc_path_EQ
@@ -2857,7 +2858,7 @@ void tools::addHIPRuntimeLibArgs(const ToolChain &TC, Compilation &C,
                                  llvm::opt::ArgStringList &CmdArgs) {
   if ((C.getActiveOffloadKinds() & Action::OFK_HIP) &&
       !Args.hasArg(options::OPT_nostdlib) &&
-      !Args.hasArg(options::OPT_no_hip_rt)) {
+      !Args.hasArg(options::OPT_no_hip_rt) && !Args.hasArg(options::OPT_r)) {
     TC.AddHIPRuntimeLibArgs(Args, CmdArgs);
   } else {
     // Claim "no HIP libraries" arguments if any
@@ -2890,4 +2891,16 @@ void tools::addOutlineAtomicsArgs(const Driver &D, const ToolChain &TC,
     CmdArgs.push_back("-target-feature");
     CmdArgs.push_back("+outline-atomics");
   }
+}
+
+void tools::addOffloadCompressArgs(const llvm::opt::ArgList &TCArgs,
+                                   llvm::opt::ArgStringList &CmdArgs) {
+  if (TCArgs.hasFlag(options::OPT_offload_compress,
+                     options::OPT_no_offload_compress, false))
+    CmdArgs.push_back("-compress");
+  if (TCArgs.hasArg(options::OPT_v))
+    CmdArgs.push_back("-verbose");
+  if (auto *Arg = TCArgs.getLastArg(options::OPT_offload_compression_level_EQ))
+    CmdArgs.push_back(
+        TCArgs.MakeArgString(Twine("-compression-level=") + Arg->getValue()));
 }

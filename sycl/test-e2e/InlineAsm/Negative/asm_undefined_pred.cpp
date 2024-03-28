@@ -5,7 +5,7 @@
 // RUN: %{run} %t.out
 
 #include "../include/asmhelper.h"
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 struct KernelFunctor {
   KernelFunctor() {}

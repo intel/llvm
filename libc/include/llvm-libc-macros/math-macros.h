@@ -6,10 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef __LLVM_LIBC_MACROS_MATH_MACROS_H
-#define __LLVM_LIBC_MACROS_MATH_MACROS_H
+#ifndef LLVM_LIBC_MACROS_MATH_MACROS_H
+#define LLVM_LIBC_MACROS_MATH_MACROS_H
 
 #include "limits-macros.h"
+
+#define FP_NAN 0
+#define FP_INFINITE 1
+#define FP_ZERO 2
+#define FP_SUBNORMAL 3
+#define FP_NORMAL 4
 
 #define MATH_ERRNO 1
 #define MATH_ERREXCEPT 2
@@ -38,4 +44,4 @@
 #define math_errhandling (MATH_ERRNO | MATH_ERREXCEPT)
 #endif
 
-#endif // __LLVM_LIBC_MACROS_MATH_MACROS_H
+#endif // LLVM_LIBC_MACROS_MATH_MACROS_H

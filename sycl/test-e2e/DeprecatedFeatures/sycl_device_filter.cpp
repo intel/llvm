@@ -4,7 +4,7 @@
 // RUN: %if any-device-is-acc %{ env SYCL_DEVICE_FILTER=acc %{run-unfiltered-devices} %t.out %}
 // TODO: Remove this test once SYCL_DEVICE_FILTER is removed.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   namespace dev_info = sycl::info::device;

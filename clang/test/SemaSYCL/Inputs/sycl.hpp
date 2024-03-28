@@ -2,6 +2,7 @@
 #define SYCL_HPP
 
 #define __SYCL_TYPE(x) [[__sycl_detail__::sycl_type(x)]]
+#define __SYCL_BUILTIN_ALIAS(X) [[clang::builtin_alias(X)]]
 
 // Shared code for SYCL tests
 
@@ -37,6 +38,12 @@ enum class address_space : int {
   constant_space,
   local_space,
   generic_space
+};
+
+enum class decorated : int {
+  no = 0,
+  yes,
+  legacy,
 };
 } // namespace access
 
@@ -272,6 +279,25 @@ class __SYCL_TYPE(kernel_handler) kernel_handler {
   void __init_specialization_constants_buffer(char *specialization_constants_buffer) {}
 };
 
+template <typename T> class __SYCL_TYPE(specialization_id) specialization_id {
+public:
+  using value_type = T;
+
+  template <class... Args>
+  explicit constexpr specialization_id(Args &&...args)
+      : MDefaultValue(args...) {}
+
+  specialization_id(const specialization_id &rhs) = delete;
+  specialization_id(specialization_id &&rhs) = delete;
+  specialization_id &operator=(const specialization_id &rhs) = delete;
+  specialization_id &operator=(specialization_id &&rhs) = delete;
+
+  T getDefaultValue() const { return MDefaultValue; }
+
+private:
+  T MDefaultValue;
+};
+
 // Used when parallel_for range is rounded-up.
 template <typename Type> class __pf_kernel_wrapper;
 
@@ -383,13 +409,56 @@ struct DecoratedType<ElementType, access::address_space::global_space> {
   using type = __attribute__((opencl_global)) ElementType;
 };
 
-template <typename T, access::address_space AS> class multi_ptr {
-  using pointer_t = typename DecoratedType<T, AS>::type *;
-  pointer_t m_Pointer;
+// Equivalent to std::conditional
+template <bool B, class T, class F>
+struct conditional { using type = T; };
+
+template <class T, class F>
+struct conditional<false, T, F> { using type = F; };
+
+template <bool B, class T, class F>
+using conditional_t = typename conditional<B, T, F>::type;
+
+template <typename T, access::address_space AS,
+          access::decorated DecorateAddress = access::decorated::legacy>
+class __SYCL_TYPE(multi_ptr) multi_ptr {
+  static constexpr bool is_decorated =
+      DecorateAddress == access::decorated::yes;
+
+  using decorated_type = typename DecoratedType<T, AS>::type;
+
+  static_assert(DecorateAddress != access::decorated::legacy);
+  static_assert(AS != access::address_space::constant_space);
 
 public:
+    using pointer = conditional_t<is_decorated, decorated_type *, T *>;
+
+  multi_ptr(typename multi_ptr<T, AS, access::decorated::yes>::pointer Ptr)
+    : m_Pointer((pointer)(Ptr)) {}
+  pointer get() { return m_Pointer; }
+
+ private:
+  pointer m_Pointer;
+};
+
+template <typename ElementType, access::address_space Space>
+struct LegacyPointerType {
+  using pointer_t = typename multi_ptr<ElementType, Space, access::decorated::yes>::pointer;
+};
+
+// Legacy specialization
+template <typename T, access::address_space AS>
+class __SYCL_TYPE(multi_ptr) multi_ptr<T, AS, access::decorated::legacy> {
+public:
+  using pointer_t = typename LegacyPointerType<T, AS>::pointer_t;
+
+  multi_ptr(typename multi_ptr<T, AS, access::decorated::yes>::pointer Ptr)
+    : m_Pointer((pointer_t)(Ptr)) {}
   multi_ptr(T *Ptr) : m_Pointer((pointer_t)(Ptr)) {} // #MultiPtrConstructor
   pointer_t get() { return m_Pointer; }
+
+private:
+  pointer_t m_Pointer;
 };
 
 namespace ext {

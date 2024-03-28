@@ -340,7 +340,7 @@ static InputFile *addFile(StringRef path, LoadType loadType,
       }
     } else if (isCommandLineLoad && config->forceLoadObjC) {
       for (const object::Archive::Symbol &sym : file->getArchive().symbols())
-        if (sym.getName().starts_with(objc::klass))
+        if (sym.getName().starts_with(objc::symbol_names::klass))
           file->fetch(sym);
 
       // TODO: no need to look for ObjC sections for a given archive member if
@@ -395,7 +395,7 @@ static InputFile *addFile(StringRef path, LoadType loadType,
     if ((isa<ObjFile>(newFile) || isa<BitcodeFile>(newFile)) && newFile->lazy &&
         config->forceLoadObjC) {
       for (Symbol *sym : newFile->symbols)
-        if (sym && sym->getName().starts_with(objc::klass)) {
+        if (sym && sym->getName().starts_with(objc::symbol_names::klass)) {
           extract(*newFile, "-ObjC");
           break;
         }
@@ -1437,6 +1437,8 @@ bool link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
     resetOutputSegments();
     resetWriter();
     InputFile::resetIdCount();
+
+    objc::doCleanup();
   };
 
   ctx->e.logName = args::getFilenameWithoutExe(argsArr[0]);
@@ -1979,8 +1981,15 @@ bool link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
     if (config->deadStrip)
       markLive();
 
+    // Categories are not subject to dead-strip. The __objc_catlist section is
+    // marked as NO_DEAD_STRIP and that propagates into all category data.
     if (args.hasArg(OPT_check_category_conflicts))
       objc::checkCategories();
+
+    // Category merging uses "->live = false" to erase old category data, so
+    // it has to run after dead-stripping (markLive).
+    if (args.hasArg(OPT_objc_category_merging, OPT_no_objc_category_merging))
+      objc::mergeCategories();
 
     // ICF assumes that all literals have been folded already, so we must run
     // foldIdenticalLiterals before foldIdenticalSections.
