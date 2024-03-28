@@ -11,8 +11,7 @@ on:
     - 'clang/docs/**'
     - 'sycl/doc/**'
 
-permissions:
-  contents: read
+permissions: read-all
 
 jobs:
   build:

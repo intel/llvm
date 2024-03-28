@@ -5,8 +5,7 @@ on:
     - cron:  '0 3 * * 2'
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: read-all
 
 jobs:
   update_driver_linux:

@@ -5162,6 +5162,7 @@
 ?wait_and_throw@event@_V1@sycl@@SAXAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
 ?wait_and_throw@queue@_V1@sycl@@QEAAXAEBUcode_location@detail@23@@Z
 ?wait_and_throw_proxy@queue@_V1@sycl@@QEAAXAEBUcode_location@detail@23@@Z
+?wait_non_blocking@pipe_base@experimental@intel@ext@_V1@sycl@@KA_NAEBVevent@56@@Z
 ?wait_proxy@queue@_V1@sycl@@QEAAXAEBUcode_location@detail@23@@Z
 ?what@exception@_V1@sycl@@UEBAPEBDXZ
 DllMain
