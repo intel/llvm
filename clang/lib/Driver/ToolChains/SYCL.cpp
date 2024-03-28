@@ -1508,10 +1508,7 @@ Tool *SYCLToolChain::buildBackendCompiler() const {
 }
 
 Tool *SYCLToolChain::buildLinker() const {
-  assert(getTriple().getArch() == llvm::Triple::spir ||
-         getTriple().getArch() == llvm::Triple::spir64 ||
-         getTriple().getArch() == llvm::Triple::spirv32 ||
-         getTriple().getArch() == llvm::Triple::spirv64 || IsSYCLNativeCPU);
+  assert(getTriple().isSPIROrSPIRV() || IsSYCLNativeCPU);
   return new tools::SYCL::Linker(*this);
 }
 
