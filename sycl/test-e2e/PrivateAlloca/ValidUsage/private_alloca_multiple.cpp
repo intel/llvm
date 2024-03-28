@@ -1,6 +1,5 @@
 // RUN: %{build} -w -o %t.out
 // RUN: echo 10 20 30 | %{run} %t.out
-// UNSUPPORTED: cuda || hip
 
 // Chain of private_alloca test to check runtime support for compilation when
 // the default size is to be used.

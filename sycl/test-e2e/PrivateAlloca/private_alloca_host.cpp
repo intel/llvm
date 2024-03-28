@@ -4,9 +4,10 @@
 // Simple test checking calling private_alloca on the host leads to an exception
 // being thrown.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <sycl/ext/oneapi/experimental/alloca.hpp>
+#include <sycl/specialization_id.hpp>
 
 constexpr sycl::specialization_id<int> size(10);
 
