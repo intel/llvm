@@ -1447,21 +1447,20 @@ ESIMD_INLINE __ESIMD_NS::simd<float, N> atan2(__ESIMD_NS::simd<float, N> y,
                                               __ESIMD_NS::simd<float, N> x) {
   __ESIMD_NS::simd<float, N> atan2;
   __ESIMD_NS::simd_mask<N> mask;
+  __ESIMD_NS::simd<float, N> atan = esimd::atan(y / x);
 
   constexpr float CONST_DBL_EPSILON = 0.00001f;
 
-  mask = x >= -CONST_DBL_EPSILON && x <= CONST_DBL_EPSILON &&
-         y < -CONST_DBL_EPSILON;
+  mask = (__ESIMD_NS::abs(x) < CONST_DBL_EPSILON && y < -CONST_DBL_EPSILON);
   atan2.merge(float(-detail::__ESIMD_CONST_PI) / 2.f, 0.f, mask);
-  mask = x >= -CONST_DBL_EPSILON && x <= CONST_DBL_EPSILON &&
-         y > CONST_DBL_EPSILON;
+  mask = (__ESIMD_NS::abs(x) < CONST_DBL_EPSILON && y > CONST_DBL_EPSILON);
   atan2.merge(float(detail::__ESIMD_CONST_PI) / 2.f, mask);
-  mask = x < -CONST_DBL_EPSILON && y < -CONST_DBL_EPSILON;
-  atan2.merge(esimd::atan(y / x) - float(detail::__ESIMD_CONST_PI), mask);
-  mask = x < -CONST_DBL_EPSILON && y >= -CONST_DBL_EPSILON;
-  atan2.merge(esimd::atan(y / x) + float(detail::__ESIMD_CONST_PI), mask);
-  mask = x > -CONST_DBL_EPSILON;
-  atan2.merge(esimd::atan(y / x), mask);
+  mask = (x < -CONST_DBL_EPSILON && y < -CONST_DBL_EPSILON);
+  atan2.merge(atan - float(detail::__ESIMD_CONST_PI), mask);
+  mask = (x < -CONST_DBL_EPSILON && y >= -CONST_DBL_EPSILON);
+  atan2.merge(atan + float(detail::__ESIMD_CONST_PI), mask);
+  mask = (x > CONST_DBL_EPSILON);
+  atan2.merge(atan, mask);
 
   return atan2;
 }
