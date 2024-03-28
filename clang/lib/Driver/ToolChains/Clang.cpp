@@ -10230,10 +10230,23 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     bool IsCPU = Triple.isSPIR() &&
                  Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
     TranslatorArgs.push_back("-spirv-max-version=1.4");
-    TranslatorArgs.push_back("-spirv-debug-info-version=ocl-100");
-    // Prevent crash in the translator if input IR contains DIExpression
-    // operations which don't have mapping to OpenCL.DebugInfo.100 spec.
-    TranslatorArgs.push_back("-spirv-allow-extra-diexpressions");
+    // Enable NonSemanticShaderDebugInfo.200 for CPU AOT and for non-Windows
+    // JIT. Don't enable on FPGA H/W.
+    const llvm::Triple *AuxTriple = TC.getAuxTriple();
+    const bool IsWindowsMSVC =
+        Triple.isWindowsMSVCEnvironment() ||
+        (AuxTriple && AuxTriple->isWindowsMSVCEnvironment());
+    const bool EnableNonSemanticDebug =
+        IsCPU || (!IsWindowsMSVC && !C.getDriver().IsFPGAHWMode());
+    if (EnableNonSemanticDebug) {
+      TranslatorArgs.push_back(
+          "-spirv-debug-info-version=nonsemantic-shader-200");
+    } else {
+      TranslatorArgs.push_back("-spirv-debug-info-version=ocl-100");
+      // Prevent crash in the translator if input IR contains DIExpression
+      // operations which don't have mapping to OpenCL.DebugInfo.100 spec.
+      TranslatorArgs.push_back("-spirv-allow-extra-diexpressions");
+    }
     std::string UnknownIntrinsics("-spirv-allow-unknown-intrinsics=llvm.genx.");
     if (IsCPU)
       UnknownIntrinsics += ",llvm.fpbuiltin";
@@ -10294,9 +10307,8 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
                 ",+SPV_KHR_uniform_group_instructions"
                 ",+SPV_INTEL_masked_gather_scatter"
                 ",+SPV_INTEL_tensor_float32_conversion"
-                ",+SPV_INTEL_optnone";
-    if (ShouldPreserveMetadata)
-      ExtArg += ",+SPV_KHR_non_semantic_info";
+                ",+SPV_INTEL_optnone"
+                ",+SPV_KHR_non_semantic_info";
     if (IsCPU)
       ExtArg += ",+SPV_INTEL_fp_max_error";
 
