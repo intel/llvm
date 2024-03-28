@@ -2,8 +2,9 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 #include <iostream>
-#include <sycl.hpp>
 #include <vector>
+
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

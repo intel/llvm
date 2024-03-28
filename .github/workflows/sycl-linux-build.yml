@@ -103,6 +103,9 @@ on:
         options:
           - 3
 
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build + LIT

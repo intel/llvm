@@ -29,6 +29,8 @@
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stream.hpp>
 
+#include <sycl/ext/oneapi/memcpy2d.hpp>
+
 namespace sycl {
 inline namespace _V1 {
 
@@ -67,6 +69,12 @@ getPiImageCopyFlags(sycl::usm::alloc SrcPtrType, sycl::usm::alloc DstPtrType) {
   }
   throw sycl::exception(make_error_code(errc::invalid),
                         "Unknown copy destination location");
+}
+
+void *getValueFromDynamicParameter(
+    ext::oneapi::experimental::detail::dynamic_parameter_base
+        &DynamicParamBase) {
+  return sycl::detail::getSyclObjImpl(DynamicParamBase)->getValue();
 }
 
 } // namespace detail
@@ -158,6 +166,22 @@ event handler::finalize() {
           throw sycl::exception(make_error_code(errc::kernel_argument),
                                 "placeholder accessor must be bound by calling "
                                 "handler::require() before it can be used.");
+
+        // Check associated accessors
+        bool AccFound = false;
+        for (detail::ArgDesc &Acc : MAssociatedAccesors) {
+          if (Acc.MType == detail::kernel_param_kind_t::kind_accessor &&
+              static_cast<detail::Requirement *>(Acc.MPtr) == AccImpl) {
+            AccFound = true;
+            break;
+          }
+        }
+
+        if (!AccFound) {
+          throw sycl::exception(make_error_code(errc::kernel_argument),
+                                "placeholder accessor must be bound by calling "
+                                "handler::require() before it can be used.");
+        }
       }
     }
   }
@@ -585,6 +609,8 @@ event handler::finalize() {
 
     // Associate an event with this new node and return the event.
     GraphImpl->addEventForNode(GraphImpl, EventImpl, NodeImpl);
+
+    NodeImpl->MNDRangeUsed = MImpl->MNDRangeUsed;
 
     return detail::createSyclObjFromImpl<event>(EventImpl);
   }
@@ -1561,5 +1587,30 @@ std::tuple<std::array<size_t, 3>, bool> handler::getMaxWorkGroups_v2() {
   return {std::array<size_t, 3>{0, 0, 0}, false};
 }
 
+void handler::setNDRangeUsed(bool Value) { MImpl->MNDRangeUsed = Value; }
+
+void handler::registerDynamicParameter(
+    ext::oneapi::experimental::detail::dynamic_parameter_base &DynamicParamBase,
+    int ArgIndex) {
+  if (MQueue && MQueue->getCommandGraph()) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Dynamic Parameters cannot be used with Graph Queue recording.");
+  }
+  if (!MGraph) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Dynamic Parameters cannot be used with normal SYCL submissions");
+  }
+
+  auto ParamImpl = detail::getSyclObjImpl(DynamicParamBase);
+  if (ParamImpl->MGraph != this->MGraph) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Cannot use a Dynamic Parameter with a node associated with a graph "
+        "other than the one it was created with.");
+  }
+  MImpl->MDynamicParameters.emplace_back(ParamImpl.get(), ArgIndex);
+}
 } // namespace _V1
 } // namespace sycl
