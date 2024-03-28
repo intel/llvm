@@ -22,13 +22,13 @@
 
 // Unbundle bundle.no.env while providing targets with env
 // RUN: clang-offload-bundler -unbundle -type=o -targets=hip-amdgcn-amd-amdhsa--gfx906,hip-amdgcn-amd-amdhsa--gfx908 -input=%t.bundle.no.env -output=%t-hip-amdgcn-amd-amdhsa--gfx906.bc -output=%t-hip-amdgcn-amd-amdhsa--gfx908.bc -debug-only=CodeObjectCompatibility 2>&1 | FileCheck %s -check-prefix=BUNDLE-NO-ENV
-// BUNDLE-NO-ENV: Compatible: Exact match: [CodeObject: hip-amdgcn-amd-amdhsa--gfx906] : [Target: hip-amdgcn-amd-amdhsa--gfx906]
-// BUNDLE-NO-ENV: Compatible: Exact match: [CodeObject: hip-amdgcn-amd-amdhsa--gfx908] : [Target: hip-amdgcn-amd-amdhsa--gfx908]
+// BUNDLE-NO-ENV: Compatible: Exact match: [CodeObject: hip-amdgcn-amd-amdhsa-gfx906] : [Target: hip-amdgcn-amd-amdhsa--gfx906]
+// BUNDLE-NO-ENV: Compatible: Exact match: [CodeObject: hip-amdgcn-amd-amdhsa-gfx908] : [Target: hip-amdgcn-amd-amdhsa--gfx908]
 
 // Unbundle bundle.env while providing targets with no env
 // RUN: clang-offload-bundler -unbundle -type=o -targets=hip-amdgcn-amd-amdhsa-gfx906,hip-amdgcn-amd-amdhsa-gfx908 -input=%t.bundle.env -output=%t-hip-amdgcn-amd-amdhsa-gfx906.bc -output=%t-hip-amdgcn-amd-amdhsa-gfx908.bc -debug-only=CodeObjectCompatibility 2>&1 | FileCheck %s -check-prefix=BUNDLE-ENV
-// BUNDLE-ENV: Compatible: Exact match: [CodeObject: hip-amdgcn-amd-amdhsa--gfx906] : [Target: hip-amdgcn-amd-amdhsa--gfx906]
-// BUNDLE-ENV: Compatible: Exact match: [CodeObject: hip-amdgcn-amd-amdhsa--gfx908] : [Target: hip-amdgcn-amd-amdhsa--gfx908]
+// BUNDLE-ENV: Compatible: Exact match: [CodeObject: hip-amdgcn-amd-amdhsa--gfx906] : [Target: hip-amdgcn-amd-amdhsa-gfx906]
+// BUNDLE-ENV: Compatible: Exact match: [CodeObject: hip-amdgcn-amd-amdhsa--gfx908] : [Target: hip-amdgcn-amd-amdhsa-gfx908]
 
 // Some code so that we can create a binary out of this file.
 int A = 0;
