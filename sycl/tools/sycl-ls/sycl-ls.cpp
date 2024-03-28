@@ -141,23 +141,6 @@ static int printUsageAndExit() {
 // the filter environment variable is set.
 static void printWarningIfFiltersUsed(bool &SuppressNumberPrinting) {
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  const char *filter = std::getenv("SYCL_DEVICE_FILTER");
-  if (filter) {
-    if (!DiscardFilters) {
-      std::cerr << "INFO: Output filtered by SYCL_DEVICE_FILTER "
-                << "environment variable, which is set to " << filter << "."
-                << std::endl;
-      std::cerr
-          << "To see device ids, use the --ignore-device-selectors CLI option."
-          << std::endl
-          << std::endl;
-      SuppressNumberPrinting = true;
-    } else
-      FilterEnvVars.push_back("SYCL_DEVICE_FILTER");
-  }
-#endif
-
   const char *ods_targets = std::getenv("ONEAPI_DEVICE_SELECTOR");
   if (ods_targets) {
     if (!DiscardFilters) {
