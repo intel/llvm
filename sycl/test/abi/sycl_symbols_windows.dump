@@ -1141,7 +1141,6 @@
 ?getAccData@UnsampledImageAccessorBaseHost@detail@_V1@sycl@@QEAAAEAUAccHostDataT@234@XZ
 ?getAccessRange@AccessorBaseHost@detail@_V1@sycl@@QEAAAEAV?$range@$02@34@XZ
 ?getAccessRange@AccessorBaseHost@detail@_V1@sycl@@QEBAAEBV?$range@$02@34@XZ
-?getAssertHappenedBuffer@queue@_V1@sycl@@AEAAAEAV?$buffer@UAssertHappened@detail@_V1@sycl@@$00V?$aligned_allocator@UAssertHappened@detail@_V1@sycl@@@234@X@23@XZ
 ?getBorderColor@detail@_V1@sycl@@YA?AV?$vec@M$03@23@W4image_channel_order@23@@Z
 ?getBufSizeForContext@SYCLMemObjT@detail@_V1@sycl@@SA_KAEBV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@_K@Z
 ?getChannelOrder@SampledImageAccessorBaseHost@detail@_V1@sycl@@QEBA?AW4image_channel_order@34@XZ
