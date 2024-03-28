@@ -339,7 +339,36 @@ template <typename T, int N, int VS = 1, typename OffsetSimdViewT, typename Prop
 The parameter `byte_offset` is a vector of any integral type elements for `(usm-ga-*)`, 32-bit integer elements for `(lacc-ga-*)` and `(slm-ga-*)`, any integral type integer elements for `(acc-ga-*)` in [stateless](#statelessstateful-memory-mode) mode(default),
 and up-to-32-bit integer elements for `(acc-ga-*)` in [stateful](#statelessstateful-memory-mode) mode.  
 The optional parameter `pred` provides a `simd_mask`. If some element in `pred` is zero, then the load of the corresponding memory location is skipped and the element of the result is copied from `pass_thru` (if it is passed) or it is undefined (if `pass_thru` is omitted).  
-The optional [compile-time properties](#compile-time-properties) list `props` may specify `alignment` and/or `cache-hints`. The cache-hints are ignored for `(lacc-*)` and `(slm-*)` functions.
+The optional [compile-time properties](#compile-time-properties) list `props` may specify `alignment` and/or `cache-hints`. The cache-hints are ignored for `(lacc-*)` and `(slm-*)` functions.  
+The template parameter `N` can be any positive number.  
+The optional template parameter `VS` must be one of `{1, 2, 3, 4, 8, 16, 32, 64}` values. It specifies how many conseсutive elements are loaded per each element in `byte_offsets`.   
+### Example
+```C++
+simd<int64_t, 4> offsets(0, 100); // 0, 100, 200, 300 - offsets in bytes
+// loads and returns a vector {ptr[0], ptr[100/4], ptr[200/4], ptr[300/4]};
+simd<float, 4> vec4 = gather<float, 4>(ptr, offsets);
+
+// VS = 2, loads and returns a vector {ptr[0], ptr[100/4],     ptr[200/4],     ptr[300/4],
+//                                     ptr[1], ptr[100/4 + 1], ptr[200/4 + 1], ptr[300/4 + 1]};
+simd<float, 8> vec8 = gather<float, 8, 2>(ptr, offsets);
+```
+
+### Restrictions
+| `Function` | `Condition` | Required/supported Intel GPU |
+|-|-|-|
+| `(usm-ga-1,4,7)`,`(acc-ga-1,4,7)` | true (`pass_thru` arg is passed) | DG2 or PVC |
+| `(usm-ga-2,3,8,9)`, `(acc-ga-2,3,8,9)` | !(cache-hints) and (`VS` == 1) and (`N` == 1,2,4,8,16,32) | Any Intel GPU |
+| `(usm-ga-2,3,8,9)`, `(acc-ga-2,3,8,9)` | (cache-hints) or (`VS` > 1) or (`N` != 1,2,4,8,16,32) | DG2 or PVC |
+| `(usm-ga-5,6)`, `(acc-ga-5,6)` | !(cache-hints) and (`N` == 1,2,4,8,16,32) | Any Intel GPU |
+| `(usm-ga-5,6)`, `(acc-ga-5,6)` | (cache-hints) or (`N` != 1,2,4,8,16,32) | DG2 or PVC |
+| The next 5 lines are similar to the previous 5 lines. They are for SLM gather and the only difference is that SLM gathers ignore cache-hints|||
+| `(slm-ga-1,4,7)`,`(lacc-ga-1,4,7)` | true (`pass_thru` is passed) | DG2 or PVC |
+| `(slm-ga-2,3,8,9)`, `(lacc-ga-2,3,8,9)` | (`VS` == 1) and (`N` == 1,2,4,8,16,32) | Any Intel GPU |
+| `(slm-ga-2,3,8,9)`, `(lacc-ga-2,3,8,9)` | (`VS` > 1) or (`N` != 1,2,4,8,16,32) | DG2 or PVC |
+| `(slm-ga-5,6)`, `(lacc-ga-5,6)` | (`N` == 1,2,4,8,16,32) | Any Intel GPU |
+| `(slm-ga-5,6)`, `(lacc-ga-5,6)` | (`N` != 1,2,4,8,16,32) | DG2 or PVC |
+
+
 
 ## scatter(...) - store to memory locations addressed by a vector of offsets
 ```C++
@@ -412,6 +441,29 @@ The parameter `byte_offset` is a vector of any integral type elements for `(usm-
 and up-to-32-bit integer elements for `(acc-sc-*)` in [stateful](#statelessstateful-memory-mode) mode.  
 The optional parameter `pred` provides a `simd_mask`. If some element in `pred` is zero, then the store to the corresponding memory location is skipped.  
 The optional [compile-time properties](#compile-time-properties) list `props` may specify `alignment` and/or `cache-hints`. The cache-hints are ignored for `(lacc-sc-*)` and `(slm-sc-*)` functions.
+The template parameter `N` can be any positive number.  
+The optional template parameter `VS` must be one of `{1, 2, 3, 4, 8, 16, 32, 64}` values. It specifies how many conseсutive elements are written per each element in `byte_offsets`.   
+### Example
+```C++
+simd<int64_t, 4> offsets4(0, 100); // 0, 100, 200, 300 - offsets in bytes
+simd<float, 4> vec4;
+// stores the elements of vec4 to memory locations {ptr[0], ptr[100/4], ptr[200/4], ptr[300/4]};
+scatter(ptr, offsets4, vec4);
+
+// VS = 2, stores the elements of vec8 to memory locations {ptr[0], ptr[100/4],     ptr[200/4],     ptr[300/4],
+//                                                          ptr[1], ptr[100/4 + 1], ptr[200/4 + 1], ptr[300/4 + 1]};
+simd<float, 8> vec8;
+scatter<float, 8, 2>(ptr, offsets4);
+```
+
+### Restrictions
+| `Function` | `Condition` | Required/supported Intel GPU |
+|-|-|-|
+| `(usm-sc-*)`, `(acc-sc-*)` | !(cache-hints) and (`VS` == 1) and (`N` == 1,2,4,8,16,32) | Any Intel GPU |
+| `(usm-sc-*)`, `(acc-sc-*)` | (cache-hints) or (`VS` > 1) or (`N` != 1,2,4,8,16,32) | DG2 or PVC |
+| The next 2 lines are similar to the previous 2 lines. They are for SLM gather and the only difference is that SLM scatters ignore cache-hints|||
+| `(slm-sc-*)`, `(lacc-sc-*)` | !(cache-hints) and (`VS` == 1) and (`N` == 1,2,4,8,16,32) | Any Intel GPU |
+| `(slm-sc-*)`, `(lacc-sc-*)` | (cache-hints) or (`VS` > 1) or (`N` != 1,2,4,8,16,32) | DG2 or PVC |
 
 ## atomic_update(...)
 
