@@ -40,4 +40,4 @@ private:
   T val;
 };
 
-enum DeviceType : uintptr_t { UNKNOWN, CPU, GPU_PVC, GPU_DG2 };
+enum DeviceType : uint64_t { UNKNOWN, CPU, GPU_PVC, GPU_DG2 };

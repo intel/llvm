@@ -81,14 +81,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/AllanZyne/unified-runtime.git")
   # commit 8dba1fdf44c31faf82a3de6947fbd58643883320
   # Merge: 1f4b703d 39c0023c
   # Author: aarongreig <aaron.greig@codeplay.com>
   # Date:   Mon Mar 25 14:45:32 2024 +0000
   #     Merge pull request #1468 from pbalcer/l0-recursive-event-deadlock
   #     [L0] fix a deadlock on a recursive event rwlock
-  set(UNIFIED_RUNTIME_TAG 8dba1fdf44c31faf82a3de6947fbd58643883320)
+  set(UNIFIED_RUNTIME_TAG user-after-free)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
