@@ -10791,7 +10791,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // device specific libraries that are needed.  This provides the list of
     // files file only.
     // TODO: This generic list will be populated with only device binaries
-    // for spir64.  Other targets (AOT and others) can represent a different
+    // for spir/spirv. Other targets (AOT and others) can represent a different
     // set of device libraries.  We will cross that bridge when we begin to
     // enable the other possible targets.
     llvm::Triple TargetTriple;
