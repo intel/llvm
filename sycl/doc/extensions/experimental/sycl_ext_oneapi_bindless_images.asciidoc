@@ -1335,9 +1335,9 @@ provided that type is trivially copyable.
 ```c++
 // Write to an unsampled image array
 template <typename DataT, typename CoordT>
-DataT write_image_array(const unsampled_image_handle &ImageHandle,
-                       const CoordT &Coords, const unsigned int ArrayLayer
-                       const DataT &Color);
+DataT write_image_array(unsampled_image_handle &ImageHandle,
+                        const CoordT &Coords, const unsigned int ArrayLayer
+                        const DataT &Color);
 ```
 
 Writing to an image array follows the same restrictions on what coordinate types 
@@ -1440,13 +1440,13 @@ sampling depends on the sampler attributes passed upon creation of the cubemap.
 // Unsampled cubemap read 
 template <typename DataT>
 DataT fetch_cubemap(const unsampled_image_handle &ImageHandle,
-                   const int2 &Coords,
-                   const int Face);
+                    const int2 &Coords,
+                    const int Face);
 
 // Sampled cubemap read
 template <typename DataT>
 DataT sample_cubemap(const sampled_image_handle &ImageHandle,
-                   const float3 &Vec);
+                     const float3 &Vec);
 
 // Unsampled cubemap write
 template <typename DataT>

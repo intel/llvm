@@ -157,7 +157,7 @@
 // 15.46 Add piextGetGlobalVariablePointer
 // 15.47 Added PI_ERROR_FEATURE_UNSUPPORTED.
 // 15.48 Add CommandBuffer update definitions
-// 15.49 Added cubemap support
+// 15.49 Added cubemap support:
 //        - Added cubemap image type, PI_MEM_TYPE_IMAGE_CUBEMAP, to _pi_mem_type
 //        - Added cubemap sampling capabilities
 //          - _pi_sampler_cubemap_filter_mode

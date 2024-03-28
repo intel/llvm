@@ -683,9 +683,7 @@ get_image_num_channels(const image_mem_handle memHandle,
 namespace detail {
 
 // is sycl::vec
-template <typename T> struct is_vec {
-  static constexpr bool value = false;
-};
+template <typename T> struct is_vec { static constexpr bool value = false; };
 template <typename T, int N> struct is_vec<sycl::vec<T, N>> {
   static constexpr bool value = true;
 };
@@ -1206,7 +1204,7 @@ DataT sample_cubemap(const sampled_image_handle &imageHandle [[maybe_unused]],
  *  @param   color The data to write
  */
 template <typename DataT, typename CoordT>
-void write_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
+void write_image(unsampled_image_handle &imageHandle [[maybe_unused]],
                  const CoordT &coords [[maybe_unused]],
                  const DataT &color [[maybe_unused]]) {
   detail::assert_unsampled_coords<CoordT>();
@@ -1241,8 +1239,7 @@ void write_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
  *  @param   color The data to write
  */
 template <typename DataT, typename CoordT>
-void write_image_array(const unsampled_image_handle &imageHandle
-                       [[maybe_unused]],
+void write_image_array(unsampled_image_handle &imageHandle [[maybe_unused]],
                        const CoordT &coords [[maybe_unused]],
                        const int arrayLayer [[maybe_unused]],
                        const DataT &color [[maybe_unused]]) {
@@ -1278,7 +1275,7 @@ void write_image_array(const unsampled_image_handle &imageHandle
  *  @param   color The data to write
  */
 template <typename DataT>
-void write_cubemap(const unsampled_image_handle &imageHandle,
+void write_cubemap(unsampled_image_handle &imageHandle,
                    const sycl::int2 &coords, const int face,
                    const DataT &color) {
   return write_image_array(imageHandle, coords, face, color);
