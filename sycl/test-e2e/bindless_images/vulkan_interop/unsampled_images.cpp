@@ -264,8 +264,10 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
   printString("Populating staging buffer\n");
   // Populate staging memory
   using VecType = sycl::vec<DType, NChannels>;
-  std::vector<VecType> input_vector_0;
-  input_vector_0.reserve(num_elems);
+  auto init =
+      bindless_helpers::init_vector<DType, NChannels>(static_cast<DType>(0));
+
+  std::vector<VecType> input_vector_0(num_elems, init);
   std::srand(seed);
   bindless_helpers::fill_rand(input_vector_0);
 
@@ -278,8 +280,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
   }
   vkUnmapMemory(vk_device, inVkImgRes1.stagingMemory);
 
-  std::vector<VecType> input_vector_1;
-  input_vector_1.reserve(num_elems);
+  std::vector<VecType> input_vector_1(num_elems, init);
   std::srand(seed);
   bindless_helpers::fill_rand(input_vector_1);
 

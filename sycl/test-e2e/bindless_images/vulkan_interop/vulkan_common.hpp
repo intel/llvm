@@ -11,42 +11,6 @@ void printString(std::string str) {
 #endif
 }
 
-template <typename DType, int NChannels>
-std::ostream &operator<<(std::ostream &os,
-                         const sycl::vec<DType, NChannels> &vec) {
-  std::string str{""};
-  for (int i = 0; i < NChannels; ++i) {
-    str += std::to_string(vec[i]) + ",";
-  }
-  str.pop_back();
-  os << str;
-  return os;
-}
-
-template <typename DType, int NChannels>
-bool equal_vec(sycl::vec<DType, NChannels> v1, sycl::vec<DType, NChannels> v2) {
-  for (int i = 0; i < NChannels; ++i) {
-    if (v1[i] != v2[i]) {
-      return false;
-    }
-  }
-  return true;
-}
-
-template <typename DType, int NChannel>
-constexpr sycl::vec<DType, NChannel> initVector(DType val) {
-  if constexpr (NChannel == 1) {
-    return sycl::vec<DType, NChannel>{val};
-  } else if constexpr (NChannel == 2) {
-    return sycl::vec<DType, NChannel>{val, val};
-  } else if constexpr (NChannel == 4) {
-    return sycl::vec<DType, NChannel>{val, val, val, val};
-  } else {
-    std::cerr << "unsupported number of channels " << NChannel << "\n";
-    exit(-1);
-  }
-}
-
 #define VK_CHECK_CALL_RET(call)                                                \
   {                                                                            \
     VkResult err = call;                                                       \
