@@ -462,6 +462,12 @@ if "cuda:gpu" in config.sycl_devices:
 
 # FIXME: This needs to be made per-device as well, possibly with a helper.
 if "hip:gpu" in config.sycl_devices and config.hip_platform == "AMD":
+    if not config.amd_arch:
+        lit_config.error(
+            "Cannot run tests for HIP without an offload-arch. Please "
+            + "specify one via the 'amd_arch' parameter or 'AMD_ARCH' CMake "
+            + "variable."
+        )
     llvm_config.with_system_environment("ROCM_PATH")
     config.available_features.add("hip_amd")
     arch_flag = (

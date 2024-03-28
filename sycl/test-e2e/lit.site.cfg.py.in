@@ -29,7 +29,7 @@ config.opencl_include_dir = os.path.join(config.sycl_include, 'sycl')
 config.sycl_devices = lit_config.params.get("sycl_devices", "@SYCL_TEST_E2E_TARGETS@").split(';')
 
 config.hip_platform = "@HIP_PLATFORM@"
-config.amd_arch = "@AMD_ARCH@"
+config.amd_arch = lit_config.params.get("amd_arch", "@AMD_ARCH@")
 config.sycl_threads_lib = '@SYCL_THREADS_LIB@'
 config.extra_environment = lit_config.params.get("extra_environment", "@LIT_EXTRA_ENVIRONMENT@")
 config.cxx_flags = "@SYCL_E2E_CLANG_CXX_FLAGS@"
