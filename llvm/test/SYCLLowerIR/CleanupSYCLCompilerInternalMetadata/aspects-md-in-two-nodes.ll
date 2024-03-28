@@ -13,11 +13,9 @@ define spir_kernel void @kernel() !artificial !0 {
 }
 
 ; CHECK-NOT: sycl_types_that_use_aspects
-; CHECK-NOT: sycl_aspects
 ; CHECK: !0 = !{!"A", i32 0}
 
 !sycl_types_that_use_aspects = !{!0}
-!sycl_aspects = !{!1}
 
 !0 = !{!"A", i32 0}
 !1 = !{!"fp64", i32 6}

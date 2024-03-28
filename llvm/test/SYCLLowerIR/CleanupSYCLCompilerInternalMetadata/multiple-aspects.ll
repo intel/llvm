@@ -40,9 +40,7 @@ define spir_kernel void @kernel() !sycl_used_aspects !8 !sycl_fixed_targets !9 {
 }
 
 ; CHECK-NOT: sycl_types_that_use_aspects
-; CHECK-NOT: sycl_aspects
 !sycl_types_that_use_aspects = !{!0, !1, !2, !3}
-!sycl_aspects = !{!4}
 
 !0 = !{!"A", i32 0}
 !1 = !{!"B", i32 1}

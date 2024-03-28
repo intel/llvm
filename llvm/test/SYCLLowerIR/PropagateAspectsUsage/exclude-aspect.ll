@@ -1,4 +1,4 @@
-; RUN: opt -passes=sycl-propagate-aspects-usage -sycl-propagate-aspects-usage-exclude-aspects=aspect4,aspect1 -S < %s | FileCheck %s
+; RUN: opt -passes=sycl-propagate-aspects-usage -sycl-propagate-aspects-usage-exclude-aspects=4,1 -S < %s | FileCheck %s
 ;
 ; Test checks that the pass is able to collect all aspects used in a function
 

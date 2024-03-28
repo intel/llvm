@@ -3,9 +3,8 @@
 
 // CHECK: !sycl_types_that_use_aspects = !{![[#MDNUM1:]], ![[#MDNUM2:]], ![[#MDNUM3:]]}
 // CHECK: ![[#MDNUM1]] = !{!"class.sycl::_V1::detail::atomic_ref_impl", i32 [[#ASPECT_NUM:]]}
-// CHECK: ![[#MDNUM2]] = !{!"class.sycl::_V1::detail::atomic_ref_impl.2", i32 [[#ASPECT_NUM:]]}
-// CHECK: ![[#MDNUM3]] = !{!"class.sycl::_V1::detail::atomic_ref_impl.7", i32 [[#ASPECT_NUM:]]}
-// CHECK: !{{.*}} = !{!"atomic64", i32 [[#ASPECT_NUM]]}
+// CHECK: ![[#MDNUM2]] = !{!"class.sycl::_V1::detail::atomic_ref_impl.2", i32 [[#ASPECT_NUM]]}
+// CHECK: ![[#MDNUM3]] = !{!"class.sycl::_V1::detail::atomic_ref_impl.7", i32 [[#ASPECT_NUM]]}
 
 #include <sycl/sycl.hpp>
 

@@ -29,7 +29,13 @@ struct TargetInfo {
 };
 using TargetTable_t = std::map<std::string, TargetInfo>;
 
+// AspectTable maps aspect names to their corresponding enum value
+// defined in the SYCL headers
+using AspectTable_t = std::map<std::string, int>;
+
 #define GET_TargetTable_IMPL
+#define GET_AspectTable_IMPL
 #include "llvm/SYCLLowerIR/DeviceConfigFile.inc"
 #undef GET_TargetTable_IMPL
+#undef GET_AspectTable_IMPL
 } // namespace DeviceConfigFile

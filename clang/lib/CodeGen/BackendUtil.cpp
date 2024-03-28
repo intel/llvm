@@ -1153,8 +1153,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       // Process properties and annotations
       MPM.addPass(CompileTimePropertiesPass());
 
-      // Remove SYCL metadata added by the frontend, like sycl_aspects
-      // Note, this pass should be at the end of the pipeline
+      // Remove SYCL metadata added by the frontend, like
+      // sycl_types_that_use_aspects Note, this pass should be at the end of the
+      // pipeline
       MPM.addPass(CleanupSYCLMetadataPass());
     }
   }
