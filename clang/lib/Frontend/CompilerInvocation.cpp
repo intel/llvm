@@ -2174,6 +2174,37 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
   if (!Opts.EmitIEEENaNCompliantInsts && !LangOptsRef.NoHonorNaNs)
     Diags.Report(diag::err_drv_amdgpu_ieee_without_no_honor_nans);
 
+  // ...
+  Opts.EnableCrossAddressSpaceAtomicMemoryOrdering = Args.hasFlag(
+      options::OPT_mamdgpu_cross_addr_space_atomic_memory_ordering,
+      options::OPT_mno_amdgpu_cross_addr_space_atomic_memory_ordering,
+      [LangOptsRef, T] {
+        if (LangOptsRef.isSYCL()) {
+          switch (LangOptsRef.SYCLVersion) {
+          case LangOptions::SYCL_2020:
+            // From the SYCL 2020 spec:
+            return T.isAMDGCN();
+          case LangOptions::SYCL_2017:
+            // From the SYCL 1.2.1 spec:
+            return false;
+          case LangOptions::SYCL_None:
+            // Do nothing, case where we were given an invalid value.
+            break;
+          }
+        }
+        return false;
+      }());
+  // ...
+  if (Arg *A = Args.getLastArg(
+          options::OPT_mamdgpu_cross_addr_space_atomic_memory_ordering)) {
+    if (Opts.EnableCrossAddressSpaceAtomicMemoryOrdering && !T.isAMDGCN()) {
+      unsigned int DiagID = diag::warn_drv_unsupported_opt_for_target;
+      Diags.Report(DiagID) << A->getSpelling() << T.str();
+    }
+  }
+  llvm::outs() << "Opts.EnableCrossAddressSpaceAtomicMemoryOrdering = "
+               << Opts.EnableCrossAddressSpaceAtomicMemoryOrdering << "\n";
+
   return Diags.getNumErrors() == NumErrorsBefore;
 }
 

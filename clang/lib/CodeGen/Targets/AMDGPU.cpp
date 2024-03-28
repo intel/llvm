@@ -301,6 +301,8 @@ public:
   bool shouldEmitDWARFBitFieldSeparators() const override;
   void setCUDAKernelCallingConvention(const FunctionType *&FT) const override;
 
+  bool shouldUseCrossAddressSpaceSyncScope() const override;
+
 private:
   // Adds a NamedMDNode with GV, Name, and Operand as operands, and adds the
   // resulting MDNode to the amdgcn.annotations MDNode.
@@ -558,10 +560,10 @@ AMDGPUTargetCodeGenInfo::getLLVMSyncScopeID(const LangOptions &LangOpts,
     break;
   }
 
-  if (Ordering != llvm::AtomicOrdering::SequentiallyConsistent) {
+  if (Ordering != llvm::AtomicOrdering::SequentiallyConsistent &&
+      !shouldUseCrossAddressSpaceSyncScope()) {
     if (!Name.empty())
       Name = Twine(Twine(Name) + Twine("-")).str();
-
     Name = Twine(Twine(Name) + Twine("one-as")).str();
   }
 
@@ -580,6 +582,12 @@ void AMDGPUTargetCodeGenInfo::setCUDAKernelCallingConvention(
     const FunctionType *&FT) const {
   FT = getABIInfo().getContext().adjustFunctionType(
       FT, FT->getExtInfo().withCallingConv(CC_OpenCLKernel));
+}
+
+bool AMDGPUTargetCodeGenInfo::shouldUseCrossAddressSpaceSyncScope() const {
+  return getABIInfo()
+      .getCodeGenOpts()
+      .EnableCrossAddressSpaceAtomicMemoryOrdering;
 }
 
 /// Create an OpenCL kernel for an enqueued block.

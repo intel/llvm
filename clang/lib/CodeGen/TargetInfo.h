@@ -407,6 +407,12 @@ public:
     return nullptr;
   }
 
+  /// \return true if the memory model implementation supports scope inclusion
+  /// and the LLVM memory synchronization scopes define a single happens-before
+  /// relation governing all address spaces.
+  /// Disabled by default because support is target-specific.
+  virtual bool shouldUseCrossAddressSpaceSyncScope() const { return false; }
+
 protected:
   static std::string qualifyWindowsLibrary(StringRef Lib);
 
