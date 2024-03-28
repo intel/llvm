@@ -714,16 +714,6 @@ static Expected<StringRef> runLLVMToSPIRVTranslation(StringRef InputTable,
   return *Output;
 }
 
-Expected<std::vector<char>> readBinaryFile(StringRef File) {
-  auto MBOrErr = MemoryBuffer::getFile(File, /*IsText*/ false,
-                                       /*RequiresNullTerminator */ false);
-  if (!MBOrErr)
-    return createFileError(File, MBOrErr.getError());
-
-  auto &MB = *MBOrErr;
-  return std::vector<char>(MB->getBufferStart(), MB->getBufferEnd());
-}
-
 Expected<std::string> readTextFile(StringRef File) {
   auto MBOrErr = MemoryBuffer::getFile(File, /*IsText*/ true,
                                        /*RequiresNullTerminator */ true);
@@ -768,9 +758,10 @@ readSYCLImagesFromTable(StringRef TableFile, const ArgList &Args) {
 
   SmallVector<offloading::SYCLImage> Images;
   for (const util::SimpleTable::Row &row : Table->rows()) {
-    auto ImageOrErr = readBinaryFile(row.getCell("Code"));
+    auto ImagePath = row.getCell("Code");
+    auto ImageOrErr = MemoryBuffer::getFile(ImagePath);
     if (!ImageOrErr)
-      return ImageOrErr.takeError();
+      return createFileError(ImagePath, ImageOrErr.getError());
 
     auto PropertiesOrErr =
         readPropertyRegistryFromFile(row.getCell("Properties"));
@@ -788,7 +779,7 @@ readSYCLImagesFromTable(StringRef TableFile, const ArgList &Args) {
     Images.push_back(std::move(Image));
   }
 
-  return Images;
+  return std::move(Images);
 }
 
 /// Reads device images from the given \p InputFile and wraps them
@@ -1130,6 +1121,7 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   case Triple::aarch64_be:
   case Triple::ppc64:
   case Triple::ppc64le:
+  case Triple::systemz:
     return generic::clang(InputFiles, Args);
   case Triple::spirv32:
   case Triple::spirv64:

@@ -323,13 +323,18 @@
 #define __SYCL_ALL_DEVICES_HAVE_ext_intel_fpga_task_sequence__ 0
 #endif
 
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_limited_graph__
+// __SYCL_ASPECT(ext_oneapi_limited_graph, 63)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_limited_graph__ 0
+#endif
+
 #ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_cubemap__
-// __SYCL_ASPECT(ext_oneapi_cubemap, 63)
+// __SYCL_ASPECT(ext_oneapi_cubemap, 64)
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_cubemap__ 0
 #endif
 
 #ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_cubemap_seamless_filtering__
-// __SYCL_ASPECT(ext_oneapi_cubemap_seamless_filtering, 64)
+// __SYCL_ASPECT(ext_oneapi_cubemap_seamless_filtering, 65)
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_cubemap_seamless_filtering__ 0
 #endif
 
@@ -648,12 +653,17 @@
 #define __SYCL_ANY_DEVICE_HAS_ext_intel_fpga_task_sequence__ 0
 #endif
 
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_limited_graph__
+// __SYCL_ASPECT(ext_oneapi_limited_graph, 63)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_limited_graph__ 0
+#endif
+
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_cubemap__
-// __SYCL_ASPECT(ext_oneapi_cubemap, 63)
+// __SYCL_ASPECT(ext_oneapi_cubemap, 64)
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_cubemap__ 0
 #endif
 
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_cubemap_seamless_filtering__
-// __SYCL_ASPECT(ext_oneapi_cubemap_seamless_filtering, 64)
+// __SYCL_ASPECT(ext_oneapi_cubemap_seamless_filtering, 65)
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_cubemap_seamless_filtering__ 0
 #endif

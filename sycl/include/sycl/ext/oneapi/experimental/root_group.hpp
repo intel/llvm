@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <sycl/builtins.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group.hpp>
 #include <sycl/memory_enums.hpp>

@@ -37,7 +37,7 @@
 
 #include <iostream>
 #include <stdio.h>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <syclcompat.hpp>
 
 void kernel_1(

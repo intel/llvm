@@ -156,7 +156,8 @@
 //       piextEnqueueCooperativeKernelLaunch.
 // 15.46 Add piextGetGlobalVariablePointer
 // 15.47 Added PI_ERROR_FEATURE_UNSUPPORTED.
-// 15.48 Added cubemap support
+// 15.48 Add CommandBuffer update definitions
+// 15.49 Added cubemap support
 //        - Added cubemap image type, PI_MEM_TYPE_IMAGE_CUBEMAP, to _pi_mem_type
 //        - Added cubemap sampling capabilities
 //          - _pi_sampler_cubemap_filter_mode
@@ -454,9 +455,13 @@ typedef enum {
   PI_EXT_ONEAPI_DEVICE_INFO_COMPONENT_DEVICES = 0x20111,
   PI_EXT_ONEAPI_DEVICE_INFO_COMPOSITE_DEVICE = 0x20112,
 
+  // Command Buffers
+  PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_SUPPORT = 0x20113,
+  PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT = 0x20114,
+
   // Bindless images cubemaps
-  PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SUPPORT = 0x20113,
-  PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT = 0x20114,
+  PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SUPPORT = 0x20115,
+  PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT = 0x20116,
 } _pi_device_info;
 
 typedef enum {
@@ -2341,7 +2346,10 @@ __SYCL_EXPORT pi_result piGetDeviceAndHostTimer(pi_device Device,
 /// Command buffer extension
 struct _pi_ext_command_buffer;
 struct _pi_ext_sync_point;
+struct _pi_ext_command_buffer_command;
+
 using pi_ext_command_buffer = _pi_ext_command_buffer *;
+using pi_ext_command_buffer_command = _pi_ext_command_buffer_command *;
 using pi_ext_sync_point = pi_uint32;
 
 typedef enum {
@@ -2351,7 +2359,40 @@ typedef enum {
 struct pi_ext_command_buffer_desc final {
   pi_ext_structure_type stype;
   const void *pNext;
-  pi_queue_properties *properties;
+  pi_bool is_updatable;
+};
+
+// Command Buffer Update types
+struct pi_ext_command_buffer_update_memobj_arg_desc_t final {
+  uint32_t arg_index;
+  const pi_mem_obj_property *properties;
+  pi_mem new_mem_obj;
+};
+
+struct pi_ext_command_buffer_update_pointer_arg_desc_t final {
+  uint32_t arg_index;
+  void *new_ptr;
+};
+
+struct pi_ext_command_buffer_update_value_arg_desc_t final {
+  uint32_t arg_index;
+  uint32_t arg_size;
+  void *new_value;
+};
+
+struct pi_ext_command_buffer_update_kernel_launch_desc final {
+  uint32_t num_mem_obj_args;
+  uint32_t num_ptr_args;
+  uint32_t num_value_args;
+  uint32_t num_work_dim;
+
+  pi_ext_command_buffer_update_memobj_arg_desc_t *mem_obj_arg_list;
+  pi_ext_command_buffer_update_pointer_arg_desc_t *ptr_arg_list;
+  pi_ext_command_buffer_update_value_arg_desc_t *value_arg_list;
+
+  size_t *global_work_offset;
+  size_t *global_work_size;
+  size_t *local_work_size;
 };
 
 /// API to create a command-buffer.
@@ -2395,12 +2436,14 @@ piextCommandBufferFinalize(pi_ext_command_buffer command_buffer);
 /// \param sync_point_wait_list A list of sync points that this command must
 /// wait on.
 /// \param sync_point The sync_point associated with this kernel execution.
+/// \param command Return pointer to the command representing this kernel
+/// execution.
 __SYCL_EXPORT pi_result piextCommandBufferNDRangeKernel(
     pi_ext_command_buffer command_buffer, pi_kernel kernel, pi_uint32 work_dim,
     const size_t *global_work_offset, const size_t *global_work_size,
     const size_t *local_work_size, pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
-    pi_ext_sync_point *sync_point);
+    pi_ext_sync_point *sync_point, pi_ext_command_buffer_command *command);
 
 /// API to append a USM memcpy command to the command-buffer.
 /// \param command_buffer The command-buffer to append onto.
@@ -2627,6 +2670,25 @@ __SYCL_EXPORT pi_result
 piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer, pi_queue queue,
                           pi_uint32 num_events_in_wait_list,
                           const pi_event *event_wait_list, pi_event *event);
+
+/// API to update a kernel launch command inside of a command-buffer.
+/// @param command The command to be updated.
+/// @param desc Descriptor which describes the updated parameters of the kernel
+/// launch.
+__SYCL_EXPORT pi_result piextCommandBufferUpdateKernelLaunch(
+    pi_ext_command_buffer_command command,
+    pi_ext_command_buffer_update_kernel_launch_desc *desc);
+
+/// API to increment the reference count of a command-buffer command.
+/// \param command The command to release.
+__SYCL_EXPORT pi_result
+piextCommandBufferRetainCommand(pi_ext_command_buffer_command command);
+
+/// API to decrement the reference count of a command-buffer command. After the
+/// command reference count becomes zero, the command is deleted.
+/// \param command The command to release.
+__SYCL_EXPORT pi_result
+piextCommandBufferReleaseCommand(pi_ext_command_buffer_command command);
 
 /// API to destroy bindless unsampled image handles.
 ///
