@@ -57,12 +57,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit f67c6e43969ee90abd3ff41af13c9d90a2fba679
+  # commit a75f7d099b6a2c5df3e03ec4d9dd503c320d5aa5
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Mar 25 14:45:32 2024 +0000
-  #     Merge pull request #1468 from pbalcer/l0-recursive-event-deadlock
-  #     [L0] fix a deadlock on a recursive event rwlock
-  set(UNIFIED_RUNTIME_TAG f67c6e43969ee90abd3ff41af13c9d90a2fba679)
+  # Date:   Wed Mar 27 11:28:34 2024 +0000
+  #     Merge pull request #1363 from hdelan/refactor-device-initialization
+  #     [CUDA] Refactor device initialization
+  set(UNIFIED_RUNTIME_TAG a75f7d099b6a2c5df3e03ec4d9dd503c320d5aa5)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
