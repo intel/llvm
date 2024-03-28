@@ -53,6 +53,7 @@ Design Documents for the oneAPI DPC++ Compiler
    design/DeviceConfigFile
    design/PropagateCompilerFlagsToRuntime
    design/SYCLNativeCPU
+   design/VirtualFunctions
    design/CommandGraph
    design/OffloadDesign
    New OpenCL Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/opencl-extensions>
