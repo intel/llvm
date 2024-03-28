@@ -283,6 +283,20 @@ queue::get_info() const {
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
+template <typename Param>
+typename detail::is_backend_info_desc<Param>::return_type
+queue::get_backend_info() const {
+  return impl->get_backend_info<Param>();
+}
+
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
+  template __SYCL_EXPORT ReturnT                                               \
+  queue::get_backend_info<info::DescType::Desc>() const;
+
+#include <sycl/info/sycl_backend_traits.def>
+
+#undef __SYCL_PARAM_TRAITS_SPEC
+
 template <typename PropertyT> bool queue::has_property() const noexcept {
   return impl->has_property<PropertyT>();
 }

@@ -391,6 +391,12 @@ public:
   /// The return type depends on information being queried.
   template <typename Param> typename Param::return_type get_info() const;
 
+  /// Queries SYCL queue for SYCL backend-specific information.
+  ///
+  /// The return type depends on information being queried.
+  template <typename Param>
+  typename Param::return_type get_backend_info() const;
+
   using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
 
   /// Submits a command group function object to the queue, in order to be

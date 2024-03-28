@@ -115,6 +115,13 @@ public:
   template <typename Param>
   typename detail::is_event_info_desc<Param>::return_type get_info() const;
 
+  /// Queries this SYCL event for SYCL backend-specific information.
+  ///
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename detail::is_backend_info_desc<Param>::return_type
+  get_backend_info() const;
+
   /// Queries this SYCL event for profiling information.
   ///
   /// If the requested info is not available when this member function is called

@@ -73,6 +73,20 @@ kernel::get_info() const {
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 template <typename Param>
+typename detail::is_backend_info_desc<Param>::return_type
+kernel::get_backend_info() const {
+  return impl->get_backend_info<Param>();
+}
+
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
+  template __SYCL_EXPORT ReturnT                                               \
+  kernel::get_backend_info<info::DescType::Desc>() const;
+
+#include <sycl/info/sycl_backend_traits.def>
+
+#undef __SYCL_PARAM_TRAITS_SPEC
+
+template <typename Param>
 typename detail::is_kernel_device_specific_info_desc<Param>::return_type
 kernel::get_info(const device &Dev) const {
   return impl->get_info<Param>(Dev);

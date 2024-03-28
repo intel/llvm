@@ -150,6 +150,13 @@ public:
   typename detail::is_kernel_info_desc<Param>::return_type get_info() const;
 #endif
 
+  /// Queries the kernel object for SYCL backend-specific information.
+  ///
+  /// The return type depends on information being queried.
+  template <typename Param>
+  typename detail::is_backend_info_desc<Param>::return_type
+  get_backend_info() const;
+
   /// Query device-specific information from the kernel object using the
   /// info::kernel_device_specific descriptor.
   ///

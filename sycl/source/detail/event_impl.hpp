@@ -110,6 +110,12 @@ public:
   /// \return depends on the information being requested.
   template <typename Param> typename Param::return_type get_info();
 
+  /// Queries this SYCL event for SYCL backend-specific information.
+  ///
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename Param::return_type get_backend_info() const;
+
   ~event_impl();
 
   /// Waits for the event with respect to device type.
