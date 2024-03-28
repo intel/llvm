@@ -31,6 +31,7 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/IR/InstIterator.h"
@@ -594,9 +595,13 @@ SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
   AspectsSetTy ExcludedAspectVals;
   for (const StringRef &AspectName : ExcludedAspects) {
     const auto AspectValIter = AspectValues.find(AspectName.str());
-    assert(AspectValIter != AspectValues.end() &&
-           "Excluded aspect does not have a corresponding value.");
-    ExcludedAspectVals.insert(AspectValIter->second);
+    if (AspectValIter != AspectValues.end())
+      ExcludedAspectVals.insert(AspectValIter->second);
+    else {
+      int n;
+      assert(to_integer(AspectName, n, 10) && "Unrecognized excluded aspect!");
+      ExcludedAspectVals.insert(n);
+    }
   }
 
   createUsedAspectsMetadataForFunctions(
