@@ -654,6 +654,11 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
                       "__spv::__spirv_JointMatrixINTEL") {
           ResultType = ConvertSYCLJointMatrixINTELType(RD);
           break;
+        } else if (RD && RD->getQualifiedNameAsString() ==
+                             "__spv::__spirv_TaskSequenceINTEL") {
+          ResultType = llvm::TargetExtType::get(getLLVMContext(),
+                                                "spirv.TaskSequenceINTEL");
+          break;
         }
       }
     }

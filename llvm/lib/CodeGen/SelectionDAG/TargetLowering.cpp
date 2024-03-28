@@ -491,7 +491,7 @@ TargetLowering::isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const {
 
   // If the address is not even local to this DSO we will have to load it from
   // a got and then add the offset.
-  if (!TM.shouldAssumeDSOLocal(*GV->getParent(), GV))
+  if (!TM.shouldAssumeDSOLocal(GV))
     return false;
 
   // If the code is position independent we will have to add a base register.
@@ -609,6 +609,25 @@ bool TargetLowering::ShrinkDemandedOp(SDValue Op, unsigned BitWidth,
     }
   }
   return false;
+}
+
+static SDValue simplifyUseOfIntToFP(SDValue Op, const APInt &DemandedBits,
+                                    SelectionDAG &DAG) {
+  unsigned Opc = Op.getOpcode();
+  assert((Opc == ISD::SINT_TO_FP || Opc == ISD::UINT_TO_FP) &&
+         "Invalid Int -> FP Opcode");
+  if (!DemandedBits.isSignMask())
+    return SDValue();
+
+  EVT VT = Op.getValueType();
+  if (Opc == ISD::UINT_TO_FP)
+    return DAG.getConstant(0, SDLoc(Op), VT);
+
+  EVT InnerVT = Op.getOperand(0).getValueType();
+  if (VT.getScalarSizeInBits() == InnerVT.getScalarSizeInBits())
+    return DAG.getBitcast(VT, Op.getOperand(0));
+
+  return SDValue();
 }
 
 bool TargetLowering::SimplifyDemandedBits(SDValue Op, const APInt &DemandedBits,
@@ -816,6 +835,11 @@ SDValue TargetLowering::SimplifyMultipleUseDemandedBits(
     }
     break;
   }
+  case ISD::UINT_TO_FP:
+  case ISD::SINT_TO_FP:
+    if (SDValue R = simplifyUseOfIntToFP(Op, DemandedBits, DAG))
+      return R;
+    break;
   case ISD::SIGN_EXTEND_INREG: {
     // If none of the extended bits are demanded, eliminate the sextinreg.
     SDValue Op0 = Op.getOperand(0);
@@ -2313,6 +2337,12 @@ bool TargetLowering::SimplifyDemandedBits(
     Known = TLO.DAG.computeKnownBits(Op, DemandedElts, Depth);
     break;
   }
+  case ISD::UINT_TO_FP:
+  case ISD::SINT_TO_FP:
+    if (SDValue R = simplifyUseOfIntToFP(Op, DemandedBits, TLO.DAG))
+      return TLO.CombineTo(Op, R);
+    Known = TLO.DAG.computeKnownBits(Op, DemandedElts, Depth);
+    break;
   case ISD::SIGN_EXTEND_INREG: {
     SDValue Op0 = Op.getOperand(0);
     EVT ExVT = cast<VTSDNode>(Op.getOperand(1))->getVT();
@@ -2876,9 +2906,9 @@ bool TargetLowering::SimplifyDemandedBits(
     if (Op.getOpcode() == ISD::MUL) {
       Known = KnownBits::mul(KnownOp0, KnownOp1);
     } else { // Op.getOpcode() is either ISD::ADD or ISD::SUB.
-      Known = KnownBits::computeForAddSub(Op.getOpcode() == ISD::ADD,
-                                          Flags.hasNoSignedWrap(), KnownOp0,
-                                          KnownOp1);
+      Known = KnownBits::computeForAddSub(
+          Op.getOpcode() == ISD::ADD, Flags.hasNoSignedWrap(),
+          Flags.hasNoUnsignedWrap(), KnownOp0, KnownOp1);
     }
     break;
   }
@@ -6803,6 +6833,7 @@ TargetLowering::prepareSREMEqFold(EVT SETCCVT, SDValue REMNode,
                                   SDValue CompTargetNode, ISD::CondCode Cond,
                                   DAGCombinerInfo &DCI, const SDLoc &DL,
                                   SmallVectorImpl<SDNode *> &Created) const {
+  // Derived from Hacker's Delight, 2nd Edition, by Hank Warren. Section 10-17.
   // Fold:
   //   (seteq/ne (srem N, D), 0)
   // To:
@@ -6813,6 +6844,17 @@ TargetLowering::prepareSREMEqFold(EVT SETCCVT, SDValue REMNode,
   // - A = bitwiseand(floor((2^(W - 1) - 1) / D0), (-(2^k)))
   // - Q = floor((2 * A) / (2^K))
   // where W is the width of the common type of N and D.
+  //
+  // When D is a power of two (and thus D0 is 1), the normal
+  // formula for A and Q don't apply, because the derivation
+  // depends on D not dividing 2^(W-1), and thus theorem ZRS
+  // does not apply. This specifically fails when N = INT_MIN.
+  //
+  // Instead, for power-of-two D, we use:
+  // - A = 2^(W-1)
+  // |-> Order-preserving map from [-2^(W-1), 2^(W-1) - 1] to [0,2^W - 1])
+  // - Q = 2^(W-K) - 1
+  // |-> Test that the top K bits are zero after rotation
   assert((Cond == ISD::SETEQ || Cond == ISD::SETNE) &&
          "Only applicable for (in)equality comparisons.");
 
@@ -6895,6 +6937,14 @@ TargetLowering::prepareSREMEqFold(EVT SETCCVT, SDValue REMNode,
 
     // Q = floor((2 * A) / (2^K))
     APInt Q = (2 * A).udiv(APInt::getOneBitSet(W, K));
+
+    // If D was a power of two, apply the alternate constant derivation.
+    if (D0.isOne()) {
+      // A = 2^(W-1)
+      A = APInt::getSignedMinValue(W);
+      // - Q = 2^(W-K) - 1
+      Q = APInt::getAllOnes(W - K).zext(W);
+    }
 
     assert(APInt::getAllOnes(SVT.getSizeInBits()).ugt(A) &&
            "We are expecting that A is always less than all-ones for SVT");
@@ -10674,7 +10724,7 @@ SDValue TargetLowering::expandVecReduce(SDNode *Node, SelectionDAG &DAG) const {
 
       SDValue Lo, Hi;
       std::tie(Lo, Hi) = DAG.SplitVector(Op, dl);
-      Op = DAG.getNode(BaseOpcode, dl, HalfVT, Lo, Hi);
+      Op = DAG.getNode(BaseOpcode, dl, HalfVT, Lo, Hi, Node->getFlags());
       VT = HalfVT;
     }
   }

@@ -78,6 +78,14 @@
 // CHK-LINK-TARGETS-UB: 2: linker, {1}, image, (device-sycl)
 // CHK-LINK-TARGETS-UB: 3: llvm-spirv, {2}, image, (device-sycl)
 // CHK-LINK-TARGETS-UB: 4: offload, "device-sycl (spir64-unknown-unknown)" {3}, image
+// CHK-LINK-TARGETS-UB-NOT: offload
+
+// RUN: %clangxx -ccc-print-bindings --target=x86_64-unknown-linux-gnu \
+// RUN:          -fsycl -o checkme.out -fsycl-link-targets=spir64 %s 2>&1 \
+// RUN:  | FileCheck -check-prefix=CHK-LINK-TARGETS-BINDINGS %s
+// CHK-LINK-TARGETS-BINDINGS: "spir64-unknown-unknown" - "clang", inputs: [{{.*}}], output: "[[IR_OUTPUT_BC:.+\.bc]]"
+// CHK-LINK-TARGETS-BINDINGS: "spir64-unknown-unknown" - "SYCL::Linker", inputs: ["[[IR_OUTPUT_BC]]"], output: "[[LLVM_LINK_OUTPUT:.+\.out]]"
+// CHK-LINK-TARGETS-BINDINGS: "spir64-unknown-unknown" - "SPIR-V translator", inputs: ["[[LLVM_LINK_OUTPUT]]"], output: "checkme.out"
 
 /// Check -fsycl-link-targets=<triple> behaviors unbundle multiple objects
 // RUN:   touch %t-a.o
@@ -183,16 +191,17 @@
 // CHK-ADD-TARGETS-REG: 7: compiler, {6}, ir, (host-sycl)
 // CHK-ADD-TARGETS-REG: 8: backend, {7}, assembler, (host-sycl)
 // CHK-ADD-TARGETS-REG: 9: assembler, {8}, object, (host-sycl)
-// CHK-ADD-TARGETS-REG: 10: linker, {9}, image, (host-sycl)
-// CHK-ADD-TARGETS-REG: 11: linker, {5}, ir, (device-sycl)
-// CHK-ADD-TARGETS-REG: 12: sycl-post-link, {11}, tempfiletable, (device-sycl)
-// CHK-ADD-TARGETS-REG: 13: file-table-tform, {12}, tempfilelist, (device-sycl)
-// CHK-ADD-TARGETS-REG: 14: llvm-spirv, {13}, tempfilelist, (device-sycl)
-// CHK-ADD-TARGETS-REG: 15: file-table-tform, {12, 14}, tempfiletable, (device-sycl)
-// CHK-ADD-TARGETS-REG: 16: clang-offload-wrapper, {15}, object, (device-sycl)
-// CHK-ADD-TARGETS-REG: 17: input, "dummy.spv", sycl-fatbin, (device-sycl)
-// CHK-ADD-TARGETS-REG: 18: clang-offload-wrapper, {17}, object, (device-sycl)
-// CHK-ADD-TARGETS-REG: 19: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64-unknown-unknown)" {16}, "device-sycl (spir64-unknown-unknown)" {18}, image
+// CHK-ADD-TARGETS-REG: 10: linker, {5}, ir, (device-sycl)
+// CHK-ADD-TARGETS-REG: 11: sycl-post-link, {10}, tempfiletable, (device-sycl)
+// CHK-ADD-TARGETS-REG: 12: file-table-tform, {11}, tempfilelist, (device-sycl)
+// CHK-ADD-TARGETS-REG: 13: llvm-spirv, {12}, tempfilelist, (device-sycl)
+// CHK-ADD-TARGETS-REG: 14: file-table-tform, {11, 13}, tempfiletable, (device-sycl)
+// CHK-ADD-TARGETS-REG: 15: clang-offload-wrapper, {14}, object, (device-sycl)
+// CHK-ADD-TARGETS-REG: 16: offload, "device-sycl (spir64-unknown-unknown)" {15}, object
+// CHK-ADD-TARGETS-REG: 17: linker, {9, 16}, image, (host-sycl)
+// CHK-ADD-TARGETS-REG: 18: input, "dummy.spv", sycl-fatbin, (device-sycl)
+// CHK-ADD-TARGETS-REG: 19: clang-offload-wrapper, {18}, object, (device-sycl)
+// CHK-ADD-TARGETS-REG: 20: offload, "host-sycl (x86_64-unknown-linux-gnu)" {17}, "device-sycl (spir64-unknown-unknown)" {19}, image
 
 /// Check regular offload with multiple additional AOT binaries passed through -fsycl-add-targets
 // RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fsycl-targets=spir64-unknown-unknown -fsycl-add-targets=spir64_fpga-unknown-unknown:dummy.aocx,spir64_gen-unknown-unknown:dummy_Gen9core.bin,spir64_x86_64-unknown-unknown:dummy.ir -ccc-print-phases %s 2>&1 \
@@ -207,17 +216,18 @@
 // CHK-ADD-TARGETS-REG-MUL: 7: compiler, {6}, ir, (host-sycl)
 // CHK-ADD-TARGETS-REG-MUL: 8: backend, {7}, assembler, (host-sycl)
 // CHK-ADD-TARGETS-REG-MUL: 9: assembler, {8}, object, (host-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 10: linker, {9}, image, (host-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 11: linker, {5}, ir, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 12: sycl-post-link, {11}, tempfiletable, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 13: file-table-tform, {12}, tempfilelist, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 14: llvm-spirv, {13}, tempfilelist, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 15: file-table-tform, {12, 14}, tempfiletable, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 16: clang-offload-wrapper, {15}, object, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 17: input, "dummy.aocx", sycl-fatbin, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 18: clang-offload-wrapper, {17}, object, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 19: input, "dummy_Gen9core.bin", sycl-fatbin, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 20: clang-offload-wrapper, {19}, object, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 21: input, "dummy.ir", sycl-fatbin, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 22: clang-offload-wrapper, {21}, object, (device-sycl)
-// CHK-ADD-TARGETS-REG-MUL: 23: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (spir64-unknown-unknown)" {16}, "device-sycl (spir64_fpga-unknown-unknown)" {18}, "device-sycl (spir64_gen-unknown-unknown)" {20}, "device-sycl (spir64_x86_64-unknown-unknown)" {22}, image
+// CHK-ADD-TARGETS-REG-MUL: 10: linker, {5}, ir, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 11: sycl-post-link, {10}, tempfiletable, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 12: file-table-tform, {11}, tempfilelist, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 13: llvm-spirv, {12}, tempfilelist, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 14: file-table-tform, {11, 13}, tempfiletable, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 15: clang-offload-wrapper, {14}, object, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 16: offload, "device-sycl (spir64-unknown-unknown)" {15}, object
+// CHK-ADD-TARGETS-REG-MUL: 17: linker, {9, 16}, image, (host-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 18: input, "dummy.aocx", sycl-fatbin, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 19: clang-offload-wrapper, {18}, object, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 20: input, "dummy_Gen9core.bin", sycl-fatbin, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 21: clang-offload-wrapper, {20}, object, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 22: input, "dummy.ir", sycl-fatbin, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 23: clang-offload-wrapper, {22}, object, (device-sycl)
+// CHK-ADD-TARGETS-REG-MUL: 24: offload, "host-sycl (x86_64-unknown-linux-gnu)" {17}, "device-sycl (spir64_fpga-unknown-unknown)" {19}, "device-sycl (spir64_gen-unknown-unknown)" {21}, "device-sycl (spir64_x86_64-unknown-unknown)" {23}, image

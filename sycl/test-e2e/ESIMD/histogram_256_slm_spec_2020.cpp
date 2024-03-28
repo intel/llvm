@@ -1,7 +1,6 @@
 // TODO enable on Windows
 // REQUIRES: linux
-// Use -O2 to avoid huge stack usage under -O0.
-// RUN: %{build} -O2 -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out 16
 
 #include "esimd_test_utils.hpp"
