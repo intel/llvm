@@ -27,7 +27,7 @@ constexpr float bf16_eps = 0.00390625;
 // K: number of cols of "A"/number of rows of "B" sub-matrices.
 
 // the number of threads per MMA subgroup is always 32 for Nvidia.
-size_t N_THREADS_PER_MATRIX_OP;
+//size_t N_THREADS_PER_MATRIX_OP;
 
 // number of submatrices per row of accumulator ("C", "D") matrices.
 constexpr int SUB_TILES_M = 1;
@@ -147,7 +147,8 @@ void test(queue &q) {
 */
       cgh.parallel_for<
           KernelName<Tm, Tc, Td, M, K, N, layout_A, layout_B, layout_C>>(
-          nd_range<2>(GlobalRange, LocalRange), [=](nd_item<2> item) {
+          nd_range<2>(GlobalRange, LocalRange), [=](nd_item<2> item) [[intel::reqd_sub_group_size(N_THREADS_PER_MATRIX_OP)]]
+           {
             sycl::sub_group sg = item.get_sub_group();
             // row id of current submatrix of BIG C matrix
             const auto m = item.get_group().get_group_id()[0];

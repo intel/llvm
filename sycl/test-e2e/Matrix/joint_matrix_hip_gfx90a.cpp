@@ -7,6 +7,7 @@
 #include "joint_matrix_hip_copy.hpp"
 #include "joint_matrix_hip_fill.hpp"
 #include "joint_matrix_hip_mfma.hpp"*/
+#define N_THREADS_PER_MATRIX_OP 64
 #include "joint_matrix_gemm.hpp"
 
 template <size_t KX> void matrix_mfma() {
@@ -23,7 +24,7 @@ template <size_t KX> void matrix_mfma() {
 }
 
 int main() {
-  N_THREADS_PER_MATRIX_OP = 64;
+  //N_THREADS_PER_MATRIX_OP = 64;
   //matrix_mfma<1>();
   /*matrix_mfma<2>();
   matrix_mfma<3>();

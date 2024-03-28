@@ -7,8 +7,10 @@
 // This test must be compiled with -Xsycl-target-backend --cuda-gpu-arch=sm_xx,
 // where sm_xx >= sm_80.
 
+#define N_THREADS_PER_MATRIX_OP 32
+
 #include "joint_matrix_apply_cuda.hpp"
-#include "joint_matrix_gemm_cuda.hpp"
+#include "joint_matrix_gemm.hpp"
 
 static constexpr size_t M = 16;
 static constexpr size_t N = 16;
