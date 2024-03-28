@@ -292,8 +292,8 @@ static const Module *getModuleFromDPI(const DPMarker *Marker) {
   return M ? M->getParent() : nullptr;
 }
 
-static const Module *getModuleFromDPI(const DPValue *DPV) {
-  return DPV->getMarker() ? getModuleFromDPI(DPV->getMarker()) : nullptr;
+static const Module *getModuleFromDPI(const DbgRecord *DR) {
+  return DR->getMarker() ? getModuleFromDPI(DR->getMarker()) : nullptr;
 }
 
 static void PrintCallingConv(unsigned cc, raw_ostream &Out) {
@@ -861,8 +861,8 @@ private:
   /// Add all of the metadata from an instruction.
   void processInstructionMetadata(const Instruction &I);
 
-  /// Add all of the metadata from an instruction.
-  void processDbgRecordMetadata(const DbgRecord &DPV);
+  /// Add all of the metadata from a DbgRecord.
+  void processDbgRecordMetadata(const DbgRecord &DVR);
 };
 
 } // end namespace llvm
@@ -1131,7 +1131,7 @@ void SlotTracker::processFunctionMetadata(const Function &F) {
   processGlobalObjectMetadata(F);
   for (auto &BB : F) {
     for (auto &I : BB) {
-      for (const DbgRecord &DR : I.getDbgValueRange())
+      for (const DbgRecord &DR : I.getDbgRecordRange())
         processDbgRecordMetadata(DR);
       processInstructionMetadata(I);
     }
@@ -1139,14 +1139,25 @@ void SlotTracker::processFunctionMetadata(const Function &F) {
 }
 
 void SlotTracker::processDbgRecordMetadata(const DbgRecord &DR) {
-  if (const DPValue *DPV = dyn_cast<const DPValue>(&DR)) {
-    CreateMetadataSlot(DPV->getVariable());
-    CreateMetadataSlot(DPV->getDebugLoc());
-    if (DPV->isDbgAssign())
-      CreateMetadataSlot(DPV->getAssignID());
+  if (const DbgVariableRecord *DVR = dyn_cast<const DbgVariableRecord>(&DR)) {
+    // Process metadata used by DbgRecords; we only specifically care about the
+    // DILocalVariable, DILocation, and DIAssignID fields, as the Value and
+    // Expression fields should only be printed inline and so do not use a slot.
+    // Note: The above doesn't apply for empty-metadata operands.
+    if (auto *Empty = dyn_cast<MDNode>(DVR->getRawLocation()))
+      CreateMetadataSlot(Empty);
+    CreateMetadataSlot(DVR->getRawVariable());
+    if (DVR->isDbgAssign()) {
+      CreateMetadataSlot(cast<MDNode>(DVR->getRawAssignID()));
+      if (auto *Empty = dyn_cast<MDNode>(DVR->getRawAddress()))
+        CreateMetadataSlot(Empty);
+    }
+  } else if (const DPLabel *DPL = dyn_cast<const DPLabel>(&DR)) {
+    CreateMetadataSlot(DPL->getRawLabel());
   } else {
     llvm_unreachable("unsupported DbgRecord kind");
   }
+  CreateMetadataSlot(DR.getDebugLoc().getAsMDNode());
 }
 
 void SlotTracker::processInstructionMetadata(const Instruction &I) {
@@ -1505,16 +1516,39 @@ static void WriteAPFloatInternal(raw_ostream &Out, const APFloat &APF) {
 static void WriteConstantInternal(raw_ostream &Out, const Constant *CV,
                                   AsmWriterContext &WriterCtx) {
   if (const ConstantInt *CI = dyn_cast<ConstantInt>(CV)) {
-    if (CI->getType()->isIntegerTy(1)) {
-      Out << (CI->getZExtValue() ? "true" : "false");
-      return;
+    Type *Ty = CI->getType();
+
+    if (Ty->isVectorTy()) {
+      Out << "splat (";
+      WriterCtx.TypePrinter->print(Ty->getScalarType(), Out);
+      Out << " ";
     }
-    Out << CI->getValue();
+
+    if (Ty->getScalarType()->isIntegerTy(1))
+      Out << (CI->getZExtValue() ? "true" : "false");
+    else
+      Out << CI->getValue();
+
+    if (Ty->isVectorTy())
+      Out << ")";
+
     return;
   }
 
   if (const ConstantFP *CFP = dyn_cast<ConstantFP>(CV)) {
+    Type *Ty = CFP->getType();
+
+    if (Ty->isVectorTy()) {
+      Out << "splat (";
+      WriterCtx.TypePrinter->print(Ty->getScalarType(), Out);
+      Out << " ";
+    }
+
     WriteAPFloatInternal(Out, CFP->getValueAPF());
+
+    if (Ty->isVectorTy())
+      Out << ")";
+
     return;
   }
 
@@ -2107,6 +2141,16 @@ static void writeDIDerivedType(raw_ostream &Out, const DIDerivedType *N,
     Printer.printInt("dwarfAddressSpace", *DWARFAddressSpace,
                      /* ShouldSkipZero */ false);
   Printer.printMetadata("annotations", N->getRawAnnotations());
+  if (auto PtrAuthData = N->getPtrAuthData()) {
+    Printer.printInt("ptrAuthKey", PtrAuthData->key());
+    Printer.printBool("ptrAuthIsAddressDiscriminated",
+                      PtrAuthData->isAddressDiscriminated());
+    Printer.printInt("ptrAuthExtraDiscriminator",
+                     PtrAuthData->extraDiscriminator());
+    Printer.printBool("ptrAuthIsaPointer", PtrAuthData->isaPointer());
+    Printer.printBool("ptrAuthAuthenticatesNullValues",
+                      PtrAuthData->authenticatesNullValues());
+  }
   Out << ")";
 }
 
@@ -2675,8 +2719,10 @@ public:
   void printInstructionLine(const Instruction &I);
   void printInstruction(const Instruction &I);
   void printDPMarker(const DPMarker &DPI);
-  void printDPValue(const DPValue &DPI);
-  void printDbgRecord(const DbgRecord &DPI);
+  void printDbgVariableRecord(const DbgVariableRecord &DVR);
+  void printDPLabel(const DPLabel &DPL);
+  void printDbgRecord(const DbgRecord &DR);
+  void printDbgRecordLine(const DbgRecord &DR);
 
   void printUseListOrder(const Value *V, const std::vector<unsigned> &Shuffle);
   void printUseLists(const Function *F);
@@ -3859,9 +3905,6 @@ void AssemblyWriter::printTypeIdentities() {
 
 /// printFunction - Print all aspects of a function.
 void AssemblyWriter::printFunction(const Function *F) {
-  bool ConvertBack = F->IsNewDbgInfoFormat;
-  if (ConvertBack)
-    const_cast<Function *>(F)->convertFromNewDbgValues();
   if (AnnotationWriter) AnnotationWriter->emitFunctionAnnot(F, Out);
 
   if (F->isMaterializable())
@@ -4004,8 +4047,6 @@ void AssemblyWriter::printFunction(const Function *F) {
     Out << "}\n";
   }
 
-  if (ConvertBack)
-    const_cast<Function *>(F)->convertToNewDbgValues();
   Machine.purgeFunction();
 }
 
@@ -4072,6 +4113,8 @@ void AssemblyWriter::printBasicBlock(const BasicBlock *BB) {
 
   // Output all of the instructions in the basic block...
   for (const Instruction &I : *BB) {
+    for (const DbgRecord &DR : I.getDbgRecordRange())
+      printDbgRecordLine(DR);
     printInstructionLine(I);
   }
 
@@ -4565,7 +4608,7 @@ void AssemblyWriter::printInstruction(const Instruction &I) {
 void AssemblyWriter::printDPMarker(const DPMarker &Marker) {
   // There's no formal representation of a DPMarker -- print purely as a
   // debugging aid.
-  for (const DbgRecord &DPR : Marker.StoredDPValues) {
+  for (const DbgRecord &DPR : Marker.StoredDbgRecords) {
     printDbgRecord(DPR);
     Out << "\n";
   }
@@ -4577,49 +4620,66 @@ void AssemblyWriter::printDPMarker(const DPMarker &Marker) {
 }
 
 void AssemblyWriter::printDbgRecord(const DbgRecord &DR) {
-  if (auto *DPV = dyn_cast<DPValue>(&DR))
-    printDPValue(*DPV);
+  if (auto *DVR = dyn_cast<DbgVariableRecord>(&DR))
+    printDbgVariableRecord(*DVR);
+  else if (auto *DPL = dyn_cast<DPLabel>(&DR))
+    printDPLabel(*DPL);
   else
-    llvm_unreachable("unsupported dbg record");
+    llvm_unreachable("Unexpected DbgRecord kind");
 }
 
-void AssemblyWriter::printDPValue(const DPValue &Value) {
-  // There's no formal representation of a DPValue -- print purely as a
-  // debugging aid.
-  Out << "  DPValue ";
-
-  switch (Value.getType()) {
-  case DPValue::LocationType::Value:
+void AssemblyWriter::printDbgVariableRecord(const DbgVariableRecord &DVR) {
+  auto WriterCtx = getContext();
+  Out << "#dbg_";
+  switch (DVR.getType()) {
+  case DbgVariableRecord::LocationType::Value:
     Out << "value";
     break;
-  case DPValue::LocationType::Declare:
+  case DbgVariableRecord::LocationType::Declare:
     Out << "declare";
     break;
-  case DPValue::LocationType::Assign:
+  case DbgVariableRecord::LocationType::Assign:
     Out << "assign";
     break;
   default:
-    llvm_unreachable("Tried to print a DPValue with an invalid LocationType!");
+    llvm_unreachable(
+        "Tried to print a DbgVariableRecord with an invalid LocationType!");
   }
-  Out << " { ";
+  Out << "(";
+  WriteAsOperandInternal(Out, DVR.getRawLocation(), WriterCtx, true);
+  Out << ", ";
+  WriteAsOperandInternal(Out, DVR.getRawVariable(), WriterCtx, true);
+  Out << ", ";
+  WriteAsOperandInternal(Out, DVR.getRawExpression(), WriterCtx, true);
+  Out << ", ";
+  if (DVR.isDbgAssign()) {
+    WriteAsOperandInternal(Out, DVR.getRawAssignID(), WriterCtx, true);
+    Out << ", ";
+    WriteAsOperandInternal(Out, DVR.getRawAddress(), WriterCtx, true);
+    Out << ", ";
+    WriteAsOperandInternal(Out, DVR.getRawAddressExpression(), WriterCtx, true);
+    Out << ", ";
+  }
+  WriteAsOperandInternal(Out, DVR.getDebugLoc().getAsMDNode(), WriterCtx, true);
+  Out << ")";
+}
+
+/// printDbgRecordLine - Print a DbgRecord with indentation and a newline
+/// character.
+void AssemblyWriter::printDbgRecordLine(const DbgRecord &DR) {
+  // Print lengthier indentation to bring out-of-line with instructions.
+  Out << "    ";
+  printDbgRecord(DR);
+  Out << '\n';
+}
+
+void AssemblyWriter::printDPLabel(const DPLabel &Label) {
   auto WriterCtx = getContext();
-  WriteAsOperandInternal(Out, Value.getRawLocation(), WriterCtx, true);
+  Out << "#dbg_label(";
+  WriteAsOperandInternal(Out, Label.getRawLabel(), WriterCtx, true);
   Out << ", ";
-  WriteAsOperandInternal(Out, Value.getVariable(), WriterCtx, true);
-  Out << ", ";
-  WriteAsOperandInternal(Out, Value.getExpression(), WriterCtx, true);
-  Out << ", ";
-  if (Value.isDbgAssign()) {
-    WriteAsOperandInternal(Out, Value.getAssignID(), WriterCtx, true);
-    Out << ", ";
-    WriteAsOperandInternal(Out, Value.getRawAddress(), WriterCtx, true);
-    Out << ", ";
-    WriteAsOperandInternal(Out, Value.getAddressExpression(), WriterCtx, true);
-    Out << ", ";
-  }
-  WriteAsOperandInternal(Out, Value.getDebugLoc().get(), WriterCtx, true);
-  Out << " marker @" << Value.getMarker();
-  Out << " }";
+  WriteAsOperandInternal(Out, Label.getDebugLoc(), WriterCtx, true);
+  Out << ")";
 }
 
 void AssemblyWriter::printMetadataAttachments(
@@ -4767,19 +4827,11 @@ void BasicBlock::print(raw_ostream &ROS, AssemblyAnnotationWriter *AAW,
 
 void Module::print(raw_ostream &ROS, AssemblyAnnotationWriter *AAW,
                    bool ShouldPreserveUseListOrder, bool IsForDebug) const {
-  // RemoveDIs: always print with debug-info in intrinsic format.
-  bool ConvertAfter = IsNewDbgInfoFormat;
-  if (IsNewDbgInfoFormat)
-    const_cast<Module *>(this)->convertFromNewDbgValues();
-
   SlotTracker SlotTable(this);
   formatted_raw_ostream OS(ROS);
   AssemblyWriter W(OS, SlotTable, this, AAW, IsForDebug,
                    ShouldPreserveUseListOrder);
   W.printModule(this);
-
-  if (ConvertAfter)
-    const_cast<Module *>(this)->convertToNewDbgValues();
 }
 
 void NamedMDNode::print(raw_ostream &ROS, bool IsForDebug) const {
@@ -4862,7 +4914,7 @@ void DPMarker::print(raw_ostream &ROS, bool IsForDebug) const {
   print(ROS, MST, IsForDebug);
 }
 
-void DPValue::print(raw_ostream &ROS, bool IsForDebug) const {
+void DbgVariableRecord::print(raw_ostream &ROS, bool IsForDebug) const {
 
   ModuleSlotTracker MST(getModuleFromDPI(this), true);
   print(ROS, MST, IsForDebug);
@@ -4870,8 +4922,6 @@ void DPValue::print(raw_ostream &ROS, bool IsForDebug) const {
 
 void DPMarker::print(raw_ostream &ROS, ModuleSlotTracker &MST,
                      bool IsForDebug) const {
-  // There's no formal representation of a DPMarker -- print purely as a
-  // debugging aid.
   formatted_raw_ostream OS(ROS);
   SlotTracker EmptySlotTable(static_cast<const Module *>(nullptr));
   SlotTracker &SlotTable =
@@ -4885,10 +4935,14 @@ void DPMarker::print(raw_ostream &ROS, ModuleSlotTracker &MST,
   W.printDPMarker(*this);
 }
 
-void DPValue::print(raw_ostream &ROS, ModuleSlotTracker &MST,
-                    bool IsForDebug) const {
-  // There's no formal representation of a DPValue -- print purely as a
-  // debugging aid.
+void DPLabel::print(raw_ostream &ROS, bool IsForDebug) const {
+
+  ModuleSlotTracker MST(getModuleFromDPI(this), true);
+  print(ROS, MST, IsForDebug);
+}
+
+void DbgVariableRecord::print(raw_ostream &ROS, ModuleSlotTracker &MST,
+                              bool IsForDebug) const {
   formatted_raw_ostream OS(ROS);
   SlotTracker EmptySlotTable(static_cast<const Module *>(nullptr));
   SlotTracker &SlotTable =
@@ -4901,7 +4955,23 @@ void DPValue::print(raw_ostream &ROS, ModuleSlotTracker &MST,
                           ? Marker->getParent()->getParent()
                           : nullptr);
   AssemblyWriter W(OS, SlotTable, getModuleFromDPI(this), nullptr, IsForDebug);
-  W.printDPValue(*this);
+  W.printDbgVariableRecord(*this);
+}
+
+void DPLabel::print(raw_ostream &ROS, ModuleSlotTracker &MST,
+                    bool IsForDebug) const {
+  formatted_raw_ostream OS(ROS);
+  SlotTracker EmptySlotTable(static_cast<const Module *>(nullptr));
+  SlotTracker &SlotTable =
+      MST.getMachine() ? *MST.getMachine() : EmptySlotTable;
+  auto incorporateFunction = [&](const Function *F) {
+    if (F)
+      MST.incorporateFunction(*F);
+  };
+  incorporateFunction(Marker->getParent() ? Marker->getParent()->getParent()
+                                          : nullptr);
+  AssemblyWriter W(OS, SlotTable, getModuleFromDPI(this), nullptr, IsForDebug);
+  W.printDPLabel(*this);
 }
 
 void Value::print(raw_ostream &ROS, bool IsForDebug) const {

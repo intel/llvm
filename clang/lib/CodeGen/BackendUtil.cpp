@@ -87,6 +87,7 @@
 #include "llvm/Transforms/Instrumentation/MemorySanitizer.h"
 #include "llvm/Transforms/Instrumentation/PGOInstrumentation.h"
 #include "llvm/Transforms/Instrumentation/SPIRITTAnnotations.h"
+#include "llvm/Transforms/Instrumentation/RemoveTrapsPass.h"
 #include "llvm/Transforms/Instrumentation/SanitizerBinaryMetadata.h"
 #include "llvm/Transforms/Instrumentation/SanitizerCoverage.h"
 #include "llvm/Transforms/Instrumentation/ThreadSanitizer.h"
@@ -95,6 +96,7 @@
 #include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/Transforms/Scalar/InferAddressSpaces.h"
 #include "llvm/Transforms/Scalar/JumpThreading.h"
+#include "llvm/Transforms/Scalar/SimplifyCFG.h"
 #include "llvm/Transforms/Utils/Debugify.h"
 #include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
@@ -109,6 +111,10 @@ using namespace llvm;
 
 namespace llvm {
 extern cl::opt<bool> PrintPipelinePasses;
+
+cl::opt<bool> ClRemoveTraps("clang-remove-traps", cl::Optional,
+                            cl::desc("Insert remove-traps pass."),
+                            cl::init(false));
 
 // Experiment to move sanitizers earlier.
 static cl::opt<bool> ClSanitizeOnOptimizerEarlyEP(
@@ -201,6 +207,14 @@ class EmitAssemblyHelper {
   bool shouldEmitRegularLTOSummary() const {
     return CodeGenOpts.PrepareForLTO && !CodeGenOpts.DisableLLVMPasses &&
            TargetTriple.getVendor() != llvm::Triple::Apple;
+  }
+
+  /// Check whether we should emit a flag for UnifiedLTO.
+  /// The UnifiedLTO module flag should be set when UnifiedLTO is enabled for
+  /// ThinLTO or Full LTO with module summaries.
+  bool shouldEmitUnifiedLTOModueFlag() const {
+    return CodeGenOpts.UnifiedLTO &&
+           (CodeGenOpts.PrepareForThinLTO || shouldEmitRegularLTOSummary());
   }
 
 public:
@@ -385,8 +399,6 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
       llvm::TargetMachine::parseBinutilsVersion(CodeGenOpts.BinutilsVersion);
   Options.UseInitArray = CodeGenOpts.UseInitArray;
   Options.DisableIntegratedAS = CodeGenOpts.DisableIntegratedAS;
-  Options.CompressDebugSections = CodeGenOpts.getCompressDebugSections();
-  Options.RelaxELFRelocations = CodeGenOpts.RelaxELFRelocations;
 
   // Set EABI version.
   Options.EABIVersion = TargetOpts.EABIVersion;
@@ -489,6 +501,9 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
   Options.MCOptions.AsmVerbose = CodeGenOpts.AsmVerbose;
   Options.MCOptions.Dwarf64 = CodeGenOpts.Dwarf64;
   Options.MCOptions.PreserveAsmComments = CodeGenOpts.PreserveAsmComments;
+  Options.MCOptions.X86RelaxRelocations = CodeGenOpts.RelaxELFRelocations;
+  Options.MCOptions.CompressDebugSections =
+      CodeGenOpts.getCompressDebugSections();
   Options.MCOptions.ABIName = TargetOpts.ABI;
   for (const auto &Entry : HSOpts.UserEntries)
     if (!Entry.IsFramework &&
@@ -771,6 +786,21 @@ static void addSanitizers(const Triple &TargetTriple,
   } else {
     // LastEP does not need GlobalsAA.
     PB.registerOptimizerLastEPCallback(SanitizersCallback);
+  }
+
+  if (ClRemoveTraps) {
+    // We can optimize after inliner, and PGO profile matching. The hook below
+    // is called at the end `buildFunctionSimplificationPipeline`, which called
+    // from `buildInlinerPipeline`, which called after profile matching.
+    PB.registerScalarOptimizerLateEPCallback(
+        [](FunctionPassManager &FPM, OptimizationLevel Level) {
+          // RemoveTrapsPass expects trap blocks preceded by conditional
+          // branches, which usually is not the case without SimplifyCFG.
+          // TODO: Remove `SimplifyCFGPass` after switching to dedicated
+          // intrinsic.
+          FPM.addPass(SimplifyCFGPass());
+          FPM.addPass(RemoveTrapsPass());
+        });
   }
 }
 
@@ -1137,7 +1167,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   if (!actionRequiresCodeGen(Action) && CodeGenOpts.VerifyModule)
     MPM.addPass(VerifierPass());
 
-  if (Action == Backend_EmitBC || Action == Backend_EmitLL) {
+  if (Action == Backend_EmitBC || Action == Backend_EmitLL ||
+      CodeGenOpts.FatLTO) {
     if (CodeGenOpts.PrepareForThinLTO && !CodeGenOpts.DisableLLVMPasses) {
       if (!TheModule->getModuleFlag("EnableSplitLTOUnit"))
         TheModule->addModuleFlag(Module::Error, "EnableSplitLTOUnit",
@@ -1148,11 +1179,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           if (!ThinLinkOS)
             return;
         }
-        if (CodeGenOpts.UnifiedLTO)
-          TheModule->addModuleFlag(Module::Error, "UnifiedLTO", uint32_t(1));
         MPM.addPass(ThinLTOBitcodeWriterPass(
             *OS, ThinLinkOS ? &ThinLinkOS->os() : nullptr));
-      } else {
+      } else if (Action == Backend_EmitLL) {
         MPM.addPass(PrintModulePass(*OS, "", CodeGenOpts.EmitLLVMUseLists,
                                     /*EmitLTOSummary=*/true));
       }
@@ -1166,24 +1195,17 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
         if (!TheModule->getModuleFlag("EnableSplitLTOUnit"))
           TheModule->addModuleFlag(Module::Error, "EnableSplitLTOUnit",
                                    uint32_t(1));
-        if (CodeGenOpts.UnifiedLTO)
-          TheModule->addModuleFlag(Module::Error, "UnifiedLTO", uint32_t(1));
       }
-      if (Action == Backend_EmitBC)
+      if (Action == Backend_EmitBC) {
         MPM.addPass(BitcodeWriterPass(*OS, CodeGenOpts.EmitLLVMUseLists,
                                       EmitLTOSummary));
-      else
+      } else if (Action == Backend_EmitLL) {
         MPM.addPass(PrintModulePass(*OS, "", CodeGenOpts.EmitLLVMUseLists,
                                     EmitLTOSummary));
+      }
     }
-  }
-  if (CodeGenOpts.FatLTO) {
-    // Set the EnableSplitLTOUnit and UnifiedLTO module flags, since FatLTO
-    // uses a different action than Backend_EmitBC or Backend_EmitLL.
-    if (!TheModule->getModuleFlag("EnableSplitLTOUnit"))
-      TheModule->addModuleFlag(Module::Error, "EnableSplitLTOUnit",
-                               uint32_t(CodeGenOpts.EnableSplitLTOUnit));
-    if (CodeGenOpts.UnifiedLTO && !TheModule->getModuleFlag("UnifiedLTO"))
+
+    if (shouldEmitUnifiedLTOModueFlag())
       TheModule->addModuleFlag(llvm::Module::Error, "UnifiedLTO", uint32_t(1));
   }
 

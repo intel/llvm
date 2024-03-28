@@ -1,12 +1,13 @@
 ; RUN: llvm-as %s -o %t.bc
 
-; RUN: not llvm-spirv %t.bc -spirv-text --spirv-ext=-SPV_KHR_bit_instructions -o - 2>&1 | FileCheck %s --check-prefixes=CHECK-WITHOUT-EXT
+; RUN: llvm-spirv %t.bc -spirv-text --spirv-ext=-SPV_KHR_bit_instructions -o %t.txt
+; RUN: FileCheck < %t.txt %s --check-prefixes=CHECK-WITHOUT-EXT
 
 ; RUN: llvm-spirv %t.bc -spirv-text --spirv-ext=+SPV_KHR_bit_instructions -o %t.txt
 ; RUN: FileCheck < %t.txt %s --check-prefixes=CHECK-WITH-EXT
 
-; CHECK-WITHOUT-EXT: Unexpected llvm intrinsic:
-; CHECK-WITHOUT-EXT: Translation of llvm.bitreverse intrinsic requires SPV_KHR_bit_instructions extension.
+; CHECK-WITHOUT-EXT: Name [[#]] "llvm_bitreverse_i32"
+; CHECK-WITHOUT-EXT: LinkageAttributes "llvm_bitreverse_i32" Export
 
 ; CHECK-WITH-EXT: Capability BitInstructions
 ; CHECK-WITH-EXT: Extension "SPV_KHR_bit_instructions"

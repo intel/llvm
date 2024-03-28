@@ -210,6 +210,10 @@ void SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI) {
       &*CI->getParent()->getParent()->getEntryBlock().getFirstInsertionPt());
   PExpected->setAlignment(Align(MemTy->getScalarSizeInBits() / 8));
 
+  // Tail call implies that the callee doesn't access alloca from the caller.
+  // The newly created alloca invalidates the tail call semantics.
+  CI->setTailCall(false);
+
   // OpAtomicCompareExchangeWeak is not "weak" at all, but instead has the same
   // semantics as OpAtomicCompareExchange.
   mutateCallInst(CI, "atomic_compare_exchange_strong_explicit")

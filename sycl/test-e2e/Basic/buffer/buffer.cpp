@@ -12,7 +12,7 @@
 #include <cassert>
 #include <iostream>
 #include <memory>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

@@ -344,9 +344,6 @@ bool testLocalAccSLM(queue Q, uint32_t Groups,
        auto OutPtr = Out.data();
 
        CGH.parallel_for(Range, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
-         constexpr uint32_t SLMSize = (GroupSize * N) * sizeof(T);
-         slm_init<SLMSize>();
-
          uint16_t GlobalID = ndi.get_global_id(0);
          uint16_t LocalID = ndi.get_local_id(0);
          uint32_t LocalElemOffset = LocalID * N * sizeof(T);

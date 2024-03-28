@@ -3,7 +3,7 @@
 // RUN: %if windows %{  %clangxx -fsycl -fsycl-host-compiler=cl -fsycl-host-compiler-options='/std:c++17 /Zc:__cplusplus'  -o %t2.out  %s  %}
 // RUN: %if windows %{  %{run} %t2.out  %}
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <iostream>
 #include <math.h>

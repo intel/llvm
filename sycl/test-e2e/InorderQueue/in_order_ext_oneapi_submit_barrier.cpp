@@ -7,7 +7,11 @@
 // CHECK-NOT: ---> urEnqueueEventsWaitWithBarrier
 
 #include <condition_variable>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 
 namespace syclex = sycl::ext::oneapi::experimental;
 
@@ -70,8 +74,7 @@ int main() {
         {sycl::property::queue::in_order{},
          sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
-    if (GQueue.get_device().get_info<syclex::info::device::graph_support>() !=
-        syclex::graph_support_level::unsupported) {
+    if (GQueue.get_device().has(sycl::aspect::ext_oneapi_graph)) {
       std::cout << "Test 4" << std::endl;
       syclex::command_graph Graph{GQueue.get_context(), GQueue.get_device()};
       *Res = 1;
