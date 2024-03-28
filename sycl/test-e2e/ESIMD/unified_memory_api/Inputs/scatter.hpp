@@ -344,25 +344,20 @@ bool testSLM(queue Q, uint32_t MaskStride,
          uint16_t GlobalID = ndi.get_global_id(0);
          uint16_t LocalID = ndi.get_local_id(0);
          uint32_t GlobalElemOffset = GlobalID * N;
-         uint32_t LocalElemOffset = LocalID * N;
 
-         constexpr uint32_t SLMSize = (Threads * N + 8) * sizeof(T);
+         constexpr uint32_t SLMSize = N * sizeof(T);
          slm_init<SLMSize>();
 
-         if (LocalID == 0) {
-           for (int I = 0; I < Threads * N; I += 8) {
-             simd<T, 8> InVec(Out + GlobalElemOffset + I);
-             simd<uint32_t, 8> Offsets(I * sizeof(T), sizeof(T));
-             slm_scatter<T>(Offsets, InVec);
-           }
-         }
-         barrier();
+         simd<T, N> InVec(GlobalElemOffset, 1);
+         
 
-         simd<uint32_t, NOffsets> ByteOffsets(LocalElemOffset * sizeof(T),
+         simd<uint32_t, NOffsets> ByteOffsets(0,
                                               VS * sizeof(T));
+         slm_scatter<T,N,VS>(ByteOffsets, InVec);
+         barrier();
          auto ByteOffsetsView = ByteOffsets.template select<NOffsets, 1>();
-
          simd<T, N> Vals = slm_gather<T, N, VS>(ByteOffsets, Props);
+
          Vals *= 2;
 
          auto ValsView = Vals.template select<N, 1>();
@@ -454,14 +449,9 @@ bool testSLM(queue Q, uint32_t MaskStride,
              }
            }
          }
-         barrier();
-         if (LocalID == 0) {
-           for (int I = 0; I < Threads * N; I++) {
-             simd<uint32_t, 1> Offsets(I * sizeof(T), sizeof(T));
-             simd<T, 1> OutVec = slm_gather<T>(Offsets);
-             OutVec.copy_to(Out + GlobalElemOffset + I);
-           }
-         }
+
+         simd<T, N> OutVec = slm_gather<T,N,VS>(ByteOffsets);
+           OutVec.copy_to(Out + GlobalElemOffset);
        });
      }).wait();
   } catch (sycl::exception const &e) {

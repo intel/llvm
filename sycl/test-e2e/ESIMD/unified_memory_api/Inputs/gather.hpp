@@ -479,7 +479,7 @@ bool testSLM(queue Q, uint32_t MaskStride, PropertiesT) {
                 "PassThru cannot be used without using mask");
 
   constexpr uint32_t Groups = 8;
-  constexpr uint32_t Threads = 16;
+  constexpr uint32_t Threads = 1;
 
   std::cout << "Running slm_gather case: T=" << esimd_test::type_name<T>()
             << ", N=" << N << ", VS=" << VS << ", MaskStride=" << MaskStride
@@ -509,22 +509,17 @@ bool testSLM(queue Q, uint32_t MaskStride, PropertiesT) {
        uint32_t LocalElemOffset = LocalID * N;
 
        // Allocate a bit more to safely initialize it with 8-element chunks.
-       constexpr uint32_t SLMSize = (Threads * N) * sizeof(T);
+       constexpr uint32_t SLMSize = N * sizeof(T);
        slm_init<SLMSize>();
 
-       if (LocalID == 0) {
-         for (int I = 0; I < Threads * N; I++) {
-           simd<T, 1> InVec(In + GlobalElemOffset + I);
-           simd<uint32_t, 1> offsets(I * sizeof(T), sizeof(T));
-           slm_scatter<T>(offsets, InVec);
-         }
-       }
+       simd<T, N> InVec(In + GlobalElemOffset);
+       simd<uint32_t, NOffsets> ByteOffsets(0, VS * sizeof(T));
+       slm_scatter<T,N,VS>(ByteOffsets, InVec);
+
        barrier();
 
        PropertiesT Props{};
 
-       simd<uint32_t, NOffsets> ByteOffsets(LocalElemOffset * sizeof(T),
-                                            VS * sizeof(T));
        simd_view ByteOffsetsView = ByteOffsets.template select<NOffsets, 1>();
 
        simd_mask<NOffsets> Pred;
@@ -638,7 +633,9 @@ bool testSLM(queue Q, uint32_t MaskStride, PropertiesT) {
            }
          }
        } // end if (VS == 1)
+
        Vals.copy_to(Out + GlobalElemOffset);
+
      }).wait();
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
@@ -773,7 +770,7 @@ bool testLACC(queue Q, uint32_t MaskStride, PropertiesT) {
                 "PassThru cannot be used without using mask");
 
   constexpr uint32_t Groups = 8;
-  constexpr uint32_t Threads = 16;
+  constexpr uint32_t Threads = 1;
 
   std::cout << "Running case: T=" << esimd_test::type_name<T>() << ", N=" << N
             << ", VS=" << VS << ", MaskStride=" << MaskStride
@@ -781,7 +778,7 @@ bool testLACC(queue Q, uint32_t MaskStride, PropertiesT) {
             << ", use_mask=" << UseMask << ", use_pass_thru=" << UsePassThru
             << ", use_properties=" << UseProperties << std::endl;
 
-  uint16_t Size = Groups * Threads * N;
+  constexpr uint32_t Size = Groups * Threads * N;
   using Tuint = esimd_test::uint_type_t<sizeof(T)>;
 
   sycl::range<1> GlobalRange{Groups};
@@ -798,7 +795,7 @@ bool testLACC(queue Q, uint32_t MaskStride, PropertiesT) {
   try {
     Q.submit([&](handler &CGH) {
        // Allocate a bit more to safely initialize it with 8-element chunks.
-       constexpr uint32_t SLMSize = (Threads * N + 8) * sizeof(T);
+       constexpr uint32_t SLMSize =  N;
 
        auto InAcc = local_accessor<T, 1>(SLMSize, CGH);
 
@@ -806,20 +803,15 @@ bool testLACC(queue Q, uint32_t MaskStride, PropertiesT) {
          uint16_t GlobalID = NDI.get_global_id(0);
          uint16_t LocalID = NDI.get_local_id(0);
          uint32_t GlobalElemOffset = GlobalID * N;
-         uint32_t LocalElemOffset = LocalID * N;
 
-         if (LocalID == 0) {
-           for (int I = 0; I < Threads * N; I += 8) {
-             simd<T, 8> InVec(In + GlobalElemOffset + I);
-             simd<uint32_t, 8> Offsets(I * sizeof(T), sizeof(T));
-             scatter<T>(InAcc, Offsets, InVec);
-           }
-         }
+         simd<T, N> InVec(In + GlobalElemOffset);
+       simd<OffsetT, NOffsets> ByteOffsets(0, VS * sizeof(T));
+       scatter<T,N,VS>(InAcc, ByteOffsets, InVec);
+
          barrier();
          PropertiesT Props{};
 
-         simd<OffsetT, NOffsets> ByteOffsets(LocalElemOffset * sizeof(T),
-                                             VS * sizeof(T));
+         
          simd_view ByteOffsetsView = ByteOffsets.template select<NOffsets, 1>();
 
          simd_mask<NOffsets> Pred;
@@ -939,7 +931,8 @@ bool testLACC(queue Q, uint32_t MaskStride, PropertiesT) {
              }
            }
          } // end if (VS == 1)
-         Vals.copy_to(Out + GlobalID * N);
+
+         Vals.copy_to(Out + GlobalElemOffset);
        });
      }).wait();
   } catch (sycl::exception const &e) {
