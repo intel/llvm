@@ -7,7 +7,11 @@
 
 #include "vec_math.hpp"
 
+// Alias is needed to const-qualify vec without template args.
+template <typename T, int NumElems>
+using ConstVec = const sycl::vec<T, NumElems>;
+
 int main() {
-  run_test<sycl::vec>();
+  run_test<ConstVec>();
   return 0;
 }
