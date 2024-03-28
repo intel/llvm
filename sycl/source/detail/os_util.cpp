@@ -238,7 +238,7 @@ void OSUtil::alignedFree(void *Ptr) {
 #endif
 }
 
-// throws on error.
+// Make all directories on the path, throws on error.
 int OSUtil::makeDir(const char *Dir) {
   assert((Dir != nullptr) && "Passed null-pointer as directory name.");
   if (isPathPresent(Dir))
@@ -258,7 +258,9 @@ int OSUtil::makeDir(const char *Dir) {
     auto Res = _mkdir(CurPath.c_str());
 #endif
     if (Res && errno != EEXIST)
-      return Res;
+      throw std::runtime_error("Failed to mkdir: " + CurPath + " (" +
+                               std::strerror(errno) + ")");
+
   } while (pos != std::string::npos);
 #else
   // using filesystem is simpler, more reliable, works better on Win
