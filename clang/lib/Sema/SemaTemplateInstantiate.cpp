@@ -2067,8 +2067,7 @@ TemplateInstantiator::TransformSYCLIntelIVDepAttr(
 const SYCLIntelInitiationIntervalAttr *
 TemplateInstantiator::TransformSYCLIntelInitiationIntervalAttr(
     const SYCLIntelInitiationIntervalAttr *II) {
-  Expr *TransformedExpr =
-      getDerived().TransformExpr(II->getIntervalExpr()).get();
+  Expr *TransformedExpr = getDerived().TransformExpr(II->getNExpr()).get();
   return getSema().BuildSYCLIntelInitiationIntervalAttr(*II,
                                                             TransformedExpr);
 }
@@ -2076,8 +2075,7 @@ TemplateInstantiator::TransformSYCLIntelInitiationIntervalAttr(
 const SYCLIntelMaxConcurrencyAttr *
 TemplateInstantiator::TransformSYCLIntelMaxConcurrencyAttr(
     const SYCLIntelMaxConcurrencyAttr *MC) {
-  Expr *TransformedExpr =
-      getDerived().TransformExpr(MC->getNThreadsExpr()).get();
+  Expr *TransformedExpr = getDerived().TransformExpr(MC->getNExpr()).get();
   return getSema().BuildSYCLIntelMaxConcurrencyAttr(*MC, TransformedExpr);
 }
 
@@ -3069,7 +3067,8 @@ bool Sema::SubstTypeConstraint(
   }
   return AttachTypeConstraint(
       TC->getNestedNameSpecifierLoc(), TC->getConceptNameInfo(),
-      TC->getNamedConcept(), &InstArgs, Inst,
+      TC->getNamedConcept(),
+      /*FoundDecl=*/TC->getConceptReference()->getFoundDecl(), &InstArgs, Inst,
       Inst->isParameterPack()
           ? cast<CXXFoldExpr>(TC->getImmediatelyDeclaredConstraint())
                 ->getEllipsisLoc()

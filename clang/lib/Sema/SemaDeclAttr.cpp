@@ -4250,8 +4250,7 @@ void Sema::AddSYCLIntelInitiationIntervalAttr(Decl *D,
       // If the other attribute argument is instantiation dependent, we won't
       // have converted it to a constant expression yet and thus we test
       // whether this is a null pointer.
-      if (const auto *DeclExpr =
-              dyn_cast<ConstantExpr>(DeclAttr->getIntervalExpr())) {
+      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getNExpr())) {
         if (ArgVal != DeclExpr->getResultAsAPSInt()) {
           Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
           Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
@@ -4273,9 +4272,8 @@ Sema::MergeSYCLIntelInitiationIntervalAttr(
   // already applied to the declaration.
   if (const auto *DeclAttr =
           D->getAttr<SYCLIntelInitiationIntervalAttr>()) {
-    if (const auto *DeclExpr =
-            dyn_cast<ConstantExpr>(DeclAttr->getIntervalExpr())) {
-      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getIntervalExpr())) {
+    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getNExpr())) {
+      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getNExpr())) {
         if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
           Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
           Diag(A.getLoc(), diag::note_previous_attribute);
@@ -4287,7 +4285,7 @@ Sema::MergeSYCLIntelInitiationIntervalAttr(
   }
 
   return ::new (Context)
-      SYCLIntelInitiationIntervalAttr(Context, A, A.getIntervalExpr());
+      SYCLIntelInitiationIntervalAttr(Context, A, A.getNExpr());
 }
 
 static void handleSYCLIntelInitiationIntervalAttr(Sema &S, Decl *D,
@@ -8399,9 +8397,8 @@ SYCLIntelMaxConcurrencyAttr *Sema::MergeSYCLIntelMaxConcurrencyAttr(
   // Check to see if there's a duplicate attribute with different values
   // already applied to the declaration.
   if (const auto *DeclAttr = D->getAttr<SYCLIntelMaxConcurrencyAttr>()) {
-    if (const auto *DeclExpr =
-            dyn_cast<ConstantExpr>(DeclAttr->getNThreadsExpr())) {
-      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getNThreadsExpr())) {
+    if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getNExpr())) {
+      if (const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getNExpr())) {
         if (DeclExpr->getResultAsAPSInt() != MergeExpr->getResultAsAPSInt()) {
           Diag(DeclAttr->getLoc(), diag::warn_duplicate_attribute) << &A;
           Diag(A.getLoc(), diag::note_previous_attribute);
@@ -8412,8 +8409,7 @@ SYCLIntelMaxConcurrencyAttr *Sema::MergeSYCLIntelMaxConcurrencyAttr(
     }
   }
 
-  return ::new (Context)
-      SYCLIntelMaxConcurrencyAttr(Context, A, A.getNThreadsExpr());
+  return ::new (Context) SYCLIntelMaxConcurrencyAttr(Context, A, A.getNExpr());
 }
 
 void Sema::AddSYCLIntelMaxConcurrencyAttr(Decl *D,
@@ -8439,8 +8435,7 @@ void Sema::AddSYCLIntelMaxConcurrencyAttr(Decl *D,
       // If the other attribute argument is instantiation dependent, we won't
       // have converted it to a constant expression yet and thus we test
       // whether this is a null pointer.
-      if (const auto *DeclExpr =
-              dyn_cast<ConstantExpr>(DeclAttr->getNThreadsExpr())) {
+      if (const auto *DeclExpr = dyn_cast<ConstantExpr>(DeclAttr->getNExpr())) {
         if (ArgVal != DeclExpr->getResultAsAPSInt()) {
           Diag(CI.getLoc(), diag::warn_duplicate_attribute) << CI;
           Diag(DeclAttr->getLoc(), diag::note_previous_attribute);
@@ -11482,133 +11477,114 @@ static void handleZeroCallUsedRegsAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   D->addAttr(ZeroCallUsedRegsAttr::Create(S.Context, Kind, AL));
 }
 
-static void handleCountedByAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  if (!AL.isArgIdent(0)) {
-    S.Diag(AL.getLoc(), diag::err_attribute_argument_type)
-        << AL << AANT_ArgumentIdentifier;
-    return;
+static const RecordDecl *GetEnclosingNamedOrTopAnonRecord(const FieldDecl *FD) {
+  const auto *RD = FD->getParent();
+  // An unnamed struct is anonymous struct only if it's not instantiated.
+  // However, the struct may not be fully processed yet to determine
+  // whether it's anonymous or not. In that case, this function treats it as
+  // an anonymous struct and tries to find a named parent.
+  while (RD && (RD->isAnonymousStructOrUnion() ||
+                (!RD->isCompleteDefinition() && RD->getName().empty()))) {
+    const auto *Parent = dyn_cast<RecordDecl>(RD->getParent());
+    if (!Parent)
+      break;
+    RD = Parent;
   }
-
-  IdentifierLoc *IL = AL.getArgAsIdent(0);
-  CountedByAttr *CBA =
-      ::new (S.Context) CountedByAttr(S.Context, AL, IL->Ident);
-  CBA->setCountedByFieldLoc(IL->Loc);
-  D->addAttr(CBA);
+  return RD;
 }
 
-static const FieldDecl *
-FindFieldInTopLevelOrAnonymousStruct(const RecordDecl *RD,
-                                     const IdentifierInfo *FieldName) {
-  for (const Decl *D : RD->decls()) {
-    if (const auto *FD = dyn_cast<FieldDecl>(D))
-      if (FD->getName() == FieldName->getName())
-        return FD;
-
-    if (const auto *R = dyn_cast<RecordDecl>(D))
-      if (const FieldDecl *FD =
-              FindFieldInTopLevelOrAnonymousStruct(R, FieldName))
-        return FD;
+static bool
+CheckCountExpr(Sema &S, FieldDecl *FD, Expr *E,
+               llvm::SmallVectorImpl<TypeCoupledDeclRefInfo> &Decls) {
+  if (FD->getParent()->isUnion()) {
+    S.Diag(FD->getBeginLoc(), diag::err_counted_by_attr_in_union)
+        << FD->getSourceRange();
+    return true;
   }
 
-  return nullptr;
-}
+  if (!E->getType()->isIntegerType() || E->getType()->isBooleanType()) {
+    S.Diag(E->getBeginLoc(), diag::err_counted_by_attr_argument_not_integer)
+        << E->getSourceRange();
+    return true;
+  }
 
-bool Sema::CheckCountedByAttr(Scope *S, const FieldDecl *FD) {
   LangOptions::StrictFlexArraysLevelKind StrictFlexArraysLevel =
       LangOptions::StrictFlexArraysLevelKind::IncompleteOnly;
-  if (!Decl::isFlexibleArrayMemberLike(Context, FD, FD->getType(),
+
+  if (!Decl::isFlexibleArrayMemberLike(S.getASTContext(), FD, FD->getType(),
                                        StrictFlexArraysLevel, true)) {
     // The "counted_by" attribute must be on a flexible array member.
     SourceRange SR = FD->getLocation();
-    Diag(SR.getBegin(), diag::err_counted_by_attr_not_on_flexible_array_member)
+    S.Diag(SR.getBegin(),
+           diag::err_counted_by_attr_not_on_flexible_array_member)
         << SR;
     return true;
   }
 
-  const auto *CBA = FD->getAttr<CountedByAttr>();
-  const IdentifierInfo *FieldName = CBA->getCountedByField();
+  auto *DRE = dyn_cast<DeclRefExpr>(E);
+  if (!DRE) {
+    S.Diag(E->getBeginLoc(),
+           diag::err_counted_by_attr_only_support_simple_decl_reference)
+        << E->getSourceRange();
+    return true;
+  }
 
-  auto GetNonAnonStructOrUnion = [](const RecordDecl *RD) {
-    while (RD && !RD->getDeclName())
-      if (const auto *R = dyn_cast<RecordDecl>(RD->getDeclContext()))
-        RD = R;
-      else
-        break;
-
-    return RD;
-  };
-
-  const RecordDecl *EnclosingRD = GetNonAnonStructOrUnion(FD->getParent());
-  const FieldDecl *CountFD =
-      FindFieldInTopLevelOrAnonymousStruct(EnclosingRD, FieldName);
-
+  auto *CountDecl = DRE->getDecl();
+  FieldDecl *CountFD = dyn_cast<FieldDecl>(CountDecl);
+  if (auto *IFD = dyn_cast<IndirectFieldDecl>(CountDecl)) {
+    CountFD = IFD->getAnonField();
+  }
   if (!CountFD) {
-    DeclarationNameInfo NameInfo(FieldName,
-                                 CBA->getCountedByFieldLoc().getBegin());
-    LookupResult MemResult(*this, NameInfo, Sema::LookupMemberName);
-    LookupName(MemResult, S);
+    S.Diag(E->getBeginLoc(), diag::err_counted_by_must_be_in_structure)
+        << CountDecl << E->getSourceRange();
 
-    if (!MemResult.empty()) {
-      SourceRange SR = CBA->getCountedByFieldLoc();
-      Diag(SR.getBegin(), diag::err_flexible_array_count_not_in_same_struct)
-          << CBA->getCountedByField() << SR;
+    S.Diag(CountDecl->getBeginLoc(),
+           diag::note_flexible_array_counted_by_attr_field)
+        << CountDecl << CountDecl->getSourceRange();
+    return true;
+  }
 
-      if (auto *ND = MemResult.getAsSingle<NamedDecl>()) {
-        SR = ND->getLocation();
-        Diag(SR.getBegin(), diag::note_flexible_array_counted_by_attr_field)
-            << ND << SR;
-      }
-
+  if (FD->getParent() != CountFD->getParent()) {
+    if (CountFD->getParent()->isUnion()) {
+      S.Diag(CountFD->getBeginLoc(), diag::err_counted_by_attr_refer_to_union)
+          << CountFD->getSourceRange();
       return true;
-    } else {
-      // The "counted_by" field needs to exist in the struct.
-      LookupResult OrdResult(*this, NameInfo, Sema::LookupOrdinaryName);
-      LookupName(OrdResult, S);
-
-      if (!OrdResult.empty()) {
-        SourceRange SR = FD->getLocation();
-        Diag(SR.getBegin(), diag::err_counted_by_must_be_in_structure)
-            << FieldName << SR;
-
-        if (auto *ND = OrdResult.getAsSingle<NamedDecl>()) {
-          SR = ND->getLocation();
-          Diag(SR.getBegin(), diag::note_flexible_array_counted_by_attr_field)
-              << ND << SR;
-        }
-
-        return true;
-      }
     }
+    // Whether CountRD is an anonymous struct is not determined at this
+    // point. Thus, an additional diagnostic in case it's not anonymous struct
+    // is done later in `Parser::ParseStructDeclaration`.
+    auto *RD = GetEnclosingNamedOrTopAnonRecord(FD);
+    auto *CountRD = GetEnclosingNamedOrTopAnonRecord(CountFD);
 
-    CXXScopeSpec SS;
-    DeclFilterCCC<FieldDecl> Filter(FieldName);
-    return DiagnoseEmptyLookup(S, SS, MemResult, Filter, nullptr, std::nullopt,
-                               const_cast<DeclContext *>(FD->getDeclContext()));
+    if (RD != CountRD) {
+      S.Diag(E->getBeginLoc(),
+             diag::err_flexible_array_count_not_in_same_struct)
+          << CountFD << E->getSourceRange();
+      S.Diag(CountFD->getBeginLoc(),
+             diag::note_flexible_array_counted_by_attr_field)
+          << CountFD << CountFD->getSourceRange();
+      return true;
+    }
   }
 
-  if (CountFD->hasAttr<CountedByAttr>()) {
-    // The "counted_by" field can't point to the flexible array member.
-    SourceRange SR = CBA->getCountedByFieldLoc();
-    Diag(SR.getBegin(), diag::err_counted_by_attr_refers_to_flexible_array)
-        << CBA->getCountedByField() << SR;
-    return true;
-  }
-
-  if (!CountFD->getType()->isIntegerType() ||
-      CountFD->getType()->isBooleanType()) {
-    // The "counted_by" field must have an integer type.
-    SourceRange SR = CBA->getCountedByFieldLoc();
-    Diag(SR.getBegin(),
-         diag::err_flexible_array_counted_by_attr_field_not_integer)
-        << CBA->getCountedByField() << SR;
-
-    SR = CountFD->getLocation();
-    Diag(SR.getBegin(), diag::note_flexible_array_counted_by_attr_field)
-        << CountFD << SR;
-    return true;
-  }
-
+  Decls.push_back(TypeCoupledDeclRefInfo(CountFD, /*IsDref*/ false));
   return false;
+}
+
+static void handleCountedByAttrField(Sema &S, Decl *D, const ParsedAttr &AL) {
+  auto *FD = dyn_cast<FieldDecl>(D);
+  assert(FD);
+
+  auto *CountExpr = AL.getArgAsExpr(0);
+  if (!CountExpr)
+    return;
+
+  llvm::SmallVector<TypeCoupledDeclRefInfo, 1> Decls;
+  if (CheckCountExpr(S, FD, CountExpr, Decls))
+    return;
+
+  QualType CAT = S.BuildCountAttributedArrayType(FD->getType(), CountExpr);
+  FD->setType(CAT);
 }
 
 static void handleFunctionReturnThunksAttr(Sema &S, Decl *D,
@@ -12838,7 +12814,7 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     break;
 
   case ParsedAttr::AT_CountedBy:
-    handleCountedByAttr(S, D, AL);
+    handleCountedByAttrField(S, D, AL);
     break;
 
   // Microsoft attributes:
