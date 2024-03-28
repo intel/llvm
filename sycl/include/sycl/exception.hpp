@@ -74,21 +74,13 @@ public:
 
   exception(std::error_code, const char *Msg);
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   exception(std::error_code Ec, const std::string &Msg)
       : exception(Ec, nullptr, Msg.c_str()) {}
-#else
-  exception(std::error_code, const std::string &Msg);
-#endif
 
   // new SYCL 2020 constructors
   exception(std::error_code);
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   exception(int EV, const std::error_category &ECat, const std::string &WhatArg)
       : exception(EV, ECat, WhatArg.c_str()) {}
-#else
-  exception(int, const std::error_category &, const std::string &);
-#endif
   exception(int, const std::error_category &, const char *);
   exception(int, const std::error_category &);
 
@@ -137,16 +129,11 @@ protected:
   // base constructor for all SYCL 2020 constructors
   // exception(context *ctxPtr, std::error_code Ec, const std::string
   // &what_arg);
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
             const std::string &what_arg)
       : exception(Ec, SharedPtrCtx, what_arg.c_str()) {}
   exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
             const char *WhatArg);
-#else
-  exception(std::error_code Ec, std::shared_ptr<context> SharedPtrCtx,
-            const std::string &what_arg);
-#endif
 };
 
 class __SYCL2020_DEPRECATED(

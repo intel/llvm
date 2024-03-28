@@ -15,10 +15,8 @@
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/pi.h>
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
-#endif
 #include <sycl/detail/util.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
@@ -221,17 +219,10 @@ public:
   /// type associated with the param parameter.
   ///
   /// \return device info of type described in Table 4.20.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
   typename detail::is_device_info_desc<Param>::return_type get_info() const {
     return detail::convert_from_abi_neutral(get_info_impl<Param>());
   }
-#else
-  template <typename Param>
-  detail::ABINeutralT_t<
-      typename detail::is_device_info_desc<Param>::return_type>
-  get_info() const;
-#endif
 
   /// Check SYCL extension support by device
   ///
@@ -370,12 +361,10 @@ private:
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
   typename detail::ABINeutralT_t<
       typename detail::is_device_info_desc<Param>::return_type>
   get_info_impl() const;
-#endif
 };
 
 } // namespace _V1
