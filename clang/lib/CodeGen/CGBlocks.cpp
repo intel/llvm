@@ -965,7 +965,7 @@ llvm::Value *CodeGenFunction::EmitBlockLiteral(const CGBlockInfo &blockInfo) {
     } else if (type->getAs<ReferenceType>()) {
       Builder.CreateStore(src.emitRawPointer(*this), blockField);
 
-      // If type is const-qualified, copy the value into the block field.
+     // If type is const-qualified, copy the value into the block field.
     } else if (type.isConstQualified() &&
                type.getObjCLifetime() == Qualifiers::OCL_Strong &&
                CGM.getCodeGenOpts().OptimizationLevel != 0) {

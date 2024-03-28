@@ -2922,7 +2922,7 @@ Address CodeGenFunction::EmitFieldSYCLAnnotations(const FieldDecl *D,
                                                   Address Addr) {
   const auto *SYCLAnnotAttr = D->getAttr<SYCLAddIRAnnotationsMemberAttr>();
   assert(SYCLAnnotAttr && "no add_ir_annotations_member attribute");
-  llvm::Value *V = Addr.getPointer();
+  llvm::Value *V = Addr.emitRawPointer(*this);
   llvm::Type *VTy = V->getType();
   auto *PTy = dyn_cast<llvm::PointerType>(VTy);
   unsigned AS = PTy ? PTy->getAddressSpace() : 0;
@@ -2949,7 +2949,7 @@ Address CodeGenFunction::EmitIntelFPGAFieldAnnotations(const FieldDecl *D,
 Address CodeGenFunction::EmitIntelFPGAFieldAnnotations(SourceLocation Location,
                                                        Address Addr,
                                                        StringRef AnnotStr) {
-  llvm::Value *V = Addr.getPointer();
+  llvm::Value *V = Addr.emitRawPointer(*this);
   llvm::Type *VTy = V->getType();
   // llvm.ptr.annotation intrinsic accepts a pointer to integer of any width -
   // don't perform bitcasts if value is integer

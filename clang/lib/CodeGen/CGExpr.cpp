@@ -4093,7 +4093,7 @@ static Address emitArraySubscriptGEP(CodeGenFunction &CGF, Address addr,
     addr = emitArraySubscriptGEP(CGF, addr, indices,
                                  CGF.ConvertTypeForMem(eltType), inbounds,
                                  signedIndices, loc, eltAlign, name);
-    AddIVDepMetadata(CGF, arrayDecl, eltPtr);
+    AddIVDepMetadata(CGF, arrayDecl, addr.emitRawPointer(CGF));
     return addr;
   } else {
     // Remember the original array subscript for bpf target
