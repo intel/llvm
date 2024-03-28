@@ -99,19 +99,19 @@ public:
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   exception(context Ctx, std::error_code Ec, const std::string &WhatArg)
-      : exception(EC, std::make_shared<context>(Ctx), WhatArg.c_str()) {}
+      : exception(Ec, std::make_shared<context>(Ctx), WhatArg.c_str()) {}
   exception(context Ctx, int EV, const std::error_category &ECat,
             const std::string &WhatArg)
       : exception(Ctx, {EV, ECat}, WhatArg) {}
 #else
   exception(context Ctx, std::error_code Ec, const std::string &Str);
-  exception(context, std::error_code, const char *);
-  exception(context, std::error_code);
   exception(context Ctx, int, const std::error_category &Ec,
             const std::string &Str);
+#endif
+  exception(context, std::error_code, const char *);
+  exception(context, std::error_code);
   exception(context, int, const std::error_category &, const char *);
   exception(context, int, const std::error_category &);
-#endif
 
   const std::error_code &code() const noexcept;
   const std::error_category &category() const noexcept;

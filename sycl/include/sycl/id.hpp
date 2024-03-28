@@ -9,10 +9,9 @@
 #pragma once
 
 #include <sycl/detail/array.hpp>              // for array
-#include <sycl/detail/common.hpp>             // for InitializedVal
+//#include <sycl/detail/common.hpp>             // for InitializedVal
 #include <sycl/detail/defines.hpp>            // for __SYCL_ASSUME_INT
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_DEPRECATED, __SYCL_A...
-#include <sycl/exception.hpp> // for make_error_code, errc, exce...
 #include <sycl/range.hpp>     // for range
 
 #include <stddef.h>    // for size_t
@@ -99,15 +98,15 @@ public:
   id(ParamTy<N, 3, const item<Dimensions, with_offset>> &item)
       : base(item.get_id(0), item.get_id(1), item.get_id(2)) {}
 
-  __SYCL_DEPRECATED("range() conversion is deprecated")
-  explicit operator range<Dimensions>() const {
-    range<Dimensions> result(
-        detail::InitializedVal<Dimensions, range>::template get<0>());
-    for (int i = 0; i < Dimensions; ++i) {
-      result[i] = this->get(i);
-    }
-    return result;
-  }
+  //__SYCL_DEPRECATED("range() conversion is deprecated")
+  explicit operator range<Dimensions>() const;// {
+  //   range<Dimensions> result(
+  //       detail::InitializedVal<Dimensions, range>::template get<0>());
+  //   for (int i = 0; i < Dimensions; ++i) {
+  //     result[i] = this->get(i);
+  //   }
+  //   return result;
+  // }
 
 #ifndef __SYCL_DISABLE_ID_TO_INT_CONV__
   /* Template operator is not allowed because it disables further type
@@ -349,27 +348,27 @@ id(size_t, size_t, size_t)->id<3>;
 #endif
 
 template <int Dims>
-__SYCL_DEPRECATED("use sycl::ext::oneapi::experimental::this_id() instead")
-id<Dims> this_id() {
-#ifdef __SYCL_DEVICE_ONLY__
-  return detail::Builder::getElement(detail::declptr<id<Dims>>());
-#else
-  throw sycl::exception(
-      sycl::make_error_code(sycl::errc::feature_not_supported),
-      "Free function calls are not supported on host");
-#endif
-}
+//__SYCL_DEPRECATED("use sycl::ext::oneapi::experimental::this_id() instead")
+id<Dims> this_id();// {
+// #ifdef __SYCL_DEVICE_ONLY__
+//   return detail::Builder::getElement(detail::declptr<id<Dims>>());
+// #else
+//   throw sycl::exception(
+//       sycl::make_error_code(sycl::errc::feature_not_supported),
+//       "Free function calls are not supported on host");
+// #endif
+// }
 
 namespace ext::oneapi::experimental {
-template <int Dims> id<Dims> this_id() {
-#ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::Builder::getElement(sycl::detail::declptr<id<Dims>>());
-#else
-  throw sycl::exception(
-      sycl::make_error_code(sycl::errc::feature_not_supported),
-      "Free function calls are not supported on host");
-#endif
-}
+template <int Dims> id<Dims> this_id();// {
+// #ifdef __SYCL_DEVICE_ONLY__
+//   return sycl::detail::Builder::getElement(sycl::detail::declptr<id<Dims>>());
+// #else
+//   throw sycl::exception(
+//       sycl::make_error_code(sycl::errc::feature_not_supported),
+//       "Free function calls are not supported on host");
+// #endif
+// }
 } // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl

@@ -11,6 +11,7 @@
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/device.hpp>
+#include <sycl/exception.hpp>
 
 #include <string>
 #include <vector>

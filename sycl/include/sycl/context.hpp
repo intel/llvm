@@ -36,7 +36,7 @@ namespace sycl {
 inline namespace _V1 {
 // Forward declarations
 class device;
-class platform;
+//class platform;
 
 namespace detail {
 class context_impl;

@@ -11,7 +11,7 @@
 #include <sycl/detail/pi.h>                    // for PI_ERROR_INVALID_VALUE
 #include <sycl/detail/property_helper.hpp>     // for DataLessPropKind, Pro...
 #include <sycl/detail/property_list_base.hpp>  // for PropertyListBase
-#include <sycl/exception.hpp>                  // for invalid_object_error
+//#include <sycl/exception.hpp>                  // for invalid_object_error
 #include <sycl/properties/property_traits.hpp> // for is_property
 
 #include <bitset>      // for bitset
@@ -45,9 +45,9 @@ public:
   }
 
   template <typename PropT> PropT get_property() const {
-    if (!has_property<PropT>())
-      throw sycl::invalid_object_error("The property is not found",
-                                       PI_ERROR_INVALID_VALUE);
+  //   if (!has_property<PropT>())
+  //     throw sycl::invalid_object_error("The property is not found",
+  //                                      PI_ERROR_INVALID_VALUE);
 
     return get_property_helper<PropT>();
   }
