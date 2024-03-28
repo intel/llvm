@@ -31,8 +31,6 @@
 
 #pragma once
 
-#include <sycl/sycl.hpp>
-
 #ifndef SYCL_EXT_ONEAPI_COMPLEX
 #define SYCL_EXT_ONEAPI_COMPLEX
 #endif
