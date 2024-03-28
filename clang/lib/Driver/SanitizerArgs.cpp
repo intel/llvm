@@ -1139,8 +1139,9 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       return;
     GPUSanitize = true;
   }
-  // SPIR sanitizer support is experimental and will pass a fixed set of flags
-  if (TC.getTriple().isSPIR()) {
+  // SPIR/SPIRV sanitizer support is experimental and will pass a fixed set of
+  // flags
+  if (TC.getTriple().isSPIROrSPIRV()) {
     if (Sanitizers.has(SanitizerKind::Address)) {
       CmdArgs.push_back("-fsanitize=address");
       CmdArgs.push_back("-fsanitize-address-use-after-return=never");
