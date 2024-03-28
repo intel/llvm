@@ -50,6 +50,8 @@ on:
         type: choice
         options:
           - 3
+permissions:
+  contents: read
 
 jobs:
   build:
