@@ -1326,8 +1326,6 @@ private:
                   "Kernel argument cannot have a sycl::nd_item type in "
                   "sycl::parallel_for with sycl::range");
 
-#if defined(SYCL2020_CONFORMANT_APIS) ||                                       \
-    defined(__INTEL_PREVIEW_BREAKING_CHANGES)
     static_assert(std::is_convertible_v<item<Dims>, LambdaArgType> ||
                       std::is_convertible_v<item<Dims, false>, LambdaArgType>,
                   "sycl::parallel_for(sycl::range) kernel must have the "
@@ -1340,7 +1338,6 @@ private:
          std::is_invocable_v<KernelType, RefLambdaArgType, kernel_handler>),
         "SYCL kernel lambda/functor has an unexpected signature, it should be "
         "invocable with sycl::item and optionally sycl::kernel_handler");
-#endif
 
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
@@ -1432,19 +1429,11 @@ private:
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
-#if defined(SYCL2020_CONFORMANT_APIS) ||                                       \
-    defined(__INTEL_PREVIEW_BREAKING_CHANGES)
     static_assert(
         std::is_convertible_v<sycl::nd_item<Dims>, LambdaArgType>,
         "Kernel argument of a sycl::parallel_for with sycl::nd_range "
         "must be either sycl::nd_item or be convertible from sycl::nd_item");
     using TransformedArgType = sycl::nd_item<Dims>;
-#else
-    // If user type is convertible from sycl::item/sycl::nd_item, use
-    // sycl::item/sycl::nd_item to transport item information
-    using TransformedArgType =
-        typename TransformUserItemType<Dims, LambdaArgType>::type;
-#endif
 
     (void)ExecutionRange;
     (void)Props;
