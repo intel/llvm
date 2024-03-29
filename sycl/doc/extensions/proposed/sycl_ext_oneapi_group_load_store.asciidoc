@@ -340,10 +340,10 @@ Consider 2 layouts:
 |{2, 5, 8, 11}
 |===
 
-This extention adds a property that satisfies
+This extension adds a property that satisfies
 link:../experimental/sycl_ext_oneapi_properties.asciidoc[SYCL Properties Extension]
 requirements to identify data_placement similar to
-link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc[`group_sort extention`]
+link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc[`group_sort extension`]
 `input_data_placement` and `output_data_placement`:
 [source,c++]
 ----
