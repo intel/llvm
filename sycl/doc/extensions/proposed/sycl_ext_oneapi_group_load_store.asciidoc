@@ -400,7 +400,7 @@ If `input` isn't a contiguous iterator, the behavior is undefined.
 
 ==== Groups partitioning
 
-The following property can be used as a hint that
+The following property can be used as an assertion that
 `get_local_range()` is equal to `get_max_local_range()`,
 which may enable more aggressive optimizations for some
 implementations.
