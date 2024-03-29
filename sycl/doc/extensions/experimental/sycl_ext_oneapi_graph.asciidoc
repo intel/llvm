@@ -1705,7 +1705,7 @@ link:../supported/sycl_ext_oneapi_enqueue_barrier.asciidoc[sycl_ext_oneapi_enque
 can only be used in graph nodes created using the Record & Replay API, as
 barriers rely on events to enforce dependencies. For barriers with an empty
 wait list parameter, the semantics are that the barrier node being added to
-will depend on all the existing graph leave nodes, not only the leave nodes
+will depend on all the existing graph leaf nodes, not only the leaf nodes
 that were added from the queue being recorded.
 
 A synchronous exception will be thrown with error code `invalid` if a user
