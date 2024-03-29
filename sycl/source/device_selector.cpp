@@ -303,12 +303,11 @@ int accelerator_selector::operator()(const device &dev) const {
 namespace ext::oneapi {
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-filter_selector::filter_selector(const char *Input)
+filter_selector::filter_selector(const char* Input)
 #else
 filter_selector::filter_selector(const std::string &Input)
 #endif
-    : impl(std::make_shared<detail::filter_selector_impl>(Input)) {
-}
+    : impl(std::make_shared<detail::filter_selector_impl>(Input)) {}
 
 int filter_selector::operator()(const device &Dev) const {
   return impl->operator()(Dev);
@@ -339,24 +338,23 @@ device filter_selector::select_device() const {
 } // namespace ext::oneapi
 
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
-  using namespace ext::oneapi;
+using namespace ext::oneapi;
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  filter_selector::filter_selector(const char *Input)
+filter_selector::filter_selector(const char* Input)
 #else
-  filter_selector::filter_selector(const std::string &Input)
+filter_selector::filter_selector(const std::string &Input)
 #endif
-      : ext::oneapi::filter_selector(Input) {
-  }
+  : ext::oneapi::filter_selector(Input) {}
 
-  int filter_selector::operator()(const device &Dev) const {
-    return ext::oneapi::filter_selector::operator()(Dev);
-  }
+int filter_selector::operator()(const device &Dev) const {
+  return ext::oneapi::filter_selector::operator()(Dev);
+}
 
-  void filter_selector::reset() const { ext::oneapi::filter_selector::reset(); }
+void filter_selector::reset() const { ext::oneapi::filter_selector::reset(); }
 
-  device filter_selector::select_device() const {
-    return ext::oneapi::filter_selector::select_device();
-  }
-} // namespace ONEAPI
+device filter_selector::select_device() const {
+  return ext::oneapi::filter_selector::select_device();
+}
+} // namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead")ONEAPI
 } // namespace _V1
 } // namespace sycl
