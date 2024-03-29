@@ -30,7 +30,7 @@ void check(const char *aspect_name, int aspect_val, int &n_fail) {
 int main() {
   int n_fail = 0;
 
-#define __SYCL_ASPECT(ASPECT, ASPECT_VAL) check(ASPECT, ASPECT_VAL, n_fail)
+#define __SYCL_ASPECT(ASPECT, ASPECT_VAL) check(#ASPECT, ASPECT_VAL, n_fail);
 #define __SYCL_ASPECT_DEPRECATED(ASPECT, ASPECT_VAL, MSG)                      \
   __SYCL_ASPECT(ASPECT, ASPECT_VAL)
 #define __SYCL_ASPECT_DEPRECATED_ALIAS(ASPECT, ID, MESSAGE)
