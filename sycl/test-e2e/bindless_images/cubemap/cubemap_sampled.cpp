@@ -1,6 +1,4 @@
-// REQUIRES: linux
-// REQUIRES: cuda
-// REQUIRES: aspect-ext_oneapi_cubemap
+// REQUIRES: linux,cuda,aspect-ext_oneapi_cubemap
 // REQUIRES: aspect-ext_oneapi_cubemap_seamless_filtering
 
 // RUN: %{build} -o %t.out
@@ -9,7 +7,7 @@
 #include <iostream>
 #include <sycl/sycl.hpp>
 
-// Uncomment to print additional test information
+// Uncomment to print additional test information.
 // #define VERBOSE_PRINT
 
 class sample_cubemap;
@@ -22,8 +20,8 @@ int main() {
   sycl::queue q(dev);
   auto ctxt = q.get_context();
 
-  // declare image data
-  // width and height must be equal
+  // Declare image data.
+  // Width and height must be equal.
   size_t width = 8;
   size_t height = 8;
   size_t N = width * height;
@@ -45,7 +43,7 @@ int main() {
     j++;
   }
 
-  // Extension: image descriptor - Cubemap
+  // Extension: image descriptor - Cubemap.
   syclexp::image_descriptor desc(
       {width, height}, sycl::image_channel_order::rgba,
       sycl::image_channel_type::fp32, syclexp::image_type::cubemap, 1, 6);
@@ -56,14 +54,14 @@ int main() {
       sycl::filtering_mode::nearest, syclexp::cubemap_filtering_mode::seamless);
 
   try {
-    // Extension: allocate memory on device and create the handle
+    // Extension: allocate memory on device and create the handle.
     syclexp::image_mem imgMem(desc, dev, ctxt);
 
-    // Extension: create the image and return the handle
+    // Extension: create the image and return the handle.
     syclexp::sampled_image_handle imgHandle =
         syclexp::create_image(imgMem, samp, desc, dev, ctxt);
 
-    // Extension: copy over data to device (handler variant)
+    // Extension: copy over data to device (handler variant).
     q.submit([&](sycl::handler &cgh) {
       cgh.ext_oneapi_copy(dataIn1.data(), imgMem.get_handle(), desc);
     });
@@ -75,7 +73,7 @@ int main() {
       auto outAcc = buf.get_access<sycl::access_mode::write>(
           cgh, sycl::range<2>{height, width});
 
-      // Emanating vector scans one face
+      // Emanating vector scans one face.
       cgh.parallel_for<sample_cubemap>(
           sycl::nd_range<2>{{width, height}, {width, height}},
           [=](sycl::nd_item<2> it) {
@@ -106,7 +104,7 @@ int main() {
     });
     q.wait_and_throw();
 
-    // Extension: cleanup
+    // Extension: cleanup.
     syclexp::destroy_image_handle(imgHandle, dev, ctxt);
   } catch (sycl::exception e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";
@@ -116,7 +114,7 @@ int main() {
     return 2;
   }
 
-  // collect and validate output
+  // Collect and validate output.
   bool validated = true;
   for (int i = 0; i < N; i++) {
     bool mismatch = false;

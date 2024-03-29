@@ -1,6 +1,4 @@
-// REQUIRES: linux
-// REQUIRES: cuda
-// REQUIRES: aspect-ext_oneapi_cubemap
+// REQUIRES: linux,cuda,aspect-ext_oneapi_cubemap
 
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %t.out
@@ -13,12 +11,12 @@
 
 static sycl::device dev;
 
-// Uncomment to print additional test information
+// Uncomment to print additional test information.
 // #define VERBOSE_PRINT
 
 namespace syclexp = sycl::ext::oneapi::experimental;
 
-// Helpers and utilities
+// Helpers and utilities.
 struct util {
   template <typename DType, int NChannels, typename KernelName>
   static void run_ndim_test(sycl::queue q, sycl::range<3> globalSize,
@@ -76,7 +74,7 @@ bool run_test(sycl::range<2> dims, sycl::range<3> localSize,
 
   sycl::queue q(dev);
 
-  // skip half tests if not supported
+  // Skip half tests if not supported.
   if constexpr (std::is_same_v<DType, sycl::half>) {
     if (!dev.has(sycl::aspect::fp16)) {
 #ifdef VERBOSE_PRINT
@@ -102,7 +100,7 @@ bool run_test(sycl::range<2> dims, sycl::range<3> localSize,
     syclexp::image_descriptor desc(dims, COrder, CType,
                                    syclexp::image_type::cubemap, 1, 6);
 
-    // Extension: allocate memory on device and create the handle
+    // Extension: allocate memory on device and create the handle.
     syclexp::image_mem img_mem_0(desc, q);
     syclexp::image_mem img_mem_1(desc, q);
     syclexp::image_mem img_mem_2(desc, q);
@@ -111,7 +109,7 @@ bool run_test(sycl::range<2> dims, sycl::range<3> localSize,
     auto img_input_1 = syclexp::create_image(img_mem_1, desc, q);
     auto img_output = syclexp::create_image(img_mem_2, desc, q);
 
-    // Extension: copy over data to device
+    // Extension: copy over data to device.
     q.ext_oneapi_copy(input_0.data(), img_mem_0.get_handle(), desc);
     q.ext_oneapi_copy(input_1.data(), img_mem_1.get_handle(), desc);
     q.wait();
@@ -124,7 +122,7 @@ bool run_test(sycl::range<2> dims, sycl::range<3> localSize,
       q.wait();
     }
 
-    // Cleanup
+    // Cleanup.
     syclexp::destroy_image_handle(img_input_0, q);
     syclexp::destroy_image_handle(img_input_1, q);
     syclexp::destroy_image_handle(img_output, q);
@@ -136,7 +134,7 @@ bool run_test(sycl::range<2> dims, sycl::range<3> localSize,
     exit(-1);
   }
 
-  // collect and validate output
+  // Collect and validate output.
   bool validated = true;
   for (int i = 0; i < num_elems; i++) {
     for (int j = 0; j < NChannels; ++j) {

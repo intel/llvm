@@ -1204,7 +1204,7 @@ DataT sample_cubemap(const sampled_image_handle &imageHandle [[maybe_unused]],
  *  @param   color The data to write
  */
 template <typename DataT, typename CoordT>
-void write_image(unsampled_image_handle &imageHandle [[maybe_unused]],
+void write_image(unsampled_image_handle imageHandle [[maybe_unused]],
                  const CoordT &coords [[maybe_unused]],
                  const DataT &color [[maybe_unused]]) {
   detail::assert_unsampled_coords<CoordT>();
@@ -1239,7 +1239,7 @@ void write_image(unsampled_image_handle &imageHandle [[maybe_unused]],
  *  @param   color The data to write
  */
 template <typename DataT, typename CoordT>
-void write_image_array(unsampled_image_handle &imageHandle [[maybe_unused]],
+void write_image_array(unsampled_image_handle imageHandle [[maybe_unused]],
                        const CoordT &coords [[maybe_unused]],
                        const int arrayLayer [[maybe_unused]],
                        const DataT &color [[maybe_unused]]) {
@@ -1275,9 +1275,8 @@ void write_image_array(unsampled_image_handle &imageHandle [[maybe_unused]],
  *  @param   color The data to write
  */
 template <typename DataT>
-void write_cubemap(unsampled_image_handle &imageHandle,
-                   const sycl::int2 &coords, const int face,
-                   const DataT &color) {
+void write_cubemap(unsampled_image_handle imageHandle, const sycl::int2 &coords,
+                   const int face, const DataT &color) {
   return write_image_array(imageHandle, coords, face, color);
 }
 

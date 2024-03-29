@@ -99,7 +99,7 @@ int main() {
               << mipmapLevelReferenceSupport << "\n";
 #endif
 
-    // Extension: query for bindless image cubemaps support -- aspects
+    // Extension: query for bindless image cubemaps support -- aspects.
     bool cubemapSupport = dev.has(sycl::aspect::ext_oneapi_cubemap);
     bool cubemapSeamlessFilterSupport =
         dev.has(sycl::aspect::ext_oneapi_cubemap_seamless_filtering);
