@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc || gpu-intel-dg2
-// TODO : Test uses 'kernel_bundle' that is not supported in ESIMD_EMULATOR
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -15,6 +14,7 @@
 #include <iostream>
 #include <stdlib.h>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/ext/intel/experimental/grf_size_properties.hpp>
 #include <sycl/sycl.hpp>
 
 class Test;
@@ -62,18 +62,16 @@ int main(void) {
 
   nd_range<1> Range(range<1>{GlobalRange}, range<1>{LocalRange});
 
-  std::vector<kernel_id> kernelId1 = {get_kernel_id<Test>()};
-  setenv("SYCL_PROGRAM_COMPILE_OPTIONS", "-vc-codegen -doubleGRF", 1);
-  auto inputBundle1 = get_kernel_bundle<bundle_state::input>(ctxt, kernelId1);
-  auto exeBundle1 = build(inputBundle1);
+  sycl::ext::oneapi::experimental::properties prop{
+      sycl::ext::intel::experimental::grf_size<256>};
   try {
     q.submit([&](handler &cgh) {
-       cgh.use_kernel_bundle(exeBundle1);
-       cgh.parallel_for<Test>(Range, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
-         atomic_add_float(A, 1);
-         simd_mask<16> M({0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1});
-         atomic_add_float(C, M);
-       });
+       cgh.parallel_for<Test>(
+           Range, prop, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+             atomic_add_float(A, 1);
+             simd_mask<16> M({0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1});
+             atomic_add_float(C, M);
+           });
      }).wait();
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';

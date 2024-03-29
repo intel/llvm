@@ -1127,6 +1127,12 @@ public:
     return WrapFlags.HasNSW;
   }
 
+  bool isDisjoint() const {
+    assert(OpType == OperationType::DisjointOp &&
+           "recipe cannot have a disjoing flag");
+    return DisjointFlags.IsDisjoint;
+  }
+
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
   void printFlags(raw_ostream &O) const;
 #endif
@@ -2136,6 +2142,8 @@ public:
     assert(isPredicated() && "Trying to get the mask of a unpredicated recipe");
     return getOperand(getNumOperands() - 1);
   }
+
+  unsigned getOpcode() const { return getUnderlyingInstr()->getOpcode(); }
 };
 
 /// A recipe for generating conditional branches on the bits of a mask.
@@ -2992,13 +3000,11 @@ public:
     Value2VPValue[V] = VPV;
   }
 
-  /// Returns the VPValue for \p V. \p OverrideAllowed can be used to disable
-  ///   /// checking whether it is safe to query VPValues using IR Values.
-  VPValue *getVPValue(Value *V, bool OverrideAllowed = false) {
+  /// Returns the VPValue for \p V.
+  VPValue *getVPValue(Value *V) {
     assert(V && "Trying to get the VPValue of a null Value");
     assert(Value2VPValue.count(V) && "Value does not exist in VPlan");
-    assert((Value2VPValueEnabled || OverrideAllowed ||
-            Value2VPValue[V]->isLiveIn()) &&
+    assert((Value2VPValueEnabled || Value2VPValue[V]->isLiveIn()) &&
            "Value2VPValue mapping may be out of date!");
     return Value2VPValue[V];
   }

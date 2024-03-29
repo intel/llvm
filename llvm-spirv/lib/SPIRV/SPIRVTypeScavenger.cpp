@@ -617,6 +617,12 @@ void SPIRVTypeScavenger::typeGlobalValue(GlobalValue &GV, Constant *Init) {
       auto It = DeducedTypes.find(C);
       if (It != DeducedTypes.end())
         return It->second;
+    } else if (auto *GEP = dyn_cast<GEPOperator>(C)) {
+      auto *ResultTy =
+          TypedPointerType::get(GEP->getResultElementType(),
+                                GEP->getType()->getPointerAddressSpace());
+      DeducedTypes[C] = ResultTy;
+      return ResultTy;
     }
 
     return getUnknownTyped(C->getType());

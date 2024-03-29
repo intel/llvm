@@ -132,6 +132,9 @@ on:
           - false
           - true
 
+permissions:
+  contents: read
+
 jobs:
   run:
     name: ${{ inputs.name }}
@@ -268,12 +271,19 @@ jobs:
       run: |
         cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DSYCL_TEST_E2E_TARGETS="${{ inputs.target_devices }}" -DCMAKE_CXX_COMPILER="$(which clang++)" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
     - name: SYCL End-to-end tests
+      shell: bash {0}
       if: inputs.tests_selector == 'e2e'
       env:
         LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests ${{ inputs.extra_lit_opts }}
       run: |
-        ninja -C build-e2e check-sycl-e2e
-
+        ninja -C build-e2e check-sycl-e2e > e2e.log 2>&1
+        exit_code=$?
+        cat e2e.log
+        if [ $exit_code -ne 0 ]; then
+          # TODO: XPASS/UNRESOLVED
+          awk '/^Failed Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
+        fi
+        exit $exit_code
     - name: Build SYCL CTS tests
       if: inputs.tests_selector == 'cts'
       env:

@@ -11,7 +11,7 @@
 //
 // Uses -fsycl-host-compiler=<compiler> on a simple test, requires 'g++'
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #ifndef DEFINE_CHECK
 #error predefined macro not set

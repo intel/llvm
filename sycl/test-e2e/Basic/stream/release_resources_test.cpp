@@ -6,7 +6,9 @@
 
 // Check that buffer used by a stream object is released.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/stream.hpp>
 
 using namespace sycl;
 
