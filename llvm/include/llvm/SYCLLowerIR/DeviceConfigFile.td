@@ -110,34 +110,6 @@ class TargetInfo<string targetName, list<Aspect> aspectList, list<int> subGroupS
   string aotToolchainOptions = options;
 }
 
-// This definition serves the only purpose of testing whether the aspect list defined in here and in SYCL RT match.
-def : TargetInfo<"__TestAspectList",
-    [AspectCpu, AspectGpu, AspectAccelerator, AspectCustom, AspectFp16, AspectFp64, AspectImage, AspectOnline_compiler, 
-    AspectOnline_linker, AspectQueue_profiling, AspectUsm_device_allocations, AspectUsm_host_allocations,
-    AspectUsm_shared_allocations, AspectUsm_system_allocations, AspectExt_intel_pci_address,
-    AspectExt_intel_gpu_eu_count, AspectExt_intel_gpu_eu_simd_width, AspectExt_intel_gpu_slices,
-    AspectExt_intel_gpu_subslices_per_slice, AspectExt_intel_gpu_eu_count_per_subslice,
-    AspectExt_intel_max_mem_bandwidth, AspectExt_intel_mem_channel, AspectUsm_atomic_host_allocations,
-    AspectUsm_atomic_shared_allocations, AspectAtomic64, AspectExt_intel_device_info_uuid, AspectExt_oneapi_srgb,
-    AspectExt_oneapi_native_assert, AspectHost_debuggable, AspectExt_intel_gpu_hw_threads_per_eu,
-    AspectExt_oneapi_cuda_async_barrier, AspectExt_oneapi_bfloat16_math_functions, AspectExt_intel_free_memory,
-    AspectExt_intel_device_id, AspectExt_intel_memory_clock_rate, AspectExt_intel_memory_bus_width, AspectEmulated,
-    AspectExt_intel_legacy_image, AspectExt_oneapi_bindless_images,
-    AspectExt_oneapi_bindless_images_shared_usm, AspectExt_oneapi_bindless_images_1d_usm, AspectExt_oneapi_bindless_images_2d_usm,
-    AspectExt_oneapi_interop_memory_import, AspectExt_oneapi_interop_memory_export,
-    AspectExt_oneapi_interop_semaphore_import, AspectExt_oneapi_interop_semaphore_export,
-    AspectExt_oneapi_mipmap, AspectExt_oneapi_mipmap_anisotropy, AspectExt_oneapi_mipmap_level_reference, AspectExt_intel_esimd,
-    AspectExt_oneapi_ballot_group, AspectExt_oneapi_fixed_size_group, AspectExt_oneapi_opportunistic_group,
-    AspectExt_oneapi_tangle_group, AspectExt_intel_matrix, AspectExt_oneapi_is_composite, AspectExt_oneapi_is_component,
-    AspectExt_oneapi_graph, AspectExt_intel_fpga_task_sequence, AspectExt_oneapi_limited_graph],
-    []>;
-// This definition serves the only purpose of testing whether the deprecated aspect list defined in here and in SYCL RT
-// match.
-def : TargetInfo<"__TestDeprecatedAspectList",
-    [AspectInt64_base_atomics, AspectInt64_extended_atomics, AspectUsm_system_allocator,
-    AspectUsm_restricted_shared_allocations, AspectHost],
-    []>;
-
 def : TargetInfo<"spir64", [], [], "", "", 1>;
 def : TargetInfo<"spir64_gen", [], [], "", "", 1>;
 def : TargetInfo<"spir64_x86_64", [], [], "", "", 1>;
