@@ -370,7 +370,7 @@ Example:
 
 === Optimization Hints
 
-anchor:optimization_hints[]
+anchor:optimization_properties[]
 
 ==== Contiguous memory
 
