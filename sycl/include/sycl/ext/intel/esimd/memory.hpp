@@ -620,7 +620,7 @@ gather(const Tx *p, Toffset offset, simd_mask<N> mask = 1) {
 /// 	PropertyListT props = {});                         // (usm-sc-2)
 
 /// The next two functions are similar to usm-sc-{1,2} with the 'byte_offsets'
-/// parameter represerented as 'simd_view'.
+/// parameter represented as 'simd_view'.
 
 /// template <typename T, int N, int VS = 1, typename OffsetSimdViewT,
 /// 	  typename PropertyListT = empty_properties_t>
@@ -2336,25 +2336,20 @@ block_store(AccessorT acc, detail::DeviceAccessorOffsetT byte_offset,
           DefaultLSCAlignment);
   constexpr bool AlignmentRequiresLSC =
       PropertyListT::template has_property<alignment_key>() && Alignment < 16;
+  using Tx = detail::__raw_t<T>;
+  constexpr unsigned Sz = sizeof(Tx) * N;
+  constexpr bool SzRequiresLSC =
+      Sz < detail::OperandSize::OWORD || Sz % detail::OperandSize::OWORD != 0 ||
+      !detail::isPowerOf2(Sz / detail::OperandSize::OWORD) ||
+      Sz > 8 * detail::OperandSize::OWORD;
   if constexpr (detail::has_cache_hints<PropertyListT>() ||
-                AlignmentRequiresLSC) {
+                AlignmentRequiresLSC || SzRequiresLSC) {
     using NewPropertyListT =
         detail::add_alignment_property_t<PropertyListT, DefaultLSCAlignment>;
     simd_mask<1> Mask = 1;
     detail::block_store_impl<T, N, NewPropertyListT>(acc, byte_offset, vals,
                                                      Mask);
   } else {
-    using Tx = detail::__raw_t<T>;
-    constexpr unsigned Sz = sizeof(Tx) * N;
-    static_assert(Sz >= detail::OperandSize::OWORD,
-                  "block size must be at least 1 oword");
-    static_assert(Sz % detail::OperandSize::OWORD == 0,
-                  "block size must be whole number of owords");
-    static_assert(detail::isPowerOf2(Sz / detail::OperandSize::OWORD),
-                  "block must be 1, 2, 4 or 8 owords long");
-    static_assert(Sz <= 8 * detail::OperandSize::OWORD,
-                  "block size must be at most 8 owords");
-
     auto surf_ind = __esimd_get_surface_index(
         detail::AccessorPrivateProxy::getQualifiedPtrOrImageObj(acc));
     __esimd_oword_st<Tx, N>(surf_ind, byte_offset >> 4, vals.data());
@@ -2941,6 +2936,320 @@ prefetch_impl(AccessorTy acc, OffsetT byte_offset, simd_mask<1> pred) {
                            Transposed, N>(pred.data(), offsets.data(), SI);
 }
 #endif // __ESIMD_FORCE_STATELESS_MEM
+
+// Compute the data size for 2d block load or store.
+template <typename T, int NBlocks, int Height, int Width, bool Transposed,
+          bool Transformed>
+constexpr int get_lsc_block_2d_data_size() {
+  if constexpr (Transformed)
+    return roundUpNextMultiple<Height, 4 / sizeof(T)>() *
+           getNextPowerOf2<Width>() * NBlocks;
+  return Width * Height * NBlocks;
+}
+
+#ifndef __ESIMD_DWORD_BLOCK_2D_WIDTH_SCALE
+#define __ESIMD_DWORD_BLOCK_2D_WIDTH_SCALE (1)
+#endif
+
+#ifndef __ESIMD_BLOCK_2D_WIDTH_CHECK
+#define __ESIMD_BLOCK_2D_WIDTH_CHECK(OP, BLOCK_WIDTH, NBLOCKS, SIZE)           \
+  static_assert((BLOCK_WIDTH) * (NBLOCKS) * (SIZE) <= 64,                      \
+                "Unsupported block width");
+#endif
+
+enum class block_2d_op { prefetch, load, store };
+
+// Compile-time checks for lsc_load_2d/prefetch_2d/store_2d restrictions.
+template <typename T, int BlockWidth, int BlockHeight, int NBlocks,
+          bool Transposed, bool Transformed, block_2d_op Op>
+constexpr void check_lsc_block_2d_restrictions() {
+  constexpr int GRFByteSize = BlockWidth * BlockHeight * NBlocks * sizeof(T);
+  static_assert(BlockWidth > 0, "Block width must be positive");
+  static_assert(BlockHeight > 0, "Block height must be positive");
+  // Restrictions based on documentation.
+  if constexpr (Op == block_2d_op::store)
+    static_assert(GRFByteSize <= 512, "2D store supports 512 bytes max");
+  else
+    static_assert(GRFByteSize <= 2048,
+                  "2D load/prefetch supports 2048 bytes max");
+  static_assert(!Transposed || !Transformed,
+                "Transposed and transformed is not supported");
+  static_assert((sizeof(T) * BlockWidth) % 4 == 0,
+                "Block width must be aligned by DW");
+  if constexpr (Transposed) {
+    static_assert(NBlocks == 1, "Transposed expected to be 1 block only");
+    static_assert(sizeof(T) == 4 || sizeof(T) == 8,
+                  "Transposed load is supported only for data size u32 or u64");
+    static_assert(sizeof(T) == 8 ? BlockHeight == 8
+                                 : BlockHeight >= 1 && BlockHeight <= 32,
+                  "Unsupported block height");
+    static_assert(sizeof(T) == 8
+                      ? __ESIMD_DNS::isPowerOf2(BlockWidth, 4)
+                      : BlockWidth >= 1 &&
+                            BlockWidth <=
+                                8 * __ESIMD_DWORD_BLOCK_2D_WIDTH_SCALE,
+                  "Unsupported block width");
+  } else if constexpr (Transformed) {
+    static_assert(sizeof(T) == 1 || sizeof(T) == 2,
+                  "VNNI transform is supported only for data size u8 or u16");
+    static_assert(__ESIMD_DNS::isPowerOf2(NBlocks, 4),
+                  "Unsupported number of blocks");
+    static_assert(BlockHeight * sizeof(T) >= 4 && BlockHeight <= 32,
+                  "Unsupported block height");
+    static_assert(BlockWidth * sizeof(T) >= 4 && BlockWidth <= 16 &&
+                      BlockWidth * NBlocks * sizeof(T) <= 64,
+                  "Unsupported block width");
+  } else {
+    if constexpr (Op == block_2d_op::store) {
+      static_assert(NBlocks == 1, "Unsupported number of blocks for 2D store");
+      static_assert(BlockHeight <= 8, "Unsupported block height for store");
+    } else {
+      static_assert(
+          __ESIMD_DNS::isPowerOf2(NBlocks, sizeof(T) == 1 ? 4 : 8 / sizeof(T)),
+          "Unsupported number of blocks for 2D load/prefetch");
+      static_assert(BlockHeight <= 32, "Unsupported block height for load");
+    }
+    static_assert(BlockWidth * sizeof(T) >= 4, "Unsupported block width");
+    __ESIMD_BLOCK_2D_WIDTH_CHECK(Op, BlockWidth, NBlocks, sizeof(T));
+  }
+}
+#undef __ESIMD_DWORD_BLOCK_2D_WIDTH_SCALE
+#undef __ESIMD_BLOCK_2D_WIDTH_CHECK
+
+/// 2D USM pointer block load.
+/// Supported platforms: PVC
+/// VISA instruction: lsc_load_block2d.ugm
+///
+/// Collects elements located at specified address and returns them
+/// as a single \ref simd object.
+///
+/// @tparam T is element type.
+/// @tparam BlockWidth is the block width in number of elements.
+/// @tparam BlockHeight is the block height in number of elements.
+/// @tparam NBlocks is the number of blocks.
+/// @tparam Transposed is the transposed version or not.
+/// @tparam Transformed is apply VNNI transform or not.
+/// @tparam PropertyListT The compile-time properties. Only cache hint
+/// properties are used.
+/// @tparam N is the data size
+/// @param Ptr is the surface base address for this operation.
+/// @param SurfaceWidth is the surface width minus 1 in bytes
+/// @param SurfaceHeight is the surface height minus 1 in rows
+/// @param SurfacePitch is the surface pitch minus 1 in bytes
+/// @param X is zero based X-coordinate of the left upper rectangle corner in
+/// number of elements.
+/// @param Y is zero based Y-coordinate of the left upper rectangle corner in
+/// rows.
+/// @return is a vector of type T and size N, where N is
+///  BlockWidth * BlockHeight * NBlocks, if transformed;
+///  otherwise,
+///  N = roundUpNextMultiple(BlockHeight, 4 / sizeof(T)) *
+///   getNextPowerOf2(BlockWidth) * NBlocks
+///
+template <
+    typename T, int BlockWidth, int BlockHeight, int NBlocks, bool Transposed,
+    bool Transformed, typename PropertyListT,
+    int N = get_lsc_block_2d_data_size<__raw_t<T>, NBlocks, BlockHeight,
+                                       BlockWidth, Transposed, Transformed>()>
+__ESIMD_API simd<T, N> load_2d_impl(const T *Ptr, unsigned SurfaceWidth,
+                                    unsigned SurfaceHeight,
+                                    unsigned SurfacePitch, int X, int Y) {
+
+  check_cache_hints<cache_action::load, PropertyListT>();
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  using RawT = __raw_t<T>;
+  check_lsc_block_2d_restrictions<RawT, BlockWidth, BlockHeight, NBlocks,
+                                  Transposed, Transformed, block_2d_op::load>();
+  // For Load BlockWidth is padded up to the next power-of-two value.
+  // For Load with Transpose the pre-operation BlockHeight is padded up
+  // to the next power-of-two value.
+  // For Load with Transform pre-operation BlockHeight is padded up to
+  // multiple of K, where K = 4B / sizeof(T).
+  constexpr int ElemsPerDword = 4 / sizeof(RawT);
+  constexpr int GRFRowSize = Transposed    ? BlockHeight
+                             : Transformed ? BlockWidth * ElemsPerDword
+                                           : BlockWidth;
+  constexpr int GRFRowPitch = getNextPowerOf2<GRFRowSize>();
+  constexpr int GRFColSize =
+      Transposed
+          ? BlockWidth
+          : (Transformed ? (BlockHeight + ElemsPerDword - 1) / ElemsPerDword
+                         : BlockHeight);
+  constexpr int GRFBlockSize = GRFRowPitch * GRFColSize;
+  constexpr int GRFBlockPitch =
+      roundUpNextMultiple<64 / sizeof(RawT), GRFBlockSize>();
+  constexpr int ActualN = NBlocks * GRFBlockPitch;
+
+  constexpr int DstBlockElements = GRFColSize * GRFRowSize;
+  constexpr int DstElements = DstBlockElements * NBlocks;
+
+  static_assert(N == ActualN || N == DstElements, "Incorrect element count");
+  simd_mask<ActualN> Mask = 1;
+  constexpr lsc_data_size DS =
+      finalize_data_size<RawT, lsc_data_size::default_size>();
+  uintptr_t Addr = reinterpret_cast<uintptr_t>(Ptr);
+  constexpr lsc_data_order Transpose =
+      Transposed ? lsc_data_order::transpose : lsc_data_order::nontranspose;
+  simd<RawT, ActualN> Raw =
+      __esimd_lsc_load2d_stateless<RawT, L1H, L2H, DS, Transpose, NBlocks,
+                                   BlockWidth, BlockHeight, Transformed,
+                                   ActualN>(Mask.data(), Addr, SurfaceWidth,
+                                            SurfaceHeight, SurfacePitch, X, Y);
+
+  if constexpr (ActualN == N) {
+    return Raw;
+  } else {
+    // HW restrictions force data which is read to contain padding filled with
+    // zeros for 2d lsc loads. This code eliminates such padding.
+
+    // For example, 2D block load of 5 elements of 1 byte data type will
+    // take 8 bytes per row for each block.
+    //
+    // +----+----+----+----+----+----+-----+-----+
+    // | 00 | 01 | 02 | 03 | 04 | 05 | 06* | 07* |
+    // +----+----+----+----+----+----+-----+-----+
+    // | 10 | 11 | 12 | 13 | 14 | 15 | 16* | 17* |
+    // +----+----+----+----+----+----+-----+-----+
+    // | 20 | 21 | 22 | 23 | 24 | 25 | 26* | 27* |
+    // +----+----+----+----+----+----+-----+-----+
+    // | 30 | 31 | 32 | 33 | 34 | 35 | 36* | 37* |
+    // +----+----+----+----+----+----+-----+-----+
+    // * signifies the padded element.
+
+    simd<RawT, DstElements> Dst;
+
+    for (auto i = 0; i < NBlocks; i++) {
+      auto DstBlock =
+          Dst.template select<DstBlockElements, 1>(i * DstBlockElements);
+
+      auto RawBlock = Raw.template select<GRFBlockSize, 1>(i * GRFBlockPitch);
+      DstBlock =
+          RawBlock.template bit_cast_view<RawT, GRFColSize, GRFRowPitch>()
+              .template select<GRFColSize, 1, GRFRowSize, 1>(0, 0)
+              .template bit_cast_view<RawT>();
+    }
+
+    return Dst;
+  }
+}
+
+/// 2D USM pointer block prefetch.
+/// Supported platforms: PVC
+/// VISA instruction: lsc_load_block2d.ugm
+///
+/// Prefetches elements located at specified address.
+///
+/// @tparam T is element type.
+/// @tparam BlockWidth is the block width in number of elements.
+/// @tparam BlockHeight is the block height in number of elements.
+/// @tparam NBlocks is the number of blocks.
+/// @tparam PropertyListT The compile-time properties. Only cache hint
+/// properties are used.
+/// @tparam N is the data size
+/// @param Ptr is the surface base address for this operation.
+/// @param SurfaceWidth is the surface width minus 1 in bytes
+/// @param SurfaceHeight is the surface height minus 1 in rows
+/// @param SurfacePitch is the surface pitch minus 1 in bytes
+/// @param X is zero based X-coordinate of the left upper rectangle corner in
+/// number of elements.
+/// @param Y is zero based Y-coordinate of the left upper rectangle corner in
+/// rows.
+///
+template <typename T, int BlockWidth, int BlockHeight, int NBlocks,
+          typename PropertyListT,
+          int N = get_lsc_block_2d_data_size<__raw_t<T>, NBlocks, BlockHeight,
+                                             BlockWidth, false /*Transposed*/,
+                                             false /*Transformed*/>()>
+__ESIMD_API void prefetch_2d_impl(const T *Ptr, unsigned SurfaceWidth,
+                                  unsigned SurfaceHeight, unsigned SurfacePitch,
+                                  int X, int Y) {
+  using RawT = __raw_t<T>;
+  check_cache_hints<cache_action::prefetch, PropertyListT>();
+  check_lsc_block_2d_restrictions<RawT, BlockWidth, BlockHeight, NBlocks, false,
+                                  false, block_2d_op::prefetch>();
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  constexpr lsc_data_size DS =
+      finalize_data_size<RawT, lsc_data_size::default_size>();
+  uintptr_t Addr = reinterpret_cast<uintptr_t>(Ptr);
+  constexpr lsc_data_order Transpose = lsc_data_order::nontranspose;
+  simd_mask<N> Mask = 1;
+  __esimd_lsc_prefetch2d_stateless<RawT, L1H, L2H, DS, Transpose, NBlocks,
+                                   BlockWidth, BlockHeight, false, N>(
+      Mask.data(), Addr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y);
+}
+
+/// 2D USM pointer block store.
+/// Supported platforms: PVC
+/// VISA instruction: lsc_store_block2d.ugm
+///
+/// Stores elements at specified address.
+///
+/// @tparam T is element type.
+/// @tparam BlockWidth is the block width in number of elements.
+/// @tparam BlockHeight is the block height in number of elements.
+/// @tparam PropertyListT The compile-time properties. Only cache hint
+/// properties are used.
+/// @tparam N is the data size
+/// @param Ptr is the surface base address for this operation.
+/// @param SurfaceWidth is the surface width minus 1 in bytes
+/// @param SurfaceHeight is the surface height minus 1 in rows
+/// @param SurfacePitch is the surface pitch minus 1 in bytes
+/// @param X is zero based X-coordinate of the left upper rectangle corner in
+/// number of elements.
+/// @param Y is zero based Y-coordinate of the left upper rectangle corner in
+/// rows.
+/// @param Vals is a vector to store of type T and size N, where
+///  N = roundUpNextMultiple(BlockHeight, 4 / sizeof(T)) *
+///   getNextPowerOf2(BlockWidth) * NBlocks
+///
+template <typename T, int BlockWidth, int BlockHeight, typename PropertyListT,
+          int N = detail::get_lsc_block_2d_data_size<
+              __raw_t<T>, 1u, BlockHeight, BlockWidth, false /*Transposed*/,
+              false /*Transformed*/>()>
+__ESIMD_API void store_2d_impl(T *Ptr, unsigned SurfaceWidth,
+                               unsigned SurfaceHeight, unsigned SurfacePitch,
+                               int X, int Y, simd<T, N> Vals) {
+  using RawT = __raw_t<T>;
+  __ESIMD_DNS::check_cache_hints<__ESIMD_DNS::cache_action::store,
+                                 PropertyListT>();
+  constexpr cache_hint L1H =
+      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  constexpr cache_hint L2H =
+      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  check_lsc_block_2d_restrictions<RawT, BlockWidth, BlockHeight, 1, false,
+                                  false, block_2d_op::store>();
+  constexpr lsc_data_size DS =
+      finalize_data_size<RawT, lsc_data_size::default_size>();
+  uintptr_t Addr = reinterpret_cast<uintptr_t>(Ptr);
+  constexpr lsc_data_order Transpose = lsc_data_order::nontranspose;
+
+  constexpr int Pitch = getNextPowerOf2<BlockWidth>();
+  constexpr int NElts = BlockHeight * Pitch;
+  simd<RawT, NElts> Raw;
+  simd_mask<NElts> Mask = 1;
+
+  if constexpr (NElts == N) {
+    Raw = Vals;
+  } else {
+    // For store with padding, allocate the block with padding, and place
+    // original data there.
+    auto Data2D = Vals.template bit_cast_view<RawT, BlockHeight, BlockWidth>();
+    auto Raw2D = Raw.template bit_cast_view<RawT, BlockHeight, Pitch>();
+    Raw2D.template select<BlockHeight, 1, BlockWidth, 1>(0, 0) = Data2D;
+  }
+
+  __esimd_lsc_store2d_stateless<RawT, L1H, L2H, DS, Transpose, 1u, BlockWidth,
+                                BlockHeight, false, NElts>(
+      Mask.data(), Addr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y,
+      Raw.data());
+}
+
 } // namespace detail
 
 /// @endcond ESIMD_DETAIL
@@ -4071,15 +4380,15 @@ __ESIMD_API void slm_init(uint32_t size) { __esimd_slm_init(size); }
 /// The next 3 functions are variations of the first 3 above (slm-ga-1,2,3)
 /// and were added only to support simd_view instead of simd for byte_offsets
 /// and/or pass_thru operands.
-/// template <typename T, int N, int VS = 1, typename OffsetObjT,
-///           typename OffsetRegionT, typename PropertyListT = empty_props_t>
-/// simd <T, N> slm_gather(simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
-///             simd_mask<N / VS> mask, simd<T, N> pass_thru,
-///             PropertyListT props = {});                         // (slm-ga-7)
-/// simd <T, N> slm_gather(simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
-///             simd_mask<N / VS> mask, PropertyListT props = {}); // (slm-ga-8)
-/// simd <T, N> slm_gather(simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
-///             PropertyListT props = {});                         // (slm-ga-9)
+/// template <typename T, int N, int VS = 1, typename OffsetSimdViewT
+///           typename PropertyListT = empty_props_t>
+/// simd <T, N> slm_gather(OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
+///                        simd<T, N> pass_thru
+///                        PropertyListT props = {});              // (slm-ga-7)
+/// simd <T, N> slm_gather(OffsetSimdViewT byte_offsets, simd_mask<N / VS> mask,
+///                        PropertyListT props = {});              // (slm-ga-8)
+/// simd <T, N> slm_gather(OffsetSimdViewT byte_offsets,
+///                        PropertyListT props = {});              // (slm-ga-9)
 
 /// template <typename T, int N, int VS,
 ///           typename PropertyListT = empty_properties_t>
@@ -7664,13 +7973,21 @@ enum fence_mask : uint8_t {
   /// “Commit enable” - wait for fence to complete before continuing.
   global_coherent_fence = 0x1,
   /// Flush the instruction cache.
-  l3_flush_instructions = 0x2,
+  l2_flush_instructions = 0x2,
+  l3_flush_instructions __SYCL_DEPRECATED(
+      "it means L2 here, use l2_flush_instructions") = l2_flush_instructions,
   /// Flush sampler (texture) cache.
-  l3_flush_texture_data = 0x4,
+  l2_flush_texture_data = 0x4,
+  l3_flush_texture_data __SYCL_DEPRECATED(
+      "it means L2 here, use l2_flush_texture_data") = l2_flush_texture_data,
   /// Flush constant cache.
-  l3_flush_constant_data = 0x8,
+  l2_flush_constant_data = 0x8,
+  l3_flush_constant_data __SYCL_DEPRECATED(
+      "it means L2 here, use l2_flush_constant_data") = l2_flush_constant_data,
   /// Flush constant cache.
-  l3_flush_rw_data = 0x10,
+  l2_flush_rw_data = 0x10,
+  l3_flush_rw_data __SYCL_DEPRECATED("it means L2 here, use l2_flush_rw_data") =
+      l2_flush_rw_data,
   /// Issue SLM memory barrier only. If not set, the memory barrier is global.
   local_barrier = 0x20,
   /// Flush L1 read - only data cache.
@@ -7678,7 +7995,7 @@ enum fence_mask : uint8_t {
   /// Creates a software (compiler) barrier, which does not generate
   /// any instruction and only prevents instruction scheduler from
   /// reordering instructions across this barrier at compile time.
-  sw_barrier = 0x80
+  sw_barrier __SYCL_DEPRECATED("reserved - this enum is ignored") = 0x80
 };
 
 /// esimd::fence sets the memory read/write order.
@@ -9092,6 +9409,139 @@ __ESIMD_API std::enable_if_t<
 prefetch(AccessorT acc, PropertyListT props = {}) {
   simd_mask<1> Mask = 1;
   prefetch<T, VS>(acc, 0, Mask, props);
+}
+
+/// template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
+///          bool Transposed = false, bool Transformed = false,
+///          int N = detail::get_lsc_block_2d_data_size<
+///              T, NBlocks, BlockHeight, BlockWidth, Transposed,
+///              Transformed>(),
+///          typename PropertyListT = empty_properties_t>
+/// simd<T, N>
+/// load_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
+///             unsigned SurfacePitch, int X, int Y,
+///             PropertyListT props = {});
+/// 2D USM pointer block load.
+/// Supported platforms: PVC
+/// VISA instruction: lsc_load_block2d.ugm
+///
+/// Collects elements located at specified address and returns them
+/// as a single \ref simd object.
+///
+/// @tparam T is element type.
+/// @tparam BlockWidth is the block width in number of elements.
+/// @tparam BlockHeight is the block height in number of elements.
+/// @tparam NBlocks is the number of blocks.
+/// @tparam Transposed is the transposed version or not.
+/// @tparam Transformed is apply VNNI transform or not.
+/// @tparam N is the data size
+/// @param Ptr is the surface base address for this operation.
+/// @param SurfaceWidth is the surface width minus 1 in bytes
+/// @param SurfaceHeight is the surface height minus 1 in rows
+/// @param SurfacePitch is the surface pitch minus 1 in bytes
+/// @param X is zero based X-coordinate of the left upper rectangle corner in
+/// number of elements.
+/// @param Y is zero based Y-coordinate of the left upper rectangle corner in
+/// rows.
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+/// @return is a vector of type T and size N, where N is
+///  BlockWidth * BlockHeight * NBlocks, if not transformed;
+///  otherwise,
+///  N = roundUpNextMultiple(BlockHeight, 4 / sizeof(T)) *
+///   getNextPowerOf2(BlockWidth) * NBlocks
+///
+template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
+          bool Transposed = false, bool Transformed = false,
+          int N = detail::get_lsc_block_2d_data_size<
+              T, NBlocks, BlockHeight, BlockWidth, Transposed, Transformed>(),
+          typename PropertyListT = oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>, simd<T, N>>
+load_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
+        unsigned SurfacePitch, int X, int Y, PropertyListT props = {}) {
+  return detail::load_2d_impl<T, BlockWidth, BlockHeight, NBlocks, Transposed,
+                              Transformed, PropertyListT>(
+      Ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y);
+}
+
+/// template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
+///          int N = detail::get_lsc_block_2d_data_size<
+///              T, NBlocks, BlockHeight, BlockWidth, false, false>(),
+///          typename PropertyListT = empty_properties_t>
+/// void
+/// prefetch_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
+///            unsigned SurfacePitch, int X, int Y, PropertyListT props = {});
+/// 2D USM pointer block prefetch.
+/// Supported platforms: PVC
+/// VISA instruction: lsc_load_block2d.ugm
+///
+/// Prefetches elements located at specified address.
+///
+/// @tparam T is element type.
+/// @tparam BlockWidth is the block width in number of elements.
+/// @tparam BlockHeight is the block height in number of elements.
+/// @tparam NBlocks is the number of blocks.
+/// @tparam N is the data size
+/// @param Ptr is the surface base address for this operation.
+/// @param SurfaceWidth is the surface width minus 1 in bytes
+/// @param SurfaceHeight is the surface height minus 1 in rows
+/// @param SurfacePitch is the surface pitch minus 1 in bytes
+/// @param X is zero based X-coordinate of the left upper rectangle corner
+/// in number of elements.
+/// @param Y is zero based Y-coordinate of the left upper rectangle corner
+/// in rows.
+/// @param props The compile-time properties. Only cache hint
+/// properties are used.
+///
+template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
+          int N = detail::get_lsc_block_2d_data_size<
+              T, NBlocks, BlockHeight, BlockWidth, false /*Transposed*/,
+              false /*Transformed*/>(),
+          typename PropertyListT = oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+prefetch_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
+            unsigned SurfacePitch, int X, int Y, PropertyListT props = {}) {
+  detail::prefetch_2d_impl<T, BlockWidth, BlockHeight, NBlocks, PropertyListT>(
+      Ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y);
+}
+
+/// 2D USM pointer block store.
+/// Supported platforms: PVC
+/// VISA instruction: lsc_store_block2d.ugm
+///
+/// Stores elements at specified address.
+///
+/// @tparam T is element type.
+/// @tparam BlockWidth is the block width in number of elements.
+/// @tparam BlockHeight is the block height in number of elements.
+/// @tparam N is the data size
+/// @param Ptr is the surface base address for this operation.
+/// @param SurfaceWidth is the surface width minus 1 in bytes
+/// @param SurfaceHeight is the surface height minus 1 in rows
+/// @param SurfacePitch is the surface pitch minus 1 in bytes
+/// @param X is zero based X-coordinate of the left upper rectangle corner in
+/// number of elements.
+/// @param Y is zero based Y-coordinate of the left upper rectangle corner in
+/// rows.
+/// @param Vals is a vector to store of type T and size N, where
+///  N = BlockWidth * BlockHeight
+/// @param props The optional compile-time properties. Only cache hint
+/// properties are used.
+///
+template <typename T, int BlockWidth, int BlockHeight = 1,
+          int N = detail::get_lsc_block_2d_data_size<
+              T, 1u, BlockHeight, BlockWidth, false /*Transposed*/,
+              false /*Transformed*/>(),
+          typename PropertyListT = oneapi::experimental::empty_properties_t>
+__ESIMD_API std::enable_if_t<
+    ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+store_2d(T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
+         unsigned SurfacePitch, int X, int Y, simd<T, N> Vals,
+         PropertyListT props = {}) {
+  detail::store_2d_impl<T, BlockWidth, BlockHeight, PropertyListT>(
+      Ptr, SurfaceWidth, SurfaceHeight, SurfacePitch, X, Y, Vals);
 }
 
 /// Variant of gather_rgba that uses local accessor as a parameter
