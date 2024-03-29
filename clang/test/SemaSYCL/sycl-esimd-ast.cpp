@@ -17,16 +17,16 @@ int main() {
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel1
     // CHECK:       SYCLSimdAttr {{.*}} Implicit
     // CHECK-NEXT:  SYCLKernelAttr {{.*}} Implicit
-    // CHECK-NEXT:  AsmLabelAttr {{.*}} Implicit
     // CHECK-NEXT:  SYCLSimdAttr {{.*}}
+    // CHECK-NEXT:  AsmLabelAttr {{.*}} Implicit
     h.single_task<class test_kernel1>(
         FuncObj());
 
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel2
     // CHECK:       SYCLSimdAttr {{.*}} Implicit
     // CHECK-NEXT:  SYCLKernelAttr {{.*}} Implicit
-    // CHECK-NEXT:  AsmLabelAttr {{.*}} Implicit
     // CHECK-NEXT:  SYCLSimdAttr {{.*}}
+    // CHECK-NEXT:  AsmLabelAttr {{.*}} Implicit
     h.single_task<class test_kernel2>(
         []() [[intel::sycl_explicit_simd]]{});
 
@@ -34,9 +34,9 @@ int main() {
     // CHECK-LABEL: FunctionDecl {{.*}}test_kernel3
     // CHECK:       SYCLSimdAttr {{.*}} Implicit
     // CHECK-NEXT:  SYCLKernelAttr {{.*}} Implicit
+    // CHECK-NEXT:  SYCLSimdAttr {{.*}}
+    // CHECK-NEXT:  SYCLSimdAttr {{.*}}
     // CHECK-NEXT:  AsmLabelAttr {{.*}} Implicit
-    // CHECK-NEXT:  SYCLSimdAttr {{.*}}
-    // CHECK-NEXT:  SYCLSimdAttr {{.*}}
     h.single_task<class test_kernel3>(
         []() [[intel::sycl_explicit_simd]] { func(); });
   });

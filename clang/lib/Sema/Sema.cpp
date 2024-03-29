@@ -1117,6 +1117,8 @@ void Sema::ActOnEndOfTranslationUnitFragment(TUFragmentKind Kind) {
   }
 
   if (getLangOpts().SYCLIsDevice) {
+    // Check and propagate device function attributes.
+    MarkDevices();
     // Generate device code for free function kernels.
     ProcessFreeFunctions();
     // Set the names of the kernels, now that the names have settled down. This
@@ -1130,7 +1132,6 @@ void Sema::ActOnEndOfTranslationUnitFragment(TUFragmentKind Kind) {
     // Emit SYCL integration header for current translation unit if needed
     if (SyclIntHeader != nullptr)
       SyclIntHeader->emit(getLangOpts().SYCLIntHeader);
-    MarkDevices();
   }
 
   emitDeferredDiags();

@@ -5667,19 +5667,8 @@ void Sema::MarkDevices() {
 }
 
 void Sema::ProcessFreeFunctions() {
-  // This Tracker object ensures that the SyclDeviceDecls collection includes
-  // the SYCL_EXTERNAL functions, and manages the diagnostics for all of the
-  // functions in the kernel.
-  DeviceFunctionTracker Tracker(*this);
-
   for (Decl *D : syclDeviceDecls()) {
     auto *SYCLKernel = cast<FunctionDecl>(D);
-
-    // This type does the actual analysis on a per-kernel basis. It does this to
-    // make sure that we're only ever dealing with the context of a single
-    // kernel at a time.
-    SingleDeviceFunctionTracker T{Tracker, SYCLKernel};
-
     if (IsFreeFunction(*this, SYCLKernel)) {
       SyclKernelDecompMarker DecompMarker(*this);
       SyclKernelFieldChecker FieldChecker(*this);
