@@ -419,13 +419,9 @@ event_impl::get_backend_info<info::platform::version>() const {
                           "only be queried with an OpenCL backend");
   }
   if (QueueImplPtr Queue = MQueue.lock()) {
-    try {
-      return Queue->getDeviceImplPtr()
-          ->get_platform()
-          .get_info<info::platform::version>();
-    } catch (...) {
-      std::rethrow_exception(std::current_exception());
-    }
+    return Queue->getDeviceImplPtr()
+        ->get_platform()
+        .get_info<info::platform::version>();
   }
   return ""; // If the queue has been released, no platform will be associated
              // so return empty string
@@ -443,11 +439,7 @@ event_impl::get_backend_info<info::device::version>() const {
                           "be queried with an OpenCL backend");
   }
   if (QueueImplPtr Queue = MQueue.lock()) {
-    try {
-      return Queue->getDeviceImplPtr()->get_info<info::device::version>();
-    } catch (...) {
-      std::rethrow_exception(std::current_exception());
-    }
+    return Queue->getDeviceImplPtr()->get_info<info::device::version>();
   }
   return ""; // If the queue has been released, no device will be associated so
              // return empty string
