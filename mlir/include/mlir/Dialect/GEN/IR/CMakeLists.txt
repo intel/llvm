@@ -11,3 +11,5 @@ set(LLVM_TARGET_DEFINITIONS GENAttrDefs.td)
 mlir_tablegen(GENOpsAttrDefs.h.inc -gen-attrdef-decls)
 mlir_tablegen(GENOpsAttrDefs.cpp.inc -gen-attrdef-defs)
 add_public_tablegen_target(MLIRGENOpsAttrDefsIncGen)
+
+add_mlir_interface(GENOpsInterfaces)

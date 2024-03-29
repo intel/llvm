@@ -9,8 +9,10 @@
 #include "mlir/Conversion/GENToSPIRV/GENToSPIRV.h"
 
 #include "mlir/Dialect/GEN/IR/GENDialect.h"
+#include "mlir/Dialect/GEN/IR/GENOps.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVAttributes.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
 
 namespace mlir {
@@ -23,12 +25,64 @@ namespace mlir {
 using namespace mlir;
 
 //===----------------------------------------------------------------------===//
+// ND-range Ops Lowerings
+//===----------------------------------------------------------------------===//
+
+/// Pattern to convert 3DNDrangeInterface operations to SPIR-V.
+///
+/// Convert:
+/// ```mlir
+/// %0 = gen.operation_name %dim
+///  ```
+/// To:
+/// ```mlir
+/// %__builtin__BuiltinName___addr = spirv.mlir.addressof
+/// @__builtin__BuiltinName__ : !spirv.ptr<vector<3xIndexType>, Input>
+/// %__builtin_value = spirv.Load "Input" %__builtin__BuiltinName___addr :
+/// vector<3xIndexType>
+/// %0 = spirv.VectorExtractDynamic %__builtin_value[%dim] :
+/// vector<3xIndexType>, i32
+/// ```
+/// With `__builtin__BuiltinName__` the name of a SPIR-V builtin, and
+/// `IndexType`, `i32` for 32-bit targets and `i64` for 64-bit targets.
+template <typename SourceOp, spirv::BuiltIn Builtin,
+          typename = std::enable_if_t<
+              SourceOp::template hasTrait<GEN::GEN3DNDRangeInterface::Trait>()>>
+struct GEN3DNDRangeLowering : public OpConversionPattern<SourceOp> {
+  using OpConversionPattern<SourceOp>::OpConversionPattern;
+  using OpAdaptor = typename SourceOp::Adaptor;
+
+  LogicalResult
+  matchAndRewrite(SourceOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    // The builtin variable must be of type <3xi32> for 32-bit targets and
+    // <3xi64> for 64-bit targets.
+    Type builtinType =
+        this->template getTypeConverter<SPIRVTypeConverter>()->getIndexType();
+    Value vector =
+        spirv::getBuiltinVariableValue(op, Builtin, builtinType, rewriter);
+
+    rewriter.replaceOpWithNewOp<spirv::VectorExtractDynamicOp>(
+        op, vector, adaptor.getDim());
+
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
 // Pattern Population
 //===----------------------------------------------------------------------===//
 
-void mlir::GEN::populateGENToSPIRVPatterns(
-    [[maybe_unused]] SPIRVTypeConverter &,
-    [[maybe_unused]] RewritePatternSet &) {}
+void mlir::GEN::populateGENToSPIRVPatterns(SPIRVTypeConverter &converter,
+                                           RewritePatternSet &patterns) {
+  patterns.add<
+      GEN3DNDRangeLowering<GEN::LocalIdOp, spirv::BuiltIn::LocalInvocationId>,
+      GEN3DNDRangeLowering<GEN::WorkGroupIdOp, spirv::BuiltIn::WorkgroupId>,
+      GEN3DNDRangeLowering<GEN::LocalSizeOp, spirv::BuiltIn::WorkgroupSize>,
+      GEN3DNDRangeLowering<GEN::NumWorkGroupsOp,
+                           spirv::BuiltIn::NumWorkgroups>>(
+      converter, patterns.getContext());
+}
 
 //===----------------------------------------------------------------------===//
 // Pass Definition

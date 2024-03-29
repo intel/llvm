@@ -1,0 +1,39 @@
+//===- GENOpsInterfaces.cpp - MLIR GEN Interfaces implementation ----------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include "mlir/Dialect/GEN/IR/GENOpsInterfaces.h"
+
+#include "mlir/IR/Matchers.h"
+
+using namespace mlir;
+using namespace mlir::GEN;
+
+#include "mlir/Dialect/GEN/IR/GENOpsInterfaces.cpp.inc"
+
+LogicalResult mlir::GEN::detail::verify3DNDRangeOpInterface(Operation *op) {
+  TypeRange resTypes = op->getResultTypes();
+  if (resTypes.size() != 1 || !resTypes[0].isIndex()) {
+    return op->emitOpError()
+           << "3DNDRangeOpInterface must return a single 'index' value. Got "
+           << resTypes;
+  }
+  TypeRange operandTypes = op->getOperandTypes();
+  if (operandTypes.size() != 1 || !operandTypes[0].isSignlessInteger(32)) {
+    return op->emitOpError()
+           << "3DNDRangeOpInterface must receive a single 'i32' operand. Got "
+           << operandTypes;
+  }
+  llvm::APInt value;
+  if (matchPattern(op->getOperand(0), m_ConstantInt(&value)) &&
+      !(/*value in [0, 3)*/ value.sge(0) && value.slt(3))) {
+    return op->emitOpError()
+           << "input dimension must be in the range [0, 3). Got "
+           << value.getSExtValue();
+  }
+  return success();
+}
