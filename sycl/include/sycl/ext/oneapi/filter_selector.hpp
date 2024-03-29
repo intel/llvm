@@ -31,7 +31,13 @@ class filter_selector_impl;
 
 class __SYCL_EXPORT filter_selector : public device_selector {
 public:
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  filter_selector(const std::string &filter)
+      : filter_selector(filter.c_str()) {}
+  filter_selector(const char *filter);
+#else
   filter_selector(const std::string &filter);
+#endif
   int operator()(const device &dev) const override;
   void reset() const;
   device select_device() const override;
@@ -43,15 +49,21 @@ private:
 
 #ifdef __SYCL_INTERNAL_API
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
-using namespace ext::oneapi;
-class __SYCL_EXPORT filter_selector : public ext::oneapi::filter_selector {
-public:
-  filter_selector(const std::string &filter);
-  int operator()(const device &dev) const override;
-  void reset() const;
-  device select_device() const override;
-};
-} // namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead")ONEAPI
+  using namespace ext::oneapi;
+  class __SYCL_EXPORT filter_selector : public ext::oneapi::filter_selector {
+  public:
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+    filter_selector(const std::string &filter)
+        : filter_selector(filter.c_str()) {}
+    filter_selector(const char *filter);
+#else
+    filter_selector(const std::string &filter);
+#endif
+    int operator()(const device &dev) const override;
+    void reset() const;
+    device select_device() const override;
+  };
+} // namespace ONEAPI
 #endif // __SYCL_INTERNAL_API
 } // namespace _V1
 } // namespace sycl
