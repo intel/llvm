@@ -19,7 +19,7 @@ func.func @gen_nd_range(%dim: i32) {
 // CHECK:           %[[VAL_7:.*]] = spirv.mlir.addressof @__builtin__WorkgroupSize__ : !spirv.ptr<vector<3xi32>, Input>
 // CHECK:           %[[VAL_8:.*]] = spirv.Load "Input" %[[VAL_7]] : vector<3xi32>
 // CHECK:           %[[VAL_9:.*]] = spirv.VectorExtractDynamic %[[VAL_8]]{{\[}}%[[VAL_0]]] : vector<3xi32>, i32
-  %2 = gen.local_size %dim
+  %2 = gen.work_group_size %dim
 // CHECK:           %[[VAL_10:.*]] = spirv.mlir.addressof @__builtin__NumWorkgroups__ : !spirv.ptr<vector<3xi32>, Input>
 // CHECK:           %[[VAL_11:.*]] = spirv.Load "Input" %[[VAL_10]] : vector<3xi32>
 // CHECK:           %[[VAL_12:.*]] = spirv.VectorExtractDynamic %[[VAL_11]]{{\[}}%[[VAL_0]]] : vector<3xi32>, i32

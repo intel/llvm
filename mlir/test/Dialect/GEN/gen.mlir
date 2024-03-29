@@ -7,8 +7,8 @@ llvm.func @gen_nd_range(%dim: i32) {
   %0 = gen.local_id %dim
   // CHECK: gen.work_group_id %[[DIM]]
   %1 = gen.work_group_id %dim
-  // CHECK: gen.local_size %[[DIM]]
-  %2 = gen.local_size %dim
+  // CHECK: gen.work_group_size %[[DIM]]
+  %2 = gen.work_group_size %dim
   // CHECK: gen.num_work_groups %[[DIM]]
   %3 = gen.num_work_groups %dim
   llvm.return

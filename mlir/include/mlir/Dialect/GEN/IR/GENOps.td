@@ -63,13 +63,12 @@ def GEN_WorkGroupIdOp : GEN_3DNDRangeOp<"work_group_id"> {
   }];
 }
 
-def GEN_LocalSizeOp : GEN_3DNDRangeOp<"local_size"> {
-  let summary = "Query the ND-range local size.";
+def GEN_WorkGroupSizeOp : GEN_3DNDRangeOp<"work_group_size"> {
+  let summary = "Query the work-group size.";
   let description = [{
-    Query the work-item's work-group size, i.e., its local size, in a given
-    dimension.
+    Query the work-item's work-group size in a given dimension.
     ```mlir
-    %local_size = gen.local_size %dim
+    %work_group_size = gen.work_group_size %dim
     ```
   }];
 }

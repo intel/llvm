@@ -78,7 +78,7 @@ void mlir::GEN::populateGENToSPIRVPatterns(SPIRVTypeConverter &converter,
   patterns.add<
       GEN3DNDRangeLowering<GEN::LocalIdOp, spirv::BuiltIn::LocalInvocationId>,
       GEN3DNDRangeLowering<GEN::WorkGroupIdOp, spirv::BuiltIn::WorkgroupId>,
-      GEN3DNDRangeLowering<GEN::LocalSizeOp, spirv::BuiltIn::WorkgroupSize>,
+      GEN3DNDRangeLowering<GEN::WorkGroupSizeOp, spirv::BuiltIn::WorkgroupSize>,
       GEN3DNDRangeLowering<GEN::NumWorkGroupsOp,
                            spirv::BuiltIn::NumWorkgroups>>(
       converter, patterns.getContext());

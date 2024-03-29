@@ -26,6 +26,19 @@ def GEN3DNDRangeInterface : GENOpInterface<"GEN3DNDRangeInterface"> {
     Interface for operations representing 3D ND-range queries.
   }];
   let verify = [{
+    // Check operation signature.
+    static_assert(ConcreteOp::template hasTrait<OpTrait::OneResult>(),
+                  "Expecting operation returning a single result");
+    static_assert(ConcreteOp::template hasTrait<OpTrait::OneOperand>(),
+                  "Expecting operation receiving a single operand");
+    auto concreteOp = cast<ConcreteOp>($_op);
+    static_assert(std::is_same_v<decltype(concreteOp.getRes().getType()),
+                                      IndexType>,
+                  "Expecting result index type");
+    static_assert(std::is_same_v<decltype(concreteOp.getDim().getType()),
+                                 IntegerType>,
+                  "Expecting integer operand type");
+    // Additional checks.
     return detail::verify3DNDRangeOpInterface($_op);
   }];
 }

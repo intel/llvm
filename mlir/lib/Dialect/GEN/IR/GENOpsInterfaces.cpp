@@ -16,18 +16,6 @@ using namespace mlir::GEN;
 #include "mlir/Dialect/GEN/IR/GENOpsInterfaces.cpp.inc"
 
 LogicalResult mlir::GEN::detail::verify3DNDRangeOpInterface(Operation *op) {
-  TypeRange resTypes = op->getResultTypes();
-  if (resTypes.size() != 1 || !resTypes[0].isIndex()) {
-    return op->emitOpError()
-           << "3DNDRangeOpInterface must return a single 'index' value. Got "
-           << resTypes;
-  }
-  TypeRange operandTypes = op->getOperandTypes();
-  if (operandTypes.size() != 1 || !operandTypes[0].isSignlessInteger(32)) {
-    return op->emitOpError()
-           << "3DNDRangeOpInterface must receive a single 'i32' operand. Got "
-           << operandTypes;
-  }
   llvm::APInt value;
   if (matchPattern(op->getOperand(0), m_ConstantInt(&value)) &&
       !(/*value in [0, 3)*/ value.sge(0) && value.slt(3))) {

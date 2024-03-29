@@ -150,7 +150,7 @@ StringRef getBuiltinName<GEN::WorkGroupIdOp>() {
 }
 
 template <>
-StringRef getBuiltinName<GEN::LocalSizeOp>() {
+StringRef getBuiltinName<GEN::WorkGroupSizeOp>() {
   return "_Z14get_local_sizej";
 }
 
@@ -256,7 +256,7 @@ void mlir::GEN::populateGENToLLVMConversionPatterns(
     LLVMTypeConverter &converter, RewritePatternSet &patterns) {
   patterns.add<GEN3DNDRangeLowering<GEN::LocalIdOp>,
                GEN3DNDRangeLowering<GEN::WorkGroupIdOp>,
-               GEN3DNDRangeLowering<GEN::LocalSizeOp>,
+               GEN3DNDRangeLowering<GEN::WorkGroupSizeOp>,
                GEN3DNDRangeLowering<GEN::NumWorkGroupsOp>, GENBarrierLowering,
                SubGroupShuffleLowering>(converter);
 }

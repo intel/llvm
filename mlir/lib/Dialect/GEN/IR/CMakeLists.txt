@@ -10,6 +10,7 @@ add_mlir_dialect_library(MLIRGENDialect
   MLIRGENOpsIncGen
   MLIRGENOpsEnumsIncGen
   MLIRGENOpsAttrDefsIncGen
+  MLIRGENOpsInterfacesIncGen
 
   LINK_LIBS PUBLIC
   MLIRIR

@@ -8,7 +8,7 @@ llvm.func @gen_nd_range(%dim: i32) {
   // CHECK:         llvm.call @_Z12get_group_idj(%[[DIM]]) : (i32) -> i64
   %1 = gen.work_group_id %dim
   // CHECK:         llvm.call @_Z14get_local_sizej(%[[DIM]]) : (i32) -> i64
-  %2 = gen.local_size %dim
+  %2 = gen.work_group_size %dim
   // CHECK:         llvm.call @_Z14get_num_groupsj(%[[DIM]]) : (i32) -> i64
   %3 = gen.num_work_groups %dim
   llvm.return
