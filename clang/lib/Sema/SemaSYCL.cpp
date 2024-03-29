@@ -940,22 +940,22 @@ private:
 /// \param Src  field declaration to construct name from
 /// \param Ty   the desired parameter type
 /// \return     the constructed descriptor
-static ParamDesc makeParamDesc(const FieldDecl* Src, QualType Ty) {
-  ASTContext& Ctx = Src->getASTContext();
+static ParamDesc makeParamDesc(const FieldDecl *Src, QualType Ty) {
+  ASTContext &Ctx = Src->getASTContext();
   std::string Name = (Twine("_arg_") + Src->getName()).str();
   return std::make_tuple(Ty, &Ctx.Idents.get(Name),
-    Ctx.getTrivialTypeSourceInfo(Ty));
+                         Ctx.getTrivialTypeSourceInfo(Ty));
 }
-static ParamDesc makeParamDesc(const ParmVarDecl* Src, QualType Ty) {
-  ASTContext& Ctx = Src->getASTContext();
+static ParamDesc makeParamDesc(const ParmVarDecl *Src, QualType Ty) {
+  ASTContext &Ctx = Src->getASTContext();
   std::string Name = (Twine("_arg_") + Src->getName()).str();
   return std::make_tuple(Ty, &Ctx.Idents.get(Name),
-    Ctx.getTrivialTypeSourceInfo(Ty));
+                         Ctx.getTrivialTypeSourceInfo(Ty));
 }
 
-static ParamDesc makeParamDesc(ASTContext& Ctx, StringRef Name, QualType Ty) {
+static ParamDesc makeParamDesc(ASTContext &Ctx, StringRef Name, QualType Ty) {
   return std::make_tuple(Ty, &Ctx.Idents.get(Name),
-    Ctx.getTrivialTypeSourceInfo(Ty));
+                         Ctx.getTrivialTypeSourceInfo(Ty));
 }
 
 // Map used to replace original fields with new fields for free functions that
@@ -2621,7 +2621,7 @@ public:
         addField(PD, QualType(ModifiedRD->getTypeForDecl(), 0));
       else
         ModifiedArrayElementsOrArray.push_back(
-          QualType(ModifiedRD->getTypeForDecl(), 0));
+            QualType(ModifiedRD->getTypeForDecl(), 0));
     }
 
     return true;

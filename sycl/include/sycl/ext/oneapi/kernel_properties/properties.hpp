@@ -151,8 +151,7 @@ struct property_value<nd_range_kernel_key, std::integral_constant<int, Dims>> {
   static constexpr int value = Dims;
 };
 
-template <>
-struct property_value<single_task_kernel_key> {
+template <> struct property_value<single_task_kernel_key> {
   using key_t = single_task_kernel_key;
   using value_t = int;
   static constexpr int value = 0;
@@ -202,21 +201,17 @@ struct PropertyMetaInfo<device_has_key::value_t<Aspects...>> {
   static constexpr const char *value =
       SizeListToStr<static_cast<size_t>(Aspects)...>::value;
 };
-template <int Dims>
-struct PropertyMetaInfo<range_kernel_key::value_t<Dims>> {
-  static constexpr const char* name = "sycl-range-kernel";
+template <int Dims> struct PropertyMetaInfo<range_kernel_key::value_t<Dims>> {
+  static constexpr const char *name = "sycl-range-kernel";
   static constexpr int value = Dims;
-  //static constexpr const char *value =
-  //    SizeListToStr<static_cast<size_t>(Dims)>::value;
 };
 template <int Dims>
 struct PropertyMetaInfo<nd_range_kernel_key::value_t<Dims>> {
-  static constexpr const char* name = "sycl-nd-range-kernel";
+  static constexpr const char *name = "sycl-nd-range-kernel";
   static constexpr int value = Dims;
 };
-template <>
-struct PropertyMetaInfo<single_task_kernel_key::value_t> {
-  static constexpr const char* name = "sycl-single-task-kernel";
+template <> struct PropertyMetaInfo<single_task_kernel_key::value_t> {
+  static constexpr const char *name = "sycl-single-task-kernel";
   static constexpr int value = 0;
 };
 

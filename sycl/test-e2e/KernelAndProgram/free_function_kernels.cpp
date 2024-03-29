@@ -3,8 +3,8 @@
 
 // This test tests free function kernel code generation and execution.
 
-#include <sycl/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -94,7 +94,7 @@ void ff_0(int *ptr, int start, int end) {
     ptr[i] = start + end;
 }
 
-int test_0(queue Queue, KernelFinder &KF) {
+bool test_0(queue Queue, KernelFinder &KF) {
   constexpr int Range = 10;
   int *usmPtr = malloc_shared<int>(Range, Queue);
   int start = 3;
@@ -136,9 +136,9 @@ void ff_1(int *ptr, int start, int end) {
   ptr[Id.get(0)] = Id.get(0) + start + end;
 }
 
-int test_1(queue Queue, KernelFinder &KF) {
+bool test_1(queue Queue, KernelFinder &KF) {
   constexpr int Range = 10;
-  int* usmPtr = malloc_shared<int>(Range, Queue);
+  int *usmPtr = malloc_shared<int>(Range, Queue);
   int start = 3;
   struct Simple S {
     66, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, 7.1
@@ -147,12 +147,12 @@ int test_1(queue Queue, KernelFinder &KF) {
   range<1> R1{Range};
 
   memset(usmPtr, 0, Range * sizeof(int));
-  Queue.submit([&](handler& Handler) {
+  Queue.submit([&](handler &Handler) {
     Handler.parallel_for(R1, [=](item<1> Item) {
       id<1> Id = Item.get_id();
       usmPtr[Id.get(0)] = Id.get(0) + start + Range;
-      });
     });
+  });
   Queue.wait();
   bool Passa = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 1a: " << (Passa ? "PASS" : "FAIL") << std::endl;
@@ -185,9 +185,9 @@ void ff_2(int *ptr, int start, struct Simple S) {
       LId.get(0) + LId.get(1) + start + S.x + S.f + S.c[2];
 }
 
-int test_2(queue Queue, KernelFinder &KF) {
+bool test_2(queue Queue, KernelFinder &KF) {
   constexpr int Range = 16;
-  int* usmPtr = malloc_shared<int>(Range, Queue);
+  int *usmPtr = malloc_shared<int>(Range, Queue);
   int value = 55;
   struct Simple S {
     66, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, 7.1
@@ -197,15 +197,15 @@ int test_2(queue Queue, KernelFinder &KF) {
   nd_range<2> R2{range<2>{4, 4}, range<2>{2, 2}};
 
   memset(usmPtr, 0, Range * sizeof(int));
-  Queue.submit([&](handler& Handler) {
+  Queue.submit([&](handler &Handler) {
     Handler.parallel_for(R2, [=](nd_item<2> Item) {
       int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(usmPtr);
       id<2> GId = Item.get_global_id();
       id<2> LId = Item.get_local_id();
       ptr2D[GId.get(0)][GId.get(1)] =
-        LId.get(0) + LId.get(1) + value + S.x + S.f + S.c[2];
-      });
+          LId.get(0) + LId.get(1) + value + S.x + S.f + S.c[2];
     });
+  });
   Queue.wait();
   bool Passa = checkUSM(usmPtr, Range, Result);
   std::cout << "Test 2a: " << (Passa ? "PASS" : "FAIL") << std::endl;
@@ -242,9 +242,9 @@ SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((
 // Explicit instantiation with “int*”
 template void ff_3(int *ptr, int start, struct Simple S);
 
-int test_3(queue Queue, KernelFinder &KF) {
+bool test_3(queue Queue, KernelFinder &KF) {
   constexpr int Range = 16;
-  int* usmPtr = malloc_shared<int>(Range, Queue);
+  int *usmPtr = malloc_shared<int>(Range, Queue);
   int value = 55;
   struct Simple S {
     66, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, 7.1
@@ -300,9 +300,9 @@ SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((
 // Explicit instantiation with “int*”
 template void ff_4(int *ptr, int start, struct WithPointer S);
 
-int test_4(queue Queue, KernelFinder &KF) {
+bool test_4(queue Queue, KernelFinder &KF) {
   constexpr int Range = 16;
-  int* usmPtr = malloc_shared<int>(Range, Queue);
+  int *usmPtr = malloc_shared<int>(Range, Queue);
   float *fp = malloc_shared<float>(1, Queue);
   *fp = 8.2;
   int value = 55;
