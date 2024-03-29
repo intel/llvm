@@ -106,4 +106,36 @@ int main() {
       assert(teh1.has("some-error"));
     }
   }
+  {
+    int data1 = 0, data2 = 0;
+    {
+      sycl::buffer<int, 1> Buf1(&data1, sycl::range<1>(1));
+      sycl::buffer<int, 1> Buf2(&data2, sycl::range<1>(1));
+      test_exception_handler teh;
+
+      auto e1 = teh.get_queue().submit([&](sycl::handler &cgh) {
+        auto B = sycl::accessor(Buf1, cgh, sycl::read_write_host_task);
+        cgh.host_task([=]() {
+          B[0] = 10;
+          throw test_exception{"some-error"};
+        });
+      });
+
+      auto e2 = teh.get_queue().submit([&](sycl::handler &cgh) {
+        auto B = sycl::accessor(Buf2, cgh, sycl::read_write_host_task);
+        cgh.host_task([=]() {
+          B[0] = 20;
+          throw test_exception{"another-error"};
+        });
+      });
+
+      e2.wait_and_throw();
+
+      assert(data1 == 10);
+      assert(data2 == 20);
+      assert(teh.count() == 2);
+      assert(teh.has("another-error"));
+      assert(teh.has("some-error"));
+    }
+  }
 }
