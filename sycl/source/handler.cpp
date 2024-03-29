@@ -978,7 +978,7 @@ void handler::memset(void *Dest, int Value, size_t Count) {
   MDstPtr = Dest;
   MPattern.push_back(static_cast<char>(Value));
   MLength = Count;
-  setUserFacingNodeType(ext::oneapi::experimental::node_type::memfill);
+  setUserFacingNodeType(ext::oneapi::experimental::node_type::memset);
   setType(detail::CG::FillUSM);
 }
 
