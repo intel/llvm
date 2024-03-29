@@ -12,7 +12,7 @@ class Kernel;
 // CHECK-LABEL: spir_kernel void @_ZTS6Kernel
 // CHECK-SAME:      !sycl_used_aspects ![[#USED_ASPECTS:]]
 
-// CHECK-DAG:   ![[#USED_ASPECTS]] = !{i32 64}
+// CHECK:       ![[#USED_ASPECTS]] = !{i32 64}
 
 constexpr static sycl::specialization_id<int> size(10);
 
