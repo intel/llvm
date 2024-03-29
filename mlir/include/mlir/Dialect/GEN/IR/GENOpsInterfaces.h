@@ -19,8 +19,7 @@ namespace mlir {
 namespace GEN {
 namespace detail {
 
-/// Verifies the operation receives an i32 argument, returns an index and that
-/// the input is non-constant or in the range [0, 2].
+/// Verifies the input is non-constant or in the range [0, 3).
 LogicalResult verify3DNDRangeOpInterface(Operation *op);
 
 } // namespace detail
