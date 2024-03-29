@@ -154,6 +154,8 @@ struct property_value<nd_range_kernel_key, std::integral_constant<int, Dims>> {
 template <>
 struct property_value<single_task_kernel_key> {
   using key_t = single_task_kernel_key;
+  using value_t = int;
+  static constexpr int value = 0;
 };
 
 template <size_t Dim0, size_t... Dims>
@@ -177,58 +179,7 @@ inline constexpr nd_range_kernel_key::value_t<Dims> nd_range_kernel;
 
 inline constexpr single_task_kernel_key::value_t single_task_kernel;
 
-template <> struct is_property_key<work_group_size_key> : std::true_type {};
-template <>
-struct is_property_key<work_group_size_hint_key> : std::true_type {};
-template <> struct is_property_key<sub_group_size_key> : std::true_type {};
-template <> struct is_property_key<device_has_key> : std::true_type {};
-template <> struct is_property_key<range_kernel_key> : std::true_type {};
-template <> struct is_property_key<nd_range_kernel_key> : std::true_type {};
-template <> struct is_property_key<single_task_kernel_key> : std::true_type {};
-
-template <auto *Func, int Dims> struct is_range_kernel;
-template <auto *Func, int Dims> struct is_nd_range_kernel;
-template <auto *Func, int Dims> struct is_single_task_kernel;
-
-template <auto *Func, int Dims>
-inline constexpr bool is_range_kernel_v = is_range_kernel<Func, Dims>::value;
-template <auto *Func, int Dims>
-inline constexpr bool is_nd_range_kernel_v =
-    is_nd_range_kernel<Func, Dims>::value;
-template <auto *Func, int Dims>
-inline constexpr bool is_single_task_kernel_v =
-    is_single_task_kernel<Func, Dims>::value;
-
 namespace detail {
-template <> struct PropertyToKind<work_group_size_key> {
-  static constexpr PropKind Kind = PropKind::WorkGroupSize;
-};
-template <> struct PropertyToKind<work_group_size_hint_key> {
-  static constexpr PropKind Kind = PropKind::WorkGroupSizeHint;
-};
-template <> struct PropertyToKind<sub_group_size_key> {
-  static constexpr PropKind Kind = PropKind::SubGroupSize;
-};
-template <> struct PropertyToKind<device_has_key> {
-  static constexpr PropKind Kind = PropKind::DeviceHas;
-};
-template <> struct PropertyToKind<range_kernel_key> {
-  static constexpr PropKind Kind = PropKind::RangeKernel;
-};
-template <> struct PropertyToKind<nd_range_kernel_key> {
-  static constexpr PropKind Kind = PropKind::NDRangeKernel;
-};
-template <> struct PropertyToKind<single_task_kernel_key> {
-  static constexpr PropKind Kind = PropKind::SingleTaskKernel;
-};
-
-template <>
-struct IsCompileTimeProperty<work_group_size_key> : std::true_type {};
-template <>
-struct IsCompileTimeProperty<work_group_size_hint_key> : std::true_type {};
-template <>
-struct IsCompileTimeProperty<sub_group_size_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<device_has_key> : std::true_type {};
 
 template <size_t Dim0, size_t... Dims>
 struct PropertyMetaInfo<work_group_size_key::value_t<Dim0, Dims...>> {
@@ -253,7 +204,6 @@ struct PropertyMetaInfo<device_has_key::value_t<Aspects...>> {
 };
 template <int Dims>
 struct PropertyMetaInfo<range_kernel_key::value_t<Dims>> {
-  //static constexpr const char* name = "sycl-range-kernel";
   static constexpr const char* name = "sycl-range-kernel";
   static constexpr int value = Dims;
   //static constexpr const char *value =
@@ -261,13 +211,11 @@ struct PropertyMetaInfo<range_kernel_key::value_t<Dims>> {
 };
 template <int Dims>
 struct PropertyMetaInfo<nd_range_kernel_key::value_t<Dims>> {
-  //static constexpr const char* name = "sycl-nd-range-kernel";
   static constexpr const char* name = "sycl-nd-range-kernel";
   static constexpr int value = Dims;
 };
 template <>
 struct PropertyMetaInfo<single_task_kernel_key::value_t> {
-  //static constexpr const char* name = "sycl-single-task-kernel";
   static constexpr const char* name = "sycl-single-task-kernel";
   static constexpr int value = 0;
 };

@@ -50,7 +50,6 @@
 
 #include <optional>
 #include <string>
-#include <iostream>
 
 using namespace clang;
 using namespace CodeGen;
