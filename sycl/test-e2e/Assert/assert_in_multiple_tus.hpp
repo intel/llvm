@@ -1,6 +1,8 @@
 #include "Inputs/kernels_in_file2.hpp"
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
 
 #ifdef DEFINE_NDEBUG_INFILE1
 #define NDEBUG

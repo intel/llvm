@@ -82,13 +82,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 4c22f5c69dc0c36ad135a3f3bc4021b47b22585e
-  # Merge: c98fdbcf f67dc0c6
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Mar 21 17:08:13 2024 +0000
-  #     Merge pull request #1445 from raiyanla/enable-in-order
-  #     [L0] Enable default support for L0 in-order lists
-  set(UNIFIED_RUNTIME_TAG 4c22f5c69dc0c36ad135a3f3bc4021b47b22585e)
+  # commit ff276ab1cd584557f8ed4d176109057684a5f4ca
+  # Merge: ed949ecd 2968cc14
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Wed Mar 27 11:28:34 2024 +0000
+  #     Merge pull request #1363 from hdelan/refactor-device-initialization
+  #     [CUDA] Refactor device initialization
+  set(UNIFIED_RUNTIME_TAG ff276ab1cd584557f8ed4d176109057684a5f4ca)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
