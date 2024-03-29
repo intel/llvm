@@ -15,6 +15,9 @@
 #include <detail/queue_impl.hpp>
 #include <detail/xpti_registry.hpp>
 
+#include <sycl/usm/usm_enums.hpp>
+#include <sycl/usm/usm_pointer_info.hpp>
+
 #include <algorithm>
 #include <cassert>
 #include <cstring>

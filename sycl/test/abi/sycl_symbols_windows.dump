@@ -3,7 +3,7 @@
 # DO NOT EDIT IT MANUALLY. Refer to sycl/doc/developer/ABIPolicyGuide.md for more info.
 ################################################################################
 
-# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir %python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %llvm_build_bin_dir/sycl7.dll
+# RUN: env LLVM_BIN_PATH=%llvm_build_bin_dir %python %sycl_tools_src_dir/abi_check.py --mode check_symbols --reference %s %llvm_build_bin_dir/sycl8.dll
 # REQUIRES: windows
 # UNSUPPORTED: libcxx
 
@@ -508,6 +508,9 @@
 ??0device_image_plain@detail@_V1@sycl@@QEAA@AEBV?$shared_ptr@Vdevice_image_impl@detail@_V1@sycl@@@std@@@Z
 ??0device_selector@_V1@sycl@@QEAA@AEBV012@@Z
 ??0device_selector@_V1@sycl@@QEAA@XZ
+??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@$$QEAV0123456@@Z
+??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV0123456@@Z
+??0dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@V?$command_graph@$0A@@23456@_KPEBX@Z
 ??0event@_V1@sycl@@AEAA@V?$shared_ptr@Vevent_impl@detail@_V1@sycl@@@std@@@Z
 ??0event@_V1@sycl@@QEAA@$$QEAV012@@Z
 ??0event@_V1@sycl@@QEAA@AEBV012@@Z
@@ -534,7 +537,7 @@
 ??0exception_list@_V1@sycl@@QEAA@$$QEAV012@@Z
 ??0exception_list@_V1@sycl@@QEAA@AEBV012@@Z
 ??0exception_list@_V1@sycl@@QEAA@XZ
-??0executable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@IEAA@AEBV?$shared_ptr@Vgraph_impl@detail@experimental@oneapi@ext@_V1@sycl@@@std@@AEBVcontext@56@@Z
+??0executable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@IEAA@AEBV?$shared_ptr@Vgraph_impl@detail@experimental@oneapi@ext@_V1@sycl@@@std@@AEBVcontext@56@AEBVproperty_list@56@@Z
 ??0executable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@$$QEAV0123456@@Z
 ??0executable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@AEBV0123456@@Z
 ??0filter_selector@ONEAPI@_V1@sycl@@QEAA@$$QEAV0123@@Z
@@ -666,6 +669,7 @@
 ??1device@_V1@sycl@@QEAA@XZ
 ??1device_image_plain@detail@_V1@sycl@@QEAA@XZ
 ??1device_selector@_V1@sycl@@UEAA@XZ
+??1dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAA@XZ
 ??1event@_V1@sycl@@QEAA@XZ
 ??1exception@_V1@sycl@@UEAA@XZ
 ??1exception_list@_V1@sycl@@QEAA@XZ
@@ -742,6 +746,8 @@
 ??4device_image_plain@detail@_V1@sycl@@QEAAAEAV0123@$$QEAV0123@@Z
 ??4device_image_plain@detail@_V1@sycl@@QEAAAEAV0123@AEBV0123@@Z
 ??4device_selector@_V1@sycl@@QEAAAEAV012@AEBV012@@Z
+??4dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAAAEAV0123456@$$QEAV0123456@@Z
+??4dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@QEAAAEAV0123456@AEBV0123456@@Z
 ??4event@_V1@sycl@@QEAAAEAV012@$$QEAV012@@Z
 ??4event@_V1@sycl@@QEAAAEAV012@AEBV012@@Z
 ??4exception@_V1@sycl@@QEAAAEAV012@AEBV012@@Z
@@ -1018,8 +1024,8 @@
 ?ext_intel_read_host_pipe@handler@_V1@sycl@@AEAAXAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAX_K_N@Z
 ?ext_intel_write_host_pipe@handler@_V1@sycl@@AEAAXAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEAX_K_N@Z
 ?ext_oneapi_advise_usm_cmd_buffer@MemoryManager@detail@_V1@sycl@@SAXV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@PEAU_pi_ext_command_buffer@@PEBX_KW4_pi_mem_advice@@V?$vector@IV?$allocator@I@std@@@6@PEAI@Z
-?ext_oneapi_architecture_is@device@_V1@sycl@@QEAA_NW4architecture@experimental@oneapi@ext@23@@Z
 ?ext_oneapi_architecture_is@device@_V1@sycl@@QEAA_NW4arch_category@experimental@oneapi@ext@23@@Z
+?ext_oneapi_architecture_is@device@_V1@sycl@@QEAA_NW4architecture@experimental@oneapi@ext@23@@Z
 ?ext_oneapi_barrier@handler@_V1@sycl@@QEAAXAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
 ?ext_oneapi_barrier@handler@_V1@sycl@@QEAAXXZ
 ?ext_oneapi_can_access_peer@device@_V1@sycl@@QEAA_NAEBV123@W4peer_access@oneapi@ext@23@@Z
@@ -1236,6 +1242,7 @@
 ?getType@handler@_V1@sycl@@AEAA?AW4CGTYPE@CG@detail@23@XZ
 ?getType@image_impl@detail@_V1@sycl@@UEBA?AW4MemObjType@SYCLMemObjI@234@XZ
 ?getUserPtr@SYCLMemObjT@detail@_V1@sycl@@QEBAPEAXXZ
+?getValueFromDynamicParameter@detail@_V1@sycl@@YAPEAXAEAVdynamic_parameter_base@1experimental@oneapi@ext@23@@Z
 ?get_addressing_mode@sampler@_V1@sycl@@QEBA?AW4addressing_mode@23@XZ
 ?get_addressing_mode@sampler_impl@detail@_V1@sycl@@QEBA?AW4addressing_mode@34@XZ
 ?get_allocator_internal@SYCLMemObjT@detail@_V1@sycl@@QEBAAEBV?$unique_ptr@VSYCLMemObjAllocator@detail@_V1@sycl@@U?$default_delete@VSYCLMemObjAllocator@detail@_V1@sycl@@@std@@@std@@XZ
@@ -1474,6 +1481,7 @@
 ?reduGetMaxNumConcurrentWorkGroups@detail@_V1@sycl@@YAIV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@@Z
 ?reduGetMaxWGSize@detail@_V1@sycl@@YA_KV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_K@Z
 ?reduGetPreferredWGSize@detail@_V1@sycl@@YA_KAEAV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_K@Z
+?registerDynamicParameter@handler@_V1@sycl@@AEAAXAEAVdynamic_parameter_base@detail@experimental@oneapi@ext@23@H@Z
 ?release@MemoryManager@detail@_V1@sycl@@SAXV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@PEAVSYCLMemObjI@234@PEAXV?$vector@V?$shared_ptr@Vevent_impl@detail@_V1@sycl@@@std@@V?$allocator@V?$shared_ptr@Vevent_impl@detail@_V1@sycl@@@std@@@2@@6@AEAPEAU_pi_event@@@Z
 ?releaseHostMem@SYCLMemObjT@detail@_V1@sycl@@UEAAXPEAX@Z
 ?releaseMem@SYCLMemObjT@detail@_V1@sycl@@UEAAXV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@PEAX@Z
@@ -1506,6 +1514,7 @@
 ?setKernelCacheConfig@handler@_V1@sycl@@AEAAXW4_pi_kernel_cache_config@@@Z
 ?setKernelIsCooperative@handler@_V1@sycl@@AEAAX_N@Z
 ?setLocalAccessorArgHelper@handler@_V1@sycl@@AEAAXHAEAVLocalAccessorBaseHost@detail@23@@Z
+?setNDRangeUsed@handler@_V1@sycl@@AEAAX_N@Z
 ?setPitches@image_impl@detail@_V1@sycl@@AEAAXAEBV?$range@$01@34@@Z
 ?setPitches@image_impl@detail@_V1@sycl@@AEAAXXZ
 ?setStateExplicitKernelBundle@handler@_V1@sycl@@AEAAXXZ
@@ -5136,8 +5145,12 @@
 ?unsampledImageDestructorNotification@image_plain@detail@_V1@sycl@@IEAAXPEAX@Z
 ?unset_flag@stream@_V1@sycl@@AEBAXI@Z
 ?update@executable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXAEBV?$command_graph@$0A@@34567@@Z
+?update@executable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXAEBV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@@Z
+?update@executable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXAEBVnode@34567@@Z
+?updateAccessor@dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXPEBVAccessorBaseHost@267@@Z
 ?updateHostMemory@SYCLMemObjT@detail@_V1@sycl@@IEAAXQEAX@Z
 ?updateHostMemory@SYCLMemObjT@detail@_V1@sycl@@IEAAXXZ
+?updateValue@dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXPEBX_K@Z
 ?useHostPtr@SYCLMemObjT@detail@_V1@sycl@@QEAA_NXZ
 ?use_kernel_bundle@handler@_V1@sycl@@QEAAXAEBV?$kernel_bundle@$01@23@@Z
 ?usesPinnedHostMemory@SYCLMemObjT@detail@_V1@sycl@@UEBA_NXZ
@@ -5151,6 +5164,7 @@
 ?wait_and_throw@event@_V1@sycl@@SAXAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
 ?wait_and_throw@queue@_V1@sycl@@QEAAXAEBUcode_location@detail@23@@Z
 ?wait_and_throw_proxy@queue@_V1@sycl@@QEAAXAEBUcode_location@detail@23@@Z
+?wait_non_blocking@pipe_base@experimental@intel@ext@_V1@sycl@@KA_NAEBVevent@56@@Z
 ?wait_proxy@queue@_V1@sycl@@QEAAXAEBUcode_location@detail@23@@Z
 ?what@exception@_V1@sycl@@UEBAPEBDXZ
 DllMain

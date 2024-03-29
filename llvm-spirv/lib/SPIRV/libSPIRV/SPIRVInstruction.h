@@ -443,8 +443,8 @@ public:
                 const std::string &TheName,
                 SPIRVStorageClassKind TheStorageClass, SPIRVBasicBlock *TheBB,
                 SPIRVModule *TheM)
-      : SPIRVInstruction(TheInitializer ? 5 : 4, OpVariable, TheType, TheId,
-                         TheBB, TheM),
+      : SPIRVInstruction(TheInitializer && !TheInitializer->isUndef() ? 5 : 4,
+                         OpVariable, TheType, TheId, TheBB, TheM),
         StorageClass(TheStorageClass) {
     if (TheInitializer && !TheInitializer->isUndef())
       Initializer.push_back(TheInitializer->getId());
