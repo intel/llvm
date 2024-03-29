@@ -77,7 +77,6 @@ struct single_task_kernel_key {
   using value_t = property_value<single_task_kernel_key>;
 };
 
-
 template <size_t Dim0, size_t... Dims>
 struct property_value<work_group_size_key, std::integral_constant<size_t, Dim0>,
                       std::integral_constant<size_t, Dims>...> {
