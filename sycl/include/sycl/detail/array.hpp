@@ -8,10 +8,11 @@
 
 #pragma once
 
-//#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_VALUE
 //#include <sycl/exception.hpp>                 // for invalid_parameter_error
 
+#include <cassert>
 #include <stddef.h>    // for size_t
 #include <type_traits> // for enable_if_t
 
@@ -111,16 +112,13 @@ public:
 
 protected:
   size_t common_array[dimensions];
-  //__SYCL_ALWAYS_INLINE 
-  void check_dimension(int dimension) const;// {
-// #ifndef __SYCL_DEVICE_ONLY__
-//     if (dimension >= dimensions || dimension < 0) {
-//       throw sycl::invalid_parameter_error("Index out of range",
-//                                           PI_ERROR_INVALID_VALUE);
-//     }
-// #endif
-//     (void)dimension;
-//   }
+  __SYCL_ALWAYS_INLINE 
+  void check_dimension(int dimension) const {
+#ifndef __SYCL_DEVICE_ONLY__
+    assert(dimension < dimensions && dimension >= 0 && "Index out of range");
+#endif
+    (void)dimension;
+  }
 };
 
 } // namespace detail

@@ -89,19 +89,17 @@ protected:
   template <typename PropT>
   typename std::enable_if_t<std::is_base_of_v<PropertyWithDataBase, PropT>,
                             PropT>
-  get_property_helper() const;// {
-  //   const int PropKind = static_cast<int>(PropT::getKind());
-  //   if (PropKind >= PropWithDataKind::PropWithDataKindSize)
-  //     throw sycl::invalid_object_error("The property is not found",
-  //                                      PI_ERROR_INVALID_VALUE);
+  get_property_helper() const {
+    const int PropKind = static_cast<int>(PropT::getKind());
+    assert(PropKind >= PropWithDataKind::PropWithDataKindSize &&
+      "The property is not found");
 
-  //   for (const std::shared_ptr<PropertyWithDataBase> &Prop : MPropsWithData)
-  //     if (Prop->isSame(PropKind))
-  //       return *static_cast<PropT *>(Prop.get());
+    for (const std::shared_ptr<PropertyWithDataBase> &Prop : MPropsWithData)
+      if (Prop->isSame(PropKind))
+        return *static_cast<PropT *>(Prop.get());
 
-  //   throw sycl::invalid_object_error("The property is not found",
-  //                                    PI_ERROR_INVALID_VALUE);
-  // }
+    assert(false && "The property is not found");
+  }
 
   void add_or_replace_accessor_properties_helper(
       const std::vector<std::shared_ptr<PropertyWithDataBase>> &PropsWithData) {
