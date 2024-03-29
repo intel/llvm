@@ -6,7 +6,11 @@
 // RUN: | FileCheck %s
 // RUN: env ZE_DEBUG=-6 SYCL_PI_TRACE=-1 %{run} %t.out \
 // RUN: | FileCheck %s --check-prefixes=CHECK-CACHE
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/specialization_id.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 

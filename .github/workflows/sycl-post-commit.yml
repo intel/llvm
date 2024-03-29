@@ -19,6 +19,8 @@ on:
     - ./devops/actions/cleanup
     - ./devops/actions/cached_checkout
 
+permissions: read-all
+
 jobs:
   build-lin:
     name: Linux (Self build + shared libraries + no-assertions)

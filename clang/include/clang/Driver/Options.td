@@ -3913,12 +3913,12 @@ def fsycl_device_code_split_esimd : Flag<["-"], "fsycl-device-code-split-esimd">
 def fno_sycl_device_code_split_esimd : Flag<["-"], "fno-sycl-device-code-split-esimd">,
   Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"do not split ESIMD and SYCL device code into separate device binary images. Has effect only for SPIR-based targets. (experimental)">;
 defm sycl_add_default_spec_consts_image : BoolOptionWithoutMarshalling<"f", "sycl-add-default-spec-consts-image",
-  PosFlag<SetTrue, [], [ClangOption],
+  PosFlag<SetTrue, [], [ClangOption, CLOption],
            "Generates a copy of every device image that uses a specialization constant and "
            "replaces all usages of specialization constant with default values specified by specialization_id. "
            "If a device image doesn't use a specialization constant at all then no copy is generated. "
            "This option is only useful if used in conjunction with Ahead of Time Compilation (-fsycl-target command line option).">,
-  NegFlag<SetFalse, [], [ClangOption],
+  NegFlag<SetFalse, [], [ClangOption, CLOption],
            "Turns off generation of device image where all specialization constant usages are replaced "
            "with default values.">
 >;
@@ -4391,6 +4391,14 @@ defm strict_return : BoolFOption<"strict-return",
           "Don't treat control flow paths that fall off the end"
             " of a non-void function as unreachable">,
   PosFlag<SetTrue>>;
+
+let Group = f_Group in {
+  let Visibility = [ClangOption,CC1Option] in {
+    def fptrauth_intrinsics : Flag<["-"], "fptrauth-intrinsics">,
+      HelpText<"Enable pointer authentication intrinsics">;
+  }
+  def fno_ptrauth_intrinsics : Flag<["-"], "fno-ptrauth-intrinsics">;
+}
 
 def fenable_matrix : Flag<["-"], "fenable-matrix">, Group<f_Group>,
     Visibility<[ClangOption, CC1Option]>,
@@ -4982,21 +4990,17 @@ def mrvv_vector_bits_EQ : Joined<["-"], "mrvv-vector-bits=">, Group<m_Group>,
     " (RISC-V only)")>;
 
 def munaligned_access : Flag<["-"], "munaligned-access">, Group<m_Group>,
-  HelpText<"Allow memory accesses to be unaligned (AArch32/AArch64/LoongArch/RISC-V only)">;
+  HelpText<"Allow memory accesses to be unaligned (AArch32/MIPSr6 only)">;
 def mno_unaligned_access : Flag<["-"], "mno-unaligned-access">, Group<m_Group>,
-  HelpText<"Force all memory accesses to be aligned (AArch32/AArch64/LoongArch/RISC-V only)">;
+  HelpText<"Force all memory accesses to be aligned (AArch32/MIPSr6 only)">;
 def munaligned_symbols : Flag<["-"], "munaligned-symbols">, Group<m_Group>,
   HelpText<"Expect external char-aligned symbols to be without ABI alignment (SystemZ only)">;
 def mno_unaligned_symbols : Flag<["-"], "mno-unaligned-symbols">, Group<m_Group>,
   HelpText<"Expect external char-aligned symbols to be without ABI alignment (SystemZ only)">;
-} // let Flags = [TargetSpecific]
-def mstrict_align : Flag<["-"], "mstrict-align">, Alias<mno_unaligned_access>,
-  Flags<[HelpHidden]>, Visibility<[ClangOption, CC1Option]>,
-  HelpText<"Force all memory accesses to be aligned (same as mno-unaligned-access)">;
-def mno_strict_align : Flag<["-"], "mno-strict-align">, Alias<munaligned_access>,
-  Flags<[HelpHidden]>, Visibility<[ClangOption, CC1Option]>,
-  HelpText<"Allow memory accesses to be unaligned (same as munaligned-access)">;
-let Flags = [TargetSpecific] in {
+def mstrict_align : Flag<["-"], "mstrict-align">,
+  HelpText<"Force all memory accesses to be aligned (AArch64/LoongArch/RISC-V only)">;
+def mno_strict_align : Flag<["-"], "mno-strict-align">,
+  HelpText<"Allow memory accesses to be unaligned (AArch64/LoongArch/RISC-V only)">;
 def mno_thumb : Flag<["-"], "mno-thumb">, Group<m_arm_Features_Group>;
 def mrestrict_it: Flag<["-"], "mrestrict-it">, Group<m_arm_Features_Group>,
   HelpText<"Disallow generation of complex IT blocks. It is off by default.">;
@@ -5682,6 +5686,9 @@ def print_resource_dir : Flag<["-", "--"], "print-resource-dir">,
   Visibility<[ClangOption, CLOption]>;
 def print_search_dirs : Flag<["-", "--"], "print-search-dirs">,
   HelpText<"Print the paths used for finding libraries and programs">,
+  Visibility<[ClangOption, CLOption]>;
+def print_std_module_manifest_path : Flag<["-", "--"], "print-library-module-manifest-path">,
+  HelpText<"Print the path for the C++ Standard library module manifest">,
   Visibility<[ClangOption, CLOption]>;
 def print_targets : Flag<["-", "--"], "print-targets">,
   HelpText<"Print the registered targets">,
@@ -6763,11 +6770,6 @@ def flang_experimental_hlfir : Flag<["-"], "flang-experimental-hlfir">,
 def flang_deprecated_no_hlfir : Flag<["-"], "flang-deprecated-no-hlfir">,
   Flags<[HelpHidden]>, Visibility<[FlangOption, FC1Option]>,
   HelpText<"Do not use HLFIR lowering (deprecated)">;
-
-def flang_experimental_polymorphism : Flag<["-"], "flang-experimental-polymorphism">,
-  Flags<[HelpHidden]>, Visibility<[FlangOption, FC1Option]>,
-  HelpText<"Enable Fortran 2003 polymorphism (experimental)">;
-
 
 //===----------------------------------------------------------------------===//
 // FLangOption + Visibility<[FlangOption, CLOption, DXCOption] + NoXarchOption
@@ -8984,6 +8986,11 @@ def dxc_entrypoint : Option<["--", "/", "-"], "E", KIND_JOINED_OR_SEPARATE>,
                      Group<dxc_Group>,
                      Visibility<[DXCOption]>,
                      HelpText<"Entry point name">;
+def dxc_hlsl_version : Option<["/", "-"], "HV", KIND_JOINED_OR_SEPARATE>,
+                     Group<dxc_Group>,
+                     Visibility<[DXCOption]>,
+                     HelpText<"HLSL Version">,
+                     Values<"2016, 2017, 2018, 2021, 202x">;
 def dxc_validator_path_EQ : Joined<["--"], "dxv-path=">, Group<dxc_Group>,
   HelpText<"DXIL validator installation path">;
 def dxc_disable_validation : DXCFlag<"Vd">,

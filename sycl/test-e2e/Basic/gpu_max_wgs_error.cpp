@@ -4,7 +4,7 @@
 // RUN: %{run} %t.out
 
 #include <numeric>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

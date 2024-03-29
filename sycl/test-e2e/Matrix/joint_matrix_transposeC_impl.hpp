@@ -1,3 +1,5 @@
+#include <sycl/usm.hpp>
+
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
