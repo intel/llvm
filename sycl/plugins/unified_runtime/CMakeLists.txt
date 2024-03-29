@@ -82,13 +82,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 03b71483168c091d08d86dec8b1f1c76bff19af5
-  # Merge: 535f4b94 e0415a0a
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Apr 2 16:08:34 2024 +0200
-  #     Merge pull request #1432 from RossBrunton/ross/testfix
-  #     [CTS] Don't segfault when failing to load a kernel
-  set(UNIFIED_RUNTIME_TAG 03b71483168c091d08d86dec8b1f1c76bff19af5)
+  # commit 065bf2dd97b58a4ceeb2fb83eed1df9319e61c59
+  # Merge: b9153547 ec773e6c
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Fri Apr 5 14:26:59 2024 +0100
+  #     Merge pull request #1486 from nrspruit/fix_memfree_report
+  #     [L0] Fix DeviceInfo global mem free to report unsupported given MemCount==0
+  set(UNIFIED_RUNTIME_TAG 065bf2dd97b58a4ceeb2fb83eed1df9319e61c59)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
