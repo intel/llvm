@@ -279,7 +279,7 @@ Default placement is a blocked one:
 in striped case:
 `out_iter[g.get_local_linear_id() + g.get_local_linear_range() * i]` = `in[i];`
 for `i` between `0` and `ItemsPerWorkItem`.
-Properties may also provide a hint for optimization purposes
+Properties may also provide xref:optimization_properties[assertions] which can enable better optimizations.
 xref:optimization_hints[optimization_hints].
 
 === Data Placement
