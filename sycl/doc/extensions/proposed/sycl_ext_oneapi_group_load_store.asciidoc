@@ -102,8 +102,8 @@ in the group.
 _Effects_: Loads single element from `in_iter` to `out` by using the `g` group
 object to identify memory location as `in_iter` + `g.get_local_linear_id()`.
 
-Properties may provide a hint for optimization purposes
-xref:optimization_hints[optimization_hints].
+Properties may provide xref:optimization_properties[assertions] which can
+enable better optimizations.
 
 ==== `sycl::vec` Overload
 
@@ -137,8 +137,8 @@ Default data placement is a blocked one:
 in striped case:
 `out[i]` = `in_iter[g.get_local_linear_id() + g.get_local_linear_range() * i];`
 for `i` between `0` and `N`.
-Properties may also provide a hint for optimization purposes
-xref:optimization_hints[optimization_hints].
+Properties may also provide xref:optimization_properties[assertions] which can
+enable better optimizations.
 
 ==== Fixed-size Array Overload
 
@@ -173,8 +173,9 @@ Default placement is a blocked one:
 in striped case:
 `out[i]` = `in_iter[g.get_local_linear_id() + g.get_local_linear_range() * i];`
 for `i` between `0` and `ElementsPerWorkItem`.
-Properties may also provide a hint for optimization purposes
-xref:optimization_hints[optimization_hints].
+Properties may also provide xref:optimization_properties[assertions] which can
+enable better optimizations.
+
 
 === Store API
 
@@ -206,8 +207,9 @@ in the group.
 _Effects_: Stores single element `in` to `out_iter` by using the `g` group
 object to identify memory location as `out_iter` + `g.get_local_linear_id()`
 
-Properties may provide a hint for optimization purposes
-xref:optimization_hints[optimization_hints].
+Properties may provide xref:optimization_properties[assertions] which can
+enable better optimizations.
+
 
 ==== `sycl::vec` Overload
 
@@ -241,8 +243,9 @@ Default placement is a blocked one:
 in striped case:
 `out_iter[g.get_local_linear_id() + g.get_local_linear_range() * i]` = `in[i];`
 for `i` between `0` and `N`.
-Properties may also provide a hint for optimization purposes
-xref:optimization_hints[optimization_hints].
+Properties may also provide xref:optimization_properties[assertions] which can
+enable better optimizations.
+
 
 ==== Fixed-size Array Overload
 
@@ -279,8 +282,8 @@ Default placement is a blocked one:
 in striped case:
 `out_iter[g.get_local_linear_id() + g.get_local_linear_range() * i]` = `in[i];`
 for `i` between `0` and `ItemsPerWorkItem`.
-Properties may also provide xref:optimization_properties[assertions] which can enable better optimizations.
-xref:optimization_hints[optimization_hints].
+Properties may also provide xref:optimization_properties[assertions] which can
+enable better optimizations.
 
 === Data Placement
 
