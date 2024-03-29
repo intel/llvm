@@ -115,15 +115,16 @@ inline uint32_t getDebugLevel() {
 /// Print fatal error message with an error string and error identifier
 #define FATAL_MESSAGE0(_num, _str)                                             \
   do {                                                                         \
-    fprintf(stderr, GETNAME(TARGET_NAME) " fatal error %d: %s\n", _num, _str); \
+    fprintf(stderr, GETNAME(TARGET_NAME) " fatal error %d: %s\n", (int)_num,   \
+            _str);                                                             \
     abort();                                                                   \
   } while (0)
 
 /// Print fatal error message with a printf string and error identifier
 #define FATAL_MESSAGE(_num, _str, ...)                                         \
   do {                                                                         \
-    fprintf(stderr, GETNAME(TARGET_NAME) " fatal error %d: " _str "\n", _num,  \
-            __VA_ARGS__);                                                      \
+    fprintf(stderr, GETNAME(TARGET_NAME) " fatal error %d: " _str "\n",        \
+            (int)_num, __VA_ARGS__);                                           \
     abort();                                                                   \
   } while (0)
 
@@ -135,10 +136,12 @@ inline uint32_t getDebugLevel() {
   } while (0)
 
 /// Print a generic information string used if LIBOMPTARGET_INFO=1
-#define INFO_MESSAGE(_num, ...)                                                \
+#define INFO_MESSAGE(_num, ...) INFO_MESSAGE_TO(stderr, _num, __VA_ARGS__)
+
+#define INFO_MESSAGE_TO(_stdDst, _num, ...)                                    \
   do {                                                                         \
-    fprintf(stderr, GETNAME(TARGET_NAME) " device %d info: ", (int)_num);      \
-    fprintf(stderr, __VA_ARGS__);                                              \
+    fprintf(_stdDst, GETNAME(TARGET_NAME) " device %d info: ", (int)_num);     \
+    fprintf(_stdDst, __VA_ARGS__);                                             \
   } while (0)
 
 // Debugging messages
@@ -183,6 +186,15 @@ inline uint32_t getDebugLevel() {
       DEBUGP(DEBUG_PREFIX, __VA_ARGS__);                                       \
     } else if (getInfoLevel() & _flags) {                                      \
       INFO_MESSAGE(_id, __VA_ARGS__);                                          \
+    }                                                                          \
+  } while (false)
+
+#define DUMP_INFO(toStdOut, _flags, _id, ...)                                  \
+  do {                                                                         \
+    if (toStdOut) {                                                            \
+      INFO_MESSAGE_TO(stdout, _id, __VA_ARGS__);                               \
+    } else {                                                                   \
+      INFO(_flags, _id, __VA_ARGS__);                                          \
     }                                                                          \
   } while (false)
 

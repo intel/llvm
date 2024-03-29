@@ -5,13 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Issue #163 Test timeouts on Windows and Linux
-// REQUIRES: TEMPORARY_DISABLED
 // RUN: %{build} -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: %{run} %t.out
-//
-// The test hangs after driver update to 21.23.20043
-// REQUIRES: TEMPORARY_DISABLE
 //
 // The test checks that ESIMD kernels support use of function pointers from
 // within other functions.

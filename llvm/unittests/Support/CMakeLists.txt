@@ -38,6 +38,7 @@ add_llvm_unittest(SupportTests
   ErrnoTest.cpp
   ErrorOrTest.cpp
   ErrorTest.cpp
+  ExponentialBackoffTest.cpp
   ExtensibleRTTITest.cpp
   FileCollectorTest.cpp
   FileOutputBufferTest.cpp
@@ -105,6 +106,7 @@ add_llvm_unittest(SupportTests
   raw_ostream_test.cpp
   raw_pwrite_stream_test.cpp
   raw_sha1_ostream_test.cpp
+  raw_socket_stream_test.cpp
   xxhashTest.cpp
 
   DEPENDS

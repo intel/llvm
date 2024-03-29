@@ -52,6 +52,7 @@
 #include "llvm/Support/Debug.h"
 
 #include <algorithm>
+#include <regex>
 #include <set>
 
 using namespace llvm;
@@ -90,8 +91,8 @@ static Type *getBlockStructType(Value *Parameter) {
 /// for a demangled function name, or 0 if the function does not return an
 /// integer type (e.g. read_imagef).
 static unsigned getImageSignZeroExt(StringRef DemangledName) {
-  bool IsSigned = !DemangledName.endswith("ui") && DemangledName.back() == 'i';
-  bool IsUnsigned = DemangledName.endswith("ui");
+  bool IsSigned = !DemangledName.ends_with("ui") && DemangledName.back() == 'i';
+  bool IsUnsigned = DemangledName.ends_with("ui");
 
   if (IsSigned)
     return ImageOperandsMask::ImageOperandsSignExtendMask;
@@ -327,8 +328,8 @@ void OCLToSPIRVBase::visitCallInst(CallInst &CI) {
   }
   if (DemangledName == kOCLBuiltinName::Dot ||
       DemangledName == kOCLBuiltinName::DotAccSat ||
-      DemangledName.startswith(kOCLBuiltinName::Dot4x8PackedPrefix) ||
-      DemangledName.startswith(kOCLBuiltinName::DotAccSat4x8PackedPrefix)) {
+      DemangledName.starts_with(kOCLBuiltinName::Dot4x8PackedPrefix) ||
+      DemangledName.starts_with(kOCLBuiltinName::DotAccSat4x8PackedPrefix)) {
     if (CI.getOperand(0)->getType()->isVectorTy()) {
       auto *VT = (VectorType *)(CI.getOperand(0)->getType());
       if (!isa<llvm::IntegerType>(VT->getElementType())) {
@@ -485,11 +486,12 @@ CallInst *OCLToSPIRVBase::visitCallAtomicCmpXchg(CallInst *CI) {
     Mutator.mapArg(1, [=](IRBuilder<> &Builder, Value *V) {
       return Builder.CreateLoad(MemTy, V, "exp");
     });
-    Mutator.changeReturnType(MemTy, [&](IRBuilder<> &Builder, CallInst *NCI) {
-      NewCI = NCI;
-      Builder.CreateStore(NCI, Expected);
-      return Builder.CreateICmpEQ(NCI, NCI->getArgOperand(1));
-    });
+    Mutator.changeReturnType(
+        MemTy, [Expected, &NewCI](IRBuilder<> &Builder, CallInst *NCI) {
+          NewCI = NCI;
+          Builder.CreateStore(NCI, Expected);
+          return Builder.CreateICmpEQ(NCI, NCI->getArgOperand(1));
+        });
   }
   return NewCI;
 }
@@ -553,9 +555,9 @@ void OCLToSPIRVBase::transMemoryBarrier(CallInst *CI,
 void OCLToSPIRVBase::visitCallAtomicLegacy(CallInst *CI, StringRef MangledName,
                                            StringRef DemangledName) {
   StringRef Stem = DemangledName;
-  if (Stem.startswith("atom_"))
+  if (Stem.starts_with("atom_"))
     Stem = Stem.drop_front(strlen("atom_"));
-  else if (Stem.startswith("atomic_"))
+  else if (Stem.starts_with("atomic_"))
     Stem = Stem.drop_front(strlen("atomic_"));
   else
     return;
@@ -585,7 +587,7 @@ void OCLToSPIRVBase::visitCallAtomicLegacy(CallInst *CI, StringRef MangledName,
   Info.UniqName = "atomic_" + Prefix + Sign + Stem.str() + Postfix;
   std::vector<int> PostOps;
   PostOps.push_back(OCLLegacyAtomicMemOrder);
-  if (Stem.startswith("compare_exchange"))
+  if (Stem.starts_with("compare_exchange"))
     PostOps.push_back(OCLLegacyAtomicMemOrder);
   PostOps.push_back(OCLLegacyAtomicMemScope);
 
@@ -600,24 +602,24 @@ void OCLToSPIRVBase::visitCallAtomicLegacy(CallInst *CI, StringRef MangledName,
 void OCLToSPIRVBase::visitCallAtomicCpp11(CallInst *CI, StringRef MangledName,
                                           StringRef DemangledName) {
   StringRef Stem = DemangledName;
-  if (Stem.startswith("atomic_"))
+  if (Stem.starts_with("atomic_"))
     Stem = Stem.drop_front(strlen("atomic_"));
   else
     return;
 
   std::string NewStem(Stem);
   std::vector<int> PostOps;
-  if (Stem.startswith("store") || Stem.startswith("load") ||
-      Stem.startswith("exchange") || Stem.startswith("compare_exchange") ||
-      Stem.startswith("fetch") || Stem.startswith("flag")) {
-    if ((Stem.startswith("fetch_min") || Stem.startswith("fetch_max")) &&
+  if (Stem.starts_with("store") || Stem.starts_with("load") ||
+      Stem.starts_with("exchange") || Stem.starts_with("compare_exchange") ||
+      Stem.starts_with("fetch") || Stem.starts_with("flag")) {
+    if ((Stem.starts_with("fetch_min") || Stem.starts_with("fetch_max")) &&
         containsUnsignedAtomicType(MangledName))
       NewStem.insert(NewStem.begin() + strlen("fetch_"), 'u');
 
-    if (!Stem.endswith("_explicit")) {
+    if (!Stem.ends_with("_explicit")) {
       NewStem = NewStem + "_explicit";
       PostOps.push_back(OCLMO_seq_cst);
-      if (Stem.startswith("compare_exchange"))
+      if (Stem.starts_with("compare_exchange"))
         PostOps.push_back(OCLMO_seq_cst);
       PostOps.push_back(OCLMS_device);
     } else {
@@ -723,6 +725,13 @@ void OCLToSPIRVBase::visitCallBarrier(CallInst *CI) {
 
 void OCLToSPIRVBase::visitCallConvert(CallInst *CI, StringRef MangledName,
                                       StringRef DemangledName) {
+  // OpenCL Explicit Conversions (6.4.3) formed as below for scalars:
+  // destType convert_destType<_sat><_roundingMode>(sourceType)
+  // and for vector type:
+  // destTypeN convert_destTypeN<_sat><_roundingMode>(sourceTypeN)
+  // If the demangled name is not matching the suggested pattern and does not
+  // meet allowed destination type restrictions - this is not an OpenCL builtin,
+  // return from the function and translate such CallInst as a function call.
   if (eraseUselessConvert(CI, MangledName, DemangledName))
     return;
   Op OC = OpNop;
@@ -733,16 +742,56 @@ void OCLToSPIRVBase::visitCallConvert(CallInst *CI, StringRef MangledName,
   if (auto *VecTy = dyn_cast<VectorType>(SrcTy))
     SrcTy = VecTy->getElementType();
   auto IsTargetInt = isa<IntegerType>(TargetTy);
+  auto TargetSigned = DemangledName[8] != 'u';
 
   std::string TargetTyName(
       DemangledName.substr(strlen(kOCLBuiltinName::ConvertPrefix)));
   auto FirstUnderscoreLoc = TargetTyName.find('_');
   if (FirstUnderscoreLoc != std::string::npos)
     TargetTyName = TargetTyName.substr(0, FirstUnderscoreLoc);
+
+  // Validate target type name
+  std::regex Expr("([a-z]+)([0-9]*)$");
+  std::smatch DestTyMatch;
+  if (!std::regex_match(TargetTyName, DestTyMatch, Expr))
+    return;
+
+  // The first sub_match is the whole string; the next
+  // sub_match is the first parenthesized expression.
+  std::string DestTy = DestTyMatch[1].str();
+
+  // check it's valid type name
+  static std::unordered_set<std::string> ValidTypes = {
+      "float",  "double", "half", "char", "uchar", "short",
+      "ushort", "int",    "uint", "long", "ulong"};
+
+  if (ValidTypes.find(DestTy) == ValidTypes.end())
+    return;
+
+  // check that it's allowed vector size
+  std::string VecSize = DestTyMatch[2].str();
+  if (!VecSize.empty()) {
+    int Size = stoi(VecSize);
+    switch (Size) {
+    case 2:
+    case 3:
+    case 4:
+    case 8:
+    case 16:
+      break;
+    default:
+      return;
+    }
+  }
+  DemangledName = DemangledName.drop_front(
+      strlen(kOCLBuiltinName::ConvertPrefix) + TargetTyName.size());
   TargetTyName = std::string("_R") + TargetTyName;
 
+  if (!DemangledName.empty() && !DemangledName.starts_with("_sat") &&
+      !DemangledName.starts_with("_rt"))
+    return;
+
   std::string Sat = DemangledName.find("_sat") != StringRef::npos ? "_sat" : "";
-  auto TargetSigned = DemangledName[8] != 'u';
   if (isa<IntegerType>(SrcTy)) {
     bool Signed = isLastFuncParamSigned(MangledName);
     if (IsTargetInt) {
@@ -792,7 +841,7 @@ void OCLToSPIRVBase::visitCallGroupBuiltin(CallInst *CI,
     FuncName = FuncName.drop_front(strlen(kSPIRVName::GroupPrefix));
     SPIRSPIRVGroupOperationMap::foreachConditional(
         [&](const std::string &S, SPIRVGroupOperationKind G) {
-          if (!FuncName.startswith(S))
+          if (!FuncName.starts_with(S))
             return true; // continue
           PreOps.push_back(G);
           StringRef Op =
@@ -886,7 +935,7 @@ void OCLToSPIRVBase::transBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
   Op OC = OpNop;
   unsigned ExtOp = ~0U;
   SPIRVBuiltinVariableKind BVKind = BuiltInMax;
-  if (StringRef(Info.UniqName).startswith(kSPIRVName::Prefix))
+  if (StringRef(Info.UniqName).starts_with(kSPIRVName::Prefix))
     return;
   if (OCLSPIRVBuiltinMap::find(Info.UniqName, &OC)) {
     if (OC == OpImageRead) {
@@ -912,16 +961,16 @@ void OCLToSPIRVBase::transBuiltin(CallInst *CI, OCLBuiltinTransInfo &Info) {
     Info.UniqName = getSPIRVFuncName(BVKind);
   } else
     return;
-  auto Mutator = mutateCallInst(CI, Info.UniqName + Info.Postfix);
+  BuiltinCallMutator Mutator = mutateCallInst(CI, Info.UniqName + Info.Postfix);
   Info.PostProc(Mutator);
   if (Info.RetTy) {
     Type *OldRetTy = CI->getType();
     Mutator.changeReturnType(
-        Info.RetTy, [&](IRBuilder<> &Builder, CallInst *NewCI) {
-          if (Info.RetTy->isIntegerTy() && OldRetTy->isIntegerTy())
+        Info.RetTy, [OldRetTy, &Info](IRBuilder<> &Builder, CallInst *NewCI) {
+          if (Info.RetTy->isIntegerTy() && OldRetTy->isIntegerTy()) {
             return Builder.CreateIntCast(NewCI, OldRetTy, Info.IsRetSigned);
-          else
-            return Builder.CreatePointerBitCastOrAddrSpaceCast(NewCI, OldRetTy);
+          }
+          return Builder.CreatePointerBitCastOrAddrSpaceCast(NewCI, OldRetTy);
         });
   }
 }
@@ -1078,8 +1127,9 @@ void OCLToSPIRVBase::visitCallReadWriteImage(CallInst *CI,
     Info.UniqName = kOCLBuiltinName::ReadImage;
     unsigned ImgOpMask = getImageSignZeroExt(DemangledName);
     if (ImgOpMask) {
-      Info.PostProc = [&](BuiltinCallMutator &Mutator) {
-        Mutator.appendArg(getInt32(M, ImgOpMask));
+      Module *Mod = M;
+      Info.PostProc = [ImgOpMask, Mod](BuiltinCallMutator &Mutator) {
+        Mutator.appendArg(getInt32(Mod, ImgOpMask));
       };
     }
   }
@@ -1221,7 +1271,7 @@ void OCLToSPIRVBase::visitCallDot(CallInst *CI, StringRef MangledName,
       // dot(short2, ushort2) _Z3dotDv2_sDv2_t
       // dot(ushort2, short2) _Z3dotDv2_tDv2_s
       // dot(ushort2, ushort2) _Z3dotDv2_tS_
-      assert(MangledName.startswith("_Z3dotDv"));
+      assert(MangledName.starts_with("_Z3dotDv"));
       if (MangledName[MangledName.size() - 1] == '_') {
         IsFirstSigned = ((MangledName[MangledName.size() - 3] == 'c') ||
                          (MangledName[MangledName.size() - 3] == 's'));
@@ -1242,7 +1292,7 @@ void OCLToSPIRVBase::visitCallDot(CallInst *CI, StringRef MangledName,
       // dot_acc_sat(short2, ushort2, int) _Z11dot_acc_satDv4_sDv4_ti
       // dot_acc_sat(ushort2, short2, int) _Z11dot_acc_satDv4_tDv4_si
       // dot_acc_sat(ushort2, ushort2, uint) _Z11dot_acc_satDv4_tS_j
-      assert(MangledName.startswith("_Z11dot_acc_satDv"));
+      assert(MangledName.starts_with("_Z11dot_acc_satDv"));
       IsFirstSigned = ((MangledName[19] == 'c') || (MangledName[19] == 's'));
       IsSecondSigned = (MangledName[20] == 'S'
                             ? IsFirstSigned
@@ -1264,10 +1314,10 @@ void OCLToSPIRVBase::visitCallDot(CallInst *CI, StringRef MangledName,
     // _Z28dot_acc_sat_4x8packed_us_intjji
     // dot_acc_sat_4x8packed_uu_uint(uint, uint, uint)
     // _Z29dot_acc_sat_4x8packed_uu_uintjjj
-    assert(MangledName.startswith("_Z20dot_4x8packed") ||
-           MangledName.startswith("_Z21dot_4x8packed") ||
-           MangledName.startswith("_Z28dot_acc_sat_4x8packed") ||
-           MangledName.startswith("_Z29dot_acc_sat_4x8packed"));
+    assert(MangledName.starts_with("_Z20dot_4x8packed") ||
+           MangledName.starts_with("_Z21dot_4x8packed") ||
+           MangledName.starts_with("_Z28dot_acc_sat_4x8packed") ||
+           MangledName.starts_with("_Z29dot_acc_sat_4x8packed"));
     size_t SignIndex = IsAccSat
                            ? strlen(kOCLBuiltinName::DotAccSat4x8PackedPrefix)
                            : strlen(kOCLBuiltinName::Dot4x8PackedPrefix);
@@ -1581,7 +1631,7 @@ static const char *getSubgroupAVCIntelTyKind(StringRef MangledName) {
   // We're looking for the type name of the last parameter, which will be at the
   // very end of the mangled name. Since we only care about the ending of the
   // name, we don't need to be any more clever than this.
-  return MangledName.endswith("_payload_t") ? "payload" : "result";
+  return MangledName.ends_with("_payload_t") ? "payload" : "result";
 }
 
 static Type *getSubgroupAVCIntelMCEType(Module *M, std::string &TName) {

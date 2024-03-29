@@ -7,6 +7,10 @@
 // ===--------------------------------------------------------------------=== //
 
 #pragma once
+
+#include <CL/__spirv/spirv_types.hpp> // __spv namespace
+#include <optional>                   // std::optional
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext {
@@ -61,6 +65,21 @@ convertMatrixUseStringToEnum(const char *UseString) {
   }
   return std::nullopt;
 }
+
+inline __SYCL_ALWAYS_INLINE __spv::MatrixLayout joint_matrix_layout_to_spv(
+    sycl::ext::oneapi::experimental::matrix::layout Layout) {
+  switch (Layout) {
+  case sycl::ext::oneapi::experimental::matrix::layout::row_major:
+    return __spv::MatrixLayout::RowMajor;
+  case sycl::ext::oneapi::experimental::matrix::layout::col_major:
+    return __spv::MatrixLayout::ColumnMajor;
+  case sycl::ext::oneapi::experimental::matrix::layout::ext_intel_packed:
+    return __spv::MatrixLayout::Packed;
+  case sycl::ext::oneapi::experimental::matrix::layout::dynamic:
+    return __spv::MatrixLayout::Dynamic;
+  }
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

@@ -126,6 +126,7 @@ const int SIGFPE = 8;
 const int SIGSEGV = 11;
 const int SIGPIPE = 13;
 const int SIGTERM = 15;
+const int SIGPROF = 27;
 #if defined(__mips__) || SANITIZER_FREEBSD || SANITIZER_APPLE || SANITIZER_NETBSD
 const int SIGBUS = 10;
 const int SIGSYS = 12;
@@ -1380,6 +1381,22 @@ TSAN_INTERCEPTOR(int, pthread_mutex_unlock, void *m) {
   return res;
 }
 
+#if SANITIZER_LINUX
+TSAN_INTERCEPTOR(int, pthread_mutex_clocklock, void *m,
+                 __sanitizer_clockid_t clock, void *abstime) {
+  SCOPED_TSAN_INTERCEPTOR(pthread_mutex_clocklock, m, clock, abstime);
+  MutexPreLock(thr, pc, (uptr)m);
+  int res = REAL(pthread_mutex_clocklock)(m, clock, abstime);
+  if (res == errno_EOWNERDEAD)
+    MutexRepair(thr, pc, (uptr)m);
+  if (res == 0 || res == errno_EOWNERDEAD)
+    MutexPostLock(thr, pc, (uptr)m);
+  if (res == errno_EINVAL)
+    MutexInvalidAccess(thr, pc, (uptr)m);
+  return res;
+}
+#endif
+
 #if SANITIZER_GLIBC
 #  if !__GLIBC_PREREQ(2, 34)
 // glibc 2.34 applies a non-default version for the two functions. They are no
@@ -2152,7 +2169,8 @@ static bool is_sync_signal(ThreadSignalContext *sctx, int sig,
     return false;
 #endif
   return sig == SIGSEGV || sig == SIGBUS || sig == SIGILL || sig == SIGTRAP ||
-         sig == SIGABRT || sig == SIGFPE || sig == SIGPIPE || sig == SIGSYS;
+         sig == SIGABRT || sig == SIGFPE || sig == SIGPIPE || sig == SIGSYS ||
+         sig == SIGPROF;
 }
 
 void sighandler(int sig, __sanitizer_siginfo *info, void *ctx) {
@@ -2845,8 +2863,21 @@ void InitializeInterceptors() {
   REAL(memcpy) = internal_memcpy;
 #endif
 
+  __interception::DoesNotSupportStaticLinking();
+
   new(interceptor_ctx()) InterceptorContext();
 
+  // Interpose __tls_get_addr before the common interposers. This is needed
+  // because dlsym() may call malloc on failure which could result in other
+  // interposed functions being called that could eventually make use of TLS.
+#ifdef NEED_TLS_GET_ADDR
+#  if !SANITIZER_S390
+  TSAN_INTERCEPT(__tls_get_addr);
+#  else
+  TSAN_INTERCEPT(__tls_get_addr_internal);
+  TSAN_INTERCEPT(__tls_get_offset);
+#  endif
+#endif
   InitializeCommonInterceptors();
   InitializeSignalInterceptors();
   InitializeLibdispatchInterceptors();
@@ -2902,6 +2933,9 @@ void InitializeInterceptors() {
   TSAN_INTERCEPT(pthread_mutex_trylock);
   TSAN_INTERCEPT(pthread_mutex_timedlock);
   TSAN_INTERCEPT(pthread_mutex_unlock);
+#if SANITIZER_LINUX
+  TSAN_INTERCEPT(pthread_mutex_clocklock);
+#endif
 #if SANITIZER_GLIBC
 #  if !__GLIBC_PREREQ(2, 34)
   TSAN_INTERCEPT(__pthread_mutex_lock);
@@ -2990,15 +3024,6 @@ void InitializeInterceptors() {
   TSAN_MAYBE_INTERCEPT_ON_EXIT;
   TSAN_INTERCEPT(__cxa_atexit);
   TSAN_INTERCEPT(_exit);
-
-#ifdef NEED_TLS_GET_ADDR
-#if !SANITIZER_S390
-  TSAN_INTERCEPT(__tls_get_addr);
-#else
-  TSAN_INTERCEPT(__tls_get_addr_internal);
-  TSAN_INTERCEPT(__tls_get_offset);
-#endif
-#endif
 
   TSAN_MAYBE_INTERCEPT__LWP_EXIT;
   TSAN_MAYBE_INTERCEPT_THR_EXIT;

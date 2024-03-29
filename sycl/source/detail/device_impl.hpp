@@ -12,8 +12,8 @@
 #include <sycl/aspects.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/pi.hpp>
+#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/kernel_bundle.hpp>
-#include <sycl/stl.hpp>
 
 #include <memory>
 #include <mutex>
@@ -234,9 +234,24 @@ public:
 
   std::string getDeviceName() const;
 
-  bool extOneapiArchitectureIs(ext::oneapi::experimental::architecture Arch) {
+  bool
+  extOneapiArchitectureIs(ext::oneapi::experimental::architecture Arch) const {
     return Arch == getDeviceArch();
   }
+
+  bool extOneapiArchitectureIs(
+      ext::oneapi::experimental::arch_category Category) const {
+    std::optional<ext::oneapi::experimental::architecture> CategoryMinArch =
+        get_category_min_architecture(Category);
+    std::optional<ext::oneapi::experimental::architecture> CategoryMaxArch =
+        get_category_max_architecture(Category);
+    if (CategoryMinArch.has_value() && CategoryMaxArch.has_value())
+      return CategoryMinArch <= getDeviceArch() &&
+             getDeviceArch() <= CategoryMaxArch;
+    return false;
+  }
+
+  bool extOneapiCanCompile(ext::oneapi::experimental::source_language Language);
 
   /// Gets the current device timestamp
   /// @throw sycl::feature_not_supported if feature is not supported on device
@@ -257,11 +272,13 @@ public:
   std::string
   get_device_info_string(sycl::detail::pi::PiDeviceInfo InfoCode) const;
 
+  /// Get device architecture
+  ext::oneapi::experimental::architecture getDeviceArch() const;
+
 private:
   explicit device_impl(pi_native_handle InteropDevice,
                        sycl::detail::pi::PiDevice Device,
                        PlatformImplPtr Platform, const PluginPtr &Plugin);
-  ext::oneapi::experimental::architecture getDeviceArch() const;
   sycl::detail::pi::PiDevice MDevice = 0;
   sycl::detail::pi::PiDeviceType MType;
   sycl::detail::pi::PiDevice MRootDevice = nullptr;
@@ -272,7 +289,7 @@ private:
   mutable std::once_flag MDeviceNameFlag;
   mutable ext::oneapi::experimental::architecture MDeviceArch{};
   mutable std::once_flag MDeviceArchFlag;
-  std::pair<uint64_t, uint64_t> MDeviceHostBaseTime;
+  std::pair<uint64_t, uint64_t> MDeviceHostBaseTime{0, 0};
 }; // class device_impl
 
 } // namespace detail

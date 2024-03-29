@@ -1,11 +1,12 @@
-// REQUIRES: fusion
 // RUN: %{build} -fsycl-embed-ir -o %t.out
 // RUN: %{run} %t.out
 
 // Test complete fusion with local internalization specified on the
 // accessors, where each work-item processes multiple data-items.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 using namespace sycl;
 

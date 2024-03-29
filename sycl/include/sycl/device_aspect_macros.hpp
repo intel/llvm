@@ -298,6 +298,36 @@
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_tangle_group__ 0
 #endif
 
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_intel_matrix__
+// __SYCL_ASPECT(ext_intel_matrix, 58)
+#define __SYCL_ALL_DEVICES_HAVE_ext_intel_matrix__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_is_composite__
+// __SYCL_ASPECT(ext_oneapi_is_composite, 59)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_is_composite__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_is_component__
+// __SYCL_ASPECT(ext_oneapi_is_component, 60)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_is_component__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_graph__
+// __SYCL_ASPECT(ext_oneapi_graph, 61)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_graph__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_intel_fpga_task_sequence__
+// __SYCL_ASPECT(ext_intel_fpga_task_sequence, 62)
+#define __SYCL_ALL_DEVICES_HAVE_ext_intel_fpga_task_sequence__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_limited_graph__
+// __SYCL_ASPECT(ext_oneapi_limited_graph, 63)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_limited_graph__ 0
+#endif
+
 #ifndef __SYCL_ANY_DEVICE_HAS_host__
 // __SYCL_ASPECT(host, 0)
 #define __SYCL_ANY_DEVICE_HAS_host__ 0
@@ -586,4 +616,34 @@
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_tangle_group__
 // __SYCL_ASPECT(ext_oneapi_tangle_group, 57)
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_tangle_group__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_matrix__
+// __SYCL_ASPECT(ext_intel_matrix, 58)
+#define __SYCL_ANY_DEVICE_HAS_ext_intel_matrix__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_is_composite__
+// __SYCL_ASPECT(ext_oneapi_is_composite, 59)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_is_composite__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_is_component__
+// __SYCL_ASPECT(ext_oneapi_is_component, 60)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_is_component__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_graph__
+// __SYCL_ASPECT(ext_oneapi_graph, 61)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_graph__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_fpga_task_sequence__
+// __SYCL_ASPECT(ext_intel_fpga_task_sequence__, 62)
+#define __SYCL_ANY_DEVICE_HAS_ext_intel_fpga_task_sequence__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_limited_graph__
+// __SYCL_ASPECT(ext_oneapi_limited_graph, 63)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_limited_graph__ 0
 #endif

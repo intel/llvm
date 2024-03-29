@@ -567,7 +567,7 @@ void SPIRVToOCLBase::visitCallSPIRVPipeBuiltin(CallInst *CI, Op OC) {
     Mutator.mapArg(Mutator.arg_size() - 3, [](IRBuilder<> &Builder, Value *P) {
       Type *T = P->getType();
       assert(isa<PointerType>(T));
-      auto *NewTy = Builder.getInt8PtrTy(SPIRAS_Generic);
+      auto *NewTy = Builder.getPtrTy(SPIRAS_Generic);
       if (T != NewTy) {
         P = Builder.CreatePointerBitCastOrAddrSpaceCast(P, NewTy);
       }
@@ -1066,7 +1066,7 @@ void SPIRVToOCLBase::translateOpaqueTypes() {
   for (auto *S : M->getIdentifiedStructTypes()) {
     StringRef STName = S->getStructName();
     bool IsSPIRVOpaque =
-        S->isOpaque() && STName.startswith(kSPIRVTypeName::PrefixAndDelim);
+        S->isOpaque() && STName.starts_with(kSPIRVTypeName::PrefixAndDelim);
 
     if (!IsSPIRVOpaque)
       continue;
@@ -1076,7 +1076,7 @@ void SPIRVToOCLBase::translateOpaqueTypes() {
 }
 
 std::string SPIRVToOCLBase::translateOpaqueType(StringRef STName) {
-  if (!STName.startswith(kSPIRVTypeName::PrefixAndDelim))
+  if (!STName.starts_with(kSPIRVTypeName::PrefixAndDelim))
     return STName.str();
 
   SmallVector<std::string, 8> Postfixes;

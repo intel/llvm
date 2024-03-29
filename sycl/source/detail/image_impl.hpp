@@ -19,7 +19,6 @@
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
 #include <sycl/sampler.hpp>
-#include <sycl/stl.hpp>
 
 namespace sycl {
 inline namespace _V1 {

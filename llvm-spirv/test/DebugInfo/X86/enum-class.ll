@@ -18,9 +18,9 @@ source_filename = "test/DebugInfo/X86/enum-class.ll"
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 
-@a = global i32 0, align 4, !dbg !0
-@b = global i64 0, align 8, !dbg !7
-@c = global i32 0, align 4, !dbg !13
+@a = addrspace(1) global i32 0, align 4, !dbg !0
+@b = addrspace(1) global i64 0, align 8, !dbg !7
+@c = addrspace(1) global i32 0, align 4, !dbg !13
 
 !llvm.dbg.cu = !{!18}
 !llvm.module.flags = !{!22}

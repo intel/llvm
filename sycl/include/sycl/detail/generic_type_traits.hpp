@@ -28,33 +28,23 @@ namespace detail {
 template <int N> struct Boolean;
 
 template <typename T>
-inline constexpr bool is_floatn_v = is_contained_v<T, gtl::vector_float_list>;
-
-template <typename T>
-inline constexpr bool is_genfloatf_v = is_contained_v<T, gtl::float_list>;
-
-template <typename T>
 inline constexpr bool is_svgenfloatf_v =
     is_contained_v<T, gtl::scalar_vector_float_list>;
-
-template <typename T>
-inline constexpr bool is_doublen_v = is_contained_v<T, gtl::vector_double_list>;
-
-template <typename T>
-inline constexpr bool is_genfloatd_v = is_contained_v<T, gtl::double_list>;
 
 template <typename T>
 inline constexpr bool is_svgenfloatd_v =
     is_contained_v<T, gtl::scalar_vector_double_list>;
 
 template <typename T>
-inline constexpr bool is_halfn_v = is_contained_v<T, gtl::vector_half_list>;
-
-template <typename T>
-inline constexpr bool is_genfloath_v = is_contained_v<T, gtl::half_list>;
-
-template <typename T>
 inline constexpr bool is_half_v = is_contained_v<T, gtl::scalar_half_list>;
+
+template <typename T>
+inline constexpr bool is_bfloat16_v =
+    is_contained_v<T, gtl::scalar_bfloat16_list>;
+
+template <typename T>
+inline constexpr bool is_half_or_bf16_v =
+    is_contained_v<T, gtl::half_bfloat16_list>;
 
 template <typename T>
 inline constexpr bool is_svgenfloath_v =
@@ -136,47 +126,6 @@ inline constexpr bool is_gencrossmarray_v =
     is_contained_v<T, gtl::cross_marray_list>;
 
 template <typename T>
-inline constexpr bool is_charn_v =
-    is_contained_v<T, gtl::vector_default_char_list>;
-
-template <typename T>
-inline constexpr bool is_scharn_v =
-    is_contained_v<T, gtl::vector_signed_char_list>;
-
-template <typename T>
-inline constexpr bool is_ucharn_v =
-    is_contained_v<T, gtl::vector_unsigned_char_list>;
-
-template <typename T>
-inline constexpr bool is_igenchar_v = is_contained_v<T, gtl::signed_char_list>;
-
-template <typename T>
-inline constexpr bool is_ugenchar_v =
-    is_contained_v<T, gtl::unsigned_char_list>;
-
-template <typename T>
-inline constexpr bool is_genchar_v = is_contained_v<T, gtl::char_list>;
-
-template <typename T>
-inline constexpr bool is_shortn_v =
-    is_contained_v<T, gtl::vector_signed_short_list>;
-
-template <typename T>
-inline constexpr bool is_genshort_v = is_contained_v<T, gtl::signed_short_list>;
-
-template <typename T>
-inline constexpr bool is_ushortn_v =
-    is_contained_v<T, gtl::vector_unsigned_short_list>;
-
-template <typename T>
-inline constexpr bool is_ugenshort_v =
-    is_contained_v<T, gtl::unsigned_short_list>;
-
-template <typename T>
-inline constexpr bool is_uintn_v =
-    is_contained_v<T, gtl::vector_unsigned_int_list>;
-
-template <typename T>
 inline constexpr bool is_ugenint_v = is_contained_v<T, gtl::unsigned_int_list>;
 
 template <typename T>
@@ -185,30 +134,6 @@ inline constexpr bool is_intn_v =
 
 template <typename T>
 inline constexpr bool is_genint_v = is_contained_v<T, gtl::signed_int_list>;
-
-template <typename T>
-inline constexpr bool is_ulonglongn_v =
-    is_contained_v<T, gtl::vector_unsigned_longlong_list>;
-
-template <typename T>
-inline constexpr bool is_ugenlonglong_v =
-    is_contained_v<T, gtl::unsigned_longlong_list>;
-
-template <typename T>
-inline constexpr bool is_longlongn_v =
-    is_contained_v<T, gtl::vector_signed_longlong_list>;
-
-template <typename T>
-inline constexpr bool is_genlonglong_v =
-    is_contained_v<T, gtl::signed_longlong_list>;
-
-template <typename T>
-inline constexpr bool is_igenlonginteger_v =
-    is_contained_v<T, gtl::signed_long_integer_list>;
-
-template <typename T>
-inline constexpr bool is_ugenlonginteger_v =
-    is_contained_v<T, gtl::unsigned_long_integer_list>;
 
 template <typename T>
 inline constexpr bool is_geninteger_v = is_contained_v<T, gtl::integer_list>;
@@ -299,22 +224,6 @@ inline constexpr bool is_ugeninteger64bit_v =
     is_gen_based_on_type_sizeof_v<T, 8, is_ugeninteger>;
 
 template <typename T>
-inline constexpr bool is_geninteger8bit_v =
-    is_gen_based_on_type_sizeof_v<T, 1, is_geninteger>;
-
-template <typename T>
-inline constexpr bool is_geninteger16bit_v =
-    is_gen_based_on_type_sizeof_v<T, 2, is_geninteger>;
-
-template <typename T>
-inline constexpr bool is_geninteger32bit_v =
-    is_gen_based_on_type_sizeof_v<T, 4, is_geninteger>;
-
-template <typename T>
-inline constexpr bool is_geninteger64bit_v =
-    is_gen_based_on_type_sizeof_v<T, 8, is_geninteger>;
-
-template <typename T>
 inline constexpr bool is_genintptr_v =
     is_pointer_v<T> && is_genint_v<remove_pointer_t<T>> &&
     is_address_space_compliant_v<T, gvl::nonconst_address_space_list>;
@@ -342,11 +251,6 @@ inline constexpr bool is_genfloatptr_marray_v =
                                  gvl::nonconst_address_space_list> &&
     (IsDecorated == access::decorated::yes ||
      IsDecorated == access::decorated::no);
-
-template <typename T>
-inline constexpr bool is_genptr_v =
-    is_pointer_v<T> && is_gentype_v<remove_pointer_t<T>> &&
-    is_address_space_compliant_v<T, gvl::nonconst_address_space_list>;
 
 template <typename T>
 inline constexpr bool is_nan_type_v = is_contained_v<T, gtl::nan_list>;
@@ -397,100 +301,6 @@ template <typename T>
 using make_unsinged_integer_t =
     make_type_t<T, gtl::scalar_unsigned_integer_list>;
 
-template <typename T, typename B, typename Enable = void>
-struct convert_data_type_impl;
-
-template <typename T, typename B>
-struct convert_data_type_impl<T, B, std::enable_if_t<is_sgentype_v<T>, T>> {
-  B operator()(T t) { return static_cast<B>(t); }
-};
-
-template <typename T, typename B>
-struct convert_data_type_impl<T, B, std::enable_if_t<is_vgentype_v<T>, T>> {
-  vec<B, T::size()> operator()(T t) { return t.template convert<B>(); }
-};
-
-template <typename T, typename B>
-using convert_data_type = convert_data_type_impl<T, B, T>;
-
-// TryToGetElementType<T>::type is T::element_type or T::value_type if those
-// exist, otherwise T.
-template <typename T> class TryToGetElementType {
-  static T check(...);
-  template <typename A> static typename A::element_type check(const A &);
-  template <typename A> static typename A::value_type check(const A &);
-
-public:
-  using type = decltype(check(T()));
-  static constexpr bool value = !std::is_same_v<T, type>;
-};
-
-template <typename To> struct PointerConverter {
-  template <typename From> static To Convert(From *t) {
-    return reinterpret_cast<To>(t);
-  }
-
-  template <typename From> static To Convert(From &t) {
-    if constexpr (is_non_legacy_multi_ptr_v<From>) {
-      return detail::cast_AS<To>(t.get_decorated());
-    } else if constexpr (is_legacy_multi_ptr_v<From>) {
-      return detail::cast_AS<To>(t.get());
-    } else {
-      // TODO find the better way to get the pointer to underlying data from vec
-      // class
-      return reinterpret_cast<To>(t.get());
-    }
-  }
-};
-
-template <typename ElementType, access::address_space Space,
-          access::decorated DecorateAddress>
-struct PointerConverter<multi_ptr<ElementType, Space, DecorateAddress>> {
-  template <typename From>
-  static multi_ptr<ElementType, Space, DecorateAddress> Convert(From *t) {
-    return address_space_cast<Space, DecorateAddress>(
-        reinterpret_cast<remove_decoration_t<From *>>(t));
-  }
-
-  template <typename From>
-  static multi_ptr<ElementType, Space, DecorateAddress> Convert(From &t) {
-    return address_space_cast<Space, DecorateAddress>(
-        reinterpret_cast<remove_decoration_t<decltype(t.get())>>(t.get()));
-  }
-
-  template <typename From>
-  static multi_ptr<ElementType, Space, DecorateAddress>
-  Convert(multi_ptr<ElementType, Space, DecorateAddress> &t) {
-    return t;
-  }
-};
-
-template <typename To, typename From> To ConvertNonVectorType(From &t) {
-  if constexpr (is_pointer_v<From>)
-    return PointerConverter<To>::Convert(t);
-  else
-    return static_cast<To>(t);
-}
-
-template <typename T, typename = void> struct mptr_or_vec_elem_type {
-  using type = typename T::element_type;
-};
-template <typename ElementType, access::address_space Space,
-          access::decorated IsDecorated>
-struct mptr_or_vec_elem_type<
-    multi_ptr<ElementType, Space, IsDecorated>,
-    std::enable_if_t<IsDecorated == access::decorated::no ||
-                     IsDecorated == access::decorated::yes>> {
-  using type = typename multi_ptr<ElementType, Space, IsDecorated>::value_type;
-};
-template <typename ElementType, access::address_space Space,
-          access::decorated IsDecorated>
-struct mptr_or_vec_elem_type<const multi_ptr<ElementType, Space, IsDecorated>>
-    : mptr_or_vec_elem_type<multi_ptr<ElementType, Space, IsDecorated>> {};
-
-template <typename T>
-using mptr_or_vec_elem_type_t = typename mptr_or_vec_elem_type<T>::type;
-
 // select_apply_cl_scalar_t selects from T8/T16/T32/T64 basing on
 // sizeof(IN).  expected to handle scalar types.
 template <typename T, typename T8, typename T16, typename T32, typename T64>
@@ -510,14 +320,11 @@ using select_cl_scalar_integral_unsigned_t =
     select_apply_cl_scalar_t<T, sycl::opencl::cl_uchar, sycl::opencl::cl_ushort,
                              sycl::opencl::cl_uint, sycl::opencl::cl_ulong>;
 
-template <typename T>
-using select_cl_scalar_float_t =
-    select_apply_cl_scalar_t<T, std::false_type, sycl::opencl::cl_half,
-                             sycl::opencl::cl_float, sycl::opencl::cl_double>;
-
 // Use SFINAE so that std::complex specialization could be implemented in
 // include/sycl/stl_wrappers/complex that would only be available if STL's
-// <complex> is included by users.
+// <complex> is included by users. Note that "function template partial
+// specialization" is not allowed, so we cannot perform that trick on
+// convertToOpenCLType function directly.
 template <typename T, typename = void> struct select_cl_scalar_complex_or_T {
   using type = T;
 };
@@ -526,167 +333,107 @@ template <typename T>
 using select_cl_scalar_complex_or_T_t =
     typename select_cl_scalar_complex_or_T<T>::type;
 
-template <typename T>
-using select_cl_scalar_integral_t =
-    std::conditional_t<std::is_signed_v<T>,
-                       select_cl_scalar_integral_signed_t<T>,
-                       select_cl_scalar_integral_unsigned_t<T>>;
-
-// select_cl_scalar_t picks corresponding cl_* type for input
-// scalar T or returns T if T is not scalar.
-template <typename T>
-using select_cl_scalar_t = std::conditional_t<
-    std::is_integral_v<T>, select_cl_scalar_integral_t<T>,
-    std::conditional_t<
-        std::is_floating_point_v<T>, select_cl_scalar_float_t<T>,
-        // half is a special case: it is implemented differently on
-        // host and device and therefore, might lower to different
-        // types
-        std::conditional_t<is_half_v<T>,
-                           sycl::detail::half_impl::BIsRepresentationT,
-                           select_cl_scalar_complex_or_T_t<T>>>>;
-
-// select_cl_vector_or_scalar_or_ptr does cl_* type selection for element type
-// of a vector type T, pointer type substitution, and scalar type substitution.
-// If T is not vector, scalar, or pointer unmodified T is returned.
-template <typename T, typename Enable = void>
-struct select_cl_vector_or_scalar_or_ptr;
-
-template <typename T>
-struct select_cl_vector_or_scalar_or_ptr<
-    T, typename std::enable_if_t<is_vgentype_v<T>>> {
-  using type =
-      // select_cl_scalar_t returns _Float16, so, we try to instantiate vec
-      // class with _Float16 DataType, which is not expected there
-      // So, leave vector<half, N> as-is
-      vec<std::conditional_t<is_half_v<mptr_or_vec_elem_type_t<T>>,
-                             mptr_or_vec_elem_type_t<T>,
-                             select_cl_scalar_t<mptr_or_vec_elem_type_t<T>>>,
-          T::size()>;
-};
-
-template <typename T>
-struct select_cl_vector_or_scalar_or_ptr<
-    T, typename std::enable_if_t<!is_vgentype_v<T> && !std::is_pointer_v<T>>> {
-  using type = select_cl_scalar_t<T>;
-};
-
-template <typename T>
-struct select_cl_vector_or_scalar_or_ptr<
-    T, typename std::enable_if_t<!is_vgentype_v<T> && std::is_pointer_v<T>>> {
-  using elem_ptr_type =
-      typename select_cl_vector_or_scalar_or_ptr<std::remove_pointer_t<T>>::type
-          *;
+template <typename T> auto convertToOpenCLType(T &&x) {
+  using no_ref = std::remove_reference_t<T>;
+  if constexpr (is_multi_ptr_v<no_ref>) {
+    return convertToOpenCLType(x.get_decorated());
+  } else if constexpr (std::is_pointer_v<no_ref>) {
+    // TODO: Below ignores volatile, but we didn't have a need for it yet.
+    using elem_type = remove_decoration_t<std::remove_pointer_t<no_ref>>;
+    using converted_elem_type_no_cv = decltype(convertToOpenCLType(
+        std::declval<std::remove_const_t<elem_type>>()));
+    using converted_elem_type =
+        std::conditional_t<std::is_const_v<elem_type>,
+                           const converted_elem_type_no_cv,
+                           converted_elem_type_no_cv>;
 #ifdef __SYCL_DEVICE_ONLY__
-  using type = typename DecoratedType<elem_ptr_type, deduce_AS<T>::value>::type;
+    using result_type =
+        typename DecoratedType<converted_elem_type,
+                               deduce_AS<no_ref>::value>::type *;
 #else
-  using type = elem_ptr_type;
+    using result_type = converted_elem_type *;
 #endif
-};
-
-// select_cl_mptr_or_vector_or_scalar_or_ptr does cl_* type selection for type
-// pointed by multi_ptr, for raw pointers, for element type of a vector type T,
-// and does scalar type substitution.  If T is not mutlti_ptr or vector or
-// scalar or pointer unmodified T is returned.
-template <typename T, typename Enable = void>
-struct select_cl_mptr_or_vector_or_scalar_or_ptr;
-
-// this struct helps to use std::uint8_t instead of std::byte,
-// which is not supported on device
-template <typename T> struct TypeHelper {
-  using RetType = T;
-};
-
+    return reinterpret_cast<result_type>(x);
+  } else if constexpr (is_vec_v<no_ref>) {
+    using ElemTy = typename no_ref::element_type;
+    // sycl::half may convert to _Float16, and we would try to instantiate
+    // vec class with _Float16 DataType, which is not expected there. As
+    // such, leave vector<half, N> as-is.
+    using MatchingVec = vec<std::conditional_t<is_half_v<ElemTy>, ElemTy,
+                                               decltype(convertToOpenCLType(
+                                                   std::declval<ElemTy>()))>,
+                            no_ref::size()>;
+#ifdef __SYCL_DEVICE_ONLY__
+    // TODO: for some mysterious reasons on NonUniformGroups E2E tests fail if
+    // we use the "else" version only. I suspect that's an issues with
+    // non-uniform groups implementation.
+    if constexpr (std::is_same_v<MatchingVec, no_ref>)
+      return static_cast<typename MatchingVec::vector_t>(x);
+    else
+      return static_cast<typename MatchingVec::vector_t>(
+          x.template as<MatchingVec>());
+#else
+    return x.template as<MatchingVec>();
+#endif
+  } else if constexpr (is_boolean_v<no_ref>) {
+#ifdef __SYCL_DEVICE_ONLY__
+    if constexpr (std::is_same_v<Boolean<1>, no_ref>) {
+      // Or should it be "int"?
+      return std::forward<T>(x);
+    } else {
+      return static_cast<typename no_ref::vector_t>(x);
+    }
+#else
+    return std::forward<T>(x);
+#endif
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-template <> struct TypeHelper<std::byte> {
-  using RetType = std::uint8_t;
-};
+  } else if constexpr (std::is_same_v<no_ref, std::byte>) {
+    return static_cast<uint8_t>(x);
 #endif
-
-template <typename T> struct TypeHelper<const T> {
-  using RetType = const typename TypeHelper<T>::RetType;
-};
-
-template <typename T> struct TypeHelper<volatile T> {
-  using RetType = volatile typename TypeHelper<T>::RetType;
-};
-
-template <typename T> struct TypeHelper<const volatile T> {
-  using RetType = const volatile typename TypeHelper<T>::RetType;
-};
-
-template <typename T> using type_helper = typename TypeHelper<T>::RetType;
-
-template <typename T>
-struct select_cl_mptr_or_vector_or_scalar_or_ptr<
-    T, typename std::enable_if_t<is_genptr_v<T> && !std::is_pointer_v<T>>> {
-  using type = multi_ptr<typename select_cl_vector_or_scalar_or_ptr<
-                             type_helper<mptr_or_vec_elem_type_t<T>>>::type,
-                         T::address_space, access::decorated::yes>;
-};
-
-template <typename T>
-struct select_cl_mptr_or_vector_or_scalar_or_ptr<
-    T, typename std::enable_if_t<!is_genptr_v<T> || std::is_pointer_v<T>>> {
-  using type = typename select_cl_vector_or_scalar_or_ptr<T>::type;
-};
-
-// All types converting shortcut.
-template <typename T>
-using SelectMatchingOpenCLType_t =
-    typename select_cl_mptr_or_vector_or_scalar_or_ptr<T>::type;
-
-// Converts T to OpenCL friendly
-//
-template <typename T> struct ConvertToOpenCLTypeImpl {
-  using type = T;
-};
-
-#ifdef __SYCL_DEVICE_ONLY__
-template <typename Type, int NumElements>
-struct ConvertToOpenCLTypeImpl<vec<Type, NumElements>> {
-  using type = typename vec<Type, NumElements>::vector_t;
-};
-
-template <int N> struct ConvertToOpenCLTypeImpl<Boolean<N>> {
-  using type = typename Boolean<N>::vector_t;
-};
-template <> struct ConvertToOpenCLTypeImpl<Boolean<1>> {
-  // Or should it be "int"?
-  using type = Boolean<1>;
-};
-#endif
-
-template <typename T> struct ConvertToOpenCLTypeImpl<T *> {
-#ifdef __SYCL_DEVICE_ONLY__
-  using type = typename DecoratedType<
-      typename ConvertToOpenCLTypeImpl<remove_decoration_t<T>>::type,
-      deduce_AS<T>::value>::type *;
-#else
-  using type = typename ConvertToOpenCLTypeImpl<T>::type *;
-#endif
-};
-
-template <typename ElementType, access::address_space Space,
-          access::decorated DecorateAddress>
-struct ConvertToOpenCLTypeImpl<multi_ptr<ElementType, Space, DecorateAddress>> {
-  using type = typename DecoratedType<
-      typename ConvertToOpenCLTypeImpl<ElementType>::type, Space>::type *;
-};
+  } else if constexpr (std::is_integral_v<no_ref>) {
+    using OpenCLType =
+        std::conditional_t<std::is_signed_v<no_ref>,
+                           select_cl_scalar_integral_signed_t<no_ref>,
+                           select_cl_scalar_integral_unsigned_t<no_ref>>;
+    static_assert(sizeof(OpenCLType) == sizeof(T));
+    return static_cast<OpenCLType>(x);
+  } else if constexpr (is_half_v<no_ref>) {
+    using OpenCLType = sycl::detail::half_impl::BIsRepresentationT;
+    static_assert(sizeof(OpenCLType) == sizeof(T));
+    return static_cast<OpenCLType>(x);
+  } else if constexpr (is_bfloat16_v<no_ref>) {
+    return std::forward<T>(x);
+  } else if constexpr (std::is_floating_point_v<no_ref>) {
+    static_assert(std::is_same_v<no_ref, float> ||
+                      std::is_same_v<no_ref, double>,
+                  "Other FP types are not expected/supported (yet?)");
+    static_assert(std::is_same_v<float, sycl::opencl::cl_float> &&
+                  std::is_same_v<double, sycl::opencl::cl_double>);
+    return std::forward<T>(x);
+  } else {
+    using OpenCLType = select_cl_scalar_complex_or_T_t<no_ref>;
+    static_assert(sizeof(OpenCLType) == sizeof(T));
+    return static_cast<OpenCLType>(x);
+  }
+}
 
 template <typename T>
-using ConvertToOpenCLType_t =
-    typename ConvertToOpenCLTypeImpl<SelectMatchingOpenCLType_t<T>>::type;
+using ConvertToOpenCLType_t = decltype(convertToOpenCLType(std::declval<T>()));
 
-// convertDataToType() function converts data from FROM type to TO type using
-// 'as' method for vector type and copy otherwise.
-template <typename FROM, typename TO>
-typename std::enable_if_t<sizeof(TO) == sizeof(FROM), TO>
-convertDataToType(FROM t) {
-  if constexpr (is_vgentype_v<FROM> && is_vgentype_v<TO>)
-    return t.template as<TO>();
-  else
-    return ConvertNonVectorType<TO>(t);
+template <typename To, typename From> auto convertFromOpenCLTypeFor(From &&x) {
+  if constexpr (std::is_same_v<To, bool> &&
+                std::is_same_v<std::remove_reference_t<From>, bool>) {
+    // FIXME: Something seems to be wrong elsewhere...
+    return x;
+  } else {
+    using OpenCLType = decltype(convertToOpenCLType(std::declval<To>()));
+    static_assert(std::is_same_v<std::remove_reference_t<From>, OpenCLType>);
+    static_assert(sizeof(OpenCLType) == sizeof(To));
+    if constexpr (is_vec_v<To> && is_vec_v<From>)
+      return x.template as<To>();
+    else
+      return static_cast<To>(x);
+  }
 }
 
 // Used for all, any and select relational built-in functions
@@ -764,6 +511,20 @@ template <typename T, typename Enable = void> struct RelConverter {
 #endif
 
   static R apply(value_t value) { return value; }
+};
+
+// TryToGetElementType<T>::type is T::element_type or T::value_type if those
+// exist, otherwise T.
+template <typename T> class TryToGetElementType {
+  static T check(...);
+  template <typename A> static typename A::element_type check(const A &);
+  template <typename A, typename = std::enable_if_t<!std::is_same_v<
+                            typename A::element_type, typename A::value_type>>>
+  static typename A::value_type check(const A &);
+
+public:
+  using type = decltype(check(T()));
+  static constexpr bool value = !std::is_same_v<T, type>;
 };
 
 template <typename T>

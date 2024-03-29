@@ -6,8 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // UNSUPPORTED: gpu-intel-pvc
-// Use -O2 to avoid huge stack usage under -O0.
-// RUN: %{build} -O2 -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
 // Regression test for SVM gather/scatter API.
@@ -54,7 +53,7 @@ template <typename T, int N> bool test(queue &Q) {
   T *Dst = Ptr2.get();
 
   for (int I = 0; I < N; ++I) {
-    Src[I] = I + 1;
+    Src[I] = I + 1 + 0.5;
     Dst[I] = 0;
   }
 

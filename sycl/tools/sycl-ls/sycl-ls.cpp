@@ -22,11 +22,24 @@
 #include <iostream>
 #include <map>
 #include <stdlib.h>
+#include <vector>
+
+#ifdef _WIN32
+#include <system_error>
+#include <windows.h>
+#endif
 
 using namespace sycl;
+using namespace std::literals;
 
 // Controls verbose output vs. concise.
 bool verbose;
+
+// Controls whether to discard filter environment variables or not.
+bool DiscardFilters;
+
+// To store various filter environment variables.
+std::vector<std::string> FilterEnvVars;
 
 // Trivial custom selector that selects a device of the given type.
 class custom_selector : public device_selector {
@@ -49,7 +62,7 @@ std::string getDeviceTypeName(const device &Device) {
   case info::device_type::host:
     return "host";
   case info::device_type::accelerator:
-    return "acc";
+    return "fpga";
   default:
     return "unknown";
   }
@@ -105,40 +118,182 @@ static void printSelectorChoice(const device_selector &Selector,
   }
 }
 
-int main(int argc, char **argv) {
+static int printUsageAndExit() {
+  std::cout << "Usage: sycl-ls [--verbose] [--ignore-device-selectors]"
+            << std::endl;
+  std::cout << "This program lists all devices and backends discovered by SYCL."
+            << std::endl;
+  std::cout << "\n Options:" << std::endl;
+  std::cout
+      << "\t --verbose " << "\t Verbosely prints all the discovered platforms. "
+      << "It also lists the device chosen by various SYCL device selectors."
+      << std::endl;
+  std::cout
+      << "\t --ignore-device-selectors "
+      << "\t Lists all platforms available on the system irrespective "
+      << "of DPCPP filter environment variables (like ONEAPI_DEVICE_SELECTOR)."
+      << std::endl;
 
-  // See if verbose output is requested
-  if (argc == 1)
-    verbose = false;
-  else if (argc == 2 && std::string(argv[1]) == "--verbose")
-    verbose = true;
-  else {
-    std::cout << "Usage: sycl-ls [--verbose]" << std::endl;
-    return EXIT_FAILURE;
-  }
+  return EXIT_FAILURE;
+}
 
+// Print warning and suppress printing device ids if any of
+// the filter environment variable is set.
+static void printWarningIfFiltersUsed(bool &SuppressNumberPrinting) {
+
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   const char *filter = std::getenv("SYCL_DEVICE_FILTER");
   if (filter) {
-    std::cerr << "Warning: SYCL_DEVICE_FILTER environment variable is set to "
-              << filter << "." << std::endl;
-    std::cerr
-        << "To see the correct device id, please unset SYCL_DEVICE_FILTER."
-        << std::endl
-        << std::endl;
+    if (!DiscardFilters) {
+      std::cerr << "INFO: Output filtered by SYCL_DEVICE_FILTER "
+                << "environment variable, which is set to " << filter << "."
+                << std::endl;
+      std::cerr
+          << "To see device ids, use the --ignore-device-selectors CLI option."
+          << std::endl
+          << std::endl;
+      SuppressNumberPrinting = true;
+    } else
+      FilterEnvVars.push_back("SYCL_DEVICE_FILTER");
   }
+#endif
 
   const char *ods_targets = std::getenv("ONEAPI_DEVICE_SELECTOR");
   if (ods_targets) {
-    std::cerr
-        << "Warning: ONEAPI_DEVICE_SELECTOR environment variable is set to "
-        << ods_targets << "." << std::endl;
-    std::cerr
-        << "To see the correct device id, please unset ONEAPI_DEVICE_SELECTOR."
-        << std::endl
-        << std::endl;
+    if (!DiscardFilters) {
+      std::cerr << "INFO: Output filtered by ONEAPI_DEVICE_SELECTOR "
+                << "environment variable, which is set to " << ods_targets
+                << "." << std::endl;
+      std::cerr
+          << "To see device ids, use the --ignore-device-selectors CLI option."
+          << std::endl
+          << std::endl;
+      SuppressNumberPrinting = true;
+    } else
+      FilterEnvVars.push_back("ONEAPI_DEVICE_SELECTOR");
   }
 
+  const char *sycl_dev_allow = std::getenv("SYCL_DEVICE_ALLOWLIST");
+  if (sycl_dev_allow) {
+    if (!DiscardFilters) {
+      std::cerr << "INFO: Output filtered by SYCL_DEVICE_ALLOWLIST "
+                << "environment variable, which is set to " << sycl_dev_allow
+                << "." << std::endl;
+      std::cerr
+          << "To see device ids, use the --ignore-device-selectors CLI option."
+          << std::endl
+          << std::endl;
+      SuppressNumberPrinting = true;
+    } else
+      FilterEnvVars.push_back("SYCL_DEVICE_ALLOWLIST");
+  }
+}
+
+// Unset filter related environment variables namely, SYCL_DEVICE_FILTER,
+// ONEAPI_DEVICE_SELECTOR, and SYCL_DEVICE_ALLOWLIST.
+static void unsetFilterEnvVars() {
+  for (const auto &it : FilterEnvVars) {
+#ifdef _WIN32
+    _putenv_s(it.c_str(), "");
+#else
+    unsetenv(it.c_str());
+#endif
+  }
+}
+
+/* On Windows, the sycl-ls executable and sycl DLL have different copies
+ *  of environment variables. So, just unsetting device filter env. vars
+ *  in sycl-ls won't reflect in sycl DLL. Therefore, on Windows, after
+ *  unsetting env. variables in the parent process, we spawn a child
+ *  sycl-ls process that inherits parents envirnonment.
+ */
+#ifdef _WIN32
+static int unsetFilterEnvVarsAndFork() {
+  // Unset all device filter enviornment variable.
+  unsetFilterEnvVars();
+
+  // Create a new sycl-ls process.
+  STARTUPINFO si;
+  memset(&si, 0, sizeof(si));
+  si.cb = sizeof(si);
+  // Redirect child process's stdout and stderr outputs to parent process.
+  si.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+  si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+  si.dwFlags |= STARTF_USESTDHANDLES;
+
+  PROCESS_INFORMATION pi;
+  if (!CreateProcess(NULL,             /* Applicatioon name. */
+                     GetCommandLine(), /* Current process's CLI input. */
+                     NULL,             /* Inherit security attributes. */
+                     NULL,             /* Thread security attributes. */
+                     TRUE,             /* Inherit handles from parent proc.*/
+                     0,                /* Creation flags. */
+                     NULL,             /* Inherit env. block from parent.*/
+                     NULL,             /* Inherit current directory. */
+                     &si, &pi)) {
+    // Unable to create a process. Print error message and abort.
+    std::string message = std::system_category().message(GetLastError());
+    std::cerr << message.c_str() << std::endl;
+
+    std::cerr << "Error creating a new sycl-ls process. Aborting!" << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  // Wait for child process to finish.
+  WaitForSingleObject(pi.hProcess, INFINITE);
+
+  // Check child process's exit code and propagate it.
+  DWORD exitCode;
+  if (!GetExitCodeProcess(pi.hProcess, &exitCode)) {
+    std::cerr << "Error getting exit code. Aborting!" << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  assert(exitCode != STILL_ACTIVE &&
+         "The child process should have already terminated");
+
+  CloseHandle(pi.hProcess);
+  CloseHandle(pi.hThread);
+  return exitCode;
+}
+#endif
+
+int main(int argc, char **argv) {
+
+  if (argc == 1) {
+    verbose = false;
+    DiscardFilters = false;
+  } else {
+    // Parse CLI options.
+    for (int i = 1; i < argc; i++) {
+      if (argv[i] == "--verbose"sv)
+        verbose = true;
+      else if (argv[i] == "--ignore-device-selectors"sv)
+        DiscardFilters = true;
+      else
+        return printUsageAndExit();
+    }
+  }
+
+  bool SuppressNumberPrinting = false;
+  // Print warning and suppress printing device ids if any of
+  // the filter environment variable is set.
+  printWarningIfFiltersUsed(SuppressNumberPrinting);
+
+  // On Windows, to print all devices available on the system,
+  // we spawn a child sycl-ls process with all device filter
+  // environment variables unset.
+#ifdef _WIN32
+  if (DiscardFilters && FilterEnvVars.size()) {
+    return unsetFilterEnvVarsAndFork();
+  }
+#endif
+
   try {
+    // Unset all filter env. vars to get all available devices in the system.
+    if (DiscardFilters && FilterEnvVars.size())
+      unsetFilterEnvVars();
+
     const auto &Platforms = platform::get_platforms();
 
     // Keep track of the number of devices per backend
@@ -155,9 +310,14 @@ int main(int argc, char **argv) {
       // plugin.
 
       for (const auto &Device : Devices) {
-        std::cout << "[" << Backend << ":" << getDeviceTypeName(Device) << ":"
-                  << DeviceNums[Backend] << "] ";
-        ++DeviceNums[Backend];
+        std::cout << "[" << detail::get_backend_name_no_vendor(Backend) << ":"
+                  << getDeviceTypeName(Device) << "]";
+        if (!SuppressNumberPrinting) {
+          std::cout << "[" << detail::get_backend_name_no_vendor(Backend) << ":"
+                    << DeviceNums[Backend] << "]";
+          ++DeviceNums[Backend];
+        }
+        std::cout << " ";
         // Verbose parameter is set to false to print regular devices output
         // first
         printDeviceInfo(Device, false, PlatformName);
@@ -167,7 +327,8 @@ int main(int argc, char **argv) {
     if (verbose) {
       std::cout << "\nPlatforms: " << Platforms.size() << std::endl;
       uint32_t PlatformNum = 0;
-      DeviceNums.clear();
+      if (!SuppressNumberPrinting)
+        DeviceNums.clear();
       for (const auto &Platform : Platforms) {
         backend Backend = Platform.get_backend();
         ++PlatformNum;
@@ -182,9 +343,11 @@ int main(int argc, char **argv) {
         const auto &Devices = Platform.get_devices();
         std::cout << "    Devices  : " << Devices.size() << std::endl;
         for (const auto &Device : Devices) {
-          std::cout << "        Device [#" << DeviceNums[Backend]
-                    << "]:" << std::endl;
-          ++DeviceNums[Backend];
+          if (!SuppressNumberPrinting) {
+            std::cout << "        Device [#" << DeviceNums[Backend]
+                      << "]:" << std::endl;
+            ++DeviceNums[Backend];
+          }
           printDeviceInfo(Device, true, "        ");
         }
       }

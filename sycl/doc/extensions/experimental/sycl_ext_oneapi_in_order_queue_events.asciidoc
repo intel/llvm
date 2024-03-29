@@ -1,0 +1,156 @@
+= sycl_ext_oneapi_in_order_queue_events
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2024-2024 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 8 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+
+== Overview
+
+SYCL 2020 in-order queues allow for simple control of submission ordering, i.e.
+commands are executed in the order they are submitted. This extension adds two
+additional APIs for controlling in-order queues: Getting the event from the last
+command submission into the queue and setting an external event as an implicit
+dependence on the next command submitted to the queue.
+
+This extension exists to solve a specific problem, and a general solution is
+still being evaluated.  It is not recommended for general usage.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_IN_ORDER_QUEUE_EVENTS` to one of the values defined in
+the table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== New SYCL queue APIs
+
+This extension adds the following new APIs to the existing `sycl::queue` class:
+
+[source, c++]
+----
+namespace sycl {
+
+class queue {
+  ...
+
+  event ext_oneapi_get_last_event() const { /*...*/ }
+
+  void ext_oneapi_set_external_event(const event &external_event) { /*...*/ }
+}
+
+} // namespace sycl
+----
+
+These new APIs have the following behaviour:
+
+--
+[options="header"]
+|====
+| Function Definition | Description
+a| 
+[source, c++]
+----
+event ext_oneapi_get_last_event() const;
+----
+| Returns an event representing the execution of the last command submitted to
+the queue.
+
+Calls to this member function throw a `sycl::exception` with `errc::invalid` if
+the queue does not have the `property::queue::in_order` property.
+
+Calls to this member function throw a `sycl::exception` with `errc::invalid` if
+the queue has the `ext::oneapi::property::queue::discard_events` property from
+the
+link:../supported/sycl_ext_oneapi_discard_queue_events.asciidoc[sycl_ext_oneapi_discard_queue_events extension].
+  
+a| 
+[source, c++]
+----
+void ext_oneapi_set_external_event(const event &externalEvent);
+----
+| Sets an event to be used as an additional dependency of the next command
+submission to the queue. Subsequent calls to this function will overwrite the
+event of the previous call, resulting in only the `externalEvent` from the last
+call to this function being a dependency of the next command submission.
+
+This is equivalent to calling `handler::depends_on()` in a command submission
+with the `externalEvent` from the most recent call to this member function since
+the previous command submission to the same queue.
+
+If `queue::wait()` or `queue::wait_and_throw()` is called prior to any command
+submission following a call to this member function, `externalEvent.wait()` is
+called and `externalEvent` will not be a dependency on the next command
+submitted to the queue.
+
+Calls to this member function throw a `sycl::exception` with `errc::invalid` if
+the queue does not have the `property::queue::in_order` property.
+
+Calls to this member function throw a `sycl::exception` with `errc::invalid` if
+the queue has the `ext::oneapi::property::queue::discard_events` property from
+the
+link:../supported/sycl_ext_oneapi_discard_queue_events.asciidoc[sycl_ext_oneapi_discard_queue_events extension].
+|====
+--

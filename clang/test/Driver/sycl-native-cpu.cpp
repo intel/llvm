@@ -22,3 +22,5 @@
 // RUN:   %clang -fsycl -fsycl-targets=native_cpu -### %s 2>&1 | FileCheck -check-prefix=CHECK-OPTS %s
 // CHECK-OPTS-NOT: -sycl-opt
 
+// RUN: %clangxx -fsycl -fsycl-targets=spir64 %s -### 2>&1 | FileCheck -check-prefix=CHECK-NONATIVECPU %s
+// CHECK-NONATIVECPU-NOT: "-D" "__SYCL_NATIVE_CPU__"

@@ -214,6 +214,9 @@ class ASTContext : public RefCountedBase<ASTContext> {
       DependentTypeOfExprTypes;
   mutable llvm::ContextualFoldingSet<DependentDecltypeType, ASTContext &>
       DependentDecltypeTypes;
+
+  mutable llvm::FoldingSet<PackIndexingType> DependentPackIndexingTypes;
+
   mutable llvm::FoldingSet<TemplateTypeParmType> TemplateTypeParmTypes;
   mutable llvm::FoldingSet<ObjCTypeParamType> ObjCTypeParamTypes;
   mutable llvm::FoldingSet<SubstTemplateTypeParmType>
@@ -246,6 +249,8 @@ class ASTContext : public RefCountedBase<ASTContext> {
   mutable llvm::ContextualFoldingSet<DependentBitIntType, ASTContext &>
       DependentBitIntTypes;
   llvm::FoldingSet<BTFTagAttributedType> BTFTagAttributedTypes;
+
+  mutable llvm::FoldingSet<CountAttributedType> CountAttributedTypes;
 
   mutable llvm::FoldingSet<QualifiedTemplateName> QualifiedTemplateNames;
   mutable llvm::FoldingSet<DependentTemplateName> DependentTemplateNames;
@@ -1343,6 +1348,11 @@ public:
     return CanQualType::CreateUnsafe(getPointerType((QualType) T));
   }
 
+  QualType
+  getCountAttributedType(QualType T, Expr *CountExpr, bool CountInBytes,
+                         bool OrNull,
+                         ArrayRef<TypeCoupledDeclRefInfo> DependentDecls) const;
+
   /// Return the uniqued reference to a type adjusted from the original
   /// type to a new type.
   QualType getAdjustedType(QualType Orig, QualType New) const;
@@ -1717,6 +1727,11 @@ public:
 
   /// C++11 decltype.
   QualType getDecltypeType(Expr *e, QualType UnderlyingType) const;
+
+  QualType getPackIndexingType(QualType Pattern, Expr *IndexExpr,
+                               bool FullySubstituted = false,
+                               ArrayRef<QualType> Expansions = {},
+                               int Index = -1) const;
 
   /// Unary type transforms
   QualType getUnaryTransformType(QualType BaseType, QualType UnderlyingType,
@@ -2410,12 +2425,18 @@ public:
   unsigned getTargetDefaultAlignForAttributeAligned() const;
 
   /// Return the alignment in bits that should be given to a
-  /// global variable with type \p T.
-  unsigned getAlignOfGlobalVar(QualType T) const;
+  /// global variable with type \p T. If \p VD is non-null it will be
+  /// considered specifically for the query.
+  unsigned getAlignOfGlobalVar(QualType T, const VarDecl *VD) const;
 
   /// Return the alignment in characters that should be given to a
-  /// global variable with type \p T.
-  CharUnits getAlignOfGlobalVarInChars(QualType T) const;
+  /// global variable with type \p T. If \p VD is non-null it will be
+  /// considered specifically for the query.
+  CharUnits getAlignOfGlobalVarInChars(QualType T, const VarDecl *VD) const;
+
+  /// Return the minimum alignement as specified by the target. If \p VD is
+  /// non-null it may be used to identify external or weak variables.
+  unsigned getMinGlobalAlignOfVar(uint64_t Size, const VarDecl *VD) const;
 
   /// Return a conservative estimate of the alignment of the specified
   /// decl \p D.
@@ -2971,6 +2992,10 @@ public:
   // Per ISO N1169, this method accepts fixed point types and returns the
   // corresponding saturated type for a given fixed point type.
   QualType getCorrespondingSaturatedType(QualType Ty) const;
+
+  // Per ISO N1169, this method accepts fixed point types and returns the
+  // corresponding non-saturated type for a given fixed point type.
+  QualType getCorrespondingUnsaturatedType(QualType Ty) const;
 
   // This method accepts fixed point types and returns the corresponding signed
   // type. Unlike getCorrespondingUnsignedType(), this only accepts unsigned

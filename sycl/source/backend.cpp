@@ -61,7 +61,7 @@ backend convertBackend(pi_platform_backend PiBackend) {
   case PI_EXT_PLATFORM_BACKEND_ESIMD:
     return backend::ext_intel_esimd_emulator;
   case PI_EXT_PLATFORM_BACKEND_NATIVE_CPU:
-    return backend::ext_native_cpu;
+    return backend::ext_oneapi_native_cpu;
   }
   throw sycl::runtime_error{"convertBackend: Unsupported backend",
                             PI_ERROR_INVALID_OPERATION};

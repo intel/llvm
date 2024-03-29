@@ -1,8 +1,5 @@
-// RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -Xclang -fsycl-int-header=%t.h -S -o %t.ll %s
-// RUN: FileCheck -input-file=%t.ll %s --check-prefix=CHECK-LL
-// Compiling generated main integration header to check correctness, -fsycl
-// option used to find required includes
-// RUN: %clangxx -fsycl -D __SYCL_NATIVE_CPU__ -c -x c++ %t.h
+// RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -S -emit-llvm  -o %t_temp.ll %s
+// RUN: %clangxx -mllvm -sycl-native-cpu-backend -S -emit-llvm -o - %t_temp.ll | FileCheck %s
 #include <sycl/sycl.hpp>
 
 #include <iostream>
@@ -50,7 +47,7 @@ int main() {
   return 0;
 }
 
-// CHECK-LL-DAG: @_ZTS6init_aIiE.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, i32 {{.*}}%2, ptr {{.*}}%3){{.*}}
-// CHECK-LL-DAG: @_ZTS6init_aIjE.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, i32 {{.*}}%2, ptr {{.*}}%3){{.*}}
-// CHECK-LL-DAG: @_ZTS6init_aIfE.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, float {{.*}}%2, ptr {{.*}}%3){{.*}}
-// CHECK-LL-DAG: @_ZTS6init_aIdE.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, double {{.*}}%2, ptr {{.*}}%3){{.*}}
+// CHECK-DAG: @_ZTS6init_aIiE.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, i32 {{.*}}%2, ptr {{.*}}%3){{.*}}
+// CHECK-DAG: @_ZTS6init_aIjE.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, i32 {{.*}}%2, ptr {{.*}}%3){{.*}}
+// CHECK-DAG: @_ZTS6init_aIfE.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, float {{.*}}%2, ptr {{.*}}%3){{.*}}
+// CHECK-DAG: @_ZTS6init_aIdE.NativeCPUKernel(ptr {{.*}}%0, ptr {{.*}}%1, double {{.*}}%2, ptr {{.*}}%3){{.*}}

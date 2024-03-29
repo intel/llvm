@@ -140,7 +140,8 @@ public:
   /// registers so that the instructions result is independent of the place
   /// in the function.
   bool isTriviallyReMaterializable(const MachineInstr &MI) const {
-    return MI.getOpcode() == TargetOpcode::IMPLICIT_DEF ||
+    return (MI.getOpcode() == TargetOpcode::IMPLICIT_DEF &&
+            MI.getNumOperands() == 1) ||
            (MI.getDesc().isRematerializable() &&
             isReallyTriviallyReMaterializable(MI));
   }
@@ -203,6 +204,7 @@ public:
   /// if they exist (-1 otherwise).  Some targets use pseudo instructions in
   /// order to abstract away the difference between operating with a frame
   /// pointer and operating without, through the use of these two instructions.
+  /// A FrameSetup MI in MF implies MFI::AdjustsStack.
   ///
   unsigned getCallFrameSetupOpcode() const { return CallFrameSetupOpcode; }
   unsigned getCallFrameDestroyOpcode() const { return CallFrameDestroyOpcode; }
@@ -268,7 +270,7 @@ public:
   /// the destination along with the FrameIndex of the loaded stack slot.  If
   /// not, return 0.  This predicate must return 0 if the instruction has
   /// any side effects other than loading from the stack slot.
-  virtual unsigned isLoadFromStackSlot(const MachineInstr &MI,
+  virtual Register isLoadFromStackSlot(const MachineInstr &MI,
                                        int &FrameIndex) const {
     return 0;
   }
@@ -277,7 +279,7 @@ public:
   /// bytes loaded from the stack. This must be implemented if a backend
   /// supports partial stack slot spills/loads to further disambiguate
   /// what the load does.
-  virtual unsigned isLoadFromStackSlot(const MachineInstr &MI,
+  virtual Register isLoadFromStackSlot(const MachineInstr &MI,
                                        int &FrameIndex,
                                        unsigned &MemBytes) const {
     MemBytes = 0;
@@ -286,7 +288,7 @@ public:
 
   /// Check for post-frame ptr elimination stack locations as well.
   /// This uses a heuristic so it isn't reliable for correctness.
-  virtual unsigned isLoadFromStackSlotPostFE(const MachineInstr &MI,
+  virtual Register isLoadFromStackSlotPostFE(const MachineInstr &MI,
                                              int &FrameIndex) const {
     return 0;
   }
@@ -306,7 +308,7 @@ public:
   /// the source reg along with the FrameIndex of the loaded stack slot.  If
   /// not, return 0.  This predicate must return 0 if the instruction has
   /// any side effects other than storing to the stack slot.
-  virtual unsigned isStoreToStackSlot(const MachineInstr &MI,
+  virtual Register isStoreToStackSlot(const MachineInstr &MI,
                                       int &FrameIndex) const {
     return 0;
   }
@@ -315,7 +317,7 @@ public:
   /// bytes stored to the stack. This must be implemented if a backend
   /// supports partial stack slot spills/loads to further disambiguate
   /// what the store does.
-  virtual unsigned isStoreToStackSlot(const MachineInstr &MI,
+  virtual Register isStoreToStackSlot(const MachineInstr &MI,
                                       int &FrameIndex,
                                       unsigned &MemBytes) const {
     MemBytes = 0;
@@ -324,7 +326,7 @@ public:
 
   /// Check for post-frame ptr elimination stack locations as well.
   /// This uses a heuristic, so it isn't reliable for correctness.
-  virtual unsigned isStoreToStackSlotPostFE(const MachineInstr &MI,
+  virtual Register isStoreToStackSlotPostFE(const MachineInstr &MI,
                                             int &FrameIndex) const {
     return 0;
   }
@@ -1024,6 +1026,11 @@ protected:
     return std::nullopt;
   }
 
+  virtual std::optional<DestSourcePair>
+  isCopyLikeInstrImpl(const MachineInstr &MI) const {
+    return std::nullopt;
+  }
+
   /// Return true if the given terminator MI is not expected to spill. This
   /// sets the live interval as not spillable and adjusts phi node lowering to
   /// not introduce copies after the terminator. Use with care, these are
@@ -1047,6 +1054,14 @@ public:
       return DestSourcePair{MI.getOperand(0), MI.getOperand(1)};
     }
     return isCopyInstrImpl(MI);
+  }
+
+  // Similar to `isCopyInstr`, but adds non-copy semantics on MIR, but
+  // ultimately generates a copy instruction.
+  std::optional<DestSourcePair> isCopyLikeInstr(const MachineInstr &MI) const {
+    if (auto IsCopyInstr = isCopyInstr(MI))
+      return IsCopyInstr;
+    return isCopyLikeInstrImpl(MI);
   }
 
   bool isFullCopyInstr(const MachineInstr &MI) const {
@@ -1414,6 +1429,8 @@ public:
   /// Get the base operand and byte offset of an instruction that reads/writes
   /// memory. This is a convenience function for callers that are only prepared
   /// to handle a single base operand.
+  /// FIXME: Move Offset and OffsetIsScalable to some ElementCount-style
+  /// abstraction that supports negative offsets.
   bool getMemOperandWithOffset(const MachineInstr &MI,
                                const MachineOperand *&BaseOp, int64_t &Offset,
                                bool &OffsetIsScalable,
@@ -1426,9 +1443,11 @@ public:
   /// It returns false if base operands and offset could not be determined.
   /// It is not guaranteed to always recognize base operands and offsets in all
   /// cases.
+  /// FIXME: Move Offset and OffsetIsScalable to some ElementCount-style
+  /// abstraction that supports negative offsets.
   virtual bool getMemOperandsWithOffsetWidth(
       const MachineInstr &MI, SmallVectorImpl<const MachineOperand *> &BaseOps,
-      int64_t &Offset, bool &OffsetIsScalable, unsigned &Width,
+      int64_t &Offset, bool &OffsetIsScalable, LocationSize &Width,
       const TargetRegisterInfo *TRI) const {
     return false;
   }
@@ -1496,12 +1515,18 @@ public:
   /// to TargetPassConfig::createMachineScheduler() to have an effect.
   ///
   /// \p BaseOps1 and \p BaseOps2 are memory operands of two memory operations.
+  /// \p Offset1 and \p Offset2 are the byte offsets for the memory
+  /// operations.
+  /// \p OffsetIsScalable1 and \p OffsetIsScalable2 indicate if the offset is
+  /// scaled by a runtime quantity.
   /// \p ClusterSize is the number of operations in the resulting load/store
   /// cluster if this hook returns true.
   /// \p NumBytes is the number of bytes that will be loaded from all the
   /// clustered loads if this hook returns true.
   virtual bool shouldClusterMemOps(ArrayRef<const MachineOperand *> BaseOps1,
+                                   int64_t Offset1, bool OffsetIsScalable1,
                                    ArrayRef<const MachineOperand *> BaseOps2,
+                                   int64_t Offset2, bool OffsetIsScalable2,
                                    unsigned ClusterSize,
                                    unsigned NumBytes) const {
     llvm_unreachable("target did not implement shouldClusterMemOps()");
@@ -1686,7 +1711,7 @@ public:
   /// then the caller may assume that DefMI has been erased from its parent
   /// block. The caller may assume that it will not be erased by this
   /// function otherwise.
-  virtual bool FoldImmediate(MachineInstr &UseMI, MachineInstr &DefMI,
+  virtual bool foldImmediate(MachineInstr &UseMI, MachineInstr &DefMI,
                              Register Reg, MachineRegisterInfo *MRI) const {
     return false;
   }
@@ -1706,9 +1731,9 @@ public:
     return Opcode <= TargetOpcode::COPY;
   }
 
-  virtual int getOperandLatency(const InstrItineraryData *ItinData,
-                                SDNode *DefNode, unsigned DefIdx,
-                                SDNode *UseNode, unsigned UseIdx) const;
+  virtual std::optional<unsigned>
+  getOperandLatency(const InstrItineraryData *ItinData, SDNode *DefNode,
+                    unsigned DefIdx, SDNode *UseNode, unsigned UseIdx) const;
 
   /// Compute and return the use operand latency of a given pair of def and use.
   /// In most cases, the static scheduling itinerary was enough to determine the
@@ -1718,10 +1743,10 @@ public:
   /// This is a raw interface to the itinerary that may be directly overridden
   /// by a target. Use computeOperandLatency to get the best estimate of
   /// latency.
-  virtual int getOperandLatency(const InstrItineraryData *ItinData,
-                                const MachineInstr &DefMI, unsigned DefIdx,
-                                const MachineInstr &UseMI,
-                                unsigned UseIdx) const;
+  virtual std::optional<unsigned>
+  getOperandLatency(const InstrItineraryData *ItinData,
+                    const MachineInstr &DefMI, unsigned DefIdx,
+                    const MachineInstr &UseMI, unsigned UseIdx) const;
 
   /// Compute the instruction latency of a given instruction.
   /// If the instruction has higher cost when predicated, it's returned via
@@ -1732,8 +1757,8 @@ public:
 
   virtual unsigned getPredicationCost(const MachineInstr &MI) const;
 
-  virtual int getInstrLatency(const InstrItineraryData *ItinData,
-                              SDNode *Node) const;
+  virtual unsigned getInstrLatency(const InstrItineraryData *ItinData,
+                                   SDNode *Node) const;
 
   /// Return the default expected latency for a def based on its opcode.
   unsigned defaultDefLatency(const MCSchedModel &SchedModel,
@@ -2197,6 +2222,15 @@ public:
   virtual void getFrameIndexOperands(SmallVectorImpl<MachineOperand> &Ops,
                                      int FI) const {
     llvm_unreachable("unknown number of operands necessary");
+  }
+
+  /// Gets the opcode for the Pseudo Instruction used to initialize
+  /// the undef value. If no Instruction is available, this will
+  /// fail compilation.
+  virtual unsigned getUndefInitOpcode(unsigned RegClassID) const {
+    (void)RegClassID;
+
+    llvm_unreachable("Unexpected register class.");
   }
 
 private:

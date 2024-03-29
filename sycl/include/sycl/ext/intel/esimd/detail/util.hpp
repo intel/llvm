@@ -25,6 +25,13 @@
 #define __ESIMD_INTRIN inline
 #endif // __SYCL_DEVICE_ONLY__
 
+#ifdef __SYCL_DEVICE_ONLY__
+#define __ESIMD_INTRIN_END ;
+#else
+#define __ESIMD_INTRIN_END                                                     \
+  { __ESIMD_UNSUPPORTED_ON_HOST; }
+#endif // __SYCL_DEVICE_ONLY__
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext::intel::esimd::detail {
@@ -53,6 +60,11 @@ template <unsigned int N> constexpr unsigned int getNextPowerOf2() {
 }
 
 template <> constexpr unsigned int getNextPowerOf2<0>() { return 0; }
+
+template <unsigned int N, unsigned int M>
+constexpr unsigned int roundUpNextMultiple() {
+  return ((N + M - 1) / M) * M;
+}
 
 /// Compute binary logarithm of a constexpr with guaranteed compile-time
 /// evaluation.

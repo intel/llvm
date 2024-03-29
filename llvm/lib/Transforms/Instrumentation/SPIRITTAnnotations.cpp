@@ -243,7 +243,7 @@ bool insertAtomicInstrumentationCall(Module &M, StringRef Name,
 
 PreservedAnalyses SPIRITTAnnotationsPass::run(Module &M,
                                               ModuleAnalysisManager &MAM) {
-  assert(StringRef(M.getTargetTriple()).startswith("spir"));
+  assert(StringRef(M.getTargetTriple()).starts_with("spir"));
   bool IRModified = false;
   std::vector<StringRef> SPIRVCrossWGInstuctions = {
       SPIRV_CONTROL_BARRIER, SPIRV_GROUP_ALL,  SPIRV_GROUP_ANY,
@@ -299,7 +299,7 @@ PreservedAnalyses SPIRITTAnnotationsPass::run(Module &M,
         if (std::any_of(SPIRVCrossWGInstuctions.begin(),
                         SPIRVCrossWGInstuctions.end(),
                         [&CalleeName](StringRef Name) {
-                          return CalleeName.startswith(Name);
+                          return CalleeName.starts_with(Name);
                         })) {
           Instruction *InstAfterBarrier = CI->getNextNode();
           const DebugLoc &DL = CI->getDebugLoc();
@@ -307,7 +307,7 @@ PreservedAnalyses SPIRITTAnnotationsPass::run(Module &M,
           insertSimpleInstrumentationCall(M, ITT_ANNOTATION_WI_RESUME,
                                           InstAfterBarrier, DL);
           IRModified = true;
-        } else if (CalleeName.startswith(SPIRV_ATOMIC_INST)) {
+        } else if (CalleeName.starts_with(SPIRV_ATOMIC_INST)) {
           Instruction *InstAfterAtomic = CI->getNextNode();
           IRModified |= insertAtomicInstrumentationCall(
               M, ITT_ANNOTATION_ATOMIC_START, CI, CI, CalleeName);

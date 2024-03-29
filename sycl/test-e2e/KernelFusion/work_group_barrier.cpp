@@ -1,11 +1,12 @@
-// REQUIRES: fusion
 // RUN: %{build} -fsycl-embed-ir -o %t.out
 // RUN: %{run} %t.out
 
 // Test complete fusion with a combination of kernels that require a work-group
 // barrier to be inserted by fusion.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 using namespace sycl;
 

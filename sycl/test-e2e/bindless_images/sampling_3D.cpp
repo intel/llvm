@@ -5,7 +5,9 @@
 // RUN: %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -73,14 +75,14 @@ int main() {
             size_t dim2 = it.get_local_id(2);
 
             // Normalize coordinates -- +0.5 to look towards centre of pixel
-            float fdim0 = float(dim0 + 0.5) / (float)width;
-            float fdim1 = float(dim1 + 0.5) / (float)height;
-            float fdim2 = float(dim2 + 0.5) / (float)depth;
+            float fdim0 = float(dim0 + 0.5f) / (float)width;
+            float fdim1 = float(dim1 + 0.5f) / (float)height;
+            float fdim2 = float(dim2 + 0.5f) / (float)depth;
 
-            // Extension: read image data from handle
+            // Extension: sample image data from handle
             sycl::float4 px1 =
-                sycl::ext::oneapi::experimental::read_image<sycl::float4>(
-                    imgHandle, sycl::float4(fdim0, fdim1, fdim2, (float)0));
+                sycl::ext::oneapi::experimental::sample_image<sycl::float4>(
+                    imgHandle, sycl::float3(fdim0, fdim1, fdim2));
 
             outAcc[sycl::id<3>{dim2, dim1, dim0}] = px1[0];
           });

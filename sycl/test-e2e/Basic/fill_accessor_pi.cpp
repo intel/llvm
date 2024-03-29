@@ -4,7 +4,7 @@
 // This test merely checks the use of the correct PI call. Its sister test
 // fill_accessor.cpp thoroughly checks the workings of the .fill() call.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 constexpr int width = 32;
 constexpr int height = 16;
 constexpr int depth = 8;

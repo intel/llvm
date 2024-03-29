@@ -8,6 +8,7 @@
 
 #include "detail/sycl_mem_obj_i.hpp"
 #include <detail/global_handler.hpp>
+#include <detail/graph_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
@@ -154,10 +155,10 @@ EventImplPtr Scheduler::addCG(
     for (const auto &StreamImplPtr : Streams) {
       StreamImplPtr->flush(NewEvent);
     }
-
-    if (!AuxiliaryResources.empty())
-      registerAuxiliaryResources(NewEvent, std::move(AuxiliaryResources));
   }
+
+  if (!AuxiliaryResources.empty())
+    registerAuxiliaryResources(NewEvent, std::move(AuxiliaryResources));
 
   return NewEvent;
 }
@@ -265,13 +266,13 @@ bool Scheduler::isInstanceAlive() {
   return GlobalHandler::instance().isSchedulerAlive();
 }
 
-void Scheduler::waitForEvent(const EventImplPtr &Event) {
+void Scheduler::waitForEvent(const EventImplPtr &Event, bool *Success) {
   ReadLockT Lock = acquireReadLock();
   // It's fine to leave the lock unlocked upon return from waitForEvent as
   // there's no more actions to do here with graph
   std::vector<Command *> ToCleanUp;
   GraphProcessor::waitForEvent(std::move(Event), Lock, ToCleanUp,
-                               /*LockTheLock=*/false);
+                               /*LockTheLock=*/false, Success);
   cleanupCommands(ToCleanUp);
 }
 
@@ -558,10 +559,35 @@ void Scheduler::cleanupDeferredMemObjects(BlockingT Blocking) {
   }
 }
 
+static void registerAuxiliaryResourcesNoLock(
+    std::unordered_map<EventImplPtr, std::vector<std::shared_ptr<const void>>>
+        &AuxiliaryResources,
+    const EventImplPtr &Event,
+    std::vector<std::shared_ptr<const void>> &&Resources) {
+  std::vector<std::shared_ptr<const void>> &StoredResources =
+      AuxiliaryResources[Event];
+  StoredResources.insert(StoredResources.end(),
+                         std::make_move_iterator(Resources.begin()),
+                         std::make_move_iterator(Resources.end()));
+}
+
+void Scheduler::takeAuxiliaryResources(const EventImplPtr &Dst,
+                                       const EventImplPtr &Src) {
+  std::unique_lock<std::mutex> Lock{MAuxiliaryResourcesMutex};
+  auto Iter = MAuxiliaryResources.find(Src);
+  if (Iter == MAuxiliaryResources.end()) {
+    return;
+  }
+  registerAuxiliaryResourcesNoLock(MAuxiliaryResources, Dst,
+                                   std::move(Iter->second));
+  MAuxiliaryResources.erase(Iter);
+}
+
 void Scheduler::registerAuxiliaryResources(
     EventImplPtr &Event, std::vector<std::shared_ptr<const void>> Resources) {
   std::unique_lock<std::mutex> Lock{MAuxiliaryResourcesMutex};
-  MAuxiliaryResources.insert({Event, std::move(Resources)});
+  registerAuxiliaryResourcesNoLock(MAuxiliaryResources, Event,
+                                   std::move(Resources));
 }
 
 void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
@@ -643,6 +669,51 @@ KernelFusionCommand *Scheduler::isPartOfActiveFusion(Command *Cmd) {
   default:
     return nullptr;
   }
+}
+
+EventImplPtr Scheduler::addCommandGraphUpdate(
+    ext::oneapi::experimental::detail::exec_graph_impl *Graph,
+    std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
+        Nodes,
+    const QueueImplPtr &Queue, std::vector<Requirement *> Requirements,
+    std::vector<detail::EventImplPtr> &Events) {
+  std::vector<Command *> AuxiliaryCmds;
+  EventImplPtr NewCmdEvent = nullptr;
+
+  {
+    WriteLockT Lock = acquireWriteLock();
+
+    Command *NewCmd = MGraphBuilder.addCommandGraphUpdate(
+        Graph, Nodes, Queue, Requirements, Events, AuxiliaryCmds);
+    if (!NewCmd)
+      return nullptr;
+    NewCmdEvent = NewCmd->getEvent();
+  }
+
+  std::vector<Command *> ToCleanUp;
+  {
+    ReadLockT Lock = acquireReadLock();
+    EnqueueResultT Res;
+    bool Enqueued;
+
+    for (Command *Cmd : AuxiliaryCmds) {
+      Enqueued = GraphProcessor::enqueueCommand(Cmd, Lock, Res, ToCleanUp, Cmd);
+      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+        throw runtime_error("Enqueue process failed.",
+                            PI_ERROR_INVALID_OPERATION);
+    }
+
+    if (Command *NewCmd = static_cast<Command *>(NewCmdEvent->getCommand())) {
+      Enqueued =
+          GraphProcessor::enqueueCommand(NewCmd, Lock, Res, ToCleanUp, NewCmd);
+      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+        throw runtime_error("Enqueue process failed.",
+                            PI_ERROR_INVALID_OPERATION);
+    }
+  }
+
+  cleanupCommands(ToCleanUp);
+  return NewCmdEvent;
 }
 
 } // namespace detail

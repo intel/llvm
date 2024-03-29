@@ -67,7 +67,7 @@ private:
   template <
       auto &S,
       typename T = typename std::remove_reference_t<decltype(S)>::value_type,
-      std::enable_if_t<std::is_fundamental_v<T>> * = nullptr>
+      std::enable_if_t<std::is_scalar_v<T>> * = nullptr>
   __SYCL_ALWAYS_INLINE T getSpecializationConstantOnDevice() {
     const char *SymbolicID = __builtin_sycl_unique_stable_id(S);
     return __sycl_getScalar2020SpecConstantValue<T>(
@@ -76,7 +76,7 @@ private:
   template <
       auto &S,
       typename T = typename std::remove_reference_t<decltype(S)>::value_type,
-      std::enable_if_t<std::is_compound_v<T>> * = nullptr>
+      std::enable_if_t<!std::is_scalar_v<T>> * = nullptr>
   __SYCL_ALWAYS_INLINE T getSpecializationConstantOnDevice() {
     const char *SymbolicID = __builtin_sycl_unique_stable_id(S);
     return __sycl_getComposite2020SpecConstantValue<T>(

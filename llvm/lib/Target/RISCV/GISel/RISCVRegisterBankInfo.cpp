@@ -25,10 +25,16 @@ namespace llvm {
 namespace RISCV {
 
 const RegisterBankInfo::PartialMapping PartMappings[] = {
+    // clang-format off
     {0, 32, GPRBRegBank},
     {0, 64, GPRBRegBank},
     {0, 32, FPRBRegBank},
     {0, 64, FPRBRegBank},
+    {0, 64, VRBRegBank},
+    {0, 128, VRBRegBank},
+    {0, 256, VRBRegBank},
+    {0, 512, VRBRegBank},
+    // clang-format on
 };
 
 enum PartialMappingIdx {
@@ -36,6 +42,10 @@ enum PartialMappingIdx {
   PMI_GPRB64 = 1,
   PMI_FPRB32 = 2,
   PMI_FPRB64 = 3,
+  PMI_VRB64 = 4,
+  PMI_VRB128 = 5,
+  PMI_VRB256 = 6,
+  PMI_VRB512 = 7,
 };
 
 const RegisterBankInfo::ValueMapping ValueMappings[] = {
@@ -57,6 +67,22 @@ const RegisterBankInfo::ValueMapping ValueMappings[] = {
     {&PartMappings[PMI_FPRB64], 1},
     {&PartMappings[PMI_FPRB64], 1},
     {&PartMappings[PMI_FPRB64], 1},
+    // Maximum 3 VR LMUL={1, MF2, MF4, MF8} operands.
+    {&PartMappings[PMI_VRB64], 1},
+    {&PartMappings[PMI_VRB64], 1},
+    {&PartMappings[PMI_VRB64], 1},
+    // Maximum 3 VR LMUL=2 operands.
+    {&PartMappings[PMI_VRB128], 1},
+    {&PartMappings[PMI_VRB128], 1},
+    {&PartMappings[PMI_VRB128], 1},
+    // Maximum 3 VR LMUL=4 operands.
+    {&PartMappings[PMI_VRB256], 1},
+    {&PartMappings[PMI_VRB256], 1},
+    {&PartMappings[PMI_VRB256], 1},
+    // Maximum 3 VR LMUL=8 operands.
+    {&PartMappings[PMI_VRB512], 1},
+    {&PartMappings[PMI_VRB512], 1},
+    {&PartMappings[PMI_VRB512], 1},
 };
 
 enum ValueMappingIdx {
@@ -65,6 +91,10 @@ enum ValueMappingIdx {
   GPRB64Idx = 4,
   FPRB32Idx = 7,
   FPRB64Idx = 10,
+  VRB64Idx = 13,
+  VRB128Idx = 16,
+  VRB256Idx = 19,
+  VRB512Idx = 22,
 };
 } // namespace RISCV
 } // namespace llvm
@@ -207,6 +237,31 @@ bool RISCVRegisterBankInfo::onlyDefinesFP(const MachineInstr &MI,
   return hasFPConstraints(MI, MRI, TRI);
 }
 
+bool RISCVRegisterBankInfo::anyUseOnlyUseFP(
+    Register Def, const MachineRegisterInfo &MRI,
+    const TargetRegisterInfo &TRI) const {
+  return any_of(
+      MRI.use_nodbg_instructions(Def),
+      [&](const MachineInstr &UseMI) { return onlyUsesFP(UseMI, MRI, TRI); });
+}
+
+static const RegisterBankInfo::ValueMapping *getVRBValueMapping(unsigned Size) {
+  unsigned Idx;
+
+  if (Size <= 64)
+    Idx = RISCV::VRB64Idx;
+  else if (Size == 128)
+    Idx = RISCV::VRB128Idx;
+  else if (Size == 256)
+    Idx = RISCV::VRB256Idx;
+  else if (Size == 512)
+    Idx = RISCV::VRB512Idx;
+  else
+    llvm::report_fatal_error("Invalid Size");
+
+  return &RISCV::ValueMappings[Idx];
+}
+
 const RegisterBankInfo::InstructionMapping &
 RISCVRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   const unsigned Opc = MI.getOpcode();
@@ -234,7 +289,16 @@ RISCVRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
 
   switch (Opc) {
   case TargetOpcode::G_ADD:
-  case TargetOpcode::G_SUB:
+  case TargetOpcode::G_SUB: {
+    if (MRI.getType(MI.getOperand(0).getReg()).isVector()) {
+      LLT Ty = MRI.getType(MI.getOperand(0).getReg());
+      return getInstructionMapping(
+          DefaultMappingID, /*Cost=*/1,
+          getVRBValueMapping(Ty.getSizeInBits().getKnownMinValue()),
+          NumOperands);
+    }
+  }
+    LLVM_FALLTHROUGH;
   case TargetOpcode::G_SHL:
   case TargetOpcode::G_ASHR:
   case TargetOpcode::G_LSHR:
@@ -277,6 +341,19 @@ RISCVRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
                                  getFPValueMapping(Ty.getSizeInBits()),
                                  NumOperands);
   }
+  case TargetOpcode::G_IMPLICIT_DEF: {
+    Register Dst = MI.getOperand(0).getReg();
+    auto Mapping = GPRValueMapping;
+    // FIXME: May need to do a better job determining when to use FPRB.
+    // For example, the look through COPY case:
+    // %0:_(s32) = G_IMPLICIT_DEF
+    // %1:_(s32) = COPY %0
+    // $f10_d = COPY %1(s32)
+    if (anyUseOnlyUseFP(Dst, MRI, TRI))
+      Mapping = getFPValueMapping(MRI.getType(Dst).getSizeInBits());
+    return getInstructionMapping(DefaultMappingID, /*Cost=*/1, Mapping,
+                                 NumOperands);
+  }
   }
 
   SmallVector<const ValueMapping *, 4> OpdsMapping(NumOperands);
@@ -296,14 +373,11 @@ RISCVRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
     // Check if that load feeds fp instructions.
     // In that case, we want the default mapping to be on FPR
     // instead of blind map every scalar to GPR.
-    if (any_of(MRI.use_nodbg_instructions(MI.getOperand(0).getReg()),
-               [&](const MachineInstr &UseMI) {
-                 // If we have at least one direct use in a FP instruction,
-                 // assume this was a floating point load in the IR. If it was
-                 // not, we would have had a bitcast before reaching that
-                 // instruction.
-                 return onlyUsesFP(UseMI, MRI, TRI);
-               }))
+    if (anyUseOnlyUseFP(MI.getOperand(0).getReg(), MRI, TRI))
+      // If we have at least one direct use in a FP instruction,
+      // assume this was a floating point load in the IR. If it was
+      // not, we would have had a bitcast before reaching that
+      // instruction.
       OpdsMapping[0] = getFPValueMapping(Ty.getSizeInBits());
 
     break;
@@ -403,6 +477,28 @@ RISCVRegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
 
     OpdsMapping[0] = GPRValueMapping;
     OpdsMapping[2] = OpdsMapping[3] = getFPValueMapping(Size);
+    break;
+  }
+  case TargetOpcode::G_MERGE_VALUES: {
+    // Use FPR64 for s64 merge on rv32.
+    LLT Ty = MRI.getType(MI.getOperand(0).getReg());
+    if (GPRSize == 32 && Ty.getSizeInBits() == 64) {
+      assert(MF.getSubtarget<RISCVSubtarget>().hasStdExtD());
+      OpdsMapping[0] = getFPValueMapping(Ty.getSizeInBits());
+      OpdsMapping[1] = GPRValueMapping;
+      OpdsMapping[2] = GPRValueMapping;
+    }
+    break;
+  }
+  case TargetOpcode::G_UNMERGE_VALUES: {
+    // Use FPR64 for s64 unmerge on rv32.
+    LLT Ty = MRI.getType(MI.getOperand(2).getReg());
+    if (GPRSize == 32 && Ty.getSizeInBits() == 64) {
+      assert(MF.getSubtarget<RISCVSubtarget>().hasStdExtD());
+      OpdsMapping[0] = GPRValueMapping;
+      OpdsMapping[1] = GPRValueMapping;
+      OpdsMapping[2] = getFPValueMapping(Ty.getSizeInBits());
+    }
     break;
   }
   default:

@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <vector>
@@ -335,6 +336,14 @@ public:
         MState(bundle_state::ext_oneapi_source), Language(Lang), Source(Src) {}
 
   // oneapi_ext_kernel_compiler
+  // construct from source bytes
+  kernel_bundle_impl(const context &Context, syclex::source_language Lang,
+                     const std::vector<std::byte> &Bytes)
+      : MContext(Context), MDevices(Context.get_devices()),
+        MState(bundle_state::ext_oneapi_source), Language(Lang), Source(Bytes) {
+  }
+
+  // oneapi_ext_kernel_compiler
   // interop constructor
   kernel_bundle_impl(context Ctx, std::vector<device> Devs,
                      device_image_plain &DevImage,
@@ -350,27 +359,10 @@ public:
                     std::string *LogPtr) {
     assert(MState == bundle_state::ext_oneapi_source &&
            "bundle_state::ext_oneapi_source required");
-    assert(Language == syclex::source_language::opencl &&
-           "TODO: add other Languages. Must be OpenCL");
-    if (Language != syclex::source_language::opencl)
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "OpenCL C is the only supported language at this time");
 
-    // if successful, the log is empty. if failed, throws an error with the
-    // compilation log.
-    auto spirv =
-        syclex::detail::OpenCLC_to_SPIRV(this->Source, BuildOptions, LogPtr);
-
-    // see also program_manager.cpp::createSpirvProgram()
     using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
-    sycl::detail::pi::PiProgram PiProgram = nullptr;
     ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
     const PluginPtr &Plugin = ContextImpl->getPlugin();
-    Plugin->call<PiApiKind::piProgramCreate>(
-        ContextImpl->getHandleRef(), spirv.data(), spirv.size(), &PiProgram);
-
-    Plugin->call<PiApiKind::piProgramRetain>(PiProgram);
 
     std::vector<pi::PiDevice> DeviceVec;
     DeviceVec.reserve(Devices.size());
@@ -378,6 +370,42 @@ public:
       pi::PiDevice Dev = getSyclObjImpl(SyclDev)->getHandleRef();
       DeviceVec.push_back(Dev);
     }
+
+    const auto spirv = [&]() -> std::vector<uint8_t> {
+      if (Language == syclex::source_language::opencl) {
+        // if successful, the log is empty. if failed, throws an error with the
+        // compilation log.
+        const auto &SourceStr = std::get<std::string>(this->Source);
+        std::vector<uint32_t> IPVersionVec(Devices.size());
+        std::transform(DeviceVec.begin(), DeviceVec.end(), IPVersionVec.begin(),
+                       [&](pi::PiDevice d) {
+                         uint32_t ipVersion = 0;
+                         Plugin->call<PiApiKind::piDeviceGetInfo>(
+                             d, PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION,
+                             sizeof(uint32_t), &ipVersion, nullptr);
+                         return ipVersion;
+                       });
+        return syclex::detail::OpenCLC_to_SPIRV(SourceStr, IPVersionVec,
+                                                BuildOptions, LogPtr);
+      }
+      if (Language == syclex::source_language::spirv) {
+        const auto &SourceBytes =
+            std::get<std::vector<std::byte>>(this->Source);
+        std::vector<uint8_t> Result(SourceBytes.size());
+        std::transform(SourceBytes.cbegin(), SourceBytes.cend(), Result.begin(),
+                       [](std::byte B) { return static_cast<uint8_t>(B); });
+        return Result;
+      }
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "OpenCL C and SPIR-V are the only supported languages at this time");
+    }();
+
+    sycl::detail::pi::PiProgram PiProgram = nullptr;
+    Plugin->call<PiApiKind::piProgramCreate>(
+        ContextImpl->getHandleRef(), spirv.data(), spirv.size(), &PiProgram);
+    // program created by piProgramCreate is implicitly retained.
+
     Plugin->call<errc::build, PiApiKind::piProgramBuild>(
         PiProgram, DeviceVec.size(), DeviceVec.data(), nullptr, nullptr,
         nullptr);
@@ -437,8 +465,7 @@ public:
     const PluginPtr &Plugin = ContextImpl->getPlugin();
     sycl::detail::pi::PiKernel PiKernel = nullptr;
     Plugin->call<PiApiKind::piKernelCreate>(PiProgram, Name.c_str(), &PiKernel);
-
-    Plugin->call<PiApiKind::piKernelRetain>(PiKernel);
+    // Kernel created by piKernelCreate is implicitly retained.
 
     std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
         PiKernel, detail::getSyclObjImpl(MContext), Self);
@@ -536,9 +563,9 @@ public:
             MContext, KernelID.get_name(), /*PropList=*/{},
             SelectedImage->get_program_ref());
 
-    std::shared_ptr<kernel_impl> KernelImpl =
-        std::make_shared<kernel_impl>(Kernel, detail::getSyclObjImpl(MContext),
-                                      SelectedImage, Self, ArgMask, CacheMutex);
+    std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
+        Kernel, detail::getSyclObjImpl(MContext), SelectedImage, Self, ArgMask,
+        SelectedImage->get_program_ref(), CacheMutex);
 
     return detail::createSyclObjFromImpl<kernel>(KernelImpl);
   }
@@ -684,7 +711,7 @@ private:
   bundle_state MState;
   // ext_oneapi_kernel_compiler : Source, Languauge, KernelNames
   const syclex::source_language Language = syclex::source_language::opencl;
-  const std::string Source;
+  const std::variant<std::string, std::vector<std::byte>> Source;
   // only kernel_bundles created from source have KernelNames member.
   std::vector<std::string> KernelNames;
 };

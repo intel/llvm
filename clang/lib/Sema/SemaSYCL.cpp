@@ -69,7 +69,7 @@ static constexpr llvm::StringLiteral LibstdcxxFailedAssertion =
     "__failed_assertion";
 constexpr unsigned MaxKernelArgsSize = 2048;
 
-static bool isSyclType(QualType Ty, SYCLTypeAttr::SYCLType TypeName) {
+bool Sema::isSyclType(QualType Ty, SYCLTypeAttr::SYCLType TypeName) {
   const auto *RD = Ty->getAsCXXRecordDecl();
   if (!RD)
     return false;
@@ -87,8 +87,8 @@ static bool isSyclType(QualType Ty, SYCLTypeAttr::SYCLType TypeName) {
 }
 
 static bool isSyclAccessorType(QualType Ty) {
-  return isSyclType(Ty, SYCLTypeAttr::accessor) ||
-         isSyclType(Ty, SYCLTypeAttr::local_accessor);
+  return Sema::isSyclType(Ty, SYCLTypeAttr::accessor) ||
+         Sema::isSyclType(Ty, SYCLTypeAttr::local_accessor);
 }
 
 // FIXME: Accessor property lists should be modified to use compile-time
@@ -726,6 +726,25 @@ public:
   }
 };
 
+/// This function checks whether given DeclContext contains a topmost
+/// namespace with name "sycl".
+static bool isDeclaredInSYCLNamespace(const Decl *D) {
+  const DeclContext *DC = D->getDeclContext()->getEnclosingNamespaceContext();
+  const auto *ND = dyn_cast<NamespaceDecl>(DC);
+  // If this is not a namespace, then we are done.
+  if (!ND)
+    return false;
+
+  // While it is a namespace, find its parent scope.
+  while (const DeclContext *Parent = ND->getParent()) {
+    if (!isa<NamespaceDecl>(Parent))
+      break;
+    ND = cast<NamespaceDecl>(Parent);
+  }
+
+  return ND && ND->getName() == "sycl";
+}
+
 // This type does the heavy lifting for the management of device functions,
 // recursive function detection, and attribute collection for a single
 // kernel/external function. It walks the callgraph to find all functions that
@@ -769,6 +788,20 @@ class SingleDeviceFunctionTracker {
         !CurrentDecl->hasAttr<SYCLDeviceAttr>())
       Parent.SemaRef.addFDToReachableFromSyclDevice(CurrentDecl,
                                                     CallStack.back());
+
+    // If this is a parallel_for_work_item that is declared in the
+    // sycl namespace, mark it with the WorkItem scope attribute.
+    // Note: Here, we assume that this is called from within a
+    // parallel_for_work_group; it is undefined to call it otherwise.
+    // We deliberately do not diagnose a violation.
+    if (CurrentDecl->getIdentifier() &&
+        CurrentDecl->getIdentifier()->getName() == "parallel_for_work_item" &&
+        isDeclaredInSYCLNamespace(CurrentDecl) &&
+        !CurrentDecl->hasAttr<SYCLScopeAttr>()) {
+      CurrentDecl->addAttr(
+          SYCLScopeAttr::CreateImplicit(Parent.SemaRef.getASTContext(),
+                                        SYCLScopeAttr::Level::WorkItem));
+    }
 
     // We previously thought we could skip this function if we'd seen it before,
     // but if we haven't seen it before in this call graph, we can end up
@@ -915,18 +948,17 @@ public:
       // not a direct call - continue search
       return true;
     QualType Ty = Ctx.getRecordType(Call->getRecordDecl());
-    if (!isSyclType(Ty, SYCLTypeAttr::group))
+    if (!Sema::isSyclType(Ty, SYCLTypeAttr::group))
       // not a member of sycl::group - continue search
       return true;
     auto Name = Callee->getName();
-    if (((Name != "parallel_for_work_item") && (Name != "wait_for")) ||
+    if (Name != "wait_for" ||
         Callee->hasAttr<SYCLScopeAttr>())
       return true;
-    // it is a call to sycl::group::parallel_for_work_item/wait_for -
-    // mark the callee
+    // it is a call to sycl::group::wait_for - mark the callee
     Callee->addAttr(
         SYCLScopeAttr::CreateImplicit(Ctx, SYCLScopeAttr::Level::WorkItem));
-    // continue search as there can be other PFWI or wait_for calls
+    // continue search as there can be other wait_for calls
     return true;
   }
 
@@ -935,7 +967,7 @@ private:
 };
 
 static bool isSYCLPrivateMemoryVar(VarDecl *VD) {
-  return isSyclType(VD->getType(), SYCLTypeAttr::private_memory);
+  return Sema::isSyclType(VD->getType(), SYCLTypeAttr::private_memory);
 }
 
 static void addScopeAttrToLocalVars(CXXMethodDecl &F) {
@@ -1014,7 +1046,7 @@ static ParamDesc makeParamDesc(ASTContext &Ctx, StringRef Name, QualType Ty) {
 /// \return the target of given SYCL accessor type
 static target getAccessTarget(QualType FieldTy,
                               const ClassTemplateSpecializationDecl *AccTy) {
-  if (isSyclType(FieldTy, SYCLTypeAttr::local_accessor))
+  if (Sema::isSyclType(FieldTy, SYCLTypeAttr::local_accessor))
     return local;
 
   return static_cast<target>(
@@ -1076,7 +1108,7 @@ static ParmVarDecl *getSyclKernelHandlerArg(FunctionDecl *KernelCallerFunc) {
   // Specialization constants in SYCL 2020 are not captured by lambda and
   // accessed through new optional lambda argument kernel_handler
   auto IsHandlerLambda = [](ParmVarDecl *PVD) {
-    return isSyclType(PVD->getType(), SYCLTypeAttr::kernel_handler);
+    return Sema::isSyclType(PVD->getType(), SYCLTypeAttr::kernel_handler);
   };
 
   assert(llvm::count_if(KernelCallerFunc->parameters(), IsHandlerLambda) <= 1 &&
@@ -1597,7 +1629,7 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
           Loc, diag::err_sycl_invalid_accessor_property_template_param);
 
     QualType PropListTy = PropList.getAsType();
-    if (!isSyclType(PropListTy, SYCLTypeAttr::accessor_property_list))
+    if (!Sema::isSyclType(PropListTy, SYCLTypeAttr::accessor_property_list))
       return SemaRef.Diag(
           Loc, diag::err_sycl_invalid_accessor_property_template_param);
 
@@ -1661,9 +1693,9 @@ class SyclKernelFieldChecker : public SyclKernelFieldHandler {
 
     // Annotated pointers and annotated arguments must be captured
     // directly by the SYCL kernel.
-    if ((isSyclType(Ty, SYCLTypeAttr::annotated_ptr) ||
-         isSyclType(Ty, SYCLTypeAttr::annotated_arg)) &&
-         (StructFieldDepth > 0 || StructBaseDepth > 0))
+    if ((Sema::isSyclType(Ty, SYCLTypeAttr::annotated_ptr) ||
+         Sema::isSyclType(Ty, SYCLTypeAttr::annotated_arg)) &&
+        (StructFieldDepth > 0 || StructBaseDepth > 0))
       return SemaRef.Diag(Loc.getBegin(),
                           diag::err_bad_kernel_param_data_members)
              << Ty << /*Struct*/ 1;
@@ -2251,7 +2283,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     handleAccessorPropertyList(Params.back(), RecordDecl, Loc);
 
     // If "accessor" type check if read only
-    if (isSyclType(FieldTy, SYCLTypeAttr::accessor)) {
+    if (Sema::isSyclType(FieldTy, SYCLTypeAttr::accessor)) {
       // Get access mode of accessor.
       const auto *AccessorSpecializationDecl =
           cast<ClassTemplateSpecializationDecl>(RecordDecl);
@@ -2968,7 +3000,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     assert(CallOperator && "non callable object is passed as kernel obj");
     // Mark the function that it "works" in a work group scope:
-    // NOTE: In case of parallel_for_work_item the marker call itself is
+    // NOTE: In case of wait_for the marker call itself is
     // marked with work item scope attribute, here  the '()' operator of the
     // object passed as parameter is marked. This is an optimization -
     // there are a lot of locals created at parallel_for_work_group
@@ -2979,7 +3011,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     if (!CallOperator->hasAttr<SYCLScopeAttr>()) {
       CallOperator->addAttr(SYCLScopeAttr::CreateImplicit(
           SemaRef.getASTContext(), SYCLScopeAttr::Level::WorkGroup));
-      // Search and mark parallel_for_work_item calls:
+      // Search and mark wait_for calls:
       MarkWIScopeFnVisitor MarkWIScope(SemaRef.getASTContext());
       MarkWIScope.TraverseDecl(CallOperator);
       // Now mark local variables declared in the PFWG lambda with work group
@@ -3700,18 +3732,18 @@ public:
 
       Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
                           CurOffset + offsetOf(FD, FieldTy));
-    } else if (isSyclType(FieldTy, SYCLTypeAttr::stream)) {
+    } else if (Sema::isSyclType(FieldTy, SYCLTypeAttr::stream)) {
       addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
-    } else if (isSyclType(FieldTy, SYCLTypeAttr::sampler) ||
-               isSyclType(FieldTy, SYCLTypeAttr::annotated_ptr) ||
-               isSyclType(FieldTy, SYCLTypeAttr::annotated_arg)) {
+    } else if (Sema::isSyclType(FieldTy, SYCLTypeAttr::sampler) ||
+               Sema::isSyclType(FieldTy, SYCLTypeAttr::annotated_ptr) ||
+               Sema::isSyclType(FieldTy, SYCLTypeAttr::annotated_arg)) {
       CXXMethodDecl *InitMethod = getMethodByName(ClassTy, InitMethodName);
       assert(InitMethod && "type must have __init method");
       const ParmVarDecl *InitArg = InitMethod->getParamDecl(0);
       assert(InitArg && "Init method must have arguments");
       QualType T = InitArg->getType();
       SYCLIntegrationHeader::kernel_param_kind_t ParamKind =
-          isSyclType(FieldTy, SYCLTypeAttr::sampler)
+          Sema::isSyclType(FieldTy, SYCLTypeAttr::sampler)
               ? SYCLIntegrationHeader::kind_sampler
               : (T->isPointerType() ? SYCLIntegrationHeader::kind_pointer
                                     : SYCLIntegrationHeader::kind_std_layout);
@@ -4295,7 +4327,7 @@ static void CheckSYCL2020SubGroupSizes(Sema &S, FunctionDecl *SYCLKernel,
   // No need to validate __spirv routines here since they
   // are mapped to the equivalent SPIRV operations.
   const IdentifierInfo *II = FD->getIdentifier();
-  if (II && II->getName().startswith("__spirv_"))
+  if (II && II->getName().starts_with("__spirv_"))
     return;
 
   // Else we need to figure out why they don't match.
@@ -5140,10 +5172,19 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "#endif //" << Macro.first << "\n\n";
   }
 
-  if (S.getLangOpts().SYCLDisableRangeRounding) {
+  switch (S.getLangOpts().getSYCLRangeRounding()) {
+  case LangOptions::SYCLRangeRoundingPreference::Disable:
     O << "#ifndef __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ \n";
     O << "#define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1\n";
     O << "#endif //__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__\n\n";
+    break;
+  case LangOptions::SYCLRangeRoundingPreference::Force:
+    O << "#ifndef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__ \n";
+    O << "#define __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__ 1\n";
+    O << "#endif //__SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__\n\n";
+    break;
+  default:
+    break;
   }
 
   if (SpecConsts.size() > 0) {
@@ -5415,8 +5456,8 @@ void SYCLIntegrationFooter::addVarDecl(const VarDecl *VD) {
   if (isa<VarTemplatePartialSpecializationDecl>(VD))
     return;
   // Step 1: ensure that this is of the correct type template specialization.
-  if (!isSyclType(VD->getType(), SYCLTypeAttr::specialization_id) &&
-      !isSyclType(VD->getType(), SYCLTypeAttr::host_pipe) &&
+  if (!Sema::isSyclType(VD->getType(), SYCLTypeAttr::specialization_id) &&
+      !Sema::isSyclType(VD->getType(), SYCLTypeAttr::host_pipe) &&
       !S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
           VD->getType())) {
     // Handle the case where this could be a deduced type, such as a deduction
@@ -5612,8 +5653,8 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
 
     // Skip if this isn't a SpecIdType, DeviceGlobal, or HostPipe.  This 
     // can happen if it was a deduced type.
-    if (!isSyclType(VD->getType(), SYCLTypeAttr::specialization_id) &&
-        !isSyclType(VD->getType(), SYCLTypeAttr::host_pipe) && 
+    if (!Sema::isSyclType(VD->getType(), SYCLTypeAttr::specialization_id) &&
+        !Sema::isSyclType(VD->getType(), SYCLTypeAttr::host_pipe) &&
         !S.isTypeDecoratedWithDeclAttribute<SYCLDeviceGlobalAttr>(
             VD->getType()))
       continue;
@@ -5644,7 +5685,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
       DeviceGlobOS << SYCLUniqueStableIdExpr::ComputeName(S.getASTContext(),
                                                           VD);
       DeviceGlobOS << "\");\n";
-    } else if (isSyclType(VD->getType(), SYCLTypeAttr::host_pipe)) {
+    } else if (Sema::isSyclType(VD->getType(), SYCLTypeAttr::host_pipe)) {
       HostPipesEmitted = true;
       HostPipesOS << "host_pipe_map::add(";
       HostPipesOS << "(void *)&";

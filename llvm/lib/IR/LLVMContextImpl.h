@@ -56,6 +56,7 @@ class AttributeImpl;
 class AttributeListImpl;
 class AttributeSetNode;
 class BasicBlock;
+class ConstantRangeAttributeImpl;
 struct DiagnosticHandler;
 class DPMarker;
 class ElementCount;
@@ -73,9 +74,7 @@ class StringRef;
 class TypedPointerType;
 class ValueHandleBase;
 
-using DenseMapAPIntKeyInfo = DenseMapInfo<APInt>;
-
-struct DenseMapAPFloatKeyInfo {
+template <> struct DenseMapInfo<APFloat> {
   static inline APFloat getEmptyKey() { return APFloat(APFloat::Bogus(), 1); }
   static inline APFloat getTombstoneKey() {
     return APFloat(APFloat::Bogus(), 2);
@@ -541,6 +540,7 @@ template <> struct MDNodeKeyImpl<DIDerivedType> {
   uint64_t OffsetInBits;
   uint32_t AlignInBits;
   std::optional<unsigned> DWARFAddressSpace;
+  std::optional<DIDerivedType::PtrAuthData> PtrAuthData;
   unsigned Flags;
   Metadata *ExtraData;
   Metadata *Annotations;
@@ -548,18 +548,21 @@ template <> struct MDNodeKeyImpl<DIDerivedType> {
   MDNodeKeyImpl(unsigned Tag, MDString *Name, Metadata *File, unsigned Line,
                 Metadata *Scope, Metadata *BaseType, uint64_t SizeInBits,
                 uint32_t AlignInBits, uint64_t OffsetInBits,
-                std::optional<unsigned> DWARFAddressSpace, unsigned Flags,
-                Metadata *ExtraData, Metadata *Annotations)
+                std::optional<unsigned> DWARFAddressSpace,
+                std::optional<DIDerivedType::PtrAuthData> PtrAuthData,
+                unsigned Flags, Metadata *ExtraData, Metadata *Annotations)
       : Tag(Tag), Name(Name), File(File), Line(Line), Scope(Scope),
         BaseType(BaseType), SizeInBits(SizeInBits), OffsetInBits(OffsetInBits),
         AlignInBits(AlignInBits), DWARFAddressSpace(DWARFAddressSpace),
-        Flags(Flags), ExtraData(ExtraData), Annotations(Annotations) {}
+        PtrAuthData(PtrAuthData), Flags(Flags), ExtraData(ExtraData),
+        Annotations(Annotations) {}
   MDNodeKeyImpl(const DIDerivedType *N)
       : Tag(N->getTag()), Name(N->getRawName()), File(N->getRawFile()),
         Line(N->getLine()), Scope(N->getRawScope()),
         BaseType(N->getRawBaseType()), SizeInBits(N->getSizeInBits()),
         OffsetInBits(N->getOffsetInBits()), AlignInBits(N->getAlignInBits()),
-        DWARFAddressSpace(N->getDWARFAddressSpace()), Flags(N->getFlags()),
+        DWARFAddressSpace(N->getDWARFAddressSpace()),
+        PtrAuthData(N->getPtrAuthData()), Flags(N->getFlags()),
         ExtraData(N->getRawExtraData()), Annotations(N->getRawAnnotations()) {}
 
   bool isKeyOf(const DIDerivedType *RHS) const {
@@ -570,7 +573,8 @@ template <> struct MDNodeKeyImpl<DIDerivedType> {
            AlignInBits == RHS->getAlignInBits() &&
            OffsetInBits == RHS->getOffsetInBits() &&
            DWARFAddressSpace == RHS->getDWARFAddressSpace() &&
-           Flags == RHS->getFlags() && ExtraData == RHS->getRawExtraData() &&
+           PtrAuthData == RHS->getPtrAuthData() && Flags == RHS->getFlags() &&
+           ExtraData == RHS->getRawExtraData() &&
            Annotations == RHS->getRawAnnotations();
   }
 
@@ -1489,11 +1493,13 @@ public:
 
   DenseMap<unsigned, std::unique_ptr<ConstantInt>> IntZeroConstants;
   DenseMap<unsigned, std::unique_ptr<ConstantInt>> IntOneConstants;
-  DenseMap<APInt, std::unique_ptr<ConstantInt>, DenseMapAPIntKeyInfo>
-      IntConstants;
+  DenseMap<APInt, std::unique_ptr<ConstantInt>> IntConstants;
+  DenseMap<std::pair<ElementCount, APInt>, std::unique_ptr<ConstantInt>>
+      IntSplatConstants;
 
-  DenseMap<APFloat, std::unique_ptr<ConstantFP>, DenseMapAPFloatKeyInfo>
-      FPConstants;
+  DenseMap<APFloat, std::unique_ptr<ConstantFP>> FPConstants;
+  DenseMap<std::pair<ElementCount, APFloat>, std::unique_ptr<ConstantFP>>
+      FPSplatConstants;
 
   FoldingSet<AttributeImpl> AttrsSet;
   FoldingSet<AttributeListImpl> AttrsLists;
@@ -1562,6 +1568,8 @@ public:
 
   BumpPtrAllocator Alloc;
   UniqueStringSaver Saver{Alloc};
+  SpecificBumpPtrAllocator<ConstantRangeAttributeImpl>
+      ConstantRangeAttributeAlloc;
 
   DenseMap<unsigned, IntegerType *> IntegerTypes;
 
@@ -1667,35 +1675,33 @@ public:
   /// LLVMContext is used by compilation.
   void setOptPassGate(OptPassGate &);
 
-  /// Mapping of blocks to collections of "trailing" DPValues. As part of the
-  /// "RemoveDIs" project, debug-info variable location records are going to
-  /// cease being instructions... which raises the problem of where should they
-  /// be recorded when we remove the terminator of a blocks, such as:
+  /// Mapping of blocks to collections of "trailing" DbgVariableRecords. As part
+  /// of the "RemoveDIs" project, debug-info variable location records are going
+  /// to cease being instructions... which raises the problem of where should
+  /// they be recorded when we remove the terminator of a blocks, such as:
   ///
   ///    %foo = add i32 0, 0
   ///    br label %bar
   ///
   /// If the branch is removed, a legitimate transient state while editing a
   /// block, any debug-records between those two instructions will not have a
-  /// location. Each block thus records any DPValue records that "trail" in
-  /// such a way. These are stored in LLVMContext because typically LLVM only
-  /// edits a small number of blocks at a time, so there's no need to bloat
-  /// BasicBlock with such a data structure.
-  SmallDenseMap<BasicBlock *, DPMarker *> TrailingDPValues;
+  /// location. Each block thus records any DbgVariableRecord records that
+  /// "trail" in such a way. These are stored in LLVMContext because typically
+  /// LLVM only edits a small number of blocks at a time, so there's no need to
+  /// bloat BasicBlock with such a data structure.
+  SmallDenseMap<BasicBlock *, DPMarker *> TrailingDbgRecords;
 
-  // Set, get and delete operations for TrailingDPValues.
-  void setTrailingDPValues(BasicBlock *B, DPMarker *M) {
-    assert(!TrailingDPValues.count(B));
-    TrailingDPValues[B] = M;
+  // Set, get and delete operations for TrailingDbgRecords.
+  void setTrailingDbgRecords(BasicBlock *B, DPMarker *M) {
+    assert(!TrailingDbgRecords.count(B));
+    TrailingDbgRecords[B] = M;
   }
 
-  DPMarker *getTrailingDPValues(BasicBlock *B) {
-    return TrailingDPValues.lookup(B);
+  DPMarker *getTrailingDbgRecords(BasicBlock *B) {
+    return TrailingDbgRecords.lookup(B);
   }
 
-  void deleteTrailingDPValues(BasicBlock *B) {
-    TrailingDPValues.erase(B);
-  }
+  void deleteTrailingDbgRecords(BasicBlock *B) { TrailingDbgRecords.erase(B); }
 };
 
 } // end namespace llvm

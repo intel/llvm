@@ -34,7 +34,7 @@ source_filename = "test/DebugInfo/X86/dwarf-aranges-no-dwarf-labels.ll"
 target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0:64-s0:64:64-f80:128:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-@global = global i32 2, align 4, !dbg !0
+@global = addrspace(1) global i32 2, align 4, !dbg !0
 
 ; Function Attrs: nounwind readnone uwtable
 define i32 @_Z3fooi(i32 %bar) #0 !dbg !9 {
@@ -56,7 +56,7 @@ entry:
   %call = tail call i32 @_Z3fooi(i32 2), !dbg !23
   %call1 = tail call i32 @_Z4foo2i(i32 1), !dbg !23
   %add = add nsw i32 %call1, %call, !dbg !23
-  %0 = load i32, ptr @global, align 4, !dbg !23, !tbaa !24
+  %0 = load i32, ptr addrspace(1) @global, align 4, !dbg !23, !tbaa !24
   %add2 = add nsw i32 %add, %0, !dbg !23
   ret i32 %add2, !dbg !23
 }

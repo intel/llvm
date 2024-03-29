@@ -10,6 +10,8 @@ All changes made to the DPC++ compiler and runtime library should generally
 preserve existing ABI/API and contributors should avoid making incompatible
 changes. One of the exceptions is experimental APIs, clearly marked so by
 namespace or related specification.
+If you wish to propose a new experimental DPC++ extension then read
+[README-process.md](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/README-process.md).
 
 Another exceptional case is the transition from SYCL 1.2.1 to SYCL 2020
 standard.

@@ -24,7 +24,7 @@ using namespace sycl::ext::intel::esimd;
 template <unsigned VL, class T, class F>
 bool test(queue q, std::string str, F funcUnderTest) {
   std::cout << "Testing " << str << ", VL = " << VL << " ...\n";
-  size_t Size = 4 * VL;
+  constexpr size_t Size = 4 * VL;
   T A[Size];
   T B[Size];
   constexpr unsigned HalfVL = VL > 1 ? (VL / 2) : 1;

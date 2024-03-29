@@ -1,5 +1,5 @@
 // RUN: %if any-device-is-cuda %{ %{build} -DUSE_CUDA_SM80=1 -Xsycl-target-backend --cuda-gpu-arch=sm_80 -o %t.out %}
-// RUN: %if ext_oneapi_cuda %{ %{run} %t.out %}
+// RUN: %if cuda %{ %{run} %t.out %}
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

@@ -146,9 +146,20 @@
 // 14.37 Added piextUSMImportExternalPointer and piextUSMReleaseImportedPointer.
 // 14.38 Change PI_MEM_ADVICE_* values to flags for use in bitwise operations.
 // 14.39 Added PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT device info query.
+// 14.40 Add HIP _pi_mem_advice alises to match the PI_MEM_ADVICE_CUDA* ones.
+// 14.41 Added piextCommandBufferMemBufferFill & piextCommandBufferFillUSM
+// 14.42 Added piextCommandBufferPrefetchUSM and piextCommandBufferAdviseUSM
+// 15.43 Changed the signature of piextMemGetNativeHandle to also take a
+// pi_device
+// 15.44 Add coarse-grain memory advice flag for HIP.
+// 15.45 Added piextKernelSuggestMaxCooperativeGroupCount and
+//       piextEnqueueCooperativeKernelLaunch.
+// 15.46 Add piextGetGlobalVariablePointer
+// 15.47 Added PI_ERROR_FEATURE_UNSUPPORTED.
+// 15.48 Add CommandBuffer update definitions
 
-#define _PI_H_VERSION_MAJOR 14
-#define _PI_H_VERSION_MINOR 39
+#define _PI_H_VERSION_MAJOR 15
+#define _PI_H_VERSION_MINOR 48
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -431,6 +442,14 @@ typedef enum {
   PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT = 0x2010F,
 
   PI_EXT_ONEAPI_DEVICE_INFO_MATRIX_COMBINATIONS = 0x20110,
+
+  // Composite device
+  PI_EXT_ONEAPI_DEVICE_INFO_COMPONENT_DEVICES = 0x20111,
+  PI_EXT_ONEAPI_DEVICE_INFO_COMPOSITE_DEVICE = 0x20112,
+
+  // Command Buffers
+  PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_SUPPORT = 0x20113,
+  PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT = 0x20114,
 } _pi_device_info;
 
 typedef enum {
@@ -577,8 +596,33 @@ typedef enum {
   PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST = 1 << 7,
   PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST = 1 << 8,
   PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST = 1 << 9,
+  PI_MEM_ADVICE_HIP_SET_COARSE_GRAINED = 1 << 10,
+  PI_MEM_ADVICE_HIP_UNSET_COARSE_GRAINED = 1 << 11,
   PI_MEM_ADVICE_UNKNOWN = 0x7FFFFFFF,
 } _pi_mem_advice;
+
+// HIP _pi_mem_advice aliases
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_SET_READ_MOSTLY =
+    PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_UNSET_READ_MOSTLY =
+    PI_MEM_ADVICE_CUDA_UNSET_READ_MOSTLY;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_SET_PREFERRED_LOCATION =
+    PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_UNSET_PREFERRED_LOCATION =
+    PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_SET_ACCESSED_BY =
+    PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_UNSET_ACCESSED_BY =
+    PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_SET_PREFERRED_LOCATION_HOST =
+    PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION_HOST;
+static constexpr _pi_mem_advice
+    PI_MEM_ADVICE_HIP_UNSET_PREFERRED_LOCATION_HOST =
+        PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_SET_ACCESSED_BY_HOST =
+    PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_UNSET_ACCESSED_BY_HOST =
+    PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST;
 
 typedef enum {
   PI_IMAGE_CHANNEL_ORDER_A = 0x10B1,
@@ -1250,6 +1294,10 @@ __SYCL_EXPORT pi_result piextGetDeviceFunctionPointer(
     pi_device device, pi_program program, const char *function_name,
     pi_uint64 *function_pointer_ret);
 
+__SYCL_EXPORT pi_result piextGetGlobalVariablePointer(
+    pi_device Device, pi_program Program, const char *GlobalVariableName,
+    size_t *GlobalVariableSize, void **GlobalVariablePointerRet);
+
 //
 // Context
 //
@@ -1398,8 +1446,9 @@ __SYCL_EXPORT pi_result piMemBufferPartition(
 /// Gets the native handle of a PI mem object.
 ///
 /// \param mem is the PI mem to get the native handle of.
+/// \param dev is the PI device that the native allocation will be resident on
 /// \param nativeHandle is the native handle of mem.
-__SYCL_EXPORT pi_result piextMemGetNativeHandle(pi_mem mem,
+__SYCL_EXPORT pi_result piextMemGetNativeHandle(pi_mem mem, pi_device dev,
                                                 pi_native_handle *nativeHandle);
 
 /// Creates PI mem object from a native handle.
@@ -1634,6 +1683,18 @@ __SYCL_EXPORT pi_result piextKernelCreateWithNativeHandle(
 __SYCL_EXPORT pi_result
 piextKernelGetNativeHandle(pi_kernel kernel, pi_native_handle *nativeHandle);
 
+/// Gets the max work group count for a cooperative kernel.
+///
+/// \param kernel is the PI kernel being queried.
+/// \param local_work_size is the number of work items in a work group that will
+/// be used when the kernel is launched. \param dynamic_shared_memory_size is
+/// the size of dynamic shared memory, for each work group, in bytes, that will
+/// be used when the kernel is launched." \param group_count_ret is a pointer to
+/// where the query result will be stored.
+__SYCL_EXPORT pi_result piextKernelSuggestMaxCooperativeGroupCount(
+    pi_kernel kernel, size_t local_work_size, size_t dynamic_shared_memory_size,
+    pi_uint32 *group_count_ret);
+
 //
 // Events
 //
@@ -1711,6 +1772,12 @@ __SYCL_EXPORT pi_result piSamplerRelease(pi_sampler sampler);
 // Queue Commands
 //
 __SYCL_EXPORT pi_result piEnqueueKernelLaunch(
+    pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,
+    const size_t *global_work_offset, const size_t *global_work_size,
+    const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event);
+
+__SYCL_EXPORT pi_result piextEnqueueCooperativeKernelLaunch(
     pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,
     const size_t *global_work_offset, const size_t *global_work_size,
     const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
@@ -2258,7 +2325,10 @@ __SYCL_EXPORT pi_result piGetDeviceAndHostTimer(pi_device Device,
 /// Command buffer extension
 struct _pi_ext_command_buffer;
 struct _pi_ext_sync_point;
+struct _pi_ext_command_buffer_command;
+
 using pi_ext_command_buffer = _pi_ext_command_buffer *;
+using pi_ext_command_buffer_command = _pi_ext_command_buffer_command *;
 using pi_ext_sync_point = pi_uint32;
 
 typedef enum {
@@ -2268,7 +2338,40 @@ typedef enum {
 struct pi_ext_command_buffer_desc final {
   pi_ext_structure_type stype;
   const void *pNext;
-  pi_queue_properties *properties;
+  pi_bool is_updatable;
+};
+
+// Command Buffer Update types
+struct pi_ext_command_buffer_update_memobj_arg_desc_t final {
+  uint32_t arg_index;
+  const pi_mem_obj_property *properties;
+  pi_mem new_mem_obj;
+};
+
+struct pi_ext_command_buffer_update_pointer_arg_desc_t final {
+  uint32_t arg_index;
+  void *new_ptr;
+};
+
+struct pi_ext_command_buffer_update_value_arg_desc_t final {
+  uint32_t arg_index;
+  uint32_t arg_size;
+  void *new_value;
+};
+
+struct pi_ext_command_buffer_update_kernel_launch_desc final {
+  uint32_t num_mem_obj_args;
+  uint32_t num_ptr_args;
+  uint32_t num_value_args;
+  uint32_t num_work_dim;
+
+  pi_ext_command_buffer_update_memobj_arg_desc_t *mem_obj_arg_list;
+  pi_ext_command_buffer_update_pointer_arg_desc_t *ptr_arg_list;
+  pi_ext_command_buffer_update_value_arg_desc_t *value_arg_list;
+
+  size_t *global_work_offset;
+  size_t *global_work_size;
+  size_t *local_work_size;
 };
 
 /// API to create a command-buffer.
@@ -2312,12 +2415,14 @@ piextCommandBufferFinalize(pi_ext_command_buffer command_buffer);
 /// \param sync_point_wait_list A list of sync points that this command must
 /// wait on.
 /// \param sync_point The sync_point associated with this kernel execution.
+/// \param command Return pointer to the command representing this kernel
+/// execution.
 __SYCL_EXPORT pi_result piextCommandBufferNDRangeKernel(
     pi_ext_command_buffer command_buffer, pi_kernel kernel, pi_uint32 work_dim,
     const size_t *global_work_offset, const size_t *global_work_size,
     const size_t *local_work_size, pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
-    pi_ext_sync_point *sync_point);
+    pi_ext_sync_point *sync_point, pi_ext_command_buffer_command *command);
 
 /// API to append a USM memcpy command to the command-buffer.
 /// \param command_buffer The command-buffer to append onto.
@@ -2417,7 +2522,7 @@ __SYCL_EXPORT pi_result piextCommandBufferMemBufferReadRect(
     pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
     pi_buff_rect_region region, size_t buffer_row_pitch,
     size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
-    void *ptr, pi_uint32 num_events_in_wait_list,
+    void *ptr, pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
     pi_ext_sync_point *sync_point);
 
@@ -2434,7 +2539,7 @@ __SYCL_EXPORT pi_result piextCommandBufferMemBufferReadRect(
 /// \param sync_point The sync_point associated with this memory operation.
 __SYCL_EXPORT pi_result piextCommandBufferMemBufferWrite(
     pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
-    size_t size, const void *ptr, pi_uint32 num_events_in_wait_list,
+    size_t size, const void *ptr, pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
     pi_ext_sync_point *sync_point);
 
@@ -2459,7 +2564,75 @@ __SYCL_EXPORT pi_result piextCommandBufferMemBufferWriteRect(
     pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
     pi_buff_rect_region region, size_t buffer_row_pitch,
     size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
-    const void *ptr, pi_uint32 num_events_in_wait_list,
+    const void *ptr, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a mem buffer fill command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param buffer is the location to fill the data.
+/// \param pattern pointer to the pattern to fill the buffer with.
+/// \param pattern_size size of the pattern in bytes.
+/// \param offset Offset into the buffer to fill from.
+/// \param size fill size in bytes.
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferMemBufferFill(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, const void *pattern,
+    size_t pattern_size, size_t offset, size_t size,
+    pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a USM fill command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param ptr pointer to the USM allocation to fill.
+/// \param pattern pointer to the pattern to fill ptr with.
+/// \param pattern_size size of the pattern in bytes.
+/// \param size fill size in bytes.
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferFillUSM(
+    pi_ext_command_buffer command_buffer, void *ptr, const void *pattern,
+    size_t pattern_size, size_t size, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a USM Prefetch command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param ptr points to the memory to migrate.
+/// \param size is the number of bytes to migrate.
+/// \param flags is a bitfield used to specify memory migration options.
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferPrefetchUSM(
+    pi_ext_command_buffer command_buffer, const void *ptr, size_t size,
+    pi_usm_migration_flags flags, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point);
+
+/// API to append a USM Advise command to the command-buffer.
+/// \param command_buffer The command-buffer to append onto.
+/// \param ptr is the data to be advised.
+/// \param length is the size in bytes of the memory to advise.
+/// \param advice is device specific advice.
+/// \param num_sync_points_in_wait_list The number of sync points in the
+/// provided wait list.
+/// \param sync_point_wait_list A list of sync points that this command must
+/// wait on.
+/// \param sync_point The sync_point associated with this memory operation.
+__SYCL_EXPORT pi_result piextCommandBufferAdviseUSM(
+    pi_ext_command_buffer command_buffer, const void *ptr, size_t length,
+    pi_mem_advice advice, pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
     pi_ext_sync_point *sync_point);
 
@@ -2476,6 +2649,25 @@ __SYCL_EXPORT pi_result
 piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer, pi_queue queue,
                           pi_uint32 num_events_in_wait_list,
                           const pi_event *event_wait_list, pi_event *event);
+
+/// API to update a kernel launch command inside of a command-buffer.
+/// @param command The command to be updated.
+/// @param desc Descriptor which describes the updated parameters of the kernel
+/// launch.
+__SYCL_EXPORT pi_result piextCommandBufferUpdateKernelLaunch(
+    pi_ext_command_buffer_command command,
+    pi_ext_command_buffer_update_kernel_launch_desc *desc);
+
+/// API to increment the reference count of a command-buffer command.
+/// \param command The command to release.
+__SYCL_EXPORT pi_result
+piextCommandBufferRetainCommand(pi_ext_command_buffer_command command);
+
+/// API to decrement the reference count of a command-buffer command. After the
+/// command reference count becomes zero, the command is deleted.
+/// \param command The command to release.
+__SYCL_EXPORT pi_result
+piextCommandBufferReleaseCommand(pi_ext_command_buffer_command command);
 
 /// API to destroy bindless unsampled image handles.
 ///

@@ -58,6 +58,10 @@ def print_wrapped_module : Flag<["--"], "print-wrapped-module">,
   HelpText<"Print the wrapped module's IR for testing">;
 def save_temps : Flag<["--"], "save-temps">,
   Flags<[WrapperOnlyOption]>, HelpText<"Save intermediate results">;
+def compress : Flag<["--"], "compress">,
+  Flags<[WrapperOnlyOption]>, HelpText<"Compress bundled files">;
+def compression_level_eq : Joined<["--"], "compression-level=">,
+  Flags<[WrapperOnlyOption]>, HelpText<"Specify the compression level (integer)">;
 
 def wrapper_time_trace_eq : Joined<["--"], "wrapper-time-trace=">,
   Flags<[WrapperOnlyOption]>, MetaVarName<"<file>">,
@@ -83,10 +87,6 @@ def whole_program : Flag<["--"], "whole-program">,
 def linker_arg_EQ : Joined<["--"], "linker-arg=">,
   Flags<[DeviceOnlyOption, HelpHidden]>,
   HelpText<"An extra argument to be passed to the linker">;
-
-// Separator between the linker wrapper and host linker flags.
-def separator : Flag<["--"], "">, Flags<[WrapperOnlyOption]>,
-  HelpText<"The separator for the wrapped linker arguments">;
 
 // Arguments for the LLVM backend.
 def mllvm : Separate<["-"], "mllvm">, Flags<[WrapperOnlyOption]>,
@@ -127,6 +127,10 @@ def version : Flag<["--", "-"], "version">, Flags<[HelpHidden]>, Alias<v>;
 def whole_archive : Flag<["--", "-"], "whole-archive">, Flags<[HelpHidden]>;
 def no_whole_archive : Flag<["--", "-"], "no-whole-archive">, Flags<[HelpHidden]>;
 
+def relocatable : Flag<["--", "-"], "relocatable">, 
+    HelpText<"Link device code to create a relocatable offloading application">;
+def r : Flag<["-"], "r">, Alias<relocatable>;
+
 // link.exe-style linker options.
 def out : Joined<["/", "-", "/?", "-?"], "out:">, Flags<[HelpHidden]>;
 def libpath : Joined<["/", "-", "/?", "-?"], "libpath:">, Flags<[HelpHidden]>;
@@ -139,6 +143,16 @@ def sycl_device_lib_EQ : CommaJoined<["-"], "sycl-device-libraries=">,
 def sycl_device_library_location_EQ : Joined<["-"],
   "sycl-device-library-location=">, Flags<[WrapperOnlyOption]>,
   HelpText<"Location of SYCL device library files">;
+
+// Options for SYCL backends and linker options for shared libraries.
+def sycl_backend_compile_options_EQ :
+  Joined<["-"], "sycl-backend-compile-options">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Options that are passed to the backend of target device compiler">;
+def sycl_target_link_options_EQ :
+  Joined<["-"], "sycl-target-link-options">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Options that are passed to target linker during a linking of shared device code.">;
 
 // Special option to pass in sycl-post-link options
 def sycl_post_link_options_EQ : Joined<["-"], "sycl-post-link-options=">,

@@ -10,10 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "ELF.h"
-
-#include "Shared/APITypes.h"
-#include "Shared/Debug.h"
+#include "Utils/ELF.h"
 
 #include "llvm/BinaryFormat/Magic.h"
 #include "llvm/Object/Binary.h"
@@ -26,52 +23,63 @@ using namespace llvm;
 using namespace llvm::ELF;
 using namespace llvm::object;
 
-/// If the given range of bytes [\p BytesBegin, \p BytesEnd) represents
-/// a valid ELF, then invoke \p Callback on the ELFObjectFileBase
-/// created from this range, otherwise, return 0.
-/// If \p Callback is invoked, then return whatever value \p Callback returns.
-template <typename F>
-static int32_t withBytesAsElf(char *BytesBegin, char *BytesEnd, F Callback) {
-  size_t Size = BytesEnd - BytesBegin;
-  StringRef StrBuf(BytesBegin, Size);
-
-  auto Magic = identify_magic(StrBuf);
-  if (Magic != file_magic::elf && Magic != file_magic::elf_relocatable &&
-      Magic != file_magic::elf_executable &&
-      Magic != file_magic::elf_shared_object && Magic != file_magic::elf_core) {
-    DP("Not an ELF image!\n");
-    return 0;
+bool utils::elf::isELF(StringRef Buffer) {
+  switch (identify_magic(Buffer)) {
+  case file_magic::elf:
+  case file_magic::elf_relocatable:
+  case file_magic::elf_executable:
+  case file_magic::elf_shared_object:
+  case file_magic::elf_core:
+    return true;
+  default:
+    return false;
   }
-
-  std::unique_ptr<MemoryBuffer> MemBuf =
-      MemoryBuffer::getMemBuffer(StrBuf, "", false);
-  Expected<std::unique_ptr<ObjectFile>> BinOrErr =
-      ObjectFile::createELFObjectFile(MemBuf->getMemBufferRef(),
-                                      /*InitContent=*/false);
-  if (!BinOrErr) {
-    DP("Unable to get ELF handle: %s!\n",
-       toString(BinOrErr.takeError()).c_str());
-    return 0;
-  }
-
-  auto *Object = dyn_cast<const ELFObjectFileBase>(BinOrErr->get());
-
-  if (!Object) {
-    DP("Unknown ELF format!\n");
-    return 0;
-  }
-
-  return Callback(Object);
 }
 
-// Check whether an image is valid for execution on target_id
-int32_t utils::elf::checkMachine(__tgt_device_image *Image, uint16_t TargetId) {
-  auto CheckMachine = [TargetId](const ELFObjectFileBase *Object) {
-    return TargetId == Object->getEMachine();
-  };
-  return withBytesAsElf(reinterpret_cast<char *>(Image->ImageStart),
-                        reinterpret_cast<char *>(Image->ImageEnd),
-                        CheckMachine);
+template <class ELFT>
+static Expected<bool>
+checkMachineImpl(const object::ELFObjectFile<ELFT> &ELFObj, uint16_t EMachine) {
+  const auto Header = ELFObj.getELFFile().getHeader();
+  if (Header.e_type != ET_EXEC && Header.e_type != ET_DYN)
+    return createError("Only executable ELF files are supported");
+
+  if (Header.e_machine == EM_AMDGPU) {
+    if (Header.e_ident[EI_OSABI] != ELFOSABI_AMDGPU_HSA)
+      return createError("Invalid AMD OS/ABI, must be AMDGPU_HSA");
+    if (Header.e_ident[EI_ABIVERSION] != ELFABIVERSION_AMDGPU_HSA_V4 &&
+        Header.e_ident[EI_ABIVERSION] != ELFABIVERSION_AMDGPU_HSA_V5)
+      return createError("Invalid AMD ABI version, must be version 4 or 5");
+    if ((Header.e_flags & EF_AMDGPU_MACH) < EF_AMDGPU_MACH_AMDGCN_GFX700 ||
+        (Header.e_flags & EF_AMDGPU_MACH) > EF_AMDGPU_MACH_AMDGCN_GFX1201)
+      return createError("Unsupported AMDGPU architecture");
+  } else if (Header.e_machine == EM_CUDA) {
+    if (~Header.e_flags & EF_CUDA_64BIT_ADDRESS)
+      return createError("Invalid CUDA addressing mode");
+    if ((Header.e_flags & EF_CUDA_SM) < EF_CUDA_SM35 ||
+        (Header.e_flags & EF_CUDA_SM) > EF_CUDA_SM90)
+      return createError("Unsupported NVPTX architecture");
+  }
+
+  return Header.e_machine == EMachine;
+}
+
+Expected<bool> utils::elf::checkMachine(StringRef Object, uint16_t EMachine) {
+  assert(isELF(Object) && "Input is not an ELF!");
+
+  Expected<std::unique_ptr<ObjectFile>> ElfOrErr =
+      ObjectFile::createELFObjectFile(
+          MemoryBufferRef(Object, /*Identifier=*/""),
+          /*InitContent=*/false);
+  if (!ElfOrErr)
+    return ElfOrErr.takeError();
+
+  if (const ELF64LEObjectFile *ELFObj =
+          dyn_cast<ELF64LEObjectFile>(&**ElfOrErr))
+    return checkMachineImpl(*ELFObj, EMachine);
+  if (const ELF64BEObjectFile *ELFObj =
+          dyn_cast<ELF64BEObjectFile>(&**ElfOrErr))
+    return checkMachineImpl(*ELFObj, EMachine);
+  return createError("Only 64-bit ELF files are supported");
 }
 
 template <class ELFT>
@@ -141,9 +149,10 @@ getSymbolFromSysVHashTable(StringRef Name, const typename ELFT::Hash &HashTab,
 }
 
 template <class ELFT>
-static Expected<const typename ELFT::Sym *>
-getHashTableSymbol(const ELFFile<ELFT> &Elf, const typename ELFT::Shdr &Sec,
-                   StringRef Name) {
+static Expected<std::optional<ELFSymbolRef>>
+getHashTableSymbol(const ELFObjectFile<ELFT> &ELFObj,
+                   const typename ELFT::Shdr &Sec, StringRef Name) {
+  const ELFFile<ELFT> &Elf = ELFObj.getELFFile();
   if (Sec.sh_type != ELF::SHT_HASH && Sec.sh_type != ELF::SHT_GNU_HASH)
     return createError(
         "invalid sh_type for hash table, expected SHT_HASH or SHT_GNU_HASH");
@@ -182,7 +191,12 @@ getHashTableSymbol(const ELFFile<ELFT> &Elf, const typename ELFT::Shdr &Sec,
                 sizeof(typename ELFT::Word) * HashTab->nbuckets +
                 sizeof(typename ELFT::Word) * (SymTab.size() - HashTab->symndx))
       return createError("section has invalid sh_size: " + Twine(Sec.sh_size));
-    return getSymbolFromGnuHashTable<ELFT>(Name, *HashTab, SymTab, StrTab);
+    auto Sym = getSymbolFromGnuHashTable<ELFT>(Name, *HashTab, SymTab, StrTab);
+    if (!Sym)
+      return Sym.takeError();
+    if (!*Sym)
+      return std::nullopt;
+    return ELFObj.toSymbolRef(*SymTabOrErr, *Sym - &SymTab[0]);
   }
 
   // If this is a Sys-V hash table we verify its size and search the symbol
@@ -200,16 +214,22 @@ getHashTableSymbol(const ELFFile<ELFT> &Elf, const typename ELFT::Shdr &Sec,
                           sizeof(typename ELFT::Word) * HashTab->nchain)
       return createError("section has invalid sh_size: " + Twine(Sec.sh_size));
 
-    return getSymbolFromSysVHashTable<ELFT>(Name, *HashTab, SymTab, StrTab);
+    auto Sym = getSymbolFromSysVHashTable<ELFT>(Name, *HashTab, SymTab, StrTab);
+    if (!Sym)
+      return Sym.takeError();
+    if (!*Sym)
+      return std::nullopt;
+    return ELFObj.toSymbolRef(*SymTabOrErr, *Sym - &SymTab[0]);
   }
 
-  return nullptr;
+  return std::nullopt;
 }
 
 template <class ELFT>
-static Expected<const typename ELFT::Sym *>
-getSymTableSymbol(const ELFFile<ELFT> &Elf, const typename ELFT::Shdr &Sec,
-                  StringRef Name) {
+static Expected<std::optional<ELFSymbolRef>>
+getSymTableSymbol(const ELFObjectFile<ELFT> &ELFObj,
+                  const typename ELFT::Shdr &Sec, StringRef Name) {
+  const ELFFile<ELFT> &Elf = ELFObj.getELFFile();
   if (Sec.sh_type != ELF::SHT_SYMTAB && Sec.sh_type != ELF::SHT_DYNSYM)
     return createError(
         "invalid sh_type for hash table, expected SHT_SYMTAB or SHT_DYNSYM");
@@ -229,13 +249,14 @@ getSymTableSymbol(const ELFFile<ELFT> &Elf, const typename ELFT::Shdr &Sec,
 
   for (const typename ELFT::Sym &Sym : SymTab)
     if (StrTab.drop_front(Sym.st_name).data() == Name)
-      return &Sym;
+      return ELFObj.toSymbolRef(&Sec, &Sym - &SymTab[0]);
 
-  return nullptr;
+  return std::nullopt;
 }
 
-Expected<const typename ELF64LE::Sym *>
-utils::elf::getSymbol(const ELFObjectFile<ELF64LE> &ELFObj, StringRef Name) {
+template <class ELFT>
+static Expected<std::optional<ELFSymbolRef>>
+getSymbolImpl(const ELFObjectFile<ELFT> &ELFObj, StringRef Name) {
   // First try to look up the symbol via the hash table.
   for (ELFSectionRef Sec : ELFObj.sections()) {
     if (Sec.getType() != SHT_HASH && Sec.getType() != SHT_GNU_HASH)
@@ -244,8 +265,7 @@ utils::elf::getSymbol(const ELFObjectFile<ELF64LE> &ELFObj, StringRef Name) {
     auto HashTabOrErr = ELFObj.getELFFile().getSection(Sec.getIndex());
     if (!HashTabOrErr)
       return HashTabOrErr.takeError();
-    return getHashTableSymbol<ELF64LE>(ELFObj.getELFFile(), **HashTabOrErr,
-                                       Name);
+    return getHashTableSymbol<ELFT>(ELFObj, **HashTabOrErr, Name);
   }
 
   // If this is an executable file check the entire standard symbol table.
@@ -256,8 +276,58 @@ utils::elf::getSymbol(const ELFObjectFile<ELF64LE> &ELFObj, StringRef Name) {
     auto SymTabOrErr = ELFObj.getELFFile().getSection(Sec.getIndex());
     if (!SymTabOrErr)
       return SymTabOrErr.takeError();
-    return getSymTableSymbol<ELF64LE>(ELFObj.getELFFile(), **SymTabOrErr, Name);
+    return getSymTableSymbol<ELFT>(ELFObj, **SymTabOrErr, Name);
   }
 
-  return nullptr;
+  return std::nullopt;
+}
+
+Expected<std::optional<ELFSymbolRef>>
+utils::elf::getSymbol(const ObjectFile &Obj, StringRef Name) {
+  if (const ELF64LEObjectFile *ELFObj = dyn_cast<ELF64LEObjectFile>(&Obj))
+    return getSymbolImpl(*ELFObj, Name);
+  if (const ELF64BEObjectFile *ELFObj = dyn_cast<ELF64BEObjectFile>(&Obj))
+    return getSymbolImpl(*ELFObj, Name);
+  return createError("Only 64-bit ELF files are supported");
+}
+
+template <class ELFT>
+static Expected<const void *>
+getSymbolAddressImpl(const ELFObjectFile<ELFT> &ELFObj,
+                     const ELFSymbolRef &SymRef) {
+  const ELFFile<ELFT> &ELFFile = ELFObj.getELFFile();
+
+  auto SymOrErr = ELFObj.getSymbol(SymRef.getRawDataRefImpl());
+  if (!SymOrErr)
+    return SymOrErr.takeError();
+  const auto &Symbol = **SymOrErr;
+
+  auto SecOrErr = ELFFile.getSection(Symbol.st_shndx);
+  if (!SecOrErr)
+    return SecOrErr.takeError();
+  const auto &Section = *SecOrErr;
+
+  // A section with SHT_NOBITS occupies no space in the file and has no
+  // offset.
+  if (Section->sh_type == ELF::SHT_NOBITS)
+    return createError(
+        "invalid sh_type for symbol lookup, cannot be SHT_NOBITS");
+
+  uint64_t Offset = Section->sh_offset - Section->sh_addr + Symbol.st_value;
+  if (Offset > ELFFile.getBufSize())
+    return createError("invalid offset [" + Twine(Offset) +
+                       "] into ELF file of size [" +
+                       Twine(ELFFile.getBufSize()) + "]");
+
+  return ELFFile.base() + Offset;
+}
+
+Expected<const void *>
+utils::elf::getSymbolAddress(const ELFSymbolRef &SymRef) {
+  const ObjectFile *Obj = SymRef.getObject();
+  if (const ELF64LEObjectFile *ELFObj = dyn_cast<ELF64LEObjectFile>(Obj))
+    return getSymbolAddressImpl(*ELFObj, SymRef);
+  if (const ELF64BEObjectFile *ELFObj = dyn_cast<ELF64BEObjectFile>(Obj))
+    return getSymbolAddressImpl(*ELFObj, SymRef);
+  return createError("Only 64-bit ELF files are supported");
 }

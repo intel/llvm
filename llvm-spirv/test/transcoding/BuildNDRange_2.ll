@@ -73,38 +73,38 @@ target triple = "spir64-unknown-unknown"
 
 %struct.ndrange_t = type { i32, [3 x i64], [3 x i64], [3 x i64] }
 
-@test_ndrange_2D3D.lsize2 = private constant [2 x i64] [i64 1, i64 1], align 8
-@test_ndrange_2D3D.lsize3 = private constant [3 x i64] [i64 1, i64 1, i64 1], align 8
+@test_ndrange_2D3D.lsize2 = private addrspace(1) constant [2 x i64] [i64 1, i64 1], align 8
+@test_ndrange_2D3D.lsize3 = private addrspace(1) constant [3 x i64] [i64 1, i64 1, i64 1], align 8
 
 
 ; Function Attrs: nounwind
 define spir_func void @test_ndrange_2D3D() #0 {
 entry:
-  %lsize2 = alloca [2 x i64], align 8
+  %lsize2 = alloca [2 x i64], align 8, addrspace(1)
   %tmp = alloca %struct.ndrange_t, align 8
-  %lsize3 = alloca [3 x i64], align 8
+  %lsize3 = alloca [3 x i64], align 8, addrspace(1)
   %tmp3 = alloca %struct.ndrange_t, align 8
-  call void @llvm.memcpy.p0.p0.i64(ptr align 8 %lsize2, ptr align 8 @test_ndrange_2D3D.lsize2, i64 16, i1 false)
-  call spir_func void @_Z10ndrange_2DPKm(ptr sret(%struct.ndrange_t) %tmp, ptr %lsize2) #2
-  call void @llvm.memcpy.p0.p0.i64(ptr align 8 %lsize3, ptr align 8 @test_ndrange_2D3D.lsize3, i64 24, i1 false)
-  call spir_func void @_Z10ndrange_3DPKm(ptr sret(%struct.ndrange_t) %tmp3, ptr %lsize3) #2
+  call void @llvm.memcpy.p1.p1.i64(ptr addrspace(1) align 8 %lsize2, ptr addrspace(1) align 8 @test_ndrange_2D3D.lsize2, i64 16, i1 false)
+  call spir_func void @_Z10ndrange_2DPKm(ptr sret(%struct.ndrange_t) %tmp, ptr addrspace(1) %lsize2) #2
+  call void @llvm.memcpy.p1.p1.i64(ptr addrspace(1) align 8 %lsize3, ptr addrspace(1) align 8 @test_ndrange_2D3D.lsize3, i64 24, i1 false)
+  call spir_func void @_Z10ndrange_3DPKm(ptr sret(%struct.ndrange_t) %tmp3, ptr addrspace(1) %lsize3) #2
   ret void
 }
 
 ; Function Attrs: nounwind
-declare void @llvm.memcpy.p0.p0.i64(ptr nocapture, ptr nocapture readonly, i64, i1) #2
+declare void @llvm.memcpy.p1.p1.i64(ptr addrspace(1) nocapture, ptr addrspace(1) nocapture readonly, i64, i1) #2
 
-declare spir_func void @_Z10ndrange_2DPKm(ptr sret(%struct.ndrange_t), ptr) #1
+declare spir_func void @_Z10ndrange_2DPKm(ptr sret(%struct.ndrange_t), ptr addrspace(1)) #1
 
-declare spir_func void @_Z10ndrange_3DPKm(ptr sret(%struct.ndrange_t), ptr) #1
+declare spir_func void @_Z10ndrange_3DPKm(ptr sret(%struct.ndrange_t), ptr addrspace(1)) #1
 
 ; Function Attrs: nounwind
 define spir_func void @test_ndrange_const_2D3D() #0 {
 entry:
   %tmp = alloca %struct.ndrange_t, align 8
   %tmp1 = alloca %struct.ndrange_t, align 8
-  call spir_func void @_Z10ndrange_2DPKm(ptr sret(%struct.ndrange_t) %tmp, ptr @test_ndrange_2D3D.lsize2) #2
-  call spir_func void @_Z10ndrange_3DPKm(ptr sret(%struct.ndrange_t) %tmp1, ptr @test_ndrange_2D3D.lsize3) #2
+  call spir_func void @_Z10ndrange_2DPKm(ptr sret(%struct.ndrange_t) %tmp, ptr addrspace(1) @test_ndrange_2D3D.lsize2) #2
+  call spir_func void @_Z10ndrange_3DPKm(ptr sret(%struct.ndrange_t) %tmp1, ptr addrspace(1) @test_ndrange_2D3D.lsize3) #2
   ret void
 }
 

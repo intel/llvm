@@ -12,11 +12,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
-
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
+  queue Queue{};
 
   const size_t N = 10;
   std::vector<int> Arr(N, 0);
@@ -89,7 +85,6 @@ int main() {
       });
     });
 
-    Event.wait();
     // Buffer elements set to 22
     Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); });
 

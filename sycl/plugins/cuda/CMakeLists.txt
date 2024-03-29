@@ -36,7 +36,6 @@ add_sycl_plugin(cuda
     ${UR_CUDA_ADAPTER_SOURCES}
     # Some code is shared with the UR adapter
     "../unified_runtime/pi2ur.hpp"
-    "../unified_runtime/pi2ur.cpp"
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "${sycl_inc_dir}/sycl/detail/pi.hpp"
     "pi_cuda.hpp"
@@ -52,7 +51,7 @@ add_sycl_plugin(cuda
     ${XPTI_LIBS}
     UnifiedRuntime-Headers
     UnifiedRuntimeCommon
-    UnifiedMallocFramework
+    UnifiedMemoryFramework
   HEADER "${CMAKE_CURRENT_SOURCE_DIR}/include/features.hpp"
 )
 

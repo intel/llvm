@@ -9,12 +9,14 @@
 #ifndef SYCL_FUSION_COMMON_KERNEL_H
 #define SYCL_FUSION_COMMON_KERNEL_H
 
+#include "DynArray.h"
+
 #include <algorithm>
-#include <array>
 #include <cassert>
 #include <cstdint>
-#include <string>
-#include <vector>
+#include <cstring>
+#include <functional>
+#include <type_traits>
 
 namespace jit_compiler {
 
@@ -61,6 +63,38 @@ enum class ParameterKind : uint32_t {
 /// Different binary formats supported as input to the JIT compiler.
 enum class BinaryFormat : uint32_t { INVALID, LLVM, SPIRV, PTX, AMDGCN };
 
+/// Unique ID for each supported architecture in the SYCL implementation.
+///
+/// Values of this type will only be used in the kernel fusion non-persistent
+/// JIT. There is no guarantee for backwards compatibility, so this should not
+/// be used in persistent caches.
+using DeviceArchitecture = unsigned;
+
+class TargetInfo {
+public:
+  static constexpr TargetInfo get(BinaryFormat Format,
+                                  DeviceArchitecture Arch) {
+    if (Format == BinaryFormat::SPIRV) {
+      /// As an exception, SPIR-V targets have a single common ID (-1), as fused
+      /// kernels will be reused across SPIR-V devices.
+      return {Format, DeviceArchitecture(-1)};
+    }
+    return {Format, Arch};
+  }
+
+  TargetInfo() = default;
+
+  constexpr BinaryFormat getFormat() const { return Format; }
+  constexpr DeviceArchitecture getArch() const { return Arch; }
+
+private:
+  constexpr TargetInfo(BinaryFormat Format, DeviceArchitecture Arch)
+      : Format(Format), Arch(Arch) {}
+
+  BinaryFormat Format;
+  DeviceArchitecture Arch;
+};
+
 /// Information about a device intermediate representation module (e.g., SPIR-V,
 /// LLVM IR) from DPC++.
 struct SYCLKernelBinaryInfo {
@@ -75,19 +109,7 @@ struct SYCLKernelBinaryInfo {
 };
 
 ///
-/// Describe a SYCL/OpenCL kernel attribute by its name and values.
-struct SYCLKernelAttribute {
-  using AttributeValueList = std::vector<std::string>;
-
-  // Explicit constructor for compatibility with LLVM YAML I/O.
-  SYCLKernelAttribute() : Values{} {};
-  SYCLKernelAttribute(std::string Name)
-      : AttributeName{std::move(Name)}, Values{} {}
-
-  std::string AttributeName;
-  AttributeValueList Values;
-};
-
+/// Encode usage of parameters for the actual kernel function.
 enum ArgUsage : uint8_t {
   // Used to indicate that an argument is not used by the kernel
   Unused = 0,
@@ -102,29 +124,100 @@ enum ArgUsage : uint8_t {
 };
 
 ///
-/// Encode usage of parameters for the actual kernel function.
-// This is a vector of unsigned char, because std::vector<bool> is a weird
-// construct and unlike all other std::vectors, and LLVM YAML I/O is having a
-// hard time coping with it.
-using ArgUsageMask = std::vector<std::underlying_type_t<ArgUsage>>;
+/// Expose the enum's underlying type because it simplifies bitwise operations.
+using ArgUsageUT = std::underlying_type_t<ArgUsage>;
 
 ///
-/// Describe the list of arguments by their kind.
+/// Describe the list of arguments by their kind and usage.
 struct SYCLArgumentDescriptor {
+  explicit SYCLArgumentDescriptor(size_t NumArgs = 0)
+      : Kinds(NumArgs), UsageMask(NumArgs){};
 
-  // Explicit constructor for compatibility with LLVM YAML I/O.
-  SYCLArgumentDescriptor() : Kinds{}, UsageMask{} {}
+  DynArray<ParameterKind> Kinds;
+  DynArray<ArgUsageUT> UsageMask;
+};
 
-  std::vector<ParameterKind> Kinds;
+///
+/// Class to model a three-dimensional index.
+class Indices {
+public:
+  static constexpr size_t size() { return Size; }
 
-  ArgUsageMask UsageMask;
+  constexpr Indices() : Values{0, 0, 0} {}
+  constexpr Indices(size_t V1, size_t V2, size_t V3) : Values{V1, V2, V3} {}
+
+  constexpr const size_t *begin() const { return Values; }
+  constexpr const size_t *end() const { return Values + Size; }
+  constexpr size_t *begin() { return Values; }
+  constexpr size_t *end() { return Values + Size; }
+
+  constexpr const size_t &operator[](int Idx) const { return Values[Idx]; }
+  constexpr size_t &operator[](int Idx) { return Values[Idx]; }
+
+  friend bool operator==(const Indices &A, const Indices &B) {
+    return std::equal(A.begin(), A.end(), B.begin());
+  }
+
+  friend bool operator!=(const Indices &A, const Indices &B) {
+    return !(A == B);
+  }
+
+  friend bool operator<(const Indices &A, const Indices &B) {
+    return std::lexicographical_compare(A.begin(), A.end(), B.begin(), B.end(),
+                                        std::less<size_t>{});
+  }
+
+  friend bool operator>(const Indices &A, const Indices &B) {
+    return std::lexicographical_compare(A.begin(), A.end(), B.begin(), B.end(),
+                                        std::greater<size_t>{});
+  }
+
+private:
+  static constexpr size_t Size = 3;
+  size_t Values[Size];
+};
+
+///
+/// Describe a SYCL/OpenCL kernel attribute by its kind and values.
+struct SYCLKernelAttribute {
+  enum class AttrKind { Invalid, ReqdWorkGroupSize, WorkGroupSizeHint };
+
+  static constexpr auto ReqdWorkGroupSizeName = "reqd_work_group_size";
+  static constexpr auto WorkGroupSizeHintName = "work_group_size_hint";
+
+  static AttrKind parseKind(const char *Name) {
+    auto Kind = AttrKind::Invalid;
+    if (std::strcmp(Name, ReqdWorkGroupSizeName) == 0) {
+      Kind = AttrKind::ReqdWorkGroupSize;
+    } else if (std::strcmp(Name, WorkGroupSizeHintName) == 0) {
+      Kind = AttrKind::WorkGroupSizeHint;
+    }
+    return Kind;
+  }
+
+  AttrKind Kind;
+  Indices Values;
+
+  SYCLKernelAttribute() : Kind(AttrKind::Invalid) {}
+  SYCLKernelAttribute(AttrKind Kind, const Indices &Values)
+      : Kind(Kind), Values(Values) {}
+
+  const char *getName() const {
+    assert(Kind != AttrKind::Invalid);
+    switch (Kind) {
+    case AttrKind::ReqdWorkGroupSize:
+      return ReqdWorkGroupSizeName;
+    case AttrKind::WorkGroupSizeHint:
+      return WorkGroupSizeHintName;
+    default:
+      return "__invalid__";
+    }
+  }
 };
 
 ///
 /// List of SYCL/OpenCL kernel attributes.
-using AttributeList = std::vector<SYCLKernelAttribute>;
-
-using Indices = std::array<size_t, 3>;
+using SYCLAttributeList = DynArray<SYCLKernelAttribute>;
 
 ///
 /// Class to model SYCL nd_range
@@ -171,12 +264,19 @@ public:
   constexpr int getDimensions() const { return Dimensions; }
 
   bool hasSpecificLocalSize() const { return LocalSize != AllZeros; }
+  bool hasUniformWorkGroupSizes() const {
+    assert(hasSpecificLocalSize() && "Local size must be specified");
+    for (int I = 0; I < Dimensions; ++I) {
+      if (GlobalSize[I] % LocalSize[I] != 0) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   friend constexpr bool operator==(const NDRange &LHS, const NDRange &RHS) {
     return LHS.Dimensions == RHS.Dimensions &&
-           LHS.GlobalSize == RHS.GlobalSize &&
-           (!LHS.hasSpecificLocalSize() || !RHS.hasSpecificLocalSize() ||
-            LHS.LocalSize == RHS.LocalSize) &&
+           LHS.GlobalSize == RHS.GlobalSize && LHS.LocalSize == RHS.LocalSize &&
            LHS.Offset == RHS.Offset;
   }
 
@@ -199,19 +299,11 @@ public:
       return false;
     }
 
-    if (!LHS.hasSpecificLocalSize() && RHS.hasSpecificLocalSize()) {
+    if (LHS.LocalSize < RHS.LocalSize) {
       return true;
     }
-    if (LHS.hasSpecificLocalSize() && !RHS.hasSpecificLocalSize()) {
+    if (LHS.LocalSize > RHS.LocalSize) {
       return false;
-    }
-    if (LHS.hasSpecificLocalSize() && RHS.hasSpecificLocalSize()) {
-      if (LHS.LocalSize < RHS.LocalSize) {
-        return true;
-      }
-      if (LHS.LocalSize > RHS.LocalSize) {
-        return false;
-      }
     }
 
     return LHS.Offset < RHS.Offset;
@@ -235,53 +327,25 @@ private:
 /// Information about a kernel from DPC++.
 struct SYCLKernelInfo {
 
-  std::string Name;
+  DynString Name;
 
   SYCLArgumentDescriptor Args;
 
-  AttributeList Attributes;
+  SYCLAttributeList Attributes;
 
   NDRange NDR;
 
   SYCLKernelBinaryInfo BinaryInfo;
 
-  //// Explicit constructor for compatibility with LLVM YAML I/O.
-  SYCLKernelInfo() : Name{}, Args{}, Attributes{}, NDR{}, BinaryInfo{} {}
+  SYCLKernelInfo() = default;
 
-  SYCLKernelInfo(const std::string &KernelName,
-                 const SYCLArgumentDescriptor &ArgDesc, const NDRange &NDR,
-                 const SYCLKernelBinaryInfo &BinInfo)
-      : Name{KernelName}, Args{ArgDesc}, Attributes{}, NDR{NDR}, BinaryInfo{
-                                                                     BinInfo} {}
+  SYCLKernelInfo(const char *KernelName, const SYCLArgumentDescriptor &ArgDesc,
+                 const NDRange &NDR, const SYCLKernelBinaryInfo &BinInfo)
+      : Name{KernelName}, Args{ArgDesc}, Attributes{}, NDR{NDR},
+        BinaryInfo{BinInfo} {}
 
-  explicit SYCLKernelInfo(const std::string &KernelName)
-      : Name{KernelName}, Args{}, Attributes{}, NDR{}, BinaryInfo{} {}
-};
-
-///
-/// Represents a SPIR-V translation unit containing SYCL kernels by the
-/// KernelInfo for each of the contained kernels.
-class SYCLModuleInfo {
-public:
-  using KernelInfoList = std::vector<SYCLKernelInfo>;
-
-  void addKernel(SYCLKernelInfo &Kernel) { Kernels.push_back(Kernel); }
-
-  KernelInfoList &kernels() { return Kernels; }
-
-  bool hasKernelFor(const std::string &KernelName) {
-    return getKernelFor(KernelName) != nullptr;
-  }
-
-  SYCLKernelInfo *getKernelFor(const std::string &KernelName) {
-    auto It =
-        std::find_if(Kernels.begin(), Kernels.end(),
-                     [&](SYCLKernelInfo &K) { return K.Name == KernelName; });
-    return (It != Kernels.end()) ? &*It : nullptr;
-  }
-
-private:
-  KernelInfoList Kernels;
+  SYCLKernelInfo(const char *KernelName, size_t NumArgs)
+      : Name{KernelName}, Args{NumArgs}, Attributes{}, NDR{}, BinaryInfo{} {}
 };
 
 } // namespace jit_compiler

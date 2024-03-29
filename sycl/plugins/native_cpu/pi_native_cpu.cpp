@@ -240,8 +240,9 @@ pi_result piMemImageCreate(pi_context Context, pi_mem_flags Flags,
                                  HostPtr, RetImage);
 }
 
-pi_result piextMemGetNativeHandle(pi_mem Mem, pi_native_handle *NativeHandle) {
-  return pi2ur::piextMemGetNativeHandle(Mem, NativeHandle);
+pi_result piextMemGetNativeHandle(pi_mem Mem, pi_device Dev,
+                                  pi_native_handle *NativeHandle) {
+  return pi2ur::piextMemGetNativeHandle(Mem, Dev, NativeHandle);
 }
 
 pi_result piextMemCreateWithNativeHandle(pi_native_handle NativeHandle,
@@ -851,6 +852,15 @@ pi_result piextGetDeviceFunctionPointer(pi_device Device, pi_program Program,
                                               FunctionPointerRet);
 }
 
+pi_result piextGetGlobalVariablePointer(pi_device Device, pi_program Program,
+                                        const char *GlobalVariableName,
+                                        size_t *GlobalVariableSize,
+                                        void **GlobalVariablePointerRet) {
+  return pi2ur::piextGetGlobalVariablePointer(
+      Device, Program, GlobalVariableName, GlobalVariableSize,
+      GlobalVariablePointerRet);
+}
+
 pi_result piextUSMDeviceAlloc(void **ResultPtr, pi_context Context,
                               pi_device Device,
                               pi_usm_mem_properties *Properties, size_t Size,
@@ -1086,10 +1096,12 @@ pi_result piextCommandBufferNDRangeKernel(
     pi_ext_command_buffer CommandBuffer, pi_kernel Kernel, pi_uint32 WorkDim,
     const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
     const size_t *LocalWorkSize, pi_uint32 NumSyncPointsInWaitList,
-    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint,
+    pi_ext_command_buffer_command *Command) {
   return pi2ur::piextCommandBufferNDRangeKernel(
       CommandBuffer, Kernel, WorkDim, GlobalWorkOffset, GlobalWorkSize,
-      LocalWorkSize, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
+      LocalWorkSize, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint,
+      Command);
 }
 
 pi_result piextCommandBufferMemcpyUSM(
@@ -1176,6 +1188,22 @@ pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
       CommandBuffer, Queue, NumEventsInWaitList, EventWaitList, Event);
 }
 
+pi_result piextCommandBufferUpdateKernelLaunch(
+    pi_ext_command_buffer_command Command,
+    pi_ext_command_buffer_update_kernel_launch_desc *Desc) {
+  return pi2ur::piextCommandBufferUpdateKernelLaunch(Command, Desc);
+}
+
+pi_result
+piextCommandBufferRetainCommand(pi_ext_command_buffer_command Command) {
+  return pi2ur::piextCommandBufferRetainCommand(Command);
+}
+
+pi_result
+piextCommandBufferReleaseCommand(pi_ext_command_buffer_command Command) {
+  return pi2ur::piextCommandBufferReleaseCommand(Command);
+}
+
 pi_result piextPluginGetOpaqueData(void *opaque_data_param,
                                    void **opaque_data_return) {
   return pi2ur::piextPluginGetOpaqueData(opaque_data_param, opaque_data_return);
@@ -1210,6 +1238,59 @@ pi_result piextPeerAccessGetInfo(pi_device command_device,
   return pi2ur::piextPeerAccessGetInfo(command_device, peer_device, attr,
                                        ParamValueSize, ParamValue,
                                        ParamValueSizeRet);
+}
+
+pi_result piextCommandBufferMemBufferFill(
+    pi_ext_command_buffer CommandBuffer, pi_mem Buffer, const void *Pattern,
+    size_t PatternSize, size_t Offset, size_t Size,
+    pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferMemBufferFill(
+      CommandBuffer, Buffer, Pattern, PatternSize, Offset, Size,
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextCommandBufferFillUSM(pi_ext_command_buffer CommandBuffer,
+                                    void *Ptr, const void *Pattern,
+                                    size_t PatternSize, size_t Size,
+                                    pi_uint32 NumSyncPointsInWaitList,
+                                    const pi_ext_sync_point *SyncPointWaitList,
+                                    pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferFillUSM(
+      CommandBuffer, Ptr, Pattern, PatternSize, Size, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextCommandBufferPrefetchUSM(
+    pi_ext_command_buffer CommandBuffer, const void *Ptr, size_t Size,
+    pi_usm_migration_flags Flags, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferPrefetchUSM(CommandBuffer, Ptr, Size, Flags,
+                                              NumSyncPointsInWaitList,
+                                              SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextCommandBufferAdviseUSM(
+    pi_ext_command_buffer CommandBuffer, const void *Ptr, size_t Length,
+    pi_mem_advice Advice, pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferAdviseUSM(CommandBuffer, Ptr, Length, Advice,
+                                            NumSyncPointsInWaitList,
+                                            SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextEnqueueCooperativeKernelLaunch(
+    pi_queue , pi_kernel , pi_uint32 ,
+    const size_t *, const size_t *,
+    const size_t *, pi_uint32 ,
+    const pi_event *, pi_event *) {
+  return PI_ERROR_UNSUPPORTED_FEATURE;
+}
+
+pi_result piextKernelSuggestMaxCooperativeGroupCount(
+    pi_kernel , size_t , size_t ,
+    pi_uint32 *) {
+  return PI_ERROR_UNSUPPORTED_FEATURE;
 }
 
 // Initialize function table with stubs.

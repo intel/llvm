@@ -8,8 +8,8 @@
 #ifndef SYCL_FUSION_JIT_COMPILER_TRANSLATION_KERNELTRANSLATION_H
 #define SYCL_FUSION_JIT_COMPILER_TRANSLATION_KERNELTRANSLATION_H
 
-#include "JITContext.h"
 #include "Kernel.h"
+#include "fusion/JITContext.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Error.h"

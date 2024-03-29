@@ -2,8 +2,8 @@
 // UNSUPPORTED: ze_debug
 
 // RUN: %{build} -o %t.out
-// RUN: env UR_L0_DEBUG=-1 UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=WITHOUT %s
-// RUN: env UR_L0_DEBUG=-1 UR_L0_LEAKS_DEBUG=1 %{run} %t.out profile 2>&1 | FileCheck --check-prefixes=WITH %s
+// RUN: env UR_L0_DEBUG=-1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=WITHOUT %s
+// RUN: env UR_L0_DEBUG=-1 %{l0_leak_check} %{run} %t.out profile 2>&1 | FileCheck --check-prefixes=WITH %s
 
 // Test case adapted from the SYCL version of Rodinia benchmark hotspot.
 

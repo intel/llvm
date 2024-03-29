@@ -20,6 +20,9 @@ DEVICE_EXTERN_C_INLINE
 long long int llabs(long long int x) { return __devicelib_llabs(x); }
 
 DEVICE_EXTERN_C_INLINE
+float fabsf(float x) { return __devicelib_fabsf(x); }
+
+DEVICE_EXTERN_C_INLINE
 div_t div(int x, int y) { return __devicelib_div(x, y); }
 
 DEVICE_EXTERN_C_INLINE

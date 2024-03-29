@@ -30,6 +30,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/Local.h"
+#include "llvm/Transforms/Utils/LoopUtils.h"
 #include <numeric>
 #include <queue>
 
@@ -112,6 +113,7 @@ private:
   bool scalarizeLoadExtract(Instruction &I);
   bool foldShuffleOfBinops(Instruction &I);
   bool foldShuffleFromReductions(Instruction &I);
+  bool foldTruncFromReductions(Instruction &I);
   bool foldSelectShuffle(Instruction &I, bool FromReduction = false);
 
   void replaceValue(Value &Old, Value &New) {
@@ -790,9 +792,12 @@ bool VectorCombine::scalarizeVPIntrinsic(Instruction &I) {
   // intrinsic
   VectorType *VecTy = cast<VectorType>(VPI.getType());
   TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput;
+  SmallVector<int> Mask;
+  if (auto *FVTy = dyn_cast<FixedVectorType>(VecTy))
+    Mask.resize(FVTy->getNumElements(), 0);
   InstructionCost SplatCost =
       TTI.getVectorInstrCost(Instruction::InsertElement, VecTy, CostKind, 0) +
-      TTI.getShuffleCost(TargetTransformInfo::SK_Broadcast, VecTy);
+      TTI.getShuffleCost(TargetTransformInfo::SK_Broadcast, VecTy, Mask);
 
   // Calculate the cost of the VP Intrinsic
   SmallVector<Type *, 4> Args;
@@ -1532,6 +1537,60 @@ bool VectorCombine::foldShuffleFromReductions(Instruction &I) {
   return foldSelectShuffle(*Shuffle, true);
 }
 
+/// Determine if its more efficient to fold:
+///   reduce(trunc(x)) -> trunc(reduce(x)).
+bool VectorCombine::foldTruncFromReductions(Instruction &I) {
+  auto *II = dyn_cast<IntrinsicInst>(&I);
+  if (!II)
+    return false;
+
+  Intrinsic::ID IID = II->getIntrinsicID();
+  switch (IID) {
+  case Intrinsic::vector_reduce_add:
+  case Intrinsic::vector_reduce_mul:
+  case Intrinsic::vector_reduce_and:
+  case Intrinsic::vector_reduce_or:
+  case Intrinsic::vector_reduce_xor:
+    break;
+  default:
+    return false;
+  }
+
+  unsigned ReductionOpc = getArithmeticReductionInstruction(IID);
+  Value *ReductionSrc = I.getOperand(0);
+
+  Value *TruncSrc;
+  if (!match(ReductionSrc, m_OneUse(m_Trunc(m_Value(TruncSrc)))))
+    return false;
+
+  auto *Trunc = cast<CastInst>(ReductionSrc);
+  auto *TruncSrcTy = cast<VectorType>(TruncSrc->getType());
+  auto *ReductionSrcTy = cast<VectorType>(ReductionSrc->getType());
+  Type *ResultTy = I.getType();
+
+  TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput;
+  InstructionCost OldCost =
+      TTI.getCastInstrCost(Instruction::Trunc, ReductionSrcTy, TruncSrcTy,
+                           TTI::CastContextHint::None, CostKind, Trunc) +
+      TTI.getArithmeticReductionCost(ReductionOpc, ReductionSrcTy, std::nullopt,
+                                     CostKind);
+  InstructionCost NewCost =
+      TTI.getArithmeticReductionCost(ReductionOpc, TruncSrcTy, std::nullopt,
+                                     CostKind) +
+      TTI.getCastInstrCost(Instruction::Trunc, ResultTy,
+                           ReductionSrcTy->getScalarType(),
+                           TTI::CastContextHint::None, CostKind);
+
+  if (OldCost <= NewCost || !NewCost.isValid())
+    return false;
+
+  Value *NewReduction = Builder.CreateIntrinsic(
+      TruncSrcTy->getScalarType(), II->getIntrinsicID(), {TruncSrc});
+  Value *NewTruncation = Builder.CreateTrunc(NewReduction, ResultTy);
+  replaceValue(I, *NewTruncation);
+  return true;
+}
+
 /// This method looks for groups of shuffles acting on binops, of the form:
 ///  %x = shuffle ...
 ///  %y = shuffle ...
@@ -1816,16 +1875,16 @@ bool VectorCombine::foldSelectShuffle(Instruction &I, bool FromReduction) {
           return SSV->getOperand(Op);
     return SV->getOperand(Op);
   };
-  Builder.SetInsertPoint(SVI0A->getInsertionPointAfterDef());
+  Builder.SetInsertPoint(*SVI0A->getInsertionPointAfterDef());
   Value *NSV0A = Builder.CreateShuffleVector(GetShuffleOperand(SVI0A, 0),
                                              GetShuffleOperand(SVI0A, 1), V1A);
-  Builder.SetInsertPoint(SVI0B->getInsertionPointAfterDef());
+  Builder.SetInsertPoint(*SVI0B->getInsertionPointAfterDef());
   Value *NSV0B = Builder.CreateShuffleVector(GetShuffleOperand(SVI0B, 0),
                                              GetShuffleOperand(SVI0B, 1), V1B);
-  Builder.SetInsertPoint(SVI1A->getInsertionPointAfterDef());
+  Builder.SetInsertPoint(*SVI1A->getInsertionPointAfterDef());
   Value *NSV1A = Builder.CreateShuffleVector(GetShuffleOperand(SVI1A, 0),
                                              GetShuffleOperand(SVI1A, 1), V2A);
-  Builder.SetInsertPoint(SVI1B->getInsertionPointAfterDef());
+  Builder.SetInsertPoint(*SVI1B->getInsertionPointAfterDef());
   Value *NSV1B = Builder.CreateShuffleVector(GetShuffleOperand(SVI1B, 0),
                                              GetShuffleOperand(SVI1B, 1), V2B);
   Builder.SetInsertPoint(Op0);
@@ -1923,6 +1982,7 @@ bool VectorCombine::run() {
       switch (Opcode) {
       case Instruction::Call:
         MadeChange |= foldShuffleFromReductions(I);
+        MadeChange |= foldTruncFromReductions(I);
         break;
       case Instruction::ICmp:
       case Instruction::FCmp:

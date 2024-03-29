@@ -95,11 +95,10 @@ inline __SYCL_ALWAYS_INLINE std::enable_if_t<
     sycl::detail::is_svgenfloatf_v<T> || sycl::detail::is_svgenfloath_v<T>, T>
 tanh(T x) __NOEXC {
 #if defined(__NVPTX__)
-  using _ocl_T = sycl::detail::ConvertToOpenCLType_t<T>;
-  _ocl_T arg1 = sycl::detail::convertDataToType<T, _ocl_T>(x);
-  return sycl::detail::convertDataToType<_ocl_T, T>(__clc_native_tanh(arg1));
+  return sycl::detail::convertFromOpenCLTypeFor<T>(
+      __clc_native_tanh(sycl::detail::convertToOpenCLType(x)));
 #else
-  return __sycl_std::__invoke_tanh<T>(x);
+  return sycl::tanh(x);
 #endif
 }
 
@@ -121,8 +120,7 @@ inline __SYCL_ALWAYS_INLINE
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
     auto partial_res = native::tanh(sycl::detail::to_vec2(x, i * 2));
 #else
-    auto partial_res = __sycl_std::__invoke_tanh<sycl::vec<T, 2>>(
-        sycl::detail::to_vec2(x, i * 2));
+    auto partial_res = sycl::tanh(sycl::detail::to_vec2(x, i * 2));
 #endif
     sycl::detail::memcpy(&res[i * 2], &partial_res, sizeof(vec<T, 2>));
   }
@@ -130,7 +128,7 @@ inline __SYCL_ALWAYS_INLINE
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
     res[N - 1] = native::tanh(x[N - 1]);
 #else
-    res[N - 1] = __sycl_std::__invoke_tanh<T>(x[N - 1]);
+    res[N - 1] = sycl::tanh(x[N - 1]);
 #endif
   }
 
@@ -145,11 +143,10 @@ inline __SYCL_ALWAYS_INLINE
     std::enable_if_t<sycl::detail::is_svgenfloath_v<T>, T>
     exp2(T x) __NOEXC {
 #if defined(__NVPTX__)
-  using _ocl_T = sycl::detail::ConvertToOpenCLType_t<T>;
-  _ocl_T arg1 = sycl::detail::convertDataToType<T, _ocl_T>(x);
-  return sycl::detail::convertDataToType<_ocl_T, T>(__clc_native_exp2(arg1));
+  return sycl::detail::convertFromOpenCLTypeFor<T>(
+      __clc_native_exp2(sycl::detail::convertToOpenCLType(x)));
 #else
-  return __sycl_std::__invoke_exp2<T>(x);
+  return sycl::exp2(x);
 #endif
 }
 
@@ -164,8 +161,7 @@ exp2(sycl::marray<half, N> x) __NOEXC {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
     auto partial_res = native::exp2(sycl::detail::to_vec2(x, i * 2));
 #else
-    auto partial_res = __sycl_std::__invoke_exp2<sycl::vec<half, 2>>(
-        sycl::detail::to_vec2(x, i * 2));
+    auto partial_res = sycl::exp2(sycl::detail::to_vec2(x, i * 2));
 #endif
     sycl::detail::memcpy(&res[i * 2], &partial_res, sizeof(vec<half, 2>));
   }
@@ -173,7 +169,7 @@ exp2(sycl::marray<half, N> x) __NOEXC {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
     res[N - 1] = native::exp2(x[N - 1]);
 #else
-    res[N - 1] = __sycl_std::__invoke_exp2<half>(x[N - 1]);
+    res[N - 1] = sycl::exp2(x[N - 1]);
 #endif
   }
   return res;

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "../device_imf.hpp"
+#include "../imf_rounding_op.hpp"
 
 #ifdef __LIBDEVICE_IMF_ENABLED__
 DEVICE_EXTERN_C_INLINE
@@ -88,4 +89,36 @@ DEVICE_EXTERN_C_INLINE
 float __devicelib_imf_fdiv_rz(float x, float y) {
   return __fp_div(x, y, __IML_RTZ);
 }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fmaf_rd(float x, float y, float z) {
+  return __fp_fma(x, y, z, __IML_RTN);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fmaf_rn(float x, float y, float z) {
+  return __fp_fma(x, y, z, __IML_RTE);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fmaf_ru(float x, float y, float z) {
+  return __fp_fma(x, y, z, __IML_RTP);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fmaf_rz(float x, float y, float z) {
+  return __fp_fma(x, y, z, __IML_RTZ);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_sqrtf_rd(float x) { return __fp_sqrt(x, __IML_RTN); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_sqrtf_rn(float x) { return __fp_sqrt(x, __IML_RTE); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_sqrtf_ru(float x) { return __fp_sqrt(x, __IML_RTP); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_sqrtf_rz(float x) { return __fp_sqrt(x, __IML_RTZ); }
 #endif

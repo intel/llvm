@@ -8,8 +8,12 @@
 #include <cassert>
 #include <iostream>
 #include <numeric>
-#include <sycl/sycl.hpp>
 #include <vector>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/atomic_ref.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 
@@ -108,6 +112,50 @@ void max_global_test(queue q, size_t N) {
   }
 }
 
+template <template <typename, memory_order, memory_scope, access::address_space>
+          class AtomicRef,
+          access::address_space space, typename T,
+          memory_order order = memory_order::relaxed,
+          memory_scope scope = memory_scope::device>
+void max_global_test_usm_shared(queue q, size_t N) {
+  T initial = std::numeric_limits<T>::lowest();
+  T *val = malloc_shared<T>(1, q);
+  val[0] = initial;
+  T *output = malloc_shared<T>(N, q);
+  T *output_begin = &output[0], *output_end = &output[N];
+  std::fill(output_begin, output_end, std::numeric_limits<T>::max());
+  {
+    q.submit([&](handler &cgh) {
+       cgh.parallel_for(range<1>(N), [=](item<1> it) {
+         int gid = it.get_id(0);
+         auto atm = AtomicRef < T,
+              (order == memory_order::acquire || order == memory_order::release)
+                  ? memory_order::relaxed
+                  : order,
+              scope, space > (val[0]);
+
+         // +max/2 to ensure correct signed/unsigned operation is applied
+         output[gid] =
+             atm.fetch_max(T(gid) + std::numeric_limits<T>::max() / 2, order);
+       });
+     }).wait_and_throw();
+  }
+
+  assert(val[0] == N - 1 + std::numeric_limits<T>::max() / 2);
+
+  // Only one work-item should have received the initial value.
+  assert(std::count(output_begin, output_end, initial) == 1);
+
+  // fetch_max returns original value.
+  // Intermediate values should all be >= initial value.
+  for (int i = 0; i < N; ++i) {
+    assert(output[i] >= initial && output[i] <= val[0]);
+  }
+
+  free(val, q);
+  free(output, q);
+}
+
 template <access::address_space space, typename T,
           memory_order order = memory_order::relaxed,
           memory_scope scope = memory_scope::device>
@@ -119,6 +167,7 @@ void max_test(queue q, size_t N) {
       space == access::address_space::global_space ||
       (space == access::address_space::generic_space && !TEST_GENERIC_IN_LOCAL);
   constexpr bool do_ext_tests = space != access::address_space::generic_space;
+  bool do_usm_tests = q.get_device().has(aspect::usm_shared_allocations);
   if constexpr (do_local_tests) {
 #ifdef RUN_DEPRECATED
     if constexpr (do_ext_tests) {
@@ -134,9 +183,17 @@ void max_test(queue q, size_t N) {
     if constexpr (do_ext_tests) {
       max_global_test<::sycl::ext::oneapi::atomic_ref, space, T, order, scope>(
           q, N);
+      if (do_usm_tests) {
+        max_global_test_usm_shared<::sycl::ext::oneapi::atomic_ref, space, T,
+                                   order, scope>(q, N);
+      }
     }
 #else
     max_global_test<::sycl::atomic_ref, space, T, order, scope>(q, N);
+    if (do_usm_tests) {
+      max_global_test_usm_shared<::sycl::atomic_ref, space, T, order, scope>(q,
+                                                                             N);
+    }
 #endif
   }
 }

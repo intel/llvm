@@ -67,10 +67,10 @@ int main() {
 
       cgh.parallel_for<image_addition>(N, [=](sycl::id<1> id) {
         // Normalize coordinate -- +0.5 to look towards centre of pixel
-        float x = float(id[0] + 0.5) / (float)N;
-        // Extension: read image data from handle
+        float x = float(id[0] + 0.5f) / (float)N;
+        // Extension: sample image data from handle
         float px1 =
-            sycl::ext::oneapi::experimental::read_image<float>(imgHandle, x);
+            sycl::ext::oneapi::experimental::sample_image<float>(imgHandle, x);
 
         outAcc[id] = px1;
       });

@@ -5,13 +5,6 @@
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu -DSOURCE2 %s -c -o %t2.o
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %t1.o %t2.o -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
-//
-// Test2 - check that kernel can call a SYCL_EXTERNAL function defined in a
-// static library.
-// RUN: rm -f %t.a
-// RUN: llvm-ar crv %t.a %t1.o
-// RUN: %clangxx -fsycl -fsycl-targets=native_cpu %t2.o -foffload-static-lib=%t.a -o %t
-// RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
 
 #include <iostream>
 #include <sycl/sycl.hpp>

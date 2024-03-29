@@ -10,7 +10,7 @@
 #define SYCL_SIMPLE_SWIZZLES
 
 #include <cassert>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 
@@ -208,7 +208,7 @@ int main() {
           abc.y() = cba.s1();
           abc.z() = cba.s2();
           abc.w() = cba.s3();
-          if ((cba.x() == abc.x())) {
+          if (cba.x() == abc.x()) {
             abc.xy() = abc.xy() * 3;
 
             B[0] = abc.x();
@@ -262,7 +262,7 @@ int main() {
       myQueue.submit([&](handler &cgh) {
         auto B = b.get_access<access::mode::read_write>(cgh);
         cgh.parallel_for<class test_10>(
-            range<1>{2}, [=](id<1> ID) { B[ID] = int3{ID[0]} / B[ID]; });
+            range<1>{2}, [=](id<1> ID) { B[ID] = int3{(int3)ID[0]} / B[ID]; });
       });
     }
     assert(FF[0] == 0);

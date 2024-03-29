@@ -19,31 +19,39 @@ entry:
 }
 
 define weak_odr dso_local i64 @_ZTS15common_function() {
-; CHECK: define weak_odr dso_local i64 @_ZTS15common_function(ptr addrspace(5) %0) {
+; CHECK: define weak_odr dso_local i64 @_ZTS15common_function() {
   %1 = tail call ptr addrspace(5) @llvm.amdgcn.implicit.offset()
 ; CHECK-NOT: tail call ptr addrspace(5) @llvm.amdgcn.implicit.offset()
-; CHECK: %2 = getelementptr inbounds i32, ptr addrspace(5) %0, i64 2
   %2 = getelementptr inbounds i32, ptr addrspace(5) %1, i64 2
   %3 = load i32, ptr addrspace(5) %2, align 4
   %4 = zext i32 %3 to i64
+; CHECK: %1 = zext i32 0 to i64
   ret i64 %4
 }
 
+; CHECK: define weak_odr dso_local i64 @_ZTS15common_function_with_offset(ptr addrspace(5) %0) {  
+; CHECK: %2 = getelementptr inbounds i32, ptr addrspace(5) %0, i64 2
+; CHECK: %3 = load i32, ptr addrspace(5) %2, align 4
+; CHECK: %4 = zext i32 %3 to i64
+; CHECK: ret i64 %4
+; CHECK: }
+
 define weak_odr dso_local i64 @_ZTS14first_function() {
-; CHECK: define weak_odr dso_local i64 @_ZTS14first_function(ptr addrspace(5) %0) {
+; CHECK: define weak_odr dso_local i64 @_ZTS14first_function() {
   %1 = call i64 @_ZTS15common_function()
-; CHECK: %2 = call i64 @_ZTS15common_function(ptr addrspace(5) %0)
+; CHECK: %1 = call i64 @_ZTS15common_function()
   ret i64 %1
 }
+
+; CHECK: define weak_odr dso_local i64 @_ZTS14first_function_with_offset(ptr addrspace(5) %0) {
+; CHECK: %2 = call i64 @_ZTS15common_function_with_offset(ptr addrspace(5) %0)
+; CHECK: ret i64 %2
 
 ; Function Attrs: noinline
 define weak_odr dso_local void @_ZTS12first_kernel() {
 entry:
-; CHECK: %0 = alloca [3 x i32], align 4
-; CHECK: call void @llvm.memset.p5.i64(ptr addrspace(5) nonnull align 4 dereferenceable(12) %0, i8 0, i64 12, i1 false)
-; CHECK: %1 = getelementptr inbounds [3 x i32], ptr addrspace(5) %0, i32 0, i32 0
   %0 = call i64 @_ZTS14first_function()
-; CHECK: %2 = call i64 @_ZTS14first_function(ptr addrspace(5) %1)
+; CHECK: %0 = call i64 @_ZTS14first_function()
   ret void
 }
 
@@ -52,25 +60,26 @@ entry:
 ; CHECK:   %1 = alloca [3 x i32], align 4, addrspace(5)
 ; CHECK:   %2 = addrspacecast ptr %0 to ptr addrspace(4)
 ; CHECK:   call void @llvm.memcpy.p5.p4.i64(ptr addrspace(5) align 4 %1, ptr addrspace(4) align 1 %2, i64 12, i1 false)
-; CHECK:   %3 = call i64 @_ZTS14first_function(ptr addrspace(5) %1)
+; CHECK:   %3 = call i64 @_ZTS14first_function_with_offset(ptr addrspace(5) %1)
 ; CHECK:   ret void
 ; CHECK: }
 
 define weak_odr dso_local i64 @_ZTS15second_function() {
-; CHECK: define weak_odr dso_local i64 @_ZTS15second_function(ptr addrspace(5) %0) {
+; CHECK: define weak_odr dso_local i64 @_ZTS15second_function() {
   %1 = call i64 @_ZTS15common_function()
-; CHECK: %2 = call i64 @_ZTS15common_function(ptr addrspace(5) %0)
+; CHECK: %1 = call i64 @_ZTS15common_function()
   ret i64 %1
 }
+
+; CHECK: define weak_odr dso_local i64 @_ZTS15second_function_with_offset(ptr addrspace(5) %0) { 
+; CHECK: %2 = call i64 @_ZTS15common_function_with_offset(ptr addrspace(5) %0)
+; CHECK: ret i64 %2
 
 ; Function Attrs: noinline
 define weak_odr dso_local void @_ZTS13second_kernel() {
 entry:
-; CHECK: %0 = alloca [3 x i32], align 4
-; CHECK: call void @llvm.memset.p5.i64(ptr addrspace(5) nonnull align 4 dereferenceable(12) %0, i8 0, i64 12, i1 false)
-; CHECK: %1 = getelementptr inbounds [3 x i32], ptr addrspace(5) %0, i32 0, i32 0
   %0 = call i64 @_ZTS15second_function()
-; CHECK: %2 = call i64 @_ZTS15second_function(ptr addrspace(5) %1)
+; CHECK: %0 = call i64 @_ZTS15second_function()
   ret void
 }
 
@@ -79,21 +88,28 @@ entry:
 ; CHECK:   %1 = alloca [3 x i32], align 4, addrspace(5)
 ; CHECK:   %2 = addrspacecast ptr %0 to ptr addrspace(4)
 ; CHECK:   call void @llvm.memcpy.p5.p4.i64(ptr addrspace(5) align 4 %1, ptr addrspace(4) align 1 %2, i64 12, i1 false)
-; CHECK:   %3 = call i64 @_ZTS15second_function(ptr addrspace(5) %1)
+; CHECK:   %3 = call i64 @_ZTS15second_function_with_offset(ptr addrspace(5) %1)
 ; CHECK:   ret void
 ; CHECK: }
 
 ; This function doesn't get called by a kernel entry point.
 define weak_odr dso_local i64 @_ZTS15no_entry_point() {
-; CHECK: define weak_odr dso_local i64 @_ZTS15no_entry_point(ptr addrspace(5) %0) {
+; CHECK: define weak_odr dso_local i64 @_ZTS15no_entry_point() {
   %1 = tail call ptr addrspace(5) @llvm.amdgcn.implicit.offset()
 ; CHECK-NOT: tail call ptr addrspace(5) @llvm.amdgcn.implicit.offset()
   %2 = getelementptr inbounds i32, ptr addrspace(5) %1, i64 2
-; CHECK: %2 = getelementptr inbounds i32, ptr addrspace(5) %0, i64 2
   %3 = load i32, ptr addrspace(5) %2, align 4
   %4 = zext i32 %3 to i64
+; CHECK: %1 = zext i32 0 to i64
   ret i64 %4
 }
+
+; CHECK: define weak_odr dso_local i64 @_ZTS15no_entry_point_with_offset(ptr addrspace(5) %0) {
+; CHECK: %2 = getelementptr inbounds i32, ptr addrspace(5)  %0, i64 2
+; CHECK: %3 = load i32, ptr addrspace(5) %2, align 4
+; CHECK: %4 = zext i32 %3 to i64
+; CHECK: ret i64 %4
+; CHECK: }
 
 !amdgcn.annotations = !{!0, !1, !2, !1, !3, !3, !3, !3, !4, !4, !3, !5, !6}
 ; CHECK: !amdgcn.annotations = !{!0, !1, !2, !1, !3, !3, !3, !3, !4, !4, !3, !5, !6, !7, !8}

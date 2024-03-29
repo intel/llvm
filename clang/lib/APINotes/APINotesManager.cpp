@@ -125,7 +125,7 @@ APINotesManager::loadAPINotes(StringRef Buffer) {
 
 bool APINotesManager::loadAPINotes(const DirectoryEntry *HeaderDir,
                                    FileEntryRef APINotesFile) {
-  assert(Readers.find(HeaderDir) == Readers.end());
+  assert(!Readers.contains(HeaderDir));
   if (auto Reader = loadAPINotes(APINotesFile)) {
     Readers[HeaderDir] = Reader.release();
     return false;
@@ -198,7 +198,7 @@ static void checkPrivateAPINotesName(DiagnosticsEngine &Diags,
   StringRef RealFileName =
       llvm::sys::path::filename(File->tryGetRealPathName());
   StringRef RealStem = llvm::sys::path::stem(RealFileName);
-  if (RealStem.endswith("_private"))
+  if (RealStem.ends_with("_private"))
     return;
 
   unsigned DiagID = diag::warn_apinotes_private_case;
@@ -224,7 +224,7 @@ APINotesManager::getCurrentModuleAPINotes(Module *M, bool LookInModule,
   llvm::SmallVector<FileEntryRef, 2> APINotes;
 
   // First, look relative to the module itself.
-  if (LookInModule) {
+  if (LookInModule && M->Directory) {
     // Local function to try loading an API notes file in the given directory.
     auto tryAPINotes = [&](DirectoryEntryRef Dir, bool WantPublic) {
       if (auto File = findAPINotesFile(Dir, ModuleName, WantPublic)) {

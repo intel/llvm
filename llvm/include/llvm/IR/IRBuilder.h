@@ -200,6 +200,14 @@ public:
       SetCurrentDebugLocation(IP->getStableDebugLoc());
   }
 
+  /// This specifies that created instructions should be inserted at
+  /// the specified point, but also requires that \p IP is dereferencable.
+  void SetInsertPoint(BasicBlock::iterator IP) {
+    BB = IP->getParent();
+    InsertPt = IP;
+    SetCurrentDebugLocation(IP->getStableDebugLoc());
+  }
+
   /// This specifies that created instructions should inserted at the beginning
   /// end of the specified function, but after already existing static alloca
   /// instructions that are at the start.
@@ -959,9 +967,9 @@ public:
 
   /// Create a call to intrinsic \p ID with 2 operands which is mangled on the
   /// first type.
-  CallInst *CreateBinaryIntrinsic(Intrinsic::ID ID, Value *LHS, Value *RHS,
-                                  Instruction *FMFSource = nullptr,
-                                  const Twine &Name = "");
+  Value *CreateBinaryIntrinsic(Intrinsic::ID ID, Value *LHS, Value *RHS,
+                               Instruction *FMFSource = nullptr,
+                               const Twine &Name = "");
 
   /// Create a call to intrinsic \p ID with \p Args, mangled using \p Types. If
   /// \p FMFSource is provided, copy fast-math-flags from that instruction to
@@ -980,7 +988,7 @@ public:
                             const Twine &Name = "");
 
   /// Create call to the minnum intrinsic.
-  CallInst *CreateMinNum(Value *LHS, Value *RHS, const Twine &Name = "") {
+  Value *CreateMinNum(Value *LHS, Value *RHS, const Twine &Name = "") {
     if (IsFPConstrained) {
       return CreateConstrainedFPUnroundedBinOp(
           Intrinsic::experimental_constrained_minnum, LHS, RHS, nullptr, Name);
@@ -990,7 +998,7 @@ public:
   }
 
   /// Create call to the maxnum intrinsic.
-  CallInst *CreateMaxNum(Value *LHS, Value *RHS, const Twine &Name = "") {
+  Value *CreateMaxNum(Value *LHS, Value *RHS, const Twine &Name = "") {
     if (IsFPConstrained) {
       return CreateConstrainedFPUnroundedBinOp(
           Intrinsic::experimental_constrained_maxnum, LHS, RHS, nullptr, Name);
@@ -1000,19 +1008,19 @@ public:
   }
 
   /// Create call to the minimum intrinsic.
-  CallInst *CreateMinimum(Value *LHS, Value *RHS, const Twine &Name = "") {
+  Value *CreateMinimum(Value *LHS, Value *RHS, const Twine &Name = "") {
     return CreateBinaryIntrinsic(Intrinsic::minimum, LHS, RHS, nullptr, Name);
   }
 
   /// Create call to the maximum intrinsic.
-  CallInst *CreateMaximum(Value *LHS, Value *RHS, const Twine &Name = "") {
+  Value *CreateMaximum(Value *LHS, Value *RHS, const Twine &Name = "") {
     return CreateBinaryIntrinsic(Intrinsic::maximum, LHS, RHS, nullptr, Name);
   }
 
   /// Create call to the copysign intrinsic.
-  CallInst *CreateCopySign(Value *LHS, Value *RHS,
-                           Instruction *FMFSource = nullptr,
-                           const Twine &Name = "") {
+  Value *CreateCopySign(Value *LHS, Value *RHS,
+                        Instruction *FMFSource = nullptr,
+                        const Twine &Name = "") {
     return CreateBinaryIntrinsic(Intrinsic::copysign, LHS, RHS, FMFSource,
                                  Name);
   }
@@ -1969,6 +1977,16 @@ public:
   Value *CreateStructGEP(Type *Ty, Value *Ptr, unsigned Idx,
                          const Twine &Name = "") {
     return CreateConstInBoundsGEP2_32(Ty, Ptr, 0, Idx, Name);
+  }
+
+  Value *CreatePtrAdd(Value *Ptr, Value *Offset, const Twine &Name = "",
+                      bool IsInBounds = false) {
+    return CreateGEP(getInt8Ty(), Ptr, Offset, Name, IsInBounds);
+  }
+
+  Value *CreateInBoundsPtrAdd(Value *Ptr, Value *Offset,
+                              const Twine &Name = "") {
+    return CreateGEP(getInt8Ty(), Ptr, Offset, Name, /*IsInBounds*/ true);
   }
 
   /// Same as CreateGlobalString, but return a pointer with "i8*" type

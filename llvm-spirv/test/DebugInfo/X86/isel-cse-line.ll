@@ -43,8 +43,8 @@ source_filename = "test/DebugInfo/X86/isel-cse-line.ll"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-@glb_start = global i64 17, align 8, !dbg !0
-@glb_end = global i64 42, align 8, !dbg !9
+@glb_start = addrspace(1) global i64 17, align 8, !dbg !0
+@glb_end = addrspace(1) global i64 42, align 8, !dbg !9
 
 define i32 @main() !dbg !16 {
   %1 = alloca i32, align 4
@@ -54,10 +54,10 @@ define i32 @main() !dbg !16 {
   %5 = alloca double, align 8
   store i32 0, ptr %1, align 4
   call void @llvm.dbg.declare(metadata ptr %2, metadata !20, metadata !21), !dbg !22
-  %6 = load i64, ptr @glb_start, align 8, !dbg !23
+  %6 = load i64, ptr addrspace(1) @glb_start, align 8, !dbg !23
   store i64 %6, ptr %2, align 8, !dbg !22
   call void @llvm.dbg.declare(metadata ptr %3, metadata !24, metadata !21), !dbg !25
-  %7 = load i64, ptr @glb_end, align 8, !dbg !26
+  %7 = load i64, ptr addrspace(1) @glb_end, align 8, !dbg !26
   store i64 %7, ptr %3, align 8, !dbg !25
   call void @llvm.dbg.declare(metadata ptr %4, metadata !27, metadata !21), !dbg !28
   %8 = load i64, ptr %2, align 8, !dbg !29

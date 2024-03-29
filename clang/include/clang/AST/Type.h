@@ -36,6 +36,7 @@
 #include "llvm/ADT/FoldingSet.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/PointerUnion.h"
+#include "llvm/ADT/STLForwardCompat.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/ADT/iterator_range.h"
@@ -60,6 +61,7 @@ class BTFTypeTagAttr;
 class ExtQuals;
 class QualType;
 class ConceptDecl;
+class ValueDecl;
 class TagDecl;
 class TemplateParameterList;
 class Type;
@@ -915,6 +917,9 @@ public:
 
   /// Return true if this is a trivially copyable type (C++0x [basic.types]p9)
   bool isTriviallyCopyableType(const ASTContext &Context) const;
+
+  /// Return true if this is a trivially copyable type
+  bool isTriviallyCopyConstructibleType(const ASTContext &Context) const;
 
   /// Return true if this is a trivially relocatable type.
   bool isTriviallyRelocatableType(const ASTContext &Context) const;
@@ -1996,6 +2001,21 @@ protected:
     unsigned NumExpansions;
   };
 
+  class CountAttributedTypeBitfields {
+    friend class CountAttributedType;
+
+    LLVM_PREFERRED_TYPE(TypeBitfields)
+    unsigned : NumTypeBits;
+
+    static constexpr unsigned NumCoupledDeclsBits = 4;
+    unsigned NumCoupledDecls : NumCoupledDeclsBits;
+    LLVM_PREFERRED_TYPE(bool)
+    unsigned CountInBytes : 1;
+    LLVM_PREFERRED_TYPE(bool)
+    unsigned OrNull : 1;
+  };
+  static_assert(sizeof(CountAttributedTypeBitfields) <= sizeof(unsigned));
+
   union {
     TypeBitfields TypeBits;
     ArrayTypeBitfields ArrayTypeBits;
@@ -2018,6 +2038,7 @@ protected:
     DependentTemplateSpecializationTypeBitfields
       DependentTemplateSpecializationTypeBits;
     PackExpansionTypeBitfields PackExpansionTypeBits;
+    CountAttributedTypeBitfields CountAttributedTypeBits;
   };
 
 private:
@@ -2240,6 +2261,8 @@ public:
   bool isFloatingType() const;     // C99 6.2.5p11 (real floating + complex)
   bool isHalfType() const;         // OpenCL 6.1.1.1, NEON (IEEE 754-2008 half)
   bool isFloat16Type() const;      // C11 extension ISO/IEC TS 18661
+  bool isFloat32Type() const;
+  bool isDoubleType() const;
   bool isBFloat16Type() const;
   bool isFloat128Type() const;
   bool isIbm128Type() const;
@@ -2258,6 +2281,7 @@ public:
   bool isFunctionProtoType() const { return getAs<FunctionProtoType>(); }
   bool isPointerType() const;
   bool isAnyPointerType() const;   // Any C pointer or ObjC object pointer
+  bool isCountAttributedType() const;
   bool isBlockPointerType() const;
   bool isVoidPointerType() const;
   bool isReferenceType() const;
@@ -2387,12 +2411,6 @@ public:
   bool isCUDADeviceBuiltinSurfaceType() const;
   /// Check if the type is the CUDA device builtin texture type.
   bool isCUDADeviceBuiltinTextureType() const;
-
-  bool isRVVType(unsigned ElementCount) const;
-
-  bool isRVVType() const;
-
-  bool isRVVType(unsigned Bitwidth, bool IsFloat, bool IsBFloat = false) const;
 
   /// Return the implicit lifetime for this type, which must not be dependent.
   Qualifiers::ObjCLifetime getObjCARCImplicitLifetime() const;
@@ -2621,6 +2639,9 @@ public:
   /// Return true if this is a fixed point or integer type.
   bool isFixedPointOrIntegerType() const;
 
+  /// Return true if this can be converted to (or from) a fixed point type.
+  bool isConvertibleToFixedPointType() const;
+
   /// Return true if this is a saturated fixed point type according to
   /// ISO/IEC JTC1 SC22 WG14 N1169. This type can be signed or unsigned.
   bool isSaturatedFixedPointType() const;
@@ -2726,6 +2747,14 @@ template <> const TemplateSpecializationType *Type::getAs() const;
 /// This will check for an AttributedType by removing any existing sugar
 /// until it reaches an AttributedType or a non-sugared type.
 template <> const AttributedType *Type::getAs() const;
+
+/// This will check for a BoundsAttributedType by removing any existing
+/// sugar until it reaches an BoundsAttributedType or a non-sugared type.
+template <> const BoundsAttributedType *Type::getAs() const;
+
+/// This will check for a CountAttributedType by removing any existing
+/// sugar until it reaches an CountAttributedType or a non-sugared type.
+template <> const CountAttributedType *Type::getAs() const;
 
 // We can do canonical leaf types faster, because we don't have to
 // worry about preserving child type decoration.
@@ -2927,6 +2956,136 @@ public:
   }
 
   static bool classof(const Type *T) { return T->getTypeClass() == Pointer; }
+};
+
+/// [BoundsSafety] Represents information of declarations referenced by the
+/// arguments of the `counted_by` attribute and the likes.
+class TypeCoupledDeclRefInfo {
+public:
+  using BaseTy = llvm::PointerIntPair<ValueDecl *, 1, unsigned>;
+
+private:
+  enum {
+    DerefShift = 0,
+    DerefMask = 1,
+  };
+  BaseTy Data;
+
+public:
+  /// \p D is to a declaration referenced by the argument of attribute. \p Deref
+  /// indicates whether \p D is referenced as a dereferenced form, e.g., \p
+  /// Deref is true for `*n` in `int *__counted_by(*n)`.
+  TypeCoupledDeclRefInfo(ValueDecl *D = nullptr, bool Deref = false);
+
+  bool isDeref() const;
+  ValueDecl *getDecl() const;
+  unsigned getInt() const;
+  void *getOpaqueValue() const;
+  bool operator==(const TypeCoupledDeclRefInfo &Other) const;
+  void setFromOpaqueValue(void *V);
+};
+
+/// [BoundsSafety] Represents a parent type class for CountAttributedType and
+/// similar sugar types that will be introduced to represent a type with a
+/// bounds attribute.
+///
+/// Provides a common interface to navigate declarations referred to by the
+/// bounds expression.
+
+class BoundsAttributedType : public Type, public llvm::FoldingSetNode {
+  QualType WrappedTy;
+
+protected:
+  ArrayRef<TypeCoupledDeclRefInfo> Decls; // stored in trailing objects
+
+  BoundsAttributedType(TypeClass TC, QualType Wrapped, QualType Canon);
+
+public:
+  bool isSugared() const { return true; }
+  QualType desugar() const { return WrappedTy; }
+
+  using decl_iterator = const TypeCoupledDeclRefInfo *;
+  using decl_range = llvm::iterator_range<decl_iterator>;
+
+  decl_iterator dependent_decl_begin() const { return Decls.begin(); }
+  decl_iterator dependent_decl_end() const { return Decls.end(); }
+
+  unsigned getNumCoupledDecls() const { return Decls.size(); }
+
+  decl_range dependent_decls() const {
+    return decl_range(dependent_decl_begin(), dependent_decl_end());
+  }
+
+  ArrayRef<TypeCoupledDeclRefInfo> getCoupledDecls() const {
+    return {dependent_decl_begin(), dependent_decl_end()};
+  }
+
+  bool referencesFieldDecls() const;
+
+  static bool classof(const Type *T) {
+    // Currently, only `class CountAttributedType` inherits
+    // `BoundsAttributedType` but the subclass will grow as we add more bounds
+    // annotations.
+    switch (T->getTypeClass()) {
+    case CountAttributed:
+      return true;
+    default:
+      return false;
+    }
+  }
+};
+
+/// Represents a sugar type with `__counted_by` or `__sized_by` annotations,
+/// including their `_or_null` variants.
+class CountAttributedType final
+    : public BoundsAttributedType,
+      public llvm::TrailingObjects<CountAttributedType,
+                                   TypeCoupledDeclRefInfo> {
+  friend class ASTContext;
+
+  Expr *CountExpr;
+  /// \p CountExpr represents the argument of __counted_by or the likes. \p
+  /// CountInBytes indicates that \p CountExpr is a byte count (i.e.,
+  /// __sized_by(_or_null)) \p OrNull means it's an or_null variant (i.e.,
+  /// __counted_by_or_null or __sized_by_or_null) \p CoupledDecls contains the
+  /// list of declarations referenced by \p CountExpr, which the type depends on
+  /// for the bounds information.
+  CountAttributedType(QualType Wrapped, QualType Canon, Expr *CountExpr,
+                      bool CountInBytes, bool OrNull,
+                      ArrayRef<TypeCoupledDeclRefInfo> CoupledDecls);
+
+  unsigned numTrailingObjects(OverloadToken<TypeCoupledDeclRefInfo>) const {
+    return CountAttributedTypeBits.NumCoupledDecls;
+  }
+
+public:
+  enum DynamicCountPointerKind {
+    CountedBy = 0,
+    SizedBy,
+    CountedByOrNull,
+    SizedByOrNull,
+  };
+
+  Expr *getCountExpr() const { return CountExpr; }
+  bool isCountInBytes() const { return CountAttributedTypeBits.CountInBytes; }
+  bool isOrNull() const { return CountAttributedTypeBits.OrNull; }
+
+  DynamicCountPointerKind getKind() const {
+    if (isOrNull())
+      return isCountInBytes() ? SizedByOrNull : CountedByOrNull;
+    return isCountInBytes() ? SizedBy : CountedBy;
+  }
+
+  void Profile(llvm::FoldingSetNodeID &ID) {
+    Profile(ID, desugar(), CountExpr, isCountInBytes(), isOrNull());
+  }
+
+  static void Profile(llvm::FoldingSetNodeID &ID, QualType WrappedTy,
+                      Expr *CountExpr, bool CountInBytes, bool Nullable);
+
+  static bool classof(const Type *T) {
+    return T->getTypeClass() == CountAttributed;
+  }
 };
 
 /// Represents a type which was implicitly adjusted by the semantic
@@ -3507,6 +3666,9 @@ enum class VectorKind {
 
   /// is RISC-V RVV fixed-length data vector
   RVVFixedLengthData,
+
+  /// is RISC-V RVV fixed-length mask vector
+  RVVFixedLengthMask,
 };
 
 /// Represents a GCC generic vector type. This type is created using
@@ -4041,19 +4203,6 @@ public:
   /// because TrailingObjects cannot handle repeated types.
   struct ExceptionType { QualType Type; };
 
-  /// The AArch64 SME ACLE (Arm C/C++ Language Extensions) define a number
-  /// of function type attributes that can be set on function types, including
-  /// function pointers.
-  enum AArch64SMETypeAttributes : unsigned {
-    SME_NormalFunction = 0,
-    SME_PStateSMEnabledMask = 1 << 0,
-    SME_PStateSMCompatibleMask = 1 << 1,
-    SME_PStateZASharedMask = 1 << 2,
-    SME_PStateZAPreservedMask = 1 << 3,
-    SME_AttributeMask = 0b111'111 // We only support maximum 6 bits because of the
-                                  // bitmask in FunctionTypeExtraBitfields.
-  };
-
   /// A simple holder for various uncommon bits which do not fit in
   /// FunctionTypeBitfields. Aligned to alignof(void *) to maintain the
   /// alignment of subsequent objects in TrailingObjects.
@@ -4063,11 +4212,57 @@ public:
     /// [implimits] 8 bits would be enough here.
     unsigned NumExceptionType : 10;
 
+    LLVM_PREFERRED_TYPE(bool)
+    unsigned HasArmTypeAttributes : 1;
+
+    FunctionTypeExtraBitfields()
+        : NumExceptionType(0), HasArmTypeAttributes(false) {}
+  };
+
+  /// The AArch64 SME ACLE (Arm C/C++ Language Extensions) define a number
+  /// of function type attributes that can be set on function types, including
+  /// function pointers.
+  enum AArch64SMETypeAttributes : unsigned {
+    SME_NormalFunction = 0,
+    SME_PStateSMEnabledMask = 1 << 0,
+    SME_PStateSMCompatibleMask = 1 << 1,
+
+    // Describes the value of the state using ArmStateValue.
+    SME_ZAShift = 2,
+    SME_ZAMask = 0b111 << SME_ZAShift,
+    SME_ZT0Shift = 5,
+    SME_ZT0Mask = 0b111 << SME_ZT0Shift,
+
+    SME_AttributeMask =
+        0b111'111'11 // We can't support more than 8 bits because of
+                     // the bitmask in FunctionTypeExtraBitfields.
+  };
+
+  enum ArmStateValue : unsigned {
+    ARM_None = 0,
+    ARM_Preserves = 1,
+    ARM_In = 2,
+    ARM_Out = 3,
+    ARM_InOut = 4,
+  };
+
+  static ArmStateValue getArmZAState(unsigned AttrBits) {
+    return (ArmStateValue)((AttrBits & SME_ZAMask) >> SME_ZAShift);
+  }
+
+  static ArmStateValue getArmZT0State(unsigned AttrBits) {
+    return (ArmStateValue)((AttrBits & SME_ZT0Mask) >> SME_ZT0Shift);
+  }
+
+  /// A holder for Arm type attributes as described in the Arm C/C++
+  /// Language extensions which are not particularly common to all
+  /// types and therefore accounted separately from FunctionTypeBitfields.
+  struct alignas(void *) FunctionTypeArmAttributes {
     /// Any AArch64 SME ACLE type attributes that need to be propagated
     /// on declarations and function pointers.
-    unsigned AArch64SMEAttributes : 6;
-    FunctionTypeExtraBitfields()
-        : NumExceptionType(0), AArch64SMEAttributes(SME_NormalFunction) {}
+    unsigned AArch64SMEAttributes : 8;
+
+    FunctionTypeArmAttributes() : AArch64SMEAttributes(SME_NormalFunction) {}
   };
 
 protected:
@@ -4166,7 +4361,8 @@ class FunctionProtoType final
       public llvm::FoldingSetNode,
       private llvm::TrailingObjects<
           FunctionProtoType, QualType, SourceLocation,
-          FunctionType::FunctionTypeExtraBitfields, FunctionType::ExceptionType,
+          FunctionType::FunctionTypeExtraBitfields,
+          FunctionType::FunctionTypeArmAttributes, FunctionType::ExceptionType,
           Expr *, FunctionDecl *, FunctionType::ExtParameterInfo, Qualifiers> {
   friend class ASTContext; // ASTContext creates these.
   friend TrailingObjects;
@@ -4239,6 +4435,8 @@ public:
     ExceptionSpecInfo() = default;
 
     ExceptionSpecInfo(ExceptionSpecificationType EST) : Type(EST) {}
+
+    void instantiate();
   };
 
   /// Extra information about a function prototype. ExtProtoInfo is not
@@ -4248,7 +4446,7 @@ public:
     FunctionType::ExtInfo ExtInfo;
     unsigned Variadic : 1;
     unsigned HasTrailingReturn : 1;
-    unsigned AArch64SMEAttributes : 6;
+    unsigned AArch64SMEAttributes : 8;
     Qualifiers TypeQuals;
     RefQualifierKind RefQualifier = RQ_None;
     ExceptionSpecInfo ExceptionSpec;
@@ -4271,7 +4469,11 @@ public:
 
     bool requiresFunctionProtoTypeExtraBitfields() const {
       return ExceptionSpec.Type == EST_Dynamic ||
-             AArch64SMEAttributes != SME_NormalFunction;
+             requiresFunctionProtoTypeArmAttributes();
+    }
+
+    bool requiresFunctionProtoTypeArmAttributes() const {
+      return AArch64SMEAttributes != SME_NormalFunction;
     }
 
     void setArmSMEAttribute(AArch64SMETypeAttributes Kind, bool Enable = true) {
@@ -4289,6 +4491,10 @@ private:
 
   unsigned numTrailingObjects(OverloadToken<SourceLocation>) const {
     return isVariadic();
+  }
+
+  unsigned numTrailingObjects(OverloadToken<FunctionTypeArmAttributes>) const {
+    return hasArmTypeAttributes();
   }
 
   unsigned numTrailingObjects(OverloadToken<FunctionTypeExtraBitfields>) const {
@@ -4377,6 +4583,12 @@ private:
            "ExtraBitfields are required for given ExceptionSpecType");
     return FunctionTypeBits.HasExtraBitfields;
 
+  }
+
+  bool hasArmTypeAttributes() const {
+    return FunctionTypeBits.HasExtraBitfields &&
+           getTrailingObjects<FunctionTypeExtraBitfields>()
+               ->HasArmTypeAttributes;
   }
 
   bool hasExtQualifiers() const {
@@ -4590,9 +4802,9 @@ public:
   /// Return a bitmask describing the SME attributes on the function type, see
   /// AArch64SMETypeAttributes for their values.
   unsigned getAArch64SMEAttributes() const {
-    if (!hasExtraBitfields())
+    if (!hasArmTypeAttributes())
       return SME_NormalFunction;
-    return getTrailingObjects<FunctionTypeExtraBitfields>()
+    return getTrailingObjects<FunctionTypeArmAttributes>()
         ->AArch64SMEAttributes;
   }
 
@@ -4691,13 +4903,12 @@ public:
   bool typeMatchesDecl() const { return !UsingBits.hasTypeDifferentFromDecl; }
 
   void Profile(llvm::FoldingSetNodeID &ID) {
-    Profile(ID, Found, typeMatchesDecl() ? QualType() : getUnderlyingType());
+    Profile(ID, Found, getUnderlyingType());
   }
   static void Profile(llvm::FoldingSetNodeID &ID, const UsingShadowDecl *Found,
                       QualType Underlying) {
     ID.AddPointer(Found);
-    if (!Underlying.isNull())
-      Underlying.Profile(ID);
+    Underlying.Profile(ID);
   }
   static bool classof(const Type *T) { return T->getTypeClass() == Using; }
 };
@@ -4892,6 +5103,73 @@ public:
 
   static void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context,
                       Expr *E);
+};
+
+class PackIndexingType final
+    : public Type,
+      public llvm::FoldingSetNode,
+      private llvm::TrailingObjects<PackIndexingType, QualType> {
+  friend TrailingObjects;
+
+  const ASTContext &Context;
+  QualType Pattern;
+  Expr *IndexExpr;
+
+  unsigned Size;
+
+protected:
+  friend class ASTContext; // ASTContext creates these.
+  PackIndexingType(const ASTContext &Context, QualType Canonical,
+                   QualType Pattern, Expr *IndexExpr,
+                   ArrayRef<QualType> Expansions = {});
+
+public:
+  Expr *getIndexExpr() const { return IndexExpr; }
+  QualType getPattern() const { return Pattern; }
+
+  bool isSugared() const { return hasSelectedType(); }
+
+  QualType desugar() const {
+    if (hasSelectedType())
+      return getSelectedType();
+    return QualType(this, 0);
+  }
+
+  QualType getSelectedType() const {
+    assert(hasSelectedType() && "Type is dependant");
+    return *(getExpansionsPtr() + *getSelectedIndex());
+  }
+
+  std::optional<unsigned> getSelectedIndex() const;
+
+  bool hasSelectedType() const { return getSelectedIndex() != std::nullopt; }
+
+  ArrayRef<QualType> getExpansions() const {
+    return {getExpansionsPtr(), Size};
+  }
+
+  static bool classof(const Type *T) {
+    return T->getTypeClass() == PackIndexing;
+  }
+
+  void Profile(llvm::FoldingSetNodeID &ID) {
+    if (hasSelectedType())
+      getSelectedType().Profile(ID);
+    else
+      Profile(ID, Context, getPattern(), getIndexExpr());
+  }
+  static void Profile(llvm::FoldingSetNodeID &ID, const ASTContext &Context,
+                      QualType Pattern, Expr *E);
+
+private:
+  const QualType *getExpansionsPtr() const {
+    return getTrailingObjects<QualType>();
+  }
+
+  static TypeDependence computeDependence(QualType Pattern, Expr *IndexExpr,
+                                          ArrayRef<QualType> Expansions = {});
+
+  unsigned numTrailingObjects(OverloadToken<QualType>) const { return Size; }
 };
 
 /// A unary type transform, which is a type constructed from another.
@@ -7312,36 +7590,6 @@ inline bool Type::isOpenCLSpecificType() const {
          isQueueT() || isReserveIDT() || isPipeType() || isOCLExtOpaqueType();
 }
 
-inline bool Type::isRVVType() const {
-#define RVV_TYPE(Name, Id, SingletonId) \
-  isSpecificBuiltinType(BuiltinType::Id) ||
-  return
-#include "clang/Basic/RISCVVTypes.def"
-    false; // end of boolean or operation.
-}
-
-inline bool Type::isRVVType(unsigned ElementCount) const {
-  bool Ret = false;
-#define RVV_VECTOR_TYPE(Name, Id, SingletonId, NumEls, ElBits, NF, IsSigned,   \
-                        IsFP, IsBF)                                            \
-  if (NumEls == ElementCount)                                                  \
-    Ret |= isSpecificBuiltinType(BuiltinType::Id);
-#include "clang/Basic/RISCVVTypes.def"
-  return Ret;
-}
-
-inline bool Type::isRVVType(unsigned Bitwidth, bool IsFloat,
-                            bool IsBFloat) const {
-  bool Ret = false;
-#define RVV_TYPE(Name, Id, SingletonId)
-#define RVV_VECTOR_TYPE(Name, Id, SingletonId, NumEls, ElBits, NF, IsSigned,   \
-                        IsFP, IsBF)                                            \
-  if (ElBits == Bitwidth && IsFloat == IsFP && IsBFloat == IsBF)               \
-    Ret |= isSpecificBuiltinType(BuiltinType::Id);
-#include "clang/Basic/RISCVVTypes.def"
-  return Ret;
-}
-
 inline bool Type::isTemplateTypeParmType() const {
   return isa<TemplateTypeParmType>(CanonicalType);
 }
@@ -7390,6 +7638,14 @@ inline bool Type::isFloat16Type() const {
   return isSpecificBuiltinType(BuiltinType::Float16);
 }
 
+inline bool Type::isFloat32Type() const {
+  return isSpecificBuiltinType(BuiltinType::Float);
+}
+
+inline bool Type::isDoubleType() const {
+  return isSpecificBuiltinType(BuiltinType::Double);
+}
+
 inline bool Type::isBFloat16Type() const {
   return isSpecificBuiltinType(BuiltinType::BFloat16);
 }
@@ -7432,6 +7688,10 @@ inline bool Type::isFixedPointType() const {
 
 inline bool Type::isFixedPointOrIntegerType() const {
   return isFixedPointType() || isIntegerType();
+}
+
+inline bool Type::isConvertibleToFixedPointType() const {
+  return isRealFloatingType() || isFixedPointOrIntegerType();
 }
 
 inline bool Type::isSaturatedFixedPointType() const {
@@ -7552,7 +7812,7 @@ inline const Type *Type::getPointeeOrArrayElementType() const {
 /// spaces into a diagnostic with <<.
 inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &PD,
                                              LangAS AS) {
-  PD.AddTaggedVal(static_cast<std::underlying_type_t<LangAS>>(AS),
+  PD.AddTaggedVal(llvm::to_underlying(AS),
                   DiagnosticsEngine::ArgumentKind::ak_addrspace);
   return PD;
 }

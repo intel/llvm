@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix-xmx8
+// REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
 // TODO: Currently fails and regularly times out on DG2. Re-enable when this has
 //       been addressed.
@@ -16,7 +17,8 @@
 
 #include <iostream>
 #include <random>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/matrix/matrix.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;

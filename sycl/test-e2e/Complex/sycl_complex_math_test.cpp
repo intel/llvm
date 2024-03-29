@@ -13,31 +13,26 @@
     bool operator()(sycl::queue &Q, cmplx<T> init,                             \
                     cmplx<T> ref = cmplx<T>(0, 0), bool use_ref = false) {     \
       bool pass = true;                                                        \
-                                                                               \
       auto std_in = init_std_complex(init.re, init.im);                        \
       experimental::complex<T> cplx_input{init.re, init.im};                   \
-                                                                               \
-      auto *cplx_out = sycl::malloc_shared<experimental::complex<T>>(1, Q);    \
-                                                                               \
+      sycl::buffer<experimental::complex<T>> cplx_out_buf{sycl::range{1}};     \
       /*Get std::complex output*/                                              \
       std::complex<T> std_out{ref.re, ref.im};                                 \
       if (!use_ref)                                                            \
         std_out = std::math_func(std_in);                                      \
-                                                                               \
       /*Check cplx::complex output from device*/                               \
-      Q.single_task([=]() {                                                    \
-         cplx_out[0] = experimental::math_func<T>(cplx_input);                 \
-       }).wait();                                                              \
-                                                                               \
-      pass &= check_results(cplx_out[0], std_out, /*is_device*/ true);         \
+      Q.submit([&](sycl::handler &h) {                                         \
+        sycl::accessor cplx_out{cplx_out_buf, h};                              \
+        h.single_task(                                                         \
+            [=]() { cplx_out[0] = experimental::math_func<T>(cplx_input); });  \
+      });                                                                      \
+      sycl::host_accessor cplx_out_acc{cplx_out_buf};                          \
+      pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ true);     \
                                                                                \
       /*Check cplx::complex output from host*/                                 \
-      cplx_out[0] = experimental::math_func<T>(cplx_input);                    \
+      cplx_out_acc[0] = experimental::math_func<T>(cplx_input);                \
                                                                                \
-      pass &= check_results(cplx_out[0], std_out, /*is_device*/ false);        \
-                                                                               \
-      sycl::free(cplx_out, Q);                                                 \
-                                                                               \
+      pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ false);    \
       return pass;                                                             \
     }                                                                          \
   };
@@ -73,8 +68,7 @@ TEST_MATH_OP_TYPE(tanh)
                                                                                \
       auto std_in = init_std_complex(init.re, init.im);                        \
       experimental::complex<T> cplx_input{init.re, init.im};                   \
-                                                                               \
-      auto *cplx_out = sycl::malloc_shared<T>(1, Q);                           \
+      sycl::buffer<T> cplx_out_buf{sycl::range{1}};                            \
                                                                                \
       /*Get std::complex output*/                                              \
       T std_out = ref.re;                                                      \
@@ -82,19 +76,18 @@ TEST_MATH_OP_TYPE(tanh)
         std_out = std::math_func(std_in);                                      \
                                                                                \
       /*Check cplx::complex output from device*/                               \
-      Q.single_task([=]() {                                                    \
-         cplx_out[0] = experimental::math_func<T>(cplx_input);                 \
-       }).wait();                                                              \
-                                                                               \
-      pass &= check_results(cplx_out[0], std_out, /*is_device*/ true);         \
+      Q.submit([&](sycl::handler &h) {                                         \
+        sycl::accessor cplx_out{cplx_out_buf, h};                              \
+        h.single_task(                                                         \
+            [=]() { cplx_out[0] = experimental::math_func<T>(cplx_input); });  \
+      });                                                                      \
+      sycl::host_accessor cplx_out_acc{cplx_out_buf};                          \
+      pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ true);     \
                                                                                \
       /*Check cplx::complex output from host*/                                 \
-      cplx_out[0] = experimental::math_func<T>(cplx_input);                    \
+      cplx_out_acc[0] = experimental::math_func<T>(cplx_input);                \
                                                                                \
-      pass &= check_results(cplx_out[0], std_out, /*is_device*/ false);        \
-                                                                               \
-      sycl::free(cplx_out, Q);                                                 \
-                                                                               \
+      pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ false);    \
       return pass;                                                             \
     }                                                                          \
   };
@@ -121,23 +114,21 @@ TEST_MATH_OP_TYPE(imag)
       std::complex<T> std_out = ref;                                           \
       if (!use_ref)                                                            \
         std_out = std::math_func(std_in);                                      \
-                                                                               \
-      auto *cplx_out = sycl::malloc_shared<experimental::complex<T>>(1, Q);    \
-                                                                               \
+      sycl::buffer<experimental::complex<T>> cplx_out_buf{sycl::range{1}};     \
       /*Check cplx::complex output from device*/                               \
-      Q.single_task([=]() {                                                    \
-         cplx_out[0] = experimental::math_func<X>(std_in);                     \
-       }).wait();                                                              \
+      Q.submit([&](sycl::handler &h) {                                         \
+        sycl::accessor cplx_out{cplx_out_buf, h};                              \
+        h.single_task(                                                         \
+            [=]() { cplx_out[0] = experimental::math_func<X>(std_in); });      \
+      });                                                                      \
+      sycl::host_accessor cplx_out_acc{cplx_out_buf};                          \
                                                                                \
-      pass &= check_results(cplx_out[0], std_out, /*is_device*/ true);         \
+      pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ true);     \
                                                                                \
       /*Check cplx::complex output from host*/                                 \
-      cplx_out[0] = experimental::math_func<X>(std_in);                        \
+      cplx_out_acc[0] = experimental::math_func<X>(std_in);                    \
                                                                                \
-      pass &= check_results(cplx_out[0], std_out, /*is_device*/ false);        \
-                                                                               \
-      sycl::free(cplx_out, Q);                                                 \
-                                                                               \
+      pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ false);    \
       return pass;                                                             \
     }                                                                          \
   };
@@ -161,23 +152,21 @@ TEST_MATH_OP_TYPE(proj)
       T std_out = ref;                                                         \
       if (!use_ref)                                                            \
         std_out = std::math_func(std_in);                                      \
-                                                                               \
-      auto *cplx_out = sycl::malloc_shared<T>(1, Q);                           \
-                                                                               \
+      sycl::buffer<T> cplx_out_buf{sycl::range{1}};                            \
       /*Check cplx::complex output from device*/                               \
-      Q.single_task([=]() {                                                    \
-         cplx_out[0] = experimental::math_func<X>(init);                       \
-       }).wait();                                                              \
+      Q.submit([&](sycl::handler &h) {                                         \
+        sycl::accessor cplx_out{cplx_out_buf, h};                              \
+        h.single_task(                                                         \
+            [=]() { cplx_out[0] = experimental::math_func<X>(std_in); });      \
+      });                                                                      \
+      sycl::host_accessor cplx_out_acc{cplx_out_buf};                          \
                                                                                \
-      pass &= check_results(cplx_out[0], std_out, /*is_device*/ true);         \
+      pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ true);     \
                                                                                \
       /*Check cplx::complex output from host*/                                 \
-      cplx_out[0] = experimental::math_func<X>(init);                          \
+      cplx_out_acc[0] = experimental::math_func<X>(init);                      \
                                                                                \
-      pass &= check_results(cplx_out[0], std_out, /*is_device*/ false);        \
-                                                                               \
-      sycl::free(cplx_out, Q);                                                 \
-                                                                               \
+      pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ false);    \
       return pass;                                                             \
     }                                                                          \
   };
@@ -197,26 +186,25 @@ template <typename T> struct test_polar {
                   bool use_ref = false) {
     bool pass = true;
 
-    auto *cplx_out = sycl::malloc_shared<experimental::complex<T>>(1, Q);
-
+    sycl::buffer<experimental::complex<T>> cplx_out_buf{sycl::range(1)};
     /*Get std::complex output*/
     std::complex<T> std_out{ref.re, ref.im};
     if (!use_ref)
       std_out = std::polar(init.re, init.im);
 
     /*Check cplx::complex output from device*/
-    Q.single_task([=]() {
-       cplx_out[0] = experimental::polar<T>(init.re, init.im);
-     }).wait();
-
-    pass &= check_results(cplx_out[0], std_out, /*is_device*/ true);
+    Q.submit([&](sycl::handler &h) {
+      sycl::accessor cplx_out{cplx_out_buf, h};
+      h.single_task(
+          [=]() { cplx_out[0] = experimental::polar<T>(init.re, init.im); });
+    });
+    sycl::host_accessor cplx_out_acc{cplx_out_buf};
+    pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ true);
 
     /*Check cplx::complex output from host*/
-    cplx_out[0] = experimental::polar<T>(init.re, init.im);
+    cplx_out_acc[0] = experimental::polar<T>(init.re, init.im);
 
-    pass &= check_results(cplx_out[0], std_out, /*is_device*/ false);
-
-    sycl::free(cplx_out, Q);
+    pass &= check_results(cplx_out_acc[0], std_out, /*is_device*/ false);
 
     return pass;
   }

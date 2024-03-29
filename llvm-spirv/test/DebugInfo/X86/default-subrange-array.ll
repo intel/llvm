@@ -37,7 +37,7 @@ source_filename = "test/DebugInfo/X86/default-subrange-array.ll"
 
 %class.A = type { [42 x i32] }
 
-@a = global %class.A zeroinitializer, align 4, !dbg !0
+@a = addrspace(1) global %class.A zeroinitializer, align 4, !dbg !0
 
 ; CHECK:       DW_TAG_class_type
 ; CHECK:         DW_TAG_member

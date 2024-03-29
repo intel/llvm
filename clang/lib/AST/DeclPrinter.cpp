@@ -685,6 +685,16 @@ static void printExplicitSpecifier(ExplicitSpecifier ES, llvm::raw_ostream &Out,
   Out << Proto;
 }
 
+static void MaybePrintTagKeywordIfSupressingScopes(PrintingPolicy &Policy,
+                                                   QualType T,
+                                                   llvm::raw_ostream &Out) {
+  StringRef prefix = T->isClassType()       ? "class "
+                     : T->isStructureType() ? "struct "
+                     : T->isUnionType()     ? "union "
+                                            : "";
+  Out << prefix;
+}
+
 void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
   if (!D->getDescribedFunctionTemplate() &&
       !D->isFunctionTemplateSpecialization())
@@ -861,6 +871,10 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
         Out << Proto << " -> ";
         Proto.clear();
       }
+      if (!Policy.SuppressTagKeyword && Policy.SuppressScope &&
+          !Policy.SuppressUnwrittenScope)
+        MaybePrintTagKeywordIfSupressingScopes(Policy, AFT->getReturnType(),
+                                               Out);
       AFT->getReturnType().print(Out, Policy, Proto);
       Proto.clear();
     }
@@ -877,7 +891,7 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
 
   prettyPrintAttributes(D, Out, AttrPrintLoc::Right);
 
-  if (D->isPure())
+  if (D->isPureVirtual())
     Out << " = 0";
   else if (D->isDeletedAsWritten())
     Out << " = delete";
@@ -1028,6 +1042,9 @@ void DeclPrinter::VisitVarDecl(VarDecl *D) {
              ? D->getIdentifier()->deuglifiedName()
              : D->getName();
 
+  if (!Policy.SuppressTagKeyword && Policy.SuppressScope &&
+      !Policy.SuppressUnwrittenScope)
+    MaybePrintTagKeywordIfSupressingScopes(Policy, T, Out);
   printDeclType(T, Name);
 
   // Print the attributes that should be placed right before the end of the
@@ -1220,6 +1237,10 @@ void DeclPrinter::VisitLinkageSpecDecl(LinkageSpecDecl *D) {
 void DeclPrinter::printTemplateParameters(const TemplateParameterList *Params,
                                           bool OmitTemplateKW) {
   assert(Params);
+
+  // Don't print invented template parameter lists.
+  if (!Params->empty() && Params->getParam(0)->isImplicit())
+    return;
 
   if (!OmitTemplateKW)
     Out << "template ";
@@ -1519,6 +1540,11 @@ void DeclPrinter::VisitObjCInterfaceDecl(ObjCInterfaceDecl *OID) {
     return;
   }
   bool eolnOut = false;
+  if (OID->hasAttrs()) {
+    prettyPrintAttributes(OID);
+    Out << "\n";
+  }
+
   Out << "@interface " << I;
 
   if (auto TypeParams = OID->getTypeParamListAsWritten()) {
@@ -1734,7 +1760,7 @@ void DeclPrinter::VisitObjCPropertyDecl(ObjCPropertyDecl *PDecl) {
   std::string TypeStr = PDecl->getASTContext().getUnqualifiedObjCPointerType(T).
       getAsString(Policy);
   Out << ' ' << TypeStr;
-  if (!StringRef(TypeStr).endswith("*"))
+  if (!StringRef(TypeStr).ends_with("*"))
     Out << ' ';
   Out << *PDecl;
   if (Policy.PolishForDeclaration)

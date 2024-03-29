@@ -54,7 +54,7 @@ enum PropKind : uint32_t {
 namespace sycl::ext::oneapi::experimental {
 
 // (2.)
-struct bar_key {
+struct bar_key : detail::compile_time_property_key<PropKind::Bar> {
   using value_t = property_value<bar_key>;
 };
 
@@ -62,21 +62,11 @@ struct bar_key {
 inline constexpr bar_key::value_t bar;
 
 // (4.)
-template <> struct is_property_key<bar_key> : std::true_type {};
 // Replace SYCL_OBJ with the SYCL object to support the property.
 template <> struct is_property_key_of<bar_key, SYCL_OBJ> : std::true_type {};
 
 namespace detail {
-
 // (5.)
-template <> struct PropertyToKind<bar_key> {
-  static constexpr PropKind Kind = PropKind::Bar;
-};
-
-// (6.)
-template <> struct IsCompileTimeProperty<bar_key> : std::true_type {};
-
-// (7.)
 template <> struct PropertyMetaInfo<bar_key::value_t> {
   static constexpr const char *name = "sycl-bar";
   static constexpr int value = 5;
@@ -90,21 +80,14 @@ template <> struct PropertyMetaInfo<bar_key::value_t> {
 //  1. Add a new enumerator to `sycl::ext::oneapi::detail::PropKind`
 //     representing the new property. Increment
 //     `sycl::ext::oneapi::experimental::detail::PropKind::PropKindSize`
-//  2. Define property class.
+//  2. Define property class, inheriting from `detail::run_time_property_key`.
 //  3. Declare the property key as an alias to the property class. The name of
 //     the key class must be the property name suffixed by `_key`, i.e. for a
 //     property `foo` the class should be named `foo_key`.
 //  4. Overload the `==` and `!=` operators for the new property class. The
 //     comparison should compare all data members of the property class.
-//  5. Specialize `sycl::ext::oneapi::experimental::is_property_key` and
-//     `sycl::ext::oneapi::experimental::is_property_key_of` for the property
-//     class.
-//  6. Specialize `sycl::ext::oneapi::detail::PropertyToKind` for the new
-//     property class. The specialization should have a `Kind` member with the
-//     value equal to the enumerator added in 1.
-//  7. Specialize `sycl::ext::oneapi::experimental::detail::IsRuntimeProperty`
-//     for the new property class. This specialization should derive from
-//     `std::true_type`.
+//  5. Specialize `sycl::ext::oneapi::experimental::is_property_key_of` for the
+//     property class.
 /******************************* EXAMPLE ***************************************
 ------------- sycl/include/sycl/ext/oneapi/properties/property.hpp -------------
 // (1.)
@@ -117,7 +100,7 @@ enum PropKind : uint32_t {
 namespace sycl::ext::oneapi::experimental {
 
 // (2.)
-struct foo {
+struct foo : detail::run_time_property_key<PropKind::Foo> {
   foo(int v) : value(v) {}
   int value;
 };
@@ -134,21 +117,9 @@ inline bool operator!=(const foo &lhs, const foo &rhs) {
 }
 
 // (5.)
-template <> struct is_property_key<foo> : std::true_type {};
 // Replace SYCL_OBJ with the SYCL object to support the property.
 template <> struct is_property_key_of<foo, SYCL_OBJ> : std::true_type {};
 
-namespace detail {
-
-// (6.)
-template <> struct PropertyToKind<foo> {
-  static constexpr PropKind Kind = PropKind::Foo;
-};
-
-// (7.)
-template <> struct IsRuntimeProperty<foo> : std::true_type {};
-
-} // namespace detail
 } // namespace sycl::ext::oneapi::experimental
 *******************************************************************************/
 
@@ -221,13 +192,39 @@ enum PropKind : uint32_t {
   BuildOptions = 51,
   BuildLog = 52,
   FloatingPointControls = 53,
+  FPGACluster = 54,
+  Balanced = 55,
+  InvocationCapacity = 56,
+  ResponseCapacity = 57,
   // PropKindSize must always be the last value.
-  PropKindSize = 54,
+  PropKindSize = 58,
+};
+
+struct property_key_base_tag {};
+struct compile_time_property_key_base_tag : property_key_base_tag {};
+
+template <PropKind Kind_> struct run_time_property_key : property_key_base_tag {
+protected:
+  static constexpr PropKind Kind = Kind_;
+
+  template <typename T>
+  friend struct PropertyToKind;
+};
+
+template <PropKind Kind_>
+struct compile_time_property_key : compile_time_property_key_base_tag {
+protected:
+  static constexpr PropKind Kind = Kind_;
+
+  template <typename T>
+  friend struct PropertyToKind;
 };
 
 // This trait must be specialized for all properties and must have a unique
 // constexpr PropKind member named Kind.
-template <typename PropertyT> struct PropertyToKind {};
+template <typename PropertyT> struct PropertyToKind {
+  static constexpr PropKind Kind = PropertyT::Kind;
+};
 
 // Get unique ID for property.
 template <typename PropertyT> struct PropertyID {
@@ -236,10 +233,18 @@ template <typename PropertyT> struct PropertyID {
 };
 
 // Trait for identifying runtime properties.
-template <typename PropertyT> struct IsRuntimeProperty : std::false_type {};
+template <typename PropertyT>
+struct IsRuntimeProperty
+    : std::bool_constant<
+          std::is_base_of_v<property_key_base_tag, PropertyT> &&
+          !std::is_base_of_v<compile_time_property_key_base_tag, PropertyT>> {};
 
 // Trait for identifying compile-time properties.
-template <typename PropertyT> struct IsCompileTimeProperty : std::false_type {};
+template <typename PropertyT>
+struct IsCompileTimeProperty
+    : std::bool_constant<
+          std::is_base_of_v<property_key_base_tag, PropertyT> &&
+          std::is_base_of_v<compile_time_property_key_base_tag, PropertyT>> {};
 
 // Trait for property compile-time meta names and values.
 template <typename PropertyT> struct PropertyMetaInfo {
@@ -251,7 +256,10 @@ template <typename PropertyT> struct PropertyMetaInfo {
 
 } // namespace detail
 
-template <typename> struct is_property_key : std::false_type {};
+template <typename T>
+struct is_property_key
+    : std::bool_constant<std::is_base_of_v<detail::property_key_base_tag, T>> {
+};
 template <typename, typename> struct is_property_key_of : std::false_type {};
 
 } // namespace experimental

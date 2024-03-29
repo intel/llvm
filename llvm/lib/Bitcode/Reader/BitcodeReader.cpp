@@ -100,6 +100,15 @@ static cl::opt<bool> ExpandConstantExprs(
     cl::desc(
         "Expand constant expressions to instructions for testing purposes"));
 
+/// Load bitcode directly into RemoveDIs format (use debug records instead
+/// of debug intrinsics). UNSET is treated as FALSE, so the default action
+/// is to do nothing. Individual tools can override this to incrementally add
+/// support for the RemoveDIs format.
+cl::opt<cl::boolOrDefault> LoadBitcodeIntoNewDbgInforFormat(
+    "load-bitcode-into-experimental-debuginfo-iterators", cl::Hidden,
+    cl::desc("Load bitcode directly into the new debug info format (regardless "
+             "of input format)"));
+
 namespace {
 
 enum {
@@ -812,6 +821,30 @@ private:
     return getFnValueByID(ValNo, Ty, TyID, ConstExprInsertBB);
   }
 
+  Expected<ConstantRange> readConstantRange(ArrayRef<uint64_t> Record,
+                                            unsigned &OpNum) {
+    if (Record.size() - OpNum < 3)
+      return error("Too few records for range");
+    unsigned BitWidth = Record[OpNum++];
+    if (BitWidth > 64) {
+      unsigned LowerActiveWords = Record[OpNum];
+      unsigned UpperActiveWords = Record[OpNum++] >> 32;
+      if (Record.size() - OpNum < LowerActiveWords + UpperActiveWords)
+        return error("Too few records for range");
+      APInt Lower =
+          readWideAPInt(ArrayRef(&Record[OpNum], LowerActiveWords), BitWidth);
+      OpNum += LowerActiveWords;
+      APInt Upper =
+          readWideAPInt(ArrayRef(&Record[OpNum], UpperActiveWords), BitWidth);
+      OpNum += UpperActiveWords;
+      return ConstantRange(Lower, Upper);
+    } else {
+      int64_t Start = BitcodeReader::decodeSignRotatedValue(Record[OpNum++]);
+      int64_t End = BitcodeReader::decodeSignRotatedValue(Record[OpNum++]);
+      return ConstantRange(APInt(BitWidth, Start), APInt(BitWidth, End));
+    }
+  }
+
   /// Upgrades old-style typeless byval/sret/inalloca attributes by adding the
   /// corresponding argument's pointee type. Also upgrades intrinsics that now
   /// require an elementtype attribute.
@@ -1117,6 +1150,22 @@ static GlobalVarSummary::GVarFlags getDecodedGVarFlags(uint64_t RawFlags) {
       (GlobalObject::VCallVisibility)(RawFlags >> 3));
 }
 
+static std::pair<CalleeInfo::HotnessType, bool>
+getDecodedHotnessCallEdgeInfo(uint64_t RawFlags) {
+  CalleeInfo::HotnessType Hotness =
+      static_cast<CalleeInfo::HotnessType>(RawFlags & 0x7); // 3 bits
+  bool HasTailCall = (RawFlags & 0x8);                      // 1 bit
+  return {Hotness, HasTailCall};
+}
+
+static void getDecodedRelBFCallEdgeInfo(uint64_t RawFlags, uint64_t &RelBF,
+                                        bool &HasTailCall) {
+  static constexpr uint64_t RelBlockFreqMask =
+      (1 << CalleeInfo::RelBlockFreqBits) - 1;
+  RelBF = RawFlags & RelBlockFreqMask; // RelBlockFreqBits bits
+  HasTailCall = (RawFlags & (1 << CalleeInfo::RelBlockFreqBits)); // 1 bit
+}
+
 static GlobalValue::VisibilityTypes getDecodedVisibility(unsigned Val) {
   switch (Val) {
   default: // Map unknown visibilities to default.
@@ -1142,6 +1191,23 @@ static bool getDecodedDSOLocal(unsigned Val) {
   case 0:  return false;
   case 1:  return true;
   }
+}
+
+static std::optional<CodeModel::Model> getDecodedCodeModel(unsigned Val) {
+  switch (Val) {
+  case 1:
+    return CodeModel::Tiny;
+  case 2:
+    return CodeModel::Small;
+  case 3:
+    return CodeModel::Kernel;
+  case 4:
+    return CodeModel::Medium;
+  case 5:
+    return CodeModel::Large;
+  }
+
+  return {};
 }
 
 static GlobalVariable::ThreadLocalMode getDecodedThreadLocalMode(unsigned Val) {
@@ -2065,6 +2131,10 @@ static Attribute::AttrKind getAttrFromCode(uint64_t Code) {
     return Attribute::Writable;
   case bitc::ATTR_KIND_CORO_ONLY_DESTROY_WHEN_COMPLETE:
     return Attribute::CoroDestroyOnlyWhenComplete;
+  case bitc::ATTR_KIND_DEAD_ON_UNWIND:
+    return Attribute::DeadOnUnwind;
+  case bitc::ATTR_KIND_RANGE:
+    return Attribute::Range;
   }
 }
 
@@ -2234,6 +2304,21 @@ Error BitcodeReader::parseAttributeGroupBlock() {
             return error("Not a type attribute");
 
           B.addTypeAttr(Kind, HasType ? getTypeByID(Record[++i]) : nullptr);
+        } else if (Record[i] == 7) {
+          Attribute::AttrKind Kind;
+
+          i++;
+          if (Error Err = parseAttrKind(Record[i++], &Kind))
+            return Err;
+          if (!Attribute::isConstantRangeAttrKind(Kind))
+            return error("Not a ConstantRange attribute");
+
+          Expected<ConstantRange> MaybeCR = readConstantRange(Record, i);
+          if (!MaybeCR)
+            return MaybeCR.takeError();
+          i--;
+
+          B.addConstantRangeAttr(Kind, MaybeCR.get());
         } else {
           return error("Invalid attribute group entry");
         }
@@ -3022,48 +3107,49 @@ Error BitcodeReader::parseConstants() {
       V = Constant::getNullValue(CurTy);
       break;
     case bitc::CST_CODE_INTEGER:   // INTEGER: [intval]
-      if (!CurTy->isIntegerTy() || Record.empty())
+      if (!CurTy->isIntOrIntVectorTy() || Record.empty())
         return error("Invalid integer const record");
       V = ConstantInt::get(CurTy, decodeSignRotatedValue(Record[0]));
       break;
     case bitc::CST_CODE_WIDE_INTEGER: {// WIDE_INTEGER: [n x intval]
-      if (!CurTy->isIntegerTy() || Record.empty())
+      if (!CurTy->isIntOrIntVectorTy() || Record.empty())
         return error("Invalid wide integer const record");
 
-      APInt VInt =
-          readWideAPInt(Record, cast<IntegerType>(CurTy)->getBitWidth());
-      V = ConstantInt::get(Context, VInt);
-
+      auto *ScalarTy = cast<IntegerType>(CurTy->getScalarType());
+      APInt VInt = readWideAPInt(Record, ScalarTy->getBitWidth());
+      V = ConstantInt::get(CurTy, VInt);
       break;
     }
     case bitc::CST_CODE_FLOAT: {    // FLOAT: [fpval]
       if (Record.empty())
         return error("Invalid float const record");
-      if (CurTy->isHalfTy())
-        V = ConstantFP::get(Context, APFloat(APFloat::IEEEhalf(),
-                                             APInt(16, (uint16_t)Record[0])));
-      else if (CurTy->isBFloatTy())
-        V = ConstantFP::get(Context, APFloat(APFloat::BFloat(),
-                                             APInt(16, (uint32_t)Record[0])));
-      else if (CurTy->isFloatTy())
-        V = ConstantFP::get(Context, APFloat(APFloat::IEEEsingle(),
-                                             APInt(32, (uint32_t)Record[0])));
-      else if (CurTy->isDoubleTy())
-        V = ConstantFP::get(Context, APFloat(APFloat::IEEEdouble(),
-                                             APInt(64, Record[0])));
-      else if (CurTy->isX86_FP80Ty()) {
+
+      auto *ScalarTy = CurTy->getScalarType();
+      if (ScalarTy->isHalfTy())
+        V = ConstantFP::get(CurTy, APFloat(APFloat::IEEEhalf(),
+                                           APInt(16, (uint16_t)Record[0])));
+      else if (ScalarTy->isBFloatTy())
+        V = ConstantFP::get(
+            CurTy, APFloat(APFloat::BFloat(), APInt(16, (uint32_t)Record[0])));
+      else if (ScalarTy->isFloatTy())
+        V = ConstantFP::get(CurTy, APFloat(APFloat::IEEEsingle(),
+                                           APInt(32, (uint32_t)Record[0])));
+      else if (ScalarTy->isDoubleTy())
+        V = ConstantFP::get(
+            CurTy, APFloat(APFloat::IEEEdouble(), APInt(64, Record[0])));
+      else if (ScalarTy->isX86_FP80Ty()) {
         // Bits are not stored the same way as a normal i80 APInt, compensate.
         uint64_t Rearrange[2];
         Rearrange[0] = (Record[1] & 0xffffLL) | (Record[0] << 16);
         Rearrange[1] = Record[0] >> 48;
-        V = ConstantFP::get(Context, APFloat(APFloat::x87DoubleExtended(),
-                                             APInt(80, Rearrange)));
-      } else if (CurTy->isFP128Ty())
-        V = ConstantFP::get(Context, APFloat(APFloat::IEEEquad(),
-                                             APInt(128, Record)));
-      else if (CurTy->isPPC_FP128Ty())
-        V = ConstantFP::get(Context, APFloat(APFloat::PPCDoubleDouble(),
-                                             APInt(128, Record)));
+        V = ConstantFP::get(
+            CurTy, APFloat(APFloat::x87DoubleExtended(), APInt(80, Rearrange)));
+      } else if (ScalarTy->isFP128Ty())
+        V = ConstantFP::get(CurTy,
+                            APFloat(APFloat::IEEEquad(), APInt(128, Record)));
+      else if (ScalarTy->isPPC_FP128Ty())
+        V = ConstantFP::get(
+            CurTy, APFloat(APFloat::PPCDoubleDouble(), APInt(128, Record)));
       else
         V = UndefValue::get(CurTy);
       break;
@@ -3805,6 +3891,7 @@ Error BitcodeReader::parseGlobalVarRecord(ArrayRef<uint64_t> Record) {
   // dllstorageclass, comdat, attributes, preemption specifier,
   // partition strtab offset, partition strtab size] (name in VST)
   // v2: [strtab_offset, strtab_size, v1]
+  // v3: [v2, code_model]
   StringRef Name;
   std::tie(Name, Record) = readNameFromStrtab(Record);
 
@@ -3911,6 +3998,13 @@ Error BitcodeReader::parseGlobalVarRecord(ArrayRef<uint64_t> Record) {
     llvm::GlobalValue::SanitizerMetadata Meta =
         deserializeSanitizerMetadata(Record[16]);
     NewGV->setSanitizerMetadata(Meta);
+  }
+
+  if (Record.size() > 17 && Record[17]) {
+    if (auto CM = getDecodedCodeModel(Record[17]))
+      NewGV->setCodeModel(*CM);
+    else
+      return error("Invalid global variable code model");
   }
 
   return Error::success();
@@ -4175,6 +4269,9 @@ Error BitcodeReader::parseGlobalIndirectSymbolRecord(
 
   // Check whether we have enough values to read a partition name.
   if (OpNum + 1 < Record.size()) {
+    // Check Strtab has enough values for the partition.
+    if (Record[OpNum] + Record[OpNum + 1] > Strtab.size())
+      return error("Malformed partition, too large.");
     NewGA->setPartition(
         StringRef(Strtab.data() + Record[OpNum], Record[OpNum + 1]));
     OpNum += 2;
@@ -4188,6 +4285,12 @@ Error BitcodeReader::parseGlobalIndirectSymbolRecord(
 Error BitcodeReader::parseModule(uint64_t ResumeBit,
                                  bool ShouldLazyLoadMetadata,
                                  ParserCallbacks Callbacks) {
+  // Load directly into RemoveDIs format if LoadBitcodeIntoNewDbgInforFormat
+  // has been set to true (default action: load into the old debug format).
+  TheModule->IsNewDbgInfoFormat =
+      UseNewDbgInfoFormat &&
+      LoadBitcodeIntoNewDbgInforFormat == cl::boolOrDefault::BOU_TRUE;
+
   this->ValueTypeCallback = std::move(Callbacks.ValueType);
   if (ResumeBit) {
     if (Error JumpFailed = Stream.JumpToBit(ResumeBit))
@@ -5207,7 +5310,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
         return error(
             "Invalid record: operand number exceeded available operands");
 
-      unsigned PredVal = Record[OpNum];
+      CmpInst::Predicate PredVal = CmpInst::Predicate(Record[OpNum]);
       bool IsFP = LHS->getType()->isFPOrFPVectorTy();
       FastMathFlags FMF;
       if (IsFP && Record.size() > OpNum+1)
@@ -5216,10 +5319,15 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       if (OpNum+1 != Record.size())
         return error("Invalid record");
 
-      if (LHS->getType()->isFPOrFPVectorTy())
-        I = new FCmpInst((FCmpInst::Predicate)PredVal, LHS, RHS);
-      else
-        I = new ICmpInst((ICmpInst::Predicate)PredVal, LHS, RHS);
+      if (IsFP) {
+        if (!CmpInst::isFPPredicate(PredVal))
+          return error("Invalid fcmp predicate");
+        I = new FCmpInst(PredVal, LHS, RHS);
+      } else {
+        if (!CmpInst::isIntPredicate(PredVal))
+          return error("Invalid icmp predicate");
+        I = new ICmpInst(PredVal, LHS, RHS);
+      }
 
       ResTypeID = getVirtualTypeID(I->getType()->getScalarType());
       if (LHS->getType()->isVectorTy())
@@ -5322,6 +5430,8 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       Type *TokenTy = Type::getTokenTy(Context);
       Value *ParentPad = getValue(Record, Idx++, NextValueNo, TokenTy,
                                   getVirtualTypeID(TokenTy), CurBB);
+      if (!ParentPad)
+        return error("Invalid record");
 
       unsigned NumHandlers = Record[Idx++];
 
@@ -5363,6 +5473,8 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       Type *TokenTy = Type::getTokenTy(Context);
       Value *ParentPad = getValue(Record, Idx++, NextValueNo, TokenTy,
                                   getVirtualTypeID(TokenTy), CurBB);
+      if (!ParentPad)
+        return error("Invald record");
 
       unsigned NumArgOperands = Record[Idx++];
 
@@ -5917,6 +6029,9 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       if (!Align)
         Align = DL.getPrefTypeAlign(Ty);
 
+      if (!Size->getType()->isIntegerTy())
+        return error("alloca element count must have integer type");
+
       AllocaInst *AI = new AllocaInst(Ty, AS, Size, *Align);
       AI->setUsedWithInAlloca(InAlloca);
       AI->setSwiftError(SwiftError);
@@ -5943,9 +6058,10 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       } else {
         ResTypeID = getContainedTypeID(OpTypeID);
         Ty = getTypeByID(ResTypeID);
-        if (!Ty)
-          return error("Missing element type for old-style load");
       }
+
+      if (!Ty)
+        return error("Missing load type");
 
       if (Error Err = typeCheckLoadStoreInst(Ty, Op->getType()))
         return Err;
@@ -5981,9 +6097,10 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       } else {
         ResTypeID = getContainedTypeID(OpTypeID);
         Ty = getTypeByID(ResTypeID);
-        if (!Ty)
-          return error("Missing element type for old style atomic load");
       }
+
+      if (!Ty)
+        return error("Missing atomic load type");
 
       if (Error Err = typeCheckLoadStoreInst(Ty, Op->getType()))
         return Err;
@@ -6293,6 +6410,91 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       InstructionList.push_back(I);
       break;
     }
+    case bitc::FUNC_CODE_DEBUG_RECORD_LABEL: {
+      // DPLabels are placed after the Instructions that they are attached to.
+      Instruction *Inst = getLastInstruction();
+      if (!Inst)
+        return error("Invalid dbg record: missing instruction");
+      DILocation *DIL = cast<DILocation>(getFnMetadataByID(Record[0]));
+      DILabel *Label = cast<DILabel>(getFnMetadataByID(Record[1]));
+      Inst->getParent()->insertDbgRecordBefore(
+          new DPLabel(Label, DebugLoc(DIL)), Inst->getIterator());
+      continue; // This isn't an instruction.
+    }
+    case bitc::FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE:
+    case bitc::FUNC_CODE_DEBUG_RECORD_VALUE:
+    case bitc::FUNC_CODE_DEBUG_RECORD_DECLARE:
+    case bitc::FUNC_CODE_DEBUG_RECORD_ASSIGN: {
+      // DbgVariableRecords are placed after the Instructions that they are
+      // attached to.
+      Instruction *Inst = getLastInstruction();
+      if (!Inst)
+        return error("Invalid dbg record: missing instruction");
+
+      // First 3 fields are common to all kinds:
+      //   DILocation, DILocalVariable, DIExpression
+      // dbg_value (FUNC_CODE_DEBUG_RECORD_VALUE)
+      //   ..., LocationMetadata
+      // dbg_value (FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE - abbrev'd)
+      //   ..., Value
+      // dbg_declare (FUNC_CODE_DEBUG_RECORD_DECLARE)
+      //   ..., LocationMetadata
+      // dbg_assign (FUNC_CODE_DEBUG_RECORD_ASSIGN)
+      //   ..., LocationMetadata, DIAssignID, DIExpression, LocationMetadata
+      unsigned Slot = 0;
+      // Common fields (0-2).
+      DILocation *DIL = cast<DILocation>(getFnMetadataByID(Record[Slot++]));
+      DILocalVariable *Var =
+          cast<DILocalVariable>(getFnMetadataByID(Record[Slot++]));
+      DIExpression *Expr =
+          cast<DIExpression>(getFnMetadataByID(Record[Slot++]));
+
+      // Union field (3: LocationMetadata | Value).
+      Metadata *RawLocation = nullptr;
+      if (BitCode == bitc::FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE) {
+        Value *V = nullptr;
+        unsigned TyID = 0;
+        // We never expect to see a fwd reference value here because
+        // use-before-defs are encoded with the standard non-abbrev record
+        // type (they'd require encoding the type too, and they're rare). As a
+        // result, getValueTypePair only ever increments Slot by one here (once
+        // for the value, never twice for value and type).
+        unsigned SlotBefore = Slot;
+        if (getValueTypePair(Record, Slot, NextValueNo, V, TyID, CurBB))
+          return error("Invalid dbg record: invalid value");
+        (void)SlotBefore;
+        assert((SlotBefore == Slot - 1) && "unexpected fwd ref");
+        RawLocation = ValueAsMetadata::get(V);
+      } else {
+        RawLocation = getFnMetadataByID(Record[Slot++]);
+      }
+
+      DbgVariableRecord *DVR = nullptr;
+      switch (BitCode) {
+      case bitc::FUNC_CODE_DEBUG_RECORD_VALUE:
+      case bitc::FUNC_CODE_DEBUG_RECORD_VALUE_SIMPLE:
+        DVR = new DbgVariableRecord(RawLocation, Var, Expr, DIL,
+                                    DbgVariableRecord::LocationType::Value);
+        break;
+      case bitc::FUNC_CODE_DEBUG_RECORD_DECLARE:
+        DVR = new DbgVariableRecord(RawLocation, Var, Expr, DIL,
+                                    DbgVariableRecord::LocationType::Declare);
+        break;
+      case bitc::FUNC_CODE_DEBUG_RECORD_ASSIGN: {
+        DIAssignID *ID = cast<DIAssignID>(getFnMetadataByID(Record[Slot++]));
+        DIExpression *AddrExpr =
+            cast<DIExpression>(getFnMetadataByID(Record[Slot++]));
+        Metadata *Addr = getFnMetadataByID(Record[Slot++]);
+        DVR = new DbgVariableRecord(RawLocation, Var, Expr, ID, Addr, AddrExpr,
+                                    DIL);
+        break;
+      }
+      default:
+        llvm_unreachable("Unknown DbgVariableRecord bitcode");
+      }
+      Inst->getParent()->insertDbgRecordBefore(DVR, Inst->getIterator());
+      continue; // This isn't an instruction.
+    }
     case bitc::FUNC_CODE_INST_CALL: {
       // CALL: [paramattrs, cc, fmf, fnty, fnid, arg0, arg1...]
       if (Record.size() < 3)
@@ -6572,9 +6774,21 @@ Error BitcodeReader::materialize(GlobalValue *GV) {
   // Move the bit stream to the saved position of the deferred function body.
   if (Error JumpFailed = Stream.JumpToBit(DFII->second))
     return JumpFailed;
+
+  // Set the debug info mode to "new", possibly creating a mismatch between
+  // module and function debug modes. This is okay because we'll convert
+  // everything back to the old mode after parsing if needed.
+  // FIXME: Remove this once all tools support RemoveDIs.
+  F->IsNewDbgInfoFormat = true;
+
   if (Error Err = parseFunctionBody(F))
     return Err;
   F->setIsMaterializable(false);
+
+  // Convert new debug info records into intrinsics.
+  // FIXME: Remove this once all tools support RemoveDIs.
+  if (!F->getParent()->IsNewDbgInfoFormat)
+    F->convertFromNewDbgValues();
 
   if (StripDebugInfo)
     stripDebugInfo(*F);
@@ -7005,6 +7219,7 @@ ModuleSummaryIndexBitcodeReader::makeCallList(ArrayRef<uint64_t> Record,
   Ret.reserve(Record.size());
   for (unsigned I = 0, E = Record.size(); I != E; ++I) {
     CalleeInfo::HotnessType Hotness = CalleeInfo::HotnessType::Unknown;
+    bool HasTailCall = false;
     uint64_t RelBF = 0;
     ValueInfo Callee = std::get<0>(getValueInfoFromValueId(Record[I]));
     if (IsOldProfileFormat) {
@@ -7012,10 +7227,12 @@ ModuleSummaryIndexBitcodeReader::makeCallList(ArrayRef<uint64_t> Record,
       if (HasProfile)
         I += 1; // Skip old profilecount field
     } else if (HasProfile)
-      Hotness = static_cast<CalleeInfo::HotnessType>(Record[++I]);
+      std::tie(Hotness, HasTailCall) =
+          getDecodedHotnessCallEdgeInfo(Record[++I]);
     else if (HasRelBF)
-      RelBF = Record[++I];
-    Ret.push_back(FunctionSummary::EdgeTy{Callee, CalleeInfo(Hotness, RelBF)});
+      getDecodedRelBFCallEdgeInfo(Record[++I], RelBF, HasTailCall);
+    Ret.push_back(FunctionSummary::EdgeTy{
+        Callee, CalleeInfo(Hotness, HasTailCall, RelBF)});
   }
   return Ret;
 }
@@ -7229,14 +7446,15 @@ Error ModuleSummaryIndexBitcodeReader::parseEntireSummary(unsigned ID) {
           TheIndex.getOrInsertValueInfo(RefGUID), RefGUID, RefGUID);
       break;
     }
+    // FS_PERMODULE is legacy and does not have support for the tail call flag.
     // FS_PERMODULE: [valueid, flags, instcount, fflags, numrefs,
     //                numrefs x valueid, n x (valueid)]
     // FS_PERMODULE_PROFILE: [valueid, flags, instcount, fflags, numrefs,
     //                        numrefs x valueid,
-    //                        n x (valueid, hotness)]
+    //                        n x (valueid, hotness+tailcall flags)]
     // FS_PERMODULE_RELBF: [valueid, flags, instcount, fflags, numrefs,
     //                      numrefs x valueid,
-    //                      n x (valueid, relblockfreq)]
+    //                      n x (valueid, relblockfreq+tailcall)]
     case bitc::FS_PERMODULE:
     case bitc::FS_PERMODULE_RELBF:
     case bitc::FS_PERMODULE_PROFILE: {
@@ -7383,10 +7601,12 @@ Error ModuleSummaryIndexBitcodeReader::parseEntireSummary(unsigned ID) {
       TheIndex.addGlobalValueSummary(std::get<0>(GUID), std::move(VS));
       break;
     }
+    // FS_COMBINED is legacy and does not have support for the tail call flag.
     // FS_COMBINED: [valueid, modid, flags, instcount, fflags, numrefs,
     //               numrefs x valueid, n x (valueid)]
     // FS_COMBINED_PROFILE: [valueid, modid, flags, instcount, fflags, numrefs,
-    //                       numrefs x valueid, n x (valueid, hotness)]
+    //                       numrefs x valueid,
+    //                       n x (valueid, hotness+tailcall flags)]
     case bitc::FS_COMBINED:
     case bitc::FS_COMBINED_PROFILE: {
       unsigned ValueID = Record[0];
@@ -7961,6 +8181,7 @@ BitcodeModule::getModuleImpl(LLVMContext &Context, bool MaterializeAll,
     if (Error Err = R->materializeForwardReferencedFunctions())
       return std::move(Err);
   }
+
   return std::move(M);
 }
 

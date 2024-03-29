@@ -50,8 +50,9 @@ sycl/plugins/**/hip/ @intel/llvm-reviewers-cuda
 # CUDA specific runtime implementations
 sycl/include/sycl/ext/oneapi/experimental/cuda/ @intel/llvm-reviewers-cuda
 
-# CUDA device code tests
+# CUDA and HIP device code tests
 sycl/test/check_device_code/cuda/ @intel/llvm-reviewers-cuda
+sycl/test/check_device_code/hip/ @intel/llvm-reviewers-cuda
 
 # XPTI instrumentation utilities
 xpti/ @intel/llvm-reviewers-runtime
@@ -133,7 +134,7 @@ sycl/include/sycl/detail/native_cpu.hpp @intel/dpcpp-nativecpu-pi-reviewers
 sycl/include/sycl/ext/oneapi/experimental/graph.hpp @intel/sycl-graphs-reviewers
 sycl/source/detail/graph_impl.cpp @intel/sycl-graphs-reviewers
 sycl/source/detail/graph_impl.hpp @intel/sycl-graphs-reviewers
-sycl/unittests/Extensions/CommandGraph.cpp @intel/sycl-graphs-reviewers
+sycl/unittests/Extensions/CommandGraph/ @intel/sycl-graphs-reviewers
 sycl/doc/design/CommandGraph.md @intel/sycl-graphs-reviewers
 sycl/test-e2e/Graph @intel/sycl-graphs-reviewers
 sycl/doc/extensions/**/sycl_ext_oneapi_graph.asciidoc @intel/sycl-graphs-reviewers

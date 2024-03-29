@@ -31,6 +31,7 @@
   - [__regcall Calling convention](#__regcall-calling-convention)
   - [Inline assembly](#inline-assembly)
   - [Device aspect](#device-aspect)
+- [Device queries and conditional dispatching of the code](#device-queries-and-conditional-dispatching-of-the-code)
 - [Implementation restrictions](#implementation-restrictions)
   - [Features not supported with the ESIMD extension](#features-not-supported-with-the-esimd-extension)
   - [Unsupported standard SYCL APIs](#unsupported-standard-sycl-apis)
@@ -76,11 +77,15 @@ compiler, collectives just return the value in the single work-item. Another
 consequence of the unit subgroup size is guaranteed independent forward
 progress between work-items on many Intel GPU architecture generations.
 
-## Explicit SIMD extension APIs
+Explicit SIMD APIs must be executed on Intel graphics architecture devices.
+Attempting to run such code on other devices will result in an error.
 
-Explicit SIMD APIs can be used only in code to be executed on Intel graphics
-architecture devices and the host device for now. Attempt to run such code on
-other devices will result in error. 
+Also, most of ESIMD APIs require the corresponding HW support in the target GPU.
+It is user's responsibility to manage corresponding compile- and/or runtime-checks to avoid
+undefined behavior caused by using ESIMD APIs on GPUs that don't support it.
+See [this section](#device-queries-and-conditional-dispatching-of-the-code) for device query/dispatch machanisms usable to avoid undefined behavior.
+
+## Explicit SIMD extension APIs
 
 All the ESIMD APIs are defined in the `sycl::ext::intel::esimd`
 namespace.
@@ -360,8 +365,8 @@ memory access interface. It supports main SYCL's device memory representations:
 
 Only small subset of `sycl::accessor` APIs is supported in ESIMD context:
 - accessor::accessor();
-- accessor::get_pointer(); // Supported only with the `-fsycl-esimd-force-stateless-mem` switch.
-- accessor::operator[]; // Supported only with the `-fsycl-esimd-force-stateless-mem` switch.
+- accessor::get_pointer(); // Supported only with the `-fsycl-esimd-force-stateless-mem` switch (turned ON by default).
+- accessor::operator[]; // Supported only with the `-fsycl-esimd-force-stateless-mem` switch (turned ON by default).
 
 ESIMD provides special APIs to access memory through accessors. Those APIs
 accept an accessor object as a base reference to the addressed memory and
@@ -414,6 +419,8 @@ They go through extra layer of faster cache.
 load/store scalar values through accessors. In case of USM pointers, usual
 C++ dereference operator can be used. SLM versions are also available.
 
+See a more detailed list of available memory APIs [here](./sycl_ext_intel_esimd_functions.md).
+
 
 #### Shared local memory access
 
@@ -423,13 +430,13 @@ This memory is shared between work items in a workgroup - basically
 it is ESIMD variant of the SYCL `local` memory.
 
 SLM variants of APIs have 'slm_' prefix in their names,
-e.g. ext::intel::esimd::slm_block_load() or ext::intel::experimental::esimd::lsc_slm_gather().
+e.g. ext::intel::esimd::slm_block_load() or ext::intel::esimd::slm_gather().
 
 SLM memory must be explicitly allocated before it is read or written.
 
 There are 3 different ways of SLM allocation in ESIMD:
-* static allocation using slm_init<SLMByteSize>() and slm_init(SpecializationConstSLMByteSize)
-* semi-dynamic allocation using slm_allocator<SLMByteSize> class
+* static allocation using `slm_init<SLMByteSize>()` and `slm_init(SpecializationConstSLMByteSize)`
+* semi-dynamic allocation using `slm_allocator<SLMByteSize>` class
 * SYCL local accessors
 
 ##### Static allocation of SLM using slm_init function.
@@ -452,6 +459,7 @@ Restrictions:
 * The call of `slm_init` must be placed in the beginning of the kernel.
 If `slm_init` is called in some function 'F' called from kernel, then inlining
 of 'F' to the kernel must be forced/guaranteed.
+* `slm_init` cannot be used together with `local_accessor` in the same kernel.
 
 ##### Semi-dynamic allocation of SLM.
 The class `slm_allocator` is designed to be used in basic blocks or functions
@@ -653,6 +661,7 @@ See more details in the API documentation
 ### Dot Product Accumulate Systolic - `DPAS` API
 
 DPAS is the matrix multiply-add-and-accumulate operation performed on limited size matrices/tiles.
+This API requires XMX (Xe Matrix eXtension) to be supported by the target GPU.
 
 The input and output matrix/tile dimensions are parametrizable to certain extent and depend on the element types of operands and the target device.   
 The operands and returns of DPAS API may require vertical or horizontal packing or unpacking. Please see [more details](#input-and-output-matrices-representation-as-simd-vectors) below.
@@ -667,8 +676,8 @@ As a member XMX (Xe Matrix eXtension) family of GPU operations it is included in
 /// it is deducible from the element types of input matrices.
 enum class dpas_argument_type {
   Invalid = 0,
-  u1 = 1, // unsigned 1 bit
-  s1 = 2, // signed 1 bit
+  u1 = 1, // unsigned 1 bit: this type is reserved - not suppoted
+  s1 = 2, // signed 1 bit: this type is reserved - not suppoted
   u2 = 3, // unsigned 2 bits
   s2 = 4, // signed 2 bits
   u4 = 5, // unsigned 4 bits
@@ -1118,6 +1127,22 @@ int main(void) {
 ```
 more examples can be found in the
 [ESIMD test suite](https://github.com/intel/llvm/tree/sycl/sycl/test-e2e/ESIMD) on github.
+
+## Device queries and conditional dispatching of the code
+
+ESIMD API provides access to low level GPU hardware API. At ESIMD program
+compilation time it is not known what target device is going to be used to run the program.
+The ESIMD programming model relies on the user to manage the corresponding compile- and/or
+runtime-checks to prevent ESIMD API from running on a GPU that does not support the API.
+
+One of the most trivial ways to manage such checks is to have them on the HOST. This variant
+includes a) calling device detect query to understand what device is being used
+b) depending on the device run one or another version of the kernel.
+For example, [this test](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/ESIMD/dpas/dpas_int.cpp#L8) is designed to be run on DG2 and PVC even though those two devices have
+different `execution sizes`. This is done via usage of [device query on the HOST](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/ESIMD/dpas/dpas_common.hpp#L430) and a subsequent
+call of the corresponding supported variant of the [DG2 kernel](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/ESIMD/dpas/dpas_common.hpp#L446) or [PVC kernel](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/ESIMD/dpas/dpas_common.hpp#L438).
+
+There may also be JIT-compile time checks via usage of [specialization constants](https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#_specialization_constants) or [if_architecture_is](../../experimental/sycl_ext_oneapi_device_architecture.asciidoc) extension.
 
 ## Implementation restrictions
 

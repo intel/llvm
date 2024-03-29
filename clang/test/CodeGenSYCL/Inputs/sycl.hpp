@@ -2,6 +2,18 @@
 
 #define ATTR_SYCL_KERNEL __attribute__((sycl_kernel))
 #define __SYCL_TYPE(x) [[__sycl_detail__::sycl_type(x)]]
+#define __SYCL_BUILTIN_ALIAS(X) [[clang::builtin_alias(X)]]
+
+#ifdef SYCL_EXTERNAL
+#define __DPCPP_SYCL_EXTERNAL SYCL_EXTERNAL
+#else
+#ifdef __SYCL_DEVICE_ONLY__
+#define __DPCPP_SYCL_EXTERNAL __attribute__((sycl_device))
+#else
+#define __DPCPP_SYCL_EXTERNAL
+#define SYCL_EXTERNAL
+#endif
+#endif
 
 extern "C" int printf(const char* fmt, ...);
 
@@ -33,6 +45,10 @@ template <int dimensions = 1>
 class __SYCL_TYPE(group) group {
 public:
   group() = default; // fake constructor
+  // Dummy parallel_for_work_item function to mimic calls from
+  // parallel_for_work_group.
+  void parallel_for_work_item() {
+  }
 };
 
 namespace access {
@@ -65,7 +81,14 @@ enum class address_space : int {
   private_space = 0,
   global_space,
   constant_space,
-  local_space
+  local_space,
+  generic_space
+};
+
+enum class decorated : int {
+  no = 0,
+  yes,
+  legacy
 };
 } // namespace access
 
@@ -127,6 +150,91 @@ struct __SYCL_TYPE(buffer_location) buffer_location {
 } // namespace intel
 } // namespace ext
 
+template <typename ElementType, access::address_space addressSpace>
+struct DecoratedType;
+
+template <typename ElementType>
+struct DecoratedType<ElementType, access::address_space::private_space> {
+  using type = __attribute__((opencl_private)) ElementType;
+};
+
+template <typename ElementType>
+struct DecoratedType<ElementType, access::address_space::generic_space> {
+  using type = ElementType;
+};
+
+template <typename ElementType>
+struct DecoratedType<ElementType, access::address_space::global_space> {
+  using type = __attribute__((opencl_global)) ElementType;
+};
+
+template <typename ElementType>
+struct DecoratedType<ElementType, access::address_space::constant_space> {
+#if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
+  using type = const __attribute__((opencl_global)) ElementType;
+#else
+  using type = __attribute__((opencl_global)) ElementType;
+#endif
+};
+
+// Equivalent to std::conditional
+template <bool B, class T, class F>
+struct conditional { using type = T; };
+
+template <class T, class F>
+struct conditional<false, T, F> { using type = F; };
+
+template <bool B, class T, class F>
+using conditional_t = typename conditional<B, T, F>::type;
+
+template <typename T, access::address_space AS,
+          access::decorated DecorateAddress = access::decorated::legacy>
+class __SYCL_TYPE(multi_ptr) multi_ptr {
+  static constexpr bool is_decorated =
+      DecorateAddress == access::decorated::yes;
+
+  using decorated_type = typename DecoratedType<T, AS>::type;
+
+  static_assert(DecorateAddress != access::decorated::legacy);
+  static_assert(AS != access::address_space::constant_space);
+
+public:
+  using pointer = conditional_t<is_decorated, decorated_type *, T *>;
+
+  multi_ptr(typename multi_ptr<T, AS, access::decorated::yes>::pointer Ptr)
+    : m_Pointer((pointer)(Ptr)) {} // #MultiPtrConstructor
+  pointer get() { return m_Pointer; }
+
+ private:
+  pointer m_Pointer;
+};
+
+template <typename ElementType, access::address_space Space>
+struct LegacyPointerType {
+  using pointer_t = typename multi_ptr<ElementType, Space, access::decorated::yes>::pointer;
+};
+
+template <typename ElementType>
+struct LegacyPointerType<ElementType, access::address_space::constant_space> {
+  using decorated_type = typename DecoratedType<ElementType, access::address_space::constant_space>::type;
+  using pointer_t = decorated_type *;
+};
+
+// Legacy specialization
+template <typename T, access::address_space AS>
+class __SYCL_TYPE(multi_ptr) multi_ptr<T, AS, access::decorated::legacy> {
+public:
+  using pointer_t = typename LegacyPointerType<T, AS>::pointer_t;
+
+  multi_ptr(typename multi_ptr<T, AS, access::decorated::yes>::pointer Ptr)
+    : m_Pointer((pointer_t)(Ptr)) {}
+  multi_ptr(T *Ptr) : m_Pointer((pointer_t)(Ptr)) {} // #LegacyMultiPtrConstructor
+  pointer_t get() { return m_Pointer; }
+
+ private:
+  pointer_t m_Pointer;
+};
+         
 namespace ext {
 namespace oneapi {
 namespace property {

@@ -14,7 +14,7 @@
 #include <sycl/detail/common.hpp>              // for NDLoop, __SYCL_ASSERT
 #include <sycl/detail/defines.hpp>             // for __SYCL_TYPE
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
-#include <sycl/detail/generic_type_traits.hpp> // for ConvertToOpenCLType_t
+#include <sycl/detail/generic_type_traits.hpp> // for convertToOpenCLType
 #include <sycl/detail/helpers.hpp>             // for Builder, getSPIRVMemo...
 #include <sycl/detail/item_base.hpp>           // for id, range
 #include <sycl/detail/type_traits.hpp>         // for is_bool, change_base_...
@@ -315,12 +315,9 @@ public:
                                                        global_ptr<dataT> src,
                                                        size_t numElements,
                                                        size_t srcStride) const {
-    using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
-    using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
-
     __ocl_event_t E = __SYCL_OpGroupAsyncCopyGlobalToLocal(
-        __spv::Scope::Workgroup, DestT(dest.get()), SrcT(src.get()),
-        numElements, srcStride, 0);
+        __spv::Scope::Workgroup, detail::convertToOpenCLType(dest),
+        detail::convertToOpenCLType(src), numElements, srcStride, 0);
     return device_event(E);
   }
 
@@ -337,12 +334,9 @@ public:
                                                        size_t numElements,
                                                        size_t destStride)
       const {
-    using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
-    using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
-
     __ocl_event_t E = __SYCL_OpGroupAsyncCopyLocalToGlobal(
-        __spv::Scope::Workgroup, DestT(dest.get()), SrcT(src.get()),
-        numElements, destStride, 0);
+        __spv::Scope::Workgroup, detail::convertToOpenCLType(dest),
+        detail::convertToOpenCLType(src), numElements, destStride, 0);
     return device_event(E);
   }
 
@@ -359,12 +353,9 @@ public:
   async_work_group_copy(decorated_local_ptr<DestDataT> dest,
                         decorated_global_ptr<SrcDataT> src, size_t numElements,
                         size_t srcStride) const {
-    using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
-    using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
-
     __ocl_event_t E = __SYCL_OpGroupAsyncCopyGlobalToLocal(
-        __spv::Scope::Workgroup, DestT(dest.get()), SrcT(src.get()),
-        numElements, srcStride, 0);
+        __spv::Scope::Workgroup, detail::convertToOpenCLType(dest),
+        detail::convertToOpenCLType(src), numElements, srcStride, 0);
     return device_event(E);
   }
 
@@ -381,12 +372,9 @@ public:
   async_work_group_copy(decorated_global_ptr<DestDataT> dest,
                         decorated_local_ptr<SrcDataT> src, size_t numElements,
                         size_t destStride) const {
-    using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
-    using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
-
     __ocl_event_t E = __SYCL_OpGroupAsyncCopyLocalToGlobal(
-        __spv::Scope::Workgroup, DestT(dest.get()), SrcT(src.get()),
-        numElements, destStride, 0);
+        __spv::Scope::Workgroup, detail::convertToOpenCLType(dest),
+        detail::convertToOpenCLType(src), numElements, destStride, 0);
     return device_event(E);
   }
 

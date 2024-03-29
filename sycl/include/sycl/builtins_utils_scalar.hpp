@@ -70,20 +70,6 @@ using select_scalar_by_size_t = std::conditional_t<
         std::conditional_t<Size == 4, T32,
                            std::conditional_t<Size == 8, T64, void>>>>;
 
-template <typename T, typename... Ts> constexpr bool CheckTypeIn() {
-  constexpr bool SameType[] = {
-      std::is_same_v<std::remove_cv_t<T>, std::remove_cv_t<Ts>>...};
-  // Replace with std::any_of with C++20.
-  for (size_t I = 0; I < sizeof...(Ts); ++I)
-    if (SameType[I])
-      return true;
-  return false;
-}
-
-// NOTE: We need a constexpr variable definition for the constexpr functions
-//       as MSVC thinks function definitions are the same otherwise.
-template <typename... Ts> constexpr bool check_type_in_v = CheckTypeIn<Ts...>();
-
 template <size_t N, size_t... Ns> constexpr bool CheckSizeIn() {
   constexpr bool SameSize[] = {(N == Ns)...};
   // Replace with std::any_of with C++20.
@@ -142,6 +128,17 @@ template <size_t Size> struct get_unsigned_int_by_size {
 template <typename T> struct same_size_unsigned_int {
   using type = typename get_unsigned_int_by_size<sizeof(T)>::type;
 };
+template <typename T>
+using same_size_unsigned_int_t = typename same_size_unsigned_int<T>::type;
+
+template <typename T> struct get_fixed_sized_int {
+  static_assert(std::is_integral_v<T>);
+  using type =
+      std::conditional_t<std::is_signed_v<T>, same_size_signed_int_t<T>,
+                         same_size_unsigned_int_t<T>>;
+};
+template <typename T>
+using get_fixed_sized_int_t = typename get_fixed_sized_int<T>::type;
 
 // Utility trait for getting an upsampled integer type.
 // NOTE: For upsampling we look for an integer of double the size of the
@@ -206,7 +203,6 @@ template <typename T> struct nan_return_unswizzled {
 
 template <typename T>
 using nan_return_unswizzled_t = typename nan_return_unswizzled<T>::type;
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

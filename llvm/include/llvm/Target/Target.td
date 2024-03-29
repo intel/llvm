@@ -460,6 +460,52 @@ class DwarfRegAlias<Register reg> {
 }
 
 //===----------------------------------------------------------------------===//
+// SubtargetFeature - A characteristic of the chip set.
+//
+class SubtargetFeature<string n, string f, string v, string d,
+                       list<SubtargetFeature> i = []> {
+  // Name - Feature name.  Used by command line (-mattr=) to determine the
+  // appropriate target chip.
+  //
+  string Name = n;
+
+  // FieldName - Field in XXXSubtarget to be set by feature.
+  //
+  string FieldName = f;
+
+  // Value - Value the XXXSubtarget field to be set to by feature.
+  //
+  // A value of "true" or "false" implies the field is a bool. Otherwise,
+  // it is assumed to be an integer. the integer value may be the name of an
+  // enum constant. If multiple features use the same integer field, the
+  // field will be set to the maximum value of all enabled features that
+  // share the field.
+  //
+  string Value = v;
+
+  // Desc - Feature description.  Used by command line (-mattr=) to display help
+  // information.
+  //
+  string Desc = d;
+
+  // Implies - Features that this feature implies are present. If one of those
+  // features isn't set, then this one shouldn't be set either.
+  //
+  list<SubtargetFeature> Implies = i;
+}
+
+/// Specifies a Subtarget feature that this instruction is deprecated on.
+class Deprecated<SubtargetFeature dep> {
+  SubtargetFeature DeprecatedFeatureMask = dep;
+}
+
+/// A custom predicate used to determine if an instruction is
+/// deprecated or not.
+class ComplexDeprecationPredicate<string dep> {
+  string ComplexDeprecationPredicate = dep;
+}
+
+//===----------------------------------------------------------------------===//
 // Pull in the common support for MCPredicate (portable scheduling predicates).
 //
 include "llvm/Target/TargetInstrPredicate.td"
@@ -901,8 +947,6 @@ class AsmOperandClass {
   /// instruction if it hasn't matched all the operands yet.  However, this
   /// error will be suppressed if all of the remaining unmatched operands are
   /// marked as IsOptional.
-  ///
-  /// Optional arguments must be at the end of the operand list.
   bit IsOptional = false;
 
   /// The name of the method on the target specific asm parser that returns the
@@ -1437,6 +1481,25 @@ def JUMP_TABLE_DEBUG_INFO : StandardPseudoInstruction {
   let isMeta = true;
 }
 
+let hasSideEffects = false, isMeta = true, isConvergent = true in {
+def CONVERGENCECTRL_ANCHOR : StandardPseudoInstruction {
+  let OutOperandList = (outs unknown:$dst);
+  let InOperandList = (ins);
+}
+def CONVERGENCECTRL_ENTRY : StandardPseudoInstruction {
+  let OutOperandList = (outs unknown:$dst);
+  let InOperandList = (ins);
+}
+def CONVERGENCECTRL_LOOP : StandardPseudoInstruction {
+  let OutOperandList = (outs unknown:$dst);
+  let InOperandList = (ins unknown:$src);
+}
+def CONVERGENCECTRL_GLUE : StandardPseudoInstruction {
+  let OutOperandList = (outs);
+  let InOperandList = (ins unknown:$src);
+}
+}
+
 // Generic opcodes used in GlobalISel.
 include "llvm/Target/GenericOpcodes.td"
 
@@ -1499,6 +1562,20 @@ class AsmParser {
   // method shall be called for all operands as opposed to only those
   // that have their own specified custom parsers.
   bit CallCustomParserForAllOperands = false;
+
+  // PreferSmallerInstructions - Should the assembly matcher prefer the smaller
+  // instructions.
+  // 
+  // This is useful for the ARM instructions set where smaller encodings must
+  // be preferentially selected.
+  //
+  // The preference order is: 
+  //    Instrution size (if this option is enabled, smallest first)
+  //    Number of Operands (least first), 
+  //    Operand Classes (lexicographically by operand), 
+  //    (Optional) Instruction id (see AsmMatcherEmitter.cpp for details), 
+  //    Number of required features (least first)
+  bit PreferSmallerInstructions = false;
 }
 def DefaultAsmParser : AsmParser;
 
@@ -1681,52 +1758,6 @@ class Target {
 }
 
 //===----------------------------------------------------------------------===//
-// SubtargetFeature - A characteristic of the chip set.
-//
-class SubtargetFeature<string n, string f, string v, string d,
-                       list<SubtargetFeature> i = []> {
-  // Name - Feature name.  Used by command line (-mattr=) to determine the
-  // appropriate target chip.
-  //
-  string Name = n;
-
-  // FieldName - Field in XXXSubtarget to be set by feature.
-  //
-  string FieldName = f;
-
-  // Value - Value the XXXSubtarget field to be set to by feature.
-  //
-  // A value of "true" or "false" implies the field is a bool. Otherwise,
-  // it is assumed to be an integer. the integer value may be the name of an
-  // enum constant. If multiple features use the same integer field, the
-  // field will be set to the maximum value of all enabled features that
-  // share the field.
-  //
-  string Value = v;
-
-  // Desc - Feature description.  Used by command line (-mattr=) to display help
-  // information.
-  //
-  string Desc = d;
-
-  // Implies - Features that this feature implies are present. If one of those
-  // features isn't set, then this one shouldn't be set either.
-  //
-  list<SubtargetFeature> Implies = i;
-}
-
-/// Specifies a Subtarget feature that this instruction is deprecated on.
-class Deprecated<SubtargetFeature dep> {
-  SubtargetFeature DeprecatedFeatureMask = dep;
-}
-
-/// A custom predicate used to determine if an instruction is
-/// deprecated or not.
-class ComplexDeprecationPredicate<string dep> {
-  string ComplexDeprecationPredicate = dep;
-}
-
-//===----------------------------------------------------------------------===//
 // Processor chip sets - These values represent each of the chip sets supported
 // by the scheduler.  Each Processor definition requires corresponding
 // instruction itineraries.
@@ -1846,3 +1877,8 @@ include "llvm/Target/GlobalISel/SelectionDAGCompat.td"
 // Pull in the common support for Pfm Counters generation.
 //
 include "llvm/Target/TargetPfmCounters.td"
+
+//===----------------------------------------------------------------------===//
+// Pull in the common support for macro fusion.
+//
+include "llvm/Target/TargetMacroFusion.td"

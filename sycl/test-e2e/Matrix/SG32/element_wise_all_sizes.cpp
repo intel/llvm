@@ -6,13 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix
+// REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <iostream>
 #include <random>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/matrix/matrix.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;

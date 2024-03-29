@@ -16,7 +16,7 @@
 
 #include <cassert>
 #include <iomanip>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #if DEBUG_OUTPUT
 #include <iostream>
 #endif
@@ -27,10 +27,10 @@ template <typename WriteDataT, int ImgType, int read_write> class kernel_class;
 
 template <typename ReadDataT,
           typename = typename std::enable_if<
-              (!(std::is_same<ReadDataT, s::cl_float4>::value) &&
-               !(std::is_same<ReadDataT, s::cl_half4>::value))>::type>
+              (!(std::is_same_v<ReadDataT, s::cl_float4>) &&
+               !(std::is_same_v<ReadDataT, s::cl_half4>))>::type>
 void check_read_data(ReadDataT ReadData, ReadDataT ExpectedColor) {
-  using ReadDataType = typename s::detail::TryToGetElementType<ReadDataT>::type;
+  using ReadDataType = typename ReadDataT::element_type;
   bool CorrectData = false;
   if ((ReadData.x() == ExpectedColor.x()) &&
       (ReadData.y() == ExpectedColor.y()) &&

@@ -49,16 +49,21 @@ if (NOT CMAKE_CROSSCOMPILING)
 
     # The module contains PPC vector types that needs the PPC target.
     set(opts "")
-    if(${filename} STREQUAL "__ppc_intrinsics" OR
-       ${filename} STREQUAL "mma")
-      set(opts "--target=ppc64le")
+      if(${filename} STREQUAL "__ppc_intrinsics" OR
+         ${filename} STREQUAL "mma")
+      if (PowerPC IN_LIST LLVM_TARGETS_TO_BUILD)
+        set(opts "--target=ppc64le")
+      else()
+        # Do not compile PPC module if the target is not available.
+        continue()
+      endif()
     endif()
 
     add_custom_command(OUTPUT ${base}.mod
       COMMAND ${CMAKE_COMMAND} -E make_directory ${FLANG_INTRINSIC_MODULES_DIR}
       COMMAND flang-new -cpp -fsyntax-only ${opts} -module-dir ${FLANG_INTRINSIC_MODULES_DIR}
         ${FLANG_SOURCE_DIR}/module/${filename}.f90
-      DEPENDS flang-new ${FLANG_SOURCE_DIR}/module/${filename}.f90 ${depends}
+      DEPENDS flang-new ${FLANG_SOURCE_DIR}/module/${filename}.f90 ${FLANG_SOURCE_DIR}/module/__fortran_builtins.f90 ${depends}
     )
     add_custom_command(OUTPUT ${base}.f18.mod
       DEPENDS ${base}.mod

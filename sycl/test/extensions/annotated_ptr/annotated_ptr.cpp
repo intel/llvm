@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsyntax-only -Xclang -verify %s
 
 #include "sycl/sycl.hpp"
 #include <sycl/ext/intel/fpga_extensions.hpp>
@@ -111,6 +111,7 @@ void TestVectorAddWithAnnotatedMMHosts() {
 
   // Removed
   // Assignment / implicit conversion
+  // expected-note@sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp:* {{candidate function not viable: no known conversion from 'int *' to 'const annotated_ptr}}
   // expected-error@+1 {{no viable overloaded '='}}
   a1 = raw;
 
@@ -164,10 +165,25 @@ void TestVectorAddWithAnnotatedMMHosts() {
     test(int n_) : n(n_) {}
     test(const test &t) { n = t.n; }
   };
-  // expected-error-re@sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp:* {{static assertion failed due to requirement {{.+}}: annotated_ptr can only encapsulate either a trivially-copyable type or void!}}
+  // expected-error@sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp:* {{annotated_ptr can only encapsulate either a trivially-copyable type or void!}}
+  // expected-note@+1 {{in instantiation of template class 'sycl::ext::oneapi::experimental::annotated_ptr<test>'}}
   annotated_ptr<test> non_trivially_copyable;
 
   annotated_ptr<void> void_type;
+
+  struct g {
+    int a;
+  };
+  g g0, g1;
+  // TODO: these notes shouldn't be emitted
+  // expected-note@sycl/types.hpp:* {{candidate template ignored: could not match 'vec<T, Num>'}}
+  // expected-note@sycl/types.hpp:* {{candidate template ignored: could not match 'detail::SwizzleOp}}
+  // expected-note@sycl/types.hpp:* {{candidate template ignored: could not match 'vec<T, Num>'}}
+  // expected-error@+1 {{invalid operands to binary expression}}
+  auto g2 = g0 + g1;
+
+  annotated_ptr gp{&g0};
+  auto g3 = *gp;
 
   free(raw, q);
 }

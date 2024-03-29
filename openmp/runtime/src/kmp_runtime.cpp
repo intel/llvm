@@ -48,8 +48,9 @@ static char *ProfileTraceFile = nullptr;
 #include <process.h>
 #endif
 
-#if KMP_OS_WINDOWS
-// windows does not need include files as it doesn't use shared memory
+#ifndef KMP_USE_SHM
+// Windows and WASI do not need these include files as they don't use shared
+// memory.
 #else
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -447,26 +448,26 @@ void __kmp_abort_process() {
     __kmp_dump_debug_buffer();
   }
 
-  if (KMP_OS_WINDOWS) {
-    // Let other threads know of abnormal termination and prevent deadlock
-    // if abort happened during library initialization or shutdown
-    __kmp_global.g.g_abort = SIGABRT;
+#if KMP_OS_WINDOWS
+  // Let other threads know of abnormal termination and prevent deadlock
+  // if abort happened during library initialization or shutdown
+  __kmp_global.g.g_abort = SIGABRT;
 
-    /* On Windows* OS by default abort() causes pop-up error box, which stalls
-       nightly testing. Unfortunately, we cannot reliably suppress pop-up error
-       boxes. _set_abort_behavior() works well, but this function is not
-       available in VS7 (this is not problem for DLL, but it is a problem for
-       static OpenMP RTL). SetErrorMode (and so, timelimit utility) does not
-       help, at least in some versions of MS C RTL.
+  /* On Windows* OS by default abort() causes pop-up error box, which stalls
+     nightly testing. Unfortunately, we cannot reliably suppress pop-up error
+     boxes. _set_abort_behavior() works well, but this function is not
+     available in VS7 (this is not problem for DLL, but it is a problem for
+     static OpenMP RTL). SetErrorMode (and so, timelimit utility) does not
+     help, at least in some versions of MS C RTL.
 
-       It seems following sequence is the only way to simulate abort() and
-       avoid pop-up error box. */
-    raise(SIGABRT);
-    _exit(3); // Just in case, if signal ignored, exit anyway.
-  } else {
-    __kmp_unregister_library();
-    abort();
-  }
+     It seems following sequence is the only way to simulate abort() and
+     avoid pop-up error box. */
+  raise(SIGABRT);
+  _exit(3); // Just in case, if signal ignored, exit anyway.
+#else
+  __kmp_unregister_library();
+  abort();
+#endif
 
   __kmp_infinite_loop();
   __kmp_release_bootstrap_lock(&__kmp_exit_lock);
@@ -1742,14 +1743,8 @@ __kmp_serial_fork_call(ident_t *loc, int gtid, enum fork_context_e call_context,
       __kmp_alloc_argv_entries(argc, team, TRUE);
       team->t.t_argc = argc;
       argv = (void **)team->t.t_argv;
-      if (ap) {
-        for (i = argc - 1; i >= 0; --i)
-          *argv++ = va_arg(kmp_va_deref(ap), void *);
-      } else {
-        for (i = 0; i < argc; ++i)
-          // Get args from parent team for teams construct
-          argv[i] = parent_team->t.t_argv[i];
-      }
+      for (i = argc - 1; i >= 0; --i)
+        *argv++ = va_arg(kmp_va_deref(ap), void *);
       // AC: revert change made in __kmpc_serialized_parallel()
       //     because initial code in teams should have level=0
       team->t.t_level--;
@@ -5375,7 +5370,8 @@ __kmp_allocate_team(kmp_root_t *root, int new_nproc, int max_nproc,
           __kmp_reinitialize_team(team, new_icvs, NULL);
         }
 
-#if (KMP_OS_LINUX || KMP_OS_FREEBSD) && KMP_AFFINITY_SUPPORTED
+#if (KMP_OS_LINUX || KMP_OS_FREEBSD || KMP_OS_NETBSD || KMP_OS_DRAGONFLY) &&   \
+    KMP_AFFINITY_SUPPORTED
         /* Temporarily set full mask for primary thread before creation of
            workers. The reason is that workers inherit the affinity from the
            primary thread, so if a lot of workers are created on the single
@@ -5411,7 +5407,8 @@ __kmp_allocate_team(kmp_root_t *root, int new_nproc, int max_nproc,
           }
         }
 
-#if (KMP_OS_LINUX || KMP_OS_FREEBSD) && KMP_AFFINITY_SUPPORTED
+#if (KMP_OS_LINUX || KMP_OS_FREEBSD || KMP_OS_NETBSD || KMP_OS_DRAGONFLY) &&   \
+    KMP_AFFINITY_SUPPORTED
         /* Restore initial primary thread's affinity mask */
         new_temp_affinity.restore();
 #endif
@@ -5707,9 +5704,8 @@ void __kmp_free_team(kmp_root_t *root,
           }
 #endif
           // first check if thread is sleeping
-          kmp_flag_64<> fl(&th->th.th_bar[bs_forkjoin_barrier].bb.b_go, th);
-          if (fl.is_sleeping())
-            fl.resume(__kmp_gtid_from_thread(th));
+          if (th->th.th_sleep_loc)
+            __kmp_null_resume_wrapper(th);
           KMP_CPU_PAUSE();
         }
       }
@@ -8896,11 +8892,11 @@ __kmp_determine_reduction_method(
 
 #if KMP_ARCH_X86_64 || KMP_ARCH_PPC64 || KMP_ARCH_AARCH64 ||                   \
     KMP_ARCH_MIPS64 || KMP_ARCH_RISCV64 || KMP_ARCH_LOONGARCH64 ||             \
-    KMP_ARCH_VE || KMP_ARCH_S390X
+    KMP_ARCH_VE || KMP_ARCH_S390X || KMP_ARCH_WASM
 
 #if KMP_OS_LINUX || KMP_OS_DRAGONFLY || KMP_OS_FREEBSD || KMP_OS_NETBSD ||     \
     KMP_OS_OPENBSD || KMP_OS_WINDOWS || KMP_OS_DARWIN || KMP_OS_HURD ||        \
-    KMP_OS_SOLARIS
+    KMP_OS_SOLARIS || KMP_OS_WASI || KMP_OS_AIX
 
     int teamsize_cutoff = 4;
 
@@ -8925,12 +8921,14 @@ __kmp_determine_reduction_method(
 #error "Unknown or unsupported OS"
 #endif // KMP_OS_LINUX || KMP_OS_DRAGONFLY || KMP_OS_FREEBSD || KMP_OS_NETBSD ||
        // KMP_OS_OPENBSD || KMP_OS_WINDOWS || KMP_OS_DARWIN || KMP_OS_HURD ||
-       // KMP_OS_SOLARIS
+       // KMP_OS_SOLARIS || KMP_OS_WASI || KMP_OS_AIX
 
-#elif KMP_ARCH_X86 || KMP_ARCH_ARM || KMP_ARCH_AARCH || KMP_ARCH_MIPS
+#elif KMP_ARCH_X86 || KMP_ARCH_ARM || KMP_ARCH_AARCH || KMP_ARCH_MIPS ||       \
+    KMP_ARCH_WASM || KMP_ARCH_PPC
 
 #if KMP_OS_LINUX || KMP_OS_DRAGONFLY || KMP_OS_FREEBSD || KMP_OS_NETBSD ||     \
-    KMP_OS_OPENBSD || KMP_OS_WINDOWS || KMP_OS_HURD || KMP_OS_SOLARIS
+    KMP_OS_OPENBSD || KMP_OS_WINDOWS || KMP_OS_HURD || KMP_OS_SOLARIS ||       \
+    KMP_OS_WASI || KMP_OS_AIX
 
     // basic tuning
 

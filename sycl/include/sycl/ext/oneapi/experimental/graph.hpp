@@ -8,10 +8,13 @@
 
 #pragma once
 
+#include <sycl/accessor.hpp>               // for detail::AccessorBaseHost
 #include <sycl/context.hpp>                // for context
 #include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
+#include <sycl/detail/kernel_desc.hpp>     // for kernel_param_kind_t
 #include <sycl/detail/property_helper.hpp> // for DataLessPropKind, PropWith...
 #include <sycl/device.hpp>                 // for device
+#include <sycl/nd_range.hpp>               // for range, nd_range
 #include <sycl/properties/property_traits.hpp> // for is_property, is_property_of
 #include <sycl/property_list.hpp>              // for property_list
 
@@ -29,6 +32,15 @@ class device;
 namespace ext {
 namespace oneapi {
 namespace experimental {
+
+/// State to template the command_graph class on.
+enum class graph_state {
+  modifiable, ///< In modifiable state, commands can be added to graph.
+  executable, ///< In executable state, the graph is ready to execute.
+};
+
+// Forward declare Graph class
+template <graph_state State> class command_graph;
 
 namespace detail {
 // List of sycl features and extensions which are not supported by graphs. Used
@@ -73,17 +85,47 @@ UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
 class node_impl;
 class graph_impl;
 class exec_graph_impl;
-
+class dynamic_parameter_impl;
 } // namespace detail
 
-/// State to template the command_graph class on.
-enum class graph_state {
-  modifiable, ///< In modifiable state, commands can be added to graph.
-  executable, ///< In executable state, the graph is ready to execute.
+enum class node_type {
+  empty = 0,
+  subgraph = 1,
+  kernel = 2,
+  memcpy = 3,
+  memset = 4,
+  memfill = 5,
+  prefetch = 6,
+  memadvise = 7,
+  ext_oneapi_barrier = 8,
+  host_task = 9
 };
 
 /// Class representing a node in the graph, returned by command_graph::add().
 class __SYCL_EXPORT node {
+public:
+  node() = delete;
+
+  /// Get the type of command associated with this node.
+  node_type get_type() const;
+
+  /// Get a list of all the node dependencies of this node.
+  std::vector<node> get_predecessors() const;
+
+  /// Get a list of all nodes which depend on this node.
+  std::vector<node> get_successors() const;
+
+  /// Get the node associated with a SYCL event returned from a queue recording
+  /// submission.
+  static node get_node_from_event(event nodeEvent);
+
+  /// Update the ND-Range of this node if it is a kernel execution node
+  template <int Dimensions>
+  void update_nd_range(nd_range<Dimensions> executionRange);
+
+  /// Update the Range of this node if it is a kernel execution node
+  template <int Dimensions> void update_range(range<Dimensions> executionRange);
+
 private:
   node(const std::shared_ptr<detail::node_impl> &Impl) : impl(Impl) {}
 
@@ -116,6 +158,14 @@ class assume_buffer_outlives_graph
           ::sycl::detail::GraphAssumeBufferOutlivesGraph> {
 public:
   assume_buffer_outlives_graph() = default;
+};
+
+/// Property passed to command_graph<graph_state::modifiable>::finalize() to
+/// mark the resulting executable command_graph as able to be updated.
+class updatable
+    : public ::sycl::detail::DataLessProperty<::sycl::detail::GraphUpdatable> {
+public:
+  updatable() = default;
 };
 } // namespace graph
 
@@ -159,6 +209,12 @@ public:
   /// @param SyclDevice Device all nodes will be associated with.
   /// @param PropList Optional list of properties to pass.
   modifiable_command_graph(const context &SyclContext, const device &SyclDevice,
+                           const property_list &PropList = {});
+
+  /// Constructor.
+  /// @param SyclQueue Queue to use for the graph device and context.
+  /// @param PropList Optional list of properties to pass.
+  modifiable_command_graph(const queue &SyclQueue,
                            const property_list &PropList = {});
 
   /// Add an empty node to the graph.
@@ -253,6 +309,12 @@ public:
   /// as kernel args or memory access where applicable.
   void print_graph(const std::string path, bool verbose = false) const;
 
+  /// Get a list of all nodes contained in this graph.
+  std::vector<node> get_nodes() const;
+
+  /// Get a list of all root nodes (nodes without dependencies) in this graph.
+  std::vector<node> get_root_nodes() const;
+
 protected:
   /// Constructor used internally by the runtime.
   /// @param Impl Detail implementation class to construct object with.
@@ -295,12 +357,24 @@ public:
   /// @param Graph Graph to use the inputs and outputs of.
   void update(const command_graph<graph_state::modifiable> &Graph);
 
+  /// Updates a single node in this graph based on the contents of the provided
+  /// node.
+  /// @param Node The node to use for updating the graph.
+  void update(const node &Node);
+
+  /// Updates a number of nodes in this graph based on the contents of the
+  /// provided nodes.
+  /// @param Nodes The nodes to use for updating the graph.
+  void update(const std::vector<node> &Nodes);
+
 protected:
   /// Constructor used by internal runtime.
   /// @param Graph Detail implementation class to construct with.
   /// @param Ctx Context to use for graph.
+  /// @param PropList Optional list of properties to pass.
   executable_command_graph(const std::shared_ptr<detail::graph_impl> &Graph,
-                           const sycl::context &Ctx);
+                           const sycl::context &Ctx,
+                           const property_list &PropList = {});
 
   template <class Obj>
   friend decltype(Obj::impl)
@@ -325,24 +399,84 @@ public:
                 const property_list &PropList = {})
       : modifiable_command_graph(SyclContext, SyclDevice, PropList) {}
 
+  /// Constructor.
+  /// @param SyclQueue Queue to use for the graph device and context.
+  /// @param PropList Optional list of properties to pass.
+  command_graph(const queue &SyclQueue, const property_list &PropList = {})
+      : modifiable_command_graph(SyclQueue, PropList) {}
+
 private:
   /// Constructor used internally by the runtime.
   /// @param Impl Detail implementation class to construct object with.
   command_graph(const std::shared_ptr<detail::graph_impl> &Impl)
       : modifiable_command_graph(Impl) {}
+
+  template <class T>
+  friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 
 template <>
 class command_graph<graph_state::executable>
     : public detail::executable_command_graph {
-
 protected:
   friend command_graph<graph_state::executable>
   detail::modifiable_command_graph::finalize(const sycl::property_list &) const;
   using detail::executable_command_graph::executable_command_graph;
 };
 
-/// Additional CTAD deduction guide.
+namespace detail {
+class __SYCL_EXPORT dynamic_parameter_base {
+public:
+  dynamic_parameter_base(
+      sycl::ext::oneapi::experimental::command_graph<graph_state::modifiable>
+          Graph,
+      size_t ParamSize, const void *Data);
+
+protected:
+  void updateValue(const void *NewValue, size_t Size);
+
+  void updateAccessor(const sycl::detail::AccessorBaseHost *Acc);
+  std::shared_ptr<dynamic_parameter_impl> impl;
+
+  template <class Obj>
+  friend decltype(Obj::impl)
+  sycl::detail::getSyclObjImpl(const Obj &SyclObject);
+};
+} // namespace detail
+
+template <typename ValueT>
+class dynamic_parameter : public detail::dynamic_parameter_base {
+  static constexpr bool IsAccessor =
+      std::is_base_of_v<sycl::detail::AccessorBaseHost, ValueT>;
+  static constexpr sycl::detail::kernel_param_kind_t ParamType =
+      IsAccessor ? sycl::detail::kernel_param_kind_t::kind_accessor
+      : std::is_pointer_v<ValueT>
+          ? sycl::detail::kernel_param_kind_t::kind_pointer
+          : sycl::detail::kernel_param_kind_t::kind_std_layout;
+
+public:
+  /// Constructs a new dynamic parameter.
+  /// @param Graph The graph associated with this parameter.
+  /// @param Param A reference value for this parameter used for CTAD.
+  dynamic_parameter(experimental::command_graph<graph_state::modifiable> Graph,
+                    const ValueT &Param)
+      : detail::dynamic_parameter_base(Graph, sizeof(ValueT), &Param) {}
+
+  /// Updates this dynamic parameter and all registered nodes with a new value.
+  /// @param NewValue The new value for the parameter.
+  void update(const ValueT &NewValue) {
+    if constexpr (IsAccessor) {
+      detail::dynamic_parameter_base::updateAccessor(&NewValue);
+    } else {
+      detail::dynamic_parameter_base::updateValue(&NewValue, sizeof(ValueT));
+    }
+  }
+};
+
+/// Additional CTAD deduction guides.
+template <typename ValueT>
+dynamic_parameter(experimental::command_graph<graph_state::modifiable> Graph,
+                  const ValueT &Param) -> dynamic_parameter<ValueT>;
 template <graph_state State = graph_state::modifiable>
 command_graph(const context &SyclContext, const device &SyclDevice,
               const property_list &PropList) -> command_graph<State>;

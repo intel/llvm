@@ -72,6 +72,19 @@ constexpr llvm::StringRef getOptionalAttrName() { return "fir.optional"; }
 /// Attribute to mark Fortran entities with the TARGET attribute.
 static constexpr llvm::StringRef getTargetAttrName() { return "fir.target"; }
 
+/// Attribute to mark Fortran entities with the CUDA attribute.
+static constexpr llvm::StringRef getCUDAAttrName() { return "fir.cuda_attr"; }
+
+/// Attribute to carry CUDA launch_bounds values.
+static constexpr llvm::StringRef getCUDALaunchBoundsAttrName() {
+  return "fir.cuda_launch_bounds";
+}
+
+/// Attribute to carry CUDA cluster_dims values.
+static constexpr llvm::StringRef getCUDAClusterDimsAttrName() {
+  return "fir.cuda_cluster_dims";
+}
+
 /// Attribute to mark that a function argument is a character dummy procedure.
 /// Character dummy procedure have special ABI constraints.
 static constexpr llvm::StringRef getCharacterProcedureDummyAttrName() {
@@ -91,6 +104,12 @@ static constexpr llvm::StringRef getHostAssocAttrName() {
 /// Attribute to mark an internal procedure.
 static constexpr llvm::StringRef getInternalProcedureAttrName() {
   return "fir.internal_proc";
+}
+
+/// Attribute containing the original name of a function from before the
+/// ExternalNameConverision pass runs
+static constexpr llvm::StringRef getInternalFuncNameAttrName() {
+  return "fir.internal_name";
 }
 
 /// Does the function, \p func, have a host-associations tuple argument?

@@ -13,11 +13,10 @@ endif()
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
-    # Author: Gregory Fine <gregory.fine@intel.com>
-    # Date:   Wed Nov 29 14:55:24 2023 PST
 
-    # Fixed build failure related to upstream changes
-    set(LLVMGenXIntrinsics_GIT_TAG b16218b8a00c5c1d4db32085dfab4d5eb9a03ad7)
+    # Date: 13 Feb 2024
+    # Add an intrinsic for named barrier arrive/signal operation
+    set(LLVMGenXIntrinsics_GIT_TAG f9c34404d0ea9abad83875a10bd48d88cea90ebd)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
@@ -52,6 +51,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ESIMD/ESIMDUtils.cpp
   ESIMD/ESIMDVerifier.cpp
   ESIMD/ESIMDRemoveHostCode.cpp
+  ESIMD/ESIMDRemoveOptnoneNoinline.cpp
   ESIMD/LowerESIMD.cpp
   ESIMD/LowerESIMDKernelAttrs.cpp
   CleanupSYCLMetadata.cpp
@@ -63,17 +63,21 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LowerInvokeSimd.cpp
   LowerWGLocalMemory.cpp
   LowerWGScope.cpp
+  ModuleSplitter.cpp
   MutatePrintfAddrspace.cpp
   SYCLAddOptLevelAttribute.cpp
   SYCLPropagateAspectsUsage.cpp
   SYCLPropagateJointMatrixUsage.cpp
   SYCLUtils.cpp
+  SanitizeDeviceGlobal.cpp
 
   LocalAccessorToSharedMemory.cpp
   GlobalOffset.cpp
   TargetHelpers.cpp
   PrepareSYCLNativeCPU.cpp
   RenameKernelSYCLNativeCPU.cpp
+  ConvertToMuxBuiltinsSYCLNativeCPU.cpp
+  PipelineSYCLNativeCPU.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR

@@ -48,7 +48,9 @@ static cl::opt<TargetLibraryInfoImpl::VectorLibrary> ClVectorLibrary(
                clEnumValN(TargetLibraryInfoImpl::SLEEFGNUABI, "sleefgnuabi",
                           "SIMD Library for Evaluating Elementary Functions"),
                clEnumValN(TargetLibraryInfoImpl::ArmPL, "ArmPL",
-                          "Arm Performance Libraries")));
+                          "Arm Performance Libraries"),
+               clEnumValN(TargetLibraryInfoImpl::AMDLIBM, "AMDLIBM",
+                          "AMD vector math library")));
 
 StringLiteral const TargetLibraryInfoImpl::StandardNames[LibFunc::NumLibFuncs] =
     {
@@ -174,12 +176,6 @@ bool TargetLibraryInfoImpl::isCallingConvCCompatible(Function *F) {
 /// triple gets a sane set of defaults.
 static void initialize(TargetLibraryInfoImpl &TLI, const Triple &T,
                        ArrayRef<StringLiteral> StandardNames) {
-  // Verify that the StandardNames array is in alphabetical order.
-  assert(
-      llvm::is_sorted(StandardNames,
-                      [](StringRef LHS, StringRef RHS) { return LHS < RHS; }) &&
-      "TargetLibraryInfoImpl function names must be sorted");
-
   // Set IO unlocked variants as unavailable
   // Set them as available per system below
   TLI.setUnavailable(LibFunc_getc_unlocked);
@@ -471,6 +467,11 @@ static void initialize(TargetLibraryInfoImpl &TLI, const Triple &T,
     TLI.setUnavailable(LibFunc_uname);
     TLI.setUnavailable(LibFunc_unsetenv);
     TLI.setUnavailable(LibFunc_utimes);
+
+    // MinGW does have ldexpf, but it is a plain wrapper over regular ldexp.
+    // Therefore it's not beneficial to transform code to use it, i.e.
+    // just pretend that the function is not available.
+    TLI.setUnavailable(LibFunc_ldexpf);
   }
 
   // Pick just one set of new/delete variants.
@@ -557,6 +558,7 @@ static void initialize(TargetLibraryInfoImpl &TLI, const Triple &T,
   case Triple::IOS:
   case Triple::TvOS:
   case Triple::WatchOS:
+  case Triple::XROS:
     TLI.setUnavailable(LibFunc_exp10l);
     if (!T.isWatchOS() &&
         (T.isOSVersionLT(7, 0) || (T.isOSVersionLT(9, 0) && T.isX86()))) {
@@ -569,16 +571,12 @@ static void initialize(TargetLibraryInfoImpl &TLI, const Triple &T,
     break;
   case Triple::Linux:
     // exp10, exp10f, exp10l is available on Linux (GLIBC) but are extremely
-    // buggy prior to glibc version 2.18. Until this version is widely deployed
-    // or we have a reasonable detection strategy, we cannot use exp10 reliably
-    // on Linux.
-    //
-    // Fall through to disable all of them.
-    [[fallthrough]];
-  default:
-    TLI.setUnavailable(LibFunc_exp10);
-    TLI.setUnavailable(LibFunc_exp10f);
-    TLI.setUnavailable(LibFunc_exp10l);
+    // buggy prior to glibc version 2.18. As this version is so old, we
+    // don't really need to worry about using exp10 on Linux.
+    TLI.setAvailableWithName(LibFunc_exp10, "__exp10");
+    TLI.setAvailableWithName(LibFunc_exp10f, "__exp10f");
+    TLI.setAvailableWithName(LibFunc_exp10l, "__exp10l");
+    break;
   }
 
   // ffsl is available on at least Darwin, Mac OS X, iOS, FreeBSD, and
@@ -592,6 +590,7 @@ static void initialize(TargetLibraryInfoImpl &TLI, const Triple &T,
   case Triple::IOS:
   case Triple::TvOS:
   case Triple::WatchOS:
+  case Triple::XROS:
   case Triple::FreeBSD:
   case Triple::Linux:
     break;
@@ -608,6 +607,7 @@ static void initialize(TargetLibraryInfoImpl &TLI, const Triple &T,
   case Triple::IOS:
   case Triple::TvOS:
   case Triple::WatchOS:
+  case Triple::XROS:
   case Triple::FreeBSD:
   case Triple::Linux:
     break;
@@ -820,6 +820,9 @@ static void initialize(TargetLibraryInfoImpl &TLI, const Triple &T,
     TLI.setUnavailable(LibFunc_cabs);
     TLI.setUnavailable(LibFunc_cabsf);
     TLI.setUnavailable(LibFunc_cabsl);
+    TLI.setUnavailable(LibFunc_erf);
+    TLI.setUnavailable(LibFunc_erff);
+    TLI.setUnavailable(LibFunc_erfl);
     TLI.setUnavailable(LibFunc_ffs);
     TLI.setUnavailable(LibFunc_flockfile);
     TLI.setUnavailable(LibFunc_fseeko);
@@ -845,6 +848,9 @@ static void initialize(TargetLibraryInfoImpl &TLI, const Triple &T,
     TLI.setUnavailable(LibFunc_strndup);
     TLI.setUnavailable(LibFunc_strnlen);
     TLI.setUnavailable(LibFunc_toascii);
+    TLI.setUnavailable(LibFunc_exp10);
+    TLI.setUnavailable(LibFunc_exp10f);
+    TLI.setUnavailable(LibFunc_exp10l);
   }
 
   // As currently implemented in clang, NVPTX code has no standard library to
@@ -1169,6 +1175,16 @@ bool TargetLibraryInfoImpl::getLibFunc(const Function &FDecl,
   return isValidProtoForLibFunc(*FDecl.getFunctionType(), F, *M);
 }
 
+bool TargetLibraryInfoImpl::getLibFunc(unsigned int Opcode, Type *Ty,
+                                       LibFunc &F) const {
+  // Must be a frem instruction with float or double arguments.
+  if (Opcode != Instruction::FRem || (!Ty->isDoubleTy() && !Ty->isFloatTy()))
+    return false;
+
+  F = Ty->isDoubleTy() ? LibFunc_fmod : LibFunc_fmodf;
+  return true;
+}
+
 void TargetLibraryInfoImpl::disableAllFunctions() {
   memset(AvailableArray, 0, sizeof(AvailableArray));
 }
@@ -1364,6 +1380,16 @@ void TargetLibraryInfoImpl::addVectorizableFunctionsFromVecLib(
       addVectorizableFunctions(VecFuncs);
       break;
     }
+    break;
+  }
+  case AMDLIBM: {
+    const VecDesc VecFuncs[] = {
+#define TLI_DEFINE_AMDLIBM_VECFUNCS
+#define TLI_DEFINE_VECFUNC(SCAL, VEC, VF, MASK, VABI_PREFIX)                   \
+  {SCAL, VEC, VF, MASK, VABI_PREFIX},
+#include "llvm/Analysis/VecFuncs.def"
+    };
+    addVectorizableFunctions(VecFuncs);
     break;
   }
   case NoLibrary:

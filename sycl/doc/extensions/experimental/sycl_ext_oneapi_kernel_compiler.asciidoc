@@ -177,12 +177,26 @@ kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
   source_language lang,
   const std::string& source)
 
+kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
+  const context& ctxt,
+  source_language lang,
+  const std::vector<std::byte>& bytes)
+
 } // namespace sycl::ext::oneapi::experimental
 ----
 !====
 
-_Effects:_ Creates a new kernel bundle that represents a kernel that is defined
-by the source code string `source` using the language `lang`.
+_Preconditions:_ There are two overloads of this function: one that reads the
+source code of the kernel from a `std::string`, and one that reads the source
+code of the kernel from a `std::vector` of `std::byte`.
+Each source language `lang` specifies whether the language is text format or
+binary format, and the application must use the overload that corresponds to
+that format.
+
+_Effects:_ Creates a new kernel bundle that represents a kernel written in the
+source language `lang`, where the source code is contained either by `source`
+(if the source language is a text format) or by `bytes` (if the source language
+is binary format).
 The bundle is associated with the context `ctxt`, and kernels from this bundle
 may only be submitted to a queue that shares the same context.
 The bundle's set of associated devices is the set of devices contained in

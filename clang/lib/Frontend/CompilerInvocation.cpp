@@ -191,6 +191,17 @@ CompilerInvocationBase::shallow_copy_assign(const CompilerInvocationBase &X) {
   return *this;
 }
 
+CompilerInvocation::CompilerInvocation(const CowCompilerInvocation &X)
+    : CompilerInvocationBase(EmptyConstructor{}) {
+  CompilerInvocationBase::deep_copy_assign(X);
+}
+
+CompilerInvocation &
+CompilerInvocation::operator=(const CowCompilerInvocation &X) {
+  CompilerInvocationBase::deep_copy_assign(X);
+  return *this;
+}
+
 namespace {
 template <typename T>
 T &ensureOwned(std::shared_ptr<T> &Storage) {
@@ -1982,14 +1993,6 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
     Opts.LinkBitcodeFiles.push_back(F);
   }
 
-  if (Arg *A = Args.getLastArg(OPT_ftlsmodel_EQ)) {
-    if (T.isOSAIX()) {
-      StringRef Name = A->getValue();
-      if (Name == "local-dynamic")
-        Diags.Report(diag::err_aix_unsupported_tls_model) << Name;
-    }
-  }
-
   if (Arg *A = Args.getLastArg(OPT_fdenormal_fp_math_EQ)) {
     StringRef Val = A->getValue();
     Opts.FPDenormalMode = llvm::parseDenormalFPAttribute(Val);
@@ -2569,6 +2572,8 @@ static const auto &getFrontendActionTable() {
 
       {frontend::GenerateModule, OPT_emit_module},
       {frontend::GenerateModuleInterface, OPT_emit_module_interface},
+      {frontend::GenerateReducedModuleInterface,
+       OPT_emit_reduced_module_interface},
       {frontend::GenerateHeaderUnit, OPT_emit_header_unit},
       {frontend::GeneratePCH, OPT_emit_pch},
       {frontend::GenerateInterfaceStubs, OPT_emit_interface_stubs},
@@ -2831,7 +2836,7 @@ static bool ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
                "-interface-stub-version=ifs-v1"
             << ErrorMessage;
         ProgramAction = frontend::ParseSyntaxOnly;
-      } else if (!ArgStr.startswith("ifs-")) {
+      } else if (!ArgStr.starts_with("ifs-")) {
         std::string ErrorMessage =
             "Invalid interface stub format: " + ArgStr.str() + ".";
         Diags.Report(diag::err_drv_invalid_value)
@@ -3178,7 +3183,7 @@ static bool ParseHeaderSearchArgs(HeaderSearchOptions &Opts, ArgList &Args,
       llvm::sys::fs::make_absolute(WorkingDir, P);
   }
   llvm::sys::path::remove_dots(P);
-  Opts.ModuleCachePath = std::string(P.str());
+  Opts.ModuleCachePath = std::string(P);
 
   // Only the -fmodule-file=<name>=<file> form.
   for (const auto *A : Args.filtered(OPT_fmodule_file)) {
@@ -3202,6 +3207,22 @@ static bool ParseHeaderSearchArgs(HeaderSearchOptions &Opts, ArgList &Args,
   bool IsIndexHeaderMap = false;
   bool IsSysrootSpecified =
       Args.hasArg(OPT__sysroot_EQ) || Args.hasArg(OPT_isysroot);
+
+  // Expand a leading `=` to the sysroot if one was passed (and it's not a
+  // framework flag).
+  auto PrefixHeaderPath = [IsSysrootSpecified,
+                           &Opts](const llvm::opt::Arg *A,
+                                  bool IsFramework = false) -> std::string {
+    assert(A->getNumValues() && "Unexpected empty search path flag!");
+    if (IsSysrootSpecified && !IsFramework && A->getValue()[0] == '=') {
+      SmallString<32> Buffer;
+      llvm::sys::path::append(Buffer, Opts.Sysroot,
+                              llvm::StringRef(A->getValue()).substr(1));
+      return std::string(Buffer);
+    }
+    return A->getValue();
+  };
+
   for (const auto *A : Args.filtered(OPT_I, OPT_F, OPT_index_header_map)) {
     if (A->getOption().matches(OPT_index_header_map)) {
       // -index-header-map applies to the next -I or -F.
@@ -3213,16 +3234,7 @@ static bool ParseHeaderSearchArgs(HeaderSearchOptions &Opts, ArgList &Args,
         IsIndexHeaderMap ? frontend::IndexHeaderMap : frontend::Angled;
 
     bool IsFramework = A->getOption().matches(OPT_F);
-    std::string Path = A->getValue();
-
-    if (IsSysrootSpecified && !IsFramework && A->getValue()[0] == '=') {
-      SmallString<32> Buffer;
-      llvm::sys::path::append(Buffer, Opts.Sysroot,
-                              llvm::StringRef(A->getValue()).substr(1));
-      Path = std::string(Buffer.str());
-    }
-
-    Opts.AddPath(Path, Group, IsFramework,
+    Opts.AddPath(PrefixHeaderPath(A, IsFramework), Group, IsFramework,
                  /*IgnoreSysroot*/ true);
     IsIndexHeaderMap = false;
   }
@@ -3240,12 +3252,18 @@ static bool ParseHeaderSearchArgs(HeaderSearchOptions &Opts, ArgList &Args,
   }
 
   for (const auto *A : Args.filtered(OPT_idirafter))
-    Opts.AddPath(A->getValue(), frontend::After, false, true);
+    Opts.AddPath(PrefixHeaderPath(A), frontend::After, false, true);
   for (const auto *A : Args.filtered(OPT_iquote))
-    Opts.AddPath(A->getValue(), frontend::Quoted, false, true);
-  for (const auto *A : Args.filtered(OPT_isystem, OPT_iwithsysroot))
-    Opts.AddPath(A->getValue(), frontend::System, false,
-                 !A->getOption().matches(OPT_iwithsysroot));
+    Opts.AddPath(PrefixHeaderPath(A), frontend::Quoted, false, true);
+
+  for (const auto *A : Args.filtered(OPT_isystem, OPT_iwithsysroot)) {
+    if (A->getOption().matches(OPT_iwithsysroot)) {
+      Opts.AddPath(A->getValue(), frontend::System, false,
+                   /*IgnoreSysRoot=*/false);
+      continue;
+    }
+    Opts.AddPath(PrefixHeaderPath(A), frontend::System, false, true);
+  }
   for (const auto *A : Args.filtered(OPT_iframework))
     Opts.AddPath(A->getValue(), frontend::System, true, true);
   for (const auto *A : Args.filtered(OPT_iframeworkwithsysroot))
@@ -3302,6 +3320,17 @@ static void ParseAPINotesArgs(APINotesOptions &Opts, ArgList &Args,
   }
   for (const Arg *A : Args.filtered(OPT_iapinotes_modules))
     Opts.ModuleSearchPaths.push_back(A->getValue());
+}
+
+static void GeneratePointerAuthArgs(const LangOptions &Opts,
+                                    ArgumentConsumer Consumer) {
+  if (Opts.PointerAuthIntrinsics)
+    GenerateArg(Consumer, OPT_fptrauth_intrinsics);
+}
+
+static void ParsePointerAuthArgs(LangOptions &Opts, ArgList &Args,
+                                 DiagnosticsEngine &Diags) {
+  Opts.PointerAuthIntrinsics = Args.hasArg(OPT_fptrauth_intrinsics);
 }
 
 /// Check if input file kind and language standard are compatible.
@@ -3491,7 +3520,8 @@ void CompilerInvocationBase::GenerateLangArgs(const LangOptions &Opts,
                 Twine(Major) + "." + Twine(Minor) + "." + Twine(Subminor));
   }
 
-  if ((!Opts.GNUMode && !Opts.MSVCCompat && !Opts.CPlusPlus17) || T.isOSzOS()) {
+  if ((!Opts.GNUMode && !Opts.MSVCCompat && !Opts.CPlusPlus17 && !Opts.C23) ||
+      T.isOSzOS()) {
     if (!Opts.Trigraphs)
       GenerateArg(Consumer, OPT_fno_trigraphs);
   } else {
@@ -4037,10 +4067,11 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
 
   // Mimicking gcc's behavior, trigraphs are only enabled if -trigraphs
   // is specified, or -std is set to a conforming mode.
-  // Trigraphs are disabled by default in c++1z onwards.
+  // Trigraphs are disabled by default in C++17 and C23 onwards.
   // For z/OS, trigraphs are enabled by default (without regard to the above).
   Opts.Trigraphs =
-      (!Opts.GNUMode && !Opts.MSVCCompat && !Opts.CPlusPlus17) || T.isOSzOS();
+      (!Opts.GNUMode && !Opts.MSVCCompat && !Opts.CPlusPlus17 && !Opts.C23) ||
+      T.isOSzOS();
   Opts.Trigraphs =
       Args.hasFlag(OPT_ftrigraphs, OPT_fno_trigraphs, Opts.Trigraphs);
 
@@ -4184,6 +4215,7 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
 
       if (TT.getArch() == llvm::Triple::UnknownArch ||
           !(TT.getArch() == llvm::Triple::aarch64 || TT.isPPC() ||
+            TT.getArch() == llvm::Triple::systemz ||
             TT.getArch() == llvm::Triple::nvptx ||
             TT.getArch() == llvm::Triple::nvptx64 ||
             TT.getArch() == llvm::Triple::amdgcn ||
@@ -4269,13 +4301,13 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
 
     // Check the version number is valid: either 3.x (0 <= x <= 9) or
     // y or y.0 (4 <= y <= current version).
-    if (!VerParts.first.startswith("0") &&
-        !VerParts.first.getAsInteger(10, Major) &&
-        3 <= Major && Major <= CLANG_VERSION_MAJOR &&
-        (Major == 3 ? VerParts.second.size() == 1 &&
-                      !VerParts.second.getAsInteger(10, Minor)
-                    : VerParts.first.size() == Ver.size() ||
-                      VerParts.second == "0")) {
+    if (!VerParts.first.starts_with("0") &&
+        !VerParts.first.getAsInteger(10, Major) && 3 <= Major &&
+        Major <= CLANG_VERSION_MAJOR &&
+        (Major == 3
+             ? VerParts.second.size() == 1 &&
+                   !VerParts.second.getAsInteger(10, Minor)
+             : VerParts.first.size() == Ver.size() || VerParts.second == "0")) {
       // Got a valid version number.
       if (Major == 3 && Minor <= 8)
         Opts.setClangABICompat(LangOptions::ClangABI::Ver3_8);
@@ -4322,10 +4354,10 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
     if (Arg *A = Args.getLastArg(OPT_msign_return_address_key_EQ)) {
       StringRef SignKey = A->getValue();
       if (!SignScope.empty() && !SignKey.empty()) {
-        if (SignKey.equals_insensitive("a_key"))
+        if (SignKey == "a_key")
           Opts.setSignReturnAddressKey(
               LangOptions::SignReturnAddressKeyKind::AKey);
-        else if (SignKey.equals_insensitive("b_key"))
+        else if (SignKey == "b_key")
           Opts.setSignReturnAddressKey(
               LangOptions::SignReturnAddressKeyKind::BKey);
         else
@@ -4399,19 +4431,34 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
     // TODO: Revisit restricting SPIR-V to logical once we've figured out how to
     // handle PhysicalStorageBuffer64 memory model
     if (T.isDXIL() || T.isSPIRVLogical()) {
-      enum { ShaderModel, ShaderStage };
+      enum { ShaderModel, VulkanEnv, ShaderStage };
+      enum { OS, Environment };
+
+      int ExpectedOS = T.isSPIRVLogical() ? VulkanEnv : ShaderModel;
+
       if (T.getOSName().empty()) {
         Diags.Report(diag::err_drv_hlsl_bad_shader_required_in_target)
-            << ShaderModel << T.str();
-      } else if (!T.isShaderModelOS() || T.getOSVersion() == VersionTuple(0)) {
-        Diags.Report(diag::err_drv_hlsl_bad_shader_unsupported)
-            << ShaderModel << T.getOSName() << T.str();
+            << ExpectedOS << OS << T.str();
       } else if (T.getEnvironmentName().empty()) {
         Diags.Report(diag::err_drv_hlsl_bad_shader_required_in_target)
-            << ShaderStage << T.str();
+            << ShaderStage << Environment << T.str();
       } else if (!T.isShaderStageEnvironment()) {
         Diags.Report(diag::err_drv_hlsl_bad_shader_unsupported)
             << ShaderStage << T.getEnvironmentName() << T.str();
+      }
+
+      if (T.isDXIL()) {
+        if (!T.isShaderModelOS() || T.getOSVersion() == VersionTuple(0)) {
+          Diags.Report(diag::err_drv_hlsl_bad_shader_unsupported)
+              << ShaderModel << T.getOSName() << T.str();
+        }
+      } else if (T.isSPIRVLogical()) {
+        if (!T.isVulkanOS() || T.getVulkanVersion() == VersionTuple(0)) {
+          Diags.Report(diag::err_drv_hlsl_bad_shader_unsupported)
+              << VulkanEnv << T.getOSName() << T.str();
+        }
+      } else {
+        llvm_unreachable("expected DXIL or SPIR-V target");
       }
     } else
       Diags.Report(diag::err_drv_hlsl_unsupported_target) << T.str();
@@ -4442,6 +4489,7 @@ static bool isStrictlyPreprocessorAction(frontend::ActionKind Action) {
   case frontend::FixIt:
   case frontend::GenerateModule:
   case frontend::GenerateModuleInterface:
+  case frontend::GenerateReducedModuleInterface:
   case frontend::GenerateHeaderUnit:
   case frontend::GeneratePCH:
   case frontend::GenerateInterfaceStubs:
@@ -4532,6 +4580,9 @@ static void GeneratePreprocessorArgs(const PreprocessorOptions &Opts,
 
   if (Opts.SourceDateEpoch)
     GenerateArg(Consumer, OPT_source_date_epoch, Twine(*Opts.SourceDateEpoch));
+
+  if (Opts.DefineTargetOSMacros)
+    GenerateArg(Consumer, OPT_fdefine_target_os_macros);
 
   // Don't handle LexEditorPlaceholders. It is implied by the action that is
   // generated elsewhere.
@@ -4630,6 +4681,10 @@ static bool ParsePreprocessorArgs(PreprocessorOptions &Opts, ArgList &Args,
   // "editor placeholder in source file" error in PP only mode.
   if (isStrictlyPreprocessorAction(Action))
     Opts.LexEditorPlaceholders = false;
+
+  Opts.DefineTargetOSMacros =
+      Args.hasFlag(OPT_fdefine_target_os_macros,
+                   OPT_fno_define_target_os_macros, Opts.DefineTargetOSMacros);
 
   return Diags.getNumErrors() == NumErrorsBefore;
 }
@@ -4779,6 +4834,8 @@ bool CompilerInvocation::CreateFromArgsImpl(
   ParseHeaderSearchArgs(Res.getHeaderSearchOpts(), Args, Diags,
                         Res.getFileSystemOpts().WorkingDir);
   ParseAPINotesArgs(Res.getAPINotesOpts(), Args, Diags);
+
+  ParsePointerAuthArgs(LangOpts, Args, Diags);
 
   ParseLangArgs(LangOpts, Args, DashX, T, Res.getPreprocessorOpts().Includes,
                 Diags);
@@ -4945,6 +5002,7 @@ std::string CompilerInvocation::getModuleHash() const {
   if (hsOpts.ModulesStrictContextHash) {
     HBuilder.addRange(hsOpts.SystemHeaderPrefixes);
     HBuilder.addRange(hsOpts.UserEntries);
+    HBuilder.addRange(hsOpts.VFSOverlayFiles);
 
     const DiagnosticOptions &diagOpts = getDiagnosticOpts();
 #define DIAGOPT(Name, Bits, Default) HBuilder.add(diagOpts.Name);
@@ -4979,6 +5037,18 @@ std::string CompilerInvocation::getModuleHash() const {
   if (getCodeGenOpts().DebugTypeExtRefs)
     HBuilder.addRange(getCodeGenOpts().DebugPrefixMap);
 
+  // Extend the signature with the affecting debug options.
+  if (getHeaderSearchOpts().ModuleFormat == "obj") {
+#define DEBUGOPT(Name, Bits, Default) HBuilder.add(CodeGenOpts->Name);
+#define VALUE_DEBUGOPT(Name, Bits, Default) HBuilder.add(CodeGenOpts->Name);
+#define ENUM_DEBUGOPT(Name, Type, Bits, Default)                               \
+  HBuilder.add(static_cast<unsigned>(CodeGenOpts->get##Name()));
+#define BENIGN_DEBUGOPT(Name, Bits, Default)
+#define BENIGN_VALUE_DEBUGOPT(Name, Bits, Default)
+#define BENIGN_ENUM_DEBUGOPT(Name, Type, Bits, Default)
+#include "clang/Basic/DebugOptions.def"
+  }
+
   // Extend the signature with the enabled sanitizers, if at least one is
   // enabled. Sanitizers which cannot affect AST generation aren't hashed.
   SanitizerSet SanHash = getLangOpts().Sanitize;
@@ -5005,6 +5075,7 @@ void CompilerInvocationBase::generateCC1CommandLine(
   GenerateTargetArgs(getTargetOpts(), Consumer);
   GenerateHeaderSearchArgs(getHeaderSearchOpts(), Consumer);
   GenerateAPINotesArgs(getAPINotesOpts(), Consumer);
+  GeneratePointerAuthArgs(getLangOpts(), Consumer);
   GenerateLangArgs(getLangOpts(), Consumer, T, getFrontendOpts().DashX);
   GenerateCodeGenArgs(getCodeGenOpts(), Consumer, T,
                       getFrontendOpts().OutputFile, &getLangOpts());
@@ -5025,6 +5096,7 @@ std::vector<std::string> CompilerInvocationBase::getCC1CommandLine() const {
 void CompilerInvocation::resetNonModularOptions() {
   getLangOpts().resetNonModularOptions();
   getPreprocessorOpts().resetNonModularOptions();
+  getCodeGenOpts().resetNonModularOptions(getHeaderSearchOpts().ModuleFormat);
 }
 
 void CompilerInvocation::clearImplicitModuleBuildOptions() {
