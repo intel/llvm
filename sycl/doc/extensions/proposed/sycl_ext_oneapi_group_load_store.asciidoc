@@ -385,7 +385,7 @@ namespace sycl::ext::oneapi::experimental {
 
 struct contiguous_memory_key {
   using value_t =
-      property_value<contiguous_memory_hint>;
+      property_value<contiguous_memory_key>;
 };
 
 inline constexpr contiguous_memory_hint::value_t contiguous_memory;
