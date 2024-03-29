@@ -368,7 +368,7 @@ arrays functions.
 Example:
 `group_load(g, input, output_span, data_placement_blocked);`
 
-=== Optimization Hints
+=== Optimization Properties
 
 anchor:optimization_properties[]
 
