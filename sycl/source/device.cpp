@@ -129,7 +129,11 @@ std::vector<device> device::create_sub_devices() const {
 template __SYCL_EXPORT std::vector<device> device::create_sub_devices<
     info::partition_property::ext_intel_partition_by_cslice>() const;
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+bool device::has_extension(const char *extension_name) const {
+#else
 bool device::has_extension(const std::string &extension_name) const {
+#endif
   return impl->has_extension(extension_name);
 }
 

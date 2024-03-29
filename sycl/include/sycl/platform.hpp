@@ -167,7 +167,14 @@ public:
   /// \return true if specified extension is supported by this SYCL platform.
   __SYCL2020_DEPRECATED(
       "use platform::has() function with aspects APIs instead")
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  bool has_extension(const std::string &ExtensionName) const {
+    return has_extension(ExtensionName.c_str());
+  }
+  bool has_extension(const char *ExtensionName) const;
+#else
   bool has_extension(const std::string &ExtensionName) const;
+#endif
 
   /// Checks if this SYCL platform is a host platform.
   ///
