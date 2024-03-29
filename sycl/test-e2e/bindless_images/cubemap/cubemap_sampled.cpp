@@ -95,7 +95,7 @@ int main() {
             float fdim2 = (((float(dim1) / (float)height) * 1.98) - 0.99) +
                           (1.f / (float)height);
 
-            // Extension: sample cubemap data from handle
+            // Extension: sample cubemap data from handle.
             sycl::float4 px = syclexp::sample_cubemap<sycl::float4>(
                 imgHandle, sycl::float3(fdim0, fdim1, fdim2));
 
