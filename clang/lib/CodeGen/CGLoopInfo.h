@@ -425,7 +425,6 @@ public:
   /// Set no progress for the next loop pushed.
   void setMustProgress(bool P) { StagedAttrs.MustProgress = P; }
 
-<<<<<<< HEAD
   /// Set value of max reinvocation delay for the next loop pushed.
   void setSYCLMaxReinvocationDelayNCycles(unsigned C) {
     StagedAttrs.SYCLMaxReinvocationDelayNCycles = C;
@@ -436,9 +435,6 @@ public:
     StagedAttrs.SYCLLoopPipeliningEnable = true;
   }
 
-private:
-=======
->>>>>>> 0f61051f541a5b8cfce25c84262dfdbadb9ca688
   /// Returns true if there is LoopInfo on the stack.
   bool hasInfo() const { return !Active.empty(); }
   /// Return the LoopInfo for the current loop. HasInfo should be called
