@@ -3,8 +3,7 @@ name: main branch sync
 on:
   workflow_dispatch:
 
-permissions:
-  contents: read
+permissions: read-all
 
 jobs:
   sync:
