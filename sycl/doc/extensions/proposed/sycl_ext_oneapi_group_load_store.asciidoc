@@ -291,7 +291,7 @@ anchor:data_placement[]
 
 To specify a correct data placement for placing of resulting data
 there is a enum
-(proposed also in link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc[`group_sort extention`]):
+(proposed also in link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc[`group_sort extension`]):
 
 [source,c++]
 ----
