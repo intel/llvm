@@ -23851,8 +23851,8 @@ CodeGenFunction::EmitIntelSYCLAllocaBuiltin(const CallExpr *E,
              "Expecting a single aspect");
       llvm::APSInt AspectInt =
           (*AspectAttr->aspects_begin())->EvaluateKnownConstInt(getContext());
-      llvm::Constant *C =
-          Builder.getInt32(static_cast<int32_t>(AspectInt.getZExtValue()));
+      llvm::Type *I32Ty = Builder.getInt32Ty();
+      llvm::Constant *C = llvm::Constant::getIntegerValue(I32Ty, AspectInt);
       llvm::Metadata *AspectMD = llvm::ConstantAsMetadata::get(C);
       F->setMetadata(MDName, llvm::MDNode::get(Builder.getContext(), AspectMD));
     }
