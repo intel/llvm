@@ -31,12 +31,12 @@ def GEN3DNDRangeInterface : GENOpInterface<"GEN3DNDRangeInterface"> {
                   "Expecting operation returning a single result");
     static_assert(ConcreteOp::template hasTrait<OpTrait::OneOperand>(),
                   "Expecting operation receiving a single operand");
-    static_assert(std::is_same_v<decltype(ConcreteOp{}.getRes().getType()),
-                                 IndexType>,
-                  "Expecting result index type");
-    static_assert(std::is_same_v<decltype(ConcreteOp{}.getDim().getType()),
-                                 IntegerType>,
-                  "Expecting integer operand type");
+    static_assert(
+        std::is_same_v<decltype(ConcreteOp{}.getRes().getType()), IndexType>,
+        "Expecting result index type");
+    static_assert(
+        std::is_same_v<decltype(ConcreteOp{}.getDim().getType()), IntegerType>,
+        "Expecting integer operand type");
     // Additional checks.
     return detail::verify3DNDRangeOpInterface($_op);
   }];
