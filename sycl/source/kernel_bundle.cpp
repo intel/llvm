@@ -114,13 +114,25 @@ bool kernel_bundle_plain::is_specialization_constant_set(
   return impl->is_specialization_constant_set(SpecName);
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+bool kernel_bundle_plain::ext_oneapi_has_kernel(detail::string_view name) {
+  return impl->ext_oneapi_has_kernel(name.data());
+}
+#else
 bool kernel_bundle_plain::ext_oneapi_has_kernel(const std::string &name) {
   return impl->ext_oneapi_has_kernel(name);
 }
+#endif
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+kernel kernel_bundle_plain::ext_oneapi_get_kernel(detail::string_view name) {
+  return impl->ext_oneapi_get_kernel(name.data(), impl);
+}
+#else
 kernel kernel_bundle_plain::ext_oneapi_get_kernel(const std::string &name) {
   return impl->ext_oneapi_get_kernel(name, impl);
 }
+#endif
 
 //////////////////////////////////
 ///// sycl::detail free functions
@@ -139,14 +151,16 @@ removeDuplicateDevices(const std::vector<device> &Devs) {
   return UniqueDevices;
 }
 
-kernel_id get_kernel_id_impl(string_view KernelName) {
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+kernel_id get_kernel_id_impl(string_view KernelName) {
   return detail::ProgramManager::getInstance().getSYCLKernelID(
       KernelName.data());
-#else
-  return detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
-#endif
 }
+#else
+kernel_id get_kernel_id_impl(const std::string &KernelName) {
+  return detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
+}
+#endif
 
 detail::KernelBundleImplPtr
 get_kernel_bundle_impl(const context &Ctx, const std::vector<device> &Devs,
@@ -395,9 +409,17 @@ bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
 // syclex::create_kernel_bundle_from_source
 /////////////////////////
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+source_kb
+create_kernel_bundle_from_source(const context &SyclContext,
+                                 source_language Language,
+                                 sycl::detail::string_view SourceView) {
+  std::string Source{SourceView.data()};
+#else
 source_kb create_kernel_bundle_from_source(const context &SyclContext,
                                            source_language Language,
                                            const std::string &Source) {
+#endif
   // TODO: if we later support a "reason" why support isn't present
   // (like a missing shared library etc.) it'd be nice to include it in
   // the exception message here.
@@ -430,10 +452,19 @@ create_kernel_bundle_from_source(const context &SyclContext,
 /////////////////////////
 namespace detail {
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+exe_kb build_from_source(source_kb &SourceKB,
+                         const std::vector<device> &Devices,
+                         const std::vector<std::string> &BuildOptions,
+                         sycl::detail::string_view LogView) {
+  std::string Log{LogView.data()};
+  std::string *LogPtr = &Log;
+#else
 exe_kb build_from_source(source_kb &SourceKB,
                          const std::vector<device> &Devices,
                          const std::vector<std::string> &BuildOptions,
                          std::string *LogPtr) {
+#endif
   std::vector<device> UniqueDevices =
       sycl::detail::removeDuplicateDevices(Devices);
   std::shared_ptr<kernel_bundle_impl> sourceImpl = getSyclObjImpl(SourceKB);

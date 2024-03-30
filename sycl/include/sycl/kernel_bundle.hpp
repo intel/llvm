@@ -185,9 +185,21 @@ public:
 
   bool native_specialization_constant() const noexcept;
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  bool ext_oneapi_has_kernel(const std::string &name) {
+    return ext_oneapi_has_kernel(name.c_str());
+  }
+  bool ext_oneapi_has_kernel(detail::string_view name);
+
+  kernel ext_oneapi_get_kernel(const std::string &name) {
+    return ext_oneapi_get_kernel(name.c_str());
+  }
+  kernel ext_oneapi_get_kernel(detail::string_view name);
+#else
   bool ext_oneapi_has_kernel(const std::string &name);
 
   kernel ext_oneapi_get_kernel(const std::string &name);
+#endif
 
 protected:
   // \returns a kernel object which represents the kernel identified by
@@ -450,12 +462,16 @@ kernel_bundle(kernel_bundle<State> &&) -> kernel_bundle<State>;
 /////////////////////////
 
 namespace detail {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-using string_view = std::string;
-#endif
+// #ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+// using string_view = std::string;
+// #endif
 // Internal non-template versions of get_kernel_id API which is used by public
 // onces
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_EXPORT kernel_id get_kernel_id_impl(string_view KernelName);
+#else
+__SYCL_EXPORT kernel_id get_kernel_id_impl(const std::string &KernelName);
+#endif
 } // namespace detail
 
 /// \returns the kernel_id associated with the KernelName
@@ -863,10 +879,24 @@ __SYCL_EXPORT bool is_source_kernel_bundle_supported(backend BE,
 // syclex::create_kernel_bundle_from_source
 /////////////////////////
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+__SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
+create_kernel_bundle_from_source(const context &SyclContext,
+                                 source_language Language,
+                                 sycl::detail::string_view Source);
+__SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
+create_kernel_bundle_from_source(const context &SyclContext,
+                                 source_language Language,
+                                 const std::string &Source) {
+  return create_kernel_bundle_from_source(SyclContext, Language,
+                                          sycl::detail::string_view(Source));
+}
+#else
 __SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
 create_kernel_bundle_from_source(const context &SyclContext,
                                  source_language Language,
                                  const std::string &Source);
+#endif
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 __SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
@@ -880,12 +910,27 @@ create_kernel_bundle_from_source(const context &SyclContext,
 /////////////////////////
 namespace detail {
 // forward decl
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+__SYCL_EXPORT kernel_bundle<bundle_state::executable>
+build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
+                  const std::vector<device> &Devices,
+                  const std::vector<std::string> &BuildOptions,
+                  sycl::detail::string_view LogPtr);
+__SYCL_EXPORT kernel_bundle<bundle_state::executable>
+build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
+                  const std::vector<device> &Devices,
+                  const std::vector<std::string> &BuildOptions,
+                  std::string *LogPtr) {
+  return build_from_source(SourceKB, Devices, BuildOptions,
+                           sycl::detail::string_view(*LogPtr));
+}
+#else
 __SYCL_EXPORT kernel_bundle<bundle_state::executable>
 build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
                   const std::vector<device> &Devices,
                   const std::vector<std::string> &BuildOptions,
                   std::string *LogPtr);
-
+#endif
 } // namespace detail
 
 template <typename PropertyListT = detail::empty_properties_t,
