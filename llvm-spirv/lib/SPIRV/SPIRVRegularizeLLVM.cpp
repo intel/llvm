@@ -365,7 +365,7 @@ static void simplifyBuiltinVarAccesses(GlobalValue *GV) {
 
   Type *Int32Ty = Type::getInt32Ty(GV->getContext());
   auto GetGep = [&](unsigned Offset) {
-    llvm::ConstantRange InRange(llvm::APInt(32, Offset, true),
+    llvm::ConstantRange InRange(llvm::APInt(32, -Offset, true),
                                 llvm::APInt(32, Offset, true));
     return ConstantExpr::getGetElementPtr(
         Ty, GV,
