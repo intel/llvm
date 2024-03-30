@@ -63,7 +63,7 @@ public:
   void reset() const;
   device select_device() const override;
 };
-} // namespace ONEAPI
+} // namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead")ONEAPI
 #endif // __SYCL_INTERNAL_API
 } // namespace _V1
 } // namespace sycl
