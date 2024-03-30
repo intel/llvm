@@ -345,7 +345,7 @@ filter_selector::filter_selector(const char *Input)
 #else
 filter_selector::filter_selector(const std::string &Input)
 #endif
-  : ext::oneapi::filter_selector(Input) {
+    : ext::oneapi::filter_selector(Input) {
 }
 
 int filter_selector::operator()(const device &Dev) const {
