@@ -116,7 +116,14 @@ public:
   /// can be different for different languages.
   /// Throws online_compile_error if compilation is not successful.
   template <typename... Tys>
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  std::vector<byte> compile(const std::string &src, const Tys &...args) {
+    return compile(sycl::detail::string_view(src), args);
+  }
+  std::vector<byte> compile(sycl::detail::string_view src, const Tys &...args);
+#else
   std::vector<byte> compile(const std::string &src, const Tys &...args);
+#endif
 
   /// Sets the compiled code format of the compilation target and returns *this.
   online_compiler<Lang> &setOutputFormat(compiled_code_format fmt) {
