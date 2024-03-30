@@ -169,9 +169,9 @@ public:
       "use platform::has() function with aspects APIs instead")
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   bool has_extension(const std::string &ExtensionName) const {
-    return has_extension(ExtensionName.c_str());
+    return has_extension(detail::string_view{ExtensionName});
   }
-  bool has_extension(const char *ExtensionName) const;
+  bool has_extension(detail::string_view ExtensionName) const;
 #else
   bool has_extension(const std::string &ExtensionName) const;
 #endif
