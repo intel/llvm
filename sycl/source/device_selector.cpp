@@ -303,12 +303,14 @@ int accelerator_selector::operator()(const device &dev) const {
 namespace ext::oneapi {
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-filter_selector::filter_selector(const char *Input)
+filter_selector::filter_selector(sycl::detail::string_view Input)
+    : impl(std::make_shared<detail::filter_selector_impl>(Input.data())) {
+}
 #else
 filter_selector::filter_selector(const std::string &Input)
-#endif
     : impl(std::make_shared<detail::filter_selector_impl>(Input)) {
 }
+#endif
 
 int filter_selector::operator()(const device &Dev) const {
   return impl->operator()(Dev);
@@ -341,7 +343,7 @@ device filter_selector::select_device() const {
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
 using namespace ext::oneapi;
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-filter_selector::filter_selector(const char *Input)
+filter_selector::filter_selector(sycl::detail::string_view Input)
 #else
 filter_selector::filter_selector(const std::string &Input)
 #endif

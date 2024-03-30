@@ -33,8 +33,8 @@ class __SYCL_EXPORT filter_selector : public device_selector {
 public:
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   filter_selector(const std::string &filter)
-      : filter_selector(filter.c_str()) {}
-  filter_selector(const char *filter);
+      : filter_selector(sycl::detail::string_view{filter}) {}
+  filter_selector(sycl::detail::string_view filter);
 #else
   filter_selector(const std::string &filter);
 #endif
@@ -54,8 +54,8 @@ class __SYCL_EXPORT filter_selector : public ext::oneapi::filter_selector {
 public:
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   filter_selector(const std::string &filter)
-      : filter_selector(filter.c_str()) {}
-  filter_selector(const char *filter);
+      : filter_selector(sycl::detail::string_view{filter}) {}
+  filter_selector(sycl::detail::string_view filter);
 #else
   filter_selector(const std::string &filter);
 #endif
