@@ -15,7 +15,6 @@
 
 include "mlir/Dialect/GEN/IR/GENDialect.td"
 include "mlir/Dialect/GEN/IR/GENAttrDefs.td"
-include "mlir/Dialect/GEN/IR/GENOpsInterfaces.td"
 include "mlir/IR/OpBase.td"
 include "mlir/IR/EnumAttr.td"
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
@@ -34,9 +33,10 @@ class GEN_Op<string mnemonic, list<Trait> traits = []> :
 // ND-Range Operations
 //===----------------------------------------------------------------------===//
 
+def GEN3DNDRange : NativeOpTrait<"GEN3DNDRange">;
+
 class GEN_3DNDRangeOp<string mnemonic, list<Trait> traits = []>
-    : GEN_Op<mnemonic,
-             [DeclareOpInterfaceMethods<GEN3DNDRangeInterface>, Pure] # traits>,
+    : GEN_Op<mnemonic, [GEN3DNDRange, Pure] # traits>,
       Arguments<(ins I32:$dim)>,
       Results<(outs Index:$res)> {
   let assemblyFormat = "$dim attr-dict";

@@ -1,7 +1,7 @@
 add_mlir_dialect_library(MLIRGENDialect
   GENDialect.cpp
   GENOps.cpp
-  GENOpsInterfaces.cpp
+  GENTraits.cpp
   
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/GEN
@@ -10,7 +10,6 @@ add_mlir_dialect_library(MLIRGENDialect
   MLIRGENOpsIncGen
   MLIRGENOpsEnumsIncGen
   MLIRGENOpsAttrDefsIncGen
-  MLIRGENOpsInterfacesIncGen
 
   LINK_LIBS PUBLIC
   MLIRIR

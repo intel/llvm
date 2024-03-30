@@ -18,7 +18,7 @@
 #define GET_ATTRDEF_CLASSES
 #include "mlir/Dialect/GEN/IR/GENOpsAttrDefs.h.inc"
 
-#include "mlir/Dialect/GEN/IR/GENOpsInterfaces.h"
+#include "mlir/Dialect/GEN/IR/GENTraits.h"
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/GEN/IR/GENOps.h.inc"

@@ -13,7 +13,6 @@
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Dialect/GEN/IR/GENDialect.h"
 #include "mlir/Dialect/GEN/IR/GENOps.h"
-#include "mlir/Dialect/GEN/IR/GENOpsInterfaces.h"
 #include "mlir/Dialect/LLVMIR/LLVMAttrs.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMTypes.h"
@@ -136,8 +135,33 @@ namespace {
 // ND-range Ops Lowerings
 //===----------------------------------------------------------------------===//
 
+class GEN3DNDRangeLoweringBase : public ConvertToLLVMPattern {
+public:
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
+                  ConversionPatternRewriter &rewriter) const override {
+    assert(op->getNumOperands() == 1 && "Expecting a single operand");
+    Type resType = typeConverter->convertType(op->getResult(0).getType());
+    LLVM::CallOp callOp = createDeviceFunctionCall(
+        rewriter, builtinName, resType, rewriter.getI32Type(), operands[0]);
+    rewriter.replaceOp(op, callOp);
+    return success();
+  }
+
+protected:
+  GEN3DNDRangeLoweringBase(StringRef builtinName, StringRef rootOpName,
+                           const LLVMTypeConverter &typeConverter,
+                           PatternBenefit benefit)
+      : ConvertToLLVMPattern(rootOpName, &typeConverter.getContext(),
+                             typeConverter, benefit),
+        builtinName(builtinName) {}
+
+private:
+  StringRef builtinName;
+};
+
 template <typename SourceOp>
-inline StringRef getBuiltinName();
+constexpr StringRef getBuiltinName();
 
 template <>
 StringRef getBuiltinName<GEN::LocalIdOp>() {
@@ -159,23 +183,13 @@ StringRef getBuiltinName<GEN::NumWorkGroupsOp>() {
   return "_Z14get_num_groupsj";
 }
 
-template <typename SourceOp,
-          typename = std::enable_if_t<
-              SourceOp::template hasTrait<GEN::GEN3DNDRangeInterface::Trait>()>>
-struct GEN3DNDRangeLowering : public ConvertOpToLLVMPattern<SourceOp> {
-  using ConvertOpToLLVMPattern<SourceOp>::ConvertOpToLLVMPattern;
-  using OpAdaptor = typename SourceOp::Adaptor;
-
-  LogicalResult
-  matchAndRewrite(SourceOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    Type resType = this->typeConverter->convertType(op.getType());
-    LLVM::CallOp callOp =
-        createDeviceFunctionCall(rewriter, getBuiltinName<SourceOp>(), resType,
-                                 rewriter.getI32Type(), adaptor.getDim());
-    rewriter.replaceOp(op, callOp);
-    return success();
-  }
+template <typename SourceOp>
+struct GEN3DNDRangeLowering : public GEN3DNDRangeLoweringBase {
+  GEN3DNDRangeLowering(const LLVMTypeConverter &typeConverter,
+                       PatternBenefit benefit = 1)
+      : GEN3DNDRangeLoweringBase(getBuiltinName<SourceOp>(),
+                                 SourceOp::getOperationName(), typeConverter,
+                                 benefit) {}
 };
 
 //===----------------------------------------------------------------------===//

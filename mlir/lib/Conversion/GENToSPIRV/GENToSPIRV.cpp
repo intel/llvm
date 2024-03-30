@@ -28,7 +28,7 @@ using namespace mlir;
 // ND-range Ops Lowerings
 //===----------------------------------------------------------------------===//
 
-/// Pattern to convert 3DNDrangeInterface operations to SPIR-V.
+/// Pattern to convert GEN3DNDRange operations to SPIR-V.
 ///
 /// Convert:
 /// ```mlir
@@ -45,28 +45,41 @@ using namespace mlir;
 /// ```
 /// With `__builtin__BuiltinName__` the name of a SPIR-V builtin, and
 /// `IndexType`, `i32` for 32-bit targets and `i64` for 64-bit targets.
-template <typename SourceOp, spirv::BuiltIn Builtin,
-          typename = std::enable_if_t<
-              SourceOp::template hasTrait<GEN::GEN3DNDRangeInterface::Trait>()>>
-struct GEN3DNDRangeLowering : public OpConversionPattern<SourceOp> {
-  using OpConversionPattern<SourceOp>::OpConversionPattern;
-  using OpAdaptor = typename SourceOp::Adaptor;
-
+class GEN3DNDRangeLoweringBase : public ConversionPattern {
+public:
   LogicalResult
-  matchAndRewrite(SourceOp op, OpAdaptor adaptor,
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
+    assert(operands.size() == 1 && "Expecting a single operand");
     // The builtin variable must be of type <3xi32> for 32-bit targets and
     // <3xi64> for 64-bit targets.
     Type builtinType =
         this->template getTypeConverter<SPIRVTypeConverter>()->getIndexType();
     Value vector =
-        spirv::getBuiltinVariableValue(op, Builtin, builtinType, rewriter);
-
-    rewriter.replaceOpWithNewOp<spirv::VectorExtractDynamicOp>(
-        op, vector, adaptor.getDim());
-
+        spirv::getBuiltinVariableValue(op, builtin, builtinType, rewriter);
+    rewriter.replaceOpWithNewOp<spirv::VectorExtractDynamicOp>(op, vector,
+                                                               operands[0]);
     return success();
   }
+
+protected:
+  GEN3DNDRangeLoweringBase(spirv::BuiltIn builtin,
+                           const TypeConverter &typeConverter, StringRef opName,
+                           PatternBenefit benefit, MLIRContext *context)
+      : ConversionPattern(typeConverter, opName, benefit, context),
+        builtin(builtin) {}
+
+private:
+  spirv::BuiltIn builtin;
+};
+
+template <typename SourceOp, spirv::BuiltIn Builtin>
+struct GEN3DNDRangeLowering : public GEN3DNDRangeLoweringBase {
+  GEN3DNDRangeLowering(const TypeConverter &typeConverter, MLIRContext *context,
+                       PatternBenefit benefit = 1)
+      : GEN3DNDRangeLoweringBase(Builtin, typeConverter,
+                                 SourceOp::getOperationName(), benefit,
+                                 context) {}
 };
 
 //===----------------------------------------------------------------------===//

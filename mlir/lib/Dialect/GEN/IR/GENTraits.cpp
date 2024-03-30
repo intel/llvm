@@ -1,4 +1,4 @@
-//===- GENOpsInterfaces.cpp - MLIR GEN Interfaces implementation ----------===//
+//===- GENTraits.cpp - GEN dialect traits ---------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,16 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/GEN/IR/GENOpsInterfaces.h"
+#include "mlir/Dialect/GEN/IR/GENTraits.h"
 
 #include "mlir/IR/Matchers.h"
 
 using namespace mlir;
-using namespace mlir::GEN;
 
-#include "mlir/Dialect/GEN/IR/GENOpsInterfaces.cpp.inc"
-
-LogicalResult mlir::GEN::detail::verify3DNDRangeOpInterface(Operation *op) {
+LogicalResult mlir::OpTrait::detail::verifyGEN3DNDRange(Operation *op) {
   llvm::APInt value;
   if (matchPattern(op->getOperand(0), m_ConstantInt(&value)) &&
       !(/*value in [0, 3)*/ value.sge(0) && value.slt(3))) {
