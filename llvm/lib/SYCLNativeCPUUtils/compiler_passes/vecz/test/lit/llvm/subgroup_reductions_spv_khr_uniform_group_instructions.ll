@@ -178,9 +178,7 @@ entry:
 
 ; CHECK-LABEL: @__vecz_v4_reduce_logical_xor(
 ; CHECK: [[X:%.*]] = call i4 @llvm.ctpop.i4(i4 {{%.*}})
-; CHECK: [[T:%.*]] = and i4 [[X]], 1
-; CHECK: [[T0:%.*]] = icmp ne i4 [[T]], 0
-; CHECK: %call2 = tail call spir_func i1 @__mux_sub_group_reduce_logical_xor_i1(i1 [[T0]])
+; CHECK: %call2 = tail call spir_func i1 @__mux_sub_group_reduce_logical_xor_i1(i1 [[T:%.*]])
 ; CHECK: [[E:%.*]] = zext i1 %call2 to i32
 ; CHECK: store i32 [[E]], ptr addrspace(1) {{%.*}}, align 4
 define spir_kernel void @reduce_logical_xor(ptr addrspace(1) %in, ptr addrspace(1) %out) {

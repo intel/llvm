@@ -143,8 +143,7 @@ entry:
 }
 
 ; CHECK-LABEL: @__vecz_v4_vp_reduce_logical_and(
-; CHECK: [[T:%.*]] = icmp ne <4 x i32> {{%.*}}, zeroinitializer
-; CHECK: [[R:%.*]] = call i1 @llvm.vp.reduce.and.v4i1(i1 true, <4 x i1> [[T]], {{.*}})
+; CHECK: [[R:%.*]] = call i1 @llvm.vp.reduce.and.v4i1(i1 true, <4 x i1> [[T:%.*]], {{.*}})
 ; CHECK: %call2 = tail call spir_func i1 @__mux_sub_group_reduce_logical_and_i1(i1 [[R]])
 ; CHECK: [[R:%.*]] = zext i1 %call2 to i32
 ; CHECK: store i32 [[R]], ptr addrspace(1) {{%.*}}, align 4
@@ -164,8 +163,7 @@ entry:
 }
 
 ; CHECK-LABEL: @__vecz_v4_vp_reduce_logical_or(
-; CHECK: [[T:%.*]] = icmp ne <4 x i32> {{%.*}}, zeroinitializer
-; CHECK: [[R:%.*]] = call i1 @llvm.vp.reduce.or.v4i1(i1 false, <4 x i1> [[T]], {{.*}})
+; CHECK: [[R:%.*]] = call i1 @llvm.vp.reduce.or.v4i1(i1 false, <4 x i1> [[T:%.*]], {{.*}})
 ; CHECK: %call2 = tail call spir_func i1 @__mux_sub_group_reduce_logical_or_i1(i1 [[R]])
 ; CHECK: [[R:%.*]] = zext i1 %call2 to i32
 ; CHECK: store i32 [[R]], ptr addrspace(1) {{%.*}}, align 4
@@ -185,8 +183,7 @@ entry:
 }
 
 ; CHECK-LABEL: @__vecz_v4_vp_reduce_logical_xor(
-; CHECK: [[T:%.*]] = icmp ne <4 x i32> {{%.*}}, zeroinitializer
-; CHECK: [[R:%.*]] = call i1 @llvm.vp.reduce.xor.v4i1(i1 false, <4 x i1> [[T]], {{.*}})
+; CHECK: [[R:%.*]] = call i1 @llvm.vp.reduce.xor.v4i1(i1 false, <4 x i1> [[T:%.*]], {{.*}})
 ; CHECK: %call2 = tail call spir_func i1 @__mux_sub_group_reduce_logical_xor_i1(i1 [[R]])
 ; CHECK: [[R:%.*]] = zext i1 %call2 to i32
 ; CHECK: store i32 [[R]], ptr addrspace(1) {{%.*}}, align 4
