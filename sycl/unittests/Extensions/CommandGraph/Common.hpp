@@ -20,6 +20,7 @@
 
 using namespace sycl;
 using namespace sycl::ext::oneapi;
+namespace exp_ext = sycl::ext::oneapi::experimental;
 
 // Common Test fixture
 class CommandGraphTest : public ::testing::Test {

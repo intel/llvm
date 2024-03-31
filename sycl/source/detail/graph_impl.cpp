@@ -757,8 +757,9 @@ void exec_graph_impl::createCommandBuffers(
 exec_graph_impl::exec_graph_impl(sycl::context Context,
                                  const std::shared_ptr<graph_impl> &GraphImpl,
                                  const property_list &PropList)
-    : MSchedule(), MGraphImpl(GraphImpl), MPiSyncPoints(), MContext(Context),
-      MRequirements(), MExecutionEvents(),
+    : MSchedule(), MGraphImpl(GraphImpl), MPiSyncPoints(),
+      MDevice(GraphImpl->getDevice()), MContext(Context), MRequirements(),
+      MExecutionEvents(),
       MIsUpdatable(PropList.has_property<property::graph::updatable>()) {
 
   // If the graph has been marked as updatable then check if the backend
@@ -1155,9 +1156,48 @@ void exec_graph_impl::duplicateNodes() {
   MNodeStorage.insert(MNodeStorage.begin(), NewNodes.begin(), NewNodes.end());
 }
 
+void exec_graph_impl::update(std::shared_ptr<graph_impl> GraphImpl) {
+
+  if (MDevice != GraphImpl->getDevice()) {
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "The graphs must have been created with matching devices.");
+  }
+  if (MContext != GraphImpl->getContext()) {
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "The graphs must have been created with matching contexts.");
+  }
+
+  if (MNodeStorage.size() != GraphImpl->MNodeStorage.size()) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "Mismatch found in the number of nodes. The graphs "
+                          "must have a matching topology.");
+  } else {
+    for (uint32_t i = 0; i < MNodeStorage.size(); ++i) {
+      if (MNodeStorage[i]->MSuccessors.size() !=
+              GraphImpl->MNodeStorage[i]->MSuccessors.size() ||
+          MNodeStorage[i]->MPredecessors.size() !=
+              GraphImpl->MNodeStorage[i]->MPredecessors.size()) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "Mismatch found in the number of edges. The "
+                              "graphs must have a matching topology.");
+      }
+    }
+  }
+
+  for (uint32_t i = 0; i < MNodeStorage.size(); ++i) {
+    MIDCache.insert(
+        std::make_pair(GraphImpl->MNodeStorage[i]->MID, MNodeStorage[i]));
+  }
+
+  update(GraphImpl->MNodeStorage);
+}
+
 void exec_graph_impl::update(std::shared_ptr<node_impl> Node) {
   this->update(std::vector<std::shared_ptr<node_impl>>{Node});
 }
+
 void exec_graph_impl::update(
     const std::vector<std::shared_ptr<node_impl>> Nodes) {
 
@@ -1598,9 +1638,7 @@ void executable_command_graph::finalizeImpl() {
 
 void executable_command_graph::update(
     const command_graph<graph_state::modifiable> &Graph) {
-  (void)Graph;
-  throw sycl::exception(sycl::make_error_code(errc::invalid),
-                        "Method not yet implemented");
+  impl->update(sycl::detail::getSyclObjImpl(Graph));
 }
 
 void executable_command_graph::update(const node &Node) {

@@ -11,4 +11,4 @@
 
 #define GRAPH_E2E_RECORD_REPLAY
 
-#include "../Inputs/double_buffer.cpp"
+#include "../Update/whole_update_double_buffer.cpp"
