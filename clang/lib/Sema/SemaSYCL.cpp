@@ -383,7 +383,8 @@ bool Sema::isDeclAllowedInSYCLDeviceCode(const Decl *D) {
         return true;
     }
     const DeclContext *DC = FD->getDeclContext();
-    if (II && II->isStr("__spirv_ocl_printf") && !FD->isDefined() &&
+    if (II && II->isStr("__spirv_ocl_printf") &&
+        !FD->isDefined() &&
         FD->getLanguageLinkage() == CXXLanguageLinkage &&
         DC->getEnclosingNamespaceContext()->isTranslationUnit())
       return true;
@@ -654,7 +655,9 @@ public:
 
   // Make sure we skip the condition of the case, since that is a constant
   // expression.
-  bool TraverseCaseStmt(CaseStmt *S) { return TraverseStmt(S->getSubStmt()); }
+  bool TraverseCaseStmt(CaseStmt *S) {
+    return TraverseStmt(S->getSubStmt());
+  }
 
   // Skip checking the size expr, since a constant array type loc's size expr is
   // a constant expression.
@@ -884,8 +887,7 @@ class SingleDeviceFunctionTracker {
         !KernelBody->hasAttr<AlwaysInlineAttr>() &&
         !KernelBody->hasAttr<SYCLSimdAttr>()) {
       KernelBody->addAttr(AlwaysInlineAttr::CreateImplicit(
-          KernelBody->getASTContext(), {},
-          AlwaysInlineAttr::Keyword_forceinline));
+          KernelBody->getASTContext(), {}, AlwaysInlineAttr::Keyword_forceinline));
     }
   }
 
@@ -1270,21 +1272,15 @@ static bool isReadOnlyAccessor(const TemplateArgument &AccessModeArg) {
 // anonymous namespace so these don't get linkage.
 namespace {
 
-template <typename T> struct bind_param {
-  using type = T;
-};
+template <typename T> struct bind_param { using type = T; };
 
 template <> struct bind_param<CXXBaseSpecifier &> {
   using type = const CXXBaseSpecifier &;
 };
 
-template <> struct bind_param<FieldDecl *&> {
-  using type = FieldDecl *;
-};
+template <> struct bind_param<FieldDecl *&> { using type = FieldDecl *; };
 
-template <> struct bind_param<FieldDecl *const &> {
-  using type = FieldDecl *;
-};
+template <> struct bind_param<FieldDecl *const &> { using type = FieldDecl *; };
 
 template <typename T> using bind_param_t = typename bind_param<T>::type;
 
@@ -1293,7 +1289,7 @@ class KernelObjVisitor {
 
   template <typename ParentTy, typename... HandlerTys>
   void VisitUnionImpl(const CXXRecordDecl *Owner, ParentTy &Parent,
-                      const CXXRecordDecl *Wrapper, HandlerTys &...Handlers) {
+                      const CXXRecordDecl *Wrapper, HandlerTys &... Handlers) {
     (void)std::initializer_list<int>{
         (Handlers.enterUnion(Owner, Parent), 0)...};
     VisitRecordHelper(Wrapper, Wrapper->fields(), Handlers...);
@@ -1303,13 +1299,13 @@ class KernelObjVisitor {
 
   // These enable handler execution only when previous Handlers succeed.
   template <typename... Tn>
-  bool handleField(FieldDecl *FD, QualType FDTy, Tn &&...tn) {
+  bool handleField(FieldDecl *FD, QualType FDTy, Tn &&... tn) {
     bool result = true;
     (void)std::initializer_list<int>{(result = result && tn(FD, FDTy), 0)...};
     return result;
   }
   template <typename... Tn>
-  bool handleField(const CXXBaseSpecifier &BD, QualType BDTy, Tn &&...tn) {
+  bool handleField(const CXXBaseSpecifier &BD, QualType BDTy, Tn &&... tn) {
     bool result = true;
     std::initializer_list<int>{(result = result && tn(BD, BDTy), 0)...};
     return result;
@@ -1325,10 +1321,10 @@ class KernelObjVisitor {
                 std::ref(Handlers), _1, _2)...)
 
   // The following simpler definition works with gcc 8.x and later.
-  // #define KF_FOR_EACH(FUNC) \
-  //  handleField(Field, FieldTy, ([&](FieldDecl *FD, QualType FDTy) { \
-  //                return Handlers.f(FD, FDTy); \
-  //              })...)
+  //#define KF_FOR_EACH(FUNC) \
+//  handleField(Field, FieldTy, ([&](FieldDecl *FD, QualType FDTy) { \
+//                return Handlers.f(FD, FDTy); \
+//              })...)
 
   // This enables handler execution only when previous Handlers succeed.
   template <typename... Tn>
@@ -1354,7 +1350,7 @@ class KernelObjVisitor {
   template <typename ParentTy, typename... HandlerTys>
   void visitComplexRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
                           const CXXRecordDecl *Wrapper, QualType RecordTy,
-                          HandlerTys &...Handlers) {
+                          HandlerTys &... Handlers) {
     (void)std::initializer_list<int>{
         (Handlers.enterStruct(Owner, Parent, RecordTy), 0)...};
     VisitRecordHelper(Wrapper, Wrapper->bases(), Handlers...);
@@ -1366,7 +1362,7 @@ class KernelObjVisitor {
   template <typename ParentTy, typename... HandlerTys>
   void visitSimpleRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
                          const CXXRecordDecl *Wrapper, QualType RecordTy,
-                         HandlerTys &...Handlers) {
+                         HandlerTys &... Handlers) {
     (void)std::initializer_list<int>{
         (Handlers.handleNonDecompStruct(Owner, Parent, RecordTy), 0)...};
   }
@@ -1374,16 +1370,16 @@ class KernelObjVisitor {
   template <typename ParentTy, typename... HandlerTys>
   void visitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
                    const CXXRecordDecl *Wrapper, QualType RecordTy,
-                   HandlerTys &...Handlers);
+                   HandlerTys &... Handlers);
 
   template <typename ParentTy, typename... HandlerTys>
   void VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
-                  const CXXRecordDecl *Wrapper, HandlerTys &...Handlers);
+                  const CXXRecordDecl *Wrapper, HandlerTys &... Handlers);
 
   template <typename... HandlerTys>
   void VisitRecordHelper(const CXXRecordDecl *Owner,
                          clang::CXXRecordDecl::base_class_const_range Range,
-                         HandlerTys &...Handlers) {
+                         HandlerTys &... Handlers) {
     for (const auto &Base : Range) {
       QualType BaseTy = Base.getType();
       // Handle accessor class as base
@@ -1400,14 +1396,14 @@ class KernelObjVisitor {
   template <typename... HandlerTys>
   void VisitRecordHelper(const CXXRecordDecl *Owner,
                          RecordDecl::field_range Range,
-                         HandlerTys &...Handlers) {
+                         HandlerTys &... Handlers) {
     VisitRecordFields(Owner, Handlers...);
   }
 
   template <typename... HandlerTys>
   void visitArrayElementImpl(const CXXRecordDecl *Owner, FieldDecl *ArrayField,
                              QualType ElementTy, uint64_t Index,
-                             HandlerTys &...Handlers) {
+                             HandlerTys &... Handlers) {
     (void)std::initializer_list<int>{
         (Handlers.nextElement(ElementTy, Index), 0)...};
     visitField(Owner, ArrayField, ElementTy, Handlers...);
@@ -1422,13 +1418,13 @@ class KernelObjVisitor {
 
   template <typename... HandlerTys>
   void visitFirstArrayElement(const CXXRecordDecl *Owner, FieldDecl *ArrayField,
-                              QualType ElementTy, HandlerTys &...Handlers) {
+                              QualType ElementTy, HandlerTys &... Handlers) {
     visitArrayElementImpl(Owner, ArrayField, ElementTy, 0, Handlers...);
   }
   template <typename... HandlerTys>
   void visitNthArrayElement(const CXXRecordDecl *Owner, FieldDecl *ArrayField,
                             QualType ElementTy, uint64_t Index,
-                            HandlerTys &...Handlers);
+                            HandlerTys &... Handlers);
 
   template <typename... HandlerTys>
   void visitFirstArrayElement(ParmVarDecl *ArrayField, QualType ElementTy,
@@ -1441,7 +1437,7 @@ class KernelObjVisitor {
 
   template <typename... HandlerTys>
   void visitSimpleArray(const CXXRecordDecl *Owner, FieldDecl *Field,
-                        QualType ArrayTy, HandlerTys &...Handlers) {
+                        QualType ArrayTy, HandlerTys &... Handlers) {
     (void)std::initializer_list<int>{
         (Handlers.handleSimpleArrayType(Field, ArrayTy), 0)...};
   }
@@ -1454,7 +1450,7 @@ class KernelObjVisitor {
 
   template <typename... HandlerTys>
   void visitComplexArray(const CXXRecordDecl *Owner, FieldDecl *Field,
-                         QualType ArrayTy, HandlerTys &...Handlers) {
+                         QualType ArrayTy, HandlerTys &... Handlers) {
     // Array workflow is:
     // handleArrayType
     // enterArray
@@ -1517,7 +1513,7 @@ class KernelObjVisitor {
 
   template <typename... HandlerTys>
   void visitField(const CXXRecordDecl *Owner, FieldDecl *Field,
-                  QualType FieldTy, HandlerTys &...Handlers) {
+                  QualType FieldTy, HandlerTys &... Handlers) {
     if (isSyclSpecialType(FieldTy, SemaRef))
       KF_FOR_EACH(handleSyclSpecialType, Field, FieldTy);
     else if (FieldTy->isStructureOrClassType()) {
@@ -1574,14 +1570,14 @@ public:
 
   template <typename... HandlerTys>
   void VisitRecordBases(const CXXRecordDecl *KernelFunctor,
-                        HandlerTys &...Handlers) {
+                        HandlerTys &... Handlers) {
     VisitRecordHelper(KernelFunctor, KernelFunctor->bases(), Handlers...);
   }
 
   // A visitor function that dispatches to functions as defined in
   // SyclKernelFieldHandler for the purposes of kernel generation.
   template <typename... HandlerTys>
-  void VisitRecordFields(const CXXRecordDecl *Owner, HandlerTys &...Handlers) {
+  void VisitRecordFields(const CXXRecordDecl *Owner, HandlerTys &... Handlers) {
     for (const auto Field : Owner->fields())
       visitField(Owner, Field, Field->getType(), Handlers...);
   }
@@ -1751,9 +1747,7 @@ template <typename H> struct HandlerFilter<false, H> {
 
 template <bool B, bool... Rest> struct AnyTrue;
 
-template <bool B> struct AnyTrue<B> {
-  static constexpr bool Value = B;
-};
+template <bool B> struct AnyTrue<B> { static constexpr bool Value = B; };
 
 template <bool B, bool... Rest> struct AnyTrue {
   static constexpr bool Value = B || AnyTrue<Rest...>::Value;
@@ -1761,9 +1755,7 @@ template <bool B, bool... Rest> struct AnyTrue {
 
 template <bool B, bool... Rest> struct AllTrue;
 
-template <bool B> struct AllTrue<B> {
-  static constexpr bool Value = B;
-};
+template <bool B> struct AllTrue<B> { static constexpr bool Value = B; };
 
 template <bool B, bool... Rest> struct AllTrue {
   static constexpr bool Value = B && AllTrue<Rest...>::Value;
@@ -1772,7 +1764,7 @@ template <bool B, bool... Rest> struct AllTrue {
 template <typename ParentTy, typename... Handlers>
 void KernelObjVisitor::VisitUnion(const CXXRecordDecl *Owner, ParentTy &Parent,
                                   const CXXRecordDecl *Wrapper,
-                                  Handlers &...handlers) {
+                                  Handlers &... handlers) {
   // Don't continue descending if none of the handlers 'care'. This could be 'if
   // constexpr' starting in C++17.  Until then, we have to count on the
   // optimizer to realize "if (false)" is a dead branch.
@@ -1786,7 +1778,7 @@ template <typename... Handlers>
 void KernelObjVisitor::visitNthArrayElement(const CXXRecordDecl *Owner,
                                             FieldDecl *ArrayField,
                                             QualType ElementTy, uint64_t Index,
-                                            Handlers &...handlers) {
+                                            Handlers &... handlers) {
   // Don't continue descending if none of the handlers 'care'. This could be 'if
   // constexpr' starting in C++17.  Until then, we have to count on the
   // optimizer to realize "if (false)" is a dead branch.
@@ -1800,7 +1792,7 @@ void KernelObjVisitor::visitNthArrayElement(const CXXRecordDecl *Owner,
 template <typename... Handlers>
 void KernelObjVisitor::visitNthArrayElement(ParmVarDecl *ArrayField,
                                             QualType ElementTy, uint64_t Index,
-                                            Handlers &...handlers) {
+                                            Handlers &... handlers) {
   // Don't continue descending if none of the handlers 'care'. This could be 'if
   // constexpr' starting in C++17.  Until then, we have to count on the
   // optimizer to realize "if (false)" is a dead branch.
@@ -1814,7 +1806,8 @@ void KernelObjVisitor::visitNthArrayElement(ParmVarDecl *ArrayField,
 template <typename ParentTy, typename... HandlerTys>
 void KernelObjVisitor::visitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
                                    const CXXRecordDecl *Wrapper,
-                                   QualType RecordTy, HandlerTys &...Handlers) {
+                                   QualType RecordTy,
+                                   HandlerTys &... Handlers) {
   RecordDecl *RD = RecordTy->getAsRecordDecl();
   assert(RD && "should not be null.");
   if (RD->hasAttr<SYCLRequiresDecompositionAttr>()) {
@@ -1859,7 +1852,7 @@ void KernelObjVisitor::visitRecord(const CXXRecordDecl *Owner, ParentTy &Parent,
 
 template <typename... HandlerTys>
 void KernelObjVisitor::visitArray(const CXXRecordDecl *Owner, FieldDecl *Field,
-                                  QualType ArrayTy, HandlerTys &...Handlers) {
+                                  QualType ArrayTy, HandlerTys &... Handlers) {
 
   if (Field->hasAttr<SYCLRequiresDecompositionAttr>()) {
     visitComplexArray(Owner, Field, ArrayTy, Handlers...);
@@ -2308,7 +2301,6 @@ public:
     CollectionStack.back() = true;
     return true;
   }
-
   bool handleSyclSpecialType(FieldDecl *, QualType) final {
     CollectionStack.back() = true;
     return true;
@@ -2764,7 +2756,6 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
         makeParamDesc(SemaRef.getASTContext(), Name, FieldTy);
     addParam(newParamDesc, FieldTy);
   }
-
   // Add a parameter with specified name and type
   void addParam(StringRef Name, QualType ParamTy) {
     ParamDesc newParamDesc =
@@ -4229,8 +4220,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     InitializationKind InitKind =
         InitializationKind::CreateDefault(KernelCallerSrcLoc);
     InitializationSequence InitSeq(SemaRef, VarEntity, InitKind, std::nullopt);
-    ExprResult Init =
-        InitSeq.Perform(SemaRef, VarEntity, InitKind, std::nullopt);
+    ExprResult Init = InitSeq.Perform(SemaRef, VarEntity, InitKind, std::nullopt);
     KernelHandlerClone->setInit(
         SemaRef.MaybeCreateExprWithCleanups(Init.get()));
     KernelHandlerClone->setInitStyle(VarDecl::CallInit);
@@ -6388,6 +6378,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "\n";
   }
 
+
   O << "// names of all kernels defined in the corresponding source\n";
   O << "static constexpr\n";
   O << "const char* const kernel_names[] = {\n";
@@ -6773,7 +6764,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   for (const VarDecl *VD : GlobalVars) {
     VD = VD->getCanonicalDecl();
 
-    // Skip if this isn't a SpecIdType, DeviceGlobal, or HostPipe.  This
+    // Skip if this isn't a SpecIdType, DeviceGlobal, or HostPipe.  This 
     // can happen if it was a deduced type.
     if (!Sema::isSyclType(VD->getType(), SYCLTypeAttr::specialization_id) &&
         !Sema::isSyclType(VD->getType(), SYCLTypeAttr::host_pipe) &&
@@ -6818,7 +6809,8 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
         VD->getNameForDiagnostic(HostPipesOS, Policy, true);
       }
       HostPipesOS << ", \"";
-      HostPipesOS << SYCLUniqueStableIdExpr::ComputeName(S.getASTContext(), VD);
+      HostPipesOS << SYCLUniqueStableIdExpr::ComputeName(S.getASTContext(),
+                                                         VD);
       HostPipesOS << "\");\n";
     } else {
       EmittedFirstSpecConstant = true;

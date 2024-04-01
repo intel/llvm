@@ -61,12 +61,6 @@ struct device_has_key : detail::compile_time_property_key<detail::PropKind::Devi
                                  std::integral_constant<aspect, Aspects>...>;
 };
 
-struct range_kernel_key {
-  template <int Dims>
-  using value_t =
-      property_value<range_kernel_key, std::integral_constant<int, Dims>>;
-};
-
 struct nd_range_kernel_key {
   template <int Dims>
   using value_t =
@@ -130,16 +124,6 @@ struct property_value<device_has_key,
 };
 
 template <int Dims>
-struct property_value<range_kernel_key, std::integral_constant<int, Dims>> {
-  static_assert(Dims >= 1 && Dims <= 3,
-                "range_kernel_key property must use dimension of 1, 2 or 3.");
-
-  using key_t = range_kernel_key;
-  using value_t = int;
-  static constexpr int value = Dims;
-};
-
-template <int Dims>
 struct property_value<nd_range_kernel_key, std::integral_constant<int, Dims>> {
   static_assert(
       Dims >= 1 && Dims <= 3,
@@ -147,13 +131,11 @@ struct property_value<nd_range_kernel_key, std::integral_constant<int, Dims>> {
 
   using key_t = nd_range_kernel_key;
   using value_t = int;
-  static constexpr int value = Dims;
+  static constexpr int dimensions = Dims;
 };
 
 template <> struct property_value<single_task_kernel_key> {
   using key_t = single_task_kernel_key;
-  using value_t = int;
-  static constexpr int value = 0;
 };
 
 template <size_t Dim0, size_t... Dims>
@@ -168,9 +150,6 @@ inline constexpr sub_group_size_key::value_t<Size> sub_group_size;
 
 template <aspect... Aspects>
 inline constexpr device_has_key::value_t<Aspects...> device_has;
-
-template <int Dims>
-inline constexpr range_kernel_key::value_t<Dims> range_kernel;
 
 template <int Dims>
 inline constexpr nd_range_kernel_key::value_t<Dims> nd_range_kernel;
@@ -199,10 +178,6 @@ struct PropertyMetaInfo<device_has_key::value_t<Aspects...>> {
   static constexpr const char *name = "sycl-device-has";
   static constexpr const char *value =
       SizeListToStr<static_cast<size_t>(Aspects)...>::value;
-};
-template <int Dims> struct PropertyMetaInfo<range_kernel_key::value_t<Dims>> {
-  static constexpr const char *name = "sycl-range-kernel";
-  static constexpr int value = Dims;
 };
 template <int Dims>
 struct PropertyMetaInfo<nd_range_kernel_key::value_t<Dims>> {

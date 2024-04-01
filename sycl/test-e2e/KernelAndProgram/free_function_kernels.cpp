@@ -130,10 +130,11 @@ bool test_0(queue Queue, KernelFinder &KF) {
 }
 
 SYCL_EXTERNAL
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((ext::oneapi::experimental::range_kernel<1>))
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((ext::oneapi::experimental::nd_range_kernel<1>))
 void ff_1(int *ptr, int start, int end) {
-  id<1> Id = ext::oneapi::experimental::this_id<1>();
-  ptr[Id.get(0)] = Id.get(0) + start + end;
+  nd_item<1> Item = ext::oneapi::experimental::this_nd_item<1>();
+  id<1> GId = Item.get_global_id();
+  ptr[GId.get(0)] = GId.get(0) + start + end;
 }
 
 bool test_1(queue Queue, KernelFinder &KF) {
@@ -144,13 +145,13 @@ bool test_1(queue Queue, KernelFinder &KF) {
     66, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, 7.1
   };
   int Result[Range] = {13, 14, 15, 16, 17, 18, 19, 20, 21, 22};
-  range<1> R1{Range};
+  nd_range<1> R1{ {Range},{1} };
 
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
-    Handler.parallel_for(R1, [=](item<1> Item) {
-      id<1> Id = Item.get_id();
-      usmPtr[Id.get(0)] = Id.get(0) + start + Range;
+    Handler.parallel_for(R1, [=](nd_item<1> Item) {
+      id<1> GId = Item.get_global_id();
+      usmPtr[GId.get(0)] = GId.get(0) + start + Range;
     });
   });
   Queue.wait();
@@ -354,5 +355,5 @@ int main() {
   Pass &= test_3(Queue, KF);
   Pass &= test_4(Queue, KF);
 
-  return Pass;
+  return Pass ? 0 : 1;
 }
