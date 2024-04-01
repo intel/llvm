@@ -243,15 +243,6 @@ float3 ceil(float3);
 _HLSL_BUILTIN_ALIAS(__builtin_elementwise_ceil)
 float4 ceil(float4);
 
-_HLSL_BUILTIN_ALIAS(__builtin_elementwise_ceil)
-double ceil(double);
-_HLSL_BUILTIN_ALIAS(__builtin_elementwise_ceil)
-double2 ceil(double2);
-_HLSL_BUILTIN_ALIAS(__builtin_elementwise_ceil)
-double3 ceil(double3);
-_HLSL_BUILTIN_ALIAS(__builtin_elementwise_ceil)
-double4 ceil(double4);
-
 //===----------------------------------------------------------------------===//
 // clamp builtins
 //===----------------------------------------------------------------------===//
@@ -584,15 +575,6 @@ _HLSL_BUILTIN_ALIAS(__builtin_elementwise_floor)
 float3 floor(float3);
 _HLSL_BUILTIN_ALIAS(__builtin_elementwise_floor)
 float4 floor(float4);
-
-_HLSL_BUILTIN_ALIAS(__builtin_elementwise_floor)
-double floor(double);
-_HLSL_BUILTIN_ALIAS(__builtin_elementwise_floor)
-double2 floor(double2);
-_HLSL_BUILTIN_ALIAS(__builtin_elementwise_floor)
-double3 floor(double3);
-_HLSL_BUILTIN_ALIAS(__builtin_elementwise_floor)
-double4 floor(double4);
 
 //===----------------------------------------------------------------------===//
 // frac builtins
@@ -1266,25 +1248,25 @@ float4 rsqrt(float4);
 /// rounded to the nearest even value.
 
 _HLSL_16BIT_AVAILABILITY(shadermodel, 6.2)
-_HLSL_BUILTIN_ALIAS(__builtin_elementwise_round)
+_HLSL_BUILTIN_ALIAS(__builtin_elementwise_roundeven)
 half round(half);
 _HLSL_16BIT_AVAILABILITY(shadermodel, 6.2)
-_HLSL_BUILTIN_ALIAS(__builtin_elementwise_round)
+_HLSL_BUILTIN_ALIAS(__builtin_elementwise_roundeven)
 half2 round(half2);
 _HLSL_16BIT_AVAILABILITY(shadermodel, 6.2)
-_HLSL_BUILTIN_ALIAS(__builtin_elementwise_round)
+_HLSL_BUILTIN_ALIAS(__builtin_elementwise_roundeven)
 half3 round(half3);
 _HLSL_16BIT_AVAILABILITY(shadermodel, 6.2)
-_HLSL_BUILTIN_ALIAS(__builtin_elementwise_round)
+_HLSL_BUILTIN_ALIAS(__builtin_elementwise_roundeven)
 half4 round(half4);
 
-_HLSL_BUILTIN_ALIAS(__builtin_elementwise_round)
+_HLSL_BUILTIN_ALIAS(__builtin_elementwise_roundeven)
 float round(float);
-_HLSL_BUILTIN_ALIAS(__builtin_elementwise_round)
+_HLSL_BUILTIN_ALIAS(__builtin_elementwise_roundeven)
 float2 round(float2);
-_HLSL_BUILTIN_ALIAS(__builtin_elementwise_round)
+_HLSL_BUILTIN_ALIAS(__builtin_elementwise_roundeven)
 float3 round(float3);
-_HLSL_BUILTIN_ALIAS(__builtin_elementwise_round)
+_HLSL_BUILTIN_ALIAS(__builtin_elementwise_roundeven)
 float4 round(float4);
 
 //===----------------------------------------------------------------------===//
