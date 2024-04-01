@@ -47,6 +47,6 @@ int main() {
   // CHECK: [[ADDR]] is located inside of Device USM region [{{0x.*}}, {{0x.*}})
   // CHECK: allocated here:
   // CHECK: released here:
-  
+
   return 0;
 }
