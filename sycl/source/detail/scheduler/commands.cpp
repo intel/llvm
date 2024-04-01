@@ -1993,8 +1993,7 @@ void instrumentationAddExtraKernelMetadata(
     EliminatedArgMask = KernelImpl->getKernelArgMask();
     Program = KernelImpl->getDeviceImage()->get_program_ref();
   } else if (nullptr != SyclKernel) {
-    auto SyclProg = SyclKernel->getProgramImpl();
-    Program = SyclProg->getHandleRef();
+    Program = SyclKernel->getProgramRef();
     if (!SyclKernel->isCreatedFromSource())
       EliminatedArgMask = SyclKernel->getKernelArgMask();
   } else {
@@ -2489,8 +2488,7 @@ pi_int32 enqueueImpCommandBufferKernel(
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else if (Kernel != nullptr) {
     PiKernel = Kernel->getHandleRef();
-    auto SyclProg = Kernel->getProgramImpl();
-    PiProgram = SyclProg->getHandleRef();
+    PiProgram = Kernel->getProgramRef();
     EliminatedArgMask = Kernel->getKernelArgMask();
   } else {
     std::tie(PiKernel, std::ignore, EliminatedArgMask, PiProgram) =
@@ -2603,8 +2601,8 @@ pi_int32 enqueueImpKernel(
     assert(MSyclKernel->get_info<info::kernel::context>() ==
            Queue->get_context());
     Kernel = MSyclKernel->getHandleRef();
-    auto SyclProg = MSyclKernel->getProgramImpl();
-    Program = SyclProg->getHandleRef();
+    Program = MSyclKernel->getProgramRef();
+
     // Non-cacheable kernels use mutexes from kernel_impls.
     // TODO this can still result in a race condition if multiple SYCL
     // kernels are created with the same native handle. To address this,

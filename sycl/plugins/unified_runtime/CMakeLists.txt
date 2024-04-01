@@ -82,13 +82,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1f4b703d8a136d49e4e98ca5f017727f3aaa41dc
-  # Merge: 6883118 a187fbb
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Mon Mar 25 11:22:45 2024 +0100
-  #     Merge pull request #1471 from pbalcer/remove-coverage
-  #     [CI] remove coverage workflow
-  set(UNIFIED_RUNTIME_TAG 1f4b703d8a136d49e4e98ca5f017727f3aaa41dc)
+  # commit 0816206d9e863b88feadf9139c9bb829dcc0d2de
+  # Merge: 0c0f48db 46f69b9f
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Mon Apr 1 10:22:25 2024 +0100
+  #     Merge pull request #1460 from hdelan/remove-unused-prototypes
+  #     [HIP][CUDA] Remove function prototypes from enqueue.hpp
+  set(UNIFIED_RUNTIME_TAG 0816206d9e863b88feadf9139c9bb829dcc0d2de)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

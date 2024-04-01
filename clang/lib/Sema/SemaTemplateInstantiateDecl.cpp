@@ -802,7 +802,7 @@ static void instantiateSYCLIntelMaxConcurrencyAttr(
     const SYCLIntelMaxConcurrencyAttr *A, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(A->getNThreadsExpr(), TemplateArgs);
+  ExprResult Result = S.SubstExpr(A->getNExpr(), TemplateArgs);
   if (!Result.isInvalid())
     S.AddSYCLIntelMaxConcurrencyAttr(New, *A, Result.getAs<Expr>());
 }
@@ -832,7 +832,7 @@ static void instantiateSYCLIntelInitiationIntervalAttr(
     const SYCLIntelInitiationIntervalAttr *A, Decl *New) {
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
-  ExprResult Result = S.SubstExpr(A->getIntervalExpr(), TemplateArgs);
+  ExprResult Result = S.SubstExpr(A->getNExpr(), TemplateArgs);
   if (!Result.isInvalid())
     S.AddSYCLIntelInitiationIntervalAttr(New, *A, Result.getAs<Expr>());
 }
@@ -2245,6 +2245,7 @@ Decl *TemplateDeclInstantiator::VisitClassTemplateDecl(ClassTemplateDecl *D) {
     assert(!Owner->isDependentContext());
     Inst->setLexicalDeclContext(Owner);
     RecordInst->setLexicalDeclContext(Owner);
+    Inst->setObjectOfFriendDecl();
 
     if (PrevClassTemplate) {
       Inst->setCommonPtr(PrevClassTemplate->getCommonPtr());

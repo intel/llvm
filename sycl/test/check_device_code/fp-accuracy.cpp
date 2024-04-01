@@ -8,6 +8,8 @@
 
 #include <sycl/sycl.hpp>
 
+#include <cmath>
+
 SYCL_EXTERNAL auto foo(double x) { return std::cos(std::exp(std::log(x))); }
 
 // CHECK-LABEL: define {{.*}}food

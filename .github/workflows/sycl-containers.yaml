@@ -21,6 +21,8 @@ on:
       - 'devops/scripts/install_build_tools.sh'
       - '.github/workflows/sycl-containers.yaml'
 
+permissions: read-all
+
 jobs:
   base_image_ubuntu2204:
     if: github.repository == 'intel/llvm'
