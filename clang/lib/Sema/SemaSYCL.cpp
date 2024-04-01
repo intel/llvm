@@ -1792,7 +1792,7 @@ void KernelObjVisitor::visitNthArrayElement(const CXXRecordDecl *Owner,
 template <typename... Handlers>
 void KernelObjVisitor::visitNthArrayElement(ParmVarDecl *ArrayField,
                                             QualType ElementTy, uint64_t Index,
-                                            Handlers &... handlers) {
+                                            Handlers &...handlers) {
   // Don't continue descending if none of the handlers 'care'. This could be 'if
   // constexpr' starting in C++17.  Until then, we have to count on the
   // optimizer to realize "if (false)" is a dead branch.

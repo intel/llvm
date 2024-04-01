@@ -130,7 +130,8 @@ bool test_0(queue Queue, KernelFinder &KF) {
 }
 
 SYCL_EXTERNAL
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((ext::oneapi::experimental::nd_range_kernel<1>))
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (ext::oneapi::experimental::nd_range_kernel<1>))
 void ff_1(int *ptr, int start, int end) {
   nd_item<1> Item = ext::oneapi::experimental::this_nd_item<1>();
   id<1> GId = Item.get_global_id();
@@ -145,7 +146,7 @@ bool test_1(queue Queue, KernelFinder &KF) {
     66, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, 7.1
   };
   int Result[Range] = {13, 14, 15, 16, 17, 18, 19, 20, 21, 22};
-  nd_range<1> R1{ {Range},{1} };
+  nd_range<1> R1{{Range}, {1}};
 
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
