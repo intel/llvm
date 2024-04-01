@@ -1,32 +1,17 @@
 // RUN: mlir-opt %s -split-input-file -verify-diagnostics | FileCheck %s
 
-llvm.func @gen_special_regs() -> i32 {
-  // CHECK-LABEL: gen_special_regs
-  // CHECK: gen.workitem.id.x : i32
-  %0 = gen.workitem.id.x : i32
-  // CHECK: gen.workitem.id.y : i32
-  %1 = gen.workitem.id.y : i32
-  // CHECK: gen.workitem.id.z : i32
-  %2 = gen.workitem.id.z : i32
-  // CHECK: gen.workgroup.id.x : i32
-  %3 = gen.workgroup.id.x : i32
-  // CHECK: gen.workgroup.id.y : i32
-  %4 = gen.workgroup.id.y : i32
-  // CHECK: gen.workgroup.id.z : i32
-  %5 = gen.workgroup.id.z : i32
-  // CHECK: gen.workgroup.dim.x : i32
-  %6 = gen.workgroup.dim.x : i32
-  // CHECK: gen.workgroup.dim.y : i32
-  %7 = gen.workgroup.dim.y : i32
-  // CHECK: gen.workgroup.dim.z : i32
-  %8 = gen.workgroup.dim.z : i32
-  // CHECK: gen.grid.dim.x : i32
-  %9 = gen.grid.dim.x : i32
-  // CHECK: gen.grid.dim.y : i32
-  %10 = gen.grid.dim.y : i32
-  // CHECK: gen.grid.dim.z : i32
-  %11 = gen.grid.dim.z : i32
-  llvm.return %0 : i32
+llvm.func @gen_nd_range(%dim: i32) {
+  // CHECK-LABEL: gen_nd_range
+  // CHECK-SAME:              (%[[DIM:.*]]: i32)
+  // CHECK: gen.local_id %[[DIM]]
+  %0 = gen.local_id %dim
+  // CHECK: gen.work_group_id %[[DIM]]
+  %1 = gen.work_group_id %dim
+  // CHECK: gen.work_group_size %[[DIM]]
+  %2 = gen.work_group_size %dim
+  // CHECK: gen.num_work_groups %[[DIM]]
+  %3 = gen.num_work_groups %dim
+  llvm.return
 }
 
 llvm.func @gen.barrier() {

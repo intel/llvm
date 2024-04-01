@@ -1,48 +1,17 @@
 // RUN: mlir-opt -convert-gen-to-llvm -split-input-file %s | FileCheck %s
 
-llvm.func @gen_special_regs() -> i32 {
-  // CHECK-LABEL: gen_special_regs
-  // CHECK: [[ZERO:%.*]] = llvm.mlir.constant(0 : i32) : i32
-  // CHECK: [[CI:%.*]] = llvm.call @_Z12get_local_idj([[ZERO]]) : (i32) -> i64
-  // CHECK-NEXT: llvm.trunc [[CI]] : i64 to i32
-  %1 = gen.workitem.id.x : i32
-  // CHECK: [[ONE:%.*]] = llvm.mlir.constant(1 : i32) : i32
-  // CHECK: llvm.call @_Z12get_local_idj([[ONE]]) : (i32) -> i64
-  %2 = gen.workitem.id.y : i32
-  // CHECK: [[TWO:%.*]] = llvm.mlir.constant(2 : i32) : i32
-  // CHECK: llvm.call @_Z12get_local_idj([[TWO]]) : (i32) -> i64
-  %3 = gen.workitem.id.z : i64
-
-  // CHECK: [[ZERO1:%.*]] = llvm.mlir.constant(0 : i32) : i32
-  // CHECK: llvm.call @_Z12get_group_idj([[ZERO1]]) : (i32) -> i64
-  %4 = gen.workgroup.id.x : i32
-  // CHECK: [[ONE1:%.*]] = llvm.mlir.constant(1 : i32) : i32
-  // CHECK: llvm.call @_Z12get_group_idj([[ONE1]]) : (i32) -> i64
-  %5 = gen.workgroup.id.y : i64
-  // CHECK: [[TWO1:%.*]] = llvm.mlir.constant(2 : i32) : i32
-  // CHECK: llvm.call @_Z12get_group_idj([[TWO1]]) : (i32) -> i64
-  %6 = gen.workgroup.id.z : i32
-
-  // CHECK: [[ZERO2:%.*]] = llvm.mlir.constant(0 : i32) : i32
-  // CHECK: llvm.call @_Z14get_local_sizej([[ZERO2]]) : (i32) -> i64
-  %7 = gen.workgroup.dim.x : i32
-  // CHECK: [[ONE2:%.*]] = llvm.mlir.constant(1 : i32) : i32
-  // CHECK: llvm.call @_Z14get_local_sizej([[ONE2]]) : (i32) -> i64
-  %8 = gen.workgroup.dim.y : i64
-  // CHECK: [[TWO2:%.*]] = llvm.mlir.constant(2 : i32) : i32
-  // CHECK: llvm.call @_Z14get_local_sizej([[TWO2]]) : (i32) -> i64
-  %9 = gen.workgroup.dim.z : i32
-
-  // CHECK: [[ZERO3:%.*]] = llvm.mlir.constant(0 : i32) : i32
-  // CHECK: llvm.call @_Z14get_num_groupsj([[ZERO3]]) : (i32) -> i64
-  %10 = gen.grid.dim.x : i32
-  // CHECK: [[ONE3:%.*]] = llvm.mlir.constant(1 : i32) : i32
-  // CHECK: llvm.call @_Z14get_num_groupsj([[ONE3]]) : (i32) -> i64
-  %11 = gen.grid.dim.y : i64
-  // CHECK: [[TWO3:%.*]] = llvm.mlir.constant(2 : i32) : i32
-  // CHECK: llvm.call @_Z14get_num_groupsj([[TWO3]]) : (i32) -> i64
-  %12 = gen.grid.dim.z : i32
-  llvm.return %1 : i32
+llvm.func @gen_nd_range(%dim: i32) {
+  // CHECK-LABEL: gen_nd_range
+  // CHECK-SAME:              (%[[DIM:.*]]: i32)
+  // CHECK:         llvm.call @_Z12get_local_idj(%[[DIM]]) : (i32) -> i64
+  %0 = gen.local_id %dim
+  // CHECK:         llvm.call @_Z12get_group_idj(%[[DIM]]) : (i32) -> i64
+  %1 = gen.work_group_id %dim
+  // CHECK:         llvm.call @_Z14get_local_sizej(%[[DIM]]) : (i32) -> i64
+  %2 = gen.work_group_size %dim
+  // CHECK:         llvm.call @_Z14get_num_groupsj(%[[DIM]]) : (i32) -> i64
+  %3 = gen.num_work_groups %dim
+  llvm.return
 }
 
 // -----

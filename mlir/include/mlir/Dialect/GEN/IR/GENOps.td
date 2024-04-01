@@ -30,100 +30,56 @@ class GEN_Op<string mnemonic, list<Trait> traits = []> :
 }
 
 //===----------------------------------------------------------------------===//
-// Thread and Block index
+// ND-Range Operations
 //===----------------------------------------------------------------------===//
 
-def IndexType : AnyTypeOf<[I32, I64]>;
+def GEN3DNDRange : NativeOpTrait<"GEN3DNDRange">;
 
-def GEN_ThreadIdXOp : GEN_Op<"workitem.id.x", [Pure]> {
-  let arguments = (ins);
-  let results = (outs IndexType:$res);
-  let assemblyFormat = [{
-    attr-dict `:` type($res)
-  }];
+class GEN_3DNDRangeOp<string mnemonic, list<Trait> traits = []>
+    : GEN_Op<mnemonic, [GEN3DNDRange, Pure] # traits>,
+      Arguments<(ins I32:$dim)>,
+      Results<(outs Index:$res)> {
+  let assemblyFormat = "$dim attr-dict";
 }
-def GEN_ThreadIdYOp : GEN_Op<"workitem.id.y", [Pure]> {
-  let arguments = (ins);
-  let results = (outs IndexType:$res);
-  let assemblyFormat = [{
-    attr-dict `:` type($res)
-  }];
-}
-def GEN_ThreadIdZOp : GEN_Op<"workitem.id.z", [Pure]> {
-  let arguments = (ins);
-  let results = (outs IndexType:$res);
-  let assemblyFormat = [{
-    attr-dict `:` type($res)
+
+def GEN_LocalIdOp : GEN_3DNDRangeOp<"local_id"> {
+  let summary = "Query a work-item's local id.";
+  let description = [{
+    Query the work-item's position in its work-group, i.e., its local id, in a
+    given dimension.
+    ```mlir
+    %local_id = gen.local_id %dim
+    ```
   }];
 }
 
-def GEN_BlockIdXOp : GEN_Op<"workgroup.id.x", [Pure]> {
-  let arguments = (ins);
-  let results = (outs IndexType:$res);
-  let assemblyFormat = [{
-    attr-dict `:` type($res)
-  }];
-}
-def GEN_BlockIdYOp : GEN_Op<"workgroup.id.y", [Pure]> {
-  let arguments = (ins);
-  let results = (outs IndexType:$res);
-  let assemblyFormat = [{
-    attr-dict `:` type($res)
-  }];
-}
-def GEN_BlockIdZOp : GEN_Op<"workgroup.id.z", [Pure]> {
-  let arguments = (ins);
-  let results = (outs IndexType:$res);
-  let assemblyFormat = [{
-    attr-dict `:` type($res)
+def GEN_WorkGroupIdOp : GEN_3DNDRangeOp<"work_group_id"> {
+  let summary = "Query a work-item's work-group id.";
+  let description = [{
+    Query the work-item's work-group id in a given dimension.
+    ```mlir
+    %work_group_id = gen.work_group_id %dim
+    ```
   }];
 }
 
-//===----------------------------------------------------------------------===//
-// Block and Grid range
-//===----------------------------------------------------------------------===//
-
-def GEN_BlockDimXOp : GEN_Op<"workgroup.dim.x", [Pure]> {
-  let arguments = (ins);
-  let results = (outs IndexType:$res);
-  let assemblyFormat = [{
-    attr-dict `:` type($res)
-  }];
-}
-def GEN_BlockDimYOp : GEN_Op<"workgroup.dim.y", [Pure]> {
-  let arguments = (ins);
-  let results = (outs IndexType:$res);
-  let assemblyFormat = [{
-    attr-dict `:` type($res)
-  }];
-}
-def GEN_BlockDimZOp : GEN_Op<"workgroup.dim.z", [Pure]> {
-  let arguments = (ins);
-  let results = (outs IndexType:$res);
-  let assemblyFormat = [{
-    attr-dict `:` type($res)
+def GEN_WorkGroupSizeOp : GEN_3DNDRangeOp<"work_group_size"> {
+  let summary = "Query the work-group size.";
+  let description = [{
+    Query the work-item's work-group size in a given dimension.
+    ```mlir
+    %work_group_size = gen.work_group_size %dim
+    ```
   }];
 }
 
-def GEN_GridDimXOp : GEN_Op<"grid.dim.x", [Pure]> {
-  let arguments = (ins);
-  let results = (outs IndexType:$res);
-  let assemblyFormat = [{
-    attr-dict `:` type($res)
-  }];
-}
-def GEN_GridDimYOp : GEN_Op<"grid.dim.y", [Pure]> {
-  let arguments = (ins);
-  let results = (outs IndexType:$res);
-  let assemblyFormat = [{
-    attr-dict `:` type($res)
-  }];
-}
-def GEN_GridDimZOp : GEN_Op<"grid.dim.z", [Pure]> {
-  let arguments = (ins);
-  let results = (outs IndexType:$res);
-  let assemblyFormat = [{
-    attr-dict `:` type($res)
+def GEN_NumWorkGroupsOp : GEN_3DNDRangeOp<"num_work_groups"> {
+  let summary = "Query the number of work-groups in the ND-range.";
+  let description = [{
+    Query the number of work-groups in the ND-range in a given dimension.
+    ```mlir
+    %wg_number = gen.num_work_groups %dim
+    ```
   }];
 }
 
