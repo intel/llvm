@@ -30,7 +30,7 @@ int main() {
     return 0;
   }
 
-  if (!Dev0.has(aspect::ext_oneapi_graph)) {
+  if (!Dev0.has(aspect::ext_oneapi_limited_graph)) {
     std::cout << "Test skipped: device doesn't support graphs" << std::endl;
     return 0;
   }

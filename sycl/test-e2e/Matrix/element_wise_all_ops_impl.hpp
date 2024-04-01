@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 template <typename T, size_t NUM_ROWS, size_t NUM_COLS>
 void assert_ops_ref(host_accessor<T, 2, access::mode::read> mat,
                     const float ref) {
@@ -105,8 +106,11 @@ void verify_op_c(const T l, const T r, const float ref, OP op) {
 
 // Avoid same kernel name for different types
 template <typename T, class name> class ewops_a {};
-template <typename T, size_t NROWS, size_t NCOLS, size_t SROWS, size_t SCOLS>
-void test_ewops_a() {
+template <typename T, size_t SROWS, size_t SCOLS> void test_ewops_a() {
+  std::cout << "Test A " << SROWS << "x" << SCOLS << "\n";
+
+  static constexpr size_t NROWS = SROWS * 2;
+  static constexpr size_t NCOLS = SCOLS * 2;
 
   verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS, ewops_a<T, class a_add>>(
       T(5.0), T(2.0), 7.0, [](auto l, auto r) { return l + r; });
@@ -135,64 +139,87 @@ void test_ewops_a() {
       T(5.0), T(2.0), 2.0,
       [](auto l, auto r) { return l <= r ? T(3.0) : T(2.0); });
 }
-// Avoid same kernel name for different types and numbers of columns
-template <typename T, size_t COLS, class name> class ewops_c {};
-template <typename T, size_t NROWS, size_t NCOLS, size_t SROWS, size_t SCOLS>
-void test_ewops_c() {
 
-  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<T, SCOLS, class c_add>>(
+// Avoid same kernel name for different types and numbers of columns
+template <typename T, size_t ROWS, size_t COLS, class name> class ewops_c {};
+template <typename T, size_t SROWS, size_t SCOLS> void test_ewops_c() {
+  std::cout << "Test C " << SROWS << "x" << SCOLS << "\n";
+
+  static constexpr size_t NROWS = SROWS * 2;
+  static constexpr size_t NCOLS = SCOLS * 2;
+
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS,
+              ewops_c<T, SROWS, SCOLS, class c_add>>(
       T(5.0), T(2.0), 7.0, [](auto l, auto r) { return l + r; });
-  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<T, SCOLS, class c_sub>>(
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS,
+              ewops_c<T, SROWS, SCOLS, class c_sub>>(
       T(5.0), T(2.0), 3.0, [](auto l, auto r) { return l - r; });
-  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<T, SCOLS, class c_mul>>(
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS,
+              ewops_c<T, SROWS, SCOLS, class c_mul>>(
       T(5.0), T(2.0), 10.0, [](auto l, auto r) { return l * r; });
-  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<T, SCOLS, class c_div>>(
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS,
+              ewops_c<T, SROWS, SCOLS, class c_div>>(
       T(5.0), T(2.0), 2.5, [](auto l, auto r) { return l / r; });
   verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS,
-              ewops_c<T, SCOLS, class c_logical>>(
+              ewops_c<T, SROWS, SCOLS, class c_logical>>(
       T(5.0), T(5.0), 5.0, [](auto l, auto r) { return l == r ? l : T(1.0); });
-  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<T, SCOLS, class c_eq>>(
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS,
+              ewops_c<T, SROWS, SCOLS, class c_eq>>(
       T(5.0), T(4.0), 4.0, [](auto l, auto r) { return l == r ? l : r; });
-  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<T, SCOLS, class c_ne>>(
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS,
+              ewops_c<T, SROWS, SCOLS, class c_ne>>(
       T(5.0), T(5.0), 1.0, [](auto l, auto r) { return l != r ? l : T(1.0); });
-  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<T, SCOLS, class c_gt>>(
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS,
+              ewops_c<T, SROWS, SCOLS, class c_gt>>(
       T(5.0), T(2.0), 3.0,
       [](auto l, auto r) { return l > r ? T(3.0) : T(2.0); });
-  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<T, SCOLS, class c_lt>>(
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS,
+              ewops_c<T, SROWS, SCOLS, class c_lt>>(
       T(5.0), T(2.0), 2.0,
       [](auto l, auto r) { return l < r ? T(3.0) : T(2.0); });
-  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<T, SCOLS, class c_ge>>(
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS,
+              ewops_c<T, SROWS, SCOLS, class c_ge>>(
       T(5.0), T(2.0), 3.0,
       [](auto l, auto r) { return l >= r ? T(3.0) : T(2.0); });
-  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS, ewops_c<T, SCOLS, class c_le>>(
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS,
+              ewops_c<T, SROWS, SCOLS, class c_le>>(
       T(5.0), T(2.0), 2.0,
       [](auto l, auto r) { return l <= r ? T(3.0) : T(2.0); });
 }
 
 int main() {
-  static constexpr size_t TM = 8;
-
-  static constexpr size_t MATRIX_M = TM * 2;
-  static constexpr size_t MATRIX_N = 32;
-  static constexpr size_t MATRIX_K = 32;
   queue q;
   std::vector<combination> combinations =
       q.get_device()
           .get_info<sycl::ext::oneapi::experimental::info::device::
                         matrix_combinations>();
+
   for (unsigned int i = 0; i < combinations.size(); i++) {
     if (combinations[i].atype == matrix_type::bf16) {
-      if (combinations[i].nsize == 0 || combinations[i].nsize == 16) {
-        test_ewops_a<bfloat16, MATRIX_M, MATRIX_K, TM, 16>();
-        test_ewops_c<float, MATRIX_M, MATRIX_N, TM, 16>();
-        break;
+
+      if (combinations[i].nsize == 0 ||
+          (combinations[i].msize == 0 && combinations[i].nsize == 16)) {
+        test_ewops_a<bfloat16, 8, 16>();
+        test_ewops_c<float, 8, 16>();
       }
+
+      if (combinations[i].msize == 16 && combinations[i].nsize == 16) {
+        test_ewops_c<float, 16, 16>();
+      }
+
+// This combination is not currently supported for sub group size = 32 in IGC
+#if (!defined(SG_SZ) || SG_SZ != 32)
+      if (combinations[i].msize == 32 && combinations[i].nsize == 64) {
+        test_ewops_c<float, 32, 64>();
+      }
+#endif
+
       if (combinations[i].nsize == 8) {
-        test_ewops_a<bfloat16, MATRIX_M, MATRIX_K, TM, 16>();
-        test_ewops_c<float, MATRIX_M, MATRIX_N, TM, 8>();
-        break;
+        test_ewops_a<bfloat16, 8, 16>();
+        test_ewops_c<float, 8, 8>();
       }
     }
   }
+
   return 0;
 }

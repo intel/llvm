@@ -5,6 +5,8 @@ on:
   schedule:
     - cron: '0 3 * * *'
 
+permissions: read-all
+
 jobs:
   ubuntu2204_build:
     if: github.repository == 'intel/llvm'

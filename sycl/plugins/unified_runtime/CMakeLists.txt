@@ -81,14 +81,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 29ee45c4451a682f744146cc9dbeb2617ecdd6b3
-  # Merge: db4b0c14 4f5d005a
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Mar 18 12:14:26 2024 +0000
-  #     Merge pull request #1291 from JackAKirk/cuda-seq-cst-b
-  #     [CUDA] Report that devices with cc >= sm_70 support seq_cst
-  set(UNIFIED_RUNTIME_TAG 29ee45c4451a682f744146cc9dbeb2617ecdd6b3)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 0816206d9e863b88feadf9139c9bb829dcc0d2de
+  # Merge: 0c0f48db 46f69b9f
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Mon Apr 1 10:22:25 2024 +0100
+  #     Merge pull request #1460 from hdelan/remove-unused-prototypes
+  #     [HIP][CUDA] Remove function prototypes from enqueue.hpp
+  set(UNIFIED_RUNTIME_TAG 0816206d9e863b88feadf9139c9bb829dcc0d2de)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

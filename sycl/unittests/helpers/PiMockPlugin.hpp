@@ -207,7 +207,9 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
   case PI_DEVICE_INFO_HOST_UNIFIED_MEMORY:
   case PI_DEVICE_INFO_AVAILABLE:
   case PI_DEVICE_INFO_LINKER_AVAILABLE:
-  case PI_DEVICE_INFO_COMPILER_AVAILABLE: {
+  case PI_DEVICE_INFO_COMPILER_AVAILABLE:
+  case PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_SUPPORT:
+  case PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT: {
     if (param_value)
       *static_cast<pi_bool *>(param_value) = PI_TRUE;
     if (param_value_size_ret)
@@ -277,6 +279,12 @@ inline pi_result
 mock_piextGetDeviceFunctionPointer(pi_device device, pi_program program,
                                    const char *function_name,
                                    pi_uint64 *function_pointer_ret) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextGetGlobalVariablePointer(
+    pi_device device, pi_program program, const char *global_variable_name,
+    size_t *global_variable_size, void **global_variable_size_ret) {
   return PI_SUCCESS;
 }
 
@@ -1316,7 +1324,7 @@ inline pi_result mock_piextCommandBufferNDRangeKernel(
     const size_t *global_work_offset, const size_t *global_work_size,
     const size_t *local_work_size, pi_uint32 num_sync_points_in_wait_list,
     const pi_ext_sync_point *sync_point_wait_list,
-    pi_ext_sync_point *sync_point) {
+    pi_ext_sync_point *sync_point, pi_ext_command_buffer_command *command) {
   return PI_SUCCESS;
 }
 
@@ -1370,6 +1378,22 @@ inline pi_result mock_piextEnqueueCommandBuffer(
     pi_ext_command_buffer command_buffer, pi_queue queue,
     pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
     pi_event *event) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextCommandBufferUpdateKernelLaunch(
+    pi_ext_command_buffer_command Command,
+    pi_ext_command_buffer_update_kernel_launch_desc *Desc) {
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextCommandBufferRetainCommand(pi_ext_command_buffer_command Command) {
+  return PI_SUCCESS;
+}
+
+inline pi_result
+mock_piextCommandBufferReleaseCommand(pi_ext_command_buffer_command Command) {
   return PI_SUCCESS;
 }
 
