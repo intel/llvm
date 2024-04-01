@@ -4934,7 +4934,8 @@ class OffloadingActionBuilder final {
         // with -fsycl-device-only.
         bool IsPreprocessOnly =
             Args.getLastArg(options::OPT_E) ||
-            Args.getLastArg(options::OPT__SLASH_EP, options::OPT__SLASH_P);
+            Args.getLastArg(options::OPT__SLASH_EP, options::OPT__SLASH_P) ||
+            Args.getLastArg(options::OPT_M, options::OPT_MM);
         if (IsPreprocessOnly) {
           for (auto TargetActionInfo :
                llvm::zip(SYCLDeviceActions, SYCLTargetInfoList)) {
@@ -4951,11 +4952,6 @@ class OffloadingActionBuilder final {
             DA.add(*CompileAction, *TargetInfo.TC, TargetInfo.BoundArch,
                    Action::OFK_SYCL);
           }
-          return SYCLDeviceOnly ? ABRT_Ignore_Host : ABRT_Success;
-
-          for (Action *&A : SYCLDeviceActions)
-            A = C.getDriver().ConstructPhaseAction(C, Args, CurPhase, A,
-                                                   AssociatedOffloadKind);
           return SYCLDeviceOnly ? ABRT_Ignore_Host : ABRT_Success;
         }
       }
