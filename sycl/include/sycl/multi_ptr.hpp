@@ -1546,16 +1546,14 @@ template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress>
 bool operator==(const multi_ptr<ElementType, Space, DecorateAddress> &lhs,
                 std::nullptr_t) {
-  return lhs.get() ==
-         multi_ptr<ElementType, Space, DecorateAddress>(nullptr).get();
+  return lhs.get() == nullptr;
 }
 
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress>
 bool operator==(std::nullptr_t,
                 const multi_ptr<ElementType, Space, DecorateAddress> &rhs) {
-  return rhs.get() ==
-         multi_ptr<ElementType, Space, DecorateAddress>(nullptr).get();
+  return rhs.get() == nullptr;
 }
 
 template <typename ElementType, access::address_space Space,
