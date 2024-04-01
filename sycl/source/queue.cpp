@@ -207,14 +207,13 @@ void queue::wait_and_throw_proxy(const detail::code_location &CodeLoc) {
 
 static event
 getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
-  // The last command recorded in the graph is not tracked by the queue but by
-  // the graph itself. We must therefore search for the last node/event in the
+  // This function should not be called when a queue is recording to a graph,
+  // as a graph can record from multiple queues and we cannot guarantee the
+  // last node added by an in-order queue will be the last node added to the
   // graph.
-  if (auto Graph = QueueImpl->getCommandGraph()) {
-    auto LastEvent =
-        Graph->getEventForNode(Graph->getLastInorderNode(QueueImpl));
-    return sycl::detail::createSyclObjFromImpl<event>(LastEvent);
-  }
+  assert(!QueueImpl->getCommandGraph() &&
+         "Should not be called in on graph recording.");
+
   auto LastEvent = QueueImpl->getLastEvent();
   if (QueueImpl->MDiscardEvents) {
     std::cout << "Discard event enabled" << std::endl;
@@ -241,7 +240,7 @@ getBarrierEventForInorderQueueHelper(const detail::QueueImplPtr QueueImpl) {
 /// \return a SYCL event object, which corresponds to the queue the command
 /// group is being enqueued on.
 event queue::ext_oneapi_submit_barrier(const detail::code_location &CodeLoc) {
-  if (is_in_order())
+  if (is_in_order() && !impl->getCommandGraph())
     return getBarrierEventForInorderQueueHelper(impl);
 
   return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(); }, CodeLoc);
@@ -260,10 +259,10 @@ event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
                                        const detail::code_location &CodeLoc) {
   bool AllEventsEmptyOrNop = std::all_of(
       begin(WaitList), end(WaitList), [&](const event &Event) -> bool {
-        return !detail::getSyclObjImpl(Event)->isContextInitialized() ||
-               detail::getSyclObjImpl(Event)->isNOP();
+        auto EventImpl = detail::getSyclObjImpl(Event);
+        return !EventImpl->isContextInitialized() || EventImpl->isNOP();
       });
-  if (is_in_order() && AllEventsEmptyOrNop)
+  if (is_in_order() && !impl->getCommandGraph() && AllEventsEmptyOrNop)
     return getBarrierEventForInorderQueueHelper(impl);
 
   return submit([=](handler &CGH) { CGH.ext_oneapi_barrier(WaitList); },
