@@ -1194,49 +1194,6 @@ DataT sample_cubemap(const sampled_image_handle &imageHandle [[maybe_unused]],
 }
 
 /**
- *  @brief   [Deprecated] Write to an unsampled image using its handle
- *
- *  @tparam  DataT The data type to write
- *  @tparam  CoordT The input coordinate type. e.g. int, int2, or int3 for
- *           1D, 2D, and 3D, respectively
- *  @param   imageHandle The image handle
- *  @param   coords The coordinates at which to write image data
- *  @param   color The data to write
- */
-template <typename DataT, typename CoordT>
-__SYCL_DEPRECATED(
-    "write_image with const unsampled_image_handle& is deprecated. "
-    "Instead pass by-value.")
-void write_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
-                 const CoordT &coords [[maybe_unused]],
-                 const DataT &color [[maybe_unused]]) {
-  write_image(imageHandle, coords, color);
-}
-
-/**
- *  @brief   [Deprecated] Write to an unsampled image array using its handle
- *
- *  @tparam  DataT The data type to write
- *  @tparam  CoordT The input coordinate type. e.g. int or int2 for 1D or 2D,
- *           respectively
- *  @param   imageHandle The image handle
- *  @param   coords The coordinates at which to write image data
- *  @param   arrayLayer The image array layer at which to write
- *  @param   color The data to write
- */
-template <typename DataT, typename CoordT>
-__SYCL_DEPRECATED(
-    "write_image_array with const unsampled_image_handle& is deprecated. "
-    "Instead pass by-value.")
-void write_image_array(const unsampled_image_handle &imageHandle
-                       [[maybe_unused]],
-                       const CoordT &coords [[maybe_unused]],
-                       const int arrayLayer [[maybe_unused]],
-                       const DataT &color [[maybe_unused]]) {
-  write_image_array(imageHandle, coords, arrayLayer, color);
-}
-
-/**
  *  @brief   Write to an unsampled image using its handle
  *
  *  @tparam  DataT The data type to write
