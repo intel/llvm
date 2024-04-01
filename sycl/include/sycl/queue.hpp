@@ -3002,4 +3002,3 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
 } // namespace _V1
 } // namespace sycl
 #endif // __SYCL_USE_FALLBACK_ASSERT
-
