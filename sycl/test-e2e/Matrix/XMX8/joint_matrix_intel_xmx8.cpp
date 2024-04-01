@@ -12,6 +12,7 @@ int main() {
 
 queue Q;
 /////// Variations that do work
-test<bfloat16, float, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 8, 16, 8>(
+test<bfloat16, float, float, SUB_TILES_M, SUB_TILES_K, SUB_TILES_N, 8, 16, 8, layout::col_major, layout::row_major,
+         layout::col_major>(
         Q);
 }
