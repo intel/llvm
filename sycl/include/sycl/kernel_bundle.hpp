@@ -880,7 +880,7 @@ __SYCL_EXPORT bool is_source_kernel_bundle_supported(backend BE,
 /////////////////////////
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-__SYCL_EXPORT kernel_bundle<bundle_state::ext_oneapi_source>
+kernel_bundle<bundle_state::ext_oneapi_source>
 create_kernel_bundle_from_source(const context &SyclContext,
                                  source_language Language,
                                  sycl::detail::string_view Source);
@@ -911,7 +911,7 @@ create_kernel_bundle_from_source(const context &SyclContext,
 namespace detail {
 // forward decl
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-__SYCL_EXPORT kernel_bundle<bundle_state::executable>
+kernel_bundle<bundle_state::executable>
 build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
                   const std::vector<device> &Devices,
                   const std::vector<std::string> &BuildOptions,
