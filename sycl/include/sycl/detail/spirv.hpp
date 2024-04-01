@@ -12,6 +12,10 @@
 
 #include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp> // for IdToMaskPosition
 
+#if defined(__NVPTX__)
+#include <sycl/ext/oneapi/experimental/cuda/masked_shuffles.hpp>
+#endif
+
 #include <sycl/detail/memcpy.hpp> // sycl::detail::memcpy
 
 namespace sycl {
@@ -868,13 +872,15 @@ EnableIfNativeShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
     return __spirv_SubgroupShuffleINTEL(convertToOpenCLType(x), LocalId);
   }
 #else
+  T result;
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT>) {
-    return __nvvm_shfl_sync_idx_i32(detail::ExtractMask(detail::GetMask(g))[0],
-                                    x, LocalId, 0x1f);
+    CUDA_SHFL_SYNC(result, detail::ExtractMask(detail::GetMask(g))[0], x,
+                   LocalId, 31, idx_i32)
   } else {
-    return __nvvm_shfl_sync_idx_i32(membermask(), x, LocalId, 0x1f);
+    CUDA_SHFL_SYNC(result, membermask(), x, LocalId, 31, idx_i32)
   }
+  return result;
 #endif
 }
 
@@ -906,15 +912,24 @@ EnableIfNativeShuffle<T> ShuffleXor(GroupT g, T x, id<1> mask) {
                                            static_cast<uint32_t>(mask.get(0)));
   }
 #else
+  T result;
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT>) {
-    return __nvvm_shfl_sync_bfly_i32(detail::ExtractMask(detail::GetMask(g))[0],
-                                     x, static_cast<uint32_t>(mask.get(0)),
-                                     0x1f);
+    auto MemberMask = detail::ExtractMask(detail::GetMask(g))[0];
+    if constexpr (is_fixed_size_group_v<GroupT>) {
+      CUDA_SHFL_SYNC(result, MemberMask, x, static_cast<uint32_t>(mask.get(0)), 0x1f,
+                     bfly_i32)
+    } else {
+      int unfoldedSrcSetBit =
+          (g.get_local_id()[0] ^ static_cast<uint32_t>(mask.get(0))) + 1;
+      CUDA_SHFL_SYNC(result, MemberMask, x,
+                     __nvvm_fns(MemberMask, 0, unfoldedSrcSetBit), 31, idx_i32)
+    }
   } else {
-    return __nvvm_shfl_sync_bfly_i32(membermask(), x,
-                                     static_cast<uint32_t>(mask.get(0)), 0x1f);
+    CUDA_SHFL_SYNC(result, membermask(), x, static_cast<uint32_t>(mask.get(0)),
+                   0x1f, bfly_i32)
   }
+  return result;
 #endif
 }
 
@@ -946,13 +961,22 @@ EnableIfNativeShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
                                             convertToOpenCLType(x), delta);
   }
 #else
+  T result;
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT>) {
-    return __nvvm_shfl_sync_down_i32(detail::ExtractMask(detail::GetMask(g))[0],
-                                     x, delta, 0x1f);
+    auto MemberMask = detail::ExtractMask(detail::GetMask(g))[0];
+    if constexpr (is_fixed_size_group_v<GroupT>) {
+      CUDA_SHFL_SYNC(result, MemberMask, x, delta, 31, down_i32)
+    } else {
+      unsigned localSetBit = g.get_local_id()[0] + 1;
+      int unfoldedSrcSetBit = localSetBit + delta;
+      CUDA_SHFL_SYNC(result, MemberMask, x,
+                     __nvvm_fns(MemberMask, 0, unfoldedSrcSetBit), 31, idx_i32)
+    }
   } else {
-    return __nvvm_shfl_sync_down_i32(membermask(), x, delta, 0x1f);
+    CUDA_SHFL_SYNC(result, membermask(), x, delta, 31, down_i32)
   }
+  return result;
 #endif
 }
 
@@ -983,13 +1007,22 @@ EnableIfNativeShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
                                           convertToOpenCLType(x), delta);
   }
 #else
+  T result;
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT>) {
-    return __nvvm_shfl_sync_up_i32(detail::ExtractMask(detail::GetMask(g))[0],
-                                   x, delta, 0);
+    auto MemberMask = detail::ExtractMask(detail::GetMask(g))[0];
+    if constexpr (is_fixed_size_group_v<GroupT>) {
+      CUDA_SHFL_SYNC(result, MemberMask, x, delta, 0, up_i32)
+    } else {
+      unsigned localSetBit = g.get_local_id()[0] + 1;
+      int unfoldedSrcSetBit = localSetBit - delta;
+      CUDA_SHFL_SYNC(result, MemberMask, x,
+                     __nvvm_fns(MemberMask, 0, unfoldedSrcSetBit), 31, idx_i32)
+    }
   } else {
-    return __nvvm_shfl_sync_up_i32(membermask(), x, delta, 0);
+    CUDA_SHFL_SYNC(result, membermask(), x, delta, 0, up_i32)
   }
+  return result;
 #endif
 }
 
