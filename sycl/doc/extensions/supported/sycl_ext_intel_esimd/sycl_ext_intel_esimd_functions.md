@@ -122,7 +122,7 @@ The optional [compile-time properties](#compile-time-properties) list `props` ma
 
 `N` - the valid values may depend on usage of cache-hints or passing of the `pred` argument:
 
-| `Function` | `Condition` | Requirement for `N` | Required/supported Intel GPU |
+| `Function` | `Condition` | Requirement for `N` | Required Intel GPU |
 |-|-|-|-|
 | `(usm-bl-*)` | (no cache-hints) and (`pred` is not passed) | `N` is any positive number | Any Intel GPU |
 | `(usm-bl-*)` | (cache-hints) or (`pred` is passed) | `N` must be from [Table1 below](#table1---valid-values-of-n-if-cache-hints-used-or-pred-parameter-is-passed) | DG2 or PVC |
@@ -195,7 +195,7 @@ The optional [compile-time properties](#compile-time-properties) list `props` ma
 
 `N` - the valid values may depend on usage of cache-hints or passing of the `pred` argument:
 
-| `Function` | `Condition` | Requirement for `N` | Required/supported Intel GPU |
+| `Function` | `Condition` | Requirement for `N` | Required Intel GPU |
 |-|-|-|-|
 | `(usm-bs-*)` | (no cache-hints) and (`pred` is not passed) | `N` is any positive number | Any Intel GPU |
 | `(usm-bs-*)` | (cache-hints) or (`pred` is passed) | `N` must be from [Table2 below](#table1---valid-values-of-n-if-cache-hints-used-or-pred-parameter-is-passed) | DG2 or PVC |
@@ -338,8 +338,37 @@ template <typename T, int N, int VS = 1, typename OffsetSimdViewT, typename Prop
 `(slm-ga-*)`: Loads ("gathers") elements of the type `T` from shared local memory locations addressed by `byte_offsets`.  
 The parameter `byte_offset` is a vector of any integral type elements for `(usm-ga-*)`, 32-bit integer elements for `(lacc-ga-*)` and `(slm-ga-*)`, any integral type integer elements for `(acc-ga-*)` in [stateless](#statelessstateful-memory-mode) mode(default),
 and up-to-32-bit integer elements for `(acc-ga-*)` in [stateful](#statelessstateful-memory-mode) mode.  
-The optional parameter `pred` provides a `simd_mask`. If some element in `pred` is zero, then the load of the corresponding memory location is skipped and the element of the result is copied from `pass_thru` (if it is passed) or it is undefined (if `pass_thru` is omitted).  
-The optional [compile-time properties](#compile-time-properties) list `props` may specify `alignment` and/or `cache-hints`. The cache-hints are ignored for `(lacc-*)` and `(slm-*)` functions.
+The optional parameter `mask` provides a `simd_mask`. If some element in `mask` is zero, then the load of the corresponding memory location is skipped and the element of the result is copied from `pass_thru` (if it is passed) or it is undefined (if `pass_thru` is omitted).  
+The optional [compile-time properties](#compile-time-properties) list `props` may specify `alignment` and/or `cache-hints`. The cache-hints are ignored for `(lacc-*)` and `(slm-*)` functions.  
+The template parameter `N` can be any positive number.  
+The optional template parameter `VS` must be one of `{1, 2, 3, 4, 8, 16, 32, 64}` values. It specifies how many conseсutive elements are loaded per each element in `byte_offsets`.   
+### Example
+```C++
+simd<int64_t, 4> offsets(0, 100); // 0, 100, 200, 300 - offsets in bytes
+// loads and returns a vector {ptr[0], ptr[100/4], ptr[200/4], ptr[300/4]};
+simd<float, 4> vec4 = gather<float, 4>(ptr, offsets);
+
+// VS = 2, loads and returns a vector {ptr[0], ptr[100/4],     ptr[200/4],     ptr[300/4],
+//                                     ptr[1], ptr[100/4 + 1], ptr[200/4 + 1], ptr[300/4 + 1]};
+simd<float, 8> vec8 = gather<float, 8, 2>(ptr, offsets);
+```
+
+### Restrictions
+| `Function` | `Condition` | Required Intel GPU |
+|-|-|-|
+| `(usm-ga-1,4,7)`,`(acc-ga-1,4,7)` | true (`pass_thru` arg is passed) | DG2 or PVC |
+| `(usm-ga-2,3,8,9)`, `(acc-ga-2,3,8,9)` | !(cache-hints) and (`VS` == 1) and (`N` == 1,2,4,8,16,32) | Any Intel GPU |
+| `(usm-ga-2,3,8,9)`, `(acc-ga-2,3,8,9)` | (cache-hints) or (`VS` > 1) or (`N` != 1,2,4,8,16,32) | DG2 or PVC |
+| `(usm-ga-5,6)`, `(acc-ga-5,6)` | !(cache-hints) and (`N` == 1,2,4,8,16,32) | Any Intel GPU |
+| `(usm-ga-5,6)`, `(acc-ga-5,6)` | (cache-hints) or (`N` != 1,2,4,8,16,32) | DG2 or PVC |
+| The next 5 lines are similar to the previous 5 lines. They are for SLM gather and the only difference is that SLM gathers ignore cache-hints|||
+| `(slm-ga-1,4,7)`,`(lacc-ga-1,4,7)` | true (`pass_thru` is passed) | DG2 or PVC |
+| `(slm-ga-2,3,8,9)`, `(lacc-ga-2,3,8,9)` | (`VS` == 1) and (`N` == 1,2,4,8,16,32) | Any Intel GPU |
+| `(slm-ga-2,3,8,9)`, `(lacc-ga-2,3,8,9)` | (`VS` > 1) or (`N` != 1,2,4,8,16,32) | DG2 or PVC |
+| `(slm-ga-5,6)`, `(lacc-ga-5,6)` | (`N` == 1,2,4,8,16,32) | Any Intel GPU |
+| `(slm-ga-5,6)`, `(lacc-ga-5,6)` | (`N` != 1,2,4,8,16,32) | DG2 or PVC |
+
+
 
 ## scatter(...) - store to memory locations addressed by a vector of offsets
 ```C++
@@ -410,8 +439,31 @@ template <typename T, int N, int VS = 1, typename OffsetSimdViewT, typename Prop
 `(slm-sc-*)`: Stores ("scatters") the vector `vals` to shared local memory locations addressed by `byte_offsets`.  
 The parameter `byte_offset` is a vector of any integral type elements for `(usm-sc-*)`, 32-bit integer elements for `(lacc-sc-*)` and `(slm-sc-*)`, any integral type integer elements for `(acc-sc-*)` in [stateless](#statelessstateful-memory-mode) mode(default),
 and up-to-32-bit integer elements for `(acc-sc-*)` in [stateful](#statelessstateful-memory-mode) mode.  
-The optional parameter `pred` provides a `simd_mask`. If some element in `pred` is zero, then the store to the corresponding memory location is skipped.  
+The optional parameter `mask` provides a `simd_mask`. If some element in `mask` is zero, then the store to the corresponding memory location is skipped.  
 The optional [compile-time properties](#compile-time-properties) list `props` may specify `alignment` and/or `cache-hints`. The cache-hints are ignored for `(lacc-sc-*)` and `(slm-sc-*)` functions.
+The template parameter `N` can be any positive number.  
+The optional template parameter `VS` must be one of `{1, 2, 3, 4, 8, 16, 32, 64}` values. It specifies how many conseсutive elements are written per each element in `byte_offsets`.   
+### Example
+```C++
+simd<int64_t, 4> offsets4(0, 100); // 0, 100, 200, 300 - offsets in bytes
+simd<float, 4> vec4;
+// stores the elements of vec4 to memory locations {ptr[0], ptr[100/4], ptr[200/4], ptr[300/4]};
+scatter(ptr, offsets4, vec4);
+
+// VS = 2, stores the elements of vec8 to memory locations {ptr[0], ptr[100/4],     ptr[200/4],     ptr[300/4],
+//                                                          ptr[1], ptr[100/4 + 1], ptr[200/4 + 1], ptr[300/4 + 1]};
+simd<float, 8> vec8;
+scatter<float, 8, 2>(ptr, offsets4);
+```
+
+### Restrictions
+| `Function` | `Condition` | Required Intel GPU |
+|-|-|-|
+| `(usm-sc-*)`, `(acc-sc-*)` | !(cache-hints) and (`VS` == 1) and (`N` == 1,2,4,8,16,32) | Any Intel GPU |
+| `(usm-sc-*)`, `(acc-sc-*)` | (cache-hints) or (`VS` > 1) or (`N` != 1,2,4,8,16,32) | DG2 or PVC |
+| The next 2 lines are similar to the previous 2 lines. They are for SLM gather and the only difference is that SLM scatters ignore cache-hints|||
+| `(slm-sc-*)`, `(lacc-sc-*)` | !(cache-hints) and (`VS` == 1) and (`N` == 1,2,4,8,16,32) | Any Intel GPU |
+| `(slm-sc-*)`, `(lacc-sc-*)` | (cache-hints) or (`VS` > 1) or (`N` != 1,2,4,8,16,32) | DG2 or PVC |
 
 ## atomic_update(...)
 
@@ -450,7 +502,7 @@ template <atomic_op Op, typename T, int N, typename OffsetObjT, typename Accesso
 // Atomic update the memory locations referenced by local-accessor (SLM) - zero operands (dec, load, etc.).
 template <atomic_op Op, typename T, int N, typename AccessorT>
 /*lacc-au0-1*/ simd<T, N> atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset,
-                                        simd_mask<1> pred = 1);
+                                        simd_mask<1> mask = 1);
 
 // Atomic update the shared local memory (SLM) - zero operands (dec, load, etc.).
 template <atomic_op Op, typename T, int N>
@@ -491,7 +543,7 @@ template <atomic_op Op, typename T, int N, typename OffsetObjT, typename Accesso
 // Atomic update the memory locations referenced by local-accessor (SLM) - one operand (add, max, etc.).
 template <atomic_op Op, typename T, int N, typename AccessorT>
 /*lacc-au1-1*/ simd<T, N> atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset,
-                                        simd<T, N> src0, simd_mask<1> pred = 1);
+                                        simd<T, N> src0, simd_mask<1> mask = 1);
 
 // Atomic update the shared local memory (SLM) - one operand (add, max etc.).
 template <atomic_op Op, typename T, int N>
@@ -531,7 +583,7 @@ template <atomic_op Op, typename T, int N, typename OffsetObjT, typename Accesso
 // Atomic update the memory locations referenced by local-accessor (SLM) - two operands: cmpxchg, fcmpxchg.
 template <atomic_op Op, typename T, int N, typename AccessorT>
 /*lacc-au2-1*/ simd<T, N> atomic_update(AccessorT lacc, simd<uint32_t, N> byte_offset,
-                                        simd<T, N> src0, simd<T, N> src1, simd_mask<1> pred = 1);
+                                        simd<T, N> src0, simd<T, N> src1, simd_mask<1> mask = 1);
 
 // Atomic update the shared local memory (SLM) - two operands: cmpxchg, fcmpxchg.
 template <atomic_op Op, typename T, int N>
@@ -545,8 +597,25 @@ template <atomic_op Op, typename T, int N>
 `(slm-*)`: Atomically updates the shared memory locations addressed by `byte_offset`.  
 The parameter `byte_offset` is a vector of any integral type elements for `(usm-*)`, 32-bit integer elements for `(lacc-*)` and `(slm-*)`, any integral type integer elements for `(acc-*)` in [stateless](#statelessstateful-memory-mode) mode(default),
 and up-to-32-bit integer elements for `(acc-*)` in [stateful](#statelessstateful-memory-mode) mode.  
-The optional parameter `pred` provides a `simd_mask`. If some element in `pred` is zero, then the corresponding memory location is not updated.  
-`(usm-*)`, `(acc-*)`: The optional [compile-time properties](#compile-time-properties) list `props` may specify `cache-hints`.
+The optional parameter `mask` provides a `simd_mask`. If some element in `mask` is zero, then the corresponding memory location is not updated.  
+`(usm-*)`, `(acc-*)`: The optional [compile-time properties](#compile-time-properties) list `props` may specify `cache-hints`.  
+The template parameter `Op` specifies the atomic operation applied to the memory.  
+The template parameter `T` specifies the type of the elements used in the atomic_update operation. Only 2,4,8-byte types are supported.  
+The template parameter `N` is the number of elements being atomically updated.
+
+### Restrictions
+| `Function` | `Condition` | Required Intel GPU |
+|-|-|-|
+| `(usm-au0-*)`, `(acc-au0-*)` | !(cache-hints) and (`N` == 1,2,4,8,16,32) and (sizeof(T) >= 4) | Any Intel GPU |
+| `(usm-au0-*)`, `(acc-au0-*)` | (cache-hints) or (`N` != 1,2,4,8,16,32) or (sizeof(T) == 2) | DG2 or PVC |
+| `(usm-au1-*)`, `(acc-au1-*)`, `(usm-au2-*)`, `(acc-au2-*)`  | !(cache-hints) and (`N` == 1,2,4,8,16,32) and (sizeof(T) >= 4) and (`Op` is integral operation) | Any Intel GPU |
+| `(usm-au1-*)`, `(acc-au1-*)`, `(usm-au2-*)`, `(acc-au2-*)` | (cache-hints) or (`N` != 1,2,4,8,16,32) or (sizeof(T) == 2) or (`Op` is FP operation) | DG2 or PVC |
+|-|-|-|
+| `(slm-au0-*)`, `(lacc-au0-*)` | (`N` == 1,2,4,8,16,32) and (sizeof(T) == 4) | Any Intel GPU |
+| `(slm-au0-*)`, `(lacc-au0-*)` | (`N` != 1,2,4,8,16,32) or (sizeof(T) == 2) or (sizeof(T) == 8)| DG2 or PVC |
+| `(slm-au1-*)`, `(lacc-au1-*)`, `(slm-au2-*)`, `(lacc-au2-*)` | (`N` == 1,2,4,8,16,32) and (sizeof(T) == 4) and (`Op` is integral operation) | Any Intel GPU |
+| `(slm-au1-*)`, `(lacc-au1-*)`, `(slm-au2-*)`, `(lacc-au2-*)` | (`N` != 1,2,4,8,16,32) or (sizeof(T) == 2) or (sizeof(T) == 8) or (`Op` is FP operation)| DG2 or PVC |
+
 
 ## prefetch(...)
 ```C++

@@ -81,12 +81,14 @@ static int PipeWriteVal = 0;
 pi_result redefinedEnqueueReadHostPipe(pi_queue, pi_program, const char *,
                                        pi_bool, void *ptr, size_t, pi_uint32,
                                        const pi_event *, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   *(((int *)ptr)) = PipeReadVal;
   return PI_SUCCESS;
 }
 pi_result redefinedEnqueueWriteHostPipe(pi_queue, pi_program, const char *,
                                         pi_bool, void *ptr, size_t, pi_uint32,
                                         const pi_event *, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
   PipeWriteVal = 9;
   return PI_SUCCESS;
 }
@@ -142,14 +144,15 @@ protected:
   queue q;
 };
 
+static sycl::unittest::PiImage Img = generateDefaultImage();
+static sycl::unittest::PiImageArray<1> ImgArray{&Img};
+
 TEST_F(PipeTest, Basic) {
   // Fake extension
   Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
       after_piDeviceGetInfo);
 
   // Device registration
-  static sycl::unittest::PiImage Img = generateDefaultImage();
-  static sycl::unittest::PiImageArray<1> ImgArray{&Img};
 
   // Testing read
   int HostPipeReadData;
@@ -160,4 +163,46 @@ TEST_F(PipeTest, Basic) {
   int HostPipeWriteData = 9;
   Pipe::write(q, HostPipeWriteData);
   EXPECT_EQ(PipeWriteVal, 9);
+}
+
+bool EventsWaitFails = true;
+pi_result redefinedEventsWait(pi_uint32 num_events,
+                              const pi_event *event_list) {
+  return EventsWaitFails ? PI_ERROR_UNKNOWN : PI_SUCCESS;
+}
+
+pi_result after_piEventGetInfo(pi_event event, pi_event_info param_name,
+                               size_t param_value_size, void *param_value,
+                               size_t *param_value_size_ret) {
+  if (param_name == PI_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
+    if (param_value)
+      *static_cast<pi_event_status *>(param_value) = pi_event_status(-1);
+    if (param_value_size_ret)
+      *param_value_size_ret = sizeof(pi_event_status);
+  }
+  return PI_SUCCESS;
+}
+
+TEST_F(PipeTest, NonBlockingOperationFail) {
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+      after_piDeviceGetInfo);
+  Mock.redefine<sycl::detail::PiApiKind::piEventsWait>(redefinedEventsWait);
+
+  bool Success = false;
+  Pipe::read(q, Success);
+  ASSERT_FALSE(Success);
+
+  Pipe::write(q, 0, Success);
+  ASSERT_FALSE(Success);
+
+  // Test the OpenCL 1.0 case: no error code after waiting.
+  EventsWaitFails = false;
+  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetInfo>(
+      after_piEventGetInfo);
+
+  Pipe::read(q, Success);
+  ASSERT_FALSE(Success);
+
+  Pipe::write(q, 0, Success);
+  ASSERT_FALSE(Success);
 }

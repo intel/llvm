@@ -7,6 +7,8 @@ on:
         description: Matched filters
         value: ${{ jobs.need_check.outputs.filters }}
 
+permissions: read-all
+
 jobs:
   need_check:
     name: Decide which tests could be affected by the changes

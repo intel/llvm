@@ -191,7 +191,7 @@ def err_intel_sycl_alloca_wrong_arg
             "'sycl::kernel_handler &'. Got %0">;
 def err_intel_sycl_alloca_wrong_type
     : Error<"__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' "
-            "to a cv-unqualified object type. Got %0">;
+            "to a cv-unqualified trivial type. Got %0">;
 def err_intel_sycl_alloca_wrong_size
     : Error<"__builtin_intel_sycl_alloca must be passed a specialization "
             "constant of integral value type as a template argument. Got %1 (%0)">;
