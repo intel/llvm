@@ -331,6 +331,13 @@ public:
   template <typename Param>
   typename detail::is_queue_info_desc<Param>::return_type get_info() const;
 
+  /// Queries SYCL queue for SYCL backend-specific information.
+  ///
+  /// The return type depends on information being queried.
+  template <typename Param>
+  typename detail::is_backend_info_desc<Param>::return_type
+  get_backend_info() const;
+
 private:
   // A shorthand for `get_device().has()' which is expected to be a bit quicker
   // than the long version
@@ -2885,10 +2892,6 @@ private:
         Range, DepEvents, ext::oneapi::experimental::empty_properties_t{},
         Rest...);
   }
-
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  buffer<detail::AssertHappened, 1> &getAssertHappenedBuffer();
-#endif
 
   event memcpyToDeviceGlobal(void *DeviceGlobalPtr, const void *Src,
                              bool IsDeviceImageScope, size_t NumBytes,

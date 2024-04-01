@@ -333,11 +333,11 @@ void CGNVCUDARuntime::emitDeviceStubBodyNew(CodeGenFunction &CGF,
       llvm::ConstantInt::get(SizeTy, std::max<size_t>(1, Args.size())));
   // Store pointers to the arguments in a locally allocated launch_args.
   for (unsigned i = 0; i < Args.size(); ++i) {
-    llvm::Value *VarPtr = CGF.GetAddrOfLocalVar(Args[i]).emitRawPointer(CGF);
+    llvm::Value* VarPtr = CGF.GetAddrOfLocalVar(Args[i]).getPointer();
     llvm::Value *VoidVarPtr = CGF.Builder.CreatePointerCast(VarPtr, PtrTy);
     CGF.Builder.CreateDefaultAlignedStore(
-        VoidVarPtr, CGF.Builder.CreateConstGEP1_32(
-                        PtrTy, KernelArgs.emitRawPointer(CGF), i));
+        VoidVarPtr,
+        CGF.Builder.CreateConstGEP1_32(PtrTy, KernelArgs.getPointer(), i));
   }
 
   llvm::BasicBlock *EndBlock = CGF.createBasicBlock("setup.end");
@@ -395,10 +395,9 @@ void CGNVCUDARuntime::emitDeviceStubBodyNew(CodeGenFunction &CGF,
                               /*isVarArg=*/false),
       addUnderscoredPrefixToName("PopCallConfiguration"));
 
-  CGF.EmitRuntimeCallOrInvoke(cudaPopConfigFn, {GridDim.emitRawPointer(CGF),
-                                                BlockDim.emitRawPointer(CGF),
-                                                ShmemSize.emitRawPointer(CGF),
-                                                Stream.emitRawPointer(CGF)});
+  CGF.EmitRuntimeCallOrInvoke(cudaPopConfigFn,
+                              {GridDim.getPointer(), BlockDim.getPointer(),
+                               ShmemSize.getPointer(), Stream.getPointer()});
 
   // Emit the call to cudaLaunch
   llvm::Value *Kernel =
@@ -408,7 +407,7 @@ void CGNVCUDARuntime::emitDeviceStubBodyNew(CodeGenFunction &CGF,
                        cudaLaunchKernelFD->getParamDecl(0)->getType());
   LaunchKernelArgs.add(RValue::getAggregate(GridDim), Dim3Ty);
   LaunchKernelArgs.add(RValue::getAggregate(BlockDim), Dim3Ty);
-  LaunchKernelArgs.add(RValue::get(KernelArgs, CGF),
+  LaunchKernelArgs.add(RValue::get(KernelArgs.getPointer()),
                        cudaLaunchKernelFD->getParamDecl(3)->getType());
   LaunchKernelArgs.add(RValue::get(CGF.Builder.CreateLoad(ShmemSize)),
                        cudaLaunchKernelFD->getParamDecl(4)->getType());
@@ -441,8 +440,8 @@ void CGNVCUDARuntime::emitDeviceStubBodyLegacy(CodeGenFunction &CGF,
     auto TInfo = CGM.getContext().getTypeInfoInChars(A->getType());
     Offset = Offset.alignTo(TInfo.Align);
     llvm::Value *Args[] = {
-        CGF.Builder.CreatePointerCast(
-            CGF.GetAddrOfLocalVar(A).emitRawPointer(CGF), PtrTy),
+        CGF.Builder.CreatePointerCast(CGF.GetAddrOfLocalVar(A).getPointer(),
+                                      PtrTy),
         llvm::ConstantInt::get(SizeTy, TInfo.Width.getQuantity()),
         llvm::ConstantInt::get(SizeTy, Offset.getQuantity()),
     };

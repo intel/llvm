@@ -4014,6 +4014,10 @@ def fsycl_disable_range_rounding : Flag<["-"], "fsycl-disable-range-rounding">,
   Alias<fsycl_range_rounding_EQ>, AliasArgs<["disable"]>,
   HelpText<"Deprecated: please use -fsycl-range-rounding=disable instead.">,
   Flags<[Deprecated]>;
+def fsycl_exp_range_rounding : Flag<["-"], "fsycl-exp-range-rounding">,
+  Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
+  HelpText<"Use experimental range rounding.">,
+  MarshallingInfoFlag<LangOpts<"SYCLExperimentalRangeRounding">>;
 def fno_sycl_use_footer : Flag<["-"], "fno-sycl-use-footer">, Visibility<[ClangOption, CLOption, DXCOption]>,
   HelpText<"Disable usage of the integration footer during SYCL enabled "
    "compilations.">;

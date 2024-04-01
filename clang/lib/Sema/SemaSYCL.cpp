@@ -5187,6 +5187,12 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     break;
   }
 
+  if (S.getLangOpts().SYCLExperimentalRangeRounding) {
+    O << "#ifndef __SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__ \n";
+    O << "#define __SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__ 1\n";
+    O << "#endif //__SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__\n\n";
+  }
+
   if (SpecConsts.size() > 0) {
     O << "// Forward declarations of templated spec constant types:\n";
     for (const auto &SC : SpecConsts)

@@ -50,10 +50,6 @@ device::device(const device_selector &deviceSelector) {
 
 std::vector<device> device::get_devices(info::device_type deviceType) {
   std::vector<device> devices;
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  detail::device_filter_list *FilterList =
-      detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
-#endif
   detail::ods_target_list *OdsTargetList =
       detail::SYCLConfig<detail::ONEAPI_DEVICE_SELECTOR>::get();
 
@@ -61,10 +57,6 @@ std::vector<device> device::get_devices(info::device_type deviceType) {
   for (const auto &plt : thePlatforms) {
 
     backend platformBackend = plt.get_backend();
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    if (FilterList && !FilterList->backendCompatible(platformBackend))
-      continue;
-#endif
     if (OdsTargetList && !OdsTargetList->backendCompatible(platformBackend))
       continue;
 
@@ -232,6 +224,20 @@ __SYCL_EXPORT bool device::get_info<info::device::image_support>() const {
 #include <sycl/info/ext_codeplay_device_traits.def>
 #include <sycl/info/ext_intel_device_traits.def>
 #include <sycl/info/ext_oneapi_device_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC
+
+template <typename Param>
+typename detail::is_backend_info_desc<Param>::return_type
+device::get_backend_info() const {
+  return impl->get_backend_info<Param>();
+}
+
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
+  template __SYCL_EXPORT ReturnT                                               \
+  device::get_backend_info<info::DescType::Desc>() const;
+
+#include <sycl/info/sycl_backend_traits.def>
+
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 backend device::get_backend() const noexcept { return impl->getBackend(); }

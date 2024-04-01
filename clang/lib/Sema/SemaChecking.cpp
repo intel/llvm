@@ -7837,8 +7837,8 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
 
   // Check the return type is `sycl::multi_ptr<ET,
   // sycl::access::address_space::private_space, DecoratedAddress>`:
-  // - `ET`: non-const, non-volatile, non-void, non-function, non-reference type
-  constexpr auto CheckType = [](QualType RT) {
+  // - `ET`: cv-unqualified trivial type
+  constexpr auto CheckType = [](QualType RT, const ASTContext &Ctx) {
     if (!isSyclType(RT, SYCLTypeAttr::multi_ptr))
       return true;
     // Check element type
@@ -7846,13 +7846,13 @@ bool Sema::CheckIntelSYCLAllocaBuiltinFunctionCall(unsigned, CallExpr *Call) {
         cast<ClassTemplateSpecializationDecl>(RT->getAsRecordDecl())
             ->getTemplateArgs();
     QualType ET = TAL.get(0).getAsType();
-    if (ET.isConstQualified() || ET.isVolatileQualified() || ET->isVoidType() ||
-        ET->isFunctionType() || ET->isReferenceType())
+    if (ET.isConstQualified() || ET.isVolatileQualified() ||
+        !ET.isTrivialType(Ctx))
       return true;
     constexpr uint64_t PrivateAS = 0;
     return TAL.get(1).getAsIntegral() != PrivateAS;
   };
-  if (CheckType(FD->getReturnType())) {
+  if (CheckType(FD->getReturnType(), getASTContext())) {
     Diag(Loc, diag::err_intel_sycl_alloca_wrong_type) << FD->getReturnType();
     return true;
   }

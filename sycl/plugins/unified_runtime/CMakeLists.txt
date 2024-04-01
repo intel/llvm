@@ -82,13 +82,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ff276ab1cd584557f8ed4d176109057684a5f4ca
-  # Merge: ed949ecd 2968cc14
+  # commit 0816206d9e863b88feadf9139c9bb829dcc0d2de
+  # Merge: 0c0f48db 46f69b9f
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Mar 27 11:28:34 2024 +0000
-  #     Merge pull request #1363 from hdelan/refactor-device-initialization
-  #     [CUDA] Refactor device initialization
-  set(UNIFIED_RUNTIME_TAG ff276ab1cd584557f8ed4d176109057684a5f4ca)
+  # Date:   Mon Apr 1 10:22:25 2024 +0100
+  #     Merge pull request #1460 from hdelan/remove-unused-prototypes
+  #     [HIP][CUDA] Remove function prototypes from enqueue.hpp
+  set(UNIFIED_RUNTIME_TAG 0816206d9e863b88feadf9139c9bb829dcc0d2de)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
