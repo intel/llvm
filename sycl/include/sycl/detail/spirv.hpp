@@ -917,8 +917,8 @@ EnableIfNativeShuffle<T> ShuffleXor(GroupT g, T x, id<1> mask) {
                     GroupT>) {
     auto MemberMask = detail::ExtractMask(detail::GetMask(g))[0];
     if constexpr (is_fixed_size_group_v<GroupT>) {
-      CUDA_SHFL_SYNC(result, MemberMask, x, static_cast<uint32_t>(mask.get(0)), 0x1f,
-                     bfly_i32)
+      CUDA_SHFL_SYNC(result, MemberMask, x, static_cast<uint32_t>(mask.get(0)),
+                     0x1f, bfly_i32)
     } else {
       int unfoldedSrcSetBit =
           (g.get_local_id()[0] ^ static_cast<uint32_t>(mask.get(0))) + 1;
