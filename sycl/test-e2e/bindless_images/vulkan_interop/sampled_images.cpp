@@ -10,6 +10,7 @@
 
 #include <sycl/sycl.hpp>
 
+#include "../bindless_helpers.hpp"
 #include "vulkan_common.hpp"
 
 namespace syclexp = sycl::ext::oneapi::experimental;
@@ -147,9 +148,9 @@ bool run_sycl(sycl::range<NDims> globalSize, sycl::range<NDims> localSize,
   bool validated = true;
   for (int i = 0; i < globalSize.size(); i++) {
     bool mismatch = false;
-    VecType expected =
-        initVector<DType, NChannels>(i) * static_cast<DType>(10.1f);
-    if (!equal_vec<DType, NChannels>(out[i], expected)) {
+    VecType expected = bindless_helpers::init_vector<DType, NChannels>(i) *
+                       static_cast<DType>(10.1f);
+    if (!bindless_helpers::equal_vec<DType, NChannels>(out[i], expected)) {
       mismatch = true;
       validated = false;
     }
@@ -233,7 +234,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
                             imageSizeBytes, 0 /*flags*/,
                             (void **)&inputStagingData));
   for (int i = 0; i < numElems; ++i) {
-    inputStagingData[i] = initVector<DType, NChannels>(i);
+    inputStagingData[i] = bindless_helpers::init_vector<DType, NChannels>(i);
   }
   vkUnmapMemory(vk_device, inputStagingMemory);
 

@@ -88,7 +88,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Thu Mar 14 22:38:53 2024 +0000
   #     Merge pull request #1410 from kbenzie/benie/cmake-external-adapter-source-dirs
   #     [CMake] Support external adapter source dirs
-  set(UNIFIED_RUNTIME_TAG fc21c79300e0c7ac2f2c331f7f463fcf8dbdd5e5)
+  set(UNIFIED_RUNTIME_TAG 83594ea2615b7e84e39962df340581816aa3fe34)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
