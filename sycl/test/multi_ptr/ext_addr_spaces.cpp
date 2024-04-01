@@ -26,7 +26,8 @@ int main() {
        ext::intel::device_ptr<void, access::decorated::legacy> MPtr9{Acc};
        ext::intel::device_ptr<const void, access::decorated::yes> MPtr10{Acc};
        ext::intel::device_ptr<const void, access::decorated::no> MPtr11{Acc};
-       ext::intel::device_ptr<const void, access::decorated::legacy> MPtr12{Acc};
+       ext::intel::device_ptr<const void, access::decorated::legacy> MPtr12{
+           Acc};
      });
    }).wait_and_throw();
   return 0;
