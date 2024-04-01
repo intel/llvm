@@ -68,7 +68,7 @@ auto vec_b = block_load<float, 16>(f32_ptr + 1, props);
 ```
 ### Cache-hint properties
 Cache-hint properties (if passed) currently add a restriction on the target-device, it must be a Intel® Arc Series (aka DG2) or Intel® Data Center GPU Max Series (aka PVC).  
-The valid combinations of L1/L2 cache-hints depend on the usage context. It may be one of 4 contexts:
+The valid combinations of L1/L2 cache-hints depend on the usage context.. There are 4 contexts:
 * load: `block_load()`, `load_2d()`, `gather()` functions;
 * prefetch: `prefetch()` and `prefetch_2d()` functions;
 * store: `block_store()`, `store_2d()`, `scatter()` functions;
