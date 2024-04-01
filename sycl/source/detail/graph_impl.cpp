@@ -184,7 +184,7 @@ void exec_graph_impl::makePartitions() {
   int CurrentPartition = -1;
   std::list<std::shared_ptr<node_impl>> HostTaskList;
   // find all the host-tasks in the graph
-  for (auto Node : MNodeStorage) {
+  for (auto &Node : MNodeStorage) {
     if (Node->MCGType == sycl::detail::CG::CodeplayHostTask) {
       HostTaskList.push_back(Node);
     }
@@ -1268,7 +1268,6 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
     EliminatedArgMask = SyclKernelImpl->getKernelArgMask();
   } else if (Kernel != nullptr) {
     PiKernel = Kernel->getHandleRef();
-    auto SyclProg = Kernel->getProgramImpl();
     EliminatedArgMask = Kernel->getKernelArgMask();
   } else {
     std::tie(PiKernel, std::ignore, EliminatedArgMask, std::ignore) =

@@ -4971,7 +4971,7 @@ static void ProcessVSRuntimeLibrary(const ArgList &Args,
                                     const ToolChain &TC) {
   unsigned RTOptionID = options::OPT__SLASH_MT;
 
-  bool isSPIR = TC.getTriple().isSPIR();
+  bool isSPIROrSPIRV = TC.getTriple().isSPIROrSPIRV();
   bool isSYCL = Args.hasArg(options::OPT_fsycl);
   // For SYCL Windows, /MD is the default.
   if (isSYCL)
@@ -4997,10 +4997,10 @@ static void ProcessVSRuntimeLibrary(const ArgList &Args,
                      .Default(options::OPT__SLASH_MT);
     SetArg = A;
   }
-  if (isSYCL && !isSPIR && SetArg &&
+  if (isSYCL && !isSPIROrSPIRV && SetArg &&
       (RTOptionID == options::OPT__SLASH_MT ||
        RTOptionID == options::OPT__SLASH_MTd))
-      // Use of /MT or /MTd is not supported for SYCL.
+    // Use of /MT or /MTd is not supported for SYCL.
     TC.getDriver().Diag(diag::err_drv_unsupported_opt_dpcpp)
         << SetArg->getOption().getName();
 
@@ -5008,12 +5008,12 @@ static void ProcessVSRuntimeLibrary(const ArgList &Args,
   auto addPreDefines = [&](unsigned Defines) {
     if (Defines & addDEBUG)
       CmdArgs.push_back("-D_DEBUG");
-    if (Defines & addMT && !isSPIR)
+    if (Defines & addMT && !isSPIROrSPIRV)
       CmdArgs.push_back("-D_MT");
-    if (Defines & addDLL && !isSPIR)
+    if (Defines & addDLL && !isSPIROrSPIRV)
       CmdArgs.push_back("-D_DLL");
     // for /MDd with spir targets
-    if ((Defines & addDLL) && (Defines & addDEBUG) && isSPIR) {
+    if ((Defines & addDLL) && (Defines & addDEBUG) && isSPIROrSPIRV) {
       CmdArgs.push_back("-D_CONTAINER_DEBUG_LEVEL=0");
       CmdArgs.push_back("-D_ITERATOR_DEBUG_LEVEL=0");
     }
@@ -5283,8 +5283,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                       options::OPT_fno_sycl_early_optimizations,
                       !IsFPGASYCLOffloadDevice))
       CmdArgs.push_back("-fno-sycl-early-optimizations");
-    else if (RawTriple.isSPIR()) {
-      // Set `sycl-opt` option to configure LLVM passes for SPIR target
+    else if (RawTriple.isSPIROrSPIRV()) {
+      // Set `sycl-opt` option to configure LLVM passes for SPIR/SPIR-V target
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-sycl-opt");
     }
@@ -5326,8 +5326,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
 
     // Forward -fsycl-instrument-device-code option to cc1. This option will
-    // only be used for SPIR-V-based targets.
-    if (Triple.isSPIR())
+    // only be used for SPIR/SPIR-V based targets.
+    if (Triple.isSPIROrSPIRV())
       if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
                        options::OPT_fno_sycl_instrument_device_code, true))
         CmdArgs.push_back("-fsycl-instrument-device-code");
@@ -5421,8 +5421,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fno-sycl-force-inline-kernel-lambda");
 
     // Add -ffine-grained-bitfield-accesses option. This will be added
-    // only for SPIR based targets.
-    if (Triple.isSPIR()) {
+    // only for SPIR/SPIR-V based targets.
+    if (Triple.isSPIROrSPIRV()) {
       // It cannot be enabled together with a sanitizer
       if (!Args.getLastArg(options::OPT_fsanitize_EQ))
         CmdArgs.push_back("-ffine-grained-bitfield-accesses");
@@ -5594,8 +5594,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // are provided.
   TC.addClangWarningOptions(CmdArgs);
 
-  // FIXME: Subclass ToolChain for SPIR and move this to addClangWarningOptions.
-  if (Triple.isSPIR() || Triple.isSPIRV())
+  // FIXME: Subclass ToolChain for SPIR/SPIR-V and move this to
+  // addClangWarningOptions.
+  if (Triple.isSPIROrSPIRV())
     CmdArgs.push_back("-Wspir-compat");
 
   // Select the appropriate action.
@@ -6375,9 +6376,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Arg *A = Args.getLastArg(options::OPT_LongDouble_Group)) {
     if (TC.getTriple().isX86())
       A->render(Args, CmdArgs);
-    else if (TC.getTriple().isSPIR() &&
+    else if (TC.getTriple().isSPIROrSPIRV() &&
              (A->getOption().getID() == options::OPT_mlong_double_64))
-      // Only allow for -mlong-double-64 for SPIR-V
+      // Only allow for -mlong-double-64 for SPIR/SPIR-V
       A->render(Args, CmdArgs);
     else if (TC.getTriple().isPPC() &&
              (A->getOption().getID() != options::OPT_mlong_double_80))
@@ -8014,6 +8015,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // -fno-common is the default, set -fcommon only when that flag is set.
   Args.addOptInFlag(CmdArgs, options::OPT_fcommon, options::OPT_fno_common);
 
+  if (Args.hasFlag(options::OPT_fptrauth_intrinsics,
+                   options::OPT_fno_ptrauth_intrinsics, false))
+    CmdArgs.push_back("-fptrauth-intrinsics");
+
   // -fsigned-bitfields is default, and clang doesn't yet support
   // -funsigned-bitfields.
   if (!Args.hasFlag(options::OPT_fsigned_bitfields,
@@ -9318,6 +9323,14 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
   case llvm::Triple::riscv64:
     AddRISCVTargetArgs(Args, CmdArgs);
     break;
+
+  case llvm::Triple::hexagon:
+    if (Args.hasFlag(options::OPT_mdefault_build_attributes,
+                     options::OPT_mno_default_build_attributes, true)) {
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-hexagon-add-build-attributes");
+    }
+    break;
   }
 
   // Consume all the warning flags. Usually this would be handled more
@@ -9600,7 +9613,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     TypeArg = (InputType == types::TY_FPGA_AOCX) ? "aocx" : "aocr";
     // When the output is a Tempfilelist, we know we are unbundling
     // the .bc files from the archive.
-    if (!getToolChain().getTriple().isSPIR() ||
+    if (!getToolChain().getTriple().isSPIROrSPIRV() ||
         JA.getType() == types::TY_Tempfilelist)
       TypeArg = "aoo";
   }
@@ -9614,7 +9627,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   auto SYCLTCRange = C.getOffloadToolChains<Action::OFK_SYCL>();
   for (auto TI = SYCLTCRange.first, TE = SYCLTCRange.second; TI != TE; ++TI) {
     llvm::Triple TT(TI->second->getTriple());
-    if (TT.isSPIR()) {
+    if (TT.isSPIROrSPIRV()) {
       HasSPIRTarget = true;
       if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
         HasFPGATarget = true;
@@ -9651,7 +9664,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     // aocx or aocr type bundles.  Also, we only do a specific target
     // unbundling, skipping the host side or device side.
     if (types::isFPGA(InputType) || InputType == types::TY_Tempfilelist) {
-      if (getToolChain().getTriple().isSPIR()) {
+      if (getToolChain().getTriple().isSPIROrSPIRV()) {
         if (Dep.DependentToolChain->getTriple().getSubArch() ==
             llvm::Triple::SPIRSubArch_fpga) {
           StringRef TypeName(types::getTypeName(InputType));
@@ -10480,7 +10493,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     addArgs(CmdArgs, TCArgs, {"-ir-output-only"});
   } else {
     assert(SYCLPostLink->getTrueType() == types::TY_Tempfiletable);
-    bool SplitEsimdByDefault = T.isSPIR();
+    bool SplitEsimdByDefault = T.isSPIROrSPIRV();
     bool SplitEsimd = TCArgs.hasFlag(
         options::OPT_fsycl_device_code_split_esimd,
         options::OPT_fno_sycl_device_code_split_esimd, SplitEsimdByDefault);
@@ -10776,12 +10789,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   if (Args.hasArg(options::OPT_v))
     CmdArgs.push_back("--wrapper-verbose");
 
-  // Pass the device triple to the linker wrapper tool for SYCL offload.
-  // Only spir64 is currently passed.
-  // TODO(NOM1): Support target triples in a more generic way.
-  // TODO(NOM3): Investigate why passing spir64-unknown-unknown does not work.
-  CmdArgs.push_back("--triple=spir64");
-
   // TODO(NOM2): Pass following options to clang-linker-wrapper.
   // Please refer to sycl/doc/design/OffloadDesign.md for details.
   // sycl-device-libraries
@@ -10824,7 +10831,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // device specific libraries that are needed.  This provides the list of
     // files file only.
     // TODO: This generic list will be populated with only device binaries
-    // for spir64.  Other targets (AOT and others) can represent a different
+    // for spir/spirv. Other targets (AOT and others) can represent a different
     // set of device libraries.  We will cross that bridge when we begin to
     // enable the other possible targets.
     llvm::Triple TargetTriple;
@@ -10832,12 +10839,22 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     for (auto &I :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = I.second;
-      if (TC->getTriple().isSPIR() &&
+      if (TC->getTriple().isSPIROrSPIRV() &&
           TC->getTriple().getSubArch() == llvm::Triple::NoSubArch) {
         TargetTriple = TC->getTriple();
         break;
       }
     }
+    // Pass the device triple to the linker wrapper tool for SYCL offload.
+    // Only spir64 or spirv64 is currently passed.
+    // TODO(NOM1): Support target triples in a more generic way.
+    // TODO(NOM3): Investigate why passing spirv64-unknown-unknown does not
+    // work.
+    if (TargetTriple.isSPIR())
+      CmdArgs.push_back("--triple=spir64");
+    else if (TargetTriple.isSPIRV())
+      CmdArgs.push_back("--triple=spirv64");
+
     SmallVector<std::string, 8> SYCLDeviceLibs;
     SYCLDeviceLibs = SYCL::getDeviceLibraries(C, TargetTriple,
                                               /*IsSpirvAOT=*/false);

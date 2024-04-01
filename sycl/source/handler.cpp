@@ -29,6 +29,8 @@
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stream.hpp>
 
+#include <sycl/ext/oneapi/memcpy2d.hpp>
+
 namespace sycl {
 inline namespace _V1 {
 

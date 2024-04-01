@@ -58,7 +58,7 @@ jobs:
           # pre-installed. Make sure to override these with the relevant version.
           sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-${{ env.LLVM_VERSION }} 1000
       - name:  Checkout the translator sources
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: SPIRV-LLVM-Translator
       - name:  Get tag for SPIR-V Headers
@@ -66,7 +66,7 @@ jobs:
         run: |
           echo "spirv_headers_tag=$(cat SPIRV-LLVM-Translator/spirv-headers-tag.conf)" >> $GITHUB_ENV
       - name:  Checkout SPIR-V Headers
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: KhronosGroup/SPIRV-Headers
           ref: ${{ env.spirv_headers_tag }}

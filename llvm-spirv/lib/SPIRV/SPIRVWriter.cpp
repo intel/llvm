@@ -1421,6 +1421,15 @@ SPIRVValue *LLVMToSPIRVBase::transConstant(Value *V) {
   }
 
   if (auto *ConstUE = dyn_cast<ConstantExpr>(V)) {
+    if (auto *GEP = dyn_cast<GEPOperator>(ConstUE)) {
+      std::vector<SPIRVValue *> Indices;
+      for (unsigned I = 0, E = GEP->getNumIndices(); I != E; ++I)
+        Indices.push_back(transValue(GEP->getOperand(I + 1), nullptr));
+      auto *TransPointerOperand = transValue(GEP->getPointerOperand(), nullptr);
+      SPIRVType *TranslatedTy = transScavengedType(GEP);
+      return BM->addPtrAccessChainInst(TranslatedTy, TransPointerOperand,
+                                       Indices, nullptr, GEP->isInBounds());
+    }
     auto *Inst = ConstUE->getAsInstruction();
     SPIRVDBG(dbgs() << "ConstantExpr: " << *ConstUE << '\n';
              dbgs() << "Instruction: " << *Inst << '\n';)
@@ -2271,6 +2280,29 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
   if (AllocaInst *Alc = dyn_cast<AllocaInst>(V)) {
     SPIRVType *TranslatedTy = transScavengedType(V);
     if (Alc->isArrayAllocation()) {
+      SPIRVValue *Length = transValue(Alc->getArraySize(), BB);
+      assert(Length && "Couldn't translate array size!");
+
+      if (isSpecConstantOpCode(Length->getOpCode())) {
+        // SPIR-V arrays length can be expressed using a specialization
+        // constant.
+        //
+        // Spec Constant Length Arrays need special treatment, as the allocation
+        // type will be 'OpTypePointer(Function, OpTypeArray(ElementType,
+        // Length))', we need to bitcast the obtained pointer to the expected
+        // type: 'OpTypePointer(Function, ElementType).
+        SPIRVType *AllocationType = BM->addPointerType(
+            StorageClassFunction,
+            BM->addArrayType(transType(Alc->getAllocatedType()), Length));
+        SPIRVValue *Arr = BM->addVariable(
+            AllocationType, false, spv::internal::LinkageTypeInternal, nullptr,
+            Alc->getName().str() + "_alloca", StorageClassFunction, BB);
+        // Manually set alignment. OpBitcast created below will be decorated as
+        // that's the SPIR-V value mapped to the original LLVM one.
+        transAlign(Alc, Arr);
+        return mapValue(V, BM->addUnaryInst(OpBitcast, TranslatedTy, Arr, BB));
+      }
+
       if (!BM->checkExtension(ExtensionID::SPV_INTEL_variable_length_array,
                               SPIRVEC_InvalidInstruction,
                               toString(Alc) +
@@ -2278,8 +2310,6 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                                   "SPV_INTEL_variable_length_array extension."))
         return nullptr;
 
-      SPIRVValue *Length = transValue(Alc->getArraySize(), BB);
-      assert(Length && "Couldn't translate array size!");
       return mapValue(V,
                       BM->addInstTemplate(OpVariableLengthArrayINTEL,
                                           {Length->getId()}, BB, TranslatedTy));
@@ -6116,7 +6146,7 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     OC = OpAtomicCompareExchange;
   if (isGroupOpCode(OC))
     BM->addCapability(CapabilityGroups);
-  switch (OC) {
+  switch (static_cast<size_t>(OC)) {
   case OpControlBarrier: {
     auto BArgs = transValue(getArguments(CI), BB);
     return BM->addControlBarrierInst(BArgs[0], BArgs[1], BArgs[2], BB);
@@ -6420,6 +6450,25 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
       return APIntInst;
     return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), APIntInst, {},
                             BB);
+  }
+  case internal::OpTaskSequenceGetINTEL: {
+    Type *ResTy = nullptr;
+    auto OpItr = CI->value_op_begin();
+
+    if (CI->hasStructRetAttr()) {
+      assert(CI->getType()->isVoidTy() && "Return type is not void");
+      ResTy = CI->getParamStructRetType(0);
+      OpItr++;
+    }
+
+    SPIRVType *RetTy = ResTy ? transType(ResTy) : transScavengedType(CI);
+    auto *TaskSeqGet =
+        BM->addTaskSequenceGetINTELInst(RetTy, transValue(*OpItr++, BB), BB);
+
+    if (!CI->hasStructRetAttr())
+      return TaskSeqGet;
+    return BM->addStoreInst(transValue(CI->getArgOperand(0), BB), TaskSeqGet,
+                            {}, BB);
   }
   case OpLoad: {
     std::vector<SPIRVWord> MemoryAccess;
