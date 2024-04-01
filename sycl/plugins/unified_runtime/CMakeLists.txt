@@ -57,12 +57,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit a75f7d099b6a2c5df3e03ec4d9dd503c320d5aa5
+  # commit 20102fdfa0b1a1042eea2b0d7ee9a2bcc8fda84d
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Mar 27 11:28:34 2024 +0000
-  #     Merge pull request #1363 from hdelan/refactor-device-initialization
-  #     [CUDA] Refactor device initialization
-  set(UNIFIED_RUNTIME_TAG a75f7d099b6a2c5df3e03ec4d9dd503c320d5aa5)
+  # Date:   Thu Mar 28 10:25:01 2024 +0000
+  #     Merge pull request #1467 from aarongreig/aaron/eventExecStatusError
+  #     Add new ERROR status for events, and corresponding error code.
+  set(UNIFIED_RUNTIME_TAG 20102fdfa0b1a1042eea2b0d7ee9a2bcc8fda84d)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
