@@ -6,6 +6,10 @@
 // RUN: %{build} -DFORCE_INLINE -o %t.2.out
 // RUN: %{run} %t.2.out
 
+// Check if the test sill passes with O0
+// RUN: %{build} -O0 -o %t.3.out
+// RUN: %{run} %t.3.out
+
 // This is end-to-end test for the slm_allocator API used together with the
 // slm_init. The call graph is:
 //         Test1(kernel) - uses slm_init(SLM_IN_KERNEL)
