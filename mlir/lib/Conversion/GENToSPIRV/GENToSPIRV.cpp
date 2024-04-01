@@ -36,15 +36,15 @@ using namespace mlir;
 ///  ```
 /// To:
 /// ```mlir
-/// %__builtin__BuiltinName___addr = spirv.mlir.addressof
-/// @__builtin__BuiltinName__ : !spirv.ptr<vector<3xIndexType>, Input>
+/// %__spirv_BuiltinName___addr = spirv.mlir.addressof
+/// @__spirv_BuiltInBuiltinName : !spirv.ptr<vector<3xIndexType>, Input>
 /// %__builtin_value = spirv.Load "Input" %__builtin__BuiltinName___addr :
 /// vector<3xIndexType>
 /// %0 = spirv.VectorExtractDynamic %__builtin_value[%dim] :
 /// vector<3xIndexType>, i32
 /// ```
-/// With `__builtin__BuiltinName__` the name of a SPIR-V builtin, and
-/// `IndexType`, `i32` for 32-bit targets and `i64` for 64-bit targets.
+/// With `BuiltinName` the name of a SPIR-V builtin, and `IndexType`, `i32` for
+/// 32-bit targets and `i64` for 64-bit targets.
 class GEN3DNDRangeLoweringBase : public ConversionPattern {
 public:
   LogicalResult
@@ -55,8 +55,10 @@ public:
     // <3xi64> for 64-bit targets.
     Type builtinType =
         this->template getTypeConverter<SPIRVTypeConverter>()->getIndexType();
-    Value vector =
-        spirv::getBuiltinVariableValue(op, builtin, builtinType, rewriter);
+    constexpr StringLiteral spvBuiltinPrefix = "__spirv_BuiltIn";
+    constexpr StringLiteral spvBuiltinSuffix = "";
+    Value vector = spirv::getBuiltinVariableValue(
+        op, builtin, builtinType, rewriter, spvBuiltinPrefix, spvBuiltinSuffix);
     rewriter.replaceOpWithNewOp<spirv::VectorExtractDynamicOp>(op, vector,
                                                                operands[0]);
     return success();
