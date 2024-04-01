@@ -493,6 +493,7 @@ typedef enum ur_result_t {
                                                                               ///< retrieved via the urPlatformGetLastError entry point.
     UR_RESULT_ERROR_LAYER_NOT_PRESENT = 68,                                   ///< A requested layer was not found by the loader.
     UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS = 69,                           ///< An event in the provided wait list has ::UR_EVENT_STATUS_ERROR.
+    UR_RESULT_ERROR_DEVICE_NOT_AVAILABLE = 70,                                ///< Device in question has `::UR_DEVICE_INFO_AVAILABLE == false`
     UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP = 0x1000,                      ///< Invalid Command-Buffer
     UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP = 0x1001,           ///< Sync point is not valid for the command-buffer
     UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP = 0x1002, ///< Sync point wait list is invalid
