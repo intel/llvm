@@ -65,18 +65,17 @@ void nullptrRelationalOperatorTest() {
 }
 
 int main() {
-  nullptrRelationalOperatorTest<bool, sycl::access::address_space::local_space,
+  nullptrRelationalOperatorTest<int, sycl::access::address_space::local_space,
                                 sycl::access::decorated::yes>();
-  nullptrRelationalOperatorTest<bool, sycl::access::address_space::local_space,
+  nullptrRelationalOperatorTest<int, sycl::access::address_space::local_space,
                                 sycl::access::decorated::no>();
   nullptrRelationalOperatorTest<int, sycl::access::address_space::global_space,
                                 sycl::access::decorated::yes>();
-  nullptrRelationalOperatorTest<bool, sycl::access::address_space::global_space,
+  nullptrRelationalOperatorTest<int, sycl::access::address_space::global_space,
                                 sycl::access::decorated::no>();
   nullptrRelationalOperatorTest<int, sycl::access::address_space::generic_space,
                                 sycl::access::decorated::yes>();
-  nullptrRelationalOperatorTest<bool,
-                                sycl::access::address_space::generic_space,
+  nullptrRelationalOperatorTest<int, sycl::access::address_space::generic_space,
                                 sycl::access::decorated::no>();
   nullptrRelationalOperatorTest<int, sycl::access::address_space::private_space,
                                 sycl::access::decorated::yes>();
