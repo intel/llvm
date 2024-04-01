@@ -206,6 +206,20 @@ __SYCL_EXPORT bool device::get_info_impl<info::device::image_support>() const {
 #include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
+template <typename Param>
+typename detail::is_backend_info_desc<Param>::return_type
+device::get_backend_info() const {
+  return impl->get_backend_info<Param>();
+}
+
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
+  template __SYCL_EXPORT ReturnT                                               \
+  device::get_backend_info<info::DescType::Desc>() const;
+
+#include <sycl/info/sycl_backend_traits.def>
+
+#undef __SYCL_PARAM_TRAITS_SPEC
+
 backend device::get_backend() const noexcept { return impl->getBackend(); }
 
 pi_native_handle device::getNative() const { return impl->getNative(); }

@@ -224,6 +224,13 @@ public:
     return detail::convert_from_abi_neutral(get_info_impl<Param>());
   }
 
+  /// Queries this SYCL device for SYCL backend-specific information.
+  ///
+  /// The return type depends on information being queried.
+  template <typename Param>
+  typename detail::is_backend_info_desc<Param>::return_type
+  get_backend_info() const;
+
   /// Check SYCL extension support by device
   ///
   /// \param extension_name is a name of queried extension.

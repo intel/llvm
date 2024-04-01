@@ -1230,6 +1230,29 @@ private:
       DidAdjust = true;
     };
 
+#ifdef __SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__
+    size_t GoodExpFactor = 1;
+    switch (Dims) {
+    case 1:
+      GoodExpFactor = 32; // Make global range multiple of {32}
+      break;
+    case 2:
+      GoodExpFactor = 16; // Make global range multiple of {16, 16}
+      break;
+    case 3:
+      GoodExpFactor = 8; // Make global range multiple of {8, 8, 8}
+      break;
+    }
+
+    // Check if rounding parameters have been set through environment:
+    // SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS=MinRound:PreferredRound:MinRange
+    this->GetRangeRoundingSettings(MinFactorX, GoodExpFactor, MinRangeX);
+
+    for (auto i = 0; i < Dims; ++i)
+      if (UserRange[i] % GoodExpFactor) {
+        Adjust(i, ((UserRange[i] / GoodExpFactor) + 1) * GoodExpFactor);
+      }
+#else
     // Perform range rounding if there are sufficient work-items to
     // need rounding and the user-specified range is not a multiple of
     // a "good" value.
@@ -1240,6 +1263,7 @@ private:
       // will yield a rounded-up value for the total range.
       Adjust(0, ((RoundedRange[0] + GoodFactor - 1) / GoodFactor) * GoodFactor);
     }
+#endif // __SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__
 #ifdef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__
     // If we are forcing range rounding kernels to be used, we always want the
     // rounded range kernel to be generated, even if rounding isn't needed

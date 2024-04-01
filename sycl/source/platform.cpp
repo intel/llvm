@@ -74,6 +74,20 @@ bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
 #include <sycl/info/platform_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
+template <typename Param>
+typename detail::is_backend_info_desc<Param>::return_type
+platform::get_backend_info() const {
+  return impl->get_backend_info<Param>();
+}
+
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
+  template __SYCL_EXPORT ReturnT                                               \
+  platform::get_backend_info<info::DescType::Desc>() const;
+
+#include <sycl/info/sycl_backend_traits.def>
+
+#undef __SYCL_PARAM_TRAITS_SPEC
+
 context platform::ext_oneapi_get_default_context() const {
   if (!detail::SYCLConfig<detail::SYCL_ENABLE_DEFAULT_CONTEXTS>::get())
     throw std::runtime_error("SYCL default contexts are not enabled");
