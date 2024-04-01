@@ -7241,7 +7241,7 @@ atomic_update(AccessorTy acc, simd<Toffset, N> byte_offset, simd_mask<N> mask,
 }
 
 /// simd<T, N>
-/// atomic_update(AccessorT acc, simd<OffsetSimdViewT, N> byte_offset,
+/// atomic_update(AccessorT acc, simd<Toffset, N> byte_offset,
 ///               props = {});                                  /// (acc-au0-2)
 /// A variation of \c atomic_update API without mask operand
 ///
