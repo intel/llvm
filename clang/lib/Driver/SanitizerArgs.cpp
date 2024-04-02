@@ -1155,6 +1155,15 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       CmdArgs.push_back("-asan-stack=0");
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-asan-globals=0");
+
+      // FIXME: Temporarily removing dae pass to prevent from removing
+      // "launch_info" argument in kernel
+      for (auto I = CmdArgs.begin(), E = CmdArgs.end(); I != E; I++) {
+        if (0 == strcmp(*I, "-fenable-sycl-dae")) {
+          CmdArgs.erase(I);
+          break;
+        }
+      }
     }
     return;
   }
