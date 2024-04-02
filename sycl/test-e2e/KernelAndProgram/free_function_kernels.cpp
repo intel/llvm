@@ -1,5 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// UNSUPPORTED: hip
 
 // This test tests free function kernel code generation and execution.
 
