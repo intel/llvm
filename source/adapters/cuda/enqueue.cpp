@@ -140,7 +140,6 @@ ur_result_t setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
 // dimension.
 void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
                         const size_t *GlobalWorkSize, const uint32_t WorkDim,
-                        const size_t MaxThreadsPerBlock[3],
                         ur_kernel_handle_t Kernel) {
   assert(ThreadsPerBlock != nullptr);
   assert(GlobalWorkSize != nullptr);
@@ -154,14 +153,14 @@ void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
   }
 
   size_t MaxBlockDim[3];
-  MaxBlockDim[0] = MaxThreadsPerBlock[0];
-  MaxBlockDim[1] = Device->getMaxBlockDimY();
-  MaxBlockDim[2] = Device->getMaxBlockDimZ();
+  MaxBlockDim[0] = Device->getMaxWorkItemSizes(0);
+  MaxBlockDim[1] = Device->getMaxWorkItemSizes(1);
+  MaxBlockDim[2] = Device->getMaxWorkItemSizes(2);
 
   int MinGrid, MaxBlockSize;
   UR_CHECK_ERROR(cuOccupancyMaxPotentialBlockSize(
       &MinGrid, &MaxBlockSize, Kernel->get(), NULL, Kernel->getLocalSize(),
-      MaxThreadsPerBlock[0]));
+      MaxBlockDim[0]));
 
   roundToHighestFactorOfGlobalSizeIn3d(ThreadsPerBlock, GlobalSizeNormalized,
                                        MaxBlockDim, MaxBlockSize);
@@ -197,7 +196,6 @@ setKernelParams(const ur_context_handle_t Context,
                 size_t (&BlocksPerGrid)[3]) {
   ur_result_t Result = UR_RESULT_SUCCESS;
   size_t MaxWorkGroupSize = 0u;
-  size_t MaxThreadsPerBlock[3] = {};
   bool ProvidedLocalWorkGroupSize = LocalWorkSize != nullptr;
   uint32_t LocalSize = Kernel->getLocalSize();
 
@@ -207,8 +205,6 @@ setKernelParams(const ur_context_handle_t Context,
     {
       size_t *ReqdThreadsPerBlock = Kernel->ReqdThreadsPerBlock;
       MaxWorkGroupSize = Device->getMaxWorkGroupSize();
-      Device->getMaxWorkItemSizes(sizeof(MaxThreadsPerBlock),
-                                  MaxThreadsPerBlock);
 
       if (ProvidedLocalWorkGroupSize) {
         auto IsValid = [&](int Dim) {
@@ -216,7 +212,7 @@ setKernelParams(const ur_context_handle_t Context,
               LocalWorkSize[Dim] != ReqdThreadsPerBlock[Dim])
             return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
 
-          if (LocalWorkSize[Dim] > MaxThreadsPerBlock[Dim])
+          if (LocalWorkSize[Dim] > Device->getMaxWorkItemSizes(Dim))
             return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
           // Checks that local work sizes are a divisor of the global work sizes
           // which includes that the local work sizes are neither larger than
@@ -245,7 +241,7 @@ setKernelParams(const ur_context_handle_t Context,
         }
       } else {
         guessLocalWorkSize(Device, ThreadsPerBlock, GlobalWorkSize, WorkDim,
-                           MaxThreadsPerBlock, Kernel);
+                           Kernel);
       }
     }
 
