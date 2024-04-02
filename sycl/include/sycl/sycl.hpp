@@ -98,18 +98,13 @@
 #include <sycl/ext/oneapi/group_local_memory.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
+#include <sycl/ext/oneapi/memcpy2d.hpp>
 #include <sycl/ext/oneapi/owner_less.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 #include <sycl/ext/oneapi/sub_group.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
 #include <sycl/ext/oneapi/weak_object.hpp>
-#if !defined(SYCL2020_CONFORMANT_APIS) &&                                      \
-    !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-// We used to include those and some code might be reliant on that.
-#include <cmath>
-#include <complex>
-#endif
 
 #if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 namespace sycl {

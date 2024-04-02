@@ -82,13 +82,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit  5f4dd113824e90522d813420932c14072dc3049d
-  # Merge:  ed1f8bf b551c77
-  # Author: Ewan Crawford <ewan@codeplay.com>
-  # Date:   Fri Mar 15 10:22:39 2024 +0000
-  #     Merge pull request #1447 from Bensuo/ewan/rocm_5_5_1
-  #     [HIP][CMDBUF] Require ROCm 5.5.1 for HIP command-buffers
-  set(UNIFIED_RUNTIME_TAG 5f4dd113824e90522d813420932c14072dc3049d)
+  # commit 0816206d9e863b88feadf9139c9bb829dcc0d2de
+  # Merge: 0c0f48db 46f69b9f
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Mon Apr 1 10:22:25 2024 +0100
+  #     Merge pull request #1460 from hdelan/remove-unused-prototypes
+  #     [HIP][CUDA] Remove function prototypes from enqueue.hpp
+  set(UNIFIED_RUNTIME_TAG 0816206d9e863b88feadf9139c9bb829dcc0d2de)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

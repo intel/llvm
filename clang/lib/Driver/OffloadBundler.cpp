@@ -614,11 +614,11 @@ class ObjectFileHandler final : public FileHandler {
       // input is a bitcode for spir target we need to remove module-level
       // inline asm from it, if there is one, and recreate the buffer with new
       // contents.
-      // TODO: remove this workaround once spir target gets asm parser.
+      // TODO: remove this workaround once spir/spirv target gets asm parser.
       if (isBitcode((const unsigned char *)Buf->getBufferStart(),
                     (const unsigned char *)Buf->getBufferEnd()))
         if (getTargetTriple(BundlerConfig.TargetNames[I], BundlerConfig)
-                .isSPIR()) {
+                .isSPIROrSPIRV()) {
           SMDiagnostic Err;
           std::unique_ptr<Module> Mod = parseIR(*Buf, Err, Context);
           if (!Mod)
