@@ -9,8 +9,9 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urQueueCreateWithNativeHandleTest);
 
 TEST_P(urQueueCreateWithNativeHandleTest, Success) {
     ur_native_handle_t native_handle = nullptr;
-    if (urQueueGetNativeHandle(queue, nullptr, &native_handle)) {
-        GTEST_SKIP();
+    {
+        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+            urQueueGetNativeHandle(queue, nullptr, &native_handle));
     }
 
     // We cannot assume anything about a native_handle, not even if it's
