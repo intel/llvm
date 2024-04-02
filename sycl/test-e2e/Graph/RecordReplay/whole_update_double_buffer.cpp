@@ -5,12 +5,6 @@
 // Extra run to check for immediate-command-list in Level Zero
 // RUN: %if level_zero && linux %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
-// REQUIRES: aspect-usm_shared_allocations
-
-// Skip as executable graph update and host tasks both aren't
-// implemented.
-// REQUIRES: NOT_YET_IMPLEMENTED
-
 #define GRAPH_E2E_RECORD_REPLAY
 
-#include "../Update/whole_update_delay.cpp"
+#include "../Inputs/whole_update_double_buffer.cpp"

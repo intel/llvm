@@ -234,7 +234,9 @@ yet been implemented.
 
 ### Design Challenges
 
-Graph update faces significant design challenges in SYCL:
+#### Explicit Update
+
+Explicit updates of individual nodes faces significant design challenges in SYCL:
 
 * Lambda capture order is explicitly undefined in C++, so the user cannot reason
   about the indices of arguments captured by kernel lambdas.
@@ -256,9 +258,18 @@ can be used:
   extension](../extensions/proposed/sycl_ext_oneapi_free_function_kernels.asciidoc)
 * OpenCL interop kernels created from SPIR-V source at runtime.
 
-A possible future workaround lambda capture issues could be "Whole-Graph Update"
-where if we can guarantee that lambda capture order is the same across two
-different recordings we can then match parameter order when updating.
+A workaround for the lambda capture issues is the "Whole-Graph Update" feature.
+Since the lambda capture order is the same across two different recordings, we
+can match the parameter order when updating.
+
+#### Whole-Graph Update
+
+The current implementation of the whole-graph update feature relies on the
+assumption that both graphs should have a similar topology. Currently, the
+implementation only checks that both graphs have an identical number of nodes
+and that each node contains the same number of edges. A possible design change
+could be to add more checks to the implementation. This would give the user
+better error messages but with possible performance penalties.
 
 ### Scheduler Integration
 

@@ -7,10 +7,6 @@
 
 // REQUIRES: aspect-usm_shared_allocations
 
-// Skip as executable graph update and host tasks both aren't
-// implemented.
-// REQUIRES: NOT_YET_IMPLEMENTED
-
 #define GRAPH_E2E_EXPLICIT
 
-#include "../Update/whole_update_delay.cpp"
+#include "../Inputs/whole_update_subgraph.cpp"

@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "Common.hpp"
-#include "sycl/exception.hpp"
 
 using namespace sycl;
 using namespace sycl::ext::oneapi;
@@ -176,20 +175,20 @@ TEST_F(WholeGraphUpdateTest, NoUpdates) {
 
   auto NodeA = Graph.add(EmptyKernel);
   auto NodeB =
-      Graph.add(EmptyKernel, exp_ext::property::node::depends_on(NodeA));
+      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
   auto NodeC =
-      Graph.add(EmptyKernel, exp_ext::property::node::depends_on(NodeA));
+      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
   auto NodeD =
-      Graph.add(EmptyKernel, exp_ext::property::node::depends_on(NodeB, NodeC));
+      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeB, NodeC));
 
   auto UpdateNodeA = UpdateGraph.add(EmptyKernel);
   auto UpdateNodeB = UpdateGraph.add(
-      EmptyKernel, exp_ext::property::node::depends_on(UpdateNodeA));
+      EmptyKernel, experimental::property::node::depends_on(UpdateNodeA));
   auto UpdateNodeC = UpdateGraph.add(
-      EmptyKernel, exp_ext::property::node::depends_on(UpdateNodeA));
+      EmptyKernel, experimental::property::node::depends_on(UpdateNodeA));
   auto UpdateNodeD = UpdateGraph.add(
       EmptyKernel,
-      exp_ext::property::node::depends_on(UpdateNodeB, UpdateNodeC));
+      experimental::property::node::depends_on(UpdateNodeB, UpdateNodeC));
 
   auto GraphExec = Graph.finalize(experimental::property::graph::updatable{});
   EXPECT_NO_THROW(GraphExec.update(UpdateGraph));
@@ -200,20 +199,20 @@ TEST_F(WholeGraphUpdateTest, MoreNodes) {
 
   auto NodeA = Graph.add(EmptyKernel);
   auto NodeB =
-      Graph.add(EmptyKernel, exp_ext::property::node::depends_on(NodeA));
+      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
   auto NodeC =
-      Graph.add(EmptyKernel, exp_ext::property::node::depends_on(NodeA));
+      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
   auto NodeD =
-      Graph.add(EmptyKernel, exp_ext::property::node::depends_on(NodeB, NodeC));
+      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeB, NodeC));
 
   auto UpdateNodeA = UpdateGraph.add(EmptyKernel);
   auto UpdateNodeB = UpdateGraph.add(
-      EmptyKernel, exp_ext::property::node::depends_on(UpdateNodeA));
+      EmptyKernel, experimental::property::node::depends_on(UpdateNodeA));
   auto UpdateNodeC = UpdateGraph.add(
-      EmptyKernel, exp_ext::property::node::depends_on(UpdateNodeA));
+      EmptyKernel, experimental::property::node::depends_on(UpdateNodeA));
   auto UpdateNodeD = UpdateGraph.add(
       EmptyKernel,
-      exp_ext::property::node::depends_on(UpdateNodeB, UpdateNodeC));
+      experimental::property::node::depends_on(UpdateNodeB, UpdateNodeC));
   // NodeE is the extra node
   auto UpdateNodeE = UpdateGraph.add(EmptyKernel);
 
@@ -226,17 +225,17 @@ TEST_F(WholeGraphUpdateTest, LessNodes) {
 
   auto NodeA = Graph.add(EmptyKernel);
   auto NodeB =
-      Graph.add(EmptyKernel, exp_ext::property::node::depends_on(NodeA));
+      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
   auto NodeC =
-      Graph.add(EmptyKernel, exp_ext::property::node::depends_on(NodeA));
+      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
   auto NodeD =
-      Graph.add(EmptyKernel, exp_ext::property::node::depends_on(NodeB, NodeC));
+      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeB, NodeC));
 
   auto UpdateNodeA = UpdateGraph.add(EmptyKernel);
   auto UpdateNodeB = UpdateGraph.add(
-      EmptyKernel, exp_ext::property::node::depends_on(UpdateNodeA));
+      EmptyKernel, experimental::property::node::depends_on(UpdateNodeA));
   auto UpdateNodeC = UpdateGraph.add(
-      EmptyKernel, exp_ext::property::node::depends_on(UpdateNodeA));
+      EmptyKernel, experimental::property::node::depends_on(UpdateNodeA));
   // NodeD is missing in the update
 
   auto GraphExec = Graph.finalize(experimental::property::graph::updatable{});
@@ -248,19 +247,19 @@ TEST_F(WholeGraphUpdateTest, ExtraEdges) {
 
   auto NodeA = Graph.add(EmptyKernel);
   auto NodeB =
-      Graph.add(EmptyKernel, exp_ext::property::node::depends_on(NodeA));
+      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
   auto NodeC =
-      Graph.add(EmptyKernel, exp_ext::property::node::depends_on(NodeA));
+      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
   auto NodeD =
-      Graph.add(EmptyKernel, exp_ext::property::node::depends_on(NodeB, NodeC));
+      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeB, NodeC));
 
   auto UpdateNodeA = UpdateGraph.add(EmptyKernel);
   auto UpdateNodeB = UpdateGraph.add(
-      EmptyKernel, exp_ext::property::node::depends_on(UpdateNodeA));
+      EmptyKernel, experimental::property::node::depends_on(UpdateNodeA));
   auto UpdateNodeC = UpdateGraph.add(
-      EmptyKernel, exp_ext::property::node::depends_on(UpdateNodeA));
+      EmptyKernel, experimental::property::node::depends_on(UpdateNodeA));
   auto UpdateNodeD = UpdateGraph.add(
-      EmptyKernel, exp_ext::property::node::depends_on(
+      EmptyKernel, experimental::property::node::depends_on(
                        UpdateNodeA, UpdateNodeB, UpdateNodeC /* Extra Edge */));
 
   auto GraphExec = Graph.finalize(experimental::property::graph::updatable{});
@@ -272,46 +271,49 @@ TEST_F(WholeGraphUpdateTest, MissingEdges) {
 
   auto NodeA = Graph.add(EmptyKernel);
   auto NodeB =
-      Graph.add(EmptyKernel, exp_ext::property::node::depends_on(NodeA));
+      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
   auto NodeC =
-      Graph.add(EmptyKernel, exp_ext::property::node::depends_on(NodeA));
+      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
   auto NodeD =
-      Graph.add(EmptyKernel, exp_ext::property::node::depends_on(NodeB, NodeC));
+      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeB, NodeC));
 
   auto UpdateNodeA = UpdateGraph.add(EmptyKernel);
   auto UpdateNodeB = UpdateGraph.add(
-      EmptyKernel, exp_ext::property::node::depends_on(UpdateNodeA));
+      EmptyKernel, experimental::property::node::depends_on(UpdateNodeA));
   auto UpdateNodeC = UpdateGraph.add(
-      EmptyKernel, exp_ext::property::node::depends_on(UpdateNodeA));
+      EmptyKernel, experimental::property::node::depends_on(UpdateNodeA));
   auto UpdateNodeD = UpdateGraph.add(
       EmptyKernel,
-      exp_ext::property::node::depends_on(/* Missing Edge */ UpdateNodeB));
+      experimental::property::node::depends_on(/* Missing Edge */ UpdateNodeB));
 
   auto GraphExec = Graph.finalize(experimental::property::graph::updatable{});
   EXPECT_THROW(GraphExec.update(UpdateGraph), sycl::exception);
 }
 
-// FIXME TODO Is this an error or not?
 TEST_F(WholeGraphUpdateTest, WrongOrderEdges) {
   // Test that using an update graph with edges added in a different order
   // does not result in an error.
 
   auto NodeA = Graph.add(EmptyKernel);
-  auto NodeB =
-      Graph.add(EmptyKernel, exp_ext::property::node::depends_on(NodeA));
-  auto NodeC =
-      Graph.add(EmptyKernel, exp_ext::property::node::depends_on(NodeA));
-  auto NodeD =
-      Graph.add(EmptyKernel, exp_ext::property::node::depends_on(NodeB, NodeC));
+  auto NodeB = Graph.add(EmptyKernel);
+  auto NodeC = Graph.add(EmptyKernel);
+  auto NodeD = Graph.add(EmptyKernel);
+
+  Graph.make_edge(NodeA, NodeB);
+  Graph.make_edge(NodeA, NodeC);
+  Graph.make_edge(NodeB, NodeD);
+  Graph.make_edge(NodeC, NodeD);
 
   auto UpdateNodeA = UpdateGraph.add(EmptyKernel);
-  auto UpdateNodeB = UpdateGraph.add(
-      EmptyKernel, exp_ext::property::node::depends_on(UpdateNodeA));
-  auto UpdateNodeC = UpdateGraph.add(
-      EmptyKernel, exp_ext::property::node::depends_on(UpdateNodeA));
-  auto UpdateNodeD = UpdateGraph.add(
-      EmptyKernel, exp_ext::property::node::depends_on(
-                       UpdateNodeC, UpdateNodeB /* Reversed Edges */));
+  auto UpdateNodeB = UpdateGraph.add(EmptyKernel);
+  auto UpdateNodeC = UpdateGraph.add(EmptyKernel);
+  auto UpdateNodeD = UpdateGraph.add(EmptyKernel);
+
+  UpdateGraph.make_edge(UpdateNodeA, UpdateNodeB);
+  UpdateGraph.make_edge(UpdateNodeA, UpdateNodeC);
+  // Create the edge C->D before B->D, which is the reverse order of `Graph`.
+  UpdateGraph.make_edge(UpdateNodeC, UpdateNodeD);
+  UpdateGraph.make_edge(UpdateNodeB, UpdateNodeD);
 
   auto GraphExec = Graph.finalize(experimental::property::graph::updatable{});
   EXPECT_NO_THROW(GraphExec.update(UpdateGraph));
@@ -321,30 +323,30 @@ TEST_F(WholeGraphUpdateTest, UnsupportedNodeType) {
   // Test that using an update graph that contains unsupported node types
   // results in an error.
   buffer<int> Buffer{range<1>{1}};
-
+wro
   auto NodeA = Graph.add(EmptyKernel);
   auto NodeB =
-      Graph.add(EmptyKernel, exp_ext::property::node::depends_on(NodeA));
+      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
   auto NodeC =
-      Graph.add(EmptyKernel, exp_ext::property::node::depends_on(NodeA));
+      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
   auto NodeD = Graph.add(
       [&](handler &CGH) {
         auto Acc = Buffer.get_access(CGH);
         CGH.fill(Acc, 1);
       },
-      exp_ext::property::node::depends_on(NodeB, NodeC));
+      experimental::property::node::depends_on(NodeB, NodeC));
 
   auto UpdateNodeA = UpdateGraph.add(EmptyKernel);
   auto UpdateNodeB = UpdateGraph.add(
-      EmptyKernel, exp_ext::property::node::depends_on(UpdateNodeA));
+      EmptyKernel, experimental::property::node::depends_on(UpdateNodeA));
   auto UpdateNodeC = UpdateGraph.add(
-      EmptyKernel, exp_ext::property::node::depends_on(UpdateNodeA));
+      EmptyKernel, experimental::property::node::depends_on(UpdateNodeA));
   auto UpdateNodeD = Graph.add(
       [&](handler &CGH) {
         auto Acc = Buffer.get_access(CGH);
         CGH.fill(Acc, 1);
       },
-      exp_ext::property::node::depends_on(UpdateNodeB, UpdateNodeC));
+      experimental::property::node::depends_on(UpdateNodeB, UpdateNodeC));
 
   auto GraphExec = Graph.finalize(experimental::property::graph::updatable{});
   EXPECT_THROW(GraphExec.update(UpdateGraph), sycl::exception);

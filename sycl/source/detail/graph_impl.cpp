@@ -1161,12 +1161,12 @@ void exec_graph_impl::update(std::shared_ptr<graph_impl> GraphImpl) {
   if (MDevice != GraphImpl->getDevice()) {
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),
-        "The graphs must have been created with matching devices.");
+        "Cannot update using a graph created with a different device.");
   }
   if (MContext != GraphImpl->getContext()) {
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),
-        "The graphs must have been created with matching contexts.");
+        "Cannot update using a graph created with a different context.");
   }
 
   if (MNodeStorage.size() != GraphImpl->MNodeStorage.size()) {
@@ -1182,6 +1182,12 @@ void exec_graph_impl::update(std::shared_ptr<graph_impl> GraphImpl) {
         throw sycl::exception(sycl::make_error_code(errc::invalid),
                               "Mismatch found in the number of edges. The "
                               "graphs must have a matching topology.");
+      }
+
+      if (MNodeStorage[i]->MCGType != GraphImpl->MNodeStorage[i]->MCGType) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "Mismatch found in the type of nodes. Each pair "
+                              "of nodes being updated must have the same type");
       }
     }
   }

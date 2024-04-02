@@ -4,10 +4,11 @@
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 // Extra run to check for immediate-command-list in Level Zero
 // RUN: %if level_zero && linux %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
-//
-// UNSUPPORTED: opencl, level_zero
+
+// REQUIRES: aspect-usm_shared_allocations
 
 // Tests that whole graph update works when using dynamic parameters.
+
 #include "../graph_common.hpp"
 
 int main() {
@@ -34,7 +35,7 @@ int main() {
   exp_ext::command_graph GraphA{Queue.get_context(), Queue.get_device()};
 
   exp_ext::dynamic_parameter InputParam(GraphA, InputDataDevice1);
-  auto GraphANode = GraphA.add([&](handler &CGH) {
+  GraphA.add([&](handler &CGH) {
     CGH.set_arg(1, InputParam);
     CGH.single_task([=]() {
       for (size_t i = 0; i < Size; i++) {
@@ -50,13 +51,14 @@ int main() {
   Queue.wait_and_throw();
 
   for (size_t i = 0; i < Size; i++) {
-    assert(check_value(i, InputDataHost1[i], OutputDataHost1[i], "OutputDataHost1"));
+    assert(check_value(i, InputDataHost1[i], OutputDataHost1[i],
+                       "OutputDataHost1"));
   }
 
   InputParam.update(InputDataDevice2);
   exp_ext::command_graph GraphB{Queue.get_context(), Queue.get_device()};
 
-  auto GraphBNode = GraphB.add([&](handler &CGH) {
+  GraphB.add([&](handler &CGH) {
     CGH.single_task([=]() {
       for (size_t i = 0; i < Size; i++) {
         OutputDataDevice1[i] = InputDataDevice1[i];
@@ -76,7 +78,8 @@ int main() {
   free(OutputDataDevice1, Queue);
 
   for (size_t i = 0; i < Size; i++) {
-    assert(check_value(i, InputDataHost2[i], OutputDataHost1[i], "OutputDataHost1"));
+    assert(check_value(i, InputDataHost2[i], OutputDataHost1[i],
+                       "OutputDataHost1"));
   }
 
   return 0;
