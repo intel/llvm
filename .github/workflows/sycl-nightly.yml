@@ -160,6 +160,8 @@ jobs:
   ubuntu2204_docker_build_push:
     if: github.repository == 'intel/llvm'
     runs-on: [Linux, build]
+    permissions:
+      packages: write
     needs: ubuntu2204_build
     steps:
     - uses: actions/checkout@v4
