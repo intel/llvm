@@ -501,6 +501,10 @@ int main(void) {
   auto Dev = Q.get_device();
 
   bool Pass = true;
+  if (Dev.has(sycl::aspect::fp64)) {
+    Pass &= testESIMDSqrt<double, 32>(Q);
+    Pass &= testESIMDRSqrt<double, 32>(Q);
+  }
 #ifdef TEST_IEEE_DIV_REM
   Pass &= testESIMDSqrtIEEE<float, 16>(Q);
   Pass &= testESIMDDivIEEE<float, 8>(Q);

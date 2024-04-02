@@ -403,26 +403,40 @@ __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, sin, sin)
 /// Absolute error: \c 0.0008 or less for the range [-32767*pi, 32767*pi].
 __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_COND, cos, cos)
 
-template <class T = double, int N, class Sat = saturation_off_tag>
-__ESIMD_API simd<double, N> sqrt(simd<double, N> src, Sat sat = {}) {
+template <class T = double, int N, class Sat = saturation_off_tag,
+          class = std::enable_if_t<detail::is_generic_floating_point_v<T> &&
+                                   (sizeof(T) > 4)>>
+__ESIMD_API simd<double, N> sqrt(simd<T, N> src, Sat sat = {}) {
   return sqrt_ieee(src, sat);
 }
 
 /** Scalar version.                                                       */
-template <class T = double, class Sat = saturation_off_tag>
-__ESIMD_API double sqrt(double src, Sat sat = {}) {
+template <class T, class Sat = saturation_off_tag,
+          class = std::enable_if_t<detail::is_generic_floating_point_v<T> &&
+                                   (sizeof(T) > 4)>>
+__ESIMD_API double sqrt(T src, Sat sat = {}) {
   return sqrt_ieee(src, sat);
 }
 
-template <class T = double, int N, class Sat = saturation_off_tag>
-__ESIMD_API simd<double, N> rsqrt(simd<double, N> src, Sat sat = {}) {
-  return 1. / sqrt(src, sat);
+template <class T, int N, class Sat = saturation_off_tag,
+          class = std::enable_if_t<detail::is_generic_floating_point_v<T> &&
+                                   (sizeof(T) > 4)>>
+__ESIMD_API simd<double, N> rsqrt(simd<T, N> src, Sat sat = {}) {
+  if constexpr (std::is_same_v<Sat, saturation_off_tag>)
+    return 1. / sqrt(src);
+  else
+    return esimd::saturate<double>(1. / sqrt(src));
 }
 
 /** Scalar version.                                                       */
-template <class T = double, class Sat = saturation_off_tag>
-__ESIMD_API double rsqrt(double src, Sat sat = {}) {
-  return 1. / sqrt(src, sat);
+template <class T, class Sat = saturation_off_tag,
+          class = std::enable_if_t<detail::is_generic_floating_point_v<T> &&
+                                   (sizeof(T) > 4)>>
+__ESIMD_API double rsqrt(T src, Sat sat = {}) {
+  if constexpr (std::is_same_v<Sat, saturation_off_tag>)
+    return 1. / sqrt(src);
+  else
+    return esimd::saturate<double>(simd<double, 1>(1. / sqrt(src)))[0];
 }
 
 #undef __ESIMD_UNARY_INTRINSIC_DEF
