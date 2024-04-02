@@ -323,7 +323,7 @@ TEST_F(WholeGraphUpdateTest, UnsupportedNodeType) {
   // Test that using an update graph that contains unsupported node types
   // results in an error.
   buffer<int> Buffer{range<1>{1}};
-  wro auto NodeA = Graph.add(EmptyKernel);
+  auto NodeA = Graph.add(EmptyKernel);
   auto NodeB =
       Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
   auto NodeC =
