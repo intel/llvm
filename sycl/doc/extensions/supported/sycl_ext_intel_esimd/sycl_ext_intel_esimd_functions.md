@@ -290,13 +290,13 @@ template <typename T, int N, typename OffsetT, typename PropertyListT = empty_pr
                                PropertyListT props = {});
 
 // gather from USM - general form accepting offsets as simd_view
-template <typename T, int N, int VS = 1, typename OffsetObjT,
-          typename OffsetRegionT, typename PropertyListT = empty_props_t>
-/*usm-ga-7*/ simd <T, N> gather(const T *p, simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
+template <typename T, int N, int VS = 1,
+          typename OffsetSimdViewT, typename PropertyListT = empty_props_t>
+/*usm-ga-7*/ simd <T, N> gather(const T *p, OffsetSimdViewT byte_offsets,
                                 simd_mask<N / VS> mask, simd<T, N> pass_thru, PropertyListT props = {});
-/*usm-ga-8*/ simd <T, N> gather(const T *p, simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
+/*usm-ga-8*/ simd <T, N> gather(const T *p, OffsetSimdViewT byte_offsets,
                                 simd_mask<N / VS> mask, PropertyListT props = {});
-/*usm-ga-9*/ simd <T, N> gather(const T *p, simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
+/*usm-ga-9*/ simd <T, N> gather(const T *p, OffsetSimdViewT byte_offsets,
                                 PropertyListT props = {});
 
 
@@ -319,13 +319,13 @@ template <typename T, int N, typename AccessorT, typename OffsetT, typename Prop
                                PropertyListT props = {});
 
 // gather from memory accessed via device-accessor - general form accepting offsets as simd_view
-template <typename T, int N, int VS = 1, typename AccessorT, typename OffsetObjT,
-          typename OffsetRegionT, typename PropertyListT = empty_props_t>
-/*acc-ga-7*/ simd <T, N> gather(AccessorT acc, simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
+template <typename T, int N, int VS = 1, typename AccessorT,
+          typename OffsetSimdViewT, typename PropertyListT = empty_props_t>
+/*acc-ga-7*/ simd <T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
                                 simd_mask<N / VS> mask, simd<T, N> pass_thru, PropertyListT props = {});
-/*acc-ga-8*/ simd <T, N> gather(AccessorT acc, simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
+/*acc-ga-8*/ simd <T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
                                 simd_mask<N / VS> mask, PropertyListT props = {});
-/*acc-ga-9*/ simd <T, N> gather(AccessorT acc, simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
+/*acc-ga-9*/ simd <T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
                                 PropertyListT props = {});
 
 
@@ -649,10 +649,10 @@ template <atomic_op Op, typename T, int N, typename Toffset, typename PropertyLi
 /*usm-au0-2*/ simd<T, N> atomic_update(T *p, simd<Toffset, N> byte_offset,props = {});
 
 // Similar to (usm-au0-1,2), but `byte_offset` is `simd_view`.
-template <atomic_op Op, typename T, int N, typename OffsetObjT, typename RegionT,
+template <atomic_op Op, typename T, int N, typename OffsetSimdViewT,
           typename PropertyListT = detail::empty_properties_t>
-/*usm-au0-3*/ simd<T, N> atomic_update(T *p, simd_view<OffsetObjT, RegionT> byte_offset, simd_mask<N> mask, props = {});
-/*usm-au0-4*/simd<T, N> atomic_update(T *p, simd_view<OffsetObjT, RegionT> byte_offset, props = {});
+/*usm-au0-3*/ simd<T, N> atomic_update(T *p, OffsetSimdViewT byte_offset, simd_mask<N> mask, props = {});
+/*usm-au0-4*/ simd<T, N> atomic_update(T *p, OffsetSimdViewT byte_offset, props = {});
 
 
 // Atomic update the memory locations referenced by device-accessor - zero operands (dec, load, etc.).
@@ -664,11 +664,11 @@ template <atomic_op Op, typename T, int N, typename Toffset, typename AccessorT,
                                        props = {});
 
 // Similar to (acc-au0-1,2), but `byte_offset` is `simd_view`.
-template <atomic_op Op, typename T, int N, typename OffsetObjT, typename AccessorT, typename RegionT,
+template <atomic_op Op, typename T, int N, typename AccessorT, typename OffsetSimdViewT,
           typename PropertyListT = empty_properties_t>
-/*acc-au0-3*/ simd<T, N> atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionT> byte_offset,
+/*acc-au0-3*/ simd<T, N> atomic_update(AccessorT acc, OffsetSimdViewT byte_offset,
                                        simd_mask<N> mask, props = {});
-/*acc-au0-4*/ simd<T, N> atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionT> byte_offset,
+/*acc-au0-4*/ simd<T, N> atomic_update(AccessorT acc, OffsetSimdViewT byte_offset,
                                        props = {});
 
 
@@ -691,9 +691,9 @@ template <atomic_op Op, typename T, int N>
 /*usm-au1-2*/ simd<T, N> atomic_update(T *ptr, simd<Toffset, N> byte_offset,
                                        simd<T, N> src0, props = {});
 // Similar to (usm-au1-1,2), but `byte_offset` is `simd_view`.
-/*usm-au1-3*/ simd<T, N> atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
+/*usm-au1-3*/ simd<T, N> atomic_update(T *p, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, simd_mask<N> mask, props = {});
-/*usm-au1-4*/ simd<T, N> atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
+/*usm-au1-4*/ simd<T, N> atomic_update(T *p, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, props = {});
 
 
@@ -706,11 +706,11 @@ template <atomic_op Op, typename T, int N, typename Toffset, typename AccessorT,
                                        simd<T, N> src0, props = {});
 
 // Similar to (acc-au1-1,2), but `byte_offset` is `simd_view`.
-template <atomic_op Op, typename T, int N, typename OffsetObjT, typename AccessorT,
-          typename RegionT, typename PropertyListT = empty_properties_t>
-/*acc-au1-3*/ simd<T, N> atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionT> byte_offset,
+template <atomic_op Op, typename T, int N, typename AccessorT,
+          typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
+/*acc-au1-3*/ simd<T, N> atomic_update(AccessorT acc, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, simd_mask<N> mask, props = {});
-/*acc-au1-4*/ simd<T, N> atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionT> byte_offset,
+/*acc-au1-4*/ simd<T, N> atomic_update(AccessorT acc, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, props = {});
 
 // Atomic update the memory locations referenced by local-accessor (SLM) - one operand (add, max, etc.).
@@ -731,9 +731,9 @@ template <atomic_op Op, typename T, int N>
 /*usm-au2-2*/ simd<T, N> atomic_update(T *ptr, simd<Toffset, N> byte_offset,
                                        simd<T, N> src0, simd<T, N> src1, props = {});
 // Similar to (usm-au2-1,2), but `byte_offset` is `simd_view`.
-/*usm-au2-3*/ simd<T, N> atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
+/*usm-au2-3*/ simd<T, N> atomic_update(T *p, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, simd<T, N> src1, simd_mask<N> mask, props = {});
-/*usm-au2-4*/ simd<T, N> atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
+/*usm-au2-4*/ simd<T, N> atomic_update(T *p, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, simd<T, N> src1, props = {});
 
 
@@ -746,11 +746,11 @@ template <atomic_op Op, typename T, int N, typename Toffset, typename AccessorT,
                                        simd<T, N> src0, simd<T, N> src1, props = {});
 
 // Similar to (acc-au2-1,2), but `byte_offset` is `simd_view`.
-template <atomic_op Op, typename T, int N, typename OffsetObjT, typename AccessorT,
-          typename RegionT, typename PropertyListT = empty_properties_t>
-/*acc-au2-3*/ simd<T, N> atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionT> byte_offset,
+template <atomic_op Op, typename T, int N, typename AccessorT,
+          typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
+/*acc-au2-3*/ simd<T, N> atomic_update(AccessorT acc, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, simd<T, N> src1, simd_mask<N> mask, props = {});
-/*acc-au2-4*/ simd<T, N> atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionT> byte_offset,
+/*acc-au2-4*/ simd<T, N> atomic_update(AccessorT acc, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, simd<T, N> src1, props = {});
 
 // Atomic update the memory locations referenced by local-accessor (SLM) - two operands: cmpxchg, fcmpxchg.
