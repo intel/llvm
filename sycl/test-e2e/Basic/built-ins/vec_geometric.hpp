@@ -134,68 +134,80 @@ template <template <typename, int> typename VecT> void run_test() {
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   TEST(sycl::cross, float, 3, EXPECTED(float, -1.f, -4.f, 3.f), 0,
-       VFloatD4.swizzle<0, 1, 2>(), VFloatD3_2);
+       VFloatD4.template swizzle<0, 1, 2>(), VFloatD3_2);
   TEST(sycl::cross, float, 3, EXPECTED(float, -1.f, -4.f, 3.f), 0, VFloatD3,
-       VFloatD4_2.swizzle<0, 1, 2>());
+       VFloatD4_2.template swizzle<0, 1, 2>());
   TEST(sycl::cross, float, 3, EXPECTED(float, -1.f, -4.f, 3.f), 0,
-       VFloatD4.swizzle<0, 1, 2>(), VFloatD4_2.swizzle<0, 1, 2>());
+       VFloatD4.template swizzle<0, 1, 2>(),
+       VFloatD4_2.template swizzle<0, 1, 2>());
   if (Dev.has(sycl::aspect::fp64)) {
     TEST(sycl::cross, double, 3, EXPECTED(double, -1.f, -4.f, 3.f), 0,
-         VDoubleD3, VDoubleD4_2.swizzle<0, 1, 2>());
+         VDoubleD3, VDoubleD4_2.template swizzle<0, 1, 2>());
     TEST(sycl::cross, double, 3, EXPECTED(double, -1.f, -4.f, 3.f), 0,
-         VDoubleD4.swizzle<0, 1, 2>(), VDoubleD3_2);
+         VDoubleD4.template swizzle<0, 1, 2>(), VDoubleD3_2);
     TEST(sycl::cross, double, 3, EXPECTED(double, -1.f, -4.f, 3.f), 0,
-         VDoubleD4.swizzle<0, 1, 2>(), VDoubleD4_2.swizzle<0, 1, 2>());
+         VDoubleD4.template swizzle<0, 1, 2>(),
+         VDoubleD4_2.template swizzle<0, 1, 2>());
   }
 
-  TEST2(sycl::dot, float, 32.f, 0, VFloatD4.swizzle<0, 1, 2>(), VFloatD3_2);
-  TEST2(sycl::dot, float, 32.f, 0, VFloatD3, VFloatD4_2.swizzle<0, 1, 2>());
-  TEST2(sycl::dot, float, 32.f, 0, VFloatD4.swizzle<0, 1, 2>(),
-        VFloatD4_2.swizzle<0, 1, 2>());
+  TEST2(sycl::dot, float, 32.f, 0, VFloatD4.template swizzle<0, 1, 2>(),
+        VFloatD3_2);
+  TEST2(sycl::dot, float, 32.f, 0, VFloatD3,
+        VFloatD4_2.template swizzle<0, 1, 2>());
+  TEST2(sycl::dot, float, 32.f, 0, VFloatD4.template swizzle<0, 1, 2>(),
+        VFloatD4_2.template swizzle<0, 1, 2>());
   if (Dev.has(sycl::aspect::fp64)) {
-    TEST2(sycl::dot, double, 32, 0, VDoubleD4.swizzle<0, 1, 2>(), VDoubleD3_2);
-    TEST2(sycl::dot, double, 32, 0, VDoubleD3, VDoubleD4_2.swizzle<0, 1, 2>());
-    TEST2(sycl::dot, double, 32, 0, VDoubleD4.swizzle<0, 1, 2>(),
-          VDoubleD4_2.swizzle<0, 1, 2>());
+    TEST2(sycl::dot, double, 32, 0, VDoubleD4.template swizzle<0, 1, 2>(),
+          VDoubleD3_2);
+    TEST2(sycl::dot, double, 32, 0, VDoubleD3,
+          VDoubleD4_2.template swizzle<0, 1, 2>());
+    TEST2(sycl::dot, double, 32, 0, VDoubleD4.template swizzle<0, 1, 2>(),
+          VDoubleD4_2.template swizzle<0, 1, 2>());
   }
 
-  TEST2(sycl::length, float, 3.741657f, 1e-6, VFloatD4.swizzle<0, 1, 2>());
+  TEST2(sycl::length, float, 3.741657f, 1e-6,
+        VFloatD4.template swizzle<0, 1, 2>());
   if (Dev.has(sycl::aspect::fp64)) {
-    TEST2(sycl::length, double, 3.741657, 1e-6, VDoubleD4.swizzle<0, 1, 2>());
+    TEST2(sycl::length, double, 3.741657, 1e-6,
+          VDoubleD4.template swizzle<0, 1, 2>());
   }
 
-  TEST2(sycl::distance, float, 5.f, 0, VFloatD4.swizzle<0, 1, 2>(), VFloatD3_2);
-  TEST2(sycl::distance, float, 5.f, 0, VFloatD3, VFloatD4_2.swizzle<0, 1, 2>());
-  TEST2(sycl::distance, float, 5.f, 0, VFloatD4.swizzle<0, 1, 2>(),
-        VFloatD4_2.swizzle<0, 1, 2>());
+  TEST2(sycl::distance, float, 5.f, 0, VFloatD4.template swizzle<0, 1, 2>(),
+        VFloatD3_2);
+  TEST2(sycl::distance, float, 5.f, 0, VFloatD3,
+        VFloatD4_2.template swizzle<0, 1, 2>());
+  TEST2(sycl::distance, float, 5.f, 0, VFloatD4.template swizzle<0, 1, 2>(),
+        VFloatD4_2.template swizzle<0, 1, 2>());
   if (Dev.has(sycl::aspect::fp64)) {
-    TEST2(sycl::distance, double, 5.0, 0, VDoubleD4.swizzle<0, 1, 2>(),
+    TEST2(sycl::distance, double, 5.0, 0, VDoubleD4.template swizzle<0, 1, 2>(),
           VDoubleD3_2);
     TEST2(sycl::distance, double, 5.0, 0, VDoubleD3,
-          VDoubleD4_2.swizzle<0, 1, 2>());
-    TEST2(sycl::distance, double, 5.0, 0, VDoubleD4.swizzle<0, 1, 2>(),
-          VDoubleD4_2.swizzle<0, 1, 2>());
+          VDoubleD4_2.template swizzle<0, 1, 2>());
+    TEST2(sycl::distance, double, 5.0, 0, VDoubleD4.template swizzle<0, 1, 2>(),
+          VDoubleD4_2.template swizzle<0, 1, 2>());
   }
 
   TEST(sycl::normalize, float, 3, EXPECTED(float, 0.267261, 0.534522, 0.801784),
-       1e-6, VFloatD4.swizzle<0, 1, 2>());
+       1e-6, VFloatD4.template swizzle<0, 1, 2>());
   if (Dev.has(sycl::aspect::fp64)) {
     TEST(sycl::normalize, double, 3,
          EXPECTED(double, 0.267261, 0.534522, 0.801784), 1e-6,
-         VDoubleD4.swizzle<0, 1, 2>());
+         VDoubleD4.template swizzle<0, 1, 2>());
   }
 
-  TEST2(sycl::fast_distance, float, 5.f, 0, VFloatD4.swizzle<0, 1, 2>(),
-        VFloatD3_2);
+  TEST2(sycl::fast_distance, float, 5.f, 0,
+        VFloatD4.template swizzle<0, 1, 2>(), VFloatD3_2);
   TEST2(sycl::fast_distance, float, 5.f, 0, VFloatD3,
-        VFloatD4_2.swizzle<0, 1, 2>());
-  TEST2(sycl::fast_distance, float, 5.f, 0, VFloatD4.swizzle<0, 1, 2>(),
-        VFloatD4_2.swizzle<0, 1, 2>());
+        VFloatD4_2.template swizzle<0, 1, 2>());
+  TEST2(sycl::fast_distance, float, 5.f, 0,
+        VFloatD4.template swizzle<0, 1, 2>(),
+        VFloatD4_2.template swizzle<0, 1, 2>());
 
-  TEST2(sycl::fast_length, float, 3.741657f, 1e-6, VFloatD4.swizzle<0, 1, 2>());
+  TEST2(sycl::fast_length, float, 3.741657f, 1e-6,
+        VFloatD4.template swizzle<0, 1, 2>());
 
   TEST(sycl::fast_normalize, float, 3,
        EXPECTED(float, 0.267261f, 0.534522f, 0.801784f), 1e-3,
-       VFloatD4.swizzle<0, 1, 2>());
+       VFloatD4.template swizzle<0, 1, 2>());
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 }

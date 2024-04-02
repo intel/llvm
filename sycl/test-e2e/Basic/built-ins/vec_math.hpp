@@ -123,69 +123,73 @@ template <template <typename, int> typename VecT> void run_test() {
        va1);
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  TEST(sycl::fabs, float, 2, EXPECTED(float, 180, 180), 0, va5.swizzle<0, 1>());
-  TEST(sycl::ilogb, int, 2, EXPECTED(int, 7, 7), 0, va3.swizzle<0, 1>());
+  TEST(sycl::fabs, float, 2, EXPECTED(float, 180, 180), 0,
+       va5.template swizzle<0, 1>());
+  TEST(sycl::ilogb, int, 2, EXPECTED(int, 7, 7), 0,
+       va3.template swizzle<0, 1>());
   TEST(sycl::fmax, float, 2, EXPECTED(float, 3.0f, 2.0f), 0,
-       va9.swizzle<0, 1>(), va2);
+       va9.template swizzle<0, 1>(), va2);
   TEST(sycl::fmax, float, 2, EXPECTED(float, 3.0f, 2.0f), 0, va1,
-       va10.swizzle<0, 1>());
+       va10.template swizzle<0, 1>());
   TEST(sycl::fmax, float, 2, EXPECTED(float, 3.0f, 2.0f), 0,
-       va9.swizzle<0, 1>(), va10.swizzle<0, 1>());
+       va9.template swizzle<0, 1>(), va10.template swizzle<0, 1>());
   TEST(sycl::fmax, float, 2, EXPECTED(float, 5.0f, 5.0f), 0,
-       va9.swizzle<0, 1>(), 5.0f);
+       va9.template swizzle<0, 1>(), 5.0f);
   TEST(sycl::fmin, float, 2, EXPECTED(float, 1.0f, 2.0f), 0,
-       va9.swizzle<0, 1>(), va2);
+       va9.template swizzle<0, 1>(), va2);
   TEST(sycl::fmin, float, 2, EXPECTED(float, 1.0f, 2.0f), 0, va1,
-       va10.swizzle<0, 1>());
+       va10.template swizzle<0, 1>());
   TEST(sycl::fmin, float, 2, EXPECTED(float, 1.0f, 2.0f), 0,
-       va9.swizzle<0, 1>(), va10.swizzle<0, 1>());
+       va9.template swizzle<0, 1>(), va10.template swizzle<0, 1>());
   TEST(sycl::fmin, float, 2, EXPECTED(float, 1.0f, 2.0f), 0,
-       va9.swizzle<0, 1>(), 5.0f);
-  TEST(sycl::ldexp, float, 2, EXPECTED(float, 360, 360), 0, va3.swizzle<0, 1>(),
-       va12);
+       va9.template swizzle<0, 1>(), 5.0f);
+  TEST(sycl::ldexp, float, 2, EXPECTED(float, 360, 360), 0,
+       va3.template swizzle<0, 1>(), va12);
   TEST(sycl::ldexp, float, 2, EXPECTED(float, 360, 360), 0, va11,
-       va4.swizzle<0, 1>());
-  TEST(sycl::ldexp, float, 2, EXPECTED(float, 360, 360), 0, va3.swizzle<0, 1>(),
-       va4.swizzle<0, 1>());
+       va4.template swizzle<0, 1>());
+  TEST(sycl::ldexp, float, 2, EXPECTED(float, 360, 360), 0,
+       va3.template swizzle<0, 1>(), va4.template swizzle<0, 1>());
   TEST(sycl::ldexp, float, 3, EXPECTED(float, 5760, 5760, 5760), 0, va3, 5);
   TEST(sycl::ldexp, float, 2, EXPECTED(float, 5760, 5760), 0,
-       va3.swizzle<0, 1>(), 5);
+       va3.template swizzle<0, 1>(), 5);
   TEST(sycl::pown, float, 3, EXPECTED(float, 180, 180, 180), 0.1, va3, va4);
   TEST(sycl::pown, float, 2, EXPECTED(float, 180, 180), 0.1,
-       va3.swizzle<0, 1>(), va12);
+       va3.template swizzle<0, 1>(), va12);
   TEST(sycl::pown, float, 2, EXPECTED(float, 180, 180), 0.1, va11,
-       va4.swizzle<0, 1>());
+       va4.template swizzle<0, 1>());
   TEST(sycl::pown, float, 2, EXPECTED(float, 180, 180), 0.1,
-       va3.swizzle<0, 1>(), va4.swizzle<0, 1>());
+       va3.template swizzle<0, 1>(), va4.template swizzle<0, 1>());
   TEST(sycl::rootn, float, 3, EXPECTED(float, 180, 180, 180), 0.1, va3, va4);
   TEST(sycl::rootn, float, 2, EXPECTED(float, 180, 180), 0.1,
-       va3.swizzle<0, 1>(), va12);
+       va3.template swizzle<0, 1>(), va12);
   TEST(sycl::rootn, float, 2, EXPECTED(float, 180, 180), 0.1, va11,
-       va4.swizzle<0, 1>());
+       va4.template swizzle<0, 1>());
   TEST(sycl::rootn, float, 2, EXPECTED(float, 180, 180), 0.1,
-       va3.swizzle<0, 1>(), va4.swizzle<0, 1>());
+       va3.template swizzle<0, 1>(), va4.template swizzle<0, 1>());
   TEST2(sycl::fract, float, float, 2, EXPECTED(float, 0.4f, 0.2f),
-        EXPECTED(float, 1, 4), 0.0001, va6.swizzle<0, 1>());
+        EXPECTED(float, 1, 4), 0.0001, va6.template swizzle<0, 1>());
   TEST2(sycl::modf, float, float, 2, EXPECTED(float, 0.4f, 0.2f),
-        EXPECTED(float, 1, 4), 0.0001, va6.swizzle<0, 1>());
+        EXPECTED(float, 1, 4), 0.0001, va6.template swizzle<0, 1>());
   TEST2(sycl::sincos, float, float, 2, EXPECTED(float, 0.98545f, -0.871576f),
-        EXPECTED(float, 0.169967, -0.490261), 0.0001, va6.swizzle<0, 1>());
+        EXPECTED(float, 0.169967, -0.490261), 0.0001,
+        va6.template swizzle<0, 1>());
   TEST2(sycl::frexp, float, int, 2, EXPECTED(float, 0.7f, 0.525f),
-        EXPECTED(int, 1, 3), 0.0001, va6.swizzle<0, 1>());
+        EXPECTED(int, 1, 3), 0.0001, va6.template swizzle<0, 1>());
   TEST2(sycl::lgamma_r, float, int, 2, EXPECTED(float, -0.119613f, 2.04856f),
-        EXPECTED(int, 1, 1), 0.0001, va6.swizzle<0, 1>());
+        EXPECTED(int, 1, 1), 0.0001, va6.template swizzle<0, 1>());
   TEST2(sycl::remquo, float, int, 2, EXPECTED(float, 1.4f, 4.2f),
-        EXPECTED(int, 0, 0), 0.0001, va6.swizzle<0, 1>(), va11);
+        EXPECTED(int, 0, 0), 0.0001, va6.template swizzle<0, 1>(), va11);
   TEST2(sycl::remquo, float, int, 2, EXPECTED(float, 1.4f, 4.2f),
-        EXPECTED(int, 0, 0), 0.0001, va13, va3.swizzle<0, 1>());
+        EXPECTED(int, 0, 0), 0.0001, va13, va3.template swizzle<0, 1>());
   TEST2(sycl::remquo, float, int, 2, EXPECTED(float, 1.4f, 4.2f),
-        EXPECTED(int, 0, 0), 0.0001, va6.swizzle<0, 1>(), va3.swizzle<0, 1>());
-  TEST3(sycl::nan, float, 2, va7.swizzle<0, 1>());
+        EXPECTED(int, 0, 0), 0.0001, va6.template swizzle<0, 1>(),
+        va3.template swizzle<0, 1>());
+  TEST3(sycl::nan, float, 2, va7.template swizzle<0, 1>());
   if (deviceQueue.get_device().has(sycl::aspect::fp64)) {
-    TEST3(sycl::nan, double, 2, va8.swizzle<0, 1>());
+    TEST3(sycl::nan, double, 2, va8.template swizzle<0, 1>());
   }
   TEST(sycl::half_precision::exp10, float, 2, EXPECTED(float, 10, 100), 0.1,
-       va9.swizzle<0, 1>());
+       va9.template swizzle<0, 1>());
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   return 0;

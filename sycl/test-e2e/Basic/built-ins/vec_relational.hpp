@@ -153,100 +153,107 @@ template <template <typename, int> typename VecT> void run_test() {
   }
 
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  TEST(sycl::isequal, int32_t, EXPECTED(int32_t, 1, 1), 2, va11.swizzle<0, 1>(),
-       va2);
+  TEST(sycl::isequal, int32_t, EXPECTED(int32_t, 1, 1), 2,
+       va11.template swizzle<0, 1>(), va2);
   TEST(sycl::isequal, int32_t, EXPECTED(int32_t, 1, 1), 2, va1,
-       va11.swizzle<0, 1>());
-  TEST(sycl::isequal, int32_t, EXPECTED(int32_t, 1, 1), 2, va11.swizzle<0, 1>(),
-       va11.swizzle<0, 1>());
+       va11.template swizzle<0, 1>());
+  TEST(sycl::isequal, int32_t, EXPECTED(int32_t, 1, 1), 2,
+       va11.template swizzle<0, 1>(), va11.template swizzle<0, 1>());
   TEST(sycl::isnotequal, int32_t, EXPECTED(int32_t, 0, 0), 2,
-       va11.swizzle<0, 1>(), va2);
+       va11.template swizzle<0, 1>(), va2);
   TEST(sycl::isnotequal, int32_t, EXPECTED(int32_t, 0, 0), 2, va1,
-       va11.swizzle<0, 1>());
+       va11.template swizzle<0, 1>());
   TEST(sycl::isnotequal, int32_t, EXPECTED(int32_t, 0, 0), 2,
-       va11.swizzle<0, 1>(), va11.swizzle<0, 1>());
+       va11.template swizzle<0, 1>(), va11.template swizzle<0, 1>());
   TEST(sycl::isgreater, int32_t, EXPECTED(int32_t, 0, 1), 2,
-       va11.swizzle<0, 1>(), va3);
+       va11.template swizzle<0, 1>(), va3);
   TEST(sycl::isgreater, int32_t, EXPECTED(int32_t, 0, 1), 2, va1,
-       va12.swizzle<0, 1>());
+       va12.template swizzle<0, 1>());
   TEST(sycl::isgreater, int32_t, EXPECTED(int32_t, 0, 1), 2,
-       va11.swizzle<0, 1>(), va12.swizzle<0, 1>());
+       va11.template swizzle<0, 1>(), va12.template swizzle<0, 1>());
   TEST(sycl::isgreaterequal, int32_t, EXPECTED(int32_t, 0, 1), 2,
-       va11.swizzle<0, 1>(), va4);
+       va11.template swizzle<0, 1>(), va4);
   TEST(sycl::isgreaterequal, int32_t, EXPECTED(int32_t, 0, 1), 2, va1,
-       va13.swizzle<0, 1>());
+       va13.template swizzle<0, 1>());
   TEST(sycl::isgreaterequal, int32_t, EXPECTED(int32_t, 0, 1), 2,
-       va11.swizzle<0, 1>(), va13.swizzle<0, 1>());
+       va11.template swizzle<0, 1>(), va13.template swizzle<0, 1>());
   TEST(sycl::isless, int32_t, EXPECTED(int32_t, 0, 1), 2, va3,
-       va11.swizzle<0, 1>());
-  TEST(sycl::isless, int32_t, EXPECTED(int32_t, 0, 1), 2, va12.swizzle<0, 1>(),
-       va1);
-  TEST(sycl::isless, int32_t, EXPECTED(int32_t, 0, 1), 2, va12.swizzle<0, 1>(),
-       va11.swizzle<0, 1>());
+       va11.template swizzle<0, 1>());
+  TEST(sycl::isless, int32_t, EXPECTED(int32_t, 0, 1), 2,
+       va12.template swizzle<0, 1>(), va1);
+  TEST(sycl::isless, int32_t, EXPECTED(int32_t, 0, 1), 2,
+       va12.template swizzle<0, 1>(), va11.template swizzle<0, 1>());
   TEST(sycl::islessequal, int32_t, EXPECTED(int32_t, 0, 1), 2,
-       va13.swizzle<0, 1>(), va1);
+       va13.template swizzle<0, 1>(), va1);
   TEST(sycl::islessequal, int32_t, EXPECTED(int32_t, 0, 1), 2, va4,
-       va11.swizzle<0, 1>());
+       va11.template swizzle<0, 1>());
   TEST(sycl::islessequal, int32_t, EXPECTED(int32_t, 0, 1), 2,
-       va13.swizzle<0, 1>(), va11.swizzle<0, 1>());
+       va13.template swizzle<0, 1>(), va11.template swizzle<0, 1>());
   TEST(sycl::islessgreater, int32_t, EXPECTED(int32_t, 0, 0), 2,
-       va11.swizzle<0, 1>(), va2);
+       va11.template swizzle<0, 1>(), va2);
   TEST(sycl::islessgreater, int32_t, EXPECTED(int32_t, 0, 0), 2, va1,
-       va11.swizzle<0, 1>());
+       va11.template swizzle<0, 1>());
   TEST(sycl::islessgreater, int32_t, EXPECTED(int32_t, 0, 0), 2,
-       va11.swizzle<0, 1>(), va11.swizzle<0, 1>());
+       va11.template swizzle<0, 1>(), va11.template swizzle<0, 1>());
   TEST(sycl::isfinite, int32_t, EXPECTED(int32_t, 1, 1), 2,
-       va11.swizzle<0, 1>());
-  TEST(sycl::isinf, int32_t, EXPECTED(int32_t, 0, 0), 2, va11.swizzle<0, 1>());
-  TEST(sycl::isnan, int32_t, EXPECTED(int32_t, 0, 0), 2, va11.swizzle<0, 1>());
+       va11.template swizzle<0, 1>());
+  TEST(sycl::isinf, int32_t, EXPECTED(int32_t, 0, 0), 2,
+       va11.template swizzle<0, 1>());
+  TEST(sycl::isnan, int32_t, EXPECTED(int32_t, 0, 0), 2,
+       va11.template swizzle<0, 1>());
   TEST(sycl::isnormal, int32_t, EXPECTED(int32_t, 1, 1), 2,
-       va11.swizzle<0, 1>());
+       va11.template swizzle<0, 1>());
   TEST(sycl::isordered, int32_t, EXPECTED(int32_t, 1, 1), 2,
-       va11.swizzle<0, 1>(), va2);
+       va11.template swizzle<0, 1>(), va2);
   TEST(sycl::isordered, int32_t, EXPECTED(int32_t, 1, 1), 2, va1,
-       va11.swizzle<0, 1>());
+       va11.template swizzle<0, 1>());
   TEST(sycl::isordered, int32_t, EXPECTED(int32_t, 1, 1), 2,
-       va11.swizzle<0, 1>(), va11.swizzle<0, 1>());
+       va11.template swizzle<0, 1>(), va11.template swizzle<0, 1>());
   TEST(sycl::isunordered, int32_t, EXPECTED(int32_t, 0, 0), 2,
-       va11.swizzle<0, 1>(), va2);
+       va11.template swizzle<0, 1>(), va2);
   TEST(sycl::isunordered, int32_t, EXPECTED(int32_t, 0, 0), 2, va1,
-       va11.swizzle<0, 1>());
+       va11.template swizzle<0, 1>());
   TEST(sycl::isunordered, int32_t, EXPECTED(int32_t, 0, 0), 2,
-       va11.swizzle<0, 1>(), va11.swizzle<0, 1>());
+       va11.template swizzle<0, 1>(), va11.template swizzle<0, 1>());
   TEST(sycl::signbit, int32_t, EXPECTED(int32_t, 0, 0), 2,
-       va11.swizzle<0, 1>());
-  TEST2(sycl::all, int, EXPECTED(int32_t, 0), 3, va14.swizzle<0, 1, 2>());
-  TEST2(sycl::any, int, EXPECTED(int32_t, 0), 3, va14.swizzle<0, 1, 2>());
+       va11.template swizzle<0, 1>());
+  TEST2(sycl::all, int, EXPECTED(int32_t, 0), 3,
+        va14.template swizzle<0, 1, 2>());
+  TEST2(sycl::any, int, EXPECTED(int32_t, 0), 3,
+        va14.template swizzle<0, 1, 2>());
   TEST(sycl::bitselect, float, EXPECTED(float, 1.0, 1.0), 2,
-       va16.swizzle<0, 1>(), va9, va10);
+       va16.template swizzle<0, 1>(), va9, va10);
   TEST(sycl::bitselect, float, EXPECTED(float, 1.0, 1.0), 2, va8,
-       va17.swizzle<0, 1>(), va10);
+       va17.template swizzle<0, 1>(), va10);
   TEST(sycl::bitselect, float, EXPECTED(float, 1.0, 1.0), 2, va8, va9,
-       va18.swizzle<0, 1>());
+       va18.template swizzle<0, 1>());
   TEST(sycl::bitselect, float, EXPECTED(float, 1.0, 1.0), 2,
-       va16.swizzle<0, 1>(), va17.swizzle<0, 1>(), va10);
+       va16.template swizzle<0, 1>(), va17.template swizzle<0, 1>(), va10);
   TEST(sycl::bitselect, float, EXPECTED(float, 1.0, 1.0), 2,
-       va16.swizzle<0, 1>(), va9, va18.swizzle<0, 1>());
+       va16.template swizzle<0, 1>(), va9, va18.template swizzle<0, 1>());
   TEST(sycl::bitselect, float, EXPECTED(float, 1.0, 1.0), 2, va8,
-       va17.swizzle<0, 1>(), va18.swizzle<0, 1>());
+       va17.template swizzle<0, 1>(), va18.template swizzle<0, 1>());
   TEST(sycl::bitselect, float, EXPECTED(float, 1.0, 1.0), 2,
-       va16.swizzle<0, 1>(), va17.swizzle<0, 1>(), va18.swizzle<0, 1>());
-  TEST(sycl::select, float, EXPECTED(float, 1.0, 2.0), 2, va5.swizzle<0, 1>(),
-       va15, c2);
+       va16.template swizzle<0, 1>(), va17.template swizzle<0, 1>(),
+       va18.template swizzle<0, 1>());
+  TEST(sycl::select, float, EXPECTED(float, 1.0, 2.0), 2,
+       va5.template swizzle<0, 1>(), va15, c2);
   TEST(sycl::select, float, EXPECTED(float, 1.0, 2.0), 2, va4,
-       va6.swizzle<0, 1>(), c2);
+       va6.template swizzle<0, 1>(), c2);
   TEST(sycl::select, float, EXPECTED(float, 1.0, 2.0), 2, va4, va15,
-       c1.swizzle<0, 1>());
-  TEST(sycl::select, float, EXPECTED(float, 1.0, 2.0), 2, va5.swizzle<0, 1>(),
-       va6.swizzle<0, 1>(), c2);
-  TEST(sycl::select, float, EXPECTED(float, 1.0, 2.0), 2, va5.swizzle<0, 1>(),
-       va15, c1.swizzle<0, 1>());
+       c1.template swizzle<0, 1>());
+  TEST(sycl::select, float, EXPECTED(float, 1.0, 2.0), 2,
+       va5.template swizzle<0, 1>(), va6.template swizzle<0, 1>(), c2);
+  TEST(sycl::select, float, EXPECTED(float, 1.0, 2.0), 2,
+       va5.template swizzle<0, 1>(), va15, c1.template swizzle<0, 1>());
   TEST(sycl::select, float, EXPECTED(float, 1.0, 2.0), 2, va4,
-       va6.swizzle<0, 1>(), c1.swizzle<0, 1>());
-  TEST(sycl::select, float, EXPECTED(float, 1.0, 2.0), 2, va5.swizzle<0, 1>(),
-       va6.swizzle<0, 1>(), c1.swizzle<0, 1>());
-  TEST(sycl::select, float, EXPECTED(float, 1.0, 2.0), 2, va5.swizzle<0, 1>(),
-       va6.swizzle<0, 1>(), c1.swizzle<0, 1>());
+       va6.template swizzle<0, 1>(), c1.template swizzle<0, 1>());
+  TEST(sycl::select, float, EXPECTED(float, 1.0, 2.0), 2,
+       va5.template swizzle<0, 1>(), va6.template swizzle<0, 1>(),
+       c1.template swizzle<0, 1>());
+  TEST(sycl::select, float, EXPECTED(float, 1.0, 2.0), 2,
+       va5.template swizzle<0, 1>(), va6.template swizzle<0, 1>(),
+       c1.template swizzle<0, 1>());
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   return 0;
