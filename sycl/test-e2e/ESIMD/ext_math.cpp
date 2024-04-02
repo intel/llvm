@@ -447,6 +447,21 @@ template <class T, int N> bool testESIMDSqrtIEEE(queue &Q) {
   return Pass;
 }
 
+template <class T, int N> bool testESIMDSqrt(queue &Q) {
+  bool Pass = true;
+  std::cout << "--- TESTING ESIMD sqrt, T=" << typeid(T).name() << ", N = " << N
+            << "...\n";
+  Pass &= test<T, N, MathOp::sqrt, ESIMDf>(Q, "sqrt", InitWide<T>{});
+  return Pass;
+}
+template <class T, int N> bool testESIMDRSqrt(queue &Q) {
+  bool Pass = true;
+  std::cout << "--- TESTING ESIMD rsqrt, T=" << typeid(T).name()
+            << ", N = " << N << "...\n";
+  Pass &= test<T, N, MathOp::rsqrt, ESIMDf>(Q, "rsqrt", InitWide<T>{});
+  return Pass;
+}
+
 template <class T, int N> bool testESIMDDivIEEE(queue &Q) {
   bool Pass = true;
   std::cout << "--- TESTING ESIMD div_ieee, T=" << typeid(T).name()
@@ -492,6 +507,8 @@ int main(void) {
   if (Dev.has(sycl::aspect::fp64)) {
     Pass &= testESIMDSqrtIEEE<double, 32>(Q);
     Pass &= testESIMDDivIEEE<double, 32>(Q);
+    Pass &= testESIMDSqrt<double, 32>(Q);
+    Pass &= testESIMDRSqrt<double, 32>(Q);
   }
 #else // !TEST_IEEE_DIV_REM
   Pass &= testESIMD<half, 8>(Q);
