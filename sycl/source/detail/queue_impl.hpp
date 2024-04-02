@@ -815,11 +815,16 @@ protected:
         Handler.depends_on(Deps.LastBarrier);
       EventRet = Handler.finalize();
       EventImplPtr EventRetImpl = getSyclObjImpl(EventRet);
-      if (Type == CG::CodeplayHostTask || !EventRetImpl->getHandleRef())
+      if (Type == CG::CodeplayHostTask)
         Deps.NotEnqueuedCmdEvents.push_back(EventRetImpl);
-      if (Type == CG::Barrier || Type == CG::BarrierWaitlist) {
-        Deps.LastBarrier = EventRetImpl;
-        Deps.NotEnqueuedCmdEvents.clear();
+      else if (!EventRetImpl->getHandleRef()) //not enqueued
+      {
+        if (Type == CG::Barrier || Type == CG::BarrierWaitlist) {
+          Deps.LastBarrier = EventRetImpl;
+          Deps.NotEnqueuedCmdEvents.clear();
+        }
+        else
+          Deps.NotEnqueuedCmdEvents.push_back(EventRetImpl);
       }
     }
   }
@@ -940,7 +945,7 @@ protected:
   void addEvent(const event &Event);
 
   /// Protects all the fields that can be changed by class' methods.
-  mutable std::mutex MMutex;
+  mutable std::recursive_mutex MMutex;
 
   DeviceImplPtr MDevice;
   const ContextImplPtr MContext;

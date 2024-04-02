@@ -391,10 +391,6 @@ void Scheduler::enqueueUnblockedCommands(
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw runtime_error("Enqueue process failed.",
                           PI_ERROR_INVALID_OPERATION);
-    const auto &CmdEvent = Cmd->getEvent();
-    if (Enqueued && Cmd->isBarrier())
-      Cmd->getQueue()->tryToResetEnqueuedBarrierDep(CmdEvent);
-    Cmd->getQueue()->revisitNotEnqueuedCommandsState(CmdEvent);
   }
 }
 
@@ -482,6 +478,7 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
   // Thus we employ read-lock of graph.
 
   std::vector<Command *> ToCleanUp;
+  auto &CmdEvent = Cmd->getEvent();
   {
     ReadLockT Lock = acquireReadLock();
 
@@ -491,8 +488,6 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
       ToCleanUp.push_back(Cmd);
       Cmd->MMarkedForCleanup = true;
     }
-
-    auto &CmdEvent = Cmd->getEvent();
     {
       std::lock_guard<std::mutex> Guard(Cmd->MBlockedUsersMutex);
       // update self-event status
@@ -500,6 +495,7 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
     }
     Scheduler::enqueueUnblockedCommands(Cmd->MBlockedUsers, Lock, ToCleanUp);
   }
+  Cmd->getQueue()->revisitNotEnqueuedCommandsState(CmdEvent);
   cleanupCommands(ToCleanUp);
 }
 
