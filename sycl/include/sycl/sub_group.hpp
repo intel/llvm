@@ -132,12 +132,9 @@ GetUnqualMultiPtr(const multi_ptr<CVT, Space, IsDecorated> &Mptr) {
 } // namespace detail
 
 struct sub_group;
-namespace ext::oneapi {
-inline sycl::sub_group this_sub_group();
-namespace experimental {
-inline sycl::sub_group this_sub_group();
-} // namespace experimental
-} // namespace ext::oneapi
+namespace ext::oneapi::this_work_item {
+inline sycl::sub_group get_sub_group();
+} // namespace ext::oneapi::this_work_item
 
 struct sub_group {
 
@@ -696,33 +693,8 @@ struct sub_group {
 
 protected:
   template <int dimensions> friend class sycl::nd_item;
-  friend sub_group ext::oneapi::this_sub_group();
-  friend sub_group ext::oneapi::experimental::this_sub_group();
+  friend sub_group ext::oneapi::this_work_item::get_sub_group();
   sub_group() = default;
 };
-
-namespace ext::oneapi {
-__SYCL_DEPRECATED(
-    "use sycl::ext::oneapi::experimental::this_sub_group() instead")
-inline sycl::sub_group this_sub_group() {
-#ifdef __SYCL_DEVICE_ONLY__
-  return sycl::sub_group();
-#else
-  throw sycl::exception(make_error_code(errc::feature_not_supported),
-                        "Sub-groups are not supported on host.");
-#endif
-}
-namespace experimental {
-inline sycl::sub_group this_sub_group() {
-#ifdef __SYCL_DEVICE_ONLY__
-  return sycl::sub_group();
-#else
-  throw sycl::exception(make_error_code(errc::feature_not_supported),
-                        "Sub-groups are not supported on host.");
-#endif
-}
-} // namespace experimental
-} // namespace ext::oneapi
-
 } // namespace _V1
 } // namespace sycl

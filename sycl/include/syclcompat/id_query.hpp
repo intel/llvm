@@ -26,7 +26,7 @@
 
 namespace syclcompat {
 
-using sycl::ext::oneapi::experimental::this_nd_item;
+using sycl::ext::oneapi::this_work_item::this_nd_item;
 
 inline void wg_barrier() { this_nd_item<3>().barrier(); }
 

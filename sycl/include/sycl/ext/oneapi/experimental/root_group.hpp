@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/group.hpp>
 #include <sycl/memory_enums.hpp>
@@ -91,7 +92,8 @@ template <int Dimensions> sycl::sub_group get_child_group(group<Dimensions> g) {
 
 namespace this_kernel {
 template <int Dimensions> root_group<Dimensions> get_root_group() {
-  return this_nd_item<Dimensions>().ext_oneapi_get_root_group();
+  return sycl::ext::oneapi::this_work_item::this_nd_item<Dimensions>()
+      .ext_oneapi_get_root_group();
 }
 } // namespace this_kernel
 
