@@ -2918,6 +2918,12 @@ bool ModuleAddressSanitizer::instrumentModule(Module &M) {
   if (TargetTriple.isSPIR()) {
     AsanCtorFunction = nullptr;
     AsanDtorFunction = nullptr;
+
+    // Add module metadata "device.sanitizer" for sycl-post-link
+    LLVMContext &Ctx = M.getContext();
+    auto *MD = M.getOrInsertNamedMetadata("device.sanitizer");
+    Metadata *MDVals[] = {MDString::get(Ctx, "asan")};
+    MD->addOperand(MDNode::get(Ctx, MDVals));
   }
 
   const uint64_t Priority = GetCtorAndDtorPriority(TargetTriple);
