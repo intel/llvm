@@ -655,7 +655,7 @@ sycl::detail::pi::PiExtSyncPoint exec_graph_impl::enqueueNodeDirect(
     findRealDeps(Deps, N.lock(), MPartitionNodes[Node]);
   }
   sycl::detail::pi::PiExtSyncPoint NewSyncPoint;
-  sycl::detail::pi::PiExtCommandBufferCommand NewCommand;
+  sycl::detail::pi::PiExtCommandBufferCommand NewCommand = 0;
   pi_int32 Res = sycl::detail::enqueueImpCommandBufferKernel(
       Ctx, DeviceImpl, CommandBuffer,
       *static_cast<sycl::detail::CGExecKernel *>((Node->MCommandGroup.get())),
