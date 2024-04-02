@@ -9,8 +9,9 @@
 // RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT %cxx_std_optionc++17 -fsycl-device-only -fsycl-use-bitcode -fno-sycl-dead-args-optimization -Xclang -fsycl-int-header=%t.h -c %s -o %t.bc -Xclang -verify-ignore-unexpected=note,warning -Wno-sycl-strict
 // >> ---- unbundle compiler wrapper device object
 // RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-itt-compiler-wrappers%obj_ext -output=%t_compiler_wrappers.bc -unbundle
+// RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown -input=%sycl_static_libs_dir/libsycl-sanitizer%obj_ext -output=%t_sanitizer.bc -unbundle
 // >> ---- link device code
-// RUN: llvm-link -o=%t_app.bc %t.bc %t_compiler_wrappers.bc
+// RUN: llvm-link -o=%t_app.bc %t.bc %t_compiler_wrappers.bc %t_sanitizer.bc
 // >> ---- translate to SPIR-V
 // RUN: llvm-spirv -o %t.spv %t_app.bc
 // RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT %cxx_std_optionc++17 %include_option %t.h %s -o %t.out %sycl_options -fno-sycl-dead-args-optimization -Xclang -verify-ignore-unexpected=note,warning
