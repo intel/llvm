@@ -1129,6 +1129,10 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
+        if (size == 0) {
+            return UR_RESULT_ERROR_INVALID_BUFFER_SIZE;
+        }
+
         if (pProperties == NULL &&
             (flags & (UR_MEM_FLAG_USE_HOST_POINTER |
                       UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0) {
@@ -1252,6 +1256,10 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
 
         if (UR_BUFFER_CREATE_TYPE_REGION < bufferCreateType) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (pRegion && pRegion->size == 0) {
+            return UR_RESULT_ERROR_INVALID_BUFFER_SIZE;
         }
     }
 
