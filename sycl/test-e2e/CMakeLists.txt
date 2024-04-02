@@ -75,7 +75,6 @@ if(NOT SYCL_TEST_E2E_STANDALONE)
     sycl-toolchain
     FileCheck
     not
-    llvm-symbolizer
   )
 endif() # Standalone.
 
