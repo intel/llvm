@@ -27,8 +27,6 @@ private:
   size_t MaxWorkItemSizes[MaxWorkItemDimensions];
   size_t MaxWorkGroupSize{0};
   size_t MaxAllocSize{0};
-  int MaxBlockDimY{0};
-  int MaxBlockDimZ{0};
   int MaxRegsPerBlock{0};
   int MaxCapacityLocalMem{0};
   int MaxChosenLocalMem{0};
@@ -41,15 +39,19 @@ public:
         Platform(platform) {
 
     UR_CHECK_ERROR(cuDeviceGetAttribute(
-        &MaxBlockDimY, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y, cuDevice));
-    UR_CHECK_ERROR(cuDeviceGetAttribute(
-        &MaxBlockDimZ, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z, cuDevice));
-    UR_CHECK_ERROR(cuDeviceGetAttribute(
         &MaxRegsPerBlock, CU_DEVICE_ATTRIBUTE_MAX_REGISTERS_PER_BLOCK,
         cuDevice));
     UR_CHECK_ERROR(cuDeviceGetAttribute(
         &MaxCapacityLocalMem,
         CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK_OPTIN, cuDevice));
+
+    UR_CHECK_ERROR(urDeviceGetInfo(this, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
+                                   sizeof(MaxWorkItemSizes), MaxWorkItemSizes,
+                                   nullptr));
+
+    UR_CHECK_ERROR(urDeviceGetInfo(this, UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
+                                   sizeof(MaxWorkGroupSize), &MaxWorkGroupSize,
+                                   nullptr));
 
     // Set local mem max size if env var is present
     static const char *LocalMemSizePtrUR =
@@ -91,23 +93,11 @@ public:
 
   uint64_t getElapsedTime(CUevent) const;
 
-  void saveMaxWorkItemSizes(size_t Size,
-                            size_t *SaveMaxWorkItemSizes) noexcept {
-    memcpy(MaxWorkItemSizes, SaveMaxWorkItemSizes, Size);
-  };
-
-  void saveMaxWorkGroupSize(int Value) noexcept { MaxWorkGroupSize = Value; };
-
-  void getMaxWorkItemSizes(size_t RetSize,
-                           size_t *RetMaxWorkItemSizes) const noexcept {
-    memcpy(RetMaxWorkItemSizes, MaxWorkItemSizes, RetSize);
-  };
+  size_t getMaxWorkItemSizes(int index) const noexcept {
+    return MaxWorkItemSizes[index];
+  }
 
   size_t getMaxWorkGroupSize() const noexcept { return MaxWorkGroupSize; };
-
-  size_t getMaxBlockDimY() const noexcept { return MaxBlockDimY; };
-
-  size_t getMaxBlockDimZ() const noexcept { return MaxBlockDimZ; };
 
   size_t getMaxRegsPerBlock() const noexcept { return MaxRegsPerBlock; };
 
