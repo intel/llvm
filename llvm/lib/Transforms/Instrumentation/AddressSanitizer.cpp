@@ -69,6 +69,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Instrumentation.h"
@@ -1369,9 +1370,10 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
 
   // File & Line
   if (Loc) {
-    StringRef FileName = Loc->getFilename();
+    llvm::SmallString<128> Source = Loc->getDirectory();
+    sys::path::append(Source, Loc->getFilename());
     auto *FileNameGV =
-        GetOrCreateGlobalString(*M, "__asan_file", FileName, ConstantAS);
+        GetOrCreateGlobalString(*M, "__asan_file", Source, ConstantAS);
     Args.push_back(ConstantExpr::getPointerCast(FileNameGV, ConstASPtrTy));
     Args.push_back(ConstantInt::get(Type::getInt32Ty(C), Loc.getLine()));
   } else {
@@ -2974,8 +2976,13 @@ void AddressSanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo *T
         }
       }
 
-      // Extend __asan_load/store arguments: unsigned int address_space, char*
-      // file, unsigned int line, char* func
+      // __asan_loadX/__asan_storeX(
+      //   ...
+      //   int32_t as, // Address Space
+      //   char* file,
+      //   unsigned int line,
+      //   char* func
+      // )
       if (TargetTriple.isSPIR()) {
         constexpr unsigned ConstantAS = 2;
         auto *Int8PtrTy = Type::getInt8Ty(*C)->getPointerTo(ConstantAS);
