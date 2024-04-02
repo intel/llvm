@@ -173,6 +173,8 @@ SYCLDeviceLibFuncMap SDLMap = {
     {"__devicelib_assert_fail", DeviceLibExt::cl_intel_devicelib_assert},
     {"__devicelib_imf_llmax", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_llmin", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_max", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_min", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_ullmax", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_ullmin", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_umax", DeviceLibExt::cl_intel_devicelib_imf},
@@ -190,6 +192,7 @@ SYCLDeviceLibFuncMap SDLMap = {
     {"__devicelib_imf_usad", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_uhadd", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_urhadd", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_hadd", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_rhadd", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_mul24", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_umul24", DeviceLibExt::cl_intel_devicelib_imf},
@@ -201,6 +204,8 @@ SYCLDeviceLibFuncMap SDLMap = {
     {"__devicelib_imf_fmaf", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_floorf", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_ceilf", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_abs", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_llabs", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_fabsf", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_truncf", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_rintf", DeviceLibExt::cl_intel_devicelib_imf},
@@ -211,6 +216,37 @@ SYCLDeviceLibFuncMap SDLMap = {
     {"__devicelib_imf_fmaxf", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_fminf", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_copysignf", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fast_exp10f", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fast_expf", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fast_logf", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fast_log2f", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fast_log10f", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fast_powf", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fast_fdividef", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fadd_rd", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fadd_rn", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fadd_ru", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fadd_rz", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fsub_rd", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fsub_rn", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fsub_ru", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fsub_rz", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fmul_rd", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fmul_rn", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fmul_ru", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fmul_rz", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fdiv_rd", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fdiv_rn", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fdiv_ru", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fdiv_rz", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fmaf_rd", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fmaf_rn", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fmaf_ru", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_fmaf_rz", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_sqrtf_rd", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_sqrtf_rn", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_sqrtf_ru", DeviceLibExt::cl_intel_devicelib_imf},
+    {"__devicelib_imf_sqrtf_rz", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_float2int_rd", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_float2int_rn", DeviceLibExt::cl_intel_devicelib_imf},
     {"__devicelib_imf_float2int_ru", DeviceLibExt::cl_intel_devicelib_imf},
@@ -409,6 +445,7 @@ SYCLDeviceLibFuncMap SDLMap = {
     {"__devicelib_imf_fabs", DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_trunc", DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_rint", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_rcp64h", DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_nearbyint", DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_inv", DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_sqrt", DeviceLibExt::cl_intel_devicelib_imf_fp64},
@@ -416,6 +453,22 @@ SYCLDeviceLibFuncMap SDLMap = {
     {"__devicelib_imf_fmax", DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_fmin", DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_copysign", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dadd_rd", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dadd_rn", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dadd_ru", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dadd_rz", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dsub_rd", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dsub_rn", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dsub_ru", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dsub_rz", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dmul_rd", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dmul_rn", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dmul_ru", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_dmul_rz", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_ddiv_rd", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_ddiv_rn", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_ddiv_ru", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_ddiv_rz", DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_double2float_rd",
      DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_double2float_rn",
@@ -476,6 +529,14 @@ SYCLDeviceLibFuncMap SDLMap = {
      DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_longlong_as_double",
      DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_fma_rd", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_fma_rn", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_fma_ru", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_fma_rz", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_sqrt_rd", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_sqrt_rn", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_sqrt_ru", DeviceLibExt::cl_intel_devicelib_imf_fp64},
+    {"__devicelib_imf_sqrt_rz", DeviceLibExt::cl_intel_devicelib_imf_fp64},
     {"__devicelib_imf_bfloat162float",
      DeviceLibExt::cl_intel_devicelib_imf_bf16},
     {"__devicelib_imf_bfloat162int_rd",
@@ -613,16 +674,16 @@ SYCLDeviceLibFuncMap SDLMap = {
 // is an unsigned int32. getDeviceLibBit checks which fallback device library
 // is required for FuncName and returns the corresponding bit. The corresponding
 // mask for each fallback device library is:
-// fallback-cassert:      0x1
-// fallback-cmath:        0x2
-// fallback-cmath-fp64:   0x4
-// fallback-complex:      0x8
-// fallback-complex-fp64: 0x10
-// fallback-cstring:      0x20
-// fallback-imf:          0x40
-// fallback-imf-fp64:     0x80
-// fallback-imf-bf16:     0x100
-// fallback-bfloat16:     0x200
+// cl_intel_devicelib_assert:        0x1
+// cl_intel_devicelib_math:          0x2
+// cl_intel_devicelib_math_fp64:     0x4
+// cl_intel_devicelib_complex:       0x8
+// cl_intel_devicelib_complex_fp64:  0x10
+// cl_intel_devicelib_cstring :      0x20
+// cl_intel_devicelib_imf:           0x40
+// cl_intel_devicelib_imf_fp64:      0x80
+// cl_intel_devicelib_imf_bf16:      0x100
+// cl_intel_devicelib_bfloat16:      0x200
 uint32_t getDeviceLibBits(const std::string &FuncName) {
   auto DeviceLibFuncIter = SDLMap.find(FuncName);
   return ((DeviceLibFuncIter == SDLMap.end())
@@ -644,7 +705,7 @@ uint32_t llvm::getSYCLDeviceLibReqMask(const Module &M) {
     return 0;
   uint32_t ReqMask = 0;
   for (const Function &SF : M) {
-    if (SF.getName().startswith(DEVICELIB_FUNC_PREFIX) && SF.isDeclaration()) {
+    if (SF.getName().starts_with(DEVICELIB_FUNC_PREFIX) && SF.isDeclaration()) {
       assert(SF.getCallingConv() == CallingConv::SPIR_FUNC);
       uint32_t DeviceLibBits = getDeviceLibBits(SF.getName().str());
       ReqMask |= DeviceLibBits;

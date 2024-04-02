@@ -8,8 +8,6 @@
 
 #pragma once
 
-#define __SYCL_INLINE_VER_NAMESPACE(X) inline namespace X
-
 #ifndef __has_attribute
 #define __has_attribute(x) 0
 #endif
@@ -58,6 +56,20 @@
 #endif
 #endif // __SYCL2020_DEPRECATED
 
+#ifndef __SYCL_WARN_IMAGE_ASPECT
+#if !defined(SYCL_DISABLE_IMAGE_ASPECT_WARNING) && __has_attribute(diagnose_if)
+#define __SYCL_WARN_IMAGE_ASPECT(aspect_param)                                   \
+  __attribute__((diagnose_if(                                                    \
+      aspect_param == aspect::image,                                             \
+      "SYCL 2020 images are not supported on any devices. Consider using "       \
+      "‘aspect::ext_intel_legacy_image’ instead. Disable this warning with " \
+      "by defining SYCL_DISABLE_IMAGE_ASPECT_WARNING.",                          \
+      "warning")))
+#else
+#define __SYCL_WARN_IMAGE_ASPECT(aspect)
+#endif
+#endif // __SYCL_WARN_IMAGE_ASPECT
+
 #ifndef __SYCL_HAS_CPP_ATTRIBUTE
 #if defined(__cplusplus) && defined(__has_cpp_attribute)
 #define __SYCL_HAS_CPP_ATTRIBUTE(x) __has_cpp_attribute(x)
@@ -66,10 +78,35 @@
 #endif
 #endif
 
-// Stringify an argument to pass it in _Pragma directive below.
-#ifndef __SYCL_STRINGIFY
-#define __SYCL_STRINGIFY(x) #x
-#endif // __SYCL_STRINGIFY
-
 static_assert(__cplusplus >= 201703L,
               "DPCPP does not support C++ version earlier than C++17.");
+
+// Helper macro to identify if fallback assert is needed
+#if defined(SYCL_FALLBACK_ASSERT)
+#define __SYCL_USE_FALLBACK_ASSERT SYCL_FALLBACK_ASSERT
+#else
+#define __SYCL_USE_FALLBACK_ASSERT 0
+#endif
+
+#if defined(_WIN32) && !defined(_DLL) && !defined(__SYCL_DEVICE_ONLY__)
+// SYCL library is designed such a way that STL objects cross DLL boundary,
+// which is guaranteed to work properly only when the application uses the same
+// C++ runtime that SYCL library uses.
+// The appplications using sycl.dll must be linked with dynamic/release C++ MSVC
+// runtime, i.e. be compiled with /MD switch. Similarly, the applications using
+// sycld.dll must be linked with dynamic/debug C++ runtime and be compiled with
+// /MDd switch.
+// Compiler automatically adds /MD or /MDd when -fsycl switch is used.
+// The options /MD and /MDd that make the code to use dynamic runtime also
+// define the _DLL macro.
+#if defined(_MSC_VER)
+#pragma message(                                                               \
+    "SYCL library is designed to work safely with dynamic C++ runtime."        \
+    "Please use /MD switch with sycl.dll, /MDd switch with sycld.dll, "        \
+    "or -fsycl switch to set C++ runtime automatically.")
+#else
+#warning "SYCL library is designed to work safely with dynamic C++ runtime."\
+    "Please use /MD switch with sycl.dll, /MDd switch with sycld.dll, "\
+    "or -fsycl switch to set C++ runtime automatically."
+#endif
+#endif // defined(_WIN32) && !defined(_DLL) && !defined(__SYCL_DEVICE_ONLY__)

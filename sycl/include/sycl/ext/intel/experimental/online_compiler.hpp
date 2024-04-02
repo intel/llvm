@@ -16,7 +16,7 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::experimental {
 
 using byte = unsigned char;
@@ -75,7 +75,11 @@ enum class source_language { opencl_c = 0, cm = 1 };
 
 /// Represents an online compiler for the language given as template
 /// parameter.
-template <source_language Lang> class online_compiler {
+template <source_language Lang>
+class __SYCL2020_DEPRECATED(
+    "experimental online_compiler is being deprecated. See "
+    "'sycl_ext_oneapi_kernel_compiler.asciidoc' instead for new kernel "
+    "compiler extension to kernel_bundle implementation.") online_compiler {
 public:
   /// Constructs online compiler which can target any device and produces
   /// given compiled code format. Produces 64-bit device code.
@@ -221,5 +225,5 @@ online_compiler<source_language::cm>::compile(const std::string &src) {
 }
 
 } // namespace ext::intel::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

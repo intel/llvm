@@ -1,13 +1,12 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -O2 -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// UNSUPPORTED: cuda || hip
-// REQUIRES: fusion
+// RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
+// RUN: %{run} %t.out
 
 // Test complete fusion with private internalization on a kernel functor with an
 // array member.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 using namespace sycl;
 
@@ -54,9 +53,11 @@ int main() {
       auto accIn2 = bIn2.get_access(cgh);
       auto accTmp = bTmp.get_access(
           cgh, sycl::ext::codeplay::experimental::property::promote_private{});
-      cgh.parallel_for<class KernelOne>(
-          nd_range<1>{{dataSize}, {8}},
-          [=](id<1> i) { accTmp[i] = accIn1[i] + accIn2[i]; });
+      cgh.parallel_for<class KernelOne>(nd_range<1>{{dataSize}, {8}},
+                                        [=](nd_item<1> ndi) {
+                                          auto i = ndi.get_global_id(0);
+                                          accTmp[i] = accIn1[i] + accIn2[i];
+                                        });
     });
 
     q.submit([&](handler &cgh) {

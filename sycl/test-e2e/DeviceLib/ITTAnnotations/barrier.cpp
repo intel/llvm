@@ -1,12 +1,7 @@
-// UNSUPPORTED: hip
+// RUN: %{build} -fsycl-instrument-device-code -o %t.out
+// RUN: %{run} %t.out
 
-// RUN: %clangxx -fsycl -fsycl-instrument-device-code %s -o %t.out \
-// RUN: -fsycl-targets=%sycl_triple
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
-
-#include "CL/sycl.hpp"
+#include "sycl/sycl.hpp"
 #include <vector>
 
 using namespace sycl;

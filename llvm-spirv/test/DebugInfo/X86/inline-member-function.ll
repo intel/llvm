@@ -2,8 +2,15 @@
 
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-linux -O0 -filetype=obj < %t.ll | llvm-dwarfdump -v -debug-info - | FileCheck %s
 
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-linux -O0 -filetype=obj < %t.ll | llvm-dwarfdump -v -debug-info - | FileCheck %s
+
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-linux -O0 -filetype=obj < %t.ll | llvm-dwarfdump -v -debug-info - | FileCheck %s
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
@@ -43,23 +50,23 @@ source_filename = "test/DebugInfo/X86/inline-member-function.ll"
 
 %struct.foo = type { i8 }
 
-@i = global i32 0, align 4, !dbg !0
+@i = addrspace(1) global i32 0, align 4, !dbg !0
 
 ; Function Attrs: uwtable
 define i32 @main() #0 !dbg !17 {
 entry:
-  %this.addr.i = alloca %struct.foo*, align 8
+  %this.addr.i = alloca ptr, align 8
   %x.addr.i = alloca i32, align 4
   %retval = alloca i32, align 4
   %tmp = alloca %struct.foo, align 1
-  store i32 0, i32* %retval
-  %0 = load i32, i32* @i, align 4, !dbg !20
-  store %struct.foo* %tmp, %struct.foo** %this.addr.i, align 8
-  call void @llvm.dbg.declare(metadata %struct.foo** %this.addr.i, metadata !21, metadata !24), !dbg !25
-  store i32 %0, i32* %x.addr.i, align 4
-  call void @llvm.dbg.declare(metadata i32* %x.addr.i, metadata !26, metadata !24), !dbg !27
-  %this1.i = load %struct.foo*, %struct.foo** %this.addr.i
-  %1 = load i32, i32* %x.addr.i, align 4, !dbg !27
+  store i32 0, ptr %retval
+  %0 = load i32, ptr addrspace(1) @i, align 4, !dbg !20
+  store ptr %tmp, ptr %this.addr.i, align 8
+  call void @llvm.dbg.declare(metadata ptr %this.addr.i, metadata !21, metadata !24), !dbg !25
+  store i32 %0, ptr %x.addr.i, align 4
+  call void @llvm.dbg.declare(metadata ptr %x.addr.i, metadata !26, metadata !24), !dbg !27
+  %this1.i = load ptr, ptr %this.addr.i
+  %1 = load i32, ptr %x.addr.i, align 4, !dbg !27
   %add.i = add nsw i32 %1, 2, !dbg !27
   ret i32 %add.i, !dbg !20
 }

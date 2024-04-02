@@ -2,7 +2,7 @@
 ! Lowering must close the eyes and do as if it did not know
 ! about the function definition since semantic lets these
 ! programs through with a warning.
-! RUN: bbc -emit-fir %s -o - | FileCheck %s
+! RUN: bbc -emit-fir -hlfir=false %s -o - | FileCheck %s
 
 ! Test reference to non-char procedure conversion.
 
@@ -57,7 +57,8 @@ end subroutine
 ! CHECK-LABEL: func.func @_QPpass_char_to_proc(
 ! CHECK-SAME: %[[arg0:.*]]: !fir.boxchar<1>
 ! CHECK: %[[charAndLen:.*]]:2 = fir.unboxchar %[[arg0]] : (!fir.boxchar<1>) -> (!fir.ref<!fir.char<1,?>>, index)
-! CHECK: %[[procAddr:.*]] = fir.convert %[[charAndLen]]#0 : (!fir.ref<!fir.char<1,?>>) -> (() -> ())
+! CHECK: %[[charRef:.*]] = fir.convert %[[charAndLen]]#0 : (!fir.ref<!fir.char<1,?>>) -> !fir.ref<!fir.char<1,8>>
+! CHECK: %[[procAddr:.*]] = fir.convert %[[charRef]] : (!fir.ref<!fir.char<1,8>>) -> (() -> ())
 ! CHECK: %[[boxProc:.*]] = fir.emboxproc %[[procAddr]] : (() -> ()) -> !fir.boxproc<() -> ()>
 ! CHECK: fir.call @_QPtakes_proc(%[[boxProc]]) {{.*}}: (!fir.boxproc<() -> ()>) -> ()
 
@@ -233,8 +234,9 @@ end subroutine
 ! CHECK-LABEL: func.func @_QPpass_char_to_char_proc(
 ! CHECK-SAME: %[[arg0:.*]]: !fir.boxchar<1>
 ! CHECK: %[[charRefAndLen:.*]]:2 = fir.unboxchar %[[arg0]] : (!fir.boxchar<1>) -> (!fir.ref<!fir.char<1,?>>, index)
+! CHECK: %[[charRef:.*]] = fir.convert %[[charRefAndLen]]#0 : (!fir.ref<!fir.char<1,?>>) -> !fir.ref<!fir.char<1,8>>
 ! CHECK: %[[charLen:.*]] = arith.constant 8 : index
-! CHECK: %[[procAddr:.*]] = fir.convert %[[charRefAndLen]]#0 : (!fir.ref<!fir.char<1,?>>) -> (() -> ())
+! CHECK: %[[procAddr:.*]] = fir.convert %[[charRef]] : (!fir.ref<!fir.char<1,8>>) -> (() -> ())
 ! CHECK: %[[boxProc:.*]] = fir.emboxproc %[[procAddr]] : (() -> ()) -> !fir.boxproc<() -> ()>
 ! CHECK: %[[charLen2:.*]] = fir.convert %[[charLen]] : (index) -> i64
 ! CHECK: %[[tuple:.*]] = fir.undefined tuple<!fir.boxproc<() -> ()>, i64>

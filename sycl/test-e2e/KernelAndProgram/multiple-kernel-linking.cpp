@@ -1,28 +1,20 @@
 // UNSUPPORTED: hip
-// UNSUPPORTED: ze_debug-1,ze_debug4
+// UNSUPPORTED: ze_debug
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fno-sycl-early-optimizations -fsycl-device-code-split=per_kernel %s -o %t_per_kernel.out
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fno-sycl-early-optimizations -fsycl-device-code-split=per_source %s -o %t_per_source.out
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fno-sycl-early-optimizations -fsycl-device-code-split=off %s -o %t_off.out
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fno-sycl-early-optimizations -fsycl-device-code-split=auto %s -o %t_auto.out
-// RUN: %GPU_RUN_PLACEHOLDER %t_per_kernel.out %GPU_CHECK_PLACEHOLDER
-// RUN: %CPU_RUN_PLACEHOLDER %t_per_kernel.out %CPU_CHECK_PLACEHOLDER
-// RUN: %ACC_RUN_PLACEHOLDER %t_per_kernel.out %ACC_CHECK_PLACEHOLDER
+// RUN: %{build} -fno-sycl-early-optimizations -fsycl-device-code-split=per_kernel -o %t_per_kernel.out
+// RUN: %{build} -fno-sycl-early-optimizations -fsycl-device-code-split=per_source -o %t_per_source.out
+// RUN: %{build} -fno-sycl-early-optimizations -fsycl-device-code-split=off -o %t_off.out
+// RUN: %{build} -fno-sycl-early-optimizations -fsycl-device-code-split=auto -o %t_auto.out
+// RUN: %{run} %t_per_kernel.out
 
-// RUN: %GPU_RUN_PLACEHOLDER %t_per_source.out %GPU_CHECK_PLACEHOLDER
-// RUN: %CPU_RUN_PLACEHOLDER %t_per_source.out %CPU_CHECK_PLACEHOLDER
-// RUN: %ACC_RUN_PLACEHOLDER %t_per_source.out %ACC_CHECK_PLACEHOLDER
+// RUN: %{run} %t_per_source.out
 
-// RUN: %GPU_RUN_PLACEHOLDER %t_auto.out %GPU_CHECK_PLACEHOLDER
-// RUN: %CPU_RUN_PLACEHOLDER %t_auto.out %CPU_CHECK_PLACEHOLDER
-// RUN: %ACC_RUN_PLACEHOLDER %t_auto.out %ACC_CHECK_PLACEHOLDER
+// RUN: %{run} %t_auto.out
 
-// RUN: %GPU_RUN_PLACEHOLDER %t_off.out %GPU_CHECK_PLACEHOLDER
-// RUN: %CPU_RUN_PLACEHOLDER %t_off.out %CPU_CHECK_PLACEHOLDER
-// RUN: %ACC_RUN_PLACEHOLDER %t_off.out %ACC_CHECK_PLACEHOLDER
+// RUN: %{run} %t_off.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 
@@ -54,13 +46,11 @@ int main() {
       auto acc = b.get_access<access_mode::read_write>(cgh);
       cgh.single_task<kernel_name<1>>([=]() { acc[0] = foo(acc[0]); });
     });
+    q.wait();
   } catch (exception &e) {
     std::cout << "Exception: " << e.what() << std::endl;
     return 1;
   }
 
-  std::cout << "OK";
   return 0;
 }
-
-//CHECK: OK

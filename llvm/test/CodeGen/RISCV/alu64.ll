@@ -57,8 +57,8 @@ define i64 @sltiu(i64 %a) nounwind {
 ;
 ; RV32I-LABEL: sltiu:
 ; RV32I:       # %bb.0:
-; RV32I-NEXT:    sltiu a0, a0, 3
 ; RV32I-NEXT:    seqz a1, a1
+; RV32I-NEXT:    sltiu a0, a0, 3
 ; RV32I-NEXT:    and a0, a1, a0
 ; RV32I-NEXT:    li a1, 0
 ; RV32I-NEXT:    ret
@@ -219,8 +219,7 @@ define i64 @sll(i64 %a, i64 %b) nounwind {
 ; RV32I-NEXT:    srl a0, a0, a2
 ; RV32I-NEXT:    or a1, a1, a0
 ; RV32I-NEXT:  .LBB11_3:
-; RV32I-NEXT:    slti a0, a4, 0
-; RV32I-NEXT:    neg a0, a0
+; RV32I-NEXT:    srai a0, a4, 31
 ; RV32I-NEXT:    and a0, a0, a3
 ; RV32I-NEXT:    ret
   %1 = shl i64 %a, %b
@@ -307,8 +306,7 @@ define i64 @srl(i64 %a, i64 %b) nounwind {
 ; RV32I-NEXT:    sll a1, a1, a2
 ; RV32I-NEXT:    or a0, a0, a1
 ; RV32I-NEXT:  .LBB15_3:
-; RV32I-NEXT:    slti a1, a4, 0
-; RV32I-NEXT:    neg a1, a1
+; RV32I-NEXT:    srai a1, a4, 31
 ; RV32I-NEXT:    and a1, a1, a3
 ; RV32I-NEXT:    ret
   %1 = lshr i64 %a, %b

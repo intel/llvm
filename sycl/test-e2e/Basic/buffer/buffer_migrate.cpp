@@ -1,13 +1,13 @@
 // REQUIRES: gpu
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
 // Test for buffer use in a context with multiple devices (all found
 // root-devices)
 //
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 using namespace sycl;
 
 int main() {

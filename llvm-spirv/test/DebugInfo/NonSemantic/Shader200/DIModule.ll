@@ -1,7 +1,7 @@
 ; ModuleID = '/Volumes/Data/apple-internal/llvm/tools/clang/test/Modules/debug-info-moduleimport.m'
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv --spirv-debug-info-version=nonsemantic-shader-200 %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=x86_64-apple-macosx %t.ll -accel-tables=Dwarf -o %t -filetype=obj
 ; RUN: llvm-dwarfdump -debug-info %t | FileCheck %s
@@ -37,7 +37,7 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-SPIRV: ExtInst [[#]] [[#Parent:]] [[#]] DebugCompilationUnit [[#Version]] [[#DWARF]]
 ; CHECK-SPIRV: ExtInst [[#]] [[#SourceEmpty:]] [[#]] DebugSource [[#EmptyStr]]
 ; CHECK-SPIRV: ExtInst [[#]] [[#Module:]] [[#]] DebugModule [[#Name]] [[#SourceEmpty]] [[#Constant0]] [[#Parent]] [[#Defines]] [[#IncludePath]] [[#ApiNotes]] [[#Constant0]]
-; CHECK-SPIRV: ExtInst [[#]] [[#]] [[#]] DebugImportedEntity [[#]] [[#]] [[#]] [[#Source]] [[#Module]]
+; CHECK-SPIRV: ExtInst [[#]] [[#]] [[#]] DebugImportedEntity [[#]] [[#]] [[#Source]] [[#Module]]
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!6, !7}

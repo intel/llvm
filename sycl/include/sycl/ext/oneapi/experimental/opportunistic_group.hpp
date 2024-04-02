@@ -7,18 +7,32 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
-#include <sycl/ext/oneapi/sub_group_mask.hpp>
+
+#include <sycl/aspects.hpp>
+#include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_DEVICE
+#include <sycl/detail/type_traits.hpp>        // for is_group, is_user_cons...
+#include <sycl/exception.hpp>                 // for runtime_error
+#include <sycl/ext/oneapi/sub_group_mask.hpp> // for sub_group_mask
+#include <sycl/id.hpp>                        // for id
+#include <sycl/memory_enums.hpp>              // for memory_scope
+#include <sycl/range.hpp>                     // for range
+
+#include <stdint.h>    // for uint32_t
+#include <type_traits> // for true_type
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 class opportunistic_group;
 
 namespace this_kernel {
+#ifdef __SYCL_DEVICE_ONLY__
+[[__sycl_detail__::__uses_aspects__(
+    sycl::aspect::ext_oneapi_opportunistic_group)]]
+#endif
 inline opportunistic_group get_opportunistic_group();
-}
+} // namespace this_kernel
 
 class opportunistic_group {
 public:
@@ -40,7 +54,7 @@ public:
 
   id_type get_local_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return detail::CallerPositionInMask(Mask);
+    return sycl::detail::CallerPositionInMask(Mask);
 #else
     throw runtime_error("Non-uniform groups are not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);
@@ -111,13 +125,15 @@ public:
 #endif
   }
 
-private:
+protected:
   sub_group_mask Mask;
 
-protected:
   opportunistic_group(sub_group_mask m) : Mask(m) {}
 
   friend opportunistic_group this_kernel::get_opportunistic_group();
+
+  friend sub_group_mask
+  sycl::detail::GetMask<opportunistic_group>(opportunistic_group Group);
 };
 
 namespace this_kernel {
@@ -126,11 +142,16 @@ inline opportunistic_group get_opportunistic_group() {
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__SPIR__)
   // TODO: It may be wiser to call the intrinsic than rely on this_group()
-  sycl::sub_group sg = sycl::ext::oneapi::this_sub_group();
+  sycl::sub_group sg = sycl::ext::oneapi::experimental::this_sub_group();
   sub_group_mask mask = sycl::ext::oneapi::group_ballot(sg, true);
   return opportunistic_group(mask);
 #elif defined(__NVPTX__)
-  // TODO: Construct from __activemask
+  uint32_t active_mask;
+  asm volatile("activemask.b32 %0;" : "=r"(active_mask));
+  sub_group_mask mask =
+      sycl::detail::Builder::createSubGroupMask<ext::oneapi::sub_group_mask>(
+          active_mask, 32);
+  return opportunistic_group(mask);
 #endif
 #else
   throw runtime_error("Non-uniform groups are not supported on host device.",
@@ -144,5 +165,10 @@ template <>
 struct is_user_constructed_group<opportunistic_group> : std::true_type {};
 
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+
+template <>
+struct is_group<ext::oneapi::experimental::opportunistic_group>
+    : std::true_type {};
+
+} // namespace _V1
 } // namespace sycl

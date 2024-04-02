@@ -14,7 +14,7 @@
 #include <memory>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
@@ -107,7 +107,6 @@ void RTDeviceBinaryImage::print() const {
   std::cerr << "    Target   : " << Bin->DeviceTargetSpec << "\n";
   std::cerr << "    Bin size : "
             << ((intptr_t)Bin->BinaryEnd - (intptr_t)Bin->BinaryStart) << "\n";
-  std::cerr << "    OSModuleHandle : " << ModuleHandle << "\n";
   std::cerr << "    Compile options : "
             << (Bin->CompileOptions ? Bin->CompileOptions : "NULL") << "\n";
   std::cerr << "    Link options    : "
@@ -154,6 +153,7 @@ RTDeviceBinaryImage::getProperty(const char *PropName) const {
 }
 
 void RTDeviceBinaryImage::init(pi_device_binary Bin) {
+  // Bin != nullptr is guaranteed here.
   this->Bin = Bin;
   // If device binary image format wasn't set by its producer, then can't change
   // now, because 'Bin' data is part of the executable image loaded into memory
@@ -177,11 +177,15 @@ void RTDeviceBinaryImage::init(pi_device_binary Bin) {
   DeviceGlobals.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_GLOBALS);
   DeviceRequirements.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS);
   HostPipes.init(Bin, __SYCL_PI_PROPERTY_SET_SYCL_HOST_PIPES);
+
+  ImageId = ImageCounter++;
 }
 
+std::atomic<uintptr_t> RTDeviceBinaryImage::ImageCounter = 1;
+
 DynRTDeviceBinaryImage::DynRTDeviceBinaryImage(
-    std::unique_ptr<char[]> &&DataPtr, size_t DataSize, OSModuleHandle M)
-    : RTDeviceBinaryImage(M) {
+    std::unique_ptr<char[]> &&DataPtr, size_t DataSize)
+    : RTDeviceBinaryImage() {
   Data = std::move(DataPtr);
   Bin = new pi_device_binary_struct();
   Bin->Version = PI_DEVICE_BINARY_VERSION;
@@ -211,5 +215,5 @@ DynRTDeviceBinaryImage::~DynRTDeviceBinaryImage() {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

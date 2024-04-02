@@ -1,5 +1,9 @@
 // RUN: %clang --target=riscv32-unknown-elf -### %s -fsyntax-only 2>&1 | FileCheck %s
 // RUN: %clang --target=riscv64-unknown-elf -### %s -fsyntax-only 2>&1 | FileCheck %s
+// RUN: %clang --target=riscv64-linux-android -### %s -fsyntax-only 2>&1 | FileCheck %s -check-prefixes=ANDROID,DEFAULT,FAST-UNALIGNED-ACCESS
+// RUN: %clang -mabi=lp64d --target=riscv64-linux-android -### %s -fsyntax-only 2>&1 | FileCheck %s -check-prefixes=ANDROID,DEFAULT,FAST-UNALIGNED-ACCESS
+// RUN: %clang -mabi=lp64d --target=riscv64-linux-android -mstrict-align -### %s -fsyntax-only 2>&1 | FileCheck %s -check-prefixes=NO-FAST-UNALIGNED-ACCESS
+
 
 // CHECK: fno-signed-char
 
@@ -8,6 +12,10 @@
 // RUN: %clang --target=riscv32-unknown-elf -### %s -mrelax 2>&1 | FileCheck %s -check-prefix=RELAX
 // RUN: %clang --target=riscv32-unknown-elf -### %s -mno-relax 2>&1 | FileCheck %s -check-prefix=NO-RELAX
 
+// ANDROID: "-target-feature" "+v"
+// ANDROID: "-target-feature" "+zba"
+// ANDROID: "-target-feature" "+zbb"
+// ANDROID: "-target-feature" "+zbs"
 // RELAX: "-target-feature" "+relax"
 // NO-RELAX: "-target-feature" "-relax"
 // DEFAULT: "-target-feature" "+relax"
@@ -18,8 +26,28 @@
 
 // SAVE-RESTORE: "-target-feature" "+save-restore"
 // NO-SAVE-RESTORE: "-target-feature" "-save-restore"
-// DEFAULT: "-target-feature" "-save-restore"
+// DEFAULT-NOT: "-target-feature" "-save-restore"
 // DEFAULT-NOT: "-target-feature" "+save-restore"
+
+// RUN: %clang --target=riscv32-unknown-elf -### %s -mforced-sw-shadow-stack 2>&1 | FileCheck %s -check-prefix=FORCE-SW-SCS
+// RUN: %clang --target=riscv32-unknown-elf -### %s -mno-forced-sw-shadow-stack 2>&1 | FileCheck %s -check-prefix=NO-FORCE-SW-SCS
+// FORCE-SW-SCS: "-target-feature" "+forced-sw-shadow-stack"
+// NO-FORCE-SW-SCS: "-target-feature" "-forced-sw-shadow-stack"
+// DEFAULT-NOT: "-target-feature" "+forced-sw-shadow-stack"
+
+// RUN: %clang --target=riscv32-unknown-elf -### %s -mno-strict-align 2>&1 | FileCheck %s -check-prefix=FAST-UNALIGNED-ACCESS
+// RUN: %clang --target=riscv32-unknown-elf -### %s -mstrict-align 2>&1 | FileCheck %s -check-prefix=NO-FAST-UNALIGNED-ACCESS
+
+// FAST-UNALIGNED-ACCESS: "-target-feature" "+fast-unaligned-access"
+// NO-FAST-UNALIGNED-ACCESS: "-target-feature" "-fast-unaligned-access"
+
+// RUN: %clang --target=riscv32-unknown-elf --gcc-toolchain="" -### %s 2>&1 | FileCheck %s -check-prefix=NOUWTABLE
+// RUN: %clang --target=riscv32-unknown-elf --gcc-toolchain="" -fasynchronous-unwind-tables -### %s 2>&1 | FileCheck %s -check-prefix=UWTABLE
+// RUN: %clang --target=riscv64-unknown-elf --gcc-toolchain="" -### %s 2>&1 | FileCheck %s -check-prefix=NOUWTABLE
+// RUN: %clang --target=riscv64-unknown-elf --gcc-toolchain="" -fasynchronous-unwind-tables -### %s 2>&1 | FileCheck %s -check-prefix=UWTABLE
+//
+// UWTABLE: "-funwind-tables=2"
+// NOUWTABLE-NOT: "-funwind-tables=2"
 
 // RUN: %clang --target=riscv32-linux -### %s -fsyntax-only 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=DEFAULT-LINUX

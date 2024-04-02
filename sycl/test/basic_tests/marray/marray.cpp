@@ -44,10 +44,10 @@ struct NotDefaultConstructible {
 };
 
 template <typename T> void CheckBinOps() {
-  sycl::marray<T, 3> ref_arr0{0};
-  sycl::marray<T, 3> ref_arr1{1};
-  sycl::marray<T, 3> ref_arr2{2};
-  sycl::marray<T, 3> ref_arr3{3};
+  sycl::marray<T, 3> ref_arr0{T(0)};
+  sycl::marray<T, 3> ref_arr1{T(1)};
+  sycl::marray<T, 3> ref_arr2{T(2)};
+  sycl::marray<T, 3> ref_arr3{T(3)};
 
   CHECK_BINOP(+, ref_arr1, ref_arr2)
   CHECK_BINOP(-, ref_arr1, ref_arr2)

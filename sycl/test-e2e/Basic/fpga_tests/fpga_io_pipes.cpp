@@ -1,5 +1,6 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUNx: %ACC_RUN_PLACEHOLDER %t.out
+// REQUIRES: accelerator
+// RUN: %{build} -o %t.out
+// RUNx: %{run} %t.out
 //==------------ fpga_io_pipes.cpp - SYCL FPGA pipes test ------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -9,8 +10,8 @@
 //===----------------------------------------------------------------------===//
 #include <fstream>
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/fpga_extensions.hpp>
-#include <sycl/sycl.hpp>
 
 #include "io_pipe_def.h"
 
@@ -76,7 +77,7 @@ int test_io_nb_pipe(sycl::queue Queue) {
     });
   });
 
-  auto readHostBuffer = writeBuf.get_access<sycl::access::mode::read>();
+  auto readHostBuffer = writeBuf.get_host_access();
   if (readHostBuffer[0] != InputData) {
     std::cout << "Read from a file mismatches " << readHostBuffer[0]
               << " Vs expected " << InputData << std::endl;
@@ -101,7 +102,7 @@ int test_io_bl_pipe(sycl::queue Queue) {
     });
   });
 
-  auto readHostBuffer = writeBuf.get_access<sycl::access::mode::read>();
+  auto readHostBuffer = writeBuf.get_host_access();
   if (readHostBuffer[0] != InputData) {
     std::cout << "Read from a file mismatches " << readHostBuffer[0]
               << " Vs expected " << InputData << std::endl;

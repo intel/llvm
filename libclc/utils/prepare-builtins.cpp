@@ -5,22 +5,27 @@
 #include "llvm/Bitcode/ReaderWriter.h"
 #endif
 
+#include "llvm/Config/llvm-config.h"
+#include "llvm/IR/AttributeMask.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IRReader/IRReader.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/ErrorOr.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MemoryBuffer.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/raw_ostream.h"
-#include "llvm/Support/ErrorOr.h"
+#include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
-#include "llvm/Config/llvm-config.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <system_error>
 
 using namespace llvm;
+
+static ExitOnError ExitOnErr;
 
 static cl::opt<std::string>
 InputFilename(cl::Positional, cl::desc("<input bitcode>"), cl::init("-"));
@@ -28,6 +33,9 @@ InputFilename(cl::Positional, cl::desc("<input bitcode>"), cl::init("-"));
 static cl::opt<std::string>
 OutputFilename("o", cl::desc("Output filename"),
                cl::value_desc("filename"));
+
+static cl::opt<bool> TextualOut("S", cl::desc("Emit LLVM textual assembly"),
+                                cl::init(false));
 
 int main(int argc, char **argv) {
   LLVMContext Context;
@@ -45,17 +53,15 @@ int main(int argc, char **argv) {
       ErrorMessage = ec.message();
     } else {
       std::unique_ptr<MemoryBuffer> &BufferPtr = BufferOrErr.get();
-      ErrorOr<std::unique_ptr<Module>> ModuleOrErr =
+      SMDiagnostic Err;
+      std::unique_ptr<llvm::Module> MPtr =
 #if HAVE_LLVM > 0x0390
-          expectedToErrorOrAndEmitErrors(Context,
-          parseBitcodeFile(BufferPtr.get()->getMemBufferRef(), Context));
+          ExitOnErr(Expected<std::unique_ptr<llvm::Module>>(
+              parseIR(BufferPtr.get()->getMemBufferRef(), Err, Context)));
 #else
-          parseBitcodeFile(BufferPtr.get()->getMemBufferRef(), Context);
+          parseIR(BufferPtr.get()->getMemBufferRef(), Err, Context);
 #endif
-      if (std::error_code ec = ModuleOrErr.getError())
-        ErrorMessage = ec.message();
-
-      M = ModuleOrErr.get().release();
+      M = MPtr.release();
     }
   }
 
@@ -104,6 +110,20 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  // AMDGPU remove incompatible functions pass replaces all uses of functions
+  // that use GPU features incompatible with the current GPU with null then
+  // deletes the function. This didn't use to cause problems, as all of libclc
+  // functions were inlined prior to incompatible functions pass. Now that the
+  // inliner runs later in the pipeline we have to remove all of the target
+  // features, so libclc functions will not be earmarked for deletion.
+  if (M->getTargetTriple().find("amdgcn") != std::string::npos) {
+    AttributeMask AM;
+    AM.addAttribute("target-features");
+    AM.addAttribute("target-cpu");
+    for (auto &F : *M)
+      F.removeFnAttrs(AM);
+  }
+
   std::error_code EC;
 #if HAVE_LLVM >= 0x0600
   std::unique_ptr<ToolOutputFile> Out(
@@ -117,14 +137,16 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
+  if (TextualOut)
+    M->print(Out->os(), nullptr, true);
+  else
 #if HAVE_LLVM >= 0x0700
-  WriteBitcodeToFile(*M, Out->os());
+    WriteBitcodeToFile(*M, Out->os());
 #else
-  WriteBitcodeToFile(M, Out->os());
+    WriteBitcodeToFile(M, Out->os());
 #endif
 
   // Declare success.
   Out->keep();
   return 0;
 }
-

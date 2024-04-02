@@ -14,18 +14,22 @@
 #  pragma GCC system_header
 #endif
 
-#include <__availability>
+#include <__algorithm/ranges_copy.h>
 #include <__chrono/statically_widen.h>
 #include <__concepts/same_as.h>
 #include <__config>
 #include <__format/concepts.h>
 #include <__format/formatter.h>
 #include <__format/range_formatter.h>
+#include <__iterator/back_insert_iterator.h>
 #include <__ranges/concepts.h>
+#include <__ranges/data.h>
+#include <__ranges/from_range.h>
+#include <__ranges/size.h>
+#include <__type_traits/conditional.h>
 #include <__type_traits/remove_cvref.h>
 #include <__utility/pair.h>
 #include <string_view>
-#include <tuple>
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -108,8 +112,9 @@ public:
     return __underlying_.parse(__ctx);
   }
 
-  template <class FormatContext>
-  _LIBCPP_HIDE_FROM_ABI typename FormatContext::iterator format(__maybe_const_r& __range, FormatContext& __ctx) const {
+  template <class _FormatContext>
+  _LIBCPP_HIDE_FROM_ABI typename _FormatContext::iterator
+  format(__maybe_const_r& __range, _FormatContext& __ctx) const {
     return __underlying_.format(__range, __ctx);
   }
 };
@@ -169,7 +174,33 @@ public:
 template <range_format _Kp, ranges::input_range _Rp, class _CharT>
   requires(_Kp == range_format::string || _Kp == range_format::debug_string)
 struct _LIBCPP_TEMPLATE_VIS __range_default_formatter<_Kp, _Rp, _CharT> {
-  __range_default_formatter() = delete; // TODO FMT Implement
+private:
+  // This deviates from the Standard, there the exposition only type is
+  //   formatter<basic_string<charT>, charT> underlying_;
+  // Using a string_view allows the format function to avoid a copy of the
+  // input range when it is a contigious range.
+  formatter<basic_string_view<_CharT>, _CharT> __underlying_;
+
+public:
+  template <class _ParseContext>
+  _LIBCPP_HIDE_FROM_ABI constexpr typename _ParseContext::iterator parse(_ParseContext& __ctx) {
+    typename _ParseContext::iterator __i = __underlying_.parse(__ctx);
+    if constexpr (_Kp == range_format::debug_string)
+      __underlying_.set_debug_format();
+    return __i;
+  }
+
+  template <class _FormatContext>
+  _LIBCPP_HIDE_FROM_ABI typename _FormatContext::iterator
+  format(conditional_t<ranges::input_range<const _Rp>, const _Rp&, _Rp&> __range, _FormatContext& __ctx) const {
+    // When the range is contiguous use a basic_string_view instead to avoid a
+    // copy of the underlying data. The basic_string_view formatter
+    // specialization is the "basic" string formatter in libc++.
+    if constexpr (ranges::contiguous_range<_Rp> && std::ranges::sized_range<_Rp>)
+      return __underlying_.format(basic_string_view<_CharT>{ranges::data(__range), ranges::size(__range)}, __ctx);
+    else
+      return __underlying_.format(basic_string<_CharT>{from_range, __range}, __ctx);
+  }
 };
 
 template <ranges::input_range _Rp, class _CharT>

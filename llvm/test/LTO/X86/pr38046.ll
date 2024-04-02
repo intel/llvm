@@ -1,7 +1,15 @@
 ; RUN: opt -module-summary -o %t.o %s
-; RUN: llvm-lto2 run -opaque-pointers -save-temps -o %t.lto.o %t.o \
+; RUN: llvm-lto2 run -save-temps -o %t.lto.o %t.o \
 ; RUN:   -r=%t.o,foo,plx \
 ; RUN:   -r=%t.o,get,pl
+; RUN: llvm-dis %t.lto.o.0.2.internalize.bc >/dev/null 2>%t.dis.stderr || true
+; RUN: FileCheck -allow-empty %s < %t.dis.stderr
+
+;; Re-run with "new" debug-info mode to ensure the variable location information
+;; is handled gracefully.
+; RUN: llvm-lto2 run -save-temps -o %t.lto.o %t.o \
+; RUN:   -r=%t.o,foo,plx \
+; RUN:   -r=%t.o,get,pl --try-experimental-debuginfo-iterators
 ; RUN: llvm-dis %t.lto.o.0.2.internalize.bc >/dev/null 2>%t.dis.stderr || true
 ; RUN: FileCheck -allow-empty %s < %t.dis.stderr
 

@@ -6,9 +6,8 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-has-no-incomplete-format
 // TODO FMT __builtin_memcpy isn't constexpr in GCC
-// UNSUPPORTED: gcc-12
+// UNSUPPORTED: gcc-13
 
 // <format>
 
@@ -22,6 +21,7 @@
 #include <cassert>
 #include <concepts>
 #include <iterator>
+#include <memory>
 #include <type_traits>
 
 #include "test_format_context.h"
@@ -44,14 +44,16 @@ struct Tester {
   static const std::size_t size = N - 1;
 
   template <class CharT>
-  void test(const std::basic_string<CharT>& expected, const std::basic_string_view<CharT>& fmt) const {
+  void
+  test(const std::basic_string<CharT>& expected, const std::basic_string_view<CharT>& fmt, std::size_t offset) const {
     using Str = CharT[size];
     std::basic_format_parse_context<CharT> parse_ctx{fmt};
     std::formatter<Str, CharT> formatter;
     static_assert(std::semiregular<decltype(formatter)>);
 
-    auto it = formatter.parse(parse_ctx);
-    assert(it == fmt.end() - (!fmt.empty() && fmt.back() == '}'));
+    std::same_as<typename std::basic_string_view<CharT>::iterator> auto it = formatter.parse(parse_ctx);
+    // std::to_address works around LWG3989 and MSVC STL's iterator debugging mechanism.
+    assert(std::to_address(it) == std::to_address(fmt.end()) - offset);
 
     std::basic_string<CharT> result;
     auto out = std::back_inserter(result);
@@ -76,9 +78,9 @@ struct Tester {
     std::basic_string_view<CharT> fmt{f};
     assert(fmt.back() == CharT('}') && "Pre-condition failure");
 
-    test(expected, fmt);
+    test(expected, fmt, 1);
     fmt.remove_suffix(1);
-    test(expected, fmt);
+    test(expected, fmt, 0);
   }
 };
 

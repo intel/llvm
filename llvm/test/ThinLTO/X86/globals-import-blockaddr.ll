@@ -1,6 +1,6 @@
 ; RUN: opt -module-summary %s -o %t1.bc
 ; RUN: opt -module-summary %p/Inputs/globals-import-blockaddr.ll -o %t2.bc
-; RUN: llvm-lto2 run -opaque-pointers -save-temps %t1.bc -r=%t1.bc,foo,l -r=%t1.bc,bar,l -r=%t1.bc,main,pl %t2.bc -r=%t2.bc,foo,pl -r=%t2.bc,bar,pl -o %t3
+; RUN: llvm-lto2 run -save-temps %t1.bc -r=%t1.bc,foo,l -r=%t1.bc,bar,l -r=%t1.bc,main,pl %t2.bc -r=%t2.bc,foo,pl -r=%t2.bc,bar,pl -o %t3
 ; RUN: llvm-dis %t3.1.3.import.bc -o - | FileCheck %s
 
 ; Verify that we haven't imported GV containing blockaddress

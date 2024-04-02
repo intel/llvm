@@ -208,7 +208,12 @@ Function *LocalAccessorToSharedMemoryPass::processKernel(Module &M,
 void LocalAccessorToSharedMemoryPass::postProcessKernels(
     SmallVectorImpl<std::pair<Function *, KernelPayload>> &NewToOldKernels) {
   for (auto &Pair : NewToOldKernels) {
-    std::get<1>(Pair).MD->replaceOperandWith(
-        0, llvm::ConstantAsMetadata::get(std::get<0>(Pair)));
+    auto KP = std::get<1>(Pair);
+    auto *F = std::get<0>(Pair);
+    KP.MD->replaceOperandWith(0, llvm::ConstantAsMetadata::get(F));
+    // The MD node of the kernel has been altered, make sure that all the
+    // dependent nodes are kept up to date.
+    for (MDNode *D : KP.DependentMDs)
+      D->replaceOperandWith(0, llvm::ConstantAsMetadata::get(F));
   }
 }

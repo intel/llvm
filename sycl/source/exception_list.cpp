@@ -12,7 +12,7 @@
 #include <utility>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 exception_list::size_type exception_list::size() const { return MList.size(); }
 
@@ -30,5 +30,5 @@ void exception_list::PushBack(value_type &&Value) {
 
 void exception_list::Clear() noexcept { MList.clear(); }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

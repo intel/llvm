@@ -9,6 +9,7 @@
 #include "lldb/Core/DebuggerEvents.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/Module.h"
+#include "lldb/Core/Progress.h"
 #include "llvm/Support/WithColor.h"
 
 using namespace lldb_private;
@@ -23,12 +24,11 @@ static const T *GetEventDataFromEventImpl(const Event *event_ptr) {
   return nullptr;
 }
 
-ConstString ProgressEventData::GetFlavorString() {
-  static ConstString g_flavor("ProgressEventData");
-  return g_flavor;
+llvm::StringRef ProgressEventData::GetFlavorString() {
+  return "ProgressEventData";
 }
 
-ConstString ProgressEventData::GetFlavor() const {
+llvm::StringRef ProgressEventData::GetFlavor() const {
   return ProgressEventData::GetFlavorString();
 }
 
@@ -42,7 +42,7 @@ void ProgressEventData::Dump(Stream *s) const {
     s->PutCString(", type = update");
   // If m_total is UINT64_MAX, there is no progress to report, just "start"
   // and "end". If it isn't we will show the completed and total amounts.
-  if (m_total != UINT64_MAX)
+  if (m_total != Progress::kNonDeterministicTotal)
     s->Printf(", progress = %" PRIu64 " of %" PRIu64, m_completed, m_total);
 }
 
@@ -94,12 +94,11 @@ void DiagnosticEventData::Dump(Stream *s) const {
   s->Flush();
 }
 
-ConstString DiagnosticEventData::GetFlavorString() {
-  static ConstString g_flavor("DiagnosticEventData");
-  return g_flavor;
+llvm::StringRef DiagnosticEventData::GetFlavorString() {
+  return "DiagnosticEventData";
 }
 
-ConstString DiagnosticEventData::GetFlavor() const {
+llvm::StringRef DiagnosticEventData::GetFlavor() const {
   return DiagnosticEventData::GetFlavorString();
 }
 
@@ -124,12 +123,11 @@ DiagnosticEventData::GetAsStructuredData(const Event *event_ptr) {
   return dictionary_sp;
 }
 
-ConstString SymbolChangeEventData::GetFlavorString() {
-  static ConstString g_flavor("SymbolChangeEventData");
-  return g_flavor;
+llvm::StringRef SymbolChangeEventData::GetFlavorString() {
+  return "SymbolChangeEventData";
 }
 
-ConstString SymbolChangeEventData::GetFlavor() const {
+llvm::StringRef SymbolChangeEventData::GetFlavor() const {
   return SymbolChangeEventData::GetFlavorString();
 }
 

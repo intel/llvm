@@ -8,10 +8,16 @@
 
 #pragma once
 
+#include "sycl/handler.hpp"
 #include <detail/kernel_bundle_impl.hpp>
+#include <memory>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
+namespace ext::oneapi::experimental::detail {
+class dynamic_parameter_impl;
+}
 namespace detail {
 
 using KernelBundleImplPtr = std::shared_ptr<detail::kernel_bundle_impl>;
@@ -28,6 +34,8 @@ public:
                std::shared_ptr<queue_impl> SubmissionSecondaryQueue)
       : MSubmissionPrimaryQueue(std::move(SubmissionPrimaryQueue)),
         MSubmissionSecondaryQueue(std::move(SubmissionSecondaryQueue)){};
+
+  handler_impl() = default;
 
   void setStateExplicitKernelBundle() {
     if (MSubmissionState == HandlerSubmissionState::SPEC_CONST_SET_STATE)
@@ -98,10 +106,43 @@ public:
   // If the pipe operation is read or write, 1 for read 0 for write.
   bool HostPipeRead = true;
 
-  RT::PiKernelCacheConfig MKernelCacheConfig =
+  sycl::detail::pi::PiKernelCacheConfig MKernelCacheConfig =
       PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
+
+  bool MKernelIsCooperative = false;
+
+  // Extra information for bindless image copy
+  sycl::detail::pi::PiMemImageDesc MImageDesc;
+  sycl::detail::pi::PiMemImageFormat MImageFormat;
+  sycl::detail::pi::PiImageCopyFlags MImageCopyFlags;
+
+  sycl::detail::pi::PiImageOffset MSrcOffset;
+  sycl::detail::pi::PiImageOffset MDestOffset;
+  sycl::detail::pi::PiImageRegion MHostExtent;
+  sycl::detail::pi::PiImageRegion MCopyExtent;
+
+  // Extra information for semaphore interoperability
+  sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+
+  // The user facing node type, used for operations which are recorded to a
+  // graph. Since some operations may actually be a different type than the user
+  // submitted, e.g. a fill() which is performed as a kernel submission. This is
+  // used to pass the type that the user expects to graph nodes when they are
+  // created for later query by users.
+  sycl::ext::oneapi::experimental::node_type MUserFacingNodeType =
+      sycl::ext::oneapi::experimental::node_type::empty;
+
+  // Storage for any SYCL Graph dynamic parameters which have been flagged for
+  // registration in the CG, along with the argument index for the parameter.
+  std::vector<std::pair<
+      ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
+      MDynamicParameters;
+
+  // Track whether an NDRange was used when submitting a kernel (as opposed to a
+  // range), needed for graph update
+  bool MNDRangeUsed = false;
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

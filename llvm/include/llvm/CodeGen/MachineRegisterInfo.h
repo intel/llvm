@@ -57,7 +57,7 @@ public:
     virtual ~Delegate() = default;
 
     virtual void MRI_NoteNewVirtualRegister(Register Reg) = 0;
-    virtual void MRI_NotecloneVirtualRegister(Register NewReg,
+    virtual void MRI_NoteCloneVirtualRegister(Register NewReg,
                                               Register SrcReg) {
       MRI_NoteNewVirtualRegister(NewReg);
     }
@@ -181,7 +181,7 @@ public:
 
   void noteCloneVirtualRegister(Register NewReg, Register SrcReg) {
     for (auto *TheDelegate : TheDelegates)
-      TheDelegate->MRI_NotecloneVirtualRegister(NewReg, SrcReg);
+      TheDelegate->MRI_NoteCloneVirtualRegister(NewReg, SrcReg);
   }
 
   //===--------------------------------------------------------------------===//
@@ -229,7 +229,8 @@ public:
   }
   bool shouldTrackSubRegLiveness(Register VReg) const {
     assert(VReg.isVirtual() && "Must pass a VReg");
-    return shouldTrackSubRegLiveness(*getRegClass(VReg));
+    const TargetRegisterClass *RC = getRegClassOrNull(VReg);
+    return LLVM_LIKELY(RC) ? shouldTrackSubRegLiveness(*RC) : false;
   }
   bool subRegLivenessEnabled() const {
     return TracksSubRegLiveness;
@@ -241,16 +242,6 @@ public:
 
   /// Returns true if the updated CSR list was initialized and false otherwise.
   bool isUpdatedCSRsInitialized() const { return IsUpdatedCSRsInitialized; }
-
-  /// Returns true if a register can be used as an argument to a function.
-  bool isArgumentRegister(const MachineFunction &MF, MCRegister Reg) const;
-
-  /// Returns true if a register is a fixed register.
-  bool isFixedRegister(const MachineFunction &MF, MCRegister Reg) const;
-
-  /// Returns true if a register is a general purpose register.
-  bool isGeneralPurposeRegister(const MachineFunction &MF,
-                                MCRegister Reg) const;
 
   /// Disables the register from the list of CSRs.
   /// I.e. the register will not appear as part of the CSR mask.
@@ -660,9 +651,9 @@ public:
   /// This shouldn't be used directly unless \p Reg has a register class.
   /// \see getRegClassOrNull when this might happen.
   const TargetRegisterClass *getRegClass(Register Reg) const {
-    assert(VRegInfo[Reg.id()].first.is<const TargetRegisterClass *>() &&
+    assert(isa<const TargetRegisterClass *>(VRegInfo[Reg.id()].first) &&
            "Register class not set, wrong accessor");
-    return VRegInfo[Reg.id()].first.get<const TargetRegisterClass *>();
+    return cast<const TargetRegisterClass *>(VRegInfo[Reg.id()].first);
   }
 
   /// Return the register class of \p Reg, or null if Reg has not been assigned
@@ -678,7 +669,7 @@ public:
   /// the select pass, using getRegClass is safe.
   const TargetRegisterClass *getRegClassOrNull(Register Reg) const {
     const RegClassOrRegBank &Val = VRegInfo[Reg].first;
-    return Val.dyn_cast<const TargetRegisterClass *>();
+    return dyn_cast_if_present<const TargetRegisterClass *>(Val);
   }
 
   /// Return the register bank of \p Reg, or null if Reg has not been assigned
@@ -687,7 +678,7 @@ public:
   /// RegisterBankInfo::getRegBankFromRegClass.
   const RegisterBank *getRegBankOrNull(Register Reg) const {
     const RegClassOrRegBank &Val = VRegInfo[Reg].first;
-    return Val.dyn_cast<const RegisterBank *>();
+    return dyn_cast_if_present<const RegisterBank *>(Val);
   }
 
   /// Return the register bank or register class of \p Reg.
@@ -750,6 +741,24 @@ public:
   /// function with the specified register class.
   Register createVirtualRegister(const TargetRegisterClass *RegClass,
                                  StringRef Name = "");
+
+  /// All attributes(register class or bank and low-level type) a virtual
+  /// register can have.
+  struct VRegAttrs {
+    RegClassOrRegBank RCOrRB;
+    LLT Ty;
+  };
+
+  /// Returns register class or bank and low level type of \p Reg. Always safe
+  /// to use. Special values are returned when \p Reg does not have some of the
+  /// attributes.
+  VRegAttrs getVRegAttrs(Register Reg) {
+    return {getRegClassOrRegBank(Reg), getType(Reg)};
+  }
+
+  /// Create and return a new virtual register in the function with the
+  /// specified register attributes(register class or bank and low level type).
+  Register createVirtualRegister(VRegAttrs RegAttr, StringRef Name = "");
 
   /// Create and return a new virtual register in the function with the same
   /// attributes as the given register.
@@ -911,7 +920,7 @@ public:
 
   /// freezeReservedRegs - Called by the register allocator to freeze the set
   /// of reserved registers before allocation begins.
-  void freezeReservedRegs(const MachineFunction&);
+  void freezeReservedRegs();
 
   /// reserveReg -- Mark a register as reserved so checks like isAllocatable 
   /// will not suggest using it. This should not be used during the middle

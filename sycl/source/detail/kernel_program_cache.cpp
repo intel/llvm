@@ -11,35 +11,11 @@
 #include <detail/plugin.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
-KernelProgramCache::~KernelProgramCache() {
-  for (auto &ProgIt : MCachedPrograms.Cache) {
-    ProgramWithBuildStateT &ProgWithState = ProgIt.second;
-    PiProgramT *ToBeDeleted = ProgWithState.Ptr.load();
-
-    if (!ToBeDeleted)
-      continue;
-
-    auto KernIt = MKernelsPerProgramCache.find(ToBeDeleted);
-
-    if (KernIt != MKernelsPerProgramCache.end()) {
-      for (auto &p : KernIt->second) {
-        KernelWithBuildStateT &KernelWithState = p.second;
-        PiKernelT *Kern = KernelWithState.Ptr.load();
-
-        if (Kern) {
-          const detail::plugin &Plugin = MParentContext->getPlugin();
-          Plugin.call<PiApiKind::piKernelRelease>(Kern);
-        }
-      }
-      MKernelsPerProgramCache.erase(KernIt);
-    }
-
-    const detail::plugin &Plugin = MParentContext->getPlugin();
-    Plugin.call<PiApiKind::piProgramRelease>(ToBeDeleted);
-  }
+const PluginPtr &KernelProgramCache::getPlugin() {
+  return MParentContext->getPlugin();
 }
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

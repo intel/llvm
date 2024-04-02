@@ -3,7 +3,7 @@
 ; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r %t.spv -emit-opaque-pointers -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
@@ -37,8 +37,7 @@ target triple = "spir-unknown-unknown"
 ; CHECK-SPIRV: 5 SpecConstantOp [[AS1]] [[I64ARRC2:[0-9]+]] 124 [[I64ARR]]
 ; CHECK-SPIRV: 5 SpecConstantOp [[AS1]] [[STRUCTC:[0-9]+]] 124 [[STRUCT]]
 ; CHECK-SPIRV: 7 SpecConstantOp {{[0-9]+}} [[GEP:[0-9]+]] 70 [[I64ARR]]
-; CHECK-SPIRV: 5 SpecConstantOp [[AS1]] [[I64ARRC3:[0-9]+]] 124 [[GEP]]
-; CHECK-SPIRV: 6 ConstantComposite [[ARRAYTY]] [[ARRAY_INIT:[0-9]+]] [[I64ARRC2]] [[STRUCTC]] [[I64ARRC3]]
+; CHECK-SPIRV: 6 ConstantComposite [[ARRAYTY]] [[ARRAY_INIT:[0-9]+]] [[I64ARRC2]] [[STRUCTC]] [[GEP]]
 ; CHECK-SPIRV: 5 Variable {{[0-9]+}} [[ARRAY:[0-9]+]] 5 [[ARRAY_INIT]]
 
 ; CHECK-LLVM: %structtype = type { ptr addrspace(2), ptr addrspace(1) }

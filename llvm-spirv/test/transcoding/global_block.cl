@@ -8,12 +8,12 @@
 // RUN: llvm-spirv --spirv-max-version=1.1 %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 // RUN: llvm-spirv --spirv-max-version=1.1 %t.bc -o %t.spirv1.1.spv
 // RUN: spirv-val --target-env spv1.1 %t.spirv1.1.spv
-// RUN: llvm-spirv -r -emit-opaque-pointers %t.spirv1.1.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: llvm-spirv -r %t.spirv1.1.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-LLVM
 
 // RUN: llvm-spirv --spirv-max-version=1.4 %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 // RUN: llvm-spirv --spirv-max-version=1.4 %t.bc -o %t.spirv1.4.spv
 // RUN: spirv-val --target-env spv1.4 %t.spirv1.4.spv
-// RUN: llvm-spirv -r -emit-opaque-pointers %t.spirv1.4.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: llvm-spirv -r %t.spirv1.4.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-LLVM
 
 kernel void block_kernel(__global int* res) {
   typedef int (^block_t)(int);
@@ -22,8 +22,8 @@ kernel void block_kernel(__global int* res) {
 }
 
 // CHECK-SPIRV: Name [[block_invoke:[0-9]+]] "_block_invoke"
-// CHECK-SPIRV: TypeInt [[int:[0-9]+]] 32
-// CHECK-SPIRV: TypeInt [[int8:[0-9]+]] 8
+// CHECK-SPIRV-DAG: TypeInt [[int:[0-9]+]] 32
+// CHECK-SPIRV-DAG: TypeInt [[int8:[0-9]+]] 8
 // CHECK-SPIRV: Constant [[int]] [[five:[0-9]+]] 5
 // CHECK-SPIRV: TypePointer [[int8Ptr:[0-9]+]] 8 [[int8]]
 // CHECK-SPIRV: TypeFunction [[block_invoke_type:[0-9]+]] [[int]] [[int8Ptr]] [[int]]

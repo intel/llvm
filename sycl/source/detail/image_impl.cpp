@@ -9,13 +9,17 @@
 #include <detail/context_impl.hpp>
 #include <detail/image_impl.hpp>
 #include <detail/memory_manager.hpp>
+#include <detail/xpti_registry.hpp>
 
 #include <algorithm>
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+uint8_t GImageStreamID;
+#endif
 
 template <typename Param>
 static bool checkImageValueRange(const std::vector<device> &Devices,
@@ -103,7 +107,8 @@ uint8_t getImageElementSize(uint8_t NumChannels, image_channel_type Type) {
   return Retval;
 }
 
-RT::PiMemImageChannelOrder convertChannelOrder(image_channel_order Order) {
+sycl::detail::pi::PiMemImageChannelOrder
+convertChannelOrder(image_channel_order Order) {
   switch (Order) {
   case image_channel_order::a:
     return PI_IMAGE_CHANNEL_ORDER_A;
@@ -137,10 +142,11 @@ RT::PiMemImageChannelOrder convertChannelOrder(image_channel_order Order) {
     return PI_IMAGE_CHANNEL_ORDER_sRGBA;
   }
   assert(false && "Unhandled image_channel_order");
-  return static_cast<RT::PiMemImageChannelOrder>(0);
+  return static_cast<sycl::detail::pi::PiMemImageChannelOrder>(0);
 }
 
-image_channel_order convertChannelOrder(RT::PiMemImageChannelOrder Order) {
+image_channel_order
+convertChannelOrder(sycl::detail::pi::PiMemImageChannelOrder Order) {
   switch (Order) {
   case PI_IMAGE_CHANNEL_ORDER_A:
     return image_channel_order::a;
@@ -177,7 +183,8 @@ image_channel_order convertChannelOrder(RT::PiMemImageChannelOrder Order) {
   return static_cast<image_channel_order>(0);
 }
 
-RT::PiMemImageChannelType convertChannelType(image_channel_type Type) {
+sycl::detail::pi::PiMemImageChannelType
+convertChannelType(image_channel_type Type) {
   switch (Type) {
   case image_channel_type::snorm_int8:
     return PI_IMAGE_CHANNEL_TYPE_SNORM_INT8;
@@ -211,10 +218,11 @@ RT::PiMemImageChannelType convertChannelType(image_channel_type Type) {
     return PI_IMAGE_CHANNEL_TYPE_FLOAT;
   }
   assert(false && "Unhandled image_channel_order");
-  return static_cast<RT::PiMemImageChannelType>(0);
+  return static_cast<sycl::detail::pi::PiMemImageChannelType>(0);
 }
 
-image_channel_type convertChannelType(RT::PiMemImageChannelType Type) {
+image_channel_type
+convertChannelType(sycl::detail::pi::PiMemImageChannelType Type) {
   switch (Type) {
   case PI_IMAGE_CHANNEL_TYPE_SNORM_INT8:
     return image_channel_type::snorm_int8;
@@ -252,12 +260,14 @@ image_channel_type convertChannelType(RT::PiMemImageChannelType Type) {
 }
 
 template <typename T>
-static void getImageInfo(const ContextImplPtr Context, RT::PiMemImageInfo Info,
-                         T &Dest, RT::PiMem InteropMemObject) {
-  const detail::plugin &Plugin = Context->getPlugin();
-  RT::PiMem Mem = pi::cast<RT::PiMem>(InteropMemObject);
-  Plugin.call<PiApiKind::piMemImageGetInfo>(Mem, Info, sizeof(T), &Dest,
-                                            nullptr);
+static void getImageInfo(const ContextImplPtr Context,
+                         sycl::detail::pi::PiMemImageInfo Info, T &Dest,
+                         sycl::detail::pi::PiMem InteropMemObject) {
+  const PluginPtr &Plugin = Context->getPlugin();
+  sycl::detail::pi::PiMem Mem =
+      pi::cast<sycl::detail::pi::PiMem>(InteropMemObject);
+  Plugin->call<PiApiKind::piMemImageGetInfo>(Mem, Info, sizeof(T), &Dest,
+                                             nullptr);
 }
 
 image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
@@ -267,13 +277,14 @@ image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
     : BaseT(MemObject, SyclContext, std::move(AvailableEvent),
             std::move(Allocator)),
       MDimensions(Dimensions), MRange({0, 0, 0}) {
-  RT::PiMem Mem = pi::cast<RT::PiMem>(BaseT::MInteropMemObject);
+  sycl::detail::pi::PiMem Mem =
+      pi::cast<sycl::detail::pi::PiMem>(BaseT::MInteropMemObject);
   const ContextImplPtr Context = getSyclObjImpl(SyclContext);
-  const detail::plugin &Plugin = Context->getPlugin();
-  Plugin.call<PiApiKind::piMemGetInfo>(Mem, PI_MEM_SIZE, sizeof(size_t),
-                                       &(BaseT::MSizeInBytes), nullptr);
+  const PluginPtr &Plugin = Context->getPlugin();
+  Plugin->call<PiApiKind::piMemGetInfo>(Mem, PI_MEM_SIZE, sizeof(size_t),
+                                        &(BaseT::MSizeInBytes), nullptr);
 
-  RT::PiMemImageFormat Format;
+  sycl::detail::pi::PiMemImageFormat Format;
   getImageInfo(Context, PI_IMAGE_INFO_FORMAT, Format, Mem);
   MOrder = detail::convertChannelOrder(Format.image_channel_order);
   MType = detail::convertChannelType(Format.image_channel_data_type);
@@ -297,16 +308,35 @@ image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
   }
 }
 
+image_impl::image_impl(pi_native_handle MemObject, const context &SyclContext,
+                       event AvailableEvent,
+                       std::unique_ptr<SYCLMemObjAllocator> Allocator,
+                       uint8_t Dimensions, image_channel_order Order,
+                       image_channel_type Type, bool OwnNativeHandle,
+                       range<3> Range3WithOnes)
+    : BaseT(MemObject, SyclContext, OwnNativeHandle, std::move(AvailableEvent),
+            std::move(Allocator), detail::convertChannelOrder(Order),
+            detail::convertChannelType(Type), Range3WithOnes, Dimensions,
+            getImageElementSize(getImageNumberChannels(Order), Type)),
+      MDimensions(Dimensions), MRange(Range3WithOnes) {
+  MOrder = Order;
+  MType = Type;
+  MNumChannels = getImageNumberChannels(MOrder);
+  MElementSize = getImageElementSize(MNumChannels, Type);
+  setPitches(); // sets MRowPitch, MSlice and BaseT::MSizeInBytes
+}
+
 void *image_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                              void *HostPtr, RT::PiEvent &OutEventToWait) {
+                              void *HostPtr,
+                              sycl::detail::pi::PiEvent &OutEventToWait) {
   bool HostPtrReadOnly = false;
   BaseT::determineHostPtr(Context, InitFromUserData, HostPtr, HostPtrReadOnly);
 
-  RT::PiMemImageDesc Desc = getImageDesc(HostPtr != nullptr);
+  sycl::detail::pi::PiMemImageDesc Desc = getImageDesc(HostPtr != nullptr);
   assert(checkImageDesc(Desc, Context, HostPtr) &&
          "The check an image desc failed.");
 
-  RT::PiMemImageFormat Format = getImageFormat();
+  sycl::detail::pi::PiMemImageFormat Format = getImageFormat();
   assert(checkImageFormat(Format, Context) &&
          "The check an image format failed.");
 
@@ -316,7 +346,7 @@ void *image_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
       BaseT::MInteropContext, MProps, OutEventToWait);
 }
 
-bool image_impl::checkImageDesc(const RT::PiMemImageDesc &Desc,
+bool image_impl::checkImageDesc(const sycl::detail::pi::PiMemImageDesc &Desc,
                                 ContextImplPtr Context, void *UserPtr) {
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE1D, PI_MEM_TYPE_IMAGE1D_ARRAY,
                PI_MEM_TYPE_IMAGE2D_ARRAY, PI_MEM_TYPE_IMAGE2D) &&
@@ -396,8 +426,8 @@ bool image_impl::checkImageDesc(const RT::PiMemImageDesc &Desc,
   return true;
 }
 
-bool image_impl::checkImageFormat(const RT::PiMemImageFormat &Format,
-                                  ContextImplPtr Context) {
+bool image_impl::checkImageFormat(
+    const sycl::detail::pi::PiMemImageFormat &Format, ContextImplPtr Context) {
   (void)Context;
   if (checkAny(Format.image_channel_order, PI_IMAGE_CHANNEL_ORDER_INTENSITY,
                PI_IMAGE_CHANNEL_ORDER_LUMINANCE) &&
@@ -444,6 +474,31 @@ std::vector<device> image_impl::getDevices(const ContextImplPtr Context) {
   return Context->get_info<info::context::devices>();
 }
 
+void image_impl::sampledImageConstructorNotification(
+    const detail::code_location &CodeLoc, void *UserObj, const void *HostObj,
+    uint32_t Dim, size_t Range[3], image_format Format,
+    const image_sampler &Sampler) {
+  XPTIRegistry::sampledImageConstructorNotification(
+      UserObj, CodeLoc, HostObj, Dim, Range, (uint32_t)Format,
+      (uint32_t)Sampler.addressing, (uint32_t)Sampler.coordinate,
+      (uint32_t)Sampler.filtering);
+}
+
+void image_impl::sampledImageDestructorNotification(void *UserObj) {
+  XPTIRegistry::sampledImageDestructorNotification(UserObj);
+}
+
+void image_impl::unsampledImageConstructorNotification(
+    const detail::code_location &CodeLoc, void *UserObj, const void *HostObj,
+    uint32_t Dim, size_t Range[3], image_format Format) {
+  XPTIRegistry::unsampledImageConstructorNotification(
+      UserObj, CodeLoc, HostObj, Dim, Range, (uint32_t)Format);
+}
+
+void image_impl::unsampledImageDestructorNotification(void *UserObj) {
+  XPTIRegistry::unsampledImageDestructorNotification(UserObj);
+}
+
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

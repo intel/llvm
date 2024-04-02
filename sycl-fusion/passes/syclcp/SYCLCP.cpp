@@ -41,7 +41,7 @@ static Expected<SmallVector<ConstantInfo>> getCPFromMD(Function *F) {
   MDNode *MD = F->getMetadata(SYCLCP::Key);
   if (!MD) {
     return createStringError(inconvertibleErrorCode(),
-                             "Private promotion metadata not available");
+                             "Constant progagation metadata not available");
   }
   for (auto I : enumerate(MD->operands())) {
     Expected<SmallVector<unsigned char>> Val =
@@ -63,7 +63,7 @@ static Expected<SmallVector<ConstantInfo>> getCPFromMD(Function *F) {
 ///
 /// Returns a constant of the given scalar type and value.
 static Expected<Constant *> getConstantValue(const unsigned char **ValPtr,
-                                             Type *Ty, bool ByVal) {
+                                             Type *Ty) {
   if (Ty->isIntegerTy()) {
     unsigned NumBytes = Ty->getIntegerBitWidth() / 8;
     uint64_t IntValue = 0;
@@ -99,7 +99,7 @@ static Error initializeAggregateConstant(const unsigned char **ValPtr,
                                          ArrayRef<Value *> Indices) {
   if (CurrentTy->isIntegerTy() || CurrentTy->isFloatTy() ||
       CurrentTy->isDoubleTy()) {
-    Expected<Value *> CVal = getConstantValue(ValPtr, CurrentTy, false);
+    Expected<Value *> CVal = getConstantValue(ValPtr, CurrentTy);
     if (auto E = CVal.takeError()) {
       return E;
     }
@@ -185,8 +185,7 @@ static bool propagateConstants(Function *F, ArrayRef<ConstantInfo> Constants) {
       }
       CVal = AggVal.get();
     } else {
-      Expected<Constant *> ScalarVal =
-          getConstantValue(&ValPtr, ArgTy, Arg->hasByValAttr());
+      Expected<Constant *> ScalarVal = getConstantValue(&ValPtr, ArgTy);
       if (auto E = ScalarVal.takeError()) {
         handleAllErrors(std::move(E), [](const StringError &SE) {
           FUSION_DEBUG(llvm::dbgs() << SE.message() << "\n");
@@ -205,7 +204,8 @@ static bool propagateConstants(Function *F, ArrayRef<ConstantInfo> Constants) {
   return Changed;
 }
 
-static void moduleCleanup(Module &M, ModuleAnalysisManager &AM) {
+static void moduleCleanup(Module &M, ModuleAnalysisManager &AM,
+                          TargetFusionInfo &TFI) {
   SmallVector<Function *> ToProcess;
   for (auto &F : M) {
     if (F.hasMetadata(SYCLCP::Key)) {
@@ -214,19 +214,18 @@ static void moduleCleanup(Module &M, ModuleAnalysisManager &AM) {
   }
   for (auto *F : ToProcess) {
     auto *MD = F->getMetadata(SYCLCP::Key);
-    jit_compiler::ArgUsageMask NewArgInfo;
+    SmallVector<jit_compiler::ArgUsageUT> NewArgInfo;
     for (auto I : enumerate(MD->operands())) {
       if (const auto *MDS = dyn_cast<MDString>(I.value().get())) {
         // A value is masked-out if it has a non-empty MDString
         if (MDS->getLength() > 0) {
-          // And is either an integer or a FP number.
           NewArgInfo.push_back(jit_compiler::ArgUsage::Unused);
           continue;
         }
       }
       NewArgInfo.push_back(jit_compiler::ArgUsage::Used);
     }
-    fullCleanup(NewArgInfo, F, AM, {SYCLCP::Key});
+    fullCleanup(NewArgInfo, F, AM, TFI, {SYCLCP::Key});
   }
 }
 
@@ -249,8 +248,10 @@ PreservedAnalyses SYCLCP::run(Module &M, ModuleAnalysisManager &AM) {
     Changed = propagateConstants(F, *ConstantsOrErr) || Changed;
   }
 
+  TargetFusionInfo TFI{&M};
+
   if (Changed) {
-    moduleCleanup(M, AM);
+    moduleCleanup(M, AM, TFI);
   }
 
   return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();

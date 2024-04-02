@@ -1,9 +1,7 @@
-// RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%sycl_triple  %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <iostream>
 

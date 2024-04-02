@@ -2,10 +2,13 @@ add_flang_library(FIRCodeGen
   BoxedProcedure.cpp
   CGOps.cpp
   CodeGen.cpp
+  CodeGenOpenMP.cpp
+  FIROpPatterns.cpp
   PreCGRewrite.cpp
   TBAABuilder.cpp
   Target.cpp
   TargetRewrite.cpp
+  TypeConverter.cpp
 
   DEPENDS
   FIRDialect
@@ -13,6 +16,7 @@ add_flang_library(FIRCodeGen
   CGOpsIncGen
 
   LINK_LIBS
+  FIRAnalysis
   FIRBuilder
   FIRDialect
   FIRDialectSupport
@@ -26,6 +30,7 @@ add_flang_library(FIRCodeGen
   MLIRBuiltinToLLVMIRTranslation
   MLIRLLVMToLLVMIRTranslation
   MLIRTargetLLVMIRExport
+  MLIRVectorToLLVM
 
   LINK_COMPONENTS
   AsmParser

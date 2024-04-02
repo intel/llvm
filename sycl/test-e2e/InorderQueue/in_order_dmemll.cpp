@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out
-// RUN: %CPU_RUN_PLACEHOLDER %t1.out
-// RUN: %ACC_RUN_PLACEHOLDER %t1.out
-// RUN: %GPU_RUN_PLACEHOLDER %t1.out
+// RUN: %{build} -o %t1.out
+// RUN: %{run} %t1.out
 //
 //==----------- ordered_dmemll.cpp - Device Memory Linked List test --------==//
 // It uses an ordered queue where explicit waiting is not necessary between
@@ -14,7 +12,11 @@
 //===----------------------------------------------------------------------===//
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 

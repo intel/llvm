@@ -1,8 +1,7 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %t.out
-//
-// UNSUPPORTED: cuda || hip
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
+#include <complex>
 #include <numeric>
 
 #include <sycl/ext/oneapi/experimental/user_defined_reductions.hpp>
@@ -64,6 +63,11 @@ inline custom_type operator+(const custom_type &lhs, const custom_type &rhs) {
   return custom_type(lhs.n.i + rhs.n.i, lhs.n.f + rhs.n.f, lhs.ull + rhs.ull);
 }
 
+inline std::ostream &operator<<(std::ostream &os, const custom_type &v) {
+  os << "custom_type { .n = " << v.n << ", .ull = " << v.ull << "}";
+  return os;
+}
+
 struct custom_type_wo_default_ctor {
   static constexpr unsigned long long default_ull_value = 42;
 
@@ -91,6 +95,13 @@ template <typename T, std::size_t... Is>
 constexpr std::array<T, sizeof...(Is)> init_array(T value,
                                                   std::index_sequence<Is...>) {
   return {{(static_cast<void>(Is), value)...}};
+}
+
+inline std::ostream &operator<<(std::ostream &os,
+                                const custom_type_wo_default_ctor &v) {
+  os << "custom_type_wo_default_ctor { .n = " << v.n << ", .ull = " << v.ull
+     << "}";
+  return os;
 }
 
 using namespace sycl;
@@ -122,8 +133,9 @@ void test(queue q, InputContainer input, OutputContainer output,
                 sycl::ext::oneapi::experimental::group_with_scratchpad(
                     it.get_group(), sycl::span(&scratch[0], temp_memory_size));
 
-            InputT *first = in.get_pointer();
-            InputT *last = first + N;
+            const InputT *first =
+                in.template get_multi_ptr<access::decorated::no>();
+            const InputT *last = first + N;
             // check reduce_over_group w/o init
             out[0] = sycl::ext::oneapi::experimental::reduce_over_group(
                 handle, in[it.get_global_id(0)], binary_op);
@@ -143,13 +155,16 @@ void test(queue q, InputContainer input, OutputContainer output,
     });
     q.wait();
   }
-  assert(output[0] == std::reduce(input.begin(), input.begin() + workgroup_size,
-                                  identity, binary_op));
-  assert(output[1] == std::reduce(input.begin(), input.begin() + workgroup_size,
-                                  init, binary_op));
+  assert(output[0] == std::accumulate(input.begin(),
+                                      input.begin() + workgroup_size, identity,
+                                      binary_op));
+  assert(output[1] == std::accumulate(input.begin(),
+                                      input.begin() + workgroup_size, init,
+                                      binary_op));
   assert(output[2] ==
-         std::reduce(input.begin(), input.end(), identity, binary_op));
-  assert(output[3] == std::reduce(input.begin(), input.end(), init, binary_op));
+         std::accumulate(input.begin(), input.end(), identity, binary_op));
+  assert(output[3] ==
+         std::accumulate(input.begin(), input.end(), init, binary_op));
 }
 
 int main() {

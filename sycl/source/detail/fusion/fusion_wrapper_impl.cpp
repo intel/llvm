@@ -11,7 +11,7 @@
 #include <detail/scheduler/scheduler.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 fusion_wrapper_impl::fusion_wrapper_impl(
@@ -27,6 +27,11 @@ bool fusion_wrapper_impl::is_in_fusion_mode() const {
 }
 
 void fusion_wrapper_impl::start_fusion() {
+  if (MQueue->getCommandGraph()) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "SYCL kernel fusion can NOT be started "
+                          "on a queue that is in a recording state.");
+  }
   detail::Scheduler::getInstance().startFusion(MQueue);
 }
 
@@ -41,5 +46,5 @@ event fusion_wrapper_impl::complete_fusion(const property_list &PropList) {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

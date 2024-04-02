@@ -1,14 +1,15 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// UNSUPPORTED: cuda || hip
-// REQUIRES: fusion
+// REQUIRES: aspect-usm_shared_allocations
+// RUN: %{build} -fsycl-embed-ir -o %t.out
+// RUN: %{run} %t.out
 
 // Test validity of events after cancel_fusion.
 
 #include "fusion_event_test_common.h"
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 
@@ -16,10 +17,6 @@ int main() {
   constexpr size_t dataSize = 512;
 
   queue q{ext::codeplay::experimental::property::queue::enable_fusion{}};
-
-  if (!q.get_device().has(sycl::aspect::usm_shared_allocations)) {
-    return 0;
-  }
 
   int *in1 = sycl::malloc_shared<int>(dataSize, q);
   int *in2 = sycl::malloc_shared<int>(dataSize, q);

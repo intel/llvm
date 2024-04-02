@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
-// RUN: %GPU_RUN_ON_LINUX_PLACEHOLDER %t.out %GPU_CHECK_ON_LINUX_PLACEHOLDER
-// RUN: %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out %if !gpu || linux %{ | FileCheck %s %}
 
 //==------------------ stream.cpp - SYCL stream basic test -----------------==//
 //
@@ -11,10 +9,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#define SYCL_SIMPLE_SWIZZLES
+#include <sycl/detail/core.hpp>
+
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/stream.hpp>
+
 #include <cassert>
-#include <sycl/context.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -190,8 +190,8 @@ int main() {
         // CHECK-NEXT: 542.3, 645.3, 771.6, 1024.2
 
         // Swizzles
-        Out << f4.xyzw() << endl;
-        // CHECK-NEXT: 542325, 645, 771, 1024
+        Out << f4.odd() << endl;
+        // CHECK-NEXT: 645, 1024
 
         // SYCL types
         Out << id<1>(23) << endl;

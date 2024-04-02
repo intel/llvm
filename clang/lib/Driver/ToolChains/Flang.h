@@ -56,6 +56,34 @@ private:
   void addTargetOptions(const llvm::opt::ArgList &Args,
                         llvm::opt::ArgStringList &CmdArgs) const;
 
+  /// Add specific options for AArch64 target.
+  ///
+  /// \param [in] Args The list of input driver arguments
+  /// \param [out] CmdArgs The list of output command arguments
+  void AddAArch64TargetArgs(const llvm::opt::ArgList &Args,
+                            llvm::opt::ArgStringList &CmdArgs) const;
+
+  /// Add specific options for AMDGPU target.
+  ///
+  /// \param [in] Args The list of input driver arguments
+  /// \param [out] CmdArgs The list of output command arguments
+  void AddAMDGPUTargetArgs(const llvm::opt::ArgList &Args,
+                           llvm::opt::ArgStringList &CmdArgs) const;
+
+  /// Add specific options for RISC-V target.
+  ///
+  /// \param [in] Args The list of input driver arguments
+  /// \param [out] CmdArgs The list of output command arguments
+  void AddRISCVTargetArgs(const llvm::opt::ArgList &Args,
+                          llvm::opt::ArgStringList &CmdArgs) const;
+
+  /// Add specific options for X86_64 target.
+  ///
+  /// \param [in] Args The list of input driver arguments
+  /// \param [out] CmdArgs The list of output command arguments
+  void AddX86_64TargetArgs(const llvm::opt::ArgList &Args,
+                           llvm::opt::ArgStringList &CmdArgs) const;
+
   /// Extract offload options from the driver arguments and add them to
   /// the command arguments.
   /// \param [in] C The current compilation for the driver invocation
@@ -65,6 +93,14 @@ private:
   /// \param [out] CmdArgs The list of output command arguments
   void addOffloadOptions(Compilation &C, const InputInfoList &Inputs,
                          const JobAction &JA, const llvm::opt::ArgList &Args,
+                         llvm::opt::ArgStringList &CmdArgs) const;
+
+  /// Extract options for code generation from the driver arguments and add them
+  /// to the command arguments.
+  ///
+  /// \param [in] Args The list of input driver arguments
+  /// \param [out] CmdArgs The list of output command arguments
+  void addCodegenOptions(const llvm::opt::ArgList &Args,
                          llvm::opt::ArgStringList &CmdArgs) const;
 
   /// Extract other compilation options from the driver arguments and add them

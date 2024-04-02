@@ -103,6 +103,8 @@ public:
     return lldb::eLanguageTypeC_plus_plus;
   }
 
+  llvm::StringRef GetUserEntryPointName() const override { return "main"; }
+
   std::unique_ptr<TypeScavenger> GetTypeScavenger() override;
   lldb::TypeCategoryImplSP GetFormatters() override;
 
@@ -165,7 +167,7 @@ public:
   ConstString FindBestAlternateFunctionMangledName(
       const Mangled mangled, const SymbolContext &sym_ctx) const override;
 
-  ConstString GetInstanceVariableName() override { return ConstString("this"); }
+  llvm::StringRef GetInstanceVariableName() override { return "this"; }
 
   // PluginInterface protocol
   llvm::StringRef GetPluginName() override { return GetPluginNameStatic(); }

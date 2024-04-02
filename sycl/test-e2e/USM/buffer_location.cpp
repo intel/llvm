@@ -1,6 +1,6 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out
-// RUN: %CPU_RUN_PLACEHOLDER %t1.out
-// RUN: %ACC_RUN_PLACEHOLDER %t1.out
+// UNSUPPORTED: gpu
+// RUN: %{build} -o %t1.out
+// RUN: %{run} %t1.out
 
 //==------------------- buffer_location.cpp - USM buffer location ----------==//
 //
@@ -12,7 +12,11 @@
 
 #include <iostream>
 #include <memory>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/intel/experimental/usm_properties.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 

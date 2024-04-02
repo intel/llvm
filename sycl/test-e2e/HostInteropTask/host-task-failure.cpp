@@ -1,9 +1,10 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+// Windows doesn't yet have full shutdown().
+// UNSUPPORTED: ze_debug && windows
+
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 using namespace sycl::access;
@@ -21,7 +22,7 @@ void copy(buffer<DataT, 1> &Src, buffer<DataT, 1> &Dst, queue &Q) {
     auto DstA = Dst.template get_access<mode::write>(CGH);
 
     CGH.host_task([=]() {
-      for (size_t Idx = 0; Idx < SrcA.get_count(); ++Idx)
+      for (size_t Idx = 0; Idx < SrcA.size(); ++Idx)
         DstA[Idx] = SrcA[Idx];
     });
   });

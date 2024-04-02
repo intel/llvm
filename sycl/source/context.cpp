@@ -16,7 +16,6 @@
 #include <sycl/exception_list.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/properties/all_properties.hpp>
-#include <sycl/stl.hpp>
 
 #include <algorithm>
 #include <memory>
@@ -25,14 +24,13 @@
 // 4.6.2 Context class
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
-context::context(const property_list &PropList)
-    : context(default_selector().select_device(), PropList) {}
+context::context(const property_list &PropList) : context(device{}, PropList) {}
 
 context::context(const async_handler &AsyncHandler,
                  const property_list &PropList)
-    : context(default_selector().select_device(), AsyncHandler, PropList) {}
+    : context(device{}, AsyncHandler, PropList) {}
 
 context::context(const device &Device, const property_list &PropList)
     : context(std::vector<device>(1, Device), PropList) {}
@@ -85,9 +83,10 @@ context::context(const std::vector<device> &DeviceList,
   }
 }
 context::context(cl_context ClContext, async_handler AsyncHandler) {
-  const auto &Plugin = RT::getPlugin<backend::opencl>();
+  const auto &Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
   impl = std::make_shared<detail::context_impl>(
-      detail::pi::cast<detail::RT::PiContext>(ClContext), AsyncHandler, Plugin);
+      detail::pi::cast<sycl::detail::pi::PiContext>(ClContext), AsyncHandler,
+      Plugin);
 }
 
 template <typename Param>
@@ -101,6 +100,20 @@ context::get_info() const {
       const;
 
 #include <sycl/info/context_traits.def>
+
+#undef __SYCL_PARAM_TRAITS_SPEC
+
+template <typename Param>
+typename detail::is_backend_info_desc<Param>::return_type
+context::get_backend_info() const {
+  return impl->get_backend_info<Param>();
+}
+
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
+  template __SYCL_EXPORT ReturnT                                               \
+  context::get_backend_info<info::DescType::Desc>() const;
+
+#include <sycl/info/sycl_backend_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
@@ -130,7 +143,7 @@ bool context::is_host() const {
   return IsHost;
 }
 
-backend context::get_backend() const noexcept { return getImplBackend(impl); }
+backend context::get_backend() const noexcept { return impl->getBackend(); }
 
 platform context::get_platform() const {
   return impl->get_info<info::context::platform>();
@@ -144,5 +157,5 @@ context::context(std::shared_ptr<detail::context_impl> Impl) : impl(Impl) {}
 
 pi_native_handle context::getNative() const { return impl->getNative(); }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

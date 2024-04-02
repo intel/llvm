@@ -23,12 +23,17 @@
                                memory_order_success)                                                                                                                 \
     GET_ATOMIC_SCOPE_AND_ORDER(scope, atomic_scope, failure_semantics,                                                                                               \
                                memory_order_failure)                                                                                                                 \
-    TYPE original_val = *p;                                                                                                                                        \
-    bool success = __hip_atomic_compare_exchange_strong(                                                                                                             \
-        p, &expected, desired, memory_order_success, memory_order_failure,                                                                                           \
-        atomic_scope);                                                                                                                                               \
-                                                                                                                                                                     \
-    return success ? original_val : *p;                                                                                                                              \
+    __hip_atomic_compare_exchange_strong(p, &expected, desired,                                                                                                      \
+                                         memory_order_success,                                                                                                       \
+                                         memory_order_failure, atomic_scope);                                                                                        \
+    /* If cmpxchg                                                                                                                                                    \
+     *  succeeds:                                                                                                                                                    \
+         - `expected` is unchanged, holding the old val that was at `p`                                                                                              \
+         - `p` is changed to hold `desired`                                                                                                                          \
+     *  fails:                                                                                                                                                       \
+         - `expected` is changed to hold the current val at `p`                                                                                                      \
+         - `p` is unchanged*/                                                                                                                                        \
+    return expected;                                                                                                                                                 \
   }
 
 #define AMDGPU_ATOMIC_CMPXCHG(TYPE, TYPE_MANGLED)                              \
@@ -37,7 +42,7 @@
   AMDGPU_ATOMIC_CMPXCHG_IMPL(TYPE, TYPE_MANGLED, , , 0, 4)
 
 AMDGPU_ATOMIC_CMPXCHG(int, i)
-AMDGPU_ATOMIC_CMPXCHG(unsigned int, j)
+AMDGPU_ATOMIC_CMPXCHG(unsigned, j)
 AMDGPU_ATOMIC_CMPXCHG(long, l)
 AMDGPU_ATOMIC_CMPXCHG(unsigned long, m)
 AMDGPU_ATOMIC_CMPXCHG(float, f)

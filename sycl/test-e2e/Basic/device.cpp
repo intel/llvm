@@ -1,13 +1,11 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // This test performs basic check of the SYCL device class.
 
 #include <cassert>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <utility>
 
 using namespace sycl;

@@ -17,7 +17,12 @@ apt update && apt install -yqq \
       libva-dev \
       libtool \
       wget \
-      sudo
+      sudo \
+      zstd \
+      zip \
+      unzip \
+      jq \
+      curl
 
 pip3 install psutil
 

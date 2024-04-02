@@ -11,6 +11,7 @@
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/ExecutionEngine/JITLink/ELF_x86_64.h"
 #include "llvm/ExecutionEngine/JITLink/aarch64.h"
+#include "llvm/ExecutionEngine/JITLink/ppc64.h"
 #include "llvm/ExecutionEngine/JITLink/x86_64.h"
 #include "llvm/ExecutionEngine/Orc/DebugUtils.h"
 #include "llvm/ExecutionEngine/Orc/ExecutionUtils.h"
@@ -39,20 +40,30 @@ public:
 
   void materialize(std::unique_ptr<MaterializationResponsibility> R) override {
     unsigned PointerSize;
-    support::endianness Endianness;
+    llvm::endianness Endianness;
     jitlink::Edge::Kind EdgeKind;
     const auto &TT = ENP.getExecutionSession().getTargetTriple();
 
     switch (TT.getArch()) {
     case Triple::x86_64:
       PointerSize = 8;
-      Endianness = support::endianness::little;
+      Endianness = llvm::endianness::little;
       EdgeKind = jitlink::x86_64::Pointer64;
       break;
     case Triple::aarch64:
       PointerSize = 8;
-      Endianness = support::endianness::little;
+      Endianness = llvm::endianness::little;
       EdgeKind = jitlink::aarch64::Pointer64;
+      break;
+    case Triple::ppc64:
+      PointerSize = 8;
+      Endianness = llvm::endianness::big;
+      EdgeKind = jitlink::ppc64::Pointer64;
+      break;
+    case Triple::ppc64le:
+      PointerSize = 8;
+      Endianness = llvm::endianness::little;
+      EdgeKind = jitlink::ppc64::Pointer64;
       break;
     default:
       llvm_unreachable("Unrecognized architecture");
@@ -207,46 +218,6 @@ ELFNixPlatform::standardPlatformAliases(ExecutionSession &ES,
   SymbolAliasMap Aliases;
   addAliases(ES, Aliases, requiredCXXAliases());
   addAliases(ES, Aliases, standardRuntimeUtilityAliases());
-
-  // Determine whether or not the libunwind extended-API function for
-  // dynamically registering an entire .eh_frame section is available.
-  // If it is not, we assume that libgcc_s is being used, and alias to
-  // its __register_frame with the same functionality.
-  auto RTRegisterFrame = ES.intern("__orc_rt_register_eh_frame_section");
-  auto LibUnwindRegisterFrame = ES.intern("__unw_add_dynamic_eh_frame_section");
-  auto RTDeregisterFrame = ES.intern("__orc_rt_deregister_eh_frame_section");
-  auto LibUnwindDeregisterFrame =
-      ES.intern("__unw_remove_dynamic_eh_frame_section");
-  auto SM = ES.lookup(makeJITDylibSearchOrder(&PlatformJD),
-                      SymbolLookupSet()
-                          .add(LibUnwindRegisterFrame,
-                               SymbolLookupFlags::WeaklyReferencedSymbol)
-                          .add(LibUnwindDeregisterFrame,
-                               SymbolLookupFlags::WeaklyReferencedSymbol));
-  if (!SM) { // Weak-ref means no "missing symbol" errors, so this must be
-             // something more serious that we should report.
-    return SM.takeError();
-  } else if (SM->size() == 2) {
-    LLVM_DEBUG({
-      dbgs() << "Using libunwind " << LibUnwindRegisterFrame
-             << " for unwind info registration\n";
-    });
-    Aliases[std::move(RTRegisterFrame)] = {LibUnwindRegisterFrame,
-                                           JITSymbolFlags::Exported};
-    Aliases[std::move(RTDeregisterFrame)] = {LibUnwindDeregisterFrame,
-                                             JITSymbolFlags::Exported};
-  } else {
-    // Since LLVM libunwind is not present, we assume that unwinding
-    // is provided by libgcc
-    LLVM_DEBUG({
-      dbgs() << "Using libgcc __register_frame for unwind info registration\n";
-    });
-    Aliases[std::move(RTRegisterFrame)] = {ES.intern("__register_frame"),
-                                           JITSymbolFlags::Exported};
-    Aliases[std::move(RTDeregisterFrame)] = {ES.intern("__deregister_frame"),
-                                             JITSymbolFlags::Exported};
-  }
-
   return Aliases;
 }
 
@@ -278,6 +249,9 @@ bool ELFNixPlatform::supportedTarget(const Triple &TT) {
   switch (TT.getArch()) {
   case Triple::x86_64:
   case Triple::aarch64:
+  // FIXME: jitlink for ppc64 hasn't been well tested, leave it unsupported
+  // right now.
+  case Triple::ppc64le:
     return true;
   default:
     return false;

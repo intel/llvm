@@ -5,17 +5,14 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl -I%S/.. %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -I%S/.. -o %t.out
+// RUN: %{run} %t.out
 
 // This test checks that ESIMD JIT compilation does not crash on unused
 // copy_from invocation.
 
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <iostream>
 

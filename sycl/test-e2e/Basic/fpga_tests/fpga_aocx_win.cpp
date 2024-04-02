@@ -23,5 +23,5 @@
 // AOCX with object
 // RUN: %clangxx -fsycl -fintelfpga %t.obj %t_image.lib -o %t_aocx_obj.out
 //
-// RUN: %ACC_RUN_PLACEHOLDER %t_aocx_src.out
-// RUN: %ACC_RUN_PLACEHOLDER %t_aocx_obj.out
+// RUN: %{run} %t_aocx_src.out
+// RUN: %{run} %t_aocx_obj.out

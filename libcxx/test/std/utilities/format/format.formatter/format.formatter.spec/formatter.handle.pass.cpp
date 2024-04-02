@@ -6,7 +6,6 @@
 //===----------------------------------------------------------------------===//
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
-// UNSUPPORTED: libcpp-has-no-incomplete-format
 
 // <format>
 
@@ -22,6 +21,7 @@
 #include <charconv>
 #include <concepts>
 #include <iterator>
+#include <memory>
 #include <string>
 #include <type_traits>
 
@@ -38,13 +38,14 @@ struct std::formatter<color> : std::formatter<const char*> {
   }
 };
 
-void test(std::string expected, std::string_view fmt, color arg) {
+void test(std::string expected, std::string_view fmt, color arg, std::size_t offset) {
   auto parse_ctx = std::format_parse_context(fmt);
   std::formatter<color, char> formatter;
   static_assert(std::semiregular<decltype(formatter)>);
 
-  auto it = formatter.parse(parse_ctx);
-  assert(it == fmt.end() - (!fmt.empty() && fmt.back() == '}'));
+  std::same_as<typename std::string_view::iterator> auto it = formatter.parse(parse_ctx);
+  // std::to_address works around LWG3989 and MSVC STL's iterator debugging mechanism.
+  assert(std::to_address(it) == std::to_address(fmt.end()) - offset);
 
   std::string result;
   auto out = std::back_inserter(result);
@@ -64,9 +65,9 @@ void test_termination_condition(std::string expected, std::string f, color arg) 
   std::string_view fmt{f};
   assert(fmt.back() == '}' && "Pre-condition failure");
 
-  test(expected, fmt, arg);
+  test(expected, fmt, arg, 1);
   fmt.remove_suffix(1);
-  test(expected, fmt, arg);
+  test(expected, fmt, arg, 0);
 }
 
 int main(int, char**) {

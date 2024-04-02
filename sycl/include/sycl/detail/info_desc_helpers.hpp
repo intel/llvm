@@ -8,12 +8,19 @@
 
 #pragma once
 
+#include <sycl/detail/pi.h> // for pi_device_info
+
+#include <type_traits> // for true_type
+
+// FIXME: .def files included to this file use all sorts of SYCL objects like
+// id, range, traits, etc. We have to include some headers before including .def
+// files.
 #include <sycl/aspects.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/id.hpp>
 #include <sycl/info/info_desc.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 template <typename T> struct PiInfoCode;
 template <typename T> struct is_platform_info_desc : std::false_type {};
@@ -32,6 +39,10 @@ template <typename T> struct is_event_profiling_info_desc : std::false_type {};
 // workaround, we use return_type alias from is_*info_desc that doesn't run into
 // the same problem.
 // TODO remove once this gcc/clang discrepancy is resolved
+
+template <typename T> struct is_backend_info_desc : std::false_type {};
+// Similar approach to limit valid get_backend_info template argument
+
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template <> struct PiInfoCode<info::DescType::Desc> {                        \
     static constexpr pi_##DescType##_info value = PiCode;                      \
@@ -117,7 +128,14 @@ struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
 #include <sycl/info/ext_intel_device_traits.def>
 #include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
+  template <>                                                                  \
+  struct is_backend_info_desc<info::DescType::Desc> : std::true_type {         \
+    using return_type = info::DescType::Desc::return_type;                     \
+  };
+#include <sycl/info/sycl_backend_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t1.out
+// RUN: %{build} -o %t1.out
 // RUN: %t1.out
 
 // REQUIRES: cpu, gpu
@@ -11,7 +11,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 

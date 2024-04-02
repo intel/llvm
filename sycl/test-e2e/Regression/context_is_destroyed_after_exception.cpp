@@ -1,11 +1,11 @@
 // REQUIRES: gpu
 
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
+// RUN: %{build} -o %t.out
+// RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 //
 // XFAIL: hip_nvidia
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   const auto GlobalRange = 1;

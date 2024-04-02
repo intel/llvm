@@ -64,7 +64,8 @@
 
 #include <chrono>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
 class Inc;
 template <class Kernel> void check_build_time(sycl::queue &q) {
   auto start = std::chrono::steady_clock::now();
@@ -85,7 +86,7 @@ int main(int argc, char **argv) {
     int data = 0;
     {
       sycl::buffer<int, 1> buf(&data, sycl::range<1>(1));
-      sycl::range<1> NumOfWorkItems{buf.get_count()};
+      sycl::range<1> NumOfWorkItems{buf.size()};
 
       q.submit([&](sycl::handler &cgh) {
         auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);

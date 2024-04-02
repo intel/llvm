@@ -18,7 +18,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/MC/MCInstrItineraries.h"
 #include "llvm/MC/MCSchedule.h"
-#include "llvm/MC/SubtargetFeature.h"
+#include "llvm/TargetParser/SubtargetFeature.h"
 #include "llvm/TargetParser/Triple.h"
 #include <cassert>
 #include <cstdint>
@@ -230,8 +230,14 @@ public:
     return Found != ProcDesc.end() && StringRef(Found->Key) == CPU;
   }
 
+  /// Return processor descriptions.
   ArrayRef<SubtargetSubTypeKV> getAllProcessorDescriptions() const {
     return ProcDesc;
+  }
+
+  /// Return processor features.
+  ArrayRef<SubtargetFeatureKV> getAllProcessorFeatures() const {
+    return ProcFeatures;
   }
 
   virtual unsigned getHwMode() const { return 0; }

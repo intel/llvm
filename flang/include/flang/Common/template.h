@@ -9,12 +9,12 @@
 #ifndef FORTRAN_COMMON_TEMPLATE_H_
 #define FORTRAN_COMMON_TEMPLATE_H_
 
+#include "variant.h"
 #include "flang/Common/idioms.h"
 #include <functional>
 #include <optional>
 #include <tuple>
 #include <type_traits>
-#include <variant>
 #include <vector>
 
 // Utility templates for metaprogramming and for composing the
@@ -94,8 +94,10 @@ constexpr int SearchMembers{
         TUPLEorVARIANT>::value()};
 
 template <typename A, typename TUPLEorVARIANT>
-constexpr bool HasMember{
-    SearchMembers<MatchType<A>::template Match, TUPLEorVARIANT> >= 0};
+constexpr int FindMember{
+    SearchMembers<MatchType<A>::template Match, TUPLEorVARIANT>};
+template <typename A, typename TUPLEorVARIANT>
+constexpr bool HasMember{FindMember<A, TUPLEorVARIANT> >= 0};
 
 // std::optional<std::optional<A>> -> std::optional<A>
 template <typename A>

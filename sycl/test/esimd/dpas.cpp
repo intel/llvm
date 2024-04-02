@@ -8,7 +8,6 @@
 
 using namespace sycl::ext::intel::esimd;
 
-namespace old = sycl::ext::intel::experimental::esimd;
 namespace xmx = sycl::ext::intel::esimd::xmx;
 
 using bfloat16 = sycl::ext::oneapi::bfloat16;
@@ -20,17 +19,12 @@ constexpr auto s2 = xmx::dpas_argument_type::s2;
 constexpr auto s8 = xmx::dpas_argument_type::s8;
 
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func();
-SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void old_func();
 
-SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void old_func_end();
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func_end();
 
 class EsimdFunctor {
 public:
-  void operator()() __attribute__((sycl_explicit_simd)) {
-    old_func();
-    xmx_func();
-  }
+  void operator()() __attribute__((sycl_explicit_simd)) { xmx_func(); }
 };
 
 template <typename name, typename Func>
@@ -44,158 +38,6 @@ void bar() {
 }
 
 template <typename... T> SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void zoo(T... A);
-
-SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void old_func() {
-  // DPAS: Result(M x N) = A(M x K) * B(K x N)
-  // where:
-  //   M = RepeatCount;
-  //   K = SystolicDepth * OpsPerChannel;
-  //   N = ExecutionSize, must be 16 on PVC and 8 on DG2.
-  constexpr int M_one = 1;
-  constexpr int K_half = 8 * 2;
-  constexpr int K_bf16 = 8 * 2;
-  constexpr int K_int8x2 = 8 * 4;
-  constexpr int N_pvc = 16;
-  constexpr int N_dg2 = 8;
-
-  // CHECK: define dso_local spir_func void @_Z8old_funcv()
-
-  { // ======= DPAS BF16 =======================================================
-    simd<bfloat16, M_one *N_pvc> R_bf = 0;
-    simd<float, M_one *N_pvc> R_f = 0;
-
-    simd<bfloat16, M_one *N_pvc> C_bf = 0;
-    simd<float, M_one *N_pvc> C_f = 0;
-
-    simd<int, K_bf16 *N_pvc / 2> B_int = 0; // 2 bf16 per 1 int32
-    simd<int, M_one *K_bf16 / 2> A_int = 0; // 2 bf16 per 1 int32
-
-    // ------------ DPAS BF16: WITH THE ACCUMULATOR OPERAND --------------------
-    R_f = old::dpas<bf16, bf16, float, 8, 1>(C_f, B_int, A_int);
-    zoo(R_f);
-    // CHECK: call <16 x float> @llvm.genx.dpas2.v16f32.v16f32.v128i32.v8i32(<16 x float> {{[^,]+}}, <128 x i32> {{[^,]+}}, <8 x i32> {{[^,]+}}, i32 9, i32 9, i32 8, i32 1, i32 1, i32 1)
-
-    R_f = old::dpas<bf16, bf16, float, 8, 1>(C_bf, B_int, A_int);
-    zoo(R_f);
-    // CHECK: call <16 x float> @llvm.genx.dpas2.v16f32.v16i16.v128i32.v8i32(<16 x i16> {{[^,]+}}, <128 x i32> {{[^,]+}}, <8 x i32> {{[^,]+}}, i32 9, i32 9, i32 8, i32 1, i32 1, i32 0)
-
-    R_bf = old::dpas<bf16, bf16, bfloat16, 8, 1>(C_f, B_int, A_int);
-    zoo(R_bf);
-    // CHECK: call <16 x i16> @llvm.genx.dpas2.v16i16.v16f32.v128i32.v8i32(<16 x float> {{[^,]+}}, <128 x i32> {{[^,]+}}, <8 x i32> {{[^,]+}}, i32 9, i32 9, i32 8, i32 1, i32 0, i32 1)
-
-    R_bf = old::dpas<bf16, bf16, bfloat16, 8, 1>(C_bf, B_int, A_int);
-    zoo(R_bf);
-    // CHECK: call <16 x i16> @llvm.genx.dpas2.v16i16.v16i16.v128i32.v8i32(<16 x i16> {{[^,]+}}, <128 x i32> {{[^,]+}}, <8 x i32> {{[^,]+}}, i32 9, i32 9, i32 8, i32 1, i32 0, i32 0)
-
-    // ------------ DPAS BF16: WITHOUT THE ACCUMULATOR OPERAND -----------------
-    R_f = old::dpas<bf16, bf16, 8, 1, float, int, int, M_one * N_pvc>(B_int,
-                                                                      A_int);
-    zoo(R_f);
-    // CHECK: call <16 x float> @llvm.genx.dpas.nosrc0.v16f32.v128i32.v8i32(<128 x i32> {{[^,]+}}, <8 x i32> {{[^,]+}}, i32 17303817)
-
-    R_bf = old::dpas<bf16, bf16, 8, 1, bfloat16, int, int, M_one * N_pvc>(
-        B_int, A_int);
-    zoo(R_bf);
-    // CHECK: call <16 x i16> @llvm.genx.dpas.nosrc0.v16i16.v128i32.v8i32(<128 x i32> {{[^,]+}}, <8 x i32> {{[^,]+}}, i32 17303817)
-  }
-
-  { // ======= DPAS FP16 =======================================================
-    simd<half, M_one *N_pvc> R_hf = 0;
-    simd<float, M_one *N_pvc> R_f = 0;
-
-    simd<half, M_one *N_pvc> C_hf = 0;
-    simd<float, M_one *N_pvc> C_f = 0;
-
-    simd<int, K_half *N_pvc / 2> B_int = 0; // 2 fp16 per 1 int32
-    simd<int, M_one *K_half / 2> A_int = 0; // 2 fp16 per 1 int32
-
-    // ------------ DPAS FP16: WITH THE ACCUMULATOR OPERAND --------------------
-    R_f = old::dpas<fp16, fp16, float, 8, 1>(C_f, B_int, A_int);
-    zoo(R_f);
-    // CHECK: call <16 x float> @llvm.genx.dpas2.v16f32.v16f32.v128i32.v8i32(<16 x float> {{[^,]+}}, <128 x i32> {{[^,]+}}, <8 x i32> {{[^,]+}}, i32 10, i32 10, i32 8, i32 1, i32 1, i32 1)
-
-    R_f = old::dpas<fp16, fp16, float, 8, 1>(C_hf, B_int, A_int);
-    zoo(R_f);
-    // CHECK: call <16 x float> @llvm.genx.dpas2.v16f32.v16f16.v128i32.v8i32(<16 x half> {{[^,]+}}, <128 x i32> {{[^,]+}}, <8 x i32> {{[^,]+}}, i32 10, i32 10, i32 8, i32 1, i32 1, i32 0)
-
-    R_hf = old::dpas<fp16, fp16, half, 8, 1>(C_f, B_int, A_int);
-    zoo(R_hf);
-    // CHECK: call <16 x half> @llvm.genx.dpas2.v16f16.v16f32.v128i32.v8i32(<16 x float> {{[^,]+}}, <128 x i32> {{[^,]+}}, <8 x i32> {{[^,]+}}, i32 10, i32 10, i32 8, i32 1, i32 0, i32 1)
-
-    R_hf = old::dpas<fp16, fp16, half, 8, 1>(C_hf, B_int, A_int);
-    zoo(R_hf);
-    // CHECK: call <16 x half> @llvm.genx.dpas2.v16f16.v16f16.v128i32.v8i32(<16 x half> {{[^,]+}}, <128 x i32> {{[^,]+}}, <8 x i32> {{[^,]+}}, i32 10, i32 10, i32 8, i32 1, i32 0, i32 0)
-
-    // ------------ DPAS FP16: WITHOUT THE ACCUMULATOR OPERAND -----------------
-    R_f = old::dpas<fp16, fp16, 8, 1, float, int, int, M_one * N_pvc>(B_int,
-                                                                      A_int);
-    zoo(R_f);
-    // CHECK: call <16 x float> @llvm.genx.dpas.nosrc0.v16f32.v128i32.v8i32(<128 x i32> {{[^,]+}}, <8 x i32> {{[^,]+}}, i32 17304074)
-
-    R_hf = old::dpas<fp16, fp16, 8, 1, half, int, int, M_one * N_pvc>(B_int,
-                                                                      A_int);
-    zoo(R_hf);
-    // CHECK: call <16 x half> @llvm.genx.dpas.nosrc0.v16f16.v128i32.v8i32(<128 x i32> {{[^,]+}}, <8 x i32> {{[^,]+}}, i32 17304074)
-  }
-
-  { // ======= DPAS 8-BIT x 2-BIT INT ==========================================
-    simd<int, M_one *N_pvc> R_d = 0;
-    simd<int, M_one *N_pvc> C_d = 0;
-    simd<int, K_int8x2 *N_pvc / 16> B_int2 = 0; // 16 2-bit integers per int32
-    simd<int, M_one *K_int8x2 / 4> A_int8 = 0;  // 4 8-bit integers per int32
-
-    // ------------ DPAS s8 x s2: WITH THE ACCUMULATOR OPERAND -----------------
-    R_d = old::dpas<s2, s8, int, 8, 1>(C_d, B_int2, A_int8);
-    zoo(R_d);
-    // CHECK: call <16 x i32> @llvm.genx.dpas2.v16i32.v16i32.v32i32.v8i32(<16 x i32> {{[^,]+}}, <32 x i32> {{[^,]+}}, <8 x i32> {{[^,]+}}, i32 4, i32 8, i32 8, i32 1, i32 1, i32 1)
-
-    // ------------ DPAS s8 x s2: WITHOUT THE ACCUMULATOR OPERAND --------------
-    R_d = old::dpas<s2, s8, 8, 1, int, int, int, M_one * N_pvc>(B_int2, A_int8);
-    zoo(R_d);
-    // CHECK: call <16 x i32> @llvm.genx.dpas.nosrc0.v16i32.v32i32.v8i32(<32 x i32> {{[^,]+}}, <8 x i32> {{[^,]+}}, i32 17303556)
-  }
-
-  { // ======= DPASW BF16 ======================================================
-    simd<float, M_one *N_dg2> R_f = 0;
-    simd<float, M_one *N_dg2> C_f = 0;
-
-    simd<int, K_bf16 *N_dg2 / 2> B_int = 0; // 2 bf16 per 1 int32
-    simd<int, M_one *K_bf16 / 4> A_int = 0; // 2 bf16 per 1 int32
-
-    // ------------ DPASW BF16: WITH THE ACCUMULATOR OPERAND -------------------
-    R_f = old::dpasw<bf16, bf16, 8, 1, float>(C_f, B_int, A_int);
-    zoo(R_f);
-    // CHECK: call <8 x float> @llvm.genx.dpasw.v8f32.v64i32.v4i32(<8 x float> {{[^,]+}}, <64 x i32> {{[^,]+}}, <4 x i32> {{[^,]+}}, i32 17303817)
-
-    // ------------ DPASW BF16: WITHOUT ACC OPERAND ----------------------------
-    R_f = old::dpasw2<bf16, bf16, 8, 1, float, int, int, M_one * N_dg2>(B_int,
-                                                                        A_int);
-    zoo(R_f);
-    // CHECK: call <8 x float> @llvm.genx.dpasw.nosrc0.v8f32.v64i32.v4i32(<64 x i32> {{[^,]+}}, <4 x i32> {{[^,]+}}, i32 17303817)
-  }
-
-  { // ======= DPASW FP16 ======================================================
-    simd<float, M_one *N_dg2> R_f = 0;
-    simd<float, M_one *N_dg2> C_f = 0;
-
-    simd<int, K_half *N_dg2 / 2> B_int = 0; // 2 fp16 per 1 int32
-    simd<int, M_one *K_half / 4> A_int = 0; // 2 fp16 per 1 int32
-
-    // ------------ DPASW FP16: WITH THE ACCUMULATOR OPERAND -------------------
-    R_f = old::dpasw<fp16, fp16, 8, 1, float>(C_f, B_int, A_int);
-    zoo(R_f);
-    // CHECK: call <8 x float> @llvm.genx.dpasw.v8f32.v64i32.v4i32(<8 x float> {{[^,]+}}, <64 x i32> {{[^,]+}}, <4 x i32> {{[^,]+}}, i32 17304074)
-
-    // ------------ DPASW FP16: WITHOUT ACC OPERAND ----------------------------
-    R_f = old::dpasw2<fp16, fp16, 8, 1, float, int, int, M_one * N_dg2>(B_int,
-                                                                        A_int);
-    zoo(R_f);
-    // CHECK: call <8 x float> @llvm.genx.dpasw.nosrc0.v8f32.v64i32.v4i32(<64 x i32> {{[^,]+}}, <4 x i32> {{[^,]+}}, i32 17304074)
-  }
-
-  old_func_end();
-  // CHECK: call spir_func void @_Z12old_func_endv()
-}
 
 SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func() {
   // DPAS: Result(M x N) = A(M x K) * B(K x N)
@@ -211,7 +53,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func() {
   constexpr int N_pvc = 16;
   constexpr int N_dg2 = 8;
 
-  // CHECK: define dso_local spir_func void @_Z8xmx_funcv()
+  // CHECK-LABEL: define dso_local spir_func void @_Z8xmx_funcv()
 
   { // ======= DPAS BF16 =======================================================
     simd<bfloat16, M_one *N_pvc> R_bf = 0;
@@ -325,8 +167,8 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func() {
     simd<float, M_one *N_dg2> R_f = 0;
     simd<float, M_one *N_dg2> C_f = 0;
 
-    simd<bfloat16, K_half *N_dg2> B_hf = 0;
-    simd<bfloat16, M_one *K_half / 2> A_hf = 0;
+    simd<half, K_half * N_dg2> B_hf = 0;
+    simd<half, M_one * K_half / 2> A_hf = 0;
 
     // ------------ DPASW FP16: WITH THE ACCUMULATOR OPERAND -------------------
     R_f = xmx::dpasw<8, 1, float>(C_f, B_hf, A_hf);
@@ -360,5 +202,5 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void xmx_func() {
   }
 
   xmx_func_end();
-  // CHECK: call spir_func void @_Z12xmx_func_endv()
+  // CHECK-LABEL: call spir_func void @_Z12xmx_func_endv()
 }

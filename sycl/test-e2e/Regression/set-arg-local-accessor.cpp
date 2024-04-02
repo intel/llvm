@@ -1,9 +1,7 @@
 // REQUIRES: opencl, opencl_icd
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s %opencl_lib -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} %opencl_lib -o %t.out
+// RUN: %{run} %t.out
 
 #include <sycl/sycl.hpp>
 
@@ -62,7 +60,7 @@ int main() {
     cgh.parallel_for(nd_range<1>(N_wg, 1), K);
   });
 
-  auto acc_global = b.get_access<access::mode::read>();
+  auto acc_global = b.get_host_access();
   for (int i = 0; i < N_wg; i++) {
     if (acc_global[i] != 1) {
       std::cerr << "Error in WG " << i << std::endl;

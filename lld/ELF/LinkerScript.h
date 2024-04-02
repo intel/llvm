@@ -16,6 +16,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/MapVector.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Compiler.h"
 #include <cstddef>
@@ -86,9 +87,9 @@ struct SectionCommand {
 
 // This represents ". = <expr>" or "<symbol> = <expr>".
 struct SymbolAssignment : SectionCommand {
-  SymbolAssignment(StringRef name, Expr e, std::string loc)
+  SymbolAssignment(StringRef name, Expr e, unsigned symOrder, std::string loc)
       : SectionCommand(AssignmentKind), name(name), expression(e),
-        location(loc) {}
+        symOrder(symOrder), location(loc) {}
 
   static bool classof(const SectionCommand *c) {
     return c->kind == AssignmentKind;
@@ -104,6 +105,11 @@ struct SymbolAssignment : SectionCommand {
   // Command attributes for PROVIDE, HIDDEN and PROVIDE_HIDDEN.
   bool provide = false;
   bool hidden = false;
+
+  // This assignment references DATA_SEGMENT_RELRO_END.
+  bool dataSegmentRelroEnd = false;
+
+  unsigned symOrder;
 
   // Holds file name and line number for error reporting.
   std::string location;
@@ -150,6 +156,9 @@ struct MemoryRegion {
   // For example, the memory region attribute "!r" maps to SHF_WRITE.
   uint32_t negInvFlags;
   uint64_t curPos = 0;
+
+  uint64_t getOrigin() const { return origin().getValue(); }
+  uint64_t getLength() const { return length().getValue(); }
 
   bool compatibleWith(uint32_t secFlags) const {
     if ((secFlags & negFlags) || (~secFlags & negInvFlags))
@@ -315,6 +324,7 @@ public:
 
   void addOrphanSections();
   void diagnoseOrphanHandling() const;
+  void diagnoseMissingSGSectionAddress() const;
   void adjustOutputSections();
   void adjustSectionsAfterSorting();
 
@@ -333,6 +343,24 @@ public:
   // Used to handle INSERT AFTER statements.
   void processInsertCommands();
 
+  // Describe memory region usage.
+  void printMemoryUsage(raw_ostream &os);
+
+  // Check backward location counter assignment and memory region/LMA overflows.
+  void checkFinalScriptConditions() const;
+
+  // Add symbols that are referenced in the linker script to the symbol table.
+  // Symbols referenced in a PROVIDE command are only added to the symbol table
+  // if the PROVIDE command actually provides the symbol.
+  // It also adds the symbols referenced by the used PROVIDE symbols to the
+  // linker script referenced symbols list.
+  void addScriptReferencedSymbolsToSymTable();
+
+  // Returns true if the PROVIDE symbol should be added to the link.
+  // A PROVIDE symbol is added to the link only if it satisfies an
+  // undefined reference.
+  static bool shouldAddProvideSym(StringRef symName);
+
   // SECTIONS command list.
   SmallVector<SectionCommand *, 0> sectionCommands;
 
@@ -340,7 +368,10 @@ public:
   SmallVector<PhdrsCommand, 0> phdrsCommands;
 
   bool hasSectionsCommand = false;
+  bool seenDataAlign = false;
+  bool seenRelroEnd = false;
   bool errorOnMissingSection = false;
+  std::string backwardDotErr;
 
   // List of section patterns specified with KEEP commands. They will
   // be kept even if they are unused and --gc-sections is specified.
@@ -361,6 +392,14 @@ public:
 
   // Sections that will be warned/errored by --orphan-handling.
   SmallVector<const InputSectionBase *, 0> orphanSections;
+
+  // Stores the mapping: PROVIDE symbol -> symbols referred in the PROVIDE
+  // expression. For example, if the PROVIDE command is:
+  //
+  // PROVIDE(v = a + b + c);
+  //
+  // then provideMap should contain the mapping: 'v' -> ['a', 'b', 'c']
+  llvm::MapVector<StringRef, SmallVector<StringRef, 0>> provideMap;
 };
 
 LLVM_LIBRARY_VISIBILITY extern std::unique_ptr<LinkerScript> script;

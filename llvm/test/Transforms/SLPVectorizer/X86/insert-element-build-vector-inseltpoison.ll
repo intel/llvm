@@ -70,8 +70,10 @@ define <4 x float> @simple_select_eph(<4 x float> %a, <4 x float> %b, <4 x i32> 
 ; THRESHOLD-NEXT:    [[RD:%.*]] = insertelement <4 x float> [[RC]], float [[S3]], i32 3
 ; THRESHOLD-NEXT:    [[Q0:%.*]] = extractelement <4 x float> [[RD]], i32 0
 ; THRESHOLD-NEXT:    [[Q1:%.*]] = extractelement <4 x float> [[RD]], i32 1
+; THRESHOLD-NEXT:    [[TMP1:%.*]] = shufflevector <4 x float> [[RD]], <4 x float> poison, <2 x i32> <i32 0, i32 1>
 ; THRESHOLD-NEXT:    [[Q2:%.*]] = extractelement <4 x float> [[RD]], i32 2
 ; THRESHOLD-NEXT:    [[Q3:%.*]] = extractelement <4 x float> [[RD]], i32 3
+; THRESHOLD-NEXT:    [[TMP2:%.*]] = shufflevector <4 x float> [[RD]], <4 x float> poison, <2 x i32> <i32 2, i32 3>
 ; THRESHOLD-NEXT:    [[Q4:%.*]] = fadd float [[Q0]], [[Q1]]
 ; THRESHOLD-NEXT:    [[Q5:%.*]] = fadd float [[Q2]], [[Q3]]
 ; THRESHOLD-NEXT:    [[Q6:%.*]] = fadd float [[Q4]], [[Q5]]
@@ -283,9 +285,9 @@ define <4 x float> @simple_select_no_users(<4 x float> %a, <4 x float> %b, <4 x 
 ; CHECK-NEXT:    [[TMP8:%.*]] = shufflevector <4 x float> [[A]], <4 x float> poison, <2 x i32> <i32 2, i32 3>
 ; CHECK-NEXT:    [[TMP9:%.*]] = shufflevector <4 x float> [[B]], <4 x float> poison, <2 x i32> <i32 2, i32 3>
 ; CHECK-NEXT:    [[TMP10:%.*]] = select <2 x i1> [[TMP7]], <2 x float> [[TMP8]], <2 x float> [[TMP9]]
-; CHECK-NEXT:    [[TMP11:%.*]] = shufflevector <2 x float> [[TMP5]], <2 x float> poison, <4 x i32> <i32 0, i32 1, i32 undef, i32 undef>
-; CHECK-NEXT:    [[TMP12:%.*]] = shufflevector <2 x float> [[TMP10]], <2 x float> poison, <4 x i32> <i32 0, i32 1, i32 undef, i32 undef>
-; CHECK-NEXT:    [[RD1:%.*]] = shufflevector <4 x float> [[TMP12]], <4 x float> poison, <4 x i32> <i32 undef, i32 undef, i32 0, i32 1>
+; CHECK-NEXT:    [[TMP11:%.*]] = shufflevector <2 x float> [[TMP5]], <2 x float> poison, <4 x i32> <i32 0, i32 1, i32 poison, i32 poison>
+; CHECK-NEXT:    [[TMP12:%.*]] = shufflevector <2 x float> [[TMP10]], <2 x float> poison, <4 x i32> <i32 0, i32 1, i32 poison, i32 poison>
+; CHECK-NEXT:    [[RD1:%.*]] = shufflevector <4 x float> [[TMP12]], <4 x float> poison, <4 x i32> <i32 poison, i32 poison, i32 0, i32 1>
 ; CHECK-NEXT:    ret <4 x float> [[RD1]]
 ;
   %c0 = extractelement <4 x i32> %c, i32 0

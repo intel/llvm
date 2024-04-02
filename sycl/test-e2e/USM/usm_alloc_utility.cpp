@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 //==------ usm_alloc_utility.cpp - USM malloc and aligned_alloc test -------==//
 //
@@ -11,7 +9,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/intel/experimental/usm_properties.hpp>
+#include <sycl/usm.hpp>
 
 #include <cassert>
 

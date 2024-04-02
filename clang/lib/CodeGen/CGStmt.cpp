@@ -43,6 +43,10 @@ using namespace CodeGen;
 //                              Statement Emission
 //===----------------------------------------------------------------------===//
 
+namespace llvm {
+extern cl::opt<bool> EnableSingleByteCoverage;
+} // namespace llvm
+
 void CodeGenFunction::EmitStopPoint(const Stmt *S) {
   if (CGDebugInfo *DI = getDebugInfo()) {
     SourceLocation Loc;
@@ -407,8 +411,10 @@ void CodeGenFunction::EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs) {
     EmitOMPInteropDirective(cast<OMPInteropDirective>(*S));
     break;
   case Stmt::OMPDispatchDirectiveClass:
-    llvm_unreachable("Dispatch directive not supported yet.");
+    CGM.ErrorUnsupported(S, "OpenMP dispatch directive");
     break;
+  case Stmt::OMPScopeDirectiveClass:
+    llvm_unreachable("scope not supported with FE outlining");
   case Stmt::OMPMaskedDirectiveClass:
     EmitOMPMaskedDirective(cast<OMPMaskedDirective>(*S));
     break;
@@ -416,19 +422,25 @@ void CodeGenFunction::EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs) {
     EmitOMPGenericLoopDirective(cast<OMPGenericLoopDirective>(*S));
     break;
   case Stmt::OMPTeamsGenericLoopDirectiveClass:
-    llvm_unreachable("teams loop directive not supported yet.");
+    EmitOMPTeamsGenericLoopDirective(cast<OMPTeamsGenericLoopDirective>(*S));
     break;
   case Stmt::OMPTargetTeamsGenericLoopDirectiveClass:
-    llvm_unreachable("target teams loop directive not supported yet.");
+    EmitOMPTargetTeamsGenericLoopDirective(
+        cast<OMPTargetTeamsGenericLoopDirective>(*S));
     break;
   case Stmt::OMPParallelGenericLoopDirectiveClass:
-    llvm_unreachable("parallel loop directive not supported yet.");
+    EmitOMPParallelGenericLoopDirective(
+        cast<OMPParallelGenericLoopDirective>(*S));
     break;
   case Stmt::OMPTargetParallelGenericLoopDirectiveClass:
-    llvm_unreachable("target parallel loop directive not supported yet.");
+    EmitOMPTargetParallelGenericLoopDirective(
+        cast<OMPTargetParallelGenericLoopDirective>(*S));
     break;
   case Stmt::OMPParallelMaskedDirectiveClass:
-    llvm_unreachable("parallel masked directive not supported yet.");
+    EmitOMPParallelMaskedDirective(cast<OMPParallelMaskedDirective>(*S));
+    break;
+  case Stmt::OpenACCComputeConstructClass:
+    EmitOpenACCComputeConstruct(cast<OpenACCComputeConstruct>(*S));
     break;
   }
 }
@@ -716,11 +728,19 @@ void CodeGenFunction::EmitAttributedStmt(const AttributedStmt &S) {
     case attr::AlwaysInline:
       alwaysinline = true;
       break;
-    case attr::MustTail:
+    case attr::MustTail: {
       const Stmt *Sub = S.getSubStmt();
       const ReturnStmt *R = cast<ReturnStmt>(Sub);
       musttail = cast<CallExpr>(R->getRetValue()->IgnoreParens());
-      break;
+    } break;
+    case attr::CXXAssume: {
+      const Expr *Assumption = cast<CXXAssumeAttr>(A)->getAssumption();
+      if (getLangOpts().CXXAssumptions &&
+          !Assumption->HasSideEffects(getContext())) {
+        llvm::Value *AssumptionVal = EvaluateExprAsBool(Assumption);
+        Builder.CreateAssumption(AssumptionVal);
+      }
+    } break;
     }
   }
   SaveAndRestore save_nomerge(InNoMergeAttributedStmt, nomerge);
@@ -832,11 +852,26 @@ void CodeGenFunction::EmitIfStmt(const IfStmt &S) {
   if (!ThenCount && !getCurrentProfileCount() &&
       CGM.getCodeGenOpts().OptimizationLevel)
     LH = Stmt::getLikelihood(S.getThen(), S.getElse());
-  EmitBranchOnBoolExpr(S.getCond(), ThenBlock, ElseBlock, ThenCount, LH);
+
+  // When measuring MC/DC, always fully evaluate the condition up front using
+  // EvaluateExprAsBool() so that the test vector bitmap can be updated prior to
+  // executing the body of the if.then or if.else. This is useful for when
+  // there is a 'return' within the body, but this is particularly beneficial
+  // when one if-stmt is nested within another if-stmt so that all of the MC/DC
+  // updates are kept linear and consistent.
+  if (!CGM.getCodeGenOpts().MCDCCoverage)
+    EmitBranchOnBoolExpr(S.getCond(), ThenBlock, ElseBlock, ThenCount, LH);
+  else {
+    llvm::Value *BoolCondVal = EvaluateExprAsBool(S.getCond());
+    Builder.CreateCondBr(BoolCondVal, ThenBlock, ElseBlock);
+  }
 
   // Emit the 'then' code.
   EmitBlock(ThenBlock);
-  incrementProfileCounter(&S);
+  if (llvm::EnableSingleByteCoverage)
+    incrementProfileCounter(S.getThen());
+  else
+    incrementProfileCounter(&S);
   {
     RunCleanupsScope ThenScope(*this);
     EmitStmt(S.getThen());
@@ -850,6 +885,9 @@ void CodeGenFunction::EmitIfStmt(const IfStmt &S) {
       auto NL = ApplyDebugLocation::CreateEmpty(*this);
       EmitBlock(ElseBlock);
     }
+    // When single byte coverage mode is enabled, add a counter to else block.
+    if (llvm::EnableSingleByteCoverage)
+      incrementProfileCounter(Else);
     {
       RunCleanupsScope ElseScope(*this);
       EmitStmt(Else);
@@ -863,6 +901,11 @@ void CodeGenFunction::EmitIfStmt(const IfStmt &S) {
 
   // Emit the continuation block for code after the if.
   EmitBlock(ContBlock, true);
+
+  // When single byte coverage mode is enabled, add a counter to continuation
+  // block.
+  if (llvm::EnableSingleByteCoverage)
+    incrementProfileCounter(&S);
 }
 
 void CodeGenFunction::EmitWhileStmt(const WhileStmt &S,
@@ -907,6 +950,10 @@ void CodeGenFunction::EmitWhileStmt(const WhileStmt &S,
                  SourceLocToDebugLoc(R.getEnd()),
                  checkIfLoopMustProgress(CondIsConstInt));
 
+  // When single byte coverage mode is enabled, add a counter to loop condition.
+  if (llvm::EnableSingleByteCoverage)
+    incrementProfileCounter(S.getCond());
+
   // As long as the condition is true, go to the loop body.
   llvm::BasicBlock *LoopBody = createBasicBlock("while.body");
   if (EmitBoolCondBranch) {
@@ -939,7 +986,11 @@ void CodeGenFunction::EmitWhileStmt(const WhileStmt &S,
   {
     RunCleanupsScope BodyScope(*this);
     EmitBlock(LoopBody);
-    incrementProfileCounter(&S);
+    // When single byte coverage mode is enabled, add a counter to the body.
+    if (llvm::EnableSingleByteCoverage)
+      incrementProfileCounter(S.getBody());
+    else
+      incrementProfileCounter(&S);
     EmitStmt(S.getBody());
   }
 
@@ -961,6 +1012,11 @@ void CodeGenFunction::EmitWhileStmt(const WhileStmt &S,
   // a branch, try to erase it.
   if (!EmitBoolCondBranch)
     SimplifyForwardingBlocks(LoopHeader.getBlock());
+
+  // When single byte coverage mode is enabled, add a counter to continuation
+  // block.
+  if (llvm::EnableSingleByteCoverage)
+    incrementProfileCounter(&S);
 }
 
 void CodeGenFunction::EmitDoStmt(const DoStmt &S,
@@ -976,13 +1032,19 @@ void CodeGenFunction::EmitDoStmt(const DoStmt &S,
   // Emit the body of the loop.
   llvm::BasicBlock *LoopBody = createBasicBlock("do.body");
 
-  EmitBlockWithFallThrough(LoopBody, &S);
+  if (llvm::EnableSingleByteCoverage)
+    EmitBlockWithFallThrough(LoopBody, S.getBody());
+  else
+    EmitBlockWithFallThrough(LoopBody, &S);
   {
     RunCleanupsScope BodyScope(*this);
     EmitStmt(S.getBody());
   }
 
   EmitBlock(LoopCond.getBlock());
+  // When single byte coverage mode is enabled, add a counter to loop condition.
+  if (llvm::EnableSingleByteCoverage)
+    incrementProfileCounter(S.getCond());
 
   // C99 6.8.5.2: "The evaluation of the controlling expression takes place
   // after each execution of the loop body."
@@ -1023,6 +1085,11 @@ void CodeGenFunction::EmitDoStmt(const DoStmt &S,
   // emitting a branch, try to erase it.
   if (!EmitBoolCondBranch)
     SimplifyForwardingBlocks(LoopCond.getBlock());
+
+  // When single byte coverage mode is enabled, add a counter to continuation
+  // block.
+  if (llvm::EnableSingleByteCoverage)
+    incrementProfileCounter(&S);
 }
 
 void CodeGenFunction::EmitForStmt(const ForStmt &S,
@@ -1081,6 +1148,11 @@ void CodeGenFunction::EmitForStmt(const ForStmt &S,
       BreakContinueStack.back().ContinueBlock = Continue;
     }
 
+    // When single byte coverage mode is enabled, add a counter to loop
+    // condition.
+    if (llvm::EnableSingleByteCoverage)
+      incrementProfileCounter(S.getCond());
+
     llvm::BasicBlock *ExitBlock = LoopExit.getBlock();
     // If there are any cleanups between here and the loop-exit scope,
     // create a block to stage a loop exit along.
@@ -1111,8 +1183,12 @@ void CodeGenFunction::EmitForStmt(const ForStmt &S,
     // Treat it as a non-zero constant.  Don't even create a new block for the
     // body, just fall into it.
   }
-  incrementProfileCounter(&S);
 
+  // When single byte coverage mode is enabled, add a counter to the body.
+  if (llvm::EnableSingleByteCoverage)
+    incrementProfileCounter(S.getBody());
+  else
+    incrementProfileCounter(&S);
   {
     // Create a separate cleanup scope for the body, in case it is not
     // a compound statement.
@@ -1124,6 +1200,8 @@ void CodeGenFunction::EmitForStmt(const ForStmt &S,
   if (S.getInc()) {
     EmitBlock(Continue.getBlock());
     EmitStmt(S.getInc());
+    if (llvm::EnableSingleByteCoverage)
+      incrementProfileCounter(S.getInc());
   }
 
   BreakContinueStack.pop_back();
@@ -1139,6 +1217,11 @@ void CodeGenFunction::EmitForStmt(const ForStmt &S,
 
   // Emit the fall-through block.
   EmitBlock(LoopExit.getBlock(), true);
+
+  // When single byte coverage mode is enabled, add a counter to continuation
+  // block.
+  if (llvm::EnableSingleByteCoverage)
+    incrementProfileCounter(&S);
 }
 
 void
@@ -1191,7 +1274,10 @@ CodeGenFunction::EmitCXXForRangeStmt(const CXXForRangeStmt &S,
   }
 
   EmitBlock(ForBody);
-  incrementProfileCounter(&S);
+  if (llvm::EnableSingleByteCoverage)
+    incrementProfileCounter(S.getBody());
+  else
+    incrementProfileCounter(&S);
 
   // Create a block for the increment. In case of a 'continue', we jump there.
   JumpDest Continue = getJumpDestInCurrentScope("for.inc");
@@ -1221,6 +1307,11 @@ CodeGenFunction::EmitCXXForRangeStmt(const CXXForRangeStmt &S,
 
   // Emit the fall-through block.
   EmitBlock(LoopExit.getBlock(), true);
+
+  // When single byte coverage mode is enabled, add a counter to continuation
+  // block.
+  if (llvm::EnableSingleByteCoverage)
+    incrementProfileCounter(&S);
 }
 
 void CodeGenFunction::EmitReturnOfRValue(RValue RV, QualType Ty) {
@@ -1250,10 +1341,8 @@ struct SaveRetExprRAII {
 };
 } // namespace
 
-/// If we have 'return f(...);', where both caller and callee are SwiftAsync,
-/// codegen it as 'tail call ...; ret void;'.
-static void makeTailCallIfSwiftAsync(const CallExpr *CE, CGBuilderTy &Builder,
-                                     const CGFunctionInfo *CurFnInfo) {
+/// Determine if the given call uses the swiftasync calling convention.
+static bool isSwiftAsyncCallee(const CallExpr *CE) {
   auto calleeQualType = CE->getCallee()->getType();
   const FunctionType *calleeType = nullptr;
   if (calleeQualType->isFunctionPointerType() ||
@@ -1268,18 +1357,12 @@ static void makeTailCallIfSwiftAsync(const CallExpr *CE, CGBuilderTy &Builder,
       // getMethodDecl() doesn't handle member pointers at the moment.
       calleeType = methodDecl->getType()->castAs<FunctionType>();
     } else {
-      return;
+      return false;
     }
   } else {
-    return;
+    return false;
   }
-  if (calleeType->getCallConv() == CallingConv::CC_SwiftAsync &&
-      (CurFnInfo->getASTCallingConvention() == CallingConv::CC_SwiftAsync)) {
-    auto CI = cast<llvm::CallInst>(&Builder.GetInsertBlock()->back());
-    CI->setTailCallKind(llvm::CallInst::TCK_MustTail);
-    Builder.CreateRetVoid();
-    Builder.ClearInsertionPoint();
-  }
+  return calleeType->getCallConv() == CallingConv::CC_SwiftAsync;
 }
 
 /// EmitReturnStmt - Note that due to GCC extensions, this can have an operand
@@ -1294,8 +1377,7 @@ void CodeGenFunction::EmitReturnStmt(const ReturnStmt &S) {
     SLocPtr->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
     CGM.getSanitizerMetadata()->disableSanitizerForGlobal(SLocPtr);
     assert(ReturnLocation.isValid() && "No valid return location");
-    Builder.CreateStore(Builder.CreateBitCast(SLocPtr, Int8PtrTy),
-                        ReturnLocation);
+    Builder.CreateStore(SLocPtr, ReturnLocation);
   }
 
   // Returning from an outlined SEH helper is UB, and we already warn on it.
@@ -1320,6 +1402,19 @@ void CodeGenFunction::EmitReturnStmt(const ReturnStmt &S) {
   RunCleanupsScope cleanupScope(*this);
   if (const auto *EWC = dyn_cast_or_null<ExprWithCleanups>(RV))
     RV = EWC->getSubExpr();
+
+  // If we're in a swiftasynccall function, and the return expression is a
+  // call to a swiftasynccall function, mark the call as the musttail call.
+  std::optional<llvm::SaveAndRestore<const CallExpr *>> SaveMustTail;
+  if (RV && CurFnInfo &&
+      CurFnInfo->getASTCallingConvention() == CallingConv::CC_SwiftAsync) {
+    if (auto CE = dyn_cast<CallExpr>(RV)) {
+      if (isSwiftAsyncCallee(CE)) {
+        SaveMustTail.emplace(MustTailCall, CE);
+      }
+    }
+  }
+
   // FIXME: Clean this up by using an LValue for ReturnTemp,
   // EmitStoreThroughLValue, and EmitAnyExpr.
   // Check if the NRVO candidate was not globalized in OpenMP mode.
@@ -1342,8 +1437,6 @@ void CodeGenFunction::EmitReturnStmt(const ReturnStmt &S) {
     // for side effects.
     if (RV) {
       EmitAnyExpr(RV);
-      if (auto *CE = dyn_cast<CallExpr>(RV))
-        makeTailCallIfSwiftAsync(CE, Builder, CurFnInfo);
     }
   } else if (!RV) {
     // Do nothing (return value is left uninitialized)
@@ -2193,9 +2286,9 @@ std::pair<llvm::Value*, llvm::Type *> CodeGenFunction::EmitAsmInputLValue(
         getTargetHooks().isScalarizableAsmOperand(*this, Ty)) {
       Ty = llvm::IntegerType::get(getLLVMContext(), Size);
 
-      return {Builder.CreateLoad(Builder.CreateElementBitCast(
-                  InputValue.getAddress(*this), Ty)),
-              nullptr};
+      return {
+          Builder.CreateLoad(InputValue.getAddress(*this).withElementType(Ty)),
+          nullptr};
     }
   }
 
@@ -2383,9 +2476,9 @@ EmitAsmStores(CodeGenFunction &CGF, const AsmStmt &S,
         Tmp = Builder.CreatePtrToInt(
             Tmp, llvm::IntegerType::get(CTX, (unsigned)TmpSize));
         Tmp = Builder.CreateTrunc(Tmp, TruncTy);
-      } else if (TruncTy->isIntegerTy()) {
+      } else if (Tmp->getType()->isIntegerTy() && TruncTy->isIntegerTy()) {
         Tmp = Builder.CreateZExtOrTrunc(Tmp, TruncTy);
-      } else if (TruncTy->isVectorTy()) {
+      } else if (Tmp->getType()->isVectorTy() || TruncTy->isVectorTy()) {
         Tmp = Builder.CreateBitCast(Tmp, TruncTy);
       }
     }
@@ -2395,8 +2488,7 @@ EmitAsmStores(CodeGenFunction &CGF, const AsmStmt &S,
     // ResultTypeRequiresCast.size() elements of RegResults.
     if ((i < ResultTypeRequiresCast.size()) && ResultTypeRequiresCast[i]) {
       unsigned Size = CGF.getContext().getTypeSize(ResultRegQualTys[i]);
-      Address A =
-          Builder.CreateElementBitCast(Dest.getAddress(CGF), ResultRegTypes[i]);
+      Address A = Dest.getAddress(CGF).withElementType(ResultRegTypes[i]);
       if (CGF.getTargetHooks().isScalarizableAsmOperand(CGF, TruncTy)) {
         Builder.CreateStore(Tmp, A);
         continue;
@@ -2416,6 +2508,24 @@ EmitAsmStores(CodeGenFunction &CGF, const AsmStmt &S,
   }
 }
 
+static void EmitHipStdParUnsupportedAsm(CodeGenFunction *CGF,
+                                        const AsmStmt &S) {
+  constexpr auto Name = "__ASM__hipstdpar_unsupported";
+
+  StringRef Asm;
+  if (auto GCCAsm = dyn_cast<GCCAsmStmt>(&S))
+    Asm = GCCAsm->getAsmString()->getString();
+
+  auto &Ctx = CGF->CGM.getLLVMContext();
+
+  auto StrTy = llvm::ConstantDataArray::getString(Ctx, Asm);
+  auto FnTy = llvm::FunctionType::get(llvm::Type::getVoidTy(Ctx),
+                                      {StrTy->getType()}, false);
+  auto UBF = CGF->CGM.getModule().getOrInsertFunction(Name, FnTy);
+
+  CGF->Builder.CreateCall(UBF, {StrTy});
+}
+
 void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
   // Pop all cleanup blocks at the end of the asm statement.
   CodeGenFunction::RunCleanupsScope Cleanups(*this);
@@ -2427,26 +2537,37 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
   SmallVector<TargetInfo::ConstraintInfo, 4> OutputConstraintInfos;
   SmallVector<TargetInfo::ConstraintInfo, 4> InputConstraintInfos;
 
-  for (unsigned i = 0, e = S.getNumOutputs(); i != e; i++) {
+  bool IsHipStdPar = getLangOpts().HIPStdPar && getLangOpts().CUDAIsDevice;
+  bool IsValidTargetAsm = true;
+  for (unsigned i = 0, e = S.getNumOutputs(); i != e && IsValidTargetAsm; i++) {
     StringRef Name;
     if (const GCCAsmStmt *GAS = dyn_cast<GCCAsmStmt>(&S))
       Name = GAS->getOutputName(i);
     TargetInfo::ConstraintInfo Info(S.getOutputConstraint(i), Name);
     bool IsValid = getTarget().validateOutputConstraint(Info); (void)IsValid;
-    assert(IsValid && "Failed to parse output constraint");
+    if (IsHipStdPar && !IsValid)
+      IsValidTargetAsm = false;
+    else
+      assert(IsValid && "Failed to parse output constraint");
     OutputConstraintInfos.push_back(Info);
   }
 
-  for (unsigned i = 0, e = S.getNumInputs(); i != e; i++) {
+  for (unsigned i = 0, e = S.getNumInputs(); i != e && IsValidTargetAsm; i++) {
     StringRef Name;
     if (const GCCAsmStmt *GAS = dyn_cast<GCCAsmStmt>(&S))
       Name = GAS->getInputName(i);
     TargetInfo::ConstraintInfo Info(S.getInputConstraint(i), Name);
     bool IsValid =
       getTarget().validateInputConstraint(OutputConstraintInfos, Info);
-    assert(IsValid && "Failed to parse input constraint"); (void)IsValid;
+    if (IsHipStdPar && !IsValid)
+      IsValidTargetAsm = false;
+    else
+      assert(IsValid && "Failed to parse input constraint");
     InputConstraintInfos.push_back(Info);
   }
+
+  if (!IsValidTargetAsm)
+    return EmitHipStdParUnsupportedAsm(this, S);
 
   std::string Constraints;
 
@@ -2516,7 +2637,7 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
       ResultRegQualTys.push_back(QTy);
       ResultRegDests.push_back(Dest);
 
-      bool IsFlagReg = llvm::StringRef(OutputConstraint).startswith("{@cc");
+      bool IsFlagReg = llvm::StringRef(OutputConstraint).starts_with("{@cc");
       ResultRegIsFlagReg.push_back(IsFlagReg);
 
       llvm::Type *Ty = ConvertTypeForMem(QTy);
@@ -2576,8 +2697,7 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
       // Otherwise there will be a mis-match if the matrix is also an
       // input-argument which is represented as vector.
       if (isa<MatrixType>(OutExpr->getType().getCanonicalType()))
-        DestAddr = Builder.CreateElementBitCast(
-            DestAddr, ConvertType(OutExpr->getType()));
+        DestAddr = DestAddr.withElementType(ConvertType(OutExpr->getType()));
 
       ArgTypes.push_back(DestAddr.getType());
       ArgElemTypes.push_back(DestAddr.getElementType());
@@ -2779,7 +2899,7 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
          "unwind clobber can't be used with asm goto");
 
   // Add machine specific clobbers
-  std::string MachineClobbers = getTarget().getClobbers();
+  std::string_view MachineClobbers = getTarget().getClobbers();
   if (!MachineClobbers.empty()) {
     if (!Constraints.empty())
       Constraints += ',';

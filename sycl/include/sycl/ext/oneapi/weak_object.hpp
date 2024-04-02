@@ -8,16 +8,28 @@
 
 #pragma once
 
-#include <sycl/buffer.hpp>
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
+#include <sycl/access/access.hpp>     // for target, mode
+#include <sycl/accessor.hpp>          // for accessor
+#include <sycl/buffer.hpp>            // for buffer
+#include <sycl/detail/impl_utils.hpp> // for createSyc...
+#include <sycl/detail/memcpy.hpp>     // for detail
+#include <sycl/exception.hpp>         // for make_erro...
+#include <sycl/ext/codeplay/experimental/fusion_properties.hpp> // for buffer
+#include <sycl/ext/oneapi/weak_object_base.hpp> // for weak_obje...
+#include <sycl/range.hpp>                       // for range
+#include <sycl/stream.hpp>                      // for stream
 
-#include <optional>
+#include <memory>   // for shared_ptr
+#include <optional> // for optional
+#include <stddef.h> // for size_t
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi {
 namespace detail {
+// Import from detail:: into ext::oneapi::detail:: to improve readability later
+using namespace ::sycl::detail;
+
 // Helper for creating ranges for empty weak_objects.
 template <int Dims> static range<Dims> createDummyRange() {
   static_assert(Dims >= 0 && Dims < 4, "Invalid dimensionality in range.");
@@ -50,7 +62,8 @@ public:
 
   weak_object &operator=(const SYCLObjT &SYCLObj) noexcept {
     // Create weak_ptr from the shared_ptr to SYCLObj's implementation object.
-    this->MObjWeakPtr = GetWeakImpl(SYCLObj);
+    this->MObjWeakPtr =
+        detail::weak_object_base<SYCLObjT>::GetWeakImpl(SYCLObj);
     return *this;
   }
   weak_object &operator=(const weak_object &Other) noexcept = default;
@@ -103,7 +116,8 @@ public:
 
   weak_object &operator=(const buffer_type &SYCLObj) noexcept {
     // Create weak_ptr from the shared_ptr to SYCLObj's implementation object.
-    this->MObjWeakPtr = GetWeakImpl(SYCLObj);
+    this->MObjWeakPtr = detail::weak_object_base<
+        buffer<T, Dimensions, AllocatorT>>::GetWeakImpl(SYCLObj);
     this->MRange = SYCLObj.Range;
     this->MOffsetInBytes = SYCLObj.OffsetInBytes;
     this->MIsSubBuffer = SYCLObj.IsSubBuffer;
@@ -111,6 +125,13 @@ public:
   }
   weak_object &operator=(const weak_object &Other) noexcept = default;
   weak_object &operator=(weak_object &&Other) noexcept = default;
+
+  void swap(weak_object &Other) noexcept {
+    this->MObjWeakPtr.swap(Other.MObjWeakPtr);
+    std::swap(MRange, Other.MRange);
+    std::swap(MOffsetInBytes, Other.MOffsetInBytes);
+    std::swap(MIsSubBuffer, Other.MIsSubBuffer);
+  }
 
 #ifndef __SYCL_DEVICE_ONLY__
   std::optional<buffer_type> try_lock() const noexcept {
@@ -141,6 +162,78 @@ private:
   bool MIsSubBuffer;
 };
 
+// Specialization of weak_object for stream as it needs additional members
+// to reconstruct the original stream.
+template <>
+class weak_object<stream> : public detail::weak_object_base<stream> {
+public:
+  using object_type = typename detail::weak_object_base<stream>::object_type;
+
+  constexpr weak_object() noexcept : detail::weak_object_base<stream>() {}
+  weak_object(const stream &SYCLObj) noexcept
+      : detail::weak_object_base<stream>(SYCLObj),
+        MWeakGlobalBuf{SYCLObj.GlobalBuf},
+        MWeakGlobalOffset{SYCLObj.GlobalOffset},
+        MWeakGlobalFlushBuf{SYCLObj.GlobalFlushBuf} {}
+  weak_object(const weak_object &Other) noexcept = default;
+  weak_object(weak_object &&Other) noexcept = default;
+
+  weak_object &operator=(const stream &SYCLObj) noexcept {
+    // Create weak_ptr from the shared_ptr to SYCLObj's implementation object.
+    this->MObjWeakPtr = detail::weak_object_base<stream>::GetWeakImpl(SYCLObj);
+    MWeakGlobalBuf = SYCLObj.GlobalBuf;
+    MWeakGlobalOffset = SYCLObj.GlobalOffset;
+    MWeakGlobalFlushBuf = SYCLObj.GlobalFlushBuf;
+    return *this;
+  }
+  weak_object &operator=(const weak_object &Other) noexcept = default;
+  weak_object &operator=(weak_object &&Other) noexcept = default;
+
+  void swap(weak_object &Other) noexcept {
+    this->MObjWeakPtr.swap(Other.MObjWeakPtr);
+    MWeakGlobalBuf.swap(Other.MWeakGlobalBuf);
+    MWeakGlobalOffset.swap(Other.MWeakGlobalOffset);
+    MWeakGlobalFlushBuf.swap(Other.MWeakGlobalFlushBuf);
+  }
+
+  void reset() noexcept {
+    this->MObjWeakPtr.reset();
+    MWeakGlobalBuf.reset();
+    MWeakGlobalOffset.reset();
+    MWeakGlobalFlushBuf.reset();
+  }
+
+#ifndef __SYCL_DEVICE_ONLY__
+  std::optional<stream> try_lock() const noexcept {
+    auto ObjImplPtr = this->MObjWeakPtr.lock();
+    auto GlobalBuf = MWeakGlobalBuf.try_lock();
+    auto GlobalOffset = MWeakGlobalOffset.try_lock();
+    auto GlobalFlushBuf = MWeakGlobalFlushBuf.try_lock();
+    if (!ObjImplPtr || !GlobalBuf || !GlobalOffset || !GlobalFlushBuf)
+      return std::nullopt;
+    return stream{ObjImplPtr, *GlobalBuf, *GlobalOffset, *GlobalFlushBuf};
+  }
+  stream lock() const {
+    std::optional<stream> OptionalObj = try_lock();
+    if (!OptionalObj)
+      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                            "Referenced object has expired.");
+    return *OptionalObj;
+  }
+#else
+  // On device calls to these functions are disallowed, so declare them but
+  // don't define them to avoid compilation failures.
+  std::optional<stream> try_lock() const noexcept;
+  stream lock() const;
+#endif // __SYCL_DEVICE_ONLY__
+
+private:
+  // Additional members required for recreating stream.
+  weak_object<detail::GlobalBufAccessorT> MWeakGlobalBuf;
+  weak_object<detail::GlobalOffsetAccessorT> MWeakGlobalOffset;
+  weak_object<detail::GlobalBufAccessorT> MWeakGlobalFlushBuf;
+};
+
 } // namespace ext::oneapi
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

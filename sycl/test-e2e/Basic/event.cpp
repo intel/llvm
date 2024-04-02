@@ -1,6 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 //==--------------- event.cpp - SYCL event test ----------------------------==//
 //
@@ -10,7 +9,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   {

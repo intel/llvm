@@ -26,6 +26,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/ExprOpenMP.h"
+#include "clang/AST/StmtOpenACC.h"
 #include "clang/AST/StmtOpenMP.h"
 #include "clang/AST/Type.h"
 #include "clang/Basic/ABI.h"
@@ -117,7 +118,7 @@ enum TypeEvaluationKind {
   SANITIZER_CHECK(DivremOverflow, divrem_overflow, 0)                          \
   SANITIZER_CHECK(DynamicTypeCacheMiss, dynamic_type_cache_miss, 0)            \
   SANITIZER_CHECK(FloatCastOverflow, float_cast_overflow, 0)                   \
-  SANITIZER_CHECK(FunctionTypeMismatch, function_type_mismatch, 1)             \
+  SANITIZER_CHECK(FunctionTypeMismatch, function_type_mismatch, 0)             \
   SANITIZER_CHECK(ImplicitConversion, implicit_conversion, 0)                  \
   SANITIZER_CHECK(InvalidBuiltin, invalid_builtin, 0)                          \
   SANITIZER_CHECK(InvalidObjCCast, invalid_objc_cast, 0)                       \
@@ -203,6 +204,7 @@ template <> struct DominatingValue<RValue> {
 
     llvm::Value *Value;
     llvm::Type *ElementType;
+    LLVM_PREFERRED_TYPE(Kind)
     unsigned K : 3;
     unsigned Align : 29;
     saved_type(llvm::Value *v, llvm::Type *e, Kind k, unsigned a = 0)
@@ -287,6 +289,9 @@ public:
   /// nest would extend.
   SmallVector<llvm::CanonicalLoopInfo *, 4> OMPLoopNestStack;
 
+  /// Stack to track the Logical Operator recursion nest for MC/DC.
+  SmallVector<const BinaryOperator *, 16> MCDCLogOpStack;
+
   /// Number of nested loop to be consumed by the last surrounding
   /// loop-associated directive.
   int ExpectedOMPLoopDepth = 0;
@@ -318,10 +323,10 @@ public:
 
   /// CurFuncDecl - Holds the Decl for the current outermost
   /// non-closure context.
-  const Decl *CurFuncDecl;
+  const Decl *CurFuncDecl = nullptr;
   /// CurCodeDecl - This is the inner-most code context, which includes blocks.
-  const Decl *CurCodeDecl;
-  const CGFunctionInfo *CurFnInfo;
+  const Decl *CurCodeDecl = nullptr;
+  const CGFunctionInfo *CurFnInfo = nullptr;
   QualType FnRetTy;
   llvm::Function *CurFn = nullptr;
 
@@ -346,6 +351,25 @@ public:
   bool inSuspendBlock() const {
     return isCoroutine() && CurCoro.InSuspendBlock;
   }
+
+  // Holds FramePtr for await_suspend wrapper generation,
+  // so that __builtin_coro_frame call can be lowered
+  // directly to value of its second argument
+  struct AwaitSuspendWrapperInfo {
+    llvm::Value *FramePtr = nullptr;
+  };
+  AwaitSuspendWrapperInfo CurAwaitSuspendWrapper;
+
+  // Generates wrapper function for `llvm.coro.await.suspend.*` intrinisics.
+  // It encapsulates SuspendExpr in a function, to separate it's body
+  // from the main coroutine to avoid miscompilations. Intrinisic
+  // is lowered to this function call in CoroSplit pass
+  // Function signature is:
+  // <type> __await_suspend_wrapper_<name>(ptr %awaiter, ptr %hdl)
+  // where type is one of (void, i1, ptr)
+  llvm::Function *generateAwaitSuspendWrapper(Twine const &CoroName,
+                                              Twine const &SuspendPointName,
+                                              CoroutineSuspendExpr const &S);
 
   /// CurGD - The GlobalDecl for the current function being compiled.
   GlobalDecl CurGD;
@@ -647,9 +671,11 @@ public:
   struct LifetimeExtendedCleanupHeader {
     /// The size of the following cleanup object.
     unsigned Size;
-    /// The kind of cleanup to push: a value from the CleanupKind enumeration.
+    /// The kind of cleanup to push.
+    LLVM_PREFERRED_TYPE(CleanupKind)
     unsigned Kind : 31;
     /// Whether this is a conditional cleanup.
+    LLVM_PREFERRED_TYPE(bool)
     unsigned IsConditional : 1;
 
     size_t getSize() const { return Size; }
@@ -748,11 +774,11 @@ public:
 
     /// An i1 variable indicating whether or not the @finally is
     /// running for an exception.
-    llvm::AllocaInst *ForEHVar;
+    llvm::AllocaInst *ForEHVar = nullptr;
 
     /// An i8* variable into which the exception pointer to rethrow
     /// has been saved.
-    llvm::AllocaInst *SavedExnVar;
+    llvm::AllocaInst *SavedExnVar = nullptr;
 
   public:
     void enter(CodeGenFunction &CGF, const Stmt *Finally,
@@ -1250,11 +1276,11 @@ public:
   /// destroyed by aggressive peephole optimizations that assume that
   /// all uses of a value have been realized in the IR.
   class PeepholeProtection {
-    llvm::Instruction *Inst;
+    llvm::Instruction *Inst = nullptr;
     friend class CodeGenFunction;
 
   public:
-    PeepholeProtection() : Inst(nullptr) {}
+    PeepholeProtection() = default;
   };
 
   /// A non-RAII class containing all the information about a bound
@@ -1521,6 +1547,9 @@ private:
 
   CodeGenPGO PGO;
 
+  /// Bitmap used by MC/DC to track condition outcomes of a boolean expression.
+  Address MCDCCondBitmapAddr = Address::invalid();
+
   /// Calculate branch weights appropriate for PGO data
   llvm::MDNode *createProfileWeights(uint64_t TrueCount,
                                      uint64_t FalseCount) const;
@@ -1535,8 +1564,54 @@ public:
     if (CGM.getCodeGenOpts().hasProfileClangInstr() &&
         !CurFn->hasFnAttribute(llvm::Attribute::NoProfile) &&
         !CurFn->hasFnAttribute(llvm::Attribute::SkipProfile))
-      PGO.emitCounterIncrement(Builder, S, StepV);
+      PGO.emitCounterSetOrIncrement(Builder, S, StepV);
     PGO.setCurrentStmt(S);
+  }
+
+  bool isMCDCCoverageEnabled() const {
+    return (CGM.getCodeGenOpts().hasProfileClangInstr() &&
+            CGM.getCodeGenOpts().MCDCCoverage &&
+            !CurFn->hasFnAttribute(llvm::Attribute::NoProfile));
+  }
+
+  /// Allocate a temp value on the stack that MCDC can use to track condition
+  /// results.
+  void maybeCreateMCDCCondBitmap() {
+    if (isMCDCCoverageEnabled()) {
+      PGO.emitMCDCParameters(Builder);
+      MCDCCondBitmapAddr =
+          CreateIRTemp(getContext().UnsignedIntTy, "mcdc.addr");
+    }
+  }
+
+  bool isBinaryLogicalOp(const Expr *E) const {
+    const BinaryOperator *BOp = dyn_cast<BinaryOperator>(E->IgnoreParens());
+    return (BOp && BOp->isLogicalOp());
+  }
+
+  /// Zero-init the MCDC temp value.
+  void maybeResetMCDCCondBitmap(const Expr *E) {
+    if (isMCDCCoverageEnabled() && isBinaryLogicalOp(E)) {
+      PGO.emitMCDCCondBitmapReset(Builder, E, MCDCCondBitmapAddr);
+      PGO.setCurrentStmt(E);
+    }
+  }
+
+  /// Increment the profiler's counter for the given expression by \p StepV.
+  /// If \p StepV is null, the default increment is 1.
+  void maybeUpdateMCDCTestVectorBitmap(const Expr *E) {
+    if (isMCDCCoverageEnabled() && isBinaryLogicalOp(E)) {
+      PGO.emitMCDCTestVectorBitmapUpdate(Builder, E, MCDCCondBitmapAddr);
+      PGO.setCurrentStmt(E);
+    }
+  }
+
+  /// Update the MCDC temp value with the condition's evaluated result.
+  void maybeUpdateMCDCCondBitmap(const Expr *E, llvm::Value *Val) {
+    if (isMCDCCoverageEnabled()) {
+      PGO.emitMCDCCondBitmapUpdate(Builder, E, MCDCCondBitmapAddr, Val);
+      PGO.setCurrentStmt(E);
+    }
   }
 
   /// Get the profiler's count for the given statement.
@@ -1597,6 +1672,28 @@ private:
   SourceLocation LastStopPoint;
 
 public:
+  /// Class to manage the BuiltinID for the current builtin expression during
+  /// processing in EmitBuiltinExpr.
+  class CurrentBuiltinIDRAII {
+    CodeGenFunction &CGF;
+    unsigned SavedBuiltinID;
+
+  public:
+    CurrentBuiltinIDRAII(CodeGenFunction &CGF, unsigned BuiltinID)
+        : CGF(CGF), SavedBuiltinID(CGF.CurrentBuiltinID) {
+      CGF.CurrentBuiltinID = BuiltinID;
+    }
+    ~CurrentBuiltinIDRAII() { CGF.CurrentBuiltinID = SavedBuiltinID; }
+  };
+
+private:
+  unsigned CurrentBuiltinID = /*NotBuiltin*/ 0;
+
+public:
+  unsigned getCurrentBuiltinID() const {
+    assert(CurrentBuiltinID != /*NotBuiltin*/ 0);
+    return CurrentBuiltinID;
+  }
   /// Source location information about the default argument or member
   /// initializer expression we're evaluating, if any.
   CurrentSourceLocExprScope CurSourceLocExprScope;
@@ -1963,6 +2060,9 @@ private:
   /// Check if the return value of this function requires sanitization.
   bool requiresReturnValueCheck() const;
 
+  bool isInAllocaArgument(CGCXXABI &ABI, QualType Ty);
+  bool hasInAllocaArg(const CXXMethodDecl *MD);
+
   llvm::BasicBlock *TerminateLandingPad = nullptr;
   llvm::BasicBlock *TerminateHandler = nullptr;
   llvm::SmallVector<llvm::BasicBlock *, 2> TrapBBs;
@@ -2065,6 +2165,8 @@ public:
                                    llvm::Value *CompletePtr,
                                    QualType ElementType);
   void pushStackRestore(CleanupKind kind, Address SPMem);
+  void pushKmpcAllocFree(CleanupKind Kind,
+                         std::pair<llvm::Value *, llvm::Value *> AddrSizePair);
   void emitDestroy(Address addr, QualType type, Destroyer *destroyer,
                    bool useEHCleanupForArray);
   llvm::Function *generateDestroyHelper(Address addr, QualType type,
@@ -2225,10 +2327,17 @@ public:
   void EmitBlockWithFallThrough(llvm::BasicBlock *BB, const Stmt *S);
 
   void EmitForwardingCallToLambda(const CXXMethodDecl *LambdaCallOperator,
-                                  CallArgList &CallArgs);
+                                  CallArgList &CallArgs,
+                                  const CGFunctionInfo *CallOpFnInfo = nullptr,
+                                  llvm::Constant *CallOpFn = nullptr);
   void EmitLambdaBlockInvokeBody();
-  void EmitLambdaDelegatingInvokeBody(const CXXMethodDecl *MD);
   void EmitLambdaStaticInvokeBody(const CXXMethodDecl *MD);
+  void EmitLambdaDelegatingInvokeBody(const CXXMethodDecl *MD,
+                                      CallArgList &CallArgs);
+  void EmitLambdaInAllocaImplFn(const CXXMethodDecl *CallOp,
+                                const CGFunctionInfo **ImplFnInfo,
+                                llvm::Function **ImplFn);
+  void EmitLambdaInAllocaCallOpBody(const CXXMethodDecl *MD);
   void EmitLambdaVLACapture(const VariableArrayType *VAT, LValue LV) {
     EmitStoreThroughLValue(RValue::get(VLASizeMap[VAT->getSizeExpr()]), LV);
   }
@@ -2368,10 +2477,9 @@ public:
   /// XRay typed event handling calls.
   bool AlwaysEmitXRayTypedEvents() const;
 
-  /// Decode an address used in a function prologue, encoded by \c
-  /// EncodeAddrForUseInPrologue.
-  llvm::Value *DecodeAddrUsedInPrologue(llvm::Value *F,
-                                        llvm::Value *EncodedAddr);
+  /// Return a type hash constant for a function instrumented by
+  /// -fsanitize=function.
+  llvm::ConstantInt *getUBSanFunctionTypeHash(QualType T) const;
 
   /// EmitFunctionProlog - Emit the target specific LLVM code to load the
   /// arguments for the given function. This is also responsible for naming the
@@ -2625,9 +2733,6 @@ public:
                                  AggValueSlot::IsNotAliased,
                                  AggValueSlot::DoesNotOverlap);
   }
-
-  /// Emit a cast to void* in the appropriate address space.
-  llvm::Value *EmitCastToVoidPtr(llvm::Value *value);
 
   /// EvaluateExprAsBool - Perform the usual unary conversions on the specified
   /// expression and compare the result against zero, returning an Int1Ty value.
@@ -3013,6 +3118,25 @@ public:
   /// this expression is used as an lvalue, for instance in "&Arr[Idx]".
   void EmitBoundsCheck(const Expr *E, const Expr *Base, llvm::Value *Index,
                        QualType IndexType, bool Accessed);
+  void EmitBoundsCheckImpl(const Expr *E, llvm::Value *Bound,
+                           llvm::Value *Index, QualType IndexType,
+                           QualType IndexedType, bool Accessed);
+
+  // Find a struct's flexible array member. It may be embedded inside multiple
+  // sub-structs, but must still be the last field.
+  const FieldDecl *FindFlexibleArrayMemberField(ASTContext &Ctx,
+                                                const RecordDecl *RD,
+                                                StringRef Name,
+                                                uint64_t &Offset);
+
+  /// Find the FieldDecl specified in a FAM's "counted_by" attribute. Returns
+  /// \p nullptr if either the attribute or the field doesn't exist.
+  const FieldDecl *FindCountedByField(const FieldDecl *FD);
+
+  /// Build an expression accessing the "counted_by" field.
+  llvm::Value *EmitCountedByFieldExpr(const Expr *Base,
+                                      const FieldDecl *FAMDecl,
+                                      const FieldDecl *CountDecl);
 
   llvm::Value *EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
                                        bool isInc, bool isPre);
@@ -3405,10 +3529,12 @@ public:
                             OMPPrivateScope &PrivateScope);
   void EmitOMPUseDevicePtrClause(
       const OMPUseDevicePtrClause &C, OMPPrivateScope &PrivateScope,
-      const llvm::DenseMap<const ValueDecl *, Address> &CaptureDeviceAddrMap);
+      const llvm::DenseMap<const ValueDecl *, llvm::Value *>
+          CaptureDeviceAddrMap);
   void EmitOMPUseDeviceAddrClause(
       const OMPUseDeviceAddrClause &C, OMPPrivateScope &PrivateScope,
-      const llvm::DenseMap<const ValueDecl *, Address> &CaptureDeviceAddrMap);
+      const llvm::DenseMap<const ValueDecl *, llvm::Value *>
+          CaptureDeviceAddrMap);
   /// Emit code for copyin clause in \a D directive. The next code is
   /// generated at the start of outlined functions for directives:
   /// \code
@@ -3584,7 +3710,14 @@ public:
   void EmitOMPTargetTeamsDistributeSimdDirective(
       const OMPTargetTeamsDistributeSimdDirective &S);
   void EmitOMPGenericLoopDirective(const OMPGenericLoopDirective &S);
+  void EmitOMPParallelGenericLoopDirective(const OMPLoopDirective &S);
+  void EmitOMPTargetParallelGenericLoopDirective(
+      const OMPTargetParallelGenericLoopDirective &S);
+  void EmitOMPTargetTeamsGenericLoopDirective(
+      const OMPTargetTeamsGenericLoopDirective &S);
+  void EmitOMPTeamsGenericLoopDirective(const OMPTeamsGenericLoopDirective &S);
   void EmitOMPInteropDirective(const OMPInteropDirective &S);
+  void EmitOMPParallelMaskedDirective(const OMPParallelMaskedDirective &S);
 
   /// Emit device code for the target directive.
   static void EmitOMPTargetDeviceFunction(CodeGenModule &CGM,
@@ -3622,6 +3755,16 @@ public:
   static void EmitOMPTargetTeamsDistributeParallelForSimdDeviceFunction(
       CodeGenModule &CGM, StringRef ParentName,
       const OMPTargetTeamsDistributeParallelForSimdDirective &S);
+
+  /// Emit device code for the target teams loop directive.
+  static void EmitOMPTargetTeamsGenericLoopDeviceFunction(
+      CodeGenModule &CGM, StringRef ParentName,
+      const OMPTargetTeamsGenericLoopDirective &S);
+
+  /// Emit device code for the target parallel loop directive.
+  static void EmitOMPTargetParallelGenericLoopDeviceFunction(
+      CodeGenModule &CGM, StringRef ParentName,
+      const OMPTargetParallelGenericLoopDirective &S);
 
   static void EmitOMPTargetTeamsDistributeParallelForDeviceFunction(
       CodeGenModule &CGM, StringRef ParentName,
@@ -3710,6 +3853,8 @@ private:
     Expr *NextLB = nullptr;
     /// Update of UB after a whole chunk has been executed
     Expr *NextUB = nullptr;
+    /// Distinguish between the for distribute and sections
+    OpenMPDirectiveKind DKind = llvm::omp::OMPD_unknown;
     OMPLoopArguments() = default;
     OMPLoopArguments(Address LB, Address UB, Address ST, Address IL,
                      llvm::Value *Chunk = nullptr, Expr *EUB = nullptr,
@@ -3739,6 +3884,15 @@ private:
   void EmitSections(const OMPExecutableDirective &S);
 
 public:
+  //===--------------------------------------------------------------------===//
+  //                         OpenACC Emission
+  //===--------------------------------------------------------------------===//
+  void EmitOpenACCComputeConstruct(const OpenACCComputeConstruct &S) {
+    // TODO OpenACC: Implement this.  It is currently implemented as a 'no-op',
+    // simply emitting its structured block, but in the future we will implement
+    // some sort of IR.
+    EmitStmt(S.getStructuredBlock());
+  }
 
   //===--------------------------------------------------------------------===//
   //                         LValue Expression Emission
@@ -3990,6 +4144,8 @@ public:
                                            const ObjCIvarDecl *Ivar);
   LValue EmitLValueForField(LValue Base, const FieldDecl* Field);
   LValue EmitLValueForLambdaField(const FieldDecl *Field);
+  LValue EmitLValueForLambdaField(const FieldDecl *Field,
+                                  llvm::Value *ThisValue);
 
   /// EmitLValueForFieldInitialization - Like EmitLValueForField, except that
   /// if the Field is a reference, this will return the address of the reference
@@ -4257,7 +4413,32 @@ public:
   llvm::Value *EmitSVEStructStore(const SVETypeFlags &TypeFlags,
                                   SmallVectorImpl<llvm::Value *> &Ops,
                                   unsigned IntID);
+  /// FormSVEBuiltinResult - Returns the struct of scalable vectors as a wider
+  /// vector. It extracts the scalable vector from the struct and inserts into
+  /// the wider vector. This avoids the error when allocating space in llvm
+  /// for struct of scalable vectors if a function returns struct.
+  llvm::Value *FormSVEBuiltinResult(llvm::Value *Call);
+
   llvm::Value *EmitAArch64SVEBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
+
+  llvm::Value *EmitSMELd1St1(const SVETypeFlags &TypeFlags,
+                             llvm::SmallVectorImpl<llvm::Value *> &Ops,
+                             unsigned IntID);
+  llvm::Value *EmitSMEReadWrite(const SVETypeFlags &TypeFlags,
+                                llvm::SmallVectorImpl<llvm::Value *> &Ops,
+                                unsigned IntID);
+  llvm::Value *EmitSMEZero(const SVETypeFlags &TypeFlags,
+                           llvm::SmallVectorImpl<llvm::Value *> &Ops,
+                           unsigned IntID);
+  llvm::Value *EmitSMELdrStr(const SVETypeFlags &TypeFlags,
+                             llvm::SmallVectorImpl<llvm::Value *> &Ops,
+                             unsigned IntID);
+
+  void GetAArch64SVEProcessedOperands(unsigned BuiltinID, const CallExpr *E,
+                                      SmallVectorImpl<llvm::Value *> &Ops,
+                                      SVETypeFlags TypeFlags);
+
+  llvm::Value *EmitAArch64SMEBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
 
   llvm::Value *EmitAArch64BuiltinExpr(unsigned BuiltinID, const CallExpr *E,
                                       llvm::Triple::ArchType Arch);
@@ -4267,6 +4448,9 @@ public:
   llvm::Value *EmitX86BuiltinExpr(unsigned BuiltinID, const CallExpr *E);
   llvm::Value *EmitPPCBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
   llvm::Value *EmitAMDGPUBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
+  llvm::Value *EmitHLSLBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
+  llvm::Value *EmitScalarOrConstFoldImmArg(unsigned ICEArguments, unsigned Idx,
+                                           const CallExpr *E);
   llvm::Value *EmitSystemZBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
   llvm::Value *EmitNVPTXBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
   llvm::Value *EmitWebAssemblyBuiltinExpr(unsigned BuiltinID,
@@ -4274,7 +4458,6 @@ public:
   llvm::Value *EmitHexagonBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
   llvm::Value *EmitRISCVBuiltinExpr(unsigned BuiltinID, const CallExpr *E,
                                     ReturnValueSlot ReturnValue);
-  llvm::Value *EmitLoongArchBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
   void ProcessOrderScopeAMDGCN(llvm::Value *Order, llvm::Value *Scope,
                                llvm::AtomicOrdering &AO,
                                llvm::SyncScope::ID &SSID);
@@ -4282,6 +4465,16 @@ public:
   RValue EmitIntelFPGARegBuiltin(const CallExpr *E,
                                  ReturnValueSlot ReturnValue);
   RValue EmitIntelFPGAMemBuiltin(const CallExpr *E);
+
+  RValue EmitIntelSYCLPtrAnnotationBuiltin(const CallExpr *E);
+  RValue EmitIntelSYCLAllocaBuiltin(const CallExpr *E,
+                                    ReturnValueSlot ReturnValue);
+
+  llvm::CallInst *
+  MaybeEmitFPBuiltinofFD(llvm::FunctionType *IRFuncTy,
+                         const SmallVectorImpl<llvm::Value *> &IRArgs,
+                         llvm::Value *FnPtr, StringRef Name,
+                         unsigned FDBuiltinID);
 
   enum class MSVCIntrin;
   llvm::Value *EmitMSVCBuiltinExpr(MSVCIntrin BuiltinID, const CallExpr *E);
@@ -4472,6 +4665,11 @@ public:
   void registerGlobalDtorWithAtExit(const VarDecl &D, llvm::FunctionCallee fn,
                                     llvm::Constant *addr);
 
+  /// Registers the dtor using 'llvm.global_dtors' for platforms that do not
+  /// support an 'atexit()' function.
+  void registerGlobalDtorWithLLVM(const VarDecl &D, llvm::FunctionCallee fn,
+                                  llvm::Constant *addr);
+
   /// Call atexit() with function dtorStub.
   void registerGlobalDtorWithAtExit(llvm::Constant *dtorStub);
 
@@ -4546,6 +4744,11 @@ public:
                          llvm::Value *AnnotatedVal, SourceLocation Location,
                          const SYCLAddIRAnnotationsMemberAttr *Attr);
 
+  llvm::Value *EmitSYCLAnnotationCall(
+      llvm::Function *AnnotationFn, llvm::Value *AnnotatedVal,
+      SourceLocation Location,
+      llvm::SmallVectorImpl<std::pair<std::string, std::string>> &Pair);
+
   /// Emit sycl field annotations for given field & value. Returns the
   /// annotation result.
   Address EmitFieldSYCLAnnotations(const FieldDecl *D, Address V);
@@ -4587,6 +4790,9 @@ public:
   bool ConstantFoldsToSimpleInteger(const Expr *Cond, llvm::APSInt &Result,
                                     bool AllowLabels = false);
 
+  /// Ignore parentheses and logical-NOT to track conditions consistently.
+  static const Expr *stripCond(const Expr *C);
+
   /// isInstrumentedCondition - Determine whether the given condition is an
   /// instrumentable condition (i.e. no "&&" or "||").
   static bool isInstrumentedCondition(const Expr *C);
@@ -4609,7 +4815,8 @@ public:
   /// evaluate to true based on PGO data.
   void EmitBranchOnBoolExpr(const Expr *Cond, llvm::BasicBlock *TrueBlock,
                             llvm::BasicBlock *FalseBlock, uint64_t TrueCount,
-                            Stmt::Likelihood LH = Stmt::LH_None);
+                            Stmt::Likelihood LH = Stmt::LH_None,
+                            const Expr *ConditionalOp = nullptr);
 
   /// Given an assignment `*LHS = RHS`, emit a test that checks if \p RHS is
   /// nonnull, if \p LHS is marked _Nonnull.
@@ -4706,6 +4913,14 @@ public:
   /// point operation, expressed as the maximum relative error in ulp.
   void SetFPAccuracy(llvm::Value *Val, float Accuracy);
 
+  /// Set the minimum required accuracy of the given sqrt operation
+  /// based on CodeGenOpts.
+  void SetSqrtFPAccuracy(llvm::Value *Val);
+
+  /// Set the minimum required accuracy of the given sqrt operation based on
+  /// CodeGenOpts.
+  void SetDivFPAccuracy(llvm::Value *Val);
+
   /// Set the codegen fast-math flags.
   void SetFastMathFlags(FPOptions FPFeatures);
 
@@ -4769,6 +4984,9 @@ private:
                                      llvm::IntegerType *ResType,
                                      llvm::Value *EmittedE,
                                      bool IsDynamic);
+
+  llvm::Value *emitFlexibleArrayMemberSize(const Expr *E, unsigned Type,
+                                           llvm::IntegerType *ResType);
 
   void emitZeroOrPatternForAutoVarInit(QualType type, const VarDecl &D,
                                        Address Loc);
@@ -4869,15 +5087,15 @@ private:
   llvm::Value *EmitX86CpuIs(StringRef CPUStr);
   llvm::Value *EmitX86CpuSupports(const CallExpr *E);
   llvm::Value *EmitX86CpuSupports(ArrayRef<StringRef> FeatureStrs);
-  llvm::Value *EmitX86CpuSupports(uint64_t Mask);
+  llvm::Value *EmitX86CpuSupports(std::array<uint32_t, 4> FeatureMask);
   llvm::Value *EmitX86CpuInit();
   llvm::Value *FormX86ResolverCondition(const MultiVersionResolverOption &RO);
   llvm::Value *EmitAArch64CpuInit();
   llvm::Value *
   FormAArch64ResolverCondition(const MultiVersionResolverOption &RO);
+  llvm::Value *EmitAArch64CpuSupports(const CallExpr *E);
   llvm::Value *EmitAArch64CpuSupports(ArrayRef<StringRef> FeatureStrs);
 };
-
 
 inline DominatingLLVMValue::saved_type
 DominatingLLVMValue::save(CodeGenFunction &CGF, llvm::Value *value) {

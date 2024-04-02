@@ -11,7 +11,9 @@
 #include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
+#include <cerrno>
 #include <cstdio>
+#include <fstream>
 #include <optional>
 
 #if defined(__SYCL_RT_OS_POSIX_SUPPORT)
@@ -22,7 +24,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 /* Lock file suffix */
@@ -37,7 +39,10 @@ LockCacheItem::LockCacheItem(const std::string &Path)
     close(fd);
     Owned = true;
   } else {
-    PersistentDeviceCodeCache::trace("Failed to aquire lock file: " + FileName);
+    PersistentDeviceCodeCache::trace("Failed to acquire lock file: " +
+                                     FileName + " " + std::strerror(errno));
+    PersistentDeviceCodeCache::trace("Failed to acquire lock file: " +
+                                     FileName + " " + std::strerror(errno));
   }
 }
 
@@ -48,7 +53,8 @@ LockCacheItem::~LockCacheItem() {
 }
 
 // Returns true if the specified format is either SPIRV or a native binary.
-static bool IsSupportedImageFormat(RT::PiDeviceBinaryType Format) {
+static bool
+IsSupportedImageFormat(sycl::detail::pi::PiDeviceBinaryType Format) {
   return Format == PI_DEVICE_BINARY_TYPE_SPIRV ||
          Format == PI_DEVICE_BINARY_TYPE_NATIVE;
 }
@@ -85,7 +91,7 @@ bool PersistentDeviceCodeCache::isImageCached(const RTDeviceBinaryImage &Img) {
 void PersistentDeviceCodeCache::putItemToDisc(
     const device &Device, const RTDeviceBinaryImage &Img,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString,
-    const RT::PiProgram &NativePrg) {
+    const sycl::detail::pi::PiProgram &NativePrg) {
 
   if (!isImageCached(Img))
     return;
@@ -98,20 +104,14 @@ void PersistentDeviceCodeCache::putItemToDisc(
 
   auto Plugin = detail::getSyclObjImpl(Device)->getPlugin();
 
-  size_t i = 0;
-  std::string FileName;
-  do {
-    FileName = DirName + "/" + std::to_string(i++);
-  } while (OSUtil::isPathPresent(FileName + ".bin"));
-
   unsigned int DeviceNum = 0;
 
-  Plugin.call<PiApiKind::piProgramGetInfo>(
+  Plugin->call<PiApiKind::piProgramGetInfo>(
       NativePrg, PI_PROGRAM_INFO_NUM_DEVICES, sizeof(DeviceNum), &DeviceNum,
       nullptr);
 
   std::vector<size_t> BinarySizes(DeviceNum);
-  Plugin.call<PiApiKind::piProgramGetInfo>(
+  Plugin->call<PiApiKind::piProgramGetInfo>(
       NativePrg, PI_PROGRAM_INFO_BINARY_SIZES,
       sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
 
@@ -122,9 +122,15 @@ void PersistentDeviceCodeCache::putItemToDisc(
     Pointers.push_back(Result[I].data());
   }
 
-  Plugin.call<PiApiKind::piProgramGetInfo>(NativePrg, PI_PROGRAM_INFO_BINARIES,
-                                           sizeof(char *) * Pointers.size(),
-                                           Pointers.data(), nullptr);
+  Plugin->call<PiApiKind::piProgramGetInfo>(NativePrg, PI_PROGRAM_INFO_BINARIES,
+                                            sizeof(char *) * Pointers.size(),
+                                            Pointers.data(), nullptr);
+  size_t i = 0;
+  std::string FileName;
+  do {
+    FileName = DirName + "/" + std::to_string(i++);
+  } while (OSUtil::isPathPresent(FileName + ".bin") ||
+           OSUtil::isPathPresent(FileName + ".lock"));
 
   try {
     OSUtil::makeDir(DirName.c_str());
@@ -135,9 +141,17 @@ void PersistentDeviceCodeCache::putItemToDisc(
       trace("device binary has been cached: " + FullFileName);
       writeSourceItem(FileName + ".src", Device, Img, SpecConsts,
                       BuildOptionsString);
+    } else {
+      PersistentDeviceCodeCache::trace("cache lock not owned " + FileName);
     }
+  } catch (std::exception &e) {
+    PersistentDeviceCodeCache::trace(
+        std::string("exception encountered making persistent cache: ") +
+        e.what());
   } catch (...) {
-    // If a problem happens on storing cache item, do nothing
+    PersistentDeviceCodeCache::trace(
+        std::string("error outputting persistent cache: ") +
+        std::strerror(errno));
   }
 }
 
@@ -367,5 +381,5 @@ std::string PersistentDeviceCodeCache::getRootDir() {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

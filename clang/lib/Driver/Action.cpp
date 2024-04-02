@@ -50,8 +50,6 @@ const char *Action::getClassName(ActionClass AC) {
     return "clang-offload-deps";
   case SPIRVTranslatorJobClass:
     return "llvm-spirv";
-  case SPIRCheckJobClass:
-    return "llvm-no-spir-kernel";
   case SYCLPostLinkJobClass:
     return "sycl-post-link";
   case BackendCompileJobClass:
@@ -349,7 +347,7 @@ void OffloadAction::DeviceDependences::add(Action &A, const ToolChain &TC,
   DeviceBoundArchs.push_back(BoundArch);
 
   // Add each active offloading kind from a mask.
-  for (OffloadKind OKind : {OFK_OpenMP, OFK_Cuda, OFK_HIP})
+  for (OffloadKind OKind : {OFK_OpenMP, OFK_Cuda, OFK_HIP, OFK_SYCL})
     if (OKind & OffloadKindMask)
       DeviceOffloadKinds.push_back(OKind);
 }
@@ -478,11 +476,11 @@ void OffloadWrapperJobAction::anchor() {}
 
 OffloadWrapperJobAction::OffloadWrapperJobAction(ActionList &Inputs,
                                                  types::ID Type)
-  : JobAction(OffloadWrapperJobClass, Inputs, Type) {}
+    : JobAction(OffloadWrapperJobClass, Inputs, Type), EmbedIR(false) {}
 
-OffloadWrapperJobAction::OffloadWrapperJobAction(Action *Input,
-                                                 types::ID Type)
-    : JobAction(OffloadWrapperJobClass, Input, Type) {}
+OffloadWrapperJobAction::OffloadWrapperJobAction(Action *Input, types::ID Type,
+                                                 bool IsEmbeddedIR)
+    : JobAction(OffloadWrapperJobClass, Input, Type), EmbedIR(IsEmbeddedIR) {}
 
 void OffloadPackagerJobAction::anchor() {}
 
@@ -507,11 +505,6 @@ void SPIRVTranslatorJobAction::anchor() {}
 SPIRVTranslatorJobAction::SPIRVTranslatorJobAction(Action *Input,
                                                    types::ID Type)
     : JobAction(SPIRVTranslatorJobClass, Input, Type) {}
-
-void SPIRCheckJobAction::anchor() {}
-
-SPIRCheckJobAction::SPIRCheckJobAction(Action *Input, types::ID Type)
-    : JobAction(SPIRCheckJobClass, Input, Type) {}
 
 void SYCLPostLinkJobAction::anchor() {}
 

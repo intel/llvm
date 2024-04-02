@@ -6,10 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-// TODO: enable esimd_emulator when supported
 // REQUIRES: gpu-intel-pvc
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
 // Test checks support of named barrier in ESIMD kernel.
 // Threads are executed in ascending order of their local ID and each thread
@@ -17,10 +16,11 @@
 // previous thread. Same as "exec_in_order.cpp", but each thread in separate
 // 'if' branch.
 
+#include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
-#include <iostream>
+#include "../esimd_test_utils.hpp"
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -90,9 +90,9 @@ bool test(QueueTY q) {
               if constexpr (UseSLM) {
                 lsc_slm_block_store<int, VL>(off, val);
               } else {
-                lsc_fence();
+                fence();
                 lsc_block_store<int, VL>(acc, off, val);
-                lsc_fence();
+                fence();
               }
 
               // T0 signals barrier 1 and locks
@@ -109,9 +109,9 @@ bool test(QueueTY q) {
               if constexpr (UseSLM) {
                 lsc_slm_block_store<int, VL>(off, val);
               } else {
-                lsc_fence();
+                fence();
                 lsc_block_store<int, VL>(acc, off, val);
-                lsc_fence();
+                fence();
               }
 
               // T1 signals barrier 2 and locks
@@ -129,9 +129,9 @@ bool test(QueueTY q) {
               if constexpr (UseSLM) {
                 lsc_slm_block_store<int, VL>(off, val);
               } else {
-                lsc_fence();
+                fence();
                 lsc_block_store<int, VL>(acc, off, val);
-                lsc_fence();
+                fence();
               }
 
               // T2 signals barrier 3 and locks, waiting for signal from T3
@@ -148,9 +148,9 @@ bool test(QueueTY q) {
               if constexpr (UseSLM) {
                 lsc_slm_block_store<int, VL>(off, val);
               } else {
-                lsc_fence();
+                fence();
                 lsc_block_store<int, VL>(acc, off, val);
-                lsc_fence();
+                fence();
               }
             }
 
@@ -185,11 +185,8 @@ bool test(QueueTY q) {
 }
 
 int main() {
-  auto GPUSelector = gpu_selector{};
-  auto q = queue{GPUSelector};
-  auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
-            << "\n";
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
+  esimd_test::printTestLabel(q);
 
   bool passed = true;
 

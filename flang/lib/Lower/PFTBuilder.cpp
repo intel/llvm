@@ -105,6 +105,13 @@ public:
       } else if constexpr (std::is_same_v<T, parser::ActionStmt>) {
         return std::visit(
             common::visitors{
+                [&](const common::Indirection<parser::CallStmt> &x) {
+                  addEvaluation(lower::pft::Evaluation{
+                      removeIndirection(x), pftParentStack.back(),
+                      stmt.position, stmt.label});
+                  checkForFPEnvironmentCalls(x.value());
+                  return true;
+                },
                 [&](const common::Indirection<parser::IfStmt> &x) {
                   convertIfStmt(x.value(), stmt.position, stmt.label);
                   return false;
@@ -120,6 +127,45 @@ public:
       }
     }
     return true;
+  }
+
+  /// Check for calls that could modify the floating point environment.
+  /// See F18 Clauses
+  ///  - 17.1p3 (Overview of IEEE arithmetic support)
+  ///  - 17.3p3 (The exceptions)
+  ///  - 17.4p5 (The rounding modes)
+  ///  - 17.6p1 (Halting)
+  void checkForFPEnvironmentCalls(const parser::CallStmt &callStmt) {
+    const auto *callName = std::get_if<parser::Name>(
+        &std::get<parser::ProcedureDesignator>(callStmt.call.t).u);
+    if (!callName)
+      return;
+    const Fortran::semantics::Symbol &procSym = callName->symbol->GetUltimate();
+    if (!procSym.owner().IsModule())
+      return;
+    const Fortran::semantics::Symbol &modSym = *procSym.owner().symbol();
+    if (!modSym.attrs().test(Fortran::semantics::Attr::INTRINSIC))
+      return;
+    // Modules IEEE_FEATURES, IEEE_EXCEPTIONS, and IEEE_ARITHMETIC get common
+    // declarations from several __fortran_... support module files.
+    llvm::StringRef modName = toStringRef(modSym.name());
+    if (!modName.starts_with("ieee_") && !modName.starts_with("__fortran_"))
+      return;
+    llvm::StringRef procName = toStringRef(procSym.name());
+    if (!procName.starts_with("ieee_"))
+      return;
+    lower::pft::FunctionLikeUnit *proc =
+        evaluationListStack.back()->back().getOwningProcedure();
+    proc->hasIeeeAccess = true;
+    if (!procName.starts_with("ieee_set_"))
+      return;
+    if (procName.starts_with("ieee_set_modes_") ||
+        procName.starts_with("ieee_set_status_"))
+      proc->mayModifyHaltingMode = proc->mayModifyRoundingMode = true;
+    else if (procName.starts_with("ieee_set_halting_mode_"))
+      proc->mayModifyHaltingMode = true;
+    else if (procName.starts_with("ieee_set_rounding_mode_"))
+      proc->mayModifyRoundingMode = true;
   }
 
   /// Convert an IfStmt into an IfConstruct, retaining the IfStmt as the
@@ -211,6 +257,17 @@ public:
     if (pftParentStack.back().isA<lower::pft::Program>()) {
       addUnit(
           lower::pft::CompilerDirectiveUnit(directive, pftParentStack.back()));
+      return false;
+    }
+    return enterConstructOrDirective(directive);
+  }
+
+  bool Pre(const parser::OpenACCRoutineConstruct &directive) {
+    assert(pftParentStack.size() > 0 &&
+           "At least the Program must be a parent");
+    if (pftParentStack.back().isA<lower::pft::Program>()) {
+      addUnit(
+          lower::pft::OpenACCDirectiveUnit(directive, pftParentStack.back()));
       return false;
     }
     return enterConstructOrDirective(directive);
@@ -324,11 +381,21 @@ private:
   }
 
   void exitConstructOrDirective() {
+    auto isOpenMPLoopConstruct = [](Fortran::lower::pft::Evaluation *eval) {
+      if (const auto *ompConstruct = eval->getIf<parser::OpenMPConstruct>())
+        if (std::holds_alternative<parser::OpenMPLoopConstruct>(
+                ompConstruct->u))
+          return true;
+      return false;
+    };
+
     rewriteIfGotos();
     auto *eval = constructAndDirectiveStack.back();
-    if (eval->isExecutableDirective()) {
+    if (eval->isExecutableDirective() && !isOpenMPLoopConstruct(eval)) {
       // A construct at the end of an (unstructured) OpenACC or OpenMP
       // construct region must have an exit target inside the region.
+      // This is not applicable to the OpenMP loop construct since the
+      // end of the loop is an available target inside the region.
       Fortran::lower::pft::EvaluationList &evaluationList =
           *eval->evaluationList;
       if (!evaluationList.empty() && evaluationList.back().isConstruct()) {
@@ -474,15 +541,15 @@ private:
   /// The transformation is only valid for forward branch targets at the same
   /// construct nesting level as the IfConstruct. The result must not violate
   /// construct nesting requirements or contain an EntryStmt. The result
-  /// is subject to normal un/structured code classification analysis. The
-  /// result is allowed to violate the F18 Clause 11.1.2.1 prohibition on
-  /// transfer of control into the interior of a construct block, as that does
-  /// not compromise correct code generation. When two transformation
-  /// candidates overlap, at least one must be disallowed. In such cases,
-  /// the current heuristic favors simple code generation, which happens to
-  /// favor later candidates over earlier candidates. That choice is probably
-  /// not significant, but could be changed.
-  ///
+  /// is subject to normal un/structured code classification analysis. Except
+  /// for a branch to the EndIfStmt, the result is allowed to violate the F18
+  /// Clause 11.1.2.1 prohibition on transfer of control into the interior of
+  /// a construct block, as that does not compromise correct code generation.
+  /// When two transformation candidates overlap, at least one must be
+  /// disallowed. In such cases, the current heuristic favors simple code
+  /// generation, which happens to favor later candidates over earlier
+  /// candidates. That choice is probably not significant, but could be
+  /// changed.
   void rewriteIfGotos() {
     auto &evaluationList = *evaluationListStack.back();
     if (!evaluationList.size())
@@ -549,7 +616,8 @@ private:
       if (eval.isA<parser::IfConstruct>() && eval.evaluationList->size() == 3) {
         const auto bodyEval = std::next(eval.evaluationList->begin());
         if (const auto *gotoStmt = bodyEval->getIf<parser::GotoStmt>()) {
-          ifCandidateStack.push_back({it, gotoStmt->v});
+          if (!bodyEval->lexicalSuccessor->label)
+            ifCandidateStack.push_back({it, gotoStmt->v});
         } else if (doStmt) {
           if (const auto *cycleStmt = bodyEval->getIf<parser::CycleStmt>()) {
             std::string cycleName = getConstructName(*cycleStmt);
@@ -726,7 +794,7 @@ private:
           [&](const parser::CallStmt &s) {
             // Look for alternate return specifiers.
             const auto &args =
-                std::get<std::list<parser::ActualArgSpec>>(s.v.t);
+                std::get<std::list<parser::ActualArgSpec>>(s.call.t);
             for (const auto &arg : args) {
               const auto &actual = std::get<parser::ActualArg>(arg.t);
               if (const auto *altReturn =
@@ -1098,6 +1166,9 @@ public:
                      [&](const lower::pft::CompilerDirectiveUnit &unit) {
                        dumpCompilerDirectiveUnit(outputStream, unit);
                      },
+                     [&](const lower::pft::OpenACCDirectiveUnit &unit) {
+                       dumpOpenACCDirectiveUnit(outputStream, unit);
+                     },
                  },
                  unit);
     }
@@ -1243,6 +1314,16 @@ public:
     outputStream << directive.get<Fortran::parser::CompilerDirective>()
                         .source.ToString();
     outputStream << "\nEnd CompilerDirective\n\n";
+  }
+
+  void
+  dumpOpenACCDirectiveUnit(llvm::raw_ostream &outputStream,
+                           const lower::pft::OpenACCDirectiveUnit &directive) {
+    outputStream << getNodeIndex(directive) << " ";
+    outputStream << "OpenACCDirective: !$acc ";
+    outputStream << directive.get<Fortran::parser::OpenACCRoutineConstruct>()
+                        .source.ToString();
+    outputStream << "\nEnd OpenACCDirective\n\n";
   }
 
   template <typename T>
@@ -1451,6 +1532,14 @@ private:
     // in some cases. Non-dummy procedures don't.
     if (semantics::IsProcedure(sym) && !isProcedurePointerOrDummy)
       return 0;
+    // Derived type component symbols may be collected by "CollectSymbols"
+    // below when processing something like "real :: x(derived%component)". The
+    // symbol "component" has "ObjectEntityDetails", but it should not be
+    // instantiated: it is part of "derived" that should be the only one to
+    // be instantiated.
+    if (sym.owner().IsDerivedType())
+      return 0;
+
     semantics::Symbol ultimate = sym.GetUltimate();
     if (const auto *details =
             ultimate.detailsIf<semantics::NamelistDetails>()) {
@@ -1502,8 +1591,14 @@ private:
       // Handle any symbols in initialization expressions.
       if (auto e = details->init())
         for (const auto &s : evaluate::CollectSymbols(*e))
-          depth = std::max(analyze(s) + 1, depth);
+          if (!s->has<semantics::DerivedTypeDetails>())
+            depth = std::max(analyze(s) + 1, depth);
     }
+
+    // Make sure cray pointer is instantiated even if it is not visible.
+    if (ultimate.test(Fortran::semantics::Symbol::Flag::CrayPointee))
+      depth = std::max(
+          analyze(Fortran::semantics::GetCrayPointer(ultimate)) + 1, depth);
     adjustSize(depth + 1);
     bool global = lower::symbolIsGlobal(sym);
     layeredVarList[depth].emplace_back(sym, global, depth);
@@ -1599,9 +1694,8 @@ private:
 Fortran::lower::pft::FunctionLikeUnit::FunctionLikeUnit(
     const parser::MainProgram &func, const lower::pft::PftNode &parent,
     const semantics::SemanticsContext &semanticsContext)
-    : ProgramUnit{func, parent}, endStmt{
-                                     getFunctionStmt<parser::EndProgramStmt>(
-                                         func)} {
+    : ProgramUnit{func, parent},
+      endStmt{getFunctionStmt<parser::EndProgramStmt>(func)} {
   const auto &programStmt =
       std::get<std::optional<parser::Statement<parser::ProgramStmt>>>(func.t);
   if (programStmt.has_value()) {
@@ -1685,8 +1779,8 @@ Fortran::lower::pft::ModuleLikeUnit::ModuleLikeUnit(
 
 Fortran::lower::pft::ModuleLikeUnit::ModuleLikeUnit(
     const parser::Submodule &m, const lower::pft::PftNode &parent)
-    : ProgramUnit{m, parent}, beginStmt{getModuleStmt<parser::SubmoduleStmt>(
-                                  m)},
+    : ProgramUnit{m, parent},
+      beginStmt{getModuleStmt<parser::SubmoduleStmt>(m)},
       endStmt{getModuleStmt<parser::EndSubmoduleStmt>(m)} {}
 
 parser::CharBlock
@@ -1712,6 +1806,27 @@ Fortran::lower::pft::BlockDataUnit::BlockDataUnit(
       symTab{semanticsContext.FindScope(
           std::get<parser::Statement<parser::EndBlockDataStmt>>(bd.t).source)} {
 }
+
+//===----------------------------------------------------------------------===//
+// Variable implementation
+//===----------------------------------------------------------------------===//
+
+bool Fortran::lower::pft::Variable::isRuntimeTypeInfoData() const {
+  // So far, use flags to detect if this symbol were generated during
+  // semantics::BuildRuntimeDerivedTypeTables(). Scope cannot be used since the
+  // symbols are injected in the user scopes defining the described derived
+  // types. A robustness improvement for this test could be to get hands on the
+  // semantics::RuntimeDerivedTypeTables and to check if the symbol names
+  // belongs to this structure.
+  using Flags = Fortran::semantics::Symbol::Flag;
+  const auto *nominal = std::get_if<Nominal>(&var);
+  return nominal && nominal->symbol->test(Flags::CompilerCreated) &&
+         nominal->symbol->test(Flags::ReadOnly);
+}
+
+//===----------------------------------------------------------------------===//
+// API implementation
+//===----------------------------------------------------------------------===//
 
 std::unique_ptr<lower::pft::Program>
 Fortran::lower::createPFT(const parser::Program &root,
@@ -1892,6 +2007,10 @@ struct SymbolVisitor {
         }
       }
     }
+    // - CrayPointer needs to be available whenever a CrayPointee is used.
+    if (symbol.GetUltimate().test(
+            Fortran::semantics::Symbol::Flag::CrayPointee))
+      visitSymbol(Fortran::semantics::GetCrayPointer(symbol));
   }
 
   template <typename A>

@@ -174,6 +174,8 @@ ARCTargetLowering::ARCTargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::READCYCLECOUNTER, MVT::i32, Legal);
   setOperationAction(ISD::READCYCLECOUNTER, MVT::i64,
                      isTypeLegal(MVT::i64) ? Legal : Custom);
+
+  setMaxAtomicSizeInBitsSupported(0);
 }
 
 const char *ARCTargetLowering::getTargetNodeName(unsigned Opcode) const {
@@ -283,11 +285,11 @@ SDValue ARCTargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   // Analyze return values to determine the number of bytes of stack required.
   CCState RetCCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), RVLocs,
                     *DAG.getContext());
-  RetCCInfo.AllocateStack(CCInfo.getNextStackOffset(), Align(4));
+  RetCCInfo.AllocateStack(CCInfo.getStackSize(), Align(4));
   RetCCInfo.AnalyzeCallResult(Ins, RetCC_ARC);
 
   // Get a count of how many bytes are to be pushed on the stack.
-  unsigned NumBytes = RetCCInfo.getNextStackOffset();
+  unsigned NumBytes = RetCCInfo.getStackSize();
 
   Chain = DAG.getCALLSEQ_START(Chain, NumBytes, 0, dl);
 
@@ -498,7 +500,7 @@ SDValue ARCTargetLowering::LowerCallArguments(
   unsigned StackSlotSize = 4;
 
   if (!IsVarArg)
-    AFI->setReturnStackOffset(CCInfo.getNextStackOffset());
+    AFI->setReturnStackOffset(CCInfo.getStackSize());
 
   // All getCopyFromReg ops must precede any getMemcpys to prevent the
   // scheduler clobbering a register before it has been copied.
@@ -565,7 +567,7 @@ SDValue ARCTargetLowering::LowerCallArguments(
       // There are (std::size(ArgRegs) - FirstVAReg) registers which
       // need to be saved.
       int VarFI = MFI.CreateFixedObject((std::size(ArgRegs) - FirstVAReg) * 4,
-                                        CCInfo.getNextStackOffset(), true);
+                                        CCInfo.getStackSize(), true);
       AFI->setVarArgsFrameIndex(VarFI);
       SDValue FIN = DAG.getFrameIndex(VarFI, MVT::i32);
       for (unsigned i = FirstVAReg; i < std::size(ArgRegs); i++) {
@@ -633,7 +635,7 @@ bool ARCTargetLowering::CanLowerReturn(
   CCState CCInfo(CallConv, IsVarArg, MF, RVLocs, Context);
   if (!CCInfo.CheckReturn(Outs, RetCC_ARC))
     return false;
-  if (CCInfo.getNextStackOffset() != 0 && IsVarArg)
+  if (CCInfo.getStackSize() != 0 && IsVarArg)
     return false;
   return true;
 }
@@ -751,7 +753,7 @@ SDValue ARCTargetLowering::LowerFRAMEADDR(SDValue Op, SelectionDAG &DAG) const {
 
   EVT VT = Op.getValueType();
   SDLoc dl(Op);
-  assert(cast<ConstantSDNode>(Op.getOperand(0))->getZExtValue() == 0 &&
+  assert(Op.getConstantOperandVal(0) == 0 &&
          "Only support lowering frame addr of current frame.");
   Register FrameReg = ARI.getFrameRegister(MF);
   return DAG.getCopyFromReg(DAG.getEntryNode(), dl, FrameReg, VT);

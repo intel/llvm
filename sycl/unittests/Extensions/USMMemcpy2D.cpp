@@ -22,7 +22,7 @@ constexpr const char *USMMemcpyHelperKernelNameLong = "__usmmemcpy2d_long";
 constexpr const char *USMMemcpyHelperKernelNameChar = "__usmmemcpy2d_char";
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 template <>
 struct KernelInfo<class __usmfill2d<long>>
@@ -122,7 +122,7 @@ struct KernelInfo<class __usmmemcpy2d<unsigned char>>
   }
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 static sycl::unittest::PiImage generateMemopsImage() {

@@ -11,17 +11,17 @@
 ; RUN: llvm-spirv %t.bc --spirv-max-version=1.1 --spirv-ext=+SPV_KHR_no_integer_wrap_decoration -spirv-text -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-EXT
 ; RUN: llvm-spirv %t.bc --spirv-max-version=1.1 --spirv-ext=+SPV_KHR_no_integer_wrap_decoration -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv --spirv-max-version=1.1 --spirv-ext=+SPV_KHR_no_integer_wrap_decoration -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv --spirv-max-version=1.1 --spirv-ext=+SPV_KHR_no_integer_wrap_decoration -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 ; RUN: llvm-spirv %t.bc --spirv-max-version=1.4 -spirv-text -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-NOEXT
 ; RUN: llvm-spirv %t.bc --spirv-max-version=1.4 -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv --spirv-max-version=1.4 -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv --spirv-max-version=1.4 -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 ;
 ; During consumption, any SPIR-V extension must be accepted by default
 ;
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 ;
 ; Negative tests:
@@ -31,12 +31,12 @@
 ;
 ; RUN: llvm-spirv %t.bc --spirv-max-version=1.1 -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV-NEGATIVE
 ; RUN: llvm-spirv --spirv-max-version=1.1 %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-NEGATIVE
 ;
 ; RUN: llvm-spirv %t.bc --spirv-max-version=1.1 --spirv-ext=-SPV_KHR_no_integer_wrap_decoration -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV-NEGATIVE
 ; RUN: llvm-spirv %t.bc --spirv-max-version=1.1 --spirv-ext=-SPV_KHR_no_integer_wrap_decoration -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-NEGATIVE
 
 ; Check SPIR-V versions in a format magic number + version

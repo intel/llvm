@@ -375,9 +375,10 @@ public:
   }
 
   /// Retrieve the body of the coroutine as written. This will be either
-  /// a CompoundStmt or a TryStmt.
-  Stmt *getBody() const {
-    return getStoredStmts()[SubStmt::Body];
+  /// a CompoundStmt. If the coroutine is in function-try-block, we will
+  /// wrap the CXXTryStmt into a CompoundStmt to keep consistency.
+  CompoundStmt *getBody() const {
+    return cast<CompoundStmt>(getStoredStmts()[SubStmt::Body]);
   }
 
   Stmt *getPromiseDeclStmt() const {
@@ -440,6 +441,17 @@ public:
     return const_child_range(getStoredStmts(), getStoredStmts() +
                                                    SubStmt::FirstParamMove +
                                                    NumParams);
+  }
+
+  child_range childrenExclBody() {
+    return child_range(getStoredStmts() + SubStmt::Body + 1,
+                       getStoredStmts() + SubStmt::FirstParamMove + NumParams);
+  }
+
+  const_child_range childrenExclBody() const {
+    return const_child_range(getStoredStmts() + SubStmt::Body + 1,
+                             getStoredStmts() + SubStmt::FirstParamMove +
+                                 NumParams);
   }
 
   static bool classof(const Stmt *T) {

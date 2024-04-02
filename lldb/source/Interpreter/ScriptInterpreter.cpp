@@ -27,12 +27,9 @@
 using namespace lldb;
 using namespace lldb_private;
 
-ScriptInterpreter::ScriptInterpreter(
-    Debugger &debugger, lldb::ScriptLanguage script_lang,
-    lldb::ScriptedPlatformInterfaceUP scripted_platform_interface_up)
-    : m_debugger(debugger), m_script_lang(script_lang),
-      m_scripted_platform_interface_up(
-          std::move(scripted_platform_interface_up)) {}
+ScriptInterpreter::ScriptInterpreter(Debugger &debugger,
+                                     lldb::ScriptLanguage script_lang)
+    : m_debugger(debugger), m_script_lang(script_lang) {}
 
 void ScriptInterpreter::CollectDataForBreakpointCommandCallback(
     std::vector<std::reference_wrapper<BreakpointOptions>> &bp_options_vec,
@@ -78,6 +75,11 @@ std::string ScriptInterpreter::LanguageToString(lldb::ScriptLanguage language) {
 lldb::DataExtractorSP
 ScriptInterpreter::GetDataExtractorFromSBData(const lldb::SBData &data) const {
   return data.m_opaque_sp;
+}
+
+lldb::BreakpointSP ScriptInterpreter::GetOpaqueTypeFromSBBreakpoint(
+    const lldb::SBBreakpoint &breakpoint) const {
+  return breakpoint.m_opaque_wp.lock();
 }
 
 lldb::ProcessAttachInfoSP ScriptInterpreter::GetOpaqueTypeFromSBAttachInfo(

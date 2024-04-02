@@ -1,0 +1,479 @@
+= sycl_ext_oneapi_barrier
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 7 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+This extension defines a `sycl::ext::oneapi::experimental::barrier` class
+aligned with the `std::barrier` class defined in {cpp}20. This extension may
+also be considered a generalization of the existing
+link:../experimental/sycl_ext_oneapi_cuda_async_barrier.asciidoc[sycl_ext_oneapi_cuda_async_barrier]
+extension to non-CUDA backends.
+
+`sycl::ext::oneapi::experimental::barrier` is _not_ a general replacement for
+`sycl::group_barrier`, and is intended for usage by experts seeking to
+synchronize subsets of threads of execution that do not necessarily correspond
+to groups of work-items.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_BARRIER` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+
+=== `barrier` class
+
+The `sycl::ext::oneapi::experimental::barrier` class has the same interface as
+the `std::barrier` class from {cpp}20, with an additional `Scope` template
+parameter denoting a memory scope broad enough to contain all threads of
+execution that are able to use the barrier.
+
+The meaning of the `Scope` template parameter is similar to the meaning of the
+scope associated with a `sycl::atomic_ref`, and is orthogonal to the memory
+space in which the barrier object itself is allocated. The `Scope` template
+is effectively a promise that the barrier will only be used to synchronize
+threads of execution within the same scope, which may allow an implementation
+to improve performance. If the scope associated with a barrier is
+insufficiently broad to contain all threads of execution that attempt to use
+the barrier, behavior is undefined.
+
+[NOTE]
+====
+The threads of execution that are synchronized by this barrier may be a
+combination of host threads and device threads (i.e. work-items), if the
+barrier is visible to all threads of execution and has a sufficiently broad
+scope.
+====
+
+The completion function may be executed on any thread during a call to
+`arrive`, `arrive_and_drop` or `wait`. The completion function is considered
+device code, even when the barrier is used to synchronize a mixture of host and
+device threads, so it must abide by the SYCL restrictions for device code.
+
+This extension specification provides a brief overview of the functionality of
+the `barrier` class. If there are any differences in the definitions of this
+functionality, the wording in the {cpp}20 specification takes precedence.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+  template <sycl::memory_scope Scope, class CompletionFunction = __unspecified__>
+  class barrier {
+  public:
+    using arrival_token = __unspecified__;
+
+    static constexpr ptrdiff_t max() noexcept;
+
+    constexpr explicit barrier(ptrdiff_t expected,
+                               CompletionFunction f = CompletionFunction());
+    ~barrier();
+
+    barrier(const barrier&) = delete;
+    barrier& operator=(const barrier&) = delete;
+
+    [[nodiscard]] arrival_token arrive(ptrdiff_t update = 1);
+    void wait(arrival_token&& arrival) const;
+
+    void arrive_and_wait();
+    void arrive_and_drop();
+  };
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+[source,c++]
+----
+static constexpr ptrdiff_t max() noexcept;
+----
+_Returns_: The maximum number of threads of execution that can be synchronized
+by any `barrier` with the specified `Scope` and `CompletionFunction`.
+
+[source,c++]
+----
+constexpr explicit barrier(ptrdiff_t expected, CompletionFunction f = CompletionFunction());
+----
+_Preconditions_: If `Scope` is `memory_scope::work_group`, the calling thread
+of execution must be a work-item belonging to the work-group that will use the
+barrier. If `Scope` is `memory_scope::device`, the calling thread of execution
+must be executing on the device where the barrier will be used. If `Scope` is
+`memory_scope::system`, the calling thread of execution can be any host or
+device thread.
+
+_Effects_: Initializes the barrier with the given expected count and completion
+function, and begins the first phase of the barrier.
+
+[source,c++]
+----
+~barrier();
+----
+_Preconditions_: If `Scope` is `memory_scope::work_group`, the calling thread
+of execution must be a work-item belonging to the same work-group as the
+work-item that constructed the barrier. If `Scope` is `memory_scope::device`,
+the calling thread of execution must be executing on the same device as the
+thread of execution that constructed the barrier. If `Scope` is
+`memory_scope::system`, the calling thread of execution can be any host or
+device thread. Two or more threads of execution calling the destructor
+concurrently introduces a data race.
+
+[source,c++]
+----
+[[nodiscard]] arrival_token arrive(ptrdiff_t update = 1);
+----
+_Effects_: The calling thread of execution arrives at the barrier and decreases
+the expected count by `update`.
+
+_Returns_: An `arrival_token` that can be passed to `wait`.
+
+[source,c++]
+----
+void wait(arrival_token&& arrival) const;
+----
+_Effects_: Blocks the calling thread of execution until the end of the barrier
+phase associated with `arrival`.
+
+[NOTE]
+====
+Because calling `wait` blocks the calling thread of execution, it may prevent
+forward progress. Unlike `group_barrier`, the member functions of `barrier` do
+not provide additional scheduling guarantees; it is a user's responsibility to
+ensure that calls to `wait` are compatible with the forward progress guarantees
+provided by an implementation.
+====
+
+[source,c++]
+----
+void arrive_and_wait();
+----
+_Effects_: Equivalent to `wait(arrive())`.
+
+[source,c++]
+----
+void arrive_and_drop();
+----
+_Effects_: The calling thread of execution arrives at the barrier, decreases
+the number of threads of execution expected in the next phase, and decreases
+the expected count of the current phase by 1.
+
+
+==== Usage examples
+
+As noted above, `barrier` objects must be allocated in memory that is visible
+to all of the work-items using the barrier. There are many ways to satisfy this
+condition. The examples in this section demonstrate some common ways to
+allocate and construct barrier objects for different scopes.
+
+
+===== Work-group scope
+
+Barriers at work-group scope can be allocated in group-local memory. The
+simplest way to allocate and construct a `barrier` object in group-local memory
+is to use the
+link:../supported/sycl_ext_oneapi_local_memory.asciidoc[sycl_ext_oneapi_local_memory]
+extension.
+
+[source,c++]
+----
+using work_group_barrier = syclex::barrier<sycl::memory_scope::work_group>;
+
+q.parallel_for(..., [=](sycl::nd_item it) {
+
+  // Allocate memory for and construct the barrier
+  auto* bar = sycl::ext::oneapi::group_local_memory<work_group_barrier>(it.get_group(), nthreads);
+
+  // Use the barrier
+  bar->arrive_and_wait();
+
+  // The barrier is automatically destructed and the memory is freed upon kernel completion
+
+}).wait();
+----
+
+
+===== Device scope
+
+Barriers at device scope are normally allocated in global memory (including
+various kinds of USM). It is recommended that device scope barriers are
+initialized on the device that will use the barrier.
+
+[source,c++]
+----
+using device_barrier = syclex::barrier<sycl::memory_scope::device>;
+
+// Allocate memory for the barrier
+device_barrier* bar = sycl::device_malloc<device_barrier>(1, q);
+
+// Construct the barrier using placement new
+q.single_task([=]() {
+  new (bar) device_barrier(nthreads);
+}).wait();
+
+// Use the barrier
+q.parallel_for(..., [=](sycl::nd_item it) {
+  auto mybar = std::launder(bar);
+  mybar->arrive_and_wait();
+}).wait();
+
+// Destruct the barrier
+q.single_task([=]() {
+  auto mybar = std::launder(bar);
+  mybar->~barrier();
+}).wait();
+
+// Free memory for the barrier
+sycl::free(bar, q);
+----
+
+It is possible to construct and destruct a `barrier` object in the same kernel
+that uses it, rather than using `single_task` as shown above, but this will
+require an additional mechanism of device synchronization such as the root-group
+barrier provided by the
+link:../proposed/sycl_ext_oneapi_root_group.asciidoc[sycl_ext_oneapi_root_group]
+extension.
+
+
+===== System scope
+
+Barriers at system scope are normally allocated in host, shared, or system USM.
+Such barriers can be constructed on the host, if allocated in memory that is
+accessible by the host.
+
+[source,c++]
+----
+using system_barrier = syclex::barrier<sycl::memory_scope::system>;
+
+// Allocate memory for the barrier
+system_barrier* bar = sycl::shared_malloc<system_barrier>(1, q);
+
+// Construct the barrier using placement new
+bar = new (bar) system_barrier(nthreads);
+
+// Use the barrier
+q.parallel_for(..., [=](sycl::nd_item it) {
+  bar->arrive_and_wait();
+});
+
+// Destruct the barrier
+bar->~barrier();
+
+// Free memory for the barrier
+sycl::free(bar, q);
+----
+
+
+=== `group_arrive` and `group_wait`
+
+This extension provides two convenience functions for `arrive` and `wait` with
+additional convergence requirements, to simplify reasoning about forward
+progress guarantees in common situations. Both of these functions are
+_group functions_, as defined in Section 4.17.3 of the SYCL specification.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+// Exposition only
+template <typename T>
+struct is_barrier : std::false_type {};
+
+// Exposition only
+template <sycl::memory_scope Scope, class CompletionFunction>
+struct is_barrier<barrier<Scope, CompletionFunction>> : std::true_type {};
+
+// Exposition only
+template <typename T>
+inline constexpr bool is_barrier_v = is_barrier<T>::value;
+
+template <typename Group>
+using group_arrival_token = __unspecified__;
+
+template <typename Group, typename Barrier>
+[[nodiscard]] group_arrival_token group_arrive(Group g, Barrier b);
+
+template <typename Group, typename Barrier>
+void group_wait(Group g, Barrier b, group_arrival_token&& arrival);
+
+} // namespace sycl::ext::oneapi::experimental
+----
+
+[NOTE]
+====
+These functions use an unspecified `group_arrival_token` in place of
+`barrier::arrival_token`, to allow implementations additional freedom in
+tracking information specific to `group_arrive` and `group_wait`.
+====
+
+[NOTE]
+====
+The type trait `is_barrier` is shown in the synopsis above only to help define
+the constraints for these functions. This extension does not add a type trait
+named `is_barrier`.
+====
+
+[source,c++]
+----
+template <typename Group, typename Barrier>
+[[nodiscard]] group_arrival_token group_arrive(Group g, Barrier b);
+----
+_Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
+true and `sycl::ext::oneapi::experimental::is_barrier_v<Barrier>` is true.
+
+_Effects_: Waits for all work-items in group `g` to reach this point of
+execution, then signals that all work-items have arrived at barrier `b` and
+decreases the expected count by `g.get_group_linear_range()`.
+
+_Returns_: A `group_arrival_token` that can be passed to `group_wait`.
+
+[NOTE]
+====
+Implementations may decrease the expected count via a call to `arrive(1)` from
+each work-item in the group, or via a single call to
+`arrive(g.get_group_linear_range())` from the elected leader of the group.
+Since `group_arrive` is a group function, implementations may call
+`group_barrier` before and after the call to `arrive` in the latter case.
+====
+
+[source,c++]
+----
+template <typename Group, typename Barrier>
+void group_wait(Group g, Barrier b, group_arrival_token&& arrival);
+----
+_Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
+true and `sycl::ext::oneapi::experimental::is_barrier_v<Barrier>` is true.
+
+_Effects_: Waits for all work-items in group `g` to reach this point of
+execution, then blocks all work-items in group `g` until the end of the barrier
+phase associated with `b` and `arrival`.
+
+[NOTE]
+====
+Implementations may block the work-items in group `g` via a call to `wait` from
+each work-item in the group, or via a single call to `wait` from the elected
+leader of the group. Since `group_wait` is a group function, implementations
+may call `group_barrier` before and after the call to `wait` in the latter
+case.
+====
+
+[source,c++]
+----
+template <typename Group, typename Barrier>
+void group_arrive_and_wait(Group g, Barrier b);
+----
+_Constraints_: Available only if `sycl::is_group_v<std::decay_t<Group>>` is
+true and `sycl::ext::oneapi::experimental::is_barrier_v<Barrier>` is true.
+
+_Effects_: Equivalent to `group_wait(g, b, group_arrive(g, b))`.
+
+
+=== Device queries
+
+The scopes that can be used with a `barrier` object are device-dependent, and
+can be queried with the `info::device::barrier_scope_capabilities` device
+query.
+
+[%header,cols="1,5,5"]
+|===
+|Device Descriptor
+|Return Type
+|Description
+
+|`sycl::ext::oneapi::experimental::info::device::barrier_scope_capabilities`
+|`std::vector<sycl::memory_scope>`
+|Return the set of memory scopes supported by `barrier` objects on this device.
+ If no scopes are returned, usage of `barrier` objects is not supported.
+|===
+
+[NOTE]
+====
+Safe usage of barriers may also require attention to the results of other
+device queries. For example, using a barrier with system scope across the host
+and multiple devices requires the barrier to be allocated in a form of USM
+that can be accessed concurrently by the host and all devices involved.
+====
+
+
+== Implementation notes
+
+This non-normative section provides information about one possible
+implementation of this extension.  It is not part of the specification of the
+extension's API.
+
+Certain backend/hardware combinations will be able to leverage dedicated
+support for barriers with "split" arrive and wait. For example, the CUDA
+backend targeting NVIDIA GPUs can implement the `barrier` class using PTX
+`mbarrier` objects.
+
+Backend/hardware combinations without dedicated support for "split" barriers
+should emulate them using atomic operations, being careful to avoid introducing
+additional blocking behaviors that are not mentioned by this specification.
+
+
+== Issues
+
+None.

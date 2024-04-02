@@ -108,7 +108,7 @@ static bool isNotOperatorStr(llvm::StringRef Value) {
 
 static bool isSeparator(char C) noexcept {
   constexpr llvm::StringRef Separators(" \t\r\n\0()<>{};,");
-  return llvm::is_contained(Separators, C);
+  return Separators.contains(C);
 }
 
 static bool needEscaping(llvm::StringRef Operator) {
@@ -136,7 +136,7 @@ getRepresentation(const std::vector<llvm::StringRef> &Config,
 
 template <typename T>
 static bool isAnyOperatorEnabled(const std::vector<llvm::StringRef> &Config,
-                                 T &&Operators) {
+                                 const T &Operators) {
   for (const auto &[traditional, alternative] : Operators) {
     if (!getRepresentation(Config, traditional, alternative).empty())
       return true;

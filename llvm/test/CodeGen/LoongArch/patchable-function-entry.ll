@@ -31,7 +31,7 @@ define void @f5() "patchable-function-entry"="5" comdat {
 ; CHECK-NEXT:    .Lfunc_begin2:
 ; CHECK-COUNT-5:   nop
 ; CHECK-NEXT:      ret
-; CHECK:         .section __patchable_function_entries,"aGwo",@progbits,f5,comdat,f5{{$}}
+; CHECK:         .section __patchable_function_entries,"awoG",@progbits,f5,f5,comdat{{$}}
 ; LA32:          .p2align 2
 ; LA32-NEXT:     .word .Lfunc_begin2
 ; LA64:          .p2align 3
@@ -43,9 +43,9 @@ define void @f5() "patchable-function-entry"="5" comdat {
 ;; "patchable-function-prefix" emits data before the function entry label.
 define void @f3_2() "patchable-function-entry"="1" "patchable-function-prefix"="2" {
 ; CHECK-LABEL:   .type f3_2,@function
-; CHECK-NEXT:    .Ltmp0: # @f3_2
+; CHECK-NEXT:    .Ltmp0:
 ; CHECK-COUNT-2:   nop
-; CHECK-NEXT:    f3_2:
+; CHECK-NEXT:    f3_2:  # @f3_2
 ; CHECK:         # %bb.0:
 ; CHECK-NEXT:      nop
 ; LA32-NEXT:       addi.w $sp, $sp, -16

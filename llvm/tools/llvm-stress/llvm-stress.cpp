@@ -131,14 +131,9 @@ private:
 Function *GenEmptyFunction(Module *M) {
   // Define a few arguments
   LLVMContext &Context = M->getContext();
-  Type* ArgsTy[] = {
-    Type::getInt8PtrTy(Context),
-    Type::getInt32PtrTy(Context),
-    Type::getInt64PtrTy(Context),
-    Type::getInt32Ty(Context),
-    Type::getInt64Ty(Context),
-    Type::getInt8Ty(Context)
-  };
+  Type *ArgsTy[] = {PointerType::get(Context, 0), PointerType::get(Context, 0),
+                    PointerType::get(Context, 0), Type::getInt32Ty(Context),
+                    Type::getInt64Ty(Context),    Type::getInt8Ty(Context)};
 
   auto *FuncTy = FunctionType::get(Type::getVoidTy(Context), ArgsTy, false);
   // Pick a unique name to describe the input parameters
@@ -175,7 +170,7 @@ public:
         Ty = Type::getPPC_FP128Ty(Context);
       else if (Arg == "x86_mmx")
         Ty = Type::getX86_MMXTy(Context);
-      else if (Arg.startswith("i")) {
+      else if (Arg.starts_with("i")) {
         unsigned N = 0;
         Arg.drop_front().getAsInteger(10, N);
         if (N > 0)
@@ -222,7 +217,7 @@ protected:
     } else if (Tp->isFloatingPointTy()) {
       if (getRandom() & 1)
         return ConstantFP::getAllOnesValue(Tp);
-      return ConstantFP::getNullValue(Tp);
+      return ConstantFP::getZero(Tp);
     }
     return UndefValue::get(Tp);
   }
@@ -244,7 +239,7 @@ protected:
     } else if (Tp->isFloatingPointTy()) {
       if (getRandom() & 1)
         return ConstantFP::getAllOnesValue(Tp);
-      return ConstantFP::getNullValue(Tp);
+      return ConstantFP::getZero(Tp);
     } else if (auto *VTp = dyn_cast<FixedVectorType>(Tp)) {
       std::vector<Constant*> TempValues;
       TempValues.reserve(VTp->getNumElements());
@@ -341,9 +336,7 @@ struct LoadModifier: public Modifier {
   void Act() override {
     // Try to use predefined pointers. If non-exist, use undef pointer value;
     Value *Ptr = getRandomPointerValue();
-    Type *Ty = Ptr->getType()->isOpaquePointerTy()
-                   ? pickType()
-                   : Ptr->getType()->getNonOpaquePointerElementType();
+    Type *Ty = pickType();
     Value *V = new LoadInst(Ty, Ptr, "L", BB->getTerminator());
     PT->push_back(V);
   }
@@ -356,9 +349,7 @@ struct StoreModifier: public Modifier {
   void Act() override {
     // Try to use predefined pointers. If non-exist, use undef pointer value;
     Value *Ptr = getRandomPointerValue();
-    Type *ValTy = Ptr->getType()->isOpaquePointerTy()
-                      ? pickType()
-                      : Ptr->getType()->getNonOpaquePointerElementType();
+    Type *ValTy = pickType();
 
     // Do not store vectors of i1s because they are unsupported
     // by the codegen.
@@ -442,7 +433,7 @@ struct ConstModifier: public Modifier {
       APFloat RandomFloat(Ty->getFltSemantics(), RandomInt);
 
       if (getRandom() & 1)
-        return PT->push_back(ConstantFP::getNullValue(Ty));
+        return PT->push_back(ConstantFP::getZero(Ty));
       return PT->push_back(ConstantFP::get(Ty->getContext(), RandomFloat));
     }
 

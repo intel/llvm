@@ -29,6 +29,7 @@
 // throw.
 
 #include <random>
+#include <string>
 #include <system_error>
 #include <cassert>
 
@@ -60,6 +61,7 @@ void check_random_device_invalid(const std::string &token) {
 int main(int, char**) {
   {
     std::random_device r;
+    (void)r;
   }
   // Check the validity of various tokens
   {

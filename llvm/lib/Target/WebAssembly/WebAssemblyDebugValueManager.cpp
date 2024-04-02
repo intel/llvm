@@ -16,11 +16,16 @@
 #include "WebAssembly.h"
 #include "WebAssemblyMachineFunctionInfo.h"
 #include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/Function.h"
 
 using namespace llvm;
 
 WebAssemblyDebugValueManager::WebAssemblyDebugValueManager(MachineInstr *Def)
     : Def(Def) {
+  if (!Def->getMF()->getFunction().getSubprogram())
+    return;
+
   // This code differs from MachineInstr::collectDebugValues in that it scans
   // the whole BB, not just contiguous DBG_VALUEs, until another definition to
   // the same register is encountered.
@@ -106,7 +111,7 @@ WebAssemblyDebugValueManager::getSinkableDebugValues(
   SmallDenseMap<DebugVariable, SmallVector<MachineInstr *, 2>>
       SeenDbgVarToDbgValues;
   for (auto *DV : DbgValuesInBetween) {
-    if (std::find(DbgValues.begin(), DbgValues.end(), DV) == DbgValues.end()) {
+    if (!llvm::is_contained(DbgValues, DV)) {
       DebugVariable Var(DV->getDebugVariable(), DV->getDebugExpression(),
                         DV->getDebugLoc()->getInlinedAt());
       SeenDbgVarToDbgValues[Var].push_back(DV);
@@ -219,11 +224,20 @@ bool WebAssemblyDebugValueManager::isInsertSamePlace(
   for (MachineBasicBlock::iterator MI = std::next(Def->getIterator()),
                                    ME = Insert;
        MI != ME; ++MI) {
-    if (std::find(DbgValues.begin(), DbgValues.end(), MI) == DbgValues.end()) {
+    if (!llvm::is_contained(DbgValues, MI)) {
       return false;
     }
   }
   return true;
+}
+
+// Returns true if any instruction in MBB has the same debug location as DL.
+// Also returns true if DL is an empty location.
+static bool hasSameDebugLoc(const MachineBasicBlock *MBB, DebugLoc DL) {
+  for (const auto &MI : *MBB)
+    if (MI.getDebugLoc() == DL)
+      return true;
+  return false;
 }
 
 // Sink 'Def', and also sink its eligible DBG_VALUEs to the place before
@@ -263,6 +277,12 @@ void WebAssemblyDebugValueManager::sink(MachineInstr *Insert) {
       getSinkableDebugValues(Insert);
 
   // Sink Def first.
+  //
+  // When moving to a different BB, we preserve the debug loc only if the
+  // destination BB contains the same location. See
+  // https://llvm.org/docs/HowToUpdateDebugInfo.html#when-to-preserve-an-instruction-location.
+  if (Def->getParent() != MBB && !hasSameDebugLoc(MBB, Def->getDebugLoc()))
+      Def->setDebugLoc(DebugLoc());
   MBB->splice(Insert, Def->getParent(), Def);
 
   if (DbgValues.empty())
@@ -319,7 +339,6 @@ void WebAssemblyDebugValueManager::sink(MachineInstr *Insert) {
     DV->setDebugValueUndef();
 
   DbgValues.swap(NewDbgValues);
-  return;
 }
 
 // Clone 'Def', and also clone its eligible DBG_VALUEs to the place before
@@ -344,6 +363,11 @@ void WebAssemblyDebugValueManager::cloneSink(MachineInstr *Insert,
   // Clone Def first.
   if (CloneDef) {
     MachineInstr *Clone = MF->CloneMachineInstr(Def);
+    // When cloning to a different BB, we preserve the debug loc only if the
+    // destination BB contains the same location. See
+    // https://llvm.org/docs/HowToUpdateDebugInfo.html#when-to-preserve-an-instruction-location.
+    if (Def->getParent() != MBB && !hasSameDebugLoc(MBB, Def->getDebugLoc()))
+      Clone->setDebugLoc(DebugLoc());
     if (NewReg != CurrentReg && NewReg.isValid())
       Clone->getOperand(0).setReg(NewReg);
     MBB->insert(Insert, Clone);

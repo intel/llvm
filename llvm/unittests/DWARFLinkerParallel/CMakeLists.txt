@@ -1,6 +1,7 @@
 set(LLVM_LINK_COMPONENTS
-  Support
+  DWARFLinker
   DWARFLinkerParallel
+  Support
   )
 
 add_llvm_unittest(DWARFLinkerParallelTests

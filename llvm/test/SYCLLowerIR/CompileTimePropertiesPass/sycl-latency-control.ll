@@ -26,19 +26,14 @@ entry:
   %1 = alloca ptr , align 8
   store ptr %0, ptr %1, align 8
   %2 = load ptr , ptr %1, align 8
-  %3 = getelementptr inbounds %struct.__spirv_Something, ptr %2, i32 0, i32 0
-  %4 = bitcast ptr %3 to ptr 
-  %5 = call ptr @llvm.ptr.annotation.p0.p0(ptr %4, ptr @.str, ptr @.str.1, i32 5, ptr @.args)
+  %3 = call ptr @llvm.ptr.annotation.p0.p0(ptr %2, ptr @.str, ptr @.str.1, i32 5, ptr @.args)
 ; CHECK: %{{.*}} = call ptr @llvm.ptr.annotation.p0.p0(ptr %[[#]], ptr @[[NewAnnotStr1]], ptr @.str.1, i32 5, ptr null)
-  %6 = bitcast ptr %5 to ptr 
-  %7 = load i32, ptr %6, align 8
-  %8 = load ptr , ptr %1, align 8
-  %9 = getelementptr inbounds %struct.__spirv_Something, ptr %8, i32 0, i32 1
-  %10 = bitcast ptr %9 to ptr 
-  %11 = call ptr @llvm.ptr.annotation.p0.p0(ptr %10, ptr @.str, ptr @.str.1, i32 5, ptr @.args.9)
+  %4 = load i32, ptr %3, align 8
+  %5 = load ptr , ptr %1, align 8
+  %6 = getelementptr inbounds %struct.__spirv_Something, ptr %5, i32 0, i32 1
+  %7 = call ptr @llvm.ptr.annotation.p0.p0(ptr %6, ptr @.str, ptr @.str.1, i32 5, ptr @.args.9)
 ; CHECK: %{{.*}} = call ptr @llvm.ptr.annotation.p0.p0(ptr %[[#]], ptr @[[NewAnnotStr2]], ptr @.str.1, i32 5, ptr null)
-  %12 = bitcast ptr %11 to ptr 
-  %13 = load i32, ptr %12, align 8
+  %8 = load i32, ptr %7, align 8
   ret void
 }
 

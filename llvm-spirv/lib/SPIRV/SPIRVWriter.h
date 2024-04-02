@@ -106,9 +106,18 @@ public:
   bool transSourceLanguage();
   bool transExtension();
   bool transBuiltinSet();
-  bool transWorkItemBuiltinCallsToVariables();
   bool isKnownIntrinsic(Intrinsic::ID Id);
   SPIRVValue *transIntrinsicInst(IntrinsicInst *Intrinsic, SPIRVBasicBlock *BB);
+  enum class FPBuiltinType {
+    REGULAR_MATH,
+    EXT_1OPS,
+    EXT_2OPS,
+    EXT_3OPS,
+    UNKNOWN
+  };
+  FPBuiltinType getFPBuiltinType(IntrinsicInst *II, StringRef &);
+  SPIRVValue *transFPBuiltinIntrinsicInst(IntrinsicInst *II,
+                                          SPIRVBasicBlock *BB);
   SPIRVValue *transFenceInst(FenceInst *FI, SPIRVBasicBlock *BB);
   SPIRVValue *transCallInst(CallInst *Call, SPIRVBasicBlock *BB);
   SPIRVValue *transDirectCallInst(CallInst *Call, SPIRVBasicBlock *BB);
@@ -122,8 +131,11 @@ public:
   SPIRVFunction *transFunctionDecl(Function *F);
   void transVectorComputeMetadata(Function *F);
   void transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F);
+  void transFunctionMetadataAsExecutionMode(SPIRVFunction *BF, Function *F);
   void transFunctionMetadataAsUserSemanticDecoration(SPIRVFunction *BF,
                                                      Function *F);
+  void transAuxDataInst(SPIRVFunction *BF, Function *F);
+
   bool transGlobalVariables();
 
   Op transBoolOpCode(SPIRVValue *Opn, Op OC);
@@ -135,7 +147,7 @@ public:
   SPIRVValue *transConstant(Value *V);
   /// Translate a reference to a constant in a constant expression. This may
   /// involve inserting extra bitcasts to correct type issues.
-  SPIRVValue *transConstantUse(Constant *V);
+  SPIRVValue *transConstantUse(Constant *V, SPIRVType *ExpectedType);
   SPIRVValue *transValue(Value *V, SPIRVBasicBlock *BB,
                          bool CreateForward = true,
                          FuncTransMode FuncTrans = FuncTransMode::Decl);
@@ -216,10 +228,9 @@ private:
   bool oclGetExtInstIndex(const std::string &MangledName,
                           const std::string &DemangledName,
                           SPIRVWord *EntryPoint);
-  void
-  oclGetMutatedArgumentTypesByBuiltin(llvm::FunctionType *FT,
-                                      std::map<unsigned, Type *> &ChangedType,
-                                      Function *F);
+  void oclGetMutatedArgumentTypesByBuiltin(
+      llvm::FunctionType *FT, std::unordered_map<unsigned, Type *> &ChangedType,
+      Function *F);
   bool isBuiltinTransToInst(Function *F);
   bool isBuiltinTransToExtInst(Function *F,
                                SPIRVExtInstSetKind *BuiltinSet = nullptr,
@@ -233,8 +244,9 @@ private:
   SPIRVValue *transBuiltinToConstant(StringRef DemangledName, CallInst *CI);
   SPIRVInstruction *transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
                                                         SPIRVBasicBlock *BB);
-  void mutateFuncArgType(const std::map<unsigned, Type *> &ChangedType,
-                         Function *F);
+  void
+  mutateFuncArgType(const std::unordered_map<unsigned, Type *> &ChangedType,
+                    Function *F);
 
   SPIRVValue *transSpcvCast(CallInst *CI, SPIRVBasicBlock *BB);
   SPIRVValue *oclTransSpvcCastSampler(CallInst *CI, SPIRVBasicBlock *BB);
@@ -247,6 +259,8 @@ private:
       const Function *FS,
       const std::unordered_set<const Function *> Funcs) const;
   void collectInputOutputVariables(SPIRVFunction *SF, Function *F);
+  std::vector<SPIRVId> collectEntryPointInterfaces(SPIRVFunction *BF,
+                                                   Function *F);
 };
 
 class LLVMToSPIRVPass : public PassInfoMixin<LLVMToSPIRVPass> {
@@ -260,6 +274,8 @@ public:
     return PassInstance.runLLVMToSPIRV(M) ? llvm::PreservedAnalyses::none()
                                           : llvm::PreservedAnalyses::all();
   }
+
+  static bool isRequired() { return true; }
 
 private:
   SPIRVModule *SMod;

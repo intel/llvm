@@ -35,6 +35,7 @@ namespace llvm {
 class Argument;
 class BasicBlock;
 class BranchProbabilityInfo;
+class DbgDeclareInst;
 class Function;
 class Instruction;
 class MachineFunction;
@@ -187,6 +188,11 @@ public:
   /// SelectionDAGISel::PrepareEHLandingPad().
   unsigned ExceptionPointerVirtReg, ExceptionSelectorVirtReg;
 
+  /// Collection of dbg.declare instructions handled after argument
+  /// lowering and before ISel proper.
+  SmallPtrSet<const DbgDeclareInst *, 8> PreprocessedDbgDeclares;
+  SmallPtrSet<const DbgVariableRecord *, 8> PreprocessedDVRDeclares;
+
   /// set - Initialize this FunctionLoweringInfo with the given Function
   /// and its associated MachineFunction.
   ///
@@ -209,15 +215,7 @@ public:
 
   Register CreateRegs(Type *Ty, bool isDivergent = false);
 
-  Register InitializeRegForValue(const Value *V) {
-    // Tokens never live in vregs.
-    if (V->getType()->isTokenTy())
-      return 0;
-    Register &R = ValueMap[V];
-    assert(R == 0 && "Already initialized this value register!");
-    assert(VirtReg2Value.empty());
-    return R = CreateRegs(V);
-  }
+  Register InitializeRegForValue(const Value *V);
 
   /// GetLiveOutRegInfo - Gets LiveOutInfo for a register, returning NULL if the
   /// register is a PHI destination and the PHI's LiveOutInfo is not valid.

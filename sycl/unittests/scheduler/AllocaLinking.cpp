@@ -46,6 +46,7 @@ static pi_result redefinedDeviceGetInfoAfter(pi_device Device,
 }
 
 TEST_F(SchedulerTest, AllocaLinking) {
+  HostUnifiedMemory = false;
   // This host device constructor should be placed before Mock.redefine
   // because it overrides the real implementation of get_device_info
   // which is needed when creating a host device.

@@ -1,9 +1,9 @@
-// UNSUPPORTED: cuda || hip || gpu-intel-pvc
+// REQUIRES: aspect-ext_intel_legacy_image
+// UNSUPPORTED: cuda || hip
 // CUDA cannot support SYCL 1.2.1 images.
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 //==--------------------image_accessor_readwrite.cpp ----------------------==//
 //==----------image_accessor read without sampler & write API test---------==//
@@ -16,7 +16,7 @@
 
 #include <cassert>
 #include <iomanip>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #if DEBUG_OUTPUT
 #include <iostream>
 #endif
@@ -27,10 +27,10 @@ template <typename WriteDataT, int ImgType, int read_write> class kernel_class;
 
 template <typename ReadDataT,
           typename = typename std::enable_if<
-              (!(std::is_same<ReadDataT, s::cl_float4>::value) &&
-               !(std::is_same<ReadDataT, s::cl_half4>::value))>::type>
+              (!(std::is_same_v<ReadDataT, s::cl_float4>) &&
+               !(std::is_same_v<ReadDataT, s::cl_half4>))>::type>
 void check_read_data(ReadDataT ReadData, ReadDataT ExpectedColor) {
-  using ReadDataType = typename s::detail::TryToGetElementType<ReadDataT>::type;
+  using ReadDataType = typename ReadDataT::element_type;
   bool CorrectData = false;
   if ((ReadData.x() == ExpectedColor.x()) &&
       (ReadData.y() == ExpectedColor.y()) &&

@@ -19,11 +19,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "SPIRV.h"
+#include "SPIRVSubtarget.h"
 #include "SPIRVTargetMachine.h"
 #include "SPIRVUtils.h"
 #include "llvm/CodeGen/IntrinsicLowering.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/IntrinsicInst.h"
+#include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/IntrinsicsSPIRV.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/LowerMemIntrinsics.h"
 
@@ -36,12 +39,13 @@ void initializeSPIRVPrepareFunctionsPass(PassRegistry &);
 namespace {
 
 class SPIRVPrepareFunctions : public ModulePass {
+  const SPIRVTargetMachine &TM;
   bool substituteIntrinsicCalls(Function *F);
   Function *removeAggregateTypesFromSignature(Function *F);
 
 public:
   static char ID;
-  SPIRVPrepareFunctions() : ModulePass(ID) {
+  SPIRVPrepareFunctions(const SPIRVTargetMachine &TM) : ModulePass(ID), TM(TM) {
     initializeSPIRVPrepareFunctionsPass(*PassRegistry::getPassRegistry());
   }
 
@@ -233,6 +237,47 @@ static void buildUMulWithOverflowFunc(Function *UMulFunc) {
   IRB.CreateRet(Res);
 }
 
+static void lowerExpectAssume(IntrinsicInst *II) {
+  // If we cannot use the SPV_KHR_expect_assume extension, then we need to
+  // ignore the intrinsic and move on. It should be removed later on by LLVM.
+  // Otherwise we should lower the intrinsic to the corresponding SPIR-V
+  // instruction.
+  // For @llvm.assume we have OpAssumeTrueKHR.
+  // For @llvm.expect we have OpExpectKHR.
+  //
+  // We need to lower this into a builtin and then the builtin into a SPIR-V
+  // instruction.
+  if (II->getIntrinsicID() == Intrinsic::assume) {
+    Function *F = Intrinsic::getDeclaration(
+        II->getModule(), Intrinsic::SPVIntrinsics::spv_assume);
+    II->setCalledFunction(F);
+  } else if (II->getIntrinsicID() == Intrinsic::expect) {
+    Function *F = Intrinsic::getDeclaration(
+        II->getModule(), Intrinsic::SPVIntrinsics::spv_expect,
+        {II->getOperand(0)->getType()});
+    II->setCalledFunction(F);
+  } else {
+    llvm_unreachable("Unknown intrinsic");
+  }
+
+  return;
+}
+
+static bool toSpvOverloadedIntrinsic(IntrinsicInst *II, Intrinsic::ID NewID,
+                                     ArrayRef<unsigned> OpNos) {
+  Function *F = nullptr;
+  if (OpNos.empty()) {
+    F = Intrinsic::getDeclaration(II->getModule(), NewID);
+  } else {
+    SmallVector<Type *, 4> Tys;
+    for (unsigned OpNo : OpNos)
+      Tys.push_back(II->getOperand(OpNo)->getType());
+    F = Intrinsic::getDeclaration(II->getModule(), NewID, Tys);
+  }
+  II->setCalledFunction(F);
+  return true;
+}
+
 static void lowerUMulWithOverflow(IntrinsicInst *UMulIntrinsic) {
   // Get a separate function - otherwise, we'd have to rework the CFG of the
   // current one. Then simply replace the intrinsic uses with a call to the new
@@ -260,16 +305,35 @@ bool SPIRVPrepareFunctions::substituteIntrinsicCalls(Function *F) {
       if (!CF || !CF->isIntrinsic())
         continue;
       auto *II = cast<IntrinsicInst>(Call);
-      if (II->getIntrinsicID() == Intrinsic::memset ||
-          II->getIntrinsicID() == Intrinsic::bswap)
+      switch (II->getIntrinsicID()) {
+      case Intrinsic::memset:
+      case Intrinsic::bswap:
         Changed |= lowerIntrinsicToFunction(II);
-      else if (II->getIntrinsicID() == Intrinsic::fshl ||
-               II->getIntrinsicID() == Intrinsic::fshr) {
+        break;
+      case Intrinsic::fshl:
+      case Intrinsic::fshr:
         lowerFunnelShifts(II);
         Changed = true;
-      } else if (II->getIntrinsicID() == Intrinsic::umul_with_overflow) {
+        break;
+      case Intrinsic::umul_with_overflow:
         lowerUMulWithOverflow(II);
         Changed = true;
+        break;
+      case Intrinsic::assume:
+      case Intrinsic::expect: {
+        const SPIRVSubtarget &STI = TM.getSubtarget<SPIRVSubtarget>(*F);
+        if (STI.canUseExtension(SPIRV::Extension::SPV_KHR_expect_assume))
+          lowerExpectAssume(II);
+        Changed = true;
+      } break;
+      case Intrinsic::lifetime_start:
+        Changed |= toSpvOverloadedIntrinsic(
+            II, Intrinsic::SPVIntrinsics::spv_lifetime_start, {1});
+        break;
+      case Intrinsic::lifetime_end:
+        Changed |= toSpvOverloadedIntrinsic(
+            II, Intrinsic::SPVIntrinsics::spv_lifetime_end, {1});
+        break;
       }
     }
   }
@@ -362,6 +426,7 @@ bool SPIRVPrepareFunctions::runOnModule(Module &M) {
   return Changed;
 }
 
-ModulePass *llvm::createSPIRVPrepareFunctionsPass() {
-  return new SPIRVPrepareFunctions();
+ModulePass *
+llvm::createSPIRVPrepareFunctionsPass(const SPIRVTargetMachine &TM) {
+  return new SPIRVPrepareFunctions(TM);
 }

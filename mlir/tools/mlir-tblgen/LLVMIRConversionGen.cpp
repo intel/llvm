@@ -266,8 +266,16 @@ static LogicalResult emitOneMLIRBuilder(const Record &record, raw_ostream &os,
       bs << "moduleImport.mapNoResultOp(inst)";
     } else if (name == "_int_attr") {
       bs << "moduleImport.matchIntegerAttr";
+    } else if (name == "_float_attr") {
+      bs << "moduleImport.matchFloatAttr";
     } else if (name == "_var_attr") {
       bs << "moduleImport.matchLocalVariableAttr";
+    } else if (name == "_label_attr") {
+      bs << "moduleImport.matchLabelAttr";
+    } else if (name == "_fpExceptionBehavior_attr") {
+      bs << "moduleImport.matchFPExceptionBehaviorAttr";
+    } else if (name == "_roundingMode_attr") {
+      bs << "moduleImport.matchRoundingModeAttr";
     } else if (name == "_resultType") {
       bs << "moduleImport.convertType(inst->getType())";
     } else if (name == "_location") {

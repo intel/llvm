@@ -16,7 +16,7 @@
 #include "mlir/Analysis/Presburger/Utils.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
-#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/AffineExprVisitor.h"
 #include "mlir/IR/IntegerSet.h"
 #include "mlir/Support/LLVM.h"
@@ -31,6 +31,7 @@
 #define DEBUG_TYPE "affine-structures"
 
 using namespace mlir;
+using namespace affine;
 using namespace presburger;
 
 
@@ -60,7 +61,7 @@ void FlatAffineValueConstraints::addInductionVarOrTerminalSymbol(Value val) {
   // Add top level symbol.
   appendSymbolVar(val);
   // Check if the symbol is a constant.
-  if (auto constOp = val.getDefiningOp<arith::ConstantIndexOp>())
+  if (std::optional<int64_t> constOp = getConstantIntValue(val))
     addBound(BoundType::EQ, val, constOp.value());
 }
 
@@ -73,7 +74,7 @@ FlatAffineValueConstraints::addAffineForOpDomain(AffineForOp forOp) {
     return failure();
   }
 
-  int64_t step = forOp.getStep();
+  int64_t step = forOp.getStepAsInt();
   if (step != 1) {
     if (!forOp.hasConstantLowerBound())
       LLVM_DEBUG(forOp.emitWarning("domain conservatively approximated"));
@@ -166,10 +167,10 @@ FlatAffineValueConstraints::addDomainFromSliceMaps(ArrayRef<AffineMap> lbMaps,
         // iteration (e.g., lbMap.getResult(0) = 0, ubMap.getResult(0) = 1).
         // Make sure we skip those cases by checking that the lb result is not
         // just a constant.
-        !lbMap.getResult(0).isa<AffineConstantExpr>()) {
+        !isa<AffineConstantExpr>(lbMap.getResult(0))) {
       // Limited support: we expect the lb result to be just a loop dimension.
       // Not supported otherwise for now.
-      AffineDimExpr result = lbMap.getResult(0).dyn_cast<AffineDimExpr>();
+      AffineDimExpr result = dyn_cast<AffineDimExpr>(lbMap.getResult(0));
       if (!result)
         return failure();
 
@@ -489,8 +490,8 @@ void FlatAffineRelation::removeVarRange(VarKind kind, unsigned varStart,
     numRangeDims -= intersectRangeLHS - intersectRangeRHS;
 }
 
-LogicalResult mlir::getRelationFromMap(AffineMap &map,
-                                       FlatAffineRelation &rel) {
+LogicalResult mlir::affine::getRelationFromMap(AffineMap &map,
+                                               FlatAffineRelation &rel) {
   // Get flattened affine expressions.
   std::vector<SmallVector<int64_t, 8>> flatExprs;
   FlatAffineValueConstraints localVarCst;
@@ -525,8 +526,8 @@ LogicalResult mlir::getRelationFromMap(AffineMap &map,
   return success();
 }
 
-LogicalResult mlir::getRelationFromMap(const AffineValueMap &map,
-                                       FlatAffineRelation &rel) {
+LogicalResult mlir::affine::getRelationFromMap(const AffineValueMap &map,
+                                               FlatAffineRelation &rel) {
 
   AffineMap affineMap = map.getAffineMap();
   if (failed(getRelationFromMap(affineMap, rel)))

@@ -19,6 +19,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/bit.h"
 #include "llvm/Config/llvm-config.h"
+#include "llvm/Support/Alignment.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
@@ -162,6 +163,14 @@ void APInt::Profile(FoldingSetNodeID& ID) const {
   unsigned NumWords = getNumWords();
   for (unsigned i = 0; i < NumWords; ++i)
     ID.AddInteger(U.pVal[i]);
+}
+
+bool APInt::isAligned(Align A) const {
+  if (isZero())
+    return true;
+  const unsigned TrailingZeroes = countr_zero();
+  const unsigned MinimumTrailingZeroes = Log2(A);
+  return TrailingZeroes >= MinimumTrailingZeroes;
 }
 
 /// Prefix increment operator. Increments the APInt by one.
@@ -479,7 +488,6 @@ APInt APInt::extractBits(unsigned numBits, unsigned bitPosition) const {
 
 uint64_t APInt::extractBitsAsZExtValue(unsigned numBits,
                                        unsigned bitPosition) const {
-  assert(numBits > 0 && "Can't extract zero bits");
   assert(bitPosition < BitWidth && (numBits + bitPosition) <= BitWidth &&
          "Illegal bit extraction");
   assert(numBits <= 64 && "Illegal bit extraction");
@@ -1984,26 +1992,41 @@ APInt APInt::umul_ov(const APInt &RHS, bool &Overflow) const {
 }
 
 APInt APInt::sshl_ov(const APInt &ShAmt, bool &Overflow) const {
-  Overflow = ShAmt.uge(getBitWidth());
+  return sshl_ov(ShAmt.getLimitedValue(getBitWidth()), Overflow);
+}
+
+APInt APInt::sshl_ov(unsigned ShAmt, bool &Overflow) const {
+  Overflow = ShAmt >= getBitWidth();
   if (Overflow)
     return APInt(BitWidth, 0);
 
   if (isNonNegative()) // Don't allow sign change.
-    Overflow = ShAmt.uge(countl_zero());
+    Overflow = ShAmt >= countl_zero();
   else
-    Overflow = ShAmt.uge(countl_one());
+    Overflow = ShAmt >= countl_one();
 
   return *this << ShAmt;
 }
 
 APInt APInt::ushl_ov(const APInt &ShAmt, bool &Overflow) const {
-  Overflow = ShAmt.uge(getBitWidth());
+  return ushl_ov(ShAmt.getLimitedValue(getBitWidth()), Overflow);
+}
+
+APInt APInt::ushl_ov(unsigned ShAmt, bool &Overflow) const {
+  Overflow = ShAmt >= getBitWidth();
   if (Overflow)
     return APInt(BitWidth, 0);
 
-  Overflow = ShAmt.ugt(countl_zero());
+  Overflow = ShAmt > countl_zero();
 
   return *this << ShAmt;
+}
+
+APInt APInt::sfloordiv_ov(const APInt &RHS, bool &Overflow) const {
+  APInt quotient = sdiv_ov(RHS, Overflow);
+  if ((quotient * RHS != *this) && (isNegative() != RHS.isNegative()))
+    return quotient - 1;
+  return quotient;
 }
 
 APInt APInt::sadd_sat(const APInt &RHS) const {
@@ -2067,6 +2090,10 @@ APInt APInt::umul_sat(const APInt &RHS) const {
 }
 
 APInt APInt::sshl_sat(const APInt &RHS) const {
+  return sshl_sat(RHS.getLimitedValue(getBitWidth()));
+}
+
+APInt APInt::sshl_sat(unsigned RHS) const {
   bool Overflow;
   APInt Res = sshl_ov(RHS, Overflow);
   if (!Overflow)
@@ -2077,6 +2104,10 @@ APInt APInt::sshl_sat(const APInt &RHS) const {
 }
 
 APInt APInt::ushl_sat(const APInt &RHS) const {
+  return ushl_sat(RHS.getLimitedValue(getBitWidth()));
+}
+
+APInt APInt::ushl_sat(unsigned RHS) const {
   bool Overflow;
   APInt Res = ushl_ov(RHS, Overflow);
   if (!Overflow)
@@ -2136,8 +2167,9 @@ void APInt::fromString(unsigned numbits, StringRef str, uint8_t radix) {
     this->negate();
 }
 
-void APInt::toString(SmallVectorImpl<char> &Str, unsigned Radix,
-                     bool Signed, bool formatAsCLiteral) const {
+void APInt::toString(SmallVectorImpl<char> &Str, unsigned Radix, bool Signed,
+                     bool formatAsCLiteral, bool UpperCase,
+                     bool InsertSeparators) const {
   assert((Radix == 10 || Radix == 8 || Radix == 16 || Radix == 2 ||
           Radix == 36) &&
          "Radix should be 2, 8, 10, 16, or 36!");
@@ -2163,6 +2195,9 @@ void APInt::toString(SmallVectorImpl<char> &Str, unsigned Radix,
     }
   }
 
+  // Number of digits in a group between separators.
+  unsigned Grouping = (Radix == 8 || Radix == 10) ? 3 : 4;
+
   // First, check for a zero value and just short circuit the logic below.
   if (isZero()) {
     while (*Prefix) {
@@ -2173,7 +2208,9 @@ void APInt::toString(SmallVectorImpl<char> &Str, unsigned Radix,
     return;
   }
 
-  static const char Digits[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  static const char BothDigits[] = "0123456789abcdefghijklmnopqrstuvwxyz"
+                                   "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const char *Digits = BothDigits + (UpperCase ? 36 : 0);
 
   if (isSingleWord()) {
     char Buffer[65];
@@ -2197,9 +2234,13 @@ void APInt::toString(SmallVectorImpl<char> &Str, unsigned Radix,
       ++Prefix;
     };
 
+    int Pos = 0;
     while (N) {
+      if (InsertSeparators && Pos % Grouping == 0 && Pos > 0)
+        *--BufPtr = '\'';
       *--BufPtr = Digits[N % Radix];
       N /= Radix;
+      Pos++;
     }
     Str.append(BufPtr, std::end(Buffer));
     return;
@@ -2231,17 +2272,27 @@ void APInt::toString(SmallVectorImpl<char> &Str, unsigned Radix,
     unsigned ShiftAmt = (Radix == 16 ? 4 : (Radix == 8 ? 3 : 1));
     unsigned MaskAmt = Radix - 1;
 
+    int Pos = 0;
     while (Tmp.getBoolValue()) {
       unsigned Digit = unsigned(Tmp.getRawData()[0]) & MaskAmt;
+      if (InsertSeparators && Pos % Grouping == 0 && Pos > 0)
+        Str.push_back('\'');
+
       Str.push_back(Digits[Digit]);
       Tmp.lshrInPlace(ShiftAmt);
+      Pos++;
     }
   } else {
+    int Pos = 0;
     while (Tmp.getBoolValue()) {
       uint64_t Digit;
       udivrem(Tmp, Radix, Tmp, Digit);
       assert(Digit < Radix && "divide failed");
+      if (InsertSeparators && Pos % Grouping == 0 && Pos > 0)
+        Str.push_back('\'');
+
       Str.push_back(Digits[Digit]);
+      Pos++;
     }
   }
 
@@ -3049,4 +3100,24 @@ void llvm::LoadIntFromMemory(APInt &IntVal, const uint8_t *Src,
 
     memcpy(Dst + sizeof(uint64_t) - LoadBytes, Src, LoadBytes);
   }
+}
+
+APInt APIntOps::avgFloorS(const APInt &C1, const APInt &C2) {
+  // Return floor((C1 + C2) / 2)
+  return (C1 & C2) + (C1 ^ C2).ashr(1);
+}
+
+APInt APIntOps::avgFloorU(const APInt &C1, const APInt &C2) {
+  // Return floor((C1 + C2) / 2)
+  return (C1 & C2) + (C1 ^ C2).lshr(1);
+}
+
+APInt APIntOps::avgCeilS(const APInt &C1, const APInt &C2) {
+  // Return ceil((C1 + C2) / 2)
+  return (C1 | C2) - (C1 ^ C2).ashr(1);
+}
+
+APInt APIntOps::avgCeilU(const APInt &C1, const APInt &C2) {
+  // Return ceil((C1 + C2) / 2)
+  return (C1 | C2) - (C1 ^ C2).lshr(1);
 }

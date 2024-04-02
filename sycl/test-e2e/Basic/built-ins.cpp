@@ -1,12 +1,8 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
-// RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
-// RUN: %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out | FileCheck %s
 
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -D__SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__ %s -o %t_nonvar.out
-// RUN: %CPU_RUN_PLACEHOLDER %t_nonvar.out %CPU_CHECK_PLACEHOLDER
-// RUN: %GPU_RUN_PLACEHOLDER %t_nonvar.out %GPU_CHECK_PLACEHOLDER
-// RUN: %ACC_RUN_PLACEHOLDER %t_nonvar.out %ACC_CHECK_PLACEHOLDER
+// RUN: %{build} -D__SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__ -o %t_var.out
+// RUN: %{run} %t_var.out | FileCheck %s
 
 // Hits an assertion with AMD:
 // XFAIL: hip_amd
@@ -30,12 +26,11 @@ static const CONSTANT char format[] = "Hello, World! %d %f\n";
 int main() {
   s::queue q{};
 
-#ifndef __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
+#ifdef __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__
   if (!q.get_device().has(sycl::aspect::fp64)) {
-    std::cout
-        << "Test without __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__ defined is "
-           "skipped because the device did not have fp64."
-        << std::endl;
+    std::cout << "Test with __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__ defined is "
+                 "skipped because the device did not have fp64."
+              << std::endl;
     return 0;
   }
 #endif
@@ -64,8 +59,8 @@ int main() {
       });
     });
 
-    auto AccMin = BufMin.template get_access<s::access::mode::read>();
-    auto AccMax = BufMax.template get_access<s::access::mode::read>();
+    sycl::host_accessor AccMin(BufMin, sycl::read_only);
+    sycl::host_accessor AccMax(BufMax, sycl::read_only);
 
     assert(AccMin[0] == 0.5);
     assert(AccMax[0].x() == 2.3f && AccMax[0].y() == 2.5f);

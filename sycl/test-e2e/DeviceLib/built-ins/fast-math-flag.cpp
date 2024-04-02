@@ -1,10 +1,10 @@
-// RUN: %clangxx -fsycl -ffast-math -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -ffast-math -o %t.out
+// RUN: %{run} %t.out
 
 #include <cassert>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
 
 using namespace sycl;
 

@@ -14,13 +14,14 @@
 #include <detail/xpti_registry.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 uint8_t GBufferStreamID;
 #endif
 void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                               void *HostPtr, RT::PiEvent &OutEventToWait) {
+                               void *HostPtr,
+                               sycl::detail::pi::PiEvent &OutEventToWait) {
   bool HostPtrReadOnly = false;
   BaseT::determineHostPtr(Context, InitFromUserData, HostPtr, HostPtrReadOnly);
 
@@ -50,9 +51,9 @@ void buffer_impl::addInteropObject(
     if (std::find(Handles.begin(), Handles.end(),
                   pi::cast<pi_native_handle>(MInteropMemObject)) ==
         Handles.end()) {
-      const plugin &Plugin = getPlugin();
-      Plugin.call<PiApiKind::piMemRetain>(
-          pi::cast<RT::PiMem>(MInteropMemObject));
+      const PluginPtr &Plugin = getPlugin();
+      Plugin->call<PiApiKind::piMemRetain>(
+          pi::cast<sycl::detail::pi::PiMem>(MInteropMemObject));
       Handles.push_back(pi::cast<pi_native_handle>(MInteropMemObject));
     }
   }
@@ -67,23 +68,27 @@ buffer_impl::getNativeVector(backend BackendName) const {
   }
 
   for (auto &Cmd : MRecord->MAllocaCommands) {
-    RT::PiMem NativeMem = pi::cast<RT::PiMem>(Cmd->getMemAllocation());
+    sycl::detail::pi::PiMem NativeMem =
+        pi::cast<sycl::detail::pi::PiMem>(Cmd->getMemAllocation());
     auto Ctx = Cmd->getWorkerContext();
     auto Platform = Ctx->getPlatformImpl();
     // If Host Shared Memory is not supported then there is alloca for host that
     // doesn't have platform
-    if (!Platform)
+    if (!Platform || (Platform->getBackend() != BackendName))
       continue;
+
     auto Plugin = Platform->getPlugin();
 
-    if (Plugin.getBackend() != BackendName)
-      continue;
-    if (Plugin.getBackend() == backend::opencl) {
-      Plugin.call<PiApiKind::piMemRetain>(NativeMem);
+    if (Platform->getBackend() == backend::opencl) {
+      Plugin->call<PiApiKind::piMemRetain>(NativeMem);
     }
 
     pi_native_handle Handle;
-    Plugin.call<PiApiKind::piextMemGetNativeHandle>(NativeMem, &Handle);
+    // When doing buffer interop we don't know what device the memory should be
+    // resident on, so pass nullptr for Device param. Buffer interop may not be
+    // supported by all backends.
+    Plugin->call<PiApiKind::piextMemGetNativeHandle>(NativeMem, /*Dev*/ nullptr,
+                                                     &Handle);
     Handles.push_back(Handle);
   }
 
@@ -91,5 +96,5 @@ buffer_impl::getNativeVector(backend BackendName) const {
   return Handles;
 }
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

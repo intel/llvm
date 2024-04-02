@@ -1,10 +1,12 @@
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
+get_property(extension_libs GLOBAL PROPERTY MLIR_EXTENSION_LIBS)
 
 add_flang_library(FortranLower
   Allocatable.cpp
   Bridge.cpp
   CallInterface.cpp
   Coarray.cpp
+  ComponentPath.cpp
   ConvertArrayConstructor.cpp
   ConvertCall.cpp
   ConvertConstant.cpp
@@ -13,16 +15,21 @@ add_flang_library(FortranLower
   ConvertProcedureDesignator.cpp
   ConvertType.cpp
   ConvertVariable.cpp
-  ComponentPath.cpp
   CustomIntrinsicCall.cpp
   DumpEvaluateExpr.cpp
+  HlfirIntrinsics.cpp
   HostAssociations.cpp
   IO.cpp
   IterationSpace.cpp
   LoweringOptions.cpp
   Mangler.cpp
   OpenACC.cpp
-  OpenMP.cpp
+  OpenMP/ClauseProcessor.cpp
+  OpenMP/Clauses.cpp
+  OpenMP/DataSharingProcessor.cpp
+  OpenMP/OpenMP.cpp
+  OpenMP/ReductionProcessor.cpp
+  OpenMP/Utils.cpp
   PFTBuilder.cpp
   Runtime.cpp
   SymbolMap.cpp
@@ -33,6 +40,7 @@ add_flang_library(FortranLower
   FIRTransforms
   HLFIRDialect
   ${dialect_libs}
+  ${extension_libs}
 
   LINK_LIBS
   FIRDialect
@@ -42,6 +50,7 @@ add_flang_library(FortranLower
   FIRTransforms
   HLFIRDialect
   ${dialect_libs}
+  ${extension_libs}
   FortranCommon
   FortranParser
   FortranEvaluate

@@ -5,10 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl -fsycl-esimd-force-stateless-mem %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: gpu-intel-pvc || gpu-intel-dg2
+// RUN: %{build} -fsycl-esimd-force-stateless-mem -o %t.out
+// RUN: %{run} %t.out
 
 // The test checks functionality of the lsc_block_load, lsc_prefetch,
 // lsc_gather, lsc_scatter, lsc_atomic_update accessor-based ESIMD intrinsics

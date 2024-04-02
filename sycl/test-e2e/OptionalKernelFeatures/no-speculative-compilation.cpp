@@ -1,13 +1,11 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
 // This test intends to check that no speculative compilation is happening,
 // i.e. there are no exceptions thrown about aspects fp16 or fp64 being
 // unsuppored on device.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 void foo(sycl::half &value) { value += sycl::half(1.0f); }
 

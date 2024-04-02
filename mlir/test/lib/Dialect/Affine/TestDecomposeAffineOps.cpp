@@ -21,6 +21,7 @@
 #define PASS_NAME "test-decompose-affine-ops"
 
 using namespace mlir;
+using namespace mlir::affine;
 
 namespace {
 
@@ -33,8 +34,7 @@ struct TestDecomposeAffineOps
     return "Tests affine ops decomposition utility functions.";
   }
   TestDecomposeAffineOps() = default;
-  TestDecomposeAffineOps(const TestDecomposeAffineOps &pass)
-      : PassWrapper(pass){};
+  TestDecomposeAffineOps(const TestDecomposeAffineOps &pass) = default;
 
   void runOnOperation() override;
 };

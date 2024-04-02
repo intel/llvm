@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl-device-only -S -Xclang -emit-llvm %s -o - | FileCheck %s --check-prefix CHECK-IR
+// RUN: %clangxx -fsycl-device-only -S -Xclang -emit-llvm -Xclang -disable-llvm-passes %s -o - | FileCheck %s --check-prefix CHECK-IR
 // RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
 // expected-no-diagnostics
 
@@ -27,23 +27,14 @@ static constexpr auto device_has_all = device_has<
     aspect::ext_intel_memory_clock_rate, aspect::ext_intel_memory_bus_width>;
 
 // CHECK-IR: spir_func void @{{.*}}Func0{{.*}}(){{.*}} #[[DHAttr1:[0-9]+]]
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(device_has_all) void Func0() {}
+SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(device_has_all) void Func0() {}
 
 // CHECK-IR: spir_func void @{{.*}}Func1{{.*}}(){{.*}} #[[DHAttr2:[0-9]+]]
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((device_has<>)) void Func1() {}
+SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((device_has<>)) void Func1() {}
 
 // CHECK-IR: spir_func void @{{.*}}Func2{{.*}}(){{.*}} #[[DHAttr3:[0-9]+]]
-SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((device_has<aspect::fp16, aspect::atomic64>))
-void Func2() {}
-
-// TODO: Check that SYCL_EXTERNAL when the attributes are correctly attached to
-//       device functions with external linkage.
-
-// Due to a current restriction on attribute lists not being applicable after a
-// __attribute__ specifier, SYCL_EXT_ONEAPI_FUNCTION_PROPERTY cannot currently
-// be used after SYCL_EXTERNAL.
-// TODO: Add test for SYCL_EXT_ONEAPI_FUNCTION_PROPERTY after SYCL_EXTERNAL when
-//       the above restriction is loosened.
+SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (device_has<aspect::fp16, aspect::atomic64>)) void Func2() {}
 
 int main() {
   queue Q;

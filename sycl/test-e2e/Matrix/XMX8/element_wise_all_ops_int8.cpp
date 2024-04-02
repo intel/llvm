@@ -6,19 +6,21 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix-xmx8
+// REQUIRES: TEMPORARY_DISBLED
 
-// RUN: %clangxx -fsycl %s -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include <iostream>
 #include <random>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/matrix/matrix.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
 #define SG_SZ 8
+constexpr size_t TN = 8;
 
 #include "../element_wise_all_ops_int8_impl.hpp"

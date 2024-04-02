@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out -fsycl-unnamed-lambda
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 //==-- kernel_unnamed.cpp - SYCL kernel naming variants test ------------==//
 //
@@ -12,7 +10,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #define GOLD 10
 static int NumTestCases = 0;

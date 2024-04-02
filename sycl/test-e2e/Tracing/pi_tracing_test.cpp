@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
-// RUN: env SYCL_PI_TRACE=-1 %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
-// RUN: env SYCL_PI_TRACE=-1 %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER
+// RUN: %{build} -o %t.out
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out | FileCheck %s
 //
 // XFAIL: hip_nvidia
 
@@ -44,7 +42,7 @@
 // CHECK-SAME:  [ {{0[xX]?[0-9a-fA-F]*}} ... ]
 // CHECK-NEXT: ) ---> 	pi_result : PI_SUCCESS
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 int main() {
   sycl::queue Queue;
   sycl::buffer<int, 1> Buf(10);

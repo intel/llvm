@@ -1,15 +1,18 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
 // `Group algorithms are not supported on host device.` on Nvidia.
 // XFAIL: hip_nvidia
 
+// Windows doesn't yet have full shutdown().
+// UNSUPPORTED: ze_debug && windows
 // This test performs basic checks of reductions initialized with a pack
 // containing at least one sycl::span
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/reduction.hpp>
+
 using namespace sycl;
 
 int NumErrors = 0;
@@ -48,9 +51,9 @@ template <size_t N, typename T, typename BinaryOperation, typename Range,
 void test1(queue Q, Range Rng, T Identity, T Value) {
 
   // Initialize output to identity value
-  int *Sum = malloc_shared<int>(1, Q);
+  int *Sum = malloc_device<int>(1, Q);
   Q.single_task([=]() { *Sum = 0; }).wait();
-  T *Output = malloc_shared<T>(N, Q);
+  T *Output = malloc_device<T>(N, Q);
   Q.parallel_for(range<1>{N}, [=](id<1> I) { Output[I] = Identity; }).wait();
 
   // Perform generalized "histogram" with N bins
@@ -80,14 +83,18 @@ void test1(queue Q, Range Rng, T Identity, T Value) {
   }
 
   bool Passed = true;
+  T OutputHost[N];
+  Q.memcpy(OutputHost, Output, N * sizeof(T)).wait();
   for (size_t I = 0; I < N; ++I) {
     if (I < Size % N) {
-      Passed &= (Output[I] == Expected);
+      Passed &= (OutputHost[I] == Expected);
     } else {
-      Passed &= (Output[I] == ExpectedRemainder);
+      Passed &= (OutputHost[I] == ExpectedRemainder);
     }
   }
-  Passed &= (*Sum == Size);
+  int SumHost;
+  Q.memcpy(&SumHost, Sum, sizeof(int)).wait();
+  Passed &= (SumHost == Size);
 
   free(Output, Q);
   free(Sum, Q);
@@ -100,9 +107,9 @@ template <size_t N, typename T, typename BinaryOperation, typename Range,
 void test2(queue Q, Range Rng, T Identity, T Value) {
 
   // Initialize output to identity value
-  int *Output1 = malloc_shared<int>(N, Q);
+  int *Output1 = malloc_device<int>(N, Q);
   Q.parallel_for(range<1>{N}, [=](id<1> I) { Output1[I] = 0; }).wait();
-  T *Output2 = malloc_shared<T>(N, Q);
+  T *Output2 = malloc_device<T>(N, Q);
   Q.parallel_for(range<1>{N}, [=](id<1> I) { Output2[I] = Identity; }).wait();
 
   // Perform generalized "histogram" with N bins
@@ -120,7 +127,10 @@ void test2(queue Q, Range Rng, T Identity, T Value) {
   } else /*if (SubmissionMode == submission_mode::queue) */ {
     Q.parallel_for(Rng, Redu1, Redu2, Kern).wait();
   }
-
+  int Output1Host[N];
+  T Output2Host[N];
+  Q.memcpy(Output1Host, Output1, N * sizeof(int)).wait();
+  Q.memcpy(Output2Host, Output2, N * sizeof(T)).wait();
   size_t Size = getLinearSize(Rng);
   bool Passed = true;
   // Span1
@@ -131,12 +141,11 @@ void test2(queue Q, Range Rng, T Identity, T Value) {
       ExpectedRemainder = Expected;
       Expected += 1;
     }
-
     for (size_t I = 0; I < N; ++I) {
       if (I < Size % N) {
-        Passed &= (Output1[I] == Expected);
+        Passed &= (Output1Host[I] == Expected);
       } else {
-        Passed &= (Output1[I] == ExpectedRemainder);
+        Passed &= (Output1Host[I] == ExpectedRemainder);
       }
     }
   }
@@ -152,9 +161,9 @@ void test2(queue Q, Range Rng, T Identity, T Value) {
 
     for (size_t I = 0; I < N; ++I) {
       if (I < Size % N) {
-        Passed &= (Output2[I] == Expected);
+        Passed &= (Output2Host[I] == Expected);
       } else {
-        Passed &= (Output2[I] == ExpectedRemainder);
+        Passed &= (Output2Host[I] == ExpectedRemainder);
       }
     }
   }

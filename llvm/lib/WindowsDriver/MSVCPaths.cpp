@@ -9,6 +9,7 @@
 #include "llvm/WindowsDriver/MSVCPaths.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/Path.h"
@@ -113,7 +114,7 @@ static bool getWindowsSDKDirViaCommandLine(
       else
         llvm::sys::path::append(
             SDKPath, getHighestNumericTupleInDirectory(VFS, SDKPath));
-      Path = std::string(SDKPath.str());
+      Path = std::string(SDKPath);
     } else {
       Path = WinSdkDir->str();
     }
@@ -327,7 +328,7 @@ bool appendArchToWindowsSDKLibPath(int SDKMajor, SmallString<128> LibPath,
     }
   }
 
-  path = std::string(LibPath.str());
+  path = std::string(LibPath);
   return true;
 }
 
@@ -382,7 +383,7 @@ std::string getSubDirectoryPath(SubDirectoryType Type, ToolsetLayout VSLayout,
     sys::path::append(Path, "lib", SubdirName);
     break;
   }
-  return std::string(Path.str());
+  return std::string(Path);
 }
 
 bool useUniversalCRT(ToolsetLayout VSLayout, const std::string &VCToolChainPath,
@@ -490,7 +491,7 @@ bool findVCToolChainViaCommandLine(vfs::FileSystem &VFS,
       else
         ToolsVersion = getHighestNumericTupleInDirectory(VFS, ToolsPath);
       sys::path::append(ToolsPath, ToolsVersion);
-      Path = std::string(ToolsPath.str());
+      Path = std::string(ToolsPath);
     } else {
       Path = VCToolsDir->str();
     }
@@ -586,7 +587,7 @@ bool findVCToolChainViaEnvironment(vfs::FileSystem &VFS, std::string &Path,
         for (StringRef Prefix : ExpectedPrefixes) {
           if (It == End)
             goto NotAToolChain;
-          if (!It->startswith_insensitive(Prefix))
+          if (!It->starts_with_insensitive(Prefix))
             goto NotAToolChain;
           ++It;
         }
@@ -719,7 +720,7 @@ bool findVCToolChainViaRegistry(std::string &Path, ToolsetLayout &VSLayout) {
       SmallString<256> VCPath(StringRef(VSInstallPath.c_str(), pos));
       sys::path::append(VCPath, "VC");
 
-      Path = std::string(VCPath.str());
+      Path = std::string(VCPath);
       VSLayout = ToolsetLayout::OlderVS;
       return true;
     }

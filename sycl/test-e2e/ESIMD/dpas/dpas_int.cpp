@@ -5,10 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc || gpu-intel-dg2 || esimd_emulator
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: gpu-intel-pvc || gpu-intel-dg2
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 
 // This test verifies DPAS support for 2,4,8-bit integers.
 

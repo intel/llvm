@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -opaque-pointers -std=gnu++11 -emit-llvm -triple=x86_64-linux-gnu -o - %s | FileCheck %s
+// RUN: %clang_cc1 -std=gnu++11 -emit-llvm -triple=x86_64-linux-gnu -o - %s | FileCheck %s
 
 _Atomic unsigned an_atomic_uint;
 

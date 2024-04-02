@@ -1,0 +1,157 @@
+= sycl_ext_intel_queue_immediate_command_list
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023-2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 7 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This extension is implemented and fully supported by {dpcpp}.
+
+However, the immediate command list feature (which is exposed by this extension)
+has been well-tested only on Intel (R) Data Center Max Series GPUs (aka PVC).
+Use of this extension to specify immediate command lists is not recommended
+for other Intel GPUs.
+
+
+== Backend support status
+
+The properties added by this extension are a hint, which all backends accept.
+However, in the current {dpcpp} implementation, the hint is only meaningful
+on the Level Zero backend.
+
+== Overview
+
+When commands are submitted to a SYCL queue that uses the Level Zero backend,
+those commands can be submitted to the hardware in one of two ways:
+either through an immediate command list or through a standard command queue.
+Commands submitted through an immediate command list are immediately submitted
+to the device while commands submitted through a standard command queue may be
+batched with other commands before they are submitted. By default the
+implementation chooses a method that works best for most workloads.
+
+In most cases, applications should rely on the default behavior.
+However, sometimes it is advantageous for the application to choose one method
+or the other. This extension provides a way for applications to select either
+of these two methods via a queue property.
+
+For example, when kernel runtimes are very short, the submission time on the
+host may be as long or longer than the actual runtime of the kernel. In this
+case, doing batched submissions may be preferable so that the submission
+overhead is amortized over a number of kernel executions.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_INTEL_QUEUE_IMMEDIATE_COMMAND_LIST` to one of the values
+defined in the table below.  Applications can test for the existence of this
+macro to determine if the implementation supports this feature, or
+applications can test the macro's value to determine which of the
+extension's features the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== New queue properties
+This extension adds the following new properties that can be used when
+constructing a queue object.
+
+```c++
+namespace sycl::ext::intel::property::queue {
+
+struct immediate_command_list {};
+struct no_immediate_command_list {};
+
+} // namespace sycl::ext::intel::property::queue
+
+```
+
+
+Both properties are hints, which are ignored unless the backend is Level Zero.
+
+The property `immediate_command_list` requests that the implementation use an
+immediate command list when commands are submitted to this queue. As a result,
+these commands are submitted immediately to the device.
+
+The property `no_immediate_command_list` requests that the implementation use
+a standard command queue instead of an immediate command list. As a result,
+commands submitted to this queue may be batched with other commands before
+being submitted to the device.
+
+These two properties are mutually exclusive. Constructing a queue with both
+properties causes the constructor to throw a synchronous exception with
+the `errc::invalid` error code.
+
+== Example
+```c++
+#include <sycl/sycl.hpp>
+
+namespace syclintel = sycl::ext::intel;
+
+int main() {
+  // Use immediate command lists
+  sycl::queue q1{syclintel::property::queue::immediate_command_list{}};
+  ...
+
+  // Do not use immediate command lists
+  sycl::queue q2{syclintel::property::queue::no_immediate_command_list{}};
+  ...
+}
+```
+
+== Interaction with the SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS environment variable
+
+{dpcpp} supports an environment variable named
+SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS which also controls
+the use of immediate command lists in SYCL queues. When that
+environment variable is used in conjunction with the properties in this
+extension, the properties take precedence. The environment variable has
+no effect on queues constructed with one of these properties, however it
+still affects queues that were not constructed with either of these properties.

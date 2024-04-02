@@ -12,6 +12,7 @@
 
 #include "SPIRVSubtarget.h"
 #include "SPIRV.h"
+#include "SPIRVCommandLine.h"
 #include "SPIRVGlobalRegistry.h"
 #include "SPIRVLegalizerInfo.h"
 #include "SPIRVRegisterBankInfo.h"
@@ -27,25 +28,29 @@ using namespace llvm;
 #define GET_SUBTARGETINFO_CTOR
 #include "SPIRVGenSubtargetInfo.inc"
 
+static cl::opt<bool>
+    SPVTranslatorCompat("translator-compatibility-mode",
+                        cl::desc("SPIR-V Translator compatibility mode"),
+                        cl::Optional, cl::init(false));
+
+static cl::opt<std::set<SPIRV::Extension::Extension>, false,
+               SPIRVExtensionsParser>
+    Extensions("spirv-ext",
+               cl::desc("Specify list of enabled SPIR-V extensions"));
+
 // Compare version numbers, but allow 0 to mean unspecified.
 static bool isAtLeastVer(uint32_t Target, uint32_t VerToCompareTo) {
   return Target == 0 || Target >= VerToCompareTo;
-}
-
-static unsigned computePointerSize(const Triple &TT) {
-  const auto Arch = TT.getArch();
-  // TODO: unify this with pointers legalization.
-  assert(TT.isSPIRV());
-  return Arch == Triple::spirv32 ? 32 : 64;
 }
 
 SPIRVSubtarget::SPIRVSubtarget(const Triple &TT, const std::string &CPU,
                                const std::string &FS,
                                const SPIRVTargetMachine &TM)
     : SPIRVGenSubtargetInfo(TT, CPU, /*TuneCPU=*/CPU, FS),
-      PointerSize(computePointerSize(TT)), SPIRVVersion(0), OpenCLVersion(0),
-      InstrInfo(), FrameLowering(initSubtargetDependencies(CPU, FS)),
-      TLInfo(TM, *this) {
+      PointerSize(TM.getPointerSizeInBits(/* AS= */ 0)), SPIRVVersion(0),
+      OpenCLVersion(0), InstrInfo(),
+      FrameLowering(initSubtargetDependencies(CPU, FS)), TLInfo(TM, *this),
+      TargetTriple(TT) {
   // The order of initialization is important.
   initAvailableExtensions();
   initAvailableExtInstSets();
@@ -82,22 +87,23 @@ bool SPIRVSubtarget::isAtLeastSPIRVVer(uint32_t VerToCompareTo) const {
 }
 
 bool SPIRVSubtarget::isAtLeastOpenCLVer(uint32_t VerToCompareTo) const {
+  if (!isOpenCLEnv())
+    return false;
   return isAtLeastVer(OpenCLVersion, VerToCompareTo);
 }
 
 // If the SPIR-V version is >= 1.4 we can call OpPtrEqual and OpPtrNotEqual.
+// In SPIR-V Translator compatibility mode this feature is not available.
 bool SPIRVSubtarget::canDirectlyComparePointers() const {
-  return isAtLeastVer(SPIRVVersion, 14);
+  return !SPVTranslatorCompat && isAtLeastVer(SPIRVVersion, 14);
 }
 
-// TODO: use command line args for this rather than defaults.
 void SPIRVSubtarget::initAvailableExtensions() {
   AvailableExtensions.clear();
   if (!isOpenCLEnv())
     return;
-  // A default extension for testing.
-  AvailableExtensions.insert(
-      SPIRV::Extension::SPV_KHR_no_integer_wrap_decoration);
+
+  AvailableExtensions.insert(Extensions.begin(), Extensions.end());
 }
 
 // TODO: use command line args for this rather than just defaults.

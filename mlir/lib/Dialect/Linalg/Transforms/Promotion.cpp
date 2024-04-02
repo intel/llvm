@@ -23,10 +23,12 @@
 #include "mlir/IR/AffineExprVisitor.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
+#include "mlir/Interfaces/ValueBoundsOpInterface.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/FoldUtils.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallBitVector.h"
+#include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -47,27 +49,36 @@ static Value allocBuffer(ImplicitLocOpBuilder &b,
                          const LinalgPromotionOptions &options,
                          Type elementType, Value allocSize, DataLayout &layout,
                          std::optional<unsigned> alignment = std::nullopt) {
-  auto width = layout.getTypeSize(elementType);
+  llvm::TypeSize width = layout.getTypeSize(elementType);
+  assert(!width.isScalable() && "cannot allocate buffer for a scalable vector");
 
   IntegerAttr alignmentAttr;
   if (alignment.has_value())
     alignmentAttr = b.getI64IntegerAttr(alignment.value());
 
+  Attribute memorySpaceAttr;
+  if (options.memorySpace.has_value())
+    memorySpaceAttr = *options.memorySpace;
+
   // Static buffer.
-  if (auto cst = allocSize.getDefiningOp<arith::ConstantIndexOp>()) {
-    auto staticBufferType =
-        MemRefType::get(width * cst.value(), b.getIntegerType(8));
+  if (std::optional<int64_t> cst = getConstantIntValue(allocSize)) {
+    auto staticBufferType = MemRefType::get(width.getFixedValue() * cst.value(),
+                                            b.getIntegerType(8));
+    staticBufferType =
+        MemRefType::Builder(staticBufferType).setMemorySpace(memorySpaceAttr);
     if (options.useAlloca) {
-      return b.createOrFold<memref::AllocaOp>(staticBufferType, ValueRange{},
-                                              alignmentAttr);
+      return b.create<memref::AllocaOp>(staticBufferType, ValueRange{},
+                                        alignmentAttr);
     }
-    return b.createOrFold<memref::AllocOp>(staticBufferType, ValueRange{},
-                                           alignmentAttr);
+    return b.create<memref::AllocOp>(staticBufferType, ValueRange{},
+                                     alignmentAttr);
   }
 
   // Fallback dynamic buffer.
   auto dynamicBufferType =
       MemRefType::get(ShapedType::kDynamic, b.getIntegerType(8));
+  dynamicBufferType =
+      MemRefType::Builder(dynamicBufferType).setMemorySpace(memorySpaceAttr);
   Value mul = b.createOrFold<arith::MulIOp>(
       b.create<arith::ConstantIndexOp>(width), allocSize);
   if (options.useAlloca)
@@ -85,8 +96,12 @@ static std::optional<Value> defaultAllocBufferCallBack(
     std::optional<unsigned> alignment, DataLayout &layout) {
   ShapedType viewType = subView.getType();
   ImplicitLocOpBuilder b(subView.getLoc(), builder);
-  auto zero = b.createOrFold<arith::ConstantIndexOp>(0);
-  auto one = b.createOrFold<arith::ConstantIndexOp>(1);
+  auto zero = b.create<arith::ConstantIndexOp>(0);
+  auto one = b.create<arith::ConstantIndexOp>(1);
+
+  Attribute memorySpaceAttr;
+  if (options.memorySpace.has_value())
+    memorySpaceAttr = *options.memorySpace;
 
   Value allocSize = one;
   for (const auto &size : llvm::enumerate(boundingSubViewSize))
@@ -95,9 +110,12 @@ static std::optional<Value> defaultAllocBufferCallBack(
                              layout, alignment);
   SmallVector<int64_t, 4> dynSizes(boundingSubViewSize.size(),
                                    ShapedType::kDynamic);
-  Value view = b.createOrFold<memref::ViewOp>(
-      MemRefType::get(dynSizes, viewType.getElementType()), buffer, zero,
-      boundingSubViewSize);
+
+  auto viewMemRefType = MemRefType::get(dynSizes, viewType.getElementType());
+  viewMemRefType =
+      MemRefType::Builder(viewMemRefType).setMemorySpace(memorySpaceAttr);
+  Value view = b.createOrFold<memref::ViewOp>(viewMemRefType, buffer, zero,
+                                              boundingSubViewSize);
   return view;
 }
 
@@ -126,6 +144,8 @@ struct LinalgOpInstancePromotionOptions {
                                    const LinalgPromotionOptions &options);
   /// SubViews to promote.
   MapVector<int64_t, Value> subViews;
+  /// Subviews operand numbers to copy in using copyInFn.
+  llvm::SmallSet<int64_t, 4> operandsNumbersToCopyIn;
   /// True if the full view should be used for the promoted buffer.
   DenseMap<Value, bool> useFullTileBuffers;
 
@@ -144,7 +164,8 @@ struct LinalgOpInstancePromotionOptions {
 LinalgOpInstancePromotionOptions::LinalgOpInstancePromotionOptions(
     LinalgOp linalgOp, const LinalgPromotionOptions &options)
     : subViews(), alignment(options.alignment) {
-  assert(linalgOp.hasBufferSemantics() && "revisit usage of shaped operand");
+  assert(linalgOp.hasPureBufferSemantics() &&
+         "revisit usage of shaped operand");
   auto vUseFullTileBuffers =
       options.useFullTileBuffers.value_or(llvm::SmallBitVector());
   vUseFullTileBuffers.resize(linalgOp->getNumOperands(),
@@ -158,6 +179,11 @@ LinalgOpInstancePromotionOptions::LinalgOpInstancePromotionOptions(
     Operation *op = opOperand.get().getDefiningOp();
     if (auto sv = dyn_cast_or_null<memref::SubViewOp>(op)) {
       subViews[operandNumber] = sv;
+      // In case of linalg generic, copy in only if subview is used in linalg
+      // payload.
+      if (!isa<linalg::GenericOp>(linalgOp) ||
+          linalgOp.payloadUsesValueFromOperand(&opOperand))
+        operandsNumbersToCopyIn.insert(operandNumber);
       useFullTileBuffers[sv] = vUseFullTileBuffers[operandNumber];
     }
   }
@@ -185,7 +211,7 @@ LinalgOpInstancePromotionOptions::LinalgOpInstancePromotionOptions(
   Location loc = linalgOp.getLoc();
   auto defaultCopyCallBack = [loc](OpBuilder &b, Value src,
                                    Value dst) -> LogicalResult {
-    b.create<memref::CopyOp>(loc, src, dst);
+    b.create<linalg::CopyOp>(loc, src, dst);
     return success();
   };
   copyInFn = (options.copyInFn ? *(options.copyInFn) : defaultCopyCallBack);
@@ -228,13 +254,15 @@ FailureOr<PromotionInfo> mlir::linalg::promoteSubviewAsNewBuffer(
     // to look for the bound.
     LLVM_DEBUG(llvm::dbgs() << "Extract tightest: " << rangeValue.size << "\n");
     Value size;
-    if (auto attr = rangeValue.size.dyn_cast<Attribute>()) {
+    if (auto attr = llvm::dyn_cast_if_present<Attribute>(rangeValue.size)) {
       size = getValueOrCreateConstantIndexOp(b, loc, rangeValue.size);
     } else {
       Value materializedSize =
           getValueOrCreateConstantIndexOp(b, loc, rangeValue.size);
       FailureOr<int64_t> upperBound =
-          getConstantUpperBoundForIndex(materializedSize);
+          ValueBoundsConstraintSet::computeConstantBound(
+              presburger::BoundType::UB, materializedSize, /*dim=*/std::nullopt,
+              /*stopCondition=*/nullptr, /*closedUB=*/true);
       size = failed(upperBound)
                  ? materializedSize
                  : b.create<arith::ConstantIndexOp>(loc, *upperBound);
@@ -289,9 +317,9 @@ promoteSubViews(ImplicitLocOpBuilder &b,
             })
             .Case([&](ComplexType t) {
               Value tmp;
-              if (auto et = t.getElementType().dyn_cast<FloatType>())
+              if (auto et = dyn_cast<FloatType>(t.getElementType()))
                 tmp = b.create<arith::ConstantOp>(FloatAttr::get(et, 0.0));
-              else if (auto et = t.getElementType().cast<IntegerType>())
+              else if (auto et = cast<IntegerType>(t.getElementType()))
                 tmp = b.create<arith::ConstantOp>(IntegerAttr::get(et, 0));
               return b.create<complex::CreateOp>(t, tmp, tmp);
             })
@@ -303,8 +331,10 @@ promoteSubViews(ImplicitLocOpBuilder &b,
 
   // Copy data into the promoted buffers. Use callback if provided.
   for (auto v : options.subViews) {
-    auto info = promotionInfoMap.find(v.first);
+    auto *info = promotionInfoMap.find(v.first);
     if (info == promotionInfoMap.end())
+      continue;
+    if (options.operandsNumbersToCopyIn.count(v.first) == 0)
       continue;
     if (failed(options.copyInFn(
             b, cast<memref::SubViewOp>(v.second.getDefiningOp()),
@@ -317,7 +347,8 @@ promoteSubViews(ImplicitLocOpBuilder &b,
 static FailureOr<LinalgOp>
 promoteSubViews(ImplicitLocOpBuilder &b, LinalgOp op,
                 LinalgOpInstancePromotionOptions options, DataLayout &layout) {
-  assert(op.hasBufferSemantics() && "expected linalg op with buffer semantics");
+  assert(op.hasPureBufferSemantics() &&
+         "expected linalg op with buffer semantics");
 
   // 1. Promote the specified views and use them in the new op.
   auto promotedBuffersAndViews = promoteSubViews(b, options, layout);
@@ -371,7 +402,7 @@ mlir::linalg::promoteSubviewsPrecondition(Operation *op,
                                           LinalgPromotionOptions options) {
   LinalgOp linalgOp = dyn_cast<LinalgOp>(op);
   // Transformation applies to buffers only.
-  if (!linalgOp || !linalgOp.hasBufferSemantics())
+  if (!linalgOp || !linalgOp.hasPureBufferSemantics())
     return failure();
   // Check that at least one of the requested operands is indeed a subview.
   for (OpOperand &opOperand : linalgOp->getOpOperands()) {

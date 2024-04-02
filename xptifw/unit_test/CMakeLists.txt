@@ -1,10 +1,11 @@
-if (NOT EXISTS ${XPTI_SOURCE_DIR})
-  message (FATAL_ERROR "Undefined XPTI_SOURCE_DIR variable: Must be set for tests to work!")
+if (NOT EXISTS ${XPTI_DIR})
+  message (FATAL_ERROR "Undefined XPTI_DIR variable: Must be set for tests to work!")
 endif()
-include_directories(${XPTI_SOURCE_DIR}/include)
+include_directories(${XPTI_DIR}/include)
 
 # Only download Google Test outside of LLVM tree.
 if (NOT DEFINED LLVM_EXTERNAL_XPTIFW_SOURCE_DIR)
+  message(STATUS "Building XPTI outside of LLVM Project...")
   # Download and unpack googletest at configure time
   configure_file(../CMakeLists.txt.in googletest-download/CMakeLists.txt)
   execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
@@ -53,12 +54,30 @@ if (TARGET LLVMSupport)
   set(SUPPORT_LIB LLVMSupport)
 endif()
 
-target_link_libraries(XPTIFWUnitTests PRIVATE
-  llvm_gtest
-  llvm_gtest_main
-  xptifw
-  ${SUPPORT_LIB}
-)
+if (DEFINED LLVM_EXTERNAL_XPTIFW_SOURCE_DIR)
+  # Use of SUPPORT_LIB: https://github.com/intel/llvm/pull/4652
+  # LLVM's Google Test library requires LLVM Support. Typically it is
+  # linked statically, but in case of shared libs configuration users
+  # are required to manually specify link dependency. In other LLVM
+  # sub-projects there's usually some sort of helper function (like
+  # add_llvm_library), that automatically prepends LLVM prefix. But
+  # XPTIFW has requirement to be buildable both in-tree and out-of-tree.
+  # With the wrong library name (Support) if's body was skipped, but 
+  #since the Support library was statically linked with gtest, it was
+  # not required. Post-commit job with shared libs exposed this mistake.
+  target_link_libraries(XPTIFWUnitTests PRIVATE
+    llvm_gtest
+    llvm_gtest_main
+    xptifw
+    ${SUPPORT_LIB}
+  )
+else()
+  target_link_libraries(XPTIFWUnitTests PRIVATE
+    gtest
+    gtest_main
+    xptifw
+  )
+endif()
 
 add_test(NAME XPTIFWTests COMMAND XPTIFWUnitTests)
 

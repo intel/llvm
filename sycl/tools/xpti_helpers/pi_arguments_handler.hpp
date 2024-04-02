@@ -19,7 +19,7 @@
 #include <tuple>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace xpti_helpers {
 
 template <typename TupleT, size_t... Is>
@@ -105,5 +105,5 @@ private:
 #undef _PI_API
 };
 } // namespace xpti_helpers
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

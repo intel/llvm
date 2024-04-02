@@ -8,7 +8,7 @@
 #include <memory>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 buffer_plain::buffer_plain(
@@ -129,5 +129,5 @@ void buffer_plain::handleRelease() const {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

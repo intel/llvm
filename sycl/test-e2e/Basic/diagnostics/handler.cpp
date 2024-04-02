@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %BE_RUN_PLACEHOLDER %t.out | FileCheck %s
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out | FileCheck %s
 //
 // Appears to fail on HIP Nvidia because 'no device of requested type available'
 // when constructing a queue with an exception_list.
@@ -13,7 +13,7 @@
 
 #include <cassert>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::queue Queue([](sycl::exception_list ExceptionList) {

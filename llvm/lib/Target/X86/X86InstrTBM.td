@@ -38,7 +38,7 @@ defm BEXTRI32 : tbm_bextri<0x10, GR32, "bextr{l}", i32mem, loadi32,
 let ImmT = Imm32S in
 defm BEXTRI64 : tbm_bextri<0x10, GR64, "bextr{q}", i64mem, loadi64,
                            X86bextri, i64i32imm,
-                           i64timmSExt32, WriteBEXTR>, VEX_W;
+                           i64timmSExt32, WriteBEXTR>, REX_W;
 
 multiclass tbm_binary_rm<bits<8> opc, Format FormReg, Format FormMem,
                          RegisterClass RC, string OpcodeStr,
@@ -46,11 +46,11 @@ multiclass tbm_binary_rm<bits<8> opc, Format FormReg, Format FormMem,
 let hasSideEffects = 0 in {
   def rr : I<opc,  FormReg, (outs RC:$dst), (ins RC:$src),
              !strconcat(OpcodeStr,"\t{$src, $dst|$dst, $src}"), []>,
-             XOP_4V, XOP9, Sched<[Sched]>;
+             XOP, VVVV, XOP9, Sched<[Sched]>;
   let mayLoad = 1 in
   def rm : I<opc,  FormMem, (outs RC:$dst), (ins x86memop:$src),
              !strconcat(OpcodeStr,"\t{$src, $dst|$dst, $src}"), []>,
-             XOP_4V, XOP9, Sched<[Sched.Folded]>;
+             XOP, VVVV, XOP9, Sched<[Sched.Folded]>;
 }
 }
 
@@ -60,7 +60,7 @@ multiclass tbm_binary_intr<bits<8> opc, string OpcodeStr,
   defm NAME#32 : tbm_binary_rm<opc, FormReg, FormMem, GR32, OpcodeStr#"{l}",
                                i32mem, Sched>;
   defm NAME#64 : tbm_binary_rm<opc, FormReg, FormMem, GR64, OpcodeStr#"{q}",
-                               i64mem, Sched>, VEX_W;
+                               i64mem, Sched>, REX_W;
 }
 
 defm BLCFILL : tbm_binary_intr<0x01, "blcfill", WriteALU, MRM1r, MRM1m>;

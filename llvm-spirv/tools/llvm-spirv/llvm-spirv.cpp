@@ -111,7 +111,9 @@ static cl::opt<VersionNumber> MaxSPIRVVersion(
                clEnumValN(VersionNumber::SPIRV_1_1, "1.1", "SPIR-V 1.1"),
                clEnumValN(VersionNumber::SPIRV_1_2, "1.2", "SPIR-V 1.2"),
                clEnumValN(VersionNumber::SPIRV_1_3, "1.3", "SPIR-V 1.3"),
-               clEnumValN(VersionNumber::SPIRV_1_4, "1.4", "SPIR-V 1.4")),
+               clEnumValN(VersionNumber::SPIRV_1_4, "1.4", "SPIR-V 1.4"),
+               clEnumValN(VersionNumber::SPIRV_1_5, "1.5",
+                          "SPIR-V 1.5 (experimental)")),
     cl::init(VersionNumber::MaximumVersion));
 
 static cl::list<std::string>
@@ -133,6 +135,17 @@ static cl::opt<bool> SPIRVGenKernelArgNameMD(
     cl::desc("Enable generating OpenCL kernel argument name "
              "metadata"));
 
+static cl::opt<SPIRV::ExtInst> ExtInst(
+    "spirv-ext-inst",
+    cl::desc("Specify the extended instruction set to use when "
+             "translating from a LLVM intrinsic function to SPIR-V.  "
+             "If none, some LLVM intrinsic functions will be emulated."),
+    cl::values(clEnumValN(SPIRV::ExtInst::None, "none",
+                          "No extended instructions"),
+               clEnumValN(SPIRV::ExtInst::OpenCL, "OpenCL.std",
+                          "OpenCL.std extended instruction set")),
+    cl::init(SPIRV::ExtInst::None));
+
 static cl::opt<SPIRV::BIsRepresentation> BIsRepresentation(
     "spirv-target-env",
     cl::desc("Specify a representation of different SPIR-V Instructions which "
@@ -153,19 +166,6 @@ static cl::opt<bool>
 static cl::opt<bool>
     SPIRVToolsDis("spirv-tools-dis", cl::init(false),
                   cl::desc("Emit textual assembly using SPIRV-Tools"));
-
-#if SPIRV_ENABLE_OPAQUE_POINTERS
-constexpr static bool SPIRVOpaquePointersDefault = true;
-#else
-constexpr static bool SPIRVOpaquePointersDefault = false;
-#endif
-
-static cl::opt<bool>
-    EmitOpaquePointers("emit-opaque-pointers",
-                       cl::init(SPIRVOpaquePointersDefault),
-                       cl::desc("Emit opaque instead of typed LLVM pointers "
-                                "for the translation from SPIR-V."),
-                       cl::Hidden);
 
 using SPIRV::ExtensionID;
 
@@ -200,10 +200,20 @@ static cl::opt<bool>
     SPIRVMemToReg("spirv-mem2reg", cl::init(false),
                   cl::desc("LLVM/SPIR-V translation enable mem2reg"));
 
+static cl::opt<bool> SPIRVPreserveAuxData(
+    "spirv-preserve-auxdata", cl::init(false),
+    cl::desc("Preserve all auxiliary data, such as function attributes and metadata"));
+
 static cl::opt<bool> SpecConstInfo(
     "spec-const-info",
     cl::desc("Display id of constants available for specializaion and their "
              "size in bytes"));
+
+static cl::opt<bool>
+    SPIRVPrintReport("spirv-print-report", cl::init(false),
+                     cl::desc("Display general information about the module "
+                              "(capabilities, extensions, version, memory model"
+                              " and addressing model)"));
 
 static cl::opt<SPIRV::FPContractMode> FPCMode(
     "spirv-fp-contract", cl::desc("Set FP Contraction mode:"),
@@ -254,8 +264,18 @@ static cl::opt<SPIRV::DebugInfoEIS> DebugEIS(
 static cl::opt<bool> SPIRVReplaceLLVMFmulAddWithOpenCLMad(
     "spirv-replace-fmuladd-with-ocl-mad",
     cl::desc("Allow replacement of llvm.fmuladd.* intrinsic with OpenCL mad "
-             "instruction from OpenCL extended instruction set"),
+             "instruction from OpenCL extended instruction set (deprecated)"),
     cl::init(true));
+
+static cl::opt<SPIRV::BuiltinFormat> SPIRVBuiltinFormat(
+    "spirv-builtin-format",
+    cl::desc("Set LLVM-IR representation of SPIR-V builtin variables:"),
+    cl::init(SPIRV::BuiltinFormat::Function),
+    cl::values(
+        clEnumValN(SPIRV::BuiltinFormat::Function, "function",
+                   "Use functions to represent SPIR-V builtin variables"),
+        clEnumValN(SPIRV::BuiltinFormat::Global, "global",
+                   "Use globals to represent SPIR-V builtin variables")));
 
 static std::string removeExt(const std::string &FileName) {
   size_t Pos = FileName.find_last_of(".");
@@ -374,8 +394,7 @@ static bool isFileEmpty(const std::string &FileName) {
 
 static int convertSPIRVToLLVM(const SPIRV::TranslatorOpts &Opts) {
   LLVMContext Context;
-  Context.setOpaquePointers(EmitOpaquePointers);
-
+  
   std::ifstream IFS(InputFile, std::ios::binary);
   Module *M;
   std::string Err;
@@ -506,8 +525,11 @@ static int parseSPVExtOption(
   //  - during SPIR-V generation, assume that any known extension is disallowed.
   //  - during conversion to/from SPIR-V text representation, assume that any
   //    known extension is allowed.
+  std::optional<bool> DefaultVal;
+  if (IsReverse)
+    DefaultVal = true;
   for (const auto &It : ExtensionNamesMap)
-    ExtensionsStatus[It.second] = IsReverse;
+    ExtensionsStatus[It.second] = DefaultVal;
 
   if (SPVExt.empty())
     return 0; // Nothing to do
@@ -697,9 +719,27 @@ int main(int Ac, char **Av) {
     return Ret;
 
   SPIRV::TranslatorOpts Opts(MaxSPIRVVersion, ExtensionsStatus);
+
+  if (ExtInst.getNumOccurrences() != 0) {
+    if (ExtInst.getNumOccurrences() > 1) {
+      errs() << "Error: --spirv-ext-inst cannot be used more than once\n";
+      return -1;
+    } else if (SPIRVReplaceLLVMFmulAddWithOpenCLMad.getNumOccurrences()) {
+      errs()
+          << "Error: --spirv-ext-inst and --spirv-replace-fmuladd-with-ocl-mad "
+             "cannot be used together.  --spirv-replace-fmuladd-with-ocl-mad "
+             "is deprecated and --spirv-ext-inst is preferred.\n";
+      return -1;
+    } else if (IsReverse) {
+      errs() << "Note: --spirv-ext-inst option ignored as it only "
+                "affects translation from LLVM IR to SPIR-V";
+    }
+    Opts.setExtInst(ExtInst);
+  }
+
   if (BIsRepresentation.getNumOccurrences() != 0) {
     if (!IsReverse) {
-      errs() << "Note: --spirv-ocl-builtins-version option ignored as it only "
+      errs() << "Note: --spirv-target-env option ignored as it only "
                 "affects translation from SPIR-V to LLVM IR";
     } else {
       Opts.setDesiredBIsRepresentation(BIsRepresentation);
@@ -708,6 +748,15 @@ int main(int Ac, char **Av) {
 
   Opts.setFPContractMode(FPCMode);
 
+  if (SPIRVBuiltinFormat.getNumOccurrences() != 0) {
+    if (!IsReverse) {
+      errs() << "Note: --spirv-builtin-format option ignored as it only "
+                "affects translation from SPIR-V to LLVM IR";
+    } else {
+      Opts.setBuiltinFormat(SPIRVBuiltinFormat);
+    }
+  }
+
   if (SPIRVMemToReg)
     Opts.setMemToRegEnabled(SPIRVMemToReg);
   if (SPIRVGenKernelArgNameMD)
@@ -715,6 +764,14 @@ int main(int Ac, char **Av) {
   if (IsReverse && !SpecConst.empty()) {
     if (parseSpecConstOpt(SpecConst, Opts))
       return -1;
+  }
+
+  if (SPIRVPreserveAuxData) {
+    Opts.setPreserveAuxData(
+        SPIRVPreserveAuxData);
+    if (!IsReverse)
+      Opts.setAllowedToUseExtension(
+          SPIRV::ExtensionID::SPV_KHR_non_semantic_info);
   }
 
   if (SPIRVAllowUnknownIntrinsics.getNumOccurrences() != 0) {
@@ -751,7 +808,7 @@ int main(int Ac, char **Av) {
           SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200)
         Opts.setAllowExtraDIExpressionsEnabled(true);
       if (DebugEIS.getValue() ==
-          SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200 ||
+          SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_100 ||
           DebugEIS.getValue() ==
           SPIRV::DebugInfoEIS::NonSemantic_Shader_DebugInfo_200)
         Opts.setAllowedToUseExtension(
@@ -777,7 +834,7 @@ int main(int Ac, char **Av) {
     return convertSPIRV();
 #endif
 
-  if (!IsReverse && !IsRegularization && !SpecConstInfo)
+  if (!IsReverse && !IsRegularization && !SpecConstInfo && !SPIRVPrintReport)
     return convertLLVMToSPIRV(Opts);
 
   if (IsReverse && IsRegularization) {
@@ -803,6 +860,40 @@ int main(int Ac, char **Av) {
       std::cout << "Spec const id = " << SpecConst.ID
                 << ", size in bytes = " << SpecConst.Size
                 << ", type = " << SpecConst.Type << "\n";
+  }
+
+  if (SPIRVPrintReport) {
+    std::ifstream IFS(InputFile, std::ios::binary);
+    int ErrCode = 0;
+    std::optional<SPIRV::SPIRVModuleReport> BinReport =
+        SPIRV::getSpirvReport(IFS, ErrCode);
+    if (!BinReport) {
+      std::cerr << "Invalid SPIR-V binary: \"" << SPIRV::getErrorMessage(ErrCode) << "\"\n";
+      return -1;
+    }
+
+    SPIRV::SPIRVModuleTextReport TextReport =
+        SPIRV::formatSpirvReport(BinReport.value());
+
+    std::cout << "SPIR-V module report:"
+              << "\n Version: " << TextReport.Version
+              << "\n Memory model: " << TextReport.MemoryModel
+              << "\n Addressing model: " << TextReport.AddrModel << "\n";
+
+    std::cout << " Number of capabilities: " << TextReport.Capabilities.size()
+              << "\n";
+    for (auto &Capability : TextReport.Capabilities)
+      std::cout << "  Capability: " << Capability << "\n";
+
+    std::cout << " Number of extensions: " << TextReport.Extensions.size()
+              << "\n";
+    for (auto &Extension : TextReport.Extensions)
+      std::cout << "  Extension: " << Extension << "\n";
+
+    std::cout << " Number of extended instruction sets: "
+              << TextReport.ExtendedInstructionSets.size() << "\n";
+    for (auto &ExtendedInstructionSet : TextReport.ExtendedInstructionSets)
+      std::cout << "  Extended Instruction Set: " << ExtendedInstructionSet << "\n";
   }
   return 0;
 }

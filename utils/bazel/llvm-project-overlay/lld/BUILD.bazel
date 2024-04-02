@@ -3,11 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
-load("//llvm:tblgen.bzl", "gentbl")
 load(
     "//:vars.bzl",
     "LLVM_VERSION",
 )
+load("//llvm:binary_alias.bzl", "binary_alias")
+load("//llvm:tblgen.bzl", "gentbl")
 
 package(
     default_visibility = ["//visibility:public"],
@@ -108,6 +109,7 @@ cc_library(
         "//llvm:TargetParser",
         "//llvm:TransformUtils",
         "//llvm:config",
+        "@llvm_zlib//:zlib",
         "@llvm_zstd//:zstd",
     ],
 )
@@ -185,7 +187,6 @@ cc_library(
     name = "MinGW",
     srcs = glob([
         "MinGW/*.cpp",
-        "MinGW/*.h",
     ]),
     includes = ["MinGW"],
     deps = [
@@ -294,7 +295,6 @@ cc_binary(
     name = "lld",
     srcs = glob([
         "tools/lld/*.cpp",
-        "tools/lld/*.h",
     ]) + ["lld-driver.cpp"],
     deps = [
         ":COFF",
@@ -314,16 +314,15 @@ cc_binary(
 # macOS require that the binary be named "ld64.lld".
 # Windows require that the binary be named "lld-link".
 # WebAssembly builds require that the binary be named "wasm-ld".
-genrule(
-    name = "gen_lld",
-    srcs = [":lld"],
-    outs = [
+[
+    binary_alias(
+        name = name,
+        binary = ":lld",
+    )
+    for name in [
         "ld.lld",
         "ld64.lld",
         "lld-link",
         "wasm-ld",
-    ],
-    cmd =
-        "target=$$(basename $<); for n in ld.lld ld64.lld lld-link wasm-ld; do ln -sf $$target $(@D)/$$n; done",
-    output_to_bindir = 1,
-)
+    ]
+]

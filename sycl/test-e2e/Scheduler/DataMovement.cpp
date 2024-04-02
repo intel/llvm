@@ -1,6 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out %debug_option
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out %debug_option
+// RUN: %{run} %t.out
 //
 //==-------------------------- DataMovement.cpp ----------------------------==//
 //
@@ -13,7 +12,7 @@
 // The test checks that no additional host allocation is performed by the SYCL
 // RT if host ptr is used
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <vector>
 
@@ -30,7 +29,9 @@ public:
   using const_reference = const T &;
 
 public:
-  template <typename U> struct rebind { typedef CustomAllocator<U> other; };
+  template <typename U> struct rebind {
+    typedef CustomAllocator<U> other;
+  };
 
   void construct(pointer Ptr, const_reference Val) {
     new (Ptr) value_type(Val);

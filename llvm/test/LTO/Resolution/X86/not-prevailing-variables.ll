@@ -1,5 +1,5 @@
 ; RUN: opt -module-summary %s -o %t1.o
-; RUN: llvm-lto2 run -opaque-pointers -save-temps -o %t2.o %t1.o      \
+; RUN: llvm-lto2 run -save-temps -o %t2.o %t1.o      \
 ; RUN:   -r %t1.o,testVar1,plx -r %t1.o,testVar2,plx \
 ; RUN:   -r %t1.o,var1,pl -r %t1.o,var2,lx
 

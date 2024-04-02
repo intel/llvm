@@ -1,11 +1,11 @@
 // RUN: %libomptarget-compile-run-and-check-generic
 // REQUIRES: ompt
-// UNSUPPORTED: nvptx64-nvidia-cuda
-// UNSUPPORTED: nvptx64-nvidia-cuda-oldDriver
-// UNSUPPORTED: nvptx64-nvidia-cuda-LTO
+// UNSUPPORTED: aarch64-unknown-linux-gnu
+// UNSUPPORTED: aarch64-unknown-linux-gnu-LTO
 // UNSUPPORTED: x86_64-pc-linux-gnu
-// UNSUPPORTED: x86_64-pc-linux-gnu-oldDriver
 // UNSUPPORTED: x86_64-pc-linux-gnu-LTO
+// UNSUPPORTED: s390x-ibm-linux-gnu
+// UNSUPPORTED: s390x-ibm-linux-gnu-LTO
 
 /*
  * Example OpenMP program that registers EMI callbacks
@@ -57,11 +57,89 @@ int main() {
   return rc;
 }
 
-/// CHECK: Could not register callback 'ompt_callback_device_initialize'
-/// CHECK: Could not register callback 'ompt_callback_device_finalize'
-/// CHECK: Could not register callback 'ompt_callback_device_load'
-/// CHECK: Could not register callback 'ompt_callback_target_data_op_emi'
-/// CHECK: Could not register callback 'ompt_callback_target_emi'
-/// CHECK: Could not register callback 'ompt_callback_target_submit_emi'
+/// CHECK: Callback Init:
+/// CHECK: Callback Load:
+/// CHECK: Callback Target EMI: kind=1 endpoint=1
+/// CHECK-NOT: code=(nil)
+/// CHECK: code=[[CODE1:.*]]
+/// CHECK: Callback DataOp EMI: endpoint=1 optype=1
+/// CHECK: code=[[CODE1]]
+/// CHECK: Callback DataOp EMI: endpoint=2 optype=1
+/// CHECK-NOT: dest=(nil)
+/// CHECK: code=[[CODE1]]
+/// CHECK: Callback DataOp EMI: endpoint=1 optype=2
+/// CHECK: code=[[CODE1]]
+/// CHECK: Callback DataOp EMI: endpoint=2 optype=2
+/// CHECK: code=[[CODE1]]
+/// CHECK: Callback DataOp EMI: endpoint=1 optype=1
+/// CHECK: code=[[CODE1]]
+/// CHECK: Callback DataOp EMI: endpoint=2 optype=1
+/// CHECK-NOT: dest=(nil)
+/// CHECK: code=[[CODE1]]
+/// CHECK: Callback DataOp EMI: endpoint=1 optype=2
+/// CHECK: code=[[CODE1]]
+/// CHECK: Callback DataOp EMI: endpoint=2 optype=2
+/// CHECK: code=[[CODE1]]
+/// CHECK: Callback Submit EMI: endpoint=1 req_num_teams=1
+/// CHECK: Callback Submit EMI: endpoint=2 req_num_teams=1
+/// CHECK: Callback DataOp EMI: endpoint=1 optype=3
+/// CHECK: code=[[CODE1]]
+/// CHECK: Callback DataOp EMI: endpoint=2 optype=3
+/// CHECK: code=[[CODE1]]
+/// CHECK: Callback DataOp EMI: endpoint=1 optype=3
+/// CHECK: code=[[CODE1]]
+/// CHECK: Callback DataOp EMI: endpoint=2 optype=3
+/// CHECK: code=[[CODE1]]
+/// CHECK: Callback DataOp EMI: endpoint=1 optype=4
+/// CHECK: code=[[CODE1]]
+/// CHECK: Callback DataOp EMI: endpoint=2 optype=4
+/// CHECK: code=[[CODE1]]
+/// CHECK: Callback DataOp EMI: endpoint=1 optype=4
+/// CHECK: code=[[CODE1]]
+/// CHECK: Callback DataOp EMI: endpoint=2 optype=4
+/// CHECK: code=[[CODE1]]
+/// CHECK: Callback Target EMI: kind=1 endpoint=2
+/// CHECK: code=[[CODE1]]
 
-/// CHECK: Success
+/// CHECK: Callback Target EMI: kind=1 endpoint=1
+/// CHECK-NOT: code=(nil)
+/// CHECK: code=[[CODE2:.*]]
+/// CHECK: Callback DataOp EMI: endpoint=1 optype=1
+/// CHECK: code=[[CODE2]]
+/// CHECK: Callback DataOp EMI: endpoint=2 optype=1
+/// CHECK-NOT: dest=(nil)
+/// CHECK: code=[[CODE2]]
+/// CHECK: Callback DataOp EMI: endpoint=1 optype=2
+/// CHECK: code=[[CODE2]]
+/// CHECK: Callback DataOp EMI: endpoint=2 optype=2
+/// CHECK: code=[[CODE2]]
+/// CHECK: Callback DataOp EMI: endpoint=1 optype=1
+/// CHECK: code=[[CODE2]]
+/// CHECK: Callback DataOp EMI: endpoint=2 optype=1
+/// CHECK-NOT: dest=(nil)
+/// CHECK: code=[[CODE2]]
+/// CHECK: Callback DataOp EMI: endpoint=1 optype=2
+/// CHECK: code=[[CODE2]]
+/// CHECK: Callback DataOp EMI: endpoint=2 optype=2
+/// CHECK: code=[[CODE2]]
+/// CHECK: Callback Submit EMI: endpoint=1 req_num_teams=0
+/// CHECK: Callback Submit EMI: endpoint=2 req_num_teams=0
+/// CHECK: Callback DataOp EMI: endpoint=1 optype=3
+/// CHECK: code=[[CODE2]]
+/// CHECK: Callback DataOp EMI: endpoint=2 optype=3
+/// CHECK: code=[[CODE2]]
+/// CHECK: Callback DataOp EMI: endpoint=1 optype=3
+/// CHECK: code=[[CODE2]]
+/// CHECK: Callback DataOp EMI: endpoint=2 optype=3
+/// CHECK: code=[[CODE2]]
+/// CHECK: Callback DataOp EMI: endpoint=1 optype=4
+/// CHECK: code=[[CODE2]]
+/// CHECK: Callback DataOp EMI: endpoint=2 optype=4
+/// CHECK: code=[[CODE2]]
+/// CHECK: Callback DataOp EMI: endpoint=1 optype=4
+/// CHECK: code=[[CODE2]]
+/// CHECK: Callback DataOp EMI: endpoint=2 optype=4
+/// CHECK: code=[[CODE2]]
+/// CHECK: Callback Target EMI: kind=1 endpoint=2
+/// CHECK: code=[[CODE2]]
+/// CHECK: Callback Fini:

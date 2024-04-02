@@ -1,8 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// UNSUPPORTED: cuda || hip
-// REQUIRES: fusion
+// RUN: %{build} -fsycl-embed-ir -o %t.out
+// RUN: %{run} %t.out
 // This test currently fails because InferAddressSpace is not able to remove all
 // address-space casts, causing internalization to fail.
 // XFAIL: *
@@ -11,7 +8,9 @@
 // accessors, calling a function with a raw pointer taken from an accessor in
 // one of the kernels.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 using namespace sycl;
 

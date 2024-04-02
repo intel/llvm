@@ -6,6 +6,7 @@ add_llvm_component_library(LLVMVectorize
   Vectorize.cpp
   VectorCombine.cpp
   VPlan.cpp
+  VPlanAnalysis.cpp
   VPlanHCFGBuilder.cpp
   VPlanRecipes.cpp
   VPlanSLP.cpp
@@ -23,5 +24,6 @@ add_llvm_component_library(LLVMVectorize
   Analysis
   Core
   Support
+  TargetParser
   TransformUtils
   )

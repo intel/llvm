@@ -6,28 +6,35 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++03
+// REQUIRES: can-create-symlinks
+// UNSUPPORTED: c++03, c++11, c++14
+// UNSUPPORTED: no-filesystem
+// UNSUPPORTED: availability-filesystem-missing
+
+// Starting in Android N (API 24), SELinux policy prevents the shell user from
+// creating a hard link.
+// XFAIL: LIBCXX-ANDROID-FIXME && !android-device-api={{21|22|23}}
 
 // <filesystem>
 
 // uintmax_t hard_link_count(const path& p);
 // uintmax_t hard_link_count(const path& p, std::error_code& ec) noexcept;
 
-#include "filesystem_include.h"
+#include <filesystem>
 #include <type_traits>
 #include <cassert>
 
 #include "test_macros.h"
 #include "filesystem_test_helper.h"
-
+namespace fs = std::filesystem;
 using namespace fs;
 
 static void signature_test()
 {
     const path p; ((void)p);
     std::error_code ec; ((void)ec);
-    ASSERT_SAME_TYPE(decltype(hard_link_count(p)), uintmax_t);
-    ASSERT_SAME_TYPE(decltype(hard_link_count(p, ec)), uintmax_t);
+    ASSERT_SAME_TYPE(decltype(hard_link_count(p)), std::uintmax_t);
+    ASSERT_SAME_TYPE(decltype(hard_link_count(p, ec)), std::uintmax_t);
     ASSERT_NOT_NOEXCEPT(hard_link_count(p));
     ASSERT_NOEXCEPT(hard_link_count(p, ec));
 }
@@ -43,10 +50,10 @@ static void hard_link_count_for_file()
 static void hard_link_count_for_directory()
 {
     static_test_env static_env;
-    uintmax_t DirExpect = 3; // hard link from . .. and Dir2
-    uintmax_t Dir3Expect = 2; // hard link from . ..
-    uintmax_t DirExpectAlt = DirExpect;
-    uintmax_t Dir3ExpectAlt = Dir3Expect;
+    std::uintmax_t DirExpect = 3; // hard link from . .. and Dir2
+    std::uintmax_t Dir3Expect = 2; // hard link from . ..
+    std::uintmax_t DirExpectAlt = DirExpect;
+    std::uintmax_t Dir3ExpectAlt = Dir3Expect;
 #if defined(__APPLE__)
     // Filesystems formatted with case sensitive hfs+ behave unixish as
     // expected. Normal hfs+ filesystems report the number of directory
@@ -88,7 +95,7 @@ static void hard_link_count_error_cases()
         static_env.BadSymlink,
         static_env.DNE
     };
-    const uintmax_t expect = static_cast<uintmax_t>(-1);
+    const std::uintmax_t expect = static_cast<std::uintmax_t>(-1);
     for (auto& TC : testCases) {
         std::error_code ec;
         assert(hard_link_count(TC, ec) == expect);

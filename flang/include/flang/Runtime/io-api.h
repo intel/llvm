@@ -14,6 +14,7 @@
 #include "flang/Common/uint128.h"
 #include "flang/Runtime/entry-names.h"
 #include "flang/Runtime/iostat.h"
+#include "flang/Runtime/magic-numbers.h"
 #include <cinttypes>
 #include <cstddef>
 
@@ -23,12 +24,15 @@ class Descriptor;
 
 namespace Fortran::runtime::io {
 
+struct NonTbpDefinedIoTable;
 class NamelistGroup;
 class IoStatementState;
 using Cookie = IoStatementState *;
 using ExternalUnit = int;
 using AsynchronousId = int;
-static constexpr ExternalUnit DefaultUnit{-1}; // READ(*), WRITE(*), PRINT
+
+static constexpr ExternalUnit DefaultOutputUnit{FORTRAN_DEFAULT_OUTPUT_UNIT};
+static constexpr ExternalUnit DefaultInputUnit{FORTRAN_DEFAULT_INPUT_UNIT};
 
 // INQUIRE specifiers are encoded as simple base-26 packings of
 // the spellings of their keywords.
@@ -47,16 +51,25 @@ constexpr InquiryKeywordHash HashInquiryKeyword(const char *p) {
   return hash;
 }
 
-const char *InquiryKeywordHashDecode(
+RT_API_ATTRS const char *InquiryKeywordHashDecode(
     char *buffer, std::size_t, InquiryKeywordHash);
 
 extern "C" {
 
 #define IONAME(name) RTNAME(io##name)
 
+#ifndef IODECL
+#define IODECL(name) RT_API_ATTRS IONAME(name)
+#endif
+
+#ifndef IODEF
+#define IODEF(name) RT_API_ATTRS IONAME(name)
+#endif
+
 // These functions initiate data transfer statements (READ, WRITE, PRINT).
 // Example: PRINT *, 666 is implemented as the series of calls:
-//   Cookie cookie{BeginExternalListOutput(DefaultUnit,__FILE__,__LINE__)};
+//   Cookie cookie{BeginExternalListOutput(DefaultOutputUnit,
+//                                         __FILE__, __LINE__)};
 //   OutputInteger32(cookie, 666);
 //   EndIoStatement(cookie);
 // Formatted I/O with explicit formats can supply the format as a
@@ -134,19 +147,21 @@ enum Iostat IONAME(CheckUnitNumberInRange128)(common::int128_t unit,
     const char *sourceFile = nullptr, int sourceLine = 0);
 
 // External synchronous I/O initiation
-Cookie IONAME(BeginExternalListOutput)(ExternalUnit = DefaultUnit,
+Cookie IODECL(BeginExternalListOutput)(ExternalUnit = DefaultOutputUnit,
     const char *sourceFile = nullptr, int sourceLine = 0);
-Cookie IONAME(BeginExternalListInput)(ExternalUnit = DefaultUnit,
+Cookie IONAME(BeginExternalListInput)(ExternalUnit = DefaultInputUnit,
     const char *sourceFile = nullptr, int sourceLine = 0);
 Cookie IONAME(BeginExternalFormattedOutput)(const char *format, std::size_t,
-    const Descriptor *formatDescriptor = nullptr, ExternalUnit = DefaultUnit,
-    const char *sourceFile = nullptr, int sourceLine = 0);
+    const Descriptor *formatDescriptor = nullptr,
+    ExternalUnit = DefaultOutputUnit, const char *sourceFile = nullptr,
+    int sourceLine = 0);
 Cookie IONAME(BeginExternalFormattedInput)(const char *format, std::size_t,
-    const Descriptor *formatDescriptor = nullptr, ExternalUnit = DefaultUnit,
+    const Descriptor *formatDescriptor = nullptr,
+    ExternalUnit = DefaultInputUnit, const char *sourceFile = nullptr,
+    int sourceLine = 0);
+Cookie IONAME(BeginUnformattedOutput)(ExternalUnit = DefaultOutputUnit,
     const char *sourceFile = nullptr, int sourceLine = 0);
-Cookie IONAME(BeginUnformattedOutput)(ExternalUnit = DefaultUnit,
-    const char *sourceFile = nullptr, int sourceLine = 0);
-Cookie IONAME(BeginUnformattedInput)(ExternalUnit = DefaultUnit,
+Cookie IONAME(BeginUnformattedInput)(ExternalUnit = DefaultInputUnit,
     const char *sourceFile = nullptr, int sourceLine = 0);
 
 // WAIT(ID=)
@@ -189,7 +204,7 @@ Cookie IONAME(BeginInquireIoLength)(
 // This call makes the runtime library defer those particular error/end
 // conditions to the EndIoStatement() call rather than terminating
 // the image.  E.g., for READ(*,*,END=666) A, B, (C(J),J=1,N)
-//   Cookie cookie{BeginExternalListInput(DefaultUnit,__FILE__,__LINE__)};
+//   Cookie cookie{BeginExternalListInput(DefaultInputUnit,__FILE__,__LINE__)};
 //   EnableHandlers(cookie, false, false, true /*END=*/, false);
 //   if (InputReal64(cookie, &A)) {
 //     if (InputReal64(cookie, &B)) {
@@ -243,15 +258,10 @@ bool IONAME(SetSign)(Cookie, const char *, std::size_t);
 // and avoid the following items when they might crash.
 bool IONAME(OutputDescriptor)(Cookie, const Descriptor &);
 bool IONAME(InputDescriptor)(Cookie, const Descriptor &);
-// Contiguous transfers for unformatted I/O
-bool IONAME(OutputUnformattedBlock)(
-    Cookie, const char *, std::size_t, std::size_t elementBytes);
-bool IONAME(InputUnformattedBlock)(
-    Cookie, char *, std::size_t, std::size_t elementBytes);
 // Formatted (including list directed) I/O data items
 bool IONAME(OutputInteger8)(Cookie, std::int8_t);
 bool IONAME(OutputInteger16)(Cookie, std::int16_t);
-bool IONAME(OutputInteger32)(Cookie, std::int32_t);
+bool IODECL(OutputInteger32)(Cookie, std::int32_t);
 bool IONAME(OutputInteger64)(Cookie, std::int64_t);
 bool IONAME(OutputInteger128)(Cookie, common::int128_t);
 bool IONAME(InputInteger)(Cookie, std::int64_t &, int kind = 8);
@@ -275,21 +285,19 @@ bool IONAME(InputLogical)(Cookie, bool &);
 bool IONAME(OutputNamelist)(Cookie, const NamelistGroup &);
 bool IONAME(InputNamelist)(Cookie, const NamelistGroup &);
 
-// When an I/O list item has a derived type with a specific user-defined
+// When an I/O list item has a derived type with a specific defined
 // I/O subroutine of the appropriate generic kind for the active
 // I/O data transfer statement (read/write, formatted/unformatted)
-// and that I/O subroutine is a specific procedure for an explicit
-// generic INTERFACE or GENERIC statement that is *not* type-bound,
-// this data item transfer API enables the use of that procedure
-// for the item.  Pass 'true' for 'isPolymorphic' when the first ("dtv")
-// dummy argument of the specific procedure is CLASS(t), not TYPE(t).
-// If the procedure pointer is null, or when the next edit descriptor for
-// formatted I/O is not DT, the procedure will not be called and the
-// behavior will be as if (Output/Input)Descriptor had been called.
+// that pertains to the type or its components, and those subroutines
+// are dynamic or neither type-bound nor defined with interfaces
+// in the same scope as the derived type (or an IMPORT statement has
+// made such a generic interface inaccessible), these data item transfer
+// APIs enable the I/O runtime to make the right calls to defined I/O
+// subroutines.
 bool IONAME(OutputDerivedType)(
-    Cookie, const Descriptor &, void (*)(), bool isPolymorphic);
+    Cookie, const Descriptor &, const NonTbpDefinedIoTable *);
 bool IONAME(InputDerivedType)(
-    Cookie, const Descriptor &, void (*)(), bool isPolymorphic);
+    Cookie, const Descriptor &, const NonTbpDefinedIoTable *);
 
 // Additional specifier interfaces for the connection-list of
 // on OPEN statement (only).  SetBlank(), SetDecimal(),
@@ -332,7 +340,7 @@ std::size_t IONAME(GetIoLength)(Cookie);
 void IONAME(GetIoMsg)(Cookie, char *, std::size_t); // IOMSG=
 
 // Defines ID= on READ/WRITE(ASYNCHRONOUS='YES')
-int IONAME(GetAsynchronousId)(Cookie);
+AsynchronousId IONAME(GetAsynchronousId)(Cookie);
 
 // INQUIRE() specifiers are mostly identified by their NUL-terminated
 // case-insensitive names.
@@ -343,7 +351,7 @@ bool IONAME(InquireCharacter)(Cookie, InquiryKeywordHash, char *, std::size_t);
 // EXIST, NAMED, OPENED, and PENDING (without ID):
 bool IONAME(InquireLogical)(Cookie, InquiryKeywordHash, bool &);
 // PENDING with ID
-bool IONAME(InquirePendingId)(Cookie, std::int64_t, bool &);
+bool IONAME(InquirePendingId)(Cookie, AsynchronousId, bool &);
 // NEXTREC, NUMBER, POS, RECL, SIZE
 bool IONAME(InquireInteger64)(
     Cookie, InquiryKeywordHash, std::int64_t &, int kind = 8);
@@ -357,7 +365,7 @@ bool IONAME(InquireInteger64)(
 // returned is guaranteed to only be one of the problems that the
 // EnableHandlers() call has indicated should be handled in compiled code
 // rather than by terminating the image.
-enum Iostat IONAME(EndIoStatement)(Cookie);
+enum Iostat IODECL(EndIoStatement)(Cookie);
 
 } // extern "C"
 } // namespace Fortran::runtime::io

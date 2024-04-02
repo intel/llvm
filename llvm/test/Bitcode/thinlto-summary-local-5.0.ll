@@ -2,7 +2,7 @@
 ; Checks that older bitcode summaries without the dso_local op are still
 ; properly parsed and don't set GlobalValues as dso_local.
 
-; RUN: llvm-dis -opaque-pointers < %s.bc | FileCheck %s
+; RUN: llvm-dis < %s.bc | FileCheck %s
 ; RUN: llvm-bcanalyzer -dump %s.bc | FileCheck %s --check-prefix=BCAN
 
 define void @foo() {

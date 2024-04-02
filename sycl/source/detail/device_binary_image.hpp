@@ -16,7 +16,7 @@
 #include <memory>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // A wrapper for passing around byte array properties
@@ -132,12 +132,8 @@ public:
   };
 
 public:
-  RTDeviceBinaryImage(OSModuleHandle ModuleHandle)
-      : Bin(nullptr), ModuleHandle(ModuleHandle) {}
-  RTDeviceBinaryImage(pi_device_binary Bin, OSModuleHandle ModuleHandle)
-      : ModuleHandle(ModuleHandle) {
-    init(Bin);
-  }
+  RTDeviceBinaryImage() : Bin(nullptr) {}
+  RTDeviceBinaryImage(pi_device_binary Bin) { init(Bin); }
   // Explicitly delete copy constructor/operator= to avoid unintentional copies
   RTDeviceBinaryImage(const RTDeviceBinaryImage &) = delete;
   RTDeviceBinaryImage &operator=(const RTDeviceBinaryImage &) = delete;
@@ -145,8 +141,6 @@ public:
   // collections
   RTDeviceBinaryImage(RTDeviceBinaryImage &&) = default;
   RTDeviceBinaryImage &operator=(RTDeviceBinaryImage &&) = default;
-
-  OSModuleHandle getOSModuleHandle() const { return ModuleHandle; }
 
   virtual ~RTDeviceBinaryImage() {}
 
@@ -226,7 +220,7 @@ public:
 
   std::uintptr_t getImageID() const {
     assert(Bin && "Image ID is not available without a binary image.");
-    return reinterpret_cast<std::uintptr_t>(Bin);
+    return ImageId;
   }
 
 protected:
@@ -234,7 +228,6 @@ protected:
   pi_device_binary get() const { return Bin; }
 
   pi_device_binary Bin;
-  OSModuleHandle ModuleHandle;
 
   pi::PiDeviceBinaryType Format = PI_DEVICE_BINARY_TYPE_NONE;
   RTDeviceBinaryImage::PropertyRange SpecConstIDMap;
@@ -247,14 +240,17 @@ protected:
   RTDeviceBinaryImage::PropertyRange DeviceGlobals;
   RTDeviceBinaryImage::PropertyRange DeviceRequirements;
   RTDeviceBinaryImage::PropertyRange HostPipes;
+
+private:
+  static std::atomic<uintptr_t> ImageCounter;
+  uintptr_t ImageId = 0;
 };
 
 // Dynamically allocated device binary image, which de-allocates its binary
 // data in destructor.
 class DynRTDeviceBinaryImage : public RTDeviceBinaryImage {
 public:
-  DynRTDeviceBinaryImage(std::unique_ptr<char[]> &&DataPtr, size_t DataSize,
-                         OSModuleHandle M);
+  DynRTDeviceBinaryImage(std::unique_ptr<char[]> &&DataPtr, size_t DataSize);
   ~DynRTDeviceBinaryImage() override;
 
   void print() const override {
@@ -267,5 +263,5 @@ protected:
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

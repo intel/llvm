@@ -7,7 +7,10 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/config.hpp>
+
 #include <gtest/gtest.h>
+
+#include <fstream>
 #include <regex>
 
 TEST(ConfigTests, CheckConfigProcessing) {

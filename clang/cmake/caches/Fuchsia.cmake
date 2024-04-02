@@ -6,7 +6,7 @@ set(LLVM_TARGETS_TO_BUILD X86;ARM;AArch64;RISCV CACHE STRING "")
 
 set(PACKAGE_VENDOR Fuchsia CACHE STRING "")
 
-set(_FUCHSIA_ENABLE_PROJECTS "bolt;clang;clang-tools-extra;lld;llvm;polly")
+set(_FUCHSIA_ENABLE_PROJECTS "bolt;clang;clang-tools-extra;libc;lld;llvm;polly")
 
 set(LLVM_ENABLE_DIA_SDK OFF CACHE BOOL "")
 set(LLVM_ENABLE_LIBEDIT OFF CACHE BOOL "")
@@ -18,6 +18,7 @@ set(LLVM_ENABLE_Z3_SOLVER OFF CACHE BOOL "")
 set(LLVM_ENABLE_ZLIB OFF CACHE BOOL "")
 set(LLVM_INCLUDE_DOCS OFF CACHE BOOL "")
 set(LLVM_INCLUDE_EXAMPLES OFF CACHE BOOL "")
+set(LIBC_HDRGEN_ONLY ON CACHE BOOL "")
 set(LLVM_USE_RELATIVE_PATHS_IN_FILES ON CACHE BOOL "")
 set(LLDB_ENABLE_CURSES OFF CACHE BOOL "")
 set(LLDB_ENABLE_LIBEDIT OFF CACHE BOOL "")
@@ -32,11 +33,44 @@ set(_FUCHSIA_BOOTSTRAP_PASSTHROUGH
   LLVM_ENABLE_LIBXML2
   LibXml2_ROOT
   LLVM_ENABLE_CURL
+  LLVM_ENABLE_HTTPLIB
+  LLVM_ENABLE_TERMINFO
+  LLVM_ENABLE_LIBEDIT
   CURL_ROOT
   OpenSSL_ROOT
+  httplib_ROOT
+
+  # Deprecated
+  CursesAndPanel_ROOT
+
+  CURSES_INCLUDE_DIRS
+  CURSES_LIBRARIES
+  PANEL_LIBRARIES
+
+  # Deprecated
+  Terminfo_ROOT
+
+  Terminfo_LIBRARIES
+
+  # Deprecated
+  LibEdit_ROOT
+
+  LibEdit_INCLUDE_DIRS
+  LibEdit_LIBRARIES
+
   FUCHSIA_ENABLE_LLDB
   LLDB_ENABLE_CURSES
   LLDB_ENABLE_LIBEDIT
+  LLDB_ENABLE_PYTHON
+  LLDB_EMBED_PYTHON_HOME
+  LLDB_PYTHON_HOME
+  LLDB_PYTHON_RELATIVE_PATH
+  LLDB_TEST_USE_VENDOR_PACKAGES
+  LLDB_TEST_USER_ARGS
+  Python3_EXECUTABLE
+  Python3_LIBRARIES
+  Python3_INCLUDE_DIRS
+  Python3_RPATH
   CMAKE_FIND_PACKAGE_PREFER_CONFIG
   CMAKE_SYSROOT
   CMAKE_MODULE_LINKER_FLAGS
@@ -54,10 +88,6 @@ foreach(variable ${_FUCHSIA_BOOTSTRAP_PASSTHROUGH})
     set(BOOTSTRAP_${variable} "${value}" CACHE ${type} "")
   endif()
 endforeach()
-
-if(WIN32)
-  set(LLVM_USE_CRT_RELEASE "MT" CACHE STRING "")
-endif()
 
 set(CLANG_DEFAULT_CXX_STDLIB libc++ CACHE STRING "")
 set(CLANG_DEFAULT_LINKER lld CACHE STRING "")
@@ -88,7 +118,6 @@ endif()
 
 if(WIN32)
   set(LIBCXX_ABI_VERSION 2 CACHE STRING "")
-  set(LIBCXX_ENABLE_FILESYSTEM OFF CACHE BOOL "")
   set(LIBCXX_ENABLE_ABI_LINKER_SCRIPT OFF CACHE BOOL "")
   set(LIBCXX_ENABLE_SHARED OFF CACHE BOOL "")
   set(BUILTINS_CMAKE_ARGS -DCMAKE_SYSTEM_NAME=Windows CACHE STRING "")
@@ -106,6 +135,7 @@ else()
   set(LIBCXX_ABI_VERSION 2 CACHE STRING "")
   set(LIBCXX_ENABLE_SHARED OFF CACHE BOOL "")
   set(LIBCXX_ENABLE_STATIC_ABI_LIBRARY ON CACHE BOOL "")
+  set(LIBCXX_HARDENING_MODE "none" CACHE STRING "")
   set(LIBCXX_USE_COMPILER_RT ON CACHE BOOL "")
   set(LLVM_ENABLE_RUNTIMES "compiler-rt;libcxx;libcxxabi;libunwind" CACHE STRING "")
   set(RUNTIMES_CMAKE_ARGS "-DCMAKE_OSX_DEPLOYMENT_TARGET=10.13;-DCMAKE_OSX_ARCHITECTURES=arm64|x86_64" CACHE STRING "")
@@ -182,9 +212,13 @@ get_cmake_property(variableNames VARIABLES)
 foreach(variableName ${variableNames})
   if(variableName MATCHES "^STAGE2_")
     string(REPLACE "STAGE2_" "" new_name ${variableName})
-    list(APPEND EXTRA_ARGS "-D${new_name}=${${variableName}}")
+    string(REPLACE ";" "|" value "${${variableName}}")
+    list(APPEND EXTRA_ARGS "-D${new_name}=${value}")
   endif()
 endforeach()
+
+# TODO: This is a temporary workaround until we figure out the right solution.
+set(BOOTSTRAP_LLVM_ENABLE_RUNTIMES "compiler-rt;libcxx;libcxxabi;libunwind" CACHE STRING "")
 
 # Setup the bootstrap build.
 set(CLANG_ENABLE_BOOTSTRAP ON CACHE BOOL "")

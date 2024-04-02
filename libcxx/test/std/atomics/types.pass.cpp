@@ -150,11 +150,11 @@ int main(int, char**)
     test<std::uintptr_t> ();
     test<std::size_t>    ();
     test<std::ptrdiff_t> ();
-    test<intmax_t>  ();
-    test<uintmax_t> ();
+    test<std::intmax_t>  ();
+    test<std::uintmax_t> ();
 
-    test<uintmax_t> ();
-    test<uintmax_t> ();
+    test<std::uintmax_t> ();
+    test<std::uintmax_t> ();
 
     test<TriviallyCopyable>();
     test<PaddedTriviallyCopyable>();
@@ -175,7 +175,12 @@ int main(int, char**)
 
 #if TEST_STD_VER >= 20
     test<std::atomic_signed_lock_free::value_type>();
+    static_assert(std::is_signed_v<std::atomic_signed_lock_free::value_type>);
+    static_assert(std::is_integral_v<std::atomic_signed_lock_free::value_type>);
+
     test<std::atomic_unsigned_lock_free::value_type>();
+    static_assert(std::is_unsigned_v<std::atomic_unsigned_lock_free::value_type>);
+    static_assert(std::is_integral_v<std::atomic_unsigned_lock_free::value_type>);
 /*
     test<std::shared_ptr<int>>();
 */

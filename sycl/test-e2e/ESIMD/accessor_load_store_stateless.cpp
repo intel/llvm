@@ -10,10 +10,7 @@
 // intrinsics when stateless memory accesses are enforced, i.e. accessor
 // based accesses are automatically converted to stateless accesses.
 
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// RUN: %clangxx -fsycl -fsycl-esimd-force-stateless-mem %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-esimd-force-stateless-mem -o %t.out
+// RUN: %{run} %t.out
 
 #include "accessor_load_store.hpp"

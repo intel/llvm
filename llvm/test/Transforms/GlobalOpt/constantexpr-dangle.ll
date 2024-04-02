@@ -1,4 +1,4 @@
-; RUN: opt -opaque-pointers < %s -passes='function(instcombine),globalopt' -S | FileCheck %s
+; RUN: opt < %s -passes='function(instcombine),globalopt' -S | FileCheck %s
 ; CHECK: internal fastcc float @foo
 
 define internal float @foo() {

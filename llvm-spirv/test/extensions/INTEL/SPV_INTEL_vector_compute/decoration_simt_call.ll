@@ -1,7 +1,7 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_INTEL_vector_compute --spirv-allow-unknown-intrinsics=llvm.genx
 ; RUN: llvm-spirv %t.spv -o %t.spt --to-text
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc
+; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis %t.bc -o %t.ll
 ; RUN: FileCheck %s --input-file %t.spt -check-prefix=SPV
 ; RUN: FileCheck %s --input-file %t.ll  -check-prefix=LLVM
@@ -16,13 +16,13 @@ target triple = "spir"
 ; SPV-DAG: EntryPoint 6 [[K_RTE:[0-9]+]] "k_rte"
 ; SPV-DAG: Decorate [[K_RTE]] SIMTCallINTEL 5
 
-@in = internal global <256 x i8> undef, align 256 #0
-declare <256 x i8> @llvm.genx.vload(<256 x i8>* nonnull %aaa)
+@in = internal addrspace(1) global <256 x i8> undef, align 256 #0
+declare <256 x i8> @llvm.genx.vload(ptr addrspace(1) nonnull %aaa)
 
 ; Function Attrs: noinline norecurse nounwind readnone
 define dso_local dllexport spir_kernel void @k_rte(i32 %ibuf, i32 %obuf) local_unnamed_addr #1 {
 entry:
-  %gload53 = tail call <256 x i8> @llvm.genx.vload(<256 x i8>* nonnull @in)
+  %gload53 = tail call <256 x i8> @llvm.genx.vload(ptr addrspace(1) nonnull @in)
   ret void
 }
 

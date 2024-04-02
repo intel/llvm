@@ -15,6 +15,7 @@
 
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/Interfaces/DataLayoutInterfaces.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Type.h"
 
@@ -22,6 +23,11 @@ namespace fir {
 class FIROpsDialect;
 class KindMapping;
 using KindTy = unsigned;
+
+namespace detail {
+struct RecordTypeStorage;
+} // namespace detail
+
 } // namespace fir
 
 //===----------------------------------------------------------------------===//
@@ -40,6 +46,13 @@ public:
 
   /// Unwrap element type from fir.heap, fir.ptr and fir.array.
   mlir::Type unwrapInnerType() const;
+
+  /// Is this the box for an assumed rank?
+  bool isAssumedRank() const;
+
+  /// Return the same type, except for the shape, that is taken the shape
+  /// of shapeMold.
+  BaseBoxType getBoxTypeWithNewShape(mlir::Type shapeMold) const;
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast.
   static bool classof(mlir::Type type);
@@ -113,8 +126,8 @@ inline bool isa_derived(mlir::Type t) { return t.isa<fir::RecordType>(); }
 /// Is `t` type(c_ptr) or type(c_funptr)?
 inline bool isa_builtin_cptr_type(mlir::Type t) {
   if (auto recTy = t.dyn_cast_or_null<fir::RecordType>())
-    return recTy.getName().endswith("T__builtin_c_ptr") ||
-           recTy.getName().endswith("T__builtin_c_funptr");
+    return recTy.getName().ends_with("T__builtin_c_ptr") ||
+           recTy.getName().ends_with("T__builtin_c_funptr");
   return false;
 }
 
@@ -141,6 +154,11 @@ inline bool isa_integer(mlir::Type t) {
   return t.isa<mlir::IndexType, mlir::IntegerType, fir::IntegerType>();
 }
 
+/// Is `t` a vector type?
+inline bool isa_vector(mlir::Type t) {
+  return t.isa<mlir::VectorType, fir::VectorType>();
+}
+
 mlir::Type parseFirType(FIROpsDialect *, mlir::DialectAsmParser &parser);
 
 void printFirType(FIROpsDialect *, mlir::Type ty, mlir::DialectAsmPrinter &p);
@@ -160,7 +178,7 @@ inline bool isa_char(mlir::Type t) { return t.isa<fir::CharacterType>(); }
 /// Is `t` a trivial intrinsic type? CHARACTER is <em>excluded</em> because it
 /// is a dependent type.
 inline bool isa_trivial(mlir::Type t) {
-  return isa_integer(t) || isa_real(t) || isa_complex(t) ||
+  return isa_integer(t) || isa_real(t) || isa_complex(t) || isa_vector(t) ||
          t.isa<fir::LogicalType>();
 }
 
@@ -218,6 +236,9 @@ inline mlir::Type unwrapSequenceType(mlir::Type t) {
     return seqTy.getEleTy();
   return t;
 }
+
+/// Return the nested sequence type if any.
+mlir::Type extractSequenceType(mlir::Type ty);
 
 inline mlir::Type unwrapRefType(mlir::Type t) {
   if (auto eleTy = dyn_cast_ptrEleTy(t))
@@ -303,6 +324,9 @@ bool isBoxNone(mlir::Type ty);
 /// e.g. !fir.box<!fir.type<derived>>
 bool isBoxedRecordType(mlir::Type ty);
 
+/// Return true iff `ty` is a type that contains descriptor information.
+bool isTypeWithDescriptor(mlir::Type ty);
+
 /// Return true iff `ty` is a scalar boxed record type.
 /// e.g. !fir.box<!fir.type<derived>>
 ///      !fir.box<!fir.heap<!fir.type<derived>>>
@@ -320,8 +344,16 @@ bool isPolymorphicType(mlir::Type ty);
 /// value.
 bool isUnlimitedPolymorphicType(mlir::Type ty);
 
-/// Return true iff `ty` is the type of an assumed type.
+/// Return true iff `ty` is the type of an assumed type. In FIR,
+/// assumed types are of the form `[fir.ref|ptr|heap]fir.box<[fir.array]none>`,
+/// or `fir.ref|ptr|heap<[fir.array]none>`.
 bool isAssumedType(mlir::Type ty);
+
+/// Return true iff `ty` is the type of an assumed shape array.
+bool isAssumedShape(mlir::Type ty);
+
+/// Return true iff `ty` is the type of an allocatable array.
+bool isAllocatableOrPointerArray(mlir::Type ty);
 
 /// Return true iff `boxTy` wraps a record type or an unlimited polymorphic
 /// entity. Polymorphic entities with intrinsic type spec do not have addendum
@@ -330,11 +362,18 @@ inline bool boxHasAddendum(fir::BaseBoxType boxTy) {
          fir::isUnlimitedPolymorphicType(boxTy);
 }
 
+/// Get the rank from a !fir.box type.
+unsigned getBoxRank(mlir::Type boxTy);
+
 /// Return the inner type of the given type.
 mlir::Type unwrapInnerType(mlir::Type ty);
 
 /// Return true iff `ty` is a RecordType with members that are allocatable.
 bool isRecordWithAllocatableMember(mlir::Type ty);
+
+/// Return true iff `ty` is a scalar/array of RecordType
+/// with members that are descriptors.
+bool isRecordWithDescriptorMember(mlir::Type ty);
 
 /// Return true iff `ty` is a RecordType with type parameters.
 inline bool isRecordWithTypeParameters(mlir::Type ty) {
@@ -358,6 +397,8 @@ bool hasAbstractResult(mlir::FunctionType ty);
 /// Convert llvm::Type::TypeID to mlir::Type
 mlir::Type fromRealTypeID(mlir::MLIRContext *context, llvm::Type::TypeID typeID,
                           fir::KindTy kind);
+
+int getTypeCode(mlir::Type ty, const KindMapping &kindMap);
 
 inline bool BaseBoxType::classof(mlir::Type type) {
   return type.isa<fir::BoxType, fir::ClassType>();
@@ -401,6 +442,13 @@ inline mlir::Type updateTypeForUnlimitedPolymorphic(mlir::Type ty) {
   return ty;
 }
 
+/// Replace the element type of \p type by \p newElementType, preserving
+/// all other layers of the type (fir.ref/ptr/heap/array/box/class).
+/// If \p turnBoxIntoClass and the input is a fir.box, it will be turned into
+/// a fir.class in the result.
+mlir::Type changeElementType(mlir::Type type, mlir::Type newElementType,
+                             bool turnBoxIntoClass);
+
 /// Is `t` an address to fir.box or class type?
 inline bool isBoxAddress(mlir::Type t) {
   return fir::isa_ref_type(t) && fir::unwrapRefType(t).isa<fir::BaseBoxType>();
@@ -410,6 +458,30 @@ inline bool isBoxAddress(mlir::Type t) {
 inline bool isBoxAddressOrValue(mlir::Type t) {
   return fir::unwrapRefType(t).isa<fir::BaseBoxType>();
 }
+
+/// Is this a fir.boxproc address type?
+inline bool isBoxProcAddressType(mlir::Type t) {
+  t = fir::dyn_cast_ptrEleTy(t);
+  return t && t.isa<fir::BoxProcType>();
+}
+
+/// Return a string representation of `ty`.
+///
+/// fir.array<10x10xf32> -> prefix_10x10xf32
+/// fir.ref<i32> -> prefix_ref_i32
+std::string getTypeAsString(mlir::Type ty, const KindMapping &kindMap,
+                            llvm::StringRef prefix = "");
+
+/// Return the size and alignment of FIR types.
+/// TODO: consider moving this to a DataLayoutTypeInterface implementation
+/// for FIR types. It should first be ensured that it is OK to open the gate of
+/// target dependent type size inquiries in lowering. It would also not be
+/// straightforward given the need for a kind map that would need to be
+/// converted in terms of mlir::DataLayoutEntryKey.
+std::pair<std::uint64_t, unsigned short>
+getTypeSizeAndAlignment(mlir::Location loc, mlir::Type ty,
+                        const mlir::DataLayout &dl,
+                        const fir::KindMapping &kindMap);
 
 } // namespace fir
 

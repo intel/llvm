@@ -9,7 +9,11 @@
 // REQUIRES: opencl-aot, cpu
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 %S/Inputs/aot.cpp -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// RUN: %{run} %t.out
 
 // Test that opencl-aot can handle multiple build options.
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64  %S/Inputs/aot.cpp -Xsycl-target-backend "--bo=-g" -Xsycl-target-backend "--bo=-cl-opt-disable" -o %t2.out
+
+// Test that opencl-aot can handle march option.
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64  %S/Inputs/aot.cpp -Xsycl-target-backend "--march=avx512"
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64  %S/Inputs/aot.cpp -Xsycl-target-backend "--march=wsm"

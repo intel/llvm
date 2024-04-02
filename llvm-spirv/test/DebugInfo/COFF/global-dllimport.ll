@@ -1,6 +1,6 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple < %t.ll | FileCheck %s
 
@@ -10,7 +10,7 @@ source_filename = "test/DebugInfo/COFF/global-dllimport.ll"
 target datalayout = "e-m:x-p:32:32-i64:64-f80:32-n8:16:32-a:0:32-S32"
 target triple = "spir64-unknown-unknown"
 
-@"\01?id@?$numpunct@D@@0HA" = available_externally dllimport global i32 0, align 4, !dbg !0
+@"\01?id@?$numpunct@D@@0HA" = available_externally dllimport addrspace(1) global i32 0, align 4, !dbg !0
 
 !llvm.dbg.cu = !{!2}
 !llvm.module.flags = !{!14, !15}

@@ -6,7 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++03
+// REQUIRES: can-create-symlinks
+// UNSUPPORTED: c++03, c++11, c++14
+// UNSUPPORTED: no-filesystem
+// UNSUPPORTED: availability-filesystem-missing
 
 // The string reported on errors changed, which makes those tests fail when run
 // against already-released libc++'s.
@@ -17,22 +20,22 @@
 // uintmax_t file_size(const path& p);
 // uintmax_t file_size(const path& p, std::error_code& ec) noexcept;
 
-#include "filesystem_include.h"
+#include <filesystem>
 #include <type_traits>
 #include <cassert>
 
 #include "assert_macros.h"
 #include "test_macros.h"
 #include "filesystem_test_helper.h"
-
+namespace fs = std::filesystem;
 using namespace fs;
 
 static void signature_test()
 {
     const path p; ((void)p);
     std::error_code ec; ((void)ec);
-    ASSERT_SAME_TYPE(decltype(file_size(p)), uintmax_t);
-    ASSERT_SAME_TYPE(decltype(file_size(p, ec)), uintmax_t);
+    ASSERT_SAME_TYPE(decltype(file_size(p)), std::uintmax_t);
+    ASSERT_SAME_TYPE(decltype(file_size(p, ec)), std::uintmax_t);
     ASSERT_NOT_NOEXCEPT(file_size(p));
     ASSERT_NOEXCEPT(file_size(p, ec));
 }
@@ -75,7 +78,7 @@ static void file_size_error_cases()
       {static_env.BadSymlink, std::errc::no_such_file_or_directory},
       {static_env.DNE, std::errc::no_such_file_or_directory},
       {"", std::errc::no_such_file_or_directory}};
-    const uintmax_t expect = static_cast<uintmax_t>(-1);
+    const std::uintmax_t expect = static_cast<std::uintmax_t>(-1);
     for (auto& TC : TestCases) {
       std::error_code ec = GetTestEC();
       assert(file_size(TC.p, ec) == expect);

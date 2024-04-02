@@ -1,7 +1,16 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-apple-darwin %t.ll -o %t -filetype=obj
+; RUN: llvm-dwarfdump -debug-info %t | FileCheck %s
 
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-apple-darwin %t.ll -o %t -filetype=obj
+; RUN: llvm-dwarfdump -debug-info %t | FileCheck %s
+
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-apple-darwin %t.ll -o %t -filetype=obj
 ; RUN: llvm-dwarfdump -debug-info %t | FileCheck %s
 ;
@@ -96,9 +105,9 @@ target triple = "spir64-unknown-unknown"
 %class.B = type { i8 }
 %union.U = type { i32 }
 
-@a = global %struct.A zeroinitializer, align 1, !dbg !0
-@b = global %class.B zeroinitializer, align 1, !dbg !11
-@u = global %union.U zeroinitializer, align 4, !dbg !23
+@a = addrspace(1) global %struct.A zeroinitializer, align 1, !dbg !0
+@b = addrspace(1) global %class.B zeroinitializer, align 1, !dbg !11
+@u = addrspace(1) global %union.U zeroinitializer, align 4, !dbg !23
 
 ; Function Attrs: nounwind ssp uwtable
 define void @_Z4freev() #0 !dbg !39 {

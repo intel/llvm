@@ -5,7 +5,6 @@ llvm_canonicalize_cmake_booleans(
   CLANG_BUILD_EXAMPLES
   CLANG_BUILT_STANDALONE
   CLANG_DEFAULT_PIE_ON_LINUX
-  CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL
   CLANG_ENABLE_ARCMT
   CLANG_ENABLE_STATIC_ANALYZER
   CLANG_PLUGIN_SUPPORT
@@ -15,6 +14,7 @@ llvm_canonicalize_cmake_booleans(
   LLVM_ENABLE_ZSTD
   LLVM_ENABLE_PER_TARGET_RUNTIME_DIR
   LLVM_ENABLE_THREADS
+  LLVM_ENABLE_REVERSE_ITERATION
   LLVM_WITH_Z3
   PPC_LINUX_DEFAULT_IEEELONGDOUBLE
   LLVM_TOOL_LLVM_DRIVER_BUILD
@@ -73,6 +73,7 @@ list(APPEND CLANG_TEST_DEPS
   clang-rename
   clang-refactor
   clang-diff
+  clang-installapi
   clang-scan-deps
   clang-linker-wrapper
   clang-offload-bundler
@@ -102,6 +103,7 @@ if(CLANG_BUILD_EXAMPLES AND CLANG_PLUGIN_SUPPORT)
     CallSuperAttr
     PluginsOrder
     PrintFunctionNames
+    LLVMPrintFunctionNames
     )
 endif ()
 
@@ -134,9 +136,11 @@ if( NOT CLANG_BUILT_STANDALONE )
     llvm-rc
     llvm-readelf
     llvm-readobj
+    llvm-readtapi
     llvm-strip
     llvm-symbolizer
     llvm-windres
+    obj2yaml
     opt
     split-file
     yaml2obj

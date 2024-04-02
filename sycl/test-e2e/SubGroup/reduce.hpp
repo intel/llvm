@@ -25,7 +25,7 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
       auto acc = buf.template get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<SpecializationKernelName>(
           NdRange, [=](nd_item<1> NdItem) {
-            ext::oneapi::sub_group sg = NdItem.get_sub_group();
+            sycl::sub_group sg = NdItem.get_sub_group();
             if (skip_init) {
               acc[NdItem.get_global_id(0)] =
                   reduce_over_group(sg, T(NdItem.get_global_id(0)), op);
@@ -37,8 +37,8 @@ void check_op(queue &Queue, T init, BinaryOperation op, bool skip_init = false,
               sgsizeacc[0] = sg.get_max_local_range()[0];
           });
     });
-    auto acc = buf.template get_access<access::mode::read_write>();
-    auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>();
+    host_accessor acc(buf);
+    host_accessor sgsizeacc(sgsizebuf);
     size_t sg_size = sgsizeacc[0];
     int WGid = -1, SGid = 0;
     T result = init;

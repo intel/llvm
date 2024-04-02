@@ -1,15 +1,11 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %{build} -o %t.out
 
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{run} %t.out
 
-// RUN: %CPU_RUN_PLACEHOLDER %t.out 10
-// RUN: %GPU_RUN_PLACEHOLDER %t.out 10
-// RUN: %ACC_RUN_PLACEHOLDER %t.out 10
+// RUN: %{run} %t.out 10
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 using namespace sycl::access;

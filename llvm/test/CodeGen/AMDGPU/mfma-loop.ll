@@ -1,6 +1,6 @@
-; RUN: llc -march=amdgcn -mcpu=gfx908 -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX908,GFX908_A %s
-; RUN: llc -march=amdgcn -mcpu=gfx90a -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX90A,GFX908_A,GFX940_A %s
-; RUN: llc -march=amdgcn -mcpu=gfx940 -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX940,GFX940_A %s
+; RUN: llc -mtriple=amdgcn -mcpu=gfx908 -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX908,GFX908_A %s
+; RUN: llc -mtriple=amdgcn -mcpu=gfx90a -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX90A,GFX908_A,GFX940_A %s
+; RUN: llc -mtriple=amdgcn -mcpu=gfx940 -verify-machineinstrs < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX940,GFX940_A %s
 
 ; GCN-LABEL: {{^}}test_mfma_loop_zeroinit:
 
@@ -576,7 +576,9 @@ exit:
 
 ; GCN-LABEL: {{^}}test_mfma_nested_loop_zeroinit:
 
-; GCN-COUNT-32: v_accvgpr_write_b32 a{{[0-9]+}}, 0{{$}}
+; GFX908-COUNT-32: v_accvgpr_write_b32 a{{[0-9]+}}, 0{{$}}
+; GFX90A:          v_accvgpr_write_b32 [[LEAD:a[0-9]+]], 0
+; GFX90A-COUNT-31: v_accvgpr_mov_b32 a{{[0-9]+}}, [[LEAD]]
 
 ; Check that we do not copy agprs to vgprs and back in an outer loop.
 

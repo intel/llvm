@@ -42,7 +42,7 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
   PTXVersion = 32;
   for (const StringRef Feature : Opts.FeaturesAsWritten) {
     int PTXV;
-    if (!Feature.startswith("+ptx") ||
+    if (!Feature.starts_with("+ptx") ||
         Feature.drop_front(4).getAsInteger(10, PTXV))
       continue;
     PTXVersion = PTXV; // TODO: should it be max(PTXVersion, PTXV)?
@@ -61,7 +61,11 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
   // Define available target features
   // These must be defined in sorted order!
   NoAsmVariants = true;
-  GPU = CudaArch::SM_20;
+  GPU = CudaArch::UNUSED;
+
+  // PTX supports f16 as a fundamental type.
+  HasLegalHalfType = true;
+  HasFloat16 = true;
 
   if (TargetPointerWidth == 32)
     resetDataLayout("e-p:32:32-i64:64-i128:128-v16:16-v32:32-n16:32:64");
@@ -75,7 +79,7 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
   // types.
   llvm::Triple HostTriple(Opts.HostTriple);
   if (!HostTriple.isNVPTX())
-    HostTarget.reset(AllocateTarget(llvm::Triple(Opts.HostTriple), Opts));
+    HostTarget = AllocateTarget(llvm::Triple(Opts.HostTriple), Opts);
 
   // If no host target, make some guesses about the data layout and return.
   if (!HostTarget) {
@@ -117,7 +121,8 @@ NVPTXTargetInfo::NVPTXTargetInfo(const llvm::Triple &Triple,
   LongAlign = HostTarget->getLongAlign();
   LongLongWidth = HostTarget->getLongLongWidth();
   LongLongAlign = HostTarget->getLongLongAlign();
-  MinGlobalAlign = HostTarget->getMinGlobalAlign(/* TypeSize = */ 0);
+  MinGlobalAlign = HostTarget->getMinGlobalAlign(/* TypeSize = */ 0,
+                                                 /* HasNonWeakDef = */ true);
   NewAlign = HostTarget->getNewAlign();
   DefaultAlignForAttributeAligned =
       HostTarget->getDefaultAlignForAttributeAligned();
@@ -170,9 +175,14 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
                                        MacroBuilder &Builder) const {
   Builder.defineMacro("__PTX__");
   Builder.defineMacro("__NVPTX__");
-  if (Opts.CUDAIsDevice || Opts.OpenMPIsDevice || Opts.SYCLIsDevice ||
+
+  // Skip setting architecture dependent macros if undefined.
+  if (GPU == CudaArch::UNUSED && !HostTarget)
+    return;
+
+  if (Opts.CUDAIsDevice || Opts.OpenMPIsTargetDevice || Opts.SYCLIsDevice ||
       !HostTarget) {
-    // Set __CUDA_ARCH__ or __SYCL_CUDA_ARCH__ for the GPU specified.
+    // Set __CUDA_ARCH__ for the GPU specified.
     // The SYCL-specific macro is used to distinguish the SYCL and CUDA APIs.
     std::string CUDAArchCode = [this] {
       switch (GPU) {
@@ -199,6 +209,8 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
       case CudaArch::GFX90a:
       case CudaArch::GFX90c:
       case CudaArch::GFX940:
+      case CudaArch::GFX941:
+      case CudaArch::GFX942:
       case CudaArch::GFX1010:
       case CudaArch::GFX1011:
       case CudaArch::GFX1012:
@@ -214,13 +226,17 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
       case CudaArch::GFX1101:
       case CudaArch::GFX1102:
       case CudaArch::GFX1103:
+      case CudaArch::GFX1150:
+      case CudaArch::GFX1151:
+      case CudaArch::GFX1200:
+      case CudaArch::GFX1201:
       case CudaArch::Generic:
       case CudaArch::LAST:
         break;
-      case CudaArch::UNUSED:
       case CudaArch::UNKNOWN:
         assert(false && "No GPU arch when compiling CUDA device code.");
         return "";
+      case CudaArch::UNUSED:
       case CudaArch::SM_20:
         return "200";
       case CudaArch::SM_21:
@@ -260,6 +276,7 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
       case CudaArch::SM_89:
         return "890";
       case CudaArch::SM_90:
+      case CudaArch::SM_90a:
         return "900";
       }
       llvm_unreachable("unhandled CudaArch");
@@ -269,6 +286,8 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
       Builder.defineMacro("__SYCL_CUDA_ARCH__", CUDAArchCode);
     } else {
       Builder.defineMacro("__CUDA_ARCH__", CUDAArchCode);
+      if (GPU == CudaArch::SM_90a)
+        Builder.defineMacro("__CUDA_ARCH_FEAT_SM90_ALL", "1");
     }
   }
 }

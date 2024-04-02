@@ -1,5 +1,6 @@
 add_custom_target(SYCLUnitTests)
 set_target_properties(SYCLUnitTests PROPERTIES FOLDER "SYCL tests")
+include_directories(${BOOST_UNORDERED_INCLUDE_DIRS})
 
 foreach(flag_var
     CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
@@ -25,7 +26,7 @@ include(AddSYCLUnitTest)
 add_custom_target(check-sycl-unittests)
 
 # TODO PI tests require real hardware and must be moved to sycl/test-e2e.
-option(SYCL_PI_TESTS "Enable PI-specific unit tests" ON)
+option(SYCL_PI_TESTS "Enable PI-specific unit tests" OFF)
 
 if (SYCL_PI_TESTS)
   add_subdirectory(pi)
@@ -51,8 +52,8 @@ add_subdirectory(context_device)
 add_subdirectory(accessor)
 add_subdirectory(handler)
 add_subdirectory(builtins)
+add_subdirectory(buffer/l0_specific)
 # TODO Enable xpti tests for Windows
 if (NOT WIN32)
   add_subdirectory(xpti_trace)
 endif()
-

@@ -14,6 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/CodeGen/ExpandLargeFpConvert.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Analysis/GlobalsModRef.h"
@@ -174,9 +175,10 @@ static void expandFPToI(Instruction *FPToI) {
   // if.end:
   Builder.SetInsertPoint(IfEnd);
   Value *Add1 = Builder.CreateAdd(
-      And2, ConstantInt::getSigned(IntTy, -int64_t(ExponentBias + BitWidth)));
-  Value *Cmp3 =
-      Builder.CreateICmpULT(Add1, ConstantInt::getSigned(IntTy, -BitWidth));
+      And2, ConstantInt::getSigned(
+                IntTy, -static_cast<int64_t>(ExponentBias + BitWidth)));
+  Value *Cmp3 = Builder.CreateICmpULT(
+      Add1, ConstantInt::getSigned(IntTy, -static_cast<int64_t>(BitWidth)));
   Builder.CreateCondBr(Cmp3, IfThen5, IfEnd9);
 
   // if.then5:
@@ -202,8 +204,8 @@ static void expandFPToI(Instruction *FPToI) {
   // if.else:
   Builder.SetInsertPoint(IfElse);
   Value *Sub15 = Builder.CreateAdd(
-      And2,
-      ConstantInt::getSigned(IntTy, -(ExponentBias + FPMantissaWidth)));
+      And2, ConstantInt::getSigned(
+                IntTy, -static_cast<int64_t>(ExponentBias + FPMantissaWidth)));
   Value *Shl = Builder.CreateShl(Or, Sub15);
   Value *Mul16 = Builder.CreateMul(Shl, Sign);
   Builder.CreateBr(End);
@@ -374,7 +376,7 @@ static void expandIToFP(Instruction *IToFP) {
   Value *Sub2 = Builder.CreateSub(Builder.getIntN(BitWidthNew, BitWidth - 1),
                                   FloatWidth == 128 ? Call : Cast);
   Value *Cmp3 = Builder.CreateICmpSGT(
-      Sub2, Builder.getIntN(BitWidthNew, FPMantissaWidth + 1));
+      Sub1, Builder.getIntN(BitWidthNew, FPMantissaWidth + 1));
   Builder.CreateCondBr(Cmp3, IfThen4, IfElse);
 
   // if.then4:
@@ -652,6 +654,13 @@ public:
   }
 };
 } // namespace
+
+PreservedAnalyses ExpandLargeFpConvertPass::run(Function &F,
+                                                FunctionAnalysisManager &FAM) {
+  const TargetSubtargetInfo *STI = TM->getSubtargetImpl(F);
+  return runImpl(F, *STI->getTargetLowering()) ? PreservedAnalyses::none()
+                                               : PreservedAnalyses::all();
+}
 
 char ExpandLargeFpConvertLegacyPass::ID = 0;
 INITIALIZE_PASS_BEGIN(ExpandLargeFpConvertLegacyPass, "expand-large-fp-convert",

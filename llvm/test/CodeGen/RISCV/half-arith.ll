@@ -3,6 +3,10 @@
 ; RUN:   -target-abi ilp32f < %s | FileCheck -check-prefix=CHECKIZFH %s
 ; RUN: llc -mtriple=riscv64 -mattr=+zfh -verify-machineinstrs \
 ; RUN:   -target-abi lp64f < %s | FileCheck -check-prefix=CHECKIZFH %s
+; RUN: llc -mtriple=riscv32 -mattr=+zhinx -verify-machineinstrs \
+; RUN:   -target-abi ilp32 < %s | FileCheck -check-prefix=CHECK-ZHINX %s
+; RUN: llc -mtriple=riscv64 -mattr=+zhinx -verify-machineinstrs \
+; RUN:   -target-abi lp64 < %s | FileCheck -check-prefix=CHECK-ZHINX %s
 ; RUN: llc -mtriple=riscv32 -verify-machineinstrs < %s \
 ; RUN:   | FileCheck -check-prefix=RV32I %s
 ; RUN: llc -mtriple=riscv64 -verify-machineinstrs < %s \
@@ -11,6 +15,10 @@
 ; RUN:   -target-abi ilp32f < %s | FileCheck -check-prefixes=CHECKIZFHMIN,CHECK-RV32-FSGNJ %s
 ; RUN: llc -mtriple=riscv64 -mattr=+zfhmin -verify-machineinstrs \
 ; RUN:   -target-abi lp64f < %s | FileCheck --check-prefixes=CHECKIZFHMIN,CHECK-RV64-FSGNJ %s
+; RUN: llc -mtriple=riscv32 -mattr=+zhinxmin -verify-machineinstrs \
+; RUN:   -target-abi ilp32 < %s | FileCheck --check-prefixes=CHECKZHINXMIN %s
+; RUN: llc -mtriple=riscv64 -mattr=+zhinxmin -verify-machineinstrs \
+; RUN:   -target-abi lp64 < %s | FileCheck --check-prefixes=CHECKZHINXMIN %s
 
 ; These tests are each targeted at a particular RISC-V FPU instruction.
 ; Compares and conversions can be found in half-fcmp.ll and half-convert.ll
@@ -23,6 +31,11 @@ define half @fadd_s(half %a, half %b) nounwind {
 ; CHECKIZFH-NEXT:    fadd.h fa0, fa0, fa1
 ; CHECKIZFH-NEXT:    ret
 ;
+; CHECK-ZHINX-LABEL: fadd_s:
+; CHECK-ZHINX:       # %bb.0:
+; CHECK-ZHINX-NEXT:    fadd.h a0, a0, a1
+; CHECK-ZHINX-NEXT:    ret
+;
 ; RV32I-LABEL: fadd_s:
 ; RV32I:       # %bb.0:
 ; RV32I-NEXT:    addi sp, sp, -16
@@ -34,14 +47,14 @@ define half @fadd_s(half %a, half %b) nounwind {
 ; RV32I-NEXT:    lui a1, 16
 ; RV32I-NEXT:    addi s2, a1, -1
 ; RV32I-NEXT:    and a0, a0, s2
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s1, a0
 ; RV32I-NEXT:    and a0, s0, s2
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a1, a0
 ; RV32I-NEXT:    mv a0, s1
-; RV32I-NEXT:    call __addsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __addsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s0, 8(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s1, 4(sp) # 4-byte Folded Reload
@@ -60,14 +73,14 @@ define half @fadd_s(half %a, half %b) nounwind {
 ; RV64I-NEXT:    lui a1, 16
 ; RV64I-NEXT:    addiw s2, a1, -1
 ; RV64I-NEXT:    and a0, a0, s2
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s1, a0
 ; RV64I-NEXT:    and a0, s0, s2
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a1, a0
 ; RV64I-NEXT:    mv a0, s1
-; RV64I-NEXT:    call __addsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __addsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    ld ra, 24(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s0, 16(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s1, 8(sp) # 8-byte Folded Reload
@@ -82,6 +95,21 @@ define half @fadd_s(half %a, half %b) nounwind {
 ; CHECKIZFHMIN-NEXT:    fadd.s fa5, fa4, fa5
 ; CHECKIZFHMIN-NEXT:    fcvt.h.s fa0, fa5
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKZHINXMIN-LABEL: fadd_s:
+; CHECKZHINXMIN:       # %bb.0:
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fadd.s a0, a0, a1
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    ret
+; CHECK-ZHINXMIN-LABEL: fadd_s:
+; CHECK-ZHINXMIN:       # %bb.0:
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fadd.s a0, a0, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    ret
   %1 = fadd half %a, %b
   ret half %1
 }
@@ -91,6 +119,11 @@ define half @fsub_s(half %a, half %b) nounwind {
 ; CHECKIZFH:       # %bb.0:
 ; CHECKIZFH-NEXT:    fsub.h fa0, fa0, fa1
 ; CHECKIZFH-NEXT:    ret
+;
+; CHECK-ZHINX-LABEL: fsub_s:
+; CHECK-ZHINX:       # %bb.0:
+; CHECK-ZHINX-NEXT:    fsub.h a0, a0, a1
+; CHECK-ZHINX-NEXT:    ret
 ;
 ; RV32I-LABEL: fsub_s:
 ; RV32I:       # %bb.0:
@@ -103,14 +136,14 @@ define half @fsub_s(half %a, half %b) nounwind {
 ; RV32I-NEXT:    lui a1, 16
 ; RV32I-NEXT:    addi s2, a1, -1
 ; RV32I-NEXT:    and a0, a0, s2
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s1, a0
 ; RV32I-NEXT:    and a0, s0, s2
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a1, a0
 ; RV32I-NEXT:    mv a0, s1
-; RV32I-NEXT:    call __subsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __subsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s0, 8(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s1, 4(sp) # 4-byte Folded Reload
@@ -129,14 +162,14 @@ define half @fsub_s(half %a, half %b) nounwind {
 ; RV64I-NEXT:    lui a1, 16
 ; RV64I-NEXT:    addiw s2, a1, -1
 ; RV64I-NEXT:    and a0, a0, s2
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s1, a0
 ; RV64I-NEXT:    and a0, s0, s2
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a1, a0
 ; RV64I-NEXT:    mv a0, s1
-; RV64I-NEXT:    call __subsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __subsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    ld ra, 24(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s0, 16(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s1, 8(sp) # 8-byte Folded Reload
@@ -151,6 +184,21 @@ define half @fsub_s(half %a, half %b) nounwind {
 ; CHECKIZFHMIN-NEXT:    fsub.s fa5, fa4, fa5
 ; CHECKIZFHMIN-NEXT:    fcvt.h.s fa0, fa5
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKZHINXMIN-LABEL: fsub_s:
+; CHECKZHINXMIN:       # %bb.0:
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fsub.s a0, a0, a1
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    ret
+; CHECK-ZHINXMIN-LABEL: fsub_s:
+; CHECK-ZHINXMIN:       # %bb.0:
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fsub.s a0, a0, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    ret
   %1 = fsub half %a, %b
   ret half %1
 }
@@ -160,6 +208,11 @@ define half @fmul_s(half %a, half %b) nounwind {
 ; CHECKIZFH:       # %bb.0:
 ; CHECKIZFH-NEXT:    fmul.h fa0, fa0, fa1
 ; CHECKIZFH-NEXT:    ret
+;
+; CHECK-ZHINX-LABEL: fmul_s:
+; CHECK-ZHINX:       # %bb.0:
+; CHECK-ZHINX-NEXT:    fmul.h a0, a0, a1
+; CHECK-ZHINX-NEXT:    ret
 ;
 ; RV32I-LABEL: fmul_s:
 ; RV32I:       # %bb.0:
@@ -172,14 +225,14 @@ define half @fmul_s(half %a, half %b) nounwind {
 ; RV32I-NEXT:    lui a1, 16
 ; RV32I-NEXT:    addi s2, a1, -1
 ; RV32I-NEXT:    and a0, a0, s2
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s1, a0
 ; RV32I-NEXT:    and a0, s0, s2
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a1, a0
 ; RV32I-NEXT:    mv a0, s1
-; RV32I-NEXT:    call __mulsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __mulsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s0, 8(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s1, 4(sp) # 4-byte Folded Reload
@@ -198,14 +251,14 @@ define half @fmul_s(half %a, half %b) nounwind {
 ; RV64I-NEXT:    lui a1, 16
 ; RV64I-NEXT:    addiw s2, a1, -1
 ; RV64I-NEXT:    and a0, a0, s2
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s1, a0
 ; RV64I-NEXT:    and a0, s0, s2
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a1, a0
 ; RV64I-NEXT:    mv a0, s1
-; RV64I-NEXT:    call __mulsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __mulsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    ld ra, 24(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s0, 16(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s1, 8(sp) # 8-byte Folded Reload
@@ -220,6 +273,21 @@ define half @fmul_s(half %a, half %b) nounwind {
 ; CHECKIZFHMIN-NEXT:    fmul.s fa5, fa4, fa5
 ; CHECKIZFHMIN-NEXT:    fcvt.h.s fa0, fa5
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKZHINXMIN-LABEL: fmul_s:
+; CHECKZHINXMIN:       # %bb.0:
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fmul.s a0, a0, a1
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    ret
+; CHECK-ZHINXMIN-LABEL: fmul_s:
+; CHECK-ZHINXMIN:       # %bb.0:
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fmul.s a0, a0, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    ret
   %1 = fmul half %a, %b
   ret half %1
 }
@@ -229,6 +297,11 @@ define half @fdiv_s(half %a, half %b) nounwind {
 ; CHECKIZFH:       # %bb.0:
 ; CHECKIZFH-NEXT:    fdiv.h fa0, fa0, fa1
 ; CHECKIZFH-NEXT:    ret
+;
+; CHECK-ZHINX-LABEL: fdiv_s:
+; CHECK-ZHINX:       # %bb.0:
+; CHECK-ZHINX-NEXT:    fdiv.h a0, a0, a1
+; CHECK-ZHINX-NEXT:    ret
 ;
 ; RV32I-LABEL: fdiv_s:
 ; RV32I:       # %bb.0:
@@ -241,14 +314,14 @@ define half @fdiv_s(half %a, half %b) nounwind {
 ; RV32I-NEXT:    lui a1, 16
 ; RV32I-NEXT:    addi s2, a1, -1
 ; RV32I-NEXT:    and a0, a0, s2
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s1, a0
 ; RV32I-NEXT:    and a0, s0, s2
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a1, a0
 ; RV32I-NEXT:    mv a0, s1
-; RV32I-NEXT:    call __divsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __divsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s0, 8(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s1, 4(sp) # 4-byte Folded Reload
@@ -267,14 +340,14 @@ define half @fdiv_s(half %a, half %b) nounwind {
 ; RV64I-NEXT:    lui a1, 16
 ; RV64I-NEXT:    addiw s2, a1, -1
 ; RV64I-NEXT:    and a0, a0, s2
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s1, a0
 ; RV64I-NEXT:    and a0, s0, s2
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a1, a0
 ; RV64I-NEXT:    mv a0, s1
-; RV64I-NEXT:    call __divsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __divsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    ld ra, 24(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s0, 16(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s1, 8(sp) # 8-byte Folded Reload
@@ -289,6 +362,21 @@ define half @fdiv_s(half %a, half %b) nounwind {
 ; CHECKIZFHMIN-NEXT:    fdiv.s fa5, fa4, fa5
 ; CHECKIZFHMIN-NEXT:    fcvt.h.s fa0, fa5
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKZHINXMIN-LABEL: fdiv_s:
+; CHECKZHINXMIN:       # %bb.0:
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fdiv.s a0, a0, a1
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    ret
+; CHECK-ZHINXMIN-LABEL: fdiv_s:
+; CHECK-ZHINXMIN:       # %bb.0:
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fdiv.s a0, a0, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    ret
   %1 = fdiv half %a, %b
   ret half %1
 }
@@ -301,15 +389,20 @@ define half @fsqrt_s(half %a) nounwind {
 ; CHECKIZFH-NEXT:    fsqrt.h fa0, fa0
 ; CHECKIZFH-NEXT:    ret
 ;
+; CHECK-ZHINX-LABEL: fsqrt_s:
+; CHECK-ZHINX:       # %bb.0:
+; CHECK-ZHINX-NEXT:    fsqrt.h a0, a0
+; CHECK-ZHINX-NEXT:    ret
+;
 ; RV32I-LABEL: fsqrt_s:
 ; RV32I:       # %bb.0:
 ; RV32I-NEXT:    addi sp, sp, -16
 ; RV32I-NEXT:    sw ra, 12(sp) # 4-byte Folded Spill
 ; RV32I-NEXT:    slli a0, a0, 16
 ; RV32I-NEXT:    srli a0, a0, 16
-; RV32I-NEXT:    call __extendhfsf2@plt
-; RV32I-NEXT:    call sqrtf@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __extendhfsf2
+; RV32I-NEXT:    call sqrtf
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    addi sp, sp, 16
 ; RV32I-NEXT:    ret
@@ -320,9 +413,9 @@ define half @fsqrt_s(half %a) nounwind {
 ; RV64I-NEXT:    sd ra, 8(sp) # 8-byte Folded Spill
 ; RV64I-NEXT:    slli a0, a0, 48
 ; RV64I-NEXT:    srli a0, a0, 48
-; RV64I-NEXT:    call __extendhfsf2@plt
-; RV64I-NEXT:    call sqrtf@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __extendhfsf2
+; RV64I-NEXT:    call sqrtf
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    ld ra, 8(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    addi sp, sp, 16
 ; RV64I-NEXT:    ret
@@ -333,6 +426,19 @@ define half @fsqrt_s(half %a) nounwind {
 ; CHECKIZFHMIN-NEXT:    fsqrt.s fa5, fa5
 ; CHECKIZFHMIN-NEXT:    fcvt.h.s fa0, fa5
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKZHINXMIN-LABEL: fsqrt_s:
+; CHECKZHINXMIN:       # %bb.0:
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fsqrt.s a0, a0
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    ret
+; CHECK-ZHINXMIN-LABEL: fsqrt_s:
+; CHECK-ZHINXMIN:       # %bb.0:
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fsqrt.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    ret
   %1 = call half @llvm.sqrt.f16(half %a)
   ret half %1
 }
@@ -344,6 +450,11 @@ define half @fsgnj_s(half %a, half %b) nounwind {
 ; CHECKIZFH:       # %bb.0:
 ; CHECKIZFH-NEXT:    fsgnj.h fa0, fa0, fa1
 ; CHECKIZFH-NEXT:    ret
+;
+; CHECK-ZHINX-LABEL: fsgnj_s:
+; CHECK-ZHINX:       # %bb.0:
+; CHECK-ZHINX-NEXT:    fsgnj.h a0, a0, a1
+; CHECK-ZHINX-NEXT:    ret
 ;
 ; RV32I-LABEL: fsgnj_s:
 ; RV32I:       # %bb.0:
@@ -392,6 +503,22 @@ define half @fsgnj_s(half %a, half %b) nounwind {
 ; CHECK-RV64-FSGNJ-NEXT:    flh fa0, 0(sp)
 ; CHECK-RV64-FSGNJ-NEXT:    addi sp, sp, 16
 ; CHECK-RV64-FSGNJ-NEXT:    ret
+; CHECK-ZHINXMIN-LABEL: fsgnj_s:
+; CHECK-ZHINXMIN:       # %bb.0:
+; CHECK-ZHINXMIN-NEXT:    addi sp, sp, -16
+; CHECK-ZHINXMIN-NEXT:    addi a2, sp, 12
+; CHECK-ZHINXMIN-NEXT:    sh a1, 0(a2)
+; CHECK-ZHINXMIN-NEXT:    addi a1, sp, 8
+; CHECK-ZHINXMIN-NEXT:    sh a0, 0(a1)
+; CHECK-ZHINXMIN-NEXT:    lbu a0, 13(sp)
+; CHECK-ZHINXMIN-NEXT:    lbu a2, 9(sp)
+; CHECK-ZHINXMIN-NEXT:    andi a0, a0, 128
+; CHECK-ZHINXMIN-NEXT:    andi a2, a2, 127
+; CHECK-ZHINXMIN-NEXT:    or a0, a2, a0
+; CHECK-ZHINXMIN-NEXT:    sb a0, 9(sp)
+; CHECK-ZHINXMIN-NEXT:    lh a0, 0(a1)
+; CHECK-ZHINXMIN-NEXT:    addi sp, sp, 16
+; CHECK-ZHINXMIN-NEXT:    ret
 ; CHECKFSGNJ-LABEL: fsgnj_s:
 ; CHECKFSGNJ:       # %bb.0:
 ; CHECKFSGNJ-NEXT:    addi sp, sp, -16
@@ -434,6 +561,13 @@ define i32 @fneg_s(half %a, half %b) nounwind {
 ; CHECKIZFH-NEXT:    feq.h a0, fa5, fa4
 ; CHECKIZFH-NEXT:    ret
 ;
+; CHECK-ZHINX-LABEL: fneg_s:
+; CHECK-ZHINX:       # %bb.0:
+; CHECK-ZHINX-NEXT:    fadd.h a0, a0, a0
+; CHECK-ZHINX-NEXT:    fneg.h a1, a0
+; CHECK-ZHINX-NEXT:    feq.h a0, a0, a1
+; CHECK-ZHINX-NEXT:    ret
+;
 ; RV32I-LABEL: fneg_s:
 ; RV32I:       # %bb.0:
 ; RV32I-NEXT:    addi sp, sp, -16
@@ -443,21 +577,21 @@ define i32 @fneg_s(half %a, half %b) nounwind {
 ; RV32I-NEXT:    lui a1, 16
 ; RV32I-NEXT:    addi s1, a1, -1
 ; RV32I-NEXT:    and a0, a0, s1
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a1, a0
-; RV32I-NEXT:    call __addsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __addsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    and a0, a0, s1
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s0, a0
 ; RV32I-NEXT:    lui a0, 524288
 ; RV32I-NEXT:    xor a0, s0, a0
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    and a0, a0, s1
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a1, a0
 ; RV32I-NEXT:    mv a0, s0
-; RV32I-NEXT:    call __eqsf2@plt
+; RV32I-NEXT:    call __eqsf2
 ; RV32I-NEXT:    seqz a0, a0
 ; RV32I-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s0, 8(sp) # 4-byte Folded Reload
@@ -474,21 +608,21 @@ define i32 @fneg_s(half %a, half %b) nounwind {
 ; RV64I-NEXT:    lui a1, 16
 ; RV64I-NEXT:    addiw s1, a1, -1
 ; RV64I-NEXT:    and a0, a0, s1
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a1, a0
-; RV64I-NEXT:    call __addsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __addsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    and a0, a0, s1
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s0, a0
 ; RV64I-NEXT:    lui a0, 524288
 ; RV64I-NEXT:    xor a0, s0, a0
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    and a0, a0, s1
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a1, a0
 ; RV64I-NEXT:    mv a0, s0
-; RV64I-NEXT:    call __eqsf2@plt
+; RV64I-NEXT:    call __eqsf2
 ; RV64I-NEXT:    seqz a0, a0
 ; RV64I-NEXT:    ld ra, 24(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s0, 16(sp) # 8-byte Folded Reload
@@ -507,6 +641,29 @@ define i32 @fneg_s(half %a, half %b) nounwind {
 ; CHECKIZFHMIN-NEXT:    fcvt.s.h fa4, fa4
 ; CHECKIZFHMIN-NEXT:    feq.s a0, fa5, fa4
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKZHINXMIN-LABEL: fneg_s:
+; CHECKZHINXMIN:       # %bb.0:
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fadd.s a0, a0, a0
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fneg.s a1, a0
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    feq.s a0, a0, a1
+; CHECKZHINXMIN-NEXT:    ret
+; CHECK-ZHINXMIN-LABEL: fneg_s:
+; CHECK-ZHINXMIN:       # %bb.0:
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fadd.s a0, a0, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fneg.s a1, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    feq.s a0, a0, a1
+; CHECK-ZHINXMIN-NEXT:    ret
   %1 = fadd half %a, %a
   %2 = fneg half %1
   %3 = fcmp oeq half %1, %2
@@ -523,6 +680,12 @@ define half @fsgnjn_s(half %a, half %b) nounwind {
 ; CHECKIZFH-NEXT:    fsgnjn.h fa0, fa0, fa5
 ; CHECKIZFH-NEXT:    ret
 ;
+; CHECK-ZHINX-LABEL: fsgnjn_s:
+; CHECK-ZHINX:       # %bb.0:
+; CHECK-ZHINX-NEXT:    fadd.h a1, a0, a1
+; CHECK-ZHINX-NEXT:    fsgnjn.h a0, a0, a1
+; CHECK-ZHINX-NEXT:    ret
+;
 ; RV32I-LABEL: fsgnjn_s:
 ; RV32I:       # %bb.0:
 ; RV32I-NEXT:    addi sp, sp, -32
@@ -536,19 +699,19 @@ define half @fsgnjn_s(half %a, half %b) nounwind {
 ; RV32I-NEXT:    lui a0, 16
 ; RV32I-NEXT:    addi s3, a0, -1
 ; RV32I-NEXT:    and a0, s1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s2, a0
 ; RV32I-NEXT:    and a0, s0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a1, a0
 ; RV32I-NEXT:    mv a0, s2
-; RV32I-NEXT:    call __addsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __addsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    and a0, a0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    lui a1, 524288
 ; RV32I-NEXT:    xor a0, a0, a1
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    lui a1, 1048568
 ; RV32I-NEXT:    and a0, a0, a1
 ; RV32I-NEXT:    slli s1, s1, 17
@@ -575,19 +738,19 @@ define half @fsgnjn_s(half %a, half %b) nounwind {
 ; RV64I-NEXT:    lui a0, 16
 ; RV64I-NEXT:    addiw s3, a0, -1
 ; RV64I-NEXT:    and a0, s1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s2, a0
 ; RV64I-NEXT:    and a0, s0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a1, a0
 ; RV64I-NEXT:    mv a0, s2
-; RV64I-NEXT:    call __addsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __addsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    and a0, a0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    lui a1, 524288
 ; RV64I-NEXT:    xor a0, a0, a1
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    lui a1, 1048568
 ; RV64I-NEXT:    and a0, a0, a1
 ; RV64I-NEXT:    slli s1, s1, 49
@@ -644,6 +807,29 @@ define half @fsgnjn_s(half %a, half %b) nounwind {
 ; CHECK-RV64-FSGNJ-NEXT:    flh fa0, 0(sp)
 ; CHECK-RV64-FSGNJ-NEXT:    addi sp, sp, 16
 ; CHECK-RV64-FSGNJ-NEXT:    ret
+; CHECK-ZHINXMIN-LABEL: fsgnjn_s:
+; CHECK-ZHINXMIN:       # %bb.0:
+; CHECK-ZHINXMIN-NEXT:    addi sp, sp, -16
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a2, a0
+; CHECK-ZHINXMIN-NEXT:    fadd.s a1, a2, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fneg.s a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a1, a1
+; CHECK-ZHINXMIN-NEXT:    addi a2, sp, 8
+; CHECK-ZHINXMIN-NEXT:    sh a0, 0(a2)
+; CHECK-ZHINXMIN-NEXT:    addi a0, sp, 12
+; CHECK-ZHINXMIN-NEXT:    sh a1, 0(a0)
+; CHECK-ZHINXMIN-NEXT:    lbu a0, 9(sp)
+; CHECK-ZHINXMIN-NEXT:    lbu a1, 13(sp)
+; CHECK-ZHINXMIN-NEXT:    andi a0, a0, 127
+; CHECK-ZHINXMIN-NEXT:    andi a1, a1, 128
+; CHECK-ZHINXMIN-NEXT:    or a0, a0, a1
+; CHECK-ZHINXMIN-NEXT:    sb a0, 9(sp)
+; CHECK-ZHINXMIN-NEXT:    lh a0, 0(a2)
+; CHECK-ZHINXMIN-NEXT:    addi sp, sp, 16
+; CHECK-ZHINXMIN-NEXT:    ret
 ; CHECKFSGNJ-LABEL: fsgnjn_s:
 ; CHECKFSGNJ:       # %bb.0:
 ; CHECKFSGNJ-NEXT:    addi sp, sp, -16
@@ -704,6 +890,13 @@ define half @fabs_s(half %a, half %b) nounwind {
 ; CHECKIZFH-NEXT:    fadd.h fa0, fa4, fa5
 ; CHECKIZFH-NEXT:    ret
 ;
+; CHECK-ZHINX-LABEL: fabs_s:
+; CHECK-ZHINX:       # %bb.0:
+; CHECK-ZHINX-NEXT:    fadd.h a0, a0, a1
+; CHECK-ZHINX-NEXT:    fabs.h a1, a0
+; CHECK-ZHINX-NEXT:    fadd.h a0, a1, a0
+; CHECK-ZHINX-NEXT:    ret
+;
 ; RV32I-LABEL: fabs_s:
 ; RV32I:       # %bb.0:
 ; RV32I-NEXT:    addi sp, sp, -16
@@ -715,25 +908,25 @@ define half @fabs_s(half %a, half %b) nounwind {
 ; RV32I-NEXT:    lui a1, 16
 ; RV32I-NEXT:    addi s2, a1, -1
 ; RV32I-NEXT:    and a0, a0, s2
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s1, a0
 ; RV32I-NEXT:    and a0, s0, s2
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a1, a0
 ; RV32I-NEXT:    mv a0, s1
-; RV32I-NEXT:    call __addsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __addsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    and a0, a0, s2
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s0, a0
 ; RV32I-NEXT:    slli a0, a0, 1
 ; RV32I-NEXT:    srli a0, a0, 1
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    and a0, a0, s2
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a1, s0
-; RV32I-NEXT:    call __addsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __addsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s0, 8(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s1, 4(sp) # 4-byte Folded Reload
@@ -752,25 +945,25 @@ define half @fabs_s(half %a, half %b) nounwind {
 ; RV64I-NEXT:    lui a1, 16
 ; RV64I-NEXT:    addiw s2, a1, -1
 ; RV64I-NEXT:    and a0, a0, s2
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s1, a0
 ; RV64I-NEXT:    and a0, s0, s2
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a1, a0
 ; RV64I-NEXT:    mv a0, s1
-; RV64I-NEXT:    call __addsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __addsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    and a0, a0, s2
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s0, a0
 ; RV64I-NEXT:    slli a0, a0, 33
 ; RV64I-NEXT:    srli a0, a0, 33
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    and a0, a0, s2
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a1, s0
-; RV64I-NEXT:    call __addsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __addsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    ld ra, 24(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s0, 16(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s1, 8(sp) # 8-byte Folded Reload
@@ -791,6 +984,33 @@ define half @fabs_s(half %a, half %b) nounwind {
 ; CHECKIZFHMIN-NEXT:    fadd.s fa5, fa4, fa5
 ; CHECKIZFHMIN-NEXT:    fcvt.h.s fa0, fa5
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKZHINXMIN-LABEL: fabs_s:
+; CHECKZHINXMIN:       # %bb.0:
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fadd.s a0, a0, a1
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fabs.s a1, a0
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fadd.s a0, a1, a0
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    ret
+; CHECK-ZHINXMIN-LABEL: fabs_s:
+; CHECK-ZHINXMIN:       # %bb.0:
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fadd.s a0, a0, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fabs.s a1, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fadd.s a0, a1, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    ret
   %1 = fadd half %a, %b
   %2 = call half @llvm.fabs.f16(half %1)
   %3 = fadd half %2, %1
@@ -805,6 +1025,11 @@ define half @fmin_s(half %a, half %b) nounwind {
 ; CHECKIZFH-NEXT:    fmin.h fa0, fa0, fa1
 ; CHECKIZFH-NEXT:    ret
 ;
+; CHECK-ZHINX-LABEL: fmin_s:
+; CHECK-ZHINX:       # %bb.0:
+; CHECK-ZHINX-NEXT:    fmin.h a0, a0, a1
+; CHECK-ZHINX-NEXT:    ret
+;
 ; RV32I-LABEL: fmin_s:
 ; RV32I:       # %bb.0:
 ; RV32I-NEXT:    addi sp, sp, -16
@@ -816,14 +1041,14 @@ define half @fmin_s(half %a, half %b) nounwind {
 ; RV32I-NEXT:    lui a1, 16
 ; RV32I-NEXT:    addi s2, a1, -1
 ; RV32I-NEXT:    and a0, a0, s2
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s1, a0
 ; RV32I-NEXT:    and a0, s0, s2
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a1, a0
 ; RV32I-NEXT:    mv a0, s1
-; RV32I-NEXT:    call fminf@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call fminf
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s0, 8(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s1, 4(sp) # 4-byte Folded Reload
@@ -842,14 +1067,14 @@ define half @fmin_s(half %a, half %b) nounwind {
 ; RV64I-NEXT:    lui a1, 16
 ; RV64I-NEXT:    addiw s2, a1, -1
 ; RV64I-NEXT:    and a0, a0, s2
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s1, a0
 ; RV64I-NEXT:    and a0, s0, s2
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a1, a0
 ; RV64I-NEXT:    mv a0, s1
-; RV64I-NEXT:    call fminf@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call fminf
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    ld ra, 24(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s0, 16(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s1, 8(sp) # 8-byte Folded Reload
@@ -864,6 +1089,21 @@ define half @fmin_s(half %a, half %b) nounwind {
 ; CHECKIZFHMIN-NEXT:    fmin.s fa5, fa4, fa5
 ; CHECKIZFHMIN-NEXT:    fcvt.h.s fa0, fa5
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKZHINXMIN-LABEL: fmin_s:
+; CHECKZHINXMIN:       # %bb.0:
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fmin.s a0, a0, a1
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    ret
+; CHECK-ZHINXMIN-LABEL: fmin_s:
+; CHECK-ZHINXMIN:       # %bb.0:
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fmin.s a0, a0, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    ret
   %1 = call half @llvm.minnum.f16(half %a, half %b)
   ret half %1
 }
@@ -876,6 +1116,11 @@ define half @fmax_s(half %a, half %b) nounwind {
 ; CHECKIZFH-NEXT:    fmax.h fa0, fa0, fa1
 ; CHECKIZFH-NEXT:    ret
 ;
+; CHECK-ZHINX-LABEL: fmax_s:
+; CHECK-ZHINX:       # %bb.0:
+; CHECK-ZHINX-NEXT:    fmax.h a0, a0, a1
+; CHECK-ZHINX-NEXT:    ret
+;
 ; RV32I-LABEL: fmax_s:
 ; RV32I:       # %bb.0:
 ; RV32I-NEXT:    addi sp, sp, -16
@@ -887,14 +1132,14 @@ define half @fmax_s(half %a, half %b) nounwind {
 ; RV32I-NEXT:    lui a1, 16
 ; RV32I-NEXT:    addi s2, a1, -1
 ; RV32I-NEXT:    and a0, a0, s2
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s1, a0
 ; RV32I-NEXT:    and a0, s0, s2
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a1, a0
 ; RV32I-NEXT:    mv a0, s1
-; RV32I-NEXT:    call fmaxf@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call fmaxf
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    lw ra, 12(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s0, 8(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s1, 4(sp) # 4-byte Folded Reload
@@ -913,14 +1158,14 @@ define half @fmax_s(half %a, half %b) nounwind {
 ; RV64I-NEXT:    lui a1, 16
 ; RV64I-NEXT:    addiw s2, a1, -1
 ; RV64I-NEXT:    and a0, a0, s2
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s1, a0
 ; RV64I-NEXT:    and a0, s0, s2
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a1, a0
 ; RV64I-NEXT:    mv a0, s1
-; RV64I-NEXT:    call fmaxf@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call fmaxf
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    ld ra, 24(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s0, 16(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s1, 8(sp) # 8-byte Folded Reload
@@ -935,6 +1180,21 @@ define half @fmax_s(half %a, half %b) nounwind {
 ; CHECKIZFHMIN-NEXT:    fmax.s fa5, fa4, fa5
 ; CHECKIZFHMIN-NEXT:    fcvt.h.s fa0, fa5
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKZHINXMIN-LABEL: fmax_s:
+; CHECKZHINXMIN:       # %bb.0:
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fmax.s a0, a0, a1
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    ret
+; CHECK-ZHINXMIN-LABEL: fmax_s:
+; CHECK-ZHINXMIN:       # %bb.0:
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fmax.s a0, a0, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    ret
   %1 = call half @llvm.maxnum.f16(half %a, half %b)
   ret half %1
 }
@@ -946,6 +1206,11 @@ define half @fmadd_s(half %a, half %b, half %c) nounwind {
 ; CHECKIZFH:       # %bb.0:
 ; CHECKIZFH-NEXT:    fmadd.h fa0, fa0, fa1, fa2
 ; CHECKIZFH-NEXT:    ret
+;
+; CHECK-ZHINX-LABEL: fmadd_s:
+; CHECK-ZHINX:       # %bb.0:
+; CHECK-ZHINX-NEXT:    fmadd.h a0, a0, a1, a2
+; CHECK-ZHINX-NEXT:    ret
 ;
 ; RV32I-LABEL: fmadd_s:
 ; RV32I:       # %bb.0:
@@ -960,18 +1225,18 @@ define half @fmadd_s(half %a, half %b, half %c) nounwind {
 ; RV32I-NEXT:    lui a1, 16
 ; RV32I-NEXT:    addi s3, a1, -1
 ; RV32I-NEXT:    and a0, a0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s2, a0
 ; RV32I-NEXT:    and a0, s1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s1, a0
 ; RV32I-NEXT:    and a0, s0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a2, a0
 ; RV32I-NEXT:    mv a0, s2
 ; RV32I-NEXT:    mv a1, s1
-; RV32I-NEXT:    call fmaf@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call fmaf
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    lw ra, 28(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s0, 24(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s1, 20(sp) # 4-byte Folded Reload
@@ -993,18 +1258,18 @@ define half @fmadd_s(half %a, half %b, half %c) nounwind {
 ; RV64I-NEXT:    lui a1, 16
 ; RV64I-NEXT:    addiw s3, a1, -1
 ; RV64I-NEXT:    and a0, a0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s2, a0
 ; RV64I-NEXT:    and a0, s1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s1, a0
 ; RV64I-NEXT:    and a0, s0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a2, a0
 ; RV64I-NEXT:    mv a0, s2
 ; RV64I-NEXT:    mv a1, s1
-; RV64I-NEXT:    call fmaf@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call fmaf
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s1, 24(sp) # 8-byte Folded Reload
@@ -1021,6 +1286,23 @@ define half @fmadd_s(half %a, half %b, half %c) nounwind {
 ; CHECKIZFHMIN-NEXT:    fmadd.s fa5, fa3, fa4, fa5
 ; CHECKIZFHMIN-NEXT:    fcvt.h.s fa0, fa5
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKZHINXMIN-LABEL: fmadd_s:
+; CHECKZHINXMIN:       # %bb.0:
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fmadd.s a0, a0, a1, a2
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    ret
+; CHECK-ZHINXMIN-LABEL: fmadd_s:
+; CHECK-ZHINXMIN:       # %bb.0:
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fmadd.s a0, a0, a1, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    ret
   %1 = call half @llvm.fma.f16(half %a, half %b, half %c)
   ret half %1
 }
@@ -1032,6 +1314,12 @@ define half @fmsub_s(half %a, half %b, half %c) nounwind {
 ; CHECKIZFH-NEXT:    fadd.h fa5, fa2, fa5
 ; CHECKIZFH-NEXT:    fmsub.h fa0, fa0, fa1, fa5
 ; CHECKIZFH-NEXT:    ret
+;
+; CHECK-ZHINX-LABEL: fmsub_s:
+; CHECK-ZHINX:       # %bb.0:
+; CHECK-ZHINX-NEXT:    fadd.h a2, a2, zero
+; CHECK-ZHINX-NEXT:    fmsub.h a0, a0, a1, a2
+; CHECK-ZHINX-NEXT:    ret
 ;
 ; RV32I-LABEL: fmsub_s:
 ; RV32I:       # %bb.0:
@@ -1046,29 +1334,29 @@ define half @fmsub_s(half %a, half %b, half %c) nounwind {
 ; RV32I-NEXT:    lui a0, 16
 ; RV32I-NEXT:    addi s3, a0, -1
 ; RV32I-NEXT:    and a0, a2, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    li a1, 0
-; RV32I-NEXT:    call __addsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __addsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    and a0, a0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    lui a1, 524288
 ; RV32I-NEXT:    xor a0, a0, a1
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    mv s2, a0
 ; RV32I-NEXT:    and a0, s1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s1, a0
 ; RV32I-NEXT:    and a0, s0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s0, a0
 ; RV32I-NEXT:    and a0, s2, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a2, a0
 ; RV32I-NEXT:    mv a0, s1
 ; RV32I-NEXT:    mv a1, s0
-; RV32I-NEXT:    call fmaf@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call fmaf
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    lw ra, 28(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s0, 24(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s1, 20(sp) # 4-byte Folded Reload
@@ -1090,29 +1378,29 @@ define half @fmsub_s(half %a, half %b, half %c) nounwind {
 ; RV64I-NEXT:    lui a0, 16
 ; RV64I-NEXT:    addiw s3, a0, -1
 ; RV64I-NEXT:    and a0, a2, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    li a1, 0
-; RV64I-NEXT:    call __addsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __addsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    and a0, a0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    lui a1, 524288
 ; RV64I-NEXT:    xor a0, a0, a1
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    mv s2, a0
 ; RV64I-NEXT:    and a0, s1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s1, a0
 ; RV64I-NEXT:    and a0, s0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s0, a0
 ; RV64I-NEXT:    and a0, s2, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a2, a0
 ; RV64I-NEXT:    mv a0, s1
 ; RV64I-NEXT:    mv a1, s0
-; RV64I-NEXT:    call fmaf@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call fmaf
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s1, 24(sp) # 8-byte Folded Reload
@@ -1136,6 +1424,35 @@ define half @fmsub_s(half %a, half %b, half %c) nounwind {
 ; CHECKIZFHMIN-NEXT:    fmadd.s fa5, fa3, fa4, fa5
 ; CHECKIZFHMIN-NEXT:    fcvt.h.s fa0, fa5
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKZHINXMIN-LABEL: fmsub_s:
+; CHECKZHINXMIN:       # %bb.0:
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECKZHINXMIN-NEXT:    fadd.s a2, a2, zero
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a2, a2
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECKZHINXMIN-NEXT:    fneg.s a2, a2
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a2, a2
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fmadd.s a0, a0, a1, a2
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    ret
+; CHECK-ZHINXMIN-LABEL: fmsub_s:
+; CHECK-ZHINXMIN:       # %bb.0:
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECK-ZHINXMIN-NEXT:    fadd.s a2, a2, zero
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a2, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECK-ZHINXMIN-NEXT:    fneg.s a2, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a2, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fmadd.s a0, a0, a1, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    ret
   %c_ = fadd half 0.0, %c ; avoid negation using xor
   %negc = fsub half -0.0, %c_
   %1 = call half @llvm.fma.f16(half %a, half %b, half %negc)
@@ -1151,6 +1468,13 @@ define half @fnmadd_s(half %a, half %b, half %c) nounwind {
 ; CHECKIZFH-NEXT:    fnmadd.h fa0, fa4, fa1, fa5
 ; CHECKIZFH-NEXT:    ret
 ;
+; CHECK-ZHINX-LABEL: fnmadd_s:
+; CHECK-ZHINX:       # %bb.0:
+; CHECK-ZHINX-NEXT:    fadd.h a0, a0, zero
+; CHECK-ZHINX-NEXT:    fadd.h a2, a2, zero
+; CHECK-ZHINX-NEXT:    fnmadd.h a0, a0, a1, a2
+; CHECK-ZHINX-NEXT:    ret
+;
 ; RV32I-LABEL: fnmadd_s:
 ; RV32I:       # %bb.0:
 ; RV32I-NEXT:    addi sp, sp, -32
@@ -1165,41 +1489,41 @@ define half @fnmadd_s(half %a, half %b, half %c) nounwind {
 ; RV32I-NEXT:    lui s3, 16
 ; RV32I-NEXT:    addi s3, s3, -1
 ; RV32I-NEXT:    and a0, a0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    li a1, 0
-; RV32I-NEXT:    call __addsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __addsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    mv s2, a0
 ; RV32I-NEXT:    and a0, s1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    li a1, 0
-; RV32I-NEXT:    call __addsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __addsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    mv s1, a0
 ; RV32I-NEXT:    and a0, s2, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    lui s4, 524288
 ; RV32I-NEXT:    xor a0, a0, s4
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    mv s2, a0
 ; RV32I-NEXT:    and a0, s1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    xor a0, a0, s4
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    mv s1, a0
 ; RV32I-NEXT:    and a0, s0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s0, a0
 ; RV32I-NEXT:    and a0, s2, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s2, a0
 ; RV32I-NEXT:    and a0, s1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a2, a0
 ; RV32I-NEXT:    mv a0, s2
 ; RV32I-NEXT:    mv a1, s0
-; RV32I-NEXT:    call fmaf@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call fmaf
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    lw ra, 28(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s0, 24(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s1, 20(sp) # 4-byte Folded Reload
@@ -1223,41 +1547,41 @@ define half @fnmadd_s(half %a, half %b, half %c) nounwind {
 ; RV64I-NEXT:    lui s3, 16
 ; RV64I-NEXT:    addiw s3, s3, -1
 ; RV64I-NEXT:    and a0, a0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    li a1, 0
-; RV64I-NEXT:    call __addsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __addsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    mv s2, a0
 ; RV64I-NEXT:    and a0, s1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    li a1, 0
-; RV64I-NEXT:    call __addsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __addsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    mv s1, a0
 ; RV64I-NEXT:    and a0, s2, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    lui s4, 524288
 ; RV64I-NEXT:    xor a0, a0, s4
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    mv s2, a0
 ; RV64I-NEXT:    and a0, s1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    xor a0, a0, s4
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    mv s1, a0
 ; RV64I-NEXT:    and a0, s0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s0, a0
 ; RV64I-NEXT:    and a0, s2, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s2, a0
 ; RV64I-NEXT:    and a0, s1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a2, a0
 ; RV64I-NEXT:    mv a0, s2
 ; RV64I-NEXT:    mv a1, s0
-; RV64I-NEXT:    call fmaf@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call fmaf
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s1, 24(sp) # 8-byte Folded Reload
@@ -1288,6 +1612,47 @@ define half @fnmadd_s(half %a, half %b, half %c) nounwind {
 ; CHECKIZFHMIN-NEXT:    fmadd.s fa5, fa5, fa3, fa4
 ; CHECKIZFHMIN-NEXT:    fcvt.h.s fa0, fa5
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKZHINXMIN-LABEL: fnmadd_s:
+; CHECKZHINXMIN:       # %bb.0:
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fadd.s a0, a0, zero
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECKZHINXMIN-NEXT:    fadd.s a2, a2, zero
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a2, a2
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fneg.s a0, a0
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECKZHINXMIN-NEXT:    fneg.s a2, a2
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a2, a2
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fmadd.s a0, a0, a1, a2
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    ret
+; CHECK-ZHINXMIN-LABEL: fnmadd_s:
+; CHECK-ZHINXMIN:       # %bb.0:
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fadd.s a0, a0, zero
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECK-ZHINXMIN-NEXT:    fadd.s a2, a2, zero
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a2, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fneg.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECK-ZHINXMIN-NEXT:    fneg.s a2, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a2, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fmadd.s a0, a0, a1, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    ret
   %a_ = fadd half 0.0, %a
   %c_ = fadd half 0.0, %c
   %nega = fsub half -0.0, %a_
@@ -1305,6 +1670,13 @@ define half @fnmadd_s_2(half %a, half %b, half %c) nounwind {
 ; CHECKIZFH-NEXT:    fnmadd.h fa0, fa4, fa0, fa5
 ; CHECKIZFH-NEXT:    ret
 ;
+; CHECK-ZHINX-LABEL: fnmadd_s_2:
+; CHECK-ZHINX:       # %bb.0:
+; CHECK-ZHINX-NEXT:    fadd.h a1, a1, zero
+; CHECK-ZHINX-NEXT:    fadd.h a2, a2, zero
+; CHECK-ZHINX-NEXT:    fnmadd.h a0, a1, a0, a2
+; CHECK-ZHINX-NEXT:    ret
+;
 ; RV32I-LABEL: fnmadd_s_2:
 ; RV32I:       # %bb.0:
 ; RV32I-NEXT:    addi sp, sp, -32
@@ -1319,41 +1691,41 @@ define half @fnmadd_s_2(half %a, half %b, half %c) nounwind {
 ; RV32I-NEXT:    lui s3, 16
 ; RV32I-NEXT:    addi s3, s3, -1
 ; RV32I-NEXT:    and a0, a1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    li a1, 0
-; RV32I-NEXT:    call __addsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __addsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    mv s2, a0
 ; RV32I-NEXT:    and a0, s1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    li a1, 0
-; RV32I-NEXT:    call __addsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __addsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    mv s1, a0
 ; RV32I-NEXT:    and a0, s2, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    lui s4, 524288
 ; RV32I-NEXT:    xor a0, a0, s4
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    mv s2, a0
 ; RV32I-NEXT:    and a0, s1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    xor a0, a0, s4
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    mv s1, a0
 ; RV32I-NEXT:    and a0, s0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s0, a0
 ; RV32I-NEXT:    and a0, s2, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s2, a0
 ; RV32I-NEXT:    and a0, s1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a2, a0
 ; RV32I-NEXT:    mv a0, s0
 ; RV32I-NEXT:    mv a1, s2
-; RV32I-NEXT:    call fmaf@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call fmaf
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    lw ra, 28(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s0, 24(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s1, 20(sp) # 4-byte Folded Reload
@@ -1377,41 +1749,41 @@ define half @fnmadd_s_2(half %a, half %b, half %c) nounwind {
 ; RV64I-NEXT:    lui s3, 16
 ; RV64I-NEXT:    addiw s3, s3, -1
 ; RV64I-NEXT:    and a0, a1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    li a1, 0
-; RV64I-NEXT:    call __addsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __addsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    mv s2, a0
 ; RV64I-NEXT:    and a0, s1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    li a1, 0
-; RV64I-NEXT:    call __addsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __addsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    mv s1, a0
 ; RV64I-NEXT:    and a0, s2, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    lui s4, 524288
 ; RV64I-NEXT:    xor a0, a0, s4
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    mv s2, a0
 ; RV64I-NEXT:    and a0, s1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    xor a0, a0, s4
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    mv s1, a0
 ; RV64I-NEXT:    and a0, s0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s0, a0
 ; RV64I-NEXT:    and a0, s2, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s2, a0
 ; RV64I-NEXT:    and a0, s1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a2, a0
 ; RV64I-NEXT:    mv a0, s0
 ; RV64I-NEXT:    mv a1, s2
-; RV64I-NEXT:    call fmaf@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call fmaf
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s1, 24(sp) # 8-byte Folded Reload
@@ -1442,6 +1814,47 @@ define half @fnmadd_s_2(half %a, half %b, half %c) nounwind {
 ; CHECKIZFHMIN-NEXT:    fmadd.s fa5, fa3, fa5, fa4
 ; CHECKIZFHMIN-NEXT:    fcvt.h.s fa0, fa5
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKZHINXMIN-LABEL: fnmadd_s_2:
+; CHECKZHINXMIN:       # %bb.0:
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fadd.s a1, a1, zero
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECKZHINXMIN-NEXT:    fadd.s a2, a2, zero
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a2, a2
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fneg.s a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECKZHINXMIN-NEXT:    fneg.s a2, a2
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a2, a2
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fmadd.s a0, a0, a1, a2
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    ret
+; CHECK-ZHINXMIN-LABEL: fnmadd_s_2:
+; CHECK-ZHINXMIN:       # %bb.0:
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fadd.s a1, a1, zero
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECK-ZHINXMIN-NEXT:    fadd.s a2, a2, zero
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a2, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fneg.s a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECK-ZHINXMIN-NEXT:    fneg.s a2, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a2, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fmadd.s a0, a0, a1, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    ret
   %b_ = fadd half 0.0, %b
   %c_ = fadd half 0.0, %c
   %negb = fsub half -0.0, %b_
@@ -1469,6 +1882,13 @@ define half @fnmadd_s_3(half %a, half %b, half %c) nounwind {
 ; CHECKIZFH-NEXT:    fneg.h fa0, fa5
 ; CHECKIZFH-NEXT:    ret
 ;
+; CHECK-ZHINX-LABEL: fnmadd_s_3:
+; CHECK-ZHINX:       # %bb.0:
+; CHECK-ZHINX-NEXT:    fmadd.h a0, a0, a1, a2
+; CHECK-ZHINX-NEXT:    lui a1, 1048568
+; CHECK-ZHINX-NEXT:    xor a0, a0, a1
+; CHECK-ZHINX-NEXT:    ret
+;
 ; RV32I-LABEL: fnmadd_s_3:
 ; RV32I:       # %bb.0:
 ; RV32I-NEXT:    addi sp, sp, -32
@@ -1482,18 +1902,18 @@ define half @fnmadd_s_3(half %a, half %b, half %c) nounwind {
 ; RV32I-NEXT:    lui a1, 16
 ; RV32I-NEXT:    addi s3, a1, -1
 ; RV32I-NEXT:    and a0, a0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s2, a0
 ; RV32I-NEXT:    and a0, s1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s1, a0
 ; RV32I-NEXT:    and a0, s0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a2, a0
 ; RV32I-NEXT:    mv a0, s2
 ; RV32I-NEXT:    mv a1, s1
-; RV32I-NEXT:    call fmaf@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call fmaf
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    lui a1, 1048568
 ; RV32I-NEXT:    xor a0, a0, a1
 ; RV32I-NEXT:    lw ra, 28(sp) # 4-byte Folded Reload
@@ -1517,18 +1937,18 @@ define half @fnmadd_s_3(half %a, half %b, half %c) nounwind {
 ; RV64I-NEXT:    lui a1, 16
 ; RV64I-NEXT:    addiw s3, a1, -1
 ; RV64I-NEXT:    and a0, a0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s2, a0
 ; RV64I-NEXT:    and a0, s1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s1, a0
 ; RV64I-NEXT:    and a0, s0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a2, a0
 ; RV64I-NEXT:    mv a0, s2
 ; RV64I-NEXT:    mv a1, s1
-; RV64I-NEXT:    call fmaf@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call fmaf
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    lui a1, 1048568
 ; RV64I-NEXT:    xor a0, a0, a1
 ; RV64I-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
@@ -1550,6 +1970,27 @@ define half @fnmadd_s_3(half %a, half %b, half %c) nounwind {
 ; CHECKIZFHMIN-NEXT:    fneg.s fa5, fa5
 ; CHECKIZFHMIN-NEXT:    fcvt.h.s fa0, fa5
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKZHINXMIN-LABEL: fnmadd_s_3:
+; CHECKZHINXMIN:       # %bb.0:
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fmadd.s a0, a0, a1, a2
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    lui a1, 1048568
+; CHECKZHINXMIN-NEXT:    xor a0, a0, a1
+; CHECKZHINXMIN-NEXT:    ret
+; CHECK-ZHINXMIN-LABEL: fnmadd_s_3:
+; CHECK-ZHINXMIN:       # %bb.0:
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fmadd.s a0, a0, a1, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    lui a1, 1048568
+; CHECK-ZHINXMIN-NEXT:    xor a0, a0, a1
+; CHECK-ZHINXMIN-NEXT:    ret
   %1 = call half @llvm.fma.f16(half %a, half %b, half %c)
   %neg = fneg half %1
   ret half %neg
@@ -1572,6 +2013,13 @@ define half @fnmadd_nsz(half %a, half %b, half %c) nounwind {
 ; CHECKIZFH-NEXT:    fnmadd.h fa0, fa0, fa1, fa2
 ; CHECKIZFH-NEXT:    ret
 ;
+; CHECK-ZHINX-LABEL: fnmadd_nsz:
+; CHECK-ZHINX:       # %bb.0:
+; CHECK-ZHINX-NEXT:    fmadd.h a0, a0, a1, a2
+; CHECK-ZHINX-NEXT:    lui a1, 1048568
+; CHECK-ZHINX-NEXT:    xor a0, a0, a1
+; CHECK-ZHINX-NEXT:    ret
+;
 ; RV32I-LABEL: fnmadd_nsz:
 ; RV32I:       # %bb.0:
 ; RV32I-NEXT:    addi sp, sp, -32
@@ -1585,18 +2033,18 @@ define half @fnmadd_nsz(half %a, half %b, half %c) nounwind {
 ; RV32I-NEXT:    lui a1, 16
 ; RV32I-NEXT:    addi s3, a1, -1
 ; RV32I-NEXT:    and a0, a0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s2, a0
 ; RV32I-NEXT:    and a0, s1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s1, a0
 ; RV32I-NEXT:    and a0, s0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a2, a0
 ; RV32I-NEXT:    mv a0, s2
 ; RV32I-NEXT:    mv a1, s1
-; RV32I-NEXT:    call fmaf@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call fmaf
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    lui a1, 1048568
 ; RV32I-NEXT:    xor a0, a0, a1
 ; RV32I-NEXT:    lw ra, 28(sp) # 4-byte Folded Reload
@@ -1620,18 +2068,18 @@ define half @fnmadd_nsz(half %a, half %b, half %c) nounwind {
 ; RV64I-NEXT:    lui a1, 16
 ; RV64I-NEXT:    addiw s3, a1, -1
 ; RV64I-NEXT:    and a0, a0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s2, a0
 ; RV64I-NEXT:    and a0, s1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s1, a0
 ; RV64I-NEXT:    and a0, s0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a2, a0
 ; RV64I-NEXT:    mv a0, s2
 ; RV64I-NEXT:    mv a1, s1
-; RV64I-NEXT:    call fmaf@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call fmaf
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    lui a1, 1048568
 ; RV64I-NEXT:    xor a0, a0, a1
 ; RV64I-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
@@ -1653,6 +2101,27 @@ define half @fnmadd_nsz(half %a, half %b, half %c) nounwind {
 ; CHECKIZFHMIN-NEXT:    fneg.s fa5, fa5
 ; CHECKIZFHMIN-NEXT:    fcvt.h.s fa0, fa5
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKZHINXMIN-LABEL: fnmadd_nsz:
+; CHECKZHINXMIN:       # %bb.0:
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fmadd.s a0, a0, a1, a2
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    lui a1, 1048568
+; CHECKZHINXMIN-NEXT:    xor a0, a0, a1
+; CHECKZHINXMIN-NEXT:    ret
+; CHECK-ZHINXMIN-LABEL: fnmadd_nsz:
+; CHECK-ZHINXMIN:       # %bb.0:
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fmadd.s a0, a0, a1, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    lui a1, 1048568
+; CHECK-ZHINXMIN-NEXT:    xor a0, a0, a1
+; CHECK-ZHINXMIN-NEXT:    ret
   %1 = call nsz half @llvm.fma.f16(half %a, half %b, half %c)
   %neg = fneg nsz half %1
   ret half %neg
@@ -1665,6 +2134,12 @@ define half @fnmsub_s(half %a, half %b, half %c) nounwind {
 ; CHECKIZFH-NEXT:    fadd.h fa5, fa0, fa5
 ; CHECKIZFH-NEXT:    fnmsub.h fa0, fa5, fa1, fa2
 ; CHECKIZFH-NEXT:    ret
+;
+; CHECK-ZHINX-LABEL: fnmsub_s:
+; CHECK-ZHINX:       # %bb.0:
+; CHECK-ZHINX-NEXT:    fadd.h a0, a0, zero
+; CHECK-ZHINX-NEXT:    fnmsub.h a0, a0, a1, a2
+; CHECK-ZHINX-NEXT:    ret
 ;
 ; RV32I-LABEL: fnmsub_s:
 ; RV32I:       # %bb.0:
@@ -1679,28 +2154,28 @@ define half @fnmsub_s(half %a, half %b, half %c) nounwind {
 ; RV32I-NEXT:    lui a1, 16
 ; RV32I-NEXT:    addi s3, a1, -1
 ; RV32I-NEXT:    and a0, a0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    li a1, 0
-; RV32I-NEXT:    call __addsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __addsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    and a0, a0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    lui a1, 524288
 ; RV32I-NEXT:    xor a0, a0, a1
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    mv s2, a0
 ; RV32I-NEXT:    and a0, s1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s1, a0
 ; RV32I-NEXT:    and a0, s0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s0, a0
 ; RV32I-NEXT:    and a0, s2, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a1, s1
 ; RV32I-NEXT:    mv a2, s0
-; RV32I-NEXT:    call fmaf@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call fmaf
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    lw ra, 28(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s0, 24(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s1, 20(sp) # 4-byte Folded Reload
@@ -1722,28 +2197,28 @@ define half @fnmsub_s(half %a, half %b, half %c) nounwind {
 ; RV64I-NEXT:    lui a1, 16
 ; RV64I-NEXT:    addiw s3, a1, -1
 ; RV64I-NEXT:    and a0, a0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    li a1, 0
-; RV64I-NEXT:    call __addsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __addsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    and a0, a0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    lui a1, 524288
 ; RV64I-NEXT:    xor a0, a0, a1
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    mv s2, a0
 ; RV64I-NEXT:    and a0, s1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s1, a0
 ; RV64I-NEXT:    and a0, s0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s0, a0
 ; RV64I-NEXT:    and a0, s2, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a1, s1
 ; RV64I-NEXT:    mv a2, s0
-; RV64I-NEXT:    call fmaf@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call fmaf
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s1, 24(sp) # 8-byte Folded Reload
@@ -1767,6 +2242,35 @@ define half @fnmsub_s(half %a, half %b, half %c) nounwind {
 ; CHECKIZFHMIN-NEXT:    fmadd.s fa5, fa5, fa3, fa4
 ; CHECKIZFHMIN-NEXT:    fcvt.h.s fa0, fa5
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKZHINXMIN-LABEL: fnmsub_s:
+; CHECKZHINXMIN:       # %bb.0:
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fadd.s a0, a0, zero
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fneg.s a0, a0
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fmadd.s a0, a0, a1, a2
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    ret
+; CHECK-ZHINXMIN-LABEL: fnmsub_s:
+; CHECK-ZHINXMIN:       # %bb.0:
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fadd.s a0, a0, zero
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fneg.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fmadd.s a0, a0, a1, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    ret
   %a_ = fadd half 0.0, %a
   %nega = fsub half -0.0, %a_
   %1 = call half @llvm.fma.f16(half %nega, half %b, half %c)
@@ -1781,6 +2285,12 @@ define half @fnmsub_s_2(half %a, half %b, half %c) nounwind {
 ; CHECKIZFH-NEXT:    fnmsub.h fa0, fa5, fa0, fa2
 ; CHECKIZFH-NEXT:    ret
 ;
+; CHECK-ZHINX-LABEL: fnmsub_s_2:
+; CHECK-ZHINX:       # %bb.0:
+; CHECK-ZHINX-NEXT:    fadd.h a1, a1, zero
+; CHECK-ZHINX-NEXT:    fnmsub.h a0, a1, a0, a2
+; CHECK-ZHINX-NEXT:    ret
+;
 ; RV32I-LABEL: fnmsub_s_2:
 ; RV32I:       # %bb.0:
 ; RV32I-NEXT:    addi sp, sp, -32
@@ -1794,29 +2304,29 @@ define half @fnmsub_s_2(half %a, half %b, half %c) nounwind {
 ; RV32I-NEXT:    lui a0, 16
 ; RV32I-NEXT:    addi s3, a0, -1
 ; RV32I-NEXT:    and a0, a1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    li a1, 0
-; RV32I-NEXT:    call __addsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __addsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    and a0, a0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    lui a1, 524288
 ; RV32I-NEXT:    xor a0, a0, a1
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    mv s2, a0
 ; RV32I-NEXT:    and a0, s1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s1, a0
 ; RV32I-NEXT:    and a0, s0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s0, a0
 ; RV32I-NEXT:    and a0, s2, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a1, a0
 ; RV32I-NEXT:    mv a0, s1
 ; RV32I-NEXT:    mv a2, s0
-; RV32I-NEXT:    call fmaf@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call fmaf
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    lw ra, 28(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s0, 24(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s1, 20(sp) # 4-byte Folded Reload
@@ -1838,29 +2348,29 @@ define half @fnmsub_s_2(half %a, half %b, half %c) nounwind {
 ; RV64I-NEXT:    lui a0, 16
 ; RV64I-NEXT:    addiw s3, a0, -1
 ; RV64I-NEXT:    and a0, a1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    li a1, 0
-; RV64I-NEXT:    call __addsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __addsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    and a0, a0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    lui a1, 524288
 ; RV64I-NEXT:    xor a0, a0, a1
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    mv s2, a0
 ; RV64I-NEXT:    and a0, s1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s1, a0
 ; RV64I-NEXT:    and a0, s0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s0, a0
 ; RV64I-NEXT:    and a0, s2, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a1, a0
 ; RV64I-NEXT:    mv a0, s1
 ; RV64I-NEXT:    mv a2, s0
-; RV64I-NEXT:    call fmaf@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call fmaf
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s1, 24(sp) # 8-byte Folded Reload
@@ -1884,6 +2394,35 @@ define half @fnmsub_s_2(half %a, half %b, half %c) nounwind {
 ; CHECKIZFHMIN-NEXT:    fmadd.s fa5, fa3, fa5, fa4
 ; CHECKIZFHMIN-NEXT:    fcvt.h.s fa0, fa5
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKZHINXMIN-LABEL: fnmsub_s_2:
+; CHECKZHINXMIN:       # %bb.0:
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fadd.s a1, a1, zero
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fneg.s a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fmadd.s a0, a0, a1, a2
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    ret
+; CHECK-ZHINXMIN-LABEL: fnmsub_s_2:
+; CHECK-ZHINXMIN:       # %bb.0:
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fadd.s a1, a1, zero
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fneg.s a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fmadd.s a0, a0, a1, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    ret
   %b_ = fadd half 0.0, %b
   %negb = fsub half -0.0, %b_
   %1 = call half @llvm.fma.f16(half %a, half %negb, half %c)
@@ -1895,6 +2434,11 @@ define half @fmadd_s_contract(half %a, half %b, half %c) nounwind {
 ; CHECKIZFH:       # %bb.0:
 ; CHECKIZFH-NEXT:    fmadd.h fa0, fa0, fa1, fa2
 ; CHECKIZFH-NEXT:    ret
+;
+; CHECK-ZHINX-LABEL: fmadd_s_contract:
+; CHECK-ZHINX:       # %bb.0:
+; CHECK-ZHINX-NEXT:    fmadd.h a0, a0, a1, a2
+; CHECK-ZHINX-NEXT:    ret
 ;
 ; RV32I-LABEL: fmadd_s_contract:
 ; RV32I:       # %bb.0:
@@ -1909,23 +2453,23 @@ define half @fmadd_s_contract(half %a, half %b, half %c) nounwind {
 ; RV32I-NEXT:    lui a1, 16
 ; RV32I-NEXT:    addi s3, a1, -1
 ; RV32I-NEXT:    and a0, a0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s2, a0
 ; RV32I-NEXT:    and a0, s1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a1, a0
 ; RV32I-NEXT:    mv a0, s2
-; RV32I-NEXT:    call __mulsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __mulsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    mv s1, a0
 ; RV32I-NEXT:    and a0, s0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s0, a0
 ; RV32I-NEXT:    and a0, s1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a1, s0
-; RV32I-NEXT:    call __addsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __addsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    lw ra, 28(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s0, 24(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s1, 20(sp) # 4-byte Folded Reload
@@ -1947,23 +2491,23 @@ define half @fmadd_s_contract(half %a, half %b, half %c) nounwind {
 ; RV64I-NEXT:    lui a1, 16
 ; RV64I-NEXT:    addiw s3, a1, -1
 ; RV64I-NEXT:    and a0, a0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s2, a0
 ; RV64I-NEXT:    and a0, s1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a1, a0
 ; RV64I-NEXT:    mv a0, s2
-; RV64I-NEXT:    call __mulsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __mulsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    mv s1, a0
 ; RV64I-NEXT:    and a0, s0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s0, a0
 ; RV64I-NEXT:    and a0, s1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a1, s0
-; RV64I-NEXT:    call __addsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __addsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s1, 24(sp) # 8-byte Folded Reload
@@ -1983,6 +2527,29 @@ define half @fmadd_s_contract(half %a, half %b, half %c) nounwind {
 ; CHECKIZFHMIN-NEXT:    fadd.s fa5, fa5, fa4
 ; CHECKIZFHMIN-NEXT:    fcvt.h.s fa0, fa5
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKZHINXMIN-LABEL: fmadd_s_contract:
+; CHECKZHINXMIN:       # %bb.0:
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fmul.s a0, a0, a1
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a2
+; CHECKZHINXMIN-NEXT:    fadd.s a0, a0, a1
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    ret
+; CHECK-ZHINXMIN-LABEL: fmadd_s_contract:
+; CHECK-ZHINXMIN:       # %bb.0:
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fmul.s a0, a0, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a2
+; CHECK-ZHINXMIN-NEXT:    fadd.s a0, a0, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    ret
   %1 = fmul contract half %a, %b
   %2 = fadd contract half %1, %c
   ret half %2
@@ -1995,6 +2562,12 @@ define half @fmsub_s_contract(half %a, half %b, half %c) nounwind {
 ; CHECKIZFH-NEXT:    fadd.h fa5, fa2, fa5
 ; CHECKIZFH-NEXT:    fmsub.h fa0, fa0, fa1, fa5
 ; CHECKIZFH-NEXT:    ret
+;
+; CHECK-ZHINX-LABEL: fmsub_s_contract:
+; CHECK-ZHINX:       # %bb.0:
+; CHECK-ZHINX-NEXT:    fadd.h a2, a2, zero
+; CHECK-ZHINX-NEXT:    fmsub.h a0, a0, a1, a2
+; CHECK-ZHINX-NEXT:    ret
 ;
 ; RV32I-LABEL: fmsub_s_contract:
 ; RV32I:       # %bb.0:
@@ -2009,29 +2582,29 @@ define half @fmsub_s_contract(half %a, half %b, half %c) nounwind {
 ; RV32I-NEXT:    lui a0, 16
 ; RV32I-NEXT:    addi s3, a0, -1
 ; RV32I-NEXT:    and a0, a2, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    li a1, 0
-; RV32I-NEXT:    call __addsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __addsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    mv s2, a0
 ; RV32I-NEXT:    and a0, s1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s1, a0
 ; RV32I-NEXT:    and a0, s0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a1, a0
 ; RV32I-NEXT:    mv a0, s1
-; RV32I-NEXT:    call __mulsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __mulsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    and a0, a0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s0, a0
 ; RV32I-NEXT:    and a0, s2, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a1, a0
 ; RV32I-NEXT:    mv a0, s0
-; RV32I-NEXT:    call __subsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __subsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    lw ra, 28(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s0, 24(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s1, 20(sp) # 4-byte Folded Reload
@@ -2053,29 +2626,29 @@ define half @fmsub_s_contract(half %a, half %b, half %c) nounwind {
 ; RV64I-NEXT:    lui a0, 16
 ; RV64I-NEXT:    addiw s3, a0, -1
 ; RV64I-NEXT:    and a0, a2, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    li a1, 0
-; RV64I-NEXT:    call __addsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __addsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    mv s2, a0
 ; RV64I-NEXT:    and a0, s1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s1, a0
 ; RV64I-NEXT:    and a0, s0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a1, a0
 ; RV64I-NEXT:    mv a0, s1
-; RV64I-NEXT:    call __mulsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __mulsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    and a0, a0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s0, a0
 ; RV64I-NEXT:    and a0, s2, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a1, a0
 ; RV64I-NEXT:    mv a0, s0
-; RV64I-NEXT:    call __subsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __subsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s1, 24(sp) # 8-byte Folded Reload
@@ -2099,6 +2672,35 @@ define half @fmsub_s_contract(half %a, half %b, half %c) nounwind {
 ; CHECKIZFHMIN-NEXT:    fsub.s fa5, fa4, fa5
 ; CHECKIZFHMIN-NEXT:    fcvt.h.s fa0, fa5
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKZHINXMIN-LABEL: fmsub_s_contract:
+; CHECKZHINXMIN:       # %bb.0:
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECKZHINXMIN-NEXT:    fadd.s a2, a2, zero
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a2, a2
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fmul.s a0, a0, a1
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a2
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fsub.s a0, a0, a1
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    ret
+; CHECK-ZHINXMIN-LABEL: fmsub_s_contract:
+; CHECK-ZHINXMIN:       # %bb.0:
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECK-ZHINXMIN-NEXT:    fadd.s a2, a2, zero
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a2, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fmul.s a0, a0, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fsub.s a0, a0, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    ret
   %c_ = fadd half 0.0, %c ; avoid negation using xor
   %1 = fmul contract half %a, %b
   %2 = fsub contract half %1, %c_
@@ -2115,6 +2717,14 @@ define half @fnmadd_s_contract(half %a, half %b, half %c) nounwind {
 ; CHECKIZFH-NEXT:    fnmadd.h fa0, fa4, fa3, fa5
 ; CHECKIZFH-NEXT:    ret
 ;
+; CHECK-ZHINX-LABEL: fnmadd_s_contract:
+; CHECK-ZHINX:       # %bb.0:
+; CHECK-ZHINX-NEXT:    fadd.h a0, a0, zero
+; CHECK-ZHINX-NEXT:    fadd.h a1, a1, zero
+; CHECK-ZHINX-NEXT:    fadd.h a2, a2, zero
+; CHECK-ZHINX-NEXT:    fnmadd.h a0, a0, a1, a2
+; CHECK-ZHINX-NEXT:    ret
+;
 ; RV32I-LABEL: fnmadd_s_contract:
 ; RV32I:       # %bb.0:
 ; RV32I-NEXT:    addi sp, sp, -32
@@ -2128,46 +2738,46 @@ define half @fnmadd_s_contract(half %a, half %b, half %c) nounwind {
 ; RV32I-NEXT:    lui s3, 16
 ; RV32I-NEXT:    addi s3, s3, -1
 ; RV32I-NEXT:    and a0, a0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    li a1, 0
-; RV32I-NEXT:    call __addsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __addsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    mv s2, a0
 ; RV32I-NEXT:    and a0, s1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    li a1, 0
-; RV32I-NEXT:    call __addsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __addsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    mv s1, a0
 ; RV32I-NEXT:    and a0, s0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    li a1, 0
-; RV32I-NEXT:    call __addsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __addsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    mv s0, a0
 ; RV32I-NEXT:    and a0, s2, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s2, a0
 ; RV32I-NEXT:    and a0, s1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a1, a0
 ; RV32I-NEXT:    mv a0, s2
-; RV32I-NEXT:    call __mulsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __mulsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    and a0, a0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    lui a1, 524288
 ; RV32I-NEXT:    xor a0, a0, a1
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    mv s1, a0
 ; RV32I-NEXT:    and a0, s0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s0, a0
 ; RV32I-NEXT:    and a0, s1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a1, s0
-; RV32I-NEXT:    call __subsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __subsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    lw ra, 28(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s0, 24(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s1, 20(sp) # 4-byte Folded Reload
@@ -2189,46 +2799,46 @@ define half @fnmadd_s_contract(half %a, half %b, half %c) nounwind {
 ; RV64I-NEXT:    lui s3, 16
 ; RV64I-NEXT:    addiw s3, s3, -1
 ; RV64I-NEXT:    and a0, a0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    li a1, 0
-; RV64I-NEXT:    call __addsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __addsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    mv s2, a0
 ; RV64I-NEXT:    and a0, s1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    li a1, 0
-; RV64I-NEXT:    call __addsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __addsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    mv s1, a0
 ; RV64I-NEXT:    and a0, s0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    li a1, 0
-; RV64I-NEXT:    call __addsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __addsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    mv s0, a0
 ; RV64I-NEXT:    and a0, s2, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s2, a0
 ; RV64I-NEXT:    and a0, s1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a1, a0
 ; RV64I-NEXT:    mv a0, s2
-; RV64I-NEXT:    call __mulsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __mulsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    and a0, a0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    lui a1, 524288
 ; RV64I-NEXT:    xor a0, a0, a1
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    mv s1, a0
 ; RV64I-NEXT:    and a0, s0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s0, a0
 ; RV64I-NEXT:    and a0, s1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a1, s0
-; RV64I-NEXT:    call __subsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __subsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s1, 24(sp) # 8-byte Folded Reload
@@ -2261,6 +2871,53 @@ define half @fnmadd_s_contract(half %a, half %b, half %c) nounwind {
 ; CHECKIZFHMIN-NEXT:    fsub.s fa5, fa5, fa4
 ; CHECKIZFHMIN-NEXT:    fcvt.h.s fa0, fa5
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKZHINXMIN-LABEL: fnmadd_s_contract:
+; CHECKZHINXMIN:       # %bb.0:
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fadd.s a0, a0, zero
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fadd.s a1, a1, zero
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECKZHINXMIN-NEXT:    fadd.s a2, a2, zero
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a2, a2
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fmul.s a0, a0, a1
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fneg.s a0, a0
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a2
+; CHECKZHINXMIN-NEXT:    fsub.s a0, a0, a1
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    ret
+; CHECK-ZHINXMIN-LABEL: fnmadd_s_contract:
+; CHECK-ZHINXMIN:       # %bb.0:
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fadd.s a0, a0, zero
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fadd.s a1, a1, zero
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a2, a2
+; CHECK-ZHINXMIN-NEXT:    fadd.s a2, a2, zero
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a2, a2
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fmul.s a0, a0, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fneg.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a2
+; CHECK-ZHINXMIN-NEXT:    fsub.s a0, a0, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    ret
   %a_ = fadd half 0.0, %a ; avoid negation using xor
   %b_ = fadd half 0.0, %b ; avoid negation using xor
   %c_ = fadd half 0.0, %c ; avoid negation using xor
@@ -2279,6 +2936,13 @@ define half @fnmsub_s_contract(half %a, half %b, half %c) nounwind {
 ; CHECKIZFH-NEXT:    fnmsub.h fa0, fa4, fa5, fa2
 ; CHECKIZFH-NEXT:    ret
 ;
+; CHECK-ZHINX-LABEL: fnmsub_s_contract:
+; CHECK-ZHINX:       # %bb.0:
+; CHECK-ZHINX-NEXT:    fadd.h a0, a0, zero
+; CHECK-ZHINX-NEXT:    fadd.h a1, a1, zero
+; CHECK-ZHINX-NEXT:    fnmsub.h a0, a0, a1, a2
+; CHECK-ZHINX-NEXT:    ret
+;
 ; RV32I-LABEL: fnmsub_s_contract:
 ; RV32I:       # %bb.0:
 ; RV32I-NEXT:    addi sp, sp, -32
@@ -2292,36 +2956,36 @@ define half @fnmsub_s_contract(half %a, half %b, half %c) nounwind {
 ; RV32I-NEXT:    lui s3, 16
 ; RV32I-NEXT:    addi s3, s3, -1
 ; RV32I-NEXT:    and a0, a0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    li a1, 0
-; RV32I-NEXT:    call __addsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __addsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    mv s2, a0
 ; RV32I-NEXT:    and a0, s1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    li a1, 0
-; RV32I-NEXT:    call __addsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __addsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    mv s1, a0
 ; RV32I-NEXT:    and a0, s2, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s2, a0
 ; RV32I-NEXT:    and a0, s1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a1, a0
 ; RV32I-NEXT:    mv a0, s2
-; RV32I-NEXT:    call __mulsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __mulsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    mv s1, a0
 ; RV32I-NEXT:    and a0, s0, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv s0, a0
 ; RV32I-NEXT:    and a0, s1, s3
-; RV32I-NEXT:    call __extendhfsf2@plt
+; RV32I-NEXT:    call __extendhfsf2
 ; RV32I-NEXT:    mv a1, a0
 ; RV32I-NEXT:    mv a0, s0
-; RV32I-NEXT:    call __subsf3@plt
-; RV32I-NEXT:    call __truncsfhf2@plt
+; RV32I-NEXT:    call __subsf3
+; RV32I-NEXT:    call __truncsfhf2
 ; RV32I-NEXT:    lw ra, 28(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s0, 24(sp) # 4-byte Folded Reload
 ; RV32I-NEXT:    lw s1, 20(sp) # 4-byte Folded Reload
@@ -2343,36 +3007,36 @@ define half @fnmsub_s_contract(half %a, half %b, half %c) nounwind {
 ; RV64I-NEXT:    lui s3, 16
 ; RV64I-NEXT:    addiw s3, s3, -1
 ; RV64I-NEXT:    and a0, a0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    li a1, 0
-; RV64I-NEXT:    call __addsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __addsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    mv s2, a0
 ; RV64I-NEXT:    and a0, s1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    li a1, 0
-; RV64I-NEXT:    call __addsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __addsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    mv s1, a0
 ; RV64I-NEXT:    and a0, s2, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s2, a0
 ; RV64I-NEXT:    and a0, s1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a1, a0
 ; RV64I-NEXT:    mv a0, s2
-; RV64I-NEXT:    call __mulsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __mulsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    mv s1, a0
 ; RV64I-NEXT:    and a0, s0, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv s0, a0
 ; RV64I-NEXT:    and a0, s1, s3
-; RV64I-NEXT:    call __extendhfsf2@plt
+; RV64I-NEXT:    call __extendhfsf2
 ; RV64I-NEXT:    mv a1, a0
 ; RV64I-NEXT:    mv a0, s0
-; RV64I-NEXT:    call __subsf3@plt
-; RV64I-NEXT:    call __truncsfhf2@plt
+; RV64I-NEXT:    call __subsf3
+; RV64I-NEXT:    call __truncsfhf2
 ; RV64I-NEXT:    ld ra, 40(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s0, 32(sp) # 8-byte Folded Reload
 ; RV64I-NEXT:    ld s1, 24(sp) # 8-byte Folded Reload
@@ -2399,6 +3063,41 @@ define half @fnmsub_s_contract(half %a, half %b, half %c) nounwind {
 ; CHECKIZFHMIN-NEXT:    fsub.s fa5, fa4, fa5
 ; CHECKIZFHMIN-NEXT:    fcvt.h.s fa0, fa5
 ; CHECKIZFHMIN-NEXT:    ret
+;
+; CHECKZHINXMIN-LABEL: fnmsub_s_contract:
+; CHECKZHINXMIN:       # %bb.0:
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fadd.s a0, a0, zero
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fadd.s a1, a1, zero
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fmul.s a0, a0, a1
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECKZHINXMIN-NEXT:    fcvt.s.h a1, a2
+; CHECKZHINXMIN-NEXT:    fsub.s a0, a1, a0
+; CHECKZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECKZHINXMIN-NEXT:    ret
+; CHECK-ZHINXMIN-LABEL: fnmsub_s_contract:
+; CHECK-ZHINXMIN:       # %bb.0:
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fadd.s a0, a0, zero
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fadd.s a1, a1, zero
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fmul.s a0, a0, a1
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a0, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.s.h a1, a2
+; CHECK-ZHINXMIN-NEXT:    fsub.s a0, a1, a0
+; CHECK-ZHINXMIN-NEXT:    fcvt.h.s a0, a0
+; CHECK-ZHINXMIN-NEXT:    ret
   %a_ = fadd half 0.0, %a ; avoid negation using xor
   %b_ = fadd half 0.0, %b ; avoid negation using xor
   %1 = fmul contract half %a_, %b_

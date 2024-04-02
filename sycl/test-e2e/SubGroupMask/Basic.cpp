@@ -1,9 +1,12 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// RUN: %{build} -o %t.out
+
 // REQUIRES: gpu
-// UNSUPPORTED: hip
+// REQUIRES: sg-32
+
 // GroupNonUniformBallot capability is supported on Intel GPU only
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// UNSUPPORTED: ze_debug-1,ze_debug4
+// RUN: %{run} %t.out
+
+// UNSUPPORTED: ze_debug
 
 //==---------- Basic.cpp - sub-group mask basic test -----------*- C++ -*---==//
 //

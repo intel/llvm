@@ -13,7 +13,7 @@ using namespace sycl::ext::intel::esimd;
 
 struct SimdWrapper {
   union {
-    // expected-note@+1 {{copy constructor of 'SimdWrapper' is implicitly deleted because variant field '' has a non-trivial copy constructor}}
+    // expected-note-re@+1 {{copy constructor of 'SimdWrapper' is implicitly deleted because variant field 'SimdWrapper::(anonymous struct at {{.*}})' has a non-trivial copy constructor}}
     struct {
       simd<int, 4> v1;
     };

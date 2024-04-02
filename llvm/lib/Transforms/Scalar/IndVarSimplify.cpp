@@ -64,15 +64,12 @@
 #include "llvm/IR/User.h"
 #include "llvm/IR/Value.h"
 #include "llvm/IR/ValueHandle.h"
-#include "llvm/InitializePasses.h"
-#include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
@@ -353,18 +350,19 @@ bool IndVarSimplify::handleFloatingPointIV(Loop *L, PHINode *PN) {
   IntegerType *Int32Ty = Type::getInt32Ty(PN->getContext());
 
   // Insert new integer induction variable.
-  PHINode *NewPHI = PHINode::Create(Int32Ty, 2, PN->getName()+".int", PN);
+  PHINode *NewPHI =
+      PHINode::Create(Int32Ty, 2, PN->getName() + ".int", PN->getIterator());
   NewPHI->addIncoming(ConstantInt::get(Int32Ty, InitValue),
                       PN->getIncomingBlock(IncomingEdge));
 
   Value *NewAdd =
-    BinaryOperator::CreateAdd(NewPHI, ConstantInt::get(Int32Ty, IncValue),
-                              Incr->getName()+".int", Incr);
+      BinaryOperator::CreateAdd(NewPHI, ConstantInt::get(Int32Ty, IncValue),
+                                Incr->getName() + ".int", Incr->getIterator());
   NewPHI->addIncoming(NewAdd, PN->getIncomingBlock(BackEdge));
 
-  ICmpInst *NewCompare = new ICmpInst(TheBr, NewPred, NewAdd,
-                                      ConstantInt::get(Int32Ty, ExitValue),
-                                      Compare->getName());
+  ICmpInst *NewCompare =
+      new ICmpInst(TheBr->getIterator(), NewPred, NewAdd,
+                   ConstantInt::get(Int32Ty, ExitValue), Compare->getName());
 
   // In the following deletions, PN may become dead and may be deleted.
   // Use a WeakTrackingVH to observe whether this happens.
@@ -389,7 +387,7 @@ bool IndVarSimplify::handleFloatingPointIV(Loop *L, PHINode *PN) {
   // platforms.
   if (WeakPH) {
     Value *Conv = new SIToFPInst(NewPHI, PN->getType(), "indvar.conv",
-                                 &*PN->getParent()->getFirstInsertionPt());
+                                 PN->getParent()->getFirstInsertionPt());
     PN->replaceAllUsesWith(Conv);
     RecursivelyDeleteTriviallyDeadInstructions(PN, TLI, MSSAU.get());
   }
@@ -407,8 +405,8 @@ bool IndVarSimplify::rewriteNonIntegerIVs(Loop *L) {
     PHIs.push_back(&PN);
 
   bool Changed = false;
-  for (unsigned i = 0, e = PHIs.size(); i != e; ++i)
-    if (PHINode *PN = dyn_cast_or_null<PHINode>(&*PHIs[i]))
+  for (WeakTrackingVH &PHI : PHIs)
+    if (PHINode *PN = dyn_cast_or_null<PHINode>(&*PHI))
       Changed |= handleFloatingPointIV(L, PN);
 
   // If the loop previously had floating-point IV, ScalarEvolution
@@ -1519,9 +1517,9 @@ bool IndVarSimplify::canonicalizeExitCondition(Loop *L) {
     // loop varying work to loop-invariant work.
     auto doRotateTransform = [&]() {
       assert(ICmp->isUnsigned() && "must have proven unsigned already");
-      auto *NewRHS =
-        CastInst::Create(Instruction::Trunc, RHS, LHSOp->getType(), "",
-                         L->getLoopPreheader()->getTerminator());
+      auto *NewRHS = CastInst::Create(
+          Instruction::Trunc, RHS, LHSOp->getType(), "",
+          L->getLoopPreheader()->getTerminator()->getIterator());
       ICmp->setOperand(Swapped ? 1 : 0, LHSOp);
       ICmp->setOperand(Swapped ? 0 : 1, NewRHS);
       if (LHS->use_empty())
@@ -2000,20 +1998,12 @@ bool IndVarSimplify::run(Loop *L) {
                                        TTI, PreHeader->getTerminator()))
         continue;
 
-      // Check preconditions for proper SCEVExpander operation. SCEV does not
-      // express SCEVExpander's dependencies, such as LoopSimplify. Instead
-      // any pass that uses the SCEVExpander must do it. This does not work
-      // well for loop passes because SCEVExpander makes assumptions about
-      // all loops, while LoopPassManager only forces the current loop to be
-      // simplified.
-      //
-      // FIXME: SCEV expansion has no way to bail out, so the caller must
-      // explicitly check any assumptions made by SCEV. Brittle.
-      const SCEVAddRecExpr *AR = dyn_cast<SCEVAddRecExpr>(ExitCount);
-      if (!AR || AR->getLoop()->getLoopPreheader())
-        Changed |= linearFunctionTestReplace(L, ExitingBB,
-                                             ExitCount, IndVar,
-                                             Rewriter);
+      if (!Rewriter.isSafeToExpand(ExitCount))
+        continue;
+
+      Changed |= linearFunctionTestReplace(L, ExitingBB,
+                                           ExitCount, IndVar,
+                                           Rewriter);
     }
   }
   // Clear the rewriter cache, because values that are in the rewriter's cache

@@ -145,6 +145,14 @@ template <> void SPIRVMap<OCLScopeKind, Scope>::init() {
   add(OCLMS_sub_group, ScopeSubgroup);
 }
 
+template <> void SPIRVMap<std::string, Scope>::init() {
+  add("work_item", ScopeInvocation);
+  add("workgroup", ScopeWorkgroup);
+  add("device", ScopeDevice);
+  add("all_svm_devices", ScopeCrossDevice);
+  add("subgroup", ScopeSubgroup);
+}
+
 template <> void SPIRVMap<std::string, SPIRVGroupOperationKind>::init() {
   add("reduce", GroupOperationReduce);
   add("scan_inclusive", GroupOperationInclusiveScan);
@@ -660,7 +668,7 @@ AtomicWorkItemFenceLiterals getAtomicWorkItemFenceLiterals(CallInst *CI) {
 }
 
 size_t getAtomicBuiltinNumMemoryOrderArgs(StringRef Name) {
-  if (Name.startswith("atomic_compare_exchange"))
+  if (Name.starts_with("atomic_compare_exchange"))
     return 2;
   return 1;
 }
@@ -675,8 +683,8 @@ size_t getSPIRVAtomicBuiltinNumMemoryOrderArgs(Op OC) {
 // max]_explicit functions declared in clang headers should be translated
 // to corresponding FP-typed Atomic Instructions
 bool isComputeAtomicOCLBuiltin(StringRef DemangledName) {
-  if (!DemangledName.startswith(kOCLBuiltinName::AtomicPrefix) &&
-      !DemangledName.startswith(kOCLBuiltinName::AtomPrefix))
+  if (!DemangledName.starts_with(kOCLBuiltinName::AtomicPrefix) &&
+      !DemangledName.starts_with(kOCLBuiltinName::AtomPrefix))
     return false;
 
   return llvm::StringSwitch<bool>(DemangledName)
@@ -783,7 +791,7 @@ unsigned getOCLVersion(Module *M, bool AllowMulti) {
   // If the module was linked with another module, there may be multiple
   // operands.
   auto GetVer = [=](unsigned I) {
-    auto MD = NamedMD->getOperand(I);
+    auto *MD = NamedMD->getOperand(I);
     return std::make_pair(getMDOperandAsInt(MD, 0), getMDOperandAsInt(MD, 1));
   };
   auto Ver = GetVer(0);
@@ -890,6 +898,9 @@ SPIRAddressSpace getOCLOpaqueTypeAddrSpace(Op OpCode) {
   case OpTypeSampler:
     return SPIRV_SAMPLER_T_ADDR_SPACE;
   case internal::OpTypeJointMatrixINTEL:
+  case internal::OpTypeJointMatrixINTELv2:
+  case OpTypeCooperativeMatrixKHR:
+  case internal::OpTypeTaskSequenceINTEL:
     return SPIRAS_Global;
   default:
     if (isSubgroupAvcINTELTypeOpCode(OpCode))
@@ -1009,12 +1020,12 @@ public:
       NameRef = StringRef(TempStorage);
     };
 
-    if (NameRef.startswith("async_work_group")) {
+    if (NameRef.starts_with("async_work_group")) {
       addUnsignedArg(-1);
       setArgAttr(1, SPIR::ATTR_CONST);
-    } else if (NameRef.startswith("printf"))
+    } else if (NameRef.starts_with("printf"))
       setVarArg(1);
-    else if (NameRef.startswith("write_imageui"))
+    else if (NameRef.starts_with("write_imageui"))
       addUnsignedArg(2);
     else if (NameRef.equals("prefetch")) {
       addUnsignedArg(1);
@@ -1027,13 +1038,13 @@ public:
       FunctionType *InvokeTy = getBlockInvokeTy(F, BlockArgIdx);
       if (InvokeTy->getNumParams() > 1)
         setLocalArgBlock(BlockArgIdx);
-    } else if (NameRef.startswith("__enqueue_kernel")) {
+    } else if (NameRef.starts_with("__enqueue_kernel")) {
       // clang doesn't mangle enqueue_kernel builtins
       setAsDontMangle();
-    } else if (NameRef.startswith("get_") || NameRef.equals("nan") ||
-               NameRef.equals("mem_fence") || NameRef.startswith("shuffle")) {
+    } else if (NameRef.starts_with("get_") || NameRef.equals("nan") ||
+               NameRef.equals("mem_fence") || NameRef.starts_with("shuffle")) {
       addUnsignedArg(-1);
-      if (NameRef.startswith(kOCLBuiltinName::GetFence)) {
+      if (NameRef.starts_with(kOCLBuiltinName::GetFence)) {
         setArgAttr(0, SPIR::ATTR_CONST);
         addVoidPtrArg(0);
       }
@@ -1044,18 +1055,18 @@ public:
           NameRef.equals("intel_work_group_barrier_arrive") ||
           NameRef.equals("intel_work_group_barrier_wait"))
         setEnumArg(1, SPIR::PRIMITIVE_MEMORY_SCOPE);
-    } else if (NameRef.startswith("atomic_work_item_fence")) {
+    } else if (NameRef.starts_with("atomic_work_item_fence")) {
       addUnsignedArg(0);
       setEnumArg(1, SPIR::PRIMITIVE_MEMORY_ORDER);
       setEnumArg(2, SPIR::PRIMITIVE_MEMORY_SCOPE);
-    } else if (NameRef.startswith("atom_")) {
+    } else if (NameRef.starts_with("atom_")) {
       setArgAttr(0, SPIR::ATTR_VOLATILE);
-      if (NameRef.endswith("_umax") || NameRef.endswith("_umin")) {
+      if (NameRef.ends_with("_umax") || NameRef.ends_with("_umin")) {
         addUnsignedArg(-1);
         // We need to remove u to match OpenCL C built-in function name
         EraseSymbol(5);
       }
-    } else if (NameRef.startswith("atomic")) {
+    } else if (NameRef.starts_with("atomic")) {
       setArgAttr(0, SPIR::ATTR_VOLATILE);
       if (NameRef.contains("_umax") || NameRef.contains("_umin")) {
         addUnsignedArg(-1);
@@ -1067,41 +1078,41 @@ public:
       }
       if (NameRef.contains("store_explicit") ||
           NameRef.contains("exchange_explicit") ||
-          (NameRef.startswith("atomic_fetch") &&
+          (NameRef.starts_with("atomic_fetch") &&
            NameRef.contains("explicit"))) {
         setEnumArg(2, SPIR::PRIMITIVE_MEMORY_ORDER);
         setEnumArg(3, SPIR::PRIMITIVE_MEMORY_SCOPE);
       } else if (NameRef.contains("load_explicit") ||
-                 (NameRef.startswith("atomic_flag") &&
+                 (NameRef.starts_with("atomic_flag") &&
                   NameRef.contains("explicit"))) {
         setEnumArg(1, SPIR::PRIMITIVE_MEMORY_ORDER);
         setEnumArg(2, SPIR::PRIMITIVE_MEMORY_SCOPE);
-      } else if (NameRef.endswith("compare_exchange_strong_explicit") ||
-                 NameRef.endswith("compare_exchange_weak_explicit")) {
+      } else if (NameRef.ends_with("compare_exchange_strong_explicit") ||
+                 NameRef.ends_with("compare_exchange_weak_explicit")) {
         setEnumArg(3, SPIR::PRIMITIVE_MEMORY_ORDER);
         setEnumArg(4, SPIR::PRIMITIVE_MEMORY_ORDER);
         setEnumArg(5, SPIR::PRIMITIVE_MEMORY_SCOPE);
       }
       // Don't set atomic property to the first argument of 1.2 atomic
       // built-ins.
-      if (!NameRef.endswith("xchg") && // covers _cmpxchg too
+      if (!NameRef.ends_with("xchg") && // covers _cmpxchg too
           (NameRef.contains("fetch") ||
-           !(NameRef.endswith("_add") || NameRef.endswith("_sub") ||
-             NameRef.endswith("_inc") || NameRef.endswith("_dec") ||
-             NameRef.endswith("_min") || NameRef.endswith("_max") ||
-             NameRef.endswith("_and") || NameRef.endswith("_or") ||
-             NameRef.endswith("_xor")))) {
+           !(NameRef.ends_with("_add") || NameRef.ends_with("_sub") ||
+             NameRef.ends_with("_inc") || NameRef.ends_with("_dec") ||
+             NameRef.ends_with("_min") || NameRef.ends_with("_max") ||
+             NameRef.ends_with("_and") || NameRef.ends_with("_or") ||
+             NameRef.ends_with("_xor")))) {
         addAtomicArg(0);
       }
-    } else if (NameRef.startswith("uconvert_")) {
+    } else if (NameRef.starts_with("uconvert_")) {
       addUnsignedArg(0);
       NameRef = NameRef.drop_front(1);
       UnmangledName.erase(0, 1);
-    } else if (NameRef.startswith("s_")) {
+    } else if (NameRef.starts_with("s_")) {
       if (NameRef.equals("s_upsample"))
         addUnsignedArg(1);
       NameRef = NameRef.drop_front(2);
-    } else if (NameRef.startswith("u_")) {
+    } else if (NameRef.starts_with("u_")) {
       addUnsignedArg(-1);
       NameRef = NameRef.drop_front(2);
     } else if (NameRef.equals("fclamp")) {
@@ -1152,12 +1163,12 @@ public:
     } else if (NameRef.equals("enqueue_marker")) {
       setArgAttr(2, SPIR::ATTR_CONST);
       addUnsignedArg(1);
-    } else if (NameRef.startswith("vload")) {
+    } else if (NameRef.starts_with("vload")) {
       addUnsignedArg(0);
       setArgAttr(1, SPIR::ATTR_CONST);
-    } else if (NameRef.startswith("vstore")) {
+    } else if (NameRef.starts_with("vstore")) {
       addUnsignedArg(1);
-    } else if (NameRef.startswith("ndrange_")) {
+    } else if (NameRef.starts_with("ndrange_")) {
       addUnsignedArgs(0, 2);
       if (NameRef[8] == '2' || NameRef[8] == '3') {
         setArgAttr(0, SPIR::ATTR_CONST);
@@ -1172,7 +1183,7 @@ public:
       EraseSymbol(NameRef.find("umin"));
     } else if (NameRef.contains("broadcast")) {
       addUnsignedArg(-1);
-    } else if (NameRef.startswith(kOCLBuiltinName::SampledReadImage)) {
+    } else if (NameRef.starts_with(kOCLBuiltinName::SampledReadImage)) {
       if (!NameRef.consume_front(kOCLBuiltinName::Sampled))
         report_fatal_error(llvm::Twine("Builtin name illformed"));
       addSamplerArg(1);
@@ -1264,12 +1275,12 @@ public:
         else if (NameRef.contains("chroma_mode_cost_function"))
           addUnsignedArg(0);
       }
-    } else if (NameRef.startswith("intel_sub_group_shuffle")) {
-      if (NameRef.endswith("_down") || NameRef.endswith("_up"))
+    } else if (NameRef.starts_with("intel_sub_group_shuffle")) {
+      if (NameRef.ends_with("_down") || NameRef.ends_with("_up"))
         addUnsignedArg(2);
       else
         addUnsignedArg(1);
-    } else if (NameRef.startswith("intel_sub_group_block_write")) {
+    } else if (NameRef.starts_with("intel_sub_group_block_write")) {
       // distinguish write to image and other data types based on number of
       // arguments--images have one more argument.
       if (F->getFunctionType()->getNumParams() == 2) {
@@ -1278,16 +1289,16 @@ public:
       } else {
         addUnsignedArg(2);
       }
-    } else if (NameRef.startswith("intel_sub_group_block_read")) {
+    } else if (NameRef.starts_with("intel_sub_group_block_read")) {
       // distinguish read from image and other data types based on number of
       // arguments--images have one more argument.
       if (F->getFunctionType()->getNumParams() == 1) {
         setArgAttr(0, SPIR::ATTR_CONST);
         addUnsignedArg(0);
       }
-    } else if (NameRef.startswith("intel_sub_group_media_block_write")) {
+    } else if (NameRef.starts_with("intel_sub_group_media_block_write")) {
       addUnsignedArg(3);
-    } else if (NameRef.startswith(kOCLBuiltinName::SubGroupPrefix)) {
+    } else if (NameRef.starts_with(kOCLBuiltinName::SubGroupPrefix)) {
       if (NameRef.contains("ballot")) {
         if (NameRef.contains("inverse") || NameRef.contains("bit_count") ||
             NameRef.contains("inclusive_scan") ||
@@ -1297,14 +1308,14 @@ public:
         else if (NameRef.contains("bit_extract")) {
           addUnsignedArgs(0, 1);
         }
-      } else if (NameRef.startswith("sub_group_clustered_rotate")) {
+      } else if (NameRef.starts_with("sub_group_clustered_rotate")) {
         addUnsignedArg(2);
       } else if (NameRef.contains("shuffle") || NameRef.contains("clustered"))
         addUnsignedArg(1);
-    } else if (NameRef.startswith("bitfield_insert")) {
+    } else if (NameRef.starts_with("bitfield_insert")) {
       addUnsignedArgs(2, 3);
-    } else if (NameRef.startswith("bitfield_extract_signed") ||
-               NameRef.startswith("bitfield_extract_unsigned")) {
+    } else if (NameRef.starts_with("bitfield_extract_signed") ||
+               NameRef.starts_with("bitfield_extract_unsigned")) {
       addUnsignedArgs(1, 2);
     }
 
@@ -1318,32 +1329,6 @@ public:
 
 std::unique_ptr<SPIRV::BuiltinFuncMangleInfo> makeMangler(Function &F) {
   return std::make_unique<OCLBuiltinFuncMangleInfo>(&F);
-}
-
-static StringRef getStructName(Type *Ty) {
-  if (auto *STy = dyn_cast<StructType>(Ty))
-    return STy->isLiteral() ? "" : Ty->getStructName();
-  return "";
-}
-
-Value *unwrapSpecialTypeInitializer(Value *V) {
-  if (auto *BC = dyn_cast<BitCastOperator>(V)) {
-    Type *DestTy = BC->getDestTy();
-    Type *SrcTy = BC->getSrcTy();
-    if (SrcTy->isPointerTy() && !SrcTy->isOpaquePointerTy()) {
-      StringRef SrcName =
-          getStructName(SrcTy->getNonOpaquePointerElementType());
-      StringRef DestName =
-          getStructName(DestTy->getNonOpaquePointerElementType());
-      if (DestName == getSPIRVTypeName(kSPIRVTypeName::PipeStorage) &&
-          SrcName == getSPIRVTypeName(kSPIRVTypeName::ConstantPipeStorage))
-        return BC->getOperand(0);
-      if (DestName == getSPIRVTypeName(kSPIRVTypeName::Sampler) &&
-          SrcName == getSPIRVTypeName(kSPIRVTypeName::ConstantSampler))
-        return BC->getOperand(0);
-    }
-  }
-  return nullptr;
 }
 
 bool isSamplerTy(Type *Ty) {

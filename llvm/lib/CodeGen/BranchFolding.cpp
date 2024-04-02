@@ -485,13 +485,7 @@ BranchFolder::MergePotentialsElt::operator<(const MergePotentialsElt &o) const {
     return true;
   if (getBlock()->getNumber() > o.getBlock()->getNumber())
     return false;
-  // _GLIBCXX_DEBUG checks strict weak ordering, which involves comparing
-  // an object with itself.
-#ifndef _GLIBCXX_DEBUG
-  llvm_unreachable("Predecessor appears twice");
-#else
   return false;
-#endif
 }
 
 /// CountTerminators - Count the number of terminators in the given
@@ -860,6 +854,14 @@ void BranchFolder::mergeCommonTails(unsigned commonTailIndex) {
       for (Register Reg : NewLiveIns) {
         if (!LiveRegs.available(*MRI, Reg))
           continue;
+
+        // Skip the register if we are about to add one of its super registers.
+        // TODO: Common this up with the same logic in addLineIns().
+        if (any_of(TRI->superregs(Reg), [&](MCPhysReg SReg) {
+              return NewLiveIns.contains(SReg) && !MRI->isReserved(SReg);
+            }))
+          continue;
+
         DebugLoc DL;
         BuildMI(*Pred, InsertBefore, DL, TII->get(TargetOpcode::IMPLICIT_DEF),
                 Reg);
@@ -1361,6 +1363,14 @@ ReoptimizeBlock:
         MachineBasicBlock *Pred = *(MBB->pred_end()-1);
         Pred->ReplaceUsesOfBlockWith(MBB, &*FallThrough);
       }
+      // Add rest successors of MBB to successors of FallThrough. Those
+      // successors are not directly reachable via MBB, so it should be
+      // landing-pad.
+      for (auto SI = MBB->succ_begin(), SE = MBB->succ_end(); SI != SE; ++SI)
+        if (*SI != &*FallThrough && !FallThrough->isSuccessor(*SI)) {
+          assert((*SI)->isEHPad() && "Bad CFG");
+          FallThrough->copySuccessor(MBB, SI);
+        }
       // If MBB was the target of a jump table, update jump tables to go to the
       // fallthrough instead.
       if (MachineJumpTableInfo *MJTI = MF.getJumpTableInfo())
@@ -1401,7 +1411,7 @@ ReoptimizeBlock:
     // This has to check PrevBB->succ_size() because EH edges are ignored by
     // analyzeBranch.
     if (PriorCond.empty() && !PriorTBB && MBB->pred_size() == 1 &&
-        PrevBB.succ_size() == 1 &&
+        PrevBB.succ_size() == 1 && PrevBB.isSuccessor(MBB) &&
         !MBB->hasAddressTaken() && !MBB->isEHPad()) {
       LLVM_DEBUG(dbgs() << "\nMerging into block: " << PrevBB
                         << "From MBB: " << *MBB);
@@ -1622,6 +1632,15 @@ ReoptimizeBlock:
             } else {
               DidChange = true;
               PMBB->ReplaceUsesOfBlockWith(MBB, CurTBB);
+              // Add rest successors of MBB to successors of CurTBB. Those
+              // successors are not directly reachable via MBB, so it should be
+              // landing-pad.
+              for (auto SI = MBB->succ_begin(), SE = MBB->succ_end(); SI != SE;
+                   ++SI)
+                if (*SI != CurTBB && !CurTBB->isSuccessor(*SI)) {
+                  assert((*SI)->isEHPad() && "Bad CFG");
+                  CurTBB->copySuccessor(MBB, SI);
+                }
               // If this change resulted in PMBB ending in a conditional
               // branch where both conditions go to the same destination,
               // change this to an unconditional branch.
@@ -1877,8 +1896,8 @@ MachineBasicBlock::iterator findHoistingInsertPosAndDeps(MachineBasicBlock *MBB,
     } else {
       if (Uses.erase(Reg)) {
         if (Reg.isPhysical()) {
-          for (MCSubRegIterator SubRegs(Reg, TRI); SubRegs.isValid(); ++SubRegs)
-            Uses.erase(*SubRegs); // Use sub-registers to be conservative
+          for (MCPhysReg SubReg : TRI->subregs(Reg))
+            Uses.erase(SubReg); // Use sub-registers to be conservative
         }
       }
       addRegAndItsAliases(Reg, TRI, Defs);
@@ -1989,8 +2008,8 @@ bool BranchFolder::HoistCommonCodeInSuccs(MachineBasicBlock *MBB) {
       break;
 
     // Remove kills from ActiveDefsSet, these registers had short live ranges.
-    for (const MachineOperand &MO : TIB->operands()) {
-      if (!MO.isReg() || !MO.isUse() || !MO.isKill())
+    for (const MachineOperand &MO : TIB->all_uses()) {
+      if (!MO.isKill())
         continue;
       Register Reg = MO.getReg();
       if (!Reg)
@@ -2007,8 +2026,8 @@ bool BranchFolder::HoistCommonCodeInSuccs(MachineBasicBlock *MBB) {
     }
 
     // Track local defs so we can update liveins.
-    for (const MachineOperand &MO : TIB->operands()) {
-      if (!MO.isReg() || !MO.isDef() || MO.isDead())
+    for (const MachineOperand &MO : TIB->all_defs()) {
+      if (MO.isDead())
         continue;
       Register Reg = MO.getReg();
       if (!Reg || Reg.isVirtual())
@@ -2029,8 +2048,10 @@ bool BranchFolder::HoistCommonCodeInSuccs(MachineBasicBlock *MBB) {
   FBB->erase(FBB->begin(), FIB);
 
   if (UpdateLiveIns) {
-    recomputeLiveIns(*TBB);
-    recomputeLiveIns(*FBB);
+    bool anyChange = false;
+    do {
+      anyChange = recomputeLiveIns(*TBB) || recomputeLiveIns(*FBB);
+    } while (anyChange);
   }
 
   ++NumHoist;

@@ -1,41 +1,20 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -I . -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -I . -o %t.out
+// RUN: %{run} %t.out
 
-// disabling hip because some of the binary_ops tested are not supported
-// getting undefined symbols for a handful of __spirv__ * functions.
-// XFAIL: hip
-
+#include "../../helpers.hpp"
 #include "support.h"
 #include <algorithm>
 #include <cassert>
 #include <iostream>
 #include <limits>
 #include <numeric>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/group_algorithm.hpp>
 #include <vector>
 using namespace sycl;
 
 template <class SpecializationKernelName, int TestNumber>
 class exclusive_scan_kernel;
-
-// std::exclusive_scan isn't implemented yet, so use serial implementation
-// instead
-namespace emu {
-template <typename InputIterator, typename OutputIterator,
-          class BinaryOperation, typename T>
-OutputIterator exclusive_scan(InputIterator first, InputIterator last,
-                              OutputIterator result, T init,
-                              BinaryOperation binary_op) {
-  T partial = init;
-  for (InputIterator it = first; it != last; ++it) {
-    *(result++) = partial;
-    partial = binary_op(partial, *it);
-  }
-  return result;
-}
-} // namespace emu
 
 template <typename SpecializationKernelName, typename InputContainer,
           typename OutputContainer, class BinaryOperation>
@@ -94,8 +73,10 @@ void test(queue q, InputContainer input, OutputContainer output,
       accessor out{out_buf, cgh, sycl::write_only, sycl::no_init};
       cgh.parallel_for<kernel_name2>(nd_range<1>(G, G), [=](nd_item<1> it) {
         group<1> g = it.get_group();
-        joint_exclusive_scan(g, in.get_pointer(), in.get_pointer() + N,
-                             out.get_pointer(), binary_op);
+        joint_exclusive_scan(
+            g, in.template get_multi_ptr<access::decorated::no>(),
+            in.template get_multi_ptr<access::decorated::no>() + N,
+            out.template get_multi_ptr<access::decorated::no>(), binary_op);
       });
     });
   }
@@ -111,8 +92,11 @@ void test(queue q, InputContainer input, OutputContainer output,
       accessor out{out_buf, cgh, sycl::write_only, sycl::no_init};
       cgh.parallel_for<kernel_name3>(nd_range<1>(G, G), [=](nd_item<1> it) {
         group<1> g = it.get_group();
-        joint_exclusive_scan(g, in.get_pointer(), in.get_pointer() + N,
-                             out.get_pointer(), init, binary_op);
+        joint_exclusive_scan(
+            g, in.template get_multi_ptr<access::decorated::no>(),
+            in.template get_multi_ptr<access::decorated::no>() + N,
+            out.template get_multi_ptr<access::decorated::no>(), init,
+            binary_op);
       });
     });
   }

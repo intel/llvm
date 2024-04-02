@@ -1,9 +1,5 @@
-// TODO: enable on Windows once driver is ready
-// REQUIRES: gpu && linux
-// UNSUPPORTED: cuda || hip
-//
 // Check that full compilation works:
-// RUN: not %clangxx -fsycl -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o %t.out 2>&1 | FileCheck %s
+// RUN: not %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o %t.out 2>&1 | FileCheck %s
 /*
   Test case specification: Test and report errors if sycl::marray argument
   passed to invoked ESIMD function.
@@ -11,7 +7,7 @@
 
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <functional>
 #include <iostream>

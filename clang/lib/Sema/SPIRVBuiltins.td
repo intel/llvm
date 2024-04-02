@@ -844,6 +844,9 @@ foreach Ty = [Void, ConstType<Void>, VolatileType<Void>, VolatileType<ConstType<
   def : SPVBuiltin<"GenericCastToPtrExplicit_ToGlobal", [PointerType<Ty, GlobalAS>, PointerType<Ty, DefaultAS>, Int], Attr.Const>;
   def : SPVBuiltin<"GenericCastToPtrExplicit_ToLocal", [PointerType<Ty, LocalAS>, PointerType<Ty, DefaultAS>, Int], Attr.Const>;
   def : SPVBuiltin<"GenericCastToPtrExplicit_ToPrivate", [PointerType<Ty, PrivateAS>, PointerType<Ty, DefaultAS>, Int], Attr.Const>;
+  def : SPVBuiltin<"GenericCastToPtr_ToGlobal", [PointerType<Ty, GlobalAS>, PointerType<Ty, DefaultAS>, Int], Attr.Const>;
+  def : SPVBuiltin<"GenericCastToPtr_ToLocal", [PointerType<Ty, LocalAS>, PointerType<Ty, DefaultAS>, Int], Attr.Const>;
+  def : SPVBuiltin<"GenericCastToPtr_ToPrivate", [PointerType<Ty, PrivateAS>, PointerType<Ty, DefaultAS>, Int], Attr.Const>;
 }
 
 foreach Type = TLFloat.List in {
@@ -926,9 +929,9 @@ foreach name = ["GroupAll", "GroupAny"] in {
 
 foreach name = ["GroupBroadcast"] in {
   foreach IDType = TLAllInts.List in {
-    def : SPVBuiltin<name, [AGenType1, UInt, AGenType1, IDType], Attr.Convergent>;
-    def : SPVBuiltin<name, [AGenType1, UInt, AGenType1, VectorType<IDType, 2>], Attr.Convergent>;
-    def : SPVBuiltin<name, [AGenType1, UInt, AGenType1, VectorType<IDType, 3>], Attr.Convergent>;
+    def : SPVBuiltin<name, [AGenTypeN, UInt, AGenTypeN, IDType], Attr.Convergent>;
+    def : SPVBuiltin<name, [AGenTypeN, UInt, AGenTypeN, VectorType<IDType, 2>], Attr.Convergent>;
+    def : SPVBuiltin<name, [AGenTypeN, UInt, AGenTypeN, VectorType<IDType, 3>], Attr.Convergent>;
     def : SPVBuiltin<name, [Bool, UInt, Bool, IDType], Attr.Convergent>;
     def : SPVBuiltin<name, [Bool, UInt, Bool, VectorType<IDType, 2>], Attr.Convergent>;
     def : SPVBuiltin<name, [Bool, UInt, Bool, VectorType<IDType, 3>], Attr.Convergent>;
@@ -951,4 +954,9 @@ foreach name = ["GroupUMin", "GroupUMax"] in {
 
 foreach name = ["GroupSMin", "GroupSMax"] in {
   def : SPVBuiltin<name, [ASIGenTypeN, UInt, UInt, ASIGenTypeN], Attr.Convergent>;
+}
+
+// TODO: These builtins need to support vectors of bool.
+foreach name = ["GroupLogicalAndKHR", "GroupLogicalOrKHR"] in {
+  def : SPVBuiltin<name, [Bool, UInt, UInt, Bool], Attr.Convergent>;
 }

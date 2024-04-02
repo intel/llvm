@@ -9,13 +9,13 @@ constexpr bool backend_opencl_macro_defined = true;
 constexpr bool backend_opencl_macro_defined = false;
 #endif
 
-#if SYCL_EXT_ONEAPI_SUB_GROUP_MASK == 1
+#ifdef SYCL_EXT_ONEAPI_SUB_GROUP_MASK
 constexpr bool sub_group_mask_macro_defined = true;
 #else
 constexpr bool sub_group_mask_macro_defined = false;
 #endif
 
-#if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO == 4
+#if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO == 5
 constexpr bool backend_level_zero_macro_defined = true;
 #else
 constexpr bool backend_level_zero_macro_defined = false;

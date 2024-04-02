@@ -5,8 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
+
 // REQUIRES: long_tests
+// UNSUPPORTED: GCC-ALWAYS_INLINE-FIXME
 
 // <random>
 
@@ -17,6 +18,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <cstdlib>
 #include <random>
 #include <vector>
 

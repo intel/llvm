@@ -8,6 +8,7 @@
 
 #include "llvm/Linker/IRMover.h"
 #include "LinkDiagnosticInfo.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
@@ -694,6 +695,7 @@ Function *IRLinker::copyFunctionProto(const Function *SF) {
                              SF->getAddressSpace(), SF->getName(), &DstM);
   F->copyAttributesFrom(SF);
   F->setAttributes(mapAttributeTypes(F->getContext(), F->getAttributes()));
+  F->IsNewDbgInfoFormat = SF->IsNewDbgInfoFormat;
   return F;
 }
 
@@ -936,8 +938,7 @@ IRLinker::linkAppendingVarProto(GlobalVariable *DstGV,
     else
       IsOldStructor = true;
   }
-
-  PointerType *VoidPtrTy = Type::getInt8Ty(SrcGV->getContext())->getPointerTo();
+  PointerType *VoidPtrTy = PointerType::get(SrcGV->getContext(), 0);
   if (IsOldStructor) {
     auto &ST = *cast<StructType>(EltTy);
     Type *Tys[3] = {ST.getElementType(0), ST.getElementType(1), VoidPtrTy};
@@ -989,8 +990,7 @@ IRLinker::linkAppendingVarProto(GlobalVariable *DstGV,
   // Replace any uses of the two global variables with uses of the new
   // global.
   if (DstGV) {
-    RAUWWorklist.push_back(
-        std::make_pair(DstGV, ConstantExpr::getBitCast(NG, DstGV->getType())));
+    RAUWWorklist.push_back(std::make_pair(DstGV, NG));
   }
 
   return Ret;
@@ -1135,6 +1135,7 @@ Error IRLinker::linkFunctionBody(Function &Dst, Function &Src) {
     Dst.setPrologueData(Src.getPrologueData());
   if (Src.hasPersonalityFn())
     Dst.setPersonalityFn(Src.getPersonalityFn());
+  assert(Src.IsNewDbgInfoFormat == Dst.IsNewDbgInfoFormat);
 
   // Copy over the metadata attachments without remapping.
   Dst.copyMetadata(&Src, 0);
@@ -1211,39 +1212,7 @@ void IRLinker::prepareCompileUnitsForImport() {
     // size inefficient.
     CU->replaceGlobalVariables(nullptr);
 
-    // Imported entities only need to be mapped in if they have local
-    // scope, as those might correspond to an imported entity inside a
-    // function being imported (any locally scoped imported entities that
-    // don't end up referenced by an imported function will not be emitted
-    // into the object). Imported entities not in a local scope
-    // (e.g. on the namespace) only need to be emitted by the originating
-    // module. Create a list of the locally scoped imported entities, and
-    // replace the source CUs imported entity list with the new list, so
-    // only those are mapped in.
-    // FIXME: Locally-scoped imported entities could be moved to the
-    // functions they are local to instead of listing them on the CU, and
-    // we would naturally only link in those needed by function importing.
-    SmallVector<TrackingMDNodeRef, 4> AllImportedModules;
-    bool ReplaceImportedEntities = false;
-    for (auto *IE : CU->getImportedEntities()) {
-      DIScope *Scope = IE->getScope();
-      assert(Scope && "Invalid Scope encoding!");
-      if (isa<DILocalScope>(Scope))
-        AllImportedModules.emplace_back(IE);
-      else
-        ReplaceImportedEntities = true;
-    }
-    if (ReplaceImportedEntities) {
-      if (!AllImportedModules.empty())
-        CU->replaceImportedEntities(MDTuple::get(
-            CU->getContext(),
-            SmallVector<Metadata *, 16>(AllImportedModules.begin(),
-                                        AllImportedModules.end())));
-      else
-        // If there were no local scope imported entities, we can map
-        // the whole list to nullptr.
-        CU->replaceImportedEntities(nullptr);
-    }
+    CU->replaceImportedEntities(nullptr);
   }
 }
 
@@ -1577,6 +1546,24 @@ Error IRLinker::run() {
     if (Error Err = SrcM->getMaterializer()->materializeMetadata())
       return Err;
 
+  // Convert source module to match dest for the duration of the link.
+  bool SrcModuleNewDbgFormat = SrcM->IsNewDbgInfoFormat;
+  if (DstM.IsNewDbgInfoFormat != SrcM->IsNewDbgInfoFormat) {
+    if (DstM.IsNewDbgInfoFormat)
+      SrcM->convertToNewDbgValues();
+    else
+      SrcM->convertFromNewDbgValues();
+  }
+  // Undo debug mode conversion afterwards.
+  auto Cleanup = make_scope_exit([&]() {
+    if (SrcModuleNewDbgFormat != SrcM->IsNewDbgInfoFormat) {
+      if (SrcModuleNewDbgFormat)
+        SrcM->convertToNewDbgValues();
+      else
+        SrcM->convertFromNewDbgValues();
+    }
+  });
+
   // Inherit the target data from the source module if the destination module
   // doesn't have one already.
   if (DstM.getDataLayout().isDefault())
@@ -1599,7 +1586,7 @@ Error IRLinker::run() {
     std::string ModuleId = SrcM->getModuleIdentifier();
     StringRef FileName = llvm::sys::path::filename(ModuleId);
     bool SrcIsLibDevice =
-        FileName.startswith("libdevice") && FileName.endswith(".10.bc");
+        FileName.starts_with("libdevice") && FileName.ends_with(".10.bc");
     bool SrcHasLibDeviceDL =
         (SrcM->getDataLayoutStr().empty() ||
          SrcM->getDataLayoutStr() == "e-i64:64-v16:16-v32:32-n16:32:64");

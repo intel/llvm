@@ -1,9 +1,9 @@
 // UNSUPPORTED: cuda || hip
-// REQUIRES: gpu,linux
-// RUN: %clangxx -fsycl -DTO_PASS %s -o %t.out.pass
-// RUN: %GPU_RUN_PLACEHOLDER %t.out.pass
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: gpu,linux,sg-16
+// RUN: %{build} -DTO_PASS -o %t.out.pass
+// RUN: %{run} %t.out.pass
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 // The test is failing when writing directly to output buffer.
 // If temporary variable is used (see TO_PASS mode) the test succeeded.
 // XFAIL: gpu
@@ -36,7 +36,7 @@ struct KernelFunctor : WithInputBuffers<T, 3>, WithOutputBuffer<T> {
 
     cgh.parallel_for<KernelFunctor<T>>(
         sycl::range<1>{this->getOutputBufferSize()},
-        [=](sycl::id<1> wiID) [[intel::reqd_sub_group_size(16)]] {
+        [=](sycl::id<1> wiID) [[sycl::reqd_sub_group_size(16)]] {
 #if defined(TO_PASS)
           // The code below passing verification
           volatile int output = -1;
@@ -85,7 +85,7 @@ int main() {
   }
 
   KernelFunctor<> f(inputA, inputB, inputC);
-  if (!launchInlineASMTest(f))
+  if (!launchInlineASMTest(f, {16}))
     return 0;
 
   if (verify_all_the_same(f.getOutputBufferData(),

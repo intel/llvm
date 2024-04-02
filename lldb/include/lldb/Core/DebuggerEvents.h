@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/Core/ModuleSpec.h"
-#include "lldb/Utility/ConstString.h"
+#include "lldb/Core/Progress.h"
 #include "lldb/Utility/Event.h"
 #include "lldb/Utility/StructuredData.h"
 
@@ -21,15 +21,16 @@ class Stream;
 
 class ProgressEventData : public EventData {
 public:
-  ProgressEventData(uint64_t progress_id, std::string title, std::string update,
-                    uint64_t completed, uint64_t total, bool debugger_specific)
-      : m_title(std::move(title)), m_details(std::move(update)),
+  ProgressEventData(uint64_t progress_id, std::string title,
+                    std::string details, uint64_t completed, uint64_t total,
+                    bool debugger_specific)
+      : m_title(std::move(title)), m_details(std::move(details)),
         m_id(progress_id), m_completed(completed), m_total(total),
         m_debugger_specific(debugger_specific) {}
 
-  static ConstString GetFlavorString();
+  static llvm::StringRef GetFlavorString();
 
-  ConstString GetFlavor() const override;
+  llvm::StringRef GetFlavor() const override;
 
   void Dump(Stream *s) const override;
 
@@ -39,7 +40,7 @@ public:
   GetAsStructuredData(const Event *event_ptr);
 
   uint64_t GetID() const { return m_id; }
-  bool IsFinite() const { return m_total != UINT64_MAX; }
+  bool IsFinite() const { return m_total != Progress::kNonDeterministicTotal; }
   uint64_t GetCompleted() const { return m_completed; }
   uint64_t GetTotal() const { return m_total; }
   std::string GetMessage() const {
@@ -93,8 +94,8 @@ public:
 
   void Dump(Stream *s) const override;
 
-  static ConstString GetFlavorString();
-  ConstString GetFlavor() const override;
+  static llvm::StringRef GetFlavorString();
+  llvm::StringRef GetFlavor() const override;
 
   static const DiagnosticEventData *
   GetEventDataFromEvent(const Event *event_ptr);
@@ -116,8 +117,8 @@ public:
   SymbolChangeEventData(lldb::DebuggerWP debugger_wp, ModuleSpec module_spec)
       : m_debugger_wp(debugger_wp), m_module_spec(std::move(module_spec)) {}
 
-  static ConstString GetFlavorString();
-  ConstString GetFlavor() const override;
+  static llvm::StringRef GetFlavorString();
+  llvm::StringRef GetFlavor() const override;
 
   static const SymbolChangeEventData *
   GetEventDataFromEvent(const Event *event_ptr);

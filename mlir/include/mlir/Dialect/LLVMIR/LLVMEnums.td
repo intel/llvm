@@ -6,10 +6,64 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVMIR_ENUMS_TD
-#define LLVMIR_ENUMS_TD
+#ifndef LLVMIR_ENUMS
+#define LLVMIR_ENUMS
 
-include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
+include "mlir/Dialect/LLVMIR/LLVMDialect.td"
+include "mlir/IR/EnumAttr.td"
+
+//===----------------------------------------------------------------------===//
+// Base classes for LLVM enum attributes.
+//===----------------------------------------------------------------------===//
+
+// Case of the LLVM enum attribute backed by I64Attr with customized string
+// representation that corresponds to what is visible in the textual IR form.
+// The parameters are as follows:
+//   - `cppSym`: name of the C++ enumerant for this case in MLIR API;
+//   - `irSym`: keyword used in the custom form of MLIR operation;
+//   - `llvmSym`: name of the C++ enumerant for this case in LLVM API.
+// For example, `LLVM_EnumAttrCase<"Weak", "weak", "WeakAnyLinkage">` is usable
+// as `<MlirEnumName>::Weak` in MLIR API, `WeakAnyLinkage` in LLVM API and
+// is printed/parsed as `weak` in MLIR custom textual format.
+class LLVM_EnumAttrCase<string cppSym, string irSym, string llvmSym, int val> :
+    I64EnumAttrCase<cppSym, val, irSym> {
+  // The name of the equivalent enumerant in LLVM.
+  string llvmEnumerant = llvmSym;
+}
+
+// LLVM enum attribute backed by I64Attr with string representation
+// corresponding to what is visible in the textual IR form.
+// The parameters are as follows:
+//   - `name`: name of the C++ enum class in MLIR API;
+//   - `llvmName`: name of the C++ enum in LLVM API;
+//   - `description`: textual description for documentation purposes;
+//   - `cases`: list of enum cases;
+//   - `unsupportedCases`: optional list of unsupported enum cases.
+// For example, `LLVM_EnumAttr<Linkage, "::llvm::GlobalValue::LinkageTypes`
+// produces `mlir::LLVM::Linkage` enum class in MLIR API that corresponds to (a
+// subset of) values in the `llvm::GlobalValue::LinkageTypes` in LLVM API.
+// All unsupported cases are excluded from the MLIR enum and trigger an error
+// during the import from LLVM IR. They are useful to handle sentinel values
+// such as `llvm::AtomicRMWInst::BinOp::BAD_BINOP` that LLVM commonly uses to
+// terminate its enums.
+class LLVM_EnumAttr<string name, string llvmName, string description,
+                    list<LLVM_EnumAttrCase> cases,
+                    list<LLVM_EnumAttrCase> unsupportedCases = []> :
+    I64EnumAttr<name, description, cases> {
+  // List of unsupported cases that have no conversion to an MLIR value.
+  list<LLVM_EnumAttrCase> unsupported = unsupportedCases;
+
+  // The equivalent enum class name in LLVM.
+  string llvmClassName = llvmName;
+}
+
+// LLVM_CEnumAttr is functionally identical to LLVM_EnumAttr, but to be used for
+// non-class enums.
+class LLVM_CEnumAttr<string name, string llvmNS, string description,
+      list<LLVM_EnumAttrCase> cases> :
+    I64EnumAttr<name, description, cases> {
+  string llvmClassName = llvmNS;
+}
 
 //===----------------------------------------------------------------------===//
 // AsmDialect
@@ -106,8 +160,6 @@ def CConvFast : LLVM_EnumAttrCase<"Fast", "fastcc", "Fast", 8>;
 def CConvCold : LLVM_EnumAttrCase<"Cold", "coldcc", "Cold", 9>;
 def CConvGHC : LLVM_EnumAttrCase<"GHC", "cc_10", "GHC", 10>;
 def CConvHiPE : LLVM_EnumAttrCase<"HiPE", "cc_11", "HiPE", 11>;
-def CConvWebKitJS : LLVM_EnumAttrCase<"WebKit_JS", "webkit_jscc",
-                                      "WebKit_JS", 12>;
 def CConvAnyReg : LLVM_EnumAttrCase<"AnyReg", "anyregcc", "AnyReg", 13>;
 def CConvPreserveMost : LLVM_EnumAttrCase<"PreserveMost", "preserve_mostcc",
                                           "PreserveMost", 14>;
@@ -200,7 +252,7 @@ def CConvEnum : LLVM_CEnumAttr<
     "CConv",
     "::llvm::CallingConv",
     "Calling Conventions",
-    [CConvC, CConvFast, CConvCold, CConvGHC, CConvHiPE, CConvWebKitJS,
+    [CConvC, CConvFast, CConvCold, CConvGHC, CConvHiPE,
      CConvAnyReg, CConvPreserveMost, CConvPreserveAll, CConvSwift,
      CConvCXXFastTLS, CConvTail, CConvCFGuard_Check, CConvSwiftTail,
      CConvX86_StdCall, CConvX86_FastCall, CConvARM_APCS,
@@ -218,7 +270,7 @@ def CConvEnum : LLVM_CEnumAttr<
 
 def CConv : DialectAttr<
     LLVM_Dialect,
-    CPred<"$_self.isa<::mlir::LLVM::CConvAttr>()">,
+    CPred<"::llvm::isa<::mlir::LLVM::CConvAttr>($_self)">,
     "LLVM Calling Convention specification"> {
   let storageType = "::mlir::LLVM::CConvAttr";
   let returnType = "::mlir::LLVM::cconv::CConv";
@@ -377,6 +429,29 @@ def DISubprogramFlags : I32BitEnumAttr<
 }
 
 //===----------------------------------------------------------------------===//
+// IntegerOverflowFlags
+//===----------------------------------------------------------------------===//
+
+def IOFnone : I32BitEnumAttrCaseNone<"none">;
+def IOFnsw  : I32BitEnumAttrCaseBit<"nsw", 0>;
+def IOFnuw  : I32BitEnumAttrCaseBit<"nuw", 1>;
+
+def IntegerOverflowFlags : I32BitEnumAttr<
+    "IntegerOverflowFlags",
+    "LLVM integer overflow flags",
+    [IOFnone, IOFnsw, IOFnuw]> {
+  let separator = ", ";
+  let cppNamespace = "::mlir::LLVM";
+  let genSpecializedAttr = 0;
+  let printBitEnumPrimaryGroups = 1;
+}
+
+def LLVM_IntegerOverflowFlagsAttr :
+    EnumAttr<LLVM_Dialect, IntegerOverflowFlags, "overflow"> {
+  let assemblyFormat = "`<` $value `>`";
+}
+
+//===----------------------------------------------------------------------===//
 // FastmathFlags
 //===----------------------------------------------------------------------===//
 
@@ -400,6 +475,11 @@ def FastmathFlags : I32BitEnumAttr<
   let cppNamespace = "::mlir::LLVM";
   let genSpecializedAttr = 0;
   let printBitEnumPrimaryGroups = 1;
+}
+
+def LLVM_FastmathFlagsAttr :
+    EnumAttr<LLVM_Dialect, FastmathFlags, "fastmath"> {
+  let assemblyFormat = "`<` $value `>`";
 }
 
 //===----------------------------------------------------------------------===//
@@ -521,13 +601,37 @@ def LinkageEnum : LLVM_EnumAttr<
 
 def Linkage : DialectAttr<
     LLVM_Dialect,
-    CPred<"$_self.isa<::mlir::LLVM::LinkageAttr>()">,
+    CPred<"::llvm::isa<::mlir::LLVM::LinkageAttr>($_self)">,
     "LLVM Linkage specification"> {
   let storageType = "::mlir::LLVM::LinkageAttr";
   let returnType = "::mlir::LLVM::Linkage";
   let convertFromStorage = "$_self.getLinkage()";
   let constBuilderCall =
           "::mlir::LLVM::LinkageAttr::get($_builder.getContext(), $0)";
+}
+
+//===----------------------------------------------------------------------===//
+// Comdat
+//===----------------------------------------------------------------------===//
+
+def ComdatAny
+    : LLVM_EnumAttrCase<"Any", "any", "Any", 0>;
+def ComdatExactMatch
+    : LLVM_EnumAttrCase<"ExactMatch", "exactmatch", "ExactMatch", 1>;
+def ComdatLargest
+    : LLVM_EnumAttrCase<"Largest", "largest", "Largest", 2>;
+def ComdatNoDeduplicate
+    : LLVM_EnumAttrCase<"NoDeduplicate", "nodeduplicate", "NoDeduplicate", 3>;
+def ComdatSameSize
+    : LLVM_EnumAttrCase<"SameSize", "samesize", "SameSize", 4>;
+
+def Comdat : LLVM_EnumAttr<
+  "Comdat",
+  "::llvm::Comdat::SelectionKind",
+  "LLVM Comdat Types",
+  [ComdatAny, ComdatExactMatch, ComdatLargest,
+   ComdatNoDeduplicate, ComdatSameSize]> {
+  let cppNamespace = "::mlir::LLVM::comdat";
 }
 
 //===----------------------------------------------------------------------===//
@@ -582,4 +686,80 @@ def ModRefInfoEnum : LLVM_EnumAttr<
   let cppNamespace = "::mlir::LLVM";
 }
 
-#endif // LLVMIR_ENUMS_TD
+//===----------------------------------------------------------------------===//
+// FramePointerKind
+//===----------------------------------------------------------------------===//
+
+def FramePointerKindNone
+    : LLVM_EnumAttrCase<"None", "none", "None", 0>;
+def FramePointerKindNonLeaf
+    : LLVM_EnumAttrCase<"NonLeaf", "non-leaf", "NonLeaf", 1>;
+def FramePointerKindAll
+    : LLVM_EnumAttrCase<"All", "all", "All", 2>;
+
+def FramePointerKindEnum : LLVM_EnumAttr<
+    "FramePointerKind",
+    "::llvm::FramePointerKind",
+    "LLVM FramePointerKind",
+    [FramePointerKindNone, FramePointerKindNonLeaf, FramePointerKindAll]> {
+  let cppNamespace = "::mlir::LLVM::framePointerKind";
+}
+
+//===----------------------------------------------------------------------===//
+// RoundingMode
+//===----------------------------------------------------------------------===//
+
+// These values must match llvm::RoundingMode ones.
+// See llvm/include/llvm/ADT/FloatingPointMode.h.
+def RoundTowardZero
+    : LLVM_EnumAttrCase<"TowardZero", "towardzero", "TowardZero", 0>;
+def RoundNearestTiesToEven
+    : LLVM_EnumAttrCase<"NearestTiesToEven", "tonearest", "NearestTiesToEven", 1>;
+def RoundTowardPositive
+    : LLVM_EnumAttrCase<"TowardPositive", "upward", "TowardPositive", 2>;
+def RoundTowardNegative
+    : LLVM_EnumAttrCase<"TowardNegative", "downward", "TowardNegative", 3>;
+def RoundNearestTiesToAway
+    : LLVM_EnumAttrCase<"NearestTiesToAway", "tonearestaway", "NearestTiesToAway", 4>;
+def RoundDynamic
+    : LLVM_EnumAttrCase<"Dynamic", "dynamic", "Dynamic", 7>;
+// Needed as llvm::RoundingMode defines this.
+def RoundInvalid
+    : LLVM_EnumAttrCase<"Invalid", "invalid", "Invalid", -1>;
+
+// RoundingModeAttr should not be used in operations definitions.
+// Use ValidRoundingModeAttr instead.
+def RoundingModeAttr : LLVM_EnumAttr<
+    "RoundingMode",
+    "::llvm::RoundingMode",
+    "LLVM Rounding Mode",
+    [RoundTowardZero, RoundNearestTiesToEven, RoundTowardPositive,
+     RoundTowardNegative, RoundNearestTiesToAway, RoundDynamic, RoundInvalid]> {
+  let cppNamespace = "::mlir::LLVM";
+}
+
+def ValidRoundingModeAttr : ConfinedAttr<RoundingModeAttr, [IntMinValue<0>]>;
+
+//===----------------------------------------------------------------------===//
+// FPExceptionBehavior
+//===----------------------------------------------------------------------===//
+
+// These values must match llvm::fp::ExceptionBehavior ones.
+// See llvm/include/llvm/IR/FPEnv.h.
+def FPExceptionBehaviorIgnore
+    : LLVM_EnumAttrCase<"Ignore", "ignore", "ebIgnore", 0>;
+def FPExceptionBehaviorMayTrap
+    : LLVM_EnumAttrCase<"MayTrap", "maytrap", "ebMayTrap", 1>;
+def FPExceptionBehaviorStrict
+    : LLVM_EnumAttrCase<"Strict", "strict", "ebStrict", 2>;
+
+def FPExceptionBehaviorAttr : LLVM_EnumAttr<
+    "FPExceptionBehavior",
+    "::llvm::fp::ExceptionBehavior",
+    "LLVM Exception Behavior",
+    [FPExceptionBehaviorIgnore, FPExceptionBehaviorMayTrap,
+     FPExceptionBehaviorStrict]> {
+  let cppNamespace = "::mlir::LLVM";
+}
+
+#endif // LLVMIR_ENUMS

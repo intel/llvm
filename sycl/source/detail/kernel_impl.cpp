@@ -14,66 +14,70 @@
 #include <memory>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
-kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context,
-                         KernelBundleImplPtr KernelBundleImpl)
+kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
+                         ContextImplPtr Context,
+                         KernelBundleImplPtr KernelBundleImpl,
+                         const KernelArgMask *ArgMask)
     : kernel_impl(Kernel, Context,
                   std::make_shared<program_impl>(Context, Kernel),
-                  /*IsCreatedFromSource*/ true, KernelBundleImpl) {
+                  /*IsCreatedFromSource*/ true, KernelBundleImpl, ArgMask) {
   // Enable USM indirect access for interoperability kernels.
   // Some PI Plugins (like OpenCL) require this call to enable USM
   // For others, PI will turn this into a NOP.
-  getPlugin().call<PiApiKind::piKernelSetExecInfo>(
-      MKernel, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
+  if (Context->getPlatformImpl()->supports_usm())
+    getPlugin()->call<PiApiKind::piKernelSetExecInfo>(
+        MKernel, PI_USM_INDIRECT_ACCESS, sizeof(pi_bool), &PI_TRUE);
 
   // This constructor is only called in the interoperability kernel constructor.
   MIsInterop = true;
 }
 
-kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
-                         ProgramImplPtr ProgramImpl, bool IsCreatedFromSource,
-                         KernelBundleImplPtr KernelBundleImpl)
+kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
+                         ContextImplPtr ContextImpl, ProgramImplPtr ProgramImpl,
+                         bool IsCreatedFromSource,
+                         KernelBundleImplPtr KernelBundleImpl,
+                         const KernelArgMask *ArgMask)
     : MKernel(Kernel), MContext(ContextImpl),
-      MProgramImpl(std::move(ProgramImpl)),
+      MProgram(ProgramImpl->getHandleRef()),
       MCreatedFromSource(IsCreatedFromSource),
-      MKernelBundleImpl(std::move(KernelBundleImpl)) {
+      MKernelBundleImpl(std::move(KernelBundleImpl)),
+      MKernelArgMaskPtr{ArgMask} {
 
-  RT::PiContext Context = nullptr;
+  sycl::detail::pi::PiContext Context = nullptr;
   // Using the plugin from the passed ContextImpl
-  getPlugin().call<PiApiKind::piKernelGetInfo>(
+  getPlugin()->call<PiApiKind::piKernelGetInfo>(
       MKernel, PI_KERNEL_INFO_CONTEXT, sizeof(Context), &Context, nullptr);
   if (ContextImpl->getHandleRef() != Context)
     throw sycl::invalid_parameter_error(
         "Input context must be the same as the context of cl_kernel",
         PI_ERROR_INVALID_CONTEXT);
 
-  MIsInterop = MProgramImpl->isInterop();
+  MIsInterop = ProgramImpl->isInterop();
 }
 
-kernel_impl::kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
+kernel_impl::kernel_impl(sycl::detail::pi::PiKernel Kernel,
+                         ContextImplPtr ContextImpl,
                          DeviceImageImplPtr DeviceImageImpl,
-                         KernelBundleImplPtr KernelBundleImpl)
-    : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgramImpl(nullptr),
+                         KernelBundleImplPtr KernelBundleImpl,
+                         const KernelArgMask *ArgMask, PiProgram ProgramPI,
+                         std::mutex *CacheMutex)
+    : MKernel(Kernel), MContext(std::move(ContextImpl)), MProgram(ProgramPI),
       MCreatedFromSource(false), MDeviceImageImpl(std::move(DeviceImageImpl)),
-      MKernelBundleImpl(std::move(KernelBundleImpl)) {
-
-  // kernel_impl shared ownership of kernel handle
-  if (!is_host()) {
-    getPlugin().call<PiApiKind::piKernelRetain>(MKernel);
-  }
-
+      MKernelBundleImpl(std::move(KernelBundleImpl)),
+      MKernelArgMaskPtr{ArgMask}, MCacheMutex{CacheMutex} {
   MIsInterop = MKernelBundleImpl->isInterop();
 }
 
 kernel_impl::kernel_impl(ContextImplPtr Context, ProgramImplPtr ProgramImpl)
-    : MContext(Context), MProgramImpl(std::move(ProgramImpl)) {}
+    : MContext(Context), MProgram(ProgramImpl->getHandleRef()) {}
 
 kernel_impl::~kernel_impl() {
   // TODO catch an exception and put it to list of asynchronous exceptions
   if (!is_host()) {
-    getPlugin().call<PiApiKind::piKernelRelease>(MKernel);
+    getPlugin()->call<PiApiKind::piKernelRelease>(MKernel);
   }
 }
 
@@ -93,6 +97,77 @@ bool kernel_impl::isCreatedFromSource() const {
   return MCreatedFromSource;
 }
 
+bool kernel_impl::isBuiltInKernel(const device &Device) const {
+  auto BuiltInKernels = Device.get_info<info::device::built_in_kernel_ids>();
+  if (BuiltInKernels.empty())
+    return false;
+  std::string KernelName = get_info<info::kernel::function_name>();
+  return (std::any_of(
+      BuiltInKernels.begin(), BuiltInKernels.end(),
+      [&KernelName](kernel_id &Id) { return Id.get_name() == KernelName; }));
+}
+
+void kernel_impl::checkIfValidForNumArgsInfoQuery() const {
+  if (MKernelBundleImpl->isInterop())
+    return;
+  auto Devices = MKernelBundleImpl->get_devices();
+  if (std::any_of(Devices.begin(), Devices.end(),
+                  [this](device &Device) { return isBuiltInKernel(Device); }))
+    return;
+
+  throw sycl::exception(
+      sycl::make_error_code(errc::invalid),
+      "info::kernel::num_args descriptor may only be used to query a kernel "
+      "that resides in a kernel bundle constructed using a backend specific"
+      "interoperability function or to query a device built-in kernel");
+}
+
+template <>
+typename info::platform::version::return_type
+kernel_impl::get_backend_info<info::platform::version>() const {
+  if (MContext->getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::platform::version info descriptor can "
+                          "only be queried with an OpenCL backend");
+  }
+  auto Devices = MKernelBundleImpl->get_devices();
+  return Devices[0].get_platform().get_info<info::platform::version>();
+}
+
+device select_device(DSelectorInvocableType DeviceSelectorInvocable,
+                     std::vector<device> &Devices);
+
+template <>
+typename info::device::version::return_type
+kernel_impl::get_backend_info<info::device::version>() const {
+  if (MContext->getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::version info descriptor can only "
+                          "be queried with an OpenCL backend");
+  }
+  auto Devices = MKernelBundleImpl->get_devices();
+  if (Devices.empty()) {
+    return "No available device";
+  }
+  // Use default selector to pick a device.
+  return select_device(default_selector_v, Devices)
+      .get_info<info::device::version>();
+}
+
+template <>
+typename info::device::backend_version::return_type
+kernel_impl::get_backend_info<info::device::backend_version>() const {
+  if (MContext->getBackend() != backend::ext_oneapi_level_zero) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::backend_version info descriptor "
+                          "can only be queried with a Level Zero backend");
+  }
+  return "";
+  // Currently The Level Zero backend does not define the value of this
+  // information descriptor and implementations are encouraged to return the
+  // empty string as per specification.
+}
+
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

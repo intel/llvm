@@ -11,6 +11,7 @@
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "gtest/gtest.h"
@@ -577,6 +578,11 @@ TEST(APFloatTest, MinNum) {
   EXPECT_EQ(1.0, minnum(f2, f1).convertToDouble());
   EXPECT_EQ(1.0, minnum(f1, nan).convertToDouble());
   EXPECT_EQ(1.0, minnum(nan, f1).convertToDouble());
+
+  APFloat zp(0.0);
+  APFloat zn(-0.0);
+  EXPECT_EQ(-0.0, minnum(zp, zn).convertToDouble());
+  EXPECT_EQ(-0.0, minnum(zn, zp).convertToDouble());
 }
 
 TEST(APFloatTest, MaxNum) {
@@ -588,6 +594,11 @@ TEST(APFloatTest, MaxNum) {
   EXPECT_EQ(2.0, maxnum(f2, f1).convertToDouble());
   EXPECT_EQ(1.0, maxnum(f1, nan).convertToDouble());
   EXPECT_EQ(1.0, maxnum(nan, f1).convertToDouble());
+
+  APFloat zp(0.0);
+  APFloat zn(-0.0);
+  EXPECT_EQ(0.0, maxnum(zp, zn).convertToDouble());
+  EXPECT_EQ(0.0, maxnum(zn, zp).convertToDouble());
 }
 
 TEST(APFloatTest, Minimum) {
@@ -681,6 +692,26 @@ TEST(APFloatTest, Denormal) {
     T.divide(Val2, rdmd);
     EXPECT_TRUE(T.isDenormal());
     EXPECT_EQ(fcPosSubnormal, T.classify());
+  }
+
+  // Test TF32
+  {
+    const char *MinNormalStr = "1.17549435082228750797e-38";
+    EXPECT_FALSE(APFloat(APFloat::FloatTF32(), MinNormalStr).isDenormal());
+    EXPECT_FALSE(APFloat(APFloat::FloatTF32(), 0).isDenormal());
+
+    APFloat Val2(APFloat::FloatTF32(), 2);
+    APFloat T(APFloat::FloatTF32(), MinNormalStr);
+    T.divide(Val2, rdmd);
+    EXPECT_TRUE(T.isDenormal());
+    EXPECT_EQ(fcPosSubnormal, T.classify());
+
+    const char *NegMinNormalStr = "-1.17549435082228750797e-38";
+    EXPECT_FALSE(APFloat(APFloat::FloatTF32(), NegMinNormalStr).isDenormal());
+    APFloat NegT(APFloat::FloatTF32(), NegMinNormalStr);
+    NegT.divide(Val2, rdmd);
+    EXPECT_TRUE(NegT.isDenormal());
+    EXPECT_EQ(fcNegSubnormal, NegT.classify());
   }
 }
 
@@ -1350,6 +1381,16 @@ TEST(APFloatTest, makeNaN) {
     {               0x80ULL, APFloat::Float8E4M3B11FNUZ(), false, true,         0xaaULL },
     {               0x80ULL, APFloat::Float8E4M3B11FNUZ(), true, false,         0xaaULL },
     {               0x80ULL, APFloat::Float8E4M3B11FNUZ(), true, true,          0xaaULL },
+    {            0x3fe00ULL, APFloat::FloatTF32(), false, false,          0x00000000ULL },
+    {            0x7fe00ULL, APFloat::FloatTF32(), false,  true,          0x00000000ULL },
+    {            0x3feaaULL, APFloat::FloatTF32(), false, false,                0xaaULL },
+    {            0x3ffaaULL, APFloat::FloatTF32(), false, false,               0xdaaULL },
+    {            0x3ffaaULL, APFloat::FloatTF32(), false, false,              0xfdaaULL },
+    {            0x3fd00ULL, APFloat::FloatTF32(),  true, false,          0x00000000ULL },
+    {            0x7fd00ULL, APFloat::FloatTF32(),  true,  true,          0x00000000ULL },
+    {            0x3fcaaULL, APFloat::FloatTF32(),  true, false,                0xaaULL },
+    {            0x3fdaaULL, APFloat::FloatTF32(),  true, false,               0xfaaULL },
+    {            0x3fdaaULL, APFloat::FloatTF32(),  true, false,               0x1aaULL },
       // clang-format on
   };
 
@@ -1780,6 +1821,8 @@ TEST(APFloatTest, getLargest) {
             APFloat::getLargest(APFloat::Float8E5M2FNUZ()).convertToDouble());
   EXPECT_EQ(
       30, APFloat::getLargest(APFloat::Float8E4M3B11FNUZ()).convertToDouble());
+  EXPECT_EQ(3.40116213421e+38f,
+            APFloat::getLargest(APFloat::FloatTF32()).convertToFloat());
 }
 
 TEST(APFloatTest, getSmallest) {
@@ -1828,6 +1871,13 @@ TEST(APFloatTest, getSmallest) {
   test = APFloat::getSmallest(APFloat::Float8E4M3B11FNUZ(), false);
   expected = APFloat(APFloat::Float8E4M3B11FNUZ(), "0x0.2p-10");
   EXPECT_FALSE(test.isNegative());
+  EXPECT_TRUE(test.isFiniteNonZero());
+  EXPECT_TRUE(test.isDenormal());
+  EXPECT_TRUE(test.bitwiseIsEqual(expected));
+
+  test = APFloat::getSmallest(APFloat::FloatTF32(), true);
+  expected = APFloat(APFloat::FloatTF32(), "-0x0.004p-126");
+  EXPECT_TRUE(test.isNegative());
   EXPECT_TRUE(test.isFiniteNonZero());
   EXPECT_TRUE(test.isDenormal());
   EXPECT_TRUE(test.bitwiseIsEqual(expected));
@@ -1905,6 +1955,14 @@ TEST(APFloatTest, getSmallestNormalized) {
   EXPECT_FALSE(test.isDenormal());
   EXPECT_TRUE(test.bitwiseIsEqual(expected));
   EXPECT_TRUE(test.isSmallestNormalized());
+
+  test = APFloat::getSmallestNormalized(APFloat::FloatTF32(), false);
+  expected = APFloat(APFloat::FloatTF32(), "0x1p-126");
+  EXPECT_FALSE(test.isNegative());
+  EXPECT_TRUE(test.isFiniteNonZero());
+  EXPECT_FALSE(test.isDenormal());
+  EXPECT_TRUE(test.bitwiseIsEqual(expected));
+  EXPECT_TRUE(test.isSmallestNormalized());
 }
 
 TEST(APFloatTest, getZero) {
@@ -1936,7 +1994,9 @@ TEST(APFloatTest, getZero) {
       {&APFloat::Float8E4M3FNUZ(), false, false, {0, 0}, 1},
       {&APFloat::Float8E4M3FNUZ(), true, false, {0, 0}, 1},
       {&APFloat::Float8E4M3B11FNUZ(), false, false, {0, 0}, 1},
-      {&APFloat::Float8E4M3B11FNUZ(), true, false, {0, 0}, 1}};
+      {&APFloat::Float8E4M3B11FNUZ(), true, false, {0, 0}, 1},
+      {&APFloat::FloatTF32(), false, true, {0, 0}, 1},
+      {&APFloat::FloatTF32(), true, true, {0x40000ULL, 0}, 1}};
   const unsigned NumGetZeroTests = std::size(GetZeroTest);
   for (unsigned i = 0; i < NumGetZeroTests; ++i) {
     APFloat test = APFloat::getZero(*GetZeroTest[i].semantics,
@@ -5915,7 +5975,8 @@ TEST(APFloatTest, ConvertE4M3FNUZToE5M2FNUZ) {
 TEST(APFloatTest, F8ToString) {
   for (APFloat::Semantics S :
        {APFloat::S_Float8E5M2, APFloat::S_Float8E4M3FN,
-        APFloat::S_Float8E5M2FNUZ, APFloat::S_Float8E4M3FNUZ}) {
+        APFloat::S_Float8E5M2FNUZ, APFloat::S_Float8E4M3FNUZ,
+        APFloat::S_Float8E4M3B11FNUZ}) {
     SCOPED_TRACE("Semantics=" + std::to_string(S));
     for (int i = 0; i < 256; i++) {
       SCOPED_TRACE("i=" + std::to_string(i));
@@ -5928,6 +5989,46 @@ TEST(APFloatTest, F8ToString) {
       } else {
         APFloat test2(APFloat::EnumToSemantics(S), str);
         EXPECT_TRUE(test.bitwiseIsEqual(test2));
+      }
+    }
+  }
+}
+
+TEST(APFloatTest, BitsToF8ToBits) {
+  for (APFloat::Semantics S :
+       {APFloat::S_Float8E5M2, APFloat::S_Float8E4M3FN,
+        APFloat::S_Float8E5M2FNUZ, APFloat::S_Float8E4M3FNUZ,
+        APFloat::S_Float8E4M3B11FNUZ}) {
+    SCOPED_TRACE("Semantics=" + std::to_string(S));
+    for (int i = 0; i < 256; i++) {
+      SCOPED_TRACE("i=" + std::to_string(i));
+      APInt bits_in = APInt(8, i);
+      APFloat test(APFloat::EnumToSemantics(S), bits_in);
+      APInt bits_out = test.bitcastToAPInt();
+      EXPECT_EQ(bits_in, bits_out);
+    }
+  }
+}
+
+TEST(APFloatTest, F8ToBitsToF8) {
+  for (APFloat::Semantics S :
+       {APFloat::S_Float8E5M2, APFloat::S_Float8E4M3FN,
+        APFloat::S_Float8E5M2FNUZ, APFloat::S_Float8E4M3FNUZ,
+        APFloat::S_Float8E4M3B11FNUZ}) {
+    SCOPED_TRACE("Semantics=" + std::to_string(S));
+    auto &Sem = APFloat::EnumToSemantics(S);
+    for (bool negative : {false, true}) {
+      SCOPED_TRACE("negative=" + std::to_string(negative));
+      APFloat test = APFloat::getZero(Sem, /*Negative=*/negative);
+      for (int i = 0; i < 128; i++, test.next(/*nextDown=*/negative)) {
+        SCOPED_TRACE("i=" + std::to_string(i));
+        APInt bits = test.bitcastToAPInt();
+        APFloat test2 = APFloat(Sem, bits);
+        if (test.isNaN()) {
+          EXPECT_TRUE(test2.isNaN());
+        } else {
+          EXPECT_TRUE(test.bitwiseIsEqual(test2));
+        }
       }
     }
   }
@@ -6188,6 +6289,34 @@ TEST(APFloatTest, Float8E4M3FNUZToDouble) {
   EXPECT_TRUE(std::isnan(QNaN.convertToDouble()));
 }
 
+TEST(APFloatTest, FloatTF32ToDouble) {
+  APFloat One(APFloat::FloatTF32(), "1.0");
+  EXPECT_EQ(1.0, One.convertToDouble());
+  APFloat PosLargest = APFloat::getLargest(APFloat::FloatTF32(), false);
+  EXPECT_EQ(3.401162134214653489792616e+38, PosLargest.convertToDouble());
+  APFloat NegLargest = APFloat::getLargest(APFloat::FloatTF32(), true);
+  EXPECT_EQ(-3.401162134214653489792616e+38, NegLargest.convertToDouble());
+  APFloat PosSmallest =
+      APFloat::getSmallestNormalized(APFloat::FloatTF32(), false);
+  EXPECT_EQ(1.1754943508222875079687e-38, PosSmallest.convertToDouble());
+  APFloat NegSmallest =
+      APFloat::getSmallestNormalized(APFloat::FloatTF32(), true);
+  EXPECT_EQ(-1.1754943508222875079687e-38, NegSmallest.convertToDouble());
+
+  APFloat SmallestDenorm = APFloat::getSmallest(APFloat::FloatTF32(), false);
+  EXPECT_EQ(1.1479437019748901445007e-41, SmallestDenorm.convertToDouble());
+  APFloat LargestDenorm(APFloat::FloatTF32(), "0x1.FF8p-127");
+  EXPECT_EQ(/*0x1.FF8p-127*/ 1.1743464071203126178242e-38,
+            LargestDenorm.convertToDouble());
+
+  APFloat PosInf = APFloat::getInf(APFloat::FloatTF32());
+  EXPECT_EQ(std::numeric_limits<double>::infinity(), PosInf.convertToDouble());
+  APFloat NegInf = APFloat::getInf(APFloat::FloatTF32(), true);
+  EXPECT_EQ(-std::numeric_limits<double>::infinity(), NegInf.convertToDouble());
+  APFloat QNaN = APFloat::getQNaN(APFloat::FloatTF32());
+  EXPECT_TRUE(std::isnan(QNaN.convertToDouble()));
+}
+
 TEST(APFloatTest, Float8E5M2FNUZToFloat) {
   APFloat PosZero = APFloat::getZero(APFloat::Float8E5M2FNUZ());
   APFloat PosZeroToFloat(PosZero.convertToFloat());
@@ -6430,6 +6559,105 @@ TEST(APFloatTest, Float8E4M3FNToFloat) {
 
   APFloat QNaN = APFloat::getQNaN(APFloat::Float8E4M3FN());
   EXPECT_TRUE(std::isnan(QNaN.convertToFloat()));
+}
+
+TEST(APFloatTest, FloatTF32ToFloat) {
+  APFloat PosZero = APFloat::getZero(APFloat::FloatTF32());
+  APFloat PosZeroToFloat(PosZero.convertToFloat());
+  EXPECT_TRUE(PosZeroToFloat.isPosZero());
+  APFloat NegZero = APFloat::getZero(APFloat::FloatTF32(), true);
+  APFloat NegZeroToFloat(NegZero.convertToFloat());
+  EXPECT_TRUE(NegZeroToFloat.isNegZero());
+
+  APFloat One(APFloat::FloatTF32(), "1.0");
+  EXPECT_EQ(1.0F, One.convertToFloat());
+  APFloat Two(APFloat::FloatTF32(), "2.0");
+  EXPECT_EQ(2.0F, Two.convertToFloat());
+
+  APFloat PosLargest = APFloat::getLargest(APFloat::FloatTF32(), false);
+  EXPECT_EQ(3.40116213421e+38F, PosLargest.convertToFloat());
+
+  APFloat NegLargest = APFloat::getLargest(APFloat::FloatTF32(), true);
+  EXPECT_EQ(-3.40116213421e+38F, NegLargest.convertToFloat());
+
+  APFloat PosSmallest =
+      APFloat::getSmallestNormalized(APFloat::FloatTF32(), false);
+  EXPECT_EQ(/*0x1.p-126*/ 1.1754943508222875e-38F,
+            PosSmallest.convertToFloat());
+  APFloat NegSmallest =
+      APFloat::getSmallestNormalized(APFloat::FloatTF32(), true);
+  EXPECT_EQ(/*-0x1.p-126*/ -1.1754943508222875e-38F,
+            NegSmallest.convertToFloat());
+
+  APFloat SmallestDenorm = APFloat::getSmallest(APFloat::FloatTF32(), false);
+  EXPECT_TRUE(SmallestDenorm.isDenormal());
+  EXPECT_EQ(0x0.004p-126, SmallestDenorm.convertToFloat());
+
+  APFloat QNaN = APFloat::getQNaN(APFloat::FloatTF32());
+  EXPECT_TRUE(std::isnan(QNaN.convertToFloat()));
+}
+
+TEST(APFloatTest, getExactLog2) {
+  for (unsigned I = 0; I != APFloat::S_MaxSemantics + 1; ++I) {
+    auto SemEnum = static_cast<APFloat::Semantics>(I);
+    const fltSemantics &Semantics = APFloat::EnumToSemantics(SemEnum);
+
+    APFloat One(Semantics, "1.0");
+
+    if (I == APFloat::S_PPCDoubleDouble) {
+      // Not implemented
+      EXPECT_EQ(INT_MIN, One.getExactLog2());
+      EXPECT_EQ(INT_MIN, One.getExactLog2Abs());
+      continue;
+    }
+
+    int MinExp = APFloat::semanticsMinExponent(Semantics);
+    int MaxExp = APFloat::semanticsMaxExponent(Semantics);
+    int Precision = APFloat::semanticsPrecision(Semantics);
+
+    EXPECT_EQ(0, One.getExactLog2());
+    EXPECT_EQ(INT_MIN, APFloat(Semantics, "3.0").getExactLog2());
+    EXPECT_EQ(INT_MIN, APFloat(Semantics, "-3.0").getExactLog2());
+    EXPECT_EQ(INT_MIN, APFloat(Semantics, "3.0").getExactLog2Abs());
+    EXPECT_EQ(INT_MIN, APFloat(Semantics, "-3.0").getExactLog2Abs());
+    EXPECT_EQ(3, APFloat(Semantics, "8.0").getExactLog2());
+    EXPECT_EQ(INT_MIN, APFloat(Semantics, "-8.0").getExactLog2());
+    EXPECT_EQ(-2, APFloat(Semantics, "0.25").getExactLog2());
+    EXPECT_EQ(-2, APFloat(Semantics, "0.25").getExactLog2Abs());
+    EXPECT_EQ(INT_MIN, APFloat(Semantics, "-0.25").getExactLog2());
+    EXPECT_EQ(-2, APFloat(Semantics, "-0.25").getExactLog2Abs());
+    EXPECT_EQ(3, APFloat(Semantics, "8.0").getExactLog2Abs());
+    EXPECT_EQ(3, APFloat(Semantics, "-8.0").getExactLog2Abs());
+
+    EXPECT_EQ(INT_MIN, APFloat::getZero(Semantics, false).getExactLog2());
+    EXPECT_EQ(INT_MIN, APFloat::getZero(Semantics, true).getExactLog2());
+    EXPECT_EQ(INT_MIN, APFloat::getInf(Semantics).getExactLog2());
+    EXPECT_EQ(INT_MIN, APFloat::getInf(Semantics, true).getExactLog2());
+    EXPECT_EQ(INT_MIN, APFloat::getNaN(Semantics, false).getExactLog2());
+    EXPECT_EQ(INT_MIN, APFloat::getNaN(Semantics, true).getExactLog2());
+
+    EXPECT_EQ(INT_MIN, APFloat::getZero(Semantics, false).getExactLog2Abs());
+    EXPECT_EQ(INT_MIN, APFloat::getZero(Semantics, true).getExactLog2Abs());
+    EXPECT_EQ(INT_MIN, APFloat::getInf(Semantics).getExactLog2Abs());
+    EXPECT_EQ(INT_MIN, APFloat::getInf(Semantics, true).getExactLog2Abs());
+    EXPECT_EQ(INT_MIN, APFloat::getNaN(Semantics, false).getExactLog2Abs());
+    EXPECT_EQ(INT_MIN, APFloat::getNaN(Semantics, true).getExactLog2Abs());
+
+    EXPECT_EQ(INT_MIN,
+              scalbn(One, MinExp - Precision - 1, APFloat::rmNearestTiesToEven)
+                  .getExactLog2());
+    EXPECT_EQ(INT_MIN,
+              scalbn(One, MinExp - Precision, APFloat::rmNearestTiesToEven)
+                  .getExactLog2());
+
+    EXPECT_EQ(
+        INT_MIN,
+        scalbn(One, MaxExp + 1, APFloat::rmNearestTiesToEven).getExactLog2());
+
+    for (int i = MinExp - Precision + 1; i <= MaxExp; ++i) {
+      EXPECT_EQ(i, scalbn(One, i, APFloat::rmNearestTiesToEven).getExactLog2());
+    }
+  }
 }
 
 } // namespace

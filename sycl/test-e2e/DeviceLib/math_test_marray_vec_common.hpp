@@ -1,5 +1,7 @@
 #include <sycl/sycl.hpp>
 
+#include <cmath>
+
 using namespace sycl;
 
 template <typename T1, typename T2> class TypeHelper;

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-pvc
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // The test checks that it's possible to write through the simd_view subscript
 // operator. E.g.:

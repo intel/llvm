@@ -1,28 +1,112 @@
 # Table of contents
  * [Overview](#overview)
  * [Prerequisites](#prerequisites)
- * [Build and run tests](#build-and-run-tests)
+ * [Developers workflow](#developers-workflow)
+ * [Standalone configuration](#standalone)
  * [CMake parameters](#cmake-parameters)
  * [Special test categories](#special-test-categories)
  * [Creating or modifying tests](#creating-or-modifying-tests)
    * [LIT feature checks](#lit-feature-checks)
    * [llvm-lit parameters](#llvm-lit-parameters)
+ * [sycl/detail/core.hpp header file](#sycl/detail/core.hpp)
 
 # Overview
 This directory contains SYCL-related tests distributed in subdirectories based
-on testing scope.
+on testing scope. They follow the same style as other LIT tests but have a minor
+but crucial difference in the behavior of certain directives.
+
+First, some background. SYCL end-to-end tests take much longer to compile
+than they spend executing on a device. As such, we want to be able to
+structure the test in such a way that we compile it once and then execute
+multiple times on different devices (via `ONEAPI_DEVICE_SELECTOR`) to get
+required test coverage. The issue here is that the standard approach to `RUN`
+directives and substitutions doesn't allow us to expand a line into only
+dynamically known number of commands.
+
+To overcome that, we introduce `%{run}` *expansion* that generates multiple
+commands from a single `RUN` directive - one per device in `sycl_devices`
+parameter (more on the parameter below). There is a small number of tests that
+either need multiple devices or target the device selector itself. For such
+tests we have a regular `%{run-unfiltered-devices}` substitution that doesn't
+set a `ONEAPI_DEVICE_SELECTOR` filter nor does it create multiple commands.
+Technically, this change is implemented by creating a custom LIT test
+[format](/sycl/test-e2e/format.py) that inherits from `lit.formats.ShTest`.
+
+This custom LIT test format also overrides the meaning of
+`REQUIRES`/`UNSUPPORTED`/`XFAIL` directives, although in a natural way that
+suits the `%{run}` expansion described above. First, "features" are split into
+device independent (e.g. "linux" or "cuda_dev_kit") and device dependent
+("cpu/gpu/accelerator", "opencl/cuda/hip/level_zero" and multiple "aspect-\*").
+Second, for each device in `sycl_devices` LIT parameter, we check if it satisfies
+the conditions in `UNSUPPORTED`/`REQUIRES` rules. If none of the devices do,
+the entire test is skipped as `UNSUPPORTED`. Otherwise, if multiple such devices
+are supported we do an additional filtering treating any `XFAIL` directives same
+way as `UNSUPPORTED`. If only one device is matched by `UNSUPPORTED`/`REQUIRES`
+filtering, then `XFAIL` behaves as an actual "expected to fail" marking.
+
+For any device left after the filtering above we expand each `RUN` directive
+(including multi-line ones) containing `%{run}` expansion into one command per
+device, replacing `%{run}` with
+
+```
+env ONEAPI_DEVICE_SELECTOR=<device_matching_requirements> [Optional run_launcher if that is configured]
+```
+
+ while at the same time properly handling `%if` conditions,
+meaning that the following works as one would expect it to behave:
+
+```
+// RUN: %run %t.out %if cpu %{ 1 %} %else %{ 2 %}`. `%{run-unfiltered-devices}
+```
+is substituted with just `[Optional run_launcher if that is configured]`.
+
+Another little nuance is `%{sycl_triple}` substitution. It is constructed by
+concatenating triples for all the devices from `sycl_devices` supported by a
+given test. After that there is also a convenient `%{build}` substitution that
+is equivalent to `%clangxx -fsycl -fsycl-targets=%{sycl_triple} %s`.
 
 # Prerequisites
 
+ - Target runtime(s) to execute tests on devices. See
+   [installation instructions](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#install-low-level-runtime)
  - DPC++ compiler. Can be built following these
    [instructions](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#build-dpc-toolchain)
    or taken prebuilt from [releases](https://github.com/intel/llvm/releases).
  - LIT tools (llvm-lit, llvm-size). They are not available at prebuilts above,
    but can be built in compiler project (e.g. with "ninja check").
- - Target runtime(s) to execute tests on devices. See
-   [installation instructions](https://github.com/intel/llvm/blob/sycl/sycl/doc/GetStartedGuide.md#install-low-level-runtime)
+   
+Last two bullets are only needed for a standalone configuration. During a normal
+development workflow the tests are integrated into a normal project
+build/configuration.
 
-# Build and run tests
+# Developers workflow
+Just build the project according to [Getting Started
+Guide](/sycl/doc/GetStartedGuide.md) and setup your environment per [Run simple
+DPC++ application
+Instructions](/sycl/doc/GetStartedGuide.md#run-simple-dpc-application).
+Then use
+
+```
+# Either absolute or relative path will work.
+llvm-lit <repo_path>/sycl/test-e2e
+```
+
+to run SYCL End-to-End tests on all devices configured in the system. Use
+
+```
+llvm-lit --param sycl_devices="backend0:device0[;backendN:deviceN]*" <repo_path>/sycl/test-e2e
+```
+
+to limit execution to particular devices, where `backend` is one of `opencl`,
+`hip`, `cuda`, `level_zero`, and `device` is one of `cpu`, `gpu` or `acc`.
+
+To run individual test use the path to it instead of the top level `test-e2e`
+directory.
+
+# Standalone configuration
+
+This is supposed to be used for CI/automatic testing and isn't recommended for a
+local development setup.
 
 Get sources
 
@@ -56,17 +140,6 @@ cmake -G Ninja ...
 ninja check-sycl-e2e
 ```
 
-In addition to this standalone configuration one can enable `check-sycl-e2e`
-target for the sycl-toolchain workspace/build by specifying
-`SYCL_TEST_E2E_TARGETS` as part of its cmake configuration. For example, like
-this:
-
-```
-CC=<> CXX=<> python llvm/buildbot/configure.py -o build ... \
-  --cmake-opt=-DSYCL_TEST_E2E_TARGETS="level_zero:gpu;opencl:gpu"
-  --cmake-opt=-DSYCL_E2E_TESTS_LIT_FLAGS="--param;dump_ir=True"``
-```
-
 # Cmake parameters
 
 These parameters can be used to configure tests:
@@ -90,22 +163,8 @@ semicolon-separated list of configurations. Each configuration includes backend
 separated from comma-separated list of target devices with colon. Example:
 
 ```
--DSYCL_TEST_E2E_TARGETS="opencl:cpu;ext_oneapi_level_zero:gpu;ext_oneapi_cuda:gpu;ext_oneapi_hip:gpu;ext_intel_esimd_emulator:gpu"
+-DSYCL_TEST_E2E_TARGETS="opencl:cpu;level_zero:gpu;cuda:gpu;hip:gpu"
 ```
-
-***SYCL_BE*** - SYCL backend to be used for testing. Supported values are:
- - **opencl** - for OpenCL backend;
- - **ext_oneapi_cuda** - for CUDA backend;
- - **ext_oneapi_hip** - for HIP backend;
- - **ext_oneapi_level_zero** - Level Zero backend;
- - **ext_intel_esimd_emulator** - ESIMD emulator backend;
-
-
-***SYCL_TARGET_DEVICES*** - comma separated list of target devices for testing.
-Default value is cpu,gpu,acc. Supported values are:
- - **cpu**  - CPU device available in OpenCL backend only;
- - **gpu**  - GPU device available in OpenCL, Level Zero, CUDA, and HIP backends;
- - **acc**  - FPGA emulator device available in OpenCL backend only;
 
 ***OpenCL_LIBRARY*** - path to OpenCL ICD loader library. OpenCL
 interoperability tests require OpenCL ICD loader to be linked with. For such
@@ -151,8 +210,7 @@ unavailable.
 
  * **windows**, **linux** - host OS;
  * **cpu**, **gpu**, **accelerator** - target device;
- * **cuda**, **hip**, **opencl**, **level_zero**, **esimd_emulator** - target
-     backend;
+ * **cuda**, **hip**, **opencl**, **level_zero** - target backend;
  * **sycl-ls** - sycl-ls tool availability;
  * **cm-compiler** - C for Metal compiler availability;
  * **cl_options** - CL command line options recognized (or not) by compiler;
@@ -168,6 +226,10 @@ unavailable.
  * **gpu-intel-dg2** - Intel GPU DG2 availability;
  * **gpu-intel-pvc** - Intel GPU PVC availability;
  * **dump_ir**: - compiler can / cannot dump IR;
+ * **llvm-spirv** - llvm-spirv tool availability;
+ * **llvm-link** - llvm-link tool availability;
+ * **fusion**: - Runtime supports kernel fusion;
+ * **aspect-\<name\>**: - SYCL aspects supported by a device;
 
 ## llvm-lit parameters
 
@@ -175,9 +237,9 @@ Following options can be passed to llvm-lit tool through --param option to
 configure specific single test execution in the command line:
 
  * **dpcpp_compiler** - full path to dpcpp compiler;
- * **target_devices** - comma-separated list of target devices (cpu, gpu, acc);
- * **sycl_be** - SYCL backend to be used (opencl, ext_oneapi_level_zero,
-   ext_oneapi_cuda, ext_oneapi_hip, ext_oneapi_intel_emulator);
+ * **sycl_devices** - `"backend0:device0[;backendN:deviceN]*"` where `backend`
+    is one of `opencl`, `hip`, `cuda`, `level_zero` and `device` is one of
+    `cpu`, `gpu` or `acc`.
  * **dump_ir** - if IR dumping is supported for compiler (True, False);
  * **compatibility_testing** - forces LIT infra to skip the tests compilation
    to support compatibility testing (a SYCL application is built with one
@@ -189,12 +251,15 @@ configure specific single test execution in the command line:
    system. It is developer / CI infra responsibility to make sure that the
    device is available in the system. Tests requiring DG1 to run must use proper
    device selector to ensure that. Use SYCL_DEVICE_ALLOWLIST or
-   SYCL_DEVICE_FILTER to get proper configuration (see
+   ONEAPI_DEVICE_SELECTOR to get proper configuration (see
    [EnvironmentVariables.md](https://github.com/intel/llvm/blob/sycl/sycl/doc/EnvironmentVariables.md));
  * **gpu-intel-dg2** - tells LIT infra that Intel GPU DG2 is present in the
    system. It is developer / CI infra responsibility to make sure that the
    device is available in the system.
  * **gpu-intel-pvc** - tells LIT infra that Intel GPU PVC is present in the
+   system. It is developer / CI infra responsibility to make sure that the
+   device is available in the system.
+ * **gpu-intel-pvc-vg** - tells LIT infra that Intel GPU PVC-VG is present in the
    system. It is developer / CI infra responsibility to make sure that the
    device is available in the system.
  * **extra_environment** - comma-separated list of variables with values to be
@@ -208,12 +273,25 @@ configure specific single test execution in the command line:
    CMake variable CUDA_INCLUDE.
  * **cuda_libs_dir** - directory containing CUDA SDK libraries, can be also set
    by CMake variable CUDA_LIBS_DIR.
+ * **run_launcher** - part of `%{run*}` expansion/substitution to alter
+   execution of the test by, e.g., running it through Valgrind.
 
 Example:
 
 ```
-llvm-lit --param target_devices=gpu --param sycl_be=ext_oneapi_level_zero \
-         --param dpcpp_compiler=path/to/clang++ --param dump_ir=True \
+llvm-lit --param dpcpp_compiler=path/to/clang++ --param dump_ir=True \
          SYCL/External/RSBench
 ```
 
+## sycl/detail/core.hpp
+
+While SYCL specification dictates that the only user-visible interface is
+`<sycl/sycl.hpp>` header file we found out that as the implementation and
+multiple extensions grew, the compile time was getting worse and worse,
+negatively affecting our CI turnaround time. We are just starting some efforts
+to create a much smaller set of basic feature needed for every SYCL end-to-end
+test/program so that this issue could be somewhat mitigated. This activity is in
+its early stage and NO production code should rely on it. It WILL be changed as
+we go with our experiments. For any code outside of this project only the
+`<sycl/sycl.hpp>` must be used until we feel confident to propose an extension
+that can provide an alternative.

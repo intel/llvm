@@ -392,6 +392,16 @@ Calling convention
 A function with ``spir_kernel`` calling convention will be translated as an entry
 point of the SPIR-V module.
 
+Global variables
+----------------
+
+A global variable resides in an address space, and the default address space
+in LLVM is zero. The SPIR-V storage class represented by the zero LLVM IR
+address spaces is Function. However, SPIR-V global variable declarations are
+``OpVariable`` instructions whose Storage Class cannot be ``Function``. This
+means that global variable declarations must always have an address space
+specified and that address space cannot be ``0``.
+
 Function metadata
 -----------------
 
@@ -411,14 +421,14 @@ For example:
 are translated for image types, but they should be encoded in LLVM IR type name
 rather than function metadata.
 
-Function parameter and global variable decoration through metadata
+Function parameter, instruction and global variable decoration through metadata
 ------------------------------------------------------------------
 
-Both function parameters and global variables can be decorated using LLVM
+Function parameters, instructions and global variables can be decorated using LLVM
 metadata through the metadata names ``spirv.ParameterDecorations`` and
 ``spirv.Decorations`` respectively. ``spirv.ParameterDecorations`` must be tied
 to the kernel function while ``spirv.Decorations`` is tied directly to the
-global variable.
+instruction or global variable.
 
 A "decoration-node" is a metadata node consisting of one or more operands. The
 first operand is an integer literal representing the SPIR-V decoration
@@ -434,7 +444,7 @@ decoration-nodes.
 references to decoration-lists, where N is the number of arguments of the
 function the metadata is tied to.
 
-``spirv.Decorations`` example:
+``spirv.Decorations`` applied on a global variable example:
 
 .. code-block:: llvm
 
@@ -446,6 +456,18 @@ function the metadata is tied to.
 
 decorates a global variable ``v`` with ``Constant`` and ``LinkageAttributes``
 with extra operands ``"v"`` and ``Export`` in SPIR-V.
+
+``spirv.Decorations`` applied on an instruction example:
+
+.. code-block:: llvm
+
+  %idx = getelementptr inbounds i32, ptr addrspace(1) %b, i64 1, !spirv.Decorations !1
+  ...
+  !1 = !{!2}
+  !2 = !{i32 6442, i32 1, i32 2}  ; {CacheControlLoadINTEL, CacheLevel=1, Cached}
+
+decorates getelementptr instruction with CacheControlLoadINTEL decoration with
+extra operands ``i32 1`` and ``i32 2``.
 
 ``spirv.ParameterDecorations`` example:
 

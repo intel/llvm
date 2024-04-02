@@ -151,3 +151,35 @@ entry:
   store i32 3, ptr %1, align 4
   ret void
 }
+
+; Test from PR62734.
+define void @test4(ptr %dest) {
+; RV32I-LABEL: test4:
+; RV32I:       # %bb.0:
+; RV32I-NEXT:    addi a0, a0, 2047
+; RV32I-NEXT:    li a1, 1
+; RV32I-NEXT:    sb a1, 1(a0)
+; RV32I-NEXT:    sb a1, 2(a0)
+; RV32I-NEXT:    sb a1, 3(a0)
+; RV32I-NEXT:    sb a1, 4(a0)
+; RV32I-NEXT:    ret
+;
+; RV64I-LABEL: test4:
+; RV64I:       # %bb.0:
+; RV64I-NEXT:    addi a0, a0, 2047
+; RV64I-NEXT:    li a1, 1
+; RV64I-NEXT:    sb a1, 1(a0)
+; RV64I-NEXT:    sb a1, 2(a0)
+; RV64I-NEXT:    sb a1, 3(a0)
+; RV64I-NEXT:    sb a1, 4(a0)
+; RV64I-NEXT:    ret
+  %p1 = getelementptr i8, ptr %dest, i32 2048
+  store i8 1, ptr %p1
+  %p2 = getelementptr i8, ptr %dest, i32 2049
+  store i8 1, ptr %p2
+  %p3 = getelementptr i8, ptr %dest, i32 2050
+  store i8 1, ptr %p3
+  %p4 = getelementptr i8, ptr %dest, i32 2051
+  store i8 1, ptr %p4
+  ret void
+}

@@ -8,7 +8,7 @@ target triple = "nvptx"
 
 @foo.l.0 = internal unnamed_addr addrspace(3) global i32 undef, align 4
 
-define dso_local spir_kernel void @foo(i32 addrspace(1)* nocapture %0) {
+define dso_local spir_kernel void @foo(ptr addrspace(1) nocapture %0) {
 ; CHECK-LABEL: @foo(
 ; CHECK-NEXT:    [[TMP2:%.*]] = tail call i32 @_Z13get_global_idj(i32 0) #0
 ; CHECK-NEXT:    [[TMP3:%.*]] = tail call i32 @_Z12get_local_idj(i32 0) #0
@@ -16,13 +16,13 @@ define dso_local spir_kernel void @foo(i32 addrspace(1)* nocapture %0) {
 ; CHECK-NEXT:    br i1 [[TMP4]], label [[TMP5:%.*]], label [[TMP7:%.*]]
 ; CHECK:       5:
 ; CHECK-NEXT:    [[TMP6:%.*]] = add i32 [[TMP2]], 5
-; CHECK-NEXT:    store i32 [[TMP6]], i32 addrspace(3)* @foo.l.0, align 4
+; CHECK-NEXT:    store i32 [[TMP6]], ptr addrspace(3) @foo.l.0, align 4
 ; CHECK-NEXT:    br label [[TMP7]]
 ; CHECK:       7:
 ; CHECK-NEXT:    tail call void @llvm.nvvm.barrier0() #2
-; CHECK-NEXT:    [[TMP8:%.*]] = load i32, i32 addrspace(3)* @foo.l.0, align 4
-; CHECK-NEXT:    [[TMP9:%.*]] = getelementptr inbounds i32, i32 addrspace(1)* [[TMP0:%.*]], i32 [[TMP2]]
-; CHECK-NEXT:    store i32 [[TMP8]], i32 addrspace(1)* [[TMP9]], align 4
+; CHECK-NEXT:    [[TMP8:%.*]] = load i32, ptr addrspace(3) @foo.l.0, align 4
+; CHECK-NEXT:    [[TMP9:%.*]] = getelementptr inbounds i32, ptr addrspace(1) [[TMP0:%.*]], i32 [[TMP2]]
+; CHECK-NEXT:    store i32 [[TMP8]], ptr addrspace(1) [[TMP9]], align 4
 ; CHECK-NEXT:    ret void
 ;
   %2 = tail call i32 @_Z13get_global_idj(i32 0) #0
@@ -32,14 +32,14 @@ define dso_local spir_kernel void @foo(i32 addrspace(1)* nocapture %0) {
 
 5:                                                ; preds = %1
   %6 = add i32 %2, 5
-  store i32 %6, i32 addrspace(3)* @foo.l.0, align 4
+  store i32 %6, ptr addrspace(3) @foo.l.0, align 4
   br label %7
 
 7:                                                ; preds = %5, %1
   tail call void @llvm.nvvm.barrier0() #1
-  %8 = load i32, i32 addrspace(3)* @foo.l.0, align 4
-  %9 = getelementptr inbounds i32, i32 addrspace(1)* %0, i32 %2
-  store i32 %8, i32 addrspace(1)* %9, align 4
+  %8 = load i32, ptr addrspace(3) @foo.l.0, align 4
+  %9 = getelementptr inbounds i32, ptr addrspace(1) %0, i32 %2
+  store i32 %8, ptr addrspace(1) %9, align 4
   ret void
 }
 

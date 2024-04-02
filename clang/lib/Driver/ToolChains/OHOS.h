@@ -36,7 +36,6 @@ public:
   bool isPICDefault() const override { return false; }
   bool isPIEDefault(const llvm::opt::ArgList &Args) const override { return true; }
   bool isPICDefaultForced() const override { return false; }
-  bool useRelaxRelocations() const override { return false; }
   UnwindLibType GetUnwindLibType(const llvm::opt::ArgList &Args) const override;
   UnwindLibType GetDefaultUnwindLibType() const override { return UNW_CompilerRT; }
 
@@ -83,7 +82,8 @@ protected:
   SanitizerMask getSupportedSanitizers() const override;
   void addProfileRTLibs(const llvm::opt::ArgList &Args,
                              llvm::opt::ArgStringList &CmdArgs) const override;
-  std::string getArchSpecificLibPath() const override;
+  path_list getArchSpecificLibPaths() const override;
+
 private:
   Multilib SelectedMultilib;
 };

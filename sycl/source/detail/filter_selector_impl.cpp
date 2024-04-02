@@ -12,7 +12,6 @@
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/exception.hpp>
-#include <sycl/stl.hpp>
 
 #include <cctype>
 #include <regex>
@@ -20,7 +19,7 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::detail {
 
 std::vector<std::string> tokenize(const std::string &Filter,
@@ -74,8 +73,6 @@ filter create_filter(const std::string &Input) {
       Result.Backend = backend::ext_oneapi_cuda;
     } else if (Token == "hip" && !Result.Backend) {
       Result.Backend = backend::ext_oneapi_hip;
-    } else if (Token == "esimd_emulator" && !Result.Backend) {
-      Result.Backend = backend::ext_intel_esimd_emulator;
     } else if (std::regex_match(Token, IntegerExpr) && !Result.DeviceNum) {
       try {
         Result.DeviceNum = std::stoi(Token);
@@ -91,7 +88,7 @@ filter create_filter(const std::string &Input) {
 }
 
 filter_selector_impl::filter_selector_impl(const std::string &Input)
-    : mFilters(), mRanker(), mNumDevicesSeen(0), mMatchFound(false) {
+    : mFilters(), mNumDevicesSeen(0), mMatchFound(false) {
   std::vector<std::string> Filters = detail::tokenize(Input, ",");
   mNumTotalDevices = device::get_devices().size();
 
@@ -113,7 +110,7 @@ int filter_selector_impl::operator()(const device &Dev) const {
     bool DeviceNumOK = true;
 
     if (Filter.Backend) {
-      backend BE = sycl::detail::getSyclObjImpl(Dev)->getPlugin().getBackend();
+      backend BE = sycl::detail::getSyclObjImpl(Dev)->getBackend();
       // Backend is okay if the filter BE is set 'all'.
       if (Filter.Backend.value() == backend::all)
         BackendOK = true;
@@ -139,7 +136,7 @@ int filter_selector_impl::operator()(const device &Dev) const {
       }
     }
     if (BackendOK && DeviceTypeOK && DeviceNumOK) {
-      Score = mRanker(Dev);
+      Score = default_selector_v(Dev);
       mMatchFound = true;
       break;
     }
@@ -170,5 +167,5 @@ void filter_selector_impl::reset() const {
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
 using namespace ext::oneapi;
 }
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

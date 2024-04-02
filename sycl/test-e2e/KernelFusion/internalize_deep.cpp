@@ -1,14 +1,15 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -O2 -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// UNSUPPORTED: cuda || hip
-// REQUIRES: fusion
+// RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
+// RUN: %{run} %t.out
 
 // Test complete fusion with internalization of a deep struct type.
 
 #include <type_traits>
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 using namespace sycl;
 

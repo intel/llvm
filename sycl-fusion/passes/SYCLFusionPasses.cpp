@@ -9,12 +9,15 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 
+#include "Kernel.h"
+
 #include "internalization/Internalization.h"
 #include "kernel-fusion/SYCLKernelFusion.h"
 #include "kernel-info/SYCLKernelInfo.h"
 #include "syclcp/SYCLCP.h"
 
 using namespace llvm;
+using namespace jit_compiler;
 
 cl::opt<bool>
     NoBarriers("sycl-kernel-fusion-no-barriers",
@@ -28,8 +31,9 @@ llvm::PassPluginLibraryInfo getSYCLKernelFusionPluginInfo() {
             [](StringRef Name, ModulePassManager &MPM,
                ArrayRef<PassBuilder::PipelineElement>) {
               if (Name == "sycl-kernel-fusion") {
-                int BarrierFlag =
-                    (NoBarriers) ? -1 : SYCLKernelFusion::DefaultBarriersFlags;
+                BarrierFlags BarrierFlag =
+                    (NoBarriers) ? getNoBarrierFlag()
+                                 : SYCLKernelFusion::DefaultBarriersFlags;
                 MPM.addPass(SYCLKernelFusion(BarrierFlag));
                 return true;
               }

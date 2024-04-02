@@ -188,7 +188,7 @@ public:
     BB = I->getParent();
     InsertPt = I->getIterator();
     assert(InsertPt != BB->end() && "Can't read debug loc from end()");
-    SetCurrentDebugLocation(I->getDebugLoc());
+    SetCurrentDebugLocation(I->getStableDebugLoc());
   }
 
   /// This specifies that created instructions should be inserted at the
@@ -197,7 +197,15 @@ public:
     BB = TheBB;
     InsertPt = IP;
     if (IP != TheBB->end())
-      SetCurrentDebugLocation(IP->getDebugLoc());
+      SetCurrentDebugLocation(IP->getStableDebugLoc());
+  }
+
+  /// This specifies that created instructions should be inserted at
+  /// the specified point, but also requires that \p IP is dereferencable.
+  void SetInsertPoint(BasicBlock::iterator IP) {
+    BB = IP->getParent();
+    InsertPt = IP;
+    SetCurrentDebugLocation(IP->getStableDebugLoc());
   }
 
   /// This specifies that created instructions should inserted at the beginning
@@ -211,6 +219,12 @@ public:
   /// Set location information used by debugging information.
   void SetCurrentDebugLocation(DebugLoc L) {
     AddOrRemoveMetadataToCopy(LLVMContext::MD_dbg, L.getAsMDNode());
+  }
+
+  /// Set nosanitize metadata.
+  void SetNoSanitizeMetadata() {
+    AddOrRemoveMetadataToCopy(llvm::LLVMContext::MD_nosanitize,
+                              llvm::MDNode::get(getContext(), std::nullopt));
   }
 
   /// Collect metadata with IDs \p MetadataKinds from \p Src which should be
@@ -558,7 +572,7 @@ public:
 
   /// Fetch the type representing a pointer to an 8-bit integer value.
   PointerType *getInt8PtrTy(unsigned AddrSpace = 0) {
-    return Type::getInt8PtrTy(Context, AddrSpace);
+    return getPtrTy(AddrSpace);
   }
 
   /// Fetch the type of an integer with size at least as big as that of a
@@ -619,6 +633,22 @@ public:
                                               TBAATag, ScopeTag, NoAliasTag);
   }
 
+  CallInst *CreateMalloc(Type *IntPtrTy, Type *AllocTy, Value *AllocSize,
+                         Value *ArraySize, ArrayRef<OperandBundleDef> OpB,
+                         Function *MallocF = nullptr, const Twine &Name = "");
+
+  /// CreateMalloc - Generate the IR for a call to malloc:
+  /// 1. Compute the malloc call's argument as the specified type's size,
+  ///    possibly multiplied by the array size if the array size is not
+  ///    constant 1.
+  /// 2. Call malloc with that argument.
+  CallInst *CreateMalloc(Type *IntPtrTy, Type *AllocTy, Value *AllocSize,
+                         Value *ArraySize, Function *MallocF = nullptr,
+                         const Twine &Name = "");
+  /// Generate the IR for a call to the builtin free function.
+  CallInst *CreateFree(Value *Source,
+                       ArrayRef<OperandBundleDef> Bundles = std::nullopt);
+
   CallInst *CreateElementUnorderedAtomicMemSet(Value *Ptr, Value *Val,
                                                Value *Size, Align Alignment,
                                                uint32_t ElementSize,
@@ -661,9 +691,13 @@ public:
 
   CallInst *
   CreateMemCpyInline(Value *Dst, MaybeAlign DstAlign, Value *Src,
-                     MaybeAlign SrcAlign, Value *Size, bool IsVolatile = false,
+                     MaybeAlign SrcAlign, Value *Size, bool isVolatile = false,
                      MDNode *TBAATag = nullptr, MDNode *TBAAStructTag = nullptr,
-                     MDNode *ScopeTag = nullptr, MDNode *NoAliasTag = nullptr);
+                     MDNode *ScopeTag = nullptr, MDNode *NoAliasTag = nullptr) {
+    return CreateMemTransferInst(Intrinsic::memcpy_inline, Dst, DstAlign, Src,
+                                 SrcAlign, Size, isVolatile, TBAATag,
+                                 TBAAStructTag, ScopeTag, NoAliasTag);
+  }
 
   /// Create and insert an element unordered-atomic memcpy between the
   /// specified pointers.
@@ -692,7 +726,12 @@ public:
                           MaybeAlign SrcAlign, Value *Size,
                           bool isVolatile = false, MDNode *TBAATag = nullptr,
                           MDNode *ScopeTag = nullptr,
-                          MDNode *NoAliasTag = nullptr);
+                          MDNode *NoAliasTag = nullptr) {
+    return CreateMemTransferInst(Intrinsic::memmove, Dst, DstAlign, Src,
+                                 SrcAlign, Size, isVolatile, TBAATag,
+                                 /*TBAAStructTag=*/nullptr, ScopeTag,
+                                 NoAliasTag);
+  }
 
   /// \brief Create and insert an element unordered-atomic memmove between the
   /// specified pointers.
@@ -756,6 +795,16 @@ public:
   /// vector.
   CallInst *CreateFPMinReduce(Value *Src);
 
+  /// Create a vector float maximum reduction intrinsic of the source
+  /// vector. This variant follows the NaN and signed zero semantic of
+  /// llvm.maximum intrinsic.
+  CallInst *CreateFPMaximumReduce(Value *Src);
+
+  /// Create a vector float minimum reduction intrinsic of the source
+  /// vector. This variant follows the NaN and signed zero semantic of
+  /// llvm.minimum intrinsic.
+  CallInst *CreateFPMinimumReduce(Value *Src);
+
   /// Create a lifetime.start intrinsic.
   ///
   /// If the pointer isn't i8* it will be converted.
@@ -799,6 +848,12 @@ public:
   /// Create a call to Masked Compress Store intrinsic
   CallInst *CreateMaskedCompressStore(Value *Val, Value *Ptr,
                                       Value *Mask = nullptr);
+
+  /// Return an all true boolean vector (mask) with \p NumElts lanes.
+  Value *getAllOnesMask(ElementCount NumElts) {
+    VectorType *VTy = VectorType::get(Type::getInt1Ty(Context), NumElts);
+    return Constant::getAllOnesValue(VTy);
+  }
 
   /// Create an assume intrinsic call that allows the optimizer to
   /// assume that the provided condition will be true.
@@ -918,9 +973,9 @@ public:
 
   /// Create a call to intrinsic \p ID with 2 operands which is mangled on the
   /// first type.
-  CallInst *CreateBinaryIntrinsic(Intrinsic::ID ID, Value *LHS, Value *RHS,
-                                  Instruction *FMFSource = nullptr,
-                                  const Twine &Name = "");
+  Value *CreateBinaryIntrinsic(Intrinsic::ID ID, Value *LHS, Value *RHS,
+                               Instruction *FMFSource = nullptr,
+                               const Twine &Name = "");
 
   /// Create a call to intrinsic \p ID with \p Args, mangled using \p Types. If
   /// \p FMFSource is provided, copy fast-math-flags from that instruction to
@@ -939,29 +994,39 @@ public:
                             const Twine &Name = "");
 
   /// Create call to the minnum intrinsic.
-  CallInst *CreateMinNum(Value *LHS, Value *RHS, const Twine &Name = "") {
+  Value *CreateMinNum(Value *LHS, Value *RHS, const Twine &Name = "") {
+    if (IsFPConstrained) {
+      return CreateConstrainedFPUnroundedBinOp(
+          Intrinsic::experimental_constrained_minnum, LHS, RHS, nullptr, Name);
+    }
+
     return CreateBinaryIntrinsic(Intrinsic::minnum, LHS, RHS, nullptr, Name);
   }
 
   /// Create call to the maxnum intrinsic.
-  CallInst *CreateMaxNum(Value *LHS, Value *RHS, const Twine &Name = "") {
+  Value *CreateMaxNum(Value *LHS, Value *RHS, const Twine &Name = "") {
+    if (IsFPConstrained) {
+      return CreateConstrainedFPUnroundedBinOp(
+          Intrinsic::experimental_constrained_maxnum, LHS, RHS, nullptr, Name);
+    }
+
     return CreateBinaryIntrinsic(Intrinsic::maxnum, LHS, RHS, nullptr, Name);
   }
 
   /// Create call to the minimum intrinsic.
-  CallInst *CreateMinimum(Value *LHS, Value *RHS, const Twine &Name = "") {
+  Value *CreateMinimum(Value *LHS, Value *RHS, const Twine &Name = "") {
     return CreateBinaryIntrinsic(Intrinsic::minimum, LHS, RHS, nullptr, Name);
   }
 
   /// Create call to the maximum intrinsic.
-  CallInst *CreateMaximum(Value *LHS, Value *RHS, const Twine &Name = "") {
+  Value *CreateMaximum(Value *LHS, Value *RHS, const Twine &Name = "") {
     return CreateBinaryIntrinsic(Intrinsic::maximum, LHS, RHS, nullptr, Name);
   }
 
   /// Create call to the copysign intrinsic.
-  CallInst *CreateCopySign(Value *LHS, Value *RHS,
-                           Instruction *FMFSource = nullptr,
-                           const Twine &Name = "") {
+  Value *CreateCopySign(Value *LHS, Value *RHS,
+                        Instruction *FMFSource = nullptr,
+                        const Twine &Name = "") {
     return CreateBinaryIntrinsic(Intrinsic::copysign, LHS, RHS, FMFSource,
                                  Name);
   }
@@ -989,13 +1054,24 @@ public:
                            nullptr, Name);
   }
 
+  /// Create a call to llvm.stacksave
+  CallInst *CreateStackSave(const Twine &Name = "") {
+    const DataLayout &DL = BB->getModule()->getDataLayout();
+    return CreateIntrinsic(Intrinsic::stacksave, {DL.getAllocaPtrType(Context)},
+                           {}, nullptr, Name);
+  }
+
+  /// Create a call to llvm.stackrestore
+  CallInst *CreateStackRestore(Value *Ptr, const Twine &Name = "") {
+    return CreateIntrinsic(Intrinsic::stackrestore, {Ptr->getType()}, {Ptr},
+                           nullptr, Name);
+  }
+
 private:
   /// Create a call to a masked intrinsic with given Id.
   CallInst *CreateMaskedIntrinsic(Intrinsic::ID Id, ArrayRef<Value *> Ops,
                                   ArrayRef<Type *> OverloadedTypes,
                                   const Twine &Name = "");
-
-  Value *getCastedInt8PtrValue(Value *Ptr);
 
   //===--------------------------------------------------------------------===//
   // Instruction creation methods: Terminators
@@ -1642,18 +1718,18 @@ public:
       std::optional<RoundingMode> Rounding = std::nullopt,
       std::optional<fp::ExceptionBehavior> Except = std::nullopt);
 
-  Value *CreateNeg(Value *V, const Twine &Name = "", bool HasNUW = false,
-                   bool HasNSW = false) {
-    return CreateSub(Constant::getNullValue(V->getType()), V, Name, HasNUW,
-                     HasNSW);
+  CallInst *CreateConstrainedFPUnroundedBinOp(
+      Intrinsic::ID ID, Value *L, Value *R, Instruction *FMFSource = nullptr,
+      const Twine &Name = "", MDNode *FPMathTag = nullptr,
+      std::optional<fp::ExceptionBehavior> Except = std::nullopt);
+
+  Value *CreateNeg(Value *V, const Twine &Name = "", bool HasNSW = false) {
+    return CreateSub(Constant::getNullValue(V->getType()), V, Name,
+                     /*HasNUW=*/0, HasNSW);
   }
 
   Value *CreateNSWNeg(Value *V, const Twine &Name = "") {
-    return CreateNeg(V, Name, false, true);
-  }
-
-  Value *CreateNUWNeg(Value *V, const Twine &Name = "") {
-    return CreateNeg(V, Name, true, false);
+    return CreateNeg(V, Name, /*HasNSW=*/true);
   }
 
   Value *CreateFNeg(Value *V, const Twine &Name = "",
@@ -1904,6 +1980,16 @@ public:
     return CreateConstInBoundsGEP2_32(Ty, Ptr, 0, Idx, Name);
   }
 
+  Value *CreatePtrAdd(Value *Ptr, Value *Offset, const Twine &Name = "",
+                      bool IsInBounds = false) {
+    return CreateGEP(getInt8Ty(), Ptr, Offset, Name, IsInBounds);
+  }
+
+  Value *CreateInBoundsPtrAdd(Value *Ptr, Value *Offset,
+                              const Twine &Name = "") {
+    return CreateGEP(getInt8Ty(), Ptr, Offset, Name, /*IsInBounds*/ true);
+  }
+
   /// Same as CreateGlobalString, but return a pointer with "i8*" type
   /// instead of a pointer to array of i8.
   ///
@@ -1927,8 +2013,16 @@ public:
     return CreateCast(Instruction::Trunc, V, DestTy, Name);
   }
 
-  Value *CreateZExt(Value *V, Type *DestTy, const Twine &Name = "") {
-    return CreateCast(Instruction::ZExt, V, DestTy, Name);
+  Value *CreateZExt(Value *V, Type *DestTy, const Twine &Name = "",
+                    bool IsNonNeg = false) {
+    if (V->getType() == DestTy)
+      return V;
+    if (Value *Folded = Folder.FoldCast(Instruction::ZExt, V, DestTy))
+      return Folded;
+    Instruction *I = Insert(new ZExtInst(V, DestTy), Name);
+    if (IsNonNeg)
+      I->setNonNeg();
+    return I;
   }
 
   Value *CreateSExt(Value *V, Type *DestTy, const Twine &Name = "") {
@@ -2029,39 +2123,36 @@ public:
     return CreateCast(Instruction::AddrSpaceCast, V, DestTy, Name);
   }
 
-  Value *CreateZExtOrBitCast(Value *V, Type *DestTy,
-                             const Twine &Name = "") {
-    if (V->getType() == DestTy)
-      return V;
-    if (auto *VC = dyn_cast<Constant>(V))
-      return Insert(Folder.CreateZExtOrBitCast(VC, DestTy), Name);
-    return Insert(CastInst::CreateZExtOrBitCast(V, DestTy), Name);
+  Value *CreateZExtOrBitCast(Value *V, Type *DestTy, const Twine &Name = "") {
+    Instruction::CastOps CastOp =
+        V->getType()->getScalarSizeInBits() == DestTy->getScalarSizeInBits()
+            ? Instruction::BitCast
+            : Instruction::ZExt;
+    return CreateCast(CastOp, V, DestTy, Name);
   }
 
-  Value *CreateSExtOrBitCast(Value *V, Type *DestTy,
-                             const Twine &Name = "") {
-    if (V->getType() == DestTy)
-      return V;
-    if (auto *VC = dyn_cast<Constant>(V))
-      return Insert(Folder.CreateSExtOrBitCast(VC, DestTy), Name);
-    return Insert(CastInst::CreateSExtOrBitCast(V, DestTy), Name);
+  Value *CreateSExtOrBitCast(Value *V, Type *DestTy, const Twine &Name = "") {
+    Instruction::CastOps CastOp =
+        V->getType()->getScalarSizeInBits() == DestTy->getScalarSizeInBits()
+            ? Instruction::BitCast
+            : Instruction::SExt;
+    return CreateCast(CastOp, V, DestTy, Name);
   }
 
-  Value *CreateTruncOrBitCast(Value *V, Type *DestTy,
-                              const Twine &Name = "") {
-    if (V->getType() == DestTy)
-      return V;
-    if (auto *VC = dyn_cast<Constant>(V))
-      return Insert(Folder.CreateTruncOrBitCast(VC, DestTy), Name);
-    return Insert(CastInst::CreateTruncOrBitCast(V, DestTy), Name);
+  Value *CreateTruncOrBitCast(Value *V, Type *DestTy, const Twine &Name = "") {
+    Instruction::CastOps CastOp =
+        V->getType()->getScalarSizeInBits() == DestTy->getScalarSizeInBits()
+            ? Instruction::BitCast
+            : Instruction::Trunc;
+    return CreateCast(CastOp, V, DestTy, Name);
   }
 
   Value *CreateCast(Instruction::CastOps Op, Value *V, Type *DestTy,
                     const Twine &Name = "") {
     if (V->getType() == DestTy)
       return V;
-    if (auto *VC = dyn_cast<Constant>(V))
-      return Insert(Folder.CreateCast(Op, VC, DestTy), Name);
+    if (Value *Folded = Folder.FoldCast(Op, V, DestTy))
+      return Folded;
     return Insert(CastInst::Create(Op, V, DestTy), Name);
   }
 
@@ -2074,6 +2165,9 @@ public:
     return Insert(CastInst::CreatePointerCast(V, DestTy), Name);
   }
 
+  // With opaque pointers enabled, this can be substituted with
+  // CreateAddrSpaceCast.
+  // TODO: Replace uses of this method and remove the method itself.
   Value *CreatePointerBitCastOrAddrSpaceCast(Value *V, Type *DestTy,
                                              const Twine &Name = "") {
     if (V->getType() == DestTy)
@@ -2090,11 +2184,11 @@ public:
 
   Value *CreateIntCast(Value *V, Type *DestTy, bool isSigned,
                        const Twine &Name = "") {
-    if (V->getType() == DestTy)
-      return V;
-    if (auto *VC = dyn_cast<Constant>(V))
-      return Insert(Folder.CreateIntCast(VC, DestTy, isSigned), Name);
-    return Insert(CastInst::CreateIntegerCast(V, DestTy, isSigned), Name);
+    Instruction::CastOps CastOp =
+        V->getType()->getScalarSizeInBits() > DestTy->getScalarSizeInBits()
+            ? Instruction::Trunc
+            : (isSigned ? Instruction::SExt : Instruction::ZExt);
+    return CreateCast(CastOp, V, DestTy, Name);
   }
 
   Value *CreateBitOrPointerCast(Value *V, Type *DestTy,
@@ -2110,11 +2204,11 @@ public:
   }
 
   Value *CreateFPCast(Value *V, Type *DestTy, const Twine &Name = "") {
-    if (V->getType() == DestTy)
-      return V;
-    if (auto *VC = dyn_cast<Constant>(V))
-      return Insert(Folder.CreateFPCast(VC, DestTy), Name);
-    return Insert(CastInst::CreateFPCast(V, DestTy), Name);
+    Instruction::CastOps CastOp =
+        V->getType()->getScalarSizeInBits() > DestTy->getScalarSizeInBits()
+            ? Instruction::FPTrunc
+            : Instruction::FPExt;
+    return CreateCast(CastOp, V, DestTy, Name);
   }
 
   CallInst *CreateConstrainedFPCast(
@@ -2437,12 +2531,12 @@ public:
 
   /// Return a boolean value testing if \p Arg == 0.
   Value *CreateIsNull(Value *Arg, const Twine &Name = "") {
-    return CreateICmpEQ(Arg, ConstantInt::getNullValue(Arg->getType()), Name);
+    return CreateICmpEQ(Arg, Constant::getNullValue(Arg->getType()), Name);
   }
 
   /// Return a boolean value testing if \p Arg != 0.
   Value *CreateIsNotNull(Value *Arg, const Twine &Name = "") {
-    return CreateICmpNE(Arg, ConstantInt::getNullValue(Arg->getType()), Name);
+    return CreateICmpNE(Arg, Constant::getNullValue(Arg->getType()), Name);
   }
 
   /// Return a boolean value testing if \p Arg < 0.
@@ -2496,11 +2590,6 @@ public:
   /// EC elements.
   Value *CreateVectorSplat(ElementCount EC, Value *V, const Twine &Name = "");
 
-  /// Return a value that has been extracted from a larger integer type.
-  Value *CreateExtractInteger(const DataLayout &DL, Value *From,
-                              IntegerType *ExtractedTy, uint64_t Offset,
-                              const Twine &Name);
-
   Value *CreatePreserveArrayAccessIndex(Type *ElTy, Value *Base,
                                         unsigned Dimension, unsigned LastIndex,
                                         MDNode *DbgInfo);
@@ -2511,6 +2600,8 @@ public:
   Value *CreatePreserveStructAccessIndex(Type *ElTy, Value *Base,
                                          unsigned Index, unsigned FieldIndex,
                                          MDNode *DbgInfo);
+
+  Value *createIsFPClass(Value *FPNum, unsigned Test);
 
 private:
   /// Helper function that creates an assume intrinsic call that

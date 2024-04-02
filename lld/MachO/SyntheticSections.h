@@ -315,6 +315,19 @@ public:
   Defined *dyldPrivate = nullptr;
 };
 
+class ObjCSelRefsHelper {
+public:
+  static void initialize();
+  static void cleanup();
+
+  static ConcatInputSection *getSelRef(StringRef methname);
+  static ConcatInputSection *makeSelRef(StringRef methname);
+
+private:
+  static llvm::DenseMap<llvm::CachedHashStringRef, ConcatInputSection *>
+      methnameToSelref;
+};
+
 // Objective-C stubs are hoisted objc_msgSend calls per selector called in the
 // program. Apple Clang produces undefined symbols to each stub, such as
 // '_objc_msgSend$foo', which are then synthesized by the linker. The stubs
@@ -332,11 +345,12 @@ public:
   void setUp();
 
   static constexpr llvm::StringLiteral symbolPrefix = "_objc_msgSend$";
+  static bool isObjCStubSymbol(Symbol *sym);
+  static StringRef getMethname(Symbol *sym);
 
 private:
   std::vector<Defined *> symbols;
-  std::vector<uint32_t> offsets;
-  int objcMsgSendGotIndex = 0;
+  Symbol *objcMsgSend = nullptr;
 };
 
 // Note that this section may also be targeted by non-lazy bindings. In
@@ -531,18 +545,6 @@ public:
   void writeTo(uint8_t *buf) const override;
   uint32_t getBlockCount() const;
   void writeHashes(uint8_t *buf) const;
-};
-
-class BitcodeBundleSection final : public SyntheticSection {
-public:
-  BitcodeBundleSection();
-  uint64_t getSize() const override { return xarSize; }
-  void finalize() override;
-  void writeTo(uint8_t *buf) const override;
-
-private:
-  llvm::SmallString<261> xarPath;
-  uint64_t xarSize;
 };
 
 class CStringSection : public SyntheticSection {
@@ -804,7 +806,6 @@ struct InStruct {
   StubsSection *stubs = nullptr;
   StubHelperSection *stubHelper = nullptr;
   ObjCStubsSection *objcStubs = nullptr;
-  ConcatInputSection *objcSelrefs = nullptr;
   UnwindInfoSection *unwindInfo = nullptr;
   ObjCImageInfoSection *objCImageInfo = nullptr;
   ConcatInputSection *imageLoaderCache = nullptr;

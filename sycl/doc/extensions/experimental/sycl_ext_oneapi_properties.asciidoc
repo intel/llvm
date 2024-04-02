@@ -195,6 +195,7 @@ template<typename... Ts>
 inline constexpr boo_key::value_t<Ts...> boo;
 
 } // namespace experimental::oneapi::ext::sycl
+```
 
 === Property traits
 
@@ -376,6 +377,8 @@ In the same way that two different runtime properties of the same type cannot be
 That last sentence is not explicitly stated in the core SYCL spec, but it is assumed by the properties interface.
 ====
 
+The `empty_properties_t` type alias is a shorthand for the type of an empty property list.
+
 The new `properties` class template is as follows:
 
 ```c++
@@ -403,6 +406,8 @@ class properties {
   template<typename PropertyKeyT>
   static constexpr auto get_property();
 };
+
+using empty_properties_t = decltype(properties{});
 
 } // namespace experimental::oneapi::ext::sycl
 ```
@@ -507,13 +512,6 @@ using P2 = decltype(properties(bar, baz<1>));
 static_assert(std::is_same<P1, P2>::value); // Succeeds, since the order of properties does not matter
 static_assert(P1::get_property<baz_key>().value == 1);
 ```
-
-An empty property list can be created as follows:
-
-```c++
-using empty_property_list = decltype(properties());
-```
-
 
 === Querying Properties in Device Code
 

@@ -20,7 +20,9 @@ SYCL application for Intel(R) processor device, run Clang with
 
 To enable optimizations for target CPU architecture, add
 `-Xsycl-target-backend "-march=<arch>"` option, where `<arch>` could be
-`avx512`, `avx2`, `avx` or `sse4.2`.
+instruction set, e.g., `avx512`, `avx2`, `avx` or `sse4.2` and available CPUs,
+e.g., `wsm`, `snb`, `bdw`, `adl` or `skx`. Execute `opencl-aot --help` to get
+full lists.
 
 To execute `opencl-aot` directly for Intel(R) processor device, run it with
 `<spv> -o=<output> --device=cpu`, where `<spv>` is path to SPIR-V binary file,

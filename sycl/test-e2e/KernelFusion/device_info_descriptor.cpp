@@ -1,12 +1,11 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// XFAIL: cuda || hip
-// REQUIRES: fusion
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // Test correct return from device information descriptor.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 using namespace sycl;
 

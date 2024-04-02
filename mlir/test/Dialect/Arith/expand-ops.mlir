@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -arith-expand -split-input-file | FileCheck %s
+// RUN: mlir-opt %s -arith-expand="include-bf16=true" -split-input-file | FileCheck %s
 
 // Test ceil divide with signed integer
 // CHECK-LABEL:       func @ceildivi
@@ -66,23 +66,17 @@ func.func @ceildivi_index(%arg0: index, %arg1: index) -> (index) {
 func.func @floordivi(%arg0: i32, %arg1: i32) -> (i32) {
   %res = arith.floordivsi %arg0, %arg1 : i32
   return %res : i32
-// CHECK:           [[ONE:%.+]] = arith.constant 1 : i32
-// CHECK:           [[ZERO:%.+]] = arith.constant 0 : i32
-// CHECK:           [[MIN1:%.+]] = arith.constant -1 : i32
-// CHECK:           [[CMP1:%.+]] = arith.cmpi slt, [[ARG1]], [[ZERO]] : i32
-// CHECK:           [[X:%.+]] = arith.select [[CMP1]], [[ONE]], [[MIN1]] : i32
-// CHECK:           [[TRUE1:%.+]] = arith.subi [[X]], [[ARG0]] : i32
-// CHECK:           [[TRUE2:%.+]] = arith.divsi [[TRUE1]], [[ARG1]] : i32
-// CHECK:           [[TRUE3:%.+]] = arith.subi [[MIN1]], [[TRUE2]] : i32
-// CHECK:           [[FALSE:%.+]] = arith.divsi [[ARG0]], [[ARG1]] : i32
-// CHECK:           [[NNEG:%.+]] = arith.cmpi slt, [[ARG0]], [[ZERO]] : i32
-// CHECK:           [[NPOS:%.+]] = arith.cmpi sgt, [[ARG0]], [[ZERO]] : i32
-// CHECK:           [[MNEG:%.+]] = arith.cmpi slt, [[ARG1]], [[ZERO]] : i32
-// CHECK:           [[MPOS:%.+]] = arith.cmpi sgt, [[ARG1]], [[ZERO]] : i32
-// CHECK:           [[TERM1:%.+]] = arith.andi [[NNEG]], [[MPOS]] : i1
-// CHECK:           [[TERM2:%.+]] = arith.andi [[NPOS]], [[MNEG]] : i1
-// CHECK:           [[CMP2:%.+]] = arith.ori [[TERM1]], [[TERM2]] : i1
-// CHECK:           [[RES:%.+]] = arith.select [[CMP2]], [[TRUE3]], [[FALSE]] : i32
+// CHECK:   %[[QUOTIENT:.*]] = arith.divsi %arg0, %arg1 : i32
+// CHECK:   %[[PRODUCT:.*]] = arith.muli %[[QUOTIENT]], %arg1 : i32
+// CHECK:   %[[NOT_EQ_PRODUCT:.*]] = arith.cmpi ne, %arg0, %[[PRODUCT]] : i32
+// CHECK-DAG:   %[[ZERO:.*]] = arith.constant 0 : i32
+// CHECK:   %[[NEG_DIVISOR:.*]] = arith.cmpi slt, %arg0, %[[ZERO]] : i32
+// CHECK:   %[[NEG_DIVIDEND:.*]] = arith.cmpi slt, %arg1, %[[ZERO]] : i32
+// CHECK:   %[[OPPOSITE_SIGN:.*]] = arith.cmpi ne, %[[NEG_DIVISOR]], %[[NEG_DIVIDEND]] : i1
+// CHECK:   %[[CONDITION:.*]] = arith.andi %[[NOT_EQ_PRODUCT]], %[[OPPOSITE_SIGN]] : i1
+// CHECK-DAG:   %[[NEG_ONE:.*]] = arith.constant -1 : i32
+// CHECK:   %[[MINUS_ONE:.*]] = arith.addi %[[QUOTIENT]], %[[NEG_ONE]] : i32
+// CHECK:   %[[RES:.*]] = arith.select %[[CONDITION]], %[[MINUS_ONE]], %[[QUOTIENT]] : i32
 }
 
 // -----
@@ -93,23 +87,17 @@ func.func @floordivi(%arg0: i32, %arg1: i32) -> (i32) {
 func.func @floordivi_index(%arg0: index, %arg1: index) -> (index) {
   %res = arith.floordivsi %arg0, %arg1 : index
   return %res : index
-// CHECK:           [[ONE:%.+]] = arith.constant 1 : index
-// CHECK:           [[ZERO:%.+]] = arith.constant 0 : index
-// CHECK:           [[MIN1:%.+]] = arith.constant -1 : index
-// CHECK:           [[CMP1:%.+]] = arith.cmpi slt, [[ARG1]], [[ZERO]] : index
-// CHECK:           [[X:%.+]] = arith.select [[CMP1]], [[ONE]], [[MIN1]] : index
-// CHECK:           [[TRUE1:%.+]] = arith.subi [[X]], [[ARG0]] : index
-// CHECK:           [[TRUE2:%.+]] = arith.divsi [[TRUE1]], [[ARG1]] : index
-// CHECK:           [[TRUE3:%.+]] = arith.subi [[MIN1]], [[TRUE2]] : index
-// CHECK:           [[FALSE:%.+]] = arith.divsi [[ARG0]], [[ARG1]] : index
-// CHECK:           [[NNEG:%.+]] = arith.cmpi slt, [[ARG0]], [[ZERO]] : index
-// CHECK:           [[NPOS:%.+]] = arith.cmpi sgt, [[ARG0]], [[ZERO]] : index
-// CHECK:           [[MNEG:%.+]] = arith.cmpi slt, [[ARG1]], [[ZERO]] : index
-// CHECK:           [[MPOS:%.+]] = arith.cmpi sgt, [[ARG1]], [[ZERO]] : index
-// CHECK:           [[TERM1:%.+]] = arith.andi [[NNEG]], [[MPOS]] : i1
-// CHECK:           [[TERM2:%.+]] = arith.andi [[NPOS]], [[MNEG]] : i1
-// CHECK:           [[CMP2:%.+]] = arith.ori [[TERM1]], [[TERM2]] : i1
-// CHECK:           [[RES:%.+]] = arith.select [[CMP2]], [[TRUE3]], [[FALSE]] : index
+// CHECK:   %[[QUOTIENT:.*]] = arith.divsi %arg0, %arg1 : index
+// CHECK:   %[[PRODUCT:.*]] = arith.muli %[[QUOTIENT]], %arg1 : index
+// CHECK:   %[[NOT_EQ_PRODUCT:.*]] = arith.cmpi ne, %arg0, %[[PRODUCT]] : index
+// CHECK-DAG:   %[[ZERO:.*]] = arith.constant 0 : index
+// CHECK:   %[[NEG_DIVISOR:.*]] = arith.cmpi slt, %arg0, %[[ZERO]] : index
+// CHECK:   %[[NEG_DIVIDEND:.*]] = arith.cmpi slt, %arg1, %[[ZERO]] : index
+// CHECK:   %[[OPPOSITE_SIGN:.*]] = arith.cmpi ne, %[[NEG_DIVISOR]], %[[NEG_DIVIDEND]] : i1
+// CHECK:   %[[CONDITION:.*]] = arith.andi %[[NOT_EQ_PRODUCT]], %[[OPPOSITE_SIGN]] : i1
+// CHECK:   %[[NEG_ONE:.*]] = arith.constant -1 : index
+// CHECK-DAG:   %[[MINUS_ONE:.*]] = arith.addi %[[QUOTIENT]], %[[NEG_ONE]] : index
+// CHECK:   %[[RES:.*]] = arith.select %[[CONDITION]], %[[MINUS_ONE]], %[[QUOTIENT]] : index
 }
 
 // -----
@@ -121,23 +109,17 @@ func.func @floordivi_index(%arg0: index, %arg1: index) -> (index) {
 func.func @floordivi_vec(%arg0: vector<4xi32>, %arg1: vector<4xi32>) -> (vector<4xi32>) {
   %res = arith.floordivsi %arg0, %arg1 : vector<4xi32>
   return %res : vector<4xi32>
-// CHECK:           %[[VAL_2:.*]] = arith.constant dense<1> : vector<4xi32>
-// CHECK:           %[[VAL_3:.*]] = arith.constant dense<0> : vector<4xi32>
-// CHECK:           %[[VAL_4:.*]] = arith.constant dense<-1> : vector<4xi32>
-// CHECK:           %[[VAL_5:.*]] = arith.cmpi slt, %[[VAL_1]], %[[VAL_3]] : vector<4xi32>
-// CHECK:           %[[VAL_6:.*]] = arith.select %[[VAL_5]], %[[VAL_2]], %[[VAL_4]] : vector<4xi1>, vector<4xi32>
-// CHECK:           %[[VAL_7:.*]] = arith.subi %[[VAL_6]], %[[VAL_0]] : vector<4xi32>
-// CHECK:           %[[VAL_8:.*]] = arith.divsi %[[VAL_7]], %[[VAL_1]] : vector<4xi32>
-// CHECK:           %[[VAL_9:.*]] = arith.subi %[[VAL_4]], %[[VAL_8]] : vector<4xi32>
-// CHECK:           %[[VAL_10:.*]] = arith.divsi %[[VAL_0]], %[[VAL_1]] : vector<4xi32>
-// CHECK:           %[[VAL_11:.*]] = arith.cmpi slt, %[[VAL_0]], %[[VAL_3]] : vector<4xi32>
-// CHECK:           %[[VAL_12:.*]] = arith.cmpi sgt, %[[VAL_0]], %[[VAL_3]] : vector<4xi32>
-// CHECK:           %[[VAL_13:.*]] = arith.cmpi slt, %[[VAL_1]], %[[VAL_3]] : vector<4xi32>
-// CHECK:           %[[VAL_14:.*]] = arith.cmpi sgt, %[[VAL_1]], %[[VAL_3]] : vector<4xi32>
-// CHECK:           %[[VAL_15:.*]] = arith.andi %[[VAL_11]], %[[VAL_14]] : vector<4xi1>
-// CHECK:           %[[VAL_16:.*]] = arith.andi %[[VAL_12]], %[[VAL_13]] : vector<4xi1>
-// CHECK:           %[[VAL_17:.*]] = arith.ori %[[VAL_15]], %[[VAL_16]] : vector<4xi1>
-// CHECK:           %[[VAL_18:.*]] = arith.select %[[VAL_17]], %[[VAL_9]], %[[VAL_10]] : vector<4xi1>, vector<4xi32>
+// CHECK:   %[[QUOTIENT:.*]] = arith.divsi %arg0, %arg1 : vector<4xi32>
+// CHECK:   %[[PRODUCT:.*]] = arith.muli %[[QUOTIENT]], %arg1 : vector<4xi32>
+// CHECK:   %[[NOT_EQ_PRODUCT:.*]] = arith.cmpi ne, %arg0, %[[PRODUCT]] : vector<4xi32>
+// CHECK-DAG:   %[[ZERO:.*]] = arith.constant dense<0> : vector<4xi32>
+// CHECK:   %[[NEG_DIVISOR:.*]] = arith.cmpi slt, %arg0, %[[ZERO]] : vector<4xi32>
+// CHECK:   %[[NEG_DIVIDEND:.*]] = arith.cmpi slt, %arg1, %[[ZERO]] : vector<4xi32>
+// CHECK:   %[[OPPOSITE_SIGN:.*]] = arith.cmpi ne, %[[NEG_DIVISOR]], %[[NEG_DIVIDEND]] : vector<4xi1>
+// CHECK:   %[[CONDITION:.*]] = arith.andi %[[NOT_EQ_PRODUCT]], %[[OPPOSITE_SIGN]] : vector<4xi1>
+// CHECK-DAG:   %[[NEG_ONE:.*]] = arith.constant dense<-1> : vector<4xi32>
+// CHECK:   %[[MINUS_ONE:.*]] = arith.addi %[[QUOTIENT]], %[[NEG_ONE]] : vector<4xi32>
+// CHECK:   %[[RES:.*]] = arith.select %[[CONDITION]], %[[MINUS_ONE]], %[[QUOTIENT]] : vector<4xi1>, vector<4xi32>
 }
 
 // -----
@@ -176,9 +158,9 @@ func.func @ceildivui_index(%arg0: index, %arg1: index) -> (index) {
 
 // -----
 
-// CHECK-LABEL: func @maxf
-func.func @maxf(%a: f32, %b: f32) -> f32 {
-  %result = arith.maxf %a, %b : f32
+// CHECK-LABEL: func @maximumf
+func.func @maximumf(%a: f32, %b: f32) -> f32 {
+  %result = arith.maximumf %a, %b : f32
   return %result : f32
 }
 // CHECK-SAME: %[[LHS:.*]]: f32, %[[RHS:.*]]: f32)
@@ -190,9 +172,9 @@ func.func @maxf(%a: f32, %b: f32) -> f32 {
 
 // -----
 
-// CHECK-LABEL: func @maxf_vector
-func.func @maxf_vector(%a: vector<4xf16>, %b: vector<4xf16>) -> vector<4xf16> {
-  %result = arith.maxf %a, %b : vector<4xf16>
+// CHECK-LABEL: func @maximumf_vector
+func.func @maximumf_vector(%a: vector<4xf16>, %b: vector<4xf16>) -> vector<4xf16> {
+  %result = arith.maximumf %a, %b : vector<4xf16>
   return %result : vector<4xf16>
 }
 // CHECK-SAME: %[[LHS:.*]]: vector<4xf16>, %[[RHS:.*]]: vector<4xf16>)
@@ -204,11 +186,27 @@ func.func @maxf_vector(%a: vector<4xf16>, %b: vector<4xf16>) -> vector<4xf16> {
 
 // -----
 
-// CHECK-LABEL: func @minf
-func.func @minf(%a: f32, %b: f32) -> f32 {
-  %result = arith.minf %a, %b : f32
+// CHECK-LABEL: func @maxnumf
+func.func @maxnumf(%a: f32, %b: f32) -> f32 {
+  %result = arith.maxnumf %a, %b : f32
   return %result : f32
 }
+
+// CHECK-SAME: %[[LHS:.*]]: f32, %[[RHS:.*]]: f32)
+// CHECK-NEXT: %[[CMP:.*]] = arith.cmpf ugt, %[[LHS]], %[[RHS]] : f32
+// CHECK-NEXT: %[[SELECT:.*]] = arith.select %[[CMP]], %[[LHS]], %[[RHS]] : f32
+// CHECK-NEXT: %[[IS_NAN:.*]] = arith.cmpf uno, %[[LHS]], %[[LHS]] : f32
+// CHECK-NEXT: %[[RESULT:.*]] = arith.select %[[IS_NAN]], %[[RHS]], %[[SELECT]] : f32
+// CHECK-NEXT: return %[[RESULT]] : f32
+
+// -----
+
+// CHECK-LABEL: func @minimumf
+func.func @minimumf(%a: f32, %b: f32) -> f32 {
+  %result = arith.minimumf %a, %b : f32
+  return %result : f32
+}
+
 // CHECK-SAME: %[[LHS:.*]]: f32, %[[RHS:.*]]: f32)
 // CHECK-NEXT: %[[CMP:.*]] = arith.cmpf ult, %[[LHS]], %[[RHS]] : f32
 // CHECK-NEXT: %[[SELECT:.*]] = arith.select %[[CMP]], %[[LHS]], %[[RHS]] : f32
@@ -218,35 +216,18 @@ func.func @minf(%a: f32, %b: f32) -> f32 {
 
 // -----
 
-func.func @extf_bf16(%arg0 : bf16) -> f32 {
-    %0 = arith.extf %arg0 : bf16 to f32
-    return %0 : f32
+// CHECK-LABEL: func @minnumf
+func.func @minnumf(%a: f32, %b: f32) -> f32 {
+  %result = arith.minnumf %a, %b : f32
+  return %result : f32
 }
 
-// CHECK-LABEL: @extf_bf16
-// CHECK-SAME: %[[ARG0:.+]]: bf16
-// CHECK-DAG: %[[BITCAST:.+]] = arith.bitcast %[[ARG0]] : bf16 to i16
-// CHECK-DAG: %[[EXT:.+]] = arith.extui %[[BITCAST]] : i16 to i32
-// CHECK-DAG: %[[C16:.+]] = arith.constant 16
-// CHECK-DAG: %[[SHLI:.+]] = arith.shli %[[EXT]], %[[C16]]
-// CHECK-DAG: %[[BITCAST:.+]] = arith.bitcast %[[SHLI]] : i32 to f32
-// CHECK: return %[[BITCAST]]
-
-// -----
-
-func.func @extf_vector_bf16(%arg0 : vector<4xbf16>) -> vector<4xf32> {
-    %0 = arith.extf %arg0 : vector<4xbf16> to vector<4xf32>
-    return %0 : vector<4xf32>
-}
-
-// CHECK-LABEL: @extf_vector_bf16
-// CHECK-SAME: %[[ARG0:.+]]: vector<4xbf16>
-// CHECK-DAG: %[[BITCAST:.+]] = arith.bitcast %[[ARG0]] : vector<4xbf16> to vector<4xi16>
-// CHECK-DAG: %[[EXT:.+]] = arith.extui %[[BITCAST]] : vector<4xi16> to vector<4xi32>
-// CHECK-DAG: %[[C16:.+]] = arith.constant dense<16>
-// CHECK-DAG: %[[SHLI:.+]] = arith.shli %[[EXT]], %[[C16]]
-// CHECK-DAG: %[[BITCAST:.+]] = arith.bitcast %[[SHLI]] : vector<4xi32> to vector<4xf32>
-// CHECK: return %[[BITCAST]]
+// CHECK-SAME: %[[LHS:.*]]: f32, %[[RHS:.*]]: f32)
+// CHECK-NEXT: %[[CMP:.*]] = arith.cmpf ult, %[[LHS]], %[[RHS]] : f32
+// CHECK-NEXT: %[[SELECT:.*]] = arith.select %[[CMP]], %[[LHS]], %[[RHS]] : f32
+// CHECK-NEXT: %[[IS_NAN:.*]] = arith.cmpf uno, %[[LHS]], %[[LHS]] : f32
+// CHECK-NEXT: %[[RESULT:.*]] = arith.select %[[IS_NAN]], %[[RHS]], %[[SELECT]] : f32
+// CHECK-NEXT: return %[[RESULT]] : f32
 
 // -----
 
@@ -256,13 +237,21 @@ func.func @truncf_f32(%arg0 : f32) -> bf16 {
 }
 
 // CHECK-LABEL: @truncf_f32
-// CHECK-SAME: %[[ARG0:.+]]: f32
-// CHECK-DAG: %[[C16:.+]] = arith.constant 16
-// CHECK-DAG: %[[BITCAST:.+]] = arith.bitcast %[[ARG0]] : f32 to i32
-// CHECK-DAG: %[[SHR:.+]] = arith.shrui %[[BITCAST]], %[[C16]]
-// CHECK-DAG: %[[TRUNC:.+]] = arith.trunci %[[SHR]] : i32 to i16
-// CHECK-DAG: %[[BITCAST:.+]] = arith.bitcast %[[TRUNC]] : i16 to bf16
-// CHECK: return %[[BITCAST]] : bf16
+// CHECK-DAG: %[[C1:.+]] = arith.constant 1 : i32
+// CHECK-DAG: %[[C16:.+]] = arith.constant 16 : i32
+// CHECK-DAG: %[[C7FC0_i16:.+]] = arith.constant 32704 : i16
+// CHECK-DAG: %[[C7FFF:.+]] = arith.constant 32767 : i32
+// CHECK-DAG: %[[ISNAN:.+]] = arith.cmpf une, %arg0, %arg0 : f32
+// CHECK-DAG: %[[BITCAST:.+]] = arith.bitcast %arg0 : f32 to i32
+// CHECK-DAG: %[[SHRUI:.+]] = arith.shrui %[[BITCAST]], %[[C16]] : i32
+// CHECK-DAG: %[[BIT16:.+]] = arith.andi %[[SHRUI]], %[[C1]] : i32
+// CHECK-DAG: %[[ROUNDING_BIAS:.+]] = arith.addi %[[BIT16]], %[[C7FFF]] : i32
+// CHECK-DAG: %[[BIASED:.+]] = arith.addi %[[BITCAST]], %[[ROUNDING_BIAS]] : i32
+// CHECK-DAG: %[[BIASED_SHIFTED:.+]] = arith.shrui %[[BIASED]], %[[C16]] : i32
+// CHECK-DAG: %[[NORMAL_CASE_RESULT_i16:.+]] = arith.trunci %[[BIASED_SHIFTED]] : i32 to i16
+// CHECK-DAG: %[[SELECT:.+]] = arith.select %[[ISNAN]], %[[C7FC0_i16]], %[[NORMAL_CASE_RESULT_i16]] : i16
+// CHECK-DAG: %[[RESULT:.+]] = arith.bitcast %[[SELECT]] : i16 to bf16
+// CHECK: return %[[RESULT]]
 
 // -----
 
@@ -272,10 +261,4 @@ func.func @truncf_vector_f32(%arg0 : vector<4xf32>) -> vector<4xbf16> {
 }
 
 // CHECK-LABEL: @truncf_vector_f32
-// CHECK-SAME: %[[ARG0:.+]]: vector<4xf32>
-// CHECK-DAG: %[[C16:.+]] = arith.constant dense<16>
-// CHECK-DAG: %[[BITCAST:.+]] = arith.bitcast %[[ARG0]] : vector<4xf32> to vector<4xi32>
-// CHECK-DAG: %[[SHR:.+]] = arith.shrui %[[BITCAST]], %[[C16]]
-// CHECK-DAG: %[[TRUNC:.+]] = arith.trunci %[[SHR]] : vector<4xi32> to vector<4xi16>
-// CHECK-DAG: %[[BITCAST:.+]] = arith.bitcast %[[TRUNC]] : vector<4xi16> to vector<4xbf16>
-// CHECK: return %[[BITCAST]] : vector<4xbf16>
+// CHECK-NOT: arith.truncf

@@ -5,13 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// RUN: %clangxx -fsycl -I%S/.. %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// UNSUPPORTED: cuda || hip
-// TODO online_compiler check fails for esimd_emulator
-// XFAIL: esimd_emulator
+// RUN: %{build} -I%S/.. -o %t.out
+// RUN: %{run} %t.out
 
 #include <cstdint>
 

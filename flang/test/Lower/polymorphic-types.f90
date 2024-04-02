@@ -1,4 +1,4 @@
-! RUN: bbc -polymorphic-type -emit-fir %s -o - | FileCheck %s
+! RUN: bbc -emit-fir -hlfir=false %s -o - | FileCheck %s
 
 ! Tests the different possible type involving polymorphic entities. 
 
@@ -179,6 +179,6 @@ contains
   end subroutine assumed_type_dummy_array
 
   ! CHECK-LABEL: func.func @assumed_type_dummy_array(
-  ! CHECK-SAME: %{{.*}}: !fir.ref<none>
+  ! CHECK-SAME: %{{.*}}: !fir.box<!fir.array<?xnone>>
 
 end module

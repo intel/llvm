@@ -68,6 +68,20 @@ func.func @struct_literal_opaque() {
 
 // -----
 
+func.func @top_level_struct_no_body() {
+  // expected-error @below {{struct without a body only allowed in a recursive struct}}
+  "some.op"() : () -> !llvm.struct<"a">
+}
+
+// -----
+
+func.func @nested_redefine_attempt() {
+  // expected-error @below {{identifier already used for an enclosing struct}}
+  "some.op"() : () -> !llvm.struct<"a", (struct<"a", ()>)>
+}
+
+// -----
+
 func.func @unexpected_type() {
   // expected-error @+1 {{unexpected type, expected keyword}}
   "some.op"() : () -> !llvm.tensor<*xf32>
@@ -158,3 +172,18 @@ func.func private @unexpected_type() -> !llvm.f32
 
 // expected-error @below {{cannot use !llvm.vec for built-in primitives, use 'vector' instead}}
 func.func private @llvm_vector_primitive() -> !llvm.vec<4 x f32>
+
+// -----
+
+func.func private @target_ext_invalid_order() {
+  // expected-error @+1 {{failed to parse parameter list for target extension type}}
+  "some.op"() : () -> !llvm.target<"target1", 5, i32, 1>
+}
+
+// -----
+
+func.func private @target_ext_no_name() {
+  // expected-error@below {{expected string}}
+  // expected-error@below {{failed to parse LLVMTargetExtType parameter 'extTypeName' which is to be a `::llvm::StringRef`}}
+  "some.op"() : () -> !llvm.target<i32, 42>
+}

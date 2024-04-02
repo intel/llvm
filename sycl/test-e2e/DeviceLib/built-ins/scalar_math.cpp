@@ -1,9 +1,11 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
-#include <sycl/sycl.hpp>
+// RUN: %{build} %{mathflags} -o %t.out
+// RUN: %{run} %t.out
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
 
 #include <array>
 #include <cassert>

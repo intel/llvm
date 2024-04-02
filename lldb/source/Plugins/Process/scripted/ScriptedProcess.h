@@ -12,6 +12,7 @@
 #include "lldb/Target/Process.h"
 #include "lldb/Utility/ConstString.h"
 #include "lldb/Utility/ScriptedMetadata.h"
+#include "lldb/Utility/State.h"
 #include "lldb/Utility/Status.h"
 
 #include "ScriptedThread.h"
@@ -49,6 +50,8 @@ public:
 
   void DidLaunch() override;
 
+  void DidResume() override;
+
   Status DoResume() override;
 
   Status DoAttachToProcessWithID(lldb::pid_t pid,
@@ -72,6 +75,8 @@ public:
   size_t DoWriteMemory(lldb::addr_t vm_addr, const void *buf, size_t size,
                        Status &error) override;
 
+  Status EnableBreakpointSite(BreakpointSite *bp_site) override;
+
   ArchSpec GetArchitecture();
 
   Status
@@ -88,11 +93,18 @@ public:
 
   void *GetImplementation() override;
 
+  void ForceScriptedState(lldb::StateType state) override {
+    // If we're about to stop, we should fetch the loaded dynamic libraries
+    // dictionary before emitting the private stop event to avoid having the
+    // module loading happen while the process state is changing.
+    if (StateIsStoppedState(state, true))
+      GetLoadedDynamicLibrariesInfos();
+    SetPrivateState(state);
+  }
+
 protected:
   ScriptedProcess(lldb::TargetSP target_sp, lldb::ListenerSP listener_sp,
                   const ScriptedMetadata &scripted_metadata, Status &error);
-
-  Status DoStop();
 
   void Clear();
 

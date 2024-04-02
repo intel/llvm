@@ -6,12 +6,12 @@
 ; RUN: llvm-lto -exported-symbol=_main %t1 -o %t2 --lto-save-before-opt
 ; RUN: llvm-dis -o - %t2.0.preopt.bc | FileCheck %s --check-prefix=PUBLIC
 
-; RUN: llvm-lto2 run -opaque-pointers %t1 -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run %t1 -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
 ; RUN:   -o %t2 \
 ; RUN:   -r=%t1,_main,px
 ; RUN: llvm-dis %t2.0.0.preopt.bc -o - | FileCheck %s --check-prefix=HIDDEN
-; RUN: llvm-lto2 run -opaque-pointers %t1 -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run %t1 -save-temps -pass-remarks=. \
 ; RUN:   -o %t2 \
 ; RUN:   -r=%t1,_main,px
 ; RUN: llvm-dis %t2.0.0.preopt.bc -o - | FileCheck %s --check-prefix=PUBLIC

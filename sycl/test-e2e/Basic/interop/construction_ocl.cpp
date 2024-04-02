@@ -1,5 +1,5 @@
 // REQUIRES: opencl, opencl_icd
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %opencl_lib %s -o %t.ocl.out
+// RUN: %{build} %opencl_lib -o %t.ocl.out
 // RUN: env ONEAPI_DEVICE_SELECTOR="opencl:*" %t.ocl.out
 
 #include <CL/cl.h>
@@ -98,7 +98,7 @@ int main() {
     try {
       auto KB2 =
           sycl::make_kernel_bundle<BE, sycl::bundle_state::input>(OclProg, Ctx);
-    } catch (sycl::runtime_error Ex) {
+    } catch (sycl::exception Ex) {
       StateMismatch = true;
     }
     assert(StateMismatch);
@@ -141,7 +141,7 @@ int main() {
     try {
       auto KB2 =
           sycl::make_kernel_bundle<BE, sycl::bundle_state::input>(OclProg, Ctx);
-    } catch (sycl::runtime_error Ex) {
+    } catch (sycl::exception Ex) {
       StateMismatch = true;
     }
     assert(StateMismatch);
@@ -150,7 +150,7 @@ int main() {
     try {
       auto KB3 = sycl::make_kernel_bundle<BE, sycl::bundle_state::object>(
           OclProg, Ctx);
-    } catch (sycl::runtime_error Ex) {
+    } catch (sycl::exception Ex) {
       StateMismatch = true;
     }
     assert(StateMismatch);

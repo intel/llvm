@@ -17,9 +17,12 @@
 
 namespace mlir {
 class AffineExpr;
-class AffineForOp;
 class AffineMap;
 class PatternRewriter;
+
+namespace affine {
+class AffineForOp;
+} // namespace affine
 
 namespace tensor {
 class ExtractSliceOp;
@@ -30,40 +33,6 @@ namespace linalg {
 //===----------------------------------------------------------------------===//
 // Utilities for inferring various semantics properties of Linalg ops.
 //===----------------------------------------------------------------------===//
-
-/// Possible dimension candidates that define a matmul embedded in the indexing
-/// maps of a LinalgOp.
-struct EmbeddedMatmulDimsCandidates {
-  DenseSet<int64_t> mPos, nPos, kPos;
-};
-
-/// Given a `linalgOp` and one of its `opOperand`, returns the positions of the
-/// iterators of type `iter` that index the `opOperand` as a permutation.
-/// This is useful to infer various subcomputations on a given `linalgOp`.
-/// This is performed by looking up each result in the matching indexing map and
-/// determining whether:
-///   - It is a single AffineDimExpr.
-///   - It is the only result involving this AffineDimExpr.
-DenseSet<int64_t> findPermutationsIndexingOperand(LinalgOp linalgOp,
-                                                  OpOperand *opOperand,
-                                                  utils::IteratorType iter);
-
-/// Return true if `linalgOp` contains an embedded matmul subcomputation in its
-/// most minor dimensions.
-bool containsMostMinorMatmul(linalg::LinalgOp linalgOp);
-
-/// Find 2 parallel (m and n) and 1 reduction (k) dimension candidates that form
-/// a matmul subcomputation within `linalgOp`. These dimensions are such that:
-///   1. The m dimension is involved in an outer-product along LHS
-///      (i.e. it is a permutation on RES and LHS and does not appear in RHS).
-///   2. The n dimension is involved in an outer-product along RHS
-///      (i.e. it is a permutation on RES and RHS and does not appear in LHS).
-///   3. The k dimension appears as a permutation on LHS and RHS.
-///   4. m, n and k appear only once in any given indexing.
-/// This allows detecting that some matmul is embedded within `linalgOp` with
-/// some orthogonal heuristic.
-FailureOr<EmbeddedMatmulDimsCandidates>
-inferMatmulDims(linalg::LinalgOp linalgOp);
 
 //===----------------------------------------------------------------------===//
 // General utilities
@@ -83,54 +52,6 @@ bool isParallelIterator(utils::IteratorType iteratorType);
 
 /// Check if iterator type  has "reduction" semantics.
 bool isReductionIterator(utils::IteratorType iteratorType);
-
-/// Helper function that creates a memref::DimOp or tensor::DimOp depending on
-/// the type of `source`.
-Value createOrFoldDimOp(OpBuilder &b, Location loc, Value source, int64_t dim);
-OpFoldResult createFoldedDimOp(OpBuilder &b, Location loc, Value source,
-                               int64_t dim);
-
-/// Given an operation, retrieves the value of each dynamic dimension through
-/// constructing the necessary DimOp operators.
-SmallVector<Value, 4> getDynOperands(Location loc, Value val, OpBuilder &b);
-
-/// Computes an upper bound for the result `value` of an index computation.
-/// Translates AffineMinOps and AffineApplyOps along the use-def chains of the
-/// index computation to affine constraints and projects out intermediate
-/// values. The method sets `boundMap` to an affine map that given
-/// `boundOperands` evaluates to an upper bound for the index computation.
-///
-/// If constantRequired is true, only returns the constant bounds (potentially
-/// over-approximating) and fails when not possible.
-///
-/// Example:
-/// ```
-/// %dim0 = dim %tensor, %c0
-/// %dim1 = dim %tensor, %c1
-/// %0 = affine.min affine.map<(d0) -> (40, d0)> (%dim0)
-/// %1 = affine.apply affine.map<(d0, d1) -> (d0 + d1)> (%0, %dim1)
-/// ```
-/// getUpperBoundForIndex(%1, boundMap, boundOperands)
-/// set the output parameters to:
-/// - boundMap = affine.map<(d0) -> (d0 + 40)>
-/// - boundOperands = [%dim1]
-void getUpperBoundForIndex(Value value, AffineMap &boundMap,
-                           SmallVectorImpl<Value> &boundOperands,
-                           bool constantRequired = false);
-
-/// Returns a constant upper bound for the result `value` of an index
-/// computation. Calls `getUpperBoundForIndex` and returns a constant upper
-/// bound if the result of `boundMap` is a constant expression and failure
-/// otherwise.
-///
-/// Example:
-/// ```
-/// %0 = affine.min affine.map<(d0) -> (40, d0)> (%d0)
-/// %1 = affine.apply affine.map<(d0) -> (d0 + 2)> (%0)
-/// ```
-/// getConstantUpperBoundForIndex(%1) returns 42
-/// (boundsMap = affine.map<() -> (42)>)
-FailureOr<int64_t> getConstantUpperBoundForIndex(Value value);
 
 /// Create a tensor::PadOp that pads `source` to the size of the statically
 /// sized `type` whose static sizes are assumed to be greater than the dynamic
@@ -173,10 +94,6 @@ GenericOp makeMemRefCopyOp(OpBuilder &b, Location loc, Value from, Value to);
 /// point (and potentially cannot be handled).
 std::optional<SmallVector<ReassociationIndices>>
 getReassociationMapForFoldingUnitDims(ArrayRef<OpFoldResult> mixedSizes);
-
-/// Return the identity numeric value associated to the give op. Return
-/// std::nullopt if there is no known neutral element.
-std::optional<Attribute> getNeutralElement(Operation *op);
 
 //===----------------------------------------------------------------------===//
 // Fusion / Tiling utilities
@@ -309,6 +226,7 @@ struct FusionInfo {
 /// transformation).
 FailureOr<FusionInfo> fuseProducerOfTensor(OpBuilder &b,
                                            OpOperand &consumerOpOperand);
+
 /// Tensor counterpart of `fuseProducerOfBuffer`.
 /// This implements the fusion part of the "tileAndFuse on tensors"
 /// transformation and thus requires the `consumerOpOperand` to be a
@@ -403,65 +321,6 @@ void updateBoundsForCyclicDistribution(OpBuilder &builder, Location loc,
 //===----------------------------------------------------------------------===//
 // Fusion on tensor utilities
 //===----------------------------------------------------------------------===//
-
-/// A struct to manage the tile loop nest specific information.
-class TileLoopNest {
-public:
-  TileLoopNest(LinalgOp rootOp) : rootOp(rootOp) {}
-
-  /// Tile the root operation using the given `tileSizes` and
-  /// `tileInterchange`, and `tileDistribution`.
-  LogicalResult
-  tileRootOp(OpBuilder &b, ArrayRef<int64_t> tileSizes,
-             ArrayRef<int64_t> tileInterchange,
-             std::optional<LinalgLoopDistributionOptions> tileDistribution);
-
-  /// Fuse the producer of `consumerOpOperand` into the tile loop nest.
-  /// Returns the fused producer or fails if fusion is not possible.
-  FailureOr<LinalgOp> fuseProducer(OpBuilder &b, OpOperand *consumerOpOperand);
-
-  /// Returns the replacement results for the original untiled root operation.
-  ValueRange getRootOpReplacementResults();
-
-  /// Returns the tiled root operation.
-  LinalgOp getRootOp() { return rootOp; }
-
-  /// Returns the tiled root operation and the fused producers.
-  SmallVector<LinalgOp> getAllTiledAndFusedOps();
-
-  /// Returns the loop ops generated from tiling.
-  ArrayRef<scf::ForOp> getLoopOps() { return tileLoopOps; }
-
-  /// Returns true if the tile loop nest has no tile loops.
-  bool isEmpty();
-
-private:
-  /// Returns true if the tile loop nest invariants are satisfied:
-  /// - The `rootOp` has been tiled at least once.
-  /// - The number of tile loop operations and dimensions match.
-  /// - The innermost tile loop is the parent of `tiledOp`.
-  /// - The tile loops are directly nested.
-  // TODO: relax to support additional control flow, e.g., IfOp.
-  bool isValid();
-
-  /// Searches the block arguments tied to a block argument `bbArg` of the
-  /// innermost tile loop. Returns the block argument from outermost to
-  /// innermost or an empty vector if none are found.
-  SmallVector<BlockArgument> getTiedBBArgs(BlockArgument bbArg);
-
-  /// Returns the iteration argument of the outermost tile loop mapped to a
-  /// block argument `bbArg` of the innermost tile loop.
-  OpOperand *getTiedIterArg(BlockArgument bbArg);
-
-  /// Returns true if `bbArg` has other used than `sliceOp` and its
-  /// dependencies. Only if there are no other uses, the producer output
-  /// iteration argument may reused to pass the producer result after fusion.
-  bool hasOtherUses(BlockArgument bbArg, tensor::ExtractSliceOp sliceOp);
-
-  LinalgOp rootOp;
-  SmallVector<scf::ForOp> tileLoopOps;
-  DenseMap<Operation *, SmallVector<int64_t>> tiledRootAndFusedOpsLoops;
-};
 
 //===----------------------------------------------------------------------===//
 // Generic op region utilities

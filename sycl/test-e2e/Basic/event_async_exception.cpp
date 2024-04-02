@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 //==---- event_async_exception.cpp - Test for event async exceptions -------==//
 //
@@ -11,7 +9,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 // This test checks that if there is a submit failure, the asynchronous
 // exception is associated with the returned event.

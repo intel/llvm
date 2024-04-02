@@ -1,18 +1,19 @@
+// REQUIRES: aspect-fp64
 // UNSUPPORTED: hip
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
 
-// RUN: %clangxx -fsycl -fsycl-device-lib-jit-link %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+
+// RUN: %{build} %{mathflags} -o %t.out
+// RUN: %{run} %t.out
+
+// RUN: %clangxx -fsycl -fsycl-device-lib-jit-link %{mathflags} %s -o %t.out
+// RUN: %if !gpu %{ %{run} %t.out %}
 
 #include "math_utils.hpp"
 #include <cstdint>
 #include <iostream>
 #include <math.h>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 namespace s = sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
@@ -165,9 +166,7 @@ void device_math_test(s::queue &deviceQueue) {
 
 int main() {
   s::queue deviceQueue;
-  if (deviceQueue.get_device().has(sycl::aspect::fp64)) {
-    device_math_test(deviceQueue);
-    std::cout << "Pass" << std::endl;
-  }
+  device_math_test(deviceQueue);
+  std::cout << "Pass" << std::endl;
   return 0;
 }

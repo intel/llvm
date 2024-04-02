@@ -100,17 +100,17 @@ std::string fir::NameUniquer::doKinds(llvm::ArrayRef<std::int64_t> kinds) {
 }
 
 std::string fir::NameUniquer::doCommonBlock(llvm::StringRef name) {
-  std::string result = prefix();
-  return result.append("C").append(toLower(name));
+  return prefix().append("C").append(toLower(name));
 }
 
 std::string
 fir::NameUniquer::doConstant(llvm::ArrayRef<llvm::StringRef> modules,
                              llvm::ArrayRef<llvm::StringRef> procs,
                              std::int64_t blockId, llvm::StringRef name) {
-  std::string result = prefix();
-  result.append(doAncestors(modules, procs, blockId)).append("EC");
-  return result.append(toLower(name));
+  return prefix()
+      .append(doAncestors(modules, procs, blockId))
+      .append("EC")
+      .append(toLower(name));
 }
 
 std::string
@@ -118,14 +118,25 @@ fir::NameUniquer::doDispatchTable(llvm::ArrayRef<llvm::StringRef> modules,
                                   llvm::ArrayRef<llvm::StringRef> procs,
                                   std::int64_t blockId, llvm::StringRef name,
                                   llvm::ArrayRef<std::int64_t> kinds) {
-  std::string result = prefix();
-  result.append(doAncestors(modules, procs, blockId)).append("DT");
-  return result.append(toLower(name)).append(doKinds(kinds));
+  return prefix()
+      .append(doAncestors(modules, procs, blockId))
+      .append("DT")
+      .append(toLower(name))
+      .append(doKinds(kinds));
 }
 
 std::string fir::NameUniquer::doGenerated(llvm::StringRef name) {
-  std::string result = prefix();
-  return result.append("Q").append(name);
+  return prefix().append("Q").append(name);
+}
+
+std::string
+fir::NameUniquer::doGenerated(llvm::ArrayRef<llvm::StringRef> modules,
+                              llvm::ArrayRef<llvm::StringRef> procs,
+                              std::int64_t blockId, llvm::StringRef name) {
+  return prefix()
+      .append("Q")
+      .append(doAncestors(modules, procs, blockId))
+      .append(name);
 }
 
 std::string fir::NameUniquer::doIntrinsicTypeDescriptor(
@@ -151,27 +162,32 @@ std::string fir::NameUniquer::doIntrinsicTypeDescriptor(
     break;
   }
   assert(name && "unknown intrinsic type");
-  std::string result = prefix();
-  result.append(doAncestors(modules, procs, blockId)).append("YI");
-  return result.append(name).append(doKind(kind));
+  return prefix()
+      .append(doAncestors(modules, procs, blockId))
+      .append("YI")
+      .append(name)
+      .append(doKind(kind));
 }
 
 std::string
 fir::NameUniquer::doProcedure(llvm::ArrayRef<llvm::StringRef> modules,
                               llvm::ArrayRef<llvm::StringRef> procs,
                               llvm::StringRef name) {
-  std::string result = prefix();
-  result.append(doAncestors(modules, procs)).append("P");
-  return result.append(toLower(name));
+  return prefix()
+      .append(doAncestors(modules, procs))
+      .append("P")
+      .append(toLower(name));
 }
 
 std::string fir::NameUniquer::doType(llvm::ArrayRef<llvm::StringRef> modules,
                                      llvm::ArrayRef<llvm::StringRef> procs,
                                      std::int64_t blockId, llvm::StringRef name,
                                      llvm::ArrayRef<std::int64_t> kinds) {
-  std::string result = prefix();
-  result.append(doAncestors(modules, procs, blockId)).append("T");
-  return result.append(toLower(name)).append(doKinds(kinds));
+  return prefix()
+      .append(doAncestors(modules, procs, blockId))
+      .append("T")
+      .append(toLower(name))
+      .append(doKinds(kinds));
 }
 
 std::string
@@ -179,9 +195,11 @@ fir::NameUniquer::doTypeDescriptor(llvm::ArrayRef<llvm::StringRef> modules,
                                    llvm::ArrayRef<llvm::StringRef> procs,
                                    std::int64_t blockId, llvm::StringRef name,
                                    llvm::ArrayRef<std::int64_t> kinds) {
-  std::string result = prefix();
-  result.append(doAncestors(modules, procs, blockId)).append("CT");
-  return result.append(toLower(name)).append(doKinds(kinds));
+  return prefix()
+      .append(doAncestors(modules, procs, blockId))
+      .append("CT")
+      .append(toLower(name))
+      .append(doKinds(kinds));
 }
 
 std::string
@@ -198,18 +216,20 @@ std::string
 fir::NameUniquer::doVariable(llvm::ArrayRef<llvm::StringRef> modules,
                              llvm::ArrayRef<llvm::StringRef> procs,
                              std::int64_t blockId, llvm::StringRef name) {
-  std::string result = prefix();
-  result.append(doAncestors(modules, procs, blockId)).append("E");
-  return result.append(toLower(name));
+  return prefix()
+      .append(doAncestors(modules, procs, blockId))
+      .append("E")
+      .append(toLower(name));
 }
 
 std::string
 fir::NameUniquer::doNamelistGroup(llvm::ArrayRef<llvm::StringRef> modules,
                                   llvm::ArrayRef<llvm::StringRef> procs,
                                   llvm::StringRef name) {
-  std::string result = prefix();
-  result.append(doAncestors(modules, procs)).append("N");
-  return result.append(toLower(name));
+  return prefix()
+      .append(doAncestors(modules, procs))
+      .append("N")
+      .append(toLower(name));
 }
 
 llvm::StringRef fir::NameUniquer::doProgramEntry() {
@@ -220,7 +240,8 @@ llvm::StringRef fir::NameUniquer::doProgramEntry() {
 
 std::pair<fir::NameUniquer::NameKind, fir::NameUniquer::DeconstructedName>
 fir::NameUniquer::deconstruct(llvm::StringRef uniq) {
-  if (uniq.startswith("_Q")) {
+  uniq = fir::NameUniquer::dropTypeConversionMarkers(uniq);
+  if (uniq.starts_with("_Q")) {
     llvm::SmallVector<std::string> modules;
     llvm::SmallVector<std::string> procs;
     std::int64_t blockId = 0;
@@ -333,8 +354,8 @@ mangleTypeDescriptorKinds(llvm::ArrayRef<std::int64_t> kinds) {
 
 static std::string getDerivedTypeObjectName(llvm::StringRef mangledTypeName,
                                             const llvm::StringRef separator) {
-  if (mangledTypeName.ends_with(boxprocSuffix))
-    mangledTypeName = mangledTypeName.drop_back(boxprocSuffix.size());
+  mangledTypeName =
+      fir::NameUniquer::dropTypeConversionMarkers(mangledTypeName);
   auto result = fir::NameUniquer::deconstruct(mangledTypeName);
   if (result.first != fir::NameUniquer::NameKind::DERIVED_TYPE)
     return "";
@@ -358,4 +379,11 @@ fir::NameUniquer::getTypeDescriptorName(llvm::StringRef mangledTypeName) {
 std::string fir::NameUniquer::getTypeDescriptorBindingTableName(
     llvm::StringRef mangledTypeName) {
   return getDerivedTypeObjectName(mangledTypeName, bindingTableSeparator);
+}
+
+llvm::StringRef
+fir::NameUniquer::dropTypeConversionMarkers(llvm::StringRef mangledTypeName) {
+  if (mangledTypeName.ends_with(boxprocSuffix))
+    return mangledTypeName.drop_back(boxprocSuffix.size());
+  return mangledTypeName;
 }

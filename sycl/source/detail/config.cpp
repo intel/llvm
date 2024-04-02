@@ -17,12 +17,17 @@
 #include <limits>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 #ifndef SYCL_CONFIG_FILE_NAME
 #define SYCL_CONFIG_FILE_NAME "sycl.conf"
 #endif // SYCL_CONFIG_FILE_NAME
+
+// Stringify an argument to pass it in _Pragma directive below.
+#ifndef __SYCL_STRINGIFY
+#define __SYCL_STRINGIFY(x) #x
+#endif // __SYCL_STRINGIFY
 
 #define CONFIG(Name, MaxSize, CompileTimeDef)                                  \
   const char *SYCLConfigBase<Name>::MValueFromFile = nullptr;                  \
@@ -158,20 +163,9 @@ void dumpConfig() {
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
 // ONEAPI_DEVICE_SELECTOR
-const std::array<std::pair<std::string, info::device_type>, 6> &
-getSyclDeviceTypeMap() {
-  static const std::array<std::pair<std::string, info::device_type>, 6>
-      SyclDeviceTypeMap = {{{"host", info::device_type::host},
-                            {"cpu", info::device_type::cpu},
-                            {"gpu", info::device_type::gpu},
-                            {"acc", info::device_type::accelerator},
-                            {"fpga", info::device_type::accelerator},
-                            {"*", info::device_type::all}}};
-  return SyclDeviceTypeMap;
-}
-
-// Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
-// ONEAPI_DEVICE_SELECTOR
+// TODO: Remove esimd_emulator in the next ABI breaking window.
+// TODO: host device type will be removed once sycl_ext_oneapi_filter_selector
+// is removed.
 const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap() {
   static const std::array<std::pair<std::string, backend>, 8> SyclBeMap = {
       {{"host", backend::host},
@@ -180,11 +174,11 @@ const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap() {
        {"cuda", backend::ext_oneapi_cuda},
        {"hip", backend::ext_oneapi_hip},
        {"esimd_emulator", backend::ext_intel_esimd_emulator},
-       {"ext_oneapi_unified_runtime", backend::ext_oneapi_unified_runtime},
+       {"native_cpu", backend::ext_oneapi_native_cpu},
        {"*", backend::all}}};
   return SyclBeMap;
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

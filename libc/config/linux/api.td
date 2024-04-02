@@ -1,11 +1,13 @@
 include "config/public_api.td"
 
-include "spec/bsd_ext.td"
-include "spec/gnu_ext.td"
-include "spec/linux.td"
-include "spec/llvm_libc_ext.td"
-include "spec/posix.td"
 include "spec/stdc.td"
+include "spec/posix.td"
+include "spec/linux.td"
+include "spec/gnu_ext.td"
+include "spec/bsd_ext.td"
+include "spec/stdc_ext.td"
+include "spec/llvm_libc_ext.td"
+include "spec/llvm_libc_stdfix_ext.td"
 
 def AssertMacro : MacroDef<"assert"> {
   let Defn = [{
@@ -55,7 +57,7 @@ def IntTypesAPI : PublicAPI<"inttypes.h"> {
 }
 
 def MathAPI : PublicAPI<"math.h"> {
-  let Types = ["double_t", "float_t"];
+  let Types = ["double_t", "float_t", "float128"];
 }
 
 def FenvAPI: PublicAPI<"fenv.h"> {
@@ -74,7 +76,6 @@ def StdIOAPI : PublicAPI<"stdio.h"> {
     SimpleMacroDef<"_IOFBF", "0">,
     SimpleMacroDef<"_IOLBF", "1">,
     SimpleMacroDef<"_IONBF", "2">,
-    SimpleMacroDef<"EOF", "-1">,
   ];
   let Types = ["size_t", "FILE", "cookie_io_functions_t"];
 }
@@ -87,6 +88,7 @@ def StdlibAPI : PublicAPI<"stdlib.h"> {
     "size_t",
     "__bsearchcompare_t",
     "__qsortcompare_t",
+    "__qsortrcompare_t",
     "__atexithandler_t",
   ];
 }
@@ -103,11 +105,19 @@ def TimeAPI : PublicAPI<"time.h"> {
 }
 
 def SchedAPI : PublicAPI<"sched.h"> {
-  let Types = ["pid_t", "size_t", "cpu_set_t"];
+  let Types = [
+    "pid_t",
+    "size_t",
+    "cpu_set_t",
+    "struct sched_param",
+    // Needed according to posix standard
+    "time_t",
+    "struct timespec",
+  ];
 }
 
 def SysMManAPI : PublicAPI<"sys/mman.h"> {
-  let Types = ["off_t", "size_t"];
+  let Types = ["off_t", "size_t", "mode_t"];
 }
 
 def SignalAPI : PublicAPI<"signal.h"> {
@@ -195,6 +205,15 @@ def SysSelectAPI : PublicAPI<"sys/select.h"> {
                "struct timeval"];
 }
 
+def SysSocketAPI : PublicAPI<"sys/socket.h"> {
+  let Types = [
+    "sa_family_t",
+    "socklen_t",
+    "struct sockaddr",
+    "struct sockaddr_un",
+  ];
+}
+
 def SysResourceAPI : PublicAPI<"sys/resource.h"> {
   let Types = ["rlim_t", "struct rlimit"];
 }
@@ -206,7 +225,7 @@ def SysStatAPI : PublicAPI<"sys/stat.h"> {
 }
 
 def SysWaitAPI : PublicAPI<"sys/wait.h"> {
-  let Types = ["pid_t", "struct rusage"];
+  let Types = ["pid_t", "struct rusage", "siginfo_t"];
 }
 
 def SysSendfileAPI : PublicAPI<"sys/sendfile.h"> {
@@ -224,6 +243,10 @@ def SysUtsNameAPI : PublicAPI<"sys/utsname.h"> {
   let Types = ["struct utsname"];
 }
 
+def SysEpollAPI : PublicAPI<"sys/epoll.h"> {
+  let Types = ["struct epoll_event", "struct epoll_data", "sigset_t", "struct timespec"];
+}
+
 def SpawnAPI : PublicAPI<"spawn.h"> {
   let Types = ["mode_t", "pid_t", "posix_spawnattr_t", "posix_spawn_file_actions_t"];
 }
@@ -234,4 +257,12 @@ def TermiosAPI : PublicAPI<"termios.h"> {
 
 def SetJmpAPI : PublicAPI<"setjmp.h"> {
   let Types = ["jmp_buf"];
+}
+
+def SearchAPI : PublicAPI<"search.h"> {
+  let Types = ["ACTION", "ENTRY", "struct hsearch_data"];
+}
+
+def SysStatvfsAPI : PublicAPI<"sys/statvfs.h"> {
+  let Types = ["fsblkcnt_t", "fsfilcnt_t", "struct statvfs"];
 }

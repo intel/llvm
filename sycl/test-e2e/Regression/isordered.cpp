@@ -1,9 +1,9 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUNx: %CPU_RUN_PLACEHOLDER %t.out
-// RUNx: %GPU_RUN_PLACEHOLDER %t.out
-// RUNx: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUNx: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
 
 int main() {
   sycl::range<1> ndRng(3);

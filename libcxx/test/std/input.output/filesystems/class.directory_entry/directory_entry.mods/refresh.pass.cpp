@@ -6,7 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++03
+// REQUIRES: can-create-symlinks
+// UNSUPPORTED: c++03, c++11, c++14
 
 // The string reported on errors changed, which makes those tests fail when run
 // against already-released libc++'s.
@@ -21,13 +22,14 @@
 // void assign(path const&);
 // void replace_filename(path const&);
 
-#include "filesystem_include.h"
+#include <filesystem>
 #include <type_traits>
 #include <cassert>
 
 #include "assert_macros.h"
 #include "test_macros.h"
 #include "filesystem_test_helper.h"
+namespace fs = std::filesystem;
 
 static void test_refresh_method() {
   using namespace fs;
@@ -251,7 +253,7 @@ static void refresh_doesnt_throw_on_dne_but_reports_it() {
     TEST_DOES_NOT_THROW(ent.refresh());
 
     ec = GetTestEC();
-    assert(ent.file_size(ec) == uintmax_t(-1));
+    assert(ent.file_size(ec) == std::uintmax_t(-1));
     assert(ErrorIs(ec, std::errc::no_such_file_or_directory));
 
     // doesn't throw!
@@ -274,7 +276,7 @@ static void refresh_doesnt_throw_on_dne_but_reports_it() {
     assert(!ec);
 
     ec = GetTestEC();
-    assert(ent.file_size(ec) == uintmax_t(-1));
+    assert(ent.file_size(ec) == std::uintmax_t(-1));
     assert(ErrorIs(ec, std::errc::no_such_file_or_directory));
 
     TEST_THROWS_TYPE(filesystem_error, ent.file_size());
@@ -316,7 +318,7 @@ static void access_cache_after_refresh_fails() {
     CHECK_ACCESS(exists, false);
     CHECK_ACCESS(is_symlink, false);
     CHECK_ACCESS(last_write_time, file_time_type::min());
-    CHECK_ACCESS(hard_link_count, uintmax_t(-1));
+    CHECK_ACCESS(hard_link_count, std::uintmax_t(-1));
   }
   permissions(dir, old_perms);
   {
@@ -333,7 +335,7 @@ static void access_cache_after_refresh_fails() {
     CHECK_ACCESS(exists, false);
     CHECK_ACCESS(is_symlink, false);
     CHECK_ACCESS(last_write_time, file_time_type::min());
-    CHECK_ACCESS(hard_link_count, uintmax_t(-1));
+    CHECK_ACCESS(hard_link_count, std::uintmax_t(-1));
   }
   permissions(dir, old_perms);
   {
@@ -351,7 +353,7 @@ static void access_cache_after_refresh_fails() {
     CHECK_ACCESS(exists, false);
     CHECK_ACCESS(is_regular_file, false);
     CHECK_ACCESS(last_write_time, file_time_type::min());
-    CHECK_ACCESS(hard_link_count, uintmax_t(-1));
+    CHECK_ACCESS(hard_link_count, std::uintmax_t(-1));
   }
 #undef CHECK_ACCESS
 }

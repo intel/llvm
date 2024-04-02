@@ -21,9 +21,19 @@ namespace d = s::detail;
 namespace __host_std {
 namespace {
 
-template <typename T> inline T __abs_diff(T x, T y) {
+template <typename T> inline std::make_unsigned_t<T> __abs_diff(T x, T y) {
   static_assert(std::is_integral<T>::value,
                 "Only integral types are supported");
+  using UT = std::make_unsigned_t<T>;
+
+  // We need to be careful to avoid undefined behavior from signed integer
+  // overflow. That is, if only one of the operands are negative we can overflow
+  // the distance when using signed values. Instead, compute the distance as the
+  // sum of absolule values.
+  if constexpr (std::is_signed_v<T>)
+    if ((x < 0) != (y < 0))
+      return static_cast<UT>(std::abs(x)) + static_cast<UT>(std::abs(y));
+
   return (x > y) ? (x - y) : (y - x);
 }
 

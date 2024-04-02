@@ -8,11 +8,13 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/properties/property.hpp>
-#include <sycl/ext/oneapi/properties/property_value.hpp>
+#include <sycl/ext/oneapi/properties/property.hpp>       // for PropKind
+#include <sycl/ext/oneapi/properties/property_value.hpp> // for property_value
+
+#include <type_traits> // for true_type
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::experimental {
 
 enum class latency_control_type {
@@ -22,14 +24,18 @@ enum class latency_control_type {
   min
 };
 
-struct latency_anchor_id_key {
+struct latency_anchor_id_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::LatencyAnchorID> {
   template <int Anchor>
   using value_t =
       oneapi::experimental::property_value<latency_anchor_id_key,
                                            std::integral_constant<int, Anchor>>;
 };
 
-struct latency_constraint_key {
+struct latency_constraint_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::LatencyConstraint> {
   template <int Target, latency_control_type Type, int Cycle>
   using value_t = oneapi::experimental::property_value<
       latency_constraint_key, std::integral_constant<int, Target>,
@@ -59,30 +65,6 @@ struct property_value<
   static constexpr int cycle = Cycle;
 };
 
-template <>
-struct is_property_key<intel::experimental::latency_anchor_id_key>
-    : std::true_type {};
-template <>
-struct is_property_key<intel::experimental::latency_constraint_key>
-    : std::true_type {};
-
-namespace detail {
-
-template <> struct PropertyToKind<intel::experimental::latency_anchor_id_key> {
-  static constexpr PropKind Kind = PropKind::LatencyAnchorID;
-};
-template <> struct PropertyToKind<intel::experimental::latency_constraint_key> {
-  static constexpr PropKind Kind = PropKind::LatencyConstraint;
-};
-
-template <>
-struct IsCompileTimeProperty<intel::experimental::latency_anchor_id_key>
-    : std::true_type {};
-template <>
-struct IsCompileTimeProperty<intel::experimental::latency_constraint_key>
-    : std::true_type {};
-
-} // namespace detail
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

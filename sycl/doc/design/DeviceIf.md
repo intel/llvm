@@ -5,7 +5,7 @@ This document describes the design for the DPC++ implementation of the
 [sycl\_ext\_oneapi\_device\_architecture][2] extensions.
 
 [1]: <../extensions/proposed/sycl_ext_oneapi_device_if.asciidoc>
-[2]: <../extensions/proposed/sycl_ext_oneapi_device_architecture.asciidoc>
+[2]: <../extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc>
 
 
 ## Phased implementation
@@ -98,7 +98,12 @@ recognizes:
 * `amd_gpu_gfx904`
 * `amd_gpu_gfx906`
 * `amd_gpu_gfx908`
+* `amd_gpu_gfx909`
 * `amd_gpu_gfx90a`
+* `amd_gpu_gfx90c`
+* `amd_gpu_gfx940`
+* `amd_gpu_gfx941`
+* `amd_gpu_gfx942`
 * `amd_gpu_gfx1010`
 * `amd_gpu_gfx1011`
 * `amd_gpu_gfx1012`
@@ -106,7 +111,18 @@ recognizes:
 * `amd_gpu_gfx1030`
 * `amd_gpu_gfx1031`
 * `amd_gpu_gfx1032`
+* `amd_gpu_gfx1033`
 * `amd_gpu_gfx1034`
+* `amd_gpu_gfx1035`
+* `amd_gpu_gfx1036`
+* `amd_gpu_gfx1100`
+* `amd_gpu_gfx1101`
+* `amd_gpu_gfx1102`
+* `amd_gpu_gfx1103`
+* `amd_gpu_gfx1150`
+* `amd_gpu_gfx1151`
+* `amd_gpu_gfx1200`
+* `amd_gpu_gfx1201`
 
 The above listed device names may not be mixed with the existing target name
 `spir64_gen` on the same command line.  In addition, the user must not pass the
@@ -180,7 +196,12 @@ one of the following corresponding C++ macro names:
 * `__SYCL_TARGET_AMD_GPU_GFX904__`
 * `__SYCL_TARGET_AMD_GPU_GFX906__`
 * `__SYCL_TARGET_AMD_GPU_GFX908__`
+* `__SYCL_TARGET_AMD_GPU_GFX909__`
 * `__SYCL_TARGET_AMD_GPU_GFX90A__`
+* `__SYCL_TARGET_AMD_GPU_GFX90C__`
+* `__SYCL_TARGET_AMD_GPU_GFX940__`
+* `__SYCL_TARGET_AMD_GPU_GFX941__`
+* `__SYCL_TARGET_AMD_GPU_GFX942__`
 * `__SYCL_TARGET_AMD_GPU_GFX1010__`
 * `__SYCL_TARGET_AMD_GPU_GFX1011__`
 * `__SYCL_TARGET_AMD_GPU_GFX1012__`
@@ -188,7 +209,18 @@ one of the following corresponding C++ macro names:
 * `__SYCL_TARGET_AMD_GPU_GFX1030__`
 * `__SYCL_TARGET_AMD_GPU_GFX1031__`
 * `__SYCL_TARGET_AMD_GPU_GFX1032__`
+* `__SYCL_TARGET_AMD_GPU_GFX1033__`
 * `__SYCL_TARGET_AMD_GPU_GFX1034__`
+* `__SYCL_TARGET_AMD_GPU_GFX1035__`
+* `__SYCL_TARGET_AMD_GPU_GFX1036__`
+* `__SYCL_TARGET_AMD_GPU_GFX1100__`
+* `__SYCL_TARGET_AMD_GPU_GFX1101__`
+* `__SYCL_TARGET_AMD_GPU_GFX1102__`
+* `__SYCL_TARGET_AMD_GPU_GFX1103__`
+* `__SYCL_TARGET_AMD_GPU_GFX1150__`
+* `__SYCL_TARGET_AMD_GPU_GFX1151__`
+* `__SYCL_TARGET_AMD_GPU_GFX1200__`
+* `__SYCL_TARGET_AMD_GPU_GFX1201__`
 
 If the user invokes the compiler driver with `-fsycl-targets=spir64_x86_64`,
 the compiler driver must predefine the following C++ macro name:
@@ -207,7 +239,7 @@ listed architectures.  The following code snippet illustrates the technique:
 
 ```
 namespace sycl {
-namespace ext::oneapi::exprimental {
+namespace ext::oneapi::experimental {
 
 enum class architecture {
   x86_64,
@@ -217,7 +249,7 @@ enum class architecture {
   // ...
 };
 
-} // namespace ext::oneapi::exprimental
+} // namespace ext::oneapi::experimental
 
 namespace detail {
 
@@ -281,44 +313,43 @@ constexpr static bool device_architecture_is() {
 template<bool MakeCall>
 class if_architecture_helper {
  public:
-  template<ext::oneapi::exprimental::architecture ...Archs, typename T,
-           typename ...Args>
-  constexpr auto else_if_architecture_is(T fnTrue, Args ...args) {
+  template<ext::oneapi::experimental::architecture ...Archs, typename T>
+  constexpr auto else_if_architecture_is(T fnTrue) {
     if constexpr (MakeCall && device_architecture_is<Archs...>()) {
-      fnTrue(args...);
+      fnTrue();
       return if_architecture_helper<false>{};
     } else {
       return if_architecture_helper<MakeCall>{};
     }
   }
 
-  template<typename T, typename ...Args>
-  constexpr void otherwise(T fn, Args ...args) {
+  template<typename T>
+  constexpr void otherwise(T fn) {
     if constexpr (MakeCall) {
-      fn(args...);
+      fn();
     }
   }
 };
 
 } // namespace detail
 
-namespace ext::oneapi::exprimental {
+namespace ext::oneapi::experimental {
 
-template<architecture ...Archs, typename T, typename ...Args>
-constexpr static auto if_architecture_is(T fnTrue, Args ...args) {
+template<architecture ...Archs, typename T>
+constexpr static auto if_architecture_is(T fnTrue) {
   static_assert(detail::allowable_aot_mode<Archs...>(),
     "The if_architecture_is function may only be used when AOT "
     "compiling with '-fsycl-targets=spir64_x86_64' or "
     "'-fsycl-targets=intel_gpu_*'");
   if constexpr (detail::device_architecture_is<Archs...>()) {
-    fnTrue(args...);
+    fnTrue();
     return detail::if_architecture_helper<false>{};
   } else {
     return detail::if_architecture_helper<true>{};
   }
 }
 
-} // namespace ext::oneapi::exprimental
+} // namespace ext::oneapi::experimental
 } // namespace sycl
 ```
 

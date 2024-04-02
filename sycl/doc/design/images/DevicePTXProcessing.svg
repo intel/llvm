@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <svg
-   xmlns:dc="http://purl.org/dc/elements/1.1/"
-   xmlns:cc="http://creativecommons.org/ns#"
-   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-   xmlns:svg="http://www.w3.org/2000/svg"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:xlink="http://www.w3.org/1999/xlink"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    sodipodi:docname="DevicePTXProcessing.svg"
-   inkscape:version="0.92.3 (2405546, 2018-03-11)"
+   inkscape:version="1.2.2 (732a01da63, 2022-12-09)"
    id="svg8"
    version="1.1"
    viewBox="0 0 205.79753 221.03191"
    height="221.03191mm"
-   width="205.79753mm">
+   width="205.79753mm"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
   <defs
      id="defs2">
     <marker
@@ -2197,6 +2197,20 @@
          d="M 5.77,0 -2.88,5 V -5 Z"
          id="path4942-3" />
     </marker>
+    <marker
+       inkscape:isstock="true"
+       style="overflow:visible"
+       id="marker4944-3-5"
+       refX="0"
+       refY="0"
+       orient="auto"
+       inkscape:stockid="TriangleOutM">
+      <path
+         transform="scale(0.4)"
+         style="fill:#4472c4;fill-opacity:1;fill-rule:evenodd;stroke:#4472c4;stroke-width:1pt;stroke-opacity:1"
+         d="M 5.77,0 -2.88,5 V -5 Z"
+         id="path4942-3-2" />
+    </marker>
   </defs>
   <sodipodi:namedview
      fit-margin-bottom="0"
@@ -2204,16 +2218,16 @@
      fit-margin-left="0"
      fit-margin-top="0"
      inkscape:window-maximized="1"
-     inkscape:window-y="0"
-     inkscape:window-x="1920"
-     inkscape:window-height="1163"
-     inkscape:window-width="1920"
+     inkscape:window-y="-8"
+     inkscape:window-x="-8"
+     inkscape:window-height="1377"
+     inkscape:window-width="2560"
      showgrid="false"
      inkscape:document-rotation="0"
      inkscape:current-layer="layer1"
      inkscape:document-units="mm"
-     inkscape:cy="330.42371"
-     inkscape:cx="228.34098"
+     inkscape:cy="330.71429"
+     inkscape:cx="228.57143"
      inkscape:zoom="1.4"
      inkscape:pageshadow="2"
      inkscape:pageopacity="0.0"
@@ -2222,7 +2236,10 @@
      pagecolor="#ffffff"
      id="base"
      inkscape:snap-bbox="false"
-     inkscape:snap-global="false" />
+     inkscape:snap-global="false"
+     inkscape:showpageshadow="2"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1" />
   <metadata
      id="metadata5">
     <rdf:RDF>
@@ -2318,16 +2335,14 @@
        d="m 125.31238,20.80355 0.32455,-1.291166 1.29117,-0.324556 z" />
     <text
        id="text899"
-       style="font-variant:normal;font-weight:normal;font-size:4.95300007px;font-family:Calibri;-inkscape-font-specification:Calibri;writing-mode:lr-tb;fill:#404040;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.35277799"
+       style="font-variant:normal;font-weight:normal;font-size:4.953px;font-family:Calibri;-inkscape-font-specification:Calibri;writing-mode:lr-tb;fill:#404040;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
        x="99.965302"
-       y="16.988504">
-      <tspan
+       y="16.988504"><tspan
          id="tspan897"
          sodipodi:role="line"
-         style="stroke-width:0.35277799"
+         style="stroke-width:0.352778"
          x="99.965302"
-         y="16.988504">File table</tspan>
-    </text>
+         y="16.988504">File table</tspan></text>
     <path
        inkscape:connector-curvature="0"
        id="path901"
@@ -2428,13 +2443,11 @@
        id="text1309"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.953px;font-family:Consolas;-inkscape-font-specification:'Consolas, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
        x="101.31163"
-       y="84.249756">
-      <tspan
+       y="84.249756"><tspan
          sodipodi:role="line"
          id="tspan1686"
          x="101.31163"
-         y="84.249756">Clang</tspan>
-    </text>
+         y="84.249756">Clang</tspan></text>
     <g
        id="g1323"
        transform="matrix(0.35277777,0,0,-0.35277777,-47.188892,221.19433)">
@@ -2495,13 +2508,12 @@
         <text
            id="text1385"
            style="font-variant:normal;font-weight:normal;font-size:14.04px;font-family:Consolas;-inkscape-font-specification:Consolas;writing-mode:lr-tb;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
-           transform="matrix(1,0,0,-1,360.07,89.904)">
-          <tspan
+           transform="matrix(1,0,0,-1,360.07,89.904)"
+           y="0"><tspan
              id="tspan1383"
              sodipodi:role="line"
              y="0"
-             x="0 7.7220001 15.444 23.166 30.94416">clang</tspan>
-        </text>
+             x="0 7.7220001 15.444 23.166 30.94416">clang</tspan></text>
       </g>
     </g>
     <g
@@ -2513,12 +2525,10 @@
         <text
            id="text1397"
            style="font-variant:normal;font-weight:normal;font-size:14.04px;font-family:Consolas;-inkscape-font-specification:Consolas;writing-mode:lr-tb;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
-           transform="matrix(1,0,0,-1,398.71,89.904)">
-          <tspan
+           transform="matrix(1,0,0,-1,398.71,89.904)"><tspan
              id="tspan1395"
              y="0"
-             x="0">-</tspan>
-        </text>
+             x="0">-</tspan></text>
       </g>
     </g>
     <g
@@ -2530,13 +2540,12 @@
         <text
            id="text1409"
            style="font-variant:normal;font-weight:normal;font-size:14.04px;font-family:Consolas;-inkscape-font-specification:Consolas;writing-mode:lr-tb;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
-           transform="matrix(1,0,0,-1,406.51,89.904)">
-          <tspan
+           transform="matrix(1,0,0,-1,406.51,89.904)"
+           y="0"><tspan
              id="tspan1407"
              sodipodi:role="line"
              y="0"
-             x="0 7.7922001 15.5142 23.2362 30.9582 38.736359 46.528561">offload</tspan>
-        </text>
+             x="0 7.7922001 15.5142 23.2362 30.9582 38.736359 46.528561">offload</tspan></text>
       </g>
     </g>
     <g
@@ -2548,12 +2557,10 @@
         <text
            id="text1421"
            style="font-variant:normal;font-weight:normal;font-size:14.04px;font-family:Consolas;-inkscape-font-specification:Consolas;writing-mode:lr-tb;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
-           transform="matrix(1,0,0,-1,460.78,89.904)">
-          <tspan
+           transform="matrix(1,0,0,-1,460.78,89.904)"><tspan
              id="tspan1419"
              y="0"
-             x="0">-</tspan>
-        </text>
+             x="0">-</tspan></text>
       </g>
     </g>
     <g
@@ -2565,13 +2572,12 @@
         <text
            id="text1433"
            style="font-variant:normal;font-weight:normal;font-size:14.04px;font-family:Consolas;-inkscape-font-specification:Consolas;writing-mode:lr-tb;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
-           transform="matrix(1,0,0,-1,468.58,89.904)">
-          <tspan
+           transform="matrix(1,0,0,-1,468.58,89.904)"
+           y="0"><tspan
              id="tspan1431"
              sodipodi:role="line"
              y="0"
-             x="0 7.7922001 15.5142 23.2362 30.9582 38.736359 46.458359">wrapper</tspan>
-        </text>
+             x="0 7.7922001 15.5142 23.2362 30.9582 38.736359 46.458359">wrapper</tspan></text>
       </g>
     </g>
     <g
@@ -2629,13 +2635,11 @@
        id="text1509"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.953px;font-family:Consolas;-inkscape-font-specification:'Consolas, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
        x="81.597427"
-       y="60.97049">
-      <tspan
+       y="60.97049"><tspan
          sodipodi:role="line"
          id="tspan2072"
          x="81.597427"
-         y="60.97049">PTX target processing</tspan>
-    </text>
+         y="60.97049">PTX target processing</tspan></text>
     <g
        id="g2083"
        transform="matrix(0.35277777,0,0,-0.35277777,-47.188892,221.19433)">
@@ -2697,13 +2701,12 @@
         <text
            id="text2129"
            style="font-variant:normal;font-weight:normal;font-size:14.04px;font-family:Calibri;-inkscape-font-specification:Calibri;writing-mode:lr-tb;fill:#404040;fill-opacity:1;fill-rule:nonzero;stroke:none"
-           transform="matrix(1,0,0,-1,397.06,43.272)">
-          <tspan
+           transform="matrix(1,0,0,-1,397.06,43.272)"
+           y="0"><tspan
              id="tspan2127"
              sodipodi:role="line"
              y="0"
-             x="0 12.11652 16.79184 23.517 30.831841 38.146679 45.138599 50.038559 53.141399 60.540482 67.911484 71.267036 78.258957 84.099602">Wrapper object</tspan>
-        </text>
+             x="0 12.11652 16.79184 23.517 30.831841 38.146679 45.138599 50.038559 53.141399 60.540482 67.911484 71.267036 78.258957 84.099602">Wrapper object</tspan></text>
       </g>
     </g>
     <g
@@ -2767,13 +2770,12 @@
         <text
            id="text2177"
            style="font-variant:normal;font-weight:normal;font-size:14.064px;font-family:Calibri;-inkscape-font-specification:Calibri;writing-mode:lr-tb;fill:#404040;fill-opacity:1;fill-rule:nonzero;stroke:none"
-           transform="matrix(1,0,0,-1,407.18,26.328)">
-          <tspan
+           transform="matrix(1,0,0,-1,407.18,26.328)"
+           y="0"><tspan
              id="tspan2175"
              sodipodi:role="line"
              y="0"
-             x="0 8.6493597 15.484464 21.841393 25.076113 30.968927 37.930607 41.151264 46.917503 54.329231 61.712833">Device code</tspan>
-        </text>
+             x="0 8.6493597 15.484464 21.841393 25.076113 30.968927 37.930607 41.151264 46.917503 54.329231 61.712833">Device code</tspan></text>
       </g>
     </g>
     <path
@@ -2790,13 +2792,11 @@
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:6.35px;font-family:Calibri;-inkscape-font-specification:'Calibri, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
        id="text2193"
        x="28.692085"
-       y="17.476978">
-      <tspan
+       y="17.476978"><tspan
          sodipodi:role="line"
          id="tspan1595"
          x="28.692085"
-         y="17.476978">(from sycl-post-link)</tspan>
-    </text>
+         y="17.476978">(from sycl-post-link)</tspan></text>
     <g
        id="g1668"
        transform="translate(-29.00824,13.042864)">
@@ -2814,13 +2814,11 @@
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.953px;font-family:Calibri;-inkscape-font-specification:'Calibri, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#404040;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
          id="text899-9"
          x="73.031509"
-         y="68.195061">
-        <tspan
+         y="68.195061"><tspan
            y="68.195061"
            x="73.031509"
            id="tspan1662"
-           sodipodi:role="line">libspirv.bc</tspan>
-      </text>
+           sodipodi:role="line">libspirv.bc</tspan></text>
     </g>
     <g
        id="g2345"
@@ -2839,13 +2837,11 @@
          y="81.860855"
          x="71.144508"
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.953px;font-family:Calibri;-inkscape-font-specification:'Calibri, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#404040;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
-         id="text899-0">
-        <tspan
+         id="text899-0"><tspan
            y="81.860855"
            x="71.144508"
            id="tspan2332"
-           sodipodi:role="line">libdevice.bc</tspan>
-      </text>
+           sodipodi:role="line">libdevice.bc</tspan></text>
     </g>
     <g
        id="g1263-0"
@@ -2902,13 +2898,11 @@
        id="text1309-1"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.953px;font-family:Consolas;-inkscape-font-specification:'Consolas, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
        x="102.06758"
-       y="113.47669">
-      <tspan
+       y="113.47669"><tspan
          sodipodi:role="line"
          id="tspan2597"
          x="102.06758"
-         y="113.47669">ptxas</tspan>
-    </text>
+         y="113.47669">ptxas</tspan></text>
     <g
        id="g1263-02"
        transform="matrix(0.35277777,0,0,-0.35277777,-7.4064096,246.33646)">
@@ -2964,13 +2958,11 @@
        id="text1309-7"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.953px;font-family:Consolas;-inkscape-font-specification:'Consolas, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
        x="102.06758"
-       y="137.37424">
-      <tspan
+       y="137.37424"><tspan
          sodipodi:role="line"
          id="tspan2611"
          x="102.06758"
-         y="137.37424">fatbin</tspan>
-    </text>
+         y="137.37424">fatbin</tspan></text>
     <path
        style="fill:#538f7b;fill-opacity:1;fill-rule:evenodd;stroke:#538f7b;stroke-width:0.60211;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker3606)"
        d="m 109.38615,118.87647 v 9.24756"
@@ -2980,24 +2972,20 @@
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:6.35px;font-family:Calibri;-inkscape-font-specification:'Calibri, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
        id="text2193-1"
        x="110.58295"
-       y="97.450661">
-      <tspan
+       y="97.450661"><tspan
          y="97.450661"
          x="110.58295"
          sodipodi:role="line"
-         id="tspan3794">ptx</tspan>
-    </text>
+         id="tspan3794">ptx</tspan></text>
     <text
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:6.35px;font-family:Calibri;-inkscape-font-specification:'Calibri, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
        id="text2193-1-3"
        x="111.25836"
-       y="125.55264">
-      <tspan
+       y="125.55264"><tspan
          y="125.55264"
          x="111.25836"
          sodipodi:role="line"
-         id="tspan3916">cubin</tspan>
-    </text>
+         id="tspan3916">cubin</tspan></text>
     <path
        style="fill:none;fill-rule:evenodd;stroke:#538f7b;stroke-width:0.616;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker4036)"
        d="M 108.63556,91.358218 V 104.16258"
@@ -3014,13 +3002,11 @@
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:6.35px;font-family:Calibri;-inkscape-font-specification:'Calibri, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
        id="text2193-1-4"
        x="110.90725"
-       y="73.327454">
-      <tspan
+       y="73.327454"><tspan
          sodipodi:role="line"
          id="tspan4924"
          x="110.90725"
-         y="73.327454">LLVM IR</tspan>
-    </text>
+         y="73.327454">LLVM IR</tspan></text>
     <path
        style="fill:none;fill-rule:evenodd;stroke:#4472c4;stroke-width:0.616;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker4944)"
        d="m 72.28691,79.325713 h 9.08716 v 5.34539 h 6.94901"
@@ -3036,35 +3022,29 @@
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:6.35px;font-family:Calibri;-inkscape-font-specification:'Calibri, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
        id="text2193-1-3-9"
        x="111.2326"
-       y="150.29218">
-      <tspan
+       y="150.29218"><tspan
          y="150.29218"
          x="111.2326"
          sodipodi:role="line"
-         id="tspan2303">CUDA fatbin</tspan>
-    </text>
+         id="tspan2303">CUDA fatbin</tspan></text>
     <text
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:6.35px;font-family:Calibri;-inkscape-font-specification:'Calibri, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
        id="text2193-5"
        x="31.587437"
-       y="216.68318">
-      <tspan
+       y="216.68318"><tspan
          sodipodi:role="line"
          id="tspan1653"
          x="31.587437"
-         y="216.68318">(to host linker)</tspan>
-    </text>
+         y="216.68318">(to host linker)</tspan></text>
     <text
        id="text1309-0"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.05694px;font-family:Consolas;-inkscape-font-specification:'Consolas, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
        x="91.899139"
-       y="88.973877">
-      <tspan
+       y="88.973877"><tspan
          sodipodi:role="line"
          id="tspan1706"
          x="91.899139"
-         y="88.973877">(nvptx backend)</tspan>
-    </text>
+         y="88.973877">(nvptx backend)</tspan></text>
     <path
        inkscape:connector-curvature="0"
        id="path995-7"
@@ -3140,35 +3120,29 @@
        id="text1509-0"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.953px;font-family:Consolas;-inkscape-font-specification:'Consolas, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
        x="86.807594"
-       y="33.349266">
-      <tspan
+       y="33.349266"><tspan
          sodipodi:role="line"
          id="tspan2072-3"
          x="86.807594"
-         y="33.349266">file-table-tform</tspan>
-    </text>
+         y="33.349266">file-table-tform</tspan></text>
     <text
        id="text1509-0-9"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.953px;font-family:Consolas;-inkscape-font-specification:'Consolas, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
        x="90.741898"
-       y="37.806171">
-      <tspan
+       y="37.806171"><tspan
          sodipodi:role="line"
          id="tspan2072-3-5"
          x="90.741898"
-         y="37.806171">(Copy &quot;Code&quot;)</tspan>
-    </text>
+         y="37.806171">(Copy &quot;Code&quot;)</tspan></text>
     <text
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:6.35px;font-family:Calibri;-inkscape-font-specification:'Calibri, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
        id="text2193-1-4-1"
        x="110.37068"
-       y="47.484673">
-      <tspan
+       y="47.484673"><tspan
          sodipodi:role="line"
          id="tspan4924-3"
          x="110.37068"
-         y="47.484673">LLVM IR</tspan>
-    </text>
+         y="47.484673">LLVM IR</tspan></text>
     <path
        inkscape:connector-curvature="0"
        id="path995-7-4"
@@ -3244,39 +3218,39 @@
        id="text1509-0-5"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.953px;font-family:Consolas;-inkscape-font-specification:'Consolas, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
        x="87.676941"
-       y="161.4454">
-      <tspan
+       y="161.4454"><tspan
          sodipodi:role="line"
          id="tspan2072-3-0"
          x="87.676941"
-         y="161.4454">file-table-tform</tspan>
-    </text>
+         y="161.4454">file-table-tform</tspan></text>
     <text
        id="text1509-0-9-5"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.953px;font-family:Consolas;-inkscape-font-specification:'Consolas, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
        x="87.907066"
-       y="165.9023">
-      <tspan
+       y="165.9023"><tspan
          sodipodi:role="line"
          id="tspan2072-3-5-4"
          x="87.907066"
-         y="165.9023">(Replace &quot;Code&quot;)</tspan>
-    </text>
+         y="165.9023">(Replace &quot;Code&quot;)</tspan></text>
     <text
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:6.35px;font-family:Calibri;-inkscape-font-specification:'Calibri, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-feature-settings:normal;text-align:start;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.352778"
        id="text2193-1-3-9-2"
        x="110.86103"
-       y="175.67789">
-      <tspan
+       y="175.67789"><tspan
          y="175.67789"
          x="110.86103"
          sodipodi:role="line"
-         id="tspan2303-1">File table</tspan>
-    </text>
+         id="tspan2303-1">File table</tspan></text>
     <path
        style="fill:none;fill-rule:evenodd;stroke:#4472c4;stroke-width:0.616;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker4944-3)"
        d="m 108.65966,22.915376 h 69.56335 l 0,138.959974 h -9.30396"
        id="path4926-6"
+       inkscape:connector-curvature="0"
+       sodipodi:nodetypes="cccc" />
+    <path
+       style="fill:none;fill-rule:evenodd;stroke:#4472c4;stroke-width:0.616;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker4944-3-5)"
+       d="m 177.4031,22.943668 h 14.37883 L 191.97091,188.17299 169.2488,187.984"
+       id="path4926-6-8"
        inkscape:connector-curvature="0"
        sodipodi:nodetypes="cccc" />
   </g>

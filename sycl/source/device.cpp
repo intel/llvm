@@ -9,16 +9,15 @@
 #include <detail/backend_impl.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
+#include <detail/kernel_compiler/kernel_compiler_opencl.hpp>
 #include <sycl/detail/device_filter.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/info/info_desc.hpp>
 
-#include <algorithm>
-
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 void force_type(info::device_type &t, const info::device_type &ft) {
   if (t == info::device_type::all) {
@@ -35,14 +34,14 @@ device::device() : device(default_selector_v) {}
 device::device(cl_device_id DeviceId) {
   // The implementation constructor takes ownership of the native handle so we
   // must retain it in order to adhere to SYCL 1.2.1 spec (Rev6, section 4.3.1.)
-  detail::RT::PiDevice Device;
-  auto Plugin = detail::RT::getPlugin<backend::opencl>();
-  Plugin.call<detail::PiApiKind::piextDeviceCreateWithNativeHandle>(
+  sycl::detail::pi::PiDevice Device;
+  auto Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
+  Plugin->call<detail::PiApiKind::piextDeviceCreateWithNativeHandle>(
       detail::pi::cast<pi_native_handle>(DeviceId), nullptr, &Device);
   auto Platform =
       detail::platform_impl::getPlatformFromPiDevice(Device, Plugin);
   impl = Platform->getOrMakeDeviceImpl(Device, Platform);
-  Plugin.call<detail::PiApiKind::piDeviceRetain>(impl->getHandleRef());
+  Plugin->call<detail::PiApiKind::piDeviceRetain>(impl->getHandleRef());
 }
 
 device::device(const device_selector &deviceSelector) {
@@ -51,18 +50,13 @@ device::device(const device_selector &deviceSelector) {
 
 std::vector<device> device::get_devices(info::device_type deviceType) {
   std::vector<device> devices;
-  detail::device_filter_list *FilterList =
-      detail::SYCLConfig<detail::SYCL_DEVICE_FILTER>::get();
   detail::ods_target_list *OdsTargetList =
       detail::SYCLConfig<detail::ONEAPI_DEVICE_SELECTOR>::get();
 
   auto thePlatforms = platform::get_platforms();
   for (const auto &plt : thePlatforms) {
-    // If SYCL_DEVICE_FILTER is set, skip platforms that is incompatible
-    // with the filter specification.
+
     backend platformBackend = plt.get_backend();
-    if (FilterList && !FilterList->backendCompatible(platformBackend))
-      continue;
     if (OdsTargetList && !OdsTargetList->backendCompatible(platformBackend))
       continue;
 
@@ -132,14 +126,15 @@ bool device::has_extension(const std::string &extension_name) const {
 }
 
 template <typename Param>
-typename detail::is_device_info_desc<Param>::return_type
-device::get_info() const {
-  return impl->template get_info<Param>();
+detail::ABINeutralT_t<typename detail::is_device_info_desc<Param>::return_type>
+device::get_info_impl() const {
+  return detail::convert_to_abi_neutral(impl->template get_info<Param>());
 }
 
 // Explicit override. Not fulfilled by #include device_traits.def below.
 template <>
-__SYCL_EXPORT device device::get_info<info::device::parent_device>() const {
+__SYCL_EXPORT device
+device::get_info_impl<info::device::parent_device>() const {
   // With ONEAPI_DEVICE_SELECTOR the impl.MRootDevice is preset and may be
   // overridden (ie it may be nullptr on a sub-device) The PI of the sub-devices
   // have parents, but we don't want to return them. They must pretend to be
@@ -154,7 +149,7 @@ __SYCL_EXPORT device device::get_info<info::device::parent_device>() const {
 
 template <>
 __SYCL_EXPORT std::vector<sycl::aspect>
-device::get_info<info::device::aspects>() const {
+device::get_info_impl<info::device::aspects>() const {
   std::vector<sycl::aspect> DeviceAspects{
 #define __SYCL_ASPECT(ASPECT, ID) aspect::ASPECT,
 #include <sycl/info/aspects.def>
@@ -177,8 +172,16 @@ device::get_info<info::device::aspects>() const {
   return DeviceAspects;
 }
 
+template <>
+__SYCL_EXPORT bool device::get_info_impl<info::device::image_support>() const {
+  // Explicit specialization is needed due to the class of info handle. The
+  // implementation is done in get_device_info_impl.
+  return impl->template get_info<info::device::image_support>();
+}
+
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template __SYCL_EXPORT ReturnT device::get_info<info::device::Desc>() const;
+  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
+  device::get_info_impl<info::device::Desc>() const;
 
 #define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, PiCode)
 
@@ -187,19 +190,154 @@ device::get_info<info::device::aspects>() const {
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT, PiCode)   \
-  template __SYCL_EXPORT ReturnT                                               \
-  device::get_info<Namespace::info::DescType::Desc>() const;
+  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
+  device::get_info_impl<Namespace::info::DescType::Desc>() const;
 
 #include <sycl/info/ext_codeplay_device_traits.def>
 #include <sycl/info/ext_intel_device_traits.def>
 #include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-backend device::get_backend() const noexcept { return getImplBackend(impl); }
+template <typename Param>
+typename detail::is_backend_info_desc<Param>::return_type
+device::get_backend_info() const {
+  return impl->get_backend_info<Param>();
+}
+
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
+  template __SYCL_EXPORT ReturnT                                               \
+  device::get_backend_info<info::DescType::Desc>() const;
+
+#include <sycl/info/sycl_backend_traits.def>
+
+#undef __SYCL_PARAM_TRAITS_SPEC
+
+backend device::get_backend() const noexcept { return impl->getBackend(); }
 
 pi_native_handle device::getNative() const { return impl->getNative(); }
 
 bool device::has(aspect Aspect) const { return impl->has(Aspect); }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+void device::ext_oneapi_enable_peer_access(const device &peer) {
+  const sycl::detail::pi::PiDevice Device = impl->getHandleRef();
+  const sycl::detail::pi::PiDevice Peer = peer.impl->getHandleRef();
+  if (Device != Peer) {
+    auto Plugin = impl->getPlugin();
+    Plugin->call<detail::PiApiKind::piextEnablePeerAccess>(Device, Peer);
+  }
+}
+
+void device::ext_oneapi_disable_peer_access(const device &peer) {
+  const sycl::detail::pi::PiDevice Device = impl->getHandleRef();
+  const sycl::detail::pi::PiDevice Peer = peer.impl->getHandleRef();
+  if (Device != Peer) {
+    auto Plugin = impl->getPlugin();
+    Plugin->call<detail::PiApiKind::piextDisablePeerAccess>(Device, Peer);
+  }
+}
+
+bool device::ext_oneapi_can_access_peer(const device &peer,
+                                        ext::oneapi::peer_access attr) {
+  const sycl::detail::pi::PiDevice Device = impl->getHandleRef();
+  const sycl::detail::pi::PiDevice Peer = peer.impl->getHandleRef();
+
+  if (Device == Peer) {
+    return true;
+  }
+
+  size_t returnSize;
+  int value;
+
+  sycl::detail::pi::PiPeerAttr PiAttr = [&]() {
+    switch (attr) {
+    case ext::oneapi::peer_access::access_supported:
+      return PI_PEER_ACCESS_SUPPORTED;
+    case ext::oneapi::peer_access::atomics_supported:
+      return PI_PEER_ATOMICS_SUPPORTED;
+    }
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Unrecognized peer access attribute.");
+  }();
+  auto Plugin = impl->getPlugin();
+  Plugin->call<detail::PiApiKind::piextPeerAccessGetInfo>(
+      Device, Peer, PiAttr, sizeof(int), &value, &returnSize);
+
+  return value == 1;
+}
+
+bool device::ext_oneapi_architecture_is(
+    ext::oneapi::experimental::architecture arch) {
+  return impl->extOneapiArchitectureIs(arch);
+}
+
+bool device::ext_oneapi_architecture_is(
+    ext::oneapi::experimental::arch_category category) {
+  return impl->extOneapiArchitectureIs(category);
+}
+
+// kernel_compiler extension methods
+bool device::ext_oneapi_can_compile(
+    ext::oneapi::experimental::source_language Language) {
+  return impl->extOneapiCanCompile(Language);
+}
+
+bool device::ext_oneapi_supports_cl_c_feature(const std::string &Feature) {
+  const detail::pi::PiDevice Device = impl->getHandleRef();
+  auto Plugin = impl->getPlugin();
+  uint32_t ipVersion = 0;
+  auto res = Plugin->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+      Device, PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
+      &ipVersion, nullptr);
+  if (res != PI_SUCCESS)
+    return false;
+
+  return ext::oneapi::experimental::detail::OpenCLC_Feature_Available(
+      Feature, ipVersion);
+}
+
+bool device::ext_oneapi_supports_cl_c_version(
+    const ext::oneapi::experimental::cl_version &Version) const {
+  const detail::pi::PiDevice Device = impl->getHandleRef();
+  auto Plugin = impl->getPlugin();
+  uint32_t ipVersion = 0;
+  auto res = Plugin->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+      Device, PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
+      &ipVersion, nullptr);
+  if (res != PI_SUCCESS)
+    return false;
+
+  return ext::oneapi::experimental::detail::OpenCLC_Supports_Version(Version,
+                                                                     ipVersion);
+}
+
+bool device::ext_oneapi_supports_cl_extension(
+    const std::string &Name,
+    ext::oneapi::experimental::cl_version *VersionPtr) const {
+  const detail::pi::PiDevice Device = impl->getHandleRef();
+  auto Plugin = impl->getPlugin();
+  uint32_t ipVersion = 0;
+  auto res = Plugin->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+      Device, PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
+      &ipVersion, nullptr);
+  if (res != PI_SUCCESS)
+    return false;
+
+  return ext::oneapi::experimental::detail::OpenCLC_Supports_Extension(
+      Name, VersionPtr, ipVersion);
+}
+
+std::string device::ext_oneapi_cl_profile() const {
+  const detail::pi::PiDevice Device = impl->getHandleRef();
+  auto Plugin = impl->getPlugin();
+  uint32_t ipVersion = 0;
+  auto res = Plugin->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+      Device, PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
+      &ipVersion, nullptr);
+  if (res != PI_SUCCESS)
+    return "";
+
+  return ext::oneapi::experimental::detail::OpenCLC_Profile(ipVersion);
+}
+
+} // namespace _V1
 } // namespace sycl

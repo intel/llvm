@@ -54,6 +54,7 @@ class IntrinsicInst;
 
 namespace SPIRV {
 
+/// SPIR-V versions known to translator.
 enum class VersionNumber : uint32_t {
   // See section 2.3 of SPIR-V spec: Physical Layout of a SPIR_V Module and
   // Instruction
@@ -62,11 +63,33 @@ enum class VersionNumber : uint32_t {
   SPIRV_1_2 = 0x00010200,
   SPIRV_1_3 = 0x00010300,
   SPIRV_1_4 = 0x00010400,
-  // TODO: populate this enum with the latest versions (up to 1.5) once
-  // translator get support of corresponding features
+  SPIRV_1_5 = 0x00010500,
   MinimumVersion = SPIRV_1_0,
-  MaximumVersion = SPIRV_1_4
+  MaximumVersion = SPIRV_1_5
 };
+
+inline constexpr std::string_view formatVersionNumber(uint32_t Version) {
+  switch (Version) {
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_0):
+    return "1.0";
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_1):
+    return "1.1";
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_2):
+    return "1.2";
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_3):
+    return "1.3";
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_4):
+    return "1.4";
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_5):
+    return "1.5";
+  }
+  return "unknown";
+}
+
+inline bool isSPIRVVersionKnown(uint32_t Ver) {
+  return Ver >= static_cast<uint32_t>(VersionNumber::MinimumVersion) &&
+         Ver <= static_cast<uint32_t>(VersionNumber::MaximumVersion);
+}
 
 enum class ExtensionID : uint32_t {
   First,
@@ -75,6 +98,8 @@ enum class ExtensionID : uint32_t {
 #undef EXT
   Last,
 };
+
+enum class ExtInst : uint32_t { None, OpenCL };
 
 enum class BIsRepresentation : uint32_t { OpenCL12, OpenCL20, SPIRVFriendlyIR };
 
@@ -87,10 +112,14 @@ enum class DebugInfoEIS : uint32_t {
   NonSemantic_Shader_DebugInfo_200
 };
 
+enum class BuiltinFormat : uint32_t { Function, Global };
+
 /// \brief Helper class to manage SPIR-V translation
 class TranslatorOpts {
 public:
-  using ExtensionsStatusMap = std::map<ExtensionID, bool>;
+  // Unset optional means not directly specified by user
+  using ExtensionsStatusMap = std::map<ExtensionID, std::optional<bool>>;
+
   using ArgList = llvm::SmallVector<llvm::StringRef, 4>;
 
   TranslatorOpts() = default;
@@ -107,11 +136,14 @@ public:
     if (ExtStatusMap.end() == I)
       return false;
 
-    return I->second;
+    return I->second && *I->second;
   }
 
   void setAllowedToUseExtension(ExtensionID Extension, bool Allow = true) {
-    ExtStatusMap[Extension] = Allow;
+    // Only allow using the extension if it has not already been disabled
+    auto I = ExtStatusMap.find(Extension);
+    if (I == ExtStatusMap.end() || !I->second || (*I->second) == true)
+      ExtStatusMap[Extension] = Allow;
   }
 
   VersionNumber getMaxVersion() const { return MaxVersion; }
@@ -122,15 +154,15 @@ public:
 
   void setMemToRegEnabled(bool Mem2Reg) { SPIRVMemToReg = Mem2Reg; }
 
+  bool preserveAuxData() const { return PreserveAuxData; }
+
+  void setPreserveAuxData(bool ArgValue) { PreserveAuxData = ArgValue; }
+
   void setGenKernelArgNameMDEnabled(bool ArgNameMD) {
     GenKernelArgNameMD = ArgNameMD;
   }
 
-  void enableAllExtensions() {
-#define EXT(X) ExtStatusMap[ExtensionID::X] = true;
-#include "LLVMSPIRVExtensions.inc"
-#undef EXT
-  }
+  void enableAllExtensions();
 
   void enableGenArgNameMD() { GenKernelArgNameMD = true; }
 
@@ -145,6 +177,14 @@ public:
     Value = It->second;
     return true;
   }
+
+  void setExtInst(ExtInst Value) {
+    // --spirv-ext-inst supersedes --spirv-replace-fmuladd-with-ocl-mad
+    ReplaceLLVMFmulAddWithOpenCLMad = false;
+    ExtInstValue = Value;
+  }
+
+  ExtInst getExtInst() const { return ExtInstValue; }
 
   void setDesiredBIsRepresentation(BIsRepresentation Value) {
     DesiredRepresentationOfBIs = Value;
@@ -190,6 +230,11 @@ public:
     PreserveOCLKernelArgTypeMetadataThroughString = Value;
   }
 
+  void setBuiltinFormat(BuiltinFormat Value) noexcept {
+    SPIRVBuiltinFormat = Value;
+  }
+  BuiltinFormat getBuiltinFormat() const noexcept { return SPIRVBuiltinFormat; }
+
 private:
   // Common translation options
   VersionNumber MaxVersion = VersionNumber::MaximumVersion;
@@ -199,6 +244,8 @@ private:
   // SPIR-V to LLVM translation options
   bool GenKernelArgNameMD = false;
   std::unordered_map<uint32_t, uint64_t> ExternalSpecialization;
+  // Extended instruction set to use when translating from LLVM IR to SPIR-V
+  ExtInst ExtInstValue = ExtInst::None;
   // Representation of built-ins, which should be used while translating from
   // SPIR-V to back to LLVM IR
   BIsRepresentation DesiredRepresentationOfBIs = BIsRepresentation::OpenCL12;
@@ -230,6 +277,10 @@ private:
   // Add a workaround to preserve OpenCL kernel_arg_type and
   // kernel_arg_type_qual metadata through OpString
   bool PreserveOCLKernelArgTypeMetadataThroughString = false;
+
+  bool PreserveAuxData = false;
+
+  BuiltinFormat SPIRVBuiltinFormat = BuiltinFormat::Function;
 };
 
 } // namespace SPIRV

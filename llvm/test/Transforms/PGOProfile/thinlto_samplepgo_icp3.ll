@@ -6,7 +6,7 @@
 
 ; Test to make sure importing and dead stripping works in the
 ; case where the target is a local function that also indirectly calls itself.
-; RUN: llvm-lto2 run -opaque-pointers -thinlto-threads=1 -save-temps -o %t3 %t.bc %t2.bc -r %t.bc,fptr,plx -r %t.bc,main,plx -r %t2.bc,_Z6updatei,pl -r %t2.bc,fptr,l
+; RUN: llvm-lto2 run -thinlto-threads=1 -save-temps -o %t3 %t.bc %t2.bc -r %t.bc,fptr,plx -r %t.bc,main,plx -r %t2.bc,_Z6updatei,pl -r %t2.bc,fptr,l
 ; RUN: llvm-dis %t3.1.3.import.bc -o - | FileCheck %s --check-prefix=IMPORTS
 
 ; Make sure we import the promted indirectly called target

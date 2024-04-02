@@ -1,8 +1,7 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
-// UNSUPPORTED: hip
+// UNSUPPORTED: accelerator
 
 // This test checks the spenario of using specialization constants with an
 // 'array of array' as well as a 'stuct with an array of array' types for
@@ -10,7 +9,9 @@
 // constants of the SYCL 2020 specification:
 // https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#_example_usage
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/specialization_id.hpp>
 
 #include <array>
 #include <cmath>

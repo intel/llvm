@@ -7,9 +7,15 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/os_util.hpp>
-#include <sycl/exception.hpp>
 
 #include <cassert>
+#include <limits>
+
+#if __GNUC__ && __GNUC__ < 8
+// Don't include <filesystem> for GCC versions less than 8
+#else
+#include <filesystem> // C++ 17 std::create_directories
+#endif
 
 #if defined(__SYCL_RT_OS_LINUX)
 
@@ -29,8 +35,9 @@
 
 #elif defined(__SYCL_RT_OS_WINDOWS)
 
+#include <detail/windows_os_utils.hpp>
+
 #include <Windows.h>
-#include <direct.h>
 #include <malloc.h>
 #include <shlwapi.h>
 
@@ -43,49 +50,10 @@
 #endif // __SYCL_RT_OS
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 #if defined(__SYCL_RT_OS_LINUX)
-
-struct ModuleInfo {
-  const void *VirtAddr; // in
-  void *Handle;         // out
-  const char *Name;     // out
-};
-
-constexpr OSModuleHandle OSUtil::ExeModuleHandle;
-constexpr OSModuleHandle OSUtil::DummyModuleHandle;
-
-static int callback(struct dl_phdr_info *Info, size_t, void *Data) {
-  auto Base = reinterpret_cast<unsigned char *>(Info->dlpi_addr);
-  auto MI = reinterpret_cast<ModuleInfo *>(Data);
-  auto TestAddr = reinterpret_cast<const unsigned char *>(MI->VirtAddr);
-
-  for (int i = 0; i < Info->dlpi_phnum; ++i) {
-    unsigned char *SegStart = Base + Info->dlpi_phdr[i].p_vaddr;
-    unsigned char *SegEnd = SegStart + Info->dlpi_phdr[i].p_memsz;
-
-    // check if the tested address is within current segment
-    if (TestAddr >= SegStart && TestAddr < SegEnd) {
-      // ... it is - belongs to the module then
-      // dlpi_addr is zero for the executable, replace it
-      auto H = reinterpret_cast<void *>(Info->dlpi_addr);
-      MI->Handle = H ? H : reinterpret_cast<void *>(OSUtil::ExeModuleHandle);
-      MI->Name = Info->dlpi_name;
-      return 1; // non-zero tells to finish iteration via modules
-    }
-  }
-  return 0;
-}
-
-OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
-  ModuleInfo Res = {VirtAddr, nullptr, nullptr};
-  dl_iterate_phdr(callback, &Res);
-
-  return reinterpret_cast<OSModuleHandle>(Res.Handle);
-}
-
 bool procMapsAddressInRange(std::istream &Stream, uintptr_t Addr) {
   uintptr_t Start = 0, End = 0;
   Stream >> Start;
@@ -178,23 +146,9 @@ std::string OSUtil::getDirName(const char *Path) {
 }
 
 #elif defined(__SYCL_RT_OS_WINDOWS)
-OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
-  HMODULE PhModule;
-  DWORD Flag = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-               GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
-  auto LpModuleAddr = reinterpret_cast<LPCSTR>(VirtAddr);
-  if (!GetModuleHandleExA(Flag, LpModuleAddr, &PhModule)) {
-    // Expect the caller to check for zero and take
-    // necessary action
-    return 0;
-  }
-  if (PhModule == GetModuleHandleA(nullptr))
-    return OSUtil::ExeModuleHandle;
-  return reinterpret_cast<OSModuleHandle>(PhModule);
-}
 
 /// Returns an absolute path where the object was found.
-//  win_proxy_loader.dll uses this same logic. If it is changed
+//  pi_win_proxy_loader.dll uses this same logic. If it is changed
 //  significantly, it might be wise to change it there too.
 std::string OSUtil::getCurrentDSODir() {
   char Path[MAX_PATH];
@@ -202,7 +156,7 @@ std::string OSUtil::getCurrentDSODir() {
   Path[sizeof(Path) - 1] = '\0';
   auto Handle = getOSModuleHandle(reinterpret_cast<void *>(&getCurrentDSODir));
   DWORD Ret = GetModuleFileNameA(
-      reinterpret_cast<HMODULE>(OSUtil::ExeModuleHandle == Handle ? 0 : Handle),
+      reinterpret_cast<HMODULE>(ExeModuleHandle == Handle ? 0 : Handle),
       reinterpret_cast<LPSTR>(&Path), sizeof(Path));
   assert(Ret < sizeof(Path) && "Path is longer than PATH_MAX?");
   assert(Ret > 0 && "GetModuleFileNameA failed");
@@ -229,12 +183,6 @@ std::string OSUtil::getDirName(const char *Path) {
 }
 
 #elif defined(__SYCL_RT_OS_DARWIN)
-OSModuleHandle OSUtil::getOSModuleHandle(const void *VirtAddr) {
-  Dl_info Res;
-  dladdr(VirtAddr, &Res);
-  return reinterpret_cast<OSModuleHandle>(Res.dli_fbase);
-}
-
 std::string OSUtil::getCurrentDSODir() {
   auto CurrentFunc = reinterpret_cast<const void *>(&getCurrentDSODir);
   Dl_info Info;
@@ -290,15 +238,14 @@ void OSUtil::alignedFree(void *Ptr) {
 #endif
 }
 
-/* This is temporary solution until std::filesystem is available when SYCL RT
- * is moved to c++17 standard*/
-
-/* Create directory recursively and return non zero code on success*/
+// Make all directories on the path, throws on error.
 int OSUtil::makeDir(const char *Dir) {
   assert((Dir != nullptr) && "Passed null-pointer as directory name.");
   if (isPathPresent(Dir))
     return 0;
 
+// older GCC doesn't have full C++ 17 support.
+#if __GNUC__ && __GNUC__ < 8
   std::string Path{Dir}, CurPath;
   size_t pos = 0;
 
@@ -311,11 +258,18 @@ int OSUtil::makeDir(const char *Dir) {
     auto Res = _mkdir(CurPath.c_str());
 #endif
     if (Res && errno != EEXIST)
-      return Res;
+      throw std::runtime_error("Failed to mkdir: " + CurPath + " (" +
+                               std::strerror(errno) + ")");
+
   } while (pos != std::string::npos);
+#else
+  // using filesystem is simpler, more reliable, works better on Win
+  std::filesystem::path path(Dir);
+  std::filesystem::create_directories(path.make_preferred());
+#endif
   return 0;
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

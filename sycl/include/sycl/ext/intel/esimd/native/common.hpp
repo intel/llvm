@@ -15,7 +15,7 @@
 #include <cstdint>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd::native::lsc {
 
 /// @addtogroup sycl_esimd_memory
@@ -61,5 +61,5 @@ enum class atomic_op : uint8_t {
 /// @} sycl_esimd_memory_lsc
 
 } // namespace ext::intel::esimd::native::lsc
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

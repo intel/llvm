@@ -190,7 +190,7 @@ static bool enableBackedgeSafepoints(Function &F);
 static bool enableCallSafepoints(Function &F);
 
 static void
-InsertSafepointPoll(Instruction *InsertBefore,
+InsertSafepointPoll(BasicBlock::iterator InsertBefore,
                     std::vector<CallBase *> &ParsePointsNeeded /*rval*/,
                     const TargetLibraryInfo &TLI);
 
@@ -244,63 +244,6 @@ bool PlaceBackedgeSafepointsLegacyPass::runOnLoop(Loop *L) {
   }
 
   return false;
-}
-
-namespace {
-class PlaceSafepointsLegacyPass : public FunctionPass {
-public:
-  static char ID; // Pass identification, replacement for typeid
-
-  PlaceSafepointsLegacyPass() : FunctionPass(ID) {
-    initializePlaceSafepointsLegacyPassPass(*PassRegistry::getPassRegistry());
-  }
-
-  bool runOnFunction(Function &F) override;
-
-  StringRef getPassName() const override { return "Safepoint Placement"; }
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    // We modify the graph wholesale (inlining, block insertion, etc).  We
-    // preserve nothing at the moment.  We could potentially preserve dom tree
-    // if that was worth doing
-    AU.addRequired<TargetLibraryInfoWrapperPass>();
-  }
-
-private:
-  PlaceSafepointsPass Impl;
-};
-} // end anonymous namespace
-
-char PlaceSafepointsLegacyPass::ID = 0;
-
-INITIALIZE_PASS_BEGIN(PlaceSafepointsLegacyPass, "place-safepoints",
-                      "Place Safepoints", false, false)
-INITIALIZE_PASS_DEPENDENCY(TargetLibraryInfoWrapperPass)
-INITIALIZE_PASS_END(PlaceSafepointsLegacyPass, "place-safepoints",
-                    "Place Safepoints", false, false)
-
-FunctionPass *llvm::createPlaceSafepointsPass() {
-  return new PlaceSafepointsLegacyPass();
-}
-
-bool PlaceSafepointsLegacyPass::runOnFunction(Function &F) {
-  if (skipFunction(F))
-    return false;
-
-  LLVM_DEBUG(dbgs() << "********** Begin Safepoint Placement **********\n");
-  LLVM_DEBUG(dbgs() << "********** Function: " << F.getName() << '\n');
-
-  bool MadeChange =
-      Impl.runImpl(F, getAnalysis<TargetLibraryInfoWrapperPass>().getTLI(F));
-
-  if (MadeChange) {
-    LLVM_DEBUG(dbgs() << "********** Function after Safepoint Placement: "
-                      << F.getName() << '\n');
-    LLVM_DEBUG(dbgs() << F);
-  }
-  LLVM_DEBUG(dbgs() << "********** End Safepoint Placement **********\n");
-
-  return MadeChange;
 }
 
 bool PlaceSafepointsPass::runImpl(Function &F, const TargetLibraryInfo &TLI) {
@@ -425,7 +368,7 @@ bool PlaceSafepointsPass::runImpl(Function &F, const TargetLibraryInfo &TLI) {
   // safepoint polls themselves.
   for (Instruction *PollLocation : PollsNeeded) {
     std::vector<CallBase *> RuntimeCalls;
-    InsertSafepointPoll(PollLocation, RuntimeCalls, TLI);
+    InsertSafepointPoll(PollLocation->getIterator(), RuntimeCalls, TLI);
     llvm::append_range(ParsePointNeeded, RuntimeCalls);
   }
 
@@ -574,7 +517,7 @@ static bool doesNotRequireEntrySafepointBefore(CallBase *Call) {
     switch (II->getIntrinsicID()) {
     case Intrinsic::experimental_gc_statepoint:
     case Intrinsic::experimental_patchpoint_void:
-    case Intrinsic::experimental_patchpoint_i64:
+    case Intrinsic::experimental_patchpoint:
       // The can wrap an actual call which may grow the stack by an unbounded
       // amount or run forever.
       return false;
@@ -676,7 +619,7 @@ static bool enableCallSafepoints(Function &F) { return !NoCall; }
 // not handle the parsability of state at the runtime call, that's the
 // callers job.
 static void
-InsertSafepointPoll(Instruction *InsertBefore,
+InsertSafepointPoll(BasicBlock::iterator InsertBefore,
                     std::vector<CallBase *> &ParsePointsNeeded /*rval*/,
                     const TargetLibraryInfo &TLI) {
   BasicBlock *OrigBB = InsertBefore->getParent();

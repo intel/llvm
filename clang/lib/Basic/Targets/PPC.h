@@ -60,6 +60,7 @@ class LLVM_LIBRARY_VISIBILITY PPCTargetInfo : public TargetInfo {
   bool HasMMA = false;
   bool HasROPProtect = false;
   bool HasPrivileged = false;
+  bool HasAIXSmallLocalExecTLS = false;
   bool HasVSX = false;
   bool UseCRBits = false;
   bool HasP8Vector = false;
@@ -197,6 +198,8 @@ public:
   void setFeatureEnabled(llvm::StringMap<bool> &Features, StringRef Name,
                          bool Enabled) const override;
 
+  bool supportsTargetAttributeTune() const override { return true; }
+
   ArrayRef<const char *> getGCCRegNames() const override;
 
   ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override;
@@ -330,7 +333,7 @@ public:
     return R;
   }
 
-  const char *getClobbers() const override { return ""; }
+  std::string_view getClobbers() const override { return ""; }
   int getEHDataRegisterNumber(unsigned RegNo) const override {
     if (RegNo == 0)
       return 3;
@@ -356,6 +359,21 @@ public:
   bool isSPRegName(StringRef RegName) const override {
     return RegName.equals("r1") || RegName.equals("x1");
   }
+
+  // We support __builtin_cpu_supports/__builtin_cpu_is on targets that
+  // have Glibc since it is Glibc that provides the HWCAP[2] in the auxv.
+  static constexpr int MINIMUM_AIX_OS_MAJOR = 7;
+  static constexpr int MINIMUM_AIX_OS_MINOR = 2;
+  bool supportsCpuSupports() const override { return getTriple().isOSGlibc(); }
+  bool supportsCpuIs() const override {
+    llvm::Triple Triple = getTriple();
+    // AIX 7.2 is the minimum requirement to support __builtin_cpu_is().
+    return Triple.isOSGlibc() ||
+           (Triple.isOSAIX() &&
+            !Triple.isOSVersionLT(MINIMUM_AIX_OS_MAJOR, MINIMUM_AIX_OS_MINOR));
+  }
+  bool validateCpuSupports(StringRef Feature) const override;
+  bool validateCpuIs(StringRef Name) const override;
 };
 
 class LLVM_LIBRARY_VISIBILITY PPC32TargetInfo : public PPCTargetInfo {
@@ -363,11 +381,11 @@ public:
   PPC32TargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
       : PPCTargetInfo(Triple, Opts) {
     if (Triple.isOSAIX())
-      resetDataLayout("E-m:a-p:32:32-i64:64-n32");
+      resetDataLayout("E-m:a-p:32:32-Fi32-i64:64-n32");
     else if (Triple.getArch() == llvm::Triple::ppcle)
-      resetDataLayout("e-m:e-p:32:32-i64:64-n32");
+      resetDataLayout("e-m:e-p:32:32-Fn32-i64:64-n32");
     else
-      resetDataLayout("E-m:e-p:32:32-i64:64-n32");
+      resetDataLayout("E-m:e-p:32:32-Fn32-i64:64-n32");
 
     switch (getTriple().getOS()) {
     case llvm::Triple::Linux:
@@ -418,19 +436,23 @@ public:
 
     if (Triple.isOSAIX()) {
       // TODO: Set appropriate ABI for AIX platform.
-      DataLayout = "E-m:a-i64:64-n32:64";
+      DataLayout = "E-m:a-Fi64-i64:64-n32:64";
       LongDoubleWidth = 64;
       LongDoubleAlign = DoubleAlign = 32;
       LongDoubleFormat = &llvm::APFloat::IEEEdouble();
     } else if ((Triple.getArch() == llvm::Triple::ppc64le)) {
-      DataLayout = "e-m:e-i64:64-n32:64";
+      DataLayout = "e-m:e-Fn32-i64:64-n32:64";
       ABI = "elfv2";
     } else {
-      DataLayout = "E-m:e-i64:64-n32:64";
-      if (Triple.isPPC64ELFv2ABI())
+      DataLayout = "E-m:e";
+      if (Triple.isPPC64ELFv2ABI()) {
         ABI = "elfv2";
-      else
+        DataLayout += "-Fn32";
+      } else {
         ABI = "elfv1";
+        DataLayout += "-Fi64";
+      }
+      DataLayout += "-i64:64-n32:64";
     }
 
     if (Triple.isOSFreeBSD() || Triple.isOSOpenBSD() || Triple.isMusl()) {

@@ -8,11 +8,21 @@ add_llvm_library(SYCLKernelFusion MODULE
   syclcp/SYCLCP.cpp
   cleanup/Cleanup.cpp
   debug/PassDebug.cpp
+  target/TargetFusionInfo.cpp
 
   DEPENDS
   intrinsics_gen
 )
 
+target_compile_options(SYCLKernelFusion PRIVATE ${SYCL_FUSION_WARNING_FLAGS})
+
+# Mark LLVM headers as system headers to ignore warnigns in them. This
+# classification remains intact even if the same path is added as a normal
+# include path in GCC and Clang.
+target_include_directories(SYCLKernelFusion
+  SYSTEM PRIVATE
+  ${LLVM_MAIN_INCLUDE_DIR}
+)
 target_include_directories(SYCLKernelFusion
   PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
@@ -25,6 +35,14 @@ target_link_libraries(SYCLKernelFusion
   sycl-fusion-common
 )
 
+if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
+  target_compile_definitions(SYCLKernelFusion PRIVATE FUSION_JIT_SUPPORT_PTX)
+endif()
+
+if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
+  target_compile_definitions(SYCLKernelFusion PRIVATE FUSION_JIT_SUPPORT_AMDGCN)
+endif()
+
 # Static library for linking with the jit_compiler
 add_llvm_library(SYCLKernelFusionPasses
   SYCLFusionPasses.cpp
@@ -35,6 +53,7 @@ add_llvm_library(SYCLKernelFusionPasses
   syclcp/SYCLCP.cpp
   cleanup/Cleanup.cpp
   debug/PassDebug.cpp
+  target/TargetFusionInfo.cpp
 
   DEPENDS
   intrinsics_gen
@@ -44,8 +63,18 @@ add_llvm_library(SYCLKernelFusionPasses
   Support
   TransformUtils
   Passes
+  TargetParser
 )
 
+target_compile_options(SYCLKernelFusionPasses PRIVATE ${SYCL_FUSION_WARNING_FLAGS})
+
+# Mark LLVM headers as system headers to ignore warnigns in them. This
+# classification remains intact even if the same path is added as a normal
+# include path in GCC and Clang.
+target_include_directories(SYCLKernelFusionPasses
+  SYSTEM PRIVATE
+  ${LLVM_MAIN_INCLUDE_DIR}
+)
 target_include_directories(SYCLKernelFusionPasses
   PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
@@ -57,3 +86,11 @@ target_link_libraries(SYCLKernelFusionPasses
   PRIVATE
   sycl-fusion-common
 )
+
+if("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
+  target_compile_definitions(SYCLKernelFusionPasses PRIVATE FUSION_JIT_SUPPORT_PTX)
+endif()
+
+if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
+  target_compile_definitions(SYCLKernelFusionPasses PRIVATE FUSION_JIT_SUPPORT_AMDGCN)
+endif()

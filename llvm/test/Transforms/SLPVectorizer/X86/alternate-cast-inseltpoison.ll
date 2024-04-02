@@ -76,12 +76,10 @@ define <8 x i32> @fptosi_fptoui(<8 x float> %a) {
 
 define <8 x float> @fneg_fabs(<8 x float> %a) {
 ; CHECK-LABEL: @fneg_fabs(
-; CHECK-NEXT:    [[TMP1:%.*]] = bitcast <8 x float> [[A:%.*]] to <8 x i32>
-; CHECK-NEXT:    [[TMP2:%.*]] = xor <8 x i32> [[TMP1]], <i32 -2147483648, i32 -2147483648, i32 -2147483648, i32 -2147483648, i32 poison, i32 poison, i32 poison, i32 poison>
-; CHECK-NEXT:    [[TMP3:%.*]] = and <8 x i32> [[TMP1]], <i32 poison, i32 poison, i32 poison, i32 poison, i32 2147483647, i32 2147483647, i32 2147483647, i32 2147483647>
-; CHECK-NEXT:    [[TMP4:%.*]] = shufflevector <8 x i32> [[TMP2]], <8 x i32> [[TMP3]], <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 12, i32 13, i32 14, i32 15>
-; CHECK-NEXT:    [[TMP5:%.*]] = bitcast <8 x i32> [[TMP4]] to <8 x float>
-; CHECK-NEXT:    ret <8 x float> [[TMP5]]
+; CHECK-NEXT:    [[TMP1:%.*]] = fneg <8 x float> [[A:%.*]]
+; CHECK-NEXT:    [[TMP2:%.*]] = call <8 x float> @llvm.fabs.v8f32(<8 x float> [[A]])
+; CHECK-NEXT:    [[DOTUNCASTED:%.*]] = shufflevector <8 x float> [[TMP1]], <8 x float> [[TMP2]], <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 12, i32 13, i32 14, i32 15>
+; CHECK-NEXT:    ret <8 x float> [[DOTUNCASTED]]
 ;
   %a0 = extractelement <8 x float> %a, i32 0
   %a1 = extractelement <8 x float> %a, i32 1
@@ -209,10 +207,10 @@ define <8 x float> @sitofp_uitofp_4i32_8i16_16i8(<4 x i32> %a, <8 x i16> %b, <16
 ; CHECK-NEXT:    [[TMP9:%.*]] = sitofp <2 x i8> [[TMP8]] to <2 x float>
 ; CHECK-NEXT:    [[TMP10:%.*]] = uitofp <2 x i8> [[TMP8]] to <2 x float>
 ; CHECK-NEXT:    [[TMP11:%.*]] = shufflevector <2 x float> [[TMP9]], <2 x float> [[TMP10]], <2 x i32> <i32 0, i32 3>
-; CHECK-NEXT:    [[TMP12:%.*]] = shufflevector <4 x float> [[TMP3]], <4 x float> poison, <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 undef, i32 undef, i32 undef, i32 undef>
-; CHECK-NEXT:    [[TMP13:%.*]] = shufflevector <2 x float> [[TMP7]], <2 x float> poison, <8 x i32> <i32 0, i32 1, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef>
-; CHECK-NEXT:    [[R52:%.*]] = shufflevector <8 x float> [[TMP12]], <8 x float> [[TMP13]], <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 8, i32 9, i32 undef, i32 undef>
-; CHECK-NEXT:    [[TMP14:%.*]] = shufflevector <2 x float> [[TMP11]], <2 x float> poison, <8 x i32> <i32 0, i32 1, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef, i32 undef>
+; CHECK-NEXT:    [[TMP12:%.*]] = shufflevector <4 x float> [[TMP3]], <4 x float> poison, <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 poison, i32 poison, i32 poison, i32 poison>
+; CHECK-NEXT:    [[TMP13:%.*]] = shufflevector <2 x float> [[TMP7]], <2 x float> poison, <8 x i32> <i32 0, i32 1, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison>
+; CHECK-NEXT:    [[R52:%.*]] = shufflevector <8 x float> [[TMP12]], <8 x float> [[TMP13]], <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 8, i32 9, i32 poison, i32 poison>
+; CHECK-NEXT:    [[TMP14:%.*]] = shufflevector <2 x float> [[TMP11]], <2 x float> poison, <8 x i32> <i32 0, i32 1, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison, i32 poison>
 ; CHECK-NEXT:    [[R71:%.*]] = shufflevector <8 x float> [[R52]], <8 x float> [[TMP14]], <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 4, i32 5, i32 8, i32 9>
 ; CHECK-NEXT:    ret <8 x float> [[R71]]
 ;

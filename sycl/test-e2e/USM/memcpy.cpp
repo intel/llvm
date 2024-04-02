@@ -6,12 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t1.out
-// RUN: %CPU_RUN_PLACEHOLDER %t1.out
-// RUN: %GPU_RUN_PLACEHOLDER %t1.out
-// RUN: %ACC_RUN_PLACEHOLDER %t1.out
+// RUN: %{build} -o %t1.out
+// RUN: %{run} %t1.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 
@@ -177,7 +176,7 @@ int main() {
     TEST_MEMCPY(inArray, init_on_device, outArray, check_on_device)
 
     // Test device to aligned device
-    USM_MALLOC(inArray, shared)
+    USM_MALLOC(inArray, device)
     USM_ALIGNED_ALLOC_DEVICE(outArray)
     TEST_MEMCPY(inArray, init_on_device, outArray, check_on_device)
 
@@ -281,7 +280,7 @@ int main() {
     TEST_MEMCPY(inArray, init_on_host, outArray, check_on_device)
   }
 
-  if (dev.get_info<info::device::usm_host_allocations>() &&
+  if (dev.get_info<info::device::usm_shared_allocations>() &&
       dev.get_info<info::device::usm_device_allocations>()) {
     // Test shared to device
     USM_MALLOC(inArray, shared)

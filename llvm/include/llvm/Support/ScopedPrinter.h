@@ -160,8 +160,8 @@ public:
   template <typename T, typename TFlag>
   void printFlags(StringRef Label, T Value, ArrayRef<EnumEntry<TFlag>> Flags,
                   TFlag EnumMask1 = {}, TFlag EnumMask2 = {},
-                  TFlag EnumMask3 = {}) {
-    SmallVector<FlagEntry, 10> SetFlags;
+                  TFlag EnumMask3 = {}, ArrayRef<FlagEntry> ExtraFlags = {}) {
+    SmallVector<FlagEntry, 10> SetFlags(ExtraFlags.begin(), ExtraFlags.end());
 
     for (const auto &Flag : Flags) {
       if (Flag.Value == 0)
@@ -198,36 +198,48 @@ public:
     printFlagsImpl(Label, hex(Value), SetFlags);
   }
 
-  virtual void printNumber(StringRef Label, uint64_t Value) {
+  virtual void printNumber(StringRef Label, char Value) {
+    startLine() << Label << ": " << static_cast<int>(Value) << "\n";
+  }
+
+  virtual void printNumber(StringRef Label, signed char Value) {
+    startLine() << Label << ": " << static_cast<int>(Value) << "\n";
+  }
+
+  virtual void printNumber(StringRef Label, unsigned char Value) {
+    startLine() << Label << ": " << static_cast<unsigned>(Value) << "\n";
+  }
+
+  virtual void printNumber(StringRef Label, short Value) {
     startLine() << Label << ": " << Value << "\n";
   }
 
-  virtual void printNumber(StringRef Label, uint32_t Value) {
+  virtual void printNumber(StringRef Label, unsigned short Value) {
     startLine() << Label << ": " << Value << "\n";
   }
 
-  virtual void printNumber(StringRef Label, uint16_t Value) {
+  virtual void printNumber(StringRef Label, int Value) {
     startLine() << Label << ": " << Value << "\n";
   }
 
-  virtual void printNumber(StringRef Label, uint8_t Value) {
-    startLine() << Label << ": " << unsigned(Value) << "\n";
-  }
-
-  virtual void printNumber(StringRef Label, int64_t Value) {
+  virtual void printNumber(StringRef Label, unsigned int Value) {
     startLine() << Label << ": " << Value << "\n";
   }
 
-  virtual void printNumber(StringRef Label, int32_t Value) {
+  virtual void printNumber(StringRef Label, long Value) {
     startLine() << Label << ": " << Value << "\n";
   }
 
-  virtual void printNumber(StringRef Label, int16_t Value) {
+  virtual void printNumber(StringRef Label, unsigned long Value) {
     startLine() << Label << ": " << Value << "\n";
   }
 
-  virtual void printNumber(StringRef Label, int8_t Value) {
-    startLine() << Label << ": " << int(Value) << "\n";
+  virtual void printNumber(StringRef Label, long long Value) {
+    startLine() << Label << ": " << Value << "\n";
+  }
+
+  virtual void printNumber(StringRef Label, unsigned long long Value) {
+    startLine() << Label << ": " << Value << "\n";
   }
 
   virtual void printNumber(StringRef Label, const APSInt &Value) {
@@ -562,35 +574,47 @@ public:
     return SP->getKind() == ScopedPrinter::ScopedPrinterKind::JSON;
   }
 
-  void printNumber(StringRef Label, uint64_t Value) override {
+  void printNumber(StringRef Label, char Value) override {
     JOS.attribute(Label, Value);
   }
 
-  void printNumber(StringRef Label, uint32_t Value) override {
+  void printNumber(StringRef Label, signed char Value) override {
     JOS.attribute(Label, Value);
   }
 
-  void printNumber(StringRef Label, uint16_t Value) override {
+  void printNumber(StringRef Label, unsigned char Value) override {
     JOS.attribute(Label, Value);
   }
 
-  void printNumber(StringRef Label, uint8_t Value) override {
+  void printNumber(StringRef Label, short Value) override {
     JOS.attribute(Label, Value);
   }
 
-  void printNumber(StringRef Label, int64_t Value) override {
+  void printNumber(StringRef Label, unsigned short Value) override {
     JOS.attribute(Label, Value);
   }
 
-  void printNumber(StringRef Label, int32_t Value) override {
+  void printNumber(StringRef Label, int Value) override {
     JOS.attribute(Label, Value);
   }
 
-  void printNumber(StringRef Label, int16_t Value) override {
+  void printNumber(StringRef Label, unsigned int Value) override {
     JOS.attribute(Label, Value);
   }
 
-  void printNumber(StringRef Label, int8_t Value) override {
+  void printNumber(StringRef Label, long Value) override {
+    JOS.attribute(Label, Value);
+  }
+
+  void printNumber(StringRef Label, unsigned long Value) override {
+    JOS.attribute(Label, Value);
+  }
+
+  void printNumber(StringRef Label, long long Value) override {
+    JOS.attribute(Label, Value);
+  }
+
+  void printNumber(StringRef Label, unsigned long long Value) override {
     JOS.attribute(Label, Value);
   }
 

@@ -1,4 +1,4 @@
-//===-- Implementation header for errno -------------------------*- C++ -*-===//
+//===-- Implementation header for libc_errno --------------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,32 +6,42 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIBC_SRC_ERRNO_LLVMLIBC_ERRNO_H
-#define LLVM_LIBC_SRC_ERRNO_LLVMLIBC_ERRNO_H
+#ifndef LLVM_LIBC_SRC_ERRNO_LIBC_ERRNO_H
+#define LLVM_LIBC_SRC_ERRNO_LIBC_ERRNO_H
 
+#include "src/__support/macros/attributes.h"
+#include "src/__support/macros/properties/architectures.h"
+
+// TODO: https://github.com/llvm/llvm-project/issues/80172
+// Separate just the definition of errno numbers in
+// include/llvm-libc-macros/* and only include that instead of the system
+// <errno.h>.
 #include <errno.h>
 
-// All of the libc runtime and test code should use the "libc_errno" macro. They
-// should not refer to the "errno" macro directly.
-#ifdef LIBC_COPT_PUBLIC_PACKAGING
-// This macro will resolve to errno from the errno.h file included above. Under
-// full build, this will be LLVM libc's errno. In overlay build, it will be
-// system libc's errno.
-#define libc_errno errno
-#else
-namespace __llvm_libc {
+// This header is to be consumed by internal implementations, in which all of
+// them should refer to `libc_errno` instead of using `errno` directly from
+// <errno.h> header.
 
-extern "C" {
-extern thread_local int __llvmlibc_internal_errno;
-} // extern "C"
+// Unit and hermetic tests should:
+// - #include "src/errno/libc_errno.h"
+// - NOT #include <errno.h>
+// - Only use `libc_errno` in the code
+// - Depend on libc.src.errno.errno
 
-// TODO: After all of libc/src and libc/test are switched over to use
-// libc_errno, this header file will be "shipped" via an add_entrypoint_object
-// target. At which point libc_errno, should point to __llvmlibc_internal_errno
-// if LIBC_COPT_PUBLIC_PACKAGING is not defined.
-#define libc_errno __llvm_libc::__llvmlibc_internal_errno
+// Integration tests should:
+// - NOT #include "src/errno/libc_errno.h"
+// - #include <errno.h>
+// - Use regular `errno` in the code
+// - Still depend on libc.src.errno.errno
 
-} // namespace __llvm_libc
-#endif
+namespace LIBC_NAMESPACE {
+struct Errno {
+  void operator=(int);
+  operator int();
+};
 
-#endif // LLVM_LIBC_SRC_ERRNO_LLVMLIBC_ERRNO_H
+extern Errno libc_errno;
+
+} // namespace LIBC_NAMESPACE
+
+#endif // LLVM_LIBC_SRC_ERRNO_LIBC_ERRNO_H

@@ -1,5 +1,5 @@
 // clang-format off
-// RUN:  %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -O0 -opaque-pointers -emit-llvm %s -o - | FileCheck %s
+// RUN:  %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -disable-llvm-passes -O0 -emit-llvm %s -o - | FileCheck %s
 
 // This test checks SYCL device compiler code generation for the __regcall
 // functions. This calling convention makes return values and function arguments

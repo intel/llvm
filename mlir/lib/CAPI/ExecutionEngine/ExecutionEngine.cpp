@@ -13,6 +13,7 @@
 #include "mlir/ExecutionEngine/OptUtils.h"
 #include "mlir/Target/LLVMIR/Dialect/Builtin/BuiltinToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
+#include "mlir/Target/LLVMIR/Dialect/OpenMP/OpenMPToLLVMIRTranslation.h"
 #include "llvm/ExecutionEngine/Orc/Mangling.h"
 #include "llvm/Support/TargetSelect.h"
 
@@ -33,6 +34,7 @@ mlirExecutionEngineCreate(MlirModule op, int optLevel, int numPaths,
   auto &ctx = *unwrap(op)->getContext();
   mlir::registerBuiltinDialectTranslation(ctx);
   mlir::registerLLVMDialectTranslation(ctx);
+  mlir::registerOpenMPDialectTranslation(ctx);
 
   auto tmBuilderOrError = llvm::orc::JITTargetMachineBuilder::detectHost();
   if (!tmBuilderOrError) {
@@ -51,12 +53,11 @@ mlirExecutionEngineCreate(MlirModule op, int optLevel, int numPaths,
 
   // Create a transformer to run all LLVM optimization passes at the
   // specified optimization level.
-  auto llvmOptLevel = static_cast<llvm::CodeGenOpt::Level>(optLevel);
   auto transformer = mlir::makeOptimizingTransformer(
-      llvmOptLevel, /*sizeLevel=*/0, /*targetMachine=*/tmOrError->get());
+      optLevel, /*sizeLevel=*/0, /*targetMachine=*/tmOrError->get());
   ExecutionEngineOptions jitOptions;
   jitOptions.transformer = transformer;
-  jitOptions.jitCodeGenOptLevel = llvmOptLevel;
+  jitOptions.jitCodeGenOptLevel = static_cast<llvm::CodeGenOptLevel>(optLevel);
   jitOptions.sharedLibPaths = libPaths;
   jitOptions.enableObjectDump = enableObjectDump;
   auto jitOrError = ExecutionEngine::create(unwrap(op), jitOptions);

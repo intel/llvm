@@ -116,6 +116,11 @@ static cl::opt<unsigned> OutlinerReruns(
     cl::desc(
         "Number of times to rerun the outliner after the initial outline"));
 
+static cl::opt<unsigned> OutlinerBenefitThreshold(
+    "outliner-benefit-threshold", cl::init(1), cl::Hidden,
+    cl::desc(
+        "The minimum size in bytes before an outlining candidate is accepted"));
+
 namespace {
 
 /// Maps \p MachineInstrs to unsigned integers and stores the mappings.
@@ -520,7 +525,7 @@ void MachineOutliner::emitNotOutliningCheaperRemark(
   MachineOptimizationRemarkEmitter MORE(*(C.getMF()), nullptr);
   MORE.emit([&]() {
     MachineOptimizationRemarkMissed R(DEBUG_TYPE, "NotOutliningCheaper",
-                                      C.front()->getDebugLoc(), C.getMBB());
+                                      C.front().getDebugLoc(), C.getMBB());
     R << "Did not outline " << NV("Length", StringLen) << " instructions"
       << " from " << NV("NumOccurrences", CandidatesForRepeatedSeq.size())
       << " locations."
@@ -533,7 +538,7 @@ void MachineOutliner::emitNotOutliningCheaperRemark(
     // Tell the user the other places the candidate was found.
     for (unsigned i = 1, e = CandidatesForRepeatedSeq.size(); i < e; i++) {
       R << NV((Twine("OtherStartLoc") + Twine(i)).str(),
-              CandidatesForRepeatedSeq[i].front()->getDebugLoc());
+              CandidatesForRepeatedSeq[i].front().getDebugLoc());
       if (i != e - 1)
         R << ", ";
     }
@@ -558,7 +563,7 @@ void MachineOutliner::emitOutlinedFunctionRemark(OutlinedFunction &OF) {
   for (size_t i = 0, e = OF.Candidates.size(); i < e; i++) {
 
     R << NV((Twine("StartLoc") + Twine(i)).str(),
-            OF.Candidates[i].front()->getDebugLoc());
+            OF.Candidates[i].front().getDebugLoc());
     if (i != e - 1)
       R << ", ";
   }
@@ -664,7 +669,7 @@ void MachineOutliner::findCandidates(
       continue;
 
     // Is it better to outline this candidate than not?
-    if (OF->getBenefit() < 1) {
+    if (OF->getBenefit() < OutlinerBenefitThreshold) {
       emitNotOutliningCheaperRemark(StringLen, CandidatesForRepeatedSeq, *OF);
       continue;
     }
@@ -683,6 +688,7 @@ MachineFunction *MachineOutliner::createOutlinedFunction(
   if (OutlineRepeatedNum > 0)
     FunctionName += std::to_string(OutlineRepeatedNum + 1) + "_";
   FunctionName += std::to_string(Name);
+  LLVM_DEBUG(dbgs() << "NEW FUNCTION: " << FunctionName << "\n");
 
   // Create the function using an IR-level function.
   LLVMContext &C = M.getContext();
@@ -720,28 +726,28 @@ MachineFunction *MachineOutliner::createOutlinedFunction(
 
   MachineModuleInfo &MMI = getAnalysis<MachineModuleInfoWrapperPass>().getMMI();
   MachineFunction &MF = MMI.getOrCreateMachineFunction(*F);
+  MF.setIsOutlined(true);
   MachineBasicBlock &MBB = *MF.CreateMachineBasicBlock();
 
   // Insert the new function into the module.
   MF.insert(MF.begin(), &MBB);
 
-  MachineFunction *OriginalMF = FirstCand.front()->getMF();
+  MachineFunction *OriginalMF = FirstCand.front().getMF();
   const std::vector<MCCFIInstruction> &Instrs =
       OriginalMF->getFrameInstructions();
-  for (auto I = FirstCand.front(), E = std::next(FirstCand.back()); I != E;
-       ++I) {
-    if (I->isDebugInstr())
+  for (auto &MI : FirstCand) {
+    if (MI.isDebugInstr())
       continue;
 
     // Don't keep debug information for outlined instructions.
     auto DL = DebugLoc();
-    if (I->isCFIInstruction()) {
-      unsigned CFIIndex = I->getOperand(0).getCFIIndex();
+    if (MI.isCFIInstruction()) {
+      unsigned CFIIndex = MI.getOperand(0).getCFIIndex();
       MCCFIInstruction CFI = Instrs[CFIIndex];
       BuildMI(MBB, MBB.end(), DL, TII.get(TargetOpcode::CFI_INSTRUCTION))
           .addCFIIndex(MF.addFrameInst(CFI));
     } else {
-      MachineInstr *NewMI = MF.CloneMachineInstr(&*I);
+      MachineInstr *NewMI = MF.CloneMachineInstr(&MI);
       NewMI->dropMemRefs(MF);
       NewMI->setDebugLoc(DL);
       MBB.insert(MBB.end(), NewMI);
@@ -753,7 +759,7 @@ MachineFunction *MachineOutliner::createOutlinedFunction(
   MF.getProperties().set(MachineFunctionProperties::Property::NoPHIs);
   MF.getProperties().set(MachineFunctionProperties::Property::NoVRegs);
   MF.getProperties().set(MachineFunctionProperties::Property::TracksLiveness);
-  MF.getRegInfo().freezeReservedRegs(MF);
+  MF.getRegInfo().freezeReservedRegs();
 
   // Compute live-in set for outlined fn
   const MachineRegisterInfo &MRI = MF.getRegInfo();
@@ -761,11 +767,11 @@ MachineFunction *MachineOutliner::createOutlinedFunction(
   LivePhysRegs LiveIns(TRI);
   for (auto &Cand : OF.Candidates) {
     // Figure out live-ins at the first instruction.
-    MachineBasicBlock &OutlineBB = *Cand.front()->getParent();
+    MachineBasicBlock &OutlineBB = *Cand.front().getParent();
     LivePhysRegs CandLiveIns(TRI);
     CandLiveIns.addLiveOuts(OutlineBB);
     for (const MachineInstr &MI :
-         reverse(make_range(Cand.front(), OutlineBB.end())))
+         reverse(make_range(Cand.begin(), OutlineBB.end())))
       CandLiveIns.stepBackward(MI);
 
     // The live-in set for the outlined function is the union of the live-ins
@@ -817,7 +823,9 @@ bool MachineOutliner::outline(Module &M,
                               std::vector<OutlinedFunction> &FunctionList,
                               InstructionMapper &Mapper,
                               unsigned &OutlinedFunctionNum) {
-
+  LLVM_DEBUG(dbgs() << "*** Outlining ***\n");
+  LLVM_DEBUG(dbgs() << "NUMBER OF POTENTIAL FUNCTIONS: " << FunctionList.size()
+                    << "\n");
   bool OutlinedSomething = false;
 
   // Sort by benefit. The most beneficial functions should be outlined first.
@@ -829,7 +837,11 @@ bool MachineOutliner::outline(Module &M,
   // Walk over each function, outlining them as we go along. Functions are
   // outlined greedily, based off the sort above.
   auto *UnsignedVecBegin = Mapper.UnsignedVec.begin();
+  LLVM_DEBUG(dbgs() << "WALKING FUNCTION LIST\n");
   for (OutlinedFunction &OF : FunctionList) {
+#ifndef NDEBUG
+    auto NumCandidatesBefore = OF.Candidates.size();
+#endif
     // If we outlined something that overlapped with a candidate in a previous
     // step, then we can't outline from it.
     erase_if(OF.Candidates, [&UnsignedVecBegin](Candidate &C) {
@@ -839,9 +851,23 @@ bool MachineOutliner::outline(Module &M,
                          });
     });
 
+#ifndef NDEBUG
+    auto NumCandidatesAfter = OF.Candidates.size();
+    LLVM_DEBUG(dbgs() << "PRUNED: " << NumCandidatesBefore - NumCandidatesAfter
+                      << "/" << NumCandidatesBefore << " candidates\n");
+#endif
+
     // If we made it unbeneficial to outline this function, skip it.
-    if (OF.getBenefit() < 1)
+    if (OF.getBenefit() < OutlinerBenefitThreshold) {
+      LLVM_DEBUG(dbgs() << "SKIP: Expected benefit (" << OF.getBenefit()
+                        << " B) < threshold (" << OutlinerBenefitThreshold
+                        << " B)\n");
       continue;
+    }
+
+    LLVM_DEBUG(dbgs() << "OUTLINE: Expected benefit (" << OF.getBenefit()
+                      << " B) > threshold (" << OutlinerBenefitThreshold
+                      << " B)\n");
 
     // It's beneficial. Create the function and outline its sequence's
     // occurrences.
@@ -854,13 +880,26 @@ bool MachineOutliner::outline(Module &M,
     const TargetInstrInfo &TII = *STI.getInstrInfo();
 
     // Replace occurrences of the sequence with calls to the new function.
+    LLVM_DEBUG(dbgs() << "CREATE OUTLINED CALLS\n");
     for (Candidate &C : OF.Candidates) {
       MachineBasicBlock &MBB = *C.getMBB();
-      MachineBasicBlock::iterator StartIt = C.front();
-      MachineBasicBlock::iterator EndIt = C.back();
+      MachineBasicBlock::iterator StartIt = C.begin();
+      MachineBasicBlock::iterator EndIt = std::prev(C.end());
 
       // Insert the call.
       auto CallInst = TII.insertOutlinedCall(M, MBB, StartIt, *MF, C);
+// Insert the call.
+#ifndef NDEBUG
+      auto MBBBeingOutlinedFromName =
+          MBB.getName().empty() ? "<unknown>" : MBB.getName().str();
+      auto MFBeingOutlinedFromName = MBB.getParent()->getName().empty()
+                                         ? "<unknown>"
+                                         : MBB.getParent()->getName().str();
+      LLVM_DEBUG(dbgs() << "  CALL: " << MF->getName() << " in "
+                        << MFBeingOutlinedFromName << ":"
+                        << MBBBeingOutlinedFromName << "\n");
+      LLVM_DEBUG(dbgs() << "   .. " << *CallInst);
+#endif
 
       // If the caller tracks liveness, then we need to make sure that
       // anything we outline doesn't break liveness assumptions. The outlined

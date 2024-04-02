@@ -8,11 +8,12 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
+#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
+
+#include <stdint.h> // for uint64_t
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 /// Profiling info for the host execution.
@@ -36,5 +37,5 @@ public:
   void end();
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

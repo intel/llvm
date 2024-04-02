@@ -1,22 +1,27 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-
-// RUN: env ZEX_NUMBER_OF_CCS=0:4 env ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t.out > %t.default.log 2>&1
-// RUN: %GPU_RUN_PLACEHOLDER FileCheck %s --check-prefixes=CHECK-PVC < %t.default.log
-
-// RUN: env SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING=1 \
-// RUN:   env ZEX_NUMBER_OF_CCS=0:4 env ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t.out> %t.compat.log 2>&1
-// RUN: %GPU_RUN_PLACEHOLDER FileCheck %s --check-prefixes=CHECK-PVC,CHECK-PVC-AFFINITY < %t.compat.log
-
-// Same, but using immediate commandlists:
-
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 env ZEX_NUMBER_OF_CCS=0:4 env ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t.out > %t.default.log 2>&1
-// RUN: %GPU_RUN_PLACEHOLDER FileCheck %s --check-prefixes=CHECK-PVC < %t.default.log
-
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 env SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING=1 \
-// RUN:   env ZEX_NUMBER_OF_CCS=0:4 env ZE_DEBUG=1 %GPU_RUN_PLACEHOLDER %t.out> %t.compat.log 2>&1
-// RUN: %GPU_RUN_PLACEHOLDER FileCheck %s --check-prefixes=CHECK-PVC,CHECK-PVC-AFFINITY < %t.compat.log
-
 // REQUIRES: level_zero
+// REQUIRES: aspect-ext_intel_device_id
+
+// RUN: %{build} -o %t.out
+
+// TODO - at this time ZEX_NUMBER_OF_CCS is not working with FLAT hierachy,
+// which is the new default on PVC.  Once it is supported, we'll test on both.
+// In the interim, these are the environment vars that must be set to get cslice
+// or the extra level of partition_by_affinity_domain with the "EXPOSE_" env
+// var.
+// DEFINE: %{setup_env} = env ZE_FLAT_DEVICE_HIERARCHY=COMPOSITE ZE_AFFINITY_MASK=0 ZEX_NUMBER_OF_CCS=0:4
+
+// RUN: %{setup_env} env UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
+
+// RUN: %{setup_env} env SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING=1 \
+// RUN:  UR_L0_DEBUG=1 %{run} %t.out  2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
+
+// Same, but without using immediate commandlists:
+
+// RUN: %{setup_env} env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0  \
+// RUN:   UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
+
+// RUN: %{setup_env} env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING=1 \
+// RUN:  UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
 
 #include <sycl/sycl.hpp>
 
@@ -49,17 +54,17 @@ bool isPartitionableByAffinityDomain(device &Dev) {
       Dev, info::partition_property::partition_by_affinity_domain);
 }
 
+bool IsPVC(device &d) {
+  uint32_t masked_device_id =
+      d.get_info<ext::intel::info::device::device_id>() & 0xff0;
+  return masked_device_id == 0xbd0 || masked_device_id == 0xb60;
+}
+
 void test_pvc(device &d) {
   std::cout << "Test PVC Begin" << std::endl;
   // CHECK-PVC: Test PVC Begin
-  bool IsPVC = [&]() {
-    if (!d.has(aspect::ext_intel_device_id))
-      return false;
-    return (d.get_info<ext::intel::info::device::device_id>() & 0xff0) == 0xbd0;
-  }();
-  std::cout << "IsPVC: " << std::boolalpha << IsPVC << std::endl;
-  if (IsPVC) {
-
+  std::cout << "IsPVC: " << IsPVC(d) << std::endl;
+  if (IsPVC(d)) {
     assert(isPartitionableByAffinityDomain(d));
     assert(!isPartitionableByCSlice(d));
     {
@@ -121,47 +126,34 @@ void test_pvc(device &d) {
         queue q{sub_sub_device};
         q.single_task([=]() {});
       }
-      // CHECK-PVC:          [getZeQueue]: create queue ordinal = 0, index = 0 (round robin in [0, 0])
-      // CHECK-PVC:          [getZeQueue]: create queue ordinal = 0, index = 1 (round robin in [1, 1])
-      // CHECK-PVC-AFFINITY: [getZeQueue]: create queue ordinal = 0, index = 0 (round robin in [0, 0])
-      // CHECK-PVC-AFFINITY: [getZeQueue]: create queue ordinal = 0, index = 1 (round robin in [1, 1])
     };
-    {
-      auto sub_sub_devices = sub_device.create_sub_devices<
-          info::partition_property::ext_intel_partition_by_cslice>();
-      VerifySubSubDevice(sub_sub_devices);
-    }
 
+    // CHECK-PVC: [getZeQueue]: create queue ordinal = 0, index = 0 (round robin in [0, 0])
+    // CHECK-PVC: [getZeQueue]: create queue ordinal = 0, index = 1 (round robin in [1, 1])
     if (ExposeCSliceInAffinityPartitioning) {
       auto sub_sub_devices = sub_device.create_sub_devices<
           info::partition_property::partition_by_affinity_domain>(
           info::partition_affinity_domain::next_partitionable);
       VerifySubSubDevice(sub_sub_devices);
+    } else {
+      auto sub_sub_devices = sub_device.create_sub_devices<
+          info::partition_property::ext_intel_partition_by_cslice>();
+      VerifySubSubDevice(sub_sub_devices);
     }
   } else {
     // Make FileCheck pass.
-    std::cout << "Fake ZE_DEBUG output for FileCheck:" << std::endl;
+    std::cout << "Fake UR_L0_DEBUG output for FileCheck:" << std::endl;
     // clang-format off
     std::cout << "[getZeQueue]: create queue ordinal = 0, index = 0 (round robin in [0, 0])" << std::endl;
     std::cout << "[getZeQueue]: create queue ordinal = 0, index = 1 (round robin in [1, 1])" << std::endl;
-    if (ExposeCSliceInAffinityPartitioning) {
-      std::cout << "[getZeQueue]: create queue ordinal = 0, index = 0 (round robin in [0, 0])" << std::endl;
-      std::cout << "[getZeQueue]: create queue ordinal = 0, index = 1 (round robin in [1, 1])" << std::endl;
-    }
     // clang-format on
   }
   std::cout << "Test PVC End" << std::endl;
   // CHECK-PVC: Test PVC End
 }
 
-void test_non_pvc(device d) {
-  bool IsPVC = [&]() {
-    if (!d.has(aspect::ext_intel_device_id))
-      return false;
-    return (d.get_info<ext::intel::info::device::device_id>() & 0xff0) == 0xbd0;
-  }();
-
-  if (IsPVC)
+void test_non_pvc(device &d) {
+  if (IsPVC(d))
     return;
 
   // Non-PVC devices are not partitionable by CSlice at any level of

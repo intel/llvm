@@ -8,10 +8,13 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/pi.h> // for PI_MEMORY_ORDER_ACQUIRE, PI_MEMORY_ORDER_ACQ_REL
+
+#include <atomic> // for memory_order
+#include <vector> // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 enum class memory_order : int {
   relaxed = 0,
@@ -101,5 +104,5 @@ static constexpr std::memory_order getStdMemoryOrder(sycl::memory_order order) {
 #endif // __SYCL_DEVICE_ONLY__
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

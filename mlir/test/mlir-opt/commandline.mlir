@@ -6,6 +6,7 @@
 // CHECK-SAME: amx
 // CHECK-SAME: arith
 // CHECK-SAME: arm_neon
+// CHECK-SAME: arm_sme
 // CHECK-SAME: arm_sve
 // CHECK-SAME: async
 // CHECK-SAME: bufferization
@@ -17,6 +18,7 @@
 // CHECK-SAME: func
 // CHECK-SAME: gpu
 // CHECK-SAME: index
+// CHECK-SAME: irdl
 // CHECK-SAME: linalg
 // CHECK-SAME: llvm
 // CHECK-SAME: math

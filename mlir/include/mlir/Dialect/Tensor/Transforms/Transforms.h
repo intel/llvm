@@ -34,24 +34,25 @@ FailureOr<TilingResult> replaceExtractSliceWithTiledProducer(
 // Populate functions.
 //===----------------------------------------------------------------------===//
 
-/// Collects a set of patterns to rewrite ops within the tensor dialect.
-void populateExpandOpsPatterns(RewritePatternSet &patterns);
-
-/// Appends patterns for folding tensor aliasing ops into consumer load/store
-/// ops into `patterns`.
+/// Appends patterns for folding tensor subset ops into consumer load/store
+/// ops into `patterns`. (This includes patterns for folding tensor subset ops
+/// into vector transfer ops.)
 void populateFoldTensorSubsetOpPatterns(RewritePatternSet &patterns);
 
-/// Populates `patterns` with patterns to wrap a tensor.pad op with an scf.if op
-/// to separate the cases where we don't need padding (all pad sizes are
-/// actually zeros) and where we indeed need padding.
-void populateSplitPaddingPatterns(RewritePatternSet &patterns,
-                                  PatternBenefit baseBenefit = 1);
+/// Appends patterns for folding tensor subset ops into vector transfer ops.
+void populateFoldTensorSubsetIntoVectorTransferPatterns(
+    RewritePatternSet &patterns);
 
 /// Collects patterns to merge consecutive tensor.insert_slice/extract_slice
-/// into one. These patterns are in in this separate entry point because the
-/// bufferization is sensitive over IR structure, particularly those
+/// into one. These patterns are in this separate entry point because the
+/// bufferization is sensitive to IR structure, particularly those
 /// tensor.extract_slice and tensor.insert_slice ops for creating the slices.
 void populateMergeConsecutiveInsertExtractSlicePatterns(
+    RewritePatternSet &patterns);
+
+/// Populates `patterns` with patterns that drop redundant tensor.insert_slice
+/// rank expansions.
+void populateDropRedundantInsertSliceRankExpansionPatterns(
     RewritePatternSet &patterns);
 
 /// Populates `patterns` with patterns that fold `tensor.expand_shape` and
@@ -59,13 +60,71 @@ void populateMergeConsecutiveInsertExtractSlicePatterns(
 void populateReassociativeReshapeFoldingPatterns(RewritePatternSet &patterns);
 
 /// Populates `patterns` with patterns that fold tensor.empty with
-/// tensor.[extract_slice|cast|expand_shape|collapse_shape].
-void populateFoldTensorEmptyPatterns(RewritePatternSet &patterns);
+/// tensor.[extract_slice|expand_shape|collapse_shape].
+///
+/// If `singleUseOnly` is set to "true", only tensor.empty ops with a single
+/// use are folded.
+void populateFoldTensorEmptyPatterns(RewritePatternSet &patterns,
+                                     bool foldSingleUseOnly = false);
+
+/// Populates `patterns` with patterns that decompose `tensor.concat` into
+/// `tensor.empty` of a tensor of the concatenated size, followed by a chain
+/// of `tensor.insert_slice` operations on the inputs. This is intended to be
+/// used as a fallback tensor -> tensor lowering that decomposes concat such
+/// that it can be bufferized into a sequence of copies.
+void populateDecomposeTensorConcatPatterns(RewritePatternSet &patterns);
+
+/// Populates `patterns` with patterns that simplify `tensor.pack` and
+/// `tensor.unpack` operations.
+void populateSimplifyPackAndUnpackPatterns(RewritePatternSet &patterns);
 
 /// Populates `patterns` with patterns that fold operations like `tensor.pad`
 /// and `tensor.extract_slice` into `tensor.pack` and `tensor.unpack` operations
 /// respectively.
 void populateFoldIntoPackAndUnpackPatterns(RewritePatternSet &patterns);
+
+/// Populates `patterns` with patterns that replace tensor ops (such as
+/// tensor.generate) with constants when possible.
+void populateRewriteAsConstantPatterns(RewritePatternSet &patterns);
+
+//===----------------------------------------------------------------------===//
+// Transform helpers
+//===----------------------------------------------------------------------===//
+
+/// Build a new tensor::PadOp with low/high padding that is independent of all
+/// given independencies. If the op is already independent of all
+/// independencies, the same PadOp result is returned.
+///
+/// Failure indicates the no suitable upper bound for low/high padding could be
+/// found.
+///
+/// Example:
+/// scf.for %iv = %lb to %ub step %step {
+///   %high = affine.apply affine_map<(d0)[s0] -> (s0 - d0)> (%i)[%ub]
+///   %p = tensor.pad %t low[5] high[%high] ...
+///   ...
+/// }
+///
+/// The function builds IR such as:
+/// %high_new = affine.apply affine_map<()[s0, s1] -> (-s0 + s1)> ()[%lb, %ub]
+/// %p_hoistable = tensor.pad %t low[5] high[%high_new]
+/// %dim = tensor.dim %t, %c0
+/// %size = affine.apply affine_map<(d0)[s0, s1] -> (-d0 + s0 + s1 + 5)>
+///     (%iv)[%ub, %dim]
+/// %slice = tensor.extract_slice %p_hoistable [0] [%size] [1]
+///
+/// The slice is returned.
+FailureOr<Value> buildIndependentOp(OpBuilder &b, tensor::PadOp padOp,
+                                    ValueRange independencies);
+
+/// Build a new tensor::EmptyOp who's dynamic sizes are independent of all
+/// given independencies. If the op is already independent of all
+/// independencies, the same EmptyOp result is returned.
+///
+/// Failure indicates the no suitable upper bound for the dynamic sizes could be
+/// found.
+FailureOr<Value> buildIndependentOp(OpBuilder &b, tensor::EmptyOp emptyOp,
+                                    ValueRange independencies);
 
 } // namespace tensor
 } // namespace mlir

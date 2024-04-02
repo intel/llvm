@@ -2,7 +2,7 @@
 // RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: spirv-val %t.spv
 // RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-// RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 // RUN: not llvm-spirv %t.bc --spirv-max-version=1.0 2>&1 | FileCheck %s --check-prefix=CHECK-SPV10
 
 class Something {

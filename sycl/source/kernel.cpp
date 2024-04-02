@@ -14,16 +14,18 @@
 #include <sycl/kernel.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 kernel::kernel(cl_kernel ClKernel, const context &SyclContext)
     : impl(std::make_shared<detail::kernel_impl>(
-          detail::pi::cast<detail::RT::PiKernel>(ClKernel),
-          detail::getSyclObjImpl(SyclContext), nullptr)) {
+          detail::pi::cast<sycl::detail::pi::PiKernel>(ClKernel),
+          detail::getSyclObjImpl(SyclContext), nullptr, nullptr)) {
   // This is a special interop constructor for OpenCL, so the kernel must be
   // retained.
-  impl->getPlugin().call<detail::PiApiKind::piKernelRetain>(
-      detail::pi::cast<detail::RT::PiKernel>(ClKernel));
+  if (get_backend() == backend::opencl) {
+    impl->getPlugin()->call<detail::PiApiKind::piKernelRetain>(
+        detail::pi::cast<sycl::detail::pi::PiKernel>(ClKernel));
+  }
 }
 
 cl_kernel kernel::get() const { return impl->get(); }
@@ -47,15 +49,30 @@ kernel::get_kernel_bundle() const {
 }
 
 template <typename Param>
-typename detail::is_kernel_info_desc<Param>::return_type
-kernel::get_info() const {
-  return impl->get_info<Param>();
+detail::ABINeutralT_t<typename detail::is_kernel_info_desc<Param>::return_type>
+kernel::get_info_impl() const {
+  return detail::convert_to_abi_neutral(impl->template get_info<Param>());
 }
 
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template __SYCL_EXPORT ReturnT kernel::get_info<info::kernel::Desc>() const;
+  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
+  kernel::get_info_impl<info::kernel::Desc>() const;
 
 #include <sycl/info/kernel_traits.def>
+
+#undef __SYCL_PARAM_TRAITS_SPEC
+
+template <typename Param>
+typename detail::is_backend_info_desc<Param>::return_type
+kernel::get_backend_info() const {
+  return impl->get_backend_info<Param>();
+}
+
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
+  template __SYCL_EXPORT ReturnT                                               \
+  kernel::get_backend_info<info::DescType::Desc>() const;
+
+#include <sycl/info/sycl_backend_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
@@ -88,11 +105,23 @@ template __SYCL_EXPORT uint32_t
 kernel::get_info<info::kernel_device_specific::max_sub_group_size>(
     const device &, const sycl::range<3> &) const;
 
+template <typename Param>
+typename Param::return_type
+kernel::ext_oneapi_get_info(const queue &Queue) const {
+  return impl->ext_oneapi_get_info<Param>(Queue);
+}
+
+template __SYCL_EXPORT typename ext::oneapi::experimental::info::
+    kernel_queue_specific::max_num_work_group_sync::return_type
+    kernel::ext_oneapi_get_info<
+        ext::oneapi::experimental::info::kernel_queue_specific::
+            max_num_work_group_sync>(const queue &Queue) const;
+
 kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
 
 pi_native_handle kernel::getNative() const { return impl->getNative(); }
 
 pi_native_handle kernel::getNativeImpl() const { return impl->getNative(); }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

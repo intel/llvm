@@ -8,13 +8,14 @@
 
 #pragma once
 
-// This header file must not include any standard C++ header files.
-
-#include <sycl/detail/defines_elementary.hpp>
+// FIXME: include export.hpp because integration header emitted by the compiler
+// uses the macro defined in this header, but it doesn't explicitly include it.
 #include <sycl/detail/export.hpp>
 
+// This header file must not include any standard C++ header files.
+
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 #ifndef __SYCL_DEVICE_ONLY__
@@ -91,7 +92,7 @@ template <class KernelNameType> struct KernelInfo {
 #else
 template <char...> struct KernelInfoData {
   static constexpr unsigned getNumParams() { return 0; }
-  static const kernel_param_desc_t &getParamDesc(int Idx) {
+  static const kernel_param_desc_t &getParamDesc(int) {
     static kernel_param_desc_t Dummy;
     return Dummy;
   }
@@ -151,5 +152,5 @@ template <class KernelNameType> struct KernelInfo {
 #endif //__SYCL_UNNAMED_LAMBDA__
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

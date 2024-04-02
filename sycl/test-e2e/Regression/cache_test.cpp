@@ -1,14 +1,13 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-
 // REQUIRES: level_zero, level_zero_dev_kit
+// RUN: %{build} %level_zero_options -o %t.out
+// RUN: %{run} %t.out
 
 #include <algorithm>
 #include <iostream>
 #include <level_zero/ze_api.h>
 #include <stdio.h>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl::ext::oneapi;
 

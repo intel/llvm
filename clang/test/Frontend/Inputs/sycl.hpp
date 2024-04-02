@@ -344,20 +344,6 @@ struct get_kernel_name_t<auto_name, Type> {
 namespace ext {
 namespace oneapi {
 namespace experimental {
-template <typename T, typename ID = T>
-class __SYCL_TYPE(spec_constant) spec_constant {
-public:
-  spec_constant() {}
-  spec_constant(T Cst) {}
-
-  T get() const { // explicit access.
-    return T();   // Dummy implementaion.
-  }
-  operator T() const { // implicit conversion.
-    return get();
-  }
-};
-
 #ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_CONSTANT_AS __attribute__((opencl_constant))
 #else
@@ -642,5 +628,5 @@ public:
   }
 };
 
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl

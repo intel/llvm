@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //==------------ swizzle_op.cpp - SYCL SwizzleOp basic test ----------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -12,7 +10,7 @@
 #define SYCL_SIMPLE_SWIZZLES
 
 #include <cassert>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 
@@ -210,7 +208,7 @@ int main() {
           abc.y() = cba.s1();
           abc.z() = cba.s2();
           abc.w() = cba.s3();
-          if ((cba.x() == abc.x())) {
+          if (cba.x() == abc.x()) {
             abc.xy() = abc.xy() * 3;
 
             B[0] = abc.x();
@@ -264,7 +262,7 @@ int main() {
       myQueue.submit([&](handler &cgh) {
         auto B = b.get_access<access::mode::read_write>(cgh);
         cgh.parallel_for<class test_10>(
-            range<1>{2}, [=](id<1> ID) { B[ID] = int3{ID[0]} / B[ID]; });
+            range<1>{2}, [=](id<1> ID) { B[ID] = int3{(int3)ID[0]} / B[ID]; });
       });
     }
     assert(FF[0] == 0);

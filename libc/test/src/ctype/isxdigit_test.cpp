@@ -10,11 +10,11 @@
 #include "test/UnitTest/Test.h"
 
 TEST(LlvmLibcIsXDigit, DefaultLocale) {
-  for (int ch = 0; ch < 255; ++ch) {
+  for (int ch = -255; ch < 255; ++ch) {
     if (('0' <= ch && ch <= '9') || ('a' <= ch && ch <= 'f') ||
         ('A' <= ch && ch <= 'F'))
-      EXPECT_NE(__llvm_libc::isxdigit(ch), 0);
+      EXPECT_NE(LIBC_NAMESPACE::isxdigit(ch), 0);
     else
-      EXPECT_EQ(__llvm_libc::isxdigit(ch), 0);
+      EXPECT_EQ(LIBC_NAMESPACE::isxdigit(ch), 0);
   }
 }

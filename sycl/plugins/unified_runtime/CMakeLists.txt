@@ -1,10 +1,101 @@
-# PI Unified Runtime plugin library
+# PI Unified Runtime plugin library.
 #
-if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_DIR)
+
+# Options to override the default behaviour of the FetchContent to include UR
+# source code.
+set(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO
+  "" CACHE STRING "Override the Unified Runtime FetchContent repository")
+set(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG
+  "" CACHE STRING "Override the Unified Runtime FetchContent tag")
+
+# Options to disable use of FetchContent to include Unified Runtime source code
+# to improve developer workflow.
+option(SYCL_PI_UR_USE_FETCH_CONTENT
+  "Use FetchContent to acquire the Unified Runtime source code" ON)
+set(SYCL_PI_UR_SOURCE_DIR
+  "" CACHE PATH "Path to root of Unified Runtime repository")
+
+# Override default to enable building tests from unified-runtime
+set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests.")
+set(UMF_ENABLE_POOL_TRACKING ON)
+
+if("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(UR_BUILD_ADAPTER_L0 ON)
+endif()
+if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(UR_BUILD_ADAPTER_CUDA ON)
+endif()
+if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(UR_BUILD_ADAPTER_HIP ON)
+endif()
+if("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(UR_BUILD_ADAPTER_OPENCL ON)
+  set(UR_OPENCL_ICD_LOADER_LIBRARY OpenCL-ICD CACHE FILEPATH
+    "Path of the OpenCL ICD Loader library" FORCE)
+endif()
+if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+  set(UR_BUILD_ADAPTER_NATIVE_CPU ON)
+endif()
+
+# Disable errors from warnings while building the UR.
+# And remember origin flags before doing that.
+set(CMAKE_CXX_FLAGS_BAK "${CMAKE_CXX_FLAGS}")
+if(WIN32)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX-")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX-")
+  # FIXME: Unified runtime build fails with /DUNICODE
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /UUNICODE")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /UUNICODE")
+  # USE_Z7 forces use of /Z7 instead of /Zi which is broken with sccache
+  set(USE_Z7 ON)
+else()
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error")
+endif()
+
+if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
+  # The fetch_adapter_source function can be used to perform a separate content
+  # fetch for a UR adapter, this allows development of adapters to be decoupled
+  # from each other.
+  #
+  # Args:
+  #   * name - Must be the directory name of the adapter
+  #   * repo - A valid Git URL of a Unified Runtime repo
+  #   * tag - A valid Git branch/tag/commit in the Unified Runtime repo
+  function(fetch_adapter_source name repo tag)
+    message(STATUS "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
+    set(fetch-name unified-runtime-${name})
+    FetchContent_Declare(${fetch-name}
+      GIT_REPOSITORY ${repo} GIT_TAG ${tag})
+    # We don't want to add this repo to the build, only fetch its source.
+    FetchContent_Populate(${fetch-name})
+    # Get the path to the source directory
+    string(TOUPPER ${name} NAME)
+    set(source_dir_var UR_ADAPTER_${NAME}_SOURCE_DIR)
+    FetchContent_GetProperties(${fetch-name} SOURCE_DIR UR_ADAPTER_${NAME}_SOURCE_DIR)
+    # Set the variable which informs UR where to get the adapter source from.
+    set(UR_ADAPTER_${NAME}_SOURCE_DIR
+      "${UR_ADAPTER_${NAME}_SOURCE_DIR}/source/adapters/${name}"
+      CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
+  endfunction()
+
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG d6af758779db6eebdc419fd5e249302f566eb5de)
+  # commit 3a7d00f136cf5d69e61bf1e235393dfc56f55525
+  # Merge: cd5ad7b5 9e5c6203
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Mon Apr 1 15:16:30 2024 +0100
+  #     Merge pull request #1485 from aarongreig/aaron/addDeviceNotAvailableErrC
+  #     Add UR_ERROR_DEVICE_NOT_AVAILABLE and appropriate translation for CL.
+  set(UNIFIED_RUNTIME_TAG 3a7d00f136cf5d69e61bf1e235393dfc56f55525)
+
+  if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
+    set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
+  endif()
+  if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG)
+    set(UNIFIED_RUNTIME_TAG "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_TAG}")
+  endif()
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
@@ -12,40 +103,55 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
     GIT_TAG           ${UNIFIED_RUNTIME_TAG}
   )
 
-  # Disable errors from warnings while building the UR.
-  # And remember origin flags before doing that.
-  set(CMAKE_CXX_FLAGS_BAK "${CMAKE_CXX_FLAGS}")
-  if(WIN32)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX-")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX-")
-    # FIXME: Unified runtime build fails with /DUNICODE
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /UUNICODE")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /UUNICODE")
-    # USE_Z7 forces use of /Z7 instead of /Zi which is broken with sccache
-    set(USE_Z7 ON)
-  else()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error")
-  endif()
-
-  # No need to build tests from unified-runtime
-  set(UR_BUILD_TESTS "0" CACHE STRING "0")
-
   FetchContent_GetProperties(unified-runtime)
   FetchContent_MakeAvailable(unified-runtime)
 
-  # Restore original flags
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
-
-  add_library(UnifiedRuntimeLoader ALIAS loader)
-
   set(UNIFIED_RUNTIME_SOURCE_DIR
-    ${unified-runtime_SOURCE_DIR} CACHE PATH "Path to Unified Runtime Headers")
-  set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
+    "${unified-runtime_SOURCE_DIR}" CACHE PATH
+    "Path to Unified Runtime Headers" FORCE)
+elseif(SYCL_PI_UR_SOURCE_DIR)
+  # SYCL_PI_UR_USE_FETCH_CONTENT is OFF and SYCL_PI_UR_SOURCE_DIR has been set,
+  # use the external Unified Runtime source directory.
+  set(UNIFIED_RUNTIME_SOURCE_DIR
+    "${SYCL_PI_UR_SOURCE_DIR}" CACHE PATH
+    "Path to Unified Runtime Headers" FORCE)
+  add_subdirectory(
+    ${UNIFIED_RUNTIME_SOURCE_DIR}
+    ${CMAKE_CURRENT_BINARY_DIR}/unified-runtime)
+else()
+  # SYCL_PI_UR_USE_FETCH_CONTENT is OFF and SYCL_PI_UR_SOURCE_DIR has not been
+  # set, check if the fallback local directory exists.
+  if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/unified-runtime)
+    message(FATAL_ERROR
+      "SYCL_PI_UR_USE_FETCH_CONTENT is disabled but no alternative Unified \
+      Runtime source directory has been provided, either:
+
+      * Set -DSYCL_PI_UR_SOURCE_DIR=/path/to/unified-runtime
+      * Clone the UR repo in ${CMAKE_CURRENT_SOURCE_DIR}/unified-runtime")
+  endif()
+  # The fallback local directory for the Unified Runtime repository has been
+  # found, use it.
+  set(UNIFIED_RUNTIME_SOURCE_DIR
+    "${CMAKE_CURRENT_SOURCE_DIR}/unified-runtime" CACHE PATH
+    "Path to Unified Runtime Headers" FORCE)
+  add_subdirectory(${UNIFIED_RUNTIME_SOURCE_DIR})
 endif()
 
+# Restore original flags
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
 
-add_library (UnifiedRuntime-Headers INTERFACE)
+message(STATUS
+  "Using Unified Runtime source directory: ${UNIFIED_RUNTIME_SOURCE_DIR}")
+
+set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
+set(UNIFIED_RUNTIME_SRC_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source")
+set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/common")
+
+add_library(UnifiedRuntimeLoader ALIAS ur_loader)
+add_library(UnifiedRuntimeCommon ALIAS ur_common)
+add_library(UnifiedMemoryFramework ALIAS umf)
+
+add_library(UnifiedRuntime-Headers INTERFACE)
 
 target_include_directories(UnifiedRuntime-Headers
   INTERFACE
@@ -54,71 +160,92 @@ target_include_directories(UnifiedRuntime-Headers
 
 find_package(Threads REQUIRED)
 
-add_sycl_plugin(unified_runtime
+set(UNIFIED_RUNTIME_PLUGIN_ARGS
   SOURCES
     # These are short-term shared with Unified Runtime
-    # The two plugins define a few things differrently so must
+    # The two plugins define a few things differently so must
     # be built separately. This difference is spelled in
     # their "ur_bindings.hpp" files.
-    #
     "ur_bindings.hpp"
     "pi2ur.hpp"
-    "pi2ur.cpp"
     # These below belong to Unified Runtime PI Plugin only
     "pi_unified_runtime.hpp"
     "pi_unified_runtime.cpp"
-    LIBRARIES
+  LIBRARIES
     Threads::Threads
     UnifiedRuntimeLoader
     UnifiedRuntime-Headers
-)
-
-# Build level zero adapter
-add_sycl_library("ur_adapter_level_zero" SHARED
-  SOURCES
-    "ur/ur.hpp"
-    "ur/ur.cpp"
-    "ur/usm_allocator.hpp"
-    "ur/usm_allocator.cpp"
-    "ur/adapters/level_zero/ur_level_zero.hpp"
-    "ur/adapters/level_zero/ur_level_zero.cpp"
-    "ur/adapters/level_zero/ur_loader_interface.cpp"
-    "ur/adapters/level_zero/ur_level_zero_common.hpp"
-    "ur/adapters/level_zero/ur_level_zero_context.hpp"
-    "ur/adapters/level_zero/ur_level_zero_device.hpp"
-    "ur/adapters/level_zero/ur_level_zero_event.hpp"
-    "ur/adapters/level_zero/ur_level_zero_mem.hpp"
-    "ur/adapters/level_zero/ur_level_zero_module.hpp"
-    "ur/adapters/level_zero/ur_level_zero_platform.hpp"
-    "ur/adapters/level_zero/ur_level_zero_program.hpp"
-    "ur/adapters/level_zero/ur_level_zero_queue.hpp"
-    "ur/adapters/level_zero/ur_level_zero_sampler.hpp"
-    "ur/adapters/level_zero/ur_level_zero.cpp"
-    "ur/adapters/level_zero/ur_level_zero_common.cpp"
-    "ur/adapters/level_zero/ur_level_zero_context.cpp"
-    "ur/adapters/level_zero/ur_level_zero_device.cpp"
-    "ur/adapters/level_zero/ur_level_zero_event.cpp"
-    "ur/adapters/level_zero/ur_level_zero_mem.cpp"
-    "ur/adapters/level_zero/ur_level_zero_module.cpp"
-    "ur/adapters/level_zero/ur_level_zero_platform.cpp"
-    "ur/adapters/level_zero/ur_level_zero_program.cpp"
-    "ur/adapters/level_zero/ur_level_zero_queue.cpp"
-    "ur/adapters/level_zero/ur_level_zero_sampler.cpp"
+    UnifiedRuntimeCommon
   INCLUDE_DIRS
-    ${sycl_inc_dir}
-  LIBRARIES
-    UnifiedRuntime-Headers
-    LevelZeroLoader-Headers
-    LevelZeroLoader
-    Threads::Threads
+    "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
+    "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
 )
 
-set_target_properties("ur_adapter_level_zero" PROPERTIES
-    VERSION "0.0.0"
-    SOVERSION "0"
-)
+# We need for #include <ze_api.h> in common.h
+if("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+  list(APPEND UNIFIED_RUNTIME_PLUGIN_ARGS LevelZeroLoader-Headers)
+endif()
 
+if("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
+  list(APPEND UNIFIED_RUNTIME_PLUGIN_ARGS OpenCL-ICD)
+endif()
 
-if (TARGET UnifiedRuntimeLoader)
+add_sycl_plugin(unified_runtime ${UNIFIED_RUNTIME_PLUGIN_ARGS})
+
+if(TARGET UnifiedRuntimeLoader)
   set_target_properties(hello_world PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)
+  # Install the UR loader.
+  # TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
+  # When UR is moved to its separate repo perhaps we should introduce new component,
+  # e.g. unified-runtime-sycl-dev.
+  install(TARGETS ur_loader
+    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+    RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+  )
+endif()
+
+# Install the UR adapters too
+if("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+  add_dependencies(sycl-runtime-libraries ur_adapter_level_zero)
+
+  # Install the UR adapters too
+  install(TARGETS ur_adapter_level_zero
+    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+    RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+  )
+endif()
+
+if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+  add_dependencies(sycl-runtime-libraries ur_adapter_cuda)
+endif()
+
+if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+  add_dependencies(sycl-runtime-libraries ur_adapter_hip)
+endif()
+
+if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
+    add_dependencies(sycl-runtime-libraries ur_adapter_opencl)
+
+    # Install the UR adapters too
+    install(TARGETS ur_adapter_opencl
+      LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+      ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
+      RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+    )
+endif()
+
+if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+    add_dependencies(sycl-runtime-libraries ur_adapter_native_cpu)
+
+  option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
+
+  if(NATIVECPU_USE_OCK)
+    message(STATUS "Compiling Native CPU adapter with OCK support.")
+    target_compile_definitions(ur_adapter_native_cpu PRIVATE NATIVECPU_USE_OCK)
+  else()
+    message(WARNING "Compiling Native CPU adapter without OCK support.
+    Some valid SYCL programs may not build or may have low performance.")
+  endif()
 endif()

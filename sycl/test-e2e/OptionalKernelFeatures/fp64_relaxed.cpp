@@ -1,15 +1,11 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -DOPTIMIZATIONS_DISABLED=0 %s -o %t_opt.out
-// RUN: %CPU_RUN_PLACEHOLDER %t_opt.out
-// RUN: %GPU_RUN_PLACEHOLDER %t_opt.out
-// RUN: %ACC_RUN_PLACEHOLDER %t_opt.out
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fno-sycl-early-optimizations -DOPTIMIZATIONS_DISABLED=1 %s -o %t_noopt.out
-// RUN: %CPU_RUN_PLACEHOLDER %t_noopt.out
-// RUN: %GPU_RUN_PLACEHOLDER %t_noopt.out
-// RUN: %ACC_RUN_PLACEHOLDER %t_noopt.out
+// RUN: %{build} -DOPTIMIZATIONS_DISABLED=0 -o %t_opt.out
+// RUN: %{run} %t_opt.out
+// RUN: %{build} -fno-sycl-early-optimizations -DOPTIMIZATIONS_DISABLED=1 -o %t_noopt.out
+// RUN: %{run} %t_noopt.out
 
 // Tests that aspect::fp64 requirements are affected by optimizations.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::queue Q;

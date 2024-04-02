@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 // XFAIL: gpu && linux
 
 // SYCL runtime may construct global objects at function scope. The test ensures
@@ -10,12 +8,13 @@
 
 // REQUIRES: TEMPORARY_DISABLED
 // Disable test due to flacky failures
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
 
 class ComplexClass {
 public:
   ~ComplexClass() {
-    auto Device = sycl::default_selector{}.select_device();
+    sycl::device Device;
     sycl::queue Queue{Device};
     sycl::buffer<int, 1> Buf{sycl::range<1>{16}};
     Queue.submit([&](sycl::handler &CGH) {

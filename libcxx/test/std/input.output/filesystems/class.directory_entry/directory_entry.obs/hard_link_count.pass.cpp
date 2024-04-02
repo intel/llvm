@@ -6,11 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: c++03
+// REQUIRES: can-create-symlinks
+// UNSUPPORTED: c++03, c++11, c++14
 
 // The string reported on errors changed, which makes those tests fail when run
 // against already-released libc++'s.
 // XFAIL: stdlib=apple-libc++ && target={{.+}}-apple-macosx{{10.15|11.0}}
+
+// Starting in Android N (API 24), SELinux policy prevents the shell user from
+// creating a hard link.
+// XFAIL: LIBCXX-ANDROID-FIXME && !android-device-api={{21|22|23}}
 
 // <filesystem>
 
@@ -19,22 +24,22 @@
 // uintmax_t hard_link_count() const;
 // uintmax_t hard_link_count(error_code const&) const noexcept;
 
-#include "filesystem_include.h"
+#include <filesystem>
 #include <type_traits>
 #include <cassert>
 
 #include "assert_macros.h"
 #include "filesystem_test_helper.h"
-
 #include "test_macros.h"
+namespace fs = std::filesystem;
 
 static void signatures() {
   using namespace fs;
   {
     const directory_entry e = {};
     std::error_code ec;
-    static_assert(std::is_same<decltype(e.hard_link_count()), uintmax_t>::value, "");
-    static_assert(std::is_same<decltype(e.hard_link_count(ec)), uintmax_t>::value,
+    static_assert(std::is_same<decltype(e.hard_link_count()), std::uintmax_t>::value, "");
+    static_assert(std::is_same<decltype(e.hard_link_count(ec)), std::uintmax_t>::value,
                   "");
     static_assert(noexcept(e.hard_link_count()) == false, "");
     static_assert(noexcept(e.hard_link_count(ec)) == true, "");
@@ -51,7 +56,7 @@ static void basic() {
 
   {
     directory_entry ent(file);
-    uintmax_t expect = hard_link_count(ent);
+    std::uintmax_t expect = hard_link_count(ent);
 
     // Remove the file to show that the results were already in the cache.
     LIBCPP_ONLY(remove(file));
@@ -62,7 +67,7 @@ static void basic() {
   }
   {
     directory_entry ent(dir);
-    uintmax_t expect = hard_link_count(ent);
+    std::uintmax_t expect = hard_link_count(ent);
 
     LIBCPP_ONLY(remove(dir));
 
@@ -94,7 +99,7 @@ static void not_regular_file() {
     directory_entry ent(p, dummy_ec);
     assert(!dummy_ec);
 
-    uintmax_t expect = hard_link_count(p);
+    std::uintmax_t expect = hard_link_count(p);
 
     LIBCPP_ONLY(permissions(dir, perms::none));
 
@@ -140,7 +145,7 @@ static void error_reporting() {
     assert(ErrorIs(ec, std::errc::no_such_file_or_directory));
 
     ec = GetTestEC();
-    assert(ent.hard_link_count(ec) == uintmax_t(-1));
+    assert(ent.hard_link_count(ec) == std::uintmax_t(-1));
     assert(ErrorIs(ec, std::errc::no_such_file_or_directory));
 
     ExceptionChecker Checker(static_env.DNE,
@@ -153,8 +158,8 @@ static void error_reporting() {
     directory_entry ent;
 
     std::error_code ec = GetTestEC();
-    uintmax_t expect_bad = hard_link_count(static_env.BadSymlink, ec);
-    assert(expect_bad == uintmax_t(-1));
+    std::uintmax_t expect_bad = hard_link_count(static_env.BadSymlink, ec);
+    assert(expect_bad == std::uintmax_t(-1));
     assert(ErrorIs(ec, std::errc::no_such_file_or_directory));
 
     ec = GetTestEC();
@@ -177,7 +182,7 @@ static void error_reporting() {
   // test a file w/o appropriate permissions.
   {
     directory_entry ent;
-    uintmax_t expect_good = hard_link_count(file);
+    std::uintmax_t expect_good = hard_link_count(file);
     permissions(dir, perms::none);
 
     std::error_code ec = GetTestEC();
@@ -186,7 +191,7 @@ static void error_reporting() {
     assert(ErrorIs(ec, std::errc::permission_denied));
 
     ec = GetTestEC();
-    assert(ent.hard_link_count(ec) == uintmax_t(-1));
+    assert(ent.hard_link_count(ec) == std::uintmax_t(-1));
     assert(ErrorIs(ec, std::errc::permission_denied));
 
     ExceptionChecker Checker(file, std::errc::permission_denied,
@@ -203,7 +208,7 @@ static void error_reporting() {
   // test a symlink w/o appropriate permissions.
   {
     directory_entry ent;
-    uintmax_t expect_good = hard_link_count(sym_in_dir);
+    std::uintmax_t expect_good = hard_link_count(sym_in_dir);
     permissions(dir, perms::none);
 
     std::error_code ec = GetTestEC();
@@ -212,7 +217,7 @@ static void error_reporting() {
     assert(ErrorIs(ec, std::errc::permission_denied));
 
     ec = GetTestEC();
-    assert(ent.hard_link_count(ec) == uintmax_t(-1));
+    assert(ent.hard_link_count(ec) == std::uintmax_t(-1));
     assert(ErrorIs(ec, std::errc::permission_denied));
 
     ExceptionChecker Checker(sym_in_dir, std::errc::permission_denied,
@@ -229,7 +234,7 @@ static void error_reporting() {
   // test a symlink to a file w/o appropriate permissions
   {
     directory_entry ent;
-    uintmax_t expect_good = hard_link_count(sym_out_of_dir);
+    std::uintmax_t expect_good = hard_link_count(sym_out_of_dir);
     permissions(dir, perms::none);
 
     std::error_code ec = GetTestEC();
@@ -238,7 +243,7 @@ static void error_reporting() {
     assert(!ec);
 
     ec = GetTestEC();
-    assert(ent.hard_link_count(ec) == uintmax_t(-1));
+    assert(ent.hard_link_count(ec) == std::uintmax_t(-1));
     assert(ErrorIs(ec, std::errc::permission_denied));
 
     ExceptionChecker Checker(sym_out_of_dir, std::errc::permission_denied,

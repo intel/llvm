@@ -13,7 +13,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Transforms/IPO/Inliner.h"
-#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/PriorityWorklist.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
@@ -63,7 +62,6 @@
 #include <cassert>
 #include <functional>
 #include <utility>
-#include <vector>
 
 using namespace llvm;
 
@@ -333,6 +331,9 @@ PreservedAnalyses InlinerPass::run(LazyCallGraph::SCC &InitialC,
         LLVM_DEBUG(dbgs() << "Skipping inlining due to history: " << F.getName()
                           << " -> " << Callee.getName() << "\n");
         setInlineRemark(*CB, "recursive");
+        // Set noinline so that we don't forget this decision across CGSCC
+        // iterations.
+        CB->setIsNoInline();
         continue;
       }
 

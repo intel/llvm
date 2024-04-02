@@ -1,7 +1,7 @@
 // REQUIRES: level_zero, level_zero_dev_kit
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %level_zero_options %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out 2>&1 %GPU_CHECK_PLACEHOLDER
+// RUN: %{build} %level_zero_options -o %t.out
+// RUN: %{run} %t.out 2>&1 | FileCheck %s
 //
 // The test is to check that the memory clock rate and bus width is reported be
 // Level Zero backend
@@ -10,7 +10,7 @@
 // CHECK: Memory bus width
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 using namespace sycl;
 
 int main() {

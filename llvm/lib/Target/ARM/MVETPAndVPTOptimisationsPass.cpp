@@ -913,7 +913,7 @@ bool MVETPAndVPTOptimisations::ReplaceVCMPsByVPNOTs(MachineBasicBlock &MBB) {
 }
 
 bool MVETPAndVPTOptimisations::ReplaceConstByVPNOTs(MachineBasicBlock &MBB,
-                                               MachineDominatorTree *DT) {
+                                                    MachineDominatorTree *DT) {
   // Scan through the block, looking for instructions that use constants moves
   // into VPR that are the negative of one another. These are expected to be
   // COPY's to VCCRRegClass, from a t2MOVi or t2MOVi16. The last seen constant
@@ -958,6 +958,7 @@ bool MVETPAndVPTOptimisations::ReplaceConstByVPNOTs(MachineBasicBlock &MBB,
 
     unsigned NotImm = ~Imm & 0xffff;
     if (LastVPTReg != 0 && LastVPTReg != VPR && LastVPTImm == Imm) {
+      MRI->clearKillFlags(LastVPTReg);
       Instr.getOperand(PIdx + 1).setReg(LastVPTReg);
       if (MRI->use_empty(VPR)) {
         DeadInstructions.insert(Copy);
@@ -965,6 +966,7 @@ bool MVETPAndVPTOptimisations::ReplaceConstByVPNOTs(MachineBasicBlock &MBB,
           DeadInstructions.insert(MRI->getVRegDef(GPR));
       }
       LLVM_DEBUG(dbgs() << "Reusing predicate: in  " << Instr);
+      VPR = LastVPTReg;
     } else if (LastVPTReg != 0 && LastVPTImm == NotImm) {
       // We have found the not of a previous constant. Create a VPNot of the
       // earlier predicate reg and use it instead of the copy.

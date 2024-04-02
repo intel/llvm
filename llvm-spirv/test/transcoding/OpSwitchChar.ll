@@ -19,7 +19,7 @@
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.bc
+; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: 9 Switch {{[0-9]+}} {{[0-9]+}} 0 {{[0-9]+}} 1 {{[0-9]+}} 2 {{[0-9]+}}
@@ -29,7 +29,7 @@ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:2
 target triple = "spir-unknown-unknown"
 
 ;CHECK-LLVM-LABEL: @test_switch
-;CHECK-LLVM: switch i8 %1, label %sw.epilog
+;CHECK-LLVM: switch i8 %[[#]], label %sw.epilog
 ;CHECK-LLVM: i8 0, label %sw.bb
 ;CHECK-LLVM: i8 1, label %sw.bb1
 ;CHECK-LLVM: i8 2, label %sw.bb2

@@ -1,8 +1,8 @@
-/* RUN: %clang_cc1 -std=c89 -opaque-pointers -emit-llvm -o - %s | FileCheck %s
-   RUN: %clang_cc1 -std=c99 -opaque-pointers -emit-llvm -o - %s | FileCheck %s
-   RUN: %clang_cc1 -std=c11 -opaque-pointers -emit-llvm -o - %s | FileCheck %s
-   RUN: %clang_cc1 -std=c17 -opaque-pointers -emit-llvm -o - %s | FileCheck %s
-   RUN: %clang_cc1 -std=c2x -opaque-pointers -emit-llvm -o - %s | FileCheck %s
+/* RUN: %clang_cc1 -std=c89 -emit-llvm -o - %s | FileCheck %s
+   RUN: %clang_cc1 -std=c99 -emit-llvm -o - %s | FileCheck %s
+   RUN: %clang_cc1 -std=c11 -emit-llvm -o - %s | FileCheck %s
+   RUN: %clang_cc1 -std=c17 -emit-llvm -o - %s | FileCheck %s
+   RUN: %clang_cc1 -std=c2x -emit-llvm -o - %s | FileCheck %s
  */
 
 /* WG14 DR094: yes

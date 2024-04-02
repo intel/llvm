@@ -1,5 +1,5 @@
-// RUN: mlir-opt -allow-unregistered-dialect --convert-gpu-to-nvvm='use-opaque-pointers=1' --split-input-file %s | FileCheck --check-prefix=NVVM %s
-// RUN: mlir-opt -allow-unregistered-dialect --convert-gpu-to-rocdl='use-opaque-pointers=1' --split-input-file %s | FileCheck --check-prefix=ROCDL %s
+// RUN: mlir-opt -allow-unregistered-dialect --convert-gpu-to-nvvm --split-input-file %s | FileCheck --check-prefix=NVVM %s
+// RUN: mlir-opt -allow-unregistered-dialect --convert-gpu-to-rocdl --split-input-file %s | FileCheck --check-prefix=ROCDL %s
 
 gpu.module @kernel {
   // NVVM-LABEL:  llvm.func @private
@@ -222,6 +222,37 @@ gpu.module @kernel {
     memref.store %arg0, %arg2[%c0] : memref<2xf32, #gpu.address_space<workgroup>>
     memref.store %arg0, %arg3[%c0] : memref<3xf32, #gpu.address_space<private>>
     memref.store %arg0, %arg4[%c0] : memref<4xf32, #gpu.address_space<private>>
+    "terminator"() : () -> ()
+  }
+}
+
+// -----
+
+gpu.module @kernel {
+  // Check that alignment attributes are set correctly
+  // NVVM: llvm.mlir.global internal @[[$buffer:.*]]()
+  // NVVM-SAME:  addr_space = 3
+  // NVVM-SAME:  alignment = 8
+  // NVVM-SAME:  !llvm.array<48 x f32>
+
+  // ROCDL: llvm.mlir.global internal @[[$buffer:.*]]()
+  // ROCDL-SAME:  addr_space = 3
+  // ROCDL-SAME:  alignment = 8
+  // ROCDL-SAME:  !llvm.array<48 x f32>
+
+  // NVVM-LABEL: llvm.func @explicitAlign
+  // ROCDL-LABEL: llvm.func @explicitAlign
+  gpu.func @explicitAlign(%arg0 : index)
+    workgroup(%arg1: memref<48xf32, #gpu.address_space<workgroup>> {llvm.align = 8 : i64})
+    private(%arg2: memref<48xf32, #gpu.address_space<private>> {llvm.align = 4 : i64}) {
+    // NVVM: %[[size:.*]] = llvm.mlir.constant(48 : i64) : i64
+    // NVVM: %[[raw:.*]] = llvm.alloca %[[size]] x f32 {alignment = 4 : i64} : (i64) -> !llvm.ptr
+
+    // ROCDL: %[[size:.*]] = llvm.mlir.constant(48 : i64) : i64
+    // ROCDL: %[[raw:.*]] = llvm.alloca %[[size]] x f32 {alignment = 4 : i64} : (i64) -> !llvm.ptr<5>
+
+    %val = memref.load %arg1[%arg0] : memref<48xf32, #gpu.address_space<workgroup>>
+    memref.store %val, %arg2[%arg0] : memref<48xf32, #gpu.address_space<private>>
     "terminator"() : () -> ()
   }
 }

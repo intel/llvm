@@ -22,7 +22,15 @@
 
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_debug_module %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -filetype=obj  %t.ll -o - | llvm-dwarfdump - | FileCheck %s
+
+; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_debug_module %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -filetype=obj  %t.ll -o - | llvm-dwarfdump - | FileCheck %s
+
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-unknown-linux-gnu -filetype=obj  %t.ll -o - | llvm-dwarfdump - | FileCheck %s
 
 ; CHECK: [[DIE_ID:0x[0-9a-f]+]]: DW_TAG_module
@@ -42,26 +50,26 @@ source_filename = "em.f90"
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-@external_module_mp_dummy_ = available_externally global float 0.000000e+00, align 8, !dbg !0
-@0 = internal unnamed_addr constant i32 2
+@external_module_mp_dummy_ = available_externally addrspace(1) global float 0.000000e+00, align 8, !dbg !0
+@0 = internal unnamed_addr addrspace(1) constant i32 2
 
 ; Function Attrs: noinline nounwind uwtable
 define void @MAIN__() #0 !dbg !2 {
 alloca_0:
   %"var$1" = alloca [8 x i64], align 8
   %"use_external_module_$X" = alloca float, align 8
-  call void @llvm.dbg.declare(metadata float* %"use_external_module_$X", metadata !13, metadata !DIExpression()), !dbg !17
-  %func_result = call i32 @for_set_reentrancy(i32* @0), !dbg !18
-  %external_module_mp_dummy__fetch = load float, float* @external_module_mp_dummy_, align 1, !dbg !19
+  call void @llvm.dbg.declare(metadata ptr %"use_external_module_$X", metadata !13, metadata !DIExpression()), !dbg !17
+  %func_result = call i32 @for_set_reentrancy(ptr addrspace(1) @0), !dbg !18
+  %external_module_mp_dummy__fetch = load float, ptr addrspace(1) @external_module_mp_dummy_, align 1, !dbg !19
   %add = fadd reassoc ninf nsz arcp contract afn float 2.000000e+00, %external_module_mp_dummy__fetch, !dbg !20
-  store float %add, float* %"use_external_module_$X", align 1, !dbg !19
+  store float %add, ptr %"use_external_module_$X", align 1, !dbg !19
   ret void, !dbg !21
 }
 
 ; Function Attrs: nofree nosync nounwind readnone speculatable willreturn
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
-declare i32 @for_set_reentrancy(i32*)
+declare i32 @for_set_reentrancy(ptr addrspace(1))
 
 attributes #0 = { noinline nounwind uwtable "intel-lang"="fortran" "min-legal-vector-width"="0" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" }
 attributes #1 = { nofree nosync nounwind readnone speculatable willreturn }

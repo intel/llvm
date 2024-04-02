@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %clangxx %debug_option -O0 -fsycl %s -o %t.out
+// RUN: %{build} %debug_option -O0 -o %t.out
 // RUN: echo "SYCL_PRINT_EXECUTION_GRAPH=always" > %t.cfg
 // RUN: env SYCL_CONFIG_FILE_NAME=%t.cfg %t.out
 // RUN: ls | grep dot
@@ -16,9 +16,10 @@
 // RUN: %t.out
 // RUN: ls | not grep dot
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::buffer<int, 1> Buf(sycl::range<1>{1});
-  auto Acc = Buf.get_access<sycl::access::mode::read>();
+  sycl::host_accessor Acc(Buf, sycl::read_only);
+  return 0;
 }

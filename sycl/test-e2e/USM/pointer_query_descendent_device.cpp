@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl %s -o %t1.out
-// RUN: %GPU_RUN_PLACEHOLDER %t1.out
+// RUN: %{build} -o %t1.out
+// RUN: %{run} %t1.out
 
 // Use of descendent devices in opencl contexts is not supported yet.
 // UNSUPPORTED: opencl
@@ -10,7 +10,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <CL/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/usm.hpp>
+
 #include <cassert>
 
 std::vector<sycl::device> getSubDevices(sycl::device &Dev) {

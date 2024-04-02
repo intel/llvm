@@ -36,13 +36,18 @@ identical for Docker and Podman. Choose whatever is available on your system.
 
 The following containers are publicly available for DPC++ compiler development:
 
-- `ghcr.io/intel/llvm/ubuntu2004_base`: contains basic environment setup for
+- `ghcr.io/intel/llvm/ubuntu2204_base`: contains basic environment setup for
    building DPC++ compiler from source.
-- `ghcr.io/intel/llvm/ubuntu2004_intel_drivers`: contains everything from the
+- `ghcr.io/intel/llvm/ubuntu2204_intel_drivers`: contains everything from the
    base container + pre-installed Intel drivers.
-- `ghcr.io/intel/llvm/sycl_ubuntu2004_nightly`: contains the latest successfully
-   built nightly build of DPC++ compiler. The image comes in two flavors:
-   with pre-installed Intel drivers (`latest`) and without them (`no-drivers`).
+- `ghcr.io/intel/llvm/ubuntu2204_build`: has development kits installed for
+   NVidia/AMD and can be used for building DPC++ compiler from source with all
+   backends enabled or for end-to-end testing with HIP/CUDA on machines with
+   corresponding GPUs available.
+- `ghcr.io/intel/llvm/sycl_ubuntu2204_nightly`: contains the latest successfully
+   built nightly build of DPC++ compiler. The image comes in three flavors:
+   with pre-installed Intel drivers (`latest`), without them (`no-drivers`) and
+   with development kits installed (`build`).
 
 ## Running Docker container interactively
 
@@ -162,7 +167,7 @@ Docker containers can be built with the following command:
 docker build -f path/to/devops/containers/file.Dockerfile path/to/devops/
 ```
 
-The `ubuntu2004_preinstalled.Dockerfile` script expects `llvm_sycl.tar.xz` file
+The `ubuntu2204_preinstalled.Dockerfile` script expects `llvm_sycl.tar.xz` file
 to be present in `devops/` directory.
 
 Containers other than base provide several configurable arguments, the most

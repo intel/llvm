@@ -19,7 +19,7 @@
 #define __NOEXC /*noexcept*/
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // cos
 template <int SZ>
@@ -65,7 +65,7 @@ log(__ESIMD_NS::simd<float, SZ> x) __NOEXC {
 #endif // __SYCL_DEVICE_ONLY__
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #undef __NOEXC

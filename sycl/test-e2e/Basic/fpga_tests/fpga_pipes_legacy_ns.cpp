@@ -1,5 +1,6 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// REQUIRES: accelerator
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //==-------- fpga_pipes_legacy_ns.cpp - SYCL FPGA pipes test ---------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -40,7 +41,7 @@ template <typename PipeName> int test_simple_nb_pipe(sycl::queue Queue) {
     });
   });
 
-  auto readHostBuffer = writeBuf.get_access<sycl::access::mode::read>();
+  auto readHostBuffer = writeBuf.get_host_access();
   if (readHostBuffer[0] != 42) {
     std::cout << "Result mismatches " << readHostBuffer[0] << " Vs expected "
               << 42 << std::endl;

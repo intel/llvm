@@ -13,7 +13,7 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck %s --input-file %t.rev.ll --check-prefix CHECK-LLVM
 
@@ -26,7 +26,7 @@ target triple = "spir"
 define i32 @main() #0 !dbg !8 {
 entry:
   %retval = alloca i32, align 4
-  store i32 0, i32* %retval, align 4
+  store i32 0, ptr %retval, align 4
   ret i32 0, !dbg !13
 }
 
@@ -43,6 +43,8 @@ attributes #0 = { noinline norecurse nounwind optnone "correctly-rounded-divide-
 ; CHECK-LLVM-SAME: producer: "clang version 13.0.0 (https://github.com/llvm/llvm-project.git 16a50c9e642fd085e5ceb68c403b71b5b2e0607c)"
 ; CHECK-LLVM-NOT: producer: "spirv"
 ; CHECK-SPIRV: ModuleProcessed "Debug info producer: clang version 13.0.0 (https://github.com/llvm/llvm-project.git 16a50c9e642fd085e5ceb68c403b71b5b2e0607c)"
+; CHECK-SPIRV-NOT: DebugBuildIdentifier
+; CHECK-SPIRV-NOT: DebugStoragePath
 
 !0 = distinct !DICompileUnit(language: DW_LANG_C_plus_plus_14, file: !1, producer: "clang version 13.0.0 (https://github.com/llvm/llvm-project.git 16a50c9e642fd085e5ceb68c403b71b5b2e0607c)", isOptimized: true, runtimeVersion: 0, emissionKind: FullDebug, enums: !2, nameTableKind: None)
 !1 = !DIFile(filename: "<stdin>", directory: "oneAPI")

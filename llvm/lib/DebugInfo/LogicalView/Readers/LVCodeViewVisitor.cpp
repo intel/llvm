@@ -465,13 +465,10 @@ LVScope *LVNamespaceDeduction::get(LVStringRefs Components) {
 LVScope *LVNamespaceDeduction::get(StringRef ScopedName, bool CheckScope) {
   LVStringRefs Components = getAllLexicalComponents(ScopedName);
   if (CheckScope)
-    Components.erase(std::remove_if(Components.begin(), Components.end(),
-                                    [&](StringRef Component) {
-                                      LookupSet::iterator Iter =
-                                          IdentifiedNamespaces.find(Component);
-                                      return Iter == IdentifiedNamespaces.end();
-                                    }),
-                     Components.end());
+    llvm::erase_if(Components, [&](StringRef Component) {
+      LookupSet::iterator Iter = IdentifiedNamespaces.find(Component);
+      return Iter == IdentifiedNamespaces.end();
+    });
 
   LLVM_DEBUG(
       { dbgs() << formatv("ScopedName: '{0}'\n", ScopedName.str().c_str()); });
@@ -1065,7 +1062,7 @@ Error LVSymbolVisitor::visitKnownRecord(
 
     uint64_t Operand1 = DefRangeFramePointerRelFullScope.Offset;
     Symbol->addLocation(Attr, 0, 0, 0, 0);
-    Symbol->addLocationOperands(LVSmall(Attr), Operand1, /*Operand2=*/0);
+    Symbol->addLocationOperands(LVSmall(Attr), {Operand1});
   }
 
   return Error::success();
@@ -1103,7 +1100,7 @@ Error LVSymbolVisitor::visitKnownRecord(
         Reader->linearAddress(Range.ISectStart, Range.OffsetStart);
 
     Symbol->addLocation(Attr, Address, Address + Range.Range, 0, 0);
-    Symbol->addLocationOperands(LVSmall(Attr), Operand1, /*Operand2=*/0);
+    Symbol->addLocationOperands(LVSmall(Attr), {Operand1});
   }
 
   return Error::success();
@@ -1142,7 +1139,7 @@ Error LVSymbolVisitor::visitKnownRecord(
         Reader->linearAddress(Range.ISectStart, Range.OffsetStart);
 
     Symbol->addLocation(Attr, Address, Address + Range.Range, 0, 0);
-    Symbol->addLocationOperands(LVSmall(Attr), Operand1, Operand2);
+    Symbol->addLocationOperands(LVSmall(Attr), {Operand1, Operand2});
   }
 
   return Error::success();
@@ -1177,7 +1174,7 @@ Error LVSymbolVisitor::visitKnownRecord(CVSymbol &Record,
         Reader->linearAddress(Range.ISectStart, Range.OffsetStart);
 
     Symbol->addLocation(Attr, Address, Address + Range.Range, 0, 0);
-    Symbol->addLocationOperands(LVSmall(Attr), Operand1, /*Operand2=*/0);
+    Symbol->addLocationOperands(LVSmall(Attr), {Operand1});
   }
 
   return Error::success();
@@ -1215,7 +1212,7 @@ Error LVSymbolVisitor::visitKnownRecord(
         Reader->linearAddress(Range.ISectStart, Range.OffsetStart);
 
     Symbol->addLocation(Attr, Address, Address + Range.Range, 0, 0);
-    Symbol->addLocationOperands(LVSmall(Attr), Operand1, /*Operand2=*/0);
+    Symbol->addLocationOperands(LVSmall(Attr), {Operand1});
   }
 
   return Error::success();
@@ -1258,7 +1255,7 @@ Error LVSymbolVisitor::visitKnownRecord(CVSymbol &Record,
         Reader->linearAddress(Range.ISectStart, Range.OffsetStart);
 
     Symbol->addLocation(Attr, Address, Address + Range.Range, 0, 0);
-    Symbol->addLocationOperands(LVSmall(Attr), Operand1, /*Operand2=*/0);
+    Symbol->addLocationOperands(LVSmall(Attr), {Operand1, /*Operand2=*/0});
   }
 
   return Error::success();
@@ -1299,7 +1296,7 @@ Error LVSymbolVisitor::visitKnownRecord(CVSymbol &Record,
         Reader->linearAddress(Range.ISectStart, Range.OffsetStart);
 
     Symbol->addLocation(Attr, Address, Address + Range.Range, 0, 0);
-    Symbol->addLocationOperands(LVSmall(Attr), Operand1, /*Operand2=*/0);
+    Symbol->addLocationOperands(LVSmall(Attr), {Operand1, /*Operand2=*/0});
   }
 
   return Error::success();
@@ -1605,7 +1602,7 @@ Error LVSymbolVisitor::visitKnownRecord(CVSymbol &Record, ProcSym &Proc) {
 
     // We don't have a way to see if the symbol is compiler generated. Use
     // the linkage name, to detect `scalar deleting destructor' functions.
-    std::string DemangledSymbol = demangle(std::string(LinkageName));
+    std::string DemangledSymbol = demangle(LinkageName);
     if (DemangledSymbol.find("scalar deleting dtor") != std::string::npos) {
       Function->setIsArtificial();
     } else {
@@ -1685,6 +1682,48 @@ Error LVSymbolVisitor::visitKnownRecord(CVSymbol &Record, UDTSym &UDT) {
 Error LVSymbolVisitor::visitKnownRecord(CVSymbol &Record,
                                         UsingNamespaceSym &UN) {
   LLVM_DEBUG({ W.printString("Namespace", UN.Name); });
+  return Error::success();
+}
+
+// S_ARMSWITCHTABLE
+Error LVSymbolVisitor::visitKnownRecord(CVSymbol &CVR,
+                                        JumpTableSym &JumpTable) {
+  LLVM_DEBUG({
+    W.printHex("BaseOffset", JumpTable.BaseOffset);
+    W.printNumber("BaseSegment", JumpTable.BaseSegment);
+    W.printFlags("SwitchType", static_cast<uint16_t>(JumpTable.SwitchType),
+                 getJumpTableEntrySizeNames());
+    W.printHex("BranchOffset", JumpTable.BranchOffset);
+    W.printHex("TableOffset", JumpTable.TableOffset);
+    W.printNumber("BranchSegment", JumpTable.BranchSegment);
+    W.printNumber("TableSegment", JumpTable.TableSegment);
+    W.printNumber("EntriesCount", JumpTable.EntriesCount);
+  });
+  return Error::success();
+}
+
+// S_CALLERS, S_CALLEES, S_INLINEES
+Error LVSymbolVisitor::visitKnownRecord(CVSymbol &Record, CallerSym &Caller) {
+  LLVM_DEBUG({
+    llvm::StringRef FieldName;
+    switch (Caller.getKind()) {
+    case SymbolRecordKind::CallerSym:
+      FieldName = "Callee";
+      break;
+    case SymbolRecordKind::CalleeSym:
+      FieldName = "Caller";
+      break;
+    case SymbolRecordKind::InlineesSym:
+      FieldName = "Inlinee";
+      break;
+    default:
+      return llvm::make_error<CodeViewError>(
+          "Unknown CV Record type for a CallerSym object!");
+    }
+    for (auto FuncID : Caller.Indices) {
+      printTypeIndex(FieldName, FuncID);
+    }
+  });
   return Error::success();
 }
 
@@ -2897,7 +2936,7 @@ Error LVLogicalVisitor::finishVisitation(CVType &Record, TypeIndex TI,
 // Customized version of 'FieldListVisitHelper'.
 Error LVLogicalVisitor::visitFieldListMemberStream(
     TypeIndex TI, LVElement *Element, ArrayRef<uint8_t> FieldList) {
-  BinaryByteStream Stream(FieldList, llvm::support::little);
+  BinaryByteStream Stream(FieldList, llvm::endianness::little);
   BinaryStreamReader Reader(Stream);
   FieldListDeserializer Deserializer(Reader);
   TypeVisitorCallbackPipeline Pipeline;

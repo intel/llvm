@@ -191,6 +191,9 @@ struct RuntimeLibcallSignatureTable {
     Table[RTLIB::EXP2_F32] = f32_func_f32;
     Table[RTLIB::EXP2_F64] = f64_func_f64;
     Table[RTLIB::EXP2_F128] = i64_i64_func_i64_i64;
+    Table[RTLIB::EXP10_F32] = f32_func_f32;
+    Table[RTLIB::EXP10_F64] = f64_func_f64;
+    Table[RTLIB::EXP10_F128] = i64_i64_func_i64_i64;
     Table[RTLIB::SIN_F32] = f32_func_f32;
     Table[RTLIB::SIN_F64] = f64_func_f64;
     Table[RTLIB::SIN_F128] = i64_i64_func_i64_i64;
@@ -218,6 +221,9 @@ struct RuntimeLibcallSignatureTable {
     Table[RTLIB::ROUND_F32] = f32_func_f32;
     Table[RTLIB::ROUND_F64] = f64_func_f64;
     Table[RTLIB::ROUND_F128] = i64_i64_func_i64_i64;
+    Table[RTLIB::ROUNDEVEN_F32] = f32_func_f32;
+    Table[RTLIB::ROUNDEVEN_F64] = f64_func_f64;
+    Table[RTLIB::ROUNDEVEN_F128] = i64_i64_func_i64_i64;
     Table[RTLIB::LROUND_F32] = iPTR_func_f32;
     Table[RTLIB::LROUND_F64] = iPTR_func_f64;
     Table[RTLIB::LROUND_F128] = iPTR_func_i64_i64;
@@ -242,6 +248,12 @@ struct RuntimeLibcallSignatureTable {
     Table[RTLIB::FMAX_F32] = f32_func_f32_f32;
     Table[RTLIB::FMAX_F64] = f64_func_f64_f64;
     Table[RTLIB::FMAX_F128] = i64_i64_func_i64_i64_i64_i64;
+    Table[RTLIB::LDEXP_F32] = f32_func_f32_i32;
+    Table[RTLIB::LDEXP_F64] = f64_func_f64_i32;
+    Table[RTLIB::LDEXP_F128] = i64_i64_func_i64_i64_i32;
+    Table[RTLIB::FREXP_F32] = f32_func_f32_i32;
+    Table[RTLIB::FREXP_F64] = f64_func_f64_i32;
+    Table[RTLIB::FREXP_F128] = i64_i64_func_i64_i64_i32;
 
     // Conversion
     // All F80 and PPCF128 routines are unsupported.
@@ -512,10 +524,10 @@ struct StaticLibcallNameMap {
 
 } // end anonymous namespace
 
-void llvm::getLibcallSignature(const WebAssemblySubtarget &Subtarget,
-                               RTLIB::Libcall LC,
-                               SmallVectorImpl<wasm::ValType> &Rets,
-                               SmallVectorImpl<wasm::ValType> &Params) {
+void WebAssembly::getLibcallSignature(const WebAssemblySubtarget &Subtarget,
+                                      RTLIB::Libcall LC,
+                                      SmallVectorImpl<wasm::ValType> &Rets,
+                                      SmallVectorImpl<wasm::ValType> &Params) {
   assert(Rets.empty());
   assert(Params.empty());
 
@@ -877,10 +889,10 @@ void llvm::getLibcallSignature(const WebAssemblySubtarget &Subtarget,
 
 // TODO: If the RTLIB::Libcall-taking flavor of GetSignature remains unused
 // other than here, just roll its logic into this version.
-void llvm::getLibcallSignature(const WebAssemblySubtarget &Subtarget,
-                               StringRef Name,
-                               SmallVectorImpl<wasm::ValType> &Rets,
-                               SmallVectorImpl<wasm::ValType> &Params) {
+void WebAssembly::getLibcallSignature(const WebAssemblySubtarget &Subtarget,
+                                      StringRef Name,
+                                      SmallVectorImpl<wasm::ValType> &Rets,
+                                      SmallVectorImpl<wasm::ValType> &Params) {
   static StaticLibcallNameMap LibcallNameMap;
   auto &Map = LibcallNameMap.Map;
   auto Val = Map.find(Name);

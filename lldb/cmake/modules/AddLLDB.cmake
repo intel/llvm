@@ -20,6 +20,11 @@ function(lldb_tablegen)
   endif()
 
   set(LLVM_TARGET_DEFINITIONS ${LTG_SOURCE})
+
+  if (LLVM_USE_SANITIZER MATCHES ".*Address.*")
+    list(APPEND LTG_UNPARSED_ARGUMENTS -DLLDB_SANITIZED)
+  endif()
+
   tablegen(LLDB ${LTG_UNPARSED_ARGUMENTS})
 
   if(LTG_TARGET)
@@ -164,6 +169,13 @@ function(add_lldb_library name)
     endif()
   else()
     set_target_properties(${name} PROPERTIES FOLDER "lldb libraries")
+  endif()
+
+  # If we want to export all lldb symbols (i.e LLDB_EXPORT_ALL_SYMBOLS=ON), we
+  # need to use default visibility for all LLDB libraries even if a global
+  # `CMAKE_CXX_VISIBILITY_PRESET=hidden`is present.
+  if (LLDB_EXPORT_ALL_SYMBOLS)
+    set_target_properties(${name} PROPERTIES CXX_VISIBILITY_PRESET default)
   endif()
 endfunction(add_lldb_library)
 
@@ -371,7 +383,7 @@ endfunction()
 
 function(lldb_find_python_module module)
   set(MODULE_FOUND PY_${module}_FOUND)
-  if (DEFINED ${MODULE_FOUND})
+  if (${MODULE_FOUND})
     return()
   endif()
 
@@ -380,10 +392,10 @@ function(lldb_find_python_module module)
     ERROR_QUIET)
 
   if (status)
-    set(${MODULE_FOUND} OFF CACHE BOOL "Failed to find python module '${module}'")
+    set(${MODULE_FOUND} OFF PARENT_SCOPE)
     message(STATUS "Could NOT find Python module '${module}'")
   else()
-    set(${MODULE_FOUND} ON CACHE BOOL "Found python module '${module}'")
+    set(${MODULE_FOUND} ON PARENT_SCOPE)
     message(STATUS "Found Python module '${module}'")
   endif()
 endfunction()

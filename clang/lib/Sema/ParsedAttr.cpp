@@ -100,6 +100,12 @@ void AttributePool::takePool(AttributePool &pool) {
   pool.Attrs.clear();
 }
 
+void AttributePool::takeFrom(ParsedAttributesView &List, AttributePool &Pool) {
+  assert(&Pool != this && "AttributePool can't take attributes from itself");
+  llvm::for_each(List.AttrList, [&Pool](ParsedAttr *A) { Pool.remove(A); });
+  Attrs.insert(Attrs.end(), List.AttrList.begin(), List.AttrList.end());
+}
+
 namespace {
 
 #include "clang/Sema/AttrParsedAttrImpl.inc"
@@ -193,7 +199,18 @@ bool ParsedAttr::isTypeAttr() const { return getInfo().IsType; }
 bool ParsedAttr::isStmtAttr() const { return getInfo().IsStmt; }
 
 bool ParsedAttr::existsInTarget(const TargetInfo &Target) const {
-  return getInfo().existsInTarget(Target);
+  Kind K = getParsedKind();
+
+  // If the attribute has a target-specific spelling, check that it exists.
+  // Only call this if the attr is not ignored/unknown. For most targets, this
+  // function just returns true.
+  bool HasSpelling = K != IgnoredAttribute && K != UnknownAttribute &&
+                     K != NoSemaHandlerAttribute;
+  bool TargetSpecificSpellingExists =
+      !HasSpelling ||
+      getInfo().spellingExistsInTarget(Target, getAttributeSpellingListIndex());
+
+  return getInfo().existsInTarget(Target) && TargetSpecificSpellingExists;
 }
 
 bool ParsedAttr::isKnownToGCC() const { return getInfo().IsKnownToGCC; }
@@ -207,6 +224,11 @@ bool ParsedAttr::supportsNonconformingLambdaSyntax() const {
 }
 
 bool ParsedAttr::slidesFromDeclToDeclSpecLegacyBehavior() const {
+  if (isRegularKeywordAttribute())
+    // The appurtenance rules are applied strictly for all regular keyword
+    // atributes.
+    return false;
+
   assert(isStandardAttributeSyntax());
 
   // We have historically allowed some type attributes with standard attribute

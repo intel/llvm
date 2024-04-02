@@ -13,9 +13,10 @@
 
 #include "llvm-c-test.h"
 #include "llvm-c/DebugInfo.h"
+
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
-#include <assert.h>
 
 static LLVMMetadataRef
 declare_objc_class(LLVMDIBuilderRef DIB, LLVMMetadataRef File) {
@@ -28,9 +29,10 @@ declare_objc_class(LLVMDIBuilderRef DIB, LLVMMetadataRef File) {
   return Decl;
 }
 
-int llvm_test_dibuilder(void) {
+int llvm_test_dibuilder(bool NewDebugInfoFormat) {
   const char *Filename = "debuginfo.c";
   LLVMModuleRef M = LLVMModuleCreateWithName(Filename);
+  LLVMSetIsNewDbgInfoFormat(M, NewDebugInfoFormat);
   LLVMDIBuilderRef DIB = LLVMCreateDIBuilder(M);
 
   LLVMMetadataRef File = LLVMDIBuilderCreateFile(DIB, Filename,
@@ -134,21 +136,38 @@ int llvm_test_dibuilder(void) {
   LLVMMetadataRef FooParamVar1 =
     LLVMDIBuilderCreateParameterVariable(DIB, FunctionMetadata, "a", 1, 1, File,
                                          42, Int64Ty, true, 0);
-  LLVMDIBuilderInsertDeclareAtEnd(DIB, LLVMConstInt(LLVMInt64Type(), 0, false),
-                                  FooParamVar1, FooParamExpression,
-                                  FooParamLocation, FooEntryBlock);
+  if (LLVMIsNewDbgInfoFormat(M))
+    LLVMDIBuilderInsertDeclareRecordAtEnd(
+        DIB, LLVMConstInt(LLVMInt64Type(), 0, false), FooParamVar1,
+        FooParamExpression, FooParamLocation, FooEntryBlock);
+  else
+    LLVMDIBuilderInsertDeclareAtEnd(
+        DIB, LLVMConstInt(LLVMInt64Type(), 0, false), FooParamVar1,
+        FooParamExpression, FooParamLocation, FooEntryBlock);
   LLVMMetadataRef FooParamVar2 =
     LLVMDIBuilderCreateParameterVariable(DIB, FunctionMetadata, "b", 1, 2, File,
                                          42, Int64Ty, true, 0);
-  LLVMDIBuilderInsertDeclareAtEnd(DIB, LLVMConstInt(LLVMInt64Type(), 0, false),
-                                  FooParamVar2, FooParamExpression,
-                                  FooParamLocation, FooEntryBlock);
+
+  if (LLVMIsNewDbgInfoFormat(M))
+    LLVMDIBuilderInsertDeclareRecordAtEnd(
+        DIB, LLVMConstInt(LLVMInt64Type(), 0, false), FooParamVar2,
+        FooParamExpression, FooParamLocation, FooEntryBlock);
+  else
+    LLVMDIBuilderInsertDeclareAtEnd(
+        DIB, LLVMConstInt(LLVMInt64Type(), 0, false), FooParamVar2,
+        FooParamExpression, FooParamLocation, FooEntryBlock);
+
   LLVMMetadataRef FooParamVar3 =
     LLVMDIBuilderCreateParameterVariable(DIB, FunctionMetadata, "c", 1, 3, File,
                                          42, VectorTy, true, 0);
-  LLVMDIBuilderInsertDeclareAtEnd(DIB, LLVMConstInt(LLVMInt64Type(), 0, false),
-                                  FooParamVar3, FooParamExpression,
-                                  FooParamLocation, FooEntryBlock);
+  if (LLVMIsNewDbgInfoFormat(M))
+    LLVMDIBuilderInsertDeclareRecordAtEnd(
+        DIB, LLVMConstInt(LLVMInt64Type(), 0, false), FooParamVar3,
+        FooParamExpression, FooParamLocation, FooEntryBlock);
+  else
+    LLVMDIBuilderInsertDeclareAtEnd(
+        DIB, LLVMConstInt(LLVMInt64Type(), 0, false), FooParamVar3,
+        FooParamExpression, FooParamLocation, FooEntryBlock);
 
   LLVMSetSubprogram(FooFunction, FunctionMetadata);
 
@@ -165,9 +184,12 @@ int llvm_test_dibuilder(void) {
   LLVMValueRef FooVal1 = LLVMConstInt(LLVMInt64Type(), 0, false);
   LLVMMetadataRef FooVarValueExpr =
     LLVMDIBuilderCreateConstantValueExpression(DIB, 0);
-
-  LLVMDIBuilderInsertDbgValueAtEnd(DIB, FooVal1, FooVar1, FooVarValueExpr,
-                                   FooVarsLocation, FooVarBlock);
+  if (LLVMIsNewDbgInfoFormat(M))
+    LLVMDIBuilderInsertDbgValueRecordAtEnd(
+        DIB, FooVal1, FooVar1, FooVarValueExpr, FooVarsLocation, FooVarBlock);
+  else
+    LLVMDIBuilderInsertDbgValueIntrinsicAtEnd(
+        DIB, FooVal1, FooVar1, FooVarValueExpr, FooVarsLocation, FooVarBlock);
 
   LLVMMetadataRef MacroFile =
       LLVMDIBuilderCreateTempMacroFile(DIB, NULL, 0, File);
@@ -203,30 +225,55 @@ int llvm_test_dibuilder(void) {
 }
 
 int llvm_get_di_tag(void) {
-  LLVMModuleRef m = LLVMModuleCreateWithName("Mod");
-  LLVMContextRef context = LLVMGetModuleContext(m);
+  LLVMModuleRef M = LLVMModuleCreateWithName("Mod");
+  LLVMContextRef Context = LLVMGetModuleContext(M);
 
-  LLVMMetadataRef metas[] = {LLVMMDStringInContext2(context, "foo", 3)};
-  LLVMMetadataRef md = LLVMMDNodeInContext2(context, metas, 1);
-  uint16_t tag0 = LLVMGetDINodeTag(md);
+  const char String[] = "foo";
+  LLVMMetadataRef StringMD =
+      LLVMMDStringInContext2(Context, String, strlen(String));
+  LLVMMetadataRef NodeMD = LLVMMDNodeInContext2(Context, &StringMD, 1);
+  assert(LLVMGetDINodeTag(NodeMD) == 0);
+  (void)NodeMD;
 
-  assert(tag0 == 0);
-  (void)tag0;
-
-  const char *filename = "metadata.c";
-  LLVMDIBuilderRef builder = LLVMCreateDIBuilder(m);
-  LLVMMetadataRef file =
-      LLVMDIBuilderCreateFile(builder, filename, strlen(filename), ".", 1);
-  LLVMMetadataRef decl = LLVMDIBuilderCreateStructType(
-      builder, file, "TestClass", 9, file, 42, 64, 0,
+  LLVMDIBuilderRef Builder = LLVMCreateDIBuilder(M);
+  const char Filename[] = "metadata.c";
+  const char Directory[] = ".";
+  LLVMMetadataRef File = LLVMDIBuilderCreateFile(
+      Builder, Filename, strlen(Filename), Directory, strlen(Directory));
+  const char Name[] = "TestClass";
+  LLVMMetadataRef Struct = LLVMDIBuilderCreateStructType(
+      Builder, File, Name, strlen(Name), File, 42, 64, 0,
       LLVMDIFlagObjcClassComplete, NULL, NULL, 0, 0, NULL, NULL, 0);
-  uint16_t tag1 = LLVMGetDINodeTag(decl);
+  assert(LLVMGetDINodeTag(Struct) == 0x13);
+  (void)Struct;
 
-  assert(tag1 == 0x13);
-  (void)tag1;
+  LLVMDisposeDIBuilder(Builder);
+  LLVMDisposeModule(M);
 
-  LLVMDisposeDIBuilder(builder);
-  LLVMDisposeModule(m);
+  return 0;
+}
+
+int llvm_di_type_get_name(void) {
+  LLVMModuleRef M = LLVMModuleCreateWithName("Mod");
+
+  LLVMDIBuilderRef Builder = LLVMCreateDIBuilder(M);
+  const char Filename[] = "metadata.c";
+  const char Directory[] = ".";
+  LLVMMetadataRef File = LLVMDIBuilderCreateFile(
+      Builder, Filename, strlen(Filename), Directory, strlen(Directory));
+  const char Name[] = "TestClass";
+  LLVMMetadataRef Struct = LLVMDIBuilderCreateStructType(
+      Builder, File, Name, strlen(Name), File, 42, 64, 0,
+      LLVMDIFlagObjcClassComplete, NULL, NULL, 0, 0, NULL, NULL, 0);
+
+  size_t Len;
+  const char *TypeName = LLVMDITypeGetName(Struct, &Len);
+  assert(Len == strlen(Name));
+  assert(strncmp(TypeName, Name, Len) == 0);
+  (void)TypeName;
+
+  LLVMDisposeDIBuilder(Builder);
+  LLVMDisposeModule(M);
 
   return 0;
 }

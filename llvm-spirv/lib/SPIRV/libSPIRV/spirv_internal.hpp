@@ -53,8 +53,8 @@ enum InternalSourceLanguageNonSemanticDI {
 };
 
 enum InternalLinkageType {
-  ILTPrev = LinkageTypeMax - 2,
-  ILTInternal
+    ILTPrev = LinkageTypeMax - 2,
+    ILTInternal
 };
 
 enum InternalOp {
@@ -69,13 +69,24 @@ enum InternalOp {
   IOpJointMatrixUSMadINTEL = 6129,
   IOpJointMatrixUUMadINTEL = 6130,
   IOpArithmeticFenceINTEL = 6145,
+  IOpTaskSequenceCreateINTEL = 6163,
+  IOpTaskSequenceAsyncINTEL = 6164,
+  IOpTaskSequenceGetINTEL = 6165,
+  IOpTaskSequenceReleaseINTEL = 6166,
+  IOpTypeJointMatrixINTELv2 = 6184,
+  IOpCooperativeMatrixLoadCheckedINTEL = 6193,
+  IOpCooperativeMatrixStoreCheckedINTEL = 6194,
+  IOpCooperativeMatrixConstructCheckedINTEL = 6195,
   IOpJointMatrixWorkItemLengthINTEL = 6410,
+  IOpTypeTaskSequenceINTEL = 6199,
   IOpComplexFMulINTEL = 6415,
   IOpComplexFDivINTEL = 6416,
   IOpRoundFToTF32INTEL = 6426,
   IOpMaskedGatherINTEL = 6428,
   IOpMaskedScatterINTEL = 6429,
   IOpJointMatrixGetElementCoordINTEL = 6440,
+  IOpCooperativeMatrixApplyFunctionINTEL = 6448,
+  IOpCooperativeMatrixPrefetchINTEL = 6449,
   IOpPrev = OpMax - 2,
   IOpForward
 };
@@ -100,20 +111,27 @@ enum InternalCapability {
   ICapabilityHWThreadQueryINTEL = 6134,
   ICapFPArithmeticFenceINTEL = 6144,
   ICapGlobalVariableDecorationsINTEL = 6146,
+  ICapabilityTaskSequenceINTEL = 6162,
+  ICapabilityCooperativeMatrixCheckedInstructionsINTEL = 6192,
+  ICapabilityCooperativeMatrixPrefetchINTEL = 6411,
   ICapabilityComplexFloatMulDivINTEL = 6414,
   ICapabilityTensorFloat32RoundingINTEL = 6425,
   ICapabilityMaskedGatherScatterINTEL = 6427,
   ICapabilityJointMatrixWIInstructionsINTEL = 6435,
+  ICapabilityCooperativeMatrixInvocationInstructionsINTEL = 6435,
   ICapabilityJointMatrixTF32ComponentTypeINTEL = 6436,
   ICapabilityJointMatrixBF16ComponentTypeINTEL = 6437,
   ICapabilityJointMatrixPackedInt2ComponentTypeINTEL = 6438,
-  ICapabilityJointMatrixPackedInt4ComponentTypeINTEL = 6439
+  ICapabilityJointMatrixPackedInt4ComponentTypeINTEL = 6439,
+  ICapabilityCacheControlsINTEL = 6441,
+  ICapabilitySubgroupRequirementsINTEL = 6445,
 };
 
 enum InternalFunctionControlMask { IFunctionControlOptNoneINTELMask = 0x10000 };
 
 enum InternalExecutionMode {
   IExecModeFastCompositeKernelINTEL = 6088,
+  IExecModeNamedSubgroupSizeINTEL = 6446,
 };
 
 constexpr LinkageType LinkageTypeInternal =
@@ -149,6 +167,7 @@ _SPIRV_OP(Capability, JointMatrixBF16ComponentTypeINTEL)
 _SPIRV_OP(Capability, JointMatrixPackedInt2ComponentTypeINTEL)
 _SPIRV_OP(Capability, JointMatrixPackedInt4ComponentTypeINTEL)
 _SPIRV_OP(Op, TypeJointMatrixINTEL)
+_SPIRV_OP(Op, TypeJointMatrixINTELv2)
 _SPIRV_OP(Op, JointMatrixLoadINTEL)
 _SPIRV_OP(Op, JointMatrixStoreINTEL)
 _SPIRV_OP(Op, JointMatrixMadINTEL)
@@ -157,6 +176,17 @@ _SPIRV_OP(Op, JointMatrixUSMadINTEL)
 _SPIRV_OP(Op, JointMatrixUUMadINTEL)
 _SPIRV_OP(Op, JointMatrixWorkItemLengthINTEL)
 _SPIRV_OP(Op, JointMatrixGetElementCoordINTEL)
+
+_SPIRV_OP(Capability, CooperativeMatrixPrefetchINTEL)
+_SPIRV_OP(Op, CooperativeMatrixPrefetchINTEL)
+
+_SPIRV_OP(Capability, CooperativeMatrixCheckedInstructionsINTEL)
+_SPIRV_OP(Op, CooperativeMatrixLoadCheckedINTEL)
+_SPIRV_OP(Op, CooperativeMatrixStoreCheckedINTEL)
+_SPIRV_OP(Op, CooperativeMatrixConstructCheckedINTEL)
+
+_SPIRV_OP(Capability, CooperativeMatrixInvocationInstructionsINTEL)
+_SPIRV_OP(Op, CooperativeMatrixApplyFunctionINTEL)
 
 _SPIRV_OP(Capability, HWThreadQueryINTEL)
 _SPIRV_OP(BuiltIn, SubDeviceIDINTEL)
@@ -172,6 +202,18 @@ _SPIRV_OP(Op, MaskedScatterINTEL)
 
 _SPIRV_OP(Capability, TensorFloat32RoundingINTEL)
 _SPIRV_OP(Op, RoundFToTF32INTEL)
+
+_SPIRV_OP(Capability, CacheControlsINTEL)
+
+_SPIRV_OP(Capability, SubgroupRequirementsINTEL)
+
+_SPIRV_OP(Capability, TaskSequenceINTEL)
+_SPIRV_OP(Op, TaskSequenceCreateINTEL)
+_SPIRV_OP(Op, TaskSequenceAsyncINTEL)
+_SPIRV_OP(Op, TaskSequenceGetINTEL)
+_SPIRV_OP(Op, TaskSequenceReleaseINTEL)
+_SPIRV_OP(Op, TypeTaskSequenceINTEL)
+
 #undef _SPIRV_OP
 
 constexpr SourceLanguage SourceLanguagePython =
@@ -256,6 +298,9 @@ constexpr FunctionControlMask FunctionControlOptNoneINTELMask =
 
 constexpr ExecutionMode ExecutionModeFastCompositeKernelINTEL =
     static_cast<ExecutionMode>(IExecModeFastCompositeKernelINTEL);
+
+constexpr ExecutionMode ExecutionModeNamedSubgroupSizeINTEL =
+    static_cast<ExecutionMode>(IExecModeNamedSubgroupSizeINTEL);
 
 } // namespace internal
 } // namespace spv

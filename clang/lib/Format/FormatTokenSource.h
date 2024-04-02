@@ -15,10 +15,7 @@
 #ifndef LLVM_CLANG_LIB_FORMAT_FORMATTOKENSOURCE_H
 #define LLVM_CLANG_LIB_FORMAT_FORMATTOKENSOURCE_H
 
-#include "FormatToken.h"
 #include "UnwrappedLineParser.h"
-#include "llvm/ADT/DenseMap.h"
-#include <cstddef>
 
 #define DEBUG_TYPE "format-token-source"
 
@@ -99,7 +96,7 @@ public:
   }
 
   FormatToken *getPreviousToken() override {
-    assert(Position <= 0 || !Tokens[Position - 1]->is(tok::eof));
+    assert(Position <= 0 || Tokens[Position - 1]->isNot(tok::eof));
     return Position > 0 ? Tokens[Position - 1] : nullptr;
   }
 

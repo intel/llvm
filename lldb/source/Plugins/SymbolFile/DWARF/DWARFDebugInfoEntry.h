@@ -12,15 +12,18 @@
 #include "SymbolFileDWARF.h"
 #include "llvm/ADT/SmallVector.h"
 
-#include "DWARFAbbreviationDeclaration.h"
+#include "DWARFAttribute.h"
 #include "DWARFBaseDIE.h"
-#include "DWARFDebugAbbrev.h"
 #include "DWARFDebugRanges.h"
 #include <map>
 #include <optional>
 #include <set>
 #include <vector>
 
+#include "llvm/DebugInfo/DWARF/DWARFAbbreviationDeclaration.h"
+
+namespace lldb_private::plugin {
+namespace dwarf {
 class DWARFDeclContext;
 
 #define DIE_SIBLING_IDX_BITSIZE 31
@@ -46,13 +49,15 @@ public:
   void BuildFunctionAddressRangeTable(DWARFUnit *cu,
                                       DWARFDebugAranges *debug_aranges) const;
 
-  bool Extract(const lldb_private::DWARFDataExtractor &data,
-               const DWARFUnit *cu, lldb::offset_t *offset_ptr);
+  bool Extract(const DWARFDataExtractor &data, const DWARFUnit *cu,
+               lldb::offset_t *offset_ptr);
 
   using Recurse = DWARFBaseDIE::Recurse;
-  size_t GetAttributes(DWARFUnit *cu, DWARFAttributes &attrs,
-                       Recurse recurse = Recurse::yes) const {
-    return GetAttributes(cu, attrs, recurse, 0 /* curr_depth */);
+  DWARFAttributes GetAttributes(DWARFUnit *cu,
+                                Recurse recurse = Recurse::yes) const {
+    DWARFAttributes attrs;
+    GetAttributes(cu, attrs, recurse, 0 /* curr_depth */);
+    return attrs;
   }
 
   dw_offset_t
@@ -90,8 +95,8 @@ public:
       uint64_t fail_value,
       bool check_specification_or_abstract_origin = false) const;
 
-  size_t GetAttributeAddressRanges(
-      DWARFUnit *cu, DWARFRangeList &ranges, bool check_hi_lo_pc,
+  DWARFRangeList GetAttributeAddressRanges(
+      DWARFUnit *cu, bool check_hi_lo_pc,
       bool check_specification_or_abstract_origin = false) const;
 
   const char *GetName(const DWARFUnit *cu) const;
@@ -101,15 +106,17 @@ public:
 
   const char *GetPubname(const DWARFUnit *cu) const;
 
-  bool GetDIENamesAndRanges(
-      DWARFUnit *cu, const char *&name, const char *&mangled,
-      DWARFRangeList &rangeList, std::optional<int> &decl_file,
-      std::optional<int> &decl_line, std::optional<int> &decl_column,
-      std::optional<int> &call_file, std::optional<int> &call_line,
-      std::optional<int> &call_column,
-      lldb_private::DWARFExpressionList *frame_base = nullptr) const;
+  bool GetDIENamesAndRanges(DWARFUnit *cu, const char *&name,
+                            const char *&mangled, DWARFRangeList &rangeList,
+                            std::optional<int> &decl_file,
+                            std::optional<int> &decl_line,
+                            std::optional<int> &decl_column,
+                            std::optional<int> &call_file,
+                            std::optional<int> &call_line,
+                            std::optional<int> &call_column,
+                            DWARFExpressionList *frame_base = nullptr) const;
 
-  const DWARFAbbreviationDeclaration *
+  const llvm::DWARFAbbreviationDeclaration *
   GetAbbreviationDeclarationPtr(const DWARFUnit *cu) const;
 
   lldb::offset_t GetFirstAttributeOffset() const;
@@ -184,8 +191,10 @@ protected:
   dw_tag_t m_tag = llvm::dwarf::DW_TAG_null;
 
 private:
-  size_t GetAttributes(DWARFUnit *cu, DWARFAttributes &attrs, Recurse recurse,
-                       uint32_t curr_depth) const;
+  void GetAttributes(DWARFUnit *cu, DWARFAttributes &attrs, Recurse recurse,
+                     uint32_t curr_depth) const;
 };
+} // namespace dwarf
+} // namespace lldb_private::plugin
 
 #endif // LLDB_SOURCE_PLUGINS_SYMBOLFILE_DWARF_DWARFDEBUGINFOENTRY_H

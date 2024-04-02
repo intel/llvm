@@ -1,6 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 //==------------------ local_accessor_3d_subscript.cpp ---------------------==//
 //
@@ -13,7 +12,8 @@
 // compiles and runs.
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
 
 int main() {
   size_t Result = 0;
@@ -23,9 +23,10 @@ int main() {
     Q.submit([&](sycl::handler &CGH) {
       sycl::local_accessor<size_t, 3> LocalMem(sycl::range<3>(1, 1, 1), CGH);
       auto Acc = Buf.get_access(CGH);
-      CGH.parallel_for(1, [=](sycl::item<1> It) {
-        LocalMem[It][It][It] = 42;
-        Acc[It] = LocalMem[It][It][It];
+      CGH.parallel_for(sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1> It) {
+        LocalMem[It.get_local_id()][It.get_local_id()][It.get_local_id()] = 42;
+        Acc[It.get_local_id()] =
+            LocalMem[It.get_local_id()][It.get_local_id()][It.get_local_id()];
       });
     });
   }

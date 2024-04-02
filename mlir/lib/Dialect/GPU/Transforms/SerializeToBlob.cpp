@@ -12,7 +12,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/GPU/Transforms/Passes.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/ExecutionEngine/OptUtils.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Target/LLVMIR/Dialect/GPU/GPUToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
@@ -22,8 +25,8 @@
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
 
-#include <string>
 #include <optional>
+#include <string>
 
 #define DEBUG_TYPE "serialize-to-blob"
 
@@ -53,7 +56,7 @@ gpu::SerializeToBlobPass::translateToISA(llvm::Module &llvmModule,
     llvm::legacy::PassManager codegenPasses;
 
     if (targetMachine.addPassesToEmitFile(codegenPasses, pstream, nullptr,
-                                          llvm::CGFT_AssemblyFile))
+                                          llvm::CodeGenFileType::AssemblyFile))
       return std::nullopt;
 
     codegenPasses.run(llvmModule);
@@ -102,16 +105,25 @@ void gpu::SerializeToBlobPass::runOnOperation() {
 LogicalResult
 gpu::SerializeToBlobPass::optimizeLlvm(llvm::Module &llvmModule,
                                        llvm::TargetMachine &targetMachine) {
-  // TODO: If serializeToCubin ends up defining optimizations, factor them
-  // into here from SerializeToHsaco
-  return success();
-}
+  int optLevel = this->optLevel.getValue();
+  if (optLevel < 0 || optLevel > 3)
+    return getOperation().emitError()
+           << "invalid optimization level " << optLevel;
 
-void gpu::SerializeToBlobPass::getDependentDialects(
-    DialectRegistry &registry) const {
-  registerGPUDialectTranslation(registry);
-  registerLLVMDialectTranslation(registry);
-  OperationPass<gpu::GPUModuleOp>::getDependentDialects(registry);
+  targetMachine.setOptLevel(static_cast<llvm::CodeGenOptLevel>(optLevel));
+
+  auto transformer =
+      makeOptimizingTransformer(optLevel, /*sizeLevel=*/0, &targetMachine);
+  auto error = transformer(&llvmModule);
+  if (error) {
+    InFlightDiagnostic mlirError = getOperation()->emitError();
+    llvm::handleAllErrors(
+        std::move(error), [&mlirError](const llvm::ErrorInfoBase &ei) {
+          mlirError << "could not optimize LLVM IR: " << ei.message();
+        });
+    return mlirError;
+  }
+  return success();
 }
 
 std::unique_ptr<llvm::TargetMachine>

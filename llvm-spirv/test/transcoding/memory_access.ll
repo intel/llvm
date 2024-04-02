@@ -1,10 +1,10 @@
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
-; RUN: llvm-spirv %t.bc -opaque-pointers=0 -spirv-text -o %t.spt
+; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-spirv %t.bc -spirv-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv %t.bc -opaque-pointers=0 -o %t.spv
+; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r --spirv-target-env=CL2.0 %t.spv -o %t.bc
-; RUN: llvm-dis -opaque-pointers=0 < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV-NOT: 6 Store {{[0-9]+}} {{[0-9]+}} 1 2 8
 ; CHECK-SPIRV: 5 Store {{[0-9]+}} {{[0-9]+}} 3 8
@@ -22,14 +22,14 @@
 ; CHECK-SPIRV-NOT: 5 Store {{[0-9]+}} {{[0-9]+}} 2 0
 ; CHECK-SPIRV: 5 Store {{[0-9]+}} {{[0-9]+}}
 
-; CHECK-LLVM: store volatile i32 addrspace(4)* %0, i32 addrspace(4)** %ptr, align 8
-; CHECK-LLVM: load volatile i32 addrspace(4)*, i32 addrspace(4)** %ptr, align 8
-; CHECK-LLVM: load i32, i32 addrspace(4)* %1, align 4
-; CHECK-LLVM: load volatile i32 addrspace(4)*, i32 addrspace(4)** %ptr, align 8
-; CHECK-LLVM: load volatile i32 addrspace(4)*, i32 addrspace(4)** %ptr
-; CHECK-LLVM: %[[VOLATILELOAD:[0-9]+]] = load volatile i32 addrspace(4)*, i32 addrspace(4)** %ptr, align 8, !nontemporal ![[NTMetadata:[0-9]+]]
-; CHECK-LLVM: store i32 %call, i32 addrspace(4)* %arrayidx, align 4, !nontemporal ![[NTMetadata:[0-9]+]]
-; CHECK-LLVM: store i32 addrspace(4)* %[[VOLATILELOAD]], i32 addrspace(4)** %ptr
+; CHECK-LLVM: store volatile ptr addrspace(4) %0, ptr %ptr, align 8
+; CHECK-LLVM: load volatile ptr addrspace(4), ptr %ptr, align 8
+; CHECK-LLVM: load i32, ptr addrspace(4) %1, align 4
+; CHECK-LLVM: load volatile ptr addrspace(4), ptr %ptr, align 8
+; CHECK-LLVM: load volatile ptr addrspace(4), ptr %ptr
+; CHECK-LLVM: %[[VOLATILELOAD:[0-9]+]] = load volatile ptr addrspace(4), ptr %ptr, align 8, !nontemporal ![[NTMetadata:[0-9]+]]
+; CHECK-LLVM: store i32 %call, ptr addrspace(4) %arrayidx, align 4, !nontemporal ![[NTMetadata:[0-9]+]]
+; CHECK-LLVM: store ptr addrspace(4) %[[VOLATILELOAD]], ptr %ptr
 ; CHECK-LLVM: ![[NTMetadata:[0-9]+]] = !{i32 1}
 
 ; ModuleID = 'test.bc'
@@ -37,24 +37,24 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: nounwind
-define spir_kernel void @test_load_store(i32 addrspace(1)* %destMemory, i32 addrspace(1)* %oldValues, i32 %newValue) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
+define spir_kernel void @test_load_store(ptr addrspace(1) %destMemory, ptr addrspace(1) %oldValues, i32 %newValue) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
 entry:
-  %ptr = alloca i32 addrspace(4)*, align 8
-  %0 = addrspacecast i32 addrspace(1)* %oldValues to i32 addrspace(4)*
-  store volatile i32 addrspace(4)* %0, i32 addrspace(4)** %ptr, align 8
-  %1 = load volatile i32 addrspace(4)*, i32 addrspace(4)** %ptr, align 8
-  %2 = load i32, i32 addrspace(4)* %1, align 4
-  %call = call spir_func i32 @_Z14atomic_cmpxchgPVU3AS1iii(i32 addrspace(1)* %destMemory, i32 %2, i32 %newValue)
-  %3 = load volatile i32 addrspace(4)*, i32 addrspace(4)** %ptr, align 8
-  %4 = load volatile i32 addrspace(4)*, i32 addrspace(4)** %ptr
-  %5 = load volatile i32 addrspace(4)*, i32 addrspace(4)** %ptr, align 8, !nontemporal !9
-  %arrayidx = getelementptr inbounds i32, i32 addrspace(4)* %3, i64 0
-  store i32 %call, i32 addrspace(4)* %arrayidx, align 4, !nontemporal !9
-  store i32 addrspace(4)* %5, i32 addrspace(4)** %ptr
+  %ptr = alloca ptr addrspace(4), align 8
+  %0 = addrspacecast ptr addrspace(1) %oldValues to ptr addrspace(4)
+  store volatile ptr addrspace(4) %0, ptr %ptr, align 8
+  %1 = load volatile ptr addrspace(4), ptr %ptr, align 8
+  %2 = load i32, ptr addrspace(4) %1, align 4
+  %call = call spir_func i32 @_Z14atomic_cmpxchgPVU3AS1iii(ptr addrspace(1) %destMemory, i32 %2, i32 %newValue)
+  %3 = load volatile ptr addrspace(4), ptr %ptr, align 8
+  %4 = load volatile ptr addrspace(4), ptr %ptr
+  %5 = load volatile ptr addrspace(4), ptr %ptr, align 8, !nontemporal !9
+  %arrayidx = getelementptr inbounds i32, ptr addrspace(4) %3, i64 0
+  store i32 %call, ptr addrspace(4) %arrayidx, align 4, !nontemporal !9
+  store ptr addrspace(4) %5, ptr %ptr
   ret void
 }
 
-declare spir_func i32 @_Z14atomic_cmpxchgPVU3AS1iii(i32 addrspace(1)*, i32, i32) #1
+declare spir_func i32 @_Z14atomic_cmpxchgPVU3AS1iii(ptr addrspace(1), i32, i32) #1
 
 attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

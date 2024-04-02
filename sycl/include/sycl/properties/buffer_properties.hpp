@@ -8,12 +8,17 @@
 
 #pragma once
 
-#include <sycl/context.hpp>
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/properties/property_traits.hpp>
+#include <sycl/context.hpp>                    // for context
+#include <sycl/detail/property_helper.hpp>     // for PropWithDataKind, Dat...
+#include <sycl/properties/property_traits.hpp> // for is_property_of
+
+#include <mutex>       // for mutex
+#include <stdint.h>    // for uint32_t, uint64_t
+#include <type_traits> // for true_type
+#include <utility>     // for move
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace property::buffer {
 class use_host_ptr : public detail::DataLessProperty<detail::BufferUseHostPtr> {
@@ -100,5 +105,5 @@ struct is_property_of<ext::oneapi::property::buffer::use_pinned_host_memory,
                       buffer<T, Dimensions, AllocatorT, void>>
     : std::true_type {};
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

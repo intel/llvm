@@ -8,15 +8,17 @@
 
 #pragma once
 
-#include <sycl/device_selector.hpp>
+#include <sycl/detail/export.hpp>   // for __SYCL_EXPORT
+#include <sycl/device.hpp>          // for device
+#include <sycl/device_selector.hpp> // for device_selector
 
-#include <memory>
-#include <string>
+#include <memory> // for shared_ptr
+#include <string> // for string
 
 // 4.6.1 Device selection class
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declarations
 class device;
@@ -51,5 +53,5 @@ public:
 };
 } // namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead")ONEAPI
 #endif // __SYCL_INTERNAL_API
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

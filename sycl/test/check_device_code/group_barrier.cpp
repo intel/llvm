@@ -38,29 +38,29 @@ int main() {
   });
   return 0;
 }
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 912) #2
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 4, i32 912) #2
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 3, i32 912) #2
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 912) #2
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 1, i32 912) #2
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 0, i32 912) #2
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 3, i32 3, i32 912) #2
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 3, i32 4, i32 912) #2
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 3, i32 3, i32 912) #2
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 3, i32 2, i32 912) #2
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 3, i32 1, i32 912) #2
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 3, i32 0, i32 912) #2
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 912)
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 4, i32 912)
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 3, i32 912)
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 912)
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 1, i32 912)
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 0, i32 912)
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 3, i32 3, i32 912)
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 3, i32 4, i32 912)
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 3, i32 3, i32 912)
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 3, i32 2, i32 912)
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 3, i32 1, i32 912)
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 3, i32 0, i32 912)
 
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 912) #2
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 4, i32 912) #2
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 3, i32 912) #2
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 912) #2
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 1, i32 912) #2
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 0, i32 912) #2
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 912)
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 4, i32 912)
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 3, i32 912)
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 912)
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 1, i32 912)
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 0, i32 912)
 
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 912) #2
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 4, i32 912) #2
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 3, i32 912) #2
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 912) #2
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 1, i32 912) #2
-// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 0, i32 912) #2
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 912)
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 4, i32 912)
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 3, i32 912)
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 912)
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 1, i32 912)
+// CHECK: tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 0, i32 912)

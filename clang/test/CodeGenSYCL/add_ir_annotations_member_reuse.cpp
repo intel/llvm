@@ -1,9 +1,9 @@
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -disable-llvm-passes \
 // RUN:    -triple spir64-unknown-unknown -fsycl-is-device -S \
-// RUN:    -opaque-pointers -emit-llvm %s -o - | FileCheck %s
+// RUN:    -emit-llvm %s -o - | FileCheck %s
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -disable-llvm-passes \
 // RUN:    -triple spir64-unknown-unknown -fsycl-is-device -DTEST_SCALAR -S \
-// RUN:    -opaque-pointers -emit-llvm %s -o - | FileCheck %s
+// RUN:    -emit-llvm %s -o - | FileCheck %s
 
 // Tests the reuse of generated annotation value global variables for
 // __sycl_detail__::add_ir_annotations_member attributes.

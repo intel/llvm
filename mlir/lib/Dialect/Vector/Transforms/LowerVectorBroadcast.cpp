@@ -49,7 +49,7 @@ public:
                                 PatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
     VectorType dstType = op.getResultVectorType();
-    VectorType srcType = op.getSourceType().dyn_cast<VectorType>();
+    VectorType srcType = dyn_cast<VectorType>(op.getSourceType());
     Type eltType = dstType.getElementType();
 
     // Scalar to any vector can use splat.
@@ -84,8 +84,7 @@ public:
     //   %x = [%b,%b,%b,%b] : n-D
     if (srcRank < dstRank) {
       // Duplication.
-      VectorType resType =
-          VectorType::get(dstType.getShape().drop_front(), eltType);
+      VectorType resType = VectorType::Builder(dstType).dropDim(0);
       Value bcst =
           rewriter.create<vector::BroadcastOp>(loc, resType, op.getSource());
       Value result = rewriter.create<arith::ConstantOp>(

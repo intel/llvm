@@ -122,7 +122,7 @@ define i1 @test4(i32 %X) {
 
 define i1 @test4_i16(i16 %X) {
 ; CHECK-LABEL: @test4_i16(
-; CHECK-NEXT:    [[TMP1:%.*]] = zext i16 [[X:%.*]] to i32
+; CHECK-NEXT:    [[TMP1:%.*]] = zext nneg i16 [[X:%.*]] to i32
 ; CHECK-NEXT:    [[TMP2:%.*]] = lshr i32 933, [[TMP1]]
 ; CHECK-NEXT:    [[TMP3:%.*]] = and i32 [[TMP2]], 1
 ; CHECK-NEXT:    [[R:%.*]] = icmp ne i32 [[TMP3]], 0
@@ -174,8 +174,8 @@ define i1 @test7(i32 %X) {
 define i1 @test8(i32 %X) {
 ; CHECK-LABEL: @test8(
 ; CHECK-NEXT:    [[TMP1:%.*]] = and i32 [[X:%.*]], -2
-; CHECK-NEXT:    [[TMP2:%.*]] = icmp eq i32 [[TMP1]], 8
-; CHECK-NEXT:    ret i1 [[TMP2]]
+; CHECK-NEXT:    [[S:%.*]] = icmp eq i32 [[TMP1]], 8
+; CHECK-NEXT:    ret i1 [[S]]
 ;
   %P = getelementptr inbounds [10 x i16], ptr @G16, i32 0, i32 %X
   %Q = load i16, ptr %P
@@ -194,8 +194,8 @@ define i1 @test8(i32 %X) {
 define i1 @test9(i32 %X) {
 ; CHECK-LABEL: @test9(
 ; CHECK-NEXT:    [[TMP1:%.*]] = add i32 [[X:%.*]], -1
-; CHECK-NEXT:    [[TMP2:%.*]] = icmp ult i32 [[TMP1]], 2
-; CHECK-NEXT:    ret i1 [[TMP2]]
+; CHECK-NEXT:    [[R:%.*]] = icmp ult i32 [[TMP1]], 2
+; CHECK-NEXT:    ret i1 [[R]]
 ;
   %P = getelementptr inbounds [4 x { i32, i32 } ], ptr @GA, i32 0, i32 %X, i32 1
   %Q = load i32, ptr %P
@@ -216,7 +216,7 @@ define i1 @test10_struct(i32 %x) {
 define i1 @test10_struct_noinbounds(i32 %x) {
 ; CHECK-LABEL: @test10_struct_noinbounds(
 ; CHECK-NEXT:    [[P:%.*]] = getelementptr [[FOO:%.*]], ptr @GS, i32 [[X:%.*]], i32 0
-; CHECK-NEXT:    [[Q:%.*]] = load i32, ptr [[P]], align 8
+; CHECK-NEXT:    [[Q:%.*]] = load i32, ptr [[P]], align 4
 ; CHECK-NEXT:    [[R:%.*]] = icmp eq i32 [[Q]], 9
 ; CHECK-NEXT:    ret i1 [[R]]
 ;
@@ -254,7 +254,7 @@ define i1 @test10_struct_noinbounds_i16(i16 %x) {
 ; CHECK-LABEL: @test10_struct_noinbounds_i16(
 ; CHECK-NEXT:    [[TMP1:%.*]] = sext i16 [[X:%.*]] to i32
 ; CHECK-NEXT:    [[P:%.*]] = getelementptr [[FOO:%.*]], ptr @GS, i32 [[TMP1]], i32 0
-; CHECK-NEXT:    [[Q:%.*]] = load i32, ptr [[P]], align 8
+; CHECK-NEXT:    [[Q:%.*]] = load i32, ptr [[P]], align 4
 ; CHECK-NEXT:    [[R:%.*]] = icmp eq i32 [[Q]], 0
 ; CHECK-NEXT:    ret i1 [[R]]
 ;

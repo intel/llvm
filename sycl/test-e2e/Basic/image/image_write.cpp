@@ -1,8 +1,8 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: aspect-ext_intel_legacy_image
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
-// UNSUPPORTED: cuda || hip || gpu-intel-pvc
+// UNSUPPORTED: cuda || hip
 // TODO: re-enable on cuda device.
 // See https://github.com/intel/llvm/issues/1542#issuecomment-707877817 for more
 // details.

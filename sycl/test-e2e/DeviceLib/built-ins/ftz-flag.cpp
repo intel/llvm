@@ -1,11 +1,14 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -Xclang -fdenormal-fp-math-f32="preserve-sign,preserve-sign" %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+
+// RUN: %{build} -Xclang -fdenormal-fp-math-f32="preserve-sign,preserve-sign" -o %t.out %{mathflags}
+// RUN: %{run} %t.out
 
 #include <cassert>
-#include <sycl/sycl.hpp>
 #include <type_traits>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
 
 using namespace sycl;
 

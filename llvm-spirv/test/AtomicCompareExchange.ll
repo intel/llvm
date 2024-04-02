@@ -29,16 +29,16 @@ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:2
 target triple = "spir"
 
 ; Function Attrs: nounwind
-define dso_local spir_func void @test(i32* %ptr, i32* %value_ptr, i32 %comparator) local_unnamed_addr #0 {
+define dso_local spir_func void @test(ptr %ptr, ptr %value_ptr, i32 %comparator) local_unnamed_addr #0 {
 entry:
-  %0 = load i32, i32* %value_ptr, align 4
-  %1 = cmpxchg i32* %ptr, i32 %comparator, i32 %0 seq_cst acquire
+  %0 = load i32, ptr %value_ptr, align 4
+  %1 = cmpxchg ptr %ptr, i32 %comparator, i32 %0 seq_cst acquire
   %2 = extractvalue { i32, i1 } %1, 1
   br i1 %2, label %cmpxchg.continue, label %cmpxchg.store_expected
 
 cmpxchg.store_expected:                           ; preds = %entry
   %3 = extractvalue { i32, i1 } %1, 0
-  store i32 %3, i32* %value_ptr, align 4
+  store i32 %3, ptr %value_ptr, align 4
   br label %cmpxchg.continue
 
 cmpxchg.continue:                                 ; preds = %cmpxchg.store_expected, %entry
@@ -56,10 +56,10 @@ cmpxchg.continue:                                 ; preds = %cmpxchg.store_expec
 ; CHECK-SPIRV: Store [[Store_ptr]] [[Composite_1]]
 
 ; Function Attrs: nounwind
-define dso_local spir_func void @test2(i32* %ptr, {i32, i1}* %store_ptr) local_unnamed_addr #0 {
+define dso_local spir_func void @test2(ptr %ptr, ptr %store_ptr) local_unnamed_addr #0 {
 entry:
-  %0 = cmpxchg i32* %ptr, i32 128, i32 456 seq_cst acquire
-  store { i32, i1 } %0, { i32, i1 }* %store_ptr, align 4
+  %0 = cmpxchg ptr %ptr, i32 128, i32 456 seq_cst acquire
+  store { i32, i1 } %0, ptr %store_ptr, align 4
   ret void
 }
 

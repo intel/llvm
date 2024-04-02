@@ -5,15 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu, level_zero
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// XREQUIRES: gpu
-// TODO gpu and level_zero in REQUIRES due to only this platforms supported yet.
-// The current "REQUIRES" should be replaced with "gpu" only as mentioned in
-// "XREQUIRES".
-// UNSUPPORTED: cuda, hip
-// RUN: %clangxx -fsycl %s -fsycl-device-code-split=per_kernel -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
 //
 // Test for simd fill constructor for core types.
 // This test uses different data types, sizes, base and step values and
@@ -118,8 +111,20 @@ int main(int, char **) {
       const auto types = get_tested_types<tested_types::fp>();
       {
         const auto base_values =
+            ctors::get_init_values_pack<init_val::negative>();
+        const auto step_values =
+            ctors::get_init_values_pack<init_val::positive>();
+        passed &= for_all_combinations<ctors::run_test>(
+            types, sizes, contexts, base_values, step_values, queue);
+      }
+      // The test cases below have never been guaranteed to work some certain
+      // way with base and step values set to inf or non. They may or may not
+      // work as expected by the checks in this test.
+      {
+        const auto base_values =
             ctors::get_init_values_pack<init_val::neg_inf>();
-        const auto step_values = ctors::get_init_values_pack<init_val::max>();
+        const auto step_values =
+            ctors::get_init_values_pack<init_val::positive>();
         passed &= for_all_combinations<ctors::run_test>(
             types, sizes, contexts, base_values, step_values, queue);
       }

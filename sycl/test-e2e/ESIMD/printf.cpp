@@ -6,21 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// REQUIRES: gpu
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// UNSUPPORTED: cuda || hip
-// CUDA and HIP don't support printf.
 //
-// RUN: %clangxx -fsycl -fsycl-device-code-split=per_kernel %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out | FileCheck %s
 //
-// clang-format off
-// Test using __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__ is disabled until ESIMD
-// supports it.
-// FIXME: enable that test
-// RUNx: %clangxx -fsycl -fsycl-targets=%sycl_triple -D__SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__ %s -o %t_nonvar.out
-// RUNx: %GPU_RUN_PLACEHOLDER %t_nonvar.out %GPU_CHECK_PLACEHOLDER
-// clang-format on
+// RUN: %{build} -fsycl-device-code-split=per_kernel -D__SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__ -o %t_var.out
+// RUN: %{run} %t_var.out | FileCheck %s
 //
 //===----------------------------------------------------------------------===//
 //
@@ -79,13 +70,13 @@ int main() {
     Queue.wait();
   }
 
-#ifndef __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
+#ifdef __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__
   // Currently printf will promote floating point values to doubles.
-  // __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__ changes the behavior to not use
-  // a variadic function, so if it is defined it will not promote the floating
+  // __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__ changes the behavior to use
+  // a variadic function, so if it is defined it will promote the floating
   // point arguments.
   if (Queue.get_device().has(sycl::aspect::fp64))
-#endif // __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
+#endif // __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__
   {
     Queue.submit([&](handler &CGH) {
       CGH.single_task<class floating_points>([=]() {
@@ -101,12 +92,12 @@ int main() {
     });
     Queue.wait();
   }
-#ifndef __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
+#ifdef __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__
   else {
     std::cout << "Skipped floating point test." << std::endl;
     std::cout << "Skipped floating point test." << std::endl;
   }
-#endif // __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
+#endif // __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__
   // CHECK-NEXT: {{(33.4|Skipped floating point test.)}}
   // CHECK-NEXT: {{(-33.4|Skipped floating point test.)}}
 

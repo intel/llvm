@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "CodeGenDAGPatterns.h"
-#include "DAGISelMatcher.h"
-#include "SDNodeProperties.h"
+#include "Basic/SDNodeProperties.h"
+#include "Common/CodeGenDAGPatterns.h"
+#include "Common/DAGISelMatcher.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -99,7 +99,7 @@ static void ContractNodes(std::unique_ptr<Matcher> &MatcherPtr,
       const PatternToMatch &Pattern = CM->getPattern();
 
       if (!EN->hasChain() &&
-          Pattern.getSrcPattern()->NodeHasProperty(SDNPHasChain, CGP))
+          Pattern.getSrcPattern().NodeHasProperty(SDNPHasChain, CGP))
         ResultsMatch = false;
 
       // If the matched node has glue and the output root doesn't, we can't
@@ -109,7 +109,7 @@ static void ContractNodes(std::unique_ptr<Matcher> &MatcherPtr,
       // because the code in the pattern generator doesn't handle it right.  We
       // do it anyway for thoroughness.
       if (!EN->hasOutGlue() &&
-          Pattern.getSrcPattern()->NodeHasProperty(SDNPOutGlue, CGP))
+          Pattern.getSrcPattern().NodeHasProperty(SDNPOutGlue, CGP))
         ResultsMatch = false;
 
 #if 0
@@ -125,9 +125,9 @@ static void ContractNodes(std::unique_ptr<Matcher> &MatcherPtr,
         const SmallVectorImpl<MVT::SimpleValueType> &VTs = EN->getVTList();
         const SmallVectorImpl<unsigned> &Operands = EN->getOperandList();
         MatcherPtr.reset(new MorphNodeToMatcher(
-            EN->getOpcodeName(), VTs, Operands, EN->hasChain(), EN->hasInGlue(),
-            EN->hasOutGlue(), EN->hasMemRefs(), EN->getNumFixedArityOperands(),
-            Pattern));
+            EN->getInstruction(), VTs, Operands, EN->hasChain(),
+            EN->hasInGlue(), EN->hasOutGlue(), EN->hasMemRefs(),
+            EN->getNumFixedArityOperands(), Pattern));
         return;
       }
 
@@ -154,6 +154,30 @@ static void ContractNodes(std::unique_ptr<Matcher> &MatcherPtr,
     CheckOpcode->setNext(CheckType);
     CheckType->setNext(Tail);
     return ContractNodes(MatcherPtr, CGP);
+  }
+
+  // If we have a MoveParent followed by a MoveChild, we convert it to
+  // MoveSibling.
+  if (auto *MP = dyn_cast<MoveParentMatcher>(N)) {
+    if (auto *MC = dyn_cast<MoveChildMatcher>(MP->getNext())) {
+      auto *MS = new MoveSiblingMatcher(MC->getChildNo());
+      MS->setNext(MC->takeNext());
+      MatcherPtr.reset(MS);
+      return ContractNodes(MatcherPtr, CGP);
+    }
+    if (auto *RC = dyn_cast<RecordChildMatcher>(MP->getNext())) {
+      if (auto *MC = dyn_cast<MoveChildMatcher>(RC->getNext())) {
+        if (RC->getChildNo() == MC->getChildNo()) {
+          auto *MS = new MoveSiblingMatcher(MC->getChildNo());
+          auto *RM = new RecordMatcher(RC->getWhatFor(), RC->getResultNo());
+          // Insert the new node.
+          RM->setNext(MC->takeNext());
+          MS->setNext(RM);
+          MatcherPtr.reset(MS);
+          return ContractNodes(MatcherPtr, CGP);
+        }
+      }
+    }
   }
 }
 
@@ -214,18 +238,20 @@ static void FactorNodes(std::unique_ptr<Matcher> &InputMatcherPtr) {
     }
   }
 
-  SmallVector<Matcher *, 32> NewOptionsToMatch;
-
   // Loop over options to match, merging neighboring patterns with identical
   // starting nodes into a shared matcher.
-  for (unsigned OptionIdx = 0, e = OptionsToMatch.size(); OptionIdx != e;) {
-    // Find the set of matchers that start with this node.
-    Matcher *Optn = OptionsToMatch[OptionIdx++];
+  auto E = OptionsToMatch.end();
+  for (auto I = OptionsToMatch.begin(); I != E; ++I) {
+    // If there are no other matchers left, there's nothing to merge with.
+    auto J = std::next(I);
+    if (J == E)
+      break;
 
-    if (OptionIdx == e) {
-      NewOptionsToMatch.push_back(Optn);
-      continue;
-    }
+    // Remember where we started. We'll use this to move non-equal elements.
+    auto K = J;
+
+    // Find the set of matchers that start with this node.
+    Matcher *Optn = *I;
 
     // See if the next option starts with the same matcher.  If the two
     // neighbors *do* start with the same matcher, we can factor the matcher out
@@ -236,36 +262,30 @@ static void FactorNodes(std::unique_ptr<Matcher> &InputMatcherPtr) {
 
     // Factor all of the known-equal matchers after this one into the same
     // group.
-    while (OptionIdx != e && OptionsToMatch[OptionIdx]->isEqual(Optn))
-      EqualMatchers.push_back(OptionsToMatch[OptionIdx++]);
+    while (J != E && (*J)->isEqual(Optn))
+      EqualMatchers.push_back(*J++);
 
     // If we found a non-equal matcher, see if it is contradictory with the
     // current node.  If so, we know that the ordering relation between the
     // current sets of nodes and this node don't matter.  Look past it to see if
     // we can merge anything else into this matching group.
-    unsigned Scan = OptionIdx;
-    while (true) {
-      // If we ran out of stuff to scan, we're done.
-      if (Scan == e)
-        break;
-
-      Matcher *ScanMatcher = OptionsToMatch[Scan];
+    while (J != E) {
+      Matcher *ScanMatcher = *J;
 
       // If we found an entry that matches out matcher, merge it into the set to
       // handle.
       if (Optn->isEqual(ScanMatcher)) {
-        // If is equal after all, add the option to EqualMatchers and remove it
-        // from OptionsToMatch.
+        // It is equal after all, add the option to EqualMatchers.
         EqualMatchers.push_back(ScanMatcher);
-        OptionsToMatch.erase(OptionsToMatch.begin() + Scan);
-        --e;
+        ++J;
         continue;
       }
 
       // If the option we're checking for contradicts the start of the list,
-      // skip over it.
+      // move it earlier in OptionsToMatch for the next iteration of the outer
+      // loop. Then continue searching for equal or contradictory matchers.
       if (Optn->isContradictory(ScanMatcher)) {
-        ++Scan;
+        *K++ = *J++;
         continue;
       }
 
@@ -278,7 +298,7 @@ static void FactorNodes(std::unique_ptr<Matcher> &InputMatcherPtr) {
             (M2->isEqual(Optn) || M2->isContradictory(Optn))) {
           Matcher *MatcherWithoutM2 = ScanMatcher->unlinkNode(M2);
           M2->setNext(MatcherWithoutM2);
-          OptionsToMatch[Scan] = M2;
+          *J = M2;
           continue;
         }
       }
@@ -287,21 +307,30 @@ static void FactorNodes(std::unique_ptr<Matcher> &InputMatcherPtr) {
       break;
     }
 
-    if (Scan != e &&
-        // Don't print it's obvious nothing extra could be merged anyway.
-        Scan + 1 != e) {
+    if (J != E &&
+        // Don't print if it's obvious nothing extract could be merged anyway.
+        std::next(J) != E) {
       LLVM_DEBUG(errs() << "Couldn't merge this:\n"; Optn->print(errs(), 4);
-                 errs() << "into this:\n";
-                 OptionsToMatch[Scan]->print(errs(), 4);
-                 if (Scan + 1 != e) OptionsToMatch[Scan + 1]->printOne(errs());
-                 if (Scan + 2 < e) OptionsToMatch[Scan + 2]->printOne(errs());
+                 errs() << "into this:\n"; (*J)->print(errs(), 4);
+                 (*std::next(J))->printOne(errs());
+                 if (std::next(J, 2) != E)(*std::next(J, 2))->printOne(errs());
                  errs() << "\n");
     }
 
+    // If we removed any equal matchers, we may need to slide the rest of the
+    // elements down for the next iteration of the outer loop.
+    if (J != K) {
+      while (J != E)
+        *K++ = *J++;
+
+      // Update end pointer for outer loop.
+      E = K;
+    }
+
     // If we only found one option starting with this matcher, no factoring is
-    // possible.
+    // possible. Put the Matcher back in OptionsToMatch.
     if (EqualMatchers.size() == 1) {
-      NewOptionsToMatch.push_back(EqualMatchers[0]);
+      *I = EqualMatchers[0];
       continue;
     }
 
@@ -326,17 +355,22 @@ static void FactorNodes(std::unique_ptr<Matcher> &InputMatcherPtr) {
       FactorNodes(Shared->getNextPtr());
     }
 
-    NewOptionsToMatch.push_back(Shared);
+    // Put the new Matcher where we started in OptionsToMatch.
+    *I = Shared;
   }
+
+  // Trim the array to match the updated end.
+  if (E != OptionsToMatch.end())
+    OptionsToMatch.erase(E, OptionsToMatch.end());
 
   // If we're down to a single pattern to match, then we don't need this scope
   // anymore.
-  if (NewOptionsToMatch.size() == 1) {
-    MatcherPtr.reset(NewOptionsToMatch[0]);
+  if (OptionsToMatch.size() == 1) {
+    MatcherPtr.reset(OptionsToMatch[0]);
     return;
   }
 
-  if (NewOptionsToMatch.empty()) {
+  if (OptionsToMatch.empty()) {
     MatcherPtr.reset();
     return;
   }
@@ -347,13 +381,13 @@ static void FactorNodes(std::unique_ptr<Matcher> &InputMatcherPtr) {
   // Check to see if all of the leading entries are now opcode checks.  If so,
   // we can convert this Scope to be a OpcodeSwitch instead.
   bool AllOpcodeChecks = true, AllTypeChecks = true;
-  for (unsigned i = 0, e = NewOptionsToMatch.size(); i != e; ++i) {
+  for (unsigned i = 0, e = OptionsToMatch.size(); i != e; ++i) {
     // Check to see if this breaks a series of CheckOpcodeMatchers.
-    if (AllOpcodeChecks && !isa<CheckOpcodeMatcher>(NewOptionsToMatch[i])) {
+    if (AllOpcodeChecks && !isa<CheckOpcodeMatcher>(OptionsToMatch[i])) {
 #if 0
       if (i > 3) {
         errs() << "FAILING OPC #" << i << "\n";
-        NewOptionsToMatch[i]->dump();
+        OptionsToMatch[i]->dump();
       }
 #endif
       AllOpcodeChecks = false;
@@ -362,7 +396,7 @@ static void FactorNodes(std::unique_ptr<Matcher> &InputMatcherPtr) {
     // Check to see if this breaks a series of CheckTypeMatcher's.
     if (AllTypeChecks) {
       CheckTypeMatcher *CTM = cast_or_null<CheckTypeMatcher>(
-          FindNodeWithKind(NewOptionsToMatch[i], Matcher::CheckType));
+          FindNodeWithKind(OptionsToMatch[i], Matcher::CheckType));
       if (!CTM ||
           // iPTR checks could alias any other case without us knowing, don't
           // bother with them.
@@ -371,11 +405,11 @@ static void FactorNodes(std::unique_ptr<Matcher> &InputMatcherPtr) {
           CTM->getResNo() != 0 ||
           // If the CheckType isn't at the start of the list, see if we can move
           // it there.
-          !CTM->canMoveBefore(NewOptionsToMatch[i])) {
+          !CTM->canMoveBefore(OptionsToMatch[i])) {
 #if 0
         if (i > 3 && AllTypeChecks) {
           errs() << "FAILING TYPE #" << i << "\n";
-          NewOptionsToMatch[i]->dump();
+          OptionsToMatch[i]->dump();
         }
 #endif
         AllTypeChecks = false;
@@ -387,11 +421,11 @@ static void FactorNodes(std::unique_ptr<Matcher> &InputMatcherPtr) {
   if (AllOpcodeChecks) {
     StringSet<> Opcodes;
     SmallVector<std::pair<const SDNodeInfo *, Matcher *>, 8> Cases;
-    for (unsigned i = 0, e = NewOptionsToMatch.size(); i != e; ++i) {
-      CheckOpcodeMatcher *COM = cast<CheckOpcodeMatcher>(NewOptionsToMatch[i]);
+    for (unsigned i = 0, e = OptionsToMatch.size(); i != e; ++i) {
+      CheckOpcodeMatcher *COM = cast<CheckOpcodeMatcher>(OptionsToMatch[i]);
       assert(Opcodes.insert(COM->getOpcode().getEnumName()).second &&
              "Duplicate opcodes not factored?");
-      Cases.push_back(std::make_pair(&COM->getOpcode(), COM->takeNext()));
+      Cases.push_back(std::pair(&COM->getOpcode(), COM->takeNext()));
       delete COM;
     }
 
@@ -403,12 +437,12 @@ static void FactorNodes(std::unique_ptr<Matcher> &InputMatcherPtr) {
   if (AllTypeChecks) {
     DenseMap<unsigned, unsigned> TypeEntry;
     SmallVector<std::pair<MVT::SimpleValueType, Matcher *>, 8> Cases;
-    for (unsigned i = 0, e = NewOptionsToMatch.size(); i != e; ++i) {
-      Matcher *M = FindNodeWithKind(NewOptionsToMatch[i], Matcher::CheckType);
+    for (unsigned i = 0, e = OptionsToMatch.size(); i != e; ++i) {
+      Matcher *M = FindNodeWithKind(OptionsToMatch[i], Matcher::CheckType);
       assert(M && isa<CheckTypeMatcher>(M) && "Unknown Matcher type");
 
       auto *CTM = cast<CheckTypeMatcher>(M);
-      Matcher *MatcherWithoutCTM = NewOptionsToMatch[i]->unlinkNode(CTM);
+      Matcher *MatcherWithoutCTM = OptionsToMatch[i]->unlinkNode(CTM);
       MVT::SimpleValueType CTMTy = CTM->getType();
       delete CTM;
 
@@ -428,7 +462,7 @@ static void FactorNodes(std::unique_ptr<Matcher> &InputMatcherPtr) {
       }
 
       Entry = Cases.size() + 1;
-      Cases.push_back(std::make_pair(CTMTy, MatcherWithoutCTM));
+      Cases.push_back(std::pair(CTMTy, MatcherWithoutCTM));
     }
 
     // Make sure we recursively factor any scopes we may have created.
@@ -452,9 +486,9 @@ static void FactorNodes(std::unique_ptr<Matcher> &InputMatcherPtr) {
   }
 
   // Reassemble the Scope node with the adjusted children.
-  Scope->setNumChildren(NewOptionsToMatch.size());
-  for (unsigned i = 0, e = NewOptionsToMatch.size(); i != e; ++i)
-    Scope->resetChild(i, NewOptionsToMatch[i]);
+  Scope->setNumChildren(OptionsToMatch.size());
+  for (unsigned i = 0, e = OptionsToMatch.size(); i != e; ++i)
+    Scope->resetChild(i, OptionsToMatch[i]);
 }
 
 void llvm::OptimizeMatcher(std::unique_ptr<Matcher> &MatcherPtr,

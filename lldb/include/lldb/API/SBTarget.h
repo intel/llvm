@@ -17,10 +17,18 @@
 #include "lldb/API/SBFileSpec.h"
 #include "lldb/API/SBFileSpecList.h"
 #include "lldb/API/SBLaunchInfo.h"
+#include "lldb/API/SBStatisticsOptions.h"
 #include "lldb/API/SBSymbolContextList.h"
 #include "lldb/API/SBType.h"
 #include "lldb/API/SBValue.h"
 #include "lldb/API/SBWatchpoint.h"
+#include "lldb/API/SBWatchpointOptions.h"
+
+namespace lldb_private {
+namespace python {
+class SWIGBridge;
+}
+} // namespace lldb_private
 
 namespace lldb {
 
@@ -34,17 +42,14 @@ public:
     eBroadcastBitModulesLoaded = (1 << 1),
     eBroadcastBitModulesUnloaded = (1 << 2),
     eBroadcastBitWatchpointChanged = (1 << 3),
-    eBroadcastBitSymbolsLoaded = (1 << 4)
+    eBroadcastBitSymbolsLoaded = (1 << 4),
+    eBroadcastBitSymbolsChanged = (1 << 5),
   };
 
   // Constructors
   SBTarget();
 
   SBTarget(const lldb::SBTarget &rhs);
-
-#ifndef SWIG
-  SBTarget(const lldb::TargetSP &target_sp);
-#endif
 
   // Destructor
   ~SBTarget();
@@ -86,6 +91,15 @@ public:
   /// \return
   ///     A SBStructuredData with the statistics collected.
   lldb::SBStructuredData GetStatistics();
+
+  /// Returns a dump of the collected statistics.
+  ///
+  /// \param[in] options
+  ///   An objects object that contains all options for the statistics dumping.
+  ///
+  /// \return
+  ///     A SBStructuredData with the statistics collected.
+  lldb::SBStructuredData GetStatistics(SBStatisticsOptions options);
 
   /// Return the platform object associated with the target.
   ///
@@ -326,6 +340,10 @@ public:
   
   const char *GetABIName();
 
+  const char *GetLabel() const;
+
+  SBError SetLabel(const char *label);
+
   /// Architecture data byte width accessor
   ///
   /// \return
@@ -371,6 +389,31 @@ public:
   ///     failure.
   lldb::SBError ClearSectionLoadAddress(lldb::SBSection section);
 
+#ifndef SWIG
+  /// Slide all file addresses for all module sections so that \a module
+  /// appears to loaded at these slide addresses.
+  ///
+  /// When you need all sections within a module to be loaded at a
+  /// rigid slide from the addresses found in the module object file,
+  /// this function will allow you to easily and quickly slide all
+  /// module sections.
+  ///
+  /// \param[in] module
+  ///     The module to load.
+  ///
+  /// \param[in] sections_offset
+  ///     An offset that will be applied to all section file addresses
+  ///     (the virtual addresses found in the object file itself).
+  ///
+  /// \return
+  ///     An error to indicate success, fail, and any reason for
+  ///     failure.
+  LLDB_DEPRECATED_FIXME("Use SetModuleLoadAddress(lldb::SBModule, uint64_t)",
+                        "SetModuleLoadAddress(lldb::SBModule, uint64_t)")
+  lldb::SBError SetModuleLoadAddress(lldb::SBModule module,
+                                     int64_t sections_offset);
+#endif
+
   /// Slide all file addresses for all module sections so that \a module
   /// appears to loaded at these slide addresses.
   ///
@@ -390,7 +433,7 @@ public:
   ///     An error to indicate success, fail, and any reason for
   ///     failure.
   lldb::SBError SetModuleLoadAddress(lldb::SBModule module,
-                                     int64_t sections_offset);
+                                     uint64_t sections_offset);
 
   /// Clear the section base load addresses for all sections in a module.
   ///
@@ -797,8 +840,13 @@ public:
 
   lldb::SBWatchpoint FindWatchpointByID(lldb::watch_id_t watch_id);
 
+  LLDB_DEPRECATED("WatchAddress deprecated, use WatchpointCreateByAddress")
   lldb::SBWatchpoint WatchAddress(lldb::addr_t addr, size_t size, bool read,
-                                  bool write, SBError &error);
+                                  bool modify, SBError &error);
+
+  lldb::SBWatchpoint
+  WatchpointCreateByAddress(lldb::addr_t addr, size_t size,
+                            lldb::SBWatchpointOptions options, SBError &error);
 
   bool EnableAllWatchpoints();
 
@@ -892,10 +940,12 @@ public:
 protected:
   friend class SBAddress;
   friend class SBBlock;
+  friend class SBBreakpoint;
   friend class SBBreakpointList;
   friend class SBBreakpointNameImpl;
   friend class SBDebugger;
   friend class SBExecutionContext;
+  friend class SBFrame;
   friend class SBFunction;
   friend class SBInstruction;
   friend class SBModule;
@@ -907,8 +957,12 @@ protected:
   friend class SBValue;
   friend class SBVariablesOptions;
 
+  friend class lldb_private::python::SWIGBridge;
+
   // Constructors are private, use static Target::Create function to create an
   // instance of this class.
+
+  SBTarget(const lldb::TargetSP &target_sp);
 
   lldb::TargetSP GetSP() const;
 

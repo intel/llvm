@@ -5,21 +5,23 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix,gpu
+// REQUIRES: aspect-fp16
+// REQUIRES: matrix
+// REQUIRES: matrix-fp16
 
-// Only runs on DPAS because AMX implementation does not support half data type
-// yet
-// RUN: %clangxx -fsycl %s -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include <iostream>
 #include <random>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/matrix/matrix.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
 #define SG_SZ 16
+constexpr size_t TN = 16;
 
 #include "element_wise_all_ops_half_impl.hpp"

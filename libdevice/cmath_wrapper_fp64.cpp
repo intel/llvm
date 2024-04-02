@@ -15,8 +15,18 @@
 // reference. If users provide their own math or complex functions(with
 // the prototype), functions in device libraries will be ignored and
 // overrided by users' version.
+
+DEVICE_EXTERN_C_INLINE
+double fabs(double x) { return __devicelib_fabs(x); }
+
 DEVICE_EXTERN_C_INLINE
 double log(double x) { return __devicelib_log(x); }
+
+DEVICE_EXTERN_C_INLINE
+double round(double x) { return __devicelib_round(x); }
+
+DEVICE_EXTERN_C_INLINE
+double floor(double x) { return __devicelib_floor(x); }
 
 DEVICE_EXTERN_C_INLINE
 double exp(double x) { return __devicelib_exp(x); }
@@ -136,6 +146,16 @@ double atanh(double x) { return __devicelib_atanh(x); }
 
 DEVICE_EXTERN_C_INLINE
 double scalbn(double x, int exp) { return __devicelib_scalbn(x, exp); }
+
+#ifdef __NVPTX__
+extern "C" SYCL_EXTERNAL double __nv_nearbyint(double);
+DEVICE_EXTERN_C_INLINE
+double nearbyint(double x) { return __nv_nearbyint(x); }
+
+extern "C" SYCL_EXTERNAL double __nv_rint(double);
+DEVICE_EXTERN_C_INLINE
+double rint(double x) { return __nv_rint(x); }
+#endif // __NVPTX__
 
 #if defined(_MSC_VER)
 #include <math.h>

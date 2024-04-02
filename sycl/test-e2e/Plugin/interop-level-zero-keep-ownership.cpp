@@ -1,11 +1,11 @@
 // REQUIRES: level_zero, level_zero_dev_kit
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out %level_zero_options
-// RUN: env SYCL_BE=PI_LEVEL_ZERO %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out %level_zero_options
+// RUN: %{run} %t.out
 
 // Test for Level Zero interop API where SYCL RT doesn't take ownership
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 // clang-format off
 #include <level_zero/ze_api.h>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>

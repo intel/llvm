@@ -6,20 +6,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-// TODO: enable esimd_emulator when supported
 // REQUIRES: gpu-intel-pvc
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
 // Test checks support of named barrier in a loop in ESIMD kernel.
 // SLM and surface size is 32 bytes, 16 bytes per iteration.
 // Each iteration has 1 barrier and 1 producer. Producer stores data to SLM,
 // then all threads read SLM and store data to surface.
 
+#include <iostream>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>
 
-#include <iostream>
+#include "../esimd_test_utils.hpp"
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -98,9 +98,9 @@ bool test(QueueTY q) {
               auto val = lsc_slm_block_load<int, VL>(off);
               // and storing it to output surface
               unsigned int store_off = off + i * SlmSize * sizeof(int);
-              lsc_fence();
+              fence();
               lsc_block_store<int, VL>(acc, store_off, val);
-              lsc_fence();
+              fence();
             }
           });
     });
@@ -135,11 +135,8 @@ bool test(QueueTY q) {
 }
 
 int main() {
-  auto GPUSelector = gpu_selector{};
-  auto q = queue{GPUSelector};
-  auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
-            << "\n";
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
+  esimd_test::printTestLabel(q);
 
   bool passed = true;
 

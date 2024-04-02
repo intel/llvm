@@ -14,7 +14,6 @@
 #include <sycl/detail/host_profiling_info.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/info/info_desc.hpp>
-#include <sycl/stl.hpp>
 
 #include <atomic>
 #include <cassert>
@@ -22,7 +21,10 @@
 #include <optional>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
+namespace ext::oneapi::experimental::detail {
+class graph_impl;
+}
 class context;
 namespace detail {
 class plugin;
@@ -57,7 +59,7 @@ public:
   ///
   /// \param Event is a valid instance of plug-in event.
   /// \param SyclContext is an instance of SYCL context.
-  event_impl(RT::PiEvent Event, const context &SyclContext);
+  event_impl(sycl::detail::pi::PiEvent Event, const context &SyclContext);
   event_impl(const QueueImplPtr &Queue);
 
   /// Checks if this event is a SYCL host event.
@@ -73,7 +75,12 @@ public:
   /// Self is needed in order to pass shared_ptr to Scheduler.
   ///
   /// \param Self is a pointer to this event.
-  void wait(std::shared_ptr<sycl::detail::event_impl> Self);
+  /// \param Success is an optional parameter that, when set to a non-null
+  ///        pointer, indicates that failure is a valid outcome for this wait
+  ///        (e.g., in case of a non-blocking read from a pipe), and the value
+  ///        it's pointing to is then set according to the outcome.
+  void wait(std::shared_ptr<sycl::detail::event_impl> Self,
+            bool *Success = nullptr);
 
   /// Waits for the event.
   ///
@@ -103,10 +110,20 @@ public:
   /// \return depends on the information being requested.
   template <typename Param> typename Param::return_type get_info();
 
+  /// Queries this SYCL event for SYCL backend-specific information.
+  ///
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename Param::return_type get_backend_info() const;
+
   ~event_impl();
 
   /// Waits for the event with respect to device type.
-  void waitInternal();
+  /// \param Success is an optional parameter that, when set to a non-null
+  ///        pointer, indicates that failure is a valid outcome for this wait
+  ///        (e.g., in case of a non-blocking read from a pipe), and the value
+  ///        it's pointing to is then set according to the outcome.
+  void waitInternal(bool *Success = nullptr);
 
   /// Marks this event as completed.
   void setComplete();
@@ -115,12 +132,12 @@ public:
   /// invalid if event_impl was destroyed.
   ///
   /// \return a reference to an instance of plug-in event handle.
-  RT::PiEvent &getHandleRef();
+  sycl::detail::pi::PiEvent &getHandleRef();
   /// Returns raw interoperability event handle. Returned reference will be]
   /// invalid if event_impl was destroyed.
   ///
   /// \return a const reference to an instance of plug-in event handle.
-  const RT::PiEvent &getHandleRef() const;
+  const sycl::detail::pi::PiEvent &getHandleRef() const;
 
   /// Returns context that is associated with this event.
   ///
@@ -129,7 +146,7 @@ public:
 
   /// \return the Plugin associated with the context of this event.
   /// Should be called when this is not a Host Event.
-  const plugin &getPlugin();
+  const PluginPtr &getPlugin();
 
   /// Associate event with the context.
   ///
@@ -221,9 +238,24 @@ public:
     MSubmittedQueue = SubmittedQueue;
   };
 
+  /// Associate event with provided queue.
+  ///
+  /// @return
+  void associateWithQueue(const QueueImplPtr &Queue);
+
+  /// Indicates if this event is not associated with any command and doesn't
+  /// have native handle.
+  ///
+  /// @return true if no associated command and no event handle.
+  bool isNOP() { return !MCommand && !getHandleRef(); }
+
   /// Calling this function queries the current device timestamp and sets it as
   /// submission time for the command associated with this event.
   void setSubmissionTime();
+
+  /// Calling this function to capture the host timestamp to use
+  /// profiling base time. See MFallbackProfiling
+  void setHostEnqueueTime();
 
   /// @return Submission time for command associated with this event
   uint64_t getSubmissionTime();
@@ -251,6 +283,53 @@ public:
 
   bool isContextInitialized() const noexcept { return MIsContextInitialized; }
 
+  ContextImplPtr getContextImplPtr() {
+    ensureContextInitialized();
+    return MContext;
+  }
+
+  // Sets a sync point which is used when this event represents an enqueue to a
+  // Command Buffer.
+  void setSyncPoint(sycl::detail::pi::PiExtSyncPoint SyncPoint) {
+    MSyncPoint = SyncPoint;
+  }
+
+  // Get the sync point associated with this event.
+  sycl::detail::pi::PiExtSyncPoint getSyncPoint() const { return MSyncPoint; }
+
+  void setCommandGraph(
+      std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
+    MGraph = Graph;
+  }
+
+  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+  getCommandGraph() const {
+    return MGraph.lock();
+  }
+
+  void setEventFromSubmittedExecCommandBuffer(bool value) {
+    MEventFromSubmittedExecCommandBuffer = value;
+  }
+
+  bool isEventFromSubmittedExecCommandBuffer() const {
+    return MEventFromSubmittedExecCommandBuffer;
+  }
+
+  // Sets a command-buffer command when this event represents an enqueue to a
+  // Command Buffer.
+  void
+  setCommandBufferCommand(sycl::detail::pi::PiExtCommandBufferCommand Command) {
+    MCommandBufferCommand = Command;
+  }
+
+  sycl::detail::pi::PiExtCommandBufferCommand getCommandBufferCommand() const {
+    return MCommandBufferCommand;
+  }
+
+  const std::vector<EventImplPtr> &getPostCompleteEvents() const {
+    return MPostCompleteEvents;
+  }
+
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -265,15 +344,17 @@ protected:
   void ensureContextInitialized();
   bool MIsInitialized = true;
   bool MIsContextInitialized = false;
-  RT::PiEvent MEvent = nullptr;
+  sycl::detail::pi::PiEvent MEvent = nullptr;
   // Stores submission time of command associated with event
   uint64_t MSubmitTime = 0;
+  uint64_t MHostBaseTime = 0;
   ContextImplPtr MContext;
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;
-  const bool MIsProfilingEnabled = false;
+  bool MIsProfilingEnabled = false;
+  bool MFallbackProfiling = false;
 
   std::weak_ptr<queue_impl> MWorkerQueue;
   std::weak_ptr<queue_impl> MSubmittedQueue;
@@ -296,11 +377,27 @@ protected:
   std::mutex MMutex;
   std::condition_variable cv;
 
-  friend std::vector<RT::PiEvent>
+  /// Store the command graph associated with this event, if any.
+  /// This event is also be stored in the graph so a weak_ptr is used.
+  std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph;
+  /// Indicates that the event results from a command graph submission.
+  bool MEventFromSubmittedExecCommandBuffer = false;
+
+  // If this event represents a submission to a
+  // sycl::detail::pi::PiExtCommandBuffer the sync point for that submission is
+  // stored here.
+  sycl::detail::pi::PiExtSyncPoint MSyncPoint;
+
+  // If this event represents a submission to a
+  // sycl::detail::pi::PiExtCommandBuffer the command-buffer command
+  // (if any) associated with that submission is stored here.
+  sycl::detail::pi::PiExtCommandBufferCommand MCommandBufferCommand = nullptr;
+
+  friend std::vector<sycl::detail::pi::PiEvent>
   getOrWaitEvents(std::vector<sycl::event> DepEvents,
                   std::shared_ptr<sycl::detail::context_impl> Context);
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

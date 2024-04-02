@@ -2,7 +2,7 @@
 
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple -O0 -filetype=obj < %t.ll | llvm-dwarfdump -v -debug-info - | FileCheck %s
 
@@ -96,7 +96,7 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-NOT: DW_TAG
 ; CHECK:         DW_AT_abstract_origin {{.*}} "s"
 
-@t = external global i32
+@t = external addrspace(1) global i32
 
 ; Function Attrs: uwtable
 define void @_Z1bv() #0 !dbg !4 {
@@ -114,7 +114,7 @@ entry:
   br i1 %u, label %if.then.i, label %_Z1xb.exit, !dbg !34
 
 if.then.i:                                        ; preds = %entry
-  %0 = load i32, i32* @t, align 4, !dbg !35, !tbaa !36
+  %0 = load i32, ptr addrspace(1) @t, align 4, !dbg !35, !tbaa !36
   tail call void @llvm.dbg.value(metadata i32 %0, metadata !40, metadata !DIExpression()), !dbg !35
   tail call void @_Z1fi(i32 %0), !dbg !41
   br label %_Z1xb.exit, !dbg !42

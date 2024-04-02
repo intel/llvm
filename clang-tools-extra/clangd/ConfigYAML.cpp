@@ -68,6 +68,7 @@ public:
     Dict.handle("Completion", [&](Node &N) { parse(F.Completion, N); });
     Dict.handle("Hover", [&](Node &N) { parse(F.Hover, N); });
     Dict.handle("InlayHints", [&](Node &N) { parse(F.InlayHints, N); });
+    Dict.handle("SemanticTokens", [&](Node &N) { parse(F.SemanticTokens, N); });
     Dict.parse(N);
     return !(N.failed() || HadError);
   }
@@ -133,9 +134,6 @@ private:
     });
     Dict.handle("Includes", [&](Node &N) { parse(F.Includes, N); });
     Dict.handle("ClangTidy", [&](Node &N) { parse(F.ClangTidy, N); });
-    Dict.handle("AllowStalePreamble", [&](Node &N) {
-      F.AllowStalePreamble = boolValue(N, "AllowStalePreamble");
-    });
     Dict.parse(N);
   }
 
@@ -157,6 +155,10 @@ private:
         return false; // Don't emit a warning
       });
       CheckOptDict.parse(N);
+    });
+    Dict.handle("FastCheckFilter", [&](Node &N) {
+      if (auto FastCheckFilter = scalarValue(N, "FastCheckFilter"))
+        F.FastCheckFilter = *FastCheckFilter;
     });
     Dict.parse(N);
   }
@@ -253,6 +255,27 @@ private:
     Dict.handle("Designators", [&](Node &N) {
       if (auto Value = boolValue(N, "Designators"))
         F.Designators = *Value;
+    });
+    Dict.handle("BlockEnd", [&](Node &N) {
+      if (auto Value = boolValue(N, "BlockEnd"))
+        F.BlockEnd = *Value;
+    });
+    Dict.handle("TypeNameLimit", [&](Node &N) {
+      if (auto Value = uint32Value(N, "TypeNameLimit"))
+        F.TypeNameLimit = *Value;
+    });
+    Dict.parse(N);
+  }
+
+  void parse(Fragment::SemanticTokensBlock &F, Node &N) {
+    DictParser Dict("SemanticTokens", this);
+    Dict.handle("DisabledKinds", [&](Node &N) {
+      if (auto Values = scalarValues(N))
+        F.DisabledKinds = std::move(*Values);
+    });
+    Dict.handle("DisabledModifiers", [&](Node &N) {
+      if (auto Values = scalarValues(N))
+        F.DisabledModifiers = std::move(*Values);
     });
     Dict.parse(N);
   }
@@ -372,6 +395,17 @@ private:
         return Located<bool>(*Bool, Scalar->Range);
       warning(Desc + " should be a boolean", N);
     }
+    return std::nullopt;
+  }
+
+  std::optional<Located<uint32_t>> uint32Value(Node &N, llvm::StringRef Desc) {
+    if (auto Scalar = scalarValue(N, Desc)) {
+      unsigned long long Num;
+      if (!llvm::getAsUnsignedInteger(**Scalar, 0, Num)) {
+        return Located<uint32_t>(Num, Scalar->Range);
+      }
+    }
+    warning(Desc + " invalid number", N);
     return std::nullopt;
   }
 

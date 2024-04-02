@@ -1,14 +1,15 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -O2 -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// UNSUPPORTED: cuda || hip
-// REQUIRES: fusion
+// RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
+// RUN: %{run} %t.out
 
 // Test internalization of a nested array type.
 
 #include <array>
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
+#include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 using namespace sycl;
 
@@ -86,7 +87,7 @@ int main() {
         const auto &accIn1Wrapp = accIn1[id];
         const auto &accIn2Wrapp = accIn2[id];
         auto &accTmpWrapp = accTmp[id];
-        for (size_t i = 0; i < dataSize; ++i) {
+        for (size_t i = 0; i < rows; ++i) {
           const auto &in1 = accIn1Wrapp[i];
           const auto &in2 = accIn2Wrapp[i];
           auto &tmp = accTmpWrapp[i];
@@ -106,7 +107,7 @@ int main() {
         const auto &tmpWrapp = accTmp[id];
         const auto &accIn3Wrapp = accIn3[id];
         auto &accOutWrapp = accOut[id];
-        for (size_t i = 0; i < dataSize; ++i) {
+        for (size_t i = 0; i < rows; ++i) {
           const auto &tmp = tmpWrapp[i];
           const auto &in3 = accIn3Wrapp[i];
           auto &out = accOutWrapp[i];

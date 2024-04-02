@@ -1,3 +1,5 @@
+! REQUIRES: openmp_runtime
+
 ! RUN: %python %S/../test_errors.py %s %flang_fc1 -fopenmp
 use omp_lib
 ! Check OpenMP clause validity for the following directives:
@@ -6,7 +8,10 @@ use omp_lib
 !    2.7.1 Loop construct
 !    ...
 
+  use iso_c_binding
   integer :: b = 128
+  integer, allocatable :: allc
+  type(C_PTR) :: cpt
   integer :: z, c = 32
   integer, parameter :: num = 16
   real(8) :: arrayA(256), arrayB(512)
@@ -316,7 +321,8 @@ use omp_lib
   !$omp parallel
   b = 1
   !ERROR: LASTPRIVATE clause is not allowed on the SINGLE directive
-  !$omp single private(a) lastprivate(c)
+  !ERROR: NOWAIT clause is not allowed on the OMP SINGLE directive, use it on OMP END SINGLE directive 
+  !$omp single private(a) lastprivate(c) nowait
   a = 3.14
   !ERROR: Clause NOWAIT is not allowed if clause COPYPRIVATE appears on the END SINGLE directive
   !ERROR: COPYPRIVATE variable 'a' may not appear on a PRIVATE or FIRSTPRIVATE clause on a SINGLE construct
@@ -367,7 +373,7 @@ use omp_lib
   enddo
 
   !ERROR: The parameter of the ALIGNED clause must be a constant positive integer expression
-  !$omp simd aligned(b:-2)
+  !$omp simd aligned(cpt:-2)
   do i = 1, N
      a = 3.14
   enddo
@@ -396,13 +402,15 @@ use omp_lib
   !$omp parallel
   !ERROR: No ORDERED clause with a parameter can be specified on the DO SIMD directive
   !ERROR: NOGROUP clause is not allowed on the DO SIMD directive
-  !$omp do simd ordered(2) NOGROUP
+  !ERROR: NOWAIT clause is not allowed on the OMP DO SIMD directive, use it on OMP END DO SIMD directive 
+  !$omp do simd ordered(2) NOGROUP nowait
   do i = 1, N
      do j = 1, N
         a = 3.14
      enddo
   enddo
-  !$omp end parallel
+  !omp end do nowait
+  !$omp end parallel 
 
 ! 2.11.4 parallel-do-simd-clause -> parallel-clause |
 !                                   do-simd-clause
@@ -475,6 +483,7 @@ use omp_lib
   !$omp taskyield
   !$omp barrier
   !$omp taskwait
+  !ERROR: DEPEND(SOURCE) or DEPEND(SINK : vec) can be used only with the ordered directive. Used here in the TASKWAIT construct.
   !$omp taskwait depend(source)
   ! !$omp taskwait depend(sink:i-1)
   ! !$omp target enter data map(to:arrayA) map(alloc:arrayB)
@@ -550,11 +559,12 @@ use omp_lib
      a = 3.14
   enddo
 
+  allocate(allc)
   !ERROR: The parameter of the SIMDLEN clause must be a constant positive integer expression
   !ERROR: The parameter of the ALIGNED clause must be a constant positive integer expression
-  !$omp taskloop simd simdlen(-1) aligned(a:-2)
+  !$omp taskloop simd simdlen(-1) aligned(allc:-2)
   do i = 1, N
-     a = 3.14
+     allc = 3.14
   enddo
 
   !$omp target enter data map(alloc:A) device(0) 

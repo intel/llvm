@@ -7,7 +7,7 @@
 ; RUN: opt -thinlto-bc -o %t3.o %s
 ; RUN: opt -thinlto-bc -o %t4.o %p/Inputs/devirt_local_same_guid.ll
 
-; RUN: llvm-lto2 run -opaque-pointers %t3.o %t4.o -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run %t3.o %t4.o -save-temps -pass-remarks=. \
 ; RUN:   -wholeprogramdevirt-print-index-based \
 ; RUN:   -o %t5 \
 ; RUN:   -r=%t3.o,use_B,px \
@@ -37,7 +37,7 @@ define internal i32 @_ZN1B1nEi(ptr %this, i32 %a) #0 {
 ; Ensures that vtable of B is live so that we will attempt devirt.
 define dso_local i32 @use_B(ptr %a) {
 entry:
-  store ptr getelementptr inbounds ({ [4 x ptr] }, ptr @_ZTV1B, i64 0, inrange i32 0, i64 2), ptr %a, align 8
+  store ptr getelementptr inbounds ({ [4 x ptr] }, ptr @_ZTV1B, i64 0, i32 0, i64 2), ptr %a, align 8
   ret i32 0
 }
 

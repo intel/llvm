@@ -1,22 +1,8 @@
 # Transform Dialect
 
-Fine-grain transformation control dialect.
+Fine-grain transformation control dialect. See [tutorial](../Tutorials/transform) for more introductory information.
 
 [TOC]
-
-## Disclaimer
-
-**This dialect is actively developed and may change frequently.**
-
-To decrease the maintenance burden and churn, please post a description of
-the intended use case on the MLIR forum. A few in-tree use cases are
-currently supported:
-
-  - high-level transformations on "structured ops" (i.e. ops that operate on
-    chunks of data in a way that can be decomposed into operations on
-    smaller chunks of data and control flow) in Linalg, Tensor and Vector
-    dialects;
-  - loop transformations in the SCF dialect.
 
 ## Overview
 
@@ -33,7 +19,7 @@ operations, and then applying loop unrolling to the inner loops produced by the
 previous transformations. As such, it is not intended as a replacement for the
 pass infrastructure, nor for the pattern rewriting infrastructure. In the most
 common case, the transform IR will be processed and applied to the payload IR by
-a pass. Transformations expressed by the transform dialect may be implemented
+a pass. Transformations expressed by the Transform dialect may be implemented
 using the pattern infrastructure or any other relevant MLIR component.
 
 The following IR gives a rough idea of what the operations in this dialect
@@ -77,6 +63,24 @@ Transform IR ops support operand values that are mapped to multiple payload
 objects. They usually apply the respective transformation for every mapped
 object ("batched execution"). Deviations from this convention are described in
 the documentation of Transform IR ops.
+
+Parameters, such as `%1` in the above example, have two logical roles in
+transform IR. In parameter based control, they carry the values needed to
+execute the explicit control defined by the transforms, for example:
+
+```mlir
+%0 = transform.match.structured.rank %linalg_op_handle : !transform.param<index>
+%1 = transform.param.constant 3 : i32 -> !transform.param<index>
+transform.execute_if_cmpi eq %0, %1 : !transform.param<index>, !transform.param<index>
+// Some nested body of transform ops
+```
+
+Alternatively, parameters can associate with the payload IR where the specific
+value at execution time has no bearing on the execution of the transform IR. In
+other words, parameters can either associate with the transform IR or the
+payload IR.  Note that it is generally discouraged to use parameters containing
+arbitrary attributes within transform control. Parameter based control should
+try to be explicitly typed when possible.
 
 The transform IR values have transform IR types, which should implement exactly one of:
 
@@ -186,12 +190,12 @@ effects on these resources.
 
   * `TransformMappingResource` - side effect resource corresponding to the
     mapping between transform IR values and payload IR operations.
-    
+
     - An `Allocate` effect from this resource means creating a new mapping
       entry, it is always accompanied by a `Write` effect.
-      
+
     - A `Read` effect from this resource means accessing the mapping.
-    
+
     - A `Free` effect on this resource indicates the removal of the mapping
       entry, typically after a transformation that modifies the payload IR
       operations associated with one of the transform IR operation's
@@ -267,7 +271,7 @@ operation lists.
 
 ## Handle Invalidation
 
-The execution model of the transform dialect allows a payload IR operation to be
+The execution model of the Transform dialect allows a payload IR operation to be
 associated with _multiple_ handles as well as nested payload IR operations to be
 associated with different handles. Similarly, a payload IR value may be
 associated with multiple transform IR value handles. When a transform IR
@@ -290,7 +294,7 @@ The following handle invalidation rules apply.
       payload operations described above;
 
     - value handles associated with any result of any operation described above;
-    
+
     - value handles associated with any argument of a block contained in a
       region attached to any operation described above.
 
@@ -311,7 +315,7 @@ The following handle invalidation rules apply.
     - value handles associated with any result of any operation described above,
       including all results of the operation defining as result the value
       associated with the consumed handle;
-    
+
     - value handles associated with any argument of a block contained in a
       region attached to any operation described above.
 
@@ -369,13 +373,13 @@ to specify which transformations the pass should run. The transform dialect
 provides a uniform, extensible mechanism for controlling transformations in
 such cases.
 
-The transform dialect is supposed to be consumed by an "interpreter" pass
+The Transform dialect is supposed to be consumed by an "interpreter" pass
 that drives the application of transformations. To ensure extensibility and
 composability, this pass is not expected to actually perform the
 transformations specified by the ops. Instead, the transformations are
 implemented by the transform ops themselves via `TransformOpInterface`. The
 pass serves as the entry point, handles the flow of transform operations and
-takes care of bookkeeping. As such, the transform dialect does not provide
+takes care of bookkeeping. As such, the Transform dialect does not provide
 the interpreter pass. Instead, it provides a set of utilities that can be
 used by clients to define their own interpreter passes or as part of a more
 complex pass. For example, the mapping between values in the transform IR
@@ -419,9 +423,21 @@ ops rather than having the methods directly act on the payload IR.
 
 [include "Dialects/BufferizationTransformOps.md"]
 
+## Debug Transform Operations
+
+[include "Dialects/DebugExtensionOps.md"]
+
+## Func Transform Operations
+
+[include "Dialects/FuncTransformOps.md"]
+
 ## GPU Transform Operations
 
 [include "Dialects/GPUTransformOps.md"]
+
+## Loop (extension) Transform Operations
+
+[include "Dialects/LoopExtensionOps.md"]
 
 ## Loop (SCF) Transform Operations
 
@@ -431,9 +447,21 @@ ops rather than having the methods directly act on the payload IR.
 
 [include "Dialects/MemRefTransformOps.md"]
 
+## PDL (extension) Transform Operations
+
+[include "Dialects/PDLExtensionOps.md"]
+
+## Structured (Linalg) Match Operations
+
+[include "Dialects/LinalgStructuredMatchOps.md"]
+
 ## Structured (Linalg) Transform Operations
 
 [include "Dialects/LinalgStructuredTransformOps.md"]
+
+## Tensor Transform Operations
+
+[include "Dialects/TensorTransformOps.md"]
 
 ## Vector Transform Operations
 

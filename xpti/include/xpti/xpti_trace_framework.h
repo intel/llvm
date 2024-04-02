@@ -90,6 +90,41 @@ XPTI_EXPORT_API uint64_t xptiGetUniversalId();
 /// @param uid Unique 64 bit identifier.
 XPTI_EXPORT_API void xptiSetUniversalId(uint64_t uid);
 
+/// @brief Returns stashed tuple<std::string, uint64_t>
+/// @details The XPTI Framework allows the notification mechanism to stash a
+/// key-value tupe before a notification that can be accessed in the callback
+/// handler fo the notification. This value is guranteed to be valid for the
+/// duration of the notifiation.
+/// @param key The Key of the stashed tuple is contained in this parameter after
+/// the call
+/// @param value The value that corresponds to key
+/// @return The result code is XPTI_RESULT_SUCCESS when successful and
+/// XPTI_RESULT_NOTFOUND if there is nothing stashed. Also returns error if
+/// 'key' argument is invalid (XPTI_RESULT_INVALIDARG)
+XPTI_EXPORT_API xpti::result_t xptiGetStashedTuple(char **key, uint64_t &value);
+
+/// @brief Stash a key-value tuple
+/// @details Certain notifications in XPTI may want to provide mutable values
+/// associated with Universal IDs that can be captured in the notification
+/// handler. The framework currently allows one such tuple to be provided and
+/// stashed.
+/// @param key The Key of the tuple that is being stashed and needs to be
+/// available for the duration of the notification call.
+/// @param value The value that corresponds to key
+/// @return The result code is XPTI_RESULT_SUCCESS when successful and
+/// XPTI_RESULT_FAIL if key is invalid
+XPTI_EXPORT_API xpti::result_t xptiStashTuple(const char *key, uint64_t value);
+
+/// @brief Un-Stash a key-value tuple or pop it from a stack, if one exists
+/// @details Certain notifications in XPTI may want to provide mutable values
+/// associated with Universal IDs that can be captured in the notification
+/// handler. The framework currently allows such values to be provided and
+/// stashed. This function pops the top of the stack tuple value when it is no
+/// longer needed; Currently a stack depth of 1 is supported.
+/// @return The result code is XPTI_RESULT_SUCCESS when successful and
+/// XPTI_RESULT_FAIL if there are no tuples present
+XPTI_EXPORT_API void xptiUnstashTuple();
+
 /// @brief Generates a unique ID
 /// @details When a tool is subscribing to the event stream and wants to
 /// generate task IDs that do not collide with unique IDs currently being
@@ -457,6 +492,17 @@ xptiQueryMetadata(xpti::trace_event_data_t *e);
 /// @return bool that indicates whether it is enabled or not
 XPTI_EXPORT_API bool xptiTraceEnabled();
 
+/// @brief Check if tracing is enabled for a stream or stream and trace type
+/// @details If the tracing is enabled by the XPTI_TRACE_ENABLE=1
+/// environment variable, a valid dispatcher is available for dispatching
+/// calls to the framework and if there exists one or more valid subscribers
+/// subscribing to a stream or a stream and trace type in that stream, then
+/// this method will return TRUE
+/// @param stream Stream ID
+/// @param ttype The trace type within the stream
+/// @return bool that indicates whether it is enabled or not
+XPTI_EXPORT_API bool xptiCheckTraceEnabled(uint16_t stream, uint16_t ttype = 0);
+
 /// @brief Resets internal state
 /// @details This method is currently ONLY used by the tests and is NOT
 /// recommended for use in the instrumentation of applications or runtimes.
@@ -475,6 +521,10 @@ XPTI_EXPORT_API void xptiForceSetTraceEnabled(bool yesOrNo);
 /// The framework does not implement this function, only proxy library.
 XPTI_EXPORT_API void xptiTraceTryToEnable();
 
+/// @brief Removes cached event and associated metadata
+/// @param e The event for which associated data will be removed
+XPTI_EXPORT_API void xptiReleaseEvent(xpti::trace_event_data_t *e);
+
 typedef xpti::result_t (*xpti_framework_initialize_t)();
 typedef xpti::result_t (*xpti_framework_finalize_t)();
 typedef xpti::result_t (*xpti_initialize_t)(const char *, uint32_t, uint32_t,
@@ -483,6 +533,9 @@ typedef void (*xpti_finalize_t)(const char *);
 typedef uint64_t (*xpti_get_universal_id_t)();
 typedef void (*xpti_set_universal_id_t)(uint64_t uid);
 typedef uint64_t (*xpti_get_unique_id_t)();
+typedef xpti::result_t (*xpti_stash_tuple_t)(const char *key, uint64_t value);
+typedef xpti::result_t (*xpti_get_stashed_tuple_t)(char **key, uint64_t &value);
+typedef void (*xpti_unstash_tuple_t)();
 typedef xpti::string_id_t (*xpti_register_string_t)(const char *, char **);
 typedef const char *(*xpti_lookup_string_t)(xpti::string_id_t);
 typedef xpti::string_id_t (*xpti_register_object_t)(const char *, size_t,
@@ -511,5 +564,7 @@ typedef xpti::result_t (*xpti_add_metadata_t)(xpti::trace_event_data_t *,
                                               const char *, xpti::object_id_t);
 typedef xpti::metadata_t *(*xpti_query_metadata_t)(xpti::trace_event_data_t *);
 typedef bool (*xpti_trace_enabled_t)();
+typedef bool (*xpti_check_trace_enabled_t)(uint16_t stream, uint16_t ttype);
 typedef void (*xpti_force_set_trace_enabled_t)(bool);
+typedef void (*xpti_release_event_t)(xpti::trace_event_data_t *);
 }

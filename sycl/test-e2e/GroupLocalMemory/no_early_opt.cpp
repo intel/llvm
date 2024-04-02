@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fno-sycl-early-optimizations %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fno-sycl-early-optimizations -o %t.out
+// RUN: %{run} %t.out
 //
 // XFAIL: hip_nvidia
 
@@ -10,7 +8,9 @@
 // code optimizations disabled (the implementation relies on inlining these
 // functions regardless of device code optimization settings).
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/group_local_memory.hpp>
 
 #include <cassert>
 #include <vector>
@@ -38,10 +38,12 @@ int main() {
           nd_range<1>(range<1>(Size), range<1>(WgSize)), [=](nd_item<1> Item) {
             multi_ptr<int, access::address_space::local_space,
                       sycl::access::decorated::legacy>
-                PtrA = group_local_memory_for_overwrite<int>(Item.get_group());
+                PtrA = ext::oneapi::group_local_memory_for_overwrite<int>(
+                    Item.get_group());
             multi_ptr<int, access::address_space::local_space,
                       sycl::access::decorated::legacy>
-                PtrB = group_local_memory_for_overwrite<int>(Item.get_group());
+                PtrB = ext::oneapi::group_local_memory_for_overwrite<int>(
+                    Item.get_group());
 
             size_t GlobalId = Item.get_global_linear_id();
             AccA[GlobalId] = PtrA;
@@ -49,8 +51,8 @@ int main() {
           });
     });
 
-    auto AccA = BufA.get_access<access::mode::read>();
-    auto AccB = BufB.get_access<access::mode::read>();
+    host_accessor AccA(BufA, read_only);
+    host_accessor AccB(BufB, read_only);
     for (size_t I = 0; I < Size; ++I)
       assert(AccA[I] != AccB[I]);
   }

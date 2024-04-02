@@ -3,9 +3,9 @@
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.spv.bc --spirv-target-env=SPV-IR
+; RUN: llvm-spirv -r %t.spv -o %t.rev.spv.bc --spirv-target-env=SPV-IR
 ; RUN: llvm-dis < %t.rev.spv.bc | FileCheck %s --check-prefix=CHECK-SPV-IR
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; This test checks SYCL relational builtin any and all with vector input types.
@@ -43,7 +43,7 @@ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:2
 target triple = "spir"
 
 ; Function Attrs: convergent mustprogress nofree norecurse nounwind willreturn writeonly
-define dso_local spir_func void @test_vector(i32 addrspace(4)* nocapture writeonly %out, <2 x i8> %c, <2 x i16> %s, <2 x i32> %i, <2 x i64> %l) local_unnamed_addr #0 {
+define dso_local spir_func void @test_vector(ptr addrspace(4) nocapture writeonly %out, <2 x i8> %c, <2 x i16> %s, <2 x i32> %i, <2 x i64> %l) local_unnamed_addr #0 {
 entry:
   %call = tail call spir_func i32 @_Z3anyDv2_c(<2 x i8> %c) #2
   %call1 = tail call spir_func i32 @_Z3anyDv2_s(<2 x i16> %s) #2
@@ -60,7 +60,7 @@ entry:
   %add11 = add nsw i32 %add9, %call10
   %call12 = tail call spir_func i32 @_Z3allDv2_l(<2 x i64> %l) #2
   %add13 = add nsw i32 %add11, %call12
-  store i32 %add13, i32 addrspace(4)* %out, align 4, !tbaa !3
+  store i32 %add13, ptr addrspace(4) %out, align 4, !tbaa !3
   ret void
 }
 

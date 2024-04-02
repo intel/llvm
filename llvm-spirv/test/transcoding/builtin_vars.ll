@@ -2,9 +2,9 @@
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.out.bc
+; RUN: llvm-spirv -r %t.spv -o %t.out.bc
 ; RUN: llvm-dis %t.out.bc -o - | FileCheck %s --check-prefix=CHECK-OCL-IR
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv --spirv-target-env=SPV-IR -o %t.out.bc
+; RUN: llvm-spirv -r %t.spv --spirv-target-env=SPV-IR -o %t.out.bc
 ; RUN: llvm-dis %t.out.bc -o - | FileCheck %s --check-prefix=CHECK-SPV-IR
 
 ; Check that produced builtin-call-based SPV-IR is recognized by the translator
@@ -21,7 +21,7 @@ target triple = "spir-unknown-unknown"
 ; Function Attrs: nounwind readnone
 define spir_kernel void @f() #0 !kernel_arg_addr_space !0 !kernel_arg_access_qual !0 !kernel_arg_type !0 !kernel_arg_base_type !0 !kernel_arg_type_qual !0 {
 entry:
-  %0 = load i32, i32 addrspace(4)* addrspacecast (i32 addrspace(1)* @__spirv_BuiltInGlobalLinearId to i32 addrspace(4)*), align 4
+  %0 = load i32, ptr addrspace(4) addrspacecast (ptr addrspace(1) @__spirv_BuiltInGlobalLinearId to ptr addrspace(4)), align 4
   ; CHECK-OCL-IR: %0 = call spir_func i32 @_Z20get_global_linear_idv() #1
   ; CHECK-SPV-IR: %0 = call spir_func i32 @_Z29__spirv_BuiltInGlobalLinearIdv() #1
   ret void

@@ -11,6 +11,8 @@
 
 #include "tsd.h"
 
+#include "string_utils.h"
+
 namespace scudo {
 
 struct ThreadState {
@@ -25,6 +27,31 @@ struct ThreadState {
 template <class Allocator> void teardownThread(void *Ptr);
 
 template <class Allocator> struct TSDRegistryExT {
+  using ThisT = TSDRegistryExT<Allocator>;
+
+  struct ScopedTSD {
+    ALWAYS_INLINE ScopedTSD(ThisT &TSDRegistry) {
+      CurrentTSD = TSDRegistry.getTSDAndLock(&UnlockRequired);
+      DCHECK_NE(CurrentTSD, nullptr);
+    }
+
+    ~ScopedTSD() {
+      if (UNLIKELY(UnlockRequired))
+        CurrentTSD->unlock();
+    }
+
+    TSD<Allocator> &operator*() { return *CurrentTSD; }
+
+    TSD<Allocator> *operator->() {
+      CurrentTSD->assertLocked(/*BypassCheck=*/!UnlockRequired);
+      return CurrentTSD;
+    }
+
+  private:
+    TSD<Allocator> *CurrentTSD;
+    bool UnlockRequired;
+  };
+
   void init(Allocator *Instance) REQUIRES(Mutex) {
     DCHECK(!Initialized);
     Instance->init();
@@ -57,27 +84,19 @@ template <class Allocator> struct TSDRegistryExT {
     Initialized = false;
   }
 
+  void drainCaches(Allocator *Instance) {
+    // We don't have a way to iterate all thread local `ThreadTSD`s. Simply
+    // drain the `ThreadTSD` of current thread and `FallbackTSD`.
+    Instance->drainCache(&ThreadTSD);
+    FallbackTSD.lock();
+    Instance->drainCache(&FallbackTSD);
+    FallbackTSD.unlock();
+  }
+
   ALWAYS_INLINE void initThreadMaybe(Allocator *Instance, bool MinimalInit) {
     if (LIKELY(State.InitState != ThreadState::NotInitialized))
       return;
     initThread(Instance, MinimalInit);
-  }
-
-  // TODO(chiahungduan): Consider removing the argument `UnlockRequired` by
-  // embedding the logic into TSD or always locking the TSD. It will enable us
-  // to properly mark thread annotation here and adding proper runtime
-  // assertions in the member functions of TSD. For example, assert the lock is
-  // acquired before calling TSD::commitBack().
-  ALWAYS_INLINE TSD<Allocator> *
-  getTSDAndLock(bool *UnlockRequired) NO_THREAD_SAFETY_ANALYSIS {
-    if (LIKELY(State.InitState == ThreadState::Initialized &&
-               !atomic_load(&Disabled, memory_order_acquire))) {
-      *UnlockRequired = false;
-      return &ThreadTSD;
-    }
-    FallbackTSD.lock();
-    *UnlockRequired = true;
-    return &FallbackTSD;
   }
 
   // To disable the exclusive TSD registry, we effectively lock the fallback TSD
@@ -104,7 +123,26 @@ template <class Allocator> struct TSDRegistryExT {
 
   bool getDisableMemInit() { return State.DisableMemInit; }
 
+  void getStats(ScopedString *Str) {
+    // We don't have a way to iterate all thread local `ThreadTSD`s. Instead of
+    // printing only self `ThreadTSD` which may mislead the usage, we just skip
+    // it.
+    Str->append("Exclusive TSD don't support iterating each TSD\n");
+  }
+
 private:
+  ALWAYS_INLINE TSD<Allocator> *
+  getTSDAndLock(bool *UnlockRequired) NO_THREAD_SAFETY_ANALYSIS {
+    if (LIKELY(State.InitState == ThreadState::Initialized &&
+               !atomic_load(&Disabled, memory_order_acquire))) {
+      *UnlockRequired = false;
+      return &ThreadTSD;
+    }
+    FallbackTSD.lock();
+    *UnlockRequired = true;
+    return &FallbackTSD;
+  }
+
   // Using minimal initialization allows for global initialization while keeping
   // the thread specific structure untouched. The fallback structure will be
   // used instead.

@@ -1008,7 +1008,7 @@ TEST_F(AArch64GISelMITest, TestVectorMetadata) {
   auto *NewMDNode = MDNode::get(Context, LowAndHigh);
   const MachineMemOperand *OldMMO = *Load->memoperands_begin();
   MachineMemOperand NewMMO(OldMMO->getPointerInfo(), OldMMO->getFlags(),
-                           OldMMO->getSizeInBits(), OldMMO->getAlign(),
+                           OldMMO->getMemoryType(), OldMMO->getAlign(),
                            OldMMO->getAAInfo(), NewMDNode);
   MachineIRBuilder MIB(*Load);
   MIB.buildLoad(Load->getOperand(0), Load->getOperand(1), NewMMO);
@@ -1456,10 +1456,10 @@ TEST_F(AArch64GISelMITest, TestVectorInvalidQueries) {
   KnownBits BiggerSizeRes = Info.getKnownBits(BiggerSizedShl);
 
   EXPECT_TRUE(EqSizeRes.One.isZero());
-  EXPECT_TRUE(EqSizeRes.Zero.isZero());
+  EXPECT_TRUE(EqSizeRes.Zero.isAllOnes());
 
   EXPECT_TRUE(BiggerSizeRes.One.isZero());
-  EXPECT_TRUE(BiggerSizeRes.Zero.isZero());
+  EXPECT_TRUE(BiggerSizeRes.Zero.isAllOnes());
 }
 
 TEST_F(AArch64GISelMITest, TestKnownBitsVectorAssertZext) {

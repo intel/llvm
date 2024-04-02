@@ -348,7 +348,7 @@ public:
 
 void BuiltinNameEmitter::Emit() {
   std::string Banner = (Family + " Builtin handling").str();
-  emitSourceFileHeader(Banner, OS);
+  emitSourceFileHeader(Banner, OS, Records);
 
   OS << "#include \"llvm/ADT/StringRef.h\"\n";
   OS << "using namespace clang;\n\n";
@@ -1262,7 +1262,7 @@ StringRef OpenCLBuiltinFileEmitterBase::emitTypeExtensionGuards(
 }
 
 void OpenCLBuiltinTestEmitter::emit() {
-  emitSourceFileHeader("OpenCL Builtin exhaustive testing", OS);
+  emitSourceFileHeader("OpenCL Builtin exhaustive testing", OS, Records);
 
   emitExtensionSetup();
 
@@ -1320,7 +1320,7 @@ void OpenCLBuiltinTestEmitter::emit() {
 }
 
 void OpenCLBuiltinHeaderEmitter::emit() {
-  emitSourceFileHeader("OpenCL Builtin declarations", OS);
+  emitSourceFileHeader("OpenCL Builtin declarations", OS, Records);
 
   emitExtensionSetup();
 

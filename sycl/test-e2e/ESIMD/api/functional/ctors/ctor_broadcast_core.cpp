@@ -5,15 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu, level_zero
-// UNSUPPORTED: gpu-intel-gen9 && windows
-// XREQUIRES: gpu
-// TODO gpu and level_zero in REQUIRES due to only this platforms supported yet.
-// The current "REQUIRES" should be replaced with "gpu" only as mentioned in
-// "XREQUIRES".
-// UNSUPPORTED: cuda, hip
-// XRUN: %clangxx -fsycl %s -fsycl-device-code-split=per_kernel -o %t.out
-// XRUN: %GPU_RUN_PLACEHOLDER %t.out
+// XRUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// XRUN: %{run} %t.out
 //
 // Test for simd broadcast constructor.
 // This test uses different data types, sizes and different simd constructor

@@ -14,7 +14,7 @@
 #include "llvm/DebugInfo/CodeView/LazyRandomTypeCollection.h"
 #include "llvm/DebugInfo/LogicalView/Core/LVCompare.h"
 #include "llvm/DebugInfo/LogicalView/Readers/LVCodeViewReader.h"
-#include "llvm/DebugInfo/LogicalView/Readers/LVELFReader.h"
+#include "llvm/DebugInfo/LogicalView/Readers/LVDWARFReader.h"
 #include "llvm/DebugInfo/PDB/Native/NativeSession.h"
 #include "llvm/DebugInfo/PDB/PDB.h"
 #include "llvm/Object/COFF.h"
@@ -41,18 +41,19 @@ Error LVReaderHandler::createReader(StringRef Filename, LVReaders &Readers,
                                     PdbOrObj &Input, StringRef FileFormatName,
                                     StringRef ExePath) {
   auto CreateOneReader = [&]() -> std::unique_ptr<LVReader> {
-    if (Input.is<ObjectFile *>()) {
-      ObjectFile &Obj = *Input.get<ObjectFile *>();
+    if (isa<ObjectFile *>(Input)) {
+      ObjectFile &Obj = *cast<ObjectFile *>(Input);
       if (Obj.isCOFF()) {
         COFFObjectFile *COFF = cast<COFFObjectFile>(&Obj);
         return std::make_unique<LVCodeViewReader>(Filename, FileFormatName,
                                                   *COFF, W, ExePath);
       }
-      if (Obj.isELF() || Obj.isMachO())
-        return std::make_unique<LVELFReader>(Filename, FileFormatName, Obj, W);
+      if (Obj.isELF() || Obj.isMachO() || Obj.isWasm())
+        return std::make_unique<LVDWARFReader>(Filename, FileFormatName, Obj,
+                                               W);
     }
-    if (Input.is<PDBFile *>()) {
-      PDBFile &Pdb = *Input.get<PDBFile *>();
+    if (isa<PDBFile *>(Input)) {
+      PDBFile &Pdb = *cast<PDBFile *>(Input);
       return std::make_unique<LVCodeViewReader>(Filename, FileFormatName, Pdb,
                                                 W, ExePath);
     }
@@ -243,7 +244,7 @@ Error LVReaderHandler::handleObject(LVReaders &Readers, StringRef Filename,
                                     Binary &Binary) {
   if (PdbOrObj Input = dyn_cast<ObjectFile>(&Binary))
     return createReader(Filename, Readers, Input,
-                        Input.get<ObjectFile *>()->getFileFormatName());
+                        cast<ObjectFile *>(Input)->getFileFormatName());
 
   if (MachOUniversalBinary *Fat = dyn_cast<MachOUniversalBinary>(&Binary))
     return handleMach(Readers, Filename, *Fat);

@@ -1,11 +1,14 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
+// Windows doesn't yet have full shutdown().
+// UNSUPPORTED: ze_debug && windows
 // This test performs basic checks of reductions initialized with a sycl::span
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/reduction.hpp>
+
 using namespace sycl;
 
 int NumErrors = 0;
@@ -43,7 +46,7 @@ template <size_t N, typename T, typename BinaryOperation, typename Range,
 void test(queue Q, Range Rng, T Identity, T Value) {
 
   // Initialize output to identity value
-  T *Output = malloc_shared<T>(N, Q);
+  T *Output = malloc_device<T>(N, Q);
   Q.parallel_for(range<1>{N}, [=](id<1> I) { Output[I] = Identity; }).wait();
 
   // Perform generalized "histogram" with N bins
@@ -69,11 +72,13 @@ void test(queue Q, Range Rng, T Identity, T Value) {
   }
 
   bool Passed = true;
+  T OutputHost[N];
+  Q.memcpy(OutputHost, Output, N * sizeof(T)).wait();
   for (size_t I = 0; I < N; ++I) {
     if (I < Size % N) {
-      Passed &= (Output[I] == Expected);
+      Passed &= (OutputHost[I] == Expected);
     } else {
-      Passed &= (Output[I] == ExpectedRemainder);
+      Passed &= (OutputHost[I] == ExpectedRemainder);
     }
   }
 

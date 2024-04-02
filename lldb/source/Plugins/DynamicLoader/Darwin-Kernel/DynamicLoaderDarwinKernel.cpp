@@ -14,9 +14,7 @@
 #include "lldb/Core/ModuleSpec.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Section.h"
-#include "lldb/Core/StreamFile.h"
 #include "lldb/Interpreter/OptionValueProperties.h"
-#include "lldb/Symbol/LocateSymbolFile.h"
 #include "lldb/Symbol/ObjectFile.h"
 #include "lldb/Target/OperatingSystem.h"
 #include "lldb/Target/RegisterContext.h"
@@ -24,6 +22,7 @@
 #include "lldb/Target/Target.h"
 #include "lldb/Target/Thread.h"
 #include "lldb/Target/ThreadPlanRunToAddress.h"
+#include "lldb/Utility/AddressableBits.h"
 #include "lldb/Utility/DataBuffer.h"
 #include "lldb/Utility/DataBufferHeap.h"
 #include "lldb/Utility/LLDBLog.h"
@@ -99,8 +98,8 @@ enum {
 
 class DynamicLoaderDarwinKernelProperties : public Properties {
 public:
-  static ConstString &GetSettingName() {
-    static ConstString g_setting_name("darwin-kernel");
+  static llvm::StringRef GetSettingName() {
+    static constexpr llvm::StringLiteral g_setting_name("darwin-kernel");
     return g_setting_name;
   }
 
@@ -113,16 +112,17 @@ public:
 
   bool GetLoadKexts() const {
     const uint32_t idx = ePropertyLoadKexts;
-    return m_collection_sp->GetPropertyAtIndexAsBoolean(
-        nullptr, idx,
+    return GetPropertyAtIndexAs<bool>(
+        idx,
         g_dynamicloaderdarwinkernel_properties[idx].default_uint_value != 0);
   }
 
   KASLRScanType GetScanType() const {
     const uint32_t idx = ePropertyScanType;
-    return (KASLRScanType)m_collection_sp->GetPropertyAtIndexAsEnumeration(
-        nullptr, idx,
-        g_dynamicloaderdarwinkernel_properties[idx].default_uint_value);
+    return GetPropertyAtIndexAs<KASLRScanType>(
+        idx,
+        static_cast<KASLRScanType>(
+            g_dynamicloaderdarwinkernel_properties[idx].default_uint_value));
   }
 };
 
@@ -167,7 +167,8 @@ DynamicLoader *DynamicLoaderDarwinKernel::CreateInstance(Process *process,
     case llvm::Triple::IOS:
     case llvm::Triple::TvOS:
     case llvm::Triple::WatchOS:
-    // NEED_BRIDGEOS_TRIPLE case llvm::Triple::BridgeOS:
+    case llvm::Triple::XROS:
+    case llvm::Triple::BridgeOS:
       if (triple_ref.getVendor() != llvm::Triple::Apple) {
         return nullptr;
       }
@@ -606,8 +607,8 @@ void DynamicLoaderDarwinKernel::KextImageInfo::SetProcessStopId(
   m_load_process_stop_id = stop_id;
 }
 
-bool DynamicLoaderDarwinKernel::KextImageInfo::
-operator==(const KextImageInfo &rhs) {
+bool DynamicLoaderDarwinKernel::KextImageInfo::operator==(
+    const KextImageInfo &rhs) const {
   if (m_uuid.IsValid() || rhs.GetUUID().IsValid()) {
     return m_uuid == rhs.GetUUID();
   }
@@ -762,27 +763,13 @@ bool DynamicLoaderDarwinKernel::KextImageInfo::LoadImageUsingMemoryModule(
       module_spec.GetUUID() = m_uuid;
       module_spec.GetArchitecture() = target.GetArchitecture();
 
-      // For the kernel, we really do need an on-disk file copy of the binary
-      // to do anything useful. This will force a call to dsymForUUID if it
-      // exists, instead of depending on the DebugSymbols preferences being
-      // set.
-      if (IsKernel()) {
-        Status error;
-        if (Symbols::DownloadObjectAndSymbolFile(module_spec, error, true)) {
-          if (FileSystem::Instance().Exists(module_spec.GetFileSpec())) {
-            m_module_sp = std::make_shared<Module>(module_spec.GetFileSpec(),
-                                                   target.GetArchitecture());
-          }
-        }
-      }
-
       // If the current platform is PlatformDarwinKernel, create a ModuleSpec
       // with the filename set to be the bundle ID for this kext, e.g.
       // "com.apple.filesystems.msdosfs", and ask the platform to find it.
       // PlatformDarwinKernel does a special scan for kexts on the local
       // system.
       PlatformSP platform_sp(target.GetPlatform());
-      if (!m_module_sp && platform_sp) {
+      if (platform_sp) {
         static ConstString g_platform_name(
             PlatformDarwinKernel::GetPluginNameStatic());
         if (platform_sp->GetPluginName() == g_platform_name.GetStringRef()) {
@@ -805,10 +792,30 @@ bool DynamicLoaderDarwinKernel::KextImageInfo::LoadImageUsingMemoryModule(
         m_module_sp = target.GetOrCreateModule(module_spec, true /* notify */);
       }
 
+      // For the kernel, we really do need an on-disk file copy of the binary
+      // to do anything useful. This will force a call to dsymForUUID if it
+      // exists, instead of depending on the DebugSymbols preferences being
+      // set.
+      Status kernel_search_error;
+      if (IsKernel() &&
+          (!m_module_sp || !m_module_sp->GetSymbolFileFileSpec())) {
+        if (PluginManager::DownloadObjectAndSymbolFile(
+                module_spec, kernel_search_error, true)) {
+          if (FileSystem::Instance().Exists(module_spec.GetFileSpec())) {
+            m_module_sp = std::make_shared<Module>(module_spec.GetFileSpec(),
+                                                   target.GetArchitecture());
+          }
+        }
+      }
+
       if (IsKernel() && !m_module_sp) {
-        Stream &s = target.GetDebugger().GetOutputStream();
+        Stream &s = target.GetDebugger().GetErrorStream();
         s.Printf("WARNING: Unable to locate kernel binary on the debugger "
                  "system.\n");
+        if (kernel_search_error.Fail() && kernel_search_error.AsCString("") &&
+            kernel_search_error.AsCString("")[0] != '\0') {
+          s << kernel_search_error.AsCString();
+        }
       }
     }
 
@@ -908,10 +915,8 @@ bool DynamicLoaderDarwinKernel::KextImageInfo::LoadImageUsingMemoryModule(
                 ondisk_section_list->GetSectionAtIndex(sect_idx));
             if (ondisk_section_sp) {
               // Don't ever load __LINKEDIT as it may or may not be actually
-              // mapped into memory and there is no current way to tell.
-              // I filed rdar://problem/12851706 to track being able to tell
-              // if the __LINKEDIT is actually mapped, but until then, we need
-              // to not load the __LINKEDIT
+              // mapped into memory and there is no current way to tell. Until
+              // such an ability exists, do not load the __LINKEDIT.
               if (ignore_linkedit &&
                   ondisk_section_sp->GetName() == g_section_name_LINKEDIT)
                 continue;
@@ -1068,6 +1073,7 @@ void DynamicLoaderDarwinKernel::LoadKernelModuleIfNeeded() {
 
     if (m_kernel.IsLoaded() && m_kernel.GetModule()) {
       static ConstString kext_summary_symbol("gLoadedKextSummaries");
+      static ConstString arm64_T1Sz_value("gT1Sz");
       const Symbol *symbol =
           m_kernel.GetModule()->FindFirstSymbolWithNameAndType(
               kext_summary_symbol, eSymbolTypeData);
@@ -1075,6 +1081,42 @@ void DynamicLoaderDarwinKernel::LoadKernelModuleIfNeeded() {
         m_kext_summary_header_ptr_addr = symbol->GetAddress();
         // Update all image infos
         ReadAllKextSummaries();
+      }
+      // If the kernel global with the T1Sz setting is available,
+      // update the target.process.virtual-addressable-bits to be correct.
+      // NB the xnu kernel always has T0Sz and T1Sz the same value.  If
+      // it wasn't the same, we would need to set
+      // target.process.virtual-addressable-bits = T0Sz
+      // target.process.highmem-virtual-addressable-bits = T1Sz
+      symbol = m_kernel.GetModule()->FindFirstSymbolWithNameAndType(
+          arm64_T1Sz_value, eSymbolTypeData);
+      if (symbol) {
+        const addr_t orig_code_mask = m_process->GetCodeAddressMask();
+        const addr_t orig_data_mask = m_process->GetDataAddressMask();
+
+        m_process->SetCodeAddressMask(0);
+        m_process->SetDataAddressMask(0);
+        Status error;
+        // gT1Sz is 8 bytes.  We may run on a stripped kernel binary
+        // where we can't get the size accurately.  Hardcode it.
+        const size_t sym_bytesize = 8; // size of gT1Sz value
+        uint64_t sym_value =
+            m_process->GetTarget().ReadUnsignedIntegerFromMemory(
+                symbol->GetAddress(), sym_bytesize, 0, error);
+        if (error.Success()) {
+          // 64 - T1Sz is the highest bit used for auth.
+          // The value we pass in to SetVirtualAddressableBits is
+          // the number of bits used for addressing, so if
+          // T1Sz is 25, then 64-25 == 39, bits 0..38 are used for
+          // addressing, bits 39..63 are used for PAC/TBI or whatever.
+          uint32_t virt_addr_bits = 64 - sym_value;
+          addr_t mask = AddressableBits::AddressableBitToMask(virt_addr_bits);
+          m_process->SetCodeAddressMask(mask);
+          m_process->SetDataAddressMask(mask);
+        } else {
+          m_process->SetCodeAddressMask(orig_code_mask);
+          m_process->SetDataAddressMask(orig_data_mask);
+        }
       }
     } else {
       m_kernel.Clear();
@@ -1577,7 +1619,7 @@ void DynamicLoaderDarwinKernel::DebuggerInitialize(
     const bool is_global_setting = true;
     PluginManager::CreateSettingForDynamicLoaderPlugin(
         debugger, GetGlobalProperties().GetValueProperties(),
-        ConstString("Properties for the DynamicLoaderDarwinKernel plug-in."),
+        "Properties for the DynamicLoaderDarwinKernel plug-in.",
         is_global_setting);
   }
 }

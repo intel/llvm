@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  -fsycl-unnamed-lambda %s -o %t1.out
-// RUN: %CPU_RUN_PLACEHOLDER %t1.out
-// RUN: %GPU_RUN_PLACEHOLDER %t1.out
-// RUN: %ACC_RUN_PLACEHOLDER %t1.out
+// RUN: %{build} -o %t1.out
+// RUN: %{run} %t1.out
 
 //==-- pfor_flatten_range_shortcut.cpp - Kernel Launch Flattening test -----==//
 //
@@ -11,7 +9,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 int main() {
   constexpr int n = 42;

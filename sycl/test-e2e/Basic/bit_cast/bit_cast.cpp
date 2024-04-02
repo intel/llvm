@@ -1,9 +1,9 @@
-// RUN: %clangxx -fsycl-device-code-split=per_kernel -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{run} %t.out
+// RUN: %if windows %{  %clangxx -fsycl -fsycl-host-compiler=cl -fsycl-host-compiler-options='/std:c++17 /Zc:__cplusplus'  -o %t2.out  %s  %}
+// RUN: %if windows %{  %{run} %t2.out  %}
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <iostream>
 #include <math.h>

@@ -18,7 +18,7 @@ target triple = "spir64-unknown-unknown"
 
 @GRF = dso_local global %"class.sycl::_V1::ext::intel::esimd::simd.0" zeroinitializer, align 2048
 
-; // Compilation: clang++ -fsycl -Xclang -opaque-pointers src.cpp
+; // Compilation: clang++ -fsycl -Xclang src.cpp
 ; // Template for the source:
 ;
 ; #include <sycl/ext/intel/esimd.hpp>
@@ -55,6 +55,7 @@ define dso_local spir_func void @_Z19callee__sret__param(ptr addrspace(4) noalia
 ; CHECK: define dso_local spir_func <16 x float> @_Z19callee__sret__param(<16 x float> %[[PARAM:.+]])
 entry:
 ; CHECK:  %[[ALLOCA1:.+]] = alloca <16 x float>, align 64
+; CHECK:  %[[CAST1:.+]] = addrspacecast ptr %[[ALLOCA1]] to ptr addrspace(4)
 ; CHECK:  %[[ALLOCA2:.+]] = alloca <16 x float>, align 64
 ; CHECK:  store <16 x float> %[[PARAM]], ptr %[[ALLOCA2]], align 64
   %x.ascast = addrspacecast ptr %x to ptr addrspace(4)
@@ -62,7 +63,7 @@ entry:
   %call.i.i.i1 = load <16 x float>, ptr addrspace(4) %x.ascast, align 64
 ; CHECK:  %[[VAL:.+]] = load <16 x float>, ptr addrspace(4) %[[ALLOCA2_4]], align 64
   store <16 x float> %call.i.i.i1, ptr addrspace(4) %agg.result, align 64
-; CHECK:  store <16 x float> %[[VAL]], ptr %[[ALLOCA1]], align 64
+; CHECK:  store <16 x float> %[[VAL]], ptr addrspace(4) %[[CAST1]], align 64
   ret void
 ; CHECK:  %[[RET:.+]] = load <16 x float>, ptr %[[ALLOCA1]], align 64
 ; CHECK:  ret <16 x float> %[[RET]]
@@ -74,6 +75,7 @@ define dso_local spir_func void @_Z29test__sret__fall_through__arr(ptr addrspace
 ; CHECK: define dso_local spir_func <16 x float> @_Z29test__sret__fall_through__arr(ptr addrspace(4) noundef %[[PARAM0:.+]], i32 noundef %{{.*}})
 entry:
 ; CHECK:  %[[ALLOCA1:.+]] = alloca <16 x float>, align 64
+; CHECK:  %[[CAST1:.+]] = addrspacecast ptr %[[ALLOCA1]] to ptr addrspace(4)
   %agg.tmp = alloca %"class.sycl::_V1::ext::intel::esimd::simd", align 64
 ; CHECK:  %[[ALLOCA2:.+]] = alloca %"class.sycl::_V1::ext::intel::esimd::simd", align 64
   %agg.tmp.ascast = addrspacecast ptr %agg.tmp to ptr addrspace(4)
@@ -85,7 +87,7 @@ entry:
 ; CHECK:  %[[VAL:.+]] = load <16 x float>, ptr %[[ALLOCA2]], align 64
   call spir_func void @_Z19callee__sret__param(ptr addrspace(4) sret(%"class.sycl::_V1::ext::intel::esimd::simd") align 64 %agg.result, ptr noundef nonnull %agg.tmp) #7
 ; CHECK:  %[[RES:.+]] = call spir_func <16 x float> @_Z19callee__sret__param(<16 x float> %[[VAL]])
-; CHECK:  store <16 x float> %[[RES]], ptr %[[ALLOCA1]], align 64
+; CHECK:  store <16 x float> %[[RES]], ptr addrspace(4) %[[CAST1]], align 64
   ret void
 ; CHECK:  %[[RET:.+]] = load <16 x float>, ptr %[[ALLOCA1]], align 64
 ; CHECK:  ret <16 x float> %[[RET]]
@@ -96,6 +98,7 @@ entry:
 define dso_local spir_func void @_Z30test__sret__fall_through__globv(ptr addrspace(4) noalias sret(%"class.sycl::_V1::ext::intel::esimd::simd") align 64 %agg.result) local_unnamed_addr #2 !sycl_explicit_simd !8 !intel_reqd_sub_group_size !9 {
 entry:
 ; CHECK:  %[[ALLOCA1:.+]] = alloca <16 x float>, align 64
+; CHECK:  %[[CAST1:.+]] = addrspacecast ptr %[[ALLOCA1]] to ptr addrspace(4)
   %agg.tmp = alloca %"class.sycl::_V1::ext::intel::esimd::simd", align 64
 ; CHECK:  %[[ALLOCA2:.+]] = alloca %"class.sycl::_V1::ext::intel::esimd::simd", align 64
   %agg.tmp.ascast = addrspacecast ptr %agg.tmp to ptr addrspace(4)
@@ -105,7 +108,7 @@ entry:
 ; CHECK:  %[[VAL:.+]] = load <16 x float>, ptr %[[ALLOCA2]], align 64
   call spir_func void @_Z19callee__sret__param(ptr addrspace(4) sret(%"class.sycl::_V1::ext::intel::esimd::simd") align 64 %agg.result, ptr noundef nonnull %agg.tmp) #7
 ; CHECK:  %[[RES:.+]] = call spir_func <16 x float> @_Z19callee__sret__param(<16 x float> %[[VAL]])
-; CHECK:  store <16 x float> %[[RES]], ptr %[[ALLOCA1]], align 64
+; CHECK:  store <16 x float> %[[RES]], ptr addrspace(4) %[[CAST1]], align 64
   ret void
 ; CHECK:  %[[RET:.+]] = load <16 x float>, ptr %[[ALLOCA1]], align 64
 ; CHECK:  ret <16 x float> %[[RET]]
@@ -264,8 +267,7 @@ entry:
   %add = add nsw i32 %i, %j
   %splat.splatinsert.i.i.i = insertelement <8 x i32> poison, i32 %add, i64 0
   %splat.splat.i.i.i = shufflevector <8 x i32> %splat.splatinsert.i.i.i, <8 x i32> poison, <8 x i32> zeroinitializer
-  %M_data.i.i.i = getelementptr inbounds %"class.sycl::_V1::ext::intel::esimd::detail::simd_obj_impl.3", ptr addrspace(4) %x.ascast, i64 0, i32 0
-  %call.i.i.i1 = load <8 x i32>, ptr addrspace(4) %M_data.i.i.i, align 32
+  %call.i.i.i1 = load <8 x i32>, ptr addrspace(4) %x.ascast, align 32
   %add.i.i.i.i.i = add <8 x i32> %call.i.i.i1, %splat.splat.i.i.i
   store <8 x i32> %add.i.i.i.i.i, ptr addrspace(4) %agg.result, align 32
   ret void
@@ -279,8 +281,7 @@ entry:
   %agg.tmp = alloca %"class.sycl::_V1::ext::intel::esimd::simd.2", align 32
   %agg.tmp.ascast = addrspacecast ptr %agg.tmp to ptr addrspace(4)
   %x.ascast = addrspacecast ptr %x to ptr addrspace(4)
-  %M_data.i.i.i = getelementptr inbounds %"class.sycl::_V1::ext::intel::esimd::detail::simd_obj_impl.3", ptr addrspace(4) %x.ascast, i64 0, i32 0
-  %call.i.i.i1 = load <8 x i32>, ptr addrspace(4) %M_data.i.i.i, align 32
+  %call.i.i.i1 = load <8 x i32>, ptr addrspace(4) %x.ascast, align 32
   store <8 x i32> %call.i.i.i1, ptr addrspace(4) %agg.tmp.ascast, align 32
   call spir_func void @_Z23callee__sret__x_param_x1(ptr addrspace(4) sret(%"class.sycl::_V1::ext::intel::esimd::simd.2") align 32 %agg.result, i32 noundef 2, ptr noundef nonnull %agg.tmp, i32 noundef 1) #7
 ; CHECK:  %{{.*}} = call spir_func <8 x i32> @_Z23callee__sret__x_param_x1(i32 2, <8 x i32> %{{.*}}, i32 1)

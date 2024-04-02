@@ -41,7 +41,11 @@ enum functions_t {
   XPTI_REGISTER_PAYLOAD,
   XPTI_QUERY_PAYLOAD_BY_UID,
   XPTI_FORCE_SET_TRACE_ENABLED,
-
+  XPTI_CHECK_TRACE_ENABLED,
+  XPTI_RELEASE_EVENT,
+  XPTI_STASH_TUPLE,
+  XPTI_GET_STASHED_TUPLE,
+  XPTI_UNSTASH_TUPLE,
   // All additional functions need to appear before
   // the XPTI_FW_API_COUNT enum
   XPTI_FW_API_COUNT ///< This enum must always be the last one in the list
@@ -76,7 +80,12 @@ class ProxyLoader {
       {XPTI_ADD_METADATA, "xptiAddMetadata"},
       {XPTI_QUERY_METADATA, "xptiQueryMetadata"},
       {XPTI_TRACE_ENABLED, "xptiTraceEnabled"},
-      {XPTI_FORCE_SET_TRACE_ENABLED, "xptiForceSetTraceEnabled"}};
+      {XPTI_CHECK_TRACE_ENABLED, "xptiCheckTraceEnabled"},
+      {XPTI_FORCE_SET_TRACE_ENABLED, "xptiForceSetTraceEnabled"},
+      {XPTI_STASH_TUPLE, "xptiStashTuple"},
+      {XPTI_GET_STASHED_TUPLE, "xptiGetStashedTuple"},
+      {XPTI_UNSTASH_TUPLE, "xptiUnstashTuple"},
+      {XPTI_RELEASE_EVENT, "xptiReleaseEvent"}};
 
 public:
   typedef std::vector<xpti_plugin_function_t> dispatch_table_t;
@@ -90,6 +99,8 @@ public:
     //
     tryToEnable();
   }
+
+  ProxyLoader &operator=(const ProxyLoader &) = delete;
 
   ~ProxyLoader() {
     // If the loading of the framework library was
@@ -241,6 +252,37 @@ XPTI_EXPORT_API void xptiSetUniversalId(uint64_t uid) {
         xpti::ProxyLoader::instance().functionByIndex(XPTI_SET_UNIVERSAL_ID);
     if (f) {
       return (*reinterpret_cast<xpti_set_universal_id_t>(f))(uid);
+    }
+  }
+}
+
+XPTI_EXPORT_API xpti::result_t xptiStashTuple(const char *key, uint64_t value) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_STASH_TUPLE);
+    if (f) {
+      return (*reinterpret_cast<xpti_stash_tuple_t>(f))(key, value);
+    }
+  }
+  return xpti::result_t::XPTI_RESULT_FAIL;
+}
+
+XPTI_EXPORT_API xpti::result_t xptiSetGetStashedTuple(char **key,
+                                                      uint64_t &value) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f =
+        xpti::ProxyLoader::instance().functionByIndex(XPTI_GET_STASHED_TUPLE);
+    if (f) {
+      return (*reinterpret_cast<xpti_get_stashed_tuple_t>(f))(key, value);
+    }
+  }
+  return xpti::result_t::XPTI_RESULT_FAIL;
+}
+
+XPTI_EXPORT_API void xptiUnstashTuple() {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_UNSTASH_TUPLE);
+    if (f) {
+      return (*reinterpret_cast<xpti_unstash_tuple_t>(f))();
     }
   }
 }
@@ -428,6 +470,17 @@ XPTI_EXPORT_API bool xptiTraceEnabled() {
   return false;
 }
 
+XPTI_EXPORT_API bool xptiCheckTraceEnabled(uint16_t stream, uint16_t ttype) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f =
+        xpti::ProxyLoader::instance().functionByIndex(XPTI_CHECK_TRACE_ENABLED);
+    if (f) {
+      return (*(xpti_check_trace_enabled_t)f)(stream, ttype);
+    }
+  }
+  return false;
+}
+
 XPTI_EXPORT_API void xptiTraceTryToEnable() {
   xpti::ProxyLoader::instance().tryToEnable();
 }
@@ -463,4 +516,13 @@ xptiQueryMetadata(xpti::trace_event_data_t *lookup_object) {
     }
   }
   return nullptr;
+}
+
+XPTI_EXPORT_API void xptiReleaseEvent(xpti::trace_event_data_t *lookup_object) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_RELEASE_EVENT);
+    if (f) {
+      (*(xpti_release_event_t)f)(lookup_object);
+    }
+  }
 }

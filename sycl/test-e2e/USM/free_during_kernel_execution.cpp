@@ -6,12 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple  %s -o %t1.out
-// RUN: %CPU_RUN_PLACEHOLDER %t1.out
-// RUN: %GPU_RUN_PLACEHOLDER %t1.out
-// RUN: %ACC_RUN_PLACEHOLDER %t1.out
+// RUN: %{build} -o %t1.out
+// RUN: %{run} %t1.out
 
-#include <sycl/sycl.hpp>
+// Windows doesn't yet have full shutdown().
+// UNSUPPORTED: ze_debug && windows
+
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 class KernelA;
 

@@ -1,5 +1,7 @@
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
+// REQUIRES: cpu
+
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // This test checks if users will successfully allocate 160, 0, and -16 bytes of
 // shared memory, and also test user can call free() without worrying about
@@ -7,7 +9,11 @@
 
 #include <iostream>
 #include <stdlib.h>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/usm.hpp>
+
 using namespace sycl;
 
 int main(int argc, char *argv[]) {

@@ -1,14 +1,10 @@
-// UNSUPPORTED: hip || cuda
+// UNSUPPORTED: cuda
 
-// RUN: %clangxx -fsycl -DNDEBUG %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
-// RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
-// RUN: %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER
+// RUN: %{build} -DNDEBUG -o %t.out
+// RUN: %{run} %t.out | FileCheck %s
 
-// RUN: %clangxx -fsycl %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out %CPU_CHECK_PLACEHOLDER
-// RUN: %GPU_RUN_PLACEHOLDER %t.out %GPU_CHECK_PLACEHOLDER
-// RUN: %ACC_RUN_PLACEHOLDER %t.out %ACC_CHECK_PLACEHOLDER
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out | FileCheck %s
 
 /*
     clang++ -fsycl -DNDEBUG -o smyl.bin code_location_e2e.cpp   // <<--- NDEBUG
@@ -26,7 +22,9 @@
 
 */
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/stream.hpp>
 using namespace sycl;
 
 // llvm/sycl/doc/design/DeviceLibExtensions.rst

@@ -14,20 +14,13 @@
 #include <cstring>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 exception::exception(std::error_code EC, const char *Msg)
     : exception(EC, nullptr, Msg) {}
 
-exception::exception(std::error_code EC, const std::string &Msg)
-    : exception(EC, nullptr, Msg) {}
-
 // new SYCL 2020 constructors
 exception::exception(std::error_code EC) : exception(EC, nullptr, "") {}
-
-exception::exception(int EV, const std::error_category &ECat,
-                     const std::string &WhatArg)
-    : exception({EV, ECat}, nullptr, WhatArg) {}
 
 exception::exception(int EV, const std::error_category &ECat,
                      const char *WhatArg)
@@ -59,11 +52,13 @@ exception::exception(context Ctx, int EV, const std::error_category &ECat)
 
 // protected base constructor for all SYCL 2020 constructors
 exception::exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
-                     const std::string &WhatArg)
+                     const char *WhatArg)
     : MMsg(std::make_shared<std::string>(WhatArg)),
       MPIErr(PI_ERROR_INVALID_VALUE), MContext(SharedPtrCtx), MErrC(EC) {
   detail::GlobalHandler::instance().TraceEventXPTI(MMsg->c_str());
 }
+
+exception::~exception() {}
 
 const std::error_code &exception::code() const noexcept { return MErrC; }
 
@@ -77,7 +72,7 @@ bool exception::has_context() const noexcept { return (MContext != nullptr); }
 
 context exception::get_context() const {
   if (!has_context())
-    throw invalid_object_error();
+    throw sycl::exception(sycl::errc::invalid);
 
   return *MContext;
 }
@@ -93,5 +88,5 @@ std::error_code make_error_code(sycl::errc Err) noexcept {
   return {static_cast<int>(Err), sycl_category()};
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

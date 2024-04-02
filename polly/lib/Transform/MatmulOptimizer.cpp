@@ -42,6 +42,7 @@
 #include <string>
 #include <vector>
 
+#include "polly/Support/PollyDebug.h"
 #define DEBUG_TYPE "polly-opt-isl"
 
 using namespace llvm;
@@ -565,7 +566,7 @@ createMicroKernel(isl::schedule_node Node,
 ///
 /// We create the BLIS macro-kernel by applying a combination of tiling
 /// of dimensions of the band node and interchanging of two innermost
-/// modified dimensions. The values of of MacroKernelParams's fields are used
+/// modified dimensions. The values of MacroKernelParams's fields are used
 /// as tile sizes.
 ///
 /// @param Node The schedule node to be modified.
@@ -1825,10 +1826,10 @@ polly::tryOptimizeMatMulPattern(isl::schedule_node Node,
                                 const Dependences *D) {
   TCInfoTy TCI;
   if (PMBasedTCOpts && isTCPattern(Node, D, TCI))
-    LLVM_DEBUG(dbgs() << "The tensor contraction pattern was detected\n");
+    POLLY_DEBUG(dbgs() << "The tensor contraction pattern was detected\n");
   MatMulInfoTy MMI;
   if (PMBasedMMMOpts && isMatrMultPattern(Node, D, MMI)) {
-    LLVM_DEBUG(dbgs() << "The matrix multiplication pattern was detected\n");
+    POLLY_DEBUG(dbgs() << "The matrix multiplication pattern was detected\n");
     return optimizeMatMulPattern(Node, TTI, MMI);
   }
   return {};

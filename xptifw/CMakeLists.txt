@@ -1,11 +1,12 @@
 cmake_minimum_required(VERSION 3.8)
 
-set(XPTI_VERSION 0.4.1)
+set(XPTI_VERSION 0.6.0)
 
 project (xptifw VERSION "${XPTI_VERSION}" LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 
 set(XPTIFW_DIR ${CMAKE_CURRENT_LIST_DIR})
+set(SAMPLES_DIR ${CMAKE_CURRENT_LIST_DIR}/samples)
 
 # The XPTI framework requires the includes from
 # the proxy implementation of XPTI
@@ -17,9 +18,6 @@ if (NOT DEFINED XPTI_DIR) # don't overwrite if already set
     set(XPTI_DIR ${XPTI_SOURCE_DIR}/../xpti)
   endif()
 endif()
-
-# Create a soft option for enabling the use of TBB
-option(XPTI_ENABLE_TBB "Enable TBB in the framework" OFF)
 
 option(XPTI_ENABLE_WERROR OFF)
 option(XPTI_BUILD_SAMPLES OFF)
@@ -71,14 +69,10 @@ endif()
 if (XPTI_BUILD_SAMPLES)
   add_subdirectory(samples/basic_collector)
   add_subdirectory(samples/syclpi_collector)
+  add_subdirectory(samples/sycl_perf_collector)
+  add_subdirectory(basic_test)
 endif()
 
 if (XPTI_BUILD_BENCHMARK)
   add_subdirectory(benchmark)
-endif()
-
-# The tests in basic_test are written using TBB, so these tests are enabled
-# only if TBB has been enabled.
-if (XPTI_ENABLE_TBB)
-  add_subdirectory(basic_test)
 endif()

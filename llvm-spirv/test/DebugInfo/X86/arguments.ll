@@ -2,8 +2,17 @@
 
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-unknown-unknown -O0 -filetype=obj < %t.ll > %t
+; RUN: llvm-dwarfdump %t | FileCheck %s
 
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -mtriple=x86_64-unknown-unknown -O0 -filetype=obj < %t.ll > %t
+; RUN: llvm-dwarfdump %t | FileCheck %s
+
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-unknown-unknown -O0 -filetype=obj < %t.ll > %t
 ; RUN: llvm-dwarfdump %t | FileCheck %s
 
@@ -36,14 +45,13 @@ target triple = "spir64-unknown-unknown"
 %struct.foo = type { i32 }
 
 ; Function Attrs: nounwind uwtable
-define void @_Z4func3fooS_(%struct.foo* %f, %struct.foo* %g) #0 !dbg !4 {
+define void @_Z4func3fooS_(ptr %f, ptr %g) #0 !dbg !4 {
 entry:
-  call void @llvm.dbg.declare(metadata %struct.foo* %f, metadata !19, metadata !DIExpression()), !dbg !20
-  call void @llvm.dbg.declare(metadata %struct.foo* %g, metadata !21, metadata !DIExpression()), !dbg !20
-  %i = getelementptr inbounds %struct.foo, %struct.foo* %f, i32 0, i32 0, !dbg !22
-  %0 = load i32, i32* %i, align 4, !dbg !22
+  call void @llvm.dbg.declare(metadata ptr %f, metadata !19, metadata !DIExpression()), !dbg !20
+  call void @llvm.dbg.declare(metadata ptr %g, metadata !21, metadata !DIExpression()), !dbg !20
+  %0 = load i32, ptr %f, align 4, !dbg !22
   %inc = add nsw i32 %0, 1, !dbg !22
-  store i32 %inc, i32* %i, align 4, !dbg !22
+  store i32 %inc, ptr %f, align 4, !dbg !22
   ret void, !dbg !23
 }
 

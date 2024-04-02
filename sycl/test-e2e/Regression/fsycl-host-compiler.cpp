@@ -1,7 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsycl-host-compiler=g++ -DDEFINE_CHECK -fsycl-host-compiler-options="-DDEFINE_CHECK -std=c++17" -o %t.out %s
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -fsycl-host-compiler=g++ -DDEFINE_CHECK -fsycl-host-compiler-options="-DDEFINE_CHECK -std=c++17" -o %t.out
+// RUN: %{run} %t.out
 // REQUIRES: linux
 //==------- fsycl-host-compiler.cpp - external host compiler test ----------==//
 //
@@ -13,7 +11,7 @@
 //
 // Uses -fsycl-host-compiler=<compiler> on a simple test, requires 'g++'
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #ifndef DEFINE_CHECK
 #error predefined macro not set

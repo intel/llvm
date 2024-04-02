@@ -9,9 +9,9 @@ target datalayout = "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f3
 ; Check that LSR hoists %t2 computation outside the loop,
 ; folds %t3's add within the address
 ; and uses the induction variable (%t4) to access the right element.
-define void @test(i8* %ptr.i8, float** %ptr.float) {
+define void @test(ptr %ptr.i8, ptr %ptr.float) {
 ; CHECK-LABEL: define void @test
-; CHECK-SAME: (i8* [[PTR_I8:%.*]], float** [[PTR_FLOAT:%.*]]) {
+; CHECK-SAME: (ptr [[PTR_I8:%.*]], ptr [[PTR_FLOAT:%.*]]) {
 ; CHECK-NEXT:  bb:
 ; CHECK-NEXT:    br label [[BB3:%.*]]
 ; CHECK:       bb1:
@@ -24,15 +24,14 @@ define void @test(i8* %ptr.i8, float** %ptr.float) {
 ; CHECK-NEXT:    br label [[BB1:%.*]]
 ; CHECK:       bb10:
 ; CHECK-NEXT:    [[T7:%.*]] = icmp eq i64 [[T4]], 0
-; CHECK-NEXT:    [[SCEVGEP:%.*]] = getelementptr i8, i8* [[PTR_I8]], i64 [[T4]]
+; CHECK-NEXT:    [[SCEVGEP:%.*]] = getelementptr i8, ptr [[PTR_I8]], i64 [[T4]]
 ; CHECK-NEXT:    br label [[BB14:%.*]]
 ; CHECK:       bb14:
-; CHECK-NEXT:    store i8 undef, i8* [[SCEVGEP]], align 1
-; CHECK-NEXT:    [[T6:%.*]] = load float*, float** [[PTR_FLOAT]], align 8
-; CHECK-NEXT:    [[SCEVGEP1:%.*]] = getelementptr float, float* [[T6]], i64 4
-; CHECK-NEXT:    [[SCEVGEP12:%.*]] = bitcast float* [[SCEVGEP1]] to i8*
-; CHECK-NEXT:    [[SCEVGEP3:%.*]] = getelementptr i8, i8* [[SCEVGEP12]], i64 [[T4]]
-; CHECK-NEXT:    store i8 undef, i8* [[SCEVGEP3]], align 1
+; CHECK-NEXT:    store i8 undef, ptr [[SCEVGEP]], align 1
+; CHECK-NEXT:    [[T6:%.*]] = load ptr, ptr [[PTR_FLOAT]], align 8
+; CHECK-NEXT:    [[SCEVGEP1:%.*]] = getelementptr i8, ptr [[T6]], i64 16
+; CHECK-NEXT:    [[SCEVGEP2:%.*]] = getelementptr i8, ptr [[SCEVGEP1]], i64 [[T4]]
+; CHECK-NEXT:    store i8 undef, ptr [[SCEVGEP2]], align 1
 ; CHECK-NEXT:    br label [[BB14]]
 ;
 bb:
@@ -55,12 +54,11 @@ bb10:                                             ; preds = %bb9
   br label %bb14
 
 bb14:                                             ; preds = %bb14, %bb10
-  %t2 = getelementptr inbounds i8, i8* %ptr.i8, i64 %t4 ; <i8*> [#uses=1]
-  store i8 undef, i8* %t2
-  %t6 = load float*, float** %ptr.float
-  %t8 = bitcast float* %t6 to i8*              ; <i8*> [#uses=1]
-  %t9 = getelementptr inbounds i8, i8* %t8, i64 %t3 ; <i8*> [#uses=1]
-  store i8 undef, i8* %t9
+  %t2 = getelementptr inbounds i8, ptr %ptr.i8, i64 %t4 ; <ptr> [#uses=1]
+  store i8 undef, ptr %t2
+  %t6 = load ptr, ptr %ptr.float
+  %t9 = getelementptr inbounds i8, ptr %t6, i64 %t3 ; <ptr> [#uses=1]
+  store i8 undef, ptr %t9
   br label %bb14
 }
 
@@ -96,10 +94,11 @@ define fastcc void @TransformLine() nounwind {
 ; CHECK-NEXT:    [[P9_PH:%.*]] = phi i32 [ undef, [[BB5_BB6SPLIT_CRIT_EDGE]] ], [ [[I1]], [[BB6SPLITSPLIT]] ]
 ; CHECK-NEXT:    br label [[BB6:%.*]]
 ; CHECK:       loop1.bb6_crit_edge:
+; CHECK-NEXT:    [[I1_LCSSA:%.*]] = phi i32 [ [[I1]], [[LOOP1]] ]
 ; CHECK-NEXT:    br label [[BB6]]
 ; CHECK:       bb6:
 ; CHECK-NEXT:    [[P8:%.*]] = phi i32 [ undef, [[LOOP1_BB6_CRIT_EDGE]] ], [ [[P8_PH]], [[BB6SPLIT]] ]
-; CHECK-NEXT:    [[P9:%.*]] = phi i32 [ [[I1]], [[LOOP1_BB6_CRIT_EDGE]] ], [ [[P9_PH]], [[BB6SPLIT]] ]
+; CHECK-NEXT:    [[P9:%.*]] = phi i32 [ [[I1_LCSSA]], [[LOOP1_BB6_CRIT_EDGE]] ], [ [[P9_PH]], [[BB6SPLIT]] ]
 ; CHECK-NEXT:    unreachable
 ;
 bb:

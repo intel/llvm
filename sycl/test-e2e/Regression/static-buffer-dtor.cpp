@@ -9,15 +9,16 @@
 // destructors that run as part of program shutdown, after the runtime itself
 // would start shutting down.
 //===----------------------------------------------------------------------===//
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 // Failing on HIP AMD
 // UNSUPPORTED: hip_amd
 
-#include <sycl/sycl.hpp>
+// Windows doesn't yet have full shutdown().
+// UNSUPPORTED: ze_debug && windows
+
+#include <sycl/detail/core.hpp>
 
 int main() {
   uint8_t *h_A = (uint8_t *)malloc(256);
@@ -30,5 +31,6 @@ int main() {
   q.submit([&](sycl::handler &cgh) {
     cgh.copy(h_A, bufs[1].get_access<sycl::access::mode::write>(cgh));
   });
+  free(h_A);
   return 0;
 }

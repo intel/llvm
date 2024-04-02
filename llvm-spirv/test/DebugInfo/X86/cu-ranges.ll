@@ -1,11 +1,25 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
-
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -split-dwarf-file=foo.dwo -O0 %t.ll -function-sections -mtriple=x86_64-unknown-linux-gnu -filetype=obj -o %t
 ; RUN: llvm-dwarfdump -debug-abbrev %t | FileCheck --check-prefix=FUNCTION-SECTIONS %s
 ; RUN: llvm-readobj --relocations %t | FileCheck --check-prefix=FUNCTION-SECTIONS-RELOCS %s
+; RUN: llc -split-dwarf-file=foo.dwo -O0 %t.ll -mtriple=x86_64-unknown-linux-gnu -filetype=obj -o %t
+; RUN: llvm-dwarfdump -debug-abbrev %t | FileCheck --check-prefix=NO-FUNCTION-SECTIONS %s
 
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -split-dwarf-file=foo.dwo -O0 %t.ll -function-sections -mtriple=x86_64-unknown-linux-gnu -filetype=obj -o %t
+; RUN: llvm-dwarfdump -debug-abbrev %t | FileCheck --check-prefix=FUNCTION-SECTIONS %s
+; RUN: llvm-readobj --relocations %t | FileCheck --check-prefix=FUNCTION-SECTIONS-RELOCS %s
+; RUN: llc -split-dwarf-file=foo.dwo -O0 %t.ll -mtriple=x86_64-unknown-linux-gnu -filetype=obj -o %t
+; RUN: llvm-dwarfdump -debug-abbrev %t | FileCheck --check-prefix=NO-FUNCTION-SECTIONS %s
+
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llc -split-dwarf-file=foo.dwo -O0 %t.ll -function-sections -mtriple=x86_64-unknown-linux-gnu -filetype=obj -o %t
+; RUN: llvm-dwarfdump -debug-abbrev %t | FileCheck --check-prefix=FUNCTION-SECTIONS %s
+; RUN: llvm-readobj --relocations %t | FileCheck --check-prefix=FUNCTION-SECTIONS-RELOCS %s
 ; RUN: llc -split-dwarf-file=foo.dwo -O0 %t.ll -mtriple=x86_64-unknown-linux-gnu -filetype=obj -o %t
 ; RUN: llvm-dwarfdump -debug-abbrev %t | FileCheck --check-prefix=NO-FUNCTION-SECTIONS %s
 
@@ -35,9 +49,9 @@ target triple = "spir64-unknown-unknown"
 define i32 @foo(i32 %a) #0 !dbg !4 {
 entry:
   %a.addr = alloca i32, align 4
-  store i32 %a, i32* %a.addr, align 4
-  call void @llvm.dbg.declare(metadata i32* %a.addr, metadata !13, metadata !DIExpression()), !dbg !14
-  %0 = load i32, i32* %a.addr, align 4, !dbg !14
+  store i32 %a, ptr %a.addr, align 4
+  call void @llvm.dbg.declare(metadata ptr %a.addr, metadata !13, metadata !DIExpression()), !dbg !14
+  %0 = load i32, ptr %a.addr, align 4, !dbg !14
   %add = add nsw i32 %0, 1, !dbg !14
   ret i32 %add, !dbg !14
 }
@@ -49,9 +63,9 @@ declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 define i32 @bar(i32 %b) #0 !dbg !9 {
 entry:
   %b.addr = alloca i32, align 4
-  store i32 %b, i32* %b.addr, align 4
-  call void @llvm.dbg.declare(metadata i32* %b.addr, metadata !15, metadata !DIExpression()), !dbg !16
-  %0 = load i32, i32* %b.addr, align 4, !dbg !16
+  store i32 %b, ptr %b.addr, align 4
+  call void @llvm.dbg.declare(metadata ptr %b.addr, metadata !15, metadata !DIExpression()), !dbg !16
+  %0 = load i32, ptr %b.addr, align 4, !dbg !16
   %add = add nsw i32 %0, 2, !dbg !16
   ret i32 %add, !dbg !16
 }

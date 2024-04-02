@@ -1,5 +1,6 @@
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/group_algorithm.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi;
@@ -23,4 +24,23 @@ bool isSupportedDevice(device D) {
   }
 
   return false;
+}
+
+template <typename T, typename S> bool equal(const T &x, const S &y) {
+  // vec equal returns a vector of which components were equal
+  if constexpr (sycl::detail::is_vec<T>::value) {
+    for (int i = 0; i < x.size(); ++i)
+      if (x[i] != y[i])
+        return false;
+    return true;
+  } else
+    return x == y;
+}
+
+template <typename T1, typename T2>
+bool ranges_equal(T1 begin1, T1 end1, T2 begin2) {
+  for (; begin1 != end1; ++begin1, ++begin2)
+    if (!equal(*begin1, *begin2))
+      return false;
+  return true;
 }

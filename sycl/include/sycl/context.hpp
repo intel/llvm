@@ -8,26 +8,36 @@
 
 #pragma once
 
-#include <sycl/detail/backend_traits.hpp>
+#include <sycl/async_handler.hpp>             // for async_handler
+#include <sycl/backend_types.hpp>             // for backend, backend_return_t
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/helpers.hpp>            // for context_impl
+#include <sycl/detail/info_desc_helpers.hpp>  // for is_context_info_desc
+#include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
+#include <sycl/detail/pi.h>                   // for pi_native_handle
+#include <sycl/device.hpp>                    // for device
+#include <sycl/platform.hpp>                  // for platform
+#include <sycl/property_list.hpp>             // for property_list
+
+#ifdef __SYCL_INTERNAL_API
 #include <sycl/detail/cl.h>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
-#include <sycl/exception_list.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
-#include <sycl/info/info_desc.hpp>
-#include <sycl/property_list.hpp>
-#include <sycl/stl.hpp>
+#endif
+
+#include <cstddef>     // for size_t
+#include <memory>      // for shared_ptr, hash, opera...
+#include <type_traits> // for add_pointer_t
+#include <variant>     // for hash
+#include <vector>      // for vector
 
 // 4.6.2 Context class
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 // Forward declarations
 class device;
 class platform;
+
 namespace detail {
 class context_impl;
 }
@@ -165,6 +175,13 @@ public:
   template <typename Param>
   typename detail::is_context_info_desc<Param>::return_type get_info() const;
 
+  /// Queries this SYCL context for SYCL backend-specific information.
+  ///
+  /// The return type depends on information being queried.
+  template <typename Param>
+  typename detail::is_backend_info_desc<Param>::return_type
+  get_backend_info() const;
+
   context(const context &rhs) = default;
 
   context(context &&rhs) = default;
@@ -236,15 +253,14 @@ private:
   friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
-  friend
-      typename detail::add_pointer_t<typename decltype(T::impl)::element_type>
-      detail::getRawSyclObjImpl(const T &SyclObject);
+  friend typename std::add_pointer_t<typename decltype(T::impl)::element_type>
+  detail::getRawSyclObjImpl(const T &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 namespace std {

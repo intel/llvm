@@ -63,9 +63,14 @@ struct MyStruct { int StructCase; };
 // CHECK-MESSAGES: :[[@LINE-1]]:23: warning: invalid case style for public member 'StructCase' [readability-identifier-naming]
 // CHECK-FIXES: {{^}}struct MyStruct { int iStructCase; };
 
+struct shouldBeCamelCaseStruct { int iField; };
+// CHECK-MESSAGES: :[[@LINE-1]]:8: warning: invalid case style for struct 'shouldBeCamelCaseStruct' [readability-identifier-naming]
+// CHECK-FIXES: {{^}}struct ShouldBeCamelCaseStruct { int iField; };
+
 union MyUnion { int UnionCase; long lUnionCase; };
-// CHECK-MESSAGES: :[[@LINE-1]]:21: warning: invalid case style for public member 'UnionCase' [readability-identifier-naming]
-// CHECK-FIXES: {{^}}union MyUnion { int iUnionCase; long lUnionCase; };
+// CHECK-MESSAGES: :[[@LINE-1]]:7: warning: invalid case style for union 'MyUnion' [readability-identifier-naming]
+// CHECK-MESSAGES: :[[@LINE-2]]:21: warning: invalid case style for public member 'UnionCase' [readability-identifier-naming]
+// CHECK-FIXES: {{^}}union myUnion { int iUnionCase; long lUnionCase; };
 
 //===----------------------------------------------------------------------===//
 // C string
@@ -282,6 +287,14 @@ int8_t *ValueI8Ptr;
 uint8_t *ValueU8Ptr;
 // CHECK-MESSAGES: :[[@LINE-1]]:10: warning: invalid case style for global pointer 'ValueU8Ptr' [readability-identifier-naming]
 // CHECK-FIXES: {{^}}uint8_t *pu8ValueU8Ptr;
+
+unsigned char *ValueUcPtr;
+// CHECK-MESSAGES: :[[@LINE-1]]:16: warning: invalid case style for global pointer 'ValueUcPtr' [readability-identifier-naming]
+// CHECK-FIXES: {{^}}unsigned char *pucValueUcPtr;
+
+unsigned char **ValueUcPtr2;
+// CHECK-MESSAGES: :[[@LINE-1]]:17: warning: invalid case style for global pointer 'ValueUcPtr2' [readability-identifier-naming]
+// CHECK-FIXES: {{^}}unsigned char **ppucValueUcPtr2;
 
 void MyFunc2(void* Val){}
 // CHECK-MESSAGES: :[[@LINE-1]]:20: warning: invalid case style for pointer parameter 'Val' [readability-identifier-naming]

@@ -51,9 +51,12 @@
     float f;                                                                   \
     double d;                                                                  \
     int *ip = nullptr;                                                         \
-    TEST_CASE_2(OP, h, sycl::private_ptr<int>{ip}, sycl::half)                 \
-    TEST_CASE_2(OP, f, sycl::private_ptr<int>{ip}, float)                      \
-    TEST_CASE_2(OP, d, sycl::private_ptr<int>{ip}, double)                     \
+    sycl::decorated_private_ptr<int> ptr =                                     \
+        sycl::address_space_cast<sycl::access::address_space::private_space,   \
+                                 sycl::access::decorated::yes>(ip);            \
+    TEST_CASE_2(OP, h, ptr, sycl::half)                                        \
+    TEST_CASE_2(OP, f, ptr, float)                                             \
+    TEST_CASE_2(OP, d, ptr, double)                                            \
   }
 
 #define TEST_CASES_F1FP1(OP)                                                   \
@@ -61,9 +64,18 @@
     sycl::half h;                                                              \
     float f;                                                                   \
     double d;                                                                  \
-    TEST_CASE_2(OP, h, sycl::private_ptr<sycl::half>{&h}, sycl::half)          \
-    TEST_CASE_2(OP, f, sycl::private_ptr<float>{&f}, float)                    \
-    TEST_CASE_2(OP, d, sycl::private_ptr<double>{&d}, double)                  \
+    sycl::decorated_private_ptr<sycl::half> ptr_h =                            \
+        sycl::address_space_cast<sycl::access::address_space::private_space,   \
+                                 sycl::access::decorated::yes>(&h);            \
+    sycl::decorated_private_ptr<float> ptr_f =                                 \
+        sycl::address_space_cast<sycl::access::address_space::private_space,   \
+                                 sycl::access::decorated::yes>(&f);            \
+    sycl::decorated_private_ptr<double> ptr_d =                                \
+        sycl::address_space_cast<sycl::access::address_space::private_space,   \
+                                 sycl::access::decorated::yes>(&d);            \
+    TEST_CASE_2(OP, h, ptr_h, sycl::half)                                      \
+    TEST_CASE_2(OP, f, ptr_f, float)                                           \
+    TEST_CASE_2(OP, d, ptr_d, double)                                          \
   }
 
 #define TEST_CASES_F2IP1(OP)                                                   \
@@ -72,9 +84,12 @@
     float f;                                                                   \
     double d;                                                                  \
     int *ip = nullptr;                                                         \
-    TEST_CASE_3(OP, h, h, sycl::private_ptr<int>{ip}, sycl::half)              \
-    TEST_CASE_3(OP, f, f, sycl::private_ptr<int>{ip}, float)                   \
-    TEST_CASE_3(OP, d, d, sycl::private_ptr<int>{ip}, double)                  \
+    sycl::decorated_private_ptr<int> ptr =                                     \
+        sycl::address_space_cast<sycl::access::address_space::private_space,   \
+                                 sycl::access::decorated::yes>(ip);            \
+    TEST_CASE_3(OP, h, h, ptr, sycl::half)                                     \
+    TEST_CASE_3(OP, f, f, ptr, float)                                          \
+    TEST_CASE_3(OP, d, d, ptr, double)                                         \
   }
 
 int main() {

@@ -1,13 +1,16 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
-// RUN: %CPU_RUN_PLACEHOLDER %t.out
-// RUN: %GPU_RUN_PLACEHOLDER %t.out
-// RUN: %ACC_RUN_PLACEHOLDER %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 //
 // Fails to release USM pointer on HIP for NVIDIA
 // XFAIL: hip_nvidia
-
+// REQUIRES: aspect-usm_shared_allocations
 #include <numeric>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/sycl_span.hpp>
+#include <sycl/usm.hpp>
+#include <sycl/usm/usm_allocator.hpp>
 
 using namespace sycl;
 
@@ -54,7 +57,7 @@ void testSpanCapture() {
   E.wait();
 
   // check out the read operations, should have gotten 101 from each
-  auto can_read_from_span_acc = SpanRead.get_access<access::mode::read>();
+  host_accessor can_read_from_span_acc(SpanRead, read_only);
   for (int i = 0; i < numReadTests; i++) {
     assert(can_read_from_span_acc[i] == 101 &&
            "read check should have gotten 100");
@@ -97,7 +100,7 @@ void testSpanOnDevice() {
   E.wait();
 
   // check out the read operations, should have gotten 10 from each
-  auto can_read_from_span_acc = SpanRead.get_access<access::mode::read>();
+  host_accessor can_read_from_span_acc(SpanRead, read_only);
   for (int i = 0; i < numReadTests; i++) {
     assert(can_read_from_span_acc[i] == 10 &&
            "read check should have gotten 10");

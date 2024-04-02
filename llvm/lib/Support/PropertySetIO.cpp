@@ -9,6 +9,7 @@
 #include "llvm/Support/PropertySetIO.h"
 
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/Base64.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/LineIterator.h"
@@ -36,7 +37,7 @@ PropertySetRegistry::read(const MemoryBuffer *Buf) {
 
   for (line_iterator LI(*Buf); !LI.is_at_end(); LI++) {
     // see if this line starts a new property set
-    if (LI->startswith("[")) {
+    if (LI->starts_with("[")) {
       // yes - parse the category (property name)
       auto EndPos = LI->rfind(']');
       if (EndPos == StringRef::npos)
@@ -80,7 +81,7 @@ PropertySetRegistry::read(const MemoryBuffer *Buf) {
       break;
     }
     case PropertyValue::Type::BYTE_ARRAY: {
-      Expected<std::unique_ptr<byte>> DecArr =
+      Expected<std::unique_ptr<byte[]>> DecArr =
           Base64::decode(Val.data(), Val.size());
       if (!DecArr)
         return DecArr.takeError();
@@ -125,7 +126,7 @@ void PropertySetRegistry::write(raw_ostream &Out) const {
     Out << "[" << PropSet.first << "]\n";
 
     for (const auto &Props : PropSet.second) {
-      Out << std::string(Props.first) << "=" << Props.second << "\n";
+      Out << Props.first << "=" << Props.second << "\n";
     }
   }
 }
