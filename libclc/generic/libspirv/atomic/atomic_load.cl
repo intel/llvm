@@ -38,6 +38,7 @@ IMPL_AS(int, i, , 4)
 IMPL_AS(unsigned int, j, u, 4)
 
 IMPL(unsigned int, j, , global, , u, 4)
+IMPL(int, i, , global, , , 4)
 
 #ifdef cl_khr_int64_base_atomics
 IMPL_AS(long, l, , 8)
