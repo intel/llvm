@@ -33,6 +33,7 @@ dependencies:
   - openssl=3.1.1
   - pkg-config=0.29.2
   - rhash=1.4.3
+  # don't upgrade xz utils due to CVE-2024-3094
   - xz=5.2.6
   - zlib=1.2.13
   - zstd=1.5.2
