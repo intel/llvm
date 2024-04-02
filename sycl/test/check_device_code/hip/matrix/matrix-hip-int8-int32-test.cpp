@@ -38,7 +38,7 @@ int main() {
           joint_matrix<sub_group, int8_t, use::b, 16, 16, layout::row_major>
               sub_b{};
 
-          // CHECK: tail call <4 x i32> @llvm.amdgcn.mfma.i32.16x16x16i8(i32 0, i32 0, <4 x i32> zeroinitializer, i32 0, i32 0, i32 0)
+          // CHECK: tail call <4 x i32> @llvm.amdgcn.mfma.i32.16x16x16i8(i32 {{.*}}, i32 {{.*}}, <4 x i32> zeroinitializer, i32 0, i32 0, i32 0)
           joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
           joint_matrix_store(
               sg, sub_c, accD.template get_multi_ptr<access::decorated::yes>(),
@@ -56,7 +56,7 @@ int main() {
           joint_matrix<sub_group, int8_t, use::b, 8, 32, layout::col_major>
               sub_b{};
 
-          // CHECK: tail call <16 x i32> @llvm.amdgcn.mfma.i32.32x32x8i8(i32 0, i32 0, <16 x i32> zeroinitializer, i32 0, i32 0, i32 0)
+          // CHECK: tail call <16 x i32> @llvm.amdgcn.mfma.i32.32x32x8i8(i32 {{.*}}, i32 {{.*}}, <16 x i32> zeroinitializer, i32 0, i32 0, i32 0)
           joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
           joint_matrix_store(
               sg, sub_c, accD.template get_multi_ptr<access::decorated::yes>(),

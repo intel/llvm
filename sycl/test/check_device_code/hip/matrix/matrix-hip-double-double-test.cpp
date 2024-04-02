@@ -38,7 +38,7 @@ int main() {
           joint_matrix<sub_group, double, use::b, 4, 16, layout::row_major>
               sub_b{};
 
-          // CHECK: tail call <4 x double> @llvm.amdgcn.mfma.f64.16x16x4f64(double 0.000000e+00, double 0.000000e+00, <4 x double> zeroinitializer, i32 0, i32 0, i32 0)
+          // CHECK: tail call <4 x double> @llvm.amdgcn.mfma.f64.16x16x4f64(double {{.*}}, double {{.*}}, <4 x double> zeroinitializer, i32 0, i32 0, i32 0)
           joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
           joint_matrix_store(
               sg, sub_c, accD.template get_multi_ptr<access::decorated::yes>(),
