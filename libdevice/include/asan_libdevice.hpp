@@ -64,7 +64,6 @@ struct DeviceSanitizerReport {
 };
 
 struct LocalArgsInfo {
-  uint32_t ArgIndex = 0;
   uint64_t Size = 0;
   uint64_t SizeWithRedZone = 0;
 };

@@ -691,8 +691,8 @@ __asan_set_shadow_static_local(uptr ptr, size_t size, size_t size_with_redzone,
   }
 }
 
-static __SYCL_CONSTANT__ const char __mem_launch_args[] =
-    "[kernel] launch_args: (index:%d size:%d size_rz:%d)\n";
+static __SYCL_CONSTANT__ const char __mem_local_arg[] =
+    "[kernel] local_arg(index=%d, size=%d, size_rz=%d)\n";
 
 static __SYCL_CONSTANT__ const char __mem_set_shadow_dynamic_local_begin[] =
     "[kernel] BEGIN __asan_set_shadow_dynamic_local\n";
@@ -723,7 +723,7 @@ __asan_set_shadow_dynamic_local(uptr ptr, uint32_t num_args, uptr launch_info) {
   for (uint32_t i = 0; i < num_args; ++i) {
     auto *local = &plaunch->LocalArgs[i];
     if (__AsanDebug)
-      __spirv_ocl_printf(__mem_launch_args, local->ArgIndex, local->Size,
+      __spirv_ocl_printf(__mem_local_arg, i, local->Size,
                          local->SizeWithRedZone);
 
     __asan_set_shadow_static_local(args[i], local->Size, local->SizeWithRedZone,
