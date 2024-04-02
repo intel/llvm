@@ -658,19 +658,20 @@ makePartitionByAffinityDomain(ur_device_affinity_domain_flags_t aff_domain) {
     return desc;
 }
 
-ur_result_t MakeUSMAllocationByType(USMKind kind, ur_context_handle_t hContext,
+ur_result_t MakeUSMAllocationByType(ur_usm_type_t type,
+                                    ur_context_handle_t hContext,
                                     ur_device_handle_t hDevice,
                                     const ur_usm_desc_t *pUSMDesc,
                                     ur_usm_pool_handle_t hPool, size_t size,
                                     void **ppMem) {
-    switch (kind) {
-    case USMKind::Device:
+    switch (type) {
+    case ur_usm_type_t::UR_USM_TYPE_DEVICE:
         return urUSMDeviceAlloc(hContext, hDevice, pUSMDesc, hPool, size,
                                 ppMem);
-    case USMKind::Host:
+    case ur_usm_type_t::UR_USM_TYPE_HOST:
         return urUSMHostAlloc(hContext, pUSMDesc, hPool, size, ppMem);
     default:
-    case USMKind::Shared:
+    case ur_usm_type_t::UR_USM_TYPE_SHARED:
         return urUSMSharedAlloc(hContext, hDevice, pUSMDesc, hPool, size,
                                 ppMem);
     }

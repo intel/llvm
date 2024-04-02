@@ -1030,7 +1030,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   UR_ASSERT(Command, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(Command->Kernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(CommandDesc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(CommandDesc->newWorkDim >= 0 && CommandDesc->newWorkDim <= 3,
+  UR_ASSERT(CommandDesc->newWorkDim <= 3,
             UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
   // Lock command, kernel and command buffer for update.
