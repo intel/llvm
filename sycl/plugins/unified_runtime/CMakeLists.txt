@@ -57,12 +57,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 40b21ccd5fa9b636f56bbaed8d66cacc5dd32454
+  # commit 74a8f047563d3528fccbf87cd729ceb3dcad6e1d
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Apr 1 10:22:25 2024 +0100
-  #     Merge pull request #1460 from hdelan/remove-unused-prototypes
-  #     [HIP][CUDA] Remove function prototypes from enqueue.hpp
-  set(UNIFIED_RUNTIME_TAG 40b21ccd5fa9b636f56bbaed8d66cacc5dd32454)
+  # Date:   Mon Apr 1 15:16:30 2024 +0100
+  #     Merge pull request #1485 from aarongreig/aaron/addDeviceNotAvailableErrC
+  #     Add UR_ERROR_DEVICE_NOT_AVAILABLE and appropriate translation for CL.
+  set(UNIFIED_RUNTIME_TAG 74a8f047563d3528fccbf87cd729ceb3dcad6e1d)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
