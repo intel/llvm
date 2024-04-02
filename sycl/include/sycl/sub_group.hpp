@@ -213,64 +213,6 @@ struct sub_group {
 #endif
   }
 
-  template <typename T>
-  using EnableIfIsScalarArithmetic =
-      std::enable_if_t<sycl::detail::is_scalar_arithmetic<T>::value, T>;
-
-  /* --- one-input shuffles --- */
-  /* indices in [0 , sub_group size) */
-  template <typename T>
-  __SYCL_DEPRECATED("Shuffles in the sub-group class are deprecated.")
-  T shuffle(T x, id_type local_id) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::Shuffle(*this, x, local_id);
-#else
-    (void)x;
-    (void)local_id;
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
-#endif
-  }
-
-  template <typename T>
-  __SYCL_DEPRECATED("Shuffles in the sub-group class are deprecated.")
-  T shuffle_down(T x, uint32_t delta) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::ShuffleDown(*this, x, delta);
-#else
-    (void)x;
-    (void)delta;
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
-#endif
-  }
-
-  template <typename T>
-  __SYCL_DEPRECATED("Shuffles in the sub-group class are deprecated.")
-  T shuffle_up(T x, uint32_t delta) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::ShuffleUp(*this, x, delta);
-#else
-    (void)x;
-    (void)delta;
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
-#endif
-  }
-
-  template <typename T>
-  __SYCL_DEPRECATED("Shuffles in the sub-group class are deprecated.")
-  T shuffle_xor(T x, id_type value) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return sycl::detail::spirv::ShuffleXor(*this, x, value);
-#else
-    (void)x;
-    (void)value;
-    throw sycl::exception(make_error_code(errc::feature_not_supported),
-                          "Sub-groups are not supported on host.");
-#endif
-  }
-
   /* --- sub_group load/stores --- */
   /* these can map to SIMD or block read/write hardware where available */
 #ifdef __SYCL_DEVICE_ONLY__
