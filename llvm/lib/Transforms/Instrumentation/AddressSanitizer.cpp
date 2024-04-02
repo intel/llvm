@@ -1331,7 +1331,7 @@ static bool isUnsupportedSPIRAccess(Value *Addr, Function *Func) {
   }
 
   // All the rest address spaces: skip SPIR-V built-in varibles
-  auto *OrigValue = Addr->stripPointerCasts();
+  auto *OrigValue = Addr->stripInBoundsOffsets();
   return OrigValue->getName().starts_with("__spirv_BuiltIn");
 }
 
