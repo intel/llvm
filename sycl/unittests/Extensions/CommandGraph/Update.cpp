@@ -178,8 +178,8 @@ TEST_F(WholeGraphUpdateTest, NoUpdates) {
       Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
   auto NodeC =
       Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
-  auto NodeD =
-      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeB, NodeC));
+  auto NodeD = Graph.add(
+      EmptyKernel, experimental::property::node::depends_on(NodeB, NodeC));
 
   auto UpdateNodeA = UpdateGraph.add(EmptyKernel);
   auto UpdateNodeB = UpdateGraph.add(
@@ -202,8 +202,8 @@ TEST_F(WholeGraphUpdateTest, MoreNodes) {
       Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
   auto NodeC =
       Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
-  auto NodeD =
-      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeB, NodeC));
+  auto NodeD = Graph.add(
+      EmptyKernel, experimental::property::node::depends_on(NodeB, NodeC));
 
   auto UpdateNodeA = UpdateGraph.add(EmptyKernel);
   auto UpdateNodeB = UpdateGraph.add(
@@ -228,8 +228,8 @@ TEST_F(WholeGraphUpdateTest, LessNodes) {
       Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
   auto NodeC =
       Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
-  auto NodeD =
-      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeB, NodeC));
+  auto NodeD = Graph.add(
+      EmptyKernel, experimental::property::node::depends_on(NodeB, NodeC));
 
   auto UpdateNodeA = UpdateGraph.add(EmptyKernel);
   auto UpdateNodeB = UpdateGraph.add(
@@ -250,8 +250,8 @@ TEST_F(WholeGraphUpdateTest, ExtraEdges) {
       Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
   auto NodeC =
       Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
-  auto NodeD =
-      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeB, NodeC));
+  auto NodeD = Graph.add(
+      EmptyKernel, experimental::property::node::depends_on(NodeB, NodeC));
 
   auto UpdateNodeA = UpdateGraph.add(EmptyKernel);
   auto UpdateNodeB = UpdateGraph.add(
@@ -274,8 +274,8 @@ TEST_F(WholeGraphUpdateTest, MissingEdges) {
       Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
   auto NodeC =
       Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
-  auto NodeD =
-      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeB, NodeC));
+  auto NodeD = Graph.add(
+      EmptyKernel, experimental::property::node::depends_on(NodeB, NodeC));
 
   auto UpdateNodeA = UpdateGraph.add(EmptyKernel);
   auto UpdateNodeB = UpdateGraph.add(
@@ -323,8 +323,7 @@ TEST_F(WholeGraphUpdateTest, UnsupportedNodeType) {
   // Test that using an update graph that contains unsupported node types
   // results in an error.
   buffer<int> Buffer{range<1>{1}};
-wro
-  auto NodeA = Graph.add(EmptyKernel);
+  wro auto NodeA = Graph.add(EmptyKernel);
   auto NodeB =
       Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
   auto NodeC =
