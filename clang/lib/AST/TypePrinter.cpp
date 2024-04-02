@@ -270,6 +270,7 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
 
     case Type::Adjusted:
     case Type::Decayed:
+    case Type::ArrayParameter:
     case Type::Pointer:
     case Type::BlockPointer:
     case Type::LValueReference:
@@ -603,6 +604,16 @@ void TypePrinter::printAdjustedAfter(const AdjustedType *T, raw_ostream &OS) {
 void TypePrinter::printDecayedBefore(const DecayedType *T, raw_ostream &OS) {
   // Print as though it's a pointer.
   printAdjustedBefore(T, OS);
+}
+
+void TypePrinter::printArrayParameterAfter(const ArrayParameterType *T,
+                                           raw_ostream &OS) {
+  printConstantArrayAfter(T, OS);
+}
+
+void TypePrinter::printArrayParameterBefore(const ArrayParameterType *T,
+                                            raw_ostream &OS) {
+  printConstantArrayBefore(T, OS);
 }
 
 void TypePrinter::printDecayedAfter(const DecayedType *T, raw_ostream &OS) {
