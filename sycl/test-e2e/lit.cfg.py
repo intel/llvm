@@ -698,5 +698,5 @@ except ImportError:
     pass
 
 config.substitutions.append(
-    ("%device_sanitizer_flags", "-Xsycl-target-frontend -fsanitize=address")
+    ("%device_sanitizer_flags", "-Xarch_device -fsanitize=address")
 )
