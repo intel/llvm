@@ -42,5 +42,40 @@ rounding will only be used if the SYCL runtime X dimension exceeds some minimum
 value, which can be configured using the
 `SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS` environment variable.
 
-Generation of range rounded kernels can be disabled by using the compiler flag
-`-fsycl-disable-range-rounding`.
+In order to reduce binary size, the user can tell the compiler only to generate
+the range rounded kernel, `-fsycl-range-rounding=force`. The user can also tell
+the SYCL implementation to only produce the unrounded kernel using the flag
+`-fsycl-range-rounding=disable`. By default both kernels will be generated,
+which is equivalent to `-fsycl-range-rounding=on`.
+
+## Experimental Range Rounding
+
+Experimental range rounding will perform rounding in all dimensions.
+Experimental range rounding can be set using the `-fsycl-exp-range-rounding`
+flag.
+
+Some oddly shaped ranges and how they might round:
+
+```
+{43} -> {64}
+{43, 79} -> {64, 96}
+{43, 79, 7} -> {64, 96, 8}
+```
+
+The user can specify the factor that they want the rounded range to be a
+multiple of in all dimensions using the
+`SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS` environment variable. When
+experimental range rounding is used, only the middle value in
+`SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS` is used.
+If `SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS` is set to `1:256:1`, the rounded
+range will divide `256` in all dimensions
+
+```
+{43} -> {256}
+{43, 257} -> {256, 512}
+{43, 257, 7} -> {256, 512, 256}
+```
+
+`-fsycl-range-rounding=disable` will override `-fsycl-exp-range-rounding`. If
+both are used in conjunction then no range rounding will happen.
+

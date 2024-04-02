@@ -8,6 +8,8 @@
 
 #include <sycl/sycl.hpp>
 
+#include <cmath>
+
 SYCL_EXTERNAL auto foo(double x) {
   using namespace sycl;
   return cos(exp(log(x)));

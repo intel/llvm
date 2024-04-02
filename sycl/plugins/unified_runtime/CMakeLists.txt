@@ -82,13 +82,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ca5c34213c3484072f32a9ab2b56b0f49ebe712e
-  # Merge: 4d0183a8 c9be1e28
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Mar 19 16:58:27 2024 +0000
-  #     Merge pull request #1353 from againull/againull/l0_adapter_update_cmd_buffer
-  #     [L0] Support updating kernel commands in command buffers
-  set(UNIFIED_RUNTIME_TAG ca5c34213c3484072f32a9ab2b56b0f49ebe712e)
+  # commit 0816206d9e863b88feadf9139c9bb829dcc0d2de
+  # Merge: 0c0f48db 46f69b9f
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Mon Apr 1 10:22:25 2024 +0100
+  #     Merge pull request #1460 from hdelan/remove-unused-prototypes
+  #     [HIP][CUDA] Remove function prototypes from enqueue.hpp
+  set(UNIFIED_RUNTIME_TAG 0816206d9e863b88feadf9139c9bb829dcc0d2de)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/yingcong-wu/unified-runtime.git")
   set(UNIFIED_RUNTIME_TAG "yc/new-api-suggestgroupsize") #20240308

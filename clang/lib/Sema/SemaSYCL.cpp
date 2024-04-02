@@ -394,7 +394,7 @@ bool Sema::isDeclAllowedInSYCLDeviceCode(const Decl *D) {
 
 static bool isZeroSizedArray(Sema &SemaRef, QualType Ty) {
   if (const auto *CAT = SemaRef.getASTContext().getAsConstantArrayType(Ty))
-    return CAT->getSize() == 0;
+    return CAT->isZeroSize();
   return false;
 }
 
@@ -5172,10 +5172,25 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "#endif //" << Macro.first << "\n\n";
   }
 
-  if (S.getLangOpts().SYCLDisableRangeRounding) {
+  switch (S.getLangOpts().getSYCLRangeRounding()) {
+  case LangOptions::SYCLRangeRoundingPreference::Disable:
     O << "#ifndef __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ \n";
     O << "#define __SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__ 1\n";
     O << "#endif //__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__\n\n";
+    break;
+  case LangOptions::SYCLRangeRoundingPreference::Force:
+    O << "#ifndef __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__ \n";
+    O << "#define __SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__ 1\n";
+    O << "#endif //__SYCL_FORCE_PARALLEL_FOR_RANGE_ROUNDING__\n\n";
+    break;
+  default:
+    break;
+  }
+
+  if (S.getLangOpts().SYCLExperimentalRangeRounding) {
+    O << "#ifndef __SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__ \n";
+    O << "#define __SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__ 1\n";
+    O << "#endif //__SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__\n\n";
   }
 
   if (SpecConsts.size() > 0) {
