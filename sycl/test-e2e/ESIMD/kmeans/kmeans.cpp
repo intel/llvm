@@ -11,6 +11,7 @@
 #include "kmeans.h"
 #include "esimd_test_utils.hpp"
 
+#include <cmath>
 #include <fstream>
 #include <iostream>
 #include <string.h>

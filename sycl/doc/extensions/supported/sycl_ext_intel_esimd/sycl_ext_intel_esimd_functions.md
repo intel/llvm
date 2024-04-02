@@ -6,11 +6,15 @@ See more general ESIMD documentation [here](./sycl_ext_intel_esimd.md).
 
 ## Table of contents
 - [Compile-time properties](#compile-time-properties)
+  - [Cache-hint properties and restrictions depending on the usage context](#cache-hint-properties)
 - [Stateless/stateful memory mode](#statelessstateful-memory-mode)
 - [block_load(...) - fast load from a contiguous memory block](#block_load---fast-load-from-a-contiguous-memory-block)
 - [block_store(...) - fast store to a contiguous memory block](#block-store---fast-store-to-a-contiguous-memory-block)
 - [gather(...)](#gather---load-from-memory-locations-addressed-by-a-vector-of-offsets)
 - [scatter(...)](#scatter---store-to-memory-locations-addressed-by-a-vector-of-offsets)
+- [load_2d(...) - load 2D block](#load_2d---load-2d-block)
+- [prefetch_2d(...) - prefetch 2D block](#prefetch_2d---prefetch-2d-block)
+- [store_2d(...) - store 2D block](#store_2d---store-2d-block)
 - [atomic_update(...)](#atomic_update)
 - [prefetch(...)](#prefetch)
 - [fence(...) - set the memory read/write order](#fence---set-the-memory-readwrite-order)
@@ -62,8 +66,54 @@ auto vec_a = block_load<float, 16>(f32_ptr, properties{alignment<16>});
 properties props{cache_hint_L1<cache_hint::uncached>, alignment<4> cache_hint_L1<cache_hint::cached>};
 auto vec_b = block_load<float, 16>(f32_ptr + 1, props);
 ```
+### Cache-hint properties
+Cache-hint properties (if passed) currently add a restriction on the target-device, it must be a Intel® Arc Series (aka DG2) or Intel® Data Center GPU Max Series (aka PVC).  
+The valid combinations of L1/L2 cache-hints depend on the usage context.. There are 4 contexts:
+* load: `block_load()`, `load_2d()`, `gather()` functions;
+* prefetch: `prefetch()` and `prefetch_2d()` functions;
+* store: `block_store()`, `store_2d()`, `scatter()` functions;
+* atomic_update: `atomic_update()` functions.
 
-Cache-hint properties (if passed) currently adds a restriction on the target-device, it must be a Intel® Arc Series (aka DG2) or Intel® Data Center GPU Max Series (aka PVC).
+#### Valid combinations of `L1` and `L2` cache-hints for `load` functions:
+| `L1` | `L2` |
+|-|-|
+| none | none |
+| uncached | uncached |
+| uncached | cached |
+| cached | uncached |
+| cached | cached |
+| streaming | uncached |
+| streaming | cached |
+| read_invalidate | cached |
+
+#### Valid combinations of `L1` and `L2` cache-hints for `prefetch` functions:
+| `L1` | `L2` |
+|-|-|
+| uncached | cached |
+| cached | uncached |
+| cached | cached |
+| streaming | uncached |
+| streaming | cached |
+
+#### Valid combinations of `L1` and `L2` cache-hints for `store` functions:
+| `L1` | `L2` |
+|-|-|
+| none | none |
+| uncached | uncached |
+| uncached | write_back |
+| write_through | uncached |
+| write_through | write_back |
+| streaming | uncached |
+| streaming | write_back |
+| write_back | write_back |
+
+#### Valid combinations of `L1` and `L2` cache-hints for `atomic_update` functions:
+| `L1` | `L2` |
+|-|-|
+| none | none |
+| uncached | uncached |
+| uncached | write_back |
+
 
 ## block_load(...) - fast load from a contiguous memory block
 ```C++
@@ -113,6 +163,8 @@ The optional [compile-time properties](#compile-time-properties) list `props` ma
 
 ### Restrictions/assumptions:
 `Alignment` - if not specified by the `props` param, then `assumed` alignment is used. If the actual memory reference has a smaller alignment than the `assumed`, then it must be explicitly passed in `props` argument.
+
+`Cache-hint` properties if passed must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-load-functions) for `load` functions.
 
 | `Function` | `Assumed` alignment   | `Minimally required` alignment |
 |-|-|-|
@@ -182,6 +234,8 @@ The optional [compile-time properties](#compile-time-properties) list `props` ma
 
 ### Restrictions/assumptions:
 `Alignment` - if not specified by the `props` param, then `assumed` alignment is used. If the actual memory reference requires a smaller alignment than the `assumed`, then it must be explicitly passed in `props` argument.
+
+`Cache-hint` properties if passed must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-store-functions) for `store` functions.
 
 | `Function` | Condition | `Assumed` alignment   | `Minimally required` alignment |
 |-|-|-|-|
@@ -354,6 +408,9 @@ simd<float, 8> vec8 = gather<float, 8, 2>(ptr, offsets);
 ```
 
 ### Restrictions
+
+`Cache-hint` properties if passed must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-load-functions) for `load` functions.
+
 | `Function` | `Condition` | Required Intel GPU |
 |-|-|-|
 | `(usm-ga-1,4,7)`,`(acc-ga-1,4,7)` | true (`pass_thru` arg is passed) | DG2 or PVC |
@@ -457,6 +514,10 @@ scatter<float, 8, 2>(ptr, offsets4);
 ```
 
 ### Restrictions
+
+`Cache-hint` properties if passed must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-store-functions) for `store` functions.
+
+
 | `Function` | `Condition` | Required Intel GPU |
 |-|-|-|
 | `(usm-sc-*)`, `(acc-sc-*)` | !(cache-hints) and (`VS` == 1) and (`N` == 1,2,4,8,16,32) | Any Intel GPU |
@@ -464,6 +525,118 @@ scatter<float, 8, 2>(ptr, offsets4);
 | The next 2 lines are similar to the previous 2 lines. They are for SLM gather and the only difference is that SLM scatters ignore cache-hints|||
 | `(slm-sc-*)`, `(lacc-sc-*)` | !(cache-hints) and (`VS` == 1) and (`N` == 1,2,4,8,16,32) | Any Intel GPU |
 | `(slm-sc-*)`, `(lacc-sc-*)` | (cache-hints) or (`VS` > 1) or (`N` != 1,2,4,8,16,32) | DG2 or PVC |
+
+## load_2d(...) - load 2D block
+```C++
+template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
+          bool Transposed = false, bool Transformed = false,
+          int N = detail::get_lsc_block_2d_data_size<T, NBlocks, BlockHeight, BlockWidth, Transposed, Transformed>(),
+          typename PropertyListT = empty_properties_t>
+simd<T, N> load_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
+                   unsigned SurfacePitch, int X, int Y, PropertyListT props = {});
+```
+### Description
+Loads and returns a vector `simd<T, N>` where `N` is `BlockWidth * BlockHeight * NBlocks`.  
+`T` is element type.  
+`BlockWidth` - the block width in number of elements.  
+`BlockHeight` - the block height in number of elements.  
+`NBlocks` - the number of blocks.  
+`Transposed` - the transposed version or not.  
+`Transformed` - apply VNNI transform or not.  
+`N` - (automatically deduced) the size of the returned vector in elements.  
+`Ptr` - the surface base address for this operation.  
+`SurfaceWidth` - the surface width minus 1 in bytes.  
+`SurfaceHeight` - the surface height minus 1 in rows.  
+`SurfacePitch` - the surface pitch minus 1 in bytes.  
+`X` - zero based X-coordinate of the left upper rectangle corner in number of elements.  
+`Y` - zero based Y-coordinate of the left upper rectangle corner in rows.  
+`props` - The optional compile-time properties. Only cache hint properties are used.
+
+### Restrictions
+* This function is available only for Intel® Data Center GPU Max Series (aka PVC).
+* `Cache-hint` properties if passed must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-load-functions) for `load` functions.
+* `Transformed` and `Transposed` cannot be set to true at the same time.
+* `BlockWidth` * `BlockHeight` * `NBlocks` * sizeof(`T`) must not exceed 2048.
+* If `Transposed` is `true` then:
+  * sizeof(`T`) must be 4- or 8-byte (`dwords` or `qwords`).
+  * `NBlocks` must be 1.
+  * `BlockHeight` must be 8 for `qwords` and be in range [`1`..`32`] for `dwords`.
+  * `BlockWidth` must be 1,2,4 for `qwords` and be in range [`1`..`8`] for `dwords`.
+* If `Transformed` is `true` then:
+  * sizeof(`T`) must be 1- or 2-byte (`bytes` or `words`).
+  * `NBlocks` must be 1,2,4.
+  * `BlockHeight` must in range [4..32] for `bytes` and [2..32] for `words`.
+  * `BlockWidth` must in range [4..16] for `bytes` and [2..16] for `words`.
+  * `BlockWidth` * `NBlocks` must not exceed 64 for `bytes` and 32 for `words`.
+* If `Transposed` and `Transformed` are both set to `false` then:
+  * `NBlocks` must be {1,2,4} for `bytes` and `words`, {1,2} for `dwords`, 1 for `qwords`.
+  * `BlockHeight` must not exceed 32.
+  * `BlockWidth` must be 4 or more for `bytes`, 2 or more for `words`, 1 or more for `dwords` and `qwords`.
+  * `BlockWidth` * `NBlocks` must not exceed 64 for `bytes`, 32 for `words`, 16 for `dwords, and 8 for `qwords`.
+
+
+## prefetch_2d(...) - prefetch 2D block
+```C++
+template <typename T, int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
+          int N = detail::get_lsc_block_2d_data_size<T, NBlocks, BlockHeight, BlockWidth, false /*Transposed*/, false /*Transformed*/>(),
+          typename PropertyListT = empty_properties_t>
+void prefetch_2d(const T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
+                 unsigned SurfacePitch, int X, int Y, PropertyListT props = {});
+```
+### Description
+Prefetches elements from a memory block of the size `BlockWidth * BlockHeight * NBlocks` to cache.  
+`T` is element type.  
+`BlockWidth` - the block width in number of elements.  
+`BlockHeight` - the block height in number of elements.  
+`NBlocks` - the number of blocks.  
+`N` - (automatically deduced) the size of the returned vector in elements.  
+`Ptr` - the surface base address for this operation.  
+`SurfaceWidth` - the surface width minus 1 in bytes.  
+`SurfaceHeight` - the surface height minus 1 in rows.  
+`SurfacePitch` - the surface pitch minus 1 in bytes.  
+`X` - zero based X-coordinate of the left upper rectangle corner in number of elements.  
+`Y` - zero based Y-coordinate of the left upper rectangle corner in rows.  
+`props` - The compile-time properties, which must specify cache-hints.
+
+### Restrictions
+* This function is available only for Intel® Data Center GPU Max Series (aka PVC).
+* `Cache-hint` properties must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-prefetch-functions) for `prefetch` functions.
+* `BlockWidth` * `BlockHeight` * `NBlocks` * sizeof(`T`) must not exceed 2048.
+* `NBlocks` must be {1,2,4} for `bytes` and `words`, {1,2} for `dwords`, 1 for `qwords`.
+* `BlockHeight` must not exceed 32.
+* `BlockWidth` must be 4 or more for `bytes`, 2 or more for `words`, 1 or more for `dwords` and `qwords`.
+* `BlockWidth` * `NBlocks` must not exceed 64 for `bytes`, 32 for `words`, 16 for `dwords, and 8 for `qwords`.
+
+## store_2d(...) - store 2D block
+```C++
+template <typename T, int BlockWidth, int BlockHeight = 1,
+          int N = detail::get_lsc_block_2d_data_size<T, 1u, BlockHeight, BlockWidth, false /*Transposed*/, false /*Transformed*/>(),
+          typename PropertyListT = empty_properties_t>
+void store_2d(T *Ptr, unsigned SurfaceWidth, unsigned SurfaceHeight,
+              unsigned SurfacePitch, int X, int Y, simd<T, N> Vals, PropertyListT props = {});
+
+```
+### Description
+Stores the vector `Vals` of the type `simd<T, N>` to 2D memory block where `N` is `BlockWidth * BlockHeight`.  
+`T` is element type of the values to be stored to memory.  
+`BlockWidth` - the block width in number of elements.  
+`BlockHeight` - the block height in number of elements.  
+`N` - (automatically deduced) the size of the vector to be stored.  
+`Ptr` - the surface base address for this operation.  
+`SurfaceWidth` - the surface width minus 1 in bytes.  
+`SurfaceHeight` - the surface height minus 1 in rows.  
+`SurfacePitch` - the surface pitch minus 1 in bytes.  
+`X` - zero based X-coordinate of the left upper rectangle corner in number of elements.  
+`Y` - zero based Y-coordinate of the left upper rectangle corner in rows.  
+`props` - The optional compile-time properties. Only cache hint properties are used.
+
+### Restrictions
+* This function is available only for Intel® Data Center GPU Max Series (aka PVC).
+* `Cache-hint` properties if passed must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-store-functions) for `store` functions.
+* `BlockWidth` * `BlockHeight` * sizeof(`T`) must not exceed 512.
+* `BlockHeight` must not exceed 8.
+* `BlockWidth` must be 4 or more for `bytes`, 2 or more for `words`, 1 or more for `dwords` and `qwords`.
+* `BlockWidth` must not exceed 64 for `bytes`, 32 for `words`, 16 for `dwords, and 8 for `qwords`.
 
 ## atomic_update(...)
 
@@ -604,6 +777,8 @@ The template parameter `T` specifies the type of the elements used in the atomic
 The template parameter `N` is the number of elements being atomically updated.
 
 ### Restrictions
+'Cache-hint` properties if passed must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-atomic_update-functions) for `atomic_update` functions.
+
 | `Function` | `Condition` | Required Intel GPU |
 |-|-|-|
 | `(usm-au0-*)`, `(acc-au0-*)` | !(cache-hints) and (`N` == 1,2,4,8,16,32) and (sizeof(T) >= 4) | Any Intel GPU |
@@ -699,12 +874,17 @@ The `byte_offsets` is a vector of any integral type elements, limited in [statef
 
 `(acc-pf-7,8,9,10)`: Prefetches a linear block of memory addressed by the accessor `acc` and the optional `byte-offset` parameter, which is 64-bit in [stateless](#statelessstateful-memory-mode) mode(default), and 32-bit in [stateful](#statelessstateful-memory-mode) mode.
 
-
 `(usm-pf-1,2,3,4,5,6)`, `(acc-pf-1,2,3,4,5,6)`: The optional parameter `mask` provides a `simd_mask`. If some element in `mask` is zero, then the corresponding memory location is not prefetched.  
 `(usm-pf-7,8,9,10)`, `(acc-pf-7,8,9,10)`: The optional parameter `mask` provides 1-element
 `simd_mask`. If it is zero, then the whole prefetch operation is skipped.
 
 `(usm-pf-*)`, `(acc-pf-*)`: The [compile-time properties](#compile-time-properties) list `props` must specify `cache-hints`.
+
+### Restrictions
+
+* This function is available only for Intel® Arc Series (aka DG2) or Intel® Data Center GPU Max Series (aka PVC).
+* 'Cache-hint` properties must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-prefetch-functions) for `prefetch` functions.
+
 
 
 ## fence(...) - set the memory read/write order

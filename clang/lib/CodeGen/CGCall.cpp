@@ -76,6 +76,9 @@ unsigned CodeGenTypes::ClangCallConvToLLVMCallConv(CallingConv CC) {
   case CC_SwiftAsync: return llvm::CallingConv::SwiftTail;
   case CC_M68kRTD: return llvm::CallingConv::M68k_RTD;
   case CC_PreserveNone: return llvm::CallingConv::PreserveNone;
+    // clang-format off
+  case CC_RISCVVectorCall: return llvm::CallingConv::RISCV_VectorCall;
+    // clang-format on
   }
 }
 
@@ -261,6 +264,9 @@ static CallingConv getCallingConventionForDecl(const ObjCMethodDecl *D,
 
   if (D->hasAttr<PreserveNoneAttr>())
     return CC_PreserveNone;
+
+  if (D->hasAttr<RISCVVectorCCAttr>())
+    return CC_RISCVVectorCall;
 
   return CC_C;
 }
@@ -942,8 +948,8 @@ struct NoExpansion : TypeExpansion {
 static std::unique_ptr<TypeExpansion>
 getTypeExpansion(QualType Ty, const ASTContext &Context) {
   if (const ConstantArrayType *AT = Context.getAsConstantArrayType(Ty)) {
-    return std::make_unique<ConstantArrayExpansion>(
-        AT->getElementType(), AT->getSize().getZExtValue());
+    return std::make_unique<ConstantArrayExpansion>(AT->getElementType(),
+                                                    AT->getZExtSize());
   }
   if (const RecordType *RT = Ty->getAs<RecordType>()) {
     SmallVector<const CXXBaseSpecifier *, 1> Bases;
@@ -3164,7 +3170,7 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
               llvm::Align Alignment =
                   CGM.getNaturalTypeAlignment(ETy).getAsAlign();
               AI->addAttrs(llvm::AttrBuilder(getLLVMContext()).addAlignmentAttr(Alignment));
-              uint64_t ArrSize = ArrTy->getSize().getZExtValue();
+              uint64_t ArrSize = ArrTy->getZExtSize();
               if (!ETy->isIncompleteType() && ETy->isConstantSizeType() &&
                   ArrSize) {
                 llvm::AttrBuilder Attrs(getLLVMContext());
