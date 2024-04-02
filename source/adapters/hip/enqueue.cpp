@@ -1621,6 +1621,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     // Determine if pSrc and/or pDst are system allocated pageable host memory.
     bool srcIsSystemAlloc{false};
     bool dstIsSystemAlloc{false};
+
+    hipError_t hipRes{};
     // Error code hipErrorInvalidValue returned from hipPointerGetAttributes
     // for a non-null pointer refers to an OS-allocation, hence we can work
     // with the assumption that this is a pointer to a pageable host memory.
@@ -1630,11 +1632,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     // the pointer handle as system allocated pageable host memory.
     // The HIP runtime can handle the registering/unregistering of the memory
     // as long as the right copy-kind (direction) is provided to hipMemcpy2D*.
-    hipError_t hipRet = hipPointerGetAttributes(&srcAttribs, pSrc);
-    if (pSrc && hipRet == hipErrorInvalidValue)
+    hipRes = hipPointerGetAttributes(&srcAttribs, pSrc);
+    if (hipRes == hipErrorInvalidValue && pSrc)
       srcIsSystemAlloc = true;
-    hipRet = hipPointerGetAttributes(&dstAttribs, (const void *)pDst);
-    if (pDst && hipRet == hipErrorInvalidValue)
+    hipRes = hipPointerGetAttributes(&dstAttribs, (const void *)pDst);
+    if (hipRes == hipErrorInvalidValue && pDst)
       dstIsSystemAlloc = true;
 #if HIP_VERSION_MAJOR >= 6
     srcIsSystemAlloc |= srcAttribs.type == hipMemoryTypeUnregistered;
@@ -1653,7 +1655,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     // NOTE: The hipPointerGetAttribute API is marked as [BETA] and fails with
     // exit code -11 when passing a system allocated pointer to it.
     if (!srcIsSystemAlloc && srcAttribs.isManaged) {
-      UR_ASSERT(srcAttribs.hostPointer && srcAttribs.hostPointer,
+      UR_ASSERT(srcAttribs.hostPointer && srcAttribs.devicePointer,
                 UR_RESULT_ERROR_INVALID_VALUE);
       UR_CHECK_ERROR(hipPointerGetAttribute(
           &srcMemType, HIP_POINTER_ATTRIBUTE_MEMORY_TYPE,
