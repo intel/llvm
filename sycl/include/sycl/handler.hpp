@@ -21,10 +21,8 @@
 #include <sycl/detail/pi.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/detail/reduction_forward.hpp>
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
-#endif
 #include <sycl/device.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
@@ -422,11 +420,6 @@ template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
   }
   return true;
 }
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-using string = std::string;
-using string_view = std::string;
-#endif
-
 } // namespace detail
 
 /// Command group handler class.
@@ -872,14 +865,10 @@ private:
   ///
   /// \param KernelName is the name of the SYCL kernel to check that the used
   ///                   kernel bundle contains.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   void verifyUsedKernelBundle(const std::string &KernelName) {
     verifyUsedKernelBundleInternal(detail::string_view{KernelName});
   }
   void verifyUsedKernelBundleInternal(detail::string_view KernelName);
-#else
-  void verifyUsedKernelBundle(const std::string &KernelName);
-#endif
 
   /// Stores lambda to the template-free object
   ///
@@ -1326,8 +1315,6 @@ private:
                   "Kernel argument cannot have a sycl::nd_item type in "
                   "sycl::parallel_for with sycl::range");
 
-#if defined(SYCL2020_CONFORMANT_APIS) ||                                       \
-    defined(__INTEL_PREVIEW_BREAKING_CHANGES)
     static_assert(std::is_convertible_v<item<Dims>, LambdaArgType> ||
                       std::is_convertible_v<item<Dims, false>, LambdaArgType>,
                   "sycl::parallel_for(sycl::range) kernel must have the "
@@ -1340,7 +1327,6 @@ private:
          std::is_invocable_v<KernelType, RefLambdaArgType, kernel_handler>),
         "SYCL kernel lambda/functor has an unexpected signature, it should be "
         "invocable with sycl::item and optionally sycl::kernel_handler");
-#endif
 
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
@@ -1432,19 +1418,11 @@ private:
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
-#if defined(SYCL2020_CONFORMANT_APIS) ||                                       \
-    defined(__INTEL_PREVIEW_BREAKING_CHANGES)
     static_assert(
         std::is_convertible_v<sycl::nd_item<Dims>, LambdaArgType>,
         "Kernel argument of a sycl::parallel_for with sycl::nd_range "
         "must be either sycl::nd_item or be convertible from sycl::nd_item");
     using TransformedArgType = sycl::nd_item<Dims>;
-#else
-    // If user type is convertible from sycl::item/sycl::nd_item, use
-    // sycl::item/sycl::nd_item to transport item information
-    using TransformedArgType =
-        typename TransformUserItemType<Dims, LambdaArgType>::type;
-#endif
 
     (void)ExecutionRange;
     (void)Props;
@@ -3414,17 +3392,12 @@ private:
   ///        expr m_Storage member
   /// \param Size the size of data getting read back / to.
   /// \param Block if read operation is blocking, default to false.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   void ext_intel_read_host_pipe(const std::string &Name, void *Ptr, size_t Size,
                                 bool Block = false) {
     ext_intel_read_host_pipe(detail::string_view(Name), Ptr, Size, Block);
   }
   void ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
                                 size_t Size, bool Block = false);
-#else
-  void ext_intel_read_host_pipe(const std::string &Name, void *Ptr, size_t Size,
-                                bool Block = false);
-#endif
 
   /// Write to host pipes given a host address and
   /// \param Name name of the host pipe to be passed into lower level runtime
@@ -3432,17 +3405,12 @@ private:
   /// expr m_Storage member
   /// \param Size the size of data getting read back / to.
   /// \param Block if write opeartion is blocking, default to false.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
                                  size_t Size, bool Block = false) {
     ext_intel_write_host_pipe(detail::string_view(Name), Ptr, Size, Block);
   }
   void ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
                                  size_t Size, bool Block = false);
-#else
-  void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
-                                 size_t Size, bool Block = false);
-#endif
   friend class ext::oneapi::experimental::detail::graph_impl;
   friend class ext::oneapi::experimental::detail::dynamic_parameter_impl;
 
