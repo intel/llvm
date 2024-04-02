@@ -136,6 +136,15 @@ public:
   ///        %use%, (optional) %element_type_interpretation%)
   llvm::Type *ConvertSYCLJointMatrixINTELType(RecordDecl *RD);
 
+  /// ConvertSPVCooperativeMatrixType - Convert SYCL joint_matrix type
+  /// which is represented as a pointer to a structure to LLVM extension type
+  /// with the parameters that follow SPIR-V CooperativeMatrixKHR type.
+  /// The expected representation is:
+  /// target("spirv.CooperativeMatrixKHR", %element_type, %scope%, %rows%,
+  ///        %cols%, %use%)
+  ///
+  llvm::Type *ConvertSPVCooperativeMatrixType(RecordDecl *RD);
+
   /// GetFunctionType - Get the LLVM function type for \arg Info.
   llvm::FunctionType *GetFunctionType(const CGFunctionInfo &Info);
 
