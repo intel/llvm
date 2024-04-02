@@ -5,7 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 
 template <typename Tc, typename Ta, size_t M, size_t N>
