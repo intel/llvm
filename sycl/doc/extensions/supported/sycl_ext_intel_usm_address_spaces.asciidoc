@@ -90,7 +90,7 @@ supports.
 `sycl::host_ptr` and `sycl::device_ptr` are deprecated.
 
 |3
-`sycl::host_ptr` and `sycl::device_ptr` are removed.
+|`sycl::host_ptr` and `sycl::device_ptr` are removed.
 
 |===
 
