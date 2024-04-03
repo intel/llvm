@@ -11,10 +11,8 @@ using namespace sycl;
 int main() {
   sycl::queue queue;
   {
-    queue.submit([&](sycl::handler &cgh) {
-      cgh.single_task<class t>([=]() {
-      });
-    });
+    queue.submit(
+        [&](sycl::handler &cgh) { cgh.single_task<class t>([=]() {}); });
     queue.wait();
   }
 
