@@ -2,12 +2,11 @@
 #define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
 #define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC __SYCL_PARAM_TRAITS_SPEC
 #endif
-/*
-__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental,device, max_global_work_groups, size_t,UR_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS)
-__SYCL_PARAM_TRAITS_TEMPLATE_SPEC(ext::oneapi::experimental,device, max_work_groups<1>, id<1>,UR_DEVICE_INFO_MAX_WORK_GROUPS_1D)
-__SYCL_PARAM_TRAITS_TEMPLATE_SPEC(ext::oneapi::experimental,device, max_work_groups<2>, id<2>,UR_DEVICE_INFO_MAX_WORK_GROUPS_2D)
+
+__SYCL_PARAM_TRAITS_SPEC(ext::oneapi::experimental,device, max_global_work_groups, size_t, 0)
+__SYCL_PARAM_TRAITS_TEMPLATE_SPEC(ext::oneapi::experimental,device, max_work_groups<1>, id<1>, 0)
+__SYCL_PARAM_TRAITS_TEMPLATE_SPEC(ext::oneapi::experimental,device, max_work_groups<2>, id<2>, 0)
 __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(ext::oneapi::experimental,device, max_work_groups<3>, id<3>,UR_DEVICE_INFO_MAX_WORK_GROUPS_3D)
-*/
 
 // Forward progress guarantees
 __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(

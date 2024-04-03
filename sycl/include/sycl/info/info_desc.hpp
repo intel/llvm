@@ -64,23 +64,63 @@ enum class device_type : pi_uint32 {
   all = UR_DEVICE_TYPE_ALL
 };
 
-enum class partition_property : pi_device_partition_property {
+enum class partition_property : intptr_t {
   no_partition = 0,
-  partition_equally = PI_DEVICE_PARTITION_EQUALLY,
-  partition_by_counts = PI_DEVICE_PARTITION_BY_COUNTS,
-  partition_by_affinity_domain = PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
-  ext_intel_partition_by_cslice = PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE
+  partition_equally = UR_DEVICE_PARTITION_EQUALLY,
+  partition_by_counts = UR_DEVICE_PARTITION_BY_COUNTS,
+  partition_by_affinity_domain = UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
+  ext_intel_partition_by_cslice = UR_DEVICE_PARTITION_BY_CSLICE
 };
 
-enum class partition_affinity_domain : pi_device_affinity_domain {
+// The old implementation would simply static cast the PI enum to the strongly
+// typed sycl one, but that only worked because the PR "enum" was actually a
+// typedef with some global constexpr values defined in the header. UR defines
+// an actual enum so we need this conversion helper
+// FIXME: maybe this should live elsewhere, maybe it should be implemented
+// differently
+inline partition_property
+ConvertPartitionProperty(const ur_device_partition_t &Partition) {
+  switch (Partition) {
+  case UR_DEVICE_PARTITION_EQUALLY:
+    return partition_property::partition_equally;
+  case UR_DEVICE_PARTITION_BY_COUNTS:
+    return partition_property::partition_by_counts;
+  case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN:
+    return partition_property::partition_by_affinity_domain;
+  case UR_DEVICE_PARTITION_BY_CSLICE:
+    return partition_property::ext_intel_partition_by_cslice;
+  default:
+    return partition_property::no_partition;
+  }
+}
+
+enum class partition_affinity_domain : intptr_t {
   not_applicable = 0,
-  numa = PI_DEVICE_AFFINITY_DOMAIN_NUMA,
-  L4_cache = PI_DEVICE_AFFINITY_DOMAIN_L4_CACHE,
-  L3_cache = PI_DEVICE_AFFINITY_DOMAIN_L3_CACHE,
-  L2_cache = PI_DEVICE_AFFINITY_DOMAIN_L2_CACHE,
-  L1_cache = PI_DEVICE_AFFINITY_DOMAIN_L1_CACHE,
-  next_partitionable = PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE
+  numa = UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA,
+  L4_cache = UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE,
+  L3_cache = UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE,
+  L2_cache = UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE,
+  L1_cache = UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE,
+  next_partitionable = UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE
 };
+
+inline partition_affinity_domain
+ConvertAffinityDomain(const ur_device_affinity_domain_flags_t Domain) {
+  switch (Domain) {
+  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA:
+    return partition_affinity_domain::numa;
+  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE:
+    return partition_affinity_domain::L1_cache;
+  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE:
+    return partition_affinity_domain::L2_cache;
+  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE:
+    return partition_affinity_domain::L3_cache;
+  case UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE:
+    return partition_affinity_domain::L4_cache;
+  default:
+    return info::partition_affinity_domain::not_applicable;
+  }
+}
 
 enum class local_mem_type : int { none, local, global };
 

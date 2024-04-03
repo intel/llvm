@@ -193,8 +193,7 @@ __SYCL_PARAM_TRAITS_SPEC(device, usm_system_allocations, bool,
 __SYCL_PARAM_TRAITS_SPEC(device, image_max_array_size, size_t,
                         UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE)
 // To be dropped (no alternatives)
-//__SYCL_PARAM_TRAITS_SPEC(device, opencl_c_version, std::string,
-//                        UR_DEVICE_INFO_OPENCL_C_VERSION)
+__SYCL_PARAM_TRAITS_SPEC(device, opencl_c_version, std::string, 0)
 // Extensions
 __SYCL_PARAM_TRAITS_SPEC(device, sub_group_independent_forward_progress, bool,
                         UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS)
@@ -225,16 +224,16 @@ __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_device_info_uuid, detail::uuid_type,
                         UR_DEVICE_INFO_UUID)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_max_mem_bandwidth, pi_uint64,
                         UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH)
-/*
+
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_1d, id<1>,
-                        UR_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_1D)
+                        0)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_2d, id<2>,
-                        UR_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_2D)
+                        0)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_3d, id<3>,
-                        UR_ONEAPI_DEVICE_INFO_MAX_WORK_GROUPS_3D)
+                       UR_DEVICE_INFO_MAX_WORK_GROUPS_3D)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_global_work_groups, size_t,
-                        UR_ONEAPI_DEVICE_INFO_MAX_GLOBAL_WORK_GROUPS)
-*/
+                        0)
+
 #ifdef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF

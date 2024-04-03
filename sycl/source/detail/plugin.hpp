@@ -476,6 +476,8 @@ public:
       UrPlatforms.resize(platformCount);
       call(urPlatformGet, &MAdapter, 1, platformCount, UrPlatforms.data(),
            nullptr);
+      // We need one entry in this per platform
+      LastDeviceIds.resize(platformCount);
     });
     return UrPlatforms;
   }

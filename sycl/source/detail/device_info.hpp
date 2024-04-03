@@ -57,29 +57,29 @@ read_fp_bitfield(ur_device_fp_capability_flags_t bits) {
 }
 
 inline std::vector<info::partition_affinity_domain>
-read_domain_bitfield(pi_device_affinity_domain bits) {
+read_domain_bitfield(ur_device_affinity_domain_flags_t bits) {
   std::vector<info::partition_affinity_domain> result;
-  if (bits & PI_DEVICE_AFFINITY_DOMAIN_NUMA)
+  if (bits & UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA)
     result.push_back(info::partition_affinity_domain::numa);
-  if (bits & PI_DEVICE_AFFINITY_DOMAIN_L4_CACHE)
+  if (bits & UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE)
     result.push_back(info::partition_affinity_domain::L4_cache);
-  if (bits & PI_DEVICE_AFFINITY_DOMAIN_L3_CACHE)
+  if (bits & UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE)
     result.push_back(info::partition_affinity_domain::L3_cache);
-  if (bits & PI_DEVICE_AFFINITY_DOMAIN_L2_CACHE)
+  if (bits & UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE)
     result.push_back(info::partition_affinity_domain::L2_cache);
-  if (bits & PI_DEVICE_AFFINITY_DOMAIN_L1_CACHE)
+  if (bits & UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE)
     result.push_back(info::partition_affinity_domain::L1_cache);
-  if (bits & PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE)
+  if (bits & UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE)
     result.push_back(info::partition_affinity_domain::next_partitionable);
   return result;
 }
 
 inline std::vector<info::execution_capability>
-read_execution_bitfield(pi_device_exec_capabilities bits) {
+read_execution_bitfield(ur_device_exec_capability_flag_t bits) {
   std::vector<info::execution_capability> result;
-  if (bits & PI_EXEC_KERNEL)
+  if (bits & UR_DEVICE_EXEC_CAPABILITY_FLAG_KERNEL)
     result.push_back(info::execution_capability::exec_kernel);
-  if (bits & PI_EXEC_NATIVE_KERNEL)
+  if (bits & UR_DEVICE_EXEC_CAPABILITY_FLAG_NATIVE_KERNEL)
     result.push_back(info::execution_capability::exec_native_kernel);
   return result;
 }
@@ -179,24 +179,6 @@ template <typename Param> struct get_device_info_impl<platform, Param> {
 
 // Helper function to allow using the specialization of get_device_info_impl
 // for string return type in other specializations.
-/*
-inline std::string device_impl::get_device_info_string(
-    sycl::detail::pi::PiDeviceInfo InfoCode) const {
-  size_t resultSize = 0;
-  getUrPlugin()->call(urDeviceGetInfo,getUrHandleRef(), InfoCode, 0,
-                                                nullptr, &resultSize);
-  if (resultSize == 0) {
-    return std::string();
-  }
-  std::unique_ptr<char[]> result(new char[resultSize]);
-  getUrPlugin()->call(urDeviceGetInfo,
-      getUrHandleRef(), InfoCode, resultSize, result.get(), nullptr);
-
-  return std::string(result.get());
-}*/
-
-// Helper function to allow using the specialization of get_device_info_impl
-// for string return type in other specializations.
 inline std::string
 device_impl::get_device_info_string(ur_device_info_t InfoCode) const {
   size_t resultSize = 0;
@@ -276,17 +258,17 @@ template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
     return Properties & UR_QUEUE_FLAG_PROFILING_ENABLE;
   }
 };
-/*
+
 // Specialization for atomic_memory_order_capabilities, PI returns a bitfield
 template <>
 struct get_device_info_impl<std::vector<memory_order>,
                             info::device::atomic_memory_order_capabilities> {
   static std::vector<memory_order> get(const DeviceImplPtr &Dev) {
-    pi_memory_order_capabilities result;
-    Dev->getUrPlugin()->call(urDeviceGetInfo,
-        Dev->getUrHandleRef(),
+    ur_memory_order_capability_flag_t result;
+    Dev->getUrPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
         UrInfoCode<info::device::atomic_memory_order_capabilities>::value,
-        sizeof(pi_memory_order_capabilities), &result, nullptr);
+        sizeof(result), &result, nullptr);
     return readMemoryOrderBitfield(result);
   }
 };
@@ -296,11 +278,11 @@ template <>
 struct get_device_info_impl<std::vector<memory_order>,
                             info::device::atomic_fence_order_capabilities> {
   static std::vector<memory_order> get(const DeviceImplPtr &Dev) {
-    pi_memory_order_capabilities result;
-    Dev->getUrPlugin()->call(urDeviceGetInfo,
-        Dev->getUrHandleRef(),
+    ur_memory_order_capability_flag_t result;
+    Dev->getUrPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
         UrInfoCode<info::device::atomic_fence_order_capabilities>::value,
-        sizeof(pi_memory_order_capabilities), &result, nullptr);
+        sizeof(result), &result, nullptr);
     return readMemoryOrderBitfield(result);
   }
 };
@@ -310,11 +292,11 @@ template <>
 struct get_device_info_impl<std::vector<memory_scope>,
                             info::device::atomic_memory_scope_capabilities> {
   static std::vector<memory_scope> get(const DeviceImplPtr &Dev) {
-    pi_memory_scope_capabilities result;
-    Dev->getUrPlugin()->call(urDeviceGetInfo,
-        Dev->getUrHandleRef(),
+    ur_memory_scope_capability_flag_t result;
+    Dev->getUrPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
         UrInfoCode<info::device::atomic_memory_scope_capabilities>::value,
-        sizeof(pi_memory_scope_capabilities), &result, nullptr);
+        sizeof(result), &result, nullptr);
     return readMemoryScopeBitfield(result);
   }
 };
@@ -324,11 +306,11 @@ template <>
 struct get_device_info_impl<std::vector<memory_scope>,
                             info::device::atomic_fence_scope_capabilities> {
   static std::vector<memory_scope> get(const DeviceImplPtr &Dev) {
-    pi_memory_scope_capabilities result;
-    Dev->getUrPlugin()->call(urDeviceGetInfo,
-        Dev->getUrHandleRef(),
+    ur_memory_scope_capability_flag_t result;
+    Dev->getUrPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
         UrInfoCode<info::device::atomic_fence_scope_capabilities>::value,
-        sizeof(pi_memory_scope_capabilities), &result, nullptr);
+        sizeof(result), &result, nullptr);
     return readMemoryScopeBitfield(result);
   }
 };
@@ -340,12 +322,11 @@ struct get_device_info_impl<bool,
   static bool get(const DeviceImplPtr &Dev) {
     bool result = false;
 
-    sycl::detail::pi::PiResult Err =
-        Dev->getUrPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-            Dev->getUrHandleRef(),
-            UrInfoCode<info::device::ext_oneapi_bfloat16_math_functions>::value,
-            sizeof(result), &result, nullptr);
-    if (Err != PI_SUCCESS) {
+    ur_result_t Err = Dev->getUrPlugin()->call_nocheck(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<info::device::ext_oneapi_bfloat16_math_functions>::value,
+        sizeof(result), &result, nullptr);
+    if (Err != UR_RESULT_SUCCESS) {
       return false;
     }
     return result;
@@ -357,7 +338,7 @@ template <>
 struct get_device_info_impl<std::vector<info::execution_capability>,
                             info::device::execution_capabilities> {
   static std::vector<info::execution_capability> get(const DeviceImplPtr &Dev) {
-    pi_device_exec_capabilities result;
+    ur_device_exec_capability_flag_t result;
     Dev->getUrPlugin()->call(urDeviceGetInfo,
         Dev->getUrHandleRef(),
         UrInfoCode<info::device::execution_capabilities>::value, sizeof(result),
@@ -430,12 +411,12 @@ struct get_device_info_impl<std::vector<info::partition_property>,
     Plugin->call(urDeviceGetInfo,
         Dev->getUrHandleRef(), info_partition, 0, nullptr, &resultSize);
 
-    size_t arrayLength = resultSize / sizeof(cl_device_partition_property);
+    size_t arrayLength = resultSize / sizeof(ur_device_partition_property_t);
     if (arrayLength == 0) {
       return {};
     }
-    std::unique_ptr<cl_device_partition_property[]> arrayResult(
-        new cl_device_partition_property[arrayLength]);
+    std::unique_ptr<ur_device_partition_t[]> arrayResult(
+        new ur_device_partition_t[arrayLength]);
     Plugin->call(urDeviceGetInfo,Dev->getUrHandleRef(),
                                              info_partition, resultSize,
                                              arrayResult.get(), nullptr);
@@ -445,7 +426,7 @@ struct get_device_info_impl<std::vector<info::partition_property>,
       // OpenCL extensions may have partition_properties that
       // are not yet defined for SYCL (eg. CL_DEVICE_PARTITION_BY_NAMES_INTEL)
       info::partition_property pp(
-          static_cast<info::partition_property>(arrayResult[i]));
+          info::ConvertPartitionProperty(arrayResult[i]));
       if (is_sycl_partition_property(pp))
         result.push_back(pp);
     }
@@ -459,7 +440,7 @@ struct get_device_info_impl<std::vector<info::partition_affinity_domain>,
                             info::device::partition_affinity_domains> {
   static std::vector<info::partition_affinity_domain>
   get(const DeviceImplPtr &Dev) {
-    pi_device_affinity_domain result;
+    ur_device_affinity_domain_flags_t result;
     Dev->getUrPlugin()->call(urDeviceGetInfo,
         Dev->getUrHandleRef(),
         UrInfoCode<info::device::partition_affinity_domains>::value,
@@ -468,31 +449,33 @@ struct get_device_info_impl<std::vector<info::partition_affinity_domain>,
   }
 };
 
-// Specialization for partition type affinity domain, OpenCL can return other
+// Specialization for partition type affinity domain, UR can return other
 // partition properties instead
 template <>
 struct get_device_info_impl<info::partition_affinity_domain,
                             info::device::partition_type_affinity_domain> {
   static info::partition_affinity_domain get(const DeviceImplPtr &Dev) {
-    size_t resultSize;
-    Dev->getUrPlugin()->call(urDeviceGetInfo,
-        Dev->getUrHandleRef(),
+    std::vector<ur_device_partition_property_t> PartitionProperties;
+    size_t PropertiesSize = 0;
+    Dev->getUrPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
         UrInfoCode<info::device::partition_type_affinity_domain>::value, 0,
-        nullptr, &resultSize);
-    if (resultSize != 1) {
+        nullptr, &PropertiesSize);
+    if (PropertiesSize == 0)
       return info::partition_affinity_domain::not_applicable;
-    }
-    cl_device_partition_property result;
-    Dev->getUrPlugin()->call(urDeviceGetInfo,
-        Dev->getUrHandleRef(),
+
+    PartitionProperties.resize(PropertiesSize /
+                               sizeof(ur_device_partition_property_t));
+
+    Dev->getUrPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
         UrInfoCode<info::device::partition_type_affinity_domain>::value,
-        sizeof(result), &result, nullptr);
-    if (result == PI_DEVICE_AFFINITY_DOMAIN_NUMA ||
-        result == PI_DEVICE_AFFINITY_DOMAIN_L4_CACHE ||
-        result == PI_DEVICE_AFFINITY_DOMAIN_L3_CACHE ||
-        result == PI_DEVICE_AFFINITY_DOMAIN_L2_CACHE ||
-        result == PI_DEVICE_AFFINITY_DOMAIN_L1_CACHE) {
-      return info::partition_affinity_domain(result);
+        PropertiesSize, PartitionProperties.data(), nullptr);
+
+    for (const auto &PartitionProp : PartitionProperties) {
+      if (PartitionProp.type != UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN)
+        continue;
+      return info::ConvertAffinityDomain(PartitionProp.value.affinity_domain);
     }
 
     return info::partition_affinity_domain::not_applicable;
@@ -504,26 +487,28 @@ template <>
 struct get_device_info_impl<info::partition_property,
                             info::device::partition_type_property> {
   static info::partition_property get(const DeviceImplPtr &Dev) {
-    size_t resultSize;
-    Dev->getUrPlugin()->call(urDeviceGetInfo,
-        Dev->getUrHandleRef(), PI_DEVICE_INFO_PARTITION_TYPE, 0, nullptr,
-        &resultSize);
-    if (!resultSize)
+    std::vector<ur_device_partition_property_t> PartitionProperties;
+    size_t PropertiesSize = 0;
+    Dev->getUrPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<info::device::partition_type_affinity_domain>::value, 0,
+        nullptr, &PropertiesSize);
+    if (PropertiesSize == 0)
       return info::partition_property::no_partition;
 
-    size_t arrayLength = resultSize / sizeof(cl_device_partition_property);
+    PartitionProperties.resize(PropertiesSize /
+                               sizeof(ur_device_partition_property_t));
 
-    std::unique_ptr<cl_device_partition_property[]> arrayResult(
-        new cl_device_partition_property[arrayLength]);
-    Dev->getUrPlugin()->call(urDeviceGetInfo,
-        Dev->getUrHandleRef(), PI_DEVICE_INFO_PARTITION_TYPE, resultSize,
-        arrayResult.get(), nullptr);
-    if (!arrayResult[0])
-      return info::partition_property::no_partition;
-    return info::partition_property(arrayResult[0]);
+    Dev->getUrPlugin()->call(
+        urDeviceGetInfo, Dev->getUrHandleRef(),
+        UrInfoCode<info::device::partition_type_affinity_domain>::value,
+        PropertiesSize, PartitionProperties.data(), nullptr);
+    // The old PI implementation also just checked the first element, is that
+    // correct?
+    return info::ConvertPartitionProperty(PartitionProperties[0].type);
   }
 };
-*/
+
 // Specialization for supported subgroup sizes
 template <>
 struct get_device_info_impl<std::vector<size_t>,
@@ -547,7 +532,7 @@ struct get_device_info_impl<std::vector<size_t>,
     return result;
   }
 };
-/*
+
 // Specialization for kernel to kernel pipes.
 // Here we step away from OpenCL, since there is no appropriate cl_device_info
 // enum for global pipes feature.
@@ -777,7 +762,6 @@ struct get_device_info_impl<
     throw sycl::exception(make_error_code(errc::runtime), ErrorMessage.str());
   }
 };
-*/
 
 template <>
 struct get_device_info_impl<
@@ -988,7 +972,7 @@ struct get_device_info_impl<
     return {};
   }
 };
-/*
+
 template <>
 struct get_device_info_impl<
     size_t, ext::oneapi::experimental::info::device::max_global_work_groups> {
@@ -1095,7 +1079,7 @@ struct get_device_info_impl<id<3>,
         ext::oneapi::experimental::info::device::max_work_groups<3>>::get(Dev);
   }
 };
-*/
+
 // Specialization for parent device
 template <> struct get_device_info_impl<device, info::device::parent_device> {
   static device get(const DeviceImplPtr &Dev) {
@@ -1106,7 +1090,7 @@ template <> struct get_device_info_impl<device, info::device::parent_device> {
     if (result == nullptr)
       throw invalid_object_error(
           "No parent for device because it is not a subdevice",
-          PI_ERROR_INVALID_DEVICE);
+          UR_RESULT_ERROR_INVALID_DEVICE);
 
     const auto &Platform = Dev->getPlatformImpl();
     return createSyclObjFromImpl<device>(
@@ -1206,7 +1190,7 @@ struct get_device_info_impl<bool, info::device::usm_system_allocations> {
                : (caps & UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ACCESS);
   }
 };
-/*
+
 // Specialization for kernel fusion support
 template <>
 struct get_device_info_impl<
@@ -1252,34 +1236,6 @@ struct get_device_info_impl<
   }
 };
 
-// Specialization for graph extension support
-template <>
-struct get_device_info_impl<
-    ext::oneapi::experimental::graph_support_level,
-    ext::oneapi::experimental::info::device::graph_support> {
-  static ext::oneapi::experimental::graph_support_level
-  get(const DeviceImplPtr &Dev) {
-    size_t ResultSize = 0;
-    Dev->getUrPlugin()->call(urDeviceGetInfo,
-        Dev->getUrHandleRef(), PI_DEVICE_INFO_EXTENSIONS, 0, nullptr,
-        &ResultSize);
-    if (ResultSize == 0)
-      return ext::oneapi::experimental::graph_support_level::unsupported;
-
-    std::unique_ptr<char[]> Result(new char[ResultSize]);
-    Dev->getUrPlugin()->call(urDeviceGetInfo,
-        Dev->getUrHandleRef(), PI_DEVICE_INFO_EXTENSIONS, ResultSize,
-        Result.get(), nullptr);
-
-    std::string_view ExtensionsString(Result.get());
-    bool CmdBufferSupport =
-        ExtensionsString.find("ur_exp_command_buffer") != std::string::npos;
-    return CmdBufferSupport
-               ? ext::oneapi::experimental::graph_support_level::native
-               : ext::oneapi::experimental::graph_support_level::unsupported;
-  }
-};
-
 // Specialization for composite devices extension.
 template <>
 struct get_device_info_impl<
@@ -1304,11 +1260,12 @@ struct get_device_info_impl<
 
     // Otherwise, if there was an error from PI it is unexpected and we should
     // handle it accordingly.
-    Dev->getPlugin()->checkUrResult(Err);
+    Dev->getUrPlugin()->checkUrResult(Err);
 
-    size_t DevCount = ResultSize / sizeof(pi_device);
+    size_t DevCount = ResultSize / sizeof(ur_device_handle_t);
+
     // Second call to get the list.
-    std::vector<pi_device> Devs(DevCount);
+    std::vector<ur_device_handle_t> Devs(DevCount);
     Dev->getUrPlugin()->call(urDeviceGetInfo,
         Dev->getUrHandleRef(),
         UrInfoCode<
@@ -1323,7 +1280,7 @@ struct get_device_info_impl<
     return Result;
   }
 };
-*/
+
 template <>
 struct get_device_info_impl<
     sycl::device, ext::oneapi::experimental::info::device::composite_device> {
@@ -1360,7 +1317,7 @@ typename Param::return_type get_device_info(const DeviceImplPtr &Dev) {
     if (!Dev->has(aspect::ext_intel_free_memory))
       throw invalid_object_error(
           "The device does not have the ext_intel_free_memory aspect",
-          PI_ERROR_INVALID_DEVICE);
+          UR_RESULT_ERROR_INVALID_DEVICE);
   }
   return get_device_info_impl<typename Param::return_type, Param>::get(Dev);
 }
@@ -1419,7 +1376,7 @@ inline range<3> get_device_info_host<info::device::max_work_item_sizes<3>>() {
   // current value is the required minimum
   return {1, 1, 1};
 }
-/*
+
 template <>
 inline constexpr size_t get_device_info_host<
     ext::oneapi::experimental::info::device::max_global_work_groups>() {
@@ -1490,7 +1447,7 @@ inline id<3>
 get_device_info_host<info::device::ext_oneapi_max_work_groups_3d>() {
   return get_device_info_host<
       ext::oneapi::experimental::info::device::max_work_groups<3>>();
-}*/
+}
 
 template <>
 inline size_t get_device_info_host<info::device::max_work_group_size>() {
@@ -1922,6 +1879,11 @@ template <> inline std::string get_device_info_host<info::device::version>() {
 }
 
 template <>
+inline std::string get_device_info_host<info::device::opencl_c_version>() {
+  return "not applicable";
+}
+
+template <>
 inline std::vector<std::string>
 get_device_info_host<info::device::extensions>() {
   // TODO update when appropriate
@@ -1942,7 +1904,7 @@ inline bool get_device_info_host<info::device::preferred_interop_user_sync>() {
 template <> inline device get_device_info_host<info::device::parent_device>() {
   throw invalid_object_error(
       "Partitioning to subdevices of the host device is not implemented",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -1989,7 +1951,7 @@ template <>
 inline uint32_t get_device_info_host<info::device::max_num_sub_groups>() {
   // TODO update once subgroups are enabled
   throw runtime_error("Sub-group feature is not supported on HOST device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -1997,7 +1959,7 @@ inline std::vector<size_t>
 get_device_info_host<info::device::sub_group_sizes>() {
   // TODO update once subgroups are enabled
   throw runtime_error("Sub-group feature is not supported on HOST device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -2005,7 +1967,7 @@ inline bool
 get_device_info_host<info::device::sub_group_independent_forward_progress>() {
   // TODO update once subgroups are enabled
   throw runtime_error("Sub-group feature is not supported on HOST device.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -2017,9 +1979,9 @@ template <>
 inline std::string get_device_info_host<info::device::backend_version>() {
   throw runtime_error(
       "Backend version feature is not supported on HOST device.",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
-/*
+
 template <>
 inline bool get_device_info_host<info::device::usm_device_allocations>() {
   return true;
@@ -2050,73 +2012,73 @@ template <>
 inline bool get_device_info_host<info::device::ext_intel_mem_channel>() {
   return false;
 }
-*/
+
 // Specializations for intel extensions for Level Zero low-level
 // detail device descriptors (not support on host).
 template <>
 inline uint32_t get_device_info_host<ext::intel::info::device::device_id>() {
   throw runtime_error("Obtaining the device ID is not supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 template <>
 inline std::string
 get_device_info_host<ext::intel::info::device::pci_address>() {
   throw runtime_error(
       "Obtaining the PCI address is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 template <>
 inline uint32_t get_device_info_host<ext::intel::info::device::gpu_eu_count>() {
   throw runtime_error("Obtaining the EU count is not supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 template <>
 inline uint32_t
 get_device_info_host<ext::intel::info::device::gpu_eu_simd_width>() {
   throw runtime_error(
       "Obtaining the EU SIMD width is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 template <>
 inline uint32_t get_device_info_host<ext::intel::info::device::gpu_slices>() {
   throw runtime_error(
       "Obtaining the number of slices is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 template <>
 inline uint32_t
 get_device_info_host<ext::intel::info::device::gpu_subslices_per_slice>() {
   throw runtime_error("Obtaining the number of subslices per slice is not "
                       "supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 template <>
 inline uint32_t
 get_device_info_host<ext::intel::info::device::gpu_eu_count_per_subslice>() {
   throw runtime_error(
       "Obtaining the EU count per subslice is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 template <>
 inline uint32_t
 get_device_info_host<ext::intel::info::device::gpu_hw_threads_per_eu>() {
   throw runtime_error(
       "Obtaining the HW threads count per EU is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 template <>
 inline uint64_t
 get_device_info_host<ext::intel::info::device::max_mem_bandwidth>() {
   throw runtime_error(
       "Obtaining the maximum memory bandwidth is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 template <>
 inline detail::uuid_type
 get_device_info_host<ext::intel::info::device::uuid>() {
   throw runtime_error(
       "Obtaining the device uuid is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 // TODO: Remove with deprecated feature
@@ -2125,14 +2087,14 @@ template <>
 inline std::string get_device_info_host<info::device::ext_intel_pci_address>() {
   throw runtime_error(
       "Obtaining the PCI address is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 // TODO: Remove with deprecated feature
 // device::get_info<info::device::ext_intel_gpu_eu_count>()
 template <>
 inline uint32_t get_device_info_host<info::device::ext_intel_gpu_eu_count>() {
   throw runtime_error("Obtaining the EU count is not supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 // TODO: Remove with deprecated feature
 // device::get_info<info::device::ext_intel_gpu_eu_simd_width>()
@@ -2141,7 +2103,7 @@ inline uint32_t
 get_device_info_host<info::device::ext_intel_gpu_eu_simd_width>() {
   throw runtime_error(
       "Obtaining the EU SIMD width is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 // TODO: Remove with deprecated feature
 // device::get_info<info::device::ext_intel_gpu_slices>()
@@ -2149,7 +2111,7 @@ template <>
 inline uint32_t get_device_info_host<info::device::ext_intel_gpu_slices>() {
   throw runtime_error(
       "Obtaining the number of slices is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 // TODO: Remove with deprecated feature
 // device::get_info<info::device::ext_intel_gpu_subslices_per_slice>()
@@ -2158,7 +2120,7 @@ inline uint32_t
 get_device_info_host<info::device::ext_intel_gpu_subslices_per_slice>() {
   throw runtime_error("Obtaining the number of subslices per slice is not "
                       "supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 // TODO: Remove with deprecated feature
 // device::get_info<info::device::ext_intel_gpu_eu_count_per_subslices>()
@@ -2167,7 +2129,7 @@ inline uint32_t
 get_device_info_host<info::device::ext_intel_gpu_eu_count_per_subslice>() {
   throw runtime_error(
       "Obtaining the EU count per subslice is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 // TODO: Remove with deprecated feature
 // device::get_info<info::device::ext_intel_gpu_hw_threads_per_eu>()
@@ -2176,7 +2138,7 @@ inline uint32_t
 get_device_info_host<info::device::ext_intel_gpu_hw_threads_per_eu>() {
   throw runtime_error(
       "Obtaining the HW threads count per EU is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 // TODO: Remove with deprecated feature
 // device::get_info<info::device::ext_intel_max_mem_bandwidth>()
@@ -2185,7 +2147,7 @@ inline uint64_t
 get_device_info_host<info::device::ext_intel_max_mem_bandwidth>() {
   throw runtime_error(
       "Obtaining the maximum memory bandwidth is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 // TODO:Move to namespace ext::intel::info::device
 template <> inline bool get_device_info_host<info::device::ext_oneapi_srgb>() {
@@ -2199,14 +2161,14 @@ inline detail::uuid_type
 get_device_info_host<info::device::ext_intel_device_info_uuid>() {
   throw runtime_error(
       "Obtaining the device uuid is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
 inline uint64_t get_device_info_host<ext::intel::info::device::free_memory>() {
   throw runtime_error(
       "Obtaining the device free memory is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -2214,7 +2176,7 @@ inline uint32_t
 get_device_info_host<ext::intel::info::device::memory_clock_rate>() {
   throw runtime_error(
       "Obtaining the device memory clock rate is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -2222,7 +2184,7 @@ inline uint32_t
 get_device_info_host<ext::intel::info::device::memory_bus_width>() {
   throw runtime_error(
       "Obtaining the device memory bus width is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -2230,22 +2192,21 @@ inline int32_t
 get_device_info_host<ext::intel::info::device::max_compute_queue_indices>() {
   throw runtime_error(
       "Obtaining max compute queue indices is not supported on HOST device",
-      PI_ERROR_INVALID_DEVICE);
+      UR_RESULT_ERROR_INVALID_DEVICE);
 }
-/* TODO fix jank fake enum mechanism
 template <>
 inline bool get_device_info_host<
     ext::codeplay::experimental::info::device::supports_fusion>() {
   // No support for fusion on the host device.
   return false;
-}*/
+}
 
 template <>
 inline uint32_t get_device_info_host<
     ext::codeplay::experimental::info::device::max_registers_per_work_group>() {
   throw runtime_error("Obtaining the maximum number of available registers per "
                       "work-group is not supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -2253,7 +2214,7 @@ inline uint32_t get_device_info_host<
     ext::oneapi::experimental::info::device::image_row_pitch_align>() {
   throw runtime_error("Obtaining image pitch alignment is not "
                       "supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -2261,24 +2222,24 @@ inline uint32_t get_device_info_host<
     ext::oneapi::experimental::info::device::max_image_linear_row_pitch>() {
   throw runtime_error("Obtaining max image linear pitch is not "
                       "supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
-/*
+
 template <>
 inline std::vector<ext::oneapi::experimental::matrix::combination>
 get_device_info_host<
     ext::oneapi::experimental::info::device::matrix_combinations>() {
   throw runtime_error("Obtaining matrix combinations is not "
                       "supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
-}*/
+                      UR_RESULT_ERROR_INVALID_DEVICE);
+}
 
 template <>
 inline uint32_t get_device_info_host<
     ext::oneapi::experimental::info::device::max_image_linear_width>() {
   throw runtime_error("Obtaining max image linear width is not "
                       "supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
@@ -2286,28 +2247,28 @@ inline uint32_t get_device_info_host<
     ext::oneapi::experimental::info::device::max_image_linear_height>() {
   throw runtime_error("Obtaining max image linear height is not "
                       "supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
 inline float get_device_info_host<
     ext::oneapi::experimental::info::device::mipmap_max_anisotropy>() {
   throw runtime_error("Bindless image mipmaps are not supported on HOST device",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
 inline std::vector<sycl::device> get_device_info_host<
     ext::oneapi::experimental::info::device::component_devices>() {
   throw runtime_error("Host devices cannot be component devices.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 template <>
 inline sycl::device get_device_info_host<
     ext::oneapi::experimental::info::device::composite_device>() {
   throw runtime_error("Host devices cannot be composite devices.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 // Returns the list of all progress guarantees that can be requested for

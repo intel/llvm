@@ -65,13 +65,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 3a7d00f136cf5d69e61bf1e235393dfc56f55525
-  # Merge: cd5ad7b5 9e5c6203
+  # commit 758c61490442456933e3957aac568e13287429eb
+  # Merge: e2b5b7fa e2e44728
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Apr 1 15:16:30 2024 +0100
-  #     Merge pull request #1485 from aarongreig/aaron/addDeviceNotAvailableErrC
-  #     Add UR_ERROR_DEVICE_NOT_AVAILABLE and appropriate translation for CL.
-  set(UNIFIED_RUNTIME_TAG 3a7d00f136cf5d69e61bf1e235393dfc56f55525)
+  # Date:   Wed Apr 10 16:15:45 2024 +0100
+  #    Merge pull request #1483 from nrspruit/fix_inorder_lists_reuse
+  #    [L0] Fix regular in order command list reuse given inorder queue
+  set(UNIFIED_RUNTIME_TAG 758c61490442456933e3957aac568e13287429eb)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
