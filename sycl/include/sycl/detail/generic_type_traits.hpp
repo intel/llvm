@@ -367,11 +367,12 @@ template <typename T> auto convertToOpenCLType(T &&x) {
     // TODO: for some mysterious reasons on NonUniformGroups E2E tests fail if
     // we use the "else" version only. I suspect that's an issues with
     // non-uniform groups implementation.
-    if constexpr (std::is_same_v<MatchingVec, no_ref>)
-      return static_cast<typename MatchingVec::vector_t>(x);
-    else
-      return static_cast<typename MatchingVec::vector_t>(
-          x.template as<MatchingVec>());
+    if constexpr (std::is_same_v<MatchingVec, no_ref>) {
+      return bit_cast<typename no_ref::vector_t>(x);
+    }
+    else {
+      return bit_cast<typename MatchingVec::vector_t>(x);
+    }
 #else
     return x.template as<MatchingVec>();
 #endif
