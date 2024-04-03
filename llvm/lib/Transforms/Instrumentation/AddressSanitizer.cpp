@@ -1309,8 +1309,10 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
       Types.push_back(I->getType());
     }
 
-    // New Argument
-    Types.push_back(IntptrTy);
+    // New argument type: uintptr_t as(1)*, as it's allocated in USM buffer, and
+    // it can also be treated as a pointer point to the base address of private
+    // shadow memory
+    Types.push_back(IntptrTy->getPointerTo(1));
 
     FunctionType *NewFTy = FunctionType::get(F->getReturnType(), Types, false);
 
@@ -1341,8 +1343,6 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
 
     NewF->setComdat(F->getComdat());
     F->setComdat(nullptr);
-
-    F->deleteBody();
 
     for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(),
                                 NI = NewF->arg_begin();
