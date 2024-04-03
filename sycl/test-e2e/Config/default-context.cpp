@@ -3,7 +3,7 @@
 // RUN: env SYCL_ENABLE_DEFAULT_CONTEXTS=1 %t.out
 // RUN: env SYCL_ENABLE_DEFAULT_CONTEXTS=0 %t.out 1
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 // when not using the environment variable, we use the "default context" on both
 // Lin and Win.  This test asserts it defaults correctly, and that the

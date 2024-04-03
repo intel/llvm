@@ -493,7 +493,8 @@ static void replaceManagedVar(llvm::GlobalVariable *Var,
       // variable with instructions.
       for (auto &&Op : WorkItem) {
         auto *CE = cast<llvm::ConstantExpr>(Op);
-        auto *NewInst = CE->getAsInstruction(I);
+        auto *NewInst = CE->getAsInstruction();
+        NewInst->insertBefore(*I->getParent(), I->getIterator());
         NewInst->replaceUsesOfWith(OldV, NewV);
         OldV = CE;
         NewV = NewInst;
@@ -606,20 +607,10 @@ llvm::Function *CGNVCUDARuntime::makeRegisterGlobalsFn() {
       uint64_t VarSize =
           CGM.getDataLayout().getTypeAllocSize(Var->getValueType());
       if (Info.Flags.isManaged()) {
-        auto *ManagedVar = new llvm::GlobalVariable(
-            CGM.getModule(), Var->getType(),
-            /*isConstant=*/false, Var->getLinkage(),
-            /*Init=*/Var->isDeclaration()
-                ? nullptr
-                : llvm::ConstantPointerNull::get(Var->getType()),
-            /*Name=*/"", /*InsertBefore=*/nullptr,
-            llvm::GlobalVariable::NotThreadLocal);
-        ManagedVar->setDSOLocal(Var->isDSOLocal());
-        ManagedVar->setVisibility(Var->getVisibility());
-        ManagedVar->setExternallyInitialized(true);
-        ManagedVar->takeName(Var);
-        Var->setName(Twine(ManagedVar->getName() + ".managed"));
-        replaceManagedVar(Var, ManagedVar);
+        assert(Var->getName().ends_with(".managed") &&
+               "HIP managed variables not transformed");
+        auto *ManagedVar = CGM.getModule().getNamedGlobal(
+            Var->getName().drop_back(StringRef(".managed").size()));
         llvm::Value *Args[] = {
             &GpuBinaryHandlePtr,
             ManagedVar,
@@ -762,10 +753,10 @@ llvm::Function *CGNVCUDARuntime::makeModuleCtorFunction() {
       // to contain the fat binary but will be populated somewhere else,
       // e.g. by lld through link script.
       FatBinStr = new llvm::GlobalVariable(
-        CGM.getModule(), CGM.Int8Ty,
-        /*isConstant=*/true, llvm::GlobalValue::ExternalLinkage, nullptr,
-        "__hip_fatbin", nullptr,
-        llvm::GlobalVariable::NotThreadLocal);
+          CGM.getModule(), CGM.Int8Ty,
+          /*isConstant=*/true, llvm::GlobalValue::ExternalLinkage, nullptr,
+          "__hip_fatbin_" + CGM.getContext().getCUIDHash(), nullptr,
+          llvm::GlobalVariable::NotThreadLocal);
       cast<llvm::GlobalVariable>(FatBinStr)->setSection(FatbinConstantName);
     }
 
@@ -818,8 +809,8 @@ llvm::Function *CGNVCUDARuntime::makeModuleCtorFunction() {
   // thread safety of the loaded program. Therefore we can assume sequential
   // execution of constructor functions here.
   if (IsHIP) {
-    auto Linkage = CudaGpuBinary ? llvm::GlobalValue::InternalLinkage :
-        llvm::GlobalValue::LinkOnceAnyLinkage;
+    auto Linkage = CudaGpuBinary ? llvm::GlobalValue::InternalLinkage
+                                 : llvm::GlobalValue::ExternalLinkage;
     llvm::BasicBlock *IfBlock =
         llvm::BasicBlock::Create(Context, "if", ModuleCtorFunc);
     llvm::BasicBlock *ExitBlock =
@@ -828,11 +819,11 @@ llvm::Function *CGNVCUDARuntime::makeModuleCtorFunction() {
     // of HIP ABI.
     GpuBinaryHandle = new llvm::GlobalVariable(
         TheModule, PtrTy, /*isConstant=*/false, Linkage,
-        /*Initializer=*/llvm::ConstantPointerNull::get(PtrTy),
-        "__hip_gpubin_handle");
-    if (Linkage == llvm::GlobalValue::LinkOnceAnyLinkage)
-      GpuBinaryHandle->setComdat(
-          CGM.getModule().getOrInsertComdat(GpuBinaryHandle->getName()));
+        /*Initializer=*/
+        CudaGpuBinary ? llvm::ConstantPointerNull::get(PtrTy) : nullptr,
+        CudaGpuBinary
+            ? "__hip_gpubin_handle"
+            : "__hip_gpubin_handle_" + CGM.getContext().getCUIDHash());
     GpuBinaryHandle->setAlignment(CGM.getPointerAlign().getAsAlign());
     // Prevent the weak symbol in different shared libraries being merged.
     if (Linkage != llvm::GlobalValue::InternalLinkage)
@@ -1094,7 +1085,9 @@ void CGNVCUDARuntime::transformManagedVars() {
               : llvm::ConstantPointerNull::get(Var->getType()),
           /*Name=*/"", /*InsertBefore=*/nullptr,
           llvm::GlobalVariable::NotThreadLocal,
-          CGM.getContext().getTargetAddressSpace(LangAS::cuda_device));
+          CGM.getContext().getTargetAddressSpace(CGM.getLangOpts().CUDAIsDevice
+                                                     ? LangAS::cuda_device
+                                                     : LangAS::Default));
       ManagedVar->setDSOLocal(Var->isDSOLocal());
       ManagedVar->setVisibility(Var->getVisibility());
       ManagedVar->setExternallyInitialized(true);
@@ -1103,7 +1096,7 @@ void CGNVCUDARuntime::transformManagedVars() {
       Var->setName(Twine(ManagedVar->getName()) + ".managed");
       // Keep managed variables even if they are not used in device code since
       // they need to be allocated by the runtime.
-      if (!Var->isDeclaration()) {
+      if (CGM.getLangOpts().CUDAIsDevice && !Var->isDeclaration()) {
         assert(!ManagedVar->isDeclaration());
         CGM.addCompilerUsedGlobal(Var);
         CGM.addCompilerUsedGlobal(ManagedVar);
@@ -1161,9 +1154,8 @@ void CGNVCUDARuntime::createOffloadingEntries() {
 
 // Returns module constructor to be added.
 llvm::Function *CGNVCUDARuntime::finalizeModule() {
+  transformManagedVars();
   if (CGM.getLangOpts().CUDAIsDevice) {
-    transformManagedVars();
-
     // Mark ODR-used device variables as compiler used to prevent it from being
     // eliminated by optimization. This is necessary for device variables
     // ODR-used by host functions. Sema correctly marks them as ODR-used no

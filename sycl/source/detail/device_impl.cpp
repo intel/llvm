@@ -143,6 +143,42 @@ typename Param::return_type device_impl::get_info() const {
 #include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
+template <>
+typename info::platform::version::return_type
+device_impl::get_backend_info<info::platform::version>() const {
+  if (getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::platform::version info descriptor can "
+                          "only be queried with an OpenCL backend");
+  }
+  return get_platform().get_info<info::platform::version>();
+}
+
+template <>
+typename info::device::version::return_type
+device_impl::get_backend_info<info::device::version>() const {
+  if (getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::version info descriptor can only "
+                          "be queried with an OpenCL backend");
+  }
+  return get_info<info::device::version>();
+}
+
+template <>
+typename info::device::backend_version::return_type
+device_impl::get_backend_info<info::device::backend_version>() const {
+  if (getBackend() != backend::ext_oneapi_level_zero) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::backend_version info descriptor "
+                          "can only be queried with a Level Zero backend");
+  }
+  return "";
+  // Currently The Level Zero backend does not define the value of this
+  // information descriptor and implementations are encouraged to return the
+  // empty string as per specification.
+}
+
 bool device_impl::has_extension(const std::string &ExtensionName) const {
   if (MIsHostDevice)
     // TODO: implement extension management for host device;
@@ -602,6 +638,35 @@ bool device_impl::has(aspect Aspect) const {
 
     return Result != nullptr;
   }
+  case aspect::ext_oneapi_graph: {
+    pi_bool SupportsCommandBufferUpdate = false;
+    bool CallSuccessful =
+        getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT,
+            sizeof(SupportsCommandBufferUpdate), &SupportsCommandBufferUpdate,
+            nullptr) == PI_SUCCESS;
+    if (!CallSuccessful) {
+      return PI_FALSE;
+    }
+
+    return has(aspect::ext_oneapi_limited_graph) && SupportsCommandBufferUpdate;
+  }
+  case aspect::ext_oneapi_limited_graph: {
+    pi_bool SupportsCommandBuffers = false;
+    bool CallSuccessful =
+        getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_SUPPORT,
+            sizeof(SupportsCommandBuffers), &SupportsCommandBuffers,
+            nullptr) == PI_SUCCESS;
+    if (!CallSuccessful) {
+      return PI_FALSE;
+    }
+
+    return SupportsCommandBuffers;
+  }
+  case aspect::ext_intel_fpga_task_sequence: {
+    return is_accelerator();
+  }
   }
   throw runtime_error("This device aspect has not been implemented yet.",
                       PI_ERROR_INVALID_DEVICE);
@@ -705,6 +770,15 @@ bool device_impl::isGetDeviceAndHostTimerSupported() {
       Plugin->call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
           MDevice, &DeviceTime, &HostTime);
   return Result != PI_ERROR_INVALID_OPERATION;
+}
+
+bool device_impl::extOneapiCanCompile(
+    ext::oneapi::experimental::source_language Language) {
+  try {
+    return is_source_kernel_bundle_supported(getBackend(), Language);
+  } catch (sycl::exception &) {
+    return false;
+  }
 }
 
 } // namespace detail

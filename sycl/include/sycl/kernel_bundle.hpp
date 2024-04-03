@@ -15,9 +15,7 @@
 #include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
 #include <sycl/detail/pi.h>                // for pi_native_handle
 #include <sycl/detail/pi.hpp>              // for cast
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string_view.hpp>
-#endif
 #include <sycl/device.hpp>              // for device
 #include <sycl/kernel.hpp>              // for kernel, kernel_bundle
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
@@ -450,9 +448,6 @@ kernel_bundle(kernel_bundle<State> &&) -> kernel_bundle<State>;
 /////////////////////////
 
 namespace detail {
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-using string_view = std::string;
-#endif
 // Internal non-template versions of get_kernel_id API which is used by public
 // onces
 __SYCL_EXPORT kernel_id get_kernel_id_impl(string_view KernelName);
@@ -463,11 +458,7 @@ template <typename KernelName> kernel_id get_kernel_id() {
   // FIXME: This must fail at link-time if KernelName not in any available
   // translation units.
   using KI = sycl::detail::KernelInfo<KernelName>;
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   return detail::get_kernel_id_impl(detail::string_view{KI::getName()});
-#else
-  return detail::get_kernel_id_impl(KI::getName());
-#endif
 }
 
 /// \returns a vector with all kernel_id's defined in the application

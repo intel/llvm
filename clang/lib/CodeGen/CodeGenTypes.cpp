@@ -654,6 +654,11 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
                       "__spv::__spirv_JointMatrixINTEL") {
           ResultType = ConvertSYCLJointMatrixINTELType(RD);
           break;
+        } else if (RD && RD->getQualifiedNameAsString() ==
+                             "__spv::__spirv_TaskSequenceINTEL") {
+          ResultType = llvm::TargetExtType::get(getLLVMContext(),
+                                                "spirv.TaskSequenceINTEL");
+          break;
         }
       }
     }
@@ -698,7 +703,7 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
       EltTy = llvm::Type::getInt8Ty(getLLVMContext());
     }
 
-    ResultType = llvm::ArrayType::get(EltTy, A->getSize().getZExtValue());
+    ResultType = llvm::ArrayType::get(EltTy, A->getZExtSize());
     break;
   }
   case Type::ExtVector:

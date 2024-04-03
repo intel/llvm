@@ -24,6 +24,11 @@
 #include <stdlib.h>
 #include <vector>
 
+#ifdef _WIN32
+#include <system_error>
+#include <windows.h>
+#endif
+
 using namespace sycl;
 using namespace std::literals;
 
@@ -136,23 +141,6 @@ static int printUsageAndExit() {
 // the filter environment variable is set.
 static void printWarningIfFiltersUsed(bool &SuppressNumberPrinting) {
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-  const char *filter = std::getenv("SYCL_DEVICE_FILTER");
-  if (filter) {
-    if (!DiscardFilters) {
-      std::cerr << "INFO: Output filtered by SYCL_DEVICE_FILTER "
-                << "environment variable, which is set to " << filter << "."
-                << std::endl;
-      std::cerr
-          << "To see device ids, use the --ignore-device-selectors CLI option."
-          << std::endl
-          << std::endl;
-      SuppressNumberPrinting = true;
-    } else
-      FilterEnvVars.push_back("SYCL_DEVICE_FILTER");
-  }
-#endif
-
   const char *ods_targets = std::getenv("ONEAPI_DEVICE_SELECTOR");
   if (ods_targets) {
     if (!DiscardFilters) {
@@ -187,7 +175,7 @@ static void printWarningIfFiltersUsed(bool &SuppressNumberPrinting) {
 // Unset filter related environment variables namely, SYCL_DEVICE_FILTER,
 // ONEAPI_DEVICE_SELECTOR, and SYCL_DEVICE_ALLOWLIST.
 static void unsetFilterEnvVars() {
-  for (auto it : FilterEnvVars) {
+  for (const auto &it : FilterEnvVars) {
 #ifdef _WIN32
     _putenv_s(it.c_str(), "");
 #else
@@ -195,6 +183,63 @@ static void unsetFilterEnvVars() {
 #endif
   }
 }
+
+/* On Windows, the sycl-ls executable and sycl DLL have different copies
+ *  of environment variables. So, just unsetting device filter env. vars
+ *  in sycl-ls won't reflect in sycl DLL. Therefore, on Windows, after
+ *  unsetting env. variables in the parent process, we spawn a child
+ *  sycl-ls process that inherits parents envirnonment.
+ */
+#ifdef _WIN32
+static int unsetFilterEnvVarsAndFork() {
+  // Unset all device filter enviornment variable.
+  unsetFilterEnvVars();
+
+  // Create a new sycl-ls process.
+  STARTUPINFO si;
+  memset(&si, 0, sizeof(si));
+  si.cb = sizeof(si);
+  // Redirect child process's stdout and stderr outputs to parent process.
+  si.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+  si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+  si.dwFlags |= STARTF_USESTDHANDLES;
+
+  PROCESS_INFORMATION pi;
+  if (!CreateProcess(NULL,             /* Applicatioon name. */
+                     GetCommandLine(), /* Current process's CLI input. */
+                     NULL,             /* Inherit security attributes. */
+                     NULL,             /* Thread security attributes. */
+                     TRUE,             /* Inherit handles from parent proc.*/
+                     0,                /* Creation flags. */
+                     NULL,             /* Inherit env. block from parent.*/
+                     NULL,             /* Inherit current directory. */
+                     &si, &pi)) {
+    // Unable to create a process. Print error message and abort.
+    std::string message = std::system_category().message(GetLastError());
+    std::cerr << message.c_str() << std::endl;
+
+    std::cerr << "Error creating a new sycl-ls process. Aborting!" << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  // Wait for child process to finish.
+  WaitForSingleObject(pi.hProcess, INFINITE);
+
+  // Check child process's exit code and propagate it.
+  DWORD exitCode;
+  if (!GetExitCodeProcess(pi.hProcess, &exitCode)) {
+    std::cerr << "Error getting exit code. Aborting!" << std::endl;
+    return EXIT_FAILURE;
+  }
+
+  assert(exitCode != STILL_ACTIVE &&
+         "The child process should have already terminated");
+
+  CloseHandle(pi.hProcess);
+  CloseHandle(pi.hThread);
+  return exitCode;
+}
+#endif
 
 int main(int argc, char **argv) {
 
@@ -218,9 +263,18 @@ int main(int argc, char **argv) {
   // the filter environment variable is set.
   printWarningIfFiltersUsed(SuppressNumberPrinting);
 
+  // On Windows, to print all devices available on the system,
+  // we spawn a child sycl-ls process with all device filter
+  // environment variables unset.
+#ifdef _WIN32
+  if (DiscardFilters && FilterEnvVars.size()) {
+    return unsetFilterEnvVarsAndFork();
+  }
+#endif
+
   try {
     // Unset all filter env. vars to get all available devices in the system.
-    if (DiscardFilters)
+    if (DiscardFilters && FilterEnvVars.size())
       unsetFilterEnvVars();
 
     const auto &Platforms = platform::get_platforms();

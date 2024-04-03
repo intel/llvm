@@ -99,6 +99,8 @@ enum class ExtensionID : uint32_t {
   Last,
 };
 
+enum class ExtInst : uint32_t { None, OpenCL };
+
 enum class BIsRepresentation : uint32_t { OpenCL12, OpenCL20, SPIRVFriendlyIR };
 
 enum class FPContractMode : uint32_t { On, Off, Fast };
@@ -160,11 +162,7 @@ public:
     GenKernelArgNameMD = ArgNameMD;
   }
 
-  void enableAllExtensions() {
-#define EXT(X) ExtStatusMap[ExtensionID::X] = true;
-#include "LLVMSPIRVExtensions.inc"
-#undef EXT
-  }
+  void enableAllExtensions();
 
   void enableGenArgNameMD() { GenKernelArgNameMD = true; }
 
@@ -179,6 +177,14 @@ public:
     Value = It->second;
     return true;
   }
+
+  void setExtInst(ExtInst Value) {
+    // --spirv-ext-inst supersedes --spirv-replace-fmuladd-with-ocl-mad
+    ReplaceLLVMFmulAddWithOpenCLMad = false;
+    ExtInstValue = Value;
+  }
+
+  ExtInst getExtInst() const { return ExtInstValue; }
 
   void setDesiredBIsRepresentation(BIsRepresentation Value) {
     DesiredRepresentationOfBIs = Value;
@@ -238,6 +244,8 @@ private:
   // SPIR-V to LLVM translation options
   bool GenKernelArgNameMD = false;
   std::unordered_map<uint32_t, uint64_t> ExternalSpecialization;
+  // Extended instruction set to use when translating from LLVM IR to SPIR-V
+  ExtInst ExtInstValue = ExtInst::None;
   // Representation of built-ins, which should be used while translating from
   // SPIR-V to back to LLVM IR
   BIsRepresentation DesiredRepresentationOfBIs = BIsRepresentation::OpenCL12;

@@ -654,7 +654,7 @@ public:
     return Barrier.HasnXSModifier;
   }
 
-  unsigned getReg() const override {
+  MCRegister getReg() const override {
     assert(Kind == k_Register && "Invalid access!");
     return Reg.RegNum;
   }
@@ -7939,7 +7939,7 @@ ParseStatus AArch64AsmParser::tryParseSVEPattern(OperandVector &Operands) {
 
     auto *MCE = dyn_cast<MCConstantExpr>(ImmVal);
     if (!MCE)
-      return ParseStatus::Failure;
+      return TokError("invalid operand for instruction");
 
     Pattern = MCE->getValue();
   } else {

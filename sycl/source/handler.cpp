@@ -29,6 +29,8 @@
 #include <sycl/info/info_desc.hpp>
 #include <sycl/stream.hpp>
 
+#include <sycl/ext/oneapi/memcpy2d.hpp>
+
 namespace sycl {
 inline namespace _V1 {
 
@@ -67,6 +69,12 @@ getPiImageCopyFlags(sycl::usm::alloc SrcPtrType, sycl::usm::alloc DstPtrType) {
   }
   throw sycl::exception(make_error_code(errc::invalid),
                         "Unknown copy destination location");
+}
+
+void *getValueFromDynamicParameter(
+    ext::oneapi::experimental::detail::dynamic_parameter_base
+        &DynamicParamBase) {
+  return sycl::detail::getSyclObjImpl(DynamicParamBase)->getValue();
 }
 
 } // namespace detail
@@ -158,6 +166,22 @@ event handler::finalize() {
           throw sycl::exception(make_error_code(errc::kernel_argument),
                                 "placeholder accessor must be bound by calling "
                                 "handler::require() before it can be used.");
+
+        // Check associated accessors
+        bool AccFound = false;
+        for (detail::ArgDesc &Acc : MAssociatedAccesors) {
+          if (Acc.MType == detail::kernel_param_kind_t::kind_accessor &&
+              static_cast<detail::Requirement *>(Acc.MPtr) == AccImpl) {
+            AccFound = true;
+            break;
+          }
+        }
+
+        if (!AccFound) {
+          throw sycl::exception(make_error_code(errc::kernel_argument),
+                                "placeholder accessor must be bound by calling "
+                                "handler::require() before it can be used.");
+        }
       }
     }
   }
@@ -173,12 +197,8 @@ event handler::finalize() {
           !MImpl->isStateExplicitKernelBundle()) {
         auto Dev = MGraph ? MGraph->getDevice() : MQueue->get_device();
         kernel_id KernelID =
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
             detail::ProgramManager::getInstance().getSYCLKernelID(
                 MKernelName.c_str());
-#else
-            detail::ProgramManager::getInstance().getSYCLKernelID(MKernelName);
-#endif
         bool KernelInserted = KernelBundleImpPtr->add_kernel(KernelID, Dev);
         // If kernel was not inserted and the bundle is in input mode we try
         // building it and trying to find the kernel in executable mode
@@ -237,11 +257,7 @@ event handler::finalize() {
       // uint32_t StreamID, uint64_t InstanceID, xpti_td* TraceEvent,
       int32_t StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
       auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
           StreamID, MKernel, MCodeLoc, MKernelName.c_str(), MQueue, MNDRDesc,
-#else
-          StreamID, MKernel, MCodeLoc, MKernelName, MQueue, MNDRDesc,
-#endif
           KernelBundleImpPtr, MArgs);
       auto EnqueueKernel = [&, CmdTraceEvent = CmdTraceEvent,
                             InstanceID = InstanceID]() {
@@ -291,11 +307,7 @@ event handler::finalize() {
           } else {
             Result = enqueueImpKernel(
                 MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
                 MKernelName.c_str(), RawEvents, NewEvent, nullptr,
-#else
-                MKernelName, RawEvents, NewEvent, nullptr,
-#endif
                 MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative);
           }
         }
@@ -317,12 +329,8 @@ event handler::finalize() {
         // Kernel only uses assert if it's non interop one
         bool KernelUsesAssert =
             !(MKernel && MKernel->isInterop()) &&
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
             detail::ProgramManager::getInstance().kernelUsesAssert(
                 MKernelName.c_str());
-#else
-            detail::ProgramManager::getInstance().kernelUsesAssert(MKernelName);
-#endif
         DiscardEvent = !KernelUsesAssert;
       }
 
@@ -358,11 +366,7 @@ event handler::finalize() {
     CommandGroup.reset(new detail::CGExecKernel(
         std::move(MNDRDesc), std::move(MHostKernel), std::move(MKernel),
         std::move(MImpl->MKernelBundle), std::move(CGData), std::move(MArgs),
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
         MKernelName.c_str(), std::move(MStreamStorage),
-#else
-        MKernelName, std::move(MStreamStorage),
-#endif
         std::move(MImpl->MAuxiliaryResources), MCGType,
         MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative, MCodeLoc));
     break;
@@ -585,6 +589,8 @@ event handler::finalize() {
 
     // Associate an event with this new node and return the event.
     GraphImpl->addEventForNode(GraphImpl, EventImpl, NodeImpl);
+
+    NodeImpl->MNDRangeUsed = MImpl->MNDRangeUsed;
 
     return detail::createSyclObjFromImpl<event>(EventImpl);
   }
@@ -892,11 +898,7 @@ detail::string handler::getKernelName() {
   return detail::string{MKernel->get_info<info::kernel::function_name>()};
 }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::verifyUsedKernelBundleInternal(detail::string_view KernelName) {
-#else
-void handler::verifyUsedKernelBundle(const std::string &KernelName) {
-#endif
   auto UsedKernelBundleImplPtr =
       getOrInsertHandlerKernelBundle(/*Insert=*/false);
   if (!UsedKernelBundleImplPtr)
@@ -1411,15 +1413,9 @@ id<2> handler::computeFallbackKernelBounds(size_t Width, size_t Height) {
   return id<2>{std::min(ItemLimit[0], Height), std::min(ItemLimit[1], Width)};
 }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::ext_intel_read_host_pipe(detail::string_view Name, void *Ptr,
                                        size_t Size, bool Block) {
   MImpl->HostPipeName = Name.data();
-#else
-void handler::ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
-                                       size_t Size, bool Block) {
-  MImpl->HostPipeName = Name;
-#endif
   MImpl->HostPipePtr = Ptr;
   MImpl->HostPipeTypeSize = Size;
   MImpl->HostPipeBlocking = Block;
@@ -1427,15 +1423,9 @@ void handler::ext_intel_read_host_pipe(const std::string &Name, void *Ptr,
   setType(detail::CG::ReadWriteHostPipe);
 }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 void handler::ext_intel_write_host_pipe(detail::string_view Name, void *Ptr,
                                         size_t Size, bool Block) {
   MImpl->HostPipeName = Name.data();
-#else
-void handler::ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
-                                        size_t Size, bool Block) {
-  MImpl->HostPipeName = Name;
-#endif
   MImpl->HostPipePtr = Ptr;
   MImpl->HostPipeTypeSize = Size;
   MImpl->HostPipeBlocking = Block;
@@ -1562,5 +1552,30 @@ std::tuple<std::array<size_t, 3>, bool> handler::getMaxWorkGroups_v2() {
   return {std::array<size_t, 3>{0, 0, 0}, false};
 }
 
+void handler::setNDRangeUsed(bool Value) { MImpl->MNDRangeUsed = Value; }
+
+void handler::registerDynamicParameter(
+    ext::oneapi::experimental::detail::dynamic_parameter_base &DynamicParamBase,
+    int ArgIndex) {
+  if (MQueue && MQueue->getCommandGraph()) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Dynamic Parameters cannot be used with Graph Queue recording.");
+  }
+  if (!MGraph) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Dynamic Parameters cannot be used with normal SYCL submissions");
+  }
+
+  auto ParamImpl = detail::getSyclObjImpl(DynamicParamBase);
+  if (ParamImpl->MGraph != this->MGraph) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Cannot use a Dynamic Parameter with a node associated with a graph "
+        "other than the one it was created with.");
+  }
+  MImpl->MDynamicParameters.emplace_back(ParamImpl.get(), ArgIndex);
+}
 } // namespace _V1
 } // namespace sycl

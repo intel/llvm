@@ -238,12 +238,13 @@ struct UnaryDeviceFunc {
 
   UnaryDeviceFunc(AccIn &In, AccOut &Out) : In(In), Out(Out) {}
 
-  void operator()(id<1> I) const SYCL_ESIMD_KERNEL {
-    unsigned int Offset = I * N * sizeof(T);
+  void operator()(nd_item<1> ndi) const SYCL_ESIMD_KERNEL {
+    auto gid = ndi.get_global_id(0);
+    unsigned int Offset = gid * N * sizeof(T);
     esimd::simd<T, N> Vx;
     Vx.copy_from(In, Offset);
 
-    if (I.get(0) % 2 == 0) {
+    if (gid % 2 == 0) {
       for (int J = 0; J < N; J++) {
         Kernel<T, N, Op, AllSca> DevF{};
         T Val = Vx[J];
@@ -269,13 +270,14 @@ struct BinaryDeviceFunc {
   BinaryDeviceFunc(AccIn &In1, AccIn &In2, AccOut &Out)
       : In1(In1), In2(In2), Out(Out) {}
 
-  void operator()(id<1> I) const SYCL_ESIMD_KERNEL {
-    unsigned int Offset = I * N * sizeof(T);
+  void operator()(nd_item<1> ndi) const SYCL_ESIMD_KERNEL {
+    auto gid = ndi.get_global_id(0);
+    unsigned int Offset = gid * N * sizeof(T);
     esimd::simd<T, N> V1(In1, Offset);
     esimd::simd<T, N> V2(In2, Offset);
     esimd::simd<T, N> V;
 
-    if (I.get(0) % 2 == 0) {
+    if (gid % 2 == 0) {
       int Ind = 0;
       {
         Kernel<T, N, Op, AllSca> DevF{};
