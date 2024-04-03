@@ -37,22 +37,11 @@ template <typename T> void check() {
 }
 
 SYCL_EXTERNAL void foo() {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-
   check<int>();
   check<sycl::vec<sycl::opencl::cl_uchar, 4>>();
   check<SomeStructure>();
   check<sycl::int4>();
   check<sycl::long16>();
-
-#else // __INTEL_PREVIEW_BREAKING_CHANGES
-
-#ifdef __SYCL_DEVICE_ONLY__
-  check<int>();
-  check<sycl::vec<sycl::opencl::cl_uchar, 4>>();
-  check<SomeStructure>();
-#endif // __SYCL_DEVICE_ONLY
-#endif //__INTEL_PREVIEW_BREAKING_CHANGES
 
   check<SomeMarrayStructure>();
 }

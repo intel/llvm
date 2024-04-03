@@ -429,8 +429,12 @@ template <typename To, typename From> auto convertFromOpenCLTypeFor(From &&x) {
     using OpenCLType = decltype(convertToOpenCLType(std::declval<To>()));
     static_assert(std::is_same_v<std::remove_reference_t<From>, OpenCLType>);
     static_assert(sizeof(OpenCLType) == sizeof(To));
-    if constexpr (is_vec_v<To> && is_vec_v<From>)
-      return x.template as<To>();
+    using To_noref = std::remove_reference_t<To>;
+    using From_noref = std::remove_reference_t<From>;
+    if constexpr (is_vec_v<To_noref> && is_vec_v<From_noref>)
+      return x.template as<To_noref>();
+    else if constexpr (is_vec_v<To_noref> && is_ext_vector_v<From_noref>)
+      return To_noref{bit_cast<typename To_noref::vector_t>(x)};
     else
       return static_cast<To>(x);
   }
