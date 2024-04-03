@@ -2,9 +2,10 @@
 
 // Template for private alloca tests.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <sycl/ext/oneapi/experimental/alloca.hpp>
+#include <sycl/specialization_id.hpp>
 
 template <typename ElementType, typename SizeType,
           sycl::access::decorated DecorateAddress>

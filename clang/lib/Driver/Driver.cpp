@@ -7392,19 +7392,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         break;
       }
 
-      // When performing -fsycl based compilations and generating dependency
-      // information, perform a specific dependency generation compilation which
-      // is not based on the source + footer compilation.
-      if (Phase == phases::Preprocess && Args.hasArg(options::OPT_fsycl) &&
-          Args.hasArg(options::OPT_M_Group) &&
-          !Args.hasArg(options::OPT_fno_sycl_use_footer)) {
-        Action *PreprocessAction =
-            C.MakeAction<PreprocessJobAction>(Current, types::TY_Dependencies);
-        PreprocessAction->propagateHostOffloadInfo(Action::OFK_SYCL,
-                                                   /*BoundArch=*/nullptr);
-        Actions.push_back(PreprocessAction);
-      }
-
       if (Phase == phases::Precompile && ExtractAPIAction) {
         ExtractAPIAction->addHeaderInput(Current);
         Current = nullptr;
@@ -8161,9 +8148,6 @@ void Driver::BuildJobs(Compilation &C) const {
   // we are also generating .o files. So we allow more than one output file in
   // this case as well.
   //
-  // Preprocessing job performed for -fsycl enabled compilation specifically
-  // for dependency generation (TY_Dependencies)
-  //
   // OffloadClass of type TY_Nothing: device-only output will place many outputs
   // into a single offloading action. We should count all inputs to the action
   // as outputs. Also ignore device-only outputs if we're compiling with
@@ -8179,10 +8163,7 @@ void Driver::BuildJobs(Compilation &C) const {
              A->getKind() == clang::driver::Action::CompileJobClass &&
              0 == NumIfsOutputs++) ||
             (A->getKind() == Action::BindArchClass && A->getInputs().size() &&
-             A->getInputs().front()->getKind() == Action::IfsMergeJobClass) ||
-            (A->getKind() == Action::PreprocessJobClass &&
-             A->getType() == types::TY_Dependencies &&
-             C.getArgs().hasArg(options::OPT_fsycl))))
+             A->getInputs().front()->getKind() == Action::IfsMergeJobClass)))
         ++NumOutputs;
       else if (A->getKind() == Action::OffloadClass &&
                A->getType() == types::TY_Nothing &&
