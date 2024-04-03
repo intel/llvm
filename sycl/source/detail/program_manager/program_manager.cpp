@@ -1118,7 +1118,7 @@ getDeviceLibPrograms(const ContextImplPtr Context,
   // one underlying device doesn't support cl_khr_fp64.
   std::string DevExtList =
       Context->getPlatformImpl()->getDeviceImpl(Device)->get_device_info_string(
-          PiInfoCode<info::device::extensions>::value);
+          UrInfoCode<info::device::extensions>::value);
   const bool fp64Support = (DevExtList.npos != DevExtList.find("cl_khr_fp64"));
 
   // Load a fallback library for an extension if the device does not

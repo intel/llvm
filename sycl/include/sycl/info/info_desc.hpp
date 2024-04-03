@@ -10,6 +10,7 @@
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/pi.h> // for PI_DEVICE_AFFINITY_DOMAIN_L...
+#include <ur_api.h>
 
 // FIXME: .def files included to this file use all sorts of SYCL objects like
 // id, range, traits, etc. We have to include some headers before including .def
@@ -51,15 +52,16 @@ namespace context {
 } // namespace context
 
 // A.3 Device information descriptors
-enum class device_type : pi_uint64 {
-  cpu = PI_DEVICE_TYPE_CPU,
-  gpu = PI_DEVICE_TYPE_GPU,
-  accelerator = PI_DEVICE_TYPE_ACC,
+enum class device_type : pi_uint32 {
+  cpu = UR_DEVICE_TYPE_CPU,
+  gpu = UR_DEVICE_TYPE_GPU,
+  accelerator = UR_DEVICE_TYPE_FPGA,
   // TODO: figure out if we need all the below in PI
-  custom = PI_DEVICE_TYPE_CUSTOM,
+  // custom = PI_DEVICE_TYPE_CUSTOM,
+  custom,
   automatic,
   host,
-  all = PI_DEVICE_TYPE_ALL
+  all = UR_DEVICE_TYPE_ALL
 };
 
 enum class partition_property : pi_device_partition_property {

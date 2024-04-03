@@ -146,9 +146,9 @@ public:
             "device's number of available compute queue indices.");
     }
     if (has_property<
-            ext::codeplay::experimental::property::queue::enable_fusion>() &&
+            ext::codeplay::experimental::property::queue::enable_fusion>() /*&&
         !MDevice->get_info<
-            ext::codeplay::experimental::info::device::supports_fusion>()) {
+            ext::codeplay::experimental::info::device::supports_fusion>()*/) {
       throw sycl::exception(
           make_error_code(errc::invalid),
           "Cannot enable fusion if device does not support fusion");

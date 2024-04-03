@@ -36,6 +36,18 @@ device_impl::device_impl(sycl::detail::pi::PiDevice Device,
     : device_impl(reinterpret_cast<pi_native_handle>(nullptr), Device, nullptr,
                   Plugin) {}
 
+/// Constructs a SYCL device instance using the provided
+/// PI device instance.
+device_impl::device_impl(ur_device_handle_t Device, PlatformImplPtr Platform)
+    : device_impl(reinterpret_cast<pi_native_handle>(nullptr), Device, Platform,
+                  Platform->getUrPlugin()) {}
+
+/// Constructs a SYCL device instance using the provided
+/// PI device instance.
+device_impl::device_impl(ur_device_handle_t Device, const UrPluginPtr &Plugin)
+    : device_impl(reinterpret_cast<pi_native_handle>(nullptr), Device, nullptr,
+                  Plugin) {}
+
 device_impl::device_impl(pi_native_handle InteropDeviceHandle,
                          sycl::detail::pi::PiDevice Device,
                          PlatformImplPtr Platform, const PluginPtr &Plugin)
@@ -83,12 +95,57 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
       has_extension(PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT);
 }
 
+device_impl::device_impl(pi_native_handle InteropDeviceHandle,
+                         ur_device_handle_t Device, PlatformImplPtr Platform,
+                         const UrPluginPtr &Plugin)
+    : MUrDevice(Device), MIsHostDevice(false),
+      MDeviceHostBaseTime(std::make_pair(0, 0)) {
+
+  bool InteroperabilityConstructor = false;
+  if (Device == nullptr) {
+    assert(InteropDeviceHandle);
+    // Get PI device from the raw device handle.
+    // NOTE: this is for OpenCL interop only (and should go away).
+    // With SYCL-2020 BE generalization "make" functions are used instead.
+    Plugin->call(urDeviceCreateWithNativeHandle,
+                 reinterpret_cast<ur_native_handle_t>(InteropDeviceHandle),
+                 nullptr, nullptr, &MUrDevice);
+    InteroperabilityConstructor = true;
+  }
+
+  // TODO catch an exception and put it to list of asynchronous exceptions
+  Plugin->call(urDeviceGetInfo, MUrDevice, UR_DEVICE_INFO_TYPE,
+               sizeof(ur_device_type_t), &MUrType, nullptr);
+
+  // No need to set MRootDevice when MAlwaysRootDevice is true
+  if ((Platform == nullptr) || !Platform->MAlwaysRootDevice) {
+    // TODO catch an exception and put it to list of asynchronous exceptions
+    Plugin->call(urDeviceGetInfo, MUrDevice, UR_DEVICE_INFO_PARENT_DEVICE,
+                 sizeof(ur_device_handle_t), &MUrRootDevice, nullptr);
+  }
+
+  if (!InteroperabilityConstructor) {
+    // TODO catch an exception and put it to list of asynchronous exceptions
+    // Interoperability Constructor already calls DeviceRetain in
+    // piextDeviceFromNative.
+    Plugin->call(urDeviceRetain, MUrDevice);
+  }
+
+  // set MPlatform
+  if (!Platform) {
+    Platform = platform_impl::getPlatformFromUrDevice(MUrDevice, Plugin);
+  }
+  MPlatform = Platform;
+
+  MIsAssertFailSupported =
+      has_extension(PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT);
+}
+
 device_impl::~device_impl() {
   if (!MIsHostDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    const PluginPtr &Plugin = getPlugin();
-    sycl::detail::pi::PiResult Err =
-        Plugin->call_nocheck<PiApiKind::piDeviceRelease>(MDevice);
+    const UrPluginPtr &UrPlugin = getUrPlugin();
+    ur_result_t Err = UrPlugin->call_nocheck(urDeviceRelease, MUrDevice);
     __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
   }
 }
@@ -118,10 +175,10 @@ platform device_impl::get_platform() const {
 template <typename Param>
 typename Param::return_type device_impl::get_info() const {
   if (is_host()) {
-    return get_device_info_host<Param>();
+    // return get_device_info_host<Param>();
   }
   return get_device_info<Param>(
-      MPlatform->getOrMakeDeviceImpl(MDevice, MPlatform));
+      MPlatform->getOrMakeDeviceImpl(MUrDevice, MPlatform));
 }
 // Explicitly instantiate all device info traits
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
@@ -184,7 +241,7 @@ bool device_impl::has_extension(const std::string &ExtensionName) const {
     // TODO: implement extension management for host device;
     return false;
   std::string AllExtensionNames =
-      get_device_info_string(PiInfoCode<info::device::extensions>::value);
+      get_device_info_string(UR_DEVICE_INFO_EXTENSIONS);
   return (AllExtensionNames.find(ExtensionName) != std::string::npos);
 }
 
@@ -396,79 +453,82 @@ bool device_impl::has(aspect Aspect) const {
     return get_info<info::device::ext_intel_mem_channel>();
   case aspect::usm_atomic_host_allocations:
     return is_host() ||
-           (get_device_info_impl<pi_usm_capabilities,
+           (get_device_info_impl<ur_device_usm_access_capability_flags_t,
                                  info::device::usm_host_allocations>::
-                get(MPlatform->getDeviceImpl(MDevice)) &
-            PI_USM_CONCURRENT_ATOMIC_ACCESS);
+                get(MPlatform->getDeviceImpl(MUrDevice)) &
+            UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
   case aspect::usm_shared_allocations:
     return get_info<info::device::usm_shared_allocations>();
   case aspect::usm_atomic_shared_allocations:
     return is_host() ||
-           (get_device_info_impl<pi_usm_capabilities,
+           (get_device_info_impl<ur_device_usm_access_capability_flags_t,
                                  info::device::usm_shared_allocations>::
-                get(MPlatform->getDeviceImpl(MDevice)) &
-            PI_USM_CONCURRENT_ATOMIC_ACCESS);
+                get(MPlatform->getDeviceImpl(MUrDevice)) &
+            UR_DEVICE_USM_ACCESS_CAPABILITY_FLAG_ATOMIC_CONCURRENT_ACCESS);
   case aspect::usm_restricted_shared_allocations:
     return get_info<info::device::usm_restricted_shared_allocations>();
   case aspect::usm_system_allocations:
     return get_info<info::device::usm_system_allocations>();
   case aspect::ext_intel_device_id:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_DEVICE_ID, 0, nullptr, &return_size) ==
-           PI_SUCCESS;
+    return getUrPlugin()->call_nocheck(urDeviceGetInfo, MUrDevice,
+                                       UR_DEVICE_INFO_DEVICE_ID, 0, nullptr,
+                                       &return_size) == UR_RESULT_SUCCESS;
   case aspect::ext_intel_pci_address:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_PCI_ADDRESS, 0, nullptr, &return_size) ==
-           PI_SUCCESS;
+    return getUrPlugin()->call_nocheck(urDeviceGetInfo, MUrDevice,
+                                       UR_DEVICE_INFO_PCI_ADDRESS, 0, nullptr,
+                                       &return_size) == UR_RESULT_SUCCESS;
   case aspect::ext_intel_gpu_eu_count:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_EU_COUNT, 0, nullptr,
-               &return_size) == PI_SUCCESS;
+    return getUrPlugin()->call_nocheck(urDeviceGetInfo, MUrDevice,
+                                       UR_DEVICE_INFO_GPU_EU_COUNT, 0, nullptr,
+                                       &return_size) == UR_RESULT_SUCCESS;
   case aspect::ext_intel_gpu_eu_simd_width:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH, 0, nullptr,
-               &return_size) == PI_SUCCESS;
+    return getUrPlugin()->call_nocheck(
+               urDeviceGetInfo, MUrDevice, UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH, 0,
+               nullptr, &return_size) == UR_RESULT_SUCCESS;
   case aspect::ext_intel_gpu_slices:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_SLICES, 0, nullptr, &return_size) ==
-           PI_SUCCESS;
+    return getUrPlugin()->call_nocheck(urDeviceGetInfo, MUrDevice,
+                                       UR_DEVICE_INFO_GPU_EU_SLICES, 0, nullptr,
+                                       &return_size) == UR_RESULT_SUCCESS;
   case aspect::ext_intel_gpu_subslices_per_slice:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE, 0, nullptr,
-               &return_size) == PI_SUCCESS;
+    return getUrPlugin()->call_nocheck(urDeviceGetInfo, MUrDevice,
+                                       UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE,
+                                       0, nullptr,
+                                       &return_size) == UR_RESULT_SUCCESS;
   case aspect::ext_intel_gpu_eu_count_per_subslice:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE, 0, nullptr,
-               &return_size) == PI_SUCCESS;
+    return getUrPlugin()->call_nocheck(urDeviceGetInfo, MUrDevice,
+                                       UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE,
+                                       0, nullptr,
+                                       &return_size) == UR_RESULT_SUCCESS;
   case aspect::ext_intel_gpu_hw_threads_per_eu:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU, 0, nullptr,
-               &return_size) == PI_SUCCESS;
+    return getUrPlugin()->call_nocheck(
+               urDeviceGetInfo, MUrDevice, UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU,
+               0, nullptr, &return_size) == UR_RESULT_SUCCESS;
   case aspect::ext_intel_free_memory:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY, 0, nullptr,
-               &return_size) == PI_SUCCESS;
+    return getUrPlugin()->call_nocheck(
+               urDeviceGetInfo, MUrDevice, UR_DEVICE_INFO_GLOBAL_MEM_FREE, 0,
+               nullptr, &return_size) == UR_RESULT_SUCCESS;
   case aspect::ext_intel_memory_clock_rate:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE, 0, nullptr,
-               &return_size) == PI_SUCCESS;
+    return getUrPlugin()->call_nocheck(
+               urDeviceGetInfo, MUrDevice, UR_DEVICE_INFO_MEMORY_CLOCK_RATE, 0,
+               nullptr, &return_size) == UR_RESULT_SUCCESS;
   case aspect::ext_intel_memory_bus_width:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH, 0, nullptr,
-               &return_size) == PI_SUCCESS;
+    return getUrPlugin()->call_nocheck(
+               urDeviceGetInfo, MUrDevice, UR_DEVICE_INFO_MEMORY_BUS_WIDTH, 0,
+               nullptr, &return_size) == UR_RESULT_SUCCESS;
   case aspect::ext_intel_device_info_uuid: {
-    auto Result = getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-        MDevice, PI_DEVICE_INFO_UUID, 0, nullptr, &return_size);
-    if (Result != PI_SUCCESS) {
+    auto Result = getUrPlugin()->call_nocheck(urDeviceGetInfo, MUrDevice,
+                                              UR_DEVICE_INFO_UUID, 0, nullptr,
+                                              &return_size);
+    if (Result != UR_RESULT_SUCCESS) {
       return false;
     }
 
     assert(return_size <= 16);
     unsigned char UUID[16];
 
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_UUID, 16 * sizeof(unsigned char), UUID,
-               nullptr) == PI_SUCCESS;
+    return getUrPlugin()->call_nocheck(
+               urDeviceGetInfo, MUrDevice, UR_DEVICE_INFO_UUID,
+               16 * sizeof(unsigned char), UUID, nullptr) == UR_RESULT_SUCCESS;
   }
   case aspect::ext_intel_max_mem_bandwidth:
     // currently not supported
@@ -480,106 +540,117 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::ext_oneapi_cuda_async_barrier: {
     int async_barrier_supported;
     bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_CUDA_ASYNC_BARRIER, sizeof(int),
-            &async_barrier_supported, nullptr) == PI_SUCCESS;
+        getUrPlugin()->call_nocheck(urDeviceGetInfo, MUrDevice,
+                                    UR_DEVICE_INFO_ASYNC_BARRIER, sizeof(int),
+                                    &async_barrier_supported,
+                                    nullptr) == UR_RESULT_SUCCESS;
     return call_successful && async_barrier_supported;
   }
   case aspect::ext_intel_legacy_image: {
-    pi_bool legacy_image_support = PI_FALSE;
+    ur_bool_t legacy_image_support = false;
     bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_DEVICE_INFO_IMAGE_SUPPORT, sizeof(pi_bool),
-            &legacy_image_support, nullptr) == PI_SUCCESS;
+        getUrPlugin()->call_nocheck(urDeviceGetInfo, MUrDevice,
+                                    UR_DEVICE_INFO_IMAGE_SUPPORTED,
+                                    sizeof(ur_bool_t), &legacy_image_support,
+                                    nullptr) == UR_RESULT_SUCCESS;
     return call_successful && legacy_image_support;
   }
   case aspect::ext_oneapi_bindless_images: {
-    pi_bool support = PI_FALSE;
+    ur_bool_t support = false;
     bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+        getUrPlugin()->call_nocheck(urDeviceGetInfo, MUrDevice,
+                                    UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP,
+                                    sizeof(ur_bool_t), &support,
+                                    nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
   case aspect::ext_oneapi_bindless_images_shared_usm: {
-    pi_bool support = PI_FALSE;
+    ur_bool_t support = false;
     bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice,
-            PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+        getUrPlugin()->call_nocheck(
+            urDeviceGetInfo, MUrDevice,
+            UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP,
+            sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
   case aspect::ext_oneapi_bindless_images_1d_usm: {
-    pi_bool support = PI_FALSE;
+    ur_bool_t support = false;
     bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+        getUrPlugin()->call_nocheck(
+            urDeviceGetInfo, MUrDevice,
+            UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP,
+            sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
   case aspect::ext_oneapi_bindless_images_2d_usm: {
-    pi_bool support = PI_FALSE;
+    ur_bool_t support = false;
     bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+        getUrPlugin()->call_nocheck(
+            urDeviceGetInfo, MUrDevice,
+            UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP,
+            sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
   case aspect::ext_oneapi_interop_memory_import: {
-    pi_bool support = PI_FALSE;
+    ur_bool_t support = false;
     bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+        getUrPlugin()->call_nocheck(
+            urDeviceGetInfo, MUrDevice,
+            UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP, sizeof(ur_bool_t),
+            &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
   case aspect::ext_oneapi_interop_memory_export: {
-    pi_bool support = PI_FALSE;
+    ur_bool_t support = false;
     bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+        getUrPlugin()->call_nocheck(
+            urDeviceGetInfo, MUrDevice,
+            UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP, sizeof(ur_bool_t),
+            &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
   case aspect::ext_oneapi_interop_semaphore_import: {
-    pi_bool support = PI_FALSE;
+    ur_bool_t support = false;
     bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+        getUrPlugin()->call_nocheck(
+            urDeviceGetInfo, MUrDevice,
+            UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP,
+            sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
   case aspect::ext_oneapi_interop_semaphore_export: {
-    pi_bool support = PI_FALSE;
+    ur_bool_t support = false;
     bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+        getUrPlugin()->call_nocheck(
+            urDeviceGetInfo, MUrDevice,
+            UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP,
+            sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
   case aspect::ext_oneapi_mipmap: {
-    pi_bool support = PI_FALSE;
+    ur_bool_t support = false;
     bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_SUPPORT, sizeof(pi_bool),
-            &support, nullptr) == PI_SUCCESS;
+        getUrPlugin()->call_nocheck(
+            urDeviceGetInfo, MUrDevice, UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP,
+            sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
   case aspect::ext_oneapi_mipmap_anisotropy: {
-    pi_bool support = PI_FALSE;
+    ur_bool_t support = false;
     bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+        getUrPlugin()->call_nocheck(
+            urDeviceGetInfo, MUrDevice,
+            UR_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT_EXP, sizeof(ur_bool_t),
+            &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
   case aspect::ext_oneapi_mipmap_level_reference: {
-    pi_bool support = PI_FALSE;
+    ur_bool_t support = false;
     bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+        getUrPlugin()->call_nocheck(
+            urDeviceGetInfo, MUrDevice,
+            UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP,
+            sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
   case aspect::ext_oneapi_bindless_sampled_image_fetch_1d_usm: {
@@ -651,11 +722,11 @@ bool device_impl::has(aspect Aspect) const {
     return call_successful && support;
   }
   case aspect::ext_intel_esimd: {
-    pi_bool support = PI_FALSE;
+    ur_bool_t support = false;
     bool call_successful =
-        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT, sizeof(pi_bool),
-            &support, nullptr) == PI_SUCCESS;
+        getUrPlugin()->call_nocheck(
+            urDeviceGetInfo, MUrDevice, UR_DEVICE_INFO_ESIMD_SUPPORT,
+            sizeof(ur_bool_t), &support, nullptr) == UR_RESULT_SUCCESS;
     return call_successful && support;
   }
   case aspect::ext_oneapi_ballot_group:
@@ -697,37 +768,39 @@ bool device_impl::has(aspect Aspect) const {
     if (getBackend() != backend::ext_oneapi_level_zero)
       return false;
 
-    typename sycl_to_pi<device>::type Result = nullptr;
-    bool CallSuccessful = getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-                              getHandleRef(),
-                              PiInfoCode<ext::oneapi::experimental::info::
-                                             device::composite_device>::value,
-                              sizeof(Result), &Result, nullptr) == PI_SUCCESS;
+    typename sycl_to_ur<device>::type Result;
+    bool CallSuccessful = getUrPlugin()->call_nocheck(
+        urDeviceGetInfo, getUrHandleRef(),
+        UrInfoCode<
+            ext::oneapi::experimental::info::device::composite_device>::value,
+        sizeof(Result), &Result, nullptr);
 
     return CallSuccessful && Result != nullptr;
   }
   case aspect::ext_oneapi_graph: {
-    pi_bool SupportsCommandBufferUpdate = false;
+    bool SupportsCommandBufferUpdate = false;
     bool CallSuccessful =
-        getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT,
+        getUrPlugin()->call_nocheck(
+            urDeviceGetInfo, MUrDevice,
+            UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP,
             sizeof(SupportsCommandBufferUpdate), &SupportsCommandBufferUpdate,
-            nullptr) == PI_SUCCESS;
+            nullptr) == UR_RESULT_SUCCESS;
     if (!CallSuccessful) {
-      return PI_FALSE;
+      return false;
     }
 
     return has(aspect::ext_oneapi_limited_graph) && SupportsCommandBufferUpdate;
   }
   case aspect::ext_oneapi_limited_graph: {
-    pi_bool SupportsCommandBuffers = false;
+    bool SupportsCommandBuffers = false;
     bool CallSuccessful =
-        getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_SUPPORT,
-            sizeof(SupportsCommandBuffers), &SupportsCommandBuffers,
-            nullptr) == PI_SUCCESS;
+        getUrPlugin()->call_nocheck(urDeviceGetInfo, MUrDevice,
+                                    UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP,
+                                    sizeof(SupportsCommandBuffers),
+                                    &SupportsCommandBuffers,
+                                    nullptr) == UR_RESULT_SUCCESS;
     if (!CallSuccessful) {
-      return PI_FALSE;
+      return false;
     }
 
     return SupportsCommandBuffers;
@@ -751,7 +824,7 @@ bool device_impl::has(aspect Aspect) const {
   }
   }
   throw runtime_error("This device aspect has not been implemented yet.",
-                      PI_ERROR_INVALID_DEVICE);
+                      UR_RESULT_ERROR_INVALID_DEVICE);
 }
 
 std::shared_ptr<device_impl> device_impl::getHostDeviceImpl() {

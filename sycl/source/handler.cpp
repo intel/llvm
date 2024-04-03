@@ -1701,15 +1701,15 @@ void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
 
 std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
   auto Dev = detail::getSyclObjImpl(detail::getDeviceFromHandler(*this));
-  std::array<size_t, 3> PiResult = {};
-  auto Ret = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-      Dev->getHandleRef(),
-      PiInfoCode<
-          ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
-      sizeof(PiResult), &PiResult, nullptr);
-  if (Ret == PI_SUCCESS) {
-    return PiResult;
-  }
+  std::array<size_t, 3> PiResult = {}; /*
+   auto Ret = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+       Dev->getHandleRef(),
+       UrInfoCode<
+           ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
+       sizeof(PiResult), &PiResult, nullptr);*/
+                                       //  if (Ret == PI_SUCCESS) {
+  return PiResult;
+  //}
   return {};
 }
 
