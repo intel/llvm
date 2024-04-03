@@ -7,9 +7,9 @@
 // heavy L0 initialization in the hot reportable path.
 //
 // CHECK-LABEL: HOT HOT HOT
-// CHECK-NOT: zeCommandQueueCreate
-// CHECK-NOT: zeCommandListCreate
-// CHECK-NOT: zeFenceCreate
+// CHECK-NOT: ZE ---> zeCommandQueueCreate
+// CHECK-NOT: ZE ---> zeCommandListCreate
+// CHECK-NOT: ZE ---> zeFenceCreate
 //
 
 #include <CL/sycl.hpp>
