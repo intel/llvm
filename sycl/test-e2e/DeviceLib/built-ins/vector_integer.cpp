@@ -68,22 +68,21 @@ int main() {
     assert(r2 == 3);
   }
 
-  // max (longlong2)
+  // max (64-bit)
   {
-    using longlong2 = s::vec<long long, 2>;
-    longlong2 r{0};
+    using T = s::vec<int64_t, 2>;
+    T r{0};
     {
-      s::buffer<longlong2, 1> BufR(&r, s::range<1>(1));
+      s::buffer<T, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
-        cgh.single_task<class maxSLL2SLL1>([=]() {
-          AccR[0] = s::max(longlong2{5, 3}, 2ll);
-        });
+        cgh.single_task<class maxSLL2SLL1>(
+            [=]() { AccR[0] = s::max(T{5, 3}, 2ll); });
       });
     }
-    long long r1 = r.x();
-    long long r2 = r.y();
+    int64_t r1 = r.x();
+    int64_t r2 = r.y();
     assert(r1 == 5);
     assert(r2 == 3);
   }
@@ -107,22 +106,21 @@ int main() {
     assert(r2 == 3);
   }
 
-  // max (ulonglong2)
+  // max (unsigned 64-bit)
   {
-    using ulonglong2 = s::vec<unsigned long long, 2>;
-    ulonglong2 r{0};
+    using T = s::vec<uint64_t, 2>;
+    T r{0};
     {
-      s::buffer<ulonglong2, 1> BufR(&r, s::range<1>(1));
+      s::buffer<T, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
-        cgh.single_task<class maxULL2ULL1>([=]() {
-          AccR[0] = s::max(ulonglong2{5, 3}, 2ull);
-        });
+        cgh.single_task<class maxULL2ULL1>(
+            [=]() { AccR[0] = s::max(T{5, 3}, 2ull); });
       });
     }
-    unsigned long long r1 = r.x();
-    unsigned long long r2 = r.y();
+    uint64_t r1 = r.x();
+    uint64_t r2 = r.y();
     assert(r1 == 5);
     assert(r2 == 3);
   }
@@ -222,22 +220,20 @@ int main() {
     assert(r2 == 2);
   }
 
-  // abs (longlong)
+  // abs (64-bit)
   {
-    using longlong2 = s::vec<long long, 2>;
-    longlong2 r{0};
+    using T = s::vec<int64_t, 2>;
+    T r{0};
     {
-      s::buffer<longlong2, 1> BufR(&r, s::range<1>(1));
+      s::buffer<T, 1> BufR(&r, s::range<1>(1));
       s::queue myQueue;
       myQueue.submit([&](s::handler &cgh) {
         auto AccR = BufR.get_access<s::access::mode::write>(cgh);
-        cgh.single_task<class absSL2>([=]() {
-          AccR[0] = s::abs(longlong2{-5, -2});
-        });
+        cgh.single_task<class absSL2>([=]() { AccR[0] = s::abs(T{-5, -2}); });
       });
     }
-    long long r1 = r.x();
-    long long r2 = r.y();
+    int64_t r1 = r.x();
+    int64_t r2 = r.y();
     assert(r1 == 5);
     assert(r2 == 2);
   }
