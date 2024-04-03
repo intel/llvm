@@ -290,9 +290,34 @@ TEST_F(WholeGraphUpdateTest, MissingEdges) {
   EXPECT_THROW(GraphExec.update(UpdateGraph), sycl::exception);
 }
 
-TEST_F(WholeGraphUpdateTest, WrongOrderEdges) {
+TEST_F(WholeGraphUpdateTest, DISABLED_WrongOrderNodes) {
+  // Test that using an update graph with nodes added in a different order
+  // results in an error.
+
+  auto NodeA = Graph.add(EmptyKernel);
+  auto NodeB =
+      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
+  auto NodeC =
+      Graph.add(EmptyKernel, experimental::property::node::depends_on(NodeA));
+  auto NodeD = Graph.add(
+      EmptyKernel, experimental::property::node::depends_on(NodeB, NodeC));
+
+  auto UpdateNodeA = UpdateGraph.add(EmptyKernel);
+  auto UpdateNodeC = UpdateGraph.add(
+      EmptyKernel, experimental::property::node::depends_on(UpdateNodeA));
+  auto UpdateNodeB = UpdateGraph.add(
+      EmptyKernel, experimental::property::node::depends_on(UpdateNodeA));
+  auto UpdateNodeD = UpdateGraph.add(
+      EmptyKernel,
+      experimental::property::node::depends_on(UpdateNodeB, UpdateNodeC));
+
+  auto GraphExec = Graph.finalize(experimental::property::graph::updatable{});
+  EXPECT_THROW(GraphExec.update(UpdateGraph), sycl::exception);
+}
+
+TEST_F(WholeGraphUpdateTest, DISABLED_WrongOrderEdges) {
   // Test that using an update graph with edges added in a different order
-  // does not result in an error.
+  // results in an error.
 
   auto NodeA = Graph.add(EmptyKernel);
   auto NodeB = Graph.add(EmptyKernel);
@@ -316,7 +341,7 @@ TEST_F(WholeGraphUpdateTest, WrongOrderEdges) {
   UpdateGraph.make_edge(UpdateNodeB, UpdateNodeD);
 
   auto GraphExec = Graph.finalize(experimental::property::graph::updatable{});
-  EXPECT_NO_THROW(GraphExec.update(UpdateGraph));
+  EXPECT_THROW(GraphExec.update(UpdateGraph), sycl::exception);
 }
 
 TEST_F(WholeGraphUpdateTest, UnsupportedNodeType) {

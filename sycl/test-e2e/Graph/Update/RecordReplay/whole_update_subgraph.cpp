@@ -5,6 +5,8 @@
 // Extra run to check for immediate-command-list in Level Zero
 // RUN: %if level_zero && linux %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
-#define GRAPH_E2E_EXPLICIT
+// REQUIRES: aspect-usm_shared_allocations
 
-#include "../Inputs/whole_update_double_buffer.cpp"
+#define GRAPH_E2E_RECORD_REPLAY
+
+#include "../../Inputs/whole_update_subgraph.cpp"

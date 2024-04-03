@@ -7,4 +7,4 @@
 
 #define GRAPH_E2E_EXPLICIT
 
-#include "../Inputs/whole_update_usm.cpp"
+#include "../../Inputs/whole_update_double_buffer.cpp"

@@ -1171,23 +1171,25 @@ void exec_graph_impl::update(std::shared_ptr<graph_impl> GraphImpl) {
 
   if (MNodeStorage.size() != GraphImpl->MNodeStorage.size()) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
-                          "Mismatch found in the number of nodes. The graphs "
-                          "must have a matching topology.");
+                          "Cannot update using a graph with a different "
+                          "topology. Mismatch found in the number of nodes.");
   } else {
     for (uint32_t i = 0; i < MNodeStorage.size(); ++i) {
       if (MNodeStorage[i]->MSuccessors.size() !=
               GraphImpl->MNodeStorage[i]->MSuccessors.size() ||
           MNodeStorage[i]->MPredecessors.size() !=
               GraphImpl->MNodeStorage[i]->MPredecessors.size()) {
-        throw sycl::exception(sycl::make_error_code(errc::invalid),
-                              "Mismatch found in the number of edges. The "
-                              "graphs must have a matching topology.");
+        throw sycl::exception(
+            sycl::make_error_code(errc::invalid),
+            "Cannot update using a graph with a different topology. Mismatch "
+            "found in the number of edges.");
       }
 
       if (MNodeStorage[i]->MCGType != GraphImpl->MNodeStorage[i]->MCGType) {
-        throw sycl::exception(sycl::make_error_code(errc::invalid),
-                              "Mismatch found in the type of nodes. Each pair "
-                              "of nodes being updated must have the same type");
+        throw sycl::exception(
+            sycl::make_error_code(errc::invalid),
+            "Cannot update using a graph with mismatched node types. Each pair "
+            "of nodes being updated must have the same type");
       }
     }
   }

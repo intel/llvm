@@ -7,6 +7,6 @@
 
 // REQUIRES: aspect-usm_shared_allocations
 
-#define GRAPH_E2E_RECORD_REPLAY
+#define GRAPH_E2E_EXPLICIT
 
-#include "../Inputs/whole_update_subgraph.cpp"
+#include "../../Inputs/whole_update_subgraph.cpp"
