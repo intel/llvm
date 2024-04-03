@@ -395,8 +395,22 @@ __ESIMD_API void named_barrier_signal(uint8_t barrier_id,
                                       uint32_t num_consumers) {
   __esimd_fence(__ESIMD_NS::fence_mask::global_coherent_fence |
                 __ESIMD_NS::fence_mask::local_barrier);
+#ifdef __ESIMD_USE_NEW_NAMED_BARRIER_INTRIN
   __esimd_nbarrier_arrive(barrier_id, producer_consumer_mode, num_producers,
                           num_consumers);
+#else
+  constexpr uint32_t gateway = 3;
+  constexpr uint32_t barrier = 4;
+  constexpr uint32_t descriptor = 1 << 25 | // Message length: 1 register
+                                  0 << 12 | // Fence Data Ports: No fence
+                                  barrier;  // Barrier subfunction
+
+  __ESIMD_DNS::vector_type_t<uint32_t, 8> payload = 0;
+  payload[2] = (num_consumers & 0xff) << 24 | (num_producers & 0xff) << 16 |
+               producer_consumer_mode << 14 | (barrier_id & 0b11111) << 0;
+  __esimd_raw_send_nbarrier_signal<uint32_t, 8>(
+      0 /*sendc*/, gateway, descriptor, payload, 1 /*pred*/);
+#endif
 }
 
 /// Create explicit scoreboard dependency to avoid device code motion
