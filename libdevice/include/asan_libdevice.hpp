@@ -10,7 +10,7 @@
 
 #include <cinttypes>
 
-#if OMP_LIBDEVICE
+#if OMP_LIBDEVICE && INTEL_COLLAB
 #pragma omp declare target
 #endif
 
@@ -158,6 +158,6 @@ inline const char *ToString(DeviceSanitizerErrorType ErrorType) {
   }
 }
 
-#if OMP_LIBDEVICE
+#if OMP_LIBDEVICE && INTEL_COLLAB
 #pragma omp end declare target
 #endif
