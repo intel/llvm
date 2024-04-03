@@ -128,7 +128,7 @@ TEST_F(CommandGraphTest, UpdateRangeErrors) {
   nd_range<1> NDRange{range{128}, range{32}};
   range<1> Range{128};
   auto NodeNDRange = Graph.add([&](sycl::handler &cgh) {
-    cgh.parallel_for<TestKernel<>>(NDRange, [](item<1>) {});
+    cgh.parallel_for<TestKernel<>>(NDRange, [](nd_item<1>) {});
   });
 
   // OK
