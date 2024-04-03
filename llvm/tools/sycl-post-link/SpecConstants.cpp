@@ -20,6 +20,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/TargetParser/Triple.h"
 
 #include <vector>
 
@@ -815,11 +816,17 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   // intrinsic to find its calls and lower them depending on the HandlingMode.
   bool IRModified = false;
   LLVMContext &Ctx = M.getContext();
+  bool IsSPIREmulated =
+      Triple(M.getTargetTriple()).isSPIR() && Mode == HandlingMode::emulation;
   for (Function &F : M) {
     if (!F.isDeclaration())
       continue;
 
     const bool IsSYCLAlloca = F.getIntrinsicID() == Intrinsic::sycl_alloca;
+
+    // 'llvm.sycl.alloca' is not supported in emulation mode on SPIR-V targets.
+    if (IsSPIREmulated && IsSYCLAlloca)
+      continue;
 
     if (!F.getName().starts_with(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) &&
         !F.getName().starts_with(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL) &&
