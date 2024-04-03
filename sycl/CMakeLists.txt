@@ -26,6 +26,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AddSYCLExecutable)
 include(AddSYCL)
 include(SYCLUtils)
+include(FetchUnifiedRuntime)
 
 # The change in SYCL_MAJOR_VERSION must be accompanied with the same update in
 # llvm/clang/lib/Driver/CMakeLists.txt.
@@ -382,9 +383,6 @@ if(NOT "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "")
   string(TOUPPER ${SYCL_BUILD_PI_HIP_PLATFORM} SYCL_BUILD_PI_HIP_PLATFORM)
 endif()
 
-# Plugin Library
-add_subdirectory( plugins )
-
 add_subdirectory(tools)
 
 if (WIN32)
@@ -475,8 +473,8 @@ if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
       "CUDA support requires adding \"libclc\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
 
-  add_dependencies(sycl-toolchain pi_cuda)
-  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_cuda)
+  add_dependencies(sycl-toolchain ur_adapter_cuda)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_adapter_cuda)
 endif()
 
 if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
@@ -492,8 +490,8 @@ if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
       "HIP support requires adding \"lld\" to the CMake argument \"LLVM_ENABLE_PROJECTS\"")
   endif()
 
-  add_dependencies(sycl-toolchain pi_hip)
-  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS pi_hip)
+  add_dependencies(sycl-toolchain ur_adapter_hip)
+  list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_adapter_hip)
 endif()
 
 # Use it as fake dependency in order to force another command(s) to execute.

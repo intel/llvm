@@ -58,7 +58,7 @@ add_custom_command(
 
 # To get L0 loader
 if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
-  add_dependencies(ze_trace_collector pi_level_zero)
+  add_dependencies(ze_trace_collector ur_adapter_level_zero)
 
   target_link_libraries(ze_trace_collector PRIVATE LevelZeroLoader-Headers)
   target_compile_definitions(ze_trace_collector PRIVATE SYCL_HAS_LEVEL_ZERO)
