@@ -187,6 +187,7 @@ jobs:
       run: |
         # TODO consider moving this to Dockerfile.
         export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+        export LIT_OPTS="--time-tests"
         cmake --build $GITHUB_WORKSPACE/build --target check-sycl
     - name: check-sycl-unittests
       if: always() && !cancelled() && contains(inputs.changes, 'sycl')
