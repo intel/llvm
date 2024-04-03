@@ -9,10 +9,8 @@
 
 #pragma once
 
-#include <sycl/detail/spirv.hpp>       // for ControlBarrier
-#include <sycl/detail/type_traits.hpp> // for is_group
-#include <sycl/exception.hpp>          // for make_error_code, errc, exception
-#include <sycl/memory_enums.hpp>       // for memory_scope
+#include <sycl/exception.hpp>    // for make_error_code, errc, exception
+#include <sycl/memory_enums.hpp> // for memory_scope
 
 #include <type_traits> // for enable_if_t
 
