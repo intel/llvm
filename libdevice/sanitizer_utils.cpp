@@ -218,9 +218,9 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as, uptr launch_info) {
                          __AsanShadowMemoryLocalEnd, plaunch->NumLocalArgs,
                          plaunch->LocalArgs);
 
-    shadow_ptr = __AsanShadowMemoryLocalStart +
-                 ((wg_lid * SLM_SIZE) >> ASAN_SHADOW_SCALE) +
-                 ((addr & (SLM_SIZE - 1)) >> 3);
+    uptr shadow_ptr = __AsanShadowMemoryLocalStart +
+                      ((wg_lid * SLM_SIZE) >> ASAN_SHADOW_SCALE) +
+                      ((addr & (SLM_SIZE - 1)) >> 3);
 
     if (shadow_ptr > __AsanShadowMemoryLocalEnd) {
       if (__asan_report_out_of_shadow_bounds(launch_info) && __AsanDebug) {
