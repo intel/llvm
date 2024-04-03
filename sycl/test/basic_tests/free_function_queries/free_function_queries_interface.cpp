@@ -41,7 +41,8 @@ SYCL_EXTERNAL void test_all() {
   test<sycl::group>(get_work_group_caller<3>{});
 
   static_assert(
-      std::is_same<decltype(sycl::ext::oneapi::this_work_item::get_sub_group()),
-                   sycl::sub_group>::value,
+      std::is_same_v<
+          decltype(sycl::ext::oneapi::this_work_item::get_sub_group()),
+          sycl::sub_group>,
       "Wrong return type of free function query for Sub Group");
 }
