@@ -576,7 +576,8 @@ SanitizerInterceptor::insertContext(ur_context_handle_t Context,
 
     CI = std::make_shared<ContextInfo>(Context);
 
-    m_ContextMap.emplace(Context, std::move(CI));
+    // Don't move CI, since it's a return value as well
+    m_ContextMap.emplace(Context, CI);
 
     return UR_RESULT_SUCCESS;
 }
@@ -612,7 +613,8 @@ SanitizerInterceptor::insertDevice(ur_device_handle_t Device,
         Device, UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN, sizeof(DI->Alignment),
         &DI->Alignment, nullptr));
 
-    m_DeviceMap.emplace(Device, std::move(DI));
+    // Don't move DI, since it's a return value as well
+    m_DeviceMap.emplace(Device, DI);
 
     return UR_RESULT_SUCCESS;
 }
