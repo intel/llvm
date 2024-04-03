@@ -50,7 +50,7 @@ void dynamic_local_mem_typed_kernel(T *data, char *local_mem) {
   T *typed_local_mem = reinterpret_cast<T *>(local_mem);
 
   const int id =
-      sycl::ext::oneapi::this_work_item::this_nd_item<1>().get_global_id(0);
+      sycl::ext::oneapi::this_work_item::get_nd_item<1>().get_global_id(0);
   if (id < num_elements) {
     typed_local_mem[id] = static_cast<T>(id);
   }

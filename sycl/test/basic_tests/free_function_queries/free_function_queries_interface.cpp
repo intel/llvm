@@ -12,9 +12,9 @@
 
 #include <type_traits>
 
-template <int Dims> struct this_nd_item_caller {
+template <int Dims> struct get_nd_item_caller {
   auto operator()() const {
-    return sycl::ext::oneapi::this_work_item::this_nd_item<Dims>();
+    return sycl::ext::oneapi::this_work_item::get_nd_item<Dims>();
   }
 };
 
@@ -32,9 +32,9 @@ void test(Callable<Dims> &&callable) {
 }
 
 SYCL_EXTERNAL void test_all() {
-  test<sycl::nd_item>(this_nd_item_caller<1>{});
-  test<sycl::nd_item>(this_nd_item_caller<2>{});
-  test<sycl::nd_item>(this_nd_item_caller<3>{});
+  test<sycl::nd_item>(get_nd_item_caller<1>{});
+  test<sycl::nd_item>(get_nd_item_caller<2>{});
+  test<sycl::nd_item>(get_nd_item_caller<3>{});
 
   test<sycl::group>(get_work_group_caller<1>{});
   test<sycl::group>(get_work_group_caller<2>{});

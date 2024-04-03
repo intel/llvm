@@ -19,7 +19,7 @@
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::this_work_item {
-template <int Dimensions> nd_item<Dimensions> this_nd_item() {
+template <int Dimensions> nd_item<Dimensions> get_nd_item() {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::Builder::getElement(
       sycl::detail::declptr<nd_item<Dimensions>>());
@@ -31,7 +31,7 @@ template <int Dimensions> nd_item<Dimensions> this_nd_item() {
 }
 
 template <int Dimensions> group<Dimensions> get_work_group() {
-  return this_nd_item<Dimensions>().get_group();
+  return get_nd_item<Dimensions>().get_group();
 }
 
 inline sycl::sub_group get_sub_group() {
@@ -48,9 +48,9 @@ inline sycl::sub_group get_sub_group() {
 namespace ext::oneapi::experimental {
 template <int Dims>
 __SYCL_DEPRECATED(
-    "use sycl::ext::oneapi::this_work_item::this_nd_item() instead")
+    "use sycl::ext::oneapi::this_work_item::get_nd_item() instead")
 nd_item<Dims> this_nd_item() {
-  return ext::oneapi::this_work_item::this_nd_item<Dims>();
+  return ext::oneapi::this_work_item::get_nd_item<Dims>();
 }
 
 template <int Dims>
@@ -68,7 +68,7 @@ inline sycl::sub_group this_sub_group() {
 
 template <int Dims>
 __SYCL_DEPRECATED("use nd_range kernel and "
-                  "sycl::ext::oneapi::this_work_item::this_nd_item() instead")
+                  "sycl::ext::oneapi::this_work_item::get_nd_item() instead")
 item<Dims> this_item() {
 #ifdef __SYCL_DEVICE_ONLY__
   return sycl::detail::Builder::getElement(sycl::detail::declptr<item<Dims>>());
@@ -81,7 +81,7 @@ item<Dims> this_item() {
 
 template <int Dims>
 __SYCL_DEPRECATED("use nd_range kernel and "
-                  "sycl::ext::oneapi::this_work_item::this_nd_item() instead")
+                  "sycl::ext::oneapi::this_work_item::get_nd_item() instead")
 id<Dims> this_id() {
   return this_item<Dims>().get_id();
 }

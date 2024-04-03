@@ -92,7 +92,7 @@ template <int Dimensions> sycl::sub_group get_child_group(group<Dimensions> g) {
 
 namespace this_kernel {
 template <int Dimensions> root_group<Dimensions> get_root_group() {
-  return sycl::ext::oneapi::this_work_item::this_nd_item<Dimensions>()
+  return sycl::ext::oneapi::this_work_item::get_nd_item<Dimensions>()
       .ext_oneapi_get_root_group();
 }
 } // namespace this_kernel
