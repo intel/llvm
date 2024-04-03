@@ -91,8 +91,10 @@ bool isSlmInitCall(const CallInst *CI) {
   if (!CI)
     return false;
   Function *F = CI->getCalledFunction();
+  if (!F)
+    return false;
   assert(!esimd::isSlmInit(*F) && "Should have been translated already");
-  return F && isGenXSLMInit(*F);
+  return isGenXSLMInit(*F);
 }
 
 bool isSlmAllocCall(const CallInst *CI) {
