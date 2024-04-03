@@ -1076,6 +1076,8 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   // Do not add dependency generation information when compiling the source +
   // footer combination.  The dependency generation is done in a separate
   // compile step so we can retain original source information.
+  // TODO: remove this when/if we can improve the host compilation situation
+  // when dealing with the temporary file generated for the footer.
   if (ContainsAppendFooterAction(&JA))
     ArgM = nullptr;
 
@@ -1092,12 +1094,6 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
             DepFile, Clang::getBaseInputName(Args, Inputs[0]));
     } else if (Output.getType() == types::TY_Dependencies) {
       DepFile = Output.getFilename();
-      if (!ContainsAppendFooterAction(&JA) && Args.hasArg(options::OPT_fsycl) &&
-          !Args.hasArg(options::OPT_fno_sycl_use_footer) &&
-          !JA.isDeviceOffloading(Action::OFK_SYCL))
-        // Name the dependency file for the specific dependency generation
-        // step created for the integration footer enabled compilation.
-        DepFile = getDependencyFileName(Args, Inputs);
     } else if (!ArgMD) {
       DepFile = "-";
     } else if (IsIntelFPGA && JA.isDeviceOffloading(Action::OFK_SYCL)) {
