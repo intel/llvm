@@ -3197,7 +3197,7 @@ void AddressSanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo *T
       // __asan_loadX/__asan_storeX(
       //   ...
       //   int32_t as, // Address Space
-      //   uptr launch_data, // per launch specific data
+      //   uptr* launch_data, // per launch specific data
       //   char* file,
       //   unsigned int line,
       //   char* func
@@ -3207,13 +3207,13 @@ void AddressSanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo *T
         auto *Int8PtrTy = Type::getInt8Ty(*C)->getPointerTo(ConstantAS);
 
         Args1.push_back(Type::getInt32Ty(*C)); // address_space
-        Args1.push_back(IntptrTy);             // launch_data
+        Args1.push_back(IntptrTy->getPointerTo(1)); // launch_data
         Args1.push_back(Int8PtrTy);            // file
         Args1.push_back(Type::getInt32Ty(*C)); // line
         Args1.push_back(Int8PtrTy);            // func
 
         Args2.push_back(Type::getInt32Ty(*C)); // address_space
-        Args2.push_back(IntptrTy);             // launch_data
+        Args2.push_back(IntptrTy->getPointerTo(0)); // launch_data
         Args2.push_back(Int8PtrTy);            // file
         Args2.push_back(Type::getInt32Ty(*C)); // line
         Args2.push_back(Int8PtrTy);            // func
@@ -3274,12 +3274,23 @@ void AddressSanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo *T
                                     GlobalVariable::NotThreadLocal, 1);
         });
 
-    AsanSetShadowStaticLocalFunc =
-        M.getOrInsertFunction("__asan_set_shadow_static_local", IRB.getVoidTy(),
-                              IntptrTy, IntptrTy, IntptrTy, IntptrTy);
-    AsanSetShadowDynamicLocalFunc =
-        M.getOrInsertFunction("__asan_set_shadow_dynamic_local",
-                              IRB.getVoidTy(), IntptrTy, Int32Ty, IntptrTy);
+    // __asan_set_shadow_static_local(
+    //   uptr ptr,
+    //   size_t size,
+    //   size_t size_with_redzone,
+    //   uptr* launch_info
+    // )
+    AsanSetShadowStaticLocalFunc = M.getOrInsertFunction(
+        "__asan_set_shadow_static_local", IRB.getVoidTy(), IntptrTy, IntptrTy,
+        IntptrTy, IntptrTy->getPointerTo(1));
+    // __asan_set_shadow_dynamic_local(
+    //   uptr ptr,
+    //   uint32_t num_args,
+    //   uptr* launch_info
+    // )
+    AsanSetShadowDynamicLocalFunc = M.getOrInsertFunction(
+        "__asan_set_shadow_dynamic_local", IRB.getVoidTy(), IntptrTy, Int32Ty,
+        IntptrTy->getPointerTo(1));
   }
 
   AMDGPUAddressShared =

@@ -110,8 +110,8 @@ enum ADDRESS_SPACE : uint32_t {
 
 namespace {
 
-bool __asan_report_unknown_device(uptr* launch_info);
-bool __asan_report_out_of_shadow_bounds(uptr* launch_info);
+bool __asan_report_unknown_device(__SYCL_GLOBAL__ uptr *launch_info);
+bool __asan_report_out_of_shadow_bounds(__SYCL_GLOBAL__ uptr *launch_info);
 void __asan_print_shadow_memory(uptr addr, uptr shadow_address, uint32_t as);
 
 __SYCL_GLOBAL__ void *ToGlobal(void *ptr) {
@@ -128,7 +128,8 @@ inline uptr MemToShadow_CPU(uptr addr) {
   return __AsanShadowMemoryGlobalStart + (addr >> 3);
 }
 
-inline uptr MemToShadow_DG2(uptr addr, uint32_t as, uptr* launch_info) {
+inline uptr MemToShadow_DG2(uptr addr, uint32_t as,
+                            __SYCL_GLOBAL__ uptr *launch_info) {
   uptr shadow_ptr = 0;
   if (addr & (~0xffffffffffff)) {
     shadow_ptr =
@@ -157,7 +158,8 @@ static __SYCL_CONSTANT__ const char __generic_to[] =
 static __SYCL_CONSTANT__ const char __generic_to_fail[] =
     "[kernel] %p(4) - unknown address space\n";
 
-inline uptr MemToShadow_PVC(uptr addr, uint32_t as, uptr* launch_info) {
+inline uptr MemToShadow_PVC(uptr addr, uint32_t as,
+                            __SYCL_GLOBAL__ uptr *launch_info) {
 
   if (as == ADDRESS_SPACE_GENERIC) {
     auto old = addr;
@@ -235,7 +237,8 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as, uptr* launch_info) {
   return 0;
 }
 
-inline uptr MemToShadow(uptr addr, uint32_t as, uptr* launch_info) {
+inline uptr MemToShadow(uptr addr, uint32_t as,
+                        __SYCL_GLOBAL__ uptr *launch_info) {
   uptr shadow_ptr = 0;
 
   if (__DeviceType == DeviceType::CPU) {
@@ -300,7 +303,7 @@ bool MemIsZero(__SYCL_GLOBAL__ const char *beg, uptr size) {
 ///
 
 bool __asan_internal_report_save(DeviceSanitizerErrorType error_type,
-                                 uptr* launch_info) {
+                                 __SYCL_GLOBAL__ uptr *launch_info) {
   const int Expected = ASAN_REPORT_NONE;
   int Desired = ASAN_REPORT_START;
   auto *SanitizerReport =
@@ -316,10 +319,11 @@ bool __asan_internal_report_save(DeviceSanitizerErrorType error_type,
 }
 
 bool __asan_internal_report_save(
-    uptr ptr, uint32_t as, uptr* launch_info, const char __SYCL_CONSTANT__ *file,
-    uint32_t line, const char __SYCL_CONSTANT__ *func, bool is_write,
-    uint32_t access_size, DeviceSanitizerMemoryType memory_type,
-    DeviceSanitizerErrorType error_type, bool is_recover = false) {
+    uptr ptr, uint32_t as, __SYCL_GLOBAL__ uptr *launch_info,
+    const char __SYCL_CONSTANT__ *file, uint32_t line,
+    const char __SYCL_CONSTANT__ *func, bool is_write, uint32_t access_size,
+    DeviceSanitizerMemoryType memory_type, DeviceSanitizerErrorType error_type,
+    bool is_recover = false) {
 
   const int Expected = ASAN_REPORT_NONE;
   int Desired = ASAN_REPORT_START;
@@ -382,8 +386,9 @@ bool __asan_internal_report_save(
 /// ASAN Error Reporters
 ///
 
-void __asan_report_access_error(uptr addr, uint32_t as, uptr* launch_info,
-                                size_t size, bool is_write, uptr poisoned_addr,
+void __asan_report_access_error(uptr addr, uint32_t as,
+                                __SYCL_GLOBAL__ uptr *launch_info, size_t size,
+                                bool is_write, uptr poisoned_addr,
                                 const char __SYCL_CONSTANT__ *file,
                                 uint32_t line,
                                 const char __SYCL_CONSTANT__ *func,
@@ -452,12 +457,12 @@ void __asan_report_access_error(uptr addr, uint32_t as, uptr* launch_info,
                               size, memory_type, error_type, is_recover);
 }
 
-bool __asan_report_unknown_device(uptr* launch_info) {
+bool __asan_report_unknown_device(__SYCL_GLOBAL__ uptr *launch_info) {
   return __asan_internal_report_save(DeviceSanitizerErrorType::UNKNOWN_DEVICE,
                                      launch_info);
 }
 
-bool __asan_report_out_of_shadow_bounds(uptr* launch_info) {
+bool __asan_report_out_of_shadow_bounds(__SYCL_GLOBAL__ uptr *launch_info) {
   return __asan_internal_report_save(
       DeviceSanitizerErrorType::OUT_OF_SHADOW_BOUNDS, launch_info);
 }
@@ -480,8 +485,9 @@ void __asan_print_shadow_memory(uptr addr, uptr shadow_address, uint32_t as) {
   __spirv_ocl_printf(__newline);
 }
 
-bool __asan_region_is_value(uptr addr, uint32_t as, uptr* launch_info,
-                            std::size_t size, char value) {
+bool __asan_region_is_value(uptr addr, uint32_t as,
+                            __SYCL_GLOBAL__ uptr *launch_info, std::size_t size,
+                            char value) {
   if (size == 0)
     return true;
   while (size--) {
@@ -495,7 +501,8 @@ bool __asan_region_is_value(uptr addr, uint32_t as, uptr* launch_info,
 }
 
 // NOTE: size < 8
-inline int __asan_address_is_poisoned(uptr a, uint32_t as, uptr* launch_info,
+inline int __asan_address_is_poisoned(uptr a, uint32_t as,
+                                      __SYCL_GLOBAL__ uptr *launch_info,
                                       size_t size) {
   auto *shadow_address = (__SYCL_GLOBAL__ s8 *)MemToShadow(a, as, launch_info);
   if (shadow_address) {
@@ -509,11 +516,13 @@ inline int __asan_address_is_poisoned(uptr a, uint32_t as, uptr* launch_info,
 }
 
 // NOTE: size = 1
-inline int __asan_address_is_poisoned(uptr a, uint32_t as, uptr* launch_info) {
+inline int __asan_address_is_poisoned(uptr a, uint32_t as,
+                                      __SYCL_GLOBAL__ uptr *launch_info) {
   return __asan_address_is_poisoned(a, as, launch_info, 1);
 }
 
-inline uptr __asan_region_is_poisoned(uptr beg, uint32_t as, uptr* launch_info,
+inline uptr __asan_region_is_poisoned(uptr beg, uint32_t as,
+                                      __SYCL_GLOBAL__ uptr *launch_info,
                                       size_t size) {
   if (!size)
     return 0;
@@ -558,7 +567,7 @@ inline uptr __asan_region_is_poisoned(uptr beg, uint32_t as, uptr* launch_info,
 
 #define ASAN_REPORT_ERROR(type, is_write, size)                                \
   DEVICE_EXTERN_C_NOINLINE void __asan_##type##size(                           \
-      uptr addr, uint32_t as, uptr* launch_info,                                \
+      uptr addr, uint32_t as, __SYCL_GLOBAL__ uptr *launch_info,               \
       const char __SYCL_CONSTANT__ *file, uint32_t line,                       \
       const char __SYCL_CONSTANT__ *func) {                                    \
     if (__asan_address_is_poisoned(addr, as, launch_info, size)) {             \
@@ -567,7 +576,7 @@ inline uptr __asan_region_is_poisoned(uptr beg, uint32_t as, uptr* launch_info,
     }                                                                          \
   }                                                                            \
   DEVICE_EXTERN_C_NOINLINE void __asan_##type##size##_noabort(                 \
-      uptr addr, uint32_t as, uptr* launch_info,                                \
+      uptr addr, uint32_t as, __SYCL_GLOBAL__ uptr *launch_info,               \
       const char __SYCL_CONSTANT__ *file, uint32_t line,                       \
       const char __SYCL_CONSTANT__ *func) {                                    \
     if (__asan_address_is_poisoned(addr, as, launch_info, size)) {             \
@@ -585,7 +594,7 @@ ASAN_REPORT_ERROR(store, true, 4)
 
 #define ASAN_REPORT_ERROR_BYTE(type, is_write, size)                           \
   DEVICE_EXTERN_C_NOINLINE void __asan_##type##size(                           \
-      uptr addr, uint32_t as, uptr* launch_info,                                \
+      uptr addr, uint32_t as, __SYCL_GLOBAL__ uptr *launch_info,               \
       const char __SYCL_CONSTANT__ *file, uint32_t line,                       \
       const char __SYCL_CONSTANT__ *func) {                                    \
     auto *shadow_address =                                                     \
@@ -596,7 +605,7 @@ ASAN_REPORT_ERROR(store, true, 4)
     }                                                                          \
   }                                                                            \
   DEVICE_EXTERN_C_NOINLINE void __asan_##type##size##_noabort(                 \
-      uptr addr, uint32_t as, uptr* launch_info,                                \
+      uptr addr, uint32_t as, __SYCL_GLOBAL__ uptr *launch_info,               \
       const char __SYCL_CONSTANT__ *file, uint32_t line,                       \
       const char __SYCL_CONSTANT__ *func) {                                    \
     auto *shadow_address =                                                     \
@@ -614,7 +623,7 @@ ASAN_REPORT_ERROR_BYTE(store, true, 16)
 
 #define ASAN_REPORT_ERROR_N(type, is_write)                                    \
   DEVICE_EXTERN_C_NOINLINE void __asan_##type##N(                              \
-      uptr addr, size_t size, uint32_t as, uptr* launch_info,                   \
+      uptr addr, size_t size, uint32_t as, __SYCL_GLOBAL__ uptr *launch_info,  \
       const char __SYCL_CONSTANT__ *file, uint32_t line,                       \
       const char __SYCL_CONSTANT__ *func) {                                    \
     if (auto poisoned_addr =                                                   \
@@ -624,7 +633,7 @@ ASAN_REPORT_ERROR_BYTE(store, true, 16)
     }                                                                          \
   }                                                                            \
   DEVICE_EXTERN_C_NOINLINE void __asan_##type##N_noabort(                      \
-      uptr addr, size_t size, uint32_t as, uptr* launch_info,                   \
+      uptr addr, size_t size, uint32_t as, __SYCL_GLOBAL__ uptr *launch_info,  \
       const char __SYCL_CONSTANT__ *file, uint32_t line,                       \
       const char __SYCL_CONSTANT__ *func) {                                    \
     if (auto poisoned_addr =                                                   \
@@ -646,7 +655,7 @@ static __SYCL_CONSTANT__ const char __mem_set_shadow_local[] =
 
 DEVICE_EXTERN_C_NOINLINE void
 __asan_set_shadow_static_local(uptr ptr, size_t size, size_t size_with_redzone,
-                               uptr* launch_info) {
+                               __SYCL_GLOBAL__ uptr *launch_info) {
   // Since ptr is aligned to ASAN_SHADOW_GRANULARITY,
   // if size != aligned_size, then the buffer tail of ptr is not aligned
   uptr aligned_size = RoundUpTo(size, ASAN_SHADOW_GRANULARITY);
@@ -697,10 +706,12 @@ static __SYCL_CONSTANT__ const char __mem_set_shadow_dynamic_local_begin[] =
 static __SYCL_CONSTANT__ const char __mem_set_shadow_dynamic_local_end[] =
     "[kernel] END   __asan_set_shadow_dynamic_local\n";
 static __SYCL_CONSTANT__ const char __mem_report_arg_count_incorrect[] =
-    "[kernel] ERROR: The number of local args is incorrect, expect %d, actual %d\n";
+    "[kernel] ERROR: The number of local args is incorrect, expect %d, actual "
+    "%d\n";
 
 DEVICE_EXTERN_C_NOINLINE void
-__asan_set_shadow_dynamic_local(uptr ptr, uint32_t num_args, uptr* launch_info) {
+__asan_set_shadow_dynamic_local(uptr ptr, uint32_t num_args,
+                                __SYCL_GLOBAL__ uptr *launch_info) {
   if (__AsanDebug)
     __spirv_ocl_printf(__mem_set_shadow_dynamic_local_begin);
 
