@@ -5,6 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include <sycl/usm.hpp>
+
 template <typename Tc, typename Ta, size_t M, size_t N>
 bool apply_verify(Tc *C, Tc *D, Ta *A, Ta *Ar) {
   for (size_t i = 0; i < M; i++)
