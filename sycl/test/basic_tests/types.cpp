@@ -22,7 +22,6 @@ template <typename T, int N> inline void checkVectorSizeAndAlignment() {
   using VectorT = s::vec<T, N>;
   constexpr auto RealLength = (N != 3 ? N : 4);
   static_assert(sizeof(VectorT) == (sizeof(T) * RealLength), "");
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 
   // SYCL 2020 spec says that alignment is supposed to be same as size,
   // but MSVC won't allow an alignment of anything larger than 64 for
@@ -34,19 +33,6 @@ template <typename T, int N> inline void checkVectorSizeAndAlignment() {
   else
     static_assert(alignof(VectorT) == 64,
                   "huge vectors should have a maximum alignment of 64");
-
-#else // __INTEL_PREVIEW_BREAKING_CHANGES
-
-#if defined(_WIN32) && (_MSC_VER) &&                                           \
-    defined(__NO_EXT_VECTOR_TYPE_ON_HOST__) && !defined(__SYCL_DEVICE_ONLY__)
-  // See comments around __SYCL_ALIGNED_VAR macro definition in types.hpp
-  // We can't enforce proper alignment of "huge" vectors (>64 bytes) on Windows
-  // and the test exposes this limitation.
-  if constexpr (alignof(T) * RealLength < 64)
-#endif
-    static_assert(alignof(VectorT) == (alignof(T) * RealLength), "");
-
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 }
 
 template <typename T> inline void checkVectorsWithN() {
@@ -132,13 +118,8 @@ std::string vec2string(const sycl::vec<vecType, numOfElems> &vec) {
 template <typename T, typename Expected> inline void checkVecNotReturnType() {
   constexpr int N = 4;
   using Vector = sycl::vec<T, N>;
-#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
   using ExpectedVector = sycl::vec<Expected, N>;
   using OpNotResult = decltype(operator!(std::declval<Vector>()));
-#else
-  using ExpectedVector = sycl::vec<T, N>;
-  using OpNotResult = decltype(std::declval<Vector>().operator!());
-#endif
   static_assert(std::is_same_v<OpNotResult, ExpectedVector>,
                 "Incorrect operator! return type");
 }

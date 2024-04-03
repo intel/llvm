@@ -76,8 +76,7 @@
 /// Check behaviors for dependency generation
 // RUN:  %clangxx -fsycl -MD -c %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix DEP_GEN %s
-// DEP_GEN:  clang{{.*}} "-fsycl-is-host"
-// DEP_GEN-SAME: "-Eonly"
+// DEP_GEN:  clang{{.*}} "-fsycl-is-device"
 // DEP_GEN-SAME: "-dependency-file"
 // DEP_GEN-SAME: "-MT"
 // DEP_GEN-SAME: "-internal-isystem" "{{.*}}{{[/\\]+}}include{{[/\\]+}}sycl"
@@ -88,19 +87,18 @@
 /// Dependency generation phases
 // RUN:  %clangxx -target x86_64-unknown-linux-gnu -fsycl -MD -c %s -ccc-print-phases 2>&1 \
 // RUN:   | FileCheck -check-prefix DEP_GEN_PHASES %s
-// DEP_GEN_PHASES: 0: input, "[[INPUTFILE:.+\.cpp]]", c++, (host-sycl)
-// DEP_GEN_PHASES: 1: preprocessor, {0}, dependencies
-// DEP_GEN_PHASES: 2: input, "[[INPUTFILE]]", c++, (device-sycl)
-// DEP_GEN_PHASES: 3: preprocessor, {2}, c++-cpp-output, (device-sycl)
-// DEP_GEN_PHASES: 4: compiler, {3}, ir, (device-sycl)
-// DEP_GEN_PHASES: 5: offload, "device-sycl (spir64-unknown-unknown)" {4}, ir
-// DEP_GEN_PHASES: 6: append-footer, {0}, c++, (host-sycl)
-// DEP_GEN_PHASES: 7: preprocessor, {6}, c++-cpp-output, (host-sycl)
-// DEP_GEN_PHASES: 8: offload, "host-sycl (x86_64-unknown-linux-gnu)" {7}, "device-sycl (spir64-unknown-unknown)" {4}, c++-cpp-output
-// DEP_GEN_PHASES: 9: compiler, {8}, ir, (host-sycl)
-// DEP_GEN_PHASES: 10: backend, {9}, assembler, (host-sycl)
-// DEP_GEN_PHASES: 11: assembler, {10}, object, (host-sycl)
-// DEP_GEN_PHASES: 12: clang-offload-bundler, {5, 11}, object, (host-sycl)
+// DEP_GEN_PHASES: 0: input, "[[INPUTFILE:.+\.cpp]]", c++, (device-sycl)
+// DEP_GEN_PHASES: 1: preprocessor, {0}, c++-cpp-output, (device-sycl)
+// DEP_GEN_PHASES: 2: compiler, {1}, ir, (device-sycl)
+// DEP_GEN_PHASES: 3: offload, "device-sycl (spir64-unknown-unknown)" {2}, ir
+// DEP_GEN_PHASES: 4: input, "[[INPUTFILE]]", c++, (host-sycl)
+// DEP_GEN_PHASES: 5: append-footer, {4}, c++, (host-sycl)
+// DEP_GEN_PHASES: 6: preprocessor, {5}, c++-cpp-output, (host-sycl)
+// DEP_GEN_PHASES: 7: offload, "host-sycl (x86_64-unknown-linux-gnu)" {6}, "device-sycl (spir64-unknown-unknown)" {2}, c++-cpp-output
+// DEP_GEN_PHASES: 8: compiler, {7}, ir, (host-sycl)
+// DEP_GEN_PHASES: 9: backend, {8}, assembler, (host-sycl)
+// DEP_GEN_PHASES: 10: assembler, {9}, object, (host-sycl)
+// DEP_GEN_PHASES: 11: clang-offload-bundler, {3, 10}, object, (host-sycl)
 
 /// Allow for -o and preprocessing
 // RUN:  %clangxx -fsycl -MD -c %s -o dummy -### 2>&1 \

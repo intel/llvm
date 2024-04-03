@@ -57,6 +57,42 @@ template <> device queue_impl::get_info<info::queue::device>() const {
   return get_device();
 }
 
+template <>
+typename info::platform::version::return_type
+queue_impl::get_backend_info<info::platform::version>() const {
+  if (getContextImplPtr()->getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::platform::version info descriptor can "
+                          "only be queried with an OpenCL backend");
+  }
+  return get_device().get_platform().get_info<info::platform::version>();
+}
+
+template <>
+typename info::device::version::return_type
+queue_impl::get_backend_info<info::device::version>() const {
+  if (getContextImplPtr()->getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::version info descriptor can only "
+                          "be queried with an OpenCL backend");
+  }
+  return get_device().get_info<info::device::version>();
+}
+
+template <>
+typename info::device::backend_version::return_type
+queue_impl::get_backend_info<info::device::backend_version>() const {
+  if (getContextImplPtr()->getBackend() != backend::ext_oneapi_level_zero) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::backend_version info descriptor "
+                          "can only be queried with a Level Zero backend");
+  }
+  return "";
+  // Currently The Level Zero backend does not define the value of this
+  // information descriptor and implementations are encouraged to return the
+  // empty string as per specification.
+}
+
 static event prepareSYCLEventAssociatedWithQueue(
     const std::shared_ptr<detail::queue_impl> &QueueImpl) {
   auto EventImpl = std::make_shared<detail::event_impl>(QueueImpl);
