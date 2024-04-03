@@ -82,13 +82,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit ca5c34213c3484072f32a9ab2b56b0f49ebe712e
-  # Merge: 4d0183a8 c9be1e28
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Mar 19 16:58:27 2024 +0000
-  #     Merge pull request #1353 from againull/againull/l0_adapter_update_cmd_buffer
-  #     [L0] Support updating kernel commands in command buffers
-  set(UNIFIED_RUNTIME_TAG ca5c34213c3484072f32a9ab2b56b0f49ebe712e)
+  # commit 3a7d00f136cf5d69e61bf1e235393dfc56f55525
+  # Merge: cd5ad7b5 9e5c6203
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Mon Apr 1 15:16:30 2024 +0100
+  #     Merge pull request #1485 from aarongreig/aaron/addDeviceNotAvailableErrC
+  #     Add UR_ERROR_DEVICE_NOT_AVAILABLE and appropriate translation for CL.
+  set(UNIFIED_RUNTIME_TAG 3a7d00f136cf5d69e61bf1e235393dfc56f55525)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
