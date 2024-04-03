@@ -67,6 +67,24 @@ backend convertBackend(pi_platform_backend PiBackend) {
                             PI_ERROR_INVALID_OPERATION};
 }
 
+backend convertUrBackend(ur_platform_backend_t UrBackend) {
+  switch (UrBackend) {
+  case UR_PLATFORM_BACKEND_LEVEL_ZERO:
+    return backend::ext_oneapi_level_zero;
+  case UR_PLATFORM_BACKEND_OPENCL:
+    return backend::opencl;
+  case UR_PLATFORM_BACKEND_CUDA:
+    return backend::ext_oneapi_cuda;
+  case UR_PLATFORM_BACKEND_HIP:
+    return backend::ext_oneapi_hip;
+  case UR_PLATFORM_BACKEND_NATIVE_CPU:
+    return backend::ext_oneapi_native_cpu;
+  default:
+    // no idea what to do here
+    return backend::all;
+  }
+}
+
 platform make_platform(pi_native_handle NativeHandle, backend Backend) {
   const auto &Plugin = getPlugin(Backend);
 

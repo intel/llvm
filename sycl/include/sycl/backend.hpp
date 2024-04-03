@@ -55,6 +55,8 @@
 #include <type_traits> // for enable_if_t
 #include <vector>      // for vector
 
+#include <ur_api.h>
+
 namespace sycl {
 inline namespace _V1 {
 
@@ -64,6 +66,7 @@ namespace detail {
 enum class backend_errc : unsigned int {};
 
 // Convert from PI backend to SYCL backend enum
+backend convertUrBackend(ur_platform_backend_t UrBackend);
 backend convertBackend(pi_platform_backend PiBackend);
 } // namespace detail
 

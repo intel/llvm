@@ -207,6 +207,10 @@ std::vector<PluginPtr> &GlobalHandler::getPlugins() {
   enableOnCrashStackPrinting();
   return getOrCreate(MPlugins);
 }
+std::vector<UrPluginPtr> &GlobalHandler::getUrPlugins() {
+  enableOnCrashStackPrinting();
+  return getOrCreate(MUrPlugins);
+}
 
 ods_target_list &
 GlobalHandler::getOneapiDeviceSelectorTargets(const std::string &InitValue) {
@@ -269,6 +273,14 @@ void GlobalHandler::unloadPlugins() {
   }
   // Clear after unload to avoid uses after unload.
   getPlugins().clear();
+  if (MUrPlugins.Inst) {
+    for (const auto &Plugin : getUrPlugins()) {
+      Plugin->release();
+    }
+  }
+
+  // Clear after unload to avoid uses after unload.
+  getUrPlugins().clear();
 }
 
 void GlobalHandler::prepareSchedulerToRelease(bool Blocking) {

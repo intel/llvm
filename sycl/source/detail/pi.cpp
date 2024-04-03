@@ -75,6 +75,8 @@ namespace pi {
 
 static void initializePlugins(std::vector<PluginPtr> &Plugins);
 
+static void initializeUrPlugins(std::vector<UrPluginPtr> &Plugins);
+
 bool XPTIInitDone = false;
 
 // Implementation of the SYCL PI API call tracing methods that use XPTI
@@ -383,12 +385,69 @@ std::vector<PluginPtr> &initialize() {
   return GlobalHandler::instance().getPlugins();
 }
 
+// Initializes all available Plugins.
+std::vector<UrPluginPtr> &initializeUr() {
+  static std::once_flag PluginsInitDone;
+  // std::call_once is blocking all other threads if a thread is already
+  // creating a vector of plugins. So, no additional lock is needed.
+  std::call_once(PluginsInitDone, [&]() {
+    initializeUrPlugins(GlobalHandler::instance().getUrPlugins());
+  });
+  return GlobalHandler::instance().getUrPlugins();
+}
+
 // Implementation of this function is OS specific. Please see windows_pi.cpp and
 // posix_pi.cpp.
 // TODO: refactor code when support matrix for DPCPP changes and <filesystem> is
 // available on all supported systems.
 std::vector<std::tuple<std::string, backend, void *>>
 loadPlugins(const std::vector<std::pair<std::string, backend>> &&PluginNames);
+
+static void initializeUrPlugins(std::vector<UrPluginPtr> &Plugins) {
+  // TODO: error handling, could/should this throw?
+  ur_loader_config_handle_t config = nullptr;
+  if (urLoaderConfigCreate(&config) == UR_RESULT_SUCCESS) {
+    if (urLoaderConfigEnableLayer(config, "UR_LAYER_FULL_VALIDATION")) {
+      urLoaderConfigRelease(config);
+      std::cerr << "Failed to enable validation layer";
+      return;
+    }
+  }
+  ur_device_init_flags_t device_flags = 0;
+  urLoaderInit(device_flags, config);
+
+  uint32_t adapterCount = 0;
+  urAdapterGet(0, nullptr, &adapterCount);
+  std::vector<ur_adapter_handle_t> adapters(adapterCount);
+  urAdapterGet(adapterCount, adapters.data(), nullptr);
+
+  // FIXME clang format for this section (here to end of function) is wrong
+  auto UrToSyclBackend = [](ur_adapter_backend_t backend) -> enum backend {
+    switch (backend){
+      case
+      UR_ADAPTER_BACKEND_LEVEL_ZERO : return backend::ext_oneapi_level_zero;
+      case UR_ADAPTER_BACKEND_OPENCL : return backend::opencl;
+      case UR_ADAPTER_BACKEND_CUDA : return backend::ext_oneapi_cuda;
+      case UR_ADAPTER_BACKEND_HIP : return backend::ext_oneapi_hip;
+      case
+      UR_ADAPTER_BACKEND_NATIVE_CPU : return backend::ext_oneapi_native_cpu;
+      default :
+          // no idea what to do here
+          return backend::all;
+    }
+};
+
+for (const auto &adapter : adapters) {
+  ur_adapter_backend_t adapterBackend = UR_ADAPTER_BACKEND_UNKNOWN;
+  urAdapterGetInfo(adapter, UR_ADAPTER_INFO_BACKEND, sizeof(adapterBackend),
+                   &adapterBackend, nullptr);
+  auto syclBackend = UrToSyclBackend(adapterBackend);
+  if (syclBackend == backend::all) {
+    // kaboom??
+  }
+  Plugins.emplace_back(std::make_shared<urPlugin>(adapter, syclBackend));
+}
+} // namespace pi
 
 static void initializePlugins(std::vector<PluginPtr> &Plugins) {
   const std::vector<std::pair<std::string, backend>> PluginNames =

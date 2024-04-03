@@ -17,7 +17,7 @@
 #include <sycl/detail/export.hpp>  // for __SYCL_EXPORT
 #include <sycl/detail/os_util.hpp> // for __SYCL_RT_OS_LINUX
 #include <sycl/detail/pi.h>        // for piContextCreate, piContextGetInfo
-
+                                   //
 #include <cstdint>     // for uint64_t, uint32_t
 #include <memory>      // for shared_ptr
 #include <stddef.h>    // for size_t
@@ -43,8 +43,17 @@ enum class PiApiKind {
 #define _PI_API(api) api,
 #include <sycl/detail/pi.def>
 };
+
+enum class UrApiKind {
+#define _UR_API(api) api,
+#include <sycl/detail/ur.def>
+};
+
 class plugin;
 using PluginPtr = std::shared_ptr<plugin>;
+
+class urPlugin;
+using UrPluginPtr = std::shared_ptr<urPlugin>;
 
 template <sycl::backend BE>
 __SYCL_EXPORT void *getPluginOpaqueData(void *opaquedata_arg);
@@ -191,6 +200,7 @@ extern std::shared_ptr<plugin> GlobalPlugin;
 
 // Performs PI one-time initialization.
 std::vector<PluginPtr> &initialize();
+std::vector<UrPluginPtr> &initializeUr();
 
 // Get the plugin serving given backend.
 template <backend BE> __SYCL_EXPORT const PluginPtr &getPlugin();
@@ -207,6 +217,19 @@ template <PiApiKind PiApiOffset> struct PiFuncInfo {};
     }                                                                          \
   };
 #include <sycl/detail/pi.def>
+/*
+// Utility Functions to get Function Name for a PI Api.
+template <UrApiKind UrApiOffset> struct UrFuncInfo {};
+
+#define _UR_API(api)                                                           \
+  template <> struct UrFuncInfo<UrApiKind::api> {                              \
+    inline const char *getFuncName() { return #api; }                          \
+    //inline FuncPtrT getFuncPtr(UrPlugin MPlugin) {                           \
+    //  return MPlugin.PiFunctionTable.api;                                    \
+    //}                                                                        \
+  };
+#include <sycl/detail/ur.def>
+*/
 
 /// Emits an XPTI trace before a PI API call is made
 /// \param FName The name of the PI API call
