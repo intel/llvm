@@ -2080,6 +2080,8 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       // process ESIMD builtins that go through special handling instead of
       // the translation procedure
 
+      // SLM allocation API will be lowered in LowerESIMDSlmReservationCalls
+      // pass
       if (Name.starts_with("__esimd_slm_alloc") ||
           Name.starts_with("__esimd_slm_free")) {
         continue;

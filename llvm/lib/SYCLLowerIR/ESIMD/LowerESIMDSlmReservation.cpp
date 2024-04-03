@@ -82,7 +82,7 @@ namespace {
 constexpr int DebugLevel = 0;
 #endif
 
-bool isTranslatesSlmInit(const Function &F) {
+bool isGenXSLMInit(const Function &F) {
   constexpr char SLM_INIT_PREFIX[] = "llvm.genx.slm.init";
   return F.getName().starts_with(SLM_INIT_PREFIX);
 }
@@ -91,7 +91,8 @@ bool isSlmInitCall(const CallInst *CI) {
   if (!CI)
     return false;
   Function *F = CI->getCalledFunction();
-  return F && (esimd::isSlmInit(*F) || isTranslatesSlmInit(*F));
+  assert(!esimd::isSlmInit(*F) && "Should have been translated already");
+  return F && isGenXSLMInit(*F);
 }
 
 bool isSlmAllocCall(const CallInst *CI) {
