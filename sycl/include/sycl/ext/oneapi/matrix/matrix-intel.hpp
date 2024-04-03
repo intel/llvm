@@ -238,8 +238,8 @@ public:
 #if defined(__SYCL_DEVICE_ONLY__)
     __ocl_vec_t<uint32_t, 2> coord =
         __spirv_JointMatrixGetElementCoordINTEL(M.spvm, idx);
-    const uint32_t row = coord[0];
-    const uint32_t col = coord[1];
+    const uint32_t row = coord[0]*4;
+    const uint32_t col = coord[1]/4;
     return std::make_tuple(row, col);
 #else
     throw runtime_error("joint matrix is not supported on host device.",
