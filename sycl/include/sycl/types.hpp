@@ -99,6 +99,29 @@ using select_apply_cl_t = std::conditional_t<
     std::conditional_t<sizeof(_IN) == 2, T16,
                        std::conditional_t<sizeof(_IN) == 4, T32, T64>>>;
 
+// Helper function to bit_cast one type to another.
+template <typename FromType, typename ToType>
+static constexpr ToType BitCast(const FromType &Value) {
+
+  static_assert(sizeof(FromType) == sizeof(ToType),
+                "BitCast: sizes of types are different");
+
+#if defined(__SYCL_BITCAST_IS_CONSTEXPR)
+  return sycl::bit_cast<ToType>(Value);
+#else
+  // awkward workaround. sycl::bit_cast isn't constexpr in older GCC
+  // C++20 will give us both std::bit_cast and constexpr reinterpet for void*
+  // but neither available yet.
+  union {
+    const FromType from;
+    ToType to;
+  } result = {};
+  result.from = Value;
+  return result.to;
+#endif
+}
+
+/* Heper functions to get and set values in vec, depdending on the underlying data type. */
 template <typename T> struct vec_helper {
   using RetType = T;
   static constexpr RetType get(T value) { return value; }
@@ -114,35 +137,14 @@ template <> struct vec_helper<bool> {
 template <> struct vec_helper<sycl::ext::oneapi::bfloat16> {
   using RetType = sycl::ext::oneapi::bfloat16;
   using BFloat16StorageT = sycl::ext::oneapi::detail::Bfloat16StorageT;
-  static constexpr RetType get(BFloat16StorageT value) {
-#if defined(__SYCL_BITCAST_IS_CONSTEXPR)
-    return sycl::bit_cast<RetType>(value);
-#else
-    // awkward workaround. sycl::bit_cast isn't constexpr in older GCC
-    // C++20 will give us both std::bit_cast and constexpr reinterpet for void*
-    // but neither available yet.
-    union {
-      sycl::ext::oneapi::bfloat16 bf16;
-      sycl::ext::oneapi::detail::Bfloat16StorageT storage;
-    } result = {};
-    result.storage = value;
-    return result.bf16;
-#endif
-  }
 
+  static constexpr RetType get(BFloat16StorageT value) {
+    return BitCast<BFloat16StorageT, RetType>(value);
+  }
   static constexpr RetType get(RetType value) { return value; }
 
   static constexpr BFloat16StorageT set(RetType value) {
-#if defined(__SYCL_BITCAST_IS_CONSTEXPR)
-    return sycl::bit_cast<BFloat16StorageT>(value);
-#else
-    union {
-      sycl::ext::oneapi::bfloat16 bf16;
-      sycl::ext::oneapi::detail::Bfloat16StorageT storage;
-    } result = {};
-    result.bf16 = value;
-    return result.storage;
-#endif
+    return BitCast<RetType, BFloat16StorageT>(value);
   }
 };
 
@@ -284,6 +286,9 @@ template <typename Type, int NumElements> class vec {
   // in the class, so vec<float, 16> should be equal to float16 in memory.
   using DataType = typename detail::VecStorage<DataT, NumElements>::DataType;
 
+  // Are we using half on the host? For device, sycl::half uses Float16 as
+  // storage data type but for the host, we use a custom data type
+  // (detail::host_half_impl::half).
   static constexpr bool IsHostHalf =
       std::is_same_v<DataT, sycl::detail::half_impl::half> &&
       std::is_same_v<sycl::detail::half_impl::StorageT,
@@ -302,8 +307,11 @@ template <typename Type, int NumElements> class vec {
   // vector extension. This is for MSVC compatibility, which has a max alignment
   // of 64 for direct params. If we drop MSVC, we can have alignment the same as
   // size and use vector extensions for all sizes.
+  // TODO: Inline this ans we are now always using array on device, irrespective of
+  // the data type.
   static constexpr bool IsUsingArrayOnDevice = true;
 
+  // TODO: Remove NativeVec - inline usages.
   static constexpr bool NativeVec = false;
 #if defined(__SYCL_DEVICE_ONLY__)
   static constexpr bool IsUsingArrayOnHost = false; // not compiling for host.
@@ -473,6 +481,7 @@ public:
   using value_type = DataT;
   using rel_t = detail::rel_t<DataT>;
 #ifdef __SYCL_DEVICE_ONLY__
+  // Type used for passing sycl::vec to SPIRV builtins.
   using vector_t =
       typename detail::VecStorage<DataT, NumElements>::VectorDataType;
 #endif // __SYCL_DEVICE_ONLY__
@@ -624,9 +633,7 @@ public:
                 typename std::enable_if_t<std::is_same_v<vector_t_, vector_t> &&
                                           !std::is_same_v<vector_t_, DataT>>>
   constexpr vec(vector_t openclVector) {
-      static_assert(sizeof(vector_t) == sizeof(DataType),
-                    "Size of OpenCL vector type doesn't match size of vec");
-      m_Data = bit_cast<DataType>(openclVector);
+    m_Data = detail::BitCast<vector_t, DataType>(openclVector);
   }
 
   /* @SYCL2020
@@ -638,8 +645,7 @@ public:
     if constexpr (NumElements == 1) {
       return m_Data;
     } else {
-      auto ptr = bit_cast<const vector_t *>(m_Data.data());
-      return *ptr;
+      return detail::BitCast<DataType, vector_t>(m_Data);
     }
   }
 #endif // __SYCL_DEVICE_ONLY__
@@ -904,8 +910,8 @@ public:
         Ret.setValue(I, (Lhs.getValue(I) BINOP Rhs.getValue(I)));              \
       }                                                                        \
     } else {                                                                   \
-      vector_t ExtVecLhs = bit_cast<vector_t>(Lhs.m_Data);                     \
-      vector_t ExtVecRhs = bit_cast<vector_t>(Rhs.m_Data);                     \
+      vector_t ExtVecLhs = detail::BitCast<DataType, vector_t>(Lhs.m_Data);    \
+      vector_t ExtVecRhs = detail::BitCast<DataType, vector_t>(Rhs.m_Data);    \
       Ret = vec<DataT, NumElements>(                                           \
           (typename vec<DataT, NumElements>::vector_t)(                        \
               ExtVecLhs BINOP ExtVecRhs));                                     \
@@ -1006,8 +1012,8 @@ public:
             Lhs.getValue(I)) RELLOGOP vec_data<DataT>::get(Rhs.getValue(I)))); \
       }                                                                        \
     } else {                                                                   \
-      vector_t ExtVecLhs = bit_cast<vector_t>(Lhs.m_Data);                     \
-      vector_t ExtVecRhs = bit_cast<vector_t>(Rhs.m_Data);                     \
+      vector_t ExtVecLhs = detail::BitCast<DataType, vector_t>(Lhs.m_Data);    \
+      vector_t ExtVecRhs = detail::BitCast<DataType, vector_t>(Rhs.m_Data);    \
       Ret = vec<rel_t, NumElements>(                                           \
           (typename vec<rel_t, NumElements>::vector_t)(                        \
               ExtVecLhs RELLOGOP ExtVecRhs));                                  \
@@ -1176,8 +1182,11 @@ private:
   operatorHelper(const EnableIfUsingArrayOnDevice<Ty> &Rhs) const {
     vec<DataT, NumElements> Result;
     Operation<DataT> Op;
-    auto OpResult = Op(bit_cast<vector_t>(m_Data), bit_cast<vector_t>(Rhs.m_Data));
-    Result.m_Data = bit_cast<DataType>(OpResult);
+    // Typecast to ext_vector_type, carryout the operation, and type cast back.
+    // Compiler optimizations will remove redundant casts.
+    auto OpResult = Op(detail::BitCast<DataType, vector_t>(m_Data),
+                       detail::BitCast<DataType, vector_t>(Rhs.m_Data));
+    Result.m_Data = detail::BitCast<vector_t, DataType>(OpResult);
     return Result;
   }
 #else  // __SYCL_DEVICE_ONLY__
