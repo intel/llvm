@@ -60,14 +60,10 @@ int main() {
 
     event Event;
     for (size_t i = 0; i < Iterations; i++) {
-      Event = Queue.submit([&](handler &CGH) {
-        CGH.ext_oneapi_graph(ExecGraph);
-      });
+      Event = Queue.ext_oneapi_graph(ExecGraph);
       // Update to second set of buffers
       ExecGraph.update(GraphUpdate);
-      Event = Queue.submit([&](handler &CGH) {
-        CGH.ext_oneapi_graph(ExecGraph);
-      });
+      Queue.ext_oneapi_graph(ExecGraph);
       // Reset back to original buffers
       ExecGraph.update(Graph);
     }
