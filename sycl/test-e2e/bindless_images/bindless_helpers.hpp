@@ -3,8 +3,6 @@
 #include <sycl/detail/core.hpp>
 
 #include <sycl/ext/oneapi/bindless_images.hpp>
-<<<<<<< HEAD
-=======
 
 template <typename DType, int NChannels>
 std::ostream &operator<<(std::ostream &os,
@@ -17,7 +15,6 @@ std::ostream &operator<<(std::ostream &os,
   os << str;
   return os;
 }
->>>>>>> origin/sycl
 
 namespace bindless_helpers {
 
