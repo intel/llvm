@@ -81,14 +81,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 2
-      - name: Get dependencies configuration
-        id: deps
-        run: |
-          DEPS=`cat devops/dependencies.json`
-          DEPS="${DEPS//$'\r'/''}"
-          DEPS="${DEPS//$'\n'/' '}"
-          echo $DEPS
-          echo "deps=$DEPS" >>$GITHUB_OUTPUT
       - name: Build and Push Container
         uses: ./devops/actions/build_container
         with:
@@ -100,13 +92,7 @@ jobs:
             ghcr.io/${{ github.repository }}/ubuntu2204_intel_drivers:latest-${{ github.sha }}
             ghcr.io/${{ github.repository }}/ubuntu2204_intel_drivers:latest
           build-args: |
-            compute_runtime_tag=${{fromJson(steps.deps.outputs.deps).linux.compute_runtime.github_tag}}
-            igc_tag=${{fromJson(steps.deps.outputs.deps).linux.igc.github_tag}}
-            cm_tag=${{fromJson(steps.deps.outputs.deps).linux.cm.github_tag}}
-            level_zero_tag=${{fromJson(steps.deps.outputs.deps).linux.level_zero.github_tag}}
-            tbb_tag=${{fromJson(steps.deps.outputs.deps).linux.tbb.github_tag}}
-            fpgaemu_tag=${{fromJson(steps.deps.outputs.deps).linux.fpgaemu.github_tag}}
-            cpu_tag=${{fromJson(steps.deps.outputs.deps).linux.oclcpu.github_tag}}
+            use_latest=false
   # This job produces a Docker container with the latest versions of Intel
   # drivers, that can be found on GitHub.
   drivers_image_ubuntu2204_unstable:
@@ -139,5 +125,5 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}/ubuntu2204_intel_drivers:unstable-${{ github.sha }}
             ghcr.io/${{ github.repository }}/ubuntu2204_intel_drivers:unstable
-          # build-args:empty, so we automatically take the "latest" tags as
-          # unstable
+          build-args: |
+            use_latest=true
