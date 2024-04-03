@@ -21,18 +21,15 @@ using u8 = unsigned char;
 using s16 = short;
 using u16 = unsigned short;
 
-#if OMP_LIBDEVICE
+#if OMP_LIBDEVICE && INTEL_COLLAB
 
-#if INTEL_COLLAB
 #pragma omp declare target
-
 uptr __AsanShadowMemoryGlobalStart;
 uptr __AsanShadowMemoryGlobalEnd;
 DeviceType __DeviceType;
 uint64_t __AsanDebug;
-
+DeviceSanitizerReport __DeviceSanitizerReportMem;
 #pragma omp end declare target
-#endif // INTEL_COLLAB
 
 #else
 
@@ -42,20 +39,24 @@ DeviceGlobal<uptr> __AsanShadowMemoryLocalStart;
 DeviceGlobal<uptr> __AsanShadowMemoryLocalEnd;
 DeviceGlobal<DeviceType> __DeviceType;
 DeviceGlobal<uint64_t> __AsanDebug;
+DeviceGlobal<DeviceSanitizerReport> __DeviceSanitizerReportMem;
 
-#endif // OMP_LIBDEVICE
+#endif // OMP_LIBDEVICE && INTEL_COLLAB
 
-#if defined(__SPIR__)
-#if INTEL_COLLAB
+#ifdef __SPIR__
 
-#ifdef __SYCL_DEVICE_ONLY__ || OMP_LIBDEVICE
+#if defined(__SYCL_DEVICE_ONLY__) || (OMP_LIBDEVICE && INTEL_COLLAB)
+
 #define __USE_SPIR_BUILTIN__ 1
 #ifndef SYCL_EXTERNAL
 #define SYCL_EXTERNAL
 #endif // SYCL_EXTERNAL
-#else
+
+#else // __SYCL_DEVICE_ONLY__ || (OMP_LIBDEVICE && INTEL_COLLAB)
+
 #define __USE_SPIR_BUILTIN__
-#endif
+
+#endif // __SYCL_DEVICE_ONLY__ || (OMP_LIBDEVICE && INTEL_COLLAB)
 
 #if __USE_SPIR_BUILTIN__
 extern SYCL_EXTERNAL int
@@ -67,11 +68,11 @@ extern SYCL_EXTERNAL __SYCL_LOCAL__ void *
 __spirv_GenericCastToPtrExplicit_ToLocal(void *, int);
 extern SYCL_EXTERNAL __SYCL_PRIVATE__ void *
 __spirv_GenericCastToPtrExplicit_ToPrivate(void *, int);
-#endif
+#endif // __USE_SPIR_BUILTIN__
 
-#if OMP_LIBDEVICE
+#if OMP_LIBDEVICE && INTEL_COLLAB
 #pragma omp declare target
-#endif // OMP_LIBDEVICE
+#endif // OMP_LIBDEVICE && INTEL_COLLAB
 
 static const __SYCL_CONSTANT__ char __asan_shadow_value_start[] =
     "[kernel] %p(%d) -> %p:";
@@ -296,9 +297,9 @@ bool __asan_internal_report_save(DeviceSanitizerErrorType error_type) {
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define __DEVICE_SANITIZER_REPORT_ACCESSOR __DeviceSanitizerReportMem.get()
-#else
+#else // __SYCL_DEVICE_ONLY__
 #define __DEVICE_SANITIZER_REPORT_ACCESSOR
-#endif
+#endif // __SYCL_DEVICE_ONLY__
 
 bool __asan_internal_report_save(
     uptr ptr, uint32_t as, const char __SYCL_CONSTANT__ *file, uint32_t line,
@@ -473,8 +474,7 @@ bool __asan_region_is_value(uptr addr, uint32_t as, std::size_t size,
 }
 
 // NOTE: size < 8
-inline int __asan_address_is_poisoned(uptr a, uint32_t as, uptr launch_info,
-                                      size_t size) {
+inline int __asan_address_is_poisoned(uptr a, uint32_t as, size_t size) {
   auto *shadow_address = (__SYCL_GLOBAL__ s8 *)MemToShadow(a, as);
   if (shadow_address) {
     auto shadow_value = *shadow_address;
@@ -655,9 +655,8 @@ __asan_set_shadow_local_memory(uptr ptr, size_t size,
   }
 }
 
-#if OMP_LIBDEVICE
+#if OMP_LIBDEVICE && INTEL_COLLAB
 #pragma omp end declare target
-#endif
+#endif // OMP_LIBDEVICE && INTEL_COLLAB
 
-#endif
-#endif
+#endif // __SPIR__
