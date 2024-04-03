@@ -6,10 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// Implements vec and __swizzled_vec__ classes, this older implementation
-// is not fully conforming, but is used by default. Use
-// -fpreview-breaking-changes to use the newer conforming version.
-
 #pragma once
 
 // Check if Clang's ext_vector_type attribute is available. Host compiler
@@ -936,7 +932,6 @@ public:
     Lhs = Lhs BINOP vec(Rhs);                                                  \
     return Lhs;                                                                \
   }
-
 #else // __SYCL_DEVICE_ONLY__
 
 #define __SYCL_BINOP(BINOP, OPASSIGN, CONVERT)                                 \
@@ -966,7 +961,6 @@ public:
     Lhs = Lhs BINOP vec(Rhs);                                                  \
     return Lhs;                                                                \
   }
-
 #endif // __SYCL_DEVICE_ONLY__
 
   __SYCL_BINOP(+, +=, true)
