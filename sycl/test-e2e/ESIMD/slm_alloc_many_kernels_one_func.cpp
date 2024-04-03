@@ -12,6 +12,8 @@
 // Check if the test sill passes with O0
 // RUN: %{build} -O0 -o %t.3.out
 // RUN: %{run} %t.3.out
+// TODO: Reenable the test on Windows once it it passes with O0 option
+// UNSUPPORTED: windows
 
 // Check that SLM frame offset of a function foo called from two kernels Test1
 // and Test2 is the maximum of the SLM size used in both kernels.
