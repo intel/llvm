@@ -1,4 +1,4 @@
-// REQUIRES: hip_be
+// REQUIRES: hip
 // RUN: %clangxx -fsycl -fsycl-targets=amd_gpu_gfx90a %s -o compile-query-hip
 
 #include <iostream>

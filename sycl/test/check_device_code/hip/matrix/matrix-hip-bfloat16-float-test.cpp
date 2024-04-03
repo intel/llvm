@@ -1,4 +1,4 @@
-// REQUIRES: hip_be
+// REQUIRES: hip
 // RUN: %clangxx -fsycl-device-only -fsycl-targets=amd_gpu_gfx90a -S -Xclang -emit-llvm %s -o -| FileCheck %s
 
 #include <sycl/sycl.hpp>
