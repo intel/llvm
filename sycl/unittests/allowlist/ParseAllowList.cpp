@@ -157,8 +157,6 @@ TEST(ParseAllowListTests, CheckMissingClosedDoubleCurlyBracesAreHandled) {
   }
 }
 
-// TODO: Remove esimd_emulator from ExpectedValue in the next ABI
-// breaking window.
 TEST(ParseAllowListTests, CheckAllValidBackendNameValuesAreProcessed) {
   std::string AllowList;
   for (const auto &SyclBe : sycl::detail::getSyclBeMap()) {
@@ -171,8 +169,8 @@ TEST(ParseAllowListTests, CheckAllValidBackendNameValuesAreProcessed) {
   sycl::detail::AllowListParsedT ExpectedValue{
       {{"BackendName", "host"}},       {{"BackendName", "opencl"}},
       {{"BackendName", "level_zero"}}, {{"BackendName", "cuda"}},
-      {{"BackendName", "hip"}},        {{"BackendName", "esimd_emulator"}},
-      {{"BackendName", "native_cpu"}}, {{"BackendName", "*"}}};
+      {{"BackendName", "hip"}},        {{"BackendName", "native_cpu"}},
+      {{"BackendName", "*"}}};
   EXPECT_EQ(ExpectedValue, ActualValue);
 }
 

@@ -58,8 +58,6 @@ backend convertBackend(pi_platform_backend PiBackend) {
     return backend::ext_oneapi_cuda;
   case PI_EXT_PLATFORM_BACKEND_HIP:
     return backend::ext_oneapi_hip;
-  case PI_EXT_PLATFORM_BACKEND_ESIMD:
-    return backend::ext_intel_esimd_emulator;
   case PI_EXT_PLATFORM_BACKEND_NATIVE_CPU:
     return backend::ext_oneapi_native_cpu;
   }

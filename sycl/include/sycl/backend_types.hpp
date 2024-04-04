@@ -21,8 +21,8 @@ enum class backend : char {
   ext_oneapi_level_zero = 2,
   ext_oneapi_cuda = 3,
   all = 4,
-  ext_intel_esimd_emulator __SYCL_DEPRECATED(
-      "esimd emulator is no longer supported") = 5,
+  // No support anymore:
+  // ext_intel_esimd_emulator  = 5,
   ext_oneapi_hip = 6,
   ext_oneapi_native_cpu = 7,
 };
@@ -50,9 +50,6 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
   case backend::ext_oneapi_cuda:
     Out << "ext_oneapi_cuda";
     break;
-  case backend::ext_intel_esimd_emulator:
-    Out << "ext_intel_esimd_emulator";
-    break;
   case backend::ext_oneapi_hip:
     Out << "ext_oneapi_hip";
     break;
@@ -76,8 +73,6 @@ inline std::string_view get_backend_name_no_vendor(backend Backend) {
     return "level_zero";
   case backend::ext_oneapi_cuda:
     return "cuda";
-  case backend::ext_intel_esimd_emulator:
-    return "esimd_emulator";
   case backend::ext_oneapi_hip:
     return "hip";
   case backend::ext_oneapi_native_cpu:

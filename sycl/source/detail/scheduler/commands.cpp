@@ -2976,8 +2976,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     NDRDescT &NDRDesc = ExecKernel->MNDRDesc;
     std::vector<ArgDesc> &Args = ExecKernel->MArgs;
 
-    if (MQueue->is_host() || (MQueue->getDeviceImplPtr()->getBackend() ==
-                              backend::ext_intel_esimd_emulator)) {
+    if (MQueue->is_host()) {
       for (ArgDesc &Arg : Args)
         if (kernel_param_kind_t::kind_accessor == Arg.MType) {
           Requirement *Req = (Requirement *)(Arg.MPtr);
@@ -2990,20 +2989,8 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         Plugin->call<PiApiKind::piEventsWait>(RawEvents.size(), &RawEvents[0]);
       }
 
-      if (MQueue->is_host()) {
-        ExecKernel->MHostKernel->call(NDRDesc,
-                                      getEvent()->getHostProfilingInfo());
-      } else {
-        assert(MQueue->getDeviceImplPtr()->getBackend() ==
-               backend::ext_intel_esimd_emulator);
-        if (MEvent != nullptr)
-          MEvent->setHostEnqueueTime();
-        MQueue->getPlugin()->call<PiApiKind::piEnqueueKernelLaunch>(
-            nullptr,
-            reinterpret_cast<pi_kernel>(ExecKernel->MHostKernel->getPtr()),
-            NDRDesc.Dims, &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
-            &NDRDesc.LocalSize[0], 0, nullptr, nullptr);
-      }
+      ExecKernel->MHostKernel->call(NDRDesc,
+                                    getEvent()->getHostProfilingInfo());
       return PI_SUCCESS;
     }
 

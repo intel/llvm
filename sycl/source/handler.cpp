@@ -276,40 +276,10 @@ event handler::finalize() {
                                           : nullptr);
           Result = PI_SUCCESS;
         } else {
-          if (MQueue->getDeviceImplPtr()->getBackend() ==
-              backend::ext_intel_esimd_emulator) {
-            // Capture the host timestamp for profiling (queue time)
-            if (NewEvent != nullptr)
-              NewEvent->setHostEnqueueTime();
-            [&](auto... Args) {
-              if (MImpl->MKernelIsCooperative) {
-                MQueue->getPlugin()
-                    ->call<
-                        detail::PiApiKind::piextEnqueueCooperativeKernelLaunch>(
-                        Args...);
-              } else {
-                MQueue->getPlugin()
-                    ->call<detail::PiApiKind::piEnqueueKernelLaunch>(Args...);
-              }
-            }(/* queue */
-              nullptr,
-              /* kernel */
-              reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
-              /* work_dim */
-              MNDRDesc.Dims,
-              /* global_work_offset */ &MNDRDesc.GlobalOffset[0],
-              /* global_work_size */ &MNDRDesc.GlobalSize[0],
-              /* local_work_size */ &MNDRDesc.LocalSize[0],
-              /* num_events_in_wait_list */ 0,
-              /* event_wait_list */ nullptr,
-              /* event */ nullptr);
-            Result = PI_SUCCESS;
-          } else {
-            Result = enqueueImpKernel(
-                MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
-                MKernelName.c_str(), RawEvents, NewEvent, nullptr,
-                MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative);
-          }
+          Result = enqueueImpKernel(
+              MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
+              MKernelName.c_str(), RawEvents, NewEvent, nullptr,
+              MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative);
         }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         // Emit signal only when event is created

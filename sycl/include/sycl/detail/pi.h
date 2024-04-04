@@ -278,7 +278,8 @@ typedef enum {
   PI_EXT_PLATFORM_BACKEND_OPENCL = 2,     ///< The backend is OpenCL
   PI_EXT_PLATFORM_BACKEND_CUDA = 3,       ///< The backend is CUDA
   PI_EXT_PLATFORM_BACKEND_HIP = 4,        ///< The backend is HIP
-  PI_EXT_PLATFORM_BACKEND_ESIMD = 5,      ///< The backend is ESIMD
+  // Not supported anymore:
+  // PI_EXT_PLATFORM_BACKEND_ESIMD = 5,
   PI_EXT_PLATFORM_BACKEND_NATIVE_CPU = 6, ///< The backend is NATIVE_CPU
 } _pi_platform_backend;
 

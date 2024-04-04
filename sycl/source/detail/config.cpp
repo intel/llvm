@@ -163,17 +163,15 @@ void dumpConfig() {
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
 // ONEAPI_DEVICE_SELECTOR
-// TODO: Remove esimd_emulator in the next ABI breaking window.
 // TODO: host device type will be removed once sycl_ext_oneapi_filter_selector
 // is removed.
-const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap() {
-  static const std::array<std::pair<std::string, backend>, 8> SyclBeMap = {
+const std::array<std::pair<std::string, backend>, 7> &getSyclBeMap() {
+  static const std::array<std::pair<std::string, backend>, 7> SyclBeMap = {
       {{"host", backend::host},
        {"opencl", backend::opencl},
        {"level_zero", backend::ext_oneapi_level_zero},
        {"cuda", backend::ext_oneapi_cuda},
        {"hip", backend::ext_oneapi_hip},
-       {"esimd_emulator", backend::ext_intel_esimd_emulator},
        {"native_cpu", backend::ext_oneapi_native_cpu},
        {"*", backend::all}}};
   return SyclBeMap;
