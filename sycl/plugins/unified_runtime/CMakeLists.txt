@@ -88,7 +88,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # Date:   Mon Mar 25 14:45:32 2024 +0000
   #     Merge pull request #1468 from pbalcer/l0-recursive-event-deadlock
   #     [L0] fix a deadlock on a recursive event rwlock
-  set(UNIFIED_RUNTIME_TAG user-after-free)
+  set(UNIFIED_RUNTIME_TAG local_accessor)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
