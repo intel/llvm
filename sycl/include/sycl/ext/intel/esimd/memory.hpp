@@ -96,7 +96,7 @@ ESIMD_INLINE simd<T, N> lsc_format_ret(simd<T1, N> Vals) {
 }
 
 /// Extracts a cache hint with the given 'Level' to pass it to
-/// ESIMD/GENX intrinsic. If `PropertyListT` does not have the requested
+/// ESIMD/GENX intrinsics. If `PropertyListT` does not have the requested
 /// cache-hint, then 'cache_hint::none' is returned.
 template <typename PropertyListT, cache_level Level>
 constexpr cache_hint getCacheHintForIntrin() {
