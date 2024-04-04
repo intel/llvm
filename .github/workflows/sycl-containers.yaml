@@ -24,12 +24,31 @@ on:
 permissions: read-all
 
 jobs:
-  base_image_ubuntu2204:
+  build_and_push_images:
     if: github.repository == 'intel/llvm'
-    name: Base Ubuntu 22.04 Docker image
+    name: Build and Push Docker Images
     runs-on: ubuntu-22.04
     permissions:
       packages: write
+    strategy:
+      matrix:
+        include:
+          - name: Base Ubuntu 22.04 Docker image
+            file: ubuntu2204_base
+            tags: ubuntu2204_base
+            build_args: ""
+          - name: Build Ubuntu Docker image
+            file: ubuntu2204_build
+            tags: ubuntu2204_build
+            build_args: ""
+          - name: Intel Drivers Ubuntu 22.04 Docker image
+            file: ubuntu2204_intel_drivers
+            tags: ubuntu2204_intel_drivers
+            build_args: "use_latest=false"
+          - name: Intel Drivers (unstable) Ubuntu 22.04 Docker image
+            file: ubuntu2204_intel_drivers
+            tags: ubuntu2204_intel_drivers:unstable
+            build_args: "use_latest=true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,83 +58,11 @@ jobs:
         uses: ./devops/actions/build_container
         with:
           push: ${{ github.event_name != 'pull_request' }}
-          file: ubuntu2204_base
+          file: ${{ matrix.file }}
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
           tags: |
-            ghcr.io/${{ github.repository }}/ubuntu2204_base:${{ github.sha }}
-            ghcr.io/${{ github.repository }}/ubuntu2204_base:latest
-  build_image_ubuntu2204:
-    if: github.repository == 'intel/llvm'
-    name: Build Ubuntu Docker image
-    runs-on: ubuntu-22.04
-    permissions:
-      packages: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-      - name: Build and Push Container
-        uses: ./devops/actions/build_container
-        with:
-          push: ${{ github.event_name != 'pull_request' }}
-          file: ubuntu2204_build
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          tags: |
-            ghcr.io/${{ github.repository }}/ubuntu2204_build:${{ github.sha }}
-            ghcr.io/${{ github.repository }}/ubuntu2204_build:latest
+            ghcr.io/${{ github.repository }}/${{ matrix.tags }}:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/${{ matrix.tags }}:latest
+          build-args: ${{ matrix.build_args }}
 
-  # This job produces a Docker container with the latest versions of Intel
-  # drivers, that can be found on GitHub.
-  drivers_image_ubuntu2204:
-    if: github.repository == 'intel/llvm'
-    name: Intel Drivers Ubuntu 22.04 Docker image
-    runs-on: ubuntu-22.04
-    permissions:
-      packages: write
-    needs: base_image_ubuntu2204
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-      - name: Build and Push Container
-        uses: ./devops/actions/build_container
-        with:
-          push: ${{ github.event_name != 'pull_request' }}
-          file: ubuntu2204_intel_drivers
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          tags: |
-            ghcr.io/${{ github.repository }}/ubuntu2204_intel_drivers:latest-${{ github.sha }}
-            ghcr.io/${{ github.repository }}/ubuntu2204_intel_drivers:latest
-          build-args: |
-            use_latest=false
-  # This job produces a Docker container with the latest versions of Intel
-  # drivers, that can be found on GitHub.
-  drivers_image_ubuntu2204_unstable:
-    if: github.repository == 'intel/llvm'
-    name: Intel Drivers (unstable) Ubuntu 22.04 Docker image
-    runs-on: ubuntu-22.04
-    permissions:
-      packages: write
-    needs: base_image_ubuntu2204
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-      - name: Build and Push Container
-        uses: ./devops/actions/build_container
-        with:
-          push: ${{ github.event_name != 'pull_request' }}
-          file: ubuntu2204_intel_drivers
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          tags: |
-            ghcr.io/${{ github.repository }}/ubuntu2204_intel_drivers:unstable-${{ github.sha }}
-            ghcr.io/${{ github.repository }}/ubuntu2204_intel_drivers:unstable
-          build-args: |
-            use_latest=true
