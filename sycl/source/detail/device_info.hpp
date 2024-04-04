@@ -1641,13 +1641,11 @@ inline size_t get_device_info_host<info::device::image_max_buffer_size>() {
   return 0;
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 inline size_t get_device_info_host<info::device::image_max_array_size>() {
   // current value is the required minimum
   return 2048;
 }
-#endif
 
 template <> inline uint32_t get_device_info_host<info::device::max_samplers>() {
   // current value is the required minimum
@@ -1817,12 +1815,10 @@ template <> inline std::string get_device_info_host<info::device::version>() {
   return "1.2";
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 template <>
 inline std::string get_device_info_host<info::device::opencl_c_version>() {
   return "not applicable";
 }
-#endif
 
 template <>
 inline std::vector<std::string>

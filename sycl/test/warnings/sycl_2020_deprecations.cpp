@@ -170,6 +170,10 @@ int main() {
   using PIUS = sycl::info::device::preferred_interop_user_sync;
   // expected-warning@+1{{'usm_system_allocator' is deprecated: use info::device::usm_system_allocations instead}}
   using USA = sycl::info::device::usm_system_allocator;
+  // expected-warning@+1{{'image_max_array_size' is deprecated: deprecated and not part of SYCL 2020 as support for image arrays has been removed in SYCL 2020}}
+  using IMAS = sycl::info::device::image_max_array_size;
+  // expected-warning@+1{{'opencl_c_version' is deprecated: deprecated and not part of SYCL 2020}}
+  using OCV = sycl::info::device::opencl_c_version;
 
   // expected-warning@+1{{'extensions' is deprecated: deprecated in SYCL 2020, use device::get_info() with info::device::aspects instead}}
   using PE = sycl::info::platform::extensions;
