@@ -17,14 +17,7 @@ RUN mkdir /runtimes
 ENV INSTALL_LOCATION=/runtimes
 RUN --mount=type=secret,id=github_token \
     if [ "use_latest" = "true" ]; then \
-      install_driver_opt=""; \
-      export compute_runtime_tag=latest; \
-      export igc_tag=latest; \
-      export cm_tag=latest; \
-      export level_zero_tag=latest; \
-      export tbb_tag=latest; \
-      export fpgaemu_tag=latest; \
-      export cpu_tag=latest; \
+      install_driver_opt=" --use-latest"; \
     else \
       install_driver_opt=" dependencies.json"; \
     fi && \
