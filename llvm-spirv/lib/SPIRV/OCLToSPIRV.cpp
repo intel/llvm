@@ -744,56 +744,26 @@ void OCLToSPIRVBase::visitCallConvert(CallInst *CI, StringRef MangledName,
   if (auto *VecTy = dyn_cast<VectorType>(SrcTy))
     SrcTy = VecTy->getElementType();
   auto IsTargetInt = isa<IntegerType>(TargetTy);
-  auto TargetSigned = DemangledName[8] != 'u';
 
-  std::string TargetTyName(
-      DemangledName.substr(strlen(kOCLBuiltinName::ConvertPrefix)));
-  auto FirstUnderscoreLoc = TargetTyName.find('_');
-  if (FirstUnderscoreLoc != std::string::npos)
-    TargetTyName = TargetTyName.substr(0, FirstUnderscoreLoc);
-
-  // Validate target type name
-  std::regex Expr("([a-z]+)([0-9]*)$");
+  // Validate conversion function name and vector size if present
+  std::regex Expr(
+      "convert_(float|double|half|u?char|u?short|u?int|u?long)(2|3|4|8|16)*"
+      "(_sat)*(_rt[ezpn])*$");
   std::smatch DestTyMatch;
-  if (!std::regex_match(TargetTyName, DestTyMatch, Expr))
+  std::string ConversionFunc(DemangledName.str());
+  if (!std::regex_match(ConversionFunc, DestTyMatch, Expr))
     return;
 
   // The first sub_match is the whole string; the next
-  // sub_match is the first parenthesized expression.
-  std::string DestTy = DestTyMatch[1].str();
+  // sub_matches are the parenthesized expressions.
+  enum { TypeIdx = 1, VecSizeIdx = 2, SatIdx = 3, RoundingIdx = 4 };
+  std::string DestTy = DestTyMatch[TypeIdx].str();
+  std::string VecSize = DestTyMatch[VecSizeIdx].str();
+  std::string Sat = DestTyMatch[SatIdx].str();
+  std::string Rounding = DestTyMatch[RoundingIdx].str();
 
-  // check it's valid type name
-  static std::unordered_set<std::string> ValidTypes = {
-      "float",  "double", "half", "char", "uchar", "short",
-      "ushort", "int",    "uint", "long", "ulong"};
+  bool TargetSigned = DestTy[0] != 'u';
 
-  if (ValidTypes.find(DestTy) == ValidTypes.end())
-    return;
-
-  // check that it's allowed vector size
-  std::string VecSize = DestTyMatch[2].str();
-  if (!VecSize.empty()) {
-    int Size = stoi(VecSize);
-    switch (Size) {
-    case 2:
-    case 3:
-    case 4:
-    case 8:
-    case 16:
-      break;
-    default:
-      return;
-    }
-  }
-  DemangledName = DemangledName.drop_front(
-      strlen(kOCLBuiltinName::ConvertPrefix) + TargetTyName.size());
-  TargetTyName = std::string("_R") + TargetTyName;
-
-  if (!DemangledName.empty() && !DemangledName.starts_with("_sat") &&
-      !DemangledName.starts_with("_rt"))
-    return;
-
-  std::string Sat = DemangledName.find("_sat") != StringRef::npos ? "_sat" : "";
   if (isa<IntegerType>(SrcTy)) {
     bool Signed = isLastFuncParamSigned(MangledName);
     if (IsTargetInt) {
@@ -810,13 +780,13 @@ void OCLToSPIRVBase::visitCallConvert(CallInst *CI, StringRef MangledName,
     } else
       OC = OpFConvert;
   }
-  auto Loc = DemangledName.find("_rt");
-  std::string Rounding;
-  if (Loc != StringRef::npos && !(isa<IntegerType>(SrcTy) && IsTargetInt)) {
-    Rounding = DemangledName.substr(Loc, 4).str();
-  }
+
+  if (!Rounding.empty() && (isa<IntegerType>(SrcTy) && IsTargetInt))
+    return;
+
   assert(CI->getCalledFunction() && "Unexpected indirect call");
-  mutateCallInst(CI, getSPIRVFuncName(OC, TargetTyName + Sat + Rounding));
+  mutateCallInst(
+      CI, getSPIRVFuncName(OC, "_R" + DestTy + VecSize + Sat + Rounding));
 }
 
 void OCLToSPIRVBase::visitCallGroupBuiltin(CallInst *CI,
