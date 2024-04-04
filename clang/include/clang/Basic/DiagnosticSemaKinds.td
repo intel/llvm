@@ -191,7 +191,7 @@ def err_intel_sycl_alloca_wrong_arg
             "'sycl::kernel_handler &'. Got %0">;
 def err_intel_sycl_alloca_wrong_type
     : Error<"__builtin_intel_sycl_alloca can only return 'sycl::private_ptr' "
-            "to a cv-unqualified object type. Got %0">;
+            "to a cv-unqualified trivial type. Got %0">;
 def err_intel_sycl_alloca_wrong_size
     : Error<"__builtin_intel_sycl_alloca must be passed a specialization "
             "constant of integral value type as a template argument. Got %1 (%0)">;
@@ -9155,7 +9155,7 @@ def warn_bad_function_cast : Warning<
   InGroup<BadFunctionCast>, DefaultIgnore;
 def warn_cast_function_type : Warning<
   "cast %diff{from $ to $ |}0,1converts to incompatible function type">,
-  InGroup<CastFunctionType>, DefaultIgnore;
+  InGroup<CastFunctionTypeMismatch>, DefaultIgnore;
 def warn_cast_function_type_strict : Warning<warn_cast_function_type.Summary>,
   InGroup<CastFunctionTypeStrict>, DefaultIgnore;
 def err_cast_pointer_to_non_pointer_int : Error<
@@ -12124,13 +12124,14 @@ def err_builtin_launder_invalid_arg : Error<
   "'__builtin_launder' is not allowed">;
 
 def err_builtin_invalid_arg_type: Error <
-  "%ordinal0 argument must be a "
-  "%select{vector, integer or floating point type|matrix|"
-  "pointer to a valid matrix element type|"
-  "signed integer or floating point type|vector type|"
-  "floating point type|"
-  "vector of integers|"
-  "type of unsigned integer}1 (was %2)">;
+  "%ordinal0 argument must be "
+  "%select{a vector, integer or floating point type|a matrix|"
+  "a pointer to a valid matrix element type|"
+  "a signed integer or floating point type|a vector type|"
+  "a floating point type|"
+  "a vector of integers|"
+  "an unsigned integer|"
+  "an 'int'}1 (was %2)">;
 
 def err_builtin_matrix_disabled: Error<
   "matrix types extension is disabled. Pass -fenable-matrix to enable it">;

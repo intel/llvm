@@ -1098,29 +1098,28 @@ defm offload_uniform_block : BoolFOption<"offload-uniform-block",
   NegFlag<SetFalse, [], [ClangOption, CC1Option], "Don't assume">,
   BothFlags<[], [ClangOption], " that kernels are launched with uniform block sizes (default true for CUDA/HIP and false otherwise)">>;
 
-def fcx_limited_range : Joined<["-"], "fcx-limited-range">,
-  Group<f_Group>, Visibility<[ClangOption, CC1Option]>,
-  HelpText<"Basic algebraic expansions of complex arithmetic operations "
-           "involving are enabled.">;
-
-def fno_cx_limited_range : Joined<["-"], "fno-cx-limited-range">,
-  Group<f_Group>, Visibility<[ClangOption, CC1Option]>,
-  HelpText<"Basic algebraic expansions of complex arithmetic operations "
-           "involving are disabled.">;
-
-def fcx_fortran_rules : Joined<["-"], "fcx-fortran-rules">,
-  Group<f_Group>, Visibility<[ClangOption, CC1Option]>,
-  HelpText<"Range reduction is enabled for complex arithmetic operations.">;
-
-def fno_cx_fortran_rules : Joined<["-"], "fno-cx-fortran-rules">,
-  Group<f_Group>, Visibility<[ClangOption, CC1Option]>,
-  HelpText<"Range reduction is disabled for complex arithmetic operations.">;
+def fcomplex_arithmetic_EQ : Joined<["-"], "fcomplex-arithmetic=">, Group<f_Group>,
+  Visibility<[ClangOption, CC1Option]>,
+  Values<"full,improved,promoted,basic">, NormalizedValuesScope<"LangOptions">,
+  NormalizedValues<["CX_Full", "CX_Improved", "CX_Promoted", "CX_Basic"]>;
 
 def complex_range_EQ : Joined<["-"], "complex-range=">, Group<f_Group>,
   Visibility<[CC1Option]>,
-  Values<"full,limited,fortran">, NormalizedValuesScope<"LangOptions">,
-  NormalizedValues<["CX_Full", "CX_Limited", "CX_Fortran"]>,
+  Values<"full,improved,promoted,basic">, NormalizedValuesScope<"LangOptions">,
+  NormalizedValues<["CX_Full", "CX_Improved", "CX_Promoted", "CX_Basic"]>,
   MarshallingInfoEnum<LangOpts<"ComplexRange">, "CX_Full">;
+
+defm cx_limited_range: BoolOptionWithoutMarshalling<"f", "cx-limited-range",
+  PosFlag<SetTrue, [], [ClangOption, CC1Option], "Basic algebraic expansions of "
+  "complex arithmetic operations involving are enabled.">,
+  NegFlag<SetFalse, [], [ClangOption, CC1Option], "Basic algebraic expansions "
+  "of complex arithmetic operations involving are disabled.">>;
+
+defm cx_fortran_rules: BoolOptionWithoutMarshalling<"f", "cx-fortran-rules",
+  PosFlag<SetTrue, [], [ClangOption, CC1Option], "Range reduction is enabled for "
+  "complex arithmetic operations.">,
+  NegFlag<SetFalse, [], [ClangOption, CC1Option], "Range reduction is disabled "
+  "for complex arithmetic operations">>;
 
 // OpenCL-only Options
 def cl_opt_disable : Flag<["-"], "cl-opt-disable">, Group<opencl_Group>,
@@ -4012,6 +4011,10 @@ def fsycl_disable_range_rounding : Flag<["-"], "fsycl-disable-range-rounding">,
   Alias<fsycl_range_rounding_EQ>, AliasArgs<["disable"]>,
   HelpText<"Deprecated: please use -fsycl-range-rounding=disable instead.">,
   Flags<[Deprecated]>;
+def fsycl_exp_range_rounding : Flag<["-"], "fsycl-exp-range-rounding">,
+  Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
+  HelpText<"Use experimental range rounding.">,
+  MarshallingInfoFlag<LangOpts<"SYCLExperimentalRangeRounding">>;
 def fno_sycl_use_footer : Flag<["-"], "fno-sycl-use-footer">, Visibility<[ClangOption, CLOption, DXCOption]>,
   HelpText<"Disable usage of the integration footer during SYCL enabled "
    "compilations.">;
@@ -4392,12 +4395,8 @@ defm strict_return : BoolFOption<"strict-return",
             " of a non-void function as unreachable">,
   PosFlag<SetTrue>>;
 
-let Group = f_Group in {
-  let Visibility = [ClangOption,CC1Option] in {
-    def fptrauth_intrinsics : Flag<["-"], "fptrauth-intrinsics">,
-      HelpText<"Enable pointer authentication intrinsics">;
-  }
-  def fno_ptrauth_intrinsics : Flag<["-"], "fno-ptrauth-intrinsics">;
+let Flags = [TargetSpecific] in {
+defm ptrauth_intrinsics : OptInCC1FFlag<"ptrauth-intrinsics", "Enable pointer authentication intrinsics">;
 }
 
 def fenable_matrix : Flag<["-"], "fenable-matrix">, Group<f_Group>,
@@ -7019,6 +7018,9 @@ def analyzer_opt_analyze_headers : Flag<["-"], "analyzer-opt-analyze-headers">,
 def analyzer_display_progress : Flag<["-"], "analyzer-display-progress">,
   HelpText<"Emit verbose output about the analyzer's progress">,
   MarshallingInfoFlag<AnalyzerOpts<"AnalyzerDisplayProgress">>;
+def analyzer_note_analysis_entry_points : Flag<["-"], "analyzer-note-analysis-entry-points">,
+  HelpText<"Add a note for each bug report to denote their analysis entry points">,
+  MarshallingInfoFlag<AnalyzerOpts<"AnalyzerNoteAnalysisEntryPoints">>;
 def analyze_function : Separate<["-"], "analyze-function">,
   HelpText<"Run analysis on specific function (for C++ include parameters in name)">,
   MarshallingInfoString<AnalyzerOpts<"AnalyzeSpecificFunction">>;

@@ -394,7 +394,7 @@ bool Sema::isDeclAllowedInSYCLDeviceCode(const Decl *D) {
 
 static bool isZeroSizedArray(Sema &SemaRef, QualType Ty) {
   if (const auto *CAT = SemaRef.getASTContext().getAsConstantArrayType(Ty))
-    return CAT->getSize() == 0;
+    return CAT->isZeroSize();
   return false;
 }
 
@@ -6302,6 +6302,12 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     break;
   default:
     break;
+  }
+
+  if (S.getLangOpts().SYCLExperimentalRangeRounding) {
+    O << "#ifndef __SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__ \n";
+    O << "#define __SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__ 1\n";
+    O << "#endif //__SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__\n\n";
   }
 
   if (SpecConsts.size() > 0) {
