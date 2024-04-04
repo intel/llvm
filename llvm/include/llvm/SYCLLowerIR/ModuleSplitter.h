@@ -17,6 +17,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/PropertySetIO.h"
 
 #include <memory>
 #include <string>
@@ -34,6 +35,23 @@ enum IRSplitMode {
   SPLIT_PER_KERNEL, // one module per kernel
   SPLIT_AUTO,       // automatically select split mode
   SPLIT_NONE        // no splitting
+};
+
+struct SplittedImage {
+  std::string ModuleFilePath;
+  util::PropertySetRegistry Properties;
+  std::string Symbols;
+
+  SplittedImage() = default;
+  SplittedImage(SplittedImage &) = default;
+  SplittedImage &operator=(SplittedImage &) = default;
+  SplittedImage(SplittedImage &&) = default;
+  SplittedImage &operator=(SplittedImage &&) = default;
+
+  SplittedImage(std::string_view File, util::PropertySetRegistry Properties,
+                std::string Symbols)
+      : ModuleFilePath(File), Properties(std::move(Properties)),
+        Symbols(std::move(Symbols)) {}
 };
 
 // A vector that contains all entry point functions in a split module.
@@ -193,6 +211,8 @@ public:
 
   ModuleDesc clone() const;
 
+  std::string makeSymbolTable() const;
+
 #ifndef NDEBUG
   void verifyESIMDProperty() const;
   void dump() const;
@@ -260,6 +280,16 @@ void dumpEntryPoints(const EntryPointSet &C, const char *msg = "", int Tab = 0);
 void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints = false,
                      const char *msg = "", int Tab = 0);
 #endif // NDEBUG
+
+struct ModuleSplitterSettings {
+  IRSplitMode Mode;
+  bool OutputAssembly = false; // Bitcode or LLVM IR.
+  StringRef OutputPrefix;
+};
+
+/// Splits the given module \p M according to the given \p Settings.
+Expected<std::vector<SplittedImage>>
+splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings);
 
 } // namespace module_split
 

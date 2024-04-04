@@ -12,16 +12,20 @@
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IRPrinter/IRPrintingPasses.h"
+#include "llvm/Passes/PassBuilder.h"
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/IPO/StripDeadPrototypes.h"
@@ -733,6 +737,14 @@ void EntryPointGroup::rebuild(const Module &M) {
       Functions.insert(const_cast<Function *>(&F));
 }
 
+std::string ModuleDesc::makeSymbolTable() const {
+  std::string ST;
+  for (const Function *F : EntryPoints.Functions)
+    ST += (Twine(F->getName()) + "\n").str();
+
+  return ST;
+}
+
 namespace {
 // This is a helper class, which allows to group/categorize function based on
 // provided rules. It is intended to be used in device code split
@@ -1110,6 +1122,69 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
   }
 
   return Result;
+}
+
+Error saveModuleIRInFile(Module &M, StringRef FilePath, bool OutputAssembly) {
+  int FD = -1;
+  if (std::error_code EC = sys::fs::openFileForWrite(FilePath, FD))
+    return errorCodeToError(EC);
+
+  raw_fd_ostream OS(FD, true);
+  ModulePassManager MPM;
+  ModuleAnalysisManager MAM;
+  PassBuilder PB;
+  PB.registerModuleAnalyses(MAM);
+  if (OutputAssembly)
+    MPM.addPass(PrintModulePass(OS));
+  else
+    MPM.addPass(BitcodeWriterPass(OS));
+
+  MPM.run(M, MAM);
+  return Error::success();
+}
+
+Expected<SplittedImage> saveModuleDesc(ModuleDesc &MD, std::string Prefix,
+                                       bool OutputAssembly) {
+  if (MD.isESIMD())
+    Prefix += "_esimd";
+
+  SplittedImage SI;
+
+  Prefix += OutputAssembly ? ".ll" : ".bc";
+  Error E = saveModuleIRInFile(MD.getModule(), Prefix, OutputAssembly);
+  if (E)
+    return std::move(E);
+
+  SI.ModuleFilePath = Prefix;
+  SI.Symbols = MD.makeSymbolTable();
+
+  return std::move(SI);
+}
+
+Expected<std::vector<SplittedImage>>
+splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
+  ModuleDesc MD = std::move(M); // makeModuleDesc() ?
+  // FIXME: false arguments are temporary for now.
+  auto Splitter =
+      getDeviceCodeSplitter(std::move(MD), Settings.Mode, false, false);
+  size_t ID = 0;
+  std::vector<SplittedImage> OutputImages;
+  while (Splitter->hasMoreSplits()) {
+    ModuleDesc MD2 = Splitter->nextSplit();
+    MD2.fixupLinkageOfDirectInvokeSimdTargets();
+
+    std::string OutIRFileName =
+        (Settings.OutputPrefix + "_" + std::to_string(ID)).str();
+    auto SplittedImageOrErr =
+        saveModuleDesc(MD2, OutIRFileName, Settings.OutputAssembly);
+    if (!SplittedImageOrErr)
+      return SplittedImageOrErr.takeError();
+
+    OutputImages.emplace_back(std::move(*SplittedImageOrErr));
+    ++ID;
+  }
+
+  return OutputImages;
 }
 
 } // namespace module_split
