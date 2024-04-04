@@ -1162,16 +1162,31 @@ static bool IsFreeFunction(Sema &SemaRef, const FunctionDecl *FD) {
   return false;
 }
 
-static std::string constructFreeFunctionKernelName(ASTContext &Ctx,
-                                                   const FunctionDecl *FD) {
+static std::string constructFFKernelName(ASTContext &Ctx,
+                                         const FunctionDecl *FD) {
   IdentifierInfo *Id = FD->getIdentifier();
   std::string NewIdent = (Twine("__free_function_") + Id->getName()).str();
   return NewIdent;
 }
 
-// Free functions are always void type.
-static QualType calculateFreeFunctionNameType(const FunctionDecl *FF) {
-  return FF->getType();
+// Gets a name for the free function kernel function. The suffix allows a normal
+// device function to coexist with the kernel function.
+static std::pair<std::string, std::string>
+constructFreeFunctionKernelName(Sema &S, const FunctionDecl *KernelCallerFunc,
+                                MangleContext &MC) {
+  SmallString<256> Result;
+  llvm::raw_svector_ostream Out(Result);
+  std::string MangledName;
+  std::string StableName;
+
+  if (KernelCallerFunc->getTemplateSpecializationArgs()) {
+    MC.mangleName(KernelCallerFunc, Out);
+    MangledName = (Twine("__free_function") + Out.str()).str();
+  } else {
+    MangledName = constructFFKernelName(S.getASTContext(), KernelCallerFunc);
+  }
+  StableName = MangledName;
+  return {MangledName, StableName};
 }
 
 // The first template argument to the kernel caller function is used to identify
@@ -1184,28 +1199,13 @@ static QualType calculateKernelNameType(ASTContext &Ctx,
   return TAL->get(0).getAsType().getCanonicalType();
 }
 
-// Gets a name for the kernel function, calculated from the first
+// Gets a name for the OpenCL kernel function, calculated from the first
 // template argument of the kernel caller function.
-// Free functions may not be templated. Use original function name with a
-// prefix.
 static std::pair<std::string, std::string>
 constructKernelName(Sema &S, const FunctionDecl *KernelCallerFunc,
                     MangleContext &MC) {
-  QualType KernelNameType;
-  if (IsFreeFunction(S, KernelCallerFunc)) {
-    if (KernelCallerFunc->getTemplateSpecializationArgs()) {
-      KernelNameType = KernelCallerFunc->getType();
-    } else {
-      std::string MangledName(
-          constructFreeFunctionKernelName(S.getASTContext(), KernelCallerFunc));
-      std::string StableName = (constructFreeFunctionKernelName(
-          S.getASTContext(), KernelCallerFunc));
-      return {MangledName, StableName};
-    }
-  } else {
-    KernelNameType =
-        calculateKernelNameType(S.getASTContext(), KernelCallerFunc);
-  }
+  QualType KernelNameType =
+      calculateKernelNameType(S.getASTContext(), KernelCallerFunc);
 
   SmallString<256> Result;
   llvm::raw_svector_ostream Out(Result);
@@ -2926,7 +2926,7 @@ class SyclKernelDeclCreator : public SyclKernelFieldHandler {
     FunctionProtoType::ExtProtoInfo Info(CC_OpenCLKernel);
     QualType FuncType = Ctx.getFunctionType(Ctx.VoidTy, {}, Info);
     const IdentifierInfo *NewIdent =
-        &Ctx.Idents.get(constructFreeFunctionKernelName(Ctx, FD));
+        &Ctx.Idents.get(constructFFKernelName(Ctx, FD));
     FD = FunctionDecl::Create(
         Ctx, Ctx.getTranslationUnitDecl(), Loc, Loc, DeclarationName(NewIdent),
         FuncType, Ctx.getTrivialTypeSourceInfo(Ctx.VoidTy), SC_None);
@@ -4712,7 +4712,8 @@ public:
                           .getTypeSizeInChars(KernelObj->getTypeForDecl())
                           .getQuantity();
     Header.startKernel(KernelFunc, NameType, KernelObj->getLocation(), IsESIMD,
-                       IsSYCLUnnamedKernel(S, KernelFunc), ObjSize);
+                       IsSYCLUnnamedKernel(S, KernelFunc),
+                       false /*IsFreeFunctionKernel*/, ObjSize);
   }
 
   SyclKernelIntHeaderCreator(Sema &S, SYCLIntegrationHeader &H, int64_t ObjSize,
@@ -4720,7 +4721,7 @@ public:
       : SyclKernelFieldHandler(S), Header(H) {
     Header.startKernel(FreeFunc, NameType, FreeFunc->getLocation(),
                        false /*IsESIMD*/, true /*IsSYCLUnnamedKernel*/,
-                       ObjSize);
+                       true /*IsFreeFunctionKernel*/, ObjSize);
   }
 
   bool handleSyclSpecialType(const CXXRecordDecl *RD,
@@ -5219,8 +5220,12 @@ void Sema::SetSYCLKernelNames() {
   for (const std::pair<const FunctionDecl *, FunctionDecl *> &Pair :
        SyclKernelsToOpenCLKernels) {
     std::string CalculatedName, StableName;
-    std::tie(CalculatedName, StableName) =
-        constructKernelName(*this, Pair.first, *MangleCtx);
+    if (IsFreeFunction(*this, Pair.first))
+      std::tie(CalculatedName, StableName) =
+          constructFreeFunctionKernelName(*this, Pair.first, *MangleCtx);
+    else
+      std::tie(CalculatedName, StableName) =
+          constructKernelName(*this, Pair.first, *MangleCtx);
     StringRef KernelName(
         IsSYCLUnnamedKernel(*this, Pair.first) ? StableName : CalculatedName);
 
@@ -5354,9 +5359,8 @@ void ConstructFreeFunctionKernel(Sema &SemaRef, FunctionDecl *FD) {
   SyclKernelBodyCreator kernel_body(SemaRef, kernel_decl, FD, DummyClass1);
 
   // Kernel object size is irrelevant, so set to 0.
-  SyclKernelIntHeaderCreator int_header(SemaRef,
-                                        SemaRef.getSyclIntegrationHeader(), 0,
-                                        calculateFreeFunctionNameType(FD), FD);
+  SyclKernelIntHeaderCreator int_header(
+      SemaRef, SemaRef.getSyclIntegrationHeader(), 0, FD->getType(), FD);
 
   SyclKernelIntFooterCreator int_footer(SemaRef,
                                         SemaRef.getSyclIntegrationFooter());
@@ -6524,13 +6528,13 @@ bool SYCLIntegrationHeader::emit(StringRef IntHeaderName) {
   return true;
 }
 
-void SYCLIntegrationHeader::startKernel(const FunctionDecl *SyclKernel,
-                                        QualType KernelNameType,
-                                        SourceLocation KernelLocation,
-                                        bool IsESIMDKernel,
-                                        bool IsUnnamedKernel, int64_t ObjSize) {
+void SYCLIntegrationHeader::startKernel(
+    const FunctionDecl *SyclKernel, QualType KernelNameType,
+    SourceLocation KernelLocation, bool IsESIMDKernel, bool IsUnnamedKernel,
+    bool IsFreeFunctionKernel, int64_t ObjSize) {
   KernelDescs.emplace_back(SyclKernel, KernelNameType, KernelLocation,
-                           IsESIMDKernel, IsUnnamedKernel, ObjSize);
+                           IsESIMDKernel, IsUnnamedKernel, IsFreeFunctionKernel,
+                           ObjSize);
 }
 
 void SYCLIntegrationHeader::addParamDesc(kernel_param_kind_t Kind, int Info,

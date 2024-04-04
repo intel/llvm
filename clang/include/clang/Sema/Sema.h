@@ -341,7 +341,7 @@ public:
   ///  the kernel with given name. Starts new kernel invocation descriptor.
   void startKernel(const FunctionDecl *SyclKernel, QualType KernelNameType,
                    SourceLocation Loc, bool IsESIMD, bool IsUnnamedKernel,
-                   int64_t ObjSize);
+                   bool IsFreeFunctionKernel, int64_t ObjSize);
 
   /// Adds a kernel parameter descriptor to current kernel invocation
   /// descriptor.
@@ -422,15 +422,18 @@ private:
     // hasn't provided an explicit name for.
     bool IsUnnamedKernel;
 
+    // Whether this is a free function kernel.
+    bool IsFreeFunctionKernel;
+
     /// Size of the kernel object.
     int64_t ObjSize = 0;
 
     KernelDesc(const FunctionDecl *SyclKernel, QualType NameType,
                SourceLocation KernelLoc, bool IsESIMD, bool IsUnnamedKernel,
-               int64_t ObjSize)
+               bool IsFreeFunctionKernel, int64_t ObjSize)
         : SyclKernel(SyclKernel), NameType(NameType), KernelLocation(KernelLoc),
           IsESIMDKernel(IsESIMD), IsUnnamedKernel(IsUnnamedKernel),
-          ObjSize(ObjSize) {}
+          IsFreeFunctionKernel(IsFreeFunctionKernel), ObjSize(ObjSize) {}
 
     void updateKernelNames(StringRef Name, StringRef StableName) {
       this->Name = Name.str();

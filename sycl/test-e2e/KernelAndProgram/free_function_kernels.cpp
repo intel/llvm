@@ -12,7 +12,7 @@ using namespace sycl;
 // Kernel finder
 class KernelFinder {
   queue &Queue;
-  std::vector<sycl::kernel_id> AllKernelIDs;
+  std::vector<kernel_id> AllKernelIDs;
 
 public:
   KernelFinder(queue &Q) : Queue(Q) {
@@ -20,7 +20,7 @@ public:
     kernel_bundle Bundle =
         get_kernel_bundle<bundle_state::executable>(Queue.get_context());
     std::cout << "Bundle obtained\n";
-    AllKernelIDs = sycl::get_kernel_ids();
+    AllKernelIDs = get_kernel_ids();
     std::cout << "Number of kernels = " << AllKernelIDs.size() << std::endl;
     for (auto K : AllKernelIDs) {
       std::cout << "Kernel obtained: " << K.get_name() << std::endl;
@@ -111,8 +111,8 @@ bool test_0(queue Queue, KernelFinder &KF) {
     });
   });
   Queue.wait();
-  bool Passa = checkUSM(usmPtr, Range, Result);
-  std::cout << "Test 0a: " << (Passa ? "PASS" : "FAIL") << std::endl;
+  bool PassA = checkUSM(usmPtr, Range, Result);
+  std::cout << "Test 0a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
   kernel Kernel = KF.get_kernel("__free_function_ff_0");
   memset(usmPtr, 0, Range * sizeof(int));
@@ -123,11 +123,11 @@ bool test_0(queue Queue, KernelFinder &KF) {
     Handler.single_task(Kernel);
   });
   Queue.wait();
-  bool Passb = checkUSM(usmPtr, Range, Result);
-  std::cout << "Test 0b: " << (Passb ? "PASS" : "FAIL") << std::endl;
+  bool PassB = checkUSM(usmPtr, Range, Result);
+  std::cout << "Test 0b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
-  return Passa && Passb;
+  return PassA && PassB;
 }
 
 SYCL_EXTERNAL
@@ -157,8 +157,8 @@ bool test_1(queue Queue, KernelFinder &KF) {
     });
   });
   Queue.wait();
-  bool Passa = checkUSM(usmPtr, Range, Result);
-  std::cout << "Test 1a: " << (Passa ? "PASS" : "FAIL") << std::endl;
+  bool PassA = checkUSM(usmPtr, Range, Result);
+  std::cout << "Test 1a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
   kernel Kernel = KF.get_kernel("__free_function_ff_1");
   memset(usmPtr, 0, Range * sizeof(int));
@@ -169,11 +169,11 @@ bool test_1(queue Queue, KernelFinder &KF) {
     Handler.parallel_for(R1, Kernel);
   });
   Queue.wait();
-  bool Passb = checkUSM(usmPtr, Range, Result);
-  std::cout << "Test 1b: " << (Passb ? "PASS" : "FAIL") << std::endl;
+  bool PassB = checkUSM(usmPtr, Range, Result);
+  std::cout << "Test 1b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
-  return Passa && Passb;
+  return PassA && PassB;
 }
 
 SYCL_EXTERNAL
@@ -210,8 +210,8 @@ bool test_2(queue Queue, KernelFinder &KF) {
     });
   });
   Queue.wait();
-  bool Passa = checkUSM(usmPtr, Range, Result);
-  std::cout << "Test 2a: " << (Passa ? "PASS" : "FAIL") << std::endl;
+  bool PassA = checkUSM(usmPtr, Range, Result);
+  std::cout << "Test 2a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
   kernel Kernel = KF.get_kernel("__free_function_ff_2");
   memset(usmPtr, 0, Range * sizeof(int));
@@ -222,14 +222,14 @@ bool test_2(queue Queue, KernelFinder &KF) {
     Handler.parallel_for(R2, Kernel);
   });
   Queue.wait();
-  bool Passb = checkUSM(usmPtr, Range, Result);
-  std::cout << "Test 2b: " << (Passb ? "PASS" : "FAIL") << std::endl;
+  bool PassB = checkUSM(usmPtr, Range, Result);
+  std::cout << "Test 2b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
-  return Passa && Passb;
+  return PassA && PassB;
 }
 
-// Templated free function definition
+// Templated free function definition.
 template <typename T>
 SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((
     ext::oneapi::experimental::nd_range_kernel<2>)) void ff_3(T *ptr, T start,
@@ -267,10 +267,10 @@ bool test_3(queue Queue, KernelFinder &KF) {
     });
   });
   Queue.wait();
-  bool Passa = checkUSM(usmPtr, Range, Result);
-  std::cout << "Test 3a: " << (Passa ? "PASS" : "FAIL") << std::endl;
+  bool PassA = checkUSM(usmPtr, Range, Result);
+  std::cout << "Test 3a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
-  kernel Kernel = KF.get_kernel("_ZTSFvPii6SimpleE");
+  kernel Kernel = KF.get_kernel("__free_function_Z4ff_3IiEvPT_S0_6Simple");
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
     Handler.set_arg(0, usmPtr);
@@ -279,14 +279,14 @@ bool test_3(queue Queue, KernelFinder &KF) {
     Handler.parallel_for(R2, Kernel);
   });
   Queue.wait();
-  bool Passb = checkUSM(usmPtr, Range, Result);
-  std::cout << "Test 3b: " << (Passb ? "PASS" : "FAIL") << std::endl;
+  bool PassB = checkUSM(usmPtr, Range, Result);
+  std::cout << "Test 3b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
-  return Passa && Passb;
+  return PassA && PassB;
 }
 
-// Templated free function definition
+// Templated free function definition.
 template <typename T>
 SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((
     ext::oneapi::experimental::nd_range_kernel<2>)) void ff_4(T *ptr, T start,
@@ -300,7 +300,7 @@ SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((
       LId.get(0) + LId.get(1) + start + S.x + S.f + *S.fp;
 }
 
-// Explicit instantiation with “int*”
+// Explicit instantiation with “int*”.
 template void ff_4(int *ptr, int start, struct WithPointer S);
 
 bool test_4(queue Queue, KernelFinder &KF) {
@@ -327,10 +327,11 @@ bool test_4(queue Queue, KernelFinder &KF) {
     });
   });
   Queue.wait();
-  bool Passa = checkUSM(usmPtr, Range, Result);
-  std::cout << "Test 4a: " << (Passa ? "PASS" : "FAIL") << std::endl;
+  bool PassA = checkUSM(usmPtr, Range, Result);
+  std::cout << "Test 4a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
-  kernel Kernel = KF.get_kernel("_ZTSFvPii11WithPointerE");
+  kernel Kernel =
+      KF.get_kernel("__free_function_Z4ff_4IiEvPT_S0_11WithPointer");
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](handler &Handler) {
     Handler.set_arg(0, usmPtr);
@@ -339,11 +340,11 @@ bool test_4(queue Queue, KernelFinder &KF) {
     Handler.parallel_for(R2, Kernel);
   });
   Queue.wait();
-  bool Passb = checkUSM(usmPtr, Range, Result);
-  std::cout << "Test 4b: " << (Passb ? "PASS" : "FAIL") << std::endl;
+  bool PassB = checkUSM(usmPtr, Range, Result);
+  std::cout << "Test 4b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
-  return Passa && Passb;
+  return PassA && PassB;
 }
 
 int main() {
