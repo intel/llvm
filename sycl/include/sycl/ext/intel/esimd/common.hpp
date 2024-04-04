@@ -560,9 +560,8 @@ template <typename PropertyListT> constexpr bool has_cache_hints() {
   return L1H != cache_hint::none || L2H != cache_hint::none;
 }
 
-// Currently, this is just a wrapper around 'check_cache_hint' function.
-// It accepts the compile-time properties that may include cache-hints
-// to be verified.
+// Verifies cache-hint properties from 'PropertyListT`. The parameter 'Action'
+// specifies the usage context.
 template <cache_action Action, typename PropertyListT>
 void check_cache_hints() {
   constexpr auto L1H =
