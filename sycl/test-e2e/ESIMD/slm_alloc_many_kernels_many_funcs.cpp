@@ -12,8 +12,6 @@
 // Check if the test sill passes with O0
 // RUN: %{build} -O0 -o %t.3.out
 // RUN: %{run} %t.3.out
-// TODO: Reenable the test on Windows once it it passes with O0 option
-// UNSUPPORTED: windows
 
 // Checks validity of SLM frame offsets in case of complex call graph with two
 // kernels and 2 functions all using SLM, and one of the functions using two
