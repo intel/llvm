@@ -421,6 +421,61 @@ event_impl::get_info<info::event::command_execution_status>() {
              : info::event_command_status::complete;
 }
 
+template <>
+typename info::platform::version::return_type
+event_impl::get_backend_info<info::platform::version>() const {
+  if (!MIsContextInitialized) {
+    return "Context not initialized, no backend info available";
+  }
+  if (MContext->getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::platform::version info descriptor can "
+                          "only be queried with an OpenCL backend");
+  }
+  if (QueueImplPtr Queue = MQueue.lock()) {
+    return Queue->getDeviceImplPtr()
+        ->get_platform()
+        .get_info<info::platform::version>();
+  }
+  return ""; // If the queue has been released, no platform will be associated
+             // so return empty string
+}
+
+template <>
+typename info::device::version::return_type
+event_impl::get_backend_info<info::device::version>() const {
+  if (!MIsContextInitialized) {
+    return "Context not initialized, no backend info available";
+  }
+  if (MContext->getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::version info descriptor can only "
+                          "be queried with an OpenCL backend");
+  }
+  if (QueueImplPtr Queue = MQueue.lock()) {
+    return Queue->getDeviceImplPtr()->get_info<info::device::version>();
+  }
+  return ""; // If the queue has been released, no device will be associated so
+             // return empty string
+}
+
+template <>
+typename info::device::backend_version::return_type
+event_impl::get_backend_info<info::device::backend_version>() const {
+  if (!MIsContextInitialized) {
+    return "Context not initialized, no backend info available";
+  }
+  if (MContext->getBackend() != backend::ext_oneapi_level_zero) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::backend_version info descriptor "
+                          "can only be queried with a Level Zero backend");
+  }
+  return "";
+  // Currently The Level Zero backend does not define the value of this
+  // information descriptor and implementations are encouraged to return the
+  // empty string as per specification.
+}
+
 void HostProfilingInfo::start() { StartTime = getTimestamp(); }
 
 void HostProfilingInfo::end() { EndTime = getTimestamp(); }

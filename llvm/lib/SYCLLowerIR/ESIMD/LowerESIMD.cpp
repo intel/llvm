@@ -494,6 +494,8 @@ public:
         {"dpasw", {"dpasw", {a(0), a(1), a(2), t(0)}}},
         {"dpasw_nosrc0", {"dpasw.nosrc0", {a(0), a(1), t(0)}}},
         {"nbarrier", {"nbarrier", {a(0), a(1), a(2)}}},
+	{"raw_send_nbarrier_signal",
+         {"raw.send.noresult", {a(0), ai1(4), a(1), a(2), a(3)}}},
         {"nbarrier_arrive", {"nbarrier.arrive", {a(0), a(1), a(2), a(3)}}},
         {"lsc_load_slm",
          {"lsc.load.slm",

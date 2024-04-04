@@ -589,6 +589,12 @@ static void InitializeStandardPredefinedMacros(const TargetInfo &TI,
     default:
       break;
     }
+
+    // Set __SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__ macro for
+    // both host and device compilations if -fsycl-exp-range-rounding
+    // flag is used.
+    if (LangOpts.SYCLExperimentalRangeRounding)
+      Builder.defineMacro("__SYCL_EXP_PARALLEL_FOR_RANGE_ROUNDING__");
   }
 
   if (LangOpts.DeclareSPIRVBuiltins) {

@@ -8,10 +8,10 @@
 // CHECK-NOT:  this message from calculus
 // FIXME Windows version prints '(null)' instead of '<unknown func>' once in a
 // while for some insane reason.
-// CHECK:      {{.*}}assert_in_multiple_tus.hpp:22: {{<unknown func>|(null)}}: {{.*}} [5,0,0],
+// CHECK:      {{.*}}assert_in_multiple_tus.hpp:22: {{<unknown func>|\(null\)}}: {{.*}} [5,0,0],
 // CHECK-SAME: {{.*}} [1,0,0] Assertion `X && "Nil in result"` failed.
 // CHECK-NOT:  this message from file2
 // CHECK-NOT:  The test ended.
 //
-// CHECK-ACC-NOT: {{.*}}assert_in_multiple_tus.hpp:22: {{<unknown func>|(null)}}: {{.*}} [5,0,0],
+// CHECK-ACC-NOT: {{.*}}assert_in_multiple_tus.hpp:22: {{<unknown func>|\(null\)}}: {{.*}} [5,0,0],
 // CHECK-ACC: The test ended.

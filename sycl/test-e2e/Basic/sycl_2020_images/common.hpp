@@ -266,7 +266,7 @@ template <typename T, int Dims> bool AllTrue(const vec<T, Dims> &Vec) {
 
 template <typename T, int Dims>
 bool ApproxEq(const vec<T, Dims> &LHS, const vec<T, Dims> &RHS,
-              float Precision = 0.1) {
+              T Precision = 0.1) {
   return AllTrue(sycl::abs(LHS - RHS) <= Precision);
 }
 

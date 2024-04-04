@@ -73,6 +73,7 @@ def AspectExt_oneapi_is_component : Aspect<"ext_oneapi_is_component", 60>;
 def AspectExt_oneapi_graph : Aspect<"ext_oneapi_graph", 61>;
 def AspectExt_intel_fpga_task_sequence : Aspect<"ext_intel_fpga_task_sequence", 62>;
 def AspectExt_oneapi_limited_graph : Aspect<"ext_oneapi_limited_graph", 63>;
+def AspectExt_oneapi_private_alloca : Aspect<"ext_oneapi_private_alloca", 64>;
 // Deprecated aspects
 def AspectInt64_base_atomics : Aspect<"int64_base_atomics", 7>;
 def AspectInt64_extended_atomics : Aspect<"int64_extended_atomics", 8>;
