@@ -128,7 +128,7 @@ device select_device(DSelectorInvocableType DeviceSelectorInvocable,
     Message += Acc;
   }
   Message += Suffix;
-  throw sycl::runtime_error(Message, PI_ERROR_DEVICE_NOT_FOUND);
+  throw sycl::exception(sycl::errc::runtime, Message);
 }
 
 // select_device(selector)
