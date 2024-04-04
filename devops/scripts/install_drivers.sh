@@ -141,7 +141,7 @@ if [[ $# -eq 0 ]] ; then
   echo "--igfx     - Install Intel Graphics drivers"
   echo "--cpu      - Install Intel CPU OpenCL runtime"
   echo "--fpga-emu - Install Intel FPGA Fast emulator"
-  echo "--use-latest      - Use latest for all tags
+  echo "--use-latest      - Use latest for all tags"
   echo "Set INSTALL_LOCATION env variable to specify install location"
   exit 0
 fi
