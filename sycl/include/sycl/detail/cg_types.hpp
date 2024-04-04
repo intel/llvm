@@ -398,7 +398,8 @@ public:
           GlobalSize, LocalSize, GroupSize, GroupID);
 
       detail::NDLoop<Dims>::iterate(LocalSize, [&](const id<Dims> &LocalID) {
-        id<Dims> GlobalID = GroupID * LocalSize + LocalID + GlobalOffset;
+        id<Dims> GlobalID =
+            GroupID * id<Dims>{LocalSize} + LocalID + GlobalOffset;
         const sycl::item<Dims, /*Offset=*/true> GlobalItem =
             IDBuilder::createItem<Dims, true>(GlobalSize, GlobalID,
                                               GlobalOffset);
