@@ -390,7 +390,6 @@ bool image_impl::checkImageDesc(const sycl::detail::pi::PiMemImageDesc &Desc,
         "info::device::image2d_max_depth",
         PI_ERROR_INVALID_VALUE);
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE1D_ARRAY,
                PI_MEM_TYPE_IMAGE2D_ARRAY) &&
       !checkImageValueRange<info::device::image_max_array_size>(
@@ -399,7 +398,6 @@ bool image_impl::checkImageDesc(const sycl::detail::pi::PiMemImageDesc &Desc,
         "For a 1D and 2D image array, the array_size must be a "
         "Value >= 1 and <= info::device::image_max_array_size.",
         PI_ERROR_INVALID_VALUE);
-#endif
 
   if ((nullptr == UserPtr) && (0 != Desc.image_row_pitch))
     throw invalid_parameter_error(
