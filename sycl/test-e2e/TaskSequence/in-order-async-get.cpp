@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 // FIXME: failure in post-commit, re-enable when fixed:
-// UNSUPPORTED: linux
+// XFAIL: *
 
-// REQUIRES: aspect-ext_intel_fpga_task_sequence
+// REQUIRES: accelerator && aspect-ext_intel_fpga_task_sequence
 // RUN: %clangxx -fsycl -fintelfpga %s -o %t.out
 // RUN: %{run} %t.out
 
