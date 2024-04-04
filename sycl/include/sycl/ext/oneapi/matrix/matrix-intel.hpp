@@ -619,11 +619,10 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_fill_checked(
       typename oneapi::detail::jm_type_interpretation_helper_trait<
           T>::storage_element_type;
   Res.spvm = __spirv_CooperativeMatrixConstructCheckedINTEL<
-      storage_element_type, T, NumRows, NumCols,
+      storage_element_type, T, CoordX, CoordY, NumRows, NumCols,
       spv_matrix_use_traits<Use>::value,
       spv_matrix_layout_traits<Layout>::value>(
-      static_cast<storage_element_type>(Value), Stride, Height, Width, CoordX,
-      CoordY);
+      CoordX, CoordY, Height, Width, static_cast<storage_element_type>(Value));
 #else
   std::ignore = Res;
   std::ignore = Value;
@@ -654,13 +653,12 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
   std::ignore = sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(Src);
-  Res.spvm = __spirv_JointMatrixLoadCheckedINTEL<
+  Res.spvm = __spirv_CooperativeMatrixLoadCheckedINTEL<
       DecorT, S, NumRows, NumCols,
       spv_matrix_use_traits<use::accumulator>::value,
       spv_matrix_layout_traits<layout::dynamic>::value>(
-      Ptr, Stride, Height, Width, CoordX, CoordY,
-      sycl::detail::joint_matrix_layout_to_spv(Layout),
-      spv_scope_traits<Group>::value);
+      Ptr, CoordX, CoordY, sycl::detail::joint_matrix_layout_to_spv(Layout),
+      Height, Width, Stride);
 #else
   std::ignore = sg;
   std::ignore = Res;
@@ -694,11 +692,11 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
   std::ignore = sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(Src);
-  Res.spvm = __spirv_JointMatrixLoadCheckedINTEL<
+  Res.spvm = __spirv_CooperativeMatrixLoadCheckedINTEL<
       DecorT, S, NumRows, NumCols, spv_matrix_use_traits<Use>::value,
       spv_matrix_layout_traits<Layout>::value>(
-      Ptr, Stride, Height, Width, CoordX, CoordY,
-      spv_matrix_layout_traits<Layout>::value, spv_scope_traits<Group>::value);
+      Ptr, CoordX, CoordY, spv_matrix_layout_traits<Layout>::value
+      Height, Width, Stride);
 #else
   std::ignore = sg;
   std::ignore = Res;
@@ -727,13 +725,12 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
   std::ignore = sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(Dst);
-  __spirv_JointMatrixStoreCheckedINTEL<
+  __spirv_CooperativeMatrixStoreCheckedINTEL<
       DecorT, T, NumRows, NumCols,
       spv_matrix_use_traits<use::accumulator>::value,
       spv_matrix_layout_traits<layout::dynamic>::value>(
-      Ptr, Src.spvm, Stride, Height, Width, CoordX, CoordY,
-      sycl::detail::joint_matrix_layout_to_spv(Layout),
-      spv_scope_traits<Group>::value);
+      Ptr, CoordX, CoordY, Src.spvm,
+      sycl::detail::joint_matrix_layout_to_spv(Layout), Height, Width, Stride);
 #else
   std::ignore = sg;
   std::ignore = Src;
@@ -763,11 +760,11 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
   std::ignore = sg;
   using DecorT = typename sycl::detail::DecoratedType<T, Space>::type;
   DecorT *Ptr = sycl::detail::getDecorated<DecorT>(Dst);
-  __spirv_JointMatrixStoreCheckedINTEL<DecorT, Tp, NumRows, NumCols,
-                                       spv_matrix_use_traits<Use>::value,
-                                       spv_matrix_layout_traits<Layout>::value>(
-      Ptr, Src.spvm, Stride, Height, Width, CoordX, CoordY,
-      spv_matrix_layout_traits<Layout>::value, spv_scope_traits<Group>::value);
+  __spirv_CooperativeMatrixStoreCheckedINTEL<
+      DecorT, Tp, NumRows, NumCols, spv_matrix_use_traits<Use>::value,
+      spv_matrix_layout_traits<Layout>::value>(
+      Ptr, CoordX, CoordY, Src.spvm,
+      spv_matrix_layout_traits<Layout>::value Height, Width, Stride);
 #else
   std::ignore = sg;
   std::ignore = Src;
@@ -797,12 +794,11 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
 #if defined(__SYCL_DEVICE_ONLY__)
   std::ignore = sg;
   T *Ptr = Src.get();
-  Res.spvm = __spirv_JointMatrixLoadCheckedINTEL<
+  Res.spvm = __spirv_CooperativeMatrixLoadCheckedINTEL<
       T, S, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
       spv_matrix_layout_traits<layout::dynamic>::value>(
-      Ptr, Stride, Height, Width, CoordX, CoordY,
-      sycl::detail::joint_matrix_layout_to_spv(Layout),
-      spv_scope_traits<Group>::value);
+      Ptr, CoordX, CoordY, sycl::detail::joint_matrix_layout_to_spv(Layout),
+      Height, Width, Stride);
 #else
   std::ignore = sg;
   std::ignore = Res;
@@ -832,11 +828,11 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_load_checked(
 #if defined(__SYCL_DEVICE_ONLY__)
   std::ignore = sg;
   T *Ptr = Src.get();
-  Res.spvm = __spirv_JointMatrixLoadCheckedINTEL<
+  Res.spvm = __spirv_CooperativeMatrixLoadCheckedINTEL<
       T, S, NumRows, NumCols, spv_matrix_use_traits<Use>::value,
       spv_matrix_layout_traits<Layout>::value>(
-      Ptr, Stride, Height, Width, CoordX, CoordY,
-      spv_matrix_layout_traits<Layout>::value, spv_scope_traits<Group>::value);
+      Ptr, CoordX, CoordY, spv_matrix_layout_traits<Layout>::value, Height,
+      Width, Stride);
 #else
   std::ignore = sg;
   std::ignore = Res;
@@ -863,12 +859,11 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
 #if defined(__SYCL_DEVICE_ONLY__)
   std::ignore = sg;
   T *Ptr = Dst.get();
-  __spirv_JointMatrixStoreCheckedINTEL<
+  __spirv_CooperativeMatrixStoreCheckedINTEL<
       T, T, NumRows, NumCols, spv_matrix_use_traits<use::accumulator>::value,
       spv_matrix_layout_traits<layout::dynamic>::value>(
-      Ptr, Src.spvm, Stride, Height, Width, CoordX, CoordY,
-      sycl::detail::joint_matrix_layout_to_spv(Layout),
-      spv_scope_traits<Group>::value);
+      Ptr, CoordX, CoordY, Src.spvm,
+      sycl::detail::joint_matrix_layout_to_spv(Layout), Height, Width, Stride);
 #else
   std::ignore = sg;
   std::ignore = Src;
@@ -894,11 +889,11 @@ inline __SYCL_ALWAYS_INLINE void joint_matrix_store_checked(
 #if defined(__SYCL_DEVICE_ONLY__)
   std::ignore = sg;
   T *Ptr = Dst.get();
-  __spirv_JointMatrixStoreCheckedINTEL<T, Tp, NumRows, NumCols,
-                                       spv_matrix_use_traits<Use>::value,
-                                       spv_matrix_layout_traits<Layout>::value>(
-      Ptr, Src.spvm, Stride, Height, Width, CoordX, CoordY,
-      spv_matrix_layout_traits<Layout>::value, spv_scope_traits<Group>::value);
+  __spirv_CooperativeMatrixStoreCheckedINTEL<
+      T, Tp, NumRows, NumCols, spv_matrix_use_traits<Use>::value,
+      spv_matrix_layout_traits<Layout>::value>(
+      Ptr, CoordX, CoordY, Src.spvm, spv_matrix_layout_traits<Layout>::value,
+      Height, Width, Stride);
 #else
   std::ignore = sg;
   std::ignore = Src;
