@@ -576,7 +576,7 @@ struct sub_group {
 
   __SYCL_DEPRECATED(
       "Sub-group barrier accepting fence_space is deprecated."
-      "Use sycl::group_barrier with the sub-group as the argument.")
+      "Use sycl::group_barrier with the sub-group as the argument instead.")
   void barrier(access::fence_space accessSpace) const {
 #ifdef __SYCL_DEVICE_ONLY__
     int32_t flags = sycl::detail::getSPIRVMemorySemanticsMask(accessSpace);
