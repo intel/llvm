@@ -578,7 +578,10 @@ def SelTypeCast : DiagGroup<"cast-of-sel-type">;
 def FunctionDefInObjCContainer : DiagGroup<"function-def-in-objc-container">;
 def BadFunctionCast : DiagGroup<"bad-function-cast">;
 def CastFunctionTypeStrict : DiagGroup<"cast-function-type-strict">;
-def CastFunctionType : DiagGroup<"cast-function-type", [CastFunctionTypeStrict]>;
+def CastFunctionTypeMismatch : DiagGroup<"cast-function-type-mismatch">;
+def CastFunctionType : DiagGroup<"cast-function-type",
+                                 [CastFunctionTypeStrict,
+                                  CastFunctionTypeMismatch]>;
 def ObjCPropertyImpl : DiagGroup<"objc-property-implementation">;
 def ObjCPropertyNoAttribute : DiagGroup<"objc-property-no-attribute">;
 def ObjCPropertyAssignOnObjectType : DiagGroup<"objc-property-assign-on-object-type">;
@@ -622,7 +625,9 @@ def GNURedeclaredEnum : DiagGroup<"gnu-redeclared-enum">;
 def RedundantMove : DiagGroup<"redundant-move">;
 def Register : DiagGroup<"register", [DeprecatedRegister]>;
 def ReturnTypeCLinkage : DiagGroup<"return-type-c-linkage">;
-def ReturnType : DiagGroup<"return-type", [ReturnTypeCLinkage]>;
+def ReturnMismatch : DiagGroup<"return-mismatch">;
+def ReturnType : DiagGroup<"return-type", [ReturnTypeCLinkage, ReturnMismatch]>;
+
 def BindToTemporaryCopy : DiagGroup<"bind-to-temporary-copy",
                                     [CXX98CompatBindToTemporaryCopy]>;
 def SelfAssignmentField : DiagGroup<"self-assign-field">;
@@ -884,6 +889,7 @@ def ZeroLengthArray : DiagGroup<"zero-length-array">;
 def GNUZeroLineDirective : DiagGroup<"gnu-zero-line-directive">;
 def GNUZeroVariadicMacroArguments : DiagGroup<"gnu-zero-variadic-macro-arguments">;
 def MisleadingIndentation : DiagGroup<"misleading-indentation">;
+def PtrAuthNullPointers : DiagGroup<"ptrauth-null-pointers">;
 
 // This covers both the deprecated case (in C++98)
 // and the extension case (in C++11 onwards).
@@ -1046,6 +1052,7 @@ def Extra : DiagGroup<"extra", [
     EmptyInitStatement,
     StringConcatation,
     FUseLdPath,
+    CastFunctionTypeMismatch,
   ]>;
 
 def Most : DiagGroup<"most", [
@@ -1144,9 +1151,11 @@ def NonGCC : DiagGroup<"non-gcc",
 def CXX14Attrs : DiagGroup<"c++14-attribute-extensions">;
 def CXX17Attrs : DiagGroup<"c++17-attribute-extensions">;
 def CXX20Attrs : DiagGroup<"c++20-attribute-extensions">;
+def CXX23Attrs : DiagGroup<"c++23-attribute-extensions">;
 def FutureAttrs : DiagGroup<"future-attribute-extensions", [CXX14Attrs,
                                                             CXX17Attrs,
-                                                            CXX20Attrs]>;
+                                                            CXX20Attrs,
+                                                            CXX23Attrs]>;
 
 def CXX23AttrsOnLambda : DiagGroup<"c++23-lambda-attributes">;
 
@@ -1529,3 +1538,7 @@ def ReadOnlyPlacementChecks : DiagGroup<"read-only-types">;
 // Warnings and fixes to support the "safe buffers" programming model.
 def UnsafeBufferUsageInContainer : DiagGroup<"unsafe-buffer-usage-in-container">;
 def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage", [UnsafeBufferUsageInContainer]>;
+
+// Warnings and notes InstallAPI verification.
+def InstallAPIViolation : DiagGroup<"installapi-violation">;
+

@@ -3,6 +3,10 @@
 RUN: sycl-ls --verbose > vanilla_verbose.out
 RUN: sycl-ls > vanilla.out
 
+RUN: env ONEAPI_DEVICE_SELECTOR="opencl:*" sycl-ls > ods_opencl.out
+RUN: env SYCL_DEVICE_ALLOWLIST="BackendName:opencl" sycl-ls > sda_opencl.out
+RUN: diff ods_opencl.out sda_opencl.out
+
 -- Check the functioning of '--ignore-device-selectors' CLI option.
 
 RUN: env ONEAPI_DEVICE_SELECTOR="opencl:*" sycl-ls --ignore-device-selectors > ods_ignore_device_selector.out
@@ -16,3 +20,8 @@ RUN: diff vanilla.out sda_ignore_device_selector.out
 
 RUN: env SYCL_DEVICE_ALLOWLIST="BackendName:opencl" sycl-ls --ignore-device-selectors --verbose > sda_ignore_device_selector_v.out
 RUN: diff vanilla_verbose.out sda_ignore_device_selector_v.out
+
+-- Check illegal CLI option with sycl-ls.
+
+RUN: not sycl-ls --some-random-option &> error_msg.txt ; FileCheck --input-file error_msg.txt --check-prefix CHECK_ERROR_MSG %s
+CHECK_ERROR_MSG: Usage: sycl-ls [--verbose] [--ignore-device-selectors]

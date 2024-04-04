@@ -1,5 +1,8 @@
+#include <sycl/detail/core.hpp>
+
 #include "sycl/ext/intel/fpga_extensions.hpp"
-#include "sycl/sycl.hpp"
+#include <sycl/usm.hpp>
+
 #include <iostream>
 
 #include "fpga_kernels.h"

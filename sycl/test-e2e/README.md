@@ -8,6 +8,7 @@
  * [Creating or modifying tests](#creating-or-modifying-tests)
    * [LIT feature checks](#lit-feature-checks)
    * [llvm-lit parameters](#llvm-lit-parameters)
+ * [sycl/detail/core.hpp header file](#sycl/detail/core.hpp)
 
 # Overview
 This directory contains SYCL-related tests distributed in subdirectories based
@@ -183,8 +184,10 @@ Defaults to AMD if no value is given. Supported values are:
  - **AMD**    - for HIP to target AMD GPUs
  - **NVIDIA** - for HIP to target NVIDIA GPUs
  
- ***AMD_ARCH*** - flag must be set for when using HIP AMD triple.
- For example it may be set to "gfx906".
+***AMD_ARCH*** - flag may be set for when using HIP AMD triple. For example it
+may be set to "gfx906". Otherwise must be provided via the ***amd_arch*** LIT
+parameter (e.g., ***--param amd_arch=gfx906***) at runtime via the command line
+or via the ***LIT_OPTS*** environment variable.
 
 ***GPU_AOT_TARGET_OPTS*** - defines additional options which are passed to AOT
 compilation command line for GPU device. If not specified "-device *" value
@@ -258,6 +261,9 @@ configure specific single test execution in the command line:
  * **gpu-intel-pvc** - tells LIT infra that Intel GPU PVC is present in the
    system. It is developer / CI infra responsibility to make sure that the
    device is available in the system.
+ * **gpu-intel-pvc-vg** - tells LIT infra that Intel GPU PVC-VG is present in the
+   system. It is developer / CI infra responsibility to make sure that the
+   device is available in the system.
  * **extra_environment** - comma-separated list of variables with values to be
    added to test environment. Can be also set by LIT_EXTRA_ENVIRONMENT variable
    in cmake.
@@ -279,3 +285,15 @@ llvm-lit --param dpcpp_compiler=path/to/clang++ --param dump_ir=True \
          SYCL/External/RSBench
 ```
 
+## sycl/detail/core.hpp
+
+While SYCL specification dictates that the only user-visible interface is
+`<sycl/sycl.hpp>` header file we found out that as the implementation and
+multiple extensions grew, the compile time was getting worse and worse,
+negatively affecting our CI turnaround time. We are just starting some efforts
+to create a much smaller set of basic feature needed for every SYCL end-to-end
+test/program so that this issue could be somewhat mitigated. This activity is in
+its early stage and NO production code should rely on it. It WILL be changed as
+we go with our experiments. For any code outside of this project only the
+`<sycl/sycl.hpp>` must be used until we feel confident to propose an extension
+that can provide an alternative.

@@ -28,6 +28,7 @@
 // CHECK-NEXT: PI Call Begin : piPlatformGetInfo
 // CHECK-NEXT: PI Call Begin : piKernelSetExecInfo
 // CHECK:      Node create
+// CHECK-DAG:    queue_id : {{.*}}
 // CHECK-DAG:    sym_line_no : {{.*}}
 // CHECK-DAG:    sym_source_file_name : {{.*}}
 // CHECK-DAG:    sym_function_name : typeinfo name for main::{lambda(sycl::_V1::handler&)#1}::operator()(sycl::_V1::handler&) const::{lambda()#1}
@@ -35,10 +36,14 @@
 // CHECK-DAG:    kernel_name : typeinfo name for main::{lambda(sycl::_V1::handler&)#1}::operator()(sycl::_V1::handler&) const::{lambda()#1}
 // CHECK-DAG:    sycl_device : {{.*}}
 // CHECK-NEXT: Node create
-// CHECK-NEXT:   kernel_name : virtual_node[{{.*}}]
+// CHECK-DAG:   queue_id : {{.*}}
+// CHECK-DAG:   kernel_name : virtual_node[{{.*}}]
 // CHECK-NEXT: Edge create
-// CHECK-NEXT:   event : {{.*}}
+// CHECK-DAG:   queue_id : {{.*}}
+// CHECK-DAG:   event : {{.*}}
+// CHECK-DAG:   kernel_name : virtual_node[{{.*}}]
 // CHECK-NEXT: Task begin
+// CHECK-DAG:    queue_id : {{.*}}
 // CHECK-DAG:    sym_line_no : {{.*}}
 // CHECK-DAG:    sym_source_file_name : {{.*}}
 // CHECK-DAG:    sym_function_name : typeinfo name for main::{lambda(sycl::_V1::handler&)#1}::operator()(sycl::_V1::handler&) const::{lambda()#1}
@@ -51,6 +56,7 @@
 // CHECK-NEXT: PI Call Begin : piKernelRelease
 // CHECK-NEXT: PI Call Begin : piProgramRelease
 // CHECK-NEXT: Signal
+// CHECK-DAG:    queue_id : {{.*}}
 // CHECK-DAG:    sym_line_no : {{.*}}
 // CHECK-DAG:    sym_source_file_name : {{.*}}
 // CHECK-DAG:    sym_function_name : typeinfo name for main::{lambda(sycl::_V1::handler&)#1}::operator()(sycl::_V1::handler&) const::{lambda()#1}
@@ -58,6 +64,7 @@
 // CHECK-DAG:    kernel_name : typeinfo name for main::{lambda(sycl::_V1::handler&)#1}::operator()(sycl::_V1::handler&) const::{lambda()#1}
 // CHECK-DAG:    sycl_device : {{.*}}
 // CHECK-NEXT: Task end
+// CHECK-DAG:    queue_id : {{.*}}
 // CHECK-DAG:    sym_line_no : {{.*}}
 // CHECK-DAG:    sym_source_file_name : {{.*}}
 // CHECK-DAG:    sym_function_name : typeinfo name for main::{lambda(sycl::_V1::handler&)#1}::operator()(sycl::_V1::handler&) const::{lambda()#1}
@@ -65,27 +72,34 @@
 // CHECK-DAG:    kernel_name : typeinfo name for main::{lambda(sycl::_V1::handler&)#1}::operator()(sycl::_V1::handler&) const::{lambda()#1}
 // CHECK-DAG:    sycl_device : {{.*}}
 // CHECK-NEXT: Wait begin
+// CHECK-DAG:    queue_id : {{.*}}
 // CHECK-NEXT: PI Call Begin : piEventsWait
 // CHECK-NEXT: Wait end
+// CHECK-DAG:    queue_id : {{.*}}
 // CHECK-NEXT: Node create
+// CHECK-DAG:    queue_id : {{.*}}
 // CHECK-DAG:    memory_size : {{.*}}
 // CHECK-DAG:    dest_memory_ptr : {{.*}}
 // CHECK-DAG:    src_memory_ptr : {{.*}}
 // CHECK-DAG:    sycl_device : {{.*}}
 // CHECK-NEXT: Task begin
+// CHECK-DAG:    queue_id : {{.*}}
 // CHECK-DAG:    memory_size : {{.*}}
 // CHECK-DAG:    dest_memory_ptr : {{.*}}
 // CHECK-DAG:    src_memory_ptr : {{.*}}
 // CHECK-DAG:    sycl_device : {{.*}}
 // CHECK-NEXT: PI Call Begin : piextUSMEnqueueMemcpy
 // CHECK-NEXT: Task end
+// CHECK-DAG:    queue_id : {{.*}}
 // CHECK-DAG:    memory_size : {{.*}}
 // CHECK-DAG:    dest_memory_ptr : {{.*}}
 // CHECK-DAG:    src_memory_ptr : {{.*}}
 // CHECK-DAG:    sycl_device : {{.*}}
 // CHECK-NEXT: PI Call Begin : piEventRelease
 // CHECK-NEXT: Wait begin
-// CHECK:        sycl_device_type : {{.*}}
+// CHECK-DAG:    queue_id : {{.*}}
+// CHECK-DAG:    sycl_device_type : {{.*}}
 // CHECK:      PI Call Begin : piQueueFinish
 // CHECK-NEXT: Wait end
-// CHECK:        sycl_device_type : {{.*}}
+// CHECK-DAG:    queue_id : {{.*}}
+// CHECK-DAG:    sycl_device_type : {{.*}}

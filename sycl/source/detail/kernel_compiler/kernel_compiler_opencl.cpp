@@ -191,11 +191,11 @@ spirv_vec_t OpenCLC_to_SPIRV(const std::string &Source,
       assert(SpirV.size() == 0 && "More than one SPIR-V output found.");
       SpirV = spirv_vec_t(Outputs[i], Outputs[i] + OutputLengths[i]);
     } else if (!strcmp(OutputNames[i], "stdout.log")) {
-      const char *LogText = reinterpret_cast<const char *>(Outputs[i]);
-      if (LogText != nullptr && LogText[0] != '\0') {
-        CompileLog.append(LogText);
+      if (OutputLengths[i] > 0) {
+        const char *LogText = reinterpret_cast<const char *>(Outputs[i]);
+        CompileLog.append(LogText, OutputLengths[i]);
         if (LogPtr != nullptr)
-          LogPtr->append(LogText);
+          LogPtr->append(LogText, OutputLengths[i]);
       }
     }
   }

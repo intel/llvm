@@ -454,12 +454,6 @@ ToolChain::getDefaultUnwindTableLevel(const ArgList &Args) const {
   return UnwindTableLevel::None;
 }
 
-unsigned ToolChain::GetDefaultDwarfVersion() const {
-  // TODO: Remove the RISC-V special case when R_RISCV_SET_ULEB128 linker
-  // support becomes more widely available.
-  return getTriple().isRISCV() ? 4 : 5;
-}
-
 Tool *ToolChain::getClang() const {
   if (!Clang)
     Clang.reset(new tools::Clang(*this, useIntegratedBackend()));
@@ -1543,8 +1537,8 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
         DAL->append(A);
         continue;
       }
-      // SPIR-V special case for -mlong-double
-      if (getTriple().isSPIR() &&
+      // SPIR/SPIR-V special case for -mlong-double
+      if (getTriple().isSPIROrSPIRV() &&
           A->getOption().matches(options::OPT_LongDouble_Group)) {
         DAL->append(A);
         continue;

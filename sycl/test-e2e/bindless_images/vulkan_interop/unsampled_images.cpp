@@ -13,23 +13,20 @@
 #include "../bindless_helpers.hpp"
 #include "vulkan_common.hpp"
 
-#include <cstdlib>
-#include <iostream>
 #include <random>
-#include <stdexcept>
-#include <vector>
+
+namespace syclexp = sycl::ext::oneapi::experimental;
 
 // Helpers and utilities
 namespace util {
 struct handles_t {
-  sycl::ext::oneapi::experimental::interop_mem_handle
-      input_interop_mem_handle_1,
+  syclexp::interop_mem_handle input_interop_mem_handle_1,
       input_interop_mem_handle_2, output_interop_mem_handle;
-  sycl::ext::oneapi::experimental::interop_semaphore_handle
-      sycl_wait_interop_semaphore_handle,
+  syclexp::image_mem_handle input_mem_handle_1, input_mem_handle_2,
+      output_mem_handle;
+  syclexp::interop_semaphore_handle sycl_wait_interop_semaphore_handle,
       sycl_done_interop_semaphore_handle;
-  sycl::ext::oneapi::experimental::unsampled_image_handle input_1, input_2,
-      output;
+  syclexp::unsampled_image_handle input_1, input_2, output;
 };
 
 handles_t
@@ -38,14 +35,13 @@ create_test_handles(sycl::context &ctxt, sycl::device &dev,
                     int output_image_fd, int sycl_wait_semaphore_fd,
                     int sycl_done_semaphore_fd, const size_t img_size,
                     sycl::ext::oneapi::experimental::image_descriptor &desc) {
-  namespace syclexp = sycl::ext::oneapi::experimental;
   // Extension: map the external memory descriptors
-  syclexp::external_mem_descriptor<syclexp::external_mem_fd>
-      input_ext_mem_desc_1{input_image_fd_1, img_size};
-  syclexp::external_mem_descriptor<syclexp::external_mem_fd>
-      input_ext_mem_desc_2{input_image_fd_2, img_size};
-  syclexp::external_mem_descriptor<syclexp::external_mem_fd>
-      output_ext_mem_desc{output_image_fd, img_size};
+  syclexp::external_mem_descriptor<syclexp::resource_fd> input_ext_mem_desc_1{
+      input_image_fd_1, img_size};
+  syclexp::external_mem_descriptor<syclexp::resource_fd> input_ext_mem_desc_2{
+      input_image_fd_2, img_size};
+  syclexp::external_mem_descriptor<syclexp::resource_fd> output_ext_mem_desc{
+      output_image_fd, img_size};
 
   // Extension: create interop memory handles
   syclexp::interop_mem_handle input_interop_mem_handle_1 =
@@ -75,9 +71,9 @@ create_test_handles(sycl::context &ctxt, sycl::device &dev,
       syclexp::create_image(output_mapped_mem_handle, desc, dev, ctxt);
 
   // Extension: import semaphores
-  syclexp::external_semaphore_descriptor<syclexp::external_semaphore_fd>
+  syclexp::external_semaphore_descriptor<syclexp::resource_fd>
       sycl_wait_external_semaphore_desc{sycl_wait_semaphore_fd};
-  syclexp::external_semaphore_descriptor<syclexp::external_semaphore_fd>
+  syclexp::external_semaphore_descriptor<syclexp::resource_fd>
       sycl_done_external_semaphore_desc{sycl_done_semaphore_fd};
   syclexp::interop_semaphore_handle sycl_wait_interop_semaphore_handle =
       syclexp::import_external_semaphore(sycl_wait_external_semaphore_desc, dev,
@@ -89,6 +85,9 @@ create_test_handles(sycl::context &ctxt, sycl::device &dev,
   return {input_interop_mem_handle_1,
           input_interop_mem_handle_2,
           output_interop_mem_handle,
+          input_mapped_mem_handle_1,
+          input_mapped_mem_handle_2,
+          output_mapped_mem_handle,
           sycl_wait_interop_semaphore_handle,
           sycl_done_interop_semaphore_handle,
           input_1,
@@ -97,13 +96,6 @@ create_test_handles(sycl::context &ctxt, sycl::device &dev,
 }
 
 void cleanup_test(sycl::context &ctxt, sycl::device &dev, handles_t handles) {
-  namespace syclexp = sycl::ext::oneapi::experimental;
-  syclexp::release_external_memory(handles.input_interop_mem_handle_1, dev,
-                                   ctxt);
-  syclexp::release_external_memory(handles.input_interop_mem_handle_2, dev,
-                                   ctxt);
-  syclexp::release_external_memory(handles.output_interop_mem_handle, dev,
-                                   ctxt);
   syclexp::destroy_external_semaphore(
       handles.sycl_wait_interop_semaphore_handle, dev, ctxt);
   syclexp::destroy_external_semaphore(
@@ -111,6 +103,18 @@ void cleanup_test(sycl::context &ctxt, sycl::device &dev, handles_t handles) {
   syclexp::destroy_image_handle(handles.input_1, dev, ctxt);
   syclexp::destroy_image_handle(handles.input_2, dev, ctxt);
   syclexp::destroy_image_handle(handles.output, dev, ctxt);
+  syclexp::free_image_mem(handles.input_mem_handle_1,
+                          syclexp::image_type::standard, dev, ctxt);
+  syclexp::free_image_mem(handles.input_mem_handle_1,
+                          syclexp::image_type::standard, dev, ctxt);
+  syclexp::free_image_mem(handles.output_mem_handle,
+                          syclexp::image_type::standard, dev, ctxt);
+  syclexp::release_external_memory(handles.input_interop_mem_handle_1, dev,
+                                   ctxt);
+  syclexp::release_external_memory(handles.input_interop_mem_handle_2, dev,
+                                   ctxt);
+  syclexp::release_external_memory(handles.output_interop_mem_handle, dev,
+                                   ctxt);
 }
 
 template <int NDims, typename DType, sycl::image_channel_type CType,
@@ -132,12 +136,8 @@ void run_ndim_test(sycl::range<NDims> global_size,
   sycl::queue q(dev);
   auto ctxt = q.get_context();
 
-  namespace syclexp = sycl::ext::oneapi::experimental;
-
   // Image descriptor - mapped to Vulkan image layout
-  syclexp::image_descriptor desc(global_size, order, CType,
-                                 syclexp::image_type::interop,
-                                 1 /*num_levels*/);
+  syclexp::image_descriptor desc(global_size, order, CType);
 
   const size_t img_size = global_size.size() * sizeof(DType) * NChannels;
 
@@ -215,6 +215,9 @@ void run_ndim_test(sycl::range<NDims> global_size,
 
     // Wait for kernel completion before destroying external objects
     q.wait_and_throw();
+
+    // Cleanup
+    cleanup_test(ctxt, dev, handles);
   } catch (sycl::exception e) {
     std::cerr << "\tKernel submission failed! " << e.what() << std::endl;
     exit(-1);
@@ -261,8 +264,10 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
   printString("Populating staging buffer\n");
   // Populate staging memory
   using VecType = sycl::vec<DType, NChannels>;
-  std::vector<VecType> input_vector_0;
-  input_vector_0.reserve(num_elems);
+  auto init =
+      bindless_helpers::init_vector<DType, NChannels>(static_cast<DType>(0));
+
+  std::vector<VecType> input_vector_0(num_elems, init);
   std::srand(seed);
   bindless_helpers::fill_rand(input_vector_0);
 
@@ -275,8 +280,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
   }
   vkUnmapMemory(vk_device, inVkImgRes1.stagingMemory);
 
-  std::vector<VecType> input_vector_1;
-  input_vector_1.reserve(num_elems);
+  std::vector<VecType> input_vector_1(num_elems, init);
   std::srand(seed);
   bindless_helpers::fill_rand(input_vector_1);
 
@@ -292,12 +296,12 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
   // Transition image layouts
   {
     VkImageMemoryBarrier barrierInput1 =
-        vkutil::createImageMemoryBarrier(inVkImgRes1.vkImage);
+        vkutil::createImageMemoryBarrier(inVkImgRes1.vkImage, 1 /*mipLevels*/);
     VkImageMemoryBarrier barrierInput2 =
-        vkutil::createImageMemoryBarrier(inVkImgRes2.vkImage);
+        vkutil::createImageMemoryBarrier(inVkImgRes2.vkImage, 1 /*mipLevels*/);
 
     VkImageMemoryBarrier barrierOutput =
-        vkutil::createImageMemoryBarrier(outVkImgRes.vkImage);
+        vkutil::createImageMemoryBarrier(outVkImgRes.vkImage, 1 /*mipLevels*/);
 
     VkCommandBufferBeginInfo cbbi = {};
     cbbi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;

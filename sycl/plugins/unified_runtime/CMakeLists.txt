@@ -56,8 +56,30 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
+  #
+  # Args:
+  #   * name - Must be the directory name of the adapter
+  #   * repo - A valid Git URL of a Unified Runtime repo
+  #   * tag - A valid Git branch/tag/commit in the Unified Runtime repo
+  function(fetch_adapter_source name repo tag)
+    message(STATUS "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
+    set(fetch-name unified-runtime-${name})
+    FetchContent_Declare(${fetch-name}
+      GIT_REPOSITORY ${repo} GIT_TAG ${tag})
+    # We don't want to add this repo to the build, only fetch its source.
+    FetchContent_Populate(${fetch-name})
+    # Get the path to the source directory
+    string(TOUPPER ${name} NAME)
+    set(source_dir_var UR_ADAPTER_${NAME}_SOURCE_DIR)
+    FetchContent_GetProperties(${fetch-name} SOURCE_DIR UR_ADAPTER_${NAME}_SOURCE_DIR)
+    # Set the variable which informs UR where to get the adapter source from.
+    set(UR_ADAPTER_${NAME}_SOURCE_DIR
+      "${UR_ADAPTER_${NAME}_SOURCE_DIR}/source/adapters/${name}"
+      CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
+  endfunction()
+
   set(UNIFIED_RUNTIME_REPO "https://github.com/przemektmalon/unified-runtime.git")
-  # commit 30e4fd301f6c794f4a3216a79e14ccef04822d85
+  # commit a3be14441e7904feb811732a4274aab717ca0a00
   # Author: Przemek Malon <przemek.malon@codeplay.com>
   # Date:   Wed Nov 29 11:25:34 2023 +0000
   #   [Bindless][Exp] Add device queries for sampled image fetch  
@@ -69,16 +91,16 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP
   #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP
   #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP
-  set(UNIFIED_RUNTIME_TAG 30e4fd301f6c794f4a3216a79e14ccef04822d85)
+  set(UNIFIED_RUNTIME_TAG a3be14441e7904feb811732a4274aab717ca0a00)
 
   # set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # # commit 93e84695190d0b985b3c4b2fb7ea896e1f3e529e
-  # # Merge: 1f6cbe61 2b3d016a
-  # # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # # Date:   Tue Mar 12 15:22:59 2024 +0000
-  # #     Merge pull request #1406 from wenju-he/urBindlessImagesSampledImageCreateExp-Coverity
-  # #     [Coverity][L0] Remove overlapping mem copy in urBindlessImagesSampledImageCreateExp
-  # set(UNIFIED_RUNTIME_TAG 93e84695190d0b985b3c4b2fb7ea896e1f3e529e)
+  # # commit 3a7d00f136cf5d69e61bf1e235393dfc56f55525
+  # # Merge: cd5ad7b5 9e5c6203
+  # # Author: aarongreig <aaron.greig@codeplay.com>
+  # # Date:   Mon Apr 1 15:16:30 2024 +0100
+  # #     Merge pull request #1485 from aarongreig/aaron/addDeviceNotAvailableErrC
+  # #     Add UR_ERROR_DEVICE_NOT_AVAILABLE and appropriate translation for CL.
+  # set(UNIFIED_RUNTIME_TAG 3a7d00f136cf5d69e61bf1e235393dfc56f55525)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

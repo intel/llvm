@@ -18,7 +18,7 @@ int main() {
     // CHECK: code_location_queue_parallel_for.cpp:[[# @LINE + 3 ]] E2ETestKernel
     Queue.parallel_for<class E2ETestKernel>(
         sycl::nd_range<1>{MaxWISizes.get(0), 2 * MaxWISizes.get(0)},
-        [](sycl::id<1> idx) {});
+        [](sycl::nd_item<1>) {});
   } catch (...) {
     ExceptionCaught = true;
   }

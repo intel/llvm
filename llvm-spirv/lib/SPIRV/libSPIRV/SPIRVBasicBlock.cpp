@@ -87,6 +87,20 @@ void SPIRVBasicBlock::encodeChildren(spv_ostream &O) const {
 
 _SPIRV_IMP_ENCDEC1(SPIRVBasicBlock, Id)
 
+SPIRVInstruction *SPIRVBasicBlock::getVariableInsertionPoint() const {
+  auto IP =
+      std::find_if(InstVec.begin(), InstVec.end(), [](SPIRVInstruction *Inst) {
+        return !(isa<OpVariable>(Inst) || isa<OpLine>(Inst) ||
+                 isa<OpNoLine>(Inst) ||
+                 // Note: OpVariable and OpPhi instructions do not belong to the
+                 // same block in a valid SPIR-V module.
+                 isa<OpPhi>(Inst));
+      });
+  if (IP == InstVec.end())
+    return nullptr;
+  return *IP;
+}
+
 void SPIRVBasicBlock::setScope(SPIRVEntry *Scope) {
   assert(Scope && Scope->getOpCode() == OpFunction && "Invalid scope");
   setParent(static_cast<SPIRVFunction *>(Scope));

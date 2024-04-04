@@ -323,36 +323,46 @@
 #define __SYCL_ALL_DEVICES_HAVE_ext_intel_fpga_task_sequence__ 0
 #endif
 
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_limited_graph__
+// __SYCL_ASPECT(ext_oneapi_limited_graph, 63)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_limited_graph__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_private_alloca__
+// __SYCL_ASPECT(ext_oneapi_private_alloca, 64)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_private_alloca__ 0
+#endif
+
 #ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_sampled_image_fetch_1d_usm__
-//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_1d_usm, 63)
+//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_1d_usm, 65)
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_sampled_image_fetch_1d_usm__ \
   0
 #endif
 
 #ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_sampled_image_fetch_1d__
-//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_1d, 64)
+//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_1d, 66)
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_sampled_image_fetch_1d__ 0
 #endif
 
 #ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_sampled_image_fetch_2d_usm__
-//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_2d_usm, 65)
+//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_2d_usm, 67)
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_sampled_image_fetch_2d_usm__ \
   0
 #endif
 
 #ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_sampled_image_fetch_2d__
-//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_2d, 66)
+//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_2d, 68)
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_sampled_image_fetch_2d__ 0
 #endif
 
 #ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_sampled_image_fetch_3d_usm__
-//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_3d_usm, 67)
+//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_3d_usm, 69)
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_sampled_image_fetch_3d_usm__ \
   0
 #endif
 
 #ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_sampled_image_fetch_3d__
-//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_3d, 68)
+//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_3d, 70)
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_sampled_image_fetch_3d__ 0
 #endif
 
@@ -671,32 +681,42 @@
 #define __SYCL_ANY_DEVICE_HAS_ext_intel_fpga_task_sequence__ 0
 #endif
 
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_limited_graph__
+// __SYCL_ASPECT(ext_oneapi_limited_graph, 63)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_limited_graph__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_private_alloca__
+// __SYCL_ASPECT(ext_oneapi_private_alloca, 64)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_private_alloca__ 1
+#endif
+
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_sampled_image_fetch_1d_usm__
-//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_1d_usm, 63)
+//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_1d_usm, 65)
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_sampled_image_fetch_1d_usm__ 0
 #endif
 
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_sampled_image_fetch_1d__
-//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_1d, 64)
+//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_1d, 66)
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_sampled_image_fetch_1d__ 0
 #endif
 
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_sampled_image_fetch_2d_usm__
-//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_2d_usm, 65)
+//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_2d_usm, 67)
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_sampled_image_fetch_2d_usm__ 0
 #endif
 
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_sampled_image_fetch_2d__
-//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_2d, 66)
+//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_2d, 68)
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_sampled_image_fetch_2d__ 0
 #endif
 
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_sampled_image_fetch_3d_usm__
-//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_3d_usm, 67)
+//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_3d_usm, 69)
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_sampled_image_fetch_3d_usm__ 0
 #endif
 
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_sampled_image_fetch_3d__
-//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_3d, 68)
+//__SYCL_ASPECT(ext_oneapi_bindless_sampled_image_fetch_3d, 70)
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_sampled_image_fetch_3d__ 0
 #endif
