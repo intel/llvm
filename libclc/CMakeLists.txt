@@ -185,6 +185,8 @@ endif()
 
 list( SORT LIBCLC_TARGETS_TO_BUILD )
 
+# Verify that the user hasn't requested mesa3d targets without an available
+# llvm-spirv tool.
 if( "spirv-mesa3d-" IN_LIST LIBCLC_TARGETS_TO_BUILD OR "spirv64-mesa3d-" IN_LIST LIBCLC_TARGETS_TO_BUILD )
   if( NOT LLVM_SPIRV )
     message( FATAL_ERROR "SPIR-V targets requested, but spirv-tools is not installed" )
@@ -258,6 +260,12 @@ find_package( Python3 REQUIRED COMPONENTS Interpreter )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/gen_convert.py clc_script_loc )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/libspirv/gen_core_convert.py core_script_loc )
 file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/generic/libspirv/gen_convert.py spirv_script_loc )
+file( TO_CMAKE_PATH ${PROJECT_SOURCE_DIR}/generic/lib/gen_convert.py script_loc )
+add_custom_command(
+  OUTPUT convert.cl
+  COMMAND ${Python3_EXECUTABLE} ${script_loc} > convert.cl
+  DEPENDS ${script_loc} )
+add_custom_target( "generate_convert.cl" DEPENDS convert.cl )
 
 add_custom_command(
   OUTPUT convert-core.cl
@@ -332,7 +340,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
   foreach( l ${dirs} ${DARCH} ${DARCH}-${OS} ${DARCH}-${VENDOR}-${OS} )
     foreach( s "SOURCES" "SOURCES_${LLVM_MAJOR}.${LLVM_MINOR}" )
       file( TO_CMAKE_PATH ${l}/lib/${s} file_loc )
-      file( TO_CMAKE_PATH ${CMAKE_SOURCE_DIR}/${file_loc} loc )
+      file( TO_CMAKE_PATH ${PROJECT_SOURCE_DIR}/${file_loc} loc )
       # Prepend the location to give higher priority to
       # specialized implementation
       if( EXISTS ${loc} )
@@ -365,7 +373,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
         list( APPEND objects ${f} )
         list( APPEND rel_files ${dir}/${f} )
         # FIXME: This should really go away
-        file( TO_CMAKE_PATH ${CMAKE_SOURCE_DIR}/${dir}/${f} src_loc )
+        file( TO_CMAKE_PATH ${PROJECT_SOURCE_DIR}/${dir}/${f} src_loc )
         get_filename_component( fdir ${src_loc} DIRECTORY )
 
         set_source_files_properties( ${dir}/${f}
