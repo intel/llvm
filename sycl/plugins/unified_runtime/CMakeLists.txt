@@ -81,14 +81,8 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 03b71483168c091d08d86dec8b1f1c76bff19af5
-  # Merge: 535f4b94 e0415a0a
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Tue Apr 2 16:08:34 2024 +0200
-  #     Merge pull request #1432 from RossBrunton/ross/testfix
-  #     [CTS] Don't segfault when failing to load a kernel
-  set(UNIFIED_RUNTIME_TAG 03b71483168c091d08d86dec8b1f1c76bff19af5)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/nrspruit/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG a0b84e05be3a117ae2a6bc9e72d39180f4d347a3)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
