@@ -195,6 +195,7 @@ set( spirv-mesa3d-_devices none )
 set( spirv64-mesa3d-_devices none )
 # TODO: Does this need to be set for each possible triple?
 set( x86_64-unknown-linux-gnu_devices none )
+set( aarch64-unknown-linux-gnu_devices none )
 
 # Setup aliases
 set( cedar_aliases palm sumo sumo2 redwood juniper )
@@ -337,6 +338,10 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
         list( APPEND flags -Xclang -target-feature -Xclang +avx
             -Xclang -fsycl-is-native-cpu
             -Xclang -target-feature -Xclang +avx512f)
+      elseif( ARCH  STREQUAL aarch64)
+        list( APPEND flags -Xclang -fsycl-is-native-cpu)
+      else()
+        set ( flags )
       endif()
     endif()
 
@@ -367,6 +372,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     elseif( ARCH STREQUAL x86_64)
       set( opt_flags )
       set( supports_generic_addrspace FALSE )
+    elseif( ${ARCH} STREQUAL "aarch64")
+      set( supports_generic_addrspace FALSE )
     else()
       set( opt_flags -O3 )
     endif()
@@ -387,6 +394,9 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       "+__opencl_c_3d_image_writes,"
       "+__opencl_c_images,"
       "+cl_khr_3d_image_writes")
+    if( ${ARCH} STREQUAL "aarch64")
+      string( APPEND CL_3_0_EXTENSIONS ",+cl_clang_storage_class_specifiers,+__opencl_c_fp64" )
+    endif()
     if(supports_generic_addrspace)
       string( APPEND CL_3_0_EXTENSIONS ",+__opencl_c_generic_address_space" )
     else()

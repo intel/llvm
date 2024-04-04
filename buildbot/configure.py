@@ -89,6 +89,8 @@ def do_configure(args):
     if args.native_cpu:
         #Todo: we should set whatever targets we support for native cpu
         libclc_targets_to_build += ';x86_64-unknown-linux-gnu'
+        if args.native_cpu_libclc_targets:
+            libclc_targets_to_build += ';' + args.native_cpu_libclc_targets
         sycl_enabled_plugins.append("native_cpu")
 
 
@@ -265,6 +267,7 @@ def main():
     parser.add_argument("--disable-preview-lib", action='store_true', help="Disable building of the SYCL runtime major release preview library")
     parser.add_argument("--disable-fusion", action="store_true", help="Disable the kernel fusion JIT compiler")
     parser.add_argument("--add_security_flags", type=str, choices=['none', 'default', 'sanitize'], default=None, help="Enables security flags for compile & link. Two values are supported: 'default' and 'sanitize'. 'Sanitize' option is an extension of 'default' set.")
+    parser.add_argument('--native_cpu_libclc_targets', help='Target triples for libclc, used by the Native CPU backend')
     args = parser.parse_args()
 
     print("args:{}".format(args))
