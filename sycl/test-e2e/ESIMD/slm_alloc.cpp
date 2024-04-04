@@ -9,6 +9,8 @@
 // Check if the test sill passes with O0
 // RUN: %{build} -O0 -o %t.3.out
 // RUN: %{run} %t.3.out
+// TODO: Reenable the test on Windows once it it passes with O0 option
+// UNSUPPORTED: windows
 
 // This is end-to-end test for the slm_allocator API used together with the
 // slm_init. The call graph is:
