@@ -13,6 +13,14 @@ if [ -f "$1" ]; then
     TBB_TAG=$(jq -r '.linux.tbb.github_tag' $CONFIG_FILE)
     FPGA_TAG=$(jq -r '.linux.fpgaemu.github_tag' $CONFIG_FILE)
     CPU_TAG=$(jq -r '.linux.oclcpu.github_tag' $CONFIG_FILE)
+elif [[ "$*" == *"--use-latest"* ]]; then
+    CR_TAG=latest
+    IGC_TAG=latest
+    CM_TAG=latest
+    L0_TAG=latest
+    TBB_TAG=latest
+    FPGA_TAG=latest
+    CPU_TAG=latest
 else
     CR_TAG=$compute_runtime_tag
     IGC_TAG=$igc_tag
@@ -133,6 +141,7 @@ if [[ $# -eq 0 ]] ; then
   echo "--igfx     - Install Intel Graphics drivers"
   echo "--cpu      - Install Intel CPU OpenCL runtime"
   echo "--fpga-emu - Install Intel FPGA Fast emulator"
+  echo "--use-latest      - Use latest for all tags"
   echo "Set INSTALL_LOCATION env variable to specify install location"
   exit 0
 fi
