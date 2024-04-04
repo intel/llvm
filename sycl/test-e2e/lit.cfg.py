@@ -378,7 +378,7 @@ else:
     config.substitutions.append(("%shared_lib", "-shared"))
 
 # Check if user passed verbose-print parameter, if yes, add VERBOSE_PRINT macro
-if 'verbose-print' in lit_config.params:
+if "verbose-print" in lit_config.params:
     config.substitutions.append(("%verbose_print", "-DVERBOSE_PRINT"))
 else:
     config.substitutions.append(("%verbose_print", ""))
