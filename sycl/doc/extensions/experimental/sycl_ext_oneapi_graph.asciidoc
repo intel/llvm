@@ -736,7 +736,7 @@ kernel, this can be set through `node::update_nd_range()` or
 
 The executable graph can then be updated by passing the updated nodes to
 `command_graph<graph_state::executable>::update(node& node)` or
-`command_graph<graph_state::executable>::update(const std::vector<node>& nodes)`
+`command_graph<graph_state::executable>::update(const std::vector<node>& nodes)`.
 
 Since the structure of the graph became fixed when finalizing, updating
 parameters on a node will not change the already defined dependencies between
@@ -761,8 +761,9 @@ method. This method takes a graph in the modifiable state and updates the execut
 graph to use the node inputs & outputs of the modifiable graph.
 
 The modifiable graph must have the same topology as the graph originally used to
-create the executable graph, with the nodes added in the same order. In addition,
-the device used during construction of both graphs must also be identical.
+create the executable graph, with the nodes and edges added in the same order. 
+In addition, the device used during construction of both graphs must also be 
+identical.
 
 It is valid to use nodes that contain dynamic parameters in whole graph updates.
 If a node containing a dynamic parameter is updated through the whole graph update
@@ -1103,7 +1104,7 @@ updated inside the executable graph to reflect the current values in `node`.
 
 Updating these values will not change the structure of the graph.
 
-Note: The implementation may perform a blocking wait during this call on any
+The implementation may perform a blocking wait during this call on any
 in-flight executions of that same graph if required by the backend.
 
 Constraints:
@@ -1166,10 +1167,8 @@ update(const command_graph<graph_state::modifiable>& graph);
 
 |Updates the executable graph node inputs & outputs from a topologically
 identical modifiable graph. A topologically identical graph is one with the
-same structure of nodes and edges, and the nodes added in the same order to
-both graphs.
-
-Note: Edges can be added in any order without changing the topology.
+same structure of nodes and edges. Additionally, the nodes and edges must have
+been added in the same order to both graphs.
 
 Equivalent nodes in topologically identical graphs each have the
 same command. There is the additional limitation that to update an executable
@@ -1181,13 +1180,16 @@ nodes. For example, the graph may capture different values for the USM pointers
 or accessors used in the graph. It is these kernels arguments in `graph` that
 constitute the inputs & outputs to update to.
 
+It is not an error to update an executable graph such that all the arguments and
+ND-Range of kernels in `graph` are identical to the arguments of the executable
+graph prior to the update.
 
 Differences in the following characteristics between two graphs during an
 update results in undefined behavior:
 
 * Modifying the {sycl-kernel-function}[kernel function] of a kernel node.
 
-Note: The implementation may perform a blocking wait during this call on
+The implementation may perform a blocking wait during this call on
 any in-flight executions of that same graph if required by the backend.
 
 Constraints:
