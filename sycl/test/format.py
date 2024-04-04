@@ -21,9 +21,11 @@ class CustomFormat(lit.formats.TestFormat):
                     continue
                 filepath = os.path.join(dirpath, filename)
                 for t in self.getTestsForPath(
-                    testSuite, path_in_suite
+                    testSuite,
+                    path_in_suite
                     + (
-                        relative_dirpath, filename,
+                        relative_dirpath,
+                        filename,
                     ),
                     filepath,
                     litConfig,
@@ -41,7 +43,7 @@ class CustomFormat(lit.formats.TestFormat):
             os.path.join(
                 test.suite.getSourcePath(("self-contained-headers",)),
                 "Inputs",
-                "test.cpp"
+                "test.cpp",
             ),
         ]
         try:
