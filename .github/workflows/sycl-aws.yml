@@ -1,5 +1,7 @@
 name: Start/Stop AWS instance
 
+permissions: read-all
+
 on:
   workflow_call:
     inputs:

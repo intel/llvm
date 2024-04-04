@@ -8,7 +8,9 @@
 // code optimizations disabled (the implementation relies on inlining these
 // functions regardless of device code optimization settings).
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/group_local_memory.hpp>
 
 #include <cassert>
 #include <vector>

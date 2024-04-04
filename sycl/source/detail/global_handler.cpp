@@ -203,13 +203,6 @@ std::vector<PluginPtr> &GlobalHandler::getPlugins() {
   return getOrCreate(MPlugins);
 }
 
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-device_filter_list &
-GlobalHandler::getDeviceFilterList(const std::string &InitValue) {
-  return getOrCreate(MDeviceFilterList, InitValue);
-}
-#endif
-
 ods_target_list &
 GlobalHandler::getOneapiDeviceSelectorTargets(const std::string &InitValue) {
   return getOrCreate(MOneapiDeviceSelectorTargets, InitValue);
