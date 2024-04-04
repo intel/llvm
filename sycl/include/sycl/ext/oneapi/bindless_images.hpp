@@ -806,7 +806,7 @@ template <typename DataT> constexpr bool is_recognized_standard_type() {
  *
  *  __NVPTX__: Name mangling info
  *             Cuda surfaces require integer coords (by bytes)
- *             Cuda textures require float coords (by element or normalized) 
+ *             Cuda textures require float coords (by element or normalized)
  *             for sampling, and integer coords (by bytes) for fetching
  *             The name mangling should therefore not interfere with one
  *             another
@@ -853,7 +853,7 @@ DataT fetch_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
  *
  *  __NVPTX__: Name mangling info
  *             Cuda surfaces require integer coords (by bytes)
- *             Cuda textures require float coords (by element or normalized) 
+ *             Cuda textures require float coords (by element or normalized)
  *             for sampling, and integer coords (by bytes) for fetching
  *             The name mangling should therefore not interfere with one
  *             another
@@ -882,7 +882,7 @@ DataT read_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
  *
  *  __NVPTX__: Name mangling info
  *             Cuda surfaces require integer coords (by bytes)
- *             Cuda textures require float coords (by element or normalized) 
+ *             Cuda textures require float coords (by element or normalized)
  *             for sampling, and integer coords (by bytes) for fetching
  *             The name mangling should therefore not interfere with one
  *             another
@@ -929,7 +929,7 @@ DataT fetch_image(const sampled_image_handle &imageHandle [[maybe_unused]],
  *
  *  __NVPTX__: Name mangling info
  *             Cuda surfaces require integer coords (by bytes)
- *             Cuda textures require float coords (by element or normalized) 
+ *             Cuda textures require float coords (by element or normalized)
  *             for sampling, and integer coords (by bytes) for fetching
  *             The name mangling should therefore not interfere with one
  *             another
@@ -976,7 +976,7 @@ DataT sample_image(const sampled_image_handle &imageHandle [[maybe_unused]],
  *
  *  __NVPTX__: Name mangling info
  *             Cuda surfaces require integer coords (by bytes)
- *             Cuda textures require float coords (by element or normalized) 
+ *             Cuda textures require float coords (by element or normalized)
  *             for sampling, and integer coords (by bytes) for fetching
  *             The name mangling should therefore not interfere with one
  *             another
