@@ -489,7 +489,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   cl_context CLContext = cl_adapter::cast<cl_context>(hCommandBuffer->hContext);
 
   cl_ext::clUpdateMutableCommandsKHR_fn clUpdateMutableCommandsKHR = nullptr;
-      UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext<decltype(clUpdateMutableCommandsKHR)>(
+  UR_RETURN_ON_FAILURE(
+      cl_ext::getExtFuncFromContext<decltype(clUpdateMutableCommandsKHR)>(
           CLContext, cl_ext::ExtFuncPtrCache->clUpdateMutableCommandsKHRCache,
           cl_ext::UpdateMutableCommandsName, &clUpdateMutableCommandsKHR));
 
