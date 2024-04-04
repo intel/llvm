@@ -489,6 +489,9 @@ struct ShadowMapping {
 
 } // end anonymous namespace
 
+constexpr unsigned OffloadGlobalAS = 1;
+constexpr unsigned OffloadConstantAS = 2;
+
 static ShadowMapping getShadowMapping(const Triple &TargetTriple, int LongSize,
                                       bool IsKasan) {
   bool IsAndroid = TargetTriple.isAndroid();
@@ -1312,7 +1315,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
     // New argument type: uintptr_t as(1)*, as it's allocated in USM buffer, and
     // it can also be treated as a pointer point to the base address of private
     // shadow memory
-    Types.push_back(IntptrTy->getPointerTo(1));
+    Types.push_back(IntptrTy->getPointerTo(OffloadGlobalAS));
 
     FunctionType *NewFTy = FunctionType::get(F->getReturnType(), Types, false);
 
@@ -1542,8 +1545,7 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
   auto &Loc = InsertBefore->getDebugLoc();
 
   // SPIR constant address space
-  constexpr unsigned ConstantAS = 2;
-  PointerType *ConstASPtrTy = Type::getInt8Ty(C)->getPointerTo(ConstantAS);
+  PointerType *ConstASPtrTy = Type::getInt8Ty(C)->getPointerTo(OffloadConstantAS);
 
   // Address Space
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
@@ -1559,7 +1561,7 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
     llvm::SmallString<128> Source = Loc->getDirectory();
     sys::path::append(Source, Loc->getFilename());
     auto *FileNameGV =
-        GetOrCreateGlobalString(*M, "__asan_file", Source, ConstantAS);
+        GetOrCreateGlobalString(*M, "__asan_file", Source, OffloadConstantAS);
     Args.push_back(ConstantExpr::getPointerCast(FileNameGV, ConstASPtrTy));
     Args.push_back(ConstantInt::get(Type::getInt32Ty(C), Loc.getLine()));
   } else {
@@ -1570,7 +1572,7 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
   // Function
   auto FuncName = F->getName();
   auto *FuncNameGV = GetOrCreateGlobalString(*M, "__asan_func",
-                                             demangle(FuncName), ConstantAS);
+                                             demangle(FuncName), OffloadConstantAS);
   Args.push_back(ConstantExpr::getPointerCast(FuncNameGV, ConstASPtrTy));
 }
 
@@ -3197,23 +3199,22 @@ void AddressSanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo *T
       // __asan_loadX/__asan_storeX(
       //   ...
       //   int32_t as, // Address Space
-      //   uptr* launch_data, // per launch specific data
+      //   uptr as(1)* launch_data, // per launch specific data
       //   char* file,
       //   unsigned int line,
       //   char* func
       // )
       if (TargetTriple.isSPIR()) {
-        constexpr unsigned ConstantAS = 2;
-        auto *Int8PtrTy = Type::getInt8Ty(*C)->getPointerTo(ConstantAS);
+        auto *Int8PtrTy = Type::getInt8Ty(*C)->getPointerTo(OffloadConstantAS);
 
         Args1.push_back(Type::getInt32Ty(*C)); // address_space
-        Args1.push_back(IntptrTy->getPointerTo(1)); // launch_data
+        Args1.push_back(IntptrTy->getPointerTo(OffloadGlobalAS)); // launch_data
         Args1.push_back(Int8PtrTy);            // file
         Args1.push_back(Type::getInt32Ty(*C)); // line
         Args1.push_back(Int8PtrTy);            // func
 
         Args2.push_back(Type::getInt32Ty(*C)); // address_space
-        Args2.push_back(IntptrTy->getPointerTo(0)); // launch_data
+        Args2.push_back(IntptrTy->getPointerTo(OffloadGlobalAS)); // launch_data
         Args2.push_back(Int8PtrTy);            // file
         Args2.push_back(Type::getInt32Ty(*C)); // line
         Args2.push_back(Int8PtrTy);            // func
@@ -3282,7 +3283,7 @@ void AddressSanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo *T
     // )
     AsanSetShadowStaticLocalFunc = M.getOrInsertFunction(
         "__asan_set_shadow_static_local", IRB.getVoidTy(), IntptrTy, IntptrTy,
-        IntptrTy, IntptrTy->getPointerTo(1));
+        IntptrTy, IntptrTy->getPointerTo(OffloadGlobalAS));
     // __asan_set_shadow_dynamic_local(
     //   uptr ptr,
     //   uint32_t num_args,
@@ -3290,7 +3291,7 @@ void AddressSanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo *T
     // )
     AsanSetShadowDynamicLocalFunc = M.getOrInsertFunction(
         "__asan_set_shadow_dynamic_local", IRB.getVoidTy(), IntptrTy, Int32Ty,
-        IntptrTy->getPointerTo(1));
+        IntptrTy->getPointerTo(OffloadGlobalAS));
   }
 
   AMDGPUAddressShared =
