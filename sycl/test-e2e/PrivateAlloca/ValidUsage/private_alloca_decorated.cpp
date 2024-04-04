@@ -3,7 +3,6 @@
 // RUN: echo 10 | %{run} %t.out
 // RUN: echo 20 | %{run} %t.out
 // RUN: echo 30 | %{run} %t.out
-// UNSUPPORTED: cuda || hip
 
 // Simple test filling a SYCL private alloca and copying it back to an output
 // accessor using a decorated multi_ptr.
