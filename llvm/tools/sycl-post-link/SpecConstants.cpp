@@ -20,6 +20,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/TargetParser/Triple.h"
 
 #include <vector>
 
@@ -815,11 +816,17 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   // intrinsic to find its calls and lower them depending on the HandlingMode.
   bool IRModified = false;
   LLVMContext &Ctx = M.getContext();
+  bool IsSPIREmulated =
+      Triple(M.getTargetTriple()).isSPIR() && Mode == HandlingMode::emulation;
   for (Function &F : M) {
     if (!F.isDeclaration())
       continue;
 
     const bool IsSYCLAlloca = F.getIntrinsicID() == Intrinsic::sycl_alloca;
+
+    // 'llvm.sycl.alloca' is not supported in emulation mode on SPIR-V targets.
+    if (IsSPIREmulated && IsSYCLAlloca)
+      continue;
 
     if (!F.getName().starts_with(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) &&
         !F.getName().starts_with(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL) &&
@@ -894,17 +901,6 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         //  3. Transform to spirv intrinsic _Z*__spirv_SpecConstant* or
         //  _Z*__spirv_SpecConstantComposite
         Replacement = emitSpecConstantRecursive(SCTy, CI, IDs, DefaultValue);
-        if (IsSYCLAlloca) {
-          // In case this is a 'sycl.llvm.alloca' intrinsic, use the emitted
-          // specialization constant as the allocation size.
-          auto *Intr = cast<SYCLAllocaInst>(CI);
-          Value *ArraySize = Replacement;
-          assert(ArraySize->getType()->isIntegerTy() &&
-                 "Expecting integer type");
-          Replacement =
-              new AllocaInst(Intr->getAllocatedType(), Intr->getAddressSpace(),
-                             ArraySize, Intr->getAlign(), "alloca", CI);
-        }
         if (IsNewSpecConstant) {
           // emitSpecConstantRecursive might emit more than one spec constant
           // (because of composite types) and therefore, we need to adjust
@@ -917,8 +913,6 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
               M, SymID, SCTy, IDs, /* is native spec constant */ true);
         }
       } else if (Mode == HandlingMode::emulation) {
-        assert(!IsSYCLAlloca && "sycl_ext_oneapi_private_alloca not yet "
-                                "supported in emulation mode");
         // 2a. Spec constant will be passed as kernel argument;
 
         // Replace it with a load from the pointer to the specialization
@@ -980,6 +974,21 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         }
         DefaultsMetadata.push_back(
             generateSpecConstDefaultValueMetadata(DefaultValue));
+      }
+
+      if (IsSYCLAlloca) {
+        // In case this is a 'sycl.llvm.alloca' intrinsic, use the emitted
+        // specialization constant as the allocation size.
+        auto *Intr = cast<SYCLAllocaInst>(CI);
+        // For emulation mode, use the default value for now. This code should
+        // never be run, as the runtime should throw a 'kernel_not_supported'
+        // exception.
+        Value *ArraySize =
+            Mode == HandlingMode::emulation ? DefaultValue : Replacement;
+        assert(ArraySize->getType()->isIntegerTy() && "Expecting integer type");
+        Replacement =
+            new AllocaInst(Intr->getAllocatedType(), Intr->getAddressSpace(),
+                           ArraySize, Intr->getAlign(), "alloca", CI);
       }
 
       if (HasSretParameter)

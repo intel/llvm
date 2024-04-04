@@ -280,6 +280,12 @@ add_custom_command(
   DEPENDS ${clc_script_loc} )
 add_custom_target( "generate_convert_clc.cl" DEPENDS convert-clc.cl )
 
+add_custom_command(
+	OUTPUT clspv-convert.cl
+	COMMAND ${Python3_EXECUTABLE} ${script_loc} --clspv > clspv-convert.cl
+	DEPENDS ${script_loc} )
+add_custom_target( "clspv-generate_convert.cl" DEPENDS clspv-convert.cl )
+
 enable_testing()
 
 if (LIBCLC_STANDALONE_BUILD)
@@ -429,6 +435,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       set( t "spir64--" )
       set( build_flags "-Wno-unknown-assumption")
       set( opt_flags -O3 )
+    elseif( ${ARCH} STREQUAL "x86_64")
+      set( supports_generic_addrspace FALSE )
     else()
       set( build_flags )
       set( opt_flags -O3 )
@@ -449,6 +457,13 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       "+cl_khr_3d_image_writes")
     if(supports_generic_addrspace)
       string( APPEND CL_3_0_EXTENSIONS ",+__opencl_c_generic_address_space" )
+    else()
+      # Explictly disable opencl_c_generic_address_space (it may be enabled
+      # by default on some targets). We also disable opencl_c_pipes and
+      # opencl_c_device_enqueue since they require generic address space.
+      string( APPEND CL_3_0_EXTENSIONS ",-__opencl_c_generic_address_space" )
+      string( APPEND CL_3_0_EXTENSIONS ",-__opencl_c_pipes" )
+      string( APPEND CL_3_0_EXTENSIONS ",-__opencl_c_device_enqueue" )
     endif()
     list( APPEND flags ${CL_3_0_EXTENSIONS})
 

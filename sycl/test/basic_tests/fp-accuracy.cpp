@@ -1,6 +1,9 @@
 // RUN: %clangxx -%fsycl-host-only -c -ffp-accuracy=high -faltmathlib=SVMLAltMathLibrary -fno-math-errno %s
 
 #include <sycl/sycl.hpp>
+
+#include <cmath>
+
 using namespace sycl;
 
 int main() {

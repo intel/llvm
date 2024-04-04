@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -c -fsycl-device-only -Xclang -emit-llvm %s -o - 2>&1 | FileCheck %s
+// RUN: %clangxx -D__ESIMD_USE_NEW_NAMED_BARRIER_INTRIN -fsycl -c -fsycl-device-only -Xclang -emit-llvm %s -o - 2>&1 | FileCheck %s
 
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/sycl.hpp>

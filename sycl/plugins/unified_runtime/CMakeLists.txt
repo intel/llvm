@@ -82,13 +82,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit  5f4dd113824e90522d813420932c14072dc3049d
-  # Merge:  ed1f8bf b551c77
-  # Author: Ewan Crawford <ewan@codeplay.com>
-  # Date:   Fri Mar 15 10:22:39 2024 +0000
-  #     Merge pull request #1447 from Bensuo/ewan/rocm_5_5_1
-  #     [HIP][CMDBUF] Require ROCm 5.5.1 for HIP command-buffers
-  set(UNIFIED_RUNTIME_TAG 5f4dd113824e90522d813420932c14072dc3049d)
+  # commit 3a7d00f136cf5d69e61bf1e235393dfc56f55525
+  # Merge: cd5ad7b5 9e5c6203
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Mon Apr 1 15:16:30 2024 +0100
+  #     Merge pull request #1485 from aarongreig/aaron/addDeviceNotAvailableErrC
+  #     Add UR_ERROR_DEVICE_NOT_AVAILABLE and appropriate translation for CL.
+  set(UNIFIED_RUNTIME_TAG 3a7d00f136cf5d69e61bf1e235393dfc56f55525)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

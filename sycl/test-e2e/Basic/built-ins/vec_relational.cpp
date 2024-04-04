@@ -1,7 +1,5 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -o %t2.out %}
-// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 
 #include <sycl/detail/core.hpp>
 
@@ -155,7 +153,6 @@ int main() {
     }(r2, a, b);
   }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   TEST(sycl::isequal, int32_t, EXPECTED(int32_t, 1, 1), 2, va11.swizzle<0, 1>(),
        va2);
   TEST(sycl::isequal, int32_t, EXPECTED(int32_t, 1, 1), 2, va1,
@@ -250,7 +247,6 @@ int main() {
        va6.swizzle<0, 1>(), c1.swizzle<0, 1>());
   TEST(sycl::select, float, EXPECTED(float, 1.0, 2.0), 2, va5.swizzle<0, 1>(),
        va6.swizzle<0, 1>(), c1.swizzle<0, 1>());
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   return 0;
 }
