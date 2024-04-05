@@ -12,6 +12,14 @@
 
 namespace sycl {
 inline namespace _V1 {
+class queue;
+namespace detail {
+struct code_location;
+}
+
+void free(void *, const context &, const detail::code_location &);
+void free(void *, const queue &, const detail::code_location &);
+
 namespace ext {
 namespace oneapi {
 namespace experimental {

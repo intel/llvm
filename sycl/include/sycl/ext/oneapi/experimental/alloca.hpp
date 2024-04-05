@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include "sycl/exception.hpp"
-#include "sycl/kernel_handler.hpp"
-#include "sycl/multi_ptr.hpp"
+#include <sycl/exception.hpp>
+#include <sycl/kernel_handler.hpp>
+#include <sycl/pointers.hpp>
 
 namespace sycl {
 inline namespace _V1 {

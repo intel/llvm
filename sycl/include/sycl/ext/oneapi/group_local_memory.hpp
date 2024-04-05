@@ -13,6 +13,7 @@
 #include <sycl/detail/type_traits.hpp>        // for is_group
 #include <sycl/exception.hpp>                 // for exception
 #include <sycl/ext/intel/usm_pointers.hpp>    // for multi_ptr
+#include <sycl/group.hpp>                     // for workGroupBarrier
 
 #include <type_traits> // for enable_if_t
 

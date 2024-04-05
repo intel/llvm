@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include <cstdint>
+
 // _iml_half_internal is internal representation for fp16 type used in intel
 // math device library. The definition here should align with definition in
 // https://github.com/intel/llvm/blob/sycl/libdevice/imf_half.hpp

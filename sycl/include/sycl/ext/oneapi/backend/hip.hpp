@@ -9,6 +9,7 @@
 #pragma once
 
 #include <sycl/backend.hpp>
+#include <sycl/detail/backend_traits_hip.hpp>
 
 namespace sycl {
 inline namespace _V1 {

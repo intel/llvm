@@ -8,8 +8,15 @@
 // ===-------------------------------------------------------------------=== //
 
 #pragma once
+
 #include "matrix-unified-utils.hpp"
+
+#include <sycl/access/access.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/marray.hpp>
+#include <sycl/multi_ptr.hpp>
+
+#include <cstring>
 
 #define __HIP_PLATFORM_AMD_MFMA__
 

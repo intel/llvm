@@ -14,6 +14,7 @@
 #include <sycl/ext/intel/esimd/detail/types.hpp>
 #include <sycl/ext/intel/esimd/xmx/common.hpp>
 #include <sycl/ext/intel/experimental/esimd/detail/math_intrin.hpp>
+#include <sycl/ext/intel/experimental/esimd/tfloat32.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
 
 namespace sycl {

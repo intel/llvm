@@ -9,6 +9,8 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+
+#include <sycl/ext/intel/math.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/half_type.hpp>
 
