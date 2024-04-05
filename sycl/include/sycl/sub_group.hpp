@@ -554,7 +554,9 @@ struct sub_group {
   }
 
   /* --- synchronization functions --- */
-  __SYCL_DEPRECATED("Sub-group barrier with no arguments is deprecated.")
+  __SYCL_DEPRECATED(
+      "Sub-group barrier with no arguments is deprecated."
+      "Use sycl::group_barrier with the sub-group as the argument instead.")
   void barrier() const {
 #ifdef __SYCL_DEVICE_ONLY__
     __spirv_ControlBarrier(
@@ -569,8 +571,9 @@ struct sub_group {
 #endif
   }
 
-  __SYCL_DEPRECATED("Sub-group barrier accepting fence_space is deprecated."
-                    "Use barrier() without a fence_space instead.")
+  __SYCL_DEPRECATED(
+      "Sub-group barrier accepting fence_space is deprecated."
+      "Use sycl::group_barrier with the sub-group as the argument instead.")
   void barrier(access::fence_space accessSpace) const {
 #ifdef __SYCL_DEVICE_ONLY__
     int32_t flags = sycl::detail::getSPIRVMemorySemanticsMask(accessSpace);
