@@ -73,8 +73,8 @@ print2DTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
     const auto platform_device_name =
         uur::GetPlatformAndDeviceName(device_handle);
     std::stringstream test_name;
-    auto src_kind = std::get<1>(std::get<1>(info.param));
-    auto dst_kind = std::get<2>(std::get<1>(info.param));
+    const auto src_kind = std::get<1>(std::get<1>(info.param));
+    const auto dst_kind = std::get<2>(std::get<1>(info.param));
     test_name << platform_device_name << "__pitch__"
               << std::get<0>(std::get<1>(info.param)).pitch << "__width__"
               << std::get<0>(std::get<1>(info.param)).width << "__height__"
