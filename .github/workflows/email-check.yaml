@@ -28,7 +28,7 @@ jobs:
 
       - name: Validate author email
         if: ${{ endsWith(steps.author.outputs.EMAIL, 'noreply.github.com')  }}
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         env:
           EMAIL: ${{ steps.author.outputs.EMAIL }}
         with:

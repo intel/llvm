@@ -122,7 +122,6 @@ template <template <typename, int> typename VecT> void run_test() {
   TEST(sycl::half_precision::exp10, float, 2, EXPECTED(float, 10, 100), 0.1,
        va1);
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   TEST(sycl::fabs, float, 2, EXPECTED(float, 180, 180), 0,
        va5.template swizzle<0, 1>());
   TEST(sycl::ilogb, int, 2, EXPECTED(int, 7, 7), 0,
@@ -190,7 +189,4 @@ template <template <typename, int> typename VecT> void run_test() {
   }
   TEST(sycl::half_precision::exp10, float, 2, EXPECTED(float, 10, 100), 0.1,
        va9.template swizzle<0, 1>());
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
-  return 0;
 }

@@ -132,7 +132,6 @@ template <template <typename, int> typename VecT> void run_test() {
        EXPECTED(float, 0.182574f, 0.365148f, 0.547723f, 0.730297f), 1e-3,
        VFloatD4);
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   TEST(sycl::cross, float, 3, EXPECTED(float, -1.f, -4.f, 3.f), 0,
        VFloatD4.template swizzle<0, 1, 2>(), VFloatD3_2);
   TEST(sycl::cross, float, 3, EXPECTED(float, -1.f, -4.f, 3.f), 0, VFloatD3,
@@ -209,5 +208,4 @@ template <template <typename, int> typename VecT> void run_test() {
   TEST(sycl::fast_normalize, float, 3,
        EXPECTED(float, 0.267261f, 0.534522f, 0.801784f), 1e-3,
        VFloatD4.template swizzle<0, 1, 2>());
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 }

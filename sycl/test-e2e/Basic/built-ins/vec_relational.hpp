@@ -131,28 +131,27 @@ template <template <typename, int> typename VecT> void run_test() {
     auto BitSelect = [](auto... xs) { return sycl::bitselect(xs...); };
     Test(BitSelect, r, a, b, c);
     [&](auto... xs) {
-      Test(BitSelect, xs.template as<sycl::vec<int8_t, 2>>()...);
+      Test(BitSelect, xs.template as<VecT<int8_t, 2>>()...);
     }(r, a, b, c);
 
     auto Select = [](auto... xs) { return sycl::select(xs...); };
-    sycl::vec<uint8_t, 2> c2{0x7F, 0xFF};
-    sycl::vec<uint8_t, 2> r2{a[0], b[1]};
+    VecT<uint8_t, 2> c2{0x7F, 0xFF};
+    VecT<uint8_t, 2> r2{a[0], b[1]};
 
     Test(Select, r2, a, b, c2);
     [&](auto... xs) {
-      Test(Select, xs.template as<sycl::vec<int8_t, 2>>()..., c2);
+      Test(Select, xs.template as<VecT<int8_t, 2>>()..., c2);
     }(r2, a, b);
 
     // Assume that MSB of a signed data type is the leftmost bit (signbit).
-    auto c3 = c2.template as<sycl::vec<int8_t, 2>>();
+    auto c3 = c2.template as<VecT<int8_t, 2>>();
 
     Test(Select, r2, a, b, c3);
     [&](auto... xs) {
-      Test(Select, xs.template as<sycl::vec<int8_t, 2>>()..., c3);
+      Test(Select, xs.template as<VecT<int8_t, 2>>()..., c3);
     }(r2, a, b);
   }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   TEST(sycl::isequal, int32_t, EXPECTED(int32_t, 1, 1), 2,
        va11.template swizzle<0, 1>(), va2);
   TEST(sycl::isequal, int32_t, EXPECTED(int32_t, 1, 1), 2, va1,
@@ -254,7 +253,4 @@ template <template <typename, int> typename VecT> void run_test() {
   TEST(sycl::select, float, EXPECTED(float, 1.0, 2.0), 2,
        va5.template swizzle<0, 1>(), va6.template swizzle<0, 1>(),
        c1.template swizzle<0, 1>());
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
-
-  return 0;
 }

@@ -681,30 +681,5 @@ protected:
                   "inconsistent group constructor arguments");
   }
 };
-
-template <int Dims>
-__SYCL_DEPRECATED("use sycl::ext::oneapi::experimental::this_group() instead")
-group<Dims> this_group() {
-#ifdef __SYCL_DEVICE_ONLY__
-  return detail::Builder::getElement(detail::declptr<group<Dims>>());
-#else
-  throw sycl::exception(
-      sycl::make_error_code(sycl::errc::feature_not_supported),
-      "Free function calls are not supported on host");
-#endif
-}
-
-namespace ext::oneapi::experimental {
-template <int Dims> group<Dims> this_group() {
-#ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::Builder::getElement(
-      sycl::detail::declptr<group<Dims>>());
-#else
-  throw sycl::exception(
-      sycl::make_error_code(sycl::errc::feature_not_supported),
-      "Free function calls are not supported on host");
-#endif
-}
-} // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl

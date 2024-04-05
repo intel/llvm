@@ -136,7 +136,6 @@ template <template <typename, int> typename VecT> void run_test() {
          va12);
   }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   // sycl::clamp swizzled
   TEST(sycl::clamp, float, 2, EXPECTED(float, 3.0f, 2.0f), 0,
        va16.template swizzle<1, 0>(), va2, va3);
@@ -324,5 +323,4 @@ template <template <typename, int> typename VecT> void run_test() {
     TEST(sycl::sign, sycl::half, 3, EXPECTED(sycl::half, 1.0, 1.0, 1.0), 0,
          va12.template swizzle<2, 1, 0>());
   }
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 }

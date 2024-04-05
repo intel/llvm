@@ -11,7 +11,7 @@
 
 #include "device.h"
 
-#if defined(__SPIR__) || defined(__NVPTX__)
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__)
 
 #include <cstddef>
 #include <cstdint>
@@ -52,10 +52,10 @@ DEVICE_EXTERNAL inline size_t __spirv_LocalInvocationId_z() {
   return __spirv_BuiltInLocalInvocationId.z;
 }
 
-#ifndef __SPIR__
+#if !defined(__SPIR__) && !defined(__SPIRV__)
 const size_t_vec __spirv_BuiltInGlobalInvocationId{};
 const size_t_vec __spirv_BuiltInLocalInvocationId{};
-#endif // __SPIR__
+#endif // !__SPIR__ && !__SPIRV__
 
-#endif // __SPIR__ || __NVPTX__
+#endif // __SPIR__ || __SPIRV__ || __NVPTX__
 #endif // __LIBDEVICE_SPIRV_VARS_H

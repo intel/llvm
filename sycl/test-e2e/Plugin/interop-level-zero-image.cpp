@@ -3,7 +3,7 @@
 // RUN: %{run} %t.out
 
 // spir-v gen for legacy images at O0 not working
-// UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED: true
 // This test is currently broken see https://github.com/intel/llvm/issues/13090
 
 // This test verifies that make_image is working for 1D, 2D and 3D images.
