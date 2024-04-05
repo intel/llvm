@@ -60,7 +60,8 @@ int __clc__sampled_image3d_unpack_sampler(__ocl_sampled_image3d_ro_t) __asm(
 // NVVM helpers
 #ifdef cl_khr_fp16
 short4
-__nvvm_suld_1d_v4i16_trap_s(long, int) __asm("__clc_llvm_nvvm_suld_1d_v4i16_trap");
+__nvvm_suld_1d_v4i16_trap_s(long,
+                            int) __asm("__clc_llvm_nvvm_suld_1d_v4i16_trap");
 short4
 __nvvm_suld_2d_v4i16_trap_s(long, int,
                             int) __asm("__clc_llvm_nvvm_suld_2d_v4i16_trap");
@@ -69,7 +70,8 @@ __nvvm_suld_3d_v4i16_trap_s(long, int, int,
                             int) __asm("__clc_llvm_nvvm_suld_3d_v4i16_trap");
 
 short4
-__nvvm_suld_1d_v4i16_clamp_s(long, int) __asm("__clc_llvm_nvvm_suld_1d_v4i16_clamp");
+__nvvm_suld_1d_v4i16_clamp_s(long,
+                             int) __asm("__clc_llvm_nvvm_suld_1d_v4i16_clamp");
 short4
 __nvvm_suld_2d_v4i16_clamp_s(long, int,
                              int) __asm("__clc_llvm_nvvm_suld_2d_v4i16_clamp");
@@ -78,7 +80,8 @@ __nvvm_suld_3d_v4i16_clamp_s(long, int, int,
                              int) __asm("__clc_llvm_nvvm_suld_3d_v4i16_clamp");
 
 short4
-__nvvm_suld_1d_v4i16_zero_s(long, int) __asm("__clc_llvm_nvvm_suld_1d_v4i16_zero");
+__nvvm_suld_1d_v4i16_zero_s(long,
+                            int) __asm("__clc_llvm_nvvm_suld_1d_v4i16_zero");
 short4
 __nvvm_suld_2d_v4i16_zero_s(long, int,
                             int) __asm("__clc_llvm_nvvm_suld_2d_v4i16_zero");
@@ -97,42 +100,33 @@ __nvvm_suld_3d_v4i16_clamp(read_only image3d_t, int, int,
                            int) __asm("__clc_llvm_nvvm_suld_3d_v4i16_clamp");
 #endif
 
-int4
-__nvvm_suld_1d_v4i32_trap_s(long, int) __asm("__clc_llvm_nvvm_suld_1d_v4i32_trap");
-int4
-__nvvm_suld_2d_v4i32_trap_s(long, int,
-                            int) __asm("__clc_llvm_nvvm_suld_2d_v4i32_trap");
-int4
-__nvvm_suld_3d_v4i32_trap_s(long, int, int,
-                            int) __asm("__clc_llvm_nvvm_suld_3d_v4i32_trap");
+int4 __nvvm_suld_1d_v4i32_trap_s(long, int) __asm(
+    "__clc_llvm_nvvm_suld_1d_v4i32_trap");
+int4 __nvvm_suld_2d_v4i32_trap_s(long, int, int) __asm(
+    "__clc_llvm_nvvm_suld_2d_v4i32_trap");
+int4 __nvvm_suld_3d_v4i32_trap_s(long, int, int, int) __asm(
+    "__clc_llvm_nvvm_suld_3d_v4i32_trap");
 
-int4
-__nvvm_suld_1d_v4i32_clamp_s(long, int) __asm("__clc_llvm_nvvm_suld_1d_v4i32_clamp");
-int4
-__nvvm_suld_2d_v4i32_clamp_s(long, int,
-                             int) __asm("__clc_llvm_nvvm_suld_2d_v4i32_clamp");
-int4
-__nvvm_suld_3d_v4i32_clamp_s(long, int, int,
-                             int) __asm("__clc_llvm_nvvm_suld_3d_v4i32_clamp");
+int4 __nvvm_suld_1d_v4i32_clamp_s(long, int) __asm(
+    "__clc_llvm_nvvm_suld_1d_v4i32_clamp");
+int4 __nvvm_suld_2d_v4i32_clamp_s(long, int, int) __asm(
+    "__clc_llvm_nvvm_suld_2d_v4i32_clamp");
+int4 __nvvm_suld_3d_v4i32_clamp_s(long, int, int, int) __asm(
+    "__clc_llvm_nvvm_suld_3d_v4i32_clamp");
 
-int4
-__nvvm_suld_1d_v4i32_zero_s(long, int) __asm("__clc_llvm_nvvm_suld_1d_v4i32_zero");
-int4
-__nvvm_suld_2d_v4i32_zero_s(long, int,
-                            int) __asm("__clc_llvm_nvvm_suld_2d_v4i32_zero");
-int4
-__nvvm_suld_3d_v4i32_zero_s(long, int, int,
-                            int) __asm("__clc_llvm_nvvm_suld_3d_v4i32_zero");
+int4 __nvvm_suld_1d_v4i32_zero_s(long, int) __asm(
+    "__clc_llvm_nvvm_suld_1d_v4i32_zero");
+int4 __nvvm_suld_2d_v4i32_zero_s(long, int, int) __asm(
+    "__clc_llvm_nvvm_suld_2d_v4i32_zero");
+int4 __nvvm_suld_3d_v4i32_zero_s(long, int, int, int) __asm(
+    "__clc_llvm_nvvm_suld_3d_v4i32_zero");
 
-int4
-__nvvm_suld_1d_v4i32_clamp(read_only image1d_t,
-                           int) __asm("__clc_llvm_nvvm_suld_1d_v4i32_clamp");
-int4
-__nvvm_suld_2d_v4i32_clamp(read_only image2d_t, int,
-                           int) __asm("__clc_llvm_nvvm_suld_2d_v4i32_clamp");
-int4
-__nvvm_suld_3d_v4i32_clamp(read_only image3d_t, int, int,
-                           int) __asm("__clc_llvm_nvvm_suld_3d_v4i32_clamp");
+int4 __nvvm_suld_1d_v4i32_clamp(read_only image1d_t, int) __asm(
+    "__clc_llvm_nvvm_suld_1d_v4i32_clamp");
+int4 __nvvm_suld_2d_v4i32_clamp(read_only image2d_t, int, int) __asm(
+    "__clc_llvm_nvvm_suld_2d_v4i32_clamp");
+int4 __nvvm_suld_3d_v4i32_clamp(read_only image3d_t, int, int, int) __asm(
+    "__clc_llvm_nvvm_suld_3d_v4i32_clamp");
 
 void __nvvm_sust_1d_v4i16_clamp(write_only image1d_t, int, short, short, short,
                                 short) __asm("llvm.nvvm.sust.b.1d.v4i16.clamp");
@@ -165,9 +159,7 @@ int __nvvm_suq_width_2i(read_only image2d_t) __asm("llvm.nvvm.suq.width");
 int __nvvm_suq_width_3i(read_only image3d_t) __asm("llvm.nvvm.suq.width");
 int __nvvm_suq_height_2i(read_only image2d_t) __asm("llvm.nvvm.suq.height");
 int __nvvm_suq_height_3i(read_only image3d_t) __asm("llvm.nvvm.suq.height");
-int __nvvm_suq_depth_3i(read_only image3d_t arg) {
-  return -1;
-}
+int __nvvm_suq_depth_3i(read_only image3d_t arg) { return -1; }
 
 // Helpers
 
@@ -269,6 +261,9 @@ _DEFINE_VEC4_CAST(uint, uchar)
 _DEFINE_VEC4_CAST(short, char)
 _DEFINE_VEC4_CAST(short, uchar)
 _DEFINE_VEC4_CAST(float, half)
+_DEFINE_VEC4_CAST(int, int)
+_DEFINE_VEC4_CAST(short, ushort)
+_DEFINE_VEC4_CAST(short, short)
 
 _DEFINE_VEC4_TO_VEC2_CAST(int, int)
 _DEFINE_VEC4_TO_VEC2_CAST(uint, uint)
@@ -280,10 +275,14 @@ _DEFINE_VEC4_TO_VEC2_CAST(int, char)
 _DEFINE_VEC4_TO_VEC2_CAST(uint, ushort)
 _DEFINE_VEC4_TO_VEC2_CAST(uint, uchar)
 _DEFINE_VEC4_TO_VEC2_CAST(float, half)
+_DEFINE_VEC4_TO_VEC2_CAST(int, uint)
+_DEFINE_VEC4_TO_VEC2_CAST(short, ushort)
 
 _DEFINE_VEC2_CAST(int, float)
 _DEFINE_VEC2_CAST(short, char)
 _DEFINE_VEC2_CAST(short, uchar)
+_DEFINE_VEC2_CAST(int, int)
+_DEFINE_VEC2_CAST(short, short)
 
 _DEFINE_CAST(int, float)
 _DEFINE_CAST(float, float)
@@ -292,6 +291,12 @@ _DEFINE_CAST(float4, float4)
 _DEFINE_CAST(pixelf32, float4)
 _DEFINE_CAST(pixelf32, pixelf32)
 _DEFINE_CAST(float4, pixelf32)
+_DEFINE_CAST(int, int)
+_DEFINE_CAST(int, uint)
+_DEFINE_CAST(short, short)
+_DEFINE_CAST(short, ushort)
+_DEFINE_CAST(short, char)
+_DEFINE_CAST(short, uchar)
 
 _DEFINE_PIXELF_CAST(32, float4, int4)
 _DEFINE_PIXELF_CAST(32, float4, uint4)
@@ -1658,182 +1663,409 @@ void __nvvm_sust_3d_v4f16_clamp_s(unsigned long imageHandle, int x, int y,
 
 // READS
 // Int
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(int, 1, i, i32, i, int x, x * sizeof(int))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(int, 2, i, i32, Dv2_i, int2 coord, coord.x * sizeof(int), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(int, 3, i, i32, Dv4_i, int4 coord, coord.x * sizeof(int), coord.y, coord.z)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(int2, 1, Dv2_i, v2i32, i, int x, x * sizeof(int2))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(int2, 2, Dv2_i, v2i32, S0_, int2 coord, coord.x * sizeof(int2), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(int2, 3, Dv2_i, v2i32, Dv4_i, int4 coord, coord.x * sizeof(int2), coord.y, coord.z)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(int4, 1, Dv4_i, v4i32, i, int x, x * sizeof(int4))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(int4, 2, Dv4_i, v4i32, Dv2_i, int2 coord, coord.x * sizeof(int4), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(int4, 3, Dv4_i, v4i32, S0_, int4 coord, coord.x * sizeof(int4), coord.y, coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(int, 1, i, i32, i, int x,
+                                        x * sizeof(int))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(int, 2, i, i32, Dv2_i, int2 coord,
+                                        coord.x * sizeof(int), coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(int, 3, i, i32, Dv3_i, int3 coord,
+                                        coord.x * sizeof(int), coord.y, coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(int2, 1, Dv2_i, v2i32, i, int x,
+                                        x * sizeof(int2))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(int2, 2, Dv2_i, v2i32, S0_, int2 coord,
+                                        coord.x * sizeof(int2), coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(int2, 3, Dv2_i, v2i32, Dv3_i,
+                                        int3 coord, coord.x * sizeof(int2),
+                                        coord.y, coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(int4, 1, Dv4_i, v4i32, i, int x,
+                                        x * sizeof(int4))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(int4, 2, Dv4_i, v4i32, Dv2_i,
+                                        int2 coord, coord.x * sizeof(int4),
+                                        coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(int4, 3, Dv4_i, v4i32, Dv3_i,
+                                        int3 coord, coord.x * sizeof(int4),
+                                        coord.y, coord.z)
 
 // Unsigned Int
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(unsigned int, 1, j, j32, i, int x, x * sizeof(unsigned int))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(unsigned int, 2, j, j32, Dv2_i, int2 coord, coord.x * sizeof(unsigned int), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(unsigned int, 3, j, j32, Dv4_i, int4 coord, coord.x * sizeof(unsigned int), coord.y, coord.z)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uint2, 1, Dv2_j, v2j32, i, int x, x * sizeof(uint2))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uint2, 2, Dv2_j, v2j32, Dv2_i, int2 coord, coord.x * sizeof(uint2), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uint2, 3, Dv2_j, v2j32, Dv4_i, int4 coord, coord.x * sizeof(uint2), coord.y, coord.z)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uint4, 1, Dv4_j, v4j32, i, int x, x * sizeof(uint4))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uint4, 2, Dv4_j, v4j32, Dv2_i, int2 coord, coord.x * sizeof(uint4), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uint4, 3, Dv4_j, v4j32, Dv4_i, int4 coord, coord.x * sizeof(uint4), coord.y, coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(unsigned int, 1, j, j32, i, int x,
+                                        x * sizeof(unsigned int))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(unsigned int, 2, j, j32, Dv2_i,
+                                        int2 coord,
+                                        coord.x * sizeof(unsigned int), coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(unsigned int, 3, j, j32, Dv3_i,
+                                        int3 coord,
+                                        coord.x * sizeof(unsigned int), coord.y,
+                                        coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uint2, 1, Dv2_j, v2j32, i, int x,
+                                        x * sizeof(uint2))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uint2, 2, Dv2_j, v2j32, Dv2_i,
+                                        int2 coord, coord.x * sizeof(uint2),
+                                        coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uint2, 3, Dv2_j, v2j32, Dv3_i,
+                                        int3 coord, coord.x * sizeof(uint2),
+                                        coord.y, coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uint4, 1, Dv4_j, v4j32, i, int x,
+                                        x * sizeof(uint4))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uint4, 2, Dv4_j, v4j32, Dv2_i,
+                                        int2 coord, coord.x * sizeof(uint4),
+                                        coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uint4, 3, Dv4_j, v4j32, Dv3_i,
+                                        int3 coord, coord.x * sizeof(uint4),
+                                        coord.y, coord.z)
 
 // Short
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(short, 1, s, i16, i, int x, x * sizeof(short))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(short, 2, s, i16, Dv2_i, int2 coord, coord.x * sizeof(short), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(short, 3, s, i16, Dv4_i, int4 coord, coord.x * sizeof(short), coord.y, coord.z)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(short2, 1, Dv2_s, v2i16, i, int x, x * sizeof(short2))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(short2, 2, Dv2_s, v2i16, Dv2_i, int2 coord, coord.x * sizeof(short2), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(short2, 3, Dv2_s, v2i16, Dv4_i, int4 coord, coord.x * sizeof(short2), coord.y, coord.z)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(short4, 1, Dv4_s, v4i16, i, int x, x * sizeof(short4))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(short4, 2, Dv4_s, v4i16, Dv2_i, int2 coord, coord.x * sizeof(short4), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(short4, 3, Dv4_s, v4i16, Dv4_i, int4 coord, coord.x * sizeof(short4), coord.y, coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(short, 1, s, i16, i, int x,
+                                        x * sizeof(short))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(short, 2, s, i16, Dv2_i, int2 coord,
+                                        coord.x * sizeof(short), coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(short, 3, s, i16, Dv3_i, int3 coord,
+                                        coord.x * sizeof(short), coord.y,
+                                        coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(short2, 1, Dv2_s, v2i16, i, int x,
+                                        x * sizeof(short2))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(short2, 2, Dv2_s, v2i16, Dv2_i,
+                                        int2 coord, coord.x * sizeof(short2),
+                                        coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(short2, 3, Dv2_s, v2i16, Dv3_i,
+                                        int3 coord, coord.x * sizeof(short2),
+                                        coord.y, coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(short4, 1, Dv4_s, v4i16, i, int x,
+                                        x * sizeof(short4))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(short4, 2, Dv4_s, v4i16, Dv2_i,
+                                        int2 coord, coord.x * sizeof(short4),
+                                        coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(short4, 3, Dv4_s, v4i16, Dv3_i,
+                                        int3 coord, coord.x * sizeof(short4),
+                                        coord.y, coord.z)
 
 // Unsigned Short
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(ushort, 1, t, t16, i, int x, x * sizeof(ushort))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(ushort, 2, t, t16, Dv2_i, int2 coord, coord.x * sizeof(ushort), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(ushort, 3, t, t16, Dv4_i, int4 coord, coord.x * sizeof(ushort), coord.y, coord.z)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(ushort2, 1, Dv2_t, v2t16, i, int x, x * sizeof(ushort2))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(ushort2, 2, Dv2_t, v2t16, Dv2_i, int2 coord, coord.x * sizeof(ushort2), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(ushort2, 3, Dv2_t, v2t16, Dv4_i, int4 coord, coord.x * sizeof(ushort2), coord.y, coord.z)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(ushort4, 1, Dv4_t, v4t16, i, int x, x * sizeof(ushort4))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(ushort4, 2, Dv4_t, v4t16, Dv2_i, int2 coord, coord.x * sizeof(ushort4), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(ushort4, 3, Dv4_t, v4t16, Dv4_i, int4 coord, coord.x * sizeof(ushort4), coord.y, coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(ushort, 1, t, t16, i, int x,
+                                        x * sizeof(ushort))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(ushort, 2, t, t16, Dv2_i, int2 coord,
+                                        coord.x * sizeof(ushort), coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(ushort, 3, t, t16, Dv3_i, int3 coord,
+                                        coord.x * sizeof(ushort), coord.y,
+                                        coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(ushort2, 1, Dv2_t, v2t16, i, int x,
+                                        x * sizeof(ushort2))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(ushort2, 2, Dv2_t, v2t16, Dv2_i,
+                                        int2 coord, coord.x * sizeof(ushort2),
+                                        coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(ushort2, 3, Dv2_t, v2t16, Dv3_i,
+                                        int3 coord, coord.x * sizeof(ushort2),
+                                        coord.y, coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(ushort4, 1, Dv4_t, v4t16, i, int x,
+                                        x * sizeof(ushort4))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(ushort4, 2, Dv4_t, v4t16, Dv2_i,
+                                        int2 coord, coord.x * sizeof(ushort4),
+                                        coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(ushort4, 3, Dv4_t, v4t16, Dv3_i,
+                                        int3 coord, coord.x * sizeof(ushort4),
+                                        coord.y, coord.z)
 
 // Char
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(char, 1, a, i8, i, int x, x * sizeof(char))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(char, 2, a, i8, Dv2_i, int2 coord, coord.x * sizeof(char), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(char, 3, a, i8, Dv4_i, int4 coord, coord.x * sizeof(char), coord.y, coord.z)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(char2, 1, Dv2_a, v2i8, i, int x, x * sizeof(char2))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(char2, 2, Dv2_a, v2i8, Dv2_i, int2 coord, coord.x * sizeof(char2), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(char2, 3, Dv2_a, v2i8, Dv4_i, int4 coord, coord.x * sizeof(char2), coord.y, coord.z)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(char4, 1, Dv4_a, v4i8, i, int x, x * sizeof(char4))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(char4, 2, Dv4_a, v4i8, Dv2_i, int2 coord, coord.x * sizeof(char4), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(char4, 3, Dv4_a, v4i8, Dv4_i, int4 coord, coord.x * sizeof(char4), coord.y, coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(char, 1, a, i8, i, int x,
+                                        x * sizeof(char))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(char, 2, a, i8, Dv2_i, int2 coord,
+                                        coord.x * sizeof(char), coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(char, 3, a, i8, Dv3_i, int3 coord,
+                                        coord.x * sizeof(char), coord.y,
+                                        coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(char2, 1, Dv2_a, v2i8, i, int x,
+                                        x * sizeof(char2))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(char2, 2, Dv2_a, v2i8, Dv2_i,
+                                        int2 coord, coord.x * sizeof(char2),
+                                        coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(char2, 3, Dv2_a, v2i8, Dv3_i,
+                                        int3 coord, coord.x * sizeof(char2),
+                                        coord.y, coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(char4, 1, Dv4_a, v4i8, i, int x,
+                                        x * sizeof(char4))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(char4, 2, Dv4_a, v4i8, Dv2_i,
+                                        int2 coord, coord.x * sizeof(char4),
+                                        coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(char4, 3, Dv4_a, v4i8, Dv3_i,
+                                        int3 coord, coord.x * sizeof(char4),
+                                        coord.y, coord.z)
 
 // Unsigned Char
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uchar, 1, h, h8, i, int x, x * sizeof(uchar))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uchar, 2, h, h8, Dv2_i, int2 coord, coord.x * sizeof(uchar), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uchar, 3, h, h8, Dv4_i, int4 coord, coord.x * sizeof(uchar), coord.y, coord.z)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uchar2, 1, Dv2_h, v2h8, i, int x, x * sizeof(uchar2))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uchar2, 2, Dv2_h, v2h8, Dv2_i, int2 coord, coord.x * sizeof(uchar2), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uchar2, 3, Dv2_h, v2h8, Dv4_i, int4 coord, coord.x * sizeof(uchar2), coord.y, coord.z)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uchar4, 1, Dv4_h, v4h8, i, int x, x * sizeof(uchar4))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uchar4, 2, Dv4_h, v4h8, Dv2_i, int2 coord, coord.x * sizeof(uchar4), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uchar4, 3, Dv4_h, v4h8, Dv4_i, int4 coord, coord.x * sizeof(uchar4), coord.y, coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uchar, 1, h, h8, i, int x,
+                                        x * sizeof(uchar))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uchar, 2, h, h8, Dv2_i, int2 coord,
+                                        coord.x * sizeof(uchar), coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uchar, 3, h, h8, Dv3_i, int3 coord,
+                                        coord.x * sizeof(uchar), coord.y,
+                                        coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uchar2, 1, Dv2_h, v2h8, i, int x,
+                                        x * sizeof(uchar2))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uchar2, 2, Dv2_h, v2h8, Dv2_i,
+                                        int2 coord, coord.x * sizeof(uchar2),
+                                        coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uchar2, 3, Dv2_h, v2h8, Dv3_i,
+                                        int3 coord, coord.x * sizeof(uchar2),
+                                        coord.y, coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uchar4, 1, Dv4_h, v4h8, i, int x,
+                                        x * sizeof(uchar4))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uchar4, 2, Dv4_h, v4h8, Dv2_i,
+                                        int2 coord, coord.x * sizeof(uchar4),
+                                        coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(uchar4, 3, Dv4_h, v4h8, Dv3_i,
+                                        int3 coord, coord.x * sizeof(uchar4),
+                                        coord.y, coord.z)
 
 // Float
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(float, 1, f, f32, i, int x, x * sizeof(float))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(float, 2, f, f32, Dv2_i, int2 coord, coord.x * sizeof(float), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(float, 3, f, f32, Dv4_i, int4 coord, coord.x * sizeof(float), coord.y, coord.z)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(float2, 1, Dv2_f, v2f32, i, int x, x * sizeof(float2))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(float2, 2, Dv2_f, v2f32, Dv2_i, int2 coord, coord.x * sizeof(float2), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(float2, 3, Dv2_f, v2f32, Dv4_i, int4 coord, coord.x * sizeof(float2), coord.y, coord.z)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(float4, 1, Dv4_f, v4f32, i, int x, x * sizeof(float4))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(float4, 2, Dv4_f, v4f32, Dv2_i, int2 coord, coord.x * sizeof(float4), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(float4, 3, Dv4_f, v4f32, Dv4_i, int4 coord, coord.x * sizeof(float4), coord.y, coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(float, 1, f, f32, i, int x,
+                                        x * sizeof(float))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(float, 2, f, f32, Dv2_i, int2 coord,
+                                        coord.x * sizeof(float), coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(float, 3, f, f32, Dv3_i, int3 coord,
+                                        coord.x * sizeof(float), coord.y,
+                                        coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(float2, 1, Dv2_f, v2f32, i, int x,
+                                        x * sizeof(float2))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(float2, 2, Dv2_f, v2f32, Dv2_i,
+                                        int2 coord, coord.x * sizeof(float2),
+                                        coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(float2, 3, Dv2_f, v2f32, Dv3_i,
+                                        int3 coord, coord.x * sizeof(float2),
+                                        coord.y, coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(float4, 1, Dv4_f, v4f32, i, int x,
+                                        x * sizeof(float4))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(float4, 2, Dv4_f, v4f32, Dv2_i,
+                                        int2 coord, coord.x * sizeof(float4),
+                                        coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(float4, 3, Dv4_f, v4f32, Dv3_i,
+                                        int3 coord, coord.x * sizeof(float4),
+                                        coord.y, coord.z)
 
 // Half
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(half, 1, DF16_, f16, i, int x, x * sizeof(half))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(half, 2, DF16_, f16, Dv2_i, int2 coord, coord.x * sizeof(half), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(half, 3, DF16_, f16, Dv4_i, int4 coord, coord.x * sizeof(half), coord.y, coord.z)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(half2, 1, Dv2_DF16_, v2f16, i, int x, x * sizeof(half2))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(half2, 2, Dv2_DF16_, v2f16, Dv2_i, int2 coord, coord.x * sizeof(half2), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(half2, 3, Dv2_DF16_, v2f16, Dv4_i, int4 coord, coord.x * sizeof(half2), coord.y, coord.z)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(half4, 1, Dv4_DF16_, v4f16, i, int x, x * sizeof(half4))
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(half4, 2, Dv4_DF16_, v4f16, Dv2_i, int2 coord, coord.x * sizeof(half4), coord.y)
-_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(half4, 3, Dv4_DF16_, v4f16, Dv4_i, int4 coord, coord.x * sizeof(half4), coord.y, coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(half, 1, DF16_, f16, i, int x,
+                                        x * sizeof(half))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(half, 2, DF16_, f16, Dv2_i, int2 coord,
+                                        coord.x * sizeof(half), coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(half, 3, DF16_, f16, Dv3_i, int3 coord,
+                                        coord.x * sizeof(half), coord.y,
+                                        coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(half2, 1, Dv2_DF16_, v2f16, i, int x,
+                                        x * sizeof(half2))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(half2, 2, Dv2_DF16_, v2f16, Dv2_i,
+                                        int2 coord, coord.x * sizeof(half2),
+                                        coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(half2, 3, Dv2_DF16_, v2f16, Dv3_i,
+                                        int3 coord, coord.x * sizeof(half2),
+                                        coord.y, coord.z)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(half4, 1, Dv4_DF16_, v4f16, i, int x,
+                                        x * sizeof(half4))
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(half4, 2, Dv4_DF16_, v4f16, Dv2_i,
+                                        int2 coord, coord.x * sizeof(half4),
+                                        coord.y)
+_CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(half4, 3, Dv4_DF16_, v4f16, Dv3_i,
+                                        int3 coord, coord.x * sizeof(half4),
+                                        coord.y, coord.z)
 
 // WRITES
 // Int
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(int, 1, i, i, i32, int x, x * sizeof(int), c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(int, 2, Dv2_i, i, i32, int2 coord, coord.x * sizeof(int), coord.y, c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(int, 3, Dv4_i, i, i32, int4 coord, coord.x * sizeof(int), coord.y, coord.z, c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(int2, 1, i, Dv2_i, v2i32, int x, x * sizeof(int2), c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(int2, 2, Dv2_i, S0_, v2i32, int2 coord, coord.x * sizeof(int2), coord.y, c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(int2, 3, Dv4_i, Dv2_i, v2i32, int4 coord, coord.x * sizeof(int2), coord.y, coord.z, c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(int4, 1, i, Dv4_i, v4i32, int x, x * sizeof(int4), c.x, c.y, c.z, c.w)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(int4, 2, Dv2_i, Dv4_i, v4i32, int2 coord, coord.x * sizeof(int4), coord.y, c.x, c.y, c.z, c.w)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(int4, 3, Dv4_i, S0_, v4i32, int4 coord, coord.x * sizeof(int4), coord.y, coord.z, c.x, c.y, c.z, c.w)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(int, 1, i, i, i32, int x,
+                                         x * sizeof(int), c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(int, 2, Dv2_i, i, i32, int2 coord,
+                                         coord.x * sizeof(int), coord.y, c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(int, 3, Dv3_i, i, i32, int3 coord,
+                                         coord.x * sizeof(int), coord.y,
+                                         coord.z, c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(int2, 1, i, Dv2_i, v2i32, int x,
+                                         x * sizeof(int2), c.x, c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(int2, 2, Dv2_i, S0_, v2i32, int2 coord,
+                                         coord.x * sizeof(int2), coord.y, c.x,
+                                         c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(int2, 3, Dv3_i, Dv2_i, v2i32,
+                                         int3 coord, coord.x * sizeof(int2),
+                                         coord.y, coord.z, c.x, c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(int4, 1, i, Dv4_i, v4i32, int x,
+                                         x * sizeof(int4), c.x, c.y, c.z, c.w)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(int4, 2, Dv2_i, Dv4_i, v4i32,
+                                         int2 coord, coord.x * sizeof(int4),
+                                         coord.y, c.x, c.y, c.z, c.w)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(int4, 3, Dv3_i, Dv4_i, v4i32,
+                                         int3 coord, coord.x * sizeof(int4),
+                                         coord.y, coord.z, c.x, c.y, c.z, c.w)
 
 // Unsigned Int
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(unsigned int, 1, i, j, j32, int x, x * sizeof(unsigned int), c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(unsigned int, 2, Dv2_i, j, j32, int2 coord, coord.x * sizeof(unsigned int), coord.y, c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(unsigned int, 3, Dv4_i, j, j32, int4 coord, coord.x * sizeof(unsigned int), coord.y, coord.z, c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uint2, 1, i, Dv2_j, v2j32, int x, x * sizeof(uint2), c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uint2, 2, Dv2_i, Dv2_j, v2j32, int2 coord, coord.x * sizeof(uint2), coord.y, c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uint2, 3, Dv4_i, Dv2_j, v2j32, int4 coord, coord.x * sizeof(uint2), coord.y, coord.z, c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uint4, 1, i, Dv4_j, v4j32, int x, x * sizeof(uint4), c.x, c.y, c.z, c.w)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uint4, 2, Dv2_i, Dv4_j, v4j32, int2 coord, coord.x * sizeof(uint4), coord.y, c.x, c.y, c.z, c.w)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uint4, 3, Dv4_i, Dv4_j, v4j32, int4 coord, coord.x * sizeof(uint4), coord.y, coord.z, c.x, c.y, c.z, c.w)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(unsigned int, 1, i, j, j32, int x,
+                                         x * sizeof(unsigned int), c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(unsigned int, 2, Dv2_i, j, j32,
+                                         int2 coord,
+                                         coord.x * sizeof(unsigned int),
+                                         coord.y, c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(unsigned int, 3, Dv3_i, j, j32,
+                                         int3 coord,
+                                         coord.x * sizeof(unsigned int),
+                                         coord.y, coord.z, c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uint2, 1, i, Dv2_j, v2j32, int x,
+                                         x * sizeof(uint2), c.x, c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uint2, 2, Dv2_i, Dv2_j, v2j32,
+                                         int2 coord, coord.x * sizeof(uint2),
+                                         coord.y, c.x, c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uint2, 3, Dv3_i, Dv2_j, v2j32,
+                                         int3 coord, coord.x * sizeof(uint2),
+                                         coord.y, coord.z, c.x, c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uint4, 1, i, Dv4_j, v4j32, int x,
+                                         x * sizeof(uint4), c.x, c.y, c.z, c.w)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uint4, 2, Dv2_i, Dv4_j, v4j32,
+                                         int2 coord, coord.x * sizeof(uint4),
+                                         coord.y, c.x, c.y, c.z, c.w)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uint4, 3, Dv3_i, Dv4_j, v4j32,
+                                         int3 coord, coord.x * sizeof(uint4),
+                                         coord.y, coord.z, c.x, c.y, c.z, c.w)
 
 // Short
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(short, 1, i, s, i16, int x, x * sizeof(short), c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(short, 2, Dv2_i, s, i16, int2 coord, coord.x * sizeof(short), coord.y, c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(short, 3, Dv4_i, s, i16, int4 coord, coord.x * sizeof(short), coord.y, coord.z, c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(short2, 1, i, Dv2_s, v2i16, int x, x * sizeof(short2), c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(short2, 2, Dv2_i, Dv2_s, v2i16, int2 coord, coord.x * sizeof(short2), coord.y, c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(short2, 3, Dv4_i, Dv2_s, v2i16, int4 coord, coord.x * sizeof(short2), coord.y, coord.z, c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(short4, 1, i, Dv4_s, v4i16, int x, x * sizeof(short4), c.x, c.y, c.z, c.w)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(short4, 2, Dv2_i, Dv4_s, v4i16, int2 coord, coord.x * sizeof(short4), coord.y, c.x, c.y, c.z, c.w)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(short4, 3, Dv4_i, Dv4_s, v4i16, int4 coord, coord.x * sizeof(short4), coord.y, coord.z, c.x, c.y, c.z, c.w)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(short, 1, i, s, i16, int x,
+                                         x * sizeof(short), c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(short, 2, Dv2_i, s, i16, int2 coord,
+                                         coord.x * sizeof(short), coord.y, c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(short, 3, Dv3_i, s, i16, int3 coord,
+                                         coord.x * sizeof(short), coord.y,
+                                         coord.z, c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(short2, 1, i, Dv2_s, v2i16, int x,
+                                         x * sizeof(short2), c.x, c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(short2, 2, Dv2_i, Dv2_s, v2i16,
+                                         int2 coord, coord.x * sizeof(short2),
+                                         coord.y, c.x, c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(short2, 3, Dv3_i, Dv2_s, v2i16,
+                                         int3 coord, coord.x * sizeof(short2),
+                                         coord.y, coord.z, c.x, c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(short4, 1, i, Dv4_s, v4i16, int x,
+                                         x * sizeof(short4), c.x, c.y, c.z, c.w)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(short4, 2, Dv2_i, Dv4_s, v4i16,
+                                         int2 coord, coord.x * sizeof(short4),
+                                         coord.y, c.x, c.y, c.z, c.w)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(short4, 3, Dv3_i, Dv4_s, v4i16,
+                                         int3 coord, coord.x * sizeof(short4),
+                                         coord.y, coord.z, c.x, c.y, c.z, c.w)
 
 // Unsigned Short
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(ushort, 1, i, t, t16, int x, x * sizeof(ushort), c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(ushort, 2, Dv2_i, t, t16, int2 coord, coord.x * sizeof(ushort), coord.y, c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(ushort, 3, Dv4_i, t, t16, int4 coord, coord.x * sizeof(ushort), coord.y, coord.z, c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(ushort2, 1, i, Dv2_t, v2t16, int x, x * sizeof(ushort2), c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(ushort2, 2, Dv2_i, Dv2_t, v2t16, int2 coord, coord.x * sizeof(ushort2), coord.y, c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(ushort2, 3, Dv4_i, Dv2_t, v2t16, int4 coord, coord.x * sizeof(ushort2), coord.y, coord.z, c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(ushort4, 1, i, Dv4_t, v4t16, int x, x * sizeof(ushort4), c.x, c.y, c.z, c.w)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(ushort4, 2, Dv2_i, Dv4_t, v4t16, int2 coord, coord.x * sizeof(ushort4), coord.y, c.x, c.y, c.z, c.w)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(ushort4, 3, Dv4_i, Dv4_t, v4t16, int4 coord, coord.x * sizeof(ushort4), coord.y, coord.z, c.x, c.y, c.z, c.w)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(ushort, 1, i, t, t16, int x,
+                                         x * sizeof(ushort), c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(ushort, 2, Dv2_i, t, t16, int2 coord,
+                                         coord.x * sizeof(ushort), coord.y, c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(ushort, 3, Dv3_i, t, t16, int3 coord,
+                                         coord.x * sizeof(ushort), coord.y,
+                                         coord.z, c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(ushort2, 1, i, Dv2_t, v2t16, int x,
+                                         x * sizeof(ushort2), c.x, c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(ushort2, 2, Dv2_i, Dv2_t, v2t16,
+                                         int2 coord, coord.x * sizeof(ushort2),
+                                         coord.y, c.x, c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(ushort2, 3, Dv3_i, Dv2_t, v2t16,
+                                         int3 coord, coord.x * sizeof(ushort2),
+                                         coord.y, coord.z, c.x, c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(ushort4, 1, i, Dv4_t, v4t16, int x,
+                                         x * sizeof(ushort4), c.x, c.y, c.z,
+                                         c.w)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(ushort4, 2, Dv2_i, Dv4_t, v4t16,
+                                         int2 coord, coord.x * sizeof(ushort4),
+                                         coord.y, c.x, c.y, c.z, c.w)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(ushort4, 3, Dv3_i, Dv4_t, v4t16,
+                                         int3 coord, coord.x * sizeof(ushort4),
+                                         coord.y, coord.z, c.x, c.y, c.z, c.w)
 
 // Char
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char, 1, i, a, i8, int x, x * sizeof(char), c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char, 2, Dv2_i, a, i8, int2 coord, coord.x * sizeof(char), coord.y, c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char, 3, Dv4_i, a, i8, int4 coord, coord.x * sizeof(char), coord.y, coord.z, c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char2, 1, i, Dv2_a, v2i8, int x, x * sizeof(char2), c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char2, 2, Dv2_i, Dv2_a, v2i8, int2 coord, coord.x * sizeof(char2), coord.y, c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char2, 3, Dv4_i, Dv2_a, v2i8, int4 coord, coord.x * sizeof(char2), coord.y, coord.z, c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char4, 1, i, Dv4_a, v4i8, int x, x * sizeof(char4), c.x, c.y, c.z, c.w)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char4, 2, Dv2_i, Dv4_a, v4i8, int2 coord, coord.x * sizeof(char4), coord.y, c.x, c.y, c.z, c.w)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char4, 3, Dv4_i, Dv4_a, v4i8, int4 coord, coord.x * sizeof(char4), coord.y, coord.z, c.x, c.y, c.z, c.w)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char, 1, i, a, i8, int x,
+                                         x * sizeof(char), c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char, 2, Dv2_i, a, i8, int2 coord,
+                                         coord.x * sizeof(char), coord.y, c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char, 3, Dv3_i, a, i8, int3 coord,
+                                         coord.x * sizeof(char), coord.y,
+                                         coord.z, c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char2, 1, i, Dv2_a, v2i8, int x,
+                                         x * sizeof(char2), c.x, c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char2, 2, Dv2_i, Dv2_a, v2i8,
+                                         int2 coord, coord.x * sizeof(char2),
+                                         coord.y, c.x, c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char2, 3, Dv3_i, Dv2_a, v2i8,
+                                         int3 coord, coord.x * sizeof(char2),
+                                         coord.y, coord.z, c.x, c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char4, 1, i, Dv4_a, v4i8, int x,
+                                         x * sizeof(char4), c.x, c.y, c.z, c.w)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char4, 2, Dv2_i, Dv4_a, v4i8,
+                                         int2 coord, coord.x * sizeof(char4),
+                                         coord.y, c.x, c.y, c.z, c.w)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(char4, 3, Dv3_i, Dv4_a, v4i8,
+                                         int3 coord, coord.x * sizeof(char4),
+                                         coord.y, coord.z, c.x, c.y, c.z, c.w)
 
 // Unsigned Char
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uchar, 1, i, h, h8, int x, x * sizeof(uchar), c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uchar, 2, Dv2_i, h, h8, int2 coord, coord.x * sizeof(uchar), coord.y, c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uchar, 3, Dv4_i, h, h8, int4 coord, coord.x * sizeof(uchar), coord.y, coord.z, c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uchar2, 1, i, Dv2_h, v2h8, int x, x * sizeof(uchar2), c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uchar2, 2, Dv2_i, Dv2_h, v2h8, int2 coord, coord.x * sizeof(uchar2), coord.y, c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uchar2, 3, Dv4_i, Dv2_h, v2h8, int4 coord, coord.x * sizeof(uchar2), coord.y, coord.z, c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uchar4, 1, i, Dv4_h, v4h8, int x, x * sizeof(uchar4), c.x, c.y, c.z, c.w)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uchar4, 2, Dv2_i, Dv4_h, v4h8, int2 coord, coord.x * sizeof(uchar4), coord.y, c.x, c.y, c.z, c.w)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uchar4, 3, Dv4_i, Dv4_h, v4h8, int4 coord, coord.x * sizeof(uchar4), coord.y, coord.z, c.x, c.y, c.z, c.w)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uchar, 1, i, h, h8, int x,
+                                         x * sizeof(uchar), c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uchar, 2, Dv2_i, h, h8, int2 coord,
+                                         coord.x * sizeof(uchar), coord.y, c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uchar, 3, Dv3_i, h, h8, int3 coord,
+                                         coord.x * sizeof(uchar), coord.y,
+                                         coord.z, c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uchar2, 1, i, Dv2_h, v2h8, int x,
+                                         x * sizeof(uchar2), c.x, c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uchar2, 2, Dv2_i, Dv2_h, v2h8,
+                                         int2 coord, coord.x * sizeof(uchar2),
+                                         coord.y, c.x, c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uchar2, 3, Dv3_i, Dv2_h, v2h8,
+                                         int3 coord, coord.x * sizeof(uchar2),
+                                         coord.y, coord.z, c.x, c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uchar4, 1, i, Dv4_h, v4h8, int x,
+                                         x * sizeof(uchar4), c.x, c.y, c.z, c.w)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uchar4, 2, Dv2_i, Dv4_h, v4h8,
+                                         int2 coord, coord.x * sizeof(uchar4),
+                                         coord.y, c.x, c.y, c.z, c.w)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(uchar4, 3, Dv3_i, Dv4_h, v4h8,
+                                         int3 coord, coord.x * sizeof(uchar4),
+                                         coord.y, coord.z, c.x, c.y, c.z, c.w)
 
 // Float
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(float, 1, i, f, f32, int x, x * sizeof(float), c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(float, 2, Dv2_i, f, f32, int2 coord, coord.x * sizeof(float), coord.y, c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(float, 3, Dv4_i, f, f32, int4 coord, coord.x * sizeof(float), coord.y, coord.z, c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(float2, 1, i, Dv2_f, v2f32, int x, x * sizeof(float2), c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(float2, 2, Dv2_i, Dv2_f, v2f32, int2 coord, coord.x * sizeof(float2), coord.y, c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(float2, 3, Dv4_i, Dv2_f, v2f32, int4 coord, coord.x * sizeof(float2), coord.y, coord.z, c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(float4, 1, i, Dv4_f, v4f32, int x, x * sizeof(float4), c.x, c.y, c.z, c.w)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(float4, 2, Dv2_i, Dv4_f, v4f32, int2 coord, coord.x * sizeof(float4), coord.y, c.x, c.y, c.z, c.w)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(float4, 3, Dv4_i, Dv4_f, v4f32, int4 coord, coord.x * sizeof(float4), coord.y, coord.z, c.x, c.y, c.z, c.w)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(float, 1, i, f, f32, int x,
+                                         x * sizeof(float), c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(float, 2, Dv2_i, f, f32, int2 coord,
+                                         coord.x * sizeof(float), coord.y, c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(float, 3, Dv3_i, f, f32, int3 coord,
+                                         coord.x * sizeof(float), coord.y,
+                                         coord.z, c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(float2, 1, i, Dv2_f, v2f32, int x,
+                                         x * sizeof(float2), c.x, c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(float2, 2, Dv2_i, Dv2_f, v2f32,
+                                         int2 coord, coord.x * sizeof(float2),
+                                         coord.y, c.x, c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(float2, 3, Dv3_i, Dv2_f, v2f32,
+                                         int3 coord, coord.x * sizeof(float2),
+                                         coord.y, coord.z, c.x, c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(float4, 1, i, Dv4_f, v4f32, int x,
+                                         x * sizeof(float4), c.x, c.y, c.z, c.w)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(float4, 2, Dv2_i, Dv4_f, v4f32,
+                                         int2 coord, coord.x * sizeof(float4),
+                                         coord.y, c.x, c.y, c.z, c.w)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(float4, 3, Dv3_i, Dv4_f, v4f32,
+                                         int3 coord, coord.x * sizeof(float4),
+                                         coord.y, coord.z, c.x, c.y, c.z, c.w)
 
 // Half
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half, 1, i, DF16_, f16, int x, x * sizeof(half), c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half, 2, Dv2_i, DF16_, f16, int2 coord, coord.x * sizeof(half), coord.y, c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half, 3, Dv4_i, DF16_, f16, int4 coord, coord.x * sizeof(half), coord.y, coord.z, c)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half2, 1, i, Dv2_DF16_, v2f16, int x, x * sizeof(half2), c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half2, 2, Dv2_i, Dv2_DF16_, v2f16, int2 coord, coord.x * sizeof(half2), coord.y, c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half2, 3, Dv4_i, Dv2_DF16_, v2f16, int4 coord, coord.x * sizeof(half2), coord.y, coord.z, c.x, c.y)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half4, 1, i, Dv4_DF16_, v4f16, int x, x * sizeof(half4), c.x, c.y, c.z, c.w)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half4, 2, Dv2_i, Dv4_DF16_, v4f16, int2 coord, coord.x * sizeof(half4), coord.y, c.x, c.y, c.z, c.w)
-_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half4, 3, Dv4_i, Dv4_DF16_, v4f16, int4 coord, coord.x * sizeof(half4), coord.y, coord.z, c.x, c.y, c.z, c.w)
-
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half, 1, i, DF16_, f16, int x,
+                                         x * sizeof(half), c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half, 2, Dv2_i, DF16_, f16, int2 coord,
+                                         coord.x * sizeof(half), coord.y, c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half, 3, Dv3_i, DF16_, f16, int3 coord,
+                                         coord.x * sizeof(half), coord.y,
+                                         coord.z, c)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half2, 1, i, Dv2_DF16_, v2f16, int x,
+                                         x * sizeof(half2), c.x, c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half2, 2, Dv2_i, Dv2_DF16_, v2f16,
+                                         int2 coord, coord.x * sizeof(half2),
+                                         coord.y, c.x, c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half2, 3, Dv3_i, Dv2_DF16_, v2f16,
+                                         int3 coord, coord.x * sizeof(half2),
+                                         coord.y, coord.z, c.x, c.y)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half4, 1, i, Dv4_DF16_, v4f16, int x,
+                                         x * sizeof(half4), c.x, c.y, c.z, c.w)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half4, 2, Dv2_i, Dv4_DF16_, v4f16,
+                                         int2 coord, coord.x * sizeof(half4),
+                                         coord.y, c.x, c.y, c.z, c.w)
+_CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(half4, 3, Dv3_i, Dv4_DF16_, v4f16,
+                                         int3 coord, coord.x * sizeof(half4),
+                                         coord.y, coord.z, c.x, c.y, c.z, c.w)
 
 // <--- TEXTURES --->
 
@@ -2184,92 +2416,182 @@ half __nvvm_tex_3d_f16_f32(unsigned long imageHandle, float x, float y,
 
 // Int
 _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(int, 1, i, i32, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(int, 2, i, i32, Dv2_f, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(int, 3, i, i32, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(int2, 1, Dv2_i, v2i32, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(int2, 2, Dv2_i, v2i32, Dv2_f, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(int2, 3, Dv2_i, v2i32, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(int4, 1, Dv4_i, v4i32, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(int4, 2, Dv4_i, v4i32, Dv2_f, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(int4, 3, Dv4_i, v4i32, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(int, 2, i, i32, Dv2_f,
+                                               float2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(int, 3, i, i32, Dv3_f,
+                                               float3 coord, coord.x, coord.y,
+                                               coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(int2, 1, Dv2_i, v2i32, f,
+                                               float x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(int2, 2, Dv2_i, v2i32, Dv2_f,
+                                               float2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(int2, 3, Dv2_i, v2i32, Dv3_f,
+                                               float3 coord, coord.x, coord.y,
+                                               coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(int4, 1, Dv4_i, v4i32, f,
+                                               float x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(int4, 2, Dv4_i, v4i32, Dv2_f,
+                                               float2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(int4, 3, Dv4_i, v4i32, Dv3_f,
+                                               float3 coord, coord.x, coord.y,
+                                               coord.z)
 
 // Unsigned int
 _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uint, 1, j, j32, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uint, 2, j, j32, Dv2_f, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uint, 3, j, j32, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uint2, 1, Dv2_j, v2j32, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uint2, 2, Dv2_j, v2j32, Dv2_f, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uint2, 3, Dv2_j, v2j32, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uint4, 1, Dv4_j, v4j32, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uint4, 2, Dv4_j, v4j32, Dv2_f, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uint4, 3, Dv4_j, v4j32, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uint, 2, j, j32, Dv2_f,
+                                               float2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uint, 3, j, j32, Dv3_f,
+                                               float3 coord, coord.x, coord.y,
+                                               coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uint2, 1, Dv2_j, v2j32, f,
+                                               float x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uint2, 2, Dv2_j, v2j32, Dv2_f,
+                                               float2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uint2, 3, Dv2_j, v2j32, Dv3_f,
+                                               float3 coord, coord.x, coord.y,
+                                               coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uint4, 1, Dv4_j, v4j32, f,
+                                               float x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uint4, 2, Dv4_j, v4j32, Dv2_f,
+                                               float2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uint4, 3, Dv4_j, v4j32, Dv3_f,
+                                               float3 coord, coord.x, coord.y,
+                                               coord.z)
 
 // Short
 _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(short, 1, s, i16, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(short, 2, s, i16, Dv2_f, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(short, 3, s, i16, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(short2, 1, Dv2_s, v2i16, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(short2, 2, Dv2_s, v2i16, Dv2_f, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(short2, 3, Dv2_s, v2i16, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(short4, 1, Dv4_s, v4i16, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(short4, 2, Dv4_s, v4i16, Dv2_f, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(short4, 3, Dv4_s, v4i16, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(short, 2, s, i16, Dv2_f,
+                                               float2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(short, 3, s, i16, Dv3_f,
+                                               float3 coord, coord.x, coord.y,
+                                               coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(short2, 1, Dv2_s, v2i16, f,
+                                               float x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(short2, 2, Dv2_s, v2i16, Dv2_f,
+                                               float2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(short2, 3, Dv2_s, v2i16, Dv3_f,
+                                               float3 coord, coord.x, coord.y,
+                                               coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(short4, 1, Dv4_s, v4i16, f,
+                                               float x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(short4, 2, Dv4_s, v4i16, Dv2_f,
+                                               float2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(short4, 3, Dv4_s, v4i16, Dv3_f,
+                                               float3 coord, coord.x, coord.y,
+                                               coord.z)
 
 // Unsigned short
 _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(ushort, 1, t, t16, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(ushort, 2, t, t16, Dv2_f, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(ushort, 3, t, t16, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(ushort2, 1, Dv2_t, v2t16, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(ushort2, 2, Dv2_t, v2t16, Dv2_f, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(ushort2, 3, Dv2_t, v2t16, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(ushort4, 1, Dv4_t, v4t16, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(ushort4, 2, Dv4_t, v4t16, Dv2_f, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(ushort4, 3, Dv4_t, v4t16, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(ushort, 2, t, t16, Dv2_f,
+                                               float2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(ushort, 3, t, t16, Dv3_f,
+                                               float3 coord, coord.x, coord.y,
+                                               coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(ushort2, 1, Dv2_t, v2t16, f,
+                                               float x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(ushort2, 2, Dv2_t, v2t16, Dv2_f,
+                                               float2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(ushort2, 3, Dv2_t, v2t16, Dv3_f,
+                                               float3 coord, coord.x, coord.y,
+                                               coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(ushort4, 1, Dv4_t, v4t16, f,
+                                               float x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(ushort4, 2, Dv4_t, v4t16, Dv2_f,
+                                               float2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(ushort4, 3, Dv4_t, v4t16, Dv3_f,
+                                               float3 coord, coord.x, coord.y,
+                                               coord.z)
 
 // Char
 _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char, 1, a, i8, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char, 2, a, i8, Dv2_f, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char, 3, a, i8, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char2, 1, Dv2_a, v2i8, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char2, 2, Dv2_a, v2i8, Dv2_f, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char2, 3, Dv2_a, v2i8, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char4, 1, Dv4_a, v4i8, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char4, 2, Dv4_a, v4i8, Dv2_f, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char4, 3, Dv4_a, v4i8, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char, 2, a, i8, Dv2_f,
+                                               float2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char, 3, a, i8, Dv3_f,
+                                               float3 coord, coord.x, coord.y,
+                                               coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char2, 1, Dv2_a, v2i8, f,
+                                               float x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char2, 2, Dv2_a, v2i8, Dv2_f,
+                                               float2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char2, 3, Dv2_a, v2i8, Dv3_f,
+                                               float3 coord, coord.x, coord.y,
+                                               coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char4, 1, Dv4_a, v4i8, f,
+                                               float x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char4, 2, Dv4_a, v4i8, Dv2_f,
+                                               float2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(char4, 3, Dv4_a, v4i8, Dv3_f,
+                                               float3 coord, coord.x, coord.y,
+                                               coord.z)
 
 // Unsigned Char
 _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uchar, 1, h, h8, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uchar, 2, h, h8, Dv2_f, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uchar, 3, h, h8, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uchar2, 1, Dv2_h, v2h8, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uchar2, 2, Dv2_h, v2h8, Dv2_f, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uchar2, 3, Dv2_h, v2h8, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uchar4, 1, Dv4_h, v4h8, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uchar4, 2, Dv4_h, v4h8, Dv2_f, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uchar4, 3, Dv4_h, v4h8, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uchar, 2, h, h8, Dv2_f,
+                                               float2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uchar, 3, h, h8, Dv3_f,
+                                               float3 coord, coord.x, coord.y,
+                                               coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uchar2, 1, Dv2_h, v2h8, f,
+                                               float x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uchar2, 2, Dv2_h, v2h8, Dv2_f,
+                                               float2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uchar2, 3, Dv2_h, v2h8, Dv3_f,
+                                               float3 coord, coord.x, coord.y,
+                                               coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uchar4, 1, Dv4_h, v4h8, f,
+                                               float x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uchar4, 2, Dv4_h, v4h8, Dv2_f,
+                                               float2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(uchar4, 3, Dv4_h, v4h8, Dv3_f,
+                                               float3 coord, coord.x, coord.y,
+                                               coord.z)
 
 // Float
 _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(float, 1, f, f32, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(float, 2, f, f32, Dv2_f, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(float, 3, f, f32, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(float2, 1, Dv2_f, v2f32, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(float2, 2, Dv2_f, v2f32, S0_, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(float2, 3, Dv2_f, v2f32, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(float4, 1, Dv4_f, v4f32, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(float4, 2, Dv4_f, v4f32, Dv2_f, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(float4, 3, Dv4_f, v4f32, S0_, float4 coord, coord.x, coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(float, 2, f, f32, Dv2_f,
+                                               float2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(float, 3, f, f32, Dv3_f,
+                                               float3 coord, coord.x, coord.y,
+                                               coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(float2, 1, Dv2_f, v2f32, f,
+                                               float x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(float2, 2, Dv2_f, v2f32, S0_,
+                                               float2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(float2, 3, Dv2_f, v2f32, Dv3_f,
+                                               float3 coord, coord.x, coord.y,
+                                               coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(float4, 1, Dv4_f, v4f32, f,
+                                               float x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(float4, 2, Dv4_f, v4f32, Dv2_f,
+                                               float2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(float4, 3, Dv4_f, v4f32, Dv3_f,
+                                               float3 coord, coord.x, coord.y,
+                                               coord.z)
 
 // Half
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half, 1, DF16_, f16, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half, 2, DF16_, f16, Dv2_f, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half, 3, DF16_, f16, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half2, 1, Dv2_DF16_, v2f16, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half2, 2, Dv2_DF16_, v2f16, Dv2_f, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half2, 3, Dv2_DF16_, v2f16, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half4, 1, Dv4_DF16_, v4f16, f, float x, x)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half4, 2, Dv4_DF16_, v4f16, Dv2_f, float2 coord, coord.x, coord.y)
-_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half4, 3, Dv4_DF16_, v4f16, Dv4_f, float4 coord, coord.x, coord.y, coord.z)
-
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half, 1, DF16_, f16, f, float x,
+                                               x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half, 2, DF16_, f16, Dv2_f,
+                                               float2 coord, coord.x, coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half, 3, DF16_, f16, Dv3_f,
+                                               float3 coord, coord.x, coord.y,
+                                               coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half2, 1, Dv2_DF16_, v2f16, f,
+                                               float x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half2, 2, Dv2_DF16_, v2f16,
+                                               Dv2_f, float2 coord, coord.x,
+                                               coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half2, 3, Dv2_DF16_, v2f16,
+                                               Dv3_f, float3 coord, coord.x,
+                                               coord.y, coord.z)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half4, 1, Dv4_DF16_, v4f16, f,
+                                               float x, x)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half4, 2, Dv4_DF16_, v4f16,
+                                               Dv2_f, float2 coord, coord.x,
+                                               coord.y)
+_CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(half4, 3, Dv4_DF16_, v4f16,
+                                               Dv3_f, float3 coord, coord.x,
+                                               coord.y, coord.z)
 
 // <--- MIPMAP --->
 
@@ -2353,24 +2675,81 @@ uint4 __nvvm_tex_3d_grad_v4j32_f32(
 
 #define GRAD_INPUT_1D float dX, float dY
 #define GRAD_INPUT_2D float dXx, float dXy, float dYx, float dYy
-#define GRAD_INPUT_3D float dXx, float dXy, float dXz, float dYx, float dYy, float dYz
+#define GRAD_INPUT_3D                                                          \
+  float dXx, float dXy, float dXz, float dYx, float dYy, float dYz
 
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(short, int, 1, v4i16, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(short, int, 2, v4i16, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(short, int, 3, v4i16, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(ushort, uint, 1, v4j16, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(ushort, uint, 2, v4j16, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(ushort, uint, 3, v4j16, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(char, int, 1, v4i8, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(char, int, 2, v4i8, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(char, int, 3, v4i8, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(uchar, uint, 1, v4j8, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(uchar, uint, 2, v4j8, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(uchar, uint, 3, v4j8, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(half, float, 1, v4f16, v4f32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(half, float, 2, v4f16, v4f32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(half, float, 3, v4f16, v4f32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(short, int, 1, v4i16, v4i32,
+                                                    COORD_INPUT_1D,
+                                                    COORD_PARAMS_1D,
+                                                    GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(short, int, 2, v4i16, v4i32,
+                                                    COORD_INPUT_2D,
+                                                    COORD_PARAMS_2D,
+                                                    GRAD_INPUT_2D, dXx, dXy,
+                                                    dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(short, int, 3, v4i16, v4i32,
+                                                    COORD_INPUT_3D,
+                                                    COORD_PARAMS_3D,
+                                                    GRAD_INPUT_3D, dXx, dXy,
+                                                    dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(ushort, uint, 1, v4j16,
+                                                    v4j32, COORD_INPUT_1D,
+                                                    COORD_PARAMS_1D,
+                                                    GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(ushort, uint, 2, v4j16,
+                                                    v4j32, COORD_INPUT_2D,
+                                                    COORD_PARAMS_2D,
+                                                    GRAD_INPUT_2D, dXx, dXy,
+                                                    dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(ushort, uint, 3, v4j16,
+                                                    v4j32, COORD_INPUT_3D,
+                                                    COORD_PARAMS_3D,
+                                                    GRAD_INPUT_3D, dXx, dXy,
+                                                    dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(char, int, 1, v4i8, v4i32,
+                                                    COORD_INPUT_1D,
+                                                    COORD_PARAMS_1D,
+                                                    GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(char, int, 2, v4i8, v4i32,
+                                                    COORD_INPUT_2D,
+                                                    COORD_PARAMS_2D,
+                                                    GRAD_INPUT_2D, dXx, dXy,
+                                                    dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(char, int, 3, v4i8, v4i32,
+                                                    COORD_INPUT_3D,
+                                                    COORD_PARAMS_3D,
+                                                    GRAD_INPUT_3D, dXx, dXy,
+                                                    dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(uchar, uint, 1, v4j8, v4j32,
+                                                    COORD_INPUT_1D,
+                                                    COORD_PARAMS_1D,
+                                                    GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(uchar, uint, 2, v4j8, v4j32,
+                                                    COORD_INPUT_2D,
+                                                    COORD_PARAMS_2D,
+                                                    GRAD_INPUT_2D, dXx, dXy,
+                                                    dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(uchar, uint, 3, v4j8, v4j32,
+                                                    COORD_INPUT_3D,
+                                                    COORD_PARAMS_3D,
+                                                    GRAD_INPUT_3D, dXx, dXy,
+                                                    dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(half, float, 1, v4f16,
+                                                    v4f32, COORD_INPUT_1D,
+                                                    COORD_PARAMS_1D,
+                                                    GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(half, float, 2, v4f16,
+                                                    v4f32, COORD_INPUT_2D,
+                                                    COORD_PARAMS_2D,
+                                                    GRAD_INPUT_2D, dXx, dXy,
+                                                    dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(half, float, 3, v4f16,
+                                                    v4f32, COORD_INPUT_3D,
+                                                    COORD_PARAMS_3D,
+                                                    GRAD_INPUT_3D, dXx, dXy,
+                                                    dXz, dYx, dYy, dYz)
 
+#undef _CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN
 
 // Macro to generate mipmap vec2 fetches
 #define _CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(                   \
@@ -2390,31 +2769,118 @@ _CLC_DEFINE_MIPMAP_BINDLESS_VEC4THUNK_READS_BUILTIN(half, float, 3, v4f16, v4f32
     return cast_##fetch_elem_t##4_to_##elem_t##2(a);                           \
   }
 
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(float, float, 1, v2f32, v4f32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(float, float, 2, v2f32, v4f32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(float, float, 3, v2f32, v4f32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(int, int, 1, v2i32, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(int, int, 2, v2i32, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(int, int, 3, v2i32, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(uint, uint, 1, v2j32, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(uint, uint, 2, v2j32, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(uint, uint, 3, v2j32, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(short, int, 1, v2i16, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(short, int, 2, v2i16, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(short, int, 3, v2i16, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(ushort, uint, 1, v2j16, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(ushort, uint, 2, v2j16, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(ushort, uint, 3, v2j16, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(char, int, 1, v2i8, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(char, int, 2, v2i8, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(char, int, 3, v2i8, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(uchar, uint, 1, v2j8, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(uchar, uint, 2, v2j8, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(uchar, uint, 3, v2j8, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(half, float, 1, v2f16, v4f32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(half, float, 2, v2f16, v4f32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(half, float, 3, v2f16, v4f32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
-
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(float, float, 1, v2f32,
+                                                    v4f32, COORD_INPUT_1D,
+                                                    COORD_PARAMS_1D,
+                                                    GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(float, float, 2, v2f32,
+                                                    v4f32, COORD_INPUT_2D,
+                                                    COORD_PARAMS_2D,
+                                                    GRAD_INPUT_2D, dXx, dXy,
+                                                    dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(float, float, 3, v2f32,
+                                                    v4f32, COORD_INPUT_3D,
+                                                    COORD_PARAMS_3D,
+                                                    GRAD_INPUT_3D, dXx, dXy,
+                                                    dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(int, int, 1, v2i32, v4i32,
+                                                    COORD_INPUT_1D,
+                                                    COORD_PARAMS_1D,
+                                                    GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(int, int, 2, v2i32, v4i32,
+                                                    COORD_INPUT_2D,
+                                                    COORD_PARAMS_2D,
+                                                    GRAD_INPUT_2D, dXx, dXy,
+                                                    dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(int, int, 3, v2i32, v4i32,
+                                                    COORD_INPUT_3D,
+                                                    COORD_PARAMS_3D,
+                                                    GRAD_INPUT_3D, dXx, dXy,
+                                                    dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(uint, uint, 1, v2j32, v4j32,
+                                                    COORD_INPUT_1D,
+                                                    COORD_PARAMS_1D,
+                                                    GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(uint, uint, 2, v2j32, v4j32,
+                                                    COORD_INPUT_2D,
+                                                    COORD_PARAMS_2D,
+                                                    GRAD_INPUT_2D, dXx, dXy,
+                                                    dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(uint, uint, 3, v2j32, v4j32,
+                                                    COORD_INPUT_3D,
+                                                    COORD_PARAMS_3D,
+                                                    GRAD_INPUT_3D, dXx, dXy,
+                                                    dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(short, int, 1, v2i16, v4i32,
+                                                    COORD_INPUT_1D,
+                                                    COORD_PARAMS_1D,
+                                                    GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(short, int, 2, v2i16, v4i32,
+                                                    COORD_INPUT_2D,
+                                                    COORD_PARAMS_2D,
+                                                    GRAD_INPUT_2D, dXx, dXy,
+                                                    dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(short, int, 3, v2i16, v4i32,
+                                                    COORD_INPUT_3D,
+                                                    COORD_PARAMS_3D,
+                                                    GRAD_INPUT_3D, dXx, dXy,
+                                                    dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(ushort, uint, 1, v2j16,
+                                                    v4j32, COORD_INPUT_1D,
+                                                    COORD_PARAMS_1D,
+                                                    GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(ushort, uint, 2, v2j16,
+                                                    v4j32, COORD_INPUT_2D,
+                                                    COORD_PARAMS_2D,
+                                                    GRAD_INPUT_2D, dXx, dXy,
+                                                    dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(ushort, uint, 3, v2j16,
+                                                    v4j32, COORD_INPUT_3D,
+                                                    COORD_PARAMS_3D,
+                                                    GRAD_INPUT_3D, dXx, dXy,
+                                                    dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(char, int, 1, v2i8, v4i32,
+                                                    COORD_INPUT_1D,
+                                                    COORD_PARAMS_1D,
+                                                    GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(char, int, 2, v2i8, v4i32,
+                                                    COORD_INPUT_2D,
+                                                    COORD_PARAMS_2D,
+                                                    GRAD_INPUT_2D, dXx, dXy,
+                                                    dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(char, int, 3, v2i8, v4i32,
+                                                    COORD_INPUT_3D,
+                                                    COORD_PARAMS_3D,
+                                                    GRAD_INPUT_3D, dXx, dXy,
+                                                    dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(uchar, uint, 1, v2j8, v4j32,
+                                                    COORD_INPUT_1D,
+                                                    COORD_PARAMS_1D,
+                                                    GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(uchar, uint, 2, v2j8, v4j32,
+                                                    COORD_INPUT_2D,
+                                                    COORD_PARAMS_2D,
+                                                    GRAD_INPUT_2D, dXx, dXy,
+                                                    dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(uchar, uint, 3, v2j8, v4j32,
+                                                    COORD_INPUT_3D,
+                                                    COORD_PARAMS_3D,
+                                                    GRAD_INPUT_3D, dXx, dXy,
+                                                    dXz, dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(half, float, 1, v2f16,
+                                                    v4f32, COORD_INPUT_1D,
+                                                    COORD_PARAMS_1D,
+                                                    GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(half, float, 2, v2f16,
+                                                    v4f32, COORD_INPUT_2D,
+                                                    COORD_PARAMS_2D,
+                                                    GRAD_INPUT_2D, dXx, dXy,
+                                                    dYx, dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(half, float, 3, v2f16,
+                                                    v4f32, COORD_INPUT_3D,
+                                                    COORD_PARAMS_3D,
+                                                    GRAD_INPUT_3D, dXx, dXy,
+                                                    dXz, dYx, dYy, dYz)
 
 #undef _CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN
 
@@ -2433,31 +2899,94 @@ _CLC_DEFINE_MIPMAP_BINDLESS_VEC2THUNK_READS_BUILTIN(half, float, 3, v2f16, v4f32
         imageHandle, coord_parameter, __VA_ARGS__)[0];                         \
   }
 
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(float, 1, f32, v4f32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(float, 2, f32, v4f32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(float, 3, f32, v4f32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(int, 1, i32, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(int, 2, i32, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(int, 3, i32, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(uint, 1, j32, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(uint, 2, j32, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(uint, 3, j32, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(short, 1, i16, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(short, 2, i16, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(short, 3, i16, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(ushort, 1, j16, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(ushort, 2, j16, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(ushort, 3, j16, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(char, 1, i8, v4i32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(char, 2, i8, v4i32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(char, 3, i8, v4i32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(uchar, 1, j8, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(uchar, 2, j8, v4j32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(uchar, 3, j8, v4j32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(half, 1, f16, v4j32, COORD_INPUT_1D, COORD_PARAMS_1D, GRAD_INPUT_1D, dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(half, 2, f16, v4f32, COORD_INPUT_2D, COORD_PARAMS_2D, GRAD_INPUT_2D, dXx, dXy, dYx, dYy)
-_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(half, 3, f16, v4f32, COORD_INPUT_3D, COORD_PARAMS_3D, GRAD_INPUT_3D, dXx, dXy, dXz, dYx, dYy, dYz)
-
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(float, 1, f32, v4f32,
+                                                COORD_INPUT_1D, COORD_PARAMS_1D,
+                                                GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(float, 2, f32, v4f32,
+                                                COORD_INPUT_2D, COORD_PARAMS_2D,
+                                                GRAD_INPUT_2D, dXx, dXy, dYx,
+                                                dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(float, 3, f32, v4f32,
+                                                COORD_INPUT_3D, COORD_PARAMS_3D,
+                                                GRAD_INPUT_3D, dXx, dXy, dXz,
+                                                dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(int, 1, i32, v4i32,
+                                                COORD_INPUT_1D, COORD_PARAMS_1D,
+                                                GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(int, 2, i32, v4i32,
+                                                COORD_INPUT_2D, COORD_PARAMS_2D,
+                                                GRAD_INPUT_2D, dXx, dXy, dYx,
+                                                dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(int, 3, i32, v4i32,
+                                                COORD_INPUT_3D, COORD_PARAMS_3D,
+                                                GRAD_INPUT_3D, dXx, dXy, dXz,
+                                                dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(uint, 1, j32, v4j32,
+                                                COORD_INPUT_1D, COORD_PARAMS_1D,
+                                                GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(uint, 2, j32, v4j32,
+                                                COORD_INPUT_2D, COORD_PARAMS_2D,
+                                                GRAD_INPUT_2D, dXx, dXy, dYx,
+                                                dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(uint, 3, j32, v4j32,
+                                                COORD_INPUT_3D, COORD_PARAMS_3D,
+                                                GRAD_INPUT_3D, dXx, dXy, dXz,
+                                                dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(short, 1, i16, v4i32,
+                                                COORD_INPUT_1D, COORD_PARAMS_1D,
+                                                GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(short, 2, i16, v4i32,
+                                                COORD_INPUT_2D, COORD_PARAMS_2D,
+                                                GRAD_INPUT_2D, dXx, dXy, dYx,
+                                                dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(short, 3, i16, v4i32,
+                                                COORD_INPUT_3D, COORD_PARAMS_3D,
+                                                GRAD_INPUT_3D, dXx, dXy, dXz,
+                                                dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(ushort, 1, j16, v4j32,
+                                                COORD_INPUT_1D, COORD_PARAMS_1D,
+                                                GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(ushort, 2, j16, v4j32,
+                                                COORD_INPUT_2D, COORD_PARAMS_2D,
+                                                GRAD_INPUT_2D, dXx, dXy, dYx,
+                                                dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(ushort, 3, j16, v4j32,
+                                                COORD_INPUT_3D, COORD_PARAMS_3D,
+                                                GRAD_INPUT_3D, dXx, dXy, dXz,
+                                                dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(char, 1, i8, v4i32,
+                                                COORD_INPUT_1D, COORD_PARAMS_1D,
+                                                GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(char, 2, i8, v4i32,
+                                                COORD_INPUT_2D, COORD_PARAMS_2D,
+                                                GRAD_INPUT_2D, dXx, dXy, dYx,
+                                                dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(char, 3, i8, v4i32,
+                                                COORD_INPUT_3D, COORD_PARAMS_3D,
+                                                GRAD_INPUT_3D, dXx, dXy, dXz,
+                                                dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(uchar, 1, j8, v4j32,
+                                                COORD_INPUT_1D, COORD_PARAMS_1D,
+                                                GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(uchar, 2, j8, v4j32,
+                                                COORD_INPUT_2D, COORD_PARAMS_2D,
+                                                GRAD_INPUT_2D, dXx, dXy, dYx,
+                                                dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(uchar, 3, j8, v4j32,
+                                                COORD_INPUT_3D, COORD_PARAMS_3D,
+                                                GRAD_INPUT_3D, dXx, dXy, dXz,
+                                                dYx, dYy, dYz)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(half, 1, f16, v4j32,
+                                                COORD_INPUT_1D, COORD_PARAMS_1D,
+                                                GRAD_INPUT_1D, dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(half, 2, f16, v4f32,
+                                                COORD_INPUT_2D, COORD_PARAMS_2D,
+                                                GRAD_INPUT_2D, dXx, dXy, dYx,
+                                                dYy)
+_CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(half, 3, f16, v4f32,
+                                                COORD_INPUT_3D, COORD_PARAMS_3D,
+                                                GRAD_INPUT_3D, dXx, dXy, dXz,
+                                                dYx, dYy, dYz)
 
 #undef _CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN
 
@@ -2496,95 +3025,623 @@ _CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(half, 3, f16, v4f32, COORD_INPUT
 #define COORD_PARAMS_3D coord.x, coord.y, coord.z
 
 // Int
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int, 1, i, i32, f, float coord, COORD_PARAMS_1D, S2_S2_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int, 2, i, i32, Dv2_f, float2 coord, COORD_PARAMS_2D, S3_S3_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int, 3, i, i32, Dv4_f, float4 coord, COORD_PARAMS_3D, S3_S3_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int2, 1, Dv2_i, v2i32, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int2, 2, Dv2_i, v2i32, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int2, 3, Dv2_i, v2i32, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int4, 1, Dv4_i, v4i32, f, float coord, coord, S3_S3_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int4, 2, Dv4_i, v4i32, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int4, 3, Dv4_i, v4i32, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int, 1, i, i32, f, float coord,
+                                          COORD_PARAMS_1D, S2_S2_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int, 2, i, i32, Dv2_f, float2 coord,
+                                          COORD_PARAMS_2D, S3_S3_, 2, dX.x,
+                                          dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int, 3, i, i32, Dv3_f, float3 coord,
+                                          COORD_PARAMS_3D, S3_S3_, 4, dX.x,
+                                          dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int2, 1, Dv2_i, v2i32, f, float coord,
+                                          COORD_PARAMS_1D, S3_S3_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int2, 2, Dv2_i, v2i32, Dv2_f,
+                                          float2 coord, COORD_PARAMS_2D, S4_S4_,
+                                          2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int2, 3, Dv2_i, v2i32, Dv3_f,
+                                          float3 coord, COORD_PARAMS_3D, S4_S4_,
+                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int4, 1, Dv4_i, v4i32, f, float coord,
+                                          coord, S3_S3_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int4, 2, Dv4_i, v4i32, Dv2_f,
+                                          float2 coord, COORD_PARAMS_2D, S4_S4_,
+                                          2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(int4, 3, Dv4_i, v4i32, Dv3_f,
+                                          float3 coord, COORD_PARAMS_3D, S4_S4_,
+                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 
 // UInt
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint, 1, j, j32, f, float coord, COORD_PARAMS_1D, S2_S2_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint, 2, j, j32, Dv2_f, float2 coord, COORD_PARAMS_2D, S3_S3_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint, 3, j, j32, Dv4_f, float4 coord, COORD_PARAMS_3D, S3_S3_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint2, 1, Dv2_j, v2j32, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint2, 2, Dv2_j, v2j32, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint2, 3, Dv2_j, v2j32, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint4, 1, Dv4_j, v4j32, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint4, 2, Dv4_j, v4j32, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint4, 3, Dv4_j, v4j32, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint, 1, j, j32, f, float coord,
+                                          COORD_PARAMS_1D, S2_S2_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint, 2, j, j32, Dv2_f, float2 coord,
+                                          COORD_PARAMS_2D, S3_S3_, 2, dX.x,
+                                          dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint, 3, j, j32, Dv3_f, float3 coord,
+                                          COORD_PARAMS_3D, S3_S3_, 4, dX.x,
+                                          dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint2, 1, Dv2_j, v2j32, f,
+                                          float coord, COORD_PARAMS_1D, S3_S3_,
+                                          , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint2, 2, Dv2_j, v2j32, Dv2_f,
+                                          float2 coord, COORD_PARAMS_2D, S4_S4_,
+                                          2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint2, 3, Dv2_j, v2j32, Dv3_f,
+                                          float3 coord, COORD_PARAMS_3D, S4_S4_,
+                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint4, 1, Dv4_j, v4j32, f,
+                                          float coord, COORD_PARAMS_1D, S3_S3_,
+                                          , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint4, 2, Dv4_j, v4j32, Dv2_f,
+                                          float2 coord, COORD_PARAMS_2D, S4_S4_,
+                                          2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uint4, 3, Dv4_j, v4j32, Dv3_f,
+                                          float3 coord, COORD_PARAMS_3D, S4_S4_,
+                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 
 // Float
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float, 1, f, f32, f, float coord, COORD_PARAMS_1D, S2_S2_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float, 2, f, f32, Dv2_f, float2 coord, COORD_PARAMS_2D, S3_S3_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float, 3, f, f32, Dv4_f, float4 coord, COORD_PARAMS_3D, S3_S3_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float2, 1, Dv2_f, v2f32, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float2, 2, Dv2_f, v2f32, S0_, float2 coord, COORD_PARAMS_2D, S3_S3_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float2, 3, Dv2_f, v2f32, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float4, 1, Dv4_f, v4f32, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float4, 2, Dv4_f, v4f32, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float4, 3, Dv4_f, v4f32, S0_, float4 coord, COORD_PARAMS_3D, S3_S3_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float, 1, f, f32, f, float coord,
+                                          COORD_PARAMS_1D, S2_S2_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float, 2, f, f32, Dv2_f, float2 coord,
+                                          COORD_PARAMS_2D, S3_S3_, 2, dX.x,
+                                          dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float, 3, f, f32, Dv3_f, float3 coord,
+                                          COORD_PARAMS_3D, S3_S3_, 4, dX.x,
+                                          dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float2, 1, Dv2_f, v2f32, f,
+                                          float coord, COORD_PARAMS_1D, S3_S3_,
+                                          , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float2, 2, Dv2_f, v2f32, S0_,
+                                          float2 coord, COORD_PARAMS_2D, S3_S3_,
+                                          2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float2, 3, Dv2_f, v2f32, Dv3_f,
+                                          float3 coord, COORD_PARAMS_3D, S4_S4_,
+                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float4, 1, Dv4_f, v4f32, f,
+                                          float coord, COORD_PARAMS_1D, S3_S3_,
+                                          , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float4, 2, Dv4_f, v4f32, Dv2_f,
+                                          float2 coord, COORD_PARAMS_2D, S4_S4_,
+                                          2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(float4, 3, Dv4_f, v4f32, Dv3_f,
+                                          float3 coord, COORD_PARAMS_3D, S4_S4_,
+                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 
 // Short
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short, 1, s, i16, f, float coord, COORD_PARAMS_1D, S2_S2_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short, 2, s, i16, Dv2_f, float2 coord, COORD_PARAMS_2D, S3_S3_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short, 3, s, i16, Dv4_f, float4 coord, COORD_PARAMS_3D, S3_S3_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short2, 1, Dv2_s, v2i16, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short2, 2, Dv2_s, v2i16, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short2, 3, Dv2_s, v2i16, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short4, 1, Dv4_s, v4i16, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short4, 2, Dv4_s, v4i16, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short4, 3, Dv4_s, v4i16, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short, 1, s, i16, f, float coord,
+                                          COORD_PARAMS_1D, S2_S2_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short, 2, s, i16, Dv2_f, float2 coord,
+                                          COORD_PARAMS_2D, S3_S3_, 2, dX.x,
+                                          dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short, 3, s, i16, Dv3_f, float3 coord,
+                                          COORD_PARAMS_3D, S3_S3_, 4, dX.x,
+                                          dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short2, 1, Dv2_s, v2i16, f,
+                                          float coord, COORD_PARAMS_1D, S3_S3_,
+                                          , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short2, 2, Dv2_s, v2i16, Dv2_f,
+                                          float2 coord, COORD_PARAMS_2D, S4_S4_,
+                                          2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short2, 3, Dv2_s, v2i16, Dv3_f,
+                                          float3 coord, COORD_PARAMS_3D, S4_S4_,
+                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short4, 1, Dv4_s, v4i16, f,
+                                          float coord, COORD_PARAMS_1D, S3_S3_,
+                                          , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short4, 2, Dv4_s, v4i16, Dv2_f,
+                                          float2 coord, COORD_PARAMS_2D, S4_S4_,
+                                          2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(short4, 3, Dv4_s, v4i16, Dv3_f,
+                                          float3 coord, COORD_PARAMS_3D, S4_S4_,
+                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 
 // Unsigned Short
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort, 1, t, j16, f, float coord, COORD_PARAMS_1D, S2_S2_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort, 2, t, j16, Dv2_f, float2 coord, COORD_PARAMS_2D, S3_S3_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort, 3, t, j16, Dv4_f, float4 coord, COORD_PARAMS_3D, S3_S3_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort2, 1, Dv2_t, v2j16, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort2, 2, Dv2_t, v2j16, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort2, 3, Dv2_t, v2j16, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort4, 1, Dv4_t, v4j16, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort4, 2, Dv4_t, v4j16, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort4, 3, Dv4_t, v4j16, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort, 1, t, j16, f, float coord,
+                                          COORD_PARAMS_1D, S2_S2_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort, 2, t, j16, Dv2_f,
+                                          float2 coord, COORD_PARAMS_2D, S3_S3_,
+                                          2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort, 3, t, j16, Dv3_f,
+                                          float3 coord, COORD_PARAMS_3D, S3_S3_,
+                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort2, 1, Dv2_t, v2j16, f,
+                                          float coord, COORD_PARAMS_1D, S3_S3_,
+                                          , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort2, 2, Dv2_t, v2j16, Dv2_f,
+                                          float2 coord, COORD_PARAMS_2D, S4_S4_,
+                                          2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort2, 3, Dv2_t, v2j16, Dv3_f,
+                                          float3 coord, COORD_PARAMS_3D, S4_S4_,
+                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort4, 1, Dv4_t, v4j16, f,
+                                          float coord, COORD_PARAMS_1D, S3_S3_,
+                                          , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort4, 2, Dv4_t, v4j16, Dv2_f,
+                                          float2 coord, COORD_PARAMS_2D, S4_S4_,
+                                          2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(ushort4, 3, Dv4_t, v4j16, Dv3_f,
+                                          float3 coord, COORD_PARAMS_3D, S4_S4_,
+                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 
 // Char
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char, 1, a, i8, f, float coord, COORD_PARAMS_1D, S2_S2_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char, 2, a, i8, Dv2_f, float2 coord, COORD_PARAMS_2D, S3_S3_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char, 3, a, i8, Dv4_f, float4 coord, COORD_PARAMS_3D, S3_S3_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char2, 1, Dv2_a, v2i8, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char2, 2, Dv2_a, v2i8, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char2, 3, Dv2_a, v2i8, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char4, 1, Dv4_a, v4i8, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char4, 2, Dv4_a, v4i8, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char4, 3, Dv4_a, v4i8, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char, 1, a, i8, f, float coord,
+                                          COORD_PARAMS_1D, S2_S2_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char, 2, a, i8, Dv2_f, float2 coord,
+                                          COORD_PARAMS_2D, S3_S3_, 2, dX.x,
+                                          dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char, 3, a, i8, Dv3_f, float3 coord,
+                                          COORD_PARAMS_3D, S3_S3_, 4, dX.x,
+                                          dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char2, 1, Dv2_a, v2i8, f, float coord,
+                                          COORD_PARAMS_1D, S3_S3_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char2, 2, Dv2_a, v2i8, Dv2_f,
+                                          float2 coord, COORD_PARAMS_2D, S4_S4_,
+                                          2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char2, 3, Dv2_a, v2i8, Dv3_f,
+                                          float3 coord, COORD_PARAMS_3D, S4_S4_,
+                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char4, 1, Dv4_a, v4i8, f, float coord,
+                                          COORD_PARAMS_1D, S3_S3_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char4, 2, Dv4_a, v4i8, Dv2_f,
+                                          float2 coord, COORD_PARAMS_2D, S4_S4_,
+                                          2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(char4, 3, Dv4_a, v4i8, Dv3_f,
+                                          float3 coord, COORD_PARAMS_3D, S4_S4_,
+                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 
 // Unsigned Char
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar, 1, h, j8, f, float coord, COORD_PARAMS_1D, S2_S2_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar, 2, h, j8, Dv2_f, float2 coord, COORD_PARAMS_2D, S3_S3_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar, 3, h, j8, Dv4_f, float4 coord, COORD_PARAMS_3D, S3_S3_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar2, 1, Dv2_h, v2j8, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar2, 2, Dv2_h, v2j8, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar2, 3, Dv2_h, v2j8, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar4, 1, Dv4_h, v4j8, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar4, 2, Dv4_h, v4j8, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar4, 3, Dv4_h, v4j8, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar, 1, h, j8, f, float coord,
+                                          COORD_PARAMS_1D, S2_S2_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar, 2, h, j8, Dv2_f, float2 coord,
+                                          COORD_PARAMS_2D, S3_S3_, 2, dX.x,
+                                          dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar, 3, h, j8, Dv3_f, float3 coord,
+                                          COORD_PARAMS_3D, S3_S3_, 4, dX.x,
+                                          dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar2, 1, Dv2_h, v2j8, f,
+                                          float coord, COORD_PARAMS_1D, S3_S3_,
+                                          , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar2, 2, Dv2_h, v2j8, Dv2_f,
+                                          float2 coord, COORD_PARAMS_2D, S4_S4_,
+                                          2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar2, 3, Dv2_h, v2j8, Dv3_f,
+                                          float3 coord, COORD_PARAMS_3D, S4_S4_,
+                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar4, 1, Dv4_h, v4j8, f,
+                                          float coord, COORD_PARAMS_1D, S3_S3_,
+                                          , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar4, 2, Dv4_h, v4j8, Dv2_f,
+                                          float2 coord, COORD_PARAMS_2D, S4_S4_,
+                                          2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(uchar4, 3, Dv4_h, v4j8, Dv3_f,
+                                          float3 coord, COORD_PARAMS_3D, S4_S4_,
+                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 
 // Half
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half, 1, DF16_, f16, f, float coord, COORD_PARAMS_1D, S2_S2_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half, 2, DF16_, f16, Dv2_f, float2 coord, COORD_PARAMS_2D, S3_S3_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half, 3, DF16_, f16, Dv4_f, float4 coord, COORD_PARAMS_3D, S3_S3_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half2, 1, Dv2_DF16_, v2f16, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half2, 2, Dv2_DF16_, v2f16, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half2, 3, Dv2_DF16_, v2f16, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half4, 1, Dv4_DF16_, v4f16, f, float coord, COORD_PARAMS_1D, S3_S3_, , dX, dY)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half4, 2, Dv4_DF16_, v4f16, Dv2_f, float2 coord, COORD_PARAMS_2D, S4_S4_, 2, dX.x, dX.y, dY.x, dY.y)
-_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half4, 3, Dv4_DF16_, v4f16, Dv4_f, float4 coord, COORD_PARAMS_3D, S4_S4_, 4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half, 1, DF16_, f16, f, float coord,
+                                          COORD_PARAMS_1D, S2_S2_, , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half, 2, DF16_, f16, Dv2_f,
+                                          float2 coord, COORD_PARAMS_2D, S3_S3_,
+                                          2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half, 3, DF16_, f16, Dv3_f,
+                                          float3 coord, COORD_PARAMS_3D, S3_S3_,
+                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half2, 1, Dv2_DF16_, v2f16, f,
+                                          float coord, COORD_PARAMS_1D, S3_S3_,
+                                          , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half2, 2, Dv2_DF16_, v2f16, Dv2_f,
+                                          float2 coord, COORD_PARAMS_2D, S4_S4_,
+                                          2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half2, 3, Dv2_DF16_, v2f16, Dv3_f,
+                                          float3 coord, COORD_PARAMS_3D, S4_S4_,
+                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half4, 1, Dv4_DF16_, v4f16, f,
+                                          float coord, COORD_PARAMS_1D, S3_S3_,
+                                          , dX, dY)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half4, 2, Dv4_DF16_, v4f16, Dv2_f,
+                                          float2 coord, COORD_PARAMS_2D, S4_S4_,
+                                          2, dX.x, dX.y, dY.x, dY.y)
+_CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(half4, 3, Dv4_DF16_, v4f16, Dv3_f,
+                                          float3 coord, COORD_PARAMS_3D, S4_S4_,
+                                          4, dX.x, dX.y, dX.z, dY.x, dY.y, dY.z)
 
 #undef COORD_PARAMS_1D
 #undef COORD_PARAMS_2D
 #undef COORD_PARAMS_3D
 
 #undef _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN
+
+// ------- Image Arrays / Layered Images -------
+
+// Read/Write Intrinsic Thunks
+
+#define COORD_PARAMS_1D(type) type
+#define COORD_PARAMS_2D(type) type, type
+
+// Vector of size 1 is scalar
+#define ELEM_VEC_1(elem_t) elem_t
+#define ELEM_VEC_2(elem_t) elem_t##2
+#define ELEM_VEC_4(elem_t) elem_t##4
+
+#define VEC_SIZE_1(elem_t, size) elem_t##size
+#define VEC_SIZE_2(elem_t, size) v2##elem_t##size
+#define VEC_SIZE_4(elem_t, size) v4##elem_t##size
+
+#define COLOR_INPUT_1_CHANNEL(elem_t) elem_t
+#define COLOR_INPUT_2_CHANNEL(elem_t) elem_t, elem_t
+#define COLOR_INPUT_4_CHANNEL(elem_t) elem_t, elem_t, elem_t, elem_t
+
+#define _CONCAT(x, y) x##y
+#define CONCAT(x, y) _CONCAT(x, y)
+
+#define _STR(x) #x
+#define STR(x) _STR(x)
+
+#define _NVVM_FUNC_UNDERSCORE(name, dim, vec_size, help, pre, post)            \
+  pre##nvvm_##name##_##dim##d##_array_##vec_size##_clamp##post##help
+#define NVVM_FUNC_UNDERSCORE(a, b, c, d, e, f)                                 \
+  _NVVM_FUNC_UNDERSCORE(a, b, c, d, e, f)
+
+#define _NVVM_FUNC_PERIOD(name, dim, vec_size, help, pre, post)                \
+  pre##llvm.nvvm.name.dim##d.array.vec_size.clamp##post##help
+#define NVVM_FUNC_PERIOD(a, b, c, d, e, f) _NVVM_FUNC_PERIOD(a, b, c, d, e, f)
+
+#define BINDLESS_INTRINSIC_FUNC_ND(ret_type, dimension, nvvm_elem_t_mangled,   \
+                                   vec_size, elem_t_size, separator,           \
+                                   clc_prefix, helper)                         \
+  ELEM_VEC_##vec_size(ret_type) CONCAT(                                        \
+      __,                                                                      \
+      NVVM_FUNC_UNDERSCORE(                                                    \
+          suld, dimension,                                                     \
+          VEC_SIZE_##vec_size(nvvm_elem_t_mangled, elem_t_size), helper, ,     \
+          _s)(                                                                 \
+          long, int,                                                           \
+          COORD_PARAMS_##dimension##D(                                         \
+              int))) __asm(STR(NVVM_FUNC_##separator(suld, dimension,          \
+                                                     VEC_SIZE_##vec_size(      \
+                                                         nvvm_elem_t_mangled,  \
+                                                         elem_t_size),         \
+                                                     , clc_prefix, )));        \
+  void CONCAT(                                                                 \
+      __,                                                                      \
+      NVVM_FUNC_UNDERSCORE(                                                    \
+          sust, dimension,                                                     \
+          VEC_SIZE_##vec_size(nvvm_elem_t_mangled, elem_t_size), helper, ,     \
+          _s)(                                                                 \
+          unsigned long, int, COORD_PARAMS_##dimension##D(int),                \
+          COLOR_INPUT_##vec_size##_CHANNEL(                                    \
+              ret_type))) __asm(STR(NVVM_FUNC_PERIOD(sust.b, dimension,        \
+                                                     VEC_SIZE_##vec_size(      \
+                                                         nvvm_elem_t_mangled,  \
+                                                         elem_t_size),         \
+                                                     , , )));
+
+#define BINDLESS_INTRINSIC_FUNC_VEC_SIZE_N(ret_type, vec_size,                 \
+                                           nvvm_elem_t_mangled, elem_t_size,   \
+                                           separator, clc_prefix, helper)      \
+  BINDLESS_INTRINSIC_FUNC_ND(ret_type, 1, nvvm_elem_t_mangled, vec_size,       \
+                             elem_t_size, separator, clc_prefix, helper)       \
+  BINDLESS_INTRINSIC_FUNC_ND(ret_type, 2, nvvm_elem_t_mangled, vec_size,       \
+                             elem_t_size, separator, clc_prefix, helper)
+
+#define BINDLESS_INTRINSIC_FUNC_ALL(ret_type, nvvm_elem_t_mangled,             \
+                                    elem_t_size, helper)                       \
+  BINDLESS_INTRINSIC_FUNC_VEC_SIZE_N(ret_type, 1, nvvm_elem_t_mangled,         \
+                                     elem_t_size, PERIOD, , helper)            \
+  BINDLESS_INTRINSIC_FUNC_VEC_SIZE_N(ret_type, 2, nvvm_elem_t_mangled,         \
+                                     elem_t_size, UNDERSCORE, __clc_llvm_,     \
+                                     helper)                                   \
+  BINDLESS_INTRINSIC_FUNC_VEC_SIZE_N(ret_type, 4, nvvm_elem_t_mangled,         \
+                                     elem_t_size, UNDERSCORE, __clc_llvm_,     \
+                                     helper)
+
+BINDLESS_INTRINSIC_FUNC_ALL(int, i, 32, )
+BINDLESS_INTRINSIC_FUNC_ALL(short, i, 16, )
+BINDLESS_INTRINSIC_FUNC_ALL(short, i, 8, _helper)
+
+#undef COORD_PARAMS_1D
+#undef COORD_PARAMS_2D
+#undef ELEM_VEC_1
+#undef ELEM_VEC_2
+#undef ELEM_VEC_4
+#undef VEC_SIZE_1
+#undef VEC_SIZE_2
+#undef VEC_SIZE_4
+#undef COLOR_INPUT_1_CHANNEL
+#undef COLOR_INPUT_2_CHANNEL
+#undef COLOR_INPUT_4_CHANNEL
+#undef _CONCAT
+#undef CONCAT
+#undef _STR
+#undef STR
+#undef _NVVM_FUNC_PERIOD
+#undef NVVM_FUNC_PERIOD
+#undef _NVVM_FUNC_UNDERSCORE
+#undef NVVM_FUNC_UNDERSCORE
+#undef BINDLESS_INTRINSIC_FUNC_ND
+#undef BINDLESS_INTRINSIC_FUNC_VEC_SIZE_N
+#undef BINDLESS_INTRINSIC_FUNC_ALL
+
+// //  --- THUNKS: Surface Array Reads ---
+
+// Macro to generate surface array fetches
+#define _CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(                \
+    elem_t, fetch_elem_t, cast_to_elem_t, vec_size, fetch_vec_size, helper)    \
+  elem_t __nvvm_suld_1d_array_##vec_size##_clamp_s(unsigned long imageHandle,  \
+                                                   int idx, int x) {           \
+    fetch_elem_t a = __nvvm_suld_1d_array_##fetch_vec_size##_clamp_s##helper(  \
+        imageHandle, idx, x);                                                  \
+    return as_##elem_t(cast_##fetch_elem_t##_to_##cast_to_elem_t(a));          \
+  }                                                                            \
+  elem_t __nvvm_suld_2d_array_##vec_size##_clamp_s(unsigned long imageHandle,  \
+                                                   int idx, int x, int y) {    \
+    fetch_elem_t a = __nvvm_suld_2d_array_##fetch_vec_size##_clamp_s##helper(  \
+        imageHandle, idx, x, y);                                               \
+    return as_##elem_t(cast_##fetch_elem_t##_to_##cast_to_elem_t(a));          \
+  }
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uint, int, uint, j32,
+                                                       i32, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(ushort, short, ushort,
+                                                       t16, i16, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(char, short, char, i8,
+                                                       i8, _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uchar, short, uchar, h8,
+                                                       i8, _helper)
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uint2, int4, uint2,
+                                                       v2j32, v4i32, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(ushort2, short4, ushort2,
+                                                       v2t16, v4i16, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(char2, short2, char2,
+                                                       v2i8, v2i8, _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uchar2, short2, uchar2,
+                                                       v2h8, v2i8, _helper)
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uint4, int4, uint4,
+                                                       v4j32, v4i32, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(ushort4, short4, ushort4,
+                                                       v4t16, v4i16, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(char4, short4, char4,
+                                                       v4i8, v4i8, _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(uchar4, short4, uchar4,
+                                                       v4h8, v4i8, _helper)
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(float, int, int, f32,
+                                                       i32, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(half, short, short, f16,
+                                                       i16, )
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(float2, int2, int2,
+                                                       v2f32, v2i32, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(half2, short2, short2,
+                                                       v2f16, v2i16, )
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(float4, int4, int4,
+                                                       v4f32, v4i32, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN(half4, short4, short4,
+                                                       v4f16, v4i16, )
+
+#undef _CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_READS_BUILTIN
+
+// //  --- THUNKS: Surface Array Writes ---
+
+#define COLOR_INPUT_1_CHANNEL(elem_t) elem_t a
+#define COLOR_INPUT_2_CHANNEL(elem_t) elem_t a, elem_t b
+#define COLOR_INPUT_4_CHANNEL(elem_t) elem_t a, elem_t b, elem_t c, elem_t d
+
+#define COLOR_PARAMS_1_CHANNEL_AS_TYPE(elem_t) as_##elem_t(a)
+#define COLOR_PARAMS_2_CHANNEL_AS_TYPE(elem_t) as_##elem_t(a), as_##elem_t(b)
+#define COLOR_PARAMS_4_CHANNEL_AS_TYPE(elem_t)                                 \
+  as_##elem_t(a), as_##elem_t(b), as_##elem_t(c), as_##elem_t(d)
+
+#define COLOR_PARAMS_1_CHANNEL_C_CAST(elem_t) (elem_t) a
+#define COLOR_PARAMS_2_CHANNEL_C_CAST(elem_t) (elem_t) a, (elem_t)b
+#define COLOR_PARAMS_4_CHANNEL_C_CAST(elem_t)                                  \
+  (elem_t) a, (elem_t)b, (elem_t)c, (elem_t)d
+
+// Macro to generate surface array writes
+#define _CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(               \
+    elem_t, write_elem_t, vec_size, write_vec_size, num_channels,              \
+    type_conversion, helper)                                                   \
+  void __nvvm_sust_1d_array_##vec_size##_clamp_s(                              \
+      unsigned long imageHandle, int idx, int x,                               \
+      COLOR_INPUT_##num_channels##_CHANNEL(elem_t)) {                          \
+    return __nvvm_sust_1d_array_##write_vec_size##_clamp_s##helper(            \
+        imageHandle, idx, x,                                                   \
+        COLOR_PARAMS_##num_channels##_CHANNEL_##type_conversion(               \
+            write_elem_t));                                                    \
+  }                                                                            \
+  void __nvvm_sust_2d_array_##vec_size##_clamp_s(                              \
+      unsigned long imageHandle, int idx, int x, int y,                        \
+      COLOR_INPUT_##num_channels##_CHANNEL(elem_t)) {                          \
+    return __nvvm_sust_2d_array_##write_vec_size##_clamp_s##helper(            \
+        imageHandle, idx, x, y,                                                \
+        COLOR_PARAMS_##num_channels##_CHANNEL_##type_conversion(               \
+            write_elem_t));                                                    \
+  }
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uint, int, j32, i32, 1,
+                                                        AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(ushort, short, t16, i16,
+                                                        1, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(char, short, i8, i8, 1,
+                                                        C_CAST, _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uchar, short, h8, i8, 1,
+                                                        C_CAST, _helper)
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uint, int, v2j32, v2i32,
+                                                        2, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(ushort, short, v2t16,
+                                                        v2i16, 2, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(char, short, v2i8, v2i8,
+                                                        2, C_CAST, _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uchar, short, v2h8,
+                                                        v2i8, 2, C_CAST,
+                                                        _helper)
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uint, int, v4j32, v4i32,
+                                                        4, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(ushort, short, v4t16,
+                                                        v4i16, 4, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(char, short, v4i8, v4i8,
+                                                        4, C_CAST, _helper)
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(uchar, short, v4h8,
+                                                        v4i8, 4, C_CAST,
+                                                        _helper)
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(float, int, f32, i32, 1,
+                                                        AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(half, short, f16, i16,
+                                                        1, AS_TYPE, )
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(float, int, v2f32,
+                                                        v2i32, 2, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(half, short, v2f16,
+                                                        v2i16, 2, AS_TYPE, )
+
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(float, int, v4f32,
+                                                        v4i32, 4, AS_TYPE, )
+_CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN(half, short, v4f16,
+                                                        v4i16, 4, AS_TYPE, )
+
+#undef _CLC_DEFINE_SURFACE_ARRAY_BINDLESS_THUNK_WRITES_BUILTIN
+
+#undef COLOR_INPUT_1_CHANNEL
+#undef COLOR_INPUT_2_CHANNEL
+#undef COLOR_INPUT_4_CHANNEL
+
+#undef COLOR_PARAMS_1_CHANNEL_AS_TYPE
+#undef COLOR_PARAMS_2_CHANNEL_AS_TYPE
+#undef COLOR_PARAMS_4_CHANNEL_AS_TYPE
+
+#undef COLOR_PARAMS_1_CHANNEL_C_CAST
+#undef COLOR_PARAMS_2_CHANNEL_C_CAST
+#undef COLOR_PARAMS_4_CHANNEL_C_CAST
+
+// GENERATED FUNCS: SURFACE ARRAY READ/WRITES
+
+// Vector of size 1 is scalar
+#define ELEM_VEC_1(elem_t) elem_t
+#define ELEM_VEC_2(elem_t) elem_t##2
+#define ELEM_VEC_4(elem_t) elem_t##4
+
+#define COORD_INPUT_1D(elem_t) ELEM_VEC_1(elem_t) coord
+#define COORD_INPUT_2D(elem_t) ELEM_VEC_2(elem_t) coord
+
+#define COORD_PARAMS_1D(elem_t) coord * sizeof(elem_t)
+#define COORD_PARAMS_2D(elem_t) coord.x * sizeof(elem_t), coord.y
+
+#define COLOR_PARAMS_1_CHANNEL c
+#define COLOR_PARAMS_2_CHANNEL c.x, c.y
+#define COLOR_PARAMS_4_CHANNEL c.x, c.y, c.z, c.w
+
+#define VEC_SIZE_1(elem_t, size) elem_t##size
+#define VEC_SIZE_2(elem_t, size) v2##elem_t##size
+#define VEC_SIZE_4(elem_t, size) v4##elem_t##size
+
+#define DVEC_SIZE_1(prefix, elem_t, postfix) prefix##elem_t##postfix
+#define DVEC_SIZE_2(prefix, elem_t, postfix) prefix##Dv2_##elem_t##postfix
+#define DVEC_SIZE_4(prefix, elem_t, postfix) prefix##Dv4_##elem_t##postfix
+
+#define _CONCAT(x, y) x##y
+#define CONCAT(x, y) _CONCAT(x, y)
+
+#define _NVVM_FUNC(name, dimension, vec_size_mangled)                          \
+  __nvvm_##name##_##dimension##d_array_##vec_size_mangled##_clamp_s
+#define NVVM_FUNC(a, b, c) _NVVM_FUNC(a, b, c)
+
+#define MANGLE_FUNC_IMG_HANDLE_HELPER(size, name, prefix, postfix)             \
+  MANGLE_FUNC_IMG_HANDLE(size, name, prefix, postfix)
+
+#define _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_READ_BUILTIN(                         \
+    elem_t, vec_size, dimension, ocl_elem_t_mangled, nvvm_elem_t_mangled,      \
+    elem_t_size)                                                               \
+  _CLC_DEF ELEM_VEC_##vec_size(elem_t) MANGLE_FUNC_IMG_HANDLE_HELPER(          \
+      23, __spirv_ImageArrayFetch,                                             \
+      DVEC_SIZE_##vec_size(I, ocl_elem_t_mangled, ),                           \
+      DVEC_SIZE_##dimension(, i, ET_T0_T1_i))(                                 \
+      ulong imageHandle, COORD_INPUT_##dimension##D(int), int idx) {           \
+    return NVVM_FUNC(suld, dimension,                                          \
+                     VEC_SIZE_##vec_size(nvvm_elem_t_mangled, elem_t_size))(   \
+        imageHandle, idx,                                                      \
+        COORD_PARAMS_##dimension##D(ELEM_VEC_##vec_size(elem_t)));             \
+  }
+
+#define _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_WRITE_BUILTIN(                        \
+    elem_t, vec_size, dimension, elem_t_mangled, write_mangled, elem_t_size)   \
+  _CLC_DEF void MANGLE_FUNC_IMG_HANDLE_HELPER(                                 \
+      23, __spirv_ImageArrayWrite, I,                                          \
+      CONCAT(DVEC_SIZE_##dimension(, i, ),                                     \
+             DVEC_SIZE_##vec_size(, elem_t_mangled, EvT_T0_iT1_)))(            \
+      ulong imageHandle, COORD_INPUT_##dimension##D(int), int idx,             \
+      ELEM_VEC_##vec_size(elem_t) c) {                                         \
+    NVVM_FUNC(sust, dimension,                                                 \
+              VEC_SIZE_##vec_size(write_mangled, elem_t_size))                 \
+    (imageHandle, idx,                                                         \
+     COORD_PARAMS_##dimension##D(ELEM_VEC_##vec_size(elem_t)),                 \
+     COLOR_PARAMS_##vec_size##_CHANNEL);                                       \
+  }
+
+#define _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ND(                           \
+    dimension, elem_t, vec_size, ocl_elem_t_mangled, nvvm_elem_t_mangled,      \
+    elem_t_size)                                                               \
+  _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_READ_BUILTIN(                               \
+      elem_t, vec_size, dimension, ocl_elem_t_mangled, nvvm_elem_t_mangled,    \
+      elem_t_size)                                                             \
+  _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_WRITE_BUILTIN(                              \
+      elem_t, vec_size, dimension, ocl_elem_t_mangled, nvvm_elem_t_mangled,    \
+      elem_t_size)
+
+#define _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_VEC_SIZE_N(                   \
+    vec_size, elem_t, ocl_elem_t_mangled, nvvm_elem_t_mangled, elem_t_size)    \
+  _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ND(                                 \
+      1, elem_t, vec_size, ocl_elem_t_mangled, nvvm_elem_t_mangled,            \
+      elem_t_size)                                                             \
+  _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ND(                                 \
+      2, elem_t, vec_size, ocl_elem_t_mangled, nvvm_elem_t_mangled,            \
+      elem_t_size)
+
+#define _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(                          \
+    elem_t, ocl_elem_t_mangled, nvvm_elem_t_mangled, elem_t_size)              \
+  _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_VEC_SIZE_N(                         \
+      1, elem_t, ocl_elem_t_mangled, nvvm_elem_t_mangled, elem_t_size)         \
+  _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_VEC_SIZE_N(                         \
+      2, elem_t, ocl_elem_t_mangled, nvvm_elem_t_mangled, elem_t_size)         \
+  _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_VEC_SIZE_N(                         \
+      4, elem_t, ocl_elem_t_mangled, nvvm_elem_t_mangled, elem_t_size)
+
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(int, i, i, 32)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(uint, j, j, 32)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(short, s, i, 16)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(ushort, t, t, 16)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(char, a, i, 8)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(uchar, h, h, 8)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(float, f, f, 32)
+_CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL(half, DF16_, f, 16)
+
+#undef _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_READ_BUILTIN
+#undef _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_WRITE_BUILTIN
+#undef _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ND
+#undef _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_VEC_SIZE_N
+#undef _CLC_DEFINE_IMAGE_ARRAY_BINDLESS_BUILTIN_ALL
+#undef ELEM_VEC_1
+#undef ELEM_VEC_2
+#undef ELEM_VEC_4
+#undef COORD_INPUT_1D
+#undef COORD_INPUT_2D
+#undef COORD_PARAMS_1D
+#undef COORD_PARAMS_2D
+#undef COLOR_PARAMS_1_CHANNEL
+#undef COLOR_PARAMS_2_CHANNEL
+#undef COLOR_PARAMS_4_CHANNEL
+#undef VEC_SIZE_1
+#undef VEC_SIZE_2
+#undef VEC_SIZE_4
+#undef DVEC_SIZE_1
+#undef DVEC_SIZE_2
+#undef DVEC_SIZE_4
+#undef _CONCAT
+#undef CONCAT
+#undef _NVVM_FUNC
+#undef NVVM_FUNC
+#undef MANGLE_FUNC_IMG_HANDLE_HELPER

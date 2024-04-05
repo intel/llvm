@@ -26,4 +26,21 @@ DEVICE_EXTERN_C_INLINE double __devicelib_imf_fmin(double a, double b) {
   return __fmin(a, b);
 }
 
+DEVICE_EXTERN_C_INLINE double __devicelib_imf_rcp64h(double x) {
+  uint64_t x_bits = __builtin_bit_cast(uint64_t, x);
+  uint32_t x_exp = (x_bits & 0x7FFF'FFFF'FFFF'FFFF) >> 52;
+  uint64_t x_mant = (x_bits & 0x000F'FFFF'FFFF'FFFF);
+  if (x_exp == 0)
+    x = ((x_bits >> 63) ? -0.0 : 0.0);
+  else if ((x_exp == 0x7FF) && (x_mant != 0)) {
+    x_bits = x_bits & 0x7FFF'FFFF'FFFF'FFFF;
+    return __builtin_bit_cast(double, x_bits);
+  }
+  uint64_t temp1 = __builtin_bit_cast(uint64_t, 1.0 / x);
+  if (((temp1 & 0x7FFF'FFFF'FFFF'FFFF) >> 52) == 0)
+    return ((temp1 >> 63) ? -0.0 : 0.0);
+  temp1 &= 0xFFFF'FFFF'0000'0000;
+  return __builtin_bit_cast(double, temp1);
+}
+
 #endif /*__LIBDEVICE_IMF_ENABLED__*/

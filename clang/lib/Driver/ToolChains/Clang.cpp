@@ -1076,6 +1076,8 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   // Do not add dependency generation information when compiling the source +
   // footer combination.  The dependency generation is done in a separate
   // compile step so we can retain original source information.
+  // TODO: remove this when/if we can improve the host compilation situation
+  // when dealing with the temporary file generated for the footer.
   if (ContainsAppendFooterAction(&JA))
     ArgM = nullptr;
 
@@ -1092,12 +1094,6 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
             DepFile, Clang::getBaseInputName(Args, Inputs[0]));
     } else if (Output.getType() == types::TY_Dependencies) {
       DepFile = Output.getFilename();
-      if (!ContainsAppendFooterAction(&JA) && Args.hasArg(options::OPT_fsycl) &&
-          !Args.hasArg(options::OPT_fno_sycl_use_footer) &&
-          !JA.isDeviceOffloading(Action::OFK_SYCL))
-        // Name the dependency file for the specific dependency generation
-        // step created for the integration footer enabled compilation.
-        DepFile = getDependencyFileName(Args, Inputs);
     } else if (!ArgMD) {
       DepFile = "-";
     } else if (IsIntelFPGA && JA.isDeviceOffloading(Action::OFK_SYCL)) {
@@ -1209,10 +1205,10 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     if ((getToolChain().getTriple().isNVPTX() ||
          getToolChain().getTriple().isAMDGCN()) &&
         C.getActiveOffloadKinds() == Action::OFK_None) {
-      SmallString<128> P(llvm::sys::path::parent_path(D.InstalledDir));
+      SmallString<128> P(llvm::sys::path::parent_path(D.Dir));
       llvm::sys::path::append(P, "include");
-      llvm::sys::path::append(P, "gpu-none-llvm");
-      CmdArgs.push_back("-c-isystem");
+      llvm::sys::path::append(P, getToolChain().getTripleString());
+      CmdArgs.push_back("-internal-isystem");
       CmdArgs.push_back(Args.MakeArgString(P));
     } else if (C.getActiveOffloadKinds() == Action::OFK_OpenMP) {
       // TODO: CUDA / HIP include their own headers for some common functions
@@ -1912,6 +1908,9 @@ void Clang::AddAArch64TargetArgs(const ArgList &Args,
   }
 
   AddUnalignedAccessWarning(CmdArgs);
+
+  Args.addOptInFlag(CmdArgs, options::OPT_fptrauth_intrinsics,
+                    options::OPT_fno_ptrauth_intrinsics);
 }
 
 void Clang::AddLoongArchTargetArgs(const ArgList &Args,
@@ -2823,45 +2822,43 @@ static void CollectArgsForIntegratedAssembler(Compilation &C,
   }
 }
 
-static StringRef EnumComplexRangeToStr(LangOptions::ComplexRangeKind Range) {
-  StringRef RangeStr = "";
+static std::string ComplexRangeKindToStr(LangOptions::ComplexRangeKind Range) {
   switch (Range) {
-  case LangOptions::ComplexRangeKind::CX_Limited:
-    return "-fcx-limited-range";
+  case LangOptions::ComplexRangeKind::CX_Full:
+    return "full";
     break;
-  case LangOptions::ComplexRangeKind::CX_Fortran:
-    return "-fcx-fortran-rules";
+  case LangOptions::ComplexRangeKind::CX_Basic:
+    return "basic";
+    break;
+  case LangOptions::ComplexRangeKind::CX_Improved:
+    return "improved";
+    break;
+  case LangOptions::ComplexRangeKind::CX_Promoted:
+    return "promoted";
     break;
   default:
-    return RangeStr;
-    break;
+    return "";
   }
 }
 
-static void EmitComplexRangeDiag(const Driver &D,
-                                 LangOptions::ComplexRangeKind Range1,
-                                 LangOptions::ComplexRangeKind Range2) {
-  if (Range1 != Range2 && Range1 != LangOptions::ComplexRangeKind::CX_None)
-    D.Diag(clang::diag::warn_drv_overriding_option)
-        << EnumComplexRangeToStr(Range1) << EnumComplexRangeToStr(Range2);
+static std::string ComplexArithmeticStr(LangOptions::ComplexRangeKind Range) {
+  return (Range == LangOptions::ComplexRangeKind::CX_None)
+             ? ""
+             : "-fcomplex-arithmetic=" + ComplexRangeKindToStr(Range);
+}
+
+static void EmitComplexRangeDiag(const Driver &D, std::string str1,
+                                 std::string str2) {
+  if ((str1.compare(str2) != 0) && !str2.empty() && !str1.empty()) {
+    D.Diag(clang::diag::warn_drv_overriding_option) << str1 << str2;
+  }
 }
 
 static std::string
 RenderComplexRangeOption(LangOptions::ComplexRangeKind Range) {
-  std::string ComplexRangeStr = "-complex-range=";
-  switch (Range) {
-  case LangOptions::ComplexRangeKind::CX_Full:
-    ComplexRangeStr += "full";
-    break;
-  case LangOptions::ComplexRangeKind::CX_Limited:
-    ComplexRangeStr += "limited";
-    break;
-  case LangOptions::ComplexRangeKind::CX_Fortran:
-    ComplexRangeStr += "fortran";
-    break;
-  default:
-    assert(0 && "Unexpected range option");
-  }
+  std::string ComplexRangeStr = ComplexRangeKindToStr(Range);
+  if (!ComplexRangeStr.empty())
+    return "-complex-range=" + ComplexRangeStr;
   return ComplexRangeStr;
 }
 
@@ -2914,6 +2911,37 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   StringRef FPAccuracy = "";
   LangOptions::ComplexRangeKind Range = LangOptions::ComplexRangeKind::CX_None;
   std::string ComplexRangeStr = "";
+  std::string GccRangeComplexOption = "";
+
+  // Lambda to set fast-math options. This is also used by -ffp-model=fast
+  auto applyFastMath = [&]() {
+    HonorINFs = false;
+    HonorNaNs = false;
+    MathErrno = false;
+    AssociativeMath = true;
+    ReciprocalMath = true;
+    ApproxFunc = true;
+    SignedZeros = false;
+    TrappingMath = false;
+    RoundingFPMath = false;
+    FPExceptionBehavior = "";
+    // If fast-math is set then set the fp-contract mode to fast.
+    FPContract = "fast";
+    // ffast-math enables basic range rules for complex multiplication and
+    // division.
+    // Warn if user expects to perform full implementation of complex
+    // multiplication or division in the presence of nan or ninf flags.
+    if (Range == LangOptions::ComplexRangeKind::CX_Full ||
+        Range == LangOptions::ComplexRangeKind::CX_Improved ||
+        Range == LangOptions::ComplexRangeKind::CX_Promoted)
+      EmitComplexRangeDiag(
+          D, ComplexArithmeticStr(Range),
+          !GccRangeComplexOption.empty()
+              ? GccRangeComplexOption
+              : ComplexArithmeticStr(LangOptions::ComplexRangeKind::CX_Basic));
+    Range = LangOptions::ComplexRangeKind::CX_Basic;
+    SeenUnsafeMathModeOption = true;
+  };
 
   if (const Arg *A = Args.getLastArg(options::OPT_flimited_precision_EQ)) {
     CmdArgs.push_back("-mlimit-float-precision");
@@ -2931,24 +2959,87 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       FPAccuracy = Val;
       break;
     }
-    case options::OPT_fcx_limited_range: {
-      EmitComplexRangeDiag(D, Range, LangOptions::ComplexRangeKind::CX_Limited);
-      Range = LangOptions::ComplexRangeKind::CX_Limited;
+    case options::OPT_fcx_limited_range:
+      if (GccRangeComplexOption.empty()) {
+        if (Range != LangOptions::ComplexRangeKind::CX_Basic)
+          EmitComplexRangeDiag(D, RenderComplexRangeOption(Range),
+                               "-fcx-limited-range");
+      } else {
+        if (GccRangeComplexOption != "-fno-cx-limited-range")
+          EmitComplexRangeDiag(D, GccRangeComplexOption, "-fcx-limited-range");
+      }
+      GccRangeComplexOption = "-fcx-limited-range";
+      Range = LangOptions::ComplexRangeKind::CX_Basic;
       break;
-    }
     case options::OPT_fno_cx_limited_range:
-      EmitComplexRangeDiag(D, Range, LangOptions::ComplexRangeKind::CX_Full);
+      if (GccRangeComplexOption.empty()) {
+        EmitComplexRangeDiag(D, RenderComplexRangeOption(Range),
+                             "-fno-cx-limited-range");
+      } else {
+        if (GccRangeComplexOption.compare("-fcx-limited-range") != 0 &&
+            GccRangeComplexOption.compare("-fno-cx-fortran-rules") != 0)
+          EmitComplexRangeDiag(D, GccRangeComplexOption,
+                               "-fno-cx-limited-range");
+      }
+      GccRangeComplexOption = "-fno-cx-limited-range";
       Range = LangOptions::ComplexRangeKind::CX_Full;
       break;
-    case options::OPT_fcx_fortran_rules: {
-      EmitComplexRangeDiag(D, Range, LangOptions::ComplexRangeKind::CX_Fortran);
-      Range = LangOptions::ComplexRangeKind::CX_Fortran;
+    case options::OPT_fcx_fortran_rules:
+      if (GccRangeComplexOption.empty())
+        EmitComplexRangeDiag(D, RenderComplexRangeOption(Range),
+                             "-fcx-fortran-rules");
+      else
+        EmitComplexRangeDiag(D, GccRangeComplexOption, "-fcx-fortran-rules");
+      GccRangeComplexOption = "-fcx-fortran-rules";
+      Range = LangOptions::ComplexRangeKind::CX_Improved;
+      break;
+    case options::OPT_fno_cx_fortran_rules:
+      if (GccRangeComplexOption.empty()) {
+        EmitComplexRangeDiag(D, RenderComplexRangeOption(Range),
+                             "-fno-cx-fortran-rules");
+      } else {
+        if (GccRangeComplexOption != "-fno-cx-limited-range")
+          EmitComplexRangeDiag(D, GccRangeComplexOption,
+                               "-fno-cx-fortran-rules");
+      }
+      GccRangeComplexOption = "-fno-cx-fortran-rules";
+      Range = LangOptions::ComplexRangeKind::CX_Full;
+      break;
+    case options::OPT_fcomplex_arithmetic_EQ: {
+      LangOptions::ComplexRangeKind RangeVal;
+      StringRef Val = A->getValue();
+      if (Val.equals("full"))
+        RangeVal = LangOptions::ComplexRangeKind::CX_Full;
+      else if (Val.equals("improved"))
+        RangeVal = LangOptions::ComplexRangeKind::CX_Improved;
+      else if (Val.equals("promoted"))
+        RangeVal = LangOptions::ComplexRangeKind::CX_Promoted;
+      else if (Val.equals("basic"))
+        RangeVal = LangOptions::ComplexRangeKind::CX_Basic;
+      else {
+        D.Diag(diag::err_drv_unsupported_option_argument)
+            << A->getSpelling() << Val;
+        break;
+      }
+      if (!GccRangeComplexOption.empty()) {
+        if (GccRangeComplexOption.compare("-fcx-limited-range") != 0) {
+          if (GccRangeComplexOption.compare("-fcx-fortran-rules") != 0) {
+            if (RangeVal != LangOptions::ComplexRangeKind::CX_Improved)
+              EmitComplexRangeDiag(D, GccRangeComplexOption,
+                                   ComplexArithmeticStr(RangeVal));
+          } else {
+            EmitComplexRangeDiag(D, GccRangeComplexOption,
+                                 ComplexArithmeticStr(RangeVal));
+          }
+        } else {
+          if (RangeVal != LangOptions::ComplexRangeKind::CX_Basic)
+            EmitComplexRangeDiag(D, GccRangeComplexOption,
+                                 ComplexArithmeticStr(RangeVal));
+        }
+      }
+      Range = RangeVal;
       break;
     }
-    case options::OPT_fno_cx_fortran_rules:
-      EmitComplexRangeDiag(D, Range, LangOptions::ComplexRangeKind::CX_Full);
-      Range = LangOptions::ComplexRangeKind::CX_Full;
-      break;
     case options::OPT_ffp_model_EQ: {
       // If -ffp-model= is seen, reset to fno-fast-math
       HonorINFs = true;
@@ -2986,9 +3077,8 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
             << Args.MakeArgString("-ffp-model=" + FPModel)
             << Args.MakeArgString("-ffp-model=" + Val);
       if (Val.equals("fast")) {
-        optID = options::OPT_ffast_math;
         FPModel = Val;
-        FPContract = "fast";
+        applyFastMath();
       } else if (Val.equals("precise")) {
         optID = options::OPT_ffp_contract;
         FPModel = Val;
@@ -3210,22 +3300,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
         continue;
       [[fallthrough]];
     case options::OPT_ffast_math: {
-      HonorINFs = false;
-      HonorNaNs = false;
-      MathErrno = false;
-      AssociativeMath = true;
-      ReciprocalMath = true;
-      ApproxFunc = true;
-      SignedZeros = false;
-      TrappingMath = false;
-      RoundingFPMath = false;
-      FPExceptionBehavior = "";
-      // If fast-math is set then set the fp-contract mode to fast.
-      FPContract = "fast";
-      SeenUnsafeMathModeOption = true;
-      // ffast-math enables fortran rules for complex multiplication and
-      // division.
-      Range = LangOptions::ComplexRangeKind::CX_Limited;
+      applyFastMath();
       break;
     }
     case options::OPT_fno_fast_math:
@@ -3385,8 +3460,12 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
 
   if (Range != LangOptions::ComplexRangeKind::CX_None)
     ComplexRangeStr = RenderComplexRangeOption(Range);
-  if (!ComplexRangeStr.empty())
+  if (!ComplexRangeStr.empty()) {
     CmdArgs.push_back(Args.MakeArgString(ComplexRangeStr));
+    if (Args.hasArg(options::OPT_fcomplex_arithmetic_EQ))
+      CmdArgs.push_back(Args.MakeArgString("-fcomplex-arithmetic=" +
+                                           ComplexRangeKindToStr(Range)));
+  }
   if (Args.hasArg(options::OPT_fcx_limited_range))
     CmdArgs.push_back("-fcx-limited-range");
   if (Args.hasArg(options::OPT_fcx_fortran_rules))
@@ -4628,14 +4707,20 @@ renderDebugOptions(const ToolChain &TC, const Driver &D, const llvm::Triple &T,
       Args.getLastArg(options::OPT_ggnu_pubnames, options::OPT_gno_gnu_pubnames,
                       options::OPT_gpubnames, options::OPT_gno_pubnames);
   if (DwarfFission != DwarfFissionKind::None ||
-      (PubnamesArg && checkDebugInfoOption(PubnamesArg, Args, D, TC)))
-    if (!PubnamesArg ||
-        (!PubnamesArg->getOption().matches(options::OPT_gno_gnu_pubnames) &&
-         !PubnamesArg->getOption().matches(options::OPT_gno_pubnames)))
+      (PubnamesArg && checkDebugInfoOption(PubnamesArg, Args, D, TC))) {
+    const bool OptionSet =
+        (PubnamesArg &&
+         (PubnamesArg->getOption().matches(options::OPT_gpubnames) ||
+          PubnamesArg->getOption().matches(options::OPT_ggnu_pubnames)));
+    if ((DebuggerTuning != llvm::DebuggerKind::LLDB || OptionSet) &&
+        (!PubnamesArg ||
+         (!PubnamesArg->getOption().matches(options::OPT_gno_gnu_pubnames) &&
+          !PubnamesArg->getOption().matches(options::OPT_gno_pubnames))))
       CmdArgs.push_back(PubnamesArg && PubnamesArg->getOption().matches(
                                            options::OPT_gpubnames)
                             ? "-gpubnames"
                             : "-ggnu-pubnames");
+  }
   const auto *SimpleTemplateNamesArg =
       Args.getLastArg(options::OPT_gsimple_template_names,
                       options::OPT_gno_simple_template_names);
@@ -4944,7 +5029,7 @@ static void ProcessVSRuntimeLibrary(const ArgList &Args,
                                     const ToolChain &TC) {
   unsigned RTOptionID = options::OPT__SLASH_MT;
 
-  bool isSPIR = TC.getTriple().isSPIR();
+  bool isSPIROrSPIRV = TC.getTriple().isSPIROrSPIRV();
   bool isSYCL = Args.hasArg(options::OPT_fsycl);
   // For SYCL Windows, /MD is the default.
   if (isSYCL)
@@ -4970,10 +5055,10 @@ static void ProcessVSRuntimeLibrary(const ArgList &Args,
                      .Default(options::OPT__SLASH_MT);
     SetArg = A;
   }
-  if (isSYCL && !isSPIR && SetArg &&
+  if (isSYCL && !isSPIROrSPIRV && SetArg &&
       (RTOptionID == options::OPT__SLASH_MT ||
        RTOptionID == options::OPT__SLASH_MTd))
-      // Use of /MT or /MTd is not supported for SYCL.
+    // Use of /MT or /MTd is not supported for SYCL.
     TC.getDriver().Diag(diag::err_drv_unsupported_opt_dpcpp)
         << SetArg->getOption().getName();
 
@@ -4981,12 +5066,12 @@ static void ProcessVSRuntimeLibrary(const ArgList &Args,
   auto addPreDefines = [&](unsigned Defines) {
     if (Defines & addDEBUG)
       CmdArgs.push_back("-D_DEBUG");
-    if (Defines & addMT && !isSPIR)
+    if (Defines & addMT && !isSPIROrSPIRV)
       CmdArgs.push_back("-D_MT");
-    if (Defines & addDLL && !isSPIR)
+    if (Defines & addDLL && !isSPIROrSPIRV)
       CmdArgs.push_back("-D_DLL");
     // for /MDd with spir targets
-    if ((Defines & addDLL) && (Defines & addDEBUG) && isSPIR) {
+    if ((Defines & addDLL) && (Defines & addDEBUG) && isSPIROrSPIRV) {
       CmdArgs.push_back("-D_CONTAINER_DEBUG_LEVEL=0");
       CmdArgs.push_back("-D_ITERATOR_DEBUG_LEVEL=0");
     }
@@ -5092,7 +5177,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   bool IsFPGASYCLOffloadDevice =
       IsSYCLOffloadDevice &&
       Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga;
-  const bool IsSYCLNativeCPU = isSYCLNativeCPU(TC, C.getDefaultToolChain());
+  const bool IsSYCLNativeCPU = isSYCLNativeCPU(TC);
 
   // Perform the SYCL host compilation using an external compiler if the user
   // requested.
@@ -5255,8 +5340,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                       options::OPT_fno_sycl_early_optimizations,
                       !IsFPGASYCLOffloadDevice))
       CmdArgs.push_back("-fno-sycl-early-optimizations");
-    else if (RawTriple.isSPIR()) {
-      // Set `sycl-opt` option to configure LLVM passes for SPIR target
+    else if (RawTriple.isSPIROrSPIRV()) {
+      // Set `sycl-opt` option to configure LLVM passes for SPIR/SPIR-V target
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-sycl-opt");
     }
@@ -5298,8 +5383,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
 
     // Forward -fsycl-instrument-device-code option to cc1. This option will
-    // only be used for SPIR-V-based targets.
-    if (Triple.isSPIR())
+    // only be used for SPIR/SPIR-V based targets.
+    if (Triple.isSPIROrSPIRV())
       if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
                        options::OPT_fno_sycl_instrument_device_code, true))
         CmdArgs.push_back("-fsycl-instrument-device-code");
@@ -5385,8 +5470,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fno-sycl-force-inline-kernel-lambda");
 
     // Add -ffine-grained-bitfield-accesses option. This will be added
-    // only for SPIR based targets.
-    if (Triple.isSPIR()) {
+    // only for SPIR/SPIR-V based targets.
+    if (Triple.isSPIROrSPIRV()) {
       // It cannot be enabled together with a sanitizer
       if (!Args.getLastArg(options::OPT_fsanitize_EQ))
         CmdArgs.push_back("-ffine-grained-bitfield-accesses");
@@ -5395,6 +5480,16 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (!Args.hasFlag(options::OPT_fsycl_unnamed_lambda,
                       options::OPT_fno_sycl_unnamed_lambda, true))
       CmdArgs.push_back("-fno-sycl-unnamed-lambda");
+
+    if (!Args.hasFlag(options::OPT_fsycl_esimd_force_stateless_mem,
+                      options::OPT_fno_sycl_esimd_force_stateless_mem, true))
+      CmdArgs.push_back("-fno-sycl-esimd-force-stateless-mem");
+
+    if (Arg *A = Args.getLastArg(options::OPT_fsycl_range_rounding_EQ))
+      A->render(Args, CmdArgs);
+
+    if (Arg *A = Args.getLastArg(options::OPT_fsycl_exp_range_rounding))
+      A->render(Args, CmdArgs);
 
     // Add the Unique ID prefix
     StringRef UniqueID = D.getSYCLUniqueID(Input.getBaseInput());
@@ -5420,10 +5515,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     bool DisableRangeRounding = false;
     if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
       if (A->getOption().matches(options::OPT_O0))
-        DisableRangeRounding = true;
+        // If the user has set some range rounding preference then let that
+        // override not range rounding at -O0
+        if (!Args.getLastArg(options::OPT_fsycl_range_rounding_EQ))
+          DisableRangeRounding = true;
     }
     if (DisableRangeRounding || HasFPGA)
-      CmdArgs.push_back("-fsycl-disable-range-rounding");
+      CmdArgs.push_back("-fsycl-range-rounding=disable");
 
     if (HasFPGA) {
       // Pass -fintelfpga to both the host and device SYCL compilations if set.
@@ -5502,9 +5600,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       if (Args.hasArg(options::OPT_fno_sycl_esimd_build_host_code))
         CmdArgs.push_back("-fno-sycl-esimd-build-host-code");
     }
-    if (Args.hasFlag(options::OPT_fsycl_esimd_force_stateless_mem,
-                     options::OPT_fno_sycl_esimd_force_stateless_mem, false))
-      CmdArgs.push_back("-fsycl-esimd-force-stateless-mem");
 
     const auto DeviceTraitsMacrosArgs = D.getDeviceTraitsMacrosArgs();
     for (const auto &Arg : DeviceTraitsMacrosArgs) {
@@ -5538,8 +5633,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // are provided.
   TC.addClangWarningOptions(CmdArgs);
 
-  // FIXME: Subclass ToolChain for SPIR and move this to addClangWarningOptions.
-  if (Triple.isSPIR() || Triple.isSPIRV())
+  // FIXME: Subclass ToolChain for SPIR/SPIR-V and move this to
+  // addClangWarningOptions.
+  if (Triple.isSPIROrSPIRV())
     CmdArgs.push_back("-Wspir-compat");
 
   // Select the appropriate action.
@@ -6319,9 +6415,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Arg *A = Args.getLastArg(options::OPT_LongDouble_Group)) {
     if (TC.getTriple().isX86())
       A->render(Args, CmdArgs);
-    else if (TC.getTriple().isSPIR() &&
+    else if (TC.getTriple().isSPIROrSPIRV() &&
              (A->getOption().getID() == options::OPT_mlong_double_64))
-      // Only allow for -mlong-double-64 for SPIR-V
+      // Only allow for -mlong-double-64 for SPIR/SPIR-V
       A->render(Args, CmdArgs);
     else if (TC.getTriple().isPPC() &&
              (A->getOption().getID() != options::OPT_mlong_double_80))
@@ -6513,10 +6609,18 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     } else if (Triple.getArch() == llvm::Triple::x86_64) {
       Ok = llvm::is_contained({"small", "kernel", "medium", "large", "tiny"},
                               CM);
-    } else if (Triple.isNVPTX() || Triple.isAMDGPU()) {
-      // NVPTX/AMDGPU does not care about the code model and will accept
+    } else if (Triple.isNVPTX() || Triple.isAMDGPU() || Triple.isSPIRV()) {
+      // NVPTX/AMDGPU/SPIRV does not care about the code model and will accept
       // whatever works for the host.
       Ok = true;
+    } else if (Triple.isSPARC64()) {
+      if (CM == "medlow")
+        CM = "small";
+      else if (CM == "medmid")
+        CM = "medium";
+      else if (CM == "medany")
+        CM = "large";
+      Ok = CM == "small" || CM == "medium" || CM == "large";
     }
     if (Ok) {
       CmdArgs.push_back(Args.MakeArgString("-mcmodel=" + CM));
@@ -6703,11 +6807,30 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-ffunction-sections");
   }
 
+  if (Arg *A = Args.getLastArg(options::OPT_fbasic_block_address_map,
+                               options::OPT_fno_basic_block_address_map)) {
+    if ((Triple.isX86() || Triple.isAArch64()) && Triple.isOSBinFormatELF()) {
+      if (A->getOption().matches(options::OPT_fbasic_block_address_map))
+        A->render(Args, CmdArgs);
+    } else {
+      D.Diag(diag::err_drv_unsupported_opt_for_target)
+          << A->getAsString(Args) << TripleStr;
+    }
+  }
+
   if (Arg *A = Args.getLastArg(options::OPT_fbasic_block_sections_EQ)) {
     StringRef Val = A->getValue();
     if (Triple.isX86() && Triple.isOSBinFormatELF()) {
       if (Val != "all" && Val != "labels" && Val != "none" &&
           !Val.starts_with("list="))
+        D.Diag(diag::err_drv_invalid_value)
+            << A->getAsString(Args) << A->getValue();
+      else
+        A->render(Args, CmdArgs);
+    } else if (Triple.isAArch64() && Triple.isOSBinFormatELF()) {
+      // "all" is not supported on AArch64 since branch relaxation creates new
+      // basic blocks for some cross-section branches.
+      if (Val != "labels" && Val != "none" && !Val.starts_with("list="))
         D.Diag(diag::err_drv_invalid_value)
             << A->getAsString(Args) << A->getValue();
       else
@@ -7397,11 +7520,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fwrapv");
   }
 
-  if (Arg *A = Args.getLastArg(options::OPT_freroll_loops,
-                               options::OPT_fno_reroll_loops))
-    if (A->getOption().matches(options::OPT_freroll_loops))
-      CmdArgs.push_back("-freroll-loops");
-
   Args.AddLastArg(CmdArgs, options::OPT_ffinite_loops,
                   options::OPT_fno_finite_loops);
 
@@ -7735,6 +7853,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                     !types::isOpenCL(InputType) &&
                         (!IsWindowsMSVC || IsMSVC2015Compatible)))
     CmdArgs.push_back("-fno-threadsafe-statics");
+
+  // Add -fno-assumptions, if it was specified.
+  if (!Args.hasFlag(options::OPT_fassumptions, options::OPT_fno_assumptions,
+                    true))
+    CmdArgs.push_back("-fno-assumptions");
 
   // -fgnu-keywords default varies depending on language; only pass if
   // specified.
@@ -8462,26 +8585,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   addMachineOutlinerArgs(D, Args, CmdArgs, Triple, /*IsLTO=*/false);
 
-  if (Arg *A = Args.getLastArg(options::OPT_moutline_atomics,
-                               options::OPT_mno_outline_atomics)) {
-    // Option -moutline-atomics supported for AArch64 target only.
-    if (!Triple.isAArch64()) {
-      D.Diag(diag::warn_drv_moutline_atomics_unsupported_opt)
-          << Triple.getArchName() << A->getOption().getName();
-    } else {
-      if (A->getOption().matches(options::OPT_moutline_atomics)) {
-        CmdArgs.push_back("-target-feature");
-        CmdArgs.push_back("+outline-atomics");
-      } else {
-        CmdArgs.push_back("-target-feature");
-        CmdArgs.push_back("-outline-atomics");
-      }
-    }
-  } else if (Triple.isAArch64() &&
-             getToolChain().IsAArch64OutlineAtomicsDefault(Args)) {
-    CmdArgs.push_back("-target-feature");
-    CmdArgs.push_back("+outline-atomics");
-  }
+  addOutlineAtomicsArgs(D, getToolChain(), Args, CmdArgs, Triple);
 
   if (Triple.isAArch64() &&
       (Args.hasArg(options::OPT_mno_fmv) ||
@@ -9254,6 +9358,14 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
   case llvm::Triple::riscv64:
     AddRISCVTargetArgs(Args, CmdArgs);
     break;
+
+  case llvm::Triple::hexagon:
+    if (Args.hasFlag(options::OPT_mdefault_build_attributes,
+                     options::OPT_mno_default_build_attributes, true)) {
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-hexagon-add-build-attributes");
+    }
+    break;
   }
 
   // Consume all the warning flags. Usually this would be handled more
@@ -9323,7 +9435,6 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
 }
 
 // Begin OffloadBundler
-
 void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
                                   const InputInfo &Output,
                                   const InputInfoList &Inputs,
@@ -9491,11 +9602,7 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     if (!DepFile.empty())
       CmdArgs.push_back(TCArgs.MakeArgString("-input=" + DepFile));
   }
-  if (TCArgs.hasFlag(options::OPT_offload_compress,
-                     options::OPT_no_offload_compress, false))
-    CmdArgs.push_back("-compress");
-  if (TCArgs.hasArg(options::OPT_v))
-    CmdArgs.push_back("-verbose");
+  addOffloadCompressArgs(TCArgs, CmdArgs);
   // All the inputs are encoded as commands.
   C.addCommand(std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
@@ -9541,7 +9648,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     TypeArg = (InputType == types::TY_FPGA_AOCX) ? "aocx" : "aocr";
     // When the output is a Tempfilelist, we know we are unbundling
     // the .bc files from the archive.
-    if (!getToolChain().getTriple().isSPIR() ||
+    if (!getToolChain().getTriple().isSPIROrSPIRV() ||
         JA.getType() == types::TY_Tempfilelist)
       TypeArg = "aoo";
   }
@@ -9555,7 +9662,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   auto SYCLTCRange = C.getOffloadToolChains<Action::OFK_SYCL>();
   for (auto TI = SYCLTCRange.first, TE = SYCLTCRange.second; TI != TE; ++TI) {
     llvm::Triple TT(TI->second->getTriple());
-    if (TT.isSPIR()) {
+    if (TT.isSPIROrSPIRV()) {
       HasSPIRTarget = true;
       if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
         HasFPGATarget = true;
@@ -9592,7 +9699,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     // aocx or aocr type bundles.  Also, we only do a specific target
     // unbundling, skipping the host side or device side.
     if (types::isFPGA(InputType) || InputType == types::TY_Tempfilelist) {
-      if (getToolChain().getTriple().isSPIR()) {
+      if (getToolChain().getTriple().isSPIROrSPIRV()) {
         if (Dep.DependentToolChain->getTriple().getSubArch() ==
             llvm::Triple::SPIRSubArch_fpga) {
           StringRef TypeName(types::getTypeName(InputType));
@@ -9739,6 +9846,53 @@ void OffloadBundler::ConstructJobMultipleOutputs(
 
 // Begin OffloadWrapper
 
+static void addRunTimeWrapperOpts(Compilation &C,
+                                  Action::OffloadKind DeviceOffloadKind,
+                                  const llvm::opt::ArgList &TCArgs,
+                                  ArgStringList &CmdArgs,
+                                  const ToolChain &TC,
+                                  const JobAction &JA) {
+  // Grab any Target specific options that need to be added to the wrapper
+  // information.
+  ArgStringList BuildArgs;
+  auto createArgString = [&](const char *Opt) {
+    if (BuildArgs.empty())
+      return;
+    SmallString<128> AL;
+    for (const char *A : BuildArgs) {
+      if (AL.empty()) {
+        AL = A;
+        continue;
+      }
+      AL += " ";
+      AL += A;
+    }
+    CmdArgs.push_back(C.getArgs().MakeArgString(Twine(Opt) + AL));
+  };
+  const toolchains::SYCLToolChain &SYCLTC =
+            static_cast<const toolchains::SYCLToolChain &>(TC);
+  llvm::Triple TT = SYCLTC.getTriple();
+  // TODO: Consider separating the mechanisms for:
+  // - passing standard-defined options to AOT/JIT compilation steps;
+  // - passing AOT-compiler specific options.
+  // This would allow retaining standard language options in the
+  // image descriptor, while excluding tool-specific options that
+  // have been known to confuse RT implementations.
+  if (TT.getSubArch() == llvm::Triple::NoSubArch) {
+    // Only store compile/link opts in the image descriptor for the SPIR-V
+    // target; AOT compilation has already been performed otherwise.
+    const ArgList &Args = C.getArgsForToolChain(nullptr, StringRef(),
+                                                DeviceOffloadKind);
+    const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+    SYCLTC.AddImpliedTargetArgs(TT, Args, BuildArgs, JA, *HostTC);
+    SYCLTC.TranslateBackendTargetArgs(TT, Args, BuildArgs);
+    createArgString("-compile-opts=");
+    BuildArgs.clear();
+    SYCLTC.TranslateLinkerTargetArgs(TT, Args, BuildArgs);
+    createArgString("-link-opts=");
+  }
+}
+
 void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
                                   const InputInfo &Output,
                                   const InputInfoList &Inputs,
@@ -9784,6 +9938,9 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       if (A->getValue() == StringRef("image"))
         WrapperArgs.push_back(C.getArgs().MakeArgString("--emit-reg-funcs=0"));
     }
+    addRunTimeWrapperOpts(C, OffloadingKind, TCArgs, WrapperArgs,
+                          getToolChain(), JA);
+
     // When wrapping an FPGA device binary, we need to be sure to apply the
     // appropriate triple that corresponds (fpga_aocr-intel-<os>)
     // to the target triple setting.
@@ -9799,42 +9956,8 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       TT.setVendorName("intel");
       TargetTripleOpt = TT.str();
     }
-    // Grab any Target specific options that need to be added to the wrapper
-    // information.
-    ArgStringList BuildArgs;
-    auto createArgString = [&](const char *Opt) {
-      if (BuildArgs.empty())
-        return;
-      SmallString<128> AL;
-      for (const char *A : BuildArgs) {
-        if (AL.empty()) {
-          AL = A;
-          continue;
-        }
-        AL += " ";
-        AL += A;
-      }
-      WrapperArgs.push_back(C.getArgs().MakeArgString(Twine(Opt) + AL));
-    };
     const toolchains::SYCLToolChain &TC =
               static_cast<const toolchains::SYCLToolChain &>(getToolChain());
-    // TODO: Consider separating the mechanisms for:
-    // - passing standard-defined options to AOT/JIT compilation steps;
-    // - passing AOT-compiler specific options.
-    // This would allow retaining standard language options in the
-    // image descriptor, while excluding tool-specific options that
-    // have been known to confuse RT implementations.
-    if (TC.getTriple().getSubArch() == llvm::Triple::NoSubArch) {
-      // Only store compile/link opts in the image descriptor for the SPIR-V
-      // target; AOT compilation has already been performed otherwise.
-      const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-      TC.AddImpliedTargetArgs(TT, TCArgs, BuildArgs, JA, *HostTC);
-      TC.TranslateBackendTargetArgs(TT, TCArgs, BuildArgs);
-      createArgString("-compile-opts=");
-      BuildArgs.clear();
-      TC.TranslateLinkerTargetArgs(TT, TCArgs, BuildArgs);
-      createArgString("-link-opts=");
-    }
     bool IsEmbeddedIR = cast<OffloadWrapperJobAction>(JA).isEmbeddedIR();
     if (IsEmbeddedIR) {
       // When the offload-wrapper is called to embed LLVM IR, add a prefix to
@@ -9843,7 +9966,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       TargetTripleOpt = ("llvm_" + TargetTripleOpt).str();
     }
 
-    const bool IsSYCLNativeCPU = isSYCLNativeCPU(TC, C.getDefaultToolChain());
+    const bool IsSYCLNativeCPU = isSYCLNativeCPU(TC);
     if (IsSYCLNativeCPU) {
       TargetTripleOpt = "native_cpu";
     }
@@ -9976,8 +10099,18 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // And add it to the offload targets.
     CmdArgs.push_back(C.getArgs().MakeArgString(
         Twine("-kind=") + Action::GetOffloadKindName(DeviceKind)));
-    CmdArgs.push_back(TCArgs.MakeArgString(Twine("-target=") +
-                                           DeviceTC->getTriple().normalize()));
+    std::string TargetTripleOpt = DeviceTC->getTriple().normalize();
+    // SYCL toolchain target only uses the arch name.
+    if (DeviceKind == Action::OFK_SYCL)
+      TargetTripleOpt = DeviceTC->getTriple().getArchName();
+    CmdArgs.push_back(
+        TCArgs.MakeArgString(Twine("-target=") + TargetTripleOpt));
+    addRunTimeWrapperOpts(C, DeviceKind, TCArgs, CmdArgs, *DeviceTC, JA);
+
+    if (Inputs[I].getType() == types::TY_Tempfiletable ||
+        Inputs[I].getType() == types::TY_Tempfilelist)
+      // wrapper actual input files are passed via the batch job file table:
+      CmdArgs.push_back(C.getArgs().MakeArgString("-batch"));
 
     // Add input.
     assert(Inputs[I].isFilename() && "Invalid input.");
@@ -10180,7 +10313,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
     std::string DefaultExtArg =
         ",+SPV_EXT_shader_atomic_float_add,+SPV_EXT_shader_atomic_float_min_max"
         ",+SPV_KHR_no_integer_wrap_decoration,+SPV_KHR_float_controls"
-        ",+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr";
+        ",+SPV_KHR_expect_assume,+SPV_KHR_linkonce_odr,+SPV_KHR_bit_instructions";
     std::string INTELExtArg =
         ",+SPV_INTEL_subgroups,+SPV_INTEL_media_block_io"
         ",+SPV_INTEL_device_side_avc_motion_estimation"
@@ -10201,7 +10334,8 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         ",+SPV_INTEL_fpga_buffer_location"
         ",+SPV_INTEL_fpga_argument_interfaces"
         ",+SPV_INTEL_fpga_invocation_pipelining_attributes"
-        ",+SPV_INTEL_fpga_latency_control";
+        ",+SPV_INTEL_fpga_latency_control"
+        ",+SPV_INTEL_task_sequence";
     ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
     if (C.getDriver().IsFPGAHWMode())
       // Enable several extensions on FPGA H/W exclusively
@@ -10308,8 +10442,11 @@ static void addArgs(ArgStringList &DstArgs, const llvm::opt::ArgList &Alloc,
 // Partially copied from clang/lib/Frontend/CompilerInvocation.cpp
 static std::string getSYCLPostLinkOptimizationLevel(const ArgList &Args) {
   if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
+    // Pass -O2 when the user passes -O0 due to IGC
+    // debugging limitation. Note this only effects
+    // ESIMD code.
     if (A->getOption().matches(options::OPT_O0))
-      return "-O0";
+      return "-O2";
 
     if (A->getOption().matches(options::OPT_Ofast))
       return "-O3";
@@ -10373,7 +10510,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   if (!TCArgs.hasFlag(options::OPT_fno_sycl_remove_unused_external_funcs,
                       options::OPT_fsycl_remove_unused_external_funcs, false) &&
       !T.isNVPTX() && !T.isAMDGPU() &&
-      !isSYCLNativeCPU(getToolChain(), C.getDefaultToolChain()))
+      !isSYCLNativeCPU(getToolChain()))
     addArgs(CmdArgs, TCArgs, {"-emit-only-kernels-as-entry-points"});
 
   // OPT_fsycl_device_code_split is not checked as it is an alias to
@@ -10391,7 +10528,7 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
     addArgs(CmdArgs, TCArgs, {"-ir-output-only"});
   } else {
     assert(SYCLPostLink->getTrueType() == types::TY_Tempfiletable);
-    bool SplitEsimdByDefault = T.isSPIR();
+    bool SplitEsimdByDefault = T.isSPIROrSPIRV();
     bool SplitEsimd = TCArgs.hasFlag(
         options::OPT_fsycl_device_code_split_esimd,
         options::OPT_fno_sycl_device_code_split_esimd, SplitEsimdByDefault);
@@ -10425,9 +10562,9 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
   addArgs(CmdArgs, TCArgs, {"-device-globals"});
 
   // Make ESIMD accessors use stateless memory accesses.
-  if (TCArgs.hasFlag(options::OPT_fsycl_esimd_force_stateless_mem,
-                     options::OPT_fno_sycl_esimd_force_stateless_mem, false))
-    addArgs(CmdArgs, TCArgs, {"-lower-esimd-force-stateless-mem"});
+  if (TCArgs.hasFlag(options::OPT_fno_sycl_esimd_force_stateless_mem,
+                     options::OPT_fsycl_esimd_force_stateless_mem, false))
+    addArgs(CmdArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
 
   // Add output file table file option
   assert(Output.isFilename() && "output must be a filename");
@@ -10687,12 +10824,6 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   if (Args.hasArg(options::OPT_v))
     CmdArgs.push_back("--wrapper-verbose");
 
-  // Pass the device triple to the linker wrapper tool for SYCL offload.
-  // Only spir64 is currently passed.
-  // TODO(NOM1): Support target triples in a more generic way.
-  // TODO(NOM3): Investigate why passing spir64-unknown-unknown does not work.
-  CmdArgs.push_back("--triple=spir64");
-
   // TODO(NOM2): Pass following options to clang-linker-wrapper.
   // Please refer to sycl/doc/design/OffloadDesign.md for details.
   // sycl-device-libraries
@@ -10735,7 +10866,7 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // device specific libraries that are needed.  This provides the list of
     // files file only.
     // TODO: This generic list will be populated with only device binaries
-    // for spir64.  Other targets (AOT and others) can represent a different
+    // for spir/spirv. Other targets (AOT and others) can represent a different
     // set of device libraries.  We will cross that bridge when we begin to
     // enable the other possible targets.
     llvm::Triple TargetTriple;
@@ -10743,12 +10874,22 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     for (auto &I :
          llvm::make_range(ToolChainRange.first, ToolChainRange.second)) {
       const ToolChain *TC = I.second;
-      if (TC->getTriple().isSPIR() &&
+      if (TC->getTriple().isSPIROrSPIRV() &&
           TC->getTriple().getSubArch() == llvm::Triple::NoSubArch) {
         TargetTriple = TC->getTriple();
         break;
       }
     }
+    // Pass the device triple to the linker wrapper tool for SYCL offload.
+    // Only spir64 or spirv64 is currently passed.
+    // TODO(NOM1): Support target triples in a more generic way.
+    // TODO(NOM3): Investigate why passing spirv64-unknown-unknown does not
+    // work.
+    if (TargetTriple.isSPIR())
+      CmdArgs.push_back("--triple=spir64");
+    else if (TargetTriple.isSPIRV())
+      CmdArgs.push_back("--triple=spirv64");
+
     SmallVector<std::string, 8> SYCLDeviceLibs;
     SYCLDeviceLibs = SYCL::getDeviceLibraries(C, TargetTriple,
                                               /*IsSpirvAOT=*/false);
@@ -10848,9 +10989,10 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   // Add the linker arguments to be forwarded by the wrapper.
   CmdArgs.push_back(Args.MakeArgString(Twine("--linker-path=") +
                                        LinkCommand->getExecutable()));
-  CmdArgs.push_back("--");
   for (const char *LinkArg : LinkCommand->getArguments())
     CmdArgs.push_back(LinkArg);
+
+  addOffloadCompressArgs(Args, CmdArgs);
 
   const char *Exec =
       Args.MakeArgString(getToolChain().GetProgramPath("clang-linker-wrapper"));

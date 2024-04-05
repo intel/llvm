@@ -29,7 +29,6 @@
 #include <sycl/id.hpp>                                // for id
 #include <sycl/property_list.hpp>                     // for property_list
 #include <sycl/range.hpp>                             // for range, rangeTo...
-#include <sycl/stl.hpp>                               // for make_unique_ptr
 #include <sycl/types.hpp>                             // for is_device_copyable
 
 #include <cstddef>     // for size_t, nullptr_t
@@ -168,13 +167,8 @@ template <typename T, int dimensions = 1,
               typename std::enable_if_t<(dimensions > 0) && (dimensions <= 3)>>
 class buffer : public detail::buffer_plain,
                public detail::OwnerLessBase<buffer<T, dimensions, AllocatorT>> {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   static_assert(is_device_copyable_v<T>,
                 "Underlying type of a buffer must be device copyable!");
-#else
-  static_assert(!std::is_same_v<T, std::string>,
-                "'std::string' is not a device copyable type");
-#endif
 
 public:
   using value_type = T;
@@ -203,7 +197,7 @@ public:
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(bufferRange.size() * sizeof(T), alignof(T), propList,
-                     make_unique_ptr<
+                     std::make_unique<
                          detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>()),
         Range(bufferRange) {
     buffer_plain::constructorNotification(
@@ -216,7 +210,7 @@ public:
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
             bufferRange.size() * sizeof(T), alignof(T), propList,
-            make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
+            std::make_unique<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator)),
         Range(bufferRange) {
     buffer_plain::constructorNotification(
@@ -229,7 +223,7 @@ public:
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(hostData, bufferRange.size() * sizeof(T), alignof(T),
                      propList,
-                     make_unique_ptr<
+                     std::make_unique<
                          detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>()),
         Range(bufferRange) {
     buffer_plain::constructorNotification(
@@ -242,7 +236,7 @@ public:
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
             hostData, bufferRange.size() * sizeof(T), alignof(T), propList,
-            make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
+            std::make_unique<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator)),
         Range(bufferRange) {
     buffer_plain::constructorNotification(
@@ -257,7 +251,7 @@ public:
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(hostData, bufferRange.size() * sizeof(T), alignof(T),
                      propList,
-                     make_unique_ptr<
+                     std::make_unique<
                          detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>()),
         Range(bufferRange) {
     buffer_plain::constructorNotification(
@@ -272,7 +266,7 @@ public:
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
             hostData, bufferRange.size() * sizeof(T), alignof(T), propList,
-            make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
+            std::make_unique<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator)),
         Range(bufferRange) {
     buffer_plain::constructorNotification(
@@ -286,7 +280,7 @@ public:
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
             hostData, bufferRange.size() * sizeof(T), alignof(T), propList,
-            make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
+            std::make_unique<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator),
             std::is_const<T>::value),
         Range(bufferRange) {
@@ -302,7 +296,7 @@ public:
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
             hostData, bufferRange.size() * sizeof(T), alignof(T), propList,
-            make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
+            std::make_unique<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator),
             std::is_const<T>::value),
         Range(bufferRange) {
@@ -316,10 +310,11 @@ public:
          const range<dimensions> &bufferRange,
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
-      : buffer_plain(
-            hostData, bufferRange.size() * sizeof(T), alignof(T), propList,
-            make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(),
-            std::is_const<T>::value),
+      : buffer_plain(hostData, bufferRange.size() * sizeof(T), alignof(T),
+                     propList,
+                     std::make_unique<
+                         detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(),
+                     std::is_const<T>::value),
         Range(bufferRange) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), (void *)hostData.get(),
@@ -331,10 +326,11 @@ public:
          const range<dimensions> &bufferRange,
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
-      : buffer_plain(
-            hostData, bufferRange.size() * sizeof(T), alignof(T), propList,
-            make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(),
-            std::is_const<T>::value),
+      : buffer_plain(hostData, bufferRange.size() * sizeof(T), alignof(T),
+                     propList,
+                     std::make_unique<
+                         detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(),
+                     std::is_const<T>::value),
         Range(bufferRange) {
     buffer_plain::constructorNotification(
         CodeLoc, (void *)impl.get(), (void *)hostData.get(),
@@ -364,7 +360,7 @@ public:
                         static_cast<IteratorPointerToNonConstValueType>(ToPtr));
             },
             std::distance(first, last) * sizeof(T), alignof(T), propList,
-            make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
+            std::make_unique<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator),
             detail::iterator_to_const_type_t<InputIterator>::value),
         Range(range<1>(std::distance(first, last))) {
@@ -396,7 +392,8 @@ public:
                         static_cast<IteratorPointerToNonConstValueType>(ToPtr));
             },
             std::distance(first, last) * sizeof(T), alignof(T), propList,
-            make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(),
+            std::make_unique<
+                detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(),
             detail::iterator_to_const_type_t<InputIterator>::value),
         Range(range<1>(std::distance(first, last))) {
     size_t r[3] = {Range[0], 0, 0};
@@ -415,7 +412,7 @@ public:
       : buffer_plain(
             container.data(), container.size() * sizeof(T), alignof(T),
             propList,
-            make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
+            std::make_unique<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator)),
         Range(range<1>(container.size())) {
     size_t r[3] = {Range[0], 0, 0};
@@ -746,10 +743,10 @@ private:
   buffer(pi_native_handle MemObject, const context &SyclContext,
          bool OwnNativeHandle, event AvailableEvent = {},
          const detail::code_location CodeLoc = detail::code_location::current())
-      : buffer_plain(
-            MemObject, SyclContext,
-            make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(),
-            OwnNativeHandle, std::move(AvailableEvent)),
+      : buffer_plain(MemObject, SyclContext,
+                     std::make_unique<
+                         detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(),
+                     OwnNativeHandle, std::move(AvailableEvent)),
         Range{0} {
 
     Range[0] = buffer_plain::getSize() / sizeof(T);
@@ -846,14 +843,14 @@ template <class Container, class AllocatorT>
 buffer(Container &, AllocatorT, const property_list & = {})
     -> buffer<typename Container::value_type, 1, AllocatorT>;
 template <class Container>
-buffer(Container &, const property_list & = {})
-    -> buffer<typename Container::value_type, 1>;
+buffer(Container &,
+       const property_list & = {}) -> buffer<typename Container::value_type, 1>;
 template <class T, int dimensions, class AllocatorT>
 buffer(const T *, const range<dimensions> &, AllocatorT,
        const property_list & = {}) -> buffer<T, dimensions, AllocatorT>;
 template <class T, int dimensions>
-buffer(const T *, const range<dimensions> &, const property_list & = {})
-    -> buffer<T, dimensions>;
+buffer(const T *, const range<dimensions> &,
+       const property_list & = {}) -> buffer<T, dimensions>;
 #endif // __cpp_deduction_guides
 
 } // namespace _V1

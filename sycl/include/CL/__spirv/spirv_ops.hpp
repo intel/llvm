@@ -51,9 +51,10 @@ template <typename T, typename Tp, std::size_t R, std::size_t C,
           __spv::Scope::Flag S = __spv::Scope::Flag::Subgroup>
 extern __DPCPP_SYCL_EXTERNAL
     __spv::__spirv_JointMatrixINTEL<Tp, R, C, L, S, U> *
-    __spirv_CompositeConstructCheckedINTEL(const T Value, size_t Height,
-                                           size_t Stride, size_t Width,
-                                           size_t CoordX, size_t CoordY);
+    __spirv_CooperativeMatrixConstructCheckedINTEL(const T Value, size_t Height,
+                                                   size_t Stride, size_t Width,
+                                                   size_t CoordX,
+                                                   size_t CoordY);
 
 template <typename T, typename Tp, std::size_t R, std::size_t C,
           __spv::MatrixUse U,
@@ -199,6 +200,14 @@ extern __DPCPP_SYCL_EXTERNAL void __spirv_ImageWrite(ImageT, CoordT, ValT);
 
 template <class RetT, typename ImageT, typename TempArgT>
 extern __DPCPP_SYCL_EXTERNAL RetT __spirv_ImageRead(ImageT, TempArgT);
+
+template <class RetT, typename ImageT, typename TempArgT>
+extern __DPCPP_SYCL_EXTERNAL RetT __spirv_ImageArrayFetch(ImageT, TempArgT,
+                                                          int);
+
+template <typename ImageT, typename CoordT, typename ValT>
+extern __DPCPP_SYCL_EXTERNAL void __spirv_ImageArrayWrite(ImageT, CoordT, int,
+                                                          ValT);
 
 template <typename ImageT, typename SampledType>
 extern __DPCPP_SYCL_EXTERNAL SampledType __spirv_SampledImage(ImageT,
@@ -1174,7 +1183,11 @@ __clc_BarrierTestWait(int64_t *state, int64_t arrival) noexcept;
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT void
 __clc_BarrierArriveAndWait(int64_t *state) noexcept;
 
-#ifdef __SYCL_USE_NON_VARIADIC_SPIRV_OCL_PRINTF__
+#ifdef __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__
+extern __DPCPP_SYCL_EXTERNAL int
+__spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format, ...);
+extern __DPCPP_SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format, ...);
+#else
 template <typename... Args>
 extern __DPCPP_SYCL_EXTERNAL int
 __spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format,
@@ -1182,10 +1195,6 @@ __spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format,
 template <typename... Args>
 extern __DPCPP_SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format,
                                                     Args... args);
-#else
-extern __DPCPP_SYCL_EXTERNAL int
-__spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format, ...);
-extern __DPCPP_SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format, ...);
 #endif
 
 // Native builtin extension
@@ -1257,6 +1266,25 @@ template <typename from, typename to>
 extern __DPCPP_SYCL_EXTERNAL
     std::enable_if_t<std::is_integral_v<to> && std::is_unsigned_v<to>, to>
     __spirv_ConvertPtrToU(from val) noexcept;
+
+template <typename RetT, typename... ArgsT>
+extern __DPCPP_SYCL_EXTERNAL __spv::__spirv_TaskSequenceINTEL *
+__spirv_TaskSequenceCreateINTEL(RetT (*f)(ArgsT...), int Pipelined = -1,
+                                int ClusterMode = -1,
+                                unsigned int ResponseCapacity = 0,
+                                unsigned int InvocationCapacity = 0) noexcept;
+
+template <typename... ArgsT>
+extern __DPCPP_SYCL_EXTERNAL void
+__spirv_TaskSequenceAsyncINTEL(__spv::__spirv_TaskSequenceINTEL *TaskSequence,
+                               ArgsT... Args) noexcept;
+
+template <typename RetT>
+extern __DPCPP_SYCL_EXTERNAL RetT __spirv_TaskSequenceGetINTEL(
+    __spv::__spirv_TaskSequenceINTEL *TaskSequence) noexcept;
+
+extern __DPCPP_SYCL_EXTERNAL void __spirv_TaskSequenceReleaseINTEL(
+    __spv::__spirv_TaskSequenceINTEL *TaskSequence) noexcept;
 
 #else  // if !__SYCL_DEVICE_ONLY__
 

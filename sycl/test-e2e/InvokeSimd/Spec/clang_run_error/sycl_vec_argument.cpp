@@ -7,7 +7,7 @@
 
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <functional>
 #include <iostream>
@@ -24,7 +24,7 @@ ESIMD_CALLEE(float *A, esimd::simd<float, VL> b, int i,
   esimd::simd<float, VL> a;
   a.copy_from(A + i);
   return a + b + v[i % VL];
-  // CHECK: {{.*}}error: function 'sycl::{{.*}}vec<{{.*}}' is not supported in ESIMD context{{.*}}
+  // CHECK: {{.*}}error: function '{{.*}}sycl::{{.*}}vec<{{.*}}' is not supported in ESIMD context{{.*}}
 }
 
 [[intel::device_indirectly_callable]] SYCL_EXTERNAL

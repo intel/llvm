@@ -64,6 +64,7 @@ Expected<std::unique_ptr<Module>> helper::FusionHelper::addFusedKernel(
     // correct name and signature only during the fusion pass.
     auto *F = Function::Create(FT, GlobalValue::LinkageTypes::ExternalLinkage,
                                "fused_kernel", *NewMod);
+    F->IsNewDbgInfoFormat = UseNewDbgInfoFormat;
 
     // Attach metadata to the function stub.
     // The metadata specifies the name of the fused kernel (as the
@@ -168,14 +169,13 @@ Expected<std::unique_ptr<Module>> helper::FusionHelper::addFusedKernel(
 
           const auto S = [&]() -> StringRef {
             switch (Info.Intern) {
-            default:
-            case jit_compiler::Internalization::None:
-              llvm_unreachable(
-                  "Only a valid internalization kind should be used");
             case jit_compiler::Internalization::Local:
               return LocalInternalizationStr;
             case jit_compiler::Internalization::Private:
               return PrivateInternalizationStr;
+            default:
+              llvm_unreachable(
+                  "Only a valid internalization kind should be used");
             }
           }();
           EmplaceBackIntern(Info, S);

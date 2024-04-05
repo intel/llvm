@@ -5,7 +5,9 @@
 // RUN: %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -95,11 +97,11 @@ template <typename DType, sycl::image_channel_type CType> bool runTest() {
       cgh.parallel_for<kernel<DType, CType>>(N, [=](sycl::id<1> id) {
         DType sum = 0;
         float x = float(id[0] + 0.5f) / (float)N;
-        // Extension: read mipmap level 0 with anisotropic filtering and level 1
-        // with LOD
-        VecType px1 = sycl::ext::oneapi::experimental::read_mipmap<VecType>(
+        // Extension: sample mipmap level 0 with anisotropic filtering and
+        // level 1 with LOD
+        VecType px1 = sycl::ext::oneapi::experimental::sample_mipmap<VecType>(
             mipHandle, x, 0.0f);
-        VecType px2 = sycl::ext::oneapi::experimental::read_mipmap<VecType>(
+        VecType px2 = sycl::ext::oneapi::experimental::sample_mipmap<VecType>(
             mipHandle, x, 1.0f);
 
         sum = px1[0] + px2[0];

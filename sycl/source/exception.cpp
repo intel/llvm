@@ -19,15 +19,8 @@ inline namespace _V1 {
 exception::exception(std::error_code EC, const char *Msg)
     : exception(EC, nullptr, Msg) {}
 
-exception::exception(std::error_code EC, const std::string &Msg)
-    : exception(EC, nullptr, Msg) {}
-
 // new SYCL 2020 constructors
 exception::exception(std::error_code EC) : exception(EC, nullptr, "") {}
-
-exception::exception(int EV, const std::error_category &ECat,
-                     const std::string &WhatArg)
-    : exception({EV, ECat}, nullptr, WhatArg) {}
 
 exception::exception(int EV, const std::error_category &ECat,
                      const char *WhatArg)
@@ -59,7 +52,7 @@ exception::exception(context Ctx, int EV, const std::error_category &ECat)
 
 // protected base constructor for all SYCL 2020 constructors
 exception::exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
-                     const std::string &WhatArg)
+                     const char *WhatArg)
     : MMsg(std::make_shared<std::string>(WhatArg)),
       MPIErr(PI_ERROR_INVALID_VALUE), MContext(SharedPtrCtx), MErrC(EC) {
   detail::GlobalHandler::instance().TraceEventXPTI(MMsg->c_str());

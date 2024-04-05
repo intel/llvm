@@ -17,13 +17,16 @@
 namespace sycl {
 inline namespace _V1 {
 namespace ext::intel::experimental {
-struct grf_size_key {
+struct grf_size_key : oneapi::experimental::detail::compile_time_property_key<
+                          oneapi::experimental::detail::PropKind::GRFSize> {
   template <unsigned int Size>
   using value_t = oneapi::experimental::property_value<
       grf_size_key, std::integral_constant<unsigned int, Size>>;
 };
 
-struct grf_size_automatic_key {
+struct grf_size_automatic_key
+    : oneapi::experimental::detail::compile_time_property_key<
+          oneapi::experimental::detail::PropKind::GRFSizeAutomatic> {
   using value_t = oneapi::experimental::property_value<grf_size_automatic_key>;
 };
 
@@ -33,34 +36,7 @@ inline constexpr grf_size_key::value_t<Size> grf_size;
 inline constexpr grf_size_automatic_key::value_t grf_size_automatic;
 
 } // namespace ext::intel::experimental
-namespace ext::oneapi::experimental {
-template <>
-struct is_property_key<sycl::ext::intel::experimental::grf_size_key>
-    : std::true_type {};
-
-template <>
-struct is_property_key<sycl::ext::intel::experimental::grf_size_automatic_key>
-    : std::true_type {};
-
-namespace detail {
-template <>
-struct PropertyToKind<sycl::ext::intel::experimental::grf_size_key> {
-  static constexpr PropKind Kind = PropKind::GRFSize;
-};
-
-template <>
-struct IsCompileTimeProperty<sycl::ext::intel::experimental::grf_size_key>
-    : std::true_type {};
-
-template <>
-struct PropertyToKind<sycl::ext::intel::experimental::grf_size_automatic_key> {
-  static constexpr PropKind Kind = PropKind::GRFSizeAutomatic;
-};
-
-template <>
-struct IsCompileTimeProperty<
-    sycl::ext::intel::experimental::grf_size_automatic_key> : std::true_type {};
-
+namespace ext::oneapi::experimental::detail {
 template <unsigned int Size>
 struct PropertyMetaInfo<
     sycl::ext::intel::experimental::grf_size_key::value_t<Size>> {
@@ -103,7 +79,6 @@ struct ConflictingProperties<sycl::detail::register_alloc_mode_key, Properties>
               sycl::ext::intel::experimental::grf_size_automatic_key,
               Properties>::value> {};
 
-} // namespace detail
-} // namespace ext::oneapi::experimental
+} // namespace ext::oneapi::experimental::detail
 } // namespace _V1
 } // namespace sycl

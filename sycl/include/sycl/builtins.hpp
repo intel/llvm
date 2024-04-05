@@ -10,16 +10,7 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-
-#include <sycl/builtins_preview.hpp>
-
-#else // __INTEL_PREVIEW_BREAKING_CHANGES
-
-#include <sycl/builtins_legacy_marray_vec.hpp>
-#include <sycl/builtins_legacy_scalar.hpp>
-
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
+#include <sycl/detail/builtins/builtins.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
 extern "C" {
@@ -335,6 +326,7 @@ extern __DPCPP_SYCL_EXTERNAL double __imf_floor(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_ceil(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_trunc(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_rint(double x);
+extern __DPCPP_SYCL_EXTERNAL double __imf_rcp64h(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_nearbyint(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_sqrt(double x);
 extern __DPCPP_SYCL_EXTERNAL double __imf_rsqrt(double x);

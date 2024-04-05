@@ -1,11 +1,12 @@
 cmake_minimum_required(VERSION 3.8)
 
-set(XPTI_VERSION 0.4.1)
+set(XPTI_VERSION 0.6.0)
 
 project (xptifw VERSION "${XPTI_VERSION}" LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 
 set(XPTIFW_DIR ${CMAKE_CURRENT_LIST_DIR})
+set(SAMPLES_DIR ${CMAKE_CURRENT_LIST_DIR}/samples)
 
 # The XPTI framework requires the includes from
 # the proxy implementation of XPTI
@@ -68,6 +69,7 @@ endif()
 if (XPTI_BUILD_SAMPLES)
   add_subdirectory(samples/basic_collector)
   add_subdirectory(samples/syclpi_collector)
+  add_subdirectory(samples/sycl_perf_collector)
   add_subdirectory(basic_test)
 endif()
 

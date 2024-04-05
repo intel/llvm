@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/builtins_preview.hpp>
+#include <sycl/detail/builtins/builtins.hpp>
 
 #include "host_helper_macros.hpp"
 
@@ -71,17 +71,36 @@ REL_BUILTIN(ONE_ARG, isnormal)
 REL_BUILTIN(TWO_ARGS, isunordered)
 REL_BUILTIN_CUSTOM(TWO_ARGS, isordered,
                    ([](auto x, auto y) { return !sycl::isunordered(x, y); }))
-#if defined(__GNUC__) && !defined(__clang__)
+
+#define _SYCL_BUILTINS_GCC_VER                                                 \
+  (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
+
+#if defined(__GNUC__) && !defined(__clang__) &&                                \
+    ((_SYCL_BUILTINS_GCC_VER >= 100000 && _SYCL_BUILTINS_GCC_VER < 110000) ||  \
+     (_SYCL_BUILTINS_GCC_VER >= 110000 && _SYCL_BUILTINS_GCC_VER < 110500) ||  \
+     (_SYCL_BUILTINS_GCC_VER >= 120000 && _SYCL_BUILTINS_GCC_VER < 120400) ||  \
+     (_SYCL_BUILTINS_GCC_VER >= 130000 && _SYCL_BUILTINS_GCC_VER < 130300))
 // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=112816
-#pragma GCC push_options
-#pragma GCC optimize("-O2")
+// The reproducers in that ticket only affect GCCs 10 to 13. Release
+// branches 11.5, 12.4, and 13.3 have been updated with the fix; release branch
+// 10 hasn't, so all GCCs 10.x are considered affected.
+#define GCC_PR112816_DISABLE_OPT                                               \
+  _Pragma("GCC push_options") _Pragma("GCC optimize(\"-O1\")")
+#define GCC_PR112816_RESTORE_OPT _Pragma("GCC pop_options")
+#else
+#define GCC_PR112816_DISABLE_OPT
+#define GCC_PR112816_RESTORE_OPT
 #endif
+
+GCC_PR112816_DISABLE_OPT
 
 REL_BUILTIN(ONE_ARG, signbit)
 
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC pop_options
-#endif
+GCC_PR112816_RESTORE_OPT
+
+#undef GCC_PR112816_RESTORE_OPT
+#undef GCC_PR112816_DISABLE_OPT
+#undef _SYCL_BUILTINS_GCC_VER
 
 HOST_IMPL(bitselect, [](auto x, auto y, auto z) {
   using T0 = decltype(x);

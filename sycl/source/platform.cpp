@@ -57,9 +57,10 @@ std::vector<platform> platform::get_platforms() {
 backend platform::get_backend() const noexcept { return impl->getBackend(); }
 
 template <typename Param>
-typename detail::is_platform_info_desc<Param>::return_type
-platform::get_info() const {
-  return impl->get_info<Param>();
+detail::ABINeutralT_t<
+    typename detail::is_platform_info_desc<Param>::return_type>
+platform::get_info_impl() const {
+  return detail::convert_to_abi_neutral(impl->template get_info<Param>());
 }
 
 pi_native_handle platform::getNative() const { return impl->getNative(); }
@@ -67,10 +68,24 @@ pi_native_handle platform::getNative() const { return impl->getNative(); }
 bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
 
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
-  template __SYCL_EXPORT ReturnT platform::get_info<info::platform::Desc>()    \
-      const;
+  template __SYCL_EXPORT detail::ABINeutralT_t<ReturnT>                        \
+  platform::get_info_impl<info::platform::Desc>() const;
 
 #include <sycl/info/platform_traits.def>
+#undef __SYCL_PARAM_TRAITS_SPEC
+
+template <typename Param>
+typename detail::is_backend_info_desc<Param>::return_type
+platform::get_backend_info() const {
+  return impl->get_backend_info<Param>();
+}
+
+#define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, Picode)              \
+  template __SYCL_EXPORT ReturnT                                               \
+  platform::get_backend_info<info::DescType::Desc>() const;
+
+#include <sycl/info/sycl_backend_traits.def>
+
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 context platform::ext_oneapi_get_default_context() const {

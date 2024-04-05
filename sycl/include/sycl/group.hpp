@@ -315,12 +315,9 @@ public:
                                                        global_ptr<dataT> src,
                                                        size_t numElements,
                                                        size_t srcStride) const {
-    using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
-    using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
-
     __ocl_event_t E = __SYCL_OpGroupAsyncCopyGlobalToLocal(
-        __spv::Scope::Workgroup, DestT(dest.get()), SrcT(src.get()),
-        numElements, srcStride, 0);
+        __spv::Scope::Workgroup, detail::convertToOpenCLType(dest),
+        detail::convertToOpenCLType(src), numElements, srcStride, 0);
     return device_event(E);
   }
 
@@ -337,12 +334,9 @@ public:
                                                        size_t numElements,
                                                        size_t destStride)
       const {
-    using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
-    using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
-
     __ocl_event_t E = __SYCL_OpGroupAsyncCopyLocalToGlobal(
-        __spv::Scope::Workgroup, DestT(dest.get()), SrcT(src.get()),
-        numElements, destStride, 0);
+        __spv::Scope::Workgroup, detail::convertToOpenCLType(dest),
+        detail::convertToOpenCLType(src), numElements, destStride, 0);
     return device_event(E);
   }
 
@@ -359,12 +353,9 @@ public:
   async_work_group_copy(decorated_local_ptr<DestDataT> dest,
                         decorated_global_ptr<SrcDataT> src, size_t numElements,
                         size_t srcStride) const {
-    using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
-    using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
-
     __ocl_event_t E = __SYCL_OpGroupAsyncCopyGlobalToLocal(
-        __spv::Scope::Workgroup, DestT(dest.get()), SrcT(src.get()),
-        numElements, srcStride, 0);
+        __spv::Scope::Workgroup, detail::convertToOpenCLType(dest),
+        detail::convertToOpenCLType(src), numElements, srcStride, 0);
     return device_event(E);
   }
 
@@ -381,12 +372,9 @@ public:
   async_work_group_copy(decorated_global_ptr<DestDataT> dest,
                         decorated_local_ptr<SrcDataT> src, size_t numElements,
                         size_t destStride) const {
-    using DestT = detail::ConvertToOpenCLType_t<decltype(dest)>;
-    using SrcT = detail::ConvertToOpenCLType_t<decltype(src)>;
-
     __ocl_event_t E = __SYCL_OpGroupAsyncCopyLocalToGlobal(
-        __spv::Scope::Workgroup, DestT(dest.get()), SrcT(src.get()),
-        numElements, destStride, 0);
+        __spv::Scope::Workgroup, detail::convertToOpenCLType(dest),
+        detail::convertToOpenCLType(src), numElements, destStride, 0);
     return device_event(E);
   }
 
@@ -693,30 +681,5 @@ protected:
                   "inconsistent group constructor arguments");
   }
 };
-
-template <int Dims>
-__SYCL_DEPRECATED("use sycl::ext::oneapi::experimental::this_group() instead")
-group<Dims> this_group() {
-#ifdef __SYCL_DEVICE_ONLY__
-  return detail::Builder::getElement(detail::declptr<group<Dims>>());
-#else
-  throw sycl::exception(
-      sycl::make_error_code(sycl::errc::feature_not_supported),
-      "Free function calls are not supported on host");
-#endif
-}
-
-namespace ext::oneapi::experimental {
-template <int Dims> group<Dims> this_group() {
-#ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::Builder::getElement(
-      sycl::detail::declptr<group<Dims>>());
-#else
-  throw sycl::exception(
-      sycl::make_error_code(sycl::errc::feature_not_supported),
-      "Free function calls are not supported on host");
-#endif
-}
-} // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl

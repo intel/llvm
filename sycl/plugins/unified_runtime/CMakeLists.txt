@@ -56,15 +56,40 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
+  # The fetch_adapter_source function can be used to perform a separate content
+  # fetch for a UR adapter, this allows development of adapters to be decoupled
+  # from each other.
+  #
+  # Args:
+  #   * name - Must be the directory name of the adapter
+  #   * repo - A valid Git URL of a Unified Runtime repo
+  #   * tag - A valid Git branch/tag/commit in the Unified Runtime repo
+  function(fetch_adapter_source name repo tag)
+    message(STATUS "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
+    set(fetch-name unified-runtime-${name})
+    FetchContent_Declare(${fetch-name}
+      GIT_REPOSITORY ${repo} GIT_TAG ${tag})
+    # We don't want to add this repo to the build, only fetch its source.
+    FetchContent_Populate(${fetch-name})
+    # Get the path to the source directory
+    string(TOUPPER ${name} NAME)
+    set(source_dir_var UR_ADAPTER_${NAME}_SOURCE_DIR)
+    FetchContent_GetProperties(${fetch-name} SOURCE_DIR UR_ADAPTER_${NAME}_SOURCE_DIR)
+    # Set the variable which informs UR where to get the adapter source from.
+    set(UR_ADAPTER_${NAME}_SOURCE_DIR
+      "${UR_ADAPTER_${NAME}_SOURCE_DIR}/source/adapters/${name}"
+      CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
+  endfunction()
+
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit be849b2f745fc525cf77bc2fe42c469751093706
-  # Merge: 47102cb2 92a02504
+  # commit 3a7d00f136cf5d69e61bf1e235393dfc56f55525
+  # Merge: cd5ad7b5 9e5c6203
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Feb 12 10:01:50 2024 +0000
-  #     Merge pull request #1324 from raiyanla/event-opt
-  #     [L0] Allocate event pools efficiently in multi-device scenarios
-  set(UNIFIED_RUNTIME_TAG be849b2f745fc525cf77bc2fe42c469751093706)
-  
+  # Date:   Mon Apr 1 15:16:30 2024 +0100
+  #     Merge pull request #1485 from aarongreig/aaron/addDeviceNotAvailableErrC
+  #     Add UR_ERROR_DEVICE_NOT_AVAILABLE and appropriate translation for CL.
+  set(UNIFIED_RUNTIME_TAG 3a7d00f136cf5d69e61bf1e235393dfc56f55525)
+
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
   endif()
@@ -124,7 +149,7 @@ set(UNIFIED_RUNTIME_COMMON_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/source/com
 
 add_library(UnifiedRuntimeLoader ALIAS ur_loader)
 add_library(UnifiedRuntimeCommon ALIAS ur_common)
-add_library(UnifiedMallocFramework ALIAS unified_malloc_framework)
+add_library(UnifiedMemoryFramework ALIAS umf)
 
 add_library(UnifiedRuntime-Headers INTERFACE)
 

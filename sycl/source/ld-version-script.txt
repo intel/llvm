@@ -27,6 +27,9 @@
     __sycl_register_lib;
     __sycl_unregister_lib;
 
+    /* Export std::hash specializations */
+    _ZNKSt4hashIN4sycl3_V15queueEEclERKS2_;
+
   local:
     *;
 };

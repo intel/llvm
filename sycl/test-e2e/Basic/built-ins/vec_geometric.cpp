@@ -1,9 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -o %t2.out %}
-// RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out %}
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
 
 #define TEST(FUNC, VEC_ELEM_TYPE, DIM, EXPECTED, DELTA, ...)                   \
   {                                                                            \
@@ -133,7 +133,6 @@ int main() {
        EXPECTED(float, 0.182574f, 0.365148f, 0.547723f, 0.730297f), 1e-3,
        VFloatD4);
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   TEST(sycl::cross, float, 3, EXPECTED(float, -1.f, -4.f, 3.f), 0,
        VFloatD4.swizzle<0, 1, 2>(), VFloatD3_2);
   TEST(sycl::cross, float, 3, EXPECTED(float, -1.f, -4.f, 3.f), 0, VFloatD3,
@@ -198,7 +197,6 @@ int main() {
   TEST(sycl::fast_normalize, float, 3,
        EXPECTED(float, 0.267261f, 0.534522f, 0.801784f), 1e-3,
        VFloatD4.swizzle<0, 1, 2>());
-#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   return 0;
 }

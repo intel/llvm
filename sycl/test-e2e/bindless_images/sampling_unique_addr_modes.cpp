@@ -5,7 +5,9 @@
 // RUN: %{run} %t.out
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/bindless_images.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -88,9 +90,9 @@ int main() {
             float fdim1 = float(dim1 + height + 0.5) / (float)height;
             float fdim2 = float(dim2 + depth + 0.5) / (float)depth;
 
-            // Extension: read image data from handle
-            float px1 = syclexp::read_image<float>(
-                imgHandle, sycl::float4(fdim0, fdim1, fdim2, (float)0));
+            // Extension: sample image data from handle
+            float px1 = syclexp::sample_image<float>(
+                imgHandle, sycl::float3(fdim0, fdim1, fdim2));
 
             outAcc[sycl::id<3>{dim2, dim1, dim0}] = px1;
           });

@@ -153,8 +153,8 @@ bool test_usm(queue q, const Config &cfg) {
 
   try {
     auto e = q.submit([&](handler &cgh) {
-      cgh.parallel_for(rng, [=](id<1> ii) SYCL_ESIMD_KERNEL {
-        int i = ii;
+      cgh.parallel_for(rng, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+        int i = ndi.get_global_id(0);
         simd<Toffset, N> offsets(cfg.start_ind * sizeof(T),
                                  cfg.stride * sizeof(T));
         simd_mask<N> m = 1;
@@ -287,8 +287,8 @@ bool test_acc(queue q, const Config &cfg) {
       auto e = q.submit([&](handler &cgh) {
         auto arr_acc =
             arr_buf.template get_access<access::mode::read_write>(cgh);
-        cgh.parallel_for(rng, [=](id<1> ii) SYCL_ESIMD_KERNEL {
-          int i = ii;
+        cgh.parallel_for(rng, [=](nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+          int i = ndi.get_global_id(0);
           simd<Toffset, N> offsets(cfg.start_ind * sizeof(T),
                                    cfg.stride * sizeof(T));
           simd_mask<N> m = 1;
@@ -706,13 +706,13 @@ bool test_int_types_and_sizes(queue q, const Config &cfg) {
 
   passed &=
       test_int_types<8, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(q, cfg);
+  passed &=
+      test_int_types<16, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(q, cfg);
+  passed &=
+      test_int_types<32, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(q, cfg);
 
   // Supported by LSC atomic:
   if constexpr (UseLSCFeatures) {
-    passed &= test_int_types<16, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(
-        q, cfg);
-    passed &= test_int_types<32, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(
-        q, cfg);
     passed &= test_int_types<64, Op, UseMask, UseLSCFeatures, UseAcc, SignMask>(
         q, cfg);
     // non power of two values are supported only in newer driver.

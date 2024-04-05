@@ -16,6 +16,7 @@
 #include <detail/accessor_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/kernel_impl.hpp>
+#include <detail/sycl_mem_obj_t.hpp>
 
 #include <cstring>
 #include <deque>
@@ -37,9 +38,48 @@ namespace oneapi {
 namespace experimental {
 namespace detail {
 
+inline node_type getNodeTypeFromCG(sycl::detail::CG::CGTYPE CGType) {
+  using sycl::detail::CG;
+
+  switch (CGType) {
+  case CG::None:
+    return node_type::empty;
+  case CG::Kernel:
+    return node_type::kernel;
+  case CG::CopyAccToPtr:
+  case CG::CopyPtrToAcc:
+  case CG::CopyAccToAcc:
+  case CG::CopyUSM:
+    return node_type::memcpy;
+  case CG::Memset2DUSM:
+    return node_type::memset;
+  case CG::Fill:
+  case CG::FillUSM:
+    return node_type::memfill;
+  case CG::PrefetchUSM:
+    return node_type::prefetch;
+  case CG::AdviseUSM:
+    return node_type::memadvise;
+  case CG::Barrier:
+  case CG::BarrierWaitlist:
+    return node_type::ext_oneapi_barrier;
+  case CG::CodeplayHostTask:
+    return node_type::host_task;
+  case CG::ExecCommandBuffer:
+    return node_type::subgraph;
+  default:
+    assert(false && "Invalid Graph Node Type");
+    return node_type::empty;
+  }
+}
+
 /// Implementation of node class from SYCL_EXT_ONEAPI_GRAPH.
 class node_impl {
 public:
+  using id_type = uint64_t;
+
+  /// Unique identifier for this node.
+  id_type MID = getNextNodeID();
   /// List of successors to this node.
   std::vector<std::weak_ptr<node_impl>> MSuccessors;
   /// List of predecessors to this node.
@@ -48,8 +88,13 @@ public:
   std::vector<std::weak_ptr<node_impl>> MPredecessors;
   /// Type of the command-group for the node.
   sycl::detail::CG::CGTYPE MCGType = sycl::detail::CG::None;
+  /// User facing type of the node.
+  node_type MNodeType = node_type::empty;
   /// Command group object which stores all args etc needed to enqueue the node
   std::unique_ptr<sycl::detail::CG> MCommandGroup;
+  /// Stores the executable graph impl associated with this node if it is a
+  /// subgraph node.
+  std::shared_ptr<exec_graph_impl> MSubGraphImpl;
 
   /// Used for tracking visited status during cycle checks.
   bool MVisited = false;
@@ -58,6 +103,9 @@ public:
   /// Note : This number is only used during the partitionning process and
   /// cannot be used to find out the partion of a node outside of this process.
   int MPartitionNum = -1;
+
+  /// Track whether an ND-Range was used for kernel nodes
+  bool MNDRangeUsed = false;
 
   /// Add successor to the node.
   /// @param Node Node to add as a successor.
@@ -93,23 +141,72 @@ public:
   node_impl() {}
 
   /// Construct a node representing a command-group.
-  /// @param CGType Type of the command-group.
+  /// @param NodeType Type of the command-group.
   /// @param CommandGroup The CG which stores the command information for this
   /// node.
-  node_impl(sycl::detail::CG::CGTYPE CGType,
+  node_impl(node_type NodeType,
             std::unique_ptr<sycl::detail::CG> &&CommandGroup)
-      : MCGType(CGType), MCommandGroup(std::move(CommandGroup)) {}
+      : MCGType(CommandGroup->getType()), MNodeType(NodeType),
+        MCommandGroup(std::move(CommandGroup)) {
+    if (NodeType == node_type::subgraph) {
+      MSubGraphImpl =
+          static_cast<sycl::detail::CGExecCommandBuffer *>(MCommandGroup.get())
+              ->MExecGraph;
+    }
+  }
 
-  /// Checks if this node has a given requirement.
-  /// @param Requirement Requirement to lookup.
-  /// @return True if \p Requirement is present in node, false otherwise.
-  bool hasRequirement(sycl::detail::AccessorImplHost *IncomingReq) {
+  /// Construct a node from another node. This will perform a deep-copy of the
+  /// command group object associated with this node.
+  node_impl(node_impl &Other)
+      : MSuccessors(Other.MSuccessors), MPredecessors(Other.MPredecessors),
+        MCGType(Other.MCGType), MNodeType(Other.MNodeType),
+        MCommandGroup(Other.getCGCopy()), MSubGraphImpl(Other.MSubGraphImpl) {}
+
+  /// Copy-assignment operator. This will perform a deep-copy of the
+  /// command group object associated with this node.
+  node_impl &operator=(node_impl &Other) {
+    if (this != &Other) {
+      MSuccessors = Other.MSuccessors;
+      MPredecessors = Other.MPredecessors;
+      MCGType = Other.MCGType;
+      MNodeType = Other.MNodeType;
+      MCommandGroup = Other.getCGCopy();
+      MSubGraphImpl = Other.MSubGraphImpl;
+    }
+    return *this;
+  }
+  /// Checks if this node should be a dependency of another node based on
+  /// accessor requirements. This is calculated using access modes if a
+  /// requirement to the same buffer is found inside this node.
+  /// @param IncomingReq Incoming requirement.
+  /// @return True if a dependency is needed, false if not.
+  bool hasRequirementDependency(sycl::detail::AccessorImplHost *IncomingReq) {
+    access_mode InMode = IncomingReq->MAccessMode;
+    switch (InMode) {
+    case access_mode::read:
+    case access_mode::read_write:
+    case access_mode::atomic:
+      break;
+    // These access modes don't care about existing buffer data, so we don't
+    // need a dependency.
+    case access_mode::write:
+    case access_mode::discard_read_write:
+    case access_mode::discard_write:
+      return false;
+    }
+
     for (sycl::detail::AccessorImplHost *CurrentReq :
          MCommandGroup->getRequirements()) {
       if (IncomingReq->MSYCLMemObj == CurrentReq->MSYCLMemObj) {
-        return true;
+        access_mode CurrentMode = CurrentReq->MAccessMode;
+        // Since we have an incoming read requirement, we only care
+        // about requirements on this node if they are write
+        if (CurrentMode != access_mode::read) {
+          return true;
+        }
       }
     }
+    // No dependency necessary
     return false;
   }
 
@@ -126,8 +223,12 @@ public:
   /// @return A unique ptr to the new command group object.
   std::unique_ptr<sycl::detail::CG> getCGCopy() const {
     switch (MCGType) {
-    case sycl::detail::CG::Kernel:
-      return createCGCopy<sycl::detail::CGExecKernel>();
+    case sycl::detail::CG::Kernel: {
+      auto CGCopy = createCGCopy<sycl::detail::CGExecKernel>();
+      rebuildArgStorage(CGCopy->MArgs, MCommandGroup->getArgsStorage(),
+                        CGCopy->getArgsStorage());
+      return std::move(CGCopy);
+    }
     case sycl::detail::CG::CopyAccToPtr:
     case sycl::detail::CG::CopyPtrToAcc:
     case sycl::detail::CG::CopyAccToAcc:
@@ -164,6 +265,11 @@ public:
           CommandGroupPtr->getSharedPtrStorage(),
           CommandGroupPtr->getRequirements(), CommandGroupPtr->getEvents());
 
+      std::vector<sycl::detail::ArgDesc> NewArgs = CommandGroupPtr->MArgs;
+
+      rebuildArgStorage(NewArgs, CommandGroupPtr->getArgsStorage(),
+                        Data.MArgsStorage);
+
       sycl::detail::code_location Loc(CommandGroupPtr->MFileName.data(),
                                       CommandGroupPtr->MFunctionName.data(),
                                       CommandGroupPtr->MLine,
@@ -172,12 +278,14 @@ public:
       return std::make_unique<sycl::detail::CGHostTask>(
           sycl::detail::CGHostTask(
               std::move(HostTaskUPtr), CommandGroupPtr->MQueue,
-              CommandGroupPtr->MContext, CommandGroupPtr->MArgs, Data,
+              CommandGroupPtr->MContext, std::move(NewArgs), std::move(Data),
               CommandGroupPtr->getType(), Loc));
     }
     case sycl::detail::CG::Barrier:
     case sycl::detail::CG::BarrierWaitlist:
-      return createCGCopy<sycl::detail::CGBarrier>();
+      // Barrier nodes are stored in the graph with only the base CG class,
+      // since they are treated internally as empty nodes.
+      return createCGCopy<sycl::detail::CG>();
     case sycl::detail::CG::CopyToDeviceGlobal:
       return createCGCopy<sycl::detail::CGCopyToDeviceGlobal>();
     case sycl::detail::CG::CopyFromDeviceGlobal:
@@ -191,13 +299,9 @@ public:
     case sycl::detail::CG::SemaphoreWait:
       return createCGCopy<sycl::detail::CGSemaphoreWait>();
     case sycl::detail::CG::ExecCommandBuffer:
-      assert(false &&
-             "Error: Command graph submission should not be a node in a graph");
-      break;
+      return createCGCopy<sycl::detail::CGExecCommandBuffer>();
     case sycl::detail::CG::None:
-      assert(false &&
-             "Error: Empty nodes should not be enqueue to a command buffer");
-      break;
+      return nullptr;
     }
     return nullptr;
   }
@@ -279,11 +383,188 @@ public:
     }
   }
 
+  /// Update the value of an accessor inside this node. Accessors must be
+  /// handled specifically compared to other argument values.
+  /// @param ArgIndex The index of the accessor arg to be updated
+  /// @param Acc Pointer to the new accessor value
+  void updateAccessor(int ArgIndex, const sycl::detail::AccessorBaseHost *Acc) {
+    auto &Args =
+        static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get())->MArgs;
+    auto NewAccImpl = sycl::detail::getSyclObjImpl(*Acc);
+    for (auto &Arg : Args) {
+      if (Arg.MIndex != ArgIndex) {
+        continue;
+      }
+      assert(Arg.MType == sycl::detail::kernel_param_kind_t::kind_accessor);
+
+      // Find old accessor in accessor storage and replace with new one
+      if (static_cast<sycl::detail::SYCLMemObjT *>(NewAccImpl->MSYCLMemObj)
+              ->needsWriteBack()) {
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Accessors to buffers which have write_back enabled "
+            "are not allowed to be used in command graphs.");
+      }
+
+      // All accessors passed to this function will be placeholders, so we must
+      // perform steps similar to what happens when handler::require() is
+      // called here.
+      sycl::detail::Requirement *NewReq = NewAccImpl.get();
+      if (NewReq->MAccessMode != sycl::access_mode::read) {
+        auto SYCLMemObj =
+            static_cast<sycl::detail::SYCLMemObjT *>(NewReq->MSYCLMemObj);
+        SYCLMemObj->handleWriteAccessorCreation();
+      }
+
+      for (auto &Acc : MCommandGroup->getAccStorage()) {
+        if (auto OldAcc =
+                static_cast<sycl::detail::AccessorImplHost *>(Arg.MPtr);
+            Acc.get() == OldAcc) {
+          Acc = NewAccImpl;
+        }
+      }
+
+      for (auto &Req : MCommandGroup->getRequirements()) {
+        if (auto OldReq =
+                static_cast<sycl::detail::AccessorImplHost *>(Arg.MPtr);
+            Req == OldReq) {
+          Req = NewReq;
+        }
+      }
+      Arg.MPtr = NewAccImpl.get();
+      break;
+    }
+  }
+
+  void updateArgValue(int ArgIndex, const void *NewValue, size_t Size) {
+
+    auto &Args =
+        static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get())->MArgs;
+    for (auto &Arg : Args) {
+      if (Arg.MIndex != ArgIndex) {
+        continue;
+      }
+      assert(Arg.MSize == static_cast<int>(Size));
+      // MPtr may be a pointer into arg storage so we memcpy the contents of
+      // NewValue rather than assign it directly
+      std::memcpy(Arg.MPtr, NewValue, Size);
+      break;
+    }
+  }
+
+  template <int Dimensions>
+  void updateNDRange(nd_range<Dimensions> ExecutionRange) {
+    if (MCGType != sycl::detail::CG::Kernel) {
+      throw sycl::exception(
+          sycl::errc::invalid,
+          "Cannot update execution range of nodes which are not kernel nodes");
+    }
+    if (!MNDRangeUsed) {
+      throw sycl::exception(sycl::errc::invalid,
+                            "Cannot update node which was created with a "
+                            "sycl::range with a sycl::nd_range");
+    }
+
+    auto &NDRDesc =
+        static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get())
+            ->MNDRDesc;
+
+    if (NDRDesc.Dims != Dimensions) {
+      throw sycl::exception(sycl::errc::invalid,
+                            "Cannot update execution range of a node with an "
+                            "execution range of different dimensions than what "
+                            "the node was originall created with.");
+    }
+
+    NDRDesc.set(ExecutionRange);
+  }
+
+  template <int Dimensions> void updateRange(range<Dimensions> ExecutionRange) {
+    if (MCGType != sycl::detail::CG::Kernel) {
+      throw sycl::exception(
+          sycl::errc::invalid,
+          "Cannot update execution range of nodes which are not kernel nodes");
+    }
+    if (MNDRangeUsed) {
+      throw sycl::exception(sycl::errc::invalid,
+                            "Cannot update node which was created with a "
+                            "sycl::nd_range with a sycl::range");
+    }
+
+    auto &NDRDesc =
+        static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get())
+            ->MNDRDesc;
+
+    if (NDRDesc.Dims != Dimensions) {
+      throw sycl::exception(sycl::errc::invalid,
+                            "Cannot update execution range of a node with an "
+                            "execution range of different dimensions than what "
+                            "the node was originall created with.");
+    }
+
+    NDRDesc.set(ExecutionRange);
+  }
+
+  void updateFromOtherNode(const std::shared_ptr<node_impl> &Other) {
+    auto ExecCG =
+        static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
+    auto OtherExecCG =
+        static_cast<sycl::detail::CGExecKernel *>(Other->MCommandGroup.get());
+
+    ExecCG->MArgs = OtherExecCG->MArgs;
+    ExecCG->MNDRDesc = OtherExecCG->MNDRDesc;
+    ExecCG->getAccStorage() = OtherExecCG->getAccStorage();
+    ExecCG->getRequirements() = OtherExecCG->getRequirements();
+
+    auto &OldArgStorage = OtherExecCG->getArgsStorage();
+    auto &NewArgStorage = ExecCG->getArgsStorage();
+    // Rebuild the arg storage and update the args
+    rebuildArgStorage(ExecCG->MArgs, OldArgStorage, NewArgStorage);
+  }
+
+  id_type getID() const { return MID; }
+
 private:
+  void rebuildArgStorage(std::vector<sycl::detail::ArgDesc> &Args,
+                         const std::vector<std::vector<char>> &OldArgStorage,
+                         std::vector<std::vector<char>> &NewArgStorage) const {
+    // Clear the arg storage so we can rebuild it
+    NewArgStorage.clear();
+
+    // Loop over all the args, any std_layout ones need their pointers updated
+    // to point to the new arg storage.
+    for (auto &Arg : Args) {
+      if (Arg.MType != sycl::detail::kernel_param_kind_t::kind_std_layout) {
+        continue;
+      }
+      // Find which ArgStorage Arg.MPtr is pointing to
+      for (auto &ArgStorage : OldArgStorage) {
+        if (ArgStorage.data() != Arg.MPtr) {
+          continue;
+        }
+        NewArgStorage.emplace_back(Arg.MSize);
+        // Memcpy contents from old storage to new storage
+        std::memcpy(NewArgStorage.back().data(), ArgStorage.data(), Arg.MSize);
+        // Update MPtr to point to the new storage instead of the old
+        Arg.MPtr = NewArgStorage.back().data();
+
+        break;
+      }
+    }
+  }
+  // Gets the next unique identifier for a node, should only be used when
+  // constructing nodes.
+  static id_type getNextNodeID() {
+    static id_type nextID = 0;
+
+    // Return the value then increment the next ID
+    return nextID++;
+  }
+
   /// Prints Node information to Stream.
   /// @param Stream Where to print the Node information
-  /// @param Verbose If true, print additional information about the nodes such
-  /// as kernel args or memory access where applicable.
+  /// @param Verbose If true, print additional information about the nodes
+  /// such as kernel args or memory access where applicable.
   void printDotCG(std::ostream &Stream, bool Verbose) {
     Stream << "\"" << this << "\" [style=bold, label=\"";
 
@@ -496,6 +777,8 @@ public:
   /// Map of devices to command buffers.
   std::unordered_map<sycl::device, sycl::detail::pi::PiExtCommandBuffer>
       MPiCommandBuffers;
+  /// List of predecessors to this partition.
+  std::vector<std::shared_ptr<partition>> MPredecessors;
 
   /// @return True if the partition contains a host task
   bool isHostTask() const {
@@ -532,9 +815,8 @@ public:
       MAllowBuffers = true;
     }
 
-    if (SyclDevice.get_info<
-            ext::oneapi::experimental::info::device::graph_support>() ==
-        graph_support_level::unsupported) {
+    if (!SyclDevice.has(aspect::ext_oneapi_limited_graph) &&
+        !SyclDevice.has(aspect::ext_oneapi_graph)) {
       std::stringstream Stream;
       Stream << SyclDevice.get_backend();
       std::string BackendString = Stream.str();
@@ -551,13 +833,12 @@ public:
   void removeRoot(const std::shared_ptr<node_impl> &Root);
 
   /// Create a kernel node in the graph.
-  /// @param CGType Type of the command-group.
+  /// @param NodeType User facing type of the node.
   /// @param CommandGroup The CG which stores all information for this node.
   /// @param Dep Dependencies of the created node.
   /// @return Created node in the graph.
   std::shared_ptr<node_impl>
-  add(sycl::detail::CG::CGTYPE CGType,
-      std::unique_ptr<sycl::detail::CG> CommandGroup,
+  add(node_type NodeType, std::unique_ptr<sycl::detail::CG> CommandGroup,
       const std::vector<std::shared_ptr<node_impl>> &Dep = {});
 
   /// Create a CGF node in the graph.
@@ -573,16 +854,20 @@ public:
       const std::vector<std::shared_ptr<node_impl>> &Dep = {});
 
   /// Create an empty node in the graph.
+  /// @param Impl Graph implementation pointer.
   /// @param Dep List of predecessor nodes.
   /// @return Created node in the graph.
   std::shared_ptr<node_impl>
-  add(const std::vector<std::shared_ptr<node_impl>> &Dep = {});
+  add(const std::shared_ptr<graph_impl> &Impl,
+      const std::vector<std::shared_ptr<node_impl>> &Dep = {});
 
   /// Create an empty node in the graph.
+  /// @param Impl Graph implementation pointer.
   /// @param Events List of events associated to this node.
   /// @return Created node in the graph.
   std::shared_ptr<node_impl>
-  add(const std::vector<sycl::detail::EventImplPtr> Events);
+  add(const std::shared_ptr<graph_impl> &Impl,
+      const std::vector<sycl::detail::EventImplPtr> Events);
 
   /// Add a queue to the set of queues which are currently recording to this
   /// graph.
@@ -607,10 +892,15 @@ public:
   bool clearQueues();
 
   /// Associate a sycl event with a node in the graph.
+  /// @param GraphImpl shared_ptr to Graph impl associated with this event, aka
+  /// this.
   /// @param EventImpl Event to associate with a node in map.
   /// @param NodeImpl Node to associate with event in map.
-  void addEventForNode(std::shared_ptr<sycl::detail::event_impl> EventImpl,
+  void addEventForNode(std::shared_ptr<graph_impl> GraphImpl,
+                       std::shared_ptr<sycl::detail::event_impl> EventImpl,
                        std::shared_ptr<node_impl> NodeImpl) {
+    if (!(EventImpl->getCommandGraph()))
+      EventImpl->setCommandGraph(GraphImpl);
     MEventsMap[EventImpl] = NodeImpl;
   }
 
@@ -632,12 +922,23 @@ public:
         "No event has been recorded for the specified graph node");
   }
 
-  /// Duplicates and Adds sub-graph nodes from an executable graph to this
-  /// graph.
-  /// @param SubGraphExec sub-graph to add to the parent.
-  /// @return An empty node is used to schedule dependencies on this sub-graph.
+  /// Find the node associated with a SYCL event. Throws if no node is found for
+  /// the given event.
+  /// @param EventImpl Event to find the node for.
+  /// @return Node associated with the event.
   std::shared_ptr<node_impl>
-  addSubgraphNodes(const std::shared_ptr<exec_graph_impl> &SubGraphExec);
+  getNodeForEvent(std::shared_ptr<sycl::detail::event_impl> EventImpl) {
+    ReadLock Lock(MMutex);
+
+    if (auto NodeFound = MEventsMap.find(EventImpl);
+        NodeFound != std::end(MEventsMap)) {
+      return NodeFound->second;
+    }
+
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "No node in this graph is associated with this event");
+  }
 
   /// Query for the context tied to this graph.
   /// @return Context associated with graph.
@@ -873,10 +1174,12 @@ private:
   void addRoot(const std::shared_ptr<node_impl> &Root);
 
   /// Adds nodes to the exit nodes of this graph.
+  /// @param Impl Graph implementation pointer.
   /// @param NodeList List of nodes from sub-graph in schedule order.
   /// @return An empty node is used to schedule dependencies on this sub-graph.
   std::shared_ptr<node_impl>
-  addNodesToExits(const std::list<std::shared_ptr<node_impl>> &NodeList);
+  addNodesToExits(const std::shared_ptr<graph_impl> &Impl,
+                  const std::list<std::shared_ptr<node_impl>> &NodeList);
 
   /// Adds dependencies for a new node, if it has no deps it will be
   /// added as a root node.
@@ -940,12 +1243,16 @@ public:
   mutable std::shared_mutex MMutex;
 
   /// Constructor.
+  ///
+  /// Nodes from GraphImpl will be copied when constructing this
+  /// exec_graph_impl so that nodes may be modified (e.g. when merging subgraph
+  /// nodes).
   /// @param Context Context to create graph with.
   /// @param GraphImpl Modifiable graph implementation to create with.
+  /// @param PropList List of properties for constructing this object
   exec_graph_impl(sycl::context Context,
-                  const std::shared_ptr<graph_impl> &GraphImpl)
-      : MSchedule(), MGraphImpl(GraphImpl), MPiSyncPoints(), MContext(Context),
-        MRequirements(), MExecutionEvents() {}
+                  const std::shared_ptr<graph_impl> &GraphImpl,
+                  const property_list &PropList);
 
   /// Destructor.
   ///
@@ -1008,6 +1315,16 @@ public:
     return true;
   }
 
+  /// Returns a list of all the accessor requirements for this graph.
+  std::vector<sycl::detail::AccessorImplHost *> getRequirements() const {
+    return MRequirements;
+  }
+
+  void update(std::shared_ptr<node_impl> Node);
+  void update(const std::vector<std::shared_ptr<node_impl>> Nodes);
+
+  void updateImpl(std::shared_ptr<node_impl> NodeImpl);
+
 private:
   /// Create a command-group for the node and add it to command-buffer by going
   /// through the scheduler.
@@ -1043,6 +1360,37 @@ private:
                     std::shared_ptr<node_impl> CurrentNode,
                     int ReferencePartitionNum);
 
+  /// Duplicate nodes from the modifiable graph associated with this executable
+  /// graph and store them locally. Any subgraph nodes in the modifiable graph
+  /// will be expanded and merged into this new set of nodes.
+  void duplicateNodes();
+
+  /// Prints the contents of the graph to a text file in DOT format.
+  /// @param FilePath Path to the output file.
+  /// @param Verbose If true, print additional information about the nodes such
+  /// as kernel args or memory access where applicable.
+  void printGraphAsDot(const std::string FilePath, bool Verbose) const {
+    /// Vector of nodes visited during the graph printing
+    std::vector<node_impl *> VisitedNodes;
+
+    std::fstream Stream(FilePath, std::ios::out);
+    Stream << "digraph dot {" << std::endl;
+
+    std::vector<std::shared_ptr<node_impl>> Roots;
+    for (auto &Node : MNodeStorage) {
+      if (Node->MPredecessors.size() == 0) {
+        Roots.push_back(Node);
+      }
+    }
+
+    for (std::shared_ptr<node_impl> Node : Roots)
+      Node->printDotRecursive(Stream, VisitedNodes, Verbose);
+
+    Stream << "}" << std::endl;
+
+    Stream.close();
+  }
+
   /// Execution schedule of nodes in the graph.
   std::list<std::shared_ptr<node_impl>> MSchedule;
   /// Pointer to the modifiable graph impl associated with this executable
@@ -1072,6 +1420,74 @@ private:
   std::vector<sycl::detail::EventImplPtr> MExecutionEvents;
   /// List of the partitions that compose the exec graph.
   std::vector<std::shared_ptr<partition>> MPartitions;
+  /// Storage for copies of nodes from the original modifiable graph.
+  std::vector<std::shared_ptr<node_impl>> MNodeStorage;
+  /// Map of nodes to their associated PI command handles.
+  std::unordered_map<std::shared_ptr<node_impl>,
+                     sycl::detail::pi::PiExtCommandBufferCommand>
+      MCommandMap;
+  /// True if this graph can be updated (set with property::updatable)
+  bool MIsUpdatable;
+
+  // Stores a cache of node ids from modifiable graph nodes to the companion
+  // node(s) in this graph. Used for quick access when updating this graph.
+  std::multimap<node_impl::id_type, std::shared_ptr<node_impl>> MIDCache;
+};
+
+class dynamic_parameter_impl {
+public:
+  dynamic_parameter_impl(std::shared_ptr<graph_impl> GraphImpl,
+                         size_t ParamSize, const void *Data)
+      : MGraph(GraphImpl), MValueStorage(ParamSize) {
+    std::memcpy(MValueStorage.data(), Data, ParamSize);
+  }
+
+  /// Register a node with this dynamic parameter
+  /// @param NodeImpl The node to be registered
+  /// @param ArgIndex The arg index for the kernel arg associated with this
+  /// dynamic_parameter in NodeImpl
+  void registerNode(std::shared_ptr<node_impl> NodeImpl, int ArgIndex) {
+    MNodes.emplace_back(NodeImpl, ArgIndex);
+  }
+
+  /// Get a pointer to the internal value of this dynamic parameter
+  void *getValue() { return MValueStorage.data(); }
+
+  /// Update the internal value of this dynamic parameter as well as the value
+  /// of this parameter in all registered nodes.
+  /// @param NewValue Pointer to the new value
+  /// @param Size Size of the data pointer to by NewValue
+  void updateValue(const void *NewValue, size_t Size) {
+    for (auto &[NodeWeak, ArgIndex] : MNodes) {
+      auto NodeShared = NodeWeak.lock();
+      if (NodeShared) {
+        NodeShared->updateArgValue(ArgIndex, NewValue, Size);
+      }
+    }
+    std::memcpy(MValueStorage.data(), NewValue, Size);
+  }
+
+  /// Update the internal value of this dynamic parameter as well as the value
+  /// of this parameter in all registered nodes. Should only be called for
+  /// accessor dynamic_parameters.
+  /// @param Acc The new accessor value
+  void updateAccessor(const sycl::detail::AccessorBaseHost *Acc) {
+    for (auto &[NodeWeak, ArgIndex] : MNodes) {
+      auto NodeShared = NodeWeak.lock();
+      // Should we fail here if the node isn't alive anymore?
+      if (NodeShared) {
+        NodeShared->updateAccessor(ArgIndex, Acc);
+      }
+    }
+    std::memcpy(MValueStorage.data(), Acc,
+                sizeof(sycl::detail::AccessorBaseHost));
+  }
+
+  // Weak ptrs to node_impls which will be updated
+  std::vector<std::pair<std::weak_ptr<node_impl>, int>> MNodes;
+
+  std::shared_ptr<graph_impl> MGraph;
+  std::vector<std::byte> MValueStorage;
 };
 
 } // namespace detail

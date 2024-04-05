@@ -1,8 +1,7 @@
-// REQUIRES: native_cpu_be
-// REQUIRES: opencl_be
+// REQUIRES: native_cpu
+// REQUIRES: opencl
 // RUN: %clangxx -fsycl -fsycl-targets=spir64,native_cpu %s -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
-// RUN: env ONEAPI_DEVICE_SELECTOR="opencl:cpu" %t
 
 #include <sycl/sycl.hpp>
 

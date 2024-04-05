@@ -41,6 +41,7 @@
 #include "clang/AST/RawCommentList.h"
 #include "clang/AST/RecordLayout.h"
 #include "clang/AST/Stmt.h"
+#include "clang/AST/StmtOpenACC.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/TemplateName.h"
 #include "clang/AST/Type.h"
@@ -1754,7 +1755,8 @@ TypeInfoChars ASTContext::getTypeInfoDataSizeInChars(QualType T) const {
   // of a base-class subobject.  We decide whether that's possible
   // during class layout, so here we can just trust the layout results.
   if (getLangOpts().CPlusPlus) {
-    if (const auto *RT = T->getAs<RecordType>()) {
+    if (const auto *RT = T->getAs<RecordType>();
+        RT && !RT->getDecl()->isInvalidDecl()) {
       const ASTRecordLayout &layout = getASTRecordLayout(RT->getDecl());
       Info.Width = layout.getDataSize();
     }
@@ -1769,7 +1771,7 @@ TypeInfoChars
 static getConstantArrayInfoInChars(const ASTContext &Context,
                                    const ConstantArrayType *CAT) {
   TypeInfoChars EltInfo = Context.getTypeInfoInChars(CAT->getElementType());
-  uint64_t Size = CAT->getSize().getZExtValue();
+  uint64_t Size = CAT->getZExtSize();
   assert((Size == 0 || static_cast<uint64_t>(EltInfo.Width.getQuantity()) <=
               (uint64_t)(-1)/Size) &&
          "Overflow in array type char size evaluation");
@@ -1913,7 +1915,7 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
     // Model non-constant sized arrays as size zero, but track the alignment.
     uint64_t Size = 0;
     if (const auto *CAT = dyn_cast<ConstantArrayType>(T))
-      Size = CAT->getSize().getZExtValue();
+      Size = CAT->getZExtSize();
 
     TypeInfo EltInfo = getTypeInfo(cast<ArrayType>(T)->getElementType());
     assert((Size == 0 || EltInfo.Width <= (uint64_t)(-1) / Size) &&
@@ -2357,6 +2359,9 @@ TypeInfo ASTContext::getTypeInfoImpl(const Type *T) const {
   case Type::Attributed:
     return getTypeInfo(
                   cast<AttributedType>(T)->getEquivalentType().getTypePtr());
+
+  case Type::CountAttributed:
+    return getTypeInfo(cast<CountAttributedType>(T)->desugar().getTypePtr());
 
   case Type::BTFTagAttributed:
     return getTypeInfo(
@@ -3132,6 +3137,32 @@ QualType ASTContext::removePtrSizeAddrSpace(QualType T) const {
   return T;
 }
 
+QualType ASTContext::getCountAttributedType(
+    QualType WrappedTy, Expr *CountExpr, bool CountInBytes, bool OrNull,
+    ArrayRef<TypeCoupledDeclRefInfo> DependentDecls) const {
+  assert(WrappedTy->isPointerType() || WrappedTy->isArrayType());
+
+  llvm::FoldingSetNodeID ID;
+  CountAttributedType::Profile(ID, WrappedTy, CountExpr, CountInBytes, OrNull);
+
+  void *InsertPos = nullptr;
+  CountAttributedType *CATy =
+      CountAttributedTypes.FindNodeOrInsertPos(ID, InsertPos);
+  if (CATy)
+    return QualType(CATy, 0);
+
+  QualType CanonTy = getCanonicalType(WrappedTy);
+  size_t Size = CountAttributedType::totalSizeToAlloc<TypeCoupledDeclRefInfo>(
+      DependentDecls.size());
+  CATy = (CountAttributedType *)Allocate(Size, TypeAlignment);
+  new (CATy) CountAttributedType(WrappedTy, CanonTy, CountExpr, CountInBytes,
+                                 OrNull, DependentDecls);
+  Types.push_back(CATy);
+  CountAttributedTypes.InsertNode(CATy, InsertPos);
+
+  return QualType(CATy, 0);
+}
+
 const FunctionType *ASTContext::adjustFunctionType(const FunctionType *T,
                                                    FunctionType::ExtInfo Info) {
   if (T->getExtInfo() == Info)
@@ -3541,8 +3572,8 @@ QualType ASTContext::getConstantArrayType(QualType EltTy,
   ArySize = ArySize.zextOrTrunc(Target->getMaxPointerWidth());
 
   llvm::FoldingSetNodeID ID;
-  ConstantArrayType::Profile(ID, *this, EltTy, ArySize, SizeExpr, ASM,
-                             IndexTypeQuals);
+  ConstantArrayType::Profile(ID, *this, EltTy, ArySize.getZExtValue(), SizeExpr,
+                             ASM, IndexTypeQuals);
 
   void *InsertPos = nullptr;
   if (ConstantArrayType *ATP =
@@ -3566,11 +3597,8 @@ QualType ASTContext::getConstantArrayType(QualType EltTy,
     assert(!NewIP && "Shouldn't be in the map!"); (void)NewIP;
   }
 
-  void *Mem = Allocate(
-      ConstantArrayType::totalSizeToAlloc<const Expr *>(SizeExpr ? 1 : 0),
-      alignof(ConstantArrayType));
-  auto *New = new (Mem)
-    ConstantArrayType(EltTy, Canon, ArySize, SizeExpr, ASM, IndexTypeQuals);
+  auto *New = ConstantArrayType::Create(*this, EltTy, Canon, ArySize, SizeExpr,
+                                        ASM, IndexTypeQuals);
   ConstantArrayTypes.InsertNode(New, InsertPos);
   Types.push_back(New);
   return QualType(New, 0);
@@ -7032,7 +7060,7 @@ uint64_t
 ASTContext::getConstantArrayElementCount(const ConstantArrayType *CA)  const {
   uint64_t ElementCount = 1;
   do {
-    ElementCount *= CA->getSize().getZExtValue();
+    ElementCount *= CA->getZExtSize();
     CA = dyn_cast_or_null<ConstantArrayType>(
       CA->getElementType()->getAsArrayTypeUnsafe());
   } while (CA);
@@ -8366,7 +8394,7 @@ void ASTContext::getObjCEncodingForTypeImpl(QualType T, std::string &S,
       S += '[';
 
       if (const auto *CAT = dyn_cast<ConstantArrayType>(AT))
-        S += llvm::utostr(CAT->getSize().getZExtValue());
+        S += llvm::utostr(CAT->getZExtSize());
       else {
         //Variable length arrays are encoded as a regular array with 0 elements.
         assert((isa<VariableArrayType>(AT) || isa<IncompleteArrayType>(AT)) &&
@@ -10800,7 +10828,7 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS, bool OfBlockPointer,
   {
     const ConstantArrayType* LCAT = getAsConstantArrayType(LHS);
     const ConstantArrayType* RCAT = getAsConstantArrayType(RHS);
-    if (LCAT && RCAT && RCAT->getSize() != LCAT->getSize())
+    if (LCAT && RCAT && RCAT->getZExtSize() != LCAT->getZExtSize())
       return {};
 
     QualType LHSElem = getAsArrayType(LHS)->getElementType();
@@ -13273,6 +13301,32 @@ static QualType getCommonSugarTypeNode(ASTContext &Ctx, const Type *X,
       return QualType();
     return Ctx.getUsingType(CD, Ctx.getQualifiedType(Underlying));
   }
+  case Type::CountAttributed: {
+    const auto *DX = cast<CountAttributedType>(X),
+               *DY = cast<CountAttributedType>(Y);
+    if (DX->isCountInBytes() != DY->isCountInBytes())
+      return QualType();
+    if (DX->isOrNull() != DY->isOrNull())
+      return QualType();
+    Expr *CEX = DX->getCountExpr();
+    Expr *CEY = DY->getCountExpr();
+    llvm::ArrayRef<clang::TypeCoupledDeclRefInfo> CDX = DX->getCoupledDecls();
+    if (Ctx.hasSameExpr(CEX, CEY))
+      return Ctx.getCountAttributedType(Ctx.getQualifiedType(Underlying), CEX,
+                                        DX->isCountInBytes(), DX->isOrNull(),
+                                        CDX);
+    if (!CEX->isIntegerConstantExpr(Ctx) || !CEY->isIntegerConstantExpr(Ctx))
+      return QualType();
+    // Two declarations with the same integer constant may still differ in their
+    // expression pointers, so we need to evaluate them.
+    llvm::APSInt VX = *CEX->getIntegerConstantExpr(Ctx);
+    llvm::APSInt VY = *CEY->getIntegerConstantExpr(Ctx);
+    if (VX != VY)
+      return QualType();
+    return Ctx.getCountAttributedType(Ctx.getQualifiedType(Underlying), CEX,
+                                      DX->isCountInBytes(), DX->isOrNull(),
+                                      CDX);
+  }
   }
   llvm_unreachable("Unhandled Type Class");
 }
@@ -13351,6 +13405,42 @@ QualType ASTContext::getCommonSugaredType(QualType X, QualType Y,
   QualType R = getQualifiedType(SX.Ty, QX);
   assert(Unqualified ? hasSameUnqualifiedType(R, X) : hasSameType(R, X));
   return R;
+}
+
+QualType ASTContext::getCorrespondingUnsaturatedType(QualType Ty) const {
+  assert(Ty->isFixedPointType());
+
+  if (Ty->isUnsaturatedFixedPointType())
+    return Ty;
+
+  switch (Ty->castAs<BuiltinType>()->getKind()) {
+  default:
+    llvm_unreachable("Not a saturated fixed point type!");
+  case BuiltinType::SatShortAccum:
+    return ShortAccumTy;
+  case BuiltinType::SatAccum:
+    return AccumTy;
+  case BuiltinType::SatLongAccum:
+    return LongAccumTy;
+  case BuiltinType::SatUShortAccum:
+    return UnsignedShortAccumTy;
+  case BuiltinType::SatUAccum:
+    return UnsignedAccumTy;
+  case BuiltinType::SatULongAccum:
+    return UnsignedLongAccumTy;
+  case BuiltinType::SatShortFract:
+    return ShortFractTy;
+  case BuiltinType::SatFract:
+    return FractTy;
+  case BuiltinType::SatLongFract:
+    return LongFractTy;
+  case BuiltinType::SatUShortFract:
+    return UnsignedShortFractTy;
+  case BuiltinType::SatUFract:
+    return UnsignedFractTy;
+  case BuiltinType::SatULongFract:
+    return UnsignedLongFractTy;
+  }
 }
 
 QualType ASTContext::getCorrespondingSaturatedType(QualType Ty) const {
@@ -13624,22 +13714,19 @@ void ASTContext::getFunctionFeatureMap(llvm::StringMap<bool> &FeatureMap,
     Target->initFeatureMap(FeatureMap, getDiagnostics(), TargetCPU, Features);
   } else if (const auto *TC = FD->getAttr<TargetClonesAttr>()) {
     std::vector<std::string> Features;
-    StringRef VersionStr = TC->getFeatureStr(GD.getMultiVersionIndex());
     if (Target->getTriple().isAArch64()) {
       // TargetClones for AArch64
-      if (VersionStr != "default") {
-        SmallVector<StringRef, 1> VersionFeatures;
-        VersionStr.split(VersionFeatures, "+");
-        for (auto &VFeature : VersionFeatures) {
-          VFeature = VFeature.trim();
+      llvm::SmallVector<StringRef, 8> Feats;
+      TC->getFeatures(Feats, GD.getMultiVersionIndex());
+      for (StringRef Feat : Feats)
+        if (Target->validateCpuSupports(Feat.str()))
           // Use '?' to mark features that came from AArch64 TargetClones.
-          Features.push_back((StringRef{"?"} + VFeature).str());
-        }
-      }
+          Features.push_back("?" + Feat.str());
       Features.insert(Features.begin(),
                       Target->getTargetOpts().FeaturesAsWritten.begin(),
                       Target->getTargetOpts().FeaturesAsWritten.end());
     } else {
+      StringRef VersionStr = TC->getFeatureStr(GD.getMultiVersionIndex());
       if (VersionStr.starts_with("arch="))
         TargetCPU = VersionStr.drop_front(sizeof("arch=") - 1);
       else if (VersionStr != "default")

@@ -4,8 +4,8 @@
 // UNSUPPORTED: windows
 
 // RUN: %{build} %level_zero_options %threads_lib -o %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE=0 UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CHECK-ONE-CMDLIST %s
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=2 SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE=0 UR_L0_LEAKS_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CHECK-PER-THREAD-CMDLIST %s
+// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=CHECK-ONE-CMDLIST %s
+// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=2 SYCL_PI_LEVEL_ZERO_USE_COPY_ENGINE=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=CHECK-PER-THREAD-CMDLIST %s
 
 // The test checks that immediate commandlists are created per-thread.
 // One immediate commandlist is created for device init, the rest for the queue.
@@ -13,7 +13,7 @@
 // CHECK-ONE-CMDLIST: zeCommandListCreateImmediate = 2
 // CHECK-PER-THREAD-CMDLIST: zeCommandListCreateImmediate = 4
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <thread>
 
 using namespace sycl;

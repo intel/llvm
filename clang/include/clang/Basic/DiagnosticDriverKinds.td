@@ -97,6 +97,10 @@ def err_drv_hipspv_no_hip_path : Error<
   "'--hip-path' must be specified when offloading to "
   "SPIR-V%select{| unless %1 is given}0.">;
 
+// TODO: Remove when COV6 is fully supported by ROCm.
+def warn_drv_amdgpu_cov6: Warning<
+  "code object v6 is still in development and not ready for production use yet;"
+  " use at your own risk">;
 def err_drv_undetermined_gpu_arch : Error<
   "cannot determine %0 architecture: %1; consider passing it via "
   "'%2'">;
@@ -387,7 +391,7 @@ def err_drv_fsycl_unsupported_with_opt
 def warn_drv_opt_requires_opt
   : Warning<"'%0' should be used only in conjunction with '%1'">, InGroup<UnusedCommandLineArgument>;
 def err_drv_sycl_missing_amdgpu_arch : Error<
-  "missing AMDGPU architecture for SYCL offloading; specify it with '-Xsycl-target-backend --offload-arch'">;
+  "missing AMDGPU architecture for SYCL offloading; specify it with '-Xsycl-target-backend%select{|=%1}0 --offload-arch=<arch-name>'">;
 def warn_drv_sycl_offload_target_duplicate : Warning<
   "SYCL offloading target '%0' is similar to target '%1' already specified; "
   "will be ignored">, InGroup<SyclTarget>;
@@ -652,6 +656,9 @@ def warn_drv_unsupported_gpopt : Warning<
   "ignoring '-mgpopt' option as it cannot be used with %select{|the implicit"
   " usage of }0-mabicalls">,
   InGroup<UnsupportedGPOpt>;
+def warn_drv_unsupported_tocdata: Warning<
+  "ignoring '-mtocdata' as it is only supported for -mcmodel=small">,
+  InGroup<OptionIgnored>;
 def warn_drv_unsupported_sdata : Warning<
   "ignoring '-msmall-data-limit=' with -mcmodel=large for -fpic or RV64">,
   InGroup<OptionIgnored>;
@@ -758,7 +765,6 @@ def err_drv_cannot_mix_options : Error<"cannot specify '%1' along with '%0'">;
 def err_drv_invalid_object_mode : Error<
   "OBJECT_MODE setting %0 is not recognized and is not a valid setting">;
 
-def err_aix_unsupported_tls_model : Error<"TLS model '%0' is not yet supported on AIX">;
 def err_roptr_requires_data_sections: Error<"-mxcoff-roptr is supported only with -fdata-sections">;
 def err_roptr_cannot_build_shared: Error<"-mxcoff-roptr is not supported with -shared">;
 

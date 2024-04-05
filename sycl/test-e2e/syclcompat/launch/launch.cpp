@@ -23,11 +23,13 @@
 // RUN: %clangxx -std=c++20 -fsycl -fsycl-device-code-split=per_kernel -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
 
+#include <type_traits>
+
 #include <sycl/sycl.hpp>
+
 #include <syclcompat/device.hpp>
 #include <syclcompat/launch.hpp>
-
-#include <type_traits>
+#include <syclcompat/memory.hpp>
 
 #include "../common.hpp"
 #include "launch_fixt.hpp"
@@ -47,11 +49,12 @@ void dynamic_local_mem_typed_kernel(T *data, char *local_mem) {
   constexpr size_t num_elements = memsize / sizeof(T);
   T *typed_local_mem = reinterpret_cast<T *>(local_mem);
 
-  const int id = sycl::ext::oneapi::experimental::this_item<1>();
+  const int id =
+      sycl::ext::oneapi::this_work_item::get_nd_item<1>().get_global_id(0);
   if (id < num_elements) {
     typed_local_mem[id] = static_cast<T>(id);
   }
-  sycl::group_barrier(sycl::ext::oneapi::experimental::this_group<1>());
+  sycl::group_barrier(sycl::ext::oneapi::this_work_item::get_work_group<1>());
   if (id < num_elements) {
     data[id] = typed_local_mem[num_elements - id - 1];
   }

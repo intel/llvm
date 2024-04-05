@@ -4,11 +4,7 @@
 
 int main() {
 
-  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
-
-  if (!are_graphs_supported(Queue)) {
-    return 0;
-  }
+  queue Queue;
 
   const size_t N = 10;
   const float Pattern = 3.14f;

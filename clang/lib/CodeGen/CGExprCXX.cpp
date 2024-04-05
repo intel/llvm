@@ -1073,8 +1073,7 @@ void CodeGenFunction::EmitNewArrayInitializer(
       // Move past these elements.
       InitListElements =
           cast<ConstantArrayType>(Init->getType()->getAsArrayTypeUnsafe())
-              ->getSize()
-              .getZExtValue();
+              ->getZExtSize();
       CurPtr = Builder.CreateConstInBoundsGEP(
           CurPtr, InitListElements, "string.init.end");
 
@@ -1423,6 +1422,7 @@ namespace {
     };
 
     unsigned NumPlacementArgs : 31;
+    LLVM_PREFERRED_TYPE(bool)
     unsigned PassAlignmentToPlacementDelete : 1;
     const FunctionDecl *OperatorDelete;
     ValueTy Ptr;
@@ -1590,8 +1590,7 @@ llvm::Value *CodeGenFunction::EmitCXXNewExpr(const CXXNewExpr *E) {
         isa<StringLiteral>(IgnoreParen) || isa<ObjCEncodeExpr>(IgnoreParen)) {
       minElements =
           cast<ConstantArrayType>(Init->getType()->getAsArrayTypeUnsafe())
-              ->getSize()
-              .getZExtValue();
+              ->getZExtSize();
     } else if (ILE || CPLIE) {
       minElements = ILE ? ILE->getNumInits() : CPLIE->getInitExprs().size();
     }

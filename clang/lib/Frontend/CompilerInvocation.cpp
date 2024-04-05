@@ -191,6 +191,17 @@ CompilerInvocationBase::shallow_copy_assign(const CompilerInvocationBase &X) {
   return *this;
 }
 
+CompilerInvocation::CompilerInvocation(const CowCompilerInvocation &X)
+    : CompilerInvocationBase(EmptyConstructor{}) {
+  CompilerInvocationBase::deep_copy_assign(X);
+}
+
+CompilerInvocation &
+CompilerInvocation::operator=(const CowCompilerInvocation &X) {
+  CompilerInvocationBase::deep_copy_assign(X);
+  return *this;
+}
+
 namespace {
 template <typename T>
 T &ensureOwned(std::shared_ptr<T> &Storage) {
@@ -1982,14 +1993,6 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
     Opts.LinkBitcodeFiles.push_back(F);
   }
 
-  if (Arg *A = Args.getLastArg(OPT_ftlsmodel_EQ)) {
-    if (T.isOSAIX()) {
-      StringRef Name = A->getValue();
-      if (Name == "local-dynamic")
-        Diags.Report(diag::err_aix_unsupported_tls_model) << Name;
-    }
-  }
-
   if (Arg *A = Args.getLastArg(OPT_fdenormal_fp_math_EQ)) {
     StringRef Val = A->getValue();
     Opts.FPDenormalMode = llvm::parseDenormalFPAttribute(Val);
@@ -2028,7 +2031,7 @@ bool CompilerInvocation::ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args,
   }
 
   if (Arg *A = Args.getLastArg(OPT_fsycl_instrument_device_code)) {
-    if (!T.isSPIR())
+    if (!T.isSPIROrSPIRV())
       Diags.Report(diag::err_drv_unsupported_opt_for_target)
           << A->getSpelling() << T.str();
     Opts.SPIRITTAnnotations = true;
@@ -2569,6 +2572,8 @@ static const auto &getFrontendActionTable() {
 
       {frontend::GenerateModule, OPT_emit_module},
       {frontend::GenerateModuleInterface, OPT_emit_module_interface},
+      {frontend::GenerateReducedModuleInterface,
+       OPT_emit_reduced_module_interface},
       {frontend::GenerateHeaderUnit, OPT_emit_header_unit},
       {frontend::GeneratePCH, OPT_emit_pch},
       {frontend::GenerateInterfaceStubs, OPT_emit_interface_stubs},
@@ -2767,6 +2772,9 @@ static void GenerateFrontendArgs(const FrontendOptions &Opts,
       break;
     case Language::HLSL:
       Lang = "hlsl";
+      break;
+    case Language::CIR:
+      Lang = "cir";
       break;
     }
 
@@ -2969,6 +2977,7 @@ static bool ParseFrontendArgs(FrontendOptions &Opts, ArgList &Args,
                   .Cases("ast", "pcm", "precompiled-header",
                          InputKind(Language::Unknown, InputKind::Precompiled))
                   .Case("ir", Language::LLVM_IR)
+                  .Case("cir", Language::CIR)
                   .Default(Language::Unknown);
 
     if (DashX.isUnknown())
@@ -3202,6 +3211,22 @@ static bool ParseHeaderSearchArgs(HeaderSearchOptions &Opts, ArgList &Args,
   bool IsIndexHeaderMap = false;
   bool IsSysrootSpecified =
       Args.hasArg(OPT__sysroot_EQ) || Args.hasArg(OPT_isysroot);
+
+  // Expand a leading `=` to the sysroot if one was passed (and it's not a
+  // framework flag).
+  auto PrefixHeaderPath = [IsSysrootSpecified,
+                           &Opts](const llvm::opt::Arg *A,
+                                  bool IsFramework = false) -> std::string {
+    assert(A->getNumValues() && "Unexpected empty search path flag!");
+    if (IsSysrootSpecified && !IsFramework && A->getValue()[0] == '=') {
+      SmallString<32> Buffer;
+      llvm::sys::path::append(Buffer, Opts.Sysroot,
+                              llvm::StringRef(A->getValue()).substr(1));
+      return std::string(Buffer);
+    }
+    return A->getValue();
+  };
+
   for (const auto *A : Args.filtered(OPT_I, OPT_F, OPT_index_header_map)) {
     if (A->getOption().matches(OPT_index_header_map)) {
       // -index-header-map applies to the next -I or -F.
@@ -3213,16 +3238,7 @@ static bool ParseHeaderSearchArgs(HeaderSearchOptions &Opts, ArgList &Args,
         IsIndexHeaderMap ? frontend::IndexHeaderMap : frontend::Angled;
 
     bool IsFramework = A->getOption().matches(OPT_F);
-    std::string Path = A->getValue();
-
-    if (IsSysrootSpecified && !IsFramework && A->getValue()[0] == '=') {
-      SmallString<32> Buffer;
-      llvm::sys::path::append(Buffer, Opts.Sysroot,
-                              llvm::StringRef(A->getValue()).substr(1));
-      Path = std::string(Buffer);
-    }
-
-    Opts.AddPath(Path, Group, IsFramework,
+    Opts.AddPath(PrefixHeaderPath(A, IsFramework), Group, IsFramework,
                  /*IgnoreSysroot*/ true);
     IsIndexHeaderMap = false;
   }
@@ -3240,12 +3256,18 @@ static bool ParseHeaderSearchArgs(HeaderSearchOptions &Opts, ArgList &Args,
   }
 
   for (const auto *A : Args.filtered(OPT_idirafter))
-    Opts.AddPath(A->getValue(), frontend::After, false, true);
+    Opts.AddPath(PrefixHeaderPath(A), frontend::After, false, true);
   for (const auto *A : Args.filtered(OPT_iquote))
-    Opts.AddPath(A->getValue(), frontend::Quoted, false, true);
-  for (const auto *A : Args.filtered(OPT_isystem, OPT_iwithsysroot))
-    Opts.AddPath(A->getValue(), frontend::System, false,
-                 !A->getOption().matches(OPT_iwithsysroot));
+    Opts.AddPath(PrefixHeaderPath(A), frontend::Quoted, false, true);
+
+  for (const auto *A : Args.filtered(OPT_isystem, OPT_iwithsysroot)) {
+    if (A->getOption().matches(OPT_iwithsysroot)) {
+      Opts.AddPath(A->getValue(), frontend::System, false,
+                   /*IgnoreSysRoot=*/false);
+      continue;
+    }
+    Opts.AddPath(PrefixHeaderPath(A), frontend::System, false, true);
+  }
   for (const auto *A : Args.filtered(OPT_iframework))
     Opts.AddPath(A->getValue(), frontend::System, true, true);
   for (const auto *A : Args.filtered(OPT_iframeworkwithsysroot))
@@ -3304,12 +3326,24 @@ static void ParseAPINotesArgs(APINotesOptions &Opts, ArgList &Args,
     Opts.ModuleSearchPaths.push_back(A->getValue());
 }
 
+static void GeneratePointerAuthArgs(const LangOptions &Opts,
+                                    ArgumentConsumer Consumer) {
+  if (Opts.PointerAuthIntrinsics)
+    GenerateArg(Consumer, OPT_fptrauth_intrinsics);
+}
+
+static void ParsePointerAuthArgs(LangOptions &Opts, ArgList &Args,
+                                 DiagnosticsEngine &Diags) {
+  Opts.PointerAuthIntrinsics = Args.hasArg(OPT_fptrauth_intrinsics);
+}
+
 /// Check if input file kind and language standard are compatible.
 static bool IsInputCompatibleWithStandard(InputKind IK,
                                           const LangStandard &S) {
   switch (IK.getLanguage()) {
   case Language::Unknown:
   case Language::LLVM_IR:
+  case Language::CIR:
     llvm_unreachable("should not parse language flags for this input");
 
   case Language::C:
@@ -3375,6 +3409,8 @@ static StringRef GetInputKindName(InputKind IK) {
     return "Asm";
   case Language::LLVM_IR:
     return "LLVM IR";
+  case Language::CIR:
+    return "Clang IR";
 
   case Language::HLSL:
     return "HLSL";
@@ -3390,7 +3426,8 @@ void CompilerInvocationBase::GenerateLangArgs(const LangOptions &Opts,
                                               const llvm::Triple &T,
                                               InputKind IK) {
   if (IK.getFormat() == InputKind::Precompiled ||
-      IK.getLanguage() == Language::LLVM_IR) {
+      IK.getLanguage() == Language::LLVM_IR ||
+      IK.getLanguage() == Language::CIR) {
     if (Opts.ObjCAutoRefCount)
       GenerateArg(Consumer, OPT_fobjc_arc);
     if (Opts.PICLevel != 0)
@@ -3793,7 +3830,8 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   unsigned NumErrorsBefore = Diags.getNumErrors();
 
   if (IK.getFormat() == InputKind::Precompiled ||
-      IK.getLanguage() == Language::LLVM_IR) {
+      IK.getLanguage() == Language::LLVM_IR ||
+      IK.getLanguage() == Language::CIR) {
     // ObjCAAutoRefCount and Sanitize LangOpts are used to setup the
     // PassManager in BackendUtil.cpp. They need to be initialized no matter
     // what the input type is.
@@ -4186,6 +4224,7 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
 
       if (TT.getArch() == llvm::Triple::UnknownArch ||
           !(TT.getArch() == llvm::Triple::aarch64 || TT.isPPC() ||
+            TT.getArch() == llvm::Triple::systemz ||
             TT.getArch() == llvm::Triple::nvptx ||
             TT.getArch() == llvm::Triple::nvptx64 ||
             TT.getArch() == llvm::Triple::amdgcn ||
@@ -4459,6 +4498,7 @@ static bool isStrictlyPreprocessorAction(frontend::ActionKind Action) {
   case frontend::FixIt:
   case frontend::GenerateModule:
   case frontend::GenerateModuleInterface:
+  case frontend::GenerateReducedModuleInterface:
   case frontend::GenerateHeaderUnit:
   case frontend::GeneratePCH:
   case frontend::GenerateInterfaceStubs:
@@ -4804,6 +4844,8 @@ bool CompilerInvocation::CreateFromArgsImpl(
                         Res.getFileSystemOpts().WorkingDir);
   ParseAPINotesArgs(Res.getAPINotesOpts(), Args, Diags);
 
+  ParsePointerAuthArgs(LangOpts, Args, Diags);
+
   ParseLangArgs(LangOpts, Args, DashX, T, Res.getPreprocessorOpts().Includes,
                 Diags);
   if (Res.getFrontendOpts().ProgramAction == frontend::RewriteObjC)
@@ -5042,6 +5084,7 @@ void CompilerInvocationBase::generateCC1CommandLine(
   GenerateTargetArgs(getTargetOpts(), Consumer);
   GenerateHeaderSearchArgs(getHeaderSearchOpts(), Consumer);
   GenerateAPINotesArgs(getAPINotesOpts(), Consumer);
+  GeneratePointerAuthArgs(getLangOpts(), Consumer);
   GenerateLangArgs(getLangOpts(), Consumer, T, getFrontendOpts().DashX);
   GenerateCodeGenArgs(getCodeGenOpts(), Consumer, T,
                       getFrontendOpts().OutputFile, &getLangOpts());

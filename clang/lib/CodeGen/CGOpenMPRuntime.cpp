@@ -2647,6 +2647,9 @@ void CGOpenMPRuntime::emitDistributeStaticInit(
 void CGOpenMPRuntime::emitForStaticFinish(CodeGenFunction &CGF,
                                           SourceLocation Loc,
                                           OpenMPDirectiveKind DKind) {
+  assert(DKind == OMPD_distribute || DKind == OMPD_for ||
+         DKind == OMPD_sections &&
+             "Expected distribute, for, or sections directive kind");
   if (!CGF.HaveInsertPoint())
     return;
   // Call __kmpc_for_static_fini(ident_t *loc, kmp_int32 tid);
@@ -6795,7 +6798,7 @@ private:
                              OASE->getBase()->IgnoreParenImpCasts())
                              .getCanonicalType();
       if (const auto *ATy = dyn_cast<ConstantArrayType>(BaseQTy.getTypePtr()))
-        return ATy->getSize().getSExtValue() != 1;
+        return ATy->getSExtSize() != 1;
       // If we don't have a constant dimension length, we have to consider
       // the current section as having any size, so it is not necessarily
       // unitary. If it happen to be unity size, that's user fault.
@@ -7545,8 +7548,8 @@ private:
       // it.
       if (DimSizes.size() < Components.size() - 1) {
         if (CAT)
-          DimSizes.push_back(llvm::ConstantInt::get(
-              CGF.Int64Ty, CAT->getSize().getZExtValue()));
+          DimSizes.push_back(
+              llvm::ConstantInt::get(CGF.Int64Ty, CAT->getZExtSize()));
         else if (VAT)
           DimSizes.push_back(CGF.Builder.CreateIntCast(
               CGF.EmitScalarExpr(VAT->getSizeExpr()), CGF.Int64Ty,
@@ -10100,44 +10103,6 @@ bool CGOpenMPRuntime::markAsGlobalTarget(GlobalDecl GD) {
   }
 
   return !AlreadyEmittedTargetDecls.insert(D).second;
-}
-
-llvm::Function *CGOpenMPRuntime::emitRequiresDirectiveRegFun() {
-  // If we don't have entries or if we are emitting code for the device, we
-  // don't need to do anything.
-  if (CGM.getLangOpts().OMPTargetTriples.empty() ||
-      CGM.getLangOpts().OpenMPSimd || CGM.getLangOpts().OpenMPIsTargetDevice ||
-      (OMPBuilder.OffloadInfoManager.empty() &&
-       !HasEmittedDeclareTargetRegion && !HasEmittedTargetRegion))
-    return nullptr;
-
-  // Create and register the function that handles the requires directives.
-  ASTContext &C = CGM.getContext();
-
-  llvm::Function *RequiresRegFn;
-  {
-    CodeGenFunction CGF(CGM);
-    const auto &FI = CGM.getTypes().arrangeNullaryFunction();
-    llvm::FunctionType *FTy = CGM.getTypes().GetFunctionType(FI);
-    std::string ReqName = getName({"omp_offloading", "requires_reg"});
-    RequiresRegFn = CGM.CreateGlobalInitOrCleanUpFunction(FTy, ReqName, FI);
-    CGF.StartFunction(GlobalDecl(), C.VoidTy, RequiresRegFn, FI, {});
-    // TODO: check for other requires clauses.
-    // The requires directive takes effect only when a target region is
-    // present in the compilation unit. Otherwise it is ignored and not
-    // passed to the runtime. This avoids the runtime from throwing an error
-    // for mismatching requires clauses across compilation units that don't
-    // contain at least 1 target region.
-    assert((HasEmittedTargetRegion || HasEmittedDeclareTargetRegion ||
-            !OMPBuilder.OffloadInfoManager.empty()) &&
-           "Target or declare target region expected.");
-    CGF.EmitRuntimeCall(OMPBuilder.getOrCreateRuntimeFunction(
-                            CGM.getModule(), OMPRTL___tgt_register_requires),
-                        llvm::ConstantInt::get(
-                            CGM.Int64Ty, OMPBuilder.Config.getRequiresFlags()));
-    CGF.FinishFunction();
-  }
-  return RequiresRegFn;
 }
 
 void CGOpenMPRuntime::emitTeamsCall(CodeGenFunction &CGF,

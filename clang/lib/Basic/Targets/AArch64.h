@@ -68,6 +68,7 @@ class LLVM_LIBRARY_VISIBILITY AArch64TargetInfo : public TargetInfo {
   bool HasCCDP = false;
   bool HasFRInt3264 = false;
   bool HasSME = false;
+  bool HasSME2 = false;
   bool HasSMEF64F64 = false;
   bool HasSMEI16I64 = false;
   bool HasSB = false;
@@ -164,7 +165,7 @@ public:
                             DiagnosticsEngine &Diags) override;
   ParsedTargetAttr parseTargetAttr(StringRef Str) const override;
   bool supportsTargetAttributeTune() const override { return true; }
-
+  bool supportsCpuSupports() const override { return true; }
   bool checkArithmeticFenceSupported() const override { return true; }
 
   bool hasBFloat16Type() const override;
@@ -194,10 +195,14 @@ public:
 
   int getEHDataRegisterNumber(unsigned RegNo) const override;
 
+  bool validatePointerAuthKey(const llvm::APSInt &value) const override;
+
   const char *getBFloat16Mangling() const override { return "u6__bf16"; };
   bool hasInt128Type() const override;
 
   bool hasBitIntType() const override { return true; }
+
+  bool validateTarget(DiagnosticsEngine &Diags) const override;
 };
 
 class LLVM_LIBRARY_VISIBILITY AArch64leTargetInfo : public AArch64TargetInfo {

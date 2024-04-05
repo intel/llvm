@@ -67,11 +67,17 @@ void diagnostics()
   //expected-note@-2 {{conflicting attribute is here}}
   unsigned int reg_dpump[64];
 
-  //expected-error@+2{{attributes are not compatible}}
+  //expected-error@+2{{'fpga_memory' and 'fpga_register' attributes are not compatible}}
   [[intel::fpga_register]]
   [[intel::fpga_memory]]
   //expected-note@-2 {{conflicting attribute is here}}
   unsigned int reg_memory[64];
+
+  //expected-error@+2{{'fpga_register' and 'fpga_memory' attributes are not compatible}}
+  [[intel::fpga_memory]]
+  [[intel::fpga_register]]
+  //expected-note@-2 {{conflicting attribute is here}}
+  unsigned int reg_fp_memory[64];
 
   //expected-error@+2{{'bank_bits' and 'fpga_register' attributes are not compatible}}
   [[intel::fpga_register]]
@@ -442,20 +448,20 @@ void check_gnu_style() {
   int __attribute__((force_pow2_depth(0))) force_p2d;
 }
 
-//expected-error@+1{{attribute only applies to local non-const variables and non-static data members}}
+//expected-error@+1{{'private_copies' attribute only applies to const variables, local variables, non-static data members and device_global variables}}
 [[intel::private_copies(8)]]
 __attribute__((opencl_constant)) unsigned int const_var[64] = {1, 2, 3};
 
 void attr_on_const_error()
 {
-  //expected-error@+1{{attribute only applies to local non-const variables and non-static data members}}
+  //expected-no-error@+1
   [[intel::private_copies(8)]] const int const_var[64] = {0, 1};
 }
 
-//expected-error@+1{{attribute only applies to local non-const variables and non-static data members}}
+//expected-error@+1{{'private_copies' attribute only applies to const variables, local variables, non-static data members and device_global variables}}
 void attr_on_func_arg([[intel::private_copies(8)]] int pc) {}
 
-//expected-error@+1{{attribute only applies to constant variables, local variables, static variables, agent memory arguments, and non-static data members}}
+//expected-error@+1{{'force_pow2_depth' attribute only applies to constant variables, local variables, static variables, agent memory arguments, non-static data members and device_global variables}}
 [[intel::force_pow2_depth(0)]]
 __attribute__((opencl_global)) unsigned int ocl_glob_force_p2d[64] = {1, 2, 3};
 

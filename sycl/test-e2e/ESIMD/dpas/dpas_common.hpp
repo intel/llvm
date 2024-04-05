@@ -51,9 +51,7 @@ std::string toString(dpas_argument_type T) {
     return "bf16";
   case dpas_argument_type::tf32:
     return "tf32";
-  case dpas_argument_type::s1:
-  case dpas_argument_type::u1:
-  case dpas_argument_type::Invalid:
+  default:
     return "UNSUPPORTED";
   }
   return "UNRECOGNIZED";
@@ -127,9 +125,7 @@ template <dpas_argument_type T> constexpr int getBitSize() {
   case dpas_argument_type::tf32:
     return 32;
 
-  case dpas_argument_type::Invalid:
-  case dpas_argument_type::s1:
-  case dpas_argument_type::u1:
+  default:
     break;
   }
   return 0;
@@ -405,7 +401,7 @@ bool test(queue &Q, bool Print) {
                   << ") != expected (" << GoldRes << ")" << std::endl;
       }
     } // end for JJ
-  }   // end for II
+  } // end for II
 
   free(Res, Q);
   free(APacked, Q);

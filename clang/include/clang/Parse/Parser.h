@@ -1122,6 +1122,8 @@ private:
   void checkCompoundToken(SourceLocation FirstTokLoc,
                           tok::TokenKind FirstTokKind, CompoundToken Op);
 
+  void diagnoseUseOfC11Keyword(const Token &Tok);
+
 public:
   //===--------------------------------------------------------------------===//
   // Scope manipulation
@@ -1801,6 +1803,7 @@ public:
   ExprResult ParseConstraintLogicalOrExpression(bool IsTrailingRequiresClause);
   // Expr that doesn't include commas.
   ExprResult ParseAssignmentExpression(TypeCastState isTypeCast = NotTypeCast);
+  ExprResult ParseConditionalExpression();
 
   ExprResult ParseMSAsmIdentifier(llvm::SmallVectorImpl<Token> &LineToks,
                                   unsigned &NumLineToksConsumed,
@@ -2424,6 +2427,7 @@ private:
   bool MightBeDeclarator(DeclaratorContext Context);
   DeclGroupPtrTy ParseDeclGroup(ParsingDeclSpec &DS, DeclaratorContext Context,
                                 ParsedAttributes &Attrs,
+                                ParsedTemplateInfo &TemplateInfo,
                                 SourceLocation *DeclEnd = nullptr,
                                 ForRangeInit *FRI = nullptr);
   Decl *ParseDeclarationAfterDeclarator(Declarator &D,
@@ -2953,6 +2957,12 @@ private:
                                SourceLocation ScopeLoc,
                                CachedTokens &OpenMPTokens);
 
+  /// Parse a C++23 assume() attribute. Returns true on error.
+  bool ParseCXXAssumeAttributeArg(ParsedAttributes &Attrs,
+                                  IdentifierInfo *AttrName,
+                                  SourceLocation AttrNameLoc,
+                                  SourceLocation *EndLoc);
+
   IdentifierInfo *TryParseCXX11AttributeIdentifier(
       SourceLocation &Loc,
       Sema::AttributeCompletion Completion = Sema::AttributeCompletion::None,
@@ -3063,6 +3073,11 @@ private:
                                  IdentifierInfo *ScopeName,
                                  SourceLocation ScopeLoc,
                                  ParsedAttr::Form Form);
+
+  void ParseBoundsAttribute(IdentifierInfo &AttrName,
+                            SourceLocation AttrNameLoc, ParsedAttributes &Attrs,
+                            IdentifierInfo *ScopeName, SourceLocation ScopeLoc,
+                            ParsedAttr::Form Form);
 
   void ParseTypeofSpecifier(DeclSpec &DS);
   SourceLocation ParseDecltypeSpecifier(DeclSpec &DS);
@@ -3572,7 +3587,21 @@ public:
   StmtResult ParseOpenACCDirectiveStmt();
 
 private:
-  void ParseOpenACCDirective();
+  /// A struct to hold the information that got parsed by ParseOpenACCDirective,
+  /// so that the callers of it can use that to construct the appropriate AST
+  /// nodes.
+  struct OpenACCDirectiveParseInfo {
+    OpenACCDirectiveKind DirKind;
+    SourceLocation StartLoc;
+    SourceLocation EndLoc;
+    // TODO OpenACC: Add Clause list here once we have a type for that.
+    // TODO OpenACC: As we implement support for the Atomic, Routine, Cache, and
+    // Wait constructs, we likely want to put that information in here as well.
+  };
+
+  /// Parses the OpenACC directive (the entire pragma) including the clause
+  /// list, but does not produce the main AST node.
+  OpenACCDirectiveParseInfo ParseOpenACCDirective();
   /// Helper that parses an ID Expression based on the language options.
   ExprResult ParseOpenACCIDExpression();
   /// Parses the variable list for the `cache` construct.
@@ -3616,16 +3645,15 @@ private:
   // C++ 14: Templates [temp]
 
   // C++ 14.1: Template Parameters [temp.param]
-  Decl *ParseDeclarationStartingWithTemplate(DeclaratorContext Context,
-                                             SourceLocation &DeclEnd,
-                                             ParsedAttributes &AccessAttrs,
-                                             AccessSpecifier AS = AS_none);
-  Decl *ParseTemplateDeclarationOrSpecialization(DeclaratorContext Context,
-                                                 SourceLocation &DeclEnd,
-                                                 ParsedAttributes &AccessAttrs,
-                                                 AccessSpecifier AS);
-  Decl *ParseSingleDeclarationAfterTemplate(
-      DeclaratorContext Context, const ParsedTemplateInfo &TemplateInfo,
+  DeclGroupPtrTy
+  ParseDeclarationStartingWithTemplate(DeclaratorContext Context,
+                                       SourceLocation &DeclEnd,
+                                       ParsedAttributes &AccessAttrs);
+  DeclGroupPtrTy ParseTemplateDeclarationOrSpecialization(
+      DeclaratorContext Context, SourceLocation &DeclEnd,
+      ParsedAttributes &AccessAttrs, AccessSpecifier AS);
+  DeclGroupPtrTy ParseDeclarationAfterTemplate(
+      DeclaratorContext Context, ParsedTemplateInfo &TemplateInfo,
       ParsingDeclRAIIObject &DiagsFromParams, SourceLocation &DeclEnd,
       ParsedAttributes &AccessAttrs, AccessSpecifier AS = AS_none);
   bool ParseTemplateParameters(MultiParseScope &TemplateScopes, unsigned Depth,
@@ -3674,12 +3702,12 @@ private:
                                  TemplateTy Template, SourceLocation OpenLoc);
   ParsedTemplateArgument ParseTemplateTemplateArgument();
   ParsedTemplateArgument ParseTemplateArgument();
-  Decl *ParseExplicitInstantiation(DeclaratorContext Context,
-                                   SourceLocation ExternLoc,
-                                   SourceLocation TemplateLoc,
-                                   SourceLocation &DeclEnd,
-                                   ParsedAttributes &AccessAttrs,
-                                   AccessSpecifier AS = AS_none);
+  DeclGroupPtrTy ParseExplicitInstantiation(DeclaratorContext Context,
+                                            SourceLocation ExternLoc,
+                                            SourceLocation TemplateLoc,
+                                            SourceLocation &DeclEnd,
+                                            ParsedAttributes &AccessAttrs,
+                                            AccessSpecifier AS = AS_none);
   // C++2a: Template, concept definition [temp]
   Decl *
   ParseConceptDefinition(const ParsedTemplateInfo &TemplateInfo,

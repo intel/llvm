@@ -1,5 +1,4 @@
-// Use -O2 to avoid huge stack usage under -O0.
-// RUN: %{build} -O2 -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 //
 // The test checks functionality of the slm_gather/slm_scatter ESIMD APIs.
@@ -125,6 +124,14 @@ int main(void) {
   if (dev.has(aspect::fp16)) {
     passed &= test<half, 16>(q);
     passed &= test<half, 32>(q);
+  }
+
+  passed &= test<int64_t, 16>(q);
+  passed &= test<int64_t, 32>(q);
+
+  if (dev.has(sycl::aspect::fp64)) {
+    passed &= test<double, 16>(q);
+    passed &= test<double, 32>(q);
   }
 
   return passed ? 0 : 1;

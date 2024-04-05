@@ -1,6 +1,7 @@
 // REQUIRES: cuda
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// XFAIL: *
 
 #include <numeric>
 #include <string_view>

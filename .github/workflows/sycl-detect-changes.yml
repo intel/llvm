@@ -7,6 +7,8 @@ on:
         description: Matched filters
         value: ${{ jobs.need_check.outputs.filters }}
 
+permissions: read-all
+
 jobs:
   need_check:
     name: Decide which tests could be affected by the changes
@@ -18,7 +20,7 @@ jobs:
       filters: ${{ steps.result.outputs.result }}
     steps:
       - name: Check file changes
-        uses: dorny/paths-filter@0bc4621a3135347011ad047f9ecf449bf72ce2bd
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36
         id: changes
         with:
           filters: |
@@ -57,6 +59,19 @@ jobs:
               - devops/scripts/install_drivers.sh
             perf-tests:
               - sycl/test-e2e/PerformanceTests/**
+            esimd:
+              - 'llvm/lib/SYCLLowerIR/ESIMD/**'
+              - 'llvm/lib/SYCLLowerIR/LowerInvokeSimd.cpp'
+              - 'llvm/include/llvm/SYCLLowerIR/LowerInvokeSimd.h'
+              - 'sycl/include/std/experimental/simd.hpp'
+              - 'sycl/include/std/experimental/simd.hpp'
+              - 'sycl/include/sycl/ext/intel/esimd.hpp'
+              - 'sycl/include/sycl/ext/intel/esimd/**'
+              - 'sycl/include/sycl/ext/intel/esimd.hpp'
+              - 'sycl/include/sycl/ext/intel/experimental/esimd/**'
+              - 'sycl/include/sycl/ext/oneapi/experimental/invoke_simd.hpp'
+              - 'sycl/include/sycl/ext/oneapi/experimental/detail/invoke_simd_types.hpp'
+              - 'sycl/test-e2e/(ESIMD|InvokeSimd)/**'
 
       - name: Set output
         id: result
@@ -69,6 +84,7 @@ jobs:
               return '${{ steps.changes.outputs.changes }}';
             }
             // Treat everything as changed for huge PRs.
-            return ["llvm", "llvm_spirv", "clang", "sycl_fusion", "xptifw", "libclc", "sycl", "ci"];
+            return ["llvm", "llvm_spirv", "clang", "sycl_fusion", "xptifw", "libclc", "sycl", "ci", "esimd"];
 
       - run: echo '${{ steps.result.outputs.result }}'
+     

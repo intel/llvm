@@ -54,6 +54,7 @@ class IntrinsicInst;
 
 namespace SPIRV {
 
+/// SPIR-V versions known to translator.
 enum class VersionNumber : uint32_t {
   // See section 2.3 of SPIR-V spec: Physical Layout of a SPIR_V Module and
   // Instruction
@@ -62,10 +63,9 @@ enum class VersionNumber : uint32_t {
   SPIRV_1_2 = 0x00010200,
   SPIRV_1_3 = 0x00010300,
   SPIRV_1_4 = 0x00010400,
-  // TODO: populate this enum with the latest versions (up to 1.5) once
-  // translator get support of corresponding features
+  SPIRV_1_5 = 0x00010500,
   MinimumVersion = SPIRV_1_0,
-  MaximumVersion = SPIRV_1_4
+  MaximumVersion = SPIRV_1_5
 };
 
 inline constexpr std::string_view formatVersionNumber(uint32_t Version) {
@@ -80,6 +80,8 @@ inline constexpr std::string_view formatVersionNumber(uint32_t Version) {
     return "1.3";
   case static_cast<uint32_t>(VersionNumber::SPIRV_1_4):
     return "1.4";
+  case static_cast<uint32_t>(VersionNumber::SPIRV_1_5):
+    return "1.5";
   }
   return "unknown";
 }
@@ -96,6 +98,8 @@ enum class ExtensionID : uint32_t {
 #undef EXT
   Last,
 };
+
+enum class ExtInst : uint32_t { None, OpenCL };
 
 enum class BIsRepresentation : uint32_t { OpenCL12, OpenCL20, SPIRVFriendlyIR };
 
@@ -158,11 +162,7 @@ public:
     GenKernelArgNameMD = ArgNameMD;
   }
 
-  void enableAllExtensions() {
-#define EXT(X) ExtStatusMap[ExtensionID::X] = true;
-#include "LLVMSPIRVExtensions.inc"
-#undef EXT
-  }
+  void enableAllExtensions();
 
   void enableGenArgNameMD() { GenKernelArgNameMD = true; }
 
@@ -177,6 +177,14 @@ public:
     Value = It->second;
     return true;
   }
+
+  void setExtInst(ExtInst Value) {
+    // --spirv-ext-inst supersedes --spirv-replace-fmuladd-with-ocl-mad
+    ReplaceLLVMFmulAddWithOpenCLMad = false;
+    ExtInstValue = Value;
+  }
+
+  ExtInst getExtInst() const { return ExtInstValue; }
 
   void setDesiredBIsRepresentation(BIsRepresentation Value) {
     DesiredRepresentationOfBIs = Value;
@@ -236,6 +244,8 @@ private:
   // SPIR-V to LLVM translation options
   bool GenKernelArgNameMD = false;
   std::unordered_map<uint32_t, uint64_t> ExternalSpecialization;
+  // Extended instruction set to use when translating from LLVM IR to SPIR-V
+  ExtInst ExtInstValue = ExtInst::None;
   // Representation of built-ins, which should be used while translating from
   // SPIR-V to back to LLVM IR
   BIsRepresentation DesiredRepresentationOfBIs = BIsRepresentation::OpenCL12;

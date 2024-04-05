@@ -81,6 +81,7 @@ on:
           - '["Linux", "gen12"]'
           - '["amdgpu"]'
           - '["Linux", "arc"]'
+          - '["cts-cpu"]'
       image:
         description: |
           Use option ending with ":build" for AMDGPU, ":latest" for the rest.
@@ -100,7 +101,7 @@ on:
         options:
           - 'opencl:cpu'
           - 'opencl:gpu'
-          - 'opencl:acc'
+          - 'opencl:fpga'
           - 'ext_oneapi_level_zero:gpu'
           - 'ext_oneapi_hip:gpu'
       tests_selector:
@@ -130,6 +131,9 @@ on:
         options:
           - false
           - true
+
+permissions:
+  contents: read
 
 jobs:
   run:
@@ -267,12 +271,19 @@ jobs:
       run: |
         cmake -GNinja -B./build-e2e -S./llvm/sycl/test-e2e -DSYCL_TEST_E2E_TARGETS="${{ inputs.target_devices }}" -DCMAKE_CXX_COMPILER="$(which clang++)" -DLLVM_LIT="$PWD/llvm/llvm/utils/lit/lit.py" ${{ steps.cmake_opts.outputs.opts }}
     - name: SYCL End-to-end tests
+      shell: bash {0}
       if: inputs.tests_selector == 'e2e'
       env:
         LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests ${{ inputs.extra_lit_opts }}
       run: |
-        ninja -C build-e2e check-sycl-e2e
-
+        ninja -C build-e2e check-sycl-e2e > e2e.log 2>&1
+        exit_code=$?
+        cat e2e.log
+        if [ $exit_code -ne 0 ]; then
+          # TODO: XPASS/UNRESOLVED
+          awk '/^Failed Tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
+        fi
+        exit $exit_code
     - name: Build SYCL CTS tests
       if: inputs.tests_selector == 'cts'
       env:
@@ -286,10 +297,49 @@ jobs:
         -DDPCPP_INSTALL_DIR="$$(dirname (which clang++))/.." \
         $CMAKE_EXTRA_ARGS
         ninja -C build-cts
+
+    - name: SYCL CTS List devices
+      if: inputs.tests_selector == 'cts'
+      run: |
+        ./build-cts/bin/test_all --list-devices
+
     - name: Run SYCL CTS tests
       if: inputs.tests_selector == 'cts'
       env:
         ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
+      # By-default GitHub actions execute the "run" shell script with -e option,
+      # so the execution terminates if any command returns a non-zero status.
+      # Since we're using a loop to run all test-binaries separately, some test
+      # may fail and terminate the execution. Setting "shell" value to override
+      # the default behavior.
+      # https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#custom-shell
+      shell: bash {0}
+      # FIXME: For some reason the "sub_group api" test-case is failing with
+      # SIGSEGV while running test_all, so running each binary separately.
+      # BTW test_all requires a lot of resources to build it, so probably it'll
+      # be better to build each binary also separately.
+      # run: |
+      #   ./build-cts/bin/test_all $CTS_TEST_ARGS
       run: |
-        ./build-cts/bin/test_all --list-devices
-        ./build-cts/bin/test_all $CTS_TEST_ARGS
+        status=""
+        failed_suites=""
+        for i in `ls -1 ./build-cts/bin`; do
+          if [ "$i" != "test_all" ]; then
+            echo "::group::Running $i"
+            build-cts/bin/$i
+            if [ $? -ne 0 ]; then
+              status=1
+              if [$failed_suites == ""]; then
+                failed_suites=$i
+              else
+                failed_suites="$failed_suites, $i"
+              fi
+            fi
+            echo "::endgroup::"
+          fi
+        done
+        if [ -n "$status" ]; then
+          echo "Failed suite(s): $failed_suites"
+          exit 1
+        fi
+        exit 0

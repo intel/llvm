@@ -143,7 +143,8 @@ public:
     MASSV,            // IBM MASS vector library.
     SVML,             // Intel short vector math library.
     SLEEFGNUABI, // SLEEF - SIMD Library for Evaluating Elementary Functions.
-    ArmPL        // Arm Performance Libraries.
+    ArmPL,       // Arm Performance Libraries.
+    AMDLIBM      // AMD Math Vector library.
   };
 
   /// List of known alternate math libraries.
