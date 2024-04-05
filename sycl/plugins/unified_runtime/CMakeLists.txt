@@ -57,12 +57,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 74a8f047563d3528fccbf87cd729ceb3dcad6e1d
+  # commit 1ee81f480fc9d6645eb8cb61acfc53f809ce8d69
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Apr 1 15:16:30 2024 +0100
-  #     Merge pull request #1485 from aarongreig/aaron/addDeviceNotAvailableErrC
-  #     Add UR_ERROR_DEVICE_NOT_AVAILABLE and appropriate translation for CL.
-  set(UNIFIED_RUNTIME_TAG 74a8f047563d3528fccbf87cd729ceb3dcad6e1d)
+  # Date:   Tue Apr 2 10:14:23 2024 +0100
+  #     Merge pull request #1450 from kbenzie/benie/cl-fpga-atomic-memory-order-caps
+  #     [CL] Atomic fence scope capability for Intel FPGA driver
+  set(UNIFIED_RUNTIME_TAG 1ee81f480fc9d6645eb8cb61acfc53f809ce8d69)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
