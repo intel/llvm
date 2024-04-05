@@ -67,7 +67,7 @@ jobs:
           file: ${{ matrix.file }}
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-          tag: |
+          tags: |
             ghcr.io/${{ github.repository }}/${{ matrix.file }}:${{ matrix.tag }}-${{ github.sha }}
             ghcr.io/${{ github.repository }}/${{ matrix.file }}:${{ matrix.tag }}
           build-args: ${{ matrix.build_args }}
