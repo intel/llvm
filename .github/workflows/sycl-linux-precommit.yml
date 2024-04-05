@@ -49,6 +49,24 @@ jobs:
       build_image: "ghcr.io/intel/llvm/ubuntu2204_build:7ed894ab0acc8ff09262113fdb08940d22654a30"
       changes: ${{ needs.detect_changes.outputs.filters }}
 
+  select_docker_image:
+    name: Select docker image based on label and changes
+    needs: [build, detect_changes]
+    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    runs-on: [Linux, build]
+    timeout-minutes: 3
+    outputs:
+      image: ${{ steps.get_docker_image.outputs.image}}
+    steps:
+      - name: Select docker image
+        id: get_docker_image
+        run: |
+          if [ "${{ contains(github.event.pull_request.labels.*.name, 'ci-use-igc-dev') }}" == "true" ]; then
+            echo 'image="ghcr.io/intel/llvm/ubuntu2204_intel_drivers_devigc:latest"' >> "$GITHUB_OUTPUT"
+          else
+            echo 'image="ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest"' >> "$GITHUB_OUTPUT"
+          fi
+
   determine_arc_tests:
     name: Decide which Arc tests to run
     needs: [build, detect_changes]
@@ -67,7 +85,7 @@ jobs:
             echo 'arc_tests="Matrix/"' >> "$GITHUB_OUTPUT"
           fi
   test:
-    needs: [build, detect_changes, determine_arc_tests]
+    needs: [build, detect_changes, determine_arc_tests, select_docker_image]
     if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
@@ -81,7 +99,7 @@ jobs:
             target_devices: ext_oneapi_hip:gpu
           - name: Intel
             runner: '["Linux", "gen12"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            image: ${{ needs.select_docker_image.outputs.image}}
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: ext_oneapi_level_zero:gpu;opencl:gpu;opencl:cpu
             reset_gpu: true
@@ -89,7 +107,7 @@ jobs:
             extra_lit_opts: --param gpu-intel-gen12=True
           - name: E2E tests on Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            image: ${{ needs.select_docker_image.outputs.image}}
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: ext_oneapi_level_zero:gpu;opencl:gpu
             reset_gpu: true
