@@ -13,14 +13,39 @@ COPY scripts/install_build_tools.sh /install.sh
 RUN /install.sh
 
 # Install AMD ROCm
-RUN printf 'Package: *\nPin: release o=repo.radeon.com\nPin-Priority: 600\n' | tee /etc/apt/preferences.d/rocm-pin-600
-RUN apt install -yqq libnuma-dev wget gnupg2 && \
-  wget -q -O - https://repo.radeon.com/rocm/rocm.gpg.key | apt-key add - && \
-  echo 'deb [arch=amd64] https://repo.radeon.com/rocm/apt/debian/ ubuntu main' | tee /etc/apt/sources.list.d/rocm.list && \
-  apt update && \
-  apt install -yqq rocm-dev && \
-  apt-get clean && \
+
+# Make the directory if it doesn't exist yet.
+# This location is recommended by the distribution maintainers.
+RUN mkdir --parents --mode=0755 /etc/apt/keyrings
+# Download the key, convert the signing-key to a full
+# keyring required by apt and store in the keyring directory
+RUN wget https://repo.radeon.com/rocm/rocm.gpg.key -O - | \
+    gpg --dearmor | tee /etc/apt/keyrings/rocm.gpg > /dev/null
+RUN echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/amdgpu/6.0.2/ubuntu jammy main" \
+    | tee /etc/apt/sources.list.d/amdgpu.list
+RUN apt update
+# Add rocm repo
+RUN echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.0.2 jammy main" \
+    | tee --append /etc/apt/sources.list.d/rocm.list
+RUN echo -e 'Package: *\nPin: release o=repo.radeon.com\nPin-Priority: 600' \
+    | tee /etc/apt/preferences.d/rocm-pin-600
+# Install the kernel driver
+RUN apt install amdgpu-dkms
+RUN apt update
+RUN apt install rocm
+# Cleanup
+RUN apt-get clean && \
   rm -rf /var/lib/apt/lists/*
+# Configure the system linker
+RUN tee --append /etc/ld.so.conf.d/rocm.conf <<EOF
+/opt/rocm/lib
+/opt/rocm/lib64
+EOF
+RUN ldconfig
+RUN export PATH=$PATH:/opt/rocm-6.0.2/bin
+# Verification
+RUN dkms status
+RUN /opt/rocm-6.0.2/bin/rocminfo
 
 # By default Ubuntu sets an arbitrary UID value, that is different from host
 # system. When CI passes default UID value of 1001, some of LLVM tools fail to
