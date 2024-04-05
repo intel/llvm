@@ -248,7 +248,11 @@ struct GENToLLVMConversionPass final
   void runOnOperation() override {
     MLIRContext *context = &getContext();
     RewritePatternSet pattern(context);
+
     LowerToLLVMOptions options(context);
+    if (indexBitwidth != kDeriveIndexBitwidthFromDataLayout)
+      options.overrideIndexBitwidth(indexBitwidth);
+
     LLVMTypeConverter converter(context, options);
     LLVMConversionTarget target(*context);
 
