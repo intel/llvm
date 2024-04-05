@@ -47,13 +47,13 @@ jobs:
             build_args: "use_latest=false"
           - name: Intel Drivers Ubuntu 22.04 Docker image with dev IGC
             file: ubuntu2204_intel_drivers
-            tags: ubuntu2204_intel_drivers_devigc
+            tags: ubuntu2204_intel_drivers:devigc
             build_args: |
                   "use_latest=false"
                   "use_igc_dev=true"
           - name: Intel Drivers (unstable) Ubuntu 22.04 Docker image
             file: ubuntu2204_intel_drivers
-            tags: ubuntu2204_intel_drivers_unstable
+            tags: ubuntu2204_intel_drivers:unstable
             build_args: "use_latest=true"
     steps:
       - name: Checkout
@@ -69,6 +69,6 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
           tags: |
             ghcr.io/${{ github.repository }}/${{ matrix.tags }}-${{ github.sha }}
-            ghcr.io/${{ github.repository }}/${{ matrix.tags }}:latest
+            ghcr.io/${{ github.repository }}/${{ contains(matrix.tags, ':') && matrix.tags || format('{0}:latest', matrix.tags) }}
           build-args: ${{ matrix.build_args }}
 
