@@ -20,8 +20,16 @@ string(CONCAT sycl_targets_opt
   "spir64_x86_64-unknown-unknown,"
   "spir64_gen-unknown-unknown,"
   "spir64_fpga-unknown-unknown,"
-  "spir64-unknown-unknown,"
-  "spirv64-unknown-unknown")
+  "spir64-unknown-unknown")
+
+if (NOT WIN32)
+  # Don't build for spirv64 on Windows due to
+  # some type size difference issues.
+  # Build on once Windows once internal tracker is fixed.
+  string(APPEND
+    sycl_targets_opt
+    ",spirv64-unknown-unknown")
+endif()
 
 set(compile_opts
   # suppress an error about SYCL_EXTERNAL being used for
