@@ -33,7 +33,7 @@
 #include "mlir/Conversion/FuncToEmitC/FuncToEmitCPass.h"
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVMPass.h"
 #include "mlir/Conversion/FuncToSPIRV/FuncToSPIRVPass.h"
-#include "mlir/Conversion/GENToLLVM/GENToLLVMPass.h"
+#include "mlir/Conversion/GENToLLVM/GENToLLVM.h"
 #include "mlir/Conversion/GENToSPIRV/GENToSPIRV.h"
 #include "mlir/Conversion/GPUCommon/GPUCommonPass.h"
 #include "mlir/Conversion/GPUToGENX/GPUToGENXPass.h"

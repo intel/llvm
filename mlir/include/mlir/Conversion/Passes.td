@@ -462,12 +462,11 @@ def ConvertFuncToSPIRV : Pass<"convert-func-to-spirv"> {
 // GENToLLVM
 //===----------------------------------------------------------------------===//
 
-def ConvertGENToLLVM : Pass<"convert-gen-to-llvm", "ModuleOp"> {
+def GENToLLVMConversionPass : Pass<"convert-gen-to-llvm"> {
   let summary = "Convert the GEN dialect to the LLVM dialect";
   let description = [{
     This pass converts GEN dialect operations to LLVM dialect operations.
   }];
-  let constructor = "mlir::GEN::createConvertGENToLLVM()";
   let dependentDialects = ["LLVM::LLVMDialect"];
 }
 

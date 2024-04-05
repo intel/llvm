@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/GEN/IR/GENDialect.h"
+
+#include "mlir/Conversion/ConvertToLLVM/ToLLVMInterface.h"
 #include "mlir/Dialect/GEN/IR/GENOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/Builders.h"
@@ -39,4 +41,5 @@ void GENDialect::initialize() {
 #define GET_ATTRDEF_LIST
 #include "mlir/Dialect/GEN/IR/GENOpsAttrDefs.cpp.inc"
       >();
+  declarePromisedInterface<GENDialect, ConvertToLLVMPatternInterface>();
 }

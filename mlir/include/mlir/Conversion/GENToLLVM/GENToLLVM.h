@@ -1,4 +1,4 @@
-//===- GENToLLVMPass.h - GEN to LLVM dialect conversion ---------*- C++ -*-===//
+//===- GENToLLVM.h - GEN to LLVM dialect conversion -------------*- C++ -*-===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,27 +6,27 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_CONVERSION_GENTOLLVM_GENTOLLVMPASS_H
-#define MLIR_CONVERSION_GENTOLLVM_GENTOLLVMPASS_H
+#ifndef MLIR_CONVERSION_GENTOLLVM_GENTOLLVM_H
+#define MLIR_CONVERSION_GENTOLLVM_GENTOLLVM_H
 
-#include "mlir/Pass/Pass.h"
 #include <memory>
 
 namespace mlir {
 
+class DialectRegistry;
 class LLVMTypeConverter;
 class RewritePatternSet;
 class Pass;
 
-#define GEN_PASS_DECL_CONVERTGENTOLLVM
+#define GEN_PASS_DECL_GENTOLLVMCONVERSIONPASS
 #include "mlir/Conversion/Passes.h.inc"
 
 namespace GEN {
 void populateGENToLLVMConversionPatterns(LLVMTypeConverter &converter,
                                          RewritePatternSet &patterns);
 
-std::unique_ptr<Pass> createConvertGENToLLVM();
+void registerConvertGENToLLVMInterface(DialectRegistry &registry);
 } // namespace GEN
 } // namespace mlir
 
-#endif // MLIR_CONVERSION_GENTOLLVM_GENTOLLVMPASS_H
+#endif // MLIR_CONVERSION_GENTOLLVM_GENTOLLVM_H
