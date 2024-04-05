@@ -1,4 +1,4 @@
-// Ensure -no-system-debug is passed to cc1 appropriately
+// Ensure -fno-system-debug is passed to cc1 appropriately
 
 // RUN: %clang -fsystem-debug -### -c %s 2>&1 | FileCheck %s --check-prefix=CHECK-POS
 // RUN: %clang -fno-system-debug -### -c %s 2>&1 | FileCheck %s --check-prefix=CHECK-NEG
