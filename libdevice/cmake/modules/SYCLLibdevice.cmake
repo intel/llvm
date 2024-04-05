@@ -20,7 +20,8 @@ string(CONCAT sycl_targets_opt
   "spir64_x86_64-unknown-unknown,"
   "spir64_gen-unknown-unknown,"
   "spir64_fpga-unknown-unknown,"
-  "spir64-unknown-unknown")
+  "spir64-unknown-unknown,"
+  "spirv64-unknown-unknown")
 
 set(compile_opts
   # suppress an error about SYCL_EXTERNAL being used for
