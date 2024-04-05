@@ -48,7 +48,9 @@ jobs:
           - name: Intel Drivers Ubuntu 22.04 Docker image with dev IGC
             file: ubuntu2204_intel_drivers
             tags: ubuntu2204_intel_drivers_devigc
-            build_args: "use_latest=false use_igc_dev=true"
+            build_args: |
+                  "use_latest=false"
+                  "use_igc_dev=true"
           - name: Intel Drivers (unstable) Ubuntu 22.04 Docker image
             file: ubuntu2204_intel_drivers
             tags: ubuntu2204_intel_drivers_unstable
