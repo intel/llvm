@@ -8,7 +8,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 ARG use_latest=true
 ARG use_igc_dev=false
 
-RUN apt update && apt install -yqq wget libllvm14
+RUN apt update && apt install -yqq wget \
+    && if [ "$use_igc_dev" = "true" ]; then apt-get install -yqq libllvm14; fi
 
 COPY scripts/get_release.py /
 COPY scripts/install_drivers.sh /
