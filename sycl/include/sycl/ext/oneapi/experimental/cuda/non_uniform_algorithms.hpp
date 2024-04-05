@@ -262,6 +262,8 @@ masked_scan_cuda_shfls(Group g, T x, BinaryOperation binary_op,
   return x;
 }
 
+#undef CUDA_SHFL_SYNC
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

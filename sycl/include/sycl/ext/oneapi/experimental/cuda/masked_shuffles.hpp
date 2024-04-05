@@ -10,10 +10,6 @@
 
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 
-namespace sycl {
-inline namespace _V1 {
-namespace detail {
-
 //// Generates all possible CUDA shfl.sync builtin calls.
 #define CUDA_SHFL_SYNC(RES, MASK, VAL, SHFL_PARAM, C, SHUFFLE_INSTR)           \
   if constexpr (std::is_same_v<T, double>) {                                   \
@@ -42,9 +38,5 @@ namespace detail {
   } else {                                                                     \
     RES = __nvvm_shfl_sync_##SHUFFLE_INSTR(MASK, VAL, SHFL_PARAM, C);          \
   }
-
-} // namespace detail
-} // namespace _V1
-} // namespace sycl
 
 #endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)

@@ -1026,6 +1026,8 @@ EnableIfNativeShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
 #endif
 }
 
+#undef CUDA_SHFL_SYNC
+
 template <typename GroupT, typename T>
 EnableIfVectorShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
   T result;
