@@ -9,10 +9,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "common.hpp"
+#include "logger/ur_logger.hpp"
 
 struct ur_adapter_handle_t_ {
   std::atomic<uint32_t> RefCount = 0;
   std::mutex Mutex;
+  logger::Logger &log = logger::get_logger("opencl");
 };
 
 static ur_adapter_handle_t_ *adapter = nullptr;
