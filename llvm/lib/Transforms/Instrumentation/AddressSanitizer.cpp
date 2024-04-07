@@ -1372,10 +1372,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
     FixupMetadata("kernel_arg_runtime_aligned", Builder.getFalse());
     FixupMetadata("kernel_arg_exclusive_ptr", Builder.getFalse());
 
-    if (F->getCallingConv() == CallingConv::SPIR_KERNEL)
-      F->removeFromParent();
-    else
-      SpirFuncs.emplace_back(F, NewF);
+    SpirFuncs.emplace_back(F, NewF);
   }
 
   // Fixup all users
