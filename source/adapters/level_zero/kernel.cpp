@@ -14,12 +14,10 @@
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    size_t *pSuggestedLocalWorkSize) {
+    [[maybe_unused]] const size_t *pGlobalWorkOffset,
+    const size_t *pGlobalWorkSize, size_t *pSuggestedLocalWorkSize) {
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
-
-  std::ignore = pGlobalWorkOffset;
 
   uint32_t LocalWorkSize[3];
   size_t GlobalWorkSize3D[3]{1, 1, 1};
