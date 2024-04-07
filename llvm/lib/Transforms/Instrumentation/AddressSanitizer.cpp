@@ -192,6 +192,13 @@ constexpr size_t kAccessSizeIndexMask = 0xf;
 constexpr size_t kIsWriteShift = 5;
 constexpr size_t kIsWriteMask = 0x1;
 
+// Spir memory address space
+static constexpr unsigned kSpirOffloadPrivateAS = 0;
+static constexpr unsigned kSpirOffloadGlobalAS = 1;
+static constexpr unsigned kSpirOffloadConstantAS = 2;
+static constexpr unsigned kSpirOffloadLocalAS = 3;
+static constexpr unsigned kSpirOffloadGenericAS = 4;
+
 // Command-line flags.
 
 static cl::opt<bool> ClEnableKasan(
@@ -437,17 +444,18 @@ static cl::opt<AsanDtorKind> ClOverrideDestructorKind(
     cl::init(AsanDtorKind::Invalid), cl::Hidden);
 
 // SYCL flags
-static cl::opt<bool> ClOffloadGlobals("asan-offload-globals",
-                                      cl::desc("instrument global pointer"),
-                                      cl::Hidden, cl::init(true));
+static cl::opt<bool> ClSpirOffloadGlobals("asan-spir-globals",
+                                          cl::desc("instrument global pointer"),
+                                          cl::Hidden, cl::init(true));
 
-static cl::opt<bool> ClOffloadLocals("asan-offload-locals",
-                                     cl::desc("instrument local pointer"),
-                                     cl::Hidden, cl::init(true));
+static cl::opt<bool> ClSpirOffloadLocals("asan-spir-locals",
+                                         cl::desc("instrument local pointer"),
+                                         cl::Hidden, cl::init(true));
 
-static cl::opt<bool> ClOffloadGenerics("asan-offload-generics",
-                                       cl::desc("instrument generic pointer"),
-                                       cl::Hidden, cl::init(true));
+static cl::opt<bool>
+    ClSpirOffloadGenerics("asan-spir-generics",
+                          cl::desc("instrument generic pointer"), cl::Hidden,
+                          cl::init(true));
 
 // Debug flags.
 
@@ -488,9 +496,6 @@ struct ShadowMapping {
 };
 
 } // end anonymous namespace
-
-constexpr unsigned OffloadGlobalAS = 1;
-constexpr unsigned OffloadConstantAS = 2;
 
 static ShadowMapping getShadowMapping(const Triple &TargetTriple, int LongSize,
                                       bool IsKasan) {
@@ -1315,7 +1320,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
     // New argument type: uintptr_t as(1)*, as it's allocated in USM buffer, and
     // it can also be treated as a pointer point to the base address of private
     // shadow memory
-    Types.push_back(IntptrTy->getPointerTo(OffloadGlobalAS));
+    Types.push_back(IntptrTy->getPointerTo(kSpirOffloadGlobalAS));
 
     FunctionType *NewFTy = FunctionType::get(F->getReturnType(), Types, false);
 
@@ -1495,21 +1500,22 @@ static bool isUnsupportedAMDGPUAddrspace(Value *Addr) {
 static bool isUnsupportedSPIRAccess(Value *Addr, Function *Func) {
   std::ignore = Func;
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
-  if (PtrTy->getPointerAddressSpace() == 0) { // Private address space
+  if (PtrTy->getPointerAddressSpace() ==
+      kSpirOffloadPrivateAS) { // Private address space
     // skip kernel arguments
     return Func->getCallingConv() == CallingConv::SPIR_KERNEL &&
            isa<Argument>(Addr);
   }
-  if (PtrTy->getPointerAddressSpace() == 1 &&
-      !ClOffloadGlobals) { // Global address space
+  if (PtrTy->getPointerAddressSpace() == kSpirOffloadGlobalAS &&
+      !ClSpirOffloadGlobals) { // Global address space
     return true;
   }
-  if (PtrTy->getPointerAddressSpace() == 3 &&
-      !ClOffloadLocals) { // Local address space
+  if (PtrTy->getPointerAddressSpace() == kSpirOffloadLocalAS &&
+      !ClSpirOffloadLocals) { // Local address space
     return true;
   }
-  if (PtrTy->getPointerAddressSpace() == 4 &&
-      !ClOffloadGenerics) { // Generic address space
+  if (PtrTy->getPointerAddressSpace() == kSpirOffloadGenericAS &&
+      !ClSpirOffloadGenerics) { // Generic address space
     return true;
   }
 
@@ -1542,7 +1548,8 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
   auto &Loc = InsertBefore->getDebugLoc();
 
   // SPIR constant address space
-  PointerType *ConstASPtrTy = Type::getInt8Ty(C)->getPointerTo(OffloadConstantAS);
+  PointerType *ConstASPtrTy =
+      Type::getInt8Ty(C)->getPointerTo(kSpirOffloadConstantAS);
 
   // Address Space
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
@@ -1557,8 +1564,8 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
   if (Loc) {
     llvm::SmallString<128> Source = Loc->getDirectory();
     sys::path::append(Source, Loc->getFilename());
-    auto *FileNameGV =
-        GetOrCreateGlobalString(*M, "__asan_file", Source, OffloadConstantAS);
+    auto *FileNameGV = GetOrCreateGlobalString(*M, "__asan_file", Source,
+                                               kSpirOffloadConstantAS);
     Args.push_back(ConstantExpr::getPointerCast(FileNameGV, ConstASPtrTy));
     Args.push_back(ConstantInt::get(Type::getInt32Ty(C), Loc.getLine()));
   } else {
@@ -1568,8 +1575,8 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
 
   // Function
   auto FuncName = F->getName();
-  auto *FuncNameGV = GetOrCreateGlobalString(*M, "__asan_func",
-                                             demangle(FuncName), OffloadConstantAS);
+  auto *FuncNameGV = GetOrCreateGlobalString(
+      *M, "__asan_func", demangle(FuncName), kSpirOffloadConstantAS);
   Args.push_back(ConstantExpr::getPointerCast(FuncNameGV, ConstASPtrTy));
 }
 
@@ -3202,16 +3209,19 @@ void AddressSanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo *T
       //   char* func
       // )
       if (TargetTriple.isSPIR()) {
-        auto *Int8PtrTy = Type::getInt8Ty(*C)->getPointerTo(OffloadConstantAS);
+        auto *Int8PtrTy =
+            Type::getInt8Ty(*C)->getPointerTo(kSpirOffloadConstantAS);
 
         Args1.push_back(Type::getInt32Ty(*C)); // address_space
-        Args1.push_back(IntptrTy->getPointerTo(OffloadGlobalAS)); // launch_data
+        Args1.push_back(
+            IntptrTy->getPointerTo(kSpirOffloadGlobalAS)); // launch_data
         Args1.push_back(Int8PtrTy);            // file
         Args1.push_back(Type::getInt32Ty(*C)); // line
         Args1.push_back(Int8PtrTy);            // func
 
         Args2.push_back(Type::getInt32Ty(*C)); // address_space
-        Args2.push_back(IntptrTy->getPointerTo(OffloadGlobalAS)); // launch_data
+        Args2.push_back(
+            IntptrTy->getPointerTo(kSpirOffloadGlobalAS)); // launch_data
         Args2.push_back(Int8PtrTy);            // file
         Args2.push_back(Type::getInt32Ty(*C)); // line
         Args2.push_back(Int8PtrTy);            // func
@@ -3280,7 +3290,8 @@ void AddressSanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo *T
     // )
     AsanSetShadowStaticLocalFunc = M.getOrInsertFunction(
         "__asan_set_shadow_static_local", IRB.getVoidTy(), IntptrTy, IntptrTy,
-        IntptrTy, IntptrTy->getPointerTo(OffloadGlobalAS));
+        IntptrTy, IntptrTy->getPointerTo(kSpirOffloadGlobalAS));
+
     // __asan_set_shadow_dynamic_local(
     //   uptr ptr,
     //   uint32_t num_args,
@@ -3288,7 +3299,7 @@ void AddressSanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo *T
     // )
     AsanSetShadowDynamicLocalFunc = M.getOrInsertFunction(
         "__asan_set_shadow_dynamic_local", IRB.getVoidTy(), IntptrTy, Int32Ty,
-        IntptrTy->getPointerTo(OffloadGlobalAS));
+        IntptrTy->getPointerTo(kSpirOffloadGlobalAS));
   }
 
   AMDGPUAddressShared =
