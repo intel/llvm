@@ -70,6 +70,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   SYCLPropagateJointMatrixUsage.cpp
   SYCLUtils.cpp
   SanitizeDeviceGlobal.cpp
+  SanitizeExtendArgument.cpp
 
   LocalAccessorToSharedMemory.cpp
   GlobalOffset.cpp
