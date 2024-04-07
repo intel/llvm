@@ -348,16 +348,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetSpecializationConstants(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
-    ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue, uint32_t workDim,
-    const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
-    size_t *pSuggestedLocalWorkSize) {
+    [[maybe_unused]] ur_kernel_handle_t hKernel, ur_queue_handle_t hQueue,
+    uint32_t workDim, [[maybe_unused]] const size_t *pGlobalWorkOffset,
+    const size_t *pGlobalWorkSize, size_t *pSuggestedLocalWorkSize) {
   UR_ASSERT(hQueue->getContext() == hKernel->getContext(),
             UR_RESULT_ERROR_INVALID_QUEUE);
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
-  std::ignore = pGlobalWorkOffset;
-  std::ignore = hKernel;
   size_t MaxThreadsPerBlock[3];
   size_t ThreadsPerBlock[3] = {32u, 1u, 1u};
 
