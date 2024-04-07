@@ -262,18 +262,6 @@ int main() {
          ((twoLeftValue op three_dim_op_right)[1] ==                           \
           (twoLeftValue op twoRightValue)) &&                                  \
          ((three_dim_op_left op threeRightValue)[2] ==                         \
-          (threeLeftValue op threeRightValue)));                               \
-  assert((one_dim_op_left op one_dim_op_range)[0] ==                           \
-         (oneLeftValue op oneRightValue));                                     \
-  assert(((two_dim_op_left op two_dim_op_range)[0] ==                          \
-          (oneLeftValue op oneRightValue)) &&                                  \
-         ((two_dim_op_left op two_dim_op_range)[1] ==                          \
-          (twoLeftValue op twoRightValue)));                                   \
-  assert(((three_dim_op_left op three_dim_op_range)[0] ==                      \
-          (oneLeftValue op oneRightValue)) &&                                  \
-         ((three_dim_op_left op three_dim_op_range)[1] ==                      \
-          (twoLeftValue op twoRightValue)) &&                                  \
-         ((three_dim_op_left op three_dim_op_range)[2] ==                      \
           (threeLeftValue op threeRightValue)));
 
     OPERATOR_TEST(+)

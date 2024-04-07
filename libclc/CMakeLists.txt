@@ -186,7 +186,10 @@ message( STATUS "libclc toolchain - llvm-as: ${LLVM_AS}" )
 message( STATUS "libclc toolchain - llvm-link: ${LLVM_LINK}" )
 message( STATUS "libclc toolchain - opt: ${LLVM_OPT}" )
 message( STATUS "libclc toolchain - llvm-spirv: ${LLVM_SPIRV}" )
-if( NOT LLVM_CLANG OR NOT LLVM_OPT OR NOT LLVM_AS OR NOT LLVM_LINK )
+message( STATUS "libclc toolchain - libclc-remangler: ${LIBCLC_REMANGLER}" )
+message( STATUS "" )
+if( NOT LLVM_CLANG OR NOT LLVM_OPT OR NOT LLVM_AS OR NOT LLVM_LINK
+    OR NOT LIBCLC_REMANGLER )
   message( FATAL_ERROR "libclc toolchain incomplete!" )
 endif()
 
