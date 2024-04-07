@@ -373,9 +373,9 @@ static ur_result_t getExtFuncFromContext(cl_context Context,
   if (It != FPtrMap.end()) {
     auto F = It->second;
     // if cached that extension is not available return nullptr and
-    // UR_RESULT_ERROR_INVALID_VALUE
+    // UR_RESULT_ERROR_UNSUPPORTED_FEATURE
     *Fptr = F;
-    return F ? UR_RESULT_SUCCESS : UR_RESULT_ERROR_INVALID_VALUE;
+    return F ? UR_RESULT_SUCCESS : UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
   cl_uint DeviceCount;
@@ -409,7 +409,7 @@ static ur_result_t getExtFuncFromContext(cl_context Context,
   if (!FuncPtr) {
     // Cache that the extension is not available
     FPtrMap[Context] = nullptr;
-    return UR_RESULT_ERROR_INVALID_VALUE;
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
   *Fptr = FuncPtr;
