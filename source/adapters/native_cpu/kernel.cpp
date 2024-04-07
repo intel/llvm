@@ -286,3 +286,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
 
   DIE_NO_IMPLEMENTATION
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
+    [[maybe_unused]] ur_kernel_handle_t hKernel,
+    [[maybe_unused]] ur_queue_handle_t hQueue,
+    [[maybe_unused]] uint32_t workDim,
+    [[maybe_unused]] const size_t *pGlobalWorkOffset,
+    [[maybe_unused]] const size_t *pGlobalWorkSize,
+    [[maybe_unused]] size_t *pSuggestedLocalWorkSize) {
+  DIE_NO_IMPLEMENTATION
+}
