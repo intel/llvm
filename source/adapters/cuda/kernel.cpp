@@ -404,11 +404,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     guessLocalWorkSize(Device, ThreadsPerBlock, pGlobalWorkSize, workDim,
                        hKernel);
 
-    if (MaxWorkGroupSize <
-        ThreadsPerBlock[0] * ThreadsPerBlock[1] * ThreadsPerBlock[2]) {
-      return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
-    }
-
     std::copy(ThreadsPerBlock, ThreadsPerBlock + workDim,
               pSuggestedLocalWorkSize);
   } catch (ur_result_t Err) {
