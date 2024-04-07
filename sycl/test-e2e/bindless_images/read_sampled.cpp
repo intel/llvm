@@ -755,7 +755,7 @@ runNDimTestDevice(sycl::queue &q, sycl::range<NDims> globalSize,
           sycl::nd_range<NDims>{globalSize, localSize},
           [=](sycl::nd_item<NDims> it) {
             sycl::id<NDims> accessorCoords;
-            sycl::float2 coords;
+            sycl::vec<float, NDims> coords;
 
             if (isNorm) {
               for (int i = 0; i < NDims; i++) {
