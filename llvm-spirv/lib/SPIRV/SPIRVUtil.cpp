@@ -2142,9 +2142,26 @@ bool lowerBuiltinCallsToVariables(Module *M) {
     bool IsVec = F.getFunctionType()->getNumParams() > 0;
     Type *GVType =
         IsVec ? FixedVectorType::get(F.getReturnType(), 3) : F.getReturnType();
-    auto *BV = new GlobalVariable(
-        *M, GVType, /*isConstant=*/true, GlobalValue::ExternalLinkage, nullptr,
-        BuiltinVarName, 0, GlobalVariable::NotThreadLocal, SPIRAS_Input);
+    GlobalVariable *BV = nullptr;
+    // Consider the following LLVM IR:
+    // @__spirv_BuiltInLocalInvocationId = <Global constant>
+    // .....
+    // define spir_kernel void @kernel1(....) {
+    //   %3 = tail call i64 @_Z12get_local_idj(i32 0)
+    //   .....
+    //   return void
+    // }
+    // During the OCLToSPIRV pass, the opencl call will get lowered to
+    // yet another global variable with the name
+    // '@__spirv_BuiltInLocalInvocationId'. In such a case, we would want to
+    // create only a single global variable with this name.
+    if (GlobalVariable *GV = M->getGlobalVariable(BuiltinVarName))
+      BV = GV;
+    else
+      BV = new GlobalVariable(*M, GVType, /*isConstant=*/true,
+                              GlobalValue::ExternalLinkage, nullptr,
+                              BuiltinVarName, 0, GlobalVariable::NotThreadLocal,
+                              SPIRAS_Input);
     for (auto *U : F.users()) {
       auto *CI = dyn_cast<CallInst>(U);
       assert(CI && "invalid instruction");

@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix-xmx8
-// REQUIRES: TEMPORARY_DISBLED
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

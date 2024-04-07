@@ -43,7 +43,7 @@ DeviceGlobal<DeviceSanitizerReport> __DeviceSanitizerReportMem;
 
 #endif // OMP_LIBDEVICE && INTEL_COLLAB
 
-#ifdef __SPIR__
+#if defined(__SPIR__) || defined(__SPIRV__)
 
 #if defined(__SYCL_DEVICE_ONLY__) || (OMP_LIBDEVICE && INTEL_COLLAB)
 

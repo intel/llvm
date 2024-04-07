@@ -315,12 +315,6 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
       PluginNames.emplace_back(__SYCL_CUDA_PLUGIN_NAME,
                                backend::ext_oneapi_cuda);
     }
-#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
-    if (list.backendCompatible(backend::ext_intel_esimd_emulator)) {
-      PluginNames.emplace_back(__SYCL_ESIMD_EMULATOR_PLUGIN_NAME,
-                               backend::ext_intel_esimd_emulator);
-    }
-#endif
     if (list.backendCompatible(backend::ext_oneapi_hip)) {
       PluginNames.emplace_back(__SYCL_HIP_PLUGIN_NAME, backend::ext_oneapi_hip);
     }

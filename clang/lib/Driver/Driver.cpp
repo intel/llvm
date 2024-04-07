@@ -49,6 +49,7 @@
 #include "ToolChains/WebAssembly.h"
 #include "ToolChains/XCore.h"
 #include "ToolChains/ZOS.h"
+#include "clang/Basic/DiagnosticDriver.h"
 #include "clang/Basic/TargetID.h"
 #include "clang/Basic/Version.h"
 #include "clang/Config/config.h"
@@ -7392,19 +7393,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
         break;
       }
 
-      // When performing -fsycl based compilations and generating dependency
-      // information, perform a specific dependency generation compilation which
-      // is not based on the source + footer compilation.
-      if (Phase == phases::Preprocess && Args.hasArg(options::OPT_fsycl) &&
-          Args.hasArg(options::OPT_M_Group) &&
-          !Args.hasArg(options::OPT_fno_sycl_use_footer)) {
-        Action *PreprocessAction =
-            C.MakeAction<PreprocessJobAction>(Current, types::TY_Dependencies);
-        PreprocessAction->propagateHostOffloadInfo(Action::OFK_SYCL,
-                                                   /*BoundArch=*/nullptr);
-        Actions.push_back(PreprocessAction);
-      }
-
       if (Phase == phases::Precompile && ExtractAPIAction) {
         ExtractAPIAction->addHeaderInput(Current);
         Current = nullptr;
@@ -8161,9 +8149,6 @@ void Driver::BuildJobs(Compilation &C) const {
   // we are also generating .o files. So we allow more than one output file in
   // this case as well.
   //
-  // Preprocessing job performed for -fsycl enabled compilation specifically
-  // for dependency generation (TY_Dependencies)
-  //
   // OffloadClass of type TY_Nothing: device-only output will place many outputs
   // into a single offloading action. We should count all inputs to the action
   // as outputs. Also ignore device-only outputs if we're compiling with
@@ -8179,10 +8164,7 @@ void Driver::BuildJobs(Compilation &C) const {
              A->getKind() == clang::driver::Action::CompileJobClass &&
              0 == NumIfsOutputs++) ||
             (A->getKind() == Action::BindArchClass && A->getInputs().size() &&
-             A->getInputs().front()->getKind() == Action::IfsMergeJobClass) ||
-            (A->getKind() == Action::PreprocessJobClass &&
-             A->getType() == types::TY_Dependencies &&
-             C.getArgs().hasArg(options::OPT_fsycl))))
+             A->getInputs().front()->getKind() == Action::IfsMergeJobClass)))
         ++NumOutputs;
       else if (A->getKind() == Action::OffloadClass &&
                A->getType() == types::TY_Nothing &&
@@ -9361,19 +9343,9 @@ static const char *GetModuleOutputPath(Compilation &C, const JobAction &JA,
          (C.getArgs().hasArg(options::OPT_fmodule_output) ||
           C.getArgs().hasArg(options::OPT_fmodule_output_EQ)));
 
-  if (Arg *ModuleOutputEQ =
-          C.getArgs().getLastArg(options::OPT_fmodule_output_EQ))
-    return C.addResultFile(ModuleOutputEQ->getValue(), &JA);
+  SmallString<256> OutputPath =
+      tools::getCXX20NamedModuleOutputPath(C.getArgs(), BaseInput);
 
-  SmallString<64> OutputPath;
-  Arg *FinalOutput = C.getArgs().getLastArg(options::OPT_o);
-  if (FinalOutput && C.getArgs().hasArg(options::OPT_c))
-    OutputPath = FinalOutput->getValue();
-  else
-    OutputPath = BaseInput;
-
-  const char *Extension = types::getTypeTempSuffix(JA.getType());
-  llvm::sys::path::replace_extension(OutputPath, Extension);
   return C.addResultFile(C.getArgs().MakeArgString(OutputPath.c_str()), &JA);
 }
 
@@ -9476,6 +9448,12 @@ const char *Driver::GetNamedOutputPath(Compilation &C, const JobAction &JA,
         MakeCLOutputFilename(C.getArgs(), FaValue, BaseName, JA.getType()),
         &JA);
   }
+
+  if (JA.getType() == types::TY_API_INFO &&
+      C.getArgs().hasArg(options::OPT_emit_extension_symbol_graphs) &&
+      C.getArgs().hasArg(options::OPT_o))
+    Diag(clang::diag::err_drv_unexpected_symbol_graph_output)
+        << C.getArgs().getLastArgValue(options::OPT_o);
 
   // DXC defaults to standard out when generating assembly. We check this after
   // any DXC flags that might specify a file.

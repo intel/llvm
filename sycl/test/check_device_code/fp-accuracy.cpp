@@ -10,10 +10,7 @@
 
 #include <cmath>
 
-SYCL_EXTERNAL auto foo(double x) {
-  using namespace sycl;
-  return cos(exp(log(x)));
-}
+SYCL_EXTERNAL auto foo(double x) { return std::cos(std::exp(std::log(x))); }
 
 // CHECK-LABEL: define {{.*}}food
 // CHECK: tail call double @llvm.fpbuiltin.log.f64(double {{.*}}) #[[ATTR_HIGH:[0-9]+]]
