@@ -1151,6 +1151,7 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-asan-instrumentation-with-call-threshold=0");
 
+      // asan initialization is done in unified runtime rather than in ctor.
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-asan-constructor-kind=none");
 
