@@ -18,6 +18,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
     const size_t *pGlobalWorkSize, size_t *pSuggestedLocalWorkSize) {
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+  UR_ASSERT(pSuggestedLocalWorkSize != nullptr,
+            UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   uint32_t LocalWorkSize[3];
   size_t GlobalWorkSize3D[3]{1, 1, 1};
@@ -202,7 +204,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   default:
     urPrint("urEnqueueKernelLaunch: unsupported work_dim\n");
-    return UR_RESULT_ERROR_INVALID_VALUE;
+    return UR_RESULT_ERROR_INVALID_WORK_DIMENSION;
   }
 
   // Error handling for non-uniform group size case
