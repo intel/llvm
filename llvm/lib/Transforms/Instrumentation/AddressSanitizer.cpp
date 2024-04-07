@@ -875,6 +875,7 @@ private:
   Constant *AsanShadowGlobal;
   Constant *AsanShadowDevicePrivate;
   StringMap<GlobalVariable *> GlobalStringMap;
+  Constant *AsanDummpyLaunch;
 
   // These arrays is indexed by AccessIsWrite, Experiment and log2(AccessSize).
   FunctionCallee AsanErrorCallback[2][2][kNumberOfAccessSizes];
@@ -1273,155 +1274,6 @@ void AddressSanitizerPass::printPipeline(
   OS << '>';
 }
 
-// Append a new argument "launch_data" to user's spir_kernel & spir_func
-static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
-  SmallVector<Function *> SpirFixupFuncs;
-  for (Function &F : M) {
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
-      SpirFixupFuncs.emplace_back(&F);
-    } else if (F.getCallingConv() == CallingConv::SPIR_FUNC) {
-      if (M.getModuleFlag("openmp-device")) {
-        const TargetLibraryInfo &TLI = FAM.getResult<TargetLibraryAnalysis>(F);
-        LibFunc LF;
-        if (TLI.getLibFunc(F, LF)) {
-          continue;
-        } else {
-          if (F.getName().starts_with("_Z") &&
-              F.getName().find("__spirv_") != StringRef::npos)
-            continue;
-
-          if (F.getName().equals("_Z12get_local_idj") ||
-              F.getName().equals("_Z14get_local_sizej") ||
-              F.getName().equals("_Z14_get_num_groupsj"))
-            continue;
-        }
-
-      } else {
-        if (F.isDeclaration() || F.getName().starts_with("__sycl_") ||
-            F.getName().starts_with("__spirv") ||
-            F.getFunctionType()->isVarArg())
-          continue;
-      }
-      SpirFixupFuncs.emplace_back(&F);
-    }
-  }
-
-  SmallVector<std::pair<Function *, Function *>> SpirFuncs;
-  const int LongSize = M.getDataLayout().getPointerSizeInBits();
-  auto *IntptrTy = Type::getIntNTy(M.getContext(), LongSize);
-
-  for (auto *F : SpirFixupFuncs) {
-    SmallVector<Type *, 16> Types;
-    for (Function::const_arg_iterator I = F->arg_begin(), E = F->arg_end();
-         I != E; ++I) {
-      Types.push_back(I->getType());
-    }
-
-    // New argument type: uintptr_t as(1)*, as it's allocated in USM buffer, and
-    // it can also be treated as a pointer point to the base address of private
-    // shadow memory
-    Types.push_back(IntptrTy->getPointerTo(kSpirOffloadGlobalAS));
-
-    FunctionType *NewFTy = FunctionType::get(F->getReturnType(), Types, false);
-
-    std::string OrigFuncName = F->getName().str();
-    F->setName(OrigFuncName + "_del");
-
-    Function *NewF =
-        Function::Create(NewFTy, F->getLinkage(), OrigFuncName, F->getParent());
-    NewF->copyAttributesFrom(F);
-    NewF->copyMetadata(F, 0);
-    NewF->setCallingConv(F->getCallingConv());
-    NewF->setDSOLocal(F->isDSOLocal());
-
-    // Set original arguments' names.
-    Function::arg_iterator NewI = NewF->arg_begin();
-    for (Function::const_arg_iterator I = F->arg_begin(), E = F->arg_end();
-         I != E; ++I, ++NewI) {
-      NewI->setName(I->getName());
-    }
-    // New argument name
-    NewI->setName("__asan_launch");
-
-    NewF->splice(NewF->begin(), F);
-    assert(F->isDeclaration() &&
-           "splice does not work, original function body is not empty!");
-
-    NewF->setSubprogram(F->getSubprogram());
-
-    NewF->setComdat(F->getComdat());
-    F->setComdat(nullptr);
-
-    for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(),
-                                NI = NewF->arg_begin();
-         I != E; ++I, ++NI) {
-      I->replaceAllUsesWith(&*NI);
-    }
-
-    // Fixup metadata
-    IRBuilder<> Builder(M.getContext());
-
-    auto FixupMetadata = [&NewF](StringRef MDName, Constant *NewV) {
-      auto *Node = NewF->getMetadata(MDName);
-      if (!Node)
-        return;
-      SmallVector<Metadata *, 8> NewMD;
-      for (unsigned I = 0; I < Node->getNumOperands(); ++I) {
-        NewMD.emplace_back(Node->getOperand(I));
-      }
-      NewMD.emplace_back(ConstantAsMetadata::get(NewV));
-      NewF->setMetadata(MDName, llvm::MDNode::get(NewF->getContext(), NewMD));
-    };
-
-    FixupMetadata("kernel_arg_buffer_location", Builder.getInt32(-1));
-    FixupMetadata("kernel_arg_runtime_aligned", Builder.getFalse());
-    FixupMetadata("kernel_arg_exclusive_ptr", Builder.getFalse());
-
-    SpirFuncs.emplace_back(F, NewF);
-  }
-
-  // Fixup all users
-  for (auto [F, NewF] : SpirFuncs) {
-    SmallVector<User *, 16> Users(F->users());
-    for (User *U : Users) {
-      if (auto *GA = dyn_cast<GlobalAlias>(U)) {
-        auto OriginalName = GA->getName();
-        GA->setName(OriginalName + "_del");
-        GlobalAlias *NewGA = GlobalAlias::create(OriginalName, NewF);
-        NewGA->setUnnamedAddr(GA->getUnnamedAddr());
-        NewGA->setVisibility(GA->getVisibility());
-        GA->replaceAllUsesWith(NewGA);
-        GA->eraseFromParent();
-      } else if (auto *CE = dyn_cast<ConstantExpr>(U)) {
-        if (CE->getOpcode() == Instruction::AddrSpaceCast) {
-          auto *NewCE = ConstantExpr::getAddrSpaceCast(NewF, CE->getType());
-          CE->replaceAllUsesWith(NewCE);
-        }
-      } else if (auto *CI = dyn_cast<CallInst>(U)) {
-        if (CI->getCalledOperand() == F) {
-          // Append "launch_info" into arguments of call instruction
-          SmallVector<Value *, 16> Args;
-          for (unsigned I = 0, E = CI->arg_size(); I != E; ++I)
-            Args.push_back(CI->getArgOperand(I));
-          // "launch_info" is the last argument of current function
-          auto *CurF = CI->getFunction();
-          Args.push_back(CurF->getArg(CurF->arg_size() - 1));
-
-          CallInst *NewCI = CallInst::Create(NewF, Args, CI->getName(), CI);
-          NewCI->setCallingConv(CI->getCallingConv());
-          NewCI->setAttributes(NewF->getAttributes());
-          if (CI->hasMetadata()) {
-            NewCI->setDebugLoc(CI->getDebugLoc());
-          }
-          CI->replaceAllUsesWith(NewCI);
-          CI->eraseFromParent();
-        }
-      }
-    }
-    F->removeFromParent();
-  }
-}
-
 AddressSanitizerPass::AddressSanitizerPass(
     const AddressSanitizerOptions &Options, bool UseGlobalGC,
     bool UseOdrIndicator, AsanDtorKind DestructorKind,
@@ -1439,10 +1291,6 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
   auto &FAM = MAM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
   const StackSafetyGlobalInfo *const SSGI =
       ClUseStackSafety ? &MAM.getResult<StackSafetyGlobalAnalysis>(M) : nullptr;
-
-  if (Triple(M.getTargetTriple()).isSPIR()) {
-    ExtendSpirKernelArgs(M, FAM);
-  }
 
   for (Function &F : M) {
     AddressSanitizer FunctionSanitizer(
@@ -1556,9 +1404,8 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
   Args.push_back(
       ConstantInt::get(Type::getInt32Ty(C), PtrTy->getPointerAddressSpace()));
 
-  // "launch_data" is always the last argument of current function
   auto *F = InsertBefore->getFunction();
-  Args.push_back(F->getArg(F->arg_size() - 1));
+  Args.push_back(AsanDummpyLaunch);
 
   // File & Line
   if (Loc) {
@@ -1646,10 +1493,9 @@ void AddressSanitizer::instrumentSyclStaticLocalMemory(CallInst *CI) {
   //   size_t size_with_redzone,
   //   uptr launch_info
   // )
-  auto *F = CI->getFunction();
   IRB.CreateCall(AsanSetShadowStaticLocalFunc,
                  {IRB.CreatePointerCast(NewCI, IntptrTy), Size, SizeWithRedZone,
-                  F->getArg(F->arg_size() - 1)});
+                  AsanDummpyLaunch});
 
   CI->replaceAllUsesWith(NewCI);
   CI->eraseFromParent();
@@ -1679,7 +1525,7 @@ void AddressSanitizer::instrumentSyclDynamicLocalMemory(Function &F) {
   IRB.CreateCall(AsanSetShadowDynamicLocalFunc,
                  {IRB.CreatePointerCast(ArgsArray, IntptrTy),
                   ConstantInt::get(Int32Ty, LocalArgs.size()),
-                  F.getArg(F.arg_size() - 1)});
+                  AsanDummpyLaunch});
 }
 
 // Instrument memset/memmove/memcpy
@@ -3300,6 +3146,17 @@ void AddressSanitizer::initializeCallbacks(Module &M, const TargetLibraryInfo *T
     AsanSetShadowDynamicLocalFunc = M.getOrInsertFunction(
         "__asan_set_shadow_dynamic_local", IRB.getVoidTy(), IntptrTy, Int32Ty,
         IntptrTy->getPointerTo(kSpirOffloadGlobalAS));
+
+    // A temporary global varible, which is used to mark all instructions
+    // that use "__asan_launch" parameter. It will be used and removed in
+    // sycl-post-link.
+    AsanDummpyLaunch =
+        M.getOrInsertGlobal("__asan_dummy_launch", IntptrTy, [&] {
+          return new GlobalVariable(
+              M, IntptrTy, false, GlobalVariable::InternalLinkage,
+              ConstantInt::get(IntptrTy, 0), "__asan_dummy_launch", nullptr,
+              GlobalVariable::NotThreadLocal, kSpirOffloadGlobalAS);
+        });
   }
 
   AMDGPUAddressShared =
