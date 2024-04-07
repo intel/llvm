@@ -9,7 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "common.hpp"
-
+#include "logger/ur_logger.hpp"
 namespace cl_adapter {
 
 /* Global variables for urPlatformGetLastError() */
@@ -91,7 +91,7 @@ ur_result_t mapCLErrorToUR(cl_int Result) {
 }
 
 void cl_adapter::die(const char *Message) {
-  std::cerr << "ur_die: " << Message << "\n";
+  logger::always("ur_die: {}", Message);
   std::terminate();
 }
 

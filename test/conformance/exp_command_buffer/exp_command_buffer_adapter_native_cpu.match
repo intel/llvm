@@ -1,1 +1,21 @@
-{{OPT}}{{Segmentation fault|Aborted}}
+{{OPT}}BufferFillCommandTest.UpdateParameters/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}BufferFillCommandTest.UpdateGlobalSize/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}BufferFillCommandTest.SeparateUpdateCalls/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}BufferFillCommandTest.OverrideUpdate/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}BufferFillCommandTest.OverrideArgList/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}USMFillCommandTest.UpdateParameters/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}USMFillCommandTest.UpdateExecInfo/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}USMMultipleFillCommandTest.UpdateAllKernels/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}BufferSaxpyKernelTest.UpdateParameters/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}USMSaxpyKernelTest.UpdateParameters/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}NDRangeUpdateTest.Update3D/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}NDRangeUpdateTest.Update2D/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}NDRangeUpdateTest.Update1D/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}urCommandBufferReleaseCommandExpTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}urCommandBufferReleaseCommandExpTest.ReleaseCmdBufBeforeHandle/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}urCommandBufferReleaseCommandExpTest.ReleaseCmdBufMultipleHandles/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}urCommandBufferReleaseCommandExpTest.InvalidNullHandle/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}urCommandBufferRetainCommandExpTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}urCommandBufferRetainCommandExpTest.InvalidNullHandle/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}InvalidUpdateTest.NotFinalizedCommandBuffer/SYCL_NATIVE_CPU___SYCL_Native_CPU_
+{{OPT}}InvalidUpdateTest.NotUpdatableCommandBuffer/SYCL_NATIVE_CPU___SYCL_Native_CPU_

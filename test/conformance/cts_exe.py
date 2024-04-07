@@ -23,10 +23,11 @@ if __name__ == '__main__':
     parser.add_argument("--test_devices_count", type=str, help="Number of devices on which tests will be run")
     parser.add_argument("--test_platforms_count", type=str, help="Number of platforms on which tests will be run")
     args = parser.parse_args()
-    
-    result = subprocess.Popen([args.test_command, '--gtest_brief=1', f'--devices_count={args.test_devices_count}',
+
+    result = subprocess.Popen([args.test_command, '--gtest_brief=1',        # nosec B603
+                               f'--devices_count={args.test_devices_count}',
                                f'--platforms_count={args.test_platforms_count}'],
-                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)  # nosec B603
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
     pat = re.compile(r'\[( )*FAILED( )*\]')
     output_list = []
