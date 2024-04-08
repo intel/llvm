@@ -298,6 +298,10 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     set( DARCH ${ARCH} )
   endif()
 
+  if( (${ARCH}  STREQUAL x86_64 OR ${ARCH}  STREQUAL aarch64) AND ${OS} STREQUAL "linux")
+    LIST( APPEND dirs native_cpu-unknown-linux )
+  endif()
+
   set( lib_files )
   set( lib_gen_files )
   libclc_configure_lib_source(lib_files lib_gen_files
