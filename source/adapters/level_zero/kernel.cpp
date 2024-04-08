@@ -574,10 +574,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetGroupInfo(
     return ReturnValue(GlobalWorkSize);
   }
   case UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
-    // As of right now, L0 is missing API to query kernel and device specific
-    // max work group size.
-    return ReturnValue(
-        uint64_t{Device->ZeDeviceComputeProperties->maxTotalGroupSize});
+    ZeStruct<ze_kernel_max_group_size_properties_ext_t> workGroupProperties;
+    workGroupProperties.maxGroupSize = 0;
+
+    ZeStruct<ze_kernel_properties_t> kernelProperties;
+    kernelProperties.pNext = &workGroupProperties;
+
+    auto ZeResult = ZE_CALL_NOCHECK(
+        zeKernelGetProperties,
+        (Kernel->ZeKernelMap[Device->ZeDevice], &kernelProperties));
+    if (ZeResult || workGroupProperties.maxGroupSize == 0) {
+      return ReturnValue(
+          uint64_t{Device->ZeDeviceComputeProperties->maxTotalGroupSize});
+    }
+    return ReturnValue(workGroupProperties.maxGroupSize);
   }
   case UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
     struct {
