@@ -921,6 +921,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
         os << "UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP";
         break;
     default:
+        os << "unknown enumerator";
+        break;
     }
     return os;
 }
