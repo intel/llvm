@@ -468,6 +468,11 @@ def GENToLLVMConversionPass : Pass<"convert-gen-to-llvm"> {
     This pass converts GEN dialect operations to LLVM dialect operations.
   }];
   let dependentDialects = ["LLVM::LLVMDialect"];
+  let options = [
+    Option<"indexBitwidth", "index-bitwidth", "unsigned",
+           /*default=kDeriveIndexBitwidthFromDataLayout*/"0",
+           "Bitwidth of the index type, 0 to use size of machine word">,
+  ];
 }
 
 //===----------------------------------------------------------------------===//

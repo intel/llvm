@@ -1,4 +1,7 @@
-// RUN: mlir-opt -pass-pipeline="builtin.module(func.func(convert-gen-to-llvm))" -split-input-file %s | FileCheck %s
+// RUN: mlir-opt -pass-pipeline="builtin.module(func.func(convert-gen-to-llvm))" -split-input-file %s \
+// RUN: | FileCheck --check-prefixes=CHECK-64,CHECK %s
+// RUN: mlir-opt -pass-pipeline="builtin.module(func.func(convert-gen-to-llvm{index-bitwidth=32}))" -split-input-file %s \
+// RUN: | FileCheck --check-prefixes=CHECK-32,CHECK %s
 
 // Same below, but using the `ConvertToLLVMPatternInterface` entry point
 // and the generic `convert-to-llvm` pass.
@@ -7,13 +10,17 @@
 func.func @gen_nd_range(%dim: i32) {
   // CHECK-LABEL: gen_nd_range
   // CHECK-SAME:              ([[DIM:%.*]]: i32)
-  // CHECK:         llvm.call @_Z12get_local_idj([[DIM]]) : (i32) -> i64
+  // CHECK-64:      llvm.call @_Z12get_local_idj([[DIM]]) : (i32) -> i64
+  // CHECK-32:      llvm.call @_Z12get_local_idj([[DIM]]) : (i32) -> i32
   %0 = gen.local_id %dim
-  // CHECK:         llvm.call @_Z12get_group_idj([[DIM]]) : (i32) -> i64
+  // CHECK-64:      llvm.call @_Z12get_group_idj([[DIM]]) : (i32) -> i64
+  // CHECK-32:      llvm.call @_Z12get_group_idj([[DIM]]) : (i32) -> i32
   %1 = gen.work_group_id %dim
-  // CHECK:         llvm.call @_Z14get_local_sizej([[DIM]]) : (i32) -> i64
+  // CHECK-64:      llvm.call @_Z14get_local_sizej([[DIM]]) : (i32) -> i64
+  // CHECK-32:      llvm.call @_Z14get_local_sizej([[DIM]]) : (i32) -> i32
   %2 = gen.work_group_size %dim
-  // CHECK:         llvm.call @_Z14get_num_groupsj([[DIM]]) : (i32) -> i64
+  // CHECK-64:      llvm.call @_Z14get_num_groupsj([[DIM]]) : (i32) -> i64
+  // CHECK-32:      llvm.call @_Z14get_num_groupsj([[DIM]]) : (i32) -> i32
   %3 = gen.num_work_groups %dim
   func.return
 }
