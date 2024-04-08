@@ -4507,6 +4507,12 @@ void computeKnownFPClass(const Value *V, const APInt &DemandedElts,
     return;
   }
 
+  if (isa<ConstantAggregateZero>(V)) {
+    Known.KnownFPClasses = fcPosZero;
+    Known.SignBit = false;
+    return;
+  }
+
   // Try to handle fixed width vector constants
   auto *VFVTy = dyn_cast<FixedVectorType>(V->getType());
   const Constant *CV = dyn_cast<Constant>(V);
@@ -4518,6 +4524,9 @@ void computeKnownFPClass(const Value *V, const APInt &DemandedElts,
     // For vectors, verify that each element is not NaN.
     unsigned NumElts = VFVTy->getNumElements();
     for (unsigned i = 0; i != NumElts; ++i) {
+      if (!DemandedElts[i])
+        continue;
+
       Constant *Elt = CV->getAggregateElement(i);
       if (!Elt) {
         Known = KnownFPClass();
