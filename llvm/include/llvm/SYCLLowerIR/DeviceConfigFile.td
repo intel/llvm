@@ -143,3 +143,9 @@ def : TargetInfo<"x86_64", [], [], "", "", 1>;
 //defvar AspectList = [AspectCpu] # AllUSMAspects;
 //def : TargetInfo<"Test", AspectList, []>;
 //def : TargetInfo<"Test2", [AspectCpu] # AllUSMAspects, []>;
+
+// TODO: The aspects listed for the intel_gpu targets right now are incomplete; 
+// only the fp16/fp64/atomic64 aspects are listed.
+def : TargetInfo<"intel_gpu_cfl", [AspectFp16, AspectFp64, AspectAtomic64], [8, 16, 32]>;
+def : TargetInfo<"intel_gpu_tgllp", [AspectFp16, AspectAtomic64], [8, 16, 32]>;
+def : TargetInfo<"intel_gpu_pvc", [AspectFp16, AspectFp64, AspectAtomic64], [16, 32]>;
