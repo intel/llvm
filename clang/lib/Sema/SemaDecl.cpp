@@ -20789,22 +20789,6 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(const FunctionDecl *FD,
   if (Final && LangOpts.OpenMP && !LangOpts.CUDA)
     return FunctionEmissionStatus::Emitted;
 
-  if (LangOpts.CUDA) {
-    // When compiling for device, host functions are never emitted.  Similarly,
-    // when compiling for host, device and global functions are never emitted.
-    // (Technically, we do emit a host-side stub for global functions, but this
-    // doesn't count for our purposes here.)
-    Sema::CUDAFunctionTarget T = IdentifyCUDATarget(FD);
-    if (LangOpts.CUDAIsDevice && T == Sema::CFT_Host)
-      return FunctionEmissionStatus::CUDADiscarded;
-    if (!LangOpts.CUDAIsDevice &&
-        (T == Sema::CFT_Device || T == Sema::CFT_Global))
-      return FunctionEmissionStatus::CUDADiscarded;
-
-    if (IsEmittedForExternalSymbol())
-      return FunctionEmissionStatus::Emitted;
-  }
-
   if (getLangOpts().SYCLIsDevice) {
     if (!FD->hasAttr<SYCLDeviceAttr>() && !FD->hasAttr<SYCLKernelAttr>())
       return FunctionEmissionStatus::Unknown;
@@ -20819,6 +20803,22 @@ Sema::FunctionEmissionStatus Sema::getEmissionStatus(const FunctionDecl *FD,
 
     if (Def &&
         !isDiscardableGVALinkage(getASTContext().GetGVALinkageForFunction(Def)))
+      return FunctionEmissionStatus::Emitted;
+  }
+
+  if (LangOpts.CUDA) {
+    // When compiling for device, host functions are never emitted.  Similarly,
+    // when compiling for host, device and global functions are never emitted.
+    // (Technically, we do emit a host-side stub for global functions, but this
+    // doesn't count for our purposes here.)
+    Sema::CUDAFunctionTarget T = IdentifyCUDATarget(FD);
+    if (LangOpts.CUDAIsDevice && T == Sema::CFT_Host)
+      return FunctionEmissionStatus::CUDADiscarded;
+    if (!LangOpts.CUDAIsDevice &&
+        (T == Sema::CFT_Device || T == Sema::CFT_Global))
+      return FunctionEmissionStatus::CUDADiscarded;
+
+    if (IsEmittedForExternalSymbol())
       return FunctionEmissionStatus::Emitted;
   }
 
