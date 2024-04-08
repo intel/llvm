@@ -987,7 +987,7 @@ public:
 
   void addImplicitTypedef(StringRef Name, QualType T);
 
-  /// Emit a diagnostic.
+/// Emit a diagnostic.
   SemaDiagnosticBuilder Diag(SourceLocation Loc, unsigned DiagID,
                              bool DeferHint = false);
 
@@ -10158,7 +10158,8 @@ public:
   /// not already done so.
   void DeclareImplicitDeductionGuides(TemplateDecl *Template,
                                       SourceLocation Loc);
-  FunctionTemplateDecl *DeclareImplicitDeductionGuideFromInitList(
+
+  FunctionTemplateDecl *DeclareAggregateDeductionGuideFromInitList(
       TemplateDecl *Template, MutableArrayRef<QualType> ParamTypes,
       SourceLocation Loc);
 

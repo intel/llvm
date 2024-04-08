@@ -190,7 +190,7 @@ const uint64_t Sema::MaximumAlignment;
 
 Sema::Sema(Preprocessor &pp, ASTContext &ctxt, ASTConsumer &consumer,
            TranslationUnitKind TUKind, CodeCompleteConsumer *CodeCompleter)
-    : CollectStats(false), TUKind(TUKind), CurFPFeatures(pp.getLangOpts()),
+      : CollectStats(false), TUKind(TUKind), CurFPFeatures(pp.getLangOpts()),
       LangOpts(pp.getLangOpts()), PP(pp), Context(ctxt), Consumer(consumer),
       Diags(PP.getDiagnostics()), SourceMgr(PP.getSourceManager()),
       APINotes(SourceMgr, LangOpts), AnalysisWarnings(*this),
