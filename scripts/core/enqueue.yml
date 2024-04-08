@@ -60,6 +60,8 @@ returns:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_WORK_DIMENSION
     - $X_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -100,6 +102,8 @@ returns:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -139,6 +143,8 @@ returns:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -190,6 +196,8 @@ returns:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_INVALID_SIZE:
         - "If `offset + size` results in an out-of-bounds access."
@@ -243,6 +251,8 @@ returns:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_INVALID_SIZE:
         - "If `offset + size` results in an out-of-bounds access."
@@ -312,6 +322,8 @@ returns:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_INVALID_SIZE:
         - "`region.width == 0 || region.height == 0 || region.width == 0`"
@@ -388,6 +400,8 @@ returns:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_INVALID_SIZE:
         - "`region.width == 0 || region.height == 0 || region.width == 0`"
@@ -446,6 +460,8 @@ returns:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_INVALID_SIZE:
         - "If `srcOffset + size` results in an out-of-bounds access."
@@ -510,6 +526,8 @@ returns:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_INVALID_SIZE:
         - "`region.width == 0 || region.height == 0 || region.depth == 0`"
@@ -569,6 +587,8 @@ returns:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_INVALID_SIZE:
         - "`patternSize == 0 || size == 0`"
@@ -633,6 +653,8 @@ returns:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_INVALID_SIZE:
         - "`region.width == 0 || region.height == 0 || region.depth == 0`"
@@ -692,6 +714,8 @@ returns:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_INVALID_SIZE:
         - "`region.width == 0 || region.height == 0 || region.depth == 0`"
@@ -743,6 +767,8 @@ returns:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_INVALID_SIZE:
         - "`region.width == 0 || region.height == 0 || region.depth == 0`"
@@ -797,6 +823,8 @@ returns:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -877,6 +905,8 @@ returns:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_INVALID_SIZE:
         - "If `offset + size` results in an out-of-bounds access."
@@ -942,6 +972,8 @@ returns:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -982,6 +1014,8 @@ returns:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -1032,6 +1066,8 @@ returns:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -1079,6 +1115,8 @@ returns:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -1126,6 +1164,8 @@ returns:
         - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -1219,6 +1259,8 @@ returns:
       - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
       - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
       - "If event objects in phEventWaitList are not valid events."
+  - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+      - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
   - $X_RESULT_ERROR_INVALID_MEM_OBJECT
   - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
   - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -1279,6 +1321,8 @@ returns:
     - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
     - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
     - "If event objects in phEventWaitList are not valid events."
+  - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+    - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
   - $X_RESULT_ERROR_INVALID_MEM_OBJECT
   - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
   - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -1328,6 +1372,8 @@ returns:
     - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
     - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
     - "If event objects in phEventWaitList are not valid events."
+  - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+    - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command to read data from a device global variable to the host."
@@ -1373,6 +1419,8 @@ returns:
     - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
     - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
     - "If event objects in phEventWaitList are not valid events."
+  - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+    - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command to read from a pipe to the host."
@@ -1419,6 +1467,8 @@ returns:
     - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
     - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
     - "If event objects in phEventWaitList are not valid events."
+  - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+    - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Enqueue a command to write data from the host to a pipe."
@@ -1465,3 +1515,5 @@ returns:
     - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
     - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
     - "If event objects in phEventWaitList are not valid events."
+  - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+    - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."

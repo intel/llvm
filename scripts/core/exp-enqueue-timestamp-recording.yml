@@ -19,7 +19,7 @@ desc: "Extension enums to $x_device_info_t to support timestamp recordings."
 name: $x_device_info_t
 etors: 
     - name: TIMESTAMP_RECORDING_SUPPORT_EXP
-      value: "0x2010"
+      value: "0x2012"
       desc: "[$x_bool_t] returns true if the device supports timestamp recording"
 --- #--------------------------------------------------------------------------
 type: enum

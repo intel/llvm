@@ -1129,6 +1129,10 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
+        if (size == 0) {
+            return UR_RESULT_ERROR_INVALID_BUFFER_SIZE;
+        }
+
         if (pProperties == NULL &&
             (flags & (UR_MEM_FLAG_USE_HOST_POINTER |
                       UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) != 0) {
@@ -1252,6 +1256,10 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
 
         if (UR_BUFFER_CREATE_TYPE_REGION < bufferCreateType) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (pRegion && pRegion->size == 0) {
+            return UR_RESULT_ERROR_INVALID_BUFFER_SIZE;
         }
     }
 
@@ -2952,6 +2960,63 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetFunctionPointer(
 
     ur_result_t result = pfnGetFunctionPointer(hDevice, hProgram, pFunctionName,
                                                ppFunctionPointer);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramGetGlobalVariablePointer
+__urdlllocal ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
+    ur_device_handle_t
+        hDevice, ///< [in] handle of the device to retrieve the pointer for.
+    ur_program_handle_t
+        hProgram, ///< [in] handle of the program where the global variable is.
+    const char *
+        pGlobalVariableName, ///< [in] mangled name of the global variable to retrieve the pointer for.
+    size_t *
+        pGlobalVariableSizeRet, ///< [out][optional] Returns the size of the global variable if it is found
+                                ///< in the program.
+    void **
+        ppGlobalVariablePointerRet ///< [out] Returns the pointer to the global variable if it is found in the program.
+) {
+    auto pfnGetGlobalVariablePointer =
+        context.urDdiTable.Program.pfnGetGlobalVariablePointer;
+
+    if (nullptr == pfnGetGlobalVariablePointer) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hProgram) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pGlobalVariableName) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == ppGlobalVariablePointerRet) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hDevice)) {
+        refCountContext.logInvalidReference(hDevice);
+    }
+
+    if (context.enableLifetimeValidation &&
+        !refCountContext.isReferenceValid(hProgram)) {
+        refCountContext.logInvalidReference(hProgram);
+    }
+
+    ur_result_t result = pfnGetGlobalVariablePointer(
+        hDevice, hProgram, pGlobalVariableName, pGlobalVariableSizeRet,
+        ppGlobalVariablePointerRet);
 
     return result;
 }
@@ -10122,6 +10187,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
     dditable.pfnGetFunctionPointer = pDdiTable->pfnGetFunctionPointer;
     pDdiTable->pfnGetFunctionPointer =
         ur_validation_layer::urProgramGetFunctionPointer;
+
+    dditable.pfnGetGlobalVariablePointer =
+        pDdiTable->pfnGetGlobalVariablePointer;
+    pDdiTable->pfnGetGlobalVariablePointer =
+        ur_validation_layer::urProgramGetGlobalVariablePointer;
 
     dditable.pfnGetInfo = pDdiTable->pfnGetInfo;
     pDdiTable->pfnGetInfo = ur_validation_layer::urProgramGetInfo;

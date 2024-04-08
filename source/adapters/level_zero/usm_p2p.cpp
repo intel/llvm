@@ -35,11 +35,36 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
     ur_exp_peer_info_t propName, size_t propSize, void *pPropValue,
     size_t *pPropSizeRet) {
 
-  std::ignore = commandDevice;
-  std::ignore = peerDevice;
-  std::ignore = propName;
-
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
-  // Zero return value indicates that all of the queries currently return false.
-  return ReturnValue(uint32_t{0});
+
+  bool propertyValue = false;
+  switch (propName) {
+  case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED: {
+    bool p2pAccessSupported = false;
+    ze_device_p2p_properties_t p2pProperties;
+    ZE2UR_CALL(zeDeviceGetP2PProperties,
+               (commandDevice->ZeDevice, peerDevice->ZeDevice, &p2pProperties));
+    if (p2pProperties.flags & ZE_DEVICE_P2P_PROPERTY_FLAG_ACCESS) {
+      p2pAccessSupported = true;
+    }
+    ze_bool_t p2pDeviceSupported = false;
+    ZE2UR_CALL(
+        zeDeviceCanAccessPeer,
+        (commandDevice->ZeDevice, peerDevice->ZeDevice, &p2pDeviceSupported));
+    propertyValue = p2pAccessSupported && p2pDeviceSupported;
+    break;
+  }
+  case UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED: {
+    ze_device_p2p_properties_t p2pProperties;
+    ZE2UR_CALL(zeDeviceGetP2PProperties,
+               (commandDevice->ZeDevice, peerDevice->ZeDevice, &p2pProperties));
+    propertyValue = p2pProperties.flags & ZE_DEVICE_P2P_PROPERTY_FLAG_ATOMICS;
+    break;
+  }
+  default: {
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+  }
+
+  return ReturnValue(propertyValue);
 }
