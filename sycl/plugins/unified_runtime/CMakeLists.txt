@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit f85e2e96f07888823de5cd31c0c09b036f52b1b8
-  # Merge: 7c1683ff 38b98491
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Mon Apr 8 11:56:07 2024 +0200
-  #     Merge pull request #1331 from lukaszstolarczuk/fix-pedantic
-  #     Remove redundant semicolons
-  set(UNIFIED_RUNTIME_TAG f85e2e96f07888823de5cd31c0c09b036f52b1b8)
+  # commit a7c202b49aff130f60da0c03916d08bb22b91aa0
+  # Merge: f85e2e96 e548dc1e
+  # Author: Martin Grant <martin.morrisongrant@codeplay.com>
+  # Date:   Mon Apr 8 15:58:32 2024 +0100
+  #    Merge pull request #1493 from martygrant/martin/fixCoverityCTSErrors
+  #    [CTS] Fix Coverity warning: Add a & before auto so object is not copied unnecessarily
+  set(UNIFIED_RUNTIME_TAG a7c202b49aff130f60da0c03916d08bb22b91aa0)
 
   fetch_adapter_source(level_zero
     "https://github.com/oneapi-src/unified-runtime.git"
