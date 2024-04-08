@@ -101,8 +101,7 @@ inline __SYCL_ALWAYS_INLINE std::enable_if_t<is_fixed_size_group_v<Group>, T>
 masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
                             const uint32_t MemberMask) {
   for (int i = g.get_local_range()[0] / 2; i > 0; i /= 2) {
-    T tmp;
-    CUDA_SHFL_SYNC(tmp, MemberMask, x, i, 0x1f, bfly_i32)
+    T tmp = cuda_shfl_sync_bfly_i32(MemberMask, x, i, 0x1f);
     x = binary_op(x, tmp);
   }
   return x;
@@ -132,11 +131,10 @@ masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
     // unfolded position of set bit in mask of shfl src lane
     int unfoldedSrcSetBit = localSetBit + stride;
 
-    T tmp;
     // __nvvm_fns automatically wraps around to the correct bit position.
     // There is no performance impact on src_set_bit position wrt localSetBit
-    CUDA_SHFL_SYNC(tmp, MemberMask, x,
-                   __nvvm_fns(MemberMask, 0, unfoldedSrcSetBit), 31, idx_i32)
+    T tmp = cuda_shfl_sync_idx_i32(
+        MemberMask, x, __nvvm_fns(MemberMask, 0, unfoldedSrcSetBit), 31);
 
     if (!(localSetBit == 1 && remainder != 0)) {
       x = binary_op(x, tmp);
@@ -152,7 +150,7 @@ masked_reduction_cuda_shfls(Group g, T x, BinaryOperation binary_op,
                : "=r"(broadID)
                : "r"(MemberMask));
 
-  CUDA_SHFL_SYNC(x, MemberMask, x, broadID, 31, idx_i32)
+  x = cuda_shfl_sync_idx_i32(MemberMask, x, broadID, 31);
   return x;
 }
 
@@ -217,13 +215,12 @@ masked_scan_cuda_shfls(Group g, T x, BinaryOperation binary_op,
                        const uint32_t MemberMask) {
   unsigned localIdVal = g.get_local_id()[0];
   for (int i = 1; i < g.get_local_range()[0]; i *= 2) {
-    T tmp;
-    CUDA_SHFL_SYNC(tmp, MemberMask, x, i, 0, up_i32)
+    T tmp = cuda_shfl_sync_up_i32(MemberMask, x, i, 0);
     if (localIdVal >= i)
       x = binary_op(x, tmp);
   }
   if constexpr (Op == __spv::GroupOperation::ExclusiveScan) {
-    CUDA_SHFL_SYNC(x, MemberMask, x, 1, 0, up_i32)
+    x = cuda_shfl_sync_up_i32(MemberMask, x, 1, 0);
     if (localIdVal == 0) {
       return get_identity<T, BinaryOperation>();
     }
@@ -245,24 +242,21 @@ masked_scan_cuda_shfls(Group g, T x, BinaryOperation binary_op,
   for (int i = 1; i < g.get_local_range()[0]; i *= 2) {
     int unfoldedSrcSetBit = localSetBit - i;
 
-    T tmp;
-    CUDA_SHFL_SYNC(tmp, MemberMask, x,
-                   __nvvm_fns(MemberMask, 0, unfoldedSrcSetBit), 31, idx_i32)
+    T tmp = cuda_shfl_sync_idx_i32(
+        MemberMask, x, __nvvm_fns(MemberMask, 0, unfoldedSrcSetBit), 31);
 
     if (localIdVal >= i)
       x = binary_op(x, tmp);
   }
   if constexpr (Op == __spv::GroupOperation::ExclusiveScan) {
-    CUDA_SHFL_SYNC(x, MemberMask, x, __nvvm_fns(MemberMask, 0, localSetBit - 1),
-                   31, idx_i32)
+    x = cuda_shfl_sync_idx_i32(MemberMask, x,
+                               __nvvm_fns(MemberMask, 0, localSetBit - 1), 31);
     if (localIdVal == 0) {
       return get_identity<T, BinaryOperation>();
     }
   }
   return x;
 }
-
-#undef CUDA_SHFL_SYNC
 
 } // namespace detail
 } // namespace _V1
