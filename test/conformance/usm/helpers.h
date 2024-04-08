@@ -19,8 +19,8 @@ inline std::string printUSMAllocTestString(
     const auto device_handle = std::get<0>(info.param);
     const auto platform_device_name =
         uur::GetPlatformAndDeviceName(device_handle);
-    const auto usmDeviceAllocParams = std::get<1>(info.param);
-    const auto BoolParam = std::get<0>(usmDeviceAllocParams);
+    const auto &usmDeviceAllocParams = std::get<1>(info.param);
+    const auto &BoolParam = std::get<0>(usmDeviceAllocParams);
 
     std::stringstream ss;
     ss << BoolParam.name << (BoolParam.value ? "Enabled" : "Disabled");
