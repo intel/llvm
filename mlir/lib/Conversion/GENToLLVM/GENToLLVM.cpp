@@ -266,7 +266,7 @@ struct GENToLLVMConversionPass final
 //===----------------------------------------------------------------------===//
 
 namespace {
-/// Implement the interface to convert MemRef to LLVM.
+/// Implement the interface to convert GEN to LLVM.
 struct GENToLLVMDialectInterface : public ConvertToLLVMPatternInterface {
   using ConvertToLLVMPatternInterface::ConvertToLLVMPatternInterface;
 
