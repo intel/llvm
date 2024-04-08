@@ -20,15 +20,9 @@ namespace detail {
       unsigned int mask, T val, unsigned int shfl_param, int c) {              \
     T res;                                                                     \
     if constexpr (std::is_same_v<T, double>) {                                 \
-      \
-    int x_a,                                                                   \
-          x_b;                                                                 \
-      \
-    asm("mov.b64 {%0,%1},%2;"                                                  \
-        : "=r"(x_a), "=r"(x_b)                                                 \
-        : "d"(val));                                                           \
-      \
-    auto tmp_a = __nvvm_shfl_sync_##SHUFFLE_INSTR(mask, x_a, shfl_param, c);   \
+      int x_a, x_b;                                                            \
+      asm("mov.b64 {%0,%1},%2;" : "=r"(x_a), "=r"(x_b) : "d"(val));            \
+      auto tmp_a = __nvvm_shfl_sync_##SHUFFLE_INSTR(mask, x_a, shfl_param, c); \
       auto tmp_b = __nvvm_shfl_sync_##SHUFFLE_INSTR(mask, x_b, shfl_param, c); \
       asm("mov.b64 %0,{%1,%2};" : "=d"(res) : "r"(tmp_a), "r"(tmp_b));         \
     } else if constexpr (std::is_same_v<T, long> ||                            \
