@@ -20,7 +20,7 @@ TEST_P(urEnqueueDeviceGetGlobalVariableReadTest, Success) {
     // execute the kernel
     ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,
                                          &global_offset, &global_size, nullptr,
-                                         1, nullptr, nullptr));
+                                         0, nullptr, nullptr));
     ASSERT_SUCCESS(urQueueFinish(queue));
 
     // read global var back to host

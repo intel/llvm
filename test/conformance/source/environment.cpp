@@ -477,11 +477,10 @@ void KernelsEnvironment::LoadSource(
     binary_out = binary_ptr;
 }
 
-ur_result_t KernelsEnvironment::CreateProgram(ur_platform_handle_t hPlatform,
-                                              ur_context_handle_t hContext,
-                                              ur_device_handle_t hDevice,
-                                              const std::vector<char> &binary,
-                                              ur_program_handle_t *phProgram) {
+ur_result_t KernelsEnvironment::CreateProgram(
+    ur_platform_handle_t hPlatform, ur_context_handle_t hContext,
+    ur_device_handle_t hDevice, const std::vector<char> &binary,
+    const ur_program_properties_t *properties, ur_program_handle_t *phProgram) {
     ur_platform_backend_t backend;
     if (auto error = urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_BACKEND,
                                        sizeof(ur_platform_backend_t), &backend,
@@ -493,13 +492,14 @@ ur_result_t KernelsEnvironment::CreateProgram(ur_platform_handle_t hPlatform,
         // use urProgramCreateWithBinary instead.
         if (auto error = urProgramCreateWithBinary(
                 hContext, hDevice, binary.size(),
-                reinterpret_cast<const uint8_t *>(binary.data()), nullptr,
+                reinterpret_cast<const uint8_t *>(binary.data()), properties,
                 phProgram)) {
             return error;
         }
     } else {
-        if (auto error = urProgramCreateWithIL(
-                hContext, binary.data(), binary.size(), nullptr, phProgram)) {
+        if (auto error =
+                urProgramCreateWithIL(hContext, binary.data(), binary.size(),
+                                      properties, phProgram)) {
             return error;
         }
     }

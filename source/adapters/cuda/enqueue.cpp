@@ -18,6 +18,7 @@
 
 #include <cmath>
 #include <cuda.h>
+#include <ur/ur.hpp>
 
 ur_result_t enqueueEventsWait(ur_queue_handle_t CommandQueue, CUstream Stream,
                               uint32_t NumEventsInWaitList,
@@ -139,13 +140,10 @@ ur_result_t setCuMemAdvise(CUdeviceptr DevPtr, size_t Size,
 // dimension.
 void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
                         const size_t *GlobalWorkSize, const uint32_t WorkDim,
-                        const size_t MaxThreadsPerBlock[3],
-                        ur_kernel_handle_t Kernel, uint32_t LocalSize) {
+                        ur_kernel_handle_t Kernel) {
   assert(ThreadsPerBlock != nullptr);
   assert(GlobalWorkSize != nullptr);
   assert(Kernel != nullptr);
-  int MinGrid, MaxBlockSize;
-  size_t MaxBlockDim[3];
 
   // The below assumes a three dimensional range but this is not guaranteed by
   // UR.
@@ -154,33 +152,18 @@ void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
     GlobalSizeNormalized[i] = GlobalWorkSize[i];
   }
 
-  MaxBlockDim[1] = Device->getMaxBlockDimY();
-  MaxBlockDim[2] = Device->getMaxBlockDimZ();
+  size_t MaxBlockDim[3];
+  MaxBlockDim[0] = Device->getMaxWorkItemSizes(0);
+  MaxBlockDim[1] = Device->getMaxWorkItemSizes(1);
+  MaxBlockDim[2] = Device->getMaxWorkItemSizes(2);
 
-  UR_CHECK_ERROR(
-      cuOccupancyMaxPotentialBlockSize(&MinGrid, &MaxBlockSize, Kernel->get(),
-                                       NULL, LocalSize, MaxThreadsPerBlock[0]));
+  int MinGrid, MaxBlockSize;
+  UR_CHECK_ERROR(cuOccupancyMaxPotentialBlockSize(
+      &MinGrid, &MaxBlockSize, Kernel->get(), NULL, Kernel->getLocalSize(),
+      MaxBlockDim[0]));
 
-  ThreadsPerBlock[2] = std::min(GlobalSizeNormalized[2], MaxBlockDim[2]);
-  ThreadsPerBlock[1] =
-      std::min(GlobalSizeNormalized[1],
-               std::min(MaxBlockSize / ThreadsPerBlock[2], MaxBlockDim[1]));
-  MaxBlockDim[0] = MaxBlockSize / (ThreadsPerBlock[1] * ThreadsPerBlock[2]);
-  ThreadsPerBlock[0] = std::min(
-      MaxThreadsPerBlock[0], std::min(GlobalSizeNormalized[0], MaxBlockDim[0]));
-
-  static auto IsPowerOf2 = [](size_t Value) -> bool {
-    return Value && !(Value & (Value - 1));
-  };
-
-  // Find a local work group size that is a divisor of the global
-  // work group size to produce uniform work groups.
-  // Additionally, for best compute utilisation, the local size has
-  // to be a power of two.
-  while (0u != (GlobalSizeNormalized[0] % ThreadsPerBlock[0]) ||
-         !IsPowerOf2(ThreadsPerBlock[0])) {
-    --ThreadsPerBlock[0];
-  }
+  roundToHighestFactorOfGlobalSizeIn3d(ThreadsPerBlock, GlobalSizeNormalized,
+                                       MaxBlockDim, MaxBlockSize);
 }
 
 // Helper to verify out-of-registers case (exceeded block max registers).
@@ -213,7 +196,6 @@ setKernelParams(const ur_context_handle_t Context,
                 size_t (&BlocksPerGrid)[3]) {
   ur_result_t Result = UR_RESULT_SUCCESS;
   size_t MaxWorkGroupSize = 0u;
-  size_t MaxThreadsPerBlock[3] = {};
   bool ProvidedLocalWorkGroupSize = LocalWorkSize != nullptr;
   uint32_t LocalSize = Kernel->getLocalSize();
 
@@ -223,8 +205,6 @@ setKernelParams(const ur_context_handle_t Context,
     {
       size_t *ReqdThreadsPerBlock = Kernel->ReqdThreadsPerBlock;
       MaxWorkGroupSize = Device->getMaxWorkGroupSize();
-      Device->getMaxWorkItemSizes(sizeof(MaxThreadsPerBlock),
-                                  MaxThreadsPerBlock);
 
       if (ProvidedLocalWorkGroupSize) {
         auto IsValid = [&](int Dim) {
@@ -232,7 +212,7 @@ setKernelParams(const ur_context_handle_t Context,
               LocalWorkSize[Dim] != ReqdThreadsPerBlock[Dim])
             return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
 
-          if (LocalWorkSize[Dim] > MaxThreadsPerBlock[Dim])
+          if (LocalWorkSize[Dim] > Device->getMaxWorkItemSizes(Dim))
             return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
           // Checks that local work sizes are a divisor of the global work sizes
           // which includes that the local work sizes are neither larger than
@@ -261,7 +241,7 @@ setKernelParams(const ur_context_handle_t Context,
         }
       } else {
         guessLocalWorkSize(Device, ThreadsPerBlock, GlobalWorkSize, WorkDim,
-                           MaxThreadsPerBlock, Kernel, LocalSize);
+                           Kernel);
       }
     }
 
@@ -1660,20 +1640,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
     bool blockingWrite, size_t count, size_t offset, const void *pSrc,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  // Since CUDA requires a the global variable to be referenced by name, we use
-  // metadata to find the correct name to access it by.
-  auto DeviceGlobalNameIt = hProgram->GlobalIDMD.find(name);
-  if (DeviceGlobalNameIt == hProgram->GlobalIDMD.end())
-    return UR_RESULT_ERROR_INVALID_VALUE;
-  std::string DeviceGlobalName = DeviceGlobalNameIt->second;
-
-  ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     CUdeviceptr DeviceGlobal = 0;
     size_t DeviceGlobalSize = 0;
-    UR_CHECK_ERROR(cuModuleGetGlobal(&DeviceGlobal, &DeviceGlobalSize,
-                                     hProgram->get(),
-                                     DeviceGlobalName.c_str()));
+    UR_CHECK_ERROR(hProgram->getGlobalVariablePointer(name, &DeviceGlobal,
+                                                      &DeviceGlobalSize));
 
     if (offset + count > DeviceGlobalSize)
       return UR_RESULT_ERROR_INVALID_VALUE;
@@ -1682,9 +1653,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
         hQueue, blockingWrite, reinterpret_cast<void *>(DeviceGlobal + offset),
         pSrc, count, numEventsInWaitList, phEventWaitList, phEvent);
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
@@ -1692,20 +1662,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     bool blockingRead, size_t count, size_t offset, void *pDst,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  // Since CUDA requires a the global variable to be referenced by name, we use
-  // metadata to find the correct name to access it by.
-  auto DeviceGlobalNameIt = hProgram->GlobalIDMD.find(name);
-  if (DeviceGlobalNameIt == hProgram->GlobalIDMD.end())
-    return UR_RESULT_ERROR_INVALID_VALUE;
-  std::string DeviceGlobalName = DeviceGlobalNameIt->second;
-
-  ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     CUdeviceptr DeviceGlobal = 0;
     size_t DeviceGlobalSize = 0;
-    UR_CHECK_ERROR(cuModuleGetGlobal(&DeviceGlobal, &DeviceGlobalSize,
-                                     hProgram->get(),
-                                     DeviceGlobalName.c_str()));
+    UR_CHECK_ERROR(hProgram->getGlobalVariablePointer(name, &DeviceGlobal,
+                                                      &DeviceGlobalSize));
 
     if (offset + count > DeviceGlobalSize)
       return UR_RESULT_ERROR_INVALID_VALUE;
@@ -1715,9 +1676,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
         reinterpret_cast<const void *>(DeviceGlobal + offset), count,
         numEventsInWaitList, phEventWaitList, phEvent);
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
 }
 
 /// Host Pipes

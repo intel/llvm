@@ -569,6 +569,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(
         static_cast<ur_memory_order_capability_flags_t>(URCapabilities));
   }
+
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
     /* Initialize result to minimum mandated capabilities according to
      * SYCL2020 4.6.3.2. Because scopes are hierarchical, wider scopes support
@@ -624,6 +625,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(
         static_cast<ur_memory_scope_capability_flags_t>(URCapabilities));
   }
+
   case UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
     /* Initialize result to minimum mandated capabilities according to
      * SYCL2020 4.6.3.2 */
@@ -671,6 +673,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(
         static_cast<ur_memory_order_capability_flags_t>(URCapabilities));
   }
+
   case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
     /* Initialize result to minimum mandated capabilities according to
      * SYCL2020 4.6.3.2. Because scopes are hierarchical, wider scopes support
@@ -686,38 +689,53 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     CL_RETURN_ON_FAILURE(cl_adapter::getDeviceVersion(
         cl_adapter::cast<cl_device_id>(hDevice), DevVer));
 
-    cl_device_atomic_capabilities CLCapabilities;
+    auto convertCapabilities =
+        [](cl_device_atomic_capabilities CLCapabilities) {
+          ur_memory_scope_capability_flags_t URCapabilities = 0;
+          /* Because scopes are hierarchical, wider scopes support all narrower
+           * scopes. At a minimum, each device must support WORK_ITEM,
+           * SUB_GROUP and WORK_GROUP.
+           * (https://github.com/KhronosGroup/SYCL-Docs/pull/382). We already
+           * initialized to these minimum mandated capabilities. Just check
+           * wider scopes. */
+          if (CLCapabilities & CL_DEVICE_ATOMIC_SCOPE_DEVICE) {
+            URCapabilities |= UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE;
+          }
+
+          if (CLCapabilities & CL_DEVICE_ATOMIC_SCOPE_ALL_DEVICES) {
+            URCapabilities |= UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
+          }
+          return URCapabilities;
+        };
+
     if (DevVer >= oclv::V3_0) {
+      cl_device_atomic_capabilities CLCapabilities;
       CL_RETURN_ON_FAILURE(clGetDeviceInfo(
           cl_adapter::cast<cl_device_id>(hDevice),
           CL_DEVICE_ATOMIC_FENCE_CAPABILITIES,
           sizeof(cl_device_atomic_capabilities), &CLCapabilities, nullptr));
-
       assert((CLCapabilities & CL_DEVICE_ATOMIC_SCOPE_WORK_GROUP) &&
              "Violates minimum mandated guarantee");
+      URCapabilities |= convertCapabilities(CLCapabilities);
+    } else if (DevVer >= oclv::V2_0) {
+      /* OpenCL 2.x minimum mandated capabilities are WORK_GROUP | DEVICE |
+         ALL_DEVICES */
+      URCapabilities |= UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE |
+                        UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
 
-      /* Because scopes are hierarchical, wider scopes support all narrower
-       * scopes. At a minimum, each device must support WORK_ITEM, SUB_GROUP and
-       * WORK_GROUP. (https://github.com/KhronosGroup/SYCL-Docs/pull/382). We
-       * already initialized to these minimum mandated capabilities. Just check
-       * wider scopes. */
-      if (CLCapabilities & CL_DEVICE_ATOMIC_SCOPE_DEVICE) {
-        URCapabilities |= UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE;
-      }
-
-      if (CLCapabilities & CL_DEVICE_ATOMIC_SCOPE_ALL_DEVICES) {
-        URCapabilities |= UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
-      }
     } else {
-      /* This info is only available in OpenCL version >= 3.0. Just return
-       * minimum mandated capabilities for older versions. OpenCL 1.x minimum
-       * mandated capabilities are WORK_GROUP, we already initialized using it.
-       */
-      if (DevVer >= oclv::V2_0) {
-        /* OpenCL 2.x minimum mandated capabilities are WORK_GROUP | DEVICE |
-         * ALL_DEVICES */
-        URCapabilities |= UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE |
-                          UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM;
+      // FIXME: Special case for Intel FPGA driver which is currently an
+      // OpenCL 1.2 device but is more capable than the default. This is a
+      // temporary work around until the Intel FPGA driver is updated to
+      // OpenCL 3.0. If the query is successful, then use the result but do
+      // not return an error if the query is unsuccessful as this is expected
+      // of an OpenCL 1.2 driver.
+      cl_device_atomic_capabilities CLCapabilities;
+      if (CL_SUCCESS == clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice),
+                                        CL_DEVICE_ATOMIC_FENCE_CAPABILITIES,
+                                        sizeof(cl_device_atomic_capabilities),
+                                        &CLCapabilities, nullptr)) {
+        URCapabilities |= convertCapabilities(CLCapabilities);
       }
     }
 

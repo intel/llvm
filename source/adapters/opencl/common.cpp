@@ -9,7 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "common.hpp"
-
+#include "logger/ur_logger.hpp"
 namespace cl_adapter {
 
 /* Global variables for urPlatformGetLastError() */
@@ -81,13 +81,17 @@ ur_result_t mapCLErrorToUR(cl_int Result) {
     return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP;
   case CL_INVALID_SYNC_POINT_WAIT_LIST_KHR:
     return UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP;
+  case CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST:
+    return UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS;
+  case CL_DEVICE_NOT_AVAILABLE:
+    return UR_RESULT_ERROR_DEVICE_NOT_AVAILABLE;
   default:
     return UR_RESULT_ERROR_UNKNOWN;
   }
 }
 
 void cl_adapter::die(const char *Message) {
-  std::cerr << "ur_die: " << Message << "\n";
+  logger::always("ur_die: {}", Message);
   std::terminate();
 }
 

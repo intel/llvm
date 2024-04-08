@@ -65,4 +65,8 @@ struct ur_program_handle_t_ {
   uint32_t decrementReferenceCount() noexcept { return --RefCount; }
 
   uint32_t getReferenceCount() const noexcept { return RefCount; }
+
+  ur_result_t getGlobalVariablePointer(const char *name,
+                                       hipDeviceptr_t *DeviceGlobal,
+                                       size_t *DeviceGlobalSize);
 };

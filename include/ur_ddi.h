@@ -330,6 +330,15 @@ typedef ur_result_t(UR_APICALL *ur_pfnProgramGetFunctionPointer_t)(
     void **);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urProgramGetGlobalVariablePointer
+typedef ur_result_t(UR_APICALL *ur_pfnProgramGetGlobalVariablePointer_t)(
+    ur_device_handle_t,
+    ur_program_handle_t,
+    const char *,
+    size_t *,
+    void **);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urProgramGetInfo
 typedef ur_result_t(UR_APICALL *ur_pfnProgramGetInfo_t)(
     ur_program_handle_t,
@@ -380,6 +389,7 @@ typedef struct ur_program_dditable_t {
     ur_pfnProgramRetain_t pfnRetain;
     ur_pfnProgramRelease_t pfnRelease;
     ur_pfnProgramGetFunctionPointer_t pfnGetFunctionPointer;
+    ur_pfnProgramGetGlobalVariablePointer_t pfnGetGlobalVariablePointer;
     ur_pfnProgramGetInfo_t pfnGetInfo;
     ur_pfnProgramGetBuildInfo_t pfnGetBuildInfo;
     ur_pfnProgramSetSpecializationConstants_t pfnSetSpecializationConstants;

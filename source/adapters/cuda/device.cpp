@@ -201,6 +201,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
         UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
         UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL;
+
+    int Major = 0;
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, hDevice->get()));
+    if (Major >= 7)
+      Capabilities |= UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
+
     return ReturnValue(Capabilities);
   }
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
@@ -228,6 +235,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
         UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
         UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
         UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL;
+
+    int Major = 0;
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, hDevice->get()));
+    if (Major >= 7)
+      Capabilities |= UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
+
     return ReturnValue(Capabilities);
   }
   case UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
@@ -612,6 +626,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     SupportedExtensions += "pi_ext_intel_devicelib_assert ";
     // Return supported for the UR command-buffer experimental feature
     SupportedExtensions += "ur_exp_command_buffer ";
+    SupportedExtensions += "ur_exp_usm_p2p ";
     SupportedExtensions += " ";
 
     int Major = 0;
@@ -901,6 +916,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP: {
     // CUDA does not support exporting semaphores or events.
     return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP: {
+    // CUDA supports cubemaps.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP: {
+    // CUDA supports cubemap seamless filtering.
+    return ReturnValue(true);
   }
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
     // CUDA supports recording timestamp events.

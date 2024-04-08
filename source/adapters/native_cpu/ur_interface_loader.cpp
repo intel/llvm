@@ -91,6 +91,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetProgramProcAddrTable(
   pDdiTable->pfnCreateWithNativeHandle = urProgramCreateWithNativeHandle;
   pDdiTable->pfnGetBuildInfo = urProgramGetBuildInfo;
   pDdiTable->pfnGetFunctionPointer = urProgramGetFunctionPointer;
+  pDdiTable->pfnGetGlobalVariablePointer = urProgramGetGlobalVariablePointer;
   pDdiTable->pfnGetInfo = urProgramGetInfo;
   pDdiTable->pfnGetNativeHandle = urProgramGetNativeHandle;
   pDdiTable->pfnLink = urProgramLink;

@@ -320,10 +320,12 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_execution_info_t value
 inline std::ostream &operator<<(std::ostream &os, enum ur_map_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_usm_migration_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_image_copy_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_sampler_cubemap_filter_mode_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_file_descriptor_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_win32_handle_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_sampler_mip_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_sampler_addr_modes_t params);
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_sampler_cubemap_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_interop_mem_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_interop_semaphore_desc_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_command_buffer_info_t value);
@@ -837,9 +839,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_ADAPTER_GET_INFO:
         os << "UR_FUNCTION_ADAPTER_GET_INFO";
         break;
-    case UR_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP:
-        os << "UR_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP";
-        break;
     case UR_FUNCTION_PROGRAM_BUILD_EXP:
         os << "UR_FUNCTION_PROGRAM_BUILD_EXP";
         break;
@@ -897,11 +896,20 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP:
         os << "UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP";
         break;
+    case UR_FUNCTION_PROGRAM_GET_GLOBAL_VARIABLE_POINTER:
+        os << "UR_FUNCTION_PROGRAM_GET_GLOBAL_VARIABLE_POINTER";
+        break;
+    case UR_FUNCTION_DEVICE_GET_SELECTED:
+        os << "UR_FUNCTION_DEVICE_GET_SELECTED";
+        break;
     case UR_FUNCTION_COMMAND_BUFFER_RETAIN_COMMAND_EXP:
         os << "UR_FUNCTION_COMMAND_BUFFER_RETAIN_COMMAND_EXP";
         break;
     case UR_FUNCTION_COMMAND_BUFFER_RELEASE_COMMAND_EXP:
         os << "UR_FUNCTION_COMMAND_BUFFER_RELEASE_COMMAND_EXP";
+        break;
+    case UR_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP:
+        os << "UR_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP";
         break;
     case UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP:
         os << "UR_FUNCTION_COMMAND_BUFFER_GET_INFO_EXP";
@@ -909,15 +917,10 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP:
         os << "UR_FUNCTION_COMMAND_BUFFER_COMMAND_GET_INFO_EXP";
         break;
-    case UR_FUNCTION_DEVICE_GET_SELECTED:
-        os << "UR_FUNCTION_DEVICE_GET_SELECTED";
-        break;
     case UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP:
         os << "UR_FUNCTION_ENQUEUE_TIMESTAMP_RECORDING_EXP";
         break;
     default:
-        os << "unknown enumerator";
-        break;
     }
     return os;
 }
@@ -1067,6 +1070,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_structure_type_t value
         break;
     case UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES:
         os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES";
+        break;
+    case UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES";
         break;
     default:
         os << "unknown enumerator";
@@ -1319,6 +1325,11 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
         const ur_exp_sampler_addr_modes_t *pstruct = (const ur_exp_sampler_addr_modes_t *)ptr;
         printPtr(os, pstruct);
     } break;
+
+    case UR_STRUCTURE_TYPE_EXP_SAMPLER_CUBEMAP_PROPERTIES: {
+        const ur_exp_sampler_cubemap_properties_t *pstruct = (const ur_exp_sampler_cubemap_properties_t *)ptr;
+        printPtr(os, pstruct);
+    } break;
     default:
         os << "unknown enumerator";
         return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -1538,6 +1549,12 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
         break;
     case UR_RESULT_ERROR_LAYER_NOT_PRESENT:
         os << "UR_RESULT_ERROR_LAYER_NOT_PRESENT";
+        break;
+    case UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        os << "UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS";
+        break;
+    case UR_RESULT_ERROR_DEVICE_NOT_AVAILABLE:
+        os << "UR_RESULT_ERROR_DEVICE_NOT_AVAILABLE";
         break;
     case UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP:
         os << "UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP";
@@ -2539,6 +2556,12 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
         break;
     case UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP";
+        break;
+    case UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP:
+        os << "UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP";
+        break;
+    case UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP:
+        os << "UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP";
         break;
     case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP";
@@ -4147,6 +4170,30 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
 
         os << ")";
     } break;
+    case UR_DEVICE_INFO_CUBEMAP_SUPPORT_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
     case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
@@ -5334,6 +5381,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_mem_type_t value) {
         break;
     case UR_MEM_TYPE_IMAGE1D_BUFFER:
         os << "UR_MEM_TYPE_IMAGE1D_BUFFER";
+        break;
+    case UR_MEM_TYPE_IMAGE_CUBEMAP_EXP:
+        os << "UR_MEM_TYPE_IMAGE_CUBEMAP_EXP";
         break;
     default:
         os << "unknown enumerator";
@@ -8691,6 +8741,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_event_status_t value) 
     case UR_EVENT_STATUS_QUEUED:
         os << "UR_EVENT_STATUS_QUEUED";
         break;
+    case UR_EVENT_STATUS_ERROR:
+        os << "UR_EVENT_STATUS_ERROR";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -9146,6 +9199,24 @@ inline ur_result_t printFlag<ur_exp_image_copy_flag_t>(std::ostream &os, uint32_
 }
 } // namespace ur::details
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_sampler_cubemap_filter_mode_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_sampler_cubemap_filter_mode_t value) {
+    switch (value) {
+    case UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_DISJOINTED:
+        os << "UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_DISJOINTED";
+        break;
+    case UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS:
+        os << "UR_EXP_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_file_descriptor_t type
 /// @returns
 ///     std::ostream &
@@ -9263,6 +9334,31 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_sampler_ad
         os << (params.addrModes[i]);
     }
     os << "}";
+
+    os << "}";
+    return os;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_sampler_cubemap_properties_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_sampler_cubemap_properties_t params) {
+    os << "(struct ur_exp_sampler_cubemap_properties_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur::details::printStruct(os,
+                             (params.pNext));
+
+    os << ", ";
+    os << ".cubemapFilterMode = ";
+
+    os << (params.cubemapFilterMode);
 
     os << "}";
     return os;
@@ -10808,6 +10904,44 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
     ur::details::printPtr(os,
                           *(params->pppFunctionPointer));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_program_get_global_variable_pointer_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_program_get_global_variable_pointer_params_t *params) {
+
+    os << ".hDevice = ";
+
+    ur::details::printPtr(os,
+                          *(params->phDevice));
+
+    os << ", ";
+    os << ".hProgram = ";
+
+    ur::details::printPtr(os,
+                          *(params->phProgram));
+
+    os << ", ";
+    os << ".pGlobalVariableName = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppGlobalVariableName));
+
+    os << ", ";
+    os << ".pGlobalVariableSizeRet = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppGlobalVariableSizeRet));
+
+    os << ", ";
+    os << ".ppGlobalVariablePointerRet = ";
+
+    ur::details::printPtr(os,
+                          *(params->pppGlobalVariablePointerRet));
 
     return os;
 }
@@ -16768,6 +16902,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     } break;
     case UR_FUNCTION_PROGRAM_GET_FUNCTION_POINTER: {
         os << (const struct ur_program_get_function_pointer_params_t *)params;
+    } break;
+    case UR_FUNCTION_PROGRAM_GET_GLOBAL_VARIABLE_POINTER: {
+        os << (const struct ur_program_get_global_variable_pointer_params_t *)params;
     } break;
     case UR_FUNCTION_PROGRAM_GET_INFO: {
         os << (const struct ur_program_get_info_params_t *)params;

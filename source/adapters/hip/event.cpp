@@ -191,14 +191,9 @@ urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
   UR_ASSERT(numEvents > 0, UR_RESULT_ERROR_INVALID_VALUE);
 
   try {
-
-    auto Context = phEventWaitList[0]->getContext();
     ScopedContext Active(phEventWaitList[0]->getDevice());
-
-    auto WaitFunc = [Context](ur_event_handle_t Event) -> ur_result_t {
+    auto WaitFunc = [](ur_event_handle_t Event) -> ur_result_t {
       UR_ASSERT(Event, UR_RESULT_ERROR_INVALID_EVENT);
-      UR_ASSERT(Event->getContext() == Context,
-                UR_RESULT_ERROR_INVALID_CONTEXT);
 
       return Event->wait();
     };
