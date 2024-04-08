@@ -1,4 +1,4 @@
-//===- GENToLLVMPass.cpp - MLIR GEN to LLVM dialect conversion ------------===//
+//===- GENToLLVM.cpp - MLIR GEN to LLVM dialect conversion ----------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Conversion/GENToLLVM/GENToLLVMPass.h"
+#include "mlir/Conversion/GENToLLVM/GENToLLVM.h"
 
 #include "mlir/Conversion/ConvertToLLVM/ToLLVMInterface.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
@@ -27,7 +27,7 @@
 #include "llvm/Support/ErrorHandling.h"
 
 namespace mlir {
-#define GEN_PASS_DEF_CONVERTGENTOLLVM
+#define GEN_PASS_DEF_GENTOLLVMCONVERSIONPASS
 #include "mlir/Conversion/Passes.h.inc"
 } // namespace mlir
 
@@ -241,8 +241,8 @@ struct SubGroupShuffleLowering
 //===----------------------------------------------------------------------===//
 
 namespace {
-struct ConvertGENToLLVM final
-    : public impl::ConvertGENToLLVMBase<ConvertGENToLLVM> {
+struct GENToLLVMConversionPass final
+    : public impl::GENToLLVMConversionPassBase<GENToLLVMConversionPass> {
   using Base::Base;
 
   void runOnOperation() override {
@@ -259,8 +259,32 @@ struct ConvertGENToLLVM final
       signalPassFailure();
   }
 };
-
 } // namespace
+
+//===----------------------------------------------------------------------===//
+// ConvertToLLVMPatternInterface implementation
+//===----------------------------------------------------------------------===//
+
+namespace {
+/// Implement the interface to convert GEN to LLVM.
+struct GENToLLVMDialectInterface : public ConvertToLLVMPatternInterface {
+  using ConvertToLLVMPatternInterface::ConvertToLLVMPatternInterface;
+
+  /// Hook for derived dialect interface to provide conversion patterns
+  /// and mark dialect legal for the conversion target.
+  void populateConvertToLLVMConversionPatterns(
+      ConversionTarget &target, LLVMTypeConverter &typeConverter,
+      RewritePatternSet &patterns) const final {
+    GEN::populateGENToLLVMConversionPatterns(typeConverter, patterns);
+  }
+};
+} // namespace
+
+void mlir::GEN::registerConvertGENToLLVMInterface(DialectRegistry &registry) {
+  registry.addExtension(+[](MLIRContext *ctx, GEN::GENDialect *dialect) {
+    dialect->addInterfaces<GENToLLVMDialectInterface>();
+  });
+}
 
 //===----------------------------------------------------------------------===//
 // Pattern Population and Registration
@@ -273,8 +297,4 @@ void mlir::GEN::populateGENToLLVMConversionPatterns(
                GEN3DNDRangeLowering<GEN::WorkGroupSizeOp>,
                GEN3DNDRangeLowering<GEN::NumWorkGroupsOp>, GENBarrierLowering,
                SubGroupShuffleLowering>(converter);
-}
-
-std::unique_ptr<Pass> mlir::GEN::createConvertGENToLLVM() {
-  return std::make_unique<ConvertGENToLLVM>();
 }
