@@ -108,7 +108,7 @@ using Program = Wrapper<ur_program_handle_t, urProgramRetain, urProgramRelease>;
 using Kernel = Wrapper<ur_kernel_handle_t, urKernelRetain, urKernelRelease>;
 using Queue = Wrapper<ur_queue_handle_t, urQueueRetain, urQueueRelease>;
 using Event = Wrapper<ur_event_handle_t, urEventRetain, urEventRelease>;
-}; // namespace raii
-}; // namespace uur
+} // namespace raii
+} // namespace uur
 
 #endif // UUR_RAII_H_INCLUDED
