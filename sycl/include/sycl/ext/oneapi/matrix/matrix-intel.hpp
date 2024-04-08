@@ -146,7 +146,8 @@ public:
         __spirv_AccessChain<storage_element_type, NumRows, NumCols,
                             spv_matrix_use_traits<Use>::value,
                             spv_scope_traits<Group>::value>(&M.spvm, idx);
-    storage_element_type elem = __spirv_Load<T>(ExtractP);
+    storage_element_type elem = *ExtractP;
+//    storage_element_type elem = __spirv_Load<T>(ExtractP);
 #endif // USE_COOP_MATRIX
     return elem;
 #else
@@ -169,7 +170,8 @@ public:
         __spirv_AccessChain<storage_element_type, NumRows, NumCols,
                             spv_matrix_use_traits<Use>::value,
                             spv_scope_traits<Group>::value>(&M.spvm, idx);
-    return __spirv_Load<T>(ExtractP) != static_cast<storage_element_type>(0);
+    return *ExtractP != static_cast<storage_element_type>(0);
+//    return __spirv_Load<T>(ExtractP) != static_cast<storage_element_type>(0);
 #endif // USE_COOP_MATRIX
 #else
     throw runtime_error("joint matrix is not supported on host device.",
@@ -184,7 +186,8 @@ public:
         M.spvm, static_cast<storage_element_type>(rhs), idx);
 #else
     T2 *InsertP = __spirv_AccessChain(&M.spvm, idx);
-    __spirv_Store(InsertP, static_cast<storage_element_type>(rhs));
+    *InsertP = static_cast<storage_element_type>(rhs);
+//    __spirv_Store(InsertP, static_cast<storage_element_type>(rhs));
 #endif // USE_COOP_MATRIX
     return *this;
 #else
@@ -210,9 +213,13 @@ public:
                                       spv_matrix_use_traits<Use>::value,
                                       spv_scope_traits<Group>::value>(
         &rhs.M.spvm, rhs.idx);
+    T *InsertP = __spirv_AccessChain(&M.spvm, idx);
+    *InsertP = *ExtractP;
+/*
     T RhsVal = __spirv_Load(ExtractP);
     T *InsertP = __spirv_AccessChain(&M.spvm, idx);
     __spirv_Store(InsertP, RhsVal);
+    */
 #endif // USE_COOP_MATRIX
     return *this;
 #else
@@ -245,10 +252,8 @@ public:
                                       spv_matrix_use_traits<Use>::value,       \
                                       spv_scope_traits<Group>::value>(         \
         &rhs.M.spvm, rhs.idx);                                                 \
-    T RhsVal =                                                                 \
-        __spirv_Load(ExtractP) op static_cast<storage_element_type>(rhs);      \
     T *InsertP = __spirv_AccessChain(&M.spvm, idx);                            \
-    __spirv_Store(static_cast<storage_element_type>(InsertP), RhsVal);         \
+    *InsertP = *ExtractP op static_cast<storage_element_type>(rhs);            \
     return *this;                                                              \
   }
 #endif // USE_COOP_MATRIX
@@ -315,7 +320,7 @@ public:
         __spirv_AccessChain<sycl::ext::oneapi::bfloat16, NumRows, NumCols,
                             spv_matrix_use_traits<Use>::value,
                             spv_scope_traits<Group>::value>(&M.spvm, idx);
-    return __spirv_Load<sycl::ext::oneapi::bfloat16>(ExtractP);
+    return *ExtractP;
 #endif // USE_COOP_MATRIX
 #else
     throw runtime_error("joint matrix is not supported on host device.",
@@ -338,8 +343,8 @@ public:
         __spirv_AccessChain<sycl::ext::oneapi::bfloat16, NumRows, NumCols,
                             spv_matrix_use_traits<Use>::value,
                             spv_scope_traits<Group>::value>(&M.spvm, idx);
-    sycl::ext::oneapi::bfloat16 Elem =
-        __spirv_Load<sycl::ext::oneapi::bfloat16>(ExtractP);
+    sycl::ext::oneapi::bfloat16 Elem = *ExtractP;
+//        __spirv_Load<sycl::ext::oneapi::bfloat16>(ExtractP);
     return sycl::fabs(static_cast<float>(Elem)) >=
            std::numeric_limits<float>::epsilon();
 #endif // USE_COOP_MATRIX
@@ -384,9 +389,11 @@ public:
                             spv_matrix_use_traits<Use>::value,
                             spv_scope_traits<Group>::value>(&rhs.M.spvm,
                                                             rhs.idx);
-    sycl::ext::oneapi::bfloat16 RhsVal = __spirv_Load(ExtractP);
     sycl::ext::oneapi::bfloat16 *InsertP = __spirv_AccessChain(&M.spvm, idx);
-    __spirv_Store(InsertP, RhsVal);
+    *InsertP = *ExtractP;
+/*    sycl::ext::oneapi::bfloat16 RhsVal = __spirv_Load(ExtractP);
+    sycl::ext::oneapi::bfloat16 *InsertP = __spirv_AccessChain(&M.spvm, idx);
+    __spirv_Store(InsertP, RhsVal);*/
 #endif // USE_COOP_MATRIX
     return *this;
 #else
@@ -417,9 +424,8 @@ public:
         __spirv_AccessChain<sycl::ext::oneapi::bfloat16, NumRows, NumCols,     \
                             spv_matrix_use_traits<Use>::value,                 \
                             spv_scope_traits<Group>::value>(&M.spvm, idx);     \
-    sycl::ext::oneapi::bfloat16 RhsVal = __spirv_Load(ExtractP) op rhs;        \
     sycl::ext::oneapi::bfloat16 *InsertP = __spirv_AccessChain(&M.spvm, idx);  \
-    __spirv_Store(InsertP, RhsVal);                                            \
+    *InsertP = *ExtractP op rhs;                                               \
     return *this;                                                              \
   }
 #endif // USE_COOP_MATRIX
@@ -471,7 +477,7 @@ public:
                             spv_matrix_use_traits<Use>::value,                 \
                             spv_scope_traits<Group>::value>(&lhs.M.spvm,       \
                                                             lhs.idx);          \
-    return __spirv_Load<sycl::ext::oneapi::bfloat16>(ExtractP) op rhs;         \
+    return *ExtractP op rhs;                                                   \
   }                                                                            \
   friend type operator op(                                                     \
       const sycl::ext::oneapi::bfloat16 &lhs,                                  \
@@ -482,7 +488,7 @@ public:
                             spv_matrix_use_traits<Use>::value,                 \
                             spv_scope_traits<Group>::value>(&rhs.M.spvm,       \
                                                             rhs.idx);          \
-    return __spirv_Load<sycl::ext::oneapi::bfloat16>(ExtractP) op lhs;         \
+    return *ExtractP op lhs;                                                   \
   }
 #endif // USE_COOP_MATRIX
   OP(sycl::ext::oneapi::bfloat16, +)
@@ -527,8 +533,7 @@ public:
                             spv_matrix_use_traits<Use>::value,                 \
                             spv_scope_traits<Group>::value>(&lhs.M.spvm,       \
                                                             lhs.idx);          \
-    return type{static_cast<float>(__spirv_Load<sycl::ext::oneapi::bfloat16>(  \
-        ExtractP)) op static_cast<float>(rhs)};                                \
+    return type{static_cast<float>(*ExtractP) op static_cast<float>(rhs)};     \
   }                                                                            \
   friend type operator op(                                                     \
       const sycl::ext::oneapi::bfloat16 &lhs,                                  \
@@ -539,8 +544,7 @@ public:
                             spv_matrix_use_traits<Use>::value,                 \
                             spv_scope_traits<Group>::value>(&rhs.M.spvm,       \
                                                             rhs.idx);          \
-    return type{static_cast<float>(__spirv_Load<sycl::ext::oneapi::bfloat16>(  \
-        ExtractP)) op static_cast<float>(lhs)};                                \
+    return type{static_cast<float>(*ExtractP) op static_cast<float>(lhs)};    \
   }
 #endif // USE_COOP_MATRIX
   OP(bool, ==)
