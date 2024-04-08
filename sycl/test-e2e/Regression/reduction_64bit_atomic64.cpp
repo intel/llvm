@@ -9,7 +9,9 @@
 //       test is run. However, it should work on devices that support atomic64
 //       as well.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/reduction.hpp>
 
 #include <iostream>
 

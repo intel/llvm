@@ -87,6 +87,7 @@
 #include "llvm/Transforms/Instrumentation/MemorySanitizer.h"
 #include "llvm/Transforms/Instrumentation/PGOInstrumentation.h"
 #include "llvm/Transforms/Instrumentation/SPIRITTAnnotations.h"
+#include "llvm/Transforms/Instrumentation/RemoveTrapsPass.h"
 #include "llvm/Transforms/Instrumentation/SanitizerBinaryMetadata.h"
 #include "llvm/Transforms/Instrumentation/SanitizerCoverage.h"
 #include "llvm/Transforms/Instrumentation/ThreadSanitizer.h"
@@ -95,6 +96,7 @@
 #include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/Transforms/Scalar/InferAddressSpaces.h"
 #include "llvm/Transforms/Scalar/JumpThreading.h"
+#include "llvm/Transforms/Scalar/SimplifyCFG.h"
 #include "llvm/Transforms/Utils/Debugify.h"
 #include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
@@ -110,10 +112,13 @@ using namespace llvm;
 namespace llvm {
 extern cl::opt<bool> PrintPipelinePasses;
 
+static cl::opt<bool> ClRemoveTraps("clang-remove-traps", cl::Optional,
+                                   cl::desc("Insert remove-traps pass."));
+
 // Experiment to move sanitizers earlier.
 static cl::opt<bool> ClSanitizeOnOptimizerEarlyEP(
     "sanitizer-early-opt-ep", cl::Optional,
-    cl::desc("Insert sanitizers on OptimizerEarlyEP."), cl::init(false));
+    cl::desc("Insert sanitizers on OptimizerEarlyEP."));
 
 extern cl::opt<InstrProfCorrelator::ProfCorrelatorKind> ProfileCorrelate;
 
@@ -124,7 +129,7 @@ cl::opt<bool> ClRelinkBuiltinBitcodePostop(
 
 static cl::opt<bool> SYCLNativeCPUBackend(
     "sycl-native-cpu-backend", cl::init(false),
-    cl::desc("Run the backend passes for SYCL Native CPU"));
+    cl::desc("Re-link builtin bitcodes after optimization."));
 } // namespace llvm
 
 namespace {
@@ -393,8 +398,6 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
       llvm::TargetMachine::parseBinutilsVersion(CodeGenOpts.BinutilsVersion);
   Options.UseInitArray = CodeGenOpts.UseInitArray;
   Options.DisableIntegratedAS = CodeGenOpts.DisableIntegratedAS;
-  Options.CompressDebugSections = CodeGenOpts.getCompressDebugSections();
-  Options.RelaxELFRelocations = CodeGenOpts.RelaxELFRelocations;
 
   // Set EABI version.
   Options.EABIVersion = TargetOpts.EABIVersion;
@@ -497,6 +500,9 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
   Options.MCOptions.AsmVerbose = CodeGenOpts.AsmVerbose;
   Options.MCOptions.Dwarf64 = CodeGenOpts.Dwarf64;
   Options.MCOptions.PreserveAsmComments = CodeGenOpts.PreserveAsmComments;
+  Options.MCOptions.X86RelaxRelocations = CodeGenOpts.RelaxELFRelocations;
+  Options.MCOptions.CompressDebugSections =
+      CodeGenOpts.getCompressDebugSections();
   Options.MCOptions.ABIName = TargetOpts.ABI;
   for (const auto &Entry : HSOpts.UserEntries)
     if (!Entry.IsFramework &&
@@ -779,6 +785,21 @@ static void addSanitizers(const Triple &TargetTriple,
   } else {
     // LastEP does not need GlobalsAA.
     PB.registerOptimizerLastEPCallback(SanitizersCallback);
+  }
+
+  if (ClRemoveTraps) {
+    // We can optimize after inliner, and PGO profile matching. The hook below
+    // is called at the end `buildFunctionSimplificationPipeline`, which called
+    // from `buildInlinerPipeline`, which called after profile matching.
+    PB.registerScalarOptimizerLateEPCallback(
+        [](FunctionPassManager &FPM, OptimizationLevel Level) {
+          // RemoveTrapsPass expects trap blocks preceded by conditional
+          // branches, which usually is not the case without SimplifyCFG.
+          // TODO: Remove `SimplifyCFGPass` after switching to dedicated
+          // intrinsic.
+          FPM.addPass(SimplifyCFGPass());
+          FPM.addPass(RemoveTrapsPass());
+        });
   }
 }
 
@@ -1116,10 +1137,10 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
       // Add SPIRITTAnnotations pass to the pass manager if
       // -fsycl-instrument-device-code option was passed. This option can be
-      // used only with spir triple.
+      // used only with spir or spirv triple.
       if (CodeGenOpts.SPIRITTAnnotations) {
         assert(
-            TargetTriple.isSPIR() &&
+            TargetTriple.isSPIROrSPIRV() &&
             "ITT annotations can only be added to a module with spir target");
         MPM.addPass(SPIRITTAnnotationsPass());
       }

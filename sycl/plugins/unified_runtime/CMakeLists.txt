@@ -56,15 +56,82 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
+  # The fetch_adapter_source function can be used to perform a separate content
+  # fetch for a UR adapter, this allows development of adapters to be decoupled
+  # from each other.
+  #
+  # A separate content fetch will not be performed if:
+  # * The adapter name is not present in the SYCL_ENABLE_PLUGINS variable.
+  # * The repo and tag provided match the values of the
+  #   UNIFIED_RUNTIME_REPO/UNIFIED_RUNTIME_TAG variables
+  #
+  # Args:
+  #   * name - Must be the directory name of the adapter
+  #   * repo - A valid Git URL of a Unified Runtime repo
+  #   * tag - A valid Git branch/tag/commit in the Unified Runtime repo
+  function(fetch_adapter_source name repo tag)
+    if(NOT ${name} IN_LIST SYCL_ENABLE_PLUGINS)
+      return()
+    endif()
+    if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
+        tag STREQUAL UNIFIED_RUNTIME_TAG)
+      return()
+    endif()
+    message(STATUS
+      "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
+    set(fetch-name unified-runtime-${name})
+    FetchContent_Declare(${fetch-name}
+      GIT_REPOSITORY ${repo} GIT_TAG ${tag})
+    # We don't want to add this repo to the build, only fetch its source.
+    FetchContent_Populate(${fetch-name})
+    # Get the path to the source directory
+    string(TOUPPER ${name} NAME)
+    set(source_dir_var UR_ADAPTER_${NAME}_SOURCE_DIR)
+    FetchContent_GetProperties(${fetch-name} SOURCE_DIR UR_ADAPTER_${NAME}_SOURCE_DIR)
+    # Set the variable which informs UR where to get the adapter source from.
+    set(UR_ADAPTER_${NAME}_SOURCE_DIR
+      "${UR_ADAPTER_${NAME}_SOURCE_DIR}/source/adapters/${name}"
+      CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
+  endfunction()
+
   set(UNIFIED_RUNTIME_REPO "git@git.office.codeplay.com:orion/unified-runtime.git")
-  # commit 418ad5354ca24a6dfbd01df803949855b7a6c3dd
-  # Merge: d99d5f74 26682290
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Mar 14 10:19:56 2024 +0000
-  #     Merge pull request #1365 from Bensuo/maxime/improve-L0-cmd-buffer-enqueing
-  #     [EXP][CMDBUF] Move event reset commands to dedicated cmd-list
-  # set(UNIFIED_RUNTIME_TAG 418ad5354ca24a6dfbd01df803949855b7a6c3dd)
+  # commit 065bf2dd97b58a4ceeb2fb83eed1df9319e61c59
+  # Merge: b9153547 ec773e6c
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Fri Apr 5 14:26:59 2024 +0100
+  #     Merge pull request #1486 from nrspruit/fix_memfree_report
+  #     [L0] Fix DeviceInfo global mem free to report unsupported given MemCount==0
   set(UNIFIED_RUNTIME_TAG uwe/subgroups)
+
+  fetch_adapter_source(level_zero
+    "git@git.office.codeplay.com:orion/unified-runtime.git"
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(opencl
+    "git@git.office.codeplay.com:orion/unified-runtime.git"
+    # Merge: e60c3c22 9287547e
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu Apr 4 10:23:33 2024 +0200
+    #     Merge pull request #1448 from steffenlarsen/steffen/make_ext_func_fail_unsupported
+    #     [OpenCL] Make extension function lookup return unusupported error
+    3609afc7f8781f2eae5de74deaf50ba52b1bb344
+  )
+
+  fetch_adapter_source(cuda
+    "git@git.office.codeplay.com:orion/unified-runtime.git"
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(hip
+    "git@git.office.codeplay.com:orion/unified-runtime.git"
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(native_cpu
+    "git@git.office.codeplay.com:orion/unified-runtime.git"
+    ${UNIFIED_RUNTIME_TAG}
+  )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

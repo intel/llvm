@@ -4,7 +4,9 @@
 // Tests that the right value returned after setting a specialization constant
 // of sycl::vec<char, 16> type is correct.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/specialization_id.hpp>
 
 #include <algorithm>
 

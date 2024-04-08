@@ -157,7 +157,14 @@ if lit_config.params.get("gpu-intel-pvc", False):
     config.available_features.add(
         "matrix-tf32"
     )  # PVC implies the support of TF32 matrix
-
+if lit_config.params.get("gpu-intel-pvc-vg", False):
+    config.available_features.add("gpu-intel-pvc-vg")
+    config.available_features.add(
+        "matrix-fp16"
+    )  # PVC-VG implies the support of FP16 matrix
+    config.available_features.add(
+        "matrix-tf32"
+    )  # PVC-VG implies the support of TF32 matrix    
 if lit_config.params.get("matrix", False):
     config.available_features.add("matrix")
 
@@ -333,7 +340,7 @@ if cl_options:
         (
             "%sycl_options",
             " "
-            + os.path.normpath(os.path.join(config.sycl_libs_dir + "/../lib/sycl7.lib"))
+            + os.path.normpath(os.path.join(config.sycl_libs_dir + "/../lib/sycl8.lib"))
             + " /I"
             + config.sycl_include
             + " /I"
@@ -349,7 +356,7 @@ else:
     config.substitutions.append(
         (
             "%sycl_options",
-            (" -lsycl7" if platform.system() == "Windows" else " -lsycl")
+            (" -lsycl8" if platform.system() == "Windows" else " -lsycl")
             + " -I"
             + config.sycl_include
             + " -I"
@@ -455,6 +462,12 @@ if "cuda:gpu" in config.sycl_devices:
 
 # FIXME: This needs to be made per-device as well, possibly with a helper.
 if "hip:gpu" in config.sycl_devices and config.hip_platform == "AMD":
+    if not config.amd_arch:
+        lit_config.error(
+            "Cannot run tests for HIP without an offload-arch. Please "
+            + "specify one via the 'amd_arch' parameter or 'AMD_ARCH' CMake "
+            + "variable."
+        )
     llvm_config.with_system_environment("ROCM_PATH")
     config.available_features.add("hip_amd")
     arch_flag = (

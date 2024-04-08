@@ -59,14 +59,6 @@ public:
     return result;
   }
 
-  operator sycl::range<dimensions>() const {
-    sycl::range<dimensions> result;
-    for (int i = 0; i < dimensions; ++i) {
-      result[i] = common_array[i];
-    }
-    return result;
-  }
-
   size_t get(int dimension) const {
     check_dimension(dimension);
     return common_array[dimension];
