@@ -192,18 +192,19 @@ inline __SYCL_ALWAYS_INLINE
   return ~0;
 }
 
-#define GET_ID(OP_CHECK, OP)                                                   \
-  template <typename T, class BinaryOperation>                                 \
-  inline __SYCL_ALWAYS_INLINE                                                  \
-      std::enable_if_t<OP_CHECK<T, BinaryOperation>::value, T>                 \
-      get_identity() {                                                         \
-    return std::numeric_limits<T>::OP();                                       \
-  }
+template <typename T, class BinaryOperation>
+inline __SYCL_ALWAYS_INLINE
+    std::enable_if_t<IsMinimum<T, BinaryOperation>::value, T>
+    get_identity() {
+  return std::numeric_limits<T>::min();
+}
 
-GET_ID(IsMinimum, max)
-GET_ID(IsMaximum, min)
-
-#undef GET_ID
+template <typename T, class BinaryOperation>
+inline __SYCL_ALWAYS_INLINE
+    std::enable_if_t<IsMaximum<T, BinaryOperation>::value, T>
+    get_identity() {
+  return std::numeric_limits<T>::max();
+}
 
 //// Shuffle based masked reduction impls
 
