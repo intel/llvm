@@ -95,6 +95,20 @@ ESIMD_INLINE simd<T, N> lsc_format_ret(simd<T1, N> Vals) {
   }
 }
 
+/// Extracts a cache hint with the given 'Level' to pass it to
+/// ESIMD/GENX intrinsics. If `PropertyListT` does not have the requested
+/// cache-hint, then 'cache_hint::none' is returned.
+template <typename PropertyListT, cache_level Level>
+constexpr cache_hint getCacheHintForIntrin() {
+  static_assert(Level == cache_level::L1 || Level == cache_level::L2,
+                "ESIMD/GENX intrinsics accept only L1/L2 cache hints");
+  if constexpr (Level == cache_level::L1) {
+    return getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
+  } else {
+    return getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  }
+}
+
 /// USM pointer gather.
 /// Supported platforms: DG2, PVC
 /// VISA instruction: lsc_load.ugm
@@ -123,10 +137,8 @@ __ESIMD_API simd<T, N * NElts> gather_impl(const T *p, simd<OffsetT, N> offsets,
   check_lsc_vector_size<NElts>();
   check_lsc_data_size<T, DS>();
   check_cache_hints<cache_action::load, PropertyListT>();
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
+  constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
@@ -167,10 +179,8 @@ __ESIMD_API void scatter_impl(T *p, simd<Toffset, N> offsets,
   check_lsc_vector_size<NElts>();
   check_lsc_data_size<T, DS>();
   check_cache_hints<cache_action::store, PropertyListT>();
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
+  constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
@@ -904,10 +914,8 @@ block_load_impl(const T *p, simd_mask<1> pred, simd<T, NElts> pass_thru) {
   using LoadElemT = __ESIMD_DNS::__raw_t<
       std::conditional_t<SmallIntFactor == 1, T,
                          std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
+  constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
 
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
@@ -1005,10 +1013,8 @@ __ESIMD_API
   using LoadElemT = __ESIMD_DNS::__raw_t<
       std::conditional_t<SmallIntFactor == 1, T,
                          std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
+  constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size ActualDS =
@@ -1105,10 +1111,8 @@ __ESIMD_API
   using LoadElemT = __ESIMD_DNS::__raw_t<
       std::conditional_t<SmallIntFactor == 1, T,
                          std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
+  constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size ActualDS =
@@ -1165,10 +1169,8 @@ block_store_impl(T *p, simd<T, NElts> vals, simd_mask<1> pred) {
   using StoreType = __ESIMD_DNS::__raw_t<
       std::conditional_t<SmallIntFactor == 1, T,
                          std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
+  constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size ActualDS =
@@ -1230,10 +1232,8 @@ __ESIMD_API
   using StoreElemT = __ESIMD_DNS::__raw_t<
       std::conditional_t<SmallIntFactor == 1, T,
                          std::conditional_t<Use64BitData, uint64_t, uint32_t>>>;
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
+  constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size ActualDS =
@@ -2586,10 +2586,8 @@ scatter_impl(AccessorTy acc, simd<OffsetT, N> offsets, simd<T, N * NElts> vals,
   check_lsc_vector_size<NElts>();
   check_lsc_data_size<T, DS>();
   check_cache_hints<cache_action::store, PropertyListT>();
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
+  constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
@@ -2686,10 +2684,8 @@ gather_impl(AccessorT acc, simd<OffsetT, N / VS> byte_offsets,
   constexpr lsc_vector_size LSCVS = to_lsc_vector_size<VS>();
   constexpr auto Transposed = lsc_data_order::nontranspose;
   using MsgT = typename lsc_expand_type<T>::type;
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
+  constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
   auto SI = get_surface_index(acc);
   simd<uint32_t, N / VS> ByteOffsets32 = convert<uint32_t>(byte_offsets);
   simd<MsgT, N> PassThruExpanded = lsc_format_input<MsgT>(pass_thru);
@@ -2793,10 +2789,8 @@ __ESIMD_API void prefetch_impl(const T *p, simd<Toffset, N> byte_offsets,
   check_lsc_vector_size<NElts>();
   check_lsc_data_size<T, DS>();
   check_cache_hints<cache_action::prefetch, PropertyListT>();
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
+  constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
@@ -2817,10 +2811,8 @@ prefetch_impl(const T *p, Toffset offset, simd_mask<1> pred) {
   check_lsc_vector_size<NElts>();
   check_lsc_data_size<T, DS>();
   check_cache_hints<cache_action::prefetch, PropertyListT>();
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
+  constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = finalize_data_size<T, DS>();
@@ -2872,10 +2864,8 @@ prefetch_impl(AccessorTy acc, simd<OffsetT, N> byte_offsets,
   check_lsc_vector_size<NElts>();
   check_lsc_data_size<T, DS>();
   check_cache_hints<cache_action::prefetch, PropertyListT>();
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
+  constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
@@ -2919,10 +2909,8 @@ prefetch_impl(AccessorTy acc, OffsetT byte_offset, simd_mask<1> pred) {
   check_lsc_vector_size<NElts>();
   check_lsc_data_size<T, DS>();
   check_cache_hints<cache_action::prefetch, PropertyListT>();
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
+  constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = finalize_data_size<T, DS>();
@@ -3058,10 +3046,8 @@ __ESIMD_API simd<T, N> load_2d_impl(const T *Ptr, unsigned SurfaceWidth,
                                     unsigned SurfacePitch, int X, int Y) {
 
   check_cache_hints<cache_action::load, PropertyListT>();
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
+  constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
   using RawT = __raw_t<T>;
   check_lsc_block_2d_restrictions<RawT, BlockWidth, BlockHeight, NBlocks,
                                   Transposed, Transformed, block_2d_op::load>();
@@ -3172,10 +3158,8 @@ __ESIMD_API void prefetch_2d_impl(const T *Ptr, unsigned SurfaceWidth,
   check_cache_hints<cache_action::prefetch, PropertyListT>();
   check_lsc_block_2d_restrictions<RawT, BlockWidth, BlockHeight, NBlocks, false,
                                   false, block_2d_op::prefetch>();
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
+  constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
   constexpr lsc_data_size DS =
       finalize_data_size<RawT, lsc_data_size::default_size>();
   uintptr_t Addr = reinterpret_cast<uintptr_t>(Ptr);
@@ -3220,10 +3204,8 @@ __ESIMD_API void store_2d_impl(T *Ptr, unsigned SurfaceWidth,
   using RawT = __raw_t<T>;
   __ESIMD_DNS::check_cache_hints<__ESIMD_DNS::cache_action::store,
                                  PropertyListT>();
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
+  constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
   check_lsc_block_2d_restrictions<RawT, BlockWidth, BlockHeight, 1, false,
                                   false, block_2d_op::store>();
   constexpr lsc_data_size DS =
@@ -6164,10 +6146,8 @@ atomic_update_impl(T *p, simd<Toffset, N> offsets, simd_mask<N> pred) {
   check_atomic<Op, T, N, 0, /*IsLSC*/ true>();
   check_lsc_data_size<T, DS>();
   check_cache_hints<cache_action::atomic, PropertyListT>();
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
+  constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
@@ -6208,10 +6188,8 @@ atomic_update_impl(T *p, simd<Toffset, N> offsets, simd<T, N> src0,
   check_lsc_data_size<T, DS>();
   check_atomic<Op, T, N, 1, /*IsLSC*/ true>();
   check_cache_hints<cache_action::atomic, PropertyListT>();
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
+  constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
@@ -6254,10 +6232,8 @@ atomic_update_impl(T *p, simd<Toffset, N> offsets, simd<T, N> src0,
   check_lsc_data_size<T, DS>();
   check_atomic<Op, T, N, 2, /*IsLSC*/ true>();
   check_cache_hints<cache_action::atomic, PropertyListT>();
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
+  constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
@@ -6310,10 +6286,8 @@ __ESIMD_API
   check_lsc_data_size<T, DS>();
   check_atomic<Op, T, N, 0, /*IsLSC*/ true>();
   check_cache_hints<cache_action::atomic, PropertyListT>();
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
+  constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
@@ -6365,10 +6339,8 @@ __ESIMD_API
   check_lsc_data_size<T, DS>();
   check_atomic<Op, T, N, 1, /*IsLSC*/ true>();
   check_cache_hints<cache_action::atomic, PropertyListT>();
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
+  constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());
@@ -6422,10 +6394,8 @@ __ESIMD_API
   check_lsc_data_size<T, DS>();
   check_atomic<Op, T, N, 2, /*IsLSC*/ true>();
   check_cache_hints<cache_action::atomic, PropertyListT>();
-  constexpr cache_hint L1H =
-      getPropertyValue<PropertyListT, cache_hint_L1_key>(cache_hint::none);
-  constexpr cache_hint L2H =
-      getPropertyValue<PropertyListT, cache_hint_L2_key>(cache_hint::none);
+  constexpr auto L1H = getCacheHintForIntrin<PropertyListT, cache_level::L1>();
+  constexpr auto L2H = getCacheHintForIntrin<PropertyListT, cache_level::L2>();
   constexpr uint16_t AddressScale = 1;
   constexpr int ImmOffset = 0;
   constexpr lsc_data_size EDS = expand_data_size(finalize_data_size<T, DS>());

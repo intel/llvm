@@ -57,12 +57,25 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   #
+  # A separate content fetch will not be performed if:
+  # * The adapter name is not present in the SYCL_ENABLE_PLUGINS variable.
+  # * The repo and tag provided match the values of the
+  #   UNIFIED_RUNTIME_REPO/UNIFIED_RUNTIME_TAG variables
+  #
   # Args:
   #   * name - Must be the directory name of the adapter
   #   * repo - A valid Git URL of a Unified Runtime repo
   #   * tag - A valid Git branch/tag/commit in the Unified Runtime repo
   function(fetch_adapter_source name repo tag)
-    message(STATUS "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
+    if(NOT ${name} IN_LIST SYCL_ENABLE_PLUGINS)
+      return()
+    endif()
+    if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
+        tag STREQUAL UNIFIED_RUNTIME_TAG)
+      return()
+    endif()
+    message(STATUS
+      "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
     set(fetch-name unified-runtime-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
@@ -78,8 +91,47 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 065bf2dd97b58a4ceeb2fb83eed1df9319e61c59
+  # Merge: b9153547 ec773e6c
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Fri Apr 5 14:26:59 2024 +0100
+  #     Merge pull request #1486 from nrspruit/fix_memfree_report
+  #     [L0] Fix DeviceInfo global mem free to report unsupported given MemCount==0
+  set(UNIFIED_RUNTIME_TAG 065bf2dd97b58a4ceeb2fb83eed1df9319e61c59)
+
+  fetch_adapter_source(level_zero
+    "https://github.com/oneapi-src/unified-runtime.git"
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(opencl
+    "https://github.com/oneapi-src/unified-runtime.git"
+    # Merge: e60c3c22 9287547e
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu Apr 4 10:23:33 2024 +0200
+    #     Merge pull request #1448 from steffenlarsen/steffen/make_ext_func_fail_unsupported
+    #     [OpenCL] Make extension function lookup return unusupported error
+    3609afc7f8781f2eae5de74deaf50ba52b1bb344
+  )
+
+  fetch_adapter_source(cuda
+    "https://github.com/oneapi-src/unified-runtime.git"
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(hip
+    "https://github.com/oneapi-src/unified-runtime.git"
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(native_cpu
+    "https://github.com/oneapi-src/unified-runtime.git"
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
   set(UNIFIED_RUNTIME_REPO "https://github.com/przemektmalon/unified-runtime.git")
-  # commit a3be14441e7904feb811732a4274aab717ca0a00
+  # commit 4dd5604c3d7a7b2b606c97ba88cffb6363eebe2c
   # Author: Przemek Malon <przemek.malon@codeplay.com>
   # Date:   Wed Nov 29 11:25:34 2023 +0000
   #   [Bindless][Exp] Add device queries for sampled image fetch  
@@ -91,16 +143,7 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_2D_EXP
   #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_USM_EXP
   #     - DEVICE_INFO_BINDLESS_SAMPLED_IMAGE_FETCH_3D_EXP
-  set(UNIFIED_RUNTIME_TAG a3be14441e7904feb811732a4274aab717ca0a00)
-
-  # set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # # commit 3a7d00f136cf5d69e61bf1e235393dfc56f55525
-  # # Merge: cd5ad7b5 9e5c6203
-  # # Author: aarongreig <aaron.greig@codeplay.com>
-  # # Date:   Mon Apr 1 15:16:30 2024 +0100
-  # #     Merge pull request #1485 from aarongreig/aaron/addDeviceNotAvailableErrC
-  # #     Add UR_ERROR_DEVICE_NOT_AVAILABLE and appropriate translation for CL.
-  # set(UNIFIED_RUNTIME_TAG 3a7d00f136cf5d69e61bf1e235393dfc56f55525)
+  set(UNIFIED_RUNTIME_TAG 4dd5604c3d7a7b2b606c97ba88cffb6363eebe2c)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
