@@ -60,12 +60,25 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   # fetch for a UR adapter, this allows development of adapters to be decoupled
   # from each other.
   #
+  # A separate content fetch will not be performed if:
+  # * The adapter name is not present in the SYCL_ENABLE_PLUGINS variable.
+  # * The repo and tag provided match the values of the
+  #   UNIFIED_RUNTIME_REPO/UNIFIED_RUNTIME_TAG variables
+  #
   # Args:
   #   * name - Must be the directory name of the adapter
   #   * repo - A valid Git URL of a Unified Runtime repo
   #   * tag - A valid Git branch/tag/commit in the Unified Runtime repo
   function(fetch_adapter_source name repo tag)
-    message(STATUS "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
+    if(NOT ${name} IN_LIST SYCL_ENABLE_PLUGINS)
+      return()
+    endif()
+    if(repo STREQUAL UNIFIED_RUNTIME_REPO AND
+        tag STREQUAL UNIFIED_RUNTIME_TAG)
+      return()
+    endif()
+    message(STATUS
+      "Will fetch Unified Runtime ${name} adapter from ${repo} at ${tag}")
     set(fetch-name unified-runtime-${name})
     FetchContent_Declare(${fetch-name}
       GIT_REPOSITORY ${repo} GIT_TAG ${tag})
@@ -81,14 +94,44 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/Seanst98/unified-runtime.git")
-  # commit 6513abc404979fa109d64500bf899e632d511291
-  # Merge: 09be0881 6d586094
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Mar 14 22:38:53 2024 +0000
-  #     Merge pull request #1410 from kbenzie/benie/cmake-external-adapter-source-dirs
-  #     [CMake] Support external adapter source dirs
-  set(UNIFIED_RUNTIME_TAG 3992a26e84dddfdb4b0c3029392e58a277488140)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit f85e2e96f07888823de5cd31c0c09b036f52b1b8
+  # Merge: 7c1683ff 38b98491
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Mon Apr 8 11:56:07 2024 +0200
+  #     Merge pull request #1331 from lukaszstolarczuk/fix-pedantic
+  #     Remove redundant semicolons
+  set(UNIFIED_RUNTIME_TAG f85e2e96f07888823de5cd31c0c09b036f52b1b8)
+
+  fetch_adapter_source(level_zero
+    "https://github.com/oneapi-src/unified-runtime.git"
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(opencl
+    "https://github.com/oneapi-src/unified-runtime.git"
+    # Merge: e60c3c22 9287547e
+    # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+    # Date:   Thu Apr 4 10:23:33 2024 +0200
+    #     Merge pull request #1448 from steffenlarsen/steffen/make_ext_func_fail_unsupported
+    #     [OpenCL] Make extension function lookup return unusupported error
+    3609afc7f8781f2eae5de74deaf50ba52b1bb344
+  )
+
+  fetch_adapter_source(cuda
+    "https://github.com/oneapi-src/unified-runtime.git"
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(hip
+    "https://github.com/oneapi-src/unified-runtime.git"
+    ${UNIFIED_RUNTIME_TAG}
+  )
+
+  fetch_adapter_source(native_cpu
+    "https://github.com/oneapi-src/unified-runtime.git"
+    ${UNIFIED_RUNTIME_TAG}
+  )
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")

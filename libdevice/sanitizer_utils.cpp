@@ -34,7 +34,7 @@ DeviceGlobal<DeviceSanitizerReport> __DeviceSanitizerReportMem;
 
 DeviceGlobal<DeviceType> __DeviceType;
 
-#if defined(__SPIR__)
+#if defined(__SPIR__) || defined(__SPIRV__)
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define __USE_SPIR_BUILTIN__ 1

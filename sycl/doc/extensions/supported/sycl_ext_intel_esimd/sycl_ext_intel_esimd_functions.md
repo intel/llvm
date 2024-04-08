@@ -164,7 +164,7 @@ The optional [compile-time properties](#compile-time-properties) list `props` ma
 ### Restrictions/assumptions:
 `Alignment` - if not specified by the `props` param, then `assumed` alignment is used. If the actual memory reference has a smaller alignment than the `assumed`, then it must be explicitly passed in `props` argument.
 
-`Cache-hint` properties if passed must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-load-functions) for `load` functions.
+`Cache-hint` properties, if passed, must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-load-functions) for `load` functions.
 
 | `Function` | `Assumed` alignment   | `Minimally required` alignment |
 |-|-|-|
@@ -235,7 +235,7 @@ The optional [compile-time properties](#compile-time-properties) list `props` ma
 ### Restrictions/assumptions:
 `Alignment` - if not specified by the `props` param, then `assumed` alignment is used. If the actual memory reference requires a smaller alignment than the `assumed`, then it must be explicitly passed in `props` argument.
 
-`Cache-hint` properties if passed must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-store-functions) for `store` functions.
+`Cache-hint` properties, if passed, must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-store-functions) for `store` functions.
 
 | `Function` | Condition | `Assumed` alignment   | `Minimally required` alignment |
 |-|-|-|-|
@@ -290,13 +290,13 @@ template <typename T, int N, typename OffsetT, typename PropertyListT = empty_pr
                                PropertyListT props = {});
 
 // gather from USM - general form accepting offsets as simd_view
-template <typename T, int N, int VS = 1, typename OffsetObjT,
-          typename OffsetRegionT, typename PropertyListT = empty_props_t>
-/*usm-ga-7*/ simd <T, N> gather(const T *p, simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
+template <typename T, int N, int VS = 1,
+          typename OffsetSimdViewT, typename PropertyListT = empty_props_t>
+/*usm-ga-7*/ simd <T, N> gather(const T *p, OffsetSimdViewT byte_offsets,
                                 simd_mask<N / VS> mask, simd<T, N> pass_thru, PropertyListT props = {});
-/*usm-ga-8*/ simd <T, N> gather(const T *p, simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
+/*usm-ga-8*/ simd <T, N> gather(const T *p, OffsetSimdViewT byte_offsets,
                                 simd_mask<N / VS> mask, PropertyListT props = {});
-/*usm-ga-9*/ simd <T, N> gather(const T *p, simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
+/*usm-ga-9*/ simd <T, N> gather(const T *p, OffsetSimdViewT byte_offsets,
                                 PropertyListT props = {});
 
 
@@ -319,13 +319,13 @@ template <typename T, int N, typename AccessorT, typename OffsetT, typename Prop
                                PropertyListT props = {});
 
 // gather from memory accessed via device-accessor - general form accepting offsets as simd_view
-template <typename T, int N, int VS = 1, typename AccessorT, typename OffsetObjT,
-          typename OffsetRegionT, typename PropertyListT = empty_props_t>
-/*acc-ga-7*/ simd <T, N> gather(AccessorT acc, simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
+template <typename T, int N, int VS = 1, typename AccessorT,
+          typename OffsetSimdViewT, typename PropertyListT = empty_props_t>
+/*acc-ga-7*/ simd <T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
                                 simd_mask<N / VS> mask, simd<T, N> pass_thru, PropertyListT props = {});
-/*acc-ga-8*/ simd <T, N> gather(AccessorT acc, simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
+/*acc-ga-8*/ simd <T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
                                 simd_mask<N / VS> mask, PropertyListT props = {});
-/*acc-ga-9*/ simd <T, N> gather(AccessorT acc, simd_view<OffsetObjT, OffsetRegionT> byte_offsets,
+/*acc-ga-9*/ simd <T, N> gather(AccessorT acc, OffsetSimdViewT byte_offsets,
                                 PropertyListT props = {});
 
 
@@ -409,7 +409,7 @@ simd<float, 8> vec8 = gather<float, 8, 2>(ptr, offsets);
 
 ### Restrictions
 
-`Cache-hint` properties if passed must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-load-functions) for `load` functions.
+`Cache-hint` properties, if passed, must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-load-functions) for `load` functions.
 
 | `Function` | `Condition` | Required Intel GPU |
 |-|-|-|
@@ -515,7 +515,7 @@ scatter<float, 8, 2>(ptr, offsets4);
 
 ### Restrictions
 
-`Cache-hint` properties if passed must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-store-functions) for `store` functions.
+`Cache-hint` properties, if passed, must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-store-functions) for `store` functions.
 
 
 | `Function` | `Condition` | Required Intel GPU |
@@ -554,7 +554,7 @@ Loads and returns a vector `simd<T, N>` where `N` is `BlockWidth * BlockHeight *
 
 ### Restrictions
 * This function is available only for Intel® Data Center GPU Max Series (aka PVC).
-* `Cache-hint` properties if passed must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-load-functions) for `load` functions.
+* `Cache-hint` properties, if passed, must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-load-functions) for `load` functions.
 * `Transformed` and `Transposed` cannot be set to true at the same time.
 * `BlockWidth` * `BlockHeight` * `NBlocks` * sizeof(`T`) must not exceed 2048.
 * If `Transposed` is `true` then:
@@ -565,14 +565,14 @@ Loads and returns a vector `simd<T, N>` where `N` is `BlockWidth * BlockHeight *
 * If `Transformed` is `true` then:
   * sizeof(`T`) must be 1- or 2-byte (`bytes` or `words`).
   * `NBlocks` must be 1,2,4.
-  * `BlockHeight` must in range [4..32] for `bytes` and [2..32] for `words`.
-  * `BlockWidth` must in range [4..16] for `bytes` and [2..16] for `words`.
+  * `BlockHeight` must be in range [4..32] for `bytes` and [2..32] for `words`.
+  * `BlockWidth` must be in range [4..16] for `bytes` and [2..16] for `words`.
   * `BlockWidth` * `NBlocks` must not exceed 64 for `bytes` and 32 for `words`.
 * If `Transposed` and `Transformed` are both set to `false` then:
   * `NBlocks` must be {1,2,4} for `bytes` and `words`, {1,2} for `dwords`, 1 for `qwords`.
   * `BlockHeight` must not exceed 32.
   * `BlockWidth` must be 4 or more for `bytes`, 2 or more for `words`, 1 or more for `dwords` and `qwords`.
-  * `BlockWidth` * `NBlocks` must not exceed 64 for `bytes`, 32 for `words`, 16 for `dwords, and 8 for `qwords`.
+  * `BlockWidth` * `NBlocks` must not exceed 64 for `bytes`, 32 for `words`, 16 for `dwords`, and 8 for `qwords`.
 
 
 ## prefetch_2d(...) - prefetch 2D block
@@ -605,7 +605,7 @@ Prefetches elements from a memory block of the size `BlockWidth * BlockHeight * 
 * `NBlocks` must be {1,2,4} for `bytes` and `words`, {1,2} for `dwords`, 1 for `qwords`.
 * `BlockHeight` must not exceed 32.
 * `BlockWidth` must be 4 or more for `bytes`, 2 or more for `words`, 1 or more for `dwords` and `qwords`.
-* `BlockWidth` * `NBlocks` must not exceed 64 for `bytes`, 32 for `words`, 16 for `dwords, and 8 for `qwords`.
+* `BlockWidth` * `NBlocks` must not exceed 64 for `bytes`, 32 for `words`, 16 for `dwords`, and 8 for `qwords`.
 
 ## store_2d(...) - store 2D block
 ```C++
@@ -632,11 +632,11 @@ Stores the vector `Vals` of the type `simd<T, N>` to 2D memory block where `N` i
 
 ### Restrictions
 * This function is available only for Intel® Data Center GPU Max Series (aka PVC).
-* `Cache-hint` properties if passed must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-store-functions) for `store` functions.
+* `Cache-hint` properties, if passed, must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-store-functions) for `store` functions.
 * `BlockWidth` * `BlockHeight` * sizeof(`T`) must not exceed 512.
 * `BlockHeight` must not exceed 8.
 * `BlockWidth` must be 4 or more for `bytes`, 2 or more for `words`, 1 or more for `dwords` and `qwords`.
-* `BlockWidth` must not exceed 64 for `bytes`, 32 for `words`, 16 for `dwords, and 8 for `qwords`.
+* `BlockWidth` must not exceed 64 for `bytes`, 32 for `words`, 16 for `dwords`, and 8 for `qwords`.
 
 ## atomic_update(...)
 
@@ -649,10 +649,10 @@ template <atomic_op Op, typename T, int N, typename Toffset, typename PropertyLi
 /*usm-au0-2*/ simd<T, N> atomic_update(T *p, simd<Toffset, N> byte_offset,props = {});
 
 // Similar to (usm-au0-1,2), but `byte_offset` is `simd_view`.
-template <atomic_op Op, typename T, int N, typename OffsetObjT, typename RegionT,
+template <atomic_op Op, typename T, int N, typename OffsetSimdViewT,
           typename PropertyListT = detail::empty_properties_t>
-/*usm-au0-3*/ simd<T, N> atomic_update(T *p, simd_view<OffsetObjT, RegionT> byte_offset, simd_mask<N> mask, props = {});
-/*usm-au0-4*/simd<T, N> atomic_update(T *p, simd_view<OffsetObjT, RegionT> byte_offset, props = {});
+/*usm-au0-3*/ simd<T, N> atomic_update(T *p, OffsetSimdViewT byte_offset, simd_mask<N> mask, props = {});
+/*usm-au0-4*/ simd<T, N> atomic_update(T *p, OffsetSimdViewT byte_offset, props = {});
 
 
 // Atomic update the memory locations referenced by device-accessor - zero operands (dec, load, etc.).
@@ -664,11 +664,11 @@ template <atomic_op Op, typename T, int N, typename Toffset, typename AccessorT,
                                        props = {});
 
 // Similar to (acc-au0-1,2), but `byte_offset` is `simd_view`.
-template <atomic_op Op, typename T, int N, typename OffsetObjT, typename AccessorT, typename RegionT,
+template <atomic_op Op, typename T, int N, typename AccessorT, typename OffsetSimdViewT,
           typename PropertyListT = empty_properties_t>
-/*acc-au0-3*/ simd<T, N> atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionT> byte_offset,
+/*acc-au0-3*/ simd<T, N> atomic_update(AccessorT acc, OffsetSimdViewT byte_offset,
                                        simd_mask<N> mask, props = {});
-/*acc-au0-4*/ simd<T, N> atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionT> byte_offset,
+/*acc-au0-4*/ simd<T, N> atomic_update(AccessorT acc, OffsetSimdViewT byte_offset,
                                        props = {});
 
 
@@ -691,9 +691,9 @@ template <atomic_op Op, typename T, int N>
 /*usm-au1-2*/ simd<T, N> atomic_update(T *ptr, simd<Toffset, N> byte_offset,
                                        simd<T, N> src0, props = {});
 // Similar to (usm-au1-1,2), but `byte_offset` is `simd_view`.
-/*usm-au1-3*/ simd<T, N> atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
+/*usm-au1-3*/ simd<T, N> atomic_update(T *p, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, simd_mask<N> mask, props = {});
-/*usm-au1-4*/ simd<T, N> atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
+/*usm-au1-4*/ simd<T, N> atomic_update(T *p, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, props = {});
 
 
@@ -706,11 +706,11 @@ template <atomic_op Op, typename T, int N, typename Toffset, typename AccessorT,
                                        simd<T, N> src0, props = {});
 
 // Similar to (acc-au1-1,2), but `byte_offset` is `simd_view`.
-template <atomic_op Op, typename T, int N, typename OffsetObjT, typename AccessorT,
-          typename RegionT, typename PropertyListT = empty_properties_t>
-/*acc-au1-3*/ simd<T, N> atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionT> byte_offset,
+template <atomic_op Op, typename T, int N, typename AccessorT,
+          typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
+/*acc-au1-3*/ simd<T, N> atomic_update(AccessorT acc, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, simd_mask<N> mask, props = {});
-/*acc-au1-4*/ simd<T, N> atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionT> byte_offset,
+/*acc-au1-4*/ simd<T, N> atomic_update(AccessorT acc, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, props = {});
 
 // Atomic update the memory locations referenced by local-accessor (SLM) - one operand (add, max, etc.).
@@ -731,9 +731,9 @@ template <atomic_op Op, typename T, int N>
 /*usm-au2-2*/ simd<T, N> atomic_update(T *ptr, simd<Toffset, N> byte_offset,
                                        simd<T, N> src0, simd<T, N> src1, props = {});
 // Similar to (usm-au2-1,2), but `byte_offset` is `simd_view`.
-/*usm-au2-3*/ simd<T, N> atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
+/*usm-au2-3*/ simd<T, N> atomic_update(T *p, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, simd<T, N> src1, simd_mask<N> mask, props = {});
-/*usm-au2-4*/ simd<T, N> atomic_update(T *p, simd_view<OffsetObjT, OffsetRegionTy> byte_offset,
+/*usm-au2-4*/ simd<T, N> atomic_update(T *p, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, simd<T, N> src1, props = {});
 
 
@@ -746,11 +746,11 @@ template <atomic_op Op, typename T, int N, typename Toffset, typename AccessorT,
                                        simd<T, N> src0, simd<T, N> src1, props = {});
 
 // Similar to (acc-au2-1,2), but `byte_offset` is `simd_view`.
-template <atomic_op Op, typename T, int N, typename OffsetObjT, typename AccessorT,
-          typename RegionT, typename PropertyListT = empty_properties_t>
-/*acc-au2-3*/ simd<T, N> atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionT> byte_offset,
+template <atomic_op Op, typename T, int N, typename AccessorT,
+          typename OffsetSimdViewT, typename PropertyListT = empty_properties_t>
+/*acc-au2-3*/ simd<T, N> atomic_update(AccessorT acc, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, simd<T, N> src1, simd_mask<N> mask, props = {});
-/*acc-au2-4*/ simd<T, N> atomic_update(AccessorT acc, simd_view<OffsetObjT, RegionT> byte_offset,
+/*acc-au2-4*/ simd<T, N> atomic_update(AccessorT acc, OffsetSimdViewT byte_offset,
                                        simd<T, N> src0, simd<T, N> src1, props = {});
 
 // Atomic update the memory locations referenced by local-accessor (SLM) - two operands: cmpxchg, fcmpxchg.
@@ -777,7 +777,7 @@ The template parameter `T` specifies the type of the elements used in the atomic
 The template parameter `N` is the number of elements being atomically updated.
 
 ### Restrictions
-'Cache-hint` properties if passed must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-atomic_update-functions) for `atomic_update` functions.
+`Cache-hint` properties, if passed, must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-atomic_update-functions) for `atomic_update` functions.
 
 | `Function` | `Condition` | Required Intel GPU |
 |-|-|-|
@@ -883,7 +883,7 @@ The `byte_offsets` is a vector of any integral type elements, limited in [statef
 ### Restrictions
 
 * This function is available only for Intel® Arc Series (aka DG2) or Intel® Data Center GPU Max Series (aka PVC).
-* 'Cache-hint` properties must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-prefetch-functions) for `prefetch` functions.
+* `Cache-hint` properties must follow the [rules](#valid-combinations-of-l1-and-l2-cache-hints-for-prefetch-functions) for `prefetch` functions.
 
 
 
