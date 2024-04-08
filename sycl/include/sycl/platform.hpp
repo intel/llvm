@@ -16,10 +16,8 @@
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/owner_less_base.hpp>
 #include <sycl/detail/pi.h>
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
-#endif
 #include <sycl/detail/util.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/info/info_desc.hpp>
@@ -58,7 +56,6 @@ class platform_impl;
 void __SYCL_EXPORT enable_ext_oneapi_default_context(bool Val);
 
 template <typename ParamT> auto convert_to_abi_neutral(ParamT &&Info) {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   using ParamNoRef = std::remove_reference_t<ParamT>;
   if constexpr (std::is_same_v<ParamNoRef, std::string>) {
     return detail::string{Info};
@@ -72,13 +69,9 @@ template <typename ParamT> auto convert_to_abi_neutral(ParamT &&Info) {
   } else {
     return std::forward<ParamT>(Info);
   }
-#else
-  return std::forward<ParamT>(Info);
-#endif
 }
 
 template <typename ParamT> auto convert_from_abi_neutral(ParamT &&Info) {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   using ParamNoRef = std::remove_reference_t<ParamT>;
   if constexpr (std::is_same_v<ParamNoRef, detail::string>) {
     return Info.c_str();
@@ -93,9 +86,6 @@ template <typename ParamT> auto convert_from_abi_neutral(ParamT &&Info) {
   } else {
     return std::forward<ParamT>(Info);
   }
-#else
-  return std::forward<ParamT>(Info);
-#endif
 }
 } // namespace detail
 namespace ext::oneapi {
@@ -190,17 +180,18 @@ public:
   /// Queries this SYCL platform for info.
   ///
   /// The return type depends on information being queried.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
   typename detail::is_platform_info_desc<Param>::return_type get_info() const {
     return detail::convert_from_abi_neutral(get_info_impl<Param>());
   }
-#else
+
+  /// Queries this SYCL platform for SYCL backend-specific info.
+  ///
+  /// The return type depends on information being queried.
   template <typename Param>
-  detail::ABINeutralT_t<
-      typename detail::is_platform_info_desc<Param>::return_type>
-  get_info() const;
-#endif
+  typename detail::is_backend_info_desc<Param>::return_type
+  get_backend_info() const;
+
   /// Returns all available SYCL platforms in the system.
   ///
   /// The resulting vector always contains a single SYCL host platform instance.
@@ -261,12 +252,10 @@ private:
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   template <typename Param>
   typename detail::ABINeutralT_t<
       typename detail::is_platform_info_desc<Param>::return_type>
   get_info_impl() const;
-#endif
 }; // class platform
 } // namespace _V1
 } // namespace sycl
