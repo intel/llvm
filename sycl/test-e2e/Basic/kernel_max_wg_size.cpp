@@ -6,9 +6,6 @@
 // REQUIRES: gpu && (gpu-intel-pvc || gpu-intel-dg2)
 // UNSUPPORTED: cuda || hip
 
-// Currently fails because of issue in UR Level Zero adapter.
-// XFAIL: level_zero
-
 // clang-format off
 #include <sycl/sycl.hpp>
 #include <sycl/ext/intel/experimental/grf_size_properties.hpp>
