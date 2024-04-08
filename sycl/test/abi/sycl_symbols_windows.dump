@@ -17,9 +17,7 @@
 ??$getPlugin@$00@pi@detail@_V1@sycl@@YAAEBV?$shared_ptr@Vplugin@detail@_V1@sycl@@@std@@XZ
 ??$getPlugin@$01@pi@detail@_V1@sycl@@YAAEBV?$shared_ptr@Vplugin@detail@_V1@sycl@@@std@@XZ
 ??$getPlugin@$02@pi@detail@_V1@sycl@@YAAEBV?$shared_ptr@Vplugin@detail@_V1@sycl@@@std@@XZ
-??$getPlugin@$04@pi@detail@_V1@sycl@@YAAEBV?$shared_ptr@Vplugin@detail@_V1@sycl@@@std@@XZ
 ??$getPlugin@$05@pi@detail@_V1@sycl@@YAAEBV?$shared_ptr@Vplugin@detail@_V1@sycl@@@std@@XZ
-??$getPluginOpaqueData@$04@detail@_V1@sycl@@YAPEAXPEAX@Z
 ??$get_backend_info@Ubackend_version@device@info@_V1@sycl@@@context@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_backend_info@Ubackend_version@device@info@_V1@sycl@@@device@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
 ??$get_backend_info@Ubackend_version@device@info@_V1@sycl@@@event@_V1@sycl@@QEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
@@ -4192,7 +4190,6 @@
 ?getDeviceFromHandler@detail@_V1@sycl@@YA?AVdevice@23@AEAVhandler@23@@Z
 ?getDevices@image_impl@detail@_V1@sycl@@AEAA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@V?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@6@@Z
 ?getDirName@OSUtil@detail@_V1@sycl@@SA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEBD@Z
-?getESIMDDeviceInterface@detail@_V1@sycl@@YAPEAUESIMDDeviceInterface@123@XZ
 ?getElemSize@AccessorBaseHost@detail@_V1@sycl@@QEBAIXZ
 ?getElementSize@LocalAccessorBaseHost@detail@_V1@sycl@@QEAAHXZ
 ?getElementSize@SampledImageAccessorBaseHost@detail@_V1@sycl@@QEBAHXZ
