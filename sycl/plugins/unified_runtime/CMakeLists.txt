@@ -57,12 +57,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 1ee81f480fc9d6645eb8cb61acfc53f809ce8d69
+  # commit 65af257bb4adeb59c7cdfec9246e6b4fc4312343
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Tue Apr 2 10:14:23 2024 +0100
-  #     Merge pull request #1450 from kbenzie/benie/cl-fpga-atomic-memory-order-caps
-  #     [CL] Atomic fence scope capability for Intel FPGA driver
-  set(UNIFIED_RUNTIME_TAG 1ee81f480fc9d6645eb8cb61acfc53f809ce8d69)
+  # Date:   Fri Apr 5 14:26:59 2024 +0100
+  #     Merge pull request #1486 from nrspruit/fix_memfree_report
+  #     [L0] Fix DeviceInfo global mem free to report unsupported given MemCount==0
+  set(UNIFIED_RUNTIME_TAG 65af257bb4adeb59c7cdfec9246e6b4fc4312343)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
