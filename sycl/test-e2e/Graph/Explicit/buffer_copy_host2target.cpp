@@ -5,10 +5,6 @@
 // Extra run to check for immediate-command-list in Level Zero
 // RUN: %if level_zero && linux %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 //
-//
-// TODO enable cuda once buffer issue investigated and fixed
-// UNSUPPORTED: cuda
-//
 // Host to device copy command not supported for OpenCL
 // UNSUPPORTED: opencl
 

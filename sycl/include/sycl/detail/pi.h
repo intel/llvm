@@ -157,6 +157,14 @@
 // 15.46 Add piextGetGlobalVariablePointer
 // 15.47 Added PI_ERROR_FEATURE_UNSUPPORTED.
 // 15.48 Add CommandBuffer update definitions
+// 15.49 Added cubemap support:
+//        - Added cubemap image type, PI_MEM_TYPE_IMAGE_CUBEMAP, to _pi_mem_type
+//        - Added cubemap sampling capabilities
+//          - _pi_sampler_cubemap_filter_mode
+//          - PI_SAMPLER_PROPERTIES_CUBEMAP_FILTER_MODE
+//        - Added device queries for cubemap support
+//          - PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SUPPORT
+//          - PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT
 
 #define _PI_H_VERSION_MAJOR 15
 #define _PI_H_VERSION_MINOR 48
@@ -450,6 +458,10 @@ typedef enum {
   // Command Buffers
   PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_SUPPORT = 0x20113,
   PI_EXT_ONEAPI_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT = 0x20114,
+
+  // Bindless images cubemaps
+  PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SUPPORT = 0x20115,
+  PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT = 0x20116,
 } _pi_device_info;
 
 typedef enum {
@@ -580,7 +592,8 @@ typedef enum {
   PI_MEM_TYPE_IMAGE2D_ARRAY = 0x10F3,
   PI_MEM_TYPE_IMAGE1D = 0x10F4,
   PI_MEM_TYPE_IMAGE1D_ARRAY = 0x10F5,
-  PI_MEM_TYPE_IMAGE1D_BUFFER = 0x10F6
+  PI_MEM_TYPE_IMAGE1D_BUFFER = 0x10F6,
+  PI_MEM_TYPE_IMAGE_CUBEMAP = 0x10F7,
 } _pi_mem_type;
 
 typedef enum {
@@ -695,6 +708,11 @@ typedef enum {
   PI_SAMPLER_FILTER_MODE_LINEAR = 0x1141,
 } _pi_sampler_filter_mode;
 
+typedef enum {
+  PI_SAMPLER_CUBEMAP_FILTER_MODE_DISJOINTED = 0x1142,
+  PI_SAMPLER_CUBEMAP_FILTER_MODE_SEAMLESS = 0x1143,
+} _pi_sampler_cubemap_filter_mode;
+
 using pi_context_properties = intptr_t;
 
 using pi_device_exec_capabilities = pi_bitfield;
@@ -709,6 +727,8 @@ constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_NORMALIZED_COORDS =
 constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_ADDRESSING_MODE = 0x1153;
 constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_FILTER_MODE = 0x1154;
 constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_MIP_FILTER_MODE = 0x1155;
+constexpr pi_sampler_properties PI_SAMPLER_PROPERTIES_CUBEMAP_FILTER_MODE =
+    0x1156;
 
 using pi_memory_order_capabilities = pi_bitfield;
 constexpr pi_memory_order_capabilities PI_MEMORY_ORDER_RELAXED = 0x01;
@@ -817,6 +837,7 @@ using pi_image_channel_type = _pi_image_channel_type;
 using pi_buffer_create_type = _pi_buffer_create_type;
 using pi_sampler_addressing_mode = _pi_sampler_addressing_mode;
 using pi_sampler_filter_mode = _pi_sampler_filter_mode;
+using pi_sampler_cubemap_filter_mode = _pi_sampler_cubemap_filter_mode;
 using pi_sampler_info = _pi_sampler_info;
 using pi_event_status = _pi_event_status;
 using pi_program_build_info = _pi_program_build_info;
@@ -957,8 +978,7 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 /// Extension to denote native support of assert feature by an arbitrary device
 /// piDeviceGetInfo call should return this extension when the device supports
 /// native asserts if supported extensions' names are requested
-#define PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT                              \
-  "pi_ext_intel_devicelib_assert"
+#define PI_DEVICE_INFO_EXTENSION_DEVICELIB_ASSERT "cl_intel_devicelib_assert"
 
 /// Device binary image property set names recognized by the SYCL runtime.
 /// Name must be consistent with

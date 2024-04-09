@@ -89,11 +89,20 @@ template <int Dimensions> sycl::sub_group get_child_group(group<Dimensions> g) {
   (void)g;
   return this_sub_group();
 }
-
-namespace this_kernel {
+namespace this_work_item {
 template <int Dimensions> root_group<Dimensions> get_root_group() {
   return sycl::ext::oneapi::this_work_item::get_nd_item<Dimensions>()
       .ext_oneapi_get_root_group();
+}
+} // namespace this_work_item
+
+namespace this_kernel {
+template <int Dimensions>
+__SYCL_DEPRECATED(
+    "use sycl::ext::oneapi::experimental::this_work_item::get_root_group() "
+    "instead")
+root_group<Dimensions> get_root_group() {
+  this_work_item::get_root_group<Dimensions>();
 }
 } // namespace this_kernel
 
