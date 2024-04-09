@@ -269,6 +269,7 @@ TypeEvaluationKind CodeGenFunction::getEvaluationKind(QualType type) {
     case Type::Record:
     case Type::ObjCObject:
     case Type::ObjCInterface:
+    case Type::ArrayParameter:
       return TEK_Aggregate;
 
     // We operate on atomic values according to their underlying type.
@@ -803,7 +804,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
   }
 
   if (const auto *A = FD->getAttr<SYCLIntelMaxConcurrencyAttr>()) {
-    const auto *CE = cast<ConstantExpr>(A->getNThreadsExpr());
+    const auto *CE = cast<ConstantExpr>(A->getNExpr());
     llvm::APSInt ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {
         llvm::ConstantAsMetadata::get(Builder.getInt32(ArgVal.getSExtValue()))};
@@ -817,7 +818,7 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
   }
 
   if (const auto *A = FD->getAttr<SYCLIntelInitiationIntervalAttr>()) {
-    const auto *CE = cast<ConstantExpr>(A->getIntervalExpr());
+    const auto *CE = cast<ConstantExpr>(A->getNExpr());
     llvm::APSInt ArgVal = CE->getResultAsAPSInt();
     llvm::Metadata *AttrMDArgs[] = {
         llvm::ConstantAsMetadata::get(Builder.getInt32(ArgVal.getSExtValue()))};
@@ -1213,7 +1214,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   // return value. Initialize the flag to 'true' and refine it in EmitParmDecl.
   if (SanOpts.has(SanitizerKind::NullabilityReturn)) {
     auto Nullability = FnRetTy->getNullability();
-    if (Nullability && *Nullability == NullabilityKind::NonNull) {
+    if (Nullability && *Nullability == NullabilityKind::NonNull &&
+        !FnRetTy->isRecordType()) {
       if (!(SanOpts.has(SanitizerKind::ReturnsNonnullAttribute) &&
             CurCodeDecl && CurCodeDecl->getAttr<ReturnsNonNullAttr>()))
         RetValNullabilityPrecondition =
@@ -1599,6 +1601,8 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
 
   FunctionArgList Args;
   QualType ResTy = BuildFunctionArgList(GD, Args);
+
+  CGM.getTargetCodeGenInfo().checkFunctionABI(CGM, FD);
 
   if (FD->isInlineBuiltinDeclaration()) {
     // When generating code for a builtin with an inline declaration, use a
@@ -2466,8 +2470,8 @@ llvm::Value *CodeGenFunction::emitArrayLength(const ArrayType *origArrayType,
     dyn_cast<llvm::ArrayType>(addr.getElementType());
   while (llvmArrayType) {
     assert(isa<ConstantArrayType>(arrayType));
-    assert(cast<ConstantArrayType>(arrayType)->getSize().getZExtValue()
-             == llvmArrayType->getNumElements());
+    assert(cast<ConstantArrayType>(arrayType)->getZExtSize() ==
+           llvmArrayType->getNumElements());
 
     gepIndices.push_back(zero);
     countFromCLAs *= llvmArrayType->getNumElements();
@@ -2485,8 +2489,7 @@ llvm::Value *CodeGenFunction::emitArrayLength(const ArrayType *origArrayType,
     // as some other type (probably a packed struct). Compute the array
     // size, and just emit the 'begin' expression as a bitcast.
     while (arrayType) {
-      countFromCLAs *=
-          cast<ConstantArrayType>(arrayType)->getSize().getZExtValue();
+      countFromCLAs *= cast<ConstantArrayType>(arrayType)->getZExtSize();
       eltType = arrayType->getElementType();
       arrayType = getContext().getAsArrayType(eltType);
     }
@@ -2626,6 +2629,7 @@ void CodeGenFunction::EmitVariablyModifiedType(QualType type) {
       type = cast<MemberPointerType>(ty)->getPointeeType();
       break;
 
+    case Type::ArrayParameter:
     case Type::ConstantArray:
     case Type::IncompleteArray:
       // Losing element qualification here is fine.
@@ -2686,6 +2690,7 @@ void CodeGenFunction::EmitVariablyModifiedType(QualType type) {
     case Type::BTFTagAttributed:
     case Type::SubstTemplateTypeParm:
     case Type::MacroQualified:
+    case Type::CountAttributed:
       // Keep walking after single level desugaring.
       type = type.getSingleStepDesugaredType(getContext());
       break;

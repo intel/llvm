@@ -132,6 +132,9 @@ on:
           - false
           - true
 
+permissions:
+  contents: read
+
 jobs:
   run:
     name: ${{ inputs.name }}

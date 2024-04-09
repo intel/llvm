@@ -1778,13 +1778,15 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     CallInst *CI = nullptr;
     llvm::Value *Dst = transValue(BC->getTarget(), F, BB);
     MaybeAlign Align(BC->getAlignment());
+    MaybeAlign SrcAlign =
+        BC->getSrcAlignment() ? MaybeAlign(BC->getSrcAlignment()) : Align;
     llvm::Value *Size = transValue(BC->getSize(), F, BB);
     bool IsVolatile = BC->SPIRVMemoryAccess::isVolatile();
     IRBuilder<> Builder(BB);
 
     if (!CI) {
       llvm::Value *Src = transValue(BC->getSource(), F, BB);
-      CI = Builder.CreateMemCpy(Dst, Align, Src, Align, Size, IsVolatile);
+      CI = Builder.CreateMemCpy(Dst, Align, Src, SrcAlign, Size, IsVolatile);
     }
     if (isFuncNoUnwind())
       CI->getFunction()->addFnAttr(Attribute::NoUnwind);
@@ -3205,8 +3207,9 @@ Instruction *SPIRVToLLVM::transBuiltinFromInst(const std::string &FuncName,
     if (isFuncNoUnwind())
       Func->addFnAttr(Attribute::NoUnwind);
     auto OC = BI->getOpCode();
-    if (isGroupOpCode(OC) || isIntelSubgroupOpCode(OC) ||
-        isSplitBarrierINTELOpCode(OC) || OC == OpControlBarrier)
+    if (isGroupOpCode(OC) || isGroupNonUniformOpcode(OC) ||
+        isIntelSubgroupOpCode(OC) || isSplitBarrierINTELOpCode(OC) ||
+        OC == OpControlBarrier)
       Func->addFnAttr(Attribute::Convergent);
   }
   auto *Call =
@@ -4184,8 +4187,8 @@ bool SPIRVToLLVM::transMetadata() {
                      ->getLiterals()[0] == 0 &&
              "Invalid named sub group size");
       // On the LLVM IR side, this is represented as the metadata
-      // intel_reqd_sub_group_size with value 0.
-      auto *SizeMD = ConstantAsMetadata::get(getUInt32(M, 0));
+      // intel_reqd_sub_group_size with value -1.
+      auto *SizeMD = ConstantAsMetadata::get(getInt32(M, -1));
       F->setMetadata(kSPIR2MD::SubgroupSize, MDNode::get(*Context, SizeMD));
     }
     // Generate metadata for max_work_group_size
