@@ -1554,7 +1554,7 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
   }
 
   // Function
-  auto FuncName = F->getName();
+  auto FuncName = InsertBefore->getFunction()->getName();
   auto *FuncNameGV = GetOrCreateGlobalString(
       *M, "__asan_func", demangle(FuncName), kSpirOffloadConstantAS);
   Args.push_back(ConstantExpr::getPointerCast(FuncNameGV, ConstASPtrTy));

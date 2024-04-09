@@ -20,7 +20,6 @@
 #ifdef __SYCL_DEVICE_ONLY__
 #define SPIR_GLOBAL_VAR __attribute__((sycl_global_var))
 #else
-#warning "SPIR_GLOBAL_VAR not defined in host mode. Defining as empty macro."
 #define SPIR_GLOBAL_VAR
 #endif
 #endif
