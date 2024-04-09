@@ -4,11 +4,7 @@
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 // Extra run to check for immediate-command-list in Level Zero
 // RUN: %if level_zero && linux %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
-//
 
-// Skip as executable graph update not implemented yet
-// REQUIRES: NOT_YET_IMPLEMENTED
+#define GRAPH_E2E_EXPLICIT
 
-#define GRAPH_E2E_RECORD_REPLAY
-
-#include "../Inputs/executable_graph_update.cpp"
+#include "../../Inputs/whole_update_usm.cpp"
