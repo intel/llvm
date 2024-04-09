@@ -53,6 +53,8 @@ inline ValueT clamp(ValueT val, ValueT min_val, ValueT max_val) {
 }
 
 #ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
+// TODO: Follow the process to add this to the extension. If added,
+// remove this functionality from the header.
 template <>
 inline sycl::ext::oneapi::bfloat16 clamp(sycl::ext::oneapi::bfloat16 val,
                                          sycl::ext::oneapi::bfloat16 min_val,
