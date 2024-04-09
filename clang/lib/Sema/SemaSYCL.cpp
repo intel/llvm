@@ -976,11 +976,10 @@ public:
       std::unordered_map<FieldDecl *, struct FieldMap> &FieldMapP, Sema &S)
       : TreeTransform<FreeFunctionBodyTransform>(S), ParamMap(ParamMapP),
         FieldMap(FieldMapP), SemaRef(S) {}
-  //bool AlwaysRebuild() { return true; }
 
   ExprResult TransformDeclRefExpr(DeclRefExpr *DRE) {
-    auto Ref = dyn_cast_if_present <DeclaratorDecl>(DRE->getDecl());
-    auto OldParm = dyn_cast_if_present <ParmVarDecl>(Ref);
+    auto Ref = dyn_cast_if_present<DeclaratorDecl>(DRE->getDecl());
+    auto OldParm = dyn_cast_if_present<ParmVarDecl>(Ref);
     if (OldParm) {
       if (auto NewParam = ParamMap.find(OldParm); NewParam != ParamMap.end()) {
         auto NewDecl = NewParam->second;
@@ -5614,12 +5613,13 @@ void Sema::ProcessFreeFunction(FunctionDecl *FD) {
     SyclKernelFieldChecker FieldChecker(*this);
     SyclKernelUnionChecker UnionChecker(*this);
 
-    KernelObjVisitor Visitor{ *this };
+    KernelObjVisitor Visitor{*this};
 
     DiagnosingSYCLKernel = true;
 
     // Check parameters of free function.
-    Visitor.VisitFunctionParameters(FD, DecompMarker, FieldChecker, UnionChecker);
+    Visitor.VisitFunctionParameters(FD, DecompMarker, FieldChecker,
+                                    UnionChecker);
 
     DiagnosingSYCLKernel = false;
 
