@@ -60,6 +60,24 @@ void dynamic_local_mem_typed_kernel(T *data, char *local_mem) {
   }
 };
 
+template <typename T>
+void reqd_sg_size_kernel(int modifier_val, int num_elements, T *data) {
+
+  const int id =
+      sycl::ext::oneapi::this_work_item::get_nd_item<1>().get_global_id(0);
+  const int sg_size = sycl::ext::oneapi::this_work_item::get_nd_item<1>()
+                          .get_sub_group()
+                          .get_local_linear_range();
+  if (id < num_elements) {
+    if (id < num_elements - modifier_val) {
+      data[id] = static_cast<T>(
+          (id + modifier_val - sg_size) < 0 ? 0 : id + modifier_val - sg_size);
+    } else {
+      data[id] = static_cast<T>(id + modifier_val + sg_size);
+    }
+  }
+};
+
 template <int Dim>
 void compute_nd_range_3d(RangeParams<Dim> range_param, std::string test_name) {
   std::cout << __PRETTY_FUNCTION__ << " " << test_name << std::endl;
@@ -326,7 +344,76 @@ template <typename T> void test_memsize_no_arg_launch_q() {
                                                      memsize, lt.q_);
 }
 
+template <typename T> void test_reqd_sg_size() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  LaunchTestWithArgs<T> ltt;
+  if (ltt.skip_) // Unsupported aspect
+    return;
+  constexpr int SubgroupSize = 32;
+  const int modifier_val = 9;
+
+  T *h_a = (T *)syclcompat::malloc_host(ltt.memsize_ * sizeof(T));
+  T *d_a = (T *)syclcompat::malloc(ltt.memsize_ * sizeof(T));
+
+  syclcompat::launch<SubgroupSize, reqd_sg_size_kernel<T>>(
+      ltt.grid_, ltt.thread_, modifier_val, ltt.memsize_, d_a);
+
+  syclcompat::wait_and_throw();
+  syclcompat::memcpy<T>(h_a, d_a, ltt.memsize_);
+  syclcompat::free(d_a);
+
+  for (int i = 0; i < static_cast<int>(ltt.memsize_); i++) {
+    T result;
+    if (i < (static_cast<int>(ltt.memsize_) - modifier_val)) {
+      result = static_cast<T>((i + modifier_val - SubgroupSize) < 0
+                                  ? 0
+                                  : (i + modifier_val - SubgroupSize));
+    } else {
+      result = static_cast<T>(i + modifier_val + SubgroupSize);
+    }
+    assert(h_a[i] == result);
+  }
+
+  syclcompat::free(h_a);
+}
+
+template <typename T> void test_reqd_sg_size_q() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  LaunchTestWithArgs<T> ltt;
+  if (ltt.skip_) // Unsupported aspect
+    return;
+  constexpr int SubgroupSize = 32;
+  const int modifier_val = 9;
+  auto &q = ltt.in_order_q_;
+
+  T *h_a = (T *)syclcompat::malloc_host(ltt.memsize_ * sizeof(T), q);
+  T *d_a = (T *)syclcompat::malloc(ltt.memsize_ * sizeof(T), q);
+
+  syclcompat::launch<SubgroupSize, reqd_sg_size_kernel<T>>(
+      ltt.grid_, ltt.thread_, q, modifier_val, ltt.memsize_, d_a);
+
+  syclcompat::wait_and_throw();
+  syclcompat::memcpy<T>(h_a, d_a, ltt.memsize_, q);
+  syclcompat::free(d_a, q);
+
+  for (int i = 0; i < static_cast<int>(ltt.memsize_); i++) {
+    T result;
+    if (i < (static_cast<int>(ltt.memsize_) - modifier_val)) {
+      result = static_cast<T>((i + modifier_val - SubgroupSize) < 0
+                                  ? 0
+                                  : (i + modifier_val - SubgroupSize));
+    } else {
+      result = static_cast<T>(i + modifier_val + SubgroupSize);
+    }
+    assert(h_a[i] == result);
+  }
+  syclcompat::free(h_a, q);
+}
+
 int main() {
+
   test_launch_compute_nd_range_3d();
   test_no_arg_launch();
   test_one_arg_launch();
@@ -344,6 +431,9 @@ int main() {
 
   INSTANTIATE_ALL_TYPES(memsize_type_list, test_memsize_no_arg_launch);
   INSTANTIATE_ALL_TYPES(memsize_type_list, test_memsize_no_arg_launch_q);
+
+  INSTANTIATE_ALL_TYPES(memsize_type_list, test_reqd_sg_size);
+  INSTANTIATE_ALL_TYPES(memsize_type_list, test_reqd_sg_size_q);
 
   return 0;
 }

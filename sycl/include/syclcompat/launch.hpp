@@ -349,8 +349,8 @@ sycl::event launch(const sycl::nd_range<Dim> &range, size_t mem_size,
 template <int SubgroupSize, auto F, typename... Args>
 sycl::event launch(const dim3 &grid, const dim3 &threads, size_t mem_size,
                    sycl::queue q, Args... args) {
-  return launch<F>(sycl::nd_range<3>{grid * threads, threads}, mem_size, q,
-                   args...);
+  return launch<SubgroupSize, F>(sycl::nd_range<3>{grid * threads, threads},
+                                 mem_size, q, args...);
 }
 
 /// Launches a kernel with the requested sub group size SubgroupSize, templated
