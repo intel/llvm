@@ -16671,6 +16671,11 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body,
   if (FD && !FD->isDeleted())
     checkTypeSupport(FD->getType(), FD->getLocation(), FD);
 
+  // Handle non-templated free function.
+  if (LangOpts.SYCLIsDevice && FD->hasAttr<SYCLDeviceAttr>() && Body &&
+      !FD->isTemplated())
+    ProcessFreeFunction(FD);
+
   return dcl;
 }
 

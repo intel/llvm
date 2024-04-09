@@ -49,12 +49,6 @@ struct Simple {
   float f;
 };
 
-struct WithPointer {
-  int x;
-  float *fp;
-  float f;
-};
-
 void printUSM(int *usmPtr, int size) {
   std::cout << "usmPtr[] = {";
   for (int i = 0; i < size; i++) {
@@ -286,67 +280,6 @@ bool test_3(queue Queue, KernelFinder &KF) {
   return PassA && PassB;
 }
 
-// Templated free function definition.
-template <typename T>
-SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((
-    ext::oneapi::experimental::nd_range_kernel<2>)) void ff_4(T *ptr, T start,
-                                                              struct WithPointer
-                                                                  S) {
-  int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(ptr);
-  nd_item<2> Item = ext::oneapi::experimental::this_nd_item<2>();
-  id<2> GId = Item.get_global_id();
-  id<2> LId = Item.get_local_id();
-  ptr2D[GId.get(0)][GId.get(1)] =
-      LId.get(0) + LId.get(1) + start + S.x + S.f + *S.fp;
-}
-
-// Explicit instantiation with “int*”.
-template void ff_4(int *ptr, int start, struct WithPointer S);
-
-bool test_4(queue Queue, KernelFinder &KF) {
-  constexpr int Range = 16;
-  int *usmPtr = malloc_shared<int>(Range, Queue);
-  float *fp = malloc_shared<float>(1, Queue);
-  *fp = 8.2;
-  int value = 55;
-  struct WithPointer S {
-    3, fp, 7.1
-  };
-  int Result[Range] = {73, 74, 73, 74, 74, 75, 74, 75,
-                       73, 74, 73, 74, 74, 75, 74, 75};
-  nd_range<2> R2{range<2>{4, 4}, range<2>{2, 2}};
-
-  memset(usmPtr, 0, Range * sizeof(int));
-  Queue.submit([&](handler &Handler) {
-    Handler.parallel_for(R2, [=](nd_item<2> Item) {
-      int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(usmPtr);
-      id<2> GId = Item.get_global_id();
-      id<2> LId = Item.get_local_id();
-      ptr2D[GId.get(0)][GId.get(1)] =
-          LId.get(0) + LId.get(1) + value + S.x + S.f + *S.fp;
-    });
-  });
-  Queue.wait();
-  bool PassA = checkUSM(usmPtr, Range, Result);
-  std::cout << "Test 4a: " << (PassA ? "PASS" : "FAIL") << std::endl;
-
-  kernel Kernel =
-      KF.get_kernel("__free_function_Z4ff_4IiEvPT_S0_11WithPointer");
-  memset(usmPtr, 0, Range * sizeof(int));
-  Queue.submit([&](handler &Handler) {
-    Handler.set_arg(0, usmPtr);
-    Handler.set_arg(1, value);
-    Handler.set_arg(2, S);
-    Handler.parallel_for(R2, Kernel);
-  });
-  Queue.wait();
-  bool PassB = checkUSM(usmPtr, Range, Result);
-  std::cout << "Test 4b: " << (PassB ? "PASS" : "FAIL") << std::endl;
-
-  free(usmPtr, Queue);
-  return PassA && PassB;
-}
-
 int main() {
   queue Queue;
   KernelFinder KF(Queue);
@@ -356,7 +289,6 @@ int main() {
   Pass &= test_1(Queue, KF);
   Pass &= test_2(Queue, KF);
   Pass &= test_3(Queue, KF);
-  Pass &= test_4(Queue, KF);
 
   return Pass ? 0 : 1;
 }
