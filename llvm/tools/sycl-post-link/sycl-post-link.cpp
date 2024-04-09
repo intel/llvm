@@ -669,6 +669,7 @@ bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
     MainFPM.addPass(InstCombinePass{});
     MainFPM.addPass(DCEPass{});
   }
+  MPM.addPass(ESIMDLowerSLMReservationCalls{});
   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(MainFPM)));
   MPM.addPass(GenXSPIRVWriterAdaptor(/*RewriteTypes=*/true,
                                      /*RewriteSingleElementVectorsIn*/ false));
