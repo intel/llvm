@@ -43,27 +43,46 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
       MDeviceHostBaseTime(std::make_pair(0, 0)) {
 
   bool InteroperabilityConstructor = false;
+  sycl::detail::pi::PiResult Result = PI_SUCCESS;
   if (Device == nullptr) {
     assert(InteropDeviceHandle);
     // Get PI device from the raw device handle.
     // NOTE: this is for OpenCL interop only (and should go away).
     // With SYCL-2020 BE generalization "make" functions are used instead.
-    Plugin->call<PiApiKind::piextDeviceCreateWithNativeHandle>(
-        InteropDeviceHandle, nullptr, &MDevice);
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piextDeviceCreateWithNativeHandle>(
+            InteropDeviceHandle, nullptr, &MDevice);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device create with native handle command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
     InteroperabilityConstructor = true;
   }
 
   // TODO catch an exception and put it to list of asynchronous exceptions
-  Plugin->call<PiApiKind::piDeviceGetInfo>(
+  Result = Plugin->call_nocheck<PiApiKind::piDeviceGetInfo>(
       MDevice, PI_DEVICE_INFO_TYPE, sizeof(sycl::detail::pi::PiDeviceType),
       &MType, nullptr);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device get info command not supported by backend.");
+  }
 
   // No need to set MRootDevice when MAlwaysRootDevice is true
   if ((Platform == nullptr) || !Platform->MAlwaysRootDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin->call<PiApiKind::piDeviceGetInfo>(
+    Result = Plugin->call_nocheck<PiApiKind::piDeviceGetInfo>(
         MDevice, PI_DEVICE_INFO_PARENT_DEVICE,
         sizeof(sycl::detail::pi::PiDevice), &MRootDevice, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
   }
 
   if (!InteroperabilityConstructor) {
@@ -201,13 +220,20 @@ device_impl::create_sub_devices(const cl_device_partition_property *Properties,
   std::vector<sycl::detail::pi::PiDevice> SubDevices(SubDevicesCount);
   pi_uint32 ReturnedSubDevices = 0;
   const PluginPtr &Plugin = getPlugin();
-  Plugin->call<sycl::errc::invalid, PiApiKind::piDevicePartition>(
-      MDevice, Properties, SubDevicesCount, SubDevices.data(),
-      &ReturnedSubDevices);
-  if (ReturnedSubDevices != SubDevicesCount) {
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<sycl::detail::PiApiKind::piDevicePartition>(
+          MDevice, Properties, SubDevicesCount, SubDevices.data(),
+          &ReturnedSubDevices);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device partition command not supported by backend.");
+  } else if (ReturnedSubDevices != SubDevicesCount) {
     throw sycl::exception(
         errc::invalid,
         "Could not partition to the specified number of sub-devices");
+  } else {
+    Plugin->checkPiResult(Result);
   }
   // TODO: Need to describe the subdevice model. Some sub_device management
   // may be necessary. What happens if create_sub_devices is called multiple
@@ -345,7 +371,16 @@ pi_native_handle device_impl::getNative() const {
   if (getBackend() == backend::opencl)
     Plugin->call<PiApiKind::piDeviceRetain>(getHandleRef());
   pi_native_handle Handle;
-  Plugin->call<PiApiKind::piextDeviceGetNativeHandle>(getHandleRef(), &Handle);
+  sycl::detail::pi::PiResult Result =
+      Plugin->call_nocheck<PiApiKind::piextDeviceGetNativeHandle>(
+          getHandleRef(), &Handle);
+  if (Result == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device get native handle command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Result);
+  }
   return Handle;
 }
 
@@ -412,53 +447,143 @@ bool device_impl::has(aspect Aspect) const {
     return get_info<info::device::usm_restricted_shared_allocations>();
   case aspect::usm_system_allocations:
     return get_info<info::device::usm_system_allocations>();
-  case aspect::ext_intel_device_id:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_DEVICE_ID, 0, nullptr, &return_size) ==
-           PI_SUCCESS;
-  case aspect::ext_intel_pci_address:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_PCI_ADDRESS, 0, nullptr, &return_size) ==
-           PI_SUCCESS;
-  case aspect::ext_intel_gpu_eu_count:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_EU_COUNT, 0, nullptr,
-               &return_size) == PI_SUCCESS;
-  case aspect::ext_intel_gpu_eu_simd_width:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH, 0, nullptr,
-               &return_size) == PI_SUCCESS;
-  case aspect::ext_intel_gpu_slices:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_SLICES, 0, nullptr, &return_size) ==
-           PI_SUCCESS;
-  case aspect::ext_intel_gpu_subslices_per_slice:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE, 0, nullptr,
-               &return_size) == PI_SUCCESS;
-  case aspect::ext_intel_gpu_eu_count_per_subslice:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE, 0, nullptr,
-               &return_size) == PI_SUCCESS;
-  case aspect::ext_intel_gpu_hw_threads_per_eu:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU, 0, nullptr,
-               &return_size) == PI_SUCCESS;
-  case aspect::ext_intel_free_memory:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY, 0, nullptr,
-               &return_size) == PI_SUCCESS;
-  case aspect::ext_intel_memory_clock_rate:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE, 0, nullptr,
-               &return_size) == PI_SUCCESS;
-  case aspect::ext_intel_memory_bus_width:
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH, 0, nullptr,
-               &return_size) == PI_SUCCESS;
+  case aspect::ext_intel_device_id: {
+    sycl::detail::pi::PiResult Result =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_DEVICE_INFO_DEVICE_ID, 0, nullptr, &return_size);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+    return Result == PI_SUCCESS;
+  }
+  case aspect::ext_intel_pci_address: {
+    sycl::detail::pi::PiResult Result =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_DEVICE_INFO_PCI_ADDRESS, 0, nullptr, &return_size);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+    return Result == PI_SUCCESS;
+  }
+  case aspect::ext_intel_gpu_eu_count: {
+    sycl::detail::pi::PiResult Result =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_DEVICE_INFO_GPU_EU_COUNT, 0, nullptr, &return_size);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+    return Result == PI_SUCCESS;
+  }
+  case aspect::ext_intel_gpu_eu_simd_width: {
+    sycl::detail::pi::PiResult Result =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_DEVICE_INFO_GPU_EU_SIMD_WIDTH, 0, nullptr,
+            &return_size);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+    return Result == PI_SUCCESS;
+  }
+  case aspect::ext_intel_gpu_slices: {
+    sycl::detail::pi::PiResult Result =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_DEVICE_INFO_GPU_SLICES, 0, nullptr, &return_size);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+    return Result == PI_SUCCESS;
+  }
+  case aspect::ext_intel_gpu_subslices_per_slice: {
+    sycl::detail::pi::PiResult Result =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE, 0, nullptr,
+            &return_size);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+    return Result == PI_SUCCESS;
+  }
+  case aspect::ext_intel_gpu_eu_count_per_subslice: {
+    sycl::detail::pi::PiResult Result =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE, 0, nullptr,
+            &return_size);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+    return Result == PI_SUCCESS;
+  }
+  case aspect::ext_intel_gpu_hw_threads_per_eu: {
+    sycl::detail::pi::PiResult Result =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_DEVICE_INFO_GPU_HW_THREADS_PER_EU, 0, nullptr,
+            &return_size);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+    return Result == PI_SUCCESS;
+  }
+  case aspect::ext_intel_free_memory: {
+    sycl::detail::pi::PiResult Result =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_INTEL_DEVICE_INFO_FREE_MEMORY, 0, nullptr,
+            &return_size);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+    return Result == PI_SUCCESS;
+  }
+  case aspect::ext_intel_memory_clock_rate: {
+    sycl::detail::pi::PiResult Result =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_INTEL_DEVICE_INFO_MEMORY_CLOCK_RATE, 0, nullptr,
+            &return_size);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+    return Result == PI_SUCCESS;
+  }
+  case aspect::ext_intel_memory_bus_width: {
+    sycl::detail::pi::PiResult Result =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_INTEL_DEVICE_INFO_MEMORY_BUS_WIDTH, 0, nullptr,
+            &return_size);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+    return Result == PI_SUCCESS;
+  }
   case aspect::ext_intel_device_info_uuid: {
-    auto Result = getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-        MDevice, PI_DEVICE_INFO_UUID, 0, nullptr, &return_size);
+    sycl::detail::pi::PiResult Result =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_DEVICE_INFO_UUID, 0, nullptr, &return_size);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
     if (Result != PI_SUCCESS) {
       return false;
     }
@@ -466,9 +591,15 @@ bool device_impl::has(aspect Aspect) const {
     assert(return_size <= 16);
     unsigned char UUID[16];
 
-    return getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-               MDevice, PI_DEVICE_INFO_UUID, 16 * sizeof(unsigned char), UUID,
-               nullptr) == PI_SUCCESS;
+    Result = getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+        MDevice, PI_DEVICE_INFO_UUID, 16 * sizeof(unsigned char), UUID,
+        nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+    return Result == PI_SUCCESS;
   }
   case aspect::ext_intel_max_mem_bandwidth:
     // currently not supported
@@ -479,116 +610,200 @@ bool device_impl::has(aspect Aspect) const {
     return isAssertFailSupported();
   case aspect::ext_oneapi_cuda_async_barrier: {
     int async_barrier_supported;
-    bool call_successful =
+    sycl::detail::pi::PiResult Result =
         getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
             MDevice, PI_EXT_ONEAPI_DEVICE_INFO_CUDA_ASYNC_BARRIER, sizeof(int),
-            &async_barrier_supported, nullptr) == PI_SUCCESS;
-    return call_successful && async_barrier_supported;
+            &async_barrier_supported, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+
+    return (Result == PI_SUCCESS) && async_barrier_supported;
   }
   case aspect::ext_intel_legacy_image: {
     pi_bool legacy_image_support = PI_FALSE;
-    bool call_successful =
+    sycl::detail::pi::PiResult Result =
         getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
             MDevice, PI_DEVICE_INFO_IMAGE_SUPPORT, sizeof(pi_bool),
-            &legacy_image_support, nullptr) == PI_SUCCESS;
-    return call_successful && legacy_image_support;
+            &legacy_image_support, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+
+    return (Result == PI_SUCCESS) && legacy_image_support;
   }
   case aspect::ext_oneapi_bindless_images: {
     pi_bool support = PI_FALSE;
-    bool call_successful =
+    sycl::detail::pi::PiResult Result =
         getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
             MDevice, PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
+            sizeof(pi_bool), &support, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+
+    return (Result == PI_SUCCESS) && support;
   }
   case aspect::ext_oneapi_bindless_images_shared_usm: {
     pi_bool support = PI_FALSE;
-    bool call_successful =
+    sycl::detail::pi::PiResult Result =
         getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
             MDevice,
             PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
+            sizeof(pi_bool), &support, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+
+    return (Result == PI_SUCCESS) && support;
   }
   case aspect::ext_oneapi_bindless_images_1d_usm: {
     pi_bool support = PI_FALSE;
-    bool call_successful =
+    sycl::detail::pi::PiResult Result =
         getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
             MDevice, PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
+            sizeof(pi_bool), &support, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+
+    return (Result == PI_SUCCESS) && support;
   }
   case aspect::ext_oneapi_bindless_images_2d_usm: {
     pi_bool support = PI_FALSE;
-    bool call_successful =
+    sycl::detail::pi::PiResult Result =
         getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
             MDevice, PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
+            sizeof(pi_bool), &support, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+
+    return (Result == PI_SUCCESS) && support;
   }
   case aspect::ext_oneapi_interop_memory_import: {
     pi_bool support = PI_FALSE;
-    bool call_successful =
+    sycl::detail::pi::PiResult Result =
         getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
             MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
+            sizeof(pi_bool), &support, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+
+    return (Result == PI_SUCCESS) && support;
   }
   case aspect::ext_oneapi_interop_memory_export: {
     pi_bool support = PI_FALSE;
-    bool call_successful =
+    sycl::detail::pi::PiResult Result =
         getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
             MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
+            sizeof(pi_bool), &support, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+
+    return (Result == PI_SUCCESS) && support;
   }
   case aspect::ext_oneapi_interop_semaphore_import: {
     pi_bool support = PI_FALSE;
-    bool call_successful =
+    sycl::detail::pi::PiResult Result =
         getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
             MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
+            sizeof(pi_bool), &support, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+
+    return (Result == PI_SUCCESS) && support;
   }
   case aspect::ext_oneapi_interop_semaphore_export: {
     pi_bool support = PI_FALSE;
-    bool call_successful =
+    sycl::detail::pi::PiResult Result =
         getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
             MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
+            sizeof(pi_bool), &support, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+
+    return (Result == PI_SUCCESS) && support;
   }
   case aspect::ext_oneapi_mipmap: {
     pi_bool support = PI_FALSE;
-    bool call_successful =
+    sycl::detail::pi::PiResult Result =
         getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
             MDevice, PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_SUPPORT, sizeof(pi_bool),
-            &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
+            &support, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+
+    return (Result == PI_SUCCESS) && support;
   }
   case aspect::ext_oneapi_mipmap_anisotropy: {
     pi_bool support = PI_FALSE;
-    bool call_successful =
+    sycl::detail::pi::PiResult Result =
         getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
             MDevice, PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
+            sizeof(pi_bool), &support, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+
+    return (Result == PI_SUCCESS) && support;
   }
   case aspect::ext_oneapi_mipmap_level_reference: {
     pi_bool support = PI_FALSE;
-    bool call_successful =
+    sycl::detail::pi::PiResult Result =
         getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
             MDevice, PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT,
-            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
+            sizeof(pi_bool), &support, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+
+    return (Result == PI_SUCCESS) && support;
   }
   case aspect::ext_intel_esimd: {
     pi_bool support = PI_FALSE;
-    bool call_successful =
+    sycl::detail::pi::PiResult Result =
         getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
             MDevice, PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT, sizeof(pi_bool),
-            &support, nullptr) == PI_SUCCESS;
-    return call_successful && support;
+            &support, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    };
+
+    return (Result == PI_SUCCESS) && support;
   }
   case aspect::ext_oneapi_ballot_group:
   case aspect::ext_oneapi_fixed_size_group:

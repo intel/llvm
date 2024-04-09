@@ -377,9 +377,16 @@ void applyAllowList(std::vector<sycl::detail::pi::PiDevice> &PiDevices,
     auto DeviceImpl = PlatformImpl->getOrMakeDeviceImpl(Device, PlatformImpl);
     // get DeviceType value and put it to DeviceDesc
     sycl::detail::pi::PiDeviceType PiDevType;
-    Plugin->call<PiApiKind::piDeviceGetInfo>(
-        Device, PI_DEVICE_INFO_TYPE, sizeof(sycl::detail::pi::PiDeviceType),
-        &PiDevType, nullptr);
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piDeviceGetInfo>(
+            Device, PI_DEVICE_INFO_TYPE, sizeof(sycl::detail::pi::PiDeviceType),
+            &PiDevType, nullptr);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Device get info command not supported by backend.");
+    }
+
     sycl::info::device_type DeviceType = pi::cast<info::device_type>(PiDevType);
     for (const auto &SyclDeviceType :
          getSyclDeviceTypeMap<true /*Enable 'acc'*/>()) {

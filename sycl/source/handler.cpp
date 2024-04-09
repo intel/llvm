@@ -283,13 +283,16 @@ event handler::finalize() {
               NewEvent->setHostEnqueueTime();
             [&](auto... Args) {
               if (MImpl->MKernelIsCooperative) {
-                MQueue->getPlugin()
-                    ->call<
-                        detail::PiApiKind::piextEnqueueCooperativeKernelLaunch>(
-                        Args...);
+                Result =
+                    MQueue->getPlugin()
+                        ->call_nocheck<detail::PiApiKind::
+                                           piextEnqueueCooperativeKernelLaunch>(
+                            Args...);
               } else {
-                MQueue->getPlugin()
-                    ->call<detail::PiApiKind::piEnqueueKernelLaunch>(Args...);
+                Result =
+                    MQueue->getPlugin()
+                        ->call_nocheck<
+                            detail::PiApiKind::piEnqueueKernelLaunch>(Args...);
               }
             }(/* queue */
               nullptr,
@@ -303,7 +306,14 @@ event handler::finalize() {
               /* num_events_in_wait_list */ 0,
               /* event_wait_list */ nullptr,
               /* event */ nullptr);
-            Result = PI_SUCCESS;
+            if (Result == PI_ERROR_INVALID_OPERATION) {
+              throw sycl::exception(
+                  sycl::make_error_code(sycl::errc::feature_not_supported),
+                  "Enqueue kernel launch command not supported by backend.");
+            } else {
+              MQueue->getPlugin()->checkPiResult(
+                  (sycl::detail::pi::PiResult)Result);
+            }
           } else {
             Result = enqueueImpKernel(
                 MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
@@ -1533,14 +1543,20 @@ void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {
 
 std::optional<std::array<size_t, 3>> handler::getMaxWorkGroups() {
   auto Dev = detail::getSyclObjImpl(detail::getDeviceFromHandler(*this));
-  std::array<size_t, 3> PiResult = {};
-  auto Ret = Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
-      Dev->getHandleRef(),
-      PiInfoCode<
-          ext::oneapi::experimental::info::device::max_work_groups<3>>::value,
-      sizeof(PiResult), &PiResult, nullptr);
-  if (Ret == PI_SUCCESS) {
-    return PiResult;
+  std::array<size_t, 3> Result = {};
+  sycl::detail::pi::PiResult PiResult =
+      Dev->getPlugin()->call_nocheck<PiApiKind::piDeviceGetInfo>(
+          Dev->getHandleRef(),
+          PiInfoCode<ext::oneapi::experimental::info::device::max_work_groups<
+              3>>::value,
+          sizeof(Result), &Result, nullptr);
+  if (PiResult == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Device get info command not supported by backend.");
+  }
+  if (PiResult == PI_SUCCESS) {
+    return Result;
   }
   return {};
 }

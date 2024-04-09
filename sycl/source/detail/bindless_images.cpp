@@ -172,9 +172,16 @@ alloc_image_mem(const image_descriptor &desc, const sycl::device &syclDevice,
   image_mem_handle retHandle;
 
   // Call impl.
-  Plugin->call<sycl::errc::memory_allocation,
-               sycl::detail::PiApiKind::piextMemImageAllocate>(
-      C, Device, &piFormat, &piDesc, &retHandle.raw_handle);
+  sycl::detail::pi::PiResult Error =
+      Plugin->call_nocheck<sycl::detail::PiApiKind::piextMemImageAllocate>(
+          C, Device, &piFormat, &piDesc, &retHandle.raw_handle);
+  if (Error == PI_ERROR_INVALID_OPERATION) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::feature_not_supported),
+        "Bindless image alloc mem command not supported by backend.");
+  } else {
+    Plugin->checkPiResult(Error);
+  }
 
   return retHandle;
 }

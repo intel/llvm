@@ -290,11 +290,21 @@ public:
     const auto &ContextImplPtr = detail::getSyclObjImpl(MContext);
     const PluginPtr &Plugin = ContextImplPtr->getPlugin();
 
-    if (ContextImplPtr->getBackend() == backend::opencl)
+    if (ContextImplPtr->getBackend() == backend::opencl) {
       Plugin->call<PiApiKind::piProgramRetain>(MProgram);
+    }
     pi_native_handle NativeProgram = 0;
-    Plugin->call<PiApiKind::piextProgramGetNativeHandle>(MProgram,
-                                                         &NativeProgram);
+
+    sycl::detail::pi::PiResult Result =
+        Plugin->call_nocheck<PiApiKind::piextProgramGetNativeHandle>(
+            MProgram, &NativeProgram);
+    if (Result == PI_ERROR_INVALID_OPERATION) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::feature_not_supported),
+          "Program get native handle command not supported by backend.");
+    } else {
+      Plugin->checkPiResult(Result);
+    }
 
     return NativeProgram;
   }
