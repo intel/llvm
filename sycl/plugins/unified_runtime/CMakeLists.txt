@@ -94,14 +94,14 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  set(UNIFIED_RUNTIME_REPO "https://github.com/aarongreig/unified-runtime.git")
   # commit 065bf2dd97b58a4ceeb2fb83eed1df9319e61c59
   # Merge: b9153547 ec773e6c
   # Author: aarongreig <aaron.greig@codeplay.com>
   # Date:   Fri Apr 5 14:26:59 2024 +0100
   #     Merge pull request #1486 from nrspruit/fix_memfree_report
   #     [L0] Fix DeviceInfo global mem free to report unsupported given MemCount==0
-  set(UNIFIED_RUNTIME_TAG 065bf2dd97b58a4ceeb2fb83eed1df9319e61c59)
+  set(UNIFIED_RUNTIME_TAG aaron/revert1433)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
