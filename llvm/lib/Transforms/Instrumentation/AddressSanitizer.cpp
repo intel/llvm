@@ -1480,21 +1480,22 @@ static bool isUnsupportedAMDGPUAddrspace(Value *Addr) {
 }
 
 static bool isUnsupportedSPIRAccess(Value *Addr, Function *Func) {
+  // Skip SPIR-V built-in varibles
+  auto *OrigValue = Addr->stripInBoundsOffsets();
+  if (OrigValue->getName().starts_with("__spirv_BuiltIn"))
+    return true;
+
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
   switch (PtrTy->getPointerAddressSpace()) {
   case kSpirOffloadPrivateAS: {
     if (!ClSpirOffloadPrivates)
       return true;
-    // skip kernel arguments
+    // Skip kernel arguments
     return Func->getCallingConv() == CallingConv::SPIR_KERNEL &&
            isa<Argument>(Addr);
   }
   case kSpirOffloadGlobalAS: {
-    if (!ClSpirOffloadGlobals)
-      return true;
-    // All the rest address spaces: skip SPIR-V built-in varibles
-    auto *OrigValue = Addr->stripInBoundsOffsets();
-    return OrigValue->getName().starts_with("__spirv_BuiltIn");
+    return !ClSpirOffloadGlobals;
   }
   case kSpirOffloadLocalAS: {
     if (!ClSpirOffloadLocals)
