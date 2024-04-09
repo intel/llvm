@@ -599,14 +599,29 @@ event queue_impl::discard_or_return(const event &Event) {
   return createDiscardedEvent();
 }
 
-void queue_impl::tryToResetEnqueuedBarrierDep(
+void queue_impl::revisitNotEnqueuedCommandsState(
     const EventImplPtr &EnqueuedBarrierEvent) {
   if (MIsInorder)
     return;
   auto tryToCleanup = [&EnqueuedBarrierEvent](DependencyTrackingItems &Deps) {
-    if (Deps.LastBarrier == EnqueuedBarrierEvent) {
+    if (Deps.LastBarrier.isEnqueued()) {
       Deps.LastBarrier = nullptr;
       Deps.NotEnqueuedCmdEvents.clear();
+    }
+    else
+    {
+      if (Deps.NotEnqueuedCmdEvents.empty())
+      return;
+    Deps.NotEnqueuedCmdEvents.erase(
+        std::remove_if(Deps.NotEnqueuedCmdEvents.begin(),
+                       Deps.NotEnqueuedCmdEvents.end(),
+                       [&CompletedHostTask](const EventImplPtr &CommandEvent) {
+                         return (CommandEvent == CompletedHostTask) ||
+                                (CommandEvent->is_host()
+                                     ? CommandEvent->isCompleted()
+                                     : CommandEvent->isEnqueued());
+                       }),
+        Deps.NotEnqueuedCmdEvents.end());
     }
   };
   std::lock_guard<std::mutex> Lock{MMutex};
@@ -616,32 +631,6 @@ void queue_impl::tryToResetEnqueuedBarrierDep(
   if (auto Graph = EnqueuedBarrierEvent->getCommandGraph()) {
     if (Graph == getCommandGraph())
       tryToCleanup(MExtGraphDeps);
-  } else
-    tryToCleanup(MDefaultGraphDeps);
-}
-
-void queue_impl::revisitNotEnqueuedCommandsState(
-    const EventImplPtr &CompletedHostTask) {
-  if (MIsInorder)
-    return;
-  auto tryToCleanup = [&CompletedHostTask](DependencyTrackingItems &Deps) {
-    if (Deps.NotEnqueuedCmdEvents.empty())
-      return;
-    Deps.NotEnqueuedCmdEvents.erase(
-        std::remove_if(Deps.NotEnqueuedCmdEvents.begin(),
-                       Deps.NotEnqueuedCmdEvents.end(),
-                       [&CompletedHostTask](const EventImplPtr &CommandEvent) {
-                         return (CommandEvent == CompletedHostTask) ||
-                                (CommandEvent->is_host()
-                                     ? CommandEvent->isCompleted()
-                                     : CommandEvent->getHandleRef() != nullptr);
-                       }),
-        Deps.NotEnqueuedCmdEvents.end());
-  };
-  std::lock_guard<std::mutex> Lock{MMutex};
-  if (auto Graph = CompletedHostTask->getCommandGraph()) {
-    if (Graph == getCommandGraph())
-      return tryToCleanup(MExtGraphDeps);
   } else
     tryToCleanup(MDefaultGraphDeps);
 }

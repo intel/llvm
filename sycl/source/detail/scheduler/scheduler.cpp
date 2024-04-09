@@ -496,6 +496,7 @@ void Scheduler::NotifyHostTaskCompletion(Command *Cmd) {
     Scheduler::enqueueUnblockedCommands(Cmd->MBlockedUsers, Lock, ToCleanUp);
   }
   Cmd->getQueue()->revisitNotEnqueuedCommandsState(CmdEvent);
+
   cleanupCommands(ToCleanUp);
 }
 
