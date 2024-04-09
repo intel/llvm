@@ -1552,16 +1552,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
   ze_image_handle_t ZeHImage = ur_cast<ze_image_handle_t>(NativeMem);
 
   ZeStruct<ze_image_desc_t> ZeImageDesc;
-#ifndef NDEBUG
   ur_result_t Res = ur2zeImageDesc(ImageFormat, ImageDesc, ZeImageDesc);
   if (Res != UR_RESULT_SUCCESS) {
     *Mem = nullptr;
     return Res;
   }
-#else
-  std::ignore = ImageFormat;
-  std::ignore = ImageDesc;
-#endif // !NDEBUG
 
   UR_CALL(createUrMemFromZeImage(
       Context, ZeHImage, Properties->isNativeHandleOwned, ZeImageDesc, Mem));
