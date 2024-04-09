@@ -279,8 +279,8 @@ struct SplitModule {
   std::string Symbols;
 
   SplitModule() = default;
-  SplitModule(SplitModule &) = default;
-  SplitModule &operator=(SplitModule &) = default;
+  SplitModule(const SplitModule &) = default;
+  SplitModule &operator=(const SplitModule &) = default;
   SplitModule(SplitModule &&) = default;
   SplitModule &operator=(SplitModule &&) = default;
 
