@@ -168,9 +168,9 @@ int main() {
   using PBS = sycl::info::device::printf_buffer_size;
   // expected-warning@+1{{'preferred_interop_user_sync' is deprecated: deprecated in SYCL 2020}}
   using PIUS = sycl::info::device::preferred_interop_user_sync;
-  // expected-warning@+1{{'image_max_array_size' is deprecated: deprecated and not part of SYCL 2020 as support for image arrays has been removed in SYCL 2020}}
+  // expected-warning@+1{{'image_max_array_size' is deprecated: support for image arrays has been removed in SYCL 2020}}
   using IMAS = sycl::info::device::image_max_array_size;
-  // expected-warning@+1{{'opencl_c_version' is deprecated: deprecated and not part of SYCL 2020}}
+  // expected-warning@+1{{'opencl_c_version' is deprecated: use device::get_backend_info instead}}
   using OCV = sycl::info::device::opencl_c_version;
 
   // expected-warning@+1{{'extensions' is deprecated: deprecated in SYCL 2020, use device::get_info() with info::device::aspects instead}}
