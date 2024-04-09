@@ -1169,8 +1169,7 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
     ModuleDesc MD2 = Splitter->nextSplit();
     MD2.fixupLinkageOfDirectInvokeSimdTargets();
 
-    std::string OutIRFileName =
-        (Settings.OutputPrefix + "_" + Twine(ID)).str();
+    std::string OutIRFileName = (Settings.OutputPrefix + "_" + Twine(ID)).str();
     auto SplittedImageOrErr =
         saveModuleDesc(MD2, OutIRFileName, Settings.OutputAssembly);
     if (!SplittedImageOrErr)
