@@ -62,7 +62,7 @@ jobs:
         id: get_docker_image
         run: |
           if [ "${{ contains(github.event.pull_request.labels.*.name, 'ci-use-igc-dev') }}" == "true" ]; then
-            echo 'image="ghcr.io/intel/llvm/ubuntu2204_intel_drivers_devigc:latest"' >> "$GITHUB_OUTPUT"
+            echo 'image="ghcr.io/intel/llvm/ubuntu2204_intel_drivers:devigc"' >> "$GITHUB_OUTPUT"
           else
             echo 'image="ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest"' >> "$GITHUB_OUTPUT"
           fi
