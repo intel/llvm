@@ -135,23 +135,18 @@ void visualstudio::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-defaultlib:oldnames");
   }
 
-  if ((Args.hasArg(options::OPT_fsycl) &&
+  if ((!C.getDriver().IsCLMode() && Args.hasArg(options::OPT_fsycl) &&
        !Args.hasArg(options::OPT_nolibsycl)) ||
       Args.hasArg(options::OPT_fsycl_host_compiler_EQ)) {
     CmdArgs.push_back(Args.MakeArgString(std::string("-libpath:") +
                                          TC.getDriver().Dir + "/../lib"));
-    if (!Args.hasArg(options::OPT__SLASH_MDd) &&
-        !isDependentLibAdded(Args, "msvcrtd")) {
+    // When msvcrtd is added via --dependent-lib, we add the sycld
+    // equivalent.  Do not add the -defaultlib as it conflicts.
+    if (!isDependentLibAdded(Args, "msvcrtd")) {
       if (Args.hasArg(options::OPT_fpreview_breaking_changes))
         CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION "-preview.lib");
       else
         CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION ".lib");
-    } else {
-      if (Args.hasArg(options::OPT_fpreview_breaking_changes))
-        CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION
-                          "-previewd.lib");
-      else
-        CmdArgs.push_back("-defaultlib:sycl" SYCL_MAJOR_VERSION "d.lib");
     }
     CmdArgs.push_back("-defaultlib:sycl-devicelib-host.lib");
   }
