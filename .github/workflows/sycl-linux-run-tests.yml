@@ -307,7 +307,7 @@ jobs:
       if: inputs.tests_selector == 'cts'
       env:
         ONEAPI_DEVICE_SELECTOR: ${{ inputs.target_devices }}
-      # This job takes ~100min usually. But sometimes test_kernel_bundle is not
+      # This job takes ~100min usually. But sometimes some test isn't
       # responding, so the job reaches the 360min limit. Setting a lower one.
       timeout-minutes: 150
       # By-default GitHub actions execute the "run" shell script with -e option,
