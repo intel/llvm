@@ -57,12 +57,12 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 410c02365eb8505ace69d3cb6b8192dbe0077161
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Thu Apr 4 10:23:33 2024 +0200
-  #     Merge pull request #1448 from steffenlarsen/steffen/make_ext_func_fail_unsupported
-  #     [OpenCL] Make extension function lookup return unusupported error
-  set(UNIFIED_RUNTIME_TAG 410c02365eb8505ace69d3cb6b8192dbe0077161)
+  # commit 26cc04e258b82696bfd7738d08d95e34db4aecf6
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Mon Apr 8 09:52:16 2024 +0100
+  #     Merge pull request #1433 from Seanst98/sean/cubemaps-UR
+  #     [Bindless][CUDA] Add support for cubemaps
+  set(UNIFIED_RUNTIME_TAG 26cc04e258b82696bfd7738d08d95e34db4aecf6)
 
   if(SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO)
     set(UNIFIED_RUNTIME_REPO "${SYCL_PI_UR_OVERRIDE_FETCH_CONTENT_REPO}")
