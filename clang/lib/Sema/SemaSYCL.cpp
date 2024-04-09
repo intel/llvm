@@ -5304,14 +5304,6 @@ void ConstructFreeFunctionKernel(Sema &SemaRef, FunctionDecl *FD) {
       SemaRef, FD->getLocation(), FD->isInlined(), false /*IsSIMDKernel */,
       true /*IsFreeFunction*/, FD, SemaRef.getSyclIntegrationHeader());
 
-#if 0
-  // TODO: remove this dummy struct
-  RecordDecl *DummyClass =
-      SemaRef.getASTContext().buildImplicitRecord("__dummy_class");
-  DummyClass->startDefinition();
-  DummyClass->completeDefinition();
-  CXXRecordDecl *DummyClass1 = static_cast<CXXRecordDecl *>(DummyClass);
-#endif
   FreeFunctionKernelBodyCreator kernel_body(SemaRef, kernel_decl, FD);
 
   // Kernel object size is irrelevant, so set to 0.

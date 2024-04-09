@@ -128,7 +128,7 @@ SYCL_EXTERNAL
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::nd_range_kernel<1>))
 void ff_1(int *ptr, int start, int end) {
-  nd_item<1> Item = ext::oneapi::experimental::this_nd_item<1>();
+  nd_item<1> Item = ext::oneapi::this_work_item::get_nd_item<1>();
   id<1> GId = Item.get_global_id();
   ptr[GId.get(0)] = GId.get(0) + start + end;
 }
@@ -175,7 +175,7 @@ SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::nd_range_kernel<2>))
 void ff_2(int *ptr, int start, struct Simple S) {
   int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(ptr);
-  nd_item<2> Item = ext::oneapi::experimental::this_nd_item<2>();
+  nd_item<2> Item = ext::oneapi::this_work_item::get_nd_item<2>();
   id<2> GId = Item.get_global_id();
   id<2> LId = Item.get_local_id();
   ptr2D[GId.get(0)][GId.get(1)] =
@@ -229,7 +229,7 @@ SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((
     ext::oneapi::experimental::nd_range_kernel<2>)) void ff_3(T *ptr, T start,
                                                               struct Simple S) {
   int(&ptr2D)[4][4] = *reinterpret_cast<int(*)[4][4]>(ptr);
-  nd_item<2> Item = ext::oneapi::experimental::this_nd_item<2>();
+  nd_item<2> Item = ext::oneapi::this_work_item::get_nd_item<2>();
   id<2> GId = Item.get_global_id();
   id<2> LId = Item.get_local_id();
   ptr2D[GId.get(0)][GId.get(1)] =
