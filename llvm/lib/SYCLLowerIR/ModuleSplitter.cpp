@@ -1124,7 +1124,8 @@ SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
   return Result;
 }
 
-Error saveModuleIRInFile(Module &M, StringRef FilePath, bool OutputAssembly) {
+static Error saveModuleIRInFile(Module &M, StringRef FilePath,
+                                bool OutputAssembly) {
   int FD = -1;
   if (std::error_code EC = sys::fs::openFileForWrite(FilePath, FD))
     return errorCodeToError(EC);
@@ -1143,32 +1144,27 @@ Error saveModuleIRInFile(Module &M, StringRef FilePath, bool OutputAssembly) {
   return Error::success();
 }
 
-Expected<SplittedImage> saveModuleDesc(ModuleDesc &MD, std::string Prefix,
-                                       bool OutputAssembly) {
-  if (MD.isESIMD())
-    Prefix += "_esimd";
-
-  SplittedImage SI;
-
+static Expected<SplitModule> saveModuleDesc(ModuleDesc &MD, std::string Prefix,
+                                            bool OutputAssembly) {
+  SplitModule SM;
   Prefix += OutputAssembly ? ".ll" : ".bc";
   Error E = saveModuleIRInFile(MD.getModule(), Prefix, OutputAssembly);
   if (E)
-    return std::move(E);
+    return E;
 
-  SI.ModuleFilePath = Prefix;
-  SI.Symbols = MD.makeSymbolTable();
-
-  return std::move(SI);
+  SM.ModuleFilePath = Prefix;
+  SM.Symbols = MD.makeSymbolTable();
+  return SM;
 }
 
-Expected<std::vector<SplittedImage>>
+Expected<std::vector<SplitModule>>
 splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
   ModuleDesc MD = std::move(M); // makeModuleDesc() ?
   // FIXME: false arguments are temporary for now.
   auto Splitter =
       getDeviceCodeSplitter(std::move(MD), Settings.Mode, false, false);
   size_t ID = 0;
-  std::vector<SplittedImage> OutputImages;
+  std::vector<SplitModule> OutputImages;
   while (Splitter->hasMoreSplits()) {
     ModuleDesc MD2 = Splitter->nextSplit();
     MD2.fixupLinkageOfDirectInvokeSimdTargets();

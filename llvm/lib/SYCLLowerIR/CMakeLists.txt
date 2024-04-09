@@ -100,6 +100,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   LINK_COMPONENTS
   Analysis
   Core
+  Passes
   Support
   ipo
   )

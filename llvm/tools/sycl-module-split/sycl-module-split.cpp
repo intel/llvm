@@ -75,8 +75,8 @@ void writePropertiesToFile(const PropertySetRegistry &Properties,
   Properties.write(OS);
 }
 
-void dumpImagesAsTable(const std::vector<SplittedImage> &Images,
-                       StringRef Path) {
+void dumpModulesAsTable(const std::vector<SplitModule> &SplitModules,
+                        StringRef Path) {
   std::vector<StringRef> Columns = {"Code", "Properties", "Symbols"};
   auto TableOrErr = SimpleTable::create(Columns);
   if (!TableOrErr) {
@@ -85,14 +85,12 @@ void dumpImagesAsTable(const std::vector<SplittedImage> &Images,
   }
 
   std::unique_ptr<SimpleTable> Table = std::move(*TableOrErr);
-  for (const auto &[I, Image] : enumerate(Images)) {
-    std::string SymbolsFile =
-        (Twine(Path) + "_" + std::to_string(I) + ".sym").str();
-    std::string PropertiesFile =
-        (Twine(Path) + "_" + std::to_string(I) + ".prop").str();
-    writePropertiesToFile(Image.Properties, PropertiesFile);
-    writeStringToFile(Image.Symbols, SymbolsFile);
-    SmallVector<StringRef, 3> Row = {Image.ModuleFilePath, PropertiesFile,
+  for (const auto &[I, SM] : enumerate(SplitModules)) {
+    std::string SymbolsFile = (Twine(Path) + "_" + Twine(I) + ".sym").str();
+    std::string PropertiesFile = (Twine(Path) + "_" + Twine(I) + ".prop").str();
+    writePropertiesToFile(SM.Properties, PropertiesFile);
+    writeStringToFile(SM.Symbols, SymbolsFile);
+    SmallVector<StringRef, 3> Row = {SM.ModuleFilePath, PropertiesFile,
                                      SymbolsFile};
     Table->addRow(Row);
   }
@@ -122,11 +120,11 @@ int main(int argc, char *argv[]) {
   Settings.Mode = SplitMode;
   Settings.OutputAssembly = OutputAssembly;
   Settings.OutputPrefix = OutputFilenamePrefix;
-  auto SplittedImagesOrErr = splitSYCLModule(std::move(M), Settings);
-  if (!SplittedImagesOrErr) {
+  auto SplitModulesOrErr = splitSYCLModule(std::move(M), Settings);
+  if (!SplitModulesOrErr) {
     Err.print(argv[0], errs());
     return 1;
   }
 
-  dumpImagesAsTable(*SplittedImagesOrErr, OutputFilenamePrefix);
+  dumpModulesAsTable(*SplitModulesOrErr, OutputFilenamePrefix);
 }

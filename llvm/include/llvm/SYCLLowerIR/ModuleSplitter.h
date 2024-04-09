@@ -37,23 +37,6 @@ enum IRSplitMode {
   SPLIT_NONE        // no splitting
 };
 
-struct SplittedImage {
-  std::string ModuleFilePath;
-  util::PropertySetRegistry Properties;
-  std::string Symbols;
-
-  SplittedImage() = default;
-  SplittedImage(SplittedImage &) = default;
-  SplittedImage &operator=(SplittedImage &) = default;
-  SplittedImage(SplittedImage &&) = default;
-  SplittedImage &operator=(SplittedImage &&) = default;
-
-  SplittedImage(std::string_view File, util::PropertySetRegistry Properties,
-                std::string Symbols)
-      : ModuleFilePath(File), Properties(std::move(Properties)),
-        Symbols(std::move(Symbols)) {}
-};
-
 // A vector that contains all entry point functions in a split module.
 using EntryPointSet = SetVector<Function *>;
 
@@ -281,6 +264,23 @@ void dumpEntryPoints(const Module &M, bool OnlyKernelsAreEntryPoints = false,
                      const char *msg = "", int Tab = 0);
 #endif // NDEBUG
 
+struct SplitModule {
+  std::string ModuleFilePath;
+  util::PropertySetRegistry Properties;
+  std::string Symbols;
+
+  SplitModule() = default;
+  SplitModule(SplitModule &) = default;
+  SplitModule &operator=(SplitModule &) = default;
+  SplitModule(SplitModule &&) = default;
+  SplitModule &operator=(SplitModule &&) = default;
+
+  SplitModule(std::string_view File, util::PropertySetRegistry Properties,
+              std::string Symbols)
+      : ModuleFilePath(File), Properties(std::move(Properties)),
+        Symbols(std::move(Symbols)) {}
+};
+
 struct ModuleSplitterSettings {
   IRSplitMode Mode;
   bool OutputAssembly = false; // Bitcode or LLVM IR.
@@ -288,7 +288,7 @@ struct ModuleSplitterSettings {
 };
 
 /// Splits the given module \p M according to the given \p Settings.
-Expected<std::vector<SplittedImage>>
+Expected<std::vector<SplitModule>>
 splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings);
 
 } // namespace module_split

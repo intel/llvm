@@ -15,6 +15,20 @@
 ; RUN:     --implicit-check-not kernel1 --implicit-check-not kernel2 \
 ; RUN:     --implicit-check-not kernel0
 
+; RUN: sycl-module-split -split=auto -S < %s -o %t2
+; RUN: FileCheck %s -input-file=%t2.table --check-prefix CHECK-TABLE
+;
+; RUN: FileCheck %s -input-file=%t2_0.sym --check-prefix CHECK-M0-SYMS \
+; RUN:     --implicit-check-not kernel0 --implicit-check-not kernel2
+;
+; RUN: FileCheck %s -input-file=%t2_1.sym --check-prefix CHECK-M1-SYMS \
+; RUN:     --implicit-check-not kernel1 --implicit-check-not kernel3 \
+; RUN:     --implicit-check-not kernel2
+;
+; RUN: FileCheck %s -input-file=%t2_2.sym --check-prefix CHECK-M2-SYMS \
+; RUN:     --implicit-check-not kernel1 --implicit-check-not kernel2 \
+; RUN:     --implicit-check-not kernel0
+
 ; CHECK-TABLE: Code
 ; CHECK-TABLE-NEXT: _0.sym
 ; CHECK-TABLE-NEXT: _1.sym
