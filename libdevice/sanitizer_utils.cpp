@@ -37,6 +37,9 @@ DeviceGlobal<uptr> __AsanShadowMemoryGlobalEnd;
 
 DeviceGlobal<DeviceType> __DeviceType;
 DeviceGlobal<uint64_t> __AsanDebug;
+
+__SYCL_GLOBAL__ uptr *__SYCL_LOCAL__ __AsanLaunchInfo;
+
 #endif // OMP_LIBDEVICE && INTEL_COLLAB
 
 #ifdef __SPIR__
@@ -565,15 +568,14 @@ inline uptr __asan_region_is_poisoned(uptr beg, uint32_t as,
 /// ASAN Load/Store Report Built-ins
 ///
 
+static __SYCL_CONSTANT__ const char __launch_info[] = "[kernel] %p - %p\n";
+
 #define ASAN_REPORT_ERROR(type, is_write, size)                                \
   DEVICE_EXTERN_C_NOINLINE void __asan_##type##size(                           \
       uptr addr, uint32_t as, __SYCL_GLOBAL__ uptr *launch_info,               \
       const char __SYCL_CONSTANT__ *file, uint32_t line,                       \
       const char __SYCL_CONSTANT__ *func) {                                    \
-    if (__asan_address_is_poisoned(addr, as, launch_info, size)) {             \
-      __asan_report_access_error(addr, as, launch_info, size, is_write, addr,  \
-                                 file, line, func);                            \
-    }                                                                          \
+    __spirv_ocl_printf(__launch_info, launch_info, __AsanLaunchInfo);          \
   }                                                                            \
   DEVICE_EXTERN_C_NOINLINE void __asan_##type##size##_noabort(                 \
       uptr addr, uint32_t as, __SYCL_GLOBAL__ uptr *launch_info,               \

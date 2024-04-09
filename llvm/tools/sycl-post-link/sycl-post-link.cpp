@@ -633,7 +633,7 @@ bool runSanitizerPasses(Module &M) {
 
   ModulePassManager MPM;
   MPM.addPass(SanitizeDeviceGlobalPass{});
-  MPM.addPass(SanitizeExtendArgumentPass{}); // need TargetLibraryAnalysis
+  // MPM.addPass(SanitizeExtendArgumentPass{}); // need TargetLibraryAnalysis
   PreservedAnalyses Res = MPM.run(M, MAM);
   return !Res.areAllPreserved();
 }
