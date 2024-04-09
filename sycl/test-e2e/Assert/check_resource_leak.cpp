@@ -26,7 +26,7 @@ int main() {
      cgh.parallel_for(sycl::nd_range<1>{R, R}, [=](sycl::nd_item<1> ndi) {
        if (ndi.get_global_linear_id() == 0)
          dg.get() = 42;
-       auto sg = sycl::ext::oneapi::experimental::this_sub_group();
+       auto sg = sycl::ext::oneapi::this_work_item::get_sub_group();
        auto active = sycl::ext::oneapi::group_ballot(sg, 1);
      });
    }).wait();

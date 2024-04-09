@@ -6,13 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/detail/common_info.hpp> // split_string
 #include <sycl/detail/pi.hpp>          // getOsLibraryFuncAddress
 #include <sycl/exception.hpp>          // make_error_code
 
 #include "kernel_compiler_opencl.hpp"
 
 #include "../online_compiler/ocloc_api.h"
+#include "../split_string.hpp"
 
 #include <cstring> // strlen
 #include <numeric> // for std::accumulate
