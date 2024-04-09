@@ -56,6 +56,9 @@ endif()
 if(SYCL_PI_UR_USE_FETCH_CONTENT)
   include(FetchContent)
 
+  # The fetch_adapter_source function can be used to perform a separate content
+  # fetch for a UR adapter, this allows development of adapters to be decoupled
+  # from each other.
   #
   # A separate content fetch will not be performed if:
   # * The adapter name is not present in the SYCL_ENABLE_PLUGINS variable.
