@@ -584,17 +584,20 @@ bool device_impl::has(aspect Aspect) const {
   }
   case aspect::ext_oneapi_cubemap: {
     pi_bool support = PI_FALSE;
-    getPlugin()->call<detail::PiApiKind::piDeviceGetInfo>(
-        MDevice, PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SUPPORT, sizeof(pi_bool),
-        &support, nullptr);
-    return support;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SUPPORT, sizeof(pi_bool),
+            &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
   }
   case aspect::ext_oneapi_cubemap_seamless_filtering: {
     pi_bool support = PI_FALSE;
-    getPlugin()->call<detail::PiApiKind::piDeviceGetInfo>(
-        MDevice, PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT,
-        sizeof(pi_bool), &support, nullptr);
-    return support;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice,
+            PI_EXT_ONEAPI_DEVICE_INFO_CUBEMAP_SEAMLESS_FILTERING_SUPPORT,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
   }
   case aspect::ext_intel_esimd: {
     pi_bool support = PI_FALSE;
