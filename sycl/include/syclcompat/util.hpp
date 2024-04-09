@@ -281,9 +281,7 @@ inline int get_sycl_language_version() {
 
 namespace experimental {
 
-#if defined(__AMDGPU__) || defined(__NVPTX__)
-// FIXME: https://github.com/intel/llvm/pull/12516 adds seq_cst support for the
-// CUDA backend.
+#if defined(__AMDGPU__)
 constexpr sycl::memory_order barrier_memory_order = sycl::memory_order::acq_rel;
 #else
 constexpr sycl::memory_order barrier_memory_order = sycl::memory_order::seq_cst;

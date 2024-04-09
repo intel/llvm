@@ -1129,8 +1129,8 @@ spec, and so should be used with caution.
 namespace syclcompat {
 namespace experimental {
 
-  #if defined(__AMDGPU__) || defined(__NVPTX__)
-// seq_cst currently not working with AMD and Nvidia Backends
+#if defined(__AMDGPU__)
+// seq_cst currently not working for AMD
 constexpr sycl::memory_order barrier_memory_order = sycl::memory_order::acq_rel;
 #else
 constexpr sycl::memory_order barrier_memory_order = sycl::memory_order::seq_cst;
