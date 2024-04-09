@@ -314,6 +314,9 @@ T select_from_sub_group(unsigned int member_mask, sycl::sub_group g, T x,
   return __spirv_GroupNonUniformShuffle(__spv::Scope::Subgroup, x,
                                         logical_remote_id);
 #else
+  // TODO: Check
+  // https://github.com/intel/llvm/pull/12972#issuecomment-2034218881 for the
+  // __NVPTX__ implementation
   throw sycl::exception(sycl::errc::runtime,
                         "[SYCLcompat] Masked version of select_from_sub_group "
                         "only supports SPIR-V backends.");
@@ -359,6 +362,9 @@ T shift_sub_group_left(unsigned int member_mask, sycl::sub_group g, T x,
   }
   return result;
 #else
+  // TODO: Check
+  // https://github.com/intel/llvm/pull/12972#issuecomment-2034218881 for the
+  // __NVPTX__ implementation
   throw sycl::exception(sycl::errc::runtime,
                         "[SYCLcompat] Masked version of shift_sub_group_left "
                         "only supports SPIR-V backends.");
@@ -403,6 +409,9 @@ T shift_sub_group_right(unsigned int member_mask, sycl::sub_group g, T x,
   }
   return result;
 #else
+  // TODO: Check
+  // https://github.com/intel/llvm/pull/12972#issuecomment-2034218881 for the
+  // __NVPTX__ implementation
   throw sycl::exception(sycl::errc::runtime,
                         "Masked version of shift_sub_group_right "
                         "only supports SPIR-V backends.");
@@ -447,6 +456,9 @@ T permute_sub_group_by_xor(unsigned int member_mask, sycl::sub_group g, T x,
   return __spirv_GroupNonUniformShuffle(__spv::Scope::Subgroup, x,
                                         logical_remote_id);
 #else
+  // TODO: Check
+  // https://github.com/intel/llvm/pull/12972#issuecomment-2034218881 for the
+  // __NVPTX__ implementation
   throw sycl::exception(
       sycl::errc::runtime,
       "[SYCLcompat] Masked version of permute_sub_group_by_xor "
