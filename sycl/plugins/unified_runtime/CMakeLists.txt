@@ -95,13 +95,13 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 065bf2dd97b58a4ceeb2fb83eed1df9319e61c59
-  # Merge: b9153547 ec773e6c
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Fri Apr 5 14:26:59 2024 +0100
-  #     Merge pull request #1486 from nrspruit/fix_memfree_report
-  #     [L0] Fix DeviceInfo global mem free to report unsupported given MemCount==0
-  set(UNIFIED_RUNTIME_TAG 065bf2dd97b58a4ceeb2fb83eed1df9319e61c59)
+  # commit a7c202b49aff130f60da0c03916d08bb22b91aa0
+  # Merge: f85e2e96 e548dc1e
+  # Author: Martin Grant <martin.morrisongrant@codeplay.com>
+  # Date:   Mon Apr 8 15:58:32 2024 +0100
+  #    Merge pull request #1493 from martygrant/martin/fixCoverityCTSErrors
+  #    [CTS] Fix Coverity warning: Add a & before auto so object is not copied unnecessarily
+  set(UNIFIED_RUNTIME_TAG a7c202b49aff130f60da0c03916d08bb22b91aa0)
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
