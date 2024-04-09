@@ -29,6 +29,7 @@ RUN echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.rad
     | tee --append /etc/apt/sources.list.d/rocm.list
 RUN echo -e 'Package: *\nPin: release o=repo.radeon.com\nPin-Priority: 600' \
     | tee /etc/apt/preferences.d/rocm-pin-600
+RUN apt update
 # Install the kernel driver
 RUN apt install amdgpu-dkms
 RUN apt update
