@@ -13,7 +13,7 @@
 // _iml_half_internal is internal representation for fp16 type used in intel
 // math device library. The definition here should align with definition in
 // https://github.com/intel/llvm/blob/sycl/libdevice/imf_half.hpp
-#if defined(__SPIR__)
+#if defined(__SPIR__) || defined(__SPIRV__)
 using _iml_half_internal = _Float16;
 #else
 using _iml_half_internal = uint16_t;
