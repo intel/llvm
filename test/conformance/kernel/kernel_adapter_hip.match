@@ -2,6 +2,7 @@
 {{OPT}}urKernelCreateWithNativeHandleTest.InvalidNullHandleContext/AMD_HIP_BACKEND___{{.*}}_
 {{OPT}}urKernelCreateWithNativeHandleTest.InvalidNullHandleProgram/AMD_HIP_BACKEND___{{.*}}_
 {{OPT}}urKernelCreateWithNativeHandleTest.InvalidNullPointerNativeKernel/AMD_HIP_BACKEND___{{.*}}_
+urKernelGetGroupInfoWgSizeTest.CompileWorkGroupSize/AMD_HIP_BACKEND___{{.*}}_
 {{OPT}}urKernelGetInfoTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_KERNEL_INFO_NUM_REGS
 {{OPT}}urKernelGetInfoTest.InvalidSizeSmall/AMD_HIP_BACKEND___{{.*}}___UR_KERNEL_INFO_FUNCTION_NAME
 {{OPT}}urKernelGetInfoTest.InvalidSizeSmall/AMD_HIP_BACKEND___{{.*}}___UR_KERNEL_INFO_NUM_ARGS
